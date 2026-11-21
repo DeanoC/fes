@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -98,7 +99,7 @@ func TestFirmwareRequirementPersistsOnEntry(t *testing.T) {
 		t.Fatalf("create firmware-required entry: %+v %v", entry, err)
 	}
 	got, err := s.CoreEntry(ctx, entry.GameID)
-	if err != nil || got != entry {
+	if err != nil || !reflect.DeepEqual(got, entry) {
 		t.Fatalf("reloaded firmware requirement: %+v %v", got, err)
 	}
 }

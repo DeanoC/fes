@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -44,6 +45,16 @@ type CoreEntry struct {
 	// DiskGeometry overrides the geometry inferred from a hard-disk image's
 	// master boot record. Nil means inferred.
 	DiskGeometry *protocol.DiskGeometry `json:"disk_geometry,omitempty"`
+	// MoreMedia holds disks 2 to N of a disk set, in order, in MediaID's role
+	// and drive. MediaID is disk 1. Empty means one medium at most.
+	MoreMedia []SetMedia `json:"more_media,omitempty"`
+}
+
+// SetMedia is one further disk of a title's set and the basename it was
+// imported under.
+type SetMedia struct {
+	MediaID   string `json:"media_id"`
+	MediaName string `json:"media_name"`
 }
 
 // ValidateCoreEntry checks the persisted identity and media selection without
@@ -127,16 +138,21 @@ func (s *Store) ResolveCoreEntryID(ctx context.Context, title, coreID, packageID
 }
 
 const coreEntrySelect = `SELECT e.game_id, g.title, e.core_id, e.package_id, e.media_role, e.media_id, e.media_name, e.firmware_required,
-		e.disk_cylinders, e.disk_heads, e.disk_sectors
+		e.disk_cylinders, e.disk_heads, e.disk_sectors,
+		coalesce((SELECT json_group_array(json_object('media_id', m.media_id, 'media_name', m.media_name) ORDER BY m.position) FROM core_entry_media_set AS m WHERE m.game_id = e.game_id), '[]')
 		FROM core_entries AS e JOIN games AS g ON g.game_id = e.game_id`
 
 func scanCoreEntry(scan func(...any) error) (CoreEntry, error) {
 	var entry CoreEntry
 	var firmware int
 	var geometry protocol.DiskGeometry
+	var more string
 	err := scan(&entry.GameID, &entry.Title, &entry.CoreID, &entry.PackageID, &entry.MediaRole, &entry.MediaID, &entry.MediaName, &firmware,
-		&geometry.Cylinders, &geometry.Heads, &geometry.SectorsPerTrack)
+		&geometry.Cylinders, &geometry.Heads, &geometry.SectorsPerTrack, &more)
 	entry.FirmwareRequired = firmware != 0
+	if err == nil && more != "[]" {
+		err = json.Unmarshal([]byte(more), &entry.MoreMedia)
+	}
 	if geometry != (protocol.DiskGeometry{}) {
 		entry.DiskGeometry = &geometry
 	}

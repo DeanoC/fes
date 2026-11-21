@@ -7,19 +7,24 @@ level 4 (scripts/fes_i486_oracle.py):
   self-check  each program on the oracle alone (i486_tb): its ending and
               registers must be what the case's row says a 486 gives.
   lockstep    each program on fes_i386_cpu in lockstep with the oracle
-              (lockstep_tb, FES_I386_MODE=i486). The CPU is a 386 until the
-              486 identity is built, so a case either keeps step to its end
+              (lockstep_tb, FES_I386_MODE=i486), at each CPU identity: the
+              386 (I486 = 0), which every package builds, and the 486SX
+              (I486 = 1, #1962 slice 2). A case either keeps step to its end
               or stops at its first mismatch, which must not come before the
-              case's probe, and the list of stops must equal
-              cores/fes-common/sim/i386/i486-expected-stops.txt. A change
-              that builds a 486 feature edits that list in the same commit.
+              case's probe, and each identity's list of stops must equal its
+              file in cores/fes-common/sim/i386: i486-expected-stops.txt for
+              the 386, i486-expected-stops-486sx.txt for the 486SX. A change
+              to what either identity does edits its list in the same commit.
 
-The lockstep runs twice and both runs must give the same list. It runs the
-RTL only: there is no netlist check until the RTL has something to check.
+The lockstep runs twice per identity and both runs must give the same list.
+With --netlist each identity's CPU is first run through the seal's Yosys
+program with its I486 value (scripts/yosys_netlist.py, as
+test_fes_i386_lockstep.py --netlist does), and that netlist is simulated.
 
   python3 scripts/test_fes_i486_lockstep.py --download
   python3 scripts/test_fes_i486_lockstep.py --oracle-only
-  python3 scripts/test_fes_i486_lockstep.py --write-expected
+  python3 scripts/test_fes_i486_lockstep.py --netlist
+  python3 scripts/test_fes_i486_lockstep.py --identity 486sx --write-expected
 
 Writes build/sim/fes-i486-lockstep/report.json. Exit status 1 on any failure.
 """
@@ -40,11 +45,13 @@ from scripts import fes_i486_cases
 from scripts import fes_i486_oracle as oracle
 from scripts import i386_verilator
 from scripts import test_fes_i386_lockstep as level3
+from scripts import yosys_netlist
 
 ROOT = Path(__file__).resolve().parents[1]
 SIM = ROOT / 'cores/fes-common/sim/i386'
 OUTPUT = ROOT / 'build/sim/fes-i486-lockstep'
-EXPECTED = SIM / 'i486-expected-stops.txt'
+# Each identity's I486 parameter and expected-stops list.
+IDENTITIES = {'386': (0, SIM / 'i486-expected-stops.txt'), '486sx': (1, SIM / 'i486-expected-stops-486sx.txt')}
 
 
 class I486Error(RuntimeError):
@@ -97,14 +104,23 @@ def self_check(testbench: Path, cases: list[fes_i486_cases.Case]) -> dict:
     return out
 
 
-def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs: int) -> Path:
-    """lockstep_tb with the RTL and the level-4 oracle, in its own directory."""
-    output = OUTPUT / 'rtl'
+def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs: int, i486: int,
+             yosys: Path | None) -> Path:
+    """lockstep_tb with the level-4 oracle and the CPU at one identity, the RTL
+    (-GI486) or the seal's netlist (hierarchy -chparam), in its own directory."""
+    output = OUTPUT / f"{'netlist' if yosys else 'rtl'}-I486{i486}"
     output.mkdir(parents=True, exist_ok=True)
+    if yosys:
+        design = [yosys_netlist.seal_netlist(yosys, output, ROOT, parameters={'I486': i486})]
+        warnings = [*level3.frontend.NETLIST_WARNINGS]
+    else:
+        design = [level3.RTL / path for path in level3.CPU_RTL]
+        warnings = []
     command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', level3.TOP,
-               '-Wall', '-Wno-UNUSEDSIGNAL', '--Mdir', str(output),
-               '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{level3.DDR_MODEL}', '-LDFLAGS', '-pthread',
-               *(str(level3.RTL / path) for path in level3.CPU_RTL), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
+               '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
+               *([] if yosys else [f'-GI486={i486}']),
+               '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{level3.DDR_MODEL}' + (' -DFES_I386_NETLIST' if yosys else ''),
+               '-LDFLAGS', '-pthread', *map(str, design), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
     log = output / 'build.log'
     with log.open('w') as stream:
         result = subprocess.run(command, cwd=ROOT, env=verilator.environment(), stdout=stream, stderr=subprocess.STDOUT)
@@ -144,26 +160,34 @@ def probe_cases(measured: dict[str, str], cases: list[fes_i486_cases.Case]) -> l
             for label in measured if label not in labels]
 
 
-EXPECTED_HEADER = '''\
+EXPECTED_HEADERS = {'386': '''\
 # What fes_i386_cpu does with each directed 486 case against the level-4
 # oracle: "agree", or its first mismatch as lockstep_tb prints it,
 # "stop @<eip>.<field> <oracle> <rtl>". scripts/test_fes_i486_lockstep.py
 # fails when a run differs from this list; write it with --write-expected.
 # The CPU is a 386, so a stop here is a 486 feature not built yet.
-'''
+''', '486sx': '''\
+# What fes_i386_cpu with the 486SX identity (I486 = 1, #1962 slice 2) does
+# with each directed 486 case against the level-4 oracle: "agree", or its
+# first mismatch as lockstep_tb prints it, "stop @<eip>.<field> <oracle>
+# <rtl>". scripts/test_fes_i486_lockstep.py fails when a run differs from
+# this list; write it with --identity 486sx --write-expected. Each stop here
+# is by design: docs/validation/2026-11-21-i486-s2-isa says why.
+'''}
 
 
-def write_expected(cases: list[fes_i486_cases.Case], measured: dict[str, str]) -> None:
-    EXPECTED.write_text(EXPECTED_HEADER + ''.join(f'{case.label} {measured[case.label]}\n' for case in cases))
+def write_expected(identity: str, cases: list[fes_i486_cases.Case], measured: dict[str, str]) -> None:
+    IDENTITIES[identity][1].write_text(EXPECTED_HEADERS[identity]
+                                       + ''.join(f'{case.label} {measured[case.label]}\n' for case in cases))
 
 
-def read_expected() -> dict[str, str]:
+def read_expected(path: Path) -> dict[str, str]:
     out = {}
-    for line in EXPECTED.read_text().splitlines():
+    for line in path.read_text().splitlines():
         if line and not line.startswith('#'):
             label, verdict = line.split(' ', 1)
             if label in out:
-                raise I486Error(f'{EXPECTED.name} lists {label} twice')
+                raise I486Error(f'{path.name} lists {label} twice')
             out[label] = verdict
     return out
 
@@ -194,8 +218,11 @@ def main() -> int:
     parser.add_argument('--download', action='store_true', help='fetch the pinned Bochs if it is not in build/')
     parser.add_argument('--oracle-only', action='store_true', help='the self-check alone, without Verilator')
     parser.add_argument('--write-expected', action='store_true',
-                        help='write the measured stops to i486-expected-stops.txt instead of checking against it')
+                        help="write each identity's measured stops to its list instead of checking against it")
+    parser.add_argument('--identity', choices=('386', '486sx', 'both'), default='both',
+                        help='the CPU identities to run (default both)')
     i386_verilator.add_argument(parser)
+    yosys_netlist.add_arguments(parser)
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
     cases = fes_i486_cases.cases()
@@ -217,29 +244,39 @@ def main() -> int:
         if not args.oracle_only:
             verilator = i386_verilator.locate(args.cache_root)
             report['verilator'] = verilator.record()
-            testbench = verilate(verilator, linked, args.jobs)
-            first, second = stops(testbench, cases), stops(testbench, cases)
-            if first != second:
-                failures.append('two lockstep runs gave different stops: '
-                                + ', '.join(sorted(label for label in first if first[label] != second[label])))
-            run_cases = cases + probe_cases(first, cases)
-            if args.write_expected:
-                write_expected(run_cases, first)
-            expected = read_expected() if EXPECTED.is_file() else None
-            rows = judge(run_cases, first, expected)
-            report['lockstep'] = {'cases': rows, 'agree': sum(row['rtl'] == 'agree' for row in rows),
-                                  'stop': sum(row['rtl'] != 'agree' for row in rows), 'runs_equal': first == second}
-            failures += [f"lockstep {row['label']}: {row['rtl']} is before the probe at {row['probe']}"
-                         for row in rows if not row['isolated']]
-            if expected is None:
-                failures.append(f'{EXPECTED.name} is absent; write it with --write-expected')
-            else:
-                failures += [f"lockstep {row['label']}: {row['rtl']!r}, expected {expected.get(row['label'])!r}"
-                             for row in rows if not row['as_expected']]
-                failures += [f'expected stop for a case that no longer exists: {label}'
-                             for label in sorted(set(expected) - set(first))]
+            yosys = yosys_netlist.locate(args)
+            report['lockstep'] = {}
+            for identity in (('386', '486sx') if args.identity == 'both' else (args.identity,)):
+                i486, path = IDENTITIES[identity]
+                testbench = verilate(verilator, linked, args.jobs, i486, yosys.path if yosys else None)
+                first, second = stops(testbench, cases), stops(testbench, cases)
+                if first != second:
+                    failures.append(f'{identity}: two lockstep runs gave different stops: '
+                                    + ', '.join(sorted(label for label in first if first[label] != second[label])))
+                run_cases = cases + probe_cases(first, cases)
+                if args.write_expected:
+                    write_expected(identity, run_cases, first)
+                expected = read_expected(path) if path.is_file() else None
+                rows = judge(run_cases, first, expected)
+                record = {'i486': i486, 'expected': path.name, 'cases': rows,
+                          'agree': sum(row['rtl'] == 'agree' for row in rows),
+                          'stop': sum(row['rtl'] != 'agree' for row in rows), 'runs_equal': first == second}
+                if yosys:
+                    record['netlist'] = yosys_netlist.report_record(ROOT, yosys, args.gpu_router,
+                                                                    testbench.parent / f'{level3.TOP}.netlist.v')
+                report['lockstep'][identity] = record
+                failures += [f"{identity}: lockstep {row['label']}: {row['rtl']} is before the probe at {row['probe']}"
+                             for row in rows if not row['isolated']]
+                if expected is None:
+                    failures.append(f'{path.name} is absent; write it with --identity {identity} --write-expected')
+                else:
+                    failures += [f"{identity}: lockstep {row['label']}: {row['rtl']!r}, "
+                                 f"expected {expected.get(row['label'])!r}" for row in rows if not row['as_expected']]
+                    failures += [f'{identity}: expected stop for a case that no longer exists: {label}'
+                                 for label in sorted(set(expected) - set(first))]
         oracle.require_provisioner_unchanged()
-    except (OSError, oracle.OracleError, i386_verilator.VerilatorError, I486Error) as error:
+    except (OSError, oracle.OracleError, i386_verilator.VerilatorError, yosys_netlist.NetlistError,
+            I486Error) as error:
         print('i486 lockstep error:', error, file=sys.stderr)
         return 2
     report['failures'] = failures
@@ -247,9 +284,9 @@ def main() -> int:
     passed = sum(row['pass'] for row in checked['cases'])
     print(f"self-check: {passed} of {len(cases)} cases and {sum(row['pass'] for row in checked['reset'])} of "
           f"{len(checked['reset'])} reset fields as a 486's documents give them on the level-{report['oracle']['cpu_level']} oracle")
-    if 'lockstep' in report:
-        lockstep = report['lockstep']
-        print(f"lockstep: {lockstep['agree']} cases agree, {lockstep['stop']} stop; two runs equal: {lockstep['runs_equal']}")
+    for identity, lockstep in report.get('lockstep', {}).items():
+        print(f"lockstep {identity}{' netlist' if 'netlist' in lockstep else ''}: {lockstep['agree']} cases agree, "
+              f"{lockstep['stop']} stop; two runs equal: {lockstep['runs_equal']}")
     for failure in failures:
         print('FAIL', failure)
     print(f"report: {OUTPUT / 'report.json'}")

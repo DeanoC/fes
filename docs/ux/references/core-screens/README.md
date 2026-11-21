@@ -17,7 +17,8 @@ screen opens a list of the disks made here and the game disks with saved
 changes, with new disk (name and size), copy, rename, go back to the original
 and delete. It uses the launcher's plain list picker, not the shelf screen
 drawn below; Deano accepted the plain list on 19 November 2026. Lock against changes is left out until the ST core has a
-write-protect input (#1960). Disk sets, the saves tag on a drive, and the
+write-protect input (#1960). The saves tag on a drive is built. Disk sets
+are built in the host library only; the screen does not show them yet. The
 PC/XT and 386 PC screens are not built.
 
 These pictures are **proposals, not captures of product code**. They are host
@@ -90,6 +91,9 @@ same everywhere; only the facts differ.
   "Read only" (plain). A computer whose core cannot write disks yet says so in
   a note beside the disk buttons, and its **New disk** button is shown but not
   available. A blank disk is useless on a drive that cannot write.
+  The screen takes both from what the installed package declares, through
+  the host's hardware snapshot, never from a core ID ([hardware
+  rooms](../../../hardware-rooms.md#data-and-ownership)).
 - **For next start, and in the drive now, are different.** A stopped computer
   shows what is saved for the next start. A running one shows what is in the
   drive now, and a change goes into the running machine straight away.
@@ -97,9 +101,13 @@ same everywhere; only the facts differ.
   rename, lock against changes, go back to the original, delete. A disk that is
   in a drive cannot be deleted.
 - **A game can have several disks.** The game row says "2 disks", the drive
-  row says "Disk 1 of 2", and a running game offers "Next disk". No disk set
-  exists today: an entry stores one medium. Sets are designed only for pc386
-  (#1694), so this grouping is new host and library work for every family.
+  row says "Disk 1 of 2", and a running game offers "Next disk". The host
+  library holds the set: disk 1 is the title's own medium and disks 2 to N
+  follow it, each with its file name ([disk
+  sets](../../../../sources/FogCast/docs/core-package-library.md#disk-sets)).
+  A set is made at import from file names such as "(Disk 1 of 2)", or by
+  adding a disk to a game (Deano, 21 November 2026). pc386's media sets
+  (#1694) extend the same model.
 - **New disks need no typing.** The name is generated ("Work disk 2") and can
   be changed with the existing on-screen keyboard. A pad alone can make a disk.
 

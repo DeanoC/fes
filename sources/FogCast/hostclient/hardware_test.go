@@ -48,6 +48,10 @@ func TestHardwareClientDecodesShelfComputers(t *testing.T) {
 	if len(view.Computers) != 1 || view.Computers[0].GameID != "fpga-zx81" || view.Computers[0].CoreID != "fes.zx81" || !view.Computers[0].Ready {
 		t.Fatalf("computers %+v", view.Computers)
 	}
+	// A host from before the package list sends none, and none is made up.
+	if view.Packages != nil {
+		t.Fatalf("an old host's snapshot gained packages %+v", view.Packages)
+	}
 }
 
 func TestHardwareClientRefusesMalformedSession(t *testing.T) {

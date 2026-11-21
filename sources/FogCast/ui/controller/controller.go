@@ -103,7 +103,11 @@ func NewLearnedMapper(d Device, mapping string) (*Mapper, error) {
 			continue
 		}
 		target, source, ok := strings.Cut(field, ":")
-		if _, known := sdlButtons[target]; !ok || !known {
+		_, known := sdlButtons[target]
+		if target == "leftx" || target == "lefty" {
+			known = true
+		}
+		if !ok || !known {
 			return nil, fmt.Errorf("controller: mapping %q: unknown control %q", mapping, target)
 		}
 		e.bindings[target] = source

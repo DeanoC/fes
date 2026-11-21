@@ -500,6 +500,10 @@ func (a *App) runLauncherActionLocked(id string) {
 	switch id {
 	case "setup_continue", "setup_back", "setup_skip", "setup_finish", "setup_resume":
 		a.runSetupActionLocked(id)
+	case "setup_swap_ab":
+		a.setupSwapABLocked()
+	case "controllers":
+		a.openRoomControllersLocked()
 	case "settings":
 		if a.settingsBlockedLocked() {
 			a.status = "Settings are unavailable during play."

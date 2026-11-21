@@ -35,7 +35,8 @@ const remoteCacheUnreferenced = `
  AND NOT EXISTS (SELECT 1 FROM core_entry_roms r WHERE r.media_id = m.media_id)
  AND NOT EXISTS (SELECT 1 FROM core_expansions e WHERE e.media_id = m.media_id)
  AND NOT EXISTS (SELECT 1 FROM core_video_parts p WHERE p.media_id = m.media_id)
- AND NOT EXISTS (SELECT 1 FROM zx81_saves z WHERE z.media_id = m.media_id)`
+ AND NOT EXISTS (SELECT 1 FROM zx81_saves z WHERE z.media_id = m.media_id)
+ AND NOT EXISTS (SELECT 1 FROM core_entry_media_set s WHERE s.media_id = m.media_id)`
 
 // 200 digests fit within the host API's existing 16 KiB JSON body limit.
 const RemoteCachePageLimit = 200

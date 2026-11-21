@@ -1,0 +1,9 @@
+{
+  "files": 215,
+  "admission_seconds": 0.1380460960790515,
+  "checks": 100,
+  "check_seconds": 1.2620040199253708,
+  "average_ms": 12.620040199253708,
+  "programming_subprocesses": 0,
+  "hardware_actions": false
+}

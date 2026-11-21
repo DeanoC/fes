@@ -210,6 +210,15 @@ is on; otherwise true for planned v1 and v2 cores and the nonempty core the
 room was opened for, and false for an empty or other held-back ID), `room.setup` (first-run setup:
 `step` and `steps` for a setup room, 0 outside setup; `unfinished` after Skip
 setup and before Finish; `skipped`, the step ids not done yet),
+`room.pads()` (the kit's attached pads, players first, and a number that
+changes whenever a pad attaches, leaves, presses or releases a button, or has
+its profile saved; each row has `player` (0 for a menu-only pad), `name`,
+`family` (`xbox`, `playstation`, `nintendo` or `generic`), `recognised`,
+`bluetooth`, `swap_ab`, `mapped`, `glyphs` (the pad's prompt glyph for
+`south`, `east`, `west`, `north`, `l`, `r`, `select`, `start` and `dpad`),
+`sends` (what FES reads from each of those buttons, such as `"A"`) and
+`pressed` (a set of the held controls, with `up`, `down`, `left` and `right`
+for the D-pad); empty off the kit),
 `room.release_only` (true unless Show all cores is on), `room.overlay`
 (boolean; true while the room is drawn over a
 running machine on the kit's HDMI session plane with launcher focus, false
@@ -336,9 +345,11 @@ strip shows **Unresolved** and Confirm stays with the room. Republishing
 catalog rows the room already cached.
 
 `kind = "action"` is a launcher-internal operation, not a shell command.
-The allowlisted ids are `settings` and the first-run setup moves
+The allowlisted ids are `settings`, `controllers` (Settings › Controllers,
+whose Back returns to the room), the first-run setup moves
 `setup_continue`, `setup_back`, `setup_skip`, `setup_finish` and
-`setup_resume` (see Built-in rooms):
+`setup_resume`, and the Controllers step's `setup_swap_ab` (Swap A / B on
+the first listed pad, Player 1's when attached) (see Built-in rooms):
 
 ```lua
 destination.set{ kind = "action", action = "settings", label = "Settings" }
@@ -589,7 +600,7 @@ directory separators inside the pack (`require "lib.paths"` →
 | module | purpose |
 | --- | --- |
 | `systems` | Registered model labels and family navigation (`families`, `family_by_core`); package manifests determine admission |
-| `families` | Home and first-run setup's shared computer order and readiness (`list`, `load(on_change)`, `reload`, `settled`, `state`, `tile`, `games`, `details`, `publish`, `on_kit`) plus shared art, colours and header (`grounds`, `hash`, `ground`, `mark`, `chip`, `outline`) |
+| `families` | Home and first-run setup's shared computer order and readiness (`list`, `load(on_change)`, `reload`, `settled`, `state`, `tile`, `games`, `details`, `publish`, `on_kit`) plus shared art, colours and header (`grounds`, `hash`, `ground`, `mark`, `plain_mark`, `chip`, `outline`) |
 | `setup` | First-run setup chrome: `layout`, the header with its step tracker, `buttons`, `footer`, `wrap`, `text` |
 | `widgets.core_screen` | The core screen for one computer family: model, drives and games. Call the returned function; the family comes from `room.initial_core_id` |
 | `widgets.system_workbench` | Shared system workbench; call the returned function with an optional fixed `core_id` |
@@ -613,11 +624,12 @@ packs still use the same authoring, install, rollback and nested-room APIs.
 
 | id | purpose |
 | --- | --- |
-| `example.fes-cores` | **Home** (#1347): a Recently played row (the library's recents, hidden until something has been played) above one tile per computer family: Sinclair ZX81, ZX Spectrum, Atari ST, Commodore 64, PC/XT and PC 386, then every other family when Show all cores is on. Family readiness comes from admitted host computers and the independent kit shelf; library titles supply game counts. Open goes to its core screen (`example.core`) for the ZX81, Spectrum, Atari ST and Commodore 64 families and to its workbench for the others, PC/XT and PC 386 included. The header has Settings; Show all cores adds Library and Systems. Up from the tiles reaches Recently played, then the hero's actions, then the header. Focus persists by family or title. After Skip setup a Get started banner with Finish setup (`setup_resume`) takes the Recently played slot until setup is finished. |
+| `example.fes-cores` | **Home** (#1347): a Recently played row (the library's recents, hidden until something has been played) above one tile per computer family: Sinclair ZX81, ZX Spectrum, Atari ST, Commodore 64, PC/XT and PC 386, then every other family when Show all cores is on. The row shows as many tiles as fit at 140 wide, six at most, so the six default families are all on screen from 1024 wide; more families, or a narrower room, scroll the row. Family readiness comes from admitted host computers and the independent kit shelf; library titles supply game counts. Open goes to its core screen (`example.core`) for the ZX81, Spectrum, Atari ST and Commodore 64 families and to its workbench for the others, PC/XT and PC 386 included. The header has Settings; Show all cores adds Library and Systems. Up from the tiles reaches Recently played, then the hero's actions, then the header. Focus persists by family or title. After Skip setup a Get started banner with Finish setup (`setup_resume`) takes the Recently played slot until setup is finished. |
 | `example.computers` | **Systems**: prepared systems, models and editions. Confirm launches; Set up opens the selected model's setup. Add system stays available with an empty library. |
 | `example.core` | Internal **core screen** for one computer family ([design](../../../docs/ux/references/core-screens/README.md)): the computer and its fixed facts on the left, its drive and its games on the right. Model chooses the variant; a game row starts that exact entry; the drive row and its button choose media for next start, or change it in a running machine. The ZX81 family adds Expansions, which opens `example.hardware`. Opened from Home for the ZX81, Spectrum, Atari ST and Commodore 64 families. |
 | `example.system` | Internal **System setup** template for registered families and their hardware variants, including PC/XT and PC 386. Next system changes family; Variant chooses the model. Entry, edition, media and expansion selections keep exact core/package identities. |
 | `example.welcome` | **First-run setup, step 1** (#1345): what FES is, the six default computer families and what is built in. PC 386 is marked In development. Continue (`setup_continue`) or Skip setup (`setup_skip`). `destination_panel = "none"`. |
+| `example.setup-controllers` | **First-run setup, step 2** (#980): waits for a pad (Continue with keyboard), then lists each pad with its player, connection and layout, lights the shown pad's held buttons, and offers Continue, Swap A / B (`setup_swap_ab`) and Controller settings (`controllers`). Bluetooth pads pair by holding their pairing button; the step says so. |
 | `example.setup-ready` | **First-run setup, last step**: each family's chip, games and firmware need; Finish (`setup_finish`) or Back (`setup_back`, also B). |
 | `example.hardware` | Internal **Sinclair setup** template with the rear-connector shelf and cassette controls for ZX81, ZX80, TS1000 and TS1500. |
 | `example.coleco-arcade` | Internal Coleco title browser opened from Home. It lists installed `fes.coleco` entries matching the arcade titles and skips titles absent from the library. |
