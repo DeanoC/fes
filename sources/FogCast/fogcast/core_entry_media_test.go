@@ -3,6 +3,7 @@ package fogcast
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -299,5 +300,56 @@ func TestSavedZx81BlobRoleUsesTheCassetteUnit(t *testing.T) {
 		if err := opened.Close(); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// pcxtLaunchBody launches a PC/XT title and returns what the host sent the
+// kit. The fake kit refuses the load, so nothing runs.
+func pcxtLaunchBody(t *testing.T, boot []byte) ([]byte, catalog.CoreEntry) {
+	t.Helper()
+	s, client, entry, _ := newCoreEntryLaunchFixture(t, pcxtShelfPackage(t, true), "PC/XT")
+	if boot != nil {
+		root := t.TempDir()
+		addBundledDisk(t, root, pcxtCoreID, boot)
+		s.LoadBundledFirmware(context.Background(), root)
+	}
+	var body []byte
+	client.coreLoad = func(_ context.Context, _ int64, r io.Reader) (protocol.Status, error) {
+		body, _ = io.ReadAll(r)
+		return protocol.Status{}, errors.New("test kit loads nothing")
+	}
+	_, _ = s.Launch(context.Background(), entry.GameID, nil)
+	if body == nil {
+		t.Fatal("nothing was sent to the kit")
+	}
+	return body, entry
+}
+
+func TestPcxtTitleWithoutADiskStartsFromTheBundledFreeDOSDisk(t *testing.T) {
+	boot := freeDOSLike(t)
+	body, entry := pcxtLaunchBody(t, boot)
+	staged, err := corepackage.StagePcxtInitialInput(context.Background(), t.TempDir(), body)
+	if err != nil {
+		t.Fatalf("the launch carried no initial disk: %v", err)
+	}
+	defer staged.Cleanup()
+	disk, err := os.ReadFile(staged.InitialMedia.Path)
+	if err != nil || !bytes.Equal(disk, boot) {
+		t.Fatalf("initial disk is not the bundled one: %v", err)
+	}
+	// What the computer writes is kept for this title against the bundled image.
+	if staged.InitialMedia.GameID != entry.GameID || staged.InitialMedia.BaseMediaID != fmt.Sprintf("%x", sha256.Sum256(boot)) {
+		t.Fatalf("binding %+v", staged.InitialMedia)
+	}
+	// Nothing about the title was saved: the default stays derived.
+	if entry.MediaID != "" {
+		t.Fatal("fixture title has a disk")
+	}
+}
+
+func TestPcxtTitleWithoutADiskOrABundledOneStartsEmpty(t *testing.T) {
+	body, _ := pcxtLaunchBody(t, nil)
+	if _, err := corepackage.StagePcxtInitialInput(context.Background(), t.TempDir(), body); err == nil {
+		t.Fatal("a launch with no disk to give carried an initial disk")
 	}
 }

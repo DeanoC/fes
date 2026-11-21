@@ -13,10 +13,43 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/libraryuser"
+	"github.com/DeanoC/FogCast/pcdisk"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const atariStCoreID = "fes.atari-st"
+const (
+	atariStCoreID = "fes.atari-st"
+	pcxtCoreID    = "fes.pcxt-dos"
+)
+
+// What a new shelf disk holds.
+const (
+	ShelfContentsBlank   = "blank"
+	ShelfContentsFreeDOS = "freedos"
+)
+
+// shelfFamily is one computer's shelf: one per family, so a disk is never
+// offered to another computer (core screens decision 3). unit is the drive
+// its disks go in, which keys what a kit saves for them.
+type shelfFamily struct {
+	coreID string
+	unit   uint8
+	// image makes a new disk for an installed package of this core.
+	image func(s *Service, ctx context.Context, descriptor corepackage.Descriptor, req ShelfNewDisk) ([]byte, error)
+}
+
+var shelfFamilies = map[string]shelfFamily{
+	atariStCoreID: {coreID: atariStCoreID, unit: protocol.AtariStFloppyUnit, image: newAtariStShelfImage},
+	pcxtCoreID:    {coreID: pcxtCoreID, unit: protocol.PcxtFloppyUnit, image: newPcxtShelfImage},
+}
+
+func shelfFamilyFor(coreID string) (shelfFamily, error) {
+	family, ok := shelfFamilies[coreID]
+	if !ok {
+		return shelfFamily{}, errShelfFamily
+	}
+	return family, nil
+}
 
 // What the kit holds for a shelf disk beside its imported image.
 const (
@@ -26,12 +59,12 @@ const (
 	ShelfKeptUnknown = "unknown"
 )
 
-// AtariStShelfDisk is one library disk on the Atari ST shelf. Made is true
+// ShelfDisk is one library disk on a family's shelf. Made is true
 // for a disk a person made here, a new blank disk or a copy. KeptRevision
 // names what the kit has saved for the disk, which a later change must
 // still find. A kit saves a disk at Stop whether or not it was written to,
 // so a disk can have a KeptRevision and Kept "none".
-type AtariStShelfDisk struct {
+type ShelfDisk struct {
 	GameID       string `json:"game_id"`
 	Title        string `json:"title"`
 	PackageID    string `json:"package_id"`
@@ -43,21 +76,24 @@ type AtariStShelfDisk struct {
 	InDrive      bool   `json:"in_drive"`
 }
 
-// AtariStShelf is the shelf as one kit sees it. Saved changes live on a
+// DiskShelf is the shelf as one kit sees it. Saved changes live on a
 // kit, so KeptKnown is false when that kit could not be asked; the shelf
 // then lists only the disks made here, each with Kept "unknown".
-type AtariStShelf struct {
-	Target    string             `json:"target"`
-	TargetID  string             `json:"target_id"`
-	KeptKnown bool               `json:"kept_known"`
-	Disks     []AtariStShelfDisk `json:"disks"`
+type DiskShelf struct {
+	Target    string      `json:"target"`
+	TargetID  string      `json:"target_id"`
+	KeptKnown bool        `json:"kept_known"`
+	Disks     []ShelfDisk `json:"disks"`
 }
 
-// AtariStShelfNew asks for a blank disk on the shelf. Zero geometry is the
-// 720 KiB disk. Title is the disk's name in the library.
-type AtariStShelfNew struct {
+// ShelfNewDisk asks for a new disk on a shelf. Title is the disk's name in
+// the library. An ST disk is blank, and zero geometry is the 720 KiB disk.
+// A PC/XT disk is 360 KiB and takes no geometry; Contents is blank (the
+// default) or freedos, a copy of the bundled FreeDOS boot disk.
+type ShelfNewDisk struct {
 	Title     string
 	PackageID string
+	Contents  string
 	Tracks    int
 	Heads     int
 	Sectors   int
@@ -83,7 +119,10 @@ type shelfKit struct {
 }
 
 var (
-	errShelfDisk       = &protocol.APIError{Code: protocol.CodeBadRequest, Message: "that is not an Atari ST shelf disk", Phase: "request"}
+	errShelfDisk       = &protocol.APIError{Code: protocol.CodeBadRequest, Message: "that is not a disk on this shelf", Phase: "request"}
+	errShelfFamily     = &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "that computer has no disk shelf", Phase: "request"}
+	errShelfContents   = &protocol.APIError{Code: protocol.CodeBadRequest, Message: "that computer cannot make a disk like that", Phase: "request"}
+	errShelfNoFreeDOS  = &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "this host has no FreeDOS disk to copy", Phase: "admission"}
 	errShelfName       = &protocol.APIError{Code: protocol.CodeBadRequest, Message: "a game or disk already has that name", Phase: "request"}
 	errShelfKitRunning = &protocol.APIError{Code: protocol.CodeBusy, Message: "stop the running computer before discarding saved changes", Phase: "admission"}
 	errShelfInDrive    = &protocol.APIError{Code: protocol.CodeBusy, Message: "the disk is in the drive; stop the computer first", Phase: "admission"}
@@ -122,8 +161,8 @@ func (s *Service) shelfKit(ctx context.Context) (shelfKit, error) {
 	return shelfKit{client: client, records: records, target: target, targetID: health.TargetID}, nil
 }
 
-func shelfIdentity(entry catalog.CoreEntry) protocol.MediaRecordIdentity {
-	return protocol.MediaRecordIdentity{CoreID: entry.CoreID, GameID: entry.GameID, BaseMediaID: entry.MediaID, Unit: protocol.AtariStFloppyUnit}
+func (f shelfFamily) identity(entry catalog.CoreEntry) protocol.MediaRecordIdentity {
+	return protocol.MediaRecordIdentity{CoreID: entry.CoreID, GameID: entry.GameID, BaseMediaID: entry.MediaID, Unit: f.unit}
 }
 
 func shelfKept(record protocol.MediaRecord) (string, string) {
@@ -140,8 +179,8 @@ func shelfKept(record protocol.MediaRecord) (string, string) {
 	return ShelfKeptNone, ""
 }
 
-func isAtariStDisk(entry catalog.CoreEntry) bool {
-	return entry.CoreID == atariStCoreID && entry.MediaRole == protocol.DiskRole && entry.MediaID != ""
+func (f shelfFamily) holds(entry catalog.CoreEntry) bool {
+	return entry.CoreID == f.coreID && entry.MediaRole == protocol.DiskRole && entry.MediaID != ""
 }
 
 // hostPlaysGame reports a game this host has launched or is launching.
@@ -177,11 +216,15 @@ func statusHoldsDisk(status protocol.Status, gameID string) bool {
 	return false
 }
 
-// AtariStShelf lists the disks made here and the game disks with saved
-// changes. It changes nothing. The kit is asked under lifecycle admission,
+// DiskShelf lists one family's disks made here and its game disks with
+// saved changes. It changes nothing. The kit is asked under lifecycle admission,
 // like every other target read; when a launch or stop holds admission
 // beyond the request timeout, the shelf answers with saved changes unknown.
-func (s *Service) AtariStShelf(parent context.Context) (AtariStShelf, error) {
+func (s *Service) DiskShelf(parent context.Context, coreID string) (DiskShelf, error) {
+	family, err := shelfFamilyFor(coreID)
+	if err != nil {
+		return DiskShelf{}, err
+	}
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
 	wait, stopWaiting := serviceTimeout(ctx, max(s.requestTimeout, time.Second))
@@ -192,30 +235,30 @@ func (s *Service) AtariStShelf(parent context.Context) (AtariStShelf, error) {
 	}
 	marks, ok := s.catalog.(shelfDiskCatalog)
 	if !ok {
-		return AtariStShelf{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+		return DiskShelf{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
 	}
 	all, err := s.CoreEntries(ctx)
 	if err != nil {
-		return AtariStShelf{}, err
+		return DiskShelf{}, err
 	}
-	made, err := marks.ShelfDisks(ctx, atariStCoreID)
+	made, err := marks.ShelfDisks(ctx, family.coreID)
 	if err != nil {
-		return AtariStShelf{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+		return DiskShelf{}, canonicalError(protocol.CodeInternal, safeContextError(err))
 	}
 	var entries []catalog.CoreEntry
 	for _, entry := range all {
-		if isAtariStDisk(entry) {
+		if family.holds(entry) {
 			entries = append(entries, entry)
 		}
 	}
-	shelf := AtariStShelf{Disks: []AtariStShelfDisk{}}
+	shelf := DiskShelf{Disks: []ShelfDisk{}}
 	records := map[string]protocol.MediaRecord{}
 	var running protocol.Status
 	if kit, err := s.shelfKit(ctx); admitErr == nil && err == nil {
 		shelf.Target, shelf.TargetID, shelf.KeptKnown = kit.target, kit.targetID, true
 		var ids []protocol.MediaRecordIdentity
 		for _, entry := range entries {
-			if id := shelfIdentity(entry); id.Valid() {
+			if id := family.identity(entry); id.Valid() {
 				ids = append(ids, id)
 			}
 		}
@@ -235,7 +278,7 @@ func (s *Service) AtariStShelf(parent context.Context) (AtariStShelf, error) {
 	}
 	for _, entry := range entries {
 		_, isMade := made[entry.GameID]
-		disk := AtariStShelfDisk{
+		disk := ShelfDisk{
 			GameID: entry.GameID, Title: entry.Title, PackageID: entry.PackageID, MediaID: entry.MediaID,
 			Made: isMade, Kept: ShelfKeptUnknown,
 			InDrive: s.hostPlaysGame(entry.GameID) || statusHoldsDisk(running, entry.GameID),
@@ -248,7 +291,7 @@ func (s *Service) AtariStShelf(parent context.Context) (AtariStShelf, error) {
 		}
 		media, err := s.CoreMedia(ctx, entry.MediaID)
 		if err != nil {
-			return AtariStShelf{}, err
+			return DiskShelf{}, err
 		}
 		disk.Size = media.Size
 		shelf.Disks = append(shelf.Disks, disk)
@@ -263,8 +306,8 @@ func (s *Service) AtariStShelf(parent context.Context) (AtariStShelf, error) {
 	return shelf, nil
 }
 
-// shelfVolumeLabel turns a disk's name into a GEMDOS volume label: the
-// characters GEMDOS can store, at most eleven of them.
+// shelfVolumeLabel turns a disk's name into a FAT volume label, for GEMDOS
+// or DOS: the characters both can store, at most eleven of them.
 func shelfVolumeLabel(title string) string {
 	var label strings.Builder
 	for _, r := range strings.ToUpper(strings.TrimSpace(title)) {
@@ -298,7 +341,7 @@ func atariStBlankSizeError(descriptor corepackage.Descriptor, size int64) error 
 
 // shelfNameFree refuses a name another title of this core already has, so
 // the caller gets a plain reason instead of a selection conflict.
-func (s *Service) shelfNameFree(ctx context.Context, title string) error {
+func (s *Service) shelfNameFree(ctx context.Context, coreID, title string) error {
 	title = strings.TrimSpace(title)
 	if title == "" || len(title) > 120 {
 		return canonicalError(protocol.CodeBadRequest, nil)
@@ -308,7 +351,7 @@ func (s *Service) shelfNameFree(ctx context.Context, title string) error {
 		return err
 	}
 	for _, entry := range entries {
-		if entry.CoreID == atariStCoreID && entry.Title == title {
+		if entry.CoreID == coreID && entry.Title == title {
 			return errShelfName
 		}
 	}
@@ -357,55 +400,106 @@ func (s *Service) dropNewShelfDiskLocked(ctx context.Context, gameID string) err
 	})
 }
 
-// NewAtariStShelfDisk formats a blank disk and puts it on the shelf under
-// its name. Each disk gets its own serial number, so it is its own library
+// NewShelfDisk makes a new disk and puts it on coreID's shelf under its
+// name. Each disk gets its own serial number, so it is its own library
 // medium and never meets another disk's saved changes.
-func (s *Service) NewAtariStShelfDisk(parent context.Context, req AtariStShelfNew) (AtariStShelfDisk, error) {
-	if protocol.ValidateDigest(req.PackageID) != nil {
-		return AtariStShelfDisk{}, canonicalError(protocol.CodeBadRequest, nil)
-	}
-	var serial [3]byte
-	if _, err := rand.Read(serial[:]); err != nil {
-		return AtariStShelfDisk{}, canonicalError(protocol.CodeInternal, err)
-	}
-	disk, err := atarist.FormatSerial(shelfVolumeLabel(req.Title), req.Tracks, req.Heads, req.Sectors, serial)
+func (s *Service) NewShelfDisk(parent context.Context, coreID string, req ShelfNewDisk) (ShelfDisk, error) {
+	family, err := shelfFamilyFor(coreID)
 	if err != nil {
-		return AtariStShelfDisk{}, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "blank ST disk geometry is invalid", Phase: "request"}
+		return ShelfDisk{}, err
+	}
+	if protocol.ValidateDigest(req.PackageID) != nil {
+		return ShelfDisk{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	if req.Contents != "" && req.Contents != ShelfContentsBlank && req.Contents != ShelfContentsFreeDOS {
+		return ShelfDisk{}, errShelfContents
 	}
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
 	inspection, err := s.installedCoreInspection(ctx, req.PackageID)
 	if err != nil {
-		return AtariStShelfDisk{}, err
+		return ShelfDisk{}, err
 	}
-	if err := atariStBlankSizeError(inspection.Descriptor, int64(len(disk.Bytes))); err != nil {
-		return AtariStShelfDisk{}, err
+	if inspection.Descriptor.Core.ID != family.coreID {
+		return ShelfDisk{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	image, err := family.image(s, ctx, inspection.Descriptor, req)
+	if err != nil {
+		return ShelfDisk{}, err
 	}
 	release, err := s.acquireLifecycle(ctx)
 	if err != nil {
-		return AtariStShelfDisk{}, err
+		return ShelfDisk{}, err
 	}
 	defer release()
-	if err := s.shelfNameFree(ctx, req.Title); err != nil {
-		return AtariStShelfDisk{}, err
+	if err := s.shelfNameFree(ctx, family.coreID, req.Title); err != nil {
+		return ShelfDisk{}, err
 	}
-	media, _, err := s.ImportCoreMedia(ctx, int64(len(disk.Bytes)), bytes.NewReader(disk.Bytes))
+	media, _, err := s.ImportCoreMedia(ctx, int64(len(image)), bytes.NewReader(image))
 	if err != nil {
-		return AtariStShelfDisk{}, err
+		return ShelfDisk{}, err
 	}
 	entry, err := s.addShelfDiskLocked(ctx, req.Title, req.PackageID, media.MediaID)
 	if err != nil {
-		return AtariStShelfDisk{}, err
+		return ShelfDisk{}, err
 	}
-	return AtariStShelfDisk{
+	return ShelfDisk{
 		GameID: entry.GameID, Title: entry.Title, PackageID: entry.PackageID, MediaID: entry.MediaID,
 		Size: media.Size, Made: true, Kept: ShelfKeptNone,
 	}, nil
 }
 
+// newAtariStShelfImage formats a blank ST disk at the requested geometry.
+func newAtariStShelfImage(_ *Service, _ context.Context, descriptor corepackage.Descriptor, req ShelfNewDisk) ([]byte, error) {
+	if req.Contents == ShelfContentsFreeDOS {
+		return nil, errShelfContents
+	}
+	var serial [3]byte
+	if _, err := rand.Read(serial[:]); err != nil {
+		return nil, canonicalError(protocol.CodeInternal, err)
+	}
+	disk, err := atarist.FormatSerial(shelfVolumeLabel(req.Title), req.Tracks, req.Heads, req.Sectors, serial)
+	if err != nil {
+		return nil, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "blank ST disk geometry is invalid", Phase: "request"}
+	}
+	if err := atariStBlankSizeError(descriptor, int64(len(disk.Bytes))); err != nil {
+		return nil, err
+	}
+	return disk.Bytes, nil
+}
+
+// newPcxtShelfImage makes a 360 KiB PC/XT disk: blank, or a copy of the
+// bundled FreeDOS boot disk under the new disk's own label and serial.
+func newPcxtShelfImage(s *Service, ctx context.Context, descriptor corepackage.Descriptor, req ShelfNewDisk) ([]byte, error) {
+	if req.Tracks != 0 || req.Heads != 0 || req.Sectors != 0 {
+		return nil, errShelfContents
+	}
+	if !pcxtWritableFloppyPackage(descriptor) {
+		return nil, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	var serial [4]byte
+	if _, err := rand.Read(serial[:]); err != nil {
+		return nil, canonicalError(protocol.CodeInternal, err)
+	}
+	label := shelfVolumeLabel(req.Title)
+	if req.Contents != ShelfContentsFreeDOS {
+		return pcdisk.Blank(label, serial)
+	}
+	boot, err := s.bundledDiskImage(ctx, pcxtCoreID)
+	if err != nil {
+		return nil, err
+	}
+	image, err := pcdisk.Named(boot, label, serial)
+	if err != nil {
+		return nil, errShelfNoFreeDOS
+	}
+	return image, nil
+}
+
 // shelfDisk is one disk and what its kit holds for it, read under
 // lifecycle admission so no launch of this host moves it meanwhile.
 type shelfDisk struct {
+	family shelfFamily
 	entry  catalog.CoreEntry
 	made   bool
 	kit    shelfKit
@@ -415,7 +509,7 @@ type shelfDisk struct {
 
 // Caller holds lifecycle admission. A disk in the drive is refused: its
 // saved record is older than what the running computer holds.
-func (s *Service) shelfDiskLocked(ctx context.Context, gameID string) (shelfDisk, error) {
+func (s *Service) shelfDiskLocked(ctx context.Context, family shelfFamily, gameID string) (shelfDisk, error) {
 	marks, ok := s.catalog.(shelfDiskCatalog)
 	if !ok {
 		return shelfDisk{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
@@ -424,11 +518,11 @@ func (s *Service) shelfDiskLocked(ctx context.Context, gameID string) (shelfDisk
 	if err != nil {
 		return shelfDisk{}, err
 	}
-	id := shelfIdentity(entry)
-	if !isAtariStDisk(entry) || !id.Valid() {
+	id := family.identity(entry)
+	if !family.holds(entry) || !id.Valid() {
 		return shelfDisk{}, errShelfDisk
 	}
-	made, err := marks.ShelfDisks(ctx, atariStCoreID)
+	made, err := marks.ShelfDisks(ctx, family.coreID)
 	if err != nil {
 		return shelfDisk{}, canonicalError(protocol.CodeInternal, safeContextError(err))
 	}
@@ -448,12 +542,12 @@ func (s *Service) shelfDiskLocked(ctx context.Context, gameID string) (shelfDisk
 		return shelfDisk{}, canonicalCoreDataError(err)
 	}
 	_, isMade := made[gameID]
-	return shelfDisk{entry: entry, made: isMade, kit: kit, status: status, record: record}, nil
+	return shelfDisk{family: family, entry: entry, made: isMade, kit: kit, status: status, record: record}, nil
 }
 
-func (d shelfDisk) view(size int64) AtariStShelfDisk {
+func (d shelfDisk) view(size int64) ShelfDisk {
 	kept, revision := shelfKept(d.record)
-	return AtariStShelfDisk{
+	return ShelfDisk{
 		GameID: d.entry.GameID, Title: d.entry.Title, PackageID: d.entry.PackageID, MediaID: d.entry.MediaID,
 		Size: size, Made: d.made, Kept: kept, KeptRevision: revision,
 	}
@@ -471,24 +565,24 @@ func (d shelfDisk) revisionMatches(expected string) bool {
 // Caller holds lifecycle admission. The copy is a new library disk whose
 // imported image is the source as it stands: its saved changes when it has
 // any, otherwise the image it was made from.
-func (s *Service) copyShelfDiskLocked(ctx context.Context, source shelfDisk, title string) (AtariStShelfDisk, error) {
-	if err := s.shelfNameFree(ctx, title); err != nil {
-		return AtariStShelfDisk{}, err
+func (s *Service) copyShelfDiskLocked(ctx context.Context, source shelfDisk, title string) (ShelfDisk, error) {
+	if err := s.shelfNameFree(ctx, source.family.coreID, title); err != nil {
+		return ShelfDisk{}, err
 	}
 	mediaID := source.entry.MediaID
 	switch {
 	case source.record.State == protocol.MediaRecordCorrupt:
-		return AtariStShelfDisk{}, errShelfDamaged
+		return ShelfDisk{}, errShelfDamaged
 	case source.record.State == protocol.MediaRecordPresent && source.record.Changed:
 		image, err := source.kit.records.ExportMediaRecord(ctx, protocol.MediaRecordDiscard{
-			MediaRecordIdentity: shelfIdentity(source.entry), ExpectedRevision: source.record.Revision,
+			MediaRecordIdentity: source.family.identity(source.entry), ExpectedRevision: source.record.Revision,
 		})
 		if err != nil {
-			return AtariStShelfDisk{}, canonicalCoreDataError(err)
+			return ShelfDisk{}, canonicalCoreDataError(err)
 		}
 		media, _, err := s.ImportCoreMedia(ctx, int64(len(image)), bytes.NewReader(image))
 		if err != nil {
-			return AtariStShelfDisk{}, err
+			return ShelfDisk{}, err
 		}
 		mediaID = media.MediaID
 	}
@@ -497,30 +591,30 @@ func (s *Service) copyShelfDiskLocked(ctx context.Context, source shelfDisk, tit
 	// clearing what an earlier disk of that name left behind.
 	newID, err := s.localCoreEntryID(ctx, title, source.entry.CoreID, source.entry.PackageID)
 	if err != nil {
-		return AtariStShelfDisk{}, mapCoreEntryError(err)
+		return ShelfDisk{}, mapCoreEntryError(err)
 	}
-	stale := protocol.MediaRecordIdentity{CoreID: source.entry.CoreID, GameID: newID, BaseMediaID: mediaID, Unit: protocol.AtariStFloppyUnit}
+	stale := protocol.MediaRecordIdentity{CoreID: source.entry.CoreID, GameID: newID, BaseMediaID: mediaID, Unit: source.family.unit}
 	if !stale.Valid() {
-		return AtariStShelfDisk{}, canonicalError(protocol.CodeBadRequest, nil)
+		return ShelfDisk{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	left, err := source.kit.records.InspectMediaRecord(ctx, stale)
 	if err != nil {
-		return AtariStShelfDisk{}, canonicalCoreDataError(err)
+		return ShelfDisk{}, canonicalCoreDataError(err)
 	}
 	if left.State != protocol.MediaRecordAbsent {
 		if _, err := source.kit.records.DiscardMediaRecord(ctx, protocol.MediaRecordDiscard{MediaRecordIdentity: stale, ExpectedRevision: left.Revision}); err != nil {
-			return AtariStShelfDisk{}, canonicalCoreDataError(err)
+			return ShelfDisk{}, canonicalCoreDataError(err)
 		}
 	}
 	entry, err := s.addShelfDiskLocked(ctx, title, source.entry.PackageID, mediaID)
 	if err != nil {
-		return AtariStShelfDisk{}, err
+		return ShelfDisk{}, err
 	}
 	media, err := s.CoreMedia(ctx, entry.MediaID)
 	if err != nil {
-		return AtariStShelfDisk{}, err
+		return ShelfDisk{}, err
 	}
-	return AtariStShelfDisk{
+	return ShelfDisk{
 		GameID: entry.GameID, Title: entry.Title, PackageID: entry.PackageID, MediaID: entry.MediaID,
 		Size: media.Size, Made: true, Kept: ShelfKeptNone,
 	}, nil
@@ -552,7 +646,7 @@ func (s *Service) deleteShelfDiskLocked(ctx context.Context, disk shelfDisk) (bo
 	discarded := false
 	if disk.record.State != protocol.MediaRecordAbsent {
 		if _, err := disk.kit.records.DiscardMediaRecord(ctx, protocol.MediaRecordDiscard{
-			MediaRecordIdentity: shelfIdentity(disk.entry), ExpectedRevision: disk.record.Revision,
+			MediaRecordIdentity: disk.family.identity(disk.entry), ExpectedRevision: disk.record.Revision,
 		}); err != nil {
 			return false, canonicalCoreDataError(err)
 		}
@@ -561,121 +655,125 @@ func (s *Service) deleteShelfDiskLocked(ctx context.Context, disk shelfDisk) (bo
 	return discarded, s.removeCoreEntryLocked(ctx, store, disk.entry.GameID)
 }
 
-func (s *Service) withShelfDisk(parent context.Context, gameID string, act func(context.Context, shelfDisk) (AtariStShelfDisk, error)) (AtariStShelfDisk, error) {
+func (s *Service) withShelfDisk(parent context.Context, coreID, gameID string, act func(context.Context, shelfDisk) (ShelfDisk, error)) (ShelfDisk, error) {
+	family, err := shelfFamilyFor(coreID)
+	if err != nil {
+		return ShelfDisk{}, err
+	}
 	if protocol.ValidateGameID(gameID) != nil {
-		return AtariStShelfDisk{}, canonicalError(protocol.CodeBadRequest, nil)
+		return ShelfDisk{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
 	release, err := s.acquireLifecycle(ctx)
 	if err != nil {
-		return AtariStShelfDisk{}, err
+		return ShelfDisk{}, err
 	}
 	defer release()
-	disk, err := s.shelfDiskLocked(ctx, gameID)
+	disk, err := s.shelfDiskLocked(ctx, family, gameID)
 	if err != nil {
-		return AtariStShelfDisk{}, err
+		return ShelfDisk{}, err
 	}
 	return act(ctx, disk)
 }
 
-// CopyAtariStShelfDisk makes a new shelf disk from another disk as it
+// CopyShelfDisk makes a new shelf disk from another disk as it
 // stands. The source is unchanged.
-func (s *Service) CopyAtariStShelfDisk(parent context.Context, gameID, title string) (AtariStShelfDisk, error) {
-	return s.withShelfDisk(parent, gameID, func(ctx context.Context, disk shelfDisk) (AtariStShelfDisk, error) {
+func (s *Service) CopyShelfDisk(parent context.Context, coreID, gameID, title string) (ShelfDisk, error) {
+	return s.withShelfDisk(parent, coreID, gameID, func(ctx context.Context, disk shelfDisk) (ShelfDisk, error) {
 		return s.copyShelfDiskLocked(ctx, disk, title)
 	})
 }
 
-// RevertAtariStShelfDisk discards a disk's saved changes, so it is again
+// RevertShelfDisk discards a disk's saved changes, so it is again
 // the image it was imported or made as. expectedRevision is the
 // KeptRevision the caller was shown.
-func (s *Service) RevertAtariStShelfDisk(parent context.Context, gameID, expectedRevision string) (AtariStShelfDisk, error) {
-	return s.withShelfDisk(parent, gameID, func(ctx context.Context, disk shelfDisk) (AtariStShelfDisk, error) {
+func (s *Service) RevertShelfDisk(parent context.Context, coreID, gameID, expectedRevision string) (ShelfDisk, error) {
+	return s.withShelfDisk(parent, coreID, gameID, func(ctx context.Context, disk shelfDisk) (ShelfDisk, error) {
 		if disk.record.State == protocol.MediaRecordAbsent {
-			return AtariStShelfDisk{}, errShelfNoChanges
+			return ShelfDisk{}, errShelfNoChanges
 		}
 		if !disk.revisionMatches(expectedRevision) {
-			return AtariStShelfDisk{}, errShelfChanged
+			return ShelfDisk{}, errShelfChanged
 		}
 		if disk.status.State != protocol.StateIdle {
-			return AtariStShelfDisk{}, errShelfKitRunning
+			return ShelfDisk{}, errShelfKitRunning
 		}
 		record, err := disk.kit.records.DiscardMediaRecord(ctx, protocol.MediaRecordDiscard{
-			MediaRecordIdentity: shelfIdentity(disk.entry), ExpectedRevision: expectedRevision,
+			MediaRecordIdentity: disk.family.identity(disk.entry), ExpectedRevision: expectedRevision,
 		})
 		if err != nil {
-			return AtariStShelfDisk{}, canonicalCoreDataError(err)
+			return ShelfDisk{}, canonicalCoreDataError(err)
 		}
 		disk.record = record
 		media, err := s.CoreMedia(ctx, disk.entry.MediaID)
 		if err != nil {
-			return AtariStShelfDisk{}, err
+			return ShelfDisk{}, err
 		}
 		return disk.view(media.Size), nil
 	})
 }
 
-// RenameAtariStShelfDisk gives a disk made here a new name. A library
+// RenameShelfDisk gives a disk made here a new name. A library
 // title's identity follows its name, and the kit keeps saved changes under
 // that identity, so the disk is copied under the new name and the old one
 // deleted. If deletion fails before saved changes are cleared, the copy is
 // taken back. If they were cleared first, the copy stays so nothing is lost.
-func (s *Service) RenameAtariStShelfDisk(parent context.Context, gameID, expectedRevision, title string) (AtariStShelfDisk, error) {
-	return s.withShelfDisk(parent, gameID, func(ctx context.Context, disk shelfDisk) (AtariStShelfDisk, error) {
+func (s *Service) RenameShelfDisk(parent context.Context, coreID, gameID, expectedRevision, title string) (ShelfDisk, error) {
+	return s.withShelfDisk(parent, coreID, gameID, func(ctx context.Context, disk shelfDisk) (ShelfDisk, error) {
 		if !disk.made {
-			return AtariStShelfDisk{}, errShelfNotMade
+			return ShelfDisk{}, errShelfNotMade
 		}
 		if !disk.revisionMatches(expectedRevision) {
-			return AtariStShelfDisk{}, errShelfChanged
+			return ShelfDisk{}, errShelfChanged
 		}
 		if strings.TrimSpace(title) == disk.entry.Title {
 			media, err := s.CoreMedia(ctx, disk.entry.MediaID)
 			if err != nil {
-				return AtariStShelfDisk{}, err
+				return ShelfDisk{}, err
 			}
 			return disk.view(media.Size), nil
 		}
 		// Nothing is copied unless the old disk can then be deleted.
 		if err := s.deletableShelfDisk(ctx, disk); err != nil {
-			return AtariStShelfDisk{}, err
+			return ShelfDisk{}, err
 		}
 		renamed, err := s.copyShelfDiskLocked(ctx, disk, title)
 		if err != nil {
-			return AtariStShelfDisk{}, err
+			return ShelfDisk{}, err
 		}
 		discarded, err := s.deleteShelfDiskLocked(ctx, disk)
 		if err != nil {
 			// If the saved image was cleared before the final removal check
 			// failed, the copy now holds the only saved image. Keep it.
 			if discarded && disk.record.Changed {
-				return AtariStShelfDisk{}, err
+				return ShelfDisk{}, err
 			}
 			// Take the copy back, so a retry finds the name free again.
 			dropCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 			defer cancel()
 			if dropErr := s.dropNewShelfDiskLocked(dropCtx, renamed.GameID); dropErr != nil {
-				return AtariStShelfDisk{}, errors.Join(err, dropErr)
+				return ShelfDisk{}, errors.Join(err, dropErr)
 			}
-			return AtariStShelfDisk{}, err
+			return ShelfDisk{}, err
 		}
 		return renamed, nil
 	})
 }
 
-// DeleteAtariStShelfDisk removes a disk made here and its saved changes
+// DeleteShelfDisk removes a disk made here and its saved changes
 // from the kit asked. A game's disk is not deleted here: revert it, or
 // remove the game from the library.
-func (s *Service) DeleteAtariStShelfDisk(parent context.Context, gameID, expectedRevision string) error {
-	_, err := s.withShelfDisk(parent, gameID, func(ctx context.Context, disk shelfDisk) (AtariStShelfDisk, error) {
+func (s *Service) DeleteShelfDisk(parent context.Context, coreID, gameID, expectedRevision string) error {
+	_, err := s.withShelfDisk(parent, coreID, gameID, func(ctx context.Context, disk shelfDisk) (ShelfDisk, error) {
 		if !disk.made {
-			return AtariStShelfDisk{}, errShelfNotMade
+			return ShelfDisk{}, errShelfNotMade
 		}
 		if !disk.revisionMatches(expectedRevision) {
-			return AtariStShelfDisk{}, errShelfChanged
+			return ShelfDisk{}, errShelfChanged
 		}
 		_, err := s.deleteShelfDiskLocked(ctx, disk)
-		return AtariStShelfDisk{}, err
+		return ShelfDisk{}, err
 	})
 	return err
 }

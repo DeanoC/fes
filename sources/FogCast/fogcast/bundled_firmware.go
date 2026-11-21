@@ -3,6 +3,9 @@ package fogcast
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"fmt"
+	"io"
 	"log"
 
 	"github.com/DeanoC/FogCast/catalog"
@@ -79,6 +82,26 @@ func (s *Service) BundledFirmware(context.Context) (protocol.BundledFirmwareList
 		Firmware: append([]protocol.BundledFirmware{}, s.bundledFirmware...),
 		Disks:    append([]protocol.BundledDisk(nil), s.bundledDisks...),
 	}, nil
+}
+
+// bundledDiskImage reads the bytes of the disk this host ships for coreID,
+// checked against the digest it was imported under.
+func (s *Service) bundledDiskImage(ctx context.Context, coreID string) ([]byte, error) {
+	disk, ok := s.bundledDisk(coreID)
+	store, isStore := s.catalog.(coreMediaCatalog)
+	if !ok || !isStore {
+		return nil, errShelfNoFreeDOS
+	}
+	_, reader, err := store.OpenCoreMedia(ctx, disk.MediaID)
+	if err != nil {
+		return nil, errShelfNoFreeDOS
+	}
+	defer reader.Close()
+	data, err := io.ReadAll(io.LimitReader(reader, disk.Size+1))
+	if err != nil || int64(len(data)) != disk.Size || fmt.Sprintf("%x", sha256.Sum256(data)) != disk.MediaID {
+		return nil, errShelfNoFreeDOS
+	}
+	return data, nil
 }
 
 // bundledDisk is the disk this host ships for coreID, if any.
