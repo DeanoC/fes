@@ -808,11 +808,13 @@ def _check_launch(argv, env, cwd=None, executable=None) -> None:
         command = []
         for token in [*tokens, ";"]:
             if token in SHELL_SEPARATORS:
-                if command:
-                    _check_remote_quartus(command)
+                # Whatever comes before it (assignments, redirections,
+                # reserved words, wrappers), a command with an ssh word runs
+                # ssh from there.
+                at = next((i for i, t in enumerate(command) if os.path.basename(t) == "ssh"), None)
+                if at is not None:
+                    _check_remote_quartus(command[at:])
                 command = []
-            elif token in SHELL_KEYWORDS and not command:
-                continue  # then, do, else...: the command comes after
             else:
                 command.append(token)
     env = os.environ if env is None else env

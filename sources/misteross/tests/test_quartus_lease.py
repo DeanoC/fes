@@ -1068,8 +1068,12 @@ class LaunchGuardTests(unittest.TestCase):
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "ssh host /remote/bin/quartus_fit top"])
         # Codex P1 at ba4ada5d8: after a reserved word.
-        with self.assertRaises(qt.QuartusLeaseError):
-            subprocess.run(["sh", "-c", "if true; then ssh host /remote/bin/quartus_fit top; fi"])
+        # Codex P1s at ba4ada5d8 and bc73bffd1: after a reserved word, an
+        # assignment or a redirection.
+        for payload in ("if true; then ssh host /remote/bin/quartus_fit top; fi",
+                        "X=1 ssh host /remote/bin/quartus_fit top", ">log ssh host /remote/bin/quartus_fit top"):
+            with self.assertRaises(qt.QuartusLeaseError):
+                subprocess.run(["sh", "-c", payload])
         # Codex P1 at 00058c57d: ssh behind an execution wrapper.
         for argv in (["env", "ssh", "host", "/remote/bin/quartus_fit", "top"],
                      ["env", "-i", "X=1", "timeout", "60", "nice", "-n", "5", "ssh", "host", "quartus_sh", "-t", "x"],
