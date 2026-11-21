@@ -1,0 +1,40 @@
+{
+  "executed_program_sha256": "16cb4960c8881c47af6de27f7db280c19c24c9d8208a4d52a001ead8dcb42e8f",
+  "gpu_router": "CUDA",
+  "guest_rates": {
+    "ATA_RESET_CLOCKS": 615,
+    "AUDIO_D": 1280,
+    "AUDIO_N": 1,
+    "DMA_D": 9216,
+    "DMA_N": 625,
+    "DOT0_D": 12288,
+    "DOT0_N": 5035,
+    "DOT1_D": 30720,
+    "DOT1_N": 14161,
+    "GOV_D": 3072,
+    "GOV_N": 5,
+    "ISA_D": 4608,
+    "ISA_N": 625,
+    "OPL2_D": 1081344,
+    "OPL2_N": 875,
+    "PIT_D": 22528,
+    "PIT_N": 875,
+    "RTC_D": 1875,
+    "RTC_N": 1,
+    "US_D": 1536,
+    "US_N": 25
+  },
+  "hierarchy": false,
+  "module_count": 1,
+  "netlist": "/data/projects/x87s6m/elab-fast2/netlist/pc386_system.v",
+  "netlist_lines": 136749,
+  "netlist_sha256": "8cb51382a616cc677b1ca59ab473a731c68dcbe90f38460a7ae922970e9ae35b",
+  "rom_hex_sha256": "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18",
+  "seal_recipe_program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
+  "yosys": {
+    "gpu_router": "CUDA",
+    "lock": "cores/fes-pc386/toolchain.lock",
+    "lock_sha256": "294c89450c6c719f649cd4f248d0d844dd431df1138d44d6a26e4a1219ac579c",
+    "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=8a9a88fb7471aa6bfa566470cc5770998600f5ec07ef749249396ef5ad633a3f"
+  }
+}
