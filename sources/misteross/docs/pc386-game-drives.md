@@ -47,17 +47,18 @@ Each title's folders go into their own `C:` directory. A drive is at most 260
 cylinders: 128 MiB, the most the ATA disk window holds
 (`fes.media.ata-disk`, and the kit agent's limit).
 
-Built 2026-11-12 from the manifest with SHA-256 `c6a61087a324026c…` on the
-games image `eeea865f7713bc18…` (FreeDOS kernel 2046, #1729):
+Built 2026-11-21 from the manifest with SHA-256 `e672861a0dbace89…` on the
+games image `0e9262a6a988e802…` (FreeDOS kernel 2046 and SHARE built from source,
+#1777):
 
 | Drive | SHA-256 | Size | Titles | Free | What |
 | --- | --- | --- | --- | --- | --- |
-| `real` | `d65eb76208e3daef13fbd8e587168f25576aae372e34700ce8e482f20e188050` | 260 cylinders, 128.0 MiB | keen4, prince, civ, jill, stunts, vikings, starcon2, wolf3d, ultima6, jazz, pinfan, wacky, hocus, monkey2, wc1, falcon3, xwing | 25.3 MiB | Real-mode and 386 real-mode games, EMS users and sound setups |
-| `xms` | `e5eb47bf3df6790d7d8512bc579357b6c65ec317690f0853c5d287e421652351` | 260 cylinders, 128.0 MiB | ultima7, strike, uw1, frontier, moo, darklands, tnt | 12.4 MiB | XMS and unreal-mode games and other own 386 memory managers |
-| `pmode` | `6ee147a3d0e3b1df844fc9d9d49387d0d9fc180d1873901c01dc791c3df469e9` | 260 cylinders, 128.0 MiB | doom, heretic, duke3d, descent, raptor, omf, rott, machines, hotspeed | 16.1 MiB | DOS/4GW and other CPL-0 DOS extenders |
-| `dpmi` | `31acf283e00b4868e035bf50d2a0f306b8f27eb14f7a4e1a6e67722edd905d9c` | 260 cylinders, 128.0 MiB | jumpbump, angband, nethack, tyrian, cyberdogs, tcircle, screamer, tv | 31.1 MiB | Ring-3 DPMI hosts (CWSDPMI, Borland RTM and 32RTM) and FPU users |
-| `fpu` | `ad1197b60b878cc3228bb86677fabdae5f2d10bc38ba666b4021da84e5f46209` | 260 cylinders, 128.0 MiB | gp2, usnf, u7si | 26.8 MiB | FPU-required simulations, and Serpent Isle (an acceptance game) where there is room |
-| `bench` | `82647975ab73494279a37c1cb07862d3a5b875b6a40616683dc8b5115fec76f0` | 80 cylinders, 39.4 MiB | 3dbench, pcpbench, topbench, speedsys, chkcpu, cachechk, si8, chrisb, quakes | 18.8 MiB | Non-game programs: PhilsComputerLab's DOS Benchmark Pack v1.5 tools |
+| `real` | `bb473ed94d29d687cfcad48b5d92a14c8e0602e31b9b6fba564a078192f1a705` | 260 cylinders, 128.0 MiB | keen4, prince, civ, jill, stunts, vikings, starcon2, wolf3d, ultima6, jazz, pinfan, wacky, hocus, monkey2, wc1, falcon3, xwing | 25.3 MiB | Real-mode and 386 real-mode games, EMS users and sound setups |
+| `xms` | `d969290a921e93bea1475e2a9751f6f2bb7252caf7f4a86998e81e15b4a6f0b3` | 260 cylinders, 128.0 MiB | ultima7, strike, uw1, frontier, moo, darklands, tnt | 12.4 MiB | XMS and unreal-mode games and other own 386 memory managers |
+| `pmode` | `555d33ee12d7a4bb007b8fb9b0412c2f9243e693d1b38544a3867b0d4c86c9ff` | 260 cylinders, 128.0 MiB | doom, heretic, duke3d, descent, raptor, omf, rott, machines, hotspeed | 16.1 MiB | DOS/4GW and other CPL-0 DOS extenders |
+| `dpmi` | `692fe43b1c5b23c37d3831d630098118bddaef35ac598db7112b36afbc7cef2a` | 260 cylinders, 128.0 MiB | jumpbump, angband, nethack, tyrian, cyberdogs, tcircle, screamer, tv | 31.1 MiB | Ring-3 DPMI hosts (CWSDPMI, Borland RTM and 32RTM) and FPU users |
+| `fpu` | `a0b1b9e4648308ddafb9ae109d903c41c1d775ada911c1e79036707dd426e4aa` | 260 cylinders, 128.0 MiB | gp2, usnf, u7si | 26.8 MiB | FPU-required simulations, and Serpent Isle (an acceptance game) where there is room |
+| `bench` | `8d9027c201a5bd62dd8b00cedfe484e3a116d13769f2316ca28139ba139757db` | 80 cylinders, 39.4 MiB | 3dbench, pcpbench, topbench, speedsys, chkcpu, cachechk, si8, chrisb, quakes | 18.8 MiB | Non-game programs: PhilsComputerLab's DOS Benchmark Pack v1.5 tools |
 
 Drives built before #1556 ask UMBM for C800-EFFF, which overlaps the EMS page
 frame at E000h. FreeDOS then aborts with "no RAM found at E000" and DOS gets no
