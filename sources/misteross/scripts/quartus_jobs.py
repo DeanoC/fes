@@ -533,6 +533,7 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
         was_subreaper = _set_subreaper(True)
         before = _children_of_self()
         pending_signal: list[int] = []
+        cancelled_at: list[float] = []
         process = None
 
         def scan():
@@ -545,6 +546,7 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
 
         def relay(number, _frame):
             pending_signal.append(number)
+            cancelled_at.append(time.monotonic())
             if process is not None:
                 _signal_all([*_launcher(process), *scan()], number)
 
@@ -587,6 +589,9 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
                     print(f"quartus_jobs: time cap of {cap_seconds / 60:g} min reached; stopping the job",
                           file=sys.stderr, flush=True)
                     _signal_all([*_launcher(process), *live], signal.SIGTERM)
+                elif cancelled_at and now - cancelled_at[0] >= KILL_GRACE_SECONDS:
+                    # A cancellation escalates like the cap: SIGKILL after the grace.
+                    _signal_all([*_launcher(process), *live], signal.SIGKILL)
                 elif capped and now - killed_at >= KILL_GRACE_SECONDS:
                     _signal_all([*_launcher(process), *live], signal.SIGKILL)
                 if code is not None:

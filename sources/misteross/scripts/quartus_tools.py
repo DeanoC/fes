@@ -552,6 +552,7 @@ def _licensed_edition(program: str) -> str | None:
 
 
 SHELL_SEPARATORS = {";", "&&", "||", "|", "&", "(", ")", ";;", "|&", "{", "}", "!", "\n"}
+SHELL_KEYWORDS = {"if", "then", "else", "elif", "do", "while", "until", "!", "time", "{", "fi", "done"}
 SHELL_WRAPPERS = {"exec", "command", "builtin", "env", "nohup", "timeout", "nice", "xargs", "time"}
 
 
@@ -573,6 +574,9 @@ def _expanded_command(tokens: list[str]) -> bool:
             # Under a wrapper (env -u X $Q, timeout -s KILL 5 $Q) the command
             # is somewhere among its arguments: any expansion may be it.
             return True
+        if token in SHELL_KEYWORDS:
+            at_head, wrapped = True, False  # then, do, else...: a command follows
+            continue
         if not at_head:
             continue
         if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token, re.S):

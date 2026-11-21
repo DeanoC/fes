@@ -73,6 +73,10 @@ def _imports(path: Path, roots: tuple[Path, ...]) -> set[Path]:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except (SyntaxError, UnicodeDecodeError):
         return set()
+    return _imports_tree(tree, path, roots)
+
+
+def _imports_tree(tree: ast.AST, path: Path, roots: tuple[Path, ...]) -> set[Path]:
 
     def module(dotted: str, base: tuple[Path, ...]) -> list[Path]:
         parts = dotted.split(".")
@@ -236,6 +240,24 @@ def _names_a_program_prefix(value: str) -> bool:
     return bool(match) and any(name.startswith(match.group(1)) and name != match.group(1) for name in LEASED_NAMES)
 
 
+LAUNCH_NAMES = {"run", "Popen", "call", "check_call", "check_output", "system", "popen", "spawnl", "spawnv",
+                "spawnlp", "spawnvp", "spawnve", "spawnvpe", "execv", "execvp", "execve", "execl", "execlp",
+                "execvpe", "posix_spawn", "posix_spawnp"}
+
+
+def _is_launch_call(node: ast.AST) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    name = node.func.attr if isinstance(node.func, ast.Attribute) else getattr(node.func, "id", "")
+    return name in LAUNCH_NAMES
+
+
+def _imports_of_node(node: ast.AST, path: Path, roots: tuple[Path, ...]) -> set[Path]:
+    """The in-repo modules one import statement brings in."""
+    holder = ast.Module(body=[node], type_ignores=[])
+    return _imports_tree(holder, path, roots)
+
+
 def python_names_leased(text: str) -> bool:
     """A leased program name in the source, or in a string constant after
     Python joins adjacent literals ("quartus_" "fit")."""
@@ -297,6 +319,24 @@ def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None
     failures = []
 
     def leased(path: Path) -> bool:
+        # In the module itself, the import must come before any launch at
+        # module level, which would otherwise run before the hook exists.
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError, OSError):
+            tree = None
+        if tree is not None:
+            first_launch = min((node.lineno for node in _module_level(tree) if _is_launch_call(node)),
+                               default=None)
+            if first_launch is not None:
+                direct = [node.lineno for node in _module_level(tree)
+                          if isinstance(node, (ast.Import, ast.ImportFrom))
+                          and any(reaches(found) for found in _imports_of_node(node, path, roots))]
+                if not direct or min(direct) > first_launch:
+                    return False
+        return reaches(path.resolve())
+
+    def reaches(path: Path) -> bool:
         pending, seen = [path.resolve()], set()
         while pending:
             current = pending.pop()
@@ -428,6 +468,16 @@ class StaticRuleTests(unittest.TestCase):
         self.assertEqual(self.scan({"sources/misteross/scripts/w.py":
                                     "import subprocess\ntry:\n    pass\nfinally:\n"
                                     "    from scripts import quartus_tools\nsubprocess.run(['quartus_fit', 'top'])\n"}), [])
+
+    def test_counterexample_a_launch_before_the_leasing_import(self):
+        # Codex P1 at 6b0f2a858: the first call runs before the hook exists.
+        failures = self.scan({"sources/misteross/scripts/late.py":
+                              "import subprocess\nsubprocess.run(['quartus_fit', 'top'])\n"
+                              "from scripts import quartus_tools\n"})
+        self.assertEqual(len(failures), 1)
+        self.assertEqual(self.scan({"sources/misteross/scripts/early.py":
+                                    "import subprocess\nfrom scripts import quartus_tools\n"
+                                    "subprocess.run(['quartus_fit', 'top'])\n"}), [])
 
     def test_counterexample_naming_a_leasing_module_in_a_string_is_not_loading_it(self):
         failures = self.scan({
@@ -873,6 +923,9 @@ class LaunchGuardTests(unittest.TestCase):
         with self.assertRaises(qt.QuartusLeaseError):
             qt._check_remote_quartus(["ssh", "host", "/licensed/bin/quartus_[f]it", "top"])
         qt._check_remote_quartus(["ssh", "host", "cat", "$HOME/x"])
+        # Codex P1 at 6b0f2a858: a command after a reserved word.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", f"if true; then {self.bin}/quartus_[f]it top; fi"])
         # Codex P1 at 941c04c72: a glob as the command word.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "./quartus_[f]it top"], cwd=str(self.bin))
@@ -1329,6 +1382,20 @@ class JobsTests(unittest.TestCase):
         for value in (float("nan"), float("inf")):
             with self.assertRaises(SystemExit):
                 self.jobs.run("lite", "", ["true"], cap_seconds=value)
+
+    def test_a_cancelled_job_that_ignores_sigterm_is_killed_after_the_grace(self):
+        # Codex P2 at 6b0f2a858: cancellation forwarded SIGTERM once and
+        # then waited for the cap.
+        timer = threading.Timer(0.5, lambda: os.kill(os.getpid(), signal.SIGTERM))
+        timer.start()
+        started = time.monotonic()
+        try:
+            with mock.patch.object(self.jobs, "KILL_GRACE_SECONDS", 1):
+                code = self.jobs.run("lite", "", ["sh", "-c", "trap '' TERM; sleep 30"], sample_seconds=0.2)
+        finally:
+            timer.cancel()
+        self.assertNotEqual(code, 0)
+        self.assertLess(time.monotonic() - started, 10)
 
     def test_run_returns_the_job_exit_code(self):
         self.assertEqual(self.jobs.run("pro", "", ["sh", "-c", "exit 7"], sample_seconds=0.1), 7)
