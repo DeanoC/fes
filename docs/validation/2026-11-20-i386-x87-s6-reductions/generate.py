@@ -4,8 +4,9 @@
   python3 generate.py            # rewrites results.md
   python3 generate.py --check    # fails if results.md is stale
 
-Every fit is read from fits/<name>/. The baseline is #2037's four head seeds,
-quoted from that PR's record. The rules are method.md's, applied mechanically.
+Every fit is read from fits/<name>/. The bounds' baseline is #2037's four head
+seeds, quoted from that PR's record; the build's is main's refit (fits/main-s*),
+amendment 2. The rules are method.md's, applied mechanically.
 """
 import argparse
 import csv
@@ -38,8 +39,22 @@ def load(name: str) -> dict | None:
     return {'name': name, 'seed': fit['seed'], 'fit': fit['status'],
             'timing': timing['status'] if isinstance(timing, dict) else timing,
             'alms': r['alms']['used'], 'ram': r['ram_blocks']['used'], 'dsp': r['dsp_blocks']['used'],
-            'regs': r['registers']['used'],
+            'regs': r['registers']['used'], 'host': fit.get('host', '?'),
             'setup': min(float(x['worst_slack_ns']) for x in rows) if rows else None}
+
+
+def seeds(name: str) -> list[dict]:
+    return [r for r in (load(f'{name}-s{s}') for s in (1, 2, 3, 4)) if r]
+
+
+def fit_table(rows_by_name) -> list[str]:
+    out = ['| Fit | Seed | Host | Fit and timing | ALMs needed | RAM blocks | DSP | Worst setup at 61.44 MHz |',
+           '| --- | ---: | --- | --- | ---: | ---: | ---: | ---: |']
+    for label, rows in rows_by_name:
+        for r in rows:
+            out.append(f"| {label} | {r['seed']} | {r['host']} | {r['fit']}, {r['timing']} | {r['alms']:,.0f} | {r['ram']:.0f} | "
+                       f"{r['dsp']:.0f} | {r['setup']:+.3f} ns |")
+    return out
 
 
 def board_rows(median: float) -> list[str]:
@@ -85,6 +100,7 @@ def main() -> int:
               f'From the head\'s median ({m_base:,.1f}) plus the shell, which #2036\'s pair measured as the board less '
               'the virtual-pin envelope, so nothing is subtracted for virtual pins (method.md, amendment 1):', '']
     lines += board_rows(m_base)
+    lines += build(m_base)
     text = '\n'.join(lines).rstrip() + '\n'
     out = HERE / 'results.md'
     if args.check:
@@ -94,6 +110,92 @@ def main() -> int:
         return 0
     out.write_text(text)
     return 0
+
+
+# The forms' clocks: the unit bench's latency cases (evidence/unit-*.json) and
+# the census (PR #1887, docs/validation/2026-11-15-i386-x87-game-census):
+# FADD, FSUB, FSUBR and FMUL forms (d8, dc, da, de, register and memory, regs
+# 0, 1, 4, 5) a second in each title's window, and FRNDINT's.
+CENSUS = (('Quake', 25.0, 11_777_062, 25_400), ("Chris's 3D Benchmark", 20.0, 2_793_044, 718),
+          ('Screamer', 30.0, 418_289, 39_902), ('Terminal Velocity', 30.0, 1_576, 518),
+          ('Wolfenstein 3D', 20.0, 1_687, 0), ('DOOM', 20.0, 0, 0))
+CLOCK_HZ = 61_437_908
+
+
+def build(m_2037: float) -> list[str]:
+    main, fbld, head = seeds('main'), seeds('fbld'), seeds('s63head')
+    out = ['', '## The build (amendment 2): FBLD on the engine and the one-stage fast lane', '']
+    if len(main) < 4:
+        return out + [f'{len(main)} of 4 baseline seeds recorded; no verdict on fewer.']
+    m_main = [r['alms'] for r in main]
+    med_main, sp_main = statistics.median(m_main), max(m_main) - min(m_main)
+    out += ['**The baseline.** Main `b206f9aaf` with `identity-on.patch` does not elaborate to `elab-head` '
+            '([run-status.txt](run-status.txt)), so it was refitted, four seeds: median '
+            f'{med_main:,.1f}, spread {sp_main:,.0f}, {med_main - m_2037:+,.1f} against #2037\'s head.', '']
+    out += fit_table((('main', main), ('FBLD alone', fbld), ('head', head))) + ['']
+    out += ['**Where each seed ran.** Every netlist was elaborated on chip-30x0-ai-dev. The baseline and FBLD '
+            'alone\'s seeds 1 to 3 were fitted there; FBLD alone\'s seed 4 and the head\'s four were fitted on '
+            'Powerboat, with the same Quartus Pro 26.3.0 Build 114, on the same netlist bytes (copied, sha256 '
+            'compared), each under Powerboat\'s Pro lease, after chip\'s shared lease went to other sessions\' '
+            'jobs for two hours ([run-status.txt](run-status.txt)).', '']
+    out += ['| Build | Seeds | Median | Spread | Against the baseline | Larger spread | One-sided verdict | '
+            'Against #2037\'s head | Timing |', '| --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- |']
+    meds = {}
+    for label, rows in (('FBLD alone (`b4213b4d6`)', fbld), ('the head (`d74d8d419`)', head)):
+        if len(rows) < 4:
+            out.append(f'| {label} | {len(rows)} | | | | | no verdict on fewer than 4 | | |')
+            continue
+        a = [r['alms'] for r in rows]
+        med, sp = statistics.median(a), max(a) - min(a)
+        meds[label] = med
+        floor = max(sp, sp_main)
+        verdict = 'FAIL (growth over the band)' if med - med_main > floor else 'pass'
+        timing = 'all pass' if all(r['fit'] == 'pass' and r['timing'] == 'pass' for r in rows) else 'A MISS'
+        out.append(f'| {label} | 4 | {med:,.1f} | {sp:,.0f} | **{med_main - med:+,.1f} saved** | {floor:,.0f} | '
+                   f'{verdict} | {m_2037 - med:+,.1f} saved | {timing} |')
+    if len(meds) == 2:
+        f_med, h_med = meds['FBLD alone (`b4213b4d6`)'], meds['the head (`d74d8d419`)']
+        sp = {k: max(x) - min(x) for k, x in (('main', m_main), ('fbld', [r['alms'] for r in fbld]),
+                                               ('head', [r['alms'] for r in head]))}
+        f_floor, h_floor = max(sp['main'], sp['fbld']), max(sp['fbld'], sp['head'])
+        out += ['', f'Each change\'s share: FBLD on the engine {med_main - f_med:+,.1f} (the baseline less FBLD alone, '
+                f'against the larger spread {f_floor:,.0f}: {"measurable" if med_main - f_med > f_floor else "not measurable"}), '
+                f'the one-stage fast lane {f_med - h_med:+,.1f} (FBLD alone less the head, against {h_floor:,.0f}: '
+                f'{"measurable" if f_med - h_med > h_floor else "not measurable"}). The fast lane\'s share is close to '
+                'its bound (+191.0, results above), which was fitted on #2037\'s head.', '',
+                f'**Timing.** The head\'s worst setup at 61.44 MHz is {min(r["setup"] for r in head):+.3f} to '
+                f'{max(r["setup"] for r in head):+.3f} ns, against the baseline\'s {min(r["setup"] for r in main):+.3f} to '
+                f'{max(r["setup"] for r in main):+.3f} ns: the one-stage fast lane spends the clock headroom, as '
+                'amendment 2 says, and a later DE25 clock raise needs the pipelining back.', '',
+                '### The remaining 387-on gap on the board', '',
+                f'From the head\'s median ({h_med:,.1f}) plus the shell, as above:', '']
+        out += board_rows(h_med)
+        rams = sorted({f"{r['ram']:.0f}" for r in head + main})
+        out += ['', f'RAM blocks: {", ".join(rams)} in every baseline and head seed, so no change; a board would still '
+                'have about 43 free (amendment 1). DSP blocks are unchanged too.']
+    before = json.loads((HERE.parent / '2026-11-20-i386-x87-s6-remainder/evidence/unit-rtl.json').read_text())['latency_clocks']
+    after = json.loads((HERE / 'evidence/unit-rtl.json').read_text())['latency_clocks']
+    out += ['', '### The forms\' clocks', '',
+            'The unit bench\'s latency cases, commit to idle: before is #2037\'s report at `4f1546783` (its record\'s '
+            '`evidence/unit-rtl.json`; the x87 RTL and the bench are unchanged from there to main `b206f9aaf`), after is '
+            'the head. One case '
+            'a form and precision: what the path costs, not what a title pays.', '',
+            '| Form | PC | Before | After | Change |', '| --- | --- | ---: | ---: | ---: |']
+    for key in sorted(after):
+        if before.get(key) != after[key]:
+            out.append(f"| {key.split('.')[0].upper()} | {key.split('.')[1]} | {before[key]} | {after[key]} | "
+                       f"{after[key] - before[key]:+d} |")
+    d_fast = after['fadd.pc64'] - before['fadd.pc64']
+    d_rnd = after['frndint.pc64'] - before['frndint.pc64']
+    out += ['', f'At the census rates, taking every FADD, FSUB, FSUBR and FMUL form at the bench\'s {d_fast:+d} clocks '
+            f'and FRNDINT at {d_rnd:+d}:', '', '| Title | Window | Fast-lane forms a second | Clocks a second | '
+            'Of a 61.44 MHz machine |', '| --- | ---: | ---: | ---: | ---: |']
+    for title, sec, fast, rnd in CENSUS:
+        c = (fast * d_fast + rnd * d_rnd) / sec
+        out.append(f'| {title} | {sec:.0f} s | {fast / sec:,.0f} | {c:+,.0f} | {100 * c / CLOCK_HZ:+.2f}% |')
+    out += ['', 'No census title executes FBLD (`df /4`), so its slower conversion on the engine costs no title a '
+            'clock; FBLD\'s own figure is in [summary.md](summary.md).']
+    return out
 
 
 if __name__ == '__main__':

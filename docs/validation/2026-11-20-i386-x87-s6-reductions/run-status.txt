@@ -23,3 +23,23 @@ fast2-s2 rc=0 2026-11-21T03:34:16+02:00
 fast2-s3 rc=0 2026-11-21T03:43:05+02:00
 fast2-s4 rc=0 2026-11-21T03:52:07+02:00
 fast2 done 2026-11-21T03:52:07+02:00
+# Amendment 2 (the build). Baseline: main b206f9aaf + identity-on.patch, chip-30x0-ai-dev.
+elab-main digest 45ddd72c3d4a350cd2ac1d592b36023ef1bf8170c196df443ec4a4d93efd68bf != elab-head 1fb3e2861e8450fb261ff93c000491f71de8a5bf20a075d232166e73db84fdd9: baseline refitted 2026-11-21T08:44:53+02:00
+main-s1 rc=0 2026-11-21T08:56:39+02:00
+main-s2 rc=0 2026-11-21T09:09:31+02:00
+main-s3 rc=0 2026-11-21T09:19:11+02:00
+main-s4 rc=0 2026-11-21T09:28:20+02:00
+elab-fbld rc=0 2026-11-21T09:29:04+02:00 netlist sha256 60309410e120b48b0e195f6b2c7d238273ad22ec950e54555e01c5b67d80c5b9
+control absent cpu_x87_bl_acc count=0; control present cpu_x87_bs_bcd count=57
+fbld-s1 rc=0 2026-11-21T09:55:36+02:00 chip
+fbld-s2 rc=0 2026-11-21T10:04:24+02:00 chip
+fbld-s3 rc=0 2026-11-21T12:08:56+02:00 chip (waited ~2 h for chip's shared Quartus lease)
+fbld-s4: chip's lease taken again by other sessions' jobs; the waiting fit (this session's own process) stopped and moved to Powerboat 2026-11-21T12:23
+elab-s63head rc=0 2026-11-21T12:24:23+02:00 chip, netlist sha256 03744754389b8429f3a6146bf03c6b3e0e64c4c888a62a4b9fc0a737e4e85a54
+control absent cpu_x87_bl_acc count=0; control present cpu_x87_bs_bcd count=57; no SCRATCH in fes_x87_fast.sv
+fbld-s4 rc=0 2026-11-21T12:34:05+02:00 powerboat (same netlist bytes, sha256 compared)
+s63head-s1 rc=0 2026-11-21T12:44:33+02:00 powerboat
+s63head-s2 rc=0 2026-11-21T12:54:58+02:00 powerboat
+s63head-s3 rc=0 powerboat 2026-11-21T13:53:25+02:00
+s63head-s4 rc=0 powerboat 2026-11-21T14:26:29+02:00
+pb done 2026-11-21T14:26:29+02:00
