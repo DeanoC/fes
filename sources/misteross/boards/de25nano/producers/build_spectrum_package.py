@@ -20,9 +20,11 @@ MACHINE = Machine(
     name='ZX Spectrum', version='1.0.0',
     descriptions={
         '48': 'Standard DE25 ZX Spectrum 48K with uploaded firmware, board SDRAM and a PZX cassette',
-        '128': 'Standard DE25 ZX Spectrum 128K with uploaded firmware, board SDRAM and a PZX cassette'},
+        '128': 'Standard DE25 ZX Spectrum 128K with uploaded firmware, board SDRAM and a PZX cassette',
+        'native48': 'Experimental native DE25 ZX Spectrum 48K with uploaded firmware and fetch observation'},
     interfaces=(('fes.media.spectrum-tape', 2, 0),),
-    model_core_ids={'128': 'fes.spectrum128'}, model_rom_ids={'128': 'spectrum128-firmware'})
+    model_core_ids={'128': 'fes.spectrum128'}, model_rom_ids={'128': 'spectrum128-firmware'},
+    model_profiles={'native48': 'de25-native-spectrum48-v1'})
 
 
 def _require_clean_source(root, *, identity_version=2, pinned_inputs=(RECIPE, ABI)):

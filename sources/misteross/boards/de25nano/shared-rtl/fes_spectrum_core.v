@@ -18,6 +18,8 @@ module fes_spectrum_core #(
     input wire [31:0] gpo,
     output wire [31:0] gpi,
     output wire exec_reset,
+    output wire [31:0] fetch_count,
+    output wire [15:0] fetch_address,
     output wire [27:0] machine_video,
     output wire signed [15:0] audio_sample,
     output wire display_request,
@@ -141,6 +143,19 @@ module fes_spectrum_core #(
     );
 
     wire pixel_we, frame_done, tick, turbo, speaker, mic, ear;
+    wire [`SP_BUS_REQ-1:0] edge_bus;
+    reg [31:0] observed_fetch_count = 32'd0;
+    reg [15:0] observed_fetch_address = 16'd0;
+    // The edge bus strobe is one request, including when the CPU waits.
+    // Exclude refresh, interrupt acknowledge, writes and reset.
+    always @(posedge clk_sys)
+        if (!machine_reset && edge_bus[`SP_BUS_STROBE] && edge_bus[`SP_BUS_M1] &&
+            edge_bus[`SP_BUS_MREQ] && edge_bus[`SP_BUS_RD]) begin
+            observed_fetch_count <= observed_fetch_count + 32'd1;
+            observed_fetch_address <= edge_bus[`SP_BUS_A];
+        end
+    assign fetch_count = observed_fetch_count;
+    assign fetch_address = observed_fetch_address;
     wire [7:0] pixel_row, ay_pcm;
     wire [5:0] pixel_chunk;
     wire [15:0] pixel_data;
@@ -153,7 +168,7 @@ module fes_spectrum_core #(
         .tape_stream_enable(tape_stream_enable), .tape_stream_valid(tape_stream_valid),
         .tape_stream_data(tape_stream_data), .tape_stream_take(tape_stream_take),
         .tape_playing(), .turbo_always(1'b0), .turbo(turbo),
-        .bus_request(), .response1(`SP_BUS_RSP'd0),
+        .bus_request(edge_bus), .response1(`SP_BUS_RSP'd0),
         .pixel_we(pixel_we), .pixel_row(pixel_row), .pixel_chunk(pixel_chunk),
         .pixel_data(pixel_data), .frame_done(frame_done),
         .tick(tick), .speaker(speaker), .mic(mic), .ear(ear), .ay_pcm(ay_pcm),

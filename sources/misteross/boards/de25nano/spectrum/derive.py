@@ -119,10 +119,95 @@ TRANSPORT_MARKER = b"// Atomic register transport shared by the bring-up and sta
 
 
 def transport(source):
-    """Only the shared atomic transport from the ZX81 computer file, unchanged."""
+    """Opt-in fetch observation over the existing atomic transport."""
     if source.count(TRANSPORT_MARKER) != 1:
         raise ValueError("DE25 computer transport boundary changed")
-    result = (b'`include "fes_computer.vh"\n`include "generated/fes_de25_computer.vh"\n' +
-              source[source.index(TRANSPORT_MARKER):])
-    return result, {"source_sha256": sha(source), "derived_sha256": sha(result),
-                    "selection": "fes_de25_computer_transport and its two includes"}
+    body = source[source.index(TRANSPORT_MARKER):]
+    # The native and Linux transports intentionally use different semantics at
+    # byte offset 0x18. Keep selection compile-time and package-bound.
+    result, record = _derive(body, (
+        (b"// Atomic register transport",
+         b'`include "fes_computer.vh"\n'
+         b'`ifdef FES_DE25_NATIVE_SPECTRUM48\n'
+         b'`include "generated/fes_native_de25_computer.vh"\n'
+         b'`else\n`include "generated/fes_de25_computer.vh"\n`endif\n'
+         b"// Atomic register transport", 1),
+        (b"output wire transport_ready, faulted\n",
+         b"output wire transport_ready, faulted\n"
+         b"`ifdef FES_DE25_NATIVE_SPECTRUM48\n"
+         b"    , input wire machine_clk, input wire [31:0] fetch_count,\n"
+         b"    input wire [15:0] fetch_address\n`endif\n", 1),
+        (b"    assign waitrequest = !reset_n || !first_seen;",
+         FETCH_SNAPSHOT, 1),
+        (b"    wire [31:0] read_fault = read && !read_address_valid ?\n"
+         b"        `FES_DE25_COMPUTER_FAULT_ADDRESS : 32'd0;",
+         b"    wire [31:0] read_fault = (read && !read_address_valid ?\n"
+         b"        `FES_DE25_COMPUTER_FAULT_ADDRESS : 32'd0) |\n"
+         b"        (fetch_timeout ? `FES_DE25_COMPUTER_FAULT_BUSY : 32'd0);", 1),
+        (b"    wire access_error = (read && !read_address_valid) ||",
+         b"    wire access_error = read_fault != 32'd0 ||", 1),
+        (b"            `FES_DE25_COMPUTER_VIDEO_STATUS_OFFSET: read_value = video_status;",
+         b"`ifdef FES_DE25_NATIVE_SPECTRUM48\n"
+         b"            `FES_DE25_COMPUTER_FETCH_COUNT_OFFSET: read_value = fetch_sample[47:16];\n"
+         b"            `FES_DE25_COMPUTER_FETCH_ADDRESS_OFFSET: read_value = {16'd0, sampled_address};\n"
+         b"`else\n"
+         b"            `FES_DE25_COMPUTER_VIDEO_STATUS_OFFSET: read_value = video_status;\n"
+         b"`endif", 1),
+        (b"    wire [31:0] video_status = transport_ready && video_ready_sync[1] ?\n"
+         b"        `FES_DE25_COMPUTER_VIDEO_READY : 32'd0;",
+         b"`ifndef FES_DE25_NATIVE_SPECTRUM48\n"
+         b"    wire [31:0] video_status = transport_ready && video_ready_sync[1] ?\n"
+         b"        `FES_DE25_COMPUTER_VIDEO_READY : 32'd0;\n`endif", 1),
+    ), "Spectrum native fetch")
+    record["source_sha256"] = sha(source)
+    return result, record
+
+
+FETCH_SNAPSHOT = b"""
+`ifdef FES_DE25_NATIVE_SPECTRUM48
+    wire count_read = read && byte_address == `FES_DE25_COMPUTER_FETCH_COUNT_OFFSET;
+    (* preserve, dont_merge *) reg fetch_request = 1'b0, fetch_reply = 1'b0;
+    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] fetch_request_sync = 2'b00, fetch_reply_sync = 2'b00;
+    (* preserve, dont_merge *) reg [47:0] fetch_payload = 48'd0, fetch_sample = 48'd0;
+    reg [15:0] sampled_address = 16'd0;
+    reg fetch_pending = 1'b0, fetch_ready = 1'b0;
+    reg [5:0] fetch_wait = 6'd0;
+    wire fetch_timeout = count_read && fetch_pending && !fetch_ready && (&fetch_wait);
+
+    // A count read waits for one fresh machine-clock snapshot. The last
+    // address is latched by that same successful Avalon transfer.
+    always @(posedge machine_clk) begin
+        fetch_request_sync <= {fetch_request_sync[0], fetch_request};
+        if (fetch_request_sync[1] != fetch_reply) begin
+            fetch_payload <= {fetch_count, fetch_address};
+            fetch_reply <= fetch_request_sync[1];
+        end
+    end
+    always @(posedge clk) begin
+        fetch_reply_sync <= {fetch_reply_sync[0], fetch_reply};
+        if (reset_n && first_seen && count_read && !fetch_pending) begin
+            fetch_request <= ~fetch_request;
+            fetch_pending <= 1'b1;
+            fetch_wait <= 6'd0;
+        end else if (fetch_pending && !fetch_ready && fetch_reply_sync[1] == fetch_request) begin
+            fetch_sample <= fetch_payload;
+            fetch_ready <= 1'b1;
+        end else if (fetch_pending && !fetch_ready && !(&fetch_wait)) begin
+            fetch_wait <= fetch_wait + 6'd1;
+        end
+        if (count_read && !waitrequest && fetch_ready) begin
+            sampled_address <= fetch_sample[15:0];
+            fetch_pending <= 1'b0;
+            fetch_ready <= 1'b0;
+        end
+    end
+    // A stopped machine clock must not hang an HPS MMIO read. Only
+    // reconfiguration can recover the transport after this sticky fault.
+    assign waitrequest = !reset_n || !first_seen ||
+                         (count_read && !fault_active && !fetch_ready && !fetch_timeout);
+`else
+    wire fetch_timeout = 1'b0;
+    assign waitrequest = !reset_n || !first_seen;
+`endif
+"""

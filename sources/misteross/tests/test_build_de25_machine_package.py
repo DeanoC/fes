@@ -129,6 +129,45 @@ class MachineProducerTests(unittest.TestCase):
                                            'encoding': 'gp-firmware-upload-v1',
                                            'base_sha256': manifest['payload']['sha256'], 'source_size': size})
 
+    def test_native48_uses_its_own_profile_identity_and_control_maps(self):
+        build = self.root / 'build'
+        build.mkdir(exist_ok=True)
+        payload = build / 'native48.rbf'
+        payload.write_bytes(b'unqualified native payload fixture')
+        self.addCleanup(payload.unlink)
+        record = self.record(spectrum, 'native48')
+        manifest = tomllib.loads(spectrum.manifest(record, payload).decode())
+        self.assertEqual(manifest['target']['programming_profile'], 'de25-native-spectrum48-v1')
+        self.assertNotEqual(build_identity(record), build_identity(self.record(spectrum, '48')))
+        self.assertEqual(json.loads(spectrum.MACHINE.rom_map(record, payload))['source_size'], 16384)
+        spec = spectrum.MACHINE.spec(ROOT)
+        maps = json.loads(spec.native_controls(manifest['build']['id'], manifest['payload']['sha256']))
+        self.assertEqual(maps['build_id'], manifest['build']['id'])
+        self.assertEqual(maps['payload_sha256'], manifest['payload']['sha256'])
+        self.assertEqual(maps['computer'], {'peripheral_offset': 0x10300, 'span': 32,
+                                            'fetch_count_offset': 0x18, 'fetch_address_offset': 0x1c})
+        self.assertEqual(maps['display_reader'], {'peripheral_offset': 0x10200, 'span': 128,
+                                                  'stop_command': 2, 'status_offset': 8, 'drained_mask': 8})
+        with tempfile.TemporaryDirectory(dir=build) as name:
+            work = Path(name)
+            (work / 'build-inputs.json').write_bytes(record)
+            candidate = work / 'core.rbf'
+            candidate.write_bytes(payload.read_bytes())
+            rom_map = work / 'rom-map.json'
+            rom_map.write_bytes(spectrum.MACHINE.rom_map(record, candidate))
+            store = work / 'packages'
+            try:
+                exported = export_package(spectrum.manifest(record, candidate), candidate, store,
+                    rom_map=rom_map, rom_id=spectrum.MACHINE.rom_id_for('native48'), rom_role='firmware')
+                package = read_package(exported.with_suffix('.fcore'))
+                self.assertEqual(package.fields['format'], 3)
+                self.assertEqual(package.fields['target'], manifest['target'])
+                self.assertEqual(package.fields['rom']['source_size'], maps['firmware_bytes'])
+                self.assertEqual(package.fields['payload']['sha256'], maps['payload_sha256'])
+            finally:
+                if store.exists():
+                    subprocess.run(['chmod', '-R', 'u+w', str(store)], check=True)
+
     def test_refuses_before_any_build(self):
         for producer in (spectrum, atari_st):
             with mock.patch.object(producer.MACHINE, 'spec', side_effect=AssertionError('builder ran')):

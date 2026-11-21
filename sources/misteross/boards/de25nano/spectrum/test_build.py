@@ -59,12 +59,14 @@ class Derivations(unittest.TestCase):
             else:
                 self.assertEqual(result.replace(b'"M20K"', b'"M10K"'), source)
 
-    def test_transport_slice_is_the_shared_module(self):
+    def test_transport_selects_native_fetch_explicitly(self):
         source = (HERE.parent / "zx81-hps/fes_de25_computer.v").read_bytes()
         result, _ = derive.transport(source)
         self.assertEqual(result.count(b"\nmodule "), 1)
         self.assertIn(b"module fes_de25_computer_transport (", result)
-        self.assertTrue(source.endswith(result.split(b"\n", 2)[2]))
+        self.assertIn(b"`ifdef FES_DE25_NATIVE_SPECTRUM48", result)
+        self.assertIn(b"`FES_DE25_COMPUTER_FETCH_COUNT_OFFSET: read_value = fetch_sample[47:16]", result)
+        self.assertIn(b"`FES_DE25_COMPUTER_VIDEO_STATUS_OFFSET: read_value = video_status", result)
         with self.assertRaises(ValueError):
             derive.transport(source.replace(derive.TRANSPORT_MARKER, b""))
 

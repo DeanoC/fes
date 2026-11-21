@@ -2,6 +2,7 @@
 """Simulate the DE25 ZX Spectrum standard component with the open diagnostic firmware."""
 from pathlib import Path
 import argparse
+import hashlib
 import importlib.util
 import os
 import subprocess
@@ -43,6 +44,9 @@ def sources(output):
     reader.write_bytes(display.retarget_menu_ram((SHARED / "fes_menu_reader.v").read_bytes())[0])
     transport = output / "fes_de25_computer_transport.v"
     transport.write_bytes(derive.transport((BOARD / "zx81-hps/fes_de25_computer.v").read_bytes())[0])
+    (output / "generated").mkdir()
+    native_header = ROOT / "prototypes/de25_board_control/generated/fes_de25_computer.vh"
+    (output / "generated/fes_native_de25_computer.vh").write_bytes(native_header.read_bytes())
     return [HERE / "fes_de25_spectrum_standard.v", transport, BOARD / "ramtest/sdram.v",
             SHARED / "fes_spectrum_core.v", SHARED / "fes_gp_crossing.v", SHARED / "fes_firmware_upload.v",
             SHARED / "fes_media_sdram.v", SHARED / "fes_spectrum_firmware_rom.v",
@@ -75,22 +79,29 @@ def run(model, native_mailbox=False):
     firmware = diagnostic / ("firmware.rom" if model == "48" else "firmware-32k.rom")
     subprocess.run(["verilator", "--cc", "--exe", "--build", "-j", "4", "--public-flat-rw", "-O3",
                     "-Wall", *["-Wno-" + name for name in WAIVERS], *MODELS[model],
+                    *(["-DFES_DE25_NATIVE_SPECTRUM48=1"] if native_mailbox else []),
                     "--top-module", "fes_de25_spectrum_standard", "--Mdir", str(output),
                     "-GSDRAM_POWERUP_CYCLES=16",
                     "-GBUILD_ID=128'h00112233445566778899aabbccddeeff",
-                    *["-I" + str(path) for path in includes()],
+                    *["-I" + str(path) for path in [output, *includes()]],
                     "-CFLAGS", f"-O2 -DSPECTRUM_BANKS={3 if model == '48' else 8}",
                     *map(str, sources(output)), str(HERE / "standard_tb.cpp")], cwd=ROOT, check=True)
     executable = output / "Vfes_de25_spectrum_standard"
     subprocess.run([str(executable), str(firmware),
                     str(diagnostic / "tape.pzx")], cwd=output, check=True)
     if native_mailbox:
-        tamago = ROOT.parents[1] / "platform/embedded/tamago"
+        fes = ROOT.parents[1]
+        tamago = fes / "platform/embedded/tamago"
+        payload = (fes / "sources/FogCast/corepackage/testdata/core-bundle-v3/payloads/fes-fixture.rbf").read_bytes()
+        controls = output / "native-controls.json"
+        controls.write_bytes(load(HERE / "build.py", "spectrum_native_controls").native_controls(
+            "00112233445566778899aabbccddeeff", hashlib.sha256(payload).hexdigest()))
         subprocess.run(["go", "test", "-v", "-count=1", "-timeout=120s", "./computer",
-                        "-run", "^TestSpectrum48FirmwareRTL$"], cwd=tamago, check=True,
+                        "-run", "^TestSpectrum48(Firmware|Tenfoot)RTL$"], cwd=tamago, check=True,
                        env=dict(os.environ, GOWORK="off",
                                 FES_SPECTRUM48_MAILBOX=str(executable),
-                                FES_SPECTRUM48_FIRMWARE=str(firmware)))
+                                FES_SPECTRUM48_FIRMWARE=str(firmware),
+                                FES_SPECTRUM48_CONTROLS=str(controls)))
 
 
 def main():

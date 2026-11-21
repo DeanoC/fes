@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -37,7 +38,7 @@ func spectrum48Source(t *testing.T, firmware []byte) (Identity, []byte) {
 		if destination == "manifest.toml" {
 			data = []byte(strings.NewReplacer(
 				"fes.pong", "fes.spectrum",
-				"fes-gp-v1", "de25-linux-computer-v1",
+				"fes-gp-v1", "de25-native-spectrum48-v1",
 				"fes.simple-game", "fes.computer",
 				"0123456789abcdef0123456789abcdef", "00112233445566778899aabbccddeeff",
 			).Replace(string(data)))
@@ -57,9 +58,46 @@ func spectrum48Source(t *testing.T, firmware []byte) (Identity, []byte) {
 	}
 	info := archive.Inspection()
 	d := info.Descriptor
+	rawControls, err := os.ReadFile(os.Getenv("FES_SPECTRUM48_CONTROLS"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var controls struct {
+		Format        int    `json:"format"`
+		Scope         string `json:"scope"`
+		Build         string `json:"build_id"`
+		Payload       string `json:"payload_sha256"`
+		FirmwareBytes int64  `json:"firmware_bytes"`
+		Computer      struct {
+			Offset       uint32 `json:"peripheral_offset"`
+			Span         uint32 `json:"span"`
+			FetchCount   uint32 `json:"fetch_count_offset"`
+			FetchAddress uint32 `json:"fetch_address_offset"`
+		} `json:"computer"`
+		Display struct {
+			Offset  uint32 `json:"peripheral_offset"`
+			Span    uint32 `json:"span"`
+			Stop    uint32 `json:"stop_command"`
+			Status  uint32 `json:"status_offset"`
+			Drained uint32 `json:"drained_mask"`
+		} `json:"display_reader"`
+	}
+	if err := json.Unmarshal(rawControls, &controls); err != nil {
+		t.Fatal(err)
+	}
+	if controls.Format != 1 || controls.Scope != "de25-native-spectrum48-controls-v1" ||
+		controls.Build != d.Build.ID || controls.Payload != d.Payload.SHA256 ||
+		controls.FirmwareBytes != d.ROM.SourceSize ||
+		controls.Computer.Offset != g.FesDe25ComputerPeripheralOffset || controls.Computer.Span != g.FesDe25ComputerSpan ||
+		controls.Computer.FetchCount != g.FesDe25ComputerFetchCountOffset || controls.Computer.FetchAddress != g.FesDe25ComputerFetchAddressOffset ||
+		controls.Display.Offset != g.FesDe25ScanoutPeripheralOffset || controls.Display.Span != g.FesDe25ScanoutSpan ||
+		controls.Display.Stop != g.FesDe25ScanoutCommandStop || controls.Display.Status != g.FesDe25ScanoutStatusOffset ||
+		controls.Display.Drained != g.FesDe25ScanoutStatusDrained {
+		t.Fatal("generated control maps differ from package or driver")
+	}
 	compat, err := runtimeadmission.NewNanoComputerCompatibility()
 	if err != nil || compat.CheckArchive(archive, info.PackageID) == nil {
-		t.Fatal("the Linux package must stay refused by native admission", err)
+		t.Fatal("the prototype package must stay refused by normal native admission", err)
 	}
 	if !corepackage.FirmwareUpload(d) || d.ROM.SourceSize != 16384 {
 		t.Fatal("fixture lost the format-3 firmware upload contract")
@@ -105,6 +143,43 @@ type spectrumMailbox struct {
 	cancel                          context.CancelFunc
 	original, corrupt               uint32
 	corruptEcho                     bool
+}
+
+type spectrumDisplay struct {
+	*rtlIO
+	replyAfterStop bool
+	stopped        bool
+}
+
+func (s *spectrumDisplay) Read32(offset uint32) (uint32, error) {
+	reply, err := s.call("display-read %x", offset)
+	if err != nil {
+		return 0, err
+	}
+	if len(reply) != 1 {
+		return 0, ErrProtocol
+	}
+	return uint32(reply[0]), nil
+}
+
+func (s *spectrumDisplay) Write32(offset, word uint32) error {
+	_, err := s.call("display-write %x %x", offset, word)
+	if err != nil || offset != g.FesDe25ScanoutCommandOffset || word != g.FesDe25ScanoutCommandStop {
+		return err
+	}
+	s.stopped = true
+	if s.replyAfterStop {
+		status, err := s.Read32(g.FesDe25ScanoutStatusOffset)
+		if err != nil {
+			return err
+		}
+		if status&g.FesDe25ScanoutStatusDrained != 0 {
+			return errors.New("scanout reported drained with replies still withheld")
+		}
+		_, err = s.call("display-reply")
+		return err
+	}
+	return nil
 }
 
 func startSpectrumMailbox(t *testing.T, executable string) *spectrumMailbox {
@@ -198,7 +273,7 @@ func TestSpectrum48FirmwareRTL(t *testing.T) {
 	ctx := context.Background()
 	limits := Limits{Timeout: 20 * time.Second, MaxPolls: 64, Now: time.Now, Yield: func() {}}
 
-	for _, name := range []string{"launch", "relaunch-after-fresh-configuration", "unarmed-release", "wrong-build", "wrong-size", "cancel", "crc", "return-ack", "already-ready"} {
+	for _, name := range []string{"launch", "relaunch-after-fresh-configuration", "unarmed-release", "wrong-build", "wrong-size", "cancel", "crc", "return-ack", "already-ready", "fetch-stall"} {
 		t.Run(name, func(t *testing.T) {
 			s := startSpectrumMailbox(t, executable)
 			id := want
@@ -217,6 +292,16 @@ func TestSpectrum48FirmwareRTL(t *testing.T) {
 			}
 			if err := c.Hold(ctx); err != nil {
 				t.Fatal(err)
+			}
+			if name == "fetch-stall" {
+				fault, err := s.call("fetch-stall")
+				if err != nil || len(fault) != 1 || fault[0] != uint64(g.FesDe25ComputerFaultBusy) {
+					t.Fatal("stalled machine clock did not end the Avalon fetch read with a sticky fault", fault, err)
+				}
+				if _, err := c.Activity(ctx); !errors.Is(err, ErrProtocol) {
+					t.Fatal("faulted fetch endpoint was accepted", err)
+				}
+				return
 			}
 			if name == "unarmed-release" {
 				if err := c.Run(ctx); !errors.Is(err, ErrProtocol) {
@@ -268,12 +353,20 @@ func TestSpectrum48FirmwareRTL(t *testing.T) {
 			if held, marker := s.state(t); !held || marker != 0 {
 				t.Fatal("firmware executed before release", held, marker)
 			}
+			heldBefore, err := c.Activity(ctx)
+			if err != nil || heldBefore.Cycles != 0 {
+				t.Fatal("unexpected fetch while held", heldBefore, err)
+			}
 			if err := c.Run(ctx); err != nil {
 				t.Fatal(err)
 			}
 			advance(t, s.rtlIO, 100000)
 			if held, marker := s.state(t); held || marker != 0xa5 {
 				t.Fatal("diagnostic ROM did not run", held, marker)
+			}
+			running, err := c.Activity(ctx)
+			if err != nil || running.Cycles <= heldBefore.Cycles || running.Address >= 16384 {
+				t.Fatal("no instruction fetch from the diagnostic ROM", running, err)
 			}
 			if name == "return-ack" {
 				s.fault = name
@@ -287,13 +380,22 @@ func TestSpectrum48FirmwareRTL(t *testing.T) {
 				}
 				return
 			}
-			if err := c.Hold(ctx); err != nil {
+			if err := c.StopWithDisplay(ctx, &spectrumDisplay{rtlIO: s.rtlIO}); err != nil {
 				t.Fatal(err)
 			}
 			if held, _ := s.state(t); !held || s.releases != 1 {
 				t.Fatal("return did not hold the machine")
 			}
+			first, err := c.Activity(ctx)
+			advance(t, s.rtlIO, 1000)
+			last, afterErr := c.Activity(ctx)
+			if err != nil || afterErr != nil || first != last {
+				t.Fatal("fetch did not stop after return", first, last, err, afterErr)
+			}
 			if name == "already-ready" {
+				if err := c.Hold(ctx); err != nil {
+					t.Fatal(err)
+				}
 				err := c.LoadInitialFirmware(ctx, firmware)
 				if !errors.Is(err, ErrProtocol) || s.begins != 4 || s.commits != 1 {
 					t.Fatal("initial upload adopted or overwrote a ready ROM", err)

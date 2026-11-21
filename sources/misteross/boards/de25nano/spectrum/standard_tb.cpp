@@ -67,6 +67,9 @@ struct Board {
     unsigned edge = 0, due = 0, expires = 0;
     uint16_t pending = 0;
     bool have_pending = false, dq_valid = false;
+    unsigned display_pending = 0;
+    bool display_reply = false;
+    bool machine_clock_stopped = false;
 
     Board() : root(*dut.rootp) {
         for (auto& chip : rows) chip.fill(-1);
@@ -146,6 +149,12 @@ struct Board {
         if (next_pixel < next_sys && next_pixel < next_bus) {
             next_pixel += kPixelHalfPs;
             dut.pixel_clk = !dut.pixel_clk;
+            if (dut.pixel_clk) {
+                dut.avm_readdatavalid = display_reply && display_pending != 0;
+                dut.avm_response = 0;
+                if (dut.avm_readdatavalid) --display_pending;
+                if (dut.avm_read && !dut.avm_waitrequest) display_pending += dut.avm_burstcount;
+            }
             dut.eval();
             return 0;
         }
@@ -156,6 +165,7 @@ struct Board {
             return dut.clk_sys ? 2 : 0;
         }
         next_sys += kSysHalfPs;
+        if (machine_clock_stopped) return 0;
         dut.machine_clk = !dut.machine_clk;
         dut.eval();
         if (!dut.machine_clk) sdram_falling();
@@ -167,11 +177,32 @@ struct Board {
     void run_bus(int clocks) {
         for (int i = 0; i < clocks;) i += step() == 2;
     }
+    uint32_t scanout(uint32_t address, bool write, uint32_t value = 0) {
+        dut.scanout_address = address;
+        dut.scanout_byteenable = 0xf;
+        dut.scanout_read = !write;
+        dut.scanout_write = write;
+        dut.scanout_writedata = value;
+        dut.eval();
+        require(!dut.scanout_waitrequest, "scanout stalled a CSR access");
+        // Move from either level to the next actual pixel rising edge.
+        while (dut.pixel_clk) step();
+        while (!dut.pixel_clk) step();
+        require(dut.scanout_response == 0 &&
+                (write ? dut.scanout_writeresponsevalid : dut.scanout_readdatavalid),
+                "scanout CSR rejected");
+        value = dut.scanout_readdata;
+        dut.scanout_read = 0;
+        dut.scanout_write = 0;
+        dut.eval();
+        return value;
+    }
     void write(uint32_t address, uint32_t value) {
         dut.computer_address = address;
         dut.computer_writedata = value;
         dut.computer_byteenable = 0xf;
         dut.computer_write = 1;
+        dut.eval();
         for (int i = 0; i < 16; ++i) {
             const bool accepted = !dut.computer_waitrequest;
             run_bus(1);
@@ -184,15 +215,16 @@ struct Board {
         }
         fail("computer write stalled");
     }
-    uint32_t read(uint32_t address) {
+    uint32_t read(uint32_t address, bool expect_fault = false) {
         dut.computer_address = address;
         dut.computer_read = 1;
-        for (int i = 0; i < 16; ++i) {
+        dut.eval();
+        for (int i = 0; i < 80; ++i) {
             const bool accepted = !dut.computer_waitrequest;
             run_bus(1);
             if (accepted) {
                 dut.computer_read = 0;
-                require(dut.computer_readdatavalid && dut.computer_response == 0,
+                require(dut.computer_readdatavalid && dut.computer_response == (expect_fault ? 2 : 0),
                         "computer read refused");
                 return dut.computer_readdata;
             }
@@ -255,6 +287,30 @@ int native_mailbox() {
             require(value <= 100000, "native mailbox batch too large");
             board.run_clocks(value);
             value = 0;
+        } else if (operation == "display-read" && input >> address) {
+            value = board.scanout(address, false);
+        } else if (operation == "display-write" && input >> address >> value) {
+            board.scanout(address, true, value);
+            value = 0;
+        } else if (operation == "display-prime") {
+            // A real reader submission with the first burst accepted but its
+            // replies withheld until directed by the test's memory supplier.
+            board.scanout(0x10, true, 0x100000);
+            board.scanout(0x18, true, 0x800000);
+            board.scanout(0x1c, true, 1);
+            board.scanout(0x24, true, 1);
+            board.scanout(0x28, true, 1);
+            board.scanout(0x0c, true, 1);
+            for (unsigned i = 0; i < 16000000 && !board.display_pending; ++i) board.step();
+            require(board.display_pending != 0, "scanout did not issue a burst");
+            value = board.display_pending;
+        } else if (operation == "display-reply") {
+            board.display_reply = true;
+            value = board.display_pending;
+        } else if (operation == "fetch-stall") {
+            board.machine_clock_stopped = true;
+            board.read(0x18, true);
+            value = board.read(kFault);
         } else if (operation == "spectrum-state") {
 #if SPECTRUM_BANKS == 3
             const auto& ram = board.root.fes_de25_spectrum_standard__DOT__core__DOT__machine__DOT__ram__DOT__bank__BRA__1__KET____DOT__mem;

@@ -48,10 +48,11 @@ class Machine:
     """One machine: its board spec, its package identity and its own interfaces."""
 
     def __init__(self, *, recipe, directory, core_id, rom_id, name, version, descriptions, interfaces,
-                 model_core_ids=None, model_rom_ids=None):
+                 model_core_ids=None, model_rom_ids=None, model_profiles=None):
         self.recipe, self.directory, self.core_id, self.rom_id = recipe, directory, core_id, rom_id
         self.model_core_ids = dict(model_core_ids or {})
         self.model_rom_ids = dict(model_rom_ids or {})
+        self.model_profiles = dict(model_profiles or {})
         self.name, self.version, self.descriptions = name, version, descriptions
         self.interfaces = interfaces
         self.label = 'DE25 ' + name
@@ -105,7 +106,10 @@ class Machine:
                 'model': model, 'device': DEVICE,
                 'hps_initialization': 'HPS FIRST', 'source_closure_policy': common.SOURCE_POLICY,
                 'f2sdram_master_profile': 'scanout-only', 'fabric_initiator_policy': common.MANAGED_FABRIC,
-                'programming_profile': 'de25-linux-computer-v1', 'standard_core': True, 'linux_dma': True,
+                'programming_profile': self.model_profiles.get(model, 'de25-linux-computer-v1'),
+                # Both use the same scanout-only GHRD topology. The native
+                # package has a different owner/runtime admission profile.
+                'standard_core': True, 'linux_dma': True,
                 'expansion_socket': False, 'guest_memory': 'board-sdram',
                 'firmware_delivery': UPLOAD_ENCODING, 'firmware_bytes': spec.FIRMWARE_BYTES[model],
                 'machine_clock_hz': spec.board.MACHINE_HZ, 'audio_clock_requested_hz': 12288000,
@@ -129,7 +133,8 @@ class Machine:
         return encode_manifest({'format': 2,
             'core': {'id': fields['parameters']['core_id'], 'name': self.name, 'version': self.version,
                      'description': self.descriptions[fields['parameters']['model']]},
-            'target': {'platform': 'de25_nano', 'device': DEVICE, 'programming_profile': 'de25-linux-computer-v1'},
+            'target': {'platform': 'de25_nano', 'device': DEVICE,
+                       'programming_profile': fields['parameters']['programming_profile']},
             'payload': {'file': 'core.rbf', 'size': payload.stat().st_size, 'sha256': sha(payload)},
             'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0},
             'interfaces': [{'id': name, 'major': major, 'minor': minor, 'required': True}
@@ -221,9 +226,13 @@ class Machine:
             encoded = self.manifest(record, output / 'core.rbf')
             (output / 'manifest.toml').write_bytes(encoded)
             (output / 'rom-map.json').write_bytes(self.rom_map(record, output / 'core.rbf'))
-            return export_package(encoded, output / 'core.rbf', Path(package_output or root / 'build/packages'),
-                                  rom_map=output / 'rom-map.json',
-                                  rom_id=json.loads(record)['parameters']['rom_id'], rom_role='firmware')
+            package = export_package(encoded, output / 'core.rbf', Path(package_output or root / 'build/packages'),
+                                     rom_map=output / 'rom-map.json',
+                                     rom_id=self.rom_id_for(model), rom_role='firmware')
+            if model in self.model_profiles:
+                (output / 'native-controls.json').write_bytes(
+                    spec.native_controls(selected_id, sha(output / 'core.rbf')))
+            return package
 
     def main(self, description, argv=None):
         parser = argparse.ArgumentParser(description=description)

@@ -60,15 +60,25 @@ acknowledged Hold on return, and a fresh upload after reconfiguration. Failure
 cases include the wrong live build or ROM size, release before upload, a
 cancelled submission, CRC rejection, a ready image, and an uncertain Hold.
 
-Native Tenfoot hookup requires a source-bound native Spectrum package and
-compiled control maps. The #1937 package uses the Linux programming profile.
-The current standard wrapper also lacks the native fetch count/address
-registers, and its display reader needs a matching master-stop/drain contract.
-The proof observes execution via simulation RAM. It leaves FPGA admission,
-bridge and SD ownership, menu presentation and hardware timing to the native
-integration. A 16 KiB upload entails 8,192 data commands, each with the
-existing before/after mailbox observations. The simulation timeout supplies
-no board timing evidence.
+The `native48` producer variant uses `de25-native-spectrum48-v1`, with a
+distinct build identity and a control-map sidecar bound to the RBF hash. The
+native register at offset 0x18 requests a fresh machine-clock fetch count and
+address. A stopped machine clock returns a bounded Avalon error and poisons
+the transport. The model checks both the count and the diagnostic RAM marker. The
+Linux variants retain the video-ready register at the same offset.
+
+The off-board Tenfoot test uses the real launcher frontend and a test host
+which models loading a fresh FPGA configuration. Each launch drives the native
+driver over the actual Spectrum RTL. Return blocks display submissions, issues
+the local scanout STOP, waits for outstanding reads and the GP display plane
+to drain, and obtains Hold before returning to the library. It repeats the
+cycle and injects missing read replies to verify that return fails closed.
+
+The platform still needs to bind this profile and its control maps to TF-A,
+bridge ownership and the real SD-backed ProgramService. The test host grants
+no physical ownership or package admission. A 16 KiB upload entails 8,192
+data commands with mailbox observations. The simulation establishes no board
+timing or HDMI qualification.
 The diagnostic board's limit is 16375 bytes, below the general ABI's 16384.
 Callers must not mutate supplied slices concurrently with a call; tape bytes
 are copied before CRC and transfer. These are command operations, not a runtime
