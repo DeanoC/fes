@@ -824,3 +824,34 @@ func TestPcxtShelfListsTheDefaultFreeDOSDiskOnceChanged(t *testing.T) {
 		t.Fatalf("the default was saved as the title's disk: %+v", entry)
 	}
 }
+
+// Home and the core screen learn which disk a diskless PC/XT starts from.
+func TestComputerPackagesNameThePcxtStartDisk(t *testing.T) {
+	ctx := context.Background()
+	for _, bundled := range []bool{true, false} {
+		f := newShelf(t)
+		var boot []byte
+		if bundled {
+			boot = freeDOSLike(t)
+		}
+		pkg := f.withPcxt(t, boot)
+		if _, err := f.s.CreateCoreEntry(ctx, "PC/XT", pkg); err != nil {
+			t.Fatal(err)
+		}
+		_, packages, err := f.s.ShelfComputers(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]string{}
+		for _, p := range packages {
+			got[p.PackageID] = p.StartDisk
+		}
+		want := ""
+		if bundled {
+			want = "Test boot disk"
+		}
+		if v, ok := got[pkg]; !ok || v != want || got[f.pkg] != "" {
+			t.Fatalf("bundled=%v start disks %q, want %q for the PC/XT and none for the ST", bundled, got, want)
+		}
+	}
+}
