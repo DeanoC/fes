@@ -63,9 +63,12 @@ cancelled submission, CRC rejection, a ready image, and an uncertain Hold.
 The `native48` producer variant uses `de25-native-spectrum48-v1`, with a
 distinct build identity and a control-map sidecar bound to the RBF hash. The
 native register at offset 0x18 requests a fresh machine-clock fetch count and
-address. A stopped machine clock returns a bounded Avalon error and poisons
-the transport. The model checks both the count and the diagnostic RAM marker. The
-Linux variants retain the video-ready register at the same offset.
+address. The machine holds the pair while a separately synchronized reply
+crosses to the peripheral clock. A single capture feeds both registers. A
+stopped machine clock returns a bounded Avalon error and poisons the transport.
+The model checks the diagnostic RAM marker and successive count/address pairs
+against the source snapshot across unrelated clocks. The Linux variants retain
+the video-ready register at the same offset.
 
 The off-board Tenfoot test uses the real launcher frontend, a file-backed FAT32
 volume and the runtime package store. The test host models the SD lease and
