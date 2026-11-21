@@ -552,10 +552,15 @@ def licensed_quartus_editions(argv) -> set[str]:
     words = []
     for argument in argv or ():
         text = os.fsdecode(argument) if isinstance(argument, (bytes, os.PathLike)) else str(argument)
+        # Split as the shell does, operators included, so a program name
+        # with a redirection or separator attached (quartus_sh>log,
+        # quartus_sh&) is still seen.
+        lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
         try:
-            words.extend(shlex.split(text))
+            words.extend(lexer)
         except ValueError:
-            words.extend(text.split())
+            words.extend(re.split(r"[\s;&|<>()]+", text))
     editions = set()
     for index, word in enumerate(words):
         if not QUARTUS_PROGRAM.fullmatch(os.path.basename(word)):
