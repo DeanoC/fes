@@ -164,10 +164,10 @@ Each fit's summary is in `fits/`.
 - **Earlier commits.** `ec945043d` differs from `9aa6d0561` only by a
   Verilator lint pragma, which moves the netlist's source line attributes.
   Seed 1 gives the same result at both.
-- **At the head, after the #AC fixes, seed 1 misses by 3 ps** at one
-  corner, and seeds 2 to 4 close. That is the DE10 machine's seed-to-seed
-  margin, not a timing failure the logic forces. The same seed closed by
-  +0.984 ns one commit earlier.
+- **At the head, after the #AC fixes, one netlist closes on seeds 2 to 4
+  and misses by 3 ps on seed 1**, at one corner. The fits establish that
+  and nothing more. The same seed closed by +0.984 ns on the previous
+  commit's netlist.
 - **What a 486SX package would need.** The pc386 recipe seals at seed 1,
   so a package built from this head would need another seed, or margin
   found elsewhere. No timing check was relaxed, and nothing was packaged.
@@ -216,10 +216,13 @@ the issue; the PR is #2045.
   - the census rerun with the identity on;
   - random programs against the level-4 oracle (the testbench's level-4
     mode runs only the directed cases);
-  - a kit run of a 486SX build.
+  - a kit run of a 486SX build;
+  - the plan's per-slice kit gate on the 386 seal, DOOM `-timedemo demo3`
+    and the acceptance games rechecked (the slice's Done list asked for
+    FreeDOS and one game, which `k2044b` is).
 
-  None was run, because no 486 package exists while the identity is a
-  build parameter that every package leaves at 0.
+  None of the first four was run, because no 486 package exists while the
+  identity is a build parameter that every package leaves at 0.
 - **The governor rows on a bench.** They are generated and checked
   (`fes_i386_governor.py --check`), but no bench runs at `I486 = 1`.
 - **The 386 instruction set at `I486 = 1`** is exercised only by the 141

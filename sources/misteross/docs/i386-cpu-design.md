@@ -333,11 +333,14 @@ With `I486 = 1`:
   and Bochs do (the 1992 PRM's lists only IF and TF); a protected-mode one
   keeps it.
 - **#AC (vector 17, error code 0).** At CPL 3 with AM and AC set, a data
-  access of 2, 4 or 8 bytes at an address not a multiple of its size, a
-  system access (descriptor tables, the TSS) excepted. It is checked at M1
-  on the linear address, after the segment's checks and before the page
-  walk: the PRM's Table 9-2 ranks alignment faults above page faults. Under
-  AM at CPL 3 an access waits in D for an older EFLAGS load.
+  access of 2, 4 or 8 bytes at an address not a multiple of its size, or of
+  6 bytes at an odd one; for MOVS (a st2 uop) its store's address too.
+  Accesses made at privilege 0 are excepted: system accesses (descriptor
+  tables, the TSS) and a delivery's pushes to its new stack. Far pointers,
+  BOUND and SGDT are checked as the separate accesses they make. It is
+  checked at M1 on the linear address, after the segment's checks and before
+  the page walk: the PRM's Table 9-2 ranks alignment faults above page
+  faults. Under AM at CPL 3 an access waits in D for an older EFLAGS load.
 - **TR3** is storage, as TR4 to TR7 are; none has its test function.
 - **Reset.** A machine with the identity resets DX to the signature, CR0 to
   `60000010h` and DR6 to `FFFF0FF0h` (`pc386_system`'s `init_*`).

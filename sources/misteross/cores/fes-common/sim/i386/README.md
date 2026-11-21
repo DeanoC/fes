@@ -181,19 +181,26 @@ section that says so. `scripts/test_fes_i486_lockstep.py` runs them twice:
   and its ending and registers must equal the case's row, as must the state
   after reset. A row whose source is "Bochs" records what the oracle does
   where no document read says;
-- **the RTL in lockstep**: `lockstep_tb.cpp` in `FES_I386_MODE=i486`, which
-  runs only against this oracle (every other mode refuses it). The CPU is a
-  386 until the 486 identity is built, so each case either keeps step to its
-  end or stops at its first mismatch. A stop before the case's probe, the
-  first instruction that needs a 486, fails; and the list of stops must equal
-  [`i486-expected-stops.txt`](i486-expected-stops.txt). A change that builds
-  a 486 feature moves its cases to `agree` in that list in the same commit.
+- **the CPU in lockstep**: `lockstep_tb.cpp` in `FES_I386_MODE=i486`, which
+  runs only against this oracle (every other mode refuses it), at each CPU
+  identity: the 386 (`I486 = 0`, which every package builds) and the 486SX
+  (`I486 = 1`, i486 slice 2; `docs/i386-cpu-design.md`, "The i486
+  identity"), on the RTL or, with `--netlist`, on the seal's netlist. Each
+  case either keeps step to its end or stops at its first mismatch. A stop
+  before the case's probe, the first instruction that needs a 486, fails;
+  and each identity's stops must equal its list:
+  [`i486-expected-stops.txt`](i486-expected-stops.txt) for the 386, where
+  every 486 case stops, and
+  [`i486-expected-stops-486sx.txt`](i486-expected-stops-486sx.txt) for the
+  486SX, where only by-design stops remain. A change to what either identity
+  does edits its list in the same commit.
 
 In the `i486` mode the state comparison uses the 486's masks: CR0 under
 E005003Fh, EFLAGS with AC and ID. The cases start from CR0 60050030h, with
 CD, NW, AM, WP and NE set, because the RTL's 386 reads CR0 bits 30-5 as
-ones: so the two sides agree until a case changes one of those bits, and a
-case that needs AM or WP clear writes CR0 itself as its probe. After the
+ones and the 486SX holds the bits: so the two sides agree until a case
+changes one of those bits, and a case that needs AM or WP clear writes CR0
+itself as its probe. After the
 cases the mode runs the #UD probes a 486 keeps (`ud_probes16(true)`), each
 alone in real mode as a row `ud-<name>`, which must raise #UD on both sides.
 
