@@ -4,6 +4,7 @@ package computer
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
@@ -50,6 +52,17 @@ func (h *spectrumTestHost) launch(ctx context.Context, flight string) error {
 	selection, err := h.store.Retain(ctx, h.request)
 	if err != nil {
 		return err
+	}
+	var tape []byte
+	if raw := selection.Tape(); len(raw) != 0 {
+		if selection.TapeFormat() != packagestore.SpectrumTapeFormat ||
+			!protocol.DeclaresSpectrumTape(selection.Inspection().Descriptor) {
+			return ErrArgument
+		}
+		tape, err = protocol.ConvertSpectrumTape(raw, MaxInitialSpectrumTapeBytes)
+		if err != nil {
+			return err
+		}
 	}
 	h.retired = true
 	handoff, err := h.store.Contain(selection)
@@ -90,11 +103,23 @@ func (h *spectrumTestHost) launch(ctx context.Context, flight string) error {
 		return err
 	}
 	if err := c.LoadInitialFirmware(ctx, firmware); err != nil {
-		return err
+		return fmt.Errorf("upload retained Spectrum ROM: %w", err)
 	}
 	held, err := c.Activity(ctx)
 	if err != nil || held != before {
-		return fmt.Errorf("fetch changed while uploading: %v, %v", held, err)
+		return fmt.Errorf("fetch changed while uploading ROM: %v, %v", held, err)
+	}
+	if len(tape) != 0 {
+		if err := c.Hold(ctx); err != nil {
+			return fmt.Errorf("hold Spectrum for retained tape: %w", err)
+		}
+		if err := c.LoadInitialSpectrumTape(ctx, tape); err != nil {
+			return fmt.Errorf("upload retained Spectrum tape: %w", err)
+		}
+		held, err = c.Activity(ctx)
+		if err != nil || held != before {
+			return fmt.Errorf("fetch changed while uploading tape: %v, %v", held, err)
+		}
 	}
 	if err := c.Run(ctx); err != nil {
 		return err
@@ -105,6 +130,11 @@ func (h *spectrumTestHost) launch(ctx context.Context, flight string) error {
 	running, err := c.Activity(ctx)
 	if err != nil || running.Cycles <= held.Cycles || running.Address >= 16384 {
 		return fmt.Errorf("Spectrum fetch proof failed: %v, %v", running, err)
+	}
+	if len(tape) != 0 {
+		if err := checkSpectrumTapePlayback(ctx, mailbox); err != nil {
+			return err
+		}
 	}
 	beats, err := mailbox.call("display-prime")
 	if err != nil || len(beats) != 1 || beats[0] == 0 {
@@ -151,6 +181,11 @@ func (h *spectrumTestHost) stop(ctx context.Context) error {
 		h.retired = true
 		h.active = nil
 		return err
+	}
+	// The next FPGA configuration uses a fresh simulator process.
+	if err := mailbox.finish(); err != nil {
+		h.retired, h.active = true, nil
+		return fmt.Errorf("finish retired Spectrum simulation: %w", err)
 	}
 	h.computer, h.active = nil, nil
 	h.returns++
@@ -206,32 +241,44 @@ func TestSpectrum48TenfootRTL(t *testing.T) {
 	if err != nil || len(image) != 16384 {
 		t.Fatal("expected the 16 KiB open diagnostic ROM", err)
 	}
+	tape, err := os.ReadFile(os.Getenv("FES_SPECTRUM48_TAPE"))
+	if err != nil || len(tape) == 0 {
+		t.Fatal("expected the open Spectrum tape fixture", err)
+	}
 	source := spectrum48Source(t, image)
-	store, lease, request := spectrumFATStore(t, source)
+	t.Run("return failure", func(t *testing.T) {
+		testSpectrum48Tenfoot(t, executable, source, nil, true)
+	})
+	t.Run("SD tape relaunch", func(t *testing.T) {
+		testSpectrum48Tenfoot(t, executable, source, tape, false)
+	})
+}
+
+func testSpectrum48Tenfoot(t *testing.T, executable string, source spectrumSource, tape []byte, failReturn bool) {
+	t.Helper()
+	store, lease, request := spectrumFATStore(t, source, tape)
 	badRequest := request
 	badRequest.Sources = append([]packagestore.Source(nil), request.Sources...)
 	badRequest.Sources[0].Path = "BAD.ROM"
 	if _, err := store.Retain(t.Context(), badRequest); err == nil || lease.stops != 0 {
 		t.Fatal("wrong FAT ROM reached containment", err)
 	}
-	for _, address := range []uint32{0x00100000, 0x95000020, 0x95800000} {
-		mailbox := startSpectrumMailbox(t, executable)
-		if issued, err := mailbox.call("check-display-grant %x", address); err != nil || len(issued) != 1 || issued[0] != 0 {
-			t.Fatalf("scanout accepted foreign DMA grant %#x: %v, %v", address, issued, err)
+	t.Run("display grants", func(t *testing.T) {
+		for _, address := range []uint32{0x00100000, 0x95000020, 0x95800000} {
+			mailbox := startSpectrumMailbox(t, executable)
+			if issued, err := mailbox.call("check-display-grant %x", address); err != nil || len(issued) != 1 || issued[0] != 0 {
+				t.Fatalf("scanout accepted foreign DMA grant %#x: %v, %v", address, issued, err)
+			}
 		}
-	}
-	mailbox := startSpectrumMailbox(t, executable)
-	if issued, err := mailbox.call("check-display-retirement"); err != nil || len(issued) != 1 || issued[0] != 0 {
-		t.Fatalf("retired scanout became reusable: %v, %v", issued, err)
-	}
+		mailbox := startSpectrumMailbox(t, executable)
+		if issued, err := mailbox.call("check-display-retirement"); err != nil || len(issued) != 1 || issued[0] != 0 {
+			t.Fatalf("retired scanout became reusable: %v, %v", issued, err)
+		}
+	})
 	host := &spectrumTestHost{identity: source.identity, store: store, request: request}
-	for range 3 {
-		host.mailboxes = append(host.mailboxes, startSpectrumMailbox(t, executable))
-	}
 	server := httptest.NewServer(host)
 	defer server.Close()
-	// This bounds the whole off-board test and includes three process-backed
-	// ROM uploads. The per-operation driver deadline remains independent.
+	// Bound each complete off-board scenario independently of the operations.
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 	app := tenfoot.NewApp(tenfoot.NewClient(server.URL, server.Client()), 640, 480, 100)
@@ -250,36 +297,48 @@ func TestSpectrum48TenfootRTL(t *testing.T) {
 		t.Fatalf("%s: session=%+v launch=%+v", name, app.Snapshot().Session, app.Snapshot().Launch)
 	}
 	wait("catalogue", func(s tenfoot.Snapshot) bool { return len(s.Games) == 1 && !s.Loading })
-	for i := 1; i <= 3; i++ {
+	launches := 2
+	if failReturn {
+		launches++
+	}
+	for i := 1; i <= launches; i++ {
+		mailbox := startSpectrumMailbox(t, executable)
+		host.mu.Lock()
+		host.mailboxes = append(host.mailboxes, mailbox)
+		host.mu.Unlock()
 		app.Press(tenfoot.CmdSelect, time.Now())
 		wait("launch", func(s tenfoot.Snapshot) bool { return s.Session.State == "active" && s.GPUParked })
+		injectFailure := failReturn && i == launches
 		host.mu.Lock()
-		if i == 3 {
-			host.dropResponses = true
-		}
+		host.dropResponses = injectFailure
 		host.mu.Unlock()
 		app.Press(tenfoot.CmdStop, time.Now())
-		if i != 3 {
+		if !injectFailure {
 			wait("return to library", func(s tenfoot.Snapshot) bool { return s.Session.State == "idle" && !s.GPUParked })
 		}
 	}
-	wait("missing reader replies", func(_ tenfoot.Snapshot) bool {
-		host.mu.Lock()
-		defer host.mu.Unlock()
-		return host.retired
-	})
+	if failReturn {
+		wait("missing reader replies", func(_ tenfoot.Snapshot) bool {
+			host.mu.Lock()
+			defer host.mu.Unlock()
+			return host.retired
+		})
+	}
 	host.mu.Lock()
 	defer host.mu.Unlock()
-	if host.launches != 3 || host.returns != 2 || !host.retired {
+	if host.launches != launches || host.returns != 2 || host.retired != failReturn {
 		t.Fatalf("launches=%d returns=%d retired=%t", host.launches, host.returns, host.retired)
 	}
-	if lease.stops != 3 || lease.resumes != 2 || lease.receipt.Active || lease.containedReads != 0 {
+	if lease.stops != launches || lease.resumes != 2 || lease.receipt.Active == failReturn || lease.containedReads != 0 {
 		t.Fatalf("unexpected storage lifecycle: stops=%d resumes=%d active=%t contained reads=%d",
 			lease.stops, lease.resumes, lease.receipt.Active, lease.containedReads)
 	}
-	writes := host.mailboxes[2].writes
-	if !errors.Is(host.computer.Run(ctx), ErrRetired) || host.mailboxes[2].writes != writes {
-		t.Fatal("uncertain drain allowed another GP mutation")
+	if failReturn {
+		mailbox := host.mailboxes[launches-1]
+		writes := mailbox.writes
+		if !errors.Is(host.computer.Run(ctx), ErrRetired) || mailbox.writes != writes {
+			t.Fatal("uncertain drain allowed another GP mutation")
+		}
 	}
 }
 
@@ -315,7 +374,7 @@ func (d *spectrumFATLease) Resume() error {
 	return nil
 }
 
-func spectrumFATStore(t *testing.T, source spectrumSource) (*packagestore.Store, *spectrumFATLease, packagestore.Request) {
+func spectrumFATStore(t *testing.T, source spectrumSource, tape []byte) (*packagestore.Store, *spectrumFATLease, packagestore.Request) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "native48.img")
 	file, err := os.Create(path)
@@ -340,7 +399,15 @@ func spectrumFATStore(t *testing.T, source spectrumSource) (*packagestore.Store,
 	}
 	corrupt := bytes.Clone(source.image)
 	corrupt[0] ^= 1
-	for path, data := range map[string][]byte{"SPEC48.FCP": source.archive, "SPEC48.ROM": source.image, "BAD.ROM": corrupt} {
+	const tapePath = "SPEC48.PZX"
+	files := map[string][]byte{"SPEC48.FCP": source.archive, "SPEC48.ROM": source.image, "BAD.ROM": corrupt}
+	var media packagestore.TapeRequest
+	if len(tape) != 0 {
+		files[tapePath] = tape
+		media = packagestore.TapeRequest{Path: tapePath, Format: packagestore.SpectrumTapeFormat,
+			Size: int64(len(tape)), SHA256: fmt.Sprintf("%x", sha256.Sum256(tape))}
+	}
+	for path, data := range files {
 		if err := volume.CreateFile(t.Context(), path, data); err != nil {
 			t.Fatal(err)
 		}
@@ -365,6 +432,7 @@ func spectrumFATStore(t *testing.T, source spectrumSource) (*packagestore.Store,
 	receipt := source.linked.Receipt()
 	return store, lease, packagestore.Request{
 		Path: "SPEC48.FCP", PackageID: receipt.PackageID, ReceiptSHA256: source.linked.ReceiptSHA256(),
+		Tape: media,
 		Sources: []packagestore.Source{{
 			ID: receipt.ROMLink.ROMID, Role: "firmware", Path: "SPEC48.ROM", SHA256: receipt.ROMLink.SourceSHA256,
 		}},

@@ -9,11 +9,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -49,7 +51,13 @@ func spectrum48Source(t *testing.T, firmware []byte) spectrumSource {
 				"fes-gp-v1", "de25-native-spectrum48-v1",
 				"fes.simple-game", "fes.computer",
 				"0123456789abcdef0123456789abcdef", "00112233445566778899aabbccddeeff",
-			).Replace(string(data)))
+			).Replace(string(data)) + `
+[[interfaces]]
+id = "fes.media.spectrum-tape"
+major = 2
+minor = 0
+required = true
+`)
 		}
 		if err := os.WriteFile(filepath.Join(dir, destination), data, 0600); err != nil {
 			t.Fatal(err)
@@ -151,6 +159,7 @@ func spectrum48Source(t *testing.T, firmware []byte) spectrumSource {
 
 type spectrumMailbox struct {
 	*rtlIO
+	finish                          func() error
 	begins, data, commits, releases int
 	fault                           string
 	cancel                          context.CancelFunc
@@ -215,14 +224,17 @@ func startSpectrumMailbox(t *testing.T, executable string) *spectrumMailbox {
 		cancel()
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
+	finish := sync.OnceValue(func() error {
 		defer cancel()
-		input.Close()
-		if err := cmd.Wait(); err != nil {
+		_ = input.Close()
+		return cmd.Wait()
+	})
+	t.Cleanup(func() {
+		if err := finish(); err != nil {
 			t.Error(err)
 		}
 	})
-	return &spectrumMailbox{rtlIO: &rtlIO{input: input, output: bufio.NewReader(output)}}
+	return &spectrumMailbox{rtlIO: &rtlIO{input: input, output: bufio.NewReader(output)}, finish: finish}
 }
 
 func (s *spectrumMailbox) Read32(offset uint32) (uint32, error) {
@@ -490,22 +502,28 @@ func TestSpectrum48TapeRTL(t *testing.T) {
 	if err := c.Run(ctx); err != nil {
 		t.Fatal(err)
 	}
+	if err := checkSpectrumTapePlayback(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func checkSpectrumTapePlayback(ctx context.Context, mailbox *spectrumMailbox) error {
 	// The diagnostic ROM reads EAR via port FE and decodes all four tape bytes
 	// into RAM. This observes playback and CPU loading independently of commit.
 	for i := 0; i < 200; i++ {
 		if err := ctx.Err(); err != nil {
-			t.Fatal(err)
+			return err
 		}
-		if _, err := s.call("advance %x", 100000); err != nil {
-			t.Fatal(err)
+		if _, err := mailbox.call("advance %x", 100000); err != nil {
+			return err
 		}
-		result, err := s.call("tape-result")
+		result, err := mailbox.call("tape-result")
 		if err != nil || len(result) != 1 {
-			t.Fatal(result, err)
+			return fmt.Errorf("read Spectrum tape result: %v, %v", result, err)
 		}
 		if result[0] == 0xa53c817e {
-			return
+			return nil
 		}
 	}
-	t.Fatal("Spectrum diagnostic did not decode the cassette bytes into RAM")
+	return errors.New("Spectrum diagnostic did not decode the cassette bytes into RAM")
 }
