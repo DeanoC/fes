@@ -22,8 +22,10 @@ a free slot.
         /tmp (Powerboat's /tmp is a shared tmpfs).
 
 `run` holds the slot until every process of the job has exited, including any
-left in the background, and stops the job at its time cap (--cap-minutes,
-default 240; exit 124). It reports the peak resident set size of the job's
+left in the background, prints a heartbeat every minute (also written to
+$FES_QUARTUS_RUN_DIR/heartbeat), and stops the job at its time cap
+(--cap-minutes, default 240; exit 124). `remote` refuses a host whose /data
+has under 30 GiB free. It reports the peak resident set size of the job's
 processes, and
 writes it to $FES_QUARTUS_RUN_DIR/peak-rss.json when that is set: the figure
 the pools in quartus_tools are sized from.
@@ -140,6 +142,8 @@ def _command(pid: int) -> str:
 JOB_TOKEN = "FES_QUARTUS_JOB"
 DEFAULT_CAP_MINUTES = 240
 KILL_GRACE_SECONDS = 60
+HEARTBEAT_SECONDS = 60
+MIN_FREE_GIB = 30
 
 
 def job_processes(token: str) -> dict[int, int]:
@@ -196,7 +200,9 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
 
         previous = {sig: signal.signal(sig, relay) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
         peak, code, capped, killed_at = 0, None, False, None
-        deadline = time.monotonic() + cap_seconds
+        started = time.monotonic()
+        deadline, beat = started + cap_seconds, started
+        run_dir = os.environ.get("FES_QUARTUS_RUN_DIR")
         try:
             while True:
                 live = job_processes(token)
@@ -213,6 +219,14 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
                     print(f"quartus_jobs: the command exited; holding the slot for {len(live)} "
                           "process(es) it left running", file=sys.stderr, flush=True)
                 now = time.monotonic()
+                if now - beat >= HEARTBEAT_SECONDS:
+                    beat = now
+                    line = (f"quartus_jobs heartbeat: {(now - started) / 60:.1f} min, {len(live)} process(es), "
+                            f"{sum(live.values()) / 1024 ** 2:.2f} GiB resident, slot {slot}")
+                    print(line, file=sys.stderr, flush=True)
+                    if run_dir:
+                        Path(run_dir, "heartbeat").write_text(
+                            datetime.now(timezone.utc).isoformat() + " " + line + "\n")
                 if now >= deadline and not capped:
                     capped, killed_at = True, now
                     print(f"quartus_jobs: time cap of {cap_seconds / 60:g} min reached; stopping the job",
@@ -232,7 +246,6 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
                   "peak_rss_kib": peak, "sample_seconds": sample_seconds}
         print(f"quartus_jobs: peak RSS {peak / 1024 ** 2:.2f} GiB (every process of the job, sampled every "
               f"{sample_seconds:g} s), exit {code}", file=sys.stderr, flush=True)
-        run_dir = os.environ.get("FES_QUARTUS_RUN_DIR")
         if run_dir:
             Path(run_dir, "peak-rss.json").write_text(json.dumps(record, indent=2) + "\n")
         return code
@@ -258,7 +271,9 @@ def remote_script(*, commit: str, host: str, home: str, edition: str, label: str
     each host (fetched from origin, so only pushed commits resolve). It is a
     real checkout because producers ask git for their tree and revision."""
     tag = re.sub(r"[^A-Za-z0-9_.-]", "-", label or "job")[:40]
-    run_dir = f"{PROJECTS}/runs/{commit[:12]}-{stamp}-{tag}"
+    # A random suffix, and a plain mkdir that fails on an existing directory,
+    # so every invocation gets a new run directory.
+    run_dir = f"{PROJECTS}/runs/{commit[:12]}-{stamp}-{tag}-{os.urandom(3).hex()}"
     tree = f"{run_dir}/src"
     mirror = f"{PROJECTS}/mirror.git"
     expand = lambda path: home + path[1:] if path.startswith("~") else path  # noqa: E731
@@ -268,8 +283,12 @@ def remote_script(*, commit: str, host: str, home: str, edition: str, label: str
     job = {"commit": commit, "host": host, "edition": edition, "command": inner}
     script = "\n".join([
         "set -euo pipefail",
-        f"test ! -e {q(run_dir)}",
-        f"mkdir -p {q(run_dir)}",
+        f"mkdir -p {q(PROJECTS)}/runs",
+        # The AGENTS.md disk rule, before anything is written.
+        f"free=$(df --output=avail -BG {q(PROJECTS)} | tail -1 | tr -dc 0-9)",
+        f'[ "$free" -ge {MIN_FREE_GIB} ] || {{ echo "quartus_jobs: refusing: {PROJECTS} has ${{free}}G free, '
+        f'under {MIN_FREE_GIB}G" >&2; exit 75; }}',
+        f"mkdir {q(run_dir)}",
         # One writer at a time on the mirror: cloning, fetching and adding a
         # worktree all change it.
         f"exec 9>>{q(PROJECTS)}/.mirror.lock",

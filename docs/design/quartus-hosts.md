@@ -35,6 +35,8 @@ Powerboat sat idle.
   environment token, so a compile left in the background or daemonized
   still counts. It stops the job at its time cap (`--cap-minutes`, default
   240): SIGTERM to every process, SIGKILL after a minute, exit 124.
+  It prints a heartbeat every minute, also written to the run directory's
+  `heartbeat` file. `remote` refuses a host whose `/data` has under 30 GiB free.
 - `tests/test_quartus_lease.py` fails on any tracked script that could run a
   leased Quartus program unleased. Out of scope are tests (stand-in programs)
   and `docs/validation/` (frozen evidence of past runs).
@@ -106,7 +108,7 @@ waits where the most memory is available.
 `remote` builds only a pushed commit. On the chosen host it fetches that
 commit into a blobless mirror this tool owns (`/data/projects/fes-quartus/mirror.git`),
 then adds a detached worktree of it at
-`/data/projects/fes-quartus/runs/<commit>-<time>-<label>/src`. Each run gets its
+`/data/projects/fes-quartus/runs/<commit>-<time>-<label>-<random>/src`. Each run gets its
 own clean tree. It is a git checkout, not a `git archive`, because producers
 ask git for their tree and revision. The command runs there from
 `sources/misteross` under `quartus_jobs.py run`, with `QUARTUS_ROOTDIR` and

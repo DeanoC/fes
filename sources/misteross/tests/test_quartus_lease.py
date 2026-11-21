@@ -616,6 +616,30 @@ class JobsTests(unittest.TestCase):
         for url in ("https://x-access-token:abc@github.com/DeanoC/fes", "https://token@github.com/DeanoC/fes"):
             self.assertTrue(self.jobs.url_has_credentials(url), url)
 
+    def test_a_quiet_job_gets_a_heartbeat(self):
+        run_dir = Path(self.directory.name) / "quiet"
+        run_dir.mkdir()
+        with mock.patch.object(self.jobs, "HEARTBEAT_SECONDS", 0.5), \
+                mock.patch.dict(os.environ, {"FES_QUARTUS_RUN_DIR": str(run_dir)}):
+            self.assertEqual(self.jobs.run("lite", "", ["sleep", "1.5"], sample_seconds=0.2), 0)
+        self.assertIn("quartus_jobs heartbeat:", (run_dir / "heartbeat").read_text())
+
+    def test_the_remote_program_refuses_a_low_data_volume(self):
+        script, _ = self.jobs.remote_script(
+            commit="d" * 40, host="powerboat", home="/home/u", edition="lite", label="",
+            command=["true"], stamp="s", origin="https://github.com/DeanoC/fes")
+        root = Path(self.directory.name)
+        fake = root / "bin"
+        fake.mkdir()
+        (fake / "df").write_text("#!/bin/sh\necho Avail; echo 12G\n")
+        (fake / "df").chmod(0o755)
+        script = script.replace(self.jobs.PROJECTS, str(root / "projects"))
+        result = subprocess.run(["bash", "-c", script], env=dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}"),
+                                capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        self.assertEqual(result.returncode, 75, result.stderr)
+        self.assertIn("refusing", result.stderr)
+        self.assertEqual(list((root / "projects/runs").iterdir()), [])
+
     def test_run_returns_the_job_exit_code(self):
         self.assertEqual(self.jobs.run("pro", "", ["sh", "-c", "exit 7"], sample_seconds=0.1), 7)
 
@@ -644,7 +668,12 @@ class JobsTests(unittest.TestCase):
             commit="a" * 40, host="chip-30x0-ai-dev", home="/home/u", edition="pro", label="x87 fit",
             command=["python3", "scripts/fit_i386_device.py", "--output", "{run}/fit", "--cache-root={cache}"],
             stamp="20261121T000000Z", origin="https://github.com/DeanoC/fes")
-        self.assertTrue(run_dir.startswith("/data/projects/fes-quartus/runs/aaaaaaaaaaaa-20261121T000000Z-x87-fit"))
+        self.assertRegex(run_dir, r"^/data/projects/fes-quartus/runs/aaaaaaaaaaaa-20261121T000000Z-x87-fit-[0-9a-f]{6}$")
+        self.assertNotEqual(self.jobs.remote_script(
+            commit="a" * 40, host="chip-30x0-ai-dev", home="/home/u", edition="pro", label="x87 fit",
+            command=["true"], stamp="20261121T000000Z", origin="https://github.com/DeanoC/fes")[1], run_dir)
+        self.assertIn(f"mkdir {run_dir}\n", script)
+        self.assertLess(script.index("df --output=avail"), script.index(f"mkdir {run_dir}"))
         self.assertNotIn("/tmp", script)
         self.assertIn(f"{run_dir}/fit", script)
         self.assertIn("--cache-root=/home/u/fes-toolchain-cache", script)
