@@ -700,6 +700,14 @@ class LaunchGuardTests(unittest.TestCase):
         (decoy / "quartus_fit").write_text("not a program\n")
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["quartus_fit", "top"], env={"PATH": f"{decoy}:{self.bin}"})
+        # Codex P1 at 77920ff7d: only the first executable match runs. A
+        # stand-in first on PATH shadows the licensed one; nothing is refused.
+        standin = relative / "standin"
+        standin.mkdir()
+        (standin / "quartus_fit").write_text("#!/bin/sh\nexit 0\n")
+        (standin / "quartus_fit").chmod(0o755)
+        self.assertEqual(qt.licensed_quartus_editions(["quartus_fit", "top"], f"{standin}:{self.bin}"), set())
+        self.assertEqual(qt.licensed_quartus_editions(["quartus_fit", "top"], f"{decoy}:{self.bin}"), {"lite"})
         # ...and a bare name found on the child's PATH, not this process's.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["quartus_fit", "top"], env={"PATH": str(self.bin)})

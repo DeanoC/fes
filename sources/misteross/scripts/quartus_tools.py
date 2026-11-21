@@ -572,9 +572,9 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
         if os.sep in word:
             candidates = [word if os.path.isabs(word) else os.path.join(base, word)]
         else:
-            # Every executable of that name on the child's PATH, each
-            # component (an empty one is ".") resolved from the child's
-            # working directory: a licensed one anywhere needs the lease.
+            # The child's PATH as execvp searches it: each component (an
+            # empty one is ".") resolved from the child's working directory,
+            # and the first executable of that name is what runs.
             search = os.environ.get("PATH", "") if search_path is None else search_path
             candidates = [os.path.join(d if os.path.isabs(d) else os.path.join(base, d or "."), word)
                           for d in search.split(os.pathsep)]
@@ -583,6 +583,7 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
                 edition = _licensed_edition(program)
                 if edition is not None:
                     editions.add(edition)
+                break
     return editions
 
 
