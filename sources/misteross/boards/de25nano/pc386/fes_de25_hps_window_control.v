@@ -22,9 +22,10 @@
 // two-stage synchronizer. The fault record (port bits and reason) crosses by
 // request and acknowledge, as pc386_snapshot does: when the live record
 // differs from the held copy and no request is open, the machine side copies
-// it and flips the request; clk_sys copies the held copy once the request
-// has crossed and flips the acknowledge; the machine side copies again only
-// once that has crossed back. The held copy is therefore still from before
+// it and flips the request; clk_sys copies the held copy on the clock its
+// synchronizer's output moves, marked by fault_request_seen (that output one
+// clock later), which is also the acknowledge; the machine side copies again
+// only once that has crossed back. The held copy is therefore still from before
 // the request leaves until after clk_sys has copied it, and FAULT follows
 // the record whenever it changes, whatever the machine is doing.
 module fes_de25_hps_window_control (
@@ -71,11 +72,12 @@ module fes_de25_hps_window_control (
     (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] fault_request_sync = 2'b00;
     (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] fault_ack_sync = 2'b00;
     (* preserve, dont_merge *) reg [4:0] fault_hold = 5'd0;
-    (* preserve, dont_merge *) reg fault_request = 1'b0, fault_ack = 1'b0;
-    reg [4:0] machine_fault = 5'd0;  // copy only: register to register from fault_hold
+    (* preserve, dont_merge *) reg fault_request = 1'b0, fault_request_seen = 1'b0;
+    // Copy only, enabled from the synchronizer chain alone: register to register from fault_hold.
+    reg [4:0] machine_fault = 5'd0;
     wire [4:0] fault_live = {fault_outside, fault_no_grant, fault_port};
     always @(posedge machine_clk) begin
-        fault_ack_sync <= {fault_ack_sync[0], fault_ack};
+        fault_ack_sync <= {fault_ack_sync[0], fault_request_seen};
         if (fault_ack_sync[1] == fault_request && fault_live != fault_hold) begin
             fault_hold <= fault_live;
             fault_request <= !fault_request;
@@ -83,10 +85,8 @@ module fes_de25_hps_window_control (
     end
     always @(posedge clk_sys) begin
         fault_request_sync <= {fault_request_sync[0], fault_request};
-        if (fault_request_sync[1] != fault_ack) begin
-            machine_fault <= fault_hold;
-            fault_ack <= fault_request_sync[1];
-        end
+        fault_request_seen <= fault_request_sync[1];
+        if (fault_request_sync[1] != fault_request_seen) machine_fault <= fault_hold;
     end
 
     // ---- Registers

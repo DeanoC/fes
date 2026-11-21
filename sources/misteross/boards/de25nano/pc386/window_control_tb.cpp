@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
             }
             auto *r = t->rootp;
             uint32_t hold = r->fes_de25_hps_window_control__DOT__fault_hold;
-            bool open = r->fes_de25_hps_window_control__DOT__fault_request != r->fes_de25_hps_window_control__DOT__fault_ack;
+            bool open = r->fes_de25_hps_window_control__DOT__fault_request != r->fes_de25_hps_window_control__DOT__fault_request_seen;
             t->machine_clk = m_edge; t->clk_sys = s_edge; t->eval();
             t->machine_clk = 0; t->clk_sys = 0; t->eval();
             if (s_edge && !seen.count(fault_copy())) ++faulted;
