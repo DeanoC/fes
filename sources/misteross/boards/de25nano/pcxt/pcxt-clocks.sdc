@@ -65,10 +65,11 @@ foreach {label source head} {
 # received toggle returns, and the pixel clock adopts it only at an output
 # frame start at least two pixel periods after the toggle arrives. Into the
 # pixel clock it reaches the front bank and the read address, which synthesis
-# places in the framebuffer memories' address registers. One pixel period
-# bounds every path into the pixel clock, as the DE10 mailbox constraint
-# bounds it into the front bank; the bound counts the skew between the two
-# PLL networks.
+# places in the framebuffer memories' address registers, each through the
+# adoption select: there is no direct net for a net-delay or skew bound. One
+# pixel period bounds every path into the pixel clock, as the DE10 mailbox
+# constraint bounds it into the front bank; the bound counts the skew between
+# the two PLL networks.
 set published [get_registers "${base}|core|system|video|adapter|published_bank\[*\]"]
 set front [get_registers "${base}|core|system|video|adapter|front\[*\]"]
 set pixel_clock [get_clocks {fes_video_inst|video_clock|iopll_0_outclk0}]
@@ -76,8 +77,6 @@ if {[get_collection_size $published] != 2 || [get_collection_size $front] != 2 |
     [get_collection_size $pixel_clock] != 1} {
     error "DE25 PC/XT held video bank endpoints changed"
 }
-set_net_delay -max 13.400 -from $published -to $front
-set_max_skew 13.400 -from $published -to $front
 set_max_delay 13.400 -from $published -to $pixel_clock
 set_min_delay 0.000 -from $published -to $pixel_clock
 
