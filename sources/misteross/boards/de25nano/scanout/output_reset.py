@@ -30,7 +30,7 @@ def selected(directory):
     return policy == POLICY
 
 
-def findings(drc):
+def findings(drc, bridge=False):
     from boards.de25nano.scanout import async_inputs as a
     sections = [s for s in drc.split('Status:')[1:] if '; RDC-50003 -' in s]
     a.require(len(sections) == 1, 'missing/ambiguous output-reset RDC detail')
@@ -38,6 +38,12 @@ def findings(drc):
     a.require(['Reset Clock Domain', 'Number of Reset Chains', 'Reset Chain Register Heads',
                'Reset Sources', 'Waived'] in table, 'changed output-reset RDC columns')
     rows = [r for r in table if len(r) == 5 and r[0] != 'Reset Clock Domain']
+    if bridge:
+        # The window bridge's two rows are bridge_reset.py's, exactly; set aside
+        # only those, so this row is still the one reviewed here.
+        from boards.de25nano.scanout import bridge_reset
+        admitted = bridge_reset.bridge_rows(rows)
+        rows = [r for r in rows if r not in admitted]
     a.require(len(rows) == 1, 'only one output-reset RDC domain is reviewed')
     clock, count, heads, sources, waived = rows[0]
     a.require(clock == CLOCK and count == '2' and not waived and
@@ -119,4 +125,5 @@ def verify(directory, output):
     result = review_reports(reports)
     a.require(result == receipt['result'], 'output-reset result changed')
     drc = (Path(directory) / 'combined/hps/project/output_files/golden_top.tq.drc.signoff.rpt').read_text()
-    return dict(result, finding=findings(drc))
+    from boards.de25nano.scanout import bridge_reset
+    return dict(result, finding=findings(drc, bridge=bridge_reset.selected(directory)))

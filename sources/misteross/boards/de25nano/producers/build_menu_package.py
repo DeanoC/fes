@@ -59,7 +59,9 @@ REVIEW_INPUTS = ('boards/de25nano/scanout/async_inputs.py',
                  'boards/de25nano/scanout/output_reset.py',
                  'boards/de25nano/scanout/output_reset.tcl',
                  'boards/de25nano/scanout/vendor_reference.py',
-                 'boards/de25nano/scanout/machine_findings.py')
+                 'boards/de25nano/scanout/machine_findings.py',
+                 'boards/de25nano/scanout/bridge_reset.py',
+                 'boards/de25nano/scanout/bridge_reset.tcl')
 DEVICE = 'A5EB013BB23BE4SCS'
 
 
@@ -352,10 +354,13 @@ def timing_evidence(directory, *, async_review=None, audio_review=None, revision
     if async_review is not None:
         proof = async_inputs.verify(directory, async_review)
         if 'output_reset_review' in proof:
+            # One RDC-50003 entry: the HDMI output-reset row, and with a window
+            # the bridge's two named rows beside it (bridge_reset.py).
+            bridge = proof.get('window_bridge_reset_review')
             reset = next(r for r in rows if r[0] == 'RDC-50003')
-            if reset[2:] != ('1', '0'):
+            if reset[2:] != (('3', '0') if bridge else ('1', '0')):
                 raise BuildError('DE25 output-reset RDC finding count/waivers changed')
-            reviewed.append(proof['output_reset_review']['finding'])
+            reviewed.append(bridge['finding'] if bridge else proof['output_reset_review']['finding'])
         findings = next(r for r in rows if r[0] == 'TMC-20011')
         if int(findings[2]):
             if findings[2:] != ('2', '0'):

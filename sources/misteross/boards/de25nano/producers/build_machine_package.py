@@ -35,7 +35,7 @@ from boards.de25nano.package.export_core_package import build_identity, encode_b
 from scripts.input_identity import with_identities
 from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest
-from boards.de25nano.scanout import async_inputs, audio_reference
+from boards.de25nano.scanout import async_inputs, audio_reference, bridge_reset
 
 ROOT = Path(__file__).resolve().parents[3]
 SHARED = 'boards/de25nano/producers/build_machine_package.py'
@@ -109,7 +109,8 @@ class Machine:
         """Guest memory and firmware: the parameters that differ between machines."""
         if spec.WINDOW:
             memory = {'f2sdram_master_profile': 'scanout+window', 'guest_memory': 'hps-window',
-                      'window_contract': '%s %d.%d' % WINDOW_INTERFACE}
+                      'window_contract': '%s %d.%d' % WINDOW_INTERFACE,
+                      'window_bridge_reset_review_policy': bridge_reset.POLICY}
         else:
             memory = {'f2sdram_master_profile': 'scanout-only', 'guest_memory': 'board-sdram'}
         if uploads_firmware(spec):

@@ -14,6 +14,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import types
 import zipfile
 
@@ -437,12 +438,29 @@ def verify(spec, output, scanout, hps, display):
             "scope": "whole-GHRD-IP-generation", "fit_and_timing": "not-run", "hardware_acceptance": "not-run"}
 
 
+def quartus_lease():
+    """The builder-wide Quartus lease (scripts/fit_i386_device.compiler_lease).
+
+    A board's generation, fit and programming-file steps share the compile
+    host's memory with every other Quartus job, so they take the same lease
+    the i386 fits and the x87 envelope take. It waits; it never interrupts
+    another owner's job, and releasing it touches no process this build did
+    not start through that module (none).
+    """
+    root = str(ROOT / "sources/misteross")
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from scripts.fit_i386_device import compiler_lease
+    return compiler_lease()
+
+
 def generate(spec, output, scanout, combined, hps, display, tool, version):
     directory = output / "combined/hps"
     inputs = json.loads((directory / "inputs.json").read_text())
     if inputs.get("source_classification") != "committed" or not inputs.get("fes_revision"):
         raise ValueError("machine board generation requires committed source")
-    combined.generate(output / "combined", hps, display, tool, version)
+    with quartus_lease():
+        combined.generate(output / "combined", hps, display, tool, version)
     scanout.repair_generated_reset_timing(directory)
     shared_resets(spec, scanout, directory).apply(directory)
     path = directory / "generation.json"
@@ -459,9 +477,10 @@ def compile_board(spec, output, scanout, hps, display, tool):
         if verify(spec, output, scanout, hps, display) != expected:
             raise ValueError("machine source/topology changed after generation")
     check()
-    artifact = hps.compile_project(directory, tool)
-    check()
-    artifacts = hps.linux_configuration_artifacts(directory, tool, artifact, hps_initialization="HPS FIRST")
+    with quartus_lease():
+        artifact = hps.compile_project(directory, tool)
+        check()
+        artifacts = hps.linux_configuration_artifacts(directory, tool, artifact, hps_initialization="HPS FIRST")
     record = {"format": 1, "classification": "unadmitted-HPS-first-standard-computer",
               "inputs_sha256": hps.digest(directory / "inputs.json"),
               "generation_sha256": hps.digest(directory / "generation.json"),
