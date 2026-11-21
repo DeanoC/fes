@@ -1,9 +1,8 @@
 # Host restoration cost and source-release diagnostic, 17 November 2026
 
-Host repair [#1953](https://github.com/DeanoC/fes/pull/1953) is a separate draft,
-`lane:deano`, above Lander-owned [#1938](https://github.com/DeanoC/fes/pull/1938).
-The parent branch is unchanged. [#1867](https://github.com/DeanoC/fes/issues/1867)
-remains open. Native release diagnostics come from
+Host repair [#1953](https://github.com/DeanoC/fes/pull/1953) follows the merged
+[recovery work in #1938](https://github.com/DeanoC/fes/pull/1938).
+[#1867](https://github.com/DeanoC/fes/issues/1867) remains open. Native release diagnostics come from
 [#1952](https://github.com/DeanoC/fes/pull/1952).
 
 Host phase-ownership implementation: `488f02b222dad8c4e951bce4d0066924159e1b54`,
@@ -99,16 +98,18 @@ the exact two writes, all preservation checks, original JTAG 15 MHz/auto-adjust
 1, USB permissions, absent owned server/programmer incarnations and closed
 UART/adapter handles. Whole procedure elapsed 773.145 seconds.
 
-TRWU8CBL is parked at its verified recovery prompt with the original
-experimental FIT staged on the spare card. The ownership bearer has been
-redacted from this and the other current tracked evidence copies. Earlier Git
-history still contains the superseded value and was not rewritten. `Claim.owns`
-checks the live active status claim, so this record does not establish whether
-the bearer remains valid. It was not checked, rotated or revoked because that
-requires access to the shared kit-status service; treat it as requiring
-authorized revocation until the claim owner verifies its status.
-There is no native full-cycle/Park, physical display/input, normal Kit D25 HIL
-or power-loss durability acceptance. No further board action followed.
+This trial left TRWU8CBL at its verified recovery prompt with the original
+experimental FIT staged on the spare card. Its ownership bearer is redacted
+from the current tracked evidence. Earlier Git history retains the old value.
+On 21 November 2026 the claim owner rotated the bearer in the live TRWU8CBL
+ledger. The production `Claim.owns` check accepted the old bearer before the
+rotation and rejected it afterward. A separate check accepted the replacement,
+preserving the reservation. The rotation changed only the host ledger and
+issued no board commands.
+
+This trial established FIT preservation and restoration. Native full-cycle
+Park, physical display and input, normal Kit D25 HIL, and power-loss durability
+were outside its acceptance scope.
 
 Retention root:
 `/home/deano/fes-retained/de25-restoration-phase-cost-20261117-r1`.
