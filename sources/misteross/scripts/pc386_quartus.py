@@ -145,7 +145,7 @@ MACHINE_SOURCES = (
     *(f"cores/fes-pc386/rtl/{name}.sv" for name in (
         "pc386_rate", "pc386_io", "pc386_pic", "pc386_sysctl", "pc386_hid_keyboard", "pc386_kbc", "pc386_rtc",
         "pc386_ata", "pc386_fdc", "pc386_at_core", "pc386_ram", "pc386_vga", "pc386_vga_scanout", "pc386_presenter",
-        "pc386_plane_bridge", "pc386_ems", "pc386_port2", "pc386_machine")),
+        "pc386_plane_bridge", "pc386_ems", "pc386_port2", "pc386_floppy_verify", "pc386_machine")),
     "cores/fes-common/rtl/fes_display_plane.v",
     "cores/fes-common/rtl/fes_display_cdc.v",
     "cores/fes-menu/rtl/fes_menu_control.v",
@@ -160,7 +160,8 @@ MACHINE_SOURCES = (
         "calc_phase_inc", "calc_envelope_shift", "calc_rhythm_phase", "envelope_generator", "phase_generator",
         "operator", "control_operators", "dac_prep", "channels")),
     *(f"cores/fes-pc386/rtl/{name}.sv" for name in (
-        "pc386_opl2", "pc386_sb", "pc386_mixer", "pc386_audio", "pc386_rom", "pc386_disk", "pc386_snapshot",
+        "pc386_opl2", "pc386_sb", "pc386_mixer", "pc386_audio", "pc386_rom", "pc386_disk", "pc386_floppy_media",
+        "pc386_snapshot",
         "pc386_status", "pc386_system")),
 )
 MACHINE_TOP = "pc386_system"

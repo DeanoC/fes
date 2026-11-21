@@ -132,7 +132,8 @@ module pc386_system #(
     /* verilator lint_off PINCONNECTEMPTY */
     fes_computer_mailbox_core #(
         .ENABLE_KEYBOARD(1), .ENABLE_MOUSE(1), .ENABLE_AUDIO(1), .ENABLE_SESSION_DISPLAY(1),
-        .ENABLE_ATA_DISK(1), .ENABLE_PERSISTENCE(1), .ENABLE_PC386_MACHINE(1), .ENABLE_WALL_CLOCK(1)
+        .ENABLE_ATA_DISK(1), .ENABLE_PERSISTENCE(1), .ENABLE_PC386_MACHINE(1), .ENABLE_WALL_CLOCK(1),
+        .ENABLE_PC_FLOPPY(1)
     ) gp_mailbox (
         .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi),
         .exec_reset(exec_reset), .keyboard_rows(keyboard_rows), .controller_buttons(),
@@ -174,10 +175,34 @@ module pc386_system #(
     wire wall_apply;
     wire [15:0] wall_year;
     wire [7:0] wall_month, wall_day, wall_hour, wall_minute, wall_second, wall_weekday;
-    fes_computer_storage #(.ENABLE_ATA_DISK(1), .ENABLE_DATA(1), .ENABLE_WALL_CLOCK(1)) storage (
+    // The floppy drives A: and B: (fes.media.pc-floppy, units 1 and 2) take
+    // their Disk operations off the storage port; the rest goes on to
+    // fes_computer_storage.
+    wire ata_request, ata_response_valid, ata_response_error;
+    wire [15:0] ata_response_data;
+    wire [1:0] floppy_present, floppy_write_protect, floppy_two_sided, floppy_verify;
+    wire [1:0] floppy_verify_done, fdc_written;
+    wire floppy_verify_match, fdc_frozen, fdc_busy, fdc_fenced;
+    wire [1:0][6:0] floppy_cylinders;
+    wire [1:0][5:0] floppy_spt;
+    wire [1:0][12:0] floppy_sectors;
+    wire [1:0][31:0] floppy_crc;
+    pc386_floppy_media floppy_media (
         .clk(clk), .request(storage_request), .opcode(storage_opcode), .index(storage_index),
         .argument(storage_argument), .response_valid(storage_response_valid),
         .response_error(storage_response_error), .response_data(storage_response_data),
+        .storage_request(ata_request), .storage_response_valid(ata_response_valid),
+        .storage_response_error(ata_response_error), .storage_response_data(ata_response_data),
+        .present(floppy_present), .write_protect(floppy_write_protect), .two_sided(floppy_two_sided),
+        .cylinders(floppy_cylinders), .spt(floppy_spt),
+        .fdc_frozen(fdc_frozen), .fdc_busy(fdc_busy), .fdc_fenced(fdc_fenced), .written(fdc_written),
+        .verify(floppy_verify), .sectors(floppy_sectors), .crc(floppy_crc),
+        .verify_done(floppy_verify_done), .verify_match(floppy_verify_match)
+    );
+    fes_computer_storage #(.ENABLE_ATA_DISK(1), .ENABLE_DATA(1), .ENABLE_WALL_CLOCK(1)) storage (
+        .clk(clk), .request(ata_request), .opcode(storage_opcode), .index(storage_index),
+        .argument(storage_argument), .response_valid(ata_response_valid),
+        .response_error(ata_response_error), .response_data(ata_response_data),
         .exec_reset(exec_reset), .execution_accepted(execution_accepted),
         .disk_state(disk_state), .disk_sectors(disk_sectors), .disk_cylinders(disk_cylinders),
         .disk_heads(disk_heads), .disk_spt(disk_spt), .disk_crc(disk_crc),
@@ -209,10 +234,11 @@ module pc386_system #(
     // (docs/pc386-machine-design.md, "Size and setting"); until the record
     // accepts that, it is reserved and zero.
     localparam [7:0] EMS_PAGES = 8'd128;
-    // The floppy drives (docs/design/pc386-removable-media.md, slice F1): the
-    // controller is fitted but no drive is, and CMOS reports none, until the
-    // storage endpoint's units 1 and 2 (slice F3) commit disks.
-    wire fdc_busy, fdc_fenced;
+    // The floppy drives (docs/design/pc386-removable-media.md, slice F3, as
+    // decided on #1694): A: is a 3.5" 1.44M drive and B: a 5.25" 1.2M one
+    // (CMOS types 4 and 2), and the machine boots like an AT, A: then C:
+    // (boot device 1: CMOS 3Dh=21h, 38h=30h, 2Dh bit 5).
+    localparam [1:0][2:0] FLOPPY_TYPES = {3'd2, 3'd4};
 
     // ---- Hold and the machine reset
     wire cpu_mem_idle, rom_idle;
@@ -338,12 +364,12 @@ module pc386_system #(
         .dirty_index(dirty_index), .dirty_word(dirty_word),
         .disk_frozen(disk_frozen), .disk_dirty_clear(disk_dirty_clear), .disk_dirty_clearing(disk_dirty_clearing),
         .disk_writer_busy(disk_writer_busy), .disk_fenced(disk_fenced), .disk_written(disk_written),
-        // No drives and a hard-disk launch until slice F3 brings the
-        // record's drive types and boot device (removable media, F3).
-        .floppy_type({3'd0, 3'd0}), .boot_device(2'd0),
-        .floppy_present(2'b00), .floppy_write_protect(2'b00),
-        .floppy_two_sided(2'b00), .floppy_cylinders({7'd0, 7'd0}), .floppy_spt({6'd0, 6'd0}),
-        .fdc_frozen(1'b0), .fdc_busy(fdc_busy), .fdc_fenced(fdc_fenced),
+        .floppy_type(FLOPPY_TYPES), .boot_device(2'd1),
+        .floppy_present(floppy_present), .floppy_write_protect(floppy_write_protect),
+        .floppy_two_sided(floppy_two_sided), .floppy_cylinders(floppy_cylinders), .floppy_spt(floppy_spt),
+        .fdc_frozen(fdc_frozen), .fdc_busy(fdc_busy), .fdc_fenced(fdc_fenced), .fdc_written(fdc_written),
+        .floppy_verify(floppy_verify), .floppy_sectors(floppy_sectors), .floppy_crc(floppy_crc),
+        .floppy_verify_done(floppy_verify_done), .floppy_verify_match(floppy_verify_match),
         .record_write(record_write), .record_index(record_index), .record_byte(record_byte),
         .record_load(record_load), .record_pair(record_pair), .record_word(record_word),
         .record_clock_index(record_clock_index), .record_clock_pair(record_clock_pair),

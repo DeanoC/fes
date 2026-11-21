@@ -1047,6 +1047,14 @@ class FdcReplayTest(unittest.TestCase):
         self.assertIn(fdc, sim.SYSTEM_RTL)
         self.assertIn('cores/fes-pc386/rtl/pc386_fdc.sv', producer.MACHINE_SOURCES)
 
+    def test_the_floppy_endpoint_and_its_crc_pass_are_in_the_seal(self):
+        # F3: the drives' endpoint below pc386_system, the CRC pass in the machine.
+        verify = sim.CORE / 'rtl/pc386_floppy_verify.sv'
+        self.assertIn(verify, sim.MACHINE_RTL)
+        self.assertIn(sim.CORE / 'rtl/pc386_floppy_media.sv', sim.SYSTEM_RTL)
+        for name in ('pc386_floppy_verify', 'pc386_floppy_media'):
+            self.assertIn(f'cores/fes-pc386/rtl/{name}.sv', producer.MACHINE_SOURCES)
+
 
 SYSTEM_OUTPUT = """WRITE-TEST 444436
 IDENTITY 17734 12627 1 0 4 1 1 12297 26437 291 52617 1158 61715 2469 13863 3702 15

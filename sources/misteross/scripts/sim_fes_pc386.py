@@ -292,6 +292,7 @@ MACHINE_RTL = AT_RTL + (
     CORE / 'rtl/pc386_plane_bridge.sv',
     CORE / 'rtl/pc386_ems.sv',
     CORE / 'rtl/pc386_port2.sv',
+    CORE / 'rtl/pc386_floppy_verify.sv',
     CORE / 'rtl/pc386_machine.sv',
     COMMON / 'rtl/fes_display_plane.v',
     COMMON / 'rtl/fes_display_cdc.v',
@@ -303,7 +304,8 @@ MACHINE_RTL = AT_RTL + (
 # storage endpoint, the machine, its audio, fes_i386_cpu, the firmware ROM on
 # port 0 and the disk's port 2 master (pc386_system.sv), at the sealed clock.
 SYSTEM_RTL = (*dict.fromkeys(CPU_RTL + MACHINE_RTL + AUDIO_RTL), COMMON / 'rtl/fes_computer_mailbox.v',
-              COMMON / 'rtl/fes_computer_storage.v', CORE / 'rtl/pc386_rom.sv', CORE / 'rtl/pc386_disk.sv',
+              COMMON / 'rtl/fes_computer_storage.v', CORE / 'rtl/pc386_floppy_media.sv',
+              CORE / 'rtl/pc386_rom.sv', CORE / 'rtl/pc386_disk.sv',
               CORE / 'rtl/pc386_snapshot.sv', CORE / 'rtl/pc386_status.sv', CORE / 'rtl/pc386_system.sv')
 # I/O completion, request clock to done clock: each device cycle's class time
 # (isa8 72 clocks, isa16 36 at 100 MHz) plus one clock to take the request and
@@ -1715,10 +1717,10 @@ def run_vga(args, linked: list[Path]) -> dict:
 # with the session display.
 STORAGE_EXCHANGES = COMMON / 'generated/computer-exchanges-1.1.json'
 STORAGE_RTL = (COMMON / 'rtl/fes_computer_mailbox.v', COMMON / 'rtl/fes_computer_storage.v',
-               COMMON / 'sim/computer_storage_top.sv')
+               CORE / 'rtl/pc386_floppy_media.sv', COMMON / 'sim/computer_storage_top.sv')
 STORAGE_PARAMETERS = {1: 'ENABLE_KEYBOARD', 3: 'ENABLE_AUDIO', 4: 'ENABLE_APPLE2_FLOPPY', 8: 'ENABLE_MOUSE',
                       13: 'ENABLE_SESSION_DISPLAY', 16: 'ENABLE_ATA_DISK', 17: 'ENABLE_PERSISTENCE',
-                      18: 'ENABLE_WALL_CLOCK', 19: 'ENABLE_PC386_MACHINE'}
+                      18: 'ENABLE_WALL_CLOCK', 19: 'ENABLE_PC386_MACHINE', 22: 'ENABLE_PC_FLOPPY'}
 
 
 def run_storage(args) -> dict:

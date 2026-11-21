@@ -485,6 +485,8 @@ Slice C2 records the measured command latency distribution and the ARM load of t
 
 ### ABI changes
 
+**As built in F3 (21 November 2026):** `fes.media.pc-floppy` 1.0 was added as capability bit 22 inside `fes.computer` **1.1**, with no minor bump. A manifest that declares it is already refused by any runtime that does not know the interface, as `pcxt-floppy-write`, the ST geometry and `spectrum-disk` were added inside 1.1 before. DiskCommit is indexed `unit*8+word`, which is unchanged for unit 0; word 7 carries flags, bit 0 write-protect. The shared `fes_computer_storage` endpoint is not changed: a pc386-local front (`pc386_floppy_media`) answers units 1 and 2 on the storage port, and the shared mailbox only gains a gated `ENABLE_PC_FLOPPY` capability bit. The text below is the original plan.
+
 These are owned as `core-media-evolution.md:113-128` says.
 
 **mister-packages** (`MP/packages/abi/fes_computer.yaml`, `MP/docs/computer-io.md`):
@@ -516,6 +518,8 @@ These are owned as `core-media-evolution.md:113-128` says.
 - the launch's boot device (C, A or CD) is a per-entry setting written into the `fes.pc386.machine` record.
 
 ### Machine configuration
+
+**As built in F3 (Deano, 21 November 2026):** neither is a per-entry setting. A: is a 3.5" 1.44M drive and B: a 5.25" 1.2M one (CMOS types 4 and 2), and the machine boots like an AT: A:, then C: (CMOS 3Dh=21h, 38h=30h, 2Dh bit 5), so a disk left in A: boots. `fes.pc386.machine` stays at 1.0. The text below is the original plan.
 
 The drive types and the boot device are per-entry settings. `fes.pc386.machine` 1.0 has no room for them: words 0–6 are settings, word 7 is reserved and must be 0, and words 8–71 are CMOS (`MP/docs/computer-io.md:554-570`). F3 therefore defines **`fes.pc386.machine` 1.1**, with these words added after the CMOS words:
 
@@ -769,3 +773,6 @@ Deano accepted each recommendation below on 11 November 2026.
 | **D7** | Area at 91.6% after both devices, with Phase 5 still landing | Land the floppy first. Start C1 once Phase 5's measured area is known. Drop to one floppy drive or defer CD-DA if the seal will not close. Never relax gates |
 | **D8** | CD-DA in mono now, or wait for #1441's stereo mixer | Mono now (L+R at half scale). Stereo when #1441 lands |
 | **D9** | Write-protect default | Writable for disks in a game's own media set; write-protected for OS and tool install media from a shared folder; the player can flip it per insert |
+| **D10** | Boot device (21 Nov 2026, for core screens slice 6) | Fixed like an AT: A:, then C:. No per-game setting |
+| **D11** | Drive types (21 Nov 2026) | Fixed at A: 1.44M, B: 1.2M; the machine record stays 1.0 |
+| **D12** | Other `fes.computer` cores (21 Nov 2026) | The shared changes are gated (a mailbox parameter, an additive header). Each other core is cleared with a byte-identical netlist and a byte-identical RBF rebuild with main's `BUILD_ID`, recorded in the F3 PR |
