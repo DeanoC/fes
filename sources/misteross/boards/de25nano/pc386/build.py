@@ -127,7 +127,7 @@ def record_parameters(root):
     return {"front_end": "yosys-seal-netlist", "guest_rates": json.dumps(guest_rates(), sort_keys=True),
             "firmware": json.dumps({**sealer.firmware_digests(root), "rom_hex": sealer.pinned_rom_digest(root)},
                                    sort_keys=True),
-            "x87_present": False}
+            "x87_present": False, "signoff_findings_review_policy": "de25-pc386-reviewed-signoff-findings-v1"}
 
 
 def machine_netlist(sources, derived_files):

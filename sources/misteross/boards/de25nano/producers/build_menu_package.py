@@ -58,7 +58,8 @@ REVIEW_INPUTS = ('boards/de25nano/scanout/async_inputs.py',
                  'boards/de25nano/scanout/video_outputs.tcl',
                  'boards/de25nano/scanout/output_reset.py',
                  'boards/de25nano/scanout/output_reset.tcl',
-                 'boards/de25nano/scanout/vendor_reference.py')
+                 'boards/de25nano/scanout/vendor_reference.py',
+                 'boards/de25nano/scanout/machine_findings.py')
 DEVICE = 'A5EB013BB23BE4SCS'
 
 
@@ -267,6 +268,20 @@ def create_build_record(root, repository, revision, identities, execution, captu
     return encode_build_record(with_identities(fields, root=root))
 
 
+def unreviewed_rules(reviewed, rows):
+    """How many failed rules no reviewed entry covers.
+
+    Coverage is per rule: each reviewed entry names one failed rule and
+    accounts for every one of its rows, and no rule is reviewed twice, so one
+    rule's bases can never stand in for another rule's absence.
+    """
+    reviewed_ids = [entry['id'] for entry in reviewed]
+    failed_ids = {r[0] for r in rows if int(r[2])}
+    if len(set(reviewed_ids)) != len(reviewed_ids) or not set(reviewed_ids) <= failed_ids:
+        raise BuildError('DE25 reviewed signoff findings must each name one distinct failed rule')
+    return len(failed_ids - set(reviewed_ids))
+
+
 def timing_evidence(directory, *, async_review=None, audio_review=None, revision='golden_top'):
     if revision not in ('golden_top', 'base', 'persona_a', 'persona_b'):
         raise BuildError('unknown DE25 timing revision')
@@ -361,14 +376,10 @@ def timing_evidence(directory, *, async_review=None, audio_review=None, revision
                              async_inputs.vendor_reference.output_findings(drc, timed_video=timed_video),
                     'basis': audio_proof['policy'] if audio_proof is not None else
                              async_inputs.vendor_reference.POLICY})
-    # Coverage is per rule: each reviewed entry names one failed rule and
-    # accounts for every one of its rows, and no rule is reviewed twice, so
-    # one rule's bases can never stand in for another rule's absence.
-    reviewed_ids = [entry['id'] for entry in reviewed]
-    failed_ids = {r[0] for r in rows if int(r[2])}
-    if len(set(reviewed_ids)) != len(reviewed_ids) or not set(reviewed_ids) <= failed_ids:
-        raise BuildError('DE25 reviewed signoff findings must each name one distinct failed rule')
-    unreviewed = len(failed_ids - set(reviewed_ids))
+    from boards.de25nano.scanout import machine_findings
+    if machine_findings.selected(directory):
+        reviewed.extend(machine_findings.findings(directory, drc))
+    unreviewed = unreviewed_rules(reviewed, rows)
     return {'signoff_rules': total, 'failed_rules': failed,
         'unreviewed_failed_rules': unreviewed, 'reviewed_findings': reviewed,
         **({'async_input_review': proof} if proof is not None else {}),
