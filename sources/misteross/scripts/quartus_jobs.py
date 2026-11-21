@@ -452,11 +452,17 @@ def notify(summary: dict) -> None:
 
 
 def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.0,
-        cap_seconds: float = DEFAULT_CAP_MINUTES * 60) -> int:
+        cap_seconds: float = DEFAULT_CAP_MINUTES * 60, deadline_epoch: float | None = None) -> int:
     """_run, with a notification of how it ended: finished, failed, refused
     or a wrapper error."""
     base = {"host": local_host(), "edition": edition, "label": label, "command": command,
             "finished_utc": None}
+    if deadline_epoch is not None:
+        # An absolute deadline from a dispatcher: setup already used some.
+        cap_seconds = min(cap_seconds, deadline_epoch - time.time())
+        if cap_seconds <= 0:
+            notify(dict(base, finished_utc=datetime.now(timezone.utc).isoformat(), status="capped", exit=124))
+            return 124
     try:
         code = _run(edition, label, command, sample_seconds, cap_seconds)
     except BaseException as error:
@@ -619,7 +625,7 @@ def resolve_pushed(revision: str) -> str:
 
 def remote_script(*, commit: str, host: str, home: str, edition: str, label: str,
                   command: list[str], stamp: str, origin: str,
-                  cap_minutes: float = DEFAULT_CAP_MINUTES) -> tuple[str, str]:
+                  cap_minutes: float = DEFAULT_CAP_MINUTES, deadline_epoch: float | None = None) -> tuple[str, str]:
     """The shell program that checks commit out into a new run directory and
     runs command under the lease there, and that directory.
 
@@ -653,12 +659,16 @@ def remote_script(*, commit: str, host: str, home: str, edition: str, label: str
         # One writer at a time on the mirror: cloning, fetching and adding a
         # worktree all change it.
         f"exec 9>>{q(PROJECTS)}/.mirror.lock",
-        "flock 9",
-        f"[ -d {q(mirror)} ] || git clone -q --bare --filter=blob:none {q(origin)} {q(mirror)}",
+        # Every setup step is bounded by what is left of the job's cap.
+        f"left() {{ echo $(( {int(deadline_epoch) if deadline_epoch else 2 ** 40} - $(date +%s) )); }}",
+        'bounded() { s=$(left); [ "$s" -gt 0 ] || { echo "quartus_jobs: time cap reached during setup" >&2; '
+        'exit 124; }; timeout "$s" "$@"; }',
+        'bounded flock 9',
+        f"[ -d {q(mirror)} ] || bounded git clone -q --bare --filter=blob:none {q(origin)} {q(mirror)}",
         # The caller's origin, whoever created the mirror.
         f"git -C {q(mirror)} remote set-url origin {q(origin)}",
-        f"git -C {q(mirror)} fetch -q origin {q(commit)}",
-        f"git -C {q(mirror)} worktree add -q --detach {q(tree)} {q(commit)}",
+        f"bounded git -C {q(mirror)} fetch -q origin {q(commit)}",
+        f"bounded git -C {q(mirror)} worktree add -q --detach {q(tree)} {q(commit)}",
         "flock -u 9",
         f"cd {q(tree)}/sources/misteross",
         f'test "$(git rev-parse HEAD)" = {q(commit)} && test -z "$(git status --porcelain)"',
@@ -667,7 +677,8 @@ def remote_script(*, commit: str, host: str, home: str, edition: str, label: str
         f"export FES_QUARTUS_RUN_DIR={q(run_dir)}",
         f"printf '%s\\n' {q(json.dumps(job))} > {q(run_dir)}/job.json",
         f"exec python3 scripts/quartus_jobs.py run --edition {q(edition)} --label {q(tag)} "
-        f"--cap-minutes {cap_minutes:g} -- "
+        f"--cap-minutes {cap_minutes:g} "
+        + (f"--deadline-epoch {deadline_epoch:.0f} " if deadline_epoch else "") + "-- "
         f"{shlex.join(inner)} > >(tee {q(run_dir)}/job.log) 2>&1",
     ])
     return script, run_dir
@@ -722,21 +733,27 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
         raise SystemExit(f"{host} did not answer: {chosen['error']}")
     print(f"quartus_jobs: running on {host}", file=sys.stderr, flush=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    # What is left of the cap goes to the run on the host.
+    # One absolute deadline for setup and the run on the host: the cap began
+    # when this call started waiting for a host.
     remaining = max(cap_minutes - (time.monotonic() - started) / 60, 1 / 60)
+    deadline_epoch = time.time() + remaining * 60
     script, run_dir = remote_script(commit=commit, host=host, home=chosen["home"], edition=edition,
                                     label=label, command=command, stamp=stamp, origin=origin,
-                                    cap_minutes=remaining)
+                                    cap_minutes=remaining, deadline_epoch=deadline_epoch)
     target = ["bash", "-c", script] if host == local_host() else [*SSH, host, shlex.join(["bash", "-c", script])]
     result = subprocess.run(target, stdin=subprocess.DEVNULL)
     print(f"quartus_jobs: {host}:{run_dir} (exit {result.returncode})", file=sys.stderr)
-    if result.returncode != 0:
-        # The run wrapper on the host notifies its own outcome there; this
-        # covers a remote that failed before it (refused, clone, fetch) and
-        # lets the caller's FES_QUARTUS_NOTIFY see every failed remote job.
-        notify({"host": host, "edition": edition, "label": label, "command": command, "commit": commit,
-                "run_dir": run_dir, "finished_utc": datetime.now(timezone.utc).isoformat(),
-                "status": "remote-failed", "exit": result.returncode})
+    # The run wrapper on the host records its own outcome there; the caller's
+    # FES_QUARTUS_NOTIFY (not forwarded over SSH) hears every outcome here,
+    # including a remote that failed before the wrapper started.
+    code = result.returncode
+    # 255 is ssh's own failure; 129-254 a signal on the host; anything else
+    # is the job's or the setup's failure.
+    status = {0: "finished", 75: "refused", 124: "capped"}.get(
+        code, "cancelled" if 128 < code < 255 else "remote-failed")
+    notify({"host": host, "edition": edition, "label": label, "command": command, "commit": commit,
+            "run_dir": run_dir, "finished_utc": datetime.now(timezone.utc).isoformat(),
+            "status": status, "exit": code})
     return result.returncode
 
 
@@ -762,6 +779,9 @@ def main(argv: list[str] | None = None) -> int:
         sub = commands.add_parser(name)
         sub.add_argument("--edition", choices=editions, required=True)
         sub.add_argument("--label", default="")
+        if name == "run":
+            sub.add_argument("--deadline-epoch", type=float, default=None,
+                             help="an absolute end (Unix time) the cap may not pass; set by remote")
         sub.add_argument("--cap-minutes", type=cap_minutes, default=DEFAULT_CAP_MINUTES,
                          help="stop the job after this long (default %(default)s); exit 124")
         if name == "remote":
@@ -780,7 +800,8 @@ def main(argv: list[str] | None = None) -> int:
               else host + ("" if ready else " (no host ready: a remote job would wait)"))
         return 0
     if args.action == "run":
-        return run(args.edition, args.label, command, cap_seconds=args.cap_minutes * 60)
+        return run(args.edition, args.label, command, cap_seconds=args.cap_minutes * 60,
+                   deadline_epoch=args.deadline_epoch)
     return remote(args.edition, args.host, args.commit, args.label, command, args.cap_minutes)
 
 

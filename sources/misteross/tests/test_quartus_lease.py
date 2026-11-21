@@ -214,6 +214,46 @@ def shell_runs(text: str):
                 yield start, f"runs {os.path.basename(word)} outside quartus_jobs.py run"
 
 
+def python_names_leased(text: str) -> bool:
+    """A leased program name in the source, or in a string constant after
+    Python joins adjacent literals ("quartus_" "fit")."""
+    if LEASED.search(text):
+        return True
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return False
+    return any(isinstance(node, ast.Constant) and isinstance(node.value, str) and LEASED.search(node.value)
+               for node in ast.walk(tree))
+
+
+def python_launches(text: str) -> bool:
+    """Whether a module can start a process, by its bindings, not spelling:
+    any import of subprocess or asyncio's subprocess API, and any os
+    exec/spawn/system/popen use, however aliased."""
+    if LAUNCH.search(text):
+        return True
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return True
+    os_launch = re.compile(r"(exec|spawn|posix_spawn|system|popen|fork)")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import) and any(a.name.split(".")[0] in ("subprocess", "pty") for a in node.names):
+            return True
+        if isinstance(node, ast.ImportFrom) and node.module:
+            if node.module.split(".")[0] in ("subprocess", "pty") or node.module.startswith("asyncio"):
+                return True
+            if node.module == "os" and any(os_launch.match(a.name) for a in node.names):
+                return True
+        if isinstance(node, ast.Attribute) and os_launch.match(node.attr) and \
+                isinstance(node.value, ast.Name):
+            return True
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "__import__":
+            return True
+    return False
+
+
 def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None) -> list[str]:
     """Each tracked script that could run a leased Quartus program unleased.
 
@@ -250,19 +290,26 @@ def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None
         if base.startswith("test_") or base.endswith("_test.py") or name.endswith("scripts/quartus_tools.py"):
             continue
         path = root / name
-        if not name.endswith((".py", ".sh")) or not path.is_file():
+        if not path.is_file() or path.is_symlink():
             continue
-        text = path.read_text(encoding="utf-8", errors="replace")
-        if not LEASED.search(text):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
             continue
-        if name.endswith(".py"):
+        first = text.split("\n", 1)[0]
+        is_python = name.endswith(".py") or (first.startswith("#!") and "python" in first)
+        is_shell = name.endswith((".sh", ".bash")) or (first.startswith("#!") and re.search(r"\b(ba|da|z)?sh\b", first))
+        if is_python:
             if name in PINNED and root == REPO:
                 continue
-            if LAUNCH.search(text) and not LOCATES.search(text) and not leased(path):
+            if python_names_leased(text) and python_launches(text) and not LOCATES.search(text) \
+                    and not leased(path):
                 failures.append(f"{name}: starts processes and names a Quartus program, "
                                 "but never imports scripts.quartus_tools")
-            continue
-        failures.extend(f"{name}:{number}: {why}" for number, why in shell_runs(text))
+        elif is_shell:
+            # No raw-text prefilter: the shell joins quoted fragments
+            # (quartus_""sh), so only its own tokenizer can tell.
+            failures.extend(f"{name}:{number}: {why}" for number, why in shell_runs(text))
     return failures
 
 
@@ -340,6 +387,20 @@ class StaticRuleTests(unittest.TestCase):
             "sources/misteross/boards/x/build.py":
                 "INPUTS = ('helper.py', 'scripts/quartus_tools.py')\n" + textwrap.dedent(self.UNLEASED_MODULE)})
         self.assertEqual(len(failures), 1)
+
+    def test_counterexample_aliased_launches_and_split_names_are_caught(self):
+        # Codex P1s at 7bfc1b435: import subprocess as s; s.run(...), a
+        # directly imported run, and "quartus_" "fit" joined by Python.
+        failures = self.scan({
+            "sources/misteross/scripts/a.py": "import subprocess as s\ns.run(['quartus_fit', 'top'])\n",
+            "sources/misteross/scripts/b.py": "from subprocess import run as go\ngo(['quartus_fit', 'top'])\n",
+            "sources/misteross/scripts/c.py": "import subprocess as s\ns.run(['quartus_' 'fit', 'top'])\n",
+            "scripts/d.sh": "#!/bin/sh\nquartus_\"\"sh --flow compile top\n",
+            "scripts/e": "#!/bin/bash\nquartus_sh --flow compile top\n",
+        })
+        self.assertEqual(sorted(f.split(":")[0] for f in failures),
+                         ["scripts/d.sh", "scripts/e", "sources/misteross/scripts/a.py",
+                          "sources/misteross/scripts/b.py", "sources/misteross/scripts/c.py"])
 
     def test_a_cpf_conversion_alone_is_not_a_leased_program(self):
         self.assertEqual(self.scan({"sources/misteross/scripts/convert.py": """
@@ -1311,6 +1372,32 @@ class JobsTests(unittest.TestCase):
             started = time.monotonic()
             self.assertEqual(self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"], cap_minutes=0.01), 124)
         self.assertLess(time.monotonic() - started, 10)
+
+    def test_setup_and_the_run_share_one_deadline(self):
+        # Codex P2 at 7bfc1b435: setup time was added on top of the cap.
+        script, _ = self.jobs.remote_script(
+            commit="f" * 40, host="powerboat", home="/h", edition="lite", label="", command=["true"],
+            stamp="s", origin="https://example.invalid/x", cap_minutes=5, deadline_epoch=1_000_000)
+        self.assertIn("1000000 - $(date +%s)", script)
+        self.assertIn("bounded git -C", script)
+        self.assertIn("--deadline-epoch 1000000 --", script)
+        self.assertEqual(self.jobs.run("lite", "", ["true"], deadline_epoch=time.time() - 1), 124)
+
+    def test_the_caller_hears_a_successful_remote(self):
+        # Codex P2 at 7bfc1b435: only failures were notified on the caller.
+        sink = Path(self.directory.name) / "caller"
+        ready = {"host": "powerboat", "free": 1, "available_kib": 500 * 1024 ** 2, "home": "/h", "slots": {}}
+        with mock.patch.object(self.jobs, "probe", return_value=ready), \
+                mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
+                mock.patch.object(self.jobs, "local_host", return_value="elsewhere"), \
+                mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
+                mock.patch.dict(os.environ, {"FES_QUARTUS_NOTIFY": f"cat > {sink}"}):
+            real_run = subprocess.run
+            with mock.patch.object(self.jobs.subprocess, "run",
+                                   side_effect=lambda argv, **kw: real_run(argv, **kw) if argv[:2] == ["sh", "-c"]
+                                   else subprocess.CompletedProcess(argv, 0)):
+                self.assertEqual(self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"]), 0)
+        self.assertIn('"status": "finished"', sink.read_text())
 
     def test_remote_refuses_an_unpushed_commit(self):
         with mock.patch.object(self.jobs.subprocess, "run",
