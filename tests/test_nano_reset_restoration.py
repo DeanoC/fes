@@ -96,6 +96,36 @@ class ResetRestorationTests(unittest.TestCase):
                 with self.assertRaises(ValueError):op.run()
                 self.assertEqual(len(calls),count)
 
+    def test_final_programming_audit_failure_invalidates_restoration_receipt(self):
+        with tempfile.TemporaryDirectory() as name:
+            op, model, session, payloads, _ = self.setup_restore(name)
+            transport = op.recovery.transport
+            observations = []
+
+            def changed_clock():
+                current = transport()
+                observations.append(current)
+                if len(observations) == 9:
+                    self.assertEqual(model.writes, 1)
+                    self.assertEqual(model.files[destination('boot')], payloads['boot'])
+                    self.assertEqual(op.receipt['status'], 'checking')
+                    return dict(current, clock='6M')
+                return current
+
+            op.recovery.transport = changed_clock
+            with patch('builtins.print'), patch('upload.time.sleep'):
+                with self.assertRaisesRegex(ValueError, 'transport identity differs'):
+                    op.run()
+            self.assertEqual(op.receipt['status'], 'failed')
+            self.assertIn('transport identity differs', op.receipt['error'])
+            self.assertFalse(op.receipt['unchanged_sources_verified'])
+            self.assertTrue(op.receipt['sd_write_attempted'])
+            self.assertTrue(op.receipt['boot_upload']['sd_readback_verified'])
+            self.assertTrue(session.retired)
+            with self.assertRaisesRegex(ValueError, 'restoration attempt is retired'):
+                op.run()
+            self.assertEqual(model.writes, 1)
+
     def test_serial_loss_after_write_keeps_failure_and_does_not_rewrite(self):
         with tempfile.TemporaryDirectory() as name:
             op,m,s,p,servers=self.setup_restore(name)
