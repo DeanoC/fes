@@ -39,4 +39,11 @@ inline mister::CoreDescriptor De25AtariStDescriptor() {
      "fes.media.atari-st-floppy-geometry"})d.interfaces.push_back({id,1,0,true});
  De25FirmwareRequirement(&d,196608);return d;
 }
+// Live capability words 0x200f and 0x0030 (boards/de25nano/pcxt/standard_tb.cpp):
+// the PC/XT floppy and its write extension are fes.computer 1.1 interfaces.
+inline mister::CoreDescriptor De25PcxtDescriptor() {
+ auto d=De25StandardShellDescriptor("fes.pcxt-dos");d.abi.minor=1;
+ for(const char* id:{"fes.media.pcxt-floppy","fes.media.pcxt-floppy-write"})d.interfaces.push_back({id,1,0,true});
+ De25FirmwareRequirement(&d,69632);return d;
+}
 }

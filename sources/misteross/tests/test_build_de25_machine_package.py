@@ -1,4 +1,4 @@
-"""DE25 Spectrum and Atari ST producer identity, manifest and firmware binding.
+"""DE25 Spectrum, Atari ST and PC/XT producer identity, manifest and firmware binding.
 
 The temporary Git tree and payload below exercise source and manifest
 boundaries; they are deliberately unqualified and never stand in for a
@@ -19,6 +19,7 @@ from boards.de25nano.package.export_core_package import (
     build_identity, export_package, verify_record_source_at_revision)
 from boards.de25nano.producers import build_atari_st_package as atari_st
 from boards.de25nano.producers import build_machine_package as shared
+from boards.de25nano.producers import build_pcxt_package as pcxt
 from boards.de25nano.producers import build_spectrum_package as spectrum
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,7 +32,12 @@ CASES = (
     (spectrum, '128', 32768, 'fes.spectrum128', 'spectrum128-firmware', {'fes.media.spectrum-tape'}),
     (atari_st, '520st', 196608, 'fes.atari-st', 'atari-st-firmware', {'fes.mouse.relative', 'fes.media.atari-st-floppy',
                                  'fes.media.atari-st-floppy-write', 'fes.media.atari-st-floppy-geometry'}),
+    (pcxt, 'xt', 69632, 'fes.pcxt-dos', 'pcxt-firmware', {'fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write'}),
 )
+# The shared machine PLL's clock, or the machine's own; and the fes.computer
+# minor its endpoint answers.
+MACHINE_CLOCK = {spectrum: 52222222, atari_st: 52222222, pcxt: 100000000}
+ABI_MINOR = {spectrum: 0, atari_st: 0, pcxt: 1}
 
 
 class MachineProducerTests(unittest.TestCase):
@@ -42,14 +48,14 @@ class MachineProducerTests(unittest.TestCase):
         cls.root = Path(cls.temp.name)
         # The real captured closure of both machines, laid out as a source module.
         cls.captured = {}
-        for producer in (spectrum, atari_st):
+        for producer in (spectrum, atari_st, pcxt):
             spec = producer.MACHINE.spec(ROOT)
             cls.captured[producer] = spec.board.capture(spec)
         data = {}
         for captured in cls.captured.values():
             data.update({Path(name).relative_to('sources/misteross').as_posix(): value
                          for name, value in captured.items()})
-        for name in (spectrum.RECIPE, atari_st.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
+        for name in (spectrum.RECIPE, atari_st.RECIPE, pcxt.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
                      'boards/de25nano/quartus.lock', 'boards/de25nano/package/core_package.py',
                      'boards/de25nano/package/export_core_package.py', *shared.REVIEW_INPUTS):
             data.setdefault(name, (ROOT / name).read_bytes())
@@ -87,7 +93,7 @@ class MachineProducerTests(unittest.TestCase):
                 self.assertEqual(parameters['firmware_delivery'], 'gp-firmware-upload-v1')
                 self.assertEqual(parameters['guest_memory'], 'board-sdram')
                 self.assertEqual(parameters['programming_profile'], 'de25-linux-computer-v1')
-                self.assertEqual(parameters['machine_clock_hz'], 52222222)
+                self.assertEqual(parameters['machine_clock_hz'], MACHINE_CLOCK[producer])
                 self.assertFalse(parameters['expansion_socket'])
                 self.assertEqual(json.loads(record)['recipe'], producer.RECIPE)
                 identities.add(build_identity(record))
@@ -114,7 +120,7 @@ class MachineProducerTests(unittest.TestCase):
                 self.assertEqual(manifest['core']['id'], core_id)
                 self.assertEqual(manifest['target'], {'platform': 'de25_nano', 'device': shared.DEVICE,
                                                       'programming_profile': 'de25-linux-computer-v1'})
-                self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 0})
+                self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': ABI_MINOR[producer]})
                 self.assertEqual({i['id'] for i in manifest['interfaces']}, SHELL | media)
                 self.assertTrue(all(i['required'] for i in manifest['interfaces']))
                 versions = {i['id']: (i['major'], i['minor']) for i in manifest['interfaces']}
@@ -130,7 +136,7 @@ class MachineProducerTests(unittest.TestCase):
                                            'base_sha256': manifest['payload']['sha256'], 'source_size': size})
 
     def test_refuses_before_any_build(self):
-        for producer in (spectrum, atari_st):
+        for producer in (spectrum, atari_st, pcxt):
             with mock.patch.object(producer.MACHINE, 'spec', side_effect=AssertionError('builder ran')):
                 with self.assertRaisesRegex(shared.BuildError, 'requires --vendor-archive'):
                     producer.build(quartus_root='', vendor_archive=None)
