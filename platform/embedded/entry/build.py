@@ -80,18 +80,21 @@ def menu_present_option(receipt, memory, access):
 
 
 def compiled_menu_option(receipt, companion):
+    return compiled_program_option(receipt, companion, 'main.expectedCompiledMenuProgram')
+
+
+def compiled_program_option(receipt, companion, name):
     command=receipt.get('command',[])
     try:tokens=shlex.split(command[command.index('-ldflags')+1])
     except (ValueError,IndexError,AttributeError,TypeError):
-        raise ValueError('compiled menu requires the native link command') from None
-    name='main.expectedCompiledMenuProgram'
+        raise ValueError('compiled program requires the native link command') from None
     options=[(i,word) for i,word in enumerate(tokens) if name in word]
     if companion is None:
-        if options:raise ValueError('unselected compiled menu appears in the native link command')
+        if options:raise ValueError('unselected compiled program appears in the native link command')
         return None
     value=base64.b64encode((json.dumps(companion,sort_keys=True,separators=(',',':'))+'\n').encode()).decode()
     if len(options)!=1 or options[0][1]!=name+'='+value or options[0][0]==0 or tokens[options[0][0]-1]!='-X':
-        raise ValueError('compiled menu differs from its exact native link assignment')
+        raise ValueError('compiled program differs from its exact native link assignment')
     return companion
 
 
@@ -268,7 +271,7 @@ def main():
     native_sources = None
     native_context = native_io = native_cpu_map = native_control = native_configuration = native_reader_memory = native_ddr_read = native_computer = native_rom = native_program_platform = None
     native_selected_programs = False
-    native_menu_program = None
+    native_menu_program = native_spectrum_program = None
     native_tenfoot_serial = False
     native_initial_tape = False
     native_tape_memory = None
@@ -327,6 +330,12 @@ def main():
         native_rom=hps.checked_rom(receipt)
         native_program_platform=hps.checked_program_platform(receipt)
         native_menu_program=compiled_menu_option(receipt,hps.checked_menu_program(receipt))
+        native_spectrum_program = compiled_program_option(
+            receipt, hps.spectrum48.checked(receipt), 'main.expectedCompiledSpectrum48')
+        if native_spectrum_program is not None and (
+                not native_menu_program or base64.b64encode(hps.encode(native_spectrum_program)) not in payload.read_bytes()):
+            raise ValueError('compiled Spectrum companion differs from the native ELF')
+
         native_selected_programs=receipt.get('selected_programs',False)
         native_reload=receipt.get('computer_reload',False)
         native_storage_return=receipt.get('computer_storage_return',False)
@@ -456,6 +465,7 @@ def main():
         files.append(HERE.parent/'nano/usb_selection.py')
         files.append(HERE.parent/'nano/initial_tape.py')
         if native_context is not None:files.extend(hps.inputs())
+        if native_spectrum_program is not None:files.append(Path(hps.spectrum48.__file__))
     files.append(HERE.parent / "experiment.py")
     frozen = {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in files}
     payload_bytes = payload.read_bytes()
@@ -599,6 +609,8 @@ def main():
               "selected_programs":native_selected_programs,"tenfoot_serial":native_tenfoot_serial,"initial_tape":native_initial_tape,
               "initial_tape_memory":native_tape_memory,
               "initial_tape_memory_sha256":hps.initial_tape.memory_digest(native_tape_memory) if native_tape_memory else None,
+              **({"spectrum48_program": native_spectrum_program,
+                  "spectrum48_program_sha256": hps.digest(native_spectrum_program)} if native_spectrum_program else {}),
               "hps_menu_project":receipt.get('hps_menu_project'),"hps_menu_program":native_menu_program,
               "hps_menu_program_sha256":hps.digest(native_menu_program) if native_menu_program else None,
               "hps_program_platform":native_program_platform,

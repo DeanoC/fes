@@ -76,6 +76,10 @@ def main():
                         help="opt in to 25 MHz data transfers for bound Nano sdfile or writable native Tenfoot")
     parser.add_argument("--sd-scratch-inspect", action="store_true", help="read-only candidate plan discovery; Nano storage diagnostic only")
     parser.add_argument("--hps-first-project", type=Path, help="sealed HPS-first project for the Nano context diagnostics")
+    parser.add_argument("--spectrum48-build", type=Path, help="independently repeated native Spectrum FPGA build")
+    parser.add_argument("--spectrum48-package", type=Path, help="sealed native Spectrum companion archive")
+    parser.add_argument("--spectrum48-rom", type=Path, help="16 KiB ROM for the native Spectrum companion")
+    parser.add_argument("--spectrum48-tape", type=Path, help="optional tape file for the Spectrum SD catalogue")
     parser.add_argument("--menu-project", type=Path, help="separately sealed menu companion for selected Nano computer programs")
     parser.add_argument("--usb-input", choices=("boot-keyboard", "gamepad"), help="explicit input protocol for the Nano usbcheck diagnostic")
     parser.add_argument("--shared-usb-input", choices=("boot-keyboard", "gamepad"), help="retain owned USB with selected serial Tenfoot/core/SD transitions")
@@ -128,6 +132,8 @@ def main():
         except (ValueError, OSError, subprocess.CalledProcessError) as error:
             parser.error(str(error))
         return
+    if any((args.spectrum48_build, args.spectrum48_package, args.spectrum48_rom, args.spectrum48_tape)):
+        parser.error('Spectrum companion requires --board de25-nano')
     if args.arm64_features:
         parser.error('--arm64-features requires --board de25-nano')
     if args.sd_write_plan is not None or args.writable_storage_plan is not None or args.program in ('sdwrite','sdfile') or args.sd_scratch_inspect or args.sd_transfer_clock:

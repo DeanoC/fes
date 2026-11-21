@@ -108,6 +108,10 @@ def prepare(project, uboot, entry, pfg, output):
             dict(window_profile,program='usbcheck',usb_control=window_profile.get('usb_pio',False))):
         raise ValueError('USB probe requires its separate contained cold resources')
     companion=hps_context.compiled_menu_program(dict(window_profile,program='fpgaload'))
+    spectrum = hps_context.spectrum48.checked(dict(window_profile, program='fpgaload'))
+    if spectrum != hps_context.spectrum48.checked(loaded_entry, key='native_program'):
+        raise ValueError('Spectrum companion differs between native entry and cold firmware')
+
     cpu_map=window_profile.get('cpu_mapping')
     if cpu_map is not None and cpu_map!=hps_context.cpu_mapping(control_map,hps_context.configuration(project),reader_memory,menu_program=companion):
         raise ValueError('native CPU mapping contract differs from its sealed resources')
@@ -222,6 +226,7 @@ def prepare(project, uboot, entry, pfg, output):
         'cpu_mapping_sha256':hps_context.digest(cpu_map) if cpu_map is not None else None,
         'paired_programs':companion is not None,
         'hps_menu_program_sha256':hps_context.digest(companion) if companion is not None else None,
+        **({'spectrum48_program_sha256': hps_context.digest(spectrum)} if spectrum is not None else {}),
         'control_probe':control_map is not None,
         'hps_control_sha256':hps_context.digest(control_map) if control_map is not None else None,
         'bounded_ddr_read':ddr_read is not None,
