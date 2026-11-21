@@ -231,6 +231,34 @@ def _reap_adopted(keep: set[int]) -> None:
             pass
 
 
+def _best_effort_write(path: Path, text: str) -> None:
+    """A record write that cannot unwind the wrapper (a full or vanished run
+    directory) while the job holds its slot."""
+    try:
+        path.write_text(text)
+    except OSError as error:
+        print(f"quartus_jobs: could not write {path}: {error}", file=sys.stderr, flush=True)
+
+
+def _stop_job(process: subprocess.Popen, scan) -> None:
+    """SIGTERM every process of the job, SIGKILL after the grace, and wait
+    until none is left. Interrupts are ignored until it has finished."""
+    previous = {sig: signal.signal(sig, signal.SIG_IGN) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
+    try:
+        _signal_all([process.pid, *scan()], signal.SIGTERM)
+        deadline = time.monotonic() + KILL_GRACE_SECONDS
+        while True:
+            if process.poll() is None or scan():
+                if time.monotonic() >= deadline:
+                    _signal_all([process.pid, *scan()], signal.SIGKILL)
+                time.sleep(0.2)
+                continue
+            return
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+
+
 def _signal_all(pids, number: int) -> None:
     for pid in pids:
         try:
@@ -294,8 +322,8 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
                             f"{sum(live.values()) / 1024 ** 2:.2f} GiB resident, slot {slot}")
                     print(line, file=sys.stderr, flush=True)
                     if run_dir:
-                        Path(run_dir, "heartbeat").write_text(
-                            datetime.now(timezone.utc).isoformat() + " " + line + "\n")
+                        _best_effort_write(Path(run_dir, "heartbeat"),
+                                           datetime.now(timezone.utc).isoformat() + " " + line + "\n")
                 if now >= deadline and not capped:
                     capped, killed_at = True, now
                     print(f"quartus_jobs: time cap of {cap_seconds / 60:g} min reached; stopping the job",
@@ -306,6 +334,13 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
                 if code is not None:
                     time.sleep(sample_seconds)
                     _reap_adopted(before | {process.pid})
+        except BaseException:
+            # Whatever unwound the wrapper (an interrupt, an error of its
+            # own), the slot is released below: stop and reap every process
+            # of the job first, so nothing of it runs once another job can
+            # take the slot.
+            _stop_job(process, scan)
+            raise
         finally:
             for sig, handler in previous.items():
                 signal.signal(sig, handler)
@@ -319,7 +354,7 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
         print(f"quartus_jobs: peak RSS {peak / 1024 ** 2:.2f} GiB (every process of the job, sampled every "
               f"{sample_seconds:g} s), exit {code}", file=sys.stderr, flush=True)
         if run_dir:
-            Path(run_dir, "peak-rss.json").write_text(json.dumps(record, indent=2) + "\n")
+            _best_effort_write(Path(run_dir, "peak-rss.json"), json.dumps(record, indent=2) + "\n")
         return code
 
 

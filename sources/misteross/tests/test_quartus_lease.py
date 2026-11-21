@@ -703,6 +703,38 @@ class JobsTests(unittest.TestCase):
             self.assertEqual(self.jobs.run("lite", "test", [sys.executable, "-c", code], sample_seconds=0.2), 0)
         self.assertGreater(json.loads((run_dir / "peak-rss.json").read_text())["peak_rss_kib"], 96 * 1024)
 
+    def test_a_wrapper_error_stops_the_job_before_the_slot_is_released(self):
+        # Codex P1 at a089560de: the run directory vanished, the heartbeat
+        # write raised, and run unwound over a live job. Any error in the
+        # wrapper must now stop and reap the job before the lease unlocks;
+        # a record write is best-effort.
+        survivor = Path(self.directory.name) / "survivor2"
+        run_dir = Path(self.directory.name) / "vanishing"
+        run_dir.mkdir()
+        boom = RuntimeError("wrapper failure")
+        with mock.patch.object(self.jobs, "KILL_GRACE_SECONDS", 1), \
+                mock.patch.object(self.jobs, "HEARTBEAT_SECONDS", 0.3), \
+                mock.patch.dict(os.environ, {"FES_QUARTUS_RUN_DIR": str(run_dir)}):
+            run_dir.rmdir()
+            # A vanished run directory no longer unwinds the wrapper...
+            self.assertEqual(self.jobs.run("lite", "", ["sleep", "1"], sample_seconds=0.2), 0)
+            # ...and any other wrapper error stops the whole job first.
+            real, calls = self.jobs.job_processes, []
+
+            def failing_once(*args):
+                calls.append(1)
+                if len(calls) == 6:
+                    raise boom
+                return real(*args)
+
+            with mock.patch.object(self.jobs, "job_processes", failing_once):
+                with self.assertRaises(RuntimeError):
+                    self.jobs.run("lite", "", ["sh", "-c", f"(sleep 5; touch {survivor}) & sleep 5"],
+                                  sample_seconds=0.2)
+        self.assertEqual(qt.flock_holders(self.pools["lite"][0]), set())
+        time.sleep(5.5)
+        self.assertFalse(survivor.exists(), "a process of the job outlived the released slot")
+
     def test_run_returns_the_job_exit_code(self):
         self.assertEqual(self.jobs.run("pro", "", ["sh", "-c", "exit 7"], sample_seconds=0.1), 7)
 
