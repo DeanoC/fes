@@ -170,8 +170,9 @@ fails if its anchor moves. The DE10 sources stay byte-identical.
   underflow counter from the status words. Status word 4's plane half
   then reads 0, and the record says so.
 
-The board top instantiates `pc386_system` with `X87_PRESENT = 0` and
-`X87_BACKEND = 0` (#2033). Its parts are:
+The board top instantiates `pc386_system` as main has it: a 386 with no
+387, `x87_present` tied to 0. (#2033's `X87_PRESENT` parameter isn't on
+main, and #2037 deleted `X87_BACKEND = 0`.) Its parts are:
 
 - `fes_de25_hps_window`;
 - `fes_de25_session_display`, with the plane window 160/0/960/720, as the

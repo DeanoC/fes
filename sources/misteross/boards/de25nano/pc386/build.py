@@ -6,7 +6,7 @@ The machine is the DE10's pc386_system with its display plane derived out
 SEAL netlist, here at the DE25 machine clock's guest rates. Its memory is a
 window in HPS DDR (fes.fabric.de25-hps-window): fes_de25_hps_window's guards,
 rebase and bounds, then fes_de25_window_arbiter's one master. The identity
-is a 386 with no 387 (X87_PRESENT and X87_BACKEND 0, as on the DE10).
+is a 386 with no 387: pc386_system ties x87_present to 0, as on the DE10.
 """
 from fractions import Fraction
 from pathlib import Path
@@ -61,7 +61,7 @@ def load(path, name):
 
 board = load(HERE.parent / "machine/board.py", "de25_pc386_machine_board")
 sys.path.insert(0, str(board.ROOT / MISTEROSS))
-from scripts import build_fes_pc386_quartus as sealer  # noqa: E402
+from scripts import pc386_quartus as sealer  # noqa: E402
 from scripts import yosys_netlist  # noqa: E402
 from scripts import fit_i386_device as fit  # noqa: E402
 
@@ -70,7 +70,7 @@ SOURCES = ({BOARD + "pc386/" + name for name in LOCAL_FILES} |
             "sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v"} |
            {MISTEROSS + path for path in sealer.MACHINE_SOURCES + sealer.INCLUDES} |
            {MISTEROSS + path for path in (sealer.FIRMWARE_LOCK, sealer.LOCK, "scripts/yosys_netlist.py",
-                                          "scripts/build_fes_pc386_quartus.py", "scripts/fit_i386_device.py")})
+                                          "scripts/pc386_quartus.py", "scripts/fit_i386_device.py")})
 
 
 def guest_rates():
@@ -152,7 +152,7 @@ def component_files(sources):
     files["pc386_system.v"], prepared = machine_netlist(sources, {"pc386_machine.sv": machine, "pc386_system.sv": system})
     derived["pc386_system.v"] = {"front_end": "yosys-seal-netlist", "guest_rates": guest_rates(),
                                  "netlist_sha256": board.sha(files["pc386_system.v"]), **prepared,
-                                 "x87": {"X87_PRESENT": 0, "X87_BACKEND": 0}}
+                                 "x87": {"x87_present": "tied 0 in pc386_system"}}
     files["fes_de25_computer_transport.v"], derived["fes_de25_computer_transport.v"] = spectrum.transport(
         sources[BOARD + "zx81-hps/fes_de25_computer.v"])
     return files, derived

@@ -40,7 +40,7 @@ def derived_sources(output: Path) -> dict[Path, Path]:
 
 def system_testbench(args) -> Path:
     """system_tb on pc386_de25_sim, at the sealed rates, as sim.system_testbench builds pc386_system."""
-    from scripts import build_fes_pc386_quartus as producer
+    from scripts import pc386_quartus as producer
     images = sim.firmware.images(args.download, args.jobs)
     rom = sim.firmware.write_rom_hex(images)
     parameters = {**producer.guest_rates(producer.SYSTEM_CLOCK_HZ), 'ROM_HEX': f'"{rom}"'}
