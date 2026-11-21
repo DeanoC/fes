@@ -10,6 +10,7 @@ BOARD = Path(__file__).resolve().parents[1] / "boards/de25nano"
 SDCS = (
     BOARD / "spectrum/spectrum-clocks.sdc",
     BOARD / "atari-st/atari-st-clocks.sdc",
+    BOARD / "pcxt/pcxt-clocks.sdc",
 )
 
 

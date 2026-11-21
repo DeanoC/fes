@@ -59,10 +59,14 @@ func firmwareUploadMachine(d Descriptor) error {
 		"fes.spectrum":    {16384, 32768},
 		"fes.spectrum128": {32768},
 		"fes.atari-st":    {196608},
+		// The 64 KiB system ROM window, then the 4 KiB CGA font.
+		"fes.pcxt-dos": {69632},
 	}[d.Core.ID]
+	// The PC/XT's floppy is a fes.computer 1.1 interface.
+	minor := map[string]int64{"fes.pcxt-dos": 1}[d.Core.ID]
 	if !FirmwareUpload(d) || d.Target.ProgrammingProfile != "de25-linux-computer-v1" ||
-		d.ABI != (Contract{ID: "fes.computer", Major: 1}) || !slices.Contains(sizes, d.ROM.SourceSize) {
-		return errors.New("firmware upload requires a DE25 Spectrum-family or Atari ST computer package and its exact image size")
+		d.ABI != (Contract{ID: "fes.computer", Major: 1, Minor: minor}) || !slices.Contains(sizes, d.ROM.SourceSize) {
+		return errors.New("firmware upload requires a DE25 Spectrum-family, Atari ST or PC/XT computer package and its exact image size")
 	}
 	return nil
 }

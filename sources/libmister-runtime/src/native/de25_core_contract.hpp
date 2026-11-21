@@ -72,6 +72,8 @@ struct De25StandardCore {
 	std::array<std::uint32_t, 2> firmware_bytes;
 	// The static profile adds the optional expansion bus to this machine.
 	const char* static_bus;
+	// The fes.computer minor the package declares: 1 for a 1.1 interface.
+	std::uint16_t abi_minor;
 };
 // The shell every standard machine shares: its video, input and audio, and
 // the session plane on the allocated scanout.
@@ -84,30 +86,37 @@ constexpr std::array<De25StandardInterface, 7> kDe25StandardShell = {{
 	{"fes.fabric.video.display-plane", 1, 0},
 	{"fes.fabric.de25-scanout", 1, 3},
 }};
-constexpr std::array<De25StandardCore, 4> kDe25StandardCores = {{
+constexpr std::array<De25StandardCore, 5> kDe25StandardCores = {{
 	{"fes.zx81",
 		{{{generated::FesComputerInterfaceMediaZx81TapeID, 1, 0},
 		  {generated::FesComputerInterfaceMediaZx81TapeWriteID, 1, 0}}},
-		{{0, 0}}, "fes.expansion.zx81-bus"},
+		{{0, 0}}, "fes.expansion.zx81-bus", 0},
 	{"fes.spectrum",
 		{{{generated::FesComputerInterfaceMediaSpectrumTapeID,
 			generated::FesComputerInterfaceMediaSpectrumTapeMajor,
 			generated::FesComputerInterfaceMediaSpectrumTapeMinor},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
-		{{16384, 32768}}, nullptr},
+		{{16384, 32768}}, nullptr, 0},
 	{"fes.spectrum128",
 		{{{generated::FesComputerInterfaceMediaSpectrumTapeID,
 			generated::FesComputerInterfaceMediaSpectrumTapeMajor,
 			generated::FesComputerInterfaceMediaSpectrumTapeMinor},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
-		{{32768, 0}}, nullptr},
+		{{32768, 0}}, nullptr, 0},
 	{"fes.atari-st",
 		{{{generated::FesComputerInterfaceMouseRelativeID, 1, 0},
 		  {generated::FesComputerInterfaceMediaAtariStFloppyID, 1, 0},
 		  {generated::FesComputerInterfaceMediaAtariStFloppyWriteID, 1, 0},
 		  {generated::FesComputerInterfaceMediaAtariStFloppyGeometryID, 1, 0},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
-		{{196608, 0}}, nullptr},
+		{{196608, 0}}, nullptr, 0},
+	// The DE10 package's PC/XT: its floppy is a fes.computer 1.1 interface. Its
+	// image is the 64 KiB system ROM window and then the 4 KiB CGA font.
+	{"fes.pcxt-dos",
+		{{{generated::FesComputerInterfaceMediaPcxtFloppyID, 1, 0},
+		  {generated::FesComputerInterfaceMediaPcxtFloppyWriteID, 1, 0},
+		  {kFirmwareUploadInterfaceID, 1, 0}}},
+		{{69632, 0}}, nullptr, 1},
 }};
 inline const De25StandardCore* FindDe25StandardCore(const std::string& id)
 {
@@ -140,7 +149,7 @@ inline Error CheckDe25StandardComputerContract(const CoreDescriptor& descriptor)
 	if (!core || (static_profile && !core->static_bus) ||
 		descriptor.format != (static_profile ? 5u : firmware ? 3u : 2u) ||
 		!descriptor.core.system.empty() || descriptor.abi.id != FesComputerABIID ||
-		descriptor.abi.major != 1 || descriptor.abi.minor != 0)
+		descriptor.abi.major != 1 || descriptor.abi.minor != core->abi_minor)
 		return {ErrorCode::unsupported_abi, "DE25 standard profile requires a registered computer contract", "compatibility"};
 	if (firmware && (descriptor.rom.role != "firmware" ||
 		(descriptor.rom.source_size != core->firmware_bytes[0] &&

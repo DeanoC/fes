@@ -187,12 +187,17 @@ class AffectedTests(unittest.TestCase):
     def test_de25_machine_paths_select_their_machines(self):
         board = 'sources/misteross/boards/de25nano/'
         for path, cores in (('spectrum/derive.py', ['spectrum']), ('spectrum/spectrum-clocks.sdc', ['spectrum']),
-                            ('atari-st/derive.py', ['atari-st']), ('atari-st/sim.py', ['atari-st']),
-                            ('machine/board.py', ['atari-st', 'spectrum']),
+                            ('atari-st/derive.py', ['atari-st', 'pcxt']), ('atari-st/sim.py', ['atari-st']),
+                            ('atari-st/build.py', ['atari-st']),
+                            ('pcxt/derive.py', ['pcxt']), ('pcxt/pcxt-clocks.sdc', ['pcxt']),
+                            ('producers/build_pcxt_package.py', ['pcxt']),
+                            ('machine/board.py', ['atari-st', 'pcxt', 'spectrum']),
                             ('shared-rtl/fes_spectrum_core.v', ['spectrum']),
                             ('shared-rtl/fes_atari_st_core.v', ['atari-st']),
-                            ('shared-rtl/fes_firmware_upload.v', ['atari-st', 'spectrum']),
-                            ('shared-rtl/fes_gp_crossing.v', ['atari-st', 'spectrum'])):
+                            ('shared-rtl/fes_pcxt_core.v', ['pcxt']),
+                            ('shared-rtl/fes_media_sdram.v', ['atari-st', 'spectrum']),
+                            ('shared-rtl/fes_firmware_upload.v', ['atari-st', 'pcxt', 'spectrum']),
+                            ('shared-rtl/fes_gp_crossing.v', ['atari-st', 'pcxt', 'spectrum'])):
             with self.subTest(path=path):
                 self.assertEqual(sorted(plan([board + path])['cores']), cores)
 

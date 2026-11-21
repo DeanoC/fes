@@ -1167,7 +1167,7 @@ void TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory() {
 
 // The standard shell's firmware machines: format 3 with the upload interface
 // and the image size their endpoint takes, on the unchanged computer profile.
-void TestDe25StandardProfileAdmitsSpectrumSpectrum128AndAtariSt()
+void TestDe25StandardProfileAdmitsSpectrumAtariStAndPcxt()
 {
  using namespace mister;using namespace mister::native;
  ContainedCoreDriver shared,contained,bram;
@@ -1175,10 +1175,11 @@ void TestDe25StandardProfileAdmitsSpectrumSpectrum128AndAtariSt()
  auto spectrum128=mister_test::De25SpectrumDescriptor(32768);
  spectrum128.core.id="fes.spectrum128";
  const CoreDescriptor machines[]={mister_test::De25SpectrumDescriptor(16384),
-  mister_test::De25SpectrumDescriptor(32768),spectrum128,mister_test::De25AtariStDescriptor()};
+  mister_test::De25SpectrumDescriptor(32768),spectrum128,mister_test::De25AtariStDescriptor(),
+  mister_test::De25PcxtDescriptor()};
  for(const auto& d:machines) {
-  const bool st=d.core.id=="fes.atari-st";
-  assert(d.interfaces.size()==(st?12u:9u));
+  const bool st=d.core.id=="fes.atari-st", pcxt=d.core.id=="fes.pcxt-dos";
+  assert(d.interfaces.size()==(st?12u:pcxt?10u:9u));
   assert(CheckDe25StandardComputerContract(d).ok());
   assert(CheckCoreCompatibility(d,NativePlatform::de25_nano).ok());
   // Neither machine exists for the Cyclone V runtime under this target.
@@ -1193,7 +1194,7 @@ void TestDe25StandardProfileAdmitsSpectrumSpectrum128AndAtariSt()
    if(failure==2)bad.interfaces.back().minor=1;
    if(failure==3)bad.format=2;                                    // no sealed ROM requirement
    if(failure==4)bad.rom.role="cartridge";
-   if(failure==5)bad.rom.source_size=st?16384:d.core.id=="fes.spectrum128"?16384:8192; // not this endpoint's image
+   if(failure==5)bad.rom.source_size=st||pcxt?65536:d.core.id=="fes.spectrum128"?16384:8192; // not this endpoint's image
    if(failure==6)bad.rom.source_size+=1024;
    if(failure==7)bad.interfaces.push_back({"fes.memory.hps-ddr",1,0,true});
    if(failure==8)bad.interfaces.push_back({st?"fes.media.spectrum-tape":"fes.mouse.relative",
@@ -1203,7 +1204,7 @@ void TestDe25StandardProfileAdmitsSpectrumSpectrum128AndAtariSt()
    if(failure==11)bad.target.programming_profile="de25-linux-static-computer-v1";
    if(failure==12)bad.interfaces[6].minor=2;                      // scanout 1.2
    if(failure==13)bad.interfaces.back()=bad.interfaces.front();
-   if(failure==14)bad.abi.minor=1;
+   if(failure==14)bad.abi.minor=pcxt?0:1;                        // not this machine's fes.computer minor
    const Error error=CheckCoreCompatibility(bad,NativePlatform::de25_nano);
    if(error.ok())fprintf(stderr,"%s failure %u admitted\n",d.core.id.c_str(),failure);
    assert(!error.ok()&&!CheckDe25StandardComputerContract(bad).ok());
@@ -1402,7 +1403,7 @@ int main()
 	TestExplicitDe25ProfileAndDriverBinding();
  TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory();
  TestDe25StaticProfileRequiresOptionalVersionTwoSocket();
- TestDe25StandardProfileAdmitsSpectrumSpectrum128AndAtariSt();
+ TestDe25StandardProfileAdmitsSpectrumAtariStAndPcxt();
  TestFirmwareUploadMapIsCheckedAgainstTheSealedPackage();
 	TestNanoHeldROMInspectionDoesNotGrantCompatibility();
 	TestComputerCompatibilityComposesRecognizedInterfaces();

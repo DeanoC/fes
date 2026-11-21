@@ -846,6 +846,8 @@ Capabilities NativeHardware::capabilities() const
     result.programming_profiles.push_back("de25-linux-computer-v1");
    SupportedABI computer;
    computer.id = generated::FesComputerABIID; computer.major = 1; computer.minor = 0;
+   // The standard shell's PC/XT declares the fes.computer 1.1 floppy.
+   if(fes_gp_driver_&&menu_display_&&menu_window_) computer.minor = generated::FesComputerABIMinor;
    computer.interfaces = {{generated::FesComputerInterfaceKeyboardHidID, 1, 0},
     {generated::FesComputerInterfaceMediaZx81TapeID, 1, 0},
     {generated::FesComputerInterfaceVideoFixed720p60ID, 1, 0}};
@@ -1603,7 +1605,9 @@ Error NativeHardware::PrepareInitialComputerMedia(AdmittedCorePackage* package,
 		if (interface.id == generated::FesComputerInterfaceMediaPcxtFloppyID) pcxt_floppy = true;
 		if (interface.id == generated::FesComputerInterfaceMediaPcxtFloppyWriteID) pcxt_writable = true;
 	}
-	const bool pcxt = descriptor.format == 2 && descriptor.core.id == "fes.pcxt-dos" && pcxt_floppy && pcxt_writable;
+	// The DE10 package links its firmware (format 2); the DE25 one uploads it (format 3).
+	const bool pcxt = (descriptor.format == 2 || (descriptor.format == 3 && descriptor.rom.role == "firmware")) &&
+		descriptor.core.id == "fes.pcxt-dos" && pcxt_floppy && pcxt_writable;
 	const bool st = descriptor.format == 3 && descriptor.rom.role == "firmware" &&
 		descriptor.core.id == "fes.atari-st" && floppy && writable;
 	if ((!st && !pcxt) || descriptor.abi.id != generated::FesComputerABIID)

@@ -55,17 +55,26 @@ SOURCES = {
 }
 
 
-# A machine with its own PLL (Spectrum, Atari ST): the same serializer and
-# PCM crossing behind fes_de25_machine_audio, clocked by the machine PLL's
+# A machine with its own PLL (Spectrum, Atari ST, PC/XT): the same serializer
+# and PCM crossing behind fes_de25_machine_audio, clocked by the machine PLL's
 # second output in place of the stock audio PLL. This is a separate policy
 # with its own frozen sources; it borrows no fitted evidence from the ZX81.
+# Each machine's PLL is frozen with it. The PC/XT's makes the DE10's 100 MHz
+# and three SDRAM phases beside the audio master (50 x 30 /122, 12.295082
+# MHz); its SDRAM outputs leave beside the reviewed audio wiring.
 MACHINE_POLICY = fitted.MACHINE_POLICY
-MACHINE_CORES = {'fes.spectrum', 'fes.spectrum128', 'fes.atari-st'}
+SHARED_PLL = ('boards/de25nano/machine/machine_pll.ip', '52890ca22dea5743d009dc5a10035918b54565cd9886c0c201a8022019a8d4b4')
+PCXT_PLL = ('boards/de25nano/pcxt/machine_pll.ip', '3ef1f21bfdbc8c863b7952a56b02e5b430cc763a1a25e4dc7d1e78c223a25e61')
+MACHINE_PLLS = {'fes.spectrum': SHARED_PLL, 'fes.spectrum128': SHARED_PLL, 'fes.atari-st': SHARED_PLL,
+                'fes.pcxt-dos': PCXT_PLL}
+# The PLL outputs beside the audio wiring, as machine/board.py writes them.
+MACHINE_PLL_OUTPUTS = {'fes.pcxt-dos': ('.outclk_2(machine_sdram_clk_forward), '
+                                        '.outclk_3(machine_sdram_clk_handoff), '
+                                        '.outclk_4(machine_sdram_clk_capture),')}
 MACHINE_SOURCES = {
     'boards/de25nano/shared-rtl/fes_de25_machine_audio.v': 'e6e1335a12acc3160bf188fdb3b6019d434a5ab727527768477dbe5d93ed8310',
     'cores/fes-common/rtl/fes_audio_output.v': 'e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd',
     'cores/fes-common/rtl/fes_audio_i2s.v': '14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4',
-    'boards/de25nano/machine/machine_pll.ip': '52890ca22dea5743d009dc5a10035918b54565cd9886c0c201a8022019a8d4b4',
 }
 
 
@@ -117,13 +126,14 @@ def eligible_machine(directory, record):
     params = record['parameters']
     expected = {'programming_profile': 'de25-linux-computer-v1', 'standard_core': True,
                 'expansion_socket': False, 'audio_clock_reference_policy': MACHINE_POLICY}
-    require(params.get('core_id') in MACHINE_CORES and
+    require(params.get('core_id') in MACHINE_PLLS and
             all(type(params.get(k)) is type(v) and params[k] == v for k, v in expected.items()),
             'requires a standard machine-PLL profile')
-    require(all(record['source_inputs'].get(name) == sha for name, sha in MACHINE_SOURCES.items()),
+    sources = {**MACHINE_SOURCES, MACHINE_PLLS[params['core_id']][0]: MACHINE_PLLS[params['core_id']][1]}
+    require(all(record['source_inputs'].get(name) == sha for name, sha in sources.items()),
             'reviewed machine audio implementation/source changed')
     project = directory / 'combined/hps/project'
-    files = {project / 'fes_mailbox' / Path(name).name: digest for name, digest in MACHINE_SOURCES.items()}
+    files = {project / 'fes_mailbox' / Path(name).name: digest for name, digest in sources.items()}
     require(all(not p.is_symlink() and async_inputs.sha(p) == digest for p, digest in files.items()),
             'compiled machine audio implementation differs from the reviewed source')
     top = project / 'golden_top.v'
@@ -131,6 +141,7 @@ def eligible_machine(directory, record):
     text = ' '.join(top.read_text().split())
     wiring = '''machine_pll fes_machine_pll (
       .refclk(CLOCK1_50), .rst(!top_reset_n), .outclk_0(machine_clk), .outclk_1(machine_audio_clk),
+      ''' + MACHINE_PLL_OUTPUTS.get(params['core_id'], '') + '''
       .locked(machine_pll_locked) );
       fes_de25_machine_audio fes_audio_inst (
       .source_clk(machine_clk), .audio_clk(machine_audio_clk), .locked(machine_pll_locked),
@@ -204,15 +215,16 @@ def verify(directory, review):
             'missing or unexpected fitted report')
     require(receipt['reports_sha256'] == {p.name: async_inputs.sha(p) for p in sorted(reports.iterdir())},
             'fitted clock/path reports changed')
-    observations = fitted.observations(reports, machine_pll=machine_pll)
+    inputs = json.loads((directory / 'combined/hps/inputs.json').read_text())
+    observations = fitted.observations(reports, machine_pll=machine_pll,
+                                       master_mhz=fitted.machine_master_mhz(inputs) if machine_pll else None)
     require(all(receipt[k] == value for k, value in observations.items()), 'clock/path observations changed')
     require(all(fitted.number(row[k]) > 0 for row in observations['conditional_pin_budgets']
                 for k in ('setup_budget_before_unmodeled_skew_and_jitter_ns',
                           'hold_budget_before_unmodeled_skew_and_jitter_ns')),
             'nonpositive conditional receiver budget')
     project = directory / 'combined/hps/project'
-    staged_pll = json.loads((directory / 'combined/hps/inputs.json').read_text())[
-        'standard_zx81']['machine_pll']['sha256'] if machine_pll else None
+    staged_pll = inputs['standard_zx81']['machine_pll']['sha256'] if machine_pll else None
     require(receipt['stock_audio'] == fitted.stock_audio(project, selected['archive'], machine_pll=staged_pll),
             'stock pins, voltage or complete PLL changed')
     require(receipt['vendor_hdmi_reference'] == vendor_reference.verify(directory, review / 'vendor-reference'),
