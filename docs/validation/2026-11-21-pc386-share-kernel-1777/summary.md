@@ -86,7 +86,14 @@ once FDOS/kernel releases a fix.
 
 - **Toolchains.** Fetched from the lock's URLs, checked by SHA-256, and
   unpacked under `build/sim/fes-pc386/freedos/toolchains`, so nothing is
-  installed on the host:
+  installed on the host. Each archive lists its upstream URL first and then
+  the byte-identical mirror release
+  [DeanoC/fes-pc386-toolchains v1](https://github.com/DeanoC/fes-pc386-toolchains/releases/tag/v1),
+  where each asset's name starts with its SHA-256; GitHub also turns `~` into
+  `.` in asset names. Deano approved the mirror. The README there names each
+  archive's upstream source and licence. With every upstream URL made
+  unreachable, the builder fetched all five archives from the mirror, each
+  matching its pin. The archives are:
   - Open Watcom v2's `2026-07-13-Build` `ow-snapshot.tar.xz`
     (`35e9c56c…`);
   - `binutils-ia16-elf`, `gcc-ia16-elf`, `libnewlib-ia16-elf` and

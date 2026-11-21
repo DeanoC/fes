@@ -72,7 +72,9 @@ the lock pins, so a different toolchain or source fails the build instead of
 changing the image. The toolchains are pinned in the lock's "toolchains" by
 archive SHA-256 and unpacked under build/: Open Watcom v2's dated snapshot
 tarball, and gcc-ia16-elf, binutils, newlib and libi86 as tkchia/build-ia16's
-Debian packages (dpkg-deb unpacks them; nothing is installed). An image built
+Debian packages (dpkg-deb unpacks them; nothing is installed). Each archive
+is fetched from its upstream URL first and then from a byte-identical mirror,
+the DeanoC/fes-pc386-toolchains release, in case upstream drops it. An image built
 from source carries FDOS\\DOC\\SOURCES.TXT, naming each source archive, and the
 patches, beside the binaries.
 

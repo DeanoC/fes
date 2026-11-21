@@ -320,10 +320,35 @@ class FreedosImageTest(unittest.TestCase):
                 self.assertTrue(spec['license'])
                 for archive in spec['archives']:
                     self.assertRegex(archive['sha256'], r'^[0-9a-f]{64}$')
-                    self.assertTrue(archive['urls'])
-                    for url in archive['urls']:
-                        self.assertTrue(url.startswith('https://'))
-                        self.assertTrue(url.endswith(archive['name']))
+                    # Upstream first, then the byte-identical mirror (fes#1777), named by SHA-256.
+                    upstream, mirror = archive['urls']
+                    self.assertTrue(upstream.startswith('https://'))
+                    self.assertTrue(upstream.endswith(archive['name']))
+                    self.assertTrue(mirror.startswith(
+                        'https://github.com/DeanoC/fes-pc386-toolchains/releases/download/'))
+                    self.assertTrue(mirror.rsplit('/', 1)[1].startswith(archive['sha256'] + '-'))
+
+    def test_toolchain_fetch_falls_back_to_the_mirror(self):
+        with tempfile.TemporaryDirectory() as directory:
+            build = Path(directory)
+            data = b'toolchain'
+            archive = {'name': 't.tar.xz', 'sha256': freedos.hashlib.sha256(data).hexdigest(),
+                       'urls': ['https://upstream.invalid/t.tar.xz', 'https://mirror.invalid/t.tar.xz']}
+            good = mock.MagicMock()
+            good.__enter__.return_value.read.return_value = data
+            with mock.patch.object(freedos, 'BUILD', build), \
+                    mock.patch.object(freedos.urllib.request, 'urlopen',
+                                      side_effect=[OSError('unreachable'), good]) as urlopen:
+                stored = freedos.fetch('t', archive, download=True)
+                self.assertEqual(stored.read_bytes(), data)
+                self.assertEqual([call.args[0] for call in urlopen.call_args_list], archive['urls'])
+            bad = mock.MagicMock()
+            bad.__enter__.return_value.read.return_value = b'other'
+            with mock.patch.object(freedos, 'BUILD', build / 'fresh'), \
+                    mock.patch.object(freedos.urllib.request, 'urlopen', return_value=bad):
+                with self.assertRaises(freedos.ImageError):
+                    freedos.fetch('t', archive, download=True)
+                self.assertFalse(list((build / 'fresh' / 'archives').glob('*')))
 
     def test_build_package_keeps_only_the_pinned_output(self):
         with tempfile.TemporaryDirectory() as directory:
