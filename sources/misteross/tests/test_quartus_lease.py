@@ -690,6 +690,16 @@ class LaunchGuardTests(unittest.TestCase):
         # ...a relative path resolved against the child's cwd...
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["./quartus_fit", "top"], cwd=str(self.bin))
+        # Codex P1 at 79cc0a4ac: a relative PATH component, resolved from the
+        # child's cwd, and a non-executable earlier match execvp skips.
+        relative = Path(self.directory.name)
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["quartus_fit", "top"], cwd=str(relative), env={"PATH": "quartus/bin"})
+        decoy = relative / "decoy"
+        decoy.mkdir()
+        (decoy / "quartus_fit").write_text("not a program\n")
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["quartus_fit", "top"], env={"PATH": f"{decoy}:{self.bin}"})
         # ...and a bare name found on the child's PATH, not this process's.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["quartus_fit", "top"], env={"PATH": str(self.bin)})

@@ -568,15 +568,21 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
             continue
         if index + 1 < len(words) and words[index + 1] in ("--version", "-v", "--help", "-h"):
             continue
-        if os.sep in word and not os.path.isabs(word) and cwd is not None:
-            word = os.path.join(os.fsdecode(cwd), word)
-        program = word if os.sep in word else next(
-            (os.path.join(d, word) for d in (os.environ.get("PATH", "") if search_path is None
-                                             else search_path).split(os.pathsep)
-             if d and os.path.isfile(os.path.join(d, word))), None)
-        edition = _licensed_edition(program) if program else None
-        if edition is not None:
-            editions.add(edition)
+        base = os.fsdecode(cwd) if cwd is not None else os.getcwd()
+        if os.sep in word:
+            candidates = [word if os.path.isabs(word) else os.path.join(base, word)]
+        else:
+            # Every executable of that name on the child's PATH, each
+            # component (an empty one is ".") resolved from the child's
+            # working directory: a licensed one anywhere needs the lease.
+            search = os.environ.get("PATH", "") if search_path is None else search_path
+            candidates = [os.path.join(d if os.path.isabs(d) else os.path.join(base, d or "."), word)
+                          for d in search.split(os.pathsep)]
+        for program in candidates:
+            if os.path.isfile(program) and os.access(program, os.X_OK):
+                edition = _licensed_edition(program)
+                if edition is not None:
+                    editions.add(edition)
     return editions
 
 
