@@ -53,6 +53,8 @@ vendor README and `source.json` record the change.
 | Check | Result |
 |---|---|
 | [`rom_diff/run.sh`](rom_diff/run.sh): the shared ROM against main `f3140cb33`'s two case-statement modules, every (log-sine, exp) address pair, 65,536 clocks, and power-on outputs | PASS, 0 differences. `--mutate` (one exp entry 1018 → 1017) FAILS with 256 differences |
+| `rom_diff/run.sh --netlist CACHE_ROOT`: the same bench on the seal recipe's Yosys netlist of `opl2_phase_rom` (pc386 lock's Yosys `e240a465`) | PASS, 0 differences; netlist SHA-256 `8a826d8d1a8729145fb73d3ebf4b1041754d7c6b1b2bd2e88fc9b88cc7d8c24a` |
+| [`rom_diff/check_mif.py`](rom_diff/check_mif.py) on the DE10 seal's ROM init file, which Quartus wrote for the inferred 512×12 true-dual-port `altsyncram` ([`rom_diff/de10-seal-phase-rom.mif`](rom_diff/de10-seal-phase-rom.mif), from the seal project's `db/`) | PASS, all 512 words equal the two tables. A file with one word changed FAILS |
 | `sim_fes_pc386.py --suite opl2` (random programs and the captured sound log, sample for sample against Nuked-OPL3) at `0637e5def` | PASS |
 | `--suite audio` (speaker, DSP commands and DMA, OPL2 timers, mixer) at `0637e5def` | PASS |
 | `--suite game --game ultima6` (16 s of the intro's AdLib music, oracle CPU), main `f3140cb33` against `0637e5def` | Mixer WAV byte-identical, SHA-256 `33ffb571e6da4eb8cb85b752042059c716ba35f6b73bf2127eb58c18c3a4ee35`; OPL2 port log byte-identical, `c26235274d4837636ae51c1fa1ab160cd7e17ed8f78e5a6941cd672e01b0ca8c`; both 795,454 OPL2 samples exact against Nuked-OPL3, 2,779 writes. The WAV and log are game-derived and are not committed |
@@ -74,6 +76,9 @@ worktree of `890848477` (the cut plus the method commit). Files in [seal/](seal/
 - Main's reference is #2045's seal (`docs/validation/2026-11-21-i486-s2-isa/seal/`): `bf7afef73`,
   the same host, slot and seed, with 36,354 ALMs and 282 RAM blocks. Its machine RTL equals main
   `f3140cb33`'s; only two simulation stop lists differ between them.
+- [`head_matches_seal.py`](head_matches_seal.py) (copied from the i486 slice 2 record) runs the
+  producer's build record selection-only on a checkout. On this branch's head it prints SAME DESIGN,
+  BUILD_ID `b44a1c8e…`; with one comment byte added to `pc386_mixer.sv` it prints DIFFERENT DESIGN.
 - A single seed. The i386 area audit puts the DE10 fit-to-fit noise at about ±200 ALMs, so −303
   is one seed's reading, consistent with the −334 module-alone figure.
 
@@ -87,11 +92,14 @@ Core-only on Kit B's baseline (image `179affbb…`, bundle `c9ae79e2…`), claim
 |---|---|
 | FreeDOS prompt | PASS, 3.3 s after launch |
 | Wolfenstein 3D runs and walks in E1L1 | PASS: graphics, 93.8% lit, 56.2% of the picture changed after walking |
-| Music: at least half of the game recording's seconds ≥ 20 dB above the floor's median second (committed in the driver before the run) | **FAIL**: 0 of 38 seconds |
+| Music: at least half of the game recording's seconds ≥ 20 dB above the floor's median second (written into the scratch driver before the run, not committed to git first) | **FAIL**: 0 of 38 seconds |
 
 **The music gate failed, and a1's verdict stays fail.** The floor recording is the capture's DC
 offset: the left channel sits at −281 counts with no AC at all, which is −44.3 dBFS of total RMS.
 The gate compared total RMS, offset included, so the game seconds read only 3–8 dB over it.
+
+What a1 establishes: the sealed package boots, runs a game and puts audio on the HDMI output. It
+does not establish the music's level or correctness; the simulations above carry bit-exactness.
 
 The following was measured **after** the gate failed and does not change a1's verdict:
 [`kit/a1_ac_analysis.py`](kit/a1_ac_analysis.py) removes each second's mean. The floor's AC RMS is
