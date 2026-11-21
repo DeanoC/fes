@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -763,5 +764,63 @@ func TestPcxtShelfNeedsAWritableFloppyPackage(t *testing.T) {
 	}
 	if _, err := f.s.NewShelfDisk(ctx, pcxtCoreID, ShelfNewDisk{Title: "Work", PackageID: inspection.PackageID}); apiCode(err) != protocol.CodeUnsupportedOperation {
 		t.Fatalf("read-only PC/XT package: %v", err)
+	}
+}
+
+// A PC/XT title with no disk keeps its changes on the bundled FreeDOS disk.
+// The shelf lists it once it has changes, copies it and takes it back to
+// the original, and never renames or deletes it.
+func TestPcxtShelfListsTheDefaultFreeDOSDiskOnceChanged(t *testing.T) {
+	ctx := context.Background()
+	f := newShelf(t)
+	boot := freeDOSLike(t)
+	pkg := f.withPcxt(t, boot)
+	title, err := f.s.CreateCoreEntry(ctx, "PC/XT", pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if title.MediaID != "" {
+		t.Fatalf("fixture title has a disk: %+v", title)
+	}
+	if shelf, _ := f.s.DiskShelf(ctx, pcxtCoreID); len(shelf.Disks) != 0 {
+		t.Fatalf("an unchanged default disk is on the shelf: %+v", shelf)
+	}
+	// Written as the launch binds it: this title, the bundled image, drive A.
+	bootID := fmt.Sprintf("%x", sha256.Sum256(boot))
+	id := protocol.MediaRecordIdentity{CoreID: pcxtCoreID, GameID: title.GameID, BaseMediaID: bootID, Unit: protocol.PcxtFloppyUnit}
+	changed := append([]byte(nil), boot...)
+	copy(changed[30*512:], "my letter")
+	f.kit.saved[id] = changed
+	shelf, err := f.s.DiskShelf(ctx, pcxtCoreID)
+	if err != nil || len(shelf.Disks) != 1 {
+		t.Fatalf("shelf %+v %v", shelf, err)
+	}
+	disk := shelf.Disks[0]
+	if disk.GameID != title.GameID || disk.Title != "PC/XT" || disk.MediaID != bootID || disk.Made || disk.Kept != ShelfKeptChanges || disk.Size != 368640 {
+		t.Fatalf("default disk %+v", disk)
+	}
+	copied, err := f.s.CopyShelfDisk(ctx, pcxtCoreID, title.GameID, "My letters")
+	if err != nil || !bytes.Equal(f.media(t, copied.MediaID), changed) || !copied.Made {
+		t.Fatalf("copy: %+v %v", copied, err)
+	}
+	if err := f.s.DeleteShelfDisk(ctx, pcxtCoreID, title.GameID, disk.KeptRevision); apiCode(err) != protocol.CodeUnsupportedOperation {
+		t.Fatalf("delete of a title's default disk: %v", err)
+	}
+	if _, err := f.s.RenameShelfDisk(ctx, pcxtCoreID, title.GameID, disk.KeptRevision, "Other"); apiCode(err) != protocol.CodeUnsupportedOperation {
+		t.Fatalf("rename of a title's default disk: %v", err)
+	}
+	reverted, err := f.s.RevertShelfDisk(ctx, pcxtCoreID, title.GameID, disk.KeptRevision)
+	if err != nil || reverted.Kept != ShelfKeptNone {
+		t.Fatalf("revert: %+v %v", reverted, err)
+	}
+	if _, ok := f.kit.saved[id]; ok {
+		t.Fatal("revert left the saved changes")
+	}
+	if shelf, _ := f.s.DiskShelf(ctx, pcxtCoreID); len(shelf.Disks) != 1 || shelf.Disks[0].GameID != copied.GameID {
+		t.Fatalf("after revert the shelf is %+v", shelf)
+	}
+	// The title itself still has no disk of its own.
+	if entry, _ := f.s.CoreEntry(ctx, title.GameID); entry.MediaID != "" {
+		t.Fatalf("the default was saved as the title's disk: %+v", entry)
 	}
 }

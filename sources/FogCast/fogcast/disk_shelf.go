@@ -179,6 +179,21 @@ func shelfKept(record protocol.MediaRecord) (string, string) {
 	return ShelfKeptNone, ""
 }
 
+// shelfEntry is the disk a title keeps its saved changes on. A PC/XT title
+// with no disk of its own starts from the bundled FreeDOS disk and keeps what
+// is written to it under that image, so the shelf treats the title as a game
+// disk with that image: listed once it has changes, copied and taken back to
+// the original like one, never renamed or deleted (Deano, 21 November 2026).
+func (s *Service) shelfEntry(entry catalog.CoreEntry) catalog.CoreEntry {
+	if entry.CoreID != pcxtCoreID || entry.MediaID != "" {
+		return entry
+	}
+	if boot, ok := s.bundledDisk(pcxtCoreID); ok && boot.Size == protocol.PcxtFloppyBytes {
+		entry.MediaRole, entry.MediaID = protocol.DiskRole, boot.MediaID
+	}
+	return entry
+}
+
 func (f shelfFamily) holds(entry catalog.CoreEntry) bool {
 	return entry.CoreID == f.coreID && entry.MediaRole == protocol.DiskRole && entry.MediaID != ""
 }
@@ -247,7 +262,7 @@ func (s *Service) DiskShelf(parent context.Context, coreID string) (DiskShelf, e
 	}
 	var entries []catalog.CoreEntry
 	for _, entry := range all {
-		if family.holds(entry) {
+		if entry = s.shelfEntry(entry); family.holds(entry) {
 			entries = append(entries, entry)
 		}
 	}
@@ -518,6 +533,7 @@ func (s *Service) shelfDiskLocked(ctx context.Context, family shelfFamily, gameI
 	if err != nil {
 		return shelfDisk{}, err
 	}
+	entry = s.shelfEntry(entry)
 	id := family.identity(entry)
 	if !family.holds(entry) || !id.Valid() {
 		return shelfDisk{}, errShelfDisk

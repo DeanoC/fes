@@ -892,10 +892,14 @@ title has no disk and the host bundles the FreeDOS boot disk, the launch
 puts that disk in drive A as the title's initial disk. The default is
 derived at each launch, like bundled firmware, and never saved as the
 title's choice. What the computer writes to it is kept for that title
-against the bundled image's digest; a bundle with a different FreeDOS image
-starts that title from a fresh copy, and changes kept against the old image
-stay on the kit unread. To keep work on a disk of its own, make one on the
-PC/XT shelf.
+against the bundled image's digest. Once it has changes, the PC/XT shelf
+lists the title as a game disk with that image (Deano, 21 November 2026):
+its `game_id` and title are the title's, `made` is false, and it can be
+copied to a disk of its own or taken back to the original, but not renamed
+or deleted. A bundle with a different FreeDOS image starts that title from a
+fresh copy; changes kept against the old image stay on the kit, and the
+shelf no longer finds them, so copy work worth keeping to a disk of its own
+first.
 
 ```sh
 fogcast --api http://127.0.0.1:8787 --json insert-library-disk GAME_ID BASE_MEDIA_ID

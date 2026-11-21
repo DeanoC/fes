@@ -33,17 +33,13 @@ func initialPcxtDisk(d corepackage.Descriptor, media *coreEntryMedia) bool {
 // it has none, the FreeDOS boot disk this host bundles. With an empty drive
 // the BIOS has nothing to start. The default is derived at each launch and
 // never saved as the title's choice, like bundled firmware; what the
-// computer writes to it is kept for the title against the bundled image.
+// computer writes to it is kept for the title against the bundled image,
+// and the PC/XT shelf lists it once it has changes (shelfEntry).
 func (s *Service) pcxtStartDisk(d corepackage.Descriptor, entry catalog.CoreEntry) catalog.CoreEntry {
-	if entry.MediaID != "" || !pcxtWritableFloppyPackage(d) {
+	if !pcxtWritableFloppyPackage(d) {
 		return entry
 	}
-	boot, ok := s.bundledDisk(pcxtCoreID)
-	if !ok || boot.Size != protocol.PcxtFloppyBytes {
-		return entry
-	}
-	entry.MediaRole, entry.MediaID = protocol.DiskRole, boot.MediaID
-	return entry
+	return s.shelfEntry(entry)
 }
 
 // pcxtWritableFloppyPackage is a format-2 PC/XT package whose floppy keeps
