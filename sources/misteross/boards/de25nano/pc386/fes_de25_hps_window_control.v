@@ -77,8 +77,12 @@ module fes_de25_hps_window_control (
     wire machine_fault_any = fault_any_sync[1];
 
     // ---- Registers
-    reg granted = 1'b0, command_fault = 1'b0, clear_toggle = 1'b0, held_seen = 1'b0;
-    reg [4:0] machine_fault = 5'd0;  // the record as of the last hold
+    reg granted = 1'b0, command_fault = 1'b0, clear_toggle = 1'b0, held_seen = 1'b0, record_valid = 1'b0;
+    // The record as of the last hold. The copy register only copies, so the
+    // crossing is register to register; Clear and reset drop record_valid.
+    reg [4:0] fault_capture = 5'd0;
+    always @(posedge clk_sys) if (held && !held_seen) fault_capture <= fault_source;
+    wire [4:0] machine_fault = record_valid ? fault_capture : 5'd0;
     reg [31:0] base_lo = 32'd0, base_hi = 32'd0, span = 32'd0, gen_lo = 32'd0, gen_hi = 32'd0;
     wire acceptable = span == SPAN && (base_lo & (ALIGN - 1)) == 32'd0 && base_hi == 32'd0 &&
                       (gen_lo | gen_hi) != 32'd0;
@@ -88,7 +92,7 @@ module fes_de25_hps_window_control (
     always @(posedge clk_sys or negedge reset_n) begin
         if (!reset_n) begin
             granted <= 1'b0; command_fault <= 1'b0; clear_toggle <= 1'b0;
-            held_seen <= 1'b0; machine_fault <= 5'd0;
+            held_seen <= 1'b0; record_valid <= 1'b0;
             base_lo <= 32'd0; base_hi <= 32'd0; span <= 32'd0; gen_lo <= 32'd0; gen_hi <= 32'd0;
             readdatavalid <= 1'b0; writeresponsevalid <= 1'b0; response <= 2'b00; readdata <= 32'd0;
         end else begin
@@ -96,7 +100,7 @@ module fes_de25_hps_window_control (
             writeresponsevalid <= write;
             response <= 2'b00;
             held_seen <= held;
-            if (held && !held_seen) machine_fault <= fault_source;
+            if (held && !held_seen) record_valid <= 1'b1;
             if (read) begin
                 case (address)
                     6'h00: readdata <= `FES_DE25_HPS_WINDOW_IDENTITY;
@@ -119,7 +123,7 @@ module fes_de25_hps_window_control (
                             granted <= 1'b1;
                         else if (writedata == `FES_DE25_HPS_WINDOW_COMMAND_CLEAR && held && drained) begin
                             granted <= 1'b0; command_fault <= 1'b0; clear_toggle <= ~clear_toggle;
-                            machine_fault <= 5'd0;
+                            record_valid <= 1'b0;
                         end else begin
                             response <= 2'b10; command_fault <= 1'b1;
                         end

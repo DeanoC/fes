@@ -120,7 +120,7 @@ foreach {label source head expected} {
 #   one after the record's last possible change.
 foreach {label sources sinks launches_min launches_max captures_min captures_max} {
     window_base {window_control|base_lo[*] window_control|base_lo[*]~DUPLICATE*} {window_control|base_machine[*]} 20 64 20 32
-    window_fault_record {window_control|fault_source[*]} {window_control|machine_fault[*]} 5 5 5 5
+    window_fault_record {window_control|fault_source[*]} {window_control|fault_capture[*]} 5 5 5 5
 } {
     set patterns {}
     foreach name $sources {lappend patterns "${base}|${name}"}
@@ -151,19 +151,26 @@ if {[get_collection_size $launches] != 1 || [get_collection_size $first_d] != 1}
 set_false_path -from $launches -to $first_d
 # Toggles into three-stage (presenter) and two-stage (snapshot) synchronizers.
 # A launch is the toggle register, and the fitter's duplicate of it if it made one.
-foreach {label source head} {
-    frame_sequence {system|machine_frame_sequence[0]} {system|machine_presenter_sequence_sync[0]}
-    fetch_request {system|machine_presenter_request_toggle} {system|machine_presenter_request_sync[0]}
-    fetch_loaded {system|machine_presenter_loaded_flag} {system|machine_presenter_loaded_sync[0]}
-    counts_ask {system|pixel_counts_ask} {system|pixel_counts_ask_sync[0]}
-    counts_answer {system|pixel_counts_answer} {system|pixel_counts_answer_sync[0]}
+# The presenter's stage 0 has a synchronous reset in its receiving clock
+# ahead of D, so its crossing is named to the stage-0 register; -from the
+# toggle selects only the crossing, and the reset's own path stays timed.
+foreach {label source head target} {
+    frame_sequence {system|machine_frame_sequence[0]} {system|machine_presenter_sequence_sync[0]} register
+    fetch_request {system|machine_presenter_request_toggle} {system|machine_presenter_request_sync[0]} register
+    fetch_loaded {system|machine_presenter_loaded_flag} {system|machine_presenter_loaded_sync[0]} register
+    counts_ask {system|pixel_counts_ask} {system|pixel_counts_ask_sync[0]} d
+    counts_answer {system|pixel_counts_answer} {system|pixel_counts_answer_sync[0]} d
 } {
     set launches [get_registers -nowarn [list "${base}|${source}" "${base}|${source}~DUPLICATE"]]
-    set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]
-    if {[get_collection_size $launches] < 1 || [get_collection_size $launches] > 2 || [get_collection_size $first_d] != 1} {
+    if {$target eq "register"} {
+        set first [get_registers "${base}|${head}"]
+    } else {
+        set first [get_pins -compatibility_mode -nocase "${base}|${head}|d"]
+    }
+    if {[get_collection_size $launches] < 1 || [get_collection_size $launches] > 2 || [get_collection_size $first] != 1} {
         error "DE25 pc386 $label synchronizer endpoints changed"
     }
-    set_false_path -from $launches -to $first_d
+    set_false_path -from $launches -to $first
 }
 # The held bundles: each is copied in the receiving clock once its toggle has
 # crossed, and is still for at least two receiving clocks before that.
