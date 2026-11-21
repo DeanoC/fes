@@ -622,8 +622,9 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
     words, element = [], 0
     for position, text in enumerate(texts):
         if position in payloads:
-            # A newline ends a command in shell code, as ; does.
-            text = text.replace("\n", " ; ")
+            # A newline ends a command in shell code, as ; does; a
+            # backslash-newline is a line continuation, which the shell removes.
+            text = text.replace("\\\n", "").replace("\n", " ; ")
         # Split as the shell does, operators included, so a program name
         # with a redirection or separator attached (quartus_sh>log,
         # quartus_sh&) is still seen.
@@ -715,9 +716,16 @@ def _check_remote_quartus(argv) -> None:
     texts = [os.fsdecode(a) if isinstance(a, (bytes, os.PathLike)) else str(a) for a in argv]
     if not texts or os.path.basename(texts[0]) != "ssh":
         return
+    # ssh [options] destination [command [argument ...]]: skip the options
+    # (and their operands) and the destination.
+    index = 1
+    while index < len(texts) and texts[index].startswith("-"):
+        option = texts[index]
+        index += 2 if (len(option) == 2 and option[1] in "BbcDEeFIiJLlmOoPpQRSWw") else 1
+    remote = texts[index + 1:]
     tokens = []
-    for text in texts[1:]:
-        lexer = shlex.shlex(text.replace("\n", " ; "), posix=True, punctuation_chars=True)
+    for text in remote:
+        lexer = shlex.shlex(text.replace("\\\n", "").replace("\n", " ; "), posix=True, punctuation_chars=True)
         lexer.whitespace_split = True
         try:
             tokens.extend(lexer)
@@ -738,6 +746,11 @@ def _check_remote_quartus(argv) -> None:
         start = 1 if words and os.path.basename(words[0]).startswith("python") else 0
         wrapped = (len(words) > start + 1 and os.path.basename(words[start]) == "quartus_jobs.py"
                    and words[start + 1] == "run" and "--" in words)
+        if not wrapped and _expanded_command(command):
+            # The remote shell decides what an expanded command word names.
+            raise QuartusLeaseError(
+                "refusing an ssh remote command whose program comes from an expansion: run Quartus on "
+                "another host through scripts/quartus_jobs.py remote")
         for index, token in enumerate(command):
             if not QUARTUS_PROGRAM.fullmatch(os.path.basename(token)):
                 continue

@@ -866,6 +866,13 @@ class LaunchGuardTests(unittest.TestCase):
             qt._check_remote_quartus(["ssh", "host", "echo", "quartus_jobs.py", "run", ";", "quartus_fit", "top"])
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", f"echo prelude\n{self.bin}/quartus_[f]it top"])
+        # Codex P1s at dc41b52b6: a line continuation inside the name, and an
+        # expansion in an ssh remote command word.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", f"{self.bin}/quartus_\\\nfit top"])
+        with self.assertRaises(qt.QuartusLeaseError):
+            qt._check_remote_quartus(["ssh", "host", "/licensed/bin/quartus_[f]it", "top"])
+        qt._check_remote_quartus(["ssh", "host", "cat", "$HOME/x"])
         # Codex P1 at 941c04c72: a glob as the command word.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "./quartus_[f]it top"], cwd=str(self.bin))

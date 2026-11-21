@@ -97,12 +97,13 @@ def local_host() -> str:
 
 def probe(host: str, edition: str, timeout: float = 60) -> dict:
     slots = list(quartus_tools.lease_pool(edition, host))
-    command = [sys.executable, "-c", PROBE, *slots] if host == local_host() else \
-        [*SSH, host, shlex.join(["python3", "-c", PROBE, *slots])]
+    # The probe program goes on stdin, never in an ssh argument.
+    command = [sys.executable, "-", *slots] if host == local_host() else \
+        [*SSH, host, shlex.join(["python3", "-", *slots])]
     # A host that times out or answers garbage is one failed probe, not a
     # failed pick: the other host can still take the job.
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=max(timeout, 1))
+        result = subprocess.run(command, input=PROBE, capture_output=True, text=True, timeout=max(timeout, 1))
         if result.returncode:
             return {"host": host, "error": (result.stderr or result.stdout).strip()[-300:]}
         data = json.loads(result.stdout)
