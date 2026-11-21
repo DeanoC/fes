@@ -5494,6 +5494,1116 @@
   {
    "abi_minor": 1,
    "build_id": "00112233445566778899aabbccddeeff",
+   "capabilities": 5189899,
+   "description": "Drives A: and B: on units 1 and 2: geometry, format and write-protect checks, a commit while held and one while running, a guest write, and freeze, Saved and eject.",
+   "exchanges": [
+    {
+     "argument": 0,
+     "data": 17734,
+     "error": 0,
+     "gpi": 4118824262,
+     "gpo": [
+      16777216,
+      2164260864
+     ],
+     "index": 0,
+     "name": "identity-00",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 12627,
+     "error": 0,
+     "gpi": 4110430547,
+     "gpo": [
+      2164326400,
+      16842752
+     ],
+     "index": 1,
+     "name": "identity-01",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      16908288,
+      2164391936
+     ],
+     "index": 2,
+     "name": "identity-02",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2164457472,
+      16973824
+     ],
+     "index": 3,
+     "name": "identity-03",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4118806532,
+     "gpo": [
+      17039360,
+      2164523008
+     ],
+     "index": 4,
+     "name": "identity-04",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4110417921,
+     "gpo": [
+      2164588544,
+      17104896
+     ],
+     "index": 5,
+     "name": "identity-05",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      17170432,
+      2164654080
+     ],
+     "index": 6,
+     "name": "identity-06",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 12555,
+     "error": 0,
+     "gpi": 4110430475,
+     "gpo": [
+      2164719616,
+      17235968
+     ],
+     "index": 7,
+     "name": "identity-07",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4352,
+     "error": 0,
+     "gpi": 4118810880,
+     "gpo": [
+      17301504,
+      2164785152
+     ],
+     "index": 8,
+     "name": "identity-08",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 13090,
+     "error": 0,
+     "gpi": 4110431010,
+     "gpo": [
+      2164850688,
+      17367040
+     ],
+     "index": 9,
+     "name": "identity-09",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 21828,
+     "error": 0,
+     "gpi": 4118828356,
+     "gpo": [
+      17432576,
+      2164916224
+     ],
+     "index": 10,
+     "name": "identity-10",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 30566,
+     "error": 0,
+     "gpi": 4110448486,
+     "gpo": [
+      2164981760,
+      17498112
+     ],
+     "index": 11,
+     "name": "identity-11",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 39304,
+     "error": 0,
+     "gpi": 4118845832,
+     "gpo": [
+      17563648,
+      2165047296
+     ],
+     "index": 12,
+     "name": "identity-12",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 48042,
+     "error": 0,
+     "gpi": 4110465962,
+     "gpo": [
+      2165112832,
+      17629184
+     ],
+     "index": 13,
+     "name": "identity-13",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 56780,
+     "error": 0,
+     "gpi": 4118863308,
+     "gpo": [
+      17694720,
+      2165178368
+     ],
+     "index": 14,
+     "name": "identity-14",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 65518,
+     "error": 0,
+     "gpi": 4110483438,
+     "gpo": [
+      2165243904,
+      17760256
+     ],
+     "index": 15,
+     "name": "identity-15",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 79,
+     "error": 0,
+     "gpi": 4118806607,
+     "gpo": [
+      17825792,
+      2165309440
+     ],
+     "index": 16,
+     "name": "identity-16",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 32768,
+     "error": 0,
+     "gpi": 4110450688,
+     "gpo": [
+      2416443392,
+      268959744
+     ],
+     "index": 8,
+     "name": "a-info-field0",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 0,
+     "gpi": 4118806530,
+     "gpo": [
+      269025280,
+      2416508928
+     ],
+     "index": 9,
+     "name": "a-info-field1",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2416574464,
+      269090816
+     ],
+     "index": 10,
+     "name": "a-info-field2",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 45,
+     "error": 0,
+     "gpi": 4118806573,
+     "gpo": [
+      269156352,
+      2416640000
+     ],
+     "index": 11,
+     "name": "a-info-field3",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2416705536,
+      269221888
+     ],
+     "index": 12,
+     "name": "a-info-field4",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      269287424,
+      2416771072
+     ],
+     "index": 13,
+     "name": "a-info-field5",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2416836608,
+      269352960
+     ],
+     "index": 14,
+     "name": "a-info-field6",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      269418496,
+      2416902144
+     ],
+     "index": 15,
+     "name": "a-info-field7",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4110417921,
+     "gpo": [
+      2417295360,
+      269811712
+     ],
+     "index": 21,
+     "name": "b-info-state",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      270336000,
+      2417819648
+     ],
+     "index": 29,
+     "name": "unit3-info-absent",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4114612226,
+     "gpo": [
+      2432892928,
+      285409280
+     ],
+     "index": 3,
+     "name": "unit3-control-rejected",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4123000834,
+     "gpo": [
+      370671616,
+      2518155264
+     ],
+     "index": 24,
+     "name": "unit3-commit-rejected",
+     "opcode": 22
+    },
+    {
+     "argument": 1440,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2517108128,
+      369624480
+     ],
+     "index": 8,
+     "name": "a-commit-word-before-prepare",
+     "opcode": 22
+    },
+    {
+     "argument": 3,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      285278211,
+      2432761859
+     ],
+     "index": 1,
+     "name": "a-freeze-empty",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2432761856,
+      285278208
+     ],
+     "index": 1,
+     "name": "a-prepare-held",
+     "opcode": 17
+    },
+    {
+     "argument": 1,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      285278209,
+      2432761857
+     ],
+     "index": 1,
+     "name": "a-commit-without-words",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4114612226,
+     "gpo": [
+      2517172224,
+      369688576
+     ],
+     "index": 9,
+     "name": "a-word-1-first",
+     "opcode": 22
+    },
+    {
+     "argument": 1440,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      369624480,
+      2517108128
+     ],
+     "index": 8,
+     "name": "a-size-lo",
+     "opcode": 22
+    },
+    {
+     "argument": 1,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2517172225,
+      369688577
+     ],
+     "index": 9,
+     "name": "a-size-hi-oversize",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      369688576,
+      2517172224
+     ],
+     "index": 9,
+     "name": "a-size-hi",
+     "opcode": 22
+    },
+    {
+     "argument": 80,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2517237840,
+      369754192
+     ],
+     "index": 10,
+     "name": "a-cylinders",
+     "opcode": 22
+    },
+    {
+     "argument": 2,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      369819650,
+      2517303298
+     ],
+     "index": 11,
+     "name": "a-heads",
+     "opcode": 22
+    },
+    {
+     "argument": 10,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2517368842,
+      369885194
+     ],
+     "index": 12,
+     "name": "a-spt-not-a-format",
+     "opcode": 22
+    },
+    {
+     "argument": 9,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      369885193,
+      2517368841
+     ],
+     "index": 12,
+     "name": "a-spt",
+     "opcode": 22
+    },
+    {
+     "argument": 23844,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2517458212,
+      369974564
+     ],
+     "index": 13,
+     "name": "a-crc-lo",
+     "opcode": 22
+    },
+    {
+     "argument": 60203,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      370076459,
+      2517560107
+     ],
+     "index": 14,
+     "name": "a-crc-hi",
+     "opcode": 22
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2517565442,
+      370081794
+     ],
+     "index": 15,
+     "name": "a-flags-unknown-bit",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      370081792,
+      2517565440
+     ],
+     "index": 15,
+     "name": "a-flags",
+     "opcode": 22
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2432761857,
+      285278209
+     ],
+     "index": 1,
+     "name": "a-commit",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4118806532,
+     "gpo": [
+      269287424,
+      2416771072
+     ],
+     "index": 13,
+     "name": "a-poll-verifying",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 3,
+     "error": 0,
+     "gpi": 4110417923,
+     "gpo": [
+      2416771072,
+      269287424
+     ],
+     "index": 13,
+     "name": "a-poll-ready",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      268763136,
+      2416246784
+     ],
+     "index": 5,
+     "name": "ata-still-empty",
+     "opcode": 16
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2181038081,
+      33554433
+     ],
+     "index": 0,
+     "name": "release",
+     "opcode": 2
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      269352960,
+      2416836608
+     ],
+     "index": 14,
+     "name": "a-flags-dirty",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4110417921,
+     "gpo": [
+      2416902144,
+      269418496
+     ],
+     "index": 15,
+     "name": "a-epoch",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285343744,
+      2432827392
+     ],
+     "index": 2,
+     "name": "b-prepare-running",
+     "opcode": 17
+    },
+    {
+     "argument": 720,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2517631696,
+      370148048
+     ],
+     "index": 16,
+     "name": "b-commit-word-0",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      370212864,
+      2517696512
+     ],
+     "index": 17,
+     "name": "b-commit-word-1",
+     "opcode": 22
+    },
+    {
+     "argument": 40,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2517762088,
+      370278440
+     ],
+     "index": 18,
+     "name": "b-commit-word-2",
+     "opcode": 22
+    },
+    {
+     "argument": 2,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      370343938,
+      2517827586
+     ],
+     "index": 19,
+     "name": "b-commit-word-3",
+     "opcode": 22
+    },
+    {
+     "argument": 9,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2517893129,
+      370409481
+     ],
+     "index": 20,
+     "name": "b-commit-word-4",
+     "opcode": 22
+    },
+    {
+     "argument": 45076,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      370520084,
+      2518003732
+     ],
+     "index": 21,
+     "name": "b-commit-word-5",
+     "opcode": 22
+    },
+    {
+     "argument": 7714,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2518031906,
+      370548258
+     ],
+     "index": 22,
+     "name": "b-commit-word-6",
+     "opcode": 22
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      370606081,
+      2518089729
+     ],
+     "index": 23,
+     "name": "b-commit-word-7",
+     "opcode": 22
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2432827393,
+      285343745
+     ],
+     "index": 2,
+     "name": "b-commit-running",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4118806532,
+     "gpo": [
+      269811712,
+      2417295360
+     ],
+     "index": 21,
+     "name": "b-poll-verifying",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 3,
+     "error": 0,
+     "gpi": 4110417923,
+     "gpo": [
+      2417295360,
+      269811712
+     ],
+     "index": 21,
+     "name": "b-poll-ready",
+     "opcode": 16
+    },
+    {
+     "argument": 3,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285278211,
+      2432761859
+     ],
+     "index": 1,
+     "name": "a-freeze-running",
+     "opcode": 17
+    },
+    {
+     "argument": 2,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2432761858,
+      285278210
+     ],
+     "index": 1,
+     "name": "a-eject-before-saved",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      385875968,
+      2533359616
+     ],
+     "index": 0,
+     "name": "a-dirty-map-is-units-0",
+     "opcode": 23
+    },
+    {
+     "argument": 5,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2432761861,
+      285278213
+     ],
+     "index": 1,
+     "name": "a-saved",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 0,
+     "gpi": 4118806530,
+     "gpo": [
+      269352960,
+      2416836608
+     ],
+     "index": 14,
+     "name": "a-flags-saved",
+     "opcode": 16
+    },
+    {
+     "argument": 2,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2432761858,
+      285278210
+     ],
+     "index": 1,
+     "name": "a-eject-running",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      269287424,
+      2416771072
+     ],
+     "index": 13,
+     "name": "a-state-empty",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2417360896,
+      269877248
+     ],
+     "index": 22,
+     "name": "b-flags",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      33554432,
+      2181038080
+     ],
+     "index": 0,
+     "name": "hold",
+     "opcode": 2
+    }
+   ],
+   "final": {
+    "controller_ports": [
+     0,
+     0
+    ],
+    "disk_dirty_chunks": [],
+    "disk_epoch": 0,
+    "disk_flags": 0,
+    "disk_geometry": [],
+    "disk_state": 1,
+    "floppies": {
+     "1": {
+      "epoch": 1,
+      "flags": 0,
+      "geometry": [],
+      "state": 1,
+      "write_protect": false
+     },
+     "2": {
+      "epoch": 0,
+      "flags": 0,
+      "geometry": [
+       720,
+       0,
+       40,
+       2,
+       9
+      ],
+      "state": 3,
+      "write_protect": true
+     }
+    },
+    "held": true,
+    "keyboard_rows": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "mouse_buttons": 0,
+    "mouse_motion": [
+     0,
+     0
+    ],
+    "persistent_words": [
+     0,
+     0,
+     0,
+     0,
+     544,
+     7,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "unit_sha_crc32": {},
+    "unit_states": {},
+    "wall_clock": []
+   },
+   "floppy_windows": {
+    "1": {
+     "bytes": 737280,
+     "pattern": "(offset * 7 + (offset >> 11)) & 255"
+    },
+    "2": {
+     "bytes": 368640,
+     "pattern": "(offset * 7 + (offset >> 11)) & 255"
+    }
+   },
+   "identity_word_count": 17,
+   "initial_request_toggle": false,
+   "machine_events": [
+    {
+     "before": 50,
+     "kind": "floppy-write",
+     "unit": 1
+    }
+   ],
+   "name": "pc386-pc-floppy",
+   "units": [],
+   "verify_reads": 1,
+   "window": {
+    "bytes": 0,
+    "pattern": "(offset * 7 + (offset >> 11)) & 255"
+   }
+  },
+  {
+   "abi_minor": 1,
+   "build_id": "00112233445566778899aabbccddeeff",
    "capabilities": 471307,
    "description": "Persistence and its pc386 layout capability must be advertised together.",
    "exchanges": [
