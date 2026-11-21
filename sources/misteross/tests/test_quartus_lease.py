@@ -683,6 +683,13 @@ class LaunchGuardTests(unittest.TestCase):
                 subprocess.run(["sh", "-c", "$Q --flow compile top"])
             with self.assertRaises(qt.QuartusLeaseError):
                 os.system("$Q --flow compile top")
+        # Codex P1 at c39608e8c: a --help in another environment value.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", "$Q --flow compile top"],
+                           env={"Q": str(self.bin / "quartus_sh"), "X": "--help", "PATH": "/usr/bin:/bin"})
+        # ...a relative path resolved against the child's cwd...
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["./quartus_fit", "top"], cwd=str(self.bin))
         # ...and a bare name found on the child's PATH, not this process's.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["quartus_fit", "top"], env={"PATH": str(self.bin)})
@@ -1221,6 +1228,39 @@ class JobsTests(unittest.TestCase):
                 mock.patch.object(self.jobs.subprocess, "check_output", return_value="c" * 40 + "\n"):
             with self.assertRaises(SystemExit):
                 self.jobs.resolve_pushed("HEAD")
+
+    def test_a_remote_that_fails_before_the_wrapper_is_recorded_and_notified(self):
+        # Codex P2 at c39608e8c: setup failures (disk, clone, fetch) left no
+        # outcome. The remote program records one, and the caller notifies.
+        script, _ = self.jobs.remote_script(
+            commit="d" * 40, host="powerboat", home="/home/u", edition="lite", label="",
+            command=["true"], stamp="s", origin="https://example.invalid/none")
+        root = Path(self.directory.name)
+        fake = root / "bin"
+        fake.mkdir()
+        (fake / "git").write_text("#!/bin/sh\nexit 128\n")
+        (fake / "git").chmod(0o755)
+        (fake / "df").write_text("#!/bin/sh\necho Avail; echo 400G\n")
+        (fake / "df").chmod(0o755)
+        script = script.replace(self.jobs.PROJECTS, str(root / "projects"))
+        result = subprocess.run(["bash", "-c", script], env=dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}"),
+                                capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        self.assertNotEqual(result.returncode, 0)
+        (run_dir,) = (root / "projects/runs").iterdir()
+        self.assertEqual(json.loads((run_dir / "result.json").read_text())["status"], "setup-failed")
+        sink = root / "caller-notified"
+        with mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
+                mock.patch.object(self.jobs, "probe", return_value={"host": "powerboat", "free": 1, "home": "/h",
+                                                                    "available_kib": 500 * 1024 ** 2, "slots": {}}), \
+                mock.patch.object(self.jobs, "local_host", return_value="elsewhere"), \
+                mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
+                mock.patch.dict(os.environ, {"FES_QUARTUS_NOTIFY": f"cat > {sink}"}):
+            real_run = subprocess.run
+            with mock.patch.object(self.jobs.subprocess, "run",
+                                   side_effect=lambda argv, **kw: real_run(argv, **kw) if argv[:2] == ["sh", "-c"]
+                                   else subprocess.CompletedProcess(argv, 255)):
+                self.assertEqual(self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"]), 255)
+        self.assertIn('"remote-failed"', sink.read_text())
 
     def test_remote_refuses_an_unpushed_commit(self):
         with mock.patch.object(self.jobs.subprocess, "run",

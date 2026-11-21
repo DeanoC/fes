@@ -645,6 +645,11 @@ def remote_script(*, commit: str, host: str, home: str, edition: str, label: str
         f'[ "$free" -ge {MIN_FREE_GIB} ] || {{ echo "quartus_jobs: refusing: {PROJECTS} has ${{free}}G free, '
         f'under {MIN_FREE_GIB}G" >&2; exit 75; }}',
         f"mkdir {q(run_dir)}",
+        # A setup step that fails (clone, fetch, worktree, checkout check)
+        # still leaves an outcome; exec below replaces the shell, so this
+        # never fires once the run wrapper has started.
+        f"trap 'rc=$?; [ -e {q(run_dir)}/result.json ] || printf '\\''{{\"status\": \"setup-failed\", "
+        f"\"exit\": %d}}\\n'\\'' $rc > {q(run_dir)}/result.json' EXIT",
         # One writer at a time on the mirror: cloning, fetching and adding a
         # worktree all change it.
         f"exec 9>>{q(PROJECTS)}/.mirror.lock",
@@ -715,6 +720,13 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
     target = ["bash", "-c", script] if host == local_host() else [*SSH, host, shlex.join(["bash", "-c", script])]
     result = subprocess.run(target, stdin=subprocess.DEVNULL)
     print(f"quartus_jobs: {host}:{run_dir} (exit {result.returncode})", file=sys.stderr)
+    if result.returncode != 0:
+        # The run wrapper on the host notifies its own outcome there; this
+        # covers a remote that failed before it (refused, clone, fetch) and
+        # lets the caller's FES_QUARTUS_NOTIFY see every failed remote job.
+        notify({"host": host, "edition": edition, "label": label, "command": command, "commit": commit,
+                "run_dir": run_dir, "finished_utc": datetime.now(timezone.utc).isoformat(),
+                "status": "remote-failed", "exit": result.returncode})
     return result.returncode
 
 

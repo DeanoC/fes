@@ -541,12 +541,13 @@ def _licensed_edition(program: str) -> str | None:
     return _licensed_dirs[directory]
 
 
-def licensed_quartus_editions(argv, search_path: str | None = None) -> set[str]:
+def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) -> set[str]:
     """Editions of the licensed Quartus programs a command line would run.
 
     Looks at every argument, and every word of an argument, so a wrapper such
     as run_logged.sh or `bash -c` is seen through. A `--version` or `--help`
-    probe needs no lease. A bare program name resolves through PATH."""
+    probe needs no lease. A bare program name resolves through PATH, and a
+    relative path against cwd (the child's working directory)."""
     if isinstance(argv, (str, bytes, os.PathLike)):
         argv = [argv]
     words = []
@@ -567,6 +568,8 @@ def licensed_quartus_editions(argv, search_path: str | None = None) -> set[str]:
             continue
         if index + 1 < len(words) and words[index + 1] in ("--version", "-v", "--help", "-h"):
             continue
+        if os.sep in word and not os.path.isabs(word) and cwd is not None:
+            word = os.path.join(os.fsdecode(cwd), word)
         program = word if os.sep in word else next(
             (os.path.join(d, word) for d in (os.environ.get("PATH", "") if search_path is None
                                              else search_path).split(os.pathsep)
@@ -577,10 +580,10 @@ def licensed_quartus_editions(argv, search_path: str | None = None) -> set[str]:
     return editions
 
 
-def require_quartus_lease(argv, search_path: str | None = None) -> None:
+def require_quartus_lease(argv, search_path: str | None = None, cwd=None) -> None:
     """Raise QuartusLeaseError unless every licensed Quartus program argv would
     run has a lease held for its edition."""
-    for edition in sorted(licensed_quartus_editions(argv, search_path)):
+    for edition in sorted(licensed_quartus_editions(argv, search_path, cwd)):
         if held_quartus_lease(edition) is None:
             raise QuartusLeaseError(
                 f"refusing to start licensed Quartus {edition} without a lease on "
@@ -588,13 +591,14 @@ def require_quartus_lease(argv, search_path: str | None = None) -> None:
                 f"under scripts/quartus_jobs.py run --edition {edition}")
 
 
-def _check_launch(argv, env) -> None:
-    """argv plus the values of the environment the child gets (its own, or
+def _check_launch(argv, env, cwd=None) -> None:
+    """argv, and each value of the environment the child gets (its own, or
     this process's when none is given): a shell can run a program it finds
-    there ($Q --flow compile). Bare names resolve on the child's PATH."""
+    there ($Q --flow compile). Each environment value is checked on its own,
+    so a --help in one cannot excuse a program in another. Bare names resolve
+    on the child's PATH, relative paths against its working directory."""
     env = os.environ if env is None else env
-    words = [argv] if isinstance(argv, (str, bytes, os.PathLike)) else list(argv or ())
-    words.extend(os.fsdecode(value) for value in env.values() if isinstance(value, (str, bytes)))
+    sources = [argv] + [[os.fsdecode(value)] for value in env.values() if isinstance(value, (str, bytes))]
     search = ""
     for key in ("PATH", b"PATH"):
         try:
@@ -602,12 +606,13 @@ def _check_launch(argv, env) -> None:
             break
         except (KeyError, TypeError):
             continue
-    require_quartus_lease(words, search_path=os.fsdecode(search) if search else "")
+    for source in sources:
+        require_quartus_lease(source, search_path=os.fsdecode(search) if search else "", cwd=cwd)
 
 
 def _launch_guard(event, args):
     if event == "subprocess.Popen":
-        _check_launch(args[1] if args[1] is not None else args[0], args[3])
+        _check_launch(args[1] if args[1] is not None else args[0], args[3], args[2])
     elif event in ("os.exec", "os.posix_spawn"):
         _check_launch(args[1], args[2] if len(args) > 2 else None)
     elif event == "os.spawn":
