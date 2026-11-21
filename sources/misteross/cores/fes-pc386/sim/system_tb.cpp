@@ -83,6 +83,7 @@
 // usage: system_tb --disk F [--clock-hz N] [--limit-seconds S] [--prompt TEXT] [--seed N]
 //                  [--preset N] [--frequency N] [--turbo N] [--exercise-input 0|1]
 #include "Vpc386_system.h"
+#include "Vpc386_system___024root.h"
 #include "pc386_ddr_model.h"
 
 #include <algorithm>
@@ -247,10 +248,8 @@ private:
     uint8_t heads = 0, spt = 0;
     uint8_t hold_sync[2] = {1, 1};  // fes_hps_ddr's synchroniser from ddr_hold
     bool port_held = true, hold_rose = false;
-#ifdef FES_PC386_DE25
-    bool st_busy = false, st_own = false, st_verify = false;
-    uint64_t st_latch = 0, st_verify_start = 0, st_gaps = 0;
-#endif
+    bool st_busy = false, st_own = false, st_verify = false, st_written = false;
+    uint64_t st_latch = 0, st_verify_start = 0, st_idle = 0;
     unsigned hold_owed = 0;          // port 2's write beats owed at the last hold
     double sys_ps = 0, now_ps = 0, pixel_ps = 0;
     uint64_t cycles = 0, limit = 0, progress_at = 0, retired = 0, last_screen = 0;
@@ -265,6 +264,8 @@ private:
     std::vector<std::array<uint64_t, 6>> history = std::vector<std::array<uint64_t, 6>>(HISTORY);
     uint32_t ring_next = 0;
     uint64_t ring_checked = 0, ring_mismatches = 0, ring_late = 0;
+    // Each slot's last checked stamp; ~0 before any (no record is stamped ~0).
+    std::array<uint64_t, RING_SLOTS> ring_stamp = [] { std::array<uint64_t, RING_SLOTS> a; a.fill(~0ull); return a; }();
 
     // The geometry machine_tb infers: the first partition's end head and
     // sector, else 16 heads of 63 sectors.
@@ -326,23 +327,7 @@ private:
         }
 #endif
         for (unsigned n = 0; n < 6; ++n) history[cycles % HISTORY][n] = status(n);
-#ifdef FES_PC386_DE25
-        {
-            // The status writer against the disk's CRC pass on the aux port.
-            unsigned s = top.dbg_status;
-            bool busy = s & 1, own = s & 2, aux = s & 12, verify = s & 16;
-            if (verify && !st_verify) { st_verify_start = cycles; st_gaps = 0; }
-            if (verify && !aux) ++st_gaps;
-            if (!verify && st_verify)
-                std::printf("STATUS-VERIFY %llu..%llu idle_clocks=%llu\n", (unsigned long long)st_verify_start,
-                            (unsigned long long)cycles, (unsigned long long)st_gaps);
-            if (busy && !st_busy) st_latch = cycles;
-            if (own && !st_own && cycles - st_latch > 1000)
-                std::printf("STATUS-WAIT latched=%llu own=%llu verify=%d\n", (unsigned long long)st_latch,
-                            (unsigned long long)cycles, int(verify));
-            st_busy = busy; st_own = own; st_verify = verify;
-        }
-#endif
+        probe_status();
         top.clk = 1;
         top.eval();
         hold_sync[1] = hold_sync[0];
@@ -721,10 +706,45 @@ private:
         return value;
     }
 
+    // The status ring's writer against the disk on the aux port they share
+    // (system_probe.vlt): each CRC pass's idle aux clocks, every record that
+    // waits over 1,000 clocks for the port, and every record a port 2 reset
+    // clears before it is written.
+    void probe_status() {
+#ifdef FES_PC386_DE25
+        // pc386_de25_sim exports the same four signals (dbg_status).
+        unsigned s = top.dbg_status;
+        bool busy = s & 1, own = s & 2, aux = s & 12, verify = s & 16;
+#else
+        const auto *root = top.rootp;
+        bool busy = root->pc386_system__DOT__status_ring__DOT__busy;
+        bool own = root->pc386_system__DOT__status_ring__DOT__own;
+        bool aux = root->pc386_system__DOT__disk_aux_read || root->pc386_system__DOT__disk_aux_write;
+        bool verify = root->pc386_system__DOT__verifying;
+#endif
+        if (verify && !st_verify) { st_verify_start = cycles; st_idle = 0; }
+        if (verify && !aux) ++st_idle;
+        if (!verify && st_verify)
+            std::printf("STATUS-VERIFY %llu..%llu idle_clocks=%llu\n", (unsigned long long)st_verify_start,
+                        (unsigned long long)cycles, (unsigned long long)st_idle);
+        if (busy && !st_busy) { st_latch = cycles; st_written = false; }
+        if (own && !st_own) {
+            if (!st_written && cycles - st_latch > 1000)
+                std::printf("STATUS-WAIT latched=%llu own=%llu verify=%d\n", (unsigned long long)st_latch,
+                            (unsigned long long)cycles, int(verify));
+            st_written = true;
+        }
+        if (!busy && st_busy && !st_written)
+            std::printf("STATUS-CLEARED latched=%llu at=%llu verify=%d\n", (unsigned long long)st_latch,
+                        (unsigned long long)cycles, int(verify));
+        st_busy = busy; st_own = own; st_verify = verify;
+    }
+
     // The records written since the last look, as the HPS reads them: the
     // head's count, then each record whose word 0 names it. A port 2 reset
-    // starts the count again. 32768 clocks is half a period, so no record is
-    // missed or overwritten between looks. The core's clock count is one
+    // starts the count again, so each slot's stamp says what is new. 32768
+    // clocks is half a period, so no record is missed or overwritten between
+    // looks. The core's clock count is one
     // behind cycles: the bench's first clock() is Verilator's settle, not a
     // rising edge. A record the disk's CRC pass kept off the port until its
     // clock left the history is counted late, not checked.
@@ -732,29 +752,52 @@ private:
         uint64_t head = ring_word(RING_HEAD);
         if (uint32_t(head >> 32) != RING_MAGIC) return;
         uint32_t count = uint32_t(head);
-        if (count < ring_next) ring_next = 0;
-        for (; ring_next < count; ++ring_next) {
-            uint32_t at = RING_RECORDS + 64 * (ring_next % RING_SLOTS);
+        // A port 2 reset restarts the writer's count but not the head word in
+        // memory, so the count alone can't say which records are new: a ring
+        // rewritten back up to the count the bench last read looked like
+        // nothing new (#2038). Every check scans the slots the count names, and
+        // a record is new when its stamp differs from the one last checked in
+        // its slot; a rewritten record's stamp is always later. A record the
+        // count newly names must be there: a slot that doesn't name its
+        // record is a mismatch the first time the count covers it.
+        uint32_t fresh = count < ring_next ? 0 : ring_next;
+        if (count - fresh > RING_SLOTS) {
+            for (uint32_t n = fresh; n < count - RING_SLOTS; ++n)
+                std::printf("RING-MISMATCH %u lapped before the bench read it\n", n);
+            ring_mismatches += count - RING_SLOTS - fresh;
+        }
+        ring_next = count;
+        for (uint32_t n = count > RING_SLOTS ? count - RING_SLOTS : 0; n < count; ++n) {
+            uint32_t at = RING_RECORDS + 64 * (n % RING_SLOTS);
             uint64_t stamp = ring_word(at + 56);
-            bool named = ring_word(at) == (uint64_t(ring_next) << 32 | RING_MAGIC);
-            if (named && stamp + 1 < cycles && cycles - stamp - 1 >= HISTORY) {
-                std::printf("RING-LATE %u stamp=%llu seen=%llu\n", ring_next, (unsigned long long)stamp,
+            if (ring_word(at) != (uint64_t(n) << 32 | RING_MAGIC)) {
+                if (n >= fresh) {
+                    std::printf("RING-MISMATCH %u stamp=%llu word=0 ring=%016llx status=-\n", n,
+                                (unsigned long long)stamp, (unsigned long long)ring_word(at));
+                    ++ring_mismatches;
+                }
+                continue;
+            }
+            if (stamp == ring_stamp[n % RING_SLOTS]) continue;
+            ring_stamp[n % RING_SLOTS] = stamp;
+            if (stamp + 1 < cycles && cycles - stamp - 1 >= HISTORY) {
+                std::printf("RING-LATE %u stamp=%llu seen=%llu\n", n, (unsigned long long)stamp,
                             (unsigned long long)cycles);
                 ++ring_late;
                 continue;
             }
-            if (!named || stamp + 1 >= cycles) {
-                std::printf("RING-MISMATCH %u stamp=%llu word=0 ring=%016llx status=-\n", ring_next,
+            if (stamp + 1 >= cycles) {
+                std::printf("RING-MISMATCH %u stamp=%llu word=0 ring=%016llx status=-\n", n,
                             (unsigned long long)stamp, (unsigned long long)ring_word(at));
                 ++ring_mismatches;
                 continue;
             }
             const auto &seen = history[(stamp + 1) % HISTORY];
-            for (unsigned n = 0; n < 6; ++n)
-                if (ring_word(at + 8 * (n + 1)) != seen[n] && ++ring_mismatches <= 16)
-                    std::printf("RING-MISMATCH %u stamp=%llu word=%u ring=%016llx status=%016llx\n", ring_next,
-                                (unsigned long long)stamp, n + 1, (unsigned long long)ring_word(at + 8 * (n + 1)),
-                                (unsigned long long)seen[n]);
+            for (unsigned w = 0; w < 6; ++w)
+                if (ring_word(at + 8 * (w + 1)) != seen[w] && ++ring_mismatches <= 16)
+                    std::printf("RING-MISMATCH %u stamp=%llu word=%u ring=%016llx status=%016llx\n", n,
+                                (unsigned long long)stamp, w + 1, (unsigned long long)ring_word(at + 8 * (w + 1)),
+                                (unsigned long long)seen[w]);
             ++ring_checked;
         }
     }

@@ -1461,7 +1461,7 @@ def system_testbench(args) -> Path:
     parameters = {**producer.guest_rates(producer.SYSTEM_CLOCK_HZ), 'ROM_HEX': f'"{rom}"'}
     # The OPL2 import declares a timescale and the CPU and KF imports do not.
     return verilate(args.verilator, 'system', 'pc386_system', SYSTEM_RTL, CORE / 'sim/system_tb.cpp', [],
-                    args.jobs, parameters, flags=('-Wno-TIMESCALEMOD',))
+                    args.jobs, parameters, flags=('-Wno-TIMESCALEMOD', str(CORE / 'sim/system_probe.vlt')))
 
 
 def suffix(args) -> str:
