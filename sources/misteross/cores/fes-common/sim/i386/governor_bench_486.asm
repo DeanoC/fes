@@ -11,6 +11,8 @@
 
 bits 16
 cpu 486
+; NASM files CMPXCHG and CPUID under the Pentium, so they are written as
+; bytes here: every instruction in this program is a 486SX's.
 org 0x1000
 
 MARK equ 0x80
@@ -68,11 +70,11 @@ start:
     xor eax, eax
     mov edi, eax
     mov [si + 4], eax
-    cmpxchg edi, ebx            ; equal
-    cmpxchg ecx, ebx            ; unequal: EAX takes ECX
+    db 0x66, 0x0f, 0xb1, 0xdf   ; CMPXCHG EDI, EBX: equal
+    db 0x66, 0x0f, 0xb1, 0xd9   ; CMPXCHG ECX, EBX: unequal, EAX takes ECX
     xor eax, eax
-    cmpxchg [si + 4], ebx       ; equal
-    cmpxchg [si], ebx           ; unequal
+    db 0x66, 0x0f, 0xb1, 0x5c, 0x04  ; CMPXCHG [SI + 4], EBX: equal
+    db 0x66, 0x0f, 0xb1, 0x1c   ; CMPXCHG [SI], EBX: unequal
     dec bp
     jnz .cmpxchg
     mark 5
@@ -82,9 +84,9 @@ start:
     mov bp, 500
 .cpuid:
     mov eax, 1
-    cpuid
+    db 0x0f, 0xa2               ; CPUID
     xor eax, eax
-    cpuid
+    db 0x0f, 0xa2               ; CPUID
     dec bp
     jnz .cpuid
     mark 7

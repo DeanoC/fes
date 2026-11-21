@@ -1,0 +1,4991 @@
+{
+  "cases_sha256": "8ec68235e53ad4c89683c58c6f7f43a9ab6bcc6b242b7e99b5b044eed9888847",
+  "failures": [],
+  "lockstep": {
+    "386": {
+      "agree": 56,
+      "cases": [
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "bswap",
+          "probe": "102a",
+          "rtl": "stop @102a.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "bswap-esp",
+          "probe": "1006",
+          "rtl": "stop @1006.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-r32",
+          "probe": "100c",
+          "rtl": "stop @100c.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-r16",
+          "probe": "1006",
+          "rtl": "stop @1006.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-r8",
+          "probe": "1004",
+          "rtl": "stop @1004.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m8",
+          "probe": "1007",
+          "rtl": "stop @1007.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m8-lock",
+          "probe": "1007",
+          "rtl": "stop @1007.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-r8-lock",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m16",
+          "probe": "1009",
+          "rtl": "stop @1009.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m16-lock",
+          "probe": "1009",
+          "rtl": "stop @1009.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-r16-lock",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m32",
+          "probe": "100f",
+          "rtl": "stop @100f.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m32-lock",
+          "probe": "100f",
+          "rtl": "stop @100f.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-r32-lock",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r8-lock",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r8-equal",
+          "probe": "1006",
+          "rtl": "stop @1006.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m8-equal",
+          "probe": "1009",
+          "rtl": "stop @1009.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m8-equal-lock",
+          "probe": "1009",
+          "rtl": "stop @1009.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r8-unequal",
+          "probe": "1006",
+          "rtl": "stop @1006.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m8-unequal",
+          "probe": "1009",
+          "rtl": "stop @1009.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m8-unequal-lock",
+          "probe": "1009",
+          "rtl": "stop @1009.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r16-lock",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r16-equal",
+          "probe": "1009",
+          "rtl": "stop @1009.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m16-equal",
+          "probe": "100c",
+          "rtl": "stop @100c.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m16-equal-lock",
+          "probe": "100c",
+          "rtl": "stop @100c.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r16-unequal",
+          "probe": "1009",
+          "rtl": "stop @1009.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m16-unequal",
+          "probe": "100c",
+          "rtl": "stop @100c.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m16-unequal-lock",
+          "probe": "100c",
+          "rtl": "stop @100c.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r32-lock",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r32-equal",
+          "probe": "1012",
+          "rtl": "stop @1012.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m32-equal",
+          "probe": "1015",
+          "rtl": "stop @1015.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m32-equal-lock",
+          "probe": "1015",
+          "rtl": "stop @1015.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r32-unequal",
+          "probe": "1012",
+          "rtl": "stop @1012.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m32-unequal",
+          "probe": "1015",
+          "rtl": "stop @1015.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m32-unequal-lock",
+          "probe": "1015",
+          "rtl": "stop @1015.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-a6",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invd",
+          "probe": "1000",
+          "rtl": "stop @1000.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "wbinvd",
+          "probe": "1000",
+          "rtl": "stop @1000.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invlpg",
+          "probe": "1000",
+          "rtl": "stop @1000.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invlpg-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invd-cpl3",
+          "probe": "104d",
+          "rtl": "stop @104d.vector d 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "wbinvd-cpl3",
+          "probe": "104d",
+          "rtl": "stop @104d.vector d 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invlpg-cpl3",
+          "probe": "104d",
+          "rtl": "stop @104d.vector d 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cr0-read",
+          "probe": "1000",
+          "rtl": "stop @1000.eax 60050030 7ffffff0"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cr0-write-ones",
+          "probe": "1006",
+          "rtl": "stop @1009.ebx 6005003e 7ffffffe"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cr0-write-zero",
+          "probe": "1006",
+          "rtl": "stop @1006.cr0 10 60050020"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cr0-nw-without-cd",
+          "probe": "1006",
+          "rtl": "stop @1006.exception d ff"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "lmsw-keeps-ne",
+          "probe": "1006",
+          "rtl": "stop @1006.cr0 30 60050030"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "wp-clear-user-readonly",
+          "probe": "1034",
+          "rtl": "stop @1039.cr0 e0040031 e0050031"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "wp-set-user-readonly",
+          "probe": "103e",
+          "rtl": "stop @103e.exception e ff"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "wp-set-supervisor-readonly",
+          "probe": "103e",
+          "rtl": "stop @103e.exception e ff"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "wp-set-writable",
+          "probe": "103e",
+          "rtl": "stop @104e.edx e0050031 fffffff1"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-toggle",
+          "probe": "100f",
+          "rtl": "stop @100f.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "id-toggle",
+          "probe": "100f",
+          "rtl": "stop @100f.eflags 200002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-fault-dword",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-fault-word",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-fault-dword-at-2",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-fault-push",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-aligned",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-byte",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-am-clear",
+          "probe": "102c",
+          "rtl": "stop @1031.cr0 60010031 60050031"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-flag-clear",
+          "probe": "104d",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-cpl0",
+          "probe": "102c",
+          "rtl": "stop @1034.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cpuid-0",
+          "probe": "1003",
+          "rtl": "stop @1003.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": "cpuid-leaf-1",
+          "isolated": true,
+          "label": "cpuid-1",
+          "probe": "1006",
+          "rtl": "stop @1006.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": "mov-tr",
+          "isolated": true,
+          "label": "mov-tr3",
+          "probe": "1006",
+          "rtl": "stop @1006.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": "mov-tr",
+          "isolated": true,
+          "label": "mov-tr4",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": "mov-tr",
+          "isolated": true,
+          "label": "mov-tr5",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": "mov-tr",
+          "isolated": true,
+          "label": "mov-tr6",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": "mov-tr",
+          "isolated": true,
+          "label": "mov-tr7",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "mov-cr4-read",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "mov-cr4-write",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-same-r32",
+          "probe": "1006",
+          "rtl": "stop @1006.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-hi8",
+          "probe": "1003",
+          "rtl": "stop @1003.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-eax-eax",
+          "probe": "1006",
+          "rtl": "stop @1006.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-src-eax-equal",
+          "probe": "100c",
+          "rtl": "stop @100c.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-src-eax-unequal",
+          "probe": "100c",
+          "rtl": "stop @100c.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-hi8-equal",
+          "probe": "1005",
+          "rtl": "stop @1005.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-hi8-unequal",
+          "probe": "1005",
+          "rtl": "stop @1005.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m32-readonly",
+          "probe": "103e",
+          "rtl": "stop @104f.vector e 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m32-notpresent",
+          "probe": "103e",
+          "rtl": "stop @104f.vector e 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m32-notpresent",
+          "probe": "103e",
+          "rtl": "stop @104f.vector e 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invlpg-remap",
+          "probe": "103e",
+          "rtl": "stop @105c.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invlpg-past-limit",
+          "probe": "1000",
+          "rtl": "stop @1000.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invlpg-notpresent",
+          "probe": "103e",
+          "rtl": "stop @103e.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-popfd-then-load",
+          "probe": "104d",
+          "rtl": "stop @1055.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-popfd-clears",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-destination",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-source",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-aligned",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-delivery-odd-esp0",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-delivery-same-privilege",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-xadd-m32",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-lfs-at-2",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-lfs-aligned",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-bound-aligned",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-bound-at-2",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-sgdt-at-2",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-sgdt-aligned",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-real-int-clears",
+          "probe": "1000",
+          "rtl": "stop @100b.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-pm-int-keeps",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "bswap-r16",
+          "probe": "1006",
+          "rtl": "stop @1006.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": "cpuid-above-highest",
+          "isolated": true,
+          "label": "cpuid-2",
+          "probe": "1006",
+          "rtl": "stop @1006.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "dr6-bit12",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m16-mmio",
+          "probe": "100e",
+          "rtl": "stop @100e.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m16-mmio-equal",
+          "probe": "1011",
+          "rtl": "stop @1011.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m16-mmio-unequal",
+          "probe": "1011",
+          "rtl": "stop @1011.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-xbts",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-ibts",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-xbts-mem",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-0fff",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-ud2",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-0f05",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-rdtsc",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-0fc7",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-fe2",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-fe7-mem",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-ff7",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-ff3-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-ff5-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-les-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lds-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lea-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-bound-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lss-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lfs-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-grp7-5",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-grp7-7-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-sgdt-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lidt-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-grp6-6",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-bt0",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-bt3-mem",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-mov-cr1",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-mov-cr4",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-mov-tr0",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-pop-8f1",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-mov-c6-1",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-mov-c7-7-mem",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-mov-sreg6",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lock-0fff",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lock-fe2-mem",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-prefixed-xbts",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-rep-0f0b",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lock-icebp",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lock-umov-mem",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lock-tr6",
+          "probe": null,
+          "rtl": "agree"
+        }
+      ],
+      "expected": "i486-expected-stops.txt",
+      "i486": 0,
+      "netlist": {
+        "cpu_source_sha256": "5be3e884eb0ccf3858f166bf1286ca5b866bb3fda6131495ba9f2ee85fbfe9d6",
+        "netlist_sha256": "df1156dd3a6c683770e7a7818f59d89d02cf679c9eb054755fed5be6351e890f",
+        "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
+        "yosys": {
+          "gpu_router": "HIP",
+          "lock": "cores/fes-pc386/toolchain.lock",
+          "lock_sha256": "294c89450c6c719f649cd4f248d0d844dd431df1138d44d6a26e4a1219ac579c",
+          "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=32decd607d6acf54199400224725f8c1c13eff9bbe1ada61eb51abe5a59e35ba"
+        }
+      },
+      "runs_equal": true,
+      "stop": 91
+    },
+    "486sx": {
+      "agree": 147,
+      "cases": [
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "bswap",
+          "probe": "102a",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "bswap-esp",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-r32",
+          "probe": "100c",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-r16",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-r8",
+          "probe": "1004",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m8",
+          "probe": "1007",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m8-lock",
+          "probe": "1007",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-r8-lock",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m16",
+          "probe": "1009",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m16-lock",
+          "probe": "1009",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-r16-lock",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m32",
+          "probe": "100f",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m32-lock",
+          "probe": "100f",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-r32-lock",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r8-lock",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r8-equal",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m8-equal",
+          "probe": "1009",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m8-equal-lock",
+          "probe": "1009",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r8-unequal",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m8-unequal",
+          "probe": "1009",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m8-unequal-lock",
+          "probe": "1009",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r16-lock",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r16-equal",
+          "probe": "1009",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m16-equal",
+          "probe": "100c",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m16-equal-lock",
+          "probe": "100c",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r16-unequal",
+          "probe": "1009",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m16-unequal",
+          "probe": "100c",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m16-unequal-lock",
+          "probe": "100c",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r32-lock",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r32-equal",
+          "probe": "1012",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m32-equal",
+          "probe": "1015",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m32-equal-lock",
+          "probe": "1015",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-r32-unequal",
+          "probe": "1012",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m32-unequal",
+          "probe": "1015",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m32-unequal-lock",
+          "probe": "1015",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-a6",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invd",
+          "probe": "1000",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "wbinvd",
+          "probe": "1000",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invlpg",
+          "probe": "1000",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invlpg-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invd-cpl3",
+          "probe": "104d",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "wbinvd-cpl3",
+          "probe": "104d",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invlpg-cpl3",
+          "probe": "104d",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cr0-read",
+          "probe": "1000",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cr0-write-ones",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cr0-write-zero",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cr0-nw-without-cd",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "lmsw-keeps-ne",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "wp-clear-user-readonly",
+          "probe": "1034",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "wp-set-user-readonly",
+          "probe": "103e",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "wp-set-supervisor-readonly",
+          "probe": "103e",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "wp-set-writable",
+          "probe": "103e",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-toggle",
+          "probe": "100f",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "id-toggle",
+          "probe": "100f",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-fault-dword",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-fault-word",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-fault-dword-at-2",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-fault-push",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-aligned",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-byte",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-am-clear",
+          "probe": "102c",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-flag-clear",
+          "probe": "104d",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-cpl0",
+          "probe": "102c",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cpuid-0",
+          "probe": "1003",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": "cpuid-leaf-1",
+          "isolated": true,
+          "label": "cpuid-1",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": "mov-tr",
+          "isolated": true,
+          "label": "mov-tr3",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": "mov-tr",
+          "isolated": true,
+          "label": "mov-tr4",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": "mov-tr",
+          "isolated": true,
+          "label": "mov-tr5",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": "mov-tr",
+          "isolated": true,
+          "label": "mov-tr6",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": "mov-tr",
+          "isolated": true,
+          "label": "mov-tr7",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "mov-cr4-read",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "mov-cr4-write",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-same-r32",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-hi8",
+          "probe": "1003",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-eax-eax",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-src-eax-equal",
+          "probe": "100c",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-src-eax-unequal",
+          "probe": "100c",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-hi8-equal",
+          "probe": "1005",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-hi8-unequal",
+          "probe": "1005",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m32-readonly",
+          "probe": "103e",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m32-notpresent",
+          "probe": "103e",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m32-notpresent",
+          "probe": "103e",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invlpg-remap",
+          "probe": "103e",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invlpg-past-limit",
+          "probe": "1000",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "invlpg-notpresent",
+          "probe": "103e",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-popfd-then-load",
+          "probe": "104d",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-popfd-clears",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-destination",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-source",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-aligned",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-delivery-odd-esp0",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-delivery-same-privilege",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-xadd-m32",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-lfs-at-2",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-lfs-aligned",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-bound-aligned",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-bound-at-2",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-sgdt-at-2",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-sgdt-aligned",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-real-int-clears",
+          "probe": "1000",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-pm-int-keeps",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "bswap-r16",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": "cpuid-above-highest",
+          "isolated": true,
+          "label": "cpuid-2",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "dr6-bit12",
+          "probe": "1006",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "xadd-m16-mmio",
+          "probe": "100e",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m16-mmio-equal",
+          "probe": "1011",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "cmpxchg-m16-mmio-unequal",
+          "probe": "1011",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-xbts",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-ibts",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-xbts-mem",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-0fff",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-ud2",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-0f05",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-rdtsc",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-0fc7",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-fe2",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-fe7-mem",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-ff7",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-ff3-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-ff5-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-les-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lds-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lea-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-bound-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lss-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lfs-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-grp7-5",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-grp7-7-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-sgdt-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lidt-reg",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-grp6-6",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-bt0",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-bt3-mem",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-mov-cr1",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-mov-cr4",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-mov-tr0",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-pop-8f1",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-mov-c6-1",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-mov-c7-7-mem",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-mov-sreg6",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lock-0fff",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lock-fe2-mem",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-prefixed-xbts",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-rep-0f0b",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lock-icebp",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lock-umov-mem",
+          "probe": null,
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ud-lock-tr6",
+          "probe": null,
+          "rtl": "agree"
+        }
+      ],
+      "expected": "i486-expected-stops-486sx.txt",
+      "i486": 1,
+      "netlist": {
+        "cpu_source_sha256": "5be3e884eb0ccf3858f166bf1286ca5b866bb3fda6131495ba9f2ee85fbfe9d6",
+        "netlist_sha256": "5b4d333ac16aec54c188728950fc2dcb12e3d933f6270f3690fa66a323b1c01b",
+        "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
+        "yosys": {
+          "gpu_router": "HIP",
+          "lock": "cores/fes-pc386/toolchain.lock",
+          "lock_sha256": "294c89450c6c719f649cd4f248d0d844dd431df1138d44d6a26e4a1219ac579c",
+          "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=32decd607d6acf54199400224725f8c1c13eff9bbe1ada61eb51abe5a59e35ba"
+        }
+      },
+      "runs_equal": true,
+      "stop": 0
+    }
+  },
+  "oracle": {
+    "adapter_sha256": "25c2a5109e037ec47af13caabe102ab27134d2119f3a301532fad5d7080b69c0",
+    "cpu_level": 4,
+    "level3_provisioner_sha256": "0c4552c2290a0f50681090a65cf25deeb1916568c910bcfcc88a91097f8089b2",
+    "linked_sha256": {
+      "adapter": "43ab4004273323a17e97c3d7f30bc702c1ec94b53ec3ca7e441172482ad298b8",
+      "cpu": "f2c906d4387b3fdcedf662f9d1de42c6c65ddb967072023c47308c2353110d43",
+      "cpudb": "3e6b7f38ca47c7d470de40b16372420dff6d726f85089acf7aa5a07d7d208e7b",
+      "fpu": "a732e86f71167c6533c2dd5445b1222f2ccd228b1b124800ff390627ba2088b1",
+      "paramtree": "6b8ba5842ba2bfe611cc7268c331fff50214859a164c95895d966de277893e44",
+      "softfloat": "2d0339c94114f689164e9821816132653715710cc842d2c4b84ffd08aebfa437"
+    },
+    "opcode_table_sha256": "16d2719ba433c51858ba0f1602c41a9b2f56e89dc35a133a235b87fe2948db09",
+    "provisioner_sha256": "203fece878fb7494cc95e069b97a340b361ffcb6e248b7e2aeeaf989e5380ea1",
+    "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2"
+  },
+  "random": {
+    "divergence_retirements": {
+      "aaa-aas-flags": 38637,
+      "aad-flags": 39742,
+      "aam-zero-flags": 22,
+      "bit-test-of": 56264,
+      "bsf-bsr-flags": 28622,
+      "cpuid-486sx": 19935,
+      "daa-das-of": 31653,
+      "div-flags": 47608,
+      "double-shift-wide-count": 22279,
+      "dr6-disabled-b": 6,
+      "imul-flags": 124486,
+      "interrupt-vector-before-push": 125,
+      "invalid-sib-scales-base": 1083,
+      "mul-flags": 37449,
+      "popad-esp-high-word": 6769,
+      "shift-af": 137469,
+      "shift-cf-wide-count": 23640,
+      "shift-rotate-of": 144144,
+      "stack-wrap-partial-transfer": 100,
+      "v86-iopl-gp": 55
+    },
+    "divergences_sha256": "3de6350a9b940e3adbba8427807d2466a132de6eed1f44bcfb1e23874f69563e",
+    "failure_count": 0,
+    "failures": [],
+    "i486_forms": {
+      "ac-delivery-stop": 11,
+      "ac-fault": 619,
+      "ac-toggle": 9307,
+      "bswap16": 5659,
+      "bswap16-fault1": 7,
+      "bswap32": 24277,
+      "bswap32-fault1": 35,
+      "bswap32-fault13": 3,
+      "cmpxchg-m16-equal": 3650,
+      "cmpxchg-m16-equal-lock": 1781,
+      "cmpxchg-m16-fault1": 9,
+      "cmpxchg-m16-fault13": 3,
+      "cmpxchg-m16-fault14": 1,
+      "cmpxchg-m16-fault17": 2,
+      "cmpxchg-m16-lock-fault1": 3,
+      "cmpxchg-m16-lock-fault12": 1,
+      "cmpxchg-m16-lock-fault13": 1,
+      "cmpxchg-m16-lock-fault14": 1,
+      "cmpxchg-m16-unequal": 950,
+      "cmpxchg-m16-unequal-lock": 444,
+      "cmpxchg-m32-equal": 3409,
+      "cmpxchg-m32-equal-lock": 1009,
+      "cmpxchg-m32-fault1": 9,
+      "cmpxchg-m32-fault13": 5,
+      "cmpxchg-m32-lock-fault1": 4,
+      "cmpxchg-m32-lock-fault13": 2,
+      "cmpxchg-m32-unequal": 1361,
+      "cmpxchg-m32-unequal-lock": 505,
+      "cmpxchg-m8-equal": 4046,
+      "cmpxchg-m8-equal-lock": 2247,
+      "cmpxchg-m8-fault1": 11,
+      "cmpxchg-m8-lock-fault1": 9,
+      "cmpxchg-m8-lock-fault13": 1,
+      "cmpxchg-m8-unequal": 833,
+      "cmpxchg-m8-unequal-lock": 374,
+      "cmpxchg-r16-equal": 7473,
+      "cmpxchg-r16-fault1": 12,
+      "cmpxchg-r16-fault13": 1,
+      "cmpxchg-r16-lock-fault1": 1,
+      "cmpxchg-r16-lock-fault6": 396,
+      "cmpxchg-r16-unequal": 2824,
+      "cmpxchg-r32-equal": 8320,
+      "cmpxchg-r32-fault1": 9,
+      "cmpxchg-r32-fault13": 3,
+      "cmpxchg-r32-unequal": 2037,
+      "cmpxchg-r8-equal": 7676,
+      "cmpxchg-r8-fault1": 11,
+      "cmpxchg-r8-lock-fault6": 232,
+      "cmpxchg-r8-unequal": 1469,
+      "cpuid-0": 4204,
+      "cpuid-0-fault1": 6,
+      "cpuid-1": 9359,
+      "cpuid-1-fault1": 11,
+      "cpuid-2+": 8081,
+      "cpuid-2+-fault1": 13,
+      "invd": 14844,
+      "invd-fault1": 20,
+      "invd-fault13": 31,
+      "invlpg": 20465,
+      "invlpg-fault1": 20,
+      "invlpg-fault13": 36,
+      "invlpg-reg-lock-fault6": 2,
+      "wbinvd": 13532,
+      "wbinvd-fault1": 17,
+      "wbinvd-fault13": 41,
+      "wp-fault": 313,
+      "xadd-m16": 4364,
+      "xadd-m16-fault1": 8,
+      "xadd-m16-fault12": 1,
+      "xadd-m16-fault13": 3,
+      "xadd-m16-lock": 3645,
+      "xadd-m16-lock-fault1": 7,
+      "xadd-m16-lock-fault13": 2,
+      "xadd-m16-lock-fault17": 1,
+      "xadd-m32": 4191,
+      "xadd-m32-fault1": 7,
+      "xadd-m32-fault12": 2,
+      "xadd-m32-fault13": 2,
+      "xadd-m32-fault14": 1,
+      "xadd-m32-lock": 1708,
+      "xadd-m32-lock-fault1": 3,
+      "xadd-m32-lock-fault13": 6,
+      "xadd-m32-lock-fault14": 2,
+      "xadd-m8": 4214,
+      "xadd-m8-fault1": 5,
+      "xadd-m8-fault13": 3,
+      "xadd-m8-lock": 1241,
+      "xadd-m8-lock-fault1": 4,
+      "xadd-m8-lock-fault13": 1,
+      "xadd-r16": 7676,
+      "xadd-r16-fault1": 13,
+      "xadd-r16-fault13": 2,
+      "xadd-r16-lock-fault1": 3,
+      "xadd-r16-lock-fault6": 396,
+      "xadd-r32": 5455,
+      "xadd-r32-fault1": 8,
+      "xadd-r8": 7611,
+      "xadd-r8-fault1": 18,
+      "xadd-r8-lock-fault6": 209
+    },
+    "latency_free_mismatches": [],
+    "missing_forms": [],
+    "netlist": {
+      "cpu_source_sha256": "5be3e884eb0ccf3858f166bf1286ca5b866bb3fda6131495ba9f2ee85fbfe9d6",
+      "netlist_sha256": "5b4d333ac16aec54c188728950fc2dcb12e3d933f6270f3690fa66a323b1c01b",
+      "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
+      "yosys": {
+        "gpu_router": "HIP",
+        "lock": "cores/fes-pc386/toolchain.lock",
+        "lock_sha256": "294c89450c6c719f649cd4f248d0d844dd431df1138d44d6a26e4a1219ac579c",
+        "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=32decd607d6acf54199400224725f8c1c13eff9bbe1ada61eb51abe5a59e35ba"
+      }
+    },
+    "sets": {
+      "debug": {
+        "divergence_retirements": {
+          "aaa-aas-flags": 2119,
+          "aad-flags": 3226,
+          "aam-zero-flags": 2,
+          "bit-test-of": 3780,
+          "bsf-bsr-flags": 1641,
+          "cpuid-486sx": 1269,
+          "daa-das-of": 1800,
+          "div-flags": 2733,
+          "double-shift-wide-count": 817,
+          "dr6-disabled-b": 6,
+          "imul-flags": 9128,
+          "interrupt-vector-before-push": 20,
+          "invalid-sib-scales-base": 10,
+          "mul-flags": 2376,
+          "popad-esp-high-word": 210,
+          "shift-af": 7495,
+          "shift-cf-wide-count": 868,
+          "shift-rotate-of": 7995,
+          "stack-wrap-partial-transfer": 6,
+          "v86-iopl-gp": 2
+        },
+        "failures": [],
+        "fault_vectors": {
+          "0": 103,
+          "10": 2,
+          "11": 56,
+          "12": 85,
+          "13": 876,
+          "14": 47,
+          "17": 15,
+          "6": 282,
+          "8": 22
+        },
+        "i486_forms": {
+          "ac-delivery-stop": 1,
+          "ac-fault": 27,
+          "ac-toggle": 569,
+          "bswap16": 209,
+          "bswap16-fault1": 7,
+          "bswap32": 1387,
+          "bswap32-fault1": 35,
+          "cmpxchg-m16-equal": 117,
+          "cmpxchg-m16-equal-lock": 468,
+          "cmpxchg-m16-fault1": 9,
+          "cmpxchg-m16-lock-fault1": 3,
+          "cmpxchg-m16-unequal": 91,
+          "cmpxchg-m16-unequal-lock": 30,
+          "cmpxchg-m32-equal": 175,
+          "cmpxchg-m32-equal-lock": 96,
+          "cmpxchg-m32-fault1": 9,
+          "cmpxchg-m32-lock-fault1": 4,
+          "cmpxchg-m32-unequal": 226,
+          "cmpxchg-m32-unequal-lock": 36,
+          "cmpxchg-m8-equal": 150,
+          "cmpxchg-m8-equal-lock": 459,
+          "cmpxchg-m8-fault1": 11,
+          "cmpxchg-m8-lock-fault1": 9,
+          "cmpxchg-m8-unequal": 79,
+          "cmpxchg-m8-unequal-lock": 34,
+          "cmpxchg-r16-equal": 914,
+          "cmpxchg-r16-fault1": 12,
+          "cmpxchg-r16-lock-fault1": 1,
+          "cmpxchg-r16-lock-fault6": 37,
+          "cmpxchg-r16-unequal": 162,
+          "cmpxchg-r32-equal": 887,
+          "cmpxchg-r32-fault1": 9,
+          "cmpxchg-r32-unequal": 162,
+          "cmpxchg-r8-equal": 240,
+          "cmpxchg-r8-fault1": 11,
+          "cmpxchg-r8-lock-fault6": 22,
+          "cmpxchg-r8-unequal": 110,
+          "cpuid-0": 187,
+          "cpuid-0-fault1": 6,
+          "cpuid-1": 783,
+          "cpuid-1-fault1": 11,
+          "cpuid-2+": 486,
+          "cpuid-2+-fault1": 13,
+          "invd": 755,
+          "invd-fault1": 20,
+          "invlpg": 1850,
+          "invlpg-fault1": 20,
+          "invlpg-fault13": 2,
+          "wbinvd": 504,
+          "wbinvd-fault1": 17,
+          "wbinvd-fault13": 3,
+          "wp-fault": 18,
+          "xadd-m16": 193,
+          "xadd-m16-fault1": 8,
+          "xadd-m16-fault12": 1,
+          "xadd-m16-fault13": 1,
+          "xadd-m16-lock": 132,
+          "xadd-m16-lock-fault1": 7,
+          "xadd-m32": 235,
+          "xadd-m32-fault1": 7,
+          "xadd-m32-lock": 101,
+          "xadd-m32-lock-fault1": 3,
+          "xadd-m32-lock-fault13": 1,
+          "xadd-m8": 225,
+          "xadd-m8-fault1": 5,
+          "xadd-m8-lock": 117,
+          "xadd-m8-lock-fault1": 4,
+          "xadd-r16": 806,
+          "xadd-r16-fault1": 13,
+          "xadd-r16-lock-fault1": 3,
+          "xadd-r16-lock-fault6": 45,
+          "xadd-r32": 381,
+          "xadd-r32-fault1": 8,
+          "xadd-r8": 720,
+          "xadd-r8-fault1": 18,
+          "xadd-r8-lock-fault6": 12
+        },
+        "programs_per_seed": 250,
+        "seeds": [
+          5001,
+          5002,
+          5003,
+          5004,
+          5005,
+          5006,
+          5007,
+          5008,
+          5009,
+          5010,
+          5011,
+          5012,
+          5013,
+          5014,
+          5015,
+          5016
+        ],
+        "totals": {
+          "code_store_stops": 12,
+          "cs_rule": 32,
+          "cycles": 35564880,
+          "dr6_rule": 27451,
+          "external_interrupts": 253835,
+          "faults": 1488,
+          "halts": 1458,
+          "io_accesses": 5752,
+          "mmio_accesses": 532046,
+          "mmio_runs": 3375,
+          "nested": 107,
+          "nmis": 113269,
+          "passed": 4000,
+          "pm_retirements": 25890,
+          "rep_interrupts": 1028,
+          "replays": 41634,
+          "retire_limits": 246,
+          "retirements": 2151881,
+          "runs": 4000,
+          "shutdowns": 328,
+          "smc_restarts": 2187,
+          "stray_stops": 335,
+          "vector_moved_stops": 122,
+          "window_code_stops": 10
+        },
+        "trace_hashes": {
+          "5001": "9d3dbe4686386ee0",
+          "5002": "1401297aa37871bb",
+          "5003": "0008c50f667d8273",
+          "5004": "0a651655166ed1a9",
+          "5005": "fa13787220f834a9",
+          "5006": "7e9a2f5c24920380",
+          "5007": "be660be14cabb15b",
+          "5008": "414942552b721d05",
+          "5009": "15e1677591e8ff30",
+          "5010": "5a3e1ec7ff27bdde",
+          "5011": "177b327bb14b9aea",
+          "5012": "c84c5d283a6682c6",
+          "5013": "d3033de9ffde0601",
+          "5014": "886a1b671be6f4f7",
+          "5015": "47062d25c68e6a0a",
+          "5016": "618ee99ff65b4c8b"
+        }
+      },
+      "pmode": {
+        "divergence_retirements": {
+          "aaa-aas-flags": 517,
+          "aad-flags": 499,
+          "bit-test-of": 650,
+          "bsf-bsr-flags": 355,
+          "cpuid-486sx": 595,
+          "daa-das-of": 455,
+          "div-flags": 733,
+          "double-shift-wide-count": 176,
+          "imul-flags": 2762,
+          "interrupt-vector-before-push": 1,
+          "invalid-sib-scales-base": 2,
+          "mul-flags": 766,
+          "popad-esp-high-word": 96,
+          "shift-af": 2468,
+          "shift-cf-wide-count": 207,
+          "shift-rotate-of": 1615,
+          "v86-iopl-gp": 11
+        },
+        "failures": [],
+        "fault_vectors": {
+          "0": 12,
+          "10": 10,
+          "11": 454,
+          "12": 88,
+          "13": 3599,
+          "14": 264,
+          "17": 88,
+          "6": 93,
+          "8": 142
+        },
+        "i486_forms": {
+          "ac-delivery-stop": 4,
+          "ac-fault": 165,
+          "ac-toggle": 521,
+          "bswap16": 58,
+          "bswap32": 283,
+          "bswap32-fault13": 2,
+          "cmpxchg-m16-equal": 44,
+          "cmpxchg-m16-equal-lock": 24,
+          "cmpxchg-m16-fault13": 1,
+          "cmpxchg-m16-unequal": 37,
+          "cmpxchg-m16-unequal-lock": 19,
+          "cmpxchg-m32-equal": 45,
+          "cmpxchg-m32-equal-lock": 36,
+          "cmpxchg-m32-fault13": 1,
+          "cmpxchg-m32-unequal": 19,
+          "cmpxchg-m32-unequal-lock": 12,
+          "cmpxchg-m8-equal": 51,
+          "cmpxchg-m8-equal-lock": 17,
+          "cmpxchg-m8-unequal": 28,
+          "cmpxchg-m8-unequal-lock": 10,
+          "cmpxchg-r16-equal": 77,
+          "cmpxchg-r16-lock-fault6": 12,
+          "cmpxchg-r16-unequal": 49,
+          "cmpxchg-r32-equal": 80,
+          "cmpxchg-r32-unequal": 48,
+          "cmpxchg-r8-equal": 57,
+          "cmpxchg-r8-lock-fault6": 5,
+          "cmpxchg-r8-unequal": 55,
+          "cpuid-0": 37,
+          "cpuid-1": 492,
+          "cpuid-2+": 103,
+          "invd": 126,
+          "invd-fault13": 9,
+          "invlpg": 486,
+          "invlpg-fault13": 9,
+          "wbinvd": 139,
+          "wbinvd-fault13": 6,
+          "wp-fault": 95,
+          "xadd-m16": 91,
+          "xadd-m16-fault13": 1,
+          "xadd-m16-lock": 38,
+          "xadd-m16-lock-fault13": 1,
+          "xadd-m32": 48,
+          "xadd-m32-lock": 31,
+          "xadd-m32-lock-fault13": 2,
+          "xadd-m32-lock-fault14": 2,
+          "xadd-m8": 57,
+          "xadd-m8-fault13": 2,
+          "xadd-m8-lock": 25,
+          "xadd-r16": 132,
+          "xadd-r16-lock-fault6": 9,
+          "xadd-r32": 97,
+          "xadd-r8": 475,
+          "xadd-r8-lock-fault6": 6
+        },
+        "programs_per_seed": 500,
+        "seeds": [
+          1001,
+          1002,
+          1003,
+          1004,
+          1005,
+          1006,
+          1007,
+          1008,
+          1009,
+          1010,
+          1011,
+          1012,
+          1013,
+          1014,
+          1015,
+          1016
+        ],
+        "totals": {
+          "code_store_stops": 8,
+          "cs_rule": 232,
+          "cycles": 10123635,
+          "external_interrupts": 20503,
+          "faults": 4750,
+          "halts": 145,
+          "io_accesses": 1611,
+          "iret_save_rule": 54,
+          "mmio_accesses": 53467,
+          "mmio_runs": 6802,
+          "nested": 622,
+          "nmis": 7956,
+          "passed": 8000,
+          "pm_retirements": 157565,
+          "rep_interrupts": 260,
+          "replays": 9484,
+          "retire_limits": 29,
+          "retirements": 384216,
+          "runs": 8000,
+          "shutdowns": 1754,
+          "smc_restarts": 976,
+          "stray_stops": 838,
+          "vector_moved_stops": 468,
+          "window_code_stops": 3
+        },
+        "trace_hashes": {
+          "1001": "79aa69be06c2b2e6",
+          "1002": "d5bfc44a3d59f38a",
+          "1003": "3255ceb1cead2a69",
+          "1004": "05156e232e8d69ac",
+          "1005": "68fb654d342b29b1",
+          "1006": "096f4a3864120b66",
+          "1007": "77f2b9462954fb42",
+          "1008": "c712423efeef5de8",
+          "1009": "a7e60aa934af7361",
+          "1010": "682735048e896cbc",
+          "1011": "74323fb2369416ba",
+          "1012": "0102e68e1ad44c92",
+          "1013": "d9f545a55da8e949",
+          "1014": "fa9360fccd43970d",
+          "1015": "a2070f7b1d6f7f88",
+          "1016": "847a2a0f2afd8f17"
+        }
+      },
+      "random": {
+        "divergence_retirements": {
+          "aaa-aas-flags": 30854,
+          "aad-flags": 32943,
+          "aam-zero-flags": 17,
+          "bit-test-of": 45659,
+          "bsf-bsr-flags": 24325,
+          "cpuid-486sx": 15015,
+          "daa-das-of": 25323,
+          "div-flags": 36703,
+          "double-shift-wide-count": 18774,
+          "imul-flags": 96947,
+          "interrupt-vector-before-push": 87,
+          "invalid-sib-scales-base": 1065,
+          "mul-flags": 31491,
+          "popad-esp-high-word": 6124,
+          "shift-af": 111051,
+          "shift-cf-wide-count": 19432,
+          "shift-rotate-of": 117717,
+          "stack-wrap-partial-transfer": 81,
+          "v86-iopl-gp": 29
+        },
+        "failures": [],
+        "fault_vectors": {
+          "0": 1038,
+          "1": 2,
+          "10": 24,
+          "11": 717,
+          "12": 850,
+          "13": 9248,
+          "14": 414,
+          "17": 150,
+          "6": 2525,
+          "8": 210
+        },
+        "i486_forms": {
+          "ac-delivery-stop": 3,
+          "ac-fault": 269,
+          "ac-toggle": 7691,
+          "bswap16": 5327,
+          "bswap32": 21962,
+          "cmpxchg-m16-equal": 3453,
+          "cmpxchg-m16-equal-lock": 1257,
+          "cmpxchg-m16-fault13": 2,
+          "cmpxchg-m16-lock-fault12": 1,
+          "cmpxchg-m16-lock-fault13": 1,
+          "cmpxchg-m16-unequal": 794,
+          "cmpxchg-m16-unequal-lock": 381,
+          "cmpxchg-m32-equal": 3162,
+          "cmpxchg-m32-equal-lock": 860,
+          "cmpxchg-m32-fault13": 3,
+          "cmpxchg-m32-lock-fault13": 1,
+          "cmpxchg-m32-unequal": 1082,
+          "cmpxchg-m32-unequal-lock": 444,
+          "cmpxchg-m8-equal": 3810,
+          "cmpxchg-m8-equal-lock": 1734,
+          "cmpxchg-m8-lock-fault13": 1,
+          "cmpxchg-m8-unequal": 710,
+          "cmpxchg-m8-unequal-lock": 318,
+          "cmpxchg-r16-equal": 6411,
+          "cmpxchg-r16-lock-fault6": 337,
+          "cmpxchg-r16-unequal": 2564,
+          "cmpxchg-r32-equal": 7273,
+          "cmpxchg-r32-fault13": 3,
+          "cmpxchg-r32-unequal": 1773,
+          "cmpxchg-r8-equal": 7328,
+          "cmpxchg-r8-lock-fault6": 203,
+          "cmpxchg-r8-unequal": 1264,
+          "cpuid-0": 3938,
+          "cpuid-1": 7620,
+          "cpuid-2+": 7395,
+          "invd": 13616,
+          "invd-fault13": 13,
+          "invlpg": 17471,
+          "invlpg-fault13": 17,
+          "wbinvd": 12753,
+          "wbinvd-fault13": 19,
+          "wp-fault": 137,
+          "xadd-m16": 3835,
+          "xadd-m16-lock": 3444,
+          "xadd-m16-lock-fault13": 1,
+          "xadd-m16-lock-fault17": 1,
+          "xadd-m32": 3852,
+          "xadd-m32-fault12": 2,
+          "xadd-m32-fault13": 2,
+          "xadd-m32-fault14": 1,
+          "xadd-m32-lock": 1542,
+          "xadd-m32-lock-fault13": 3,
+          "xadd-m8": 3869,
+          "xadd-m8-fault13": 1,
+          "xadd-m8-lock": 1053,
+          "xadd-m8-lock-fault13": 1,
+          "xadd-r16": 6251,
+          "xadd-r16-fault13": 2,
+          "xadd-r16-lock-fault6": 330,
+          "xadd-r32": 4861,
+          "xadd-r8": 6300,
+          "xadd-r8-lock-fault6": 188
+        },
+        "programs_per_seed": 2000,
+        "seeds": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16
+        ],
+        "totals": {
+          "code_store_stops": 73,
+          "cs_rule": 357,
+          "cycles": 104428728,
+          "external_interrupts": 668976,
+          "faults": 15178,
+          "halts": 7274,
+          "io_accesses": 70597,
+          "iret_save_rule": 53,
+          "mmio_accesses": 1267428,
+          "mmio_runs": 26884,
+          "nested": 1060,
+          "nmis": 265799,
+          "passed": 32000,
+          "pm_retirements": 277315,
+          "rep_interrupts": 7311,
+          "replays": 128651,
+          "retire_limits": 2158,
+          "retirements": 7808456,
+          "runs": 32000,
+          "shutdowns": 3392,
+          "smc_restarts": 12242,
+          "ss_error_rule": 1,
+          "stray_stops": 2753,
+          "vector_moved_stops": 1089,
+          "window_code_stops": 71
+        },
+        "trace_hashes": {
+          "1": "0b6b69539d2bc274",
+          "10": "0efd6f3b42778e3f",
+          "11": "40274e2750588672",
+          "12": "df26424ef5ff9984",
+          "13": "15400bdfa93fa3ca",
+          "14": "8029fa54287495b5",
+          "15": "0c125b8ed0ffd4f0",
+          "16": "6cc333689a6c0965",
+          "2": "70ab35005deedb3d",
+          "3": "66fad1c49f211558",
+          "4": "62274a38ea178b82",
+          "5": "b53a50a6a7a31ed7",
+          "6": "db89bc1f14356b7e",
+          "7": "8c3e9549fbbc0f81",
+          "8": "0f26c470a099cb08",
+          "9": "4f2a79ad94643e12"
+        }
+      },
+      "steady": {
+        "divergence_retirements": {
+          "aaa-aas-flags": 4327,
+          "aad-flags": 2677,
+          "aam-zero-flags": 2,
+          "bit-test-of": 5276,
+          "bsf-bsr-flags": 1450,
+          "cpuid-486sx": 2495,
+          "daa-das-of": 3333,
+          "div-flags": 5490,
+          "double-shift-wide-count": 2330,
+          "imul-flags": 12192,
+          "interrupt-vector-before-push": 11,
+          "invalid-sib-scales-base": 3,
+          "mul-flags": 2388,
+          "popad-esp-high-word": 273,
+          "shift-af": 14188,
+          "shift-cf-wide-count": 2959,
+          "shift-rotate-of": 14739,
+          "stack-wrap-partial-transfer": 13,
+          "v86-iopl-gp": 1
+        },
+        "failures": [],
+        "fault_vectors": {
+          "0": 124,
+          "10": 1,
+          "11": 90,
+          "12": 115,
+          "13": 1128,
+          "14": 43,
+          "17": 20,
+          "6": 296,
+          "8": 28
+        },
+        "i486_forms": {
+          "ac-fault": 36,
+          "ac-toggle": 675,
+          "bswap16": 264,
+          "bswap32": 4394,
+          "cmpxchg-m16-equal": 150,
+          "cmpxchg-m16-equal-lock": 100,
+          "cmpxchg-m16-fault13": 1,
+          "cmpxchg-m16-unequal": 139,
+          "cmpxchg-m16-unequal-lock": 66,
+          "cmpxchg-m32-equal": 160,
+          "cmpxchg-m32-equal-lock": 74,
+          "cmpxchg-m32-unequal": 104,
+          "cmpxchg-m32-unequal-lock": 41,
+          "cmpxchg-m8-equal": 930,
+          "cmpxchg-m8-equal-lock": 586,
+          "cmpxchg-m8-lock-fault13": 1,
+          "cmpxchg-m8-unequal": 100,
+          "cmpxchg-m8-unequal-lock": 33,
+          "cmpxchg-r16-equal": 932,
+          "cmpxchg-r16-lock-fault6": 41,
+          "cmpxchg-r16-unequal": 153,
+          "cmpxchg-r32-equal": 652,
+          "cmpxchg-r32-fault13": 1,
+          "cmpxchg-r32-unequal": 498,
+          "cmpxchg-r8-equal": 1688,
+          "cmpxchg-r8-lock-fault6": 22,
+          "cmpxchg-r8-unequal": 148,
+          "cpuid-0": 631,
+          "cpuid-1": 1635,
+          "cpuid-2+": 860,
+          "invd": 1115,
+          "invd-fault13": 2,
+          "invlpg": 2266,
+          "wbinvd": 2664,
+          "wbinvd-fault13": 1,
+          "wp-fault": 10,
+          "xadd-m16": 198,
+          "xadd-m16-lock": 113,
+          "xadd-m32": 635,
+          "xadd-m32-lock": 160,
+          "xadd-m8": 271,
+          "xadd-m8-lock": 131,
+          "xadd-r16": 700,
+          "xadd-r16-lock-fault6": 44,
+          "xadd-r32": 479,
+          "xadd-r8": 1057,
+          "xadd-r8-lock-fault6": 17
+        },
+        "programs_per_seed": 2000,
+        "seeds": [
+          1,
+          2
+        ],
+        "totals": {
+          "code_store_stops": 8,
+          "cs_rule": 51,
+          "cycles": 12338085,
+          "external_interrupts": 82936,
+          "faults": 1845,
+          "halts": 944,
+          "io_accesses": 9817,
+          "mmio_accesses": 156948,
+          "mmio_runs": 3343,
+          "nested": 142,
+          "nmis": 33115,
+          "passed": 4000,
+          "pm_retirements": 33866,
+          "rep_interrupts": 901,
+          "replays": 16608,
+          "retire_limits": 282,
+          "retirements": 989777,
+          "runs": 4000,
+          "shutdowns": 411,
+          "smc_restarts": 1454,
+          "stray_stops": 374,
+          "vector_moved_stops": 130,
+          "window_code_stops": 6
+        },
+        "trace_hashes": {
+          "1": "0b6b69539d2bc274",
+          "2": "70ab35005deedb3d"
+        }
+      },
+      "tasks": {
+        "divergence_retirements": {
+          "aaa-aas-flags": 266,
+          "aad-flags": 207,
+          "bit-test-of": 279,
+          "bsf-bsr-flags": 151,
+          "cpuid-486sx": 466,
+          "daa-das-of": 257,
+          "div-flags": 1680,
+          "double-shift-wide-count": 82,
+          "imul-flags": 1794,
+          "interrupt-vector-before-push": 5,
+          "invalid-sib-scales-base": 2,
+          "mul-flags": 217,
+          "popad-esp-high-word": 33,
+          "shift-af": 822,
+          "shift-cf-wide-count": 78,
+          "shift-rotate-of": 897,
+          "v86-iopl-gp": 5
+        },
+        "failures": [],
+        "fault_vectors": {
+          "0": 13,
+          "10": 11,
+          "11": 207,
+          "12": 49,
+          "13": 1704,
+          "14": 116,
+          "17": 44,
+          "6": 52,
+          "8": 73
+        },
+        "i486_forms": {
+          "ac-delivery-stop": 2,
+          "ac-fault": 74,
+          "ac-toggle": 239,
+          "bswap16": 37,
+          "bswap32": 95,
+          "bswap32-fault13": 1,
+          "cmpxchg-m16-equal": 19,
+          "cmpxchg-m16-equal-lock": 12,
+          "cmpxchg-m16-fault17": 2,
+          "cmpxchg-m16-unequal": 13,
+          "cmpxchg-m16-unequal-lock": 7,
+          "cmpxchg-m32-equal": 17,
+          "cmpxchg-m32-equal-lock": 11,
+          "cmpxchg-m32-fault13": 1,
+          "cmpxchg-m32-unequal": 14,
+          "cmpxchg-m32-unequal-lock": 5,
+          "cmpxchg-m8-equal": 21,
+          "cmpxchg-m8-equal-lock": 14,
+          "cmpxchg-m8-unequal": 6,
+          "cmpxchg-m8-unequal-lock": 4,
+          "cmpxchg-r16-equal": 45,
+          "cmpxchg-r16-fault13": 1,
+          "cmpxchg-r16-lock-fault6": 6,
+          "cmpxchg-r16-unequal": 31,
+          "cmpxchg-r32-equal": 50,
+          "cmpxchg-r32-unequal": 17,
+          "cmpxchg-r8-equal": 22,
+          "cmpxchg-r8-lock-fault6": 1,
+          "cmpxchg-r8-unequal": 27,
+          "cpuid-0": 22,
+          "cpuid-1": 418,
+          "cpuid-2+": 48,
+          "invd": 68,
+          "invd-fault13": 7,
+          "invlpg": 224,
+          "invlpg-fault13": 5,
+          "wbinvd": 67,
+          "wbinvd-fault13": 5,
+          "wp-fault": 35,
+          "xadd-m16": 19,
+          "xadd-m16-fault13": 1,
+          "xadd-m16-lock": 6,
+          "xadd-m32": 23,
+          "xadd-m32-lock": 18,
+          "xadd-m8": 37,
+          "xadd-m8-lock": 19,
+          "xadd-r16": 79,
+          "xadd-r16-lock-fault6": 8,
+          "xadd-r32": 55,
+          "xadd-r8": 66,
+          "xadd-r8-lock-fault6": 1
+        },
+        "programs_per_seed": 250,
+        "seeds": [
+          3001,
+          3002,
+          3003,
+          3004,
+          3005,
+          3006,
+          3007,
+          3008,
+          3009,
+          3010,
+          3011,
+          3012,
+          3013,
+          3014,
+          3015,
+          3016
+        ],
+        "totals": {
+          "code_store_stops": 2,
+          "cs_rule": 103,
+          "cycles": 5890619,
+          "external_interrupts": 14760,
+          "faults": 2269,
+          "halts": 79,
+          "io_accesses": 839,
+          "iret_save_rule": 3,
+          "mmio_accesses": 36359,
+          "mmio_runs": 3368,
+          "nested": 301,
+          "nmis": 5529,
+          "passed": 4000,
+          "pm_retirements": 84266,
+          "rep_interrupts": 106,
+          "replays": 5319,
+          "retire_limits": 31,
+          "retirements": 233057,
+          "runs": 4000,
+          "shutdowns": 901,
+          "smc_restarts": 263,
+          "stray_stops": 491,
+          "vector_moved_stops": 217,
+          "window_code_stops": 6
+        },
+        "trace_hashes": {
+          "3001": "e41856b697ffd2ba",
+          "3002": "a141f1d2d44328b0",
+          "3003": "a380433ce9ff35b8",
+          "3004": "af96c3b4d934a7da",
+          "3005": "843edbee6e5b3d38",
+          "3006": "594d96b283abc25c",
+          "3007": "b1644b0fa84f5f36",
+          "3008": "85028d3369409fec",
+          "3009": "5f7a5f4c9f9b7aa0",
+          "3010": "e88d6ccb8749a7b0",
+          "3011": "3be2aa1d33a00dfe",
+          "3012": "44cf0e83337f495f",
+          "3013": "aebfb73c71ed0a86",
+          "3014": "6b7499fe426f11cb",
+          "3015": "dd4106b4fbe15114",
+          "3016": "a170f26a3030f035"
+        }
+      },
+      "undefined": {
+        "divergence_retirements": {
+          "aaa-aas-flags": 554,
+          "aad-flags": 190,
+          "aam-zero-flags": 1,
+          "bit-test-of": 620,
+          "bsf-bsr-flags": 700,
+          "cpuid-486sx": 95,
+          "daa-das-of": 485,
+          "div-flags": 269,
+          "double-shift-wide-count": 100,
+          "imul-flags": 1663,
+          "interrupt-vector-before-push": 1,
+          "invalid-sib-scales-base": 1,
+          "mul-flags": 211,
+          "popad-esp-high-word": 33,
+          "shift-af": 1445,
+          "shift-cf-wide-count": 96,
+          "shift-rotate-of": 1181,
+          "v86-iopl-gp": 7
+        },
+        "failures": [],
+        "fault_vectors": {
+          "0": 8,
+          "10": 4,
+          "11": 185,
+          "12": 39,
+          "13": 1734,
+          "14": 115,
+          "17": 44,
+          "6": 260,
+          "8": 65
+        },
+        "i486_forms": {
+          "ac-delivery-stop": 1,
+          "ac-fault": 84,
+          "ac-toggle": 287,
+          "bswap16": 28,
+          "bswap32": 550,
+          "cmpxchg-m16-equal": 17,
+          "cmpxchg-m16-equal-lock": 20,
+          "cmpxchg-m16-fault14": 1,
+          "cmpxchg-m16-lock-fault14": 1,
+          "cmpxchg-m16-unequal": 15,
+          "cmpxchg-m16-unequal-lock": 7,
+          "cmpxchg-m32-equal": 10,
+          "cmpxchg-m32-equal-lock": 6,
+          "cmpxchg-m32-lock-fault13": 1,
+          "cmpxchg-m32-unequal": 20,
+          "cmpxchg-m32-unequal-lock": 8,
+          "cmpxchg-m8-equal": 14,
+          "cmpxchg-m8-equal-lock": 23,
+          "cmpxchg-m8-unequal": 10,
+          "cmpxchg-m8-unequal-lock": 8,
+          "cmpxchg-r16-equal": 26,
+          "cmpxchg-r16-lock-fault6": 4,
+          "cmpxchg-r16-unequal": 18,
+          "cmpxchg-r32-equal": 30,
+          "cmpxchg-r32-unequal": 37,
+          "cmpxchg-r8-equal": 29,
+          "cmpxchg-r8-lock-fault6": 1,
+          "cmpxchg-r8-unequal": 13,
+          "cpuid-0": 20,
+          "cpuid-1": 46,
+          "cpuid-2+": 49,
+          "invd": 279,
+          "invd-fault13": 2,
+          "invlpg": 434,
+          "invlpg-fault13": 3,
+          "invlpg-reg-lock-fault6": 2,
+          "wbinvd": 69,
+          "wbinvd-fault13": 8,
+          "wp-fault": 28,
+          "xadd-m16": 226,
+          "xadd-m16-lock": 25,
+          "xadd-m32": 33,
+          "xadd-m32-lock": 16,
+          "xadd-m8": 26,
+          "xadd-m8-lock": 27,
+          "xadd-r16": 408,
+          "xadd-r16-lock-fault6": 4,
+          "xadd-r32": 61,
+          "xadd-r8": 50,
+          "xadd-r8-lock-fault6": 2
+        },
+        "programs_per_seed": 250,
+        "seeds": [
+          7001,
+          7002,
+          7003,
+          7004,
+          7005,
+          7006,
+          7007,
+          7008,
+          7009,
+          7010,
+          7011,
+          7012,
+          7013,
+          7014,
+          7015,
+          7016
+        ],
+        "totals": {
+          "code_store_stops": 1,
+          "cs_rule": 110,
+          "cycles": 5021176,
+          "external_interrupts": 10130,
+          "faults": 2454,
+          "halts": 50,
+          "io_accesses": 811,
+          "iret_save_rule": 52,
+          "mmio_accesses": 26651,
+          "mmio_runs": 3387,
+          "nested": 305,
+          "nmis": 4007,
+          "passed": 4000,
+          "pm_retirements": 77531,
+          "rep_interrupts": 144,
+          "replays": 4557,
+          "retire_limits": 14,
+          "retirements": 189902,
+          "runs": 4000,
+          "shutdowns": 840,
+          "smc_restarts": 287,
+          "stray_stops": 407,
+          "vector_moved_stops": 225,
+          "window_code_stops": 4
+        },
+        "trace_hashes": {
+          "7001": "8d5449b81567a4f9",
+          "7002": "1c2e6035149d0292",
+          "7003": "fe0f775b3732e447",
+          "7004": "260b901d9171b060",
+          "7005": "d7cf8e5f84a03600",
+          "7006": "45a15b1972ca42ad",
+          "7007": "151a19ec6daf804d",
+          "7008": "4355171db9d64d76",
+          "7009": "218126fc953593e2",
+          "7010": "8b1b02953e56a68d",
+          "7011": "fd8eab8d8ea62f0b",
+          "7012": "ff71f58978ffb609",
+          "7013": "58046f2631cc21d1",
+          "7014": "6522971c969842ea",
+          "7015": "04f3c146965e9628",
+          "7016": "5d6048f376b0d650"
+        }
+      }
+    }
+  },
+  "self_check": {
+    "cases": [
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "44332211",
+          "ebp": "49332211",
+          "ebx": "47332211",
+          "ecx": "45332211",
+          "edi": "4b332211",
+          "edx": "46332211",
+          "end": "halt",
+          "esi": "4a332211"
+        },
+        "i486": null,
+        "label": "bswap",
+        "pass": true,
+        "source": "PRM ch. 26, BSWAP",
+        "what": "BSWAP of each general register but ESP"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "halt",
+          "esp": "f3412"
+        },
+        "i486": null,
+        "label": "bswap-esp",
+        "pass": true,
+        "source": "PRM ch. 26, BSWAP",
+        "what": "BSWAP ESP"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "80000000",
+          "ebx": "7fffffff",
+          "eflags": "896",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-r32",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD EAX, EBX with signed overflow: the flags are ADD's"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "0",
+          "ebx": "ffff",
+          "eflags": "57",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-r16",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD AX, BX with carry out"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "10",
+          "ebx": "f",
+          "eflags": "12",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-r8",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD AL, BL with a half carry"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "ff",
+          "ecx": "0",
+          "eflags": "57",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m8",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD 8-bit memory form; carry, auxiliary carry or overflow result"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "ff",
+          "ecx": "0",
+          "eflags": "57",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m8-lock",
+        "pass": true,
+        "source": "PRM ch. 26, XADD; LOCK",
+        "what": "LOCK XADD 8-bit memory form; carry, auxiliary carry or overflow result"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "xadd-r8-lock",
+        "pass": true,
+        "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+        "what": "LOCK XADD 8-bit register form is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "7fff",
+          "ecx": "8000",
+          "eflags": "896",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m16",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD 16-bit memory form; carry, auxiliary carry or overflow result"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "7fff",
+          "ecx": "8000",
+          "eflags": "896",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m16-lock",
+        "pass": true,
+        "source": "PRM ch. 26, XADD; LOCK",
+        "what": "LOCK XADD 16-bit memory form; carry, auxiliary carry or overflow result"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "xadd-r16-lock",
+        "pass": true,
+        "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+        "what": "LOCK XADD 16-bit register form is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "5",
+          "ecx": "c",
+          "eflags": "6",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m32",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD 32-bit memory form; carry, auxiliary carry or overflow result"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "5",
+          "ecx": "c",
+          "eflags": "6",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m32-lock",
+        "pass": true,
+        "source": "PRM ch. 26, XADD; LOCK",
+        "what": "LOCK XADD 32-bit memory form; carry, auxiliary carry or overflow result"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "xadd-r32-lock",
+        "pass": true,
+        "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+        "what": "LOCK XADD 32-bit register form is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "cmpxchg-r8-lock",
+        "pass": true,
+        "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+        "what": "LOCK CMPXCHG 8-bit register form is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "5",
+          "ebx": "9",
+          "ecx": "9",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-r8-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "8-bit register CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "33",
+          "edx": "44",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m8-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "8-bit memory CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "33",
+          "edx": "44",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m8-equal-lock",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG; LOCK",
+        "what": "LOCK 8-bit memory CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "7",
+          "ebx": "7",
+          "ecx": "9",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-r8-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "8-bit register CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "33",
+          "edx": "33",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m8-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "8-bit memory CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "33",
+          "edx": "33",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m8-unequal-lock",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG; LOCK",
+        "what": "LOCK 8-bit memory CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "cmpxchg-r16-lock",
+        "pass": true,
+        "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+        "what": "LOCK CMPXCHG 16-bit register form is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "5",
+          "ebx": "9",
+          "ecx": "9",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-r16-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "16-bit register CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1234",
+          "edx": "5678",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m16-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "16-bit memory CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1234",
+          "edx": "5678",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m16-equal-lock",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG; LOCK",
+        "what": "LOCK 16-bit memory CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "7",
+          "ebx": "7",
+          "ecx": "9",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-r16-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "16-bit register CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1234",
+          "edx": "1234",
+          "eflags": "97",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m16-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "16-bit memory CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1234",
+          "edx": "1234",
+          "eflags": "97",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m16-unequal-lock",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG; LOCK",
+        "what": "LOCK 16-bit memory CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "cmpxchg-r32-lock",
+        "pass": true,
+        "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+        "what": "LOCK CMPXCHG 32-bit register form is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "12345678",
+          "ebx": "deadbeef",
+          "ecx": "deadbeef",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-r32-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "32-bit register CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "12345678",
+          "edx": "deadbeef",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m32-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "32-bit memory CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "12345678",
+          "edx": "deadbeef",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m32-equal-lock",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG; LOCK",
+        "what": "LOCK 32-bit memory CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "12345678",
+          "ebx": "12345678",
+          "ecx": "deadbeef",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-r32-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "32-bit register CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "12345678",
+          "edx": "12345678",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m32-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "32-bit memory CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "12345678",
+          "edx": "12345678",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m32-unequal-lock",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG; LOCK",
+        "what": "LOCK 32-bit memory CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "cmpxchg-a6",
+        "pass": true,
+        "source": "Bochs",
+        "what": "0F A6, the first stepping's CMPXCHG encoding, is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "invd",
+        "pass": true,
+        "source": "PRM ch. 26, INVD",
+        "what": "INVD at CPL 0 retires"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "wbinvd",
+        "pass": true,
+        "source": "PRM ch. 26, WBINVD",
+        "what": "WBINVD at CPL 0 retires"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "invlpg",
+        "pass": true,
+        "source": "PRM ch. 26, INVLPG",
+        "what": "INVLPG of a memory operand at CPL 0 retires"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "invlpg-reg",
+        "pass": true,
+        "source": "PRM ch. 26, INVLPG (invalid opcode with a register operand)",
+        "what": "INVLPG with a register operand is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:13",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "invd-cpl3",
+        "pass": true,
+        "source": "PRM ch. 26, INVD (privileged: #GP(0) if CPL is not 0)",
+        "what": "INVD at CPL 3 is #GP(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:13",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "wbinvd-cpl3",
+        "pass": true,
+        "source": "PRM ch. 26, WBINVD (privileged: #GP(0) if CPL is not 0)",
+        "what": "WBINVD at CPL 3 is #GP(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:13",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "invlpg-cpl3",
+        "pass": true,
+        "source": "PRM ch. 26, INVLPG (privileged: #GP(0) if CPL is not 0)",
+        "what": "INVLPG at CPL 3 is #GP(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "60050030",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cr0-read",
+        "pass": true,
+        "source": "PRM 4.1 for the bits; Bochs for reserved bits reading 0",
+        "what": "CR0 after reset reads 60000010h: CD, NW and ET"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "6005003e",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cr0-write-ones",
+        "pass": true,
+        "source": "PRM 4.1 for the bits; Bochs for reserved bits reading 0",
+        "what": "CR0 keeps NE, WP, AM, NW and CD with MP, EM, TS and ET"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "10",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cr0-write-zero",
+        "pass": true,
+        "source": "PRM 25.1 item 1",
+        "what": "ET stays 1 when written 0; CD and NW clear"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:13",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "cr0-nw-without-cd",
+        "pass": true,
+        "source": "PRM Table 12-1 (CD 0, NW 1: invalid, #GP(0))",
+        "what": "NW set with CD clear is #GP(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "30",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "lmsw-keeps-ne",
+        "pass": true,
+        "source": "PRM 4.1 (LMSW does not affect PG, CD, NW, AM, WP, NE or ET); DB 4.2.3.1",
+        "what": "LMSW leaves NE and ET as they were"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ecx": "12345678",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "wp-clear-user-readonly",
+        "pass": true,
+        "source": "PRM 6.8.2 (WP clear: write protection is ignored at supervisor level)",
+        "what": "WP clear: a CPL-0 write to a read-only user page succeeds"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "cr2": "20000",
+          "end": "exception:14",
+          "error": "3"
+        },
+        "i486": null,
+        "label": "wp-set-user-readonly",
+        "pass": true,
+        "source": "PRM 4.1, 6.8.2",
+        "what": "WP set: a CPL-0 write to a read-only user page is #PF, error 3"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "cr2": "20000",
+          "end": "exception:14",
+          "error": "3"
+        },
+        "i486": null,
+        "label": "wp-set-supervisor-readonly",
+        "pass": true,
+        "source": "Bochs (PRM 4.1 and 6.8.2 speak of user-level pages only)",
+        "what": "WP set: a CPL-0 write to a read-only supervisor page is #PF"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ecx": "12345678",
+          "edx": "e0050031",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "wp-set-writable",
+        "pass": true,
+        "source": "PRM 4.1, 6.8.2",
+        "what": "WP set: a CPL-0 write to a writable page succeeds, and CR0 reads back with WP"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "40002",
+          "ecx": "2",
+          "edx": "2",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "ac-toggle",
+        "pass": true,
+        "source": "PRM Figure 3-23 (the CPU identification listing, p. 3-43)",
+        "what": "EFLAGS.AC can be set and cleared: the test that tells a 486 from a 386"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "200002",
+          "ecx": "2",
+          "edx": "2",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "id-toggle",
+        "pass": true,
+        "source": "DB 4.2.2.3",
+        "what": "EFLAGS.ID can be set and cleared: the processor has CPUID"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-fault-dword",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "CPL 3, AM and AC set: a doubleword read at an odd address is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-fault-word",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "the same for a word read at an odd address"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-fault-dword-at-2",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "a doubleword read at an address that is 2 modulo 4 is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-fault-push",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "a PUSH on a misaligned stack is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-aligned",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "an aligned doubleword read does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-byte",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "a byte read does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-am-clear",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "AM clear: no #AC"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-flag-clear",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "AC clear: no #AC"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "40002",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "ac-cpl0",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "CPL 0 with AM and AC set: no #AC, and AC reads back set"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1",
+          "ebx": "756e6547",
+          "ecx": "6c65746e",
+          "edx": "49656e69",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cpuid-0",
+        "pass": true,
+        "source": "AP-485 3.1, Table 1 (the vendor string); Bochs for the highest leaf, 1",
+        "what": "CPUID leaf 0: one leaf, GenuineIntel"
+      },
+      {
+        "differences": [],
+        "divergence": "cpuid-leaf-1",
+        "expected": {
+          "eax": "480",
+          "ebx": "0",
+          "ecx": "0",
+          "edx": "1",
+          "end": "halt"
+        },
+        "i486": "per part: an SX is 042xh with EDX bit 0 clear, a DX 040xh or 041xh, a DX2 043xh",
+        "label": "cpuid-1",
+        "pass": true,
+        "source": "AP-485 Tables 3 and 5 (a DX4 is family 4, model 8; bit 0 an FPU); Bochs for EBX and ECX",
+        "what": "CPUID leaf 1 is the DX4 Bochs models, with an FPU and no VME"
+      },
+      {
+        "differences": [],
+        "divergence": "mov-tr",
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": "TR3 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
+        "label": "mov-tr3",
+        "pass": true,
+        "source": "Bochs",
+        "what": "MOV to and from TR3"
+      },
+      {
+        "differences": [],
+        "divergence": "mov-tr",
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": "TR4 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
+        "label": "mov-tr4",
+        "pass": true,
+        "source": "Bochs",
+        "what": "MOV to and from TR4"
+      },
+      {
+        "differences": [],
+        "divergence": "mov-tr",
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": "TR5 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
+        "label": "mov-tr5",
+        "pass": true,
+        "source": "Bochs",
+        "what": "MOV to and from TR5"
+      },
+      {
+        "differences": [],
+        "divergence": "mov-tr",
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": "TR6 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
+        "label": "mov-tr6",
+        "pass": true,
+        "source": "Bochs",
+        "what": "MOV to and from TR6"
+      },
+      {
+        "differences": [],
+        "divergence": "mov-tr",
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": "TR7 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
+        "label": "mov-tr7",
+        "pass": true,
+        "source": "Bochs",
+        "what": "MOV to and from TR7"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "mov-cr4-read",
+        "pass": true,
+        "source": "DB 4.2.3.1 (CR4 only with VME, PVI or PSE; the 486 identity has none)",
+        "what": "MOV EAX, CR4 is #UD: there is no CR4"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "mov-cr4-write",
+        "pass": true,
+        "source": "DB 4.2.3.1 (CR4 only with VME, PVI or PSE; the 486 identity has none)",
+        "what": "MOV CR4, EAX is #UD: there is no CR4"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "6",
+          "eflags": "6",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-same-r32",
+        "pass": true,
+        "source": "PRM ch. 26, XADD (TEMP <- SRC + DEST; SRC <- DEST; DEST <- TEMP)",
+        "what": "XADD EAX, EAX: the sum"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1110",
+          "eflags": "6",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-hi8",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD AH, AL"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "5",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-eax-eax",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG EAX, EAX: always equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "2",
+          "ebx": "2",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-src-eax-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG EBX, EAX, equal: EBX from EAX"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "2",
+          "ebx": "2",
+          "eflags": "97",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-src-eax-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG EBX, EAX, unequal: EAX from EBX"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "905",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-hi8-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG AH, CL, equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "707",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-hi8-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG AH, CL, unequal: AL from AH"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "cr2": "20000",
+          "eax": "1",
+          "eflags": "46",
+          "end": "exception:14",
+          "error": "3"
+        },
+        "i486": null,
+        "label": "cmpxchg-m32-readonly",
+        "pass": true,
+        "source": "PRM 4.1, 6.8.2; ch. 26, CMPXCHG",
+        "what": "CMPXCHG to a read-only page with WP set: #PF, error 3, flags and EAX unchanged"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "cr2": "20000",
+          "eax": "1",
+          "eflags": "46",
+          "end": "exception:14",
+          "error": "2"
+        },
+        "i486": null,
+        "label": "cmpxchg-m32-notpresent",
+        "pass": true,
+        "source": "PRM 6.8; ch. 26, CMPXCHG",
+        "what": "CMPXCHG to a page not present: #PF with W set (error 2)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "cr2": "20000",
+          "ebx": "7",
+          "eflags": "46",
+          "end": "exception:14",
+          "error": "2"
+        },
+        "i486": null,
+        "label": "xadd-m32-notpresent",
+        "pass": true,
+        "source": "PRM 6.8; ch. 26, XADD",
+        "what": "XADD to a page not present: #PF with W set (error 2)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "e0050011",
+          "ebx": "22",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "invlpg-remap",
+        "pass": true,
+        "source": "PRM ch. 26, INVLPG",
+        "what": "INVLPG drops the old translation of a remapped page"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "invlpg-past-limit",
+        "pass": true,
+        "source": "PRM ch. 26, INVLPG (real-address mode exceptions: none; no segment check is listed in any mode)",
+        "what": "INVLPG of an offset past the segment limit makes no check and does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "invlpg-notpresent",
+        "pass": true,
+        "source": "PRM ch. 26, INVLPG (no exceptions but #UD and #GP(0) for the privilege)",
+        "what": "INVLPG of a page not present does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-popfd-then-load",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "CPL 3: POPFD sets AC, and the next misaligned read is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-popfd-clears",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "CPL 3: POPFD clears AC, and the next misaligned read does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-movsd-destination",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "MOVSD with a misaligned destination is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-movsd-source",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "MOVSD with a misaligned source is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-movsd-aligned",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "MOVSD with both addresses aligned does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-delivery-odd-esp0",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "INT3 from CPL 3 onto an odd ESP0 does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "ac-delivery-same-privilege",
+        "pass": true,
+        "source": "Bochs (no 486 document read settles a delivery's pushes)",
+        "what": "#UD delivered at CPL 3 onto a misaligned stack takes no #AC"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-xadd-m32",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "a misaligned XADD is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-lfs-at-2",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "LFS of a 48-bit pointer at 2 modulo 4 is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-lfs-aligned",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "LFS of an aligned 48-bit pointer does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-bound-aligned",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "BOUND of two aligned doublewords does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-bound-at-2",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "BOUND with its doublewords at 2 modulo 4 is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-sgdt-at-2",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "SGDT at 2 modulo 4 (its base aligned) does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-sgdt-aligned",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "SGDT at 0 modulo 4 (its base at 2) is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eflags": "2",
+          "end": "int:16"
+        },
+        "i486": null,
+        "label": "ac-real-int-clears",
+        "pass": true,
+        "source": "SDM INT n (real-address mode); Bochs (the 1992 PRM lists IF and TF only)",
+        "what": "a real-mode interrupt clears AC"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eflags": "40002",
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-pm-int-keeps",
+        "pass": true,
+        "source": "PRM ch. 26, INT n (protected mode)",
+        "what": "a protected-mode interrupt keeps AC"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "11220000",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "bswap-r16",
+        "pass": true,
+        "source": "Bochs (PRM ch. 26, BSWAP: undefined for a 16-bit register)",
+        "what": "BSWAP AX"
+      },
+      {
+        "differences": [],
+        "divergence": "cpuid-above-highest",
+        "expected": {
+          "eax": "480",
+          "end": "halt"
+        },
+        "i486": "zeros in EAX, EBX, ECX and EDX (DB Appendix B, item 3; AP-485 Table 1 says undefined)",
+        "label": "cpuid-2",
+        "pass": true,
+        "source": "Bochs (it answers leaf 1)",
+        "what": "CPUID leaf 2, above the highest"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "ffff1ff0",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "dr6-bit12",
+        "pass": true,
+        "source": "Intel SDM vol. 3, debug registers (compatibility); PRM Table 10-1",
+        "what": "DR6 bit 12 is writable on a 486"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "7fff",
+          "ecx": "8000",
+          "eflags": "896",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m16-mmio",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD to MMIO reads its operand once"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1234",
+          "ecx": "5678",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m16-mmio-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG to MMIO, equal, reads its operand once"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "4321",
+          "ecx": "4321",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m16-mmio-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG to MMIO, unequal, reads its operand once"
+      }
+    ],
+    "reset": [
+      {
+        "expected": "00000480",
+        "field": "edx",
+        "oracle": "00000480",
+        "pass": true,
+        "source": "PRM 10.1, Figure 10-1; DB Tables 9-8 and 9-9: 0400h and the revision, here the DX4 of CPUID leaf 1 (set by the adapter)"
+      },
+      {
+        "expected": "ffff0ff0",
+        "field": "dr6",
+        "oracle": "ffff0ff0",
+        "pass": true,
+        "source": "PRM Table 10-1 (set by the adapter)"
+      },
+      {
+        "expected": "60000010",
+        "field": "cr0",
+        "oracle": "60000010",
+        "pass": true,
+        "source": "PRM Figure 10-2; DB Table 9-8"
+      },
+      {
+        "expected": "00000002",
+        "field": "eflags",
+        "oracle": "00000002",
+        "pass": true,
+        "source": "PRM Table 10-1"
+      },
+      {
+        "expected": "0000f000",
+        "field": "cs",
+        "oracle": "0000f000",
+        "pass": true,
+        "source": "PRM Table 10-1"
+      },
+      {
+        "expected": "ffff0000",
+        "field": "cs.base",
+        "oracle": "ffff0000",
+        "pass": true,
+        "source": "PRM Table 10-1"
+      },
+      {
+        "expected": "0000fff0",
+        "field": "eip",
+        "oracle": "0000fff0",
+        "pass": true,
+        "source": "PRM Table 10-1"
+      }
+    ]
+  },
+  "testbench_sha256": "7da5feb55880c05f50a9bdf1c752b54758edcfea35941718a03e346aa78da1b8",
+  "verilator": {
+    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+    "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c",
+    "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+    "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+    "version": "Verilator 5.054 2026-11-01 rev v5.054"
+  }
+}
