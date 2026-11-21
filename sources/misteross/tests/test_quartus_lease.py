@@ -130,6 +130,63 @@ PINNED = {
 RECEIPT = "sources/misteross/tests/fixtures/de25-combined-proof.json"
 
 
+SHELL_SEPARATORS = {";", "&&", "||", "|", "&", "(", ")", ";;", "|&", "{", "}", "!"}
+NOT_RUNS = {"echo", "printf", "fail", "grep", "[", "test", "[["}
+SUBSTITUTION = re.compile(r"(\$\(|`)")
+
+
+def shell_runs(text: str):
+    """(line, reason) for each leased Quartus program a shell script runs
+    outside `quartus_jobs.py run`.
+
+    Lines are split into simple commands by a real shell tokenizer (quotes,
+    comments and separators as the shell sees them). In a command, a word
+    naming a leased program is a run unless it is a --version/--help probe,
+    the operand of a test command, an argument of echo/printf/fail/grep, or
+    after the `--` of a `quartus_jobs.py run`. A command substitution that
+    names one is always a run, wherever it appears."""
+    logical, start = "", 0
+    for number, line in enumerate(text.splitlines(), 1):
+        if not logical:
+            start = number
+        if line.endswith("\\"):
+            logical += line[:-1] + " "
+            continue
+        logical += line
+        current, logical = logical, ""
+        lexer = shlex.shlex(current, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        try:
+            words = list(lexer)
+        except ValueError:
+            words = current.split()
+        commands, command = [], []
+        for word in words:
+            if word in SHELL_SEPARATORS:
+                commands.append(command)
+                command = []
+            else:
+                command.append(word)
+        commands.append(command)
+        for command in commands:
+            for index, word in enumerate(command):
+                for inner in SUBSTITUTION.split(word)[1:]:
+                    if LEASED.search(inner):
+                        yield start, f"runs {LEASED.search(inner).group(0)} in a command substitution"
+                if SUBSTITUTION.search(word) or not LEASED.search(os.path.basename(word)) \
+                        or not LEASED.fullmatch(os.path.basename(word)):
+                    continue
+                if index + 1 < len(command) and PROBE.match(command[index + 1]):
+                    continue
+                head = next((w for w in command if "=" not in w.split("/")[0]), "")
+                if os.path.basename(head) in NOT_RUNS and index > 0:
+                    continue
+                if "--" in command[:index] and any(w.endswith("quartus_jobs.py") for w in command[:index]) \
+                        and "run" in command[:command.index("--")]:
+                    continue
+                yield start, f"runs {os.path.basename(word)} outside quartus_jobs.py run"
+
+
 def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None) -> list[str]:
     """Each tracked script that could run a leased Quartus program unleased.
 
@@ -178,22 +235,7 @@ def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None
                 failures.append(f"{name}: starts processes and names a Quartus program, "
                                 "but never imports scripts.quartus_tools")
             continue
-        for number, line in enumerate(text.splitlines(), 1):
-            code = line.split("#", 1)[0]
-            for match in LEASED.finditer(code):
-                before, after = code[:match.start()], code[match.end():]
-                if PROBE.match(after.lstrip('"\'')) or "quartus_jobs.py run" in before:
-                    continue
-                # Not a run: the operand of a file test (`[ -x "$Q/quartus_sh" ]`),
-                # or a word inside a quoted message of echo/printf/fail/grep.
-                # A command substitution runs whatever it names, even inside
-                # a quoted message or a test operand.
-                substituted = re.search(r"(\$\(|`)[^)`]*$", before)
-                if not substituted and re.search(r"(^|[\s\[])-[xfe]\s+[\"']?[^\s\"']*$", before):
-                    continue
-                if not substituted and re.search(r"\b(echo|printf|fail|grep)\s+[\"'][^\"']*$", before):
-                    continue
-                failures.append(f"{name}:{number}: runs {match.group(0)} outside quartus_jobs.py run")
+        failures.extend(f"{name}:{number}: {why}" for number, why in shell_runs(text))
     return failures
 
 
@@ -291,10 +333,16 @@ class StaticRuleTests(unittest.TestCase):
             echo "$(quartus_sh --flow compile top)"
             grep "`quartus_fit top`" file
             [ -x "$(quartus_sh --flow compile top)" ]
+            echo "#"; quartus_sh --flow compile top
+            echo "quartus_jobs.py run"; quartus_sh --flow compile top
+            timeout 600 \\
+              quartus_sh --flow compile top  # a continued line
+            # quartus_sh --flow compile top   (a comment)
             """})
         self.assertEqual([f.split(": ")[0] for f in failures],
                          ["scripts/job.sh:4", "scripts/job.sh:7", "scripts/job.sh:8", "scripts/job.sh:9",
-                          "scripts/job.sh:10", "scripts/job.sh:11", "scripts/job.sh:12"])
+                          "scripts/job.sh:10", "scripts/job.sh:11", "scripts/job.sh:12", "scripts/job.sh:13",
+                          "scripts/job.sh:14", "scripts/job.sh:15"])
 
 
 def registered_closure() -> set[Path]:
