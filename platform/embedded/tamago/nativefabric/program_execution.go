@@ -135,6 +135,24 @@ func (p *programService) startExecution(ctx context.Context, view ProgramService
 			return ProgramFetchObservation{}, fmt.Errorf("%w: fetches changed during held tape load", ErrProgramExecution)
 		}
 	}
+	if p.plan != nil && p.plan.state != nil && p.plan.state.program != nil {
+		program := p.plan.state.program
+		if program.role == programRoleSpectrum48 {
+			// The private ROM was read and linked before SD containment.
+			// Keep the existing control deadline across upload and proof.
+			if err := run(func() error { return c.LoadInitialFirmware(ctx, program.firmware) }); err != nil {
+				return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
+			}
+			var held computer.FetchActivity
+			if err := sample(&held); err != nil {
+				return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
+			}
+			if held != o.Held {
+				return ProgramFetchObservation{}, fmt.Errorf("%w: fetches changed during held firmware upload", ErrProgramExecution)
+			}
+			o.Scope = "nano-spectrum48-fetch-v1"
+		}
+	}
 	if err := run(func() error { return c.Run(ctx) }); err != nil {
 		return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
 	}

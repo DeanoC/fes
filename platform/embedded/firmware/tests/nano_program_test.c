@@ -293,15 +293,18 @@ static void spectrum_cases(void)
 
 int main(int argc,char **argv)
 {
-    if(argc==2 || argc==3 || argc==6) {
+    if(argc==2 || argc==3 || argc==6 || argc==7) {
         struct fixture f;init(&f);FILE *in=fopen(argv[1],"rb");assert(in);
         f.program.chunk=0xfffc0; /* The paired native fixture's qualified block size. */
         f.configuration.chunk=0xfffc0;
         uint64_t generation=1;
-        if(argc==6) {
+        int spectrum=argc==7;
+        int roles=spectrum || (argc==6 && !strcmp(argv[2],"owned-role"));
+        if(argc>=6) {
             /* Trusted modeled boot state arrives separately from the request.
              * Never adopt ownership, context or chunk geometry from f.wire. */
-            assert((!strcmp(argv[2],"owned-rom") || !strcmp(argv[2],"owned-role")) && strlen(argv[4])==64);
+            assert((spectrum ? !strcmp(argv[2],"owned-spectrum") :
+                    (roles || !strcmp(argv[2],"owned-rom"))) && strlen(argv[4])==64);
             char *end;errno=0;generation=strtoull(argv[3],&end,10);
             assert(!errno && end!=argv[3] && !*end && generation && generation<UINT64_MAX);
             errno=0;unsigned long chunk=strtoul(argv[5],&end,10);
@@ -323,16 +326,23 @@ int main(int argc,char **argv)
             f.configuration.maximum=FES_NANO_PROGRAM_MAX_BYTES;
         }
         assert(fread(f.wire,1,sizeof(f.wire),in)==sizeof(f.wire));
-        if(argc==3 || argc==6) {
+        if(argc==3 || argc>=6) {
             f.program.maximum=FES_NANO_PROGRAM_MAX_BYTES;
             assert(!fes_nano_program_enable_rom(&f.program,read_rom_header));
-            if(argc==6 && !strcmp(argv[2],"owned-role"))assert(!fes_nano_program_enable_roles(&f.program));
+            if(roles)assert(!fes_nano_program_enable_roles(&f.program));
+            if(spectrum) {
+                FILE *policy=fopen(argv[6],"rb");assert(policy);
+                struct fes_nano_spectrum48_program matched;
+                assert(fread(&matched,1,sizeof(matched),policy)==sizeof(matched));
+                assert(fgetc(policy)==EOF);fclose(policy);
+                assert(!fes_nano_program_enable_spectrum48(&f.program,&matched));
+            }
             assert(fread(f.rom_wire,1,sizeof(f.rom_wire),in)==sizeof(f.rom_wire));
         }
         assert(fgetc(in)==EOF);fclose(in);
         /* The paired Go fixture uses this independent context and ownership. */
         uint64_t reply[4];fes_nano_configuration_prepare(&f.configuration,17,generation,0,reply);
-        if(argc==6 && (reply[0] || (uint32_t)reply[1]!=(FES_NANO_PROGRAM_BOUND_REPLY|f.program.bytes))) {
+        if(argc>=6 && (reply[0] || (uint32_t)reply[1]!=(FES_NANO_PROGRAM_BOUND_REPLY|f.program.bytes))) {
             fputs("owned ROM descriptor rejected\n",stderr);return 2;
         }
         assert(!reply[0] && (uint32_t)reply[1]==(FES_NANO_PROGRAM_BOUND_REPLY|f.program.bytes));
@@ -340,8 +350,8 @@ int main(int argc,char **argv)
         uint32_t words[4];assert(!fes_nano_program_build(&f.program,words));
         for(unsigned i=0;i<4;i++)printf("%08x ",words[i]);
         for(unsigned i=0;i<32;i++)printf("%02x",f.program.header[72+i]);
-        if(argc==3 || argc==6)printf(" %u %u %08x",f.program.rom_offset,f.program.rom_bytes,f.program.rom_crc);
-        if(argc==6 && !strcmp(argv[2],"owned-role")) {
+        if(argc==3 || argc>=6)printf(" %u %u %08x",f.program.rom_offset,f.program.rom_bytes,f.program.rom_crc);
+        if(roles) {
             uint32_t role=0,abi=0;assert(!fes_nano_program_role(&f.program,&role,&abi));
             printf(" role=%u abi=%08x",role,abi);
         }

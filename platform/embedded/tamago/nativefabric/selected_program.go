@@ -112,6 +112,7 @@ type ProgramLoader struct {
 	support       *runtimeadmission.DriverSupport
 	compatibility *runtimeadmission.RuntimeCompatibility
 	menu          *menuProgramDriver
+	spectrum48    *spectrum48Program
 }
 
 func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configuration, computerRaw []byte) (*ProgramLoader, error) {
@@ -193,6 +194,7 @@ type selectedProgram struct {
 	configurationRaw []byte
 	computerRaw      []byte
 	rom              []byte
+	firmware         []byte
 	romReceipt       string
 	tape             []byte
 }
@@ -206,8 +208,13 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	}
 	i := selection.Inspection()
 	d := i.Descriptor
-	if d.Target.ProgrammingProfile == HPSFirstMenuProfile {
+	switch d.Target.ProgrammingProfile {
+	case HPSFirstMenuProfile:
 		return l.preflightMenu(selection)
+	case spectrum48Profile:
+		if l.spectrum48 != nil {
+			return l.preflightSpectrum48(selection)
+		}
 	}
 	p := l.platform
 	if d.Target.ProgrammingProfile != p.ProgrammingProfile {
@@ -423,7 +430,9 @@ func (t *ConfigurationTransfer) ProgramIdentity() (fabricmodel.PackageIdentity, 
 // Kept local so descriptor assertions never become a boot verification call.
 func (v *HPSContextVerifier) programConfiguration(control, raw []byte, p *selectedProgram) (coldConfigurationMap, error) {
 	menu := p != nil && p.loader != nil && p.loader.boot == v && p.loader.menu != nil && p.role == programRoleMenu && p.menu != nil
-	if v != nil && v.rom != nil && !menu && (p == nil || len(p.rom) == 0) {
+	spectrum := p != nil && p.loader != nil && p.loader.boot == v && p.loader.spectrum48 != nil &&
+		p.role == programRoleSpectrum48 && len(p.firmware) == spectrum48ROMBytes && len(p.rom) == 0
+	if v != nil && v.rom != nil && !menu && !spectrum && (p == nil || len(p.rom) == 0) {
 		return coldConfigurationMap{}, errors.New("native fabric: ROM configuration requires its retained selected program")
 	}
 	if p == nil {

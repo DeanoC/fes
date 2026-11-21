@@ -38,7 +38,7 @@ var expectedNativeComputer string
 var expectedInitialTape string
 var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
-var expectedCompiledMenuProgram string
+var expectedCompiledMenuProgram, expectedCompiledSpectrum48 string
 var expectedTenfootSerial string
 var expectedWritableStoragePlan, expectedSDTransferClock string
 var programWritableStorageSelected bool
@@ -74,7 +74,7 @@ func main() {
 		if expectedMenuPresent != "1" || expectedMenuReadMap == "" || expectedWindowMemory != "" || expectedWindowReadMap != "" ||
 			expectedWindowPresent != "" || expectedWindowStorageReturn != "" || expectedWindowReload != "" || expectedWindowService != "" ||
 			expectedDDRReadMap != "" || expectedComputerMap != "" || expectedROMMap != "" || expectedNativeComputer != "" ||
-			expectedComputerReload != "" || expectedComputerStorageReturn != "" || expectedSelectedPrograms != "" || expectedProgramPlatform != "" ||
+			expectedComputerReload != "" || expectedComputerStorageReturn != "" || expectedSelectedPrograms != "" || expectedProgramPlatform != "" || expectedCompiledSpectrum48 != "" ||
 			expectedTenfootSerial != "" || expectedUSBControl != "" || expectedCompiledMenuProgram != "" {
 			panic("menu presentation requires its complete separate compiled boot selection")
 		}
@@ -158,10 +158,13 @@ func main() {
 		} else {
 			loader, err = nativefabric.NewProgramLoader(v, decoded(expectedProgramPlatform, 16384), control, configuration, decoded(expectedComputerMap, 8192))
 		}
+		if err == nil && expectedCompiledSpectrum48 != "" {
+			loader, err = loader.WithSpectrum48(decoded(expectedCompiledSpectrum48, 16384))
+		}
 		if err != nil {
 			panic(err)
 		}
-	} else if expectedProgramPlatform != "" || expectedCompiledMenuProgram != "" {
+	} else if expectedProgramPlatform != "" || expectedCompiledMenuProgram != "" || expectedCompiledSpectrum48 != "" {
 		panic("program platform provided without selected program mode")
 	}
 	if err := prepareProgramNetwork(v); err != nil {

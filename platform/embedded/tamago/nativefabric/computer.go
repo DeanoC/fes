@@ -252,7 +252,7 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 	}
 	binding := *transfer.binding
 	menu := binding.menuReturn
-	fromMenu := binding.program != nil && binding.program.role == programRoleComputer && binding.program.loader.menu != nil &&
+	fromMenu := binding.program != nil && (binding.program.role == programRoleComputer || binding.program.role == programRoleSpectrum48) && binding.program.loader.menu != nil &&
 		menu != nil && menu.self == menu && menu.verifier == v && v.menuSession == menu &&
 		menu.closed && menu.closeErr == nil && menu.storageResumed && menu.nextAttempted && menu.returned.Frames > 0 &&
 		menu.returned.After.Generation <= math.MaxUint64-3 && binding.source.Bridges.Generation == menu.returned.After.Generation+3
@@ -297,7 +297,8 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 		return nil, errors.New("native fabric: computer build encoding invalid")
 	}
 	copy(wantID.Build[:], build)
-	if _, secure := cpu.(InitialTapePlatform); secure {
+	spectrum := binding.program != nil && binding.program.role == programRoleSpectrum48
+	if _, secure := cpu.(InitialTapePlatform); secure && !spectrum {
 		s.control, err = computer.OpenWithInitialTape(ctx, s.port, limits, wantID, s.port.loadInitialTape)
 	} else {
 		s.control, err = computer.Open(ctx, s.port, limits, wantID)
