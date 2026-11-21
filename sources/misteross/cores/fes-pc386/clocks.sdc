@@ -1,4 +1,4 @@
-# Quartus seal of the pc386 shell (scripts/build_fes_pc386_quartus.py). The
+# Quartus seal of the pc386 shell (scripts/pc386_quartus.py). The
 # 50 MHz DE10-Nano reference drives two PLLs: system_clock makes the system
 # and 12.288 MHz audio clocks, video_clock the 74.25 MHz pixel clock. Paths
 # between the two PLLs are not timed, so every crossing must be synchronised

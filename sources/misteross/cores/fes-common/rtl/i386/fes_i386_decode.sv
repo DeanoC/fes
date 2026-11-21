@@ -85,12 +85,7 @@
 // src1 is always the destination's register: a byte or word result merges
 // into its old value. A LOOP or JCXZ counts in CX or ECX by address size, which
 // is the uop's size; its target is truncated by operand size (opsize32).
-module fes_i386_decode #(
-    // The x87 unit's arithmetic backend, as fes_i386_cpu's parameter of the
-    // same name: it decides which ESC forms are built (fes_i386_pkg's
-    // x87_format and x87_decode take it) and so which this decode stops.
-    parameter int X87_BACKEND = 0
-) (
+module fes_i386_decode (
     input  fes_i386_pkg::fetched_t q,
     input  logic                   code32,      // CS.D
     input  logic                   stack,       // the address is BP-, EBP- or ESP-based (fes_i386_amode)
@@ -1166,13 +1161,12 @@ module fes_i386_decode #(
                     nm = esc_nm;
                     x87_insn = 1'b1;
                     if (x87) begin
-                        x87_fmt = fes_i386_pkg::x87_format(b0[2:0], reg_f, X87_BACKEND == 1);
+                        x87_fmt = fes_i386_pkg::x87_format(b0[2:0], reg_f);
                         // A form a later slice builds stops as not built,
                         // but #NM comes first: with EM or TS set a 386
                         // raises it for every ESC, whatever the form, which
                         // is what lazy context switching relies on.
-                        known = esc_nm || fes_i386_pkg::x87_decode({b0[2:0], modrm}, x87_fmt,
-                                                                   X87_BACKEND == 1)
+                        known = esc_nm || fes_i386_pkg::x87_decode({b0[2:0], modrm}, x87_fmt)
                                        != fes_i386_pkg::X87_UNIMPL;
                         if (reg_form) begin
                             if (b0 == 8'hdf && modrm == 8'he0) begin
@@ -1197,14 +1191,11 @@ module fes_i386_decode #(
                             mbytes = 3'd4;
                             x87p = 2'(fes_i386_pkg::X87P_IPDP);
                             // The access shape, by ESC and reg field.
-                            // FBLD and FBSTP (DF /4, /6) come first and only
-                            // on the DE25 backend, which builds them; on the
-                            // DE10's the case below is all there is, and they
-                            // fall to its default as they always have.
+                            // FBLD and FBSTP (DF /4, /6) come first.
                             // **This is the table that fails unsafe** (see
                             // the D8 arm): the lockstep's x87 BCD suite reads
                             // and writes operands a wrong shape would misread.
-                            if (X87_BACKEND == 1 && {b0[2:0], reg_f} == 6'o74) begin
+                            if ({b0[2:0], reg_f} == 6'o74) begin
                                 // FBLD (DF /4): ten bytes read as FLD m80's
                                 // are, the probe of the last byte, then the
                                 // ROM's dwords at 0 and 4 and its word at 8.
@@ -1216,7 +1207,7 @@ module fes_i386_decode #(
                                 seq = fes_i386_pkg::SEQ_UCODE;
                                 upc = fes_i386_ucode_pkg::UC_XLD10;
                                 eoi = 1'b0;
-                            end else if (X87_BACKEND == 1 && {b0[2:0], reg_f} == 6'o76) begin
+                            end else if ({b0[2:0], reg_f} == 6'o76) begin
                                 // FBSTP (DF /6): ten bytes stored as FSTP
                                 // m80's are, the probe of the last byte,
                                 // then the ROM's dwords at 0 and 4 and its
@@ -1392,9 +1383,8 @@ module fes_i386_decode #(
                                     eoi = 1'b0;
                                 end
                                 default: begin
-                                    // A form this build does not run (FBLD
-                                    // and FBSTP on the DE10 backend, and
-                                    // the encodings no 387 defines),
+                                    // A form this build does not run (the
+                                    // encodings no 387 defines),
                                     // stopped by known above. The offset
                                     // goes to AG, as the empty socket's
                                     // does, so the trace has the data

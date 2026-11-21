@@ -1,0 +1,21 @@
+artefact               lock   qsf    sdc    recipe   design   shipped 
+fes.menu               same   same   same   same     same     -       
+splash                 same   same   same   -        -        -       
+fes.pong               same   same   same   same     same     -       
+fes.ramtest            same   same   same   same     same     -       
+fes.riscv              same   same   same   same     same     -       
+fes.coleco             same   same   same   same     same     -       
+fes.c64                same   same   same   same     same     -       
+fes.spectrum           same   same   same   same     same     -       
+fes.spectrum128        same   same   same   same     same     -       
+fes.spectrum-plus3     same   same   same   same     same     -       
+fes.pentagon           same   same   same   same     same     -       
+fes.zx81               same   same   same   same     same     same    
+fes.zx80               same   same   same   same     same     same    
+fes.ts1000             same   same   same   same     same     same    
+fes.ts1500             same   same   same   same     same     same    
+
+tree_a: 541e3c548751  sources 6b2d792a3432  config fc8055eb26c3  clean
+tree_b: 3ed4f2867f9b  sources e046d3c23156  config b4bb5aa71451  clean
+every route-deciding input is byte-identical
+wrote /home/deano/fes/.claude/worktrees/gpu-router-default/docs/validation/2026-11-14-1861-gpu-router-netlists/reports-preserve/seal2-to-head-route-inputs.json

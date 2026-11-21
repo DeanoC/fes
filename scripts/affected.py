@@ -357,8 +357,8 @@ def fpga_cores(path):
                                 'tests/test_sim_fes_ramtest_hook.py'):
         return ('ramtest',), 'shared HPS DDR guard simulation'
     if len(parts) >= 3 and parts[0] == 'cores':
-        # The DE25 x87 arithmetic backend is i386 RTL -- fes_i386_x87
-        # instantiates fes_x87_core when X87_BACKEND selects it -- but the
+        # The x87 arithmetic backend is i386 RTL -- fes_i386_x87
+        # instantiates fes_x87_core -- but the
         # standalone fes_x87_pipe built from the same files is still checked
         # by the de25-x87 family, so a change to them must run both.
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
@@ -444,7 +444,7 @@ def fpga_cores(path):
         if parts[1] in ATARI_ST_SCRIPTS:
             return ('atari-st',), 'Atari ST socket/card/ROM test recipe'
         if parts[1] in ('build_pc386_firmware.py', 'build_pc386_freedos_image.py', 'build_pc386_game_drive.py',
-                        'build_fes_pc386_quartus.py', 'yosys_netlist.py'):
+                        'pc386_quartus.py', 'yosys_netlist.py'):
             return ('pc386',), 'pc386 firmware, simulation disk and producer (the system simulation takes its rates)'
         if parts[1] == 'synth_fes_pc386.py':
             return (), 'pc386 machine synthesis recipe; no simulation reads it'

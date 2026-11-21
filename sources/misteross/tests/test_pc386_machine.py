@@ -18,7 +18,7 @@ from unittest import mock
 
 from scripts import build_pc386_firmware as firmware
 from scripts import build_pc386_freedos_image as freedos
-from scripts import build_fes_pc386_quartus as producer
+from scripts import pc386_quartus as producer
 from scripts import sim_fes_pc386 as sim
 from scripts import synth_fes_pc386 as synthesis
 

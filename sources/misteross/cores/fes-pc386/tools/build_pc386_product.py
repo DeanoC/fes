@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""Source-bound registered pc386 product seal, using the core's existing sealer."""
+"""Source-bound registered pc386 product seal: the pc386 producer.
+
+It seals fes.pc386 with Quartus from the machine netlist the pc386 lock's Yosys
+elaborates, as scripts/pc386_quartus.py defines it, and writes a design-v2
+record (#1984). --with-lockstep runs a fresh full lockstep first.
+"""
 from __future__ import annotations
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -42,9 +48,14 @@ for directory in (str(ROOT), str(TOOLS)):
     if directory not in sys.path:
         sys.path.insert(0, directory)
 
-from scripts import build_fes_pc386_quartus as legacy
-from scripts.build_fes_pc386_quartus import *
+from scripts import pc386_quartus as machine
+from scripts.pc386_quartus import *
+from scripts import fes_build_common as board
+from scripts import lockfile
 from scripts import source_closure
+from scripts import yosys_netlist
+from scripts.core_package import encode_manifest
+from scripts.export_core_package import build_identity, encode_build_record, export_package
 from scripts.input_identity import DESIGN_V2, with_identities, manifest_toolchain
 from scripts.functional_execution import execution_digest, execution_environment as _base_execution_environment
 from scripts.export_core_package import source_input_closure
@@ -57,19 +68,19 @@ for name, module in tuple(sys.modules.items()):
     if name.startswith('scripts.') and getattr(module, '__file__', None):
         if not Path(module.__file__).resolve().is_relative_to(scripts_dir):
             raise ValueError('pc386 imported helper belongs to a different checkout: ' + name)
-for module, filename in ((legacy, scripts_dir / 'build_fes_pc386_quartus.py'),
+for module, filename in ((machine, scripts_dir / 'pc386_quartus.py'),
                          (pc386_execution, TOOLS / 'pc386_execution.py'),
                          (pc386_owned_job, TOOLS / 'pc386_owned_job.py')):
     if Path(module.__file__).absolute() != filename:
         raise ValueError('pc386 imported implementation differs from the selected source')
 
 RECIPE = "cores/fes-pc386/tools/build_pc386_product.py"
-LOCK = legacy.QUARTUS_LOCK
-TOOLCHAIN_LOCK = legacy.LOCK
-_authenticate_tools = legacy._authenticate_tools
-_check_seed = legacy._check_seed
-check_lockstep_report = legacy.check_lockstep_report
-PINNED_INPUTS = tuple(sorted(set(legacy.PINNED_INPUTS) | {
+LOCK = machine.QUARTUS_LOCK
+TOOLCHAIN_LOCK = machine.LOCK
+_authenticate_tools = machine._authenticate_tools
+_check_seed = machine._check_seed
+check_lockstep_report = machine.check_lockstep_report
+PINNED_INPUTS = tuple(sorted(set(machine.PINNED_INPUTS) | {
     RECIPE,
     "cores/fes-pc386/tools/build_pc386_with_lockstep.py",
     "cores/fes-pc386/tools/pc386_run_lockstep.py",
@@ -79,6 +90,23 @@ PINNED_INPUTS = tuple(sorted(set(legacy.PINNED_INPUTS) | {
     "scripts/functional_execution.py", "scripts/input_identity.py",
     "scripts/export_core_package.py", "scripts/core_package.py", "scripts/run_logged.sh",
 }))
+
+def script_imports(root: Path) -> set[str]:
+    """Every scripts module this producer imports, with what each imports in turn."""
+    closure = set()
+    for node in ast.walk(ast.parse((root / RECIPE).read_text(encoding="utf-8"), filename=RECIPE)):
+        if isinstance(node, ast.ImportFrom) and node.module == "scripts":
+            names = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("scripts."):
+            names = [node.module.split(".")[1]]
+        elif isinstance(node, ast.Import):
+            names = [alias.name.split(".")[1] for alias in node.names if alias.name.startswith("scripts.")]
+        else:
+            continue
+        for name in names:
+            closure |= source_closure.imports(name, root)
+    return closure
+
 
 def require_running_root(root: Path) -> Path:
     root = Path(root).absolute()
@@ -196,7 +224,7 @@ def create_build_record(root: Path, repository: str, revision: str, identities: 
     if q["seeds"] != [_check_seed(seed)]:
         raise board.BuildError("selected pc386 seed differs from its recipe")
     backend, _, configuration = gpu_choice(gpu_router)
-    paths = sorted(set(PINNED_INPUTS) | source_closure.imports("build_fes_pc386_quartus", root)
+    paths = sorted(set(PINNED_INPUTS) | script_imports(root)
                    | {"scripts/source_closure.py",
                       "scripts/bootstrap.sh", "scripts/toolchain_cache.py"})
     inputs = source_input_closure(root, paths)
@@ -227,48 +255,6 @@ def create_build_record(root: Path, repository: str, revision: str, identities: 
               "abi_definition_sha256": inputs[ABI_DEFINITION], "dependencies": {}, "tools": dict(identities),
               "parameters": params}
     return encode_build_record(with_identities(fields, root=root, policy=DESIGN_V2))
-
-
-def project_qsf(root: Path, project: Path, build_id: str, seed: int, *, threads: int = 2) -> str:
-    if board.HEX32_RE.fullmatch(build_id) is None:
-        raise board.BuildError("build ID must be 32 lowercase hexadecimal characters")
-    rel = Path(os.path.relpath(root, project)).as_posix()
-    lines = [
-        'set_global_assignment -name FAMILY "Cyclone V"',
-        f"set_global_assignment -name DEVICE {board.TARGET}",
-        f"set_global_assignment -name TOP_LEVEL_ENTITY {board.TOP}",
-        'set_global_assignment -name PROJECT_OUTPUT_DIRECTORY "output_files"',
-        "set_global_assignment -name GENERATE_RBF_FILE ON",
-        "set_global_assignment -name IGNORE_PARTITIONS ON",
-        f"set_global_assignment -name NUM_PARALLEL_PROCESSORS {threads}",
-        f"set_global_assignment -name SEED {_check_seed(seed)}",
-        "set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005",
-        f'set_global_assignment -name LAST_QUARTUS_VERSION "{quartus_lock(root).qsf_version}"',
-        f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-common/generated"',
-        'set_global_assignment -name VERILOG_MACRO "QUARTUS=1"',
-        f"set_global_assignment -name VERILOG_MACRO \"FES_PC386_BUILD_ID=128'h{build_id}\"",
-        f'set_global_assignment -name SDC_FILE "{rel}/{SDC}"',
-        f"set_instance_assignment -name HPS_LOCATION {I2C_SITE} -entity {board.TOP} -to hdmi_i2c",
-        f"set_global_assignment -name VERILOG_FILE {MACHINE_NETLIST}",
-    ]
-    for source in SHELL_SOURCES:
-        kind = "SYSTEMVERILOG_FILE" if source.endswith(".sv") else "VERILOG_FILE"
-        lines.append(f'set_global_assignment -name {kind} "{rel}/{source}"')
-    pins = board._regular_input(root, QSF).read_text(encoding="utf-8")
-    return "\n".join(lines) + "\n\n" + pins
-
-
-def write_project(root: Path, output: Path, build_id: str, seed: int, *, threads: int = 2) -> Path:
-    project = output / "project"
-    if project.is_symlink():
-        raise board.BuildError(f"Quartus project must not be a symlink: {project}")
-    if project.exists():
-        shutil.rmtree(project)
-    project.mkdir()
-    series = quartus_lock(root).series
-    (project / "top.qpf").write_text(f'QUARTUS_VERSION = "{series}";\nPROJECT_REVISION = "top";\n', encoding="utf-8")
-    (project / "top.qsf").write_text(project_qsf(root, project, build_id, seed, threads=threads), encoding="utf-8")
-    return project
 
 
 def run_quartus(quartus_sh: Path, quartus_root: Path, project: Path, log: Path) -> None:
@@ -475,7 +461,7 @@ def main() -> int:
                 env["QUARTUS_ROOTDIR"] = str(paths["quartus"].parent.parent)
                 command = [sys.executable, str(root / "cores/fes-pc386/tools/build_pc386_with_lockstep.py"),
                            "--root", str(root), "--gpu-router", tools.gpu_router, "--seed", str(args.seed),
-                           "--download", "--product"]
+                           "--download"]
                 if args.cache_root is not None:
                     command.extend(("--cache-root", str(args.cache_root)))
                 if args.package_output is not None:
