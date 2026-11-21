@@ -272,6 +272,7 @@ def main():
     native_context = native_io = native_cpu_map = native_control = native_configuration = native_reader_memory = native_ddr_read = native_computer = native_rom = native_program_platform = None
     native_selected_programs = False
     native_menu_program = native_spectrum_program = None
+    native_shared_shell = False
     native_tenfoot_serial = False
     native_initial_tape = False
     native_tape_memory = None
@@ -332,6 +333,14 @@ def main():
         native_menu_program=compiled_menu_option(receipt,hps.checked_menu_program(receipt))
         native_spectrum_program = compiled_program_option(
             receipt, hps.spectrum48.checked(receipt), 'main.expectedCompiledSpectrum48')
+        native_shared_shell = hps.spectrum48.shared_shell(receipt)
+        command = receipt['command']
+        tokens = shlex.split(command[command.index('-ldflags')+1])
+        shell_options = [i for i, word in enumerate(tokens) if 'main.expectedSharedCoreShell' in word]
+        expected = ['-X', 'main.expectedSharedCoreShell=1']
+        if len(shell_options) != int(native_shared_shell) or any(
+                i == 0 or tokens[i-1:i+1] != expected for i in shell_options):
+            raise ValueError('shared core shell differs from the exact native link assignment')
         if native_spectrum_program is not None and (
                 not native_menu_program or base64.b64encode(hps.encode(native_spectrum_program)) not in payload.read_bytes()):
             raise ValueError('compiled Spectrum companion differs from the native ELF')
@@ -465,7 +474,7 @@ def main():
         files.append(HERE.parent/'nano/usb_selection.py')
         files.append(HERE.parent/'nano/initial_tape.py')
         if native_context is not None:files.extend(hps.inputs())
-        if native_spectrum_program is not None:files.append(Path(hps.spectrum48.__file__))
+        if native_spectrum_program is not None or native_shared_shell:files.append(Path(hps.spectrum48.__file__))
     files.append(HERE.parent / "experiment.py")
     frozen = {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in files}
     payload_bytes = payload.read_bytes()
@@ -609,6 +618,7 @@ def main():
               "selected_programs":native_selected_programs,"tenfoot_serial":native_tenfoot_serial,"initial_tape":native_initial_tape,
               "initial_tape_memory":native_tape_memory,
               "initial_tape_memory_sha256":hps.initial_tape.memory_digest(native_tape_memory) if native_tape_memory else None,
+              **({"shared_core_shell": True} if native_shared_shell else {}),
               **({"spectrum48_program": native_spectrum_program,
                   "spectrum48_program_sha256": hps.digest(native_spectrum_program)} if native_spectrum_program else {}),
               "hps_menu_project":receipt.get('hps_menu_project'),"hps_menu_program":native_menu_program,

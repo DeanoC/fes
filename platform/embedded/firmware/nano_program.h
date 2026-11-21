@@ -68,7 +68,7 @@ struct fes_nano_program {
     int (*read_rom)(void *, uint8_t result[FES_NANO_PROGRAM_ROM_HEADER_BYTES]);
     uint8_t rom_header[FES_NANO_PROGRAM_ROM_HEADER_BYTES];
     uint32_t rom_offset, rom_bytes, rom_crc;
-    unsigned mixed_roles;
+    unsigned mixed_roles, shared_core_shell;
     const struct fes_nano_spectrum48_program *spectrum48;
     uint32_t role, control_abi;
 };
@@ -96,6 +96,7 @@ int fes_nano_program_enable_roles(struct fes_nano_program *);
  * before capture. The policy must be immutable and remain valid for the
  * lifetime of this program instance. The platform stores it in read-only
  * memory. Its ROM is uploaded through the mailbox after activation. */
+int fes_nano_program_enable_shared_core_shell(struct fes_nano_program *);
 int fes_nano_program_enable_spectrum48(struct fes_nano_program *,
     const struct fes_nano_spectrum48_program *);
 int fes_nano_program_role(const struct fes_nano_program *, uint32_t *role, uint32_t *control_abi);

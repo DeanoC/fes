@@ -18,7 +18,7 @@
     !defined(FES_NANO_COLD_ROM) || !FES_NANO_COLD_ROM || \
     !defined(FES_NANO_COLD_CONFIG) || !FES_NANO_COLD_CONFIG || \
     !defined(FES_NANO_CONTROL_PROBE) || !FES_NANO_CONTROL_PROBE || \
-    !defined(FES_NANO_READER_CPU_BASE) || !defined(FES_NANO_SPECTRUM48_PROGRAM) || \
+    !defined(FES_NANO_READER_CPU_BASE) || !defined(FES_NANO_SPECTRUM48_SCANOUT_BASE) || \
     !defined(FES_NANO_WINDOW_STORAGE_RETURN) || !FES_NANO_WINDOW_STORAGE_RETURN || \
     !defined(FES_NANO_COMPUTER_STORAGE_RETURN) || !FES_NANO_COMPUTER_STORAGE_RETURN
 #error "Spectrum 48K requires the complete mixed-role native handoff"
@@ -1099,8 +1099,12 @@ int fes_nano_platform_configuration_setup(void)
 #if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
     if(fes_nano_program_enable_roles(&configuration_program))return -1;
 #if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+#if defined(FES_NANO_SHARED_CORE_SHELL) && FES_NANO_SHARED_CORE_SHELL
+    if(fes_nano_program_enable_shared_core_shell(&configuration_program))return -1;
+#else
     static const struct fes_nano_spectrum48_program spectrum48=FES_NANO_SPECTRUM48_PROGRAM;
     if(fes_nano_program_enable_spectrum48(&configuration_program,&spectrum48))return -1;
+#endif
 #endif
 #endif
 #endif

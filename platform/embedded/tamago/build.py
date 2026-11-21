@@ -479,6 +479,10 @@ def build(args):
         usb_control=usb_control, usb_shared=usb_shared, usb_input=usb_input))
     spectrum_paths = [getattr(args, 'spectrum48_'+name, None) for name in ('build', 'package', 'rom')]
     spectrum_tape = getattr(args, 'spectrum48_tape', None)
+    shared_shell = getattr(args, 'shared_core_shell', False)
+    if shared_shell and (args.program != 'fpgaload' or not menu_program_map or
+                         not all((selected_programs, computer_reload, computer_storage_return, tenfoot_serial))):
+        raise ValueError('shared core shell requires paired native Tenfoot')
     spectrum_proof = spectrum_program = None
     if any(spectrum_paths) or spectrum_tape is not None:
         if not all(spectrum_paths) or menu_program_map is None or not tenfoot_serial:
@@ -665,7 +669,9 @@ def build(args):
         link_flags+=' -X main.expectedProgramPlatform='+base64.b64encode(hps.encode(program_platform)).decode()
         link_flags+=' -X main.expectedSelectedPrograms=1'
     if menu_program_map is not None:link_flags+=' -X main.expectedCompiledMenuProgram='+base64.b64encode(hps.encode(menu_program_map)).decode()
-    if spectrum_program is not None:
+    if shared_shell:
+        link_flags += " -X main.expectedSharedCoreShell=1"
+    elif spectrum_program is not None:
         link_flags += ' -X main.expectedCompiledSpectrum48=' + base64.b64encode(hps.encode(spectrum_program)).decode()
     command = [str(compiler), "build", *options, "-trimpath", "-ldflags", link_flags, "-o", str(elf), "./cmd/" + args.program]
     with (output / "build.log").open("w") as log:
@@ -707,7 +713,7 @@ def build(args):
     if menu_program_map is not None and (hps.menu_assets(menu_project,menu_program_map)!=menu_assets or
             base64.b64encode(hps.encode(menu_program_map)) not in data):
         raise ValueError('compiled menu companion changed or was not linked into the native image')
-    if spectrum_program is not None and base64.b64encode(hps.encode(spectrum_program)) not in data:
+    if spectrum_program is not None and not shared_shell and base64.b64encode(hps.encode(spectrum_program)) not in data:
         raise ValueError('Spectrum companion was not linked into the native image')
     if feature_sources != {p: sha(p) for p in feature_sources}:
         raise ValueError('ARM64 feature discovery inputs changed while building')
@@ -747,7 +753,8 @@ def build(args):
               "selected_programs":selected_programs,"tenfoot_serial":tenfoot_serial,"initial_tape":initial_tape,
               "initial_tape_memory":tape_memory,"initial_tape_memory_sha256":tape_memory_sha,
               **({"spectrum48_program": spectrum_program, "spectrum48_program_sha256": hps.digest(spectrum_program)}
-                 if spectrum_program is not None else {}),
+                 if spectrum_program is not None and not shared_shell else {}),
+              **({"shared_core_shell": True} if shared_shell else {}),
               "hps_menu_project":str(menu_project) if menu_project else None,
               "hps_menu_program":menu_program_map,"hps_menu_program_sha256":hps.digest(menu_program_map) if menu_program_map else None,
               "menu_assets":{name:{"sha256":hashlib.sha256(raw).hexdigest(),"size":len(raw)} for name,raw in menu_assets.items()},

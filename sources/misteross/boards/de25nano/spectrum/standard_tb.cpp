@@ -326,21 +326,37 @@ struct SecureStop {
         fail("secure stop wrote an idle DDR probe");
     }
 
+    void inject_dma_reject() {
+        // Keep one real request in flight and corrupt the next offered command.
+        board.dut.avm_waitrequest = true;
+        auto& reader = board.root;
+        for (unsigned i = 0; i < 10000 && !board.dut.avm_read; ++i) board.step();
+        require(board.dut.avm_read, "missing next scanout DMA command");
+        const auto pending = board.display_pending;
+        reader.fes_de25_spectrum_standard__DOT__display__DOT__memory__DOT__video__DOT__reader__DOT__address =
+            0x9580000;
+        board.run_bus(32);
+        require((board.scanout(0x08, false) & 0x108) == 0x100 && board.display_pending == pending,
+                "DMA rejection was lost or an accepted request falsely drained");
+        board.dut.avm_waitrequest = false;
+    }
+
     void run(unsigned mode) {
         if (mode == 4) board.scanout(0x0c, true, 2);
         else if (mode != 0 && mode != 5 && mode != 6) prime_display(board);
-        const unsigned expected_stops = mode >= 4 ? 0 : 1;
+        if (mode == 8) inject_dma_reject();
+        const unsigned expected_stops = mode == 4 || mode == 5 ? 0 : 1;
         struct fes_nano_fabric_stop stop{};
         stop.io = {this, owns, read, write, wait};
         stop.probe.io = {this, owns, probe_read, probe_write, wait};
         stop.abi = FES_NANO_PROGRAM_SPECTRUM48_ABI;
-        stop.build[0] = 0xccddeeff; stop.build[1] = 0x8899aabb;
-        stop.build[2] = 0x44556677; stop.build[3] = 0x00112233;
+        stop.build[0] = SPECTRUM_BUILD_0; stop.build[1] = SPECTRUM_BUILD_1;
+        stop.build[2] = SPECTRUM_BUILD_2; stop.build[3] = SPECTRUM_BUILD_3;
         stop.bus_base = kDisplayGrantBase;
         stop.bytes = 8U << 20;
         stop.cookie = mode == 3 ? 2 : 1;
         stop.qualified = 1;
-        if (mode >= 6) {
+        if (mode == 6 || mode == 7) {
             int result = fes_nano_fabric_scanout_ready(&stop);
             require((mode == 6 ? result == 0 && !stop.failed : result != 0 && stop.failed) &&
                     !stop.attempted && !snapshots && !stops && !probe_reads,
@@ -400,7 +416,7 @@ int native_mailbox() {
             value = board.display_pending;
 #ifdef SPECTRUM_NATIVE48
         } else if (operation == "check-secure-display-stop" && input >> value) {
-            require(value < 8, "unknown secure display stop case");
+            require(value <= 8, "unknown secure display stop case");
             SecureStop stop{board, value == 2};
             stop.run(value);
             value = 0;
@@ -490,7 +506,9 @@ int main(int argc, char** argv) {
     // video, keyboard, gamepad, audio, spectrum tape (bits 0-3 and 5) and the
     // session display (bit 13). There is no HPS DDR media window (bit 12).
     require(board.ok(1, 7, 0, "capabilities") == 0x202f, "capability word");
-    require(board.ok(1, 8, 0, "build") == 0x1100, "build identity");
+    constexpr uint16_t first_build_word = (SPECTRUM_BUILD_3 >> 24) |
+                                          ((SPECTRUM_BUILD_3 >> 8) & 0xff00);
+    require(board.ok(1, 8, 0, "build") == first_build_word, "build identity");
 
     // fes.fabric.firmware-upload: exactly the model's ROM, and no release
     // without it.

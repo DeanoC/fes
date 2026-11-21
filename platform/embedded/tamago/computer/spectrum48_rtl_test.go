@@ -35,6 +35,10 @@ type spectrumSource struct {
 func spectrum48Source(t *testing.T, firmware []byte) spectrumSource {
 	t.Helper()
 	root := "../../../../sources/FogCast/corepackage/testdata/core-bundle-v3"
+	buildID := os.Getenv("FES_SPECTRUM48_BUILD_ID")
+	if buildID == "" {
+		buildID = "00112233445566778899aabbccddeeff"
+	}
 	dir := t.TempDir()
 	for destination, source := range map[string]string{
 		"manifest.toml": "manifests/valid-nano-upload-16384.toml",
@@ -50,7 +54,7 @@ func spectrum48Source(t *testing.T, firmware []byte) spectrumSource {
 				"fes.pong", "fes.spectrum",
 				"fes-gp-v1", "de25-native-spectrum48-v1",
 				"fes.simple-game", "fes.computer",
-				"0123456789abcdef0123456789abcdef", "00112233445566778899aabbccddeeff",
+				"0123456789abcdef0123456789abcdef", buildID,
 			).Replace(string(data)) + `
 [[interfaces]]
 id = "fes.media.spectrum-tape"
@@ -450,7 +454,7 @@ func TestSpectrum48SecureStopRTL(t *testing.T) {
 		mode uint32
 	}{
 		{"idle", 0}, {"active-drains", 1}, {"withheld-response", 2}, {"wrong-generation", 3},
-		{"already-retired", 4}, {"fresh-admission", 6}, {"active-admission-rejected", 7},
+		{"already-retired", 4}, {"fresh-admission", 6}, {"active-admission-rejected", 7}, {"out-of-range-dma-drains", 8},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			mailbox := startSpectrumMailbox(t, executable)

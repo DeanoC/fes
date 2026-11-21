@@ -56,9 +56,31 @@ type spectrum48Program struct {
 // MENU/computer boot. Call from trusted startup before constructing the
 // ProgramService. Ordinary loaders retain their existing profile checks.
 func (l *ProgramLoader) WithSpectrum48(compiled []byte) (*ProgramLoader, error) {
-	if l == nil || l.boot == nil || l.menu == nil || l.spectrum48 != nil || l.platform.ProgrammingProfile != NativeComputerProfile {
+	if l == nil || l.boot == nil || l.menu == nil || l.spectrum48 != nil || l.sharedCoreShell || l.platform.ProgrammingProfile != NativeComputerProfile {
 		return nil, errors.New("native fabric: Spectrum requires the matched mixed-role platform")
 	}
+	shell, err := l.decodeUploadShell(compiled)
+	if err != nil {
+		return nil, err
+	}
+	paired := *l
+	paired.spectrum48 = shell
+	return &paired, nil
+}
+
+// WithSharedCoreShell enables package selection against the fixed upload and
+// scanout shell. Package and ROM identity are retained per SD selection.
+func (l *ProgramLoader) WithSharedCoreShell() (*ProgramLoader, error) {
+	if l == nil || l.boot == nil || l.menu == nil || l.spectrum48 != nil || l.sharedCoreShell ||
+		l.platform.ProgrammingProfile != NativeComputerProfile {
+		return nil, errors.New("native fabric: shared core shell requires the matched mixed-role platform")
+	}
+	paired := *l
+	paired.sharedCoreShell = true
+	return &paired, nil
+}
+
+func (l *ProgramLoader) decodeUploadShell(compiled []byte) (*spectrum48Program, error) {
 	var record spectrum48Record
 	if err := decodeCompleteRecord(compiled, 8192, &record); err != nil {
 		return nil, err
@@ -93,20 +115,25 @@ func (l *ProgramLoader) WithSpectrum48(compiled []byte) (*ProgramLoader, error) 
 	if err != nil {
 		return nil, err
 	}
-	paired := *l
-	paired.spectrum48 = &spectrum48Program{record, bytes.Clone(compiled), config, configRaw}
-	return &paired, nil
+	return &spectrum48Program{record, bytes.Clone(compiled), config, configRaw}, nil
 }
 
 func (l *ProgramLoader) preflightSpectrum48(selection *packagestore.Selection) (*StoredConfigurationPlan, error) {
 	s := l.spectrum48
+	if l.sharedCoreShell {
+		var err error
+		s, err = l.decodeUploadShell(selection.Metadata())
+		if err != nil {
+			return nil, err
+		}
+	}
 	if s == nil {
 		return nil, errors.New("native fabric: Spectrum package has no matching compiled companion")
 	}
 	i := selection.Inspection()
 	d, r := i.Descriptor, s.record
 	if !bytes.Equal(selection.Metadata(), s.raw) || i.PackageID != r.PackageID || d.Build.ID != r.BuildID ||
-		d.Core.ID != "fes.spectrum" || d.Target.Platform != l.platform.Platform || d.Target.Device != l.platform.Device ||
+		(!l.sharedCoreShell && d.Core.ID != "fes.spectrum") || d.Target.Platform != l.platform.Platform || d.Target.Device != l.platform.Device ||
 		d.ABI.ID != "fes.computer" || d.ABI.Major != 1 || d.ABI.Minor != 0 ||
 		d.Payload.Size != int64(r.CoreSize) || d.Payload.SHA256 != r.CoreSHA256 ||
 		d.Format != 3 || !corepackage.FirmwareUpload(d) || d.ROM == nil ||

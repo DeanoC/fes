@@ -136,6 +136,17 @@ def checked(profile, key='program'):
     return record
 
 
+def shared_shell(profile, key='program'):
+    enabled = profile.get('shared_core_shell', False)
+    if type(enabled) is not bool or enabled and (
+            profile.get(key) != 'fpgaload' or not profile.get('hps_menu_program') or
+            profile.get('spectrum48_program') is not None or profile.get('spectrum48_program_sha256') is not None or
+            any(profile.get(flag) is not True for flag in
+                ('selected_programs', 'computer_reload', 'computer_storage_return', 'tenfoot_serial'))):
+        raise ValueError('shared core shell requires the complete paired platform without a pinned companion')
+    return enabled
+
+
 def valid_hex(value, width):
     return isinstance(value, str) and re.fullmatch('[a-f0-9]{%d}' % width, value) and value != '0' * width
 

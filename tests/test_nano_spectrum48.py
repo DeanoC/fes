@@ -63,3 +63,14 @@ class SpectrumAdmissionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             spectrum.checked(profile)
         self.assertEqual(spectrum.checked(original), self.selection())
+
+    def test_shared_shell_uses_only_the_paired_platform(self):
+        profile = dict(self.profile, shared_core_shell=True)
+        self.assertTrue(spectrum.shared_shell(profile))
+        self.assertFalse(spectrum.shared_shell(self.profile))
+        pinned = self.profile_for(self.selection())
+        for changes in (dict(shared_core_shell=1), dict(hps_menu_program=None),
+                        dict(computer_storage_return=False),
+                        dict(spectrum48_program=pinned['spectrum48_program'])):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                spectrum.shared_shell(dict(profile, **changes))

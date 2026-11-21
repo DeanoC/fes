@@ -311,6 +311,7 @@ type selectedRoleCPU struct {
 	publications   int
 	activate       func()
 	spectrumPolicy string
+	sharedShell    bool
 }
 
 func (c *selectedRoleCPU) Invoke(a [7]uint64) ([4]uint64, error) {
@@ -324,8 +325,14 @@ func (c *selectedRoleCPU) Invoke(a [7]uint64) ([4]uint64, error) {
 			if err := os.WriteFile(path, raw, 0600); err != nil {
 				c.t.Fatal(err)
 			}
-			out, err = exec.Command(c.decoder, path, "owned-spectrum", fmt.Sprint(source.Bridges.Generation),
-				hex.EncodeToString(source.Digest[:]), fmt.Sprint(c.chunkBytes), c.spectrumPolicy).CombinedOutput()
+			args := []string{path, "owned-spectrum", fmt.Sprint(source.Bridges.Generation),
+				hex.EncodeToString(source.Digest[:]), fmt.Sprint(c.chunkBytes)}
+			if c.sharedShell {
+				args[1] = "owned-shared-shell"
+			} else {
+				args = append(args, c.spectrumPolicy)
+			}
+			out, err = exec.Command(c.decoder, args...).CombinedOutput()
 		} else {
 			out, err = decodeRolePublication(c.t, c.decoder, raw, source, c.chunkBytes)
 		}

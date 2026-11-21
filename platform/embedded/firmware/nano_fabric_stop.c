@@ -121,6 +121,7 @@ static int reader_stop(struct fes_nano_fabric_stop *s)
 enum { SC_ID, SC_VERSION, SC_BUILD0, SC_BUILD1, SC_BUILD2, SC_BUILD3, SC_SERIAL,
     SC_LIVE, SC_STATUS, SC_GEN_LO, SC_GEN_HI, SC_OUTSTANDING, SC_BASE, SC_BASE_HI,
     SC_BYTES, SC_WORDS };
+#define SC_DMA_REJECTED UINT32_C(0x00000100)
 #define SC_RETIRED UINT32_C(0x80000000)
 #define SC_DRAINED UINT32_C(0x08)
 #define SC_DISPLAY_READY UINT32_C(0x40)
@@ -131,7 +132,7 @@ enum { SC_ID, SC_VERSION, SC_BUILD0, SC_BUILD1, SC_BUILD2, SC_BUILD3, SC_SERIAL,
 #define SC_SERIAL_OFFSET UINT32_C(0x2c)
 #define SC_COMMAND_STOP UINT32_C(2)
 #define SC_COMMAND_SNAPSHOT UINT32_C(8)
-#define SC_STOPPED_MASK (SC_RETIRED|SC_DRAINED|SC_DISPLAY_READY|SC_CONFIGURED)
+#define SC_STOPPED_MASK (SC_RETIRED|SC_DRAINED|SC_DISPLAY_READY|SC_CONFIGURED|SC_DMA_REJECTED)
 static int scanout_identity(struct fes_nano_fabric_stop *s,struct fes_nano_fabric_snapshot *v)
 {
     const uint32_t offsets[]={0x00,0x04,0x64,0x68,0x6c,0x70};
@@ -164,7 +165,7 @@ static int scanout_snapshot(struct fes_nano_fabric_stop *s,struct fes_nano_fabri
     if(!serial || serial!=v->words[SC_SERIAL] || (status&~SC_STOPPED_MASK) ||
        (status&(SC_RETIRED|SC_DRAINED))!=(SC_RETIRED|SC_DRAINED) ||
        ((status^v->words[SC_LIVE])&~SC_DISPLAY_READY) || v->words[SC_OUTSTANDING] ||
-       v->words[SC_BASE_HI])return fail(s,-71);
+       v->words[SC_BASE_HI] || ((status&SC_DMA_REJECTED) && !(status&SC_CONFIGURED)))return fail(s,-71);
     if(status&SC_CONFIGURED) {
         if(pair(v,SC_GEN_LO)!=s->cookie || v->words[SC_BASE]!=s->bus_base ||
            v->words[SC_BYTES]!=s->bytes)return fail(s,-71);

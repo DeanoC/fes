@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -16,6 +17,7 @@ SPECTRUM = ROOT / "cores/fes-spectrum/rtl"
 SHARED = BOARD / "shared-rtl"
 COMMON = ROOT / "cores/fes-common"
 Z80 = COMMON / "rtl/z80"
+NATIVE_BUILD_ID = "00112233445566778899aabbccddeeff"
 MODELS = {"48": [], "128": ["-DSPECTRUM_MODEL_128K=1"]}
 WAIVERS = ("UNUSEDSIGNAL", "UNUSEDPARAM", "UNOPTFLAT", "CASEINCOMPLETE", "CASEOVERLAP", "WIDTHTRUNC",
            "WIDTHEXPAND", "SYNCASYNCNET", "PINCONNECTEMPTY", "DECLFILENAME", "IMPLICITSTATIC",
@@ -68,7 +70,7 @@ def includes():
             BOARD / "zx81-hps", BOARD / "scanout", BOARD / "scanout/generated", Z80]
 
 
-def run(model, native_mailbox=False):
+def run(model, native_mailbox=False, build_id=NATIVE_BUILD_ID):
     diagnostic = ROOT / "build/diagnostics/fes-spectrum"
     subprocess.run([sys.executable, str(ROOT / "cores/fes-spectrum/diagnostic/firmware.py"),
                     "--output-dir", str(diagnostic)], cwd=ROOT, check=True)
@@ -78,6 +80,9 @@ def run(model, native_mailbox=False):
     print(f"DE25 Spectrum simulation directory: {output}", flush=True)
     firmware = diagnostic / ("firmware.rom" if model == "48" else "firmware-32k.rom")
     flags = f"-O2 -DSPECTRUM_BANKS={3 if model == '48' else 8}"
+    for i in range(4):
+        offset = 32 - (i + 1) * 8
+        flags += f" -DSPECTRUM_BUILD_{i}=0x{build_id[offset:offset+8]}u"
     link = []
     if native_mailbox:
         firmware_root = ROOT.parents[1] / "platform/embedded/firmware"
@@ -94,7 +99,7 @@ def run(model, native_mailbox=False):
                     *(["-DFES_DE25_NATIVE_SPECTRUM48=1"] if native_mailbox else []),
                     "--top-module", "fes_de25_spectrum_standard", "--Mdir", str(output),
                     "-GSDRAM_POWERUP_CYCLES=16",
-                    "-GBUILD_ID=128'h00112233445566778899aabbccddeeff",
+                    f"-GBUILD_ID=128'h{build_id}",
                     *["-I" + str(path) for path in [output, *includes()]],
                     "-CFLAGS", flags, *link,
                     *map(str, sources(output)), str(HERE / "standard_tb.cpp")], cwd=ROOT, check=True)
@@ -107,10 +112,11 @@ def run(model, native_mailbox=False):
         payload = (fes / "sources/FogCast/corepackage/testdata/core-bundle-v3/payloads/fes-fixture.rbf").read_bytes()
         controls = output / "native-controls.json"
         controls.write_bytes(load(HERE / "build.py", "spectrum_native_controls").native_controls(
-            "00112233445566778899aabbccddeeff", hashlib.sha256(payload).hexdigest()))
+            build_id, hashlib.sha256(payload).hexdigest()))
         env = dict(os.environ, GOWORK="off",
                    FES_SPECTRUM48_MAILBOX=str(executable), FES_SPECTRUM48_FIRMWARE=str(firmware),
-                   FES_SPECTRUM48_TAPE=str(diagnostic / "tape.pzx"), FES_SPECTRUM48_CONTROLS=str(controls))
+                   FES_SPECTRUM48_TAPE=str(diagnostic / "tape.pzx"), FES_SPECTRUM48_CONTROLS=str(controls),
+                   FES_SPECTRUM48_BUILD_ID=build_id)
         for test in ("Tape", "Firmware", "SecureStop", "Tenfoot"):
             subprocess.run(["go", "test", "-v", "-count=1", "-timeout=120s", "./computer",
                             "-run", f"^TestSpectrum48{test}RTL$"], cwd=tamago, check=True, env=env)
@@ -121,11 +127,15 @@ def main():
     parser.add_argument("--model", choices=("all", *MODELS), default="all")
     parser.add_argument("--native-mailbox", action="store_true",
                         help="also run the native Go firmware proof for the 48K model")
+    parser.add_argument("--native-build-id", help="independent 128-bit identity for the native simulation")
     args = parser.parse_args()
+    if args.native_build_id is not None and (not args.native_mailbox or
+            not re.fullmatch("[0-9a-f]{32}", args.native_build_id) or int(args.native_build_id, 16) == 0):
+        parser.error("--native-build-id requires native mailbox mode and a nonzero lowercase 32-digit hex ID")
     if args.native_mailbox and args.model == "128":
         parser.error("--native-mailbox requires model 48 or all")
     for model in (MODELS if args.model == "all" else (args.model,)):
-        run(model, args.native_mailbox and model == "48")
+        run(model, args.native_mailbox and model == "48", args.native_build_id or NATIVE_BUILD_ID)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ import (
 	"crypto/sha512"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/crc32"
@@ -17,10 +18,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
@@ -32,6 +35,7 @@ import (
 // real. This models the FPGA's mailbox replies, with an independent check on
 // every submitted word and on the state required for an execution release.
 type spectrumFirmwareCPU struct {
+	dmaStatus uint32
 	CPUTransport
 	base           *computerCPU
 	active         bool
@@ -52,6 +56,13 @@ type spectrumFirmwareCPU struct {
 func (c *spectrumFirmwareCPU) LoadInitialTape(context.Context, BridgeSnapshot, computer.InitialTapeRequest) (computer.InitialTapeReceipt, error) {
 	c.tapeCalls++
 	return computer.InitialTapeReceipt{}, errors.New("Spectrum attempted to use the native ZX81 tape service")
+}
+
+func (c *spectrumFirmwareCPU) ReadPhysical32(address uint64) (uint32, error) {
+	if address == uploadShellScanoutCPUBase+uint64(cg.FesDe25ScanoutStatusOffset) {
+		return c.dmaStatus, nil
+	}
+	return c.CPUTransport.ReadPhysical32(address)
 }
 
 func (c *spectrumFirmwareCPU) WritePhysical32(address uint64, word uint32) error {
@@ -121,16 +132,36 @@ func (c *spectrumFirmwareCPU) WritePhysical32(address uint64, word uint32) error
 	return nil
 }
 
-func packageSpectrumFixture(t *testing.T, l *ProgramLoader) (packagestore.Request, map[string][]byte, []byte, []byte) {
+func packageSpectrumFixture(t *testing.T, l *ProgramLoader, alternate bool) (packagestore.Request, map[string][]byte, []byte, []byte) {
 	t.Helper()
 	dir := t.TempDir()
 	base := "../../../../sources/FogCast/corepackage/testdata/core-bundle-v3"
-	for name, source := range map[string]string{"manifest.toml": "manifests/valid-nano-upload-16384.toml",
-		"core.rbf": "payloads/fes-fixture.rbf", "rom-map.json": "maps/valid-nano-upload-16384.json"} {
-		data, err := os.ReadFile(filepath.Join(base, source))
-		if err != nil {
-			t.Fatal(err)
-		}
+	payloadFixture, err := os.ReadFile(filepath.Join(base, "payloads/fes-fixture.rbf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mapFixture, err := os.ReadFile(filepath.Join(base, "maps/valid-nano-upload-16384.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := os.ReadFile(filepath.Join(base, "manifests/valid-nano-upload-16384.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := payloadFixture
+	romMap := mapFixture
+	if alternate {
+		payload = append(bytes.Clone(payloadFixture), 0x34, 0x32, 0x34, 0x32)
+		oldDigest := fmt.Sprintf("%x", sha256.Sum256(payloadFixture))
+		newDigest := fmt.Sprintf("%x", sha256.Sum256(payload))
+		romMap = bytes.ReplaceAll(mapFixture, []byte(oldDigest), []byte(newDigest))
+		manifest = []byte(strings.NewReplacer(
+			"0123456789abcdef0123456789abcdef", "abcdef0123456789abcdef0123456789",
+			"size = 12\n", "size = 16\n", oldDigest, newDigest,
+			fmt.Sprintf("%x", sha256.Sum256(mapFixture)), fmt.Sprintf("%x", sha256.Sum256(romMap)),
+		).Replace(string(manifest)))
+	}
+	for name, data := range map[string][]byte{"manifest.toml": manifest, "core.rbf": payload, "rom-map.json": romMap} {
 		if name == "manifest.toml" {
 			data = []byte(strings.NewReplacer("fes.pong", "fes.spectrum", "fes-gp-v1", spectrum48Profile,
 				"fes.simple-game", "fes.computer").Replace(string(data)) + `
@@ -163,10 +194,6 @@ required = true
 	if err != nil {
 		t.Fatal(err)
 	}
-	payload, err := os.ReadFile(filepath.Join(dir, "core.rbf"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	receipt := linked.Receipt().ROMLink
 	record := spectrum48Record{Format: 1, Scope: "nano-compiled-spectrum48-program-v1",
 		BootContextSHA256: hex.EncodeToString(l.boot.digest[:]), HandoffSHA256: strings.Repeat("4", 64),
@@ -189,10 +216,14 @@ required = true
 		policy = append(policy, field...)
 	}
 	policy = policy[:cap(policy)]
-	request := packagestore.Request{Path: "FES/SPEC48.FCP", PackageID: i.PackageID,
-		MetadataPath: "FES/SPEC48.JSN", MetadataSHA256: fmt.Sprintf("%x", sha256.Sum256(recordRaw)),
+	stem := "FES/SPEC48"
+	if alternate {
+		stem = "FES/SPEC48B"
+	}
+	request := packagestore.Request{Path: stem + ".FCP", PackageID: i.PackageID,
+		MetadataPath: stem + ".JSN", MetadataSHA256: fmt.Sprintf("%x", sha256.Sum256(recordRaw)),
 		ReceiptSHA256: linked.ReceiptSHA256(), Sources: []packagestore.Source{
-			{ID: d.ROM.ID, Role: "firmware", Path: "FES/SPEC48.ROM", SHA256: receipt.SourceSHA256},
+			{ID: d.ROM.ID, Role: "firmware", Path: stem + ".ROM", SHA256: receipt.SourceSHA256},
 		}}
 	return request, map[string][]byte{request.Path: raw, request.MetadataPath: recordRaw, request.Sources[0].Path: rom}, recordRaw, policy
 }
@@ -202,6 +233,12 @@ func TestSpectrum48ProgramServiceFATLaunchReturnAndPark(t *testing.T) {
 		t.Run("fault="+fault, func(t *testing.T) {
 			testSpectrum48FAT(t, fault)
 		})
+	}
+}
+
+func TestSharedCoreShellFATLifecycle(t *testing.T) {
+	for _, fault := range []string{"shared", "shared-bad-map", "shared-bad-dma", "shared-wedged"} {
+		t.Run(fault, func(t *testing.T) { testSpectrum48FAT(t, fault) })
 	}
 }
 
@@ -226,9 +263,23 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 	var startup *ProgramStartup
 	var port *spectrumFirmwareCPU
 	var expected, expectedTape []byte
+	var activeBuild, firstBuild string
+	var alternateChoice packagestore.Request
+	var alternateBuild string
+	shared := strings.HasPrefix(fault, "shared")
+	dmaMode := strings.TrimPrefix(fault, "shared-")
+	guardModel := os.Getenv("FES_TEST_DE25_DMA_GUARD")
+	if (dmaMode == "bad-dma" || dmaMode == "wedged") && guardModel == "" {
+		t.Skip("build the shell Verilator testbench and set FES_TEST_DE25_DMA_GUARD")
+	}
 	f := newProgramMenuFixtureContext(t, ctx, "", func(f *programMenuFixture) {
 		l := f.r.f.loader
-		request, files, compiled, policy := packageSpectrumFixture(t, l)
+		request, files, compiled, policy := packageSpectrumFixture(t, l, false)
+		var first spectrum48Record
+		if err := json.Unmarshal(compiled, &first); err != nil {
+			t.Fatal(err)
+		}
+		activeBuild, firstBuild = first.BuildID, first.BuildID
 		expected = bytes.Clone(files[request.Sources[0].Path])
 		if strings.HasPrefix(fault, "tape") {
 			// A ROM-loader TAP block larger than the ZX81 file ceiling.
@@ -271,7 +322,12 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 			files[request.MetadataPath] = raw
 			request.MetadataSHA256 = fmt.Sprintf("%x", sha256.Sum256(raw))
 		}
-		paired, err := l.WithSpectrum48(compiled)
+		var paired *ProgramLoader
+		if shared {
+			paired, err = l.WithSharedCoreShell()
+		} else {
+			paired, err = l.WithSpectrum48(compiled)
+		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -280,6 +336,7 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 		}
 		// The C decoder gets the trusted policy independently of the published
 		// header. Opening Spectrum never consults the staged ZX81 ROM slot.
+		f.cpu.configuration.sharedShell = shared
 		f.cpu.configuration.spectrumPolicy = filepath.Join(t.TempDir(), "policy.bin")
 		if err := os.WriteFile(f.cpu.configuration.spectrumPolicy, policy, 0600); err != nil {
 			t.Fatal(err)
@@ -299,7 +356,7 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 			port.media.ready, port.media.image = false, nil
 			if port.active {
 				f.r.cpu.expectedROM = nil
-				raw, err := hex.DecodeString(paired.spectrum48.record.BuildID)
+				raw, err := hex.DecodeString(activeBuild)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -311,6 +368,36 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 			}
 		}
 		payload := programExport(t, "spectrum48", request, files)
+		if shared {
+			var filesB map[string][]byte
+			var recordB []byte
+			alternateChoice, filesB, recordB, _ = packageSpectrumFixture(t, l, true)
+			var second spectrum48Record
+			if err := json.Unmarshal(recordB, &second); err != nil {
+				t.Fatal(err)
+			}
+			alternateBuild = second.BuildID
+			if first.PackageID == second.PackageID || first.BuildID == second.BuildID || first.CoreSHA256 == second.CoreSHA256 {
+				t.Fatal("second build must have independent identities")
+			}
+			if fault == "shared-bad-map" {
+				second.ScanoutCPUBase += 256
+				recordB = programJSON(t, second)
+				filesB[alternateChoice.MetadataPath] = recordB
+				alternateChoice.MetadataSHA256 = fmt.Sprintf("%x", sha256.Sum256(recordB))
+			}
+			export := programExport(t, "spectrum48b", alternateChoice, filesB)
+			var a, b programChoices
+			if err := errors.Join(json.Unmarshal(payload["FES/CORESEL.JSN"], &a), json.Unmarshal(export["FES/CORESEL.JSN"], &b)); err != nil {
+				t.Fatal(err)
+			}
+			a.Programs = append(a.Programs, b.Programs...)
+			for name, data := range filesB {
+				payload[name] = data
+			}
+			payload["FES/CORESEL.JSN"] = programJSON(t, a)
+			payload["FES/UI.JSON"] = []byte(`{"entries":[{"id":"spectrum48","program":0,"title":"Spectrum A"},{"id":"spectrum48b","program":1,"title":"Spectrum B"}],"format":1,"scope":"nano-tenfoot-catalog-v1"}` + "\n")
+		}
 		for name, data := range programUpload(f.r.f.files, f.request) {
 			payload[name] = data
 		}
@@ -335,9 +422,32 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if dmaMode == "bad-dma" || dmaMode == "wedged" {
+		testSharedShellApp(t, backend, f, guardModel, dmaMode, func(second bool) {
+			activeBuild = firstBuild
+			if second {
+				activeBuild = alternateBuild
+			}
+		}, alternateChoice.PackageID, port)
+		return
+	}
 	client := hostclient.NewClient("http://native.invalid", &http.Client{Transport: backend})
 	for attempt := 1; attempt <= 2; attempt++ {
-		play, err := client.Launch(ctx, "spectrum48")
+		id := "spectrum48"
+		activeBuild = firstBuild
+		if shared && attempt == 2 {
+			id, activeBuild = "spectrum48b", alternateBuild
+		}
+		play, err := client.Launch(ctx, id)
+		if fault == "shared-bad-map" && attempt == 2 {
+			if err != nil || play.ErrorCode != "NATIVE_LAUNCH_FAILED" || f.s.Status().State != ProgramReady || port.commits != 1 {
+				t.Fatal("invalid second shell map entered configuration", play, err, f.s.Status())
+			}
+			return
+		}
+		if shared && attempt == 2 && f.s.Status().Identity.PackageID != alternateChoice.PackageID {
+			t.Fatal("second SD build did not become the held service identity", f.s.Status())
+		}
 		switch fault {
 		case "disabled", "rom", "companion", "tape-format", "tape-content", "tape-output-limit", "tape-digest":
 			if err != nil || play.ErrorCode != "NATIVE_LAUNCH_FAILED" || play.ID != "" || f.s.Status().State != ProgramReady || port.begins != 0 || port.releases != 0 ||
@@ -373,7 +483,7 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 		}
 		port.base.badClosure = fault == "drain"
 		stopped, err := client.StopExpectedStamped(ctx, play, hostclient.ClientStamp{})
-		if fault == "drain" {
+		if port.base.badClosure {
 			if err != nil || stopped.ErrorCode != "NATIVE_RETURN_FAILED" || stopped.ID != "" || f.r.f.lease.r.Active || f.s.Status().State != ProgramRebootRequired {
 				t.Fatal("uncertain drain released storage", err, f.s.Status())
 			}
@@ -385,5 +495,104 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 	}
 	if err := backend.ParkMenu(ctx); err != nil || f.s.Status().State != ProgramParked || f.r.f.lease.r.Active {
 		t.Fatal("Spectrum run did not Park", err, f.s.Status())
+	}
+}
+
+// The test adapter turns the simulated shell fault into the App's normal
+// Stop command. The normal service still owns drain, containment and restore.
+func testSharedShellApp(t *testing.T, backend *ProgramBackend, f *programMenuFixture, guard, mode string,
+	selectBuild func(bool), secondPackage string, port *spectrumFirmwareCPU) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	app := tenfoot.NewApp(tenfoot.NewClient("http://native.invalid", &http.Client{Transport: backend}), 640, 480, 100)
+	app.Start(ctx)
+	defer app.Stop()
+	wait := func(name string, check func(tenfoot.Snapshot) bool) {
+		t.Helper()
+		for ctx.Err() == nil {
+			app.Tick(time.Now())
+			if check(app.Snapshot()) {
+				return
+			}
+			time.Sleep(time.Millisecond)
+		}
+		t.Fatalf("%s: App=%+v service=%+v", name, app.Snapshot().Session, f.s.Status())
+	}
+	ready := func(s tenfoot.Snapshot) bool {
+		return !s.Loading && len(s.Games) == 2 && s.Session.State == "idle" && f.s.Status().State == ProgramReady
+	}
+	playing := func(s tenfoot.Snapshot) bool {
+		return s.Session.State == "active" && f.s.Status().State == ProgramRunning
+	}
+	wait("initial library", ready)
+	owner := f.s.Status().Owner
+	selectBuild(false)
+	app.Press(tenfoot.CmdSelect, time.Now())
+	wait("first build", playing)
+	first := f.s.Status().Identity.PackageID
+	app.Press(tenfoot.CmdStop, time.Now())
+	wait("first return", ready)
+	app.Press(tenfoot.CmdRight, time.Now())
+	wait("second selection", func(s tenfoot.Snapshot) bool { return s.Grid.Focus == 1 })
+	selectBuild(true)
+	app.Press(tenfoot.CmdSelect, time.Now())
+	wait("second build", playing)
+	if state := f.s.Status(); state.Owner != owner || state.Identity.PackageID != secondPackage || first == secondPackage {
+		t.Fatal("wrong second build or boot ownership changed", state)
+	}
+
+	output, err := exec.CommandContext(ctx, guard, "+mode="+mode).CombinedOutput()
+	expected := "fault=1 drained=1 forwarded=1\n"
+	if mode == "wedged" {
+		expected = "fault=0 drained=0 forwarded=1\n"
+	}
+	if err != nil || !bytes.HasPrefix(output, []byte(expected)) {
+		t.Fatalf("DMA guard model did not supply the expected outcome: %v: %s", err, output)
+	}
+	port.base.badClosure = mode == "wedged"
+	if mode == "bad-dma" {
+		port.dmaStatus = scanoutDMARejected
+		platform := &ProgramMenuPlatform{service: f.s, inner: &programInputBase{}, dmaArmed: f.s.Status().Generation}
+		frame, err := platform.Next(ctx)
+		if err != nil || len(frame.Commands) != 1 || frame.Commands[0] != tenfoot.CmdStop {
+			t.Fatal("live fault did not schedule the normal Tenfoot Stop", frame, err)
+		}
+		platform.dmaPollAt = time.Time{}
+		frame, err = platform.Next(ctx)
+		if err != nil || len(frame.Commands) != 0 {
+			t.Fatal("sticky fault scheduled another Stop", frame, err)
+		}
+		port.dmaStatus = 0
+	}
+	app.Press(tenfoot.CmdStop, time.Now())
+	if mode == "wedged" {
+		wait("terminal return", func(_ tenfoot.Snapshot) bool { return f.s.Status().State == ProgramRebootRequired })
+		terminal := f.s.Status()
+		before := f.r.f.cpu.configurations
+		client := hostclient.NewClient("http://native.invalid", &http.Client{Transport: backend})
+		again, err := client.Launch(ctx, "spectrum48")
+		if terminal.Owner != owner || f.r.f.lease.r.Active || (err == nil && again.ID != "") ||
+			before != f.r.f.cpu.configurations || f.cpu.kind == programRoleMenu {
+			t.Fatal("wedged master released a lease, rebuilt the menu or permitted another load", terminal, again, err)
+		}
+		return
+	}
+	wait("fault return to library", ready)
+	if f.s.Status().Owner != owner || f.cpu.kind != programRoleMenu || f.r.f.lease.r.Active {
+		t.Fatal("DMA fault did not restore the same owned menu", f.s.Status())
+	}
+	app.Press(tenfoot.CmdLeft, time.Now())
+	wait("first selection", func(s tenfoot.Snapshot) bool { return s.Grid.Focus == 0 })
+	selectBuild(false)
+	app.Press(tenfoot.CmdSelect, time.Now())
+	wait("post-fault relaunch", playing)
+	if state := f.s.Status(); state.Owner != owner || state.Identity.PackageID != first {
+		t.Fatal("post-fault launch did not preserve the boot and select the first package", state)
+	}
+	app.Press(tenfoot.CmdStop, time.Now())
+	wait("post-fault return", ready)
+	if err := backend.ParkMenu(ctx); err != nil || f.s.Status().State != ProgramParked {
+		t.Fatal("post-fault Park failed", f.s.Status(), err)
 	}
 }

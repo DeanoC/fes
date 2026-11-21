@@ -1921,6 +1921,38 @@ failure. Every clock and internal-master fault still rejects. Every changed pin
 can leave internal containment valid, but must fail the subsequent full device
 observation and retire the source before it can regain any permission.
 
+### Off-board shared core shell
+
+The opt-in `--shared-core-shell` native SDK option pairs the existing MENU and
+16 KiB upload/scanout shell without linking a per-Spectrum admission record.
+The matched BL31 accepts fresh, owned configuration publications for that fixed
+shell role. It retains the existing source, digest, range, bridge and retirement
+checks. TamaGo checks the retained FAT selection against the fixed shell maps,
+device, ABI and ROM upload contract. The mode assumes a trusted local package
+producer and does not authenticate the SD catalogue.
+
+The native Spectrum scanout reader checks each registered Avalon burst against
+the shell's fixed DDR window before presenting it to the interconnect. A
+rejected burst adds no return credit. The reader latches a DMA-specific status
+bit and drains previously accepted commands. TamaGo polls that bit only via the
+owned scanout aperture and requests the normal Tenfoot Stop. BL31 still
+requires the live and captured drain proof, the configured grant and a stopped
+probe before closure. A missing completion remains a reboot-required failure.
+
+This first physical shell path covers the Spectrum scanout DDR read master.
+Other future core masters need their own guard and drain wiring. The
+`core_shell` simulation remains the standalone single-command reference.
+
+With a Verilator build of `core_dma_guard_tb` selected through
+`FES_TEST_DE25_DMA_GUARD`, `TestSharedCoreShellFATLifecycle` launches distinct
+test packages from FAT under a single modeled boot owner. It exercises return
+and relaunch after a rejected DMA command and terminal containment after a
+wedged command. `spectrum/sim.py --model 48 --native-mailbox
+--native-build-id <32 lowercase hex digits>` separately exercises the real
+Spectrum RTL with a second build identity and the FAT-backed Tenfoot tape flow.
+The test archives carry fixture payloads. A second board bitstream still needs
+a fitted producer and seal.
+
 ### Paired Tenfoot board-test controller
 
 `paired_tenfoot_trace.PairedTenfootClient` joins the selected native App's actual

@@ -104,15 +104,16 @@ func canonicalProgramRecord(value any) ([]byte, error) {
 // additionally requires shared ABI semantics and native driver support. Neither
 // path supplies a new master, data release or BootHandoffVerifier.
 type ProgramLoader struct {
-	boot          *HPSContextVerifier
-	platform      programPlatform
-	configuration coldConfigurationMap
-	control       hpsControlMap
-	computer      computerMap
-	support       *runtimeadmission.DriverSupport
-	compatibility *runtimeadmission.RuntimeCompatibility
-	menu          *menuProgramDriver
-	spectrum48    *spectrum48Program
+	boot            *HPSContextVerifier
+	platform        programPlatform
+	configuration   coldConfigurationMap
+	control         hpsControlMap
+	computer        computerMap
+	support         *runtimeadmission.DriverSupport
+	compatibility   *runtimeadmission.RuntimeCompatibility
+	menu            *menuProgramDriver
+	spectrum48      *spectrum48Program
+	sharedCoreShell bool
 }
 
 func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configuration, computerRaw []byte) (*ProgramLoader, error) {
@@ -212,7 +213,7 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	case HPSFirstMenuProfile:
 		return l.preflightMenu(selection)
 	case spectrum48Profile:
-		if l.spectrum48 != nil {
+		if l.spectrum48 != nil || l.sharedCoreShell {
 			return l.preflightSpectrum48(selection)
 		}
 	}
@@ -430,7 +431,7 @@ func (t *ConfigurationTransfer) ProgramIdentity() (fabricmodel.PackageIdentity, 
 // Kept local so descriptor assertions never become a boot verification call.
 func (v *HPSContextVerifier) programConfiguration(control, raw []byte, p *selectedProgram) (coldConfigurationMap, error) {
 	menu := p != nil && p.loader != nil && p.loader.boot == v && p.loader.menu != nil && p.role == programRoleMenu && p.menu != nil
-	spectrum := p != nil && p.loader != nil && p.loader.boot == v && p.loader.spectrum48 != nil &&
+	spectrum := p != nil && p.loader != nil && p.loader.boot == v && (p.loader.spectrum48 != nil || p.loader.sharedCoreShell) &&
 		p.role == programRoleSpectrum48 && len(p.firmware) == spectrum48ROMBytes && len(p.rom) == 0
 	if v != nil && v.rom != nil && !menu && !spectrum && (p == nil || len(p.rom) == 0) {
 		return coldConfigurationMap{}, errors.New("native fabric: ROM configuration requires its retained selected program")

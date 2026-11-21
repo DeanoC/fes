@@ -32,11 +32,22 @@ int fes_nano_program_enable_roles(struct fes_nano_program *p)
     p->mixed_roles=1;return 0;
 }
 
+/* The opt-in appliance trusts its package producer and EL1. This selects
+ * the existing bounded upload/scanout shell ABI, never package-provided MMIO.
+ * Source capture, digest, generation and bridge checks still apply. */
+int fes_nano_program_enable_shared_core_shell(struct fes_nano_program *p)
+{
+    if(!p || !p->initialized || p->failed || !p->mixed_roles || p->owner || p->bound ||
+       p->shared_core_shell || p->spectrum48)return -1;
+    p->shared_core_shell=1;
+    return 0;
+}
+
 int fes_nano_program_enable_spectrum48(struct fes_nano_program *p,
     const struct fes_nano_spectrum48_program *selected)
 {
     if(!p || !p->initialized || p->failed || !p->mixed_roles || p->owner || p->bound ||
-       p->spectrum48 || !selected || !selected->bytes || (selected->bytes&3U) ||
+       p->shared_core_shell || p->spectrum48 || !selected || !selected->bytes || (selected->bytes&3U) ||
        selected->bytes>p->maximum || (selected->bytes-1)/p->chunk>=FES_NANO_PROGRAM_MAX_CHUNKS ||
        !nonzero(selected->package,sizeof(selected->package)) ||
        !nonzero(selected->build,sizeof(selected->build)) ||
@@ -141,7 +152,7 @@ int fes_nano_program_capture(struct fes_nano_program *p, uint64_t owner, uint64_
         role=le32(h+FES_NANO_PROGRAM_ROLE_OFFSET);abi=le32(h+FES_NANO_PROGRAM_ROLE_OFFSET+4);
         if((role==FES_NANO_PROGRAM_ROLE_MENU && abi==FES_NANO_PROGRAM_MENU_ABI) ||
            (role==FES_NANO_PROGRAM_ROLE_SPECTRUM48 && abi==FES_NANO_PROGRAM_SPECTRUM48_ABI &&
-            spectrum48_matches(p,bytes))) {
+            (p->shared_core_shell || spectrum48_matches(p,bytes)))) {
             if(capture_extension(p) || nonzero(p->rom_header,sizeof(p->rom_header)))return fail(p);
         } else if(role==FES_NANO_PROGRAM_ROLE_COMPUTER && abi==FES_NANO_PROGRAM_COMPUTER_ABI) {
             if(capture_rom(p,bytes))return -1;

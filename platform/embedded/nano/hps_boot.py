@@ -112,6 +112,10 @@ def prepare(project, uboot, entry, pfg, output):
     if spectrum != hps_context.spectrum48.checked(loaded_entry, key='native_program'):
         raise ValueError('Spectrum companion differs between native entry and cold firmware')
 
+    shared_shell = hps_context.spectrum48.shared_shell(dict(window_profile, program='fpgaload'))
+    if shared_shell != hps_context.spectrum48.shared_shell(loaded_entry, key='native_program'):
+        raise ValueError('shared core shell differs between native entry and cold firmware')
+
     cpu_map=window_profile.get('cpu_mapping')
     if cpu_map is not None and cpu_map!=hps_context.cpu_mapping(control_map,hps_context.configuration(project),reader_memory,menu_program=companion):
         raise ValueError('native CPU mapping contract differs from its sealed resources')
@@ -226,6 +230,7 @@ def prepare(project, uboot, entry, pfg, output):
         'cpu_mapping_sha256':hps_context.digest(cpu_map) if cpu_map is not None else None,
         'paired_programs':companion is not None,
         'hps_menu_program_sha256':hps_context.digest(companion) if companion is not None else None,
+        **({'shared_core_shell': True} if shared_shell else {}),
         **({'spectrum48_program_sha256': hps_context.digest(spectrum)} if spectrum is not None else {}),
         'control_probe':control_map is not None,
         'hps_control_sha256':hps_context.digest(control_map) if control_map is not None else None,

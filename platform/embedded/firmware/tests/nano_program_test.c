@@ -299,7 +299,8 @@ int main(int argc,char **argv)
         f.configuration.chunk=0xfffc0;
         uint64_t generation=1;
         int spectrum=argc==7;
-        int roles=spectrum || (argc==6 && !strcmp(argv[2],"owned-role"));
+        int shared=argc==6 && !strcmp(argv[2],"owned-shared-shell");
+        int roles=spectrum || shared || (argc==6 && !strcmp(argv[2],"owned-role"));
         if(argc>=6) {
             /* Trusted modeled boot state arrives separately from the request.
              * Never adopt ownership, context or chunk geometry from f.wire. */
@@ -331,6 +332,7 @@ int main(int argc,char **argv)
             f.program.maximum=FES_NANO_PROGRAM_MAX_BYTES;
             assert(!fes_nano_program_enable_rom(&f.program,read_rom_header));
             if(roles)assert(!fes_nano_program_enable_roles(&f.program));
+            if(shared)assert(!fes_nano_program_enable_shared_core_shell(&f.program));
             if(spectrum) {
                 FILE *policy=fopen(argv[6],"rb");assert(policy);
                 assert(fread(&matched,1,sizeof(matched),policy)==sizeof(matched));
