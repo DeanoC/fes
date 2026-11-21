@@ -68,6 +68,12 @@ class OutputResetTests(unittest.TestCase):
                f'; {reset.CLOCK} ; 2 ; ' + '   '.join(sorted(reset.HEADS)) + ' ; ' +
                '   '.join(sorted(reset.SOURCES)) + ' ; ;\n')
         self.assertEqual(reset.findings(raw)['violations'], 1)
+        native = raw.replace('fes_video_inst|first_lock_seen', 'fes_video_inst|scanout_release')
+        self.assertEqual(reset.findings(native, native_spectrum=True)['violations'], 1)
+        with self.assertRaises(BuildError):
+            reset.findings(native)
+        with self.assertRaises(BuildError):
+            reset.findings(raw, native_spectrum=True)
         for before, after in [(' ; 2 ; ', ' ; 3 ; '), (reset.STAGES[0], 'other_reset[0]'),
                               ('fes_video_inst|visible_allow', 'other_source'), (' ; ;\n', ' ; Yes ;\n')]:
             with self.assertRaises(BuildError): reset.findings(raw.replace(before, after, 1))
