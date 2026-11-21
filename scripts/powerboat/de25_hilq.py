@@ -12,14 +12,6 @@ _D25_DEPLOYED = re.compile(
     r"^sources/mister-packages/.*de25|^sources/libmister-runtime/.*de25|"
     r"^sources/FogCast/.*de25)", re.I
 )
-_D25_PRODUCERS = (
-    (re.compile(r"(?:^|/)boards/de25nano/.*/menu/|"
-                r"(?:^|/)boards/de25nano/.*/build_menu_package\.py$", re.I),
-     "build_menu_package.py"),
-    (re.compile(r"(?:^|/)boards/de25nano/.*/zx81|"
-                r"(?:^|/)boards/de25nano/.*/build_zx81_package\.py$", re.I),
-     "build_zx81_package.py"),
-)
 
 
 def kit_target(paths: list[str], labels: list[str] | None = None) -> str | None:
@@ -34,18 +26,22 @@ def kit_target(paths: list[str], labels: list[str] | None = None) -> str | None:
 
 
 def de25_producer(paths: list[str], labels: list[str] | None = None) -> str | None:
-    """Resolve a single DE25 Quartus producer; ambiguity fails closed."""
+    """Return the seal selection for D25 work; the exact head's recipes decide.
+
+    `core:de25-<name>` labels name registered recipes (`fes.<name>`) and
+    `core:de25-all` names every one. Otherwise D25 work seals `de25:auto`:
+    scripts/de25_seal_plan.py at the exact head builds each registered DE25
+    recipe and model whose producer identity moved since the merge base. The
+    sealer refuses anything that is not a registered DE25 Quartus Pro recipe.
+    """
     labels = labels or []
-    labelled = {"core:de25-menu": "build_menu_package.py",
-                "core:de25-zx81": "build_zx81_package.py"}
-    selected = {labelled[label] for label in labels if label in labelled}
-    if len(selected) == 1:
-        return next(iter(selected))
-    if selected:
-        return None
-    hits = {producer for pattern, producer in _D25_PRODUCERS
-            if any(pattern.search(path) for path in paths)}
-    return next(iter(hits)) if len(hits) == 1 else None
+    named = sorted({label.removeprefix("core:de25-").lower() for label in labels
+                    if label.startswith("core:de25-")})
+    if "all" in named:
+        return "de25:all"
+    if named:
+        return "de25:" + ",".join("fes." + name for name in named)
+    return "de25:auto" if kit_target(paths, labels) == "D25" else None
 
 
 def selected_kits(target: str | None) -> tuple[str, ...]:

@@ -55,13 +55,17 @@ r=json.load(open(sys.argv[1])); print(r.get('bundle',{}).get('id') or r.get('id'
 PY
 )
 [[ "$SW_BUNDLE_ID" =~ ^[0-9a-f]{64}$ ]] || { echo NOTSTARTED > "$D/verdict"; echo "invalid software bundle ID"; exit 3; }
-# Verify the exact sealed package before claiming J8G or activating candidate software.
-LINE=$(cat "$B/core-build.result" 2>/dev/null || true)
-read -r STATE PKG PKG_SHA <<< "$LINE"
-[ "$STATE" = DONE ] && [ -f "$PKG" ] || { echo NOTSTARTED > "$D/verdict"; echo "exact-head sealed package missing"; exit 3; }
-ACTUAL=$(sha256sum "$PKG" | cut -d' ' -f1)
-[ "$ACTUAL" = "$PKG_SHA" ] || { echo NOTSTARTED > "$D/verdict"; echo "sealed package digest mismatch"; exit 3; }
-CORE_ID=$(python3 - "$PKG" <<'PY' || { echo NOTSTARTED > "$D/verdict"; echo "sealed package manifest invalid"; exit 3; }
+# Verify every exact sealed package before claiming J8G or activating candidate software.
+# core-build.result holds one line per package: DONE <fcore> <sha256> [<slug>].
+[ -s "$B/core-build.result" ] || { echo NOTSTARTED > "$D/verdict"; echo "exact-head sealed package missing"; exit 3; }
+mapfile -t PACKAGE_LINES < "$B/core-build.result"
+PKGS=(); PKG_SHAS=(); CORE_IDS=(); SLUGS=()
+for LINE in "${PACKAGE_LINES[@]}"; do
+  read -r STATE PKG PKG_SHA SLUG EXTRA <<< "$LINE"
+  [ "$STATE" = DONE ] && [ -f "$PKG" ] && [ -z "$EXTRA" ] || { echo NOTSTARTED > "$D/verdict"; echo "exact-head sealed package missing"; exit 3; }
+  ACTUAL=$(sha256sum "$PKG" | cut -d' ' -f1)
+  [ "$ACTUAL" = "$PKG_SHA" ] || { echo NOTSTARTED > "$D/verdict"; echo "sealed package digest mismatch"; exit 3; }
+  CORE_ID=$(python3 - "$PKG" <<'PY' || { echo NOTSTARTED > "$D/verdict"; echo "sealed package manifest invalid"; exit 3; }
 import sys,tarfile,tomllib
 with tarfile.open(sys.argv[1], 'r:*') as archive:
     member=archive.extractfile('manifest.toml')
@@ -69,6 +73,54 @@ with tarfile.open(sys.argv[1], 'r:*') as archive:
     print(tomllib.loads(member.read().decode())['core']['id'])
 PY
 )
+  SLUG=${SLUG:-$CORE_ID}
+  [[ "$SLUG" =~ ^fes\.[a-z0-9][a-z0-9._-]*$ ]] || { echo NOTSTARTED > "$D/verdict"; echo "invalid package slug $SLUG"; exit 3; }
+  for SEEN in "${SLUGS[@]}"; do [ "$SEEN" != "$SLUG" ] || { echo NOTSTARTED > "$D/verdict"; echo "package $SLUG listed twice"; exit 3; }; done
+  PKGS+=("$PKG"); PKG_SHAS+=("$ACTUAL"); CORE_IDS+=("$CORE_ID"); SLUGS+=("$SLUG")
+done
+N_PKGS=${#PKGS[@]}
+[ "$N_PKGS" -ge 1 ] || { echo NOTSTARTED > "$D/verdict"; echo "exact-head sealed package missing"; exit 3; }
+# Generate the D25 smoke engine before the claim when any package needs it.
+NEEDS_CORE_SMOKE=0
+for CORE_ID in "${CORE_IDS[@]}"; do [ "$CORE_ID" = fes.menu ] || NEEDS_CORE_SMOKE=1; done
+if [ "$NEEDS_CORE_SMOKE" = 1 ]; then
+  cp "$Q/hilcore.py" "$Q/hil-de25-core.py"
+  python3 - "$Q/hil-de25-core.py" <<'PY' || { echo NOTSTARTED > "$D/verdict"; echo "D25 smoke patch generation failed"; exit 3; }
+from pathlib import Path
+import sys
+p=Path(sys.argv[1]); s=p.read_text(); old='ORIGIN = "http://127.0.0.1:8787"'; new='ORIGIN = os.environ.get("C_API", "http://127.0.0.1:8787")'
+if old not in s: raise SystemExit('HIL smoke API declaration changed')
+s=s.replace(old,new,1)
+old_rom = '    plan = hil_rom.rom_plan(R["descriptor"], entry.get("core_id"), req(f"/api/v1/library/core-entries/{game}/rom", "rom-before"))'
+new_rom = """    rom = (R[\"descriptor\"] or {}).get(\"rom\") or {}
+    if rom.get(\"id\"):
+        current = req(f\"/api/v1/library/core-entries/{game}/rom?rom_id={rom['id']}\", \"rom-before\")
+        plan = hil_rom.rom_plan(R[\"descriptor\"], entry.get(\"core_id\"), current)
+    else:
+        plan = None"""
+if old_rom not in s: raise SystemExit('HIL smoke ROM selection declaration changed')
+s=s.replace(old_rom,new_rom,1)
+old_idle = """    rc, lc = kit("curl -s -m5 --unix-socket /run/fogcast/local-control.sock http://local-control/v1/local/status")
+    check("idle_after_stop", '"phase":"idle"' in lc, lc[:160])"""
+new_idle = "    idle = req('/api/v1/session', 'session-after-stop')\n    check('idle_after_stop', idle.get('state') == 'idle', str(idle.get('state')))"
+if old_idle not in s: raise SystemExit('HIL smoke idle probe declaration changed')
+s=s.replace(old_idle,new_idle,1)
+old_frames = '    s1 = grab("10-core", 1); s2 = grab("11-core", 10)'
+new_frames = old_frames + """
+    tool = os.environ.get("C_BOOT_SCREEN_TOOL", "")
+    if tool and os.path.isfile(tool):
+        frames = [str(FR / (n + ".png")) for n in ("10-core", "11-core") if (FR / (n + ".png")).is_file()]
+        bs = subprocess.run([sys.executable, tool, "--core", os.environ.get("C_CORE_ID", ""), *frames], capture_output=True, text=True, timeout=180)
+        (OUT / "boot-screen.json").write_text(bs.stdout + bs.stderr)
+        if bs.returncode != 3:
+            check("boot_screen", bs.returncode == 0 and len(frames) == 2, bs.stdout.strip()[:400])"""
+if old_frames not in s: raise SystemExit('HIL smoke core frame capture changed')
+s=s.replace(old_frames,new_frames,1)
+compile(s, str(p), 'exec')
+if 'C_API' not in s or 'session-after-stop' not in s or 'boot-screen.json' not in s: raise SystemExit('D25 smoke patch verification failed')
+p.write_text(s)
+PY
+fi
 exec 8>"$LOCK1" 9>"$LOCK2"
 flock -n 8 || { echo "J8G status lock busy"; echo NOTSTARTED > "$D/verdict"; exit 3; }
 flock -n 9 || { echo "J8G ledger lock busy"; echo NOTSTARTED > "$D/verdict"; exit 3; }
@@ -162,67 +214,44 @@ if [ "$(cat "$D/verdict" 2>/dev/null || true)" != FAIL ]; then
 fi
 # MENU is a volatile development-core load, not an installable playable library entry.
 # Other DE25 packages use the existing package-install/launch smoke engine.
-set +e
-if [ "$SW_READY" != 1 ]; then
-  echo "smoke skipped because exact-head kit software was not verified" > "$D/logs/smoke.log"
-  SMOKE_RC=1
-elif [ "$CORE_ID" = fes.menu ]; then
-  C_PR="$PR" C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$D/out" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
-    timeout 1800 python3 "$Q/hil-de25-menu.py" >"$D/logs/smoke.log" 2>&1
-  SMOKE_RC=$?
-else
-  cp "$Q/hilcore.py" "$Q/hil-de25-core.py"
-  python3 - "$Q/hil-de25-core.py" <<'PY' || { fail "D25 smoke patch generation failed"; echo FAIL > "$D/verdict"; exit 1; }
-from pathlib import Path
-import sys
-p=Path(sys.argv[1]); s=p.read_text(); old='ORIGIN = "http://127.0.0.1:8787"'; new='ORIGIN = os.environ.get("C_API", "http://127.0.0.1:8787")'
-if old not in s: raise SystemExit('HIL smoke API declaration changed')
-s=s.replace(old,new,1)
-old_rom = '    plan = hil_rom.rom_plan(R["descriptor"], entry.get("core_id"), req(f"/api/v1/library/core-entries/{game}/rom", "rom-before"))'
-new_rom = """    rom = (R[\"descriptor\"] or {}).get(\"rom\") or {}
-    if rom.get(\"id\"):
-        current = req(f\"/api/v1/library/core-entries/{game}/rom?rom_id={rom['id']}\", \"rom-before\")
-        plan = hil_rom.rom_plan(R[\"descriptor\"], entry.get(\"core_id\"), current)
-    else:
-        plan = None"""
-if old_rom not in s: raise SystemExit('HIL smoke ROM selection declaration changed')
-s=s.replace(old_rom,new_rom,1)
-old_idle = """    rc, lc = kit("curl -s -m5 --unix-socket /run/fogcast/local-control.sock http://local-control/v1/local/status")
-    check("idle_after_stop", '"phase":"idle"' in lc, lc[:160])"""
-new_idle = "    idle = req('/api/v1/session', 'session-after-stop')\n    check('idle_after_stop', idle.get('state') == 'idle', str(idle.get('state')))"
-if old_idle not in s: raise SystemExit('HIL smoke idle probe declaration changed')
-s=s.replace(old_idle,new_idle,1)
-old_frames = '    s1 = grab("10-core", 1); s2 = grab("11-core", 10)'
-new_frames = old_frames + """
-    tool = os.environ.get("C_BOOT_SCREEN_TOOL", "")
-    if tool and os.path.isfile(tool):
-        frames = [str(FR / (n + ".png")) for n in ("10-core", "11-core") if (FR / (n + ".png")).is_file()]
-        bs = subprocess.run([sys.executable, tool, "--core", os.environ.get("C_CORE_ID", ""), *frames], capture_output=True, text=True, timeout=180)
-        (OUT / "boot-screen.json").write_text(bs.stdout + bs.stderr)
-        if bs.returncode != 3:
-            check("boot_screen", bs.returncode == 0 and len(frames) == 2, bs.stdout.strip()[:400])"""
-if old_frames not in s: raise SystemExit('HIL smoke core frame capture changed')
-s=s.replace(old_frames,new_frames,1)
-compile(s, str(p), 'exec')
-if 'C_API' not in s or 'session-after-stop' not in s or 'boot-screen.json' not in s: raise SystemExit('D25 smoke patch verification failed')
-p.write_text(s)
-PY
-  C_CORE_ID="$CORE_ID" C_BOOT_SCREEN_TOOL="$FES_SOURCE/scripts/de25_boot_screen.py" C_KIT=D25 C_PR="$PR" C_TARGET=de25 C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$D/out" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
-    timeout 1800 python3 "$Q/hil-de25-core.py" >"$D/logs/smoke.log" 2>&1
-  SMOKE_RC=$?
-fi
-set -e
-[ "$SMOKE_RC" -eq 0 ] && PASS=1 || fail "package lifecycle smoke rc=$SMOKE_RC"
-# Bind the smoke result to the package that this runner actually verified and
-# loaded. The smoke engines have different result schemas, so normalize these
-# two identity fields here before recording the run verdict.
-if [ "$CORE_ID" = fes.menu ]; then
-  RESULT="$D/out/menu-result.json"
-else
-  RESULT="$D/out/result.json"
-fi
-if [ -s "$RESULT" ]; then
-  C_RESULT="$RESULT" C_CORE_ID="$CORE_ID" C_PACKAGE_ID="$(basename "$PKG" .fcore)" python3 - <<'PY' || { fail "could not bind smoke result to its package"; PASS=0; }
+# Every package runs under this one claim and software activation; the run
+# passes only if every package passes. A single package keeps the $D/out
+# layout; several packages each get $D/out/<slug>.
+ALL_PASS=1
+for i in "${!PKGS[@]}"; do
+  PKG=${PKGS[$i]} CORE_ID=${CORE_IDS[$i]} SLUG=${SLUGS[$i]}
+  if [ "$N_PKGS" -eq 1 ]; then
+    OUT=$D/out SMOKE_LOG=$D/logs/smoke.log
+  else
+    OUT=$D/out/$SLUG SMOKE_LOG=$D/logs/smoke-$SLUG.log
+    mkdir -p "$OUT"
+    echo "package $((i + 1))/$N_PKGS: $SLUG $(basename "$PKG")" | tee -a "$D/logs/driver.log"
+  fi
+  set +e
+  if [ "$SW_READY" != 1 ]; then
+    echo "smoke skipped because exact-head kit software was not verified" > "$SMOKE_LOG"
+    SMOKE_RC=1
+  elif [ "$CORE_ID" = fes.menu ]; then
+    C_PR="$PR" C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$OUT" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
+      timeout 1800 python3 "$Q/hil-de25-menu.py" >"$SMOKE_LOG" 2>&1
+    SMOKE_RC=$?
+  else
+    C_CORE_ID="$CORE_ID" C_BOOT_SCREEN_TOOL="$FES_SOURCE/scripts/de25_boot_screen.py" C_KIT=D25 C_PR="$PR" C_TARGET=de25 C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$OUT" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
+      timeout 1800 python3 "$Q/hil-de25-core.py" >"$SMOKE_LOG" 2>&1
+    SMOKE_RC=$?
+  fi
+  set -e
+  [ "$SMOKE_RC" -eq 0 ] || { fail "$SLUG package lifecycle smoke rc=$SMOKE_RC"; ALL_PASS=0; }
+  # Bind the smoke result to the package that this runner actually verified and
+  # loaded. The smoke engines have different result schemas, so normalize these
+  # two identity fields here before recording the run verdict.
+  if [ "$CORE_ID" = fes.menu ]; then
+    RESULT="$OUT/menu-result.json"
+  else
+    RESULT="$OUT/result.json"
+  fi
+  if [ -s "$RESULT" ]; then
+    C_RESULT="$RESULT" C_CORE_ID="$CORE_ID" C_PACKAGE_ID="$(basename "$PKG" .fcore)" python3 - <<'PY' || { fail "could not bind $SLUG smoke result to its package"; ALL_PASS=0; }
 import json
 import os
 from pathlib import Path
@@ -242,10 +271,14 @@ result['core_id'] = core_id
 result['package_id'] = package_id
 path.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
 PY
-else
-  fail "smoke result is missing: $RESULT"
-  PASS=0
-fi
+  else
+    fail "smoke result is missing: $RESULT"
+    ALL_PASS=0
+  fi
+  # Leave the kit idle before the next package.
+  curl --noproxy '*' -sS --max-time 30 -H 'Content-Type: application/json' -d '{"target":"de25"}' "http://$API/api/v1/session/stop" > "$OUT/stop-after-smoke.json" 2>/dev/null || true
+done
+PASS=$ALL_PASS
 # Stop is repeated idempotently, then the recorded baseline bundle is reactivated.
 curl --noproxy '*' -sS --max-time 30 -H 'Content-Type: application/json' -d '{"target":"de25"}' "http://$API/api/v1/session/stop" > "$D/out/stop-final.json" || true
 sleep 2
@@ -301,7 +334,9 @@ if [ "$RESTORE" != 1 ]; then
   [ "$RESTORE" = 1 ] || fail "network restore and serial-checked recovery failed; ledger remains claimed"
 fi
 if [ "$RESTORE" = 1 ]; then
-  SUM="exact-head=$HEAD package=$(basename "$PKG") sha256=$ACTUAL smoke=$([ "$PASS" = 1 ] && echo PASS || echo FAIL) restore=PASS"
+  PKG_NAMES=$(for P in "${PKGS[@]}"; do basename "$P"; done | paste -sd, -)
+  PKG_DIGESTS=$(IFS=,; echo "${PKG_SHAS[*]}")
+  SUM="exact-head=$HEAD package=$PKG_NAMES sha256=$PKG_DIGESTS smoke=$([ "$PASS" = 1 ] && echo PASS || echo FAIL) restore=PASS"
   printf '\n## KIT D25 FREE (baseline verified) — de25-j8g; %s; released %s. Evidence %s\n' "$SUM" "$(date -Is)" "$D" >> "$STATUS"
   echo "restore verified; J8G released FREE (baseline verified)" | tee -a "$D/logs/driver.log"
 else

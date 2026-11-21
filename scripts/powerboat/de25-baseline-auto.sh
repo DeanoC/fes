@@ -88,9 +88,9 @@ HEARTBEAT="$Q/heartbeats/de25-promotion-${HEAD:0:8}.heartbeat"
 HEARTBEAT_PID=$!
 trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
 cp -p "$BASE" "$E/current-restore-de25.before-$HEAD.json"
-for spec in menu:build_menu_package.py zx81:build_zx81_package.py; do
-  name=${spec%%:*}; producer=${spec#*:}; pr="baseline-$name-$(date +%Y%m%d-%H%M%S)"; build="$Q/builds/$pr-${HEAD:0:8}"
-  bash "$Q/seal-remote.sh" "$pr" "$HEAD" "$producer" core
+for spec in menu:fes.menu zx81:fes.zx81; do
+  name=${spec%%:*}; core=${spec#*:}; pr="baseline-$name-$(date +%Y%m%d-%H%M%S)"; build="$Q/builds/$pr-${HEAD:0:8}"
+  bash "$Q/seal-remote.sh" "$pr" "$HEAD" "de25:$core" core
   grep -q '^DONE ' "$build/core-build.result"
   run="$Q/runs/baseline-$name-${HEAD:0:8}-D25-$(date +%Y%m%d-%H%M%S)"
   LW_REPO=DeanoC/fes LW_PR=0 LW_HEAD="$HEAD" \
