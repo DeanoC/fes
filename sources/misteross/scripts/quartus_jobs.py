@@ -21,7 +21,7 @@ a free slot.
         `{cache}` that host's toolchain cache. Output goes on /data, never to
         /tmp (Powerboat's /tmp is a shared tmpfs).
 
-`run` reports the peak resident set size of the job's process group, and
+`run` reports the peak resident set size of the job and all its descendants, and
 writes it to $FES_QUARTUS_RUN_DIR/peak-rss.json when that is set: the figure
 the pools in quartus_tools are sized from.
 
@@ -133,19 +133,30 @@ def _command(pid: int) -> str:
         return "?"
 
 
-def group_rss_kib(group: int) -> int:
-    """Total resident memory of the processes in a process group."""
-    total = 0
+def tree_rss_kib(root: int) -> int:
+    """Total resident memory of root and all its descendants.
+
+    By parentage, not process group: producers and fit scripts start each
+    Quartus stage in a new session, so a process-group sum misses Quartus."""
+    parents, rss = {}, {}
+    page_kib = os.sysconf("SC_PAGE_SIZE") // 1024
     for entry in os.listdir("/proc"):
         if not entry.isdigit():
             continue
         try:
             fields = Path(f"/proc/{entry}/stat").read_bytes().rsplit(b")", 1)[1].split()
-            if int(fields[2]) != group:
-                continue
-            total += int(Path(f"/proc/{entry}/statm").read_text().split()[1]) * os.sysconf("SC_PAGE_SIZE") // 1024
+            parents[int(entry)] = int(fields[1])
+            rss[int(entry)] = int(Path(f"/proc/{entry}/statm").read_text().split()[1]) * page_kib
         except (OSError, IndexError, ValueError):
             continue
+    children: dict[int, list[int]] = {}
+    for pid, parent in parents.items():
+        children.setdefault(parent, []).append(pid)
+    total, pending = 0, [root]
+    while pending:
+        pid = pending.pop()
+        total += rss.get(pid, 0)
+        pending.extend(children.get(pid, ()))
     return total
 
 
@@ -168,7 +179,7 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
         peak = 0
         try:
             while True:
-                peak = max(peak, group_rss_kib(process.pid))
+                peak = max(peak, tree_rss_kib(process.pid))
                 try:
                     code = process.wait(timeout=sample_seconds)
                     break
@@ -179,7 +190,7 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
                 signal.signal(sig, handler)
         record = {"host": local_host(), "edition": edition, "slot": slot, "command": command,
                   "exit": code, "peak_rss_kib": peak, "sample_seconds": sample_seconds}
-        print(f"quartus_jobs: peak RSS {peak / 1024 ** 2:.2f} GiB (process group, sampled every "
+        print(f"quartus_jobs: peak RSS {peak / 1024 ** 2:.2f} GiB (the job and its descendants, sampled every "
               f"{sample_seconds:g} s), exit {code}", file=sys.stderr, flush=True)
         run_dir = os.environ.get("FES_QUARTUS_RUN_DIR")
         if run_dir:
