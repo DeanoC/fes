@@ -240,6 +240,17 @@ on more than the logic, so the digest moved while the cells did not.
   No seal or D12 comparison was run, so the sealed design and this head's
   are not shown equal. The PR says so.
 
+## The merge of main
+
+Slice 2 ([#2045](https://github.com/DeanoC/fes/pull/2045)) landed as
+`f07cd3384` while these runs went on, so this branch merged main after them
+(`cdbdccd7b`), with no rebase. The merged tree is main plus this branch's
+changes exactly. Main also brought x87 slice 6.3
+([#2059](https://github.com/DeanoC/fes/pull/2059), `57bdbb31f`), which
+changes the x87 unit's RTL. None of the runs above include it. The 386
+comparisons are against slice 2's head (`bf7afef73`), as `method.md` set
+them.
+
 ## What this does not establish
 
 - **A real 486SX's answers.** The oracle is Bochs's DX4. The random
@@ -254,3 +265,5 @@ on more than the logic, so the digest moved while the cells did not.
   it; the random programs did not reach it.
 - **The x87 empty socket at `I486 = 1`.** The random programs run no ESC.
 - **The netlist's timing or fit.** Nothing was placed or routed.
+- **The merged head with #2059's x87 changes.** No run here includes them
+  (above).
