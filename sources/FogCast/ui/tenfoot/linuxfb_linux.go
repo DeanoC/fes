@@ -301,7 +301,7 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 			if in.mapper != nil {
 				in.device = device
 				in.info = PadInfo{Name: strings.TrimSpace(device.Name), GUID: device.GUID(), Vendor: vendor, Product: product,
-					Family: promptFamily(device.Family()), Recognised: device.Recognised()}
+					Family: promptFamily(device.Family()), Recognised: device.Recognised(), Bluetooth: device.Bluetooth()}
 				in.profileGen = app.PadProfileGeneration()
 			}
 		} else if ins.padID != nil {

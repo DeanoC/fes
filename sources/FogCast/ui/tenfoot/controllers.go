@@ -10,6 +10,7 @@ import (
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/inputmap"
+	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
 // PadInfo is what the kit's input layer knows about an attached pad.
@@ -20,6 +21,7 @@ type PadInfo struct {
 	Family          gfx.PromptFamily
 	// Recognised is a pad GameControllerDB has a mapping for.
 	Recognised bool
+	Bluetooth  bool
 	// Player is the pad's controller port from 1, or 0 for a menu-only pad.
 	Player int
 }
@@ -112,6 +114,9 @@ type controllersState struct {
 	}
 	learn  padLearn
 	status string
+	// fromRoom is the page opened from a room's controllers action: leaving
+	// it closes Settings and returns to the room.
+	fromRoom bool
 }
 
 // ControllerTab is a pad in the Controllers header.
@@ -174,6 +179,7 @@ func (a *App) SetPadInfo(id int, info PadInfo) {
 		a.pads = map[int]PadInfo{}
 	}
 	a.pads[id] = info
+	a.padStateGen++
 	a.refreshPadPromptsLocked(id)
 }
 
@@ -191,6 +197,10 @@ func (a *App) NotePadButton(id int, code remoteinput.Code, down bool) {
 	if a.padDown == nil {
 		a.padDown = map[int]map[remoteinput.Code]bool{}
 	}
+	if a.padDown[id][code] == down {
+		return
+	}
+	a.padStateGen++
 	if down {
 		if a.padDown[id] == nil {
 			a.padDown[id] = map[remoteinput.Code]bool{}
@@ -213,6 +223,7 @@ func (a *App) PadProfileGeneration() uint64 {
 }
 
 func (a *App) dropPadInfoLocked(id int) {
+	a.padStateGen++
 	delete(a.pads, id)
 	delete(a.padDown, id)
 	delete(a.padPrompts, id)
@@ -377,6 +388,10 @@ func (a *App) handleControllersLocked(cmd Command) {
 	case CmdRight:
 		dir = 3
 	case CmdBack:
+		if c.fromRoom {
+			a.closeSettingsLocked()
+			return
+		}
 		a.closeControllersLocked()
 		a.focusSettingsRowLocked(settingsSectionRowPrefix + settingsSectionControllers)
 		return
@@ -397,7 +412,9 @@ func (a *App) handleControllersLocked(cmd Command) {
 	case CmdSelect:
 		switch c.focus {
 		case controllersFocusSwap:
-			a.togglePadSwapLocked()
+			if status, ok := a.togglePadSwapLocked(c.pad); ok {
+				c.status = status
+			}
 		case controllersFocusLearn:
 			a.startLearnLocked(time.Now())
 		case controllersFocusReset:
@@ -588,8 +605,10 @@ func padSourceLabel(code remoteinput.Code) string {
 	return "?"
 }
 
-func (a *App) togglePadSwapLocked() {
-	info := a.pads[a.controllers.pad]
+// togglePadSwapLocked turns Swap A / B on or off for pad id and says
+// which, or reports false with the reason in the Controllers status.
+func (a *App) togglePadSwapLocked(id int) (string, bool) {
+	info := a.pads[id]
 	profile := a.padProfilesLocked()[info.GUID]
 	bindings := map[string]string{}
 	for from, to := range profile.Bindings {
@@ -604,12 +623,12 @@ func (a *App) togglePadSwapLocked() {
 		profile.Preset = inputmap.PresetSwapAB
 	}
 	if !a.savePadProfileLocked(info.GUID, profile) {
-		return
+		return a.controllers.status, false
 	}
-	a.controllers.status = "Swap A / B is off."
 	if profile.Preset != "" {
-		a.controllers.status = "Swap A / B is on: the right-hand button confirms."
+		return "Swap A / B is on: the right-hand button confirms.", true
 	}
+	return "Swap A / B is off.", true
 }
 
 func (a *App) resetPadLocked() {
@@ -650,6 +669,7 @@ func (a *App) savePadProfileLocked(guid string, profile inputmap.Profile) bool {
 		return false
 	}
 	a.padProfileGen++
+	a.padStateGen++
 	for id, info := range a.pads {
 		if info.GUID == guid {
 			a.refreshPadPromptsLocked(id)
@@ -712,4 +732,98 @@ func (a *App) controllersSnapshotLocked() ControllersSnapshot {
 		}
 	}
 	return snap
+}
+
+// padControlNames name a pad's controls in room.pads(), with the button
+// each one is when nothing remaps it.
+var padControlNames = []struct {
+	name    string
+	control gfx.PromptControl
+	code    remoteinput.Code
+}{
+	{"south", gfx.PromptSouth, remoteinput.ButtonA},
+	{"east", gfx.PromptEast, remoteinput.ButtonB},
+	{"west", gfx.PromptWest, remoteinput.ButtonX},
+	{"north", gfx.PromptNorth, remoteinput.ButtonY},
+	{"l", gfx.PromptL, remoteinput.ButtonL},
+	{"r", gfx.PromptR, remoteinput.ButtonR},
+	{"select", gfx.PromptSelect, remoteinput.ButtonSelect},
+	{"start", gfx.PromptStart, remoteinput.ButtonStart},
+	{"dpad", gfx.PromptDPad, 0},
+}
+
+var padDirectionNames = map[remoteinput.Code]string{
+	remoteinput.ButtonDPadUp:    "up",
+	remoteinput.ButtonDPadDown:  "down",
+	remoteinput.ButtonDPadLeft:  "left",
+	remoteinput.ButtonDPadRight: "right",
+}
+
+var promptFamilyNames = map[gfx.PromptFamily]string{
+	gfx.PromptGeneric:     "generic",
+	gfx.PromptXbox:        "xbox",
+	gfx.PromptPlayStation: "playstation",
+	gfx.PromptNintendo:    "nintendo",
+}
+
+// roomPadsLocked is the attached pads as room.pads() lists them.
+func (a *App) roomPadsLocked() []rooms.Pad {
+	var pads []rooms.Pad
+	for _, id := range a.padIDsLocked() {
+		info := a.pads[id]
+		profile := a.padProfilesLocked()[info.GUID]
+		remap := a.padRemapLocked(info.GUID)
+		p := rooms.Pad{
+			Player: info.Player, Name: info.Name, Family: promptFamilyNames[info.Family],
+			Recognised: info.Recognised, Bluetooth: info.Bluetooth,
+			SwapAB: profile.Preset == inputmap.PresetSwapAB, Mapped: profile.Mapping != "",
+			Glyphs: map[string]string{}, Sends: map[string]string{},
+		}
+		for _, c := range padControlNames {
+			p.Glyphs[c.name] = string(gfx.PromptRune(info.Family, c.control))
+			if c.code == 0 {
+				continue
+			}
+			p.Sends[c.name] = padTargetLabel(remap.Target(c.code))
+			if a.padDown[id][c.code] {
+				p.Pressed = append(p.Pressed, c.name)
+			}
+		}
+		for code, name := range padDirectionNames {
+			if a.padDown[id][code] {
+				p.Pressed = append(p.Pressed, name)
+			}
+		}
+		sort.Strings(p.Pressed)
+		pads = append(pads, p)
+	}
+	return pads
+}
+
+// openRoomControllersLocked is a room's controllers action: Settings ›
+// Controllers, which goes back to the room when it closes.
+func (a *App) openRoomControllersLocked() {
+	if a.settingsBlockedLocked() {
+		a.status = "Settings are unavailable during play."
+		return
+	}
+	if len(a.pads) == 0 {
+		a.status = "Plug in a controller first."
+		return
+	}
+	a.openSettingsLocked()
+	a.openControllersLocked()
+	a.controllers.fromRoom = true
+}
+
+// setupSwapABLocked is setup's Swap A / B: it changes Player 1's pad, the
+// pad the Controllers step shows.
+func (a *App) setupSwapABLocked() {
+	ids := a.padIDsLocked()
+	if len(ids) == 0 {
+		a.status = "Plug in a controller first."
+		return
+	}
+	status, _ := a.togglePadSwapLocked(ids[0])
+	a.status = status
 }
