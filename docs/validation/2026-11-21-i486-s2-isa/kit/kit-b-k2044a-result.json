@@ -1,0 +1,49 @@
+{
+ "kit": "B",
+ "package": "11b50c9865dac01871dda4c8b006050a0865bd9edc6d118b0e6b0468dc34b478.fcore",
+ "drive": "real",
+ "drive_sha256": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+ "library_game": "s4-dos-jzf180r5pyay",
+ "nonce": "JZF180R5PYAY",
+ "goals": {
+  "freedos": {
+   "pass": true,
+   "seconds_to_detect": 0.6,
+   "frame": "frames/freedos-prompt.png"
+  },
+  "wolf3d": {
+   "pass": true,
+   "graphics": true,
+   "lit": 0.938,
+   "changed_after_walk": 0.562,
+   "frames": [
+    "frames/wolf3d-floor1.png",
+    "frames/wolf3d-walked.png"
+   ]
+  }
+ },
+ "events": [],
+ "claim": "## 2026-11-21T11:37:52+02:00 KIT B IN USE: Claude (fes#2044 i486 slice 2 session for Deano) \u2014 PR fes#2044 head 9aa6d0561, DE10 seal of the 386 package (I486 = 0) BUILD_ID 6de4bd49, package 11b50c98, r",
+ "kit_created": [
+  "/media/fat/fogcast/core-data/games/abac9509badf5cef19b8559581d342ad6116591358d56e11801d97ba6b4a6109",
+  "/media/fat/fogcast/core-data/media/e6666af77ed766480a5b4bde213603996e8caf275e0fc183cc568514cab61796",
+  "/media/fat/fogcast/disk-images/a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c.img"
+ ],
+ "readback": {
+  "dos": true,
+  "notepad": true,
+  "files": {
+   "WFWDOS.TXT": null,
+   "WFWNOTE.TXT": null
+  }
+ },
+ "after": {
+  "agent": "idle",
+  "lease": "free",
+  "rebooted": false,
+  "left": [],
+  "recovery_required": false
+ },
+ "failure": null,
+ "pass": true
+}

@@ -64,6 +64,9 @@ local right_focus = "game"
 local live
 local computers = {}
 local machine_media = {}
+-- packages[package_id][role]: true when that media role keeps what the
+-- computer writes, false when it only reads. Missing means not known.
+local packages = {}
 local hardware_unavailable = false
 local rev = 0
 local last_hw = 0
@@ -360,10 +363,11 @@ local function read_hardware()
       read_hardware()
       return
     end
-    computers, machine_media = {}, {}
+    computers, machine_media, packages = {}, {}, {}
     if value and not err then
       live = value.session
       hardware_unavailable = false
+      packages = value.packages or {}
       for _, c in ipairs(value.computers or {}) do computers[c.core_id] = c end
       for _, m in ipairs(value.machines or {}) do
         if m.game_id ~= "" and m.media_name ~= "" then machine_media[m.game_id] = m.media_name end
@@ -455,6 +459,17 @@ end
 local function shelf_package()
   local game = focused() or games[1]
   return game and game.package_id or ""
+end
+-- Whether role on pkg keeps what the computer writes: true, false or nil
+-- when not known. With no role, a package with one media role answers for it.
+local function media_saves(pkg, role)
+  local roles = pkg and packages[pkg]
+  if not roles then return nil end
+  if role and role ~= "" then return roles[role] end
+  local only, n = nil, 0
+  for _, saves in pairs(roles) do only, n = saves, n + 1 end
+  if n == 1 then return only end
+  return nil
 end
 local function open_disks()
   local pkg = shelf_package()
@@ -665,18 +680,29 @@ local function right_column()
   local name = drive_name(game)
   local can_change = game and game.package_id and game.package_id ~= "" and
     ((live_here and live.removable_available) or (play_state() == "idle" and not hardware_unavailable))
-  list_row("drive", x, y, w, lead, lead_w, name or "Nothing chosen", name and (live_here and "" or "For next start") or "", nil, false, false, not name)
+  -- Only a medium in the drive is tagged; an empty drive has nothing to save.
+  local saves = name and media_saves(game and game.package_id, role)
+  local saves_tag = saves == true and "Saves changes" or (saves == false and "Read only" or nil)
+  list_row("drive", x, y, w, lead, lead_w, name or "Nothing chosen", name and (live_here and "" or "For next start") or "", saves_tag, saves == true, false, not name)
   control("drive", x, y, w, ROW_H, can_change, open_media)
   y = y + ROW_H + 8
   local word = string.lower(media_word(game or {}) ~= "" and media_word(game) or (spec().media:match("^%a+") or "media"))
   local label = (live_here and "Change the " or "Choose a ") .. word
   local media_w = text_width(label, 17, true) + 40
   button("media", label, x, y, media_w, 36, can_change, open_media)
-  if spec().shelf then
+  -- A drive that cannot write gets no blank disk: New disk is shown off,
+  -- with the reason below.
+  local reads_only = media_saves(shelf_package(), "disk") == false
+  if reads_only then
+    button("new_disk", "New disk", x + media_w + 12, y, text_width("New disk", 17, true) + 40, 36, false, nil)
+  elseif spec().shelf then
     button("disks", "Your disks", x + media_w + 12, y, text_width("Your disks", 17, true) + 40, 36,
       shelf_package() ~= "" and not hardware_unavailable, open_disks)
   end
   y = y + 36 + 14
+  if reads_only then
+    y = note("This " .. spec().label .. " can read disks but can't write to them yet.", x, y, w) + 14
+  end
 
   local titles = title_count()
   local count = titles == 1 and "1 in your library" or (titles .. " in your library")

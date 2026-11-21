@@ -191,10 +191,11 @@ class RecipeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "standard-base/combined/hps/project"
             path = project / name; path.parent.mkdir(parents=True)
-            selected = {"vendor_hps_emif_parameters": {name: {"f2sdram_SMMU": "false", "f2s_data_width": "256"}},
+            selected = {"vendor_hps_emif_parameters": {name: {"f2sdram_SMMU": "false", "f2s_data_width": "256", "H2F_Width": "128"}},
                 "allowed_hps_parameter_changes": {name: {"f2sdram_SMMU": {"before": "false", "after": "true"},
-                    "f2s_data_width": {"before": "256", "after": "0"}}}, "f2sdram_master_profile": "scanout-only",
-                "scanout": {"managed_fabric": "managed-scanout-initiators-v3", "hps_initialization": "HPS FIRST",
+                    "f2s_data_width": {"before": "256", "after": "0"},
+                    "H2F_Width": {"before": "128", "after": "0"}}}, "f2sdram_master_profile": "scanout-only",
+                "scanout": {"managed_fabric": "managed-scanout-initiators-v4", "hps_initialization": "HPS FIRST",
                     "build_identity_scheme": "standard-pr-computer-v1", "build_id": "1" * 32},
                 "standard_zx81": {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
                     "computer_offset": 0x10300, "expansion_socket": True, "build_id": "1" * 32}}
@@ -207,7 +208,7 @@ class RecipeTests(unittest.TestCase):
                     'xmlns:altera="http://www.altera.com/XMLSchema/IPXact2014/extensions"><ip:vendorExtensions>'
                     '<altera:altera_module_parameters><ip:parameters>' + body + '</ip:parameters>'
                     '</altera:altera_module_parameters></ip:vendorExtensions></ip:component>')
-            actual = {**additions, "f2sdram_SMMU": "true", "f2s_data_width": "0"}
+            actual = {**additions, "f2sdram_SMMU": "true", "f2s_data_width": "0", "H2F_Width": "0"}
             with mock.patch.object(build, "load_hps", return_value=hps):
                 write(actual); build.verify_hps_inputs(project)
                 for change in ({**actual, "ED_en_sim_gen": "false"},

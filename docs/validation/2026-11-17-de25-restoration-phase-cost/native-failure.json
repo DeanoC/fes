@@ -1,0 +1,56 @@
+{
+  "status": "retained-failed-native-diagnostic",
+  "source_fields": {
+    "owner": "772c9939faf19e1d",
+    "source_generation": "10",
+    "generation": "15",
+    "stage": "2",
+    "clock_error": "0",
+    "scope_reason": "34",
+    "start_us": "154790512",
+    "last_us": "154790831",
+    "observed_us": "154790831",
+    "bad_address": "0",
+    "bad_value": "0",
+    "retained": "1",
+    "reuse_authorized": "0"
+  },
+  "last_accepted_clock_sample_delta_us": 319,
+  "failed_return_guard": "completed==3: fabric_configuration_generation matches binding and sdm_release_returned(binding)",
+  "exact_failed_subpredicate": "unknown; composite reason 34 requires further source/model work",
+  "deadline_verdict": "no release clock error recorded; do not treat last sample as measured rejection duration",
+  "native_wire_sha256": "7e5232089a83fbb91418fc32ca085f63668f9d906c1807559b34f6d3d1e113ac",
+  "native_phase_seconds": 171.4795337638352,
+  "core_fetch": {
+    "scope": "nano-computer-fetch-tape-v1",
+    "owner": 8587407063791017501,
+    "generation": 1,
+    "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+    "build_id": "0792e51a2e51512bfb8fe44e93a69ddd",
+    "before": {
+      "Cycles": 0,
+      "Address": 0
+    },
+    "held": {
+      "Cycles": 0,
+      "Address": 0
+    },
+    "running": {
+      "Cycles": 12086,
+      "Address": 975
+    },
+    "delta": 12086,
+    "polls": 1,
+    "elapsed_ns": 1892507932,
+    "limit_ns": 7000000000,
+    "tape_bytes": 917,
+    "tape_elapsed_ns": 1799084580,
+    "tape_limit_ns": 6000000000,
+    "control_elapsed_ns": 93423352
+  },
+  "one_use_consumed": true,
+  "retry_performed": false,
+  "host_cleanup_verified": true,
+  "restoration_status": "still running independently",
+  "hardware_acceptance": false
+}

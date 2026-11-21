@@ -30,7 +30,7 @@ func TestHomeInitialPictureAddsOneFamilyPerStep(t *testing.T) {
 		if n > previous+1 {
 			t.Fatalf("one draw added %d family tiles; want at most one", n-previous)
 		}
-		if n == 4 {
+		if n == 6 {
 			return
 		}
 		previous = n
@@ -71,7 +71,8 @@ func TestHomeRestartsPartialPictureOnChanges(t *testing.T) {
 			}
 		}
 	}
-	if len(hits) != 4 {
+	// An 800-wide room holds five tiles.
+	if len(hits) != 5 {
 		t.Fatalf("family hits = %v", hits)
 	}
 	for id, count := range hits {
@@ -153,7 +154,7 @@ func TestHomeReplacesReusedCheckingFrame(t *testing.T) {
 	}
 	checking := stepUntil(t, r, func(f Frame) bool {
 		for _, h := range f.Hits {
-			if h.ID == "family:4" {
+			if h.ID == "family:6" {
 				return true
 			}
 		}
@@ -193,7 +194,7 @@ func TestHomeReusesCompletedSlowPaint(t *testing.T) {
 	}
 	completed := stepUntil(t, r, func(f Frame) bool {
 		for _, h := range f.Hits {
-			if h.ID == "family:4" {
+			if h.ID == "family:6" {
 				return true
 			}
 		}

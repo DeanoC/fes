@@ -25,12 +25,20 @@ class ResetRestorationAttempt:
         if self.retired:
             raise ValueError('restoration attempt is retired')
         self.retired = True
-        with self.recovery._admitted_session(restoration=True) as (session, boot):
-            refresh_staged_boot(session, self.payloads, self.receipt,
-                                previous_boot=self.previous, retained_records=self.records)
-            self.recovery._guard()
-            return dict(status='verified-boot-restoration', recovery=boot,
-                        restoration=self.receipt, sd_write_authorized=True,
-                        flash_write_authorized=False, physical_reset_requested=False,
-                        ordinary_runtime_resume=False, sdm_reset_verified=False,
-                        power_loss_durability_verified=False, hardware_acceptance=False)
+        try:
+            with self.recovery._admitted_session(restoration=True) as (session, boot):
+                refresh_staged_boot(session, self.payloads, self.receipt,
+                                    previous_boot=self.previous, retained_records=self.records)
+                # File readback is complete. The enclosing session still audits ownership.
+                self.receipt.update(status='checking', unchanged_sources_verified=False)
+                self.recovery._guard()
+        except BaseException as error:
+            if self.receipt.get('status') == 'checking':
+                self.receipt.update(status='failed', error=str(error))
+            raise
+        self.receipt.update(status='verified', unchanged_sources_verified=True)
+        return dict(status='verified-boot-restoration', recovery=boot,
+                    restoration=self.receipt, sd_write_authorized=True,
+                    flash_write_authorized=False, physical_reset_requested=False,
+                    ordinary_runtime_resume=False, sdm_reset_verified=False,
+                    power_loss_durability_verified=False, hardware_acceptance=False)
