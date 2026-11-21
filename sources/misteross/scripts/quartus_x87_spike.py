@@ -356,29 +356,11 @@ def standalone(args, yosys, bin_dir: Path, env: dict, output: Path) -> tuple[Pat
     return project, top
 
 
-IDENTITY_OFF = "    wire x87_present = 1'b0;"
-
-
-def overlay_identity(text: str) -> str:
-    """pc386_system.sv with the i386dx+387 identity driven to 1, so the
-    fitter keeps the CPU's x87 unit (the package ties it to 0)."""
-    if text.count(IDENTITY_OFF) != 1:
-        raise SpikeError(f'pc386_system.sv no longer has exactly one {IDENTITY_OFF.strip()!r}')
-    return text.replace(IDENTITY_OFF, "    wire x87_present = 1'b1;")
-
-
 def machine(args, tools: dict, output: Path) -> tuple[Path, str]:
     project = sealer.write_project(ROOT, output, '0' * 32, args.seed, threads='ALL')
     firmware.write_rom_hex(firmware.images())
     sealer.check_rom(ROOT)
     sources = list(sealer.MACHINE_SOURCES)
-    if args.identity_on:
-        overlay = output / 'overlay' / SYSTEM.name
-        overlay.parent.mkdir(parents=True, exist_ok=True)
-        overlay.write_text(overlay_identity((ROOT / SYSTEM).read_text()))
-        sources = [str(overlay) if source == SYSTEM.as_posix() else source for source in sources]
-        if str(overlay) not in sources:
-            raise SpikeError(f'{SYSTEM} is not among the sealer\'s machine sources')
     if args.variant != BASE:
         overlay = output / 'overlay' / SYSTEM.name
         overlay.parent.mkdir()
@@ -390,7 +372,8 @@ def machine(args, tools: dict, output: Path) -> tuple[Path, str]:
     netlist = (project / sealer.MACHINE_NETLIST).relative_to(ROOT) if project.is_relative_to(ROOT) \
         else project / sealer.MACHINE_NETLIST
     program = yosys_netlist.program(yosys_netlist.SEAL, top=sealer.MACHINE_TOP, sources=sources,
-                                    includes=sealer.INCLUDE_DIRS, parameters=sealer.guest_rates(),
+                                    includes=sealer.INCLUDE_DIRS,
+                                    parameters={**sealer.guest_rates(), **({'X87_PRESENT': 1} if args.identity_on else {})},
                                     netlist=Path(netlist).as_posix())
     yosys_netlist.run(tools['yosys'].path, flatten(program, args.hierarchy), cwd=ROOT,
                       program_file=output / 'machine.ys', log=output / 'yosys.log')
@@ -412,10 +395,11 @@ def main() -> int:
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--hierarchy', action='store_true', help='keep the hierarchy for per-entity ALMs')
     parser.add_argument('--identity-on', action='store_true',
-                        help="with --mode machine --variant base: overlay pc386_system's i386dx+387 identity to 1, "
-                             "so Quartus keeps the CPU's x87 unit. The package ties it to 0 until slice 5 of the "
-                             'x87 phase, which lets the fitter trim the unit away, so the delta between this fit '
-                             "and the same fit without the flag is the unit's cost inside the machine (#1768).")
+                        help="with --mode machine --variant base: elaborate pc386_system with its X87_PRESENT "
+                             "parameter set to 1, so Quartus keeps the CPU's x87 unit. The package leaves it at its "
+                             'default of 0 until x87 slice 7, which lets the fitter trim the unit away, so the delta '
+                             "between this fit and the same fit without the flag is the unit's cost inside the "
+                             "machine (#1768).")
     parser.add_argument('--output', type=Path, required=True, help='a new directory (absolute)')
     parser.add_argument('--keep', action='store_true', help="keep Quartus's databases")
     args = parser.parse_args()
