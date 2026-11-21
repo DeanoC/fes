@@ -1,5 +1,5 @@
 {
-  "cases_sha256": "4f14747b160c7db17d456dcf32a1fb94484a42891876926fe06107fffd2f3692",
+  "cases_sha256": "40cc17fcd3c303994b0cee80366aa11405c76a947cbef5d9e9330a49d4fc94eb",
   "failures": [],
   "lockstep": {},
   "oracle": {
@@ -2333,15 +2333,16 @@
       },
       {
         "differences": [],
-        "divergence": null,
+        "divergence": "ac-error-ext",
         "expected": {
+          "eax": "1",
           "end": "exception:6"
         },
-        "i486": null,
+        "i486": "error code 0 (PRM Table 9-8: always zero; Deano, 21 November 2026)",
         "label": "ac-exception-delivery-same-privilege",
         "pass": true,
-        "source": "Deano 21 Nov 2026, as hardware (CVE-2015-5307); no 486 document read settles it",
-        "what": "#UD delivered at CPL 3 onto a misaligned stack raises #AC, EXT set"
+        "source": "Bochs (EXT set); PRM Table 9-8 for the 486",
+        "what": "#UD delivered at CPL 3 onto a misaligned stack raises #AC; its handler pops the error code"
       },
       {
         "differences": [],
@@ -2592,7 +2593,7 @@
       }
     ]
   },
-  "testbench_sha256": "df96f7fdfb794948d1c7c85b3b5ee485d7498337e0a6fb33e79e60a61cb0081b",
+  "testbench_sha256": "2e56371e87473504fc3913b48ece08c22e1439b81a5bfef978a8c0d10f021d8e",
   "verilator": {
     "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
     "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c",

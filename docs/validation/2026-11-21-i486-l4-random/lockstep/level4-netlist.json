@@ -1,5 +1,5 @@
 {
-  "cases_sha256": "4f14747b160c7db17d456dcf32a1fb94484a42891876926fe06107fffd2f3692",
+  "cases_sha256": "40cc17fcd3c303994b0cee80366aa11405c76a947cbef5d9e9330a49d4fc94eb",
   "failures": [],
   "lockstep": {
     "386": {
@@ -743,7 +743,7 @@
         },
         {
           "as_expected": true,
-          "divergence": null,
+          "divergence": "ac-error-ext",
           "isolated": true,
           "label": "ac-exception-delivery-same-privilege",
           "probe": "1046",
@@ -1193,8 +1193,8 @@
       "expected": "i486-expected-stops.txt",
       "i486": 0,
       "netlist": {
-        "cpu_source_sha256": "5be3e884eb0ccf3858f166bf1286ca5b866bb3fda6131495ba9f2ee85fbfe9d6",
-        "netlist_sha256": "df1156dd3a6c683770e7a7818f59d89d02cf679c9eb054755fed5be6351e890f",
+        "cpu_source_sha256": "3c1b817e8a2a53f1b18b29390cf36d373f532b413c5d09080d1dd5a566e22b7b",
+        "netlist_sha256": "655ef28ada47e8ad8fbd4aa68f4303600be8fcfafb810a71f394bf2e03743e1b",
         "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
         "yosys": {
           "gpu_router": "HIP",
@@ -1947,7 +1947,7 @@
         },
         {
           "as_expected": true,
-          "divergence": null,
+          "divergence": "ac-error-ext",
           "isolated": true,
           "label": "ac-exception-delivery-same-privilege",
           "probe": "1046",
@@ -2397,8 +2397,8 @@
       "expected": "i486-expected-stops-486sx.txt",
       "i486": 1,
       "netlist": {
-        "cpu_source_sha256": "5be3e884eb0ccf3858f166bf1286ca5b866bb3fda6131495ba9f2ee85fbfe9d6",
-        "netlist_sha256": "5b4d333ac16aec54c188728950fc2dcb12e3d933f6270f3690fa66a323b1c01b",
+        "cpu_source_sha256": "3c1b817e8a2a53f1b18b29390cf36d373f532b413c5d09080d1dd5a566e22b7b",
+        "netlist_sha256": "2f9160cfa1df1c961d2dd7b06e09457e63d42dbcbc5ccd9d5291f938e4796a2f",
         "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
         "yosys": {
           "gpu_router": "HIP",
@@ -2560,8 +2560,8 @@
     "latency_free_mismatches": [],
     "missing_forms": [],
     "netlist": {
-      "cpu_source_sha256": "5be3e884eb0ccf3858f166bf1286ca5b866bb3fda6131495ba9f2ee85fbfe9d6",
-      "netlist_sha256": "5b4d333ac16aec54c188728950fc2dcb12e3d933f6270f3690fa66a323b1c01b",
+      "cpu_source_sha256": "3c1b817e8a2a53f1b18b29390cf36d373f532b413c5d09080d1dd5a566e22b7b",
+      "netlist_sha256": "2f9160cfa1df1c961d2dd7b06e09457e63d42dbcbc5ccd9d5291f938e4796a2f",
       "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
       "yosys": {
         "gpu_router": "HIP",
@@ -4753,15 +4753,16 @@
       },
       {
         "differences": [],
-        "divergence": null,
+        "divergence": "ac-error-ext",
         "expected": {
+          "eax": "1",
           "end": "exception:6"
         },
-        "i486": null,
+        "i486": "error code 0 (PRM Table 9-8: always zero; Deano, 21 November 2026)",
         "label": "ac-exception-delivery-same-privilege",
         "pass": true,
-        "source": "Deano 21 Nov 2026, as hardware (CVE-2015-5307); no 486 document read settles it",
-        "what": "#UD delivered at CPL 3 onto a misaligned stack raises #AC, EXT set"
+        "source": "Bochs (EXT set); PRM Table 9-8 for the 486",
+        "what": "#UD delivered at CPL 3 onto a misaligned stack raises #AC; its handler pops the error code"
       },
       {
         "differences": [],
@@ -5012,7 +5013,7 @@
       }
     ]
   },
-  "testbench_sha256": "df96f7fdfb794948d1c7c85b3b5ee485d7498337e0a6fb33e79e60a61cb0081b",
+  "testbench_sha256": "2e56371e87473504fc3913b48ece08c22e1439b81a5bfef978a8c0d10f021d8e",
   "verilator": {
     "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
     "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c",

@@ -111,7 +111,25 @@ it. So:
   exception is the #AC (error code 0). It agrees on the oracle's self-check
   and in lockstep.
 - **`ac-exception-delivery-same-privilege`** keeps the #UD form. Its #AC
-  pushes error code 1 (EXT) on both sides, which the lockstep compares.
+  handler now pops the error code into EAX (below).
+
+### #AC's error code inside a delivery (Deano, 21 November 2026)
+
+An #AC raised in another event's delivery pushed error code 1 on both
+sides: EXT set, as for any fault in a delivery. The PRM's Table 9-8 says
+#AC's error code is always zero. Asked, Deano chose 0: "Push 0 now". So:
+- **The RTL** sets no EXT for an #AC under `I486` (`wb_err` in
+  `fes_i386_cpu.sv`). At `I486 = 0` the term folds back to the 386's.
+- **The #AC error code rule** (`ac-error-zero`, level 4): where the oracle's
+  last event is an #AC with error code 1, the RTL's error code and the bytes
+  it pushed must be 0; the oracle then takes them.
+- **`ac-exception-delivery-same-privilege`**'s #AC handler pops the error
+  code into EAX. The row holds Bochs's 1; the lockstep holds the RTL to 0.
+  Without the RTL change the case stops at `@104d.ac-error 0 1`
+  ([`directed/486sx-rtl-before-ac-error-fix.json`](directed/486sx-rtl-before-ac-error-fix.json)).
+
+The rule did not fire in the random programs, which reached no #AC inside
+a delivery that ends; the directed case covers it.
 - **The stop now covers the loop alone** (`ac-delivery-loop`). It needs all of:
   - the RTL timed out in #AC's delivery;
   - the step began at CPL 3, with AM and AC set, on a stack that was not
@@ -133,6 +151,7 @@ it. So:
 | --- | --- | --- | --- |
 | CPUID (`cpuid-486sx`) | 23,152 | At a CPUID of a leaf other than 0 that retires with no event, the oracle's EAX, EBX, ECX and EDX must be the DX4's leaf 1 (`0480h`, 0, 0, 1); they are then set to the 486SX's (leaf 1 `042Bh` and zeros, zeros above), which the RTL is held to | `cpu/cpudb/intel/i486dx4.cc`; `042Bh` is Deano's (21 November 2026); data book Appendix B for zeros above leaf 1 |
 | DR6 of disabled breakpoints (`dr6-disabled-b`) | 2 | At a #DB, DR6's B0-B3 for breakpoints DR7 does not enable come from the RTL; an enabled one's is compared | Intel SDM vol. 3, DR6: a B bit "may or may not be set if the breakpoint is not enabled by the Ln or the Gn flags" |
+| #AC's error code (`ac-error-zero`) | 0 (the directed case only) | Above: where Bochs pushes 1 for an #AC in a delivery, the RTL must push 0, and the oracle takes it | PRM Table 9-8 ("always zero"); Deano, 21 November 2026 |
 | The #AC delivery loop (`ac-delivery-loop`) | 6 stops | Above: the run stops where the RTL timed out delivering #AC and gate 17 leads to CPL 3 | Deano, 21 November 2026; CVE-2015-5307 |
 
 `method.md` named only the CPUID rule before the run. The DR6 rule was
@@ -279,9 +298,6 @@ level-4 oracle runs the `random` mode too, and the 486SX list has no stops.
   a 486.
 - **Undefined flags and the other 386 rules on a 486.** They are carried
   over from the 386, as listed above.
-- **#AC's EXT bit in a delivery.** The PRM's Table 9-8 says #AC's error
-  code is always zero. Inside an exception's delivery both sides push 1
-  (EXT). No 486 document read says which a 486 pushes.
 - **#AC inside a delivery that ends, at random.** The directed cases cover
   it; the random programs did not reach it.
 - **The x87 empty socket at `I486 = 1`.** The random programs run no ESC.
