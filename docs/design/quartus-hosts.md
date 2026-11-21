@@ -22,7 +22,10 @@ Powerboat sat idle.
 - Importing `quartus_tools` installs an audit hook. It refuses to start a
   licensed Quartus program from a process that holds no lease for its
   edition. It looks through `run_logged.sh`, `bash -c` strings and
-  `os.system`. A licensed program is one whose directory's `quartus_sh` has a
+  `os.system`, and reads the child's environment, working directory and
+  `PATH`: a bare name needs a lease for every licensed executable of that name
+  on the child's `PATH` (so give a full path when both editions are on it).
+  A licensed program is one whose directory's `quartus_sh` has a
   digest in `LICENSED_QUARTUS_SH`, which lists every committed
   `quartus.lock` digest, so test stand-ins are never leased.
 - Not leased: `--version` and `--help` probes, and `quartus_pfg`, `quartus_cpf`

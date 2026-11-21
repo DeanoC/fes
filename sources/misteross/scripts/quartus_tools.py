@@ -541,22 +541,6 @@ def _licensed_edition(program: str) -> str | None:
     return _licensed_dirs[directory]
 
 
-def _runnable(path: str) -> bool:
-    """Whether exec would start path: an ELF binary, or a script whose #!
-    interpreter exists and is executable."""
-    try:
-        with open(path, "rb") as stream:
-            head = stream.read(256)
-    except OSError:
-        return False
-    if head.startswith(b"\x7fELF"):
-        return True
-    if head.startswith(b"#!"):
-        interpreter = head[2:].split(b"\n", 1)[0].strip().split(b" ", 1)[0]
-        return bool(interpreter) and os.path.isfile(interpreter) and os.access(interpreter, os.X_OK)
-    return False
-
-
 def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) -> set[str]:
     """Editions of the licensed Quartus programs a command line would run.
 
@@ -588,9 +572,12 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
         if os.sep in word:
             candidates = [word if os.path.isabs(word) else os.path.join(base, word)]
         else:
-            # The child's PATH as execvp searches it: each component (an
-            # empty one is ".") resolved from the child's working directory,
-            # and the first executable of that name is what runs.
+            # Every executable of that name on the child's PATH, each
+            # component (an empty one is ".") resolved from the child's
+            # working directory. Which one execvp ends up running depends on
+            # failures it skips (a missing #! interpreter or ELF loader, a
+            # noexec mount), so every licensed one needs its lease. A bare
+            # name with both editions on PATH needs both; use a full path.
             search = os.environ.get("PATH", "") if search_path is None else search_path
             candidates = [os.path.join(d if os.path.isabs(d) else os.path.join(base, d or "."), word)
                           for d in search.split(os.pathsep)]
@@ -599,11 +586,6 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
                 edition = _licensed_edition(program)
                 if edition is not None:
                     editions.add(edition)
-                    break
-                # execvp moves past a file it cannot execute (a script whose
-                # interpreter is missing), so only a runnable one ends the search.
-                if _runnable(program):
-                    break
     return editions
 
 

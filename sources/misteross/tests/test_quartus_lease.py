@@ -700,16 +700,19 @@ class LaunchGuardTests(unittest.TestCase):
         (decoy / "quartus_fit").write_text("not a program\n")
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["quartus_fit", "top"], env={"PATH": f"{decoy}:{self.bin}"})
-        # Codex P1 at 77920ff7d: only the first executable match runs. A
-        # stand-in first on PATH shadows the licensed one; nothing is refused.
+        # Codex P1s at 77920ff7d, 73a1bfe62 and 60968319c: which PATH entry
+        # execvp ends up running depends on the failures it skips, so every
+        # licensed executable on the child's PATH needs its lease, even
+        # behind a runnable stand-in.
         standin = relative / "standin"
         standin.mkdir()
         (standin / "quartus_fit").write_text("#!/bin/sh\nexit 0\n")
         (standin / "quartus_fit").chmod(0o755)
-        self.assertEqual(qt.licensed_quartus_editions(["quartus_fit", "top"], f"{standin}:{self.bin}"), set())
+        self.assertEqual(qt.licensed_quartus_editions(["quartus_fit", "top"], f"{standin}:{self.bin}"), {"lite"})
+        self.assertEqual(qt.licensed_quartus_editions(["quartus_fit", "top"], str(standin)), set())
         self.assertEqual(qt.licensed_quartus_editions(["quartus_fit", "top"], f"{decoy}:{self.bin}"), {"lite"})
-        # Codex P1 at 73a1bfe62: an executable stand-in whose interpreter is
-        # missing fails with ENOENT and the search moves on to the licensed one.
+        # An executable stand-in whose interpreter is missing (ENOENT, and
+        # execvp moves on to the licensed one).
         broken = relative / "broken"
         broken.mkdir()
         (broken / "quartus_fit").write_text("#!/definitely/missing/interpreter\n")
