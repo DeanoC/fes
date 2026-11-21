@@ -1074,10 +1074,17 @@ class LaunchGuardTests(unittest.TestCase):
                         "X=1 ssh host /remote/bin/quartus_fit top", ">log ssh host /remote/bin/quartus_fit top"):
             with self.assertRaises(qt.QuartusLeaseError):
                 subprocess.run(["sh", "-c", payload])
+        # Codex P1 at d1a27455a: holding both local leases (so only the ssh
+        # rule decides), an ssh that is env -u's operand must not hide the
+        # ssh that runs.
+        with qt.quartus_lease("lite"), qt.quartus_lease("pro"):
+            with self.assertRaises(qt.QuartusLeaseError):
+                subprocess.run(["sh", "-c", "env -u ssh ssh host /remote/bin/quartus_[f]it top"])
         # Codex P1 at 00058c57d: ssh behind an execution wrapper.
         for argv in (["env", "ssh", "host", "/remote/bin/quartus_fit", "top"],
                      ["env", "-i", "X=1", "timeout", "60", "nice", "-n", "5", "ssh", "host", "quartus_sh", "-t", "x"],
-                     ["env", "-u", "X", "ssh", "host", "/remote/bin/quartus_fit", "top"]):
+                     ["env", "-u", "X", "ssh", "host", "/remote/bin/quartus_fit", "top"],
+                     ["env", "-u", "ssh", "ssh", "host", "/remote/bin/quartus_[f]it", "top"]):
             with self.assertRaises(qt.QuartusLeaseError):
                 qt._check_remote_quartus(argv)
         # Codex P1 at 6b0f2a858: a command after a reserved word.

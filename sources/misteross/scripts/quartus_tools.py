@@ -735,8 +735,11 @@ def _check_remote_quartus(argv) -> None:
     # SIG), so rather than model each, a wrapped command line whose
     # arguments include ssh is taken to run ssh from there.
     if texts and (os.path.basename(texts[0]) in SHELL_WRAPPERS or texts[0] == "sudo"):
-        at = next((i for i, t in enumerate(texts) if os.path.basename(t) == "ssh"), None)
-        texts = texts[at:] if at is not None else []
+        # Every ssh word, since one may be another option's operand (env -u ssh).
+        for at, word in enumerate(texts):
+            if at and os.path.basename(word) == "ssh":
+                _check_remote_quartus(texts[at:])
+        return
     if not texts or os.path.basename(texts[0]) != "ssh":
         return
     # ssh [options] destination [command [argument ...]]: skip the options
@@ -811,9 +814,10 @@ def _check_launch(argv, env, cwd=None, executable=None) -> None:
                 # Whatever comes before it (assignments, redirections,
                 # reserved words, wrappers), a command with an ssh word runs
                 # ssh from there.
-                at = next((i for i, t in enumerate(command) if os.path.basename(t) == "ssh"), None)
-                if at is not None:
-                    _check_remote_quartus(command[at:])
+                # Every ssh word, since one may be another option's operand.
+                for at, word in enumerate(command):
+                    if os.path.basename(word) == "ssh":
+                        _check_remote_quartus(command[at:])
                 command = []
             else:
                 command.append(token)
