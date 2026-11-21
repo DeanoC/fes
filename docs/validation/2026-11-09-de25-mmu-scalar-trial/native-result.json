@@ -1526,7 +1526,7 @@
     "transport": {
       "serial": "TRWU8CBL",
       "source_commit": "78f72761cd914430e1ce88b38c7407239d39ee49",
-      "claim_token": "7a124fae52bf7062",
+      "claim_token": "[REDACTED]",
       "pid": 3348792,
       "start_ticks": "126742473",
       "cable": "DE25-Nano on localhost:33529 [3-11.1-iface0]",

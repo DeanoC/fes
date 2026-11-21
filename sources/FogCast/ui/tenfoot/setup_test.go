@@ -109,7 +109,9 @@ func TestFirstRunSkipShowsTheBannerAndFinishSetupResumes(t *testing.T) {
 		t.Fatalf("Skip setup focus %+v", d)
 	}
 	app.HandleCommand(CmdSelect, time.Now())
-	snap = waitFor(t, app, "Home with the banner", func(s Snapshot) bool { return homeFamilySettled(s) && roomTextHas(s, "Setup isn't finished") })
+	snap = waitFor(t, app, "Home with the banner", func(s Snapshot) bool {
+		return homeFamilySettled(s) && roomTextHas(s, "Setup isn't finished") && roomHit(s, "family:6").ID != ""
+	})
 	if p := setupPrefs(t, dir); !p.SetupDone || !slices.Equal(p.SetupSkipped, []string{"controllers", "ready"}) {
 		t.Fatalf("Skip wrote %+v", p)
 	}
@@ -577,7 +579,9 @@ func TestFirstRunNativeRender(t *testing.T) {
 			waitRoom(t, app, "example.welcome")
 			app.HandleCommand(CmdRight, time.Now())
 			app.HandleCommand(CmdSelect, time.Now())
-			snap = waitFor(t, app, "Home with the banner", func(s Snapshot) bool { return homeFamilySettled(s) && roomTextHas(s, "Setup isn't finished") })
+			snap = waitFor(t, app, "Home with the banner", func(s Snapshot) bool {
+				return homeFamilySettled(s) && roomTextHas(s, "Setup isn't finished") && roomHit(s, "family:6").ID != ""
+			})
 			writeHomeScreenshot(t, snap, "setup-skipped")
 		})
 	}
