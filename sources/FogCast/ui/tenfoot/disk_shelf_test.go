@@ -18,7 +18,7 @@ import (
 type shelfHost struct {
 	t         *testing.T
 	pkg       string
-	disks     []hostclient.AtariStShelfDisk
+	disks     []hostclient.ShelfDisk
 	keptKnown bool
 	refuse    int // status for the next change, then cleared
 	code      string
@@ -31,7 +31,7 @@ type shelfHost struct {
 
 func (h *shelfHost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	const base = "/api/v1/library/atari-st-shelf"
+	const base = "/api/v1/library/disk-shelves/fes.atari-st"
 	var body map[string]any
 	raw, _ := io.ReadAll(r.Body)
 	_ = json.Unmarshal(raw, &body)
@@ -44,8 +44,8 @@ func (h *shelfHost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return -1
 	}
-	made := func(title string, media string) hostclient.AtariStShelfDisk {
-		d := hostclient.AtariStShelfDisk{GameID: "fpga-" + strings.ReplaceAll(strings.ToLower(title), " ", "-"), Title: title, PackageID: h.pkg,
+	made := func(title string, media string) hostclient.ShelfDisk {
+		d := hostclient.ShelfDisk{GameID: "fpga-" + strings.ReplaceAll(strings.ToLower(title), " ", "-"), Title: title, PackageID: h.pkg,
 			MediaID: media, Size: 737280, Made: true, Kept: hostclient.ShelfKeptNone}
 		h.disks = append(h.disks, d)
 		return d
@@ -79,9 +79,9 @@ func (h *shelfHost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if disks == nil {
-			disks = []hostclient.AtariStShelfDisk{}
+			disks = []hostclient.ShelfDisk{}
 		}
-		json.NewEncoder(w).Encode(hostclient.AtariStShelf{Target: "kit", KeptKnown: h.keptKnown, Disks: disks})
+		json.NewEncoder(w).Encode(hostclient.DiskShelf{Target: "kit", KeptKnown: h.keptKnown, Disks: disks})
 		return
 	}
 	if !strings.HasPrefix(r.URL.Path, base) || r.Method != http.MethodPost {
@@ -256,7 +256,7 @@ func TestStShelfOffersOnlyTheSizesThePackageTakes(t *testing.T) {
 func TestStShelfDiskActionsFollowWhatTheDiskIs(t *testing.T) {
 	a, h := newShelfApp(t)
 	rev := strings.Repeat("e", 64)
-	h.disks = []hostclient.AtariStShelfDisk{
+	h.disks = []hostclient.ShelfDisk{
 		{GameID: "fpga-dungeon", Title: "Dungeon", PackageID: h.pkg, MediaID: strings.Repeat("4", 64), Size: 737280, Kept: hostclient.ShelfKeptChanges, KeptRevision: rev},
 		{GameID: "fpga-work", Title: "Work", PackageID: h.pkg, MediaID: strings.Repeat("5", 64), Size: 737280, Made: true, Kept: hostclient.ShelfKeptNone, InDrive: true},
 		{GameID: "fpga-bad", Title: "Bad", PackageID: h.pkg, MediaID: strings.Repeat("6", 64), Size: 737280, Made: true, Kept: hostclient.ShelfKeptDamaged, KeptRevision: rev},
@@ -303,7 +303,7 @@ func TestStShelfDiskActionsFollowWhatTheDiskIs(t *testing.T) {
 func TestStShelfGoingBackAsksFirstAndOffersACopy(t *testing.T) {
 	a, h := newShelfApp(t)
 	rev := strings.Repeat("e", 64)
-	h.disks = []hostclient.AtariStShelfDisk{{GameID: "fpga-dungeon", Title: "Dungeon", PackageID: h.pkg, MediaID: strings.Repeat("4", 64), Size: 737280, Kept: hostclient.ShelfKeptChanges, KeptRevision: rev}}
+	h.disks = []hostclient.ShelfDisk{{GameID: "fpga-dungeon", Title: "Dungeon", PackageID: h.pkg, MediaID: strings.Repeat("4", 64), Size: 737280, Kept: hostclient.ShelfKeptChanges, KeptRevision: rev}}
 	a.mu.Lock()
 	a.loadStShelfLocked("", "")
 	a.mu.Unlock()
@@ -348,7 +348,7 @@ func TestStShelfGoingBackAsksFirstAndOffersACopy(t *testing.T) {
 func TestStShelfRenameDeleteAndRefusals(t *testing.T) {
 	a, h := newShelfApp(t)
 	rev := strings.Repeat("e", 64)
-	h.disks = []hostclient.AtariStShelfDisk{{GameID: "fpga-work", Title: "Work", PackageID: h.pkg, MediaID: strings.Repeat("5", 64), Size: 737280, Made: true, Kept: hostclient.ShelfKeptNone, KeptRevision: rev}}
+	h.disks = []hostclient.ShelfDisk{{GameID: "fpga-work", Title: "Work", PackageID: h.pkg, MediaID: strings.Repeat("5", 64), Size: 737280, Made: true, Kept: hostclient.ShelfKeptNone, KeptRevision: rev}}
 	a.mu.Lock()
 	a.loadStShelfLocked("", "")
 	a.mu.Unlock()
@@ -451,7 +451,7 @@ func TestStShelfWaitsForAChangeInFlight(t *testing.T) {
 func TestStShelfHalfDoneCopyThenGoBackShowsBoth(t *testing.T) {
 	a, h := newShelfApp(t)
 	rev := strings.Repeat("e", 64)
-	h.disks = []hostclient.AtariStShelfDisk{{GameID: "fpga-dungeon", Title: "Dungeon", PackageID: h.pkg, MediaID: strings.Repeat("4", 64), Size: 737280, Kept: hostclient.ShelfKeptChanges, KeptRevision: rev}}
+	h.disks = []hostclient.ShelfDisk{{GameID: "fpga-dungeon", Title: "Dungeon", PackageID: h.pkg, MediaID: strings.Repeat("4", 64), Size: 737280, Kept: hostclient.ShelfKeptChanges, KeptRevision: rev}}
 	a.mu.Lock()
 	a.loadStShelfLocked("", "")
 	a.mu.Unlock()
@@ -469,7 +469,7 @@ func TestStShelfHalfDoneCopyThenGoBackShowsBoth(t *testing.T) {
 
 func TestStShelfStartsTheComputerWithTheDiskAsItIs(t *testing.T) {
 	a, h := newShelfApp(t)
-	h.disks = []hostclient.AtariStShelfDisk{{GameID: "fpga-work", Title: "Work", PackageID: h.pkg, MediaID: strings.Repeat("5", 64), Size: 737280, Made: true, Kept: hostclient.ShelfKeptNone}}
+	h.disks = []hostclient.ShelfDisk{{GameID: "fpga-work", Title: "Work", PackageID: h.pkg, MediaID: strings.Repeat("5", 64), Size: 737280, Made: true, Kept: hostclient.ShelfKeptNone}}
 	a.mu.Lock()
 	a.room = &rooms.Instance{}
 	a.loadStShelfLocked("", "")

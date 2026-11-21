@@ -41,29 +41,29 @@ func (s *pairedSystemSetupService) CreateCoreSetupEntry(ctx context.Context, req
 }
 
 // The shelf answers for the kit the launcher is paired with.
-func (s *pairedSystemSetupService) shelfDisk(ctx context.Context, title string) fogcast.AtariStShelfDisk {
+func (s *pairedSystemSetupService) shelfDisk(ctx context.Context, title string) fogcast.ShelfDisk {
 	s.shelfTargets = append(s.shelfTargets, fogcast.SessionTargetFromContext(ctx))
-	return fogcast.AtariStShelfDisk{GameID: "new-disk", Title: title, PackageID: s.packageID, MediaID: strings.Repeat("d", 64), Size: 737280, Made: true, Kept: fogcast.ShelfKeptNone}
+	return fogcast.ShelfDisk{GameID: "new-disk", Title: title, PackageID: s.packageID, MediaID: strings.Repeat("d", 64), Size: 737280, Made: true, Kept: fogcast.ShelfKeptNone}
 }
-func (s *pairedSystemSetupService) AtariStShelf(ctx context.Context) (fogcast.AtariStShelf, error) {
+func (s *pairedSystemSetupService) DiskShelf(ctx context.Context, _ string) (fogcast.DiskShelf, error) {
 	s.shelfDisk(ctx, "")
-	return fogcast.AtariStShelf{Target: "kit-b", KeptKnown: true, Disks: []fogcast.AtariStShelfDisk{}}, nil
+	return fogcast.DiskShelf{Target: "kit-b", KeptKnown: true, Disks: []fogcast.ShelfDisk{}}, nil
 }
-func (s *pairedSystemSetupService) NewAtariStShelfDisk(ctx context.Context, req fogcast.AtariStShelfNew) (fogcast.AtariStShelfDisk, error) {
+func (s *pairedSystemSetupService) NewShelfDisk(ctx context.Context, _ string, req fogcast.ShelfNewDisk) (fogcast.ShelfDisk, error) {
 	return s.shelfDisk(ctx, req.Title), nil
 }
-func (s *pairedSystemSetupService) CopyAtariStShelfDisk(ctx context.Context, _, title string) (fogcast.AtariStShelfDisk, error) {
+func (s *pairedSystemSetupService) CopyShelfDisk(ctx context.Context, _, _, title string) (fogcast.ShelfDisk, error) {
 	return s.shelfDisk(ctx, title), nil
 }
-func (s *pairedSystemSetupService) RevertAtariStShelfDisk(ctx context.Context, game, _ string) (fogcast.AtariStShelfDisk, error) {
+func (s *pairedSystemSetupService) RevertShelfDisk(ctx context.Context, _, game, _ string) (fogcast.ShelfDisk, error) {
 	disk := s.shelfDisk(ctx, "Work")
 	disk.GameID = game
 	return disk, nil
 }
-func (s *pairedSystemSetupService) RenameAtariStShelfDisk(ctx context.Context, _, _, title string) (fogcast.AtariStShelfDisk, error) {
+func (s *pairedSystemSetupService) RenameShelfDisk(ctx context.Context, _, _, _, title string) (fogcast.ShelfDisk, error) {
 	return s.shelfDisk(ctx, title), nil
 }
-func (s *pairedSystemSetupService) DeleteAtariStShelfDisk(ctx context.Context, _, _ string) error {
+func (s *pairedSystemSetupService) DeleteShelfDisk(ctx context.Context, _, _, _ string) error {
 	s.shelfDisk(ctx, "")
 	return nil
 }
@@ -88,23 +88,23 @@ func TestPairedLauncherPublishedSetupAndDiskShelfUseCapturedKit(t *testing.T) {
 	if _, err := client.CoreSetup(ctx, ref.SourceID, ref.CoreID, ref.PackageID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.AtariStShelf(ctx); err != nil {
+	if _, err := client.DiskShelf(ctx, hostclient.AtariStShelfCore); err != nil {
 		t.Fatal(err)
 	}
-	disk, err := client.NewAtariStShelfDisk(ctx, "Work", ref.PackageID, 0, 0, 0)
+	disk, err := client.NewShelfDisk(ctx, hostclient.AtariStShelfCore, hostclient.NewShelfDiskRequest{Title: "Work", PackageID: ref.PackageID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.CopyAtariStShelfDisk(ctx, "work", "Spare"); err != nil {
+	if _, err := client.CopyShelfDisk(ctx, hostclient.AtariStShelfCore, "work", "Spare"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.RevertAtariStShelfDisk(ctx, "work", strings.Repeat("e", 64)); err != nil {
+	if _, err := client.RevertShelfDisk(ctx, hostclient.AtariStShelfCore, "work", strings.Repeat("e", 64)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.RenameAtariStShelfDisk(ctx, "work", "", "Letters"); err != nil {
+	if _, err := client.RenameShelfDisk(ctx, hostclient.AtariStShelfCore, "work", "", "Letters"); err != nil {
 		t.Fatal(err)
 	}
-	if err := client.DeleteAtariStShelfDisk(ctx, "work", ""); err != nil {
+	if err := client.DeleteShelfDisk(ctx, hostclient.AtariStShelfCore, "work", ""); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Join(service.shelfTargets, ",") != "kit-b,kit-b,kit-b,kit-b,kit-b,kit-b" {

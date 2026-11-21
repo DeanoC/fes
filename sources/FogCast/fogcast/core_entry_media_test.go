@@ -3,10 +3,12 @@ package fogcast
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -299,5 +301,103 @@ func TestSavedZx81BlobRoleUsesTheCassetteUnit(t *testing.T) {
 		if err := opened.Close(); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// pcxtLaunchBody launches a PC/XT title and returns what the host sent the
+// kit. The fake kit refuses the load, so nothing runs.
+func pcxtLaunchBody(t *testing.T, boot []byte) ([]byte, catalog.CoreEntry) {
+	t.Helper()
+	s, client, entry, _ := newCoreEntryLaunchFixture(t, pcxtShelfPackage(t, true), "PC/XT")
+	if boot != nil {
+		root := t.TempDir()
+		addBundledDisk(t, root, pcxtCoreID, boot)
+		s.LoadBundledFirmware(context.Background(), root)
+	}
+	var body []byte
+	client.coreLoad = func(_ context.Context, _ int64, r io.Reader) (protocol.Status, error) {
+		body, _ = io.ReadAll(r)
+		return protocol.Status{}, errors.New("test kit loads nothing")
+	}
+	_, _ = s.Launch(context.Background(), entry.GameID, nil)
+	if body == nil {
+		t.Fatal("nothing was sent to the kit")
+	}
+	return body, entry
+}
+
+func TestPcxtTitleWithoutADiskStartsFromTheBundledFreeDOSDisk(t *testing.T) {
+	boot := freeDOSLike(t)
+	body, entry := pcxtLaunchBody(t, boot)
+	staged, err := corepackage.StagePcxtInitialInput(context.Background(), t.TempDir(), body)
+	if err != nil {
+		t.Fatalf("the launch carried no initial disk: %v", err)
+	}
+	defer staged.Cleanup()
+	disk, err := os.ReadFile(staged.InitialMedia.Path)
+	if err != nil || !bytes.Equal(disk, boot) {
+		t.Fatalf("initial disk is not the bundled one: %v", err)
+	}
+	// What the computer writes is kept for this title against the bundled image.
+	if staged.InitialMedia.GameID != entry.GameID || staged.InitialMedia.BaseMediaID != fmt.Sprintf("%x", sha256.Sum256(boot)) {
+		t.Fatalf("binding %+v", staged.InitialMedia)
+	}
+	// Nothing about the title was saved: the default stays derived.
+	if entry.MediaID != "" {
+		t.Fatal("fixture title has a disk")
+	}
+}
+
+func TestPcxtTitleWithoutADiskOrABundledOneStartsEmpty(t *testing.T) {
+	body, _ := pcxtLaunchBody(t, nil)
+	if _, err := corepackage.StagePcxtInitialInput(context.Background(), t.TempDir(), body); err == nil {
+		t.Fatal("a launch with no disk to give carried an initial disk")
+	}
+}
+
+// The kit answers a diskless PC/XT launch with the bundled disk in drive A,
+// bound to the title, and the host accepts that as the launch it asked for.
+func TestPcxtTitleWithoutADiskLaunchesOnTheBundledFreeDOSDisk(t *testing.T) {
+	boot := freeDOSLike(t)
+	bootID := fmt.Sprintf("%x", sha256.Sum256(boot))
+	s, client, entry, inspection := newCoreEntryLaunchFixture(t, pcxtShelfPackage(t, true), "PC/XT")
+	root := t.TempDir()
+	addBundledDisk(t, root, pcxtCoreID, boot)
+	s.LoadBundledFirmware(context.Background(), root)
+	active := func(base string) protocol.Status {
+		status := coreEntryActiveStatus(inspection, 3, false)
+		cp := status.CorePackage
+		cp.CoreID, cp.PersistenceMode = pcxtCoreID, "persistent"
+		cp.ActiveInterfaces = []protocol.RuntimeInterface{{ID: protocol.PcxtFloppyInterface().ID, Major: 1}, {ID: protocol.PcxtFloppyWriteInterface().ID, Major: 1}}
+		cp.MediaUnits = []protocol.MediaUnitStatus{{
+			Unit: protocol.PcxtFloppyUnit, Interface: protocol.PcxtFloppyInterface(), MinBytes: 368640, MaxBytes: 368640, ChunkBytes: 512,
+			State: protocol.MediaUnitReady, Persistence: &protocol.MediaDataStatus{Mode: "persistent", GameID: entry.GameID, BaseMediaID: base, Revision: "absent"},
+		}}
+		return status
+	}
+	for _, tc := range []struct {
+		name, base string
+		ok         bool
+	}{
+		{"bound to the bundled disk", bootID, true},
+		{"bound to another disk", strings.Repeat("e", 64), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			status := active(tc.base)
+			client.coreLoad = func(_ context.Context, _ int64, r io.Reader) (protocol.Status, error) {
+				_, _ = io.Copy(io.Discard, r)
+				client.statusResult = status
+				return status, nil
+			}
+			client.statusResult = protocol.Status{State: protocol.StateIdle}
+			response, err := s.Launch(context.Background(), entry.GameID, nil)
+			if tc.ok && (err != nil || response.Status.GameID == nil || *response.Status.GameID != entry.GameID) {
+				t.Fatalf("Launch: %+v %v", response.Status, err)
+			}
+			if !tc.ok && err == nil {
+				t.Fatal("a kit holding another disk was accepted as this launch")
+			}
+			_, _ = s.Stop(context.Background())
+		})
 	}
 }
