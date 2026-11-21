@@ -30,7 +30,11 @@ class Derivations(unittest.TestCase):
         # Every other line of the DE10 machine is compiled as it is.
         kept = set(source.splitlines())
         added = [line for line in result.splitlines() if line not in kept]
-        self.assertEqual(len(added), 12)
+        self.assertEqual(len(added), 12 + 4 + len(derive.RESET_GROUPS) * 2 + len(derive.RESET_USES))
+        # Every subsystem takes its own registered reset; none takes the term.
+        self.assertNotIn(b".reset(system_reset)", result)
+        for group in derive.RESET_GROUPS:
+            self.assertEqual(result.count(b".reset(reset_" + group.encode() + b")"), 1)
         # The CPU read bus is declared before anything uses it.
         declaration = result.index(b"    wire [7:0] read_data;")
         self.assertLess(declaration, result.index(b"read_data", declaration - 1) + 1)

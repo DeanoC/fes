@@ -33,6 +33,36 @@ READ_BUS_DECLARATION = b"    wire [7:0] read_data;  // DE25: declared before the
 READ_BUS_BEFORE = b"    wire [7:0] read_data =\n"
 READ_BUS_AFTER = b"    assign read_data =\n"
 
+# The DE10 machine's system reset is one combinational term that reaches some
+# six thousand registers; Quartus signoff refuses the two registers behind it
+# for endpoint tension (TMC-20602), as it refused the Atari ST's single machine
+# reset. Here system_reset is registered, and each subsystem instance takes its
+# own preserved register of the same term. Every copy asserts and releases on
+# the same machine clock, one clock after the DE10's term; the CPU still starts
+# on the same Phi2 cycle, since the release follows reset_hold, which counts
+# Phi2 ticks.
+RESET_GROUPS = ("cpu", "cia1", "cia2", "drive", "gcr", "vic", "sid")
+RESET_BEFORE = b"    wire system_reset = reset || reset_hold != 4'd0;\n"
+RESET_AFTER = (b"    // DE25: the system reset is registered, one copy per subsystem; see derive.py.\n"
+               b"    wire system_reset_next = reset || reset_hold != 4'd0;\n"
+               b"    (* preserve, dont_merge *) reg system_reset = 1'b1;\n" +
+               b"".join(b"    (* preserve, dont_merge *) reg reset_" + g.encode() + b" = 1'b1;\n" for g in RESET_GROUPS) +
+               b"    always @(posedge clk_sys) begin\n"
+               b"        system_reset <= system_reset_next;\n" +
+               b"".join(b"        reset_" + g.encode() + b" <= system_reset_next;\n" for g in RESET_GROUPS) +
+               b"    end\n")
+RESET_USES = (
+    (b".clk(clk_sys), .reset(system_reset), .AB(cpu_ab)", b".clk(clk_sys), .reset(reset_cpu), .AB(cpu_ab)"),
+    (b".tod_tick(tod_tick), .reset(system_reset), .cs(sel_cia1)", b".tod_tick(tod_tick), .reset(reset_cia1), .cs(sel_cia1)"),
+    (b".tod_tick(tod_tick), .reset(system_reset), .cs(sel_cia2)", b".tod_tick(tod_tick), .reset(reset_cia2), .cs(sel_cia2)"),
+    (b"    c64_drive1541 drive (\n        .clk(clk_sys), .reset(system_reset),",
+     b"    c64_drive1541 drive (\n        .clk(clk_sys), .reset(reset_drive),"),
+    (b".reset(system_reset), .ref_ce(drive_ref_ce), .flux(drive_flux)",
+     b".reset(reset_gcr), .ref_ce(drive_ref_ce), .flux(drive_flux)"),
+    (b".pixel_clk(video_clk), .reset(system_reset),", b".pixel_clk(video_clk), .reset(reset_vic),"),
+    (b".phi(cpu_ce), .reset(system_reset), .cs(sel_sid)", b".phi(cpu_ce), .reset(reset_sid), .cs(sel_sid)"),
+)
+
 # Inferred memories whose Cyclone V block hint is the only family dependence.
 RAM_FILES = {
     "c64_ram.v": ((b'(* ramstyle = "M10K" *)', b'(* ramstyle = "M20K" *)', 1),),
@@ -184,7 +214,8 @@ def retarget_machine(source):
         raise ValueError("C64 machine read bus adaptation contract changed")
     return _derive(source, ((ROM_BEFORE, ROM_AFTER, 1), (PORTS_BEFORE, PORTS_AFTER, 1),
                             (READ_BUS_ANCHOR, READ_BUS_ANCHOR + READ_BUS_DECLARATION, 1),
-                            (READ_BUS_BEFORE, READ_BUS_AFTER, 1)), "C64 machine ROM")
+                            (READ_BUS_BEFORE, READ_BUS_AFTER, 1), (RESET_BEFORE, RESET_AFTER, 1),
+                            *((before, after, 1) for before, after in RESET_USES)), "C64 machine ROM")
 
 
 def retarget_ram(name, source):

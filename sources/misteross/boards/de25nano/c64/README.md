@@ -37,6 +37,16 @@ build:
 
 - `c64_machine.sv`: the `c64_rom` instance becomes `fes_c64_firmware_rom`,
   and the machine gains the firmware write port.
+- `c64_machine.sv` also declares its CPU read bus, `read_data`, before the
+  VIC's port list uses it. The DE10 source declares it later; Quartus then
+  makes an implicit one-bit net and leaves the 6510's read data undriven,
+  which Yosys and Verilator do not.
+- `c64_machine.sv`: the system reset is registered, with one preserved copy
+  for each of the CPU, both CIAs, the 1541, its GCR reader, the VIC and the
+  SID. As one combinational term it reached some six thousand registers,
+  which signoff refuses for endpoint tension. Every copy changes on the same
+  machine clock, one clock after the DE10's term. `fes_c64_core` registers
+  the machine's reset input the same way.
 - `c64_ram.v`, `c64_color_ram.v`: the block RAM hint names `M20K`.
 - `c64_disk_store.v`: the DE10 store is one byte array with two write ports,
   one shared with the 1541's read, which Quartus cannot map to block RAM. It

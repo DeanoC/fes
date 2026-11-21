@@ -30,7 +30,10 @@ module fes_c64_core #(
     input wire display_quiesced
 );
     localparam [31:0] FIRMWARE_BYTES = 32'd36864;
-    wire machine_reset = exec_reset || reset_hold;
+    // One register drives the machine's reset input, so the mailbox's execution
+    // hold and the transport level each reach a single register.
+    (* preserve, dont_merge *) reg machine_reset = 1'b1;
+    always @(posedge clk_sys) machine_reset <= exec_reset || reset_hold;
     wire [31:0] mailbox_gpo, mailbox_gpi;
     wire [15:0] firmware_write_addr, firmware_write_data;
     wire [1:0] firmware_write_enable;
