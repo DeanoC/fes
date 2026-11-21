@@ -1468,7 +1468,7 @@ func (a *App) submitSettingsOSKLocked() {
 	case settingsOSKCorePath, settingsOSKCoreTitle:
 		a.submitCoreLibraryOSKLocked()
 	case settingsOSKShelfName:
-		a.submitStShelfNameLocked()
+		a.submitDiskShelfNameLocked()
 	case settingsOSKLibraryPath:
 		a.submitLibraryPathOSKLocked()
 	case settingsOSKTargetName:
