@@ -16,10 +16,14 @@
 // from configuration and never resets; everything else resets with port 2.
 // A period that comes while a record is still going out is skipped.
 //
-// Its beats are single writes on port 2's aux port, in front of pc386_disk,
-// which has the port first: a beat takes the port only on a clock the disk
-// drives neither read nor write, and the disk sees waitrequest while the beat
-// is on the port, which holds it until taken, then gives the port back.
+// Its beats are single writes on port 2's aux port, in front of pc386_disk.
+// A beat takes the port on a clock the disk drives neither read nor write, or
+// on the clock after the port takes one of the disk's commands: a command
+// boundary, where nothing the disk presented is withdrawn. The disk's CRC
+// pass asks on every clock, so without the boundary a record latched in a
+// pass would wait for the whole pass (#2038). The disk sees waitrequest while
+// the beat is on the port, which holds it until taken, then gives the port
+// back. A record waits at most one disk command.
 module pc386_status #(
     parameter integer PERIOD_LOG2 = 16
 ) (
@@ -54,6 +58,8 @@ module pc386_status #(
     reg [6*64-1:0] latched;
     reg [63:0] stamp;
     wire taken = own && !m_waitrequest;
+    // The port took the disk's command this clock: the next is a boundary.
+    wire disk_taken = !own && (s_read || s_write) && !m_waitrequest;
     always @(posedge clk)
         if (reset) begin
             busy <= 0; own <= 0; beat <= 0; count <= 0;
@@ -61,7 +67,7 @@ module pc386_status #(
             if (!busy && clocks[PERIOD_LOG2-1:0] == {PERIOD_LOG2{1'b0}}) begin
                 busy <= 1; beat <= 0; latched <= status; stamp <= clocks;
             end
-            if (busy && !own && !s_read && !s_write) own <= 1;
+            if (busy && !own && ((!s_read && !s_write) || disk_taken)) own <= 1;
             if (taken) begin
                 own <= 0;
                 beat <= beat + 4'd1;
