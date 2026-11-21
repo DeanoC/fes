@@ -67,6 +67,8 @@ local machine_media = {}
 -- packages[package_id][role]: true when that media role keeps what the
 -- computer writes, false when it only reads. Missing means not known.
 local packages = {}
+-- start_disks[package_id] is the disk a title with none starts from.
+local start_disks = {}
 local hardware_unavailable = false
 local rev = 0
 local last_hw = 0
@@ -396,11 +398,12 @@ local function read_hardware()
       read_hardware()
       return
     end
-    computers, machine_media, packages = {}, {}, {}
+    computers, machine_media, packages, start_disks = {}, {}, {}, {}
     if value and not err then
       live = value.session
       hardware_unavailable = false
       packages = value.packages or {}
+      start_disks = value.start_disks or {}
       for _, c in ipairs(value.computers or {}) do computers[c.core_id] = c end
       for _, m in ipairs(value.machines or {}) do
         if m.game_id ~= "" and m.media_name ~= "" then machine_media[m.game_id] = m.media_name end
@@ -705,7 +708,14 @@ local function list_row(id, x, y, w, lead, lead_w, name, sub, tag, tag_filled, m
   end
 end
 
+-- A title with no disk of its own may still start from one: the PC/XT's
+-- bundled FreeDOS disk. It saves changes like any disk in that drive.
+local function start_disk(game)
+  if not game or (game.media_id and game.media_id ~= "") then return nil end
+  return start_disks[game.package_id or ""]
+end
 local function drive_name(game)
+  if start_disk(game) then return start_disk(game) end
   if not game or not game.media_id or game.media_id == "" then return nil end
   if game.core_entry_kind ~= "machine" then return title_of(game) end
   return machine_media[game.id] or "Saved " .. string.lower(media_word(game) ~= "" and media_word(game) or "media")
@@ -729,6 +739,7 @@ local function right_column()
   text(spec().media, x, y + 2, 16, C.muted, w, false, "right")
   y = y + text_height(19, true) + 6
   local role = game and game.media_role or ""
+  if start_disk(game) then role = "disk" end
   local lead = role == "disk" and (spec().drive or "Drive") or (role == "cassette" and "Cassette")
     or (spec().disk and "Media" or spec().drive or "Cassette")
   local lead_w = text_width(lead, 19, true) + 18
@@ -773,8 +784,9 @@ local function right_column()
       shelf_package() ~= "" and not hardware_unavailable, open_disks)
     bx = bx + bw + 12
   end
-  -- A stopped game with a disk or tape can take another after its last.
-  if not live_here and (role == "disk" or role == "cassette") and name and n < 16 then
+  -- A stopped game with a disk or tape can take another after its last. A
+  -- built-in start disk is not the game's own, so there is nothing to follow.
+  if not live_here and (role == "disk" or role == "cassette") and name and n < 16 and not start_disk(game) then
     local add_label = "Add " .. word .. " to game"
     button("add_disk", add_label, bx, y, text_width(add_label, 17, true) + 40, 36, can_change, add_disk)
   end
