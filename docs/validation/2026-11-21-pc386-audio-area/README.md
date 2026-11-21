@@ -23,9 +23,12 @@ The method was committed before any board fit: [method.md](method.md).
   tables at every address pair. The OPL2 suite (Nuked-OPL3, sample for sample) and the audio suite
   pass. A 16-second Ultima VI intro in the machine bench gives a byte-identical mixer WAV and OPL2
   port log on main and on the branch.
-- **DE10:** resealed with the registered producer, including a fresh full netlist lockstep. Kit B
-  booted it and played Wolfenstein 3D, but the run's precommitted music gate **failed**
-  ([below](#kit-b-run-a1)).
+- **DE10:** resealed with the registered producer, including a fresh full netlist lockstep.
+  - Kit B run a1 booted it and played Wolfenstein 3D, but a1's music gate **failed**: its floor
+    was the capture card's DC offset ([below](#kit-b-run-a1)).
+  - Run a2, approved by Deano, used a gate committed before its captures. It **passes**: main's
+    package and this one both play the music, and their levels differ by +0.63 dB
+    ([below](#kit-b-run-a2)).
 - **DE25:** PAIR_SENTENCE
 
 ## The cut
@@ -108,9 +111,37 @@ second after the third (the launch), with peaks to ±2,500 ([output](kit/a1_ac_a
 The recordings' digests are in `kit/kit-b-a1-audio.sha256`; the audio itself is game-derived and
 is not committed.
 
-A run that could decide this needs its gate on AC RMS (each second's mean removed), committed
-before the capture, and preferably main's package and this one back to back on the same kit for a
-level comparison. That is a new run, for the coordinator to decide.
+## Kit B run a2
+
+Deano approved a second run ("Yes, run a2", relayed by the coordinator). Its method and gate,
+[`kit/a2_analyse.py`](kit/a2_analyse.py), were committed in `ea7486209`
+([method.md](method.md#kit-b-run-a2-committed-before-either-capture)) before either capture. The
+thresholds were chosen after a1's recordings had been seen. The driver is
+[`kit/hil_audio_wolf3d_a2.py`](kit/hil_audio_wolf3d_a2.py): a1's capture points with a1's gate
+removed.
+
+Both runs were core-only on the baseline (image `179affbb…`, bundle `c9ae79e2…`). Each claimed Kit
+B, restored it, verified the restore and released it idle and lease-free
+([`kitB-STATUS.md` lines in the wrapper logs](kit/)).
+
+**Deviation from the method's order.** The method says main first. At 19:38 Kit B was in another
+session's use (PR #2064), and the wrapper left it untouched for `a2m`. The kit came free and
+`a2c` ran at 19:41. `a2m` then ran at 19:43, so the cut ran first. Nothing else differs: both
+used the same driver, title, key script and capture points.
+
+| Run | Package | FreeDOS | Wolfenstein 3D | Recorded | Scored seconds ≥ T (T = 20 counts) | Median AC RMS |
+|---|---|---|---|---|---:|---:|
+| `a2m` | main, `1d09da27…` (BUILD_ID `2b929631`) | pass | pass | pass | 34 / 34 | 197.75 |
+| `a2c` | this branch, `53e2dca6…` (BUILD_ID `b44a1c8e`) | pass | pass | pass | 34 / 34 | 212.7 |
+
+- **Presence:** both pass. Each floor's AC RMS is 0.0 after its first second, so T is the
+  20-count minimum.
+- **Level:** the cut against main is +0.63 dB, inside the ±3 dB band.
+- **a2: PASS** ([`kit/a2-gate.json`](kit/a2-gate.json)). The recordings' digests are in
+  `kit/kit-b-a2-audio.sha256`; the audio is game-derived and is not committed.
+- What a2 establishes: both packages put Wolfenstein 3D's music on Kit B's HDMI output at the same
+  level within 3 dB. It does not compare samples, because the analogue path and the key timing
+  differ between runs; the simulations carry bit-exactness.
 
 ## DE25 board pair
 
