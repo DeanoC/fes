@@ -186,9 +186,12 @@ def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None
                     continue
                 # Not a run: the operand of a file test (`[ -x "$Q/quartus_sh" ]`),
                 # or a word inside a quoted message of echo/printf/fail/grep.
-                if re.search(r"(^|[\s\[])-[xfe]\s+[\"']?[^\s\"']*$", before):
+                # A command substitution runs whatever it names, even inside
+                # a quoted message or a test operand.
+                substituted = re.search(r"(\$\(|`)[^)`]*$", before)
+                if not substituted and re.search(r"(^|[\s\[])-[xfe]\s+[\"']?[^\s\"']*$", before):
                     continue
-                if re.search(r"\b(echo|printf|fail|grep)\s+[\"'][^\"']*$", before):
+                if not substituted and re.search(r"\b(echo|printf|fail|grep)\s+[\"'][^\"']*$", before):
                     continue
                 failures.append(f"{name}:{number}: runs {match.group(0)} outside quartus_jobs.py run")
     return failures
@@ -285,9 +288,13 @@ class StaticRuleTests(unittest.TestCase):
             [ -x $Q/quartus_sh ] && $Q/quartus_sh --flow compile top
             test -f /opt/latest/quartus_fit && /opt/latest/quartus_fit top
             echo "running quartus_sh now"; quartus_sh --flow compile top
+            echo "$(quartus_sh --flow compile top)"
+            grep "`quartus_fit top`" file
+            [ -x "$(quartus_sh --flow compile top)" ]
             """})
         self.assertEqual([f.split(": ")[0] for f in failures],
-                         ["scripts/job.sh:4", "scripts/job.sh:7", "scripts/job.sh:8", "scripts/job.sh:9"])
+                         ["scripts/job.sh:4", "scripts/job.sh:7", "scripts/job.sh:8", "scripts/job.sh:9",
+                          "scripts/job.sh:10", "scripts/job.sh:11", "scripts/job.sh:12"])
 
 
 def registered_closure() -> set[Path]:
