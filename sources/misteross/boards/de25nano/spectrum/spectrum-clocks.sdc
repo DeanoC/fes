@@ -62,8 +62,10 @@ if {[get_collection_size $fetch_tag] == 0} {
         set_false_path -from $launch -to $first_d
     }
     set launch [get_registers "${base}|transport|fetch_payload\[*\]"]
-    set captures [get_registers "${base}|transport|fetch_sample\[*\]"]
-    if {[get_collection_size $launch] != 48 || [get_collection_size $captures] != 48} {
+    set captures [get_registers "${base}|transport|fetch_payload_meta\[*\]"]
+    set synchronized [get_registers "${base}|transport|fetch_payload_sync\[*\]"]
+    if {[get_collection_size $launch] != 48 || [get_collection_size $captures] != 48 ||
+        [get_collection_size $synchronized] != 48} {
         error "DE25 Spectrum fetch snapshot endpoints changed"
     }
     set_net_delay -max 10.000 -from $launch -to $captures

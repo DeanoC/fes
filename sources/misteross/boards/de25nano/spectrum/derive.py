@@ -169,7 +169,12 @@ FETCH_SNAPSHOT = b"""
     (* preserve, dont_merge *) reg fetch_request = 1'b0, fetch_reply = 1'b0;
     (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
     reg [1:0] fetch_request_sync = 2'b00, fetch_reply_sync = 2'b00;
-    (* preserve, dont_merge *) reg [47:0] fetch_payload = 48'd0, fetch_sample = 48'd0;
+    (* preserve, dont_merge *) reg [47:0] fetch_payload = 48'd0;
+    (* preserve, dont_merge, async_reg = "true",
+       altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [47:0] fetch_payload_meta = 48'd0, fetch_payload_sync = 48'd0;
+    reg [47:0] fetch_sample = 48'd0;
+    reg fetch_reply_settled = 1'b0;
     reg [15:0] sampled_address = 16'd0;
     reg fetch_pending = 1'b0, fetch_ready = 1'b0;
     reg [5:0] fetch_wait = 6'd0;
@@ -186,12 +191,18 @@ FETCH_SNAPSHOT = b"""
     end
     always @(posedge clk) begin
         fetch_reply_sync <= {fetch_reply_sync[0], fetch_reply};
+        // Sample the held bundle continuously. Only the reply token decides
+        // when its synchronized value is usable, one cycle after token sync.
+        // The source keeps the bundle frozen until the next count request.
+        fetch_payload_meta <= fetch_payload;
+        fetch_payload_sync <= fetch_payload_meta;
+        fetch_reply_settled <= fetch_reply_sync[1];
         if (reset_n && first_seen && count_read && !fetch_pending) begin
             fetch_request <= ~fetch_request;
             fetch_pending <= 1'b1;
             fetch_wait <= 6'd0;
-        end else if (fetch_pending && !fetch_ready && fetch_reply_sync[1] == fetch_request) begin
-            fetch_sample <= fetch_payload;
+        end else if (fetch_pending && !fetch_ready && fetch_reply_settled == fetch_request) begin
+            fetch_sample <= fetch_payload_sync;
             fetch_ready <= 1'b1;
         end else if (fetch_pending && !fetch_ready && !(&fetch_wait)) begin
             fetch_wait <= fetch_wait + 6'd1;
