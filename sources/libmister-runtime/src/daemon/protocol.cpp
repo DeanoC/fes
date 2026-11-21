@@ -1558,8 +1558,8 @@ Error ParseRequest(const std::string& line, Request* request)
 			const char* const eject_fields[] = {"protocol", "operation",
 				"expected_package_id", "expected_generation", "unit"};
 			const char* const library_fields[]={"protocol","operation","path","expected_package_id",
-                "expected_generation","unit","size","data_root","game_id","base_media_id"};
-            if (!(library ? HasOnly(root,library_fields,10,&error) : insert ? HasOnly(root, insert_fields, 7, &error) :
+                "expected_generation","unit","size","data_root","game_id","base_media_id","write_protected"};
+            if (!(library ? HasOnly(root,library_fields,11,&error) : insert ? HasOnly(root, insert_fields, 7, &error) :
                 HasOnly(root, eject_fields, 5, &error))) return error;
 			const std::string* package = nullptr;
 			if (!StringMember(root, "expected_package_id", &package, &error)) return error;
@@ -1590,8 +1590,16 @@ Error ParseRequest(const std::string& line, Request* request)
                         return Invalid("invalid library game identity");
                     hyphen=c=='-';
                 }
-                if(hyphen||unit->integer_value!=0||(parsed.media_size != native::generated::FesComputerPcxtFloppyBytes && !native::InferAtariStGeometry(parsed.media_size)))
+                // Unit 0 is the PC/XT or Atari ST drive; units 1 and 2 are
+                // pc386's A: and B: (fes.media.pc-floppy).
+                const bool pc_floppy=unit->integer_value==FesComputerPcFloppyUnitA||unit->integer_value==FesComputerPcFloppyUnitB;
+                if(hyphen||(pc_floppy ? !native::PcFloppySizeAdmitted(parsed.media_size) :
+                    unit->integer_value!=0||(parsed.media_size != native::generated::FesComputerPcxtFloppyBytes && !native::InferAtariStGeometry(parsed.media_size))))
                     return Invalid("invalid library disk geometry or identity");
+                if(const auto* protect=Find(root,"write_protected")) {
+                    if(protect->type!=json::Type::boolean) return Invalid("write_protected must be boolean");
+                    parsed.media_binding.write_protected=protect->boolean_value;
+                }
                 parsed.data_root=*root_path;parsed.media_binding.game_id=*game;parsed.media_binding.base_media_id=*base;
                 parsed.media_binding.unit=static_cast<std::uint8_t>(unit->integer_value);
             }

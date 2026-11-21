@@ -5,6 +5,7 @@
 
 #include "libmister-runtime/runtime.h"
 #include "native/diagnostic.hpp"
+#include "native/media_data.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_computer.hpp"
@@ -1101,8 +1102,10 @@ public:
 		const std::string& root, const MediaDataBinding& binding)
 	{
 		if (!ValidAbsolutePath(path) || !ValidAbsolutePath(root) || !ValidPackageId(package_id) ||
-			!ValidPackageId(binding.base_media_id) || generation == 0 || unit != 0 || binding.unit != unit ||
-			(size != native::generated::FesComputerPcxtFloppyBytes && !native::InferAtariStGeometry(size)) ||
+			!ValidPackageId(binding.base_media_id) || generation == 0 || binding.unit != unit ||
+			(unit == native::generated::FesComputerPcFloppyUnitA || unit == native::generated::FesComputerPcFloppyUnitB ?
+				!native::PcFloppySizeAdmitted(size) :
+				unit != 0 || (size != native::generated::FesComputerPcxtFloppyBytes && !native::InferAtariStGeometry(size))) ||
 			!ValidLibraryGameId(binding.game_id))
 			return Invalid("invalid library media request");
 		std::string system, core;

@@ -181,6 +181,9 @@ enum class MediaUnitState { empty, loading, ready };
 struct MediaDataBinding {
     std::string game_id, base_media_id;
     std::uint8_t unit = 0;
+    // A pc386 floppy (units 1 and 2) inserted write-protected: the core
+    // refuses its writes and nothing is saved for it.
+    bool write_protected = false;
 };
 
 // Explicit library disk delivered while a ROM-linked ST is still reset-held.

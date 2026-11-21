@@ -6,12 +6,27 @@
 #include "native/atari_st_geometry.hpp"
 namespace mister { namespace native {
 constexpr std::size_t kAtariStDiskBytes = 737280;
-constexpr std::size_t kMaximumMediaDataBytes = generated::FesComputerAtariStFloppyGeometryMaxBytes + 256;
+constexpr std::size_t kMaximumMediaDataBytes =
+    (generated::FesComputerPcFloppyMaxBytes > generated::FesComputerAtariStFloppyGeometryMaxBytes ?
+     generated::FesComputerPcFloppyMaxBytes : generated::FesComputerAtariStFloppyGeometryMaxBytes) + 256;
+// fes.pc386-floppy.image: every pc386 floppy is keyed under unit 1, whichever
+// drive holds it (mister-packages docs/media-data.md).
+constexpr std::uint8_t kPc386FloppyNamespaceUnit = 1;
+// A size is one of the PC formats fes.media.pc-floppy admits.
+inline bool PcFloppySizeAdmitted(std::size_t bytes) {
+    for (std::size_t size : {163840u, 184320u, 327680u, 368640u, 737280u, 1228800u, 1474560u, 1720320u, 2949120u})
+        if (bytes == size) return true;
+    return false;
+}
 struct MediaDataIdentity {
     std::string core_id, game_id, base_media_id;
     std::uint8_t unit = 0;
 };
-enum class MediaDataLayout { atari_st, pcxt_floppy, zx81_tape };
+enum class MediaDataLayout { atari_st, pcxt_floppy, zx81_tape, pc386_floppy };
+// The pc386 floppy record's identity: core fes.pc386, unit 1.
+inline bool Pc386FloppyIdentity(const std::string& core_id, std::uint8_t unit) {
+    return core_id == "fes.pc386" && unit == kPc386FloppyNamespaceUnit;
+}
 struct MediaDiskRecord {
     MediaDataIdentity identity;
     std::vector<unsigned char> bytes;

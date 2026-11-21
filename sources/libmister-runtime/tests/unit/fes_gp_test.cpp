@@ -3253,6 +3253,8 @@ struct Computer11Scenario {
 	std::vector<Computer11Event> events;
 	std::vector<std::uint16_t> final_words;
 	std::vector<unsigned> final_clock;
+	std::size_t floppy_bytes[2] = {0, 0};
+	std::vector<unsigned> final_floppies;  // per drive: epoch, flags, state
 };
 
 std::vector<Computer11Scenario> ReadComputer11Scenarios()
@@ -3265,7 +3267,7 @@ std::vector<Computer11Scenario> ReadComputer11Scenarios()
 	for (auto at = source.find("{\"abi_minor\":"); at != std::string::npos;
 		at = source.find("{\"abi_minor\":", at + 1))
 		starts.push_back(at);
-	assert(starts.size() == 5);
+	assert(starts.size() == 6);
 	starts.push_back(source.size());
 	const std::regex row("\\{\"argument\":([0-9]+),\"data\":([0-9]+),\"error\":([0-9]+),"
 		"\"gpi\":([0-9]+),\"gpo\":\\[([0-9]+),([0-9]+)\\],\"index\":([0-9]+),"
@@ -3273,6 +3275,7 @@ std::vector<Computer11Scenario> ReadComputer11Scenarios()
 	const std::regex cmos("\\{\"before\":([0-9]+),\"byte\":([0-9]+),\"kind\":\"cmos-write\",\"value\":([0-9]+)\\}");
 	const std::regex sector("\\{\"before\":([0-9]+),\"kind\":\"(sector-write(-begin)?)\",\"sector\":([0-9]+)\\}");
 	const std::regex complete("\\{\"before\":([0-9]+),\"kind\":\"sector-write-complete\"\\}");
+	const std::regex floppy("\\{\"before\":([0-9]+),\"kind\":\"floppy-write\",\"unit\":([0-9]+)\\}");
 	std::vector<Computer11Scenario> result;
 	for (std::size_t index = 0; index + 1 < starts.size(); ++index) {
 		const auto text = source.substr(starts[index], starts[index + 1] - starts[index]);
@@ -3301,6 +3304,18 @@ std::vector<Computer11Scenario> ReadComputer11Scenarios()
 				static_cast<unsigned>(std::stoul((*it)[4])), 0});
 		for (std::sregex_iterator it(text.begin(), text.end(), complete), end; it != end; ++it)
 			scenario.events.push_back({std::stoul((*it)[1]), "sector-write-complete", 0, 0});
+		for (std::sregex_iterator it(text.begin(), text.end(), floppy), end; it != end; ++it)
+			scenario.events.push_back({std::stoul((*it)[1]), "floppy-write",
+				static_cast<unsigned>(std::stoul((*it)[2])), 0});
+		// Floppy windows: the same pattern, at each drive's size.
+		for (unsigned unit = 1; unit <= 2; ++unit)
+			if (std::regex_search(text, match, std::regex("\"floppy_windows\":\\{.*\"" + std::to_string(unit) +
+				"\":\\{\"bytes\":([0-9]+)")))
+				scenario.floppy_bytes[unit - 1] = static_cast<std::size_t>(std::stoul(match[1]));
+		if (std::regex_search(text, match, std::regex("\"floppies\":\\{\"1\":\\{\"epoch\":([0-9]+),"
+			"\"flags\":([0-9]+),\"geometry\":\\[[0-9,]*\\],\"state\":([0-9]+),.*\"2\":\\{\"epoch\":([0-9]+),"
+			"\"flags\":([0-9]+),\"geometry\":\\[[0-9,]*\\],\"state\":([0-9]+)")))
+			for (unsigned k = 0; k < 6; ++k) scenario.final_floppies.push_back(static_cast<unsigned>(std::stoul(match[k + 1])));
 		std::stable_sort(scenario.events.begin(), scenario.events.end(),
 			[](const Computer11Event& a, const Computer11Event& b) { return a.before < b.before; });
 		assert(std::regex_search(text, match, std::regex("\"persistent_words\":\\[([0-9,]+)\\]")));
@@ -3312,7 +3327,9 @@ std::vector<Computer11Scenario> ReadComputer11Scenarios()
 	assert(result[0].name == "minor-0-endpoint" && result[0].abi_minor == 0);
 	assert(result[1].name == "pc386-persistence-and-wall-clock" && result[1].abi_minor == 1);
 	assert(result[2].name == "pc386-ata-disk");
-	assert(result[3].name == "persistence-without-layout" && result[4].name == "layout-without-persistence");
+	assert(result[3].name == "pc386-pc-floppy" && result[3].final_floppies.size() == 6 &&
+		result[3].floppy_bytes[0] == 737280 && result[3].floppy_bytes[1] == 368640);
+	assert(result[4].name == "persistence-without-layout" && result[5].name == "layout-without-persistence");
 	return result;
 }
 
@@ -3327,6 +3344,11 @@ void TestComputer11ReplaysSharedFixtureThroughEndpoint()
 		endpoint.abi_minor = scenario.abi_minor;
 		auto image = window;
 		endpoint.window = &image;
+		for (unsigned k = 0; k < 2; ++k) {
+			endpoint.floppies[k].window.resize(scenario.floppy_bytes[k]);
+			for (std::size_t offset = 0; offset < scenario.floppy_bytes[k]; ++offset)
+				endpoint.floppies[k].window[offset] = static_cast<std::uint8_t>(offset * 7 + (offset >> 11));
+		}
 		std::size_t next = 0;
 		for (std::size_t n = 0; n < scenario.exchanges.size(); ++n) {
 			for (; next < scenario.events.size() && scenario.events[next].before == n; ++next) {
@@ -3334,6 +3356,7 @@ void TestComputer11ReplaysSharedFixtureThroughEndpoint()
 				if (kind == "sector-write") { endpoint.GuestSectorWrite(scenario.events[next].first); continue; }
 				if (kind == "sector-write-begin") { endpoint.GuestSectorWriteBegin(scenario.events[next].first); continue; }
 				if (kind == "sector-write-complete") { endpoint.GuestSectorWriteComplete(); continue; }
+				if (kind == "floppy-write") { endpoint.GuestFloppyWrite(scenario.events[next].first); continue; }
 				endpoint.GuestCmosWrite(scenario.events[next].first,
 					static_cast<std::uint8_t>(scenario.events[next].second));
 			}
@@ -3347,6 +3370,12 @@ void TestComputer11ReplaysSharedFixtureThroughEndpoint()
 		assert(next == scenario.events.size());
 		assert(endpoint.machine_words == scenario.final_words);
 		assert(endpoint.clock == scenario.final_clock);
+		for (unsigned k = 0; k < 2 && !scenario.final_floppies.empty(); ++k) {
+			const auto& f = endpoint.floppies[k];
+			const unsigned flags = (f.dirty ? 1 : 0) | (f.frozen ? 2 : 0) | (f.failed ? 8 : 0);
+			assert(f.epoch == scenario.final_floppies[k * 3] && flags == scenario.final_floppies[k * 3 + 1] &&
+				f.state == scenario.final_floppies[k * 3 + 2]);
+		}
 	}
 }
 

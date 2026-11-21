@@ -378,6 +378,8 @@ Error NativeHardware::FlushSave()
 	}
     const Error media = FlushMediaSave();
     if (!media.ok()) return media;
+    const Error floppies = FlushPc386FloppySaves();
+    if (!floppies.ok()) return floppies;
     const Error disk = FlushAtaDiskSave();
     if (!disk.ok()) return disk;
 	if (core_data_file_) {
@@ -454,6 +456,16 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
         media_snapshot_.clear(); media_data_flushed_ = false;
         return {};
     }
+	for (std::uint8_t unit = generated::FesComputerPcFloppyUnitA; unit <= generated::FesComputerPcFloppyUnitB; ++unit) {
+		Pc386Floppy& drive = floppies_[unit - 1];
+		if (!drive.flushed) continue;
+		FesGpCoreDriver* driver = Pc386FloppyDriver(unit);
+		if (!driver || generation == 0) return {ErrorCode::io_failed, "active floppy cannot be resumed", "media_data"};
+		const Error resumed = driver->FloppyControl(unit, generated::FesComputerDiskControlResume,
+			Deadline(clock_, timeouts_.core_io_ms));
+		if (!resumed.ok()) return resumed;
+		drive.flushed = false;
+	}
 	if (ata_delta_file_) {
 		auto* driver = active_driver_ == fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
 		if (!driver || generation == 0) return {ErrorCode::io_failed, "active ATA disk cannot be resumed", "media_data"};
@@ -532,6 +544,8 @@ void NativeHardware::ForgetActiveCore()
 {
     ForgetMediaData();
     ForgetAtaDisk();
+    ForgetPc386Floppies();
+    ForgetPc386Floppies();
 	session_display_focused_ = false;
 	active_driver_ = nullptr;
 	active_context_ = {};
@@ -1048,8 +1062,10 @@ Capabilities NativeHardware::capabilities() const
 			generated::FesComputerInterfaceMediaPcxtFloppyMajor,
 			generated::FesComputerInterfaceMediaPcxtFloppyMinor});
 		computer_11.interfaces.push_back({generated::FesComputerInterfaceMediaPcxtFloppyWriteID, 1, 0});
-		if (fpga_.BootHpsDdrLayout() && disk_window_)
+		if (fpga_.BootHpsDdrLayout() && disk_window_) {
 			computer_11.interfaces.push_back({generated::FesComputerInterfaceMediaAtaDiskID, 1, 0});
+			computer_11.interfaces.push_back({generated::FesComputerInterfaceMediaPcFloppyID, 1, 0});
+		}
 		std::sort(computer_11.interfaces.begin(), computer_11.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(computer_11));
@@ -1077,6 +1093,26 @@ Capabilities NativeHardware::capabilities() const
                     unit.base_media_id = ata_identity_.base_media_id; unit.revision = ata_delta_.revision;
                 }
                 result.media_units.insert(result.media_units.begin(), unit);
+            }
+            if (driver != nullptr && driver->home_computer() && driver->PcFloppyCapable()) {
+                for (std::uint8_t number = generated::FesComputerPcFloppyUnitA;
+                     number <= generated::FesComputerPcFloppyUnitB; ++number) {
+                    const Pc386Floppy& drive = floppies_[number - 1];
+                    MediaUnitCapability unit;
+                    unit.unit = number;
+                    unit.interface = {generated::FesComputerInterfaceMediaPcFloppyID,
+                        generated::FesComputerInterfaceMediaPcFloppyMajor, generated::FesComputerInterfaceMediaPcFloppyMinor};
+                    unit.min_bytes = generated::FesComputerPcFloppyMinBytes;
+                    unit.max_bytes = generated::FesComputerPcFloppyMaxBytes;
+                    unit.chunk_bytes = generated::FesComputerPcFloppySectorBytes;
+                    unit.state = drive.loaded ? MediaUnitState::ready : MediaUnitState::empty;
+                    unit.saveable = false;
+                    if (drive.file) {
+                        unit.persistence_mode = "persistent"; unit.game_id = drive.identity.game_id;
+                        unit.base_media_id = drive.identity.base_media_id; unit.revision = drive.durable.revision;
+                    }
+                    result.media_units.push_back(unit);
+                }
             }
             if (media_data_file_) for (auto& unit : result.media_units) {
                 if (unit.unit == durable_media_.identity.unit) {
@@ -1313,6 +1349,7 @@ Error NativeHardware::AcknowledgeZx81Tape()
 
 Error NativeHardware::EjectComputerMedia(std::uint8_t unit)
 {
+	if (Pc386FloppyDriver(unit)) return EjectPc386Floppy(unit);
 	auto* driver = active_driver_;
 	if (driver == nullptr)
 		return {ErrorCode::unsupported_interface, "FES computer media unit is not active", "request"};
@@ -1524,6 +1561,7 @@ Error NativeHardware::FlushMediaSave()
 Error NativeHardware::InsertLibraryComputerMedia(std::uint8_t unit,const std::string& path,
     std::uint32_t size,const std::string& root,const MediaDataBinding& binding)
 {
+    if(binding.unit==unit && Pc386FloppyDriver(unit)) return InsertPc386Floppy(unit,path,size,root,binding);
     auto* driver=active_driver_==fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
     const bool pcxt = active_context_.descriptor && active_context_.descriptor->core.id == "fes.pcxt-dos";
     if(!driver || !active_context_.descriptor || unit!=0 || binding.unit!=unit ||
@@ -1586,6 +1624,175 @@ Error NativeHardware::InsertLibraryComputerMedia(std::uint8_t unit,const std::st
     media_data_file_=std::move(incoming); durable_media_=std::move(record); media_base_size_=size;
     media_snapshot_.clear(); media_data_flushed_=false; media_image_uncertain_=false;
     return {};
+}
+
+namespace {
+// The formats fes.media.pc-floppy admits, and which of pc386's drives reads
+// each: A: is a 3.5" 1.44M drive, B: a 5.25" 1.2M one (docs/design/
+// pc386-removable-media.md, D11).
+struct Pc386FloppyFormat { std::uint32_t bytes; std::uint16_t cylinders, heads, sectors; std::uint8_t drives; };
+constexpr std::uint8_t kDriveA = 1, kDriveB = 2;
+const Pc386FloppyFormat kPc386FloppyFormats[] = {
+	{163840, 40, 1, 8, kDriveB}, {184320, 40, 1, 9, kDriveB}, {327680, 40, 2, 8, kDriveB},
+	{368640, 40, 2, 9, kDriveB}, {737280, 80, 2, 9, kDriveA}, {1228800, 80, 2, 15, kDriveB},
+	{1474560, 80, 2, 18, kDriveA}, {1720320, 80, 2, 21, kDriveA}, {2949120, 80, 2, 36, 0}};
+const Pc386FloppyFormat* Pc386FloppyFormatFor(std::uint32_t bytes) {
+	for (const auto& format : kPc386FloppyFormats) if (format.bytes == bytes) return &format;
+	return nullptr;
+}
+std::uint64_t Pc386FloppyWindowOffset(std::uint8_t unit) {
+	return generated::FesComputerPcFloppyWindowOffset +
+		std::uint64_t(unit - generated::FesComputerPcFloppyUnitA) * generated::FesComputerPcFloppyWindowStride;
+}
+std::uint32_t Crc32(const std::vector<unsigned char>& bytes) {
+	std::uint32_t crc = 0xffffffffu;
+	for (unsigned char byte : bytes) {
+		crc ^= byte;
+		for (unsigned bit = 0; bit < 8; ++bit) crc = (crc >> 1) ^ ((crc & 1u) ? 0xedb88320u : 0u);
+	}
+	return crc ^ 0xffffffffu;
+}
+} // namespace
+
+FesGpCoreDriver* NativeHardware::Pc386FloppyDriver(std::uint8_t unit)
+{
+	auto* driver = active_driver_ == fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	if (!driver || !driver->PcFloppyCapable() || !disk_window_ || !active_context_.descriptor ||
+		(unit != generated::FesComputerPcFloppyUnitA && unit != generated::FesComputerPcFloppyUnitB))
+		return nullptr;
+	return driver;
+}
+
+// A disk into drive A: (unit 1) or B: (unit 2), held or running: the old disk
+// saved and ejected first, then Prepare, the image written through the window,
+// DiskCommit with its CRC, and ready. A writable disk restores its saved image.
+Error NativeHardware::InsertPc386Floppy(std::uint8_t unit, const std::string& path, std::uint32_t size,
+	const std::string& root, const MediaDataBinding& binding)
+{
+	FesGpCoreDriver* driver = Pc386FloppyDriver(unit);
+	if (!driver) return {ErrorCode::unsupported_interface, "floppy drive is unavailable", "request"};
+	const Pc386FloppyFormat* format = Pc386FloppyFormatFor(size);
+	if (!format || !(format->drives & (unit == generated::FesComputerPcFloppyUnitA ? kDriveA : kDriveB)))
+		return {ErrorCode::invalid_request, "that drive cannot read a disk of this size", "request"};
+	MediaDataIdentity identity{active_context_.descriptor->core.id, binding.game_id, binding.base_media_id,
+		kPc386FloppyNamespaceUnit};
+	if (!ValidMediaDataIdentity(identity)) return {ErrorCode::invalid_request, "invalid floppy binding", "request"};
+	// One writer per record: a writable disk is in one drive at a time.
+	const Pc386Floppy& other = floppies_[unit == generated::FesComputerPcFloppyUnitA ? 1 : 0];
+	if (!binding.write_protected && other.loaded && !other.write_protected &&
+		other.identity.game_id == identity.game_id && other.identity.base_media_id == identity.base_media_id)
+		return {ErrorCode::invalid_request, "that disk is already in the other drive", "request"};
+	const auto deadline = Deadline(clock_, timeouts_.media_io_ms);
+	ComputerMediaSnapshot base;
+	Error error = base.Prepare(path, size, size, clock_, deadline);
+	std::vector<unsigned char> image(size);
+	Sha256 source;
+	for (std::uint32_t offset = 0; offset < size && error.ok(); offset += 512) {
+		error = base.Read(offset, image.data() + offset, 512, clock_, deadline);
+		if (error.ok()) source.Update(image.data() + offset, 512);
+	}
+	if (!error.ok()) return WithPhase(error, "request");
+	if (Sha256Hex(source.Final()) != binding.base_media_id)
+		return {ErrorCode::invalid_request, "floppy source digest mismatch", "request"};
+	std::unique_ptr<MediaDataFile> file;
+	MediaDiskRecord record;
+	record.identity = identity;
+	record.layout = MediaDataLayout::pc386_floppy;
+	if (!binding.write_protected) {
+		error = MediaDataFile::Open(root, identity, &file);
+		if (error.ok()) error = file->Read(&record);
+		if (error.ok() && !record.bytes.empty() && record.bytes.size() != size)
+			error = {ErrorCode::incompatible_data, "saved floppy differs in size from its base", "request"};
+		if (error.ok()) error = file->CheckWritable();
+		if (!error.ok()) return WithPhase(error, "request");
+		if (!record.bytes.empty()) image = record.bytes;
+	}
+	// The disk in the drive goes out first, saved.
+	if (floppies_[unit - 1].loaded) {
+		error = EjectPc386Floppy(unit);
+		if (!error.ok()) return error;
+	}
+	error = driver->FloppyControl(unit, generated::FesComputerDiskControlPrepare, deadline);
+	if (error.ok()) {
+		const std::size_t mapped = (std::size_t(size) + 4095u) & ~std::size_t(4095u);
+		error = disk_window_->Access(Pc386FloppyWindowOffset(unit), mapped,
+			[&](unsigned char* window) { std::memcpy(window, image.data(), size); return Error{}; });
+	}
+	if (error.ok())
+		error = driver->CommitFloppy(unit, size / 512, format->cylinders, format->heads, format->sectors,
+			Crc32(image), binding.write_protected, deadline);
+	if (!error.ok()) return error;
+	Pc386Floppy& drive = floppies_[unit - 1];
+	drive.loaded = true;
+	drive.write_protected = binding.write_protected;
+	drive.size = size;
+	drive.identity = identity;
+	drive.file = std::move(file);
+	drive.durable = std::move(record);
+	return {};
+}
+
+// A writable disk: Freeze; if dirty, the image read from the window and
+// published; Saved. The drive stays frozen until RestoreInput resumes it or
+// Eject takes the disk out. A write-protected disk has nothing to save.
+Error NativeHardware::SavePc386Floppy(FesGpCoreDriver& driver, std::uint8_t unit, std::uint64_t deadline)
+{
+	Pc386Floppy& drive = floppies_[unit - 1];
+	if (!drive.loaded || drive.write_protected || !drive.file || drive.flushed) return {};
+	Error error = driver.FloppyControl(unit, generated::FesComputerDiskControlFreeze, deadline);
+	std::uint16_t flags = 0;
+	if (error.ok()) error = driver.ReadFloppyFlags(unit, deadline, &flags);
+	if (error.ok() && (flags & generated::FesComputerDiskFlagDirtyMask)) {
+		std::vector<unsigned char> bytes(drive.size);
+		const std::size_t mapped = (std::size_t(drive.size) + 4095u) & ~std::size_t(4095u);
+		error = disk_window_->Access(Pc386FloppyWindowOffset(unit), mapped,
+			[&](unsigned char* window) { std::memcpy(bytes.data(), window, drive.size); return Error{}; });
+		MediaDiskRecord current;
+		if (error.ok()) error = drive.file->Read(&current);
+		if (error.ok() && current.revision != drive.durable.revision && current.bytes != bytes)
+			error = {ErrorCode::stale_revision, "floppy record changed elsewhere", "media_data"};
+		if (error.ok()) {
+			MediaDiskRecord snapshot = drive.durable;
+			snapshot.bytes = std::move(bytes);
+			error = drive.file->Persist(snapshot, current.revision, &drive.durable);
+		}
+	}
+	if (error.ok()) error = driver.FloppyControl(unit, generated::FesComputerDiskControlSaved, deadline);
+	if (!error.ok()) {
+		error.code = ErrorCode::save_failed;
+		return WithPhase(error, "media_data");
+	}
+	drive.flushed = true;
+	return {};
+}
+
+Error NativeHardware::EjectPc386Floppy(std::uint8_t unit)
+{
+	FesGpCoreDriver* driver = Pc386FloppyDriver(unit);
+	if (!driver) return {ErrorCode::unsupported_interface, "floppy drive is unavailable", "request"};
+	const auto deadline = Deadline(clock_, timeouts_.media_io_ms);
+	Error error = SavePc386Floppy(*driver, unit, deadline);
+	if (error.ok()) error = driver->FloppyControl(unit, generated::FesComputerDiskControlEject, deadline);
+	if (!error.ok()) return error;
+	floppies_[unit - 1] = Pc386Floppy{};
+	return {};
+}
+
+Error NativeHardware::FlushPc386FloppySaves()
+{
+	for (std::uint8_t unit = generated::FesComputerPcFloppyUnitA; unit <= generated::FesComputerPcFloppyUnitB; ++unit) {
+		if (!floppies_[unit - 1].loaded) continue;
+		FesGpCoreDriver* driver = Pc386FloppyDriver(unit);
+		if (!driver) return {ErrorCode::save_failed, "active floppy cannot be saved", "media_data"};
+		const Error error = SavePc386Floppy(*driver, unit, Deadline(clock_, timeouts_.media_io_ms));
+		if (!error.ok()) return error;
+	}
+	return {};
+}
+
+void NativeHardware::ForgetPc386Floppies()
+{
+	for (auto& drive : floppies_) drive = Pc386Floppy{};
 }
 
 Error NativeHardware::PrepareInitialComputerMedia(AdmittedCorePackage* package,
@@ -1943,6 +2150,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	// but only explicit insertion may bind the new core to that namespace.
 	ForgetMediaData();
 	ForgetAtaDisk();
+	ForgetPc386Floppies();
 	menu_unsafe_=false;
 	admitted->driver_->BeginSession();
 	admitted->context_.generation = generation;
@@ -2319,6 +2527,7 @@ HardwareResult NativeHardware::LoadSplashIdle()
 	}
  ForgetMediaData();
  ForgetAtaDisk();
+ ForgetPc386Floppies();
  menu_unsafe_=false;session_display_focused_=false;
  if(menu_status_.session)menu_status_={};else menu_status_.available=false;
 	const VideoResult video = idle_video_.BringUp(idle_recipe_,
@@ -2689,6 +2898,7 @@ HardwareResult NativeHardware::LoadContainedDevelopmentRBF(const std::string& rb
 
 	ForgetMediaData();
 	ForgetAtaDisk();
+	ForgetPc386Floppies();
 	CoreDriver* driver = ResolveDriver(profile);
 	if (driver == nullptr)
 		return {{ErrorCode::unsupported_abi,
