@@ -56,3 +56,31 @@ files are deleted. The cut is commits `745daabc7` and `0637e5def` on
   no other seed or setting is tried.
 - **Positive control:** the cut's fit has the RAM blocks for the two tables
   in its RAM summary (one M20K ROM named for `phase_rom`). Without it the pair is reported as not measured.
+
+## Kit B run a2 (committed before either capture)
+
+Run a1's committed music gate failed, and a1 stays a fail: its floor was the capture card's DC
+offset (−281 counts on the left channel, no AC), not silence, and the gate compared total RMS.
+Deano approved a second run, a2 ("Yes, run a2", relayed by the coordinator on 21 November), with
+this method. Its thresholds were chosen after a1's recordings had been seen.
+
+- **Packages, back to back on Kit B, core-only, on the baseline image and bundle:** main's sealed
+  `1d09da2784baa6a10983ec3d2e0a7f0f9a29924306bf3cce0d7209b7089bcb70` (#2045's seal, `bf7afef73`,
+  BUILD_ID `2b929631`; its machine RTL equals main `f3140cb33`'s), run `a2m`, then this branch's
+  `53e2dca69cf76177cd93f6f641be1a655fac4725c97c44d340e19fd6cc8cd05f` (BUILD_ID `b44a1c8e`), run
+  `a2c`. Each run claims Kit B in `~/kit-status/kitB-STATUS.md`, restores, verifies and logs it.
+- **Same title and capture points for both:** `kit/hil_audio_wolf3d_a2.py`, which is a1's
+  driver with its gate removed. Wolfenstein 3D on the user-supplied drive `real`, the same key
+  script, and Kit B's HDMI capture `hw:CARD=D4KPRO` at 48 kHz stereo: 8 s at the FreeDOS prompt (the
+  floor) and 40 s from the launch (the game).
+- **The gate is [`kit/a2_analyse.py`](kit/a2_analyse.py)**, applied to both runs' recordings:
+  - per whole second, the AC RMS (each channel's mean over the second removed, both channels);
+  - game seconds from the 5th on are scored;
+  - **presence**, each package: T = max(20 counts, 10 × the floor's median AC RMS); at least
+    half of the scored seconds ≥ T;
+  - **level**, the cut against main: |20 log10(cut median / main median)| ≤ 3 dB over the scored
+    seconds;
+  - a2 passes only if both presences and the level comparison pass.
+- **Not measurable:** a recording that cannot be read or is shorter than 30 s (game) or 5 s
+  (floor), or a run whose `freedos` or `wolf3d` goal fails.
+- Whatever the gate says is the result. No other gate follows it.
