@@ -31,6 +31,7 @@ from scripts.fes_build_common import BuildError
 POLICY = 'de25-pc386-reviewed-signoff-findings-v1'
 CORE = 'fes.pc386'
 SDC = 'combined/hps/project/fes_mailbox/machine-clocks.sdc'
+QSF = 'combined/hps/project/golden_top.qsf'
 E = re.escape('soc_inst|subsys_periph|fes_scanout|fes_scanout|')
 S = E + re.escape('system|')
 MACHINE = 'fes_machine_pll|machine_pll_outclk0'
@@ -64,8 +65,9 @@ def advisory(rule, name, column, pattern, qualifier):
 
 
 def lint(name, driver, qualifier):
-    return {'rule': 'LNT-30010', 'name': name, 'count': 1, 'sdc': (), 'qualifier': qualifier,
-            'match': {0: S + re.escape(driver)}}
+    # The driver, or a fitter duplicate of it: duplication varies from fit to fit.
+    return {'rule': 'LNT-30010', 'name': name, 'count': None, 'sdc': (), 'qualifier': qualifier,
+            'match': {0: S + re.escape(driver) + r'(?:~_Duplicate_\d+)?'}}
 
 
 # The constraints each crossing basis quotes, verbatim from pc386-clocks.sdc.
@@ -99,6 +101,14 @@ COUNTS_SDC = (
     '    counts_ask {system|pixel_counts_ask} {system|pixel_counts_ask_sync[0]}',
     '    counts_answer {system|pixel_counts_answer} {system|pixel_counts_answer_sync[0]}',
     *BUNDLE_SDC)
+TOGGLE_SDC = (
+    '    frame_sequence {system|machine_frame_sequence[0]} {system|machine_presenter_sequence_sync[0]}',
+    '    fetch_request {system|machine_presenter_request_toggle} {system|machine_presenter_request_sync[0]}',
+    '    fetch_loaded {system|machine_presenter_loaded_flag} {system|machine_presenter_loaded_sync[0]}',
+    '    set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]',
+    '    set_false_path -from $launches -to $first_d')
+TOGGLE_ASSIGNMENT = ('machine_presenter_sequence_sync[*]', 'machine_presenter_request_sync[*]',
+                     'machine_presenter_loaded_sync[*]')
 RESET_SDC = (
     'set launches [get_registers "${base}|system|reset"]',
     'set first_d [get_pins -compatibility_mode -nocase "${base}|system|machine_pixel_reset_sync[0]|d"]',
@@ -136,6 +146,17 @@ RESET = ('Machine to pixel: pc386_machine.sv synchronises (reset || !pixel_locke
          'machine reset register into stage 0 is a named false path; the synchronised reset\'s loads are '
          'timed in the pixel clock. The stage-0 input is that OR with the pixel PLL\'s lock, so the design '
          'assistant finds the false path insufficient for the reset alone.')
+TOGGLES = ('The presenter\'s three handshake toggles, each into its own three-stage synchroniser in '
+           'pc386_presenter.sv: the capture sequence (machine_frame_sequence[0] into '
+           'machine_presenter_sequence_sync) and the loaded-row flag (machine_presenter_loaded_flag into '
+           'machine_presenter_loaded_sync), machine to pixel; the fetch request '
+           '(machine_presenter_request_toggle into machine_presenter_request_sync), pixel to machine. Each '
+           'stage 0 drives only stage 1. The launch into each stage 0 is a named false path, and the board '
+           'assigns SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS to the three chains (pc386/build.py '
+           'ASSIGNMENTS), so the design assistant finds them as synchronisers. Each stage 0 also has a '
+           'synchronous reset in its receiving clock ahead of D (pixel_reset or the machine reset), so the '
+           'design assistant reports the false path as insufficient; that reset\'s path is timed in the '
+           'receiving clock.')
 RAM = ('Area advisory: a small logical RAM placed alone in a physical M20K. These are the machine '
        'netlist\'s cache tags and probes, VGA, keyboard-controller, RTC, CMOS and FDC tables and OPL2 '
        'banks; the window guards\' two-bank command stores (fes_hps_ddr_guard) and the arbiter\'s unpack '
@@ -172,6 +193,12 @@ BASES = (
              'machine-to-pixel', 12, LOADED_SDC, LOADED),
     crossing('CDC-50102', 'status-counts', bus('pixel_counts_copy'), bus('pixel_counts_snapshot'),
              'pixel-to-machine', 1, COUNTS_SDC, COUNTS),
+    crossing('CDC-50002', 'presenter-toggles-to-pixel',
+             bus('machine_frame_sequence', 'machine_presenter_loaded_flag'),
+             bus('machine_presenter_sequence_sync', 'machine_presenter_loaded_sync'),
+             'machine-to-pixel', 2, TOGGLE_SDC, TOGGLES),
+    crossing('CDC-50002', 'presenter-toggle-to-machine', bus('machine_presenter_request_toggle'),
+             bus('machine_presenter_request_sync'), 'pixel-to-machine', 1, TOGGLE_SDC, TOGGLES),
     crossing('CDC-50002', 'pixel-reset', bus('reset'), bus('machine_pixel_reset_sync'),
              'machine-to-pixel', 1, RESET_SDC, RESET),
     lint('biu-reset', 'cpu_biu_reset', BIU_RESET),
@@ -243,10 +270,20 @@ def review(drc, sdc_text, bases=None):
     return entries
 
 
+def assignments(qsf_text):
+    """The toggle basis relies on the board naming the three chains synchronisers."""
+    lines = {' '.join(line.split()) for line in qsf_text.splitlines()}
+    missing = [name for name in TOGGLE_ASSIGNMENT if
+               'set_instance_assignment -name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS -to "%ssystem|%s"'
+               % ('soc_inst|subsys_periph|fes_scanout|fes_scanout|', name) not in lines]
+    require(not missing, 'compiled project lacks the synchroniser assignments: ' + ', '.join(missing))
+
+
 def findings(directory, drc):
     directory = Path(directory)
-    sdc = directory / SDC
-    require(sdc.is_file() and not sdc.is_symlink(), 'missing/linked compiled machine SDC')
+    sdc, qsf = directory / SDC, directory / QSF
+    require(all(p.is_file() and not p.is_symlink() for p in (sdc, qsf)), 'missing/linked compiled SDC or QSF')
+    assignments(qsf.read_text())
     entries = review(drc, sdc.read_text())
     digest = hashlib.sha256(sdc.read_bytes()).hexdigest()
     return [dict(entry, sdc_sha256=digest) for entry in entries]

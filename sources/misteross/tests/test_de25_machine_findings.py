@@ -101,6 +101,26 @@ class MachineFindingsTests(unittest.TestCase):
         with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
             mf.review(report({'TMC-20602': (header, outside)}), '', self.bases('cpu-control-tension'))
 
+    def test_the_toggle_basis_needs_its_direction_and_the_board_assignments(self):
+        rows = [cdc('machine_frame_sequence[0]', 'machine_presenter_sequence_sync[0]'),
+                cdc('machine_presenter_loaded_flag', 'machine_presenter_loaded_sync[0]'),
+                cdc('machine_presenter_request_toggle', 'machine_presenter_request_sync[0]', PIXEL, MACHINE)]
+        bases = self.bases('presenter-toggles-to-pixel', 'presenter-toggle-to-machine')
+        [entry] = mf.review(report({'CDC-50002': (CDC, rows)}), sdc_text(), bases)
+        self.assertEqual([g['rows'] for g in entry['groups']], [2, 1])
+        rows[2] = cdc('machine_presenter_request_toggle', 'machine_presenter_request_sync[0]')
+        with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
+            mf.review(report({'CDC-50002': (CDC, rows)}), sdc_text(), bases)
+        qsf = ''.join('set_instance_assignment -name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS '
+                      f'-to "{S}{name}"\n' for name in mf.TOGGLE_ASSIGNMENT)
+        mf.assignments(qsf)
+        with self.assertRaisesRegex(mf.BuildError, 'machine_presenter_loaded_sync'):
+            mf.assignments(qsf.replace('machine_presenter_loaded_sync', 'other'))
+        from boards.de25nano.producers import build_pc386_package as pc386
+        spec = pc386.MACHINE.spec(ROOT)
+        self.assertEqual({node for _, _, node in spec.ASSIGNMENTS} - {'system|machine_pixel_reset_sync[*]'},
+                         {'system|' + name for name in mf.TOGGLE_ASSIGNMENT})
+
     def test_a_rule_that_passed_has_no_entry(self):
         self.assertEqual(mf.review(report({'CDC-50001': (CDC, [])}), sdc_text()), [])
 
