@@ -169,7 +169,14 @@ def shell_runs(text: str):
                 command.append(word)
         commands.append(command)
         for command in commands:
+            head = next((w for w in command if "=" not in w.split("/")[0]), "")
             for index, word in enumerate(command):
+                # A quoted payload (sh -c '...', bash -c, eval, ssh host '...')
+                # is shell code: scan it as such, unless it is only a message.
+                if index > 0 and any(c.isspace() for c in word) and os.path.basename(head) not in NOT_RUNS:
+                    for _, why in shell_runs(word):
+                        yield start, why
+                    continue
                 for inner in SUBSTITUTION.split(word)[1:]:
                     if LEASED.search(inner):
                         yield start, f"runs {LEASED.search(inner).group(0)} in a command substitution"
@@ -178,7 +185,6 @@ def shell_runs(text: str):
                     continue
                 if index + 1 < len(command) and PROBE.match(command[index + 1]):
                     continue
-                head = next((w for w in command if "=" not in w.split("/")[0]), "")
                 if os.path.basename(head) in NOT_RUNS and index > 0:
                     continue
                 if "--" in command[:index] and any(w.endswith("quartus_jobs.py") for w in command[:index]) \
@@ -338,11 +344,16 @@ class StaticRuleTests(unittest.TestCase):
             timeout 600 \\
               quartus_sh --flow compile top  # a continued line
             # quartus_sh --flow compile top   (a comment)
+            sh -c 'quartus_sh --flow compile top'
+            eval "quartus_fit top"
+            ssh chip 'cd /data/x && quartus_sh --flow compile top'
+            bash -c 'quartus_sh --version'
             """})
         self.assertEqual([f.split(": ")[0] for f in failures],
                          ["scripts/job.sh:4", "scripts/job.sh:7", "scripts/job.sh:8", "scripts/job.sh:9",
                           "scripts/job.sh:10", "scripts/job.sh:11", "scripts/job.sh:12", "scripts/job.sh:13",
-                          "scripts/job.sh:14", "scripts/job.sh:15"])
+                          "scripts/job.sh:14", "scripts/job.sh:15", "scripts/job.sh:18", "scripts/job.sh:19",
+                          "scripts/job.sh:20"])
 
 
 def registered_closure() -> set[Path]:
