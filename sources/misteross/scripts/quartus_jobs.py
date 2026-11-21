@@ -361,11 +361,13 @@ def outstanding_kib(own_slot: str) -> int:
     return total
 
 
-def admit(edition: str, slot: str) -> None:
+def admit(edition: str, slot: str, deadline: float = float("inf")) -> bool:
     """Wait, holding the slot, until this host has the memory for one more
     job beyond what the other running jobs may still grow into. Checks are
     serialised by a host-wide lock, so two callers cannot both pass on the
-    same free memory: the second sees the first as a holder still to grow."""
+    same free memory: the second sees the first as a holder still to grow.
+    False when deadline (time.monotonic) passes first: the wait for memory
+    counts against the job's time cap, since it holds a slot."""
     need = quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)] * 1024 * 1024
     marker = Path(ADMISSION_WAITERS, str(os.getpid()))
     try:
@@ -376,7 +378,9 @@ def admit(edition: str, slot: str) -> None:
                 if available - reserved >= need:
                     # Admitted: from here on others reserve this job's peak.
                     marker.unlink(missing_ok=True)
-                    return
+                    return True
+                if time.monotonic() >= deadline:
+                    return False
                 # Waiting, under the lock: no other admission counts this one.
                 marker.parent.mkdir(mode=0o1777, exist_ok=True)
                 marker.write_text(_start_time(os.getpid()))
@@ -440,14 +444,26 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
             return 75
     token = f"{os.getpid()}-{time.monotonic_ns()}"
     with quartus_tools.quartus_lease(edition, label=label or Path(command[0]).name) as slot:
-        admit(edition, slot)
+        # The cap runs from the moment a slot is held, so waiting for memory
+        # cannot keep a slot past it.
+        started = time.monotonic()
+        deadline = started + cap_seconds
+        if not admit(edition, slot, deadline):
+            print(f"quartus_jobs: time cap of {cap_seconds / 60:g} min reached waiting for memory; "
+                  "nothing was started", file=sys.stderr, flush=True)
+            return 124
         was_subreaper = _set_subreaper(True)
         before = _children_of_self()
         pending_signal: list[int] = []
         process = None
 
         def scan():
-            return job_processes(token, process.pid, before) if process is not None else {}
+            # The launcher's pid is followed only while it is the launcher:
+            # once it has exited its number may name an unrelated process.
+            # What it left behind was adopted here (subreaper) or is tagged.
+            if process is None:
+                return {}
+            return job_processes(token, process.pid if process.returncode is None else None, before)
 
         def relay(number, _frame):
             pending_signal.append(number)
@@ -459,8 +475,7 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
         # the wrapper can never die and release the slot over a live job.
         previous = {sig: signal.signal(sig, relay) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
         peak, code, capped, killed_at = 0, None, False, None
-        started = time.monotonic()
-        deadline, beat = started + cap_seconds, started
+        beat = time.monotonic()
         try:
             process = subprocess.Popen(command, start_new_session=True,
                                        env=dict(os.environ, **{JOB_TOKEN: token}))

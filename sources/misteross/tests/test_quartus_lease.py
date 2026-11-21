@@ -806,6 +806,24 @@ class JobsTests(unittest.TestCase):
             self.assertEqual(self.jobs.run("lite", "", ["true"], sample_seconds=0.1), 0)
             self.assertEqual(next(memory, "drained"), "drained", "admitted before memory was available")
 
+    def test_the_time_cap_covers_the_wait_for_memory(self):
+        # Codex P1 at d7af65924: admission could hold a slot forever.
+        marker = Path(self.directory.name) / "never-started"
+        with mock.patch.object(self.jobs, "_mem_available_kib", return_value=1), \
+                mock.patch.object(self.jobs, "ADMISSION_RETRY_SECONDS", 0.1):
+            code = self.jobs.run("lite", "", ["touch", str(marker)], sample_seconds=0.1, cap_seconds=0.5)
+        self.assertEqual(code, 124)
+        self.assertFalse(marker.exists())
+        self.assertEqual(qt.flock_holders(self.pools["lite"][0]), set())
+
+    def test_an_exited_launchers_pid_is_not_followed(self):
+        # Codex P1 at d7af65924: once the launcher has exited, its pid may be
+        # reused; the job set must not take that process in.
+        with mock.patch.object(self.jobs, "job_processes", wraps=self.jobs.job_processes) as scanned:
+            self.assertEqual(self.jobs.run("lite", "", ["sh", "-c", "sleep 1 & exit 0"], sample_seconds=0.2), 0)
+        roots = [call.args[1] for call in scanned.call_args_list]
+        self.assertIsNone(roots[-1], "the scan still followed the exited launcher's pid")
+
     def test_a_stale_waiter_marker_exempts_nobody(self):
         # Codex P1 at f2eae796b: a waiter killed after writing its marker left
         # it behind; a later holder with the same pid was then not counted.
