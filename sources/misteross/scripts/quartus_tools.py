@@ -419,7 +419,10 @@ def _outer_slot(edition: str) -> str | None:
     return None
 
 
-def _take(edition: str, label: str) -> tuple[str, object]:
+def _take(edition: str, label: str, claim=None) -> tuple[str, object | None]:
+    """Wait for a free slot of edition's pool. claim, when given, is tried on
+    every round as well: it takes the ancestor's slot once no other thread of
+    this process uses it, and then (outer path, None) is returned."""
     pool = lease_pool(edition)
     with _descriptor_lock:
         opened = [open(path, "a") for path in pool]
@@ -436,6 +439,11 @@ def _take(edition: str, label: str) -> tuple[str, object]:
                 chosen = (path, stream)
                 break
             else:
+                if claim is not None:
+                    claimed = claim()
+                    if claimed is not None:
+                        chosen = (claimed, None)
+                        break
                 if time.monotonic() - notice >= LEASE_NOTICE_SECONDS:
                     holders = {path: sorted(flock_holders(path)) for path in pool}
                     print(f"Quartus lease: waiting for a {edition_class(edition)} slot on "
@@ -448,8 +456,9 @@ def _take(edition: str, label: str) -> tuple[str, object]:
                 if chosen is None or stream is not chosen[1]:
                     _own_descriptors.discard(stream.fileno())
                     stream.close()
-    print(f"Quartus lease: holding {chosen[0]} ({edition}{', ' + label if label else ''})",
-          file=sys.stderr, flush=True)
+    if chosen[1] is not None:
+        print(f"Quartus lease: holding {chosen[0]} ({edition}{', ' + label if label else ''})",
+              file=sys.stderr, flush=True)
     return chosen
 
 
@@ -469,21 +478,28 @@ def quartus_lease(edition: str, *, label: str = ""):
     # the first explicit lease in this process claims it, and a concurrent
     # one in another thread (a parallel seed) takes its own slot.
     outer = _outer_slot(edition)
-    if outer is not None:
+
+    def claim():
         with _claim_lock:
-            claimed = cls not in _outer_claims
-            if claimed:
-                _outer_claims[cls] = threading.get_ident()
-        if claimed:
-            _thread_held()[cls] = (outer, None)
-            try:
-                yield outer
-            finally:
-                del _thread_held()[cls]
-                with _claim_lock:
-                    del _outer_claims[cls]
-            return
-    path, stream = _take(edition, label)
+            if cls in _outer_claims:
+                return None
+            _outer_claims[cls] = threading.get_ident()
+            return outer
+
+    # The ancestor's slot when no other thread uses it; otherwise wait for
+    # either a slot of the pool or that claim, whichever frees first.
+    path, stream = (claim(), None) if outer is not None else (None, None)
+    if path is None:
+        path, stream = _take(edition, label, claim if outer is not None else None)
+    if stream is None:
+        _thread_held()[cls] = (path, None)
+        try:
+            yield path
+        finally:
+            del _thread_held()[cls]
+            with _claim_lock:
+                del _outer_claims[cls]
+        return
     held = _thread_held()
     held[edition_class(edition)] = (path, stream)
     try:

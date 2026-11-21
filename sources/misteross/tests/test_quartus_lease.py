@@ -457,6 +457,28 @@ class LeaseTests(unittest.TestCase):
                                 capture_output=True, text=True, timeout=60)
         self.assertEqual(result.stdout.strip(), str(sorted(self.pools["pro"])), result.stderr)
 
+    def test_seeds_under_a_one_slot_ancestor_take_turns(self):
+        # Codex P1 at 3af7e3562: chip's Pro pool is the one legacy slot. Under
+        # a wrapper holding it, the second seed waited on the physical lock
+        # forever. It now waits for the first seed's claim instead.
+        legacy = self.pools["pro"][1]
+        code = textwrap.dedent(f"""
+            import sys, threading, time; sys.path.insert(0, {str(MISTEROSS)!r})
+            from scripts import quartus_tools as qt
+            qt.LEASE_POOLS = {{}}; qt.DEFAULT_POOL = {{'pro': ({legacy!r},), 'lite': ()}}
+            took = []
+            def seed():
+                with qt.quartus_lease('pro') as path:
+                    took.append(path)
+                    time.sleep(0.5)
+            threads = [threading.Thread(target=seed) for _ in range(2)]
+            [t.start() for t in threads]; [t.join() for t in threads]
+            print(len(took), sorted(set(took)))
+            """)
+        result = subprocess.run(["flock", legacy, sys.executable, "-c", code],
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.stdout.strip(), f"2 [{legacy!r}]", result.stderr)
+
     def test_parallel_threads_each_hold_their_own_slot(self):
         import threading
         took, release = [], threading.Event()
