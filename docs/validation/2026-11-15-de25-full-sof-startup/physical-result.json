@@ -91,7 +91,7 @@
           "transport": {
             "serial": "TRWU8CBL",
             "source_commit": "d580a60d93ad5dad87f0c311b762d0df2bd2beb5",
-            "claim_token": "7a124fae52bf7062",
+            "claim_token": "[REDACTED]",
             "pid": 711631,
             "start_ticks": "176605976",
             "cable": "DE25-Nano on localhost:34437 [3-11.1-iface0]",
@@ -5062,7 +5062,7 @@
           "transport": {
             "serial": "TRWU8CBL",
             "source_commit": "d580a60d93ad5dad87f0c311b762d0df2bd2beb5",
-            "claim_token": "7a124fae52bf7062",
+            "claim_token": "[REDACTED]",
             "pid": 718153,
             "start_ticks": "176627494",
             "cable": "DE25-Nano on localhost:39195 [3-11.1-iface0]",

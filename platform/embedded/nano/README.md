@@ -88,6 +88,14 @@ boot FIT write and protected readback, then retires it. This grants neither
 native activation nor power-loss durability. Its caller still owns the serial
 claim, reset-register observation, finite deadlines and complete host cleanup.
 
+The [phase ownership contract](../../../docs/design/de25-restoration-phase-ownership.md)
+separates full programming audits from live serial ownership during SD work.
+`ResetRecoveryAttempt` requires an explicit `serial_transport` observer; it may
+not substitute cached JTAG observations for a live UART/USB/claim check.
+`PinnedFiles` provides boundary digest audits and live mutation/incarnation
+checks for the caller's immutable source/tool closure. All existing bounds,
+boot/scratch/card checks, one-use semantics and cleanup duties remain in force.
+
 The paired launcher auditor accepts an explicit `retained_reader_route` only
 when the complete compiled boot and MENU roles match its sealed route binding
 and `configuration_retained` is selected. The first MENU opening must supply

@@ -64,3 +64,78 @@ class ResetRestorationTests(unittest.TestCase):
                 self.assertEqual(op.receipt['status'],'failed')
                 with self.assertRaises(ValueError):op.run()
                 self.assertEqual(m.writes,count)
+
+    def test_programming_audits_are_constant_across_full_preservation_transaction(self):
+        with tempfile.TemporaryDirectory() as name:
+            op,m,s,p,servers=self.setup_restore(name)
+            observe=op.recovery.transport;program_checks=[]
+            def counted():
+                program_checks.append(True)
+                return observe()
+            op.recovery.transport=counted
+            with patch('builtins.print'),patch('upload.time.sleep'):op.run()
+            self.assertEqual(len(program_checks),9)
+            self.assertGreater(len(self.serial_observations),1000)
+            self.assertEqual(m.writes,1)
+
+    def test_live_serial_replacement_retires_before_write_and_never_retries(self):
+        for field,value in (('claim_token','b'*16),('pid',99999),('start_ticks','999'),
+                            ('cable','another cable'),('config_sha256','c'*64),
+                            ('nonce','d'*32),('uart',[1,2,99]),('usb',[4,5,99])):
+            with self.subTest(field=field),tempfile.TemporaryDirectory() as name:
+                op,m,s,p,servers=self.setup_restore(name)
+                observe=op.recovery.serial_transport;calls=[]
+                def changed():
+                    row=observe();calls.append(True)
+                    if len(calls)>=4:row[field]=value
+                    return row
+                op.recovery.serial_transport=changed
+                with patch('builtins.print'),self.assertRaises(ValueError):op.run()
+                self.assertEqual(m.writes,0);self.assertTrue(s.retired)
+                count=len(calls)
+                with self.assertRaises(ValueError):op.run()
+                self.assertEqual(len(calls),count)
+
+    def test_final_programming_audit_failure_invalidates_restoration_receipt(self):
+        with tempfile.TemporaryDirectory() as name:
+            op, model, session, payloads, _ = self.setup_restore(name)
+            transport = op.recovery.transport
+            observations = []
+
+            def changed_clock():
+                current = transport()
+                observations.append(current)
+                if len(observations) == 9:
+                    self.assertEqual(model.writes, 1)
+                    self.assertEqual(model.files[destination('boot')], payloads['boot'])
+                    self.assertEqual(op.receipt['status'], 'checking')
+                    return dict(current, clock='6M')
+                return current
+
+            op.recovery.transport = changed_clock
+            with patch('builtins.print'), patch('upload.time.sleep'):
+                with self.assertRaisesRegex(ValueError, 'transport identity differs'):
+                    op.run()
+            self.assertEqual(op.receipt['status'], 'failed')
+            self.assertIn('transport identity differs', op.receipt['error'])
+            self.assertFalse(op.receipt['unchanged_sources_verified'])
+            self.assertTrue(op.receipt['sd_write_attempted'])
+            self.assertTrue(op.receipt['boot_upload']['sd_readback_verified'])
+            self.assertTrue(session.retired)
+            with self.assertRaisesRegex(ValueError, 'restoration attempt is retired'):
+                op.run()
+            self.assertEqual(model.writes, 1)
+
+    def test_serial_loss_after_write_keeps_failure_and_does_not_rewrite(self):
+        with tempfile.TemporaryDirectory() as name:
+            op,m,s,p,servers=self.setup_restore(name)
+            observe=op.recovery.serial_transport
+            def changed():
+                row=observe()
+                if m.writes:row['uart']=[1,2,99]
+                return row
+            op.recovery.serial_transport=changed
+            with patch('builtins.print'),patch('upload.time.sleep'),self.assertRaises(ValueError):op.run()
+            self.assertEqual(m.writes,1);self.assertTrue(s.retired)
+            with self.assertRaises(ValueError):op.run()
+            self.assertEqual(m.writes,1)
