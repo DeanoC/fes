@@ -85,6 +85,18 @@ def main():
                     *map(str, sources(output)), str(HERE / "standard_tb.cpp")], cwd=ROOT, check=True)
     subprocess.run([str(output / "Vfes_de25_c64_standard"), str(diagnostic / "firmware.bin"),
                     str(diagnostic / "disk.d64")], cwd=output, check=True)
+    # The DE10 frame-store bench against the derived store: page handoff at
+    # several producer rates, reader coherence and every stored address.
+    frame = output / "frame"
+    frame.mkdir()
+    derive = load(HERE / "derive.py", "de25_c64_frame_derive")
+    store = frame / "c64_frame_store.sv"
+    store.write_bytes(derive.retarget_frame_store((C64 / "c64_frame_store.sv").read_bytes())[0])
+    subprocess.run(["verilator", "--cc", "--exe", "--build", "-O2", "-Wall",
+                    *["-Wno-" + name for name in WAIVERS], "-Wno-MULTIDRIVEN",
+                    "--top-module", "c64_frame_store", "--Mdir", str(frame), str(store),
+                    str(ROOT / "cores/fes-c64/sim/frame_tb.cpp")], cwd=ROOT, check=True)
+    subprocess.run([str(frame / "Vc64_frame_store")], cwd=frame, check=True)
 
 
 if __name__ == "__main__":

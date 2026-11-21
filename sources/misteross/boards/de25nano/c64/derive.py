@@ -90,23 +90,61 @@ STORE_AFTER = b"""    // One inferred memory per page (DE25 derivation); see der
         q0 <= page0[read_address]; q1 <= page1[read_address]; q2 <= page2[read_address];
     end
 """
-# The DE10 reader samples the system-domain machine reset directly in the
-# pixel clock, and that level is a combination of machine registers. Here it
-# is registered once in the system clock and enters the pixel clock through
-# two registers; the reader's reset is otherwise the same and is seen one
-# system and two pixel clocks later. Both sides still clear their toggles, so
-# they agree again once both are released.
-READER_BEFORE = b"    always @(posedge pixel_clk) begin\n        request_meta <= publish_toggle;"
-READER_AFTER = (b"    (* preserve, dont_merge *) reg reset_source = 1'b1;\n"
-                b"    always @(posedge clk_sys) reset_source <= reset;\n"
-                b'    (* async_reg="true" *) reg reset_meta = 1\'b1;\n'
-                b'    (* async_reg="true" *) reg reset_pixel = 1\'b1;\n'
-                b"    always @(posedge pixel_clk) begin\n"
-                b"        reset_meta <= reset_source; reset_pixel <= reset_meta;\n"
-                b"    end\n"
-                b"    always @(posedge pixel_clk) begin\n        request_meta <= publish_toggle;")
-READER_RESET_BEFORE = b"        if (reset) begin\n            read_page <= 2;"
-READER_RESET_AFTER = b"        if (reset_pixel) begin\n            read_page <= 2;"
+# The frame store's crossings take the shape the Spectrum and Atari ST pass
+# signoff with. On the DE10:
+# - the reader samples the machine reset, a combination of machine registers,
+#   directly in the pixel clock;
+# - each two-register toggle synchronizer also takes its side's synchronous
+#   reset;
+# - the two-bit published page goes straight from register to register into
+#   read_page and on into read_page_q, so Design Assistant reads it as two
+#   synchronizers.
+# Here:
+# - the reset is registered once in the system clock and enters the pixel
+#   clock through two registers, so the reader resets one system and two
+#   pixel clocks later;
+# - the synchronizers are plain registers that power up zero; each toggle's
+#   launch register still resets, and a machine reset lasts more than either
+#   synchronizer, so both sides agree again once released;
+# - the page crosses as a held code, the page with its low bit flipped, that
+#   powers up zero at both ends and is loaded on the synchronized strobe. The
+#   reader's page is that code with its loaded flag, which is page 2 until the
+#   first load, as the DE10's reset leaves it; no frame shows before then.
+CROSSING = (
+    (b"    reg [1:0] published_page, read_page_q;\n",
+     b"    reg [1:0] published_page, read_page_q;\n"
+     b"    (* preserve, dont_merge *) reg [1:0] published_code = 2'd0;\n"
+     b"    (* preserve, dont_merge *) reg [1:0] read_code = 2'd0;\n"
+     b"    reg read_loaded = 1'b0;\n"
+     b"    always @* read_page = read_code ^ {~read_loaded, read_loaded};\n", 1),
+    (b'    (* async_reg="true" *) reg ack_meta, ack_sync;\n'
+     b'    (* async_reg="true" *) reg request_meta, request_sync;\n',
+     b'    (* async_reg="true" *) reg ack_meta = 1\'b0, ack_sync = 1\'b0;\n'
+     b'    (* async_reg="true" *) reg request_meta = 1\'b0, request_sync = 1\'b0;\n', 1),
+    (b"            write_page <= 0; published_page <= 2; publish_toggle <= 0;\n"
+     b"            ack_meta <= 0; ack_sync <= 0;\n",
+     b"            write_page <= 0; published_page <= 2; publish_toggle <= 0;\n", 1),
+    (b"                published_page <= write_page; publish_toggle <= ~publish_toggle;\n",
+     b"                published_page <= write_page; publish_toggle <= ~publish_toggle;\n"
+     b"                published_code <= write_page ^ 2'd1;\n", 1),
+    (b"    always @(posedge pixel_clk) begin\n        request_meta <= publish_toggle;",
+     b"    (* preserve, dont_merge *) reg reset_source = 1'b1;\n"
+     b"    always @(posedge clk_sys) reset_source <= reset;\n"
+     b'    (* async_reg="true" *) reg reset_meta = 1\'b1;\n'
+     b'    (* async_reg="true" *) reg reset_pixel = 1\'b1;\n'
+     b"    always @(posedge pixel_clk) begin\n"
+     b"        reset_meta <= reset_source; reset_pixel <= reset_meta;\n"
+     b"    end\n"
+     b"    always @(posedge pixel_clk) begin\n        request_meta <= publish_toggle;", 1),
+    (b"        if (reset) begin\n"
+     b"            read_page <= 2; acknowledge <= 0; have_frame <= 0;\n"
+     b"            request_meta <= 0; request_sync <= 0; have_frame_q <= 0;\n",
+     b"        if (reset_pixel) begin\n"
+     b"            acknowledge <= 0; have_frame <= 0; have_frame_q <= 0;\n", 1),
+    (b"            read_page <= published_page; acknowledge <= request_sync; have_frame <= 1;\n",
+     b"            read_code <= published_code; read_loaded <= 1'b1;\n"
+     b"            acknowledge <= request_sync; have_frame <= 1;\n", 1),
+)
 
 TRANSPORT_MARKER = b"// Atomic register transport shared by the bring-up and standard-core wrappers.\n"
 
@@ -156,7 +194,7 @@ def retarget_disk_store(source):
 
 
 def retarget_frame_store(source):
-    """Inferred pages in place of the placed M10K primitives; the reader's reset synchronized."""
+    """Inferred pages in place of the placed M10K primitives; signoff-shaped crossings."""
     if source.count(STORE_BEGIN) != 1 or source.count(STORE_END) != 1:
         raise ValueError("C64 frame store adaptation contract changed")
     start = source.index(STORE_BEGIN)
@@ -166,8 +204,7 @@ def retarget_frame_store(source):
             b"reg [3:0] page0 [0:104447];" not in removed):
         raise ValueError("C64 frame store adaptation contract changed")
     stored = source[:start] + STORE_AFTER + source[stop:]
-    result, record = _derive(stored, ((READER_BEFORE, READER_AFTER, 1),
-                                      (READER_RESET_BEFORE, READER_RESET_AFTER, 1)), "C64 frame store reader")
+    result, record = _derive(stored, CROSSING, "C64 frame store crossing")
     record["source_sha256"] = sha(source)
     record["removed_sha256"] = sha(removed)
     record["storage"] = STORE_AFTER.decode()

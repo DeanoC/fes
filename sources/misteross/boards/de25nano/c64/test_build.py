@@ -80,6 +80,16 @@ class Derivations(unittest.TestCase):
         self.assertIn(b"reset_meta <= reset_source; reset_pixel <= reset_meta;", result)
         pixel = result[result.index(b"request_meta <= publish_toggle;"):]
         self.assertNotIn(b"(reset)", pixel)
+        # No synchronizer stage takes a reset, and every one powers up zero.
+        for stage in (b"ack_meta", b"ack_sync", b"request_meta", b"request_sync"):
+            self.assertNotIn(stage + b" <= 0", result)
+            self.assertIn(stage + b" = 1'b0", result)
+        # The page crosses only as the held code, loaded on the strobe, and the
+        # reader's page is never a plain copy of a crossing register.
+        self.assertIn(b"published_code <= write_page ^ 2'd1;", result)
+        self.assertIn(b"read_code <= published_code; read_loaded <= 1'b1;", result)
+        self.assertIn(b"always @* read_page = read_code ^ {~read_loaded, read_loaded};", result)
+        self.assertNotIn(b"read_page <= published_page", result)
         self.assertEqual(record["source_sha256"], derive.sha(source))
         with self.assertRaises(ValueError):
             derive.retarget_frame_store(source.replace(b"MISTRAL_M10K", b"MISTRAL_M20K"))

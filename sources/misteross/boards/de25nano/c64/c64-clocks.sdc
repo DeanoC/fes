@@ -43,8 +43,9 @@ foreach {label source expected head second} {
 }
 
 # The C64 frame store publishes a complete page to the pixel side with a
-# toggle and takes the acknowledgement back the same way. The machine reset
-# enters the pixel side as a registered level. Each enters one first stage.
+# toggle and takes the acknowledgement back the same way; the page itself is a
+# held code (below). The machine reset enters the pixel side as a registered
+# level. Each enters one first stage.
 foreach {label source head} {
     frame_request {core|machine|vic|frame_store|publish_toggle} {core|machine|vic|frame_store|request_meta}
     frame_acknowledge {core|machine|vic|frame_store|acknowledge} {core|machine|vic|frame_store|ack_meta}
@@ -67,8 +68,8 @@ foreach {label source sink expected} {
         {display|crossing|pixel_opcode[*] display|crossing|pixel_index[*] display|crossing|pixel_argument[*]} 31
     reply {display|crossing|returned_payload[*]}
         {display|crossing|response_error display|crossing|response_data[*]} 17
-    published_page {core|machine|vic|frame_store|published_page[*]}
-        {core|machine|vic|frame_store|read_page[*]} 2
+    page_code {core|machine|vic|frame_store|published_code[*]}
+        {core|machine|vic|frame_store|read_code[*]} 2
 } {
     set launches [get_registers "${base}|${source}"]
     set patterns {}

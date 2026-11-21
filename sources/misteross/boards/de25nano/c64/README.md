@@ -47,10 +47,15 @@ build:
   address.
 - `c64_frame_store.sv`: the 153 placed `MISTRAL_M10K` primitives become three
   inferred pages, one write statement each, with the DE10 latencies (written
-  in the machine clock, read with one pixel edge). The reader's reset was the
-  machine's combinational reset sampled directly in the pixel clock; here it
-  is registered once in the machine clock and enters the pixel clock through
-  two registers.
+  in the machine clock, read with one pixel edge). Its crossings take the
+  shape the Spectrum and Atari ST pass signoff with. The reader's reset was
+  the machine's combinational reset sampled directly in the pixel clock; here
+  it is registered once in the machine clock and enters the pixel clock
+  through two registers. The toggle synchronizers drop their synchronous
+  reset and power up zero. The page number crosses as a held code loaded on
+  the synchronized strobe, so no crossing register feeds another register
+  directly. The first Quartus signoff flagged the DE10 shape as four
+  insufficiently constrained 1-bit transfers (CDC-50002).
 - The shared transport is sliced out of the ZX81 computer file.
 
 The opt-in reSID filter chain (`RESID_FILTER`, off in the package) uses
@@ -80,7 +85,9 @@ each region, every byte of the D64 committed through the mailbox (a 7-byte
 first chunk puts later pairs at odd addresses) into the disk store's lanes, joystick and keyboard input, the diagnostic running to its PASS
 stage (CPU, CIA timers and interrupts, SID audio and the native 1541 reading
 the committed disk), that the SDRAM stays idle and that a hold keeps the
-firmware. The HPS, scanout memory master, PLLs and HDMI are not modeled.
+firmware. It then runs the DE10 frame-store bench against the derived store:
+page handoff at three producer rates, reader coherence and every stored
+address. The HPS, scanout memory master, PLLs and HDMI are not modeled.
 
 `project` permits inspection of local edits. `generate` and `build` require
 clean committed source and an output directory that does not exist.
