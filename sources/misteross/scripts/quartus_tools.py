@@ -740,23 +740,55 @@ def stdin_program():
 INTERPRETERS = SHELLS | {"python", "python3", "perl", "ruby", "node", "tclsh"}
 
 
+# Options that take the next word as their operand, per interpreter family.
+OPTION_OPERANDS = {"python": {"-W", "-X", "--check-hash-based-pycs"},
+                   "shell": {"-o", "+o", "-O", "+O", "--rcfile", "--init-file"},
+                   "other": {"-I", "-M", "-r", "--require", "-encoding"}}
+
+
 def _reads_program_from_stdin(texts: list[str]) -> bool:
     """A shell or interpreter with no program argument (or -s, or -), which
     reads its program from stdin."""
     if not texts:
         return False
     name = os.path.basename(texts[0])
-    if not (name in INTERPRETERS or re.fullmatch(r"python3(\.\d+)?", name)):
+    python = bool(re.fullmatch(r"python(3(\.\d+)?)?", name))
+    if not (name in INTERPRETERS or python):
         return False
-    rest = texts[1:]
-    if any(re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", t) or t in ("-e", "-m") for t in rest):
-        return False  # the program is an argument
-    operands = [t for t in rest if not t.startswith("-") or t == "-"]
-    return "-s" in rest or not operands or operands[0] == "-"
+    family = "python" if python else "shell" if name in SHELLS else "other"
+    takes = OPTION_OPERANDS[family]
+    index = 1
+    while index < len(texts):
+        word = texts[index]
+        if word == "-s" and family == "shell":
+            return True
+        if word == "-":
+            return True
+        if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", word) or word in ("-e", "-m"):
+            return False  # the program is an argument
+        if word == "--":
+            index += 1
+            break
+        if word in takes:
+            index += 2
+            continue
+        if word.startswith(("-", "+")):
+            index += 1
+            continue
+        return False  # the first operand is the program file
+    return index >= len(texts) or texts[index] == "-"
 
 
 def _check_stdin_program(texts: list[str]) -> None:
     if getattr(_stdin_programs, "active", 0):
+        return
+    # Behind execution wrappers (env python3 -, timeout 60 sh), check each
+    # place the eventual program could start.
+    if texts and (os.path.basename(texts[0]) in SHELL_WRAPPERS or texts[0] == "sudo"):
+        for at in range(1, len(texts)):
+            name = os.path.basename(texts[at])
+            if name == "ssh" or name in INTERPRETERS or re.fullmatch(r"python(3(\.\d+)?)?", name):
+                _check_stdin_program(texts[at:])
         return
     command = texts
     if command and os.path.basename(command[0]) == "ssh":

@@ -1082,13 +1082,17 @@ class LaunchGuardTests(unittest.TestCase):
                 subprocess.run(["sh", "-c", "env -u ssh ssh host /remote/bin/quartus_[f]it top"])
         # Codex P1 at 5f9fe167a: a program fed on stdin, which the hook cannot
         # read, locally or over ssh; quartus_jobs marks its own.
-        for argv in (["ssh", "host"], ["ssh", "host", "sh -s"], ["sh"], ["bash", "-s"], ["python3", "-"]):
+        for argv in (["ssh", "host"], ["ssh", "host", "sh -s"], ["sh"], ["bash", "-s"], ["python3", "-"],
+                     # Codex P1s at bd91c3eca: behind a wrapper, and an option operand.
+                     ["env", "python3", "-"], ["timeout", "60", "sh"], ["python3", "-W", "ignore"],
+                     ["bash", "-o", "pipefail"]):
             with self.assertRaises(qt.QuartusLeaseError, msg=argv):
                 subprocess.run(argv, input="true\n", text=True, capture_output=True)
         with qt.stdin_program():
             self.assertEqual(subprocess.run(["sh"], input="true\n", text=True).returncode, 0)
         self.assertEqual(subprocess.run(["sh", "-c", "true"]).returncode, 0)
         self.assertEqual(subprocess.run(["python3", "-c", "pass"]).returncode, 0)
+        self.assertEqual(subprocess.run(["python3", "-W", "ignore", "-c", "pass"]).returncode, 0)
         # Codex P1 at 00058c57d: ssh behind an execution wrapper.
         for argv in (["env", "ssh", "host", "/remote/bin/quartus_fit", "top"],
                      ["env", "-i", "X=1", "timeout", "60", "nice", "-n", "5", "ssh", "host", "quartus_sh", "-t", "x"],
