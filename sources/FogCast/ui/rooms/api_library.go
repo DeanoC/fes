@@ -252,6 +252,20 @@ func (r *Instance) gameRow(g hostclient.Game, withVariants bool) *lua.LTable {
 	if mediaID := strings.TrimSpace(g.MediaID); mediaID != "" {
 		t.RawSetString("media_id", lua.LString(mediaID))
 		t.RawSetString("media_role", lua.LString(strings.TrimSpace(g.MediaRole)))
+		if g.MediaName != "" {
+			t.RawSetString("media_name", lua.LString(g.MediaName))
+		}
+		// Disks 2 to N of a disk set, each {media_id, media_name}.
+		if len(g.MoreMedia) > 0 {
+			more := L.NewTable()
+			for _, m := range g.MoreMedia {
+				item := L.NewTable()
+				item.RawSetString("media_id", lua.LString(m.MediaID))
+				item.RawSetString("media_name", lua.LString(m.MediaName))
+				more.Append(item)
+			}
+			t.RawSetString("more_media", more)
+		}
 	}
 	t.RawSetString("genre", lua.LString(g.Genre))
 	t.RawSetString("year", lua.LString(g.Year))

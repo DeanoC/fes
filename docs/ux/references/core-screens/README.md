@@ -17,9 +17,13 @@ screen opens a list of the disks made here and the game disks with saved
 changes, with new disk (name and size), copy, rename, go back to the original
 and delete. It uses the launcher's plain list picker, not the shelf screen
 drawn below; Deano accepted the plain list on 19 November 2026. Lock against changes is left out until the ST core has a
-write-protect input (#1960). The saves tag on a drive is built. Disk sets
-are built in the host library only; the screen does not show them yet. The
-PC/XT and 386 PC screens are not built.
+write-protect input (#1960). The saves tag on a drive is built. Disk sets are
+built: a game row says "2 disks", the drive row says "Disk 1 of 2", a running
+set's game offers Next disk, choosing one disk of a set by its file name
+brings the whole set, and Add disk to game extends one. A kit's in-play route
+opens the media picker, not this screen, so the picker lists the running
+game's set ("Disk 2 of 3 · NAME"), with the next disk focused. The PC/XT and 386 PC
+screens are not built.
 
 These pictures are **proposals, not captures of product code**. They are host
 software-renderer fixtures. They establish no hardware, controller, scanout or
