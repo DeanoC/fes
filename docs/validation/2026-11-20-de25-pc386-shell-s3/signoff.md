@@ -138,5 +138,32 @@ gate takes an entry only for a failed rule. TMC-20602 is 24 again, as on j to o.
   other core still needs exactly 1.
 - **TMC-20011/TMC-20012**: admitted by the Spectrum's existing input and audio
   reviews, which collect on the pc386 topology.
-- **A dry run, not a package.** The record here is the producer's own, with
-  stub tool identities. The producer's signoff and repeat fits follow.
+- **The dry run** used the producer's own record with stub tool identities.
+
+## The producer's package
+
+`boards/de25nano/producers/build_pc386_package.py` ran on chip-30x0-ai-dev
+from a clean checkout of `358e85fee` (21 November 2026, 13:34–14:40 UTC, under
+the Quartus lease), with CUDA as the GPU router slot and Quartus Pro 26.3.0
+Build 114. It fitted twice, signoff and repeat, and the two payloads are
+byte-identical.
+
+| | |
+|---|---|
+| BUILD_ID | `abd1ec143b322ecb11dd2af6ac61dd34` |
+| package | `d85d981c3a9a44b76d2b5b658f809bddd29d9228330fc6952f2480f9f3d8ab5e` |
+| `core.rbf` sha256 | `4b6a31168dbb53abb8b97062f808fe42ffd7a50b35bf653f25d3ef7201b92512` (3,969,024 bytes) |
+| `manifest.toml` sha256 | `a17bf4cee82269804a45388ca036621f30fe9077b4f661751bd2060a17407f2c` |
+| classification | `de25-pc386-package-candidate`; hardware and normal-kit acceptance false |
+| ALMs | 41,993 of 46,800, both fits |
+
+Both fits: `package_timing_admission` true, 8 failed rules of 85, 0
+unreviewed, every reported analysis passing. Worst slack: setup +1.352 ns
+(video clock), hold +0.000 ns, recovery +7.336 ns, removal +0.158 ns, setup
+data delay +3.424 ns, minimum pulse width +0.220 ns. The rule counts match s
+except TMC-20602 (21) and LNT-30010 (2), both Low and both admitted. The
+two signoff DRC reports differ only by hash, because the payloads are the same
+and the timing summaries are identical (`773a9af6…`).
+
+No kit has run this package. Slice 3 lands with slice 4, which owns the image
+change and the Kit D25 run.
