@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/sessiondisplayipc"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -34,7 +35,7 @@ func (c *Coordinator) SetSessionDisplay(parent context.Context, display protocol
 	// same fence. The host protocol therefore remains unchanged.
 	var prepared *sessiondisplayipc.Prepared
 	if c.launcherDisplaySocket != "" {
-		transition := sessiondisplayipc.Transition{PackageID: b.PackageID, Generation: b.Generation, TargetID: b.TargetID, Display: display}
+		transition := sessiondisplayipc.Transition{PackageID: b.PackageID, Generation: b.Generation, TargetID: b.TargetID, Display: display, LeaseAdmitted: kitlease.Admitted(parent)}
 		guard, err := sessiondisplayipc.AcquireDisplayGuard(parent, c.launcherDisplaySocket)
 		if err != nil {
 			return c.Status(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "launcher display coordination unavailable", Phase: "admission", Cause: err}

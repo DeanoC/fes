@@ -4473,6 +4473,10 @@ fence holds delivery during each transition, but only a launcher-focus request
 retires held keys and neutralizes the mouse. Controller-port releases received
 while the launcher has focus clear their retained source snapshot without
 being sent to the core, so released buttons cannot replay when focus returns.
+The agent-authorized launcher display callback accepts the kit-local host’s
+matching busy projection for another FogCast host’s active lease. Local HID
+remains fenced under that foreign lease; package, generation and target
+identity and transition fences still apply.
 The agent holds the launcher publication guard through the runtime display
 transition and its prepare/finish exchange, so a replacement launcher cannot
 adopt the previous plane while that transition is still in flight.

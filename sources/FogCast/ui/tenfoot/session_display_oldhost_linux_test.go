@@ -11,12 +11,16 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/agent"
+	"github.com/DeanoC/FogCast/internal/httpapi"
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/sessiondisplayipc"
+	contractlease "github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/menudisplay"
@@ -180,5 +184,149 @@ func TestFramebufferStopsInputOnLauncherListenerFailure(t *testing.T) {
 	err := framebufferLoop(ctx, Options{}, app, nil, func(*App, time.Time) (bool, error) { polled = true; return false, nil }, "test")
 	if err == nil || polled {
 		t.Fatalf("listener failure not fenced: err=%v polled=%v", err, polled)
+	}
+}
+
+// A remote host's active lease appears busy to the kit-local host. Its
+// display request still travels through the agent and the real launcher IPC;
+// local HID must remain fenced while that coordination is admitted.
+func TestRemoteHostLeaseCoordinatesLauncherDisplay(t *testing.T) {
+	prior := kitDisplaySession()
+	runtime := &oldHostDisplayRuntime{status: protocol.Status{State: protocol.StateActive, Development: true, CorePackage: observedKitPackage(prior)}}
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	socket := filepath.Join(dir, "launcher.sock")
+	coordinator := agent.New(runtime, time.Second, time.Second, agent.WithSessionDisplayIPC(socket, prior.TargetID))
+	coordinator.Initialize(context.Background())
+	leases := kitlease.New(time.Minute, func(context.Context) error { return nil },
+		kitlease.WithMaintenanceFile(filepath.Join(dir, "maintenance.json"), filepath.Join(dir, "maintenance.lock"), "12345678-1234-1234-1234-123456789abc"))
+	defer leases.Close()
+	var grant kitlease.Grant
+	var err error
+	for deadline := time.Now().Add(time.Second); ; time.Sleep(time.Millisecond) {
+		grant, err = leases.Claim(kitlease.ClaimRequest{RequestID: strings.Repeat("a", 32), Owner: "remote", Purpose: "interactive"})
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal(err)
+		}
+	}
+	target := httpapi.New(coordinator, "bearer", "test", nil, httpapi.WithDevelopment(coordinator), httpapi.WithKitLease(leases))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		request := httptest.NewRequest(http.MethodPost, "/v1/session/display", r.Body)
+		request.Header = r.Header.Clone()
+		request.Header.Set("Authorization", "Bearer bearer")
+		request.Header.Set(httpapi.KitLeaseHeader, grant.Token)
+		response := httptest.NewRecorder()
+		target.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			http.Error(w, response.Body.String(), response.Code)
+			return
+		}
+		writeKitDisplaySession(w, prior)
+	}))
+	defer server.Close()
+	app, _ := kitDisplayApp(t, server)
+	presenter := &countingSessionMenu{}
+	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer display.Close()
+	display.SetChangeDriven(true)
+	app.SetMenuDisplay(display)
+	app.mu.Lock()
+	app.healthHave = true
+	app.health.Connection.State, app.health.Connection.Owner = "busy", "remote"
+	app.kitLeaseHave = true
+	app.kitLease = kitLeaseFromConnection(app.health.Connection)
+	if !app.playHIDFailClosedLocked() {
+		t.Fatal("remote lease must fence local HID")
+	}
+	app.mu.Unlock()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	ready := make(chan error, 1)
+	go func() {
+		defer close(done)
+		_ = sessiondisplayipc.ListenLauncher(ctx, socket, uint32(os.Geteuid()), app.prepareExternalSessionDisplay, ready)
+	}()
+	if err := <-ready; err != nil {
+		t.Fatal(err)
+	}
+	defer func() { cancel(); <-done }()
+	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: prior.CorePackage.PackageID, CoreGeneration: prior.CorePackage.Generation, Generation: 4})
+	for _, badToken := range []string{"", "stale-token", "foreign-token"} {
+		r := httptest.NewRequest(http.MethodPost, "/v1/session/display", strings.NewReader(`{"visible":true,"focus":"machine"}`))
+		r.Header.Set("Authorization", "Bearer bearer")
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set(httpapi.KitLeaseHeader, badToken)
+		(protocol.DevelopmentMediaBinding{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, TargetID: prior.TargetID}).SetHeaders(r.Header)
+		w := httptest.NewRecorder()
+		target.ServeHTTP(w, r)
+		if w.Code != http.StatusForbidden || runtime.calls.Load() != 0 {
+			t.Fatalf("unleased request status=%d runtime=%d", w.Code, runtime.calls.Load())
+		}
+	}
+	for i, targetDisplay := range []protocol.SessionDisplay{protocol.SessionDisplayShown, protocol.SessionDisplayFocused, protocol.SessionDisplayClosed} {
+		result := make(chan error, 1)
+		go func() {
+			_, err := app.client.SetSessionDisplayForSession(context.Background(), prior, targetDisplay)
+			result <- err
+		}()
+		deadline := time.After(3 * time.Second)
+		completed := false
+		for !completed {
+			select {
+			case err := <-result:
+				if err != nil {
+					t.Fatalf("display %v: %v", targetDisplay, err)
+				}
+				if runtime.calls.Load() != int32(i+1) {
+					t.Fatalf("runtime calls = %d", runtime.calls.Load())
+				}
+				app.mu.Lock()
+				fenced, got := app.playHIDFailClosedLocked(), app.sessionDisplayLocked()
+				app.mu.Unlock()
+				if !fenced {
+					t.Fatal("remote request released local HID fence")
+				}
+				if got != targetDisplay {
+					t.Fatalf("display = %v, want %v", got, targetDisplay)
+				}
+				completed = true
+			case <-deadline:
+				t.Fatal("remote display request did not complete")
+			default:
+				if snap := app.Snapshot(); snap.displayFrameRequest != 0 {
+					display.ForceNextFrame()
+					display.Present()
+					app.submittedDisplayFrame(snap.displayFrameRequest, display.QueuedSeq())
+				}
+				time.Sleep(time.Millisecond)
+			}
+		}
+	}
+	_, err = leases.StartMaintenance(grant.Token, contractlease.MaintenanceStartRequest{RequestID: strings.Repeat("b", 32), Purpose: "kit-software-activation"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for deadline := time.Now().Add(time.Second); leases.Status().State != "maintenance"; time.Sleep(time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("maintenance state = %s", leases.Status().State)
+		}
+	}
+	r := httptest.NewRequest(http.MethodPost, "/v1/session/display", strings.NewReader(`{"visible":true,"focus":"machine"}`))
+	r.Header.Set("Authorization", "Bearer bearer")
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set(httpapi.KitLeaseHeader, grant.Token)
+	(protocol.DevelopmentMediaBinding{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, TargetID: prior.TargetID}).SetHeaders(r.Header)
+	w := httptest.NewRecorder()
+	target.ServeHTTP(w, r)
+	if w.Code == http.StatusOK || runtime.calls.Load() != 3 {
+		t.Fatalf("maintenance accepted display: status=%d runtime=%d", w.Code, runtime.calls.Load())
 	}
 }

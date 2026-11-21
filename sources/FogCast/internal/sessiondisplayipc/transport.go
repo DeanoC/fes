@@ -14,10 +14,11 @@ const LauncherSocket = "/run/fogcast/launcher-display.sock"
 var ErrUnsupported = errors.New("session display IPC is unsupported on this platform")
 
 type Transition struct {
-	PackageID  string                  `json:"package_id"`
-	Generation uint64                  `json:"generation"`
-	TargetID   string                  `json:"target_id,omitempty"`
-	Display    protocol.SessionDisplay `json:"display"`
+	PackageID     string                  `json:"package_id"`
+	Generation    uint64                  `json:"generation"`
+	TargetID      string                  `json:"target_id,omitempty"`
+	Display       protocol.SessionDisplay `json:"display"`
+	LeaseAdmitted bool                    `json:"lease_admitted,omitempty"`
 }
 
 func (t Transition) Valid() bool {

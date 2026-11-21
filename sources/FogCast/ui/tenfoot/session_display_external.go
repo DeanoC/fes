@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/sessiondisplayipc"
@@ -55,11 +56,26 @@ func (a *App) beginCoordinatedSessionDisplayLocked(target protocol.SessionDispla
 	}()
 }
 
+// A lease-admitted target-agent request may coordinate presentation even
+// when the local host sees another owner. The HID gate remains unchanged.
+func (a *App) externalDisplayHIDBlockedLocked(request sessiondisplayipc.Transition) bool {
+	if !a.playHIDFailClosedLocked() {
+		return false
+	}
+	if !request.LeaseAdmitted || (a.client != nil && a.client.paired) ||
+		!a.healthHave || a.health.Connection.State != "busy" || !a.kitLeaseHave ||
+		a.kitLease.Unavailable || a.kitLease.ErrorCode != "" {
+		return true
+	}
+	return a.kitLease.State != "held" || strings.TrimSpace(a.health.Connection.Owner) == "" ||
+		a.kitLease.Owner != a.health.Connection.Owner || a.kitLease.Purpose != ""
+}
+
 func (a *App) externalDisplayAdmittedLocked(ctx context.Context, request sessiondisplayipc.Transition) bool {
 	prior := a.session
 	return ctx.Err() == nil && !(a.displayShuttingDown && (!a.displayShutdownClose || request.Display != protocol.SessionDisplayClosed)) &&
 		a.menuDisplay != nil && a.localCores != nil && !a.sessionDisplayBusy && (!a.sessionDisplayUncertain || request.Display == protocol.SessionDisplayClosed) &&
-		a.stopPhase != "stopping" && !a.retryStopLock && !a.playHIDFailClosedLocked() && prior.State == "active" &&
+		a.stopPhase != "stopping" && !a.retryStopLock && !a.externalDisplayHIDBlockedLocked(request) && prior.State == "active" &&
 		prior.CorePackage != nil && prior.CorePackage.PackageID == request.PackageID && prior.CorePackage.Generation == request.Generation &&
 		prior.TargetID != "" && prior.TargetID == request.TargetID && (a.kitID == "" || a.kitID == request.TargetID) && request.Display.Valid()
 }

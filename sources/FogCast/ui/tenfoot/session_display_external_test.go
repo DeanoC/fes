@@ -629,3 +629,69 @@ func TestFrameFenceAcceptsNewerFrameWhenQueuedOneWasDropped(t *testing.T) {
 		t.Fatal("wrong frame acknowledged")
 	}
 }
+
+func TestExternalDisplayForeignLeaseExceptionsRemainNarrow(t *testing.T) {
+	const owner = "fogcast@other-host"
+	for _, tt := range []struct {
+		name                     string
+		healthState, healthOwner string
+		lease                    KitLeaseStatus
+		haveLease                bool
+		allow                    bool
+	}{
+		{"matching remote host", "busy", owner, KitLeaseStatus{State: "held", Owner: owner}, true, true},
+		{"missing projection", "busy", owner, KitLeaseStatus{}, false, false},
+		{"unavailable projection", "busy", owner, KitLeaseStatus{Unavailable: true}, true, false},
+		{"different owner", "busy", owner, KitLeaseStatus{State: "held", Owner: "fogcast@different"}, true, false},
+		{"unknown owner", "busy", "", KitLeaseStatus{State: "held", Owner: ""}, true, false},
+		{"contradictory maintenance purpose", "busy", owner, KitLeaseStatus{State: "held", Owner: owner, Purpose: "maintenance"}, true, false},
+		{"arbitrary valid owner", "busy", "operator", KitLeaseStatus{State: "held", Owner: "operator"}, true, true},
+
+		{"maintenance", "busy", owner, KitLeaseStatus{State: "maintenance", Owner: owner}, true, false},
+
+		{"recovery", "recovery-required", owner, KitLeaseStatus{State: "recovery-required", Owner: owner}, true, false},
+		{"denied", "busy", owner, KitLeaseStatus{State: "held", Owner: owner, ErrorCode: "KIT_LEASE_DENIED"}, true, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			app, display, _, request := externalDisplayFixture(t)
+			request.Display = protocol.SessionDisplayShown
+			request.LeaseAdmitted = true
+			app.mu.Lock()
+			app.healthHave = true
+			app.health.Connection.State, app.health.Connection.Owner = tt.healthState, tt.healthOwner
+			app.kitLeaseHave, app.kitLease = tt.haveLease, tt.lease
+			app.mu.Unlock()
+			finish, err := app.prepareExternalSessionDisplay(context.Background(), request)
+			if tt.allow {
+				if err != nil {
+					t.Fatalf("matching foreign host rejected: %v", err)
+				}
+				if err := finish(context.Background(), sessiondisplayipc.Rejected); err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil {
+				t.Fatal("foreign or unavailable lease accepted")
+			}
+			if display.ReadinessDiagnostic().Paused {
+				t.Fatal("display left paused")
+			}
+		})
+	}
+}
+
+func TestExternalDisplayBusyProjectionNeedsAgentLeaseAdmission(t *testing.T) {
+	app, display, _, request := externalDisplayFixture(t)
+	app.mu.Lock()
+	app.healthHave = true
+	app.health.Connection.State, app.health.Connection.Owner = "busy", "remote"
+	app.kitLeaseHave = true
+	app.kitLease = kitLeaseFromConnection(app.health.Connection)
+	app.mu.Unlock()
+	request.Display = protocol.SessionDisplayShown
+	if _, err := app.prepareExternalSessionDisplay(context.Background(), request); err == nil {
+		t.Fatal("busy projection accepted without agent lease admission")
+	}
+	if display.ReadinessDiagnostic().Paused {
+		t.Fatal("rejected request paused display")
+	}
+}
