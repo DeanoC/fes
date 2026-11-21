@@ -761,6 +761,10 @@ func (a *App) tickRoomLocked(now time.Time) {
 		a.recoverHomeLocked(now)
 		return
 	}
+	// Generation 0 is a room that has not had its pads yet.
+	if gen := a.padStateGen + 1; a.room.PadsGeneration() != gen {
+		a.room.SetPads(gen, a.roomPadsLocked())
+	}
 	a.roomFrame = a.room.Step(now)
 	a.frameLua = a.room.LastStep()
 	if a.roomWaitAck || a.roomHeroDetail != "" {
