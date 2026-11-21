@@ -1,10 +1,12 @@
-# Draft upstream reports (not filed)
+# Upstream reports
 
-There are two reports, one for [FDOS/kernel](https://github.com/FDOS/kernel/issues)
-and one for [FDOS/share](https://github.com/FDOS/share/issues), each
-linking the other. Filing them is outward-facing, so they wait for Deano's
-OK. The kernel report comes first: fixing only SHARE turns the error 5 into a
-rename of a garbage path.
+Filed on 21 November 2026 with Deano's OK:
+[FDOS/kernel#276](https://github.com/FDOS/kernel/issues/276) and
+[FDOS/share#27](https://github.com/FDOS/share/issues/27). The filed kernel
+report embeds `shrrepro.asm` and leaves out two claims this text made: that
+`DEL` and `REN` at the prompt fail, which was not run, and that the Windows
+symptoms come from these calls, which is not yet traced. The drafts follow
+as written.
 
 ---
 

@@ -35,8 +35,10 @@ This record finds the fault. Everything here ran on the Bochs oracle
   only SHARE (a build from current source) or only the answer to 10A6h
   exposes defect 2. Dropping SHARE stops WIN386 (#1725), and kernel 2043
   has no Windows 3.x support. The decisions for the coordinator are
-  [below](#proposal). Draft upstream reports are in
-  [`upstream-report.md`](upstream-report.md).
+  [below](#proposal). Upstream reports:
+  [FDOS/kernel#276](https://github.com/FDOS/kernel/issues/276) and
+  [FDOS/share#27](https://github.com/FDOS/share/issues/27)
+  ([`upstream-report.md`](upstream-report.md)).
 - **The link to Notepad and Write is still to be traced.** Defect 1 fails
   every delete and rename on entry 4, and the Windows symptoms fit it. The
   trace of Notepad's own INT 21h calls is still running (see
@@ -137,21 +139,21 @@ pending.
 
 ## Proposal
 
-Nothing in pc386 changes. The choices are:
+Nothing in pc386 changes in this record. The choices were:
 
-1. **File the two upstream reports** in [`upstream-report.md`](upstream-report.md):
+1. **File the two upstream reports.** Done on 21 November with Deano's OK:
+   [FDOS/kernel#276](https://github.com/FDOS/kernel/issues/276) and
+   [FDOS/share#27](https://github.com/FDOS/share/issues/27).
    - FDOS/kernel: the stub should preserve SI, and should treat CF set as
      "SHARE cannot say";
    - FDOS/share: please release a build with `is_file_open`.
 
-   Filing is outward-facing, so it needs Deano's OK. This is the
-   recommendation.
-2. **Carry locally built FreeDOS binaries on entry 4.** This needs a kernel
-   2046 built from `ke2046s.zip` with the stub fixed, and SHARE built from
-   current FDOS/share source. That adds pinned OpenWatcom and ia16-gcc
-   toolchains to `build_pc386_freedos_image.py`, and it patches FreeDOS, so
-   it needs Deano's OK. Until then entry 4 keeps this limit: no delete or
-   rename works under SHARE.
+2. **Carry locally built FreeDOS binaries on entry 4.** Deano chose this
+   as well; it follows in its own PR. That PR builds kernel 2046 from
+   `ke2046s.zip` with the stub fixed, and SHARE from current FDOS/share
+   source, with pinned OpenWatcom and ia16-gcc toolchains in
+   `build_pc386_freedos_image.py`. Until it lands, entry 4 keeps this limit:
+   no delete or rename works under SHARE.
 3. **Not proposed:**
    - a TSR answering 10A6h, which hits defect 2;
    - dropping SHARE, which stops WIN386;
