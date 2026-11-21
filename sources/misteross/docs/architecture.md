@@ -704,20 +704,22 @@ source or receipt change. The captured helper, policy and constraints enter the
 canonical record before generation. Global-reset allocation epochs and native
 recovery remain separate acceptance gates.
 
-Canonical MENU also selects `managed-scanout-initiators-v3` before generation.
-It removes the vendor JTAG Avalon masters and their separate ACE5-Lite F2H
-translator. The normal HPS lightweight control path, HPS-to-OCM access and sole
+Canonical MENU also selects `managed-scanout-initiators-v4` before generation.
+It removes the vendor JTAG Avalon masters, their separate ACE5-Lite F2H
+translator and the vendor on-chip memory, which nothing in FES addresses and
+which held 128 M20K blocks. The normal HPS lightweight control path and sole
 SID13 scanout-to-F2SDRAM path remain required. The generator checks the exact
-eight initiator endpoints (including CPU bridges and relay stages), every
+seven initiator endpoints (including the CPU bridge and relay stages), every
 control ingress and the sole fabric-to-HPS route. It also checks the actual
-generated parent RTL: removed instances and unused HPS F2H ports must be absent.
-The supported HPS `f2s_data_width=0` (Unused) setting disables that bridge;
-its child exports and parent clock/reset connections are removed as well.
+generated parent RTL: removed instances and unused HPS F2H and H2F ports must be absent.
+The supported HPS `f2s_data_width=0` and `H2F_Width=0` (Unused) settings disable
+those bridges; the full HPS-to-FPGA bridge had the on-chip memory as its only
+responder. Their child exports and parent clock/reset connections are removed as well.
 Captured verifier bytes and the
 complete generated graph receipt are checked before and after compilation;
 the compiled and Linux-conversion receipts retain this graph. The
 full vendor HPS/EMIF parameter review permits exactly the selected F2SDRAM SMMU
-exposure and F2H disable for canonical MENU. Actual HPS parameters, elaborated
+exposure and the F2H and H2F disables for canonical MENU. Actual HPS parameters, elaborated
 interfaces and generated parent ports are checked before and after compilation.
 This profile retires only the vendor GHRD's `source ./jtag.sdc` statement for
 the removed fabric JTAG interfaces. The reviewed original GHRD/JTAG SDC hashes

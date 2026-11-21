@@ -1,0 +1,8 @@
+control absent cpu_x87_pr_q count=0 2026-11-20T18:05:27+02:00
+control absent cpu_x87_pr_n count=0 2026-11-20T18:05:27+02:00
+control absent cpu_x87_pr_part count=0 2026-11-20T18:05:27+02:00
+control absent cpu_x87_pr_one count=0 2026-11-20T18:05:27+02:00
+control absent cpu_x87_xt_e count=0 2026-11-20T18:05:27+02:00
+control absent cpu_x87_dv_rem count=0 2026-11-20T18:05:27+02:00
+control present cpu_x87_wm count=10 2026-11-20T18:05:27+02:00
+control present cpu_x87_sh_src count=5 2026-11-20T18:05:27+02:00

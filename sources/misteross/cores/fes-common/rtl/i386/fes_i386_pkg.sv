@@ -1216,17 +1216,13 @@ package fes_i386_pkg;
     // Reg fields 6 and 7 are the divides, which **slice 4 adds**: they are in
     // this table, and they have to be, for the reason the case below gives.
     //
-    // `de25` is the backend the unit is built with (X87_BACKEND == 1), and it
-    // is the one thing that says what is built: fes_i386_decode's `known` and
-    // the unit's `unbuilt` both pass it here and to x87_decode, and the
+    // FBLD and FBSTP (DF /4 and /6, #1958) take all eight format values, so
+    // their 10-byte packed decimal operand reuses X87F_F80's chunking and the
+    // unit tells it from FLD and FSTP m80 by the opcode. fes_i386_decode's
+    // `known` and the unit's `unbuilt` both read these two functions, and the
     // lockstep bench's C++ copy (sim/i386/x87_built_form.h) is compared with
-    // the two functions over every opcode at both values. With it low both
-    // functions return what they returned before it existed. With it high
-    // FBLD and FBSTP (DF /4 and /6, #1958) are built: all eight format values
-    // are taken, so their 10-byte packed decimal operand reuses X87F_F80's
-    // chunking and the unit tells it from FLD and FSTP m80 by the opcode.
-    function automatic logic [2:0] x87_format(input logic [2:0] esc, input logic [2:0] rf,
-                                              input logic de25);
+    // them over every opcode.
+    function automatic logic [2:0] x87_format(input logic [2:0] esc, input logic [2:0] rf);
         case ({esc, rf})
             // Reg fields 0 to 5 are slice 3's arithmetic and compares and 6
             // and 7 are slice 4's divides. **The whole field has to be here**:
@@ -1258,7 +1254,7 @@ package fes_i386_pkg;
             {3'b001, 3'd4}, {3'b001, 3'd6}, {3'b101, 3'd4}, {3'b101, 3'd6}: x87_format = X87F_ENV;
             default: x87_format = X87F_NONE;
         endcase
-        if (de25 && esc == 3'b111 && (rf == 3'd4 || rf == 3'd6)) x87_format = X87F_F80;  // FBLD, FBSTP
+        if (esc == 3'b111 && (rf == 3'd4 || rf == 3'd6)) x87_format = X87F_F80;  // FBLD, FBSTP
     endfunction
 
     // The operations the x87 unit builds. A form a later slice builds
@@ -1309,8 +1305,8 @@ package fes_i386_pkg;
         X87_DIV,      // FDIV, FDIVR, FIDIV, FIDIVR and their forms
         X87_SQRT,     // FSQRT (D9 FA)
         X87_PREM,     // FPREM (D9 F8) and FPREM1 (D9 F5)
-        // The transcendentals, built on the DE25 backend only (#1958): which
-        // one is read off the opcode, as the arithmetic's forms are.
+        // The transcendentals (#1958): which one is read off the opcode, as
+        // the arithmetic's forms are.
         X87_TRANS     // F2XM1, FYL2X, FPTAN, FPATAN, FYL2XP1, FSINCOS, FSIN, FCOS
     } x87_op_e;
 
@@ -1341,10 +1337,7 @@ package fes_i386_pkg;
 
     // ---- Decode: the 387 opcode to an operation. ----
     // op[10:8] is ESC's low three bits (D8h-DFh), op[7:0] the ModRM byte.
-    // `de25` is x87_format's: the backend, which decides whether FBLD and
-    // FBSTP are built.
-    function automatic x87_op_e x87_decode(input logic [10:0] o, input logic [2:0] fmt,
-                                           input logic de25);
+    function automatic x87_op_e x87_decode(input logic [10:0] o, input logic [2:0] fmt);
         logic [2:0] esc, rf;
         logic       regform;
         esc = o[10:8];
@@ -1384,10 +1377,9 @@ package fes_i386_pkg;
                 {3'b001, 3'd4}: x87_decode = X87_LDENV;
                 {3'b101, 3'd6}: x87_decode = X87_SAVE;
                 {3'b101, 3'd4}: x87_decode = X87_RSTOR;
-                // FBLD and FBSTP (DF /4, /6): a load and a store-and-pop on
-                // the DE25 backend, not built on the DE10's.
-                {3'b111, 3'd4}: x87_decode = de25 ? X87_LD_M : X87_UNIMPL;
-                {3'b111, 3'd6}: x87_decode = de25 ? X87_STP_M : X87_UNIMPL;
+                // FBLD and FBSTP (DF /4, /6): a load and a store-and-pop.
+                {3'b111, 3'd4}: x87_decode = X87_LD_M;
+                {3'b111, 3'd6}: x87_decode = X87_STP_M;
                 default: x87_decode = X87_UNIMPL;
             endcase
             // A memory form needs its operand's format, and the four
@@ -1450,10 +1442,9 @@ package fes_i386_pkg;
                         8'hf7: x87_decode = X87_INCSTP;
                         8'hfc: x87_decode = X87_RNDINT;
                         8'hfd: x87_decode = X87_SCALE;
-                        // D9 F0-F3, F9, FB, FE, FF: the transcendentals, on
-                        // the DE25 backend; elsewhere they stop as not built.
+                        // D9 F0-F3, F9, FB, FE, FF: the transcendentals.
                         8'hf0, 8'hf1, 8'hf2, 8'hf3, 8'hf9, 8'hfb, 8'hfe, 8'hff:
-                            x87_decode = de25 ? X87_TRANS : X87_UNIMPL;
+                            x87_decode = X87_TRANS;
                         default: begin
                             if (o[7:3] == 5'b11000) x87_decode = X87_LD_ST;        // D9 C0+i
                             else if (o[7:3] == 5'b11001) x87_decode = X87_XCH;     // D9 C8+i

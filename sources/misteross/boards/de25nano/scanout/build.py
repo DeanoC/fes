@@ -22,7 +22,7 @@ LOCAL = ("build.py", "linux_dma.py", "hdmi_inputs.py", "shared_resets.py", "inte
          "fes_de25_scanout_guard.v", "fes_de25_scanout_guard_hw.tcl",
          "generated/fes_de25_scanout.vh", "generated/fes_de25_scanout.h")
 TIMED_RESET_RELEASE = "timed-system-reset-release-v3"
-MANAGED_FABRIC = "managed-scanout-initiators-v3"
+MANAGED_FABRIC = "managed-scanout-initiators-v4"
 SHARED_FIFO_RESETS = "shared-fifo-reset-release-v2"
 RESET_SDC_SHA256 = "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
 TIMED_RESET_INSTANCES = ("soc_inst|rst_controller", "soc_inst|subsys_periph|rst_controller",
@@ -369,7 +369,7 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
         inputs["f2sdram_master_profile"] = "scanout-only"
         inputs["combined_display"]["debug_paths"] = "JTAG F2SDRAM master/window removed; other JTAG/OCM/F2H paths preserved"
         if package_build_id is not None:
-            inputs["combined_display"]["debug_paths"] = "JTAG Avalon masters and F2H translator removed, unused native F2H disabled; HPS control/OCM and JTAG FPGA configuration preserved"
+            inputs["combined_display"]["debug_paths"] = "JTAG Avalon masters, F2H translator and on-chip memory removed, unused native F2H and H2F disabled; HPS lightweight control and JTAG FPGA configuration preserved"
     (directory / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
     (output / "snapshot.json").write_text(json.dumps({**selected, "source_sha256": inputs["functional_snapshot_sha256"],
         "hps_output": "combined/hps", "upstream_preparation_inputs_sha256": sha(original_inputs)}, indent=2, sort_keys=True) + "\n")

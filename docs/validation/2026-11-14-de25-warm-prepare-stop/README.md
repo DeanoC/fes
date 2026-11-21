@@ -50,7 +50,7 @@ only the host checker was corrected, with no hardware retry.
 **The candidate FIT remains on the spare card; the original FIT is not restored.**
 All our hardware handles are closed. A fresh top-only human power cycle is
 requested before restoration-only original-FIT/baseline verification. The failed
-diagnostic will not be retried. Continuing top claim `7a124fae52bf7062` remains held.
+diagnostic will not be retried. Continuing top claim `[REDACTED]` remains held.
 
 Next investigate warm table-preparation cost while keeping the independent
 preparation deadline and all ownership/table/readback checks. Current code

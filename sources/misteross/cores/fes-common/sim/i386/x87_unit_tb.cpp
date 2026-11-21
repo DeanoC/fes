@@ -12,10 +12,8 @@
 // through `wb`, a store's value comes out of `sval` once `hold` drops, and
 // every state change lands at the instruction's commit (`wb_last`).
 //
-// The packed decimal forms, FBLD and FBSTP (#1958), are built on the DE25
-// backend only, and their cases (bcd-*) are at the end with a random
-// generator of their own; the runner says which backend this is with
-// -DFES_X87_BACKEND.
+// The packed decimal forms, FBLD and FBSTP (#1958), have their cases
+// (bcd-*) at the end with a random generator of their own.
 //
 // Output: one "PASS <case>" or "FAIL <case> <what>" line per case, a
 // "BCDFORMS" line counting the packed decimal instructions issued and the
@@ -52,13 +50,6 @@ constexpr int X87_WAIT = 4096;   // above the longest transcendental, which is u
 constexpr unsigned FMT_F32 = 1, FMT_F64 = 2, FMT_F80 = 3;
 constexpr unsigned FMT_I16 = 4, FMT_I32 = 5, FMT_I64 = 6, FMT_ENV = 7;
 
-// Which arithmetic backend the unit under test was built with: the runner
-// passes -DFES_X87_BACKEND with the value it gives X87_BACKEND (0 the DE10's,
-// 1 the DE25's), on the RTL build and the netlist build alike. The cases
-// that existed before the packed decimal forms do not read it.
-#ifndef FES_X87_BACKEND
-#define FES_X87_BACKEND 0
-#endif
 // How often the sequencer entered each state, over the whole run, read from
 // the unit's trace_seq port (which a netlist keeps). The packed decimal
 // cases report from it how many FBLD and FBSTP conversions actually ran.
@@ -708,7 +699,7 @@ void set_rc(Unit &u, unsigned rc) {
 }
 
 // ---- Packed decimal: FBLD and FBSTP (#1958, DF /4 and DF /6). ----
-// Built on the DE25 backend only. Both are exact conversions (FBSTP rounds
+// Both are exact conversions (FBSTP rounds
 // to an integer under RC first), so every case here compares the unit with
 // the host's own instruction bit for bit: the bytes stored, the registers,
 // the six flags, SF, ES, B, C1, TOP and the tags, which is the whole FNSAVE
@@ -730,7 +721,7 @@ void set_rc(Unit &u, unsigned rc) {
 // alone (the oracle probe drives no IRQ 13): with invalid unmasked FBSTP
 // stores nothing and does not pop, and with precision unmasked it stores,
 // pops and sets ES.
-constexpr unsigned SEQ_T_BLD_IN = 54, SEQ_T_BST_IN = 56;   // fes_i386_x87's seq_e
+constexpr unsigned SEQ_T_BLD_IN = 21, SEQ_T_BST_IN = 23;   // fes_i386_x87's seq_e
 constexpr unsigned OP_FBLD = (7u << 8) | 0x25;             // DF /4
 constexpr unsigned OP_FBSTP = (7u << 8) | 0x35;            // DF /6
 // The status-word bits these forms define: everything but C0, C2 and C3.
@@ -904,90 +895,8 @@ struct BcdTally {
     }
 };
 
-// With the DE10 backend FBLD and FBSTP are not built: fes_i386_decode stops
-// the instruction, and the unit, given one all the same, must neither hold
-// it, nor take it, nor change anything. The unit's bench cannot see the
-// decode's stop (the lockstep does); what it can see is that the unit's
-// `unbuilt` kept the instruction out, which is what this checks. FILD m64,
-// DF /5, through the same steps is the control: it must make the unit busy
-// and push, so a check that could see nothing would fail on it.
-void run_bcd_unbuilt() {
-    struct Form { const char *name; unsigned op; bool store; };
-    const Form forms[] = {{"fbld", OP_FBLD, false}, {"fbstp", OP_FBSTP, true}, {"control-fild-m64", OP_FILD_M64, false}};
-    for (const Form &f : forms) {
-        Unit u;
-        u.reg_form(OP_FNINIT);
-        const uint8_t one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
-        u.load(OP_FLD_M80, FMT_F80, one);
-        const uint16_t sw0 = u.sw(), tw0 = u.tw(), cw0 = u.cw();
-        uint8_t regs0[8][10], regs1[8][10];
-        for (unsigned n = 0; n < 8; ++n) u.reg(n, regs0[n]);
-        const bool control = f.op == OP_FILD_M64;
-        const unsigned fmt = control ? FMT_I64 : FMT_F80;
-        const int parts = control ? 2 : 3;
-        bool held = false, busy = false;
-        if (!control) ++bcd_issued[f.store ? 1 : 0];
-        // The CPU's uops (probes): FBLD's and FBSTP's probe, then the parts
-        // upwards; FILD m64's parts upwards.
-        const int uops = parts + (control ? 0 : 1);
-        for (int k = 0; k < uops; ++k) {
-            const bool is_probe = !control && k == 0;
-            const int p = is_probe ? parts - 1 : k - (control ? 0 : 1);
-            u.top.iss = 1;
-            u.top.iss_wait = 0;
-            u.top.iss_op = f.op;
-            u.top.iss_fmt = fmt;
-            u.top.iss_first = k == 0;
-            u.top.iss_last = k == uops - 1;
-            u.top.iss_part = unsigned(p);
-            u.top.iss_fire = 0;
-            u.top.eval();
-            for (int n = 0; n < 8; ++n) {
-                held = held || u.top.hold;
-                busy = busy || u.top.busy_o;
-                u.tick();
-            }
-            u.top.iss_fire = 1;
-            u.top.eval();
-            u.tick();
-            u.top.iss = 0;
-            u.top.iss_fire = 0;
-            u.top.eval();
-            if (!is_probe) u.commit(unsigned(p), p == 0 ? 0x00000042u : 0, k == uops - 1);
-            for (int n = 0; n < 8; ++n) {
-                busy = busy || u.top.busy_o;
-                u.tick();
-            }
-        }
-        for (int n = 0; n < 200; ++n) {
-            busy = busy || u.top.busy_o;
-            u.tick();
-        }
-        for (unsigned n = 0; n < 8; ++n) u.reg(n, regs1[n]);
-        const bool unchanged = u.sw() == sw0 && u.tw() == tw0 && u.cw() == cw0
-                            && std::memcmp(regs0, regs1, sizeof regs0) == 0;
-        const std::string name = std::string("bcd-de10-unbuilt-") + f.name;
-        const std::string seen = std::string("held=") + (held ? "1" : "0") + " busy=" + (busy ? "1" : "0")
-                               + " sw " + hex(sw0, 4) + "->" + hex(u.sw(), 4) + " tw " + hex(tw0, 4) + "->" + hex(u.tw(), 4);
-        if (control) {
-            // The control must be taken: busy, and a push (TOP moves).
-            if (busy && !unchanged) ok(name);
-            else bad(name, "the control form was not seen to run: " + seen);
-        } else if (held || busy || !unchanged) {
-            bad(name, "the unit acted on a form the DE10 backend does not build: " + seen);
-        } else {
-            ok(name);
-        }
-    }
-}
 
 void run_bcd_cases() {
-    if (FES_X87_BACKEND != 1) {
-        run_bcd_unbuilt();
-        std::printf("BCDFORMS fbld issued %ld converted %lu fbstp issued %ld converted %lu\n", bcd_issued[0],
-                    seq_entries[SEQ_T_BLD_IN], bcd_issued[1], seq_entries[SEQ_T_BST_IN]);
-        return;
-    }
     StubPage page;
     std::mt19937_64 rng(1958);
     const uint8_t one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
@@ -1398,7 +1307,7 @@ void run_bcd_cases() {
     std::printf("BCDFORMS fbld issued %ld converted %lu fbstp issued %ld converted %lu\n", bcd_issued[0],
                 seq_entries[SEQ_T_BLD_IN], bcd_issued[1], seq_entries[SEQ_T_BST_IN]);
     if (bcd_issued[0] == 0 || bcd_issued[1] == 0 || seq_entries[SEQ_T_BLD_IN] == 0 || seq_entries[SEQ_T_BST_IN] == 0)
-        bad("bcd-forms-reached", "a packed decimal form the DE25 backend builds was never converted");
+        bad("bcd-forms-reached", "a packed decimal form was never converted");
     else if (fbld_converted_whole != (unsigned long)fbld_issued_whole)
         bad("bcd-forms-reached", "FBLD was issued " + std::to_string(fbld_issued_whole) + " times uninterrupted and converted "
                                  + std::to_string(fbld_converted_whole));
@@ -1430,7 +1339,7 @@ uint16_t testfloat_flags(unsigned flags) {
 }
 
 // ---- The transcendentals (#1958, D9 F0-F3, F9, FB, FE, FF). ----
-// Built on the DE25 backend only. The host's x87 is neither a 387 nor the
+// The host's x87 is neither a 387 nor the
 // unit's algorithm, so a result is compared within a bound and everything
 // else exactly (the record's method.md, "The eight transcendentals"):
 //   - the control word, the tag word, TOP, the six flags, SF, ES and C0, C2
@@ -1458,7 +1367,7 @@ const TransForm TRANS_FORMS[8] = {
     {"F2XM1", 0xf0, false, false, false}, {"FYL2X", 0xf1, true, false, false},
     {"FYL2XP1", 0xf9, true, false, false}, {"FPATAN", 0xf3, true, false, false},
 };
-constexpr unsigned SEQ_T_RUN = 59;      // fes_i386_x87's T_RUN, where the engine's result is taken
+constexpr unsigned SEQ_T_RUN = 26;      // fes_i386_x87's T_RUN, where the engine's result is taken
 long trans_bound = -1;                  // FES_X87_TRANS_ULP_HOST
 struct TransTally {
     uint64_t cases = 0, values = 0, identical = 0, c1_differs = 0, manual = 0;
@@ -1613,49 +1522,8 @@ void trans_random(uint8_t out[10], std::mt19937_64 &rng, int lo, int hi, int sig
     trans_put(out, uint16_t((neg ? 0x8000 : 0) | (e + 16383)), rng() | 1ull << 63);
 }
 
-void run_trans_unbuilt() {
-    // The DE10 backend: each form stops as not built, taken by neither the
-    // unit's sequencer nor its hold.
-    for (unsigned form = 0; form < 8; ++form) {
-        Unit u;
-        u.reg_form(OP_FNINIT);
-        const uint8_t one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
-        u.load(OP_FLD_M80, FMT_F80, one);
-        u.load(OP_FLD_M80, FMT_F80, one);
-        const uint16_t sw0 = u.sw(), tw0 = u.tw();
-        u.top.iss = 1;
-        u.top.iss_wait = 0;
-        u.top.iss_op = (1u << 8) | TRANS_FORMS[form].modrm;
-        u.top.iss_fmt = 0;
-        u.top.iss_first = u.top.iss_last = 1;
-        u.top.iss_part = 0;
-        u.top.iss_fire = 0;
-        u.top.eval();
-        bool held = false, busy = false;
-        for (int n = 0; n < 8; ++n) {
-            held = held || u.top.hold;
-            busy = busy || u.top.busy_o;
-            u.tick();
-        }
-        u.top.iss = u.top.iss_first = u.top.iss_last = 0;
-        u.top.eval();
-        for (int n = 0; n < 64; ++n) {
-            busy = busy || u.top.busy_o;
-            u.tick();
-        }
-        const std::string name = std::string("trans-de10-unbuilt-") + TRANS_FORMS[form].name;
-        if (held || busy || u.sw() != sw0 || u.tw() != tw0)
-            bad(name, "held " + std::to_string(held) + " busy " + std::to_string(busy) + " sw " + hex(sw0, 4) + "->"
-                          + hex(u.sw(), 4));
-        else ok(name);
-    }
-}
 
 void run_trans_cases() {
-    if (FES_X87_BACKEND != 1) {
-        run_trans_unbuilt();
-        return;
-    }
     if (const char *bound = std::getenv("FES_X87_TRANS_ULP_HOST")) trans_bound = std::strtol(bound, nullptr, 10);
     StubPage page;
     Unit u;
@@ -2808,7 +2676,7 @@ int main(int argc, char **argv) {
 
         // A flush DURING a committed divide must not lose it either, and
         // must not strand the unit. This is the case a straight-through
-        // flush mapping would have broken on the DE25 backend: arithmetic is
+        // flush mapping would have broken on the backend: arithmetic is
         // entered after the instruction commits, the envelope deliberately
         // lets a retired instruction run on through a later squash, and a
         // backend cancelled mid-recurrence would never return a result. A
@@ -3241,8 +3109,8 @@ int main(int argc, char **argv) {
         StubPage page;
         const uint16_t ARITH_SW = 0xfaff;   // everything but C0, C2 and C3
         struct Op { const char *name; uint8_t esc, modrm; };
-        // The five forms the DE25 backend answers, then the two that stay on
-        // the sequencer whichever backend is selected.
+        // The five forms the backend answers, then two that the engine
+        // runs (#2027 slice 6).
         const Op ops[] = {
             {"fadd",  0xd8, 0xc1}, {"fsub",  0xd8, 0xe1}, {"fmul", 0xd8, 0xc9},
             {"fdiv",  0xd8, 0xf1}, {"fsqrt", 0xd9, 0xfa},

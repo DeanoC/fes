@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
-"""The x87 fit spike runner's overlay and report parsing. No Quartus or Yosys needed."""
+"""The x87 fit spike runner's overlay, source closure and report parsing."""
 import contextlib
 import io
+import os
 import re
 import subprocess
 import sys
@@ -12,6 +13,20 @@ from unittest import mock
 from pathlib import Path
 
 from scripts import quartus_x87_spike as spike
+from scripts import i386_verilator, yosys_netlist
+
+
+def _seal_yosys():
+    cache = os.environ.get(i386_verilator.CACHE_ENVIRONMENT)
+    if not cache:
+        return None
+    try:
+        return yosys_netlist.authenticate(cache_root=Path(cache))
+    except yosys_netlist.NetlistError:
+        return None
+
+
+SEAL_YOSYS = _seal_yosys()
 
 STA = '''
 +-------------------------------------------------------------------------------------+
@@ -72,6 +87,16 @@ class OverlayTest(unittest.TestCase):
         self.assertNotIn('$paramod', text)
         self.assertRegex(text, r'module x87s_unit_[0-9a-f]{8} \(a\);')
         self.assertRegex(text, r'  x87s_mul_[0-9a-f]{8} mul ')
+
+
+@unittest.skipUnless(SEAL_YOSYS, "no pc386 lock slot under FES_TOOLCHAIN_CACHE_ROOT")
+class UnitClosureTest(unittest.TestCase):
+    def test_unit_sources_resolve_every_instantiated_module(self):
+        sources = ' '.join(str(spike.ROOT / path) for path in spike.UNIT_SOURCES)
+        script = f'read_verilog -sv {sources}; hierarchy -check -top {spike.UNIT_TOP}'
+        result = subprocess.run([str(SEAL_YOSYS.path), '-Q', '-q', '-p', script], cwd=spike.ROOT,
+                                capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 class ReportTest(unittest.TestCase):

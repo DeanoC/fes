@@ -1,0 +1,70 @@
+{
+  "status": "independently-verified-restoration-and-retained-diagnostic-failure",
+  "source_commit": "488f02b222dad8c4e951bce4d0066924159e1b54",
+  "procedure_sha256": "2a9b88d73efcc4fc324886f8587026f03e4f124928a2e3a1ed7d793a1b036db2",
+  "native_diagnostic": "failed-guard-34",
+  "elapsed_seconds": 773.1454922028352,
+  "roles": {
+    "forward": {
+      "elapsed_seconds": 303.11618205113336,
+      "file_readbacks_before": 17,
+      "file_readbacks_after": 17,
+      "preserved_files": 16,
+      "upload_session": "7d3b211be81dcacca3c6059c4bf0ddc6",
+      "reset_nonce": "71c76129a6792d2b245aab5698913ef8",
+      "capture_id": "4420d94df7418c62c9e450eafa231c3c",
+      "NS_SMMU_registers_verified": 19,
+      "command_receipts_verified": 825,
+      "reset_commands_verified": 7,
+      "wire_sha256": "c3bea29c947fe561c55b4d15161c93fcbe205ef6ad62e5afee38b10c5c961d24",
+      "file_write_sha256": "bdd2093de0732df419dbdd3b3bbd74151b3da3eb62bc2c15765bd41ef31e074c",
+      "phase_cost": {
+        "file_audits": 12,
+        "live_file_checks": 5401,
+        "JTAG_parameter_commands": 33,
+        "serial_observations": 1653
+      },
+      "cleanup_verified": true
+    },
+    "rollback": {
+      "elapsed_seconds": 297.49682995909825,
+      "file_readbacks_before": 17,
+      "file_readbacks_after": 17,
+      "preserved_files": 16,
+      "upload_session": "be8bd8f9b065adcc82223f0d20568d4b",
+      "reset_nonce": "d1f1a577cfc36b849f9b03da8405580d",
+      "capture_id": "8c2bd9cdd3409399debf926f10b223ff",
+      "NS_SMMU_registers_verified": 19,
+      "command_receipts_verified": 824,
+      "reset_commands_verified": 7,
+      "wire_sha256": "e9d0f28f26608cf968ac7e3e3680523b70439d5902627ad7eb2358e0af5cfb15",
+      "file_write_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+      "phase_cost": {
+        "file_audits": 12,
+        "live_file_checks": 5388,
+        "JTAG_parameter_commands": 33,
+        "serial_observations": 1651
+      },
+      "cleanup_verified": true
+    }
+  },
+  "physical_reset_requested": false,
+  "flash_writes": false,
+  "raw_SD_writes": false,
+  "power_loss_durability_verified": false,
+  "ordinary_runtime_resume": false,
+  "normal_HIL_acceptance": false,
+  "native": {
+    "status": "failed",
+    "elapsed_seconds": 171.4795337638352,
+    "cleanup_independently_verified": true,
+    "clock_auto_restored": true,
+    "UART_closed": true
+  },
+  "exact_file_writes": 2,
+  "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "candidate_FIT_sha256": "bdd2093de0732df419dbdd3b3bbd74151b3da3eb62bc2c15765bd41ef31e074c",
+  "original_FIT_restored": true,
+  "kit_state": "verified recovery prompt parked; claim held",
+  "diagnostic_retry_performed": false
+}

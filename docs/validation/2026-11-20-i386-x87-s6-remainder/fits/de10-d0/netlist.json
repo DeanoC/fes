@@ -1,0 +1,11 @@
+{
+  "fitted_netlist": {
+    "fitted_sha256": "550529a7a85a7738e0fd074f2f500998fde16f7748555714d121def02e39def1",
+    "ram_attribute": "unchanged: the RTL already names this device's block",
+    "source": "/data/projects/x87s6m/elab-d0/netlist/pc386_system.v",
+    "source_sha256": "550529a7a85a7738e0fd074f2f500998fde16f7748555714d121def02e39def1"
+  },
+  "reused": "/data/projects/x87s6m/elab-d0/netlist/pc386_system.v",
+  "source_revision": "8a162c536e8ecef245aeabbe837a856050c294a5",
+  "source_revision_note": "identity off as main ships; elaborated on chip-30x0-ai-dev by the pc386 lock's CUDA-slot Yosys"
+}

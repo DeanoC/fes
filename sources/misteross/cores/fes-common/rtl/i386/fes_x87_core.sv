@@ -9,7 +9,7 @@
 //   - `fes_x87_pipe` wraps it with `fes_x87_round` and a 16-entry completion
 //     RAM, which is the standalone backend #1892 fitted and validated: tagged,
 //     rounded, masked results in issue order under backpressure.
-//   - `fes_i386_x87` with X87_BACKEND = X87_BACKEND_DE25 wraps it with
+//   - `fes_i386_x87` wraps it with
 //     nothing at all and takes `raw` straight into its own A_RND state.
 //
 // The second consumer is the reason the split exists. `fes_x87_round` rounds

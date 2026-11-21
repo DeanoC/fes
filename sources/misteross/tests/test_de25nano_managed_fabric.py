@@ -41,13 +41,13 @@ class ManagedFabricTests(unittest.TestCase):
             path = self.project / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
-        self.set_hps_width('256')
+        self.set_hps_width('256', '128')
         constraints = json.loads(gzip.decompress((ROOT / 'tests/fixtures/de25_managed_jtag_sdc.json.gz').read_bytes()))
         for name, text in constraints['files'].items():
             self.assertEqual(hashlib.sha256(text.encode()).hexdigest(), constraints['sha256'][name])
             (self.project / name).write_text(text)
 
-    def set_hps_width(self, width):
+    def set_hps_width(self, width, h2f='0'):
         # A minimal synthetic IP-XACT parameter view for projected tests.
         # Actual generation separately checks the complete vendor parameter set.
         path = self.project / D.HPS_IP
@@ -55,7 +55,8 @@ class ManagedFabricTests(unittest.TestCase):
         path.write_text('<ip:component xmlns:ip="http://www.accellera.org/XMLSchema/IPXACT/1685-2014" '
             'xmlns:a="http://www.altera.com/XMLSchema/IPXact2014/extensions"><ip:vendorExtensions>'
             '<a:altera_module_parameters><ip:parameters><ip:parameter parameterId="f2s_data_width">'
-            '<ip:value>' + width + '</ip:value></ip:parameter></ip:parameters>'
+            '<ip:value>' + width + '</ip:value></ip:parameter><ip:parameter parameterId="H2F_Width">'
+            '<ip:value>' + h2f + '</ip:value></ip:parameter></ip:parameters>'
             '</a:altera_module_parameters></ip:vendorExtensions></ip:component>')
 
     def project_removals(self):
@@ -65,26 +66,29 @@ class ManagedFabricTests(unittest.TestCase):
         tree = ET.parse(path)
         for node in list(tree.getroot()):
             if node.tag == 'module' and any((node.get('path') or '').startswith(prefix)
-                    for prefix in ('subsys_debug', 'ace5lite_cache_coherency_translator_0')):
+                    for prefix in ('subsys_debug', 'ace5lite_cache_coherency_translator_0')) or node.get('path') == 'ocm':
                 tree.getroot().remove(node)
-            elif node.tag == 'connection' and any(prefix in ' '.join(node.attrib.values())
-                    for prefix in ('subsys_debug', 'ace5lite_cache_coherency_translator_0')):
+            elif node.tag == 'connection' and (any(prefix in ' '.join(node.attrib.values())
+                    for prefix in ('subsys_debug', 'ace5lite_cache_coherency_translator_0', '.hps2fpga')) or
+                    (node.get('end') or '').startswith('ocm.')):
                 tree.getroot().remove(node)
         native = tree.find("module[@path='subsys_hps.agilex_hps']/parameter[@name='componentDefinition']/value")
         definition = ET.fromstring(native.text)
         interfaces = definition.find('boundary/interfaces')
         for point in list(interfaces):
-            if point.findtext('name') in ('fpga2hps', 'fpga2hps_clock', 'fpga2hps_reset'):
+            if point.findtext('name') in ('fpga2hps', 'fpga2hps_clock', 'fpga2hps_reset',
+                                          'hps2fpga', 'hps2fpga_axi_clock', 'hps2fpga_axi_reset'):
                 interfaces.remove(point)
         native.text = ET.tostring(definition, encoding='unicode')
         tree.write(path)
         path = self.project / 'qsys_top/synth/qsys_top.v'
         source = path.read_text()
-        for name in ('subsys_debug', 'ace5lite_cache_coherency_translator_0'):
+        for name in ('subsys_debug', 'ace5lite_cache_coherency_translator_0', 'ocm'):
             source, count = re.subn(r'(?ms)^\t\w+ ' + name + r' \(\n.*?^\t\);\n', '', source)
             self.assertEqual(count, 1)
-        source, count = re.subn(r'(?m)^\s*\.fpga2hps_\w+\s*\([^()]*\),[^\n]*\n', '', source)
-        self.assertGreater(count, 3)
+        for bridge in ('fpga2hps', 'hps2fpga'):
+            source, count = re.subn(r'(?m)^\s*\.' + bridge + r'_\w+\s*\([^()]*\),[^\n]*\n', '', source)
+            self.assertGreater(count, 3)
         path.write_text(source)
         self.set_hps_width('0')
         D.retire_managed_jtag_constraints(self.project)
@@ -99,30 +103,56 @@ class ManagedFabricTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'maintenance initiator/translator'):
             D.verify_managed_fabric(self.project, H)
 
-    def test_projected_managed_graph_preserves_hps_control_ocm_and_sid13_memory(self):
+    def test_projected_managed_graph_preserves_hps_control_and_sid13_memory(self):
         self.project_removals()
         result = D.verify_managed_fabric(self.project, H)
-        self.assertEqual(result['initiator_count'], 8)
+        self.assertEqual(result['initiator_count'], 7)
+        self.assertNotIn('subsys_hps_agilex_hps.hps2fpga', result['initiator_endpoints'])
+        self.assertEqual(result['removed_instances'], ['subsys_debug', 'ace5lite_cache_coherency_translator_0', 'ocm'])
+        self.assertEqual(result['disabled_hps_parameters'], {'f2s_data_width': '0', 'H2F_Width': '0'})
+        self.assertEqual(result['unused_h2f_interface'], 'disabled and absent')
         self.assertEqual(result['fabric_to_hps'], [['subsys_hps_f2sdram_adapter.axi4_man', 'subsys_hps_agilex_hps.f2sdram']])
         self.assertEqual(result['unused_f2h_interface'], 'disabled and absent')
         self.assertEqual(result['memory_handoff']['master_count'], 1)
         self.assertEqual(result['runtime_admission'], 'not-qualified')
 
-    def test_extra_initiator_is_refused_even_when_it_only_reaches_ocm(self):
+    def test_extra_initiator_is_refused_even_when_it_only_reaches_control(self):
         self.project_removals()
         self.mutate_routes(lambda root: ET.SubElement(root, 'connection',
-            {'kind': 'avalon', 'start': 'unexpected.master', 'end': 'ocm.axi_s1'}))
+            {'kind': 'avalon', 'start': 'unexpected.master', 'end': 'subsys_periph_fes_scanout.avs'}))
         with self.assertRaisesRegex(ValueError, 'initiator inventory'):
+            D.verify_managed_fabric(self.project, H)
+
+    def test_retained_on_chip_memory_or_full_bridge_route_is_refused(self):
+        # The fixture is the real predecessor graph: restoring only the memory
+        # or only the bridge route must fail, whichever check sees it first.
+        original = ET.parse(self.project / 'qsys_top/qsys_top.sopcinfo').getroot()
+        memory = original.find("module[@path='ocm']")
+        route = next(c for c in original.findall('connection')
+                     if c.get('start') == 'subsys_hps_agilex_hps.hps2fpga' and c.get('end') == 'ocm.axi_s1')
+        self.assertEqual(memory.get('kind'), 'intel_onchip_memory')
+        for node, error in ((memory, 'initiator/translator/memory: ocm'), (route, 'initiator inventory')):
+            with self.subTest(node=node.tag):
+                self.restore_fixture()
+                self.project_removals()
+                self.mutate_routes(lambda root: root.append(node))
+                with self.assertRaisesRegex(ValueError, error):
+                    D.verify_managed_fabric(self.project, H)
+        self.restore_fixture()
+        self.project_removals()
+        path = self.project / 'qsys_top/synth/qsys_top.v'
+        path.write_text(path.read_text() + "\nocm ocm (.clk1_clk(1'b0));\n")
+        with self.assertRaisesRegex(ValueError, 'parent retains'):
             D.verify_managed_fabric(self.project, H)
 
     def test_known_initiator_cannot_add_an_f2h_or_control_bypass(self):
         for target, error in (('subsys_hps_agilex_hps.fpga2hps', 'path into HPS'),
-                              ('subsys_periph_fes_scanout_guard.avs', 'control/OCM')):
+                              ('subsys_periph_fes_scanout_guard.avs', 'control route differs')):
             with self.subTest(target=target):
                 self.restore_fixture()
                 self.project_removals()
                 self.mutate_routes(lambda root: ET.SubElement(root, 'connection',
-                    {'kind': 'avalon', 'start': 'subsys_hps_agilex_hps.hps2fpga', 'end': target}))
+                    {'kind': 'avalon', 'start': 'subsys_hps_agilex_hps.lwhps2fpga', 'end': target}))
                 with self.assertRaisesRegex(ValueError, error):
                     D.verify_managed_fabric(self.project, H)
 
@@ -145,16 +175,18 @@ class ManagedFabricTests(unittest.TestCase):
 
     def test_native_bridge_must_be_disabled_and_generated_ports_absent(self):
         self.project_removals()
-        self.set_hps_width('256')
-        with self.assertRaisesRegex(ValueError, 'not disabled'):
-            D.verify_managed_fabric(self.project, H)
+        for widths in (('256', '0'), ('0', '128'), ('0', '32')):
+            self.set_hps_width(*widths)
+            with self.subTest(widths=widths), self.assertRaisesRegex(ValueError, 'not disabled'):
+                D.verify_managed_fabric(self.project, H)
         self.set_hps_width('0')
         path = self.project / 'qsys_top/synth/qsys_top.v'
         original = path.read_text()
-        for value in ('', "1'b0", 'unowned_request'):
-            with self.subTest(value=value):
+        for port, value in (('fpga2hps_arvalid', ''), ('fpga2hps_arvalid', "1'b0"), ('fpga2hps_arvalid', 'unowned_request'),
+                            ('hps2fpga_arready', "1'b0"), ('hps2fpga_clk_clk', 'clk_100_out_clk_clk')):
+            with self.subTest(port=port, value=value):
                 source, count = re.subn(r'(?m)^(\t\w+ subsys_hps \(\n)',
-                    lambda m: m[1] + '\t\t.fpga2hps_arvalid (' + value + '),\n', original)
+                    lambda m: m[1] + '\t\t.' + port + ' (' + value + '),\n', original)
                 self.assertEqual(count, 1)
                 path.write_text(source)
                 with self.assertRaisesRegex(ValueError, 'parent retains unused'):
@@ -166,6 +198,15 @@ class ManagedFabricTests(unittest.TestCase):
         for name, text in fixture['files'].items():
             self.assertEqual(hashlib.sha256(text.encode()).hexdigest(), fixture['sha256'][name])
             path = self.project / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(text)
+        # That recorded graph predates the on-chip memory removal. Project only
+        # the memory away so the enabled floating bridge is what gets refused.
+        with self.assertRaisesRegex(ValueError, 'initiator/translator/memory: ocm'):
+            D.verify_managed_fabric(self.project, H)
+        def remove_memory(root):
+            for node in list(root):
+                if node.get('path') == 'ocm' or (node.get('end') or '').startswith('ocm.'):
+                    root.remove(node)
+        self.mutate_routes(remove_memory)
         with self.assertRaisesRegex(ValueError, 'not disabled'):
             D.verify_managed_fabric(self.project, H)
 
@@ -176,11 +217,13 @@ class ManagedFabricTests(unittest.TestCase):
         native = tree.find("module[@path='subsys_hps.agilex_hps']/parameter[@name='componentDefinition']/value")
         definition = ET.fromstring(native.text)
         point = ET.SubElement(definition.find('boundary/interfaces'), 'interface')
-        ET.SubElement(point, 'name').text = 'fpga2hps'
-        native.text = ET.tostring(definition, encoding='unicode')
-        tree.write(path)
-        with self.assertRaisesRegex(ValueError, 'remains exposed'):
-            D.verify_managed_fabric(self.project, H)
+        name = ET.SubElement(point, 'name')
+        for exposed in ('fpga2hps', 'hps2fpga', 'hps2fpga_axi_clock'):
+            name.text = exposed
+            native.text = ET.tostring(definition, encoding='unicode')
+            tree.write(path)
+            with self.subTest(exposed=exposed), self.assertRaisesRegex(ValueError, 'remains exposed'):
+                D.verify_managed_fabric(self.project, H)
 
     def test_retired_jtag_source_preserves_all_other_constraints_and_original_bytes(self):
         original = (self.project / 'ghrd_timing.sdc').read_bytes()
@@ -247,33 +290,45 @@ class ManagedFabricTests(unittest.TestCase):
         prefix = '''set instances {ext_hps_f2sdram_master subsys_debug ace5lite_cache_coherency_translator_0 subsys_hps subsys_periph ocm}
 proc get_instances {} {return $::instances}
 proc remove_instance {name} {lappend ::removed $name}
-proc get_connections {} {return {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst}}
+proc get_connections {} {return {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst clk_100.out_clk/subsys_hps.hps2fpga_clk rst_in.out_reset/subsys_hps.hps2fpga_rst subsys_hps.hps2fpga/ocm.axi_s1 clk_100.out_clk/ocm.clk1 rst_in.out_reset/ocm.reset1 subsys_hps.lwhps2fpga/subsys_periph.pb_cpu_0_s0 clk_100.out_clk/subsys_hps.lwhps2fpga_clk}}
 proc remove_connection {name} {lappend ::connections $name}
 proc save_system {name} {}
 set removed {}
 set connections {}
 '''
-        result = subprocess.run(['tclsh'], input=prefix + script + '\nputs $removed\n',
+        result = subprocess.run(['tclsh'], input=prefix + script + '\nputs $removed\nputs $connections\n',
                                 text=True, capture_output=True, check=True, timeout=10)
-        self.assertEqual(result.stdout.strip(), 'ext_hps_f2sdram_master subsys_debug ace5lite_cache_coherency_translator_0')
+        removed, connections = result.stdout.strip().split('\n')
+        self.assertEqual(removed, 'ext_hps_f2sdram_master subsys_debug ace5lite_cache_coherency_translator_0 ocm')
+        # The lightweight control bridge is not a substring match for the full bridge.
+        self.assertEqual(connections.split(), prefix.split('return {')[1].split('}')[0].split()[:7])
+        for absent in ('subsys_debug ', ' ocm}'):
+            missing = prefix.replace(absent, '}' if absent.endswith('}') else '')
+            result = subprocess.run(['tclsh'], input=missing + '\nif {[catch {\n' + script +
+                                    '\n} message]} {puts $message; exit 4}\n',
+                                    text=True, capture_output=True, timeout=10)
+            self.assertEqual(result.returncode, 4)
+            self.assertIn('managed fabric removal target changed', result.stdout)
         missing = prefix.replace('subsys_debug ', '')
         result = subprocess.run(['tclsh'], input=missing + '\nif {[catch {\n' + script +
                                 '\n} message]} {puts $message; exit 4}\n',
                                 text=True, capture_output=True, timeout=10)
         self.assertEqual(result.returncode, 4)
         self.assertIn('managed fabric removal target changed', result.stdout)
-        refreshed = prefix.replace('return {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst}', 'return {}')
+        refreshed = re.sub(r'(?m)^proc get_connections .*$', 'proc get_connections {} {return {}}', prefix)
         result = subprocess.run(['tclsh'], input=refreshed + '\nif {[catch {\n' + script +
                                 '\n} message]} {puts $message; exit 4}\nputs $removed\n',
                                 text=True, capture_output=True, check=True, timeout=10)
-        self.assertEqual(result.stdout.strip(), 'ext_hps_f2sdram_master subsys_debug ace5lite_cache_coherency_translator_0')
-        unexpected = prefix.replace('return {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst}',
-                                    'return {unknown.master/subsys_hps.fpga2hps}')
-        result = subprocess.run(['tclsh'], input=unexpected + '\nif {[catch {\n' + script +
-                                '\n} message]} {puts $message; exit 4}\n',
-                                text=True, capture_output=True, timeout=10)
-        self.assertEqual(result.returncode, 4)
-        self.assertIn('vendor F2H connection changed', result.stdout)
+        self.assertEqual(result.stdout.strip(), 'ext_hps_f2sdram_master subsys_debug ace5lite_cache_coherency_translator_0 ocm')
+        for extra in ('unknown.master/subsys_hps.fpga2hps', 'unknown.master/ocm.axi_s1',
+                      'subsys_hps.hps2fpga/unknown.slave'):
+            unexpected = re.sub(r'(?m)^proc get_connections .*$',
+                                'proc get_connections {} {return {' + extra + '}}', prefix)
+            result = subprocess.run(['tclsh'], input=unexpected + '\nif {[catch {\n' + script +
+                                    '\n} message]} {puts $message; exit 4}\n',
+                                    text=True, capture_output=True, timeout=10)
+            self.assertEqual(result.returncode, 4)
+            self.assertIn('vendor bridge/memory connection changed', result.stdout)
         for bad in ('', 'save_system top.qsys\n', 'remove_instance ext_hps_f2sdram_master\nsave_system top.qsys\nsave_system top.qsys\n'):
             with self.assertRaises(ValueError):
                 D.isolate_managed_fabric_script(bad, 'save_system top.qsys\n')
