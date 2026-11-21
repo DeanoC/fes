@@ -50,16 +50,15 @@ PROBE = re.compile(r"^\s*(--version|-v|--help|-h)\b")
 def _module_level(tree: ast.AST):
     """The nodes that certainly run when the module is imported: not function
     bodies, and not the branches of if/while/for/match (`if TYPE_CHECKING:`,
-    `if False:`) or a try's handlers and else, which may not. A try body and
-    its finally run."""
+    `if False:`) or anything in a try but its finally, which may not."""
     pending = [tree]
     while pending:
         node = pending.pop()
         yield node
         if isinstance(node, (ast.Try, getattr(ast, "TryStar", ast.Try))):
-            # Only the try body and finally run for certain; handlers and
-            # else depend on what happens.
-            pending.extend([*node.body, *node.finalbody])
+            # Only finally runs for certain: any statement of the body may
+            # raise before a later one, and handlers and else depend on it.
+            pending.extend(node.finalbody)
             continue
         for child in ast.iter_child_nodes(node):
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda,
@@ -404,9 +403,14 @@ class StaticRuleTests(unittest.TestCase):
             failures = self.scan({"sources/misteross/scripts/y.py":
                                   "import subprocess\n" + handler + "subprocess.run(['quartus_fit', 'top'])\n"})
             self.assertEqual(len(failures), 1, handler)
-        self.assertEqual(self.scan({"sources/misteross/scripts/z.py":
-                                    "import subprocess\ntry:\n    from scripts import quartus_tools\n"
-                                    "finally:\n    pass\nsubprocess.run(['quartus_fit', 'top'])\n"}), [])
+        # Codex P1 at 1406e08bc: a try body may raise before the import.
+        self.assertEqual(len(self.scan({"sources/misteross/scripts/z.py":
+                                        "import subprocess\ntry:\n    raise RuntimeError()\n"
+                                        "    from scripts import quartus_tools\nexcept RuntimeError:\n    pass\n"
+                                        "subprocess.run(['quartus_fit', 'top'])\n"})), 1)
+        self.assertEqual(self.scan({"sources/misteross/scripts/w.py":
+                                    "import subprocess\ntry:\n    pass\nfinally:\n"
+                                    "    from scripts import quartus_tools\nsubprocess.run(['quartus_fit', 'top'])\n"}), [])
 
     def test_counterexample_naming_a_leasing_module_in_a_string_is_not_loading_it(self):
         failures = self.scan({
@@ -820,6 +824,14 @@ class LaunchGuardTests(unittest.TestCase):
             subprocess.run([str(link_dir / "quartus_fit"), "top"])
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "$0 --flow compile top", str(self.bin / "quartus_sh"), "--help"])
+        # Codex P1 at 1406e08bc: a command name assembled from expansions.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", "Q=quartus_; Q=${Q}sh; $Q --flow compile top"], env={"PATH": str(self.bin)})
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", "eval \"$CMD\""], env={"CMD": "true"})
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", "timeout 60 $Q top"], env={"Q": "true"})
+        self.assertEqual(subprocess.run(["sh", "-c", "echo $HOME; true"], capture_output=True).returncode, 0)
         # Codex P1 at 3e1144c04: an assignment given to env as its own argument.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["env", f"Q={self.bin / 'quartus_sh'}", "sh", "-c", "$Q --flow compile top"])
@@ -1011,8 +1023,8 @@ class JobsTests(unittest.TestCase):
         (fake / "df").write_text("#!/bin/sh\necho Avail; echo 12G\n")
         (fake / "df").chmod(0o755)
         script = script.replace(self.jobs.PROJECTS, str(root / "projects"))
-        result = subprocess.run(["bash", "-c", script], env=dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}"),
-                                capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        result = subprocess.run(["bash", "-s"], env=dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}"),
+                                capture_output=True, text=True, input=script)
         self.assertEqual(result.returncode, 75, result.stderr)
         self.assertIn("refusing", result.stderr)
         self.assertEqual(list((root / "projects/runs").iterdir()), [])
@@ -1310,7 +1322,7 @@ class JobsTests(unittest.TestCase):
                 mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
                 mock.patch.object(self.jobs, "local_host", return_value="elsewhere"), \
                 mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
-                mock.patch.object(self.jobs, "_dispatch", side_effect=lambda target: fake_dispatch(0)) as launched:
+                mock.patch.object(self.jobs, "_dispatch", side_effect=lambda target, script="": fake_dispatch(0)) as launched:
             self.assertEqual(self.jobs.remote("pro", "auto", "HEAD", "", ["true"]), 0)
         self.assertEqual(len(calls), 4, "it dispatched before a host was ready")
         self.assertIn("powerboat", launched.call_args.args[0])
@@ -1336,7 +1348,7 @@ class JobsTests(unittest.TestCase):
         # caller created.
         self.assertLess(script.index("remote set-url origin https://github.com/DeanoC/fes"),
                         script.index("fetch -q origin"))
-        self.assertEqual(subprocess.run(["bash", "-n", "-c", script]).returncode, 0)
+        self.assertEqual(subprocess.run(["bash", "-n", "-s"], input=script, text=True).returncode, 0)
         lite, _ = self.jobs.remote_script(commit="b" * 40, host="powerboat", home="/home/u", edition="lite",
                                          label="", command=["true"], stamp="s", origin="https://example/x")
         self.assertIn("export QUARTUS_ROOTDIR=/home/u/intelFPGA_lite/17.0/quartus", lite)
@@ -1377,7 +1389,7 @@ class JobsTests(unittest.TestCase):
                 mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
                 mock.patch.object(self.jobs, "local_host", return_value="elsewhere"), \
                 mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
-                mock.patch.object(self.jobs, "_dispatch", side_effect=lambda target: fake_dispatch(0)):
+                mock.patch.object(self.jobs, "_dispatch", side_effect=lambda target, script="": fake_dispatch(0)):
             self.assertEqual(self.jobs.remote("pro", "powerboat", "HEAD", "", ["true"]), 0)
         self.assertEqual(probed.call_count, 2, "it launched on a named host below the memory threshold")
 
@@ -1418,8 +1430,8 @@ class JobsTests(unittest.TestCase):
         (fake / "df").write_text("#!/bin/sh\necho Avail; echo 400G\n")
         (fake / "df").chmod(0o755)
         script = script.replace(self.jobs.PROJECTS, str(root / "projects"))
-        result = subprocess.run(["bash", "-c", script], env=dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}"),
-                                capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        result = subprocess.run(["bash", "-s"], env=dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}"),
+                                capture_output=True, text=True, input=script)
         self.assertNotEqual(result.returncode, 0)
         (run_dir,) = (root / "projects/runs").iterdir()
         self.assertEqual(json.loads((run_dir / "result.json").read_text())["status"], "setup-failed")
@@ -1430,7 +1442,7 @@ class JobsTests(unittest.TestCase):
                 mock.patch.object(self.jobs, "local_host", return_value="elsewhere"), \
                 mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
                 mock.patch.dict(os.environ, {"FES_QUARTUS_NOTIFY": f"cat > {sink}"}):
-            with mock.patch.object(self.jobs, "_dispatch", side_effect=lambda target: fake_dispatch(255)):
+            with mock.patch.object(self.jobs, "_dispatch", side_effect=lambda target, script="": fake_dispatch(255)):
                 self.assertEqual(self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"]), 255)
         self.assertIn('"remote-failed"', sink.read_text())
 
@@ -1464,7 +1476,7 @@ class JobsTests(unittest.TestCase):
                 mock.patch.object(self.jobs, "local_host", return_value="elsewhere"), \
                 mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
                 mock.patch.dict(os.environ, {"FES_QUARTUS_NOTIFY": f"cat > {sink}"}):
-            with mock.patch.object(self.jobs, "_dispatch", side_effect=lambda target: fake_dispatch(0)):
+            with mock.patch.object(self.jobs, "_dispatch", side_effect=lambda target, script="": fake_dispatch(0)):
                 self.assertEqual(self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"]), 0)
         self.assertIn('"status": "finished"', sink.read_text())
 
@@ -1524,6 +1536,19 @@ class JobsTests(unittest.TestCase):
             pid = int((run_dir / name).read_text().split()[0])
             alive = Path(f"/proc/{pid}/stat").exists() and Path(f"/proc/{pid}/stat").read_text().split()[2] != "Z"
             self.assertFalse(alive, f"the remote {name} outlived the cancelled dispatcher")
+
+    def test_the_deadline_holds_while_ssh_has_not_started_the_remote_shell(self):
+        # Codex P2 at 1406e08bc: a hung ssh kept the dispatcher past its cap.
+        ready = {"host": "powerboat", "free": 1, "available_kib": 500 * 1024 ** 2, "home": "/h", "slots": {}}
+        with mock.patch.object(self.jobs, "probe", return_value=ready), \
+                mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
+                mock.patch.object(self.jobs, "local_host", return_value="powerboat"), \
+                mock.patch.object(self.jobs, "KILL_GRACE_SECONDS", -29), \
+                mock.patch.object(self.jobs, "remote_script", return_value=("exec sleep 60", "/nonexistent/run")), \
+                mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"):
+            started = time.monotonic()
+            self.assertEqual(self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"], cap_minutes=0.03), 124)
+        self.assertLess(time.monotonic() - started, 40)
 
     def test_a_signal_while_choosing_a_host_is_a_notified_cancellation(self):
         sink = Path(self.directory.name) / "cancel-choose"

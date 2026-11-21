@@ -551,6 +551,31 @@ def _licensed_edition(program: str) -> str | None:
     return _licensed_dirs[directory]
 
 
+SHELL_SEPARATORS = {";", "&&", "||", "|", "&", "(", ")", ";;", "|&", "{", "}", "!", "\n"}
+SHELL_WRAPPERS = {"exec", "command", "builtin", "env", "nohup", "timeout", "nice", "xargs", "time"}
+
+
+def _expanded_command(tokens: list[str]) -> bool:
+    """Whether shell code runs a command whose name comes from an expansion
+    ($Q, ${Q}sh, `...`, $(...)) or from eval: its program cannot be known
+    here, so it is treated as possibly either Quartus edition."""
+    at_head = True
+    for token in tokens:
+        if token in SHELL_SEPARATORS:
+            at_head = True
+            continue
+        if not at_head:
+            continue
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token, re.S):
+            continue  # an assignment before the command word
+        if token in SHELL_WRAPPERS or token.startswith("-") or re.fullmatch(r"[0-9.]+[smhd]?", token):
+            continue  # a wrapper, its option or duration: the command comes later
+        at_head = False
+        if token == "eval" or "$" in token or "`" in token:
+            return True
+    return False
+
+
 def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) -> set[str]:
     """Editions of the licensed Quartus programs a command line would run.
 
@@ -573,11 +598,16 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
         except ValueError:
             tokens = re.split(r"[\s;&|<>()]+", text)
         words.extend((element, token, len(tokens) > 1) for token in tokens)
+        if len(tokens) > 1 and _expanded_command(tokens):
+            words.append((element, UNKNOWN_EDITION, True))
         element += 1
     probes = ("--version", "-v", "--help", "-h")
     argv_list = [w for w in words]
     editions = set()
     for index, (element, word, in_payload) in enumerate(argv_list):
+        if word == UNKNOWN_EDITION:
+            editions.add(UNKNOWN_EDITION)
+            continue
         # NAME=value in shell code can be run later as $NAME: the value is a
         # program name like any other.
         # (in shell code, or as an argument of env and the like).

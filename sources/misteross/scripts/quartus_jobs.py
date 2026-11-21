@@ -742,9 +742,16 @@ def _select_host(edition: str, asked: str, deadline: float, label: str, command:
     return host, probes
 
 
-def _dispatch(target: list[str]) -> subprocess.Popen:
-    """Start the remote program (ssh, or bash for this host)."""
-    return subprocess.Popen(target, stdin=subprocess.DEVNULL, start_new_session=True)
+def _dispatch(target: list[str], script: str = "") -> subprocess.Popen:
+    """Start the remote program: `bash -s` here or over ssh, reading the
+    program from its stdin, so it is never a command-line payload."""
+    process = subprocess.Popen(target, stdin=subprocess.PIPE, start_new_session=True, text=True)
+    try:
+        process.stdin.write(script + "\n")
+        process.stdin.close()
+    except BrokenPipeError:
+        pass
+    return process
 
 
 def remote(edition: str, host: str, revision: str, label: str, command: list[str],
@@ -794,7 +801,7 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
     script, run_dir = remote_script(commit=commit, host=host, home=chosen["home"], edition=edition,
                                     label=label, command=command, stamp=stamp, origin=origin,
                                     cap_minutes=remaining, deadline_epoch=deadline_epoch)
-    target = ["bash", "-c", script] if host == local_host() else [*SSH, host, shlex.join(["bash", "-c", script])]
+    target = ["bash", "-s"] if host == local_host() else [*SSH, host, "bash -s"]
     cancelled: list[int] = []
 
     def cancel(number, _frame):
@@ -802,10 +809,17 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
 
     previous = {sig: signal.signal(sig, cancel) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
     try:
-        dispatched = _dispatch(target)
+        dispatched = _dispatch(target, script)
+        capped = False
         while dispatched.poll() is None and not cancelled:
+            # The host enforces the deadline once its shell runs; until then
+            # (ssh still connecting, say) it is enforced here, after the
+            # grace the host itself would give the job.
+            if time.time() >= deadline_epoch + KILL_GRACE_SECONDS + 30:
+                capped = True
+                break
             time.sleep(0.5)
-        if cancelled:
+        if cancelled or capped:
             # Stop the run on the host by the pid it recorded (only that
             # wrapper, which stops its job), then the local ssh or shell.
             # The pid file appears as soon as setup starts; wait for it a little.
@@ -820,7 +834,7 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
             except subprocess.TimeoutExpired:
                 os.killpg(dispatched.pid, signal.SIGTERM)
                 dispatched.wait()
-        code = 128 + cancelled[0] if cancelled else dispatched.returncode
+        code = 124 if capped else 128 + cancelled[0] if cancelled else dispatched.returncode
     finally:
         for sig, handler in previous.items():
             signal.signal(sig, handler)
