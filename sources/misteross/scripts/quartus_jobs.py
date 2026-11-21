@@ -827,8 +827,11 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
                     f"read pid start < {shlex.quote(run_dir)}/run.pid 2>/dev/null && "
                     f"[ \"$(cut -d' ' -f22 /proc/$pid/stat 2>/dev/null)\" = \"$start\" ] && "
                     "{ kill -TERM $(ps -o pid= --ppid $pid) 2>/dev/null; kill -TERM $pid; }")
-            stopper = ["bash", "-c", stop] if host == local_host() else [*SSH, host, shlex.join(["bash", "-c", stop])]
-            subprocess.run(stopper, stdin=subprocess.DEVNULL, timeout=60, check=False)
+            stopper = ["bash", "-s"] if host == local_host() else [*SSH, host, "bash -s"]
+            try:
+                subprocess.run(stopper, input=stop + "\n", text=True, timeout=60, check=False)
+            except subprocess.TimeoutExpired:
+                pass
             try:
                 dispatched.wait(timeout=KILL_GRACE_SECONDS + 30)
             except subprocess.TimeoutExpired:

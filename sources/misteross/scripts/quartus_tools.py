@@ -557,14 +557,17 @@ SHELL_WRAPPERS = {"exec", "command", "builtin", "env", "nohup", "timeout", "nice
 
 def _expanded_command(tokens: list[str]) -> bool:
     """Whether shell code runs a command whose name comes from an expansion
-    ($Q, ${Q}sh, `...`, $(...)) or from eval: its program cannot be known
-    here, so it is treated as possibly either Quartus edition."""
+    ($Q, ${Q}sh, `...`, $(...), a glob like ./quartus_[f]it) or from eval:
+    its program cannot be known here, so it is treated as possibly either
+    Quartus edition."""
     at_head, wrapped = True, False
     for token in tokens:
         if token in SHELL_SEPARATORS:
             at_head, wrapped = True, False
             continue
-        expanded = "$" in token or "`" in token
+        # Parameter and command expansion, and pathname expansion (globs):
+        # the shell, not this text, decides what such a word names.
+        expanded = "$" in token or "`" in token or any(c in token for c in "*?[")
         if wrapped and expanded:
             # Under a wrapper (env -u X $Q, timeout -s KILL 5 $Q) the command
             # is somewhere among its arguments: any expansion may be it.
@@ -584,6 +587,26 @@ def _expanded_command(tokens: list[str]) -> bool:
     return False
 
 
+SHELLS = {"sh", "bash", "dash", "zsh", "ksh", "mksh", "busybox", "ash"}
+
+
+def _shell_payloads(texts: list[str], whole: bool) -> set[int]:
+    """Indexes of the arguments a shell will run as code: a command string
+    (shell=True, os.system), the argument after -c of a shell, and the
+    remote command words of ssh."""
+    if whole:
+        return {0}
+    found = set()
+    names = [os.path.basename(t) for t in texts]
+    for index, text in enumerate(texts):
+        if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", text) and any(n in SHELLS for n in names[:index]) \
+                and index + 1 < len(texts):
+            found.add(index + 1)
+    if names and names[0] == "ssh":
+        found.update(i for i, t in enumerate(texts) if i > 0 and any(c.isspace() for c in t))
+    return found
+
+
 def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) -> set[str]:
     """Editions of the licensed Quartus programs a command line would run.
 
@@ -591,11 +614,12 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
     as run_logged.sh or `bash -c` is seen through. A `--version` or `--help`
     probe needs no lease. A bare program name resolves through PATH, and a
     relative path against cwd (the child's working directory)."""
-    if isinstance(argv, (str, bytes, os.PathLike)):
-        argv = [argv]
+    whole = isinstance(argv, (str, bytes))
+    argv = [argv] if isinstance(argv, (str, bytes, os.PathLike)) else list(argv or ())
+    texts = [os.fsdecode(a) if isinstance(a, (bytes, os.PathLike)) else str(a) for a in argv]
+    payloads = _shell_payloads(texts, whole)
     words, element = [], 0
-    for argument in argv or ():
-        text = os.fsdecode(argument) if isinstance(argument, (bytes, os.PathLike)) else str(argument)
+    for text in texts:
         # Split as the shell does, operators included, so a program name
         # with a redirection or separator attached (quartus_sh>log,
         # quartus_sh&) is still seen.
@@ -605,8 +629,9 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
             tokens = list(lexer)
         except ValueError:
             tokens = re.split(r"[\s;&|<>()]+", text)
-        words.extend((element, token, len(tokens) > 1) for token in tokens)
-        if len(tokens) > 1 and _expanded_command(tokens):
+        shell_code = element in payloads
+        words.extend((element, token, shell_code) for token in tokens)
+        if shell_code and _expanded_command(tokens):
             words.append((element, UNKNOWN_EDITION, True))
         element += 1
     probes = ("--version", "-v", "--help", "-h")

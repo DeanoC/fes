@@ -850,6 +850,9 @@ class LaunchGuardTests(unittest.TestCase):
             subprocess.run(["sh", "-c", "eval \"$CMD\""], env={"CMD": "true"})
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "timeout 60 $Q top"], env={"Q": "true"})
+        # Codex P1 at 941c04c72: a glob as the command word.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", "./quartus_[f]it top"], cwd=str(self.bin))
         # Codex P1 at 35e36d0b5: an option operand of a wrapper.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "Q=quartus_; Q=${Q}sh; env -u X $Q --flow compile top"],
