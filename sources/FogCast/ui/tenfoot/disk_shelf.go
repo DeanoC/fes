@@ -21,8 +21,8 @@ type stShelfState struct {
 	Loaded    bool
 	CanMake   bool
 	Sizes     []stShelfSize
-	Shelf     hostclient.AtariStShelf
-	Disk      *hostclient.AtariStShelfDisk
+	Shelf     hostclient.DiskShelf
+	Disk      *hostclient.ShelfDisk
 	Confirm   string // "revert" or "delete"
 	New       bool
 	NewName   string
@@ -105,11 +105,11 @@ func (a *App) loadStShelfLocked(during, after string) {
 	s.Shelf = stShelfState{PackageID: pkg}
 	s.Index = 0
 	s.Status = during
-	var shelf hostclient.AtariStShelf
+	var shelf hostclient.DiskShelf
 	var caps protocol.CoreMediaCapabilities
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		var err error
-		if shelf, err = a.client.AtariStShelf(ctx); err != nil {
+		if shelf, err = a.client.DiskShelf(ctx, hostclient.AtariStShelfCore); err != nil {
 			return stShelfError(err)
 		}
 		if caps, err = a.client.PackageMediaCapabilities(ctx, pkg); err != nil {
@@ -144,7 +144,7 @@ func (a *App) loadStShelfLocked(during, after string) {
 	})
 }
 
-func stShelfDiskLine(d hostclient.AtariStShelfDisk) string {
+func stShelfDiskLine(d hostclient.ShelfDisk) string {
 	parts := []string{d.Title, stShelfSizeLabel(d.Size)}
 	if d.InDrive {
 		parts = append(parts, "In drive A")
@@ -331,7 +331,7 @@ func (a *App) handleStShelfLocked(row FirmwarePickerRow) {
 	}
 }
 
-func stShelfDiskStatus(d hostclient.AtariStShelfDisk) string {
+func stShelfDiskStatus(d hostclient.ShelfDisk) string {
 	switch {
 	case d.InDrive:
 		return "This disk is in drive A. Stop the computer to change it."
@@ -358,7 +358,7 @@ func (a *App) makeStShelfDiskLocked() {
 	pkg := st.PackageID
 	s.Status = "Making " + name + "…" + stShelfSlow
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
-		_, err := a.client.NewAtariStShelfDisk(ctx, name, pkg, size.Tracks, size.Heads, size.Sectors)
+		_, err := a.client.NewShelfDisk(ctx, hostclient.AtariStShelfCore, hostclient.NewShelfDiskRequest{Title: name, PackageID: pkg, Tracks: size.Tracks, Heads: size.Heads, Sectors: size.Sectors})
 		if err != nil {
 			return stShelfError(err)
 		}
@@ -405,12 +405,12 @@ func (a *App) submitStShelfNameLocked() {
 		var err error
 		switch purpose {
 		case "rename":
-			_, err = a.client.RenameAtariStShelfDisk(ctx, disk.GameID, disk.KeptRevision, name)
+			_, err = a.client.RenameShelfDisk(ctx, hostclient.AtariStShelfCore, disk.GameID, disk.KeptRevision, name)
 		case "copy":
-			_, err = a.client.CopyAtariStShelfDisk(ctx, disk.GameID, name)
+			_, err = a.client.CopyShelfDisk(ctx, hostclient.AtariStShelfCore, disk.GameID, name)
 		case "copy-revert":
-			if _, err = a.client.CopyAtariStShelfDisk(ctx, disk.GameID, name); err == nil {
-				if _, err = a.client.RevertAtariStShelfDisk(ctx, disk.GameID, disk.KeptRevision); err != nil {
+			if _, err = a.client.CopyShelfDisk(ctx, hostclient.AtariStShelfCore, disk.GameID, name); err == nil {
+				if _, err = a.client.RevertShelfDisk(ctx, hostclient.AtariStShelfCore, disk.GameID, disk.KeptRevision); err != nil {
 					failed = errors.New("Copied to " + name + ", but " + disk.Title + " still has its changes. " + stShelfError(err).Error())
 					return nil
 				}
@@ -451,9 +451,9 @@ func (a *App) confirmStShelfLocked() {
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		var err error
 		if action == "delete" {
-			err = a.client.DeleteAtariStShelfDisk(ctx, disk.GameID, disk.KeptRevision)
+			err = a.client.DeleteShelfDisk(ctx, hostclient.AtariStShelfCore, disk.GameID, disk.KeptRevision)
 		} else {
-			_, err = a.client.RevertAtariStShelfDisk(ctx, disk.GameID, disk.KeptRevision)
+			_, err = a.client.RevertShelfDisk(ctx, hostclient.AtariStShelfCore, disk.GameID, disk.KeptRevision)
 		}
 		if err != nil {
 			failed = stShelfError(err)
