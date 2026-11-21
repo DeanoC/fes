@@ -65,6 +65,33 @@ def native_shared_resets(directory, scanout):
     return helper
 
 
+BOARD_JTAG_SHA256 = "02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a"
+BOARD_JTAG_CHECK = """
+set fes_jtag_ports 0
+foreach pin {altera_reserved_tck altera_reserved_tms altera_reserved_tdi altera_reserved_tdo} {
+    incr fes_jtag_ports [get_collection_size [get_ports -nowarn $pin]]
+}
+if {$fes_jtag_ports == 4} {
+    set_jtag_timing_constraints
+} elseif {$fes_jtag_ports == 0 && ![get_collection_size [get_ports -nowarn {altera_reserved_ntrst}]]} {
+    if {![string equal quartus_fit $::TimeQuestInfo(nameofexecutable)]} {
+        derive_clock_uncertainty
+    }
+    post_message -type info "DE25 native board JTAG timing ports absent"
+} else {
+    error "DE25 native board JTAG timing ports partially present"
+}
+"""
+
+
+def board_jtag_constraints(original):
+    """Keep the complete vendor constraints whenever their physical endpoints exist."""
+    board = spectrum.board
+    if board.sha(original) != BOARD_JTAG_SHA256:
+        raise ValueError("native Spectrum vendor board JTAG constraints changed")
+    return board.replace_once(original.decode(), "\nset_jtag_timing_constraints\n", BOARD_JTAG_CHECK).encode()
+
+
 JTAG_STREAM_SDC = "altera_avalon_st_jtag_interface.sdc"
 JTAG_STREAM_SDC_SHA = "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40"
 JTAG_STREAM_EXCEPTION = (
@@ -171,6 +198,10 @@ remove_instance ext_hps_f2sdram_master
     ):
         assignments = board.replace_once(assignments, f"set_global_assignment -name {setting} {relative}\n", "")
     qsf.write_text(assignments)
+    board_jtag = project / "jtag.sdc"
+    original_jtag = board_jtag.read_bytes()
+    (directory / "board-jtag-original.sdc").write_bytes(original_jtag)
+    board_jtag.write_bytes(board_jtag_constraints(original_jtag))
     top_path = project / "golden_top.v"
     video_constraints = project / "fes_mailbox/clocks.sdc"
     video_constraints.write_text(scanout.timed_scanout_sdc(
@@ -189,6 +220,7 @@ remove_instance ext_hps_f2sdram_master
         "hps_parameters": {"f2s_data_width": 0, "H2F_Width": 128, "f2sdram_SMMU": False},
         "reader_masters": ["fes_scanout", "fes_ddr_probe"],
         "maintenance_masters": "absent",
+        "board_jtag_sdc_sha256": board.sha(board_jtag.read_bytes()),
         "matched_video_sdc_sha256": video_constraints_sha,
         "scanout_board_sha256": video_board_sha,
         "generated_handoff_verified": False,
@@ -265,6 +297,11 @@ def verify_handoff(output, hps, scanout):
     video_board_sha = hps.digest(video_board)
     if video_board_sha != inputs["native_spectrum_hps"]["scanout_board_sha256"]:
         raise ValueError("native Spectrum scanout reset source changed")
+    board_jtag = project / "jtag.sdc"
+    board_jtag_sha = hps.digest(board_jtag)
+    if (board_jtag.read_bytes() != board_jtag_constraints((directory / "board-jtag-original.sdc").read_bytes()) or
+            board_jtag_sha != inputs["native_spectrum_hps"]["board_jtag_sdc_sha256"]):
+        raise ValueError("native Spectrum board JTAG constraint derivation changed")
     reset_timing = scanout.verify_vendor_reset_timing(directory, no_debug=True)
     fifo_resets = native_shared_resets(directory, scanout).verify(directory)
     jtag_timing = jtag_stream_constraints(directory)
@@ -308,7 +345,8 @@ def verify_handoff(output, hps, scanout):
               "probe": probe, "spectrum_control": computer,
               "handoff_sha256": hps.digest(handoff),
               "matched_video_sdc_sha256": video_constraints_sha, "reset_timing": reset_timing,
-              "scanout_board_sha256": video_board_sha, "jtag_stream_sdc_sha256": jtag_timing,
+              "scanout_board_sha256": video_board_sha, "board_jtag_sdc_sha256": board_jtag_sha,
+              "jtag_stream_sdc_sha256": jtag_timing,
               "shared_fifo_resets": fifo_resets,
               "firmware_admission": False, "package_signoff": False}
     (directory / "native-spectrum-handoff.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
