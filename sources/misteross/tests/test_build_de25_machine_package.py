@@ -140,6 +140,7 @@ class MachineProducerTests(unittest.TestCase):
         fields = verify_record_source_at_revision(self.root, record)
         self.assertIn(shared.NATIVE_SPECTRUM_COMPOSER, fields['source_inputs'])
         self.assertEqual(fields['parameters']['f2sdram_master_profile'], 'native-scanout-and-probe')
+        self.assertEqual(fields['parameters']['fabric_initiator_policy'], 'native-maintenance-absent-v1')
         self.assertFalse(fields['parameters']['linux_dma'])
         linux = json.loads(self.record(spectrum, '48'))
         self.assertNotIn(shared.NATIVE_SPECTRUM_COMPOSER, linux['source_inputs'])

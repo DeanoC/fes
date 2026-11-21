@@ -111,7 +111,7 @@ class Machine:
                 'model': model, 'device': DEVICE,
                 'hps_initialization': 'HPS FIRST', 'source_closure_policy': common.SOURCE_POLICY,
                 'f2sdram_master_profile': 'native-scanout-and-probe' if native_spectrum else 'scanout-only',
-                'fabric_initiator_policy': 'native-maintenance-held-reset-v1' if native_spectrum else common.MANAGED_FABRIC,
+                'fabric_initiator_policy': 'native-maintenance-absent-v1' if native_spectrum else common.MANAGED_FABRIC,
                 'programming_profile': profile,
                 'standard_core': True, 'linux_dma': not native_spectrum,
                 'expansion_socket': False, 'guest_memory': 'board-sdram',
