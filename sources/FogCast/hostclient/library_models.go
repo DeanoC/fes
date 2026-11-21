@@ -192,11 +192,18 @@ type CoreEntry struct {
 	FirmwareRequired bool   `json:"firmware_required,omitempty"`
 	// MoreMedia is disks 2 to N of a disk set, in MediaID's role. A host that
 	// predates disk sets sends none.
-	MoreMedia []string `json:"more_media,omitempty"`
-	GameID    string   `json:"game_id"`
-	Title     string   `json:"title"`
-	CoreID    string   `json:"core_id"`
-	PackageID string   `json:"package_id"`
+	MoreMedia []SetMedia `json:"more_media,omitempty"`
+	GameID    string     `json:"game_id"`
+	Title     string     `json:"title"`
+	CoreID    string     `json:"core_id"`
+	PackageID string     `json:"package_id"`
+}
+
+// SetMedia is one further disk of a title's set and the basename it was
+// imported under, which a live disk change needs.
+type SetMedia struct {
+	MediaID   string `json:"media_id"`
+	MediaName string `json:"media_name"`
 }
 
 // CorePackage is the public identity projection of one installed FPGA package.

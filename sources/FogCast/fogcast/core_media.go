@@ -100,15 +100,15 @@ func (s *Service) SelectCoreEntryMedia(parent context.Context, gameID, expectedP
 }
 
 type coreEntryMediaSetCatalog interface {
-	SetCoreEntryMediaSet(context.Context, string, string, string, []string, []string) (catalog.CoreEntry, error)
+	SetCoreEntryMediaSet(context.Context, string, string, string, []string, []catalog.SetMedia) (catalog.CoreEntry, error)
 }
 
 // SetCoreEntryMediaSet replaces disks 2 to N of a title's disk set. Each disk
 // must fit the drive disk 1 is in, as the installed package declares it.
 // Launch still starts from disk 1; the others are swapped in during play.
-func (s *Service) SetCoreEntryMediaSet(parent context.Context, gameID, expectedPackage, expectedMedia string, expectedMore, more []string) (catalog.CoreEntry, error) {
+func (s *Service) SetCoreEntryMediaSet(parent context.Context, gameID, expectedPackage, expectedMedia string, expectedMore []string, more []catalog.SetMedia) (catalog.CoreEntry, error) {
 	if protocol.ValidateGameID(gameID) != nil || protocol.ValidateDigest(expectedPackage) != nil || protocol.ValidateDigest(expectedMedia) != nil ||
-		catalog.ValidateCoreEntryMediaSet(expectedMedia, expectedMore) != nil || catalog.ValidateCoreEntryMediaSet(expectedMedia, more) != nil {
+		catalog.ValidateCoreEntryMediaSetIDs(expectedMedia, expectedMore) != nil || catalog.ValidateCoreEntryMediaSet(expectedMedia, more) != nil {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	store, ok := s.catalog.(coreEntryMediaSetCatalog)
@@ -126,7 +126,7 @@ func (s *Service) SetCoreEntryMediaSet(parent context.Context, gameID, expectedP
 	if err != nil {
 		return catalog.CoreEntry{}, err
 	}
-	if entry.PackageID != expectedPackage || entry.MediaID != expectedMedia || !slices.Equal(entry.MoreMedia, expectedMore) {
+	if entry.PackageID != expectedPackage || entry.MediaID != expectedMedia || !slices.Equal(catalog.SetMediaIDs(entry.MoreMedia), expectedMore) {
 		return catalog.CoreEntry{}, mapCoreEntryError(catalog.ErrCoreEntryConflict)
 	}
 	if entry.MediaRole != protocol.DiskRole && entry.MediaRole != protocol.CassetteRole {
@@ -139,13 +139,25 @@ func (s *Service) SetCoreEntryMediaSet(parent context.Context, gameID, expectedP
 	if inspection.Descriptor.Core.ID != entry.CoreID {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeInvalidArchive, nil)
 	}
-	for _, id := range more {
-		if err := s.validateCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, id); err != nil {
+	for _, m := range more {
+		if !setMediaNameFitsRole(entry.MediaRole, m.MediaName) {
+			return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
+		}
+		if err := s.validateCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, m.MediaID); err != nil {
 			return catalog.CoreEntry{}, err
 		}
 	}
 	updated, err := store.SetCoreEntryMediaSet(ctx, gameID, expectedPackage, expectedMedia, expectedMore, more)
 	return updated, mapCoreMediaError(err)
+}
+
+// setMediaNameFitsRole keeps a set disk's name to the live change its drive
+// takes: a disk name for a disk drive, a tape name for a cassette deck.
+func setMediaNameFitsRole(role, name string) bool {
+	if role == protocol.DiskRole {
+		return protocol.AdmitComputerDiskName(name) || protocol.AdmitSpectrumDiskName(name)
+	}
+	return protocol.AdmitTapeMediaName(name) || protocol.AdmitZx80TapeMediaName(name) || protocol.AdmitSpectrumCassetteName(name)
 }
 
 type coreEntryMediaNameCatalog interface {

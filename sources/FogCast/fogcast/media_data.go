@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -61,7 +62,7 @@ func (s *Service) InsertLibraryDisk(parent context.Context, b protocol.LibraryMe
 		return protocol.Status{}, mediaUnchanged(err)
 	}
 	// Any disk of the title's set may go in; each keeps its own saved record.
-	if entry.PackageID != b.PackageID || (entry.MediaID != b.BaseMediaID && !slices.Contains(entry.MoreMedia, b.BaseMediaID)) || entry.MediaRole != "disk" {
+	if entry.PackageID != b.PackageID || (entry.MediaID != b.BaseMediaID && !slices.Contains(catalog.SetMediaIDs(entry.MoreMedia), b.BaseMediaID)) || entry.MediaRole != "disk" {
 		return protocol.Status{}, mediaUnchanged(protocol.MediaUnitIdentityError())
 	}
 	store, ok := s.catalog.(coreMediaCatalog)

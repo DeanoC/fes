@@ -509,9 +509,11 @@ func (s *Store) SetCoreEntryMediaName(ctx context.Context, gameID, expectedPacka
 	return entry, nil
 }
 
-// AdmitCoreEntryMediaName accepts the cassette basenames a ZX81-family
-// import admits: .p / .P, or .o / .O for the ZX80.
+// AdmitCoreEntryMediaName accepts the basename a title's disk or tape was
+// imported under: a ZX81 .p or ZX80 .o cassette, or any name a live media
+// change takes. A disk set needs it, since a live change picks its path from
+// the name.
 func AdmitCoreEntryMediaName(name string) bool {
 	return len(name) <= 255 && utf8.ValidString(name) && !strings.ContainsFunc(name, unicode.IsControl) &&
-		(protocol.AdmitTapeMediaName(name) || protocol.AdmitZx80TapeMediaName(name))
+		(protocol.AdmitLiveMediaName(name) || protocol.AdmitZx80TapeMediaName(name))
 }

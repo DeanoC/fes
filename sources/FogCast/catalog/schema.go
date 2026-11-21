@@ -468,7 +468,9 @@ PRAGMA user_version = 25;
 
 // Schema 26 lets a title hold a disk set. Disk 1 stays the entry's own
 // media_id; this table holds disks 2 to N, in order, in the same role and
-// drive, each disk once. Any change to disk 1 ends the set. A set member is a
+// drive, each disk once, each with the basename it was imported under (a live
+// disk change picks its path from the name). Any change to disk 1 ends the
+// set. A set member is a
 // library reference like disk 1: it protects its media from remote-cache
 // cleanup and detaches a generated kit-host entry when edited.
 const schemaV26 = `
@@ -476,6 +478,7 @@ CREATE TABLE core_entry_media_set (
   game_id TEXT NOT NULL REFERENCES core_entries(game_id) ON DELETE CASCADE,
   position INTEGER NOT NULL CHECK (position BETWEEN 2 AND 16),
   media_id TEXT NOT NULL REFERENCES core_media(media_id),
+  media_name TEXT NOT NULL CHECK (media_name <> ''),
   PRIMARY KEY (game_id, position),
   UNIQUE (game_id, media_id)
 );

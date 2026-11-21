@@ -112,7 +112,7 @@ func (c *Client) SetCoreEntryMediaName(ctx context.Context, game, pkg, id, name 
 // SetCoreEntryMediaSet replaces disks 2 to N of a title's disk set while
 // its package, disk 1 and set are still the ones the caller read. An empty
 // list makes it a single disk again.
-func (c *Client) SetCoreEntryMediaSet(ctx context.Context, game, pkg, first string, expectedMore, more []string) (CoreEntry, error) {
+func (c *Client) SetCoreEntryMediaSet(ctx context.Context, game, pkg, first string, expectedMore []string, more []SetMedia) (CoreEntry, error) {
 	if protocol.ValidateGameID(game) != nil || protocol.ValidateDigest(pkg) != nil || protocol.ValidateDigest(first) != nil {
 		return CoreEntry{}, fmt.Errorf("invalid disk set identity")
 	}
@@ -120,7 +120,7 @@ func (c *Client) SetCoreEntryMediaSet(ctx context.Context, game, pkg, first stri
 		expectedMore = []string{}
 	}
 	if more == nil {
-		more = []string{}
+		more = []SetMedia{}
 	}
 	var result CoreEntry
 	err := c.doJSON(ctx, http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(game)+"/media-set", map[string]any{

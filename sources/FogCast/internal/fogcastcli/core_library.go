@@ -111,7 +111,7 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 		method, path = http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(parsed.GameID)+"/disk-geometry"
 		data, _ = json.Marshal(map[string]any{"expected_package_id": parsed.PackageID, "expected_media_id": parsed.MediaID, "geometry": parsed.Geometry})
 	case "core-disk-set":
-		expected, next := diskSetArg(args[4]), diskSetArg(args[5])
+		expected, next := diskSetArg(args[4]), diskSetMediaArg(args[5])
 		method, path = http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(args[1])+"/media-set"
 		data, _ = json.Marshal(map[string]any{"expected_package_id": args[2], "expected_media_id": args[3], "expected_more_media": expected, "more_media": next})
 	case "core-media-select":
@@ -462,7 +462,21 @@ func (cmd blankAtariStCommand) matches(body []byte) error {
 	return nil
 }
 
-// diskSetArg reads disks 2 to N as comma-separated media IDs, or "none".
+// diskSetMediaArg reads disks 2 to N as comma-separated MEDIA_ID=NAME pairs,
+// or "none". NAME is the basename the disk was imported under.
+func diskSetMediaArg(arg string) []map[string]string {
+	out := []map[string]string{}
+	if arg == "none" {
+		return out
+	}
+	for _, item := range strings.Split(arg, ",") {
+		id, name, _ := strings.Cut(item, "=")
+		out = append(out, map[string]string{"media_id": id, "media_name": name})
+	}
+	return out
+}
+
+// diskSetArg reads the set last read as comma-separated media IDs, or "none".
 func diskSetArg(arg string) []string {
 	if arg == "none" {
 		return []string{}

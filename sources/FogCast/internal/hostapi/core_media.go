@@ -18,7 +18,7 @@ type coreMediaLibraryService interface {
 }
 
 type coreEntryMediaSetService interface {
-	SetCoreEntryMediaSet(context.Context, string, string, string, []string, []string) (catalog.CoreEntry, error)
+	SetCoreEntryMediaSet(context.Context, string, string, string, []string, []catalog.SetMedia) (catalog.CoreEntry, error)
 }
 
 type coreEntryMediaNameService interface {
@@ -182,10 +182,10 @@ func registerCoreMediaLibrary(mux *http.ServeMux, service Service) {
 			return
 		}
 		var request struct {
-			ExpectedPackageID *string   `json:"expected_package_id"`
-			ExpectedMediaID   *string   `json:"expected_media_id"`
-			ExpectedMore      *[]string `json:"expected_more_media"`
-			More              *[]string `json:"more_media"`
+			ExpectedPackageID *string             `json:"expected_package_id"`
+			ExpectedMediaID   *string             `json:"expected_media_id"`
+			ExpectedMore      *[]string           `json:"expected_more_media"`
+			More              *[]catalog.SetMedia `json:"more_media"`
 		}
 		if decodeSingleJSON(w, r, &request) != nil {
 			return
@@ -193,7 +193,7 @@ func registerCoreMediaLibrary(mux *http.ServeMux, service Service) {
 		if protocol.ValidateGameID(r.PathValue("game_id")) != nil || request.ExpectedPackageID == nil || request.ExpectedMediaID == nil ||
 			request.ExpectedMore == nil || request.More == nil ||
 			!corePackageIDRE.MatchString(*request.ExpectedPackageID) || !corePackageIDRE.MatchString(*request.ExpectedMediaID) ||
-			catalog.ValidateCoreEntryMediaSet(*request.ExpectedMediaID, *request.ExpectedMore) != nil ||
+			catalog.ValidateCoreEntryMediaSetIDs(*request.ExpectedMediaID, *request.ExpectedMore) != nil ||
 			catalog.ValidateCoreEntryMediaSet(*request.ExpectedMediaID, *request.More) != nil {
 			writeError(w, 400, "BAD_REQUEST", "disk set is invalid")
 			return

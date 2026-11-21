@@ -56,9 +56,12 @@ func (s *coreMediaAPIService) SetCoreEntryMediaName(_ context.Context, game, pkg
 	s.args = []string{game, pkg, id, name}
 	return catalog.CoreEntry{GameID: game, PackageID: pkg, MediaID: id, MediaName: name}, s.err
 }
-func (s *coreMediaAPIService) SetCoreEntryMediaSet(_ context.Context, game, pkg, first string, expectedMore, more []string) (catalog.CoreEntry, error) {
+func (s *coreMediaAPIService) SetCoreEntryMediaSet(_ context.Context, game, pkg, first string, expectedMore []string, more []catalog.SetMedia) (catalog.CoreEntry, error) {
 	s.calls++
-	s.args = append([]string{game, pkg, first, strings.Join(expectedMore, ",")}, more...)
+	s.args = []string{game, pkg, first, strings.Join(expectedMore, ",")}
+	for _, m := range more {
+		s.args = append(s.args, m.MediaID+"="+m.MediaName)
+	}
 	return catalog.CoreEntry{GameID: game, PackageID: pkg, MediaRole: "disk", MediaID: first, MoreMedia: more}, s.err
 }
 func (s *coreMediaAPIService) TargetConnection() fogcast.TargetConnection {
@@ -388,16 +391,21 @@ func TestCoreEntryMediaSetRoute(t *testing.T) {
 		return `{"expected_package_id":"` + pkg + `","expected_media_id":"` + first + `","expected_more_media":` + expected + `,"more_media":` + more + `}`
 	}
 	s := &coreMediaAPIService{}
-	out := mediaRequest(hostapi.New(s), "PUT", path, body(`["`+two+`"]`, `["`+three+`","`+two+`"]`), "application/json")
+	item := func(id, name string) string { return `{"media_id":"` + id + `","media_name":"` + name + `"}` }
+	out := mediaRequest(hostapi.New(s), "PUT", path, body(`["`+two+`"]`, `[`+item(three, "C.ST")+`,`+item(two, "B.ST")+`]`), "application/json")
 	var got catalog.CoreEntry
-	if out.Code != 200 || json.Unmarshal(out.Body.Bytes(), &got) != nil || !reflect.DeepEqual(got.MoreMedia, []string{three, two}) ||
-		!reflect.DeepEqual(s.args, []string{"test-st", pkg, first, two, three, two}) {
+	if out.Code != 200 || json.Unmarshal(out.Body.Bytes(), &got) != nil || !reflect.DeepEqual(got.MoreMedia, []catalog.SetMedia{{MediaID: three, MediaName: "C.ST"}, {MediaID: two, MediaName: "B.ST"}}) ||
+		!reflect.DeepEqual(s.args, []string{"test-st", pkg, first, two, three + "=C.ST", two + "=B.ST"}) {
 		t.Fatalf("status=%d body=%s args=%v", out.Code, out.Body, s.args)
 	}
 	for _, bad := range []string{
-		body(`[]`, `["`+first+`"]`),
-		body(`[]`, `["`+two+`","`+two+`"]`),
-		body(`[]`, `["disk"]`),
+		body(`[]`, `[`+item(first, "A.ST")+`]`),
+		body(`[]`, `[`+item(two, "B.ST")+`,`+item(two, "C.ST")+`]`),
+		body(`[]`, `[`+item("disk", "B.ST")+`]`),
+		body(`[]`, `[`+item(two, "notes.txt")+`]`),
+		body(`[]`, `[`+item(two, "")+`]`),
+		body(`[]`, `["`+two+`"]`),
+		body(`["disk"]`, `[]`),
 		body(`null`, `[]`),
 		body(`[]`, `null`),
 		`{"expected_package_id":"` + pkg + `","expected_media_id":"","expected_more_media":[],"more_media":[]}`,
@@ -421,11 +429,11 @@ func TestLauncherAdmitsCoreEntryMediaSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	pkg, first, two := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
-	body := `{"expected_package_id":"` + pkg + `","expected_media_id":"` + first + `","expected_more_media":[],"more_media":["` + two + `"]}`
+	body := `{"expected_package_id":"` + pkg + `","expected_media_id":"` + first + `","expected_more_media":[],"more_media":[{"media_id":"` + two + `","media_name":"B.ST"}]}`
 	req := launcherRequest(http.MethodPut, "http://192.0.2.1:8789/api/v1/library/core-entries/fpga-st-game/media-set", strings.NewReader(body))
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, req)
-	if response.Code != http.StatusOK || s.calls != 1 || !reflect.DeepEqual(s.args, []string{"fpga-st-game", pkg, first, "", two}) {
+	if response.Code != http.StatusOK || s.calls != 1 || !reflect.DeepEqual(s.args, []string{"fpga-st-game", pkg, first, "", two + "=B.ST"}) {
 		t.Fatalf("set status=%d calls=%d args=%v body=%s", response.Code, s.calls, s.args, response.Body)
 	}
 }

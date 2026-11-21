@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -121,7 +122,7 @@ func TestInsertLibraryDiskTakesAnyDiskOfTheSet(t *testing.T) {
 	if _, err = s.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, "", protocol.DiskRole, base.MediaID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.SetCoreEntryMediaSet(ctx, entry.GameID, entry.PackageID, base.MediaID, nil, []string{second.MediaID}); err != nil {
+	if _, err = s.SetCoreEntryMediaSet(ctx, entry.GameID, entry.PackageID, base.MediaID, nil, []catalog.SetMedia{{MediaID: second.MediaID, MediaName: "SIDE2.ST"}}); err != nil {
 		t.Fatal(err)
 	}
 	response, err := s.Launch(ctx, entry.GameID, nil)
@@ -139,9 +140,10 @@ func TestInsertLibraryDiskTakesAnyDiskOfTheSet(t *testing.T) {
 	if _, err := s.InsertLibraryDisk(ctx, binding(outside.MediaID)); !protocol.LiveMediaNoChange(err) || client.libraryCalls != before {
 		t.Fatalf("a disk outside the set: err=%v calls=%d", err, client.libraryCalls-before)
 	}
-	// Disk 2 reaches the target under its own source identity.
-	client.libraryErr = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "insert rejected", Phase: "input", NoChange: true}
-	if _, err := s.InsertLibraryDisk(ctx, binding(second.MediaID)); !protocol.LiveMediaNoChange(err) || client.libraryCalls == before {
-		t.Fatalf("disk 2 of the set: err=%v calls=%d", err, client.libraryCalls-before)
+	// Disk 2 goes in under the title and its own source image, which is the
+	// key its saved changes are kept under.
+	if _, err := s.InsertLibraryDisk(ctx, binding(second.MediaID)); err != nil || client.libraryCalls != before+1 ||
+		client.libraryBinding.GameID != entry.GameID || client.libraryBinding.BaseMediaID != second.MediaID {
+		t.Fatalf("disk 2 of the set: err=%v calls=%d binding=%+v", err, client.libraryCalls-before, client.libraryBinding)
 	}
 }
