@@ -104,6 +104,9 @@ Each crossing basis quotes its constraint lines from the compiled SDC.
   decision; the gate refuses here until then.
 - **TMC-20011/TMC-20012**: admitted by the Spectrum's existing input and audio
   reviews, which collect on the pc386 topology.
+- **Main merged after p.** Main (`c132fedb5`) brings #2039's pc386_status
+  fix into the machine netlist, so p is the pre-merge netlist; the counts
+  above are re-taken on the producer's fits.
 - **A dry run, not a package.** The record here is the producer's own, with
   stub tool identities. The signoff and repeat fits run once RDC-50003 is
   settled and main is merged.
