@@ -6,10 +6,23 @@ The parent branch is unchanged. [#1867](https://github.com/DeanoC/fes/issues/186
 remains open. Native release diagnostics come from
 [#1952](https://github.com/DeanoC/fes/pull/1952).
 
-Tested host code: `488f02b222dad8c4e951bce4d0066924159e1b54`, base
-`e6e9320cf6f85d13899f4f33e733a507e42d13d7`. Native implementation:
+Host phase-ownership implementation: `488f02b222dad8c4e951bce4d0066924159e1b54`,
+base `e6e9320cf6f85d13899f4f33e733a507e42d13d7`. Native implementation:
 `b700d743c7e0799cf2a78ed2fce710b23a59f5ae`, documentation/source head
-`3f103b19992c43812dfe83801944a5c720fdf217`. Later host commits add evidence only.
+`3f103b19992c43812dfe83801944a5c720fdf217`. The physical candidate-FIT and
+original-FIT restoration transactions below identify host source
+`7119ffa96b153149499f67e797a7ae18fe2413db` in their records.
+
+That physical source is distinct from the assigned PR review head at the start
+of this fix, `c5fbc2bf28139427f16dcfcd249fbea074cec95c`. Commits after `7119`
+added path-component incarnation monitoring in `pinned_files.py`
+(`9bccd8bbb788cbe36f739d4c3560a199ec649d6c`, with the follow-up
+`9d147b41b276f61057b28a9738598b0e647948a8`) and final ownership-audit failure
+handling for restoration receipts (`c5fbc2bf28139427f16dcfcd249fbea074cec95c`).
+The recorded physical transactions do not exercise those later changes and are
+not exact-review-head hardware acceptance. On the assigned head, the focused
+host-only pinned-file and restoration suites pass (5 and 7 tests respectively);
+no new physical run was performed.
 
 ## Host result
 
@@ -87,7 +100,13 @@ the exact two writes, all preservation checks, original JTAG 15 MHz/auto-adjust
 UART/adapter handles. Whole procedure elapsed 773.145 seconds.
 
 TRWU8CBL is parked at its verified recovery prompt with the original
-experimental FIT staged on the spare card and claim `7a124fae52bf7062` held.
+experimental FIT staged on the spare card. The ownership bearer has been
+redacted from this and the other current tracked evidence copies. Earlier Git
+history still contains the superseded value and was not rewritten. `Claim.owns`
+checks the live active status claim, so this record does not establish whether
+the bearer remains valid. It was not checked, rotated or revoked because that
+requires access to the shared kit-status service; treat it as requiring
+authorized revocation until the claim owner verifies its status.
 There is no native full-cycle/Park, physical display/input, normal Kit D25 HIL
 or power-loss durability acceptance. No further board action followed.
 
