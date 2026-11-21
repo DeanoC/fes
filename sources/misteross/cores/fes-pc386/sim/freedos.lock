@@ -1,28 +1,43 @@
 {
-  "release": "FreeDOS 1.4 packages at their FreeDOS-v1.4 tags; the kernel from FDOS/kernel release ke2046",
+  "release": "FreeDOS 1.4 packages at their FreeDOS-v1.4 tags; the kernel and SHARE built from FDOS/kernel release ke2046's source",
   "tag": "FreeDOS-v1.4",
   "packages": {
     "kernel": {
       "release": "https://github.com/FDOS/kernel/releases/tag/ke2046",
-      "version": "2046, 386 FAT12/FAT16 build",
+      "version": "2046, 386 FAT12/FAT16 build with WIN31SUPPORT, built from source with the fes#1777 patch",
       "license": "GPL-2.0 (upstream: v2 or later)",
       "archives": {
-        "ke2046_386f16.zip": {
-          "url": "https://github.com/FDOS/kernel/releases/download/ke2046/ke2046_386f16.zip",
-          "sha256": "1e672ddd67fbd6158e37cf9d2682fbb224f744feaf4d9a382fca228ab81d46aa"
-        },
         "ke2046s.zip": {
           "url": "https://github.com/FDOS/kernel/releases/download/ke2046/ke2046s.zip",
           "sha256": "0ea71c9276aba7e1e371f42e8e17d4e9223ac4bedeacccce3ee700fc2866c5e3"
         }
       },
       "files": {
-        "ke2046_386f16.zip/bin/kernel.sys": "b17aefa1d97636ee09cff3f2e326b38c65447c2dfde0e2a077a95e174aaab686",
         "ke2046s.zip/SOURCE/ke2046/boot/boot.asm": "5ac89704061cc0f27a9cb58706f05be37cc6515a9ea3d465f31850b0c400201c",
         "ke2046s.zip/SOURCE/ke2046/boot/magic.mac": "1bd189937f73fb87c239e54a89db57038f8d3a2cbd6b465b7f21327211ed9b9d",
+        "ke2046s.zip/SOURCE/ke2046/kernel/int2f.asm": "d1b48d46147f32951ee67dcb8a52c2ea6d02fa0a01c590a0a2fec3d7f54ded37",
         "ke2046s.zip/SOURCE/ke2046/COPYING": "2ec21c4f10e9fc6bafbc619cf905424162a0b6443e482d599a6d0d7718e9ae58"
       },
-      "kernel_sys": "ke2046_386f16.zip/bin/kernel.sys",
+      "source_tree": "ke2046s.zip/SOURCE/ke2046",
+      "build": {
+        "toolchain": "openwatcom",
+        "patches": [
+          "cores/fes-pc386/sim/freedos-patches/ke2046-share-is-file-open-si.patch"
+        ],
+        "command": [
+          "make",
+          "all",
+          "COMPILER=owlinux",
+          "XCPU=386",
+          "XFAT=16",
+          "XUPX=",
+          "ALLCFLAGS=-DWIN31SUPPORT",
+          "NASMFLAGS=-DWIN31SUPPORT"
+        ],
+        "output": "bin/kernel.sys",
+        "sha256": "027ad1c2672edc9a14d7af3bbe400bec582986d53093ece2859d5907432cf9ca"
+      },
+      "upstream_issue": "https://github.com/FDOS/kernel/issues/276",
       "boot_asm": "ke2046s.zip/SOURCE/ke2046/boot/boot.asm",
       "license_file": "ke2046s.zip/SOURCE/ke2046/COPYING"
     },
@@ -88,14 +103,91 @@
       }
     },
     "share": {
-      "repository": "https://gitlab.com/FreeDOS/base/share.git",
-      "commit": "4b98bf9aa487d475a699e7e079d862183162e132",
-      "version": "08/2006a",
-      "license": "GPL-2.0",
+      "release": "https://github.com/FDOS/kernel/releases/tag/ke2046",
+      "version": "FDOS/kernel ke2046's share submodule (FDOS/share 47f3d425), with is_file_open (INT 2Fh 10A6h)",
+      "license": "GPL (src/share.c: GNU GPL; COPYING from the kernel source archive)",
+      "archives": {
+        "ke2046s.zip": {
+          "url": "https://github.com/FDOS/kernel/releases/download/ke2046/ke2046s.zip",
+          "sha256": "0ea71c9276aba7e1e371f42e8e17d4e9223ac4bedeacccce3ee700fc2866c5e3"
+        }
+      },
       "files": {
-        "BIN/SHARE.COM": "b51a1af2188d41096e7983b2eef7a7bff8ef9fccffbbb3db93d4e49eb10b6e55",
-        "LICENSE": "53a9484508314d7a1c01d55ccb8bc974b1e390423cfc40a44a7a16f79d2892af"
-      }
+        "ke2046s.zip/SOURCE/ke2046/share/src/share.c": "8c6e36cd361a2971130efdfecb5754ae1feb00510120d273e5fb000a2b195525",
+        "ke2046s.zip/SOURCE/ke2046/COPYING": "2ec21c4f10e9fc6bafbc619cf905424162a0b6443e482d599a6d0d7718e9ae58"
+      },
+      "source_tree": "ke2046s.zip/SOURCE/ke2046/share",
+      "build": {
+        "toolchain": "ia16",
+        "patches": [],
+        "command": [
+          "make",
+          "-C",
+          "src",
+          "UPXARGS=true"
+        ],
+        "environment": {
+          "COMPILER": "gcc",
+          "CC": "ia16-elf-gcc",
+          "CFLAGS": "-mtsr -Wall -fpack-struct -mcmodel=tiny -c -Os -o",
+          "EXTRA_OBJS": "gcc_help.obj tnyprntf.obj kitten.obj",
+          "LD": "ia16-elf-gcc",
+          "LDFLAGS": "-mtsr share.obj ${EXTRA_OBJS} -o share.com -li86 -Wl,-Map=share.map"
+        },
+        "output": "src/share.com",
+        "sha256": "58469cef9be7d921d8a9fef37238f815d2842d2a063cff53f4e76d14fba2ff03"
+      },
+      "upstream_issue": "https://github.com/FDOS/share/issues/27",
+      "license_file": "ke2046s.zip/SOURCE/ke2046/COPYING"
+    }
+  },
+  "toolchains": {
+    "openwatcom": {
+      "version": "Open Watcom v2 2026-07-13 Build",
+      "license": "Sybase Open Watcom Public License 1.0 (license.txt)",
+      "archives": [
+        {
+          "name": "ow-snapshot.tar.xz",
+          "urls": [
+            "https://github.com/open-watcom/open-watcom-v2/releases/download/2026-07-13-Build/ow-snapshot.tar.xz"
+          ],
+          "sha256": "35e9c56ca93234ba0b8b596387815399317ea0548aeac1318f0674dca3921314"
+        }
+      ]
+    },
+    "ia16": {
+      "version": "gcc-ia16-elf 6.3.0-20260612.00, binutils 2.39-20260423.22, newlib 2.4.0-20260316.15, libi86 20260727 (tkchia/build-ia16 noble)",
+      "license": "GPL-3.0 (gcc, binutils); newlib and libi86 BSD-style",
+      "archives": [
+        {
+          "name": "binutils-ia16-elf_2.39-20260423.22-ppa260423231~noble_amd64.deb",
+          "urls": [
+            "https://ppa.launchpadcontent.net/tkchia/build-ia16/ubuntu/pool/main/b/binutils-ia16-elf/binutils-ia16-elf_2.39-20260423.22-ppa260423231~noble_amd64.deb"
+          ],
+          "sha256": "01112d3b45ac9ab04a750488caadb8c4855d99d95c7713c807dc34649c8c7c88"
+        },
+        {
+          "name": "gcc-ia16-elf_6.3.0-20260612.00-ppa260612104~noble_amd64.deb",
+          "urls": [
+            "https://ppa.launchpadcontent.net/tkchia/build-ia16/ubuntu/pool/main/g/gcc-ia16-elf/gcc-ia16-elf_6.3.0-20260612.00-ppa260612104~noble_amd64.deb"
+          ],
+          "sha256": "4a23a16d38366398b9c540745ccc46537d152517f96a324cf69c3d71db67e62d"
+        },
+        {
+          "name": "libi86-ia16-elf_20260727-stage1gcc6.3.0-20260612.00-binutils2.39-20260423.22-ppa260727151~noble_amd64.deb",
+          "urls": [
+            "https://ppa.launchpadcontent.net/tkchia/build-ia16/ubuntu/pool/main/libi/libi86-ia16-elf/libi86-ia16-elf_20260727-stage1gcc6.3.0-20260612.00-binutils2.39-20260423.22-ppa260727151~noble_amd64.deb"
+          ],
+          "sha256": "233605e2175b8a30446f9acc6cef5b610d3c65b8ce091e7495269aa142b0d14c"
+        },
+        {
+          "name": "libnewlib-ia16-elf_2.4.0-20260316.15-stage1gcc6.3.0-20260612.00-binutils2.39-20260423.22-ppa260612104~noble_amd64.deb",
+          "urls": [
+            "https://ppa.launchpadcontent.net/tkchia/build-ia16/ubuntu/pool/main/libn/libnewlib-ia16-elf/libnewlib-ia16-elf_2.4.0-20260316.15-stage1gcc6.3.0-20260612.00-binutils2.39-20260423.22-ppa260612104~noble_amd64.deb"
+          ],
+          "sha256": "b6e88fbd5cd6cb40cebba748e6c39efb41f13b466ba71ebef77412bd2b81b0ba"
+        }
+      ]
     }
   }
 }

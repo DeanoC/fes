@@ -261,7 +261,7 @@ class FreedosImageTest(unittest.TestCase):
             self.assertFalse(any('SHARE' in line for line in self.games_entry(entry)), entry)
         self.assertEqual([line for line in self.games_entry(4) if line != share], self.games_entry(2))
         self.assertIn(share, self.games_entry(4))
-        self.assertEqual(freedos.PROFILES['games']['bin']['SHARE.COM'], ('share', 'BIN/SHARE.COM'))
+        self.assertEqual(freedos.PROFILES['games']['bin']['SHARE.COM'], ('share', 'build-output/share.com'))
 
     def test_lock_pins_each_package_at_the_release_tag(self):
         lock = freedos.lock()
@@ -270,7 +270,7 @@ class FreedosImageTest(unittest.TestCase):
                          {'kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem', 'share'})
         self.assertEqual(set(lock['packages']), {name for spec in freedos.PROFILES.values() for name in spec['packages']})
         for name, spec in lock['packages'].items():
-            if name == 'kernel':
+            if 'build' in spec:
                 continue
             self.assertRegex(spec['commit'], r'^[0-9a-f]{40}$')
             if name == 'jemm':
@@ -281,21 +281,70 @@ class FreedosImageTest(unittest.TestCase):
             self.assertIn('GPL', spec['license'])
             self.assertIn('LICENSE', spec['files'])
 
-    def test_lock_pins_the_kernel_release_build_and_its_source(self):
+    def test_lock_builds_the_kernel_and_share_from_the_release_source(self):
         # Kernel 2046's 386 FAT12/FAT16 build answers WIN386's INT 2Fh 1605h
-        # and 1607h/0015h callouts; FreeDOS 1.4's 2043 does not (#1725).
-        kernel = freedos.lock()['packages']['kernel']
-        self.assertEqual(kernel['release'], 'https://github.com/FDOS/kernel/releases/tag/ke2046')
-        self.assertEqual(set(kernel['archives']), {'ke2046_386f16.zip', 'ke2046s.zip'})
-        for archive, pin in kernel['archives'].items():
-            self.assertEqual(pin['url'], 'https://github.com/FDOS/kernel/releases/download/ke2046/' + archive)
-            self.assertRegex(pin['sha256'], r'^[0-9a-f]{64}$')
-        self.assertIn('GPL', kernel['license'])
-        for role in ('kernel_sys', 'boot_asm', 'license_file'):
-            self.assertIn(kernel[role], kernel['files'])
-        self.assertTrue(kernel['kernel_sys'].startswith('ke2046_386f16.zip/'))
-        for path in kernel['files']:
-            self.assertIn(path.partition('/')[0], kernel['archives'])
+        # and 1607h/0015h callouts; FreeDOS 1.4's 2043 does not (#1725). It is
+        # built from the release's source with fes#1777's patch, and SHARE
+        # from the same archive's share tree, which answers 2F/10A6h.
+        packages = freedos.lock()['packages']
+        toolchains = freedos.lock()['toolchains']
+        for name in ('kernel', 'share'):
+            with self.subTest(name=name):
+                spec = packages[name]
+                self.assertEqual(spec['release'], 'https://github.com/FDOS/kernel/releases/tag/ke2046')
+                self.assertEqual(set(spec['archives']), {'ke2046s.zip'})
+                pin = spec['archives']['ke2046s.zip']
+                self.assertEqual(pin['url'], 'https://github.com/FDOS/kernel/releases/download/ke2046/ke2046s.zip')
+                self.assertRegex(pin['sha256'], r'^[0-9a-f]{64}$')
+                self.assertIn('GPL', spec['license'])
+                self.assertIn(spec['license_file'], spec['files'])
+                self.assertTrue(spec['source_tree'].startswith('ke2046s.zip/SOURCE/ke2046'))
+                for path in spec['files']:
+                    self.assertIn(path.partition('/')[0], spec['archives'])
+                build = spec['build']
+                self.assertIn(build['toolchain'], toolchains)
+                self.assertRegex(build['sha256'], r'^[0-9a-f]{64}$')
+                for patch in build['patches']:
+                    self.assertTrue((freedos.ROOT / patch).is_file())
+                    self.assertIn(spec['upstream_issue'], (freedos.ROOT / patch).read_text())
+                self.assertRegex(spec['upstream_issue'], r'^https://github\.com/FDOS/(kernel|share)/issues/\d+$')
+        self.assertIn('kernel/int2f.asm', (freedos.ROOT / packages['kernel']['build']['patches'][0]).read_text())
+        self.assertIn('boot_asm', packages['kernel'])
+        self.assertIn('XUPX=', packages['kernel']['build']['command'])
+        self.assertIn('UPXARGS=true', packages['share']['build']['command'])
+
+    def test_lock_pins_each_toolchain_archive(self):
+        for name, spec in freedos.lock()['toolchains'].items():
+            with self.subTest(name=name):
+                self.assertTrue(spec['version'])
+                self.assertTrue(spec['license'])
+                for archive in spec['archives']:
+                    self.assertRegex(archive['sha256'], r'^[0-9a-f]{64}$')
+                    self.assertTrue(archive['urls'])
+                    for url in archive['urls']:
+                        self.assertTrue(url.startswith('https://'))
+                        self.assertTrue(url.endswith(archive['name']))
+
+    def test_build_package_keeps_only_the_pinned_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tree = Path(directory) / 'tree'
+            (tree / 'src.zip/SRC').mkdir(parents=True)
+            (tree / 'src.zip/SRC/input.txt').write_text('made')
+            spec = {'source_tree': 'src.zip/SRC',
+                    'build': {'toolchain': 'none', 'patches': [], 'command': ['sh', '-c', 'cp input.txt out.bin'],
+                              'output': 'out.bin', 'sha256': freedos.hashlib.sha256(b'made').hexdigest()}}
+            with mock.patch.object(freedos, 'toolchain_environment', return_value={}), \
+                    mock.patch.object(freedos.test386, 'nasm', return_value=Path('/usr/bin/nasm')), \
+                    mock.patch.object(freedos, 'lock', return_value={'toolchains': {'none': {'version': 'none'}}}):
+                freedos.build_package('test', spec, tree, download=False, jobs=1)
+                self.assertEqual(freedos.built(tree, spec).read_bytes(), b'made')
+                self.assertFalse((tree / 'build-tree').exists())
+                other = Path(directory) / 'other'
+                (other / 'src.zip/SRC').mkdir(parents=True)
+                (other / 'src.zip/SRC/input.txt').write_text('drifted')
+                with self.assertRaises(freedos.ImageError):
+                    freedos.build_package('test', spec, other, download=False, jobs=1)
+                self.assertFalse(freedos.built(other, spec).exists())
 
     def test_release_package_unpacks_only_the_locked_members(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -347,6 +396,10 @@ class FreedosImageTest(unittest.TestCase):
                         continue
                     package_name, package_path = source
                     self.assertIn(package_name, spec['packages'])
+                    if 'build' in lock[package_name]:
+                        self.assertEqual(package_path,
+                                         'build-output/' + Path(lock[package_name]['build']['output']).name)
+                        continue
                     self.assertIn(package_path, lock[package_name]['files'])
 
     def test_games_autoexec_sets_the_mouse_default_handler_after_cutemouse(self):
