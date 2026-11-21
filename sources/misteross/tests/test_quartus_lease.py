@@ -252,46 +252,25 @@ def _is_launch_call(node: ast.AST) -> bool:
 
 def _first_module_launch(tree: ast.Module) -> int | None:
     """The line of the first statement run at import that may start a
-    process: a launch call, or a call into a module function that launches
-    (directly or through another), anywhere outside function bodies,
-    conditional blocks included."""
-    # Module functions wherever they are defined outside another function
-    # (under if/try too).
-    functions, pending = {}, list(tree.body)
-    while pending:
-        node = pending.pop()
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            functions[node.name] = node
-            continue
-        if isinstance(node, ast.Lambda):
-            continue
-        pending.extend(ast.iter_child_nodes(node))
-    launchers: set[str] = set()
-    # name = lambda: ... bound at module level is a function too.
+    process: a launch call, or any call to a name the module binds itself
+    (a function, class, lambda or any assignment, however annotated or
+    nested), which may launch through any indirection. Conditional blocks
+    count; function bodies do not run at import."""
+    local: set[str] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Lambda):
-            if any(_is_launch_call(inner) for inner in ast.walk(node.value)):
-                launchers.update(t.id for t in node.targets if isinstance(t, ast.Name))
-    changed = True
-    while changed:
-        changed = False
-        for name, function in functions.items():
-            if name in launchers:
-                continue
-            for node in ast.walk(function):
-                if _is_launch_call(node) or (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                                             and node.func.id in launchers):
-                    launchers.add(name)
-                    changed = True
-                    break
-    first = None
-    pending = list(tree.body)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            local.add(node.name)
+        elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                local.update(n.id for n in ast.walk(target) if isinstance(n, ast.Name))
+    first, pending = None, list(tree.body)
     while pending:
         node = pending.pop()
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             continue
         if _is_launch_call(node) or (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                                     and node.func.id in launchers):
+                                     and node.func.id in local):
             first = node.lineno if first is None else min(first, node.lineno)
         pending.extend(ast.iter_child_nodes(node))
     return first
@@ -529,6 +508,11 @@ class StaticRuleTests(unittest.TestCase):
         # Codex P1 at 00058c57d: through a module function called first.
         failures = self.scan({"sources/misteross/scripts/late2.py":
                               "import subprocess\ndef launch():\n    subprocess.run(['quartus_fit', 'top'])\n"
+                              "launch()\nfrom scripts import quartus_tools\n"})
+        self.assertEqual(len(failures), 1)
+        # Codex P1 at 71686c161: an annotated lambda binding.
+        failures = self.scan({"sources/misteross/scripts/late5.py":
+                              "import subprocess\nlaunch: object = lambda: subprocess.run(['quartus_fit', 'top'])\n"
                               "launch()\nfrom scripts import quartus_tools\n"})
         self.assertEqual(len(failures), 1)
         # Codex P1s at 4b6eaaa2a: a lambda launcher, and a byte-string name.
