@@ -64,6 +64,37 @@ vendor archives, prepared hardware projects, or optional tool pins.
 
 ## pc386 producer, multithreaded cleanup regression, and timing
 
-Pending full producer and explicit multithreaded `OPT_CLEAN` replay. Results
-will be appended after the build completes. No DE10 kit or HIL was used;
-`fes.pc386` still requires DE10 kit HIL.
+The full producer completed on source revision
+`cbf76585481475df656f6398f6a5edad569796ce` with the new pin. It first ran a
+fresh full i386 lockstep (all counts above passed), then elaborated the full
+machine and ran Quartus Prime Lite 17.0.2. The producer used the authenticated
+HIP toolchain slot; its CLI states that this Quartus producer uses no GPU
+routing. Quartus finished with zero errors. Its fitter reported an Auto Fit
+compilation and skipped optimizations to reduce compilation time; this is the
+recorded Quartus run and passed the existing timing gate.
+
+- New package `BUILD_ID`: `62305375764cda287bef28b9ef7f08e4`.
+- New `core.rbf` SHA-256:
+  `9beed9343c236be97b5abc92d5155e028a50060f8df12b82551e5d9d243c0e27`.
+- Old-pin `BUILD_ID`, calculated from the same source revision with the
+  previous Yosys locks and authenticated old Yosys tool identity:
+  `62305375764cda287bef28b9ef7f08e4`. This is a design identity; the schema
+  records toolchain identity separately. The old-pin Quartus package was not
+  rebuilt.
+- TimeQuest worst setup / hold slack: slow 100°C `+0.350 / +0.264 ns`, slow
+  −40°C `+0.146 / +0.187 ns`; fast 100°C `+7.494 / +0.151 ns`, fast −40°C
+  `+8.196 / +0.109 ns`. The producer's checked summary reports overall
+  worst-case setup `+0.146 ns`, hold `+0.109 ns`, and `status: pass`.
+- Quartus elapsed time: 19m40s (the producer captured exit 0).
+
+The exact `build/fes-pc386-quartus/machine.ys` script was replayed three times
+with `YOSYS_MAX_THREADS=4`, using the authenticated d273c1cb Yosys executable.
+All three exited 0, ended normally without an assertion/crash, and produced
+the same Yosys logfile hash `1a24cfb0ba`; elapsed times were 66.46s, 50.64s,
+and 49.36s. This script includes both `opt -purge` passes around `memory_map`,
+the #77 crash path. Compact replay evidence and log SHA-256 values are in
+`reports/mt-opt-clean.txt`; the full 22 MiB logs remain in the ignored build
+directory `build/validation/yosys81-mt-opt-clean/`.
+
+The full misteross suite completed: 2,828 tests, 88 skipped, zero failures.
+No DE10 kit or HIL was used; `fes.pc386` still requires DE10 kit HIL.
