@@ -1,7 +1,8 @@
 # i386 and pc386 Yosys #81 lock bump
 
-Date: 2026-11-22  
-Candidate Yosys: `d273c1cb774f70d58c890745ac1b7dd106d32a26`  
+Date: 2026-11-22
+
+Candidate Yosys: `d273c1cb774f70d58c890745ac1b7dd106d32a26`
 Previous Yosys: `e240a4653bb6578e0b267f730128f8a5dac28483`
 
 This record compares functional behavior; generated netlist bytes and names
