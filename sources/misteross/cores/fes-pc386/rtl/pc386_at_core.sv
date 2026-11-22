@@ -20,7 +20,8 @@ module pc386_at_core #(
     parameter integer RTC_N = 256, RTC_D = 781250,     // 32,768 Hz
     parameter integer US_N = 1, US_D = 100,            // 1 MHz: PS/2 pacing
     parameter integer DMA_N = 1, DMA_D = 24,           // 4.17 MHz DMA clock
-    parameter integer ATA_RESET_CLOCKS = 1000
+    parameter integer ATA_RESET_CLOCKS = 1000,
+    parameter integer DMA2_REGISTERS_ONLY = 0          // pc386_system's
 ) (
     input wire clk, reset,
     // CPU I/O and interrupt acknowledge
@@ -296,6 +297,15 @@ module pc386_at_core #(
         .cycle_channel(dma1_channel), .cycle_write(dma1_write), .cycle_tc(dma1_tc),
         .cycle_rdata(dma1_rdata), .cycle_fault(2'b00), .fault(), .refresh_done()
     );
+    if (DMA2_REGISTERS_ONLY != 0) begin : dma2_registers
+        pc386_dma2_registers dma2 (
+            .clk(clk), .reset(reset),
+            .reg_read(access && !cycle_write && select_dma2), .reg_write(access && cycle_write && select_dma2),
+            .reg_address(port[4:1]), .reg_wdata(cycle_wdata[7:0]), .reg_rdata(dma2_data)
+        );
+        assign dma2_hold = 1'b0;
+        assign dma2_valid = 1'b0;
+    end else begin : dma2_controller
     fes_dma8237 #(.ADDRESS_BITS(24), .AT_PAGES(1), .REFRESH(0), .WORD_ADDRESS(1)) dma2 (
         .clk(clk), .reset(reset), .guest_ce(dma_tick),
         .reg_read(access && !cycle_write && select_dma2), .reg_write(access && cycle_write && select_dma2),
@@ -308,6 +318,7 @@ module pc386_at_core #(
         .cycle_address(), .cycle_wdata(), .cycle_kind(), .cycle_channel(), .cycle_write(), .cycle_tc(),
         .cycle_rdata(8'hff), .cycle_fault(2'b00), .fault(), .refresh_done()
     );
+    end
     /* verilator lint_on PINCONNECTEMPTY */
 
     // Controller 1's memory cycles go to the CPU's DMA port, its device cycles
@@ -449,4 +460,63 @@ module pc386_at_core #(
         end
     end
     wire unused = ^{dma1_hold, dma2_hold, dma2_valid, cycle_word};
+endmodule
+
+// DMA controller 2's register file without its transfer engine, for a board
+// that has to save the area (pc386_system DMA2_REGISTERS_ONLY). Nothing in the
+// machine raises a controller-2 DREQ, so with no software request it reads
+// back exactly as fes_dma8237 does: addresses and counts through the byte
+// flip-flop, the status register's request bits, 0 from the temporary
+// register and FFh elsewhere. It never runs a cycle, so a software request
+// (channels 4-7), or command bit 6 inverting the DREQ sense, starts nothing:
+// the current address and count do not move, no TC bit is set, and the
+// request bit is not cleared by a terminal count. Writes to the mode, mask
+// and page registers are accepted and have no effect on any read.
+module pc386_dma2_registers (
+    input wire clk, reset,
+    input wire reg_read, reg_write,
+    input wire [3:0] reg_address,
+    input wire [7:0] reg_wdata,
+    output reg [7:0] reg_rdata
+);
+    reg [15:0] address [0:3], count [0:3];
+    reg [3:0] software_request;
+    reg dreq_low, byte_high;
+    integer n;
+    always @* begin
+        reg_rdata = 8'hff;
+        if (!reg_address[3]) begin
+            if (reg_address[0])
+                reg_rdata = byte_high ? count[reg_address[2:1]][15:8] : count[reg_address[2:1]][7:0];
+            else
+                reg_rdata = byte_high ? address[reg_address[2:1]][15:8] : address[reg_address[2:1]][7:0];
+        end else if (reg_address == 8) reg_rdata = {software_request | {4{dreq_low}}, 4'b0000};
+        else if (reg_address == 13) reg_rdata = 0;
+    end
+    always @(posedge clk) begin
+        if (reset) begin
+            software_request <= 0; dreq_low <= 0; byte_high <= 0;
+            for (n = 0; n < 4; n = n + 1) begin address[n] <= 0; count[n] <= 0; end
+        end else begin
+            if (reg_read && !reg_address[3]) byte_high <= !byte_high;
+            if (reg_write) begin
+                if (!reg_address[3]) begin
+                    if (reg_address[0]) begin
+                        if (byte_high) count[reg_address[2:1]][15:8] <= reg_wdata;
+                        else count[reg_address[2:1]][7:0] <= reg_wdata;
+                    end else begin
+                        if (byte_high) address[reg_address[2:1]][15:8] <= reg_wdata;
+                        else address[reg_address[2:1]][7:0] <= reg_wdata;
+                    end
+                    byte_high <= !byte_high;
+                end else case (reg_address)
+                    8: dreq_low <= reg_wdata[6];
+                    9: software_request[reg_wdata[1:0]] <= reg_wdata[2];
+                    12: byte_high <= 0;
+                    13: begin dreq_low <= 0; software_request <= 0; byte_high <= 0; end
+                    default: begin end
+                endcase
+            end
+        end
+    end
 endmodule

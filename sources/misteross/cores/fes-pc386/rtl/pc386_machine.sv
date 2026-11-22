@@ -23,7 +23,8 @@ module pc386_machine #(
     parameter integer DMA_N = 1, DMA_D = 24,
     parameter integer DOT0_N = 1007, DOT0_D = 4000,
     parameter integer DOT1_N = 14161, DOT1_D = 50000,
-    parameter integer ATA_RESET_CLOCKS = 1000
+    parameter integer ATA_RESET_CLOCKS = 1000,
+    parameter integer DMA2_REGISTERS_ONLY = 0  // pc386_system's
 ) (
     input wire clk, reset, port2_reset,
     input wire pixel_clk, pixel_locked,
@@ -190,7 +191,8 @@ module pc386_machine #(
     wire [63:0] fdc_writedata;
     pc386_at_core #(
         .ISA_N(ISA_N), .ISA_D(ISA_D), .PIT_N(PIT_N), .PIT_D(PIT_D), .RTC_N(RTC_N), .RTC_D(RTC_D),
-        .US_N(US_N), .US_D(US_D), .DMA_N(DMA_N), .DMA_D(DMA_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS)
+        .US_N(US_N), .US_D(US_D), .DMA_N(DMA_N), .DMA_D(DMA_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS),
+        .DMA2_REGISTERS_ONLY(DMA2_REGISTERS_ONLY)
     ) at (
         .clk(clk), .reset(reset),
         .io_valid(io_valid), .io_write(io_write), .io_port(io_port), .io_size(io_size), .io_wdata(io_wdata),
