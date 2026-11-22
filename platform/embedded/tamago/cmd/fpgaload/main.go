@@ -37,6 +37,7 @@ var expectedCompiledMenuProgram, expectedCompiledSpectrum48, expectedSharedCoreS
 var expectedTenfootSerial string
 var expectedWritableStoragePlan, expectedSDTransferClock string
 var programWritableStorageSelected bool
+var programService *nativefabric.ProgramService
 var retained *nativefabric.ConfigurationTransfer
 
 func decoded(s string, limit int) []byte {
@@ -77,7 +78,8 @@ func main() {
 			panic("menu presentation requires its complete separate compiled boot selection")
 		}
 	}
-	if (expectedTenfootSerial != "") != tenfootSerialLinked || expectedTenfootSerial != "" && (expectedTenfootSerial != "1" || expectedSelectedPrograms != "1") {
+	if (expectedTenfootSerial != "") != tenfootSerialLinked || expectedTenfootSerial != "" && (expectedTenfootSerial != "1" || expectedSelectedPrograms != "1") ||
+		expectedSelectedPrograms != "" && expectedTenfootSerial != "1" {
 		panic("serial Tenfoot requires selected native programs")
 	}
 	if runtime.GOOS != "tamago" || board.ExceptionLevel() != 1 || board.CounterFrequency() != 400000000 {
@@ -197,8 +199,7 @@ func main() {
 		return
 	}
 	if loader != nil {
-		servePrograms(loader, store, volume)
-		return
+		panic("selected programs require serial Tenfoot")
 	}
 	request := packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID}
 	de25nano.StartupCheckpoint("retain_begin")

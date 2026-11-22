@@ -44,7 +44,7 @@ assert not missing, 'owned firmware omitted from boot identity: '+str(sorted(mis
 
     def setUp(self):
         self.descriptor = json.loads(GOLDEN.read_bytes())
-        self.record = {'program': 'bootcontext', 'hps_project': 'sealed-project',
+        self.record = {'program': 'hpsio', 'hps_project': 'sealed-project',
                        'hps_context': self.descriptor,
                        'hps_context_sha256': context.digest(self.descriptor)}
 
@@ -112,11 +112,11 @@ assert not missing, 'owned firmware omitted from boot identity: '+str(sorted(mis
             for key in ('hps_configuration','hps_configuration_sha256'):
                 missing=dict(record);missing.pop(key)
                 with self.subTest(key=key),self.assertRaises(ValueError):context.checked_configuration(missing)
-            for changed in (dict(record,program='fpgastatus'),
+            for changed in (dict(record,program='hpsio'),
                             dict(record,hps_configuration_sha256='0'*64),
                             dict(record,hps_configuration=dict(mapping,base=0x94000000))):
                 with self.assertRaises(ValueError):context.checked_configuration(changed)
-        self.assertIsNone(context.checked_configuration({'program':'fpgastatus'}))
+        self.assertIsNone(context.checked_configuration({'program':'hpsio'}))
         with self.assertRaises(ValueError):context.checked_configuration({'program':'fpgaload'})
         memory=json.loads((ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-reader-memory.json').read_bytes())
         record.update(hps_reader_memory=memory,hps_reader_memory_sha256=context.digest(memory))
@@ -127,13 +127,13 @@ assert not missing, 'owned firmware omitted from boot identity: '+str(sorted(mis
             for key in ('hps_reader_memory','hps_reader_memory_sha256'):
                 changed=dict(record);changed.pop(key)
                 with self.subTest(key=key),self.assertRaises(ValueError):context.checked_reader_memory(changed)
-            for changed in (dict(record,program='bootcontext'),dict(record,hps_reader_memory_sha256='f'*64),
+            for changed in (dict(record,program='hpsio'),dict(record,hps_reader_memory_sha256='f'*64),
                             dict(record,hps_reader_memory=dict(memory,bus_base=0x15000000))):
                 with self.subTest(changed=changed),self.assertRaises(ValueError):context.checked_reader_memory(changed)
         with patch.object(context,'checked_configuration',return_value=mapping),patch.object(context,'reader_memory',return_value=None):
             self.assertIsNone(context.checked_reader_memory(dict(self.record,program='fpgaload')))
             with self.assertRaises(ValueError):context.checked_reader_memory(record)
-        self.assertIsNone(context.checked_reader_memory({'program':'fpgastatus'}))
+        self.assertIsNone(context.checked_reader_memory({'program':'hpsio'}))
         ddr=dict(self.descriptor,programming_profile='de25-embedded-hps-first-ddr-diagnostic-v1',control_abi=0x10203041,
                  package_id=memory['package_id'],build_id=memory['build_id'])
         header_profile={'sd_pio':True,'chain_sha256':'a'*64,'owner_seed':1,'entry_image_sha256':'b'*64,'entry_image_size':128,
@@ -226,7 +226,7 @@ assert not missing, 'owned firmware omitted from boot identity: '+str(sorted(mis
         record={'program':'fpgaload','hps_project':'sealed','hps_ddr_read':active,'hps_ddr_read_sha256':context.digest(active)}
         with patch.object(context,'checked_reader_memory',return_value={'pinned':True}),patch.object(context,'ddr_read',return_value=active):
             self.assertEqual(context.checked_ddr_read(record),active)
-            for changed in (dict(record,program='fpgastatus'),dict(record,hps_ddr_read=None),
+            for changed in (dict(record,program='hpsio'),dict(record,hps_ddr_read=None),
                             dict(record,hps_ddr_read_sha256='f'*64),dict(record,hps_ddr_read={'format':2})):
                 with self.assertRaises(ValueError):context.checked_ddr_read(changed)
         self.assertIsNone(context.checked_ddr_read({'program':'fpgaload'}))
@@ -294,14 +294,14 @@ assert not missing, 'owned firmware omitted from boot identity: '+str(sorted(mis
                 with self.assertRaises(ValueError):
                     context.checked(self.record)
 
-    def test_partial_or_omitted_context_cannot_claim_bootcontext(self):
+    def test_partial_or_omitted_context_cannot_claim_context_program(self):
         for key in ('hps_context', 'hps_context_sha256', 'hps_project'):
             partial = dict(self.record)
             del partial[key]
             with self.subTest(key=key), self.assertRaises(ValueError):
                 context.checked(partial)
         with self.assertRaises(ValueError):
-            context.checked({'program': 'bootcontext'})
+            context.checked({'program': 'hpsio'})
         with patch.object(context, 'derive', side_effect=AssertionError('unexpected project access')):
             self.assertIsNone(context.checked({'program': 'probe'}))
 
@@ -317,7 +317,7 @@ assert not missing, 'owned firmware omitted from boot identity: '+str(sorted(mis
             project = Path(temp)/'retired-window-project'
             project.mkdir()
             output = Path(temp)/'not-created'
-            for program in ('bootcontext', 'hpsio', 'usbcheck', 'fpgacontext', 'fpgastatus', 'fpgaload'):
+            for program in ('hpsio', 'usbcheck', 'fpgaload'):
                 profile = NANO/('sd-profile.json' if program == 'fpgaload' else 'probe-profile.json')
                 args = SimpleNamespace(program=program, board='de25-nano', profile=profile,
                                        hps_first_project=project, output=output,
@@ -346,12 +346,13 @@ assert not missing, 'owned firmware omitted from boot identity: '+str(sorted(mis
             output = Path(temp)/'not-created'
             common = [sys.executable, str(ROOT/'platform/embedded/tamago/run.py'),
                       '--compiler', '/bin/false', '--output', str(output)]
-            for args in (['bootcontext'], ['fpgacontext'], ['fpgastatus'],
+            for args in (['hpsio'], ['fpgaload'],
                          ['tenfoot','--board','de25-nano','--profile',str(NANO/'smmu-profile.json')],
-                         ['bootcontext', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],
-                         ['fpgacontext', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],
-                         ['fpgastatus', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],
-                         ['fpgacontext', '--board', 'de25-nano', '--profile', str(NANO/'sd-profile.json'),
+                         ['hpsio', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],
+                         ['fpgaload', '--board', 'de25-nano', '--profile', str(NANO/'sd-profile.json')],
+                         ['fpgaload', '--board', 'de25-nano', '--profile', str(NANO/'sd-profile.json'),
+                          '--computer-control', '--computer-reload', '--computer-storage-return', '--selected-programs'],
+                         ['hpsio', '--board', 'de25-nano', '--profile', str(NANO/'sd-profile.json'),
                           '--hps-first-project', 'absent'],
                          ['probe', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json'),
                           '--hps-first-project', 'absent']):
@@ -450,16 +451,15 @@ assert callable(prepare_nano_owned.function)
 
     def test_control_map_cannot_be_added_omitted_or_changed_outside_dedicated_image(self):
         mapping=json.loads((ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-control.json').read_bytes())
-        record=dict(self.record,program='fpgacontext',hps_control=mapping,hps_control_sha256=context.digest(mapping))
+        record=dict(self.record,program='fpgaload',hps_control=mapping,hps_control_sha256=context.digest(mapping))
         with patch.object(context,'derive',return_value=self.descriptor),patch.object(context,'control',return_value=mapping):
             self.assertEqual(context.checked_control(record),mapping)
-            self.assertEqual(context.checked_control(dict(record,program='fpgastatus')),mapping)
-            for changed in (dict(record,program='bootcontext'),dict(record,hps_control=None),
+            for changed in (dict(record,program='hpsio'),dict(record,hps_control=None),
                             dict(record,hps_control_sha256='f'*64),
                             dict(record,hps_control=dict(mapping,cpu_base=0xff210400))):
                 with self.subTest(changed=changed),self.assertRaises(ValueError):context.checked_control(changed)
-            with self.assertRaises(ValueError):context.checked_control(dict(self.record,program='fpgacontext'))
-            with self.assertRaises(ValueError):context.checked({'program':'fpgacontext'})
+            with self.assertRaises(ValueError):context.checked_control(dict(self.record,program='fpgaload'))
+            with self.assertRaises(ValueError):context.checked({'program':'fpgaload'})
             self.assertIsNone(context.checked_control(self.record))
         header=cold.header({'boot_fit': dict(cold.fit_layout.CONTRACT), **({'sd_pio':False,'chain_sha256':'a'*64,'owner_seed':1,
                             'entry_image_sha256':'b'*64,'entry_image_size':128,

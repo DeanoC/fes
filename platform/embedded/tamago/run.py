@@ -60,7 +60,7 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "mapcheck", "fabric", "packages", "admission", "play", "tenfoot", "storage", "sdwrite", "sdfile", "keyboard", "network", "programfetch", "display", "fpga", "sdpackages", "bootcontext", "hpsio", "usbcheck", "fpgacontext", "fpgastatus", "fpgaload"))
+    parser.add_argument("program", choices=("probe", "mapcheck", "fabric", "packages", "admission", "play", "tenfoot", "storage", "sdwrite", "sdfile", "keyboard", "network", "programfetch", "display", "fpga", "sdpackages", "hpsio", "usbcheck", "fpgaload"))
     parser.add_argument("--export-root",type=Path,help="private Nano export root containing FES/CORESEL.JSN and FES/UI.JSON (programfetch only)")
     parser.add_argument("--program-id",help="catalogue ID from the selected export (programfetch only)")
     parser.add_argument("--compiler", required=True, type=Path)
@@ -89,7 +89,7 @@ def main():
     parser.add_argument("--computer-control", action="store_true", help="opt in to the owned control-only ZX81 command diagnostic (Nano fpgaload only)")
     parser.add_argument("--computer-reload", action="store_true", help="run two fixed-package load/Run/return cycles; requires --computer-control")
     parser.add_argument("--computer-storage-return", action="store_true", help="enable owned SD return and fresh retention between computer sessions")
-    parser.add_argument("--selected-programs", action="store_true", help="serve repeated selected-program requests over the bounded Nano serial interface (requires computer control/rearm/storage return)")
+    parser.add_argument("--selected-programs", action="store_true", help="enable repeated selected-program execution for native Tenfoot (requires computer control, rearming, storage return and --tenfoot-serial)")
     parser.add_argument("--firmware-rom", type=Path, help="separate exact firmware image for the sealed Nano held-ROM profile")
     parser.add_argument("--rom-host-go", type=Path, help="host Go compiler for the shared retained ROM linker; required with --firmware-rom")
     parser.add_argument("--initial-tape", action="store_true", help="select the matched secure initial-tape service; requires native computer ROM, shared USB and selected Tenfoot")
@@ -135,7 +135,7 @@ def main():
         parser.error('SD write diagnostics require --board de25-nano')
     if args.menu_project is not None or args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.menu_present or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial or args.retain_configuration or args.initial_tape:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")
-    if args.program in ("fpga", "sdpackages", "bootcontext", "hpsio", "usbcheck", "fpgacontext", "fpgastatus", "fpgaload"):
+    if args.program in ("fpga", "sdpackages", "hpsio", "usbcheck", "fpgaload"):
         parser.error("this diagnostic requires the Nano firmware service; QEMU does not emulate it")
     if args.qemu is None:
         parser.error("--board qemu requires --qemu")
