@@ -73,6 +73,31 @@ def sha(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+COMPILE_PLACE = 'compile'
+
+
+def compile_pass(output, name, run):
+    """Run one compile pass at the attempt's single compile path, then keep it as `name`.
+
+    Quartus 26.3 Pro's fitter result depends on the project's absolute path: one
+    tree fits identically twice at one path and differently at another. So every
+    pass (signoff, then the independent repeat) is prepared and compiled from
+    scratch at output/compile and only then moved aside. The repeat then proves
+    the bytes follow from the recorded inputs at that path. `run(place)` returns
+    a tuple whose Path members under `place` are rebased onto the kept tree."""
+    place, kept = Path(output) / COMPILE_PLACE, Path(output) / name
+    if place.exists() or place.is_symlink() or kept.exists() or kept.is_symlink():
+        raise BuildError('compile pass path already exists: ' + str(place if place.exists() else kept))
+    result = run(place)
+    place.rename(kept)
+
+    def rebase(item):
+        if isinstance(item, Path) and item.is_relative_to(place):
+            return kept / item.relative_to(place)
+        return item
+    return tuple(rebase(item) for item in result)
+
+
 def scanout(root):
     path = Path(root) / 'boards/de25nano/scanout/build.py'
     spec = importlib.util.spec_from_file_location('de25_menu_scanout', path)
@@ -432,25 +457,22 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
         (output / 'execution.json').write_text(json.dumps(execution, sort_keys=True, indent=2) + '\n')
         print('DE25 MENU build: ' + str(output), flush=True)
         with controlled_environment(env):
-            selected, combined, hps, display = builder.prepare(vendor_archive, output / 'signoff', revision,
-                hps_first=True, linux_dma=True, package_build_id=selected_id)
             version = identities['quartus'].split(' sha256:')[0]
-            builder.generate(selected, combined, hps, display, paths['quartus'], version)
-            builder.compile_project(selected, hps, display, paths['quartus'])
-            review = async_inputs.collect(selected, paths['quartus'].with_name('quartus_sta'),
-                                          vendor_archive=vendor_archive)
-            timing = timing_evidence(selected, async_review=review)
+
+            def compile_at(place):
+                prepared, combined, hps, display = builder.prepare(vendor_archive, place, revision,
+                    hps_first=True, linux_dma=True, package_build_id=selected_id)
+                builder.generate(prepared, combined, hps, display, paths['quartus'], version)
+                builder.compile_project(prepared, hps, display, paths['quartus'])
+                review = async_inputs.collect(prepared, paths['quartus'].with_name('quartus_sta'),
+                                              vendor_archive=vendor_archive)
+                return prepared, timing_evidence(prepared, async_review=review)
+            selected, timing = compile_pass(output, 'signoff', compile_at)
             (output / 'timing.json').write_text(json.dumps(timing, sort_keys=True, indent=2) + '\n')
             if not compile_only:
                 if not timing['package_timing_admission']:
                     raise BuildError('DE25 MENU package blocked by reported timing/signoff findings; candidate retained')
-                repeated, c2, h2, d2 = builder.prepare(vendor_archive, output / 'repeat', revision,
-                    hps_first=True, linux_dma=True, package_build_id=selected_id)
-                builder.generate(repeated, c2, h2, d2, paths['quartus'], version)
-                builder.compile_project(repeated, h2, d2, paths['quartus'])
-                repeat_review = async_inputs.collect(repeated, paths['quartus'].with_name('quartus_sta'),
-                                                     vendor_archive=vendor_archive)
-                repeat_timing = timing_evidence(repeated, async_review=repeat_review)
+                repeated, repeat_timing = compile_pass(output, 'repeat', compile_at)
                 (output / 'repeat-timing.json').write_text(json.dumps(repeat_timing, sort_keys=True, indent=2) + '\n')
                 if not repeat_timing['package_timing_admission'] or sha(selected / 'combined/hps/linux-boot.core.rbf') != sha(repeated / 'combined/hps/linux-boot.core.rbf'):
                     raise BuildError('DE25 MENU independent rebuild failed timing or changed RBF')

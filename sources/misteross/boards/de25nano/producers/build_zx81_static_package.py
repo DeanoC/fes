@@ -171,8 +171,11 @@ def build_static(root, *, quartus_root, vendor_archive, output, package_output,
         execution = standard.execution_inputs(paths, env)
         record = None
         def compile_at(name):
+            return standard.common.compile_pass(output, name, lambda place: compile_in(place, name))
+
+        def compile_in(place, name):
             nonlocal record
-            project = compiler.prepare(output / name, placement, routing, Path(vendor_archive))
+            project = compiler.prepare(place, placement, routing, Path(vendor_archive))
             inputs = json.loads((project / 'inputs.json').read_bytes())
             if inputs['source_sha256'] != {n: compiler.sha(d) for n, d in frozen['files'].items()}:
                 raise BuildError('static ZX81 captured source changed before preparation')

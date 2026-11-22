@@ -188,8 +188,11 @@ class Machine:
             print(self.label + ' build: ' + str(output), flush=True)
             with common.controlled_environment(env):
                 def compile_at(name):
+                    return common.compile_pass(output, name, lambda place: compile_in(place, name))
+
+                def compile_in(place, name):
                     selected, scanout, combined, hps, display = board.prepare(
-                        spec, vendor_archive, output / name, revision, model, package_build_id=selected_id)
+                        spec, vendor_archive, place, revision, model, package_build_id=selected_id)
                     board.generate(spec, selected, scanout, combined, hps, display,
                         paths['quartus'], identities['quartus'].split(' sha256:')[0])
                     board.compile_board(spec, selected, scanout, hps, display, paths['quartus'])
