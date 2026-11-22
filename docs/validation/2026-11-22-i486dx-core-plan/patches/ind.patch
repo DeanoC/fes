@@ -1,0 +1,13 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+index 10b75c65d..645bdc104 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+@@ -4350,7 +4350,7 @@ module fes_i386_cpu #(
+             btb_wr.valid <= 1'b1;
+             btb_wr.ways <= 2'b11;
+             btb_wr.index <= frp_n[1] ? frp_prev[11:4] : frp_lin[11:4];
+-        end else if (wb_commit && (wb_s.dbr && (wb_s.taken || wb_s.bm) || wb_s.nret || wb_s.nind) && pred_on && !reset) begin
++        end else if (wb_commit && (wb_s.dbr && (wb_s.taken || wb_s.bm) || wb_s.nret) && pred_on && !reset  /* ABLATION ind */) begin
+             btb_wr.valid <= 1'b1;
+             btb_wr.ways <= (wb_s.bm ? wb_s.bway : btb_rr) ? 2'b10 : 2'b01;
+             btb_wr.index <= wb_blast[11:4];
