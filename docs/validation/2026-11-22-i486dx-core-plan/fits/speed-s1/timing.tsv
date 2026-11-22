@@ -1,0 +1,33 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	2.425	_33489_[153]~DUPLICATE	_33493_[170]
+Slow fix4 100C Model	0	hold	analyzed	1	0.129	_33334_[327]	_33487_[572]
+Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+Slow fix4 100C Model	0	clk_clock_setup	analyzed	1	2.425	_33489_[153]~DUPLICATE	_33493_[170]
+Slow fix4 100C Model	0	clk_clock_hold	analyzed	1	0.129	_33334_[327]	_33487_[572]
+Slow fix4 100C Model	0	internal_setup	analyzed	1	2.425	_33489_[153]~DUPLICATE	_33493_[170]
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	7.609		
+Slow fix4 0C Model	0	setup	analyzed	1	0.542	_33489_[153]~DUPLICATE	_33493_[170]
+Slow fix4 0C Model	0	hold	analyzed	1	0.149	x87_core_req_b[0]~8_ERTM	_33461_[76]~ERTM
+Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+Slow fix4 0C Model	0	clk_clock_setup	analyzed	1	0.542	_33489_[153]~DUPLICATE	_33493_[170]
+Slow fix4 0C Model	0	clk_clock_hold	analyzed	1	0.149	x87_core_req_b[0]~8_ERTM	_33461_[76]~ERTM
+Slow fix4 0C Model	0	internal_setup	analyzed	1	0.542	_33489_[153]~DUPLICATE	_33493_[170]
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.597		
+Slow fix4a 0C Model	0	setup	analyzed	1	0.547	_33489_[153]~DUPLICATE	_33493_[170]
+Slow fix4a 0C Model	0	hold	analyzed	1	0.150	x87_core_req_b[0]~8_ERTM	_33461_[76]~ERTM
+Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+Slow fix4a 0C Model	0	clk_clock_setup	analyzed	1	0.547	_33489_[153]~DUPLICATE	_33493_[170]
+Slow fix4a 0C Model	0	clk_clock_hold	analyzed	1	0.150	x87_core_req_b[0]~8_ERTM	_33461_[76]~ERTM
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	0.547	_33489_[153]~DUPLICATE	_33493_[170]
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	7.596		
+Fast fix4 0C Model	0	setup	analyzed	1	7.743	_33489_[153]~DUPLICATE	_33493_[170]
+Fast fix4 0C Model	0	hold	analyzed	1	0.051	x87_ra_idx[0]	x87_ra_live[0]
+Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+Fast fix4 0C Model	0	clk_clock_setup	analyzed	1	7.743	_33489_[153]~DUPLICATE	_33493_[170]
+Fast fix4 0C Model	0	clk_clock_hold	analyzed	1	0.051	x87_ra_idx[0]	x87_ra_live[0]
+Fast fix4 0C Model	0	internal_setup	analyzed	1	7.743	_33489_[153]~DUPLICATE	_33493_[170]
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.735		

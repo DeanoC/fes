@@ -121,3 +121,16 @@ which overstates the loss, since part of that time is I/O and VGA.
 - **Workspace:** `/data/projects/i486dx-plan`, outside `/tmp`. The fit outputs, profiles and lockstep reports stay there. The record copies each fit's `fit.json`, `timing.json` and `inputs.json`, each profile window's JSON, and each lockstep report's summary.
 - **Guards:** jobs refuse to start under 30 GiB free, and they write a heartbeat. Each fit's cap is the script's 90 minutes.
 - **No GPU** is used: Quartus places and routes on the CPU. No kit is touched.
+
+## Amendments
+
+1. **22–23 November 2026. Two fits re-run; nothing in a band, window or rule changed.**
+   - **What failed.** The `pg` and `speed` fits stopped before elaboration. Their error was "install is not ready". The pc386 lock's Yosys install (`64386b95…`) and then its Mistral install had been pruned from the shared toolchain cache while the lanes ran.
+   - **What was seen first.** By then the fits `386`, `dx` (seeds 1 to 3), `pred`, `ras`, `ind`, `stld`, `ealu` and `lfwd` had finished.
+   - **The repair.** `make toolchain-fes-pc386` re-provisioned the same locked commits under the same install keys. `pg` and `speed` then ran once each, with the same scripts and inputs.
+   - **Evidence kept.** The failed output directories are kept beside the reruns on powerboat (`*.failed-*`).
+2. **22 November 2026. The simulation lanes run in parallel; nothing in a window or rule changed.**
+   - **Why.** The oracle takes over an hour to reach the DOOM handover, so running the eight variants in sequence would have taken about 12 hours.
+   - **What changed.** The two sequential lanes were stopped between variants, by their own PIDs. `base`, `pred` and `stld` were left running.
+   - **The other five.** `ras`, `ind`, `ealu`, `lfwd` and `speed` started at once, from a copy of the runner (`runners/i486dxplan_sim8h.sh`). The copy differs only in `machine_tb`'s cap, 8 hours instead of 4.
+   - **No DOOM window had produced a profile yet.**
