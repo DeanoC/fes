@@ -30,30 +30,32 @@ type Controller interface {
 }
 
 type TargetController struct {
-	lifecycle     sync.Mutex
-	mu            sync.Mutex
-	active        *lease
-	listenAddress string
-	listen        func(network, address string) (net.Listener, error)
-	uinputPath    string
-	persistent    bridge.Sink
-	keyboard      *KeyboardSink
-	ports         *controllerPortsSink
-	portsBinding  func(context.Context) (*ControllerBinding, error)
-	observe       func(context.Context) (CoreObservation, error)
-	needsRelease  bool
-	closed        bool
-	localMu       sync.Mutex
-	localLn       net.Listener
-	localConn     net.Conn
-	localPath     string
-	localClosed   bool
-	localDrops    atomic.Uint64
-	localReported uint64
-	localWarning  time.Time
-	pending       *lease
-	closeOnce     sync.Once
-	closeErr      error
+	lifecycle         sync.Mutex
+	transitionPending atomic.Int32
+	transitionEpoch   atomic.Uint64
+	mu                sync.Mutex
+	active            *lease
+	listenAddress     string
+	listen            func(network, address string) (net.Listener, error)
+	uinputPath        string
+	persistent        bridge.Sink
+	keyboard          *KeyboardSink
+	ports             *controllerPortsSink
+	portsBinding      func(context.Context) (*ControllerBinding, error)
+	observe           func(context.Context) (CoreObservation, error)
+	needsRelease      bool
+	closed            bool
+	localMu           sync.Mutex
+	localLn           net.Listener
+	localConn         net.Conn
+	localPath         string
+	localClosed       bool
+	localDrops        atomic.Uint64
+	localReported     uint64
+	localWarning      time.Time
+	pending           *lease
+	closeOnce         sync.Once
+	closeErr          error
 }
 
 type lease struct {
@@ -142,10 +144,22 @@ func newTargetControllerWithSink(listenAddress string, sink bridge.Sink) *Target
 	return &TargetController{listenAddress: listenAddress, persistent: sink}
 }
 
+// beginLifecycleTransition announces a queued lifecycle mutation before it
+// waits for the lock. A timed tap may wait for a local input write, but must
+// not overtake a queued Stop, replacement, attach or display handoff.
+func (c *TargetController) beginLifecycleTransition() func() {
+	c.transitionPending.Add(1)
+	c.transitionEpoch.Add(1)
+	var once sync.Once
+	return func() { once.Do(func() { c.transitionPending.Add(-1) }) }
+}
+
 func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 	if c == nil || ctx == nil || spec.Session == 0 || len(spec.Token) < 16 || !validCore(spec.Core) {
 		return errors.New("invalid input lease")
 	}
+	done := c.beginLifecycleTransition()
+	defer done()
 	c.lifecycle.Lock()
 	defer c.lifecycle.Unlock()
 	return c.attachLocked(ctx, spec)
@@ -309,6 +323,13 @@ func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(conte
 	if c == nil || ctx == nil {
 		return nil, errors.New("invalid input replacement barrier")
 	}
+	done := c.beginLifecycleTransition()
+	transferred := false
+	defer func() {
+		if !transferred {
+			done()
+		}
+	}()
 	c.lifecycle.Lock()
 	c.mu.Lock()
 	if c.closed {
@@ -340,6 +361,7 @@ func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(conte
 	var finishErr error
 	finish := func(finishCtx context.Context, preserve bool) error {
 		once.Do(func() {
+			defer done()
 			defer c.lifecycle.Unlock()
 			if !preserve || current == nil {
 				return
@@ -356,6 +378,7 @@ func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(conte
 		})
 		return finishErr
 	}
+	transferred = true
 	return finish, nil
 }
 
@@ -363,6 +386,8 @@ func (c *TargetController) Detach(ctx context.Context, session uint64) error {
 	if c == nil || session == 0 {
 		return errors.New("invalid input session")
 	}
+	done := c.beginLifecycleTransition()
+	defer done()
 	c.mu.Lock()
 	pending := c.pending
 	if pending != nil && pending.session == session {
@@ -425,6 +450,8 @@ func (c *TargetController) OpenStream(ctx context.Context, session uint64) (net.
 // ReleaseAll ends remote input without destroying the retained uinput device.
 // The kit lease calls this only after all admitted HTTP operations finish.
 func (c *TargetController) ReleaseAll(ctx context.Context) error {
+	done := c.beginLifecycleTransition()
+	defer done()
 	c.mu.Lock()
 	pending, current := c.pending, c.active
 	c.mu.Unlock()
@@ -455,6 +482,8 @@ func (c *TargetController) Close() error {
 		return nil
 	}
 	c.closeOnce.Do(func() {
+		done := c.beginLifecycleTransition()
+		defer done()
 		c.closeLocal()
 		c.mu.Lock()
 		c.closed = true
@@ -509,8 +538,47 @@ func (s retainedTapSink) Tap(ctx context.Context, f protocol.InputFrame) error {
 	// Match kit-local admission: no new press may race core replacement or
 	// an unconfirmed active generation. Do not hold lifecycle over the tap
 	// interval, because doing so would drop unrelated kit-local input.
-	if !s.controller.lifecycle.TryLock() {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if s.hid == nil || s.hid.focusFence.Load() {
 		return errTapUnavailable
+	}
+	focusEpoch := s.hid.fenceEpoch.Load()
+	transitionEpoch := s.controller.transitionEpoch.Load()
+	if s.controller.transitionPending.Load() != 0 {
+		return errTapUnavailable
+	}
+	s.controller.mu.Lock()
+	admittedLease, closed := s.controller.active, s.controller.closed
+	s.controller.mu.Unlock()
+	if closed {
+		return errTapUnavailable
+	}
+	// A kit-local key may be in its bounded status/read and HID write while
+	// this independent remote tap arrives. Wait for that short operation,
+	// then observe the core again under the lifecycle fence. Cancellation or
+	// a longer-running replacement still rejects without dispatching a tap.
+	wait, cancelWait := context.WithTimeout(ctx, localCoreObserveTimeout+localCoreWriteTimeout)
+	defer cancelWait()
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if err := wait.Err(); err != nil {
+			return errors.Join(errTapUnavailable, err)
+		}
+		if s.controller.lifecycle.TryLock() {
+			if err := wait.Err(); err != nil {
+				s.controller.lifecycle.Unlock()
+				return errors.Join(errTapUnavailable, err)
+			}
+			break
+		}
+		select {
+		case <-wait.Done():
+			return errors.Join(errTapUnavailable, wait.Err())
+		case <-ticker.C:
+		}
 	}
 	locked := true
 	defer func() {
@@ -518,6 +586,16 @@ func (s retainedTapSink) Tap(ctx context.Context, f protocol.InputFrame) error {
 			s.controller.lifecycle.Unlock()
 		}
 	}()
+	// A waiter admitted before a focus handoff, detach or replacement must
+	// never dispatch into the resulting session, even if its core generation
+	// later happens to match again.
+	s.controller.mu.Lock()
+	sameLease := s.controller.active == admittedLease && !s.controller.closed
+	s.controller.mu.Unlock()
+	if !sameLease || s.controller.transitionPending.Load() != 0 || s.controller.transitionEpoch.Load() != transitionEpoch ||
+		s.hid.focusFence.Load() || s.hid.fenceEpoch.Load() != focusEpoch {
+		return errTapUnavailable
+	}
 	observeCtx, cancel := context.WithTimeout(ctx, localCoreObserveTimeout)
 	s.controller.mu.Lock()
 	observe := s.controller.observe
