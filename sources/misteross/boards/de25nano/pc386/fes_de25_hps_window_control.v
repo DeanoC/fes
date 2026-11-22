@@ -6,8 +6,9 @@
 //
 // The grant registers (base, span, generation) are writable only while no
 // grant is held; a write then is refused with SLVERR. CommandGrant is
-// accepted only for the exact span, a base aligned to GrantAlignment and
-// below 4 GiB, a nonzero generation, and a held, drained machine;
+// accepted only for the exact span, a base aligned to GrantAlignment whose
+// whole span lies below 4 GiB, a nonzero generation, and a held, drained
+// machine;
 // CommandClear only while held and drained, and it clears the fault record.
 // A refused command answers SLVERR and sets FaultCommand.
 //
@@ -102,8 +103,11 @@ module fes_de25_hps_window_control (
     // ---- Registers
     reg granted = 1'b0, command_fault = 1'b0, clear_toggle = 1'b0;
     reg [31:0] base_lo = 32'd0, base_hi = 32'd0, span = 32'd0, gen_lo = 32'd0, gen_hi = 32'd0;
+    // The whole span lies below 4 GiB: the rebase adds 32-bit offsets, so a
+    // span that crossed it would wrap into low memory.
+    wire [32:0] grant_end = {1'b0, base_lo} + {1'b0, SPAN};
     wire acceptable = span == SPAN && (base_lo & (ALIGN - 1)) == 32'd0 && base_hi == 32'd0 &&
-                      (gen_lo | gen_hi) != 32'd0;
+                      grant_end <= 33'h1_0000_0000 && (gen_lo | gen_hi) != 32'd0;
     wire [31:0] status = {28'd0, command_fault || machine_fault != 5'd0, held, drained, granted};
     wire [31:0] fault_word = {21'd0, command_fault, machine_fault[4], machine_fault[3], 5'd0, machine_fault[2:0]};
     wire full = byteenable == 4'b1111;

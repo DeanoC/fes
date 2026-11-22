@@ -18,7 +18,8 @@ grant through the control block while the machine is held:
 - generation, through `GenerationLo` and `GenerationHi`, nonzero.
 
 It then writes `CommandGrant`. The block accepts a grant only with the
-exact span, an aligned base, a nonzero generation and every port drained.
+exact span, an aligned base whose whole span lies below 2^`DmaAddressBits`, a
+nonzero generation and every port drained.
 `CommandClear` withdraws it, again only while drained.
 
 ## The ports

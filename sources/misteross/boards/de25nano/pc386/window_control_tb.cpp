@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
     expect(read(0x00) == 0x44325748, "identity");
     expect(read(0x04) == 0x00010000, "version");
     t->machine_drained = 1; t->machine_held = 1; settle();
-    // Refusals: no generation, wrong span, misaligned, above 4 GiB, not held, not drained.
+    // Refusals: no generation, wrong span, misaligned, above 4 GiB, crossing 4 GiB, not held, not drained.
     write(0x10, 0x40000000); write(0x14, 0); write(0x18, 0x10000000); write(0x1c, 0); write(0x20, 0);
     expect(write(0x0c, 1) == 2, "refuse a zero generation");
     write(0x1c, 7);
@@ -40,6 +40,10 @@ int main(int argc, char **argv) {
     write(0x18, 0x10000000); write(0x10, 0x40000800); expect(write(0x0c, 1) == 2, "refuse a misaligned base");
     write(0x10, 0x40000000); write(0x14, 1); expect(write(0x0c, 1) == 2, "refuse a base above 4 GiB");
     write(0x14, 0);
+    // The whole span lies below 4 GiB: a base whose span crosses it is refused.
+    write(0x10, 0xf0001000); expect(write(0x0c, 1) == 2, "refuse a span that crosses 4 GiB");
+    write(0x10, 0xfffff000); expect(write(0x0c, 1) == 2, "refuse a span from the last page");
+    write(0x10, 0x40000000);
     t->machine_held = 0; settle(); expect(write(0x0c, 1) == 2, "refuse while not held");
     t->machine_held = 1; t->machine_drained = 0; settle(); expect(write(0x0c, 1) == 2, "refuse while not drained");
     expect(read(0x24) & 0x400, "a refused command sets FaultCommand");
@@ -64,6 +68,11 @@ int main(int argc, char **argv) {
     t->fault_port = 0; t->fault_outside = 0; settle();
     expect(!t->grant_valid, "Clear withdraws the grant");
     expect((read(0x24) & 0x707) == 0, "Clear clears the fault record");
+    // A span that ends exactly at 4 GiB is accepted.
+    write(0x10, 0xf0000000); expect(write(0x0c, 1) == 0, "accept a span that ends at 4 GiB");
+    settle(); expect(t->grant_valid && t->grant_base == 0xf0000000, "the top grant reaches the machine");
+    expect(write(0x0c, 2) == 0, "Clear withdraws the top grant"); settle();
+    expect(!t->grant_valid, "the top grant is withdrawn");
     expect(write(0x0c, 5) == 2, "an unknown command is refused");
     expect(write(0x3c, 1) == 2, "an unknown register is refused");
     t->address = 0x10; t->writedata = 1; t->byteenable = 3; t->write = 1; tick(); t->write = 0;
