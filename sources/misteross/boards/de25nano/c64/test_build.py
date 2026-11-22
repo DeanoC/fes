@@ -133,6 +133,11 @@ class Derivations(unittest.TestCase):
         named.add("fes_de25_c64_standard.v")
         staged = {Path(name).name for name in files} - {"fes_de25_c64_standard_hw.tcl"}
         self.assertEqual(named, staged)
+        for name, data in files.items():
+            if name.endswith((".v", ".sv", ".vh")):
+                includes = re.findall(rb'(?m)^\s*`include "([^"]+)"', data)
+                for included in includes:
+                    self.assertIn(Path(included.decode()).name, staged, name)
         self.assertEqual(set(derived), {"c64_machine_de25.sv", "c64_ram_de25.v", "c64_color_ram_de25.v",
             "c64_disk_store_de25.v", "c64_frame_store_de25.sv", "fes_de25_computer_transport.v",
             "fes_menu_reader_de25.v"})
