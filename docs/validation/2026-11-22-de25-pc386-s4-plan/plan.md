@@ -187,15 +187,15 @@ one PR may sit on it.
 | | PR | Status | Needs | Base |
 | --- | --- | --- | --- | --- |
 | 4b+4c | The contract's "kernel publishes the grant", the generated C++ header, and `De25HpsWindow` over a scripted owner (#2110) | **#2115, draft** | nothing | #2036 |
-| 4a | Admission table: per-core shell, any number of interfaces, the pc386 row (refused until a window backend exists) | not built | #2069's `abi_minor` (stack or wait); the pc386 row names #2036's contract | main after #2036, or folded into #2115 |
-| 4w | Runtime wiring: the Linux owner operations, `ProductionHardware`'s DE25 `DiskWindow`, the `fes.memory.hps-ddr` and `fes.media.ata-disk` gates, `ReleaseHpsDdrPorts` | not built | 4d's ABI | with 4d |
-| 4d | Kernel owner window allocation, owner ABI 4, the window's generated C header, DT pool, KUnit | not built | image change | main |
+| 4a | Admission table: per-machine ABI minor, gamepad and HPS-window flags, the pc386 row (refused until a window backend exists) | **in #2115** | overlaps #2069's `abi_minor`: whichever merges second resolves | #2115 |
+| 4d | Kernel owner window (owner window ABI beside an unchanged ABI 3), the window's C header, the owner tree's second `reg` and a reusable pool pinned inside the F2SDRAM firewall region, KUnit, and the KUnit runner fix (#2122) (#2125) | **#2126, draft** | image change (build and test only) | main |
+| 4w | Runtime wiring: the Linux owner operations over #2126's ioctls, `ProductionHardware`'s DE25 `DiskWindow`, the `fes.memory.hps-ddr` and `fes.media.ata-disk` gates, `ReleaseHpsDdrPorts` | next | #2126's ABI (its header is mirrored) | #2115 |
 | 4e | FogCast: the DE25 computer profile accepts fes.computer 1.1 (`protocol_v2.go` requires minor 0 today), pc386 admission, initial disk | not built | 4a, and #2101 for its DE10 pc386 media paths | main |
-| 4f | Status-ring read through the runtime | not built | 4w | with 4w |
+| 4f | Status-ring read through the runtime | not built | 4w | #2115 |
 | 4g | Image build + Kit D25 run | not started | all above, Deano's flash OK | — |
 
-4a, 4e and #2115 need neither a kit nor an image change. 4d and 4w are code,
-KUnit and host tests until 4g.
+#2115, 4e and 4f need neither a kit nor an image change. #2126 (4d) is an
+image change, built and tested only until 4g.
 
 The owner's window report must carry the build identity it observed on the
 programmed bitstream: the window block has no build register, and the runtime
