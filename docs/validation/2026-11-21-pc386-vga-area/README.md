@@ -28,9 +28,11 @@ bounds, and none of them is made.
 - **Figures:** per seed in [de25/pair.json](de25/pair.json), from [collect.py](collect.py). The run scripts and logs are in [de25/](de25/).
 
 **DE10:**
-- The registered producer resealed it at `459381f3d`, with a fresh lockstep;
-  every analysis closes at 61.44 MHz.
-- Kit B ran FreeDOS and Wolfenstein 3D on that package and passed.
+- The registered producer resealed it twice, each time with a fresh lockstep,
+  and every analysis closes at 61.44 MHz both times:
+  - at `459381f3d`, this PR before main was merged in;
+  - at `1061a5ecf`, after merging main, which carries #2075's audio cut.
+- Kit B ran FreeDOS and Wolfenstein 3D on the `459381f3d` package and passed.
 
 ## What changed
 
@@ -126,12 +128,40 @@ From that:
 - The same suite on main (`f3140cb33`) reaches the prompt at the **same
   cycle**, 191,533,231. Its CHECK lines are identical, apart from wall-clock
   seconds.
+- On the merged head (`1061a5ecf`, with main `6b01d64f5`), `--suite system`
+  also **passes**. FreeDOS reaches the prompt at cycle 188,458,734, with 0 late
+  records; main's own changes moved the cycle.
+  The same suite on main `6b01d64f5` reaches the prompt at the **same cycle**,
+  and its CHECK and END lines are identical, apart from wall-clock seconds.
 
-**DE10 seal ([de10/seal-summary.json](de10/seal-summary.json)):**
-- Producer: `build_pc386_product.py --with-lockstep --seed 1` from a clean
-  worktree of `459381f3d`, Quartus 17.0.2 Lite on Powerboat under its Lite
-  lease.
-- Results:
+**DE10 seals:**
+
+The producer is `build_pc386_product.py --with-lockstep --seed 1`, run from a
+clean worktree, with Quartus 17.0.2 Lite on Powerboat under its Lite lease.
+Yosys ran at its default thread count. Neither seal's elaboration hit the
+[DeanoC/yosys#77](https://github.com/DeanoC/yosys/issues/77#issuecomment-7079444384)
+fault.
+
+| | `459381f3d` (before the main merge) | `1061a5ecf` (merged head) | #2075's own seal |
+|---|---|---|---|
+| BUILD_ID | `8de03af6…` | `426e518d…` | `b44a1c8e…` |
+| ALMs / 41,910 | 36,308 | 35,997 | 36,051 |
+| RAM blocks | 282 | 283 | 283 |
+| Setup | +0.248 | +0.679 | +0.703 |
+| Hold | +0.098 | +0.104 | +0.106 |
+| Recovery | +6.127 | +5.639 | +7.006 |
+| Removal | +0.289 | +0.405 | +0.512 |
+| Minimum pulse width | +1.122 | +1.122 | +1.122 |
+| Fresh lockstep | pass | pass | pass |
+
+- The merged-head seal is [de10/seal-summary-1061a5ecf.json](de10/seal-summary-1061a5ecf.json):
+  RBF `5be26714…`, package `71438387…`.
+- Each DE10 figure is a single seed. The merged head is 54 ALMs below #2075's
+  own seal, which is inside DE10 fit noise. The DE25 pair is the measurement.
+- No kit run used the merged-head package. Kit B ran the `459381f3d` package
+  (below), and #2075 has its own kit evidence.
+
+The `459381f3d` seal ([de10/seal-summary-459381f3d.json](de10/seal-summary-459381f3d.json)):
   - BUILD_ID `8de03af62c45b5074d9ff87505a3e8fe`;
   - RBF `2175204a…`, package `73a4873d…`;
   - 36,308 / 41,910 ALMs and 282 RAM blocks;
