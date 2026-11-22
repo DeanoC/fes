@@ -3,7 +3,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "textflag.h"
 
-TEXT ·Read(SB),NOSPLIT|NOFRAME,$0-2
+// PL011 registers at 0x09000000 (QEMU virt UART0):
+//   0x00 UARTDR, 0x18 UARTFR (bit 4 = RXFE), 0x2c UARTLCR_H (bit 4 = FEN),
+//   0x38 UARTIMSC (bit 4 = RXIM, bit 6 = RTIM), 0x44 UARTICR.
+
+TEXT ·readRaw(SB),NOSPLIT|NOFRAME,$0-2
 	MOVD $0x09000000, R0
 	MOVWU 0x18(R0), R1
 	TBNZ $4, R1, empty
@@ -15,4 +19,41 @@ TEXT ·Read(SB),NOSPLIT|NOFRAME,$0-2
 empty:
 	MOVB ZR, ret+0(FP)
 	MOVB ZR, ret1+1(FP)
+	RET
+
+TEXT ·enableHWIRQ(SB),NOSPLIT|NOFRAME,$0
+	MOVD $0x09000000, R0
+	// Clear FEN (1-byte RX threshold) so single-byte input fires RXIM
+	// immediately on QEMU PL011; software rxRing buffers bursts.
+	MOVWU 0x2c(R0), R1
+	BIC $0x10, R1, R1
+	MOVW R1, 0x2c(R0)
+	// Clear stale RX/RT status, then unmask RXIM (bit 4) and RTIM (bit 6).
+	MOVD $0x50, R2
+	MOVW R2, 0x44(R0)
+	MOVWU 0x38(R0), R1
+	ORR R2, R1, R1
+	MOVW R1, 0x38(R0)
+	DSB $15
+	RET
+
+TEXT ·disableHWIRQ(SB),NOSPLIT|NOFRAME,$0
+	MOVD $0x09000000, R0
+	MOVD $0x50, R2
+	MOVWU 0x38(R0), R1
+	BIC R2, R1, R1
+	MOVW R1, 0x38(R0)
+	MOVW R2, 0x44(R0)
+	// Restore FIFO mode (FEN=1) for polling callers.
+	MOVWU 0x2c(R0), R1
+	ORR $0x10, R1, R1
+	MOVW R1, 0x2c(R0)
+	DSB $15
+	RET
+
+TEXT ·clearHWIRQ(SB),NOSPLIT|NOFRAME,$0
+	MOVD $0x09000000, R0
+	MOVD $0x50, R1
+	MOVW R1, 0x44(R0)
+	DSB $15
 	RET
