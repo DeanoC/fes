@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/goos"
 
 	"github.com/usbarmory/tamago/arm64"
 )
@@ -75,6 +76,42 @@ func ArmPhysicalTimer(ticks uint32)
 // DisarmPhysicalTimer disables and masks the EL1 physical timer (PPI 30).
 func DisarmPhysicalTimer()
 
+// WaitForInterrupt suspends the core until an enabled interrupt becomes pending.
+func WaitForInterrupt()
+
+type nativeIdleAccess struct{}
+
+func (nativeIdleAccess) CounterFreq() uint64   { return counterFreq() }
+func (nativeIdleAccess) NowNanos() int64       { return goos.Nanotime() }
+func (nativeIdleAccess) IRQEnabled() bool      { return irqEnabled() }
+func (nativeIdleAccess) MaskIRQ() bool         { return maskIRQ() }
+func (nativeIdleAccess) UnmaskIRQ()            { EnableCPUIRQ() }
+func (nativeIdleAccess) ArmTimer(ticks uint32) { ArmPhysicalTimer(ticks) }
+func (nativeIdleAccess) DisarmTimer()          { DisarmPhysicalTimer() }
+func (nativeIdleAccess) WFI()                  { WaitForInterrupt() }
+
+// EnableIdle installs a WFI-backed runtime/goos.Idle governor driven by the
+// EL1 physical timer (PPI 30). Call after Init().
+func (g *Controller) EnableIdle() error {
+	if g.gicr == 0 {
+		return ErrInvalidConfig
+	}
+	g.Register(IRQPhysTimer, DisarmPhysicalTimer)
+	g.Enable(IRQPhysTimer)
+	g.SetIdleAccess(nativeIdleAccess{})
+	goos.Idle = g.IdleStep
+	return nil
+}
+
+// DisableIdle restores the polling no-op runtime/goos.Idle stub and disables PPI 30.
+func (g *Controller) DisableIdle() {
+	goos.Idle = func(int64) {}
+	DisarmPhysicalTimer()
+	g.Disable(IRQPhysTimer)
+	g.Register(IRQPhysTimer, nil)
+	g.SetIdleAccess(nil)
+}
+
 func hasGICv3() bool
 func readMPIDR() uint64
 func read32(addr uint64) uint32
@@ -85,3 +122,6 @@ func initCPUInterface(pmr uint8)
 func ackIRQ() uint32
 func endIRQ(id uint32)
 func sendSGI(val uint64)
+func counterFreq() uint64
+func irqEnabled() bool
+func maskIRQ() bool

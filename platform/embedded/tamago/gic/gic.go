@@ -8,7 +8,10 @@
 // (DS=0, Non-Secure EL1) and QEMU virt with gic-version=3 (DS=1).
 package gic
 
-import "errors"
+import (
+	"errors"
+	"sync/atomic"
+)
 
 const (
 	// MaxINTID is the fixed handler table size. It covers SGIs (0..15),
@@ -103,6 +106,9 @@ type Controller struct {
 	gicr  uint64
 	mpidr uint64
 	lines uint32
+
+	idleHW      IdleAccess
+	idleWakeups atomic.Uint64
 
 	handlers [MaxINTID]func()
 }

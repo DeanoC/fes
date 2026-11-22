@@ -112,5 +112,35 @@ func probeGIC() {
 	g.Disable(board.IRQPhysTimer)
 	g.Register(board.IRQPhysTimer, nil)
 
-	fmt.Printf("PASS gic sgi timer irq redistributor=%#x lines=%d\n", g.Redistributor(), g.Lines())
+	if err := g.EnableIdle(); err != nil {
+		panic(err)
+	}
+	defer g.DisableIdle()
+
+	idleBefore := g.IdleWakeups()
+	sleepStart := time.Now()
+	time.Sleep(10 * time.Millisecond)
+	elapsed := time.Since(sleepStart)
+	wakeups := g.IdleWakeups() - idleBefore
+	if elapsed < 10*time.Millisecond || wakeups == 0 {
+		panic("gic: WFI idle timer sleep failed")
+	}
+
+	g.Register(0, func() {
+		select {
+		case sgiHit <- struct{}{}:
+		default:
+		}
+	})
+	g.Enable(0)
+	g.SendSGI(0)
+	select {
+	case <-sgiHit:
+	case <-time.After(time.Second):
+		panic("gic: SGI 0 did not fire while WFI idle active")
+	}
+	g.Disable(0)
+	g.Register(0, nil)
+
+	fmt.Printf("PASS gic sgi timer wfi-idle redistributor=%#x lines=%d wakeups=%d\n", g.Redistributor(), g.Lines(), wakeups)
 }
