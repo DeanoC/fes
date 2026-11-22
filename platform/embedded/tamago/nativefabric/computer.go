@@ -89,6 +89,37 @@ type computerIO struct {
 	closing    bool
 	clock      func() time.Time
 	lastTiming computer.AccessTiming
+	romBatch   spectrumROMBatchPlatform
+}
+
+// The board can batch the fixed, already-held Spectrum ROM aperture.
+type spectrumROMBatchPlatform interface {
+	WithSpectrumROMBatch(uint64, func(computer.IO) error) error
+}
+
+func (c *computerIO) WithFirmwareDataBatch(send func(computer.IO) error) error {
+	if c.romBatch == nil {
+		return send(c)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.retired || c.closing {
+		return errors.New("native fabric: Spectrum ROM aperture closing or retired")
+	}
+	before, err := c.bridges.ObserveBridges()
+	if err != nil || before != c.want {
+		c.retired = true
+		return errors.Join(errors.New("native fabric: Spectrum ROM batch lost control-only ownership"), err)
+	}
+	sendErr := c.romBatch.WithSpectrumROMBatch(c.base, send)
+	after, err := c.bridges.ObserveBridges()
+	if err != nil || after != c.want {
+		err = errors.Join(errors.New("native fabric: Spectrum ROM batch changed ownership"), err)
+	}
+	if sendErr != nil || err != nil {
+		c.retired = true
+	}
+	return errors.Join(sendErr, err)
 }
 
 // InitialTapePlatform is a trusted optional CPU-platform service. Its supplier
@@ -298,6 +329,9 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 	}
 	copy(wantID.Build[:], build)
 	spectrum := binding.program != nil && binding.program.role == programRoleSpectrum48
+	if spectrum {
+		s.port.romBatch, _ = cpu.(spectrumROMBatchPlatform)
+	}
 	if _, secure := cpu.(InitialTapePlatform); secure && !spectrum {
 		s.control, err = computer.OpenWithInitialTape(ctx, s.port, limits, wantID, s.port.loadInitialTape)
 	} else {

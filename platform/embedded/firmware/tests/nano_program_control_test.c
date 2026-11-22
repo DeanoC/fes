@@ -129,7 +129,7 @@ static uint32_t role_abi(unsigned role)
 }
 static void publish(unsigned role,unsigned seed)
 {
-    if(role==FES_NANO_PROGRAM_ROLE_SPECTRUM48)seed=0x3a;
+    if(role==FES_NANO_PROGRAM_ROLE_SPECTRUM48 && !program.shared_core_shell)seed=0x3a;
     memset(wire,0,sizeof(wire));memset(rom_wire,0,sizeof(rom_wire));
     put32(wire,FES_NANO_PROGRAM_MAGIC);put32(wire+4,FES_NANO_PROGRAM_ROLE_VERSION);
     put32(wire+8,sizeof(wire));put32(wire+12,128);put32(wire+16,64);put32(wire+20,2);
@@ -194,18 +194,32 @@ int main(int argc,char **argv)
     probe.initialized=1;probe.bridges=&fes_nano_owned_bridges;probe.io=identity_io;
     forbidden(FES_EMBEDDED_BRIDGE_CONTROL);forbidden(FES_EMBEDDED_BRIDGE_PROBE_IDENTITY);
     forbidden(FES_EMBEDDED_BRIDGE_PROBE_READER);forbidden(FES_EMBEDDED_BRIDGE_CONFIGURATION);
-    if(mode==26 || mode==27 || mode==28) {
+    if(mode>=26 && mode<=31) {
         struct fes_nano_spectrum48_program selected={.bytes=128};
         memset(selected.package,0x3a,sizeof(selected.package));
         memset(selected.build,0x3a,sizeof(selected.build));
         memset(selected.sha256,0x3a,sizeof(selected.sha256));
         memset(selected.sha384,0x3a,sizeof(selected.sha384));
         memset(selected.chunks,0x3a,2*sizeof(selected.chunks[0]));
-        assert(!fes_nano_program_enable_spectrum48(&program,&selected));
-        for(unsigned cycle=0;cycle<4;cycle++) {
-            unsigned role=cycle%2 ? FES_NANO_PROGRAM_ROLE_MENU : FES_NANO_PROGRAM_ROLE_SPECTRUM48;
+        unsigned shared=mode>=29;
+        if(shared)assert(!fes_nano_program_enable_shared_core_shell(&program) && !program.spectrum48);
+        else assert(!fes_nano_program_enable_spectrum48(&program,&selected));
+        uint32_t previous_build[4]={0};
+        for(unsigned cycle=0;cycle<(shared ? 5U : 4U);cycle++) {
+            unsigned role=(cycle%2)!=shared ? FES_NANO_PROGRAM_ROLE_MENU : FES_NANO_PROGRAM_ROLE_SPECTRUM48;
             transfer(role,cycle);
-            spectrum_failure=mode==27;
+            if(shared && role==FES_NANO_PROGRAM_ROLE_SPECTRUM48) {
+                uint32_t build[4];
+                assert(fes_nano_program_has_spectrum48_resources(&program) &&
+                       !fes_nano_program_build(&program,build) && memcmp(build,previous_build,sizeof(build)));
+                memcpy(previous_build,build,sizeof(build));
+                struct fes_nano_program invalid=program;
+                invalid.rom_offset=128;
+                assert(!fes_nano_program_has_spectrum48_resources(&invalid));
+                invalid=program;invalid.shared_core_shell=0;
+                assert(!fes_nano_program_has_spectrum48_resources(&invalid));
+            }
+            spectrum_failure=mode==27 || (mode==30 && role==FES_NANO_PROGRAM_ROLE_SPECTRUM48);
             bridge_call(FES_EMBEDDED_BRIDGE_CONTROL,r);
             if(spectrum_failure) {
                 assert(r[0] && probe.failed && resets==15 && spectrum_opens==1 && !rom_calls);
@@ -219,7 +233,7 @@ int main(int argc,char **argv)
                 bridge_call(FES_EMBEDDED_BRIDGE_CLOSE,r);
             } else {
                 forbidden(FES_EMBEDDED_BRIDGE_RELEASE|(8U<<FES_EMBEDDED_BRIDGE_RELEASE_SHIFT));
-                stop_failure=mode==28;
+                stop_failure=mode==28 || mode==31;
                 bridge_call(FES_EMBEDDED_BRIDGE_CLOSE|FES_EMBEDDED_BRIDGE_REQUEST_HELD,r);
                 if(stop_failure) {
                     assert(r[0] && probe.failed && resets==15 && spectrum_opens==1);
@@ -232,7 +246,7 @@ int main(int argc,char **argv)
             }
             assert(!r[0] && resets==15 && !probe.active && probe.stage==FES_ID_COMPLETE);
         }
-        assert(spectrum_opens==2 && !rom_calls && stops==4);
+        assert(spectrum_opens==2 && !rom_calls && stops==(shared ? 5U : 4U));
         puts("PASS native Spectrum and MENU used distinct open and return scopes");return 0;
     }
     if(mode>=10) {

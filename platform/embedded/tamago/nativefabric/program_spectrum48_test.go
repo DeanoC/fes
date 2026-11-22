@@ -35,7 +35,11 @@ import (
 // real. This models the FPGA's mailbox replies, with an independent check on
 // every submitted word and on the state required for an execution release.
 type spectrumFirmwareCPU struct {
-	dmaStatus uint32
+	romClock     *time.Time
+	inROMBatch   bool
+	romBatches   int
+	failROMBatch bool
+	dmaStatus    uint32
 	CPUTransport
 	base           *computerCPU
 	active         bool
@@ -58,7 +62,46 @@ func (c *spectrumFirmwareCPU) LoadInitialTape(context.Context, BridgeSnapshot, c
 	return computer.InitialTapeReceipt{}, errors.New("Spectrum attempted to use the native ZX81 tape service")
 }
 
+type batchedSpectrumCPU struct{ *spectrumFirmwareCPU }
+type fixtureSpectrumROMRegisters struct{ *spectrumFirmwareCPU }
+
+func (c fixtureSpectrumROMRegisters) Read32(offset uint32) (uint32, error) {
+	return c.ReadPhysical32(0x20010300 + uint64(offset))
+}
+func (c fixtureSpectrumROMRegisters) Write32(offset, value uint32) error {
+	return c.WritePhysical32(0x20010300+uint64(offset), value)
+}
+func (c batchedSpectrumCPU) WithSpectrumROMBatch(base uint64, send func(computer.IO) error) error {
+	if base != 0x20010300 || !c.active || !c.held || c.inROMBatch || c.ready {
+		return errors.New("ROM batch outside the held Spectrum aperture")
+	}
+	c.romBatches++
+	// Charge the two mapping/ownership boundaries and a cost per raw CSR.
+	*c.romClock = c.romClock.Add(850 * time.Microsecond)
+	c.inROMBatch = true
+	defer func() { c.inROMBatch = false }()
+	before := len(c.image)
+	if err := send(fixtureSpectrumROMRegisters{c.spectrumFirmwareCPU}); err != nil {
+		return err
+	}
+	if len(c.image)-before != 2*computer.FirmwareDataBatchWords || c.failROMBatch {
+		return errors.New("ROM batch completion failed")
+	}
+	return nil
+}
+func (c *spectrumFirmwareCPU) chargeROMAccess() {
+	if c.romClock == nil || !c.active || !c.held || c.ready {
+		return
+	}
+	cost := 850 * time.Microsecond
+	if c.inROMBatch {
+		cost = time.Microsecond
+	}
+	*c.romClock = c.romClock.Add(cost)
+}
+
 func (c *spectrumFirmwareCPU) ReadPhysical32(address uint64) (uint32, error) {
+	c.chargeROMAccess()
 	if address == uploadShellScanoutCPUBase+uint64(cg.FesDe25ScanoutStatusOffset) {
 		return c.dmaStatus, nil
 	}
@@ -66,6 +109,7 @@ func (c *spectrumFirmwareCPU) ReadPhysical32(address uint64) (uint32, error) {
 }
 
 func (c *spectrumFirmwareCPU) WritePhysical32(address uint64, word uint32) error {
+	c.chargeROMAccess()
 	if err := c.CPUTransport.WritePhysical32(address, word); err != nil || !c.active {
 		return err
 	}
@@ -237,7 +281,7 @@ func TestSpectrum48ProgramServiceFATLaunchReturnAndPark(t *testing.T) {
 }
 
 func TestSharedCoreShellFATLifecycle(t *testing.T) {
-	for _, fault := range []string{"shared", "shared-bad-map", "shared-bad-dma", "shared-wedged"} {
+	for _, fault := range []string{"shared", "shared-bad-map", "shared-bad-dma", "shared-wedged", "shared-fast-rom", "shared-rom-batch-fault", "shared-slow-rom"} {
 		t.Run(fault, func(t *testing.T) { testSpectrum48FAT(t, fault) })
 	}
 }
@@ -267,6 +311,8 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 	var alternateChoice packagestore.Request
 	var alternateBuild string
 	shared := strings.HasPrefix(fault, "shared")
+	var romClock = time.Unix(1, 0)
+	timedROM := fault == "shared-fast-rom" || fault == "shared-rom-batch-fault" || fault == "shared-slow-rom"
 	dmaMode := strings.TrimPrefix(fault, "shared-")
 	guardModel := os.Getenv("FES_TEST_DE25_DMA_GUARD")
 	if (dmaMode == "bad-dma" || dmaMode == "wedged") && guardModel == "" {
@@ -348,6 +394,13 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 			port.media.fault = "commit"
 		}
 		l.boot.cpu = port
+		if timedROM {
+			port.romClock = &romClock
+			port.failROMBatch = fault == "shared-rom-batch-fault"
+			if fault != "shared-slow-rom" {
+				l.boot.cpu = batchedSpectrumCPU{port}
+			}
+		}
 		activate := f.cpu.activate
 		f.cpu.activate = func(role programRole) {
 			activate(role)
@@ -418,6 +471,9 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 		}
 		f.request = startup.Menu
 	})
+	if timedROM {
+		f.s.state.limits.Now = func() time.Time { return romClock }
+	}
 	backend, err := NewProgramBackend(f.s, startup.Entries)
 	if err != nil {
 		t.Fatal(err)
@@ -455,6 +511,14 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 				t.Fatal("invalid Spectrum content entered configuration or lost the menu", err, f.s.Status())
 			}
 			return
+		case "shared-rom-batch-fault", "shared-slow-rom":
+			if err != nil || play.ErrorCode != "NATIVE_LAUNCH_FAILED" || f.s.Status().State != ProgramRebootRequired ||
+				port.commits != 0 || port.releases != 0 || f.r.f.lease.r.Active ||
+				fault == "shared-rom-batch-fault" && (port.romBatches != 1 || len(port.image) != 2*computer.FirmwareDataBatchWords) ||
+				fault == "shared-slow-rom" && (port.romBatches != 0 || len(port.image) == 0 || len(port.image) >= len(expected)) {
+				t.Fatal("ROM failure retried, committed or lost containment", err, f.s.Status(), port.romBatches, len(port.image))
+			}
+			return
 		case "commit", "held-fetch", "tape-commit":
 			if err != nil || play.ErrorCode != "NATIVE_LAUNCH_FAILED" || play.ID != "" || port.commits != 1 || port.releases != 0 ||
 				f.s.Status().State != ProgramRebootRequired || f.r.f.lease.r.Active {
@@ -480,6 +544,10 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 			port.begins != 4*attempt || port.commits != attempt || port.releases != attempt ||
 			port.tapeCalls != 0 || !observed || fetch.Scope != scope || f.r.f.lease.r.Active {
 			t.Fatal("Spectrum skipped retained upload, fetch or containment", err, play.State, fetch)
+		}
+		if fault == "shared-fast-rom" && (port.romBatches != attempt*len(expected)/(2*computer.FirmwareDataBatchWords) ||
+			fetch.ElapsedNS <= 0 || fetch.ElapsedNS >= int64(time.Second)) {
+			t.Fatal("full ROM was not uploaded in bounded batches", port.romBatches, fetch)
 		}
 		port.base.badClosure = fault == "drain"
 		stopped, err := client.StopExpectedStamped(ctx, play, hostclient.ClientStamp{})

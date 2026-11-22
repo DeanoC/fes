@@ -188,11 +188,7 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
           configuration_program.control_abi==FES_NANO_PROGRAM_COMPUTER_ABI &&
           (configuration_program.rom_bytes==4096 || configuration_program.rom_bytes==8192))
 #if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
-         || (sdm_rearm.admitted && configuration_program.role==FES_NANO_PROGRAM_ROLE_SPECTRUM48 &&
-             configuration_program.control_abi==FES_NANO_PROGRAM_SPECTRUM48_ABI &&
-             configuration_program.spectrum48 &&
-             configuration_program.bytes==configuration_program.spectrum48->bytes &&
-             !configuration_program.rom_bytes)
+         || (sdm_rearm.admitted && fes_nano_program_has_spectrum48_resources(&configuration_program))
 #endif
          ))return sdm_probe_reject(10);
     if(completed==3){

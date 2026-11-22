@@ -31,7 +31,7 @@ class NanoProgramControlTests(unittest.TestCase):
                        '-o', str(base / 'dispatcher')]
             result = subprocess.run(command, capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stderr)
-            for mode in (0, 2, 3, 4, 5, 6, 7, 8, 9, *range(10, 26)):
+            for mode in (0, 2, 3, 4, 5, 6, 7, 8, 9, *range(10, 32)):
                 with self.subTest(mode=mode):
                     result = subprocess.run([base / 'dispatcher', str(mode)], capture_output=True,
                                             text=True, timeout=15)

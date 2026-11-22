@@ -72,6 +72,16 @@ struct fes_nano_program {
     const struct fes_nano_spectrum48_program *spectrum48;
     uint32_t role, control_abi;
 };
+/* The shared shell uses the same fixed resources as the sealed companion.
+ * Capture has already checked the selected descriptor and its zero extension.
+ * Subsequent callers must still prove their own owner and generation. */
+static inline int fes_nano_program_has_spectrum48_resources(const struct fes_nano_program *p)
+{
+    return p->initialized && p->mixed_roles && p->bound && !p->failed &&
+        p->role==FES_NANO_PROGRAM_ROLE_SPECTRUM48 && p->control_abi==FES_NANO_PROGRAM_SPECTRUM48_ABI &&
+        p->bytes && !p->rom_bytes && !p->rom_offset && !p->rom_crc &&
+        (p->shared_core_shell ? !p->spectrum48 : p->spectrum48 && p->spectrum48->bytes==p->bytes);
+}
 #ifdef __cplusplus
 extern "C" {
 #endif
