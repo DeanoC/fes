@@ -8,8 +8,11 @@ import (
 	"encoding/binary"
 	"fmt"
 	"runtime"
+	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
 
@@ -123,6 +126,15 @@ type Host struct {
 	fault   error
 	next    time.Time
 	toggle  uint32
+
+	irqMu        sync.Mutex
+	irqGIC       *gic.Controller
+	irqID        uint32
+	irqMode      atomic.Bool
+	irqActive    atomic.Bool
+	irqSuspended bool
+	irqReady     chan struct{}
+	irqCount     atomic.Uint64
 }
 
 func Open(io Registers, config Config) (*Host, error) {
@@ -192,13 +204,16 @@ func (h *Host) fail(err error) error {
 	}
 	h.fault = err
 	if !h.owned {
+		h.retireIRQ(false)
 		return err
 	}
 	if h.io.Read32(gahb)&(1<<5) != 0 {
 		// DMA state no longer belongs to this PIO driver. Do not halt or
 		// rewrite a channel whose address/ownership is now uncertain.
+		h.retireIRQ(false)
 		return h.fault
 	}
+	h.retireIRQ(true)
 	h.io.Write32(gintmask, 0)
 	// Do not touch a firmware-owned active DMA/channel on admission failure.
 	if h.pending.active && h.io.Read32(hcchar)&channelEnable != 0 {
@@ -363,7 +378,28 @@ func (h *Host) begin(ep uint8, mps uint16, kind uint32, in bool, pid uint32, out
 }
 
 func (h *Host) pio() error {
-	if h.io.Read32(gahb)&(1<<5|1) != 0 || h.io.Read32(gintmask) != 0 || h.io.Read32(hcfg)&(1<<23) != 0 {
+	if !h.irqMode.Load() {
+		if h.io.Read32(gahb)&(1<<5|1) != 0 || h.io.Read32(gintmask) != 0 || h.io.Read32(hcfg)&(1<<23) != 0 {
+			return fmt.Errorf("dwc2: PIO/interrupt ownership changed")
+		}
+		return nil
+	}
+	h.irqMu.Lock()
+	defer h.irqMu.Unlock()
+	ahb := h.io.Read32(gahb)
+	mask := h.io.Read32(gintmask)
+	cfg := h.io.Read32(hcfg)
+	chMask := h.io.Read32(haintmsk)
+	if ahb&(1<<5) != 0 || cfg&(1<<23) != 0 {
+		return fmt.Errorf("dwc2: PIO/interrupt ownership changed")
+	}
+	if h.irqActive.Load() {
+		if ahb&gahbGlobalIRQ == 0 || (mask != 0 && mask != irqMask) || chMask != haintCh0 {
+			return fmt.Errorf("dwc2: PIO/interrupt ownership changed")
+		}
+		return nil
+	}
+	if ahb&gahbGlobalIRQ != 0 || mask != 0 || chMask != 0 {
 		return fmt.Errorf("dwc2: PIO/interrupt ownership changed")
 	}
 	return nil
@@ -667,6 +703,15 @@ func (h *Host) pollInput() ([]byte, error) {
 	if h.pollingPaused {
 		return nil, nil
 	}
+	if h.irqSuspended {
+		if err := h.pio(); err != nil {
+			return nil, h.fail(err)
+		}
+		if err := h.link(); err != nil {
+			return nil, h.fail(err)
+		}
+		h.resumeIRQ()
+	}
 	if h.healthStage != 0 || !h.pending.active && len(h.path) > 0 && !h.io.Now().Before(h.healthNext) {
 		until := h.io.Now().Add(2 * time.Millisecond)
 		for n := 0; n < 8; n++ {
@@ -678,10 +723,16 @@ func (h *Host) pollInput() ([]byte, error) {
 				break
 			}
 		}
+		if !h.draining {
+			h.armIRQ()
+		}
 		return nil, nil
 	}
 	if !h.pending.active {
 		if h.io.Now().Before(h.next) {
+			if !h.draining {
+				h.armIRQ()
+			}
 			return nil, nil
 		}
 		limit := 8
@@ -691,6 +742,9 @@ func (h *Host) pollInput() ([]byte, error) {
 		if err := h.begin(h.config.Endpoint, h.config.MaxPacketSize, 3, true, h.toggle, nil, limit, h.io.Now().Add(500*time.Millisecond)); err != nil {
 			return nil, h.fail(err)
 		}
+		if !h.draining {
+			h.armIRQ()
+		}
 		return nil, nil
 	}
 	done, data, nak, err := h.pollStep()
@@ -698,10 +752,16 @@ func (h *Host) pollInput() ([]byte, error) {
 		return nil, h.fail(err)
 	}
 	if !done {
+		if !h.draining {
+			h.armIRQ()
+		}
 		return nil, nil
 	}
 	h.next = h.io.Now().Add(h.interval)
 	if nak {
+		if !h.draining {
+			h.armIRQ()
+		}
 		return nil, nil
 	}
 	if h.gamepadMode {
@@ -712,5 +772,8 @@ func (h *Host) pollInput() ([]byte, error) {
 		return nil, h.fail(fmt.Errorf("dwc2: short boot keyboard report"))
 	}
 	h.toggle ^= 2
+	if !h.draining {
+		h.armIRQ()
+	}
 	return data, nil
 }

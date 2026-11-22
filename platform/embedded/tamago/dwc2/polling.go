@@ -55,6 +55,7 @@ func (h *Host) PausePolling(ctx context.Context) error {
 	if h.io.Read32(gint)&(1<<4) != 0 {
 		return h.fail(fmt.Errorf("dwc2: polling drain left unread RX status"))
 	}
+	h.suspendIRQ()
 	h.pollingPaused = true
 	return nil
 }
