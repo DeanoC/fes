@@ -36,9 +36,11 @@ func (g *Controller) IdleStep(until int64) {
 	if hw == nil {
 		return
 	}
-	if until == math.MaxInt64 {
-		// Sleep indefinitely only when IRQs are unmasked so an interrupt can
-		// wake and dispatch; otherwise return to avoid wedging polling code.
+	if until == 0 || until == math.MaxInt64 {
+		// No timer deadline (runtime beforeIdle passes 0; semasleep(-1) passes
+		// math.MaxInt64). Sleep indefinitely only when IRQs are unmasked so an
+		// interrupt can wake and dispatch; otherwise return to avoid wedging
+		// polling code.
 		if !hw.IRQEnabled() {
 			return
 		}

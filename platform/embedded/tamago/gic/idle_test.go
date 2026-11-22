@@ -134,23 +134,26 @@ func TestIdleStepEdgeCases(t *testing.T) {
 	// Already expired deadline does not arm or WFI.
 	g.IdleStep(1000)
 	g.IdleStep(500)
-	// MaxInt64 with IRQs masked must not hang in WFI.
+	// Untimed sentinels (0 from beforeIdle, MaxInt64 from semasleep) with IRQs
+	// masked must not hang in WFI.
+	g.IdleStep(0)
 	g.IdleStep(math.MaxInt64)
 	if hw.wfis != 0 || len(hw.armedTicks) != 0 {
 		t.Fatalf("unexpected WFI/arm on expired or masked-indefinite idle: wfis=%d arms=%v", hw.wfis, hw.armedTicks)
 	}
 
-	// MaxInt64 with IRQs enabled executes WFI without arming the timer.
+	// Both untimed sentinels with IRQs enabled execute WFI without arming the timer.
 	hw.irqEnabled = true
+	g.IdleStep(0)
 	g.IdleStep(math.MaxInt64)
-	if hw.wfis != 1 || len(hw.armedTicks) != 0 || g.IdleWakeups() != 1 {
+	if hw.wfis != 2 || len(hw.armedTicks) != 0 || g.IdleWakeups() != 2 {
 		t.Fatalf("indefinite WFI state unexpected: wfis=%d arms=%v wakeups=%d", hw.wfis, hw.armedTicks, g.IdleWakeups())
 	}
 
 	// Zero counter frequency does not arm or WFI.
 	hw.freq = 0
 	g.IdleStep(2000)
-	if hw.wfis != 1 {
+	if hw.wfis != 2 {
 		t.Fatalf("zero counter freq should not WFI: wfis=%d", hw.wfis)
 	}
 }
