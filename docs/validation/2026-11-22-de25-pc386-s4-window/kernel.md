@@ -39,10 +39,26 @@ control block, LW `0x20010400`, span `0x40` (`fes.fabric.de25-hps-window`
 
 - Probe accepts either one `reg` (scanout only, as today) or exactly these
   two.
-- The window block gets its own guard object over its own mapping.
-- That guard is armed and retired with the scanout's, under the same epoch,
-  and only when the overlay also carries a `fes,de25-linux-dma-window`
-  child.
+- **The window block has no hardware guard.** The scanout's guard is a
+  timeout proxy inside the scanout block (guard registers at `0x80..0xff`
+  of its `0x100` span), there because the scanout's registers live in the
+  pixel clock, which can stop. The window block
+  (`boards/de25nano/pc386/fes_de25_hps_window_control.v`, #2036) is plain
+  registers in the board's 100 MHz peripheral clock, which runs whenever
+  the LW bridge does. So the owner maps it directly. It uses the scanout
+  guard's epoch, read before and after each window sequence, as its proof
+  that the FPGA configuration is the one it granted to.
+- The window is usable only when the overlay also carries a
+  `fes,de25-linux-dma-window` child, and only while the scanout guard is
+  armed.
+- **The block answers SLVERR to anything it refuses:** a grant-register
+  write while granted, or `CommandGrant`/`CommandClear` without their
+  preconditions. On arm64 an SLVERR on a device write can raise an SError,
+  which can take the kernel down. So the owner never issues a write the
+  block could refuse. It reads status first and writes only when the
+  preconditions hold, under the window lease, with the machine held by the
+  runtime. The KUnit transport fails a test on any write the RTL would
+  refuse.
 
 **A second lease.** The window has its own `leased`/`active` pair, so a
 pc386 session holds both the scanout grant (its session display) and the
@@ -53,7 +69,9 @@ refused while either is leased, as today.
 CLOEXEC window fd. Under the window lease:
 
 1. Read the window block's `Identity`/`Version`. Require held, drained, not
-   granted and no fault.
+   granted and no fault. The runtime holds the machine (computer mailbox
+   Hold) before it asks for a window, and keeps it held until the grant is
+   confirmed.
 2. Take the build identity from the scanout block's build words. The window
    block has none; both blocks are the same bitstream, under the same
    epoch.
@@ -93,6 +111,10 @@ CLOEXEC window fd. Under the window lease:
     while the window is leased. So a faulted window holds the kit until
     reboot. That is the safe outcome, and the runtime reports it.
 - **`OWNER_REAP`** also retires the window, with the same proof.
+- **One RTL comment disagrees.** `fes_de25_hps_window_control.v` still says
+  "the runtime publishes the kernel's grant here". Editing it moves #2036's
+  netlist identity, so it is left for #2036's next RTL change. The contract
+  and its document already say the kernel publishes.
 
 **ABI.**
 
