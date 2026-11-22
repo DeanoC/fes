@@ -28,21 +28,19 @@ TEXT ·enableHWIRQ(SB),NOSPLIT|NOFRAME,$0
 	MOVWU 0x2c(R0), R1
 	BIC $0x10, R1, R1
 	MOVW R1, 0x2c(R0)
-	// Clear stale RX/RT status, then unmask RXIM (bit 4) and RTIM (bit 6).
-	MOVD $0x50, R2
+	// Clear all stale interrupts and unmask only RXIM (bit 4) and RTIM (bit 6)
+	// so non-RX sources (e.g. TXIM) cannot wedge the level-triggered SPI.
+	MOVD $0x7ff, R2
 	MOVW R2, 0x44(R0)
-	MOVWU 0x38(R0), R1
-	ORR R2, R1, R1
-	MOVW R1, 0x38(R0)
+	MOVD $0x50, R2
+	MOVW R2, 0x38(R0)
 	DSB $15
 	RET
 
 TEXT ·disableHWIRQ(SB),NOSPLIT|NOFRAME,$0
 	MOVD $0x09000000, R0
-	MOVD $0x50, R2
-	MOVWU 0x38(R0), R1
-	BIC R2, R1, R1
-	MOVW R1, 0x38(R0)
+	MOVW ZR, 0x38(R0)
+	MOVD $0x7ff, R2
 	MOVW R2, 0x44(R0)
 	// Restore FIFO mode (FEN=1) for polling callers.
 	MOVWU 0x2c(R0), R1

@@ -25,17 +25,16 @@ empty:
 
 TEXT ·dwEnableRXIRQ(SB),NOSPLIT|NOFRAME,$0-8
 	MOVD base+0(FP), R0
-	MOVWU 0x04(R0), R1
-	ORR $1, R1, R1
+	// Mask all non-RX sources (e.g. THRE/ELSI/EDSSI) so handleRXIRQ
+	// only receives ERBFI (bit 0) interrupts it can acknowledge.
+	MOVD $1, R1
 	MOVW R1, 0x04(R0)
 	DSB $15
 	RET
 
 TEXT ·dwDisableRXIRQ(SB),NOSPLIT|NOFRAME,$0-8
 	MOVD base+0(FP), R0
-	MOVWU 0x04(R0), R1
-	BIC $1, R1, R1
-	MOVW R1, 0x04(R0)
+	MOVW ZR, 0x04(R0)
 	DSB $15
 	RET
 
