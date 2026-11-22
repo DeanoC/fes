@@ -17,6 +17,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/bridge"
 	"github.com/DeanoC/FogCast/internal/hidkeys"
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/localhid"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -470,10 +471,51 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn, recover
 			if active != nil && keyboardFrame(frame) {
 				continue
 			}
-			_ = c.deliverLocal(ctx, frame)
+			departure := remoteinput.IsLocalPlayerDeparture(frameEvent(frame))
+			var leaseCtx context.Context
+			var leaseDone func()
+			if departure && c.localLeases != nil {
+				status := c.localLeases.Status()
+				leaseCtx, leaseDone, _ = c.localLeases.BeginLocalInput(status.Generation)
+			}
+			err := c.deliverLocal(ctx, frame)
+			if leaseDone != nil {
+				leaseDone()
+			}
+			if err != nil && departure {
+				// This is neutral-only retry for the same player marker. Keep
+				// the sole reader until it confirms or shutdown interrupts it.
+				if !c.retryLocalDeparture(ctx, frame, leaseCtx) {
+					return
+				}
+			}
 		}
 		c.warnLocalDrops()
 	}
+}
+
+func (c *TargetController) retryLocalDeparture(ctx context.Context, frame protocol.InputFrame, leaseCtx context.Context) bool {
+	tick := time.NewTicker(500 * time.Millisecond)
+	defer tick.Stop()
+	for ctx.Err() == nil && !c.localIsClosed() {
+		if kitlease.InputCleanupConfirmed(leaseCtx) {
+			attempt, cancel := context.WithTimeout(ctx, localCoreWriteTimeout)
+			retired := c.ports.retireConfirmedDeparture(attempt, frame.Player)
+			cancel()
+			if retired {
+				return false // close the old reader after its exact lease cleanup
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-tick.C:
+		}
+		if c.deliverLocal(ctx, frame) == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *TargetController) validateLocalDelegation(ctx context.Context, binding localDelegation) error {
@@ -641,6 +683,9 @@ func (c *TargetController) deliverLocal(ctx context.Context, frame protocol.Inpu
 	epoch := c.transitionEpoch.Load()
 	if c.transitionPending.Load() != 0 || !c.lifecycle.TryLock() {
 		c.localDrops.Add(1)
+		if remoteinput.IsLocalPlayerDeparture(frameEvent(frame)) {
+			return errNoCore
+		}
 		return nil
 	}
 	defer c.lifecycle.Unlock()

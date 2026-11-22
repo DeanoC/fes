@@ -54,7 +54,7 @@ func ownedLocalKeyboardForTest(app *App) {
 }
 
 func writeKitDisplaySession(w http.ResponseWriter, s hostclient.SessionResult) {
-	json.NewEncoder(w).Encode(map[string]any{"id": s.ID, "state": s.State, "game_id": s.GameID, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID, "media_name": s.MediaName, "core_package": s.CorePackage, "input": s.Input})
+	json.NewEncoder(w).Encode(map[string]any{"id": s.ID, "state": s.State, "game_id": s.GameID, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID, "media_name": s.MediaName, "core_package": s.CorePackage, "runtime_input": s.RuntimeInput, "input_agent_instance": s.InputAgentInstance, "input": s.Input})
 }
 
 type transitionPadFeed struct {
@@ -89,7 +89,7 @@ func computerTapeKitSession() hostclient.SessionResult {
 	s.Input = &hostclient.SessionInput{State: "attached", Ready: true}
 	tape := protocol.Zx81TapeInterface()
 	s.CorePackage.ABI = hostclient.SessionCoreABI{ID: "fes.computer", Major: 1}
-	s.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{{ID: tape.ID, Major: tape.Major, Minor: tape.Minor}}
+	s.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{{ID: tape.ID, Major: tape.Major, Minor: tape.Minor}, {ID: "fes.keyboard", Major: 1}}
 	s.CorePackage.MediaUnits = []protocol.MediaUnitStatus{{
 		Unit: protocol.Zx81TapeUnit, Interface: tape, MinBytes: 1, MaxBytes: 16384, ChunkBytes: 512, State: "empty",
 	}}

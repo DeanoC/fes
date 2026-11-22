@@ -3,10 +3,12 @@ package input
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/DeanoC/FogCast/internal/localhid"
 	"testing"
 
 	"github.com/DeanoC/FogCast/internal/zx81keys"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -89,8 +91,12 @@ func TestLocalJoystickMatrixAndSourceMerge(t *testing.T) {
 	}
 	sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms"})
 	press(remoteinput.ButtonA)
-	if matrix != zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('V'): true}) {
-		t.Fatalf("relaunch: %x", matrix)
+	if matrix != zx81keys.Neutral {
+		t.Fatalf("disconnected held button reasserted: %x", matrix)
+	}
+	press(remoteinput.ButtonDPadDown)
+	if matrix != zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('X'): true}) {
+		t.Fatalf("unrelated fresh button unavailable: %x", matrix)
 	}
 }
 
@@ -202,5 +208,357 @@ func TestLocalJoystickMatrixReleasesOnCoreChange(t *testing.T) {
 	}
 	if matrix != zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.KeyShift: true}) {
 		t.Fatalf("stale A after core change: %x", matrix)
+	}
+}
+
+func TestAmbiguousJoystickNeutralPreservesRemoteAndHeldAliases(t *testing.T) {
+	keys, binding := matrixFixture(t)
+	var posts []uint64
+	var witnesses []localhid.MatrixPost
+	var fail int
+	keys.SetPoster(func(_ context.Context, post localhid.MatrixPost, matrix uint64) error {
+		posts = append(posts, matrix)
+		witnesses = append(witnesses, post)
+		if fail > 0 {
+			fail--
+			return errors.New("ambiguous")
+		}
+		return nil
+	})
+	sink := &controllerPortsSink{keys: keys}
+	sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms", RuntimeInstance: binding.RuntimeInstance, PackageID: binding.PackageID, Generation: binding.Generation})
+	if err := sink.apply(sourceRemote, keyboardFrameFor(zx81keys.Letter('J'), remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	fail = 2 // ambiguous local press and first exact neutral
+	press0 := gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)
+	press1 := gamepad(1, remoteinput.ButtonA, remoteinput.ActionPress, 0)
+	if err := sink.apply(sourceLocal, press0); err == nil {
+		t.Fatal("ambiguous press accepted")
+	}
+	if err := sink.apply(sourceLocal, press1); err == nil {
+		t.Fatal("failed neutral accepted")
+	}
+	if err := sink.apply(sourceLocal, press1); err != nil {
+		t.Fatal(err)
+	}
+	remoteOnly := zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('J'): true})
+	if got := posts[len(posts)-1]; got != remoteOnly {
+		t.Fatalf("neutral replayed local or lost remote: %#x", got)
+	}
+	if witnesses[len(witnesses)-1].NeutralOf == nil {
+		t.Fatal("neutral lacked failed-operation witness")
+	}
+	before := len(posts)
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, press1); err != nil {
+		t.Fatal(err)
+	}
+	if len(posts) != before {
+		t.Fatal("remaining held alias reasserted")
+	}
+	if err := sink.apply(sourceLocal, gamepad(1, remoteinput.ButtonA, remoteinput.ActionRelease, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, press0); err != nil {
+		t.Fatal(err)
+	}
+	want := zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('J'): true, zx81keys.Letter('V'): true})
+	if got := posts[len(posts)-1]; got != want {
+		t.Fatalf("fresh press not rearmed: %#x", got)
+	}
+}
+
+func TestJoystickHeldContributorsRequireReleaseAcrossCoreChange(t *testing.T) {
+	for _, nextGeneration := range []uint64{1, 2} {
+		t.Run(fmt.Sprintf("generation-%d", nextGeneration), func(t *testing.T) {
+			keys, binding := matrixFixture(t)
+			var matrix uint64
+			keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, v uint64) error { matrix = v; return nil })
+			sink := &controllerPortsSink{keys: keys}
+			obs := CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms", RuntimeInstance: binding.RuntimeInstance, PackageID: binding.PackageID, Generation: 1}
+			if err := sink.setObservationContext(context.Background(), obs); err != nil {
+				t.Fatal(err)
+			}
+			event := func(player uint8, code remoteinput.Code, action remoteinput.Action, value int32) {
+				t.Helper()
+				if err := sink.apply(sourceLocal, gamepad(player, code, action, value)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			event(0, remoteinput.ButtonDPadRight, remoteinput.ActionPress, 0)
+			event(0, remoteinput.AxisLeftX, remoteinput.ActionAbsolute, 10000)
+			event(1, remoteinput.ButtonDPadRight, remoteinput.ActionPress, 0)
+			if err := sink.ReleaseAll(); err != nil {
+				t.Fatal(err)
+			}
+			obs.Generation = nextGeneration
+			if nextGeneration == 2 {
+				obs.CoreID = "fes.coleco"
+			}
+			if err := sink.setObservationContext(context.Background(), obs); err != nil {
+				t.Fatal(err)
+			}
+			event(0, remoteinput.ButtonDPadRight, remoteinput.ActionPress, 0)
+			if matrix != zx81keys.Neutral {
+				t.Fatal("held button reasserted after replacement")
+			}
+			event(0, remoteinput.ButtonDPadRight, remoteinput.ActionRelease, 0)
+			event(0, remoteinput.AxisLeftX, remoteinput.ActionAbsolute, 0)
+			if matrix != zx81keys.Neutral {
+				t.Fatal("another player's alias reasserted")
+			}
+			event(1, remoteinput.ButtonDPadRight, remoteinput.ActionRelease, 0)
+			event(0, remoteinput.ButtonDPadRight, remoteinput.ActionPress, 0)
+			if matrix != zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('Z'): true}) {
+				t.Fatalf("fresh press after all releases: %#x", matrix)
+			}
+		})
+	}
+}
+
+func TestJoystickDisconnectQuarantinesOnlyHeldMappings(t *testing.T) {
+	for _, held := range []bool{false, true} {
+		t.Run(fmt.Sprintf("held-%v", held), func(t *testing.T) {
+			keys := NewKeyboardSink()
+			var matrix uint64
+			keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, v uint64) error { matrix = v; return nil })
+			sink := &controllerPortsSink{keys: keys}
+			sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms"})
+			press := gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)
+			release := gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0)
+			if held {
+				if err := sink.apply(sourceLocal, press); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := sink.releaseSource(sourceLocal); err != nil {
+				t.Fatal(err)
+			}
+			if err := sink.apply(sourceLocal, release); err != nil {
+				t.Fatal(err)
+			}
+			if err := sink.apply(sourceLocal, press); err != nil {
+				t.Fatal(err)
+			}
+			if held && matrix != zx81keys.Neutral {
+				t.Fatal("unrelated reader release cleared held-source quarantine")
+			}
+			if !held && matrix == zx81keys.Neutral {
+				t.Fatal("no-held disconnect unnecessarily quarantined input")
+			}
+		})
+	}
+}
+
+func TestJoystickReleaseOnCoreWithoutMappingRearmsOriginalCore(t *testing.T) {
+	keys, binding := matrixFixture(t)
+	var matrix uint64
+	keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, v uint64) error { matrix = v; return nil })
+	sink := &controllerPortsSink{keys: keys}
+	obs := CoreObservation{Active: true, Keyboard: true, CoreID: "fes.coleco", RuntimeInstance: binding.RuntimeInstance, PackageID: binding.PackageID, Generation: 1}
+	if err := sink.setObservationContext(context.Background(), obs); err != nil {
+		t.Fatal(err)
+	}
+	press := gamepad(0, remoteinput.ButtonB, remoteinput.ActionPress, 0)
+	release := gamepad(0, remoteinput.ButtonB, remoteinput.ActionRelease, 0)
+	if err := sink.apply(sourceLocal, press); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.ReleaseAll(); err != nil {
+		t.Fatal(err)
+	}
+	obs.CoreID, obs.Generation = "fes.sms", 2
+	if err := sink.setObservationContext(context.Background(), obs); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, release); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.ReleaseAll(); err != nil {
+		t.Fatal(err)
+	}
+	obs.CoreID, obs.Generation = "fes.coleco", 3
+	if err := sink.setObservationContext(context.Background(), obs); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, press); err != nil {
+		t.Fatal(err)
+	}
+	if want := zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('Q'): true}); matrix != want {
+		t.Fatalf("released mapping did not rearm: %#x", matrix)
+	}
+}
+
+func TestAmbiguousJoystickDoesNotNeutralizeOtherSource(t *testing.T) {
+	keys, binding := matrixFixture(t)
+	var posts int
+	keys.SetPoster(func(context.Context, localhid.MatrixPost, uint64) error { posts++; return errors.New("ambiguous") })
+	sink := &controllerPortsSink{keys: keys}
+	sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms", RuntimeInstance: binding.RuntimeInstance, PackageID: binding.PackageID, Generation: binding.Generation})
+	if err := sink.apply(sourceRemote, keyboardFrameFor(zx81keys.Letter('J'), remoteinput.ActionPress)); err == nil {
+		t.Fatal("ambiguous remote post accepted")
+	}
+	sink.localMatrixUnconfirmed = true
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0)); err == nil {
+		t.Fatal("different source uncertainty cleared")
+	}
+	if posts != 1 {
+		t.Fatalf("unexpected post through foreign uncertainty: %d", posts)
+	}
+}
+
+func TestJoystickPreDispatchFailureRetriesWithoutAmbiguousNeutral(t *testing.T) {
+	keys, binding := matrixFixture(t)
+	var posts []uint64
+	var witnesses []localhid.MatrixPost
+	keys.SetPoster(func(_ context.Context, post localhid.MatrixPost, v uint64) error {
+		posts = append(posts, v)
+		witnesses = append(witnesses, post)
+		if len(posts) == 1 {
+			return localhid.ErrMatrixNotDispatched
+		}
+		return nil
+	})
+	sink := &controllerPortsSink{keys: keys}
+	sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms", RuntimeInstance: binding.RuntimeInstance, PackageID: binding.PackageID, Generation: binding.Generation})
+	press := gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)
+	if err := sink.apply(sourceLocal, press); err == nil {
+		t.Fatal("rejection hidden")
+	}
+	if err := sink.apply(sourceLocal, press); err != nil {
+		t.Fatal(err)
+	}
+	if len(posts) != 2 || witnesses[1].NeutralOf != nil || posts[1] != zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('V'): true}) {
+		t.Fatalf("pre-dispatch retry = %#v", posts)
+	}
+}
+
+func TestJoystickDepartureDoesNotClearAmbiguousSamePlayerContributors(t *testing.T) {
+	keys := NewKeyboardSink()
+	var matrix uint64
+	keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, v uint64) error { matrix = v; return nil })
+	sink := &controllerPortsSink{keys: keys}
+	sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms"})
+	apply := func(frame protocol.InputFrame) {
+		t.Helper()
+		if err := sink.apply(sourceLocal, frame); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The raw route cannot distinguish these same-player pad and shaped-keyboard contributors.
+	apply(gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0))
+	apply(gamepad(0, remoteinput.ButtonDPadUp, remoteinput.ActionPress, 0))
+	apply(localPlayerDeparture(0))
+	if matrix != zx81keys.Neutral {
+		t.Fatalf("ambiguous departure did not neutralize: %#x", matrix)
+	}
+	apply(gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0))
+	apply(gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0))
+	if matrix != zx81keys.Neutral {
+		t.Fatal("ambiguous release rearmed an orphaned mapping")
+	}
+	apply(gamepad(0, remoteinput.ButtonDPadDown, remoteinput.ActionPress, 0))
+	if matrix != zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('X'): true}) {
+		t.Fatalf("unrelated control unavailable: %#x", matrix)
+	}
+}
+
+func TestJoystickDepartureAfterReleasesDoesNotQuarantine(t *testing.T) {
+	keys := NewKeyboardSink()
+	var matrix uint64
+	keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, v uint64) error { matrix = v; return nil })
+	sink := &controllerPortsSink{keys: keys}
+	sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms"})
+	for _, frame := range []protocol.InputFrame{
+		gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0),
+		gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0),
+		localPlayerDeparture(0),
+		gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0),
+	} {
+		if err := sink.apply(sourceLocal, frame); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if matrix != zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('V'): true}) {
+		t.Fatalf("confirmed departure quarantined fresh input: %#x", matrix)
+	}
+}
+
+func TestJoystickDeparturePreservesOtherPlayerDistinctHold(t *testing.T) {
+	keys := NewKeyboardSink()
+	var matrix uint64
+	keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, v uint64) error { matrix = v; return nil })
+	sink := &controllerPortsSink{keys: keys}
+	sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms"})
+	apply := func(frame protocol.InputFrame) {
+		t.Helper()
+		if err := sink.apply(sourceLocal, frame); err != nil {
+			t.Fatal(err)
+		}
+	}
+	apply(gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0))
+	apply(gamepad(1, remoteinput.ButtonDPadDown, remoteinput.ActionPress, 0))
+	apply(localPlayerDeparture(0))
+	want := zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('X'): true})
+	if matrix != want {
+		t.Fatalf("departure dropped other player: %#x", matrix)
+	}
+	apply(gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0))
+	apply(gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0))
+	if matrix != want {
+		t.Fatalf("orphaned mapping resumed: %#x", matrix)
+	}
+	apply(gamepad(1, remoteinput.ButtonDPadDown, remoteinput.ActionRelease, 0))
+	if matrix != zx81keys.Neutral {
+		t.Fatalf("other player release lost: %#x", matrix)
+	}
+}
+
+func TestDepartureRetryDoesNotCrossCoreReplacement(t *testing.T) {
+	keys, binding := matrixFixture(t)
+	var count int
+	fail := false
+	keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, _ uint64) error {
+		count++
+		if fail {
+			return localhid.ErrMatrixNotDispatched
+		}
+		return nil
+	})
+	sink := &controllerPortsSink{keys: keys}
+	obs := CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms", RuntimeInstance: binding.RuntimeInstance, PackageID: binding.PackageID, Generation: binding.Generation}
+	if err := sink.setObservationContext(context.Background(), obs); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	fail = true
+	if err := sink.apply(sourceLocal, localPlayerDeparture(0)); err == nil {
+		t.Fatal("departure failure hidden")
+	}
+	before := count
+	fail = false
+	obs.Generation++
+	if err := sink.setObservationContext(context.Background(), obs); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, localPlayerDeparture(0)); err == nil {
+		t.Fatal("old departure admitted to replacement")
+	}
+	if count != before {
+		t.Fatal("old departure posted to replacement")
+	}
+}
+
+func TestDepartureRetryCancellationDoesNotDispatch(t *testing.T) {
+	c := &TargetController{}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if c.retryLocalDeparture(ctx, localPlayerDeparture(0), nil) {
+		t.Fatal("canceled retry confirmed")
 	}
 }

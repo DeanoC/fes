@@ -57,8 +57,15 @@ func TestDisplayFocusRequiresReleaseAndFreshPressAcrossSources(t *testing.T) {
 	}
 	_ = keys.ReleaseAll()
 	apply(sourceLocal)
+	if matrix != zx81keys.Neutral {
+		t.Fatal("replacement reasserted a still-held local key")
+	}
+	frame.Action = uint8(remoteinput.ActionRelease)
+	apply(sourceLocal)
+	frame.Action = uint8(remoteinput.ActionPress)
+	apply(sourceLocal)
 	if matrix == zx81keys.Neutral {
-		t.Fatal("replacement retained stale focus")
+		t.Fatal("fresh press remained blocked after release")
 	}
 }
 
@@ -155,12 +162,20 @@ func TestSourceDisconnectRetiresOnlyItsSuppressedKeys(t *testing.T) {
 	_ = keys.ReleaseSource(sourceLocal)
 	before := posts
 	_ = keys.ApplyFrom(context.Background(), sourceLocal, frame)
-	if posts != before+1 {
-		t.Fatal("disconnected source retained suppressed key")
+	if posts != before {
+		t.Fatal("disconnect reasserted a still-held key")
 	}
 	_ = keys.ApplyFrom(context.Background(), sourceRemote, frame)
-	if posts != before+1 {
+	if posts != before {
 		t.Fatal("disconnect unsuppressed another source")
+	}
+	frame.Action = uint8(remoteinput.ActionRelease)
+	_ = keys.ApplyFrom(context.Background(), sourceLocal, frame)
+	frame.Action = uint8(remoteinput.ActionPress)
+	before = posts
+	_ = keys.ApplyFrom(context.Background(), sourceLocal, frame)
+	if posts != before+1 {
+		t.Fatal("physical release did not rearm the local source")
 	}
 }
 

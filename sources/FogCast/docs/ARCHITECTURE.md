@@ -3754,11 +3754,23 @@ For observed `fes.coleco`, `fes.sms` and `fes.sg1000` with active `fes.keyboard`
 1.0, the agent maps kit-local pad directions, left stick and A (plus Coleco B)
 onto that keyboard matrix. Each physical pad retains its own buttons and axes;
 their desired matrix keys combine by OR, including opposing stick directions.
-A matrix post that fails stays unconfirmed. The next local pad frame sends
-that pad's full desired matrix, so a release after an ambiguous press failure
-still reaches the runtime.
+A matrix post that fails stays unconfirmed. The next local pad frame first
+neutralizes that exact uncertain source while preserving confirmed remote
+contributors; held local mappings remain suppressed until their physical
+contributors release. A proven pre-dispatch failure can instead retry the
+current desired state.
 Synthetic pad keys, the physical local keyboard and the remote keyboard retain
 separate contributions, so one release cannot clear another device's hold.
+Per-player pad controls survive a core transition for release bookkeeping,
+including aliases and mappings absent from the new core. If a reader disconnects
+with controls held, its affected matrix keys remain quarantined: a new raw
+reader has no source identity or physical snapshot that could prove their
+release. This quarantine lasts for the agent lifetime; an agent restart clears
+the bookkeeping but does not prove the physical controls were released or
+prevent a still-held control from being presented again. Unrelated mappings and
+disconnects with no held controls remain usable. A same-reader departure that
+still has ambiguous contributors quarantines only their mapped keys and retains
+unrelated player contributions.
 Local pad frames do not also enter the virtual gamepad. Other cores retain the
 single virtual gamepad and keyboard sink.
 Installed-core inventory uses a separate root-only HTTP socket at
@@ -3779,12 +3791,12 @@ shapes them with `playhid.StreamEvent` from the runtime's controller-port and ke
 capabilities, then applies the same keypad Start/Select aliases as the host stream.
 HID sessions keep the usages; `fes.keyboard` and native cores first map a usage to the
 ZX81 matrix or arrow code the kit sent before HID, so those cores see the same keys.
-The acknowledged local-keyboard recovery path is currently default-off. The
-target's explicit diagnostic selection `FOGCAST_LOCAL_KEYBOARD_V2=1` arms its
-recovery fence before serving input; it requires a matching launcher selection
-and a fresh physical snapshot. This target switch alone does not make the
-launcher path ready. An unset value or `0` retains the existing path, and an
-invalid value fails agent startup.
+The managed kit bundle enables acknowledged local-keyboard recovery in both
+the agent and kit-host launcher. The target arms its recovery fence before
+serving input; the native launcher requires a fresh physical snapshot. An
+unmanaged target defaults off and can opt in with `FOGCAST_LOCAL_KEYBOARD_V2=1`;
+an invalid value fails agent startup. Optional SDL kit-host mode reports the
+physical keyboard unavailable, while paired-host SDL remains available.
 The feed is not an HTTP route. For kit-host HID keyboard events, each frame
 has a record carrying the observed lease generation, exact HID package/core
 generation and launcher queue epoch. The target agent accepts records only on its root-only socket and admits each edge

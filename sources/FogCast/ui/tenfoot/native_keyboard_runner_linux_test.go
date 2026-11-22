@@ -30,6 +30,9 @@ func TestNativeKeyboardConnectionDrainsSnapshotEdgeAndReset(t *testing.T) {
 	_ = peer.SetDeadline(time.Now().Add(3 * time.Second))
 	feed := localfeed.New("unused", func(string, string, time.Duration) (net.Conn, error) { return client, nil })
 	defer feed.Close()
+	if err := feed.ReserveV2(); err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	type recovery struct {
@@ -111,6 +114,9 @@ func TestNativeKeyboardConnectionLossNeverConfirmsNeutral(t *testing.T) {
 			_ = peer.SetDeadline(time.Now().Add(3 * time.Second))
 			feed := localfeed.New("unused", func(string, string, time.Duration) (net.Conn, error) { return client, nil })
 			defer feed.Close()
+			if err := feed.ReserveV2(); err != nil {
+				t.Fatal(err)
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			type result struct {

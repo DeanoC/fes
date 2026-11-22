@@ -413,6 +413,95 @@ func (s *KeyboardSink) replaceSource(ctx context.Context, source inputSource, de
 	return err
 }
 
+// neutralUnconfirmedSource resolves only this source's ambiguous post. Held
+// inputs remain suppressed until their physical release; no desired press is
+// replayed while resolving the uncertainty.
+func (s *KeyboardSink) neutralUnconfirmedSource(ctx context.Context, source inputSource, desired map[remoteinput.Code]bool) (bool, error) {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return false, err
+	}
+	defer s.mu.Unlock()
+	if s.uncertain == nil {
+		return false, nil
+	}
+	if source >= sourceCount || uint8(source) != s.uncertain.Source {
+		return true, errMatrixUnconfirmed
+	}
+	s.suppressSourceLocked(source)
+	for code := range desired {
+		s.blocked[source][code] = true
+	}
+	if err := s.postLocked(ctx, source, true, matrixGuardFrom(ctx)); err != nil {
+		return true, err
+	}
+	for code := range s.blocked[source] {
+		if !desired[code] {
+			delete(s.blocked[source], code)
+		}
+	}
+	return true, nil
+}
+
+// suppressMappedKeys fences physically held pad contributors across a core
+// transition. It changes bookkeeping only and never posts a guest matrix.
+func (s *KeyboardSink) suppressMappedKeys(ctx context.Context, desired map[remoteinput.Code]bool) error {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if s.blocked[sourceLocalMatrix] == nil {
+		s.blocked[sourceLocalMatrix] = make(map[remoteinput.Code]bool)
+	}
+	for code := range desired {
+		s.blocked[sourceLocalMatrix][code] = true
+	}
+	return nil
+}
+
+// reconcileMappedReleases rearms a historical mapped key only when no
+// continuous-reader contributor still maps to it on any supported core.
+// A disconnected reader's orphaned keys require authoritative recovery.
+func (s *KeyboardSink) reconcileMappedReleases(ctx context.Context, held, orphans map[remoteinput.Code]bool) error {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if s.uncertain != nil {
+		return nil
+	}
+	for code := range s.blocked[sourceLocalMatrix] {
+		if !held[code] && !orphans[code] {
+			delete(s.blocked[sourceLocalMatrix], code)
+		}
+	}
+	return nil
+}
+
+// quarantineMappedSubset removes only ambiguous mappings while preserving
+// unrelated local and remote contributors in the confirmed union.
+func (s *KeyboardSink) quarantineMappedSubset(ctx context.Context, mappings map[remoteinput.Code]bool, expected *localhid.MatrixWitness) (*localhid.MatrixWitness, error) {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return expected, err
+	}
+	defer s.mu.Unlock()
+	if (s.uncertain == nil) != (expected == nil) || (s.uncertain != nil && *s.uncertain != *expected) {
+		return expected, errMatrixUnconfirmed
+	}
+	if s.blocked[sourceLocalMatrix] == nil {
+		s.blocked[sourceLocalMatrix] = make(map[remoteinput.Code]bool)
+	}
+	for code := range mappings {
+		s.blocked[sourceLocalMatrix][code] = true
+		delete(s.pressed[sourceLocalMatrix], code)
+	}
+	err := s.postLocked(ctx, sourceLocalMatrix, expected != nil, matrixGuardFrom(ctx))
+	if err != nil && expected == nil && s.uncertain != nil {
+		copy := *s.uncertain
+		expected = &copy
+	}
+	return expected, err
+}
+
 func (s *KeyboardSink) unionLocked() map[remoteinput.Code]bool {
 	union := make(map[remoteinput.Code]bool)
 	for source := range s.pressed {

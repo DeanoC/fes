@@ -10,6 +10,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/bridge"
 	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/joymatrix"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
@@ -67,13 +68,23 @@ type controllerPortsSink struct {
 	// publishSeq is the newest set_controller decision for a port.
 	// inflight counts poster calls that have not rejoined mu.
 	// haltPublish rejects new posts while ReleaseAll neutralizes.
-	publishSeq           [controllerPortCount]uint64
-	inflight             [controllerPortCount]int
-	haltPublish          bool
-	keyboard             bool
-	coreID               string
-	localMatrix          remoteinput.State
-	localKeys            map[remoteinput.Code]bool
+	publishSeq  [controllerPortCount]uint64
+	inflight    [controllerPortCount]int
+	haltPublish bool
+	keyboard    bool
+	coreID      string
+	localMatrix remoteinput.State
+	localKeys   map[remoteinput.Code]bool
+	// A disconnected raw pad reader cannot prove that a held control was
+	// released. Those mapped keys stay quarantined until authoritative source
+	// recovery exists; unrelated keys and no-held disconnects remain usable.
+	localMatrixOrphans   map[remoteinput.Code]bool
+	departurePending     bool
+	departurePlayer      uint8
+	departureCore        string
+	departureGeneration  uint64
+	departureBinding     *MatrixBinding
+	departureWitness     *localhid.MatrixWitness
 	pendingMatrixNeutral bool
 	// localMatrixUnconfirmed means a pad-to-matrix post returned an error
 	// after the sink had already taken that state. localKeys can no longer
@@ -177,7 +188,6 @@ func (s *controllerPortsSink) updateObservationContext(ctx context.Context, obs 
 		(!confirmed || !sameMatrixCore || s.pendingMatrixNeutral) {
 		// Stop replaying old pad holds as soon as observation becomes uncertain.
 		// A failed neutral post still needs retry on the same observed core.
-		s.localMatrix.ReleaseAll()
 		if (!confirmed || sameMatrixCore) && s.keys != nil {
 			s.pendingMatrixNeutral = true
 			if err := s.keys.releaseSourceContext(ctx, sourceLocalMatrix); err != nil {
@@ -185,7 +195,14 @@ func (s *controllerPortsSink) updateObservationContext(ctx context.Context, obs 
 				return err
 			}
 		}
-		s.localKeys = nil
+		if confirmed && obs.Active && obs.Keyboard && s.keys != nil {
+			desired := s.localMatrixKeysForCoreLocked(obs.CoreID)
+			if err := s.keys.suppressMappedKeys(ctx, desired); err != nil {
+				s.observed = false
+				return err
+			}
+			s.localKeys = desired
+		}
 		s.pendingMatrixNeutral = false
 		s.localMatrixUnconfirmed = false
 	}
@@ -204,6 +221,13 @@ func (s *controllerPortsSink) updateObservationContext(ctx context.Context, obs 
 }
 
 func sameHIDBinding(left, right *KeyboardHIDBinding) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
+}
+
+func sameMatrixBinding(left, right *MatrixBinding) bool {
 	if left == nil || right == nil {
 		return left == right
 	}
@@ -403,19 +427,51 @@ func (s *controllerPortsSink) applyWithBinding(ctx context.Context, source input
 }
 
 func (s *controllerPortsSink) releaseLocalPlayerLocked(ctx context.Context, player uint8) error {
+	if s.departurePending && (s.binding != nil || !s.localMatrixRouteLocked()) {
+		return errMatrixUnconfirmed
+	}
 	if s.binding == nil {
 		if s.localMatrixRouteLocked() {
-			// Releases preceding the marker normally emptied this player's state.
-			// Clear any remaining contribution without touching the other pad.
-			for _, code := range s.localMatrix.SnapshotForPlayer(player).Pressed {
-				_ = s.localMatrix.Apply(remoteinput.Event{Player: player, Device: remoteinput.DeviceGamepad,
-					Kind: remoteinput.KindButton, Action: remoteinput.ActionRelease, Code: code})
+			// A marker names only a player, not the individual physical
+			// contributor. Confirmed preceding releases need no work. If
+			// anything remains, neutralize and quarantine those mappings:
+			// they may include a different device sharing the same player.
+			remaining := s.localMatrixPlayerMappingsLocked(player)
+			if s.departurePending && (s.departurePlayer != player || s.departureCore != s.coreID || s.departureGeneration != s.coreGeneration || !sameMatrixBinding(s.departureBinding, s.matrixBinding)) {
+				return errMatrixUnconfirmed
 			}
-			for _, code := range []remoteinput.Code{remoteinput.AxisLeftX, remoteinput.AxisLeftY} {
-				_ = s.localMatrix.Apply(remoteinput.Event{Player: player, Device: remoteinput.DeviceGamepad,
-					Kind: remoteinput.KindAxis, Action: remoteinput.ActionAbsolute, Code: code})
+			if len(remaining) == 0 {
+				if s.departurePending {
+					return errMatrixUnconfirmed
+				}
+				return nil
 			}
-			return s.publishLocalMatrixLocked(ctx)
+			if s.localMatrixOrphans == nil {
+				s.localMatrixOrphans = make(map[remoteinput.Code]bool)
+			}
+			for code := range remaining {
+				s.localMatrixOrphans[code] = true
+			}
+			if !s.departurePending {
+				s.departurePending = true
+				s.departurePlayer, s.departureCore, s.departureGeneration = player, s.coreID, s.coreGeneration
+				if s.matrixBinding != nil {
+					binding := *s.matrixBinding
+					s.departureBinding = &binding
+				}
+			}
+			witness, err := s.keys.quarantineMappedSubset(ctx, remaining, s.departureWitness)
+			s.departureWitness = witness
+			if err != nil {
+				s.localMatrixUnconfirmed = true
+				return err
+			}
+			s.departurePending = false
+			s.departureBinding = nil
+			s.departureWitness = nil
+			s.localMatrixUnconfirmed = false
+			s.localKeys = s.localMatrixKeysLocked()
+			return nil
 		}
 		return nil
 	}
@@ -426,8 +482,28 @@ func (s *controllerPortsSink) releaseLocalPlayerLocked(ctx context.Context, play
 	return s.publishAllLocked(ctx)
 }
 
+// A manager-confirmed cleanup proves the old source neutral. Preserve the
+// orphan quarantine, but retire its pending retry before closing the reader.
+func (s *controllerPortsSink) retireConfirmedDeparture(ctx context.Context, player uint8) bool {
+	if s == nil || lockInputMutex(ctx, &s.mu) != nil {
+		return false
+	}
+	defer s.mu.Unlock()
+	if s.departurePending && s.departurePlayer != player {
+		return false
+	}
+	s.departurePending = false
+	s.departureBinding = nil
+	s.departureWitness = nil
+	s.localMatrixUnconfirmed = false
+	return true
+}
+
 func (s *controllerPortsSink) applyLocalMatrixLocked(ctx context.Context, f protocol.InputFrame) error {
 	if err := s.localMatrix.Apply(frameEvent(f)); err != nil {
+		return err
+	}
+	if err := s.keys.reconcileMappedReleases(ctx, s.localMatrixAllMappingsLocked(), s.localMatrixOrphans); err != nil {
 		return err
 	}
 	return s.publishLocalMatrixLocked(ctx)
@@ -438,19 +514,65 @@ func (s *controllerPortsSink) localMatrixRouteLocked() bool {
 }
 
 func (s *controllerPortsSink) localMatrixKeysLocked() map[remoteinput.Code]bool {
+	return s.localMatrixKeysForCoreLocked(s.coreID)
+}
+
+func (s *controllerPortsSink) localMatrixKeysForCoreLocked(core string) map[remoteinput.Code]bool {
 	desired := make(map[remoteinput.Code]bool)
 	for player := uint8(0); player < controllerPortCount; player++ {
-		for code := range joymatrix.Desired(s.coreID, s.localMatrix.SnapshotForPlayer(player)) {
+		for code := range joymatrix.Desired(core, s.localMatrix.SnapshotForPlayer(player)) {
 			desired[code] = true
 		}
 	}
 	return desired
 }
 
+func (s *controllerPortsSink) localMatrixAllMappingsLocked() map[remoteinput.Code]bool {
+	held := make(map[remoteinput.Code]bool)
+	for _, core := range []string{"fes.coleco", "fes.sms", "fes.sg1000"} {
+		for code := range s.localMatrixKeysForCoreLocked(core) {
+			held[code] = true
+		}
+	}
+	return held
+}
+
+func (s *controllerPortsSink) localMatrixPlayerMappingsLocked(player uint8) map[remoteinput.Code]bool {
+	held := make(map[remoteinput.Code]bool)
+	for _, core := range []string{"fes.coleco", "fes.sms", "fes.sg1000"} {
+		for code := range joymatrix.Desired(core, s.localMatrix.SnapshotForPlayer(player)) {
+			held[code] = true
+		}
+	}
+	return held
+}
+
 func (s *controllerPortsSink) publishLocalMatrixLocked(ctx context.Context) error {
 	desired := s.localMatrixKeysLocked()
 	if s.localMatrixUnconfirmed {
-		if err := s.keys.replaceSource(ctx, sourceLocalMatrix, desired); err != nil {
+		quarantined := make(map[remoteinput.Code]bool, len(desired)+len(s.localMatrixOrphans))
+		for code := range desired {
+			quarantined[code] = true
+		}
+		for code := range s.localMatrixOrphans {
+			quarantined[code] = true
+		}
+		handled, err := s.keys.neutralUnconfirmedSource(ctx, sourceLocalMatrix, quarantined)
+		if err != nil {
+			return err
+		}
+		if handled {
+			s.localKeys = desired
+			s.localMatrixUnconfirmed = false
+			return nil
+		}
+		allowed := make(map[remoteinput.Code]bool, len(desired))
+		for code := range desired {
+			if !s.localMatrixOrphans[code] {
+				allowed[code] = true
+			}
+		}
+		if err := s.keys.replaceSource(ctx, sourceLocalMatrix, allowed); err != nil {
 			return err
 		}
 		s.localKeys = desired
@@ -475,6 +597,9 @@ func (s *controllerPortsSink) publishLocalMatrixLocked(ctx context.Context) erro
 		action remoteinput.Action
 	}{{removed, remoteinput.ActionRelease}, {added, remoteinput.ActionPress}} {
 		for _, code := range transition.codes {
+			if s.localMatrixOrphans[code] {
+				continue
+			}
 			frame := protocol.InputFrame{Device: uint8(remoteinput.DeviceKeyboard), Kind: uint8(remoteinput.KindKey), Action: uint8(transition.action), Code: uint16(code)}
 			if err := s.keys.ApplyFrom(ctx, sourceLocalMatrix, frame); err != nil {
 				s.localMatrixUnconfirmed = true
@@ -761,6 +886,17 @@ func (s *controllerPortsSink) releaseSourceChannels(ctx context.Context, source 
 	}
 	s.sources[source].ReleaseAll()
 	if source == sourceLocal {
+		// A new raw reader has no source identity or authoritative snapshot.
+		// Preserve any held mappings as quarantined, including mappings used
+		// by a different later matrix core. Reconnect alone cannot clear them.
+		for _, core := range []string{"fes.coleco", "fes.sms", "fes.sg1000"} {
+			for code := range s.localMatrixKeysForCoreLocked(core) {
+				if s.localMatrixOrphans == nil {
+					s.localMatrixOrphans = make(map[remoteinput.Code]bool)
+				}
+				s.localMatrixOrphans[code] = true
+			}
+		}
 		s.localMatrix.ReleaseAll()
 		s.localClaim = [controllerPortCount]bool{}
 		if s.binding != nil || s.keys == nil {
@@ -866,8 +1002,6 @@ func (s *controllerPortsSink) releaseAllContext(ctx context.Context) error {
 	}
 	if s.binding == nil {
 		s.resetSourcesLocked()
-		s.localMatrix.ReleaseAll()
-		s.localKeys = nil
 		s.pendingMatrixNeutral = false
 		s.localMatrixUnconfirmed = false
 		s.coreActive = false
@@ -937,8 +1071,6 @@ func (s *controllerPortsSink) releaseAllContext(ctx context.Context) error {
 	}
 	if result == nil {
 		s.resetSourcesLocked()
-		s.localMatrix.ReleaseAll()
-		s.localKeys = nil
 		s.pendingMatrixNeutral = false
 		s.localMatrixUnconfirmed = false
 		s.binding = nil

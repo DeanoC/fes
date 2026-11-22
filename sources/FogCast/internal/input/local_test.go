@@ -1263,10 +1263,10 @@ func TestStalledLocalStatusCannotWedgeLifecycle(t *testing.T) {
 func TestStalledLocalKeyboardCannotWedgeLifecycle(t *testing.T) {
 	keys := NewKeyboardSink()
 	started := make(chan time.Duration, 1)
+	var writes atomic.Int32
 	keys.SetPoster(func(ctx context.Context, _ localhid.MatrixPost, _ uint64) error {
-		// Host cleanup still posts with context.Background(). A context
-		// with no deadline is not the local write under test.
-		if ctx == nil || ctx.Done() == nil {
+		// Cleanup also has a deadline; only the original local write stalls.
+		if writes.Add(1) != 1 {
 			return nil
 		}
 		deadline, ok := ctx.Deadline()
@@ -1351,7 +1351,11 @@ func TestStalledLocalKeyboardCannotWedgeLifecycle(t *testing.T) {
 // deadline and must still return.
 func TestStalledLocalControllerWriteCannotWedgeLifecycle(t *testing.T) {
 	started := make(chan time.Duration, 1)
+	var writes atomic.Int32
 	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(ctx context.Context, id string, generation uint64, port, buttons uint8, keypad uint16) error {
+		if writes.Add(1) != 1 {
+			return nil
+		}
 		deadline, ok := ctx.Deadline()
 		if !ok {
 			return nil
