@@ -388,7 +388,7 @@ def component_ports(module, interface):
     return {p.findtext("role"): (p.findtext("direction"), int(p.findtext("width"))) for p in points[0].findall("ports/port")}
 
 
-def verify_probe_handoff(project):
+def verify_probe_handoff(project, *, maintenance=True):
     offset = probe_base((project / "fes_mailbox/generated/fes_de25_ddr_probe.vh").read_text())
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
     modules = {m.get("path"): m for m in tree.findall("module")}
@@ -401,16 +401,16 @@ def verify_probe_handoff(project):
         ("avalon", "subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_ddr_probe.avs"),
         ("avalon", "subsys_periph_fes_ddr_probe.avm", "subsys_hps_f2sdram_adapter.axi4_sub"),
         ("avalon", "subsys_hps_f2sdram_adapter.axi4_man", "subsys_hps_agilex_hps.f2sdram"),
-        ("avalon", "ext_hps_f2sdram_master.expanded_master", "subsys_hps_f2sdram_adapter.axi4_sub"),
         ("clock", "subsys_periph_periph_clk.out_clk", "subsys_periph_fes_ddr_probe.clk"),
         ("reset", "subsys_periph_periph_rst_in.out_reset", "subsys_periph_fes_ddr_probe.reset"))
-    if any(key not in connections for key in required):
+    debug = ("avalon", "ext_hps_f2sdram_master.expanded_master", "subsys_hps_f2sdram_adapter.axi4_sub")
+    if any(key not in connections for key in required) or (debug in connections) != maintenance:
         raise ValueError("generated DDR probe bridge/clock/reset/JTAG path differs")
     def parameter(connection, name):
         return connections[connection].findtext("parameter[@name='" + name + "']/value")
     if (int(parameter(required[0], "baseAddress"), 0) != offset or
             int(parameter(required[1], "baseAddress"), 0) != 0 or
-            parameter(required[4], "clockRateSysInfo") != "100000000"):
+            parameter(required[3], "clockRateSysInfo") != "100000000"):
         raise ValueError("generated DDR probe offset/clock/adapter base differs")
     ports = component_ports(probe, "avm")
     expected = {"address": ("Output", 32), "burstcount": ("Output", 5), "read": ("Output", 1),

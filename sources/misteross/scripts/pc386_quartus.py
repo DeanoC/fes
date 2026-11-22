@@ -156,7 +156,7 @@ MACHINE_SOURCES = (
     f"{OPL2}/opl2_pkg.sv",
     *(f"{OPL2}/{name}.sv" for name in (
         "pipeline_sr", "mem_simple_dual_port", "mem_simple_dual_port_async_read", "mem_single_bank",
-        "mem_single_bank_reset", "opl2_log_sine_lut", "opl2_exp_lut", "ksl_add_rom", "tremolo", "vibrato",
+        "mem_single_bank_reset", "ksl_add_rom", "tremolo", "vibrato",
         "calc_phase_inc", "calc_envelope_shift", "calc_rhythm_phase", "envelope_generator", "phase_generator",
         "operator", "control_operators", "dac_prep", "channels")),
     *(f"cores/fes-pc386/rtl/{name}.sv" for name in (
@@ -298,12 +298,19 @@ def _check_seed(seed: int) -> int:
     return seed
 
 
-def machine_program(netlist: Path, sources: str | None = None) -> str:
+def machine_program(netlist: Path, sources: str | None = None, x87: dict[str, int] | None = None) -> str:
     """The Yosys program that elaborates the machine at the sealed guest rates. pc386_rom
-    reads ROM_HEX while it is read in. sources stands in for MACHINE_SOURCES."""
+    reads ROM_HEX while it is read in. sources stands in for MACHINE_SOURCES. x87 sets
+    pc386_system's X87_PRESENT for a diagnostic fit; the DE10 seal passes none, so
+    its machine keeps the RTL's 0."""
+    parameters = guest_rates()
+    if x87:
+        if set(x87) - {"X87_PRESENT"} or set(x87.values()) - {0, 1}:
+            raise board.BuildError(f"the x87 setting is X87_PRESENT, 0 or 1: {x87!r}")
+        parameters = {**parameters, **x87}
     return yosys_netlist.program(yosys_netlist.SEAL, top=MACHINE_TOP,
                                  sources=MACHINE_SOURCES if sources is None else (sources,),
-                                 includes=INCLUDE_DIRS, parameters=guest_rates(), netlist=netlist.as_posix())
+                                 includes=INCLUDE_DIRS, parameters=parameters, netlist=netlist.as_posix())
 
 
 def _firmware_lock(root: Path) -> dict:

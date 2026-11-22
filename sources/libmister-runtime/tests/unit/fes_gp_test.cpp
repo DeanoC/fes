@@ -3567,11 +3567,12 @@ void TestPc386AtaDiskCommitPollAndDirtyMap()
 
 // The DE25 standard shell's firmware machines on the real DE25 register
 // transport, against the port of fes_firmware_upload.v.
-constexpr std::uint32_t kSpectrumCapabilities = 0x202f, kAtariStCapabilities = 0x278f;
+constexpr std::uint32_t kSpectrumCapabilities = 0x202f, kAtariStCapabilities = 0x278f, kC64Capabilities = 0x204f;
 const std::pair<std::uint32_t, std::uint32_t> kSpectrumTapeLimits = {
 	FesComputerSpectrumTapeMinBytes, FesComputerSpectrumTapeMaxBytes};
 const std::pair<std::uint32_t, std::uint32_t> kAtariStFloppyLimits = {
 	FesComputerAtariStFloppyGeometryMinBytes, FesComputerAtariStFloppyGeometryMaxBytes};
+const std::pair<std::uint32_t, std::uint32_t> kC64DiskLimits = {FesComputerC64DiskBytes, FesComputerC64DiskBytes};
 
 std::string FirmwareImage(std::size_t bytes)
 {
@@ -3636,6 +3637,7 @@ void TestFirmwareUploadPrecedesReleaseOnDe25Machines()
 		{kSpectrumCapabilities, kSpectrumTapeLimits, mister_test::De25SpectrumDescriptor(16384), 16384},
 		{kSpectrumCapabilities, kSpectrumTapeLimits, mister_test::De25SpectrumDescriptor(32768), 32768},
 		{kAtariStCapabilities, kAtariStFloppyLimits, mister_test::De25AtariStDescriptor(), 196608},
+		{kC64Capabilities, kC64DiskLimits, mister_test::De25C64Descriptor(), 36864},
 	};
 	for (const auto& machine : machines) {
 		FirmwareFixture f(machine.capabilities, machine.unit, machine.descriptor, machine.bytes);

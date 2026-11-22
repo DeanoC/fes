@@ -41,23 +41,44 @@ Two profiles:
          (cores/fes-pc386/sim/mousedef.asm). MEM is in C:\\FDOS\\BIN with them.
 
 No network access occurs unless --download is given. The packages are fetched
-as cores/fes-pc386/sim/freedos.lock pins them: the kernel as FDOS/kernel's
-ke2046 release archives, each checked against its SHA-256, and the rest at
-their package repositories' FreeDOS-v1.4 commits. Every file used is checked
-against its pinned SHA-256:
+as cores/fes-pc386/sim/freedos.lock pins them: the kernel's source as FDOS/kernel's
+ke2046 release archive, checked against its SHA-256, and the rest at their
+package repositories' FreeDOS-v1.4 commits. Every file used is checked against
+its pinned SHA-256:
 
-  kernel   kernel 2046's 386 FAT12/FAT16 build (ke2046_386f16.zip), installed
-           as KERNEL.SYS, and boot/boot.asm from its source archive
-           (ke2046s.zip), the FAT16 boot sector, assembled with the test386
-           runner's pinned NASM. Its FAT32 build reports DOS 7.10 and is not
-           what Windows 3.x runs on (docs/pc386-machine-design.md)
+  kernel   kernel 2046's 386 FAT12/FAT16 build with Windows 3.x support
+           (WIN31SUPPORT), built from ke2046s.zip's SOURCE/ke2046 with Open
+           Watcom and installed as KERNEL.SYS uncompressed. Two patches from
+           cores/fes-pc386/sim/freedos-patches are applied first: its
+           SHARE_IS_FILE_OPEN stub keeps SI, which DosRenameTrue relies on
+           (fes#1777, FDOS/kernel#276; drop it when upstream ships a fix),
+           and the version string's __DATE__ is fixed to the release's,
+           since Open Watcom ignores SOURCE_DATE_EPOCH.
+           boot/boot.asm from the same archive is the FAT16 boot sector,
+           assembled with the test386 runner's pinned NASM. The FAT32 build
+           reports DOS 7.10 and is not what Windows 3.x runs on
+           (docs/pc386-machine-design.md)
   freecom  COMMAND.COM
   fdisk    bootnorm.c, the bytes of Free FDISK's master boot record
   himemx   HIMEMX.EXE (games)
   jemm     UMBM.EXE (games)
   ctmouse  CTMOUSE.EXE (games)
   mem      MEM.EXE (games)
-  share    SHARE.COM (games)
+  share    SHARE.COM (games), built with ia16-gcc from ke2046s.zip's share
+           tree (FDOS/share 47f3d425). Kernel 2046 asks SHARE before every
+           delete and rename (INT 2Fh 10A6h); FreeDOS 1.4's SHARE 08/2006a
+           predates that call and failed them all (FDOS/share#27)
+
+The kernel and SHARE builds are reproducible: each output must match the SHA-256
+the lock pins, so a different toolchain or source fails the build instead of
+changing the image. The toolchains are pinned in the lock's "toolchains" by
+archive SHA-256 and unpacked under build/: Open Watcom v2's dated snapshot
+tarball, and gcc-ia16-elf, binutils, newlib and libi86 as tkchia/build-ia16's
+Debian packages (dpkg-deb unpacks them; nothing is installed). Each archive
+is fetched from its upstream URL first and then from a byte-identical mirror,
+the DeanoC/fes-pc386-toolchains release, in case upstream drops it. An image built
+from source carries FDOS\\DOC\\SOURCES.TXT, naming each source archive, and the
+patches, beside the binaries.
 
 The disk is 65 cylinders of 16 heads and 63 sectors (32.0 MiB). One active
 FAT16 partition (type 06h) starts at cylinder 0, head 1; mtools formats it with
@@ -81,6 +102,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import urllib.request
 import zipfile
 
@@ -142,7 +164,7 @@ PROFILES = {
                      'VER\r\n'),
         'bin': {'HIMEMX.EXE': ('himemx', 'BIN/HimemX.exe'), 'UMBM.EXE': ('jemm', 'BIN/UMBM.EXE'),
                 'CTMOUSE.EXE': ('ctmouse', 'BIN/CTMOUSE.EXE'), 'MEM.EXE': ('mem', 'BIN/MEM.EXE'),
-                'SHARE.COM': ('share', 'BIN/SHARE.COM'),
+                'SHARE.COM': ('share', 'build-output/share.com'),
                 'FESENV.COM': FESENV, 'MOUSEDEF.COM': MOUSEDEF, 'FESEMS.SYS': FESEMS},
     },
 }
@@ -205,6 +227,9 @@ def inputs_key(profile: str = 'boot') -> str:
     digest = hashlib.sha256(profile.encode() + b'\0')
     sources = [LOCK.resolve(), Path(__file__).resolve(), Path(test386.__file__).resolve()]
     sources += [source.resolve() for source in ALL_PROFILES[profile]['bin'].values() if isinstance(source, Path)]
+    packages = lock()['packages']
+    sources += [(ROOT / patch).resolve() for name in ALL_PROFILES[profile]['packages']
+                for patch in packages[name].get('build', {}).get('patches', [])]
     for path in sources:
         digest.update(path.relative_to(ROOT).as_posix().encode())
         digest.update(b'\0')
@@ -231,13 +256,13 @@ def work_directory(profile: str) -> Path:
     return BUILD / f'work-{profile}'
 
 
-def package(name: str, spec: dict, download: bool) -> Path:
+def package(name: str, spec: dict, download: bool, jobs: int = 4) -> Path:
     """Return one FreeDOS package's pinned files, each verified: a package
     repository's checkout at its commit, or the named members of release
     archives, each archive checked against its SHA-256 (files under
     <archive>/<member>)."""
     if 'archives' in spec:
-        return release_package(name, spec, download)
+        return release_package(name, spec, download, jobs)
     tree = BUILD / f'{name}-{spec["commit"]}'
     if not (tree / '.git').is_dir():
         if not download:
@@ -262,16 +287,31 @@ def source(pins: dict) -> str:
     return pins['commit'] if 'commit' in pins else pins['release']
 
 
+def package_record(pins: dict) -> dict:
+    """A package as an image's record lists it, with what built it."""
+    record = {'source': source(pins), 'version': pins['version'], 'license': pins['license']}
+    if 'build' in pins:
+        record['built'] = {'source_tree': pins['source_tree'], 'patches': pins['build']['patches'],
+                           'toolchain': lock()['toolchains'][pins['build']['toolchain']]['version'],
+                           'sha256': pins['build']['sha256'], 'upstream_issue': pins['upstream_issue']}
+    return record
+
+
 def verify(name: str, tree: Path, spec: dict) -> None:
     for path, digest in spec['files'].items():
         if hashlib.sha256((tree / path).read_bytes()).hexdigest() != digest:
             raise ImageError(f'FreeDOS {name}/{path} does not match freedos.lock')
 
 
-def release_package(name: str, spec: dict, download: bool) -> Path:
+def release_package(name: str, spec: dict, download: bool, jobs: int = 4) -> Path:
     """Unpack the lock's files from a package's release archives."""
-    pins = {'archives': spec['archives'], 'files': spec['files']}
-    identity = hashlib.sha256(json.dumps(pins, sort_keys=True).encode()).hexdigest()[:16]
+    pins = {key: spec[key] for key in ('archives', 'files', 'source_tree', 'build') if key in spec}
+    digest = hashlib.sha256(json.dumps(pins, sort_keys=True).encode())
+    for patch in spec.get('build', {}).get('patches', []):
+        digest.update((ROOT / patch).read_bytes())
+    if 'build' in spec:
+        digest.update(json.dumps(lock()['toolchains'][spec['build']['toolchain']], sort_keys=True).encode())
+    identity = digest.hexdigest()[:16]
     tree = BUILD / f'{name}-{identity}'
     if not tree.is_dir():
         partial = tree.with_name(tree.name + '.partial')
@@ -295,15 +335,150 @@ def release_package(name: str, spec: dict, download: bool) -> Path:
                 raise ImageError(f'FreeDOS {name} archive {stored} did not match freedos.lock and was removed; '
                                  'pass --download to fetch it again')
             with zipfile.ZipFile(stored) as members:
-                for path in spec['files']:
-                    prefix, _, member = path.partition('/')
-                    if prefix == archive:
-                        target = partial / path
-                        target.parent.mkdir(parents=True, exist_ok=True)
-                        target.write_bytes(members.read(member))
+                wanted = [path.partition('/')[2] for path in spec['files'] if path.partition('/')[0] == archive]
+                tree_archive, _, tree_prefix = spec.get('source_tree', '').partition('/')
+                if tree_archive == archive:
+                    wanted += [member for member in members.namelist()
+                               if member.startswith(tree_prefix + '/') and not member.endswith('/')]
+                for member in sorted(set(wanted)):
+                    target = partial / archive / member
+                    if not target.resolve().is_relative_to(partial.resolve()):
+                        raise ImageError(f'FreeDOS {name} archive {archive} member {member} leaves its tree')
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(members.read(member))
+        verify(name, partial, spec)
+        if 'build' in spec:
+            build_package(name, spec, partial, download, jobs)
         partial.rename(tree)
     verify(name, tree, spec)
+    if 'build' in spec and hashlib.sha256(built(tree, spec).read_bytes()).hexdigest() != spec['build']['sha256']:
+        raise ImageError(f'FreeDOS {name}: {built(tree, spec)} does not match freedos.lock')
     return tree
+
+
+def built(tree: Path, spec: dict) -> Path:
+    """A built package's output, kept beside its source as build-output/<name>."""
+    return tree / 'build-output' / Path(spec['build']['output']).name
+
+
+def build_package(name: str, spec: dict, tree: Path, download: bool, jobs: int) -> None:
+    """Build a package from its source tree: copy the tree, apply the lock's
+    patches (patch -p1), run the build command with the pinned toolchain on
+    PATH, and keep the output only if it matches its pinned SHA-256. A
+    toolchain or source that builds different bytes fails here."""
+    build = spec['build']
+    archive, _, prefix = spec['source_tree'].partition('/')
+    work = tree / 'build-tree'
+    shutil.copytree(tree / archive / prefix, work)
+    for patch in build['patches']:
+        result = subprocess.run(['patch', '-p1', '--batch', '--input', str(ROOT / patch)], cwd=work,
+                                capture_output=True, text=True)
+        if result.returncode:
+            raise ImageError(f'FreeDOS {name}: {patch} did not apply:\n' + result.stdout + result.stderr)
+    nasm = test386.nasm(download, jobs)
+    env = dict(os.environ, **toolchain_environment(build['toolchain'], download), **build.get('environment', {}))
+    env['PATH'] = os.pathsep.join((str(nasm.parent), env['PATH']))  # the pinned NASM before any host one
+    env['SOURCE_DATE_EPOCH'] = str(FILE_TIME)
+    print(f'Building FreeDOS {name} with {lock()["toolchains"][build["toolchain"]]["version"]}', flush=True)
+    log = tree / 'build.log'
+    with log.open('w') as output:
+        result = subprocess.run(build['command'], cwd=work, env=env, stdout=output, stderr=subprocess.STDOUT)
+    if result.returncode:
+        raise ImageError(f'FreeDOS {name}: the build failed; see {log}')
+    produced = work / build['output']
+    digest = hashlib.sha256(produced.read_bytes()).hexdigest()
+    if digest != build['sha256']:
+        raise ImageError(f'FreeDOS {name}: the build made {build["output"]} with SHA-256 {digest}, not the '
+                         f'{build["sha256"]} freedos.lock pins; see {log}')
+    built(tree, spec).parent.mkdir()
+    shutil.copyfile(produced, built(tree, spec))
+    shutil.rmtree(work)
+
+
+def toolchain_environment(name: str, download: bool) -> dict:
+    """The environment that puts a pinned toolchain first on PATH."""
+    root = toolchain(name, download)
+    if name == 'openwatcom':
+        return {'WATCOM': str(root), 'PATH': os.pathsep.join((str(root / 'binl64'), str(root / 'binl'),
+                                                                os.environ['PATH']))}
+    if name == 'ia16':
+        return {'PATH': os.pathsep.join((str(root / 'usr/bin'), os.environ['PATH'])),
+                'LD_LIBRARY_PATH': str(root / 'usr/x86_64-linux-gnu/ia16-elf/lib')}
+    raise ImageError(f'no environment for toolchain {name}')
+
+
+def fetch(name: str, archive: dict, download: bool) -> Path:
+    """One pinned toolchain archive in BUILD/archives, from the first of its
+    URLs that serves the pinned bytes."""
+    stored = BUILD / 'archives' / f'{archive["sha256"]}-{archive["name"]}'
+    if stored.is_file() and hashlib.sha256(stored.read_bytes()).hexdigest() == archive['sha256']:
+        return stored
+    if not download:
+        raise ImageError(f'toolchain {name} archive {archive["name"]} is not in {stored.parent}; pass --download')
+    stored.parent.mkdir(parents=True, exist_ok=True)
+    refused = []
+    for url in archive['urls']:
+        print(f'Fetching toolchain {name} {archive["name"]} from {url}', flush=True)
+        try:
+            with urllib.request.urlopen(url, timeout=600) as response:
+                data = response.read()
+        except OSError as error:
+            refused.append(f'{url}: {error}')
+            continue
+        if hashlib.sha256(data).hexdigest() != archive['sha256']:
+            refused.append(f'{url}: not the pinned SHA-256')
+            continue
+        partial = stored.with_name(stored.name + '.partial')
+        partial.write_bytes(data)
+        partial.rename(stored)
+        return stored
+    raise ImageError(f'no source supplied toolchain {name} {archive["name"]}:\n  ' + '\n  '.join(refused))
+
+
+def toolchain(name: str, download: bool) -> Path:
+    """A pinned toolchain unpacked once under BUILD/toolchains: tar archives
+    with tarfile's data filter, Debian packages with dpkg-deb -x (their
+    payloads are zstd, which tarfile cannot read)."""
+    spec = lock()['toolchains'][name]
+    identity = hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:16]
+    root = BUILD / 'toolchains' / f'{name}-{identity}'
+    if root.is_dir():
+        return root
+    partial = root.with_name(root.name + '.partial')
+    shutil.rmtree(partial, ignore_errors=True)
+    partial.mkdir(parents=True)
+    for archive in spec['archives']:
+        stored = fetch(name, archive, download)
+        if archive['name'].endswith('.deb'):
+            if not shutil.which('dpkg-deb'):
+                raise ImageError(f'toolchain {name} needs dpkg-deb to unpack {archive["name"]}')
+            subprocess.run(['dpkg-deb', '-x', str(stored), str(partial)], check=True)
+        else:
+            with tarfile.open(stored) as members:
+                members.extractall(partial, filter='data')
+    partial.rename(root)
+    return root
+
+
+def source_notes(packages: dict) -> dict[str, bytes]:
+    """For each package built from source: where the source is, and our
+    patches, as FDOS/DOC files beside the binaries (both are GPL)."""
+    notes, lines = {}, []
+    for name, pins in packages.items():
+        if 'build' not in pins:
+            continue
+        archive, _, tree = pins['source_tree'].partition('/')
+        lines += [f'{name}: built from {tree} in {pins["archives"][archive]["url"]}',
+                  f'  (SHA-256 {pins["archives"][archive]["sha256"]}), {pins["license"]}',
+                  f'  with {lock()["toolchains"][pins["build"]["toolchain"]]["version"]}']
+        for number, patch in enumerate(pins['build']['patches'], 1):
+            doc = f'{name[:6].upper()}{number}.DIF'
+            notes[doc] = (ROOT / patch).read_bytes()
+            lines.append(f'  patched with {doc} (fes {patch}); upstream {pins["upstream_issue"]}')
+        lines.append('')
+    if lines:
+        notes['SOURCES.TXT'] = '\r\n'.join(lines).encode()
+    return notes
 
 
 def mbr_code(bootnorm: Path) -> bytes:
@@ -353,7 +528,7 @@ def system_disk(profile: str, cylinders: int, work: Path, download: bool = False
         raise ImageError(f'{cylinders} cylinders is outside 1-{MAX_CYLINDERS} (the 128 MiB ATA disk limit)')
     spec = ALL_PROFILES[profile]
     packages = {name: lock()['packages'][name] for name in spec['packages']}
-    trees = {name: package(name, pins, download) for name, pins in packages.items()}
+    trees = {name: package(name, pins, download, jobs) for name, pins in packages.items()}
     nasm = test386.nasm(download, jobs)
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
@@ -390,7 +565,7 @@ def system_disk(profile: str, cylinders: int, work: Path, download: bool = False
     disk.write_bytes(data)
 
     files = {
-        'KERNEL.SYS': trees['kernel'] / packages['kernel']['kernel_sys'],
+        'KERNEL.SYS': built(trees['kernel'], packages['kernel']),
         'COMMAND.COM': trees['freecom'] / 'BIN/COMMAND.COM',
     }
     staged = work / 'files'
@@ -412,7 +587,23 @@ def system_disk(profile: str, cylinders: int, work: Path, download: bool = False
             shutil.copyfile(trees[source[0]] / source[1], staged / name)
         os.utime(staged / name, (FILE_TIME, FILE_TIME))
         mtools('mcopy', '-m', '-i', volume, str(staged / name), '::FDOS/BIN/' + name, env=env)
+    write_notes(packages, staged, volume, env)
     return disk, packages
+
+
+def write_notes(packages: dict, staged: Path, volume: str, env: dict) -> None:
+    """Copy source_notes() into FDOS/DOC on the volume."""
+    notes = source_notes(packages)
+    if not notes:
+        return
+    listing = subprocess.run(['mdir', '-b', '-i', volume, '::'], capture_output=True, text=True, env=env).stdout
+    if '::/FDOS' not in listing.upper().replace('\\', '/'):
+        mtools('mmd', '-i', volume, '::FDOS', env=env)
+    mtools('mmd', '-i', volume, '::FDOS/DOC', env=env)
+    for name in sorted(notes):
+        (staged / name).write_bytes(notes[name])
+        os.utime(staged / name, (FILE_TIME, FILE_TIME))
+        mtools('mcopy', '-m', '-i', volume, str(staged / name), '::FDOS/DOC/' + name, env=env)
 
 
 # A floppy fixture: one raw image of its format, formatted FAT12, with the
@@ -420,7 +611,7 @@ def system_disk(profile: str, cylinders: int, work: Path, download: bool = False
 def system_floppy(profile: str, work: Path, download: bool = False, jobs: int = 4) -> tuple[Path, dict]:
     spec = ALL_PROFILES[profile]
     packages = {name: lock()['packages'][name] for name in spec['packages']}
-    trees = {name: package(name, pins, download) for name, pins in packages.items()}
+    trees = {name: package(name, pins, download, jobs) for name, pins in packages.items()}
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
     disk = work / 'floppy.img'
@@ -446,7 +637,7 @@ def system_floppy(profile: str, work: Path, download: bool = False, jobs: int = 
     staged.mkdir()
     names = []
     if spec['bootable']:
-        shutil.copyfile(trees['kernel'] / packages['kernel']['kernel_sys'], staged / 'KERNEL.SYS')
+        shutil.copyfile(built(trees['kernel'], packages['kernel']), staged / 'KERNEL.SYS')
         shutil.copyfile(trees['freecom'] / 'BIN/COMMAND.COM', staged / 'COMMAND.COM')
         (staged / 'FDCONFIG.SYS').write_bytes(spec['fdconfig'].encode())
         (staged / 'AUTOEXEC.BAT').write_bytes(spec['autoexec'].encode())
@@ -457,6 +648,8 @@ def system_floppy(profile: str, work: Path, download: bool = False, jobs: int = 
     for name in names:
         os.utime(staged / name, (FILE_TIME, FILE_TIME))
         mtools('mcopy', '-m', '-i', str(disk), str(staged / name), '::' + name, env=env)
+    if spec['bootable']:
+        write_notes(packages, staged, str(disk), env)
     return disk, packages
 
 
@@ -473,8 +666,7 @@ def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
         'profile': profile,
         'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
         'geometry': {'cylinders': CYLINDERS, 'heads': HEADS, 'sectors_per_track': SPT},
-        'packages': {name: {'source': source(pins), 'version': pins['version'], 'license': pins['license']}
-                     for name, pins in packages.items()},
+        'packages': {name: package_record(pins) for name, pins in packages.items()},
         'distribution': 'test fixture only; never distributed',
         'inputs': inputs_key(profile),
     }
@@ -493,8 +685,7 @@ def build_floppy(download: bool, jobs: int, profile: str) -> Path:
         'profile': profile,
         'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
         'format': f'{spec["format"]}K', 'label': spec['label'], 'bootable': spec['bootable'],
-        'packages': {name: {'source': source(pins), 'version': pins['version'], 'license': pins['license']}
-                     for name, pins in packages.items()},
+        'packages': {name: package_record(pins) for name, pins in packages.items()},
         'distribution': 'test fixture only; never distributed',
         'inputs': inputs_key(profile),
     }

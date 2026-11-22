@@ -158,6 +158,20 @@ MAIN = bytes([
 PROGRAM = SETUP + loader(LOOP + len(MAIN)) + MAIN + EDGE
 
 
+def visible_tape_program() -> bytes:
+    """Keep the red border until the CPU confirms all decoded tape bytes."""
+    green = bytes([0x3E, 4, 0xD3, 0xFE])  # ld a,4 / out ($FE),a
+    marker = bytearray()
+    for index, expected in enumerate(TAPE_BYTES):
+        # ld a,($8100+index); cp expected; jr nz,past the green marker.
+        remaining = len(TAPE_BYTES) - index - 1
+        marker.extend([0x3A, index, 0x81, 0xFE, expected, 0x20, remaining * 7 + len(green)])
+    marker.extend(green)
+    main_address = LOOP + len(marker)
+    main = MAIN[:-2] + main_address.to_bytes(2, "little")
+    return SETUP + loader(main_address + len(main)) + marker + main + EDGE
+
+
 
 def pzx_block(tag: bytes, body: bytes) -> bytes:
     return tag + len(body).to_bytes(4, "little") + body
@@ -177,11 +191,11 @@ TAPE = (pzx_block(b"PZXT", bytes([1, 0]))
         + pzx_block(b"PAUS", (3500000).to_bytes(4, "little")))
 
 
-def page() -> bytes:
+def page(program: bytes = PROGRAM) -> bytes:
     image = bytearray(16384)
     image[0x0000:0x0003] = bytes([0xC3, ORG & 0xFF, ORG >> 8])   # jp $0100
     image[0x0038:0x003A] = bytes([0xFB, 0xC9])                   # ei / ret
-    image[ORG:ORG + len(PROGRAM)] = PROGRAM
+    image[ORG:ORG + len(program)] = program
     return bytes(image)
 
 
@@ -207,10 +221,13 @@ def dos_page() -> bytes:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--visible-tape-result", action="store_true",
+                        help="turn the border green after decoding the exact diagnostic tape")
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    rom = page(visible_tape_program()) if args.visible_tape_result else page()
     for size in (16, 32, 48, 64):
-        image = page() * 2 + dos_page() if size == 48 else page() * (size // 16)
+        image = rom * 2 + dos_page() if size == 48 else rom * (size // 16)
         suffix = "" if size == 16 else f"-{size}k"
         (args.output_dir / f"firmware{suffix}.hex").write_text(
             "\n".join(f"{byte:02x}" for byte in image) + "\n", encoding="ascii")

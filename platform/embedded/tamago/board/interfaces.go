@@ -7,6 +7,12 @@ package board
 
 import "image"
 
+// Architectural ARMv8 Generic Timer PPI interrupt IDs shared by all boards.
+const (
+	IRQVirtTimer uint32 = 27 // PPI 11 (EL1 virtual timer)
+	IRQPhysTimer uint32 = 30 // PPI 14 (EL1 non-secure physical timer)
+)
+
 type Display interface{ Present(*image.RGBA) error }
 type Network interface {
 	Err() error

@@ -3,7 +3,7 @@ import copy,hashlib,re
 from pathlib import Path
 import unittest
 from test_nano_tenfoot_trace import Model,PROGRAMS,trace
-from test_nano_program_client import BOOT,SPEC,OWNER
+from nano_program_fixtures import BOOT,SPEC,OWNER
 from test_nano_hps_io import io_trace
 from test_nano_native_trace import OWNER as IO_OWNER
 

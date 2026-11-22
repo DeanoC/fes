@@ -6,7 +6,10 @@ module fes_de25_scanout #(
     parameter [127:0] BUILD_ID = 128'd0,
     parameter [0:0] EXTERNAL_RASTER = 1'b0,
     parameter [7:0] MAX_BURST_BEATS = 8'd64,
-    parameter [8:0] MAX_OUTSTANDING_BEATS = 9'd511
+    parameter [8:0] MAX_OUTSTANDING_BEATS = 9'd511,
+    // A native shell without per-grant SMMU translation pins the reader to
+    // the board-owned slots. Zero keeps the existing managed allocation ABI.
+    parameter [31:0] FIXED_GRANT_BASE = 32'd0
 ) (
     input wire clk, reset_n,
     input wire clock_fault, display_ready, stream_ready,
@@ -39,6 +42,11 @@ module fes_de25_scanout #(
     reg [31:0] grant_base, grant_span, accepted_sequence, displayed_sequence, errors;
     reg [63:0] generation;
     reg local_clear;
+    // In the fixed native window STOP retires the current activation. CLEAR
+    // may never re-open its DMA grant while TF-A is containing the bridges.
+    reg retired;
+    localparam [31:0] NATIVE_STATUS_DMA_REJECTED = 32'h00000100;
+    localparam [31:0] NATIVE_STATUS_RETIRED = 32'h80000000;
     // Mark the asynchronous ingress with Quartus-native CDC identification.
     (* preserve, dont_merge,
        altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED" *) reg clock_fault_meta;
@@ -55,6 +63,7 @@ module fes_de25_scanout #(
     wire [31:0] first_fault_state, first_fault_occupancy, first_fault_gaps;
     wire current_slot;
     wire [1:0] memory_errors;
+    wire dma_fault;
     wire [8:0] outstanding_beats;
     wire [23:0] rgb;
     wire [7:0] alpha;
@@ -71,12 +80,13 @@ module fes_de25_scanout #(
     // counter. Never turn that fault into a local release/reuse proof.
     wire drained = !running && video_quiesced && outstanding_beats == 9'd0 &&
         !memory_errors[1] && !(|(errors & `FES_DE25_SCANOUT_ERROR_UNEXPECTED_RESPONSE));
-    wire legal_clear = clear_command && drained;
+    wire legal_clear = clear_command && drained && !retired && !dma_fault;
     // The board source is sticky too; retaining this bit independently makes
     // a fault irrevocable locally even if its external level later recovers.
     wire clock_failed = clock_fault_sync || |(errors & `FES_DE25_SCANOUT_ERROR_CLOCK);
     wire [32:0] staged_end = {1'b0, staged[0]} + {1'b0, staged[2]};
     wire descriptor_valid = staged[1] == 32'd0 && staged[0][4:0] == 5'd0 &&
+        (FIXED_GRANT_BASE == 32'd0 || staged[0] == FIXED_GRANT_BASE) &&
         staged[2] == `FES_DE25_SCANOUT_ALLOCATION_BYTES && staged_end <= 33'h100000000 &&
         {staged[4], staged[3]} != 64'd0 && staged[5] != 32'd0 && staged[6][31:1] == 31'd0;
     wire same_grant = staged[0] == grant_base && staged[1] == 32'd0 && staged[2] == grant_span &&
@@ -95,10 +105,10 @@ module fes_de25_scanout #(
         end
         if (command_write && !submit_command && !stop_command && !clear_command && !snapshot_command)
             new_errors = new_errors | `FES_DE25_SCANOUT_ERROR_COMMAND;
-        if (clear_command && !drained)
+        if (clear_command && (!drained || retired))
             new_errors = new_errors | `FES_DE25_SCANOUT_ERROR_COMMAND;
         if (submit_command) begin
-            if (errors != 32'd0 || clock_failed || local_clear || pending || (!running && !drained))
+            if (errors != 32'd0 || clock_failed || dma_fault || local_clear || retired || pending || (!running && !drained))
                 new_errors = new_errors | `FES_DE25_SCANOUT_ERROR_COMMAND;
             if (!descriptor_valid || (configured && !same_grant))
                 new_errors = new_errors | `FES_DE25_SCANOUT_ERROR_DESCRIPTOR;
@@ -114,7 +124,9 @@ module fes_de25_scanout #(
         (drained ? `FES_DE25_SCANOUT_STATUS_DRAINED : 32'd0) |
         (live_errors != 32'd0 ? `FES_DE25_SCANOUT_STATUS_FAULT : 32'd0) |
         (clock_failed ? `FES_DE25_SCANOUT_STATUS_CLOCK_FAULT : 32'd0) |
-        (display_ready ? `FES_DE25_SCANOUT_STATUS_DISPLAY_READY : 32'd0);
+        (display_ready ? `FES_DE25_SCANOUT_STATUS_DISPLAY_READY : 32'd0) |
+        (dma_fault ? NATIVE_STATUS_DMA_REJECTED : 32'd0) |
+        (retired ? NATIVE_STATUS_RETIRED : 32'd0);
     reg stage_write;
     reg [2:0] stage_index;
     always @* begin
@@ -140,7 +152,7 @@ module fes_de25_scanout #(
     // Registered command faults stop on their acceptance edge; data/clock
     // faults also blank immediately without withdrawing any existing read.
     wire video_enable = configured && running && errors == 32'd0 &&
-        !clock_failed && stream_ready && memory_errors == 2'b00 && underflows == 32'd0 && !local_clear;
+        !clock_failed && !dma_fault && stream_ready && memory_errors == 2'b00 && underflows == 32'd0 && !local_clear;
     assign video_rgb = video_enable ? rgb : 24'd0;
     assign video_alpha = video_enable ? alpha : 8'd0;
     assign scanout_running = video_enable;
@@ -160,7 +172,7 @@ module fes_de25_scanout #(
         .EXTERNAL_RASTER(EXTERNAL_RASTER),
         .CHECK_RESPONSE(1'b1), .READ_AHEAD(1'b1), .RESET_ABORTS_TRAFFIC(1'b1), .COMPLETE_FRAME_ACK(1'b1), .CHECK_PRESENTATION(1'b1),
         .FIFO_ADDR_BITS(11),
-        .PRESERVE_RASTER_ON_RESET(1'b1)) video (
+        .PRESERVE_RASTER_ON_RESET(1'b1), .DMA_GUARD_BASE(FIXED_GRANT_BASE)) video (
         .presentation_ready(display_ready), .clk(clk), .rst(!reset_n || local_clear), .enable(video_enable), .quiesce(!running),
         .window_base(grant_base), .window_base_valid(configured),
         .raster_h(raster_h), .raster_v(raster_v),
@@ -168,7 +180,7 @@ module fes_de25_scanout #(
         .submit_ready(video_submit_ready), .displayed_sequence(video_displayed_sequence),
         .frame_presented(video_frame_presented),
         .current_sequence(current_sequence), .current_slot(current_slot),
-        .memory_errors(memory_errors), .outstanding_beats(outstanding_beats),
+        .memory_errors(memory_errors), .dma_fault(dma_fault), .outstanding_beats(outstanding_beats),
         .first_fault_state(first_fault_state), .first_fault_occupancy(first_fault_occupancy),
         .first_fault_gaps(first_fault_gaps),
         .underflows(underflows), .quiesced(video_quiesced), .rgb(rgb), .alpha(alpha), .de(de), .hs(hs), .vs(vs),
@@ -194,7 +206,7 @@ module fes_de25_scanout #(
             pending_slot <= 1'b0; displayed_slot <= 1'b0;
             grant_base <= 32'd0; grant_span <= 32'd0; generation <= 64'd0;
             accepted_sequence <= 32'd0; displayed_sequence <= 32'd0; errors <= 32'd0;
-            local_clear <= 1'b0; snapshot_serial <= 32'd0;
+            local_clear <= 1'b0; retired <= 1'b0; snapshot_serial <= 32'd0;
         end else begin
             readdatavalid <= read;
             writeresponsevalid <= write;
@@ -253,7 +265,9 @@ module fes_de25_scanout #(
                 running <= 1'b1; pending <= 1'b1; queued_submit <= 1'b1;
                 accepted_sequence <= staged[5]; pending_slot <= staged[6][0];
             end
-            if (stop_command || new_errors != 32'd0) begin
+            if (stop_command && FIXED_GRANT_BASE != 32'd0)
+                retired <= 1'b1;
+            if (stop_command || dma_fault || new_errors != 32'd0) begin
                 running <= 1'b0; pending <= 1'b0; queued_submit <= 1'b0;
             end
             errors <= live_errors;

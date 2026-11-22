@@ -35,6 +35,12 @@ preset every latency, in reference clocks, must stay within the window, the
 largest instruction or element charge the loop makes, and the delivery's own
 charge. Every run must halt with the same registers as max's.
 
+With --i486 the CPU is built with the 486 identity (I486 = 1, #1962 slice
+2) and runs everything above unchanged, so its report can be held against
+the 386's; then governor_bench_486.asm, loops of the 486's own instructions
+(BENCHES_486), under max and each preset, with the same charge and pacing
+checks. Its report is report-i486.json.
+
 With --netlist the CPU is first run through the seal's Yosys program
 (scripts/yosys_netlist.py, the pc386 lock's Yosys from its --cache-root slot),
 as test_fes_i386_lockstep.py --netlist does, and that netlist is simulated
@@ -43,6 +49,7 @@ instead, with the sealed GOV_N/GOV_D set as the seal sets them (-chparam).
   python3 scripts/test_fes_i386_governor.py
   python3 scripts/test_fes_i386_governor.py --preset 1 --preset 3
   python3 scripts/test_fes_i386_governor.py --netlist
+  python3 scripts/test_fes_i386_governor.py --i486
 
 Writes build/sim/fes-i386-governor/report.json.
 """
@@ -70,6 +77,7 @@ from scripts import test_fes_i386_test386 as test386
 
 ROOT = Path(__file__).resolve().parents[1]
 PROGRAM = lockstep.SIM / 'governor_bench.asm'
+PROGRAM_486 = lockstep.SIM / 'governor_bench_486.asm'
 OUTPUT = ROOT / 'build/sim/fes-i386-governor'
 CLOCK_HZ = producer.SYSTEM_CLOCK_HZ
 WINDOW = 64
@@ -186,6 +194,18 @@ BENCHES: list[tuple[str, list[tuple[int, list[Op]]]]] = [
                           r('mov_r'), m('rep_outs', 0), *[element('rep_outs', 1, port=0x300)] * 4,
                           r('alu_ri'), r('alu_ri')])),
 ]
+# governor_bench_486.asm's loops (--i486), by mark, as BENCHES. A CMPXCHG to
+# memory reads and writes its operand whether or not it is equal, as a 486
+# does (PRM, CMPXCHG: the destination is written back when they differ).
+BENCHES_486: list[tuple[str, list[tuple[int, list[Op]]]]] = [
+    ('bswap', loop(3000, [r('bswap')] * 4)),
+    ('xadd', loop(2000, [r('xadd_r'), r('xadd_r'), m('xadd_m', 2)])),
+    ('cmpxchg', loop(2000, [r('alu_rr'), r('mov_r'), m('mov_store', 1, dword=True), r('cmpxchg_r'), r('cmpxchg_r'),
+                            r('alu_rr'), m('cmpxchg_m', 2, dword=True), m('cmpxchg_m', 2, dword=True)])),
+    ('cpuid', loop(500, [r('mov_r'), r('cpuid'), r('alu_rr'), r('cpuid')])),
+    ('cache', loop(500, [r('invd'), r('wbinvd')])),
+    ('invlpg', loop(1000, [m('invlpg', 0), m('invlpg', 0)])),
+]
 IRQ_LOOP = [r('mov_r'), m('rep_movs', 0), element('rep_movs', 2), r('alu_ri'), r('mov_r'), r('alu_rr'),
             r('div16_r'), m('push_r', 1), m('pop_r', 1), r('alu_rr'), taken('jcc')]
 DELIVERY = [m('int', 5)]
@@ -242,11 +262,11 @@ def run(testbench: Path, program: Path, preset: int, period: int, frequency: int
     return {'preset': preset, 'marks': marks, 'irqs': irqs, 'state': state, 'run': run_line}
 
 
-def spans(result: dict) -> list[dict]:
+def spans(result: dict, benches: list = BENCHES) -> list[dict]:
     """Each benchmark's cycles and charges between its marks."""
     at = {mark['value']: mark for mark in result['marks'] if mark['port'] == 0x80}
     found = []
-    for n, (name, _) in enumerate(BENCHES):
+    for n, (name, _) in enumerate(benches):
         first, second = at.get(2 * n), at.get(2 * n + 1)
         if first is None or second is None:
             raise GovernorBenchError(f'preset {result["preset"]}: {name} has no marks')
@@ -266,6 +286,48 @@ def latencies(result: dict) -> list[int]:
     return out
 
 
+def check_486(table: governor.Table, presets: dict, chosen: list[int], results: dict, clock_hz: int,
+              failures: list[str]) -> dict:
+    """governor_bench_486.asm's loops: max charges nothing, and each preset
+    charges BENCHES_486's clocks and paces them as the 386 loops are."""
+    base = spans(results[0], BENCHES_486)
+    failures += [f'486 max: {span["name"]} charged {span["charged"]}' for span in base if span['charged']]
+    out = {'max': {'spans': base, 'run': results[0]['run']}, 'presets': {}}
+    rows = {span['name']: [f'{span["name"]:8} {span["cycles"]:9}'] for span in base}
+    for preset_id in chosen:
+        preset = presets[preset_id]
+        result = results[preset_id]
+        if result['state'] != results[0]['state']:
+            failures.append(f'486 {preset.name}: halted with {result["state"]}, max with {results[0]["state"]}')
+        hz = preset.frequency * 100_000
+        loops = []
+        for span, at_max, (name, parts) in zip(spans(result, BENCHES_486), base, BENCHES_486):
+            want = expected(table, preset, parts)
+            table_cycles = want * clock_hz / hz
+            error = span['cycles'] / table_cycles - 1
+            beyond = at_max['cycles'] > table_cycles * (1 - BUDGET)
+            loops.append({'name': name, 'cycles': span['cycles'], 'charged': span['charged'], 'table_clocks': want,
+                          'table_cycles': round(table_cycles, 1), 'error': round(error, 5), 'beyond_cpu': beyond})
+            if span['charged'] != want:
+                failures.append(f'486 {preset.name} {name}: charged {span["charged"]} reference clocks, the table {want}')
+            if beyond:
+                if preset_id in ACCEPTED:
+                    failures.append(f'486 {preset.name} {name}: the RTL at max ({at_max["cycles"]} cycles) does not '
+                                    f'reach the table time ({table_cycles:.0f})')
+                elif span['cycles'] > at_max['cycles'] * (1 + BUDGET):
+                    failures.append(f'486 {preset.name} {name}: {span["cycles"]} cycles, slower than max '
+                                    f'({at_max["cycles"]})')
+            elif abs(error) > BUDGET:
+                failures.append(f'486 {preset.name} {name}: {span["cycles"]} cycles, {error:+.2%} from the table '
+                                f'({table_cycles:.0f})')
+            rows[name].append(f'{span["cycles"]:9} {error:+7.2%}{" beyond" if beyond else "       "}')
+        out['presets'][preset.name] = {'name': preset.name, 'run': result['run'], 'loops': loops}
+    print('486 loops:')
+    for name in rows:
+        print('  '.join(rows[name]))
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--preset', type=int, action='append', choices=range(1, 8),
@@ -275,6 +337,8 @@ def main() -> int:
     parser.add_argument('--download', action='store_true', help='fetch the pinned oracle and NASM if missing')
     i386_verilator.add_argument(parser)
     yosys_netlist.add_arguments(parser)
+    parser.add_argument('--i486', action='store_true',
+                        help='the 486 identity (I486 = 1): the bench as for the 386, then the 486 loops')
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 8))
     args = parser.parse_args()
     try:
@@ -301,15 +365,25 @@ def main() -> int:
         if assembled.returncode:
             raise GovernorBenchError('nasm failed on governor_bench.asm\n' + assembled.stderr)
         rates = producer.guest_rates(clock_hz)
+        parameters = {'GOV_N': rates['GOV_N'], 'GOV_D': rates['GOV_D'], **({'I486': 1} if args.i486 else {})}
         testbench = lockstep.verilate(verilator, oracle.link_inputs(args.jobs, args.download), args.jobs, yosys,
-                                      {'GOV_N': rates['GOV_N'], 'GOV_D': rates['GOV_D']})
+                                      parameters)
+        program_486 = OUTPUT / 'governor_bench_486.bin'
+        if args.i486:
+            assembled = subprocess.run([str(nasm), '-f', 'bin', '-o', str(program_486), str(PROGRAM_486)],
+                                       capture_output=True, text=True)
+            if assembled.returncode:
+                raise GovernorBenchError('nasm failed on governor_bench_486.asm\n' + assembled.stderr)
         with ThreadPoolExecutor(max_workers=args.jobs) as executor:
             futures = {preset: executor.submit(run, testbench, program, preset, args.irq_period)
                        for preset in [0, *chosen]}
             override = executor.submit(run, testbench, program, OVERRIDE[0], args.irq_period, OVERRIDE[1])
             turbo = executor.submit(run, testbench, program, OVERRIDE[0], args.irq_period, 0, 1)
+            futures_486 = ({preset: executor.submit(run, testbench, program_486, preset, 0) for preset in [0, *chosen]}
+                           if args.i486 else {})
             results = {preset: future.result() for preset, future in futures.items()}
             override, turbo = override.result(), turbo.result()
+            results_486 = {preset: future.result() for preset, future in futures_486.items()}
     except (OSError, oracle.OracleError, test386.Test386Error, lockstep.LockstepError, yosys_netlist.NetlistError, GovernorBenchError,
             subprocess.TimeoutExpired) as error:
         print('i386 governor bench error:', error, file=sys.stderr)
@@ -393,12 +467,15 @@ def main() -> int:
     if not all(same) or turbo['state'] != results[0]['state']:
         failures.append(f'{preset.name} with turbo: {sum(same)} of {len(same)} loops ran as at max')
     print(f'{preset.name} with turbo (word 3): {sum(same)} of {len(same)} loops in max\'s cycles, nothing charged')
+    if args.i486:
+        report['i486'] = check_486(table, presets, chosen, results_486, clock_hz, failures)
     report['failures'] = failures
-    (OUTPUT / ('report-netlist.json' if yosys else 'report.json')).write_text(json.dumps(report, indent=2) + '\n')
+    name = ('report-netlist' if yosys else 'report') + ('-i486' if args.i486 else '') + '.json'
+    (OUTPUT / name).write_text(json.dumps(report, indent=2) + '\n')
     for failure in failures:
         print('FAIL', failure)
     print(('FAIL' if failures else 'PASS') + ' i386 governor (host simulation only; report: '
-          f'{OUTPUT / ("report-netlist.json" if yosys else "report.json")})')
+          f'{OUTPUT / name})')
     return 1 if failures else 0
 
 

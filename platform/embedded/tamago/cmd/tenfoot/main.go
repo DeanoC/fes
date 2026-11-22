@@ -19,9 +19,11 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/modelbackend"
 	"github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission"
+	"github.com/DeanoC/fes/platform/embedded/tamago/serial"
 )
 
 type bootConfig struct {
@@ -67,6 +69,7 @@ type framePlatform struct {
 	display       board.Display
 	network       board.Network
 	uart          input.UART
+	uartIRQ       bool
 	keyboard      *input.USBKeyboard
 	lastFrame     time.Time
 	lastState     string
@@ -83,10 +86,19 @@ func (p *framePlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error)
 	// Yield to the network stack and UI workers on this cooperative runtime.
 	delay := 50*time.Millisecond - time.Since(p.lastFrame)
 	if delay > 0 {
-		select {
-		case <-ctx.Done():
-			return tenfoot.PlatformInput{}, ctx.Err()
-		case <-time.After(delay):
+		if p.uartIRQ {
+			select {
+			case <-ctx.Done():
+				return tenfoot.PlatformInput{}, ctx.Err()
+			case <-serial.Ready():
+			case <-time.After(delay):
+			}
+		} else {
+			select {
+			case <-ctx.Done():
+				return tenfoot.PlatformInput{}, ctx.Err()
+			case <-time.After(delay):
+			}
 		}
 	} else {
 		runtime.Gosched()
@@ -204,6 +216,27 @@ func run() (result error) {
 	if runtime.GOOS != "tamago" || runtime.GOARCH != "arm64" || board.ExceptionLevel() != 1 {
 		return fmt.Errorf("unexpected boot contract")
 	}
+	g := board.GIC()
+	gicActive := false
+	if g != nil {
+		if err := g.Init(); err != nil {
+			if !errors.Is(err, gic.ErrUnsupported) {
+				return fmt.Errorf("init GIC: %w", err)
+			}
+			fmt.Println("FES_GIC_IDLE enabled=false reason=unsupported")
+		} else {
+			if err := g.EnableIdle(); err != nil {
+				return fmt.Errorf("enable WFI idle: %w", err)
+			}
+			gicActive = true
+			defer func() {
+				wakeups := g.IdleWakeups()
+				g.DisableIdle()
+				fmt.Printf("FES_GIC_IDLE_EXIT wakeups=%d\n", wakeups)
+			}()
+			fmt.Printf("FES_GIC_IDLE enabled=true redistributor=%#x lines=%d\n", g.Redistributor(), g.Lines())
+		}
+	}
 	frameMemory, err := board.InitDevices()
 	if err != nil {
 		return err
@@ -286,6 +319,7 @@ func run() (result error) {
 		client.Client = client.Client.WithAPIHost(config.APIHost)
 	}
 	var keyboard *input.USBKeyboard
+	uartIRQ := false
 	switch config.Input {
 	case "usb":
 		keyboard, err = board.OpenKeyboard()
@@ -294,6 +328,29 @@ func run() (result error) {
 		}
 	case "uart":
 		fmt.Println("FES_UART_INPUT_READY")
+		if gicActive {
+			stop := make(chan struct{})
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				g.Serve(stop)
+			}()
+			if err := serial.EnableIRQ(g); err != nil {
+				close(stop)
+				<-done
+				return fmt.Errorf("enable UART RX IRQ: %w", err)
+			}
+			uartIRQ = true
+			defer func() {
+				irqs := serial.IRQCount()
+				dropped := serial.Dropped()
+				serial.DisableIRQ(g)
+				close(stop)
+				<-done
+				fmt.Printf("FES_UART_IRQ_EXIT irqs=%d dropped=%d\n", irqs, dropped)
+			}()
+			fmt.Println("FES_UART_IRQ enabled=true")
+		}
 	default:
 		return fmt.Errorf("boot input must explicitly select usb or uart")
 	}
@@ -312,7 +369,7 @@ func run() (result error) {
 		return fmt.Errorf("load preferences: %w", err)
 	}
 	fmt.Printf("FES_PREFERENCES_LOADED layout=%s\n", app.Snapshot().Grid.Mode)
-	return tenfoot.RunPlatform(ctx, app, device, &framePlatform{device: device, display: screen, network: iface, keyboard: keyboard, model: backend})
+	return tenfoot.RunPlatform(ctx, app, device, &framePlatform{device: device, display: screen, network: iface, uartIRQ: uartIRQ, keyboard: keyboard, model: backend})
 }
 
 func main() {

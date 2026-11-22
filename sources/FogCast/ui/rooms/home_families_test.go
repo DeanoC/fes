@@ -251,10 +251,11 @@ func TestHomeShowsReleaseAndPCFamiliesWithLibraryState(t *testing.T) {
 		d.Status != "Add your Commodore 64 ROM files to play" || d.Confirm() != ConfirmEnterRoom || d.CoreID != "fes.c64" || d.GameID != "" {
 		t.Fatalf("C64 %+v confirm %v", d, d.Confirm())
 	}
-	for _, pc := range []struct{ id, label string }{{"fes.pcxt-dos", "PC/XT"}, {"fes.pc386", "PC 386"}} {
+	// The PC/XT has its core screen (slice 5); the 386 PC keeps the workbench.
+	for _, pc := range []struct{ id, label, room string }{{"fes.pcxt-dos", "PC/XT", "example.core"}, {"fes.pc386", "PC 386", "example.system"}} {
 		r.Input("right")
 		f = stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), pc.label+"\n") })
-		if d := r.Destination(); d.Label != pc.label || d.CoreID != pc.id || d.RoomID != "example.system" || d.Availability != AvailUnavailable || d.Status != "Not installed on this kit" {
+		if d := r.Destination(); d.Label != pc.label || d.CoreID != pc.id || d.RoomID != pc.room || d.Availability != AvailUnavailable || d.Status != "Not installed on this kit" {
 			t.Fatalf("PC family %+v", d)
 		}
 	}

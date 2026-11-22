@@ -1,0 +1,58 @@
+{
+ "kit": "B",
+ "package": "53e2dca69cf76177cd93f6f641be1a655fac4725c97c44d340e19fd6cc8cd05f.fcore",
+ "drive": "real",
+ "drive_sha256": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+ "library_game": "audio-area-a2-xtz1e0pdvm5d",
+ "nonce": "XTZ1E0PDVM5D",
+ "goals": {
+  "freedos": {
+   "pass": true,
+   "seconds_to_detect": 1.6,
+   "frame": "frames/freedos-prompt.png"
+  },
+  "wolf3d": {
+   "pass": true,
+   "graphics": true,
+   "lit": 0.938,
+   "changed_after_walk": 0.562,
+   "frames": [
+    "frames/wolf3d-floor1.png",
+    "frames/wolf3d-walked.png"
+   ]
+  },
+  "recorded": {
+   "pass": true,
+   "floor_seconds": 7,
+   "game_seconds": 38,
+   "files": [
+    "audio-floor.wav",
+    "audio-wolf3d.wav"
+   ]
+  }
+ },
+ "events": [],
+ "claim": "## 2026-11-21T19:41:29+02:00 KIT B IN USE: Claude (pc386 audio area, branch deano/pc386-audio-area, session for Deano) \u2014 a2 cut: sealed package 53e2dca6 (BUILD_ID b44a1c8e, head 890848477), run a2c: c",
+ "kit_created": [
+  "/media/fat/fogcast/core-data/games/f3c07731a43b6ca01b29e3e757e12d3049d4bc36d6caab54dccc3dfe01f98e56",
+  "/media/fat/fogcast/core-data/media/9d6e5855c9926d50e3e94cc81849c1af7e8c354d1889c7bcd663dfffbd9ad2a5",
+  "/media/fat/fogcast/disk-images/a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c.img"
+ ],
+ "readback": {
+  "dos": true,
+  "notepad": true,
+  "files": {
+   "WFWDOS.TXT": null,
+   "WFWNOTE.TXT": null
+  }
+ },
+ "after": {
+  "agent": "idle",
+  "lease": "free",
+  "rebooted": false,
+  "left": [],
+  "recovery_required": false
+ },
+ "failure": null,
+ "pass": true
+}
