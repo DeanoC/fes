@@ -2640,8 +2640,8 @@ static void owner_control_checks_capability_and_command_before_effects(struct ku
 struct window_block {
 	struct kunit *test;
 	u32 base_lo, base_hi, span, gen_lo, gen_hi;
-	u32 machine_fault;
-	bool granted, held, drained, command_fault, wrong_identity;
+	u32 machine_fault, status_extra;
+	bool granted, held, drained, command_fault, wrong_identity, undrain_on_grant;
 	unsigned int writes, grants, clears;
 };
 
@@ -2650,7 +2650,8 @@ static u32 window_block_status(struct window_block *b)
 	return (b->granted ? FES_DE25_HPS_WINDOW_STATUS_GRANTED : 0) |
 		(b->drained ? FES_DE25_HPS_WINDOW_STATUS_DRAINED : 0) |
 		(b->held ? FES_DE25_HPS_WINDOW_STATUS_HELD : 0) |
-		(b->command_fault || b->machine_fault ? FES_DE25_HPS_WINDOW_STATUS_FAULT : 0);
+		(b->command_fault || b->machine_fault ? FES_DE25_HPS_WINDOW_STATUS_FAULT : 0) |
+		b->status_extra;
 }
 
 static u32 window_block_read(void *context, u32 offset)
@@ -2693,6 +2694,8 @@ static void window_block_write(void *context, u32 offset, u32 value)
 		    base + b->span <= (1ULL << 32) && (b->gen_lo | b->gen_hi)) {
 			b->granted = true;
 			b->grants++;
+			if (b->undrain_on_grant)
+				b->drained = false;  /* a port starts and does not drain */
 		} else if (value == FES_DE25_HPS_WINDOW_COMMAND_CLEAR && b->held && b->drained) {
 			b->granted = false;
 			b->command_fault = false;
@@ -2886,6 +2889,71 @@ static void window_fault_or_undrained_port_pins_storage(struct kunit *test)
 	KUNIT_EXPECT_FALSE(test, b->granted);
 }
 
+static void window_untrusted_observation_blocks_mapping(struct kunit *test)
+{
+	struct window_block *b;
+	struct owner_fixture *f = window_fixture(test, &b);
+	struct fes_de25_dma_window_info info;
+	struct mm_struct *mm;
+	struct file *window;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	window = fes_de25_owner_test_window_allocate(f->owner);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(window));
+	/* A status bit outside the contract: the observation fails and the
+	 * window is uncertain, so no new mapping is made.
+	 */
+	b->status_extra = 0x10;
+	KUNIT_EXPECT_EQ(test, window_info_of(window, &info), -EPROTO);
+	KUNIT_EXPECT_TRUE(test, !!(info.state & FES_DE25_DMA_UNCERTAIN));
+	mm = test_mm(test);
+	if (mm) {
+		kthread_use_mm(mm);
+		KUNIT_EXPECT_EQ(test, vm_mmap(window, TEST_ADDRESS, PAGE_SIZE, PROT_READ,
+				MAP_FIXED | MAP_SHARED, 0), (unsigned long)-EACCES);
+		kthread_unuse_mm(mm);
+		mmput(mm);
+	}
+	/* A revoke that proves the clear still retires it. */
+	b->status_extra = 0;
+	__fput_sync(window);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_reap(f->owner), 0);
+	KUNIT_EXPECT_FALSE(test, b->granted);
+}
+
+static void window_file_failure_leaves_a_reapable_grant(struct kunit *test)
+{
+	struct window_block *b;
+	struct owner_fixture *f = window_fixture(test, &b);
+	struct file *window;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	/* The grant is published, then file creation fails and the clear
+	 * cannot run (a port stopped draining): the owner keeps the window.
+	 */
+	fes_de25_window_test_fail_file = true;
+	b->undrain_on_grant = true;
+	window = fes_de25_owner_test_window_allocate(f->owner);
+	fes_de25_window_test_fail_file = false;
+	KUNIT_EXPECT_EQ(test, PTR_ERR(window), -ENFILE);
+	KUNIT_EXPECT_TRUE(test, b->granted);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -EBUSY);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_reap(f->owner), -EAGAIN);
+	/* Once the port drains, REAP clears and frees it. */
+	b->drained = true;
+	b->undrain_on_grant = false;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_reap(f->owner), 0);
+	KUNIT_EXPECT_FALSE(test, b->granted);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
+	/* Without the stuck port the same failure frees at once. */
+	fes_de25_window_test_fail_file = true;
+	window = fes_de25_owner_test_window_allocate(f->owner);
+	fes_de25_window_test_fail_file = false;
+	KUNIT_EXPECT_EQ(test, PTR_ERR(window), -ENFILE);
+	KUNIT_EXPECT_FALSE(test, b->granted);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
+}
+
 static void window_needs_its_block(struct kunit *test)
 {
 	struct owner_fixture *f = owner_fixture_create(test, true);
@@ -2988,6 +3056,8 @@ static struct kunit_case fes_de25_dma_cases[] = {
 	KUNIT_CASE(window_refuses_a_block_it_cannot_grant),
 	KUNIT_CASE(window_fault_or_undrained_port_pins_storage),
 	KUNIT_CASE(window_needs_its_block),
+	KUNIT_CASE(window_untrusted_observation_blocks_mapping),
+	KUNIT_CASE(window_file_failure_leaves_a_reapable_grant),
 	{ }
 };
 

@@ -93,6 +93,8 @@ struct fes_de25_window_test_observer {
 	unsigned int freed;
 };
 void fes_de25_window_test_observe(struct file *file, struct fes_de25_window_test_observer *observer);
+/* Fail the window's file creation after its grant is published. */
+extern bool fes_de25_window_test_fail_file;
 #include <linux/atomic.h>
 u64 fes_de25_dma_test_next_generation(atomic64_t *counter);
 struct completion;

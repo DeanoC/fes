@@ -226,7 +226,10 @@ int fes_de25_window_info(struct file *file, struct fes_de25_dma_window_info *inf
 	mutex_lock(&window->lock);
 	memset(info, 0, sizeof(*info));
 	ret = window->exposed ? window_observe(window, &status, &fault) : 0;
-	if (ret == -ESTALE)
+	/* Any failed observation of an exposed window leaves no trustworthy
+	 * hardware state: no new mapping until a revoke proves the clear.
+	 */
+	if (ret)
 		window->uncertain = true;
 	info->generation = window->generation;
 	info->version = FES_DE25_DMA_WINDOW_VERSION;
@@ -494,10 +497,22 @@ struct file *fes_de25_window_create(struct device *dev, const struct fes_de25_wi
 		}
 		return ERR_PTR(ret);
 	}
-	file = anon_inode_create_getfile("fes-de25-window", &window_fops, window, O_RDWR, NULL);
+#if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
+	file = fes_de25_window_test_fail_file ? ERR_PTR(-ENFILE) :
+#else
+	file =
+#endif
+		anon_inode_create_getfile("fes-de25-window", &window_fops, window, O_RDWR, NULL);
 	if (IS_ERR(file)) {
-		fes_de25_window_revoke_owned(window);
-		kref_put(&window->refs, window_destroy);
+		/* As for a failed publish: a grant that cannot be cleared goes to
+		 * the owner, so its REAP can retry.
+		 */
+		if (fes_de25_window_revoke_owned(window) && window->exposed && pinned) {
+			__module_get(THIS_MODULE);
+			*pinned = window;
+		} else {
+			kref_put(&window->refs, window_destroy);
+		}
 		return file;
 	}
 	window->inode = igrab(file_inode(file));
@@ -512,6 +527,8 @@ fail_unowned:
 }
 
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
+bool fes_de25_window_test_fail_file;
+
 void fes_de25_window_test_observe(struct file *file, struct fes_de25_window_test_observer *observer)
 {
 	((struct fes_de25_window *)file->private_data)->observer = observer;

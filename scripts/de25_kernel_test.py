@@ -74,6 +74,7 @@ REQUIRED_CASES = frozenset((
     "revoke_catches_inflight_mmap_link",
     "window_publishes_grant_and_maps_offsets", "window_refuses_a_block_it_cannot_grant",
     "window_fault_or_undrained_port_pins_storage", "window_needs_its_block",
+    "window_untrusted_observation_blocks_mapping", "window_file_failure_leaves_a_reapable_grant",
     "acceptance_is_not_display_and_slots_alternate",
     "ordered_descriptor_precedes_first_submit",
     "stale_generation_and_reset_cannot_prove_drain",
