@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "8af2a64daef0837955a63c95d0c3c5551ba8307f",
+  "source_revision": "6409ba91ea45f9d1d106bf544a7d55bd56a37773",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -14,7 +14,7 @@
     "sources/misteross/boards/de25nano/link-proof/fpga/persona_a.hex": "a9660675ab0514cf6e5b7b3247b6a0877d391f60c90cc4602f4da06ab41bdfa3",
     "sources/misteross/boards/de25nano/link-proof/fpga/persona_b.hex": "39142fe44734c61cf7916cfb9af6bd6ae4ef33b3a68416a9b2eec2344004577d",
     "sources/misteross/boards/de25nano/link-proof/generated/fes_de25_pr_control.vh": "04763cefbcde93ce16a4cb331aca510166e003d3fd2d3f8eaaf57111d62ebdcd",
-    "sources/misteross/boards/de25nano/hps/build.py": "7e31c20bfa98a5e759027f78fa6797781907fd18d23e0e383e12e8a40e3422b5",
+    "sources/misteross/boards/de25nano/hps/build.py": "a76ca5324cd52542f5756f8540e1b42f49d7e683b51405d8ce9ba8b0913c460b",
     "sources/misteross/boards/de25nano/hps/vendor.lock.toml": "cd72e8f75190725071d14830348b574542894aa97027650a546badac55c2c2fb",
     "sources/misteross/boards/de25nano/hps/integrate.tcl": "101c2c6600c2e5912e0d051bdaf3db72eedc07779f1cfada661d3f6f2f203bc0",
     "sources/misteross/boards/de25nano/hps/fes_de25_mailbox.v": "c7cb18157ad5476b0c2824e56a88855dd29f81f6470f8820405434acd301945e",
@@ -342,7 +342,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "83985ebb51cb71666e23a5d598aa040450d67d826412edd1b5ea8dd91bbf0120",
-    "Vfes_de25_combined_sim": "6b3cb34eec014e487d77e6ba1149bbb9554774eda05ee231bc39eefe2807bc47",
+    "Vfes_de25_combined_sim": "4b8425fd3c6cb147f00e74cb0ac9ea1e6777820d8320bf643a7c2074667e48d2",
     "client-aarch64": "7bce4ba2c6ed39a45f61e60a0b5d3d4c68dbef928e0a092b36f7133459b3c000"
   },
   "physical_PR": "selection-mux-model-only",
