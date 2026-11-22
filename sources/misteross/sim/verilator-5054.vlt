@@ -126,13 +126,15 @@ lint_off -rule UNOPTPUBLIC -file "*/fes-common/rtl/fes_computer_gp.v" -match "*'
 lint_off -rule UNOPTPUBLIC -file "*/fes-ramtest/sim/board_models.v" -match "*'cyclonev_hps_interface_mpu_general_purpose'"
 lint_off -rule UNOPTPUBLIC -file "*/fes-ramtest/sim/hps_ddr_model.v" -match "*'cyclonev_hps_interface_fpga2sdram'"
 //
-// sg1000_machine.sv drives media_addr from "always @* media_addr = 14'd0;"
-// under FES_SG1000_ROM_LINK. 5.054 never runs a sensitivity-free always @*,
-// so it reports the block and the undriven signal, and media_addr keeps
-// the zero initial value of the simulation. A continuous assign would fix
-// the RTL.
+// In their ROM-link builds, sg1000_machine.sv and sms_machine.sv drive
+// media_addr from a constant "always @* media_addr = 0;". 5.054 never runs a
+// sensitivity-free always @*, so it reports the block and the undriven
+// signal, and media_addr keeps the zero initial value of the simulation. A
+// continuous assign would fix the RTL.
 lint_off -rule ALWNEVER -file "*/fes-sg1000/rtl/sg1000_machine.sv"
 lint_off -rule UNDRIVEN -file "*/fes-sg1000/rtl/sg1000_machine.sv" -match "*'media_addr'"
+lint_off -rule ALWNEVER -file "*/fes-sms/rtl/sms_machine.sv"
+lint_off -rule UNDRIVEN -file "*/fes-sms/rtl/sms_machine.sv" -match "*'media_addr'"
 //
 // Not lint: 5.054 no longer inlines the two 1541 VIAs, and the drive
 // testbench reads their pcr registers by flattened name.
