@@ -56,10 +56,13 @@ func TestWelcomeDrawsAllSixFamiliesWithoutTileKeyboards(t *testing.T) {
 	t.Cleanup(r.Close)
 	f := stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Welcome to FES") })
 	text := frameText(f)
-	for _, want := range []string{"Sinclair ZX81\n", "ZX Spectrum\n", "Atari ST\n", "Commodore 64\n", "PC/XT\n", "PC 386\n", "In development\n"} {
+	for _, want := range []string{"Sinclair ZX81\n", "ZX Spectrum\n", "Atari ST\n", "Commodore 64\n", "PC/XT\n", "PC 386\n"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("Welcome is missing %q:\n%s", want, text)
 		}
+	}
+	if strings.Contains(text, "In development") {
+		t.Fatalf("Welcome retains the obsolete PC 386 label:\n%s", text)
 	}
 	if got := len(f.Ops); got > 64 {
 		t.Fatalf("six-family Welcome draw has %d ops; simplified intro marks should stay under 64", got)

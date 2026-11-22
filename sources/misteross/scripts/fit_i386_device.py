@@ -55,11 +55,10 @@ from contextlib import nullcontext
 import importlib.util
 
 from scripts import yosys_netlist
-from scripts.quartus_tools import load_quartus_lock, locate_quartus
+from scripts.quartus_tools import load_quartus_lock, locate_quartus, quartus_lease
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
-LOCK_FILE = Path("/tmp/lander-quartus-3090.lock")
 # A fixed path for the machine elaboration, so its netlist digest does not
 # depend on which output directory a fit happens to use (DeanoC/yosys#80).
 MACHINE_NETLIST_WORK = "build/diagnostic/i386-agilex5/machine-elaboration/pc386_system.v"
@@ -152,7 +151,6 @@ def elaboration_lease():
     copying it out. Two concurrent machine fits from one worktree write the
     same netlist, script and log there, and without this one could copy a file
     the other is replacing, or unlink it before the other has copied it."""
-    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
     path = ROOT / MACHINE_NETLIST_WORK
     path.parent.mkdir(parents=True, exist_ok=True)
     guard = path.with_name("elaboration.lock")
@@ -174,19 +172,11 @@ def elaboration_lease():
 
 
 @contextmanager
-def compiler_lease():
-    """The builder-wide Quartus lease. Never interrupt another owner's job."""
-    with LOCK_FILE.open("a+") as lease:
-        notice = -math.inf
-        while True:
-            try:
-                fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() - notice >= 30:
-                    print(f"i386 fit heartbeat: waiting for {LOCK_FILE}", flush=True)
-                    notice = time.monotonic()
-                time.sleep(1)
+def compiler_lease(edition: str):
+    """This host's Quartus lease for one fit (quartus_tools.quartus_lease),
+    taken per fit so a seed sweep releases it between seeds. Never interrupt
+    another owner's job."""
+    with quartus_lease(edition, label="i386 fit"):
         try:
             yield
         finally:
@@ -197,7 +187,6 @@ def compiler_lease():
             # caught too: no process group this runner started may be alive
             # when the next fit can take the lock.
             reap_live_groups("the compiler lease is being released")
-            fcntl.flock(lease, fcntl.LOCK_UN)
 
 
 _PORT = re.compile(r"^\s*(input|output|inout)\b(.*?);\s*$")
@@ -1120,7 +1109,8 @@ def cpu_netlist(output: Path, cache_root: Path, gpu_router: str) -> tuple[Path, 
     return netlist, yosys_netlist.report_record(ROOT, yosys, gpu_router, netlist)
 
 
-def machine_netlist(output: Path, cache_root: Path, gpu_router: str) -> tuple[Path, dict]:
+def machine_netlist(output: Path, cache_root: Path, gpu_router: str,
+                    x87: dict[str, int] | None = None) -> tuple[Path, dict]:
     from scripts import pc386_quartus as sealer
     rom = REPO / "sources/misteross" / sealer.ROM_HEX
     if not rom.is_file():
@@ -1145,7 +1135,7 @@ def machine_netlist(output: Path, cache_root: Path, gpu_router: str) -> tuple[Pa
     # file and the log carry the output directory too, and the auto-names
     # follow any of them. The workspace is held while it is written and copied.
     with elaboration_lease() as stable, elaboration_heartbeat("elaborating pc386_system"):
-        yosys_netlist.run(yosys.path, sealer.machine_program(stable), cwd=ROOT,
+        yosys_netlist.run(yosys.path, sealer.machine_program(stable, x87=x87), cwd=ROOT,
                           program_file=stable.with_name("machine.ys"),
                           log=stable.with_name("yosys.log"))
         for name in (sealer.MACHINE_NETLIST, "machine.ys", "yosys.log"):
@@ -1156,6 +1146,7 @@ def machine_netlist(output: Path, cache_root: Path, gpu_router: str) -> tuple[Pa
     return netlist, {"program_sha256": yosys_netlist.program_sha256(yosys_netlist.SEAL),
                      "netlist_sha256": sha(netlist.read_bytes()),
                      "guest_rates": sealer.guest_rates(),
+                     "x87": {"X87_PRESENT": 0, **(x87 or {})},
                      "rom_hex_sha256": sha(rom.read_bytes()),
                      "yosys": yosys_netlist.lock_record(ROOT, yosys, gpu_router, sealer.LOCK)}
 
@@ -1173,6 +1164,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--gpu-router", choices=yosys_netlist.GPU_ROUTERS, default="HIP",
                         help="the toolchain slot whose Yosys writes the netlist; nothing runs on a GPU")
     parser.add_argument("--output", type=Path, required=True, help="a new directory")
+    parser.add_argument("--x87-present", type=int, choices=(0, 1), default=0,
+                        help="--design machine: pc386_system's X87_PRESENT (the i386dx+387 identity)")
     parser.add_argument("--netlist", type=Path, help="reuse this netlist instead of writing one")
     parser.add_argument("--netlist-source", metavar="REVISION",
                         help="the revision the reused netlist was elaborated from, when that is "
@@ -1205,6 +1198,15 @@ def main(argv: list[str] | None = None) -> int:
         if not 1 <= args.seed <= 2 ** 31 - 1:
             raise FitError("seed must be a positive integer")
         device, design = DEVICES[args.device], DESIGNS[args.design]
+        x87 = {"X87_PRESENT": args.x87_present}
+        if args.design != "machine" and any(x87.values()):
+            raise FitError("--x87-present sets pc386_system's X87_PRESENT, so it "
+                           "applies to --design machine only")
+        if args.front_end == "systemverilog" and any(x87.values()):
+            raise FitError("--x87-present reaches the Yosys elaboration only")
+        if args.netlist is not None and any(x87.values()):
+            raise FitError("--x87-present sets the elaboration, so it cannot "
+                           "describe a reused --netlist")
         timeout_minutes = args.timeout_minutes or DEFAULT_TIMEOUT_MINUTES[args.design]
         with lock_context(device):
             lock = load_quartus_lock(ROOT, device.quartus_lock)
@@ -1230,7 +1232,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"i386 fit project (direct SystemVerilog): {project}", flush=True)
             if args.project_only:
                 return 0
-            with compiler_lease():
+            with compiler_lease(lock.edition):
                 require_disk(output)
                 with lock_context(device):
                     _root, quartus_sh, version = locate_quartus(
@@ -1277,8 +1279,11 @@ def main(argv: list[str] | None = None) -> int:
             # the machine is tens of megabytes and the Yosys job should be
             # refused rather than left to fail part-written.
             require_disk(output)
-            writer = cpu_netlist if args.design == "cpu" else machine_netlist
-            netlist, provenance = writer(output, args.cache_root, args.gpu_router)
+            if args.design == "cpu":
+                netlist, provenance = cpu_netlist(output, args.cache_root, args.gpu_router)
+            else:
+                netlist, provenance = machine_netlist(output, args.cache_root, args.gpu_router,
+                                                      {k: v for k, v in x87.items() if v} or None)
         netlist, retarget = prepare_netlist(netlist, device, output / "fitted-netlist")
         provenance["fitted_netlist"] = retarget
         (output / "netlist.json").write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n")
@@ -1286,7 +1291,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"i386 fit project: {project}", flush=True)
         if args.project_only:
             return 0
-        with compiler_lease():
+        with compiler_lease(lock.edition):
             require_disk(output)
             with lock_context(device):
                 _root, quartus_sh, version = locate_quartus(

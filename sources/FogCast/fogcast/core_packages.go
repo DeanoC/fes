@@ -756,12 +756,13 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 			return coreLoadSource{activationBudget: hardDiskActivationBudget, size: int64(len(data)), body: bytes.NewReader(data),
 				entry: &entry, machine: machine, hardDisk: hardDisk}, nil
 		}
-		media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, entry.MediaID)
+		disk := s.pcxtStartDisk(inspection.Descriptor, entry)
+		media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, disk.MediaRole, disk.MediaID)
 		if err != nil {
 			return coreLoadSource{}, err
 		}
 		if initialPcxtDisk(inspection.Descriptor, media) {
-			initial, diskErr := snapshotInitialPcxtDisk(entry, media)
+			initial, diskErr := snapshotInitialPcxtDisk(disk, media)
 			closeErr := media.Close()
 			media = nil
 			if err = errors.Join(diskErr, closeErr); err != nil {

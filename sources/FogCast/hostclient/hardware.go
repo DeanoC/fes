@@ -39,6 +39,9 @@ type ShelfComputer struct {
 type ComputerPackage struct {
 	PackageID string               `json:"package_id"`
 	Media     []ComputerMediaSaves `json:"media"`
+	// StartDisk names the disk a title with no disk starts from, such as
+	// the PC/XT's bundled FreeDOS disk. Empty: it starts with an empty drive.
+	StartDisk string `json:"start_disk,omitempty"`
 }
 
 type ComputerMediaSaves struct {

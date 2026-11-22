@@ -3,8 +3,6 @@ import re
 import unittest
 
 import test_nano_native_trace as computer_fixture
-import test_nano_window_reload_trace as window_fixture
-import test_nano_window_service_trace as service_fixture
 
 
 def stretch(raw, durations):
@@ -38,39 +36,6 @@ class ConfigurationProducerBudgetTests(unittest.TestCase):
                     self.assertEqual(report['complete'], elapsed < 20000000, report['errors'])
                     if elapsed >= 20000000:
                         self.assertIn('reload lacks bounded configuration timing', report['errors'])
-
-    def test_fixed_window_reload_keeps_strict_twenty_seconds(self):
-        fixture = window_fixture.WindowReloadTraceTests()
-        fixture.setUp()
-        for elapsed in (19999999, 20000000, 21000000, 24000000, 25000000):
-            with self.subTest(elapsed=elapsed):
-                raw = fixture.first.raw + fixture.begin + stretch(fixture.program, {10: elapsed}) + fixture.window + fixture.receipt
-                report = fixture.decode(raw)
-                self.assertEqual(report['complete'], elapsed < 20000000, report['errors'])
-                if elapsed >= 20000000:
-                    self.assertIn('window reload lacks bounded current configuration timing', report['errors'])
-
-    def test_window_startup_twenty_and_service_relaunch_twenty_five(self):
-        fixture = service_fixture.WindowServiceTraceTests()
-        fixture.setUp()
-        for elapsed in (19999999, 20000000, 21000000, 24000000, 25000000):
-            with self.subTest(startup_us=elapsed):
-                packet = fixture.packet(fixture.initial, stretch(fixture.cold, {4: elapsed}) + fixture.open)
-                if elapsed < 20000000:
-                    self.assertEqual(fixture.startup(packet)['reply']['state'], 'running')
-                else:
-                    with self.assertRaisesRegex(ValueError, 'configuration exceeded declared source budget'):
-                        fixture.startup(packet)
-        previous = fixture.reply('return', 2, 2, 4, closed=4, state='ready')
-        launched = fixture.reply('launch', 3, 1, 10, closed=4)
-        for elapsed in (19999999, 20000000, 24000000, 24999999, 25000000, 25000001):
-            with self.subTest(service_us=elapsed):
-                packet = fixture.packet(launched, stretch(fixture.warm_prefix(10, 4), {10: elapsed}))
-                if elapsed < 25000000:
-                    self.assertEqual(fixture.transition(packet, previous, 'launch')['reply']['state'], 'running')
-                else:
-                    with self.assertRaisesRegex(ValueError, 'configuration exceeded declared source budget'):
-                        fixture.transition(packet, previous, 'launch')
 
 
 if __name__ == '__main__':

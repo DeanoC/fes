@@ -3,6 +3,7 @@ package localcores
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -27,6 +28,7 @@ func Serve(ctx context.Context, path string, handler http.Handler) error {
 	}
 	server := &http.Server{
 		Handler:           handler,
+		ConnContext:       func(ctx context.Context, conn net.Conn) context.Context { return identityConnContext(ctx, conn) },
 		ReadHeaderTimeout: 2 * time.Second,
 		IdleTimeout:       30 * time.Second,
 	}

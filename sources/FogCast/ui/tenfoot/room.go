@@ -604,7 +604,7 @@ func (a *App) applyRoomActionsLocked() {
 		case rooms.ActionHardwareAddDisk:
 			a.openAddDiskLocked(act)
 		case rooms.ActionHardwareDisks:
-			a.openStShelfLocked(act)
+			a.openDiskShelfLocked(act)
 		case rooms.ActionHardwareExpansions:
 			a.openSystemExpansionsLocked(act)
 		case rooms.ActionFirmwareInfo:

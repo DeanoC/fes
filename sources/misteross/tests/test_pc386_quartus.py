@@ -86,6 +86,22 @@ class SourcesTest(unittest.TestCase):
         self.assertTrue(program.endswith("attrmap -remove hdlname; rename -unescape; write_verilog out/pc386_system.v"))
         for source in quartus.SHELL_SOURCES:
             self.assertNotIn(source, program)
+        # The DE10 seal leaves the board's 387 at the RTL's 0/0.
+        self.assertNotIn("X87_", program)
+
+    def test_machine_program_sets_the_board_s_387_for_a_fit(self):
+        program = quartus.machine_program(Path("out/pc386_system.v"), x87={"X87_PRESENT": 1})
+        self.assertRegex(program, r"-chparam X87_PRESENT 1[ ;]")
+        for bad in ({"X87_PRESENT": 2}, {"x87_present": 1}, {"X87_BACKEND": 1}):
+            with self.assertRaisesRegex(quartus.board.BuildError, "the x87 setting is X87_PRESENT"):
+                quartus.machine_program(Path("out/pc386_system.v"), x87=bad)
+
+    def test_the_board_s_387_is_a_parameter_defaulting_off(self):
+        text = (ROOT / "cores/fes-pc386/rtl/pc386_system.sv").read_text()
+        self.assertRegex(text, r"X87_PRESENT = 0,  //")
+        self.assertIn("wire x87_present = X87_PRESENT != 0;", text)
+        self.assertIn(".GOV_D(GOV_D), .I486(I486)) cpu (", text)
+        self.assertNotIn("X87_BACKEND", text)
 
 
 class RatesTest(unittest.TestCase):
