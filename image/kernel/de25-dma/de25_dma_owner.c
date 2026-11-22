@@ -202,6 +202,7 @@ static struct file *owner_window_allocate(struct fes_de25_owner *owner)
 		.read32 = window_read, .write32 = window_write, .io_fence = window_fence,
 		.build_id = window_build_id, .context = owner,
 	};
+	struct fes_de25_window *pinned;
 	struct file *file;
 
 	mutex_lock(&owner->allocation_lock);
@@ -209,9 +210,11 @@ static struct file *owner_window_allocate(struct fes_de25_owner *owner)
 		file = ERR_PTR(-EBUSY);
 		goto out;
 	}
-	file = fes_de25_window_create(owner->dev, &backend);
+	file = fes_de25_window_create(owner->dev, &backend, &pinned);
 	if (!IS_ERR(file))
 		owner->window_active = fes_de25_window_get(file);
+	else if (pinned)
+		owner->window_active = pinned;
 out:
 	mutex_unlock(&owner->allocation_lock);
 	return file;
@@ -310,7 +313,7 @@ static long owner_ioctl(struct file *control, unsigned int command, unsigned lon
 	if (command == FES_DE25_DMA_OWNER_REAP)
 		return owner_reap(owner);
 	if (command == FES_DE25_DMA_OWNER_WINDOW_ABI)
-		return owner->window_base ? FES_DE25_DMA_WINDOW_VERSION : -ENODEV;
+		return owner->window_base ? (long)FES_DE25_DMA_WINDOW_VERSION : -ENODEV;
 	if (command != FES_DE25_DMA_OWNER_ALLOC && command != FES_DE25_DMA_OWNER_WINDOW_ALLOC)
 		return -ENOTTY;
 	if (command == FES_DE25_DMA_OWNER_WINDOW_ALLOC && !owner->window_base)

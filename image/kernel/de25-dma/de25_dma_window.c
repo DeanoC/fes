@@ -177,7 +177,8 @@ int fes_de25_window_revoke_owned(struct fes_de25_window *window)
 		mmap_write_lock(entry->mm);
 		mmap_write_unlock(entry->mm);
 	}
-	unmap_mapping_range(window->inode->i_mapping, 0, 0, 1);
+	if (window->inode)
+		unmap_mapping_range(window->inode->i_mapping, 0, 0, 1);
 	mutex_lock(&window->lock);
 	if (!window->exposed)
 		goto out;
@@ -405,7 +406,8 @@ static int window_publish(struct fes_de25_window *window)
 	return ret;
 }
 
-struct file *fes_de25_window_create(struct device *dev, const struct fes_de25_window_backend *backend)
+struct file *fes_de25_window_create(struct device *dev, const struct fes_de25_window_backend *backend,
+		struct fes_de25_window **pinned)
 {
 	struct fes_de25_window *window;
 	struct fes_de25_window_backend io;
@@ -413,6 +415,8 @@ struct file *fes_de25_window_create(struct device *dev, const struct fes_de25_wi
 	u32 identity, version;
 	int ret;
 
+	if (pinned)
+		*pinned = NULL;
 	if (!dev || !backend)
 		return ERR_PTR(-EINVAL);
 	io = *backend;
@@ -454,7 +458,7 @@ struct file *fes_de25_window_create(struct device *dev, const struct fes_de25_wi
 		ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(FES_DE25_HPS_WINDOW_DMA_ADDRESS_BITS));
 	if (ret)
 		goto fail_lease;
-	window->cpu = dma_alloc_attrs(dev, FES_DE25_HPS_WINDOW_SPAN, &window->dma, GFP_KERNEL,
+	window->cpu = dma_alloc_attrs(dev, FES_DE25_HPS_WINDOW_SPAN, &window->dma, GFP_KERNEL | __GFP_NOWARN,
 			WINDOW_ATTRIBUTES);
 	/* From here the reference owns the lease and the storage. */
 	if (!window->cpu) {
@@ -467,24 +471,37 @@ struct file *fes_de25_window_create(struct device *dev, const struct fes_de25_wi
 		return ERR_PTR(-ERANGE);
 	}
 	memset(window->cpu, 0, FES_DE25_HPS_WINDOW_SPAN);
+	/* Publish before any file exists, so a refusal is released here and
+	 * now, not by a deferred final fput.
+	 */
+	mutex_lock(&window->lock);
+	ret = window_publish(window);
+	if (ret && window->exposed && !window_clear(window)) {
+		window->exposed = false;
+		kref_put(&window->refs, window_destroy);  /* the exposure pin; ours remains */
+		module_put(THIS_MODULE);
+	}
+	mutex_unlock(&window->lock);
+	if (ret) {
+		/* A grant that could not be cleared keeps its exposure pin, and
+		 * the owner gets our reference so its REAP can retry the clear.
+		 */
+		if (window->exposed && pinned) {
+			__module_get(THIS_MODULE);
+			*pinned = window;
+		} else {
+			kref_put(&window->refs, window_destroy);
+		}
+		return ERR_PTR(ret);
+	}
 	file = anon_inode_create_getfile("fes-de25-window", &window_fops, window, O_RDWR, NULL);
 	if (IS_ERR(file)) {
+		fes_de25_window_revoke_owned(window);
 		kref_put(&window->refs, window_destroy);
 		return file;
 	}
 	window->inode = igrab(file_inode(file));
 	i_size_write(window->inode, FES_DE25_HPS_WINDOW_SPAN);
-	mutex_lock(&window->lock);
-	ret = window_publish(window);
-	mutex_unlock(&window->lock);
-	if (ret) {
-		/* A publish that may have reached the block is cleared now if it
-		 * can be; otherwise the exposure pin keeps the storage.
-		 */
-		fes_de25_window_revoke_owned(window);
-		fput(file);
-		return ERR_PTR(ret);
-	}
 	return file;
 fail_lease:
 	io.release(io.context);

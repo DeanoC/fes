@@ -78,8 +78,11 @@ struct fes_de25_window_backend {
 };
 
 struct fes_de25_window;
+/* On a failure that leaves a grant the block may still hold, *pinned gets a
+ * reference (as fes_de25_window_get) so the owner can retry its revoke.
+ */
 struct file *fes_de25_window_create(struct device *dev,
-		const struct fes_de25_window_backend *backend);
+		const struct fes_de25_window_backend *backend, struct fes_de25_window **pinned);
 struct fes_de25_window *fes_de25_window_get(struct file *file);
 void fes_de25_window_put(struct fes_de25_window *window);
 int fes_de25_window_revoke_owned(struct fes_de25_window *window);
