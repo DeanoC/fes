@@ -75,8 +75,10 @@ The [DE25 MENU lifecycle software record](validation/2026-11-01-de25-menu-lifecy
 The [C64 functional diagnostic](validation/2026-10-06-c64-functional-closure.md)
 records both cartridge probes, input, SID, read-only D64 LOAD and CIA checks;
 it does not promote C64 into a factory image or add disk writes.
-[superpowers/](superpowers/) holds old design and task plans. Do not treat
-either as the way to build or accept the tree you have open. The root
+[superpowers/](superpowers/) holds only the four historical September 2026
+plans and specs still linked from `core-packages.md` and dated validation
+records; the other 63 `docs/superpowers/` files were archived in Git history.
+Do not treat either as the way to build or accept the tree you have open. The root
 `.superpowers/sdd/` task working reports were removed from the active tree;
 they remain in Git at `bb5f1bfc14026b55113202fbc88b730241da9ee1`. List them
 with `git ls-tree -r --name-only bb5f1bfc -- .superpowers/sdd/` and read one
