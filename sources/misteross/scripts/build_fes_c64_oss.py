@@ -20,7 +20,7 @@ import math
 import re
 import sys
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Mapping, NamedTuple, Sequence
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -45,8 +45,6 @@ from scripts import pnr_recipe
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
-PNR = pnr_recipe.recipe_for("fes.c64")
-ROUTER = PNR["router"]
 RECIPE = "scripts/build_fes_c64_oss.py"
 OUTPUT_RELATIVE = Path("build/fes-c64-oss")
 C64_TOOLCHAIN_LOCK = "cores/fes-c64/toolchain.lock"
@@ -57,8 +55,8 @@ C64_GPU_ARCHITECTURES = "gfx1100;gfx1201"
 C64_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={C64_GPU_ROUTER}; hip-architectures={C64_GPU_ARCHITECTURES}"
 )
-# First passing route wins; the order is part of the build identity.
-# The 0c5ed400 seal used this order. The shared-pin move does not reorder it.
+# The published PAL replay harness imports these default recipe values.
+PNR = pnr_recipe.recipe_for("fes.c64")
 PLACER_SEEDS = tuple(PNR["seeds"])
 PLACER_WEIGHT = PNR["timing_weights"][0]
 PLACER_CRITICALITY_EXPONENT = PNR["critexp"]
@@ -186,6 +184,26 @@ HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 BEL_RE = re.compile(r"[A-Z0-9_]+\.(\d+)\.(\d+)\.")
 
 
+class Model(NamedTuple):
+    core_id: str
+    name: str
+    output: Path
+    ntsc: int
+
+
+MODELS = {
+    "pal": Model("fes.c64", "FES Commodore 64", OUTPUT_RELATIVE, 0),
+    "ntsc": Model("fes.c64-ntsc", "FES Commodore 64 (NTSC)", Path("build/fes-c64-ntsc-oss"), 1),
+}
+
+
+def model_for(model: str) -> Model:
+    try:
+        return MODELS[model]
+    except KeyError:
+        raise BuildError(f"C64 model must be one of {', '.join(MODELS)}") from None
+
+
 def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
     """Return backend name, architecture string, and toolchain configuration."""
 
@@ -236,9 +254,10 @@ def validate_memory_clocks(cells: dict) -> None:
                 raise BuildError(f"C64 memory {name} needs a live {port}")
 
 
-def _require_clean_source(root: Path, *, identity_version: int = 2) -> tuple[str, str]:
+def _require_clean_source(root: Path, *, identity_version: int = 2, model: str = "pal") -> tuple[str, str]:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
+    model_for(model)
     return require_clean_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
 
 
@@ -251,11 +270,14 @@ def create_build_record(
     *,
     identity_version: int = 2,
     execution: dict | None = None,
+    model: str = "pal",
     gpu_backend: str = C64_GPU_BACKEND,
     gpu_architectures: str = C64_GPU_ARCHITECTURES,
 ) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
+    machine = model_for(model)
+    pnr = pnr_recipe.recipe_for(machine.core_id)
     fields = {
         "format": 1,
         "repository": repository,
@@ -269,7 +291,10 @@ def create_build_record(
         "parameters": {
             "device": TARGET,
             "top": TOP,
-            "router": ROUTER,
+            "core_id": machine.core_id,
+            "model": model,
+            "ntsc": machine.ntsc,
+            "router": pnr["router"],
             "gpu_backend": gpu_backend,
             "gpu_architectures": gpu_architectures,
             "sys_clock_hz": 52_224_000,
@@ -278,10 +303,10 @@ def create_build_record(
             "audio_clock_hz": 12_288_000,
             "audio_sample_hz": 48_000,
             "reference_clock_hz": 50_000_000,
-            "seed": PLACER_SEEDS[0],
-            "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
-            "placer_heap_timingweight": PLACER_WEIGHT,
-            "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT,
+            "seed": pnr["seeds"][0],
+            "seed_order": ",".join(str(seed) for seed in pnr["seeds"]),
+            "placer_heap_timingweight": pnr["timing_weights"][0],
+            "placer_heap_critexp": pnr["critexp"],
             "toolchain_lock": C64_TOOLCHAIN_LOCK,
             "toolchain_lock_sha256": _sha256(_regular_input(root, C64_TOOLCHAIN_LOCK)),
             "package_format": 3,
@@ -310,9 +335,15 @@ def socket_qsf(base: str) -> str:
 
 
 def build_commands(root: Path, output: Path, build_id: str,
-                   tools: Mapping[str, Path], seed: int = PLACER_SEEDS[0]) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    if output != root / OUTPUT_RELATIVE:
-        raise BuildError(f"FES Commodore 64 OSS output must be {root / OUTPUT_RELATIVE}")
+                   tools: Mapping[str, Path], seed: int | None = None, *,
+                   model: str = "pal") -> tuple[tuple[str, ...], tuple[str, ...]]:
+    machine = model_for(model)
+    pnr = pnr_recipe.recipe_for(machine.core_id)
+    relative = machine.output.as_posix()
+    if seed is None:
+        seed = pnr["seeds"][0]
+    if output != root / machine.output:
+        raise BuildError(f"{machine.name} OSS output must be {root / machine.output}")
     if HEX32_RE.fullmatch(build_id) is None:
         raise BuildError("build ID must be 32 lowercase hexadecimal characters")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
@@ -321,7 +352,7 @@ def build_commands(root: Path, output: Path, build_id: str,
         f"read_verilog -lib {DDR_ATOM}; "
         "read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-common/generated "
         f"{' '.join(RTL_SOURCES)}; "
-        f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
+        f"chparam -set NTSC {machine.ntsc} -set BUILD_ID 128'h{build_id} {TOP}; "
         # Map only the plane products before coarse flattening. The C64
         # machine keeps the existing -nodsp implementation and resource budget.
         f"synth_intel_alm -nolutram -nodsp -top {TOP} -run begin:begin; "
@@ -331,19 +362,19 @@ def build_commands(root: Path, output: Path, build_id: str,
         "t:$mul a:src=cores/fes-common/rtl/fes_display_plane.v:* %i; "
         "chtype -set $mul t:$__soft_mul; "
         f"synth_intel_alm -nolutram -nodsp -top {TOP} -run coarse:; stat; "
-        f"write_json {OUTPUT_RELATIVE.as_posix()}/synth.json"
+        f"write_json {relative}/synth.json"
     )
     yosys = (str(tools["yosys"]), "-p", program)
     route = (
-        str(tools["nextpnr-mistral"]), "--json", f"{OUTPUT_RELATIVE.as_posix()}/synth.json",
-        "--device", TARGET, "--qsf", f"{OUTPUT_RELATIVE.as_posix()}/socket.qsf",
+        str(tools["nextpnr-mistral"]), "--json", f"{relative}/synth.json",
+        "--device", TARGET, "--qsf", f"{relative}/socket.qsf",
         "--sdc", SDC, "--freq", "74.25", "--seed", str(seed),
-        "--placer-heap-timingweight", str(PLACER_WEIGHT),
-        "--placer-heap-critexp", str(PLACER_CRITICALITY_EXPONENT),
-        "--router", ROUTER, "--timing-allow-fail",
-        "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf", "--compress-rbf",
-        "--write", f"{OUTPUT_RELATIVE.as_posix()}/routed.json",
-        "--report", f"{OUTPUT_RELATIVE.as_posix()}/timing.json", "--detailed-timing-report",
+        "--placer-heap-timingweight", str(pnr["timing_weights"][0]),
+        "--placer-heap-critexp", str(pnr["critexp"]),
+        "--router", pnr["router"], "--timing-allow-fail",
+        "--rbf", f"{relative}/core.rbf", "--compress-rbf",
+        "--write", f"{relative}/routed.json",
+        "--report", f"{relative}/timing.json", "--detailed-timing-report",
     )
     return yosys, route
 
@@ -641,6 +672,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
               tools: Mapping[str, str]) -> bytes:
     rbf = evidence["rbf"]
     record_fields = json.loads(record)
+    machine = model_for(record_fields["parameters"]["model"])
     toolchain = "; ".join(f"{name} {tools[name]}" for name in sorted(tools))
     required = [
         "fes.video.fixed-720p60", "fes.keyboard.hid", "fes.gamepad.ports",
@@ -650,8 +682,8 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
     fields = {
         "format": 3,
         "core": {
-            "id": "fes.c64",
-            "name": "FES Commodore 64",
+            "id": machine.core_id,
+            "name": machine.name,
             "description": "Commodore 64 pathfinder with a linked 36 KiB C64/1541 firmware image, "
                            "a read-only 1541 and two cartridge sockets",
             "version": "0.5.0",
@@ -675,14 +707,16 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
 
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None,
-          identity_version: int = 2, gpu_device: int = 0, gpu_router: str = C64_GPU_ROUTER,
+          identity_version: int = 2, gpu_device: int = 0, model: str = "pal", gpu_router: str = C64_GPU_ROUTER,
           toolchain_root: Path | None = None) -> Path:
+    machine = model_for(model)
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
         raise BuildError(f"FES Commodore 64 package store must be {root / 'build/packages'}")
     backend, architectures, _configuration = gpu_choice(gpu_router)
-    repository, revision = _require_clean_source(root, identity_version=identity_version)
+    pnr = pnr_recipe.recipe_for(machine.core_id)
+    repository, revision = _require_clean_source(root, identity_version=identity_version, model=model)
     authenticated = _authenticate_c64_tools(
         root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in authenticated.items()}
@@ -691,17 +725,17 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     extra_env = execution_extra(gpu_router)
     invocation = FunctionalInvocation(authenticated, gpu_device, extra_env=extra_env)
     record = create_build_record(root, repository, revision, identities,
-                                 identity_version=identity_version, execution=invocation.inputs,
+                                 identity_version=identity_version, execution=invocation.inputs, model=model,
                                  gpu_backend=backend, gpu_architectures=architectures)
-    output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
+    output = _prepare_output(root, relative=machine.output, build_outputs=BUILD_OUTPUTS)
     _write_atomic(output / "build-inputs.json", record)
     _write_atomic(output / "socket.qsf", socket_qsf((root / QSF).read_text()).encode())
     try:
         build_id = build_identity(record)
         yosys, _route = build_commands(root, output, build_id, {
-            name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")})
+            name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, model=model)
         _run_tool(yosys, root, output / "yosys.log", env=invocation.env,
-                  audit_source_root=root, output_relative=OUTPUT_RELATIVE)
+                  audit_source_root=root, output_relative=machine.output)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
         validate_synth_evidence(output, source_root=root)
@@ -710,11 +744,11 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                 nextpnr=authenticated["nextpnr-mistral"].path,
                 fixture=output / "synth.json", dest=output, device=TARGET,
                 qsf=output / "socket.qsf", sdc=root / SDC, freq="74.25",
-                seeds=PLACER_SEEDS, weights=(PLACER_WEIGHT,),
-                critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
-                mode="first-pass", extra=(), timeout=ROUTE_TIMEOUT_SECONDS,
-                required=PLACER_QOR_CLOCKS, gpu_devices=(gpu_device,),
-                env=invocation.env, audit_source_root=root, core_id="fes.c64",
+                seeds=tuple(pnr["seeds"]), weights=(pnr["timing_weights"][0],),
+                critexp=pnr["critexp"], budget=len(pnr["seeds"]),
+                mode="first-pass", extra=(), timeout=pnr["timeout_s"],
+                required=pnr_recipe.required_clocks(machine.core_id), gpu_devices=(gpu_device,),
+                env=invocation.env, audit_source_root=root, core_id=machine.core_id,
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
@@ -747,13 +781,13 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
-        if _require_clean_source(root, identity_version=identity_version) != (repository, revision):
+        if _require_clean_source(root, identity_version=identity_version, model=model) != (repository, revision):
             raise BuildError("source identity changed during build")
         invocation.verify()
         if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
             raise BuildError("ROM database changed during build")
         if create_build_record(root, repository, revision, identities,
-                               identity_version=identity_version, execution=invocation.inputs,
+                               identity_version=identity_version, execution=invocation.inputs, model=model,
                                gpu_backend=backend, gpu_architectures=architectures) != record:
             raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store,
@@ -768,16 +802,17 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         invocation.close()
 
 
-def synth(root: Path = ROOT, *, cache_root: Path | None = None) -> dict:
+def synth(root: Path = ROOT, *, cache_root: Path | None = None, model: str = "pal") -> dict:
     """Run Yosys only. Does not require a clean tree and does not seal a package."""
+    machine = model_for(model)
     root = Path(root).resolve()
     for relative in PINNED_INPUTS:
         _regular_input(root, relative)
     authenticated = _authenticate_c64_tools(root, cache_root=cache_root)
-    output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
+    output = _prepare_output(root, relative=machine.output, build_outputs=BUILD_OUTPUTS)
     yosys, _route = build_commands(root, output, "0" * 32, {
-        name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")})
-    _run_tool(yosys, root, output / "yosys.log", output_relative=OUTPUT_RELATIVE)
+        name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, model=model)
+    _run_tool(yosys, root, output / "yosys.log", output_relative=machine.output)
     if not (output / "synth.json").is_file():
         raise BuildError("Yosys did not produce synthesis evidence")
     evidence = validate_synth_evidence(output, source_root=root)
@@ -790,6 +825,7 @@ def synth(root: Path = ROOT, *, cache_root: Path | None = None) -> dict:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--model", choices=tuple(MODELS), default="pal")
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
@@ -802,14 +838,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     try:
         if arguments.synth_only:
-            cells = synth(arguments.root, cache_root=arguments.cache_root)["synthesis_cells"]
+            cells = synth(arguments.root, cache_root=arguments.cache_root, model=arguments.model)["synthesis_cells"]
             print(f"synth-only MISTRAL_M10K={cells.get('MISTRAL_M10K', 0)} "
                   f"MISTRAL_M10K_TDP={cells.get('MISTRAL_M10K_TDP', 0)} "
                   f"MISTRAL_FF={cells.get('MISTRAL_FF', 0)}")
             return 0
         print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
                     identity_version=arguments.identity_version, gpu_device=arguments.gpu_device,
-                    gpu_router=arguments.gpu_router, toolchain_root=arguments.toolchain_root))
+                    gpu_router=arguments.gpu_router, toolchain_root=arguments.toolchain_root, model=arguments.model))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-c64-oss: {exc}", file=sys.stderr)
         return 1

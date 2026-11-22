@@ -1499,7 +1499,11 @@ a stale entry.
 The **core screen** (`example.core`, `widgets.core_screen`) is what Home opens
 for the ZX81, Spectrum, Atari ST and Commodore 64 families. It shows one
 family: a Model row for its variants, the computer with its readiness and
-fixed facts on the left, and its drive and games on the right. It reads the
+fixed facts on the left, and its drive and games on the right. For C64 the
+default model is PAL (`fes.c64`). Show all cores also exposes the DE10 NTSC
+6567R8 model (`fes.c64-ntsc`). Each model launches its own library entries
+and binds the user's 36 KiB firmware to its selected package. Both use the
+same D64 drive interface. The screen reads the
 family with the `home_family` library query, the only one that marks a row as
 a machine entry or a title: the machine entry is listed first as the computer
 on its own, and the count is of titles. Home opens the screen with that

@@ -88,6 +88,8 @@ func corePackageSelectionRecordNameForTest(coreID string) string {
 		return "fes-sg1000.package-selection.toml"
 	case "fes.c64":
 		return "fes-c64.package-selection.toml"
+	case "fes.c64-ntsc":
+		return "fes-c64-ntsc.package-selection.toml"
 	case "fes.ramtest":
 		return "fes-ramtest.package-selection.toml"
 	case "fes.spectrum":
@@ -102,7 +104,7 @@ func corePackageSelectionRecordNameForTest(coreID string) string {
 }
 
 func TestCorePackageSelectionSupportsSelectedFESPackageCores(t *testing.T) {
-	for _, coreID := range []string{"fes.menu", "fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.c64", "fes.spectrum", "fes.spectrum128", "fes.ramtest", "fes.atari-st"} {
+	for _, coreID := range []string{"fes.menu", "fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.c64", "fes.c64-ntsc", "fes.spectrum", "fes.spectrum128", "fes.ramtest", "fes.atari-st"} {
 		t.Run(coreID, func(t *testing.T) {
 			directory, record, selection := packageSelectionFixtureForCore(t, coreID)
 			cache := t.TempDir()

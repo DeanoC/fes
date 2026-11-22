@@ -105,8 +105,8 @@ cartridge with `0xff` before import. Apple II requires an exact 16 KiB
 `apple2-firmware` image covering `$C000–$FFFF`; its slot cards and floppy
 media are separate inputs (see the
 [Apple II pathfinder design](superpowers/specs/2026-09-26-apple2-pathfinder-design.md)).
-Commodore 64 requires an exact 16 KiB `c64-firmware` image (8 KiB BASIC window,
-then 8 KiB KERNAL window). Its disk is `fes.media.c64-disk` 1.0, an exact
+Both DE10 Commodore 64 models use the same 36 KiB `c64-firmware` layout with
+8 KiB BASIC, 8 KiB KERNAL, 4 KiB character ROM and 16 KiB 1541 ROM in that order. The disk interface is `fes.media.c64-disk` 1.0, an exact
 174,848-byte `.d64` on media unit 0, read only. Its two cartridge sockets are
 the optional `fes.expansion.c64-bus` 1.0.
 The ZX Spectrum models each require their exact firmware: the 48K

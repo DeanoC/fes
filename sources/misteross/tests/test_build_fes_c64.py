@@ -43,6 +43,11 @@ class BuildFesC64Tests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), f'python3 scripts/build_fes_c64_oss.py --root "{ROOT}"')
 
+    def test_ntsc_make_entrypoint(self) -> None:
+        result = subprocess.run(["make", "-n", "build-fes-c64-ntsc"], cwd=ROOT,
+                                text=True, capture_output=True, check=True)
+        self.assertEqual(result.stdout.strip(), f'python3 scripts/build_fes_c64_oss.py --root "{ROOT}" --model ntsc')
+
     def test_recipe_lock_pins_the_classified_nextpnr(self) -> None:
         from scripts import pnr_recipe
         self.assertEqual(pnr_recipe.lock_path(ROOT, "fes.c64"), ROOT / producer.C64_TOOLCHAIN_LOCK)
@@ -105,7 +110,7 @@ class BuildFesC64Tests(unittest.TestCase):
         program = yosys[2]
         for source in producer.RTL_SOURCES:
             self.assertIn(source, program)
-        self.assertIn("chparam -set BUILD_ID 128'h" + "0" * 32 + " top", program)
+        self.assertIn("chparam -set NTSC 0 -set BUILD_ID 128'h" + "0" * 32 + " top", program)
         self.assertIn("synth_intel_alm -nolutram -nodsp -top top -run coarse:", program)
         self.assertIn("t:$mul a:src=cores/fes-common/rtl/fes_display_plane.v:* %i", program)
         self.assertEqual(route[route.index("--qsf") + 1], "build/fes-c64-oss/socket.qsf")
@@ -114,6 +119,33 @@ class BuildFesC64Tests(unittest.TestCase):
         with self.assertRaises(BuildError):
             producer.build_commands(ROOT, ROOT / "elsewhere", "0" * 32,
                                     {"yosys": Path("/y"), "nextpnr-mistral": Path("/n")})
+
+    def test_ntsc_producer_selects_the_model_in_the_netlist_and_package_identity(self) -> None:
+        output = ROOT / "build/fes-c64-ntsc-oss"
+        tools = {"yosys": Path("/y"), "nextpnr-mistral": Path("/n")}
+        yosys, route = producer.build_commands(ROOT, output, "0" * 32, tools, model="ntsc")
+        self.assertIn("chparam -set NTSC 1 -set BUILD_ID", yosys[2])
+        self.assertIn("write_json build/fes-c64-ntsc-oss/synth.json", yosys[2])
+        self.assertEqual(route[route.index("--json") + 1], "build/fes-c64-ntsc-oss/synth.json")
+        with self.assertRaises(BuildError):
+            producer.build_commands(ROOT, ROOT / producer.OUTPUT_RELATIVE, "0" * 32, tools, model="ntsc")
+        with self.assertRaises(BuildError):
+            producer.build_commands(ROOT, output, "0" * 32, tools, model="ntsc-old")
+
+        args = (ROOT, "https://example.invalid/fes.git", "a" * 40, {"yosys": "fixture"})
+        env = {"execution": {"gpu_device": 0, "version": 1}}
+        pal = producer.create_build_record(*args, **env)
+        self.assertEqual(pal, producer.create_build_record(*args, model="pal", **env))
+        ntsc = producer.create_build_record(*args, model="ntsc", **env)
+        self.assertNotEqual(producer.build_identity(pal), producer.build_identity(ntsc))
+        self.assertEqual(json.loads(ntsc)["parameters"]["core_id"], "fes.c64-ntsc")
+        evidence = {"rbf": {"size": 2_000_000, "sha256": "b" * 64}, "build_id": producer.build_identity(ntsc),
+                    "rom": {"id": "c64-firmware", "role": "firmware", "source_size": 36864,
+                            "file": "rom-map.json", "size": 100, "sha256": "d" * 64}}
+        manifest = tomllib.loads(producer._manifest(ntsc, evidence, *args[1:]).decode())
+        self.assertEqual(manifest["core"]["id"], "fes.c64-ntsc")
+        self.assertEqual(manifest["core"]["name"], "FES Commodore 64 (NTSC)")
+        self.assertEqual(manifest["rom"], evidence["rom"])
 
     def test_socket_qsf_names_every_region_once(self) -> None:
         base = (ROOT / producer.QSF).read_text()
@@ -235,7 +267,7 @@ class BuildFesC64Tests(unittest.TestCase):
         producer.check_firmware_outside_sockets(outside)
 
     def test_manifest_declares_the_home_computer_contract(self) -> None:
-        record = json.dumps({"recipe_sha256": "a" * 64}).encode()
+        record = json.dumps({"recipe_sha256": "a" * 64, "parameters": {"model": "pal"}}).encode()
         evidence = {"rbf": {"size": 2_000_000, "sha256": "b" * 64}, "build_id": "c" * 32,
                     "rom": {"id": "c64-firmware", "role": "firmware", "source_size": 36864,
                             "file": "rom-map.json", "size": 100, "sha256": "d" * 64}}
