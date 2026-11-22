@@ -62,8 +62,14 @@ type Config struct {
 	OnEvent func(count uint64)
 }
 
-// Dispatcher owns exclusive registration of FPGA-to-HPS SPI lines (48..111)
-// on a single GICv3 controller.
+var (
+	claimsMu         sync.Mutex
+	controllerClaims = make(map[*gic.Controller]map[uint32]*Doorbell)
+)
+
+// Dispatcher owns registration of FPGA-to-HPS SPI lines (48..111) on a GICv3
+// controller. Line ownership is coordinated across all Dispatcher instances
+// attached to the same Controller so two callers cannot claim the same SPI.
 type Dispatcher struct {
 	mu       sync.Mutex
 	gic      *gic.Controller
@@ -116,7 +122,11 @@ func (p *Dispatcher) Open(cfg Config) (*Doorbell, error) {
 	if p.closed {
 		return nil, ErrClosed
 	}
-	if _, exists := p.lines[cfg.Line]; exists {
+
+	claimsMu.Lock()
+	defer claimsMu.Unlock()
+	byLine := controllerClaims[p.gic]
+	if _, exists := byLine[cfg.Line]; exists {
 		return nil, fmt.Errorf("%w: line %d", ErrLineInUse, cfg.Line)
 	}
 
@@ -132,6 +142,11 @@ func (p *Dispatcher) Open(cfg Config) (*Doorbell, error) {
 		closed:  make(chan struct{}),
 	}
 	d.active.Store(true)
+	if byLine == nil {
+		byLine = make(map[uint32]*Doorbell)
+		controllerClaims[p.gic] = byLine
+	}
+	byLine[cfg.Line] = d
 	p.lines[cfg.Line] = d
 
 	p.gic.Disable(irqID)
@@ -142,7 +157,8 @@ func (p *Dispatcher) Open(cfg Config) (*Doorbell, error) {
 	return d, nil
 }
 
-// Close masks, clears, and unregisters all open doorbells and prevents future Open calls.
+// Close masks, clears, and unregisters all open doorbells, waits for any
+// in-flight handlers to finish, and prevents future Open calls.
 func (p *Dispatcher) Close() error {
 	p.mu.Lock()
 	if p.closed {
@@ -154,7 +170,6 @@ func (p *Dispatcher) Close() error {
 	for _, d := range p.lines {
 		open = append(open, d)
 	}
-	clear(p.lines)
 	p.mu.Unlock()
 
 	for _, d := range open {
@@ -172,7 +187,9 @@ type Doorbell struct {
 	ready  chan struct{}
 	closed chan struct{}
 
+	closeMu sync.Mutex
 	irqMu   sync.Mutex
+	wg      sync.WaitGroup
 	active  atomic.Bool
 	ack     func()
 	onEvent func(count uint64)
@@ -274,9 +291,14 @@ func (d *Doorbell) YieldFunc(maxWait time.Duration) func() {
 	}
 }
 
-// Close masks and unregisters the SPI, releases the line in the Dispatcher,
-// and unblocks any callers parked in Wait or YieldFunc. Idempotent.
+// Close masks and unregisters the SPI, waits for any in-flight IRQ handler and
+// OnEvent callback to finish, releases the controller-wide line claim, and
+// unblocks any callers parked in Wait or YieldFunc. Idempotent. Callbacks must
+// not call Close synchronously.
 func (d *Doorbell) Close() error {
+	d.closeMu.Lock()
+	defer d.closeMu.Unlock()
+
 	d.irqMu.Lock()
 	if !d.active.Swap(false) {
 		d.irqMu.Unlock()
@@ -290,10 +312,22 @@ func (d *Doorbell) Close() error {
 	close(d.closed)
 	d.irqMu.Unlock()
 
+	// Drain any in-flight handleIRQ (including count update, ready pulse, and
+	// OnEvent callback) before releasing the line claim or returning.
+	d.wg.Wait()
+
 	d.disp.mu.Lock()
 	if d.disp.lines[d.line] == d {
 		delete(d.disp.lines, d.line)
 	}
+	claimsMu.Lock()
+	if byLine := controllerClaims[d.gic]; byLine[d.line] == d {
+		delete(byLine, d.line)
+		if len(byLine) == 0 {
+			delete(controllerClaims, d.gic)
+		}
+	}
+	claimsMu.Unlock()
 	d.disp.mu.Unlock()
 	return nil
 }
@@ -309,7 +343,9 @@ func (d *Doorbell) handleIRQ() {
 	if ack != nil {
 		ack()
 	}
+	d.wg.Add(1)
 	d.irqMu.Unlock()
+	defer d.wg.Done()
 
 	n := d.count.Add(1)
 	select {

@@ -303,3 +303,99 @@ func TestDoorbellEdgeLevelWaitAndYield(t *testing.T) {
 	}
 	db.YieldFunc(time.Millisecond)()
 }
+
+func TestCloseDrainsInFlightHandlerAndCallback(t *testing.T) {
+	ctrl, _ := newFakeGIC(t, 7)
+	disp, err := New(ctrl)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer disp.Close()
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var finished atomic.Bool
+
+	db, err := disp.Open(Config{
+		Line:    2,
+		Trigger: Edge,
+		OnEvent: func(uint64) {
+			close(entered)
+			<-release
+			finished.Store(true)
+		},
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	db.TriggerPending()
+	go ctrl.Dispatch()
+
+	<-entered
+	closeDone := make(chan error, 1)
+	go func() {
+		closeDone <- db.Close()
+	}()
+
+	select {
+	case err := <-closeDone:
+		t.Fatalf("Close returned early while OnEvent was still running (err=%v)", err)
+	case <-time.After(15 * time.Millisecond):
+	}
+
+	// While Close is draining, the line remains claimed and cannot be re-opened.
+	if _, err := disp.Open(Config{Line: 2, Trigger: Edge}); !errors.Is(err, ErrLineInUse) {
+		t.Fatalf("Open during Close drain err=%v, want ErrLineInUse", err)
+	}
+
+	close(release)
+	if err := <-closeDone; err != nil {
+		t.Fatalf("Close err=%v", err)
+	}
+	if !finished.Load() {
+		t.Fatal("Close returned before OnEvent completed")
+	}
+}
+
+func TestCrossDispatcherLineOwnership(t *testing.T) {
+	ctrl, _ := newFakeGIC(t, 7)
+	disp1, err := New(ctrl)
+	if err != nil {
+		t.Fatalf("New disp1: %v", err)
+	}
+	defer disp1.Close()
+
+	disp2, err := New(ctrl)
+	if err != nil {
+		t.Fatalf("New disp2: %v", err)
+	}
+	defer disp2.Close()
+
+	db1, err := disp1.Open(Config{Line: 5, Trigger: Edge})
+	if err != nil {
+		t.Fatalf("disp1.Open line 5: %v", err)
+	}
+	if _, err := disp2.Open(Config{Line: 5, Trigger: Edge}); !errors.Is(err, ErrLineInUse) {
+		t.Fatalf("disp2.Open duplicate line 5 err=%v, want ErrLineInUse", err)
+	}
+
+	// Disjoint line on disp2 succeeds cleanly.
+	db6, err := disp2.Open(Config{Line: 6, Trigger: Edge})
+	if err != nil {
+		t.Fatalf("disp2.Open line 6: %v", err)
+	}
+	defer db6.Close()
+
+	// Closing db1 releases controller-wide ownership of line 5 for disp2.
+	if err := db1.Close(); err != nil {
+		t.Fatalf("db1.Close: %v", err)
+	}
+	db2, err := disp2.Open(Config{Line: 5, Trigger: Edge})
+	if err != nil {
+		t.Fatalf("disp2.Open line 5 after db1.Close: %v", err)
+	}
+	if err := db2.Close(); err != nil {
+		t.Fatalf("db2.Close: %v", err)
+	}
+}
