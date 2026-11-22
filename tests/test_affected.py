@@ -274,6 +274,7 @@ class AffectedTests(unittest.TestCase):
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
             ('FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),
+            ('FES', 'platform/embedded/tamago/computer/generated/fes_de25_scanout.go'),
             ('libmister-runtime', 'src/native/generated/fes_de25_scanout.hpp'),
         })
         result = plan([definition])
