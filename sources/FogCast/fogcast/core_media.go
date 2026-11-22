@@ -129,7 +129,7 @@ func (s *Service) SetCoreEntryMediaSet(parent context.Context, gameID, expectedP
 	if entry.PackageID != expectedPackage || entry.MediaID != expectedMedia || !slices.Equal(catalog.SetMediaIDs(entry.MoreMedia), expectedMore) {
 		return catalog.CoreEntry{}, mapCoreEntryError(catalog.ErrCoreEntryConflict)
 	}
-	if entry.MediaRole != protocol.DiskRole && entry.MediaRole != protocol.CassetteRole {
+	if entry.MediaRole != protocol.DiskRole && entry.MediaRole != protocol.CassetteRole && entry.MediaRole != protocol.FloppyRole {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	inspection, err := s.installedCoreInspection(ctx, entry.PackageID)
@@ -154,6 +154,9 @@ func (s *Service) SetCoreEntryMediaSet(parent context.Context, gameID, expectedP
 // setMediaNameFitsRole keeps a set disk's name to the live change its drive
 // takes: a disk name for a disk drive, a tape name for a cassette deck.
 func setMediaNameFitsRole(role, name string) bool {
+	if role == protocol.FloppyRole {
+		return protocol.AdmitPcFloppyName(name)
+	}
 	if role == protocol.DiskRole {
 		return protocol.AdmitComputerDiskName(name) || protocol.AdmitSpectrumDiskName(name)
 	}
@@ -228,7 +231,7 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 		return nil, nil
 	}
 	role = savedZx81TapeRole(descriptor, role)
-	if (role != "blob" && role != protocol.DiskRole && role != protocol.CassetteRole && role != protocol.HardDiskRole) || protocol.ValidateDigest(id) != nil {
+	if (role != "blob" && role != protocol.DiskRole && role != protocol.CassetteRole && role != protocol.HardDiskRole && role != protocol.FloppyRole) || protocol.ValidateDigest(id) != nil {
 		return nil, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	var capability *protocol.CoreMediaCapability
@@ -258,6 +261,15 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 		// never as a media-unit insert; selection only checks its size.
 		if !protocol.AdmitAtaDiskSize(media.Size) {
 			return nil, protocol.HardDiskRequestError()
+		}
+		return &coreEntryMedia{ReadCloser: io.NopCloser(bytes.NewReader(nil)), size: media.Size}, nil
+	}
+	if capability.Interface == protocol.PcFloppyInterface() {
+		// Like the hard disk, a launch floppy is staged on the kit and named
+		// in the launch (readLaunchFloppy); a size no drive reads is refused.
+		if !protocol.AdmitPcFloppySize(media.Size) {
+			drive, _ := protocol.PcFloppyDrive(media.Size)
+			return nil, protocol.PcFloppySizeError(drive, media.Size)
 		}
 		return &coreEntryMedia{ReadCloser: io.NopCloser(bytes.NewReader(nil)), size: media.Size}, nil
 	}

@@ -62,7 +62,12 @@ func (s *Service) InsertLibraryDisk(parent context.Context, b protocol.LibraryMe
 		return protocol.Status{}, mediaUnchanged(err)
 	}
 	// Any disk of the title's set may go in; each keeps its own saved record.
-	if entry.PackageID != b.PackageID || (entry.MediaID != b.BaseMediaID && !slices.Contains(catalog.SetMediaIDs(entry.MoreMedia), b.BaseMediaID)) || entry.MediaRole != "disk" {
+	// pc386's A: and B: take floppy-role disks, unit 0 disk-role ones.
+	role := protocol.DiskRole
+	if protocol.PcFloppyUnit(b.Unit) {
+		role = protocol.FloppyRole
+	}
+	if entry.PackageID != b.PackageID || (entry.MediaID != b.BaseMediaID && !slices.Contains(catalog.SetMediaIDs(entry.MoreMedia), b.BaseMediaID)) || entry.MediaRole != role {
 		return protocol.Status{}, mediaUnchanged(protocol.MediaUnitIdentityError())
 	}
 	store, ok := s.catalog.(coreMediaCatalog)
@@ -74,7 +79,10 @@ func (s *Service) InsertLibraryDisk(parent context.Context, b protocol.LibraryMe
 		return protocol.Status{}, mediaUnchanged(mapCoreMediaError(err))
 	}
 	defer reader.Close()
-	if !protocol.AdmitLibraryFloppySize(info.Size) {
+	if protocol.PcFloppyUnit(b.Unit) && !b.AdmitsSize(info.Size) {
+		return protocol.Status{}, mediaUnchanged(protocol.PcFloppySizeError(b.Unit, info.Size))
+	}
+	if !b.AdmitsSize(info.Size) {
 		return protocol.Status{}, mediaUnchanged(protocol.DiskMediaRequestError())
 	}
 	status, err := s.insertBoundMediaUnitLocked(ctx, info.Size, reader, b.MediaUnitBinding, &b)

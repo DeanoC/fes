@@ -293,14 +293,24 @@ func (d StagedDisk) Valid() bool {
 }
 
 // LibraryMachineBinding carries a pc386 library launch's game, which keys its
-// machine record and disk delta, and its staged disk, if any.
+// machine record, disk delta and floppy records, its staged hard disk, if
+// any, and at most one staged launch floppy per drive.
 type LibraryMachineBinding struct {
-	GameID string
-	Disk   *StagedDisk
+	GameID   string
+	Disk     *StagedDisk
+	Floppies []StagedFloppy
 }
 
 func (b LibraryMachineBinding) Valid() bool {
-	return ValidMediaGameID(b.GameID) && (b.Disk == nil || b.Disk.Valid())
+	if !ValidMediaGameID(b.GameID) || (b.Disk != nil && !b.Disk.Valid()) || len(b.Floppies) > 2 {
+		return false
+	}
+	for i, f := range b.Floppies {
+		if !f.Valid() || (i == 1 && b.Floppies[0].Unit == f.Unit) {
+			return false
+		}
+	}
+	return true
 }
 
 // SetHeaders writes the binding onto a library load request. The size is the
@@ -311,15 +321,23 @@ func (b LibraryMachineBinding) SetHeaders(h http.Header) {
 		h.Set(DiskImageHeader, b.Disk.SHA256)
 		h.Set(DiskGeometryHeader, b.Disk.Geometry.String())
 	}
+	for _, f := range b.Floppies {
+		h.Add(FloppyImageHeader, f.header())
+	}
 }
 
 // LibraryMachineHeaders reads an optional binding. It returns nil and true
 // when the request carries none; a partial or invalid binding is false.
-// Disk.Size is left zero for the kit to fill from its staged file.
+// Disk.Size and each floppy's Size are left zero for the kit to fill from
+// its staged files.
 func LibraryMachineHeaders(h http.Header) (*LibraryMachineBinding, bool) {
 	games, images, geometries := h.Values(LibraryGameHeader), h.Values(DiskImageHeader), h.Values(DiskGeometryHeader)
-	if len(games) == 0 && len(images) == 0 && len(geometries) == 0 {
+	floppies := h.Values(FloppyImageHeader)
+	if len(games) == 0 && len(images) == 0 && len(geometries) == 0 && len(floppies) == 0 {
 		return nil, true
+	}
+	if len(floppies) > 2 {
+		return nil, false
 	}
 	if len(games) != 1 || !ValidMediaGameID(games[0]) || len(images) != len(geometries) || len(images) > 1 {
 		return nil, false
@@ -331,6 +349,13 @@ func LibraryMachineHeaders(h http.Header) (*LibraryMachineBinding, bool) {
 			return nil, false
 		}
 		binding.Disk = &StagedDisk{SHA256: images[0], Geometry: geometry}
+	}
+	for i, value := range floppies {
+		floppy, ok := parseFloppyHeader(value)
+		if !ok || (i == 1 && binding.Floppies[0].Unit == floppy.Unit) {
+			return nil, false
+		}
+		binding.Floppies = append(binding.Floppies, floppy)
 	}
 	return binding, true
 }

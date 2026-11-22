@@ -1755,6 +1755,11 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 					return protocol.Status{}, corePackageRequestFailure(err)
 				}
 			}
+			if selected.floppy != nil {
+				if err := stageLaunchFloppy(ctx, machine, selected.floppy); err != nil {
+					return protocol.Status{}, corePackageRequestFailure(err)
+				}
+			}
 			status, err = machine.LoadLibraryMachineCore(ctx, size, content, selected.entry.PackageID, *selected.machine)
 		} else {
 			status, err = library.LoadLibraryCore(ctx, size, content, selected.entry.PackageID)
@@ -1778,8 +1783,15 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
 
+	var rejection *protocol.APIError
 	if selected.entry != nil && (status.CorePackage.PackageID != selected.entry.PackageID || !selected.matchesLoadedIdentity(status.CorePackage)) {
-		rejection := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "activated package differs from selected library package", Phase: "identity", Expected: selected.entry.PackageID, Observed: status.CorePackage.PackageID}
+		rejection = &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "activated package differs from selected library package", Phase: "identity", Expected: selected.entry.PackageID, Observed: status.CorePackage.PackageID}
+	} else if selected.machine != nil && !launchFloppiesInserted(status, *selected.machine) {
+		// An older kit agent drops the floppy header and boots the drive
+		// empty: stop it, as for a package the kit should not be running.
+		rejection = launchFloppyMissingError()
+	}
+	if rejection != nil {
 		recoveryCtx, recoveryCancel := serviceTimeout(parent, s.coreLoadReconcileTimeout)
 		recovered, stopErr := client.Stop(recoveryCtx)
 		if stopErr != nil || !validRecoveredDevelopmentStatus(recovered) || recovered.CorePackage != nil {

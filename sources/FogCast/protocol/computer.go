@@ -319,6 +319,11 @@ func (u MediaUnitStatus) Valid() bool {
 			if u.Unit != AtaDiskUnit || u.CanSave() {
 				return false
 			}
+		case PcFloppyInterface():
+			// A writable disk is saved at Stop and on swap, never live.
+			if !PcFloppyUnit(u.Unit) || u.CanSave() {
+				return false
+			}
 		default:
 			return false
 		}
@@ -353,6 +358,10 @@ func (u MediaUnitStatus) Valid() bool {
 	case PcxtFloppyInterface().ID:
 		return u.Interface == PcxtFloppyInterface() && u.Unit == PcxtFloppyUnit &&
 			int64(u.MinBytes) == PcxtFloppyBytes && int64(u.MaxBytes) == PcxtFloppyBytes
+	case PcFloppyInterface().ID:
+		return u.Interface == PcFloppyInterface() && PcFloppyUnit(u.Unit) && !u.CanSave() &&
+			int64(u.MinBytes) == PcFloppyMinBytes && int64(u.MaxBytes) == PcFloppyMaxBytes &&
+			(u.Persistence == nil || u.State == MediaUnitReady)
 	case AtaDiskInterface().ID:
 		return u.Interface == AtaDiskInterface() && u.Unit == AtaDiskUnit &&
 			int64(u.MinBytes) == AtaDiskMinBytes && int64(u.MaxBytes) == AtaDiskMaxBytes &&
@@ -413,6 +422,13 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 		result = append(result, CoreMediaCapability{Role: HardDiskRole, Format: "ata-disk-raw",
 			MinBytes: AtaDiskMinBytes, MaxBytes: AtaDiskMaxBytes, Interface: AtaDiskInterface(),
 			Transport: AtaDiskTransport, Unit: &unit, Extensions: []string{".img"}})
+	}
+	if DeclaresPcFloppy(descriptor) {
+		// A: by default; the image's size picks the drive it goes in.
+		unit := PcFloppyUnitA
+		result = append(result, CoreMediaCapability{Role: FloppyRole, Format: "pc-floppy-raw",
+			MinBytes: PcFloppyMinBytes, MaxBytes: PcFloppyMaxBytes, Interface: PcFloppyInterface(),
+			Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".img", ".ima", ".vfd"}})
 	}
 	floppy := Apple2FloppyInterface()
 	tape := SpectrumTapeInterface()

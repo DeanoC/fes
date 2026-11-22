@@ -651,9 +651,10 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 	var entry catalog.CoreEntry
 	var media *coreEntryMedia
 	var hardDisk *hardDiskSource
+	var floppy *floppySource
 	var imageSHA string
 	defer func() {
-		resultErr = errors.Join(resultErr, hardDisk.Close())
+		resultErr = errors.Join(resultErr, hardDisk.Close(), floppy.Close())
 		if media != nil {
 			resultErr = errors.Join(resultErr, media.Close())
 		}
@@ -740,7 +741,10 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 			// The game keys the machine record and disk delta; the disk is
 			// staged on the kit by digest and written by the runtime before
 			// release, so nothing is inserted after the core starts.
-			if protocol.DeclaresAtaDisk(inspection.Descriptor) {
+			// A floppy entry boots its disk 1 with the hard disk empty.
+			if entry.MediaRole == protocol.FloppyRole && protocol.DeclaresPcFloppy(inspection.Descriptor) {
+				floppy, err = s.readLaunchFloppy(ctx, entry)
+			} else if protocol.DeclaresAtaDisk(inspection.Descriptor) {
 				hardDisk, err = s.readHardDisk(ctx, entry)
 			} else if entry.MediaID != "" {
 				err = protocol.HardDiskRequestError()
@@ -753,8 +757,11 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 				disk := hardDisk.disk
 				machine.Disk = &disk
 			}
+			if floppy != nil {
+				machine.Floppies = []protocol.StagedFloppy{floppy.floppy}
+			}
 			return coreLoadSource{activationBudget: hardDiskActivationBudget, size: int64(len(data)), body: bytes.NewReader(data),
-				entry: &entry, machine: machine, hardDisk: hardDisk}, nil
+				entry: &entry, machine: machine, hardDisk: hardDisk, floppy: floppy}, nil
 		}
 		media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, entry.MediaID)
 		if err != nil {
@@ -988,6 +995,8 @@ type coreLoadSource struct {
 	// hardDisk uploads that disk when the kit does not hold it yet.
 	machine  *protocol.LibraryMachineBinding
 	hardDisk *hardDiskSource
+	// floppy uploads a floppy entry's disk 1 for its drive.
+	floppy *floppySource
 }
 
 // stopRejectedCore owns recovery when package activation cannot be accepted,

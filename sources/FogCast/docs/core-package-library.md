@@ -1009,3 +1009,32 @@ package comes back instead.
 The disk is fixed: there is no live insert, eject or save for it. Stop saves
 the guest's changes as the runtime's per-game chunk delta, and the base image
 stays immutable.
+
+## pc386 floppy entries
+
+A pc386 package with `fes.media.pc-floppy` has drive A: (3.5" 1.44M) and B:
+(5.25" 1.2M). A raw floppy image (`.img`, `.ima` or `.vfd`) is named by its
+exact size: A: reads 720K, 1.44M and 1.68M DMF images, B: reads 160K, 180K,
+320K, 360K and 1.2M images, and a 2.88M image fits neither. An entry with the
+`floppy` media role holds disk 1 and, as a disk set, disks 2 to N. Its launch
+stages disk 1 on the kit by digest, as for the hard disk, and puts it in the
+one drive that reads its size, with the hard disk empty; the machine boots A:,
+then C:. The load carries `X-FogCast-Floppy-Image` as `UNIT:SHA256` (or
+`UNIT:SHA256:wp`). An older kit agent ignores that header and starts the
+machine with the drive empty; the host sees the empty drive in the result,
+stops the machine and reports that the kit needs updating.
+
+While the machine runs, any disk of the entry's set goes into A: or B:, and
+`eject-floppy` empties a drive. A writable disk keeps its saved image under the
+game and its own base image, whichever drive holds it; the runtime saves it
+before a swap or eject and at Stop. A write-protected disk binds no saved
+image.
+
+```sh
+fogcast --api http://127.0.0.1:8787 --json core-entry 'MS-DOS 6.22 setup' PACKAGE_ID floppy DISK1_MEDIA_ID
+fogcast --api http://127.0.0.1:8787 --json insert-floppy A GAME_ID BASE_MEDIA_ID
+fogcast --api http://127.0.0.1:8787 --json insert-floppy B GAME_ID BASE_MEDIA_ID write-protected
+fogcast --api http://127.0.0.1:8787 --json eject-floppy A
+```
+
+Catalog schema 27 admits the `floppy` role.

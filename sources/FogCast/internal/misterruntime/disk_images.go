@@ -189,6 +189,31 @@ func diskImageStorageError() *protocol.APIError {
 	return &protocol.APIError{Code: protocol.CodeInternal, Message: "disk image could not be stored on the kit", Phase: "request"}
 }
 
+// resolveStagedFloppies fills each launch floppy's size from its staged file.
+func (r *Runtime) resolveStagedFloppies(machine *protocol.LibraryMachineBinding) ([]floppyRequest, *protocol.APIError) {
+	if machine == nil || len(machine.Floppies) == 0 {
+		return nil, nil
+	}
+	requests := make([]floppyRequest, 0, len(machine.Floppies))
+	for i := range machine.Floppies {
+		f := &machine.Floppies[i]
+		size, ok := r.stagedDiskImage(f.SHA256)
+		if !ok {
+			return nil, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "floppy image is not staged on the kit", Phase: "admission"}
+		}
+		f.Size = size
+		if !f.Valid() {
+			return nil, protocol.PcFloppySizeError(f.Unit, size)
+		}
+		requests = append(requests, floppyRequest{Unit: f.Unit, Path: r.diskImagePath(f.SHA256), Size: size,
+			DataRoot: MediaDataRoot, BaseMediaID: f.SHA256, WriteProtected: f.WriteProtected})
+	}
+	if !machine.Valid() {
+		return nil, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "one launch floppy per drive", Phase: "admission"}
+	}
+	return requests, nil
+}
+
 // resolveStagedDisk fills a launch binding's disk size from its staged file.
 func (r *Runtime) resolveStagedDisk(machine *protocol.LibraryMachineBinding) (*ataDiskRequest, *protocol.APIError) {
 	if machine == nil || machine.Disk == nil {

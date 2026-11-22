@@ -280,7 +280,14 @@ func (r *Runtime) insertMedia(ctx, owner context.Context, size int64, body io.Re
 	if !ok || state != protocol.MediaUnitReady {
 		return nil, unavailableError()
 	}
-	if library != nil && protocol.MediaWriteCapable(computerMediaStatus(response).CorePackage) {
+	if library != nil && protocol.PcFloppyUnit(b.Unit) {
+		// A writable pc386 disk binds its record; a write-protected one none.
+		unit, _ := protocol.MediaUnit(computerMediaStatus(response).CorePackage, b.Unit)
+		if unit.Interface != protocol.PcFloppyInterface() || (library.WriteProtected != (unit.Persistence == nil)) ||
+			(unit.Persistence != nil && (unit.Persistence.GameID != library.GameID || unit.Persistence.BaseMediaID != library.BaseMediaID)) {
+			return nil, unavailableError()
+		}
+	} else if library != nil && protocol.MediaWriteCapable(computerMediaStatus(response).CorePackage) {
 		unit, _ := protocol.MediaUnit(computerMediaStatus(response).CorePackage, b.Unit)
 		if unit.Persistence == nil || unit.Persistence.GameID != library.GameID || unit.Persistence.BaseMediaID != library.BaseMediaID {
 			return nil, unavailableError()
