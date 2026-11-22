@@ -139,7 +139,7 @@ help:
 		"  sim-fes-c64-session  Check actual C64 VIC raster and the shared DDR session plane" \
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
 		"  sim-fes-c64-joyports  Check that each C64 joystick port reads only its own gamepad player" \
-		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
+		"  sim-fes-c64-sid  Check digital SID state and MOS6581/MOS8580 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
 		"  sim-fes-pcxt-machine  Test the XT machine, including speaker output and recovery" \
@@ -1237,7 +1237,7 @@ sim-fes-spectrum-board: spectrum-diagnostic
 		"$(CURDIR)/cores/fes-spectrum/sim/board_tb.cpp"
 	@build/sim/fes-spectrum-board/Vtop
 
-C64_SID_AUDIO_SOURCES := cores/fes-c64/rtl/c64_sid_svf.sv cores/fes-c64/rtl/c64_sid_filter_rom.sv cores/fes-c64/rtl/c64_sid_filter_table.sv cores/fes-c64/rtl/c64_sid_vcr_shared.sv cores/fes-c64/rtl/c64_sid_integrator.sv cores/fes-c64/rtl/c64_sid_filter.sv cores/fes-c64/rtl/c64_sid_output_filter.sv cores/fes-c64/rtl/c64_sid_dac.sv cores/fes-c64/rtl/c64_sid_audio.sv
+C64_SID_AUDIO_SOURCES := cores/fes-c64/rtl/c64_sid_8580_lookup.sv cores/fes-c64/rtl/c64_sid_8580_audio.sv cores/fes-c64/rtl/c64_sid_svf.sv cores/fes-c64/rtl/c64_sid_filter_rom.sv cores/fes-c64/rtl/c64_sid_filter_table.sv cores/fes-c64/rtl/c64_sid_vcr_shared.sv cores/fes-c64/rtl/c64_sid_integrator.sv cores/fes-c64/rtl/c64_sid_filter.sv cores/fes-c64/rtl/c64_sid_output_filter.sv cores/fes-c64/rtl/c64_sid_dac.sv cores/fes-c64/rtl/c64_sid_audio.sv
 C64_DIAGNOSTIC := build/diagnostics/fes-c64
 C64_VERILATOR_FLAGS := -DFES_SIMULATION -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAND \
 	-Wno-WIDTHTRUNC -Wno-CASEX -Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM \
@@ -1408,12 +1408,13 @@ sim-fes-c64-color-ram:
 C64_BOOT_SIM_NAME = $(patsubst sim-%-build,%,$@)
 C64_BOOT_TARGETS := sim-fes-c64-boot-build sim-fes-c64-boot-ntsc-build \
                     sim-fes-c64-boot-oracle-build sim-fes-c64-boot-oracle-ntsc-build
+C64_BOOT_TARGETS += $(C64_BOOT_TARGETS:-build=-8580-build)
 .PHONY: $(C64_BOOT_TARGETS) sim-fes-c64-gcr
 $(C64_BOOT_TARGETS):
 	$(require_local_sim)
 	@mkdir -p build/sim/$(C64_BOOT_SIM_NAME)
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) $(C64_BOOT_VISIBILITY) --savable \
-		$(if $(findstring -ntsc-,$@),-GNTSC=1) \
+		$(if $(findstring -ntsc-,$@),-GNTSC=1) $(if $(findstring -8580-,$@),-GSID_8580=1) \
 		$(if $(findstring -oracle-,$@),-DFES_C64_EXTERNAL_MEDIUM_SIM -CFLAGS -DFES_C64_EXTERNAL_MEDIUM_SIM) \
 		-MAKEFLAGS 'OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3' \
 		--Mdir "$(CURDIR)/build/sim/$(C64_BOOT_SIM_NAME)" \
@@ -2691,8 +2692,27 @@ sim-fes-c64-sid-audio:
 	done
 
 
+# Production voice scheduling with the development MOS8580 audio stage.
+.PHONY: sim-fes-c64-sid-8580
+sim-fes-c64-sid-8580:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-8580
+	$(VERILATOR) --cc --exe --build -j 2 -O2 $(C64_VERILATOR_FLAGS) \
+		--top-module c64_sid -GSID_8580=1 -GFILTER_AUDIO=1 \
+		-GSEQUENCE_VOICES=1 -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-8580" \
+		cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv \
+		cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		$(C64_SID_AUDIO_SOURCES) "$(CURDIR)/cores/fes-c64/sim/sid_8580_tb.cpp"
+	@gzip -dc cores/fes-c64/sim/sid_8580_reference.bin.gz > build/sim/fes-c64-sid-8580/reference.bin
+	@build/sim/fes-c64-sid-8580/Vc64_sid build/sim/fes-c64-sid-8580/reference.bin
+
+.PHONY: sim-fes-c64-sid-6581-regions
+sim-fes-c64-sid-6581-regions: sim-fes-c64-boot-build sim-fes-c64-boot-ntsc-build
+	$(PYTHON) cores/fes-c64/sim/sid_6581_regions_tb.py
+
 .PHONY: sim-fes-c64-sid
-sim-fes-c64-sid: sim-fes-c64-sid-audio sim-fes-c64-sid-envelope-prepared sim-fes-c64-sid-prepared sim-fes-c64-sid-envelope sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3 sim-fes-c64-sid-coupling sim-fes-c64-sid-phase sim-fes-c64-sid-sequenced sim-fes-c64-sid-sequenced-osc3 sim-fes-c64-sid-sequenced-mix sim-fes-c64-sid-svf
+sim-fes-c64-sid: sim-fes-c64-sid-6581-regions sim-fes-c64-sid-8580 sim-fes-c64-sid-audio sim-fes-c64-sid-envelope-prepared sim-fes-c64-sid-prepared sim-fes-c64-sid-envelope sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3 sim-fes-c64-sid-coupling sim-fes-c64-sid-phase sim-fes-c64-sid-sequenced sim-fes-c64-sid-sequenced-osc3 sim-fes-c64-sid-sequenced-mix sim-fes-c64-sid-svf
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top $(C64_VERILATOR_FLAGS) \
@@ -2966,7 +2986,7 @@ sim-fes-c64-session:
 # The ZX81 diagnostic needs no ROM; the BASIC benches run when FES_ZX81_ROM is set.
 sim-fes-zx81-smoke: sim-fes-zx81-diagnostic sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-variants
 
-sim-fes-c64-smoke: c64-diagnostic sim-fes-c64-ntsc-timing
+sim-fes-c64-smoke: c64-diagnostic sim-fes-c64-ntsc-timing sim-fes-c64-sid-8580
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
