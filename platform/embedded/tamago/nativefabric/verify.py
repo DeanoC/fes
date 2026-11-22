@@ -20,10 +20,11 @@ from admission_fixtures import prepare as prepare_admission
 # Keep frame and program/install workloads outside the control package budget.
 # The filters partition top-level tests; each invocation still gets 90 seconds.
 NATIVE_PHASES = (
-    ("native-tests", ("-skip", "^Test(Window|Menu|SelectedMenu|Program|OwnedInstall|InstalledProgram|FullTenfoot)")),
-    ("window-native-tests", ("-run", "^TestWindow")),
+    ("native-tests", ("-skip", "^Test(Menu|SelectedMenu|Program|OwnedInstall|InstalledProgram|FullTenfoot|Spectrum48|SharedCoreShell|ROMProgram)")),
     ("menu-native-tests", ("-run", "^Test(Menu|SelectedMenu)")),
     ("program-native-tests", ("-run", "^Test(Program|OwnedInstall|InstalledProgram|FullTenfoot)")),
+    ("spectrum-native-tests", ("-run", "^Test(Spectrum48|SharedCoreShell)")),
+    ("rom-program-native-tests", ("-run", "^TestROMProgram")),
 )
 
 

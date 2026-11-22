@@ -136,6 +136,19 @@ def _sha256(path: Path) -> str:
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
+def tree_digest(root) -> dict:
+    """Digest of a tool installation: every file's relative path and contents."""
+    digest, count = hashlib.sha256(), 0
+    for path in sorted(Path(root).rglob("*")):
+        if path.is_file():
+            digest.update(str(path.relative_to(root)).encode() + b"\0")
+            digest.update(bytes.fromhex(_sha256(path)))
+            count += 1
+    if not count:
+        raise RebuildError("empty tool installation")
+    return {"sha256": digest.hexdigest(), "files": count}
+
+
 def _symlinked_under(path: Path, root: Path) -> bool:
     """True if path is outside root or a component below root is a symlink."""
 

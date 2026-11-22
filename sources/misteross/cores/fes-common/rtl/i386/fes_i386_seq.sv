@@ -702,29 +702,29 @@ module fes_i386_seq #(
             end
             fes_i386_pkg::SEQ_XADDM: if (I486) begin
                 // After r/m into T1 (the first uop, which carries r in src1):
-                // the read-modify-write ADD of r into r/m, then r from T1.
+                // r plus T1 stored to r/m with ADD's flags, then r from T1.
+                // r/m is read once, by the first uop, as a 486 reads it: a
+                // read-modify-write here would read it again, which MMIO
+                // shows (as CMPXCHG's and XCHG's stores from T1).
                 n.uop.cls = fes_i386_pkg::UOP_ALU;
                 n.uop.size = by_bytes(d0.uop.mem.bytes);
                 n.uop.src_size = n.uop.size;
                 n.uop.mem.in_a = 1'b1;
+                n.b_t1 = 1'b1;
+                n.uop.src1 = '{valid: 1'b1, space: fes_i386_pkg::RS_GPR, index: d0.uop.src1.index,
+                               hi8: d0.uop.src1.hi8};
+                n.uop.src2 = gpr(1'b0, 3'd0);
                 if (d.step == 3'd0) begin
                     n.uop.op = 5'd0;  // ALU_ADD
-                    n.uop.src1 = gpr(1'b0, 3'd0);
-                    n.uop.src2 = '{valid: 1'b1, space: fes_i386_pkg::RS_GPR, index: d0.uop.src1.index,
-                                   hi8: d0.uop.src1.hi8};
                     n.uop.dst = gpr(1'b0, 3'd0);
-                    n.uop.mem.kind = fes_i386_pkg::MEM_RMW;
+                    n.uop.mem.kind = fes_i386_pkg::MEM_STORE;
                     n.uop.flags.write = '{oszap: 1'b1, cf: 1'b1};
                     n.more = 1'b1;
                 end else begin
                     n.uop.op = 5'd9;  // ALU_MOV
-                    n.uop.src1 = '{valid: 1'b1, space: fes_i386_pkg::RS_GPR, index: d0.uop.src1.index,
-                                   hi8: d0.uop.src1.hi8};
-                    n.uop.src2 = gpr(1'b0, 3'd0);
                     n.uop.dst = n.uop.src1;
                     n.uop.mem.kind = fes_i386_pkg::MEM_NONE;
                     n.uop.flags = '0;
-                    n.b_t1 = 1'b1;
                     n.uop.ctl.end_of_instruction = 1'b1;
                 end
             end

@@ -111,3 +111,22 @@ lifecycle and the `PrepareClock` boundary to an injected firmware service.
 `PrepareClock` runs after host reset/internal-clock stability and before card
 clocks or commands, and reruns on resume. Native Nano platform callbacks,
 profile selection and physical PHY/read qualification remain pending.
+
+## Opt-in 4-bit, multi-block, IRQ and ADMA2 modes
+
+The default configuration retains conservative 1-bit, single-sector, polling PIO.
+Callers may explicitly opt into higher-throughput modes via `Config` and `EnableIRQ`:
+
+- **`Config.BusWidth4Bit`:** Queries the card SCR (`CMD55` + `ACMD51`), verifies
+  4-bit support (`SCR[51:48]` bit 2), switches via `ACMD6(2)`, sets Host Control 1
+  bit 1, and enforces readback across clock transitions and `Resume`.
+- **`Config.MultiBlock`:** Uses `CMD18` / `CMD25` with Block Count and Auto-CMD12
+  (up to 128 sectors / 64 KiB per transfer) in either PIO or ADMA2 mode.
+- **`Config.UseADMA2` + `Config.DMAPool`:** Allocates a pinned descriptor table
+  and 64 KiB staging buffer from [`dmaops.Pool`](../dmaops/README.md) (supporting
+  both 32-bit and 64-bit ADMA2 descriptors with PoC cache sync). Any ADMA error or
+  timeout permanently poisons both buffers and retires the device. Physical Nano
+  activation still requires matching EL3 BL31 SMMU stream authorization.
+- **`(*Device).EnableIRQ(g, irqID)`:** Routes SDHCI status waits onto a GICv3 SPI
+  (e.g. `de25nano.IRQSDMMC` = 128). The level-triggered handler immediately masks
+  `signalEnable = 0` so idle/quiesce invariants remain intact.

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-// PAL matrix/glyph DMA sequencer. Sprite accesses and pixels are separate.
-module c64_vic_fetch (
+// VIC-II matrix/glyph DMA sequencer. Sprite accesses and pixels are separate.
+`include "c64_timing.vh"
+
+module c64_vic_fetch #(parameter bit NTSC = 0) (
     input wire clk, reset, first_phase, second_phase, sample,
     input wire [8:0] raster,
-    input wire [5:0] cycle,
+    input wire [`C64_CYCLE_BITS(NTSC)-1:0] cycle,
     input wire [7:0] d011, d018,
     input wire [1:0] bank,
     input wire [7:0] cpu_data,
@@ -26,11 +28,11 @@ module c64_vic_fetch (
     reg pending_display, pending_owned;
     reg [3:0] pending_cpu_color;
     reg [11:0] matrix_line [0:39];
-    wire den_enabled = den_seen || (raster == 9'h030 && d011[4]);
-    assign badline = den_enabled && raster >= 9'h030 && raster <= 9'h0f7 &&
+    wire den_enabled = den_seen || (raster == `C64_BADLINE_FIRST && d011[4]);
+    assign badline = den_enabled && raster >= `C64_BADLINE_FIRST && raster <= `C64_BADLINE_LAST &&
         raster[2:0] == d011[2:0];
-    assign ba_n = !(badline && cycle >= 6'd12 && cycle <= 6'd54);
-    assign aec_n = !(badline && cycle >= 6'd15 && cycle <= 6'd54 && lead_count == 3'd4);
+    assign ba_n = !(badline && cycle >= `C64_MATRIX_FIRST - 3 && cycle <= `C64_MATRIX_LAST);
+    assign aec_n = !(badline && cycle >= `C64_MATRIX_FIRST && cycle <= `C64_MATRIX_LAST && lead_count == 3'd4);
     wire active_display = display;
     wire [7:0] code = vmli < 6'd40 ? matrix_line[vmli][7:0] : 8'd0;
     wire [13:0] normal_g = !active_display ? 14'h3fff :
@@ -50,28 +52,28 @@ module c64_vic_fetch (
             if (first_phase) begin
                 request <= 0;
                 if (raster == 0) begin den_seen <= 0; vcbase <= 0; end
-                else if (raster == 9'h030 && d011[4]) den_seen <= 1;
+                else if (raster == `C64_BADLINE_FIRST && d011[4]) den_seen <= 1;
                 if (ba_n) lead_count <= 0;
                 else if (lead_count < 4) lead_count <= lead_count + 1'b1;
                 if (badline) display <= 1;
-                if (cycle == 14) begin
+                if (cycle == `C64_MATRIX_FIRST - 1) begin
                     vc <= vcbase; vmli <= 0;
                     if (badline) rc <= 0;
                 end
-                if (cycle >= 16 && cycle <= 55) begin
+                if (cycle >= `C64_GLYPH_FIRST && cycle <= `C64_GLYPH_LAST) begin
                     request <= 1; matrix_request <= 0;
                     address <= {bank, glyph_address};
                     pending_index <= vmli; pending_display <= active_display;
                     if (active_display) begin vc <= vc + 1'b1; vmli <= vmli + 1'b1; end
                 end
-                if (cycle == 58) begin
+                if (cycle == `C64_ROW_UPDATE) begin
                     if (rc == 7) begin display <= badline; vcbase <= vc; end
                     if ((display && rc != 7) || badline) rc <= rc + 1'b1;
                 end
             end
             if (second_phase) begin
                 request <= 0;
-                if (badline && cycle >= 15 && cycle <= 54) begin
+                if (badline && cycle >= `C64_MATRIX_FIRST && cycle <= `C64_MATRIX_LAST) begin
                     request <= 1; matrix_request <= 1;
                     address <= {bank, d018[7:4], vc}; color_address <= vc;
                     pending_index <= vmli; pending_owned <= !aec_n; pending_cpu_color <= cpu_data[3:0];

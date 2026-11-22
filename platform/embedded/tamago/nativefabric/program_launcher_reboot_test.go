@@ -167,13 +167,21 @@ func TestProgramLauncherKeyboardFATShutdownAndFreshBootPersistence(t *testing.T)
 		}
 		t.Cleanup(func() { _ = disk.Close() })
 		var startup *ProgramStartup
+		var foreignProfile packagestore.Request
 		f := newProgramMenuFixtureContext(t, context.Background(), "", func(f *programMenuFixture) {
 			volume, err := fat.Mount(&ownedInstallDisk{disk, f.r.f.lease})
 			if err != nil {
 				t.Fatal(err)
 			}
 			if boot == 0 {
-				writeLauncherFAT(t, volume, launcherStaging(t, f))
+				foreignProfile, _, _ = addROMProgramChanged(t, f.r, 2, 8192, func(manifest string) string {
+					return strings.Replace(manifest, NativeComputerProfile, "de25-native-spectrum48-v1", 1)
+				})
+				payload := launcherStaging(t, f)
+				for name, data := range programUpload(f.r.f.files, foreignProfile) {
+					payload[name] = data
+				}
+				writeLauncherFAT(t, volume, payload)
 			}
 			f.r.f.store, err = packagestore.New(volume, f.r.f.lease)
 			if err != nil {
@@ -193,6 +201,19 @@ func TestProgramLauncherKeyboardFATShutdownAndFreshBootPersistence(t *testing.T)
 			t.Fatal(err)
 		}
 		if boot == 0 {
+			// The producer profile cannot borrow the compiled native computer
+			// role, even with linked files and otherwise native metadata on FAT.
+			before := f.s.Status()
+			loads := f.r.f.cpu.configurations
+			_, err := f.s.Launch(t.Context(), before.Generation, foreignProfile)
+			if err == nil || !strings.Contains(err.Error(), "no matching compiled platform") {
+				t.Fatal("unmatched profile did not reach the platform gate", err)
+			}
+			after := f.s.Status()
+			if after.State != ProgramReady || after.Generation != before.Generation ||
+				f.r.f.lease.r.Active || f.cpu.kind != programRoleMenu || f.r.f.cpu.configurations != loads+1 {
+				t.Fatal("profile rejection failed to restore the native menu", after)
+			}
 			if len(startup.Entries) != 0 || len(startup.Staged) != 2 {
 				t.Fatal("fresh bootstrap is not empty with two install sources")
 			}

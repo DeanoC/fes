@@ -16,6 +16,7 @@ import (
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
@@ -30,6 +31,36 @@ var nativeProgramPlatform tenfoot.Platform
 const tenfootSerialLinked = true
 
 func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store) {
+	uartIRQ := false
+	var activeGIC *gic.Controller
+	if g := de25nano.GIC(); g != nil {
+		if err := g.Init(); err != nil {
+			if !errors.Is(err, gic.ErrUnsupported) {
+				panic(err)
+			}
+		} else {
+			if err := g.EnableIdle(); err != nil {
+				panic(err)
+			}
+			defer g.DisableIdle()
+			stop := make(chan struct{})
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				g.Serve(stop)
+			}()
+			defer func() {
+				close(stop)
+				<-done
+			}()
+			if err := serial.EnableIRQ(g); err != nil {
+				panic(err)
+			}
+			defer serial.DisableIRQ(g)
+			uartIRQ = true
+			activeGIC = g
+		}
+	}
 	paired := expectedCompiledMenuProgram != ""
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	startup, err := nativefabric.ReadProgramStartup(ctx, store, programWritableStorageSelected, paired)
@@ -60,9 +91,11 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 			_ = programService.Retire(errors.New("native Tenfoot exited before owned menu shutdown"))
 		}
 	}()
-	if err := startProgramNetwork(); err != nil {
+	cleanupNetwork, err := startProgramNetwork(activeGIC)
+	if err != nil {
 		panic(err)
 	}
+	defer cleanupNetwork()
 	nativeProgramBackend, err = nativefabric.NewProgramBackend(programService, startup.Entries)
 	if err != nil {
 		panic(err)
@@ -98,6 +131,9 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	})
 	if err != nil {
 		panic(err)
+	}
+	if uartIRQ {
+		serialPlatform.SetReady(serial.Ready())
 	}
 	var platform tenfoot.Platform = serialPlatform
 	if programWritableStorageSelected {

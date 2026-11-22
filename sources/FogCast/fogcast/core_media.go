@@ -329,7 +329,7 @@ func spectrumCassetteStream(descriptor corepackage.Descriptor, name string, read
 		}
 		return stream, nil
 	}
-	pzx, err := spectrumtapes.Convert(data)
+	pzx, err := protocol.ConvertSpectrumTape(data, int(protocol.SpectrumTapeMaxBytes))
 	if err != nil {
 		return nil, protocol.CassetteConversionError(err)
 	}

@@ -732,10 +732,11 @@ available. The F2H parameter change has no boot-firmware acceptance yet and
 grants no IO, reset, physical DMA or native acceptance.
 
 The package path requires the complete 85-rule signoff inventory and its detailed
-results, all reported setup/hold/recovery/removal/pulse-width/skew/net-delay checks, zero waived
-findings and an independent identical RBF before using the normal exporter.
+results, all reported setup/hold/recovery/removal/pulse-width/skew/net-delay checks and zero waived
+findings before using the normal exporter. DE25 producers compile once: Quartus 26.3 Pro's fit is
+not reproducible across threads or project paths, so a byte-identical repeat is not required.
 The approved `de25-menu-reviewed-async-inputs-v1` policy accepts only TMC-20011
-for `HDMI_I2C_SDA` and `HDMI_TX_INT`. Each compilation and independent rebuild
+for `HDMI_I2C_SDA` and `HDMI_TX_INT`. Each compilation
 queries a private copy of the final fitted database: raw input and first-stage
 fanout must follow the reviewed two-register chain, with only its intended
 controller consumers (including Quartus copies of ACK1/2/3 and LUT_INDEX0..5
@@ -1001,7 +1002,8 @@ Pong, ZX81, Coleco, SMS and SG-1000 use functional
 identity 2 exclusively. Both Python and CLI entrypoints default to 2 and reject
 other identity versions. Native oracle/diagnostic records without the design-v1
 policy retain their legacy identity semantics. Normal source-closed producers
-and board firmware use design-v1 while retaining record format 2. Design-input
+and board firmware use design-v1 while retaining record format 2; the pc386 and
+fes.pcxt-dos producers use design-v2 (below). Design-input
 changes receive new embedded IDs; packaging/toolchain-only changes retain the
 design ID. Existing artifacts and caches are never relabelled or deleted.
 ZX81, SMS, SG-1000, Apple II, C64, Spectrum and Atari ST use format 3 to seal
@@ -1038,6 +1040,40 @@ must move into the design class. Native compiler read auditing rejects reads
 of excluded packaging or toolchain source files; all existing Markdown and
 source-closure checks still apply. Python recording code may read those files
 to bind their exact bytes into provenance.
+
+design-v1 is frozen. design-v2 (#1984) keeps every v1 role and adds two roles
+whose files leave the design projection but stay in `source_inputs`, so the
+`record` identity still binds them. Files with the `evidence` role also get
+their own `identities.evidence` digest. Two producers write design-v2:
+
+- **pc386.** `evidence` covers the i386 oracle, the lockstep suite and the
+  lockstep runners. `firmware-generator` covers the firmware recipe and
+  `firmware.lock`, whose output digests the record's `firmware` parameter
+  must carry. An evidence-only change allows reuse of a sealed package only
+  after a fresh full lockstep.
+- **fes.pcxt-dos (#2096).** `PCXT_EVIDENCE_INPUTS` covers the files under
+  `cores/fes-pcxt/sim` that only Verilator consumes: `cpu.vlt`,
+  `chipset.vlt`, the testbench C++ and the testbench tops. A measured
+  classification found none of them read by the seal's Yosys run, its
+  input-generating Python or its proofs
+  ([record](../../../docs/validation/2026-11-22-pcxt-sim-evidence/README.md)).
+  `sim_fes_pcxt.py`, the `.S` programs and the BIOS and FreeDOS locks stay
+  design, because the seal runs or reads them. A new file of the evidence
+  kinds under `cores/fes-pcxt/sim` joins the set in the same commit; a test
+  enforces this. After an evidence-only change there, the sealed package may
+  be reused once the pcxt sim targets pass in CI on the new configuration
+  (Deano, 22 Nov 2026). CI runs the full pcxt suite, `sim-fes-pcxt-dos`
+  included, in place of the smoke tier on any change under
+  `cores/fes-pcxt/sim` (`FULL_TIER_INPUTS` in `scripts/ci_simulations.py`).
+
+The v2 sets are append-only literals and never take a path that a sealed v2
+record holds. A v1-to-v2 move changes the design ID once and takes a normal
+reseal.
+
+Producers bind only the helpers they import. The DE25 producers get
+`tree_digest` from `scripts/quartus_tools.py`, a toolchain input, and do not
+bind the PC/XT producer. A PC/XT producer edit therefore moves no DE25
+identity (#2096).
 
 The full original closure remains recorded and is verified against Git history
 on every cache hit. Packaging edits therefore change recording provenance

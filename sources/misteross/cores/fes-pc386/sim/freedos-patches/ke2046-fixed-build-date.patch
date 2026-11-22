@@ -1,0 +1,19 @@
+fes#1777: Open Watcom expands __DATE__ to the day of the build and ignores
+SOURCE_DATE_EPOCH, so kernel 2046 built on two days makes two different
+kernel.sys files. This fixes the version string's date to the one the ke2046
+release kernel carries (Jun 30 2026). It is the same length, so the
+kernel keeps its layout. Keep it while the fixture builds the kernel.
+
+Applies with patch -p1 to ke2046s.zip's SOURCE/ke2046 (CRLF lines).
+
+--- a/hdr/version.h
++++ b/hdr/version.h
+@@ -45,7 +45,7 @@
+ #endif
+ 
+ /* actual version string */
+-#define KVS(v,s,o) "FreeDOS kernel " v "(build 20" #s " OEM:" #o ") [compiled " __DATE__ "]\n"
++#define KVS(v,s,o) "FreeDOS kernel " v "(build 20" #s " OEM:" #o ") [compiled " "Jun 30 2026" "]\n" /* the release build's date, so builds reproduce */
+ #define xKVS(v,s,o) KVS(v,s,o)
+ #define KERNEL_VERSION_STRING xKVS(KERNEL_VERSION, REVISION_SEQ, OEM_ID)
+ 

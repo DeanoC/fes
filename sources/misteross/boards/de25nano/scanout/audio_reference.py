@@ -31,7 +31,7 @@ REPORTS = {'clocks.tsv', 'paths.tsv'} | {
 # The scanout service-window review changes only the wrapper/Tcl master burst
 # width and the builder's matching transport checks. Audio RTL, clocks, reset,
 # PCM and expansion wiring are unchanged; each new fit still needs its own
-# fitted clock/path review and independent rebuild.
+# fitted clock/path review.
 # The dated policy and fitted records are in docs/validation/
 # 2026-11-04-de25-standard-zx81/audio-clock-{reference-proposal.md,fitted-review.json}.
 # Current canonical per-fit records are retained under /data/
@@ -116,9 +116,10 @@ def eligible(directory):
 
 def eligible_machine(directory, record):
     params = record['parameters']
-    expected = {'programming_profile': 'de25-linux-computer-v1', 'standard_core': True,
+    expected = {'standard_core': True,
                 'expansion_socket': False, 'audio_clock_reference_policy': MACHINE_POLICY}
     require(params.get('core_id') in MACHINE_CORES and
+            (params.get('programming_profile') == 'de25-linux-computer-v1' or async_inputs.native_spectrum48(params)) and
             all(type(params.get(k)) is type(v) and params[k] == v for k, v in expected.items()),
             'requires a standard machine-PLL profile')
     require(all(record['source_inputs'].get(name) == sha for name, sha in MACHINE_SOURCES.items()),

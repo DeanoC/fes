@@ -78,6 +78,7 @@ func decodeProgramCatalogMode(raw []byte, choices []packagestore.Request, allowE
 type ProgramSerialPlatform struct {
 	service         *ProgramService
 	read            func() (byte, bool)
+	ready           <-chan struct{}
 	emit            func(context.Context, []byte) error
 	decoder         input.Decoder
 	last            time.Time
@@ -99,6 +100,11 @@ func NewProgramSerialPlatform(service *ProgramService, read func() (byte, bool),
 // EnableInstallerViews selects read-only navigation diagnostics before the App
 // starts. It grants no storage, installation or firmware capability.
 func (p *ProgramSerialPlatform) EnableInstallerViews() { p.installerViews = true }
+
+// SetReady installs an optional interrupt wakeup channel so Next wakes
+// immediately on console RX instead of waiting for the 50 ms frame delay.
+func (p *ProgramSerialPlatform) SetReady(ready <-chan struct{}) { p.ready = ready }
+
 func (p *ProgramSerialPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
 	if ctx == nil {
 		return tenfoot.PlatformInput{}, errors.New("native serial UI: context required")
@@ -108,10 +114,19 @@ func (p *ProgramSerialPlatform) Next(ctx context.Context) (tenfoot.PlatformInput
 	}
 	delay := 50*time.Millisecond - time.Since(p.last)
 	if delay > 0 {
-		select {
-		case <-ctx.Done():
-			return tenfoot.PlatformInput{}, ctx.Err()
-		case <-time.After(delay):
+		if p.ready != nil {
+			select {
+			case <-ctx.Done():
+				return tenfoot.PlatformInput{}, ctx.Err()
+			case <-p.ready:
+			case <-time.After(delay):
+			}
+		} else {
+			select {
+			case <-ctx.Done():
+				return tenfoot.PlatformInput{}, ctx.Err()
+			case <-time.After(delay):
+			}
 		}
 	}
 	now := time.Now()

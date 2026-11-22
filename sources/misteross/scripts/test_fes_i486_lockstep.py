@@ -21,16 +21,35 @@ With --netlist each identity's CPU is first run through the seal's Yosys
 program with its I486 value (scripts/yosys_netlist.py, as
 test_fes_i386_lockstep.py --netlist does), and that netlist is simulated.
 
+  random      the level-3 suite's random programs (lockstep_tb.cpp
+              FES_I386_MODE=random) at the 486SX identity against the
+              level-4 oracle: the same five sets and seeds
+              (test_fes_i386_lockstep.py's random, protected-mode, task,
+              debug and undefined programs), each with 486 forms in it
+              (Generator::isa486: BSWAP, XADD, CMPXCHG, INVD, WBINVD, INVLPG
+              and PTE remaps, CPUID, AC toggles) from a 486's start state
+              (CR0.AM mostly set, WP and NE at random, AC and ID at random),
+              and two seeds again without latency, whose traces must not
+              change. Every program must keep step; the only rule of the
+              level-4 oracle's own is CPUID's (lockstep_tb.cpp cpuid_rule).
+              Each 486 form must retire somewhere in the suite, and #AC and
+              a WP fault must be delivered.
+
   python3 scripts/test_fes_i486_lockstep.py --download
   python3 scripts/test_fes_i486_lockstep.py --oracle-only
   python3 scripts/test_fes_i486_lockstep.py --netlist
   python3 scripts/test_fes_i486_lockstep.py --identity 486sx --write-expected
+  python3 scripts/test_fes_i486_lockstep.py --identity 486sx --jobs 4
+  python3 scripts/test_fes_i486_lockstep.py --identity 486sx --random-programs 0 --pm-programs 0 \
+      --task-programs 0 --debug-programs 0 --undefined-programs 0
 
 Writes build/sim/fes-i486-lockstep/report.json. Exit status 1 on any failure.
 """
 from __future__ import annotations
 
 import argparse
+from collections import Counter
+from concurrent.futures import ProcessPoolExecutor
 import hashlib
 import json
 import os
@@ -45,6 +64,7 @@ from scripts import fes_i486_cases
 from scripts import fes_i486_oracle as oracle
 from scripts import i386_verilator
 from scripts import test_fes_i386_lockstep as level3
+from scripts import test_fes_i386_vectors as vectors
 from scripts import yosys_netlist
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -213,6 +233,77 @@ def judge(cases: list[fes_i486_cases.Case], measured: dict[str, str], expected: 
     return rows
 
 
+# The 486 forms (lockstep_tb.cpp count_i486_form) that must retire somewhere
+# in the random suite, and the deliveries it must reach: #AC, and a CPL-0
+# write that WP stops. CPUID of leaf 1 and above is held to the 486SX's
+# answer by the CPUID rule (cpuid-486sx).
+REQUIRED_FORMS = ('bswap32', 'bswap16', 'xadd-r8', 'xadd-r16', 'xadd-r32', 'xadd-m8', 'xadd-m16', 'xadd-m32',
+                  'xadd-m16-lock', 'cmpxchg-r32-equal', 'cmpxchg-r32-unequal', 'cmpxchg-r8-equal', 'cmpxchg-m16-equal',
+                  'cmpxchg-m16-unequal', 'cmpxchg-m32-equal-lock', 'invd', 'wbinvd', 'invlpg', 'cpuid-0', 'cpuid-1',
+                  'cpuid-2+', 'ac-toggle', 'ac-fault', 'wp-fault')
+# The random suite's summary counts, added over its seeds.
+RANDOM_COUNTS = ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults', 'shutdowns', 'nested',
+                 'retire_limits', 'io_accesses', 'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops',
+                 'window_code_stops', 'code_store_stops', 'stray_stops', 'mmio_runs', 'mmio_accesses', 'replays',
+                 'smc_restarts', 'pm_retirements', 'cs_rule', 'ss_error_rule', 'fetch_rule', 'iret_save_rule',
+                 'dr6_rule', 'db_rf_rule')
+
+
+def random_suite(testbench: Path, args: argparse.Namespace) -> dict:
+    """The level-3 suite's random program sets at level 4 (the module's docstring), args.jobs at a time."""
+    table = testbench.parent / 'divergences.txt'
+    level3.divergence_table(vectors.load_divergences(), table)
+    env = dict(os.environ, FES_I386_DIVERGENCES=str(table), FES_I386_PRESET='0')
+    bench = str(testbench)
+    # (set, seed, programs, latency, pm_weight, tasks, debug, undefined), as test_fes_i386_lockstep.py's.
+    jobs = [('random', args.seed + n, args.random_programs, True, 2, False, False, False)
+            for n in range(args.random_seeds if args.random_programs else 0)]
+    jobs += [('steady', args.seed + n, args.random_programs, False, 2, False, False, False)
+             for n in range(min(2, args.random_seeds) if args.random_programs else 0)]
+    jobs += [('pmode', level3.PM_SEED + args.seed + n, args.pm_programs, True, level3.PM_WEIGHT, False, False, False)
+             for n in range(args.random_seeds if args.pm_programs else 0)]
+    jobs += [('tasks', level3.TASK_SEED + args.seed + n, args.task_programs, True, level3.PM_WEIGHT, True, False,
+              False) for n in range(args.random_seeds if args.task_programs else 0)]
+    jobs += [('debug', level3.DEBUG_SEED + args.seed + n, args.debug_programs, True, 2, False, True, False)
+             for n in range(args.random_seeds if args.debug_programs else 0)]
+    jobs += [('undefined', level3.UNDEFINED_SEED + args.seed + n, args.undefined_programs, True, level3.PM_WEIGHT,
+              False, False, True) for n in range(args.random_seeds if args.undefined_programs else 0)]
+    with ProcessPoolExecutor(max_workers=args.jobs) as executor:
+        futures = [(name, executor.submit(level3.run_random, bench, env, seed, programs, latency, weight, tasks,
+                                          debug, undefined))
+                   for name, seed, programs, latency, weight, tasks, debug, undefined in jobs]
+        results = [(name, future.result()) for name, future in futures]
+    out: dict[str, object] = {'divergences_sha256': hashlib.sha256(table.read_bytes()).hexdigest(), 'sets': {}}
+    forms, divergences, vectors_by_set, failures = Counter(), Counter(), {}, []
+    for name in dict.fromkeys(name for name, _ in results):
+        chosen = [result for set_name, result in results if set_name == name]
+        totals = sum((Counter({key: result['summary'][key] for key in RANDOM_COUNTS}) for result in chosen), Counter())
+        set_forms = sum((Counter(result['summary'].get('i486_forms', {})) for result in chosen), Counter())
+        set_divergences = sum((Counter(result['summary']['divergence_retirements']) for result in chosen), Counter())
+        set_vectors = sum((Counter(result['summary']['fault_vectors']) for result in chosen), Counter())
+        out['sets'][name] = {'seeds': [result['seed'] for result in chosen],
+                             'programs_per_seed': chosen[0]['summary']['runs'] if chosen else 0,
+                             'totals': dict(totals), 'i486_forms': dict(sorted(set_forms.items())),
+                             'divergence_retirements': dict(sorted(set_divergences.items())),
+                             'fault_vectors': dict(sorted(set_vectors.items())),
+                             'trace_hashes': {str(result['seed']): result['summary']['trace_hash'] for result in chosen},
+                             'failures': [line for result in chosen for line in result['failures']][:200]}
+        failures += [line for result in chosen for line in result['failures']]
+        if name != 'steady':
+            forms += set_forms
+        divergences += set_divergences
+    hashes = {result['seed']: result['summary']['trace_hash'] for name, result in results if name == 'random'}
+    mismatches = [result['seed'] for name, result in results
+                  if name == 'steady' and result['summary']['trace_hash'] != hashes.get(result['seed'])]
+    out['i486_forms'] = dict(sorted(forms.items()))
+    out['divergence_retirements'] = dict(sorted(divergences.items()))
+    out['latency_free_mismatches'] = mismatches
+    out['missing_forms'] = [form for form in REQUIRED_FORMS if not forms.get(form)] if jobs else []
+    out['failure_count'] = len(failures)
+    out['failures'] = failures[:400]
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--download', action='store_true', help='fetch the pinned Bochs if it is not in build/')
@@ -224,7 +315,22 @@ def main() -> int:
     i386_verilator.add_argument(parser)
     yosys_netlist.add_arguments(parser)
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
+    parser.add_argument('--random-programs', type=int, default=2000,
+                        help='486SX random programs per seed against the level-4 oracle (default 2000)')
+    parser.add_argument('--random-seeds', type=int, default=16, help='seeds per random set (default 16)')
+    parser.add_argument('--seed', type=int, default=1, help='the first random seed')
+    parser.add_argument('--pm-programs', type=int, default=500, help='protected-mode programs per seed (default 500)')
+    parser.add_argument('--task-programs', type=int, default=250, help='task-switch programs per seed (default 250)')
+    parser.add_argument('--debug-programs', type=int, default=250, help='debug programs per seed (default 250)')
+    parser.add_argument('--undefined-programs', type=int, default=250,
+                        help='programs with undefined encodings per seed (default 250)')
+    parser.add_argument('--random-only', action='store_true', help='the random suite alone, without the cases')
     args = parser.parse_args()
+    if (min(args.random_programs, args.pm_programs, args.task_programs, args.debug_programs,
+            args.undefined_programs, args.seed) < 0 or args.random_seeds < 1):
+        parser.error('program counts and --seed must be nonnegative, --random-seeds positive')
+    if args.random_only and (args.oracle_only or args.identity != '486sx' or args.write_expected):
+        parser.error('--random-only runs the 486SX alone, and checks no expected list')
     cases = fes_i486_cases.cases()
     if len({case.label for case in cases}) != len(cases):
         parser.error('case labels are not unique')
@@ -249,6 +355,21 @@ def main() -> int:
             for identity in (('386', '486sx') if args.identity == 'both' else (args.identity,)):
                 i486, path = IDENTITIES[identity]
                 testbench = verilate(verilator, linked, args.jobs, i486, yosys.path if yosys else None)
+                if identity == '486sx' and (args.random_programs or args.pm_programs or args.task_programs
+                                            or args.debug_programs or args.undefined_programs):
+                    random = random_suite(testbench, args)
+                    if yosys:
+                        random['netlist'] = yosys_netlist.report_record(ROOT, yosys, args.gpu_router,
+                                                                        testbench.parent / f'{level3.TOP}.netlist.v')
+                    report['random'] = random
+                    failures += [f'486sx random: {line}' for line in random['failures']]
+                    if random['failure_count'] > len(random['failures']):
+                        failures.append(f"486sx random: {random['failure_count'] - len(random['failures'])} more failures")
+                    failures += [f'486sx random: seed {seed} retired a different trace without latency'
+                                 for seed in random['latency_free_mismatches']]
+                    failures += [f'486sx random: no {form} in the suite' for form in random['missing_forms']]
+                if args.random_only:
+                    continue
                 first, second = stops(testbench, cases), stops(testbench, cases)
                 if first != second:
                     failures.append(f'{identity}: two lockstep runs gave different stops: '
@@ -287,6 +408,10 @@ def main() -> int:
     for identity, lockstep in report.get('lockstep', {}).items():
         print(f"lockstep {identity}{' netlist' if 'netlist' in lockstep else ''}: {lockstep['agree']} cases agree, "
               f"{lockstep['stop']} stop; two runs equal: {lockstep['runs_equal']}")
+    if 'random' in report:
+        for name, row in report['random']['sets'].items():
+            print(f"random {name}: {row['totals'].get('passed', 0)} of {row['totals'].get('runs', 0)} programs keep step")
+        print('486 forms:', ', '.join(f'{form} {count}' for form, count in report['random']['i486_forms'].items()))
     for failure in failures:
         print('FAIL', failure)
     print(f"report: {OUTPUT / 'report.json'}")
