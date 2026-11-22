@@ -20,6 +20,7 @@ GENERATED = (
     ('emit-go', 'packages/fabric/fes_fabric_firmware_upload.yaml', 'FES', 'platform/embedded/tamago/computer/generated/fes_firmware_upload.go'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_hps_window.yaml', 'misteross', 'boards/de25nano/pc386/generated/fes_de25_hps_window.vh'),
+    ('emit-cpp', 'packages/fabric/fes_fabric_de25_hps_window.yaml', 'libmister-runtime', 'src/native/generated/fes_de25_hps_window.hpp'),
     ('emit-c', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
     ('emit-c', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),
     ('emit-go', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'FES', 'platform/embedded/tamago/computer/generated/fes_de25_scanout.go'),
