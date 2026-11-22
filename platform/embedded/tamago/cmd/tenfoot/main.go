@@ -292,6 +292,12 @@ func run() (result error) {
 	if err != nil {
 		return err
 	}
+	if _, ok := board.WallTime(); ok {
+		volume.SetClock(func() time.Time {
+			t, _ := board.WallTime()
+			return t
+		})
+	}
 	fmt.Printf("FES_STORAGE_READY sectors=%d\n", disk.SectorCount())
 	data, err := volume.ReadFile("FES/BOOT.JSON")
 	if err != nil {

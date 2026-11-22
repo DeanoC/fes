@@ -17,6 +17,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/dmaops"
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
+	"github.com/DeanoC/fes/platform/embedded/tamago/rtc"
 )
 
 func main() {
@@ -55,7 +56,32 @@ func main() {
 	probeGIC()
 	probeDMA()
 	probePSCI()
+	probeRTC()
 	fmt.Printf("FES_NATIVE_GO_PROBE PASS os=tamago board=%s\n", board.Name)
+}
+
+func probeRTC() {
+	dev, err := board.RTC()
+	if err != nil {
+		if errors.Is(err, rtc.ErrNotFound) {
+			fmt.Println("SKIP rtc (no hardware RTC on board)")
+			return
+		}
+		panic(err)
+	}
+	if dev.PartNumber() != rtc.PL031PartNumber || dev.Designer() != rtc.ARMDesignerID {
+		panic(fmt.Sprintf("rtc: unexpected IDs part=%#x designer=%#x", dev.PartNumber(), dev.Designer()))
+	}
+	first, ok := board.WallTime()
+	if !ok || first.Year() < 2020 {
+		panic(fmt.Sprintf("rtc: invalid wall time ok=%t utc=%s", ok, first.Format(time.RFC3339)))
+	}
+	time.Sleep(2 * time.Millisecond)
+	second, ok := board.WallTime()
+	if !ok || second.Sub(first) < 2*time.Millisecond {
+		panic(fmt.Sprintf("rtc: wall clock failed to advance (%s -> %s)", first.Format(time.RFC3339Nano), second.Format(time.RFC3339Nano)))
+	}
+	fmt.Printf("PASS rtc pl031 rev=%d utc=%s\n", dev.Revision(), second.Format(time.RFC3339))
 }
 
 func probePSCI() {
