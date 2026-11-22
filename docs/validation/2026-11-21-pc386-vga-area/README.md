@@ -32,7 +32,8 @@ bounds, and none of them is made.
   and every analysis closes at 61.44 MHz both times:
   - at `459381f3d`, this PR before main was merged in;
   - at `1061a5ecf`, after merging main, which carries #2075's audio cut.
-- Kit B ran FreeDOS and Wolfenstein 3D on the `459381f3d` package and passed.
+- Kit B ran FreeDOS and Wolfenstein 3D on both packages, `459381f3d`'s and
+  the merged head's, and both passed.
 
 ## What changed
 
@@ -158,8 +159,8 @@ fault.
   RBF `5be26714…`, package `71438387…`.
 - Each DE10 figure is a single seed. The merged head is 54 ALMs below #2075's
   own seal, which is inside DE10 fit noise. The DE25 pair is the measurement.
-- No kit run used the merged-head package. Kit B ran the `459381f3d` package
-  (below), and #2075 has its own kit evidence.
+- Kit B ran both packages: the merged head's in run m1, and `459381f3d`'s in
+  run k4 (below).
 
 The `459381f3d` seal ([de10/seal-summary-459381f3d.json](de10/seal-summary-459381f3d.json)):
   - BUILD_ID `8de03af62c45b5074d9ff87505a3e8fe`;
@@ -219,7 +220,14 @@ Worst slack in ns over every clock and corner:
   was installed and nothing rebooted.
 - The kit was claimed and restored in `kitB-STATUS.md`
   ([kit/kitB-status-lines.txt](kit/kitB-status-lines.txt)).
-- **k4: pass.**
+- **m1, merged-head package `71438387…` (`1061a5ecf`, BUILD_ID `426e518d`):
+  pass** ([kit/m1-result.json](kit/m1-result.json)).
+  - The FreeDOS prompt was seen in 0.6 s.
+  - Wolfenstein 3D ran in graphics mode, lit 93.8%, with 56.2% of the frame
+    changed after walking.
+  - The kit was claimed at 16:30:46 and logged FREE at 16:32:36 local on
+    22 November, back on the same image and bundle.
+- **k4, `459381f3d` package `73a4873d…`: pass.**
   - The FreeDOS prompt was seen in 2.2 s.
   - Wolfenstein 3D ran in graphics mode, lit 93.8%, with 56.2% of the frame
     changed after walking.
