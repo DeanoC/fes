@@ -284,7 +284,11 @@ func run() (result error) {
 			}
 		}
 	}
-	volume, err := fat.Mount(disk)
+	cachedDisk, err := block.NewCache(disk, block.CacheConfig{Capacity: 128})
+	if err != nil {
+		return err
+	}
+	volume, err := fat.Mount(cachedDisk)
 	if err != nil {
 		return err
 	}
