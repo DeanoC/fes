@@ -164,8 +164,8 @@ def project(archive, output, *, revision=None, selected_id=None, spectrum_spec=s
         inputs[board.RECORD]["build_id"] = selected_id
     hps_system = hps.tcl_word(project / "hps_subsys/hps_subsys.qsys")
     top_system = hps.tcl_word(project / "qsys_top.qsys")
-    # Preserve native H2F/OCM, F2SDRAM without a fabric SMMU SID, and the
-    # separate probe. Disable the unused coherent F2H port as native MENU does.
+    # Preserve the H2F configuration, F2SDRAM without a fabric SMMU SID,
+    # and the separate probe. Disable the unused coherent F2H port as MENU does.
     configure = f'''load_system {hps_system}
 remove_interface fpga2hps
 remove_interface fpga2hps_clk
@@ -187,16 +187,29 @@ save_system {hps_system}
 remove_instance subsys_debug
 remove_instance ext_hps_f2sdram_master
 """
+    # Native C64 needs the vendor OCM blocks for its disk and video buffers.
+    # The native runtime uses the lightweight aperture and HPS DDR. Leave the
+    # full HPS bridge configuration intact while removing its only slave.
+    omit_ocm = model == "nativepal" and inputs[board.RECORD]["core"] == "fes.c64"
+    if omit_ocm:
+        parent += """foreach connection {subsys_hps.hps2fpga/ocm.axi_s1 clk_100.out_clk/ocm.clk1 rst_in.out_reset/ocm.reset1} {
+    remove_connection $connection
+}
+remove_instance ocm
+"""
     save_top = f"save_system {top_system}\n"
     script_path.write_text(board.replace_once(script, save_top, parent + save_top))
     qsf = project / "golden_top.qsf"
     assignments = qsf.read_text()
-    for setting, relative in (
+    unused_assignments = (
         ("QSYS_FILE", "jtag_subsys/jtag_subsys.qsys"),
         ("IP_FILE", "ip/qsys_top/ext_hps_f2sdram_master.ip"),
         *[("IP_FILE", f"jtag_subsys/ip/jtag_subsys/{name}.ip")
           for name in ("fpga_m", "hps_m", "hps_f2sdram", "jtag_clk", "jtag_rst_in")],
-    ):
+    )
+    if omit_ocm:
+        unused_assignments += (("IP_FILE", "ip/qsys_top/ocm.ip"),)
+    for setting, relative in unused_assignments:
         assignments = board.replace_once(assignments, f"set_global_assignment -name {setting} {relative}\n", "")
     qsf.write_text(assignments)
     board_jtag = project / "jtag.sdc"
@@ -345,6 +358,10 @@ def verify_handoff(output, hps, scanout):
     }.get((selected["core"], selected["model"]))
     if component is None:
         raise ValueError("unsupported native upload shell endpoint")
+    if component == "fes_de25_c64_standard":
+        if (any(module.get("path") == "ocm" for module in tree.findall("module")) or
+                any(start.startswith("ocm.") or end.startswith("ocm.") for _, start, end in routes)):
+            raise ValueError("native C64 retained vendor FPGA on-chip RAM")
     computer = spectrum_control_handoff(project, tree, hps, scanout, selected["build_id"], probe, component)
     result = {"scope": "native-spectrum48-generated-hps-diagnostic-v1",
               "hps_parameters": expected, "ddr_ingress": sorted(readers),
@@ -356,6 +373,8 @@ def verify_handoff(output, hps, scanout):
               "jtag_stream_sdc_sha256": jtag_timing,
               "shared_fifo_resets": fifo_resets,
               "firmware_admission": False, "package_signoff": False}
+    if component == "fes_de25_c64_standard":
+        result["vendor_fpga_ocm"] = "absent"
     (directory / "native-spectrum-handoff.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     return result
 

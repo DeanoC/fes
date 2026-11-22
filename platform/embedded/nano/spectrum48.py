@@ -84,6 +84,7 @@ def inspect(build, archive, *, c64=False):
         pinmux = read(hps / 'project/output_files/hps_bootloader_handoff.bin', 4096)
         compiled = json.loads(read(hps / 'build.json', 4 << 20))
         if (generation['handoff_sha256'] != sha(handoff) or hw['spectrum_control']['endpoint']['build_id'] != identity or
+                (c64 and hw.get('vendor_fpga_ocm') != 'absent') or
                 hw['ddr_ingress'] != ['subsys_periph_fes_ddr_probe.avm', 'subsys_periph_fes_mem_cdc.m0'] or
                 compiled['generated_handoff_and_sdc_sha256']['output_files/hps_bootloader_handoff.bin'] != sha(pinmux)):
             raise ValueError('Spectrum package differs from its fitted handoff')
