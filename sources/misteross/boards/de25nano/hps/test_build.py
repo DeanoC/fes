@@ -809,6 +809,36 @@ class HpsBuildTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "mailbox instance|connectivity differs|offset or vendor clock"):
                     BUILD.verify_mailbox_handoff(project)
 
+    def test_parent_slave_names_take_the_exported_interface_whichever_form_was_saved(self):
+        hps = ('<?xml version="1.0"?>\n<ipxact:component xmlns:ipxact="http://www.accellera.org/XMLSchema/IPXACT/1685-2014"'
+               ' xmlns:altera="http://www.altera.com/XMLSchema/IPXact2014/extensions"><ipxact:vendorExtensions>'
+               '<altera:interface_mapping altera:name="f2sdram_adapter_axi4_sub" altera:internal="f2sdram_adapter.axi4_sub"'
+               ' altera:type="axi4" altera:dir="end"/></ipxact:vendorExtensions></ipxact:component>\n')
+        slave = ("&amp;lt;address-map&amp;gt;&amp;lt;slave name='parent/subsys_hps.{}' start='0x0'"
+                 " end='0x100000000' datawidth='256' /&amp;gt;&amp;lt;/address-map&amp;gt;")
+        results = {}
+        for form in ("f2sdram_adapter.axi4_sub", "f2sdram_adapter_axi4_sub"):
+            project = self.root / form
+            (project / "hps_subsys").mkdir(parents=True)
+            (project / "peripheral_subsys").mkdir()
+            (project / "hps_subsys/hps_subsys.qsys").write_text(hps)
+            path = project / "peripheral_subsys/peripheral_subsys.qsys"
+            path.write_text("<system>" + slave.format(form) + "</system>\n")
+            rewritten = BUILD.canonical_parent_slaves(project)
+            self.assertEqual(rewritten, ["f2sdram_adapter.axi4_sub"] if "." in form else [])
+            self.assertEqual(BUILD.canonical_parent_slaves(project), [])
+            results[form] = path.read_bytes()
+        self.assertEqual(len(set(results.values())), 1)
+        self.assertIn(b"parent/subsys_hps.f2sdram_adapter_axi4_sub'", results["f2sdram_adapter.axi4_sub"])
+        project = self.root / "unexported"
+        (project / "hps_subsys").mkdir(parents=True)
+        (project / "peripheral_subsys").mkdir()
+        (project / "hps_subsys/hps_subsys.qsys").write_text(hps)
+        (project / "peripheral_subsys/peripheral_subsys.qsys").write_text(
+            "<system>" + slave.format("agilex_hps.f2sdram") + "</system>\n")
+        with self.assertRaisesRegex(ValueError, "unexported HPS subsystem slave: agilex_hps.f2sdram"):
+            BUILD.canonical_parent_slaves(project)
+
     def test_failed_subprocess_retains_diagnostic_output(self):
         log = self.root / "failed-command.log"
         with self.assertRaisesRegex(ValueError, r"command failed \(7\); retained"):
