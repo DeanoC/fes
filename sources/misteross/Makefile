@@ -7,6 +7,12 @@ VERILATOR ?= verilator
 # Older supported Verilator releases do not define these warning categories.
 VERILATOR_PROCASSINIT = $(shell $(VERILATOR) -Wno-PROCASSINIT --version >/dev/null 2>&1 && echo -Wno-PROCASSINIT)
 VERILATOR_SIMILARNAME = $(shell $(VERILATOR) -Wno-SIMILARNAME --version >/dev/null 2>&1 && echo -Wno-SIMILARNAME)
+# Lint Verilator 5.054 raises on these simulations, waived per file or signal
+# in sim/verilator-5054.vlt; empty for a Verilator that predates its rules.
+VERILATOR_WAIVERS = $(shell $(PYTHON) scripts/verilator_waivers.py "$(VERILATOR)")
+# --public makes everything public on purpose; 5.054 warns that this costs
+# optimization. The waiver must come before --public to cover it.
+VERILATOR_UNOPTPUBLIC = $(shell $(VERILATOR) -Wno-UNOPTPUBLIC --version >/dev/null 2>&1 && echo -Wno-UNOPTPUBLIC)
 PROGRAM_TRANSPORT ?= jtag
 PROGRAMMER ?=
 PROGRAM_CABLE ?=
@@ -452,7 +458,7 @@ sim-fes-zx81-diagnostic: zx81-diagnostic
 		cores/fes-zx81/rtl/zx81_dpram.v \
 		"$(CURDIR)/cores/fes-zx81/sim/rom_init_tb.cpp"
 	@build/sim/fes-zx81-diagnostic-rom/Vrom_init_window "$(ZX81_DIAGNOSTIC_HEX)"
-	$(VERILATOR) --cc --exe --build -O2 --top-module zx81_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module zx81_machine -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -467,7 +473,7 @@ sim-fes-zx81-diagnostic: zx81-diagnostic
 	@build/sim/fes-zx81-diagnostic/Vzx81_machine "$(ZX81_DIAGNOSTIC_HEX)" 0x8000
 	@for cart in 0 1; do \
 		mkdir -p build/sim/fes-zx81-diagnostic-expansion-$$cart; \
-		$(VERILATOR) --cc --exe --build -O2 --top-module expansion_machine -Wall \
+		$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module expansion_machine -Wall \
 		-GCART_PRESENT=$$cart -GFIRMWARE_INIT='"$(ZX81_DIAGNOSTIC_HEX)"' \
 		-CFLAGS -DDIAGNOSTIC_EXPANSION \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
@@ -498,7 +504,7 @@ sim-fes-zx81-variants:
 		mkdir -p build/sim/fes-zx81-variant-$$name; \
 		extra=""; \
 		if [ -n "$$define" ]; then extra="$$define"; fi; \
-		$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
+		$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module zx81_machine -Wall \
 			-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 			-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 			-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -515,7 +521,7 @@ sim-fes-zx81-variants:
 		build/sim/fes-zx81-variant-$$name/Vzx81_machine $$name || exit $$?; \
 	done
 	@mkdir -p build/sim/fes-zx81-variant-zx80-load
-	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module zx81_machine -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -660,7 +666,7 @@ coleco-vdp-diagnostic: coleco-sprite-diagnostic
 sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/$@
-	$(VERILATOR) --cc --exe --build --top-module coleco_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module coleco_machine -Wall \
 		-DTV80_REFRESH=1 $(if $(filter %-oss,$@),-DFES_COLECO_OSS=1 -CFLAGS "-DFES_COLECO_OSS=1") \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
@@ -683,7 +689,7 @@ sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
 sim-fes-audio-output:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-audio-output
-	$(VERILATOR) --cc --exe --build --top-module fes_audio_output -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module fes_audio_output -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-audio-output" \
 		cores/fes-common/rtl/fes_audio_output.v cores/fes-common/rtl/fes_audio_i2s.v \
 		"$(CURDIR)/cores/fes-coleco/sim/audio_output_tb.cpp"
@@ -695,7 +701,7 @@ sim-fes-audio-output:
 sim-fes-coleco-audio: sim-fes-audio-output
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-psg
-	$(VERILATOR) --cc --exe --build --top-module fes_sn76489 -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module fes_sn76489 -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-psg" cores/fes-common/rtl/fes_sn76489.sv \
 		"$(CURDIR)/cores/fes-coleco/sim/psg_tb.cpp"
 	@build/sim/fes-psg/Vfes_sn76489
@@ -712,7 +718,7 @@ sim-fes-coleco-oss: sim-fes-coleco-unit-oss $(addsuffix -oss,$(COLECO_BOARD_TARG
 sim-fes-coleco-megacart:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-megacart
-	$(VERILATOR) --cc --exe --build --top-module coleco_megacart_rom -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module coleco_megacart_rom -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAND \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-megacart" \
 		cores/fes-coleco/rtl/coleco_megacart_rom.v \
@@ -726,7 +732,7 @@ sim-fes-coleco-megacart:
 sim-fes-coleco-megacart-machine:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-megacart-machine
-	$(VERILATOR) --cc --exe --build --top-module sgm_shell_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sgm_shell_machine -Wall \
 		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 -DFES_COLECO_EXPANSION_V2_DEV=1 \
 		-DFES_COLECO_MEGACART_LINK=1 -DSGM_INTEGRATED=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
@@ -755,7 +761,7 @@ sim-fes-coleco-megacart-machine:
 sim-fes-coleco-sgm-socket:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-sgm-socket
-	$(VERILATOR) --cc --exe --build --top-module coleco_expansion_socket_v2 -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module coleco_expansion_socket_v2 -Wall \
 		-Wno-UNUSEDSIGNAL -Icores/fes-coleco/rtl \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-sgm-socket" \
 		cores/fes-coleco/rtl/coleco_expansion_socket_v2.v \
@@ -766,7 +772,7 @@ sim-fes-coleco-sgm-socket:
 sim-fes-coleco-sgm-shell-ram:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-sgm-shell-ram
-	$(VERILATOR) --cc --exe --build --top-module sgm_shell_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sgm_shell_machine -Wall \
 		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 -DFES_COLECO_EXPANSION_V2_DEV=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
@@ -791,7 +797,7 @@ sim-fes-coleco-sgm-shell-ram:
 sim-fes-coleco-sgm-ay:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-sgm-ay
-	$(VERILATOR) --cc --exe --build --top-module sgm_ay -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sgm_ay -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHTRUNC \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-sgm-ay" \
 		cores/fes-coleco/expansions/sgm_ay.v \
@@ -802,7 +808,7 @@ sim-fes-coleco-sgm-ay:
 sim-fes-coleco-sgm-module:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-sgm-module
-	$(VERILATOR) --cc --exe --build --top-module cart -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module cart -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHTRUNC \
 		-Icores/fes-coleco/rtl --Mdir "$(CURDIR)/build/sim/fes-coleco-sgm-module" \
 		cores/fes-coleco/expansions/sgm.v cores/fes-coleco/expansions/sgm_control.v \
@@ -813,7 +819,7 @@ sim-fes-coleco-sgm-module:
 sim-fes-coleco-sgm-audio:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-sgm-audio
-	$(VERILATOR) --cc --exe --build --top-module sgm_audio_path -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sgm_audio_path -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-sgm-audio" \
 		cores/fes-coleco/sim/sgm_audio_path.sv \
 		cores/fes-coleco/rtl/coleco_audio_mix.v \
@@ -827,7 +833,7 @@ $(addsuffix -oss,$(COLECO_BOARD_TARGETS)): sim-fes-coleco-board-build-oss
 sim-fes-coleco-unit: sim-fes-z80-timing sim-fes-tms9918-timing sim-fes-coleco-audio sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-coleco-vdp-io
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp
-	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module fes_computer_gp -Wall \
 		-Wno-PINCONNECTEMPTY \
 		-Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-gp" \
@@ -842,7 +848,7 @@ sim-fes-coleco-unit: sim-fes-z80-timing sim-fes-tms9918-timing sim-fes-coleco-au
 		"$(CURDIR)/cores/fes-coleco/sim/vdp_tb.cpp"
 	@build/sim/fes-coleco-vdp/Vcoleco_vdp
 	@mkdir -p build/sim/fes-coleco-machine
-	$(VERILATOR) --cc --exe --build --top-module coleco_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module coleco_machine -Wall \
 		-DTV80_REFRESH=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
@@ -870,7 +876,7 @@ sim-fes-coleco-unit: sim-fes-z80-timing sim-fes-tms9918-timing sim-fes-coleco-au
 sim-fes-coleco-expansion:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-expansion
-	$(VERILATOR) --cc --exe --build --top-module coleco_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module coleco_machine -Wall \
 		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 \
 		-CFLAGS "-DFES_COLECO_OSS=1" \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
@@ -892,7 +898,7 @@ sim-fes-coleco-expansion:
 sim-fes-coleco-diagnostic:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-diagnostic
-	$(VERILATOR) --cc --exe --build --top-module cart -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module cart -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-UNUSEDPARAM \
 		-Icores/fes-coleco/rtl \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-diagnostic" \
@@ -905,7 +911,7 @@ sim-fes-coleco-diagnostic:
 sim-fes-coleco-diagnostic-machine:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-diagnostic-machine
-	$(VERILATOR) --cc --exe --build --top-module diagnostic_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module diagnostic_machine -Wall \
 		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
@@ -929,7 +935,7 @@ sim-fes-coleco-diagnostic-machine:
 sim-fes-coleco-sgm-integrated:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-sgm-integrated
-	$(VERILATOR) --cc --exe --build --top-module sgm_shell_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sgm_shell_machine -Wall \
 		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 -DFES_COLECO_EXPANSION_V2_DEV=1 \
 		-DSGM_INTEGRATED=1 -CFLAGS "-DSGM_INTEGRATED=1" \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
@@ -963,7 +969,7 @@ sim-fes-coleco-sgm-probe: sim-fes-coleco-sgm-integrated
 sim-fes-coleco-board-build:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-board
-	$(VERILATOR) --cc --exe --build --top-module top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module top -Wall \
 		-DTV80_REFRESH=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
@@ -985,7 +991,7 @@ sim-fes-coleco-board-build:
 sim-fes-coleco-unit-oss: sim-fes-z80-timing sim-fes-coleco-graphics-oss sim-fes-coleco-stream-oss sim-fes-coleco-vdp-io-oss
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp-oss
-	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module fes_computer_gp -Wall \
 		-Wno-PINCONNECTEMPTY -DFES_COLECO_OSS=1 \
 		-CFLAGS "-DFES_COLECO_OSS=1" \
 		-Icores/fes-coleco/generated \
@@ -1004,7 +1010,7 @@ sim-fes-coleco-unit-oss: sim-fes-z80-timing sim-fes-coleco-graphics-oss sim-fes-
 		"$(CURDIR)/cores/fes-coleco/sim/vdp_tb.cpp"
 	@build/sim/fes-coleco-vdp-oss/Vcoleco_vdp
 	@mkdir -p build/sim/fes-coleco-machine-oss
-	$(VERILATOR) --cc --exe --build --top-module coleco_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module coleco_machine -Wall \
 		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 \
 		-CFLAGS "-DFES_COLECO_OSS=1" \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
@@ -1025,7 +1031,7 @@ sim-fes-coleco-unit-oss: sim-fes-z80-timing sim-fes-coleco-graphics-oss sim-fes-
 sim-fes-coleco-board-build-oss:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-board-oss
-	$(VERILATOR) --cc --exe --build --top-module top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module top -Wall \
 		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-CFLAGS "-DFES_COLECO_OSS=1" \
@@ -1119,7 +1125,7 @@ sim-fes-apple2: sim-fes-apple2-mailbox sim-fes-apple2-machine sim-fes-apple2-boa
 sim-fes-apple2-cpu:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-apple2-cpu/run
-	$(VERILATOR) --cc --exe --build -O2 --top-module apple2_cpu_sim_top $(APPLE2_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module apple2_cpu_sim_top $(APPLE2_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-apple2-cpu" \
 		cores/fes-apple2/sim/cpu_sim_top.sv $(APPLE2_RTL) \
 		"$(CURDIR)/cores/fes-apple2/sim/cpu_tb.cpp"
@@ -1128,12 +1134,12 @@ sim-fes-apple2-cpu:
 sim-fes-apple2-mailbox:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-computer-mailbox-input build/sim/fes-computer-mailbox-media
-	$(VERILATOR) --cc --exe --build --top-module fes_computer_mailbox -Wall -Wno-DECLFILENAME \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module fes_computer_mailbox -Wall -Wno-DECLFILENAME \
 		-Icores/fes-common/generated -GENABLE_KEYBOARD=1\'b1 -GENABLE_PORTS=1\'b1 -GENABLE_AUDIO=1\'b1 \
 		--Mdir "$(CURDIR)/build/sim/fes-computer-mailbox-input" \
 		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/cores/fes-common/sim/computer_mailbox_tb.cpp"
 	@build/sim/fes-computer-mailbox-input/Vfes_computer_mailbox cores/fes-common/generated/computer-exchanges.json 0
-	$(VERILATOR) --cc --exe --build --top-module fes_computer_mailbox -Wall -Wno-DECLFILENAME \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module fes_computer_mailbox -Wall -Wno-DECLFILENAME \
 		-Icores/fes-common/generated -GENABLE_APPLE2_FLOPPY=1\'b1 -GUNIT0_MIN=1 -GUNIT0_MAX=1030 \
 		--Mdir "$(CURDIR)/build/sim/fes-computer-mailbox-media" \
 		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/cores/fes-common/sim/computer_mailbox_tb.cpp"
@@ -1142,7 +1148,7 @@ sim-fes-apple2-mailbox:
 sim-fes-apple2-machine: apple2-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-apple2-machine
-	$(VERILATOR) --cc --exe --build -O2 --top-module apple2_sim_top $(APPLE2_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module apple2_sim_top $(APPLE2_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-apple2-machine" \
 		-Icores/fes-apple2/expansions \
 		cores/fes-apple2/sim/apple2_sim_top.sv $(APPLE2_RTL) \
@@ -1153,7 +1159,7 @@ sim-fes-apple2-machine: apple2-diagnostic
 sim-fes-apple2-board: apple2-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-apple2-board
-	$(VERILATOR) --cc --exe --build -O2 --top-module top $(APPLE2_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module top $(APPLE2_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-apple2-board" \
 		cores/fes-apple2/sim/board_models.v cores/fes-apple2/rtl/top.v $(APPLE2_RTL) \
 		cores/fes-common/rtl/fes_computer_mailbox.v cores/fes-common/rtl/fes_audio_output.v \
@@ -1215,12 +1221,12 @@ sim-fes-spectrum-contention:
 sim-fes-spectrum-tape:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-spectrum-tape build/sim/fes-spectrum-tape-48k
-	$(VERILATOR) --cc --exe --build -O2 --top-module spectrum_tape -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module spectrum_tape -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-spectrum-tape" \
 		cores/fes-spectrum/rtl/spectrum_tape.v \
 		"$(CURDIR)/cores/fes-spectrum/sim/tape_tb.cpp"
 	@build/sim/fes-spectrum-tape/Vspectrum_tape
-	$(VERILATOR) --cc --exe --build -O2 --top-module spectrum_tape -Wall -GIS_48K=1\'b1 \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module spectrum_tape -Wall -GIS_48K=1\'b1 \
 		-CFLAGS -DTAPE_IS_48K=1 --Mdir "$(CURDIR)/build/sim/fes-spectrum-tape-48k" \
 		cores/fes-spectrum/rtl/spectrum_tape.v \
 		"$(CURDIR)/cores/fes-spectrum/sim/tape_tb.cpp"
@@ -1229,7 +1235,7 @@ sim-fes-spectrum-tape:
 sim-fes-spectrum-board: spectrum-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-spectrum-board
-	$(VERILATOR) --cc --exe --build -O2 --top-module top $(SPECTRUM_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module top $(SPECTRUM_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-spectrum-board" \
 		cores/fes-spectrum/sim/board_models.v cores/fes-spectrum/rtl/top.v $(SPECTRUM_RTL) \
 		$(SPECTRUM_PLANE_RTL) cores/fes-common/rtl/fes_computer_mailbox.v \
@@ -1344,7 +1350,7 @@ sim-fes-c64-via:
 sim-fes-c64-drive-build:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-drive
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_drive_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_drive_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-drive" \
 		cores/fes-c64/sim/c64_drive_sim_top.sv cores/fes-c64/rtl/c64_rom.v \
 		cores/fes-c64/rtl/c64_drive1541.sv cores/fes-c64/rtl/c64_via.v \
@@ -1685,7 +1691,7 @@ sg1000-diagnostic:
 sim-fes-sg1000: sim-fes-z80-timing sg1000-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-machine
-	$(VERILATOR) --cc --exe --build --top-module sg1000_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sg1000_machine -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -1704,7 +1710,7 @@ sim-fes-sg1000: sim-fes-z80-timing sg1000-diagnostic
 sim-fes-sg1000-oss: sim-fes-z80-timing sg1000-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-machine-oss
-	$(VERILATOR) --cc --exe --build --top-module sg1000_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sg1000_machine -Wall \
 		-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1 \
 		-CFLAGS "-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1" \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
@@ -1725,7 +1731,7 @@ sim-fes-sg1000-oss: sim-fes-z80-timing sg1000-diagnostic
 sim-fes-sg1000-rom-link: sim-fes-z80-timing sg1000-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-rom-link
-	$(VERILATOR) --cc --exe --build --top-module sg1000_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sg1000_machine -Wall \
 		-DFES_SG1000_OSS=1 -DFES_SG1000_ROM_LINK=1 -DFES_COLECO_OSS=1 \
 		-CFLAGS "-DFES_SG1000_ROM_LINK=1" \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
@@ -1747,7 +1753,7 @@ sim-fes-sg1000-rom-link: sim-fes-z80-timing sg1000-diagnostic
 sim-fes-sg1000-gp-audio: sim-fes-sg1000-gp-media
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-gp-audio
-	$(VERILATOR) --cc --exe --build --top-module sg1000_application_gp -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sg1000_application_gp -Wall \
 		-DFES_SG1000_ROM_LINK=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-PINCONNECTEMPTY \
 		-Icores/fes-common/generated \
@@ -1761,7 +1767,7 @@ sim-fes-sg1000-gp-audio: sim-fes-sg1000-gp-media
 sim-fes-sg1000-gp-media:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-gp-media
-	$(VERILATOR) --cc --exe --build --top-module sg1000_application_gp -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sg1000_application_gp -Wall \
 		-DFES_COLECO_OSS=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-PINCONNECTEMPTY \
 		-Icores/fes-common/generated \
@@ -1821,7 +1827,7 @@ sms-diagnostic:
 sim-fes-sms: sim-fes-z80-timing sms-diagnostic sim-fes-audio-output
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sms-gp
-	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module fes_computer_gp -Wall $(VERILATOR_UNOPTPUBLIC) --public \
 		-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \
 		-Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-BLKSEQ \
 		-GENABLE_MEDIA_STREAM=1 -GENABLE_AUDIO=1 \
@@ -1873,7 +1879,7 @@ sim-fes-sms: sim-fes-z80-timing sms-diagnostic sim-fes-audio-output
 sim-fes-sms-rom-link-mailbox:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sms-gp-rom-link
-	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module fes_computer_gp -Wall \
 		-DFES_COLECO_OSS=1 -CFLAGS "-DFES_COLECO_OSS=1" \
 		-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \
 		-Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-BLKSEQ \
@@ -1887,7 +1893,7 @@ sim-fes-sms-rom-link-mailbox:
 sim-fes-sms-oss: sim-fes-z80-timing sms-diagnostic sim-fes-sms-rom-link-mailbox sim-fes-audio-output
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sms-gp-oss
-	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module fes_computer_gp -Wall $(VERILATOR_UNOPTPUBLIC) --public \
 		-DFES_COLECO_OSS=1 -CFLAGS "-DFES_COLECO_OSS=1" \
 		-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \
 		-Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-BLKSEQ \
@@ -2089,7 +2095,7 @@ kit-session:
 sim-fes-coleco-stream sim-fes-coleco-stream-oss:
 	$(require_local_sim)
 	@mkdir -p build/sim/$@
-	$(VERILATOR) --cc --exe --build --top-module coleco_application_gp -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module coleco_application_gp -Wall \
 		$(if $(findstring -oss,$@),-DFES_COLECO_OSS=1,) \
 		-Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL --public-flat-rw \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/$@" \
@@ -2123,7 +2129,7 @@ build-fes-menu-package:
 sim-fes-zx81-clock:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-clock
-	@$(VERILATOR) --cc --exe --build --top-module zx81_machine_clock -Wall -Wno-UNUSEDSIGNAL \
+	@$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module zx81_machine_clock -Wall -Wno-UNUSEDSIGNAL \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-clock" \
 		cores/fes-zx81/rtl/zx81_machine_clock.v "$(CURDIR)/cores/fes-zx81/sim/clock_tb.cpp"
 	@build/sim/fes-zx81-clock/Vzx81_machine_clock
@@ -2134,7 +2140,7 @@ sim-fes-zx81-ay:
 sim-fes-z80-timing:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-z80-timing
-	$(VERILATOR) --cc --exe --build -O2 --top-module fes_z80_ce -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module fes_z80_ce -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-z80-timing" \
 		cores/fes-common/rtl/fes_z80_ce.sv "$(CURDIR)/cores/fes-coleco/sim/cpu_ce_tb.cpp"
 	@build/sim/fes-z80-timing/Vfes_z80_ce
@@ -2170,8 +2176,12 @@ ST_MACHINE_RTL := $(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv \
 	$(ST_CORE)/expansions/st_probe.sv $(ST_VIDEO_RTL) $(ST_CPU_RTL)
 # Upstream FX68K uses unpacked structures with independently assigned fields.
 # Keep that preserved source; these suppressions match the qualified simulator.
+# fx68k's ALU evaluates its unique case before reset, with no case matching.
+# Verilator 5.054 checks unique cases by default and stops there; 5.032 did
+# not check them, and fx68k is vendor RTL.
 ST_CPU_FLAGS := -Wno-WIDTH -Wno-TIMESCALEMOD -Wno-MULTIDRIVEN -Wno-INITIALDLY \
-	-Wno-ALWCOMBORDER -Wno-UNOPTFLAT -Wno-BLKANDNBLK -Wno-CASEINCOMPLETE -Wno-CASEOVERLAP
+	-Wno-ALWCOMBORDER -Wno-UNOPTFLAT -Wno-BLKANDNBLK -Wno-CASEINCOMPLETE -Wno-CASEOVERLAP \
+	--no-assert-case
 ST_IO_RTL := $(ST_CORE)/rtl/st_io.sv $(ST_CORE)/rtl/st_mfp.sv \
 	$(ST_CORE)/rtl/st_acia.sv $(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_ym2149.sv $(ST_CORE)/rtl/st_ym_filter.sv $(ST_CORE)/rtl/st_ym_mixer.sv $(ST_CORE)/rtl/st_ym_mix_rom.sv \
 	$(ST_CORE)/rtl/st_floppy.sv $(ST_CORE)/rtl/st_floppy_writer.sv cores/fes-zx81/expansions/zonx_ay.v
@@ -2485,7 +2495,7 @@ sim-fes-atari-st-video-parts:
 sim-fes-atari-st-ym-counter:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-ym-counter
-	@$(VERILATOR) --cc --exe --build -O2 --top-module st_ym_counter_sim_top -Wall -Wno-UNUSEDSIGNAL \
+	@$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_ym_counter_sim_top -Wall -Wno-UNUSEDSIGNAL \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-ym-counter" \
 		$(ST_CORE)/sim/st_ym_counter_sim_top.sv cores/fes-zx81/expansions/zonx_ay.v \
 		"$(CURDIR)/$(ST_CORE)/sim/ym_counter_tb.cpp" -CFLAGS '-O2 -std=c++17'

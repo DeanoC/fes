@@ -4,6 +4,11 @@ import argparse
 import os
 from pathlib import Path
 import subprocess
+import sys
+
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.verilator_waivers import waivers
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,7 +22,7 @@ def main():
     output = ROOT / "build/sim/fes-native-video"
     output.mkdir(parents=True, exist_ok=True)
     subprocess.run([
-        args.verilator, "--cc", "--exe", "--build", "--top-module", "native_video_top",
+        args.verilator, *waivers(args.verilator), "--cc", "--exe", "--build", "--top-module", "native_video_top",
         "-Wall", "--Mdir", str(output), "-CFLAGS", "-std=c++17 -O2",
         "-I" + str(ROOT / "cores/fes-common/generated"),
         str(ROOT / "cores/fes-common/rtl/coleco_video_dpram.v"),

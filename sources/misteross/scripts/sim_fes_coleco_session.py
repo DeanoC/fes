@@ -3,6 +3,11 @@
 from pathlib import Path
 import argparse
 import subprocess
+import sys
+
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.verilator_waivers import waivers
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,7 +30,7 @@ def main():
         'cores/fes-menu/rtl/fes_menu_video.v', 'cores/fes-menu/rtl/fes_menu_reader.v',
         'cores/fes-common/rtl/fes_hps_ddr.v', 'cores/fes-common/rtl/fes_hps_ddr_guard.v',
         'cores/fes-menu/sim/ddr_model.v')
-    subprocess.run([args.verilator, '--cc', '--exe', '--build', '--top-module', 'coleco_session_harness',
+    subprocess.run([args.verilator, *waivers(args.verilator), '--cc', '--exe', '--build', '--top-module', 'coleco_session_harness',
         '--public-flat-rw', '-Wall', '-DFES_COLECO_ROM_LINK=1',
         *('-Wno-'+name for name in waivers),
         '-I'+str(ROOT/'cores/fes-common/generated'), '-I'+str(ROOT/'cores/fes-coleco/rtl'),

@@ -4,6 +4,11 @@ from pathlib import Path
 import argparse
 import json
 import subprocess
+import sys
+
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.verilator_waivers import waivers
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -16,7 +21,7 @@ def main():
     ):
         output = ROOT / f"build/sim/{module}"
         output.mkdir(parents=True, exist_ok=True)
-        subprocess.run([args.verilator, "--cc", "--exe", "--build", "--top-module", module,
+        subprocess.run([args.verilator, *waivers(args.verilator), "--cc", "--exe", "--build", "--top-module", module,
                         "-Wall", "-Wno-SYNCASYNCNET", "-Wno-UNUSEDSIGNAL", "--Mdir", str(output), *sources,
                         str(ROOT / "cores/fes-common/sim" / bench)], cwd=ROOT, check=True)
         subprocess.run([str(output / f"V{module}")], cwd=ROOT, check=True)
@@ -25,7 +30,7 @@ def main():
         output = ROOT / f"build/sim/fes-application-gp-{gamepad}-{media}-{audio}-{ports}-{keypad}"
         output.mkdir(parents=True, exist_ok=True)
         subprocess.run([
-            args.verilator, "--cc", "--exe", "--build", "--top-module", "fes_application_gp",
+            args.verilator, *waivers(args.verilator), "--cc", "--exe", "--build", "--top-module", "fes_application_gp",
             "-Wall", "-Icores/fes-common/generated", "--Mdir", str(output),
             f"-GENABLE_GAMEPAD=1'b{gamepad}", f"-GENABLE_MEDIA=1'b{media}",
             f"-GENABLE_AUDIO=1'b{audio}",

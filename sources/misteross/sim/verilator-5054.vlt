@@ -1,0 +1,133 @@
+`verilator_config
+// Lint that Verilator 5.054 raises on simulation builds 5.032 accepted.
+// scripts/verilator_waivers.py passes this file only to a Verilator that
+// knows every rule it names; older ones reject unknown rule names. pcxt and
+// pc386 keep their own lint configuration.
+//
+// PROCASSINIT: a register declared with an initial value and then assigned
+// in an always block. That initial value is the FPGA power-on state the
+// cores rely on, so every hit in these files is intended. Waived per file.
+lint_off -rule PROCASSINIT -file "*/fes-apple2/expansions/probe.v"
+lint_off -rule PROCASSINIT -file "*/fes-apple2/rtl/apple2_audio.v"
+lint_off -rule PROCASSINIT -file "*/fes-apple2/rtl/apple2_disk2_card.v"
+lint_off -rule PROCASSINIT -file "*/fes-apple2/rtl/apple2_disk2_drive.v"
+lint_off -rule PROCASSINIT -file "*/fes-apple2/rtl/apple2_keyboard.v"
+lint_off -rule PROCASSINIT -file "*/fes-apple2/rtl/apple2_machine.sv"
+lint_off -rule PROCASSINIT -file "*/fes-apple2/rtl/apple2_slot_sockets.v"
+lint_off -rule PROCASSINIT -file "*/fes-apple2/rtl/apple2_video.v"
+lint_off -rule PROCASSINIT -file "*/fes-atari-st/rtl/st_video_socket.sv"
+lint_off -rule PROCASSINIT -file "*/fes-c64/rtl/c64_vic.v"
+lint_off -rule PROCASSINIT -file "*/fes-c64/sim/session_video_top.sv"
+lint_off -rule PROCASSINIT -file "*/fes-coleco/expansions/diagnostic.v"
+lint_off -rule PROCASSINIT -file "*/fes-coleco/expansions/sgm_ay.v"
+lint_off -rule PROCASSINIT -file "*/fes-coleco/expansions/sgm_control.v"
+lint_off -rule PROCASSINIT -file "*/fes-coleco/rtl/coleco_expansion_socket_v2.v"
+lint_off -rule PROCASSINIT -file "*/fes-coleco/rtl/coleco_machine.sv"
+lint_off -rule PROCASSINIT -file "*/fes-coleco/rtl/coleco_megacart_rom.v"
+lint_off -rule PROCASSINIT -file "*/fes-coleco/rtl/coleco_native_video_socket.v"
+lint_off -rule PROCASSINIT -file "*/fes-coleco/rtl/coleco_video_socket.v"
+lint_off -rule PROCASSINIT -file "*/fes-coleco/sim/session_harness.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/coleco_native_video.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/cpu6502/cpu6502.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_application_gp.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_audio_i2s.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_audio_output.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_computer_mailbox.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_display_cdc.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_display_plane.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_hps_ddr.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_hps_ddr_guard.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_native_cdc.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_native_video.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_sn76489.sv"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_video_part_scanlines.v"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_z80_ce.sv"
+lint_off -rule PROCASSINIT -file "*/fes-common/rtl/z80/fes_z80_nmos.sv"
+lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/fes_menu_blend.v"
+lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/fes_menu_blit_alpha.v"
+lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/fes_menu_blit_control.v"
+lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/fes_menu_blit_read.v"
+lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/fes_menu_blitter.v"
+lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/fes_menu_control.v"
+lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/fes_menu_ddr.v"
+lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/fes_menu_pattern_memory.v"
+lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/fes_menu_reader.v"
+lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/fes_menu_video.v"
+lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/top.v"
+lint_off -rule PROCASSINIT -file "*/fes-menu/sim/ddr_model.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/rtl/ddr_channel.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/rtl/ddr_rates.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/rtl/lat_monitor.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/rtl/lat_stats.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/rtl/mem_channel.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/rtl/pattern_latch.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/rtl/ram_display.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/rtl/sdram_byte_lane.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/rtl/sdram_cas3_capture.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/rtl/top.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/sim/bench.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/sim/board_models.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/sim/byte_bench.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/sim/pattern_count_bench.v"
+lint_off -rule PROCASSINIT -file "*/fes-ramtest/sim/sdram_model.v"
+lint_off -rule PROCASSINIT -file "*/fes-spectrum/expansions/probe.v"
+lint_off -rule PROCASSINIT -file "*/fes-spectrum/rtl/spectrum_machine.sv"
+lint_off -rule PROCASSINIT -file "*/fes-spectrum/rtl/spectrum_ram.v"
+lint_off -rule PROCASSINIT -file "*/fes-spectrum/rtl/spectrum_slot_sockets.v"
+lint_off -rule PROCASSINIT -file "*/fes-spectrum/rtl/spectrum_snapshot.v"
+lint_off -rule PROCASSINIT -file "*/fes-spectrum/rtl/spectrum_tape.v"
+lint_off -rule PROCASSINIT -file "*/fes-spectrum/rtl/spectrum_ula.sv"
+lint_off -rule PROCASSINIT -file "*/fes-spectrum/rtl/spectrum_video.v"
+lint_off -rule PROCASSINIT -file "*/fes-zx81/expansions/zonx.v"
+lint_off -rule PROCASSINIT -file "*/fes-zx81/expansions/zonx_ay.v"
+lint_off -rule PROCASSINIT -file "*/fes-zx81/rtl/zx81_machine_clock.v"
+lint_off -rule PROCASSINIT -file "*/sdram_addon_port.v"
+//
+// MULTIDRIVEN under IEEE 1800-2023 9.2.2.4: the Z80 models seed these
+// always_ff outputs from an initial block (power-on state again), and the
+// dual-clock video RAMs write one array from two clock domains, as the M10K
+// block they model does. Tests copy fes_z80_engine.sv to a temporary
+// directory, so it is matched by file name.
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/coleco_video_dpram.v" -match "*.ram'"
+lint_off -rule MULTIDRIVEN -file "*/fes_z80_engine.sv" -match "*'pc'"
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/z80/fes_z80_nmos.sv" -match "*'a'"
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/z80/fes_z80_nmos.sv" -match "*'busak_n'"
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/z80/fes_z80_nmos.sv" -match "*'cycle_kind'"
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/z80/fes_z80_nmos.sv" -match "*'cycle_present'"
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/z80/fes_z80_nmos.sv" -match "*'cycle_t'"
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/z80/fes_z80_nmos.sv" -match "*'dout'"
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/z80/fes_z80_nmos.sv" -match "*'halt_n'"
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/z80/fes_z80_nmos.sv" -match "*'iorq_n'"
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/z80/fes_z80_nmos.sv" -match "*'m1_n'"
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/z80/fes_z80_nmos.sv" -match "*'mreq_n'"
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/z80/fes_z80_nmos.sv" -match "*'rd_n'"
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/z80/fes_z80_nmos.sv" -match "*'rfsh_n'"
+lint_off -rule MULTIDRIVEN -file "*/fes-common/rtl/z80/fes_z80_nmos.sv" -match "*'wr_n'"
+//
+// SIMILARNAME: names that differ only in case, in vendor tv80 and a Mistral
+// flip-flop model.
+lint_off -rule SIMILARNAME -file "*/experiments/901_plugged_base/sim/mistral_ff_model.v" -match "*'q'"
+lint_off -rule SIMILARNAME -file "*/fes-common/rtl/tv80/tv80_alu.v" -match "*'addsub1'"
+lint_off -rule SIMILARNAME -file "*/fes-common/rtl/tv80/tv80_alu.v" -match "*'addsub3'"
+lint_off -rule SIMILARNAME -file "*/fes-common/rtl/tv80/tv80_alu.v" -match "*'addsub4'"
+//
+// UNOPTPUBLIC: signals and model modules that testbenches read, marked
+// public on purpose. Losing their optimization is the point.
+lint_off -rule UNOPTPUBLIC -file "*/fes-common/rtl/fes_computer_gp.v" -match "*'media_open'"
+lint_off -rule UNOPTPUBLIC -file "*/fes-common/rtl/fes_computer_gp.v" -match "*'stream_active'"
+lint_off -rule UNOPTPUBLIC -file "*/fes-common/rtl/fes_computer_gp.v" -match "*'stream_begin_next'"
+lint_off -rule UNOPTPUBLIC -file "*/fes-common/rtl/fes_computer_gp.v" -match "*'stream_received'"
+lint_off -rule UNOPTPUBLIC -file "*/fes-ramtest/sim/board_models.v" -match "*'cyclonev_hps_interface_mpu_general_purpose'"
+lint_off -rule UNOPTPUBLIC -file "*/fes-ramtest/sim/hps_ddr_model.v" -match "*'cyclonev_hps_interface_fpga2sdram'"
+//
+// sg1000_machine.sv drives media_addr from "always @* media_addr = 14'd0;"
+// under FES_SG1000_ROM_LINK. 5.054 never runs a sensitivity-free always @*,
+// so it reports the block and the undriven signal, and media_addr keeps
+// the zero initial value of the simulation. A continuous assign would fix
+// the RTL.
+lint_off -rule ALWNEVER -file "*/fes-sg1000/rtl/sg1000_machine.sv"
+lint_off -rule UNDRIVEN -file "*/fes-sg1000/rtl/sg1000_machine.sv" -match "*'media_addr'"
+//
+// Not lint: 5.054 no longer inlines the two 1541 VIAs, and the drive
+// testbench reads their pcr registers by flattened name.
+inline -module "c64_via"

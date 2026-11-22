@@ -7,6 +7,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.verilator_waivers import waivers
+
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "cores" / "fes-ramtest"
 COMMON = ROOT / "cores" / "fes-common"
@@ -25,7 +29,7 @@ def pattern_counts() -> None:
     ]
     subprocess.run(
         [
-            VERILATOR, "--cc", "--exe", "--build", "--top-module", "pattern_count_bench",
+            VERILATOR, *waivers(VERILATOR), "--cc", "--exe", "--build", "--top-module", "pattern_count_bench",
             "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY",
             "-Wno-UNUSEDSIGNAL", "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ",
             "-Mdir", str(output),
@@ -43,7 +47,7 @@ def latency_stats() -> None:
     output.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
-            VERILATOR, "--cc", "--exe", "--build", "--top-module", "lat_stats",
+            VERILATOR, *waivers(VERILATOR), "--cc", "--exe", "--build", "--top-module", "lat_stats",
             "-GSAMPLES=16'd100",
             "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY",
             "-Wno-UNUSEDSIGNAL", "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ",
@@ -88,7 +92,7 @@ def main() -> None:
     byte_output = output / "byte"
     byte_output.mkdir(exist_ok=True)
     subprocess.run([
-        VERILATOR, "--cc", "--exe", "--build", "--top-module", "byte_bench",
+        VERILATOR, *waivers(VERILATOR), "--cc", "--exe", "--build", "--top-module", "byte_bench",
         "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY", "-Wno-UNUSEDSIGNAL",
         "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ", "-Mdir", str(byte_output), "-o", "sim",
         *map(str, [CORE / "rtl" / "sdram_byte_lane.v", CORE / "rtl" / "sdram_addon_port.v",
@@ -154,7 +158,7 @@ def main() -> None:
             build_sources = [mutated if source == controller else source for source in sources]
         subprocess.run(
             [
-                VERILATOR, "--cc", "--exe", "--build", "--top-module", "bench",             "+define+SIM",
+                VERILATOR, *waivers(VERILATOR), "--cc", "--exe", "--build", "--top-module", "bench",             "+define+SIM",
                 *defines,
                 "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY",
                 "-Wno-UNUSEDSIGNAL", "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ",

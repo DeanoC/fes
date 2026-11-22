@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 import subprocess
 from scripts import build_fes_c64_oss as producer
+from scripts.verilator_waivers import waivers
 ROOT = Path(__file__).resolve().parents[1]
 
 def main():
@@ -16,7 +17,7 @@ def main():
                p.endswith(('c64_frame_store.sv', 'c64_color_ram.v')) or p.startswith(('cores/fes-menu/',)) or
                p.endswith(('fes_display_plane.v', 'fes_display_cdc.v', 'fes_hps_ddr.v', 'fes_hps_ddr_guard.v'))]
     waivers = ['UNUSEDSIGNAL', 'PINCONNECTEMPTY', 'SYNCASYNCNET', 'DECLFILENAME', 'WIDTHEXPAND', 'WIDTHTRUNC', 'UNOPTFLAT', 'CASEINCOMPLETE', 'UNUSEDPARAM', 'VARHIDDEN']
-    subprocess.run([args.verilator, '--cc', '--exe', '--build', '--top-module', 'c64_session_video_top',
+    subprocess.run([args.verilator, *waivers(args.verilator), '--cc', '--exe', '--build', '--top-module', 'c64_session_video_top',
         '-DFES_SIMULATION', '-Wall', *('-Wno-'+w for w in waivers), '--Mdir', str(output), '-CFLAGS', '-O2',
         '-I'+str(ROOT/'cores/fes-common/generated'),
         str(ROOT/'cores/fes-c64/sim/session_video_top.sv'), *(str(ROOT/p) for p in sources),

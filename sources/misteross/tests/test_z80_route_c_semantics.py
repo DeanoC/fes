@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from scripts.verilator_waivers import waivers
 
 ROOT = Path(__file__).resolve().parents[1]
 RTL = ROOT / "cores/fes-common/rtl/z80"
@@ -42,7 +43,7 @@ def _build_and_run(engine_text: str, nmos: bool, directory: Path) -> subprocess.
     defines = ["-DZ80_ROUTE_C_NMOS"] if nmos else []
     params = ["-GNMOS=1'b1"] if nmos else ["-GNMOS=1'b0"]
     built = subprocess.run(
-        [_verilator(), "--cc", "--exe", "--build", "--top-module", "fes_z80_engine",
+        [_verilator(), *waivers(_verilator()), "--cc", "--exe", "--build", "--top-module", "fes_z80_engine",
          "-Wall", "-Wno-UNUSEDSIGNAL", "--Mdir", str(directory / "obj"),
          "-CFLAGS", "-std=c++17 -O2" + (" -DZ80_ROUTE_C_NMOS" if nmos else ""),
          *params, *defines,
