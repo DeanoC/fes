@@ -180,20 +180,27 @@ the merge gate for #2036 and for slice 4's DE25 pieces.
 
 ## Slices and order
 
-| | PR | Needs | Base |
-| --- | --- | --- | --- |
-| 4a | R1 admission table: per-core shell, any number of interfaces, the pc386 row (refused until a window backend exists) | #2069's `abi_minor` (stack or wait) | #2036 |
-| 4b | Contract: the grant is the kernel's; C and C++ headers generated for the window | nothing | #2036 (contract lives there) |
-| 4c | R2 runtime window backend over a fake owner, and the hps-ddr / ata-disk gates | 4b | 4b |
-| 4d | Kernel owner ABI 4, DT pool, KUnit | 4b; image change | 4b |
-| 4e | F1 FogCast | 4a, and #2101 for its DE10 pc386 media paths | stack |
-| 4f | R3 status-ring read through the runtime | 4c | 4c |
-| 4g | Image build + Kit D25 run | 4a–4f, Deano's flash OK | stack |
+AGENTS.md caps stacks at two deep and prefers one PR per coherent piece, with
+unfinished work on main behind a flag. #2036 is the bottom of the only stack;
+one PR may sit on it.
 
-4a, 4b, 4c, 4e and 4f need neither a kit nor an image change. 4d is code and
-KUnit only until 4g. The yaml description is not emitted into
-`fes_de25_hps_window.vh`, so 4b does not move #2036's `BUILD_ID`; 4b checks
-that by re-emitting.
+| | PR | Status | Needs | Base |
+| --- | --- | --- | --- | --- |
+| 4b+4c | The contract's "kernel publishes the grant", the generated C++ header, and `De25HpsWindow` over a scripted owner (#2110) | **#2115, draft** | nothing | #2036 |
+| 4a | Admission table: per-core shell, any number of interfaces, the pc386 row (refused until a window backend exists) | not built | #2069's `abi_minor` (stack or wait); the pc386 row names #2036's contract | main after #2036, or folded into #2115 |
+| 4w | Runtime wiring: the Linux owner operations, `ProductionHardware`'s DE25 `DiskWindow`, the `fes.memory.hps-ddr` and `fes.media.ata-disk` gates, `ReleaseHpsDdrPorts` | not built | 4d's ABI | with 4d |
+| 4d | Kernel owner window allocation, owner ABI 4, the window's generated C header, DT pool, KUnit | not built | image change | main |
+| 4e | FogCast: the DE25 computer profile accepts fes.computer 1.1 (`protocol_v2.go` requires minor 0 today), pc386 admission, initial disk | not built | 4a, and #2101 for its DE10 pc386 media paths | main |
+| 4f | Status-ring read through the runtime | not built | 4w | with 4w |
+| 4g | Image build + Kit D25 run | not started | all above, Deano's flash OK | — |
+
+4a, 4e and #2115 need neither a kit nor an image change. 4d and 4w are code,
+KUnit and host tests until 4g.
+
+The owner's window report must carry the build identity it observed on the
+programmed bitstream: the window block has no build register, and the runtime
+refuses a window for any other build. Coherence is the owner's range revoke:
+after it, DDR holds what the CPU wrote and no line of the range is cached.
 
 ## Open
 
