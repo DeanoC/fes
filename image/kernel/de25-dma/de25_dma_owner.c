@@ -11,6 +11,7 @@
 #include <linux/notifier.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -717,6 +718,15 @@ int fes_de25_owner_probe(struct platform_device *pdev)
 			owner->window_base = NULL;
 			goto put_region;
 		}
+		/* The window's storage is the owner's own pool, which the tree
+		 * pins where the F2SDRAM firewall admits the fabric. Without it
+		 * no window may be offered.
+		 */
+		ret = of_reserved_mem_device_init(&pdev->dev);
+		if (ret) {
+			owner->window_base = NULL;
+			goto put_region;
+		}
 	}
 	owner->notifier.notifier_call = owner_notify;
 	owner->notifier.priority = 100; /* before stock of-fpga-region (priority 0) */
@@ -736,6 +746,9 @@ int fes_de25_owner_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, owner);
 	return 0;
 put_region:
+	/* window_base is set only once its pool is bound. */
+	if (owner->window_base)
+		of_reserved_mem_device_release(&pdev->dev);
 	of_node_put(owner->region);
 	return ret;
 }

@@ -38,6 +38,27 @@ CONTAINMENT_EXCLUDED = ("SENSORS_SOC64", "INTEL_STRATIX10_RSU",
                         "CRYPTO_DEV_INTEL_FCS", "CRYPTO_DEV_ALTERA_FCS")
 
 
+# Physical memory the F2SDRAM firewall admits from the fabric, read on J8G:
+# region 0 only, 0x80100000..0xbfffffff (docs/validation/
+# 2026-11-01-de25-allocated-scanout/route-readonly.log, TBU2NOC_FW), less the
+# vendor tree's no-map service buffer at 0x80000000..0x81ffffff. End exclusive.
+WINDOW_POOL_RANGE = (0x82000000, 0xc0000000)
+# The 256 MiB window, the 8 MiB scanout and slack for the pool's alignment.
+WINDOW_POOL_BYTES = 0x11000000
+WINDOW_POOL_ALIGNMENT = 0x400000
+
+
+def window_constants(header):
+    text = Path(header).read_text()
+    values = {}
+    for name in ("PERIPHERAL_OFFSET", "CONTROL_SPAN", "SPAN"):
+        found = re.findall(r"^#define FES_DE25_HPS_WINDOW_" + name + r" (0x[0-9a-fA-F]+)U$", text, re.M)
+        if len(found) != 1:
+            raise ValueError("missing generated window constant: " + name)
+        values[name] = int(found[0], 16)
+    return values
+
+
 def write_json(path, data):
     Path(path).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
 
@@ -66,6 +87,43 @@ def apply_profile(kernel, profile):
     return record
 
 
+def owner_fragment(generated):
+    """The base tree's permanent owner node and its window pool, from the generated headers."""
+    header = (Path(generated) / "fes_de25_scanout.h").read_text()
+    def constant(name):
+        values = re.findall(r"^#define FES_DE25_SCANOUT_" + name + r" (0x[0-9a-f]+)U$", header, re.M)
+        if len(values) != 1:
+            raise ValueError("missing generated constant: " + name)
+        return int(values[0], 16)
+    address = constant("ARCHITECTURAL_LW_BASE") + constant("PERIPHERAL_OFFSET")
+    window = window_constants(Path(generated) / "fes_de25_hps_window.h")
+    # The owner's second reg is the HPS window's control block. Its storage
+    # is a reusable pool pinned where the F2SDRAM firewall admits the fabric
+    # (WINDOW_POOL_RANGE); the owner's scanout allocation shares it.
+    fragment = ("\n/* FES permanent owner candidate: no access until a known profile loads. */\n"
+                "/ {\n\treserved-memory {\n"
+                "\t\tfes_de25_window_pool: fes-window-pool {\n"
+                '\t\t\tcompatible = "shared-dma-pool";\n'
+                "\t\t\treusable;\n"
+                "\t\t\tsize = <0 0x%x>;\n"
+                "\t\t\talignment = <0 0x%x>;\n"
+                "\t\t\talloc-ranges = <0 0x%x 0 0x%x>;\n\t\t};\n\t};\n"
+                "\tfes_de25_scanout: dma-owner@%x {\n"
+                '\t\tcompatible = "fes,de25-dma";\n'
+                "\t\treg = <0 0x%x 0 0x%x>, <0 0x%x 0 0x%x>;\n"
+                "\t\tiommus = <&smmu %d>;\n"
+                "\t\tmemory-region = <&fes_de25_window_pool>;\n"
+                "\t\tfes,fpga-region = <&{/fpga-region}>;\n\t};\n};\n") % (
+                    WINDOW_POOL_BYTES, WINDOW_POOL_ALIGNMENT, WINDOW_POOL_RANGE[0],
+                    WINDOW_POOL_RANGE[1] - WINDOW_POOL_RANGE[0],
+                    address, address, constant("CONTROL_SPAN"),
+                    constant("ARCHITECTURAL_LW_BASE") + window["PERIPHERAL_OFFSET"], window["CONTROL_SPAN"],
+                    constant("SMMU_STREAM_ID"))
+    if WINDOW_POOL_BYTES < window["SPAN"] + constant("ALLOCATION_BYTES"):
+        raise ValueError("window pool smaller than the window and the scanout together")
+    return fragment
+
+
 def integrate(kernel, source):
     record = apply_profile(kernel, source / PROFILE)
     target = kernel / dep.KERNEL_DRIVER
@@ -78,22 +136,8 @@ def integrate(kernel, source):
         if "fes-de25-dma" in path.read_text():
             raise ValueError("kernel already contains owner integration")
         path.write_text(path.read_text() + text)
-    header = (source / dep.DRIVER / "generated/fes_de25_scanout.h").read_text()
-    def constant(name):
-        values = re.findall(r"^#define FES_DE25_SCANOUT_" + name + r" (0x[0-9a-f]+)U$", header, re.M)
-        if len(values) != 1:
-            raise ValueError("missing generated constant: " + name)
-        return int(values[0], 16)
-    address = constant("ARCHITECTURAL_LW_BASE") + constant("PERIPHERAL_OFFSET")
     tree = kernel / "arch/arm64/boot/dts/intel/socfpga_agilex5_de25_nano.dts"
-    fragment = ("\n/* FES permanent owner candidate: no access until a known profile loads. */\n"
-                "/ {\n\tfes_de25_scanout: dma-owner@%x {\n"
-                '\t\tcompatible = "fes,de25-dma";\n'
-                "\t\treg = <0 0x%x 0 0x%x>;\n"
-                "\t\tiommus = <&smmu %d>;\n"
-                "\t\tfes,fpga-region = <&{/fpga-region}>;\n\t};\n};\n") % (
-                    address, address, constant("CONTROL_SPAN"), constant("SMMU_STREAM_ID"))
-    tree.write_text(tree.read_text() + fragment)
+    tree.write_text(tree.read_text() + owner_fragment(source / dep.DRIVER / "generated"))
     return record
 
 
