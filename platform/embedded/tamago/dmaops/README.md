@@ -24,8 +24,10 @@ DE25-Nano (Agilex 5).
 - **Descriptor rings (`Ring`):** FIFO `Acquire` → `Publish` →
   `SyncDescriptorForCPU` → `Retire` over a contiguous descriptor table and
   optional per-slot data buffers (or descriptor-only tables such as SDHCI ADMA2).
-  Concurrent CPU+device rings (XGMAC, VirtIO) should use an `Uncached` pool so
-  adjacent descriptors never bounce cache lines.
+  `NewRing` requires `DescSize` to be a multiple of `CacheLineSize()` on `Cached`
+  pools so adjacent descriptors never share a cache line; concurrent hardware
+  rings with smaller descriptors (such as 16-byte XGMAC/VirtIO descriptors) must
+  use an `Uncached` pool.
 
 ## Usage
 

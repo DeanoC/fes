@@ -74,6 +74,26 @@ func TestRingLifecycleAndWraparound(t *testing.T) {
 	if st.LiveBuffers != 0 || st.FreeBytes != 16384 || st.FreeSpans != 1 {
 		t.Fatalf("expected pool fully reclaimed after Ring.Close, got %+v", st)
 	}
+
+	// Cached pools must reject sub-cache-line descriptors to prevent cache-line
+	// sharing between adjacent descriptors, and accept full-line descriptors.
+	cachedPool, err := NewPool(0x50000000, make([]byte, 4096), Cached, hw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewRing(cachedPool, RingConfig{Count: 4, DescSize: 16}); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("cached ring with 16B DescSize should reject: got %v", err)
+	}
+	if _, err := NewRing(cachedPool, RingConfig{Count: 4, DescSize: 96}); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("cached ring with non-multiple DescSize should reject: got %v", err)
+	}
+	cachedRing, err := NewRing(cachedPool, RingConfig{Count: 4, DescSize: 64, BufSize: 128})
+	if err != nil {
+		t.Fatalf("cached ring with 64B DescSize: %v", err)
+	}
+	if err := cachedRing.Close(); err != nil {
+		t.Fatalf("cachedRing.Close: %v", err)
+	}
 }
 
 func TestRingQueueBoundsOrderingAndCancel(t *testing.T) {
