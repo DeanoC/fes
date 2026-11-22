@@ -1182,6 +1182,7 @@ void TestDe25StandardProfileAdmitsSpectrumModelsAtariStAndC64()
  for(const auto& d:machines) {
   const bool st=d.core.id=="fes.atari-st";
   const bool disk=d.core.id=="fes.spectrum-plus3"||d.core.id=="fes.pentagon";
+  const bool c64=d.core.id=="fes.c64";
   assert(d.interfaces.size()==(st?12u:disk?11u:9u));
   assert(CheckDe25StandardComputerContract(d).ok());
   assert(CheckCoreCompatibility(d,NativePlatform::de25_nano).ok());
