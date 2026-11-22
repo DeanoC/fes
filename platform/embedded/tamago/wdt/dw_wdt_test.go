@@ -348,3 +348,48 @@ func TestPreTimeoutIRQDispatchAndDisable(t *testing.T) {
 		t.Fatal("disabled handleIRQ touched hardware")
 	}
 }
+
+func TestDisableIRQWaitsForInFlightCallback(t *testing.T) {
+	hw := newFakeDW()
+	dev, err := Open(hw, 100_000_000)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	ctrl, acc := newFakeGIC(t)
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var cbFinished atomic.Bool
+	if err := dev.EnableIRQ(ctrl, 149, func() {
+		close(entered)
+		<-release
+		cbFinished.Store(true)
+	}); err != nil {
+		t.Fatalf("EnableIRQ: %v", err)
+	}
+
+	hw.raisePreTimeout()
+	acc.mu.Lock()
+	acc.pending = 149
+	acc.mu.Unlock()
+	go ctrl.Dispatch()
+
+	<-entered
+	disableDone := make(chan struct{})
+	go func() {
+		dev.DisableIRQ(ctrl)
+		close(disableDone)
+	}()
+
+	select {
+	case <-disableDone:
+		t.Fatal("DisableIRQ returned while callback was still running")
+	case <-time.After(15 * time.Millisecond):
+	}
+
+	close(release)
+	<-disableDone
+	if !cbFinished.Load() {
+		t.Fatal("DisableIRQ returned before callback finished")
+	}
+}

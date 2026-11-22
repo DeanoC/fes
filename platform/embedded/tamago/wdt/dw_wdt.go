@@ -80,7 +80,9 @@ type DW struct {
 	clockHz uint64
 	version uint32
 
+	irqCfgMu  sync.Mutex
 	irqMu     sync.Mutex
+	irqWG     sync.WaitGroup
 	irqActive atomic.Bool
 	irqCount  atomic.Uint64
 	irqGIC    *gic.Controller
@@ -219,21 +221,18 @@ func (w *DW) ClearInterrupt() {
 
 // EnableIRQ binds the level-sensitive watchdog pre-timeout SPI on g. When the
 // interrupt fires, the handler reads WDT_EOI to clear the level line, increments
-// IRQCount, and calls onPreTimeout (if non-nil).
+// IRQCount, and calls onPreTimeout (if non-nil). onPreTimeout must be
+// non-blocking and must not call EnableIRQ or DisableIRQ.
 func (w *DW) EnableIRQ(g *gic.Controller, irqID uint32, onPreTimeout func()) error {
 	if g == nil || irqID < gic.FirstSPI || irqID >= g.Lines() {
 		return ErrInvalidConfig
 	}
+	w.irqCfgMu.Lock()
+	defer w.irqCfgMu.Unlock()
+
+	w.disableIRQLocked(g)
+
 	w.irqMu.Lock()
-	defer w.irqMu.Unlock()
-	if w.irqActive.Load() {
-		if w.irqGIC != nil {
-			w.irqGIC.Disable(w.irqID)
-			w.irqGIC.ClearPending(w.irqID)
-			w.irqGIC.Register(w.irqID, nil)
-		}
-		w.irqActive.Store(false)
-	}
 	w.irqGIC = g
 	w.irqID = irqID
 	w.onPreIRQ = onPreTimeout
@@ -244,14 +243,22 @@ func (w *DW) EnableIRQ(g *gic.Controller, irqID uint32, onPreTimeout func()) err
 	w.irqActive.Store(true)
 	g.Register(irqID, w.handleIRQ)
 	g.Enable(irqID)
+	w.irqMu.Unlock()
 	return nil
 }
 
-// DisableIRQ masks and unregisters the watchdog SPI on g.
+// DisableIRQ masks and unregisters the watchdog SPI on g and waits for any
+// in-flight pre-timeout callback to finish before returning.
 func (w *DW) DisableIRQ(g *gic.Controller) {
+	w.irqCfgMu.Lock()
+	defer w.irqCfgMu.Unlock()
+	w.disableIRQLocked(g)
+}
+
+func (w *DW) disableIRQLocked(g *gic.Controller) {
 	w.irqMu.Lock()
-	defer w.irqMu.Unlock()
 	if !w.irqActive.Load() {
+		w.irqMu.Unlock()
 		return
 	}
 	w.irqActive.Store(false)
@@ -266,6 +273,9 @@ func (w *DW) DisableIRQ(g *gic.Controller) {
 	}
 	w.irqGIC = nil
 	w.onPreIRQ = nil
+	w.irqMu.Unlock()
+
+	w.irqWG.Wait()
 }
 
 // IRQCount reports the number of pre-timeout watchdog interrupts handled.
@@ -285,6 +295,9 @@ func (w *DW) handleIRQ() {
 		_ = w.io.Read32(RegEOI)
 	}
 	w.mu.Unlock()
+	if pending && cb != nil {
+		w.irqWG.Add(1)
+	}
 	w.irqMu.Unlock()
 
 	if !pending {
@@ -292,6 +305,7 @@ func (w *DW) handleIRQ() {
 	}
 	w.irqCount.Add(1)
 	if cb != nil {
+		defer w.irqWG.Done()
 		cb()
 	}
 }
