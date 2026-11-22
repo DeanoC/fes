@@ -7,6 +7,7 @@ package de25nano
 import (
 	"errors"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/fpgairq"
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 )
 
@@ -90,4 +91,10 @@ func DisableFPGAIRQ(line uint32) {
 	intc.Disable(id)
 	intc.ClearPending(id)
 	intc.Register(id, nil)
+}
+
+// NewFPGADispatcher returns an FPGA-to-HPS doorbell dispatcher bound to the
+// Agilex 5 GIC-600 controller. Call after GIC().Init().
+func NewFPGADispatcher() (*fpgairq.Dispatcher, error) {
+	return fpgairq.New(intc)
 }
