@@ -156,7 +156,7 @@ def prepare(archive, output=None, revision=None):
     (project / "pins.qsf").write_text(pins)
     (project / (PROJECT + ".qpf")).write_text(f'QUARTUS_VERSION = "26.3.0"\nPROJECT_REVISION = "{PROJECT}"\n')
     assignments = (("FAMILY", '"Agilex 5"'), ("DEVICE", DEVICE), ("TOP_LEVEL_ENTITY", PROJECT),
-        ("PROJECT_OUTPUT_DIRECTORY", "output_files"), ("NUM_PARALLEL_PROCESSORS", "1"), ("SEED", "1"),
+        ("PROJECT_OUTPUT_DIRECTORY", "output_files"), ("NUM_PARALLEL_PROCESSORS", "2"), ("SEED", "1"),
         ("STRATIXV_CONFIGURATION_SCHEME", '"ACTIVE SERIAL X4"'), ("ACTIVE_SERIAL_CLOCK", "AS_FREQ_125MHZ"),
         ("DEVICE_INITIALIZATION_CLOCK", "OSC_CLK_1_125MHZ"), ("RESERVE_ALL_UNUSED_PINS", '"AS INPUT TRI-STATED"'),
         ("VERILOG_MACRO", "QUARTUS=1"), ("IP_FILE", "sys_pll.ip"),
