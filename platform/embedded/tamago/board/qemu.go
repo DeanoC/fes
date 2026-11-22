@@ -18,11 +18,17 @@ import (
 
 const Name = "qemu"
 
-func ExceptionLevel() uint64                                    { return qemuvirt.ExceptionLevel() }
-func CounterFrequency() uint64                                  { return qemuvirt.CounterFrequency() }
-func GIC() *gic.Controller                                      { return qemuvirt.GIC() }
-func InitDevices() (*dma.Region, error)                         { return qemuvirt.InitDevices() }
-func OpenStorage() (block.Device, error)                        { return block.ScanVirtIO() }
+func ExceptionLevel() uint64            { return qemuvirt.ExceptionLevel() }
+func CounterFrequency() uint64          { return qemuvirt.CounterFrequency() }
+func GIC() *gic.Controller              { return qemuvirt.GIC() }
+func InitDevices() (*dma.Region, error) { return qemuvirt.InitDevices() }
+func OpenStorage() (block.Device, error) {
+	pool, err := qemuvirt.DMAPool()
+	if err != nil {
+		return nil, err
+	}
+	return block.ScanVirtIOWithPool(pool)
+}
 func OpenDisplay(w, h int, memory *dma.Region) (Display, error) { return display.Open(w, h, memory) }
 func OpenKeyboard() (*input.USBKeyboard, error) {
 	base, err := qemuvirt.OpenUSBPCI()
