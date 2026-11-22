@@ -46,6 +46,7 @@ type spectrumFirmwareCPU struct {
 	held           bool
 	ready          bool
 	image          []byte
+	firmwareBytes  int
 	header         [4]uint16
 	begins         int
 	commits        int
@@ -77,18 +78,31 @@ func (c batchedSpectrumCPU) WithSpectrumROMBatch(base uint64, send func(computer
 	}
 	c.romBatches++
 	// Charge the two mapping/ownership boundaries and a cost per raw CSR.
-	*c.romClock = c.romClock.Add(850 * time.Microsecond)
+	if c.romClock != nil {
+		*c.romClock = c.romClock.Add(850 * time.Microsecond)
+	}
 	c.inROMBatch = true
 	defer func() { c.inROMBatch = false }()
 	before := len(c.image)
 	if err := send(fixtureSpectrumROMRegisters{c.spectrumFirmwareCPU}); err != nil {
 		return err
 	}
-	if len(c.image)-before != 2*computer.FirmwareDataBatchWords || c.failROMBatch {
+	batchWords := computer.FirmwareDataBatchWords
+	if c.firmwareBytes == c64FirmwareBytes {
+		batchWords = computer.C64DataBatchWords
+	}
+	if len(c.image)-before != 2*batchWords || c.failROMBatch {
 		return errors.New("ROM batch completion failed")
 	}
 	return nil
 }
+func (c *spectrumFirmwareCPU) WithHeldMediaBatch(base uint64, send func(computer.IO) error) error {
+	if base != 0x20010300 || !c.active || !c.held || !c.ready {
+		return errors.New("media batch outside held upload shell")
+	}
+	return send(fixtureSpectrumROMRegisters{c})
+}
+
 func (c *spectrumFirmwareCPU) chargeROMAccess() {
 	if c.romClock == nil || !c.active || !c.held || c.ready {
 		return
@@ -142,7 +156,7 @@ func (c *spectrumFirmwareCPU) WritePhysical32(address uint64, word uint32) error
 		if c.ready {
 			state = uint16(cg.FesFirmwareUploadStateReady)
 		}
-		words := [...]uint16{spectrum48ROMBytes, 0, state, uint16(len(c.image)), 0}
+		words := [...]uint16{uint16(c.firmwareBytes), 0, state, uint16(len(c.image)), 0}
 		if index >= uint32(len(words)) {
 			return errors.New("invalid Spectrum firmware information query")
 		}
@@ -154,7 +168,7 @@ func (c *spectrumFirmwareCPU) WritePhysical32(address uint64, word uint32) error
 		c.header[index] = value
 		c.begins++
 	case cg.FesFirmwareUploadOpcodeData:
-		if index != uint32(len(c.image)/2)&255 || c.ready || len(c.image) >= spectrum48ROMBytes {
+		if index != uint32(len(c.image)/2)&255 || c.ready || len(c.image) >= c.firmwareBytes {
 			return errors.New("invalid Spectrum firmware data ordinal")
 		}
 		c.image = append(c.image, byte(value), byte(value>>8))
@@ -162,7 +176,7 @@ func (c *spectrumFirmwareCPU) WritePhysical32(address uint64, word uint32) error
 		c.commits++
 		wantSize := uint32(c.header[0]) | uint32(c.header[1])<<16
 		wantCRC := uint32(c.header[2]) | uint32(c.header[3])<<16
-		if wantSize != spectrum48ROMBytes || len(c.image) != spectrum48ROMBytes || crc32.ChecksumIEEE(c.image) != wantCRC {
+		if wantSize != uint32(c.firmwareBytes) || len(c.image) != c.firmwareBytes || crc32.ChecksumIEEE(c.image) != wantCRC {
 			return errors.New("Spectrum firmware commit disagrees with the accepted bytes")
 		}
 		if c.failCommit {
@@ -208,11 +222,36 @@ func packageSpectrumFixture(t *testing.T, l *ProgramLoader, alternate bool) (pac
 	for name, data := range map[string][]byte{"manifest.toml": manifest, "core.rbf": payload, "rom-map.json": romMap} {
 		if name == "manifest.toml" {
 			data = []byte(strings.NewReplacer("fes.pong", "fes.spectrum", "fes-gp-v1", spectrum48Profile,
-				"fes.simple-game", "fes.computer").Replace(string(data)) + `
+				"fes.simple-game", "fes.computer", "fes.gamepad\"", "fes.gamepad.ports\"").Replace(string(data)) + `
 [[interfaces]]
 id = "fes.media.spectrum-tape"
 major = 2
 minor = 0
+required = true
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+[[interfaces]]
+id = "fes.video.session-display"
+major = 1
+minor = 0
+required = true
+[[interfaces]]
+id = "fes.fabric.video.display-plane"
+major = 1
+minor = 0
+required = true
+[[interfaces]]
+id = "fes.fabric.de25-scanout"
+major = 1
+minor = 3
 required = true
 `)
 		}
@@ -239,7 +278,7 @@ required = true
 		t.Fatal(err)
 	}
 	receipt := linked.Receipt().ROMLink
-	record := spectrum48Record{Format: 1, Scope: "nano-compiled-spectrum48-program-v1",
+	record := uploadShellRecord{Format: 1, Scope: "nano-compiled-spectrum48-program-v1",
 		BootContextSHA256: hex.EncodeToString(l.boot.digest[:]), HandoffSHA256: strings.Repeat("4", 64),
 		PackageID: i.PackageID, BuildID: d.Build.ID, CoreSize: len(payload), CoreSHA256: d.Payload.SHA256,
 		CoreSHA384: fmt.Sprintf("%x", sha512.Sum384(payload)), ROMSourceSHA256: receipt.SourceSHA256,
@@ -281,7 +320,7 @@ func TestSpectrum48ProgramServiceFATLaunchReturnAndPark(t *testing.T) {
 }
 
 func TestSharedCoreShellFATLifecycle(t *testing.T) {
-	for _, fault := range []string{"shared", "shared-bad-map", "shared-bad-dma", "shared-wedged", "shared-fast-rom", "shared-rom-batch-fault", "shared-slow-rom"} {
+	for _, fault := range []string{"shared", "shared-bad-map", "shared-bad-dma", "shared-wedged", "shared-fast-rom", "shared-rom-batch-fault", "shared-slow-rom", "shared-c64", "shared-c64-disk-commit"} {
 		t.Run(fault, func(t *testing.T) { testSpectrum48FAT(t, fault) })
 	}
 }
@@ -306,11 +345,13 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 	defer disk.Close()
 	var startup *ProgramStartup
 	var port *spectrumFirmwareCPU
-	var expected, expectedTape []byte
+	var expected, expectedTape, expectedDisk []byte
 	var activeBuild, firstBuild string
 	var alternateChoice packagestore.Request
 	var alternateBuild string
 	shared := strings.HasPrefix(fault, "shared")
+	c64 := strings.HasPrefix(fault, "shared-c64")
+	multi := shared && !c64
 	var romClock = time.Unix(1, 0)
 	timedROM := fault == "shared-fast-rom" || fault == "shared-rom-batch-fault" || fault == "shared-slow-rom"
 	dmaMode := strings.TrimPrefix(fault, "shared-")
@@ -321,7 +362,15 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 	f := newProgramMenuFixtureContext(t, ctx, "", func(f *programMenuFixture) {
 		l := f.r.f.loader
 		request, files, compiled, policy := packageSpectrumFixture(t, l, false)
-		var first spectrum48Record
+		if c64 {
+			request, files = c64PackageFixture(t, l, c64Profile, nil)
+			compiled = files[request.MetadataPath]
+			expectedDisk = bytes.Repeat([]byte{0x12, 0x9a}, int(cg.FesComputerC64DiskBytes)/2)
+			request.Tape = packagestore.TapeRequest{Path: "FES/C64.D64", Format: packagestore.C64DiskFormat,
+				Size: int64(len(expectedDisk)), SHA256: fmt.Sprintf("%x", sha256.Sum256(expectedDisk))}
+			files[request.Tape.Path] = expectedDisk
+		}
+		var first uploadShellRecord
 		if err := json.Unmarshal(compiled, &first); err != nil {
 			t.Fatal(err)
 		}
@@ -388,12 +437,15 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 			t.Fatal(err)
 		}
 		port = &spectrumFirmwareCPU{CPUTransport: f.cpu, base: f.r.f.cpu.computerCPU,
-			failCommit: fault == "commit", fetchWhileHeld: fault == "held-fetch", wantTape: len(expectedTape) != 0}
-		port.media = tapeCPU{base: port.base, spectrum: true}
-		if fault == "tape-commit" {
+			failCommit: fault == "commit", fetchWhileHeld: fault == "held-fetch", wantTape: len(expectedTape)+len(expectedDisk) != 0, firmwareBytes: len(expected)}
+		port.media = tapeCPU{base: port.base, spectrum: !c64, disk: c64}
+		if fault == "tape-commit" || fault == "shared-c64-disk-commit" {
 			port.media.fault = "commit"
 		}
 		l.boot.cpu = port
+		if c64 {
+			l.boot.cpu = batchedSpectrumCPU{port}
+		}
 		if timedROM {
 			port.romClock = &romClock
 			port.failROMBatch = fault == "shared-rom-batch-fault"
@@ -404,7 +456,7 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 		activate := f.cpu.activate
 		f.cpu.activate = func(role programRole) {
 			activate(role)
-			port.active = role == programRoleSpectrum48
+			port.active = role == programRoleUploadShell
 			port.ready, port.held, port.image, port.header = false, false, nil, [4]uint16{}
 			port.media.ready, port.media.image = false, nil
 			if port.active {
@@ -416,16 +468,20 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 				for i := range 8 {
 					port.base.words[8+i] = binary.LittleEndian.Uint16(raw[2*i:])
 				}
-				port.base.words[7] = uint16(spectrum48Capabilities)
+				capabilities := spectrum48Capabilities
+				if c64 {
+					capabilities = c64Capabilities
+				}
+				port.base.words[7] = uint16(capabilities)
 				port.base.gpo, port.base.gpi, port.base.fetches = 0, cg.FesComputerSignature, 0
 			}
 		}
 		payload := programExport(t, "spectrum48", request, files)
-		if shared {
+		if multi {
 			var filesB map[string][]byte
 			var recordB []byte
 			alternateChoice, filesB, recordB, _ = packageSpectrumFixture(t, l, true)
-			var second spectrum48Record
+			var second uploadShellRecord
 			if err := json.Unmarshal(recordB, &second); err != nil {
 				t.Fatal(err)
 			}
@@ -491,7 +547,7 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 	for attempt := 1; attempt <= 2; attempt++ {
 		id := "spectrum48"
 		activeBuild = firstBuild
-		if shared && attempt == 2 {
+		if multi && attempt == 2 {
 			id, activeBuild = "spectrum48b", alternateBuild
 		}
 		play, err := client.Launch(ctx, id)
@@ -501,7 +557,7 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 			}
 			return
 		}
-		if shared && attempt == 2 && f.s.Status().Identity.PackageID != alternateChoice.PackageID {
+		if multi && attempt == 2 && f.s.Status().Identity.PackageID != alternateChoice.PackageID {
 			t.Fatal("second SD build did not become the held service identity", f.s.Status())
 		}
 		switch fault {
@@ -519,10 +575,13 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 				t.Fatal("ROM failure retried, committed or lost containment", err, f.s.Status(), port.romBatches, len(port.image))
 			}
 			return
-		case "commit", "held-fetch", "tape-commit":
+		case "commit", "held-fetch", "tape-commit", "shared-c64-disk-commit":
 			if err != nil || play.ErrorCode != "NATIVE_LAUNCH_FAILED" || play.ID != "" || port.commits != 1 || port.releases != 0 ||
 				f.s.Status().State != ProgramRebootRequired || f.r.f.lease.r.Active {
 				t.Fatal("uncertain firmware upload released execution or storage", err, f.s.Status())
+			}
+			if fault == "shared-c64-disk-commit" && (port.media.commits != 1 || !bytes.Equal(port.media.image, expectedDisk)) {
+				t.Fatal("disk commit fault did not exercise a complete transfer")
 			}
 			if fault == "tape-commit" && (port.media.starts != 1 || port.media.commits != 1 || !bytes.Equal(port.media.image, expectedTape)) {
 				t.Fatal("tape commit fault did not exercise a complete transfer")
@@ -531,6 +590,15 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 		}
 		fetch, observed := f.s.FetchObservation()
 		scope := "nano-spectrum48-fetch-v1"
+		if c64 {
+			scope = "nano-c64-fetch-d64-v1"
+			view := f.s.Status()
+			if port.media.commits != attempt || !bytes.Equal(port.media.image, expectedDisk) ||
+				int(fetch.DiskBytes) != len(expectedDisk) || view.DiskBytes != len(expectedDisk) ||
+				view.DiskSHA256 != fmt.Sprintf("%x", sha256.Sum256(expectedDisk)) {
+				t.Fatal("C64 D64 transfer differed from retained bytes", view, fetch, len(port.media.image), port.media.commits)
+			}
+		}
 		if len(expectedTape) != 0 {
 			scope = "nano-spectrum48-fetch-tape-v1"
 			status := f.s.Status()

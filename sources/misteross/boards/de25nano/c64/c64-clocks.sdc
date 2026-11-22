@@ -15,8 +15,6 @@ set base {soc_inst|subsys_periph|fes_scanout|fes_scanout}
 # Explicit launch registers and first-stage D pins. Interstage paths and all
 # downstream logic retain their ordinary receiving-clock setup/hold checks.
 foreach {label source expected head second} {
-    readiness {video_ready_source} 1
-        {transport|video_ready_sync[0]} {transport|video_ready_sync[1]}
     execution {core|gp_mailbox|exec_reset} 1
         {display|execution_sync[0]} {display|execution_sync[1]}
     drained {display|quiesced_source} 1
@@ -40,6 +38,40 @@ foreach {label source expected head second} {
         error "DE25 C64 $label synchronizer endpoints changed"
     }
     set_false_path -from $launches -to $first_d
+}
+
+# Linux exposes display readiness at 0x18. The native variant uses the
+# address for a request/reply snapshot of the machine-clock fetch bus.
+set fetch_tag [get_registers "${base}|transport|fetch_request"]
+if {[get_collection_size $fetch_tag] == 0} {
+    set launch [get_registers "${base}|video_ready_source"]
+    set head [get_pins -compatibility_mode -nocase "${base}|transport|video_ready_sync[0]|d"]
+    set next [get_registers "${base}|transport|video_ready_sync[1]"]
+    if {[get_collection_size $launch] != 1 || [get_collection_size $head] != 1 ||
+        [get_collection_size $next] != 1} {error "DE25 C64 readiness endpoints changed"}
+    set_false_path -from $launch -to $head
+} else {
+    foreach {source sink} {
+        fetch_request fetch_request_sync
+        fetch_reply fetch_reply_sync
+    } {
+        set launch [get_registers "${base}|transport|${source}"]
+        set first_d [get_pins -compatibility_mode -nocase "${base}|transport|${sink}\[0\]|d"]
+        set next [get_registers "${base}|transport|${sink}\[1\]"]
+        if {[get_collection_size $launch] != 1 || [get_collection_size $first_d] != 1 ||
+            [get_collection_size $next] != 1} {error "DE25 C64 fetch handshake endpoints changed"}
+        set_false_path -from $launch -to $first_d
+    }
+    set launch [get_registers "${base}|transport|fetch_payload\[*\]"]
+    set captures [get_registers "${base}|transport|fetch_sample\[*\]"]
+    if {[get_collection_size $launch] != 48 || [get_collection_size $captures] != 48} {
+        error "DE25 C64 fetch snapshot endpoints changed"
+    }
+    set_net_delay -max 10.000 -from $launch -to $captures
+    set_data_delay 10.000 -from $launch -to $captures
+    set_max_skew 10.000 -from $launch -to $captures
+    set_max_delay 10.000 -from $launch -to $captures
+    set_min_delay 0.000 -from $launch -to $captures
 }
 
 # The C64 frame store publishes a complete page to the pixel side with a

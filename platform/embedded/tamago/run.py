@@ -77,6 +77,10 @@ def main():
     parser.add_argument("--sd-scratch-inspect", action="store_true", help="read-only candidate plan discovery; Nano storage diagnostic only")
     parser.add_argument("--hps-first-project", type=Path, help="sealed HPS-first project for the Nano context diagnostics")
     parser.add_argument("--shared-core-shell", action="store_true", help="opt-in fixed upload shell for trusted SD packages")
+    parser.add_argument("--c64-build", type=Path, help="independently repeated native C64 FPGA build")
+    parser.add_argument("--c64-package", type=Path, help="sealed native C64 archive")
+    parser.add_argument("--c64-rom", type=Path, help="36 KiB C64 firmware bundle")
+    parser.add_argument("--c64-d64", type=Path, help="optional read-only 35-track D64")
     parser.add_argument("--spectrum48-build", type=Path, help="independently repeated native Spectrum FPGA build")
     parser.add_argument("--spectrum48-package", type=Path, help="sealed native Spectrum companion archive")
     parser.add_argument("--spectrum48-rom", type=Path, help="16 KiB ROM for the native Spectrum companion")
@@ -133,8 +137,9 @@ def main():
         except (ValueError, OSError, subprocess.CalledProcessError) as error:
             parser.error(str(error))
         return
-    if any((args.shared_core_shell, args.spectrum48_build, args.spectrum48_package, args.spectrum48_rom, args.spectrum48_tape)):
-        parser.error('Spectrum companion requires --board de25-nano')
+    if any((args.shared_core_shell, args.spectrum48_build, args.spectrum48_package, args.spectrum48_rom, args.spectrum48_tape,
+            args.c64_build, args.c64_package, args.c64_rom, args.c64_d64)):
+        parser.error('native upload shell requires --board de25-nano')
     if args.arm64_features:
         parser.error('--arm64-features requires --board de25-nano')
     if args.sd_write_plan is not None or args.writable_storage_plan is not None or args.program in ('sdwrite','sdfile') or args.sd_scratch_inspect or args.sd_transfer_clock:

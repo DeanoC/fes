@@ -16,12 +16,20 @@ import (
 const spectrumROMBase = 0x20010300
 
 func (FabricCPUTransport) WithSpectrumROMBatch(base uint64, send func(computer.IO) error) error {
+	return withHeldDataBatch(base, g.FesFirmwareUploadOpcodeData, send)
+}
+
+func (FabricCPUTransport) WithHeldMediaBatch(base uint64, send func(computer.IO) error) error {
+	return withHeldDataBatch(base, g.FesComputerOpcodeMediaData, send)
+}
+
+func withHeldDataBatch(base uint64, opcode uint32, send func(computer.IO) error) error {
 	if base != spectrumROMBase || send == nil {
-		return errors.New("DE25: Spectrum ROM batch differs from the fixed mailbox")
+		return errors.New("DE25: held mailbox data batch differs from the fixed mailbox")
 	}
 	return arm64map.WithDeviceMapping(profileRAMStart, profileRAMSize, spectrumROMBase,
 		uint64(g.FesDe25ComputerSpan), func() error {
-			port := spectrumROMPort{active: true}
+			port := spectrumROMPort{active: true, opcode: opcode}
 			defer func() { port.active = false }()
 			return send(&port)
 		})
@@ -30,6 +38,7 @@ func (FabricCPUTransport) WithSpectrumROMBatch(base uint64, send func(computer.I
 type spectrumROMPort struct {
 	active bool
 	writes uint32
+	opcode uint32
 }
 
 func (p *spectrumROMPort) Read32(offset uint32) (uint32, error) {
@@ -40,14 +49,14 @@ func (p *spectrumROMPort) Read32(offset uint32) (uint32, error) {
 			return load32(spectrumROMBase + uintptr(offset)), nil
 		}
 	}
-	return 0, errors.New("DE25: read outside the Spectrum ROM batch")
+	return 0, errors.New("DE25: read outside the held mailbox data batch")
 }
 
 func (p *spectrumROMPort) Write32(offset, value uint32) error {
 	if !p.active || offset != g.FesDe25ComputerGpoOffset ||
-		(value>>24)&0x7f != g.FesFirmwareUploadOpcodeData ||
-		p.writes >= computer.FirmwareDataBatchWords {
-		return errors.New("DE25: write outside the Spectrum ROM batch")
+		(value>>24)&0x7f != p.opcode ||
+		p.writes >= computer.C64DataBatchWords {
+		return errors.New("DE25: write outside the held mailbox data batch")
 	}
 	p.writes++
 	store32(spectrumROMBase+uintptr(offset), value)

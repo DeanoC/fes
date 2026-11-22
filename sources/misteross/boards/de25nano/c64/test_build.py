@@ -136,7 +136,7 @@ class Derivations(unittest.TestCase):
         self.assertEqual(set(derived), {"c64_machine_de25.sv", "c64_ram_de25.v", "c64_color_ram_de25.v",
             "c64_disk_store_de25.v", "c64_frame_store_de25.sv", "fes_de25_computer_transport.v",
             "fes_menu_reader_de25.v"})
-        self.assertEqual(build.FIRMWARE_BYTES, {"pal": 36864})
+        self.assertEqual(build.FIRMWARE_BYTES, {"pal": 36864, "nativepal": 36864})
 
 
 if __name__ == "__main__":

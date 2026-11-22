@@ -8,6 +8,8 @@ import sys
 import subprocess
 
 PROFILE = 'de25-native-spectrum48-v1'
+C64_PROFILE = 'de25-native-c64-v1'
+C64_ROM_BYTES = 36 << 10
 SCOPE = 'nano-compiled-spectrum48-program-v1'
 CHUNK = 0xfffc0
 MAX_CORE = (8 << 20) - 4096
@@ -35,14 +37,14 @@ def read(path, maximum):
     return data
 
 
-def inspect(build, archive):
+def inspect(build, archive, *, c64=False):
     """Run in an isolated producer process to keep private imports separate."""
     from boards.de25nano.package.core_package import read_package
     from boards.de25nano.package.export_core_package import (
         build_identity, manifest_toolchain, verify_record_source_at_revision,
     )
     from boards.de25nano.producers.build_menu_package import timing_evidence
-    from boards.de25nano.scanout.async_inputs import native_spectrum48
+    from boards.de25nano.scanout.async_inputs import native_c64, native_spectrum48
     import hps_io
 
     raw = read(archive, MAX_ARCHIVE)
@@ -52,15 +54,17 @@ def inspect(build, archive):
     evidence = archive.with_suffix('.build-inputs.json')
     fields = verify_record_source_at_revision(build, record)
     params = fields['parameters']
+    profile, core, rom_bytes, native_model = ((C64_PROFILE, 'fes.c64', C64_ROM_BYTES, native_c64) if c64 else
+                                              (PROFILE, 'fes.spectrum', ROM_BYTES, native_spectrum48))
     payload = package.payload_bytes
     identity = build_identity(record)
     if (read(evidence, 1 << 20) != record or archive.stem != package.package_id or
             raw != read(archive, MAX_ARCHIVE) or d['format'] != 3 or
             d['target'] != {'platform': 'de25_nano', 'device': 'A5EB013BB23BE4SCS',
-                            'programming_profile': PROFILE} or not native_spectrum48(params) or
+                            'programming_profile': profile} or not native_model(params) or
             params.get('selection_only') or params.get('fabric_initiator_policy') != 'native-maintenance-absent-v1' or
-            d['core']['id'] != 'fes.spectrum' or d['abi'] != {'id': 'fes.computer', 'major': 1, 'minor': 0} or
-            d['rom']['role'] != 'firmware' or d['rom']['source_size'] != ROM_BYTES or
+            d['core']['id'] != core or d['abi'] != {'id': 'fes.computer', 'major': 1, 'minor': 0} or
+            d['rom']['role'] != 'firmware' or d['rom']['source_size'] != rom_bytes or
             d['build']['id'] != identity or d['build']['toolchain'] != manifest_toolchain(fields) or
             any(d['build'][key] != fields[key] for key in ('revision', 'repository', 'recipe_sha256')) or
             len(payload) > MAX_CORE or len(payload) % 4 or read(build / 'core.rbf', MAX_CORE) != payload):
@@ -98,11 +102,11 @@ def inspect(build, archive):
                 hps_configuration_sha256=fits[0][1], archive_sha256=sha(raw))
 
 
-def record_for(proof, context, platform, configuration, rom):
+def record_for(proof, context, platform, configuration, rom, *, rom_bytes=ROM_BYTES):
     shared = platform['platform']
     if (any(proof[key] != shared[key] for key in ('hps_parameters_sha256', 'hps_configuration_sha256')) or
             platform['boot_context_sha256'] != sha(encode(context)) or configuration['chunk_bytes'] != CHUNK or
-            rom['package_id'] != proof['package_id'] or rom['source_size'] != ROM_BYTES):
+            rom['package_id'] != proof['package_id'] or rom['source_size'] != rom_bytes):
         raise ValueError('Spectrum companion does not match the native boot resources')
     record = {key: proof[key] for key in ('package_id', 'build_id', 'core_size', 'core_sha256',
                                          'core_sha384', 'chunk_sha384', 'handoff_sha256')}
@@ -163,8 +167,9 @@ def header(record):
 
 
 if __name__ == '__main__':
-    build, archive = (Path(value).resolve(strict=True) for value in sys.argv[1:])
+    c64 = sys.argv[1:2] == ['--c64']
+    build, archive = (Path(value).resolve(strict=True) for value in sys.argv[2 if c64 else 1:])
     root = Path(subprocess.check_output(['git', '-C', str(build), 'rev-parse', '--show-toplevel'],
                                        text=True).strip())
     sys.path.insert(0, str(root / 'sources/misteross'))
-    sys.stdout.buffer.write(encode(inspect(build, archive)))
+    sys.stdout.buffer.write(encode(inspect(build, archive, c64=c64)))

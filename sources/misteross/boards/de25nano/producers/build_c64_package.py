@@ -12,7 +12,7 @@ import sys
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from boards.de25nano.producers.build_machine_package import ABI, Machine
+from boards.de25nano.producers.build_machine_package import ABI, Machine, NATIVE_C64_PROFILE
 from boards.de25nano.producers.build_menu_package import execution_environment, execution_inputs  # noqa: F401
 
 RECIPE = 'boards/de25nano/producers/build_c64_package.py'
@@ -21,7 +21,9 @@ MACHINE = Machine(
     name='Commodore 64', version='1.0.0',
     descriptions={
         'pal': 'Standard DE25 PAL Commodore 64 with uploaded 36 KiB firmware, '
-               'a native 1541 and a D64 in block RAM'},
+               'a native 1541 and a D64 in block RAM',
+        'nativepal': 'Opt-in native PAL Commodore 64 with the DE25 upload and scanout shell'},
+    model_profiles={'nativepal': NATIVE_C64_PROFILE},
     interfaces=(('fes.media.c64-disk', 1, 0),),
     guest_memory='fabric-bram')
 

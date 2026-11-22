@@ -162,10 +162,10 @@ func TestProgramRoleRejectsUnstagedOrCrossedResources(t *testing.T) {
 
 func TestSpectrumPublicationRequiresTrustedProfile(t *testing.T) {
 	source, m := bindingFixture(t)
-	if _, _, err := encodeRoleProgramBinding(source, m, programRoleSpectrum48, make([]byte, 16384)); err == nil {
+	if _, _, err := encodeRoleProgramBinding(source, m, programRoleUploadShell, make([]byte, 16384)); err == nil {
 		t.Fatal("Spectrum ROM was staged in the configuration descriptor")
 	}
-	header, offset, err := encodeRoleProgramBinding(source, m, programRoleSpectrum48, nil)
+	header, offset, err := encodeRoleProgramBinding(source, m, programRoleUploadShell, nil)
 	if err != nil || offset != 0 {
 		t.Fatal("mailbox Spectrum publication requires a zero ROM extension", err)
 	}

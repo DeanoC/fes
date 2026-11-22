@@ -1746,13 +1746,17 @@ observation and retire the source before it can regain any permission.
 
 ### Experimental shared core shell
 
-The opt-in `--shared-core-shell` native SDK option pairs the existing MENU and
-16 KiB upload/scanout shell without linking a per-Spectrum admission record.
-The matched BL31 accepts fresh, owned configuration publications for that fixed
-shell role. It retains the existing source, digest, range, bridge and retirement
-checks. TamaGo checks the retained FAT selection against the fixed shell maps,
-device, ABI and ROM upload contract. The mode assumes a trusted local package
-producer and does not authenticate the SD catalogue.
+The opt-in `--shared-core-shell` native SDK option pairs MENU with the fixed
+upload and scanout shell. BL31 accepts fresh, owned configuration publications
+for that shell role using the existing source, digest, range, bridge and
+retirement checks. TamaGo binds the retained FAT package, FPGA payload and
+firmware receipt to the boot's shell maps. The bounded upload size comes from
+the package manifest. For launch, the compiled driver inventory must support
+the package's profile, ABI and every required interface at its declared
+version. Native Spectrum uses 16 KiB firmware and Spectrum tape. Native C64
+uses 36 KiB firmware and an optional read-only 35-track D64. Both use the same
+BL31 wire role and fixed scanout drain contract. The mode assumes a trusted
+local package producer.
 
 The native Spectrum scanout reader checks each registered Avalon burst against
 the shell's fixed DDR window before presenting it to the interconnect. A

@@ -48,6 +48,8 @@ type ProgramServiceStatus struct {
 	ROMReceiptSHA256 string `json:"rom_receipt_sha256,omitempty"`
 	TapeSHA256       string `json:"tape_sha256,omitempty"`
 	TapeBytes        int    `json:"tape_bytes,omitempty"`
+	DiskSHA256       string `json:"disk_sha256,omitempty"`
+	DiskBytes        int    `json:"disk_bytes,omitempty"`
 	Held             bool
 	Error            string
 }
@@ -284,6 +286,10 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 		sum := sha256.Sum256(program.tape)
 		view.TapeSHA256, view.TapeBytes = hex.EncodeToString(sum[:]), len(program.tape)
 	}
+	if program := plan.state.program; program != nil && len(program.disk) != 0 {
+		sum := sha256.Sum256(program.disk)
+		view.DiskSHA256, view.DiskBytes = hex.EncodeToString(sum[:]), len(program.disk)
+	}
 	p.viewMu.Lock()
 	p.execution, p.view = execution, view
 	p.viewMu.Unlock()
@@ -390,6 +396,7 @@ func (s *ProgramService) finish(ctx context.Context, session ProgramSession, res
 	view.Identity, view.Held = fabricmodel.PackageIdentity{}, true
 	view.ROMReceiptSHA256 = ""
 	view.TapeSHA256, view.TapeBytes = "", 0
+	view.DiskSHA256, view.DiskBytes = "", 0
 	p.rearm = true
 	p.publish(view)
 	return observed, nil

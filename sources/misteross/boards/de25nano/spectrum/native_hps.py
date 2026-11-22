@@ -142,13 +142,13 @@ def jtag_stream_constraints(directory, *, generate=False):
     return receipt
 
 
-def project(archive, output, *, revision=None, selected_id=None, spectrum_spec=spectrum):
+def project(archive, output, *, revision=None, selected_id=None, spectrum_spec=spectrum, model="native48"):
     board = spectrum_spec.board
     if selected_id is not None and (not revision or not re.fullmatch(r"[0-9a-f]{32}", selected_id) or
                                     selected_id == "0" * 32):
         raise ValueError("native Spectrum package projection requires a committed build identity")
     output, scanout, _, hps, _ = board.prepare(spectrum_spec, archive, output, revision,
-                                               model="native48", native_hps=True)
+                                               model=model, native_hps=True)
     directory = output / "combined/hps"
     project = directory / "project"
     script_path = project / "integrate-mailbox.tcl"
@@ -258,7 +258,7 @@ def generate(output, hps, scanout, quartus_root):
     verify_handoff(output, hps, scanout)
 
 
-def spectrum_control_handoff(project, tree, hps, scanout, selected_build, probe):
+def spectrum_control_handoff(project, tree, hps, scanout, selected_build, probe, component=spectrum.COMPONENT):
     """Bind the elaborated lightweight bridge decode to the Spectrum build."""
     expected = {
         "subsys_periph.fes_scanout.computer": (0x10300, 0x20),
@@ -275,7 +275,7 @@ def spectrum_control_handoff(project, tree, hps, scanout, selected_build, probe)
         if (len(routes) != 1 or routes[0].get("start") != "subsys_periph_pb_cpu_0.m0" or
                 int(routes[0].findtext("parameter[@name='baseAddress']/value", "-1"), 0) != offset):
             raise ValueError("native Spectrum generated control bridge route differs: " + slave)
-    expected_modules = {"subsys_periph.fes_scanout": spectrum.COMPONENT,
+    expected_modules = {"subsys_periph.fes_scanout": component,
                         "subsys_periph.fes_scanout_guard": "fes_de25_scanout_guard"}
     modules = [m for m in tree.findall("module") if m.get("path") in expected_modules]
     kinds = {m.get("path"): (m.get("kind"), m.get("version")) for m in modules}
@@ -338,8 +338,14 @@ def verify_handoff(output, hps, scanout):
             any(start.startswith(forbidden) or end.startswith(forbidden) for _, start, end in routes)):
         raise ValueError("native Spectrum generated an unowned maintenance master")
     probe = hps.verify_probe_handoff(project, maintenance=False)
-    computer = spectrum_control_handoff(project, tree, hps, scanout,
-                                        inputs[spectrum.board.RECORD]["build_id"], probe)
+    selected = inputs[spectrum.board.RECORD]
+    component = {
+        ("fes.c64", "nativepal"): "fes_de25_c64_standard",
+        ("fes.spectrum", "native48"): spectrum.COMPONENT,
+    }.get((selected["core"], selected["model"]))
+    if component is None:
+        raise ValueError("unsupported native upload shell endpoint")
+    computer = spectrum_control_handoff(project, tree, hps, scanout, selected["build_id"], probe, component)
     result = {"scope": "native-spectrum48-generated-hps-diagnostic-v1",
               "hps_parameters": expected, "ddr_ingress": sorted(readers),
               "mailbox": hps.verify_mailbox_handoff(project),
