@@ -643,7 +643,7 @@ def write_revisions(project: Path, region: dict, build_id: str) -> None:
                  "RESERVE_ALL_UNUSED_PINS_NO_OUTPUT_GND", "ENABLE_PR_POF_ID"}
     common = "\n".join(line for line in common.splitlines() if not any(
         re.match(r"^set_global_assignment -name " + name + r"(?:\s|$)", line) for name in overrides)) + "\n"
-    common += ('set_global_assignment -name NUM_PARALLEL_PROCESSORS 2\n'
+    common += ('set_global_assignment -name NUM_PARALLEL_PROCESSORS 1\n'
         'set_global_assignment -name SEED 1\n'
         'set_global_assignment -name LAST_QUARTUS_VERSION "26.3.0 Pro Edition"\n'
         'set_global_assignment -name PWRMGT_VOLTAGE_OUTPUT_FORMAT "LINEAR FORMAT"\n'

@@ -169,7 +169,7 @@ def prepare(archive, mode, output=None, revision=None):
     (project / (PROJECT + ".qpf")).write_text(f'QUARTUS_VERSION = "26.3.0"\nPROJECT_REVISION = "{PROJECT}"\n')
     assignments = '\n'.join('set_global_assignment -name ' + name + ' ' + value for name, value in (
         ("FAMILY", '"Agilex 5"'), ("DEVICE", DEVICE), ("TOP_LEVEL_ENTITY", PROJECT),
-        ("PROJECT_OUTPUT_DIRECTORY", "output_files"), ("NUM_PARALLEL_PROCESSORS", "2"), ("SEED", "1"),
+        ("PROJECT_OUTPUT_DIRECTORY", "output_files"), ("NUM_PARALLEL_PROCESSORS", "1"), ("SEED", "1"),
         ("STRATIXV_CONFIGURATION_SCHEME", '"ACTIVE SERIAL X4"'), ("ACTIVE_SERIAL_CLOCK", "AS_FREQ_125MHZ"),
         ("DEVICE_INITIALIZATION_CLOCK", "OSC_CLK_1_125MHZ"), ("RESERVE_ALL_UNUSED_PINS", '"AS INPUT TRI-STATED"'),
         ("IP_FILE", "sys_pll.ip"), ("IP_FILE", "agilex_reset_release.ip"), ("SDC_FILE", "clocks.sdc")))

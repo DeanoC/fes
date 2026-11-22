@@ -63,7 +63,7 @@ else begin mI2C_CLK_DIV <= 0; mI2C_CTRL_CLK <= ~mI2C_CTRL_CLK; end
         output = self.prepare()
         project = output / "project"
         qsf = (project / (B.PROJECT + ".qsf")).read_text()
-        self.assertIn("NUM_PARALLEL_PROCESSORS 2", qsf)
+        self.assertIn("NUM_PARALLEL_PROCESSORS 1", qsf)
         self.assertIn("VERILOG_MACRO QUARTUS=1", qsf)
         self.assertNotIn("machine_pll", qsf)
         self.assertIn("SYSTEMVERILOG_FILE zx81_machine.sv", qsf)

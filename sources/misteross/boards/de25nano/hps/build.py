@@ -319,7 +319,7 @@ def prepare_project(archive, output=None, revision=None):
     with (project / "golden_top.qsf").open("a") as source:
         source.write('\n# FES diagnostic compiler selection; hardware settings remain vendor-owned.\n'
                      f'set_global_assignment -name LAST_QUARTUS_VERSION "{quartus_lock["qsf_version"]}"\n'
-                     'set_global_assignment -name NUM_PARALLEL_PROCESSORS 2\n'
+                     'set_global_assignment -name NUM_PARALLEL_PROCESSORS 1\n'
                      'set_global_assignment -name IP_SEARCH_PATHS "custom_ip/**/*;fes_mailbox"\n'
                      'set_global_assignment -name VERILOG_FILE fes_mailbox/fes_de25_top_reset.v\n'
                      'set_global_assignment -name SDC_FILE fes_mailbox/fes_de25_top.sdc\n')

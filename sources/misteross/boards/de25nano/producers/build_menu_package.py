@@ -252,7 +252,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
         'tools': dict(identities), 'parameters': {'core_id': 'fes.menu', 'device': DEVICE,
             'source_closure_policy': SOURCE_POLICY,
             'hps_initialization': 'HPS FIRST', 'linux_dma': True,
-            'f2sdram_master_profile': 'scanout-only', 'seed': 1, 'threads': 2,
+            'f2sdram_master_profile': 'scanout-only', 'seed': 1, 'threads': 1,
             'signoff_policy': async_inputs.POLICY,
             'hdmi_output_policy': async_inputs.vendor_reference.POLICY,
             'hdmi_video_timing_policy': async_inputs.video_outputs.POLICY,

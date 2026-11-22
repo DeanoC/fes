@@ -98,7 +98,7 @@ endmodule
                 output = self.prepare(mode)
                 project = output / "project"
                 qsf = (project / (B.PROJECT + '.qsf')).read_text()
-                self.assertIn('NUM_PARALLEL_PROCESSORS 2', qsf)
+                self.assertIn('NUM_PARALLEL_PROCESSORS 1', qsf)
                 self.assertIn('set_parameter -name MENU_PATTERN ' + str(int(mode == "menu-pattern")), qsf)
                 self.assertEqual('VERILOG_FILE fes_splash_core.v' in qsf, mode == "idle")
                 self.assertEqual('VERILOG_FILE fes_menu_reader_de25.v' in qsf, mode == "menu-pattern")

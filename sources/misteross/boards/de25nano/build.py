@@ -55,7 +55,7 @@ def prepare_project(output: Path | None = None) -> Path:
         'set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files\n'
         f'set_global_assignment -name LAST_QUARTUS_VERSION "{qsf_version}"\n'
         'set_global_assignment -name SEED 1\n'
-        'set_global_assignment -name NUM_PARALLEL_PROCESSORS 2\n'
+        'set_global_assignment -name NUM_PARALLEL_PROCESSORS 1\n'
         'set_global_assignment -name STRATIXV_CONFIGURATION_SCHEME "ACTIVE SERIAL X4"\n'
         'set_global_assignment -name ACTIVE_SERIAL_CLOCK AS_FREQ_125MHZ\n'
         'set_global_assignment -name DEVICE_INITIALIZATION_CLOCK OSC_CLK_1_125MHZ\n'

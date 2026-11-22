@@ -262,7 +262,7 @@ class RecipeTests(unittest.TestCase):
                 qsf = (output/f"{revision}.qsf").read_text()
                 self.assertIn("PARTIAL_RECONFIGURATION_PARTITION ON -to slot_inst", qsf)
                 self.assertIn("ENABLE_PR_POF_ID ON", qsf)
-                self.assertIn("NUM_PARALLEL_PROCESSORS 2", qsf)
+                self.assertIn("NUM_PARALLEL_PROCESSORS 1", qsf)
                 self.assertIn(f"DEVICE {build.DEVICE}", qsf)
                 self.assertIn('SDC_FILE ghrd_timing.sdc', qsf)
                 self.assertIn('NOT_GATE_PUSH_BACK OFF -to "soc_inst|subsys_periph|fes_pr_control|fes_pr_control|slot_reset"', qsf)
