@@ -1,0 +1,25 @@
+{
+ "build_id": "16a916c1eba005fa38bd3cd80b917035",
+ "revision": "0c16ab4dade5e82045d84f3f57827c5fda9d50e8",
+ "quartus_version": "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition",
+ "seeds": {
+  "1": {
+   "failures": 0,
+   "worst_setup_ns": 0.264,
+   "worst_hold_ns": 0.121,
+   "rbf_sha256": "104bc9b2a3981311fa07bb9e06e8e38a9c1ae73331b6256546c71a530f86940e"
+  },
+  "2": {
+   "failures": 0,
+   "worst_setup_ns": 0.578,
+   "worst_hold_ns": 0.126,
+   "rbf_sha256": "962f3b64799dd8ad68bd59c07b9b42396a3cc5fb8686523aa998f69a515530bf"
+  },
+  "3": {
+   "failures": 0,
+   "worst_setup_ns": 0.889,
+   "worst_hold_ns": 0.117,
+   "rbf_sha256": "582a8c499746a06f68dee6e8c017899bc80dd4eac3f5ccbf320ea2168449a05f"
+  }
+ }
+}

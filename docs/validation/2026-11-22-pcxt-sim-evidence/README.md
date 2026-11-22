@@ -44,17 +44,17 @@ No candidate was dropped. `refuse_compiler_read` accepts the set against this ta
 
 ## Counterexamples on real commits: [`counterexamples.py`](counterexamples.py) → [`counterexamples.json`](counterexamples.json)
 
-Each case is one edit committed in a temporary worktree of the migration commit. The pcxt-dos producer records it as a selection-only record.
+Each case is one edit committed in a temporary worktree of this PR's head (after the DE25 decoupling), measured against main `4f1b39754`. The pcxt-dos producer records it as a selection-only record.
 
 | Case | Policy | `BUILD_ID` | `BUILD_ID` moves | evidence moves |
 | --- | --- | --- | :---: | :---: |
 | main, before this change | design-v1 | `41a7a45217a21c46c34ea84ea3909494` | (one-time move) | |
-| migration commit | design-v2 | `e7cfd8ff5a929039b5a62c528ead7a08` | | |
-| `cpu.vlt` lint waiver | design-v2 | `e7cfd8ff5a929039b5a62c528ead7a08` | no | yes |
-| `chipset.vlt` lint waiver | design-v2 | `e7cfd8ff5a929039b5a62c528ead7a08` | no | yes |
-| testbench C++ edit | design-v2 | `e7cfd8ff5a929039b5a62c528ead7a08` | no | yes |
-| RTL edit (`pcxt_system.sv`) | design-v2 | `f4131662525cefc98dcd8e24ed9e1883` | **yes** | no |
-| `sim_fes_pcxt.py` edit | design-v2 | `75760e3d1de11077141b920400a0c8d3` | **yes** | no |
+| this PR's head | design-v2 | `16a916c1eba005fa38bd3cd80b917035` | | |
+| `cpu.vlt` lint waiver | design-v2 | `16a916c1eba005fa38bd3cd80b917035` | no | yes |
+| `chipset.vlt` lint waiver | design-v2 | `16a916c1eba005fa38bd3cd80b917035` | no | yes |
+| testbench C++ edit | design-v2 | `16a916c1eba005fa38bd3cd80b917035` | no | yes |
+| RTL edit (`pcxt_system.sv`) | design-v2 | `05b87dc5c757853c758e3479beafa9eb` | **yes** | no |
+| `sim_fes_pcxt.py` edit | design-v2 | `15fdd898d4e0f62d9427a3baa216a002` | **yes** | no |
 
 `M/tests/test_input_identity_pcxt_evidence.py` checks the same properties on every CI run, including that design-v1 would still move on a `cpu.vlt` edit.
 
@@ -86,3 +86,29 @@ All registered producers, compared with the merge base:
 | de10-nano:fes.pc386, fes.zx81, fes.zx80, fes.ts1000, fes.ts1500 | toolchain only | `quartus_tools.py`, a toolchain input in their closures, gained `tree_digest`. Their `BUILD_ID` does not move, and toolchain drift is advisory for reuse (AGENTS.md), so they need no reseal. |
 
 No other producer's identity moves.
+
+## fes.pcxt-dos reseal: [`seal-timing.json`](seal-timing.json), [`seal-build-summary.json`](seal-build-summary.json)
+
+The registered producer (`build_fes_pcxt_quartus.py`, Quartus 17.0.2 Lite, Yosys `3a5accbd7`) sealed head `0c16ab4da` on Powerboat. Docs-only commits after that head do not move the `BUILD_ID`.
+
+- **Identity.** `BUILD_ID` is `16a916c1eba005fa38bd3cd80b917035` and the package is `3a92e1fb49fa767a64f34d7848bddf71a49054c5cb05d8ff1c61bd45ed2b4e07`.
+- **Timing.** The producer's timing gate passed on all three seeds, with no failing endpoint in any analysed corner:
+
+  | Seed | Worst setup | Worst hold |
+  | --- | ---: | ---: |
+  | 1 (shipped) | +0.264 ns | +0.121 ns |
+  | 2 | +0.578 ns | +0.126 ns |
+  | 3 | +0.889 ns | +0.117 ns |
+
+- **Repeat.** An independent seed-1 rebuild reproduced the RBF byte for byte (`104bc9b2…940e`).
+
+## Kit B: [`kit-b/`](kit-b/)
+
+The kit run was core-only on Kit B, claimed and released in `kitB-STATUS.md`, against baseline image `179affbb…` and bundle `c9ae79e2…`. It used the exact package above with the locked FreeDOS 1.4 XT 360 KiB floppy (`140a2d0a…`, matching `freedos.lock`).
+
+- **Boot.** The package launched with an empty drive. The floppy was then inserted through `/v1/library/media/insert` on unit 0, and FreeDOS booted to `A:\>`. `scripts/pcxt_dos_hil_acceptance.py` passed on the 8 captures: the prompt was found at row 21, column 0 with score 1.0, and the boot frames changed ([`acceptance.json`](kit-b/acceptance.json)).
+- **DIR.** Typed through the agent input stream as an informational check, it listed the five files on the disk ([`dir.png`](kit-b/dir.png)).
+- **Stop and restore.** The session stopped to idle and the run data was removed. The live check confirmed the restore: same image, bundle and boot identity, no pending update, the agent idle and the lease free, and Home on HDMI.
+- **Verdict.** PASS ([`verdict.json`](kit-b/verdict.json)).
+
+The first claim did not boot, and it is kept as a harness result rather than counted as a pass. The BIOS had already tried the empty drive and was waiting at "Disk Boot Fail … Press the Any Key". The current core README says inserting a disk into a running guest does not restart its boot; the 31 Oct record predates that change. The second claim pressed Space once at that prompt, and FreeDOS then booted. This PR changes no file under `M/cores/fes-pcxt`. The run did not exercise the host's launch path that sends the floppy with the package (`fogcast/core_initial_disk.go`).
