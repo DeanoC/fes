@@ -12,7 +12,9 @@
 namespace mister { namespace native {
 // A cached observation of one fes.fabric.de25-hps-window grant. The kernel
 // owner allocates the window, publishes it to the control block and reports
-// what it published; no CPU or DMA address is ever part of it.
+// what it published; no CPU or DMA address is ever part of it. The window
+// block has no build register: build_id is the identity the owner observed
+// on the programmed bitstream when it allocated, as for the scanout.
 struct De25WindowGrant {
  std::uint64_t generation=0;
  std::uint32_t version=0,span=0,status=0,fault=0;
@@ -23,7 +25,10 @@ struct De25WindowGrant {
 // kernel has allocated, zeroed and published the grant and the block
 // reported it granted. Grant gives a range descriptor for [offset,
 // offset+bytes) of the window, which Map maps shared and Revoke ends for
-// every process before the range belongs to anything else. Release clears
+// every process before the range belongs to anything else. Revoke is also
+// the coherence point: after it returns, DDR holds everything the CPU wrote
+// through the range, and no CPU line of the range is cached, so the next
+// range granted after the fabric's writes reads DDR. Release clears
 // the grant (the block accepts that only while every port is drained) and
 // frees the allocation.
 class De25WindowOperations {

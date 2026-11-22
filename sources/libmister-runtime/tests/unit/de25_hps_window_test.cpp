@@ -268,12 +268,14 @@ void TestFailedRevokeOrReleasePoisons()
  }
 }
 
-void TestRangesAreNotShared()
+void TestRangesAreNotSharedOrCleanedInPart()
 {
  Owner owner;
  mister::native::De25HpsWindow window(owner);
  int copy = -1;
  assert(window.Duplicate(5, &copy).code == mister::ErrorCode::unsupported_interface);
+ assert(window.Clean(5, 0, 4096, 1, 4096).code == mister::ErrorCode::unsupported_interface);
+ assert(owner.calls.empty());
 }
 }
 
@@ -286,7 +288,7 @@ int main()
  TestRangesAreWholePagesInsideTheSpan();
  TestDiskWindowRunsOverTheWindow();
  TestFailedRevokeOrReleasePoisons();
- TestRangesAreNotShared();
+ TestRangesAreNotSharedOrCleanedInPart();
  puts("de25_hps_window_test: 8 passed");
  return 0;
 }

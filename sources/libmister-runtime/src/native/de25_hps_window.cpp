@@ -155,11 +155,11 @@ void De25HpsWindow::Unmap(void* mapping, std::size_t bytes)
  operations_.Unmap(mapping, bytes);
 }
 
-// The owner maps its coherent DMA allocation (dma_mmap_attrs, as for the
-// scanout), so there is nothing to write back. DiskWindow never cleans.
+// Coherence is the owner's Revoke, not a partial clean: a range is written
+// back and invalidated whole when it ends. DiskWindow never cleans.
 Error De25HpsWindow::Clean(int, std::uint64_t, std::uint32_t, std::uint32_t, std::uint32_t)
 {
- return {};
+ return Refused("window ranges are written back by their revoke");
 }
 
 // A range whose revoke failed may still be mapped somewhere, so the window
