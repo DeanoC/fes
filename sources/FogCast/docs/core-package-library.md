@@ -1024,8 +1024,11 @@ then C:. The load carries `X-FogCast-Floppy-Image` as `UNIT:SHA256` (or
 machine with the drive empty; the host sees the empty drive in the result,
 stops the machine and reports that the kit needs updating.
 
-While the machine runs, any disk of the entry's set goes into A: or B:, and
-`eject-floppy` empties a drive. A writable disk keeps its saved image under the
+While the machine runs, any floppy image in the library goes into A: or B:,
+whatever the entry's own media, so a hard-disk title can boot install
+floppies and install to C:; `eject-floppy` empties a drive, and the next
+reboot boots C:. A drive refuses a size it cannot read, naming the drive that
+reads it. A writable disk keeps its saved image under the
 game and its own base image, whichever drive holds it; the runtime saves it
 before a swap or eject and at Stop. A write-protected disk binds no saved
 image.

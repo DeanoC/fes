@@ -61,13 +61,15 @@ func (s *Service) InsertLibraryDisk(parent context.Context, b protocol.LibraryMe
 	if err != nil {
 		return protocol.Status{}, mediaUnchanged(err)
 	}
-	// Any disk of the title's set may go in; each keeps its own saved record.
-	// pc386's A: and B: take floppy-role disks, unit 0 disk-role ones.
-	role := protocol.DiskRole
+	// Unit 0 takes any disk of the title's set; each keeps its own saved
+	// record. pc386's A: and B: take any floppy image in the library, so a
+	// hard-disk entry can boot install floppies; its record is keyed by this
+	// title's game and the floppy's own image, and the drive checks its size.
 	if protocol.PcFloppyUnit(b.Unit) {
-		role = protocol.FloppyRole
-	}
-	if entry.PackageID != b.PackageID || (entry.MediaID != b.BaseMediaID && !slices.Contains(catalog.SetMediaIDs(entry.MoreMedia), b.BaseMediaID)) || entry.MediaRole != role {
+		if entry.PackageID != b.PackageID || entry.CoreID != protocol.Pc386CoreID {
+			return protocol.Status{}, mediaUnchanged(protocol.MediaUnitIdentityError())
+		}
+	} else if entry.PackageID != b.PackageID || (entry.MediaID != b.BaseMediaID && !slices.Contains(catalog.SetMediaIDs(entry.MoreMedia), b.BaseMediaID)) || entry.MediaRole != protocol.DiskRole {
 		return protocol.Status{}, mediaUnchanged(protocol.MediaUnitIdentityError())
 	}
 	store, ok := s.catalog.(coreMediaCatalog)

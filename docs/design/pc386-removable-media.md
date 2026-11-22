@@ -523,8 +523,8 @@ These are owned as `core-media-evolution.md:113-128` says.
 
 - A `floppy` media role, catalog schema 27. A floppy entry holds disk 1 and, as a disk set, disks 2 to N. Its launch stages disk 1 on the kit by digest, as for the hard disk, and the runtime inserts it while the machine is held, in the one drive that reads its size. The hard disk is then empty.
 - The host checks the launch result shows the disk in its drive. An older kit agent ignores the floppy header and starts the machine with the drive empty; the host stops it and asks for a kit update.
-- Live media is `insert_library_media` and `eject_media` on units 1 and 2, with an optional `write_protected`. The host gets a unit-aware eject for A:/B:, and the CLI gets `insert-floppy` and `eject-floppy`. There is no `swap_media`: inserting into a full drive saves and ejects the old disk first.
-- Not built in F3: the tenfoot drive row (deferred to the core-screens slice 6 tenfoot work), a per-image floppy reset-disk, and an entry that binds both a hard disk and floppies.
+- Live media is `insert_library_media` and `eject_media` on units 1 and 2, with an optional `write_protected`. Either drive takes any floppy image in the library, not only the entry's set (Deano, 22 November 2026), so a hard-disk title boots install floppies and installs to C:. The record is keyed by the title's game and the floppy's own image. The host gets a unit-aware eject for A:/B:, and the CLI gets `insert-floppy` and `eject-floppy`. There is no `swap_media`: inserting into a full drive saves and ejects the old disk first.
+- Not built in F3: the tenfoot drive row (deferred to the core-screens slice 6 tenfoot work) and a per-image floppy reset-disk.
 - `scripts/consistency.py` checks FogCast's format table against the runtime's.
 
 ### Machine configuration

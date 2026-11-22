@@ -18,10 +18,11 @@ import (
 // drops them.
 type floppyMachineClient struct {
 	*defaultMediaPackageClient
-	staged  map[string][]byte
-	binding protocol.LibraryMachineBinding
-	older   bool
-	loads   int
+	staged   map[string][]byte
+	binding  protocol.LibraryMachineBinding
+	older    bool
+	loads    int
+	inserted []protocol.LibraryMediaBinding
 }
 
 func (c *floppyMachineClient) DiskImage(_ context.Context, sha string) (protocol.DiskImageStatus, error) {
@@ -118,4 +119,90 @@ func TestPc386FloppyEntryLaunch(t *testing.T) {
 			t.Fatalf("older kit: err=%v stops=%d", err, client.stopCalls)
 		}
 	}
+}
+
+func (c *floppyMachineClient) InsertLibraryMedia(_ context.Context, size int64, body io.Reader, b protocol.LibraryMediaBinding) (protocol.Status, error) {
+	data, _ := io.ReadAll(body)
+	if int64(len(data)) != size {
+		return protocol.Status{}, errors.New("short body")
+	}
+	c.inserted = append(c.inserted, b)
+	status := c.statusResult
+	units := append([]protocol.MediaUnitStatus(nil), status.CorePackage.MediaUnits...)
+	u := &units[b.Unit]
+	u.State = protocol.MediaUnitReady
+	u.Persistence = nil
+	if !b.WriteProtected {
+		u.Persistence = &protocol.MediaDataStatus{Mode: "persistent", GameID: b.GameID, BaseMediaID: b.BaseMediaID, Revision: "absent"}
+	}
+	pkg := *status.CorePackage
+	pkg.MediaUnits = units
+	status.CorePackage = &pkg
+	c.statusResult = status
+	return status, nil
+}
+
+func (c *floppyMachineClient) SaveMedia(context.Context, protocol.MediaUnitBinding) (protocol.Status, error) {
+	return c.statusResult, nil
+}
+
+// A hard-disk title takes any floppy in the library into A: or B:, so it can
+// boot install disks; a disk the drive cannot read never reaches the kit.
+func TestPc386DriveTakesAnyLibraryFloppy(t *testing.T) {
+	ctx := context.Background()
+	s, base, entry, _ := newCoreEntryLaunchFixture(t, pc386FloppyPackage(t), "DOS install", time.Minute)
+	client := &floppyMachineClient{defaultMediaPackageClient: base, staged: map[string][]byte{}}
+	s.targetClients[s.selectedTarget] = client
+	response, err := s.Launch(ctx, entry.GameID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	setup := bytes.Repeat([]byte{0x31}, 1474560)
+	media, _, err := s.ImportCoreMedia(ctx, int64(len(setup)), bytes.NewReader(setup))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b5, _, err := s.ImportCoreMedia(ctx, 1228800, bytes.NewReader(bytes.Repeat([]byte{0x32}, 1228800)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dev := s.libraryDevelopmentMediaBinding(*response.Status.CorePackage)
+	binding := func(unit uint8, id string) protocol.LibraryMediaBinding {
+		return protocol.LibraryMediaBinding{MediaUnitBinding: protocol.MediaUnitBinding{PackageID: dev.PackageID, Generation: dev.Generation,
+			Unit: unit, Target: dev.Target, TargetID: dev.TargetID}, GameID: entry.GameID, BaseMediaID: id}
+	}
+	// A: cannot read the 1.2M disk: refused before the kit, naming B:.
+	if _, err := s.InsertLibraryDisk(ctx, binding(protocol.PcFloppyUnitA, b5.MediaID)); err == nil || !strings.Contains(err.Error(), "put it in B:") || len(client.inserted) != 0 {
+		t.Fatalf("1.2M into A: err=%v inserted=%d", err, len(client.inserted))
+	}
+	if _, err := s.InsertLibraryDisk(ctx, binding(protocol.PcFloppyUnitA, media.MediaID)); err != nil || len(client.inserted) != 1 ||
+		client.inserted[0].Unit != protocol.PcFloppyUnitA || client.inserted[0].BaseMediaID != media.MediaID || client.inserted[0].GameID != entry.GameID {
+		t.Fatalf("setup disk into A: err=%v inserted=%+v", err, client.inserted)
+	}
+	// Ejecting A: empties it, so the next reboot boots C:.
+	after, err := s.EjectPcFloppy(ctx, binding(protocol.PcFloppyUnitA, media.MediaID).MediaUnitBinding)
+	if u, ok := protocol.MediaUnit(after.CorePackage, protocol.PcFloppyUnitA); err != nil || !ok || u.State != protocol.MediaUnitEmpty {
+		t.Fatalf("eject A: err=%v unit=%+v", err, u)
+	}
+	// Another title's binding does not apply to this machine.
+	other := binding(protocol.PcFloppyUnitB, b5.MediaID)
+	other.GameID = "someone-else"
+	if _, err := s.InsertLibraryDisk(ctx, other); err == nil || len(client.inserted) != 1 {
+		t.Fatalf("other title err=%v", err)
+	}
+}
+
+func (c *floppyMachineClient) InsertMedia(context.Context, int64, io.Reader, protocol.MediaUnitBinding) (protocol.Status, error) {
+	return protocol.Status{}, errors.New("a pc386 drive takes library disks only")
+}
+
+func (c *floppyMachineClient) EjectMedia(_ context.Context, b protocol.MediaUnitBinding) (protocol.Status, error) {
+	status := c.statusResult
+	units := append([]protocol.MediaUnitStatus(nil), status.CorePackage.MediaUnits...)
+	units[b.Unit].State, units[b.Unit].Persistence = protocol.MediaUnitEmpty, nil
+	pkg := *status.CorePackage
+	pkg.MediaUnits = units
+	status.CorePackage = &pkg
+	c.statusResult = status
+	return status, nil
 }
