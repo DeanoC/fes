@@ -159,9 +159,11 @@ func homeSettled(r *Instance) bool {
 	if (d.Kind != KindFamily && d.Kind != KindGame) || d.Availability == AvailChecking || d.Availability == "" {
 		return false
 	}
-	want := 4
-	if r.opts.Width < 480 || r.opts.Height < 360 {
-		want = 1
+	// Home's family row: as many 140-wide tiles as the shelf holds, six at
+	// most. Every Home here has at least the six default families.
+	want := 1
+	if layout, ok := HeroPanel(r.opts.Width, r.opts.Height); ok {
+		want = max(1, min(6, (layout.Shelf.W+12)/(140+12)))
 	}
 	families := 0
 	for _, h := range r.frame.Hits {
@@ -249,10 +251,11 @@ func TestHomeShowsReleaseAndPCFamiliesWithLibraryState(t *testing.T) {
 		d.Status != "Add your Commodore 64 ROM files to play" || d.Confirm() != ConfirmEnterRoom || d.CoreID != "fes.c64" || d.GameID != "" {
 		t.Fatalf("C64 %+v confirm %v", d, d.Confirm())
 	}
-	for _, pc := range []struct{ id, label string }{{"fes.pcxt-dos", "PC/XT"}, {"fes.pc386", "PC 386"}} {
+	// The PC/XT has its core screen (slice 5); the 386 PC keeps the workbench.
+	for _, pc := range []struct{ id, label, room string }{{"fes.pcxt-dos", "PC/XT", "example.core"}, {"fes.pc386", "PC 386", "example.system"}} {
 		r.Input("right")
 		f = stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), pc.label+"\n") })
-		if d := r.Destination(); d.Label != pc.label || d.CoreID != pc.id || d.RoomID != "example.system" || d.Availability != AvailUnavailable || d.Status != "Not installed on this kit" {
+		if d := r.Destination(); d.Label != pc.label || d.CoreID != pc.id || d.RoomID != pc.room || d.Availability != AvailUnavailable || d.Status != "Not installed on this kit" {
 			t.Fatalf("PC family %+v", d)
 		}
 	}
@@ -343,7 +346,8 @@ func TestHomeRecentsAndCompactResize(t *testing.T) {
 	}
 	r.Step(time.Now())
 	r.Resize(1280, 720)
-	f = r.Step(time.Now())
+	// A resized hero picture is built across draws, like the first one.
+	f = stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
 	if !strings.Contains(frameText(f), "Recently played\n") {
 		t.Fatalf("hero resize lost recents: %s", frameText(f))
 	}

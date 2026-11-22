@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -46,7 +48,7 @@ func setupPrefs(t *testing.T, dir string) tenfootPrefs {
 	return prefs
 }
 
-func TestFirstRunGoesWelcomeReadyThenHome(t *testing.T) {
+func TestFirstRunGoesWelcomeControllersReadyThenHome(t *testing.T) {
 	dir := t.TempDir()
 	app := startFirstRun(t, dir, 1280, 720)
 	snap := waitRoom(t, app, "example.welcome")
@@ -56,22 +58,35 @@ func TestFirstRunGoesWelcomeReadyThenHome(t *testing.T) {
 	if _, ok := roomDestGeom(snap); ok {
 		t.Fatal("a setup room drew the FES destination strip")
 	}
-	if !roomTextHas(snap, "Welcome to FES") || !roomTextHas(snap, "Step 1 of 2") {
+	if !roomTextHas(snap, "Welcome to FES") || !roomTextHas(snap, "Step 1 of 3") {
 		t.Fatal("Welcome copy or step tracker missing")
 	}
 	// Welcome is the first step: Back stays.
 	app.HandleCommand(CmdBack, time.Now())
 	waitRoom(t, app, "example.welcome")
 	app.HandleCommand(CmdSelect, time.Now())
+	// With no pad attached, Controllers waits and Confirm continues with
+	// the keyboard.
+	snap = waitFor(t, app, "Controllers", func(s Snapshot) bool {
+		return s.Room.ID == "example.setup-controllers" && roomTextHas(s, "Pick up a controller")
+	})
+	if !roomTextHas(snap, "Step 2 of 3") {
+		t.Fatal("Controllers has no step tracker")
+	}
+	app.HandleCommand(CmdSelect, time.Now())
 	snap = waitRoom(t, app, "example.setup-ready")
-	if !roomTextHas(snap, "Step 2 of 2") {
+	if !roomTextHas(snap, "Step 3 of 3") {
 		t.Fatal("Ready has no step tracker")
 	}
 	waitFor(t, app, "Ready rows", func(s Snapshot) bool {
 		return roomTextHas(s, "You're ready to play") && roomTextHas(s, "Sinclair ZX81")
 	})
 	app.HandleCommand(CmdBack, time.Now())
+	waitRoom(t, app, "example.setup-controllers")
+	app.HandleCommand(CmdBack, time.Now())
 	waitRoom(t, app, "example.welcome")
+	app.HandleCommand(CmdSelect, time.Now())
+	waitRoom(t, app, "example.setup-controllers")
 	app.HandleCommand(CmdSelect, time.Now())
 	waitRoom(t, app, "example.setup-ready")
 	app.HandleCommand(CmdSelect, time.Now())
@@ -94,8 +109,10 @@ func TestFirstRunSkipShowsTheBannerAndFinishSetupResumes(t *testing.T) {
 		t.Fatalf("Skip setup focus %+v", d)
 	}
 	app.HandleCommand(CmdSelect, time.Now())
-	snap = waitFor(t, app, "Home with the banner", func(s Snapshot) bool { return homeFamilySettled(s) && roomTextHas(s, "Setup isn't finished") })
-	if p := setupPrefs(t, dir); !p.SetupDone || !slices.Equal(p.SetupSkipped, []string{"ready"}) {
+	snap = waitFor(t, app, "Home with the banner", func(s Snapshot) bool {
+		return homeFamilySettled(s) && roomTextHas(s, "Setup isn't finished") && roomHit(s, "family:6").ID != ""
+	})
+	if p := setupPrefs(t, dir); !p.SetupDone || !slices.Equal(p.SetupSkipped, []string{"controllers", "ready"}) {
 		t.Fatalf("Skip wrote %+v", p)
 	}
 	// Up from the tiles reaches the banner; its Finish setup resumes at the
@@ -105,6 +122,8 @@ func TestFirstRunSkipShowsTheBannerAndFinishSetupResumes(t *testing.T) {
 	if d := snap.Room.Destination; d.LauncherAction != "setup_resume" || heroDestinationCopy(snap).Primary != "Finish setup" {
 		t.Fatalf("banner %+v", d)
 	}
+	app.HandleCommand(CmdSelect, time.Now())
+	waitRoom(t, app, "example.setup-controllers")
 	app.HandleCommand(CmdSelect, time.Now())
 	waitRoom(t, app, "example.setup-ready")
 	app.HandleCommand(CmdSelect, time.Now())
@@ -339,6 +358,8 @@ func TestSkippingLaterStepRecordsCurrentStep(t *testing.T) {
 	app := startFirstRun(t, dir, 1280, 720)
 	waitRoom(t, app, "example.welcome")
 	app.HandleCommand(CmdSelect, time.Now())
+	waitRoom(t, app, "example.setup-controllers")
+	app.HandleCommand(CmdSelect, time.Now())
 	waitRoom(t, app, "example.setup-ready")
 	app.mu.Lock()
 	app.runSetupActionLocked("setup_skip")
@@ -428,6 +449,11 @@ func TestFirstRunMaximumSafeAreaRender(t *testing.T) {
 	app.mu.Unlock()
 	app.HandleCommand(CmdLeft, time.Now())
 	app.HandleCommand(CmdSelect, time.Now())
+	snap = waitFor(t, app, "768x432 Controllers", func(s Snapshot) bool {
+		return s.Room.ID == "example.setup-controllers" && s.Room.Width == 768 && roomTextHas(s, "Pick up a controller")
+	})
+	assertSetupTextClearOfButtons(t, snap)
+	app.HandleCommand(CmdSelect, time.Now())
 	snap = waitFor(t, app, "768x432 Ready", func(s Snapshot) bool {
 		return s.Room.ID == "example.setup-ready" && s.Room.Width == 768 && s.Room.Height == 432 && roomTextHas(s, "Atari ST") && !roomTextHas(s, "Checking…")
 	})
@@ -479,6 +505,11 @@ func TestFirstRunIntermediateSafeAreaRender(t *testing.T) {
 			writeHomeScreenshot(t, snap, "welcome-skip-"+tc.name)
 			app.HandleCommand(CmdLeft, time.Now())
 			app.HandleCommand(CmdSelect, time.Now())
+			snap = waitFor(t, app, "Controllers", func(s Snapshot) bool {
+				return s.Room.ID == "example.setup-controllers" && s.Room.Height == tc.h && roomTextHas(s, "Pick up a controller")
+			})
+			assertSetupTextClearOfButtons(t, snap)
+			app.HandleCommand(CmdSelect, time.Now())
 			snap = waitFor(t, app, "Ready", func(s Snapshot) bool {
 				return s.Room.ID == "example.setup-ready" && s.Room.Height == tc.h && roomTextHas(s, "Atari ST") && !roomTextHas(s, "Checking…")
 			})
@@ -489,7 +520,7 @@ func TestFirstRunIntermediateSafeAreaRender(t *testing.T) {
 
 func assertSetupTextClearOfButtons(t *testing.T, snap Snapshot) {
 	t.Helper()
-	if len(snap.Room.Frame.Hits) < 2 {
+	if len(snap.Room.Frame.Hits) == 0 {
 		t.Fatal("setup buttons have no hit regions")
 	}
 	for _, op := range snap.Room.Frame.Ops {
@@ -497,7 +528,7 @@ func assertSetupTextClearOfButtons(t *testing.T, snap Snapshot) {
 			continue
 		}
 		switch op.Text {
-		case "A  Continue", "Skip setup", "A  Finish", "B  Back":
+		case "A  Continue", "Skip setup", "A  Finish", "B  Back", "Enter  Continue with keyboard":
 			continue
 		}
 		width := gfx.MeasureText(op.Text, op.Size)
@@ -526,14 +557,31 @@ func TestFirstRunNativeRender(t *testing.T) {
 			writeHomeScreenshot(t, waitFor(t, app, "Skip copy", func(s Snapshot) bool { return roomTextHas(s, "Skip goes straight to Home.") }), "welcome-skip")
 			app.HandleCommand(CmdLeft, time.Now())
 			app.HandleCommand(CmdSelect, time.Now())
+			writeHomeScreenshot(t, waitFor(t, app, "Controllers waiting", func(s Snapshot) bool {
+				return s.Room.ID == "example.setup-controllers" && roomTextHas(s, "Pick up a controller")
+			}), "controllers-waiting")
+			app.SetPadInfo(7, PadInfo{Name: "Xbox 360 Controller", GUID: "030000005e0400008e02000014010000", Vendor: 0x045e, Product: 0x028e,
+				Family: gfx.PromptXbox, Recognised: true, Player: 1})
+			app.NotePadButton(7, remoteinput.ButtonA, true)
+			writeHomeScreenshot(t, waitFor(t, app, "Controllers found", func(s Snapshot) bool { return roomTextHas(s, "Player 1 is ready") }), "controllers-found")
+			app.NotePadButton(7, remoteinput.ButtonA, false)
+			app.mu.Lock()
+			app.dropPadInfoLocked(7)
+			app.mu.Unlock()
+			waitFor(t, app, "Controllers waiting again", func(s Snapshot) bool { return roomTextHas(s, "Pick up a controller") })
+			app.HandleCommand(CmdSelect, time.Now())
 			waitRoom(t, app, "example.setup-ready")
 			snap := waitFor(t, app, "Ready rows", func(s Snapshot) bool { return roomTextHas(s, "Atari ST") && !roomTextHas(s, "Checking…") })
 			writeHomeScreenshot(t, snap, "ready")
 			app.HandleCommand(CmdBack, time.Now())
+			waitRoom(t, app, "example.setup-controllers")
+			app.HandleCommand(CmdBack, time.Now())
 			waitRoom(t, app, "example.welcome")
 			app.HandleCommand(CmdRight, time.Now())
 			app.HandleCommand(CmdSelect, time.Now())
-			snap = waitFor(t, app, "Home with the banner", func(s Snapshot) bool { return homeFamilySettled(s) && roomTextHas(s, "Setup isn't finished") })
+			snap = waitFor(t, app, "Home with the banner", func(s Snapshot) bool {
+				return homeFamilySettled(s) && roomTextHas(s, "Setup isn't finished") && roomHit(s, "family:6").ID != ""
+			})
 			writeHomeScreenshot(t, snap, "setup-skipped")
 		})
 	}
@@ -543,6 +591,8 @@ func TestFirstRunHomeCommandStaysInSetup(t *testing.T) {
 	dir := t.TempDir()
 	app := startFirstRun(t, dir, 1280, 720)
 	waitRoom(t, app, "example.welcome")
+	app.HandleCommand(CmdSelect, time.Now())
+	waitRoom(t, app, "example.setup-controllers")
 	app.HandleCommand(CmdSelect, time.Now())
 	waitRoom(t, app, "example.setup-ready")
 	// The Home command (GUIDE, h, long-press B) keeps setup open on its
@@ -582,5 +632,79 @@ func TestLibraryStatusOutsideSetupRemainsImmediate(t *testing.T) {
 	app.setLibraryStatusLocked("library updated")
 	if app.status != "library updated" || app.setup.deferredNotice != "" {
 		t.Fatalf("status = %q, deferred = %q", app.status, app.setup.deferredNotice)
+	}
+}
+
+// The Controllers step shows the attached pad, Swap A / B changes Player
+// 1's saved profile, and Controller settings opens over the step and Back
+// returns to it.
+func TestFirstRunControllersStepActions(t *testing.T) {
+	dir := t.TempDir()
+	app := startFirstRun(t, dir, 1280, 720)
+	waitRoom(t, app, "example.welcome")
+	app.SetPadInfo(7, PadInfo{Name: "Xbox 360 Controller", GUID: testPadGUID, Vendor: 0x045e, Product: 0x028e,
+		Family: gfx.PromptXbox, Recognised: true, Player: 1})
+	app.AttachInput(InputGamepad, 7)
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "Controllers found", func(s Snapshot) bool {
+		return s.Room.ID == "example.setup-controllers" && roomTextHas(s, "Player 1 is ready") && roomTextHas(s, "buttons as printed")
+	})
+	app.NotePadButton(7, remoteinput.ButtonY, true)
+	waitFor(t, app, "Y pressed", func(s Snapshot) bool {
+		return roomTextHas(s, string(gfx.PromptRune(gfx.PromptXbox, gfx.PromptNorth))+" pressed")
+	})
+	app.NotePadButton(7, remoteinput.ButtonY, false)
+
+	app.HandleCommand(CmdRight, time.Now())
+	if d := app.Snapshot().Room.Destination; d.LauncherAction != "setup_swap_ab" {
+		t.Fatalf("right %+v", d)
+	}
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "swapped", func(s Snapshot) bool { return roomTextHas(s, "A and B swapped") && roomTextHas(s, "Swap A / B: on") })
+	if p := setupPrefs(t, dir); p.Controllers[testPadGUID].Preset != inputmap.PresetSwapAB {
+		t.Fatalf("Swap A / B saved %+v", p.Controllers)
+	}
+
+	app.HandleCommand(CmdRight, time.Now())
+	if d := app.Snapshot().Room.Destination; d.LauncherAction != "controllers" {
+		t.Fatalf("right twice %+v", d)
+	}
+	app.HandleCommand(CmdSelect, time.Now())
+	if snap := app.Snapshot(); !snap.Controllers.Open || !snap.Controllers.SwapAB {
+		t.Fatalf("Controller settings did not open on the swapped pad: %+v", snap.Controllers)
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	snap := app.Snapshot()
+	if snap.Controllers.Open || snap.Settings.Open || snap.Room.ID != "example.setup-controllers" {
+		t.Fatalf("Back from Controller settings left controllers=%v settings=%v room=%q", snap.Controllers.Open, snap.Settings.Open, snap.Room.ID)
+	}
+}
+
+func TestFirstRunControllerPromptsFollowSavedManualBindings(t *testing.T) {
+	dir := t.TempDir()
+	if err := saveTenfootPrefs(filepath.Join(dir, "tenfoot.json"), tenfootPrefs{
+		SafeAreaPct: DefaultSafeAreaPct,
+		Controllers: map[string]inputmap.Profile{testPadGUID: {Bindings: map[string]string{
+			"a": "x", "x": "a", "b": "y", "y": "b",
+		}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	app := startFirstRun(t, dir, 1280, 720)
+	waitRoom(t, app, "example.welcome")
+	app.HandleCommand(CmdSelect, time.Now())
+	waitRoom(t, app, "example.setup-controllers")
+	app.SetPadInfo(7, PadInfo{Name: "Xbox 360 Controller", GUID: testPadGUID, Vendor: 0x045e, Product: 0x028e,
+		Family: gfx.PromptXbox, Recognised: true, Player: 1})
+	app.AttachInput(InputGamepad, 7)
+
+	wantFooter := string(gfx.PromptRune(gfx.PromptXbox, gfx.PromptWest)) + " choose  ·  " +
+		string(gfx.PromptRune(gfx.PromptXbox, gfx.PromptNorth)) + " back"
+	snap := waitFor(t, app, "saved controller mapping", func(s Snapshot) bool {
+		return s.Room.ID == "example.setup-controllers" && roomTextHas(s, wantFooter) && roomTextHas(s, "custom button mapping")
+	})
+	if !roomTextHas(snap, "Wired  ·  Xbox layout  ·  custom button mapping") {
+		t.Fatal("controller description still claims the printed layout")
 	}
 }

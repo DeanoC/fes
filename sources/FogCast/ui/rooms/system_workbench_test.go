@@ -145,6 +145,9 @@ func TestSystemWorkbenchNamesSavedMediaByRole(t *testing.T) {
 			if !frameHas(frame, want) {
 				t.Fatalf("saved %s media lacks its own label %q:\n%s", tc.role, want, frameText(frame))
 			}
+			if tc.core == "fes.pc386" && (!frameHas(frame, "Choose a machine setup and hard disk image") || frameHas(frame, "In development")) {
+				t.Fatalf("PC 386 setup has stale guidance:\n%s", frameText(frame))
+			}
 		})
 	}
 }

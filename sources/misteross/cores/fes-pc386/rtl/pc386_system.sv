@@ -51,8 +51,11 @@ module pc386_system #(
     parameter integer OPL2_N = 7, OPL2_D = 14080,
     parameter integer AUDIO_N = 3, AUDIO_D = 6250,
     parameter integer GOV_N = 1, GOV_D = 1000,  // 100 kHz, the governor's frequency unit
-    parameter integer ATA_RESET_CLOCKS = 1000,
-    parameter ROM_HEX = "build/firmware/pc386/pc386-rom.hex"
+    parameter integer ATA_RESET_CLOCKS = 1000, X87_PRESENT = 0,  // the board's 387: see the CPU
+    parameter ROM_HEX = "build/firmware/pc386/pc386-rom.hex",
+    // The CPU identity (fes_i386_cpu I486, #1962): 0 the 386DX every package
+    // builds; 1 a 486SX (CPUID, no VME). A build parameter, no record word.
+    parameter bit I486 = 1'b0
 ) (
     input wire clk, pixel_clk, pixel_locked,
     // The HPS's GP mailbox
@@ -463,14 +466,13 @@ module pc386_system #(
     wire [31:0] cpu_eip;
     /* verilator lint_off PINCONNECTEMPTY */
     // The i386dx+387 identity, and the AT board's coprocessor controls the
-    // machine decodes for the CPU's x87 unit. The identity is off in the
-    // package until slice 5 of the x87 phase (#1768), where the plan's
-    // slices put the transcendentals every computing title also runs; its
-    // record word and FogCast setting come with it.
-    wire x87_present = 1'b0;
+    // machine decodes for the CPU's x87 unit. Each board sets X87_PRESENT;
+    // it is 0 on every board until x87 slice 7 (#1768) turns the identity on, with its
+    // record word and FogCast setting.
+    wire x87_present = X87_PRESENT != 0;
     wire x87_f0, x87_f1, x87_irq13;
 
-    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D)) cpu (
+    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (
         .clk(clk), .cold_reset(cpu_cold), .reset(cpu_reset),
         .x87_present(x87_present), .x87_f0(x87_f0), .x87_f1(x87_f1), .x87_irq13(x87_irq13), .trace_x87_busy(), .trace_x87_latched(), .trace_x87_seq(),
         .arch_x87_cw(), .arch_x87_sw(), .arch_x87_tw(), .arch_x87_opcode(), .arch_x87_regs(),
@@ -486,9 +488,13 @@ module pc386_system #(
         // FFFFh. The GPRs' zero is sized: an unsized '0 on a
         // parameterised cell's port asserts in the lock's Yosys under
         // hierarchy -chparam (DeanoC/yosys#71).
-        .init_gpr(256'd0), .init_eflags(32'h2), .init_cr0(x87_present ? 32'h10 : 32'h0),
+        // The i486 identity's reset: DX the 486SX's signature (data book Table
+        // 9-9; fes_i386_pkg I486_SIGNATURE, which CPUID reports too), CR0
+        // 60000010h (Table 9-8), DR6 bit 12 clear (PRM Table 10-1).
+        .init_gpr(I486 ? {160'd0, fes_i386_pkg::I486_SIGNATURE, 64'd0} : 256'd0), .init_eflags(32'h2),
+        .init_cr0(I486 ? 32'h6000_0010 : x87_present ? 32'h10 : 32'h0),
         .init_cr2(32'h0), .init_cr3(32'h0),
-        .init_dr(128'd0), .init_dr6(32'hffff1ff0), .init_dr7(32'h400),
+        .init_dr(128'd0), .init_dr6(I486 ? 32'hffff0ff0 : 32'hffff1ff0), .init_dr7(32'h400),
         .init_gdtr_base(32'h0), .init_gdtr_limit(16'hffff), .init_idtr_base(32'h0), .init_idtr_limit(16'hffff),
         .init_eip(32'hfff0),
         .init_sel({16'h0, 16'h0, 16'h0, 16'h0, 16'hf000, 16'h0}),

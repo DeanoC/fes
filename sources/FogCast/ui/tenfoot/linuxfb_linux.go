@@ -23,6 +23,7 @@ import (
 	"github.com/DeanoC/FogCast/ui/controller"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/inputmap"
+	"github.com/DeanoC/FogCast/ui/menudisplay"
 	"golang.org/x/sys/unix"
 )
 
@@ -56,6 +57,17 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, labe
 	}
 	if display, ok := dev.(*gfx.MenuDisplay); ok {
 		app.SetMenuDisplay(display)
+		if !opts.Smoke {
+			stopDisplayIPC, err := app.startKitDisplayIPC(ctx)
+			if err != nil {
+				return fmt.Errorf("launcher display control: %w", err)
+			}
+			defer stopDisplayIPC()
+			err = app.reconcileDisplayStartupRetry(ctx, menudisplay.New(opts.MenuSocket))
+			if err != nil {
+				return fmt.Errorf("launcher display startup: %w", err)
+			}
+		}
 		app.logKitMenuReadiness()
 	}
 	inputSpec := opts.Input
@@ -96,6 +108,8 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 	frames := 0
 	defer app.reportSessionReady(false, 0)
 	var hold presentHold
+	defer app.abortStartupFrame()
+	startupDeadline := time.Now().Add(5 * time.Second)
 	trace, stopTrace := startFrameTrace(ctx, app, dev, label)
 	defer stopTrace()
 	for {
@@ -106,11 +120,27 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 			}
 			return nil
 		case scheduled := <-ticker.C:
+			app.mu.Lock()
+			ipcFailure := app.displayIPCFailure
+			app.mu.Unlock()
+			select {
+			case err := <-ipcFailure:
+				return fmt.Errorf("launcher display control stopped: %w", err)
+			default:
+			}
 			// The ticker delivers its scheduled time, which is already in
 			// the past when this iteration starts late. Trace from the
 			// moment work begins; App timing still uses the schedule.
 			started := time.Now()
-			quit, err := poll(app, scheduled)
+			fenced, startupErr := app.checkStartupFrame(dev, time.Now().After(startupDeadline))
+			if startupErr != nil {
+				return startupErr
+			}
+			var quit bool
+			var err error
+			if !fenced {
+				quit, err = poll(app, scheduled)
+			}
 			if err != nil {
 				return err
 			}
@@ -140,8 +170,15 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 			app.reportSessionReady(menuDevice && skip && pauseErr == nil && hold.paused, snap.sessionObservation)
 			if !skip {
 				before := menuQueuedSeq(dev)
+				if display, ok := dev.(*gfx.MenuDisplay); ok && snap.displayFrameRequest != 0 {
+					display.ForceNextFrame()
+				}
 				parked = presentFrame(painter, snap, textures, labels, parked)
-				trace.tick(started, polled, ticked, snapped, time.Now(), before, menuQueuedSeq(dev), snap)
+				after := menuQueuedSeq(dev)
+				if snap.displayFrameRequest != 0 && after > before {
+					app.submittedDisplayFrame(snap.displayFrameRequest, after)
+				}
+				trace.tick(started, polled, ticked, snapped, time.Now(), before, after, snap)
 			}
 			frames++
 			if opts.Smoke {
@@ -301,7 +338,7 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 			if in.mapper != nil {
 				in.device = device
 				in.info = PadInfo{Name: strings.TrimSpace(device.Name), GUID: device.GUID(), Vendor: vendor, Product: product,
-					Family: promptFamily(device.Family()), Recognised: device.Recognised()}
+					Family: promptFamily(device.Family()), Recognised: device.Recognised(), Bluetooth: device.Bluetooth()}
 				in.profileGen = app.PadProfileGeneration()
 			}
 		} else if ins.padID != nil {

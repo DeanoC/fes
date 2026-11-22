@@ -164,7 +164,7 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 			app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, size.w, size.h)
 			snap := waitFor(t, app, "first family", func(s Snapshot) bool {
 				return homeFamilySettled(s) && s.Room.Destination.Label == "Sinclair ZX81" &&
-					roomHit(s, "family:4").ID != ""
+					roomHit(s, "family:6").ID != ""
 			})
 			wantDetails := size.name != "1024x600"
 			for _, reason := range []string{"No games yet", "Add your ROM files", "Not on this kit"} {
@@ -197,7 +197,7 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 			app := startHomeLoungeOn(t, host, t.TempDir(), &fakeLocalCores{cores: homeFixtureCores()}, size.w, size.h, false)
 			snap := waitFor(t, app, "recent", func(s Snapshot) bool {
 				return homeFamilySettled(s) && s.Room.Destination.GameID == "lunar" &&
-					roomHit(s, "recent:3").ID != "" && roomHit(s, "family:4").ID != ""
+					roomHit(s, "recent:3").ID != "" && roomHit(s, "family:6").ID != ""
 			})
 			if c := heroDestinationCopy(snap); c.Kicker != "Recently played" && size.h >= 720 {
 				t.Fatalf("recent hero %+v", c)
@@ -209,7 +209,9 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 			waitFor(t, app, "first family", homeFamilySettled)
 			app.HandleCommand(CmdRight, time.Now())
 			app.HandleCommand(CmdRight, time.Now())
-			snap := waitFor(t, app, "Atari ST", func(s Snapshot) bool { return s.Room.Destination.Label == "Atari ST" })
+			snap := waitFor(t, app, "Atari ST", func(s Snapshot) bool {
+				return s.Room.Destination.Label == "Atari ST" && roomHit(s, "family:6").ID != ""
+			})
 			if c := heroDestinationCopy(snap); c.Primary != "Add firmware" || c.State != heroStateUnavailable {
 				t.Fatalf("firmware hero %+v", c)
 			}
@@ -221,7 +223,9 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 			app := startHomeLoungeOn(t, host, t.TempDir(), &fakeLocalCores{cores: homeFixtureCores()}, size.w, size.h, false)
 			waitFor(t, app, "first family", homeFamilySettled)
 			app.HandleCommand(CmdRight, time.Now())
-			snap := waitFor(t, app, "Spectrum", func(s Snapshot) bool { return s.Room.Destination.Label == "ZX Spectrum" })
+			snap := waitFor(t, app, "Spectrum", func(s Snapshot) bool {
+				return s.Room.Destination.Label == "ZX Spectrum" && roomHit(s, "family:6").ID != ""
+			})
 			if d := snap.Room.Destination; d.Status != "No games yet" || d.Availability != rooms.AvailReady {
 				t.Fatalf("no-games family %+v", d)
 			}
@@ -280,7 +284,7 @@ func TestHomeWorkbenchReturnsToTheSameFamily(t *testing.T) {
 		room          string // the core screen, or the workbench for a family without one yet
 	}{
 		{"ZX Spectrum", "fes.spectrum", 1, coreRoomID},
-		{"PC/XT", "fes.pcxt-dos", 4, systemRoomID},
+		{"PC/XT", "fes.pcxt-dos", 4, coreRoomID},
 		{"PC 386", "fes.pc386", 5, systemRoomID},
 	} {
 		t.Run(tc.coreID, func(t *testing.T) {

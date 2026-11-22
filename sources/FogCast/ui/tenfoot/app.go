@@ -250,47 +250,48 @@ type Snapshot struct {
 	// classify with, the same as Details and Confirm.
 	KitPlay kitPlayState
 	// LibraryBackTo names the room Back returns to from the Library.
-	LibraryBackTo      string
-	Collection         string
-	ViewLabel          string
-	ViewPicker         bool
-	ViewPickerIndex    int
-	Views              []LibraryView
-	PickerRows         []LibraryView
-	CollectionMenu     CollectionMenuSnapshot
-	Controllers        ControllersSnapshot
-	Session            SessionSnapshot
-	GPUParked          bool
-	Surround           SurroundSnapshot
-	Attract            AttractSnapshot
-	SafeAreaPct        float64
-	Settings           SettingsSnapshot
-	Filters            FilterSnapshot
-	Genre              string
-	Year               string
-	Region             string
-	HidePrerelease     bool
-	HideHacks          bool
-	OSK                shared.OSKSnapshot
-	Health             HealthSnapshot
-	KitLease           KitLeaseSnapshot
-	Detail             DetailSnapshot
-	BrowseActions      BrowseActionsSnapshot
-	Screenshots        map[string]*image.RGBA
-	Preview            PreviewSnapshot
-	Theme              theme.Theme
-	DebugHUD           DebugHUDSnapshot
-	Room               RoomSnapshot
-	RoomPicker         RoomPickerSnapshot
-	Storage            FirmwarePickerSnapshot
-	CoreLibrary        FirmwarePickerSnapshot
-	FirmwarePicker     FirmwarePickerSnapshot
-	FirmwareCard       FirmwareCardSnapshot
-	TapePicker         TapePickerSnapshot
-	ReducedMotion      bool
-	HostPresentsPaused bool
-	HostLateAdopt      bool
-	sessionObservation uint64
+	LibraryBackTo       string
+	Collection          string
+	ViewLabel           string
+	ViewPicker          bool
+	ViewPickerIndex     int
+	Views               []LibraryView
+	PickerRows          []LibraryView
+	CollectionMenu      CollectionMenuSnapshot
+	Controllers         ControllersSnapshot
+	Session             SessionSnapshot
+	GPUParked           bool
+	Surround            SurroundSnapshot
+	Attract             AttractSnapshot
+	SafeAreaPct         float64
+	Settings            SettingsSnapshot
+	Filters             FilterSnapshot
+	Genre               string
+	Year                string
+	Region              string
+	HidePrerelease      bool
+	HideHacks           bool
+	OSK                 shared.OSKSnapshot
+	Health              HealthSnapshot
+	KitLease            KitLeaseSnapshot
+	Detail              DetailSnapshot
+	BrowseActions       BrowseActionsSnapshot
+	Screenshots         map[string]*image.RGBA
+	Preview             PreviewSnapshot
+	Theme               theme.Theme
+	DebugHUD            DebugHUDSnapshot
+	Room                RoomSnapshot
+	RoomPicker          RoomPickerSnapshot
+	Storage             FirmwarePickerSnapshot
+	CoreLibrary         FirmwarePickerSnapshot
+	FirmwarePicker      FirmwarePickerSnapshot
+	FirmwareCard        FirmwareCardSnapshot
+	TapePicker          TapePickerSnapshot
+	ReducedMotion       bool
+	HostPresentsPaused  bool
+	HostLateAdopt       bool
+	sessionObservation  uint64
+	displayFrameRequest uint64
 }
 
 // DebugHUDSnapshot is the optional corner overlay (off by default).
@@ -342,6 +343,7 @@ type App struct {
 	padProfiles       map[string]inputmap.Profile
 	padProfilesUnread bool
 	padProfileGen     uint64
+	padStateGen       uint64 // room.pads() changes: attach, leave, press, release, save
 	controllers       controllersState
 	repeat            Repeater
 	theme             theme.Theme
@@ -550,6 +552,19 @@ type App struct {
 	sessionDisplayBusy       bool
 	sessionDisplayNonHandoff bool
 	sessionDisplay           protocol.SessionDisplay
+	displayIPC               bool
+	displayIPCFailure        <-chan error
+	displayShuttingDown      bool
+	displayShutdownClose     bool
+	displayOutbound          bool
+	displayOutboundWait      chan struct{}
+	displaySurroundOverride  *bool
+	displayFrameRequest      uint64
+	displayFrameSeq          uint64
+	displayStartupFenced     bool
+	startupFrameVerify       func(context.Context) error
+	startupFrameCheck        <-chan error
+	startupFrameNextCheck    time.Time
 	sessionDisplayUncertain  bool
 	surround, surroundFailed bool
 	sessionDisplayEpoch      uint64
@@ -594,13 +609,17 @@ type App struct {
 	tapePickerOpen           bool
 	tapePickerAtRoots        bool
 	tapePickerBusy           bool
-	tapePickerIndex          int
-	tapePickerGen            int
-	tapePickerPath           string
-	tapePickerStatus         string
-	tapePickerRows           []TapePickerRow
-	tapePickerSession        hostclient.SessionResult
-	tapePickerStarters       []hostclient.HardwareTape
+	// diskChangeBusy is a core screen Next disk in flight.
+	diskChangeBusy     bool
+	tapePickerIndex    int
+	tapePickerGen      int
+	tapePickerPath     string
+	tapePickerStatus   string
+	tapePickerRows     []TapePickerRow
+	tapePickerSession  hostclient.SessionResult
+	tapePickerStarters []hostclient.HardwareTape
+	// tapePickerSet is the running game's disk set as picker rows.
+	tapePickerSet []TapePickerRow
 
 	// A bounded, root-requested test observation may defer the surround for
 	// this exact play session. It never changes the saved user preference.
@@ -774,7 +793,9 @@ func (a *App) Start(parent context.Context) {
 	gen := a.loadGen
 	loadCtx := a.replaceLoadContextLocked()
 	a.loadPinnedRoomsLocked()
-	a.showHomeLocked()
+	if !a.roomDuringPlay {
+		a.showHomeLocked()
+	}
 	a.mu.Unlock()
 	for i := 0; i < coverWorkers; i++ {
 		go a.worker(ctx)
@@ -795,8 +816,10 @@ func (a *App) Stop() {
 		return
 	}
 	a.mu.Lock()
+	a.displayShuttingDown = true
 	done := a.stopWait
 	displayDone := a.sessionDisplayWait
+	outboundDone := a.displayOutboundWait
 	a.mu.Unlock()
 	if done != nil {
 		<-done
@@ -804,7 +827,20 @@ func (a *App) Stop() {
 	if displayDone != nil {
 		<-displayDone
 	}
+	if outboundDone != nil {
+		<-outboundDone
+	}
+	a.mu.Lock()
+	a.displayShutdownClose = true
+	a.mu.Unlock()
 	a.returnSessionDisplayOnExit()
+	a.mu.Lock()
+	a.displayShutdownClose = false
+	displayDone = a.sessionDisplayWait
+	a.mu.Unlock()
+	if displayDone != nil {
+		<-displayDone
+	}
 	a.releaseOwnedIdleLease()
 	a.mu.Lock()
 	a.hideAttractLocked()
@@ -1868,68 +1904,69 @@ func (a *App) Snapshot() Snapshot {
 		status = health.Line
 	}
 	snap := Snapshot{
-		Games:              games,
-		Grid:               a.grid,
-		Status:             status,
-		LoadErr:            a.loadErr,
-		Loading:            a.loading,
-		Covers:             covers,
-		Launch:             a.launch,
-		Gamepads:           a.gamepads,
-		Keyboards:          a.keyboards,
-		Mice:               a.mice,
-		Affinity:           a.affinity.current.Kind,
-		AffinityID:         a.affinity.current.ID,
-		Prompts:            a.affinityPromptsLocked(),
-		CoverHits:          hits,
-		Platforms:          a.platforms,
-		PlatformID:         a.platformID,
-		Sort:               a.sort,
-		Query:              a.searchField.Buffer,
-		SearchOpen:         a.searchOpen,
-		FocusDetail:        a.focusDetailLocked(),
-		DetailPlay:         a.detailPlayLocked(),
-		KitPlay:            a.kitPlayStateLocked(),
-		LibraryBackTo:      a.libraryBackToLocked(),
-		Collection:         a.collectionID,
-		ViewLabel:          a.viewLabelLocked(),
-		ViewPicker:         a.viewPickerOpen,
-		ViewPickerIndex:    a.viewPickerIndex,
-		Views:              a.viewChoicesLocked(),
-		PickerRows:         a.pickerRowsLocked(),
-		CollectionMenu:     a.collectionMenuSnapshotLocked(),
-		Controllers:        a.controllersSnapshotLocked(),
-		Session:            a.sessionSnapshotLocked(),
-		GPUParked:          a.gpuParked,
-		Surround:           SurroundSnapshot{Active: a.surroundShownLocked()},
-		Attract:            a.attractSnapshotLocked(),
-		SafeAreaPct:        a.safeAreaPct,
-		Settings:           a.settingsSnapshotLocked(),
-		Filters:            a.filtersSnapshotLocked(),
-		Genre:              a.filterGenre,
-		Year:               a.filterYear,
-		Region:             a.filterRegion,
-		HidePrerelease:     a.hidePrerelease,
-		HideHacks:          a.hideHacks,
-		OSK:                a.oskSnapshotLocked(),
-		Health:             health,
-		KitLease:           a.kitLeaseSnapshotLocked(),
-		Detail:             a.detailSnapshotLocked(),
-		Screenshots:        a.screenshotImagesLocked(),
-		Preview:            a.previewSnapshotLocked(),
-		Theme:              a.theme.Complete(),
-		DebugHUD:           a.debugHUDSnapshotLocked(),
-		Room:               a.roomSnapshotLocked(true),
-		RoomPicker:         a.roomPickerSnapshotLocked(),
-		Storage:            a.driveSettingsSnapshotLocked(),
-		CoreLibrary:        a.coreLibrarySnapshotLocked(),
-		FirmwarePicker:     a.firmwarePickerSnapshotLocked(),
-		FirmwareCard:       a.firmwareCardSnapshotLocked(),
-		TapePicker:         a.tapePickerSnapshotLocked(),
-		ReducedMotion:      a.reducedMotion,
-		sessionObservation: a.sessionObservation,
-		HostPresentsPaused: a.hostPresentsPaused || (a.kitHost && (a.session.State == "launching" || a.session.State == "stopping" || (a.session.State == "active" && !a.sessionDisplayLocked().Visible))),
-		HostLateAdopt:      (a.kitHost && (a.hostAwaitStatus || a.session.State == "active" || a.session.State == "launching" || a.session.State == "stopping")),
+		Games:               games,
+		Grid:                a.grid,
+		Status:              status,
+		LoadErr:             a.loadErr,
+		Loading:             a.loading,
+		Covers:              covers,
+		Launch:              a.launch,
+		Gamepads:            a.gamepads,
+		Keyboards:           a.keyboards,
+		Mice:                a.mice,
+		Affinity:            a.affinity.current.Kind,
+		AffinityID:          a.affinity.current.ID,
+		Prompts:             a.affinityPromptsLocked(),
+		CoverHits:           hits,
+		Platforms:           a.platforms,
+		PlatformID:          a.platformID,
+		Sort:                a.sort,
+		Query:               a.searchField.Buffer,
+		SearchOpen:          a.searchOpen,
+		FocusDetail:         a.focusDetailLocked(),
+		DetailPlay:          a.detailPlayLocked(),
+		KitPlay:             a.kitPlayStateLocked(),
+		LibraryBackTo:       a.libraryBackToLocked(),
+		Collection:          a.collectionID,
+		ViewLabel:           a.viewLabelLocked(),
+		ViewPicker:          a.viewPickerOpen,
+		ViewPickerIndex:     a.viewPickerIndex,
+		Views:               a.viewChoicesLocked(),
+		PickerRows:          a.pickerRowsLocked(),
+		CollectionMenu:      a.collectionMenuSnapshotLocked(),
+		Controllers:         a.controllersSnapshotLocked(),
+		Session:             a.sessionSnapshotLocked(),
+		GPUParked:           a.gpuParked,
+		Surround:            SurroundSnapshot{Active: a.surroundShownLocked()},
+		Attract:             a.attractSnapshotLocked(),
+		SafeAreaPct:         a.safeAreaPct,
+		Settings:            a.settingsSnapshotLocked(),
+		Filters:             a.filtersSnapshotLocked(),
+		Genre:               a.filterGenre,
+		Year:                a.filterYear,
+		Region:              a.filterRegion,
+		HidePrerelease:      a.hidePrerelease,
+		HideHacks:           a.hideHacks,
+		OSK:                 a.oskSnapshotLocked(),
+		Health:              health,
+		KitLease:            a.kitLeaseSnapshotLocked(),
+		Detail:              a.detailSnapshotLocked(),
+		Screenshots:         a.screenshotImagesLocked(),
+		Preview:             a.previewSnapshotLocked(),
+		Theme:               a.theme.Complete(),
+		DebugHUD:            a.debugHUDSnapshotLocked(),
+		Room:                a.roomSnapshotLocked(true),
+		RoomPicker:          a.roomPickerSnapshotLocked(),
+		Storage:             a.driveSettingsSnapshotLocked(),
+		CoreLibrary:         a.coreLibrarySnapshotLocked(),
+		FirmwarePicker:      a.firmwarePickerSnapshotLocked(),
+		FirmwareCard:        a.firmwareCardSnapshotLocked(),
+		TapePicker:          a.tapePickerSnapshotLocked(),
+		ReducedMotion:       a.reducedMotion,
+		sessionObservation:  a.sessionObservation,
+		displayFrameRequest: a.pendingDisplayFrameLocked(),
+		HostPresentsPaused:  a.hostPresentsPaused || (a.kitHost && (a.session.State == "launching" || a.session.State == "stopping" || (a.session.State == "active" && !a.sessionDisplayLocked().Visible))),
+		HostLateAdopt:       (a.kitHost && (a.hostAwaitStatus || a.session.State == "active" || a.session.State == "launching" || a.session.State == "stopping")),
 	}
 	destination := snap.DetailPlay
 	if snap.Room.Open {

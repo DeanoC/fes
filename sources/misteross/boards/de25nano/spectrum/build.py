@@ -15,9 +15,10 @@ DIRECTORY = "spectrum"
 CORE_ID = "fes.spectrum"
 COMPONENT = "fes_de25_spectrum_standard"
 SDC = BOARD + "spectrum/spectrum-clocks.sdc"
-MODELS = {"48": None, "128": "SPECTRUM_MODEL_128K", "native48": "FES_DE25_NATIVE_SPECTRUM48"}
+MODELS = {"48": None, "128": "SPECTRUM_MODEL_128K", "plus3": "SPECTRUM_MODEL_PLUS3",
+          "pentagon": "SPECTRUM_MODEL_PENTAGON", "native48": "FES_DE25_NATIVE_SPECTRUM48"}
 # The exact image each model's upload endpoint takes.
-FIRMWARE_BYTES = {"48": 16384, "128": 32768, "native48": 16384}
+FIRMWARE_BYTES = {"48": 16384, "128": 32768, "plus3": 65536, "pentagon": 49152, "native48": 16384}
 NATIVE_COMPUTER_HEADER = "sources/misteross/prototypes/de25_board_control/generated/fes_de25_computer.vh"
 ASSIGNMENTS = ()
 # Qsys writes this peripheral subsystem for the component: the standard ZX81

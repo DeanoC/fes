@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 25
+const schemaVersion = 26
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -466,6 +466,38 @@ END;
 PRAGMA user_version = 25;
 `
 
+// Schema 26 lets a title hold a disk set. Disk 1 stays the entry's own
+// media_id; this table holds disks 2 to N, in order, in the same role and
+// drive, each disk once, each with the basename it was imported under (a live
+// disk change picks its path from the name). Any change to disk 1 ends the
+// set. A set member is a
+// library reference like disk 1: it protects its media from remote-cache
+// cleanup and detaches a generated kit-host entry when edited.
+const schemaV26 = `
+CREATE TABLE core_entry_media_set (
+  game_id TEXT NOT NULL REFERENCES core_entries(game_id) ON DELETE CASCADE,
+  position INTEGER NOT NULL CHECK (position BETWEEN 2 AND 16),
+  media_id TEXT NOT NULL REFERENCES core_media(media_id),
+  media_name TEXT NOT NULL CHECK (media_name <> ''),
+  PRIMARY KEY (game_id, position),
+  UNIQUE (game_id, media_id)
+);
+CREATE TRIGGER core_entry_media_set_ends AFTER UPDATE OF media_role, media_id ON core_entries
+WHEN NEW.media_id <> OLD.media_id OR NEW.media_role <> OLD.media_role BEGIN
+  DELETE FROM core_entry_media_set WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER core_entry_media_set_cache_adopt AFTER INSERT ON core_entry_media_set BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+CREATE TRIGGER kit_host_media_set_insert AFTER INSERT ON core_entry_media_set BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER kit_host_media_set_delete AFTER DELETE ON core_entry_media_set BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = OLD.game_id;
+END;
+PRAGMA user_version = 26;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -688,6 +720,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 24 {
 		if _, err := connection.ExecContext(ctx, schemaV25); err != nil {
 			return fmt.Errorf("apply catalog schema version 25: %w", err)
+		}
+		version = 25
+	}
+	if version == 25 {
+		if _, err := connection.ExecContext(ctx, schemaV26); err != nil {
+			return fmt.Errorf("apply catalog schema version 26: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

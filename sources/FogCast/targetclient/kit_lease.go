@@ -28,10 +28,49 @@ var ErrKitLeaseLost = &protocol.APIError{
 type kitLeaseStatus = kitlease.Status
 type kitLeaseGrant = kitlease.Grant
 
+// leaseMutex permits a read waiting to resume the local grant to honor its
+// request deadline, while keeping lease mutations serialized as before.
+// Its zero value is ready to use.
+type leaseMutex struct {
+	once sync.Once
+	sem  chan struct{}
+}
+
+func (m *leaseMutex) init() {
+	m.once.Do(func() {
+		m.sem = make(chan struct{}, 1)
+		m.sem <- struct{}{}
+	})
+}
+
+func (m *leaseMutex) Lock() {
+	m.init()
+	<-m.sem
+}
+
+func (m *leaseMutex) LockContext(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	m.init()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-m.sem:
+		if err := ctx.Err(); err != nil {
+			m.Unlock()
+			return err
+		}
+		return nil
+	}
+}
+
+func (m *leaseMutex) Unlock() { m.sem <- struct{}{} }
+
 // KitLease is owned by one application and shared explicitly with its target
 // and input clients. It never takes over another owner or retries mutations.
 type KitLease struct {
-	mu                        sync.Mutex
+	mu                        leaseMutex
 	client                    *Client
 	owner, purpose, requestID string
 	grant                     kitLeaseGrant
@@ -74,7 +113,9 @@ func (l *KitLease) resumeLocal(ctx context.Context) error {
 	if l == nil || !l.localHost {
 		return nil
 	}
-	l.mu.Lock()
+	if err := l.mu.LockContext(ctx); err != nil {
+		return err
+	}
 	defer l.mu.Unlock()
 	if l.closed || l.lost || l.grant.Token != "" || l.resumeSettled {
 		return nil

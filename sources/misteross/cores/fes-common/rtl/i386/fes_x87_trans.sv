@@ -25,6 +25,8 @@
 // They are exact: the remainder is the trigonometric reduction's own
 // bit-a-clock divider with the divisor y in place of pi/4, FRNDINT is one
 // addition rounded under RC, and FSCALE and FXTRACT are exponent moves.
+// FBLD runs here as well: its eighteen digits are each a table constant,
+// digit times its power of ten, and summing them is exact.
 module fes_x87_trans (
     input  logic        clk,
     input  logic        reset,
@@ -42,6 +44,8 @@ module fes_x87_trans (
     input  logic        ys,
     input  logic signed [17:0] ye,
     input  logic [63:0] ym,
+    // FBLD's operand's digits, its low 72 bits, least significant first.
+    input  logic [71:0] bcd,
     // The backend's request and its result before rounding.
     output logic        req_valid,
     input  logic        req_ready,
@@ -138,7 +142,12 @@ module fes_x87_trans (
 
     // The constant's address follows the word, so the constant is out a
     // clock after the word is; a temporary is read in S_DEC (a) and S_RDB (b).
-    assign c_addr = u_bmode == 2'd2 ? u_baddr + {2'b0, j} : u_baddr;
+    // Mode 3 is FBLD's digit table: the row's top six bits, and the digit of
+    // the place that row is for as the low four.
+    logic [3:0] digit;
+    assign digit = bcd[4 * 5'(u_baddr[9:4] - BCD_ROW) +: 4];
+    assign c_addr = u_bmode == 2'd2 ? u_baddr + {2'b0, j}
+                  : u_bmode == 2'd3 ? {u_baddr[9:4], digit} : u_baddr;
     assign b_now = u_bmode == 2'd0 ? t_q : c_q;
     always_comb begin
         t_raddr = u_a;

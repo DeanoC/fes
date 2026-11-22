@@ -18,7 +18,14 @@ SHARED = BOARD / "shared-rtl"
 COMMON = ROOT / "cores/fes-common"
 Z80 = COMMON / "rtl/z80"
 NATIVE_BUILD_ID = "00112233445566778899aabbccddeeff"
-MODELS = {"48": [], "128": ["-DSPECTRUM_MODEL_128K=1"]}
+MODELS = {"48": [], "128": ["-DSPECTRUM_MODEL_128K=1"], "plus3": ["-DSPECTRUM_MODEL_PLUS3=1"],
+          "pentagon": ["-DSPECTRUM_MODEL_PENTAGON=1"]}
+# Each model's diagnostic image, RAM banks and disk controller for the bench.
+FIRMWARE = {"48": "firmware.rom", "128": "firmware-32k.rom", "plus3": "firmware-64k.rom",
+            "pentagon": "firmware-48k.rom"}
+BENCH = {"48": "-DSPECTRUM_BANKS=3", "128": "-DSPECTRUM_BANKS=8",
+         "plus3": "-DSPECTRUM_BANKS=8 -DSPECTRUM_DISK_UPD765=1",
+         "pentagon": "-DSPECTRUM_BANKS=8 -DSPECTRUM_DISK_BETA=1"}
 WAIVERS = ("UNUSEDSIGNAL", "UNUSEDPARAM", "UNOPTFLAT", "CASEINCOMPLETE", "CASEOVERLAP", "WIDTHTRUNC",
            "WIDTHEXPAND", "SYNCASYNCNET", "PINCONNECTEMPTY", "DECLFILENAME", "IMPLICITSTATIC",
            "VARHIDDEN", "CASEX", "BLKSEQ", "MULTITOP")
@@ -78,8 +85,8 @@ def run(model, native_mailbox=False, build_id=NATIVE_BUILD_ID):
     parent.mkdir(parents=True, exist_ok=True)
     output = Path(tempfile.mkdtemp(prefix=f"standard-{model}-", dir=parent))
     print(f"DE25 Spectrum simulation directory: {output}", flush=True)
-    firmware = diagnostic / ("firmware.rom" if model == "48" else "firmware-32k.rom")
-    flags = f"-O2 -DSPECTRUM_BANKS={3 if model == '48' else 8}"
+    firmware = diagnostic / FIRMWARE[model]
+    flags = f"-O2 {BENCH[model]}"
     for i in range(4):
         offset = 32 - (i + 1) * 8
         flags += f" -DSPECTRUM_BUILD_{i}=0x{build_id[offset:offset+8]}u"
@@ -132,7 +139,7 @@ def main():
     if args.native_build_id is not None and (not args.native_mailbox or
             not re.fullmatch("[0-9a-f]{32}", args.native_build_id) or int(args.native_build_id, 16) == 0):
         parser.error("--native-build-id requires native mailbox mode and a nonzero lowercase 32-digit hex ID")
-    if args.native_mailbox and args.model == "128":
+    if args.native_mailbox and args.model not in ("48", "all"):
         parser.error("--native-mailbox requires model 48 or all")
     for model in (MODELS if args.model == "all" else (args.model,)):
         run(model, args.native_mailbox and model == "48", args.native_build_id or NATIVE_BUILD_ID)

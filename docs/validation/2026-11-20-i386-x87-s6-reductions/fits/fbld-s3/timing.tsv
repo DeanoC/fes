@@ -1,0 +1,41 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	8.426	_42649_[376]	cpu_l1d_stall
+Slow fix4 100C Model	0	hold	analyzed	1	0.072	_42659_[653]	_42660_[89]
+Slow fix4 100C Model	0	recovery	analyzed	1	14.139	reset	machine_at_pit_u_KF8253_Counter_2_dec_bcd_q[8]
+Slow fix4 100C Model	0	removal	analyzed	1	0.491	reset	machine_at_pit_u_KF8253_Counter_0_load_edge
+Slow fix4 100C Model	0	clk_clock_setup	analyzed	1	8.426	_42649_[376]	cpu_l1d_stall
+Slow fix4 100C Model	0	clk_clock_hold	analyzed	1	0.072	_42659_[653]	_42660_[89]
+Slow fix4 100C Model	0	pixel_clk_clock_setup	analyzed	1	8.800	machine_presenter_h_b[17]~ERTM	machine_presenter_picture[23]~ERTM
+Slow fix4 100C Model	0	pixel_clk_clock_hold	analyzed	1	0.119	machine_presenter_p_a1[2]~ERTM	_36828_[0]~2_ERTM
+Slow fix4 100C Model	0	internal_setup	analyzed	1	8.426	_42649_[376]	cpu_l1d_stall
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.205		
+Slow fix4 0C Model	0	setup	analyzed	1	7.358	_42649_[376]	cpu_l1d_stall
+Slow fix4 0C Model	0	hold	analyzed	1	0.093	_42659_[653]	_42660_[89]
+Slow fix4 0C Model	0	recovery	analyzed	1	13.866	reset	machine_at_pit_u_KF8253_Counter_2_dec_bcd_q[10]
+Slow fix4 0C Model	0	removal	analyzed	1	0.549	reset	machine_at_pit_u_KF8253_Counter_0_load_edge
+Slow fix4 0C Model	0	clk_clock_setup	analyzed	1	7.358	_42649_[376]	cpu_l1d_stall
+Slow fix4 0C Model	0	clk_clock_hold	analyzed	1	0.093	_42659_[653]	_42660_[89]
+Slow fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.926	machine_presenter_h_b[17]~ERTM	machine_presenter_picture[23]~ERTM
+Slow fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.146	machine_presenter_p_a1[18]~ERTM	_36828_[16]~18_ERTM
+Slow fix4 0C Model	0	internal_setup	analyzed	1	7.358	_42649_[376]	cpu_l1d_stall
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.164		
+Slow fix4a 0C Model	0	setup	analyzed	1	7.366	_42649_[376]	cpu_l1d_stall
+Slow fix4a 0C Model	0	hold	analyzed	1	0.091	_42659_[653]	_42660_[89]
+Slow fix4a 0C Model	0	recovery	analyzed	1	13.873	reset	machine_at_pit_u_KF8253_Counter_2_dec_bcd_q[10]
+Slow fix4a 0C Model	0	removal	analyzed	1	0.546	reset	machine_at_pit_u_KF8253_Counter_0_load_edge
+Slow fix4a 0C Model	0	clk_clock_setup	analyzed	1	7.366	_42649_[376]	cpu_l1d_stall
+Slow fix4a 0C Model	0	clk_clock_hold	analyzed	1	0.091	_42659_[653]	_42660_[89]
+Slow fix4a 0C Model	0	pixel_clk_clock_setup	analyzed	1	8.004	machine_presenter_h_b[17]~ERTM	machine_presenter_picture[23]~ERTM
+Slow fix4a 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.145	machine_presenter_p_a1[18]~ERTM	_36828_[16]~18_ERTM
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	7.366	_42649_[376]	cpu_l1d_stall
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.175		
+Fast fix4 0C Model	0	setup	analyzed	1	10.709	machine_presenter_h_b[17]~ERTM	machine_presenter_picture[23]~ERTM
+Fast fix4 0C Model	0	hold	analyzed	1	0.013	_42659_[653]	_42660_[89]
+Fast fix4 0C Model	0	recovery	analyzed	1	14.905	reset	machine_at_pit_u_KF8253_Counter_2_dec_bcd_q[8]
+Fast fix4 0C Model	0	removal	analyzed	1	0.281	reset	machine_at_pit_u_KF8253_Counter_0_load_edge
+Fast fix4 0C Model	0	clk_clock_setup	analyzed	1	11.309	cpu_decode_by[1]	cpu_dc0[275]
+Fast fix4 0C Model	0	clk_clock_hold	analyzed	1	0.013	_42659_[653]	_42660_[89]
+Fast fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	10.709	machine_presenter_h_b[17]~ERTM	machine_presenter_picture[23]~ERTM
+Fast fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.038	machine_presenter_p_a1[2]~ERTM	_36828_[0]~2_ERTM
+Fast fix4 0C Model	0	internal_setup	analyzed	1	10.709	machine_presenter_h_b[17]~ERTM	machine_presenter_picture[23]~ERTM
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.327		
