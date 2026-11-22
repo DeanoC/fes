@@ -42,14 +42,19 @@ PLL_COMMENT = """// One PLL on CLOCK1_50 in place of the stock audio PLL, whose 
 # pcxt_video's mailbox synchronizers carry only async_reg in the DE10 RTL.
 # Name them synchronizers on the board, as the board's own chains name
 # themselves, so Quartus Pro's design assistant sees each chain; pcxt-clocks.sdc
-# names the launch into each first stage.
-# The machine reset also asynchronously clears the vendored 8253, and synthesis
-# made it the clock enable of the 8088 bus unit's cycle divider, which the
-# signoff lint refuses (LNT-30010); as the Atari ST's SDRAM address register,
-# that one register takes it as logic instead.
+# names the launch into each first stage. The pixel side's copy of the bank
+# code is a load on the synchronized toggle, not a synchronizer: its source is
+# held from the toggle until the acknowledgement returns. Quartus otherwise
+# takes it as one (CDC-50102); pcxt-clocks.sdc bounds it as a held bundle.
+# The machine reset also asynchronously clears the vendored 8253, 8259 and
+# 8255. The 8088 bus unit leaves 248 registers out of its reset branch, so
+# synthesis made the same reset net their clock enable, which the signoff lint
+# refuses (LNT-30010). As for the DE25 C64's SID, the bus unit's holds are
+# built in logic instead.
 ASSIGNMENTS = tuple(("SYNCHRONIZER_IDENTIFICATION", "FORCED_IF_ASYNCHRONOUS", "core|system|video|adapter|" + name)
                     for name in ("ack_meta", "ack_sync", "sent_meta", "sent_sync", "hold_meta", "hold_sync")) + (
-    ("AUTO_CLOCK_ENABLE_RECOGNITION", "OFF", "core|system|machine|cpu|cpu|u_biu_core|clock_cycle_counter_div[*]"),)
+    ("SYNCHRONIZER_IDENTIFICATION", "OFF", "core|system|video|adapter|pixel_code[*]"),
+    ("AUTO_CLOCK_ENABLE_RECOGNITION", "OFF", "core|system|machine|cpu|cpu|u_biu_core"),)
 # Qsys writes the peripheral subsystem for the component. Reviewed against
 # the Atari ST's (a08edf0b...): the SDRAM conduit's three clock inputs are
 # exported beside its pins; nothing else differs.

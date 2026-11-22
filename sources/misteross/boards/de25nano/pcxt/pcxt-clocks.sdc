@@ -65,18 +65,18 @@ foreach {label source head} {
 # pixel clock's received toggle returns. The pixel clock copies the code on
 # the edge the toggle leaves its synchronizer, with nothing on the path but the
 # copy's enable, no sooner than two pixel periods after the toggle left the
-# machine clock, and adopts it from that stage. One pixel period bounds the
-# copy, as the DE10 mailbox constraint bounds the bank; the bound counts the
-# skew between the two PLL networks.
+# machine clock, and adopts it from that stage. One machine period bounds the
+# copy, as for the held bundles below: Design Assistant counts a skew bound
+# longer than that as no skew constraint (CDC-50003).
 set published [get_registers "${base}|core|system|video|adapter|published_code\[*\]"]
 set copied [get_registers "${base}|core|system|video|adapter|pixel_code\[*\]"]
 if {[get_collection_size $published] != 2 || [get_collection_size $copied] != 2} {
     error "DE25 PC/XT held video bank endpoints changed"
 }
-set_net_delay -max 13.400 -from $published -to $copied
-set_data_delay 13.400 -from $published -to $copied
-set_max_skew 13.400 -from $published -to $copied
-set_max_delay 13.400 -from $published -to $copied
+set_net_delay -max 10.000 -from $published -to $copied
+set_data_delay 10.000 -from $published -to $copied
+set_max_skew 10.000 -from $published -to $copied
+set_max_delay 10.000 -from $published -to $copied
 set_min_delay 0.000 -from $published -to $copied
 
 # Bundles are held throughout their toggle round trip. A ten-nanosecond flight
