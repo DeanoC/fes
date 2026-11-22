@@ -120,11 +120,11 @@ func (c *spectrumFirmwareCPU) WithHeldMediaBatch(base uint64, send func(computer
 }
 
 func (c *spectrumFirmwareCPU) chargeROMAccess() {
-	if c.romClock == nil || !c.active || !c.held || c.ready && c.firmwareBytes != c64FirmwareBytes {
+	if c.romClock == nil || !c.active || !c.held || c.ready {
 		return
 	}
 	cost := 850 * time.Microsecond
-	if c.inROMBatch || c.inDiskBatch {
+	if c.inROMBatch {
 		cost = time.Microsecond
 	}
 	*c.romClock = c.romClock.Add(cost)
@@ -154,6 +154,9 @@ func (c *spectrumFirmwareCPU) WritePhysical32(address uint64, word uint32) error
 		}
 	}
 	if op >= cg.FesComputerOpcodeMediaInfo && op <= cg.FesComputerOpcodeMediaEject {
+		if c.media.disk && (op == cg.FesComputerOpcodeMediaChunk || op == cg.FesComputerOpcodeMediaData) && !c.inDiskBatch {
+			return errors.New("C64 chunk header or data escaped its held batch")
+		}
 		c.media.held = c.held
 		if !c.ready {
 			return errors.New("Spectrum tape submitted before its ROM was ready")
@@ -462,7 +465,7 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 		if c64 {
 			l.boot.cpu = batchedSpectrumCPU{port}
 			port.romClock = &romClock
-			port.diskBatchCost = 850 * time.Microsecond
+			port.diskBatchCost = 5500 * time.Microsecond
 			if fault == "shared-c64-deadline" {
 				port.diskBatchCost = 25 * time.Millisecond
 			}
