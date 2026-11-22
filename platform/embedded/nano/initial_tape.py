@@ -49,7 +49,7 @@ def checked(record, program_key='program'):
     if record.get('usb_input') not in ('boot-keyboard', 'gamepad') or any(
             record.get(k, False) is not False for k in
             ('window_memory', 'window_read', 'window_present', 'window_storage_return',
-             'window_reload', 'window_service', 'menu_present', 'ddr_read', 'smmu_observe')):
+             'window_reload', 'menu_present', 'ddr_read', 'smmu_observe')):
         raise ValueError('initial tape cannot inherit another memory/observation mode')
     context = record.get('hps_context')
     computer = record.get('hps_computer')

@@ -244,7 +244,6 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
               'window_present':build.get('window_present',False),
               'window_storage_return':build.get('window_storage_return',False),
               'window_reload':build.get('window_reload',False),
-              'window_service':build.get('window_service',False),
               'tenfoot_serial':build.get('tenfoot_serial',False),
               'initial_tape':hps_context.initial_tape.checked(build,program_key='native_program'),
               'initial_tape_memory':hps_context.initial_tape.checked_memory(build),
@@ -471,9 +470,6 @@ def header(profile):
     window_reload=profile.get('window_reload',False)
     if type(window_reload) is not bool or window_reload and not window_storage_return:
         raise ValueError('window reload requires the selected window SD-return path')
-    window_service=profile.get('window_service',False)
-    if type(window_service) is not bool or window_service and (not window_storage_return or window_reload):
-        raise ValueError('window service requires selected window SD return and excludes bounded reload')
     tenfoot_serial=profile.get('tenfoot_serial',False)
     if type(tenfoot_serial) is not bool or tenfoot_serial and (profile.get('selected_programs') is not True or
             profile.get('computer_reload') is not True or profile.get('computer_storage_return') is not True or

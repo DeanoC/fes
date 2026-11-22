@@ -89,24 +89,6 @@ func TestProgramPostCompletionRejectionRetainsOriginalCauseAndBlocksReuse(t *tes
 	}
 }
 
-func TestWindowPostCompletionDeadlineIsNotMasked(t *testing.T) {
-	r := windowServiceTest(t)
-	if _, err := r.s.Return(context.Background(), r.h); err != nil {
-		t.Fatal(err)
-	}
-	start := time.Unix(100, 0)
-	r.s.state.limits.Now = func() time.Time {
-		if transfer := r.s.state.transfer; transfer != nil && transfer.done {
-			return start.Add(sourceOperationTimeout)
-		}
-		return start
-	}
-	_, err := r.s.Launch(context.Background(), r.s.Status().Generation, r.request, r.f.frame)
-	if !errors.Is(err, ErrWindowServiceRetired) || !strings.Contains(err.Error(), "configuration deadline: elapsed=25s") || strings.Contains(err.Error(), "already completed") || !r.s.state.transfer.Status().Failed || r.s.Status().State != ProgramRebootRequired {
-		t.Fatal(err, r.s.Status())
-	}
-}
-
 func TestConfigurationPhaseTimingUsesOnlyExistingBoundarySamples(t *testing.T) {
 	now := time.Unix(100, 0)
 	reads := 0

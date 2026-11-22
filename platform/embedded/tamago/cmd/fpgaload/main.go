@@ -30,7 +30,6 @@ var expectedDDRReadMap string
 var expectedWindowMemory string
 var expectedWindowReadMap string
 var expectedWindowPresent, expectedWindowStorageReturn, expectedWindowReload string
-var expectedWindowService string
 var expectedMenuPresent, expectedMenuReadMap string
 var expectedComputerMap, expectedComputerReload string
 var expectedROMMap string
@@ -76,7 +75,7 @@ func main() {
 	}
 	if expectedMenuPresent != "" || expectedMenuReadMap != "" {
 		if expectedMenuPresent != "1" || expectedMenuReadMap == "" || expectedWindowMemory != "" || expectedWindowReadMap != "" ||
-			expectedWindowPresent != "" || expectedWindowStorageReturn != "" || expectedWindowReload != "" || expectedWindowService != "" ||
+			expectedWindowPresent != "" || expectedWindowStorageReturn != "" || expectedWindowReload != "" ||
 			expectedDDRReadMap != "" || expectedComputerMap != "" || expectedROMMap != "" || expectedNativeComputer != "" ||
 			expectedComputerReload != "" || expectedComputerStorageReturn != "" || expectedSelectedPrograms != "" || expectedProgramPlatform != "" || expectedCompiledSpectrum48 != "" ||
 			expectedTenfootSerial != "" || expectedUSBControl != "" || expectedCompiledMenuProgram != "" {
@@ -91,9 +90,6 @@ func main() {
 	}
 	if expectedWindowReload != "" && (expectedWindowReload != "1" || expectedWindowStorageReturn != "1") {
 		panic("window reload requires the selected window SD-return diagnostic")
-	}
-	if expectedWindowService != "" && (expectedWindowService != "1" || expectedWindowStorageReturn != "1" || expectedWindowReload != "") {
-		panic("window service requires the complete SD-return path and a separate selection from bounded reload")
 	}
 	if (expectedTenfootSerial != "") != tenfootSerialLinked || expectedTenfootSerial != "" && (expectedTenfootSerial != "1" || expectedSelectedPrograms != "1") {
 		panic("serial Tenfoot requires selected native programs")
@@ -383,13 +379,6 @@ func main() {
 	}
 	if expectedWindowReadMap != "" {
 		limits := scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}
-		if expectedWindowService == "1" {
-			if err := serveWindows(v, store, request, control, configuration, decoded(expectedWindowReadMap, 8192), limits); err != nil {
-				reportWindowFailure(err)
-				panic(err)
-			}
-			return
-		}
 		if expectedWindowPresent == "1" {
 			session, err := presentWindowFrames(v, control, decoded(expectedWindowReadMap, 8192), limits, 12)
 			if err != nil {
