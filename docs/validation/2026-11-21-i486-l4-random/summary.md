@@ -11,22 +11,26 @@ The method, written before the first full run, is
 [`method.md`](method.md). Everything ran as host simulation on Powerboat,
 with at most 4 CPU threads at a time: no Quartus run, no seal, no kit.
 
-**Result.** Every gate ran at code head `98cbd9927` but test386's oracle run,
-which steps Bochs alone and ran at the merged head. Later commits change
-only this record, the sim README, the design doc and two unit tests, plus
-the merge of main ([below](#the-merge-of-main)).
+**Result.** The code head is `ad328d78c`: this branch's changes merged with
+main `0fb3ce80c` ([the merge of main](#the-merge-of-main)), with #AC's error
+code at 0. Every gate below ran there, unless its row names `98cbd9927`, the
+head before the merge and before the error-code change. Later commits change
+only this record.
 
 | Gate | Result |
 | --- | --- |
 | Level-4 directed cases, 486SX (`I486 = 1`) | 148 of 148 agree (108 cases and 40 `ud-` probes), on the RTL and the netlist, two runs each. The oracle's self-check passes 108 of 108 cases and 7 of 7 reset fields ([`directed/both-rtl.json`](directed/both-rtl.json), and the netlist's in `lockstep/level4-netlist.json`) |
 | Level-4 directed cases, 386 (`I486 = 0`) | 56 agree, 92 stop, equal to `i486-expected-stops.txt` on the RTL and the netlist, two runs each. Of its 5 new rows, `dr6-bit12` agrees (a 386 keeps bit 12 too) and the other 4 stop at their probe |
-| Level-4 random programs, 486SX, RTL | All 56,000 keep step: random 32,000, steady (no latency) 4,000, protected mode 8,000, tasks 4,000, debug 4,000, undefined 4,000; 11,708,925 retirements. The two steady seeds retire the same traces as with latency. Every form in `REQUIRED_FORMS` retired: each 486 form at least 380 times, 718 #AC deliveries (`ac-fault`), 328 CPL-0 writes stopped by WP (`wp-fault`) ([`lockstep/level4-486sx-rtl.json`](lockstep/level4-486sx-rtl.json)) |
-| Level-4 random programs, 486SX, netlist | The same 56,000 pass on the seal's Yosys netlist at `I486 = 1` (`5b4d333a…`). Every set's trace hashes and retirements, every form count and every rule count equal the RTL's ([`lockstep/level4-netlist.json`](lockstep/level4-netlist.json)) |
+| Level-4 random programs, 486SX, RTL | All 56,000 keep step: random 32,000, steady (no latency) 4,000, protected mode 8,000, tasks 4,000, debug 4,000, undefined 4,000; 11,708,925 retirements. The two steady seeds retire the same traces as with latency. Every form in `REQUIRED_FORMS` retired: each 486 form at least 380 times, 718 #AC deliveries (`ac-fault`), 328 CPL-0 writes stopped by WP (`wp-fault`). Every set's traces equal the `98cbd9927` run's ([`lockstep/level4-486sx-rtl.json`](lockstep/level4-486sx-rtl.json)) |
+| Level-4 random programs, 486SX, netlist | The same 56,000 pass on the seal's Yosys netlist at `I486 = 1` (`2f9160cf…`). Every set's trace hashes and retirements, every form count and every rule count equal the RTL's ([`lockstep/level4-netlist.json`](lockstep/level4-netlist.json)) |
 | Governor bench, `I486 = 1`, RTL | Passes. Each 486 loop's charge equals `governor.toml`'s clocks under every preset, CPUID's 12 included. The 386 part equals slice 2's 386 report in all 1,178 values ([`governor/i486-rtl.json`](governor/i486-rtl.json)) |
-| Level-3 lockstep, 386, RTL | Passes. Equal to slice 2's head report (`bf7afef73`, which equals main's `ce67cbbc4`) in all 9,965 values but 13 source and oracle-build digests: every count, trace hash and cycle figure is the same ([`lockstep/level3-rtl.json.gz`](lockstep/level3-rtl.json.gz)) |
-| Level-3 lockstep, 386, netlist | Passes. Equal to slice 2's head netlist report in all 9,972 values but those digests and 2 netlist digests ([`lockstep/level3-netlist.json.gz`](lockstep/level3-netlist.json.gz)) |
-| test386.asm, 386, RTL | POST codes end at FFh; halts after 79,640,765 retirements, no errors. Equal to the last RTL report on record (`2026-11-12-i386-ud-1701`) but its `text` and `verilator` fields ([`test386/rtl.json`](test386/rtl.json)) |
-| test386.asm, oracle | Equal to slice 2's report in all 707 values ([`test386/oracle.json`](test386/oracle.json)) |
+| Level-3 lockstep, 386, RTL | Passes. Equal to main `0fb3ce80c`'s report, run the same way, in all values but 11 source and suite digests: every count, trace hash and cycle figure, the x87 sections included ([`lockstep/level3-rtl.json.gz`](lockstep/level3-rtl.json.gz), main's [`lockstep/main-0fb3ce80c-level3-rtl.json.gz`](lockstep/main-0fb3ce80c-level3-rtl.json.gz)) |
+| Level-3 lockstep, 386, netlist | The seal's own full netlist lockstep (below) passes. It equals main `0fb3ce80c`'s netlist report in all values but 12 source, oracle-build and netlist digests ([`seal/lockstep-report.json.gz`](seal/lockstep-report.json.gz), main's [`lockstep/main-0fb3ce80c-level3-netlist.json.gz`](lockstep/main-0fb3ce80c-level3-netlist.json.gz)) |
+| DE10 seal of the 386 package | Registered producer `build_pc386_product.py --with-lockstep`, seed 1, Quartus 17.0.2 Lite, on Powerboat under a Lite lease slot, from a clean worktree of `ad328d78c`: passes. BUILD_ID `766bd82aaeed4898149883a6ccc6a012`, package `b3cd67c0…`, RBF `ce45a49e…`, 36,435 ALMs, setup +0.339 ns, hold +0.083 ns. `verify_pc386_product_seal.py` gives `SEAL_OK` ([`seal/`](seal/)) |
+| Kit run of that package | Kit B, run `k2087a`: pass. FreeDOS prompt in 0.6 s, then Wolfenstein 3D on floor 1 with graphics. The kit was restored to its baseline and logged FREE ([the kit run](#the-kit-run)) |
+| The head still builds the sealed design | `head_matches_seal.py` checks that the head's design identity equals the seal's |
+| test386.asm, 386, RTL (`98cbd9927`) | POST codes end at FFh; halts after 79,640,765 retirements, no errors. Equal to the last RTL report on record (`2026-11-12-i386-ud-1701`) but its `text` and `verilator` fields ([`test386/rtl.json`](test386/rtl.json)) |
+| test386.asm, oracle (merged head `cdbdccd7b`) | Equal to slice 2's report in all 707 values ([`test386/oracle.json`](test386/oracle.json)) |
 | Governor bench, 386 (`I486 = 0`), RTL | Passes. Equal to slice 2's report in all 1,178 values ([`governor/386-rtl.json`](governor/386-rtl.json)) |
 
 ## What was built
@@ -229,67 +233,95 @@ other cell is within 0.7% of the table.
 
 ## The 386 identity
 
-`method.md`'s fifth gate held. Each report equals slice 2's head report
-apart from source, oracle-build and netlist digests:
-- the level-3 lockstep on the RTL and the netlist;
-- the governor bench at `I486 = 0`.
+The 386 identity's behaviour is unchanged:
+- **Level-3 lockstep.** At `ad328d78c` the RTL report equals main
+  `0fb3ce80c`'s, run the same way on a clean worktree of main. The seal's
+  netlist lockstep equals main's netlist report. Only source, suite,
+  oracle-build and netlist digests differ. At `98cbd9927`, before the merge,
+  both reports equalled slice 2's head reports (`bf7afef73`), the baseline
+  `method.md` set. Main's x87 slice 6.3 (#2059) changes the x87 sections
+  against slice 2's, so main is the baseline at the merged head.
+- **Governor bench at `I486 = 0`.** Equal to slice 2's in all 1,178 values.
+- **test386.** The oracle report equals slice 2's in all 707 values. That
+  run steps Bochs alone, and slice 2's report is that kind. The RTL run
+  (`98cbd9927`) is held to the 12 November `2026-11-12-i386-ud-1701` RTL
+  report instead; slice 2 kept none. It equals it but for the `text` field,
+  which later runners add, and the Verilator record.
 
-test386's oracle report equals slice 2's in all 707 values. That run steps
-Bochs alone, and slice 2's report is that kind. The RTL's test386 run is
-held to the last RTL report on record instead, the 12 November
-`2026-11-12-i386-ud-1701` record; slice 2 kept none. It equals it but for
-the `text` field, which later runners add, and the Verilator record.
+Before the merge, slice 2's `netlist/elaborate.py` with `proc; opt -fast;
+stat -width` showed the identity-off netlist at `98cbd9927` equal to slice
+2's in every cell type and width ([`netlist/stat-h0.txt`](netlist/stat-h0.txt):
+40,791 cells, 29,548 flip-flop bits), though its digest moved. The reseal
+below supersedes that check for the merged head.
 
-The 13 digests that differ in the level-3 reports are:
-- the revision and the hashes of the three changed sources
-  (`fes_i386_cpu.sv`, `fes_i386_seq.sv`, `lockstep_tb.cpp`);
-- the suite and testbench digests;
-- the Bochs objects linked in this worktree;
-- `tracked_changes`, three files of this record and the README, uncommitted
-  during the runs and not build inputs.
+## The DE10 seal
 
-### The identity-off netlist
+`lockstep_tb.cpp` is in the oracle suite's sources (`SUITE_SOURCES`), which
+pc386's build record hashes, and `fes_i386_seq.sv` and `fes_i386_cpu.sv` feed
+the DE10 386 bitstream (their changes under `I486`, which every package
+builds as 0). So pc386's `BUILD_ID` moved, and Deano asked (21 November
+2026) for a reseal and a kit run at the final head.
 
-The seal's Yosys program at `I486 = 0` gives a netlist whose digest is not
-slice 2's (`e23b1f18…` against `01cbcb4d…` at slice 2's elaboration, and
-`aead46a0…` in slice 2's level-3 netlist report). Its structure is the same.
-Slice 2's `netlist/elaborate.py` ran on this tree, followed by `proc; opt
--fast; stat -width`. The stat ([`netlist/stat-h0.txt`](netlist/stat-h0.txt))
-equals slice 2's `stat-h0.txt` line for line: 40,791 cells and 29,548
-flip-flop bits, every cell type and width the same. Yosys's output depends
-on more than the logic, so the digest moved while the cells did not.
+The registered producer, `build_pc386_product.py --with-lockstep --seed 1
+--gpu-router HIP`, ran on Powerboat from a clean detached worktree of
+`ad328d78c`:
+- under the Lite lease slot `/tmp/fes-quartus-lite-1.lock`;
+- pinned to 4 CPUs with `taskset` for this session's cap;
+- `--gpu-router HIP` only picks the authenticated toolchain slot.
 
-## The pc386 BUILD_ID and the DE10 bitstream
+It ran from 00:52 to 02:03 EET on 22 November:
+- **The full netlist lockstep passed.** It is the level-3 netlist row above.
+- **Quartus 17.0.2 compiled with 0 errors and passed every timing analysis**
+  at 61.44 MHz system, 74.27 MHz pixel and 12.29 MHz audio. Worst setup
+  slack +0.339 ns, hold +0.083 ns, recovery +7.213 ns, removal +0.509 ns,
+  minimum pulse width +1.122 ns.
+- **Resources:** 36,435 of 41,910 ALMs (slice 2's seal: 36,354), 31,903
+  registers, 282 RAM blocks, 41 DSP blocks.
+- **Identities:** BUILD_ID `766bd82aaeed4898149883a6ccc6a012`, package
+  `b3cd67c0df13b47768f26bfb192dc73308bfe02bb5cacb9bff27cb826cb22ea7`, RBF
+  SHA-256 `ce45a49e…`.
 
-- `lockstep_tb.cpp` is in the oracle suite's sources (`SUITE_SOURCES`),
-  whose digest pc386's build record hashes. This change moves pc386's
-  `BUILD_ID` with no change to the 386, as slice 0 did.
-- `fes_i386_seq.sv` and `fes_i386_cpu.sv` feed the DE10 386 bitstream. Their
-  changes are under `I486`, which every package builds as 0. The
-  identity-off netlist's digest moved, although its cells did not (above).
-  No seal or D12 comparison was run, so the sealed design and this head's
-  are not shown equal. The PR says so.
+`verify_pc386_product_seal.py` passes against `ad328d78c` (`SEAL_OK`, 154
+bound files). [`head_matches_seal.py`](head_matches_seal.py) shows a
+checkout builds the sealed design, for later record-only commits. The seal's
+`build-summary.json`, `build-inputs.json` and lockstep report are in
+[`seal/`](seal/).
+
+## The kit run
+
+Kit B, run `k2087a`, 22 November 02:46 to 02:48 EET. It used slice 2's
+core-only runner (`hil_s4_dos.py`, with its claim, baseline check and
+restore wrapper):
+- **Claim.** The wrapper claimed the kit in `kitB-STATUS.md` only after
+  finding its last line FREE, the kit on that line's baseline (image
+  `179affbb…`, bundle `c9ae79e2…`), the agent idle and the lease free.
+- **What ran.** The package was packed as a canonical `.fcore`. The packer
+  reproduces slice 2's `k2044b` archive byte for byte; the package ID was
+  checked after packing. It ran on the baseline with no install and no
+  reboot, booting the user-supplied FreeDOS drive `a6977555…` as a fresh
+  library game.
+- **Result** ([`kit/kit-b-k2087a-result.json`](kit/kit-b-k2087a-result.json)):
+  - the FreeDOS prompt was detected in 0.6 s;
+  - Wolfenstein 3D reached floor 1 with graphics on screen (0.938 of the
+    frame lit), and 0.562 of the frame changed after a walk;
+  - no load error.
+- **Restore.** The kit is on the same image and bundle with the same boot
+  ID, the agent idle, the lease free, and none of the run's FogCast data
+  left. The run is logged IN USE and then FREE in `kitB-STATUS.md`.
 
 ## The merge of main
 
 Slice 2 ([#2045](https://github.com/DeanoC/fes/pull/2045)) landed as
-`f07cd3384` while these runs went on, so this branch merged main after them
-(`cdbdccd7b`), with no rebase. The merged tree is main plus this branch's
-changes exactly. Main also brought x87 slice 6.3
-([#2059](https://github.com/DeanoC/fes/pull/2059), `57bdbb31f`), which
-changes the x87 unit's RTL. The long runs above do not include it. The 386
-comparisons are against slice 2's head (`bf7afef73`), as `method.md` set
-them.
-
-At the merged head, the directed level-4 cases ran again on the RTL at both
-identities: the self-check passes, and the 486SX agrees on all 148. The
-386's stops equal its list
-([`directed/both-rtl-merged.json`](directed/both-rtl-merged.json)).
-test386's oracle run there equals slice 2's in all 707 values. The level-4
-runner's unit tests (`tests/test_fes_i486_oracle.py`, with the governor,
-lockstep, governor-inventory and lockstep-seal tests) pass. Two of the
-runner's tests described the old behaviour and now describe the new: the
-level-4 oracle runs the `random` mode too, and the 486SX list has no stops.
+`f07cd3384` during the first runs, so this branch merged main (`cdbdccd7b`,
+no rebase). The merged tree is main plus this branch's changes exactly.
+Main also brought x87 slice 6.3
+([#2059](https://github.com/DeanoC/fes/pull/2059), `57bdbb31f`). The #AC
+error-code change followed (`ad328d78c`), and every run in the table ran
+again there except test386 on the RTL. The level-4 runner's unit tests
+(`tests/test_fes_i486_oracle.py`, with the governor, lockstep,
+governor-inventory and lockstep-seal tests) pass. Two of the runner's tests
+described the old behaviour and now describe the new: the level-4 oracle
+runs the `random` mode too, and the 486SX list has no stops.
 
 ## What this does not establish
 
@@ -301,7 +333,7 @@ level-4 oracle runs the `random` mode too, and the 486SX list has no stops.
 - **#AC inside a delivery that ends, at random.** The directed cases cover
   it; the random programs did not reach it.
 - **The x87 empty socket at `I486 = 1`.** The random programs run no ESC.
-- **The netlist's timing or fit.** Nothing was placed or routed.
-- **The merged head with #2059's x87 changes**, beyond the directed cases
-  and test386's oracle run. The random programs, level-3 lockstep, governor
-  benches and test386 on the RTL ran before the merge (above).
+- **The 486SX's timing or fit.** The seal is of the 386 package
+  (`I486 = 0`); slice 2's 486SX fit stands.
+- **test386 on the RTL at the merged head.** It ran at `98cbd9927`.
+- **Games beyond the kit run's FreeDOS and Wolfenstein 3D** on this seal.
