@@ -272,7 +272,7 @@ OPL2_RTL = (
     OPL2_VENDOR / 'opl2_pkg.sv',
     *(OPL2_VENDOR / f'{name}.sv' for name in (
         'pipeline_sr', 'mem_simple_dual_port', 'mem_simple_dual_port_async_read', 'mem_single_bank',
-        'mem_single_bank_reset', 'opl2_log_sine_lut', 'opl2_exp_lut', 'ksl_add_rom', 'tremolo', 'vibrato',
+        'mem_single_bank_reset', 'ksl_add_rom', 'tremolo', 'vibrato',
         'calc_phase_inc', 'calc_envelope_shift', 'calc_rhythm_phase', 'envelope_generator', 'phase_generator',
         'operator', 'control_operators', 'dac_prep', 'channels')),
     CORE / 'rtl/pc386_rate.sv',
