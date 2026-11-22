@@ -63,7 +63,9 @@ func main() {
 func probeRTC() {
 	dev, err := board.RTC()
 	if err != nil {
-		if errors.Is(err, rtc.ErrNotFound) {
+		// QEMU virt always maps a PL031, so a missing or misidentified RTC
+		// there is a failure; only boards without an RTC may skip.
+		if errors.Is(err, rtc.ErrNotFound) && board.Name != "qemu" {
 			fmt.Println("SKIP rtc (no hardware RTC on board)")
 			return
 		}
