@@ -21,13 +21,15 @@ upstream ships them. This record covers the fixed builds.
 - **The kernel and SHARE are built from the ke2046 release's source
   archive** (`ke2046s.zip`, already pinned):
   - **Kernel:** 386 FAT12/FAT16 with `WIN31SUPPORT`, built with Open Watcom
-    v2 (the 2026-07-13 build), plus one 18-byte patch. The patch makes the
-    stub keep SI and DS on the stack.
+    v2 (the 2026-07-13 build), plus two patches. The first, 18 bytes,
+    makes the stub keep SI and DS on the stack. The second fixes the build
+    date in the version string (below).
   - **SHARE:** the archive's `share` tree (FDOS/share 47f3d425, which has
     `is_file_open`), built with ia16-gcc 6.3.0 from tkchia/build-ia16.
 - **Builds are pinned and reproducible.** `freedos.lock` pins both
   toolchains by archive SHA-256 and both outputs by SHA-256; a build that
-  makes other bytes fails. Building twice gives the same bytes.
+  makes other bytes fails. Building twice gives the same bytes, on
+  Powerboat and on the GitHub runner.
 - **The unpatched source build matches the release.** Its symbol map
   equals the release kernel's (`kwc38616.map`) at 565 of 567 symbols; two
   DGROUP symbols sit 2 bytes higher. Its HMA code equals the code the
@@ -71,11 +73,37 @@ BX is in the Watcom `pascal` convention's modify list. The new stub takes the
 old one's 18 bytes, so the rest of the kernel keeps its layout. Drop the patch
 once FDOS/kernel releases a fix.
 
+## The build date
+
+CI's first build of 12fe56043 failed the kernel pin. The runner made
+`kernel.sys` with SHA-256 `4cab0e80…`, against Powerboat's `027ad1c2…`.
+`hdr/version.h` puts `__DATE__` in the boot banner (`[compiled Nov 21
+2026]`). Open Watcom ignores `SOURCE_DATE_EPOCH`, and `-D__DATE__` only
+draws warning W140. Changing "Nov 21" to "Nov 22" in Powerboat's build gives
+exactly `4cab0e80…`, so the date was the only difference.
+
+[`ke2046-fixed-build-date.patch`](../../../sources/misteross/cores/fes-pc386/sim/freedos-patches/ke2046-fixed-build-date.patch)
+replaces `__DATE__` with `"Jun 30 2026"`, the date the ke2046 release kernel
+carries (read from the old fixture's memory dump). The string is the same
+length. The new kernel (`a356b365…`) differs from `027ad1c2…` in the 5 date
+bytes only.
+
+Codex also found that the builder appended the pinned NASM to `PATH`, so a
+host `nasm` would win. Powerboat has none, and the runner's build matched
+except for the date, so it did not cause this failure. The builder now puts
+the pinned NASM first.
+
+The checks below ran on the `027ad1c2…` kernel, before the date patch. The
+two kernels differ only in the banner's date, so no check was rerun except
+`--suite share` (oracle). The drives and images were rebuilt with the new
+kernel; their hashes are in `docs/pc386-game-drives.md`.
+
 ## Checks
 
 | Check | Result |
 | --- | --- |
 | `--suite share`, oracle | pass: create, del-open, ren-open, close, rename, delete, gone, DONE |
+| `--suite share`, oracle, on the date-patched kernel `a356b365…` | pass: all eight checks |
 | `--suite share --cpu rtl` | pass, no oracle step or stop after the handover |
 | `SHRTEST.COM` with the new SHARE and an unpatched kernel 2046 built from the same source, entry 4 | stops at the rename: "Error reading from drive A: DOS area: drive not ready" |
 | `SHRTEST.COM` on the old fixture (release kernel, SHARE 08/2006a), entry 4 | rename, delete and gone FAIL with AX=0005h, as #1777 found |
@@ -85,7 +113,7 @@ once FDOS/kernel releases a fix.
 | `--suite boot --image games --cpu rtl --type 'mem\|'` (entry 1) | pass from reset, 0 oracle steps: 582K (595,808 bytes); VGA replay 0 mismatches |
 | `--suite boot` (boot image, `dir`), oracle | pass; VGA replay 0 mismatches |
 | `--suite boot --cpu rtl` (boot image, `dir`) | pass from reset, 0 oracle steps; VGA replay 0 mismatches |
-| `--suite game --game wolf3d --drive real` (rebuilt `real`, `bb473ed9…`), oracle | pass (24 s run) |
+| `--suite game --game wolf3d --drive real` (`real` rebuilt on 21 November, `bb473ed9…`), oracle | pass (24 s run) |
 | `--suite game --game wolf3d --drive real --cpu rtl --rtl-at-prompt` | pass, 0 oracle steps after the handover (24 s run) |
 | `--suite game --game ultima6 --drive real` (rebuilt `real`), oracle | pass (16 s run; OPL2 2,815 writes, every sample exact) |
 | `--suite game --game ultima6 --drive real --cpu rtl --rtl-at-prompt` | pass, 0 oracle steps after the handover (16 s run; OPL2 every sample exact) |

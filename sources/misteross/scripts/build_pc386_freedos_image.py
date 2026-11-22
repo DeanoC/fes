@@ -48,10 +48,12 @@ its pinned SHA-256:
 
   kernel   kernel 2046's 386 FAT12/FAT16 build with Windows 3.x support
            (WIN31SUPPORT), built from ke2046s.zip's SOURCE/ke2046 with Open
-           Watcom and installed as KERNEL.SYS uncompressed. One patch from
-           cores/fes-pc386/sim/freedos-patches is applied first: its
-           SHARE_IS_FILE_OPEN stub kept SI, which DosRenameTrue relies on
-           (fes#1777, FDOS/kernel#276); drop it when upstream ships a fix.
+           Watcom and installed as KERNEL.SYS uncompressed. Two patches from
+           cores/fes-pc386/sim/freedos-patches are applied first: its
+           SHARE_IS_FILE_OPEN stub keeps SI, which DosRenameTrue relies on
+           (fes#1777, FDOS/kernel#276; drop it when upstream ships a fix),
+           and the version string's __DATE__ is fixed to the release's,
+           since Open Watcom ignores SOURCE_DATE_EPOCH.
            boot/boot.asm from the same archive is the FAT16 boot sector,
            assembled with the test386 runner's pinned NASM. The FAT32 build
            reports DOS 7.10 and is not what Windows 3.x runs on
@@ -375,7 +377,7 @@ def build_package(name: str, spec: dict, tree: Path, download: bool, jobs: int) 
             raise ImageError(f'FreeDOS {name}: {patch} did not apply:\n' + result.stdout + result.stderr)
     nasm = test386.nasm(download, jobs)
     env = dict(os.environ, **toolchain_environment(build['toolchain'], download), **build.get('environment', {}))
-    env['PATH'] = os.pathsep.join((env['PATH'], str(nasm.parent)))
+    env['PATH'] = os.pathsep.join((str(nasm.parent), env['PATH']))  # the pinned NASM before any host one
     env['SOURCE_DATE_EPOCH'] = str(FILE_TIME)
     print(f'Building FreeDOS {name} with {lock()["toolchains"][build["toolchain"]]["version"]}', flush=True)
     log = tree / 'build.log'

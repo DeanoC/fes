@@ -16,13 +16,15 @@
         "ke2046s.zip/SOURCE/ke2046/boot/boot.asm": "5ac89704061cc0f27a9cb58706f05be37cc6515a9ea3d465f31850b0c400201c",
         "ke2046s.zip/SOURCE/ke2046/boot/magic.mac": "1bd189937f73fb87c239e54a89db57038f8d3a2cbd6b465b7f21327211ed9b9d",
         "ke2046s.zip/SOURCE/ke2046/kernel/int2f.asm": "d1b48d46147f32951ee67dcb8a52c2ea6d02fa0a01c590a0a2fec3d7f54ded37",
+        "ke2046s.zip/SOURCE/ke2046/hdr/version.h": "bd38e66d28be664b9ba20f5695df5a4f8f4dcd4de2fb0f7f48abdc33fd19797d",
         "ke2046s.zip/SOURCE/ke2046/COPYING": "2ec21c4f10e9fc6bafbc619cf905424162a0b6443e482d599a6d0d7718e9ae58"
       },
       "source_tree": "ke2046s.zip/SOURCE/ke2046",
       "build": {
         "toolchain": "openwatcom",
         "patches": [
-          "cores/fes-pc386/sim/freedos-patches/ke2046-share-is-file-open-si.patch"
+          "cores/fes-pc386/sim/freedos-patches/ke2046-share-is-file-open-si.patch",
+          "cores/fes-pc386/sim/freedos-patches/ke2046-fixed-build-date.patch"
         ],
         "command": [
           "make",
@@ -35,7 +37,7 @@
           "NASMFLAGS=-DWIN31SUPPORT"
         ],
         "output": "bin/kernel.sys",
-        "sha256": "027ad1c2672edc9a14d7af3bbe400bec582986d53093ece2859d5907432cf9ca"
+        "sha256": "a356b365ab069b692aeb2360718d8b3a802c994e23e7e63ea282c12a2c916302"
       },
       "upstream_issue": "https://github.com/FDOS/kernel/issues/276",
       "boot_asm": "ke2046s.zip/SOURCE/ke2046/boot/boot.asm",

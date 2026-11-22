@@ -304,11 +304,21 @@ class FreedosImageTest(unittest.TestCase):
                 build = spec['build']
                 self.assertIn(build['toolchain'], toolchains)
                 self.assertRegex(build['sha256'], r'^[0-9a-f]{64}$')
-                for patch in build['patches']:
-                    self.assertTrue((freedos.ROOT / patch).is_file())
-                    self.assertIn(spec['upstream_issue'], (freedos.ROOT / patch).read_text())
+                texts = [(freedos.ROOT / patch).read_text() for patch in build['patches']]
+                # Each patch says why it is carried, and the file it patches is pinned.
+                for text in texts:
+                    self.assertTrue(text.startswith('fes#'))
+                    for target in re.findall(r'^\+\+\+ b/(\S+)', text, re.MULTILINE):
+                        self.assertIn(f"{spec['source_tree']}/{target}", spec['files'])
+                if texts:
+                    self.assertTrue(any(spec['upstream_issue'] in text for text in texts))
                 self.assertRegex(spec['upstream_issue'], r'^https://github\.com/FDOS/(kernel|share)/issues/\d+$')
-        self.assertIn('kernel/int2f.asm', (freedos.ROOT / packages['kernel']['build']['patches'][0]).read_text())
+        kernel_patches = [(freedos.ROOT / patch).read_text() for patch in packages['kernel']['build']['patches']]
+        self.assertIn('kernel/int2f.asm', kernel_patches[0])
+        self.assertIn(packages['kernel']['upstream_issue'], kernel_patches[0])
+        # Open Watcom ignores SOURCE_DATE_EPOCH: __DATE__ would make each day's kernel.sys different.
+        self.assertTrue(any('-#define KVS' in text and '__DATE__' not in text.split('+#define KVS')[1].splitlines()[0]
+                            for text in kernel_patches))
         self.assertIn('boot_asm', packages['kernel'])
         self.assertIn('XUPX=', packages['kernel']['build']['command'])
         self.assertIn('UPXARGS=true', packages['share']['build']['command'])

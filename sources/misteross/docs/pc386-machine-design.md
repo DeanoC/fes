@@ -1176,18 +1176,21 @@ archive of the [FDOS/kernel ke2046 release](https://github.com/FDOS/kernel/relea
 (`ke2046s.zip`, pinned by SHA-256; [#1729](https://github.com/DeanoC/fes/issues/1729),
 [#1777](https://github.com/DeanoC/fes/issues/1777)):
 - **Kernel.** Kernel 2046's 386 FAT12/FAT16 build, with Windows 3.x
-  support, built with Open Watcom plus one patch
-  (`cores/fes-pc386/sim/freedos-patches/`). The patch makes the 10A6h stub
+  support, built with Open Watcom plus two patches
+  (`cores/fes-pc386/sim/freedos-patches/`). One makes the 10A6h stub
   keep SI ([FDOS/kernel#276](https://github.com/FDOS/kernel/issues/276)).
   Without it, a rename under a SHARE that answers 10A6h works on a garbage
-  path.
+  path. The other fixes the version string's `__DATE__` to the release
+  kernel's (Jun 30 2026): Open Watcom ignores `SOURCE_DATE_EPOCH`, so
+  without it each day's build makes different bytes.
 - **SHARE.** Built with ia16-gcc from the archive's `share` tree, which
   answers 10A6h. Kernel 2046 asks SHARE that before every delete and
   rename, and FreeDOS 1.4's SHARE 08/2006a, which predates the call, failed
   them all ([FDOS/share#27](https://github.com/FDOS/share/issues/27)).
 
-Both builds must reproduce the bytes the lock pins. The patch goes once
-upstream releases a fix.
+Both builds must reproduce the bytes the lock pins. The 10A6h patch goes
+once upstream releases a fix; the date patch stays while the fixture
+builds the kernel.
 FreeDOS 1.4's kernel 2043 does not answer WIN386's INT 2Fh AX=1605h and
 AX=1607h BX=0015h DOS callouts, so Windows 3.x in 386 enhanced mode quits
 with "Unsupported MS-DOS version". Kernels from 2044 build in the Windows 3.x

@@ -73,7 +73,7 @@ Quartus 17.0.2.
 | [`sim/plane_tb.cpp`](sim/plane_tb.cpp), [`sim/plane_top.sv`](sim/plane_top.sv) | The plane through the bridge and the port 2 arbiter beside the presenter and capture traffic |
 | [`sim/pc386_ddr_model.h`](sim/pc386_ddr_model.h) | The DDR window and 64-bit port model with the measured latency |
 | [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS kernel 2046 source archive and how its kernel and SHARE are built (toolchains, patches, output hashes), the FreeDOS 1.4 package commits and the file hashes of the simulation and games disks |
-| [`sim/freedos-patches/`](sim/freedos-patches) | Our patches to FreeDOS source, each with its upstream report: the kernel's 10A6h stub (#1777, FDOS/kernel#276) |
+| [`sim/freedos-patches/`](sim/freedos-patches) | Our patches to FreeDOS source, each with its upstream report: the kernel's 10A6h stub (#1777, FDOS/kernel#276), and a fixed build date so the kernel build reproduces |
 | [`sim/share_test.asm`](sim/share_test.asm) | `SHRTEST.COM`: delete and rename under SHARE on the games image's entry 4 (`--suite share`, #1777) |
 | [`sim/fesenv.asm`](sim/fesenv.asm) | FESENV.COM: the games disk's `BLASTER` line from CMOS 60h-62h |
 | [`sim/mousedef.asm`](sim/mousedef.asm) | MOUSEDEF.COM: the games disk's default CuteMouse event handler, run after `LH CTMOUSE` |
