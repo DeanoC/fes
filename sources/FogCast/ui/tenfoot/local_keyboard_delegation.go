@@ -28,7 +28,7 @@ func fullLocalIdentity(s string) bool {
 // binding on each frame; this observation alone never authorizes a write.
 func (a *App) localKeyboardBindingLocked() (localfeed.Binding, bool) {
 	if !a.kitHost || a.client == nil || a.client.paired || !a.healthHave || a.hostUnreachable || a.localKeyboardUncertain ||
-		!a.health.Ready || !a.health.TargetReachable || !a.health.TargetReady ||
+		!a.health.Ready || !a.health.TargetReachable ||
 		!a.kitLeaseHave || a.kitLease.Unavailable || a.kitLease.ErrorCode != "" ||
 		!fullLocalIdentity(a.kitLease.Generation) || a.kitLease.Generation != a.health.Connection.LeaseGeneration ||
 		a.session.State != "active" || !a.session.CoreKeyboardHID || a.session.CorePackage == nil ||
@@ -38,6 +38,9 @@ func (a *App) localKeyboardBindingLocked() (localfeed.Binding, bool) {
 		!a.needsSessionDisplayLocked() || a.sessionDisplayLocked().Focus != protocol.SessionFocusMachine {
 		return localfeed.Binding{}, false
 	}
+	// TargetReady reports idle launch admission, so it is false while a
+	// healthy core is running. The active session and its lease/core binding
+	// below are the relevant admission checks for an in-play keyboard.
 	connection := a.health.Connection
 	foreign := connection.State == "busy" && !connection.LeaseOwned && connection.Owner != "" &&
 		a.kitLease.State == "held" && a.kitLease.Owner == connection.Owner

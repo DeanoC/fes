@@ -89,6 +89,48 @@ func TestPhysicalKeyboardUsesBoundLocalRouteForForeignSession(t *testing.T) {
 	}
 }
 
+func TestActiveLocalKeyboardBindingRequiresLiveMatchingObservations(t *testing.T) {
+	tests := []struct {
+		name       string
+		invalidate func(*App)
+	}{
+		{"host not ready", func(a *App) { a.health.Ready = false }},
+		{"target unreachable", func(a *App) { a.health.TargetReachable = false }},
+		{"host unreachable", func(a *App) { a.hostUnreachable = true }},
+		{"uncertain binding", func(a *App) { a.localKeyboardUncertain = true }},
+		{"foreign lease changed", func(a *App) { a.kitLease.Generation = strings.Repeat("c", 64) }},
+		{"foreign owner changed", func(a *App) { a.kitLease.Owner = "another" }},
+		{"target changed", func(a *App) { a.health.Connection.TargetID = "another" }},
+		{"session no longer active", func(a *App) { a.session.State = "idle" }},
+		{"package unavailable", func(a *App) { a.session.CorePackage = nil }},
+		{"connection failed", func(a *App) { a.health.Connection.State = "disconnected" }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(http.NotFound))
+			defer server.Close()
+			app, _ := kitDisplayApp(t, server)
+			gen := strings.Repeat("a", 64)
+			app.mu.Lock()
+			defer app.mu.Unlock()
+			app.kitHost, app.localFeed, app.session.Input, app.session.CoreKeyboardHID = true, &boundKeyboardRecorder{}, nil, true
+			app.session.CorePackage.PackageID, app.session.CorePackage.Generation = strings.Repeat("b", 64), 7
+			app.healthHave = true
+			app.health.Ready, app.health.TargetReady, app.health.TargetReachable = true, false, true
+			app.health.Connection.State, app.health.Connection.Owner = "busy", "remote"
+			app.health.Connection.TargetID, app.health.Connection.LeaseGeneration = app.session.TargetID, gen
+			app.kitLeaseHave, app.kitLease = true, KitLeaseStatus{State: "held", Owner: "remote", Generation: gen}
+			if _, ok := app.localKeyboardBindingLocked(); !ok {
+				t.Fatal("active, non-idle target was rejected")
+			}
+			tt.invalidate(app)
+			if _, ok := app.localKeyboardBindingLocked(); ok {
+				t.Fatal("invalid observation admitted a physical binding")
+			}
+		})
+	}
+}
+
 func TestRetireForeignKeyboardNeutralizesAndSuppressesHeldKey(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
 	t.Cleanup(server.Close)

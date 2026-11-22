@@ -3144,7 +3144,7 @@ func (a *App) fetchHealth(ctx context.Context) {
 		wasForeign := a.foreignKitLeaseLocked()
 		wasReady := a.healthHave && !a.hostUnreachable && a.kitMenuHealthError == "" && a.health.Ready && a.health.TargetReachable && a.health.TargetReady
 		if binding, ok := a.localKeyboardBindingLocked(); ok &&
-			(!result.Ready || !result.TargetReachable || !result.TargetReady ||
+			(!result.Ready || !result.TargetReachable ||
 				result.Connection.State != a.health.Connection.State || result.Connection.Owner != a.health.Connection.Owner || result.Connection.LeaseOwned != a.health.Connection.LeaseOwned ||
 				result.Connection.TargetID != a.health.Connection.TargetID || result.Connection.BootID != a.health.Connection.BootID ||
 				result.Connection.LeaseGeneration != binding.LeaseGeneration || lease.Unavailable || lease.Generation != binding.LeaseGeneration) {

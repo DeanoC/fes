@@ -44,7 +44,8 @@ func (s *projectionService) KitLocalForeignLease(context.Context, string) (bool,
 	return st.State == "held" && st.Owner == "external", nil
 }
 func (s *projectionService) Health(context.Context) (protocol.Health, error) {
-	return protocol.Health{Ready: true, TargetID: s.target, APIVersion: "v1"}, nil
+	// Runtime health reports launch readiness only when the target is idle.
+	return protocol.Health{Ready: false, TargetID: s.target, APIVersion: "v1"}, nil
 }
 func (s *projectionService) Status(context.Context) (protocol.Status, error) {
 	core := "fes.c64"
@@ -118,7 +119,11 @@ func TestKitHostForeignOwnerSessionProjectsToBoundKeyboard(t *testing.T) {
 	app.fetchSession(ctx)
 	app.mu.Lock()
 	session := app.session
+	health := app.health
 	app.mu.Unlock()
+	if !health.Ready || !health.TargetReachable || health.TargetReady {
+		t.Fatalf("expected reachable host and active, non-idle target: %+v", health)
+	}
 	if session.State != "active" || session.CorePackage == nil || session.CorePackage.PackageID != service.pkg || !session.CoreKeyboardHID {
 		t.Fatalf("active session not projected: %+v", session)
 	}
@@ -129,11 +134,22 @@ func TestKitHostForeignOwnerSessionProjectsToBoundKeyboard(t *testing.T) {
 		t.Fatalf("stale local bridge projected as ready: %+v", session.Input)
 	}
 	app.HandlePlayHIDScancode("8", 0x25, true, time.Now())
+	drainLocalKeyQueue(t, app)
+	// A normal health refresh during an active key must not retire the
+	// binding merely because the target cannot admit another launch.
+	app.fetchHealth(ctx)
+	drainLocalKeyQueue(t, app)
+	feed.mu.Lock()
+	heldEvents := append([]remoteinput.Event(nil), feed.events...)
+	feed.mu.Unlock()
+	if len(heldEvents) != 1 || heldEvents[0].Action != remoteinput.ActionPress {
+		t.Fatalf("health refresh retired the held key: %+v", heldEvents)
+	}
 	app.HandlePlayHIDScancode("8", 0x25, false, time.Now())
 	drainLocalKeyQueue(t, app)
 	feed.mu.Lock()
 	defer feed.mu.Unlock()
-	if len(feed.events) != 2 || len(feed.bindings) != 2 || feed.bindings[0].LeaseGeneration != grant.Status.Generation || feed.bindings[0].PackageID != service.pkg || feed.bindings[0].CoreGeneration != 7 || feed.bindings[0] != feed.bindings[1] {
+	if len(feed.events) != 2 || feed.events[1].Action != remoteinput.ActionRelease || len(feed.bindings) != 2 || feed.bindings[0].LeaseGeneration != grant.Status.Generation || feed.bindings[0].PackageID != service.pkg || feed.bindings[0].CoreGeneration != 7 || feed.bindings[0] != feed.bindings[1] {
 		t.Fatalf("physical keyboard binding/events = %+v %+v", feed.bindings, feed.events)
 	}
 }
