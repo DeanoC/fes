@@ -505,6 +505,9 @@ func TestDWC2IRQConcurrentDispatchRace(t *testing.T) {
 	if err := host.EnableIRQ(ctrl, testUSBIRQ); err != nil {
 		t.Fatal(err)
 	}
+	// Seed the count before fake-time polling can finish faster than the
+	// background dispatcher is scheduled under the race detector.
+	ghw.fire(ctrl, testUSBIRQ)
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
@@ -579,5 +582,56 @@ func TestDWC2IRQWithOwnedUSBControlClose(t *testing.T) {
 	}
 	if ghw.isEnabled(testUSBIRQ) || source.Ready() != nil {
 		t.Fatal("owned Close did not tear down GIC SPI")
+	}
+}
+
+func TestDWC2IRQDoesNotTouchRegistersAfterClientStop(t *testing.T) {
+	ctrl, ghw := newMockGIC(t)
+	hw := newSyncController()
+	fw := &ownedFirmware{t: t, controller: hw.base}
+	ctx := context.Background()
+	client, err := usbcontrol.New(ctx, fw, 17)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := usbcontrol.Open(ctx, client, func() (input.USBReports, error) {
+		return Open(hw, Config{PHYClockHz: 60000000})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := source.EnableIRQ(ctrl, testUSBIRQ); err != nil {
+		t.Fatal(err)
+	}
+	if !ghw.isEnabled(testUSBIRQ) {
+		t.Fatal("owned source did not enable GIC SPI")
+	}
+	beforeStop := hw.accesses()
+	if err := client.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	stopped := hw.accesses()
+	if stopped != beforeStop {
+		t.Fatalf("Client.Stop unexpectedly touched DWC2 registers: %d->%d", beforeStop, stopped)
+	}
+	ghw.fire(ctrl, testUSBIRQ)
+	if got := hw.accesses(); got != stopped {
+		t.Fatalf("stale GIC handler touched DWC2 after Stop: accesses %d->%d", stopped, got)
+	}
+	if ghw.isEnabled(testUSBIRQ) {
+		t.Fatal("stale GIC handler left SPI enabled")
+	}
+	if source.Ready() != nil || source.IRQCount() != 0 {
+		t.Fatal("stopped source exposed stale IRQ state")
+	}
+	source.DisableIRQ()
+	if got := hw.accesses(); got != stopped {
+		t.Fatalf("stale source DisableIRQ touched DWC2: accesses %d->%d", stopped, got)
+	}
+	if err := source.Close(ctx); err == nil {
+		t.Fatal("stopped source unexpectedly closed a lease it no longer owns")
+	}
+	if got := hw.accesses(); got != stopped {
+		t.Fatalf("stale source teardown touched DWC2: accesses %d->%d", stopped, got)
 	}
 }

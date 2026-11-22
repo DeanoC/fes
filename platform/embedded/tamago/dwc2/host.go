@@ -133,6 +133,7 @@ type Host struct {
 	irqMode      atomic.Bool
 	irqActive    atomic.Bool
 	irqSuspended bool
+	irqGuard     func() bool
 	irqReady     chan struct{}
 	irqCount     atomic.Uint64
 }

@@ -50,8 +50,10 @@ type irqTestDriver struct {
 	ready     chan struct{}
 	enabled   bool
 	disables  int
+	retires   int
 	paused    bool
 	count     uint64
+	guard     func() bool
 	enableErr error
 }
 
@@ -66,9 +68,17 @@ func (d *irqTestDriver) EnableIRQ(_ *gic.Controller, _ uint32) error {
 	d.enabled = true
 	return nil
 }
+func (d *irqTestDriver) EnableIRQGuarded(g *gic.Controller, id uint32, guard func() bool) error {
+	d.guard = guard
+	return d.EnableIRQ(g, id)
+}
 func (d *irqTestDriver) DisableIRQ() {
 	d.enabled = false
 	d.disables++
+}
+func (d *irqTestDriver) RetireIRQ() {
+	d.enabled = false
+	d.retires++
 }
 func (d *irqTestDriver) Ready() <-chan struct{} {
 	if !d.enabled {
@@ -153,11 +163,43 @@ func TestSourceAndGamepadSourceIRQControl(t *testing.T) {
 	if err := kSrc.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if kd.enabled || kd.disables != 1 || kSrc.Ready() != nil {
-		t.Fatalf("Source Close did not disable IRQ: enabled=%t disables=%d", kd.enabled, kd.disables)
+	if kd.enabled || kd.disables != 0 || kd.retires != 1 || kSrc.Ready() != nil {
+		t.Fatalf("Source Close did not retire IRQ safely: enabled=%t disables=%d retires=%d", kd.enabled, kd.disables, kd.retires)
 	}
 	if err := kSrc.EnableIRQ(nil, 125); !errors.Is(err, ErrRetired) {
 		t.Fatalf("closed Source EnableIRQ=%v, want ErrRetired", err)
+	}
+
+	// A public Client.Stop can invalidate an open source. Its accessors and
+	// teardown must use no-MMIO retirement after the confirmed receipt changes.
+	trStop := &irqMockTransport{owner: 21}
+	cStop, err := New(ctx, trStop, 21)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stopDriver := &irqTestDriver{ready: make(chan struct{}, 1), count: 4}
+	stopSource, err := Open(ctx, cStop, func() (input.USBReports, error) { return stopDriver, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stopSource.EnableIRQ(nil, 125); err != nil {
+		t.Fatal(err)
+	}
+	if stopDriver.guard == nil || !stopDriver.guard() {
+		t.Fatal("IRQ ownership guard rejected the confirmed source")
+	}
+	if err := cStop.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if stopDriver.guard() {
+		t.Fatal("IRQ ownership guard accepted a stopped source")
+	}
+	if stopSource.Ready() != nil || stopSource.IRQCount() != 0 {
+		t.Fatal("stopped source exposed stale IRQ state")
+	}
+	stopSource.DisableIRQ()
+	if stopDriver.enabled || stopDriver.disables != 0 || stopDriver.retires == 0 {
+		t.Fatalf("stopped source did not use safe IRQ retirement: enabled=%t disables=%d retires=%d", stopDriver.enabled, stopDriver.disables, stopDriver.retires)
 	}
 
 	// GamepadSource with IRQ + explicit DisableIRQ + Close.

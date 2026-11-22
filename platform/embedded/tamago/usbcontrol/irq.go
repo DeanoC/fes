@@ -14,6 +14,11 @@ type irqControl interface {
 	IRQCount() uint64
 }
 
+type guardedIRQControl interface {
+	EnableIRQGuarded(*gic.Controller, uint32, func() bool) error
+	RetireIRQ()
+}
+
 type irqDriver interface{ irqControl() irqControl }
 
 func (d keyboardDriver) irqControl() irqControl {
@@ -119,7 +124,16 @@ func (s *reportLease) enableIRQ(g *gic.Controller, irqID uint32) error {
 	if !ok || d.irqControl() == nil {
 		return gic.ErrUnsupported
 	}
-	return d.irqControl().EnableIRQ(g, irqID)
+	guarded, ok := d.irqControl().(guardedIRQControl)
+	if !ok {
+		return gic.ErrUnsupported
+	}
+	return guarded.EnableIRQGuarded(g, irqID, func() bool {
+		// A public Client.Stop can invalidate this source without going through
+		// Source.Close. The DWC2 handler checks this receipt before touching MMIO.
+		current, valid := c.LastReceipt()
+		return valid && current == s.receipt && current.Active && current.Confirmed
+	})
 }
 
 func (s *reportLease) disableIRQ() {
@@ -128,6 +142,11 @@ func (s *reportLease) disableIRQ() {
 	}
 	s.operation.Lock()
 	defer s.operation.Unlock()
+	if s.client == nil {
+		return
+	}
+	s.client.operation.Lock()
+	defer s.client.operation.Unlock()
 	s.disableIRQLocked()
 }
 
@@ -137,7 +156,25 @@ func (s *reportLease) disableIRQLocked() {
 	}
 	if d, ok := s.driver.(irqDriver); ok {
 		if ctrl := d.irqControl(); ctrl != nil {
-			ctrl.DisableIRQ()
+			current, valid := s.client.LastReceipt()
+			if valid && current == s.receipt && current.Active && current.Confirmed {
+				ctrl.DisableIRQ()
+				return
+			}
+			if guarded, ok := ctrl.(guardedIRQControl); ok {
+				guarded.RetireIRQ()
+			}
+		}
+	}
+}
+
+func (s *reportLease) retireIRQLocked() {
+	if s == nil || s.driver == nil {
+		return
+	}
+	if d, ok := s.driver.(irqDriver); ok {
+		if ctrl, ok := d.irqControl().(guardedIRQControl); ok {
+			ctrl.RetireIRQ()
 		}
 	}
 }
@@ -149,6 +186,15 @@ func (s *reportLease) ready() <-chan struct{} {
 	s.operation.Lock()
 	defer s.operation.Unlock()
 	if s.closed || s.fault != nil || s.driver == nil {
+		return nil
+	}
+	if s.client == nil || !s.client.operation.TryLock() {
+		return nil
+	}
+	defer s.client.operation.Unlock()
+	current, valid := s.client.LastReceipt()
+	if !valid || current != s.receipt || !current.Active || !current.Confirmed {
+		s.retireIRQLocked()
 		return nil
 	}
 	if d, ok := s.driver.(irqDriver); ok {
@@ -166,6 +212,15 @@ func (s *reportLease) irqCount() uint64 {
 	s.operation.Lock()
 	defer s.operation.Unlock()
 	if s.driver == nil {
+		return 0
+	}
+	if s.client == nil || !s.client.operation.TryLock() {
+		return 0
+	}
+	defer s.client.operation.Unlock()
+	current, valid := s.client.LastReceipt()
+	if !valid || current != s.receipt || !current.Active || !current.Confirmed {
+		s.retireIRQLocked()
 		return 0
 	}
 	if d, ok := s.driver.(irqDriver); ok {

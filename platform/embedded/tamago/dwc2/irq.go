@@ -28,6 +28,20 @@ const (
 // RX FIFO status and HCINT intact for pollInput() to inspect and clear. DMA
 // and descriptor-DMA remain permanently forbidden.
 func (h *Host) EnableIRQ(g *gic.Controller, irqID uint32) error {
+	return h.enableIRQ(g, irqID, nil)
+}
+
+// EnableIRQGuarded binds a GICv3 SPI only while guard confirms the external
+// firmware lease. The guard is checked by the IRQ handler before any DWC2
+// register access; a false result unregisters the SPI without DWC2 MMIO.
+func (h *Host) EnableIRQGuarded(g *gic.Controller, irqID uint32, guard func() bool) error {
+	if guard == nil {
+		return errors.New("dwc2: nil IRQ ownership guard")
+	}
+	return h.enableIRQ(g, irqID, guard)
+}
+
+func (h *Host) enableIRQ(g *gic.Controller, irqID uint32, guard func() bool) error {
 	if h == nil || h.io == nil || !h.owned || h.initializing {
 		return fmt.Errorf("dwc2: host not ready for IRQ")
 	}
@@ -60,10 +74,19 @@ func (h *Host) EnableIRQ(g *gic.Controller, irqID uint32) error {
 	h.io.Write32(gintmask, 0)
 	h.io.Write32(haintmsk, haintCh0)
 	h.io.Write32(gahb, gahbGlobalIRQ)
+	h.irqGuard = guard
 	g.Register(irqID, func() {
 		h.irqMu.Lock()
 		if !h.irqActive.Load() {
 			h.irqMu.Unlock()
+			return
+		}
+		if h.irqGuard != nil && !h.irqGuard() {
+			hadIRQ := h.retireIRQLocked(false)
+			h.irqMu.Unlock()
+			if hadIRQ {
+				h.signalReady()
+			}
 			return
 		}
 		// Mask GINTMSK immediately so the level-sensitive SPI cannot re-trigger
@@ -99,6 +122,15 @@ func (h *Host) DisableIRQ() {
 	}
 	allowMMIO := h.io != nil && h.owned && !h.pollingPaused && h.fault == nil
 	h.retireIRQ(allowMMIO)
+}
+
+// RetireIRQ unregisters the GIC SPI without accessing DWC2 registers. It is
+// used after the external firmware lease has ended or can no longer be proven.
+func (h *Host) RetireIRQ() {
+	if h == nil {
+		return
+	}
+	h.retireIRQ(false)
 }
 
 // Ready returns the interrupt wakeup channel while GIC IRQ mode is enabled on
@@ -146,6 +178,14 @@ func (h *Host) armIRQ() {
 		h.irqMu.Unlock()
 		return
 	}
+	if h.irqGuard != nil && !h.irqGuard() {
+		hadIRQ := h.retireIRQLocked(false)
+		h.irqMu.Unlock()
+		if hadIRQ {
+			h.signalReady()
+		}
+		return
+	}
 	if h.pending.active && h.pending.halting {
 		h.io.Write32(hcmask, hcintChHltd)
 	}
@@ -182,9 +222,17 @@ func (h *Host) suspendIRQ() {
 // ownership and link state.
 func (h *Host) resumeIRQ() {
 	h.irqMu.Lock()
-	defer h.irqMu.Unlock()
 	if h.irqGIC == nil {
 		h.irqSuspended = false
+		h.irqMu.Unlock()
+		return
+	}
+	if h.irqGuard != nil && !h.irqGuard() {
+		hadIRQ := h.retireIRQLocked(false)
+		h.irqMu.Unlock()
+		if hadIRQ {
+			h.signalReady()
+		}
 		return
 	}
 	h.io.Write32(gintmask, 0)
@@ -193,6 +241,7 @@ func (h *Host) resumeIRQ() {
 	h.irqSuspended = false
 	h.irqActive.Store(true)
 	h.irqGIC.Enable(h.irqID)
+	h.irqMu.Unlock()
 }
 
 // retireIRQ permanently disables and unregisters any attached GIC SPI. It only
@@ -200,10 +249,20 @@ func (h *Host) resumeIRQ() {
 // has not been enabled externally.
 func (h *Host) retireIRQ(allowMMIO bool) {
 	h.irqMu.Lock()
+	hadIRQ := h.retireIRQLocked(allowMMIO)
+	h.irqMu.Unlock()
+	if hadIRQ {
+		h.signalReady()
+	}
+}
+
+// retireIRQLocked must be called with irqMu held.
+func (h *Host) retireIRQLocked(allowMMIO bool) bool {
 	hadIRQ := h.irqGIC != nil || h.irqMode.Load()
 	h.irqActive.Store(false)
 	h.irqMode.Store(false)
 	h.irqSuspended = false
+	h.irqGuard = nil
 	if h.irqGIC != nil {
 		h.irqGIC.Disable(h.irqID)
 		h.irqGIC.Register(h.irqID, nil)
@@ -215,10 +274,7 @@ func (h *Host) retireIRQ(allowMMIO bool) {
 		h.io.Write32(haintmsk, 0)
 		h.io.Write32(gahb, 0)
 	}
-	h.irqMu.Unlock()
-	if hadIRQ {
-		h.signalReady()
-	}
+	return hadIRQ
 }
 
 // EnableIRQ forwards GICv3 SPI binding to the underlying DWC2 host.
@@ -229,12 +285,28 @@ func (g *GamepadHost) EnableIRQ(ctrl *gic.Controller, irqID uint32) error {
 	return g.host.EnableIRQ(ctrl, irqID)
 }
 
+// EnableIRQGuarded forwards a lease-guarded GICv3 SPI binding.
+func (g *GamepadHost) EnableIRQGuarded(ctrl *gic.Controller, irqID uint32, guard func() bool) error {
+	if g == nil || g.host == nil {
+		return fmt.Errorf("dwc2: gamepad host absent")
+	}
+	return g.host.EnableIRQGuarded(ctrl, irqID, guard)
+}
+
 // DisableIRQ forwards GICv3 SPI teardown to the underlying DWC2 host.
 func (g *GamepadHost) DisableIRQ() {
 	if g == nil || g.host == nil {
 		return
 	}
 	g.host.DisableIRQ()
+}
+
+// RetireIRQ forwards no-MMIO GIC teardown after firmware ownership ends.
+func (g *GamepadHost) RetireIRQ() {
+	if g == nil || g.host == nil {
+		return
+	}
+	g.host.RetireIRQ()
 }
 
 // Ready returns the underlying DWC2 host's interrupt wakeup channel.
