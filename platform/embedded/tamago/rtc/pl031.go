@@ -70,6 +70,7 @@ type Registers interface {
 type PL031 struct {
 	mu         sync.Mutex
 	io         Registers
+	clock      *Clock
 	partNumber uint16
 	designer   uint8
 	revision   uint8
@@ -131,6 +132,18 @@ func (r *PL031) Now() time.Time {
 	return time.Unix(int64(r.Seconds()), 0).UTC()
 }
 
+// BindClock keeps c synchronized with this RTC's whole-second epoch. Binding
+// reads the current hardware value, and successful Set calls re-anchor c to
+// the value loaded into the PL031.
+func (r *PL031) BindClock(c *Clock) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.clock = c
+	if c != nil {
+		c.Sync(time.Unix(int64(r.io.Read32(RegDR)), 0).UTC())
+	}
+}
+
 // Set loads the PL031 counter (RTCLR) with t's Unix epoch seconds.
 func (r *PL031) Set(t time.Time) error {
 	sec, err := unixSecondsUint32(t)
@@ -140,6 +153,9 @@ func (r *PL031) Set(t time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.io.Write32(RegLR, sec)
+	if r.clock != nil {
+		r.clock.Sync(time.Unix(int64(sec), 0).UTC())
+	}
 	return nil
 }
 

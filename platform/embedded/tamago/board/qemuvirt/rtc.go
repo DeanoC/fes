@@ -26,6 +26,7 @@ func initRTC() {
 		rtcDev, rtcErr = rtc.OpenMMIO(PL031Base)
 		if rtcErr == nil {
 			rtcClock = rtc.NewClock(rtcDev.Now(), timerNanos)
+			rtcDev.BindClock(rtcClock)
 		}
 	})
 }

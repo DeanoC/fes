@@ -191,6 +191,47 @@ func TestPL031ReadSetAndAlarm(t *testing.T) {
 	}
 }
 
+func TestPL031SetReanchorsBoundClock(t *testing.T) {
+	const initial = uint32(1795380000)
+	hw := newFakePL031(initial)
+	dev, err := OpenPL031(hw)
+	if err != nil {
+		t.Fatalf("OpenPL031: %v", err)
+	}
+
+	var mono atomic.Int64
+	mono.Store(1_000_000_000)
+	clock := NewClock(dev.Now(), mono.Load)
+	dev.BindClock(clock)
+
+	mono.Add(int64(5 * time.Second))
+	if got, want := clock.Now(), time.Unix(int64(initial)+5, 0).UTC(); !got.Equal(want) {
+		t.Fatalf("clock before Set=%v, want %v", got, want)
+	}
+
+	target := time.Date(2030, time.January, 2, 3, 4, 5, 900_000_000, time.FixedZone("offset", 3*60*60))
+	if err := dev.Set(target); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	setEpoch := time.Unix(target.Unix(), 0).UTC()
+	if got := clock.Now(); !got.Equal(setEpoch) {
+		t.Fatalf("clock after Set=%v, want %v", got, setEpoch)
+	}
+
+	mono.Add(int64(250 * time.Millisecond))
+	if got, want := clock.Now(), setEpoch.Add(250*time.Millisecond); !got.Equal(want) {
+		t.Fatalf("clock after Set and monotonic advance=%v, want %v", got, want)
+	}
+
+	beforeInvalidSet := clock.Now()
+	if err := dev.Set(time.Unix(int64(math.MaxUint32)+1, 0)); !errors.Is(err, ErrOutOfRange) {
+		t.Fatalf("out-of-range Set err=%v, want ErrOutOfRange", err)
+	}
+	if got := clock.Now(); !got.Equal(beforeInvalidSet) {
+		t.Fatalf("clock changed after rejected Set: got %v, want %v", got, beforeInvalidSet)
+	}
+}
+
 func TestClockAnchoringSyncAndConcurrency(t *testing.T) {
 	var mono atomic.Int64
 	mono.Store(1_000_000_000) // 1s monotonic uptime
