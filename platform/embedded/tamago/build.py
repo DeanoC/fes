@@ -374,10 +374,10 @@ def build(args):
     if type(computer_storage_return) is not bool or computer_storage_return and not computer_reload:
         raise ValueError('--computer-storage-return requires the selected two-load computer diagnostic')
     selected_programs=getattr(args,'selected_programs',False)
-    if (type(selected_programs) is not bool or selected_programs and
-            (not computer_control or not computer_reload or not computer_storage_return)):
-        raise ValueError('--selected-programs requires computer control, rearming and owned SD returns')
     tenfoot_serial=getattr(args,'tenfoot_serial',False)
+    if (type(selected_programs) is not bool or selected_programs and
+            (not computer_control or not computer_reload or not computer_storage_return or not tenfoot_serial)):
+        raise ValueError('--selected-programs requires computer control, rearming, owned SD returns and --tenfoot-serial')
     if type(tenfoot_serial) is not bool or tenfoot_serial and not selected_programs:
         raise ValueError('--tenfoot-serial requires the selected native program service')
     configuration_retained=getattr(args,'retain_configuration',False)
@@ -399,7 +399,7 @@ def build(args):
         raise ValueError('--menu-project requires selected Nano computer programs')
     package_archive=None
     hps_project=getattr(args,'hps_first_project',None)
-    if args.program in ('bootcontext','hpsio','usbcheck','fpgacontext','fpgastatus','fpgaload'):
+    if args.program in ('hpsio','usbcheck','fpgaload'):
         required_profile='sd-profile.json' if args.program=='fpgaload' else 'probe-profile.json'
         if hps_project is None or raw!=(APP.parent/'nano'/required_profile).read_bytes():
             raise ValueError('context diagnostics require a sealed HPS-first project and their source-derived serial/SD profile')
@@ -417,8 +417,8 @@ def build(args):
         elif firmware_rom is not None or rom_host_go is not None:
             raise ValueError('firmware ROM selection requires the explicit sealed ROM producer profile')
         if args.program in ('hpsio','usbcheck') or usb_shared:io_map=hps.hps_io(hps_project)
-        if args.program in ('fpgacontext','fpgastatus','fpgaload'):control_map=hps.control(hps_project)
         if args.program=='fpgaload':
+            control_map=hps.control(hps_project)
             configuration_map=hps.configuration(hps_project)
             reader_memory_map=hps.reader_memory(hps_project)
             cpu_map=hps.cpu_mapping(control_map,configuration_map,reader_memory_map)

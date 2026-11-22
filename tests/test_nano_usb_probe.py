@@ -58,7 +58,7 @@ class ContainedUSBProbeTests(unittest.TestCase):
             with self.subTest(patch=patch),self.assertRaises(ValueError):hps.checked_rom(dict(self.record,**patch))
 
     def test_other_programs_still_require_the_complete_rom_selection(self):
-        for program in ('fpgaload','hpsio','probe','fpgastatus'):
+        for program in ('fpgaload','hpsio','probe'):
             record=dict(self.record,program=program)
             self.assertFalse(hps.usb_selection.contained_probe(record))
             with self.subTest(program=program),self.assertRaises(ValueError):hps.checked_rom(record)

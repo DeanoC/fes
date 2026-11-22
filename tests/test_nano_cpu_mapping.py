@@ -51,7 +51,7 @@ class CPUMappingContractTests(unittest.TestCase):
             for dependency in ('checked_configuration','checked_reader_memory'):
                 with patch.object(context,dependency,side_effect=ValueError('unverified source')),self.assertRaises(ValueError):
                     context.checked_cpu_mapping(record)
-        for program in ('probe','bootcontext','fpgastatus','hpsio'):
+        for program in ('probe','hpsio','usbcheck'):
             self.assertIsNone(context.checked_cpu_mapping({'program':program}))
             with self.subTest(program=program),self.assertRaises(ValueError):
                 context.checked_cpu_mapping(dict(record,program=program))

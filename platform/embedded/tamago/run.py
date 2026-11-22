@@ -60,7 +60,7 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "mapcheck", "fabric", "packages", "admission", "play", "tenfoot", "storage", "sdwrite", "sdfile", "keyboard", "network", "programfetch", "display", "fpga", "sdpackages", "bootcontext", "hpsio", "usbcheck", "fpgacontext", "fpgastatus", "fpgaload"))
+    parser.add_argument("program", choices=("probe", "mapcheck", "fabric", "packages", "admission", "play", "tenfoot", "storage", "sdwrite", "sdfile", "keyboard", "network", "programfetch", "display", "fpga", "sdpackages", "hpsio", "usbcheck", "fpgaload"))
     parser.add_argument("--export-root",type=Path,help="private Nano export root containing FES/CORESEL.JSN and FES/UI.JSON (programfetch only)")
     parser.add_argument("--program-id",help="catalogue ID from the selected export (programfetch only)")
     parser.add_argument("--compiler", required=True, type=Path)
@@ -135,7 +135,7 @@ def main():
         parser.error('SD write diagnostics require --board de25-nano')
     if args.menu_project is not None or args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.menu_present or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial or args.retain_configuration or args.initial_tape:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")
-    if args.program in ("fpga", "sdpackages", "bootcontext", "hpsio", "usbcheck", "fpgacontext", "fpgastatus", "fpgaload"):
+    if args.program in ("fpga", "sdpackages", "hpsio", "usbcheck", "fpgaload"):
         parser.error("this diagnostic requires the Nano firmware service; QEMU does not emulate it")
     if args.qemu is None:
         parser.error("--board qemu requires --qemu")
