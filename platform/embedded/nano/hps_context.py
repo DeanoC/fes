@@ -26,6 +26,9 @@ _usb_spec=importlib.util.spec_from_file_location('fes_hps_usb_selection',HERE/'u
 usb_selection=importlib.util.module_from_spec(_usb_spec);_usb_spec.loader.exec_module(usb_selection)
 _tape_spec=importlib.util.spec_from_file_location('fes_hps_initial_tape',HERE/'initial_tape.py')
 initial_tape=importlib.util.module_from_spec(_tape_spec);_tape_spec.loader.exec_module(initial_tape)
+_spectrum_spec = importlib.util.spec_from_file_location('fes_hps_spectrum48', HERE/'spectrum48.py')
+spectrum48 = importlib.util.module_from_spec(_spectrum_spec)
+_spectrum_spec.loader.exec_module(spectrum48)
 PROTOTYPE = ROOT/'sources/misteross/prototypes/de25_board_control'
 SCOPE = 'source-bound-hps-first-context-v1'
 ROM_PROFILE = 'de25-embedded-hps-first-rom-diagnostic-v1'
@@ -42,7 +45,7 @@ def menu_selection(record, program_key='program'):
     if selected and (record.get(program_key) != 'fpgaload' or
             any(record.get(k, False) is not False for k in
                 ('ddr_read', 'window_memory', 'window_read', 'window_present', 'window_storage_return',
-                 'window_reload', 'window_service', 'computer_control', 'computer_reload',
+                 'window_reload', 'computer_control', 'computer_reload',
                  'computer_storage_return', 'selected_programs', 'tenfoot_serial', 'usb_control', 'usb_shared')) or
             any(record.get(k) is not None for k in
                 ('hps_ddr_read', 'hps_window_read', 'hps_computer', 'hps_rom', 'hps_program_platform',

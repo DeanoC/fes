@@ -1,0 +1,2604 @@
+{
+  "cases_sha256": "40cc17fcd3c303994b0cee80366aa11405c76a947cbef5d9e9330a49d4fc94eb",
+  "failures": [],
+  "lockstep": {},
+  "oracle": {
+    "adapter_sha256": "25c2a5109e037ec47af13caabe102ab27134d2119f3a301532fad5d7080b69c0",
+    "cpu_level": 4,
+    "level3_provisioner_sha256": "0c4552c2290a0f50681090a65cf25deeb1916568c910bcfcc88a91097f8089b2",
+    "linked_sha256": {
+      "adapter": "43ab4004273323a17e97c3d7f30bc702c1ec94b53ec3ca7e441172482ad298b8",
+      "cpu": "f2c906d4387b3fdcedf662f9d1de42c6c65ddb967072023c47308c2353110d43",
+      "cpudb": "3e6b7f38ca47c7d470de40b16372420dff6d726f85089acf7aa5a07d7d208e7b",
+      "fpu": "a732e86f71167c6533c2dd5445b1222f2ccd228b1b124800ff390627ba2088b1",
+      "paramtree": "6b8ba5842ba2bfe611cc7268c331fff50214859a164c95895d966de277893e44",
+      "softfloat": "2d0339c94114f689164e9821816132653715710cc842d2c4b84ffd08aebfa437"
+    },
+    "opcode_table_sha256": "16d2719ba433c51858ba0f1602c41a9b2f56e89dc35a133a235b87fe2948db09",
+    "provisioner_sha256": "203fece878fb7494cc95e069b97a340b361ffcb6e248b7e2aeeaf989e5380ea1",
+    "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2"
+  },
+  "random": {
+    "divergence_retirements": {
+      "aaa-aas-flags": 38156,
+      "aad-flags": 45689,
+      "aam-zero-flags": 28,
+      "bit-test-of": 66502,
+      "bsf-bsr-flags": 35652,
+      "cpuid-486sx": 23152,
+      "daa-das-of": 39748,
+      "div-flags": 40451,
+      "double-shift-wide-count": 26755,
+      "dr6-disabled-b": 2,
+      "imul-flags": 118300,
+      "interrupt-vector-before-push": 125,
+      "invalid-sib-scales-base": 72,
+      "mul-flags": 35046,
+      "popad-esp-high-word": 6181,
+      "shift-af": 135074,
+      "shift-cf-wide-count": 22635,
+      "shift-rotate-of": 142164,
+      "stack-wrap-partial-transfer": 108,
+      "v86-iopl-gp": 86
+    },
+    "divergences_sha256": "3de6350a9b940e3adbba8427807d2466a132de6eed1f44bcfb1e23874f69563e",
+    "failure_count": 0,
+    "failures": [],
+    "i486_forms": {
+      "ac-delivery-loop": 6,
+      "ac-fault": 718,
+      "ac-toggle": 11556,
+      "bswap16": 8751,
+      "bswap16-fault1": 5,
+      "bswap32": 25925,
+      "bswap32-fault1": 33,
+      "bswap32-fault13": 1,
+      "cmpxchg-m16-equal": 3568,
+      "cmpxchg-m16-equal-lock": 1773,
+      "cmpxchg-m16-fault1": 6,
+      "cmpxchg-m16-fault13": 2,
+      "cmpxchg-m16-lock-fault1": 4,
+      "cmpxchg-m16-lock-fault13": 3,
+      "cmpxchg-m16-lock-fault14": 1,
+      "cmpxchg-m16-unequal": 975,
+      "cmpxchg-m16-unequal-lock": 476,
+      "cmpxchg-m32-equal": 3931,
+      "cmpxchg-m32-equal-lock": 2002,
+      "cmpxchg-m32-fault1": 8,
+      "cmpxchg-m32-fault13": 5,
+      "cmpxchg-m32-fault17": 1,
+      "cmpxchg-m32-lock-fault1": 3,
+      "cmpxchg-m32-unequal": 994,
+      "cmpxchg-m32-unequal-lock": 528,
+      "cmpxchg-m8-equal": 4727,
+      "cmpxchg-m8-equal-lock": 2225,
+      "cmpxchg-m8-fault1": 8,
+      "cmpxchg-m8-fault13": 1,
+      "cmpxchg-m8-fault14": 1,
+      "cmpxchg-m8-lock-fault1": 4,
+      "cmpxchg-m8-lock-fault13": 2,
+      "cmpxchg-m8-lock-fault14": 2,
+      "cmpxchg-m8-unequal": 915,
+      "cmpxchg-m8-unequal-lock": 380,
+      "cmpxchg-r16-equal": 5649,
+      "cmpxchg-r16-fault1": 10,
+      "cmpxchg-r16-fault13": 2,
+      "cmpxchg-r16-lock-fault1": 1,
+      "cmpxchg-r16-lock-fault6": 390,
+      "cmpxchg-r16-unequal": 1975,
+      "cmpxchg-r32-equal": 10157,
+      "cmpxchg-r32-fault1": 13,
+      "cmpxchg-r32-fault13": 1,
+      "cmpxchg-r32-unequal": 2139,
+      "cmpxchg-r8-equal": 6949,
+      "cmpxchg-r8-fault1": 10,
+      "cmpxchg-r8-lock-fault1": 2,
+      "cmpxchg-r8-lock-fault6": 220,
+      "cmpxchg-r8-unequal": 1404,
+      "cpuid-0": 3936,
+      "cpuid-0-fault1": 4,
+      "cpuid-1": 11321,
+      "cpuid-1-fault1": 13,
+      "cpuid-1-fault13": 1,
+      "cpuid-2+": 9170,
+      "cpuid-2+-fault1": 7,
+      "invd": 14874,
+      "invd-fault1": 18,
+      "invd-fault13": 36,
+      "invlpg": 15397,
+      "invlpg-fault1": 28,
+      "invlpg-fault13": 41,
+      "invlpg-reg-fault6": 1,
+      "invlpg-reg-lock-fault6": 1,
+      "wbinvd": 10485,
+      "wbinvd-fault1": 13,
+      "wbinvd-fault13": 21,
+      "wp-fault": 328,
+      "xadd-m16": 6222,
+      "xadd-m16-fault1": 7,
+      "xadd-m16-fault12": 1,
+      "xadd-m16-fault13": 6,
+      "xadd-m16-lock": 5210,
+      "xadd-m16-lock-fault1": 8,
+      "xadd-m16-lock-fault13": 1,
+      "xadd-m16-lock-fault14": 1,
+      "xadd-m32": 6585,
+      "xadd-m32-fault1": 10,
+      "xadd-m32-fault12": 1,
+      "xadd-m32-fault13": 7,
+      "xadd-m32-fault14": 2,
+      "xadd-m32-lock": 4458,
+      "xadd-m32-lock-fault13": 2,
+      "xadd-m32-lock-fault14": 1,
+      "xadd-m32-lock-fault17": 1,
+      "xadd-m8": 4811,
+      "xadd-m8-fault1": 8,
+      "xadd-m8-fault13": 2,
+      "xadd-m8-lock": 4026,
+      "xadd-m8-lock-fault1": 4,
+      "xadd-m8-lock-fault13": 1,
+      "xadd-r16": 6625,
+      "xadd-r16-fault1": 11,
+      "xadd-r16-lock-fault1": 3,
+      "xadd-r16-lock-fault6": 391,
+      "xadd-r32": 6068,
+      "xadd-r32-fault1": 13,
+      "xadd-r32-fault13": 1,
+      "xadd-r8": 6626,
+      "xadd-r8-fault1": 16,
+      "xadd-r8-lock-fault6": 211
+    },
+    "latency_free_mismatches": [],
+    "missing_forms": [],
+    "sets": {
+      "debug": {
+        "divergence_retirements": {
+          "aaa-aas-flags": 2259,
+          "aad-flags": 1953,
+          "aam-zero-flags": 2,
+          "bit-test-of": 3804,
+          "bsf-bsr-flags": 1858,
+          "cpuid-486sx": 1990,
+          "daa-das-of": 2441,
+          "div-flags": 2803,
+          "double-shift-wide-count": 891,
+          "dr6-disabled-b": 2,
+          "imul-flags": 6891,
+          "interrupt-vector-before-push": 17,
+          "invalid-sib-scales-base": 7,
+          "mul-flags": 2655,
+          "popad-esp-high-word": 448,
+          "shift-af": 6937,
+          "shift-cf-wide-count": 867,
+          "shift-rotate-of": 9889,
+          "stack-wrap-partial-transfer": 9,
+          "v86-iopl-gp": 2
+        },
+        "failures": [],
+        "fault_vectors": {
+          "0": 87,
+          "10": 2,
+          "11": 68,
+          "12": 86,
+          "13": 914,
+          "14": 42,
+          "17": 19,
+          "6": 278,
+          "8": 16
+        },
+        "i486_forms": {
+          "ac-fault": 30,
+          "ac-toggle": 987,
+          "bswap16": 209,
+          "bswap16-fault1": 5,
+          "bswap32": 1784,
+          "bswap32-fault1": 33,
+          "cmpxchg-m16-equal": 658,
+          "cmpxchg-m16-equal-lock": 362,
+          "cmpxchg-m16-fault1": 6,
+          "cmpxchg-m16-lock-fault1": 4,
+          "cmpxchg-m16-unequal": 71,
+          "cmpxchg-m16-unequal-lock": 59,
+          "cmpxchg-m32-equal": 140,
+          "cmpxchg-m32-equal-lock": 51,
+          "cmpxchg-m32-fault1": 8,
+          "cmpxchg-m32-lock-fault1": 3,
+          "cmpxchg-m32-unequal": 85,
+          "cmpxchg-m32-unequal-lock": 70,
+          "cmpxchg-m8-equal": 350,
+          "cmpxchg-m8-equal-lock": 117,
+          "cmpxchg-m8-fault1": 8,
+          "cmpxchg-m8-lock-fault1": 4,
+          "cmpxchg-m8-unequal": 56,
+          "cmpxchg-m8-unequal-lock": 25,
+          "cmpxchg-r16-equal": 213,
+          "cmpxchg-r16-fault1": 10,
+          "cmpxchg-r16-lock-fault1": 1,
+          "cmpxchg-r16-lock-fault6": 34,
+          "cmpxchg-r16-unequal": 147,
+          "cmpxchg-r32-equal": 295,
+          "cmpxchg-r32-fault1": 13,
+          "cmpxchg-r32-unequal": 221,
+          "cmpxchg-r8-equal": 324,
+          "cmpxchg-r8-fault1": 10,
+          "cmpxchg-r8-lock-fault1": 2,
+          "cmpxchg-r8-lock-fault6": 15,
+          "cmpxchg-r8-unequal": 112,
+          "cpuid-0": 251,
+          "cpuid-0-fault1": 4,
+          "cpuid-1": 1088,
+          "cpuid-1-fault1": 13,
+          "cpuid-2+": 902,
+          "cpuid-2+-fault1": 7,
+          "invd": 1379,
+          "invd-fault1": 18,
+          "invd-fault13": 2,
+          "invlpg": 812,
+          "invlpg-fault1": 28,
+          "invlpg-fault13": 2,
+          "wbinvd": 533,
+          "wbinvd-fault1": 13,
+          "wp-fault": 16,
+          "xadd-m16": 660,
+          "xadd-m16-fault1": 7,
+          "xadd-m16-lock": 291,
+          "xadd-m16-lock-fault1": 8,
+          "xadd-m32": 211,
+          "xadd-m32-fault1": 10,
+          "xadd-m32-lock": 525,
+          "xadd-m8": 278,
+          "xadd-m8-fault1": 8,
+          "xadd-m8-lock": 131,
+          "xadd-m8-lock-fault1": 4,
+          "xadd-r16": 353,
+          "xadd-r16-fault1": 11,
+          "xadd-r16-lock-fault1": 3,
+          "xadd-r16-lock-fault6": 42,
+          "xadd-r32": 396,
+          "xadd-r32-fault1": 13,
+          "xadd-r8": 414,
+          "xadd-r8-fault1": 16,
+          "xadd-r8-lock-fault6": 21
+        },
+        "programs_per_seed": 250,
+        "seeds": [
+          5001,
+          5002,
+          5003,
+          5004,
+          5005,
+          5006,
+          5007,
+          5008,
+          5009,
+          5010,
+          5011,
+          5012,
+          5013,
+          5014,
+          5015,
+          5016
+        ],
+        "totals": {
+          "code_store_stops": 11,
+          "cs_rule": 41,
+          "cycles": 35541342,
+          "dr6_rule": 28296,
+          "external_interrupts": 261232,
+          "faults": 1512,
+          "halts": 1462,
+          "io_accesses": 3684,
+          "mmio_accesses": 448456,
+          "mmio_runs": 3365,
+          "nested": 105,
+          "nmis": 115177,
+          "passed": 4000,
+          "pm_retirements": 26377,
+          "rep_interrupts": 1035,
+          "replays": 34748,
+          "retire_limits": 242,
+          "retirements": 2170315,
+          "runs": 4000,
+          "shutdowns": 333,
+          "smc_restarts": 2390,
+          "stray_stops": 331,
+          "vector_moved_stops": 97,
+          "window_code_stops": 11
+        },
+        "trace_hashes": {
+          "5001": "41fc3188467cccfe",
+          "5002": "c17fac75a38c62b0",
+          "5003": "0e0bfba1c42bc0e3",
+          "5004": "3ef20de0e8c9a10e",
+          "5005": "d385740ae9555a7c",
+          "5006": "d7e3308bfb3883cf",
+          "5007": "7cdebe96ef603aea",
+          "5008": "8c6a1703728abe60",
+          "5009": "d075c5f1dc332c28",
+          "5010": "66eb9fae62fe5585",
+          "5011": "e31006e6082eec65",
+          "5012": "f0641f49cc21c137",
+          "5013": "d4667a49a2eac95f",
+          "5014": "cc3a9201f176928e",
+          "5015": "e68d13292deb86f7",
+          "5016": "fab09583a314c2ac"
+        }
+      },
+      "pmode": {
+        "divergence_retirements": {
+          "aaa-aas-flags": 511,
+          "aad-flags": 1062,
+          "bit-test-of": 994,
+          "bsf-bsr-flags": 338,
+          "cpuid-486sx": 186,
+          "daa-das-of": 1278,
+          "div-flags": 789,
+          "double-shift-wide-count": 197,
+          "imul-flags": 2954,
+          "interrupt-vector-before-push": 5,
+          "invalid-sib-scales-base": 4,
+          "mul-flags": 547,
+          "popad-esp-high-word": 86,
+          "shift-af": 3195,
+          "shift-cf-wide-count": 237,
+          "shift-rotate-of": 3393,
+          "v86-iopl-gp": 26
+        },
+        "failures": [],
+        "fault_vectors": {
+          "0": 14,
+          "10": 7,
+          "11": 409,
+          "12": 78,
+          "13": 3667,
+          "14": 239,
+          "17": 103,
+          "6": 93,
+          "8": 119
+        },
+        "i486_forms": {
+          "ac-delivery-loop": 2,
+          "ac-fault": 173,
+          "ac-toggle": 539,
+          "bswap16": 86,
+          "bswap32": 284,
+          "cmpxchg-m16-equal": 41,
+          "cmpxchg-m16-equal-lock": 17,
+          "cmpxchg-m16-unequal": 24,
+          "cmpxchg-m16-unequal-lock": 11,
+          "cmpxchg-m32-equal": 45,
+          "cmpxchg-m32-equal-lock": 13,
+          "cmpxchg-m32-fault13": 1,
+          "cmpxchg-m32-unequal": 18,
+          "cmpxchg-m32-unequal-lock": 31,
+          "cmpxchg-m8-equal": 40,
+          "cmpxchg-m8-equal-lock": 19,
+          "cmpxchg-m8-fault13": 1,
+          "cmpxchg-m8-lock-fault13": 1,
+          "cmpxchg-m8-lock-fault14": 1,
+          "cmpxchg-m8-unequal": 32,
+          "cmpxchg-m8-unequal-lock": 10,
+          "cmpxchg-r16-equal": 134,
+          "cmpxchg-r16-lock-fault6": 16,
+          "cmpxchg-r16-unequal": 37,
+          "cmpxchg-r32-equal": 64,
+          "cmpxchg-r32-unequal": 44,
+          "cmpxchg-r8-equal": 460,
+          "cmpxchg-r8-lock-fault6": 4,
+          "cmpxchg-r8-unequal": 50,
+          "cpuid-0": 47,
+          "cpuid-1": 83,
+          "cpuid-1-fault13": 1,
+          "cpuid-2+": 103,
+          "invd": 148,
+          "invd-fault13": 6,
+          "invlpg": 468,
+          "invlpg-fault13": 13,
+          "wbinvd": 152,
+          "wbinvd-fault13": 7,
+          "wp-fault": 90,
+          "xadd-m16": 84,
+          "xadd-m16-lock": 40,
+          "xadd-m32": 65,
+          "xadd-m32-fault13": 1,
+          "xadd-m32-fault14": 2,
+          "xadd-m32-lock": 50,
+          "xadd-m32-lock-fault13": 1,
+          "xadd-m8": 62,
+          "xadd-m8-lock": 28,
+          "xadd-r16": 116,
+          "xadd-r16-lock-fault6": 10,
+          "xadd-r32": 147,
+          "xadd-r8": 156,
+          "xadd-r8-lock-fault6": 5
+        },
+        "programs_per_seed": 500,
+        "seeds": [
+          1001,
+          1002,
+          1003,
+          1004,
+          1005,
+          1006,
+          1007,
+          1008,
+          1009,
+          1010,
+          1011,
+          1012,
+          1013,
+          1014,
+          1015,
+          1016
+        ],
+        "totals": {
+          "code_store_stops": 7,
+          "cs_rule": 206,
+          "cycles": 10625077,
+          "external_interrupts": 23865,
+          "faults": 4729,
+          "halts": 134,
+          "io_accesses": 3333,
+          "iret_save_rule": 53,
+          "mmio_accesses": 59056,
+          "mmio_runs": 6732,
+          "nested": 655,
+          "nmis": 9295,
+          "passed": 8000,
+          "pm_retirements": 161355,
+          "rep_interrupts": 267,
+          "replays": 9571,
+          "retire_limits": 42,
+          "retirements": 419722,
+          "runs": 8000,
+          "shutdowns": 1757,
+          "smc_restarts": 611,
+          "stray_stops": 870,
+          "vector_moved_stops": 453,
+          "window_code_stops": 6
+        },
+        "trace_hashes": {
+          "1001": "e287e95ff4c113c4",
+          "1002": "a9fbe24c85702e40",
+          "1003": "eea4bc31531cfdab",
+          "1004": "843183e6b71c1855",
+          "1005": "ca710092b4aa6c2a",
+          "1006": "c74f62e2e44d7bc8",
+          "1007": "fdba1f0bb4a5409a",
+          "1008": "21d115e5ff178f3e",
+          "1009": "1fa608ef45383f40",
+          "1010": "71c9b20707628cc3",
+          "1011": "3dc41a9b08a85d5f",
+          "1012": "fa7a48121fc52a8a",
+          "1013": "3e383997bc0ab942",
+          "1014": "a601a9cb357899c6",
+          "1015": "13ff7addee7a16fe",
+          "1016": "3011cd37e7b95dc9"
+        }
+      },
+      "random": {
+        "divergence_retirements": {
+          "aaa-aas-flags": 31217,
+          "aad-flags": 36826,
+          "aam-zero-flags": 23,
+          "bit-test-of": 56007,
+          "bsf-bsr-flags": 29458,
+          "cpuid-486sx": 17738,
+          "daa-das-of": 31274,
+          "div-flags": 31686,
+          "double-shift-wide-count": 22117,
+          "imul-flags": 97474,
+          "interrupt-vector-before-push": 91,
+          "invalid-sib-scales-base": 53,
+          "mul-flags": 28433,
+          "popad-esp-high-word": 4715,
+          "shift-af": 106890,
+          "shift-cf-wide-count": 17527,
+          "shift-rotate-of": 110796,
+          "stack-wrap-partial-transfer": 87,
+          "v86-iopl-gp": 36
+        },
+        "failures": [],
+        "fault_vectors": {
+          "0": 1063,
+          "10": 19,
+          "11": 703,
+          "12": 856,
+          "13": 9339,
+          "14": 433,
+          "17": 187,
+          "6": 2485,
+          "8": 244
+        },
+        "i486_forms": {
+          "ac-delivery-loop": 4,
+          "ac-fault": 336,
+          "ac-toggle": 9492,
+          "bswap16": 8372,
+          "bswap32": 23576,
+          "bswap32-fault13": 1,
+          "cmpxchg-m16-equal": 2826,
+          "cmpxchg-m16-equal-lock": 1380,
+          "cmpxchg-m16-fault13": 1,
+          "cmpxchg-m16-lock-fault13": 2,
+          "cmpxchg-m16-unequal": 856,
+          "cmpxchg-m16-unequal-lock": 393,
+          "cmpxchg-m32-equal": 3708,
+          "cmpxchg-m32-equal-lock": 1906,
+          "cmpxchg-m32-fault13": 4,
+          "cmpxchg-m32-unequal": 852,
+          "cmpxchg-m32-unequal-lock": 416,
+          "cmpxchg-m8-equal": 4307,
+          "cmpxchg-m8-equal-lock": 2072,
+          "cmpxchg-m8-fault14": 1,
+          "cmpxchg-m8-lock-fault13": 1,
+          "cmpxchg-m8-lock-fault14": 1,
+          "cmpxchg-m8-unequal": 813,
+          "cmpxchg-m8-unequal-lock": 329,
+          "cmpxchg-r16-equal": 5233,
+          "cmpxchg-r16-fault13": 2,
+          "cmpxchg-r16-lock-fault6": 331,
+          "cmpxchg-r16-unequal": 1743,
+          "cmpxchg-r32-equal": 9714,
+          "cmpxchg-r32-fault13": 1,
+          "cmpxchg-r32-unequal": 1822,
+          "cmpxchg-r8-equal": 6107,
+          "cmpxchg-r8-lock-fault6": 198,
+          "cmpxchg-r8-unequal": 1193,
+          "cpuid-0": 3351,
+          "cpuid-1": 10052,
+          "cpuid-2+": 7686,
+          "invd": 12422,
+          "invd-fault13": 16,
+          "invlpg": 13736,
+          "invlpg-fault13": 13,
+          "wbinvd": 9680,
+          "wbinvd-fault13": 10,
+          "wp-fault": 148,
+          "xadd-m16": 5418,
+          "xadd-m16-fault12": 1,
+          "xadd-m16-fault13": 3,
+          "xadd-m16-lock": 4851,
+          "xadd-m16-lock-fault14": 1,
+          "xadd-m32": 6248,
+          "xadd-m32-fault12": 1,
+          "xadd-m32-fault13": 5,
+          "xadd-m32-lock": 3857,
+          "xadd-m32-lock-fault13": 1,
+          "xadd-m32-lock-fault17": 1,
+          "xadd-m8": 4396,
+          "xadd-m8-fault13": 1,
+          "xadd-m8-lock": 3832,
+          "xadd-m8-lock-fault13": 1,
+          "xadd-r16": 6053,
+          "xadd-r16-lock-fault6": 333,
+          "xadd-r32": 5430,
+          "xadd-r32-fault13": 1,
+          "xadd-r8": 5886,
+          "xadd-r8-lock-fault6": 179
+        },
+        "programs_per_seed": 2000,
+        "seeds": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16
+        ],
+        "totals": {
+          "code_store_stops": 80,
+          "cs_rule": 382,
+          "cycles": 103827153,
+          "external_interrupts": 658843,
+          "faults": 15329,
+          "halts": 7166,
+          "io_accesses": 82017,
+          "iret_save_rule": 55,
+          "mmio_accesses": 1360668,
+          "mmio_runs": 27018,
+          "nested": 1179,
+          "nmis": 262910,
+          "passed": 32000,
+          "pm_retirements": 281086,
+          "rep_interrupts": 7090,
+          "replays": 138827,
+          "retire_limits": 2131,
+          "retirements": 7772429,
+          "runs": 32000,
+          "shutdowns": 3453,
+          "smc_restarts": 12229,
+          "ss_error_rule": 1,
+          "stray_stops": 2728,
+          "vector_moved_stops": 1034,
+          "window_code_stops": 71
+        },
+        "trace_hashes": {
+          "1": "a9c692bec51bdffd",
+          "10": "e271c84379880f08",
+          "11": "ccbff791274590bb",
+          "12": "5a59a492db8679d6",
+          "13": "1cc16174007a8d28",
+          "14": "55e4d32603a90b9e",
+          "15": "ccafae5d59203056",
+          "16": "1b2b9844b2c4ace3",
+          "2": "330c893cb25ee224",
+          "3": "ab499738de14094e",
+          "4": "8c4d2144fdcee5b0",
+          "5": "41b4aec186a826cf",
+          "6": "8f60177898cf2d71",
+          "7": "0f6be3f5fdc8bcff",
+          "8": "afb777709addc682",
+          "9": "7d0b1db86a89aec8"
+        }
+      },
+      "steady": {
+        "divergence_retirements": {
+          "aaa-aas-flags": 3707,
+          "aad-flags": 5366,
+          "aam-zero-flags": 1,
+          "bit-test-of": 5056,
+          "bsf-bsr-flags": 3317,
+          "cpuid-486sx": 2661,
+          "daa-das-of": 4276,
+          "div-flags": 4182,
+          "double-shift-wide-count": 3330,
+          "imul-flags": 9636,
+          "interrupt-vector-before-push": 6,
+          "invalid-sib-scales-base": 6,
+          "mul-flags": 2936,
+          "popad-esp-high-word": 864,
+          "shift-af": 14542,
+          "shift-cf-wide-count": 2897,
+          "shift-rotate-of": 14575,
+          "stack-wrap-partial-transfer": 11,
+          "v86-iopl-gp": 5
+        },
+        "failures": [],
+        "fault_vectors": {
+          "0": 134,
+          "10": 1,
+          "11": 78,
+          "12": 125,
+          "13": 1198,
+          "14": 48,
+          "17": 19,
+          "6": 326,
+          "8": 24
+        },
+        "i486_forms": {
+          "ac-fault": 35,
+          "ac-toggle": 1639,
+          "bswap16": 668,
+          "bswap32": 3129,
+          "cmpxchg-m16-equal": 166,
+          "cmpxchg-m16-equal-lock": 89,
+          "cmpxchg-m16-fault13": 1,
+          "cmpxchg-m16-unequal": 100,
+          "cmpxchg-m16-unequal-lock": 43,
+          "cmpxchg-m32-equal": 140,
+          "cmpxchg-m32-equal-lock": 491,
+          "cmpxchg-m32-fault13": 1,
+          "cmpxchg-m32-unequal": 119,
+          "cmpxchg-m32-unequal-lock": 46,
+          "cmpxchg-m8-equal": 542,
+          "cmpxchg-m8-equal-lock": 115,
+          "cmpxchg-m8-unequal": 73,
+          "cmpxchg-m8-unequal-lock": 37,
+          "cmpxchg-r16-equal": 271,
+          "cmpxchg-r16-lock-fault6": 40,
+          "cmpxchg-r16-unequal": 153,
+          "cmpxchg-r32-equal": 1920,
+          "cmpxchg-r32-unequal": 221,
+          "cmpxchg-r8-equal": 498,
+          "cmpxchg-r8-lock-fault6": 21,
+          "cmpxchg-r8-unequal": 112,
+          "cpuid-0": 177,
+          "cpuid-1": 1951,
+          "cpuid-2+": 710,
+          "invd": 1425,
+          "invd-fault13": 5,
+          "invlpg": 1784,
+          "invlpg-fault13": 2,
+          "wbinvd": 556,
+          "wbinvd-fault13": 1,
+          "wp-fault": 20,
+          "xadd-m16": 725,
+          "xadd-m16-lock": 801,
+          "xadd-m32": 528,
+          "xadd-m32-fault13": 1,
+          "xadd-m32-lock": 153,
+          "xadd-m8": 516,
+          "xadd-m8-lock": 627,
+          "xadd-r16": 439,
+          "xadd-r16-lock-fault6": 50,
+          "xadd-r32": 820,
+          "xadd-r8": 1383,
+          "xadd-r8-lock-fault6": 12
+        },
+        "programs_per_seed": 2000,
+        "seeds": [
+          1,
+          2
+        ],
+        "totals": {
+          "code_store_stops": 10,
+          "cs_rule": 51,
+          "cycles": 11999085,
+          "external_interrupts": 79715,
+          "faults": 1953,
+          "halts": 886,
+          "io_accesses": 8437,
+          "mmio_accesses": 200719,
+          "mmio_runs": 3380,
+          "nested": 148,
+          "nmis": 31817,
+          "passed": 4000,
+          "pm_retirements": 34373,
+          "rep_interrupts": 863,
+          "replays": 18816,
+          "retire_limits": 256,
+          "retirements": 942952,
+          "runs": 4000,
+          "shutdowns": 450,
+          "smc_restarts": 2463,
+          "stray_stops": 326,
+          "vector_moved_stops": 113,
+          "window_code_stops": 6
+        },
+        "trace_hashes": {
+          "1": "a9c692bec51bdffd",
+          "2": "330c893cb25ee224"
+        }
+      },
+      "tasks": {
+        "divergence_retirements": {
+          "aaa-aas-flags": 264,
+          "aad-flags": 251,
+          "bit-test-of": 344,
+          "bsf-bsr-flags": 158,
+          "cpuid-486sx": 94,
+          "daa-das-of": 250,
+          "div-flags": 305,
+          "double-shift-wide-count": 120,
+          "imul-flags": 626,
+          "interrupt-vector-before-push": 5,
+          "invalid-sib-scales-base": 1,
+          "mul-flags": 214,
+          "popad-esp-high-word": 42,
+          "shift-af": 1055,
+          "shift-cf-wide-count": 85,
+          "shift-rotate-of": 1125,
+          "stack-wrap-partial-transfer": 1,
+          "v86-iopl-gp": 6
+        },
+        "failures": [],
+        "fault_vectors": {
+          "0": 14,
+          "10": 4,
+          "11": 213,
+          "12": 35,
+          "13": 1753,
+          "14": 129,
+          "17": 51,
+          "6": 37,
+          "8": 92
+        },
+        "i486_forms": {
+          "ac-fault": 88,
+          "ac-toggle": 258,
+          "bswap16": 38,
+          "bswap32": 141,
+          "cmpxchg-m16-equal": 23,
+          "cmpxchg-m16-equal-lock": 3,
+          "cmpxchg-m16-fault13": 1,
+          "cmpxchg-m16-unequal": 11,
+          "cmpxchg-m16-unequal-lock": 7,
+          "cmpxchg-m32-equal": 8,
+          "cmpxchg-m32-equal-lock": 26,
+          "cmpxchg-m32-unequal": 20,
+          "cmpxchg-m32-unequal-lock": 4,
+          "cmpxchg-m8-equal": 12,
+          "cmpxchg-m8-equal-lock": 8,
+          "cmpxchg-m8-unequal": 6,
+          "cmpxchg-m8-unequal-lock": 7,
+          "cmpxchg-r16-equal": 29,
+          "cmpxchg-r16-lock-fault6": 1,
+          "cmpxchg-r16-unequal": 22,
+          "cmpxchg-r32-equal": 47,
+          "cmpxchg-r32-unequal": 33,
+          "cmpxchg-r8-equal": 25,
+          "cmpxchg-r8-lock-fault6": 2,
+          "cmpxchg-r8-unequal": 30,
+          "cpuid-0": 27,
+          "cpuid-1": 47,
+          "cpuid-2+": 47,
+          "invd": 555,
+          "invd-fault13": 7,
+          "invlpg": 190,
+          "invlpg-fault13": 8,
+          "wbinvd": 46,
+          "wbinvd-fault13": 4,
+          "wp-fault": 40,
+          "xadd-m16": 26,
+          "xadd-m16-fault13": 1,
+          "xadd-m16-lock": 12,
+          "xadd-m32": 33,
+          "xadd-m32-lock": 14,
+          "xadd-m8": 25,
+          "xadd-m8-lock": 16,
+          "xadd-r16": 60,
+          "xadd-r16-lock-fault6": 3,
+          "xadd-r32": 41,
+          "xadd-r8": 103,
+          "xadd-r8-lock-fault6": 3
+        },
+        "programs_per_seed": 250,
+        "seeds": [
+          3001,
+          3002,
+          3003,
+          3004,
+          3005,
+          3006,
+          3007,
+          3008,
+          3009,
+          3010,
+          3011,
+          3012,
+          3013,
+          3014,
+          3015,
+          3016
+        ],
+        "totals": {
+          "code_store_stops": 1,
+          "cs_rule": 91,
+          "cycles": 5429855,
+          "external_interrupts": 9981,
+          "faults": 2328,
+          "halts": 67,
+          "io_accesses": 2816,
+          "iret_save_rule": 1,
+          "mmio_accesses": 25832,
+          "mmio_runs": 3360,
+          "nested": 361,
+          "nmis": 4007,
+          "passed": 4000,
+          "pm_retirements": 84860,
+          "rep_interrupts": 115,
+          "replays": 4707,
+          "retire_limits": 13,
+          "retirements": 195991,
+          "runs": 4000,
+          "shutdowns": 849,
+          "smc_restarts": 320,
+          "stray_stops": 505,
+          "vector_moved_stops": 236,
+          "window_code_stops": 1
+        },
+        "trace_hashes": {
+          "3001": "566076d9ddf9b552",
+          "3002": "dd7b39bc8148f7ab",
+          "3003": "6a1697fda84c014a",
+          "3004": "3df1fad22894815f",
+          "3005": "c6d6285187a50bcb",
+          "3006": "6531fea425419d82",
+          "3007": "4da48ed6fc6c6522",
+          "3008": "4071bccf2ce811eb",
+          "3009": "2c789de1b9ca9739",
+          "3010": "308d14876da9c1af",
+          "3011": "05776d8cbaf18036",
+          "3012": "7006657b4bed8d9c",
+          "3013": "5bde612f2c02728c",
+          "3014": "d5c68ea120b4dcb8",
+          "3015": "59e624c7446ee7df",
+          "3016": "c0eabecb7347f513"
+        }
+      },
+      "undefined": {
+        "divergence_retirements": {
+          "aaa-aas-flags": 198,
+          "aad-flags": 231,
+          "aam-zero-flags": 2,
+          "bit-test-of": 297,
+          "bsf-bsr-flags": 523,
+          "cpuid-486sx": 483,
+          "daa-das-of": 229,
+          "div-flags": 686,
+          "double-shift-wide-count": 100,
+          "imul-flags": 719,
+          "interrupt-vector-before-push": 1,
+          "invalid-sib-scales-base": 1,
+          "mul-flags": 261,
+          "popad-esp-high-word": 26,
+          "shift-af": 2455,
+          "shift-cf-wide-count": 1022,
+          "shift-rotate-of": 2386,
+          "v86-iopl-gp": 11
+        },
+        "failures": [],
+        "fault_vectors": {
+          "0": 13,
+          "10": 7,
+          "11": 207,
+          "12": 41,
+          "13": 1733,
+          "14": 120,
+          "17": 48,
+          "6": 237,
+          "8": 57
+        },
+        "i486_forms": {
+          "ac-fault": 91,
+          "ac-toggle": 280,
+          "bswap16": 46,
+          "bswap32": 140,
+          "cmpxchg-m16-equal": 20,
+          "cmpxchg-m16-equal-lock": 11,
+          "cmpxchg-m16-lock-fault13": 1,
+          "cmpxchg-m16-lock-fault14": 1,
+          "cmpxchg-m16-unequal": 13,
+          "cmpxchg-m16-unequal-lock": 6,
+          "cmpxchg-m32-equal": 30,
+          "cmpxchg-m32-equal-lock": 6,
+          "cmpxchg-m32-fault17": 1,
+          "cmpxchg-m32-unequal": 19,
+          "cmpxchg-m32-unequal-lock": 7,
+          "cmpxchg-m8-equal": 18,
+          "cmpxchg-m8-equal-lock": 9,
+          "cmpxchg-m8-unequal": 8,
+          "cmpxchg-m8-unequal-lock": 9,
+          "cmpxchg-r16-equal": 40,
+          "cmpxchg-r16-lock-fault6": 8,
+          "cmpxchg-r16-unequal": 26,
+          "cmpxchg-r32-equal": 37,
+          "cmpxchg-r32-unequal": 19,
+          "cmpxchg-r8-equal": 33,
+          "cmpxchg-r8-lock-fault6": 1,
+          "cmpxchg-r8-unequal": 19,
+          "cpuid-0": 260,
+          "cpuid-1": 51,
+          "cpuid-2+": 432,
+          "invd": 370,
+          "invd-fault13": 5,
+          "invlpg": 191,
+          "invlpg-fault13": 5,
+          "invlpg-reg-fault6": 1,
+          "invlpg-reg-lock-fault6": 1,
+          "wbinvd": 74,
+          "wp-fault": 34,
+          "xadd-m16": 34,
+          "xadd-m16-fault13": 2,
+          "xadd-m16-lock": 16,
+          "xadd-m16-lock-fault13": 1,
+          "xadd-m32": 28,
+          "xadd-m32-fault13": 1,
+          "xadd-m32-lock": 12,
+          "xadd-m32-lock-fault14": 1,
+          "xadd-m8": 50,
+          "xadd-m8-fault13": 1,
+          "xadd-m8-lock": 19,
+          "xadd-r16": 43,
+          "xadd-r16-lock-fault6": 3,
+          "xadd-r32": 54,
+          "xadd-r8": 67,
+          "xadd-r8-lock-fault6": 3
+        },
+        "programs_per_seed": 250,
+        "seeds": [
+          7001,
+          7002,
+          7003,
+          7004,
+          7005,
+          7006,
+          7007,
+          7008,
+          7009,
+          7010,
+          7011,
+          7012,
+          7013,
+          7014,
+          7015,
+          7016
+        ],
+        "totals": {
+          "code_store_stops": 2,
+          "cs_rule": 117,
+          "cycles": 5076639,
+          "external_interrupts": 11649,
+          "faults": 2463,
+          "halts": 48,
+          "io_accesses": 1867,
+          "iret_save_rule": 1,
+          "mmio_accesses": 30625,
+          "mmio_runs": 3348,
+          "nested": 336,
+          "nmis": 4539,
+          "passed": 4000,
+          "pm_retirements": 75793,
+          "rep_interrupts": 121,
+          "replays": 4899,
+          "retire_limits": 26,
+          "retirements": 207516,
+          "runs": 4000,
+          "shutdowns": 808,
+          "smc_restarts": 305,
+          "stray_stops": 384,
+          "vector_moved_stops": 264,
+          "window_code_stops": 4
+        },
+        "trace_hashes": {
+          "7001": "8d33f52332eaa01c",
+          "7002": "d139314bb4b6e119",
+          "7003": "46f50cdaf406753f",
+          "7004": "a80c4ea0f138117b",
+          "7005": "67ed384268d3f940",
+          "7006": "f76c9408bb75005f",
+          "7007": "3b7ae1c47e983f34",
+          "7008": "8b0bf41524fe0ae9",
+          "7009": "570f54e9c8705344",
+          "7010": "9f0aaf102295e07b",
+          "7011": "a727a0c6289942e3",
+          "7012": "57075147f8110f9c",
+          "7013": "728e36cc6a7bba89",
+          "7014": "b731ff4558a67aa8",
+          "7015": "3a7991d36503f291",
+          "7016": "74fc8c7f39aa7b5c"
+        }
+      }
+    }
+  },
+  "self_check": {
+    "cases": [
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "44332211",
+          "ebp": "49332211",
+          "ebx": "47332211",
+          "ecx": "45332211",
+          "edi": "4b332211",
+          "edx": "46332211",
+          "end": "halt",
+          "esi": "4a332211"
+        },
+        "i486": null,
+        "label": "bswap",
+        "pass": true,
+        "source": "PRM ch. 26, BSWAP",
+        "what": "BSWAP of each general register but ESP"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "halt",
+          "esp": "f3412"
+        },
+        "i486": null,
+        "label": "bswap-esp",
+        "pass": true,
+        "source": "PRM ch. 26, BSWAP",
+        "what": "BSWAP ESP"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "80000000",
+          "ebx": "7fffffff",
+          "eflags": "896",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-r32",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD EAX, EBX with signed overflow: the flags are ADD's"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "0",
+          "ebx": "ffff",
+          "eflags": "57",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-r16",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD AX, BX with carry out"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "10",
+          "ebx": "f",
+          "eflags": "12",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-r8",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD AL, BL with a half carry"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "ff",
+          "ecx": "0",
+          "eflags": "57",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m8",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD 8-bit memory form; carry, auxiliary carry or overflow result"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "ff",
+          "ecx": "0",
+          "eflags": "57",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m8-lock",
+        "pass": true,
+        "source": "PRM ch. 26, XADD; LOCK",
+        "what": "LOCK XADD 8-bit memory form; carry, auxiliary carry or overflow result"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "xadd-r8-lock",
+        "pass": true,
+        "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+        "what": "LOCK XADD 8-bit register form is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "7fff",
+          "ecx": "8000",
+          "eflags": "896",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m16",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD 16-bit memory form; carry, auxiliary carry or overflow result"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "7fff",
+          "ecx": "8000",
+          "eflags": "896",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m16-lock",
+        "pass": true,
+        "source": "PRM ch. 26, XADD; LOCK",
+        "what": "LOCK XADD 16-bit memory form; carry, auxiliary carry or overflow result"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "xadd-r16-lock",
+        "pass": true,
+        "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+        "what": "LOCK XADD 16-bit register form is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "5",
+          "ecx": "c",
+          "eflags": "6",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m32",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD 32-bit memory form; carry, auxiliary carry or overflow result"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "5",
+          "ecx": "c",
+          "eflags": "6",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m32-lock",
+        "pass": true,
+        "source": "PRM ch. 26, XADD; LOCK",
+        "what": "LOCK XADD 32-bit memory form; carry, auxiliary carry or overflow result"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "xadd-r32-lock",
+        "pass": true,
+        "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+        "what": "LOCK XADD 32-bit register form is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "cmpxchg-r8-lock",
+        "pass": true,
+        "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+        "what": "LOCK CMPXCHG 8-bit register form is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "5",
+          "ebx": "9",
+          "ecx": "9",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-r8-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "8-bit register CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "33",
+          "edx": "44",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m8-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "8-bit memory CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "33",
+          "edx": "44",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m8-equal-lock",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG; LOCK",
+        "what": "LOCK 8-bit memory CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "7",
+          "ebx": "7",
+          "ecx": "9",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-r8-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "8-bit register CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "33",
+          "edx": "33",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m8-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "8-bit memory CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "33",
+          "edx": "33",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m8-unequal-lock",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG; LOCK",
+        "what": "LOCK 8-bit memory CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "cmpxchg-r16-lock",
+        "pass": true,
+        "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+        "what": "LOCK CMPXCHG 16-bit register form is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "5",
+          "ebx": "9",
+          "ecx": "9",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-r16-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "16-bit register CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1234",
+          "edx": "5678",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m16-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "16-bit memory CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1234",
+          "edx": "5678",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m16-equal-lock",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG; LOCK",
+        "what": "LOCK 16-bit memory CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "7",
+          "ebx": "7",
+          "ecx": "9",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-r16-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "16-bit register CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1234",
+          "edx": "1234",
+          "eflags": "97",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m16-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "16-bit memory CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1234",
+          "edx": "1234",
+          "eflags": "97",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m16-unequal-lock",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG; LOCK",
+        "what": "LOCK 16-bit memory CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "cmpxchg-r32-lock",
+        "pass": true,
+        "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+        "what": "LOCK CMPXCHG 32-bit register form is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "12345678",
+          "ebx": "deadbeef",
+          "ecx": "deadbeef",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-r32-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "32-bit register CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "12345678",
+          "edx": "deadbeef",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m32-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "32-bit memory CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "12345678",
+          "edx": "deadbeef",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m32-equal-lock",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG; LOCK",
+        "what": "LOCK 32-bit memory CMPXCHG, accumulator equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "12345678",
+          "ebx": "12345678",
+          "ecx": "deadbeef",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-r32-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "32-bit register CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "12345678",
+          "edx": "12345678",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m32-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "32-bit memory CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "12345678",
+          "edx": "12345678",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m32-unequal-lock",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG; LOCK",
+        "what": "LOCK 32-bit memory CMPXCHG, accumulator unequal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "cmpxchg-a6",
+        "pass": true,
+        "source": "Bochs",
+        "what": "0F A6, the first stepping's CMPXCHG encoding, is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "invd",
+        "pass": true,
+        "source": "PRM ch. 26, INVD",
+        "what": "INVD at CPL 0 retires"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "wbinvd",
+        "pass": true,
+        "source": "PRM ch. 26, WBINVD",
+        "what": "WBINVD at CPL 0 retires"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "invlpg",
+        "pass": true,
+        "source": "PRM ch. 26, INVLPG",
+        "what": "INVLPG of a memory operand at CPL 0 retires"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "invlpg-reg",
+        "pass": true,
+        "source": "PRM ch. 26, INVLPG (invalid opcode with a register operand)",
+        "what": "INVLPG with a register operand is #UD"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:13",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "invd-cpl3",
+        "pass": true,
+        "source": "PRM ch. 26, INVD (privileged: #GP(0) if CPL is not 0)",
+        "what": "INVD at CPL 3 is #GP(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:13",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "wbinvd-cpl3",
+        "pass": true,
+        "source": "PRM ch. 26, WBINVD (privileged: #GP(0) if CPL is not 0)",
+        "what": "WBINVD at CPL 3 is #GP(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:13",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "invlpg-cpl3",
+        "pass": true,
+        "source": "PRM ch. 26, INVLPG (privileged: #GP(0) if CPL is not 0)",
+        "what": "INVLPG at CPL 3 is #GP(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "60050030",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cr0-read",
+        "pass": true,
+        "source": "PRM 4.1 for the bits; Bochs for reserved bits reading 0",
+        "what": "CR0 after reset reads 60000010h: CD, NW and ET"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "6005003e",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cr0-write-ones",
+        "pass": true,
+        "source": "PRM 4.1 for the bits; Bochs for reserved bits reading 0",
+        "what": "CR0 keeps NE, WP, AM, NW and CD with MP, EM, TS and ET"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "10",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cr0-write-zero",
+        "pass": true,
+        "source": "PRM 25.1 item 1",
+        "what": "ET stays 1 when written 0; CD and NW clear"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:13",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "cr0-nw-without-cd",
+        "pass": true,
+        "source": "PRM Table 12-1 (CD 0, NW 1: invalid, #GP(0))",
+        "what": "NW set with CD clear is #GP(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "30",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "lmsw-keeps-ne",
+        "pass": true,
+        "source": "PRM 4.1 (LMSW does not affect PG, CD, NW, AM, WP, NE or ET); DB 4.2.3.1",
+        "what": "LMSW leaves NE and ET as they were"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ecx": "12345678",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "wp-clear-user-readonly",
+        "pass": true,
+        "source": "PRM 6.8.2 (WP clear: write protection is ignored at supervisor level)",
+        "what": "WP clear: a CPL-0 write to a read-only user page succeeds"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "cr2": "20000",
+          "end": "exception:14",
+          "error": "3"
+        },
+        "i486": null,
+        "label": "wp-set-user-readonly",
+        "pass": true,
+        "source": "PRM 4.1, 6.8.2",
+        "what": "WP set: a CPL-0 write to a read-only user page is #PF, error 3"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "cr2": "20000",
+          "end": "exception:14",
+          "error": "3"
+        },
+        "i486": null,
+        "label": "wp-set-supervisor-readonly",
+        "pass": true,
+        "source": "Bochs (PRM 4.1 and 6.8.2 speak of user-level pages only)",
+        "what": "WP set: a CPL-0 write to a read-only supervisor page is #PF"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ecx": "12345678",
+          "edx": "e0050031",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "wp-set-writable",
+        "pass": true,
+        "source": "PRM 4.1, 6.8.2",
+        "what": "WP set: a CPL-0 write to a writable page succeeds, and CR0 reads back with WP"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "40002",
+          "ecx": "2",
+          "edx": "2",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "ac-toggle",
+        "pass": true,
+        "source": "PRM Figure 3-23 (the CPU identification listing, p. 3-43)",
+        "what": "EFLAGS.AC can be set and cleared: the test that tells a 486 from a 386"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "200002",
+          "ecx": "2",
+          "edx": "2",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "id-toggle",
+        "pass": true,
+        "source": "DB 4.2.2.3",
+        "what": "EFLAGS.ID can be set and cleared: the processor has CPUID"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-fault-dword",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "CPL 3, AM and AC set: a doubleword read at an odd address is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-fault-word",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "the same for a word read at an odd address"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-fault-dword-at-2",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "a doubleword read at an address that is 2 modulo 4 is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-fault-push",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "a PUSH on a misaligned stack is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-aligned",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "an aligned doubleword read does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-byte",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "a byte read does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-am-clear",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "AM clear: no #AC"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-flag-clear",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "AC clear: no #AC"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "40002",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "ac-cpl0",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "CPL 0 with AM and AC set: no #AC, and AC reads back set"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1",
+          "ebx": "756e6547",
+          "ecx": "6c65746e",
+          "edx": "49656e69",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cpuid-0",
+        "pass": true,
+        "source": "AP-485 3.1, Table 1 (the vendor string); Bochs for the highest leaf, 1",
+        "what": "CPUID leaf 0: one leaf, GenuineIntel"
+      },
+      {
+        "differences": [],
+        "divergence": "cpuid-leaf-1",
+        "expected": {
+          "eax": "480",
+          "ebx": "0",
+          "ecx": "0",
+          "edx": "1",
+          "end": "halt"
+        },
+        "i486": "per part: an SX is 042xh with EDX bit 0 clear, a DX 040xh or 041xh, a DX2 043xh",
+        "label": "cpuid-1",
+        "pass": true,
+        "source": "AP-485 Tables 3 and 5 (a DX4 is family 4, model 8; bit 0 an FPU); Bochs for EBX and ECX",
+        "what": "CPUID leaf 1 is the DX4 Bochs models, with an FPU and no VME"
+      },
+      {
+        "differences": [],
+        "divergence": "mov-tr",
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": "TR3 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
+        "label": "mov-tr3",
+        "pass": true,
+        "source": "Bochs",
+        "what": "MOV to and from TR3"
+      },
+      {
+        "differences": [],
+        "divergence": "mov-tr",
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": "TR4 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
+        "label": "mov-tr4",
+        "pass": true,
+        "source": "Bochs",
+        "what": "MOV to and from TR4"
+      },
+      {
+        "differences": [],
+        "divergence": "mov-tr",
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": "TR5 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
+        "label": "mov-tr5",
+        "pass": true,
+        "source": "Bochs",
+        "what": "MOV to and from TR5"
+      },
+      {
+        "differences": [],
+        "divergence": "mov-tr",
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": "TR6 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
+        "label": "mov-tr6",
+        "pass": true,
+        "source": "Bochs",
+        "what": "MOV to and from TR6"
+      },
+      {
+        "differences": [],
+        "divergence": "mov-tr",
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": "TR7 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
+        "label": "mov-tr7",
+        "pass": true,
+        "source": "Bochs",
+        "what": "MOV to and from TR7"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "mov-cr4-read",
+        "pass": true,
+        "source": "DB 4.2.3.1 (CR4 only with VME, PVI or PSE; the 486 identity has none)",
+        "what": "MOV EAX, CR4 is #UD: there is no CR4"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "mov-cr4-write",
+        "pass": true,
+        "source": "DB 4.2.3.1 (CR4 only with VME, PVI or PSE; the 486 identity has none)",
+        "what": "MOV CR4, EAX is #UD: there is no CR4"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "6",
+          "eflags": "6",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-same-r32",
+        "pass": true,
+        "source": "PRM ch. 26, XADD (TEMP <- SRC + DEST; SRC <- DEST; DEST <- TEMP)",
+        "what": "XADD EAX, EAX: the sum"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1110",
+          "eflags": "6",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-hi8",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD AH, AL"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "5",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-eax-eax",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG EAX, EAX: always equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "2",
+          "ebx": "2",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-src-eax-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG EBX, EAX, equal: EBX from EAX"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "2",
+          "ebx": "2",
+          "eflags": "97",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-src-eax-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG EBX, EAX, unequal: EAX from EBX"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "905",
+          "eflags": "46",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-hi8-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG AH, CL, equal"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "707",
+          "eflags": "93",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-hi8-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG AH, CL, unequal: AL from AH"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "cr2": "20000",
+          "eax": "1",
+          "eflags": "46",
+          "end": "exception:14",
+          "error": "3"
+        },
+        "i486": null,
+        "label": "cmpxchg-m32-readonly",
+        "pass": true,
+        "source": "PRM 4.1, 6.8.2; ch. 26, CMPXCHG",
+        "what": "CMPXCHG to a read-only page with WP set: #PF, error 3, flags and EAX unchanged"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "cr2": "20000",
+          "eax": "1",
+          "eflags": "46",
+          "end": "exception:14",
+          "error": "2"
+        },
+        "i486": null,
+        "label": "cmpxchg-m32-notpresent",
+        "pass": true,
+        "source": "PRM 6.8; ch. 26, CMPXCHG",
+        "what": "CMPXCHG to a page not present: #PF with W set (error 2)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "cr2": "20000",
+          "ebx": "7",
+          "eflags": "46",
+          "end": "exception:14",
+          "error": "2"
+        },
+        "i486": null,
+        "label": "xadd-m32-notpresent",
+        "pass": true,
+        "source": "PRM 6.8; ch. 26, XADD",
+        "what": "XADD to a page not present: #PF with W set (error 2)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "e0050011",
+          "ebx": "22",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "invlpg-remap",
+        "pass": true,
+        "source": "PRM ch. 26, INVLPG",
+        "what": "INVLPG drops the old translation of a remapped page"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "invlpg-past-limit",
+        "pass": true,
+        "source": "PRM ch. 26, INVLPG (real-address mode exceptions: none; no segment check is listed in any mode)",
+        "what": "INVLPG of an offset past the segment limit makes no check and does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "invlpg-notpresent",
+        "pass": true,
+        "source": "PRM ch. 26, INVLPG (no exceptions but #UD and #GP(0) for the privilege)",
+        "what": "INVLPG of a page not present does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-popfd-then-load",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "CPL 3: POPFD sets AC, and the next misaligned read is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-popfd-clears",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "CPL 3: POPFD clears AC, and the next misaligned read does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-movsd-destination",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "MOVSD with a misaligned destination is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-movsd-source",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "MOVSD with a misaligned source is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-movsd-aligned",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "MOVSD with both addresses aligned does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-delivery-odd-esp0",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "INT3 from CPL 3 onto an odd ESP0 does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-delivery-same-privilege",
+        "pass": true,
+        "source": "Deano 21 Nov 2026, as hardware (CVE-2015-5307); no 486 document read settles it",
+        "what": "INT 6 to a CPL-3 gate onto a misaligned stack raises #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": "ac-error-ext",
+        "expected": {
+          "eax": "1",
+          "end": "exception:6"
+        },
+        "i486": "error code 0 (PRM Table 9-8: always zero; Deano, 21 November 2026)",
+        "label": "ac-exception-delivery-same-privilege",
+        "pass": true,
+        "source": "Bochs (EXT set); PRM Table 9-8 for the 486",
+        "what": "#UD delivered at CPL 3 onto a misaligned stack raises #AC; its handler pops the error code"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-xadd-m32",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "a misaligned XADD is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-lfs-at-2",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "LFS of a 48-bit pointer at 2 modulo 4 is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-lfs-aligned",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "LFS of an aligned 48-bit pointer does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-bound-aligned",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "BOUND of two aligned doublewords does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-bound-at-2",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "BOUND with its doublewords at 2 modulo 4 is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-sgdt-at-2",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "SGDT at 2 modulo 4 (its base aligned) does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-sgdt-aligned",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "SGDT at 0 modulo 4 (its base at 2) is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eflags": "2",
+          "end": "int:16"
+        },
+        "i486": null,
+        "label": "ac-real-int-clears",
+        "pass": true,
+        "source": "SDM INT n (real-address mode); Bochs (the 1992 PRM lists IF and TF only)",
+        "what": "a real-mode interrupt clears AC"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eflags": "40002",
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-pm-int-keeps",
+        "pass": true,
+        "source": "PRM ch. 26, INT n (protected mode)",
+        "what": "a protected-mode interrupt keeps AC"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "11220000",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "bswap-r16",
+        "pass": true,
+        "source": "Bochs (PRM ch. 26, BSWAP: undefined for a 16-bit register)",
+        "what": "BSWAP AX"
+      },
+      {
+        "differences": [],
+        "divergence": "cpuid-above-highest",
+        "expected": {
+          "eax": "480",
+          "end": "halt"
+        },
+        "i486": "zeros in EAX, EBX, ECX and EDX (DB Appendix B, item 3; AP-485 Table 1 says undefined)",
+        "label": "cpuid-2",
+        "pass": true,
+        "source": "Bochs (it answers leaf 1)",
+        "what": "CPUID leaf 2, above the highest"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "ffff1ff0",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "dr6-bit12",
+        "pass": true,
+        "source": "Intel SDM vol. 3, debug registers (compatibility); PRM Table 10-1",
+        "what": "DR6 bit 12 is writable on a 486"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "ebx": "7fff",
+          "ecx": "8000",
+          "eflags": "896",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "xadd-m16-mmio",
+        "pass": true,
+        "source": "PRM ch. 26, XADD",
+        "what": "XADD to MMIO reads its operand once"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "1234",
+          "ecx": "5678",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m16-mmio-equal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG to MMIO, equal, reads its operand once"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "eax": "4321",
+          "ecx": "4321",
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "cmpxchg-m16-mmio-unequal",
+        "pass": true,
+        "source": "PRM ch. 26, CMPXCHG",
+        "what": "CMPXCHG to MMIO, unequal, reads its operand once"
+      }
+    ],
+    "reset": [
+      {
+        "expected": "00000480",
+        "field": "edx",
+        "oracle": "00000480",
+        "pass": true,
+        "source": "PRM 10.1, Figure 10-1; DB Tables 9-8 and 9-9: 0400h and the revision, here the DX4 of CPUID leaf 1 (set by the adapter)"
+      },
+      {
+        "expected": "ffff0ff0",
+        "field": "dr6",
+        "oracle": "ffff0ff0",
+        "pass": true,
+        "source": "PRM Table 10-1 (set by the adapter)"
+      },
+      {
+        "expected": "60000010",
+        "field": "cr0",
+        "oracle": "60000010",
+        "pass": true,
+        "source": "PRM Figure 10-2; DB Table 9-8"
+      },
+      {
+        "expected": "00000002",
+        "field": "eflags",
+        "oracle": "00000002",
+        "pass": true,
+        "source": "PRM Table 10-1"
+      },
+      {
+        "expected": "0000f000",
+        "field": "cs",
+        "oracle": "0000f000",
+        "pass": true,
+        "source": "PRM Table 10-1"
+      },
+      {
+        "expected": "ffff0000",
+        "field": "cs.base",
+        "oracle": "ffff0000",
+        "pass": true,
+        "source": "PRM Table 10-1"
+      },
+      {
+        "expected": "0000fff0",
+        "field": "eip",
+        "oracle": "0000fff0",
+        "pass": true,
+        "source": "PRM Table 10-1"
+      }
+    ]
+  },
+  "testbench_sha256": "2e56371e87473504fc3913b48ece08c22e1439b81a5bfef978a8c0d10f021d8e",
+  "verilator": {
+    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+    "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c",
+    "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+    "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+    "version": "Verilator 5.054 2026-11-01 rev v5.054"
+  }
+}

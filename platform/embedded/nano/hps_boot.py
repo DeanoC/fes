@@ -108,6 +108,14 @@ def prepare(project, uboot, entry, pfg, output):
             dict(window_profile,program='usbcheck',usb_control=window_profile.get('usb_pio',False))):
         raise ValueError('USB probe requires its separate contained cold resources')
     companion=hps_context.compiled_menu_program(dict(window_profile,program='fpgaload'))
+    spectrum = hps_context.spectrum48.checked(dict(window_profile, program='fpgaload'))
+    if spectrum != hps_context.spectrum48.checked(loaded_entry, key='native_program'):
+        raise ValueError('Spectrum companion differs between native entry and cold firmware')
+
+    shared_shell = hps_context.spectrum48.shared_shell(dict(window_profile, program='fpgaload'))
+    if shared_shell != hps_context.spectrum48.shared_shell(loaded_entry, key='native_program'):
+        raise ValueError('shared core shell differs between native entry and cold firmware')
+
     cpu_map=window_profile.get('cpu_mapping')
     if cpu_map is not None and cpu_map!=hps_context.cpu_mapping(control_map,hps_context.configuration(project),reader_memory,menu_program=companion):
         raise ValueError('native CPU mapping contract differs from its sealed resources')
@@ -136,9 +144,6 @@ def prepare(project, uboot, entry, pfg, output):
     window_reload=window_profile.get('window_reload',False)
     if type(window_reload) is not bool or window_reload and not window_storage_return:
         raise ValueError('window reload requires matched window SD return')
-    window_service=window_profile.get('window_service',False)
-    if type(window_service) is not bool or window_service and (not window_storage_return or window_reload):
-        raise ValueError('window service requires matched window SD return and excludes bounded reload')
     if (type(window_profile.get('window_read',False)) is not bool or
             window_profile.get('window_read',False)!=(window_read is not None)):
         raise ValueError('native window read selection differs from its sealed contract')
@@ -222,6 +227,8 @@ def prepare(project, uboot, entry, pfg, output):
         'cpu_mapping_sha256':hps_context.digest(cpu_map) if cpu_map is not None else None,
         'paired_programs':companion is not None,
         'hps_menu_program_sha256':hps_context.digest(companion) if companion is not None else None,
+        **({'shared_core_shell': True} if shared_shell else {}),
+        **({'spectrum48_program_sha256': hps_context.digest(spectrum)} if spectrum is not None else {}),
         'control_probe':control_map is not None,
         'hps_control_sha256':hps_context.digest(control_map) if control_map is not None else None,
         'bounded_ddr_read':ddr_read is not None,
@@ -232,10 +239,9 @@ def prepare(project, uboot, entry, pfg, output):
         'bounded_window_read':window_read is not None,
         'bounded_menu_presentation':menu_present,
         'hps_menu_read_sha256':hps_context.digest(menu_read) if menu_read is not None else None,
-        'bounded_window_presentation':window_present and not window_service,
-        'bounded_window_storage_return':window_storage_return and not window_service,
+        'bounded_window_presentation':window_present,
+        'bounded_window_storage_return':window_storage_return,
         'bounded_window_reload':window_reload,
-        'persistent_window_service':window_service,
         'native_tenfoot_serial':tenfoot_serial,
         'hps_window_read_sha256':hps_context.digest(window_read) if window_read is not None else None,
         'trusted_boot_handoff': False, 'physical_programming_admission': False,

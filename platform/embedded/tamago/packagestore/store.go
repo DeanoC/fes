@@ -72,6 +72,7 @@ type Selection struct {
 	linked     *corepackage.LinkedArchive
 	metadata   []byte
 	tape       []byte
+	tapeFormat string
 }
 
 // Metadata is a private copy of a bounded, explicitly selected attachment. Its
@@ -383,7 +384,8 @@ func retainSelection(ctx context.Context, files fs.FS, request Request) (selecti
 		}
 	}
 	if request.Tape != (TapeRequest{}) {
-		selection.tape, err = readInput(ctx, files, request.Tape.Path, MaxRetainedTapeBytes, request.Tape.Size, request.Tape.SHA256)
+		selection.tapeFormat = request.Tape.Format
+		selection.tape, err = readInput(ctx, files, request.Tape.Path, int64(request.Tape.InputLimit()), request.Tape.Size, request.Tape.SHA256)
 		if err != nil {
 			return nil, err
 		}

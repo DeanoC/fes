@@ -124,5 +124,37 @@ TEXT ·ArmPhysicalTimer(SB),NOSPLIT|NOFRAME,$0-4
 TEXT ·DisarmPhysicalTimer(SB),NOSPLIT|NOFRAME,$0
 	MOVD	$2, R1
 	MSR	R1, CNTP_CTL_EL0
+	DSB	$15
 	ISB	$15
+	RET
+
+// func WaitForInterrupt()
+TEXT ·WaitForInterrupt(SB),NOSPLIT|NOFRAME,$0
+	DSB	$15
+	WFI
+	ISB	$15
+	RET
+
+// func counterFreq() uint64
+TEXT ·counterFreq(SB),NOSPLIT|NOFRAME,$0-8
+	MRS	CNTFRQ_EL0, R0
+	MOVD	R0, ret+0(FP)
+	RET
+
+// func irqEnabled() bool
+TEXT ·irqEnabled(SB),NOSPLIT|NOFRAME,$0-1
+	MRS	DAIF, R0
+	TST	$0x80, R0
+	CSET	EQ, R0
+	MOVB	R0, ret+0(FP)
+	RET
+
+// func maskIRQ() bool
+TEXT ·maskIRQ(SB),NOSPLIT|NOFRAME,$0-1
+	MRS	DAIF, R0
+	MSR	$0b0010, DAIFSet
+	ISB	$15
+	TST	$0x80, R0
+	CSET	EQ, R0
+	MOVB	R0, ret+0(FP)
 	RET

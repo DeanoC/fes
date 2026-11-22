@@ -207,9 +207,31 @@ func TestEnableDisableRoutePriorityAndTrigger(t *testing.T) {
 		t.Fatalf("GICD_ICFGR[3] after level = %#x, want 0", got)
 	}
 
+	// Pending set/clear for PPI and SPI (SGIs and out-of-range ignored).
+	g.SetPending(0)
+	g.ClearPending(0)
+	g.SetPending(30)
+	if got := hw.r32[gicr+GICR_ISPENDR0]; got != 1<<30 {
+		t.Fatalf("GICR_ISPENDR0 = %#x, want %#x", got, uint32(1<<30))
+	}
+	g.ClearPending(30)
+	if got := hw.r32[gicr+GICR_ICPENDR0]; got != 1<<30 {
+		t.Fatalf("GICR_ICPENDR0 = %#x, want %#x", got, uint32(1<<30))
+	}
+	g.SetPending(48)
+	if got := hw.r32[gicd+GICD_ISPENDR+1*4]; got != 1<<16 {
+		t.Fatalf("GICD_ISPENDR[1] = %#x, want %#x", got, uint32(1<<16))
+	}
+	g.ClearPending(48)
+	if got := hw.r32[gicd+GICD_ICPENDR+1*4]; got != 1<<16 {
+		t.Fatalf("GICD_ICPENDR[1] = %#x, want %#x", got, uint32(1<<16))
+	}
+
 	// Out-of-bounds calls are safe no-ops.
 	g.Enable(999)
 	g.Disable(999)
+	g.SetPending(999)
+	g.ClearPending(999)
 	g.SetPriority(999, 0x10)
 	g.SetEdge(999, true)
 	g.SendSGI(16)

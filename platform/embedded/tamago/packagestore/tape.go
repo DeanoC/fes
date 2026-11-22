@@ -10,6 +10,9 @@ import (
 // native driver may impose a smaller bound before hardware containment.
 const MaxRetainedTapeBytes = 16 << 10
 
+const SpectrumTapeFormat = "spectrum-tape"
+const MaxRetainedSpectrumTapeBytes = 64 << 10
+
 // TapeRequest selects immutable game media separately from the core and its
 // firmware ROM. It supplies no hardware capability or filesystem access after
 // containment. The zero value means launch without a tape.
@@ -17,13 +20,26 @@ type TapeRequest struct {
 	Path   string `json:"path"`
 	SHA256 string `json:"sha256"`
 	Size   int64  `json:"size"`
+	Format string `json:"format,omitempty"`
+}
+
+// InputLimit is the file limit for the selected tape format.
+func (r TapeRequest) InputLimit() int {
+	switch r.Format {
+	case "":
+		return MaxRetainedTapeBytes
+	case SpectrumTapeFormat:
+		return MaxRetainedSpectrumTapeBytes
+	default:
+		return 0
+	}
 }
 
 func (r TapeRequest) Validate() error {
 	if r == (TapeRequest{}) {
 		return nil
 	}
-	if !pathOK(r.Path) || !digest(r.SHA256) || r.Size < 1 || r.Size > MaxRetainedTapeBytes {
+	if !pathOK(r.Path) || !digest(r.SHA256) || r.Size < 1 || r.Size > int64(r.InputLimit()) {
 		return errors.New("package store: complete bounded tape selection required")
 	}
 	return nil
@@ -36,4 +52,12 @@ func (p *Selection) Tape() []byte {
 		return nil
 	}
 	return bytes.Clone(p.tape)
+}
+
+// TapeFormat reports the retained request's declared format.
+func (p *Selection) TapeFormat() string {
+	if p == nil {
+		return ""
+	}
+	return p.tapeFormat
 }

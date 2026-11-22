@@ -39,8 +39,9 @@ class ProvisionerTest(unittest.TestCase):
         self.assertIn('"bochs-level4"', adapter)
         self.assertIn('"bochs-level3"', adapter)
         testbench = (level4.SIM / 'lockstep_tb.cpp').read_text()
-        # Only the i486 mode runs against the level-4 oracle, and it against no other.
-        self.assertIn('if (i486 != (mode == "i486"))', testbench)
+        # Only the i486 and random modes run against the level-4 oracle, and
+        # the i486 mode against no other.
+        self.assertIn('if (i486 ? mode != "i486" && mode != "random" : mode == "i486")', testbench)
 
     def test_level_3_sweeps_cannot_delete_level_4_outputs(self):
         # fes_i386_oracle.py deletes bochs-level3-* trees under BUILD and, in
@@ -216,14 +217,15 @@ class RunnerRulesTest(unittest.TestCase):
         self.assertFalse({'ud-cpuid', 'ud-invd', 'ud-cmpxchg', 'ud-bswap', 'ud-mov-tr3'} & extra)
         self.assertIn('ud-mov-cr4', extra)
 
-    def test_the_486sx_list_stops_only_on_divergences(self):
-        # On the 486SX every case agrees but those whose row names a
-        # divergence from Bochs's level 4 (the CPUID signature and leaves).
-        divergent = {case.label for case in cases.cases() if case.divergence}
+    def test_the_486sx_list_has_no_stops(self):
+        # On the 486SX every case agrees. The rows that name a divergence
+        # from Bochs's level 4 (the CPUID signature and leaves) agree through
+        # the lockstep's CPUID rule (lockstep_tb.cpp cpuid_rule).
+        self.assertTrue({case.label for case in cases.cases() if case.divergence})
         stops = {label for label, verdict in runner.read_expected(runner.IDENTITIES['486sx'][1]).items()
                  if verdict != 'agree'}
-        self.assertTrue(stops)
-        self.assertLessEqual(stops, divergent)
+        self.assertEqual(stops, set())
+        self.assertIn('void cpuid_rule(', (level4.SIM / 'lockstep_tb.cpp').read_text())
 
     def test_ending_prefers_the_exception(self):
         self.assertEqual(runner.ending({'end': 'halt', 'exception': '17', 'int': '-'}), 'exception:17')

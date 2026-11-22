@@ -116,9 +116,10 @@ def eligible(directory):
 
 def eligible_machine(directory, record):
     params = record['parameters']
-    expected = {'programming_profile': 'de25-linux-computer-v1', 'standard_core': True,
+    expected = {'standard_core': True,
                 'expansion_socket': False, 'audio_clock_reference_policy': MACHINE_POLICY}
     require(params.get('core_id') in MACHINE_CORES and
+            (params.get('programming_profile') == 'de25-linux-computer-v1' or async_inputs.native_spectrum48(params)) and
             all(type(params.get(k)) is type(v) and params[k] == v for k, v in expected.items()),
             'requires a standard machine-PLL profile')
     require(all(record['source_inputs'].get(name) == sha for name, sha in MACHINE_SOURCES.items()),

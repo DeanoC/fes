@@ -8,7 +8,10 @@
 // (DS=0, Non-Secure EL1) and QEMU virt with gic-version=3 (DS=1).
 package gic
 
-import "errors"
+import (
+	"errors"
+	"sync/atomic"
+)
 
 const (
 	// MaxINTID is the fixed handler table size. It covers SGIs (0..15),
@@ -31,6 +34,7 @@ const (
 	GICD_IGROUPR    = 0x0080
 	GICD_ISENABLER  = 0x0100
 	GICD_ICENABLER  = 0x0180
+	GICD_ISPENDR    = 0x0200
 	GICD_ICPENDR    = 0x0280
 	GICD_ICACTIVER  = 0x0380
 	GICD_IPRIORITYR = 0x0400
@@ -47,6 +51,7 @@ const (
 	GICR_IGROUPR0    = GICR_SGI_BASE + 0x0080
 	GICR_ISENABLER0  = GICR_SGI_BASE + 0x0100
 	GICR_ICENABLER0  = GICR_SGI_BASE + 0x0180
+	GICR_ISPENDR0    = GICR_SGI_BASE + 0x0200
 	GICR_ICPENDR0    = GICR_SGI_BASE + 0x0280
 	GICR_ICACTIVER0  = GICR_SGI_BASE + 0x0380
 	GICR_IPRIORITYR0 = GICR_SGI_BASE + 0x0400
@@ -103,6 +108,9 @@ type Controller struct {
 	gicr  uint64
 	mpidr uint64
 	lines uint32
+
+	idleHW      IdleAccess
+	idleWakeups atomic.Uint64
 
 	handlers [MaxINTID]func()
 }
@@ -266,6 +274,30 @@ func (g *Controller) SendSGI(id uint32) {
 		return
 	}
 	g.hw.SendSGI(encodeSelfSGI(g.mpidr, id))
+}
+
+// SetPending sets a PPI or SPI pending in software (GICR_ISPENDR0 / GICD_ISPENDR).
+func (g *Controller) SetPending(id uint32) {
+	if id < FirstPPI || id >= g.lines || g.gicr == 0 {
+		return
+	}
+	if id < FirstSPI {
+		g.hw.Write32(g.gicr+GICR_ISPENDR0, 1<<id)
+		return
+	}
+	g.hw.Write32(g.GICD+GICD_ISPENDR+uint64(id/32)*4, 1<<(id%32))
+}
+
+// ClearPending clears a pending PPI or SPI (GICR_ICPENDR0 / GICD_ICPENDR).
+func (g *Controller) ClearPending(id uint32) {
+	if id < FirstPPI || id >= g.lines || g.gicr == 0 {
+		return
+	}
+	if id < FirstSPI {
+		g.hw.Write32(g.gicr+GICR_ICPENDR0, 1<<id)
+		return
+	}
+	g.hw.Write32(g.GICD+GICD_ICPENDR+uint64(id/32)*4, 1<<(id%32))
 }
 
 // Ack reads ICC_IAR1_EL1 and returns the acknowledged INTID (>= 1020 if spurious).

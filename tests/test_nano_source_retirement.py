@@ -302,6 +302,7 @@ class SourceRetirementTests(unittest.TestCase):
         report = self.run_model("warm_service_test", joined=True)
         self.assertEqual(report["completed_generations"], 12)
         self.assertEqual(report["negative_cases"], 40)
+        self.assertEqual(report["shared_spectrum_transfers"], 1)
 
     def test_start_negotiation_rejects_foreign_and_late_data_headers(self):
         report = self.run_model("start_header_test", joined=True)
