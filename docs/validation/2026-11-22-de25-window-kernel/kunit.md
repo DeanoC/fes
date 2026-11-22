@@ -2,7 +2,7 @@
 
 The DE25 DMA owner's KUnit suite, run under QEMU (`linux,dummy-virt`) with
 the locked kernel, SDK and builder (`scripts/de25_kernel_test.py`), at
-`5b63b0a64` (this branch, from main). No hardware is reached and no image is built.
+`2ce5470b3` (this branch, from main). No hardware is reached and no image is built.
 
 ```
 python3 scripts/de25_kernel_test.py run --cache <cache> --image-output <dir> --output <new> --jobs 12
@@ -12,8 +12,8 @@ The image directory holds the locked SDK archive (sha256 `7912076c…`, from a
 cached copy on this host) and the vendor `Image` (`874f75d8…`).
 `kunit-inputs.json` and `kunit-checks.json` are the runner's own records.
 
-**Result:** 66 of 66 cases pass, and the runner's kernel-log check is clean
-(no WARNING, BUG or Oops). The four window cases:
+**Result:** 68 of 68 cases pass, and the runner's kernel-log check is clean
+(no WARNING, BUG or Oops). The six window cases:
 
 - `window_publishes_grant_and_maps_offsets`
   - The grant is written while not granted, then `CommandGrant` is sent
@@ -33,6 +33,13 @@ cached copy on this host) and the vendor `Image` (`874f75d8…`).
   - A port-1 fault: closing the client and `REAP` free nothing, and the
     owner stays busy and refuses overlays.
   - Once the record is cleared, `REAP` frees the storage.
+- `window_untrusted_observation_blocks_mapping`: a status bit outside the
+  contract fails the observation (-EPROTO) and marks the window uncertain, so
+  a new map is refused; a revoke that proves the clear still retires it.
+- `window_file_failure_leaves_a_reapable_grant`: the grant is published, file
+  creation fails (a KUnit-only fault) and a port stops draining. The owner
+  keeps the window, so `REAP` returns -EAGAIN until the port drains, then
+  clears and frees it. Without the stuck port the same failure frees at once.
 - `window_needs_its_block`
   - An owner without the window `reg` refuses the window ABI and ALLOC.
   - With the window `reg`, the scanout and the window are separate leases.
@@ -47,8 +54,13 @@ fails the test on any write the RTL answers with SLVERR.
 - Publish without its precondition read: `window_refuses_a_block_it_cannot_grant`
   fails (65/66).
 - Revoke frees without `CommandClear`: three window cases fail (63/66).
+- At `2ce5470b3` (the Codex fixes), on local commits:
+  - Only a stale epoch is uncertain: `window_untrusted_observation_blocks_mapping`
+    fails (67/68).
+  - File-creation failure drops the pinned window:
+    `window_file_failure_leaves_a_reapable_grant` fails (67/68).
 
-**Runner.** Its required-case list adds the four window cases. It drops
+**Runner.** Its required-case list adds the six window cases. It drops
 `delayed_drain_releases_exposure` and
 `retry_after_clear_accepts_pristine_snapshot`, which #1312 deleted from the
 suite. Before that, the runner failed every run at an unchanged driver

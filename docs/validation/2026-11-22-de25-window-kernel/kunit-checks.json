@@ -65,7 +65,9 @@
     "window_publishes_grant_and_maps_offsets",
     "window_refuses_a_block_it_cannot_grant",
     "window_fault_or_undrained_port_pins_storage",
-    "window_needs_its_block"
+    "window_needs_its_block",
+    "window_untrusted_observation_blocks_mapping",
+    "window_file_failure_leaves_a_reapable_grant"
   ],
   "classification": "AArch64 QEMU kernel DMA ownership tests",
   "command": [
@@ -83,16 +85,16 @@
   ],
   "compiler": "aarch64-buildroot-linux-gnu-gcc.br_real (Buildroot 2021.02.4) 9.4.0",
   "dma_admission": "not-qualified",
-  "fes_revision": "5b63b0a64238f9fd73a8ddc300c3b37a549fb287",
+  "fes_revision": "2ce5470b3cb65ce3264e02887d6905c760fb7d91",
   "files": {
-    "de25_dma.o": "94a52a8277a2d941e9e4bf64b70f99572c080155542ccfc09cd2c627bbac1d13",
-    "de25_dma_test.o": "05d102bdfa6931422a88724c07bef3d1e4099f9e6f0736cd3f89d3b87727c346",
-    "inputs.json": "2fdd824a79125ef97f242416728f0b66b317681f6c3283a84b752362e02f60f0",
-    "kunit-Image": "8261978c3654c575e1241c39e702ea6d9fa5396333c4e66bf594fecd9feb6dc7",
-    "kunit-raw.log": "b314200b164ee55d7cabf937223b479cf252bb7c76912cd848053ee4368a7819",
-    "kunit-run.log": "92edde94d800cdaff216ddeec5909d9b5dbc4ab2ddf60ee99bcfa1046d0f8ee2",
+    "de25_dma.o": "40bc6bf9c81127943f2cb6008f14610d079e907d7f55d981b62f81485ed9c1ae",
+    "de25_dma_test.o": "6ae9de81327106e65b5dd8ba2842aa5886a756f87561f1cbadf2fbe098604ecf",
+    "inputs.json": "15646623872dbdae5ad83e7f358bba3b83a07c34f7cd39eb793b1f3f9e290a87",
+    "kunit-Image": "2bc6230515d1a5c877f7d74a1dbec0ba1220eda4f2f9cb94b3081c64396d1857",
+    "kunit-raw.log": "d32cb825a9eab08e50786694b467210c3a73142458e77f8831d3c7ce3dde02bf",
+    "kunit-run.log": "f95def379eeab4ec58f8287c450573ae89a762bb9499b5c90026d053a2343656",
     "kunit.config": "0fd5754bc54c826aea583a962d0b7ac8ff5d5a38e847f2e654bfcce5bd61792c",
-    "kunit.json": "e586ef29abea6b01ec51275593c3eb13f430cbc92cb37b3985757da45bfc8eb3",
+    "kunit.json": "9dc0a3cdeca098c0c21bf0cc21137265b51aedc5d94fe3f016da7c840e2eb0a8",
     "vendor.config": "3ec2812cffb3c37bf677941283c9b65c3f5620b519cb58a4ded5f230cadbcdf7"
   },
   "hardware_access": "not-performed",
