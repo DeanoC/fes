@@ -27,7 +27,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import quartus_fes_pcxt as board
-from scripts.input_identity import with_identities
+from scripts.input_identity import DESIGN_V2, with_identities
 from scripts.export_core_package import (build_identity, encode_build_record,
     export_package, source_input_closure)
 from scripts.core_package import encode_manifest
@@ -289,7 +289,10 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
               'dependencies': {}, 'tools': dict(tool_identities), 'parameters': parameters}
     if execution.get("selection_only"):
         fields["parameters"]["selection_only"] = True
-    return encode_build_record(with_identities(fields, root=root))
+    # design-v2 (#1984) gives the PC/XT Verilator lint configuration and
+    # testbenches the evidence role, so they stay bound to the record without
+    # moving BUILD_ID.
+    return encode_build_record(with_identities(fields, root=root, policy=DESIGN_V2))
 
 
 def require_timing(summary, seeds, *, identity=None):
