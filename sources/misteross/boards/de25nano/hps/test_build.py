@@ -839,6 +839,26 @@ class HpsBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unexported HPS subsystem slave: agilex_hps.f2sdram"):
             BUILD.canonical_parent_slaves(project)
 
+    def test_sub_ip_pairs_take_path_order_and_the_ips_own_files_stay(self):
+        def pair(path):
+            return (f'set_global_assignment -library "lib" -name QIP_FILE [file join $::quartus(qip_path) "{path}.qip"]\n'
+                    f'set_global_assignment -library "lib" -name SOURCE_FILE [file join $::quartus(qip_path) "{path}.sopcinfo"]\n')
+        head = pair("emif/synth/emif") + "\n"
+        subs = [pair("emif/synth/ip/emif/" + name + "/" + name) for name in ("lpddr4", "refclk_gpio", "refclk_bridge")]
+        tail = 'set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) "emif.v"]\n'
+        results = {}
+        for label, order in (("seen", (0, 1, 2)), ("swapped", (0, 2, 1))):
+            path = self.root / label / "ip/emif/emif.qip"
+            path.parent.mkdir(parents=True)
+            path.write_text(head + "".join(subs[i] for i in order) + tail)
+            rewritten = BUILD.canonical_sub_ip_order(self.root / label)
+            self.assertEqual(rewritten, [] if label == "swapped" else ["ip/emif/emif.qip"])
+            self.assertEqual(BUILD.canonical_sub_ip_order(self.root / label), [])
+            results[label] = path.read_text()
+        self.assertEqual(results["seen"], results["swapped"])
+        self.assertTrue(results["seen"].startswith(head) and results["seen"].endswith(tail))
+        self.assertLess(results["seen"].index("refclk_bridge.qip"), results["seen"].index("refclk_gpio.qip"))
+
     def test_failed_subprocess_retains_diagnostic_output(self):
         log = self.root / "failed-command.log"
         with self.assertRaisesRegex(ValueError, r"command failed \(7\); retained"):

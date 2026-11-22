@@ -580,6 +580,47 @@ def canonical_parent_slaves(project):
     return internal
 
 
+SUB_IP = re.compile(r'set_global_assignment -library "[^"]+" -name (QIP_FILE|SOURCE_FILE) '
+                    r'\[file join \$::quartus\(qip_path\) "([^"]*/synth/ip/[^"]+)\.(qip|sopcinfo)"\]')
+
+
+def canonical_sub_ip_order(project):
+    """List each generated IP's sibling sub-IPs in path order.
+
+    quartus_ipgenerate writes a generated IP's QIP_FILE/SOURCE_FILE pairs for its
+    sub-IPs (under synth/ip/) in an order that varies from run to run; the EMIF's
+    refclk_gpio and refclk_bridge have been seen both ways round. Synthesis reads
+    them in that order, which renumbers the netlist and moves the fit. Only runs of
+    adjacent sub-IP pairs are reordered; the IP's own files stay where they are.
+    Returns the rewritten files, relative to the project."""
+    rewritten = []
+    for path in sorted(project.rglob("*.qip")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        lines = path.read_text().splitlines(keepends=True)
+        result, index, changed = [], 0, False
+        while index < len(lines):
+            pairs = []
+            while index + 1 < len(lines):
+                first, second = SUB_IP.search(lines[index]), SUB_IP.search(lines[index + 1])
+                if not (first and second and first[1] == "QIP_FILE" and first[3] == "qip" and
+                        second[1] == "SOURCE_FILE" and second[3] == "sopcinfo" and first[2] == second[2]):
+                    break
+                pairs.append((first[2], lines[index], lines[index + 1]))
+                index += 2
+            if pairs:
+                ordered = sorted(pairs)
+                changed |= ordered != pairs
+                result.extend(line for _, *pair in ordered for line in pair)
+            else:
+                result.append(lines[index])
+                index += 1
+        if changed:
+            path.write_text("".join(result))
+            rewritten.append(str(path.relative_to(project)))
+    return rewritten
+
+
 def generate_project(output, tool, version):
     project = output / "project"
     install = tool.parents[2]
@@ -597,6 +638,7 @@ def generate_project(output, tool, version):
     run_logged([generator, "--generate_project_ip_files", "--synthesis=verilog", PROJECT],
                project, output / "ip-generation.log")
     canonical["after_ip_generation"] = canonical_parent_slaves(project)
+    canonical["sub_ip_order"] = canonical_sub_ip_order(project)
     inputs = json.loads((output / "inputs.json").read_text())
     changes = {}
     for name, expected in inputs["vendor_hps_emif_parameters"].items():
