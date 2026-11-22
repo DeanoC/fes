@@ -11,7 +11,6 @@ import (
 	"io"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
@@ -111,7 +110,6 @@ type HPSContextVerifier struct {
 	windowMemorySHA        [32]byte
 	windowPublication      WindowMemoryObservation
 	windowArenaSHA         [32]byte
-	windowServiceClaimed   atomic.Bool
 	ddrReaderAttempted     bool
 	computerServiceClaimed bool
 	computerMu             sync.Mutex

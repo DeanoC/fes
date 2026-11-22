@@ -51,7 +51,7 @@ class MenuBootTests(unittest.TestCase):
 
     def test_other_boot_modes_cannot_mix_with_menu(self):
         for flag in ('ddr_read','window_memory','window_read','window_present','window_storage_return',
-                     'window_reload','window_service','computer_control','computer_reload',
+                     'window_reload','computer_control','computer_reload',
                      'computer_storage_return','selected_programs','tenfoot_serial','usb_control','usb_shared'):
             for value in (True,1,None):
                 with self.subTest(flag=flag,value=value),self.assertRaises(ValueError):

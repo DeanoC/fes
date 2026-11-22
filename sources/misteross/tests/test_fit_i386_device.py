@@ -3,6 +3,8 @@
 reader. These cover the parts that decide what a figure means -- which ports
 become virtual pins, which report row each resource came from, and the clock
 constraints -- with no Quartus, Yosys or device needed."""
+from contextlib import redirect_stdout
+import io
 import json
 import os
 from pathlib import Path
@@ -261,6 +263,20 @@ class SecondaryFrontEnd(unittest.TestCase):
     """Quartus reading the SystemVerilog itself: a cross-check on the netlist
     flow, not a second area result."""
 
+    def test_the_387_settings_are_refused_where_they_cannot_apply(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for argv, message in (
+                    (["--design", "cpu", "--x87-present", "1"], "--design machine only"),
+                    (["--design", "machine", "--x87-present", "1", "--front-end", "systemverilog"],
+                     "Yosys elaboration only"),
+                    (["--design", "machine", "--x87-present", "1", "--netlist", "/nonexistent.v"],
+                     "reused --netlist")):
+                with self.subTest(argv=argv), redirect_stdout(io.StringIO()) as out:
+                    code = fit.main(argv + ["--device", "de25", "--output", f"{tmp}/{len(argv)}",
+                                            "--cache-root", tmp])
+                    self.assertNotEqual(code, 0)
+                    self.assertIn(message, out.getvalue())
+
     def test_it_is_refused_for_the_machine(self):
         with self.assertRaisesRegex(fit.FitError, "fes_i386_cpu only"):
             fit.write_sv_project(Path("/nonexistent"), fit.DEVICES["de25"],
@@ -442,46 +458,6 @@ class Flow(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class CompilerLease(unittest.TestCase):
-    """The lease queues behind a held lock with a blocking flock, as the
-    flock(1) wrappers do, instead of polling: a poller loses each release to
-    a blocked waiter and can starve behind a chain of them."""
-
-    def test_a_held_lease_is_waited_for_with_a_blocking_flock(self):
-        import fcntl
-        from unittest import mock
-        with tempfile.TemporaryDirectory() as temporary:
-            lock = Path(temporary) / "lease.lock"
-            holder = subprocess.Popen(["flock", str(lock), "sleep", "2"])
-            try:
-                deadline = time.monotonic() + 10
-                while time.monotonic() < deadline:
-                    with lock.open("a+") as probe:
-                        try:
-                            fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                            fcntl.flock(probe, fcntl.LOCK_UN)
-                        except BlockingIOError:
-                            break
-                    time.sleep(0.05)
-                else:
-                    self.fail("the holder never took the lock")
-                calls = []
-                real = fcntl.flock
-
-                def recording(handle, operation):
-                    calls.append(operation)
-                    return real(handle, operation)
-
-                with mock.patch.object(fit, "LOCK_FILE", lock), \
-                        mock.patch.object(fit.fcntl, "flock", recording):
-                    with fit.compiler_lease():
-                        self.assertNotEqual(holder.poll(), None)
-            finally:
-                holder.wait(10)
-        self.assertEqual(calls[:2], [fcntl.LOCK_EX | fcntl.LOCK_NB, fcntl.LOCK_EX])
-        self.assertEqual(calls[-1], fcntl.LOCK_UN)
 
 
 class TerminationUnwinds(unittest.TestCase):
@@ -792,9 +768,11 @@ import subprocess
                   "    if grace == 0.0:\n" \
                   "        return fit.reap_group_was(group, process, grace)\n" \
                   "fit.reap_group = forgetful\n" \
-                  "fit.LOCK_FILE = out / 'lease.lock'\n"
+                  "from scripts import quartus_tools\n" \
+                  "quartus_tools.LEASE_POOLS = {}\n" \
+                  "quartus_tools.DEFAULT_POOL = {'pro': (str(out / 'lease.lock'),), 'lite': ()}\n"
         self.assertEqual(self.second_signal_during_the_grace(
-            "FESFITCHOKE", reap=nothing, lease="with fit.compiler_lease():",
+            "FESFITCHOKE", reap=nothing, lease="with fit.compiler_lease('pro'):",
             signals=("SIGTERM",)), [])
 
     def test_a_reaped_group_is_no_longer_registered_and_the_mask_is_restored(self):

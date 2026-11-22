@@ -410,8 +410,12 @@ module fes_i386_cpu #(
     logic [3:0][31:0] dr;
     logic [3:0]       dr6_lo, dr6_hi;
     logic [31:0]      dr6_rd, dr7;
-    // A 486's DR6 reads bit 12 as 0 (PRM Table 10-1).
-    assign dr6_rd = {16'hffff, dr6_hi[3:1], dr6_hi[0] && !I486, 8'hff, dr6_lo};
+    // Bit 12 is held on a 486 as on a 386: its reset value is 0 (PRM Table
+    // 10-1; pc386_system's init_dr6), and a MOV to DR6 may set it (Intel SDM
+    // vol. 3, the debug registers' compatibility notes: "it is possible to
+    // write a 1 in this bit on the Intel486 processor"; Bochs's level 4
+    // keeps it settable too).
+    assign dr6_rd = {16'hffff, dr6_hi, 8'hff, dr6_lo};
     // TR4-TR7 (#1730), which MOV TRn writes and reads: the 386's decoder
     // runs MOV to and from each (microcode_notes.txt 391, 3B6). They keep
     // what is written; TR6's TLB test command does nothing
@@ -3445,7 +3449,9 @@ module fes_i386_cpu #(
     // A fault's error code, which a protected-mode delivery pushes for #DF,
     // #TS, #NP, #SS, #GP and #PF: a selector's, the IDT entry's, a #PF's
     // (P, W/R, U/S), or 0; EXT (bit 0) is set for a fault in a delivery
-    // (wb_nested), but for a #PF's, and a double fault's is 0.
+    // (wb_nested), but for a #PF's and, with the i486 identity, an #AC's,
+    // which is always 0 (PRM Table 9-8; Deano, 21 November 2026); a double
+    // fault's is 0.
     logic [15:0] wb_err;
     logic [7:0]  wb_vec;
     always_comb begin
@@ -3458,7 +3464,8 @@ module fes_i386_cpu #(
             5'(fes_i386_pkg::FAULT_PF): wb_err = {13'd0, wb_s.pf_err};
             default: wb_err = 16'd0;
         endcase
-        if (wb_fault != 5'(fes_i386_pkg::FAULT_PF)) wb_err[0] = wb_nested;
+        if (wb_fault != 5'(fes_i386_pkg::FAULT_PF) && !(I486 && wb_fault == 5'(fes_i386_pkg::FAULT_AC)))
+            wb_err[0] = wb_nested;
         wb_vec = fault_vector(wb_fault);
     end
     // The exceptions a protected-mode delivery pushes an error code for.

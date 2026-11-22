@@ -84,30 +84,9 @@ func (c *Client) importCoreMedia(ctx context.Context, path string, size int64, c
 // or 501 behind a launcher), and that reads as no bundled firmware, so a
 // caller never claims built-in firmware the host cannot confirm.
 func (c *Client) BundledFirmware(ctx context.Context) ([]protocol.BundledFirmware, error) {
-	req, err := c.NewRequest(ctx, http.MethodGet, "/api/v1/library/firmware/bundled", http.NoBody)
+	list, err := c.bundledObjects(ctx)
 	if err != nil {
 		return nil, err
-	}
-	req.Header.Set("Accept", "application/json")
-	resp, err := c.HTTPClient().Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, err := ReadResponseBody(resp, maxResponseBytes)
-	if err != nil {
-		return nil, err
-	}
-	switch resp.StatusCode {
-	case http.StatusOK:
-	case http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusNotImplemented:
-		return nil, nil
-	default:
-		return nil, APIStatusError(resp.StatusCode, body)
-	}
-	var list protocol.BundledFirmwareList
-	if err := json.Unmarshal(body, &list); err != nil {
-		return nil, fmt.Errorf("bundled firmware: %w", err)
 	}
 	out := make([]protocol.BundledFirmware, 0, len(list.Firmware))
 	for _, fw := range list.Firmware {
@@ -116,6 +95,51 @@ func (c *Client) BundledFirmware(ctx context.Context) ([]protocol.BundledFirmwar
 		}
 	}
 	return out, nil
+}
+
+// BundledDisks lists the disks the host ships, such as the PC/XT's FreeDOS
+// boot disk. A host from before bundled disks lists none.
+func (c *Client) BundledDisks(ctx context.Context) ([]protocol.BundledDisk, error) {
+	list, err := c.bundledObjects(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]protocol.BundledDisk, 0, len(list.Disks))
+	for _, d := range list.Disks {
+		if d.CoreID != "" && d.Size > 0 && protocol.ValidateDigest(d.MediaID) == nil {
+			out = append(out, d)
+		}
+	}
+	return out, nil
+}
+
+func (c *Client) bundledObjects(ctx context.Context) (protocol.BundledFirmwareList, error) {
+	req, err := c.NewRequest(ctx, http.MethodGet, "/api/v1/library/firmware/bundled", http.NoBody)
+	if err != nil {
+		return protocol.BundledFirmwareList{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.HTTPClient().Do(req)
+	if err != nil {
+		return protocol.BundledFirmwareList{}, err
+	}
+	defer resp.Body.Close()
+	body, err := ReadResponseBody(resp, maxResponseBytes)
+	if err != nil {
+		return protocol.BundledFirmwareList{}, err
+	}
+	switch resp.StatusCode {
+	case http.StatusOK:
+	case http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusNotImplemented:
+		return protocol.BundledFirmwareList{}, nil
+	default:
+		return protocol.BundledFirmwareList{}, APIStatusError(resp.StatusCode, body)
+	}
+	var list protocol.BundledFirmwareList
+	if err := json.Unmarshal(body, &list); err != nil {
+		return protocol.BundledFirmwareList{}, fmt.Errorf("bundled firmware: %w", err)
+	}
+	return list, nil
 }
 
 // BundledFirmwareFor finds the bundled image for one core's named ROM.

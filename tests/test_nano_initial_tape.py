@@ -38,7 +38,7 @@ class InitialTapeSelectionTests(unittest.TestCase):
         changes += [(k, False) for k in ('selected_programs','computer_reload','computer_storage_return',
                                        'tenfoot_serial','usb_control','usb_shared')]
         changes += [(k, True) for k in ('window_memory','window_read','window_present',
-            'window_storage_return','window_reload','window_service','menu_present','ddr_read','smmu_observe')]
+            'window_storage_return','window_reload','menu_present','ddr_read','smmu_observe')]
         for key,value in changes:
             with self.subTest(key=key,value=value), self.assertRaises(ValueError):
                 hps.initial_tape.checked(dict(self.record(), **{key:value}))

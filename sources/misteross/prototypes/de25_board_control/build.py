@@ -31,6 +31,11 @@ import hdmi_control
 import menu_transport
 MISTEROSS = HERE.parents[1]
 ROOT = MISTEROSS.parents[1]
+if str(MISTEROSS) not in sys.path:
+    sys.path.insert(0, str(MISTEROSS))
+# Installs the Quartus lease's launch guard for this process; the lease itself
+# is taken by locate_quartus (through the board build).
+from scripts import quartus_tools  # noqa: E402,F401
 BOARD = "sources/misteross/boards/de25nano/"
 OVERLAY = "sources/misteross/prototypes/de25_board_control/"
 ENDPOINT = "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"

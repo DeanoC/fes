@@ -98,3 +98,13 @@ func translateRead(address uint64) (par uint64)
 func translateWrite(address uint64) (par uint64)
 func setUncachedAttribute()
 func publishTableEntry(uintptr)
+
+// WithDeviceMapping brackets one synchronous device transaction while holding
+// the lock that guards all managed mapping changes.
+func WithDeviceMapping(ramBase, ramSize, base, span uint64, access func() error) error {
+	m, err := mapper(ramBase, ramSize)
+	if err != nil {
+		return err
+	}
+	return m.withDeviceMapping(Range{Base: base, Bytes: span, Kind: Device}, access)
+}

@@ -32,6 +32,11 @@ signoff gate and package as candidates
 ([record](../../docs/validation/2026-11-18-de25-machine-signoff/README.md));
 neither has run on hardware.
 
+The [standard Commodore 64](c64/README.md) uses the same machine builder and
+uploaded firmware, with its producer `producers/build_c64_package.py`. Its RAM,
+frame pages and D64 stay in block RAM as on the DE10, so it leaves the board
+SDRAM idle.
+
 The standard pc386 (`pc386/`) runs `fes_i386_cpu` with no 387 behind the same
 shell, with all of its memory in a window in HPS DDR. Its producer,
 `producers/build_pc386_package.py`, adds named signoff bases for the window

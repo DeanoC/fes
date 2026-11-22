@@ -282,3 +282,20 @@ func (m *Mapper) Inspect(ranges []Range) (Observation, error) {
 	}
 	return v, nil
 }
+
+// withDeviceMapping serializes a synchronous access sequence with managed page
+// table changes. A changed or failed observation retires the mapper.
+func (m *Mapper) withDeviceMapping(device Range, access func() error) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.failed {
+		return errors.New("mapper retired until reboot")
+	}
+	result, err := WithStableMapping(func() (Observation, error) {
+		return m.inspect([]Range{device})
+	}, access)
+	if err != nil {
+		return m.fail(err)
+	}
+	return result
+}

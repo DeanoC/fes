@@ -7,6 +7,10 @@
 #if !defined(FES_NANO_COLD_CONFIG) || !FES_NANO_COLD_CONFIG
 #error "cold computer control requires the sealed configuration path"
 #endif
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+#include "nano_program.h"
+int fes_nano_platform_spectrum48_ready(struct fes_nano_configuration *,uint64_t,uint64_t);
+#endif
 static unsigned fes_nano_computer_phase; /* 0 fresh, 1 owned open, 2 retired */
 static uint64_t fes_nano_computer_generation; /* Last consumed configuration. */
 
@@ -94,8 +98,17 @@ static int fes_nano_computer_control(uint32_t fid, uint64_t operation,
     p->active=1;p->stage=FES_ID_OPEN;
     fes_nano_bridge_sip(c->bridges, operation, owner, generation, busy, result);
 #if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM
-    if (!result[0] && fes_nano_platform_computer_rom(c,owner,result[3])) {
-        result[0]=4;result[1]=result[2]=result[3]=0;
+    if (!result[0]) {
+        int endpoint;
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+        if(p->abi==FES_NANO_PROGRAM_SPECTRUM48_ABI)
+            endpoint=fes_nano_platform_spectrum48_ready(c,owner,result[3]);
+        else
+#endif
+            endpoint=fes_nano_platform_computer_rom(c,owner,result[3]);
+        if(endpoint) {
+            result[0]=4;result[1]=result[2]=result[3]=0;
+        }
     }
 #endif
     if (!result[0]) { fes_nano_computer_phase = 1;p->stage=FES_ID_READ; }
@@ -104,7 +117,10 @@ static int fes_nano_computer_control(uint32_t fid, uint64_t operation,
         if (p->io.contain) p->cleanup_error=p->io.contain(p->io.context);
         p->active=0;
 #if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM
-        fes_nano_platform_computer_rom_report();
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+        if(p->abi!=FES_NANO_PROGRAM_SPECTRUM48_ABI)
+#endif
+            fes_nano_platform_computer_rom_report();
 #endif
     }
     return 1;

@@ -15,10 +15,11 @@ const programROMHeaderBytes = 128
 type programRole uint32
 
 const (
-	programRoleMenu     programRole = 1
-	programRoleComputer programRole = 2
-	programRoleVersion              = 3
-	programRoleOffset               = 632
+	programRoleMenu       programRole = 1
+	programRoleComputer   programRole = 2
+	programRoleSpectrum48 programRole = 3
+	programRoleVersion                = 3
+	programRoleOffset                 = 632
 )
 
 func (r programRole) controlABI() uint32 {
@@ -27,6 +28,8 @@ func (r programRole) controlABI() uint32 {
 		return 0x10203043
 	case programRoleComputer:
 		return 0x10203041
+	case programRoleSpectrum48:
+		return 0x10203044
 	default:
 		return 0
 	}
@@ -36,7 +39,7 @@ func (r programRole) controlABI() uint32 {
 // owner, package, build and staged bytes. Only a matched platform can opt into
 // this wire; neither the role nor its ABI grants a master or memory range.
 func encodeRoleProgramBinding(source HPSBootObservation, m coldConfigurationMap, role programRole, image []byte) ([]byte, int, error) {
-	if role.controlABI() == 0 || role == programRoleMenu && len(image) != 0 {
+	if role.controlABI() == 0 || role != programRoleComputer && len(image) != 0 {
 		return nil, 0, errors.New("native fabric: invalid compiled program role")
 	}
 	header, err := encodeProgramBinding(source, m)

@@ -74,6 +74,9 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Nine-bit raster compare uses `$D011` bit 7 and `$D012`; `$D019` latches
   events and acknowledges written ones, while `$D01A` masks the CPU IRQ.
   The PAL beam has 63 Phi2 cycles per line and 312 lines per frame.
+  [Native PAL timing](rtl/c64_pal_timing.vh) defines the machine clocks,
+  raster geometry, border and capture windows, and DMA slots. VIC cycles
+  are one-based: sprite 2 finishes on cycle 63 and sprite 3 starts on cycle 1.
   Events occur once per line; writes can match the current line, and automatic
   line-zero comparison waits one Phi2 after frame wrap.
   Eight sprite shift pipelines compose mono/multicolor pixels, independent X/Y

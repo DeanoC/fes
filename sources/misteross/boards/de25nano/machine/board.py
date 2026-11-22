@@ -205,7 +205,7 @@ WINDOW_TOP = ("add_connection subsys_periph.fes_win_mem subsys_hps.f2sdram_adapt
               "set_connection_parameter_value subsys_periph.fes_win_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n")
 
 
-def prepare(spec, archive, output, revision=None, model=None, *, package_build_id=None):
+def prepare(spec, archive, output, revision=None, model=None, *, package_build_id=None, native_hps=False):
     """Select the standard machine in the managed GHRD; never deploy it.
 
     A producer passes the build identity of its record, which the machine then
@@ -214,6 +214,8 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
     model = model or next(iter(spec.MODELS))
     if model not in spec.MODELS:
         raise ValueError("unknown " + spec.NAME + " model")
+    if native_hps and (spec.CORE_ID != "fes.spectrum" or model != "native48" or package_build_id is not None):
+        raise ValueError("native HPS is a Spectrum 48K project-only recipe")
     sources = capture(spec, revision)
     scanout = selected_scanout(sources[BOARD + "scanout/build.py"])
     files, derived, _ = component_files(spec, sources)
@@ -227,7 +229,12 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
     observed = identity() if revision is None else {}
     selected_revision = revision or observed.get("base_revision", observed.get("fes_revision"))
     output, combined, hps, display = scanout.prepare(archive, output, selected_revision,
-        hps_first=True, linux_dma=True, package_build_id=build_id, window=spec.WINDOW)
+        hps_first=True, linux_dma=not native_hps, package_build_id=None if native_hps else build_id,
+        window=spec.WINDOW)
+    if native_hps:
+        # The projection uses the diagnostic scanout's retained vendor HPS,
+        # JTAG and probe. Adopt the project-only identity produced by it.
+        build_id = json.loads((output / "combined/hps/inputs.json").read_text())["scanout"]["build_id"]
     directory = output / "combined/hps"
     project = directory / "project"
     local = project / "fes_mailbox"
@@ -439,19 +446,18 @@ def verify(spec, output, scanout, hps, display):
 
 
 def quartus_lease():
-    """The builder-wide Quartus lease (scripts/fit_i386_device.compiler_lease).
+    """This host's Quartus Pro lease (scripts/quartus_tools.quartus_lease).
 
     A board's generation, fit and programming-file steps share the compile
     host's memory with every other Quartus job, so they take the same lease
     the i386 fits and the x87 envelope take. It waits; it never interrupts
-    another owner's job, and releasing it touches no process this build did
-    not start through that module (none).
+    another owner's job.
     """
     root = str(ROOT / "sources/misteross")
     if root not in sys.path:
         sys.path.insert(0, root)
-    from scripts.fit_i386_device import compiler_lease
-    return compiler_lease()
+    from scripts.quartus_tools import quartus_lease as lease
+    return lease("pro", label="DE25 machine board")
 
 
 def generate(spec, output, scanout, combined, hps, display, tool, version):

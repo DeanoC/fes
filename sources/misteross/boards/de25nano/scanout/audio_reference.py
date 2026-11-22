@@ -55,9 +55,9 @@ SOURCES = {
 }
 
 
-# A machine with its own PLL (Spectrum, Atari ST, pc386): the same serializer
-# and PCM crossing behind fes_de25_machine_audio, clocked by the machine PLL's
-# second output in place of the stock audio PLL. This is a separate policy
+# A machine with its own PLL (Spectrum, Atari ST, C64, pc386): the same
+# serializer and PCM crossing behind fes_de25_machine_audio, clocked by the
+# machine PLL's second output in place of the stock audio PLL. This is a separate policy
 # with its own frozen sources; it borrows no fitted evidence from the ZX81.
 # Each machine's PLL is frozen by its own bytes. pc386's makes the same audio
 # master on another VCO divider (50 x 188/3 /255 = 50 x 188/15 /51).
@@ -71,7 +71,7 @@ SHARED_MACHINE_PLL = ('boards/de25nano/machine/machine_pll.ip',
                       '52890ca22dea5743d009dc5a10035918b54565cd9886c0c201a8022019a8d4b4')
 MACHINE_PLLS = {'fes.spectrum': SHARED_MACHINE_PLL, 'fes.spectrum128': SHARED_MACHINE_PLL,
                 'fes.spectrum-plus3': SHARED_MACHINE_PLL, 'fes.pentagon': SHARED_MACHINE_PLL,
-                'fes.atari-st': SHARED_MACHINE_PLL,
+                'fes.atari-st': SHARED_MACHINE_PLL, 'fes.c64': SHARED_MACHINE_PLL,
                 'fes.pc386': ('boards/de25nano/pc386/machine_pll.ip',
                               'd7fde9016686e6486b102dbc252c49f99397dff5f322fbae0abe04eefe02f5ba')}
 MACHINE_CORES = set(MACHINE_PLLS)
@@ -127,9 +127,10 @@ def eligible(directory):
 
 def eligible_machine(directory, record):
     params = record['parameters']
-    expected = {'programming_profile': 'de25-linux-computer-v1', 'standard_core': True,
+    expected = {'standard_core': True,
                 'expansion_socket': False, 'audio_clock_reference_policy': MACHINE_POLICY}
     require(params.get('core_id') in MACHINE_CORES and
+            (params.get('programming_profile') == 'de25-linux-computer-v1' or async_inputs.native_spectrum48(params)) and
             all(type(params.get(k)) is type(v) and params[k] == v for k, v in expected.items()),
             'requires a standard machine-PLL profile')
     sources = machine_sources(params['core_id'])

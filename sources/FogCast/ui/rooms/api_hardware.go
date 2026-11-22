@@ -200,6 +200,15 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 		packages.RawSetString(p.PackageID, roles)
 	}
 	out.RawSetString("packages", packages)
+	// start_disks[package_id] names the disk a title of that package starts
+	// from while it has none, such as the PC/XT's bundled FreeDOS disk.
+	startDisks := L.NewTable()
+	for _, p := range v.Packages {
+		if p.PackageID != "" && p.StartDisk != "" {
+			startDisks.RawSetString(p.PackageID, lua.LString(p.StartDisk))
+		}
+	}
+	out.RawSetString("start_disks", startDisks)
 	out.RawSetString("session_error", lua.LString(v.SessionError))
 	// Save support is separate from a machine's content readiness. An omitted
 	// field stays absent so an older unpaired host keeps its existing save.
