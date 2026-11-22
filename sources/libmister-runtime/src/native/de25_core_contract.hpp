@@ -7,6 +7,7 @@
 #include "native/generated/de25_nano_programming.hpp"
 #include "native/features.hpp"
 #include <array>
+#include <string>
 namespace mister { namespace native {
 // Register word zero is the least significant word of the selected BUILD_ID.
 inline Error De25BuildWords(const std::string& text, std::array<std::uint32_t,4>* words)
@@ -70,10 +71,18 @@ struct De25StandardInterface {
 // image sizes its upload endpoint takes; a machine without one is format 2.
 struct De25StandardCore {
 	const char* id;
-	std::array<De25StandardInterface, 5> interfaces;
+	std::array<De25StandardInterface, 7> interfaces;
 	std::array<std::uint32_t, 2> firmware_bytes;
 	// The static profile adds the optional expansion bus to this machine.
 	const char* static_bus;
+	// The fes.computer minor the package declares: 1 for a 1.1 interface.
+	std::uint16_t abi_minor = 0;
+	// Whether the machine declares the shell's gamepad ports.
+	bool gamepad = true;
+	// Whether its memory is a window in HPS DDR (fes.fabric.de25-hps-window).
+	// Such a machine runs only where the runtime has a window backend, so
+	// its interfaces are advertised only there.
+	bool hps_window = false;
 };
 // The shell every standard machine shares: its video, input and audio, and
 // the session plane on the allocated scanout.
@@ -86,7 +95,7 @@ constexpr std::array<De25StandardInterface, 7> kDe25StandardShell = {{
 	{"fes.fabric.video.display-plane", 1, 0},
 	{"fes.fabric.de25-scanout", 1, 3},
 }};
-constexpr std::array<De25StandardCore, 7> kDe25StandardCores = {{
+constexpr std::array<De25StandardCore, 8> kDe25StandardCores = {{
 	{"fes.zx81",
 		{{{generated::FesComputerInterfaceMediaZx81TapeID, 1, 0},
 		  {generated::FesComputerInterfaceMediaZx81TapeWriteID, 1, 0}}},
@@ -136,6 +145,17 @@ constexpr std::array<De25StandardCore, 7> kDe25StandardCores = {{
 		{{{generated::FesComputerInterfaceMediaC64DiskID, 1, 0},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
 		{{36864, 0}}, nullptr},
+	// The DE10 package's pc386 (fes.computer 1.1): a mouse and no gamepad,
+	// all memory in a window in HPS DDR, its BIOS linked in the netlist.
+	{"fes.pc386",
+		{{{generated::FesComputerInterfaceMouseRelativeID, 1, 0},
+		  {generated::FesComputerInterfaceMemoryHpsDdrID, 1, 0},
+		  {generated::FesComputerInterfaceMediaAtaDiskID, 1, 0},
+		  {generated::FesComputerInterfacePersistenceWordsID, 1, 0},
+		  {generated::FesComputerInterfaceRtcWallClockID, 1, 0},
+		  {generated::FesComputerInterfacePc386MachineID, 1, 0},
+		  {"fes.fabric.de25-hps-window", 1, 0}}},
+		{{0, 0}}, nullptr, 1, false, true},
 }};
 inline const De25StandardCore* FindDe25StandardCore(const std::string& id)
 {
@@ -168,7 +188,7 @@ inline Error CheckDe25StandardComputerContract(const CoreDescriptor& descriptor)
 	if (!core || (static_profile && !core->static_bus) ||
 		descriptor.format != (static_profile ? 5u : firmware ? 3u : 2u) ||
 		!descriptor.core.system.empty() || descriptor.abi.id != FesComputerABIID ||
-		descriptor.abi.major != 1 || descriptor.abi.minor != 0)
+		descriptor.abi.major != 1 || descriptor.abi.minor != core->abi_minor)
 		return {ErrorCode::unsupported_abi, "DE25 standard profile requires a registered computer contract", "compatibility"};
 	if (firmware && (descriptor.rom.role != "firmware" ||
 		(descriptor.rom.source_size != core->firmware_bytes[0] &&
@@ -177,7 +197,11 @@ inline Error CheckDe25StandardComputerContract(const CoreDescriptor& descriptor)
 	std::array<std::uint32_t,4> words{};
 	Error error = De25BuildWords(descriptor.build.id, &words);
 	if (!error.ok()) return error;
-	std::size_t expected = kDe25StandardShell.size();
+	const auto in_shell = [core](const De25StandardInterface& candidate) {
+		return core->gamepad || std::string(candidate.id) != FesComputerInterfaceGamepadPortsID;
+	};
+	std::size_t expected = 0;
+	for (const auto& interface : kDe25StandardShell) if (in_shell(interface)) ++expected;
 	for (const auto& interface : core->interfaces) if (interface.id) ++expected;
 	if (static_profile) ++expected;
 	const auto differ = [] {
@@ -192,7 +216,7 @@ inline Error CheckDe25StandardComputerContract(const CoreDescriptor& descriptor)
 		}
 		const De25StandardInterface* registered = nullptr;
 		for (const auto& candidate : kDe25StandardShell)
-			if (interface.id == candidate.id) registered = &candidate;
+			if (in_shell(candidate) && interface.id == candidate.id) registered = &candidate;
 		for (const auto& candidate : core->interfaces)
 			if (candidate.id && interface.id == candidate.id) registered = &candidate;
 		if (!registered || interface.required != registered->required || interface.major != registered->major ||

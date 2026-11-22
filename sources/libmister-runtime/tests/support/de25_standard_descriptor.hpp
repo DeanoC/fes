@@ -50,6 +50,18 @@ inline mister::CoreDescriptor De25AtariStDescriptor() {
      "fes.media.atari-st-floppy-geometry"})d.interfaces.push_back({id,1,0,true});
  De25FirmwareRequirement(&d,196608);return d;
 }
+// The pc386 package (boards/de25nano/producers/build_pc386_package.py):
+// fes.computer 1.1, the DE10 package's interfaces in its order, no gamepad,
+// then its window and the scanout.
+inline mister::CoreDescriptor De25Pc386Descriptor() {
+ mister::CoreDescriptor d=De25StandardShellDescriptor("fes.pc386");
+ d.abi={"fes.computer",1,1};d.interfaces.clear();
+ for(const char* id:{"fes.video.fixed-720p60","fes.keyboard.hid","fes.audio.pcm-s16-stereo-48k","fes.mouse.relative",
+     "fes.memory.hps-ddr","fes.video.session-display","fes.fabric.video.display-plane","fes.media.ata-disk",
+     "fes.persistence.words","fes.rtc.wall-clock","fes.pc386.machine","fes.fabric.de25-hps-window"})
+  d.interfaces.push_back({id,1,0,true});
+ d.interfaces.push_back({"fes.fabric.de25-scanout",1,3,true});return d;
+}
 // Live capability word 0x204f (boards/de25nano/c64/standard_tb.cpp).
 inline mister::CoreDescriptor De25C64Descriptor() {
  auto d=De25StandardShellDescriptor("fes.c64");

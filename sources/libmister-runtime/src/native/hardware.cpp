@@ -858,8 +858,11 @@ Capabilities NativeHardware::capabilities() const
     // The standard shell's machines: every interface the per-core contract
     // table admits, once each. Firmware upload has no capability bit; a host
     // reads it here to know this runtime delivers a format-3 source at launch.
+    // A machine in an HPS DDR window needs a window backend this runtime
+    // does not have yet, so none of its interfaces is advertised.
     for(const auto& core:kDe25StandardCores)
      for(const auto& interface:core.interfaces) {
+      if(core.hps_window)break;
       if(!interface.id)continue;
       bool listed=false;
       for(const auto& known:computer.interfaces)listed=listed||known.id==interface.id;

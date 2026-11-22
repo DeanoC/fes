@@ -6192,6 +6192,11 @@ void TestDe25FirmwareMachineUploadsBeforeRelease(bool atari_st,FirmwareTrial tri
  for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
   if(abi.id=="fes.computer"&&interface.id=="fes.fabric.firmware-upload"&&interface.major==1&&interface.minor==0)advertised=true;
  assert(advertised&&hardware.capabilities().rom_linking==0);
+ // pc386 is in the table, but nothing behind an HPS DDR window is
+ // advertised until this runtime has a window backend.
+ for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
+  assert(interface.id!="fes.memory.hps-ddr"&&interface.id!="fes.fabric.de25-hps-window"&&
+   interface.id!="fes.media.ata-disk"&&interface.id!="fes.pc386.machine");
  CoreROMLink link;
  link.rom_id="machine-rom";link.map_sha256=hash(map);link.source_sha256=hash(image);link.source_size=bytes;
  link.programmed_sha256=hash(payload);link.programmed_size=payload.size();
