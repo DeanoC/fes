@@ -968,8 +968,9 @@ and uses the mean voice quantization dither. On the 240,813-sample fixture the
 largest PCM difference was 16 signed counts and the largest of 12 gain
 differences was 0.178 dB. These are measurements of the exercised sequences.
 
-Normal runs use a checked-in reference. To regenerate the curves and verify
-the independent PCM reference against VICE 3.10 sources:
+Normal runs use a checked-in reference. VICE's dither uses the host C library's
+`rand()` sequence. The stored reference was generated on Linux with glibc.
+To regenerate the curves and check the reference on that platform:
 
 ```sh
 python3 scripts/generate_c64_sid_8580_tables.py --vice-source /path/to/vice-3.10 --check

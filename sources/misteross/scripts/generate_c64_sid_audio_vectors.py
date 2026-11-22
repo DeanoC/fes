@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: MIT
 """Generate synthetic complete-SID checkpoints using pinned VICE 3.10 sources.
 
-The upstream kernel is unmodified. For the 6581, a test-only derived Filter configures its
-writable lookup data to the documented bounded policy; VCR/cutoff stay exact.
-Normal simulation reads only the generated header and needs no VICE checkout.
+The 6581 oracle configures writable reSID tables with its bounded lookup policy.
+The 8580 oracle uses VICE's default nonlinear filter and the original full tables.
+Its gzip payload stores one little-endian signed PCM word and one OSC3 byte per
+Phi sample. Running the tests uses the generated fixtures offline.
 """
 import argparse
 import gzip
