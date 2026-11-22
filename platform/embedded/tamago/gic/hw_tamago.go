@@ -96,6 +96,7 @@ func (g *Controller) EnableIdle() error {
 	if g.gicr == 0 {
 		return ErrInvalidConfig
 	}
+	DisarmPhysicalTimer()
 	g.Register(IRQPhysTimer, DisarmPhysicalTimer)
 	g.Enable(IRQPhysTimer)
 	g.SetIdleAccess(nativeIdleAccess{})
