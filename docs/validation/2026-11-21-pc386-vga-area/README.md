@@ -14,7 +14,18 @@ bounds, and none of them is made.
 
 ## Result
 
-**DE25 board pair (387 off, #2036 board, four seeds each): DE25_PENDING**
+**DE25 board pair (387 off, #2036 board, four seeds each): −242.75 ALMs, measured.**
+
+| | Median ALMs | Spread | Registers (median) | M20K | MLAB memory ALMs | DSP |
+|---|---:|---:|---:|---:|---:|---:|
+| Baseline (`3401bb193`) | 41,971.4 | 30.1 | 48,027 | 167 | 390 | 24 |
+| Arm (with this PR's VGA) | 41,728.65 | 75.3 | 47,752 | 167 | 410 | 24 |
+| **Arm − baseline** | **−242.75** | | −275 | 0 | +20 | 0 |
+
+- **Measured:** the saving, 242.75, is larger than the larger spread, 75.3.
+- **Main at the time:** both arms contain main at `f3140cb33`. That is **before** #2075, the OPL2 audio area cut, which has merged since. The pair measures the VGA change alone, and #2075 changes no VGA file.
+- **Timing:** every seed of both arms closes at 61.437908 MHz, with no "not met" in any STA report. The details are [below](#de25-timing-per-seed).
+- **Figures:** per seed in [de25/pair.json](de25/pair.json), from [collect.py](collect.py). The run scripts and logs are in [de25/](de25/).
 
 **DE10:**
 - The registered producer resealed it at `459381f3d`, with a fresh lockstep;
@@ -131,6 +142,47 @@ From that:
   - recovery +6.127;
   - removal +0.289;
   - minimum pulse width +1.122.
+
+### DE25 timing per seed
+
+Worst slack in ns over every clock and corner:
+
+| Seed | Setup | Hold | Recovery | Removal | Min pulse width |
+|---|---:|---:|---:|---:|---:|
+| base s1 | 1.424 | 0.000 | 7.743 | 0.032 | 0.220 |
+| base s2 | 1.551 | 0.000 | 7.479 | 0.102 | 0.220 |
+| base s3 | 1.299 | 0.000 | 7.427 | 0.095 | 0.220 |
+| base s4 | 1.505 | 0.000 | 7.618 | 0.082 | 0.220 |
+| arm s1 | 1.592 | 0.000 | 7.161 | 0.083 | 0.220 |
+| arm s2 | 1.599 | 0.000 | 7.061 | 0.019 | 0.220 |
+| arm s3 | 1.540 | 0.000 | 7.175 | 0.000 | 0.220 |
+| arm s4 | 1.505 | 0.000 | 7.625 | 0.013 | 0.220 |
+
+- **Zero slacks:** every slack is ≥ 0. The 0.000 entries are exact zeros, not rounding of a negative value:
+  - Hold is 0.000 on every seed of both arms, on PLL output clocks.
+  - Arm s3's removal is 0.000 on `adv7513_config`, the HDMI transmitter's configuration clock, with a TNS of 0.000. It is not a VGA path.
+
+### DE25 arm seed 1: why it was rerun
+
+**The first build was not counted.**
+- The first arm board build, seed 1, compiled fully, with fit and STA complete. Its producer then exited 1 with `de25-pc386: source changed during the board build`.
+- That check is the producer's last `identity()`, a `git status` of the build worktree. It fired at 22:06:46Z, 00:06:46 local.
+- That is inside the window, about 00:05–00:38 local on 22 November, when a Lander job had written its own `core.worktree` into the shared repository config. Every linked worktree's `git status` then compared that job's files.
+- The elaboration had finished about 75 minutes earlier, from `git show` of the revision, and the post-compile topology check passed.
+
+**What counts instead:** seed 1 reran the same way as seeds 2–4 ([de25/vga-area-s1copy.sh](de25/vga-area-s1copy.sh), [log](de25/board-arm-s1.log)).
+- It is a copy of the first build's generated project, with SEED 1.
+- It compiled the identical netlist (`aef0daf9…`) and ran no Yosys.
+- Its fit equals the uncounted run's: 41,732.8 ALMs and the same slacks.
+
+**Two earlier reruns stopped before any fit** ([a](de25/board-arm1r-a.log), [b](de25/board-arm1r-b.log)). Each was a full board build, and each hit a locked-Yosys assertion in `OPT_CLEAN`. They were not used.
+- That is a thread-count race in the pc386 lock's Yosys, reported on [DeanoC/yosys#77](https://github.com/DeanoC/yosys/issues/77#issuecomment-7079444384).
+- With more than one thread, that `OPT_CLEAN` either:
+  - asserts;
+  - hangs;
+  - or finishes with netlist bytes that vary from run to run. The variation is a consistent renaming of function-result wires; the logic is the same.
+- With one thread it is clean and stable.
+- A rebuilt netlist would therefore not have matched seeds 2–4's bytes. That is why seed 1 reran from the project copy.
 
 **Kit B ([kit/](kit/)):**
 - Core-only run on the baseline: image `179affbb…`, bundle `c9ae79e2…`. Nothing

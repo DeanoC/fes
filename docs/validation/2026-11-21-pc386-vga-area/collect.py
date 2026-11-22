@@ -6,7 +6,13 @@ netlist's SHA-256, and the worst slack per timing analysis over every clock and
 corner, from each project's golden_top.fit.rpt and golden_top.sta.summary.
 Adapted from #2047's area386_collect.py (same report parsing).
 
-    collect.py ROOT > pair.json     # ROOT holds board-{base,arm}-out and board-{base,arm}-s{2,3,4}
+    collect.py ROOT [ARM=TAG ...] > pair.json
+
+ROOT holds board-{base,arm}-out and board-{base,arm}-s{2,3,4}, with each run's
+log board-TAG.log. ARM=TAG takes that arm's seed 1 from a rerun: a copy of its
+generated project at board-TAG/project, as seeds 2-4 are, logged in board-TAG.log. Each seed records its build's exit status from
+the log; a seed whose build did not exit 0 is reported and kept out of the
+medians.
 """
 import hashlib
 import json
@@ -60,18 +66,34 @@ def board(project):
             'timing': sta(out / 'golden_top.sta.summary')}
 
 
+def exits(log):
+    # 'build exit=N' is seed 1 (the board producer); 'sN exit=N' is seed N's compile.
+    out = {}
+    for m in re.finditer(r'^(build|s\d) exit=(\d+)', log.read_text(), re.M):
+        out['s1' if m.group(1) == 'build' else m.group(1)] = int(m.group(2))
+    return out
+
+
 def main():
     root = Path(sys.argv[1])
+    rerun = dict(a.split('=', 1) for a in sys.argv[2:])
     result = {}
     for arm in ('base', 'arm'):
         seeds = {}
         for seed in (1, 2, 3, 4):
-            project = root / (f'board-{arm}-out/combined/hps/project' if seed == 1 else f'board-{arm}-s{seed}/project')
+            tag = rerun.get(arm, arm) if seed == 1 else arm
+            if seed > 1:
+                project = root / f'board-{arm}-s{seed}/project'
+            elif tag == arm:
+                project = root / f'board-{arm}-out/combined/hps/project'
+            else:
+                project = root / f'board-{tag}/project'
             if (project / 'output_files/golden_top.sta.summary').exists():
-                seeds[f's{seed}'] = board(project)
-        alms = [s['alms'] for s in seeds.values()]
+                seeds[f's{seed}'] = {**board(project), 'run': tag,
+                                     'exit': exits(root / f'board-{tag}.log').get(f's{seed}')}
+        alms = [s['alms'] for s in seeds.values() if s['exit'] == 0]
         result[arm] = {'seeds': seeds}
-        if alms:
+        if len(alms) == 4:
             result[arm]['median_alms'] = statistics.median(alms)
             result[arm]['spread_alms'] = max(alms) - min(alms)
     if all('median_alms' in result[a] for a in ('base', 'arm')):
