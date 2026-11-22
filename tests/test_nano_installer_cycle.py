@@ -8,7 +8,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
 from installer_cycle import exercise,replay
 from test_nano_installer_client import Model
-from test_nano_program_client import SPEC
+from nano_program_fixtures import SPEC
 from test_nano_tenfoot_trace import PROGRAMS
 
 class Capture:

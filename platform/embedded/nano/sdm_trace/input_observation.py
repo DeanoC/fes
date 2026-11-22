@@ -1,7 +1,7 @@
 """Observe one source-qualified full-input terminal, never activation authority."""
 import re,importlib.util
 from pathlib import Path
-_spec=importlib.util.spec_from_file_location("full_input_bound_remap",Path(__file__).with_name("remap_trace.py"));_remap=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_remap)
+_spec=importlib.util.spec_from_file_location("full_input_bound_remap",Path(__file__).resolve().parents[1]/"remap_trace.py");_remap=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_remap)
 _budget_spec=importlib.util.spec_from_file_location('input_source_budget',Path(__file__).resolve().parents[2]/'firmware/nano_sdm_input_profile.py')
 _budget=importlib.util.module_from_spec(_budget_spec);_budget_spec.loader.exec_module(_budget)
 TRANSFER_BOUND_US=_budget.CONTRACT['transfer_bound_us']
