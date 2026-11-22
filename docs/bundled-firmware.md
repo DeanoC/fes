@@ -4,7 +4,7 @@
 No kit check has been run on it yet; see [Kit check](#kit-check).
 
 FES v1 ships the firmware it may redistribute as separate, replaceable files
-beside the cores, and one disk: the PC/XT's FreeDOS boot disk ([below](#the-pcxt-freedos-disk)). The host imports each one into its core-media store and
+beside the cores. The host imports each one into its core-media store and
 selects it by default for titles that have no firmware chosen. A user can
 still choose their own image for any title. None of the bundled images listed
 below is in Git or in a sealed core package.
@@ -38,31 +38,6 @@ binary archive (`LICENSE.txt`) and names the corresponding source,
 release page must carry it ([#1356](https://github.com/DeanoC/fes/issues/1356));
 `scripts/bundled_firmware.py --sources DIR` fetches it.
 
-## The PC/XT FreeDOS disk
-
-Deano chose on 21 November 2026 to ship the PC/XT's FreeDOS boot disk as a
-bundled object, for core screens slice 5 (#1960). The host starts the PC/XT
-from it while a title has no disk, and copies it for each new disk that
-starts FreeDOS.
-
-| Object | Core | Image | SHA-256 | Licence |
-| --- | --- | --- | --- | --- |
-| `freedos-xt-360` | `fes.pcxt-dos` | 360 KiB FAT12 boot floppy | `140a2d0a…5e5c` | GPL-2.0-or-later (kernel) and GPL-2.0 (FreeCOM) |
-
-It is the pinned image the PC/XT core names in
-`cores/fes-pcxt/firmware/hardware-dos.json`, which
-`build_pcxt_freedos_image.py` assembled from the FreeDOS 1.4 kernel's boot
-code and `KERNL86N.SYS` and FreeCOM 0.86a's `COMMAND.COM`. The image is in
-this tree, so staging takes it from there. Its origins are the official
-FreeDOS 1.4 [`kernel.zip`](https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/repositories/1.4/base/kernel.zip)
-(SHA-256 `43ed55fe…06d6`) and [`freecom.zip`](https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/repositories/1.4/base/freecom.zip)
-(SHA-256 `3a7cfa03…b6f0`) packages. Staging refuses the image unless both
-binaries are in it byte for byte. Each package also carries its complete
-source (`SOURCE/*/SOURCES.ZIP`), so the same two zips are its corresponding
-source, and they go on the release page beside the bundle as EmuTOS's
-tarball does ([#1356](https://github.com/DeanoC/fes/issues/1356)). The object
-carries the GPL v2 text from `kernel.zip` (`DOC/KERNEL/COPYING`).
-
 Not bundled, and user-supplied in v1: the ZX81, ZX80, TS1000 and TS1500 ROMs,
 the whole 48 KiB Pentagon image (its TR-DOS half has no permission), and the
 C64's 36 KiB image. Nothing is preinstalled on sold hardware.
@@ -85,23 +60,18 @@ per object:
 firmware/
   amstrad-spectrum-48k/   manifest.json  spectrum-48k.rom
   emutos-192us/           manifest.json  etos192us.img  LICENSE.txt
-  freedos-xt-360/         manifest.json  freedos-xt-360.img  LICENSE.txt
   …
 ```
 
-`manifest.json` (format 2) names the object `kind` (`firmware` or `disk`),
-`id` (its directory), `name`, `version`, `core_id`, for firmware its
-`rom_id`, `file`, `size`, `sha256`, `licence` (SPDX, or
+`manifest.json` (format 1) names the object `id` (its directory), `name`,
+`version`, `core_id`, `rom_id`, `file`, `size`, `sha256`, `licence` (SPDX, or
 `LicenseRef-Amstrad-ROM-permission`), `licence_name`, `notice`, the optional
-`licence_file`, `origins` (each archive the bytes came from, by URL and
-SHA-256) and, for free software, `sources` (each corresponding source
-archive). Format 2 replaced format 1's single `origin` and `source` when the
-FreeDOS disk, made from two packages, joined; a host reads only its own
-format, so roll a host back with the objects staged for it. FogCast's
+`licence_file`, `origin` (the archive's URL and SHA-256) and, for free
+software, `source` (the corresponding source's URL and SHA-256). FogCast's
 [`internal/bundledfirmware`](../sources/FogCast/internal/bundledfirmware/bundledfirmware.go)
 reads it strictly: unknown fields, a missing field, a bad digest or size, a
-symlink, a second firmware object for the same core and ROM, or a second disk
-for the same core skips that object, and the rest still load.
+symlink, or a second object for the same core and ROM skips that object, and
+the rest still load.
 
 ```sh
 python3 scripts/bundled_firmware.py --output /tmp/fes-firmware
@@ -151,10 +121,7 @@ rules for explicit selections and package changes.
 `GET /api/v1/library/firmware/bundled` lists the loaded objects without their
 bytes: `id`, `name`, `version`, `core_id`, `rom_id`, `size`, `media_id`,
 `licence`, `licence_name`, `licence_text`, `notice`, `origin_url` and, for
-free software, `source_url` and `source_sha256` (firmware has one origin and
-at most one source). It lists bundled disks under `disks`, with `id`, `name`,
-`version`, `core_id`, `size`, `media_id`, the licence fields, `notice`, and
-`origins` and `sources` as lists. Paired kits may read it.
+free software, `source_url` and `source_sha256`. Paired kits may read it.
 
 The host used to embed the ZX81 BASIC ROM and select it for every ZX81 title.
 That embed is gone: ZX81-family firmware is user-supplied in v1.

@@ -46,10 +46,10 @@ local DEFAULTS = {
 }
 
 -- Rooms by core: the families with a core screen open it; Coleco opens its
--- arcade room; everything else, PC 386 included, uses the shared system
--- setup until its core screen is built.
+-- arcade room; everything else, PC/XT and PC 386 included, uses the shared
+-- system setup until its core screen is built.
 local SYSTEM_SETUP = "example.system"
-local CORE_SCREEN = { zx81 = true, spectrum = true, ["fes.atari-st"] = true, ["fes.c64"] = true, ["fes.pcxt-dos"] = true }
+local CORE_SCREEN = { zx81 = true, spectrum = true, ["fes.atari-st"] = true, ["fes.c64"] = true }
 local WORKBENCH = {
   ["fes.coleco"] = "example.coleco-arcade",
 }

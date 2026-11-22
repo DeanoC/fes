@@ -24,8 +24,6 @@ const (
 	tapePickerKindFile    = "file"
 	tapePickerKindEject   = "eject"
 	tapePickerKindStarter = "starter"
-	// tapePickerKindSetDisk is one disk of the running game's set.
-	tapePickerKindSetDisk = "set-disk"
 
 	tapePickerOSKLabel   = "Type a path…"
 	tapePickerEjectLabel = "Eject media"
@@ -40,9 +38,6 @@ type TapePickerRow struct {
 	Size       int64
 	Selectable bool
 	Starter    *hostclient.HardwareTape
-	// SetMediaID and SetMediaName name a set disk: the library medium and
-	// the file name it is put in under.
-	SetMediaID, SetMediaName string
 }
 
 // TapePickerSnapshot is renderer-facing state for the running media selector.
@@ -159,7 +154,7 @@ func tapePickerRowLabel(row TapePickerRow) string {
 			return label + "  ·  Select"
 		}
 		return label
-	case tapePickerKindEject, tapePickerKindSetDisk:
+	case tapePickerKindEject:
 		return row.Name
 	case tapePickerKindStarter:
 		if row.Starter != nil && row.Starter.MediaID != "" {
@@ -221,7 +216,6 @@ func (a *App) closeTapePickerLocked() {
 	a.tapePickerAtRoots = false
 	a.tapePickerSession = hostclient.SessionResult{}
 	a.tapePickerStarters = nil
-	a.tapePickerSet = nil
 	if a.settingsOSKKind == settingsOSKTapePath {
 		a.closeSettingsOSKLocked()
 	}
@@ -294,16 +288,12 @@ func (a *App) openTapePickerLocked() {
 	a.tapePickerGen++
 	a.refreshStorageRootsLocked()
 	a.showTapePickerRootsLocked(a.tapePickerPromptLocked())
-	if a.client != nil {
+	if a.client != nil && hostclient.LiveMediaCapable(a.session.CorePackage) {
 		parent := a.ctx
 		if parent == nil {
 			parent = context.Background()
 		}
-		if hostclient.LiveMediaCapable(a.session.CorePackage) {
-			go a.fetchLiveTapeStarters(parent, a.tapePickerGen, a.tapePickerSession.GameID)
-		}
-		// Any running machine's game may be a set, whatever its drive.
-		go a.fetchSetDisks(parent, a.tapePickerGen, a.tapePickerSession)
+		go a.fetchLiveTapeStarters(parent, a.tapePickerGen, a.tapePickerSession.GameID)
 	}
 }
 
@@ -343,7 +333,6 @@ func (a *App) showTapePickerRootsLocked(status string) {
 	if !a.sessionCartridgeLocked() {
 		a.tapePickerRows = append(a.tapePickerRows, TapePickerRow{Name: tapePickerEjectLabel, Kind: tapePickerKindEject, Selectable: true})
 	}
-	a.tapePickerRows = append(a.tapePickerRows, a.tapePickerSet...)
 	for _, r := range a.storagePickerRootsLocked("media") {
 		a.tapePickerRows = append(a.tapePickerRows, TapePickerRow{Name: r.Name, Path: r.Path, Kind: r.Kind})
 	}
@@ -463,9 +452,6 @@ func (a *App) tapePickerDetailsLocked() {
 	case tapePickerKindEject:
 		a.tapePickerStatus = "Eject the running machine's current medium."
 		a.status = a.tapePickerStatus
-	case tapePickerKindSetDisk:
-		a.tapePickerStatus = row.SetMediaName + " · Select to put it in the running machine."
-		a.status = a.tapePickerStatus
 	case tapePickerKindStarter:
 		if row.Starter != nil {
 			a.tapePickerStatus = row.Starter.Controls + " · " + row.Starter.License + " · " + row.Starter.SourceURL
@@ -497,8 +483,6 @@ func (a *App) tapePickerConfirmLocked() {
 		if row.Starter != nil {
 			a.startStarterTapeArmLocked(*row.Starter)
 		}
-	case tapePickerKindSetDisk:
-		a.startSetDiskArmLocked(row)
 	case tapePickerKindRoot, tapePickerKindDir:
 		a.showTapePickerDirLocked(row.Path, "")
 	case tapePickerKindParent:

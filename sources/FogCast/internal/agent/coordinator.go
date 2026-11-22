@@ -93,29 +93,18 @@ func WithArtifacts(artifacts *protocol.Artifacts) CoordinatorOption {
 	}
 }
 
-// WithSessionDisplayIPC connects the existing target transition to the local
-// launcher's display ownership. An empty socket leaves the existing direct path.
-func WithSessionDisplayIPC(launcherSocket, targetID string) CoordinatorOption {
-	return func(coordinator *Coordinator) {
-		coordinator.launcherDisplaySocket = launcherSocket
-		coordinator.launcherDisplayTargetID = targetID
-	}
-}
-
 type Coordinator struct {
-	runtime                 Runtime
-	operationContext        context.Context
-	launchTimeout           time.Duration
-	coreLoadTimeout         time.Duration
-	stopTimeout             time.Duration
-	transition              chan struct{}
-	mu                      sync.RWMutex
-	status                  protocol.Status
-	updateBlocked           bool
-	events                  flightdiag.Sink
-	artifacts               *protocol.Artifacts
-	launcherDisplaySocket   string
-	launcherDisplayTargetID string
+	runtime          Runtime
+	operationContext context.Context
+	launchTimeout    time.Duration
+	coreLoadTimeout  time.Duration
+	stopTimeout      time.Duration
+	transition       chan struct{}
+	mu               sync.RWMutex
+	status           protocol.Status
+	updateBlocked    bool
+	events           flightdiag.Sink
+	artifacts        *protocol.Artifacts
 }
 
 func (c *Coordinator) record(kind, severity string, detail map[string]any) {

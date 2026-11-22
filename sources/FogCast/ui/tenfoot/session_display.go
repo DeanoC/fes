@@ -153,12 +153,6 @@ func (a *App) sessionReturnDisplayLocked() protocol.SessionDisplay {
 		a.diagnosticSurroundUntil = time.Time{}
 		a.diagnosticSurroundSession = hostclient.SessionResult{}
 	}
-	if a.displaySurroundOverride != nil {
-		if *a.displaySurroundOverride {
-			return protocol.SessionDisplayShown
-		}
-		return protocol.SessionDisplayClosed
-	}
 	if a.surroundOfferedLocked() {
 		return protocol.SessionDisplayShown
 	}
@@ -181,11 +175,7 @@ func (a *App) syncSurroundLocked() {
 // session. Moving focus hands held input over; showing or closing the
 // surround under the machine's own input leaves its input alone.
 func (a *App) beginSessionDisplayLocked(target protocol.SessionDisplay, openTape bool) {
-	if a.sessionDisplayBusy || a.displayOutbound || a.stopPhase == "stopping" || a.client == nil || a.session.State != "active" || !hostclient.SessionDisplayCapable(a.session.CorePackage) || a.playHIDFailClosedLocked() {
-		return
-	}
-	if a.displayIPC {
-		a.beginCoordinatedSessionDisplayLocked(target, openTape)
+	if a.sessionDisplayBusy || a.stopPhase == "stopping" || a.client == nil || a.session.State != "active" || !hostclient.SessionDisplayCapable(a.session.CorePackage) || a.playHIDFailClosedLocked() {
 		return
 	}
 	from := a.sessionDisplayLocked()
@@ -245,7 +235,6 @@ func (a *App) beginSessionDisplayLocked(target protocol.SessionDisplay, openTape
 			}
 		}
 		var result hostclient.SessionResult
-
 		if err == nil {
 			result, err = a.client.SetSessionDisplayForSession(ctx, prior, target)
 		}
@@ -329,7 +318,6 @@ func (a *App) invalidateSessionDisplayLocked() {
 	a.sessionDisplayNonHandoff = false
 	a.sessionDisplay = protocol.SessionDisplayClosed
 	a.surroundFailed = false
-	a.displaySurroundOverride = nil
 	a.sessionDisplayUncertain = false
 	a.sessionDisplayBinding = hostclient.SessionResult{}
 	a.roomDuringPlay = false
@@ -360,20 +348,19 @@ func (a *App) invalidateSessionDisplayLocked() {
 // Shell exit returns the captured HDMI plane without stopping the machine.
 func (a *App) returnSessionDisplayOnExit() {
 	a.mu.Lock()
-	visible, prior, display, client, coordinated := a.sessionDisplay.Visible || a.sessionDisplayUncertain, a.sessionDisplayBinding, a.menuDisplay, a.client, a.displayIPC
+	visible, prior, display, client := a.sessionDisplay.Visible || a.sessionDisplayUncertain, a.sessionDisplayBinding, a.menuDisplay, a.client
 	a.mu.Unlock()
 	if !visible || client == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if display != nil && !coordinated {
+	if display != nil {
 		if err := display.Pause(ctx); err != nil {
 			fmt.Fprintf(os.Stderr, "tenfoot: returning HDMI on exit: %v\n", err)
 			return
 		}
 	}
-
 	if _, err := client.SetSessionDisplayForSession(ctx, prior, protocol.SessionDisplayClosed); err != nil {
 		fmt.Fprintf(os.Stderr, "tenfoot: returning HDMI on exit: %v\n", err)
 	}

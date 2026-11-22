@@ -1,9 +1,9 @@
-// Package bundledfirmware reads the firmware and disks that ship beside FES
-// as separate, replaceable files. Each object is a directory holding
-// manifest.json, the image and, when its licence requires it, the licence
-// text. The bytes are never part of a sealed core package;
-// scripts/bundled_firmware.py stages them, by pinned URL and SHA-256, when a
-// bundle is built.
+// Package bundledfirmware reads the firmware that ships beside FES as
+// separate, replaceable files. Each object is a directory holding
+// manifest.json, the unmodified firmware image and, when its licence
+// requires it, the licence text. The bytes are never part of a sealed core
+// package or of this source tree; scripts/bundled_firmware.py fetches them
+// by pinned URL and SHA-256 when a bundle is built.
 package bundledfirmware
 
 import (
@@ -22,15 +22,7 @@ import (
 )
 
 // Format is the only manifest format this host reads.
-const Format = 2
-
-// Kinds of bundled object.
-const (
-	// KindFirmware is a core's named ROM, selected by default for its titles.
-	KindFirmware = "firmware"
-	// KindDisk is a disk image for a core: the PC/XT's FreeDOS boot disk.
-	KindDisk = "disk"
-)
+const Format = 1
 
 // ManifestName is the manifest file in each firmware directory.
 const ManifestName = "manifest.json"
@@ -53,20 +45,17 @@ type Location struct {
 	SHA256 string `json:"sha256"`
 }
 
-// Manifest describes one bundled image: firmware for one core's named ROM,
-// or a disk for one core.
+// Manifest describes one bundled firmware image for one core's named ROM.
 type Manifest struct {
 	Format  int    `json:"format"`
-	Kind    string `json:"kind"`
 	ID      string `json:"id"`
 	Name    string `json:"name"`
 	Version string `json:"version"`
 	CoreID  string `json:"core_id"`
-	// ROMID names a firmware object's ROM. A disk has none.
-	ROMID  string `json:"rom_id,omitempty"`
-	File   string `json:"file"`
-	Size   int64  `json:"size"`
-	SHA256 string `json:"sha256"`
+	ROMID   string `json:"rom_id"`
+	File    string `json:"file"`
+	Size    int64  `json:"size"`
+	SHA256  string `json:"sha256"`
 	// Licence is an SPDX identifier, or LicenseRef-* for a permission.
 	Licence     string `json:"licence"`
 	LicenceName string `json:"licence_name"`
@@ -75,14 +64,13 @@ type Manifest struct {
 	// Notice is shown with the firmware: copyright lines and any wording
 	// the rights holder asks for, verbatim.
 	Notice string `json:"notice"`
-	// Origins are the archives the image's bytes were taken from.
-	Origins []Location `json:"origins"`
-	// Sources are the corresponding source code of a free software image.
-	Sources []Location `json:"sources,omitempty"`
+	// Origin is the archive the image was taken from.
+	Origin Location `json:"origin"`
+	// Source is the corresponding source code, for a free software image.
+	Source *Location `json:"source,omitempty"`
 }
 
-// Firmware is a validated object of either kind: its manifest, image and
-// licence text.
+// Firmware is a validated object: its manifest, image and licence text.
 type Firmware struct {
 	Manifest
 	Image       []byte
@@ -91,8 +79,8 @@ type Firmware struct {
 
 // Load reads every firmware directory in dir. A directory that fails
 // validation is skipped and reported; the others still load. A missing dir
-// holds no objects. Two firmware objects for the same core and ROM, or two
-// disks for the same core, are refused: the first by name wins.
+// holds no firmware. Two objects for the same core and ROM are refused: the
+// first by name wins.
 func Load(dir string) ([]Firmware, []error) {
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -104,7 +92,7 @@ func Load(dir string) ([]Firmware, []error) {
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 	var out []Firmware
 	var problems []error
-	seen := map[[3]string]string{}
+	seen := map[[2]string]string{}
 	for _, entry := range entries {
 		name := entry.Name()
 		if strings.HasPrefix(name, ".") || !entry.IsDir() {
@@ -115,13 +103,9 @@ func Load(dir string) ([]Firmware, []error) {
 			problems = append(problems, fmt.Errorf("bundled firmware %s: %w", name, err))
 			continue
 		}
-		key := [3]string{fw.Kind, fw.CoreID, fw.ROMID}
+		key := [2]string{fw.CoreID, fw.ROMID}
 		if first, ok := seen[key]; ok {
-			what := fw.CoreID + " " + fw.ROMID
-			if fw.Kind == KindDisk {
-				what = "a disk for " + fw.CoreID
-			}
-			problems = append(problems, fmt.Errorf("bundled firmware %s: %s is already bundled by %s", name, what, first))
+			problems = append(problems, fmt.Errorf("bundled firmware %s: %s %s is already bundled by %s", name, fw.CoreID, fw.ROMID, first))
 			continue
 		}
 		seen[key] = name
@@ -175,14 +159,10 @@ func loadOne(dir, name string) (Firmware, error) {
 // image. It does not read the image.
 func (m Manifest) Validate() error {
 	var missing []string
-	fields := []struct{ name, value string }{
-		{"name", m.Name}, {"version", m.Version}, {"core_id", m.CoreID},
+	for _, field := range []struct{ name, value string }{
+		{"name", m.Name}, {"version", m.Version}, {"core_id", m.CoreID}, {"rom_id", m.ROMID},
 		{"licence", m.Licence}, {"licence_name", m.LicenceName}, {"notice", m.Notice},
-	}
-	if m.Kind == KindFirmware {
-		fields = append(fields, struct{ name, value string }{"rom_id", m.ROMID})
-	}
-	for _, field := range fields {
+	} {
 		if strings.TrimSpace(field.value) == "" {
 			missing = append(missing, field.name)
 		}
@@ -193,12 +173,6 @@ func (m Manifest) Validate() error {
 	switch {
 	case m.Format != Format:
 		return fmt.Errorf("manifest format %d is not %d", m.Format, Format)
-	case m.Kind != KindFirmware && m.Kind != KindDisk:
-		return fmt.Errorf("manifest kind %q is not firmware or disk", m.Kind)
-	case m.Kind == KindDisk && m.ROMID != "":
-		return errors.New("a disk names no rom_id")
-	case len(m.Origins) == 0:
-		return errors.New("manifest is missing origins")
 	case !idRE.MatchString(m.ID):
 		return fmt.Errorf("manifest id %q is invalid", m.ID)
 	case !fileRE.MatchString(m.File) || m.File == ManifestName:
@@ -210,15 +184,11 @@ func (m Manifest) Validate() error {
 	case !digestRE.MatchString(m.SHA256):
 		return errors.New("image sha256 is invalid")
 	}
-	for _, origin := range m.Origins {
-		if err := origin.validate("origin"); err != nil {
-			return err
-		}
+	if err := m.Origin.validate("origin"); err != nil {
+		return err
 	}
-	for _, source := range m.Sources {
-		if err := source.validate("source"); err != nil {
-			return err
-		}
+	if m.Source != nil {
+		return m.Source.validate("source")
 	}
 	return nil
 }

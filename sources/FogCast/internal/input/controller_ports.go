@@ -80,7 +80,6 @@ type controllerPortsSink struct {
 	observed               bool
 	observedAt             time.Time
 	displayFocused         bool
-	displayFocusEpoch      uint64
 	keys                   *KeyboardSink
 	hid                    *keyboardHIDSink
 	mouse                  *mouseSink
@@ -277,18 +276,6 @@ func (s *controllerPortsSink) applyContext(ctx context.Context, source inputSour
 		ctx = context.Background()
 	}
 	s.mu.Lock()
-	if !s.keyboardHID && s.hid != nil && keyboardFrame(f) &&
-		(f.Action == uint8(remoteinput.ActionRelease) || remoteinput.Code(f.Code) == zx81keys.KeyShift && f.Action == uint8(remoteinput.ActionPress)) {
-		// HID suppression follows the physical source even while another
-		// keyboard mode is active. Clear it without posting to the retired
-		// HID generation, before shaping can discard or remap the key.
-		hid := s.hid
-		s.mu.Unlock()
-		if err := hid.observeOtherKeyboard(ctx, source, f); err != nil {
-			return err
-		}
-		s.mu.Lock()
-	}
 	if f.Device == uint8(remoteinput.DeviceMouse) {
 		if s.displayFocused {
 			s.mu.Unlock()
@@ -326,9 +313,9 @@ func (s *controllerPortsSink) applyContext(ctx context.Context, source inputSour
 	if ok && s.keyboardHID && keyboardFrame(shaped) {
 		// HID key state has its own ordered sink; a slow set_keyboard_hid
 		// post must not hold the controller-port lock.
-		hid, epoch, focused := s.hid, s.displayFocusEpoch, s.displayFocused
+		hid := s.hid
 		s.mu.Unlock()
-		return hid.applyFromEpoch(ctx, source, shaped, epoch, focused)
+		return hid.applyFrom(ctx, source, shaped)
 	}
 	defer s.mu.Unlock()
 	if !ok {
@@ -729,12 +716,6 @@ func (s *controllerPortsSink) ReleaseAll() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.initPublishLocked()
-	if s.displayFocused {
-		s.displayFocusEpoch++
-		if s.hid != nil {
-			_ = s.hid.setDisplayFocus(context.Background(), false, s.displayFocusEpoch)
-		}
-	}
 	s.displayFocused = false
 	s.keyboardHID = false
 	s.hidBinding = nil

@@ -70,8 +70,6 @@ def main() -> int:
         OUTPUT.mkdir(parents=True, exist_ok=True)
         vectors = OUTPUT / 'vectors.txt'
         lines = x87_trans_ucode.unit_vectors(program, args.vectors, args.seed, engine=True)
-        # The exact forms (#2027 slice 6): FPREM, FPREM1, FRNDINT, FSCALE, FXTRACT.
-        lines += x87_trans_ucode.exact_vectors(program, max(1, args.vectors // 10), args.seed)
         vectors.write_text('\n'.join(lines) + '\n')
         log = OUTPUT / 'build.log'
         command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(args.jobs), '-O3', '--top-module',
@@ -92,7 +90,7 @@ def main() -> int:
     passed, failed, most, total = map(int, summary[1:5])
     per = {}
     for line in lines:
-        name = x87_trans_ucode.ENTRIES[int(line.split()[0])]
+        name = x87_trans_ucode.INSTRUCTIONS[int(line.split()[0])]
         per[name] = per.get(name, 0) + 1
     report = {'what': 'fes_x87_trans against its model, bit for bit; no tolerance', 'source': source,
               'verilator': verilator.record(), 'vectors': len(lines), 'vectors_by_instruction': per,

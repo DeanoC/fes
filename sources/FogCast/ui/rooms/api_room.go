@@ -162,18 +162,6 @@ func (r *Instance) installSession() *lua.LTable {
 			r.actions = append(r.actions, roomSessionAction(L, ActionOpenTape))
 			return 0
 		},
-		"change_disk": func(L *lua.LState) int {
-			act := roomSessionAction(L, ActionChangeDisk)
-			act.MediaID, act.MediaName = strings.TrimSpace(L.CheckString(2)), strings.TrimSpace(L.CheckString(3))
-			if protocol.ValidateDigest(act.MediaID) != nil {
-				L.ArgError(2, "media ID must be a digest")
-			}
-			if !protocol.AdmitLiveMediaName(act.MediaName) {
-				L.ArgError(3, "media name is not a disk or tape name")
-			}
-			r.actions = append(r.actions, act)
-			return 0
-		},
 		"resume": func(L *lua.LState) int {
 			r.actions = append(r.actions, Action{Kind: ActionResumeSession})
 			return 0

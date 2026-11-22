@@ -1,21 +1,8 @@
 // SPDX-License-Identifier: MIT
-// The fast lane: add, subtract, multiply and compare. Rounding is
-// deliberately outside it, shared with the iterative arithmetic lane.
-//
-// PIPELINED picks how the one datapath below is cut.
-//   - 1: seven registered stages, accepting one independent operation every
-//     clock. An input sampled on edge N appears at the output on edge N+6.
-//     `fes_x87_pipe`, the standalone backend #1892 fitted at 200 MHz, needs
-//     this throughput.
-//   - 0: the six stage boundaries are wires and only the result is
-//     registered, so an input sampled on edge N is out on edge N+1. This is
-//     for `fes_i386_x87`, which keeps one ESC instruction in flight and so
-//     never uses the throughput (#2027 slice 6). It spends the clock
-//     headroom: it closes at the DE25 machine's 61.44 MHz, and a later
-//     clock raise needs the pipelining back.
-module fes_x87_fast #(
-    parameter bit PIPELINED = 1'b1
-) (
+// Seven registered stages, accepting one independent operation every clock.
+// An input sampled on edge N appears at the output on edge N+6. Rounding is
+// deliberately outside this pipe, shared with the iterative arithmetic lane.
+module fes_x87_fast (
     input  logic clk, reset, flush, in_valid,
     input  fes_x87_pkg::request_t req,
     output logic out_valid,
@@ -34,19 +21,23 @@ module fes_x87_fast #(
         logic [2:0] cc;
     } meta_t;
 
-    // No unpacked arrays: the locked Yosys
+    // A PACKED array, not an unpacked one. The locked Yosys
     // (cores/fes-common/rtl/i386/toolchain.lock) reads and writes a
     // packed-struct member of an UNPACKED-array element as a fresh undriven
-    // identifier, with a warning rather than an error, so the netlist
-    // silently computes nonsense while the RTL simulation is correct
-    // (DeanoC/yosys#79). Each stage's metadata rides in that stage's packed
-    // struct below.
+    // identifier -- `\meta[1].value' -- with a warning rather than an error,
+    // so the netlist silently computes nonsense while the RTL simulation is
+    // correct. The same code against a packed array is handled properly.
+    // DeanoC/yosys#79 has the locked-binary repro; this is the workaround it
+    // names, and unlike the whole-element-read attempt it was tried before
+    // being believed.
     meta_t decoded;
+    meta_t [6:1] meta;
     unpack_t ua, ub;
     logic b_sign, a_larger;
     logic [63:0] large_sig, small_sig;
     logic [17:0] distance;
     logic subtract;
+    logic [6:0] valid;
 
     function automatic logic [6:0] leading_zeroes(input logic [66:0] x);
         logic found;
@@ -155,192 +146,116 @@ module fes_x87_fast #(
         end
     end
 
-    // Each stage's values as the stage before computes them (`*_d`), and as
-    // the next stage reads them: a register under PIPELINED, the same wire
-    // otherwise.
-    typedef struct packed {
-        meta_t meta;
-        logic [63:0] a, b, larger, smaller;
-        logic [17:0] distance;
-        logic subtract;
-    } st1_t;
-    typedef struct packed {
-        meta_t meta;
-        logic [66:0] larger, smaller;
-        logic subtract;
-    } st2_t;
-    typedef struct packed {
-        meta_t meta;
-        logic [67:0] sum;
-        logic [43:0] c0;
-        logic [44:0] c1, c2_pair;
-        logic [41:0] c2_rest;
-        logic [42:0] c3;
-        logic [39:0] c4;
-    } st3_t;
-    typedef struct packed {
-        meta_t meta;
-        logic [66:0] sum;
-        logic [6:0] left;
-        logic carry;
-        logic [66:0] low;
-        logic [45:0] mid;
-        logic [61:0] high;
-    } st4_t;
-    typedef struct packed {
-        meta_t meta;
-        logic [66:0] add;
-        logic signed [17:0] add_exponent;
-        logic [66:0] low;
-        logic [83:0] high;
-    } st5_t;
-    typedef struct packed {
-        meta_t meta;
-        logic [66:0] add;
-        logic signed [17:0] add_exponent;
-        logic [127:0] product;
-    } st6_t;
-    st1_t s1_d, s1;
-    st2_t s2_d, s2;
-    st3_t s3_d, s3;
-    st4_t s4_d, s4;
-    st5_t s5_d, s5;
-    st6_t s6_d, s6;
-    raw_t res_d;
+    logic [63:0] s1_a, s1_b, s1_large, s1_small;
+    logic [17:0] s1_distance;
+    logic s1_subtract, s2_subtract;
+    logic [66:0] s2_large, s2_small;
+    logic [67:0] s3_sum;
+    logic [66:0] s4_sum;
+    logic [6:0] s4_left;
+    logic s4_carry;
+    logic [66:0] s5_add, s6_add;
+    logic signed [17:0] s5_add_exponent, s6_add_exponent;
 
     // Nine unsigned tiles fit variable-precision DSP multipliers. The top
-    // limb has only 20 bits. Under PIPELINED registers sit at both
-    // multiplier boundaries; no inferred 64x64 multiplier or full-product
-    // tree exists either way.
-    (* multstyle = "dsp" *) logic [43:0] p00_d, p01_d, p10_d, p11_d, p00, p01, p10, p11;
-    (* multstyle = "dsp" *) logic [41:0] p02_d, p12_d, p20_d, p21_d, p02, p12, p20, p21;
-    (* multstyle = "dsp" *) logic [39:0] p22_d, p22;
-
-    // One block a stage, so no block reads a value it writes: without
-    // PIPELINED each stage's input is the wire of the block before.
-    always_comb begin
-        // 1: classify the shared normalized operands and order magnitudes.
-        s1_d.meta = decoded;
-        s1_d.a = ua.significand;
-        s1_d.b = ub.significand;
-        s1_d.larger = large_sig;
-        s1_d.smaller = small_sig;
-        s1_d.distance = distance;
-        s1_d.subtract = subtract;
-    end
-    always_comb begin
-        // 2: right alignment with jamming; nine DSP products.
-        s2_d.meta = s1.meta;
-        s2_d.larger = {s1.larger, 3'b000};
-        s2_d.smaller = shr_sticky({s1.smaller, 3'b000}, s1.distance);
-        s2_d.subtract = s1.subtract;
-        p00_d = s1.a[21:0] * s1.b[21:0];
-        p01_d = s1.a[21:0] * s1.b[43:22];
-        p02_d = s1.a[21:0] * s1.b[63:44];
-        p10_d = s1.a[43:22] * s1.b[21:0];
-        p11_d = s1.a[43:22] * s1.b[43:22];
-        p12_d = s1.a[43:22] * s1.b[63:44];
-        p20_d = s1.a[63:44] * s1.b[21:0];
-        p21_d = s1.a[63:44] * s1.b[43:22];
-        p22_d = s1.a[63:44] * s1.b[63:44];
-    end
-    always_comb begin
-        // 3: arithmetic add/subtract; first multiplier column reduction.
-        s3_d.meta = s2.meta;
-        s3_d.sum = s2.subtract ? {1'b0,s2.larger} - {1'b0,s2.smaller} :
-                                 {1'b0,s2.larger} + {1'b0,s2.smaller};
-        s3_d.c0 = p00;
-        s3_d.c1 = {1'b0,p01} + {1'b0,p10};
-        s3_d.c2_pair = {3'd0,p02} + {1'b0,p11};
-        s3_d.c2_rest = p20;
-        s3_d.c3 = {1'b0,p12} + {1'b0,p21};
-        s3_d.c4 = p22;
-    end
-    always_comb begin
-        // 4: carry handling and leading-zero count; second reduction.
-        s4_d.meta = s3.meta;
-        s4_d.sum = s3.sum[67] ? {s3.sum[67:2], |s3.sum[1:0]} : s3.sum[66:0];
-        s4_d.left = s3.sum[67] ? 7'd0 : leading_zeroes(s3.sum[66:0]);
-        s4_d.carry = s3.sum[67];
-        s4_d.low = {23'd0,s3.c0} + {s3.c1,22'd0};
-        s4_d.mid = {1'b0,s3.c2_pair} + {4'd0,s3.c2_rest};
-        s4_d.high = {19'd0,s3.c3} + {s3.c4,22'd0};
-    end
-    always_comb begin
-        // 5: cancellation normalization; third multiplier reduction.
-        s5_d.meta = s4.meta;
-        s5_d.add = s4.sum << s4.left;
-        s5_d.add_exponent = s4.meta.exponent + $signed({17'd0,s4.carry}) -
-                            $signed({11'd0,s4.left});
-        s5_d.low = s4.low;
-        s5_d.high = {38'd0,s4.mid} + {s4.high,22'd0};
-    end
-    always_comb begin
-        // 6: final full-product carry propagation, separate from normalization.
-        s6_d.meta = s5.meta;
-        s6_d.add = s5.add;
-        s6_d.add_exponent = s5.add_exponent;
-        s6_d.product = {61'd0,s5.low} + {s5.high,44'd0};
-    end
-    always_comb begin
-        // 7: multiplier normalization, guard/round/sticky extraction and emit.
-        res_d = '0;
-        res_d.slot = s6.meta.slot;
-        res_d.pc = s6.meta.pc;
-        res_d.rc = s6.meta.rc;
-        res_d.sign = s6.meta.sign;
-        res_d.special = s6.meta.special;
-        res_d.value = s6.meta.value;
-        res_d.flags = s6.meta.flags;
-        res_d.cc = s6.meta.cc;
-        if (s6.meta.multiply) begin
-            res_d.exponent = s6.meta.exponent + $signed({17'd0,s6.product[127]});
-            res_d.significand = s6.product[127] ?
-                {s6.product[127:62], |s6.product[61:0]} :
-                {s6.product[126:61], |s6.product[60:0]};
-        end else begin
-            res_d.exponent = s6.add_exponent;
-            res_d.significand = s6.add;
-            if (s6.add == 0 && !s6.meta.special)
-                res_d.sign = s6.meta.rc == 2'b01;
-        end
-    end
+    // limb has only 20 bits. Registers sit at both multiplier boundaries;
+    // no inferred 64x64 multiplier or combinational full-product tree exists.
+    (* multstyle = "dsp" *) logic [43:0] p00, p01, p10, p11;
+    (* multstyle = "dsp" *) logic [41:0] p02, p12, p20, p21;
+    (* multstyle = "dsp" *) logic [39:0] p22;
+    logic [43:0] s3_c0;
+    logic [44:0] s3_c1, s3_c2_pair;
+    logic [41:0] s3_c2_rest;
+    logic [42:0] s3_c3;
+    logic [39:0] s3_c4;
+    logic [66:0] s4_low;
+    logic [45:0] s4_mid;
+    logic [61:0] s4_high;
+    logic [66:0] s5_low;
+    logic [83:0] s5_high;
+    logic [127:0] s6_product;
 
     // Only validity is reset, allowing DSP internal registers to be packed.
     // Flushing drops every in-flight response, including a simultaneous input.
-    generate
-        if (PIPELINED) begin : g_pipelined
-            logic [6:0] valid;
-            always_ff @(posedge clk) begin
-                if (reset || flush) valid <= '0;
-                else valid <= {valid[5:0], in_valid};
-                s1 <= s1_d;
-                s2 <= s2_d;
-                s3 <= s3_d;
-                s4 <= s4_d;
-                s5 <= s5_d;
-                s6 <= s6_d;
-                {p00, p01, p02, p10, p11, p12, p20, p21, p22}
-                    <= {p00_d, p01_d, p02_d, p10_d, p11_d, p12_d, p20_d, p21_d, p22_d};
-                res <= res_d;
-            end
-            assign out_valid = valid[6];
-        end else begin : g_single
-            logic valid;
-            assign s1 = s1_d;
-            assign s2 = s2_d;
-            assign s3 = s3_d;
-            assign s4 = s4_d;
-            assign s5 = s5_d;
-            assign s6 = s6_d;
-            assign {p00, p01, p02, p10, p11, p12, p20, p21, p22}
-                = {p00_d, p01_d, p02_d, p10_d, p11_d, p12_d, p20_d, p21_d, p22_d};
-            always_ff @(posedge clk) begin
-                if (reset || flush) valid <= 1'b0;
-                else valid <= in_valid;
-                if (in_valid) res <= res_d;
-            end
-            assign out_valid = valid;
+    always_ff @(posedge clk) begin
+        if (reset || flush) valid <= '0;
+        else valid <= {valid[5:0], in_valid};
+
+        // 1: classify the shared normalized operands and order magnitudes.
+        meta[1] <= decoded;
+        s1_a <= ua.significand;
+        s1_b <= ub.significand;
+        s1_large <= large_sig;
+        s1_small <= small_sig;
+        s1_distance <= distance;
+        s1_subtract <= subtract;
+        for (int i = 2; i <= 6; i++) meta[i] <= meta[i-1];
+
+        // 2: right alignment with jamming; nine registered DSP products.
+        s2_large <= {s1_large, 3'b000};
+        s2_small <= shr_sticky({s1_small, 3'b000}, s1_distance);
+        s2_subtract <= s1_subtract;
+        p00 <= s1_a[21:0] * s1_b[21:0];
+        p01 <= s1_a[21:0] * s1_b[43:22];
+        p02 <= s1_a[21:0] * s1_b[63:44];
+        p10 <= s1_a[43:22] * s1_b[21:0];
+        p11 <= s1_a[43:22] * s1_b[43:22];
+        p12 <= s1_a[43:22] * s1_b[63:44];
+        p20 <= s1_a[63:44] * s1_b[21:0];
+        p21 <= s1_a[63:44] * s1_b[43:22];
+        p22 <= s1_a[63:44] * s1_b[63:44];
+
+        // 3: arithmetic add/subtract; first multiplier column reduction.
+        s3_sum <= s2_subtract ? {1'b0,s2_large} - {1'b0,s2_small} :
+                                  {1'b0,s2_large} + {1'b0,s2_small};
+        s3_c0 <= p00;
+        s3_c1 <= {1'b0,p01} + {1'b0,p10};
+        s3_c2_pair <= {3'd0,p02} + {1'b0,p11};
+        s3_c2_rest <= p20;
+        s3_c3 <= {1'b0,p12} + {1'b0,p21};
+        s3_c4 <= p22;
+
+        // 4: carry handling and leading-zero count; second reduction.
+        s4_sum <= s3_sum[67] ? {s3_sum[67:2], |s3_sum[1:0]} : s3_sum[66:0];
+        s4_left <= s3_sum[67] ? 7'd0 : leading_zeroes(s3_sum[66:0]);
+        s4_carry <= s3_sum[67];
+        s4_low <= {23'd0,s3_c0} + {s3_c1,22'd0};
+        s4_mid <= {1'b0,s3_c2_pair} + {4'd0,s3_c2_rest};
+        s4_high <= {19'd0,s3_c3} + {s3_c4,22'd0};
+
+        // 5: cancellation normalization; third multiplier reduction.
+        s5_add <= s4_sum << s4_left;
+        s5_add_exponent <= meta[4].exponent + $signed({17'd0,s4_carry}) -
+                           $signed({11'd0,s4_left});
+        s5_low <= s4_low;
+        s5_high <= {38'd0,s4_mid} + {s4_high,22'd0};
+
+        // 6: final full-product carry propagation, separate from normalization.
+        s6_add <= s5_add;
+        s6_add_exponent <= s5_add_exponent;
+        s6_product <= {61'd0,s5_low} + {s5_high,44'd0};
+
+        // 7: multiplier normalization, guard/round/sticky extraction and emit.
+        res <= '0;
+        res.slot <= meta[6].slot;
+        res.pc <= meta[6].pc;
+        res.rc <= meta[6].rc;
+        res.sign <= meta[6].sign;
+        res.special <= meta[6].special;
+        res.value <= meta[6].value;
+        res.flags <= meta[6].flags;
+        res.cc <= meta[6].cc;
+        if (meta[6].multiply) begin
+            res.exponent <= meta[6].exponent + $signed({17'd0,s6_product[127]});
+            res.significand <= s6_product[127] ?
+                {s6_product[127:62], |s6_product[61:0]} :
+                {s6_product[126:61], |s6_product[60:0]};
+        end else begin
+            res.exponent <= s6_add_exponent;
+            res.significand <= s6_add;
+            if (s6_add == 0 && !meta[6].special)
+                res.sign <= meta[6].rc == 2'b01;
         end
-    endgenerate
+    end
+    assign out_valid = valid[6];
 endmodule

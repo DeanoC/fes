@@ -13,21 +13,14 @@ import (
 
 func testManifest(id string, image []byte) Manifest {
 	return Manifest{
-		Format: Format, Kind: KindFirmware, ID: id, Name: "Test ROM", Version: "1.0",
+		Format: Format, ID: id, Name: "Test ROM", Version: "1.0",
 		CoreID: "fes.test", ROMID: "test-firmware", File: "test.rom",
 		Size: int64(len(image)), SHA256: fmt.Sprintf("%x", sha256.Sum256(image)),
 		Licence: "GPL-2.0-only", LicenceName: "GNU General Public License v2",
 		LicenceFile: "LICENSE.txt", Notice: "Test notice.",
-		Origins: []Location{{URL: "https://example.invalid/test.zip", SHA256: strings.Repeat("a", 64)}},
-		Sources: []Location{{URL: "https://example.invalid/test-src.tar.gz", SHA256: strings.Repeat("b", 64)}},
+		Origin: Location{URL: "https://example.invalid/test.zip", SHA256: strings.Repeat("a", 64)},
+		Source: &Location{URL: "https://example.invalid/test-src.tar.gz", SHA256: strings.Repeat("b", 64)},
 	}
-}
-
-func testDisk(id string, image []byte) Manifest {
-	m := testManifest(id, image)
-	m.Kind, m.ROMID, m.Name, m.File = KindDisk, "", "Boot disk", "boot.img"
-	m.Origins = append(m.Origins, Location{URL: "https://example.invalid/shell.zip", SHA256: strings.Repeat("d", 64)})
-	return m
 }
 
 func writeObject(t *testing.T, root string, m Manifest, image []byte) string {
@@ -61,7 +54,7 @@ func TestLoadReadsValidObject(t *testing.T) {
 	if len(problems) != 0 || len(got) != 1 {
 		t.Fatalf("load: %+v %v", got, problems)
 	}
-	if !bytes.Equal(got[0].Image, image) || got[0].LicenceText != "licence text" || len(got[0].Sources) != 1 {
+	if !bytes.Equal(got[0].Image, image) || got[0].LicenceText != "licence text" || got[0].Source == nil {
 		t.Fatalf("loaded object %+v", got[0].Manifest)
 	}
 }
@@ -86,14 +79,10 @@ func TestLoadRefusesBadObjectsAndKeepsGoodOnes(t *testing.T) {
 		{name: "short image", bytes: image[:10], want: "bytes, manifest says"},
 		{name: "notice", change: func(m *Manifest) { m.Notice = " " }, want: "missing notice"},
 		{name: "licence", change: func(m *Manifest) { m.Licence = "" }, want: "missing licence"},
-		{name: "format", change: func(m *Manifest) { m.Format = 1 }, want: "format"},
-		{name: "kind", change: func(m *Manifest) { m.Kind = "rom" }, want: "kind"},
-		{name: "firmware rom", change: func(m *Manifest) { m.ROMID = "" }, want: "missing rom_id"},
-		{name: "disk rom", change: func(m *Manifest) { m.Kind = KindDisk }, want: "a disk names no rom_id"},
-		{name: "no origins", change: func(m *Manifest) { m.Origins = nil }, want: "missing origins"},
+		{name: "format", change: func(m *Manifest) { m.Format = 2 }, want: "format"},
 		{name: "file", change: func(m *Manifest) { m.File = "../escape.rom" }, want: "image file"},
-		{name: "origin", change: func(m *Manifest) { m.Origins[0].URL = "http://example.invalid/x" }, want: "origin url"},
-		{name: "source", change: func(m *Manifest) { m.Sources[0].SHA256 = "nope" }, want: "source sha256"},
+		{name: "origin", change: func(m *Manifest) { m.Origin.URL = "http://example.invalid/x" }, want: "origin url"},
+		{name: "source", change: func(m *Manifest) { m.Source.SHA256 = "nope" }, want: "source sha256"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -158,47 +147,6 @@ func TestLoadRefusesSecondObjectForSameROM(t *testing.T) {
 	writeObject(t, root, testManifest("second", image), image)
 	got, problems := Load(root)
 	if len(got) != 1 || got[0].ID != "first" || len(problems) != 1 || !strings.Contains(problems[0].Error(), "already bundled by first") {
-		t.Fatalf("got %+v problems %v", got, problems)
-	}
-}
-
-func TestLoadKeepsOneDiskPerCoreBesideItsFirmware(t *testing.T) {
-	image := []byte{7, 7, 7}
-	root := t.TempDir()
-	writeObject(t, root, testManifest("a-firmware", image), image)
-	writeObject(t, root, testDisk("b-disk", image), image)
-	writeObject(t, root, testDisk("c-disk", image), image)
-	got, problems := Load(root)
-	if len(got) != 2 || got[0].Kind != KindFirmware || got[1].ID != "b-disk" || len(got[1].Origins) != 2 {
-		t.Fatalf("got %+v", got)
-	}
-	if len(problems) != 1 || !strings.Contains(problems[0].Error(), "a disk for fes.test is already bundled by b-disk") {
-		t.Fatalf("problems %v", problems)
-	}
-}
-
-func TestLoadReadsTheStagedFreeDOSDisk(t *testing.T) {
-	// The manifest scripts/bundled_firmware.py writes for the PC/XT disk.
-	image := bytes.Repeat([]byte{0xf6}, 368640)
-	raw := fmt.Sprintf(`{"kind":"disk","id":"freedos-xt-360","name":"FreeDOS boot disk","version":"FreeDOS 1.4",
-"core_id":"fes.pcxt-dos","file":"freedos-xt-360.img","size":368640,"sha256":"%x",
-"licence":"GPL-2.0-or-later AND GPL-2.0-only","licence_name":"GNU General Public License v2","notice":"Free.",
-"format":2,"licence_file":"LICENSE.txt",
-"origins":[{"url":"https://www.ibiblio.org/k.zip","sha256":"%s"},{"url":"https://www.ibiblio.org/f.zip","sha256":"%s"}],
-"sources":[{"url":"https://www.ibiblio.org/k.zip","sha256":"%s"},{"url":"https://www.ibiblio.org/f.zip","sha256":"%s"}]}`,
-		sha256.Sum256(image), strings.Repeat("1", 64), strings.Repeat("2", 64), strings.Repeat("1", 64), strings.Repeat("2", 64))
-	root := t.TempDir()
-	dir := filepath.Join(root, "freedos-xt-360")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for name, data := range map[string][]byte{ManifestName: []byte(raw), "freedos-xt-360.img": image, "LICENSE.txt": []byte("GPL")} {
-		if err := os.WriteFile(filepath.Join(dir, name), data, 0o444); err != nil {
-			t.Fatal(err)
-		}
-	}
-	got, problems := Load(root)
-	if len(problems) != 0 || len(got) != 1 || got[0].Kind != KindDisk || got[0].CoreID != "fes.pcxt-dos" || len(got[0].Sources) != 2 {
 		t.Fatalf("got %+v problems %v", got, problems)
 	}
 }

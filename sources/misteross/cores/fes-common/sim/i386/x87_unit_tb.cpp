@@ -721,11 +721,7 @@ void set_rc(Unit &u, unsigned rc) {
 // alone (the oracle probe drives no IRQ 13): with invalid unmasked FBSTP
 // stores nothing and does not pop, and with precision unmasked it stores,
 // pops and sets ES.
-// fes_i386_x87's seq_e: FBSTP's conversion, and T_RUN, where the engine's
-// result is taken. FBLD converts on the engine (#2027 slice 6), so a
-// conversion of one is a T_RUN entry while it runs; no other form here uses
-// the engine.
-constexpr unsigned SEQ_T_BST_IN = 21, SEQ_T_RUN = 24;
+constexpr unsigned SEQ_T_BLD_IN = 21, SEQ_T_BST_IN = 23;   // fes_i386_x87's seq_e
 constexpr unsigned OP_FBLD = (7u << 8) | 0x25;             // DF /4
 constexpr unsigned OP_FBSTP = (7u << 8) | 0x35;            // DF /6
 // The status-word bits these forms define: everything but C0, C2 and C3.
@@ -901,8 +897,6 @@ struct BcdTally {
 
 
 void run_bcd_cases() {
-    const long fbld_issued_before = bcd_issued[0];
-    const unsigned long fbld_runs_before = seq_entries[SEQ_T_RUN];
     StubPage page;
     std::mt19937_64 rng(1958);
     const uint8_t one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
@@ -1200,8 +1194,8 @@ void run_bcd_cases() {
     // Every FBLD issued so far ran to its end, so each must have converted;
     // the sweep below interrupts some before they start, so the exact count
     // is taken here.
-    const long fbld_issued_whole = bcd_issued[0] - fbld_issued_before;
-    const unsigned long fbld_converted_whole = seq_entries[SEQ_T_RUN] - fbld_runs_before;
+    const long fbld_issued_whole = bcd_issued[0];
+    const unsigned long fbld_converted_whole = seq_entries[SEQ_T_BLD_IN];
 
     // ---- A squash, and the F1h reset, while a conversion runs. ----
     // FBSTP converts while its first uop waits in D, for some 65 clocks, so
@@ -1226,7 +1220,7 @@ void run_bcd_cases() {
         for (int kind = 0; kind < 4; ++kind) {
             // 0: FBSTP squashed; 1: FBSTP under F1h; 2: FBLD flushed after it retired; 3: FBLD under F1h.
             const bool store = kind < 2, reset = kind == 1 || kind == 3;
-            const unsigned arm = store ? SEQ_T_BST_IN + 1 : SEQ_T_RUN;
+            const unsigned arm = store ? SEQ_T_BST_IN + 1 : SEQ_T_BLD_IN + 1;
             Unit u;
             int inside = 0, wrong = 0;
             std::string first;
@@ -1310,10 +1304,9 @@ void run_bcd_cases() {
     // source rounds to an integer in range (a zero and the invalid cases
     // store directly). A form claimed as built with a count of zero is a
     // hole in the gate, so it fails here rather than being read off a line.
-    const unsigned long fbld_converted = seq_entries[SEQ_T_RUN] - fbld_runs_before;
     std::printf("BCDFORMS fbld issued %ld converted %lu fbstp issued %ld converted %lu\n", bcd_issued[0],
-                fbld_converted, bcd_issued[1], seq_entries[SEQ_T_BST_IN]);
-    if (bcd_issued[0] == 0 || bcd_issued[1] == 0 || fbld_converted == 0 || seq_entries[SEQ_T_BST_IN] == 0)
+                seq_entries[SEQ_T_BLD_IN], bcd_issued[1], seq_entries[SEQ_T_BST_IN]);
+    if (bcd_issued[0] == 0 || bcd_issued[1] == 0 || seq_entries[SEQ_T_BLD_IN] == 0 || seq_entries[SEQ_T_BST_IN] == 0)
         bad("bcd-forms-reached", "a packed decimal form was never converted");
     else if (fbld_converted_whole != (unsigned long)fbld_issued_whole)
         bad("bcd-forms-reached", "FBLD was issued " + std::to_string(fbld_issued_whole) + " times uninterrupted and converted "
@@ -1374,6 +1367,7 @@ const TransForm TRANS_FORMS[8] = {
     {"F2XM1", 0xf0, false, false, false}, {"FYL2X", 0xf1, true, false, false},
     {"FYL2XP1", 0xf9, true, false, false}, {"FPATAN", 0xf3, true, false, false},
 };
+constexpr unsigned SEQ_T_RUN = 26;      // fes_i386_x87's T_RUN, where the engine's result is taken
 long trans_bound = -1;                  // FES_X87_TRANS_ULP_HOST
 struct TransTally {
     uint64_t cases = 0, values = 0, identical = 0, c1_differs = 0, manual = 0;

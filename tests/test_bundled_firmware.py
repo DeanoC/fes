@@ -59,15 +59,15 @@ class BundledFirmwareTests(unittest.TestCase):
             'os': {'url': 'https://example.invalid/os.zip', 'sha256': sha(self.zip)},
         }
         self.firmware = (
-            dict(kind='firmware', id='pair', name='Pair', version='1', core_id='fes.pair', rom_id='pair-firmware',
+            dict(id='pair', name='Pair', version='1', core_id='fes.pair', rom_id='pair-firmware',
                  file='pair.rom', archive='roms', members=('roms/a.rom', 'roms/b.rom'), size=32,
                  sha256=sha(rom0 + rom1), licence='LicenseRef-Test', licence_name='Test permission',
                  notice='Test notice.'),
-            dict(kind='firmware', id='os', name='OS', version='2', core_id='fes.os', rom_id='os-firmware', file='os.img',
+            dict(id='os', name='OS', version='2', core_id='fes.os', rom_id='os-firmware', file='os.img',
                  archive='os', members=('os/os.img',), size=32, sha256=sha(b'\x02' * 32),
                  licence='GPL-2.0-only', licence_name='GNU General Public License v2',
                  licence_member='os/license.txt', notice='Free.',
-                 sources=({'url': 'https://example.invalid/os-src.tar.gz', 'sha256': 'f' * 64},)),
+                 source={'url': 'https://example.invalid/os-src.tar.gz', 'sha256': 'f' * 64}),
         )
         self.blobs = {self.archives['roms']['url']: self.tar, self.archives['os']['url']: self.zip}
 
@@ -88,55 +88,15 @@ class BundledFirmwareTests(unittest.TestCase):
         self.assertEqual([m['id'] for m in staged], ['pair', 'os'])
         self.assertEqual((out / 'pair/pair.rom').read_bytes(), b'\x00' * 16 + b'\x01' * 16)
         manifest = json.loads((out / 'os/manifest.json').read_text())
-        self.assertEqual(manifest['format'], 2)
-        self.assertEqual(manifest['kind'], 'firmware')
-        self.assertEqual(manifest['rom_id'], 'os-firmware')
+        self.assertEqual(manifest['format'], 1)
         self.assertEqual(manifest['licence_file'], 'LICENSE.txt')
-        self.assertEqual(manifest['origins'], [self.archives['os']])
-        self.assertEqual([s['sha256'] for s in manifest['sources']], ['f' * 64])
+        self.assertEqual(manifest['origin'], self.archives['os'])
+        self.assertEqual(manifest['source']['sha256'], 'f' * 64)
         self.assertEqual((out / 'os/LICENSE.txt').read_bytes(), b'GPL text')
         self.assertNotIn('licence_file', json.loads((out / 'pair/manifest.json').read_text()))
         for path in out.rglob('*'):
             if path.is_file():
                 self.assertEqual(path.stat().st_mode & 0o777, 0o444)
-
-    def disk_setup(self, image):
-        kernel = zip_bytes({'BIN/KERNEL.SYS': b'KERNEL-BYTES', 'DOC/COPYING': b'GPL v2'})
-        shell = zip_bytes({'BIN/COMMAND.COM': b'SHELL-BYTES'})
-        archives = dict(self.archives, kernel={'url': 'https://example.invalid/kernel.zip', 'sha256': sha(kernel)},
-                        shell={'url': 'https://example.invalid/freecom.zip', 'sha256': sha(shell)})
-        self.blobs.update({archives['kernel']['url']: kernel, archives['shell']['url']: shell})
-        (self.root / 'tree').mkdir(exist_ok=True)
-        (self.root / 'tree/disk.img').write_bytes(image)
-        disk = dict(kind='disk', id='boot', name='Boot disk', version='1', core_id='fes.pc',
-                    file='boot.img', size=len(image), sha256=sha(image), tree_file='disk.img',
-                    contains=(('kernel', 'BIN/KERNEL.SYS'), ('shell', 'BIN/COMMAND.COM')),
-                    licence='GPL-2.0-only', licence_name='GPL v2', licence_archive='kernel',
-                    licence_member='DOC/COPYING', notice='Free.', origin_archives=('kernel', 'shell'))
-        return disk, archives
-
-    def test_disk_object_is_the_tree_image_with_its_packages_as_origin_and_source(self):
-        image = b'\0' * 7 + b'KERNEL-BYTES' + b'\0' * 3 + b'SHELL-BYTES' + b'\0' * 9
-        disk, archives = self.disk_setup(image)
-        out = self.root / 'objects'
-        staged = fw.stage(out, self.root / 'cache', (disk,), archives, self.fetcher, self.root / 'tree')
-        manifest = staged[0]
-        self.assertEqual(manifest['kind'], 'disk')
-        self.assertNotIn('rom_id', manifest)
-        self.assertEqual(manifest['origins'], [archives['kernel'], archives['shell']])
-        self.assertEqual(manifest['sources'], manifest['origins'])
-        self.assertEqual((out / 'boot/boot.img').read_bytes(), image)
-        self.assertEqual((out / 'boot/LICENSE.txt').read_bytes(), b'GPL v2')
-        written = fw.fetch_sources(self.root / 'sources', self.root / 'cache', (disk,), self.fetcher, archives)
-        self.assertEqual([Path(p).name for p in written], ['kernel.zip', 'freecom.zip'])
-
-    def test_disk_image_without_a_package_binary_is_refused(self):
-        # COMMAND.COM differs: the image was not made from the named package.
-        image = b'\0' * 7 + b'KERNEL-BYTES' + b'\0' * 3 + b'SHELL-BYTEZ' + b'\0' * 9
-        disk, archives = self.disk_setup(image)
-        with self.assertRaisesRegex(ValueError, 'boot image does not hold BIN/COMMAND.COM from shell'):
-            fw.stage(self.root / 'objects', self.root / 'cache', (disk,), archives, self.fetcher, self.root / 'tree')
-        self.assertFalse((self.root / 'objects/boot').exists())
 
     def test_image_digest_mismatch_stages_nothing_for_it(self):
         bad = (dict(self.firmware[0], sha256='0' * 64),)
@@ -170,44 +130,26 @@ class BundledFirmwareTests(unittest.TestCase):
 
     def test_fetch_sources_copies_only_free_software_sources(self):
         self.blobs['https://example.invalid/os-src.tar.gz'] = b'source'
-        firmware = (self.firmware[0], dict(self.firmware[1], sources=({'url': 'https://example.invalid/os-src.tar.gz', 'sha256': sha(b'source')},)))
-        written = fw.fetch_sources(self.root / 'sources', self.root / 'cache', firmware, self.fetcher, self.archives)
+        firmware = (self.firmware[0], dict(self.firmware[1], source={'url': 'https://example.invalid/os-src.tar.gz', 'sha256': sha(b'source')}))
+        written = fw.fetch_sources(self.root / 'sources', self.root / 'cache', firmware, self.fetcher)
         self.assertEqual([Path(p).name for p in written], ['os-src.tar.gz'])
 
     def test_v1_firmware_set_is_the_agreed_one(self):
         # Spectrum 48K, 128K/+2 and +2A/+3, and EmuTOS for the ST (Deano,
         # 1 November 2026). ZX81 family, Pentagon and C64 stay user-supplied.
-        firmware = [e for e in fw.FIRMWARE if e['kind'] == 'firmware']
-        self.assertEqual(sorted(e['core_id'] for e in firmware),
+        self.assertEqual(sorted(e['core_id'] for e in fw.FIRMWARE),
                          ['fes.atari-st', 'fes.spectrum', 'fes.spectrum-plus3', 'fes.spectrum128'])
-        sizes = {e['core_id']: e['size'] for e in firmware}
+        sizes = {e['core_id']: e['size'] for e in fw.FIRMWARE}
         self.assertEqual(sizes, {'fes.spectrum': 16384, 'fes.spectrum128': 32768,
                                  'fes.spectrum-plus3': 65536, 'fes.atari-st': 196608})
-        for entry in firmware:
+        for entry in fw.FIRMWARE:
             self.assertTrue(entry['notice'])
             self.assertIn(entry['archive'], fw.ARCHIVES)
             if entry['core_id'] != 'fes.atari-st':
                 self.assertIn(fw.AMSTRAD_PERMISSION, entry['notice'])
         emutos = next(e for e in fw.FIRMWARE if e['core_id'] == 'fes.atari-st')
         self.assertEqual(emutos['licence'], 'GPL-2.0-only')
-        self.assertTrue(emutos['sources'][0]['url'].endswith('emutos-src-1.4.tar.gz'))
-
-    def test_the_freedos_disk_is_the_pcxt_package_floppy(self):
-        # The one bundled disk: the pinned PC/XT FreeDOS floppy (Deano, 21
-        # November 2026), the same bytes hardware-dos.json and the lock name.
-        disks = [e for e in fw.FIRMWARE if e['kind'] == 'disk']
-        self.assertEqual([e['id'] for e in disks], ['freedos-xt-360'])
-        disk = disks[0]
-        meta = json.loads((ROOT / 'sources/misteross/cores/fes-pcxt/firmware/hardware-dos.json').read_text())['floppy']
-        lock = json.loads((ROOT / 'sources/misteross/cores/fes-pcxt/sim/freedos.lock').read_text())
-        self.assertEqual((disk['sha256'], disk['size']), (meta['sha256'], meta['size']))
-        self.assertEqual(disk['tree_file'], 'sources/misteross/cores/fes-pcxt/' + meta['file'])
-        self.assertEqual(sha((ROOT / disk['tree_file']).read_bytes()), disk['sha256'])
-        self.assertEqual(disk['core_id'], 'fes.pcxt-dos')
-        # The packages pin the same binaries the image was assembled from.
-        self.assertEqual(dict(disk['contains']), {'freedos-kernel': 'BIN/KERNL86N.SYS', 'freedos-freecom': 'BIN/COMMAND.COM'})
-        self.assertIn('BIN/KERNL86N.SYS', lock['packages']['kernel']['files'])
-        self.assertIn('BIN/COMMAND.COM', lock['packages']['freecom']['files'])
+        self.assertTrue(emutos['source']['url'].endswith('emutos-src-1.4.tar.gz'))
 
     def test_emutos_pins_match_the_simulation_fetch_script(self):
         sim = load(ROOT / 'sources/misteross/scripts/fetch_atari_st_emutos.py', 'fetch_atari_st_emutos')

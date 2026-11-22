@@ -15,14 +15,12 @@ import (
 
 type displayHTTPController struct {
 	fakeDevelopmentController
-	calls    int
-	display  protocol.SessionDisplay
-	admitted bool
+	calls   int
+	display protocol.SessionDisplay
 }
 
-func (c *displayHTTPController) SetSessionDisplay(ctx context.Context, display protocol.SessionDisplay, b protocol.DevelopmentMediaBinding) (protocol.Status, *protocol.APIError) {
+func (c *displayHTTPController) SetSessionDisplay(_ context.Context, display protocol.SessionDisplay, b protocol.DevelopmentMediaBinding) (protocol.Status, *protocol.APIError) {
 	c.calls++
-	c.admitted = kitlease.Admitted(ctx)
 	c.display = display
 	return protocol.Status{State: protocol.StateActive, Development: true}, nil
 }
@@ -59,59 +57,7 @@ func TestSessionDisplayRequiresLeaseExplicitBooleanAndFocus(t *testing.T) {
 			t.Fatalf("body=%s status=%d response=%s", tc.body, w.Code, w.Body)
 		}
 	}
-	if c.calls != 5 || c.display != protocol.SessionDisplayClosed || !c.admitted {
-		t.Fatalf("calls=%d display=%+v admitted=%v", c.calls, c.display, c.admitted)
-	}
-}
-
-type cancelledDisplayHTTPController struct {
-	fakeDevelopmentController
-	entered   chan struct{}
-	cancelled chan bool
-}
-
-func (c *cancelledDisplayHTTPController) SetSessionDisplay(ctx context.Context, _ protocol.SessionDisplay, _ protocol.DevelopmentMediaBinding) (protocol.Status, *protocol.APIError) {
-	if !kitlease.Admitted(ctx) {
-		return protocol.Status{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable}
-	}
-	close(c.entered)
-	<-ctx.Done()
-	c.cancelled <- kitlease.Admitted(ctx)
-	return protocol.Status{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable}
-}
-
-func TestSessionDisplayLeaseRevocationCancelsAdmission(t *testing.T) {
-	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
-	defer manager.Close()
-	grant := claimKit(t, manager)
-	c := &cancelledDisplayHTTPController{entered: make(chan struct{}), cancelled: make(chan bool, 1)}
-	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithDevelopment(c), httpapi.WithKitLease(manager))
-	r := httptest.NewRequest(http.MethodPost, "/v1/session/display", strings.NewReader(`{"visible":true,"focus":"machine"}`))
-	r.Header.Set("Authorization", "Bearer bearer")
-	r.Header.Set("Content-Type", "application/json")
-	r.Header.Set(httpapi.KitLeaseHeader, grant.Token)
-	(protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9}).SetHeaders(r.Header)
-	finished := make(chan struct{})
-	go func() { defer close(finished); handler.ServeHTTP(httptest.NewRecorder(), r) }()
-	select {
-	case <-c.entered:
-	case <-time.After(time.Second):
-		t.Fatal("display did not enter")
-	}
-	if _, err := manager.Release(grant.Token); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case admitted := <-c.cancelled:
-		if admitted {
-			t.Fatal("revoked request remained lease-admitted")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("lease revocation did not cancel display")
-	}
-	select {
-	case <-finished:
-	case <-time.After(time.Second):
-		t.Fatal("display handler did not finish")
+	if c.calls != 5 || c.display != protocol.SessionDisplayClosed {
+		t.Fatalf("calls=%d display=%+v", c.calls, c.display)
 	}
 }

@@ -7,33 +7,29 @@ import (
 
 // Game is one catalog row from GET /api/v1/games.
 type Game struct {
-	ID                 string `json:"id"`
-	Title              string `json:"title"`
-	System             string `json:"system"`
-	CoreID             string `json:"core_id,omitempty"`
-	PackageID          string `json:"package_id,omitempty"`
-	PackageUnavailable bool   `json:"package_unavailable,omitempty"`
-	MediaID            string `json:"media_id,omitempty"`
-	MediaRole          string `json:"media_role,omitempty"`
-	// MediaName and MoreMedia name disk 1 and list disks 2 to N of a disk
-	// set. A host that predates disk sets sends neither.
-	MediaName    string     `json:"media_name,omitempty"`
-	MoreMedia    []SetMedia `json:"more_media,omitempty"`
-	Cover        string     `json:"cover,omitempty"`
-	Genre        string     `json:"genre,omitempty"`
-	Year         string     `json:"year,omitempty"`
-	Region       string     `json:"region,omitempty"`
-	State        string     `json:"state"`
-	RootOnline   bool       `json:"root_online"`
-	Launchable   bool       `json:"launchable"`
-	ROMCached    *bool      `json:"rom_cached,omitempty"`
-	Favorite     bool       `json:"favorite,omitempty"`
-	PlayCount    int64      `json:"play_count,omitempty"`
-	LastPlayedAt int64      `json:"last_played_at,omitempty"`
-	Collections  []string   `json:"collections,omitempty"`
-	Series       string     `json:"series,omitempty"`
-	VariantCount int        `json:"variant_count,omitempty"`
-	Variants     []Game     `json:"variants,omitempty"`
+	ID                 string   `json:"id"`
+	Title              string   `json:"title"`
+	System             string   `json:"system"`
+	CoreID             string   `json:"core_id,omitempty"`
+	PackageID          string   `json:"package_id,omitempty"`
+	PackageUnavailable bool     `json:"package_unavailable,omitempty"`
+	MediaID            string   `json:"media_id,omitempty"`
+	MediaRole          string   `json:"media_role,omitempty"`
+	Cover              string   `json:"cover,omitempty"`
+	Genre              string   `json:"genre,omitempty"`
+	Year               string   `json:"year,omitempty"`
+	Region             string   `json:"region,omitempty"`
+	State              string   `json:"state"`
+	RootOnline         bool     `json:"root_online"`
+	Launchable         bool     `json:"launchable"`
+	ROMCached          *bool    `json:"rom_cached,omitempty"`
+	Favorite           bool     `json:"favorite,omitempty"`
+	PlayCount          int64    `json:"play_count,omitempty"`
+	LastPlayedAt       int64    `json:"last_played_at,omitempty"`
+	Collections        []string `json:"collections,omitempty"`
+	Series             string   `json:"series,omitempty"`
+	VariantCount       int      `json:"variant_count,omitempty"`
+	Variants           []Game   `json:"variants,omitempty"`
 	// Editions are the grouped siblings kept after preferLaunchable clears
 	// Variants. Rooms read them; they are not a second wire field.
 	Editions         []Game `json:"-"`

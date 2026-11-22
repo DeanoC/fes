@@ -9,8 +9,7 @@ cause, so the next CPU priority rests on counts.
 **Headline: 28 of 52 titles were usable on the kit, and 2 more started but
 went wrong.** With this PR's games-image fix (#1525, #1526; rechecked on
 Kit B, [below](#the-games-image-fix-in-this-pr-1525-1526)) the count is 30
-usable. These are the 7 November census counts; the later Star Control II
-[follow-up](#star-control-ii-kit-follow-up-21-november) is recorded separately.
+usable.
 Before the fix, the 22 failures had these causes:
 
 | Cause | Titles | What fixes it |
@@ -18,7 +17,7 @@ Before the fix, the 22 failures had these causes:
 | Paging, task switches, debug registers or V86: CWSDPMI (5 titles), DOS/4GW Professional, 32RTM, and two other extenders | 9 | i386 Phase 5, with Phase 2's third slice for CWSDPMI's ring 3 |
 | A Borland DPMI16BI host IRETs to CPL 3 | 3 | i386 Phase 2's third slice: privilege transitions and IOPL |
 | EMS: no expanded memory | 3 | Phase 5 (EMM386 needs V86 and paging), or an expanded-memory board in the machine |
-| The games image's DOS setup: 575K conventional memory, `FILES=20` | 4 | fixed in this PR ([#1526](https://github.com/DeanoC/fes/issues/1526), [#1525](https://github.com/DeanoC/fes/issues/1525)) for Falcon 3.0; Frontier then needs EMS, Strike Commander then needs paging, and Star Control II remained unresolved at the time ([#1539](https://github.com/DeanoC/fes/issues/1539)) |
+| The games image's DOS setup: 575K conventional memory, `FILES=20` | 4 | fixed in this PR ([#1526](https://github.com/DeanoC/fes/issues/1526), [#1525](https://github.com/DeanoC/fes/issues/1525)) for Falcon 3.0; Frontier then needs EMS, Strike Commander then needs paging, and Star Control II's own check stays ([#1539](https://github.com/DeanoC/fes/issues/1539)) |
 | An x87 is required | 1 | x87 |
 | A 486 instruction: invalid opcode on a 386 | 1 | none in scope; the title needs a 486 |
 | No CD-ROM drive | 1 | a CD-ROM device |
@@ -158,7 +157,7 @@ conventional memory first.
 | Jill of the Jungle (1992) | `real` | `real` | pass | `k7`; sim oracle | configuration screen, then level play |
 | Stunts (1990) | `real` | `real` | pass | `k7` | title, then driving |
 | Lost Vikings, The (1993) | `real` | `real` | pass | `k7`; sim oracle | title menu, then level play |
-| Star Control II (1992) | `real` | `real` | fail in `k7`; intro passes in [follow-up](#star-control-ii-kit-follow-up-21-november) | `k7`; sim oracle; Kit B follow-up | The original launch refused at the RAM check; loading its loader high subsequently reached the intro on the kit. |
+| Star Control II (1992) | `real` | `real` | fail | `k7`; sim oracle | DOS: conventional memory: refuses with 575K free, 'requires 566 Kbytes (65511 more needed)', same on the oracle (#1526) |
 | Wolfenstein 3D (1992) | `real` | `real` | pass | `k7`; sim oracle | memory screen, then the options menu |
 | Ultima VI - The False Prophet (1990) | `real` | `real` | pass | `k7`; sim oracle | intro scenes play |
 | Jazz Jackrabbit (1994) | `386` | `real` | fail | `k1`, stopped at `0020:000013fb`; sim oracle+rtl | CPU: CPL 3: Borland DPMI16BI: IRET to CPL 3 at 0020:000013FB, the kit's stop site and the RTL's first stop (CF); the oracle census also shows LTR and IOPL 3, no paging |
@@ -306,59 +305,15 @@ first on the same drives.
   black and the CPU stops at `0018:00004664`. That is the site where the
   oracle's feature census logs CR0.PG set, after which the oracle runs it at
   CPL 3 with paging on. So it still fails, now for Phase 5 paging.
-- **Star Control II:** not rerun on the kit at this point. On the oracle it
-  still refused, now with `65505 more needed`. The later #1539 investigation
-  identified a resident loader consuming conventional memory; the changing
-  number was misleading, while the shortage was real.
+- **Star Control II:** not rerun on the kit. On the oracle it still refuses,
+  now with `65505 more needed`. More free memory makes its figure smaller,
+  so it is the game's own check:
+  [#1539](https://github.com/DeanoC/fes/issues/1539).
 
 With these, 30 of 52 census titles are usable on the kit, 1 is partial
 (SpeedSys), and 21 fail. Against the table at the top: Phase 5 rises to 10
 (Strike Commander joins), EMS to 4 (Frontier joins), and DOS setup falls to 1
 (#1539). The other causes are unchanged.
-
-## Star Control II kit follow-up, 21 November
-
-The [#1539 investigation](https://github.com/DeanoC/fes/issues/1539) found
-that the eXoDOS loader stays resident and consumes 16 KiB of conventional
-memory. [#1986](https://github.com/DeanoC/fes/pull/1986) changed the `real`
-drive record to launch it high, but left the kit check open. On 21 November,
-a core-only Kit B run booted the rebuilt `real` drive on the default FreeDOS
-games entry and typed the recorded `cd \starcon2|lh starcon2|` command.
-The kit displayed **ACCOLADE PRESENTS**, followed by **STAR CONTROL II**,
-instead of stopping at the insufficient-memory error. Two independent reviews
-inspected the retained frames. This passes the requested intro check; it does
-not claim game play, audio or broader compatibility.
-
-- Drive builder source: FES `57bdbb31ffb016ccf8e0ad5ade58a1a99cd4af47`.
-  The rebuilt `real` image SHA-256 is
-  `d65eb76208e3daef13fbd8e587168f25576aae372e34700ce8e482f20e188050`,
-  geometry `260/16/63`; the adjacent record SHA-256 is
-  `9c977561cfb99065143f5a93c9d1f36d9f6a481cff3ead1a695d9e37863c3e0b`.
-- Sealed `fes.pc386` package ID
-  `4323f1550bf885d5719e69214c9f711a704ea0b726f7725b33addf8e021e9ea2`;
-  archive SHA-256
-  `43e5956aa73cd90834efc34845b23b3264ec88b9a6892bbbee2a851694bd2d34`.
-  Its manifest names producer revision
-  `f8cd016db58baa8fbabb36284a7db49c84168dea`. This is the already kit-tested
-  #2059 package, not a claim of an exact-main rebuild.
-- The original image and software bundle were
-  `179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018` and
-  `c9ae79e27eb3a8d3b9f4e1b5de322838725637d6c9c25548e8b64ef500959a98`.
-  Neither was changed. The run's disk and nonce-scoped game/media paths were
-  removed while the target lease was held. The first post-release observation
-  saw `revoking`, so the runner retained the kit claim. A bounded read-only
-  reconciliation then verified the same boot, image, active/selected bundle
-  and config hashes, the run-created paths absent, and agent idle with an
-  ownerless free lease before Kit B was released. The inventory comparison
-  covered top-level paths, not the contents of pre-existing files.
-- The retained local evidence is
-  `/data/fes1539-20261121/run-20261121T185725Z-6eb42ee9c66f/`. The DOS prompt
-  frame SHA-256 is
-  `1f6c93fb6eef28314452b83bddab8e8d64c0d4b726c72dd4ea137e56fc93dff5`;
-  the Accolade and Star Control II frames are
-  `243258146e029bfd2961f4ed3bbee6cfa8fafcafdc0a474f6b0e4742fe5d432b` and
-  `f335ecef458d36b9a54b27b44f06656344bc71999b8c9ade96741c5c2fb8eac4`.
-  The disk image and captured commercial-game frames are not included here.
 
 ## Follow-ups
 
@@ -366,7 +321,7 @@ not claim game play, audio or broader compatibility.
   [#1526](https://github.com/DeanoC/fes/issues/1526): fixed in this PR
   (above).
 - [#1539](https://github.com/DeanoC/fes/issues/1539): Star Control II's
-  resident-loader memory shortage; the kit intro follow-up is recorded above.
+  memory check.
 - [#1532](https://github.com/DeanoC/fes/issues/1532): SpeedSys's ISA PnP
   probe.
 - Phase 2's third slice, Phase 5 and x87 stay planned work. This record gives

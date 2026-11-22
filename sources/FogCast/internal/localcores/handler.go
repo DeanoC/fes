@@ -8,25 +8,8 @@ import (
 )
 
 // Handler is the no-bearer local-control API.
-func Handler(service *Service) http.Handler { return HandlerWithIdentity(service, "") }
-
-// HandlerWithIdentity exposes the agent's captured kit identity on the
-// root-only local socket alongside the existing catalog route.
-func HandlerWithIdentity(service *Service, targetID string) http.Handler {
+func Handler(service *Service) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/local/identity", func(w http.ResponseWriter, r *http.Request) {
-		if !identityRequestAllowed(r) {
-			writeLocalError(w, http.StatusForbidden, "unavailable")
-			return
-		}
-		if targetID == "" {
-			writeLocalError(w, http.StatusServiceUnavailable, "unavailable")
-			return
-		}
-		writeJSON(w, http.StatusOK, struct {
-			TargetID string `json:"target_id"`
-		}{targetID})
-	})
 	mux.HandleFunc("GET /v1/local/cores", func(w http.ResponseWriter, r *http.Request) {
 		// An unreadable durable library is HTTP 200 and an empty list.
 		// Bearer /v1/core-packages uses HTTP 503 for that failure.

@@ -58,8 +58,6 @@ func (c *Client) AdoptEndpoint(ctx context.Context, base *url.URL, reboot bool) 
 	}
 	if c.kitLease != nil {
 		l := c.kitLease
-		// Once the agent answered, reconcile even if the observer canceled.
-		// A different generation may have made our held token stale.
 		l.mu.Lock()
 		owned := !reboot && !l.lost && !l.closed && l.grant.Token != "" && time.Now().Before(l.localExpiry) && ownership.State == "held" && ownership.Generation == l.grant.Status.Generation
 		if !owned {
@@ -78,19 +76,6 @@ func (c *Client) AdoptEndpoint(ctx context.Context, base *url.URL, reboot bool) 
 }
 
 func (c *Client) HasKitGrant() bool { return c.kitLease.CurrentToken() != "" }
-
-// HasKitGrantContext reports whether a grant is present without waiting past
-// the observation deadline for another lease operation.
-func (c *Client) HasKitGrantContext(ctx context.Context) (bool, error) {
-	if c.kitLease == nil {
-		return false, nil
-	}
-	if err := c.kitLease.mu.LockContext(ctx); err != nil {
-		return false, err
-	}
-	defer c.kitLease.mu.Unlock()
-	return c.kitLease.grant.Token != "", nil
-}
 
 // Peer uses the configured transport and bearer for read-only validation of a
 // DNS-SD candidate, without sharing mutation authority.

@@ -13,9 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"runtime/debug"
-	"strings"
 	"sync"
 	"time"
 
@@ -63,12 +61,9 @@ type window struct {
 	minor int
 }
 type Status struct {
-	Available         bool       `json:"available"`
-	FrameMapping      bool       `json:"frame_mapping"`
-	Session           bool       `json:"session"`
-	Focus             string     `json:"focus"`
-	Error             *MenuError `json:"error"`
-	availablePresent  bool
+	Available         bool   `json:"available"`
+	FrameMapping      bool   `json:"frame_mapping"`
+	Session           bool   `json:"session"`
 	PackageID         string `json:"package_id"`
 	CoreGeneration    uint64 `json:"core_generation"`
 	Generation        uint64 `json:"generation"`
@@ -86,44 +81,6 @@ type Status struct {
 	// Live is the runtime's periodic re-read of the idle display, absent
 	// from runtimes that do not perform one.
 	Live *Live `json:"live"`
-}
-
-// MenuError is the runtime's display-specific failure, distinct from its
-// transport or overall status error.
-type MenuError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Phase   string `json:"phase"`
-}
-
-// UnmarshalJSON remembers whether availability was explicitly reported.
-// Startup must not mistake a missing field for a confirmed closed plane.
-func (s *Status) UnmarshalJSON(data []byte) error {
-	type plain Status
-	var raw struct {
-		plain
-		Available *bool `json:"available"`
-	}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*s = Status(raw.plain)
-	if raw.Available != nil {
-		s.Available = *raw.Available
-		s.availablePresent = true
-	}
-	return nil
-}
-
-// StartupStatus is an identity-bound snapshot of the local runtime and its
-// optional session plane. No host or guest acceptance is inferred from it.
-type StartupStatus struct {
-	State        string
-	PackageID    string
-	Generation   uint64
-	Plane        *Status
-	RuntimePID   int
-	RuntimeStart string
 }
 
 // The runtime's verdicts on whether scanout is showing the frame it has
@@ -186,12 +143,7 @@ type Result struct {
 	Timing Timing `json:"-"`
 }
 type reply struct {
-	OK            bool    `json:"ok"`
-	State         string  `json:"state"`
-	Generation    *uint64 `json:"generation"`
-	ActivePackage *struct {
-		PackageID string `json:"package_id"`
-	} `json:"active_package"`
+	OK          bool    `json:"ok"`
 	MenuDisplay *Status `json:"menu_display"`
 	MenuFrame   *struct {
 		Generation        uint64  `json:"generation"`
@@ -218,7 +170,7 @@ type reply struct {
 			ScanoutWaitUS int64 `json:"scanout_wait_us"`
 		} `json:"timing"`
 	} `json:"menu_frame"`
-	Error *struct {
+	Error struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
 	} `json:"error"`
@@ -327,9 +279,6 @@ func receive(conn *net.UnixConn) (reply, []int, error) {
 				return bad(err)
 			}
 			if !result.OK {
-				if result.Error == nil {
-					return bad(errors.New("menu request rejected without an error"))
-				}
 				return bad(fmt.Errorf("menu request rejected: %s %s", result.Error.Code, result.Error.Message))
 			}
 			return result, fds, nil
@@ -368,87 +317,6 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 		return Status{}, errors.New("unsupported menu geometry")
 	}
 	return s, nil
-}
-
-// StartupStatus reads runtime state and preserves session focus and display
-// errors for a launcher restarting while a machine remains active.
-func (c *Client) StartupStatus(ctx context.Context) (StartupStatus, error) {
-	conn, err := c.dial(ctx)
-	if err != nil {
-		return StartupStatus{}, err
-	}
-	defer conn.Close()
-	pid, start, err := startupRuntimePeer(conn)
-	if err != nil {
-		return StartupStatus{}, err
-	}
-	if err = send(conn, map[string]any{"protocol": 2, "operation": "status"}, -1); err != nil {
-		return StartupStatus{}, err
-	}
-	result, fds, err := receive(conn)
-	for _, fd := range fds {
-		unix.Close(fd)
-	}
-	if err != nil {
-		return StartupStatus{}, err
-	}
-	if len(fds) != 0 {
-		return StartupStatus{}, errors.New("status returned a descriptor")
-	}
-	if result.State == "" || result.Error != nil {
-		return StartupStatus{}, errors.New("runtime state unavailable")
-	}
-	pidAfter, startAfter, err := startupRuntimePeer(conn)
-	if err != nil || pidAfter != pid || startAfter != start {
-		return StartupStatus{}, errors.New("runtime process changed during startup observation")
-	}
-	observed := StartupStatus{State: result.State, Plane: result.MenuDisplay, RuntimePID: pid, RuntimeStart: start}
-	if result.ActivePackage != nil {
-		observed.PackageID = result.ActivePackage.PackageID
-	}
-	if result.Generation != nil {
-		observed.Generation = *result.Generation
-	}
-	if p := observed.Plane; p != nil {
-		if p.Error != nil {
-			return StartupStatus{}, errors.New("runtime display state unavailable")
-		}
-		if p.Session && (!p.availablePresent || (p.Focus != "machine" && p.Focus != "launcher") || (!p.Available && p.Focus != "machine")) {
-			return StartupStatus{}, errors.New("runtime session plane state incomplete")
-		}
-	}
-	return observed, nil
-}
-
-// startupRuntimePeer uses the already-connected runtime socket, so a
-// reused package/generation from a restarted daemon cannot be silently
-// accepted as the earlier observation.
-func startupRuntimePeer(conn *net.UnixConn) (int, string, error) {
-	raw, err := conn.SyscallConn()
-	if err != nil {
-		return 0, "", err
-	}
-	var cred *unix.Ucred
-	var inner error
-	if err = raw.Control(func(fd uintptr) { cred, inner = unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED) }); err != nil {
-		return 0, "", err
-	}
-	if inner != nil || cred == nil || cred.Pid <= 0 || cred.Uid != uint32(os.Geteuid()) {
-		return 0, "", errors.New("runtime peer identity unavailable")
-	}
-	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", cred.Pid))
-	if err != nil {
-		return 0, "", err
-	}
-	end := strings.LastIndexByte(string(data), ')')
-	if end < 0 {
-		return 0, "", errors.New("invalid runtime process stat")
-	}
-	fields := strings.Fields(string(data[end+1:]))
-	if len(fields) < 20 || fields[0] == "Z" || fields[0] == "X" || fields[19] == "" {
-		return 0, "", errors.New("runtime process is not live")
-	}
-	return int(cred.Pid), fields[19], nil
 }
 
 // Close unmaps the granted window.

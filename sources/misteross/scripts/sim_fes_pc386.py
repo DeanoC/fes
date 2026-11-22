@@ -85,6 +85,15 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            typed key must arrive in order. With --cpu rtl, the RTL must run it
            without an oracle step or a stop; writes c2xx-rtl/.
 
+  share    runs cores/fes-pc386/sim/share_test.asm (SHRTEST.COM) at the
+           prompt of the games image's boot entry 4, which loads SHARE
+           (#1777): a file still open must not delete or rename, and once
+           closed it must rename and delete, and a second delete must say
+           file not found. Kernel 2046 asks SHARE before each delete and
+           rename (INT 2Fh 10A6h), which the image's kernel and SHARE, built
+           from ke2046's source with FDOS/kernel#276's fix, answer. Every
+           check must print ok. With --cpu rtl the oracle boots and
+           fes_i386_cpu runs from the prompt; writes share-rtl/.
   wait     runs cores/fes-pc386/sim/wait_test.asm (WAITTEST.COM) at the
            FreeDOS prompt (#1150): INT 15h AH=86h waits from 0 us to 300 ms,
            each timed on PIT counter 0 or the BIOS tick, must return within
@@ -1153,6 +1162,35 @@ def default_limit_seconds(suite: str) -> int:
     return 12
 
 
+# SHRTEST.COM's checks, in the order it runs them (sim/share_test.asm).
+SHARE_CHECKS = ('create', 'del-open', 'ren-open', 'close', 'rename', 'delete', 'gone', 'DONE')
+
+
+def run_share(args, linked: list[Path]) -> dict:
+    """SHRTEST.COM at the prompt of the games image's entry 4, which loads SHARE: delete and rename (#1777).
+    With --cpu rtl the oracle boots and fes_i386_cpu runs from the prompt."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    rtl = '-rtl' if args.cpu == 'rtl' else ''
+    disk = fixture_with(args, f'share{rtl}', 'share_test.asm', 'SHRTEST.COM',
+                        freedos.image(args.download, args.jobs, 'games'))
+    print(f'Running SHRTEST.COM on the games image\'s entry 4 on the {args.cpu} CPU', flush=True)
+    run = run_machine(testbench, f'share{rtl}', ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                                 '--type', 'shrtest|', '--expect', 'SHARE DONE ok', '--cpu', args.cpu,
+                                                 '--boot-key', f'{BOOT_MENU_KEY_SECONDS}:4',
+                                                 *(['--rtl-at-prompt', '1'] if rtl else [])], images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    run['lines'] = lines
+    checks = [line for line in lines if line.startswith('SHARE ')]
+    failures = run['failures'] + [line for line in checks if not line.endswith(' ok')]
+    names = [line.split()[1] for line in checks]
+    if names != list(SHARE_CHECKS):
+        failures.append(f'SHRTEST.COM ran {names}, expected {list(SHARE_CHECKS)}')
+    if rtl:
+        failures += rtl_failures(run, 'SHARE run')
+    return {'run': run, 'checks': checks, 'failures': failures}
+
+
 def run_wait(args, linked: list[Path]) -> dict:
     """WAITTEST.COM at the FreeDOS prompt: INT 15h AH=86h waits against PIT counter 0 and the BIOS tick."""
     images = firmware.images(args.download, args.jobs)
@@ -2167,7 +2205,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'fdc', 'floppy', 'floppy-boot', 'storage', 'audio', 'opl2',
                                             'benches', 'boot', 'rtl-stops',
-                                            'a20', 'c2xx', 'ems', 'wait', 'speaker', 'x87', 'scroll', 'cpu-profile',
+                                            'a20', 'c2xx', 'ems', 'share', 'wait', 'speaker', 'x87', 'scroll',
+                                            'cpu-profile',
                                             'sound', 'game', 'wfw', 'vga', 'system', 'governor', 'all'),
                         default='all',
                         help='simulation suite to run')
@@ -2216,9 +2255,9 @@ def main() -> int:
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
-    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'wfw', 'a20', 'c2xx', 'ems', 'wait', 'speaker',
-                                                'scroll', 'floppy', 'floppy-boot'):
-        parser.error('--cpu rtl runs the boot, game, wfw, a20, c2xx, ems, wait, speaker, scroll, floppy and '
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'wfw', 'a20', 'c2xx', 'ems', 'share', 'wait',
+                                                'speaker', 'scroll', 'floppy', 'floppy-boot'):
+        parser.error('--cpu rtl runs the boot, game, wfw, a20, c2xx, ems, share, wait, speaker, scroll, floppy and '
                      'floppy-boot suites only')
     if args.x87_fitted and args.suite != 'game':
         parser.error('--x87-fitted is for the game suite; the x87 suite fits a 387 by itself')
@@ -2293,6 +2332,8 @@ def main() -> int:
                 report = run_floppy_boot(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'ems':
                 report = run_ems(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'share':
+                report = run_share(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'wait':
                 report = run_wait(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'speaker':

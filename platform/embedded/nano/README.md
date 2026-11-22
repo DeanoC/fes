@@ -113,57 +113,8 @@ around the existing fresh-scan gate. Programmer success and boot acceptance
 remain separate. `power_on_trace.observe` additionally requires a confirmed
 physical cycle, SDM POR boot kind and final EL1 handoff; sticky reset history
 or a qualified JTAG boot cannot substitute. These helpers open no devices;
-the private operator owns transport, process bounds and cleanup.
-
-The flash trial writes nonvolatile QSPI and is a `FULL_IMAGE` hardware path.
-Host preparation and model tests do not qualify it. Merge requires exact-head
-hardware acceptance covering native cold boot, factory restore and re-install,
-or Deano's explicit waiver. This gate stays open until that evidence or waiver
-is recorded.
-
-### Package an opt-in R1 cold boot
-
-On TRWU8CBL, Quartus 26.3 maps `A5EB013BB23BR1` to the observed JTAG ID
-`0x4362C0DD`. The generic loader part selects `0xC362C0DD` and fails before
-flash programming. Use `launcher_image.py` to assemble the checked autoboot
-SD image and `boot_flash_image.py` to prepare the matching native and factory
-rollback JICs. The factory input is the full main-array backup from the same
-kit with its independently verified SHA-256.
-
-```sh
-FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/nano/boot_flash_image.py \
-  --composition "$matched_composition" --launcher-image "$launcher_image_directory" \
-  --factory-backup "$factory_main_array" --factory-sha256 "$factory_sha256" \
-  --quartus-pfg "$quartus_pfg" --quartus-lock "$shared_quartus_lock" \
-  --output "$fresh_output_directory"
-```
-
-The file-only producer checks the installed Quartus part table, reads every
-FAT32 payload back against the pinned staging, FIT, and recovery bytes, and
-checks the complete decoded flash arrays. It verifies the protected SD prefix
-and boot sectors and rejects extra or aliased entries.
-Run it from a clean checkout. It checks the committed embedded Python source
-tree before loading the packager helpers, then rechecks it before publication.
-It also rehashes the recorded composition and launcher inputs and checks
-their source inventories against the selected commit. FPGA build-record paths
-are relative to the recorded module root. Regenerate artifacts when their
-recorded sources differ. The full file closure is rehashed after JIC validation,
-immediately before the plan and result are published.
-The output plan pins both JICs. The result pins the matching SD image. The
-physical operator uses a fresh claim-bound scan and separate approval and
-cleanup records for each write. Initialize and verify the factory JIC against
-the current factory flash before installing the native image.
-
-For a passive serial capture, `power_on_trace.observe` takes the full bounded
-capture and the expected 16-digit SPL build ID. It retains any previous boot
-tail separately, requires the one matching SPL banner and immediately adjacent
-SPL beginning, then invokes the supplied native decoder on that exact segment.
-The decoder callback must use the checked native build, owner seed and options.
-Retain the complete serial capture and the operator-confirmed cycle receipt.
-Two qualified native power-ons reached
-Tenfoot on TRWU8CBL, with physical keyboard launch and return and List layout
-persistence. The factory restore and re-install round trip remains a
-separate qualification task under #1867.
+the retained private operator owns transport, process bounds and cleanup.
+Permanent flash programming and power-on acceptance remain untested.
 
 The native U-Boot builder accepts an explicit `--native-autoboot` alongside
 `--native-entry-build` for a selected Tenfoot launcher with its paired menu.

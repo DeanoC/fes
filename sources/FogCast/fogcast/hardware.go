@@ -50,9 +50,17 @@ type HardwareExpansion struct {
 // used by selection and launch. Package, selected card and admitted choices
 // cannot be paired across concurrent host configuration edits.
 func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
+	release, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	entries, err := s.CoreEntries(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var packages []corepackage.Inspection
 	if s.corePackages != nil {
-		var err error
 		packages, err = s.corePackages.List(ctx)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -63,18 +71,6 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 			// the selected package is inspected independently below.
 			packages = nil
 		}
-	}
-	// Inventory is only an optional suggestion. It may be expensive on a kit;
-	// do not hold up live-session observations while inspecting every package.
-	// Read the saved entry and its selected expansion together under admission.
-	release, err := s.acquireLifecycle(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
-	entries, err := s.CoreEntries(ctx)
-	if err != nil {
-		return nil, err
 	}
 	store, ok := s.catalog.(coreExpansionCatalog)
 	if !ok {

@@ -54,7 +54,7 @@ module fes_x87_pipe (
     assign core_ready = occupied < 16;
     assign accept = req_valid && req_ready;
 
-    fes_x87_core #(.PIPELINED(1'b1)) core (
+    fes_x87_core core (
         .clk, .reset, .flush,
         .req_valid, .ext_ready(core_ready), .req_ready,
         .req_op, .req_a, .req_b, .req_pc, .req_rc, .req_slot(allocate_ptr),

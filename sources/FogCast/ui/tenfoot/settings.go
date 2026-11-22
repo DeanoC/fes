@@ -1468,7 +1468,7 @@ func (a *App) submitSettingsOSKLocked() {
 	case settingsOSKCorePath, settingsOSKCoreTitle:
 		a.submitCoreLibraryOSKLocked()
 	case settingsOSKShelfName:
-		a.submitDiskShelfNameLocked()
+		a.submitStShelfNameLocked()
 	case settingsOSKLibraryPath:
 		a.submitLibraryPathOSKLocked()
 	case settingsOSKTargetName:
@@ -2174,7 +2174,6 @@ func (a *App) setReducedMotionLocked(on bool, persist bool) {
 // on kit HDMI. A running session follows it once the machine has input.
 func (a *App) setSurroundLocked(on bool, persist bool) {
 	a.surround = on
-	a.displaySurroundOverride = nil
 	if !persist {
 		return
 	}

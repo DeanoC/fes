@@ -57,11 +57,6 @@ func libraryPackageFixture(t *testing.T, version string, extras ...string) []byt
 
 func pcxtDosLibraryPackageFixture(t *testing.T) []byte {
 	t.Helper()
-	return corePackageArchiveFixture(t, pcxtDosLibraryManifest(t))
-}
-
-func pcxtDosLibraryManifest(t *testing.T) []byte {
-	t.Helper()
 	base := "../corepackage/testdata/core-bundle-v2/"
 	manifest, err := os.ReadFile(base + "manifests/valid-basic.toml")
 	if err != nil {
@@ -73,7 +68,7 @@ func pcxtDosLibraryManifest(t *testing.T) []byte {
 		[]byte("[abi]\nid = \"fes.computer\"\nmajor = 1\nminor = 0"),
 		[]byte("[abi]\nid = \"fes.computer\"\nmajor = 1\nminor = 1"), 1)
 	manifest = bytes.Replace(manifest, []byte(`id = "fes.gamepad"`), []byte(`id = "fes.media.pcxt-floppy"`), 1)
-	return manifest
+	return corePackageArchiveFixture(t, manifest)
 }
 
 func corePackageArchiveFixture(t *testing.T, manifest []byte) []byte {

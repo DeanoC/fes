@@ -270,8 +270,6 @@ type Service struct {
 	// bundledFirmware is the imported default firmware, by core and ROM.
 	bundledFirmwareMu sync.Mutex
 	bundledFirmware   []protocol.BundledFirmware
-	// bundledDisks are the imported disks, at most one per core.
-	bundledDisks []protocol.BundledDisk
 	// kitHost is [core_packages] kit: this host drives only the kit's own
 	// agent at its loopback address. It never looks the agent up by mDNS
 	// and refuses settings edits to its target.

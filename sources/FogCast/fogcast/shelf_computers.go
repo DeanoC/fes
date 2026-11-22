@@ -27,9 +27,6 @@ type ShelfComputer struct {
 type ComputerPackage struct {
 	PackageID string               `json:"package_id"`
 	Media     []ComputerMediaSaves `json:"media"`
-	// StartDisk names the disk a title of this package starts from while it
-	// has none: the bundled FreeDOS disk for a writable PC/XT package.
-	StartDisk string `json:"start_disk,omitempty"`
 }
 
 type ComputerMediaSaves struct {
@@ -71,7 +68,7 @@ func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, []Comput
 			continue
 		}
 		if _, seen := packages[entry.PackageID]; !seen {
-			packages[entry.PackageID] = s.computerPackage(entry.PackageID, inspection.Descriptor)
+			packages[entry.PackageID] = computerPackage(entry.PackageID, inspection.Descriptor)
 		}
 		packageReady := inspection.Descriptor.Core.ID == entry.CoreID
 		ready := packageReady && shelfCompositionReady(comps[entry.GameID])
@@ -107,18 +104,12 @@ func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, []Comput
 	return out, pkgs, nil
 }
 
-func (s *Service) computerPackage(packageID string, d corepackage.Descriptor) ComputerPackage {
+func computerPackage(packageID string, d corepackage.Descriptor) ComputerPackage {
 	media := make([]ComputerMediaSaves, 0)
 	for _, c := range protocol.DeclaredCoreMediaCapabilities(d) {
 		media = append(media, ComputerMediaSaves{Role: c.Role, Saves: protocol.CoreMediaSaves(d, c)})
 	}
-	out := ComputerPackage{PackageID: packageID, Media: media}
-	if pcxtWritableFloppyPackage(d) {
-		if boot, ok := s.bundledDisk(pcxtCoreID); ok && boot.Size == protocol.PcxtFloppyBytes {
-			out.StartDisk = boot.Name
-		}
-	}
-	return out
+	return ComputerPackage{PackageID: packageID, Media: media}
 }
 
 func shelfPlayableABI(abi corepackage.Contract) bool {

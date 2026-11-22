@@ -319,7 +319,7 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.routes.ServeHTTP(w, r)
 			return
 		}
-		if launcherShelfOperation(r.Method, r.URL.Path) {
+		if launcherStShelfOperation(r.Method, r.URL.Path) {
 			// Saved disk changes live on a kit: the shelf is this kit's, even
 			// when another target remains foreground.
 			r = r.WithContext(fogcast.WithSessionTarget(r.Context(), name))
@@ -587,7 +587,7 @@ func launcherOperation(method, path string) bool {
 	if launcherLiveMutation(method, path) || method == http.MethodPost && launcherTapeImportPath(path) {
 		return true
 	}
-	if launcherShelfOperation(method, path) {
+	if launcherStShelfOperation(method, path) {
 		return true
 	}
 	if method == http.MethodPut && (launcherExpansionSelectionPath(path) || launcherSlotExpansionSelectionPath(path)) {
@@ -612,22 +612,19 @@ func launcherOperation(method, path string) bool {
 	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path) || launcherCoreEntryPath(path) || launcherCorePackageReadPath(path) || launcherROMSelectionPath(path) || launcherExpansionReadPath(path) || launcherCoreCatalogSetupPath(path))
 }
 
-// launcherShelfOperation admits a family's disk shelf: its list, a new disk,
-// and the four actions on one disk.
-func launcherShelfOperation(method, path string) bool {
-	rest, ok := strings.CutPrefix(path, "/api/v1/library/disk-shelves/")
-	if !ok {
-		return false
-	}
-	core, rest, more := strings.Cut(rest, "/")
-	if !validShelfCore(core) {
-		return false
-	}
-	if !more {
+// launcherStShelfOperation admits the Atari ST disk shelf: its list, a new
+// disk, and the four actions on one disk.
+func launcherStShelfOperation(method, path string) bool {
+	const base = "/api/v1/library/atari-st-shelf"
+	if path == base {
 		return method == http.MethodGet || method == http.MethodPost
 	}
+	rest, ok := strings.CutPrefix(path, base+"/")
+	if !ok || method != http.MethodPost {
+		return false
+	}
 	game, action, ok := strings.Cut(rest, "/")
-	if !ok || method != http.MethodPost || protocol.ValidateGameID(game) != nil {
+	if !ok || protocol.ValidateGameID(game) != nil {
 		return false
 	}
 	return action == "copy" || action == "revert" || action == "rename" || action == "delete"

@@ -89,9 +89,6 @@ type Action struct {
 	SessionID         string
 	FlightID          string
 	MediaBinding      protocol.DevelopmentMediaBinding
-	// MediaID and MediaName name the library medium ActionChangeDisk puts in.
-	MediaID   string
-	MediaName string
 }
 
 // ActionKind names a launcher request.
@@ -115,10 +112,4 @@ const (
 	ActionHardwareDisks
 	ActionHardwareExpansions
 	ActionFirmwareInfo
-	// ActionHardwareAddDisk adds a disk to a game's set from a file, after
-	// its last disk.
-	ActionHardwareAddDisk
-	// ActionChangeDisk puts one library medium, by ID and file name, in the
-	// running machine's drive: the next disk of a set.
-	ActionChangeDisk
 )

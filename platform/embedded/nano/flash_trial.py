@@ -16,8 +16,7 @@ import threading
 from jtag_programming import ProgramAttempt, _persist, _cable
 
 ARRAY_BYTES = 16 << 20
-# Quartus maps this flash-loader part to TRWU8CBL's exact 0x4362C0DD ID.
-PART = 'A5EB013BB23BR1'
+PART = 'A5EB013BB23B'
 FLASH = 'MT25QU128'
 ROLES = ('native', 'factory-recovery')
 _REVERSE = bytes(int(f'{value:08b}'[::-1], 2) for value in range(256))
@@ -106,8 +105,7 @@ def command(cable, image):
     validate_image(image)
     if not _cable(cable):
         raise ValueError('exact private top cable required')
-    # The validated JIC supplies the revision-specific flash-loader part.
-    return ['-c', cable, '-m', 'jtag', '-o', 'IPV;'+image['path']+';A5EB013BB23B@1']
+    return ['-c', cable, '-m', 'jtag', '-o', 'IPV;'+image['path']+';'+PART+'@1']
 
 
 def programmer_success(result):
