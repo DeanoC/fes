@@ -1,5 +1,8 @@
 # Slice 4d: the kernel owner's window (design)
 
+Slice 4d of #2029 (plan #2109). It lands on main on its own; the pc386
+runtime backend that uses it is #2115.
+
 This is the image change P2 approves, built and tested only. Building an
 image for a kit or flashing one waits for Deano's OK at that time.
 References are to `image/kernel/de25-dma/` at #2036's head `af58ebed2`.

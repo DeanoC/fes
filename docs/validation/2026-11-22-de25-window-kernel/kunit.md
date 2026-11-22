@@ -2,7 +2,7 @@
 
 The DE25 DMA owner's KUnit suite, run under QEMU (`linux,dummy-virt`) with
 the locked kernel, SDK and builder (`scripts/de25_kernel_test.py`), at
-`5b61791ce`. No hardware is reached and no image is built.
+`3c342e7fc` (this branch, from main). No hardware is reached and no image is built.
 
 ```
 python3 scripts/de25_kernel_test.py run --cache <cache> --image-output <dir> --output <new> --jobs 12
@@ -41,7 +41,8 @@ cached copy on this host) and the vendor `Image` (`874f75d8…`).
 The register model is `fes_de25_hps_window_control.v`'s write rules. It
 fails the test on any write the RTL answers with SLVERR.
 
-**Mutations, each run through the same runner on a local commit:**
+**Mutations, each run through the same runner on a local commit** (made on
+`5b61791ce`, the same kernel sources on the pc386 stack before the move):
 
 - Publish without its precondition read: `window_refuses_a_block_it_cannot_grant`
   fails (65/66).
