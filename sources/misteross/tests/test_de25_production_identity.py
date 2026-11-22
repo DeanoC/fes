@@ -31,7 +31,7 @@ class ProductionIdentityTests(unittest.TestCase):
                    'boards/de25nano/producers/build_zx81_package.py',
                    'boards/de25nano/package/core_package.py',
                    'boards/de25nano/package/export_core_package.py'}
-        for module in ('fes_build_common', 'functional_execution',
+        for module in ('quartus_tools', 'fes_build_common', 'functional_execution',
                        'source_closure', 'compiler_read_audit'):
             helpers |= imports(module, ROOT)
         helpers.add('boards/de25nano/producers/review_audio_clocks.py')
@@ -134,7 +134,10 @@ class ProductionIdentityTests(unittest.TestCase):
                 (root / pcxt).write_bytes((ROOT / pcxt).read_bytes())
                 self.commit(directory)
                 original = self.record(producer, root, captured)
-                self.assertNotIn(pcxt, verify_record_source_at_revision(root, original)['source_inputs'])
+                inputs = verify_record_source_at_revision(root, original)['source_inputs']
+                self.assertNotIn(pcxt, inputs)
+                # tree_digest authenticates the tool installations, so its module is bound.
+                self.assertIn('scripts/quartus_tools.py', inputs)
                 (root / pcxt).write_bytes((ROOT / pcxt).read_bytes() + b'\n# Changed PC/XT producer.\n')
                 self.commit(directory)
                 changed = self.record(producer, root, captured)

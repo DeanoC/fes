@@ -221,7 +221,7 @@ def captured_source_closure(root, source_roots, captured, recipe, review_inputs)
     # These modules import each other outside scripts/. Bind the complete
     # board-local producer and codec directories, including the static recipe.
     roots.update({'boards/de25nano/producers', 'boards/de25nano/package'})
-    for module in ('fes_build_common', 'functional_execution',
+    for module in ('quartus_tools', 'fes_build_common', 'functional_execution',
                    'source_closure', 'compiler_read_audit'):
         roots.update(script_imports(module, root))
     paths = {Path(name).relative_to('sources/misteross').as_posix(): data
