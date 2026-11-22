@@ -90,3 +90,20 @@ than gate it behind a define.
 Not yet run. Both are taken at the head that merges, after #2077 and the pc386
 reseal: condition 3 never carries across a base move, and condition 2 is
 re-measured if a merge moves a row's route-deciding inputs.
+
+## Merge forward to `904140f8f`
+
+Main was merged into the branch at `f153f04b7` (new base `904140f8f`).
+`closure_touched.py 61c33cc2f 904140f8f` hits two of these producers:
+`build_fes_c64_oss` (C64 RTL and its producer) and `build_fes_spectrum_oss`
+(`cores/fes-spectrum/diagnostic/firmware.py`). No toolchain lock or bootstrap
+changed. So, under D12's merge-forward clause:
+
+- **Re-measured** at `904140f8f` against `f153f04b7`, two passes (`cond1-newbase/`):
+  `fes.c64` `0d107b7f3a2b24de` (main's own netlist moved), `fes.spectrum`
+  `29436bf7023a44f9`, `fes.spectrum-plus3` `e7e24c520633d9ff` and
+  `fes.pcxt-dos` `06b2e8cf5d1d7a18`, each byte-identical, base to head.
+  PC/XT was not hit, and was re-measured anyway since it costs no route.
+- **Carried:** `fes.apple2`, `fes.atari-st` and the four ZX81-family machines,
+  whose compiled sources and route-deciding inputs did not change between the
+  two bases.
