@@ -1,4 +1,4 @@
-"""DE25 Spectrum and Atari ST producer identity, manifest and firmware binding.
+"""DE25 Spectrum, Atari ST and C64 producer identity, manifest and firmware binding.
 
 The temporary Git tree and payload below exercise source and manifest
 boundaries; they are deliberately unqualified and never stand in for a
@@ -18,6 +18,7 @@ from boards.de25nano.package.core_package import PackageError, encode_manifest, 
 from boards.de25nano.package.export_core_package import (
     build_identity, export_package, verify_record_source_at_revision)
 from boards.de25nano.producers import build_atari_st_package as atari_st
+from boards.de25nano.producers import build_c64_package as c64
 from boards.de25nano.producers import build_machine_package as shared
 from boards.de25nano.producers import build_spectrum_package as spectrum
 from boards.de25nano.spectrum import native_hps
@@ -36,7 +37,9 @@ CASES = (
      {'fes.media.spectrum-tape', 'fes.media.spectrum-disk', 'fes.media.spectrum-disk-trdos'}),
     (atari_st, '520st', 196608, 'fes.atari-st', 'atari-st-firmware', {'fes.mouse.relative', 'fes.media.atari-st-floppy',
                                  'fes.media.atari-st-floppy-write', 'fes.media.atari-st-floppy-geometry'}),
+    (c64, 'pal', 36864, 'fes.c64', 'c64-firmware', {'fes.media.c64-disk'}),
 )
+PRODUCERS = (spectrum, atari_st, c64)
 
 
 class MachineProducerTests(unittest.TestCase):
@@ -47,14 +50,14 @@ class MachineProducerTests(unittest.TestCase):
         cls.root = Path(cls.temp.name)
         # The real captured closure of both machines, laid out as a source module.
         cls.captured = {}
-        for producer in (spectrum, atari_st):
+        for producer in PRODUCERS:
             spec = producer.MACHINE.spec(ROOT)
             cls.captured[producer] = spec.board.capture(spec)
         data = {}
         for captured in cls.captured.values():
             data.update({Path(name).relative_to('sources/misteross').as_posix(): value
                          for name, value in captured.items()})
-        for name in (spectrum.RECIPE, atari_st.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
+        for name in (spectrum.RECIPE, atari_st.RECIPE, c64.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
                      'boards/de25nano/quartus.lock', 'boards/de25nano/package/core_package.py',
                      'boards/de25nano/package/export_core_package.py', shared.NATIVE_SPECTRUM_COMPOSER, *shared.REVIEW_INPUTS):
             data.setdefault(name, (ROOT / name).read_bytes())
@@ -90,7 +93,7 @@ class MachineProducerTests(unittest.TestCase):
                 self.assertEqual(parameters['rom_id'], rom_id)
                 self.assertEqual((parameters['model'], parameters['firmware_bytes']), (model, size))
                 self.assertEqual(parameters['firmware_delivery'], 'gp-firmware-upload-v1')
-                self.assertEqual(parameters['guest_memory'], 'board-sdram')
+                self.assertEqual(parameters['guest_memory'], 'fabric-bram' if producer is c64 else 'board-sdram')
                 self.assertEqual(parameters['programming_profile'], 'de25-linux-computer-v1')
                 self.assertEqual(parameters['machine_clock_hz'], 52222222)
                 self.assertFalse(parameters['expansion_socket'])
@@ -200,7 +203,7 @@ class MachineProducerTests(unittest.TestCase):
                 self.assertFalse((directory / 'generation.json').exists())
 
     def test_refuses_before_any_build(self):
-        for producer in (spectrum, atari_st):
+        for producer in PRODUCERS:
             with mock.patch.object(producer.MACHINE, 'spec', side_effect=AssertionError('builder ran')):
                 with self.assertRaisesRegex(shared.BuildError, 'requires --vendor-archive'):
                     producer.build(quartus_root='', vendor_archive=None)

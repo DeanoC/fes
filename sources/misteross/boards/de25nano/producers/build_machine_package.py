@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a standard DE25 machine whose firmware is uploaded at launch.
 
-Shared by the Spectrum and Atari ST producers. Packaging uses the same complete
+Shared by the Spectrum, Atari ST and C64 producers. Packaging uses the same complete
 timing/input-review and independent-RBF gates as the DE25 ZX81; a candidate
 those gates refuse is retained and never packaged. The package is format 3: the
 payload is the unmodified bitstream, and its ROM map names only the size of the
@@ -50,8 +50,12 @@ class Machine:
     """One machine: its board spec, its package identity and its own interfaces."""
 
     def __init__(self, *, recipe, directory, core_id, rom_id, name, version, descriptions, interfaces,
-                 model_core_ids=None, model_rom_ids=None, model_profiles=None, model_interfaces=None):
+                 model_core_ids=None, model_rom_ids=None, model_profiles=None, model_interfaces=None,
+                 guest_memory='board-sdram'):
         self.recipe, self.directory, self.core_id, self.rom_id = recipe, directory, core_id, rom_id
+        # Where the guest's RAM and media live: the board SDRAM, or the
+        # machine's own block RAM as on the DE10 (the C64).
+        self.guest_memory = guest_memory
         self.model_core_ids = dict(model_core_ids or {})
         self.model_rom_ids = dict(model_rom_ids or {})
         self.model_profiles = dict(model_profiles or {})
@@ -116,7 +120,7 @@ class Machine:
                 'fabric_initiator_policy': 'native-maintenance-absent-v1' if native_spectrum else common.MANAGED_FABRIC,
                 'programming_profile': profile,
                 'standard_core': True, 'linux_dma': not native_spectrum,
-                'expansion_socket': False, 'guest_memory': 'board-sdram',
+                'expansion_socket': False, 'guest_memory': self.guest_memory,
                 'firmware_delivery': UPLOAD_ENCODING, 'firmware_bytes': spec.FIRMWARE_BYTES[model],
                 'machine_clock_hz': spec.board.MACHINE_HZ, 'audio_clock_requested_hz': 12288000,
                 'fifo_reset_sharing': common.SHARED_FIFO_RESETS,

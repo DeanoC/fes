@@ -306,19 +306,23 @@ def fpga_cores(path):
                         'export_static_persona.py', 'review_audio_clocks.py'):
                 return ('zx81',), 'DE25 ZX81 package producer and qualified review'
             if name == 'build_machine_package.py':
-                return ('spectrum', 'atari-st'), 'DE25 uploaded-firmware machine package producer'
+                return ('spectrum', 'atari-st', 'c64'), 'DE25 uploaded-firmware machine package producer'
             if name == 'build_spectrum_package.py':
                 return ('spectrum',), 'DE25 Spectrum package producer'
             if name == 'build_atari_st_package.py':
                 return ('atari-st',), 'DE25 Atari ST package producer'
+            if name == 'build_c64_package.py':
+                return ('c64',), 'DE25 C64 package producer'
         if len(parts) >= 4 and parts[2] == 'package':
             return ('menu', 'zx81'), 'DE25 package format implementation'
         if parts[2] == 'spectrum':
             return ('spectrum',), 'DE25 Spectrum integration and its derivations'
         if parts[2] == 'atari-st':
             return ('atari-st',), 'DE25 Atari ST integration and its derivations'
+        if parts[2] == 'c64':
+            return ('c64',), 'DE25 C64 integration and its derivations'
         if parts[2] == 'machine':
-            return ('spectrum', 'atari-st'), 'DE25 uploaded-firmware machine builder'
+            return ('spectrum', 'atari-st', 'c64'), 'DE25 uploaded-firmware machine builder'
         if len(parts) >= 4 and parts[2] == 'shared-rtl':
             name = parts[3]
             if name in ('fes_menu_reader.v', 'fes_menu_video.v', 'fes_menu_control.v'):
@@ -327,9 +331,12 @@ def fpga_cores(path):
                 return ('spectrum',), 'DE25 Spectrum machine shell'
             if name in ('fes_atari_st_core.v', 'fes_st_rom_sdram.v'):
                 return ('atari-st',), 'DE25 Atari ST machine shell'
-            if name in ('fes_firmware_upload.v', 'fes_gp_crossing.v', 'fes_media_sdram.v',
-                        'fes_de25_machine_audio.v'):
-                return ('spectrum', 'atari-st'), 'DE25 uploaded-firmware machine shell'
+            if name in ('fes_c64_core.v', 'fes_c64_firmware_rom.v'):
+                return ('c64',), 'DE25 C64 machine shell'
+            if name == 'fes_media_sdram.v':
+                return ('spectrum', 'atari-st'), 'DE25 board SDRAM media store'
+            if name in ('fes_firmware_upload.v', 'fes_gp_crossing.v', 'fes_de25_machine_audio.v'):
+                return ('spectrum', 'atari-st', 'c64'), 'DE25 uploaded-firmware machine shell'
             if name in ('fes_computer_mailbox.v', 'fes_display_plane.v',
                         'fes_zx81_core.v', 'zx81_machine.sv', 'zx81_machine_clock.v',
                         'zx81_top.v'):

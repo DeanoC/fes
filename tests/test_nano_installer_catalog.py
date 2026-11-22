@@ -12,7 +12,7 @@ import paired_tenfoot_trace as paired
 from test_nano_installer_client import Model as SingleModel,closed_panel
 from test_nano_installer_cycle import Capture
 from test_nano_paired_tenfoot_trace import Model as PairedModel,MENU_OPEN,MENU_CLOSE,CORE_OPEN
-from test_nano_program_client import OWNER,SPEC
+from nano_program_fixtures import OWNER,SPEC
 from test_nano_tenfoot_trace import PROGRAMS
 
 class Model(SingleModel):
