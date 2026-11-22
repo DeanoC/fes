@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/maccontrol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 )
@@ -83,10 +84,16 @@ type Config struct {
 	// Explicit hardware contract: Linux generic XGMAC uses bits 14:1;
 	// SoCFPGA U-Boot uses bits 14:4. Never autodetect or silently fall back.
 	RXBufferShift uint8
+	// IRQ optionally specifies the GICv3 SPI INTID for this MAC (e.g. Agilex 5
+	// IRQEMAC0=222, IRQEMAC1=239, IRQEMAC2=256). When non-zero, posted RX
+	// descriptors set IOC and EnableIRQ can bind GIC delivery; zero keeps
+	// polling-only mode.
+	IRQ uint32
 }
 type failure struct{ err error }
 type Device struct {
 	mu                             sync.Mutex
+	irqMu                          sync.Mutex
 	io                             Registers
 	memory                         Memory
 	config                         Config
@@ -99,6 +106,10 @@ type Device struct {
 	rx, tx                         uint32
 	nextLink                       time.Time
 	received, transmitted, dropped atomic.Uint64
+	irqGIC                         *gic.Controller
+	rxReady                        chan struct{}
+	irqActive                      atomic.Bool
+	irqCount                       atomic.Uint64
 }
 
 func Open(io Registers, memory Memory, config Config) (*Device, error) {
@@ -106,10 +117,13 @@ func Open(io Registers, memory Memory, config Config) (*Device, error) {
 	if err != nil || len(mac) != 6 || mac[0]&1 != 0 || mac.String() == "00:00:00:00:00:00" || config.PHYAddress > 31 || config.PHYID == 0 || config.PHYID == 0xffffffff || config.CSRClockHz < 100000000 || config.CSRClockHz >= 150000000 || (config.RXBufferShift != 1 && config.RXBufferShift != 4) {
 		return nil, fmt.Errorf("xgmac: invalid explicit MAC/PHY/clock/layout configuration")
 	}
+	if config.IRQ != 0 && (config.IRQ < gic.FirstSPI || config.IRQ >= gic.MaxINTID) {
+		return nil, fmt.Errorf("xgmac: invalid SPI interrupt ID %d", config.IRQ)
+	}
 	if io == nil || memory == nil || memory.Base()%64 != 0 || memory.Size() < RequiredBytes || memory.Base() >= 1<<32 || memory.Size() > 1<<32-memory.Base() {
 		return nil, fmt.Errorf("xgmac: invalid pinned DMA region")
 	}
-	d := &Device{io: io, memory: memory, config: config, mac: mac.String(), dmaBase: memory.Base(), dmaBytes: memory.Size()}
+	d := &Device{io: io, memory: memory, config: config, mac: mac.String(), dmaBase: memory.Base(), dmaBytes: memory.Size(), rxReady: make(chan struct{}, 1)}
 	if err := d.initialize(mac); err != nil {
 		return d, d.retireControl(err)
 	}
@@ -277,17 +291,30 @@ func (d *Device) post(index uint32) {
 	d.memory.Write32(desc+4, 0)
 	d.memory.Write32(desc+8, 0)
 	d.memory.Barrier()
-	d.memory.Write32(desc+12, own)
+	flags := own
+	if d.config.IRQ != 0 {
+		flags |= rxIOC
+	}
+	d.memory.Write32(desc+12, flags)
 	d.memory.Barrier()
 }
+func (d *Device) poisonMemory(err error) {
+	if pm, ok := d.memory.(interface{ Poison(error) }); ok {
+		pm.Poison(err)
+	}
+}
 func (d *Device) fail(err error) error {
-	if d.fault.CompareAndSwap(nil, &failure{err: err}) && d.started {
-		// Best effort to stop new traffic. Register bits clearing are NOT a DMA
-		// fence: all buffers and descriptors stay pinned until reboot, even on success.
-		d.io.Write32(txConfig, d.io.Read32(txConfig)&^1)
-		d.io.Write32(rxConfig, d.io.Read32(rxConfig)&^1)
-		d.io.Write32(txControl, d.io.Read32(txControl)&^1)
-		d.io.Write32(rxControl, d.io.Read32(rxControl)&^1)
+	if d.fault.CompareAndSwap(nil, &failure{err: err}) {
+		d.retireIRQLocked(d.started)
+		d.poisonMemory(err)
+		if d.started {
+			// Best effort to stop new traffic. Register bits clearing are NOT a DMA
+			// fence: all buffers and descriptors stay pinned until reboot, even on success.
+			d.io.Write32(txConfig, d.io.Read32(txConfig)&^1)
+			d.io.Write32(rxConfig, d.io.Read32(rxConfig)&^1)
+			d.io.Write32(txControl, d.io.Read32(txControl)&^1)
+			d.io.Write32(rxControl, d.io.Read32(rxControl)&^1)
+		}
 	}
 	return d.Err()
 }
@@ -320,8 +347,16 @@ func (d *Device) Receive(dst []byte) (int, error) {
 	desc := rxRing + d.rx*16
 	state := d.memory.Read32(desc + 12)
 	if state&own != 0 {
-		runtime.Gosched()
-		return 0, nil
+		if d.irqActive.Load() {
+			if recheck := d.rearmRXIRQLocked(desc); recheck&own == 0 {
+				state = recheck
+			} else {
+				return 0, nil
+			}
+		} else {
+			runtime.Gosched()
+			return 0, nil
+		}
 	}
 	d.memory.Barrier()
 	if state&contextDesc != 0 || state&last == 0 {

@@ -14,14 +14,26 @@ autonegotiation setup, RGMII routing/delays, 125 MHz reference, MAC CSR clocks,
 reset/firewalls and SMMU configuration. There is no PHY scan or guessed address.
 
 Four 16-byte TX and RX descriptors and private 1600-byte buffers live in an
-explicit, permanently reserved Normal noncacheable DMA window outside Go RAM.
-The driver copies TX bytes into that window, publishes descriptors with ARM
-barriers, and reuses a TX slot only after completion. RX bytes reach the caller
-only after ownership returns and bounds/errors are checked; valid retired slots
-are reposted. No hardware DMA points at a Go heap object. Interrupts, jumbo
-frames, checksum/segmentation offloads, promiscuous receive and pause negotiation
-are disabled. RX CRC/length errors drop; unexpected descriptor contexts/fragments,
-fatal DMA status, stopped engines, link loss and TX timeouts retire the device.
+explicit, permanently reserved Normal noncacheable DMA window outside Go RAM
+(wrapped via `NewPoolMemory` over an uncached [`dmaops.Pool`](../dmaops/README.md)
+on DE25-Nano). The driver copies TX bytes into that window, publishes descriptors
+with ARM barriers, and reuses a TX slot only after completion. RX bytes reach the
+caller only after ownership returns and bounds/errors are checked; valid retired
+slots are reposted. No hardware DMA points at a Go heap object. Jumbo frames,
+checksum/segmentation offloads, promiscuous receive and pause negotiation are
+disabled. RX CRC/length errors drop; unexpected descriptor contexts/fragments,
+fatal DMA status, stopped engines, link loss and TX timeouts retire the device
+and poison the underlying `dmaops.Buffer`.
+
+When `Config.IRQ` names a GICv3 SPI (for example `de25nano.IRQEMAC0/1/2` via
+`de25nano.EMACIRQ`), posted RX descriptors set `RDES3.IOC` and `EnableIRQ(g)`
+routes DMA Channel 0 `NIE|RIE` interrupts to wake `network.Link.Start` via
+`RXReady()` instead of spinning. The level-triggered handler immediately masks
+`channelInterrupt = 0` and clears only `RI|NIS`, and `Receive` re-arms `NIE|RIE`
+with a descriptor re-check once the ring drains. `BindControl.Stop` suspends the
+GIC SPI before `platform.Stop` (guaranteeing zero MMIO from the handler while
+contained) and `BindControl.Start` restores it after reinitialization. Default
+`Config.IRQ == 0` retains polling-only behavior.
 
 Failure stops new MAC/DMA activity as a best effort, but clearing start bits is
 **not** a DMA fence. The entire window remains pinned until reboot, even when

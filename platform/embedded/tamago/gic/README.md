@@ -65,7 +65,10 @@ routes the VirtIO-net MMIO slot's GICv3 SPI (`48 + slot`) to wake `Link.Start`,
 and `(*block.VirtIO).EnableIRQ(g)` routes the VirtIO-block slot's SPI (`48 + slot`)
 to wake pending disk transfers from `WFI`; `cmd/tenfoot` enables both alongside
 `WFI` idle. On DE25-Nano, `(*sdhci.Device).EnableIRQ(g, de25nano.IRQSDMMC)`
-routes Cadence SDHCI SPI 128 into level-safe status waits.
+routes Cadence SDHCI SPI 128 into level-safe status waits, and
+`(*xgmac.Device).EnableIRQ(g)` routes Agilex 5 XGMAC SPIs
+(`de25nano.IRQEMAC0/1/2` = 222/239/256) to wake `network.Link.Start` via
+`RXReady()` (wired in `cmd/fpgaload` when Ethernet is enabled).
 
 ## FPGA-to-HPS doorbells (DE25-Nano)
 
