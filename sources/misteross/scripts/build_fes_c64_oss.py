@@ -100,7 +100,7 @@ RTL_INCLUDES = (
     "cores/fes-c64/rtl/c64_sid_combined_waves.vh",
     "cores/fes-c64/rtl/c64_sid_svf_tables.vh",
     "cores/fes-c64/rtl/c64_bus.vh",
-    "cores/fes-c64/rtl/c64_pal_timing.vh",
+    "cores/fes-c64/rtl/c64_timing.vh",
 )
 RTL_SOURCES = (
     "cores/fes-common/rtl/fes_display_cdc.v",

@@ -1065,7 +1065,7 @@ class HilPlanTest(unittest.TestCase):
         required = {item['command'] for item in result['command_evidence']}
         self.assertTrue({'fes-boot', 'fes-kit-software', 'fes-kit-data'} <= required, required)
         self.assertNotIn('target-image-lock', required)
-        self.assertNotIn('mister-bridge', {item['command'] for item in result['advisory_commands']})
+        self.assertNotIn('fes-parts', {item['command'] for item in result['advisory_commands']})
         self.assertIn(path, result['go_graph_unverified'])
 
     def test_go_source_under_docs_or_testdata_is_not_assumed_documentation(self):
@@ -1094,7 +1094,7 @@ class HilPlanTest(unittest.TestCase):
                 self.assertEqual(result['decision'], 'COMMAND_EVIDENCE_REQUIRED')
                 self.assertIn(name, {item['command'] for item in result['command_evidence']})
                 self.assertNotEqual(result['deployment_decision'], 'FULL_IMAGE')
-        for name in ('mister-bridge', 'fes-parts', 'fes-spectrum-disk', 'fes-spectrum-restore'):
+        for name in ('fes-parts', 'fes-spectrum-disk', 'fes-spectrum-restore'):
             with self.subTest(command=name):
                 path = f'sources/FogCast/cmd/{name}/main.go'
                 result = planner.plan([path], texts={}, go_graph_changes=[])

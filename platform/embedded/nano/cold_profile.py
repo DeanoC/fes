@@ -71,11 +71,7 @@ def entry(entry_build):
     hps_context.checked_control(receipt,program_key='native_program')
     configuration=hps_context.checked_configuration(receipt,program_key='native_program')
     reader_memory=hps_context.checked_reader_memory(receipt,program_key='native_program')
-    hps_context.checked_window_read(receipt,program_key='native_program')
     hps_context.checked_menu_read(receipt,program_key='native_program')
-    window=reader_memory is not None and reader_memory.get('scope')=='sealed-cold-window-reader-memory-v1'
-    if type(receipt.get('window_memory',False)) is not bool or receipt.get('window_memory',False)!=window:
-        raise ValueError('cold window memory requires the explicitly selected native entry')
     cpu_map=hps_context.checked_cpu_mapping(receipt,program_key='native_program')
     hps_context.checked_ddr_read(receipt,program_key='native_program')
     hps_context.checked_computer(receipt,program_key='native_program')
@@ -203,7 +199,6 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
     reader_memory=hps_context.checked_reader_memory(build,program_key='native_program')
     cpu_map=hps_context.checked_cpu_mapping(build,program_key='native_program')
     ddr_read=hps_context.checked_ddr_read(build,program_key='native_program')
-    window_read=hps_context.checked_window_read(build,program_key='native_program')
     menu_read=hps_context.checked_menu_read(build,program_key='native_program')
     computer=hps_context.checked_computer(build,program_key='native_program')
     rom=hps_context.checked_rom(build,program_key='native_program')
@@ -238,13 +233,8 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
               'hps_ddr_read':ddr_read,'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read else None,
               'hps_computer':computer,'hps_computer_sha256':hps_context.digest(computer) if computer else None,
               'hps_rom':rom,'hps_rom_sha256':hps_context.digest(rom) if rom else None,
-              'window_memory':build.get('window_memory',False),
               'menu_present':build.get('menu_present',False),'hps_menu_read':menu_read,
               'hps_menu_read_sha256':hps_context.digest(menu_read) if menu_read else None,
-              'window_present':build.get('window_present',False),
-              'window_storage_return':build.get('window_storage_return',False),
-              'window_reload':build.get('window_reload',False),
-              'window_service':build.get('window_service',False),
               'tenfoot_serial':build.get('tenfoot_serial',False),
               'initial_tape':hps_context.initial_tape.checked(build,program_key='native_program'),
               'initial_tape_memory':hps_context.initial_tape.checked_memory(build),
@@ -255,8 +245,6 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
               **({'shared_core_shell': True} if shared_shell else {}),
               **({'spectrum48_program': spectrum, 'spectrum48_program_sha256': hps_context.digest(spectrum)}
                  if spectrum is not None else {}),
-              'window_read':window_read is not None,'hps_window_read':window_read,
-              'hps_window_read_sha256':hps_context.digest(window_read) if window_read else None,
               'computer_reload':build.get('computer_reload',False),
               'computer_storage_return':build.get('computer_storage_return',False)}
     identity['firmware_ram']=firmware_memory.selected(identity,firmware_ram)
@@ -305,7 +293,7 @@ def header(profile):
     def array(value):return '{'+','.join('0x'+value[i:i+2] for i in range(0,len(value),2))+'}'
     smmu=profile.get('smmu_observe',False)
     if type(smmu) is not bool or smmu and (profile['sd_pio'] or
-            any(profile.get(key) is not None for key in ('hps_context','hps_io','hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer'))):
+            any(profile.get(key) is not None for key in ('hps_context','hps_io','hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_computer'))):
         raise ValueError('boot SMMU observation requires its separate serial-only profile')
     usb=profile.get('usb_pio',False)
     usb_probe=profile.get('usb_probe',False)
@@ -323,7 +311,7 @@ def header(profile):
                 ('hps_io','hps_control','hps_configuration','hps_reader_memory','hps_computer')):
             raise ValueError('shared USB requires sealed pins, SD and complete selected computer resources')
     if type(usb) is not bool or usb and (profile.get('hps_io') is None or smmu or not shared and (profile['sd_pio'] or
-            any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer')))):
+            any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_computer')))):
         raise ValueError('USB PIO requires its sealed pins and separate contained cold profile')
     control=profile.get('hps_control');extra='#define FES_NANO_CONTROL_PROBE '+str(int(control is not None))+'\n'
     extra+='#define FES_NANO_FIRMWARE_OCRAM '+str(int(ram is not None))+'\n'
@@ -333,7 +321,7 @@ def header(profile):
     extra+='#define FES_NANO_HPS_IO_OBSERVE '+str(int(io_map is not None))+'\n'
     if io_map is not None:
         if (profile.get('hps_context') is None or not shared and (profile['sd_pio'] or
-                any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer'))) or
+                any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_computer'))) or
                 profile.get('hps_io_sha256')!=hps_context.digest(io_map)):
             raise ValueError('HPS I/O observation requires its separate sealed serial-only context')
         hps_context.validate_hps_io(io_map,profile['hps_context'])
@@ -371,16 +359,14 @@ def header(profile):
     if menu!=menu_present:
         raise ValueError('cold menu memory requires its complete selected presentation profile')
     if reader_memory is not None:
-        window=reader_memory.get('scope')=='sealed-cold-window-reader-memory-v1'
         if (configuration is None or control is None or not profile['sd_pio'] or
-                profile['hps_context']['programming_profile'] not in ((hps_context.MENU_PROFILE,) if menu else ('de25-embedded-hps-first-window-diagnostic-v1',) if window else
+                profile['hps_context']['programming_profile'] not in ((hps_context.MENU_PROFILE,) if menu else
                     ('de25-embedded-hps-first-ddr-diagnostic-v1',*hps_context.ROM_PROFILES)) or
-                type(profile.get('window_memory',False)) is not bool or profile.get('window_memory',False)!=window or
                 profile.get('hps_reader_memory_sha256')!=hps_context.digest(reader_memory)):
             raise ValueError('cold reader memory requires its source-bound DDR configuration profile')
         hps_context.validate_reader_memory(profile['hps_context'],reader_memory)
         stop=control.get('fabric_stop')
-        if stop!={'scope':'sealed-menu-master-stop-v1' if menu else 'sealed-window-master-stop-v1' if window else 'sealed-ddr-master-stop-v1','probe_cpu_base':0x20010100,
+        if stop!={'scope':'sealed-menu-master-stop-v1' if menu else 'sealed-ddr-master-stop-v1','probe_cpu_base':0x20010100,
                   'probe_span':128,'maintenance':'held-reset-from-configuration'}:
             raise ValueError('cold DDR reader requires the sealed complete master stop map')
         extra+=('#define FES_NANO_READER_CPU_BASE '+hex(reader_memory['cpu_base'])+'ULL\n'
@@ -390,21 +376,18 @@ def header(profile):
                 '#define FES_NANO_READER_MAP_SHA '+array(profile['hps_reader_memory_sha256'])+'\n'
                 '#define FES_NANO_PROBE_CPU_BASE '+hex(stop['probe_cpu_base'])+'UL\n'
                 '#define FES_NANO_PROBE_SPAN '+str(stop['probe_span'])+'U\n')
-        if window or menu:
+        if menu:
             if profile.get('hps_ddr_read') is not None or profile.get('hps_computer') is not None:
-                raise ValueError('window memory cannot inherit a fixed-burst or computer command recipe')
+                raise ValueError('menu memory cannot inherit a fixed-burst or computer command recipe')
             extra+=('#define FES_NANO_WINDOW_MEMORY 1\n'
                     '#define FES_NANO_WINDOW_FRAME_BYTES '+str(reader_memory['frame_bytes'])+'U\n'
                     '#define FES_NANO_WINDOW_ROW_BYTES '+str(reader_memory['row_bytes'])+'U\n'
                     '#define FES_NANO_WINDOW_STRIDE '+str(reader_memory['stride'])+'U\n'
-                    '#define FES_NANO_WINDOW_ROWS '+str(reader_memory['rows'])+'U\n')
-            if menu:
-                extra+=('#define FES_NANO_MENU_MEMORY 1\n'
-                        '#define FES_NANO_MENU_SLOTS '+str(reader_memory['slots'])+'U\n'
-                        '#define FES_NANO_MENU_SLOT_BYTES '+str(reader_memory['slot_bytes'])+'U\n')
+                    '#define FES_NANO_WINDOW_ROWS '+str(reader_memory['rows'])+'U\n'
+                    '#define FES_NANO_MENU_MEMORY 1\n'
+                    '#define FES_NANO_MENU_SLOTS '+str(reader_memory['slots'])+'U\n'
+                    '#define FES_NANO_MENU_SLOT_BYTES '+str(reader_memory['slot_bytes'])+'U\n')
         else:extra+='#define FES_NANO_READER_PATTERN_SHA '+array(reader_memory['pattern_sha256'])+'\n'
-    elif profile.get('window_memory',False) is not False:
-        raise ValueError('window memory requires its complete compiled reservation')
     ddr_read=profile.get('hps_ddr_read')
     if ddr_read is not None:
         if (reader_memory is None or profile.get('hps_ddr_read_sha256')!=hps_context.digest(ddr_read) or
@@ -424,18 +407,6 @@ def header(profile):
         extra+='#define FES_NANO_DDR_READ_ATTRS_VERIFIED 1\n'
         extra+='#define FES_NANO_DDR_READ_MAP_SHA '+array(profile['hps_ddr_read_sha256'])+'\n'
     extra+='#define FES_NANO_DDR_READ_DIAGNOSTIC '+str(int(ddr_read is not None))+'\n'
-    window_read=profile.get('hps_window_read')
-    if (type(profile.get('window_read',False)) is not bool or
-            profile.get('window_read',False)!=(window_read is not None)):
-        raise ValueError('window read requires its explicit native selection')
-    if window_read is not None:
-        if (profile.get('window_memory') is not True or reader_memory is None or
-                profile.get('hps_window_read_sha256')!=hps_context.digest(window_read) or ddr_read is not None or
-                profile.get('hps_computer') is not None):
-            raise ValueError('window access requires its complete separate cold profile')
-        hps_context.validate_window_read(profile['hps_context'],reader_memory,profile['hps_control_sha256'],window_read)
-        extra+='#define FES_NANO_WINDOW_READ_ATTRS_VERIFIED 1\n'
-        extra+='#define FES_NANO_WINDOW_READ_MAP_SHA '+array(profile['hps_window_read_sha256'])+'\n'
     menu_read=profile.get('hps_menu_read')
     if menu_read is not None:
         if not menu or profile.get('hps_menu_read_sha256')!=hps_context.digest(menu_read):
@@ -459,25 +430,13 @@ def header(profile):
                   '#define FES_NANO_SPECTRUM48_SCANOUT_BASE 0x20010200UL\n')
     elif spectrum is not None:
         extra += hps_context.spectrum48.header(spectrum)
-    extra+='#define FES_NANO_WINDOW_READ_DIAGNOSTIC '+str(int(window_read is not None or menu or companion is not None))+'\n'
-    present=profile.get('window_present',False)
-    if type(present) is not bool or present and window_read is None:
-        raise ValueError('window presentation requires its complete selected read path')
-    extra+='#define FES_NANO_WINDOW_PRESENT_DIAGNOSTIC '+str(int(present or companion is not None))+'\n'
-    window_storage_return=profile.get('window_storage_return',False)
-    if type(window_storage_return) is not bool or window_storage_return and (not present or profile.get('sd_pio') is not True):
-        raise ValueError('window storage return requires presentation and controlled SD')
-    extra+='#define FES_NANO_WINDOW_STORAGE_RETURN '+str(int(window_storage_return or companion is not None))+'\n'
-    window_reload=profile.get('window_reload',False)
-    if type(window_reload) is not bool or window_reload and not window_storage_return:
-        raise ValueError('window reload requires the selected window SD-return path')
-    window_service=profile.get('window_service',False)
-    if type(window_service) is not bool or window_service and (not window_storage_return or window_reload):
-        raise ValueError('window service requires selected window SD return and excludes bounded reload')
+    extra+='#define FES_NANO_WINDOW_READ_DIAGNOSTIC '+str(int(menu or companion is not None))+'\n'
+    extra+='#define FES_NANO_WINDOW_PRESENT_DIAGNOSTIC '+str(int(companion is not None))+'\n'
+    extra+='#define FES_NANO_WINDOW_STORAGE_RETURN '+str(int(companion is not None))+'\n'
     tenfoot_serial=profile.get('tenfoot_serial',False)
     if type(tenfoot_serial) is not bool or tenfoot_serial and (profile.get('selected_programs') is not True or
             profile.get('computer_reload') is not True or profile.get('computer_storage_return') is not True or
-            profile.get('hps_computer') is None or profile.get('window_memory',False) is not False):
+            profile.get('hps_computer') is None):
         raise ValueError('serial Tenfoot requires the selected computer/SD-return path')
     computer=profile.get('hps_computer')
     if computer is not None:

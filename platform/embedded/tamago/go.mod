@@ -4,6 +4,7 @@ go 1.26.5
 
 require (
 	github.com/DeanoC/FogCast v0.0.0
+	github.com/soypat/lneto v0.3.2
 	github.com/usbarmory/tamago v1.26.5
 )
 
@@ -15,7 +16,6 @@ require (
 	github.com/hashicorp/mdns v1.0.6 // indirect
 	github.com/miekg/dns v1.1.61 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/soypat/lneto v0.3.2 // indirect
 	github.com/vishvananda/netlink v1.2.1-beta.2 // indirect
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 	golang.org/x/net v0.56.0 // indirect

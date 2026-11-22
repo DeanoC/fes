@@ -90,7 +90,7 @@ class CombinedProgramTests(unittest.TestCase):
             with self.subTest(field=field,key=key),self.assertRaises(ValueError):
                 hps.validate_menu_program(self.profile['hps_context'],self.platform,changed)
         for update in ({'hps_menu_program_sha256':'0'*64},{'selected_programs':False},
-                       {'computer_storage_return':False},{'menu_present':True},{'window_memory':True},
+                       {'computer_storage_return':False},{'menu_present':True},
                        {'hps_program_platform_sha256':'0'*64}):
             with self.subTest(update=update),self.assertRaises(ValueError):rom.cold.header({'boot_fit': dict(rom.cold.fit_layout.CONTRACT), **(dict(self.profile,**update))} )
         changed=copy.deepcopy(self.profile);changed['cpu_mapping']['reader_bytes']=2<<20

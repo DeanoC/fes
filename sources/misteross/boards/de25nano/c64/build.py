@@ -37,7 +37,7 @@ MACHINE_FILES = ("c64_vic.v", "c64_vic_graphics_pixels.sv", "c64_vic_sprite_pixe
                  "c64_sid.v", "c64_sid_envelope.sv", "c64_sid_oscillator.sv", "c64_sid_wave_tables.sv",
                  "c64_sid_svf.sv", "c64_cia.v", "c64_drive1541.sv", "c64_via.v", "c64_gcr_read.v",
                  "c64_d64_medium.sv", "c64_keyboard.v",
-                 "c64_bus.vh", "c64_pal_timing.vh", "c64_sid_combined_waves.vh", "c64_sid_svf_tables.vh")
+                 "c64_bus.vh", "c64_timing.vh", "c64_sid_combined_waves.vh", "c64_sid_svf_tables.vh")
 CPU_FILES = ("cpu6502.v", "cpu6502_alu.v")
 SHARED_FILES = ("fes_c64_core.v", "fes_c64_firmware_rom.v")
 LOCAL_FILES = ("fes_de25_c64_standard.v", "fes_de25_c64_standard_hw.tcl", "c64-clocks.sdc",

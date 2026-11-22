@@ -1119,37 +1119,6 @@
       ],
       "role": "kit"
     },
-    "mister-bridge": {
-      "graphs": [
-        {
-          "embed_patterns": [],
-          "embedded": [],
-          "packages": [
-            "sources/FogCast/cmd/mister-bridge",
-            "sources/FogCast/corepackage",
-            "sources/FogCast/corepackage/internal/generated",
-            "sources/FogCast/internal/bridge",
-            "sources/FogCast/internal/spectrumdisks",
-            "sources/FogCast/internal/spectrumsnapshots",
-            "sources/FogCast/internal/spectrumtapes",
-            "sources/FogCast/protocol",
-            "sources/FogCast/protocol/internal/generated",
-            "sources/misteross/expansion"
-          ],
-          "targets": [
-            "darwin-arm64",
-            "darwin-arm64-cgo",
-            "darwin-arm64-sdl3",
-            "linux-amd64",
-            "linux-amd64-sdl3",
-            "linux-arm64",
-            "linux-arm64-sdl3",
-            "linux-armv7"
-          ]
-        }
-      ],
-      "role": "standalone"
-    },
     "target-image-lock": {
       "graphs": [
         {

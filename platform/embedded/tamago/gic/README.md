@@ -46,3 +46,27 @@ stub with an ARMv8 `WFI` idle governor backed by the EL1 physical timer (PPI 30)
 deadline or any enabled interrupt fires; `g.DisableIdle()` restores the polling
 stub and disables PPI 30. Both `cmd/tenfoot` and DE25-Nano native Tenfoot
 (`cmd/fpgaload/tenfoot.go`) enable this idle governor at startup.
+
+## UART RX SPI
+
+`platform/embedded/tamago/serial` provides an optional SPI-driven UART RX ring
+buffer (`serial.EnableIRQ(g)` / `serial.DisableIRQ(g)` / `serial.Ready()`),
+routing PL011 UART0 (SPI 33) on QEMU `virt` and DesignWare APB UART0/1 (SPI
+140/141) on DE25-Nano into a fixed 256-byte lock-free ring buffer behind
+`serial.Read()`. Both `cmd/tenfoot` (in UART mode) and DE25-Nano native Tenfoot
+(`cmd/fpgaload/tenfoot.go`) enable it at startup.
+
+## Network RX SPI
+
+`network.Link.Start` checks for an optional `RXReady() <-chan struct{}` wakeup
+channel so networked programs can sleep in `WFI` between packets instead of
+spinning on `runtime.Gosched()`. On QEMU `virt`, `(*network.Interface).EnableIRQ(g)`
+routes the VirtIO-net MMIO slot's GICv3 SPI (`48 + slot`) to wake `Link.Start`,
+and `cmd/tenfoot` enables it alongside `WFI` idle.
+
+## FPGA-to-HPS doorbells (DE25-Nano)
+
+`board/de25nano` maps the 64 Agilex 5 FPGA-to-HPS lines (`0..63`, GIC-600 SPIs
+`48..111`) via `de25nano.FPGAIRQ`, `de25nano.EnableFPGAIRQ(line, edge, fn)`,
+and `de25nano.DisableFPGAIRQ(line)`. `(*gic.Controller).SetPending` /
+`ClearPending` expose `GICD_ISPENDR` / `GICD_ICPENDR` for software SPI testing.

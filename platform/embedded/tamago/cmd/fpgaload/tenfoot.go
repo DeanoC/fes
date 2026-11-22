@@ -31,6 +31,7 @@ var nativeProgramPlatform tenfoot.Platform
 const tenfootSerialLinked = true
 
 func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store) {
+	uartIRQ := false
 	if g := de25nano.GIC(); g != nil {
 		if err := g.Init(); err != nil {
 			if !errors.Is(err, gic.ErrUnsupported) {
@@ -41,6 +42,21 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 				panic(err)
 			}
 			defer g.DisableIdle()
+			stop := make(chan struct{})
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				g.Serve(stop)
+			}()
+			defer func() {
+				close(stop)
+				<-done
+			}()
+			if err := serial.EnableIRQ(g); err != nil {
+				panic(err)
+			}
+			defer serial.DisableIRQ(g)
+			uartIRQ = true
 		}
 	}
 	paired := expectedCompiledMenuProgram != ""
@@ -111,6 +127,9 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	})
 	if err != nil {
 		panic(err)
+	}
+	if uartIRQ {
+		serialPlatform.SetReady(serial.Ready())
 	}
 	var platform tenfoot.Platform = serialPlatform
 	if programWritableStorageSelected {
