@@ -62,7 +62,37 @@ int fes_de25_dma_diagnostics(struct file *file, struct fes_de25_dma_diagnostics 
 int fes_de25_dma_retirement(struct file *file, struct fes_de25_dma_retirement *retirement);
 int fes_de25_dma_binding(struct device *dev);
 
+/* The window's private transport. The owner leases it, proves the FPGA
+ * configuration by epoch, and reads the bitstream's build identity; the
+ * accessors reach the window control block. Same rules as above.
+ */
+struct fes_de25_window_backend {
+	int (*acquire)(void *context);
+	void (*release)(void *context);
+	u64 (*epoch)(void *context);
+	int (*read32)(void *context, u32 offset, u32 *value);
+	int (*write32)(void *context, u32 offset, u32 value);
+	int (*io_fence)(void *context);
+	int (*build_id)(void *context, u32 build_id[4]);
+	void *context;
+};
+
+struct fes_de25_window;
+/* On a failure that leaves a grant the block may still hold, *pinned gets a
+ * reference (as fes_de25_window_get) so the owner can retry its revoke.
+ */
+struct file *fes_de25_window_create(struct device *dev,
+		const struct fes_de25_window_backend *backend, struct fes_de25_window **pinned);
+struct fes_de25_window *fes_de25_window_get(struct file *file);
+void fes_de25_window_put(struct fes_de25_window *window);
+int fes_de25_window_revoke_owned(struct fes_de25_window *window);
+int fes_de25_window_info(struct file *file, struct fes_de25_dma_window_info *info);
+
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
+struct fes_de25_window_test_observer {
+	unsigned int freed;
+};
+void fes_de25_window_test_observe(struct file *file, struct fes_de25_window_test_observer *observer);
 #include <linux/atomic.h>
 u64 fes_de25_dma_test_next_generation(atomic64_t *counter);
 struct completion;
