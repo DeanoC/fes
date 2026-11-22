@@ -75,7 +75,7 @@ def component_files(sources):
         target = name.replace(".v", "_de25.v")
         files[target], derived[target] = derive.retarget_ram(name, sources[CORE + name])
     files["fes_de25_computer_transport.v"], derived["fes_de25_computer_transport.v"] = derive.transport(
-        sources[BOARD + "zx81-hps/fes_de25_computer.v"])
+        sources[BOARD + "zx81-hps/fes_de25_computer.v"], native=True)
     files["generated/fes_native_de25_computer.vh"] = sources[NATIVE_COMPUTER_HEADER]
     return files, derived
 

@@ -7,10 +7,11 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
-if __package__:
-    from . import build as spectrum
-else:
-    import build as spectrum
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from boards.de25nano.spectrum import build as spectrum
+from scripts import quartus_tools
 
 
 def matched_video_sdc(source):
@@ -379,7 +380,8 @@ def main(argv=None):
     try:
         output, hps, scanout = project(args.vendor_archive, args.output)
         if args.quartus_root:
-            generate(output, hps, scanout, args.quartus_root)
+            with quartus_tools.quartus_lease("pro", label="native Spectrum IP generation"):
+                generate(output, hps, scanout, args.quartus_root)
         print(output)
     except (OSError, ValueError) as error:
         parser.exit(1, f"native Spectrum project: {error}\n")

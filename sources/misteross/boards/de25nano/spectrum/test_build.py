@@ -61,7 +61,7 @@ class Derivations(unittest.TestCase):
 
     def test_transport_selects_native_fetch_explicitly(self):
         source = (HERE.parent / "zx81-hps/fes_de25_computer.v").read_bytes()
-        result, _ = derive.transport(source)
+        result, _ = derive.transport(source, native=True)
         self.assertEqual(result.count(b"\nmodule "), 1)
         self.assertIn(b"module fes_de25_computer_transport (", result)
         self.assertIn(b"`ifdef FES_DE25_NATIVE_SPECTRUM48", result)

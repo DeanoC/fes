@@ -38,7 +38,7 @@ def load(path, name):
     return module
 
 
-def sources(output):
+def sources(output, native_mailbox):
     """The compiled source set: DE10 machine files as they are, plus the DE25 derivations."""
     derive = load(HERE / "derive.py", "de25_spectrum_derive")
     display = load(BOARD / "display/build.py", "de25_spectrum_display_ram")
@@ -52,7 +52,7 @@ def sources(output):
     reader = output / "fes_menu_reader_de25.v"
     reader.write_bytes(display.retarget_menu_ram((SHARED / "fes_menu_reader.v").read_bytes())[0])
     transport = output / "fes_de25_computer_transport.v"
-    transport.write_bytes(derive.transport((BOARD / "zx81-hps/fes_de25_computer.v").read_bytes())[0])
+    transport.write_bytes(derive.transport((BOARD / "zx81-hps/fes_de25_computer.v").read_bytes(), native=native_mailbox)[0])
     (output / "generated").mkdir()
     native_header = ROOT / "prototypes/de25_board_control/generated/fes_de25_computer.vh"
     (output / "generated/fes_native_de25_computer.vh").write_bytes(native_header.read_bytes())
@@ -109,7 +109,7 @@ def run(model, native_mailbox=False, build_id=NATIVE_BUILD_ID):
                     f"-GBUILD_ID=128'h{build_id}",
                     *["-I" + str(path) for path in [output, *includes()]],
                     "-CFLAGS", flags, *link,
-                    *map(str, sources(output)), str(HERE / "standard_tb.cpp")], cwd=ROOT, check=True)
+                    *map(str, sources(output, native_mailbox)), str(HERE / "standard_tb.cpp")], cwd=ROOT, check=True)
     executable = output / "Vfes_de25_spectrum_standard"
     subprocess.run([str(executable), str(firmware),
                     str(diagnostic / "tape.pzx")], cwd=output, check=True)

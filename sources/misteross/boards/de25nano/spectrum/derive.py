@@ -118,11 +118,15 @@ def retarget_ram(name, source):
 TRANSPORT_MARKER = b"// Atomic register transport shared by the bring-up and standard-core wrappers.\n"
 
 
-def transport(source):
+def transport(source, *, native=False):
     """Opt-in fetch observation over the existing atomic transport."""
     if source.count(TRANSPORT_MARKER) != 1:
         raise ValueError("DE25 computer transport boundary changed")
     body = source[source.index(TRANSPORT_MARKER):]
+    if not native:
+        result = b'`include "fes_computer.vh"\n`include "generated/fes_de25_computer.vh"\n' + body
+        return result, {"source_sha256": sha(source), "derived_sha256": sha(result),
+                        "selection": "fes_de25_computer_transport and its two includes"}
     # The native and Linux transports intentionally use different semantics at
     # byte offset 0x18. Keep selection compile-time and package-bound.
     result, record = _derive(body, (
