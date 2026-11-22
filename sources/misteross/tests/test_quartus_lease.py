@@ -1790,6 +1790,31 @@ class JobsTests(unittest.TestCase):
         # when the other host has no free slot.
         self.assertEqual(self.pick("pro", self.probes(1, 5 * gib, 0, 40 * gib)), "wait:powerboat")
 
+    def test_pick_subtracts_other_jobs_memory_reservations(self):
+        gib = 1024 ** 2
+        probes = self.probes(1, 16 * gib, 1, 14 * gib)
+        # Chip has more raw free memory, but its existing Pro job reserves
+        # enough that it cannot admit another Pro job. Powerboat can.
+        probes["chip-30x0-ai-dev"]["reserved_kib"] = 8 * gib
+        self.assertEqual(self.pick("pro", probes), "powerboat")
+
+    def test_probe_reports_reservations_from_the_other_edition_pool(self):
+        # Host selection must use the same cross-edition pool reservations as
+        # run's admission check, even before this edition has a holder.
+        other = self.pools["pro"][0]
+        holder = subprocess.Popen(["flock", other, "sleep", "30"])
+        self.addCleanup(holder.wait)
+        self.addCleanup(holder.terminate)
+        deadline = time.monotonic() + 10
+        while not qt.flock_holders(other) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertTrue(qt.flock_holders(other), "the test holder did not acquire its slot")
+
+        host = self.jobs.local_host()
+        data = self.jobs.probe(host, "lite")
+        self.assertNotIn("error", data, data)
+        self.assertGreater(data["reserved_kib"], 8 * 1024 ** 2)
+
     def test_remote_waits_rather_than_dispatching_onto_a_host_without_memory(self):
         gib = 1024 ** 2
         rounds = [self.probes(1, 5 * gib, 0, 40 * gib), self.probes(1, 5 * gib, 1, 40 * gib)]

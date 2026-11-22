@@ -77,14 +77,69 @@ def key(path):
     try: s = os.stat(path)
     except OSError: return None
     return "%02x:%02x:%d" % (os.major(s.st_dev), os.minor(s.st_dev), s.st_ino)
-held = set()
+def start_time(pid):
+    try: return open("/proc/%d/stat" % pid, "rb").read().rsplit(b")", 1)[1].split()[19].decode()
+    except (OSError, IndexError): return ""
+
+config = json.loads(sys.argv[1])
+held = {}
 for line in open("/proc/locks"):
     f = line.split()
     if len(f) >= 6 and f[1] == "FLOCK" and f[3] == "WRITE":
-        held.add(f[5])
+        try: held.setdefault(f[5], set()).add(int(f[4]))
+        except ValueError: pass
 mem = {l.split(":")[0]: int(l.split()[1]) for l in open("/proc/meminfo")}
-print(json.dumps({"slots": {p: (key(p) in held) for p in sys.argv[1:]},
-                  "available_kib": mem["MemAvailable"], "home": os.path.expanduser("~")}))
+
+# Mirror run's reservation calculation so pick/remote considers the same
+# remaining peak memory that admission subtracts before starting a job.
+waiting = set()
+try: names = os.listdir(config["waiters"])
+except OSError: names = []
+for name in names:
+    try:
+        pid = int(name)
+        if name.isdigit() and open(os.path.join(config["waiters"], name)).read().strip() == start_time(pid):
+            waiting.add(pid)
+    except (OSError, ValueError): pass
+
+parents, rss = {}, {}
+page_kib = os.sysconf("SC_PAGE_SIZE") // 1024
+for entry in os.listdir("/proc"):
+    if entry.isdigit():
+        try:
+            pid = int(entry)
+            parents[pid] = int(open("/proc/%s/stat" % entry, "rb").read().rsplit(b")", 1)[1].split()[1])
+            rss[pid] = int(open("/proc/%s/statm" % entry).read().split()[1]) * page_kib
+        except (OSError, IndexError, ValueError): pass
+children = {}
+for pid, parent in parents.items(): children.setdefault(parent, []).append(pid)
+def tree_rss(root):
+    total, pending, seen = 0, [root], set()
+    while pending:
+        pid = pending.pop()
+        if pid in seen: continue
+        seen.add(pid)
+        total += rss.get(pid, 0)
+        pending.extend(children.get(pid, ()))
+    return total
+
+held_peaks = {}
+for path, peak in config["peaks"].items():
+    for pid in held.get(key(path), set()) - waiting:
+        held_peaks[pid] = held_peaks.get(pid, 0) + int(peak)
+groups = {}
+for holder, peak in held_peaks.items():
+    top, parent, seen = holder, parents.get(holder), set()
+    while parent is not None and parent > 1 and parent not in seen:
+        seen.add(parent)
+        if parent in held_peaks: top = parent
+        parent = parents.get(parent)
+    groups[top] = groups.get(top, 0) + peak
+reserved = sum(max(0, peak - tree_rss(top)) for top, peak in groups.items())
+
+print(json.dumps({"slots": {p: key(p) in held for p in config["slots"]},
+                  "available_kib": mem["MemAvailable"], "reserved_kib": reserved,
+                  "home": os.path.expanduser("~")}))
 """
 
 
@@ -94,9 +149,15 @@ def local_host() -> str:
 
 def probe(host: str, edition: str, timeout: float = 60) -> dict:
     slots = list(quartus_tools.lease_pool(edition, host))
+    peaks = {}
+    for name in ("lite", "pro"):
+        peak_kib = quartus_tools.PEAK_RSS_GIB[name] * 1024 * 1024
+        for path in quartus_tools.lease_pool(name, host):
+            peaks[path] = max(peaks.get(path, 0), peak_kib)
+    config = json.dumps({"slots": slots, "peaks": peaks, "waiters": ADMISSION_WAITERS}, separators=(",", ":"))
     # The probe program goes on stdin, never in an ssh argument.
-    command = [sys.executable, "-", *slots] if host == local_host() else \
-        [*SSH, host, shlex.join(["python3", "-", *slots])]
+    command = [sys.executable, "-", config] if host == local_host() else \
+        [*SSH, host, shlex.join(["python3", "-", config])]
     # A host that times out or answers garbage is one failed probe, not a
     # failed pick: the other host can still take the job.
     try:
@@ -105,8 +166,8 @@ def probe(host: str, edition: str, timeout: float = 60) -> dict:
         if result.returncode:
             return {"host": host, "error": (result.stderr or result.stdout).strip()[-300:]}
         data = json.loads(result.stdout)
-        if not isinstance(data, dict) or not {"slots", "available_kib", "home"} <= set(data):
-            raise ValueError("probe answered without slots, memory and home")
+        if not isinstance(data, dict) or not {"slots", "available_kib", "reserved_kib", "home"} <= set(data):
+            raise ValueError("probe answered without slots, available and reserved memory, and home")
     except (subprocess.TimeoutExpired, OSError, ValueError) as error:
         return {"host": host, "error": f"probe failed: {error}"[:300]}
     data["host"] = host
@@ -118,15 +179,19 @@ REPROBE_SECONDS = 60
 
 
 def is_ready(p: dict, edition: str) -> bool:
-    """A probed host can take one edition job now: a free slot and the memory."""
+    """A probed host can admit one edition job after existing reservations."""
     need = quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)] * 1024 * 1024
-    return "error" not in p and p["free"] > 0 and p["available_kib"] >= need
+    return "error" not in p and p["free"] > 0 and p["available_kib"] - p.get("reserved_kib", 0) >= need
+
+
+def _admissible_kib(p: dict) -> int:
+    return p["available_kib"] - p.get("reserved_kib", 0)
 
 
 def pick(edition: str, timeout: float = 60) -> tuple[str | None, list[dict], bool]:
     """The host to run an edition job on, every probe, and whether that host
-    is ready: a free slot and the memory for one job. When none is ready the
-    host is where the most memory is, for a caller that waits there."""
+    is ready: a free slot and the unreserved memory for one job. When none is
+    ready, the host has the most unreserved memory for a caller that waits there."""
     probes = [probe(host, edition, timeout=timeout / len(HOSTS)) for host in HOSTS]
     usable = [p for p in probes if "error" not in p]
     if not usable:
@@ -138,8 +203,8 @@ def pick(edition: str, timeout: float = 60) -> tuple[str | None, list[dict], boo
     def rank(p):
         # A free slot below the memory threshold counts for nothing.
         if ready(p):
-            return True, p["free"], p["available_kib"]
-        return False, 0, p["available_kib"]
+            return True, p["free"], _admissible_kib(p)
+        return False, 0, _admissible_kib(p)
 
     best = max(usable, key=rank)
     return best["host"], probes, ready(best)
@@ -742,13 +807,19 @@ def _select_host(edition: str, asked: str, deadline: float, label: str, command:
             notify({"host": None, "edition": edition, "label": label, "command": command, "commit": commit,
                     "finished_utc": datetime.now(timezone.utc).isoformat(), "status": "capped", "exit": 124})
             return 124
-        print(f"quartus_jobs: {'no build host' if asked == 'auto' else asked} has a free {edition} slot and "
-              f"{quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)]} GiB available; "
+        subject = "no build host" if asked == "auto" else asked
+        print(f"quartus_jobs: {subject} is not ready for {edition}; at least "
+              f"{quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)]} GiB of unreserved memory is "
+              f"required; "
               f"probing again in {REPROBE_SECONDS} s", file=sys.stderr, flush=True)
         time.sleep(max(0, min(REPROBE_SECONDS, deadline - time.monotonic())))
     for p in probes:
+        available = p.get("available_kib", 0)
+        reserved = p.get("reserved_kib", 0)
         print(f"quartus_jobs: {p['host']}: " + (p.get("error") or
-              f"{p['free']} free {edition} slot(s), {p['available_kib'] // 1024 ** 2} GiB available"),
+              f"{p['free']} free {edition} slot(s), {available // 1024 ** 2} GiB available, "
+              f"{reserved // 1024 ** 2} GiB reserved, "
+              f"{_admissible_kib(p) // 1024 ** 2} GiB unreserved"),
               file=sys.stderr)
     return host, probes
 
