@@ -285,6 +285,8 @@ public:
 	// The verified firmware source of a launch-time upload package.
 	std::unique_ptr<ComputerMediaSnapshot> firmware_;
 	std::unique_ptr<PreparedAtaDisk> ata_disk_;
+	// pc386 launch disks, inserted held after the ATA disk.
+	std::vector<InitialComputerMedia> launch_floppies_;
 	CoreComposition composition() const override { return composition_ ? composition_->info : CoreComposition{}; }
 	CoreStaticComposition static_composition() const override { return static_composition_ ? static_composition_->info : CoreStaticComposition{}; }
 };
@@ -1663,6 +1665,71 @@ FesGpCoreDriver* NativeHardware::Pc386FloppyDriver(std::uint8_t unit)
 	return driver;
 }
 
+Error NativeHardware::PreparePc386Floppies(AdmittedCorePackage* package,
+	const std::vector<InitialComputerMedia>& floppies)
+{
+	auto admitted = dynamic_cast<NativeAdmittedCore*>(package);
+	if (!admitted) return {ErrorCode::invalid_request, "invalid admitted floppy request", "admission"};
+	const CoreDescriptor& descriptor = admitted->opened_.descriptor;
+	bool declared = false;
+	for (const auto& interface : descriptor.interfaces)
+		declared |= interface.id == generated::FesComputerInterfaceMediaPcFloppyID && interface.required &&
+			interface.major == generated::FesComputerInterfaceMediaPcFloppyMajor;
+	if (!declared || descriptor.abi.id != generated::FesComputerABIID)
+		return {ErrorCode::unsupported_interface, "package has no pc386 floppy drives", "admission"};
+	if (floppies.size() > 2 || (floppies.size() == 2 && floppies[0].binding.unit == floppies[1].binding.unit))
+		return {ErrorCode::invalid_request, "one launch disk per drive", "admission"};
+	for (const auto& floppy : floppies) {
+		const std::uint8_t unit = floppy.binding.unit;
+		const Pc386FloppyFormat* format = Pc386FloppyFormatFor(floppy.size);
+		if ((unit != generated::FesComputerPcFloppyUnitA && unit != generated::FesComputerPcFloppyUnitB) ||
+			!format || !(format->drives & (unit == generated::FesComputerPcFloppyUnitA ? kDriveA : kDriveB)))
+			return {ErrorCode::invalid_request, "that drive cannot read a disk of this size", "admission"};
+		const MediaDataIdentity identity{descriptor.core.id, floppy.binding.game_id, floppy.binding.base_media_id,
+			kPc386FloppyNamespaceUnit};
+		if (!ValidMediaDataIdentity(identity))
+			return {ErrorCode::invalid_request, "invalid floppy binding", "admission"};
+		// Before programming, so a bad disk never costs the running core:
+		// the image read and its digest checked, a writable disk's record
+		// read and its namespace writable. The held insert does it again.
+		std::vector<unsigned char> image;
+		Error error = ReadPc386FloppyImage(floppy.path, floppy.size, floppy.binding.base_media_id, "admission", &image);
+		if (error.ok() && !floppy.binding.write_protected) {
+			std::unique_ptr<MediaDataFile> file;
+			MediaDiskRecord record;
+			record.identity = identity;
+			record.layout = MediaDataLayout::pc386_floppy;
+			error = MediaDataFile::Open(floppy.data_root, identity, &file);
+			if (error.ok()) error = file->Read(&record);
+			if (error.ok() && !record.bytes.empty() && record.bytes.size() != floppy.size)
+				error = {ErrorCode::incompatible_data, "saved floppy differs in size from its base", "admission"};
+			if (error.ok()) error = file->CheckWritable();
+		}
+		if (!error.ok()) return WithPhase(error, "admission");
+	}
+	admitted->launch_floppies_ = floppies;
+	return {};
+}
+
+// The whole image read, and its SHA-256 checked against the binding's base.
+Error NativeHardware::ReadPc386FloppyImage(const std::string& path, std::uint32_t size,
+	const std::string& base_media_id, const char* phase, std::vector<unsigned char>* image)
+{
+	const auto deadline = Deadline(clock_, timeouts_.media_io_ms);
+	ComputerMediaSnapshot base;
+	Error error = base.Prepare(path, size, size, clock_, deadline);
+	image->assign(size, 0);
+	Sha256 source;
+	for (std::uint32_t offset = 0; offset < size && error.ok(); offset += 512) {
+		error = base.Read(offset, image->data() + offset, 512, clock_, deadline);
+		if (error.ok()) source.Update(image->data() + offset, 512);
+	}
+	if (!error.ok()) return WithPhase(error, phase);
+	if (Sha256Hex(source.Final()) != base_media_id)
+		return {ErrorCode::invalid_request, "floppy source digest mismatch", phase};
+	return {};
+}
+
 // A disk into drive A: (unit 1) or B: (unit 2), held or running: the old disk
 // saved and ejected first, then Prepare, the image written through the window,
 // DiskCommit with its CRC, and ready. A writable disk restores its saved image.
@@ -1679,17 +1746,9 @@ Error NativeHardware::InsertPc386Floppy(std::uint8_t unit, const std::string& pa
 	if (!ValidMediaDataIdentity(identity)) return {ErrorCode::invalid_request, "invalid floppy binding", "request"};
 	// No size fits both drives, so a disk's record has one drive as its writer.
 	const auto deadline = Deadline(clock_, timeouts_.media_io_ms);
-	ComputerMediaSnapshot base;
-	Error error = base.Prepare(path, size, size, clock_, deadline);
-	std::vector<unsigned char> image(size);
-	Sha256 source;
-	for (std::uint32_t offset = 0; offset < size && error.ok(); offset += 512) {
-		error = base.Read(offset, image.data() + offset, 512, clock_, deadline);
-		if (error.ok()) source.Update(image.data() + offset, 512);
-	}
-	if (!error.ok()) return WithPhase(error, "request");
-	if (Sha256Hex(source.Final()) != binding.base_media_id)
-		return {ErrorCode::invalid_request, "floppy source digest mismatch", "request"};
+	std::vector<unsigned char> image;
+	Error error = ReadPc386FloppyImage(path, size, binding.base_media_id, "request", &image);
+	if (!error.ok()) return error;
 	std::unique_ptr<MediaDataFile> file;
 	MediaDiskRecord record;
 	record.identity = identity;
@@ -2253,6 +2312,14 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		ata_ready_ = true;
 		admitted->ata_disk_.reset();
 	}
+	// Held, so the BIOS finds A:'s disk at its first boot read.
+	for (const auto& floppy : admitted->launch_floppies_) {
+		error = InsertPc386Floppy(floppy.binding.unit, floppy.path, floppy.size, floppy.data_root, floppy.binding);
+		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+			identified.observed_core, "floppy", error});
+		if (!error.ok()) return {WithPhase(error, "input"), true, identified.observed_core};
+	}
+	admitted->launch_floppies_.clear();
 	if (admitted->firmware_) {
 		// Identity proved the package's build; its endpoint names the image
 		// size. The machine is still held, and stays held until Start below.

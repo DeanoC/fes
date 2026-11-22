@@ -410,6 +410,32 @@ void TestPc386CoreDataProtocol()
 	// The disk needs the request's game and is a launch field only.
 	assert(!Parse(load + disk.substr(disk.find(",\"ata_disk\"")) + "}}", &request).ok());
 	assert(!Parse("{\"protocol\":2,\"operation\":\"inspect_core_data\"," + fields + disk + "}}", &request).ok());
+	// load_library_core's launch disks for A: (unit 1) and B: (unit 2).
+	const auto Floppy = [](int unit, int size, const std::string& extra) {
+		return "{\"unit\":" + std::to_string(unit) + ",\"path\":\"/media/fat/fogcast/disk-images/f" +
+			std::to_string(unit) + ".img\",\"size\":" + std::to_string(size) + ",\"data_root\":"
+			"\"/media/fat/fogcast/core-data/media\",\"base_media_id\":\"" +
+			std::string(64, 'd') + "\"" + extra + "}";
+	};
+	const std::string game = ",\"game_id\":\"freedos\"";
+	assert(Parse(load + game + ",\"floppies\":[" + Floppy(1, 1474560, "") + "," +
+		Floppy(2, 1228800, ",\"write_protected\":true") + "]}", &request).ok());
+	assert(request.floppies.size() == 2 && request.floppies[0].binding.unit == 1 &&
+		!request.floppies[0].binding.write_protected && request.floppies[0].size == 1474560 &&
+		request.floppies[1].binding.unit == 2 && request.floppies[1].binding.write_protected &&
+		request.floppies[1].binding.game_id == "freedos" && request.floppies[1].binding.base_media_id == std::string(64, 'd'));
+	for (const std::string& bad : {std::string("[]"), "[" + Floppy(1, 1474560, "") + "," + Floppy(1, 737280, "") + "]",
+		"[" + Floppy(1, 1474560, "") + "," + Floppy(2, 1228800, "") + "," + Floppy(2, 368640, "") + "]"})
+		assert(!Parse(load + game + ",\"floppies\":" + bad + "}", &request).ok());
+	for (const auto& bad : {Floppy(0, 1474560, ""), Floppy(3, 1474560, ""), Floppy(1, 1474561, ""),
+		Floppy(1, 2949120 * 2, ""), Floppy(1, 1474560, ",\"write_protected\":1"), Floppy(1, 1474560, ",\"extra\":1"),
+		Floppy(1, 1474560, ",\"game_id\":\"freedos\"")})
+		assert(!Parse(load + game + ",\"floppies\":[" + bad + "]}", &request).ok());
+	// The disks bind the request's game, which they need.
+	assert(!Parse(load + ",\"floppies\":[" + Floppy(1, 1474560, "") + "]}", &request).ok());
+	// A launch field only.
+	assert(!Parse("{\"protocol\":2,\"operation\":\"inspect_core_data\"," + fields + game + ",\"floppies\":[" +
+		Floppy(1, 1474560, "") + "]}", &request).ok());
 
 	const auto lines = ReadLines("tests/fixtures/protocol-v2-pc386-responses.jsonl");
 	assert(lines.size() == 4);

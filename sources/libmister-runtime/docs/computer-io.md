@@ -84,8 +84,8 @@ package declaring either one without the other is refused at compatibility. A
 computer that does not implement the plane leaves the session-display bit clear.
 The 1.1 entry has the same interfaces plus `fes.media.pcxt-floppy`, `fes.pc386.machine`,
 `fes.persistence.words` and `fes.rtc.wall-clock`, each 1.0, and
-`fes.media.ata-disk` 1.0 when the DDR layout is latched and the window driver
-is available.
+`fes.media.ata-disk` 1.0 and `fes.media.pc-floppy` 1.0 when the DDR layout is
+latched and the window driver is available.
 
 ## Lifecycle
 
@@ -183,6 +183,48 @@ because programming starts held with neutral input. No evdev
 input worker is opened. Stop and replacement send Execution hold before
 reprogramming. Hold neutralizes every key row and both ports in the core, so no
 neutral writes follow it; the runtime treats its own input state as neutral.
+
+## PC floppy drives
+
+`fes.media.pc-floppy` 1.0 is pc386's A: (unit 1, 3.5" 1.44M) and B: (unit 2,
+5.25" 1.2M). A: reads 720K, 1.44M and 1.68M DMF images, and B: reads 160K,
+180K, 320K, 360K and 1.2M images; any other size, or a size the drive cannot
+read, is refused before any exchange. No size fits both drives.
+
+A `load_library_core` may carry launch disks, at most one per drive:
+
+```json
+{"protocol":2,"operation":"load_library_core","package_path":"/tmp/fogcast-development/core-packages/example","package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","data_root":"/media/fat/fogcast/core-data","game_id":"freedos","floppies":[{"unit":1,"path":"/media/fat/fogcast/disk-images/boot.img","size":1474560,"data_root":"/media/fat/fogcast/core-data/media","base_media_id":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"},{"unit":2,"path":"/media/fat/fogcast/disk-images/b.img","size":1228800,"data_root":"/media/fat/fogcast/core-data/media","base_media_id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","write_protected":true}]}
+```
+
+Each disk binds the request's `game_id`, which `floppies` requires.
+`write_protected` is optional and false by default. Before programming the
+runtime refuses `floppies` for a package without `fes.media.pc-floppy`, and
+reads each image, checks its SHA-256 and, for a writable disk, reads its
+record and checks that the namespace is writable. After the ATA
+disk, while held, the runtime inserts each disk as a live insert does (below),
+so the BIOS, which boots A: then C:, reads A:'s disk at its first boot read.
+
+`insert_library_media` with unit 1 or 2 inserts a disk while the machine runs
+and takes the same optional `write_protected`; units other than 1 and 2 refuse
+it. The runtime reads the image, checks its SHA-256 against `base_media_id`,
+and for a writable disk opens its `fes.pc386-floppy.image` record. The key is
+core, game, base digest and namespace unit 1 whichever drive holds the disk,
+so a disk keeps its saved bytes in either drive. A disk already in the drive
+is saved and ejected first, and the record is read again after, so a disk put
+back into its own drive gets the bytes just saved. Then Prepare, the image (or
+the record's bytes) written through the window at `0x01800000` plus 4 MiB per
+drive after A:, and DiskCommit words `unit*8+0..7` with the geometry, the
+image's CRC-32 and word 7 bit 0 write-protect. A write-protected disk reads
+its base and binds no record.
+
+Stop, replacement and fault cleanup save the floppies before the ATA disk: for
+each writable disk, Freeze; if DiskInfo flags it dirty, the image is read
+through the window and the record published against the revision it was read
+at; then Saved. A failed save returns `save_failed`; recovery resumes every
+loaded writable drive. `eject_media` on unit 1 or 2 saves and ejects that
+drive. Status lists units 1 and 2 with interface `fes.media.pc-floppy`,
+163,840 to 2,949,120 bytes and 512-byte chunks.
 
 ## Protocol 2 operations
 

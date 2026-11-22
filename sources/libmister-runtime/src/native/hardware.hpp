@@ -123,6 +123,7 @@ public:
 	Error PrepareCoreData(AdmittedCorePackage*, const std::string&, const std::string&, CoreData*) override;
 	Error RefreshCoreData(AdmittedCorePackage*, CoreData*) override;
 	Error PrepareAtaDisk(AdmittedCorePackage*, const std::string&, const AtaDiskImage&) override;
+	Error PreparePc386Floppies(AdmittedCorePackage*, const std::vector<InitialComputerMedia>&) override;
 	Error PrepareInitialComputerMedia(AdmittedCorePackage*, const InitialComputerMedia&) override;
 	Error RefreshInitialComputerMedia(AdmittedCorePackage*) override;
 	Error InspectCoreData(const std::string&, const std::string&, const std::string&,
@@ -279,6 +280,8 @@ private:
 	};
 	Pc386Floppy floppies_[2];
 	FesGpCoreDriver* Pc386FloppyDriver(std::uint8_t unit);
+	Error ReadPc386FloppyImage(const std::string& path, std::uint32_t size, const std::string& base_media_id,
+		const char* phase, std::vector<unsigned char>* image);
 	Error InsertPc386Floppy(std::uint8_t unit, const std::string& path, std::uint32_t size,
 		const std::string& root, const MediaDataBinding& binding);
 	Error SavePc386Floppy(FesGpCoreDriver& driver, std::uint8_t unit, std::uint64_t deadline);
