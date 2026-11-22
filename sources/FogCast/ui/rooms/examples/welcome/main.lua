@@ -96,9 +96,6 @@ function draw()
     local cy = lay.top + math.floor((i - 1) / 2) * (cell_h + gap)
     F.plain_mark(f, cx, cy, cell_w, mark_h)
     gfx.text(f.label, cx, cy + mark_h + 6, { size = name, bold = true, color = C.text, max_w = cell_w })
-    if f.id == "fes.pc386" then
-      gfx.text("In development", cx, cy + mark_h + name + 8, { size = compact and 12 or 14, color = C.secondary, max_w = cell_w })
-    end
   end
 
   S.buttons(m, lay.bottom - 24 - 48, BUTTONS, focus)

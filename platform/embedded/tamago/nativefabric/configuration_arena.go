@@ -144,7 +144,7 @@ func (a *ConfigurationArena) reserveLocked(source []byte, reclaimed bool) (*Regi
 				role := programRole(binary.LittleEndian.Uint32(raw[programRoleOffset:]))
 				if role.controlABI() == 0 || binary.LittleEndian.Uint32(raw[programRoleOffset+4:]) != role.controlABI() ||
 					binary.LittleEndian.Uint32(raw[12:]) != uint32(len(owned)) ||
-					role == programRoleMenu && (rom != nil || !bytes.Equal(raw[ProgramHeaderBytes:], make([]byte, programROMHeaderBytes))) ||
+					role != programRoleComputer && (rom != nil || !bytes.Equal(raw[ProgramHeaderBytes:], make([]byte, programROMHeaderBytes))) ||
 					role == programRoleComputer && (rom == nil || !bytes.Equal(raw[ProgramHeaderBytes:], romExtension)) {
 					a.failed = true
 					return errors.New("native fabric: program role differs from privately staged resources")

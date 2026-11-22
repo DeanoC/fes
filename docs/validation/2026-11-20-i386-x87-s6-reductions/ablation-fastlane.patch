@@ -1,0 +1,150 @@
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_x87_fast.sv	2026-11-20 22:16:29.937572649 +0200
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_x87_fast.sv	2026-11-20 22:16:51.162446688 +0200
+@@ -177,85 +177,90 @@
+ 
+     // Only validity is reset, allowing DSP internal registers to be packed.
+     // Flushing drops every in-flight response, including a simultaneous input.
++    // SCRATCH (x87 s6.3 bound): the fast lane collapsed to one registered stage.
++    raw_t res_c;
+     always_ff @(posedge clk) begin
+         if (reset || flush) valid <= '0;
+-        else valid <= {valid[5:0], in_valid};
++        else valid <= {5'd0, in_valid, in_valid};
++        if (in_valid) res <= res_c;
++    end
++    always_comb begin
+ 
+         // 1: classify the shared normalized operands and order magnitudes.
+-        meta[1] <= decoded;
+-        s1_a <= ua.significand;
+-        s1_b <= ub.significand;
+-        s1_large <= large_sig;
+-        s1_small <= small_sig;
+-        s1_distance <= distance;
+-        s1_subtract <= subtract;
+-        for (int i = 2; i <= 6; i++) meta[i] <= meta[i-1];
++        meta[1] = decoded;
++        s1_a = ua.significand;
++        s1_b = ub.significand;
++        s1_large = large_sig;
++        s1_small = small_sig;
++        s1_distance = distance;
++        s1_subtract = subtract;
++        for (int i = 2; i <= 6; i++) meta[i] = decoded;
+ 
+         // 2: right alignment with jamming; nine registered DSP products.
+-        s2_large <= {s1_large, 3'b000};
+-        s2_small <= shr_sticky({s1_small, 3'b000}, s1_distance);
+-        s2_subtract <= s1_subtract;
+-        p00 <= s1_a[21:0] * s1_b[21:0];
+-        p01 <= s1_a[21:0] * s1_b[43:22];
+-        p02 <= s1_a[21:0] * s1_b[63:44];
+-        p10 <= s1_a[43:22] * s1_b[21:0];
+-        p11 <= s1_a[43:22] * s1_b[43:22];
+-        p12 <= s1_a[43:22] * s1_b[63:44];
+-        p20 <= s1_a[63:44] * s1_b[21:0];
+-        p21 <= s1_a[63:44] * s1_b[43:22];
+-        p22 <= s1_a[63:44] * s1_b[63:44];
++        s2_large = {s1_large, 3'b000};
++        s2_small = shr_sticky({s1_small, 3'b000}, s1_distance);
++        s2_subtract = s1_subtract;
++        p00 = s1_a[21:0] * s1_b[21:0];
++        p01 = s1_a[21:0] * s1_b[43:22];
++        p02 = s1_a[21:0] * s1_b[63:44];
++        p10 = s1_a[43:22] * s1_b[21:0];
++        p11 = s1_a[43:22] * s1_b[43:22];
++        p12 = s1_a[43:22] * s1_b[63:44];
++        p20 = s1_a[63:44] * s1_b[21:0];
++        p21 = s1_a[63:44] * s1_b[43:22];
++        p22 = s1_a[63:44] * s1_b[63:44];
+ 
+         // 3: arithmetic add/subtract; first multiplier column reduction.
+-        s3_sum <= s2_subtract ? {1'b0,s2_large} - {1'b0,s2_small} :
++        s3_sum = s2_subtract ? {1'b0,s2_large} - {1'b0,s2_small} :
+                                   {1'b0,s2_large} + {1'b0,s2_small};
+-        s3_c0 <= p00;
+-        s3_c1 <= {1'b0,p01} + {1'b0,p10};
+-        s3_c2_pair <= {3'd0,p02} + {1'b0,p11};
+-        s3_c2_rest <= p20;
+-        s3_c3 <= {1'b0,p12} + {1'b0,p21};
+-        s3_c4 <= p22;
++        s3_c0 = p00;
++        s3_c1 = {1'b0,p01} + {1'b0,p10};
++        s3_c2_pair = {3'd0,p02} + {1'b0,p11};
++        s3_c2_rest = p20;
++        s3_c3 = {1'b0,p12} + {1'b0,p21};
++        s3_c4 = p22;
+ 
+         // 4: carry handling and leading-zero count; second reduction.
+-        s4_sum <= s3_sum[67] ? {s3_sum[67:2], |s3_sum[1:0]} : s3_sum[66:0];
+-        s4_left <= s3_sum[67] ? 7'd0 : leading_zeroes(s3_sum[66:0]);
+-        s4_carry <= s3_sum[67];
+-        s4_low <= {23'd0,s3_c0} + {s3_c1,22'd0};
+-        s4_mid <= {1'b0,s3_c2_pair} + {4'd0,s3_c2_rest};
+-        s4_high <= {19'd0,s3_c3} + {s3_c4,22'd0};
++        s4_sum = s3_sum[67] ? {s3_sum[67:2], |s3_sum[1:0]} : s3_sum[66:0];
++        s4_left = s3_sum[67] ? 7'd0 : leading_zeroes(s3_sum[66:0]);
++        s4_carry = s3_sum[67];
++        s4_low = {23'd0,s3_c0} + {s3_c1,22'd0};
++        s4_mid = {1'b0,s3_c2_pair} + {4'd0,s3_c2_rest};
++        s4_high = {19'd0,s3_c3} + {s3_c4,22'd0};
+ 
+         // 5: cancellation normalization; third multiplier reduction.
+-        s5_add <= s4_sum << s4_left;
+-        s5_add_exponent <= meta[4].exponent + $signed({17'd0,s4_carry}) -
++        s5_add = s4_sum << s4_left;
++        s5_add_exponent = meta[4].exponent + $signed({17'd0,s4_carry}) -
+                            $signed({11'd0,s4_left});
+-        s5_low <= s4_low;
+-        s5_high <= {38'd0,s4_mid} + {s4_high,22'd0};
++        s5_low = s4_low;
++        s5_high = {38'd0,s4_mid} + {s4_high,22'd0};
+ 
+         // 6: final full-product carry propagation, separate from normalization.
+-        s6_add <= s5_add;
+-        s6_add_exponent <= s5_add_exponent;
+-        s6_product <= {61'd0,s5_low} + {s5_high,44'd0};
++        s6_add = s5_add;
++        s6_add_exponent = s5_add_exponent;
++        s6_product = {61'd0,s5_low} + {s5_high,44'd0};
+ 
+         // 7: multiplier normalization, guard/round/sticky extraction and emit.
+-        res <= '0;
+-        res.slot <= meta[6].slot;
+-        res.pc <= meta[6].pc;
+-        res.rc <= meta[6].rc;
+-        res.sign <= meta[6].sign;
+-        res.special <= meta[6].special;
+-        res.value <= meta[6].value;
+-        res.flags <= meta[6].flags;
+-        res.cc <= meta[6].cc;
++        res_c = '0;
++        res_c.slot = meta[6].slot;
++        res_c.pc = meta[6].pc;
++        res_c.rc = meta[6].rc;
++        res_c.sign = meta[6].sign;
++        res_c.special = meta[6].special;
++        res_c.value = meta[6].value;
++        res_c.flags = meta[6].flags;
++        res_c.cc = meta[6].cc;
+         if (meta[6].multiply) begin
+-            res.exponent <= meta[6].exponent + $signed({17'd0,s6_product[127]});
+-            res.significand <= s6_product[127] ?
++            res_c.exponent = meta[6].exponent + $signed({17'd0,s6_product[127]});
++            res_c.significand = s6_product[127] ?
+                 {s6_product[127:62], |s6_product[61:0]} :
+                 {s6_product[126:61], |s6_product[60:0]};
+         end else begin
+-            res.exponent <= s6_add_exponent;
+-            res.significand <= s6_add;
++            res_c.exponent = s6_add_exponent;
++            res_c.significand = s6_add;
+             if (s6_add == 0 && !meta[6].special)
+-                res.sign <= meta[6].rc == 2'b01;
++                res_c.sign = meta[6].rc == 2'b01;
+         end
+-    end
+-    assign out_valid = valid[6];
++        end
++    assign out_valid = valid[0];
+ endmodule

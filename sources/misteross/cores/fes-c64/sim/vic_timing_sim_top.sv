@@ -14,6 +14,8 @@ module vic_timing_sim_top (
     input wire [7:0] color_data,
     output wire [8:0] raster,
     output wire [5:0] native_cycle,
+    output wire ba_n, sprite_request, raster_irq_flag,
+    output wire [15:0] ram_addr,
     output wire dot_tick, prep_tick, frame_done, write_pending,
     output wire [2:0] dot,
     output wire [8:0] prepared_x,
@@ -25,7 +27,6 @@ module vic_timing_sim_top (
 );
     reg [7:0] memory [0:65535];
     reg [7:0] ram_data;
-    wire [15:0] ram_addr;
     wire de;
     always @(posedge clk_sys) begin
         if(mem_we) memory[mem_addr] <= mem_data;
@@ -33,13 +34,15 @@ module vic_timing_sim_top (
     end
     c64_vic dut (
         .clk_sys(clk_sys),.phi(phi),.cycle_clock(cycle_clock),.cpu_bus_data(8'ha5),
-        .ba_n(),.pixel_clk(pixel_clk),.reset(reset),.cs(1'b1),
+        .ba_n(ba_n),.pixel_clk(pixel_clk),.reset(reset),.cs(1'b1),
         .we(we),.reading(reading),.read_sample(read_sample),.addr(addr),.din(din),
         .dout(),.color_cs(1'b1),.color_addr(color_addr),
         .color_din(color_data),.color_we(color_we),.color_dout(),
         .bank(bank),.ram_addr(ram_addr),.ram_data(ram_data),
         .red(),.green(),.blue(),.de(de),.hsync(),.vsync(),.raster(raster),.irq()
     );
+    assign sprite_request=dut.sprite_request;
+    assign raster_irq_flag=dut.collision_status[0];
     assign native_cycle=dut.native_cycle;
     assign dot_tick=dut.pixel_strobe;
     assign prep_tick=dut.pixel_prepare;

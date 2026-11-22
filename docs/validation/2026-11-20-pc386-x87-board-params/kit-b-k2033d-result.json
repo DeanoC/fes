@@ -1,0 +1,49 @@
+{
+ "kit": "B",
+ "package": "b30c23424d9fb29d51deaa237183d5ed2abbe385ff05a4ff78b0a89717035c67.fcore",
+ "drive": "real",
+ "drive_sha256": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+ "library_game": "s4-dos-o5ioawanrxsz",
+ "nonce": "O5IOAWANRXSZ",
+ "goals": {
+  "freedos": {
+   "pass": true,
+   "seconds_to_detect": 2.0,
+   "frame": "frames/freedos-prompt.png"
+  },
+  "wolf3d": {
+   "pass": true,
+   "graphics": true,
+   "lit": 0.938,
+   "changed_after_walk": 0.562,
+   "frames": [
+    "frames/wolf3d-floor1.png",
+    "frames/wolf3d-walked.png"
+   ]
+  }
+ },
+ "events": [],
+ "claim": "## 2026-11-21T22:31:40+02:00 KIT B IN USE: Claude (fes#2033 reseal, #2029 slice 2, session for Deano) \u2014 fes#2033 reseal after #2059, seal 42ea89c2 seed 1 at e79fc6866, run k2033d: core-only on baselin",
+ "kit_created": [
+  "/media/fat/fogcast/core-data/games/4ad54e8ef4cb10924288d65cf05dd736977d2730d288693457b04a566e153a79",
+  "/media/fat/fogcast/core-data/media/63fc6120a4843ac62c28a629e3432463f3772f1d8b18917e78083bf7f289d6cc",
+  "/media/fat/fogcast/disk-images/a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c.img"
+ ],
+ "readback": {
+  "dos": true,
+  "notepad": true,
+  "files": {
+   "WFWDOS.TXT": null,
+   "WFWNOTE.TXT": null
+  }
+ },
+ "after": {
+  "agent": "idle",
+  "lease": "free",
+  "rebooted": false,
+  "left": [],
+  "recovery_required": false
+ },
+ "failure": null,
+ "pass": true
+}

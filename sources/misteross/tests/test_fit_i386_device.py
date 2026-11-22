@@ -3,6 +3,8 @@
 reader. These cover the parts that decide what a figure means -- which ports
 become virtual pins, which report row each resource came from, and the clock
 constraints -- with no Quartus, Yosys or device needed."""
+from contextlib import redirect_stdout
+import io
 import json
 import os
 from pathlib import Path
@@ -260,6 +262,20 @@ class Caps(unittest.TestCase):
 class SecondaryFrontEnd(unittest.TestCase):
     """Quartus reading the SystemVerilog itself: a cross-check on the netlist
     flow, not a second area result."""
+
+    def test_the_387_settings_are_refused_where_they_cannot_apply(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for argv, message in (
+                    (["--design", "cpu", "--x87-present", "1"], "--design machine only"),
+                    (["--design", "machine", "--x87-present", "1", "--front-end", "systemverilog"],
+                     "Yosys elaboration only"),
+                    (["--design", "machine", "--x87-present", "1", "--netlist", "/nonexistent.v"],
+                     "reused --netlist")):
+                with self.subTest(argv=argv), redirect_stdout(io.StringIO()) as out:
+                    code = fit.main(argv + ["--device", "de25", "--output", f"{tmp}/{len(argv)}",
+                                            "--cache-root", tmp])
+                    self.assertNotEqual(code, 0)
+                    self.assertIn(message, out.getvalue())
 
     def test_it_is_refused_for_the_machine(self):
         with self.assertRaisesRegex(fit.FitError, "fes_i386_cpu only"):
@@ -752,9 +768,11 @@ import subprocess
                   "    if grace == 0.0:\n" \
                   "        return fit.reap_group_was(group, process, grace)\n" \
                   "fit.reap_group = forgetful\n" \
-                  "fit.LOCK_FILE = out / 'lease.lock'\n"
+                  "from scripts import quartus_tools\n" \
+                  "quartus_tools.LEASE_POOLS = {}\n" \
+                  "quartus_tools.DEFAULT_POOL = {'pro': (str(out / 'lease.lock'),), 'lite': ()}\n"
         self.assertEqual(self.second_signal_during_the_grace(
-            "FESFITCHOKE", reap=nothing, lease="with fit.compiler_lease():",
+            "FESFITCHOKE", reap=nothing, lease="with fit.compiler_lease('pro'):",
             signals=("SIGTERM",)), [])
 
     def test_a_reaped_group_is_no_longer_registered_and_the_mask_is_restored(self):

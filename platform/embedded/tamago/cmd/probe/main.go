@@ -5,12 +5,14 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
 	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 )
 
 func main() {
@@ -46,5 +48,124 @@ func main() {
 		panic("volatile filesystem probe failed")
 	}
 	fmt.Println("PASS volatile memory filesystem (not SD/FAT32)")
+	probeGIC()
 	fmt.Printf("FES_NATIVE_GO_PROBE PASS os=tamago board=%s\n", board.Name)
+}
+
+func probeGIC() {
+	g := board.GIC()
+	if err := g.Init(); err != nil {
+		if errors.Is(err, gic.ErrUnsupported) {
+			fmt.Println("SKIP gic (no GICv3 system registers)")
+			return
+		}
+		panic(err)
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		g.Serve(stop)
+	}()
+	defer func() {
+		close(stop)
+		<-done
+	}()
+
+	sgiHit := make(chan struct{}, 1)
+	g.Register(0, func() {
+		select {
+		case sgiHit <- struct{}{}:
+		default:
+		}
+	})
+	g.Enable(0)
+	g.SendSGI(0)
+	select {
+	case <-sgiHit:
+	case <-time.After(time.Second):
+		panic("gic: SGI 0 did not fire")
+	}
+	g.Disable(0)
+	g.Register(0, nil)
+
+	// Exercise SPI routing and edge-triggered software pending via GICD_ISPENDR
+	// on SPI 48 (Agilex 5 IRQFPGA2HPS0; unused VirtIO slot 0 during QEMU probe).
+	const testSPI uint32 = 48
+	spiHit := make(chan struct{}, 1)
+	g.Disable(testSPI)
+	g.ClearPending(testSPI)
+	g.SetEdge(testSPI, true)
+	g.Register(testSPI, func() {
+		select {
+		case spiHit <- struct{}{}:
+		default:
+		}
+	})
+	g.Enable(testSPI)
+	g.SetPending(testSPI)
+	select {
+	case <-spiHit:
+	case <-time.After(time.Second):
+		panic("gic: SPI 48 software pending did not fire")
+	}
+	g.Disable(testSPI)
+	g.ClearPending(testSPI)
+	g.SetEdge(testSPI, false)
+	g.Register(testSPI, nil)
+
+	timerHit := make(chan struct{}, 1)
+	g.Register(board.IRQPhysTimer, func() {
+		gic.DisarmPhysicalTimer()
+		select {
+		case timerHit <- struct{}{}:
+		default:
+		}
+	})
+	g.Enable(board.IRQPhysTimer)
+	ticks := uint32(board.CounterFrequency() / 1000)
+	if ticks == 0 {
+		ticks = 1
+	}
+	gic.ArmPhysicalTimer(ticks)
+	select {
+	case <-timerHit:
+	case <-time.After(time.Second):
+		gic.DisarmPhysicalTimer()
+		panic("gic: EL1 physical timer PPI 30 did not fire")
+	}
+	g.Disable(board.IRQPhysTimer)
+	g.Register(board.IRQPhysTimer, nil)
+
+	if err := g.EnableIdle(); err != nil {
+		panic(err)
+	}
+	defer g.DisableIdle()
+
+	idleBefore := g.IdleWakeups()
+	sleepStart := time.Now()
+	time.Sleep(10 * time.Millisecond)
+	elapsed := time.Since(sleepStart)
+	wakeups := g.IdleWakeups() - idleBefore
+	if elapsed < 10*time.Millisecond || wakeups == 0 {
+		panic("gic: WFI idle timer sleep failed")
+	}
+
+	g.Register(0, func() {
+		select {
+		case sgiHit <- struct{}{}:
+		default:
+		}
+	})
+	g.Enable(0)
+	g.SendSGI(0)
+	select {
+	case <-sgiHit:
+	case <-time.After(time.Second):
+		panic("gic: SGI 0 did not fire while WFI idle active")
+	}
+	g.Disable(0)
+	g.Register(0, nil)
+
+	fmt.Printf("PASS gic sgi spi timer wfi-idle redistributor=%#x lines=%d wakeups=%d\n", g.Redistributor(), g.Lines(), wakeups)
 }

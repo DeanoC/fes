@@ -70,6 +70,7 @@ package fes_x87_trans_pkg;
     localparam logic [3:0] TR_FRNDINT = 4'd10;
     localparam logic [3:0] TR_FSCALE = 4'd11;
     localparam logic [3:0] TR_FXTRACT = 4'd12;
+    localparam logic [3:0] TR_FBLD = 4'd13;
     // Each instruction's entry, indexed by TR_*.
     function automatic logic [8:0] entry_of(input logic [3:0] instruction);
         case (instruction)
@@ -86,6 +87,7 @@ package fes_x87_trans_pkg;
             4'd10: entry_of = 9'd444;
             4'd11: entry_of = 9'd455;
             4'd12: entry_of = 9'd457;
+            4'd13: entry_of = 9'd460;
             default: entry_of = 9'd0;
         endcase
     endfunction
@@ -93,5 +95,7 @@ package fes_x87_trans_pkg;
     localparam logic [66:0] PM = 67'h6487ed5110b4611a6;
     // sqrt 2's significand, truncated: a significand above it is halved.
     localparam logic [63:0] SQRT2 = 64'hb504f333f9de6484;
+    // FBLD's digit table: digit k's row is the sixteen constants from 16 (BCD_ROW + k).
+    localparam logic [5:0] BCD_ROW = 6'd42;
     /* verilator lint_on UNUSEDPARAM */
 endpackage

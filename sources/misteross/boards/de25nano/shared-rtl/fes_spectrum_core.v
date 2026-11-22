@@ -7,7 +7,8 @@
 // fes.fabric.firmware-upload). The machine sources are the DE10 core's; this
 // replaces its shell. clk_sys is the machine's 52.224 MHz. Firmware arrives
 // through the mailbox front end before execution can be released, the tape
-// (media unit 0) lives in board SDRAM, and the edge sockets are vacant.
+// (media unit 0) and, on the +2A/+3 and the Pentagon, the disk (media unit 1)
+// live in board SDRAM, and the edge sockets are vacant.
 // Complete 50 Hz frames leave as a 720p60 word for the session display.
 // Board wrappers own clocks, HPS transport, the SDRAM controller and pads,
 // HDMI and audio serialization. No FPGA-family primitive belongs here.
@@ -18,6 +19,8 @@ module fes_spectrum_core #(
     input wire [31:0] gpo,
     output wire [31:0] gpi,
     output wire exec_reset,
+    output wire [31:0] fetch_count,
+    output wire [15:0] fetch_address,
     output wire [27:0] machine_video,
     output wire signed [15:0] audio_sample,
     output wire display_request,
@@ -38,10 +41,7 @@ module fes_spectrum_core #(
     input wire sdram_readdatavalid, sdram_writeresponsevalid
 );
     localparam integer MODEL = `SPECTRUM_MODEL;
-    // The disk models need a second SDRAM client; they are not built yet.
-    generate if (MODEL == 2 || MODEL == 3) begin : unsupported
-        initial $error("fes_spectrum_core: disk models need the media unit 1 store");
-    end endgenerate
+    localparam bit DISK = MODEL == 2 || MODEL == 3;
 `ifdef SPECTRUM_ROM_64K
     localparam [31:0] FIRMWARE_BYTES = 32'd65536;
 `elsif SPECTRUM_ROM_48K
@@ -66,12 +66,13 @@ module fes_spectrum_core #(
     wire [15:0] controller_buttons;
     wire [23:0] media_write_addr;
     wire [15:0] media_write_data;
-    wire [1:0] media_write_enable, unit0_state;
-    wire [31:0] unit0_size;
-    wire media_write_ready;
+    wire [1:0] media_write_enable, unit0_state, unit1_state;
+    wire [31:0] unit0_size, unit1_size;
+    wire media_write_ready, media_write_unit;
     fes_computer_mailbox_core #(
         .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1),
         .ENABLE_SPECTRUM_TAPE(1), .ENABLE_SESSION_DISPLAY(1), .ENABLE_HPS_DDR_WINDOW(0),
+        .ENABLE_SPECTRUM_DISK(DISK),
         .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(24),
         .UNIT0_MIN(`FES_COMPUTER_SPECTRUM_TAPE_MIN_BYTES),
         .UNIT0_MAX(`FES_COMPUTER_SPECTRUM_TAPE_MAX_BYTES)
@@ -84,10 +85,10 @@ module fes_spectrum_core #(
         .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
         .save_ready(1'b0), .save_busy(1'b0), .save_size(15'd0),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
-        .media_write_enable(media_write_enable), .media_write_unit(),
+        .media_write_enable(media_write_enable), .media_write_unit(media_write_unit),
         .media_write_ready(media_write_ready),
         .unit0_state(unit0_state), .unit0_size(unit0_size),
-        .unit1_state(), .unit1_size(),
+        .unit1_state(unit1_state), .unit1_size(unit1_size),
         .display_request(display_request), .display_opcode(display_opcode),
         .display_index(display_index), .display_argument(display_argument),
         .display_response_valid(display_response_valid),
@@ -122,18 +123,26 @@ module fes_spectrum_core #(
     end
     wire [39:0] matrix = keyboard_matrix & pad_keys;
 
-    // The tape image is the first 16 MiB of the SDRAM. The deck reads it back
-    // as a byte stream.
+    // One store holds both units. The tape image is the first 16 MiB of the
+    // SDRAM and the deck reads it back as a byte stream from byte 0, so the
+    // stream never leaves unit 0. The disk image is the next 16 MiB (the unit
+    // number is the top address bit) and the disk controller reads its tracks
+    // a byte at a time through the fetch port. A model without a disk never
+    // writes unit 1 or fetches.
     wire tape_stream_enable, tape_stream_valid, tape_stream_take;
     wire [7:0] tape_stream_data;
-    fes_media_sdram #(.BASE(32'd0), .AW(24)) tape_store (
+    wire disk_fetch, disk_fetch_ready;
+    wire [21:0] disk_fetch_addr;
+    wire [7:0] disk_fetch_data;
+    fes_media_sdram #(.BASE(32'd0), .AW(25)) media_store (
         .clk(clk_sys), .reset(sdram_reset),
-        .write_addr(media_write_addr), .write_data(media_write_data),
+        .write_addr({media_write_unit, media_write_addr}), .write_data(media_write_data),
         .write_enable(media_write_enable), .write_ready(media_write_ready),
-        .stream_enable(tape_stream_enable), .stream_bytes(unit0_size[24:0]),
+        .stream_enable(tape_stream_enable), .stream_bytes({1'b0, unit0_size[24:0]}),
         .stream_valid(tape_stream_valid), .stream_data(tape_stream_data),
         .stream_take(tape_stream_take),
-        .fetch(1'b0), .fetch_addr(24'd0), .fetch_ready(), .fetch_data(),
+        .fetch(DISK && disk_fetch), .fetch_addr({3'b100, disk_fetch_addr}),
+        .fetch_ready(disk_fetch_ready), .fetch_data(disk_fetch_data),
         .address(sdram_address), .read(sdram_read), .write(sdram_write),
         .writedata(sdram_writedata), .byteenable(sdram_byteenable),
         .waitrequest(sdram_waitrequest), .readdata(sdram_readdata),
@@ -141,6 +150,19 @@ module fes_spectrum_core #(
     );
 
     wire pixel_we, frame_done, tick, turbo, speaker, mic, ear;
+    wire [`SP_BUS_REQ-1:0] edge_bus;
+    reg [31:0] observed_fetch_count = 32'd0;
+    reg [15:0] observed_fetch_address = 16'd0;
+    // The edge bus strobe is one request, including when the CPU waits.
+    // Exclude refresh, interrupt acknowledge, writes and reset.
+    always @(posedge clk_sys)
+        if (!machine_reset && edge_bus[`SP_BUS_STROBE] && edge_bus[`SP_BUS_M1] &&
+            edge_bus[`SP_BUS_MREQ] && edge_bus[`SP_BUS_RD]) begin
+            observed_fetch_count <= observed_fetch_count + 32'd1;
+            observed_fetch_address <= edge_bus[`SP_BUS_A];
+        end
+    assign fetch_count = observed_fetch_count;
+    assign fetch_address = observed_fetch_address;
     wire [7:0] pixel_row, ay_pcm;
     wire [5:0] pixel_chunk;
     wire [15:0] pixel_data;
@@ -148,12 +170,13 @@ module fes_spectrum_core #(
     spectrum_machine machine (
         .clk_sys(clk_sys), .reset(machine_reset), .matrix(matrix), .kempston(kempston),
         .tape_ready(unit0_state == 2'd3), .tape_size(unit0_size[24:0]),
-        .disk_ready(1'b0), .disk_size(23'd0),
-        .disk_fetch(), .disk_fetch_addr(), .disk_fetch_ready(1'b0), .disk_fetch_data(8'd0),
+        .disk_ready(DISK && unit1_state == 2'd3), .disk_size(unit1_size[22:0]),
+        .disk_fetch(disk_fetch), .disk_fetch_addr(disk_fetch_addr),
+        .disk_fetch_ready(disk_fetch_ready), .disk_fetch_data(disk_fetch_data),
         .tape_stream_enable(tape_stream_enable), .tape_stream_valid(tape_stream_valid),
         .tape_stream_data(tape_stream_data), .tape_stream_take(tape_stream_take),
         .tape_playing(), .turbo_always(1'b0), .turbo(turbo),
-        .bus_request(), .response1(`SP_BUS_RSP'd0),
+        .bus_request(edge_bus), .response1(`SP_BUS_RSP'd0),
         .pixel_we(pixel_we), .pixel_row(pixel_row), .pixel_chunk(pixel_chunk),
         .pixel_data(pixel_data), .frame_done(frame_done),
         .tick(tick), .speaker(speaker), .mic(mic), .ear(ear), .ay_pcm(ay_pcm),

@@ -50,7 +50,7 @@ class ContainedUSBProbeTests(unittest.TestCase):
     def test_mixed_modes_and_non_boolean_flags_cannot_inherit_probe_scope(self):
         flags=('usb_shared','sd_pio','selected_programs','computer_reload','computer_storage_return',
                'tenfoot_serial','initial_tape','window_memory','window_read','window_present',
-               'window_storage_return','window_reload','window_service','menu_present','smmu_observe')
+               'window_storage_return','window_reload','menu_present','smmu_observe')
         for flag in flags:
             for value in (True,0,None,'false'):
                 with self.subTest(flag=flag,value=value),self.assertRaises(ValueError):

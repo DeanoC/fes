@@ -20,9 +20,22 @@ MACHINE = Machine(
     name='ZX Spectrum', version='1.0.0',
     descriptions={
         '48': 'Standard DE25 ZX Spectrum 48K with uploaded firmware, board SDRAM and a PZX cassette',
-        '128': 'Standard DE25 ZX Spectrum 128K with uploaded firmware, board SDRAM and a PZX cassette'},
+        '128': 'Standard DE25 ZX Spectrum 128K with uploaded firmware, board SDRAM and a PZX cassette',
+        'plus3': 'Standard DE25 ZX Spectrum +2A/+3 with uploaded firmware, board SDRAM, a PZX cassette '
+                 'and a uPD765A +3 disk drive',
+        'pentagon': 'Standard DE25 Pentagon 128 with uploaded firmware, board SDRAM, a PZX cassette '
+                    'and a Beta 128 TR-DOS drive',
+        'native48': 'Experimental native DE25 ZX Spectrum 48K with uploaded firmware and fetch observation'},
     interfaces=(('fes.media.spectrum-tape', 2, 0),),
-    model_core_ids={'128': 'fes.spectrum128'}, model_rom_ids={'128': 'spectrum128-firmware'})
+    model_core_ids={'128': 'fes.spectrum128', 'plus3': 'fes.spectrum-plus3', 'pentagon': 'fes.pentagon'},
+    model_rom_ids={'128': 'spectrum128-firmware', 'plus3': 'spectrum-plus3-firmware',
+                   'pentagon': 'pentagon-firmware'},
+    # The disk unit, and the controller that names its image format, as on DE10.
+    model_interfaces={'plus3': (('fes.media.spectrum-disk', 1, 0),
+                                ('fes.media.spectrum-disk-plus3', 1, 0, False)),
+                      'pentagon': (('fes.media.spectrum-disk', 1, 0),
+                                   ('fes.media.spectrum-disk-trdos', 1, 0, False))},
+    model_profiles={'native48': 'de25-native-spectrum48-v1'})
 
 
 def _require_clean_source(root, *, identity_version=2, pinned_inputs=(RECIPE, ABI)):

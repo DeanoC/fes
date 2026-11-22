@@ -727,6 +727,16 @@ type stampedCore struct {
 	packageID string
 	mediaID   string
 	mediaRole string
+	mediaName string
+	moreMedia []catalog.SetMedia
+}
+
+func stampOf(e catalog.CoreEntry) stampedCore {
+	return stampedCore{
+		coreID: strings.TrimSpace(e.CoreID), packageID: strings.TrimSpace(e.PackageID),
+		mediaID: strings.TrimSpace(e.MediaID), mediaRole: strings.TrimSpace(e.MediaRole),
+		mediaName: e.MediaName, moreMedia: e.MoreMedia,
+	}
 }
 
 // attachFilteredCoreIdentities resolves exactly the returned rows in a batch.
@@ -778,7 +788,7 @@ func attachFilteredCoreIdentities(ctx context.Context, service Service, games []
 		if _, ok := byGame[e.GameID]; ok {
 			return errors.New("duplicate filtered core identity")
 		}
-		byGame[e.GameID] = stampedCore{coreID: strings.TrimSpace(e.CoreID), packageID: strings.TrimSpace(e.PackageID), mediaID: strings.TrimSpace(e.MediaID), mediaRole: strings.TrimSpace(e.MediaRole)}
+		byGame[e.GameID] = stampOf(e)
 	}
 	if len(byGame) != len(requested) {
 		return errors.New("filtered core identity is missing")
@@ -814,12 +824,7 @@ func attachCoreIdentities(ctx context.Context, service Service, games []gameResu
 		if gameID == "" || coreID == "" {
 			continue
 		}
-		byGame[gameID] = stampedCore{
-			coreID:    coreID,
-			packageID: strings.TrimSpace(entry.PackageID),
-			mediaID:   strings.TrimSpace(entry.MediaID),
-			mediaRole: strings.TrimSpace(entry.MediaRole),
-		}
+		byGame[gameID] = stampOf(entry)
 	}
 	// Exact-ID detail can address a generated kit-host entry that is omitted
 	// from the ordinary entry list. Preserve its launch identity on that read.
@@ -835,7 +840,7 @@ func attachCoreIdentities(ctx context.Context, service Service, games []gameResu
 			}
 			entry, err := exact.CoreEntry(ctx, game.ID)
 			if err == nil && entry.GameID == game.ID {
-				byGame[game.ID] = stampedCore{coreID: strings.TrimSpace(entry.CoreID), packageID: strings.TrimSpace(entry.PackageID), mediaID: strings.TrimSpace(entry.MediaID), mediaRole: strings.TrimSpace(entry.MediaRole)}
+				byGame[game.ID] = stampOf(entry)
 			}
 		}
 		for _, game := range games {
@@ -886,6 +891,8 @@ func stampCoreID(game *gameResult, byGame map[string]stampedCore) {
 	if id.mediaID != "" {
 		game.MediaID = id.mediaID
 		game.MediaRole = id.mediaRole
+		game.MediaName = id.mediaName
+		game.MoreMedia = id.moreMedia
 	}
 }
 

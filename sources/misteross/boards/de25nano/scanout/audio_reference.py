@@ -55,12 +55,13 @@ SOURCES = {
 }
 
 
-# A machine with its own PLL (Spectrum, Atari ST): the same serializer and
+# A machine with its own PLL (Spectrum, Atari ST, C64): the same serializer and
 # PCM crossing behind fes_de25_machine_audio, clocked by the machine PLL's
 # second output in place of the stock audio PLL. This is a separate policy
 # with its own frozen sources; it borrows no fitted evidence from the ZX81.
 MACHINE_POLICY = fitted.MACHINE_POLICY
-MACHINE_CORES = {'fes.spectrum', 'fes.spectrum128', 'fes.atari-st'}
+MACHINE_CORES = {'fes.spectrum', 'fes.spectrum128', 'fes.spectrum-plus3', 'fes.pentagon', 'fes.atari-st',
+                 'fes.c64'}
 MACHINE_SOURCES = {
     'boards/de25nano/shared-rtl/fes_de25_machine_audio.v': 'e6e1335a12acc3160bf188fdb3b6019d434a5ab727527768477dbe5d93ed8310',
     'cores/fes-common/rtl/fes_audio_output.v': 'e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd',
@@ -115,9 +116,10 @@ def eligible(directory):
 
 def eligible_machine(directory, record):
     params = record['parameters']
-    expected = {'programming_profile': 'de25-linux-computer-v1', 'standard_core': True,
+    expected = {'standard_core': True,
                 'expansion_socket': False, 'audio_clock_reference_policy': MACHINE_POLICY}
     require(params.get('core_id') in MACHINE_CORES and
+            (params.get('programming_profile') == 'de25-linux-computer-v1' or async_inputs.native_spectrum48(params)) and
             all(type(params.get(k)) is type(v) and params[k] == v for k, v in expected.items()),
             'requires a standard machine-PLL profile')
     require(all(record['source_inputs'].get(name) == sha for name, sha in MACHINE_SOURCES.items()),

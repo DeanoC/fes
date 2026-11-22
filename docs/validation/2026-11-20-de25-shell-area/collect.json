@@ -1,0 +1,4400 @@
+{
+ "shell": {
+  "base": {
+   "s1": {
+    "alms": 42582.0,
+    "m20k": 295.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.552,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.552,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.58,
+     "setup:pll_inst|iopll_0_outclk0": 3.553,
+     "setup:HDMI_TX_CLK": 8.139,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.683,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 15.733,
+     "setup:adv7513_config": 16.498,
+     "setup:de25_i2s_bit_clock_output": 77.705,
+     "Hold": 0.0,
+     "Recovery": 7.574,
+     "Removal": 0.161,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 6.789,
+     "Fast": 7.682,
+     "Net": 3.399
+    },
+    "entities": {
+     "soc_inst|ocm": {
+      "alm": 552.5,
+      "m20k": 128.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 529.0
+     },
+     "soc_inst|mm_interconnect_0": {
+      "alm": 2064.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5140.0
+     },
+     "soc_inst|mm_interconnect_2": {
+      "alm": 477.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 992.0
+     },
+     "soc_inst|subsys_hps": {
+      "alm": 953.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 320.0,
+      "regs": 2879.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 979.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1851.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 147.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 174.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 33861.8,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 32177.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|agent_pipeline": {
+      "alm": 251.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 722.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline": {
+      "alm": 42.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 114.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_001": {
+      "alm": 26.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 149.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_002": {
+      "alm": 145.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 388.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_003": {
+      "alm": 25.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 149.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_001": {
+      "alm": 141.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 387.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_002": {
+      "alm": 43.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 113.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_003": {
+      "alm": 45.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 121.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_004": {
+      "alm": 113.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 303.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_005": {
+      "alm": 115.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 303.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_006": {
+      "alm": 112.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 301.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_007": {
+      "alm": 113.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 300.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 349.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 781.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 74.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 294.0
+     },
+     "|soc_inst|mm_interconnect_2|agent_pipeline": {
+      "alm": 45.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 125.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline": {
+      "alm": 62.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 165.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_001": {
+      "alm": 37.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 89.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_002": {
+      "alm": 6.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 15.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_003": {
+      "alm": 31.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 82.0
+     },
+     "|soc_inst|mm_interconnect_2|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 8.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 19.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 957.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1812.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 5.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 5.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 4.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 9.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 2.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     }
+    }
+   },
+   "s2": {
+    "alms": 42565.9,
+    "m20k": 295.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.476,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.476,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.752,
+     "setup:pll_inst|iopll_0_outclk0": 3.668,
+     "setup:HDMI_TX_CLK": 8.208,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.639,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 15.212,
+     "setup:adv7513_config": 16.191,
+     "setup:de25_i2s_bit_clock_output": 77.831,
+     "Hold": 0.0,
+     "Recovery": 6.643,
+     "Removal": 0.05,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 7.079,
+     "Fast": 7.73,
+     "Net": 3.672
+    },
+    "entities": {
+     "soc_inst|ocm": {
+      "alm": 555.7,
+      "m20k": 128.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 527.0
+     },
+     "soc_inst|mm_interconnect_0": {
+      "alm": 2066.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5112.0
+     },
+     "soc_inst|mm_interconnect_2": {
+      "alm": 481.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 992.0
+     },
+     "soc_inst|subsys_hps": {
+      "alm": 954.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 320.0,
+      "regs": 2894.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 975.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1847.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 145.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 181.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 33835.1,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 31950.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|agent_pipeline": {
+      "alm": 249.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 694.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline": {
+      "alm": 43.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 114.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_001": {
+      "alm": 27.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 149.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_002": {
+      "alm": 143.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 383.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_003": {
+      "alm": 26.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 149.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_001": {
+      "alm": 143.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 385.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_002": {
+      "alm": 43.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 114.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_003": {
+      "alm": 45.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 122.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_004": {
+      "alm": 113.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 304.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_005": {
+      "alm": 115.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 305.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_006": {
+      "alm": 112.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 303.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_007": {
+      "alm": 113.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 303.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 348.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 778.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 74.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 295.0
+     },
+     "|soc_inst|mm_interconnect_2|agent_pipeline": {
+      "alm": 46.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 124.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline": {
+      "alm": 63.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 165.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_001": {
+      "alm": 38.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 89.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_002": {
+      "alm": 6.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 16.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_003": {
+      "alm": 31.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 82.0
+     },
+     "|soc_inst|mm_interconnect_2|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 7.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 21.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 954.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1809.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 5.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 9.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 5.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 2.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     }
+    }
+   },
+   "s3": {
+    "alms": 42647.6,
+    "m20k": 295.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.522,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.522,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.755,
+     "setup:pll_inst|iopll_0_outclk0": 3.515,
+     "setup:HDMI_TX_CLK": 7.951,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.692,
+     "setup:adv7513_config": 16.307,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 17.595,
+     "setup:de25_i2s_bit_clock_output": 77.891,
+     "Hold": 0.0,
+     "Recovery": 6.527,
+     "Removal": 0.008,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 7.024,
+     "Fast": 7.736,
+     "Net": 3.576
+    },
+    "entities": {
+     "soc_inst|ocm": {
+      "alm": 555.4,
+      "m20k": 128.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 531.0
+     },
+     "soc_inst|mm_interconnect_0": {
+      "alm": 2054.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5129.0
+     },
+     "soc_inst|mm_interconnect_2": {
+      "alm": 481.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 996.0
+     },
+     "soc_inst|subsys_hps": {
+      "alm": 951.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 320.0,
+      "regs": 2879.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 977.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1846.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 146.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 173.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 33933.8,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 32140.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|agent_pipeline": {
+      "alm": 248.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 704.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline": {
+      "alm": 44.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 115.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_001": {
+      "alm": 24.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 149.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_002": {
+      "alm": 143.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 390.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_003": {
+      "alm": 23.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 149.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_001": {
+      "alm": 143.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 380.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_002": {
+      "alm": 44.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 117.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_003": {
+      "alm": 45.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 122.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_004": {
+      "alm": 112.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 307.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_005": {
+      "alm": 114.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 305.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_006": {
+      "alm": 112.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 301.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_007": {
+      "alm": 113.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 303.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 347.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 782.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 75.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 293.0
+     },
+     "|soc_inst|mm_interconnect_2|agent_pipeline": {
+      "alm": 47.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 126.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline": {
+      "alm": 63.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 165.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_001": {
+      "alm": 37.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 88.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_002": {
+      "alm": 6.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 14.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_003": {
+      "alm": 30.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 83.0
+     },
+     "|soc_inst|mm_interconnect_2|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 7.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 19.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 954.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1805.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 2.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 2.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 5.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 6.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 9.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 1.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 2.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     }
+    }
+   },
+   "s4": {
+    "alms": 42549.8,
+    "m20k": 295.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.435,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.435,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.746,
+     "setup:pll_inst|iopll_0_outclk0": 3.331,
+     "setup:HDMI_TX_CLK": 8.155,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.638,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 16.538,
+     "setup:adv7513_config": 17.146,
+     "setup:de25_i2s_bit_clock_output": 77.599,
+     "Hold": 0.0,
+     "Recovery": 5.705,
+     "Removal": 0.008,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 6.962,
+     "Fast": 7.734,
+     "Net": 3.568
+    },
+    "entities": {
+     "soc_inst|ocm": {
+      "alm": 556.3,
+      "m20k": 128.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 527.0
+     },
+     "soc_inst|mm_interconnect_0": {
+      "alm": 2061.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5124.0
+     },
+     "soc_inst|mm_interconnect_2": {
+      "alm": 476.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 989.0
+     },
+     "soc_inst|subsys_hps": {
+      "alm": 950.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 320.0,
+      "regs": 2898.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 977.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1847.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 146.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 178.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 33853.5,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 32024.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|agent_pipeline": {
+      "alm": 249.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 701.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline": {
+      "alm": 43.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 117.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_001": {
+      "alm": 25.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 150.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_002": {
+      "alm": 143.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 392.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_003": {
+      "alm": 26.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 148.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_001": {
+      "alm": 141.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 379.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_002": {
+      "alm": 44.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 114.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_003": {
+      "alm": 45.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 124.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_004": {
+      "alm": 113.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 305.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_005": {
+      "alm": 115.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 304.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_006": {
+      "alm": 111.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 302.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_007": {
+      "alm": 113.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 302.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 349.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 779.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 74.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 296.0
+     },
+     "|soc_inst|mm_interconnect_2|agent_pipeline": {
+      "alm": 46.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 127.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline": {
+      "alm": 63.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 164.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_001": {
+      "alm": 38.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 88.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_002": {
+      "alm": 6.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 16.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_003": {
+      "alm": 31.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 81.0
+     },
+     "|soc_inst|mm_interconnect_2|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 8.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 20.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 954.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1807.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 5.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 5.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 9.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 2.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 2.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     }
+    }
+   }
+  },
+  "ocm": {
+   "s1": {
+    "alms": 41876.5,
+    "m20k": 167.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.609,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.609,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.727,
+     "setup:pll_inst|iopll_0_outclk0": 3.66,
+     "setup:HDMI_TX_CLK": 8.106,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.81,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 15.753,
+     "setup:adv7513_config": 17.787,
+     "setup:de25_i2s_bit_clock_output": 77.714,
+     "Hold": 0.0,
+     "Recovery": 7.511,
+     "Removal": 0.034,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 7.041,
+     "Fast": 7.649,
+     "Net": 3.55
+    },
+    "entities": {
+     "soc_inst|ocm": null,
+     "soc_inst|mm_interconnect_0": {
+      "alm": 2042.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5135.0
+     },
+     "soc_inst|mm_interconnect_2": null,
+     "soc_inst|subsys_hps": {
+      "alm": 629.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 200.0,
+      "regs": 1987.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 974.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1834.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 142.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 183.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 34072.8,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 32117.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|agent_pipeline": {
+      "alm": 249.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 704.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline": {
+      "alm": 43.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 115.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_001": {
+      "alm": 23.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 149.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_002": {
+      "alm": 144.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 388.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_003": {
+      "alm": 22.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 148.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_001": {
+      "alm": 142.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 386.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_002": {
+      "alm": 43.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 114.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_003": {
+      "alm": 45.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 122.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_004": {
+      "alm": 112.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 305.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_005": {
+      "alm": 112.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 306.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_006": {
+      "alm": 111.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 301.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_007": {
+      "alm": 111.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 302.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 346.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 779.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 74.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 297.0
+     },
+     "|soc_inst|mm_interconnect_1|agent_pipeline": {
+      "alm": 46.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 127.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline": {
+      "alm": 63.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 165.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline_001": {
+      "alm": 38.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 88.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline_002": {
+      "alm": 6.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 15.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline_003": {
+      "alm": 29.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 84.0
+     },
+     "|soc_inst|mm_interconnect_1|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 7.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 19.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 952.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1791.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 3.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 2.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 5.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 10.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 5.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 7.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 2.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     }
+    }
+   },
+   "s2": {
+    "alms": 41876.7,
+    "m20k": 167.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.556,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.556,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.692,
+     "setup:pll_inst|iopll_0_outclk0": 3.812,
+     "setup:HDMI_TX_CLK": 8.132,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.815,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 15.806,
+     "setup:adv7513_config": 15.869,
+     "setup:de25_i2s_bit_clock_output": 77.749,
+     "Hold": 0.0,
+     "Recovery": 7.27,
+     "Removal": 0.109,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 7.176,
+     "Fast": 7.715,
+     "Net": 3.712
+    },
+    "entities": {
+     "soc_inst|ocm": null,
+     "soc_inst|mm_interconnect_0": {
+      "alm": 2043.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5146.0
+     },
+     "soc_inst|mm_interconnect_2": null,
+     "soc_inst|subsys_hps": {
+      "alm": 628.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 200.0,
+      "regs": 1985.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 972.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1837.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 141.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 179.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 34079.4,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 32123.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|agent_pipeline": {
+      "alm": 247.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 716.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline": {
+      "alm": 42.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 116.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_001": {
+      "alm": 23.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 150.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_002": {
+      "alm": 142.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 388.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_003": {
+      "alm": 23.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 148.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_001": {
+      "alm": 142.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 386.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_002": {
+      "alm": 44.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 117.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_003": {
+      "alm": 46.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 120.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_004": {
+      "alm": 112.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 303.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_005": {
+      "alm": 114.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 305.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_006": {
+      "alm": 110.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 302.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_007": {
+      "alm": 109.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 302.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 348.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 777.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 74.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 296.0
+     },
+     "|soc_inst|mm_interconnect_1|agent_pipeline": {
+      "alm": 46.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 125.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline": {
+      "alm": 63.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 163.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline_001": {
+      "alm": 38.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 87.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline_002": {
+      "alm": 6.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 16.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline_003": {
+      "alm": 31.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 81.0
+     },
+     "|soc_inst|mm_interconnect_1|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 8.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 22.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 951.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1800.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 3.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 2.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 6.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 6.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 9.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 2.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 2.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5.0
+     }
+    }
+   },
+   "s3": {
+    "alms": 41878.7,
+    "m20k": 167.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.547,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.547,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.747,
+     "setup:pll_inst|iopll_0_outclk0": 3.73,
+     "setup:HDMI_TX_CLK": 8.134,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.797,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 16.639,
+     "setup:adv7513_config": 17.707,
+     "setup:de25_i2s_bit_clock_output": 77.822,
+     "Hold": 0.0,
+     "Recovery": 7.826,
+     "Removal": 0.139,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 7.043,
+     "Fast": 7.624,
+     "Net": 3.673
+    },
+    "entities": {
+     "soc_inst|ocm": null,
+     "soc_inst|mm_interconnect_0": {
+      "alm": 2046.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5135.0
+     },
+     "soc_inst|mm_interconnect_2": null,
+     "soc_inst|subsys_hps": {
+      "alm": 628.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 200.0,
+      "regs": 1981.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 979.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1834.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 144.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 176.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 34056.0,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 32003.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|agent_pipeline": {
+      "alm": 248.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 721.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline": {
+      "alm": 42.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 114.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_001": {
+      "alm": 23.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 149.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_002": {
+      "alm": 144.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 393.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_003": {
+      "alm": 23.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 148.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_001": {
+      "alm": 142.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 382.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_002": {
+      "alm": 44.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 115.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_003": {
+      "alm": 46.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 123.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_004": {
+      "alm": 111.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 305.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_005": {
+      "alm": 113.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 304.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_006": {
+      "alm": 112.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 301.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_007": {
+      "alm": 112.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 302.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 349.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 779.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 74.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 296.0
+     },
+     "|soc_inst|mm_interconnect_1|agent_pipeline": {
+      "alm": 45.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 126.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline": {
+      "alm": 63.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 164.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline_001": {
+      "alm": 37.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 88.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline_002": {
+      "alm": 6.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 16.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline_003": {
+      "alm": 30.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 85.0
+     },
+     "|soc_inst|mm_interconnect_1|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 7.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 20.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 955.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1796.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 2.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 6.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 6.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 9.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 7.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 2.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 1.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     }
+    }
+   },
+   "s4": {
+    "alms": 41925.5,
+    "m20k": 167.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.408,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.408,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.724,
+     "setup:pll_inst|iopll_0_outclk0": 3.6,
+     "setup:HDMI_TX_CLK": 8.043,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.825,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 14.748,
+     "setup:adv7513_config": 18.104,
+     "setup:de25_i2s_bit_clock_output": 77.775,
+     "Hold": 0.0,
+     "Recovery": 6.926,
+     "Removal": 0.087,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 7.0,
+     "Fast": 7.667,
+     "Net": 3.546
+    },
+    "entities": {
+     "soc_inst|ocm": null,
+     "soc_inst|mm_interconnect_0": {
+      "alm": 2048.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5136.0
+     },
+     "soc_inst|mm_interconnect_2": null,
+     "soc_inst|subsys_hps": {
+      "alm": 631.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 200.0,
+      "regs": 1980.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 978.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1843.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 145.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 184.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 34108.8,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 32035.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|agent_pipeline": {
+      "alm": 248.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 716.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline": {
+      "alm": 43.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 115.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_001": {
+      "alm": 23.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 149.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_002": {
+      "alm": 143.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 388.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_003": {
+      "alm": 23.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 148.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_001": {
+      "alm": 142.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 384.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_002": {
+      "alm": 43.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 114.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_003": {
+      "alm": 45.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 123.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_004": {
+      "alm": 112.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 306.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_005": {
+      "alm": 115.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 307.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_006": {
+      "alm": 111.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 302.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_007": {
+      "alm": 111.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 300.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 348.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 781.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 74.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 293.0
+     },
+     "|soc_inst|mm_interconnect_1|agent_pipeline": {
+      "alm": 45.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 127.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline": {
+      "alm": 64.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 163.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline_001": {
+      "alm": 37.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 87.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline_002": {
+      "alm": 6.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 17.0
+     },
+     "|soc_inst|mm_interconnect_1|mux_pipeline_003": {
+      "alm": 30.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 82.0
+     },
+     "|soc_inst|mm_interconnect_1|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 8.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 20.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 957.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1800.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 3.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 2.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 5.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 9.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 6.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 10.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 10.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 2.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 2.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     }
+    }
+   }
+  },
+  "rsp": {
+   "s2": {
+    "alms": 42682.2,
+    "m20k": 295.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.657,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.657,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.672,
+     "setup:pll_inst|iopll_0_outclk0": 3.899,
+     "setup:HDMI_TX_CLK": 7.94,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.697,
+     "setup:adv7513_config": 16.384,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 17.425,
+     "setup:de25_i2s_bit_clock_output": 77.802,
+     "Hold": 0.0,
+     "Recovery": 6.787,
+     "Removal": 0.074,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 6.9,
+     "Fast": 7.675,
+     "Net": 3.493
+    },
+    "entities": {
+     "soc_inst|ocm": {
+      "alm": 558.8,
+      "m20k": 128.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 537.0
+     },
+     "soc_inst|mm_interconnect_0": {
+      "alm": 2054.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5107.0
+     },
+     "soc_inst|mm_interconnect_2": {
+      "alm": 476.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 989.0
+     },
+     "soc_inst|subsys_hps": {
+      "alm": 951.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 320.0,
+      "regs": 2867.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 980.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1841.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 147.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 179.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 33940.4,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 32021.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|agent_pipeline": {
+      "alm": 249.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 685.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline": {
+      "alm": 43.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 116.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_001": {
+      "alm": 24.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 149.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_002": {
+      "alm": 143.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 389.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_003": {
+      "alm": 23.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 148.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_001": {
+      "alm": 143.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 392.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_002": {
+      "alm": 44.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 114.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_003": {
+      "alm": 45.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 122.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_004": {
+      "alm": 112.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 304.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_005": {
+      "alm": 114.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 304.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_006": {
+      "alm": 113.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 302.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_007": {
+      "alm": 112.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 303.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 349.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 778.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 74.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 295.0
+     },
+     "|soc_inst|mm_interconnect_2|agent_pipeline": {
+      "alm": 46.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 125.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline": {
+      "alm": 62.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 165.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_001": {
+      "alm": 38.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 87.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_002": {
+      "alm": 6.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 16.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_003": {
+      "alm": 30.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 81.0
+     },
+     "|soc_inst|mm_interconnect_2|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 7.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 21.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 957.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1802.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 2.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 5.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 6.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 10.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 2.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 1.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     }
+    }
+   },
+   "s3": {
+    "alms": 42643.0,
+    "m20k": 295.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.475,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.475,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.63,
+     "setup:pll_inst|iopll_0_outclk0": 3.648,
+     "setup:HDMI_TX_CLK": 8.032,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.659,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 16.798,
+     "setup:adv7513_config": 16.855,
+     "setup:de25_i2s_bit_clock_output": 77.642,
+     "Hold": 0.0,
+     "Recovery": 7.104,
+     "Removal": 0.005,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 6.875,
+     "Fast": 7.72,
+     "Net": 3.444
+    },
+    "entities": {
+     "soc_inst|ocm": {
+      "alm": 555.4,
+      "m20k": 128.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 528.0
+     },
+     "soc_inst|mm_interconnect_0": {
+      "alm": 2051.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5130.0
+     },
+     "soc_inst|mm_interconnect_2": {
+      "alm": 483.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 990.0
+     },
+     "soc_inst|subsys_hps": {
+      "alm": 951.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 320.0,
+      "regs": 2870.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 977.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1837.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 146.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 175.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 33916.3,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 32053.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|agent_pipeline": {
+      "alm": 249.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 698.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline": {
+      "alm": 43.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 114.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_001": {
+      "alm": 23.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 149.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_002": {
+      "alm": 144.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 391.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_003": {
+      "alm": 23.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 149.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_001": {
+      "alm": 142.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 393.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_002": {
+      "alm": 43.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 113.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_003": {
+      "alm": 45.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 121.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_004": {
+      "alm": 113.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 303.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_005": {
+      "alm": 112.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 305.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_006": {
+      "alm": 112.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 304.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_007": {
+      "alm": 110.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 302.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 349.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 776.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 73.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 294.0
+     },
+     "|soc_inst|mm_interconnect_2|agent_pipeline": {
+      "alm": 45.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 125.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline": {
+      "alm": 64.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 164.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_001": {
+      "alm": 38.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 89.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_002": {
+      "alm": 6.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 17.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_003": {
+      "alm": 31.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 81.0
+     },
+     "|soc_inst|mm_interconnect_2|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 7.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 19.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 955.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1800.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 3.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 2.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 5.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 10.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 5.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 7.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 2.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 2.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     }
+    }
+   },
+   "s4": {
+    "alms": 42610.9,
+    "m20k": 295.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.425,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.425,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.634,
+     "setup:pll_inst|iopll_0_outclk0": 3.533,
+     "setup:HDMI_TX_CLK": 7.659,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.661,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 15.482,
+     "setup:adv7513_config": 17.762,
+     "setup:de25_i2s_bit_clock_output": 77.639,
+     "Hold": 0.0,
+     "Recovery": 7.142,
+     "Removal": 0.04,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 6.892,
+     "Fast": 7.695,
+     "Net": 3.456
+    },
+    "entities": {
+     "soc_inst|ocm": {
+      "alm": 554.1,
+      "m20k": 128.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 528.0
+     },
+     "soc_inst|mm_interconnect_0": {
+      "alm": 2050.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5133.0
+     },
+     "soc_inst|mm_interconnect_2": {
+      "alm": 478.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 998.0
+     },
+     "soc_inst|subsys_hps": {
+      "alm": 953.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 320.0,
+      "regs": 2868.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 976.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1852.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 145.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 174.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 33913.2,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 31926.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|agent_pipeline": {
+      "alm": 249.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 696.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline": {
+      "alm": 43.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 115.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_001": {
+      "alm": 23.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 150.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_002": {
+      "alm": 144.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 391.0
+     },
+     "|soc_inst|mm_interconnect_0|limiter_pipeline_003": {
+      "alm": 23.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 148.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_001": {
+      "alm": 142.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 384.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_002": {
+      "alm": 43.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 114.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_003": {
+      "alm": 46.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 121.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_004": {
+      "alm": 113.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 305.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_005": {
+      "alm": 112.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 305.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_006": {
+      "alm": 112.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 303.0
+     },
+     "|soc_inst|mm_interconnect_0|mux_pipeline_007": {
+      "alm": 112.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 302.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 348.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 780.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 73.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 295.0
+     },
+     "|soc_inst|mm_interconnect_2|agent_pipeline": {
+      "alm": 46.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 128.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline": {
+      "alm": 63.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 166.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_001": {
+      "alm": 37.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 88.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_002": {
+      "alm": 6.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 16.0
+     },
+     "|soc_inst|mm_interconnect_2|mux_pipeline_003": {
+      "alm": 30.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 83.0
+     },
+     "|soc_inst|mm_interconnect_2|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 7.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 20.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 954.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1809.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 5.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 5.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 10.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 2.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 1.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5.0
+     }
+    }
+   }
+  },
+  "lat": {
+   "s1": {
+    "alms": 41586.4,
+    "m20k": 295.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.41,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.41,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.713,
+     "setup:pll_inst|iopll_0_outclk0": 3.444,
+     "setup:HDMI_TX_CLK": 7.793,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.676,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 16.002,
+     "setup:adv7513_config": 16.135,
+     "setup:de25_i2s_bit_clock_output": 77.892,
+     "Hold": 0.0,
+     "Recovery": 6.997,
+     "Removal": 0.109,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 6.949,
+     "Fast": 7.695,
+     "Net": 3.538
+    },
+    "entities": {
+     "soc_inst|ocm": {
+      "alm": 559.4,
+      "m20k": 128.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 525.0
+     },
+     "soc_inst|mm_interconnect_0": {
+      "alm": 1272.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1264.0
+     },
+     "soc_inst|mm_interconnect_2": {
+      "alm": 268.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 434.0
+     },
+     "soc_inst|subsys_hps": {
+      "alm": 887.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 320.0,
+      "regs": 2587.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 973.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1828.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 144.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 184.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 33910.4,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 31969.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 352.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 754.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 81.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 309.0
+     },
+     "|soc_inst|mm_interconnect_2|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 6.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 20.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 952.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1789.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 2.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 3.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 5.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 5.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 9.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 2.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     }
+    }
+   },
+   "s2": {
+    "alms": 41633.8,
+    "m20k": 295.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.294,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.294,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.853,
+     "setup:pll_inst|iopll_0_outclk0": 3.447,
+     "setup:HDMI_TX_CLK": 8.036,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.705,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 17.412,
+     "setup:adv7513_config": 17.694,
+     "setup:de25_i2s_bit_clock_output": 77.99,
+     "Hold": 0.0,
+     "Recovery": 6.85,
+     "Removal": 0.005,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 7.147,
+     "Fast": 7.718,
+     "Net": 3.679
+    },
+    "entities": {
+     "soc_inst|ocm": {
+      "alm": 556.5,
+      "m20k": 128.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 531.0
+     },
+     "soc_inst|mm_interconnect_0": {
+      "alm": 1264.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1277.0
+     },
+     "soc_inst|mm_interconnect_2": {
+      "alm": 268.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 428.0
+     },
+     "soc_inst|subsys_hps": {
+      "alm": 882.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 320.0,
+      "regs": 2596.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 977.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1836.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 146.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 180.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 33955.8,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 32060.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 349.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 752.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 79.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 320.0
+     },
+     "|soc_inst|mm_interconnect_2|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 6.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 20.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 957.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1797.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 1.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 2.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 6.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 5.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 10.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 1.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 2.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5.0
+     }
+    }
+   },
+   "s3": {
+    "alms": 41621.6,
+    "m20k": 295.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.656,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.656,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.728,
+     "setup:pll_inst|iopll_0_outclk0": 3.406,
+     "setup:HDMI_TX_CLK": 7.952,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.737,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 16.099,
+     "setup:adv7513_config": 16.747,
+     "setup:de25_i2s_bit_clock_output": 77.841,
+     "Hold": 0.0,
+     "Recovery": 5.579,
+     "Removal": 0.054,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 7.044,
+     "Fast": 7.685,
+     "Net": 3.55
+    },
+    "entities": {
+     "soc_inst|ocm": {
+      "alm": 560.4,
+      "m20k": 128.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 531.0
+     },
+     "soc_inst|mm_interconnect_0": {
+      "alm": 1274.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1286.0
+     },
+     "soc_inst|mm_interconnect_2": {
+      "alm": 266.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 439.0
+     },
+     "soc_inst|subsys_hps": {
+      "alm": 885.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 320.0,
+      "regs": 2592.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 974.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1843.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 144.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 181.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 33925.4,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 32070.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 350.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 759.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 81.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 320.0
+     },
+     "|soc_inst|mm_interconnect_2|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 6.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 19.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 953.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1805.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 2.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 2.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 6.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 9.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 5.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 9.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 10.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 2.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 5.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 2.6,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     }
+    }
+   },
+   "s4": {
+    "alms": 41645.3,
+    "m20k": 295.0,
+    "dsp": 24.0,
+    "netlist_sha256": "5b80c0cdd3498bc7fabd05acf984708b257f5c9fa98895a39dcc42a56434454d",
+    "timing": {
+     "Setup": 1.487,
+     "setup:fes_video_inst|video_clock|iopll_0_outclk0": 1.487,
+     "setup:fes_machine_pll|machine_pll_outclk0": 1.752,
+     "setup:pll_inst|iopll_0_outclk0": 3.598,
+     "setup:HDMI_TX_CLK": 7.898,
+     "setup:fes_machine_pll|machine_pll_outclk1": 8.693,
+     "setup:fes_video_inst|video_clock|iopll_0_refclk": 15.643,
+     "setup:adv7513_config": 16.618,
+     "setup:de25_i2s_bit_clock_output": 78.078,
+     "Hold": 0.0,
+     "Recovery": 6.361,
+     "Removal": 0.068,
+     "Minimum Pulse Width": 0.22,
+     "Slow": 7.009,
+     "Fast": 7.734,
+     "Net": 3.576
+    },
+    "entities": {
+     "soc_inst|ocm": {
+      "alm": 558.1,
+      "m20k": 128.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 536.0
+     },
+     "soc_inst|mm_interconnect_0": {
+      "alm": 1268.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1275.0
+     },
+     "soc_inst|mm_interconnect_2": {
+      "alm": 263.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 422.0
+     },
+     "soc_inst|subsys_hps": {
+      "alm": 891.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 320.0,
+      "regs": 2595.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_1": {
+      "alm": 976.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1835.0
+     },
+     "soc_inst|subsys_periph|mm_interconnect_2": {
+      "alm": 144.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 177.0
+     },
+     "soc_inst|subsys_periph|fes_scanout|fes_scanout|system": {
+      "alm": 33965.5,
+      "m20k": 125.0,
+      "dsp": 23.0,
+      "mem_alms": 100.0,
+      "regs": 32148.0
+     }
+    },
+    "detail": {
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|read_rsp_fifo": {
+      "alm": 349.0,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 755.0
+     },
+     "|soc_inst|mm_interconnect_0|subsys_hps_f2sdram_adapter_axi4_sub_agent|write_rsp_fifo": {
+      "alm": 81.5,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 313.0
+     },
+     "|soc_inst|mm_interconnect_2|subsys_periph_pb_cpu_0_s0_agent_rsp_fifo": {
+      "alm": 6.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 20.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_1|fes_mem_cdc_s0_agent_rsp_fifo": {
+      "alm": 954.8,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 1799.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|button_pio_s1_agent_rsp_fifo": {
+      "alm": 2.4,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|dipsw_pio_s1_agent_rsp_fifo": {
+      "alm": 2.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_mailbox_avs_agent_rsp_fifo": {
+      "alm": 3.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_computer_agent_rsp_fifo": {
+      "alm": 6.1,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 9.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_guard_avs_agent_rsp_fifo": {
+      "alm": 5.2,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 8.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|fes_scanout_window_agent_rsp_fifo": {
+      "alm": 5.3,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 10.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|led_pio_s1_agent_rsp_fifo": {
+      "alm": 1.9,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 3.0
+     },
+     "|soc_inst|subsys_periph|mm_interconnect_2|sysid_control_slave_agent_rsp_fifo": {
+      "alm": 2.7,
+      "m20k": 0.0,
+      "dsp": 0.0,
+      "mem_alms": 0.0,
+      "regs": 4.0
+     }
+    }
+   }
+  }
+ },
+ "at": {
+  "base": {
+   "s1": {
+    "alms": 42565.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.921,
+     "hold": 0.017,
+     "recovery": 13.624,
+     "removal": 0.296,
+     "clk_clock_setup": 8.071,
+     "clk_clock_hold": 0.017,
+     "pixel_clk_clock_setup": 7.921,
+     "pixel_clk_clock_hold": 0.038,
+     "internal_setup": 7.921,
+     "minimum_pulse_width": 6.159
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s2": {
+    "alms": 42599.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.699,
+     "hold": 0.021,
+     "recovery": 13.689,
+     "removal": 0.383,
+     "clk_clock_setup": 7.715,
+     "clk_clock_hold": 0.022,
+     "pixel_clk_clock_setup": 7.699,
+     "pixel_clk_clock_hold": 0.021,
+     "internal_setup": 7.699,
+     "minimum_pulse_width": 6.159
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s3": {
+    "alms": 42583.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.726,
+     "hold": 0.028,
+     "recovery": 13.544,
+     "removal": 0.495,
+     "clk_clock_setup": 7.726,
+     "clk_clock_hold": 0.028,
+     "pixel_clk_clock_setup": 7.761,
+     "pixel_clk_clock_hold": 0.042,
+     "internal_setup": 7.726,
+     "minimum_pulse_width": 6.163
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s4": {
+    "alms": 42570.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.613,
+     "hold": 0.028,
+     "recovery": 13.8,
+     "removal": 0.526,
+     "clk_clock_setup": 7.744,
+     "clk_clock_hold": 0.028,
+     "pixel_clk_clock_setup": 7.613,
+     "pixel_clk_clock_hold": 0.054,
+     "internal_setup": 7.613,
+     "minimum_pulse_width": 6.194
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   }
+  },
+  "dma2": {
+   "s1": {
+    "alms": 42122.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.808,
+     "hold": 0.037,
+     "recovery": 13.473,
+     "removal": 0.513,
+     "clk_clock_setup": 7.868,
+     "clk_clock_hold": 0.037,
+     "pixel_clk_clock_setup": 7.808,
+     "pixel_clk_clock_hold": 0.037,
+     "internal_setup": 7.808,
+     "minimum_pulse_width": 6.164
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s2": {
+    "alms": 42208.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.915,
+     "hold": 0.018,
+     "recovery": 13.575,
+     "removal": 0.327,
+     "clk_clock_setup": 7.915,
+     "clk_clock_hold": 0.018,
+     "pixel_clk_clock_setup": 7.946,
+     "pixel_clk_clock_hold": 0.036,
+     "internal_setup": 7.915,
+     "minimum_pulse_width": 6.159
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s3": {
+    "alms": 42076.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 8.073,
+     "hold": 0.02,
+     "recovery": 13.623,
+     "removal": 0.402,
+     "clk_clock_setup": 8.154,
+     "clk_clock_hold": 0.02,
+     "pixel_clk_clock_setup": 8.073,
+     "pixel_clk_clock_hold": 0.047,
+     "internal_setup": 8.073,
+     "minimum_pulse_width": 6.163
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s4": {
+    "alms": 42248.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.39,
+     "hold": 0.023,
+     "recovery": 13.517,
+     "removal": 0.367,
+     "clk_clock_setup": 7.39,
+     "clk_clock_hold": 0.023,
+     "pixel_clk_clock_setup": 7.704,
+     "pixel_clk_clock_hold": 0.043,
+     "internal_setup": 7.39,
+     "minimum_pulse_width": 6.19
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   }
+  },
+  "fifo": {
+   "s1": {
+    "alms": 42393.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.574,
+     "hold": 0.014,
+     "recovery": 13.702,
+     "removal": 0.377,
+     "clk_clock_setup": 8.051,
+     "clk_clock_hold": 0.014,
+     "pixel_clk_clock_setup": 7.574,
+     "pixel_clk_clock_hold": 0.049,
+     "internal_setup": 7.574,
+     "minimum_pulse_width": 6.163
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s2": {
+    "alms": 42393.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.841,
+     "hold": 0.02,
+     "recovery": 13.848,
+     "removal": 0.333,
+     "clk_clock_setup": 7.841,
+     "clk_clock_hold": 0.02,
+     "pixel_clk_clock_setup": 7.872,
+     "pixel_clk_clock_hold": 0.03,
+     "internal_setup": 7.841,
+     "minimum_pulse_width": 6.164
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s3": {
+    "alms": 42421.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.839,
+     "hold": 0.026,
+     "recovery": 13.33,
+     "removal": 0.496,
+     "clk_clock_setup": 7.903,
+     "clk_clock_hold": 0.026,
+     "pixel_clk_clock_setup": 7.839,
+     "pixel_clk_clock_hold": 0.042,
+     "internal_setup": 7.839,
+     "minimum_pulse_width": 6.163
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s4": {
+    "alms": 42462.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.717,
+     "hold": 0.02,
+     "recovery": 13.662,
+     "removal": 0.546,
+     "clk_clock_setup": 7.797,
+     "clk_clock_hold": 0.02,
+     "pixel_clk_clock_setup": 7.717,
+     "pixel_clk_clock_hold": 0.028,
+     "internal_setup": 7.717,
+     "minimum_pulse_width": 6.191
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   }
+  },
+  "kbcram": {
+   "s1": {
+    "alms": 42459.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.857,
+     "hold": 0.03,
+     "recovery": 13.621,
+     "removal": 0.301,
+     "clk_clock_setup": 7.857,
+     "clk_clock_hold": 0.03,
+     "pixel_clk_clock_setup": 7.908,
+     "pixel_clk_clock_hold": 0.034,
+     "internal_setup": 7.857,
+     "minimum_pulse_width": 6.163
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s2": {
+    "alms": 42507.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.458,
+     "hold": 0.015,
+     "recovery": 13.913,
+     "removal": 0.45,
+     "clk_clock_setup": 7.458,
+     "clk_clock_hold": 0.034,
+     "pixel_clk_clock_setup": 7.889,
+     "pixel_clk_clock_hold": 0.015,
+     "internal_setup": 7.458,
+     "minimum_pulse_width": 6.163
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s3": {
+    "alms": 42497.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.584,
+     "hold": 0.02,
+     "recovery": 13.629,
+     "removal": 0.271,
+     "clk_clock_setup": 8.171,
+     "clk_clock_hold": 0.02,
+     "pixel_clk_clock_setup": 7.584,
+     "pixel_clk_clock_hold": 0.024,
+     "internal_setup": 7.584,
+     "minimum_pulse_width": 6.164
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s4": {
+    "alms": 42381.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.873,
+     "hold": 0.037,
+     "recovery": 13.703,
+     "removal": 0.458,
+     "clk_clock_setup": 7.873,
+     "clk_clock_hold": 0.037,
+     "pixel_clk_clock_setup": 7.985,
+     "pixel_clk_clock_hold": 0.055,
+     "internal_setup": 7.873,
+     "minimum_pulse_width": 6.191
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   }
+  },
+  "pitbcd": {
+   "s1": {
+    "alms": 42504.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.87,
+     "hold": 0.017,
+     "recovery": 13.437,
+     "removal": 0.507,
+     "clk_clock_setup": 7.87,
+     "clk_clock_hold": 0.017,
+     "pixel_clk_clock_setup": 7.98,
+     "pixel_clk_clock_hold": 0.041,
+     "internal_setup": 7.87,
+     "minimum_pulse_width": 6.163
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s2": {
+    "alms": 42541.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.834,
+     "hold": 0.023,
+     "recovery": 13.924,
+     "removal": 0.443,
+     "clk_clock_setup": 7.872,
+     "clk_clock_hold": 0.023,
+     "pixel_clk_clock_setup": 7.834,
+     "pixel_clk_clock_hold": 0.029,
+     "internal_setup": 7.834,
+     "minimum_pulse_width": 6.159
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s3": {
+    "alms": 42618.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.934,
+     "hold": 0.029,
+     "recovery": 13.661,
+     "removal": 0.45,
+     "clk_clock_setup": 7.934,
+     "clk_clock_hold": 0.029,
+     "pixel_clk_clock_setup": 7.971,
+     "pixel_clk_clock_hold": 0.033,
+     "internal_setup": 7.934,
+     "minimum_pulse_width": 6.163
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   },
+   "s4": {
+    "alms": 42614.0,
+    "ram": 145.0,
+    "dsp": 42.0,
+    "timing_status": "pass",
+    "worst": {
+     "setup": 7.321,
+     "hold": 0.013,
+     "recovery": 13.827,
+     "removal": 0.351,
+     "clk_clock_setup": 7.321,
+     "clk_clock_hold": 0.013,
+     "pixel_clk_clock_setup": 7.85,
+     "pixel_clk_clock_hold": 0.049,
+     "internal_setup": 7.321,
+     "minimum_pulse_width": 6.195
+    },
+    "resource_keys": [
+     "alms",
+     "alms_in_final_placement",
+     "alms_recoverable_by_packing",
+     "alms_unavailable",
+     "alms_with_virtual_pins",
+     "aluts",
+     "block_memory_bits",
+     "dsp_blocks",
+     "labs",
+     "logic_labs",
+     "memory_labs",
+     "mlabs",
+     "packing_difficulty",
+     "ram_blocks",
+     "registers"
+    ]
+   }
+  }
+ }
+}

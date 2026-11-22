@@ -2,6 +2,8 @@
 """Integrate the standard ZX Spectrum into the managed DE25 GHRD (see ../machine/board.py)."""
 from pathlib import Path
 import importlib.util
+import json
+import re
 import sys
 
 HERE = Path(__file__).resolve().parent
@@ -13,9 +15,11 @@ DIRECTORY = "spectrum"
 CORE_ID = "fes.spectrum"
 COMPONENT = "fes_de25_spectrum_standard"
 SDC = BOARD + "spectrum/spectrum-clocks.sdc"
-MODELS = {"48": None, "128": "SPECTRUM_MODEL_128K"}
+MODELS = {"48": None, "128": "SPECTRUM_MODEL_128K", "plus3": "SPECTRUM_MODEL_PLUS3",
+          "pentagon": "SPECTRUM_MODEL_PENTAGON", "native48": "FES_DE25_NATIVE_SPECTRUM48"}
 # The exact image each model's upload endpoint takes.
-FIRMWARE_BYTES = {"48": 16384, "128": 32768}
+FIRMWARE_BYTES = {"48": 16384, "128": 32768, "plus3": 65536, "pentagon": 49152, "native48": 16384}
+NATIVE_COMPUTER_HEADER = "sources/misteross/prototypes/de25_board_control/generated/fes_de25_computer.vh"
 ASSIGNMENTS = ()
 # Qsys writes this peripheral subsystem for the component: the standard ZX81
 # parent with the machine clock bridge and the SDRAM conduit in place of the
@@ -37,7 +41,8 @@ SOURCES = ({BOARD + "spectrum/" + name for name in LOCAL_FILES} |
            {CORE + name for name in MACHINE_FILES + ("spectrum_machine.sv", "spectrum_ram.v",
                                                     "spectrum_video.v", "spectrum_tape.v")} |
            {COMMON + "rtl/z80/" + name for name in Z80_FILES} |
-           {BOARD + "ramtest/sdram.v", "sources/misteross/cores/fes-zx81/expansions/zonx_ay.v"})
+           {BOARD + "ramtest/sdram.v", "sources/misteross/cores/fes-zx81/expansions/zonx_ay.v",
+            NATIVE_COMPUTER_HEADER})
 
 
 def load(path, name):
@@ -70,12 +75,30 @@ def component_files(sources):
         target = name.replace(".v", "_de25.v")
         files[target], derived[target] = derive.retarget_ram(name, sources[CORE + name])
     files["fes_de25_computer_transport.v"], derived["fes_de25_computer_transport.v"] = derive.transport(
-        sources[BOARD + "zx81-hps/fes_de25_computer.v"])
+        sources[BOARD + "zx81-hps/fes_de25_computer.v"], native=True)
+    files["generated/fes_native_de25_computer.vh"] = sources[NATIVE_COMPUTER_HEADER]
     return files, derived
 
 
 def project_files(sources):
     return {}
+
+
+def native_controls(build_id, payload_sha256):
+    """Relative Qsys routes, private to the native48 package producer."""
+    if any(re.fullmatch(pattern, value) is None for pattern, value in (
+            (r"[0-9a-f]{32}", build_id), (r"[0-9a-f]{64}", payload_sha256))):
+        raise ValueError("native Spectrum control maps require exact build and payload identity")
+    return (json.dumps({
+        "format": 1, "scope": "de25-native-spectrum48-controls-v1",
+        "build_id": build_id, "payload_sha256": payload_sha256,
+        "computer": {"peripheral_offset": board.OFFSET, "span": 32,
+                     "fetch_count_offset": 0x18, "fetch_address_offset": 0x1c},
+        "display_reader": {"peripheral_offset": 0x10200, "span": 128,
+                           "stop_command": 2, "status_offset": 8, "drained_mask": 8,
+                           "retired_mask": 0x80000000, "grant_base": 0x95000000, "grant_bytes": 8 << 20},
+        "firmware_bytes": FIRMWARE_BYTES["native48"],
+    }, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
 
 if __name__ == "__main__":

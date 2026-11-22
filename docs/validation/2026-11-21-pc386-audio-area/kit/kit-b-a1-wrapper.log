@@ -1,0 +1,4 @@
+2026-11-21 18:11:46 EET baseline from status: image 179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018 bundle c9ae79e27eb3a8d3b9f4e1b5de322838725637d6c9c25548e8b64ef500959a98
+2026-11-21 18:11:48 EET CLAIMED kit B for a1
+2026-11-21 18:13:43 EET HIL rc=1
+2026-11-21 18:13:49 EET RELEASED kit B (fail:AcceptanceError: goal music failed)

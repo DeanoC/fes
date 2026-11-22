@@ -1,0 +1,29 @@
+From 5bb5dfcafe27fa001efbef2769328a65e7eda703 Mon Sep 17 00:00:00 2001
+From: x <x@x>
+Date: Fri, 20 Nov 2026 22:24:36 +0200
+Subject: [PATCH] AREA STUDY ABLATION lat (not for merge)
+
+---
+ sources/misteross/boards/de25nano/scanout/linux_dma.py | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/sources/misteross/boards/de25nano/scanout/linux_dma.py b/sources/misteross/boards/de25nano/scanout/linux_dma.py
+index 8ec3e0842..4dd9c94c3 100644
+--- a/sources/misteross/boards/de25nano/scanout/linux_dma.py
++++ b/sources/misteross/boards/de25nano/scanout/linux_dma.py
+@@ -126,6 +126,12 @@ if {{[string compare [get_interface_property hps_f2sdram_master EXPORT_OF] "hps_
+ remove_interface hps_f2sdram_master
+ remove_instance hps_f2sdram
+ save_system {jtag}
++'''
++    top = hps.tcl_word(project / 'qsys_top.qsys')
++    script += f'''# AREA STUDY ABLATION (not for merge): no additional interconnect pipeline latency.
++load_system {top}
++set_domain_assignment {{$system}} {{qsys_mm.maxAdditionalLatency}} {{0}}
++save_system {top}
+ '''
+     return script, profile, changes
+ 
+-- 
+2.47.3
+

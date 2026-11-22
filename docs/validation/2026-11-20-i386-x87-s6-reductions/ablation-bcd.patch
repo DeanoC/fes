@@ -1,0 +1,47 @@
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv	2026-11-20 22:13:06.701203853 +0200
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv	2026-11-20 22:13:06.713204347 +0200
+@@ -422,7 +422,7 @@
+     // other memory forms are integers. Both `cur_fmt` and `cur_op_raw` are
+     // set when the instruction is taken, so this is settled from S_ARG on.
+     logic bcd;
+-    assign bcd = cur_fmt == X87F_F80 && cur_op_raw[10:8] == 3'b111;
++    assign bcd = 1'b0;   // SCRATCH (x87 s6.3 bound): FBLD and FBSTP removed
+     // FBLD's working registers: the digits still to take, most significant
+     // first, the binary integer so far and the count left. Eighteen digits
+     // of at most 15 each stay below 2^61, so 64 bits hold any encoding.
+@@ -2430,7 +2430,7 @@
+                 // check for invalid digits" and calls the result undefined
+                 // (387 PRM section 4.3.8), and this arithmetic is what the
+                 // host x87 and the oracle were both measured to do with one.
+-                T_BLD_IN: begin
++                T_BLD_IN: if (1'b0) begin   // SCRATCH (x87 s6.3 bound)
+                     bl_acc <= 64'd0;
+                     bl_dig <= mval[71:0];
+                     bl_n <= 5'd18;
+@@ -2442,7 +2442,7 @@
+                 // shift starts from the settled register, never in the
+                 // clock that assigns it. bl_acc then stays as it is until
+                 // S_APPLY, which reads the same conversion again.
+-                T_BLD: begin
++                T_BLD: if (1'b0) begin   // SCRATCH (x87 s6.3 bound)
+                     if (bl_n != 5'd0) begin
+                         bl_acc <= {bl_acc[60:0], 3'd0} + {bl_acc[62:0], 1'b0} + {60'd0, bl_dig[71:68]};
+                         bl_dig <= {bl_dig[67:0], 4'd0};
+@@ -2462,7 +2462,7 @@
+                 // one bit a clock from the top: each digit of five or more
+                 // gains three, then the digits shift left with the next bit
+                 // coming in at the bottom. Sixty bits hold 10^18 - 1.
+-                T_BST_IN: begin
++                T_BST_IN: if (1'b0) begin   // SCRATCH (x87 s6.3 bound)
+                     bs_bin <= rnd_q[59:0];
+                     bs_bcd <= 72'd0;
+                     bs_n <= 6'd60;
+@@ -2472,7 +2472,7 @@
+                 // 72 (387 PRM Figure 2-10, note 3: "zeros when storing") and
+                 // the digits. It is assigned from bs_bcd a clock after the
+                 // last bit went in, for the same reason as above.
+-                T_BST: begin
++                T_BST: if (1'b0) begin   // SCRATCH (x87 s6.3 bound)
+                     if (bs_n != 6'd0) begin
+                         bs_bcd <= {bs_adj[70:0], bs_bin[59]};
+                         bs_bin <= {bs_bin[58:0], 1'b0};

@@ -3,6 +3,9 @@ package fogcast
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"fmt"
+	"io"
 	"log"
 
 	"github.com/DeanoC/FogCast/catalog"
@@ -14,9 +17,10 @@ import (
 var bundledFirmwareLogf = log.Printf
 
 // LoadBundledFirmware imports each valid object in dir into the core-media
-// store and keeps it as the default for its core's named ROM. An object that
-// fails validation or import is logged and skipped; it never stops the host.
-// Import is idempotent: the media ID is the image's SHA-256.
+// store: firmware, kept as the default for its core's named ROM, and disks,
+// kept for their core. An object that fails validation or import is logged
+// and skipped; it never stops the host. Import is idempotent: the media ID is
+// the image's SHA-256.
 func (s *Service) LoadBundledFirmware(ctx context.Context, dir string) {
 	objects, problems := bundledfirmware.Load(dir)
 	for _, problem := range problems {
@@ -27,32 +31,89 @@ func (s *Service) LoadBundledFirmware(ctx context.Context, dir string) {
 		return
 	}
 	var loaded []protocol.BundledFirmware
+	var disks []protocol.BundledDisk
 	for _, fw := range objects {
 		media, _, err := store.ImportCoreMediaStream(ctx, fw.Size, bytes.NewReader(fw.Image))
 		if err != nil || media.MediaID != fw.SHA256 || media.Size != fw.Size {
-			bundledFirmwareLogf("fogcast: skip bundled firmware %s: import failed: %v", fw.ID, err)
+			bundledFirmwareLogf("fogcast: skip bundled %s %s: import failed: %v", fw.Kind, fw.ID, err)
+			continue
+		}
+		if fw.Kind == bundledfirmware.KindDisk {
+			disks = append(disks, protocol.BundledDisk{
+				ID: fw.ID, Name: fw.Name, Version: fw.Version, CoreID: fw.CoreID, Size: fw.Size,
+				MediaID: media.MediaID, Licence: fw.Licence, LicenceName: fw.LicenceName,
+				LicenceText: fw.LicenceText, Notice: fw.Notice,
+				Origins: bundledLocations(fw.Origins), Sources: bundledLocations(fw.Sources),
+			})
 			continue
 		}
 		item := protocol.BundledFirmware{
 			ID: fw.ID, Name: fw.Name, Version: fw.Version, CoreID: fw.CoreID, ROMID: fw.ROMID,
 			Size: fw.Size, MediaID: media.MediaID, Licence: fw.Licence, LicenceName: fw.LicenceName,
-			LicenceText: fw.LicenceText, Notice: fw.Notice, OriginURL: fw.Origin.URL,
+			LicenceText: fw.LicenceText, Notice: fw.Notice, OriginURL: fw.Origins[0].URL,
 		}
-		if fw.Source != nil {
-			item.SourceURL, item.SourceSHA256 = fw.Source.URL, fw.Source.SHA256
+		// Firmware is taken from one archive and has at most one source
+		// tarball, which is what the list's flat fields carry.
+		if len(fw.Sources) > 0 {
+			item.SourceURL, item.SourceSHA256 = fw.Sources[0].URL, fw.Sources[0].SHA256
 		}
 		loaded = append(loaded, item)
 	}
 	s.bundledFirmwareMu.Lock()
 	s.bundledFirmware = loaded
+	s.bundledDisks = disks
 	s.bundledFirmwareMu.Unlock()
 }
 
-// BundledFirmware lists the firmware this host selects by default.
+func bundledLocations(in []bundledfirmware.Location) []protocol.BundledLocation {
+	var out []protocol.BundledLocation
+	for _, l := range in {
+		out = append(out, protocol.BundledLocation{URL: l.URL, SHA256: l.SHA256})
+	}
+	return out
+}
+
+// BundledFirmware lists the firmware this host selects by default and the
+// disks it ships.
 func (s *Service) BundledFirmware(context.Context) (protocol.BundledFirmwareList, error) {
 	s.bundledFirmwareMu.Lock()
 	defer s.bundledFirmwareMu.Unlock()
-	return protocol.BundledFirmwareList{Firmware: append([]protocol.BundledFirmware{}, s.bundledFirmware...)}, nil
+	return protocol.BundledFirmwareList{
+		Firmware: append([]protocol.BundledFirmware{}, s.bundledFirmware...),
+		Disks:    append([]protocol.BundledDisk(nil), s.bundledDisks...),
+	}, nil
+}
+
+// bundledDiskImage reads the bytes of the disk this host ships for coreID,
+// checked against the digest it was imported under.
+func (s *Service) bundledDiskImage(ctx context.Context, coreID string) ([]byte, error) {
+	disk, ok := s.bundledDisk(coreID)
+	store, isStore := s.catalog.(coreMediaCatalog)
+	if !ok || !isStore {
+		return nil, errShelfNoFreeDOS
+	}
+	_, reader, err := store.OpenCoreMedia(ctx, disk.MediaID)
+	if err != nil {
+		return nil, errShelfNoFreeDOS
+	}
+	defer reader.Close()
+	data, err := io.ReadAll(io.LimitReader(reader, disk.Size+1))
+	if err != nil || int64(len(data)) != disk.Size || fmt.Sprintf("%x", sha256.Sum256(data)) != disk.MediaID {
+		return nil, errShelfNoFreeDOS
+	}
+	return data, nil
+}
+
+// bundledDisk is the disk this host ships for coreID, if any.
+func (s *Service) bundledDisk(coreID string) (protocol.BundledDisk, bool) {
+	s.bundledFirmwareMu.Lock()
+	defer s.bundledFirmwareMu.Unlock()
+	for _, d := range s.bundledDisks {
+		if d.CoreID == coreID {
+			return d, true
+		}
+	}
+	return protocol.BundledDisk{}, false
 }
 
 func (s *Service) bundledFirmwareFor(coreID string, rom *corepackage.ROM) (protocol.BundledFirmware, bool) {

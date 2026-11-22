@@ -30,7 +30,6 @@ var expectedDDRReadMap string
 var expectedWindowMemory string
 var expectedWindowReadMap string
 var expectedWindowPresent, expectedWindowStorageReturn, expectedWindowReload string
-var expectedWindowService string
 var expectedMenuPresent, expectedMenuReadMap string
 var expectedComputerMap, expectedComputerReload string
 var expectedROMMap string
@@ -38,7 +37,7 @@ var expectedNativeComputer string
 var expectedInitialTape string
 var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
-var expectedCompiledMenuProgram string
+var expectedCompiledMenuProgram, expectedCompiledSpectrum48, expectedSharedCoreShell string
 var expectedTenfootSerial string
 var expectedWritableStoragePlan, expectedSDTransferClock string
 var programWritableStorageSelected bool
@@ -57,6 +56,10 @@ func decoded(s string, limit int) []byte {
 
 func main() {
 	de25nano.StartupCheckpoint("go_main")
+	if expectedSharedCoreShell != "" && (expectedSharedCoreShell != "1" || expectedCompiledSpectrum48 != "" ||
+		expectedCompiledMenuProgram == "" || expectedSelectedPrograms != "1" || expectedTenfootSerial != "1") {
+		panic("shared core shell requires the paired native platform")
+	}
 	var writablePlan *storagepolicy.Plan
 	if expectedWritableStoragePlan != "" {
 		if expectedSDTransferClock != "25000000" || expectedSelectedPrograms != "1" || expectedTenfootSerial != "1" {
@@ -72,9 +75,9 @@ func main() {
 	}
 	if expectedMenuPresent != "" || expectedMenuReadMap != "" {
 		if expectedMenuPresent != "1" || expectedMenuReadMap == "" || expectedWindowMemory != "" || expectedWindowReadMap != "" ||
-			expectedWindowPresent != "" || expectedWindowStorageReturn != "" || expectedWindowReload != "" || expectedWindowService != "" ||
+			expectedWindowPresent != "" || expectedWindowStorageReturn != "" || expectedWindowReload != "" ||
 			expectedDDRReadMap != "" || expectedComputerMap != "" || expectedROMMap != "" || expectedNativeComputer != "" ||
-			expectedComputerReload != "" || expectedComputerStorageReturn != "" || expectedSelectedPrograms != "" || expectedProgramPlatform != "" ||
+			expectedComputerReload != "" || expectedComputerStorageReturn != "" || expectedSelectedPrograms != "" || expectedProgramPlatform != "" || expectedCompiledSpectrum48 != "" ||
 			expectedTenfootSerial != "" || expectedUSBControl != "" || expectedCompiledMenuProgram != "" {
 			panic("menu presentation requires its complete separate compiled boot selection")
 		}
@@ -87,9 +90,6 @@ func main() {
 	}
 	if expectedWindowReload != "" && (expectedWindowReload != "1" || expectedWindowStorageReturn != "1") {
 		panic("window reload requires the selected window SD-return diagnostic")
-	}
-	if expectedWindowService != "" && (expectedWindowService != "1" || expectedWindowStorageReturn != "1" || expectedWindowReload != "") {
-		panic("window service requires the complete SD-return path and a separate selection from bounded reload")
 	}
 	if (expectedTenfootSerial != "") != tenfootSerialLinked || expectedTenfootSerial != "" && (expectedTenfootSerial != "1" || expectedSelectedPrograms != "1") {
 		panic("serial Tenfoot requires selected native programs")
@@ -158,10 +158,16 @@ func main() {
 		} else {
 			loader, err = nativefabric.NewProgramLoader(v, decoded(expectedProgramPlatform, 16384), control, configuration, decoded(expectedComputerMap, 8192))
 		}
+		if err == nil && expectedCompiledSpectrum48 != "" {
+			loader, err = loader.WithSpectrum48(decoded(expectedCompiledSpectrum48, 16384))
+		}
+		if err == nil && expectedSharedCoreShell == "1" {
+			loader, err = loader.WithSharedCoreShell()
+		}
 		if err != nil {
 			panic(err)
 		}
-	} else if expectedProgramPlatform != "" || expectedCompiledMenuProgram != "" {
+	} else if expectedProgramPlatform != "" || expectedCompiledMenuProgram != "" || expectedCompiledSpectrum48 != "" {
 		panic("program platform provided without selected program mode")
 	}
 	if err := prepareProgramNetwork(v); err != nil {
@@ -373,13 +379,6 @@ func main() {
 	}
 	if expectedWindowReadMap != "" {
 		limits := scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}
-		if expectedWindowService == "1" {
-			if err := serveWindows(v, store, request, control, configuration, decoded(expectedWindowReadMap, 8192), limits); err != nil {
-				reportWindowFailure(err)
-				panic(err)
-			}
-			return
-		}
 		if expectedWindowPresent == "1" {
 			session, err := presentWindowFrames(v, control, decoded(expectedWindowReadMap, 8192), limits, 12)
 			if err != nil {

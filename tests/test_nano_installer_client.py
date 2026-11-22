@@ -11,7 +11,7 @@ import installer_client
 import installer_trace
 import paired_tenfoot_trace as paired
 from test_nano_paired_tenfoot_trace import Model as PairedModel, MENU_OPEN, MENU_CLOSE, wire
-from test_nano_program_client import OWNER, SPEC
+from nano_program_fixtures import OWNER, SPEC
 from test_nano_tenfoot_trace import PROGRAMS
 
 

@@ -148,11 +148,11 @@ func TestInstalledSetupReplacesOnlyUnsavedBundledFirmware(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifest, err := json.Marshal(bundledfirmware.Manifest{
-		Format: bundledfirmware.Format, ID: "spectrum-test", Name: "Synthetic Spectrum default", Version: "1",
+		Format: bundledfirmware.Format, Kind: bundledfirmware.KindFirmware, ID: "spectrum-test", Name: "Synthetic Spectrum default", Version: "1",
 		CoreID: "fes.spectrum", ROMID: "spectrum-firmware", File: "firmware.bin", Size: int64(len(bundleImage)),
 		SHA256: bundleID, Licence: "GPL-2.0-only", LicenceName: "Test licence", LicenceFile: "LICENSE.txt",
-		Notice: "Synthetic test firmware.",
-		Origin: bundledfirmware.Location{URL: "https://example.invalid/spectrum.zip", SHA256: strings.Repeat("a", 64)},
+		Notice:  "Synthetic test firmware.",
+		Origins: []bundledfirmware.Location{{URL: "https://example.invalid/spectrum.zip", SHA256: strings.Repeat("a", 64)}},
 	})
 	if err != nil {
 		t.Fatal(err)

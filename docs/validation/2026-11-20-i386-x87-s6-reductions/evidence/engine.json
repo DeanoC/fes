@@ -1,0 +1,49 @@
+{
+  "what": "fes_x87_trans against its model, bit for bit; no tolerance",
+  "source": {
+    "fes_revision": "d74d8d419836166f2fdfe77b4ec9a30f85cb8e75",
+    "tracked_changes": [],
+    "files": {
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_pkg.sv": "86334f83339b10b47598044b74b510bac5829d52f7cbd4eb379570d2f90dd64d",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_fast.sv": "48f5155ef4ce38f255928503d63b65d57d0625c69907df87bf34e1965625a230",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_slow.sv": "45f43d52b5a92c24e99c47a613b1a8c588bd449391d2df9461441aa02ea4e369",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv": "08d51ddbfc2ac9457e84f374cedf695b1b5eb4d027b20870c23193839aff3405",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans_pkg.sv": "2e2eecc2574703e5092c2a8e71c5cc031dd850cbca0a2874852a10f5526b699d",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans_rom.sv": "444af655e6a577ea1a73243f757f40c182fd1339f78f5b972c83b7af98fe47b0",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans.sv": "17f1db1d501c7875b27dbed3fbd3e248b78a768fb234b98c1c659e30d53bd3b7",
+      "sources/misteross/cores/fes-common/sim/i386/x87_trans_tb_top.sv": "d1da8fc956261af7a476a870a2b8fdea158587c5a32d6b0b4774e84b4230475b",
+      "sources/misteross/cores/fes-common/sim/i386/x87_trans_tb.cpp": "cdd6d6d6572054647c18595f26e1500b6953d17507a46655ff3dcb44bf9e53f1",
+      "sources/misteross/scripts/test_fes_x87_trans_engine.py": "6266d50efa91d8c3ade3d20e80b00e2c6a047b17211d99a2ddc5ded89de64665",
+      "sources/misteross/scripts/x87_trans_ucode.py": "c32cf8fba7bf49c1f41fd810624c74174c35b6c4de816af500228fb48a21a871"
+    }
+  },
+  "verilator": {
+    "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+    "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+    "version": "Verilator 5.054 2026-11-01 rev v5.054",
+    "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c"
+  },
+  "vectors": 23795,
+  "vectors_by_instruction": {
+    "FSIN": 2000,
+    "FCOS": 2000,
+    "FSINCOS": 2000,
+    "FPTAN": 2000,
+    "F2XM1": 2000,
+    "FYL2X": 1995,
+    "FYL2XP1": 2000,
+    "FPATAN": 2000,
+    "FPREM": 1200,
+    "FPREM1": 1200,
+    "FRNDINT": 3200,
+    "FSCALE": 800,
+    "FXTRACT": 600,
+    "FBLD": 800
+  },
+  "passed": 23795,
+  "failed": 0,
+  "clocks_most": 543,
+  "clocks_mean": 190.5,
+  "failures": []
+}

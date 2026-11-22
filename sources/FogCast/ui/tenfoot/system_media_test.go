@@ -81,13 +81,10 @@ func TestSystemMediaImportSavesNextStartWithCapturedSelection(t *testing.T) {
 			if selected["expected_package_id"] != pkg || selected["expected_media_id"] != prior || selected["media_id"] != next || selected["media_role"] != tc.role {
 				t.Fatalf("selection identity: %+v", selected)
 			}
-			wantsName := tc.format == "zx81-p" || tc.format == "zx80-o"
-			if wantsName {
-				if nameRequests != 1 || named["expected_package_id"] != pkg || named["media_id"] != next || named["media_name"] != "game"+strings.ToUpper(tc.ext) {
-					t.Fatalf("name selection: requests=%d body=%+v", nameRequests, named)
-				}
-			} else if nameRequests != 0 {
-				t.Fatalf("unexpected media name request: %+v", named)
+			// Every disk and tape keeps its file name: a disk set's Next disk
+			// needs it to put the disk back.
+			if nameRequests != 1 || named["expected_package_id"] != pkg || named["media_id"] != next || named["media_name"] != "game"+strings.ToUpper(tc.ext) {
+				t.Fatalf("name selection: requests=%d body=%+v", nameRequests, named)
 			}
 			if a.coreLibrary.ExpectedMediaID != next || a.coreLibrary.PickID != "" {
 				t.Fatalf("save did not finish: %+v", a.coreLibrary)

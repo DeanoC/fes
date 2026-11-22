@@ -32,11 +32,28 @@ inline mister::CoreDescriptor De25SpectrumDescriptor(std::uint64_t bytes=16384) 
  d.interfaces.push_back({"fes.media.spectrum-tape",2,0,true});
  De25FirmwareRequirement(&d,bytes);return d;
 }
+// Live capability word 0xa02f: the Spectrum's with the disk (bit 15), media
+// unit 1 (boards/de25nano/spectrum/standard_tb.cpp, disk models).
+inline mister::CoreDescriptor De25SpectrumDiskDescriptor(const char* id,std::uint64_t bytes) {
+ auto d=De25StandardShellDescriptor(id);
+ d.interfaces.push_back({"fes.media.spectrum-tape",2,0,true});
+ d.interfaces.push_back({"fes.media.spectrum-disk",1,0,true});
+ // The optional controller names the disk's image format, as on DE10.
+ d.interfaces.push_back({std::string(id)=="fes.pentagon"?"fes.media.spectrum-disk-trdos":"fes.media.spectrum-disk-plus3",
+  1,0,false});
+ De25FirmwareRequirement(&d,bytes);return d;
+}
 // Live capability word 0x278f (boards/de25nano/atari-st/standard_tb.cpp).
 inline mister::CoreDescriptor De25AtariStDescriptor() {
  auto d=De25StandardShellDescriptor("fes.atari-st");
  for(const char* id:{"fes.mouse.relative","fes.media.atari-st-floppy","fes.media.atari-st-floppy-write",
      "fes.media.atari-st-floppy-geometry"})d.interfaces.push_back({id,1,0,true});
  De25FirmwareRequirement(&d,196608);return d;
+}
+// Live capability word 0x204f (boards/de25nano/c64/standard_tb.cpp).
+inline mister::CoreDescriptor De25C64Descriptor() {
+ auto d=De25StandardShellDescriptor("fes.c64");
+ d.interfaces.push_back({"fes.media.c64-disk",1,0,true});
+ De25FirmwareRequirement(&d,36864);return d;
 }
 }

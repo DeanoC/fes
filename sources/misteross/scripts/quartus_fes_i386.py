@@ -64,7 +64,7 @@ if __package__ in (None, ''):
 
 from scripts import benchmark_fes_i386 as benchmark
 from scripts import yosys_netlist
-from scripts.quartus_tools import load_quartus_lock, locate_quartus
+from scripts.quartus_tools import load_quartus_lock, locate_quartus, quartus_lease
 
 ROOT = Path(__file__).resolve().parents[1]
 QUARTUS_LOCK = 'cores/fes-pc386/quartus.lock'  # the lane that seals the CPU
@@ -248,7 +248,10 @@ def main() -> int:
             raise ValueError('--cache-root must be absolute (or set FES_TOOLCHAIN_CACHE_ROOT)')
         yosys = yosys_netlist.authenticate(ROOT, cache_root=args.cache_root, gpu_router=args.gpu_router)
         lock = load_quartus_lock(ROOT, QUARTUS_LOCK)
-        quartus_root, quartus_sh, version = locate_quartus(os.environ.get('QUARTUS_ROOTDIR', ''), ROOT, lock)
+        # Located inside a lease so locate_quartus does not hold one for the
+        # whole run: synthesis and each seed take their own below.
+        with quartus_lease(lock.edition, label='i386 oracle discovery'):
+            quartus_root, quartus_sh, version = locate_quartus(os.environ.get('QUARTUS_ROOTDIR', ''), ROOT, lock)
         bin_dir = quartus_sh.parent
         TOP = benchmark.SPIKES[args.spike][0]
         stages = benchmark.STAGES[args.spike]
@@ -287,10 +290,11 @@ def main() -> int:
             + pins)
         (base / f'{TOP}.sdc').write_text(
             f'create_clock -name clk -period {1000.0 / args.target_mhz:.3f} [get_ports {{FPGA_CLK1_50}}]\n')
-        if not reuse:
-            run([str(bin_dir / 'quartus_map'), TOP], base, base / 'map.log', env)
         (base / 'sta.tcl').write_text(STA_TCL.format(top=TOP, post_map='-post_map', out='sta.tsv', paths=PATHS))
-        run([str(bin_dir / 'quartus_sta'), '-t', 'sta.tcl'], base, base / 'sta.log', env)
+        with quartus_lease(lock.edition, label='i386 oracle synthesis'):
+            if not reuse:
+                run([str(bin_dir / 'quartus_map'), TOP], base, base / 'map.log', env)
+            run([str(bin_dir / 'quartus_sta'), '-t', 'sta.tcl'], base, base / 'sta.log', env)
         # The plain names rename -unescape gave, read as the flattened ones the labels match.
         text = netlist.read_text()
         flat = yosys_netlist.flattened_names(text)
@@ -300,13 +304,16 @@ def main() -> int:
 
         def fit(seed: int) -> dict:
             work = output / f'seed-{seed}'
-            if not (reuse and (work / f'{TOP}.fit.summary').is_file()):
-                if work.exists():
-                    shutil.rmtree(work)
-                shutil.copytree(base, work)
-                run([str(bin_dir / 'quartus_fit'), TOP, f'--seed={seed}'], work, work / 'fit.log', env)
-            (work / 'sta.tcl').write_text(STA_TCL.format(top=TOP, post_map='', out='sta.tsv', paths=PATHS))
-            run([str(bin_dir / 'quartus_sta'), '-t', 'sta.tcl'], work, work / 'sta.log', env)
+            # One lease per seed, held by this seed's thread, so parallel
+            # seeds take a slot each and every seed releases its own.
+            with quartus_lease(lock.edition, label=f'i386 oracle seed {seed}'):
+                if not (reuse and (work / f'{TOP}.fit.summary').is_file()):
+                    if work.exists():
+                        shutil.rmtree(work)
+                    shutil.copytree(base, work)
+                    run([str(bin_dir / 'quartus_fit'), TOP, f'--seed={seed}'], work, work / 'fit.log', env)
+                (work / 'sta.tcl').write_text(STA_TCL.format(top=TOP, post_map='', out='sta.tsv', paths=PATHS))
+                run([str(bin_dir / 'quartus_sta'), '-t', 'sta.tcl'], work, work / 'sta.log', env)
             result = parse_sta((work / 'sta.tsv').read_text(), args.target_mhz, stages, names)
             report = (work / f'{TOP}.fit.summary')
             result['fit_summary'] = report.read_text() if report.is_file() else ''
