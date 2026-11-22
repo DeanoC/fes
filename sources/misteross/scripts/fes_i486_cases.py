@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 CODE, HANDLER, DATA = 0x1000, 0x1800, 0x2800
+AC_HANDLER = 0x1810  # a #AC handler a case gives (_protected's ac_handler)
 GDT, GDT_POINTER, IDT_POINTER, TSS, IDT = 0x2000, 0x2100, 0x2108, 0x2500, 0x3000
 PAGE_DIRECTORY, PAGE_TABLE, PAGE = 0x10000, 0x11000, 0x20000
 # The CR0 every case starts from (lockstep_tb's I486_START_CR0): CD, NW, AM,
@@ -94,7 +95,7 @@ def _real(body: Asm) -> dict[int, bytes]:
 
 def _protected(body, cr0: int | None = None, page: int | None = None, ring3_eflags: int | None = None,
                ring3_esp: int = RING3_ESP, esp0: int = TSS_ESP0,
-               ring3_vectors: tuple[int, ...] = ()) -> tuple[dict[int, bytes], Asm, int]:
+               ring3_vectors: tuple[int, ...] = (), ac_handler: bytes | None = None) -> tuple[dict[int, bytes], Asm, int]:
     """A 32-bit protected-mode program; returns its image, code and the body's offset.
 
     The GDT: 08h code and 10h data, flat, DPL 0; 18h code and 20h data, flat,
@@ -106,7 +107,8 @@ def _protected(body, cr0: int | None = None, page: int | None = None, ring3_efla
     page, paging is on
     over an identity map of the first megabyte whose entry for 20000h has
     those attribute bits. With ring3_eflags the body runs at CPL 3 on a stack
-    at ring3_esp, with DS 23h, entered by IRETD with that EFLAGS image.
+    at ring3_esp, with DS 23h, entered by IRETD with that EFLAGS image. With
+    ac_handler, vector 17's gate leads to those bytes at AC_HANDLER instead.
     """
     a = Asm()
     a.op(0xfa)                                        # CLI
@@ -145,11 +147,13 @@ def _protected(body, cr0: int | None = None, page: int | None = None, ring3_efla
     # ring3_vectors' gates lead to the same HLT through the DPL-3 code
     # segment, so their deliveries from CPL 3 stay at CPL 3.
     idt = b''.join(_gate(0x1b, HANDLER, 0xee) if vector in ring3_vectors else
+                   _gate(0x08, AC_HANDLER, 0x8e) if vector == 17 and ac_handler is not None else
                    _gate(0x08, HANDLER, 0xee if vector == 3 else 0x8e) for vector in range(32))
     tss = bytearray(0x68)
     tss[4:8] = esp0.to_bytes(4, 'little')
     tss[8:10] = (0x10).to_bytes(2, 'little')
     image = {CODE: bytes(a.b), HANDLER: b'\xf4', GDT: gdt, IDT: idt, TSS: bytes(tss),
+             **({AC_HANDLER: ac_handler} if ac_handler is not None else {}),
              GDT_POINTER: (len(gdt) - 1).to_bytes(2, 'little') + GDT.to_bytes(4, 'little'),
              IDT_POINTER: (len(idt) - 1).to_bytes(2, 'little') + IDT.to_bytes(4, 'little')}
     if page is not None:
@@ -611,15 +615,29 @@ def cases() -> list[Case]:
     # a misaligned ESP0 does not fault (PRM 9.9.16: only CPL 3 is checked).
     protected('ac-delivery-odd-esp0', source17, {'end': 'int:3'}, lambda a: None, ring3_eflags=AC,
               esp0=TSS_ESP0 + 1, what='INT3 from CPL 3 onto an odd ESP0 does not fault')
-    # An exception delivered at CPL 3 (a gate to the DPL-3 code segment)
-    # pushes onto the misaligned current stack, and the oracle delivers it
-    # without #AC: a delivery's accesses are not alignment-checked. No 486
-    # document read says whether they are; the RTL makes none of a
-    # delivery's accesses (system ones and nstk pushes) take #AC.
-    protected('ac-delivery-same-privilege', 'Bochs (no 486 document read settles a delivery\'s pushes)',
-              {'end': 'exception:6'},
+    # A delivery that stays at CPL 3 (a gate to the DPL-3 code segment)
+    # pushes onto the current stack as CPL-3 accesses, so a misaligned push
+    # raises #AC, which gate 17 delivers at CPL 0. Hardware does this
+    # (CVE-2015-5307: a ring-3 #AC handler on an unaligned stack loops in
+    # microcode); no 486 document read settles it, and Deano chose it on
+    # 21 November 2026. INT 6 is not an exception, so the case's first
+    # exception is the #AC, with error code 0.
+    source_delivery = 'Deano 21 Nov 2026, as hardware (CVE-2015-5307); no 486 document read settles it'
+    protected('ac-delivery-same-privilege', source_delivery, {'end': 'exception:17', 'error': 0},
+              lambda a: a.op(0xcd, 0x06), ring3_eflags=AC, ring3_esp=RING3_ESP + 1, ring3_vectors=(6,),
+              what='INT 6 to a CPL-3 gate onto a misaligned stack raises #AC(0)')
+    # The same for an exception's delivery: #UD's pushes raise #AC. Its
+    # handler pops the error code into EAX. Bochs sets EXT and pushes 1; a
+    # 486SX pushes 0, #AC's error code being always zero (PRM Table 9-8;
+    # Deano, 21 November 2026, "Push 0 now"), which the lockstep's #AC
+    # error code rule holds the RTL to. The row holds the first exception,
+    # #UD, and Bochs's EAX.
+    protected('ac-exception-delivery-same-privilege', 'Bochs (EXT set); PRM Table 9-8 for the 486',
+              {'end': 'exception:6', 'eax': 1},
               lambda a: a.op(0x0f, 0xff), ring3_eflags=AC, ring3_esp=RING3_ESP + 1, ring3_vectors=(6,),
-              what='#UD delivered at CPL 3 onto a misaligned stack takes no #AC')
+              ac_handler=bytes([0x58, 0xf4]), divergence='ac-error-ext',
+              i486='error code 0 (PRM Table 9-8: always zero; Deano, 21 November 2026)',
+              what='#UD delivered at CPL 3 onto a misaligned stack raises #AC; its handler pops the error code')
     protected('ac-xadd-m32', source17, {'end': 'exception:17', 'error': 0},
               lambda a: a.op(0x0f, 0xc1, 0x1d).d(PAGE + 1), ring3_eflags=AC,
               what='a misaligned XADD is #AC(0)')
@@ -662,6 +680,54 @@ def cases() -> list[Case]:
          lambda a: (a.op(0x66, 0xb8).d(2), a.here(), a.op(0x0f, 0xa2))[1], divergence='cpuid-above-highest',
          i486='zeros in EAX, EBX, ECX and EDX (DB Appendix B, item 3; AP-485 Table 1 says undefined)',
          what='CPUID leaf 2, above the highest')
+
+    # DR6 bit 12: 0 at reset (PRM Table 10-1), and a MOV to DR6 sets it on a
+    # 486 (Intel SDM vol. 3, the debug registers' compatibility notes: "it
+    # is possible to write a 1 in this bit on the Intel486 processor"; a
+    # Pentium's reads 0). The level-4 random programs found the RTL reading
+    # it as 0.
+    def dr6_bit12(a):
+        a.op(0x66, 0xb8).d(0x1000)                    # MOV EAX, 1000h
+        probe = a.here()
+        a.op(0x0f, 0x23, 0xf0)                        # MOV DR6, EAX
+        a.op(0x0f, 0x21, 0xf3)                        # MOV EBX, DR6
+        return probe
+    real('dr6-bit12', 'Intel SDM vol. 3, debug registers (compatibility); PRM Table 10-1',
+         {'end': 'halt', 'ebx': 0xffff1ff0}, dr6_bit12, what='DR6 bit 12 is writable on a 486')
+
+    # XADD and CMPXCHG on MMIO (the lockstep's A0000h-BFFFFh window, which
+    # the i486 mode maps): each reads its operand once, as a locked
+    # read-modify-write does (PRM ch. 26, LOCK and XADD: a read and then a
+    # write of the destination). The lockstep compares each step's MMIO
+    # reads; the level-4 random programs found XADD reading it twice.
+    def on_vga(build_op):
+        def build(a):
+            a.op(0xb8).w(0xa000).op(0x8e, 0xd8)                   # MOV AX, A000h; MOV DS, AX
+            probe = build_op(a)
+            a.op(0x8b, 0x0e).w(0x10)                              # MOV CX, [10h]
+            return probe
+        return build
+
+    def xadd_vga(a):
+        a.op(0xc7, 0x06).w(0x10).w(0x7fff).op(0xbb, 0x01, 0x00)    # word [10h] = 7FFFh; BX = 1
+        probe = a.here()
+        a.op(0x0f, 0xc1, 0x1e).w(0x10)                            # XADD [10h], BX
+        return probe
+    real('xadd-m16-mmio', 'PRM ch. 26, XADD', {'end': 'halt', 'ebx': 0x7fff, 'ecx': 0x8000, 'eflags': 0x896},
+         on_vga(xadd_vga), what='XADD to MMIO reads its operand once')
+
+    def cmpxchg_vga(old):
+        def build(a):
+            a.op(0xc7, 0x06).w(0x10).w(old)                       # word [10h] = old
+            a.op(0xb8).w(0x1234).op(0xba).w(0x5678)                # AX = 1234h; DX = 5678h
+            probe = a.here()
+            a.op(0x0f, 0xb1, 0x16).w(0x10)                        # CMPXCHG [10h], DX
+            return probe
+        return build
+    real('cmpxchg-m16-mmio-equal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 0x1234, 'ecx': 0x5678},
+         on_vga(cmpxchg_vga(0x1234)), what='CMPXCHG to MMIO, equal, reads its operand once')
+    real('cmpxchg-m16-mmio-unequal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 0x4321, 'ecx': 0x4321},
+         on_vga(cmpxchg_vga(0x4321)), what='CMPXCHG to MMIO, unequal, reads its operand once')
     return out
 
 

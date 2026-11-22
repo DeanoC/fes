@@ -1,0 +1,25 @@
+diff --git a/sources/misteross/cores/fes-pc386/rtl/pc386_at_core.sv b/sources/misteross/cores/fes-pc386/rtl/pc386_at_core.sv
+index c787685ef..a9cdb9498 100644
+--- a/sources/misteross/cores/fes-pc386/rtl/pc386_at_core.sv
++++ b/sources/misteross/cores/fes-pc386/rtl/pc386_at_core.sv
+@@ -296,18 +296,8 @@ module pc386_at_core #(
+         .cycle_channel(dma1_channel), .cycle_write(dma1_write), .cycle_tc(dma1_tc),
+         .cycle_rdata(dma1_rdata), .cycle_fault(2'b00), .fault(), .refresh_done()
+     );
+-    fes_dma8237 #(.ADDRESS_BITS(24), .AT_PAGES(1), .REFRESH(0), .WORD_ADDRESS(1)) dma2 (
+-        .clk(clk), .reset(reset), .guest_ce(dma_tick),
+-        .reg_read(access && !cycle_write && select_dma2), .reg_write(access && cycle_write && select_dma2),
+-        .page_write(page_write && page_second),
+-        .reg_address(select_page ? {2'b00, page_channel} : port[4:1]), .reg_wdata(cycle_wdata[7:0]),
+-        .reg_rdata(dma2_data),
+-        .drq(3'b000), .refresh_clock(1'b0), .hold_request(dma2_hold), .granted(dma2_hold),
+-        .cpu_waiting(1'b0), .cpu_done(1'b0),
+-        .cycle_valid(dma2_valid), .cycle_ready(1'b1), .cycle_done(dma2_done),
+-        .cycle_address(), .cycle_wdata(), .cycle_kind(), .cycle_channel(), .cycle_write(), .cycle_tc(),
+-        .cycle_rdata(8'hff), .cycle_fault(2'b00), .fault(), .refresh_done()
+-    );
++    // AREA STUDY ABLATION (not for merge): controller 2 removed.
++    assign dma2_data = 8'hff; assign dma2_hold = 1'b0; assign dma2_valid = 1'b0;
+     /* verilator lint_on PINCONNECTEMPTY */
+ 
+     // Controller 1's memory cycles go to the CPU's DMA port, its device cycles

@@ -20,7 +20,7 @@ func TestFirstRunIncludesPCFamiliesAtSupportedSizes(t *testing.T) {
 			})
 			assertSetupFamilyLabels(t, welcome, labels)
 			assertSetupTextClearOfButtons(t, welcome)
-			if !roomTextHas(welcome, "In development") || roomTextHas(welcome, "Four are ready") {
+			if roomTextHas(welcome, "In development") || roomTextHas(welcome, "Four are ready") {
 				t.Fatal("Welcome does not describe the PC 386's current status")
 			}
 			writeHomeScreenshot(t, welcome, "pc-welcome")

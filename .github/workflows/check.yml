@@ -375,6 +375,13 @@ jobs:
         env:
           TARGETS: ${{ matrix.target }}
         run: make -C sources/misteross $TARGETS
+      - name: Retain the DE25 x87 Verilator build log on failure
+        if: failure() && matrix.core == 'de25-x87'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fes-de25-x87-build-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: sources/misteross/build/sim/de25-x87-pipeline/build.log
+          if-no-files-found: warn
   integration:
     if: always()
     needs: [plan, parent-tests, consistency, host, runtime, contracts, fpga-producer, simulation-tools, fpga-simulation]

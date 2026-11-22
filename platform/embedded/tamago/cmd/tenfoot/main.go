@@ -19,6 +19,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/modelbackend"
 	"github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission"
@@ -203,6 +204,24 @@ func run() (result error) {
 	fmt.Printf("FES tenfoot native Go os=%s arch=%s EL=%d\n", runtime.GOOS, runtime.GOARCH, board.ExceptionLevel())
 	if runtime.GOOS != "tamago" || runtime.GOARCH != "arm64" || board.ExceptionLevel() != 1 {
 		return fmt.Errorf("unexpected boot contract")
+	}
+	if g := board.GIC(); g != nil {
+		if err := g.Init(); err != nil {
+			if !errors.Is(err, gic.ErrUnsupported) {
+				return fmt.Errorf("init GIC: %w", err)
+			}
+			fmt.Println("FES_GIC_IDLE enabled=false reason=unsupported")
+		} else {
+			if err := g.EnableIdle(); err != nil {
+				return fmt.Errorf("enable WFI idle: %w", err)
+			}
+			defer func() {
+				wakeups := g.IdleWakeups()
+				g.DisableIdle()
+				fmt.Printf("FES_GIC_IDLE_EXIT wakeups=%d\n", wakeups)
+			}()
+			fmt.Printf("FES_GIC_IDLE enabled=true redistributor=%#x lines=%d\n", g.Redistributor(), g.Lines())
+		}
 	}
 	frameMemory, err := board.InitDevices()
 	if err != nil {

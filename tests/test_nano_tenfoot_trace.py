@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
 import tenfoot_trace as trace
-from test_nano_program_client import Model as ProgramModel,BOOT,SPEC,OWNER
+from nano_program_fixtures import Model as ProgramModel,BOOT,SPEC,OWNER
 from service_trace import response
 from test_nano_native_trace import firmware_progress
 

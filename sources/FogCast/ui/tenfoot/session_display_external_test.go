@@ -1,0 +1,697 @@
+package tenfoot
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/sessiondisplayipc"
+	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/menudisplay"
+)
+
+type delayedDisplayPresenter struct {
+	countingSessionMenu
+	mu2     sync.Mutex
+	entered chan struct{}
+	gate    chan struct{}
+	fail    bool
+}
+
+func (p *delayedDisplayPresenter) Present(ctx context.Context, generation uint64, pixels []byte) (menudisplay.Result, error) {
+	p.mu2.Lock()
+	entered, gate, fail := p.entered, p.gate, p.fail
+	p.mu2.Unlock()
+	if entered != nil {
+		close(entered)
+		select {
+		case <-gate:
+		case <-ctx.Done():
+			return menudisplay.Result{}, ctx.Err()
+		}
+	}
+	if fail {
+		return menudisplay.Result{}, errors.New("injected present failure")
+	}
+	return p.countingSessionMenu.Present(ctx, generation, pixels)
+}
+
+func externalDisplayFixture(t *testing.T) (*App, *gfx.MenuDisplay, *countingSessionMenu, sessiondisplayipc.Transition) {
+	t.Helper()
+	server := httptest.NewServer(nil)
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.mu.Lock()
+	prior := app.session
+	app.mu.Unlock()
+	presenter := &countingSessionMenu{}
+	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	display.SetChangeDriven(true)
+	t.Cleanup(display.Close)
+	app.SetMenuDisplay(display)
+	return app, display, presenter, sessiondisplayipc.Transition{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, TargetID: prior.TargetID, Display: protocol.SessionDisplayFocused}
+}
+
+func TestExternalDisplayRejectsStaleAndBusyBeforePause(t *testing.T) {
+	app, display, _, request := externalDisplayFixture(t)
+	stale := request
+	stale.Generation++
+	if _, err := app.prepareExternalSessionDisplay(context.Background(), stale); err == nil {
+		t.Fatal("stale generation accepted")
+	}
+	foreign := request
+	foreign.TargetID = "other-kit"
+	if _, err := app.prepareExternalSessionDisplay(context.Background(), foreign); err == nil {
+		t.Fatal("other target accepted")
+	}
+	app.mu.Lock()
+	app.sessionDisplayBusy = true
+	app.mu.Unlock()
+	if _, err := app.prepareExternalSessionDisplay(context.Background(), request); err == nil {
+		t.Fatal("busy local transition accepted")
+	}
+	if display.ReadinessDiagnostic().Paused {
+		t.Fatal("rejected request paused the display")
+	}
+}
+
+func TestExternalDisplayRequiresFreshPresentedFrame(t *testing.T) {
+	app, display, presenter, request := externalDisplayFixture(t)
+	finish, err := app.prepareExternalSessionDisplay(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !display.ReadinessDiagnostic().Paused {
+		t.Fatal("prepare did not pause display")
+	}
+	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: request.PackageID, CoreGeneration: request.Generation, Generation: 4})
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
+	defer cancel()
+	if err := finish(ctx, sessiondisplayipc.Applied); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("ack without a frame = %v", err)
+	}
+	app.mu.Lock()
+	uncertain := app.sessionDisplayUncertain
+	app.mu.Unlock()
+	if !uncertain {
+		t.Fatal("unpresented applied display was not marked uncertain")
+	}
+}
+
+func TestExternalDisplayWaitsForNewPresentedSince(t *testing.T) {
+	presenter := &delayedDisplayPresenter{}
+	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: strings.Repeat("a", 64), CoreGeneration: 9, Generation: 4})
+	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer display.Close()
+	display.SetChangeDriven(true)
+	display.BindSession(strings.Repeat("a", 64), 9)
+	display.Present()
+	deadline := time.Now().Add(time.Second)
+	for !display.PresentedSince(display.QueuedSeq()) {
+		if time.Now().After(deadline) {
+			t.Fatal("first frame did not present")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	presenter.mu2.Lock()
+	presenter.entered, presenter.gate, presenter.fail = make(chan struct{}), make(chan struct{}), true
+	entered, gate := presenter.entered, presenter.gate
+	presenter.mu2.Unlock()
+	display.Framebuffer().Pix[0] ^= 1
+	display.Present()
+	<-entered
+	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	waiter := &App{displayFrameRequest: 1, displayFrameSeq: display.QueuedSeq()}
+	go func() { done <- waiter.waitSubmittedDisplayFrame(ctx, display, 1) }()
+	select {
+	case err := <-done:
+		t.Fatalf("acknowledged queued frame before presentation: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(gate)
+	if err := <-done; !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("failed frame acknowledged: %v", err)
+	}
+}
+
+func TestExternalDisplayOpensAndReturnsAfterPresentation(t *testing.T) {
+	app, display, presenter, request := externalDisplayFixture(t)
+	finish, err := app.prepareExternalSessionDisplay(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: request.PackageID, CoreGeneration: request.Generation, Generation: 4})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- finish(ctx, sessiondisplayipc.Applied) }()
+	for !app.Snapshot().Session.ControlsOpen {
+		select {
+		case <-ctx.Done():
+			t.Fatal("launcher room did not open")
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("acknowledged before presentation: %v", err)
+	default:
+	}
+	snap := app.Snapshot()
+	display.ForceNextFrame()
+	display.Present()
+	app.submittedDisplayFrame(snap.displayFrameRequest, display.QueuedSeq())
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("presented frame was not acknowledged")
+	}
+	request.Display = protocol.SessionDisplayClosed
+	finish, err = app.prepareExternalSessionDisplay(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	presenter.set(menudisplay.Status{Session: true, PackageID: request.PackageID, CoreGeneration: request.Generation})
+	if err := finish(ctx, sessiondisplayipc.Applied); err != nil {
+		t.Fatal(err)
+	}
+	if app.Snapshot().Session.ControlsOpen {
+		t.Fatal("close kept launcher controls open")
+	}
+}
+
+func TestExternalDisplayRejectedRestoresOldBinding(t *testing.T) {
+	app, display, _, request := externalDisplayFixture(t)
+	finish, err := app.prepareExternalSessionDisplay(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = finish(context.Background(), sessiondisplayipc.Rejected); err != nil {
+		t.Fatal(err)
+	}
+	app.mu.Lock()
+	got, busy, uncertain := app.sessionDisplayLocked(), app.sessionDisplayBusy, app.sessionDisplayUncertain
+	app.mu.Unlock()
+	if got != protocol.SessionDisplayClosed || busy || uncertain || display.ReadinessDiagnostic().Paused {
+		t.Fatal("rejection did not restore the previous launcher state")
+	}
+}
+
+func TestExternalDisplayUnknownAllowsOnlyBoundCloseRecovery(t *testing.T) {
+	app, _, _, request := externalDisplayFixture(t)
+	finish, err := app.prepareExternalSessionDisplay(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := finish(context.Background(), sessiondisplayipc.Unknown); err == nil {
+		t.Fatal("unknown outcome acknowledged")
+	}
+	if _, err := app.prepareExternalSessionDisplay(context.Background(), request); err == nil {
+		t.Fatal("uncertain show admitted")
+	}
+	request.Display = protocol.SessionDisplayClosed
+	finish, err = app.prepareExternalSessionDisplay(context.Background(), request)
+	if err != nil {
+		t.Fatalf("close recovery rejected: %v", err)
+	}
+	if err := finish(context.Background(), sessiondisplayipc.Applied); err != nil {
+		t.Fatal(err)
+	}
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.sessionDisplayUncertain || app.sessionDisplay != protocol.SessionDisplayClosed {
+		t.Fatal("close did not clear uncertainty")
+	}
+}
+
+func TestExternalDisplayRejectsShowDuringShutdown(t *testing.T) {
+	app, _, _, request := externalDisplayFixture(t)
+	app.mu.Lock()
+	app.displayShuttingDown = true
+	app.displayShutdownClose = true
+	app.mu.Unlock()
+	if _, err := app.prepareExternalSessionDisplay(context.Background(), request); err == nil {
+		t.Fatal("show admitted during shutdown")
+	}
+	request.Display = protocol.SessionDisplayClosed
+	finish, err := app.prepareExternalSessionDisplay(context.Background(), request)
+	if err != nil {
+		t.Fatalf("shutdown close rejected: %v", err)
+	}
+	if err := finish(context.Background(), sessiondisplayipc.Rejected); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExternalDisplayStopBeforePresentedFrameFailsClosed(t *testing.T) {
+	app, display, presenter, request := externalDisplayFixture(t)
+	finish, err := app.prepareExternalSessionDisplay(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: request.PackageID, CoreGeneration: request.Generation, Generation: 4})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- finish(ctx, sessiondisplayipc.Applied) }()
+	for app.Snapshot().displayFrameRequest == 0 {
+		select {
+		case <-ctx.Done():
+			t.Fatal("frame not requested")
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+	snap := app.Snapshot()
+	app.mu.Lock()
+	app.stopPhase = "stopping"
+	app.mu.Unlock()
+	display.ForceNextFrame()
+	display.Present()
+	app.submittedDisplayFrame(snap.displayFrameRequest, display.QueuedSeq())
+	if err := <-done; err == nil {
+		t.Fatal("acknowledged after stop started")
+	}
+	app.mu.Lock()
+	app.stopPhase = ""
+	uncertain := app.sessionDisplayUncertain
+	app.sessionDisplay = protocol.SessionDisplayClosed
+	app.sessionDisplayUncertain = false
+	app.mu.Unlock()
+	if !uncertain {
+		t.Fatal("late stop did not mark display uncertain")
+	}
+}
+
+func TestExternalSurroundOverrideYieldsToSetting(t *testing.T) {
+	app, _, _, _ := externalDisplayFixture(t)
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	shown := true
+	app.displaySurroundOverride = &shown
+	if got := app.sessionReturnDisplayLocked(); got != protocol.SessionDisplayShown {
+		t.Fatalf("external show lost: %v", got)
+	}
+	app.setSurroundLocked(false, false)
+	if got := app.sessionReturnDisplayLocked(); got != protocol.SessionDisplayClosed {
+		t.Fatalf("explicit setting lost: %v", got)
+	}
+}
+
+func TestStartupDisplayRemainsFencedUntilExactFrame(t *testing.T) {
+	app, display, presenter, request := externalDisplayFixture(t)
+	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: request.PackageID, CoreGeneration: request.Generation, Generation: 4})
+	display.BindSession(request.PackageID, request.Generation)
+	app.mu.Lock()
+	app.sessionDisplay = protocol.SessionDisplayFocused
+	app.sessionDisplayBinding = app.session
+	app.startupFrameVerify = func(context.Context) error { return nil }
+	app.mu.Unlock()
+	app.mu.Lock()
+	app.fenceStartupFrameLocked()
+	app.mu.Unlock()
+	if blocked, err := app.checkStartupFrame(display, false); err != nil || !blocked {
+		t.Fatal("startup accepted without frame")
+	}
+	snap := app.Snapshot()
+	display.ForceNextFrame()
+	display.Present()
+	app.submittedDisplayFrame(snap.displayFrameRequest, display.QueuedSeq())
+	deadline := time.Now().Add(time.Second)
+	for {
+		blocked, err := app.checkStartupFrame(display, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !blocked {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("presented startup frame did not release fence")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	app.mu.Lock()
+	app.sessionDisplay = protocol.SessionDisplayClosed
+	app.mu.Unlock()
+}
+
+func TestPresentedFrameFenceSurvivesLaterFrame(t *testing.T) {
+	presenter := &countingSessionMenu{}
+	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: strings.Repeat("a", 64), CoreGeneration: 9, Generation: 4})
+	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer display.Close()
+	display.SetChangeDriven(true)
+	display.BindSession(strings.Repeat("a", 64), 9)
+	display.Present()
+	first := display.QueuedSeq()
+	deadline := time.Now().Add(time.Second)
+	for !display.PresentedSince(first) {
+		if time.Now().After(deadline) {
+			t.Fatal("first frame not presented")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	display.Framebuffer().Pix[0] ^= 1
+	display.Present()
+	second := display.QueuedSeq()
+	for !display.PresentedSince(second) {
+		if time.Now().After(deadline) {
+			t.Fatal("second frame not presented")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !display.PresentedSince(first) {
+		t.Fatal("superseded successful frame was forgotten")
+	}
+	display.BindSession(strings.Repeat("a", 64), 10)
+	if display.PresentedSince(first) {
+		t.Fatal("old binding frame survived rebind")
+	}
+}
+
+func TestStartupDisplayWaitsForIdentityRecheck(t *testing.T) {
+	app, display, presenter, request := externalDisplayFixture(t)
+	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: request.PackageID, CoreGeneration: request.Generation, Generation: 4})
+	display.BindSession(request.PackageID, request.Generation)
+	entered, release := make(chan struct{}), make(chan struct{})
+	app.mu.Lock()
+	app.sessionDisplay = protocol.SessionDisplayFocused
+	app.sessionDisplayBinding = app.session
+	app.startupFrameVerify = func(ctx context.Context) error {
+		close(entered)
+		select {
+		case <-release:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	app.fenceStartupFrameLocked()
+	app.mu.Unlock()
+	snap := app.Snapshot()
+	display.ForceNextFrame()
+	display.Present()
+	app.submittedDisplayFrame(snap.displayFrameRequest, display.QueuedSeq())
+	deadline := time.Now().Add(time.Second)
+	for {
+		_, err := app.checkStartupFrame(display, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-entered:
+			goto waiting
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("identity check did not start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+waiting:
+	if blocked, err := app.checkStartupFrame(display, false); err != nil || !blocked {
+		t.Fatal("input released before identity recheck")
+	}
+	close(release)
+	for {
+		blocked, err := app.checkStartupFrame(display, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !blocked {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("identity recheck did not release fence")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	app.mu.Lock()
+	app.sessionDisplay = protocol.SessionDisplayClosed
+	app.mu.Unlock()
+}
+
+func TestStartupDisplayIdentityFailureRequiresFreshReconciliation(t *testing.T) {
+	app, display, presenter, request := externalDisplayFixture(t)
+	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: request.PackageID, CoreGeneration: request.Generation, Generation: 4})
+	display.BindSession(request.PackageID, request.Generation)
+	app.mu.Lock()
+	app.sessionDisplay = protocol.SessionDisplayFocused
+	app.sessionDisplayBinding = app.session
+	app.startupFrameVerify = func(context.Context) error { return errors.New("runtime replaced") }
+	app.fenceStartupFrameLocked()
+	app.mu.Unlock()
+	snap := app.Snapshot()
+	display.ForceNextFrame()
+	display.Present()
+	app.submittedDisplayFrame(snap.displayFrameRequest, display.QueuedSeq())
+	deadline := time.Now().Add(time.Second)
+	for {
+		_, err := app.checkStartupFrame(display, true)
+		if err != nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("failed identity recheck did not exit")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	app.mu.Lock()
+	uncertain := app.sessionDisplayUncertain
+	app.sessionDisplayUncertain = false
+	app.sessionDisplay = protocol.SessionDisplayClosed
+	app.mu.Unlock()
+	if !uncertain {
+		t.Fatal("identity failure not marked uncertain")
+	}
+}
+
+func TestExternalFocusResolvesPackageBeforePreparation(t *testing.T) {
+	entered, release := make(chan struct{}), make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/v1/core-packages/") {
+			http.NotFound(w, r)
+			return
+		}
+		close(entered)
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
+		_, _ = fmt.Fprintf(w, `{"package_id":"%s","descriptor":{"core":{"id":"fes.zx81"}}}`, strings.Repeat("a", 64))
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	presenter := &countingSessionMenu{}
+	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(display.Close)
+	display.SetChangeDriven(true)
+	app.SetMenuDisplay(display)
+	app.mu.Lock()
+	app.session.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{{ID: "fes.keyboard", Major: 1}, {ID: "fes.memory.hps-ddr", Major: 1}, {ID: "fes.video.session-display", Major: 1}}
+	prior := app.session
+	app.mu.Unlock()
+	request := sessiondisplayipc.Transition{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, TargetID: prior.TargetID, Display: protocol.SessionDisplayFocused}
+	result := make(chan error, 1)
+	finishResult := make(chan func(context.Context, sessiondisplayipc.Outcome) error, 1)
+	go func() {
+		finish, err := app.prepareExternalSessionDisplay(context.Background(), request)
+		finishResult <- finish
+		result <- err
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("package lookup did not start")
+	}
+	select {
+	case err := <-result:
+		t.Fatalf("prepared before metadata: %v", err)
+	default:
+	}
+	if display.ReadinessDiagnostic().Paused {
+		t.Fatal("presentation paused before package resolved")
+	}
+	close(release)
+	if err := <-result; err != nil {
+		t.Fatal(err)
+	}
+	finish := <-finishResult
+	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: request.PackageID, CoreGeneration: request.Generation, Generation: 4})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	finished := make(chan error, 1)
+	go func() { finished <- finish(ctx, sessiondisplayipc.Applied) }()
+	for app.Snapshot().displayFrameRequest == 0 {
+		select {
+		case <-ctx.Done():
+			t.Fatal("room did not request a frame")
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+	snap := app.Snapshot()
+	display.ForceNextFrame()
+	display.Present()
+	app.submittedDisplayFrame(snap.displayFrameRequest, display.QueuedSeq())
+	if err := <-finished; err != nil {
+		t.Fatal(err)
+	}
+	app.mu.Lock()
+	core, opened, uncertain := app.playingSetupCoreLocked(), app.roomDuringPlay, app.sessionDisplayUncertain
+	app.sessionDisplay = protocol.SessionDisplayClosed
+	app.mu.Unlock()
+	if core != "fes.zx81" || !opened || uncertain {
+		t.Fatalf("core=%q opened=%v uncertain=%v", core, opened, uncertain)
+	}
+}
+
+func TestFrameFenceAcceptsNewerFrameWhenQueuedOneWasDropped(t *testing.T) {
+	presenter := &delayedDisplayPresenter{}
+	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: strings.Repeat("a", 64), CoreGeneration: 9, Generation: 4})
+	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer display.Close()
+	display.SetChangeDriven(true)
+	display.BindSession(strings.Repeat("a", 64), 9)
+	display.Present()
+	first := display.QueuedSeq()
+	deadline := time.Now().Add(time.Second)
+	for !display.PresentedSince(first) {
+		if time.Now().After(deadline) {
+			t.Fatal("initial frame missing")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	presenter.mu2.Lock()
+	presenter.entered = make(chan struct{})
+	presenter.gate = make(chan struct{})
+	entered, gate := presenter.entered, presenter.gate
+	presenter.mu2.Unlock()
+	display.Framebuffer().Pix[0] ^= 1
+	display.Present()
+	<-entered
+	display.Framebuffer().Pix[1] ^= 1
+	display.ForceNextFrame()
+	display.Present()
+	fence := display.QueuedSeq()
+	display.Framebuffer().Pix[2] ^= 1
+	display.Present()
+	newer := display.QueuedSeq()
+	if newer <= fence {
+		t.Fatal("later snapshot did not queue")
+	}
+	if display.PresentedSince(fence) {
+		t.Fatal("pre-fence frame acknowledged")
+	}
+	presenter.mu2.Lock()
+	presenter.entered = nil
+	presenter.gate = nil
+	presenter.mu2.Unlock()
+	close(gate)
+	for !display.PresentedSince(fence) {
+		if time.Now().After(deadline) {
+			t.Fatal("superseding frame did not satisfy fence")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !display.PresentedSince(newer) {
+		t.Fatal("wrong frame acknowledged")
+	}
+}
+
+func TestExternalDisplayForeignLeaseExceptionsRemainNarrow(t *testing.T) {
+	const owner = "fogcast@other-host"
+	for _, tt := range []struct {
+		name                     string
+		healthState, healthOwner string
+		lease                    KitLeaseStatus
+		haveLease                bool
+		allow                    bool
+	}{
+		{"matching remote host", "busy", owner, KitLeaseStatus{State: "held", Owner: owner}, true, true},
+		{"missing projection", "busy", owner, KitLeaseStatus{}, false, false},
+		{"unavailable projection", "busy", owner, KitLeaseStatus{Unavailable: true}, true, false},
+		{"different owner", "busy", owner, KitLeaseStatus{State: "held", Owner: "fogcast@different"}, true, false},
+		{"unknown owner", "busy", "", KitLeaseStatus{State: "held", Owner: ""}, true, false},
+		{"contradictory maintenance purpose", "busy", owner, KitLeaseStatus{State: "held", Owner: owner, Purpose: "maintenance"}, true, false},
+		{"arbitrary valid owner", "busy", "operator", KitLeaseStatus{State: "held", Owner: "operator"}, true, true},
+
+		{"maintenance", "busy", owner, KitLeaseStatus{State: "maintenance", Owner: owner}, true, false},
+
+		{"recovery", "recovery-required", owner, KitLeaseStatus{State: "recovery-required", Owner: owner}, true, false},
+		{"denied", "busy", owner, KitLeaseStatus{State: "held", Owner: owner, ErrorCode: "KIT_LEASE_DENIED"}, true, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			app, display, _, request := externalDisplayFixture(t)
+			request.Display = protocol.SessionDisplayShown
+			request.LeaseAdmitted = true
+			app.mu.Lock()
+			app.healthHave = true
+			app.health.Connection.State, app.health.Connection.Owner = tt.healthState, tt.healthOwner
+			app.kitLeaseHave, app.kitLease = tt.haveLease, tt.lease
+			app.mu.Unlock()
+			finish, err := app.prepareExternalSessionDisplay(context.Background(), request)
+			if tt.allow {
+				if err != nil {
+					t.Fatalf("matching foreign host rejected: %v", err)
+				}
+				if err := finish(context.Background(), sessiondisplayipc.Rejected); err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil {
+				t.Fatal("foreign or unavailable lease accepted")
+			}
+			if display.ReadinessDiagnostic().Paused {
+				t.Fatal("display left paused")
+			}
+		})
+	}
+}
+
+func TestExternalDisplayBusyProjectionNeedsAgentLeaseAdmission(t *testing.T) {
+	app, display, _, request := externalDisplayFixture(t)
+	app.mu.Lock()
+	app.healthHave = true
+	app.health.Connection.State, app.health.Connection.Owner = "busy", "remote"
+	app.kitLeaseHave = true
+	app.kitLease = kitLeaseFromConnection(app.health.Connection)
+	app.mu.Unlock()
+	request.Display = protocol.SessionDisplayShown
+	if _, err := app.prepareExternalSessionDisplay(context.Background(), request); err == nil {
+		t.Fatal("busy projection accepted without agent lease admission")
+	}
+	if display.ReadinessDiagnostic().Paused {
+		t.Fatal("rejected request paused display")
+	}
+}

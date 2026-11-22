@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "18233ba6fd1bdf20e6ce601fe414086879de5e63",
+  "source_revision": "2624d236fa8bc5356866bb0336e05788950152f3",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -113,7 +113,7 @@
     "sources/libmister-runtime/src/native/platform.hpp": "2b49e4ee2cce88c0505a3e092f7100ad4d453f2167efbd17d1adabb6b574c359",
     "sources/libmister-runtime/src/native/menu_underflow.hpp": "cc841db02aa3d5798e0a6470b6d23edcc4b2c0bc1ad9a9e4133ed7587b47cb1c",
     "sources/libmister-runtime/src/native/video.hpp": "b44cd8217c3553ddc9e2ca05070040a55dea2bcc3f8c15dee1236bc2155b4276",
-    "sources/libmister-runtime/src/native/de25_core_contract.hpp": "5faea8ecebe5424b5491bacbb84061bc82d1ab6a697ce222f69e0f4fa25d0485",
+    "sources/libmister-runtime/src/native/de25_core_contract.hpp": "2ce099d8753d5e46a8193cc2c886cf13a6a6cd97d5ca5acf8b1cf908e48ff246",
     "sources/libmister-runtime/src/native/adv7513.hpp": "be514b089db4d58a98165793794edece8bb070c38eec30f50dd806651d95d9db",
     "sources/libmister-runtime/src/native/atari_st_geometry.hpp": "a00dedc42dd1bef6f9aeeeaf8557ddb6fd264e9a2670839c370d89a8c119c6cb",
     "sources/libmister-runtime/src/native/input.hpp": "b89b3a19150a5044cef8e74a346f88fe4cba737b2a2253c5fcdab657fe80bc37",
@@ -342,7 +342,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "83985ebb51cb71666e23a5d598aa040450d67d826412edd1b5ea8dd91bbf0120",
-    "Vfes_de25_combined_sim": "fe96d356c6ae16bbcc34b27ce964613f3bdd755a3ac3616aa998cb7500630a4f",
+    "Vfes_de25_combined_sim": "a602a4273ad89709f87d1e6d058518ebe4aafc5baa909948a7d92ca84828395c",
     "client-aarch64": "7bce4ba2c6ed39a45f61e60a0b5d3d4c68dbef928e0a092b36f7133459b3c000"
   },
   "physical_PR": "selection-mux-model-only",

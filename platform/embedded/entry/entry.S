@@ -243,7 +243,15 @@ fes_entry_enter_el1:
     ldr x3, =0x30000000000        /* do not trap pointer authentication */
     orr x2, x2, x3
 1:  msr hcr_el2, x2
-    mov x2, #0x3c5                /* EL1h, all exceptions masked */
+    mrs x2, id_aa64pfr0_el1
+    ubfx x2, x2, #24, #4          /* GICv3/v4 system registers implemented? */
+    cbz x2, 2f
+    mrs x2, s3_4_c12_c9_5         /* ICC_SRE_EL2 */
+    orr x2, x2, #0xf              /* Enable | DIB | DFB | SRE */
+    msr s3_4_c12_c9_5, x2
+    isb
+    msr s3_4_c12_c11_0, xzr       /* ICH_HCR_EL2 = 0 */
+2:  mov x2, #0x3c5                /* EL1h, all exceptions masked */
     msr spsr_el2, x2
     msr elr_el2, x0
     dsb sy

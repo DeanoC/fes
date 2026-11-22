@@ -1,0 +1,766 @@
+From b41601bf6df471262f8d8e4e5a823d0eff239d23 Mon Sep 17 00:00:00 2001
+From: Deano Calver <me@deanoc.com>
+Date: Tue, 17 Nov 2026 18:22:32 +0200
+Subject: [PATCH 1/3] DE25 managed shell: remove the vendor on-chip memory and
+ disable the full HPS-to-FPGA bridge
+
+The GHRD on-chip memory (ocm, 16384 x 128 bits) was the only responder on
+the full HPS-to-FPGA bridge and nothing in FES addresses it. Remove it from
+the managed fabric and select H2F_Width=0 (Unused) so the bridge has no
+fabric interface. managed-scanout-initiators moves to v4; the verifier now
+refuses the memory, its route and the bridge ports instead of requiring them.
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ .../misteross/boards/de25nano/hps/build.py    |   5 +-
+ .../boards/de25nano/hps/test_build.py         |  13 +-
+ .../boards/de25nano/link-proof/build_test.py  |   9 +-
+ .../boards/de25nano/scanout/README.md         |  22 ++-
+ .../boards/de25nano/scanout/build.py          |   4 +-
+ .../boards/de25nano/scanout/linux_dma.py      |  69 +++++----
+ sources/misteross/docs/architecture.md        |  18 +--
+ .../tests/test_de25nano_managed_fabric.py     | 133 +++++++++++++-----
+ 8 files changed, 184 insertions(+), 89 deletions(-)
+
+diff --git a/sources/misteross/boards/de25nano/hps/build.py b/sources/misteross/boards/de25nano/hps/build.py
+index 3d58ef8ef..1a547602e 100644
+--- a/sources/misteross/boards/de25nano/hps/build.py
++++ b/sources/misteross/boards/de25nano/hps/build.py
+@@ -551,13 +551,14 @@ def reviewed_hps_parameter_changes(inputs):
+             isinstance(standard.get("build_id"), str) and
+             re.fullmatch(r"[0-9a-f]{32}", standard["build_id"]) is not None and
+             standard["build_id"] != "0" * 32 and standard["build_id"] == scanout.get("build_id"))
+-        if (managed != "managed-scanout-initiators-v3" or
++        if (managed != "managed-scanout-initiators-v4" or
+                 (scanout.get("build_identity_scheme") != "canonical-functional-record-v2" and not integration) or
+                 scanout.get("hps_initialization") != "HPS FIRST" or
+                 inputs.get("f2sdram_master_profile") not in ("scanout-only", "scanout+window")):
+             raise ValueError("unsupported managed HPS parameter profile")
+         expected = {hps_ip: {"f2sdram_SMMU": {"before": "false", "after": "true"},
+-                             "f2s_data_width": {"before": "256", "after": "0"}}}
++                             "f2s_data_width": {"before": "256", "after": "0"},
++                             "H2F_Width": {"before": "128", "after": "0"}}}
+     if allowed != expected:
+         raise ValueError("unsupported expected HPS/EMIF parameter change")
+     return allowed
+diff --git a/sources/misteross/boards/de25nano/hps/test_build.py b/sources/misteross/boards/de25nano/hps/test_build.py
+index 7c7b8ea57..f077521fc 100644
+--- a/sources/misteross/boards/de25nano/hps/test_build.py
++++ b/sources/misteross/boards/de25nano/hps/test_build.py
+@@ -631,13 +631,14 @@ class HpsBuildTests(unittest.TestCase):
+         maintenance = {"allowed_hps_parameter_changes": smmu}
+         self.assertEqual(BUILD.reviewed_hps_parameter_changes(maintenance), smmu)
+         managed = copy.deepcopy(maintenance)
+-        managed["scanout"] = {"managed_fabric": "managed-scanout-initiators-v3",
++        managed["scanout"] = {"managed_fabric": "managed-scanout-initiators-v4",
+             "build_identity_scheme": "canonical-functional-record-v2", "hps_initialization": "HPS FIRST"}
+         managed["f2sdram_master_profile"] = "scanout-only"
+         managed["allowed_hps_parameter_changes"][HPS]["f2s_data_width"] = {"before": "256", "after": "0"}
++        managed["allowed_hps_parameter_changes"][HPS]["H2F_Width"] = {"before": "128", "after": "0"}
+         self.assertEqual(BUILD.reviewed_hps_parameter_changes(managed), managed["allowed_hps_parameter_changes"])
+         cases = []
+-        for key, value in (("managed_fabric", "managed-scanout-initiators-v2"),
++        for key, value in (("managed_fabric", "managed-scanout-initiators-v3"),
+                            ("build_identity_scheme", "diagnostic-source-profile"),
+                            ("hps_initialization", "FPGA FIRST")):
+             changed = copy.deepcopy(managed); changed["scanout"][key] = value; cases.append(changed)
+@@ -645,8 +646,11 @@ class HpsBuildTests(unittest.TestCase):
+             changed = copy.deepcopy(managed); changed.pop(key); cases.append(changed)
+         for parameter, value in (("f2s_data_width", {"before": "256", "after": "128"}),
+                                  ("H2F_Width", {"before": "128", "after": "64"}),
++                                 ("LWH2F_Width", {"before": "32", "after": "0"}),
+                                  ("f2sdram_data_width", {"before": "256", "after": "0"})):
+             changed = copy.deepcopy(managed); changed["allowed_hps_parameter_changes"][HPS][parameter] = value; cases.append(changed)
++        # The v3 set, which kept the full bridge for the on-chip memory, is no longer reviewed.
++        changed = copy.deepcopy(managed); del changed["allowed_hps_parameter_changes"][HPS]["H2F_Width"]; cases.append(changed)
+         for changed in cases:
+             with self.subTest(profile=changed), self.assertRaises(ValueError):
+                 BUILD.reviewed_hps_parameter_changes(changed)
+@@ -654,13 +658,14 @@ class HpsBuildTests(unittest.TestCase):
+     def test_standard_board_uses_the_exact_managed_hps_changes_without_package_admission(self):
+         build_id = "00112233445566778899aabbccddeeff"
+         selected = {"f2sdram_master_profile": "scanout-only", "scanout": {
+-            "managed_fabric": "managed-scanout-initiators-v3", "hps_initialization": "HPS FIRST",
++            "managed_fabric": "managed-scanout-initiators-v4", "hps_initialization": "HPS FIRST",
+             "build_identity_scheme": "standard-board-integration-source-profile", "build_id": build_id},
+             "standard_zx81": {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
+                 "computer_offset": 0x10300, "expansion_socket": False, "build_id": build_id},
+             "allowed_hps_parameter_changes": {HPS: {
+                 "f2sdram_SMMU": {"before": "false", "after": "true"},
+-                "f2s_data_width": {"before": "256", "after": "0"}}}}
++                "f2s_data_width": {"before": "256", "after": "0"},
++                "H2F_Width": {"before": "128", "after": "0"}}}}
+         self.assertEqual(BUILD.reviewed_hps_parameter_changes(selected), selected["allowed_hps_parameter_changes"])
+         pr = copy.deepcopy(selected)
+         pr["scanout"]["build_identity_scheme"] = "standard-pr-computer-v1"
+diff --git a/sources/misteross/boards/de25nano/link-proof/build_test.py b/sources/misteross/boards/de25nano/link-proof/build_test.py
+index f9cb3d4fd..3c8049ecd 100644
+--- a/sources/misteross/boards/de25nano/link-proof/build_test.py
++++ b/sources/misteross/boards/de25nano/link-proof/build_test.py
+@@ -191,10 +191,11 @@ class RecipeTests(unittest.TestCase):
+         with tempfile.TemporaryDirectory() as tmp:
+             project = Path(tmp) / "standard-base/combined/hps/project"
+             path = project / name; path.parent.mkdir(parents=True)
+-            selected = {"vendor_hps_emif_parameters": {name: {"f2sdram_SMMU": "false", "f2s_data_width": "256"}},
++            selected = {"vendor_hps_emif_parameters": {name: {"f2sdram_SMMU": "false", "f2s_data_width": "256", "H2F_Width": "128"}},
+                 "allowed_hps_parameter_changes": {name: {"f2sdram_SMMU": {"before": "false", "after": "true"},
+-                    "f2s_data_width": {"before": "256", "after": "0"}}}, "f2sdram_master_profile": "scanout-only",
+-                "scanout": {"managed_fabric": "managed-scanout-initiators-v3", "hps_initialization": "HPS FIRST",
++                    "f2s_data_width": {"before": "256", "after": "0"},
++                    "H2F_Width": {"before": "128", "after": "0"}}}, "f2sdram_master_profile": "scanout-only",
++                "scanout": {"managed_fabric": "managed-scanout-initiators-v4", "hps_initialization": "HPS FIRST",
+                     "build_identity_scheme": "standard-pr-computer-v1", "build_id": "1" * 32},
+                 "standard_zx81": {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
+                     "computer_offset": 0x10300, "expansion_socket": True, "build_id": "1" * 32}}
+@@ -207,7 +208,7 @@ class RecipeTests(unittest.TestCase):
+                     'xmlns:altera="http://www.altera.com/XMLSchema/IPXact2014/extensions"><ip:vendorExtensions>'
+                     '<altera:altera_module_parameters><ip:parameters>' + body + '</ip:parameters>'
+                     '</altera:altera_module_parameters></ip:vendorExtensions></ip:component>')
+-            actual = {**additions, "f2sdram_SMMU": "true", "f2s_data_width": "0"}
++            actual = {**additions, "f2sdram_SMMU": "true", "f2s_data_width": "0", "H2F_Width": "0"}
+             with mock.patch.object(build, "load_hps", return_value=hps):
+                 write(actual); build.verify_hps_inputs(project)
+                 for change in ({**actual, "ED_en_sim_gen": "false"},
+diff --git a/sources/misteross/boards/de25nano/scanout/README.md b/sources/misteross/boards/de25nano/scanout/README.md
+index 8eb148d20..c1effd05e 100644
+--- a/sources/misteross/boards/de25nano/scanout/README.md
++++ b/sources/misteross/boards/de25nano/scanout/README.md
+@@ -194,15 +194,25 @@ and compilation verify the derived board SDC, all six generated files and their
+ receipt; regenerated or changed constraints stop the build before Linux phase
+ conversion. The canonical record binds this policy before IP generation.
+ 
+-The canonical `managed-scanout-initiators-v3` profile removes the entire vendor
+-debug subsystem and its separate ACE5-Lite F2H translator. The maintenance
++The canonical `managed-scanout-initiators-v4` profile removes the entire vendor
++debug subsystem, its separate ACE5-Lite F2H translator and the vendor on-chip
++memory (`ocm`, 16384 x 128 bits). The maintenance
+ Linux-DMA profile above retains its other debug paths. FPGA configuration over
+ JTAG remains available; these removed components are Avalon transaction masters.
+-The normal HPS lightweight control route, HPS-to-OCM route and isolated SID13
++The normal HPS lightweight control route and isolated SID13
+ scanout-to-F2SDRAM route remain required.
+ 
+-Generation checks all eight elaborated initiator endpoints, including the CPU
+-bridges and relay stages; they are not eight independent DMA devices. Exactly
++The on-chip memory was the only responder on the full HPS-to-FPGA bridge. No
++FES kernel module, runtime, device tree or boot stage addresses it, and it
++held about 105 of the device's 358 M20K blocks in every managed core. With it
++gone the bridge would have no responder, so the bridge is disabled with the
++supported HPS `H2F_Width=0` (Unused) parameter instead of being left enabled
++and stalling any access. Its child exports, top-level clock/reset connections
++and generated HPS ports must be absent, as for F2H. v3 required the HPS-to-OCM
++route; v4 fails if the memory, the route or the bridge interface is present.
++
++Generation checks all seven elaborated initiator endpoints, including the CPU
++bridge and relay stages; they are not seven independent DMA devices. Exactly
+ one fabric path enters HPS, through the checked F2SDRAM adapter. Every control
+ stage must have its single expected ingress. The unused native F2H bridge is
+ disabled with the supported HPS `f2s_data_width=0` (Unused) parameter. Its child
+@@ -212,7 +222,7 @@ control bypasses, retained debug instances, wrong routes and stale generated
+ interfaces fail closed. The captured verifier and the complete generated
+ graph receipt are rechecked before and after compilation, before conversion.
+ The full vendor HPS/EMIF parameter review permits only the existing F2SDRAM
+-SMMU exposure and this F2H disable for canonical MENU. Standalone maintenance
++SMMU exposure and these F2H and H2F disables for canonical MENU. Standalone maintenance
+ keeps its existing bridge parameters. The disabled bridge is checked in the
+ actual HPS IP, elaborated interface definition and generated parent RTL; no
+ manual parent RTL tie-offs are used. This parameter change still requires
+diff --git a/sources/misteross/boards/de25nano/scanout/build.py b/sources/misteross/boards/de25nano/scanout/build.py
+index 57a555d53..f89b14ccd 100644
+--- a/sources/misteross/boards/de25nano/scanout/build.py
++++ b/sources/misteross/boards/de25nano/scanout/build.py
+@@ -22,7 +22,7 @@ LOCAL = ("build.py", "linux_dma.py", "hdmi_inputs.py", "shared_resets.py", "inte
+          "fes_de25_scanout_guard.v", "fes_de25_scanout_guard_hw.tcl",
+          "generated/fes_de25_scanout.vh", "generated/fes_de25_scanout.h")
+ TIMED_RESET_RELEASE = "timed-system-reset-release-v3"
+-MANAGED_FABRIC = "managed-scanout-initiators-v3"
++MANAGED_FABRIC = "managed-scanout-initiators-v4"
+ SHARED_FIFO_RESETS = "shared-fifo-reset-release-v2"
+ RESET_SDC_SHA256 = "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+ TIMED_RESET_INSTANCES = ("soc_inst|rst_controller", "soc_inst|subsys_periph|rst_controller",
+@@ -373,7 +373,7 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
+         inputs["f2sdram_master_profile"] = dma_profile["master_ownership"]
+         inputs["combined_display"]["debug_paths"] = "JTAG F2SDRAM master/window removed; other JTAG/OCM/F2H paths preserved"
+         if package_build_id is not None:
+-            inputs["combined_display"]["debug_paths"] = "JTAG Avalon masters and F2H translator removed, unused native F2H disabled; HPS control/OCM and JTAG FPGA configuration preserved"
++            inputs["combined_display"]["debug_paths"] = "JTAG Avalon masters, F2H translator and on-chip memory removed, unused native F2H and H2F disabled; HPS lightweight control and JTAG FPGA configuration preserved"
+     (directory / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
+     (output / "snapshot.json").write_text(json.dumps({**selected, "source_sha256": inputs["functional_snapshot_sha256"],
+         "hps_output": "combined/hps", "upstream_preparation_inputs_sha256": sha(original_inputs)}, indent=2, sort_keys=True) + "\n")
+diff --git a/sources/misteross/boards/de25nano/scanout/linux_dma.py b/sources/misteross/boards/de25nano/scanout/linux_dma.py
+index 8ec3e0842..068e91662 100644
+--- a/sources/misteross/boards/de25nano/scanout/linux_dma.py
++++ b/sources/misteross/boards/de25nano/scanout/linux_dma.py
+@@ -6,7 +6,7 @@ import re
+ 
+ HPS_IP = 'hps_subsys/ip/hps_subsys/agilex_hps.ip'
+ ADAPTER = 'custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl'
+-MANAGED_FABRIC = 'managed-scanout-initiators-v3'
++MANAGED_FABRIC = 'managed-scanout-initiators-v4'
+ GHRD_SDC_SHA256 = '743b02b7fa6e3f6397890702f626ff7b27a5c7ab6aa9d1721c22d286900c7247'
+ JTAG_SDC_SHA256 = '02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a'
+ EMIF_REFERENCE = {
+@@ -16,8 +16,10 @@ EMIF_REFERENCE = {
+     'period_ns': '6.000', 'port': 'LPDDR4A_REFCLK_p',
+     'fitted_clock_validation': 'required',
+ }
++REMOVED_INSTANCES = ('subsys_debug', 'ace5lite_cache_coherency_translator_0', 'ocm')
++DISABLED_HPS_PARAMETERS = ('f2s_data_width', 'H2F_Width')
+ MANAGED_MASTERS = (
+-    'subsys_hps_agilex_hps.hps2fpga', 'subsys_hps_agilex_hps.lwhps2fpga',
++    'subsys_hps_agilex_hps.lwhps2fpga',
+     'subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout_guard.avm',
+     'subsys_periph_fes_ctrl_cdc.m0', 'subsys_periph_fes_scanout.avm',
+     'subsys_periph_fes_mem_cdc.m0', 'subsys_hps_f2sdram_adapter.axi4_man')
+@@ -104,13 +106,22 @@ save_component
+ if {[get_component_parameter_value f2s_data_width] != 256} {error "vendor F2H data width changed"}
+ set_component_parameter_value f2s_data_width 0
+ if {[get_component_parameter_value f2s_data_width] != 0} {error "unused F2H interface was not disabled"}
++# The vendor on-chip memory was the only responder on the full HPS-to-FPGA
++# bridge and no FES software addresses it. H2F_Width=0 is the documented
++# Unused selection; a bridge left enabled without a responder would stall
++# any HPS access instead of having no fabric interface at all.
++if {[get_component_parameter_value H2F_Width] != 128} {error "vendor H2F data width changed"}
++set_component_parameter_value H2F_Width 0
++if {[get_component_parameter_value H2F_Width] != 0} {error "unused H2F interface was not disabled"}
+ save_component
+-foreach {name target} {fpga2hps agilex_hps.fpga2hps fpga2hps_clk agilex_hps.fpga2hps_clock fpga2hps_rst agilex_hps.fpga2hps_reset} {
+-    if {[string compare [get_interface_property $name EXPORT_OF] $target] != 0} {error "vendor F2H export changed: $name"}
++foreach {name target} {fpga2hps agilex_hps.fpga2hps fpga2hps_clk agilex_hps.fpga2hps_clock fpga2hps_rst agilex_hps.fpga2hps_reset
++                       hps2fpga agilex_hps.hps2fpga hps2fpga_clk agilex_hps.hps2fpga_axi_clock hps2fpga_rst agilex_hps.hps2fpga_axi_reset} {
++    if {[string compare [get_interface_property $name EXPORT_OF] $target] != 0} {error "vendor bridge export changed: $name"}
+     remove_interface $name
+ }
+ '''
+         changes[HPS_IP]['f2s_data_width'] = {'before': '256', 'after': '0'}
++        changes[HPS_IP]['H2F_Width'] = {'before': '128', 'after': '0'}
+     script += f'''load_component f2sdram_adapter
+ if {{[get_component_parameter_value DATA_WIDTH] != 256}} {{error "F2SDRAM adapter data width changed"}}
+ foreach port {{man_aruser man_awuser}} {{
+@@ -156,17 +167,24 @@ def isolate_script(script, top_save):
+ def isolate_managed_fabric_script(script, top_save):
+     if script.count(top_save) != 1 or script.count('remove_instance ext_hps_f2sdram_master\n') != 1:
+         raise ValueError('managed fabric requires the isolated memory profile')
+-    removal = '''# Canonical MENU has no vendor maintenance initiators or F2H translator.
++    removal = '''# The managed shell has no vendor maintenance initiators, F2H translator
++# or on-chip memory. Removing the debug subsystem first leaves the memory
++# with exactly its HPS route, clock and reset, which are checked before it goes.
+ foreach instance {subsys_debug ace5lite_cache_coherency_translator_0} {
+     if {[lsearch -exact [get_instances] $instance] < 0} {error "managed fabric removal target changed: $instance"}
+     remove_instance $instance
+ }
+ foreach connection [get_connections] {
+-    if {[string match "*subsys_hps.fpga2hps*" $connection]} {
+-        if {[lsearch -exact {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst} $connection] < 0} {error "vendor F2H connection changed: $connection"}
++    if {[string match "*subsys_hps.fpga2hps*" $connection] || [string match "*subsys_hps.hps2fpga*" $connection] ||
++            [string match "*/ocm.*" $connection]} {
++        if {[lsearch -exact {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst
++                             clk_100.out_clk/subsys_hps.hps2fpga_clk rst_in.out_reset/subsys_hps.hps2fpga_rst
++                             subsys_hps.hps2fpga/ocm.axi_s1 clk_100.out_clk/ocm.clk1 rst_in.out_reset/ocm.reset1} $connection] < 0} {error "vendor bridge/memory connection changed: $connection"}
+         remove_connection $connection
+     }
+ }
++if {[lsearch -exact [get_instances] ocm] < 0} {error "managed fabric removal target changed: ocm"}
++remove_instance ocm
+ '''
+     return script.replace(top_save, removal + top_save)
+ 
+@@ -242,12 +260,13 @@ def _managed_fabric_graph(project, hps):
+     sopc = project / 'qsys_top/qsys_top.sopcinfo'
+     tree = ET.parse(sopc)
+     modules = tree.findall('module')
+-    removed = ('subsys_debug', 'ace5lite_cache_coherency_translator_0')
++    removed = REMOVED_INSTANCES
+     for module in modules:
+         name, kind = module.get('path') or '', module.get('kind') or ''
+         if (any(name == prefix or name.startswith(prefix + '.') for prefix in removed) or
+-                kind in ('altera_jtag_avalon_master', 'altera_ace5lite_cache_coherency_translator')):
+-            raise ValueError('managed fabric retains a maintenance initiator/translator: ' + name)
++                kind in ('altera_jtag_avalon_master', 'altera_ace5lite_cache_coherency_translator',
++                         'intel_onchip_memory')):
++            raise ValueError('managed fabric retains a maintenance initiator/translator/memory: ' + name)
+     routes = [c for c in tree.findall('connection') if c.get('kind') == 'avalon']
+     masters = {c.get('start') for c in routes}
+     inputs = json.loads((project.parent / 'inputs.json').read_text())
+@@ -264,8 +283,7 @@ def _managed_fabric_graph(project, hps):
+         ('subsys_hps_agilex_hps.lwhps2fpga', 'subsys_periph_pb_cpu_0.s0', 0),
+         ('subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout_guard.avs', constant(definition, 'PERIPHERAL_OFFSET')),
+         ('subsys_periph_fes_scanout_guard.avm', 'subsys_periph_fes_ctrl_cdc.s0', 0),
+-        ('subsys_periph_fes_ctrl_cdc.m0', 'subsys_periph_fes_scanout.avs', 0),
+-        ('subsys_hps_agilex_hps.hps2fpga', 'ocm.axi_s1', 0))
++        ('subsys_periph_fes_ctrl_cdc.m0', 'subsys_periph_fes_scanout.avs', 0))
+     if window:
+         window_definition = (project / 'fes_mailbox/generated/fes_de25_hps_window.vh').read_text()
+         offsets = re.findall(r"^`define FES_DE25_HPS_WINDOW_PERIPHERAL_OFFSET 32'h([0-9a-f]{8})$", window_definition, re.M)
+@@ -277,28 +295,29 @@ def _managed_fabric_graph(project, hps):
+         matches = [c for c in routes if c.get('end') == end]
+         if (len(matches) != 1 or matches[0].get('start') != start or
+                 int(matches[0].findtext("parameter[@name='baseAddress']/value") or '-1', 0) != address):
+-            raise ValueError('managed fabric control/OCM route differs: ' + end)
++            raise ValueError('managed fabric control route differs: ' + end)
+     native = [m for m in modules if m.get('path') == 'subsys_hps.agilex_hps']
+-    if len(native) != 1 or hps.module_parameters(project / HPS_IP).get('f2s_data_width') != '0':
+-        raise ValueError('managed fabric native F2H interface is not disabled')
++    parameters = hps.module_parameters(project / HPS_IP)
++    if len(native) != 1 or any(parameters.get(name) != '0' for name in DISABLED_HPS_PARAMETERS):
++        raise ValueError('managed fabric native F2H/H2F interface is not disabled')
+     definition = ET.fromstring(native[0].findtext("parameter[@name='componentDefinition']/value"))
+     interfaces = [p.findtext('name') for p in definition.findall('boundary/interfaces/interface')]
+-    if any(name in interfaces for name in ('fpga2hps', 'fpga2hps_clock', 'fpga2hps_reset')):
+-        raise ValueError('managed fabric generated native F2H interface remains exposed')
++    if any(name in interfaces for name in ('fpga2hps', 'fpga2hps_clock', 'fpga2hps_reset',
++                                           'hps2fpga', 'hps2fpga_axi_clock', 'hps2fpga_axi_reset')):
++        raise ValueError('managed fabric generated native F2H/H2F interface remains exposed')
+     memory = hps.verify_scanout_memory_handoff(project, WINDOW_BRIDGE if window else None)
+     return {'policy': MANAGED_FABRIC, 'initiator_endpoints': sorted(masters),
+             'initiator_count': len(masters), 'fabric_to_hps': [list(route) for route in ingress],
+-            'control_and_ocm_routes': [list(route) for route in control],
++            'control_routes': [list(route) for route in control],
+             'removed_instances': list(removed), 'sopcinfo_sha256': hps.digest(sopc),
+-            'disabled_hps_parameter': {'f2s_data_width': '0'},
++            'disabled_hps_parameters': {name: '0' for name in DISABLED_HPS_PARAMETERS},
+             'hps_ip_sha256': hps.digest(project / HPS_IP),
+             'memory_handoff': memory, 'physical_lifetime': 'not-qualified', 'runtime_admission': 'not-qualified'}
+ 
+ 
+ def _managed_parent(data):
+     source = re.sub(r'/\*.*?\*/|//[^\n]*', '', data.decode(), flags=re.S)
+-    removed = ('subsys_debug', 'ace5lite_cache_coherency_translator_0')
+-    if any(re.search(r'(?m)^\s*\w+\s+' + re.escape(name) + r'\s*\(', source) for name in removed):
++    if any(re.search(r'(?m)^\s*\w+\s+' + re.escape(name) + r'\s*\(', source) for name in REMOVED_INSTANCES):
+         raise ValueError('managed fabric generated parent retains a removed instance')
+     instances = re.findall(r'(?ms)^\t\w+ subsys_hps \(\n(.*?)^\t\);', source)
+     if len(instances) != 1:
+@@ -307,7 +326,8 @@ def _managed_parent(data):
+     if len(ports) != len(dict(ports)):
+         raise ValueError('managed fabric generated HPS port is duplicated')
+     ports = {name: value.strip() for name, value in ports}
+-    return {name: value for name, value in ports.items() if name.startswith('fpga2hps_') or name == 'fpga2hps'}
++    return {name: value for name, value in ports.items()
++            if name.startswith(('fpga2hps_', 'hps2fpga_')) or name in ('fpga2hps', 'hps2fpga')}
+ 
+ 
+ def verify_managed_fabric(project, hps):
+@@ -315,8 +335,9 @@ def verify_managed_fabric(project, hps):
+     graph = _managed_fabric_graph(project, hps)
+     top = project / 'qsys_top/synth/qsys_top.v'
+     if _managed_parent(top.read_bytes()):
+-        raise ValueError('managed fabric generated parent retains unused F2H ports')
+-    return {**graph, 'unused_f2h_interface': 'disabled and absent', 'generated_parent_sha256': hps.digest(top),
++        raise ValueError('managed fabric generated parent retains unused F2H/H2F ports')
++    return {**graph, 'unused_f2h_interface': 'disabled and absent',
++            'unused_h2f_interface': 'disabled and absent', 'generated_parent_sha256': hps.digest(top),
+             'retired_debug_constraints': verify_managed_debug_constraints(project)}
+ 
+ 
+diff --git a/sources/misteross/docs/architecture.md b/sources/misteross/docs/architecture.md
+index 22955bf35..414e9eb06 100644
+--- a/sources/misteross/docs/architecture.md
++++ b/sources/misteross/docs/architecture.md
+@@ -704,20 +704,22 @@ source or receipt change. The captured helper, policy and constraints enter the
+ canonical record before generation. Global-reset allocation epochs and native
+ recovery remain separate acceptance gates.
+ 
+-Canonical MENU also selects `managed-scanout-initiators-v3` before generation.
+-It removes the vendor JTAG Avalon masters and their separate ACE5-Lite F2H
+-translator. The normal HPS lightweight control path, HPS-to-OCM access and sole
++Canonical MENU also selects `managed-scanout-initiators-v4` before generation.
++It removes the vendor JTAG Avalon masters, their separate ACE5-Lite F2H
++translator and the vendor on-chip memory, which nothing in FES addresses and
++which held about 105 M20K blocks. The normal HPS lightweight control path and sole
+ SID13 scanout-to-F2SDRAM path remain required. The generator checks the exact
+-eight initiator endpoints (including CPU bridges and relay stages), every
++seven initiator endpoints (including the CPU bridge and relay stages), every
+ control ingress and the sole fabric-to-HPS route. It also checks the actual
+-generated parent RTL: removed instances and unused HPS F2H ports must be absent.
+-The supported HPS `f2s_data_width=0` (Unused) setting disables that bridge;
+-its child exports and parent clock/reset connections are removed as well.
++generated parent RTL: removed instances and unused HPS F2H and H2F ports must be absent.
++The supported HPS `f2s_data_width=0` and `H2F_Width=0` (Unused) settings disable
++those bridges; the full HPS-to-FPGA bridge had the on-chip memory as its only
++responder. Their child exports and parent clock/reset connections are removed as well.
+ Captured verifier bytes and the
+ complete generated graph receipt are checked before and after compilation;
+ the compiled and Linux-conversion receipts retain this graph. The
+ full vendor HPS/EMIF parameter review permits exactly the selected F2SDRAM SMMU
+-exposure and F2H disable for canonical MENU. Actual HPS parameters, elaborated
++exposure and the F2H and H2F disables for canonical MENU. Actual HPS parameters, elaborated
+ interfaces and generated parent ports are checked before and after compilation.
+ This profile retires only the vendor GHRD's `source ./jtag.sdc` statement for
+ the removed fabric JTAG interfaces. The reviewed original GHRD/JTAG SDC hashes
+diff --git a/sources/misteross/tests/test_de25nano_managed_fabric.py b/sources/misteross/tests/test_de25nano_managed_fabric.py
+index 775a3e110..9c07281a2 100644
+--- a/sources/misteross/tests/test_de25nano_managed_fabric.py
++++ b/sources/misteross/tests/test_de25nano_managed_fabric.py
+@@ -41,13 +41,13 @@ class ManagedFabricTests(unittest.TestCase):
+             path = self.project / name
+             path.parent.mkdir(parents=True, exist_ok=True)
+             path.write_text(text)
+-        self.set_hps_width('256')
++        self.set_hps_width('256', '128')
+         constraints = json.loads(gzip.decompress((ROOT / 'tests/fixtures/de25_managed_jtag_sdc.json.gz').read_bytes()))
+         for name, text in constraints['files'].items():
+             self.assertEqual(hashlib.sha256(text.encode()).hexdigest(), constraints['sha256'][name])
+             (self.project / name).write_text(text)
+ 
+-    def set_hps_width(self, width):
++    def set_hps_width(self, width, h2f='0'):
+         # A minimal synthetic IP-XACT parameter view for projected tests.
+         # Actual generation separately checks the complete vendor parameter set.
+         path = self.project / D.HPS_IP
+@@ -55,7 +55,8 @@ class ManagedFabricTests(unittest.TestCase):
+         path.write_text('<ip:component xmlns:ip="http://www.accellera.org/XMLSchema/IPXACT/1685-2014" '
+             'xmlns:a="http://www.altera.com/XMLSchema/IPXact2014/extensions"><ip:vendorExtensions>'
+             '<a:altera_module_parameters><ip:parameters><ip:parameter parameterId="f2s_data_width">'
+-            '<ip:value>' + width + '</ip:value></ip:parameter></ip:parameters>'
++            '<ip:value>' + width + '</ip:value></ip:parameter><ip:parameter parameterId="H2F_Width">'
++            '<ip:value>' + h2f + '</ip:value></ip:parameter></ip:parameters>'
+             '</a:altera_module_parameters></ip:vendorExtensions></ip:component>')
+ 
+     def project_removals(self):
+@@ -65,26 +66,29 @@ class ManagedFabricTests(unittest.TestCase):
+         tree = ET.parse(path)
+         for node in list(tree.getroot()):
+             if node.tag == 'module' and any((node.get('path') or '').startswith(prefix)
+-                    for prefix in ('subsys_debug', 'ace5lite_cache_coherency_translator_0')):
++                    for prefix in ('subsys_debug', 'ace5lite_cache_coherency_translator_0')) or node.get('path') == 'ocm':
+                 tree.getroot().remove(node)
+-            elif node.tag == 'connection' and any(prefix in ' '.join(node.attrib.values())
+-                    for prefix in ('subsys_debug', 'ace5lite_cache_coherency_translator_0')):
++            elif node.tag == 'connection' and (any(prefix in ' '.join(node.attrib.values())
++                    for prefix in ('subsys_debug', 'ace5lite_cache_coherency_translator_0', '.hps2fpga')) or
++                    (node.get('end') or '').startswith('ocm.')):
+                 tree.getroot().remove(node)
+         native = tree.find("module[@path='subsys_hps.agilex_hps']/parameter[@name='componentDefinition']/value")
+         definition = ET.fromstring(native.text)
+         interfaces = definition.find('boundary/interfaces')
+         for point in list(interfaces):
+-            if point.findtext('name') in ('fpga2hps', 'fpga2hps_clock', 'fpga2hps_reset'):
++            if point.findtext('name') in ('fpga2hps', 'fpga2hps_clock', 'fpga2hps_reset',
++                                          'hps2fpga', 'hps2fpga_axi_clock', 'hps2fpga_axi_reset'):
+                 interfaces.remove(point)
+         native.text = ET.tostring(definition, encoding='unicode')
+         tree.write(path)
+         path = self.project / 'qsys_top/synth/qsys_top.v'
+         source = path.read_text()
+-        for name in ('subsys_debug', 'ace5lite_cache_coherency_translator_0'):
++        for name in ('subsys_debug', 'ace5lite_cache_coherency_translator_0', 'ocm'):
+             source, count = re.subn(r'(?ms)^\t\w+ ' + name + r' \(\n.*?^\t\);\n', '', source)
+             self.assertEqual(count, 1)
+-        source, count = re.subn(r'(?m)^\s*\.fpga2hps_\w+\s*\([^()]*\),[^\n]*\n', '', source)
+-        self.assertGreater(count, 3)
++        for bridge in ('fpga2hps', 'hps2fpga'):
++            source, count = re.subn(r'(?m)^\s*\.' + bridge + r'_\w+\s*\([^()]*\),[^\n]*\n', '', source)
++            self.assertGreater(count, 3)
+         path.write_text(source)
+         self.set_hps_width('0')
+         D.retire_managed_jtag_constraints(self.project)
+@@ -99,30 +103,56 @@ class ManagedFabricTests(unittest.TestCase):
+         with self.assertRaisesRegex(ValueError, 'maintenance initiator/translator'):
+             D.verify_managed_fabric(self.project, H)
+ 
+-    def test_projected_managed_graph_preserves_hps_control_ocm_and_sid13_memory(self):
++    def test_projected_managed_graph_preserves_hps_control_and_sid13_memory(self):
+         self.project_removals()
+         result = D.verify_managed_fabric(self.project, H)
+-        self.assertEqual(result['initiator_count'], 8)
++        self.assertEqual(result['initiator_count'], 7)
++        self.assertNotIn('subsys_hps_agilex_hps.hps2fpga', result['initiator_endpoints'])
++        self.assertEqual(result['removed_instances'], ['subsys_debug', 'ace5lite_cache_coherency_translator_0', 'ocm'])
++        self.assertEqual(result['disabled_hps_parameters'], {'f2s_data_width': '0', 'H2F_Width': '0'})
++        self.assertEqual(result['unused_h2f_interface'], 'disabled and absent')
+         self.assertEqual(result['fabric_to_hps'], [['subsys_hps_f2sdram_adapter.axi4_man', 'subsys_hps_agilex_hps.f2sdram']])
+         self.assertEqual(result['unused_f2h_interface'], 'disabled and absent')
+         self.assertEqual(result['memory_handoff']['master_count'], 1)
+         self.assertEqual(result['runtime_admission'], 'not-qualified')
+ 
+-    def test_extra_initiator_is_refused_even_when_it_only_reaches_ocm(self):
++    def test_extra_initiator_is_refused_even_when_it_only_reaches_control(self):
+         self.project_removals()
+         self.mutate_routes(lambda root: ET.SubElement(root, 'connection',
+-            {'kind': 'avalon', 'start': 'unexpected.master', 'end': 'ocm.axi_s1'}))
++            {'kind': 'avalon', 'start': 'unexpected.master', 'end': 'subsys_periph_fes_scanout.avs'}))
+         with self.assertRaisesRegex(ValueError, 'initiator inventory'):
+             D.verify_managed_fabric(self.project, H)
+ 
++    def test_retained_on_chip_memory_or_full_bridge_route_is_refused(self):
++        # The fixture is the real predecessor graph: restoring only the memory
++        # or only the bridge route must fail, whichever check sees it first.
++        original = ET.parse(self.project / 'qsys_top/qsys_top.sopcinfo').getroot()
++        memory = original.find("module[@path='ocm']")
++        route = next(c for c in original.findall('connection')
++                     if c.get('start') == 'subsys_hps_agilex_hps.hps2fpga' and c.get('end') == 'ocm.axi_s1')
++        self.assertEqual(memory.get('kind'), 'intel_onchip_memory')
++        for node, error in ((memory, 'initiator/translator/memory: ocm'), (route, 'initiator inventory')):
++            with self.subTest(node=node.tag):
++                self.restore_fixture()
++                self.project_removals()
++                self.mutate_routes(lambda root: root.append(node))
++                with self.assertRaisesRegex(ValueError, error):
++                    D.verify_managed_fabric(self.project, H)
++        self.restore_fixture()
++        self.project_removals()
++        path = self.project / 'qsys_top/synth/qsys_top.v'
++        path.write_text(path.read_text() + "\nocm ocm (.clk1_clk(1'b0));\n")
++        with self.assertRaisesRegex(ValueError, 'parent retains'):
++            D.verify_managed_fabric(self.project, H)
++
+     def test_known_initiator_cannot_add_an_f2h_or_control_bypass(self):
+         for target, error in (('subsys_hps_agilex_hps.fpga2hps', 'path into HPS'),
+-                              ('subsys_periph_fes_scanout_guard.avs', 'control/OCM')):
++                              ('subsys_periph_fes_scanout_guard.avs', 'control route differs')):
+             with self.subTest(target=target):
+                 self.restore_fixture()
+                 self.project_removals()
+                 self.mutate_routes(lambda root: ET.SubElement(root, 'connection',
+-                    {'kind': 'avalon', 'start': 'subsys_hps_agilex_hps.hps2fpga', 'end': target}))
++                    {'kind': 'avalon', 'start': 'subsys_hps_agilex_hps.lwhps2fpga', 'end': target}))
+                 with self.assertRaisesRegex(ValueError, error):
+                     D.verify_managed_fabric(self.project, H)
+ 
+@@ -145,16 +175,18 @@ class ManagedFabricTests(unittest.TestCase):
+ 
+     def test_native_bridge_must_be_disabled_and_generated_ports_absent(self):
+         self.project_removals()
+-        self.set_hps_width('256')
+-        with self.assertRaisesRegex(ValueError, 'not disabled'):
+-            D.verify_managed_fabric(self.project, H)
++        for widths in (('256', '0'), ('0', '128'), ('0', '32')):
++            self.set_hps_width(*widths)
++            with self.subTest(widths=widths), self.assertRaisesRegex(ValueError, 'not disabled'):
++                D.verify_managed_fabric(self.project, H)
+         self.set_hps_width('0')
+         path = self.project / 'qsys_top/synth/qsys_top.v'
+         original = path.read_text()
+-        for value in ('', "1'b0", 'unowned_request'):
+-            with self.subTest(value=value):
++        for port, value in (('fpga2hps_arvalid', ''), ('fpga2hps_arvalid', "1'b0"), ('fpga2hps_arvalid', 'unowned_request'),
++                            ('hps2fpga_arready', "1'b0"), ('hps2fpga_clk_clk', 'clk_100_out_clk_clk')):
++            with self.subTest(port=port, value=value):
+                 source, count = re.subn(r'(?m)^(\t\w+ subsys_hps \(\n)',
+-                    lambda m: m[1] + '\t\t.fpga2hps_arvalid (' + value + '),\n', original)
++                    lambda m: m[1] + '\t\t.' + port + ' (' + value + '),\n', original)
+                 self.assertEqual(count, 1)
+                 path.write_text(source)
+                 with self.assertRaisesRegex(ValueError, 'parent retains unused'):
+@@ -166,6 +198,15 @@ class ManagedFabricTests(unittest.TestCase):
+         for name, text in fixture['files'].items():
+             self.assertEqual(hashlib.sha256(text.encode()).hexdigest(), fixture['sha256'][name])
+             path = self.project / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(text)
++        # That recorded graph predates the on-chip memory removal. Project only
++        # the memory away so the enabled floating bridge is what gets refused.
++        with self.assertRaisesRegex(ValueError, 'initiator/translator/memory: ocm'):
++            D.verify_managed_fabric(self.project, H)
++        def remove_memory(root):
++            for node in list(root):
++                if node.get('path') == 'ocm' or (node.get('end') or '').startswith('ocm.'):
++                    root.remove(node)
++        self.mutate_routes(remove_memory)
+         with self.assertRaisesRegex(ValueError, 'not disabled'):
+             D.verify_managed_fabric(self.project, H)
+ 
+@@ -176,11 +217,13 @@ class ManagedFabricTests(unittest.TestCase):
+         native = tree.find("module[@path='subsys_hps.agilex_hps']/parameter[@name='componentDefinition']/value")
+         definition = ET.fromstring(native.text)
+         point = ET.SubElement(definition.find('boundary/interfaces'), 'interface')
+-        ET.SubElement(point, 'name').text = 'fpga2hps'
+-        native.text = ET.tostring(definition, encoding='unicode')
+-        tree.write(path)
+-        with self.assertRaisesRegex(ValueError, 'remains exposed'):
+-            D.verify_managed_fabric(self.project, H)
++        name = ET.SubElement(point, 'name')
++        for exposed in ('fpga2hps', 'hps2fpga', 'hps2fpga_axi_clock'):
++            name.text = exposed
++            native.text = ET.tostring(definition, encoding='unicode')
++            tree.write(path)
++            with self.subTest(exposed=exposed), self.assertRaisesRegex(ValueError, 'remains exposed'):
++                D.verify_managed_fabric(self.project, H)
+ 
+     def test_retired_jtag_source_preserves_all_other_constraints_and_original_bytes(self):
+         original = (self.project / 'ghrd_timing.sdc').read_bytes()
+@@ -247,33 +290,45 @@ class ManagedFabricTests(unittest.TestCase):
+         prefix = '''set instances {ext_hps_f2sdram_master subsys_debug ace5lite_cache_coherency_translator_0 subsys_hps subsys_periph ocm}
+ proc get_instances {} {return $::instances}
+ proc remove_instance {name} {lappend ::removed $name}
+-proc get_connections {} {return {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst}}
++proc get_connections {} {return {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst clk_100.out_clk/subsys_hps.hps2fpga_clk rst_in.out_reset/subsys_hps.hps2fpga_rst subsys_hps.hps2fpga/ocm.axi_s1 clk_100.out_clk/ocm.clk1 rst_in.out_reset/ocm.reset1 subsys_hps.lwhps2fpga/subsys_periph.pb_cpu_0_s0 clk_100.out_clk/subsys_hps.lwhps2fpga_clk}}
+ proc remove_connection {name} {lappend ::connections $name}
+ proc save_system {name} {}
+ set removed {}
+ set connections {}
+ '''
+-        result = subprocess.run(['tclsh'], input=prefix + script + '\nputs $removed\n',
++        result = subprocess.run(['tclsh'], input=prefix + script + '\nputs $removed\nputs $connections\n',
+                                 text=True, capture_output=True, check=True, timeout=10)
+-        self.assertEqual(result.stdout.strip(), 'ext_hps_f2sdram_master subsys_debug ace5lite_cache_coherency_translator_0')
++        removed, connections = result.stdout.strip().split('\n')
++        self.assertEqual(removed, 'ext_hps_f2sdram_master subsys_debug ace5lite_cache_coherency_translator_0 ocm')
++        # The lightweight control bridge is not a substring match for the full bridge.
++        self.assertEqual(connections.split(), prefix.split('return {')[1].split('}')[0].split()[:7])
++        for absent in ('subsys_debug ', ' ocm}'):
++            missing = prefix.replace(absent, '}' if absent.endswith('}') else '')
++            result = subprocess.run(['tclsh'], input=missing + '\nif {[catch {\n' + script +
++                                    '\n} message]} {puts $message; exit 4}\n',
++                                    text=True, capture_output=True, timeout=10)
++            self.assertEqual(result.returncode, 4)
++            self.assertIn('managed fabric removal target changed', result.stdout)
+         missing = prefix.replace('subsys_debug ', '')
+         result = subprocess.run(['tclsh'], input=missing + '\nif {[catch {\n' + script +
+                                 '\n} message]} {puts $message; exit 4}\n',
+                                 text=True, capture_output=True, timeout=10)
+         self.assertEqual(result.returncode, 4)
+         self.assertIn('managed fabric removal target changed', result.stdout)
+-        refreshed = prefix.replace('return {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst}', 'return {}')
++        refreshed = re.sub(r'(?m)^proc get_connections .*$', 'proc get_connections {} {return {}}', prefix)
+         result = subprocess.run(['tclsh'], input=refreshed + '\nif {[catch {\n' + script +
+                                 '\n} message]} {puts $message; exit 4}\nputs $removed\n',
+                                 text=True, capture_output=True, check=True, timeout=10)
+-        self.assertEqual(result.stdout.strip(), 'ext_hps_f2sdram_master subsys_debug ace5lite_cache_coherency_translator_0')
+-        unexpected = prefix.replace('return {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst}',
+-                                    'return {unknown.master/subsys_hps.fpga2hps}')
+-        result = subprocess.run(['tclsh'], input=unexpected + '\nif {[catch {\n' + script +
+-                                '\n} message]} {puts $message; exit 4}\n',
+-                                text=True, capture_output=True, timeout=10)
+-        self.assertEqual(result.returncode, 4)
+-        self.assertIn('vendor F2H connection changed', result.stdout)
++        self.assertEqual(result.stdout.strip(), 'ext_hps_f2sdram_master subsys_debug ace5lite_cache_coherency_translator_0 ocm')
++        for extra in ('unknown.master/subsys_hps.fpga2hps', 'unknown.master/ocm.axi_s1',
++                      'subsys_hps.hps2fpga/unknown.slave'):
++            unexpected = re.sub(r'(?m)^proc get_connections .*$',
++                                'proc get_connections {} {return {' + extra + '}}', prefix)
++            result = subprocess.run(['tclsh'], input=unexpected + '\nif {[catch {\n' + script +
++                                    '\n} message]} {puts $message; exit 4}\n',
++                                    text=True, capture_output=True, timeout=10)
++            self.assertEqual(result.returncode, 4)
++            self.assertIn('vendor bridge/memory connection changed', result.stdout)
+         for bad in ('', 'save_system top.qsys\n', 'remove_instance ext_hps_f2sdram_master\nsave_system top.qsys\nsave_system top.qsys\n'):
+             with self.assertRaises(ValueError):
+                 D.isolate_managed_fabric_script(bad, 'save_system top.qsys\n')
+-- 
+2.47.3
+
+From 729237bc9d4477029681df32bb9ce06fae9b27ce Mon Sep 17 00:00:00 2001
+From: Deano Calver <me@deanoc.com>
+Date: Tue, 17 Nov 2026 18:28:41 +0200
+Subject: [PATCH 2/3] DE25 scanout test: model the H2F disable in the HPS
+ configuration script
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ .../boards/de25nano/scanout/test_build.py     | 27 ++++++++++++++-----
+ 1 file changed, 20 insertions(+), 7 deletions(-)
+
+diff --git a/sources/misteross/boards/de25nano/scanout/test_build.py b/sources/misteross/boards/de25nano/scanout/test_build.py
+index 34fc67b7f..7da2eb6a7 100644
+--- a/sources/misteross/boards/de25nano/scanout/test_build.py
++++ b/sources/misteross/boards/de25nano/scanout/test_build.py
+@@ -800,9 +800,10 @@ class LinuxDmaTests(unittest.TestCase):
+             for field in fields) + "# vendor suffix\n"
+ 
+     @unittest.skipUnless(shutil.which("tclsh"), "requires Tcl")
+-    def test_generated_configuration_disables_f2h_only_for_canonical_menu(self):
++    def test_generated_configuration_disables_f2h_and_h2f_only_for_canonical_menu(self):
+         hps = B.load(B.HERE.parent / "hps/build.py", "scanout_configuration_hps_test")
+         prefix = '''set width 256
++set h2f 128
+ set smmu 0
+ set removed {}
+ proc load_system {name} {}
+@@ -810,15 +811,15 @@ proc load_component {name} {}
+ proc save_system {name} {}
+ proc save_component {} {}
+ proc get_component_parameter_value {name} {
+-    switch $name {f2s_data_width {return $::width} f2sdram_SMMU {return [expr {$::smmu ? 1 : 0}]} DATA_WIDTH {return 256}}
++    switch $name {f2s_data_width {return $::width} H2F_Width {return $::h2f} f2sdram_SMMU {return [expr {$::smmu ? 1 : 0}]} DATA_WIDTH {return 256}}
+     error "unexpected parameter $name"
+ }
+ proc set_component_parameter_value {name value} {
+-    switch $name {f2s_data_width {set ::width $value} f2sdram_SMMU {set ::smmu $value} default {error "unexpected parameter $name"}}
++    switch $name {f2s_data_width {set ::width $value} H2F_Width {set ::h2f $value} f2sdram_SMMU {set ::smmu $value} default {error "unexpected parameter $name"}}
+ }
+ proc get_component_interface_port_property {interface port property} {return 25}
+ proc get_interface_property {name property} {
+-    return [dict get {fpga2hps agilex_hps.fpga2hps fpga2hps_clk agilex_hps.fpga2hps_clock fpga2hps_rst agilex_hps.fpga2hps_reset hps_f2sdram_master hps_f2sdram.master} $name]
++    return [dict get {fpga2hps agilex_hps.fpga2hps fpga2hps_clk agilex_hps.fpga2hps_clock fpga2hps_rst agilex_hps.fpga2hps_reset hps2fpga agilex_hps.hps2fpga hps2fpga_clk agilex_hps.hps2fpga_axi_clock hps2fpga_rst agilex_hps.hps2fpga_axi_reset hps_f2sdram_master hps_f2sdram.master} $name]
+ }
+ proc remove_interface {name} {lappend ::removed $name}
+ proc remove_instance {name} {}
+@@ -831,19 +832,31 @@ proc remove_instance {name} {}
+                 adapter.write_text(self.source)
+                 script, _, changes = self.helper.configure(project, self.definition, hps, managed_fabric=managed)
+                 result = subprocess.run(["tclsh"], input=prefix + "\nif {[catch {\n" + script +
+-                    "\n} message]} {puts $message; exit 4}\nputs \"$width|$smmu|$removed\"\n",
++                    "\n} message]} {puts $message; exit 4}\nputs \"$width|$h2f|$smmu|$removed\"\n",
+                     text=True, capture_output=True, timeout=10)
+                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                 self.assertEqual(result.stdout.strip(),
+-                    "0|true|fpga2hps fpga2hps_clk fpga2hps_rst hps_f2sdram_master" if managed
+-                    else "256|true|hps_f2sdram_master")
++                    "0|0|true|fpga2hps fpga2hps_clk fpga2hps_rst hps2fpga hps2fpga_clk hps2fpga_rst hps_f2sdram_master" if managed
++                    else "256|128|true|hps_f2sdram_master")
+                 self.assertEqual("f2s_data_width" in changes[self.helper.HPS_IP], managed)
++                self.assertEqual(changes[self.helper.HPS_IP].get("H2F_Width"),
++                                 {"before": "128", "after": "0"} if managed else None)
+                 if managed:
+                     result = subprocess.run(["tclsh"], input=prefix.replace("set width 256", "set width 128") +
+                         "\nif {[catch {\n" + script + "\n} message]} {puts $message; exit 4}\n",
+                         text=True, capture_output=True, timeout=10)
+                     self.assertEqual(result.returncode, 4)
+                     self.assertIn("vendor F2H data width changed", result.stdout)
++                    result = subprocess.run(["tclsh"], input=prefix.replace("set h2f 128", "set h2f 64") +
++                        "\nif {[catch {\n" + script + "\n} message]} {puts $message; exit 4}\n",
++                        text=True, capture_output=True, timeout=10)
++                    self.assertEqual(result.returncode, 4)
++                    self.assertIn("vendor H2F data width changed", result.stdout)
++                    result = subprocess.run(["tclsh"], input=prefix.replace("hps2fpga agilex_hps.hps2fpga ", "hps2fpga other.master ") +
++                        "\nif {[catch {\n" + script + "\n} message]} {puts $message; exit 4}\n",
++                        text=True, capture_output=True, timeout=10)
++                    self.assertEqual(result.returncode, 4)
++                    self.assertIn("vendor bridge export changed: hps2fpga", result.stdout)
+ 
+     def test_exact_packing_preserves_vendor_attributes_and_nonsecure_context(self):
+         data, profile = self.helper.retarget_adapter(self.source.encode(), self.definition)
+-- 
+2.47.3
+
+From 98ff9213e1c704db7365037109b6165a9e0a3066 Mon Sep 17 00:00:00 2001
+From: Deano Calver <me@deanoc.com>
+Date: Tue, 17 Nov 2026 18:29:05 +0200
+Subject: [PATCH 3/3] DE25 docs: state the on-chip memory's fitted cost as 128
+ M20K blocks
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ sources/misteross/boards/de25nano/scanout/README.md | 2 +-
+ sources/misteross/docs/architecture.md              | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sources/misteross/boards/de25nano/scanout/README.md b/sources/misteross/boards/de25nano/scanout/README.md
+index c1effd05e..433da9317 100644
+--- a/sources/misteross/boards/de25nano/scanout/README.md
++++ b/sources/misteross/boards/de25nano/scanout/README.md
+@@ -204,7 +204,7 @@ scanout-to-F2SDRAM route remain required.
+ 
+ The on-chip memory was the only responder on the full HPS-to-FPGA bridge. No
+ FES kernel module, runtime, device tree or boot stage addresses it, and it
+-held about 105 of the device's 358 M20K blocks in every managed core. With it
++held 128 of the device's 358 M20K blocks in every managed core. With it
+ gone the bridge would have no responder, so the bridge is disabled with the
+ supported HPS `H2F_Width=0` (Unused) parameter instead of being left enabled
+ and stalling any access. Its child exports, top-level clock/reset connections
+diff --git a/sources/misteross/docs/architecture.md b/sources/misteross/docs/architecture.md
+index 414e9eb06..500f46ed7 100644
+--- a/sources/misteross/docs/architecture.md
++++ b/sources/misteross/docs/architecture.md
+@@ -707,7 +707,7 @@ recovery remain separate acceptance gates.
+ Canonical MENU also selects `managed-scanout-initiators-v4` before generation.
+ It removes the vendor JTAG Avalon masters, their separate ACE5-Lite F2H
+ translator and the vendor on-chip memory, which nothing in FES addresses and
+-which held about 105 M20K blocks. The normal HPS lightweight control path and sole
++which held 128 M20K blocks. The normal HPS lightweight control path and sole
+ SID13 scanout-to-F2SDRAM path remain required. The generator checks the exact
+ seven initiator endpoints (including the CPU bridge and relay stages), every
+ control ingress and the sole fabric-to-HPS route. It also checks the actual
+-- 
+2.47.3
+

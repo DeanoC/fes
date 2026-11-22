@@ -113,8 +113,57 @@ around the existing fresh-scan gate. Programmer success and boot acceptance
 remain separate. `power_on_trace.observe` additionally requires a confirmed
 physical cycle, SDM POR boot kind and final EL1 handoff; sticky reset history
 or a qualified JTAG boot cannot substitute. These helpers open no devices;
-the retained private operator owns transport, process bounds and cleanup.
-Permanent flash programming and power-on acceptance remain untested.
+the private operator owns transport, process bounds and cleanup.
+
+The flash trial writes nonvolatile QSPI and is a `FULL_IMAGE` hardware path.
+Host preparation and model tests do not qualify it. Merge requires exact-head
+hardware acceptance covering native cold boot, factory restore and re-install,
+or Deano's explicit waiver. This gate stays open until that evidence or waiver
+is recorded.
+
+### Package an opt-in R1 cold boot
+
+On TRWU8CBL, Quartus 26.3 maps `A5EB013BB23BR1` to the observed JTAG ID
+`0x4362C0DD`. The generic loader part selects `0xC362C0DD` and fails before
+flash programming. Use `launcher_image.py` to assemble the checked autoboot
+SD image and `boot_flash_image.py` to prepare the matching native and factory
+rollback JICs. The factory input is the full main-array backup from the same
+kit with its independently verified SHA-256.
+
+```sh
+FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/nano/boot_flash_image.py \
+  --composition "$matched_composition" --launcher-image "$launcher_image_directory" \
+  --factory-backup "$factory_main_array" --factory-sha256 "$factory_sha256" \
+  --quartus-pfg "$quartus_pfg" --quartus-lock "$shared_quartus_lock" \
+  --output "$fresh_output_directory"
+```
+
+The file-only producer checks the installed Quartus part table, reads every
+FAT32 payload back against the pinned staging, FIT, and recovery bytes, and
+checks the complete decoded flash arrays. It verifies the protected SD prefix
+and boot sectors and rejects extra or aliased entries.
+Run it from a clean checkout. It checks the committed embedded Python source
+tree before loading the packager helpers, then rechecks it before publication.
+It also rehashes the recorded composition and launcher inputs and checks
+their source inventories against the selected commit. FPGA build-record paths
+are relative to the recorded module root. Regenerate artifacts when their
+recorded sources differ. The full file closure is rehashed after JIC validation,
+immediately before the plan and result are published.
+The output plan pins both JICs. The result pins the matching SD image. The
+physical operator uses a fresh claim-bound scan and separate approval and
+cleanup records for each write. Initialize and verify the factory JIC against
+the current factory flash before installing the native image.
+
+For a passive serial capture, `power_on_trace.observe` takes the full bounded
+capture and the expected 16-digit SPL build ID. It retains any previous boot
+tail separately, requires the one matching SPL banner and immediately adjacent
+SPL beginning, then invokes the supplied native decoder on that exact segment.
+The decoder callback must use the checked native build, owner seed and options.
+Retain the complete serial capture and the operator-confirmed cycle receipt.
+Two qualified native power-ons reached
+Tenfoot on TRWU8CBL, with physical keyboard launch and return and List layout
+persistence. The factory restore and re-install round trip remains a
+separate qualification task under #1867.
 
 The native U-Boot builder accepts an explicit `--native-autoboot` alongside
 `--native-entry-build` for a selected Tenfoot launcher with its paired menu.
@@ -170,43 +219,6 @@ session; uncertain writes are recorded and never retried or rolled back.
 The protected recovery boot files remain independently checked by UploadSession.
 This operation neither activates the staged FIT nor proves native persistence.
 
-`jtag_server_trace.JtagServerTrace` adds optional host diagnostics around an
-already admitted programmer call. It attaches `strace` only to the recorded
-private TRWU8CBL server after checking its PID/start ticks, UID, executable
-digest, arguments and absence of another tracer. Only the absolute executable
-name or the vendor launcher's `jtagd` spelling is accepted as `argv[0]`; the
-executable path/hash and every other argument remain exact. The caller retains
-its existing claim and poll `check()` during the call. The trace stops at
-120 seconds or 8 MiB; the existing programmer's 90-second bound remains.
-These are host trace limits, separate from the boot FIT and core package bounds.
-Only ioctl syscalls are recorded, with 32-byte string limits and decoded file
-descriptors. No extra JTAG configuration/status command is issued.
-
-The caller closes the tracer before closing its server. Cleanup signals only
-the owned tracer, verifies its exit and the same live server's detachment, and
-retains early tracer exit separately. Lost ownership is sticky. Receipts grant
-no programming, reset or recovery authority. Attachment pauses server threads
-and changes host timing, so a traced run is diagnostic evidence. Eleven injected
-model tests cover identity/ownership/attachment/deadline/output/cleanup faults.
-A real host-only disposable-process fixture checks ioctl capture, normal detach
-and survival after abrupt tracer death; its vendor identity is injected and
-it opens no USB device. The [bounded physical trial](../../../docs/validation/2026-11-14-de25-warm-prepare-stop/README.md)
-subsequently captures and closes both recovery/native private-server traces.
-This is diagnostic qualification only: URB completion contents remain opaque,
-USB health and the earlier JTAG failure's root cause remain unqualified.
-
-`jtag_enumeration.cpp` is a separate scan-only diagnostic for the installed
-programmer's two-pass automatic enumeration: count zero/null list/automatic
-scan enabled, followed by one bounded device-list read. It requires the exact
-private top-kit cable, locked 3 MHz clock and disabled automatic adjustment.
-The size query must return `AJI_TOO_MANY_DEVICES` with exactly one entry;
-other responses stop without a retry or cached-identity fallback. It verifies
-the resulting FPGA identity and both clock properties before unlocking.
-Vendor messages are bounded and hex encoded. It loads no image, invokes no
-FPGA/CPU-reset API and emits a distinct diagnostic format rejected by the
-programming-grant decoder. A diagnostic pass does not fix or qualify the
-programming path. Existing forced-scan admission remains unchanged.
-
 `jtag_probe.checked` validates the selected scan executable's bytes and frozen
 Unix mode, checks execution access, and rejects file changes during hashing.
 The experimental operator applies it before reserving an operation and again
@@ -242,20 +254,6 @@ despite a passing6MHz scan; a separate observation found automatic adjustment
 still enabled. Neither observation establishes its cause. These host controls
 change no CPU/FPGA operating clock, cache policy, SD file or native admission.
 Image programming and boot still need a separately bounded physical qualification.
-
-`jtag_diagnostic.cpp` is a separate scan-only host diagnostic, built against
-the pinned Intel AJI headers and selected vendor client. It accepts only an
-explicit private top-kit cable/configuration, checks 6 MHz and issues one
-forced scan. A successful scan can have one non-scanning identity read; a
-failed scan never uses a cached identity. Bounded, hex-encoded vendor messages,
-four named captured-data queries and clock/auto-adjust context help investigate
-failures. Its output cannot satisfy the programming-scan grant decoder, and it
-has no FPGA programming or HPS CPU-reset call. An owned operator must restore
-clock, exact USB permissions and its private service independently.
-The raw pre-scan chain type is observational: the installed vendor client has
-reported a value absent from its public header. Like Intel's `jtagconfig`, this
-separate diagnostic uses the locked scan API to establish scan availability,
-then checks the fresh device identity. The programming-grant gate is unchanged.
 
 Scan-only discovery uses `jtagconfig --listhardware`. Intel's `--enum` path can
 request automatic chain scans before the selected clock is established; it is
@@ -435,38 +433,6 @@ SOF/SPL/BL31. Its distinct `prepared-return-trace` status requires its explicit
 loader; the ordinary uploader rejects it. Packaging invokes no FPGA or device
 operation and verifies that only the fixed FIT mirror changes in the prefix.
 
-`recovery_trace_upgrade.py` supplies a one-shot UART controller for the explicit
-qualified PHY-prepare-to-trace transition. It verifies the known spare, existing
-package/experimental FIT and memory ownership, saves fresh rollback files, then
-writes/readbacks the FAT FIT, raw mirror and manifest. It never activates its
-result. Claim, journal, UART or write failures retire every wire entry point;
-caller-owned inputs are snapshotted. `recovery_trace_console.TraceConsole`
-additionally requires the full ordered TFTP trace after the base console's fresh
-nonce/prompt checks, before a download can succeed. Trace loss prevents the
-upload session's SD write, and a retired console sends no cleanup commands.
-A complete frozen physical operator and new bounded hardware test remain
-necessary. No marker grants SD/native programming permission or widens deadlines.
-
-The separate `recovery_trace_upgrade.Repair` transition admits only the exact
-consumed UART0 diagnostic FIT, manifest and prefix. It requires the original
-R1107A rollback pair and reads/hashes it before and after its five fixed writes.
-Fresh R1107B files preserve the consumed image. The ordinary `Upgrade` keeps its
-original baseline restriction; neither transition activates its result. The
-repair shares the existing ownership, memory, UART, write/readback and permanent
-retirement checks. A new frozen operator and fresh bounded boot/card proofs are
-required after the reported power loss. Model success grants no physical write
-or core-load acceptance.
-
-`recovery_trace_upgrade.TimerRepair` separately admits the exact installed
-UART1 FIT, manifest and prefix for the 100-ms correction. It authenticates
-both the original R1107A pair and consumed UART0 R1107B pair, reads/hashes both
-before and after the five fixed writes, and preserves the current UART1 pair
-under fresh R1107C names. Existing R1107C destinations reject before any write.
-It shares the one-shot controller and never activates its result. Neither
-earlier transition accepts this installed UART1 source. A fresh frozen
-operator and live card/boot checks are still required after the power report;
-the later serial version/prompt observation does not prove card integrity.
-
 The current guarded-RAM contract keeps the per-CPU array in sealed initialized
 BL31 DDR instead of OCRAM BSS. Its original cache flush remains in place. The
 matched device tree reserves the complete two-MiB BL31 DDR interval, and the
@@ -521,20 +487,6 @@ checks and fresh SD readback. Other paths and sizes reject before device I/O.
 The upload supplies bytes only; the native store and loader separately check
 their source digest, retained activation receipt and compiled ROM resources.
 
-`usb_trace.py` observes the separately selected `usbcheck` image. It requires
-the matched SPL/BL31 handoff, a successful secure USB setup, the complete HPS
-context/pin observations, entry/BSP CPU startup through `go_vectors`, and
-ordered USB Ready/report/Stop/Pass records. Stop must carry the same owner and
-generation 3. Missing, duplicate, malformed, failed or fragmented observations
-cannot complete the diagnostic. The caller supplies checked build identities.
-The terminal observation is the program's USB Pass after its checked Stop.
-The pinned BSP installs TamaGo's silent ARM64 exit hook; the runtime's generic
-halt message is not an observable checkpoint on this board. CPU halt is not
-claimed, and foreign runtime output cannot replace the USB receipt.
-The decoder performs no device operations or admission. An idle success proves
-reported startup and stop only. Valid key presses are separate input evidence,
-and neither result qualifies combined USB/storage/core operation.
-
 `native_admission.py` keeps its default paired `fpgaload` file-reuse scope.
 The explicit `USB_SCOPE` selects a separate USB-only record, its checked
 `probe-profile.json` and one complete sealed project. Entry and cold firmware
@@ -580,19 +532,6 @@ secure ownership before a DMA reservation or START. Copies and concurrent uses
 cannot replay the plan. Both native load/Run/return cycles and fresh SD retention
 between them pass. It does not enable an
 ordinary Nano programming profile or arbitrary package admission.
-
-`uart_transfer.send` supplies a bounded Kermit RAM transfer to an already owned
-exclusive recovery console. Its caller must first establish the complete live
-LMB ledger and reserve the window with a verified FAT load. The sender may exit
-successfully while its stdout pipe or UART transmit queue still holds bytes;
-the relay drains both within the original deadline before accepting the loader
-size, return-rate and current prompt acknowledgement. The caller still verifies
-the RAM hash and current ownership before using the result. A sender failure,
-claim loss or exceeded bound stops the attempt and retains status/packet logs;
-the caller handles target recovery. The fixed-pattern hardware capture under
-`tests/fixtures/nano-kermit-exit/` reproduces the successful-exit/queued-CRLF race.
-This transport issues no SD write or activation operation. Physical transfer
-qualification remains separate from SD update, native boot and core admission.
 
 The recovery version check requires the complete pinned profile banner,
 including the build date and Terasic's `socfpga_agilex5` board suffix. The
@@ -1041,72 +980,6 @@ Physical activation, ROM linking on Agilex and storage return across actual FPGA
 transitions remain separate work.
 
 ## Actual cold ownership handoff
-
-For an observation that cannot proceed into the native chain, `cpu_diagnostic.py`
-builds a separate SPL from a completed cold serial build and its exact pinned
-tools/reference SOF. It keeps the first sample and fresh MPIDR/reset report,
-then unconditionally prints `FES_NANO_CPU_DIAG PARK no-ddr no-storage no-bl31`
-and spins with `yield`, including when admission would pass. The private
-`board_init_f` ends at that report; later DDR/device initialization is removed.
-The seed configuration is retained except for the diagnostic identity; drivers
-can stay linked. Both watchdog-start paths are removed, and the later SPL
-initializer independently stops on entry. The linked park and excluded
-watchdog-start/firmware-entry symbols are checked. The vendor's `SPL_ATF` and its required `SPL_LOAD_FIT`
-selection stay enabled; the later ATF invocation is independently replaced by
-a stop and no firmware payload is supplied. The build checks the actual Nano
-startup sources and emitted startup text against the seed. No native CPU/reset
-admission rule changes.
-
-The trace records 18 lifecycle checkpoints from first C entry through the cold
-sample, device setup, managers/pins, timer, mailbox, clocks, console, report and
-park. Seven power/request/boot-configuration words are sampled before the cold
-proof, and seven more immediately before park. The complete 32-event trace
-fits its existing 304-byte record in loaded OCRAM data. The power helper uses
-fixed 32-bit reads and never changes power requests or reset state. Before
-clock setup returns, status reads store only OCRAM and do not access UART.
-After clocks, guarded raw UART output can replay the
-record before normal console setup if UART1 is already released and in 8N1.
-Otherwise it tries after normal console initialization. It does not change
-UART reset, clock, divisor, framing or interrupts, and caps TX polling per line.
-Complete serial lines carry the build ID, stage, value, first-C MPIDR and EL.
-Partial, reordered, mixed-identity or inconsistent-affinity traces never count
-as a complete capture. None of these observations grants native admission.
-
-`--console-control` prepares a separate contained comparison. It performs no cold proof
-or tracing before normal console initialization. Both watchdog-start paths
-are removed: the first board initializer ends in the unconditional diagnostic
-park, and the later SPL initializer independently stops on entry. The linked
-image is checked for absent watchdog-start, cold-proof and firmware-entry
-symbols. DDR/storage drivers can remain linked with this configuration; the
-two initializers cannot proceed to their later initialization/loading paths.
-This control emits checkpoints `10`, `11` and `12` plus seven pre-park power
-words, with no first-C power sample. Six bracketed register observations run
-between the report checkpoint and power sample. Its MPIDR/EL scope is
-after console initialization, not first C entry. Those observations never
-supply the initial trusted ownership proof or grant native admission.
-
-If execution stops before clock setup, a silent serial result can still be
-inconclusive. Earlier checkpoints remain in OCRAM, but their retrieval over
-JTAG has not been qualified. The retained reference SOF has HPS DAP disabled;
-an HPS debug configuration would need a separately built and checked image.
-A host timeout also cannot preempt a stalled target MMIO operation.
-
-```sh
-python3 platform/embedded/nano/cpu_diagnostic.py \
-  --reference-repo out/vendor-uboot --seed-build out/nano-uboot \
-  --entry-build out/nano-entry --cross-prefix /absolute/path/aarch64-linux-gnu- \
-  --vendor-sof /absolute/path/golden_top_hps.sof \
-  --quartus-pfg /absolute/path/quartus_pfg --output out/nano-cpu-observation
-```
-
-This prepares files only. A separately authorized bounded volatile JTAG run
-can keep the factory card inserted after a clean Linux shutdown. Capture the
-exact SPL banner, `BEGIN`, `SCOPE` and unconditional park. Restore and authenticate
-the factory system when recovery is needed or the baseline is required. For
-TRWU8CBL the user explicitly permits leaving the diagnostic loaded; record the
-actual state and hold the claim when execution/park are uncertain. A responding
-JTAG chain does not prove CPU execution or a factory boot. This fixture neither
-boots BL31 nor qualifies native execution, DDR, storage, ownership or drain.
 
 The dedicated SPL samples SDM boot kind, reset cause, peripheral/bridge resets
 and secondary CPU state before device initialization. The pinned
@@ -1725,19 +1598,6 @@ held-data computer-switching test is separate. The production oracle continues
 to reject this diagnostic target, and `HPSContextVerifier` does not implement
 `BootHandoffVerifier`.
 
-## Repeated window audit
-
-`window_reload_trace.decode(..., window_reload=True)` requires a complete first
-window/SD-return trace before the explicit second-load marker. It then checks
-the same closed HPS context, a newly completed timed configuration and fabric
-activation, readiness, translation/firewall observations, two changing frames,
-their local drains and a new firmware closure. The second source generation
-comes only from the first fresh SD containment. Missing, repeated, reordered
-or changed records cannot qualify a load. The original single-window decoder
-continues to require twelve frames; the repeat audit explicitly selects two
-for its second session. Neither decoder grants runtime admission or HDMI
-qualification.
-
 ## Contained native boot procedure
 
 1. Claim the top board in its current status file, verify serial/cable/UART,
@@ -1772,43 +1632,6 @@ still need physical qualification. Read-only SD/package retention has its separa
 tested profile; this serial-only procedure supplies no active SD drain proof.
 
 ## Persistent native request-service checks
-
-`program_client.ProgramClient` checks one owned exchange with the contained
-native request service. The platform supplies the exclusive console, its current
-claim check and a synchronous, bounded exchange callback. The client never opens
-a device, initializes hardware, retries a command or confers package admission.
-Its expected catalogue and configuration maps come from the independently
-checked image and freshly verified SD files.
-
-Startup requires the actual matched SPL/loaded-BL31/EL3/loader/EL1 prefix and a
-single complete Ready reply whose boot owner and catalogue match. Each command
-is issued once. Replies have strict types/fields, one terminal JSON record,
-unchanged boot ownership and the expected session generation. A launch must
-include the complete real configuration/queue/fabric-activation sequence followed
-by the held-data control observations. Return/Park must include the exact
-same-owner master stop. Shared `configuration_trace.extract` retains the existing
-fixed-probe transfer grammar; it supplies no boot or bridge authority.
-
-The bounded `exercise` sequence runs three request-driven sessions using indices
-0/1/0. It checks safe rejected requests, running fetch progress, held stability,
-keyboard command acceptance, resumed progress, two owned returns and final Park.
-Any uncertain I/O, deadline, protocol, transfer, closure or fetch observation
-retires the client and stops the sequence. No native command follows Park or a
-failed proof. Serial identity is the service publication after its internally
-checked live opening; it is not a separate GP register dump or ordinary runtime
-admission. The
-[matched board trial](../../../docs/validation/2026-11-03-de25-service-hardware/README.md)
-now passes all three same-package sessions and final Park; different physical
-payloads and ordinary runtime admission remain open.
-
-The request-driven fixed-window mode has a separate read-only
-`window_service_trace` auditor and injectable `WindowClient`. They require the
-matched boot prefix, both route gates, every configuration activation and each
-independent reader/master/bridge return. Cached reply observations cannot
-replace firmware evidence or mint a session. The bounded three-session client
-uses the already qualified persistent-service limits: 100s launch, 20s
-configuration, 5s control and no retry after an uncertain exchange. Physical
-acceptance for the new window service remains open until its matched image runs.
 
 `--purpose ui-catalog` uploads only `FES/UI.JSON`, bounded to 8192 bytes. It uses
 the same recovery-session ownership, scratch-memory checks and fresh SD readback

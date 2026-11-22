@@ -1,0 +1,103 @@
+format = 3
+
+[core]
+id = "fes.spectrum-plus3"
+name = "ZX Spectrum"
+description = "Standard DE25 ZX Spectrum +2A/+3 with uploaded firmware, board SDRAM, a PZX cassette and a uPD765A +3 disk drive"
+version = "1.0.0"
+
+[target]
+platform = "de25_nano"
+device = "A5EB013BB23BE4SCS"
+programming_profile = "de25-linux-computer-v1"
+
+[payload]
+file = "core.rbf"
+size = 1789952
+sha256 = "50dcf6def8f4bfffebed4f2a0747413398b81812c8511d59197f967d70b06f36"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.gamepad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.video.session-display"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.fabric.video.display-plane"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.spectrum-tape"
+major = 2
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.spectrum-disk"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.spectrum-disk-plus3"
+major = 1
+minor = 0
+required = false
+
+[[interfaces]]
+id = "fes.fabric.firmware-upload"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.fabric.de25-scanout"
+major = 1
+minor = 3
+required = true
+
+[build]
+id = "44745c0738af819539496844e8fe69dc"
+repository = "https://github.com/DeanoC/fes.git"
+revision = "242bc5fcce377d3e6bdb8e6b936acd93a06e67ba"
+recipe_sha256 = "c01fce7683cc6a834af05c7e8cfe64cff0f212bce00f4ab061b0288cf5c46fa2"
+toolchain = "ipgenerate Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14; pfg Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14; qsys Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:a0c811ed4010961b2ae4e92711492a172be969c900709b380f3c66db875d3f75; quartus Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14"
+
+[rom]
+id = "spectrum-plus3-firmware"
+role = "firmware"
+source_size = 65536
+file = "rom-map.json"
+size = 177
+sha256 = "8c367941b905ae2586042e5eb6fff63dffc1cd433258413899e96255539755b6"

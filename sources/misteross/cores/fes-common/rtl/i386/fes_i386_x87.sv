@@ -381,12 +381,10 @@ module fes_i386_x87 (
         B_ISSUE,    // offer the operation to fes_x87_core
         B_WAIT,     // ... and take its pre-rounding result into A_RND's registers
         // ---- Packed decimal (#1958). ----
-        T_BLD_IN,   // FBLD: take the 18 digits
-        T_BLD,      // ... acc = acc * 10 + digit, 18 times, then the normalising shift
         T_BST_IN,   // FBSTP: take the rounded integer
         T_BST,      // ... double-dabble it to 18 digits, a bit a clock, and pack
-        // ---- The transcendentals and the exact forms (#1958, #2027). ----
-        T_GO,       // start fes_x87_trans on the normalised operands
+        // ---- The transcendentals, the exact forms and FBLD (#1958, #2027). ----
+        T_GO,       // start fes_x87_trans on the normalised operands, or FBLD's digits
         T_RUN       // ... and take its last result, unrounded, into A_RND's registers
     } seq_e;
     seq_e        seq;
@@ -423,12 +421,9 @@ module fes_i386_x87 (
     // set when the instruction is taken, so this is settled from S_ARG on.
     logic bcd;
     assign bcd = cur_fmt == X87F_F80 && cur_op_raw[10:8] == 3'b111;
-    // FBLD's working registers: the digits still to take, most significant
-    // first, the binary integer so far and the count left. Eighteen digits
-    // of at most 15 each stay below 2^61, so 64 bits hold any encoding.
-    logic [63:0] bl_acc;
-    logic [71:0] bl_dig;
-    logic [4:0]  bl_n;
+    // FBLD converts on the transcendental engine (#2027 slice 6): its digits
+    // are each a table constant, digit times its power of ten, and their sum
+    // is exact, since eighteen digits of at most 15 each stay below 2^61.
     // FBSTP's: the rounded integer still to shift out (at most 10^18 - 1,
     // which is below 2^60), the digits so far and the count left.
     logic [59:0] bs_bin;
@@ -583,26 +578,8 @@ module fes_i386_x87 (
         f64 = mval[51:0];
         e64 = mval[62:52];
         case (cur_fmt)
-            X87F_F80:
-                if (bcd) begin
-                    // FBLD: the 18 digits as the binary integer T_BLD left
-                    // in bl_acc, normalised as FILD's magnitude is. It is
-                    // exact and raises nothing. The sign is bit 79 and bits
-                    // 78 to 72 are ignored (387 PRM Figure 2-10, note 3),
-                    // and unlike FILD a zero keeps its sign: "the sign of
-                    // the source is preserved, including the case where the
-                    // value is negative zero" (387 PRM section 4.3.8).
-                    // **bl_acc is a register T_BLD writes**, so this is the
-                    // loaded value only once T_BLD's count has run out:
-                    // T_BLD's last step and S_APPLY read it, S_PRE must not.
-                    ld_sign = mval[79];
-                    if (bl_acc == 64'd0) ld_v = {mval[79], 79'd0};
-                    else begin
-                        ld_shift = 1'b1;
-                        ld_mag = bl_acc;
-                        ld_expb = 17'd16446;
-                    end
-                end else ld_v = mval;
+            // FBLD's value is the engine's, which T_RUN leaves in `ares`.
+            X87F_F80: ld_v = mval;
             X87F_F32: begin
                 ld_sign = mval[31];
                 if (e32 == 8'd0 && f32 == 23'd0) ld_v = {mval[31], 79'd0};
@@ -1012,6 +989,8 @@ module fes_i386_x87 (
             8'hf4: t_ins = 4'd12;     // FXTRACT
             default: t_ins = 4'd7;    // FPATAN
         endcase
+        // FBLD's opcode byte is a memory form's ModR/M, below C0h.
+        if (bcd) t_ins = 4'd13;
     end
     // The exact forms take x from ST(0) and y from ST(1), as `pa` and `pb`
     // hold them; the transcendentals' two-operand forms have them the other
@@ -1316,7 +1295,9 @@ module fes_i386_x87 (
     logic [2:0]               tr_prem_q;
     logic                     tr_prem_part, tr_rnd_pe, tr_rnd_c1;
     assign tr_start = seq == T_GO;
-    fes_x87_core core (
+    // One operation in flight, so the fast lane is one registered stage: the
+    // unit never uses its throughput (#2027 slice 6).
+    fes_x87_core #(.PIPELINED(1'b0)) core (
         .clk, .reset(reset || f1), .flush(bk_cancel),
         .req_valid(tr_busy ? tr_req_valid : bk_req_valid), .ext_ready(1'b1),
         .req_ready(bk_req_ready),
@@ -1333,7 +1314,7 @@ module fes_i386_x87 (
         .xs(t_two ? pb[79] : pa[79]), .xe((t_two ? ob_e : oa_e) - 18'sd16383),
         .xm(t_two ? ob_m : oa_m),
         .ys(t_exact ? pb[79] : pa[79]), .ye((t_exact ? ob_e : oa_e) - 18'sd16383),
-        .ym(t_exact ? ob_m : oa_m),
+        .ym(t_exact ? ob_m : oa_m), .bcd(mval[71:0]),
         .req_valid(tr_req_valid), .req_ready(bk_req_ready), .req_op(tr_req_op),
         .req_a(tr_req_a), .req_b(tr_req_b), .raw_valid(bk_raw_valid), .raw(bk_raw),
         .busy(tr_busy), .done(tr_done), .fin_zero(tr_fin_zero), .fin_sign(tr_fin_sign),
@@ -1567,10 +1548,8 @@ module fes_i386_x87 (
                 // target or an integer, then the rounding.
                 S_ARG: seq <= S_PRE;
                 S_PRE: if (cur == X87_LD_M) begin
-                    // FBLD's digits become a binary integer first, and the
-                    // conversion above is that integer's: nothing here may
-                    // read ld_shift or ld_mag for it yet.
-                    if (bcd) seq <= T_BLD_IN;
+                    // FBLD's digits become a value on the engine.
+                    if (bcd) seq <= T_GO;
                     // A load's normalising left shift, a multiply by 2^lz.
                     else if (ld_shift) begin
                         sh_in <= ld_mag;
@@ -2309,7 +2288,16 @@ module fes_i386_x87 (
                 // and the fin_* values are the engine's registers, written
                 // on the same edge. The instruction is inexact by definition
                 // (rules.md G6), so PE is set whatever the last operation was.
-                T_RUN: if (tr_done) begin
+                T_RUN: if (tr_done && bcd) begin
+                    // FBLD: the sum is exact and raises nothing, so it is the
+                    // loaded value as it stands, with no rounding. The sign
+                    // is bit 79 and bits 78 to 72 are ignored (387 PRM Figure
+                    // 2-10, note 3), and unlike FILD a zero keeps its sign:
+                    // "the sign of the source is preserved, including the case
+                    // where the value is negative zero" (387 PRM section 4.3.8).
+                    ares <= tr_fin_zero ? {mval[79], 79'd0} : {mval[79], tr_fin_exp[14:0], tr_fin_sig[66:3]};
+                    seq <= S_APPLY;
+                end else if (tr_done) begin
                     // The exact forms are not inexact by definition: FRNDINT
                     // reports its rounding's PE and C1, FPREM its quotient,
                     // and the rest round in A_RND like any exact value.
@@ -2424,40 +2412,6 @@ module fes_i386_x87 (
                     seq <= bcd && !f[0] ? T_BST_IN : S_RDY;
                 end
                 // ---- Packed decimal (#1958). ----
-                // FBLD: 18 steps of acc * 10 + digit, the most significant
-                // digit first, with the multiply as two shifts and an add.
-                // A digit of A to F is not checked for: the 387 "does not
-                // check for invalid digits" and calls the result undefined
-                // (387 PRM section 4.3.8), and this arithmetic is what the
-                // host x87 and the oracle were both measured to do with one.
-                T_BLD_IN: begin
-                    bl_acc <= 64'd0;
-                    bl_dig <= mval[71:0];
-                    bl_n <= 5'd18;
-                    seq <= T_BLD;
-                end
-                // The step that starts the normalising shift reads bl_acc
-                // through ld_shift and ld_mag, so it has to be a clock after
-                // the last digit went in: the count runs out first and the
-                // shift starts from the settled register, never in the
-                // clock that assigns it. bl_acc then stays as it is until
-                // S_APPLY, which reads the same conversion again.
-                T_BLD: begin
-                    if (bl_n != 5'd0) begin
-                        bl_acc <= {bl_acc[60:0], 3'd0} + {bl_acc[62:0], 1'b0} + {60'd0, bl_dig[71:68]};
-                        bl_dig <= {bl_dig[67:0], 4'd0};
-                        bl_n <= bl_n - 5'd1;
-                    end else if (ld_shift) begin
-                        sh_in <= ld_mag;
-                        sh_k <= 7'd0;
-                        sh_src <= ld_mag;
-                        sh_pow <= 6'(clz64(ld_mag));
-                        sh_exp <= 15'(ld_expb - 17'(clz64(ld_mag)));
-                        sh_ret <= S_APPLY;
-                        seq <= S_SHIFT;
-                    end else
-                        seq <= S_APPLY;
-                end
                 // FBSTP: the rounded integer to 18 digits by double-dabble,
                 // one bit a clock from the top: each digit of five or more
                 // gains three, then the digits shift left with the next bit
@@ -2540,7 +2494,7 @@ module fes_i386_x87 (
                               : 80'd0;
                             if (cur == X87_LD_M) begin
                                 f = ld_fl;
-                                v = ld_shift ? {ld_sign, sh_exp, mul_p[63:0]} : ld_v;
+                                v = bcd ? ares : ld_shift ? {ld_sign, sh_exp, mul_p[63:0]} : ld_v;
                             end
                             if (cur == X87_LD_ST && cicls == C_EMPTY) begin
                                 f[0] = 1'b1;
