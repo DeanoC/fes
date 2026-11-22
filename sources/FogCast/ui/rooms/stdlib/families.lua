@@ -191,9 +191,10 @@ local STATE_WORDS = {
 -- so Details fits the hero.
 function M.details(f)
   local lines, order, models = {}, {}, {}
+  local settled = M.settled()
   for _, v in ipairs(f.variants) do
     local state, why = model_state(v.id)
-    if not M.settled() then state, why = "checking", nil end
+    if not settled then state, why = "checking", nil end
     if overfull[f.id] then state, why = "blocked", "Too many systems to check" end
     local word = why or STATE_WORDS[state] or "Can't start here"
     if not models[word] then

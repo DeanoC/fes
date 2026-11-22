@@ -34,7 +34,7 @@ func TestSystemWorkbenchEmptyLibrarySetsUpEveryPlayableModel(t *testing.T) {
 	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Set up ZX81") })
 	families := [][]string{
 		{"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500"},
-		{"fes.c64"},
+		{"fes.c64", "fes.c64-ntsc"},
 		{"fes.spectrum", "fes.spectrum128", "fes.spectrum-plus3", "fes.pentagon"},
 		{"fes.apple2"}, {"fes.atari-st"}, {"fes.pcxt-dos"}, {"fes.pc386"}, {"fes.coleco"}, {"fes.sms"}, {"fes.sg1000"},
 		{"fes.pong"}, {"fes.ramtest"}, {"fes.riscv"},
@@ -129,6 +129,7 @@ func TestSystemWorkbenchNamesSavedMediaByRole(t *testing.T) {
 		{"fes.spectrum-plus3", "disk", "Disk .dsk"},
 		{"fes.pentagon", "disk", "Disk .trd"},
 		{"fes.c64", "disk", "Disk .d64"},
+		{"fes.c64-ntsc", "disk", "Disk .d64"},
 		{"fes.pcxt-dos", "disk", "Disk .img"},
 		{"fes.pc386", "hard-disk", "Hard disk .img"},
 		{"fes.spectrum", "cassette", "Tape or snapshot"},

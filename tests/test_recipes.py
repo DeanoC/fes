@@ -124,6 +124,21 @@ class RecipeRegistryTest(unittest.TestCase):
         env = recipes.producer_environment({"FES_TOOLCHAIN_GPU_ROUTER": "HIP"}, recipe)
         self.assertNotIn("FES_TOOLCHAIN_GPU_ROUTER", env)
 
+    def test_c64_ntsc_is_an_explicit_de10_package_selection(self):
+        pal = recipes.recipe_for("fes.c64")
+        ntsc = recipes.recipe_for("fes.c64-ntsc")
+        self.assertEqual(pal.producer_arguments, ("--model", "pal"))
+        self.assertEqual(dict(pal.producer_options), {"model": "pal"})
+        self.assertEqual(ntsc.producer_arguments, ("--model", "ntsc"))
+        self.assertEqual(dict(ntsc.producer_options), {"model": "ntsc"})
+        self.assertEqual(ntsc.producer_module, pal.producer_module)
+        self.assertEqual(ntsc.lock_path, pal.lock_path)
+        self.assertEqual(ntsc.selection_filename, "fes-c64-ntsc.package-selection.toml")
+        self.assertEqual(ntsc.package_dir_env, "FES_C64_NTSC_PACKAGE_DIR")
+        self.assertEqual(ntsc.package_selection_env, "FES_C64_NTSC_PACKAGE_SELECTION")
+        with self.assertRaisesRegex(ValueError, "unknown format-2 recipe"):
+            recipes.recipe_for("fes.c64-ntsc", board="de25-nano")
+
     def test_pcxt_diagnostic_package_is_not_registered(self):
         with self.assertRaises(ValueError):
             recipes.recipe_for("fes.pcxt")

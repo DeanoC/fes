@@ -172,7 +172,7 @@ help:
 		"  fetch-fes-atari-st-emutos  Fetch the pinned free 192 KiB EmuTOS test ROM" \
 		"  sim-fes-atari-st-emutos-memory  Boot EMUTOS_ROM through SDRAM and capture HDMI RGB" \
 		"  atari-st-diagnostic  Generate two original 192 KiB 68000 firmware inputs" \
-		"  build-fes-c64  Seal FES Commodore 64 (format 3 firmware map, two cartridge sockets) with HIP (CACHE_ROOT=)" \
+		"  build-fes-c64 / build-fes-c64-ntsc  Seal PAL / NTSC Commodore 64 packages (CACHE_ROOT=)" \
 		"  oss        Build an experiment with the open-source FPGA lane" \
 		"  export-core-package  Seal a format-2 package directory and .fcore archive" \
 		"  program    Explicit JTAG SRAM maintenance diagnostic" \
@@ -1801,9 +1801,12 @@ build-fes-sg1000:
 build-fes-apple2:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_apple2_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
-.PHONY: build-fes-c64
+.PHONY: build-fes-c64 build-fes-c64-ntsc
 build-fes-c64:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_c64_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+build-fes-c64-ntsc:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_c64_oss.py --root "$(CURDIR)" --model ntsc$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 .PHONY: build-fes-spectrum build-fes-spectrum128 build-fes-spectrum-plus3 build-fes-pentagon
 build-fes-spectrum:
