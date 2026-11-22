@@ -82,6 +82,9 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 }
 func (s *Session) fail(err error) error {
 	s.retired.Store(true)
+	if s.device != nil {
+		s.device.DisableIRQ()
+	}
 	s.firmware.retire()
 	return errors.Join(ErrRetired, err)
 }
