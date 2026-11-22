@@ -14,38 +14,50 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/dmaops"
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/usbarmory/tamago/dma"
 )
 
 const (
-	queueSize       = 8
-	maxTransfer     = 16 * SectorSize
-	dmaBytes        = 16384
-	availableOffset = 128
-	usedOffset      = 256
-	headerOffset    = 512
-	dataOffset      = 1024
-	statusOffset    = dataOffset + maxTransfer
-	featureVersion1 = uint64(1) << 32
-	featureRO       = uint64(1) << 5
-	featureFlush    = uint64(1) << 9
+	queueSize          = 8
+	maxTransfer        = 128 * SectorSize
+	availableOffset    = 128
+	usedOffset         = 256
+	headerOffset       = 512
+	dataOffset         = 1024
+	statusOffset       = dataOffset + maxTransfer
+	dmaBytes           = statusOffset + 64
+	regInterrupt       = 0x60
+	regInterruptAck    = 0x64
+	featureVersion1    = uint64(1) << 32
+	featureRO          = uint64(1) << 5
+	featureFlush       = uint64(1) << 9
+	virtioMMIOBase     = uint32(0x0a000000)
+	virtioMMIOStride   = uint32(0x200)
+	virtioMMIOSlots    = uint32(32)
+	virtioMMIOFirstIRQ = uint32(48)
 )
 
-// VirtIO implements one polled VirtIO 1.x MMIO block queue. Its buffers are
-// owned until completion; an ambiguous timeout poisons the device. The caller
-// must initialize TamaGo's global DMA arena outside the Go heap, with coherent
-// or uncached mappings, before opening it. This is a QEMU backend, not SD.
+// VirtIO implements one VirtIO 1.x MMIO block queue backed by dmaops.Buffer.
+// Its DMA span stays owned until completion; an ambiguous timeout poisons both
+// the queue and the underlying dmaops.Buffer so memory is never recycled.
+// Call EnableIRQ to wake transfers from WFI via the GICv3 SPI instead of polling.
 type VirtIO struct {
 	mu        sync.Mutex
 	base      uint32
 	sectors   uint64
 	readonly  bool
 	flush     bool
-	address   uint
+	dmaBuf    *dmaops.Buffer
+	address   uint64
 	buf       []byte
 	available uint16
 	used      uint16
 	poisoned  bool
+	irqReady  chan struct{}
+	irqActive atomic.Bool
+	irqCount  atomic.Uint64
 }
 
 func regRead(base, offset uint32) uint32 {
@@ -54,25 +66,34 @@ func regRead(base, offset uint32) uint32 {
 func regWrite(base, offset, value uint32) {
 	atomic.StoreUint32((*uint32)(unsafe.Pointer(uintptr(base+offset))), value)
 }
-func memoryBarrier()
 
 // ScanVirtIO finds a block device in QEMU virt's 32-slot MMIO window.
 // These are emulator addresses only and must not be used on DE25 hardware.
 func ScanVirtIO() (*VirtIO, error) {
-	for i := uint32(0); i < 32; i++ {
-		base := uint32(0x0a000000) + i*0x200
+	return ScanVirtIOWithPool(nil)
+}
+
+// ScanVirtIOWithPool finds a QEMU virt VirtIO block device and allocates its
+// queue and transfer staging buffer from pool (or reserves from tamago/dma when nil).
+func ScanVirtIOWithPool(pool *dmaops.Pool) (*VirtIO, error) {
+	for i := uint32(0); i < virtioMMIOSlots; i++ {
+		base := virtioMMIOBase + i*virtioMMIOStride
 		if regRead(base, 0) == 0x74726976 && regRead(base, 8) == 2 {
-			return OpenVirtIO(base)
+			return OpenVirtIOWithPool(base, pool)
 		}
 	}
 	return nil, errors.New("no QEMU VirtIO block device")
 }
 
 func OpenVirtIO(base uint32) (*VirtIO, error) {
+	return OpenVirtIOWithPool(base, nil)
+}
+
+func OpenVirtIOWithPool(base uint32, pool *dmaops.Pool) (*VirtIO, error) {
 	if base == 0 || regRead(base, 0) != 0x74726976 || regRead(base, 4) != 2 || regRead(base, 8) != 2 {
 		return nil, errors.New("expected VirtIO 1.x MMIO block device")
 	}
-	d := &VirtIO{base: base}
+	d := &VirtIO{base: base, irqReady: make(chan struct{}, 1)}
 	regWrite(base, 0x70, 0)
 	deadline := time.Now().Add(time.Second)
 	for polls := 0; regRead(base, 0x70) != 0; polls++ {
@@ -128,25 +149,118 @@ func OpenVirtIO(base uint32) (*VirtIO, error) {
 		regWrite(base, 0x70, 128)
 		return nil, errors.New("VirtIO block capacity unavailable")
 	}
-	d.address, d.buf = dma.Reserve(dmaBytes, 4096)
-	if len(d.buf) != dmaBytes {
-		regWrite(base, 0x70, 128)
-		return nil, errors.New("VirtIO block DMA allocation failed")
+	if pool == nil {
+		addr, raw := dma.Reserve(dmaBytes, 4096)
+		if len(raw) != dmaBytes {
+			regWrite(base, 0x70, 128)
+			return nil, errors.New("VirtIO block DMA allocation failed")
+		}
+		var err error
+		pool, err = dmaops.NewPool(uint64(addr), raw, dmaops.Uncached, dmaops.Native())
+		if err != nil {
+			regWrite(base, 0x70, 128)
+			return nil, err
+		}
 	}
-	clear(d.buf)
-	binary.LittleEndian.PutUint16(d.buf[availableOffset:], 1) // no interrupts
+	var err error
+	d.dmaBuf, err = pool.Alloc(dmaBytes, 4096)
+	if err != nil {
+		regWrite(base, 0x70, 128)
+		return nil, fmt.Errorf("VirtIO block DMA allocation failed: %w", err)
+	}
+	d.address = d.dmaBuf.PhysAddr()
+	d.buf = d.dmaBuf.Bytes()
+	binary.LittleEndian.PutUint16(d.buf[availableOffset:], 1) // suppress interrupts until EnableIRQ
 	regWrite(base, 0x38, queueSize)
-	for _, pair := range [][2]uint64{{0x80, uint64(d.address)}, {0x90, uint64(d.address) + availableOffset}, {0xa0, uint64(d.address) + usedOffset}} {
+	for _, pair := range [][2]uint64{{0x80, d.address}, {0x90, d.address + availableOffset}, {0xa0, d.address + usedOffset}} {
 		regWrite(base, uint32(pair[0]), uint32(pair[1]))
 		regWrite(base, uint32(pair[0])+4, uint32(pair[1]>>32))
 	}
-	memoryBarrier()
+	if err := d.dmaBuf.SyncForDevice(dmaops.ToDevice); err != nil {
+		d.dmaBuf.Poison(err)
+		regWrite(base, 0x70, 128)
+		return nil, err
+	}
 	regWrite(base, 0x44, 1)
 	regWrite(base, 0x70, 15)
 	return d, nil
 }
 
+func (d *VirtIO) irqID() (uint32, bool) {
+	if d.base < virtioMMIOBase || (d.base-virtioMMIOBase)%virtioMMIOStride != 0 {
+		return 0, false
+	}
+	slot := (d.base - virtioMMIOBase) / virtioMMIOStride
+	if slot >= virtioMMIOSlots {
+		return 0, false
+	}
+	return virtioMMIOFirstIRQ + slot, true
+}
+
+func (d *VirtIO) acknowledge() {
+	if status := regRead(d.base, regInterrupt); status != 0 {
+		regWrite(d.base, regInterruptAck, status)
+	}
+}
+
+// IRQCount returns the number of VirtIO-block interrupts handled since EnableIRQ.
+func (d *VirtIO) IRQCount() uint64 { return d.irqCount.Load() }
+
+// EnableIRQ routes this VirtIO-block slot's GICv3 SPI to wake pending requests
+// from WFI instead of busy-polling. Call after g.Init() with g.Serve running.
+func (d *VirtIO) EnableIRQ(g *gic.Controller) error {
+	if g == nil {
+		return errors.New("block: nil GIC controller")
+	}
+	id, ok := d.irqID()
+	if !ok || id >= g.Lines() {
+		return gic.ErrInvalidConfig
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.poisoned {
+		return errors.New("VirtIO block queue is poisoned")
+	}
+	g.Disable(id)
+	d.irqCount.Store(0)
+	binary.LittleEndian.PutUint16(d.buf[availableOffset:], 0) // clear AVAIL_F_NO_INTERRUPT
+	if err := d.dmaBuf.SyncForDevice(dmaops.ToDevice); err != nil {
+		return err
+	}
+	d.acknowledge()
+	g.Register(id, func() {
+		d.irqCount.Add(1)
+		d.acknowledge()
+		select {
+		case d.irqReady <- struct{}{}:
+		default:
+		}
+	})
+	d.irqActive.Store(true)
+	g.Enable(id)
+	return nil
+}
+
+// DisableIRQ re-suppresses VirtIO block interrupts and masks the GICv3 SPI.
+func (d *VirtIO) DisableIRQ(g *gic.Controller) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !d.poisoned && d.dmaBuf != nil {
+		binary.LittleEndian.PutUint16(d.buf[availableOffset:], 1)
+		_ = d.dmaBuf.SyncForDevice(dmaops.ToDevice)
+	}
+	if g != nil {
+		if id, ok := d.irqID(); ok {
+			g.Disable(id)
+			g.Register(id, nil)
+		}
+	}
+	d.irqActive.Store(false)
+	d.acknowledge()
+}
+
 func (d *VirtIO) SectorCount() uint64 { return d.sectors }
+
 func (d *VirtIO) ReadSectors(lba uint64, dst []byte) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -163,6 +277,7 @@ func (d *VirtIO) ReadSectors(lba uint64, dst []byte) error {
 	}
 	return nil
 }
+
 func (d *VirtIO) WriteSectors(lba uint64, src []byte) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -182,6 +297,7 @@ func (d *VirtIO) WriteSectors(lba uint64, src []byte) error {
 	}
 	return nil
 }
+
 func (d *VirtIO) Flush() error { d.mu.Lock(); defer d.mu.Unlock(); return d.request(4, 0, nil) }
 
 func (d *VirtIO) descriptor(index int, address uint64, length uint32, flags, next uint16) {
@@ -192,13 +308,24 @@ func (d *VirtIO) descriptor(index int, address uint64, length uint32, flags, nex
 	binary.LittleEndian.PutUint16(b[14:], next)
 }
 
+func (d *VirtIO) poison(err error) error {
+	d.poisoned = true
+	if d.dmaBuf != nil {
+		d.dmaBuf.Poison(err)
+	}
+	return err
+}
+
+func (d *VirtIO) usedIndex() uint16 {
+	return uint16(atomic.LoadUint32((*uint32)(unsafe.Pointer(&d.buf[usedOffset]))) >> 16)
+}
+
 func (d *VirtIO) request(operation uint32, lba uint64, data []byte) error {
 	if d.poisoned {
 		return errors.New("VirtIO block queue is poisoned")
 	}
 	if regRead(d.base, 0x70)&64 != 0 {
-		d.poisoned = true
-		return errors.New("VirtIO block requires reset")
+		return d.poison(errors.New("VirtIO block requires reset"))
 	}
 	header := d.buf[headerOffset : headerOffset+16]
 	clear(header)
@@ -214,47 +341,82 @@ func (d *VirtIO) request(operation uint32, lba uint64, data []byte) error {
 		} else {
 			copy(d.buf[dataOffset:], data)
 		}
-		d.descriptor(1, uint64(d.address)+dataOffset, uint32(len(data)), flags, 2)
+		d.descriptor(1, d.address+dataOffset, uint32(len(data)), flags, 2)
 	}
-	d.descriptor(0, uint64(d.address)+headerOffset, 16, 1, next)
-	d.descriptor(2, uint64(d.address)+statusOffset, 1, 2, 0)
+	d.descriptor(0, d.address+headerOffset, 16, 1, next)
+	d.descriptor(2, d.address+statusOffset, 1, 2, 0)
 	binary.LittleEndian.PutUint16(d.buf[availableOffset+4+int(d.available%queueSize)*2:], 0)
-	memoryBarrier()
+	if err := d.dmaBuf.SyncForDevice(dmaops.Bidirectional); err != nil {
+		return d.poison(err)
+	}
 	d.available++
 	binary.LittleEndian.PutUint16(d.buf[availableOffset+2:], d.available)
-	memoryBarrier()
+	if err := d.dmaBuf.SyncForDevice(dmaops.ToDevice); err != nil {
+		return d.poison(err)
+	}
+	if d.irqActive.Load() {
+		select {
+		case <-d.irqReady:
+		default:
+		}
+	}
 	regWrite(d.base, 0x50, 0)
-	deadline := time.Now().Add(2 * time.Second)
+
 	completed := false
-	for polls := 0; polls < 2000000; polls++ {
-		index := uint16(atomic.LoadUint32((*uint32)(unsafe.Pointer(&d.buf[usedOffset]))) >> 16)
-		if index != d.used {
-			completed = true
-			break
+	if d.irqActive.Load() {
+		timer := time.NewTimer(2 * time.Second)
+		defer timer.Stop()
+		for {
+			if d.usedIndex() != d.used {
+				completed = true
+				break
+			}
+			if regRead(d.base, 0x70)&64 != 0 {
+				break
+			}
+			select {
+			case <-d.irqReady:
+			case <-timer.C:
+				if d.usedIndex() != d.used {
+					completed = true
+				}
+				goto doneWait
+			}
 		}
-		if regRead(d.base, 0x70)&64 != 0 || time.Now().After(deadline) {
-			break
+	} else {
+		deadline := time.Now().Add(2 * time.Second)
+		for polls := 0; polls < 2000000; polls++ {
+			if d.usedIndex() != d.used {
+				completed = true
+				break
+			}
+			if regRead(d.base, 0x70)&64 != 0 || time.Now().After(deadline) {
+				break
+			}
+			runtime.Gosched()
 		}
-		runtime.Gosched()
 	}
+doneWait:
 	if !completed {
-		d.poisoned = true
-		return errors.New("VirtIO block completion timeout; DMA remains owned")
+		return d.poison(errors.New("VirtIO block completion timeout; DMA remains owned"))
 	}
-	memoryBarrier()
-	index := uint16(atomic.LoadUint32((*uint32)(unsafe.Pointer(&d.buf[usedOffset]))) >> 16)
+	if err := d.dmaBuf.SyncForCPU(dmaops.FromDevice); err != nil {
+		return d.poison(err)
+	}
+	if !d.irqActive.Load() {
+		d.acknowledge()
+	}
+	index := d.usedIndex()
 	used := d.buf[usedOffset+4+int(d.used%queueSize)*8:]
 	if index != d.used+1 || binary.LittleEndian.Uint32(used) != 0 {
-		d.poisoned = true
-		return errors.New("VirtIO block invalid completion")
+		return d.poison(errors.New("VirtIO block invalid completion"))
 	}
 	expectedWritten := uint32(1)
 	if operation == 0 {
 		expectedWritten += uint32(len(data))
 	}
 	if binary.LittleEndian.Uint32(used[4:]) != expectedWritten {
-		d.poisoned = true
-		return errors.New("VirtIO block completion has an invalid written length")
+		return d.poison(errors.New("VirtIO block completion has an invalid written length"))
 	}
 	d.used = index
 	if status := d.buf[statusOffset]; status != 0 {

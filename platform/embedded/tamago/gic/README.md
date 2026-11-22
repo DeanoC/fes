@@ -56,13 +56,16 @@ routing PL011 UART0 (SPI 33) on QEMU `virt` and DesignWare APB UART0/1 (SPI
 `serial.Read()`. Both `cmd/tenfoot` (in UART mode) and DE25-Nano native Tenfoot
 (`cmd/fpgaload/tenfoot.go`) enable it at startup.
 
-## Network RX SPI
+## Network & Storage SPIs
 
 `network.Link.Start` checks for an optional `RXReady() <-chan struct{}` wakeup
 channel so networked programs can sleep in `WFI` between packets instead of
 spinning on `runtime.Gosched()`. On QEMU `virt`, `(*network.Interface).EnableIRQ(g)`
 routes the VirtIO-net MMIO slot's GICv3 SPI (`48 + slot`) to wake `Link.Start`,
-and `cmd/tenfoot` enables it alongside `WFI` idle.
+and `(*block.VirtIO).EnableIRQ(g)` routes the VirtIO-block slot's SPI (`48 + slot`)
+to wake pending disk transfers from `WFI`; `cmd/tenfoot` enables both alongside
+`WFI` idle. On DE25-Nano, `(*sdhci.Device).EnableIRQ(g, de25nano.IRQSDMMC)`
+routes Cadence SDHCI SPI 128 into level-safe status waits.
 
 ## FPGA-to-HPS doorbells (DE25-Nano)
 
