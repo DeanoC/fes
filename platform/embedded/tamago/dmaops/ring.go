@@ -66,6 +66,12 @@ func NewRing(pool *Pool, cfg RingConfig) (*Ring, error) {
 	if cfg.BufAlign != 0 && !isPowerOfTwo(cfg.BufAlign) {
 		return nil, ErrInvalidConfig
 	}
+	if pool.Mode() == Cached {
+		line := pool.Coherency().CacheLineSize()
+		if cfg.DescSize%line != 0 {
+			return nil, fmt.Errorf("%w: cached ring DescSize (%d) must be a multiple of cache line (%d)", ErrInvalidConfig, cfg.DescSize, line)
+		}
+	}
 	descAlign := cfg.DescAlign
 	if descAlign == 0 {
 		descAlign = 16

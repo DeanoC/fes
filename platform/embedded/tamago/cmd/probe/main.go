@@ -112,7 +112,7 @@ func probeDMA() {
 
 	ring, err := dmaops.NewRing(pool, dmaops.RingConfig{
 		Count:     4,
-		DescSize:  16,
+		DescSize:  line,
 		DescAlign: line,
 		BufSize:   128,
 		BufAlign:  line,
