@@ -157,7 +157,8 @@ used the same driver, title, key script and capture points.
 | cut `bed156c96` | 4 | 41,662 | 168 | 24 | +1.552 | +1.811 | +0.000 | none |
 
 - **Arms:** base is draft PR #2036's head `3401bb193` (main plus the 387-off DE25 pc386 board);
-  cut is that head with `f3140cb33..0637e5def` cherry-picked, giving `bed156c96`. Both were built
+  cut is that head with `f3140cb33..0637e5def` cherry-picked, giving `bed156c96`, a local commit that was
+  not pushed. Its reproducible identity is the base, the range and the netlist digest. Both were built
   at the same worktree path, so the netlists differ only by the cut: base `9e471155…`, cut
   `e48b048f…`. Seeds 2–4 refit the seed-1 project with only `SEED` changed. Every fit ran under
   Powerboat's Pro Quartus lease.
@@ -165,7 +166,10 @@ used the same driver, title, key script and capture points.
   exceeds the larger spread, so it counts as measured. The cut median is below the base median, so
   the one-sided area band passes.
 - **Timing:** all eight fits close every clock with no negative slack. The cut's worst setup
-  slack is +1.283 ns (seed 3, the machine clock); a worst hold of 0.000 ns is not negative.
+  slack is +1.283 ns (seed 3, the machine clock); the worst hold of 0.000 ns on every fit (`fes_machine_pll|machine_pll_outclk1` and
+  `pll_inst|iopll_0_outclk0`) is not negative. A direct grep of all eight `golden_top.sta.summary`
+  files finds no negative slack among their 165 entries each, and no STA report says "Timing
+  requirements not met".
 - **Positive control:** the cut fit's RAM summary has one M20K, 512 × 12, named
   `…operator_phase_generator_phase_rom_rom_rtl_0`, with a mif. The base fit has none. This
   accounts for the extra RAM block.
@@ -204,6 +208,9 @@ envelopes and feedback are in block RAM. There is no second operator or adder to
 
 **Changing the output: listed for Deano, not implemented.** Savings are module-alone DE10 fits,
 one seed, against the cut's 1,126 ALMs ([`ablate.sh`](ablate.sh) holds the patches):
+
+The output differences in this table are reasoned from the RTL. **None was measured** in a
+simulation; each would need its own differential bench before a decision.
 
 | Candidate | Saving | What changes |
 |---|---:|---|
