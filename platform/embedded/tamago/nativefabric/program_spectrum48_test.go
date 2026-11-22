@@ -35,11 +35,14 @@ import (
 // real. This models the FPGA's mailbox replies, with an independent check on
 // every submitted word and on the state required for an execution release.
 type spectrumFirmwareCPU struct {
-	romClock     *time.Time
-	inROMBatch   bool
-	romBatches   int
-	failROMBatch bool
-	dmaStatus    uint32
+	romClock      *time.Time
+	inROMBatch    bool
+	romBatches    int
+	failROMBatch  bool
+	inDiskBatch   bool
+	diskBatches   int
+	diskBatchCost time.Duration
+	dmaStatus     uint32
 	CPUTransport
 	base           *computerCPU
 	active         bool
@@ -97,18 +100,31 @@ func (c batchedSpectrumCPU) WithSpectrumROMBatch(base uint64, send func(computer
 	return nil
 }
 func (c *spectrumFirmwareCPU) WithHeldMediaBatch(base uint64, send func(computer.IO) error) error {
-	if base != 0x20010300 || !c.active || !c.held || !c.ready {
+	if base != 0x20010300 || !c.active || !c.held || !c.ready || c.inDiskBatch {
 		return errors.New("media batch outside held upload shell")
 	}
-	return send(fixtureSpectrumROMRegisters{c})
+	c.diskBatches++
+	if c.romClock != nil {
+		*c.romClock = c.romClock.Add(c.diskBatchCost)
+	}
+	c.inDiskBatch = true
+	defer func() { c.inDiskBatch = false }()
+	before := len(c.media.image)
+	if err := send(fixtureSpectrumROMRegisters{c}); err != nil {
+		return err
+	}
+	if len(c.media.image)-before != min(int(cg.FesComputerMediaChunkMaxBytes), int(cg.FesComputerC64DiskBytes)-before) {
+		return errors.New("media batch did not deliver exactly one chunk")
+	}
+	return nil
 }
 
 func (c *spectrumFirmwareCPU) chargeROMAccess() {
-	if c.romClock == nil || !c.active || !c.held || c.ready {
+	if c.romClock == nil || !c.active || !c.held || c.ready && c.firmwareBytes != c64FirmwareBytes {
 		return
 	}
 	cost := 850 * time.Microsecond
-	if c.inROMBatch {
+	if c.inROMBatch || c.inDiskBatch {
 		cost = time.Microsecond
 	}
 	*c.romClock = c.romClock.Add(cost)
@@ -320,7 +336,7 @@ func TestSpectrum48ProgramServiceFATLaunchReturnAndPark(t *testing.T) {
 }
 
 func TestSharedCoreShellFATLifecycle(t *testing.T) {
-	for _, fault := range []string{"shared", "shared-bad-map", "shared-bad-dma", "shared-wedged", "shared-fast-rom", "shared-rom-batch-fault", "shared-slow-rom", "shared-c64", "shared-c64-disk-commit"} {
+	for _, fault := range []string{"shared", "shared-bad-map", "shared-bad-dma", "shared-wedged", "shared-fast-rom", "shared-rom-batch-fault", "shared-slow-rom", "shared-c64", "shared-c64-disk-commit", "shared-c64-deadline"} {
 		t.Run(fault, func(t *testing.T) { testSpectrum48FAT(t, fault) })
 	}
 }
@@ -445,6 +461,11 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 		l.boot.cpu = port
 		if c64 {
 			l.boot.cpu = batchedSpectrumCPU{port}
+			port.romClock = &romClock
+			port.diskBatchCost = 850 * time.Microsecond
+			if fault == "shared-c64-deadline" {
+				port.diskBatchCost = 25 * time.Millisecond
+			}
 		}
 		if timedROM {
 			port.romClock = &romClock
@@ -527,7 +548,7 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 		}
 		f.request = startup.Menu
 	})
-	if timedROM {
+	if timedROM || c64 {
 		f.s.state.limits.Now = func() time.Time { return romClock }
 	}
 	backend, err := NewProgramBackend(f.s, startup.Entries)
@@ -575,6 +596,13 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 				t.Fatal("ROM failure retried, committed or lost containment", err, f.s.Status(), port.romBatches, len(port.image))
 			}
 			return
+		case "shared-c64-deadline":
+			if err != nil || play.ErrorCode != "NATIVE_LAUNCH_FAILED" || f.s.Status().State != ProgramRebootRequired ||
+				f.r.f.lease.r.Active || port.media.commits != 0 || port.releases != 0 ||
+				len(port.media.image) == 0 || len(port.media.image) >= len(expectedDisk) {
+				t.Fatal("expired C64 upload committed, ran or lost containment", err, f.s.Status(), len(port.media.image))
+			}
+			return
 		case "commit", "held-fetch", "tape-commit", "shared-c64-disk-commit":
 			if err != nil || play.ErrorCode != "NATIVE_LAUNCH_FAILED" || play.ID != "" || port.commits != 1 || port.releases != 0 ||
 				f.s.Status().State != ProgramRebootRequired || f.r.f.lease.r.Active {
@@ -593,9 +621,12 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 		if c64 {
 			scope = "nano-c64-fetch-d64-v1"
 			view := f.s.Status()
+			chunkBytes := int(cg.FesComputerMediaChunkMaxBytes)
+			chunks := (len(expectedDisk) + chunkBytes - 1) / chunkBytes
 			if port.media.commits != attempt || !bytes.Equal(port.media.image, expectedDisk) ||
 				int(fetch.DiskBytes) != len(expectedDisk) || view.DiskBytes != len(expectedDisk) ||
-				view.DiskSHA256 != fmt.Sprintf("%x", sha256.Sum256(expectedDisk)) {
+				view.DiskSHA256 != fmt.Sprintf("%x", sha256.Sum256(expectedDisk)) ||
+				port.diskBatches != attempt*chunks || fetch.ElapsedNS >= int64(5*time.Second) {
 				t.Fatal("C64 D64 transfer differed from retained bytes", view, fetch, len(port.media.image), port.media.commits)
 			}
 		}

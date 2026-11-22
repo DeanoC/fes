@@ -102,7 +102,7 @@ type heldMediaBatchPlatform interface {
 	WithHeldMediaBatch(uint64, func(computer.IO) error) error
 }
 
-func (c *computerIO) WithMediaDataBatch(send func(computer.IO) error) error {
+func (c *computerIO) WithMediaChunkBatch(send func(computer.IO) error) error {
 	if c.mediaBatch == nil {
 		return send(c)
 	}

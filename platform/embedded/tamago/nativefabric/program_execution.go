@@ -59,7 +59,7 @@ func (s *ProgramService) FetchObservation() (ProgramFetchObservation, bool) {
 // shares the existing control-time limit, excluding separately bounded media
 // loading. ElapsedNS remains total wall time. Each individual IO retains live
 // CSR/bridge/mapping guards. No uncertain command is replayed.
-func (p *programService) startExecution(ctx context.Context, view ProgramServiceStatus) (ProgramFetchObservation, error) {
+func (p *programService) startExecution(ctx context.Context, view ProgramServiceStatus, controlDeadline time.Time) (ProgramFetchObservation, error) {
 	o := ProgramFetchObservation{Scope: "nano-computer-fetch-v1", Owner: view.Owner, Generation: view.Generation, PackageID: view.Identity.PackageID, BuildID: view.Identity.BuildID, LimitNS: int64(p.limits.Timeout)}
 	var program *selectedProgram
 	if p.plan != nil && p.plan.state != nil {
@@ -104,7 +104,8 @@ func (p *programService) startExecution(ctx context.Context, view ProgramService
 			return err
 		}
 		now := p.limits.Now()
-		if now.Before(last) || now.Sub(start)-time.Duration(o.TapeElapsedNS+o.DiskElapsedNS) >= p.limits.Timeout {
+		if now.Before(last) || o.DiskBytes != 0 && !now.Before(controlDeadline) ||
+			now.Sub(start)-time.Duration(o.TapeElapsedNS+o.DiskElapsedNS) >= p.limits.Timeout {
 			return fmt.Errorf("%w: elapsed=%s limit=%s", computer.ErrLimit, now.Sub(start), p.limits.Timeout)
 		}
 		last = now
@@ -167,10 +168,14 @@ func (p *programService) startExecution(ctx context.Context, view ProgramService
 			loadTape = c.LoadInitialSpectrumTape
 		}
 		load, image, budget := loadTape, program.tape, o.TapeLimitNS
+		var err error
 		if o.DiskBytes != 0 {
-			load, image, budget = c.LoadInitialC64Disk, program.disk, o.DiskLimitNS
+			budget = o.DiskLimitNS
+			err = c.LoadInitialC64Disk(ctx, program.disk, controlDeadline)
+		} else {
+			err = load(ctx, image)
 		}
-		if err := load(ctx, image); err != nil {
+		if err != nil {
 			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
 		}
 		now := p.limits.Now()

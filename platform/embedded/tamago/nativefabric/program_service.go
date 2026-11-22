@@ -270,14 +270,16 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	if err = p.configure(ctx); err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
-	control, cancel := context.WithTimeout(ctx, 5*time.Second)
+	const controlTimeout = 5 * time.Second
+	controlDeadline := p.limits.Now().Add(controlTimeout)
+	control, cancel := context.WithTimeout(ctx, controlTimeout)
 	defer cancel()
 	p.computer, err = p.loader.OpenComputer(control, p.transfer, p.limits)
 	p.closed = false
 	if err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
-	execution, err := p.startExecution(control, view)
+	execution, err := p.startExecution(control, view, controlDeadline)
 	if err != nil {
 		return ProgramSession{}, p.fail(err)
 	}

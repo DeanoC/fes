@@ -175,7 +175,7 @@ func C64DiskTransferBudget(size int, step time.Duration) (time.Duration, error) 
 }
 
 // LoadInitialC64Disk commits a read-only D64 over the unit-0 media mailbox.
-func (c *Computer) LoadInitialC64Disk(ctx context.Context, image []byte) (err error) {
+func (c *Computer) LoadInitialC64Disk(ctx context.Context, image []byte, deadline time.Time) (err error) {
 	budget, err := C64DiskTransferBudget(len(image), c.limits.Timeout)
 	if err != nil || c.identity.Capabilities&g.FesComputerCapabilityMediaC64Disk == 0 {
 		return ErrArgument
@@ -185,21 +185,26 @@ func (c *Computer) LoadInitialC64Disk(ctx context.Context, image []byte) (err er
 		return err
 	}
 	defer func() { o.finish(err) }()
-	o.timeout = budget
+	// The caller's monotonic launch deadline remains authoritative even if
+	// runtime timer delivery is delayed while the mailbox is busy.
+	o.timeout = min(budget, deadline.Sub(o.start))
+	if o.timeout <= 0 {
+		return ErrLimit
+	}
 	if c.gpo & ^g.FesComputerRequestMask != g.FesComputerOpcodeExecution<<24|g.FesComputerControlIndex<<16|g.FesComputerExecutionHoldReset {
 		return ErrProtocol
 	}
-	batch, _ := c.io.(MediaDataBatcher)
+	batch, _ := c.io.(MediaChunkBatcher)
 	return o.transferMedia(image, g.FesComputerC64DiskBytes, g.FesComputerC64DiskBytes, true, batch)
 }
 
-// MediaDataBatcher is a platform-owned scope for consecutive media Data words.
-type MediaDataBatcher interface {
-	WithMediaDataBatch(func(IO) error) error
+// MediaChunkBatcher owns one chunk header and its consecutive Data words.
+type MediaChunkBatcher interface {
+	WithMediaChunkBatch(func(IO) error) error
 }
 
 // Unit zero uses the same chunk, CRC and commit protocol across media types.
-func (o *operation) transferMedia(data []byte, minimum, maximum uint32, requireEmpty bool, batch MediaDataBatcher) (err error) {
+func (o *operation) transferMedia(data []byte, minimum, maximum uint32, requireEmpty bool, batch MediaChunkBatcher) (err error) {
 	state, err := o.mediaState(minimum, maximum)
 	if err != nil {
 		return err
@@ -217,35 +222,32 @@ func (o *operation) transferMedia(data []byte, minimum, maximum uint32, requireE
 	}
 	for offset := 0; offset < len(image); {
 		length := min(int(g.FesComputerMediaChunkMaxBytes), len(image)-offset)
-		for i, word := range [...]uint16{uint16(offset), uint16(offset >> 16), uint16(length)} {
-			if err = o.mutate(g.FesComputerOpcodeMediaChunk, uint32(i), word); err != nil {
-				return err
-			}
-		}
-		for first := 0; first < length; first += 2 * C64DataBatchWords {
-			end := min(first+2*C64DataBatchWords, length)
-			send := func(port IO) error {
-				o.io = port
-				defer func() { o.io = o.c.io }()
-				for i := first; i < end; i += 2 {
-					word := uint16(image[offset+i])
-					if i+1 < length {
-						word |= uint16(image[offset+i+1]) << 8
-					}
-					if err := o.mutate(g.FesComputerOpcodeMediaData, uint32(i/2), word); err != nil {
-						return err
-					}
+		send := func(port IO) error {
+			o.io = port
+			defer func() { o.io = o.c.io }()
+			for i, word := range [...]uint16{uint16(offset), uint16(offset >> 16), uint16(length)} {
+				if err := o.mutate(g.FesComputerOpcodeMediaChunk, uint32(i), word); err != nil {
+					return err
 				}
-				return nil
 			}
-			if batch == nil {
-				err = send(o.io)
-			} else {
-				err = batch.WithMediaDataBatch(send)
+			for i := 0; i < length; i += 2 {
+				word := uint16(image[offset+i])
+				if i+1 < length {
+					word |= uint16(image[offset+i+1]) << 8
+				}
+				if err := o.mutate(g.FesComputerOpcodeMediaData, uint32(i/2), word); err != nil {
+					return err
+				}
 			}
-			if err != nil {
-				return err
-			}
+			return nil
+		}
+		if batch == nil {
+			err = send(o.io)
+		} else {
+			err = batch.WithMediaChunkBatch(send)
+		}
+		if err != nil {
+			return err
 		}
 		offset += length
 	}
