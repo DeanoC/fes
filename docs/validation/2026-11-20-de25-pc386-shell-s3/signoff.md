@@ -179,7 +179,9 @@ is not the head's.
 
 Main `5306f1830`, merged at `51882401f`, changes `fes_i386_x87.sv` and the
 shared DE25 producer and review files, so the `3401bb193` package is not that
-head's either. The package and D12 are rebuilt at the head slice 4 lands with.
+head's either. Nor is it `405a892c0`'s, which refuses a window grant whose
+span crosses 4 GiB. The package and D12 are rebuilt at the head slice 4 lands
+with.
 
 No kit has run either package. Slice 3 lands with slice 4, which owns the image
 change and the Kit D25 run.
