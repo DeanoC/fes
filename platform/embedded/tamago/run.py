@@ -88,6 +88,7 @@ def main():
     parser.add_argument("--menu-project", type=Path, help="separately sealed menu companion for selected Nano computer programs")
     parser.add_argument("--usb-input", choices=("boot-keyboard", "gamepad"), help="explicit input protocol for the Nano usbcheck diagnostic")
     parser.add_argument("--shared-usb-input", choices=("boot-keyboard", "gamepad"), help="retain owned USB with selected serial Tenfoot/core/SD transitions")
+    parser.add_argument("--tenfoot-uart-only", action="store_true", help="use UART input with the matched native Tenfoot profile while leaving USB unclaimed")
     parser.add_argument("--ddr-read", action="store_true", help="opt in to the fixed read-only FPGA DDR diagnostic (Nano fpgaload only)")
     parser.add_argument("--window-memory", action="store_true", help="reserve the sealed 4 MiB window and publish one tenfoot frame while FPGA data access remains held (Nano fpgaload only)")
     parser.add_argument("--window-read", action="store_true", help="read and drain one complete frame through the owned firmware and native driver; requires --window-memory")
@@ -138,7 +139,7 @@ def main():
             parser.error(str(error))
         return
     if any((args.shared_core_shell, args.spectrum48_build, args.spectrum48_package, args.spectrum48_rom, args.spectrum48_tape,
-            args.c64_build, args.c64_package, args.c64_rom, args.c64_d64)):
+            args.c64_build, args.c64_package, args.c64_rom, args.c64_d64, args.tenfoot_uart_only)):
         parser.error('native upload shell requires --board de25-nano')
     if args.arm64_features:
         parser.error('--arm64-features requires --board de25-nano')

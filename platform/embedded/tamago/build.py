@@ -512,6 +512,9 @@ def build(args):
     spectrum_paths = [getattr(args, 'spectrum48_'+name, None) for name in ('build', 'package', 'rom')]
     spectrum_tape = getattr(args, 'spectrum48_tape', None)
     shared_shell = getattr(args, 'shared_core_shell', False)
+    uart_only = getattr(args, 'tenfoot_uart_only', False)
+    if uart_only and not (usb_shared and shared_shell):
+        raise ValueError('--tenfoot-uart-only requires the matched shared-shell USB boot profile')
     if shared_shell and (args.program != 'fpgaload' or not menu_program_map or
                          not all((selected_programs, computer_reload, computer_storage_return, tenfoot_serial))):
         raise ValueError('shared core shell requires paired native Tenfoot')
@@ -684,6 +687,7 @@ def build(args):
     link_flags=f"-s -w -T {entry:#x} -R 0x1000"
     if usb_control:
         link_flags+=' -X main.expectedUSBControl='+('owned-shared-usb-pio-v1' if usb_shared else 'owned-usb-pio-v1')+' -X main.expectedUSBInput='+usb_input
+    if uart_only:link_flags+=' -X main.expectedTenfootUARTOnly=1'
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if sd_write_encoded:link_flags+=' -X main.expectedSDWritePlan='+sd_write_encoded
     if sd_transfer_clock:link_flags+=' -X main.expectedSDTransferClock='+str(sd_transfer_clock)
@@ -801,6 +805,7 @@ def build(args):
               **({"spectrum48_program": spectrum_program, "spectrum48_program_sha256": hps.digest(spectrum_program)}
                  if spectrum_program is not None and not shared_shell else {}),
               **({"shared_core_shell": True} if shared_shell else {}),
+              **({"tenfoot_uart_only": True} if uart_only else {}),
               "hps_menu_project":str(menu_project) if menu_project else None,
               "hps_menu_program":menu_program_map,"hps_menu_program_sha256":hps.digest(menu_program_map) if menu_program_map else None,
               "menu_assets":{name:{"sha256":hashlib.sha256(raw).hexdigest(),"size":len(raw)} for name,raw in menu_assets.items()},
