@@ -19,11 +19,22 @@ import (
 )
 
 type admittedContextKey struct{}
+type generationContextKey struct{}
 
 // WithAdmission marks an operation whose execution lease was admitted by the
 // target HTTP guard. Its context is also cancelled when that lease ends.
 func WithAdmission(ctx context.Context) context.Context {
 	return context.WithValue(ctx, admittedContextKey{}, true)
+}
+
+// WithGeneration preserves the exact generation admitted by the HTTP guard.
+func WithGeneration(ctx context.Context, generation string) context.Context {
+	return context.WithValue(ctx, generationContextKey{}, generation)
+}
+
+func Generation(ctx context.Context) string {
+	generation, _ := ctx.Value(generationContextKey{}).(string)
+	return generation
 }
 
 // Admitted reports whether the target lease guard admitted this operation.
@@ -141,8 +152,8 @@ func (m *Manager) grantLocked(r ClaimRequest) Grant {
 	m.claim = r
 	m.token = secret()
 	m.takeover = nil
-	m.leaseContext, m.cancel = context.WithCancel(context.Background())
 	m.status = Status{State: "held", Generation: secret(), Owner: r.Owner, Purpose: r.Purpose}
+	m.leaseContext, m.cancel = context.WithCancel(WithGeneration(context.Background(), m.status.Generation))
 	m.renewLocked()
 	return Grant{Status: m.snapshotLocked(), Token: m.token}
 }
@@ -278,6 +289,34 @@ func (m *Manager) Begin(token string) (context.Context, func(), error) {
 	if m.closed || m.status.State != "held" || !m.ownsLocked(token) {
 		return nil, nil, ErrLease
 	}
+	return m.beginLocked()
+}
+
+// BeginLocalInput binds a kit-local physical-input operation to the exact
+// execution generation observed by the launcher. The generation is not a
+// credential: callers must themselves be restricted to the root-owned local
+// input transport. Revocation cancels and drains the operation just as it
+// does a token-admitted host operation.
+func (m *Manager) BeginLocalInput(generation string) (context.Context, func(), error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.expireLocked()
+	if m.closed || m.status.State != "held" || generation == "" || m.status.Generation != generation {
+		return nil, nil, ErrLease
+	}
+	return m.beginLocked()
+}
+
+// LocalHostGeneration identifies the supervisor's own kit host without
+// inferring authority from an owner label supplied by a remote claimant.
+func (m *Manager) LocalHostGeneration(generation string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.expireLocked()
+	return !m.closed && m.status.State == "held" && m.localHost && generation != "" && m.status.Generation == generation
+}
+
+func (m *Manager) beginLocked() (context.Context, func(), error) {
 	if m.refs == 0 {
 		m.drained = make(chan struct{})
 	}

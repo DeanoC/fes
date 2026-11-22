@@ -465,11 +465,21 @@ func (s *keyboardHIDSink) lockTap(ctx context.Context) error {
 // releaseSource drops one source's held keys, for example a closed kit
 // socket or a disconnected host stream.
 func (s *keyboardHIDSink) releaseSource(source inputSource) error {
+	return s.releaseSourceContext(context.Background(), source, nil)
+}
+
+// releaseSourceContext optionally refuses to post into a replacement binding.
+func (s *keyboardHIDSink) releaseSourceContext(ctx context.Context, source inputSource, expected *KeyboardHIDBinding) error {
 	if source >= sourceCount {
 		source = sourceRemote
 	}
-	s.mu.Lock()
+	if err := s.lockTap(ctx); err != nil {
+		return err
+	}
 	defer s.mu.Unlock()
+	if expected != nil && (s.binding == nil || *s.binding != *expected) {
+		return nil
+	}
 	s.blocked[source] = nil
 	s.shiftAmbiguous[source] = false
 	changed := len(s.pressed[source]) != 0
@@ -485,9 +495,9 @@ func (s *keyboardHIDSink) releaseSource(source inputSource) error {
 		return nil
 	}
 	if !changed {
-		return s.repostLocked(context.Background())
+		return s.repostLocked(ctx)
 	}
-	return s.postLocked(context.Background())
+	return s.postLocked(ctx)
 }
 
 // releaseAll neutralizes every key and forgets the binding. Neutralization is

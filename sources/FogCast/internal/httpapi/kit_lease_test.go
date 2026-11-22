@@ -200,6 +200,57 @@ func (c *leaseStreamController) OpenStream(context.Context, uint64) (net.Conn, e
 }
 func (*leaseStreamController) Close() error { return nil }
 
+type localKeyboardGrantController struct {
+	leaseStreamController
+	calls      int
+	generation string
+}
+
+func (*localKeyboardGrantController) LocalKeyboardBinding() (input.KeyboardHIDBinding, bool) {
+	return input.KeyboardHIDBinding{PackageID: strings.Repeat("c", 64), Generation: 3}, true
+}
+func (c *localKeyboardGrantController) GrantLocalKeyboard(ctx context.Context, session uint64, binding input.KeyboardHIDBinding) error {
+	if !kitlease.Admitted(ctx) || session != 7 || binding.PackageID != strings.Repeat("c", 64) || binding.Generation != 3 {
+		return fmt.Errorf("not admitted")
+	}
+	c.calls++
+	c.generation = kitlease.Generation(ctx)
+	return nil
+}
+
+func TestLocalKeyboardGrantRequiresCurrentExecutionOwner(t *testing.T) {
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	defer manager.Close()
+	grant := claimKit(t, manager)
+	controller := &localKeyboardGrantController{}
+	h := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithInput(controller))
+	for _, tc := range []struct {
+		bearer, lease string
+		want          int
+	}{
+		{"", grant.Token, http.StatusUnauthorized},
+		{"bearer", "", http.StatusForbidden},
+		{"bearer", "foreign", http.StatusForbidden},
+		{"bearer", grant.Token, http.StatusOK},
+	} {
+		r := httptest.NewRequest(http.MethodPost, "/v1/input/local-keyboard", strings.NewReader(fmt.Sprintf(`{"session":7,"package_id":%q,"core_generation":3}`, strings.Repeat("c", 64))))
+		if tc.bearer != "" {
+			r.Header.Set("Authorization", "Bearer "+tc.bearer)
+		}
+		if tc.lease != "" {
+			r.Header.Set(httpapi.KitLeaseHeader, tc.lease)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != tc.want {
+			t.Fatalf("grant status %d want %d: %s", w.Code, tc.want, w.Body.String())
+		}
+	}
+	if controller.calls != 1 || controller.generation != grant.Status.Generation {
+		t.Fatalf("wrong admitted generation: calls=%d generation=%q", controller.calls, controller.generation)
+	}
+}
+
 func TestKitLeaseExpiryClosesHijackedInputBeforeCleanup(t *testing.T) {
 	cleanup := make(chan struct{}, 2)
 	manager := kitlease.New(150*time.Millisecond, func(context.Context) error { cleanup <- struct{}{}; return nil })

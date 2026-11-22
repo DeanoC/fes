@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -20,6 +21,9 @@ type Spec struct {
 	Session uint64
 	Token   []byte
 	Core    string
+	// ExecutionGeneration is internal target authority, never supplied in the
+	// attach body. The guarded request context selects it.
+	ExecutionGeneration string
 }
 
 type Controller interface {
@@ -30,38 +34,56 @@ type Controller interface {
 }
 
 type TargetController struct {
-	lifecycle     sync.Mutex
-	mu            sync.Mutex
-	active        *lease
-	listenAddress string
-	listen        func(network, address string) (net.Listener, error)
-	uinputPath    string
-	persistent    bridge.Sink
-	keyboard      *KeyboardSink
-	ports         *controllerPortsSink
-	portsBinding  func(context.Context) (*ControllerBinding, error)
-	observe       func(context.Context) (CoreObservation, error)
-	needsRelease  bool
-	closed        bool
-	localMu       sync.Mutex
-	localLn       net.Listener
-	localConn     net.Conn
-	localPath     string
-	localClosed   bool
-	localDrops    atomic.Uint64
-	localReported uint64
-	localWarning  time.Time
-	pending       *lease
-	closeOnce     sync.Once
-	closeErr      error
+	lifecycle          sync.Mutex
+	mu                 sync.Mutex
+	active             *lease
+	listenAddress      string
+	listen             func(network, address string) (net.Listener, error)
+	uinputPath         string
+	persistent         bridge.Sink
+	keyboard           *KeyboardSink
+	ports              *controllerPortsSink
+	portsBinding       func(context.Context) (*ControllerBinding, error)
+	observe            func(context.Context) (CoreObservation, error)
+	needsRelease       bool
+	closed             bool
+	localMu            sync.Mutex
+	localLn            net.Listener
+	localConn          net.Conn
+	localPath          string
+	localClosed        bool
+	localDrops         atomic.Uint64
+	localReported      uint64
+	localWarning       time.Time
+	localLeases        *kitlease.Manager
+	localKeyboardGrant *localKeyboardGrant
+	pending            *lease
+	closeOnce          sync.Once
+	closeErr           error
+}
+
+// SetLocalLeaseManager supplies the authority for generation-bound physical
+// input received from the kit's root-only local socket. Configure it before
+// starting the listener.
+func (c *TargetController) SetLocalLeaseManager(leases *kitlease.Manager) {
+	if c != nil {
+		c.localLeases = leases
+	}
 }
 
 type lease struct {
-	session uint64
-	token   []byte
-	core    string
-	server  *bridge.Server
-	cancel  context.CancelFunc
+	session             uint64
+	token               []byte
+	core                string
+	server              *bridge.Server
+	cancel              context.CancelFunc
+	executionGeneration string
+	keyboardBinding     *KeyboardHIDBinding
+}
+
+type localKeyboardGrant struct {
+	executionGeneration string
+	binding             KeyboardHIDBinding
 }
 
 func NewTargetController() *TargetController {
@@ -148,6 +170,7 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 	}
 	c.lifecycle.Lock()
 	defer c.lifecycle.Unlock()
+	spec.ExecutionGeneration = kitlease.Generation(ctx)
 	return c.attachLocked(ctx, spec)
 }
 
@@ -175,7 +198,7 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 	}
 	current := c.active
 	if current != nil && current.session == spec.Session && current.core == spec.Core &&
-		subtle.ConstantTimeCompare(current.token, spec.Token) == 1 {
+		current.executionGeneration == spec.ExecutionGeneration && subtle.ConstantTimeCompare(current.token, spec.Token) == 1 {
 		c.mu.Unlock()
 		return nil
 	}
@@ -189,6 +212,7 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 	}
 
 	var sink bridge.Sink
+	var keyboardBinding *KeyboardHIDBinding
 	c.mu.Lock()
 	observe := c.observe
 	bindingFn := c.portsBinding
@@ -202,6 +226,10 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 			c.ports.setObservation(obs)
 			if err := c.ports.bind(obs.Binding); err != nil {
 				return err
+			}
+			if obs.Active && obs.KeyboardHID != nil {
+				copy := *obs.KeyboardHID
+				keyboardBinding = &copy
 			}
 		} else {
 			binding, err := bindingFn(ctx)
@@ -244,11 +272,13 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 	}
 	leaseCtx, cancel := context.WithCancel(context.Background())
 	candidate := &lease{
-		session: spec.Session,
-		token:   append([]byte(nil), spec.Token...),
-		core:    spec.Core,
-		server:  server,
-		cancel:  cancel,
+		session:             spec.Session,
+		token:               append([]byte(nil), spec.Token...),
+		core:                spec.Core,
+		server:              server,
+		cancel:              cancel,
+		executionGeneration: spec.ExecutionGeneration,
+		keyboardBinding:     keyboardBinding,
 	}
 	c.mu.Lock()
 	if c.closed {
@@ -297,6 +327,59 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 	return nil
 }
 
+// GrantLocalKeyboard is an explicit request by the current execution owner.
+// It belongs to the execution lease and HID generation observed now. A remote
+// stream detach alone does not revoke a kit-local hold.
+func (c *TargetController) LocalKeyboardBinding() (KeyboardHIDBinding, bool) {
+	if c == nil {
+		return KeyboardHIDBinding{}, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.active == nil || c.active.executionGeneration == "" || c.active.keyboardBinding == nil {
+		return KeyboardHIDBinding{}, false
+	}
+	return *c.active.keyboardBinding, true
+}
+
+func (c *TargetController) GrantLocalKeyboard(ctx context.Context, session uint64, expected KeyboardHIDBinding) error {
+	if c == nil || ctx == nil || !kitlease.Admitted(ctx) || kitlease.Generation(ctx) == "" || session == 0 {
+		return errors.New("local keyboard admission requires the execution owner")
+	}
+	c.lifecycle.Lock()
+	defer c.lifecycle.Unlock()
+	c.mu.Lock()
+	active, observe := c.active, c.observe
+	c.mu.Unlock()
+	if active == nil || active.session != session || active.executionGeneration != kitlease.Generation(ctx) ||
+		active.keyboardBinding == nil || *active.keyboardBinding != expected || observe == nil {
+		return errors.New("local keyboard input session is unavailable")
+	}
+	probe, cancel := context.WithTimeout(ctx, localCoreObserveTimeout)
+	defer cancel()
+	obs, err := observe(probe)
+	if err != nil || !obs.Active || obs.KeyboardHID == nil || *obs.KeyboardHID != expected || expected.PackageID == "" || expected.Generation == 0 {
+		return errors.New("local HID keyboard core is unavailable")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.active != active || ctx.Err() != nil {
+		return errors.New("local keyboard input session changed")
+	}
+	c.localKeyboardGrant = &localKeyboardGrant{executionGeneration: kitlease.Generation(ctx), binding: *obs.KeyboardHID}
+	return nil
+}
+
+func (c *TargetController) localKeyboardAdmitted(binding localDelegation) bool {
+	if c.localLeases.LocalHostGeneration(binding.LeaseGeneration) {
+		return true
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.localKeyboardGrant != nil && c.localKeyboardGrant.executionGeneration == binding.LeaseGeneration &&
+		c.localKeyboardGrant.binding.PackageID == binding.PackageID && c.localKeyboardGrant.binding.Generation == binding.CoreGeneration
+}
+
 // BeginCoreReplacement closes the active producer, waits for its in-flight
 // writes, and neutralizes the retained sink before the runtime may open a new
 // input reader. The lifecycle lock stays held until the returned function
@@ -317,7 +400,9 @@ func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(conte
 		return nil, errors.New("input controller is closed")
 	}
 	current := c.active
+	grant := c.localKeyboardGrant
 	c.active = nil
+	c.localKeyboardGrant = nil
 	c.mu.Unlock()
 	if err := stopLease(current); err != nil {
 		c.mu.Lock()
@@ -349,10 +434,16 @@ func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(conte
 				return
 			}
 			finishErr = c.attachLocked(finishCtx, Spec{
-				Session: current.session,
-				Token:   append([]byte(nil), current.token...),
-				Core:    current.core,
+				Session:             current.session,
+				Token:               append([]byte(nil), current.token...),
+				Core:                current.core,
+				ExecutionGeneration: current.executionGeneration,
 			})
+			if finishErr == nil {
+				c.mu.Lock()
+				c.localKeyboardGrant = grant
+				c.mu.Unlock()
+			}
 		})
 		return finishErr
 	}
@@ -438,6 +529,7 @@ func (c *TargetController) ReleaseAll(ctx context.Context) error {
 	c.lifecycle.Lock()
 	defer c.lifecycle.Unlock()
 	c.mu.Lock()
+	c.localKeyboardGrant = nil
 	persistent := c.persistent
 	c.mu.Unlock()
 	if persistent != nil {

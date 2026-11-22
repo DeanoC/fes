@@ -483,31 +483,32 @@ type App struct {
 	stopRetryIdleRelease bool
 	// stopCaptured is a Select+Start or Soft-stop queued while input was
 	// busy. stopExpected is the play from chord time, not from the flush.
-	stopCaptured       bool
-	stopMessage        string
-	gpuParked          bool
-	sessionKick        chan struct{}
-	health             hostclient.HealthResult
-	healthHave         bool
-	hostUnreachable    bool
-	inputBusy          bool
-	inputAction        string
-	inputMessage       string
-	stopQueued         bool
-	retryStopLock      bool
-	retryStopHint      string
-	retryStopCode      string
-	sessionEvents      []hostclient.SessionEvent
-	sessionEventAfter  uint64
-	flightID           string
-	lastFocusKey       string
-	lastNavKey         string
-	debugHUD           bool
-	kitLease           KitLeaseStatus
-	kitLeaseHave       bool
-	developmentRBFPath string
-	devLoadPhase       string
-	devLoadMessage     string
+	stopCaptured           bool
+	stopMessage            string
+	gpuParked              bool
+	sessionKick            chan struct{}
+	health                 hostclient.HealthResult
+	healthHave             bool
+	hostUnreachable        bool
+	inputBusy              bool
+	inputAction            string
+	inputMessage           string
+	stopQueued             bool
+	retryStopLock          bool
+	retryStopHint          string
+	retryStopCode          string
+	sessionEvents          []hostclient.SessionEvent
+	sessionEventAfter      uint64
+	flightID               string
+	lastFocusKey           string
+	lastNavKey             string
+	debugHUD               bool
+	kitLease               KitLeaseStatus
+	kitLeaseHave           bool
+	localKeyboardUncertain bool
+	developmentRBFPath     string
+	devLoadPhase           string
+	devLoadMessage         string
 
 	roomsIndex          *rooms.Index
 	roomsDir            string
@@ -2801,7 +2802,7 @@ func (a *App) releaseTransitionPlayKey(source int, name string, usage uint8) boo
 		return true
 	}
 	delete(a.playKeyAdmitted, physical)
-	if !a.playHIDRouteReadyLocked() || a.playHIDFailClosedLocked() || a.client == nil {
+	if !a.playHIDRouteReadyLocked() || a.keyboardHIDFailClosedLocked() || a.client == nil {
 		if a.playKeyPendingRelease == nil {
 			a.playKeyPendingRelease = make(map[physicalPlayKey]playHIDKey)
 		}
@@ -2811,7 +2812,7 @@ func (a *App) releaseTransitionPlayKey(source int, name string, usage uint8) boo
 	}
 	event := remoteinput.Event{Player: key.player, Device: key.device, Kind: key.kind, Code: key.code, Action: remoteinput.ActionRelease}
 	a.rememberPlayHIDLocked(event)
-	a.queuePlayHIDLocked([]remoteinput.Event{event})
+	a.queuePhysicalKeyboardLocked(event)
 	a.traceKeyRouteLocked("transition-release", source)
 	return true
 }
@@ -2819,13 +2820,13 @@ func (a *App) releaseTransitionPlayKey(source int, name string, usage uint8) boo
 // Retry neutral releases only on the original active, machine-focused route.
 // Session replacement and explicit handoff clear these along with the holds.
 func (a *App) flushPendingPlayKeyReleasesLocked() {
-	if len(a.playKeyPendingRelease) == 0 || !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.playHIDFailClosedLocked() || a.client == nil {
+	if len(a.playKeyPendingRelease) == 0 || !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.keyboardHIDFailClosedLocked() || a.client == nil {
 		return
 	}
 	for physical, key := range a.playKeyPendingRelease {
 		event := remoteinput.Event{Player: key.player, Device: key.device, Kind: key.kind, Code: key.code, Action: remoteinput.ActionRelease}
 		a.rememberPlayHIDLocked(event)
-		a.queuePlayHIDLocked([]remoteinput.Event{event})
+		a.queuePhysicalKeyboardLocked(event)
 		delete(a.playKeyPendingRelease, physical)
 	}
 }
@@ -2862,7 +2863,7 @@ func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event re
 				// Apply the same admission gates as an ordinary press. Flush
 				// deferred releases first so an old neutral cannot follow a new
 				// contribution on the same route.
-				if !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.playHIDFailClosedLocked() || a.client == nil || a.playHIDPending >= maxPendingPlayHID {
+				if !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.keyboardHIDFailClosedLocked() || a.client == nil || a.playHIDPending >= maxPendingPlayHID {
 					return false
 				}
 				a.flushPendingPlayKeyReleasesLocked()
@@ -2874,7 +2875,7 @@ func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event re
 			}
 		}
 	}
-	if !a.sendPlayHIDLocked(event) {
+	if !a.sendPhysicalKeyboardLocked(event) {
 		if event.Action == remoteinput.ActionRelease {
 			if key, ok := a.playKeyAdmitted[physical]; ok {
 				delete(a.playKeyAdmitted, physical)
@@ -3142,11 +3143,19 @@ func (a *App) fetchHealth(ctx context.Context) {
 		a.mu.Lock()
 		wasForeign := a.foreignKitLeaseLocked()
 		wasReady := a.healthHave && !a.hostUnreachable && a.kitMenuHealthError == "" && a.health.Ready && a.health.TargetReachable && a.health.TargetReady
+		if binding, ok := a.localKeyboardBindingLocked(); ok &&
+			(!result.Ready || !result.TargetReachable || !result.TargetReady ||
+				result.Connection.State != a.health.Connection.State || result.Connection.Owner != a.health.Connection.Owner || result.Connection.LeaseOwned != a.health.Connection.LeaseOwned ||
+				result.Connection.TargetID != a.health.Connection.TargetID || result.Connection.BootID != a.health.Connection.BootID ||
+				result.Connection.LeaseGeneration != binding.LeaseGeneration || lease.Unavailable || lease.Generation != binding.LeaseGeneration) {
+			a.retireLocalKeyboardLocked()
+		}
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = result
 		a.kitLeaseHave = true
 		a.kitLease = lease
+		a.localKeyboardUncertain = false
 		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
 		if a.kitHost && !wasReady && result.Ready && result.TargetReachable && result.TargetReady {
 			a.refreshKitInventoryLocked(ctx)
@@ -3155,6 +3164,9 @@ func (a *App) fetchHealth(ctx context.Context) {
 		a.noteKitMenuHealthObservation(nil)
 		return
 	}
+	a.mu.Lock()
+	a.retireLocalKeyboardLocked()
+	a.mu.Unlock()
 	if pairedHave && pairedErr == nil {
 		// Paired target status remains useful when the host's selected target
 		// cannot be observed. The authenticated projection belongs to this kit.
@@ -3417,6 +3429,7 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 	a.sessionObservation++
 	a.sessionObservedAt = time.Time{}
 	if result.ErrorCode != "" || !samePlayHIDSession(a.session, result) {
+		a.retireLocalKeyboardLocked()
 		a.clearSessionReadyLocked()
 	}
 	if result.ErrorCode != "" {
@@ -3638,7 +3651,7 @@ func (a *App) fetchSessionEvents(ctx context.Context) {
 }
 
 func kitLeaseFromConnection(connection hostclient.TargetConnection) KitLeaseStatus {
-	status := KitLeaseStatus{State: connection.State, Owner: connection.Owner, Reason: connection.Message}
+	status := KitLeaseStatus{State: connection.State, Owner: connection.Owner, Reason: connection.Message, Generation: connection.LeaseGeneration}
 	switch connection.State {
 	case "busy":
 		status.State = "held"

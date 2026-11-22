@@ -1463,7 +1463,8 @@ func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 	}
 	padEvents := releasePortLocked(app, lost)
 	forward := localPadForwardLocked(app)
-	keyForward := forward && app.playHIDRouteReadyLocked()
+	_, delegatedKeyboard := app.localKeyboardBindingLocked()
+	keyForward := (forward || delegatedKeyboard) && app.playHIDRouteReadyLocked()
 	var keyEvents []remoteinput.Event
 	for code, name := range lost.keysHeld {
 		key := physicalPlayKey{source: lost.fd, key: playHeldKey(name, nativeHIDUsage(code))}
@@ -1491,7 +1492,9 @@ func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 		if len(keyEvents) != 0 {
 			app.traceKeyRouteLocked("disconnect-neutral", lost.fd)
 		}
-		app.queuePlayHIDLocked(keyEvents)
+		for _, event := range keyEvents {
+			app.queuePhysicalKeyboardLocked(event)
+		}
 	}
 	app.mu.Unlock()
 	if forward && feed != nil {

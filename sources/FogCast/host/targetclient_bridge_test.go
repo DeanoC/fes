@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,6 +69,116 @@ func TestKitLeaseSharedWithInputConnectAndDetach(t *testing.T) {
 		if got := <-paths; got != want {
 			t.Fatalf("path %q want %q", got, want)
 		}
+	}
+}
+
+func TestAdvertisedLocalKeyboardUsesSameExecutionGrant(t *testing.T) {
+	requests := make(chan string, 4)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/claim":
+			fmt.Fprintf(w, `{"status":{"state":"held","generation":"one","expires_at":%q,"expires_in_ms":60000},"token":"shared"}`, time.Now().Add(time.Minute).Format(time.RFC3339))
+		case "/v1/kit/release":
+			fmt.Fprint(w, `{"state":"free"}`)
+		case "/v1/input/attach":
+			if r.Header.Get(targetclient.KitLeaseHeader) != "shared" {
+				t.Error("attach missing execution grant")
+			}
+			requests <- r.URL.Path
+			fmt.Fprintf(w, `{"ready":true,"local_keyboard":{"package_id":%q,"core_generation":3}}`, strings.Repeat("c", 64))
+		case "/v1/input/local-keyboard":
+			if r.Header.Get(targetclient.KitLeaseHeader) != "shared" {
+				t.Error("local grant used wrong execution token")
+			}
+			body, _ := io.ReadAll(r.Body)
+			if string(body) != fmt.Sprintf(`{"session":9,"package_id":%q,"core_generation":3}`, strings.Repeat("c", 64)) {
+				t.Errorf("grant body %s", body)
+			}
+			requests <- r.URL.Path
+			fmt.Fprint(w, `{"ready":true}`)
+		default:
+			t.Errorf("unexpected route %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	u, _ := url.Parse(server.URL)
+	l := targetclient.NewKitLease(u, "bearer", server.Client(), "test", "game")
+	defer l.Close(context.Background())
+	starter, _ := NewHTTPBridgeStarter(HTTPBridgeStarterConfig{BaseURL: u, Token: "bearer", KitLease: l})
+	if _, err := starter.Start(context.Background(), BridgeSpec{Session: 9, Token: []byte("0123456789abcdef"), Core: "fes.c64"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"/v1/input/attach", "/v1/input/local-keyboard"} {
+		if got := <-requests; got != want {
+			t.Fatalf("got %s want %s", got, want)
+		}
+	}
+}
+
+func TestLocalKeyboardGrantRetryAndUnavailableStatus(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		failures int
+		offered  bool
+		want     string
+		calls    int
+	}{
+		{"retry", 1, true, "ready", 2},
+		{"exhausted", 2, true, "unavailable", 2},
+		{"not offered", 0, false, "", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			packageID := strings.Repeat("c", 64)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/v1/kit/claim":
+					fmt.Fprintf(w, `{"status":{"state":"held","generation":"one","expires_in_ms":60000},"token":"shared"}`)
+				case "/v1/kit/release":
+					fmt.Fprint(w, `{"state":"free"}`)
+				case "/v1/input/attach":
+					if tc.offered {
+						fmt.Fprintf(w, `{"ready":true,"local_keyboard":{"package_id":%q,"core_generation":3}}`, packageID)
+					} else {
+						fmt.Fprint(w, `{"ready":true}`)
+					}
+				case "/v1/input/local-keyboard":
+					calls++
+					body, _ := io.ReadAll(r.Body)
+					if r.Header.Get(targetclient.KitLeaseHeader) != "shared" || string(body) != fmt.Sprintf(`{"session":9,"package_id":%q,"core_generation":3}`, packageID) {
+						t.Errorf("retry did not retain binding and grant: %s", body)
+					}
+					if calls <= tc.failures {
+						http.Error(w, "temporary failure", http.StatusServiceUnavailable)
+						return
+					}
+					fmt.Fprint(w, `{"ready":true}`)
+				default:
+					t.Errorf("unexpected route %s", r.URL.Path)
+				}
+			}))
+			defer server.Close()
+			u, _ := url.Parse(server.URL)
+			l := targetclient.NewKitLease(u, "bearer", server.Client(), "test", "game")
+			defer l.Close(context.Background())
+			starter, _ := NewHTTPBridgeStarter(HTTPBridgeStarterConfig{BaseURL: u, Token: "bearer", KitLease: l})
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			handle, err := starter.Start(ctx, BridgeSpec{Session: 9, Token: []byte("0123456789abcdef"), Core: "fes.c64"})
+			if err != nil {
+				t.Fatalf("optional grant prevented remote attach: %v", err)
+			}
+			if got := handle.(*httpBridgeHandle).LocalKeyboardAdmission(); got != tc.want {
+				t.Fatalf("admission %q want %q", got, tc.want)
+			}
+			remote := &RemoteInput{bridge: handle, state: RemoteInputState("ready"), ready: true}
+			if got := remote.statusLocked(); !got.Ready || got.LocalKeyboard != tc.want {
+				t.Fatalf("status %+v", got)
+			}
+			if calls != tc.calls {
+				t.Fatalf("grant calls %d want %d", calls, tc.calls)
+			}
+		})
 	}
 }
 

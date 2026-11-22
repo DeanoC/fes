@@ -1823,7 +1823,8 @@ Native SNES/MD
 encode USB keys as gamepad buttons (codes 100–112) so the target mux does not
 route them to `set_keyboard` and reconnect replay does not treat matrix codes
 as axes. Foreign kit leases and `recovery-required` connections fail closed
-and drop HID. On the kit,
+for generic HID. A kit-host launcher sends physical HID keyboard edges to an
+active machine through the generation-bound local route described below. On the kit,
 USB keyboards join the play-session input stream with gamepads; `fes.keyboard`
 packages are eligible without `fes.gamepad`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
 `software`, `fpga`, or `fpga-stub` for tests; the production sofa path stays SDL3.
@@ -2989,11 +2990,13 @@ session status and keeps menu presents
 parked while a running core owns the display, including after a restart.
 
 A gamepad or USB keyboard on the kit
-writes raw input frames to `/run/fogcast/local-input.sock` through
+writes input frames to `/run/fogcast/local-input.sock` through
 `ui/localfeed` while a runtime core is bound, and does not post those events to
 the host. A kit-host session with a local feed does not require a host
-remote-input attachment to forward its keyboard; display
-transitions, launcher controls and foreign leases still suppress input. A pad on
+remote-input attachment to forward its keyboard when it owns the execution lease.
+A private remote host explicitly admits the physical HID keyboard with the same
+execution token used to attach input. Display
+transitions and launcher controls still suppress input. A pad on
 another machine is delivered on the host-to-kit input stream
 for the session that owns the play. A missing stream is an error to that
 caller. The kit pad does not fall back onto the host route.
@@ -3762,15 +3765,30 @@ core names `keyboard` when its package requires `fes.keyboard.hid`, or plain
 Master System, SG-1000 and earlier ColecoVision reuse that matrix as a
 joystick, so it is not a keyboard requirement.
 
-A pad or USB keyboard on the kit writes raw input frames to
+A pad or USB keyboard on the kit writes input frames to
 `/run/fogcast/local-input.sock`; keyboard frames carry the key's USB HID usage
 (`internal/hidkeys`, from evdev `KEY_*`). mister-agent
 shapes them with `playhid.StreamEvent` from the runtime's controller-port and keyboard
 capabilities, then applies the same keypad Start/Select aliases as the host stream.
 HID sessions keep the usages; `fes.keyboard` and native cores first map a usage to the
 ZX81 matrix or arrow code the kit sent before HID, so those cores see the same keys.
-The socket is not an HTTP route and does not consult the kit lease, so a pad on the
-kit drives the running core whichever host launched it. Frames are delivered only
+The feed is not an HTTP route. For kit-host HID keyboard events, each frame
+has a record carrying the observed lease generation, exact HID package/core
+generation and launcher queue epoch. The target agent accepts records only on its root-only socket and admits each edge
+against that execution generation, re-observes the HID binding under the
+lifecycle lock, and holds the admission until the write ends. The owning host
+requests keyboard admission against the attached input session and its exact
+package and core generation using the execution lease token. The host retries
+that idempotent request within a bounded interval and reports `local_keyboard`
+as `ready` or `unavailable` in input status. Admission survives remote input
+disconnect or detach for the same execution lease and core; Stop, replacement
+and lease loss end it. Revocation
+cancels and drains admitted writes before neutralization; a queued event never
+advances to a replacement. Raw pad and mouse events share the connection and
+retain their state across keyboard binding changes. A keyboard reset retires
+only the local keyboard contribution; failed neutral posts are reported and
+retried on the original binding until confirmed, replaced or revoked. Focus
+and Stop fences still apply. Frames are delivered only
 while a runtime core is bound. A kit-local HID release is the exception: when a
 probe fails, a release for the generation that probe kept is still posted. If
 that post does not land, a later local frame retries it under the same lock,
@@ -4495,9 +4513,11 @@ Controller-port releases received
 while the launcher has focus clear their retained source snapshot without
 being sent to the core, so released buttons cannot replay when focus returns.
 The agent-authorized launcher display callback accepts the kit-local host’s
-matching busy projection for another FogCast host’s active lease. Local HID
-remains fenced under that foreign lease; package, generation and target
-identity and transition fences still apply.
+matching busy projection for another FogCast host’s active lease. The launcher
+may send physical HID keyboard edges through the generation-bound local route
+while that same machine has focus; generic HID and unrelated kit operations
+remain fenced under the foreign lease. Package, generation, target identity and
+transition fences still apply.
 The agent holds the launcher publication guard through the runtime display
 transition and its prepare/finish exchange, so a replacement launcher cannot
 adopt the previous plane while that transition is still in flight.

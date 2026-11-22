@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -85,7 +86,11 @@ func (s *HTTPBridgeStarter) Start(ctx context.Context, spec BridgeSpec) (BridgeH
 		Core    string `json:"core"`
 	}{Session: spec.Session, Token: hex.EncodeToString(spec.Token), Core: spec.Core}
 	var response struct {
-		Ready bool `json:"ready"`
+		Ready         bool `json:"ready"`
+		LocalKeyboard *struct {
+			PackageID  string `json:"package_id"`
+			Generation uint64 `json:"core_generation"`
+		} `json:"local_keyboard"`
 	}
 	var sentKitToken string
 	if err := s.doJSONRequest(ctx, http.MethodPost, "/v1/input/attach", requestBody, &response, "", &sentKitToken); err != nil {
@@ -94,11 +99,60 @@ func (s *HTTPBridgeStarter) Start(ctx context.Context, spec BridgeSpec) (BridgeH
 	if !response.Ready {
 		return nil, ErrRemoteInputInvalid
 	}
+	localKeyboard := ""
+	if offer := response.LocalKeyboard; offer != nil {
+		localKeyboard = "unavailable"
+		// This optional admission must not consume the deadline for the
+		// ordinary remote-input attach. Retry only the exact admitted grant.
+		deadline, bounded := ctx.Deadline()
+		if sentKitToken != "" && offer.PackageID != "" && offer.Generation != 0 {
+			request := struct {
+				Session    uint64 `json:"session"`
+				PackageID  string `json:"package_id"`
+				Generation uint64 `json:"core_generation"`
+			}{spec.Session, offer.PackageID, offer.Generation}
+			for attempt := 0; attempt < 2 && ctx.Err() == nil; attempt++ {
+				budget := time.Second
+				if bounded {
+					remaining := time.Until(deadline) - 500*time.Millisecond
+					if remaining <= 0 {
+						break
+					}
+					if remaining < budget {
+						budget = remaining
+					}
+				}
+				grantCtx, cancel := context.WithTimeout(ctx, budget)
+				var granted struct {
+					Ready bool `json:"ready"`
+				}
+				err := s.doJSONWithToken(grantCtx, http.MethodPost, "/v1/input/local-keyboard", request, &granted, sentKitToken)
+				cancel()
+				if err == nil && granted.Ready {
+					localKeyboard = "ready"
+					break
+				}
+				if attempt == 0 && (!bounded || time.Until(deadline) > 600*time.Millisecond) {
+					timer := time.NewTimer(100 * time.Millisecond)
+					select {
+					case <-timer.C:
+					case <-ctx.Done():
+						timer.Stop()
+					}
+				}
+			}
+		}
+		if localKeyboard != "ready" {
+			slog.Warn("kit-local physical keyboard admission unavailable for this session")
+		}
+	}
+
 	handle := &httpBridgeHandle{
-		starter:  s,
-		kitToken: sentKitToken,
-		session:  spec.Session,
-		ready:    make(chan struct{}),
+		starter:       s,
+		localKeyboard: localKeyboard,
+		kitToken:      sentKitToken,
+		session:       spec.Session,
+		ready:         make(chan struct{}),
 	}
 	close(handle.ready)
 	return handle, nil
@@ -182,13 +236,16 @@ func (s *HTTPBridgeStarter) endpoint(path string) *url.URL {
 }
 
 type httpBridgeHandle struct {
-	kitToken string
-	starter  *HTTPBridgeStarter
-	session  uint64
-	ready    chan struct{}
-	mu       sync.Mutex
-	stopped  bool
+	localKeyboard string
+	kitToken      string
+	starter       *HTTPBridgeStarter
+	session       uint64
+	ready         chan struct{}
+	mu            sync.Mutex
+	stopped       bool
 }
+
+func (h *httpBridgeHandle) LocalKeyboardAdmission() string { return h.localKeyboard }
 
 func (h *httpBridgeHandle) Ready() <-chan struct{} { return h.ready }
 func (h *httpBridgeHandle) Endpoint() string       { return h.starter.endpoint("").Host }

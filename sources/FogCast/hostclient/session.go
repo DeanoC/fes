@@ -30,9 +30,10 @@ type SessionProgress struct {
 // SessionInput is the read-only remote-input state. SessionID binds a kit
 // stream to the persistent host session that owns it.
 type SessionInput struct {
-	State     string `json:"state"`
-	Ready     bool   `json:"ready"`
-	SessionID string `json:"session_id,omitempty"`
+	LocalKeyboard string `json:"local_keyboard,omitempty"`
+	State         string `json:"state"`
+	Ready         bool   `json:"ready"`
+	SessionID     string `json:"session_id,omitempty"`
 }
 
 // SessionCoreInterface is one versioned interface advertised by a package.

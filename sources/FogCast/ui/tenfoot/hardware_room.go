@@ -11,6 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/localfeed"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -452,6 +453,10 @@ func (a *App) rememberPlayHIDLocked(event remoteinput.Event) {
 // queuePlayHIDLocked preserves press/release order, including releases queued
 // when local input moves from the core to menu navigation.
 func (a *App) queuePlayHIDLocked(events []remoteinput.Event) {
+	a.queuePlayHIDBindingLocked(events, nil)
+}
+
+func (a *App) queuePlayHIDBindingLocked(events []remoteinput.Event, binding *localfeed.Binding) {
 	if len(events) == 0 || a.client == nil {
 		return
 	}
@@ -482,17 +487,25 @@ func (a *App) queuePlayHIDLocked(events []remoteinput.Event) {
 			a.mu.Unlock()
 		}()
 		if previous != nil {
-			select {
-			case <-parent.Done():
-				return
-			case <-previous:
-			}
+			// Even a cancelled queue element must remain behind its prior
+			// in-flight write. Otherwise its tail can close early and let a
+			// successor cross a focus or session transition.
+			<-previous
 		}
 		ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 		defer cancel()
 		for _, event := range events {
+			if ctx.Err() != nil {
+				return
+			}
 			if feed != nil {
-				_ = feed.Send(event, time.Now())
+				if binding != nil {
+					if bound, ok := feed.(boundLocalKeyboard); ok {
+						_ = bound.SendBound(ctx, event, time.Now(), *binding)
+					}
+				} else {
+					_ = feed.Send(event, time.Now())
+				}
 			} else {
 				_ = client.SendCoreKey(ctx, event)
 			}
@@ -518,7 +531,9 @@ func (a *App) cancelPlayHIDLocked() {
 		a.playHIDCancel()
 	}
 	a.playHIDContext, a.playHIDCancel = nil, nil
-	a.playHIDTail, a.playHIDHeld = nil, nil
+	// Keep the old tail until it drains. A successor must not overtake a
+	// write that had already left the cancelled session's queue.
+	a.playHIDHeld = nil
 	a.playHIDPending = 0
 	a.playHIDEpoch++
 }
@@ -527,12 +542,23 @@ func (a *App) releasePlayHIDLocked() {
 	a.playKeyAdmitted = nil
 	a.playKeyPendingRelease = nil
 	a.playMice = nil
-	if a.playHIDFailClosedLocked() {
-		a.playHIDHeld = nil
-		return
-	}
+	boundKeyboard := a.kitHost && a.session.CoreKeyboardHID && a.needsSessionDisplayLocked()
+	binding, bound := a.localKeyboardBindingLocked()
+	foreign := a.playHIDFailClosedLocked()
+	var keyboard []remoteinput.Event
 	events := make([]remoteinput.Event, 0, len(a.playHIDHeld))
 	for _, event := range a.playHIDHeld {
+		if boundKeyboard && event.Device == remoteinput.DeviceKeyboard {
+			if bound {
+				event.Action = remoteinput.ActionRelease
+				event.Value = 0
+				keyboard = append(keyboard, event)
+			}
+			continue
+		}
+		if foreign {
+			continue
+		}
 		if event.Device == remoteinput.DeviceMouse {
 			events = append(events, remoteinput.MouseEvent(0, 0, 0))
 			continue
@@ -545,6 +571,9 @@ func (a *App) releasePlayHIDLocked() {
 		events = append(events, event)
 	}
 	a.playHIDHeld = nil
+	if bound {
+		a.queuePlayHIDBindingLocked(keyboard, &binding)
+	}
 	a.queuePlayHIDLocked(events)
 }
 

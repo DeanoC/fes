@@ -401,14 +401,6 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			return errors.New("native input replacement barrier could not be configured")
 		}
 	}
-	if feed, ok := inputController.(*input.TargetController); ok && feed != nil {
-		go func() {
-			err := feed.ServeLocalInput(ctx, input.DefaultLocalInputSocket)
-			if err != nil && ctx.Err() == nil && !errors.Is(err, net.ErrClosed) {
-				logger.Error("kit-local input feed stopped", "error", err)
-			}
-		}()
-	}
 	// Signal cancellation closes admission and serving first. Keep already-owned
 	// mutations alive until the deferred lease Close drains them and stops the
 	// runtime; every operation keeps its existing deadline.
@@ -533,6 +525,15 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		return cleanupErr
 	}, leaseOptions...)
 	defer leases.Close()
+	if feed, ok := inputController.(*input.TargetController); ok && feed != nil {
+		feed.SetLocalLeaseManager(leases)
+		go func() {
+			err := feed.ServeLocalInput(ctx, input.DefaultLocalInputSocket)
+			if err != nil && ctx.Err() == nil && !errors.Is(err, net.ErrClosed) {
+				logger.Error("kit-local input feed stopped", "error", err)
+			}
+		}()
+	}
 	options = append(options, httpapi.WithKitLease(leases), httpapi.WithDiagnostics(diagnostics))
 	softwareFence, err := startSoftwareAdmission(ctx, leases, coordinator, localUpdater)
 	if err != nil {

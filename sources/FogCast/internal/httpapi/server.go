@@ -103,8 +103,48 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 
 func registerInputRoutes(mux *http.ServeMux, token string, controller InputController) {
 	mux.Handle("/v1/input/attach", authenticate(token, exactMethod(http.MethodPost, inputAttachHandler(controller))))
+	mux.Handle("/v1/input/local-keyboard", authenticate(token, exactMethod(http.MethodPost, localKeyboardGrantHandler(controller))))
 	mux.Handle("/v1/input/detach", authenticate(token, exactMethod(http.MethodPost, inputDetachHandler(controller))))
 	mux.Handle("/v1/input/stream", authenticate(token, inputStreamHandler(controller)))
+}
+
+type localKeyboardGranter interface {
+	GrantLocalKeyboard(context.Context, uint64, input.KeyboardHIDBinding) error
+	LocalKeyboardBinding() (input.KeyboardHIDBinding, bool)
+}
+
+type localKeyboardOffer struct {
+	PackageID  string `json:"package_id"`
+	Generation uint64 `json:"core_generation"`
+}
+
+func localKeyboardGrantHandler(controller InputController) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		granter, ok := controller.(localKeyboardGranter)
+		if !ok {
+			writeInputError(w, r)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1024)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		var request struct {
+			Session    uint64 `json:"session"`
+			PackageID  string `json:"package_id"`
+			Generation uint64 `json:"core_generation"`
+		}
+		if err := decoder.Decode(&request); err != nil || request.Session == 0 || request.PackageID == "" || request.Generation == 0 || decoder.Decode(&struct{}{}) != io.EOF {
+			writeBadRequest(w, r, "local keyboard admission requires an input session")
+			return
+		}
+		if err := granter.GrantLocalKeyboard(r.Context(), request.Session, input.KeyboardHIDBinding{PackageID: request.PackageID, Generation: request.Generation}); err != nil {
+			writeInputError(w, r)
+			return
+		}
+		writeJSON(w, http.StatusOK, struct {
+			Ready bool `json:"ready"`
+		}{Ready: true})
+	})
 }
 
 func inputAttachHandler(controller InputController) http.Handler {
@@ -130,9 +170,16 @@ func inputAttachHandler(controller InputController) http.Handler {
 			writeInputError(w, r)
 			return
 		}
+		var localKeyboard *localKeyboardOffer
+		if granter, supported := controller.(localKeyboardGranter); supported {
+			if binding, ok := granter.LocalKeyboardBinding(); ok {
+				localKeyboard = &localKeyboardOffer{PackageID: binding.PackageID, Generation: binding.Generation}
+			}
+		}
 		writeJSON(w, http.StatusOK, struct {
-			Ready bool `json:"ready"`
-		}{Ready: true})
+			Ready         bool                `json:"ready"`
+			LocalKeyboard *localKeyboardOffer `json:"local_keyboard,omitempty"`
+		}{Ready: true, LocalKeyboard: localKeyboard})
 	})
 }
 

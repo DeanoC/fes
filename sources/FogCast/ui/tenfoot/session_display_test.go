@@ -24,6 +24,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/localfeed"
 	"github.com/DeanoC/FogCast/ui/menudisplay"
 	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/misteross/expansion"
@@ -38,6 +39,20 @@ func kitDisplaySession() hostclient.SessionResult {
 	return s
 }
 
+// ownedLocalKeyboardForTest gives HID fixtures the same lease and core identity
+// that a healthy kit-local host observes before forwarding physical keys.
+func ownedLocalKeyboardForTest(app *App) {
+	app.session.CorePackage.PackageID = strings.Repeat("a", 64)
+	app.session.CorePackage.Generation = 1
+	app.healthHave = true
+	app.health.Ready, app.health.TargetReady, app.health.TargetReachable = true, true, true
+	app.health.Connection.State, app.health.Connection.LeaseOwned = "active", true
+	app.health.Connection.TargetID = app.session.TargetID
+	app.health.Connection.LeaseGeneration = strings.Repeat("b", 64)
+	app.kitLeaseHave = true
+	app.kitLease = KitLeaseStatus{State: "active", Generation: strings.Repeat("b", 64)}
+}
+
 func writeKitDisplaySession(w http.ResponseWriter, s hostclient.SessionResult) {
 	json.NewEncoder(w).Encode(map[string]any{"id": s.ID, "state": s.State, "game_id": s.GameID, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID, "media_name": s.MediaName, "core_package": s.CorePackage, "input": s.Input})
 }
@@ -48,6 +63,10 @@ type transitionPadFeed struct {
 }
 
 func (f *transitionPadFeed) Close() { f.closes.Add(1) }
+func (f *transitionPadFeed) SendBound(_ context.Context, event remoteinput.Event, now time.Time, _ localfeed.Binding) error {
+	return f.Send(event, now)
+}
+func (f *transitionPadFeed) CloseBound(localfeed.Binding) {}
 
 func kitDisplayApp(t *testing.T, server *httptest.Server) (*App, *transitionPadFeed) {
 	t.Helper()

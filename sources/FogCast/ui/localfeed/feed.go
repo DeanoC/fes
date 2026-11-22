@@ -4,6 +4,8 @@
 package localfeed
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -41,6 +43,34 @@ type Feed struct {
 	seq      uint32
 	nextDial time.Time
 	dial     func(network, address string, timeout time.Duration) (net.Conn, error)
+	binding  *Binding
+}
+
+// Binding names the exact execution lease and HID core receiving physical
+// keyboard events during an externally owned session.
+type Binding struct {
+	LeaseGeneration string `json:"lease_generation"`
+	PackageID       string `json:"package_id"`
+	CoreGeneration  uint64 `json:"core_generation"`
+	// Epoch distinguishes local queue lifetimes on the same lease and core.
+	Epoch uint64 `json:"epoch"`
+}
+
+type boundRecord struct {
+	Operation string `json:"operation"`
+	Binding
+}
+
+func writeBoundRecord(conn net.Conn, operation string, binding Binding, frame []byte) error {
+	header, err := json.Marshal(boundRecord{Operation: operation, Binding: binding})
+	if err != nil {
+		return err
+	}
+	header = append(header, '\n')
+	header = append(header, frame...)
+	_ = conn.SetWriteDeadline(time.Now().Add(Dial))
+	_, err = conn.Write(header)
+	return err
 }
 
 // New dials path on the first send. An empty path fails each send with
@@ -60,22 +90,59 @@ func (f *Feed) Close() {
 	f.closeLocked()
 }
 
+// CloseBound retires only this queue lifetime. A later session may already
+// have opened a new connection when the old queue has finished draining.
+func (f *Feed) CloseBound(binding Binding) {
+	if f == nil {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.conn != nil && f.binding != nil && *f.binding == binding {
+		if err := writeBoundRecord(f.conn, "reset", binding, nil); err != nil {
+			f.closeLocked()
+		} else {
+			f.binding = nil
+		}
+	}
+}
+
 func (f *Feed) closeLocked() {
 	if f.conn == nil {
 		return
 	}
 	_ = f.conn.Close()
 	f.conn = nil
+	f.binding = nil
 }
 
 // Send writes one raw event. A down socket is not dialed again until Retry
 // has elapsed. now is the frame timestamp; a zero time is time.Now.
 func (f *Feed) Send(e remoteinput.Event, now time.Time) error {
+	return f.send(context.Background(), e, now, nil)
+}
+
+// SendBound keeps an immutable binding for this frame even if the observed
+// session changes while it waits behind an earlier local input.
+func (f *Feed) SendBound(ctx context.Context, e remoteinput.Event, now time.Time, binding Binding) error {
+	if binding.LeaseGeneration == "" || binding.PackageID == "" || binding.CoreGeneration == 0 {
+		return ErrUnavailable
+	}
+	return f.send(ctx, e, now, &binding)
+}
+
+func (f *Feed) send(ctx context.Context, e remoteinput.Event, now time.Time, binding *Binding) error {
 	if f == nil || f.path == "" {
+		return ErrUnavailable
+	}
+	if ctx == nil {
 		return ErrUnavailable
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if now.IsZero() {
 		now = time.Now()
 	}
@@ -98,12 +165,34 @@ func (f *Feed) Send(e remoteinput.Event, now time.Time) error {
 		}
 		f.conn = conn
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if binding == nil && f.binding != nil && (e.Device == remoteinput.DeviceKeyboard || e.Kind == remoteinput.KindKey) {
+		// A newer unbound keyboard mode must retire the old generation before
+		// its first key. Pad and mouse frames leave the bound keyboard intact.
+		if err := writeBoundRecord(f.conn, "reset", *f.binding, nil); err != nil {
+			f.closeLocked()
+			f.nextDial = now.Add(Retry)
+			return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		}
+		f.binding = nil
+	}
 	_ = f.conn.SetWriteDeadline(time.Now().Add(Dial))
-	if _, err := f.conn.Write(wire); err != nil {
+	if binding != nil {
+		err = writeBoundRecord(f.conn, "key", *binding, wire)
+	} else {
+		_, err = f.conn.Write(wire)
+	}
+	if err != nil {
 		f.closeLocked()
 		f.seq--
 		f.nextDial = now.Add(Retry)
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	if binding != nil {
+		copy := *binding
+		f.binding = &copy
 	}
 	f.nextDial = time.Time{}
 	return nil
