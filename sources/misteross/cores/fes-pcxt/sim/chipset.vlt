@@ -22,7 +22,7 @@ lint_off -rule SYNCASYNCNET -file "*/sim/system_top.sv" -match "*machine_reset*"
 // The BIOS fixture observes the same synchronous-FES/asynchronous-vendor boundary.
 lint_off -rule SYNCASYNCNET -file "*/sim/bios_top.sv" -match "*machine_reset*"
 
-// Verilator 5.054 PROCASSINIT, signal by signal: power-on initial values on
+// PROCASSINIT, new in 5.054, signal by signal: power-on initial values on
 // registers the logic also assigns. Older releases do not know the rule.
 lint_off -rule PROCASSINIT -file "*/rtl/pcxt_machine.sv" -match "*'reset_fast'*"
 lint_off -rule PROCASSINIT -file "*/rtl/pcxt_machine.sv" -match "*'reset_phase'*"

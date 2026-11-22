@@ -4,7 +4,7 @@
 lint_off -rule WIDTH -file "*/vendor/mcl86/*.sv"
 lint_off -rule UNUSEDSIGNAL -file "*/vendor/mcl86/*.sv"
 
-// Verilator 5.054 lint, signal by signal. SIMILARNAME: the upstream CPU
+// Lint new in 5.054, signal by signal. SIMILARNAME: the upstream CPU
 // declares these names twice, differing only in case. Upstream bytes stay.
 lint_off -rule SIMILARNAME -file "*/vendor/mcl86/mcl86_biu_max.sv" -match "*'biu_register_cs'*"
 lint_off -rule SIMILARNAME -file "*/vendor/mcl86/mcl86_biu_max.sv" -match "*'biu_register_ds'*"
