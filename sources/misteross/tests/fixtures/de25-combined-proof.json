@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "51882401fb920d8386147e87da6dfd42be6b2cb2",
+  "source_revision": "fe01a1acc1a6c81f36b26a7f22cbf8ffcfffd2c2",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -14,7 +14,7 @@
     "sources/misteross/boards/de25nano/link-proof/fpga/persona_a.hex": "a9660675ab0514cf6e5b7b3247b6a0877d391f60c90cc4602f4da06ab41bdfa3",
     "sources/misteross/boards/de25nano/link-proof/fpga/persona_b.hex": "39142fe44734c61cf7916cfb9af6bd6ae4ef33b3a68416a9b2eec2344004577d",
     "sources/misteross/boards/de25nano/link-proof/generated/fes_de25_pr_control.vh": "04763cefbcde93ce16a4cb331aca510166e003d3fd2d3f8eaaf57111d62ebdcd",
-    "sources/misteross/boards/de25nano/hps/build.py": "68c22a60218c4c7916964c58e8c93bd5b391e9c3427054807dfbca64fd13085a",
+    "sources/misteross/boards/de25nano/hps/build.py": "b05f09fc12e94b1e96a26d192cdac5413c548520ccd83177a14cf0b379890d0a",
     "sources/misteross/boards/de25nano/hps/vendor.lock.toml": "cd72e8f75190725071d14830348b574542894aa97027650a546badac55c2c2fb",
     "sources/misteross/boards/de25nano/hps/integrate.tcl": "101c2c6600c2e5912e0d051bdaf3db72eedc07779f1cfada661d3f6f2f203bc0",
     "sources/misteross/boards/de25nano/hps/fes_de25_mailbox.v": "c7cb18157ad5476b0c2824e56a88855dd29f81f6470f8820405434acd301945e",
@@ -37,7 +37,7 @@
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/profile.py": "6fdb9646b74431f1f5e7b7a24a71e8cb3fa345f93fe6dd2a86400c82188d6865",
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/static.v": "10755a86b98ca1f3465c74c17fa44a667ba828e21952bb04505e1bb641c0944a",
     "sources/misteross/boards/de25nano/link-proof/zx81-ram/timing.tcl": "733ce2b528d51776b12d8956b557038e0ad07a122199b3ffbf982c25d6134755",
-    "sources/misteross/boards/de25nano/scanout/build.py": "a13d548ac0aac2c825c43655d12bdaebf5cfbb1ec6b51587b719ff2a6b5da079",
+    "sources/misteross/boards/de25nano/scanout/build.py": "fef3aab9876dd1e27da28943343f54206a808892f66687bb8101eb8b77e769b2",
     "sources/misteross/boards/de25nano/scanout/clocks.sdc": "3a13ccd605b34844b6d733713146ddf46a5d4cd05cf7fcea9f62843c6b3c72b1",
     "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_board.v": "3e13d0caac4242c1eb967c0138c8efa1b4c77a5ff9886ae20606ad48c6e0f93f",
     "sources/misteross/boards/de25nano/scanout/hdmi_inputs.py": "e14cc505c5550b8412fcd55f52d094fa525cf2ceb3af00690a74dcc1060664e8",
@@ -106,7 +106,7 @@
     "sources/libmister-runtime/src/native/artifacts.hpp": "1d1abad2c4bdbf02fe39e115b0b88cbc1c9ba7a66370d09a581d24955fcefeab",
     "sources/libmister-runtime/src/native/atari_st_geometry.hpp": "a00dedc42dd1bef6f9aeeeaf8557ddb6fd264e9a2670839c370d89a8c119c6cb",
     "sources/libmister-runtime/src/native/menu_underflow.hpp": "cc841db02aa3d5798e0a6470b6d23edcc4b2c0bc1ad9a9e4133ed7587b47cb1c",
-    "sources/libmister-runtime/src/native/de25_core_contract.hpp": "c82d3699dd51dcf71acd2bb42e4466a4d7424f983f25f752a4623e6358956dc5",
+    "sources/libmister-runtime/src/native/de25_core_contract.hpp": "2ce099d8753d5e46a8193cc2c886cf13a6a6cd97d5ca5acf8b1cf908e48ff246",
     "sources/libmister-runtime/src/native/core_composition.hpp": "3f2df836517ed9cfdf2eaa484df3fba6fdabaf80212427b36e44ae4c0a6d8984",
     "sources/libmister-runtime/src/native/ata_disk.hpp": "43838f9565b7bf220033e771626fc7c58c27d9a2c32c0dd89ef941c6033656e3",
     "sources/libmister-runtime/src/native/fes_gp.hpp": "b65a88ec81441e11b69195a2e5c2112c8d67d28301dfdf9c2d88c1bf41f12a00",
@@ -342,7 +342,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "a3c8d49d179e6a13dedc740fd2e181c2ba884ef9111d35d8e955820960bd35ea",
-    "Vfes_de25_combined_sim": "7460b1cfa8693a271c09325d6fad586fabc13f2e933cf36ffc4328070e027c0b",
+    "Vfes_de25_combined_sim": "69b487ade7ed5a4ae81fd8898a3ee9c9498f945090a8c3b9622f26f6a1cc85b2",
     "client-aarch64": "cf763f001d257e257c8f2fcf56e74e76e296728abfdc624888a2a087236e34d4"
   },
   "physical_PR": "selection-mux-model-only",
