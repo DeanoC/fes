@@ -32,6 +32,7 @@ const tenfootSerialLinked = true
 
 func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store) {
 	uartIRQ := false
+	var activeGIC *gic.Controller
 	if g := de25nano.GIC(); g != nil {
 		if err := g.Init(); err != nil {
 			if !errors.Is(err, gic.ErrUnsupported) {
@@ -57,6 +58,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 			}
 			defer serial.DisableIRQ(g)
 			uartIRQ = true
+			activeGIC = g
 		}
 	}
 	paired := expectedCompiledMenuProgram != ""
@@ -89,9 +91,11 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 			_ = programService.Retire(errors.New("native Tenfoot exited before owned menu shutdown"))
 		}
 	}()
-	if err := startProgramNetwork(); err != nil {
+	cleanupNetwork, err := startProgramNetwork(activeGIC)
+	if err != nil {
 		panic(err)
 	}
+	defer cleanupNetwork()
 	nativeProgramBackend, err = nativefabric.NewProgramBackend(programService, startup.Entries)
 	if err != nil {
 		panic(err)

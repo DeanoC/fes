@@ -39,6 +39,20 @@ var intc = gic.New(GICDBase, GICRBase)
 // GIC returns the Agilex 5 GIC-600 controller. Call Init() before enabling IRQs.
 func GIC() *gic.Controller { return intc }
 
+// EMACIRQ maps an Agilex 5 XGMAC MMIO base address (MAC0/1/2) to its GIC-600 SPI INTID.
+func EMACIRQ(base uintptr) (uint32, bool) {
+	switch base {
+	case 0x10810000:
+		return IRQEMAC0, true
+	case 0x10820000:
+		return IRQEMAC1, true
+	case 0x10830000:
+		return IRQEMAC2, true
+	default:
+		return 0, false
+	}
+}
+
 // FPGAIRQ maps an FPGA-to-HPS doorbell line (0..63) to its GIC-600 SPI INTID (48..111).
 func FPGAIRQ(line uint32) (uint32, bool) {
 	if line >= FPGAIRQCount {
