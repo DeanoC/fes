@@ -29,7 +29,7 @@ Merge only when all of these hold:
 - CI is green: `gh pr checks N --json name,bucket --jq 'if length==0 then error("no checks") else map(select(.bucket!="pass" and .bucket!="skipping")) | length end'` exits 0 and prints `0`. Any error, no checks, or a non-zero count means not green.
 - 0 unresolved review threads.
 - A clean SuperGrok or Codex review on the exact head. One exception: a clean review carries over to a new head that only adds a merge from the base branch, when the PR's own diff against its base is unchanged and CI is green on the new head.
-- HIL is PASS on the exact head, N/A, or explicitly waived by Deano. HIL N/A means no kit test applies: the PR changes no kit-run bitstream, firmware or runtime (docs, CI, host tooling only), or the core has no kit (pc386/i386). DE25 hardware changes use Kit D25 (`de25-j8g`, serial TRWU8J8G) and require PASS on the exact head with the restore diff verified. A pass on a diagnostic build does not count.
+- HIL is PASS on the exact head, N/A, or explicitly waived by Deano. HIL N/A means no kit test applies: the PR changes no kit-run bitstream, firmware or runtime (docs, CI, host tooling only), the core has no kit (pc386/i386), or the PR is bare-metal TamaGo work under `platform/embedded/` (which cannot be tested on the Linux-focused Kit D25 `de25-j8g` yet). DE25 Linux hardware changes use Kit D25 (`de25-j8g`, serial TRWU8J8G) and require PASS on the exact head with the restore diff verified. A pass on a diagnostic build does not count.
 - The base branch is live, and no open PR uses this head branch as its base.
 - Stacks merge top-down. After each merge, the next PR's tree must equal the reviewed tree, or it needs a fresh review.
 
@@ -55,7 +55,7 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 
 ### HIL
 - Run HIL in parallel with review. Use kit A if kit B is busy.
-- Select Kit D25 for DE25 board, package, runtime or image paths. Powerboat HILQ routes these classes only to J8G and runs the exact-head D25 runner under lander-watch with an explicit cap; A/B paths retain their existing runners. DE25 work stays on Quartus Pro 26.3 and uses the managed DE25 HIL flow; a DE10 pass does not satisfy it. Select Kit A or Kit B for DE10 paths.
+- Select Kit D25 for Linux DE25 board, package, runtime or image paths. Powerboat HILQ routes these classes only to J8G and runs the exact-head D25 runner under lander-watch with an explicit cap; A/B paths retain their existing runners. DE25 work stays on Quartus Pro 26.3 and uses the managed DE25 HIL flow; a DE10 pass does not satisfy it. Bare-metal TamaGo work (`platform/embedded/`) cannot be tested on J8G yet: do not request J8G HIL in handoffs, and include `tamago` in the PR title so Lander knows how to test and merge it (use QEMU, cross-builds, and leased `TRWU8CBL` verification instead). Select Kit A or Kit B for DE10 paths.
 - Stop after 2 FAILs on the same head and fix instead.
 - Report HIL as started only once the kit is claimed in its status file (see Shared kits below) and the test bundle, image or core under test is loaded on it. A core-only run does not need a bundle install or reflash.
 - For Kit A/B, restore exactly the baseline bundle and image named in its status file. For Kit D25, follow the serial-bound restore record and verifier in `docs/de25-kit-hil.md`. Log a kit FREE only after the applicable restore checks pass. Baselines are promoted only from main HIL passes.
