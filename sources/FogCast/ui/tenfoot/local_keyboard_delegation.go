@@ -15,6 +15,17 @@ type boundLocalKeyboard interface {
 	CloseBound(localfeed.Binding)
 }
 
+const kitLocalKeyboardUnavailableStatus = "Physical keyboard unavailable"
+
+func (a *App) kitLocalKeyboardUnavailableLocked() bool {
+	unavailable := a.kitSDLKeyboardGuestBlockedLocked() || (a.kitHost && a.delegatedV2Active && a.nativeKeyboardQuarantined)
+	return unavailable && a.session.State == "active" && (a.session.CoreKeyboardHID || a.session.CoreKeyboard)
+}
+
+func (a *App) kitSDLKeyboardGuestBlockedLocked() bool {
+	return a.kitLocalKeyboardUnavailable && a.kitHost && a.client != nil && !a.client.paired
+}
+
 func fullLocalIdentity(s string) bool {
 	if len(s) != 64 {
 		return false
@@ -27,7 +38,7 @@ func fullLocalIdentity(s string) bool {
 // another host owns this kit. The target rechecks the immutable lease/core
 // binding on each frame; this observation alone never authorizes a write.
 func (a *App) localKeyboardBindingLocked() (localfeed.Binding, bool) {
-	if !a.kitHost || a.client == nil || a.client.paired || !a.healthHave || a.hostUnreachable || a.localKeyboardUncertain ||
+	if !a.kitHost || a.client == nil || a.client.paired || a.kitLocalKeyboardUnavailable || a.delegatedV2Active || !a.healthHave || a.hostUnreachable || a.localKeyboardUncertain ||
 		!a.health.Ready || !a.health.TargetReachable ||
 		!a.kitLeaseHave || a.kitLease.Unavailable || a.kitLease.ErrorCode != "" ||
 		!fullLocalIdentity(a.kitLease.Generation) || a.kitLease.Generation != a.health.Connection.LeaseGeneration ||
@@ -91,6 +102,9 @@ func (a *App) retireLocalKeyboardLocked() {
 }
 
 func (a *App) keyboardHIDFailClosedLocked() bool {
+	if a.kitSDLKeyboardGuestBlockedLocked() {
+		return true
+	}
 	if a.kitHost && a.session.CoreKeyboardHID && a.needsSessionDisplayLocked() {
 		_, ok := a.localKeyboardBindingLocked()
 		return !ok
@@ -99,6 +113,9 @@ func (a *App) keyboardHIDFailClosedLocked() bool {
 }
 
 func (a *App) queuePhysicalKeyboardLocked(event remoteinput.Event) {
+	if a.kitSDLKeyboardGuestBlockedLocked() {
+		return
+	}
 	if a.kitHost && a.session.CoreKeyboardHID && a.needsSessionDisplayLocked() {
 		binding, ok := a.localKeyboardBindingLocked()
 		if !ok {
@@ -114,6 +131,9 @@ func (a *App) queuePhysicalKeyboardLocked(event remoteinput.Event) {
 }
 
 func (a *App) sendPhysicalKeyboardLocked(event remoteinput.Event) bool {
+	if a.kitSDLKeyboardGuestBlockedLocked() {
+		return false
+	}
 	if !(a.kitHost && a.session.CoreKeyboardHID && a.needsSessionDisplayLocked()) {
 		return a.sendPlayHIDLocked(event)
 	}

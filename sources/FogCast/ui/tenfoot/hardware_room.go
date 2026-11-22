@@ -217,6 +217,7 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	if !a.playingHardwareRoomAvailableLocked() {
 		return
 	}
+	a.nativePadFenceMappingLocked()
 	directMedia := a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked()
 	if !a.colecoSessionLocked() && !directMedia && a.playingSetupCoreLocked() == "" && a.session.CorePackage != nil {
 		a.resolvePlayingSetupLocked()
@@ -277,6 +278,7 @@ func (a *App) beginColecoCartridgeControlsLocked() bool {
 	if !a.needsSessionDisplayLocked() || !a.colecoCartridgeOfferedLocked() || a.sessionLiveMediaOfferedLocked() {
 		return false
 	}
+	a.nativePadFenceMappingLocked()
 	a.roomDuringPlay = true
 	a.mediaControlsDirect = true
 	a.syncGPUParkLocked()
@@ -457,6 +459,18 @@ func (a *App) queuePlayHIDLocked(events []remoteinput.Event) {
 }
 
 func (a *App) queuePlayHIDBindingLocked(events []remoteinput.Event, binding *localfeed.Binding) {
+	if a.kitV2InputDisabled {
+		return
+	}
+	if a.kitSDLKeyboardGuestBlockedLocked() || a.delegatedV2Active || a.nativeUIOnlyInFlight != 0 {
+		filtered := make([]remoteinput.Event, 0, len(events))
+		for _, event := range events {
+			if event.Device != remoteinput.DeviceKeyboard && event.Kind != remoteinput.KindKey {
+				filtered = append(filtered, event)
+			}
+		}
+		events = filtered
+	}
 	if len(events) == 0 || a.client == nil {
 		return
 	}
@@ -474,7 +488,7 @@ func (a *App) queuePlayHIDBindingLocked(events []remoteinput.Event, binding *loc
 	a.playHIDPending++
 	client := a.client
 	var feed localPadSender
-	if a.needsSessionDisplayLocked() {
+	if a.needsSessionDisplayLocked() || a.kitHost {
 		feed = a.localFeed
 	}
 	go func() {
@@ -514,7 +528,14 @@ func (a *App) queuePlayHIDBindingLocked(events []remoteinput.Event, binding *loc
 }
 
 func samePlayHIDSession(a, b hostclient.SessionResult) bool {
-	if a.ID != b.ID || a.State != b.State || a.Target != b.Target || a.TargetID != b.TargetID || a.GameID != b.GameID || a.FlightID != b.FlightID {
+	if a.ID != b.ID || a.State != b.State || a.Target != b.Target || a.TargetID != b.TargetID || a.GameID != b.GameID || a.FlightID != b.FlightID || a.InputAgentInstance != b.InputAgentInstance || a.CoreKeyboard != b.CoreKeyboard || a.CoreKeyboardHID != b.CoreKeyboardHID {
+		return false
+	}
+	if a.RuntimeInput == nil || b.RuntimeInput == nil {
+		if a.RuntimeInput != nil || b.RuntimeInput != nil {
+			return false
+		}
+	} else if a.RuntimeInput.Validate() != nil || b.RuntimeInput.Validate() != nil || *a.RuntimeInput != *b.RuntimeInput {
 		return false
 	}
 	if a.CorePackage == nil || b.CorePackage == nil {
@@ -539,6 +560,11 @@ func (a *App) cancelPlayHIDLocked() {
 }
 
 func (a *App) releasePlayHIDLocked() {
+	if a.delegatedV2Active {
+		// Neutralization belongs to the acknowledged v2 source. Merely
+		// enqueueing a legacy key-up cannot prove that source is neutral.
+		a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
+	}
 	a.playKeyAdmitted = nil
 	a.playKeyPendingRelease = nil
 	a.playMice = nil
@@ -548,6 +574,10 @@ func (a *App) releasePlayHIDLocked() {
 	var keyboard []remoteinput.Event
 	events := make([]remoteinput.Event, 0, len(a.playHIDHeld))
 	for _, event := range a.playHIDHeld {
+		if (a.delegatedV2Active || a.nativeUIOnlyInFlight != 0 || a.kitSDLKeyboardGuestBlockedLocked()) &&
+			(event.Device == remoteinput.DeviceKeyboard || event.Kind == remoteinput.KindKey) {
+			continue
+		}
 		if boundKeyboard && event.Device == remoteinput.DeviceKeyboard {
 			if bound {
 				event.Action = remoteinput.ActionRelease

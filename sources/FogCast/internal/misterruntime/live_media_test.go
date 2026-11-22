@@ -10,6 +10,7 @@ import (
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/input"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
@@ -168,7 +169,7 @@ type clearKeyboardControl struct {
 	reached chan struct{}
 }
 
-func (c *clearKeyboardControl) SetKeyboard(context.Context, uint64) (misterruntime.Protocol2Response, error) {
+func (c *clearKeyboardControl) SetKeyboard(context.Context, string, string, uint64, uint64) (misterruntime.Protocol2Response, error) {
 	select {
 	case c.reached <- struct{}{}:
 	default:
@@ -194,7 +195,12 @@ func TestClearLiveMediaSerializesKeyboard(t *testing.T) {
 	}
 	runtime := misterruntime.NewRuntime(control, "", 0, 0)
 	keys := input.NewKeyboardSink()
-	keys.SetPoster(func(ctx context.Context, matrix uint64) error { return runtime.SetKeyboard(ctx, matrix) })
+	if err := keys.BindInitial(input.MatrixBinding{RuntimeInstance: *response.RuntimeInstance, PackageID: response.ActivePackage.PackageID, Generation: 9}); err != nil {
+		t.Fatal(err)
+	}
+	keys.SetPoster(func(ctx context.Context, post localhid.MatrixPost, matrix uint64) error {
+		return runtime.SetKeyboard(ctx, post, matrix)
+	})
 	done := make(chan *protocol.APIError, 1)
 	go func() {
 		done <- runtime.ClearLiveMedia(context.Background(), protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9})
@@ -255,7 +261,8 @@ func TestRuntimeReplaceLiveMediaRejectsBusyAndTreatsNumericRejectionAsUncertain(
 
 func liveMediaResponse() misterruntime.Protocol2Response {
 	gen := uint64(9)
-	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "running_development", Execution: "development", Generation: &gen,
+	instance := strings.Repeat("1", 32)
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "running_development", Execution: "development", Generation: &gen, RuntimeInstance: &instance,
 		ActivePackage: &misterruntime.Protocol2ActivePackage{PackageID: strings.Repeat("a", 64), Descriptor: corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.simple-computer", Major: 1}}},
 		Capabilities:  misterruntime.Protocol2Capabilities{ActiveInterfaces: []misterruntime.Protocol2Interface{{ID: "fes.media.blob", Major: 1}}}}
 }

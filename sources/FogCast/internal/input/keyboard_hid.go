@@ -14,16 +14,18 @@ import (
 )
 
 var errTapUnavailable = errors.New("target keyboard tap is unavailable")
+var errLocalV2Uncertain = errors.New("delegated keyboard neutral is unconfirmed")
 
 // KeyboardHIDBinding is the active fes.computer generation that negotiated
 // fes.keyboard.hid 1.0. Every set_keyboard_hid post carries this identity.
 type KeyboardHIDBinding struct {
-	PackageID  string
-	Generation uint64
+	RuntimeInstance string
+	PackageID       string
+	Generation      uint64
 }
 
 // KeyboardHIDPoster sends one complete nine-row key state.
-type KeyboardHIDPoster func(context.Context, string, uint64, hidkeys.Rows) error
+type KeyboardHIDPoster func(context.Context, string, string, uint64, hidkeys.Rows) error
 
 // keyboardHIDSink keeps each source's held usages; the posted state is their
 // union, so a release from one source leaves the other's hold in place. Posts
@@ -46,6 +48,8 @@ type keyboardHIDSink struct {
 	focusEpoch     uint64
 	dirty          bool
 	unconfirmed    bool
+	// An ambiguous delegated write must never be replayed as part of another source.
+	localV2Uncertain *KeyboardHIDBinding
 }
 
 func (s *keyboardHIDSink) setPoster(poster KeyboardHIDPoster) {
@@ -121,6 +125,15 @@ func (s *keyboardHIDSink) unionLocked() map[uint8]bool {
 }
 
 func (s *keyboardHIDSink) postLocked(ctx context.Context) error {
+	if s.localV2Uncertain != nil {
+		return errLocalV2Uncertain
+	}
+	return s.postNeutralUnionLocked(ctx)
+}
+
+// postNeutralUnionLocked may bypass the uncertainty fence only after the
+// delegated source has been removed from the union under the same mutex.
+func (s *keyboardHIDSink) postNeutralUnionLocked(ctx context.Context) error {
 	if s.binding == nil || s.poster == nil {
 		return nil
 	}
@@ -132,7 +145,7 @@ func (s *keyboardHIDSink) postLocked(ctx context.Context) error {
 	// always attempts neutral, and unconfirmed so a retry reposts it.
 	s.dirty = true
 	s.unconfirmed = true
-	err := s.poster(ctx, s.binding.PackageID, s.binding.Generation, hidkeys.Encode(union))
+	err := s.poster(ctx, s.binding.RuntimeInstance, s.binding.PackageID, s.binding.Generation, hidkeys.Encode(union))
 	if err == nil {
 		s.dirty = len(union) != 0
 		s.unconfirmed = false
@@ -249,9 +262,9 @@ func (s *keyboardHIDSink) clearBlockedLocked(source inputSource, usage uint8) {
 	}
 }
 
-// observeOtherKeyboard tracks releases while another keyboard mode owns
+// observeOtherKeyboardGuard tracks releases while another keyboard mode owns
 // delivery. It never posts to the old HID generation.
-func (s *keyboardHIDSink) observeOtherKeyboard(ctx context.Context, source inputSource, frame protocol.InputFrame) error {
+func (s *keyboardHIDSink) observeOtherKeyboardGuard(ctx context.Context, source inputSource, frame protocol.InputFrame, guard func() error) error {
 	code := remoteinput.Code(frame.Code)
 	usage, ok := hidkeys.Usage(code)
 	if !ok {
@@ -270,6 +283,11 @@ func (s *keyboardHIDSink) observeOtherKeyboard(ctx context.Context, source input
 		return err
 	}
 	defer s.mu.Unlock()
+	if guard != nil {
+		if err := guard(); err != nil {
+			return err
+		}
+	}
 	if code == zx81keys.KeyShift {
 		// Legacy Shift has no side identity. A new legacy press while a
 		// side is suppressed makes later legacy releases ambiguous too.
@@ -302,6 +320,16 @@ func (s *keyboardHIDSink) applyFromEpoch(ctx context.Context, source inputSource
 }
 
 func (s *keyboardHIDSink) applyFromWithEpoch(ctx context.Context, source inputSource, f protocol.InputFrame, epoch *uint64, admittedFocused bool) error {
+	return s.applyFromWithGuard(ctx, source, f, epoch, admittedFocused, nil)
+}
+
+// applyFromWithGuard evaluates a source's lifecycle/lease fence after the
+// contended HID mutex is held and immediately before any key mutation.
+func (s *keyboardHIDSink) applyFromWithGuard(ctx context.Context, source inputSource, f protocol.InputFrame, epoch *uint64, admittedFocused bool, guard func() error) error {
+	return s.applyFromGuarded(ctx, source, f, epoch, admittedFocused, guard, false)
+}
+
+func (s *keyboardHIDSink) applyFromGuarded(ctx context.Context, source inputSource, f protocol.InputFrame, epoch *uint64, admittedFocused bool, guard func() error, delegated bool) (result error) {
 	usage, ok := hidkeys.Usage(remoteinput.Code(f.Code))
 	if !ok || (f.Action != uint8(remoteinput.ActionPress) && f.Action != uint8(remoteinput.ActionRelease)) {
 		return nil
@@ -309,8 +337,41 @@ func (s *keyboardHIDSink) applyFromWithEpoch(ctx context.Context, source inputSo
 	if source >= sourceCount {
 		source = sourceRemote
 	}
-	s.mu.Lock()
+	if ctx != nil && ctx.Done() != nil {
+		if err := s.lockTap(ctx); err != nil {
+			return err
+		}
+	} else {
+		s.mu.Lock()
+	}
 	defer s.mu.Unlock()
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if guard != nil {
+		if err := guard(); err != nil {
+			return err
+		}
+	}
+	if s.localV2Uncertain != nil {
+		return errLocalV2Uncertain
+	}
+	if delegated {
+		defer func() {
+			// The lease and operation must still be valid when the write has
+			// drained. A poster can return nil even as cancellation races it.
+			if result == nil && ctx != nil {
+				result = ctx.Err()
+			}
+			if result == nil && guard != nil {
+				result = guard()
+			}
+			if result != nil && s.binding != nil {
+				binding := *s.binding
+				s.localV2Uncertain = &binding
+			}
+		}()
+	}
 	if epoch != nil && (*epoch != s.focusEpoch || admittedFocused && !s.focused) {
 		if f.Action == uint8(remoteinput.ActionPress) {
 			if s.blocked[source] == nil {
@@ -372,7 +433,7 @@ func (s *keyboardHIDSink) tap(ctx context.Context, f protocol.InputFrame, afterP
 		cancelPress()
 		return err
 	}
-	if s.focused || s.focusFence.Load() || s.blocked[sourceRemote][usage] || s.binding == nil || s.binding.Generation != f.ServerMonoNS || s.poster == nil || s.heldUsageLocked(usage) || s.tapInFlight[usage] != 0 {
+	if s.localV2Uncertain != nil || s.focused || s.focusFence.Load() || s.blocked[sourceRemote][usage] || s.binding == nil || s.binding.Generation != f.ServerMonoNS || s.poster == nil || s.heldUsageLocked(usage) || s.tapInFlight[usage] != 0 {
 		s.mu.Unlock()
 		cancelPress()
 		return errTapUnavailable
@@ -470,6 +531,10 @@ func (s *keyboardHIDSink) releaseSource(source inputSource) error {
 
 // releaseSourceContext optionally refuses to post into a replacement binding.
 func (s *keyboardHIDSink) releaseSourceContext(ctx context.Context, source inputSource, expected *KeyboardHIDBinding) error {
+	return s.releaseSourceWithGuard(ctx, source, expected, nil)
+}
+
+func (s *keyboardHIDSink) releaseSourceWithGuard(ctx context.Context, source inputSource, expected *KeyboardHIDBinding, guard func() error) error {
 	if source >= sourceCount {
 		source = sourceRemote
 	}
@@ -477,6 +542,11 @@ func (s *keyboardHIDSink) releaseSourceContext(ctx context.Context, source input
 		return err
 	}
 	defer s.mu.Unlock()
+	if guard != nil {
+		if err := guard(); err != nil {
+			return err
+		}
+	}
 	if expected != nil && (s.binding == nil || *s.binding != *expected) {
 		return nil
 	}
@@ -494,18 +564,82 @@ func (s *keyboardHIDSink) releaseSourceContext(ctx context.Context, source input
 	if s.focused || s.focusFence.Load() {
 		return nil
 	}
+	if s.localV2Uncertain != nil {
+		return errLocalV2Uncertain
+	}
 	if !changed {
 		return s.repostLocked(ctx)
 	}
 	return s.postLocked(ctx)
 }
 
+// neutralDelegatedSource is the only path allowed to post while a delegated
+// write is uncertain. It removes that contribution before the post, retaining
+// all other sources, and keeps the fence until the neutral post is confirmed.
+func (s *keyboardHIDSink) neutralDelegatedSource(ctx context.Context, expected *KeyboardHIDBinding, guard func() error) error {
+	if err := s.lockTap(ctx); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if err := guard(); err != nil {
+		return err
+	}
+	if expected == nil || s.binding == nil || *s.binding != *expected || s.poster == nil {
+		return errLocalV2Uncertain
+	}
+	if s.localV2Uncertain != nil && *s.localV2Uncertain != *expected {
+		return errLocalV2Uncertain
+	}
+	s.pressed[sourceLocal] = nil
+	s.blocked[sourceLocal] = nil
+	s.shiftAmbiguous[sourceLocal] = false
+	err := s.postNeutralUnionLocked(ctx)
+	if err == nil {
+		err = ctx.Err()
+	}
+	if err == nil {
+		err = guard()
+	}
+	if err != nil {
+		binding := *expected
+		s.localV2Uncertain = &binding
+		return err
+	}
+	s.localV2Uncertain = nil
+	return nil
+}
+
 // releaseAll neutralizes every key and forgets the binding. Neutralization is
 // best-effort: after Stop the runtime rejects the retired generation, and the
 // runtime already treats its input state as neutral after Stop.
-func (s *keyboardHIDSink) releaseAll() {
-	s.mu.Lock()
+func (s *keyboardHIDSink) releaseAll() error { return s.releaseAllContext(context.Background()) }
+
+func (s *keyboardHIDSink) releaseAllContext(ctx context.Context) error {
+	if err := s.lockTap(ctx); err != nil {
+		return err
+	}
 	defer s.mu.Unlock()
+	if s.localV2Uncertain != nil {
+		// Lifecycle cleanup owns every input source. It may post an all-source
+		// neutral, but cannot report success or forget the binding if that
+		// post is unavailable or unconfirmed.
+		if s.binding == nil || *s.binding != *s.localV2Uncertain || s.poster == nil {
+			return errLocalV2Uncertain
+		}
+		s.pressed = [sourceCount]map[uint8]bool{}
+		s.tapHeld = nil
+		s.tapInFlight = nil
+		writeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		err := s.postNeutralUnionLocked(writeCtx)
+		if err == nil {
+			err = writeCtx.Err()
+		}
+		cancel()
+		if err != nil {
+			return err
+		}
+		s.localV2Uncertain = nil
+	}
 	s.pressed = [sourceCount]map[uint8]bool{}
 	s.blocked = [sourceCount]map[uint8]bool{}
 	s.shiftAmbiguous = [sourceCount]bool{}
@@ -514,9 +648,10 @@ func (s *keyboardHIDSink) releaseAll() {
 	s.focused = false
 	s.focusFence.Store(false)
 	if s.dirty {
-		_ = s.postLocked(context.Background())
+		_ = s.postLocked(ctx)
 	}
 	s.binding = nil
 	s.dirty = false
 	s.unconfirmed = false
+	return nil
 }

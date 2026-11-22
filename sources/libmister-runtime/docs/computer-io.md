@@ -191,10 +191,19 @@ positive integers. Each operation binds the exact active package and
 generation and follows the existing lifecycle busy boundary, so input and media
 requests are serialized with each other, Stop and replacement.
 
+Keyboard matrix and HID requests also carry the runtime instance returned by
+status. It is a nonzero 128-bit lowercase hexadecimal identity created for
+each runtime authority, not a generation counter. The runtime checks the
+instance, package and generation together before starting a keyboard write.
+For a contained development matrix session, `package_id` is explicitly the
+empty string; it is not a wildcard. Missing or mismatched identity is rejected.
+The agent and runtime must use the matching protocol contract in the same
+software bundle.
+
 ### `set_keyboard_hid`
 
 ```json
-{"protocol":2,"operation":"set_keyboard_hid","package_id":"<64 lowercase hex>","expected_generation":3,"rows":[16,0,0,0,0,0,0,0,2]}
+{"protocol":2,"operation":"set_keyboard_hid","runtime_instance":"<32 lowercase hex>","package_id":"<64 lowercase hex>","expected_generation":3,"rows":[16,0,0,0,0,0,0,0,2]}
 ```
 
 `rows` is exactly nine integers 0..65535. Row 0 bits 0..3 (HID error usages)

@@ -64,21 +64,23 @@ type sessionProgress struct {
 }
 
 type sessionResult struct {
-	ID           string                      `json:"id"`
-	Target       string                      `json:"target,omitempty"`
-	TargetID     string                      `json:"target_id,omitempty"`
-	Connection   *fogcast.TargetConnection   `json:"connection,omitempty"`
-	State        protocol.State              `json:"state"`
-	GameID       *string                     `json:"game_id,omitempty"`
-	System       *protocol.System            `json:"system,omitempty"`
-	Execution    string                      `json:"execution,omitempty"`
-	Media        string                      `json:"media,omitempty"`
-	MediaName    string                      `json:"media_name,omitempty"`
-	MediaEjected bool                        `json:"media_ejected,omitempty"`
-	Progress     *sessionProgress            `json:"progress,omitempty"`
-	Input        *host.RemoteInputStatus     `json:"input,omitempty"`
-	CorePackage  *protocol.CorePackageStatus `json:"core_package,omitempty"`
-	FlightID     string                      `json:"flight_id,omitempty"`
+	ID                 string                         `json:"id"`
+	Target             string                         `json:"target,omitempty"`
+	TargetID           string                         `json:"target_id,omitempty"`
+	Connection         *fogcast.TargetConnection      `json:"connection,omitempty"`
+	State              protocol.State                 `json:"state"`
+	GameID             *string                        `json:"game_id,omitempty"`
+	System             *protocol.System               `json:"system,omitempty"`
+	Execution          string                         `json:"execution,omitempty"`
+	Media              string                         `json:"media,omitempty"`
+	MediaName          string                         `json:"media_name,omitempty"`
+	MediaEjected       bool                           `json:"media_ejected,omitempty"`
+	Progress           *sessionProgress               `json:"progress,omitempty"`
+	Input              *host.RemoteInputStatus        `json:"input,omitempty"`
+	CorePackage        *protocol.CorePackageStatus    `json:"core_package,omitempty"`
+	RuntimeInput       *protocol.RuntimeInputIdentity `json:"runtime_input,omitempty"`
+	InputAgentInstance string                         `json:"input_agent_instance,omitempty"`
+	FlightID           string                         `json:"flight_id,omitempty"`
 }
 
 // sessionEvent is one public host session event. Protocol 1 fields are
@@ -1916,6 +1918,16 @@ func publicSession(st protocol.Status, progress *sessionProgress) sessionResult 
 	}
 	result := sessionResult{State: st.State, GameID: gameID, System: system, Progress: progress,
 		CorePackage: cloneCorePackageStatus(st.CorePackage)}
+	if st.State == protocol.StateActive && st.RuntimeInput != nil && st.RuntimeInput.Validate() == nil {
+		identity := *st.RuntimeInput
+		if (identity.Kind == protocol.RuntimeInputDescribed && st.CorePackage != nil && st.CorePackage.PackageID == identity.PackageID && st.CorePackage.Generation == identity.Generation) ||
+			(identity.Kind == protocol.RuntimeInputDevelopment && st.Development && st.CorePackage == nil) {
+			result.RuntimeInput = &identity
+		}
+	}
+	if st.State == protocol.StateActive && protocol.ValidInputAgentInstance(st.InputAgentInstance) {
+		result.InputAgentInstance = st.InputAgentInstance
+	}
 	if st.State == protocol.StateActive && st.Development {
 		result.Execution = fogcast.ExecutionFPGADevelopment
 	} else if system != nil {

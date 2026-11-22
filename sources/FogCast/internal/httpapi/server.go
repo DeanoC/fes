@@ -61,6 +61,21 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	})
 	mux.Handle("GET /v1/status", authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		status := controller.Status()
+		// A cached status cannot establish that the runtime has not restarted.
+		// Controllers that support input identity must make a fresh, bounded
+		// observation; all others report that identity unavailable.
+		status.RuntimeInput = nil
+		if observer, ok := controller.(interface {
+			StatusWithRuntimeInput(context.Context) protocol.Status
+		}); ok {
+			status = observer.StatusWithRuntimeInput(r.Context())
+		}
+		status.InputAgentInstance = ""
+		if source, ok := settings.input.(interface{ LocalAgentInstance() (string, error) }); ok {
+			if id, err := source.LocalAgentInstance(); err == nil && protocol.ValidInputAgentInstance(id) {
+				status.InputAgentInstance = id
+			}
+		}
 		setRequestState(r, status)
 		writeJSON(w, http.StatusOK, status)
 	})))

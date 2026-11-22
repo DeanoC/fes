@@ -18,7 +18,7 @@ import (
 func de25SpectrumResponse(t *testing.T, upload bool) (string, corepackage.ROMLinkIdentity) {
 	t.Helper()
 	var root map[string]any
-	if err := json.Unmarshal([]byte(fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0]), &root); err != nil {
+	if err := json.Unmarshal([]byte(currentDE25Fixture(t, fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0])), &root); err != nil {
 		t.Fatal(err)
 	}
 	iface := func(id string, major, minor int) map[string]any {
@@ -161,7 +161,7 @@ func TestFirmwareUploadClientRefusesBeforeMutation(t *testing.T) {
 	id := active.ActivePackage.PackageID
 	// The ZX81-only DE25 runtime and a Cyclone V linker both lack the interface.
 	for name, status := range map[string]string{
-		"DE25 without upload": fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0],
+		"DE25 without upload": currentDE25Fixture(t, fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0]),
 		"linker":              fixtureLines(t, "protocol-v2-rom-package-responses.jsonl")[1],
 	} {
 		fixture := newSequenceSocketFixture(t, []string{status + "\n"})

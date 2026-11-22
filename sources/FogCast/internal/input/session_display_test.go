@@ -2,6 +2,7 @@ package input
 
 import (
 	"context"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"testing"
 
 	"github.com/DeanoC/FogCast/internal/zx81keys"
@@ -13,7 +14,11 @@ func TestDisplayFocusRequiresReleaseAndFreshPressAcrossSources(t *testing.T) {
 	keys := NewKeyboardSink()
 	posts := 0
 	var matrix uint64
-	keys.SetPoster(func(_ context.Context, value uint64) error { posts++; matrix = value; return nil })
+	keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, value uint64) error {
+		posts++
+		matrix = value
+		return nil
+	})
 	frame := protocol.InputFrame{Device: uint8(remoteinput.DeviceKeyboard), Kind: uint8(remoteinput.KindKey),
 		Action: uint8(remoteinput.ActionPress), Code: uint16(zx81keys.Letter('J'))}
 	apply := func(source inputSource) {
@@ -98,7 +103,11 @@ func TestMachineFocusFenceKeepsHeldMachineKeys(t *testing.T) {
 	keys := NewKeyboardSink()
 	var matrix uint64
 	posts := 0
-	keys.SetPoster(func(_ context.Context, value uint64) error { posts++; matrix = value; return nil })
+	keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, value uint64) error {
+		posts++
+		matrix = value
+		return nil
+	})
 	ports := &controllerPortsSink{keys: keys, fallback: muxSink{keys: keys}}
 	c := &TargetController{ports: ports, keyboard: keys}
 	frame := protocol.InputFrame{Device: uint8(remoteinput.DeviceKeyboard), Kind: uint8(remoteinput.KindKey),
@@ -118,7 +127,7 @@ func TestMachineFocusFenceKeepsHeldMachineKeys(t *testing.T) {
 	// J is still held, so pressing K must post both, not K alone.
 	onlyK := NewKeyboardSink()
 	var kMatrix uint64
-	onlyK.SetPoster(func(_ context.Context, value uint64) error { kMatrix = value; return nil })
+	onlyK.SetPoster(func(_ context.Context, _ localhid.MatrixPost, value uint64) error { kMatrix = value; return nil })
 	k := frame
 	k.Code = uint16(zx81keys.Letter('K'))
 	if err := onlyK.ApplyFrom(context.Background(), sourceLocal, k); err != nil {
@@ -137,7 +146,7 @@ func TestMachineFocusFenceKeepsHeldMachineKeys(t *testing.T) {
 func TestSourceDisconnectRetiresOnlyItsSuppressedKeys(t *testing.T) {
 	keys := NewKeyboardSink()
 	posts := 0
-	keys.SetPoster(func(context.Context, uint64) error { posts++; return nil })
+	keys.SetPoster(func(context.Context, localhid.MatrixPost, uint64) error { posts++; return nil })
 	frame := protocol.InputFrame{Device: uint8(remoteinput.DeviceKeyboard), Kind: uint8(remoteinput.KindKey), Action: uint8(remoteinput.ActionPress), Code: uint16(zx81keys.Letter('J'))}
 	keys.setDisplayFocus(true)
 	_ = keys.ApplyFrom(context.Background(), sourceLocal, frame)

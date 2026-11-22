@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -37,13 +38,31 @@ var ErrUnavailable = errors.New("local input socket is not listening")
 // Feed is one connection to mister-agent's kit-local input socket.
 // Closing it releases only that local source.
 type Feed struct {
-	mu       sync.Mutex
-	path     string
-	conn     net.Conn
-	seq      uint32
-	nextDial time.Time
-	dial     func(network, address string, timeout time.Duration) (net.Conn, error)
-	binding  *Binding
+	mu           sync.Mutex
+	path         string
+	conn         net.Conn
+	seq          uint32
+	nextDial     time.Time
+	dial         func(network, address string, timeout time.Duration) (net.Conn, error)
+	binding      *Binding
+	v2           *V2Transport
+	v2Used       bool
+	v2Reserved   bool
+	keyboardUsed bool
+	legacyUsed   bool
+	recovering   bool
+	padUnion     padContributorUnion
+}
+
+// V2Handle identifies one connection, including after it has closed. Its
+// unexported pointer prevents a later connection from inheriting its proof.
+type V2Handle struct{ transport *V2Transport }
+
+func (h V2Handle) Done() <-chan struct{} {
+	if h.transport == nil {
+		return nil
+	}
+	return h.transport.Done()
 }
 
 // Binding names the exact execution lease and HID core receiving physical
@@ -80,6 +99,23 @@ func New(path string, dial func(string, string, time.Duration) (net.Conn, error)
 	return &Feed{path: path, dial: dial}
 }
 
+// ReserveV2 fences a pristine Feed before native input polling begins. It
+// performs no I/O and allows no raw input until correlated recovery on the
+// eventual connection succeeds. A failed reservation never changes ownership.
+func (f *Feed) ReserveV2() error {
+	if f == nil || f.path == "" {
+		return ErrUnavailable
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.conn != nil || f.v2 != nil || f.v2Used || f.keyboardUsed || f.legacyUsed || f.binding != nil || f.recovering {
+		return ErrUnavailable
+	}
+	f.v2Used = true
+	f.v2Reserved = true
+	return nil
+}
+
 // Close releases the current connection. A later Send dials again.
 func (f *Feed) Close() {
 	if f == nil {
@@ -108,12 +144,141 @@ func (f *Feed) CloseBound(binding Binding) {
 }
 
 func (f *Feed) closeLocked() {
+	f.padUnion = padContributorUnion{}
+	if f.v2 != nil {
+		_ = f.v2.Close()
+		f.v2 = nil
+	}
+	f.recovering = false
 	if f.conn == nil {
 		return
 	}
 	_ = f.conn.Close()
 	f.conn = nil
 	f.binding = nil
+}
+
+// RecoverV2 obtains a correlated reader recovery reply on a fresh connection.
+// The connection remains recovery-only until its owner validates the reply and
+// explicitly promotes this same transport. This operation is not enabled by
+// itself and does not grant keyboard input or a physical snapshot.
+func (f *Feed) RecoverV2(ctx context.Context, previousAgent, targetID, bootID string, timeout time.Duration) (localhid.Reply, V2Handle, error) {
+	if f == nil || f.path == "" || ctx == nil || timeout <= 0 {
+		return localhid.Reply{}, V2Handle{}, ErrUnavailable
+	}
+	f.mu.Lock()
+	if err := ctx.Err(); err != nil {
+		f.mu.Unlock()
+		return localhid.Reply{}, V2Handle{}, err
+	}
+	if !f.v2Reserved || f.legacyUsed || f.keyboardUsed || f.conn != nil || f.v2 != nil || f.recovering || f.binding != nil {
+		f.mu.Unlock()
+		return localhid.Reply{}, V2Handle{}, ErrUnavailable
+	}
+	conn, err := f.dialTimeout()
+	if err != nil {
+		f.mu.Unlock()
+		return localhid.Reply{}, V2Handle{}, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	if err = ctx.Err(); err != nil {
+		_ = conn.Close()
+		f.mu.Unlock()
+		return localhid.Reply{}, V2Handle{}, err
+	}
+	t, err := NewV2RecoveryTransport(conn, timeout)
+	if err != nil {
+		_ = conn.Close()
+		f.mu.Unlock()
+		return localhid.Reply{}, V2Handle{}, err
+	}
+	f.conn, f.v2, f.v2Used, f.recovering = conn, t, true, true
+	f.mu.Unlock()
+	reply, err := t.Request(ctx, localhid.Request{Op: "recover", AgentInstance: previousAgent, TargetID: targetID, BootID: bootID})
+	if err != nil {
+		f.mu.Lock()
+		if f.v2 == t {
+			f.closeLocked()
+		}
+		f.mu.Unlock()
+		return localhid.Reply{}, V2Handle{}, err
+	}
+	return reply, V2Handle{transport: t}, nil
+}
+
+// PromoteRecovered preserves the exact connection that produced the ACK.
+// The caller must first validate the receiver's source-cleanup guarantee;
+// guest keyboard still needs a fresh physical snapshot and BEGIN/ACK.
+func (f *Feed) PromoteRecovered(handle V2Handle, reply localhid.Reply) error {
+	return f.promoteRecovered(handle, reply, 0, nil)
+}
+
+// PromoteRecoveredPad binds mapped-key contributors to a non-reused App pad
+// epoch while promoting the exact recovered connection, in one nonblocking
+// transaction. The caller holds and validates App authority during the call.
+func (f *Feed) PromoteRecoveredPad(handle V2Handle, reply localhid.Reply, padEpoch uint64, fence *PadWriteFence) error {
+	if padEpoch == 0 || fence.Revoked() {
+		return ErrUnavailable
+	}
+	return f.promoteRecovered(handle, reply, padEpoch, fence)
+}
+
+func (f *Feed) promoteRecovered(handle V2Handle, reply localhid.Reply, padEpoch uint64, fence *PadWriteFence) error {
+	if f == nil {
+		return ErrUnavailable
+	}
+	// The App holds its authority lock while promoting. Never wait for a
+	// concurrent feed write or transport shutdown while holding that lock.
+	if !f.mu.TryLock() {
+		return ErrUnavailable
+	}
+	defer f.mu.Unlock()
+	if !f.recovering || f.v2 == nil || f.v2 != handle.transport {
+		return ErrUnavailable
+	}
+	if padEpoch != 0 && fence.Revoked() {
+		return ErrUnavailable
+	}
+	if err := f.v2.PromoteRecovered(reply); err != nil {
+		return err
+	}
+	if padEpoch != 0 && fence.Revoked() {
+		return ErrUnavailable
+	}
+	f.padUnion.epoch = padEpoch
+	f.padUnion.fence = fence
+	f.recovering = false
+	return nil
+}
+
+// CloseV2 closes only the exact connection a caller owns; a stale callback
+// cannot tear down a newer recovery or source.
+func (f *Feed) CloseV2(handle V2Handle) {
+	if f == nil || handle.transport == nil {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.v2 == handle.transport {
+		f.closeLocked()
+	}
+}
+
+// RequestV2 sends one correlated request on the active v2 transport. It does
+// not hold the Feed lock while waiting, so pad and mouse writes can proceed.
+func (f *Feed) RequestV2(ctx context.Context, handle V2Handle, req localhid.Request) (localhid.Reply, error) {
+	if f == nil || ctx == nil {
+		return localhid.Reply{}, ErrUnavailable
+	}
+	f.mu.Lock()
+	t := f.v2
+	if f.recovering || t != handle.transport {
+		t = nil
+	}
+	f.mu.Unlock()
+	if t == nil {
+		return localhid.Reply{}, ErrUnavailable
+	}
+	return t.Request(ctx, req)
 }
 
 // Send writes one raw event. A down socket is not dialed again until Retry
@@ -140,8 +305,33 @@ func (f *Feed) send(ctx context.Context, e remoteinput.Event, now time.Time, bin
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if binding == nil && f.v2Used && f.v2 != nil && !f.recovering && e.Device == remoteinput.DeviceGamepad && e.Kind == remoteinput.KindButton {
+		return f.sendPhysicalPadLocked(ctx, e, now)
+	}
+	if binding == nil && f.v2Used && f.v2 != nil && !f.recovering && e.Device == remoteinput.DeviceGamepad && e.Kind == remoteinput.KindAxis && e.Player < 2 && ctx.Err() == nil {
+		f.padUnion.departure[e.Player] = false
+		if err := f.sendLocked(ctx, e, now, nil); err != nil {
+			f.closeLocked()
+			return err
+		}
+		return nil
+	}
+	return f.sendLocked(ctx, e, now, binding)
+}
+
+func (f *Feed) sendLocked(ctx context.Context, e remoteinput.Event, now time.Time, binding *Binding) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	keyboard := binding != nil || e.Device == remoteinput.DeviceKeyboard || e.Kind == remoteinput.KindKey
+	if f.v2Used && (keyboard || f.v2 == nil || f.recovering) {
+		return ErrUnavailable
+	}
+	if !f.v2Used {
+		f.legacyUsed = true
+	}
+	if keyboard {
+		f.keyboardUsed = true
 	}
 	if now.IsZero() {
 		now = time.Now()
@@ -167,6 +357,22 @@ func (f *Feed) send(ctx context.Context, e remoteinput.Event, now time.Time, bin
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if f.v2 != nil {
+		if !f.padConnectionValidLocked() {
+			return f.failRevokedPadLocked()
+		}
+		if err := f.v2.WriteRaw(ctx, wire); err != nil {
+			// Do not replay this ambiguous frame or silently reconnect. The
+			// receiver may still be draining the old source.
+			f.closeLocked()
+			f.nextDial = now.Add(Retry)
+			return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		}
+		if !f.padConnectionValidLocked() {
+			return f.failRevokedPadLocked()
+		}
+		return nil
 	}
 	if binding == nil && f.binding != nil && (e.Device == remoteinput.DeviceKeyboard || e.Kind == remoteinput.KindKey) {
 		// A newer unbound keyboard mode must retire the old generation before

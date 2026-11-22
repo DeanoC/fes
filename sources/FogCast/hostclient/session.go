@@ -134,6 +134,8 @@ type SessionResult struct {
 	Development             bool
 	DevelopmentSessionState string
 	CorePackage             *SessionCorePackage
+	RuntimeInput            *protocol.RuntimeInputIdentity
+	InputAgentInstance      string
 	CoreKeyboard            bool
 	// CoreKeyboardHID is set for fes.computer packages with fes.keyboard.hid 1.0.
 	CoreKeyboardHID bool
@@ -225,24 +227,26 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 		return result, fmt.Errorf("empty body")
 	}
 	var wire struct {
-		ID                      string              `json:"id"`
-		Target                  string              `json:"target"`
-		TargetID                string              `json:"target_id"`
-		State                   string              `json:"state"`
-		GameID                  *string             `json:"game_id"`
-		System                  *string             `json:"system"`
-		Execution               string              `json:"execution"`
-		Media                   string              `json:"media"`
-		MediaName               string              `json:"media_name"`
-		MediaEjected            bool                `json:"media_ejected"`
-		Progress                *SessionProgress    `json:"progress"`
-		Input                   *SessionInput       `json:"input"`
-		FlightID                string              `json:"flight_id"`
-		Development             *bool               `json:"development"`
-		DevelopmentActive       *bool               `json:"development_active"`
-		DevelopmentSessionState string              `json:"development_session_state"`
-		CorePackage             *SessionCorePackage `json:"core_package"`
-		HPSFramebuffer          *bool               `json:"hps_framebuffer"`
+		ID                      string                         `json:"id"`
+		Target                  string                         `json:"target"`
+		TargetID                string                         `json:"target_id"`
+		State                   string                         `json:"state"`
+		GameID                  *string                        `json:"game_id"`
+		System                  *string                        `json:"system"`
+		Execution               string                         `json:"execution"`
+		Media                   string                         `json:"media"`
+		MediaName               string                         `json:"media_name"`
+		MediaEjected            bool                           `json:"media_ejected"`
+		Progress                *SessionProgress               `json:"progress"`
+		Input                   *SessionInput                  `json:"input"`
+		FlightID                string                         `json:"flight_id"`
+		Development             *bool                          `json:"development"`
+		DevelopmentActive       *bool                          `json:"development_active"`
+		DevelopmentSessionState string                         `json:"development_session_state"`
+		CorePackage             *SessionCorePackage            `json:"core_package"`
+		RuntimeInput            *protocol.RuntimeInputIdentity `json:"runtime_input"`
+		InputAgentInstance      string                         `json:"input_agent_instance"`
+		HPSFramebuffer          *bool                          `json:"hps_framebuffer"`
 		Error                   *struct {
 			Code      string `json:"code"`
 			Message   string `json:"message"`
@@ -281,6 +285,20 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 		result.Development = *wire.Development
 	default:
 		result.Development = result.Execution == "fpga_development"
+	}
+	if wire.InputAgentInstance != "" && !protocol.ValidInputAgentInstance(wire.InputAgentInstance) {
+		return SessionResult{}, errors.New("invalid input agent instance")
+	}
+	result.InputAgentInstance = wire.InputAgentInstance
+	if wire.RuntimeInput != nil {
+		identity := *wire.RuntimeInput
+		coherent := result.State == "active" &&
+			((identity.Kind == protocol.RuntimeInputDescribed && wire.CorePackage != nil && wire.CorePackage.PackageID == identity.PackageID && wire.CorePackage.Generation == identity.Generation) ||
+				(identity.Kind == protocol.RuntimeInputDevelopment && result.Development && wire.CorePackage == nil))
+		if !coherent {
+			return result, fmt.Errorf("session runtime input identity does not match session")
+		}
+		result.RuntimeInput = &identity
 	}
 	if wire.CorePackage != nil {
 		computer := protocol.ComputerABI(wire.CorePackage.ABI.ID, int64(wire.CorePackage.ABI.Major), int64(wire.CorePackage.ABI.Minor))

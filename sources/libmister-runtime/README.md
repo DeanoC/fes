@@ -322,6 +322,9 @@ Raw RBF loading is an explicit, idle-only hardware diagnostic using
 `development-contained-v1`; it does not infer a game, ABI, media, or persistence.
 Startup loads the selected sealed MENU first; without a selection, DE10 loads
 the sealed splash through the contained programming profile and ADV7513 path.
+Each runtime authority reports a fresh instance identity; matrix and HID
+keyboard requests must carry that identity and their original package and
+generation. The agent and runtime therefore ship together in a matching bundle.
 If selected MENU startup fails, DE10 can fall back to splash idle. DE25 refuses
 the Cyclone V splash, so a failed MENU still requires recovery. Stop restores
 the selected MENU; bounded failure recovery uses the board's idle recipe.

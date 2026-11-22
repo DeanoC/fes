@@ -37,7 +37,7 @@ func TestDelegatedLocalInputPinsLeaseAndCore(t *testing.T) {
 	packageID := strings.Repeat("c", 64)
 	current := uint64(3)
 	writes := 0
-	c, _ := newLocalHIDFeed(t, func(context.Context, string, uint64, hidkeys.Rows) error { writes++; return nil },
+	c, _ := newLocalHIDFeed(t, func(context.Context, string, string, uint64, hidkeys.Rows) error { writes++; return nil },
 		func(context.Context) (CoreObservation, error) {
 			return CoreObservation{Active: true, KeyboardHID: &KeyboardHIDBinding{PackageID: packageID, Generation: current}}, nil
 		})
@@ -114,7 +114,7 @@ func TestDelegatedWriteDrainsBeforeLeaseReplacement(t *testing.T) {
 	}
 	packageID := strings.Repeat("c", 64)
 	started, allow := make(chan struct{}), make(chan struct{})
-	c, _ := newLocalHIDFeed(t, func(context.Context, string, uint64, hidkeys.Rows) error { close(started); <-allow; return nil },
+	c, _ := newLocalHIDFeed(t, func(context.Context, string, string, uint64, hidkeys.Rows) error { close(started); <-allow; return nil },
 		func(context.Context) (CoreObservation, error) {
 			return CoreObservation{Active: true, KeyboardHID: &KeyboardHIDBinding{PackageID: packageID, Generation: 3}}, nil
 		})
@@ -169,7 +169,7 @@ func (c *silentLocalConn) SetWriteDeadline(time.Time) error  { return nil }
 func TestSilentLocalClientCannotMonopolizeFeed(t *testing.T) {
 	c := newTargetControllerWithSink("127.0.0.1:0", nil)
 	done := make(chan struct{})
-	go func() { c.readLocal(context.Background(), &silentLocalConn{}); close(done) }()
+	go func() { c.readLocal(context.Background(), &silentLocalConn{}, false); close(done) }()
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
@@ -192,7 +192,7 @@ func TestDelegatedDisconnectRetriesNeutralAndPreservesRemoteHold(t *testing.T) {
 	var mu sync.Mutex
 	var posts []hidkeys.Rows
 	var failed int
-	c, _ := newLocalHIDFeed(t, func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error {
+	c, _ := newLocalHIDFeed(t, func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
 		mu.Lock()
 		defer mu.Unlock()
 		posts = append(posts, rows)
@@ -251,7 +251,7 @@ func TestDelegatedNeutralRetryStopsForLeaseRevocation(t *testing.T) {
 	pkg := strings.Repeat("c", 64)
 	var fail atomic.Bool
 	failed := make(chan struct{}, 1)
-	c, _ := newLocalHIDFeed(t, func(context.Context, string, uint64, hidkeys.Rows) error {
+	c, _ := newLocalHIDFeed(t, func(context.Context, string, string, uint64, hidkeys.Rows) error {
 		if fail.Load() {
 			select {
 			case failed <- struct{}{}:
@@ -312,7 +312,7 @@ func TestDelegatedNeutralRetryStopsAtObservedCoreReplacement(t *testing.T) {
 	var fail atomic.Bool
 	var writes atomic.Int32
 	failed := make(chan struct{}, 1)
-	c, _ := newLocalHIDFeed(t, func(context.Context, string, uint64, hidkeys.Rows) error {
+	c, _ := newLocalHIDFeed(t, func(context.Context, string, string, uint64, hidkeys.Rows) error {
 		writes.Add(1)
 		if fail.Load() {
 			select {
@@ -364,7 +364,7 @@ func TestOwnerGrantSurvivesRemoteDetachAndEndsAtCoreReplacement(t *testing.T) {
 	}
 	pkg := strings.Repeat("c", 64)
 	var writes []hidkeys.Rows
-	c, _ := newLocalHIDFeed(t, func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error {
+	c, _ := newLocalHIDFeed(t, func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
 		writes = append(writes, rows)
 		return nil
 	}, func(context.Context) (CoreObservation, error) {

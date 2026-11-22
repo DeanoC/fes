@@ -3572,17 +3572,21 @@ socket. Import, staging, adoption and runtime status checks retain exact
 shell and cart version binding; tuple identity domains are unchanged.
 
 `internal/misterruntime/computer.go` is the protocol-2 client for the other
-`fes.computer` operations. Each request is bound to the exact active package
-generation and each reply must report that same `fes.computer` generation:
+`fes.computer` operations. Keyboard requests carry the exact runtime instance,
+active package and generation observed at input admission; replies must report
+the same binding. Other operations retain their specified package and generation
+bindings:
 
 ```json
-{"protocol":2,"operation":"set_keyboard_hid","package_id":"…","expected_generation":N,"rows":[r0,r1,r2,r3,r4,r5,r6,r7,r8]}
+{"protocol":2,"operation":"set_keyboard_hid","runtime_instance":"…","package_id":"…","expected_generation":N,"rows":[r0,r1,r2,r3,r4,r5,r6,r7,r8]}
 {"protocol":2,"operation":"insert_media","path":"…/media.bin","expected_package_id":"…","expected_generation":N,"unit":0,"size":143360}
 {"protocol":2,"operation":"eject_media","expected_package_id":"…","expected_generation":N,"unit":0}
 ```
 
 Rows are nine 16-bit values; row 0 bits 0..3 and row 8 bits 8..15 must be
 zero. `set_controller` is unchanged and carries `keypad:0` for these packages.
+Status and keyboard writes use the matching runtime and agent bundle contract;
+an older runtime without the instance field cannot be mixed with this agent.
 Status may report `capabilities.media_units`
 (`[{"unit":0,"interface":{"id":"fes.media.apple2-floppy","major":1,"minor":0},"min_bytes":143360,"max_bytes":143360,"chunk_bytes":512,"state":"empty|loading|ready"}]`);
 the decoder accepts it only for an active `fes.computer` generation whose
@@ -3775,6 +3779,12 @@ shapes them with `playhid.StreamEvent` from the runtime's controller-port and ke
 capabilities, then applies the same keypad Start/Select aliases as the host stream.
 HID sessions keep the usages; `fes.keyboard` and native cores first map a usage to the
 ZX81 matrix or arrow code the kit sent before HID, so those cores see the same keys.
+The acknowledged local-keyboard recovery path is currently default-off. The
+target's explicit diagnostic selection `FOGCAST_LOCAL_KEYBOARD_V2=1` arms its
+recovery fence before serving input; it requires a matching launcher selection
+and a fresh physical snapshot. This target switch alone does not make the
+launcher path ready. An unset value or `0` retains the existing path, and an
+invalid value fails agent startup.
 The feed is not an HTTP route. For kit-host HID keyboard events, each frame
 has a record carrying the observed lease generation, exact HID package/core
 generation and launcher queue epoch. The target agent accepts records only on its root-only socket and admits each edge

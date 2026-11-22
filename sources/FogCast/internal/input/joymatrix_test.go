@@ -3,6 +3,7 @@ package input
 import (
 	"context"
 	"errors"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"testing"
 
 	"github.com/DeanoC/FogCast/internal/zx81keys"
@@ -12,7 +13,7 @@ import (
 func TestLocalJoystickMatrixAndSourceMerge(t *testing.T) {
 	keys := NewKeyboardSink()
 	var matrix uint64
-	keys.SetPoster(func(_ context.Context, value uint64) error { matrix = value; return nil })
+	keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, value uint64) error { matrix = value; return nil })
 	virtual := &recordingSink{}
 	sink := &controllerPortsSink{keys: keys, pads: newPadMerge(virtual)}
 	sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms"})
@@ -98,7 +99,7 @@ func TestAmbiguousMatrixPressFailureReleasesOnNextFrame(t *testing.T) {
 	var posts []uint64
 	runtime := zx81keys.Neutral
 	fail := true
-	keys.SetPoster(func(_ context.Context, value uint64) error {
+	keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, value uint64) error {
 		// A timed-out set_keyboard may already hold this matrix.
 		runtime = value
 		posts = append(posts, value)
@@ -131,7 +132,7 @@ func TestLocalJoystickMatrixAxisAndOtherCores(t *testing.T) {
 	for _, core := range []string{"fes.coleco", "fes.sg1000"} {
 		keys := NewKeyboardSink()
 		var matrix uint64
-		keys.SetPoster(func(_ context.Context, value uint64) error { matrix = value; return nil })
+		keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, value uint64) error { matrix = value; return nil })
 		sink := &controllerPortsSink{keys: keys}
 		sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: core})
 		for _, value := range []int32{8000, 8001} {
@@ -162,7 +163,7 @@ func TestLocalJoystickMatrixAxisAndOtherCores(t *testing.T) {
 	}
 	keys := NewKeyboardSink()
 	var keyboardPosts, portPosts int
-	keys.SetPoster(func(context.Context, uint64) error { keyboardPosts++; return nil })
+	keys.SetPoster(func(context.Context, localhid.MatrixPost, uint64) error { keyboardPosts++; return nil })
 	sink := &controllerPortsSink{keys: keys, poster: func(context.Context, string, uint64, uint8, uint8, uint16) error { portPosts++; return nil }}
 	if err := sink.bind(&ControllerBinding{PackageID: "package", Generation: 1}); err != nil {
 		t.Fatal(err)
@@ -179,7 +180,7 @@ func TestLocalJoystickMatrixAxisAndOtherCores(t *testing.T) {
 func TestLocalJoystickMatrixReleasesOnCoreChange(t *testing.T) {
 	keys := NewKeyboardSink()
 	var matrix uint64
-	keys.SetPoster(func(_ context.Context, value uint64) error { matrix = value; return nil })
+	keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, value uint64) error { matrix = value; return nil })
 	sink := &controllerPortsSink{keys: keys}
 	sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms"})
 	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {

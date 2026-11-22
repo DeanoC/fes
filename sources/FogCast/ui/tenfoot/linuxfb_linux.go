@@ -4,7 +4,9 @@ package tenfoot
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -18,6 +20,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/hidkeys"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/controller"
@@ -49,7 +52,7 @@ func runFramebuffer(ctx context.Context, opts Options) error {
 
 // runDirectDisplay is the app, evdev, smoke, and present loop shared by
 // linuxfb and menu-display. linuxfb still restores the mapped bytes itself.
-func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, label string) error {
+func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, label string) (resultErr error) {
 	opts = sizedOptions(opts, dev)
 	app, err := configuredApp(opts)
 	if err != nil {
@@ -79,7 +82,12 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, labe
 		app.Stop()
 		return err
 	}
-	defer inputs.close()
+	service, err := configureNativeKeyboardService(app, inputs, nativeKeyboardInputEnabled(opts))
+	if err != nil {
+		inputs.close()
+		app.Stop()
+		return err
+	}
 	inputs.seed(app)
 	if opts.Smoke {
 		var cancel context.CancelFunc
@@ -87,7 +95,32 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, labe
 		defer cancel()
 	}
 	app.Start(ctx)
-	defer app.Stop()
+	if service != nil {
+		service.start()
+	}
+	defer func() {
+		// The display context is commonly already canceled here. A future
+		// v2 worker must own a distinct lifetime that survives until Stop.
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if service != nil {
+			app.nativeKeyboardBeginShutdown()
+		}
+		var workerErr error
+		stop := func() {
+			if service != nil {
+				workerCtx, workerCancel := context.WithTimeout(context.Background(), 2*time.Second)
+				workerErr = service.stop(workerCtx)
+				workerCancel()
+			}
+			app.Stop()
+		}
+		err := shutdownNativeInputSequence(shutdownCtx, inputs.localKeyboardGate != nil, inputs.retireNativeKeyboards, app.nativeKeyboardAwaitRetirement, stop, inputs.close)
+		err = errors.Join(err, workerErr)
+		if err != nil {
+			resultErr = errors.Join(resultErr, err)
+		}
+	}()
 	return framebufferLoop(ctx, opts, app, dev, inputs.poll, label)
 }
 
@@ -214,7 +247,11 @@ type nativeInput struct {
 	// the last.
 	padSent  map[Button]padKey
 	keysHeld map[uint16]string
-	mapper   *controller.Mapper
+	// localKeyboardUI is used only by the opt-in delegated native keyboard
+	// boundary. Ordinary input keeps its existing handling.
+	localKeyboardUI *nativeKeyboardUIState
+	localKeyboardID localhid.DeviceID
+	mapper          *controller.Mapper
 	// remap is the profile saved for this pad, applied after mapper.
 	remap *inputmap.Remapper
 	// device is the pad's evdev identity, and mapping the step-by-step
@@ -253,6 +290,79 @@ type nativeInputs struct {
 	// padID stands in for EVIOCGID where kindOf does: it gives a test pad's
 	// vendor and product. Nil reads every test pad as 0000:0000.
 	padID func(fd int) (vendor, product uint16)
+	// Nil in production until a reviewed authority/snapshot integration
+	// explicitly installs the gate. A keyboard never falls back if installed.
+	localKeyboardGate  *nativeKeyboardGate
+	localKeyboardNewID func() (localhid.DeviceID, error)
+}
+
+// installNativeKeyboardGate is intentionally not called by production yet.
+// Its future caller must first latch App v2 quarantine and prove any previous
+// guest source retired. It fences event dispatch, then adopts every already-
+// open keyboard; partial failure leaves the gate installed so no descriptor
+// can fall back to legacy input.
+func (ins *nativeInputs) installNativeKeyboardGate(g *nativeKeyboardGate) error {
+	if g == nil || ins.localKeyboardGate != nil {
+		return errors.New("native keyboard gate already installed or invalid")
+	}
+	ins.localKeyboardGate = g
+	for _, in := range ins.devices {
+		if in != nil && in.kind == InputKeyboard {
+			if err := ins.adoptNativeKeyboard(in); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (ins *nativeInputs) adoptNativeKeyboard(in *nativeInput) error {
+	if ins.localKeyboardGate == nil || in == nil || in.kind != InputKeyboard {
+		return errors.New("invalid native keyboard gate adoption")
+	}
+	// Legacy repeat ownership has no per-device identity. Do not discard a
+	// previously held keyboard command and leave its aggregate repeat alive;
+	// activation must occur before dispatch or after proven legacy retirement.
+	heldShift := false
+	for _, down := range in.shifts {
+		heldShift = heldShift || down
+	}
+	if len(in.keysHeld) != 0 || len(in.commands) != 0 || heldShift {
+		ins.localKeyboardGate.fault(nativeFaultAuthority)
+		return errors.New("legacy keyboard holds require retirement")
+	}
+	newID := ins.localKeyboardNewID
+	if newID == nil {
+		newID = func() (localhid.DeviceID, error) {
+			var id localhid.DeviceID
+			_, err := rand.Read(id[:])
+			return id, err
+		}
+	}
+	id, err := newID()
+	if err != nil || id == (localhid.DeviceID{}) {
+		ins.localKeyboardGate.fault(nativeFaultAuthority)
+		return errors.New("native keyboard incarnation unavailable")
+	}
+	if err = ins.localKeyboardGate.add(id, in); err != nil {
+		return err
+	}
+	in.localKeyboardID = id
+	return nil
+}
+
+// gatedKeyboardRecord owns all keyboard records while a gate is installed.
+// The bool means handled; errors must never fall back to the legacy path.
+func (ins *nativeInputs) gatedKeyboardRecord(in *nativeInput, typ, code uint16, value int32, now time.Time) (bool, bool, error) {
+	if ins.localKeyboardGate == nil || in.kind != InputKeyboard {
+		return false, false, nil
+	}
+	if in.localKeyboardID == (localhid.DeviceID{}) {
+		ins.localKeyboardGate.fault(nativeFaultAuthority)
+		return true, false, errors.New("native keyboard is not registered")
+	}
+	_, quit, err := ins.localKeyboardGate.dispatch(in.localKeyboardID, typ, code, value, now)
+	return true, quit, err
 }
 
 // padProfileFunc reads the profile saved for a pad's GUID: the zero
@@ -326,6 +436,12 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 		return nil
 	}
 	in := &nativeInput{fd: fd, path: path, kind: kind, player: noLocalPlayer}
+	if ins.localKeyboardGate != nil && kind == InputKeyboard {
+		if err := ins.adoptNativeKeyboard(in); err != nil {
+			unix.Close(fd)
+			return fmt.Errorf("%s input: %w", ins.label, err)
+		}
+	}
 	if kind == InputMouse {
 		in.mapper = controller.NewMouseMapper()
 	}
@@ -588,9 +704,77 @@ func (ins *nativeInputs) close() {
 		unix.Close(in.fd)
 	}
 }
+
+// retireNativeKeyboards fences every source before the App/worker is stopped.
+// It does not infer that a guest release or neutral operation has completed.
+func (ins *nativeInputs) retireNativeKeyboards() error {
+	if ins.localKeyboardGate == nil {
+		return nil
+	}
+	var result error
+	for _, in := range ins.devices {
+		if in.kind != InputKeyboard {
+			continue
+		}
+		if in.localKeyboardID == (localhid.DeviceID{}) {
+			result = errors.Join(result, errors.New("unregistered native keyboard at shutdown"))
+			continue
+		}
+		if err := ins.localKeyboardGate.retire(in.localKeyboardID); err != nil {
+			result = errors.Join(result, err)
+		}
+		in.localKeyboardID = localhid.DeviceID{}
+	}
+	return result
+}
+
+// await may return nil only after the exact source has confirmed neutral or
+// retired; it must honor ctx. The sequence closes/stops even on failure, but
+// never interprets timeout, missing worker or a close as proof of neutral.
+func shutdownNativeInputSequence(ctx context.Context, gated bool, retire func() error, await func(context.Context) error, stop, closeInputs func()) error {
+	var result error
+	if gated {
+		if retire == nil {
+			result = errors.New("native retirement unavailable")
+		} else {
+			result = retire()
+		}
+		if await == nil {
+			result = errors.Join(result, errors.New("native neutral confirmation unavailable"))
+		} else {
+			result = errors.Join(result, await(ctx))
+			if err := ctx.Err(); err != nil {
+				result = errors.Join(result, err)
+			}
+		}
+	}
+	stop()
+	closeInputs()
+	return result
+}
 func (ins *nativeInputs) poll(app *App, now time.Time) (bool, error) {
 	ins.maybeRescan(app, now)
 	ins.syncProfiles(app)
+	if ins.localKeyboardGate != nil {
+		// Snapshot queries touch only fds already owned by this poll loop.
+		// The App permit is false until a future reviewed activation grants it.
+		ins.localKeyboardGate.snapshotUI(
+			func(fd int) ([]byte, error) { return nativeKeyboardBitmap(fd, false, nativeKeyboardBitmapIOCTL) },
+			func(fd int) ([]byte, error) { return nativeKeyboardBitmap(fd, true, nativeKeyboardBitmapIOCTL) },
+			func(in *nativeInput, held []uint16) {
+				reconcileNativeKeyboardUI(in, ins.devices, held, true, func(Command) {})
+			},
+			func(in *nativeInput) { reconcileNativeKeyboardUI(in, ins.devices, nil, false, func(Command) {}) },
+		)
+		_, _ = ins.localKeyboardGate.snapshot(
+			func(fd int) ([]byte, error) { return nativeKeyboardBitmap(fd, false, nativeKeyboardBitmapIOCTL) },
+			func(fd int) ([]byte, error) { return nativeKeyboardBitmap(fd, true, nativeKeyboardBitmapIOCTL) },
+			func(in *nativeInput, held []uint16) {
+				reconcileNativeKeyboardUI(in, ins.devices, held, true, func(Command) {})
+			},
+			func(in *nativeInput) { reconcileNativeKeyboardUI(in, ins.devices, nil, false, func(Command) {}) },
+		)
+	}
 devices:
 	for _, in := range append([]*nativeInput(nil), ins.devices...) {
 		if in.info.GUID != "" {
@@ -601,6 +785,9 @@ devices:
 			var b [nativeEventSize * 32]byte
 			n, err := unix.Read(in.fd, b[:])
 			if err == unix.EAGAIN || err == unix.EWOULDBLOCK {
+				if ins.localKeyboardGate != nil && in.kind == InputKeyboard && in.localKeyboardID != (localhid.DeviceID{}) && len(in.pending) == 0 {
+					_ = ins.localKeyboardGate.afterReadEAGAIN(in.localKeyboardID)
+				}
 				break
 			}
 			if err != nil {
@@ -621,6 +808,16 @@ devices:
 			for len(in.pending) >= nativeEventSize {
 				typ, code, value := decodeNativeEvent(in.pending[:nativeEventSize])
 				in.pending = in.pending[nativeEventSize:]
+				if handled, quit, _ := ins.gatedKeyboardRecord(in, typ, code, value, now); handled {
+					if quit {
+						return true, nil
+					}
+					continue
+				}
+				if ins.localKeyboardGate != nil && in.kind == InputNone && typ == 1 && code < 256 {
+					ins.localKeyboardGate.fault(nativeFaultCapability)
+					continue
+				}
 				if typ == 0 && code == 3 {
 					if ins.automatic {
 						ins.drop(app, in)
@@ -1415,6 +1612,10 @@ func (ins *nativeInputs) seed(app *App) {
 	app.FinishInputSeed()
 }
 func (ins *nativeInputs) drop(app *App, lost *nativeInput) {
+	gatedKeyboard := ins.localKeyboardGate != nil && lost.kind == InputKeyboard
+	if gatedKeyboard && lost.localKeyboardID != (localhid.DeviceID{}) {
+		_ = ins.localKeyboardGate.retire(lost.localKeyboardID)
+	}
 	if lost.kind == InputMouse {
 		app.ReleasePlayMouse(lost.fd)
 	}
@@ -1439,10 +1640,12 @@ func (ins *nativeInputs) drop(app *App, lost *nativeInput) {
 			delete(ins.held, cmd)
 		}
 	}
-	for _, cmd := range lost.commands {
-		app.Release(cmd)
+	if !gatedKeyboard {
+		for _, cmd := range lost.commands {
+			app.Release(cmd)
+		}
+		ins.releaseLostPlayInput(app, lost)
 	}
-	ins.releaseLostPlayInput(app, lost)
 	app.DetachInput(InputKeyboard, lost.fd)
 	app.DetachInput(InputGamepad, lost.fd)
 	ins.publishPads(app)

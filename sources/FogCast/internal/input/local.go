@@ -17,6 +17,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/bridge"
 	"github.com/DeanoC/FogCast/internal/hidkeys"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -31,6 +32,7 @@ var errNoCore = errors.New("runtime core is not bound")
 // Each bound record identifies the exact lease, core and launcher queue
 // lifetime for one physical HID keyboard event or a keyboard-only reset.
 type localDelegation struct {
+	RuntimeInstance string `json:"-"`
 	Operation       string `json:"operation"`
 	LeaseGeneration string `json:"lease_generation"`
 	PackageID       string `json:"package_id"`
@@ -100,12 +102,12 @@ func delegatedKeyboardFrame(frame protocol.InputFrame) bool {
 }
 
 func sameLocalDelegation(a, b localDelegation) bool {
-	return a.LeaseGeneration == b.LeaseGeneration && a.PackageID == b.PackageID &&
+	return a.LeaseGeneration == b.LeaseGeneration && a.RuntimeInstance == b.RuntimeInstance && a.PackageID == b.PackageID &&
 		a.CoreGeneration == b.CoreGeneration && a.Epoch == b.Epoch
 }
 
 func olderLocalDelegation(a, b localDelegation) bool {
-	return a.LeaseGeneration == b.LeaseGeneration && a.PackageID == b.PackageID &&
+	return a.LeaseGeneration == b.LeaseGeneration && a.RuntimeInstance == b.RuntimeInstance && a.PackageID == b.PackageID &&
 		a.CoreGeneration == b.CoreGeneration && b.Epoch < a.Epoch
 }
 
@@ -175,11 +177,22 @@ func (c *TargetController) ServeLocalInput(ctx context.Context, path string) err
 	if ctx == nil {
 		return errors.New("local input context is required")
 	}
+	c.localMu.Lock()
+	if c.localClosed || c.localStarting || c.localLn != nil {
+		c.localMu.Unlock()
+		return errors.New("local input listener is already active or closed")
+	}
+	c.localStarting = true
+	c.localMu.Unlock()
 	listener, err := listenLocalInput(path)
 	if err != nil {
+		c.localMu.Lock()
+		c.localStarting = false
+		c.localMu.Unlock()
 		return err
 	}
 	c.localMu.Lock()
+	c.localStarting = false
 	if c.localClosed {
 		c.localMu.Unlock()
 		_ = listener.Close()
@@ -194,6 +207,24 @@ func (c *TargetController) ServeLocalInput(ctx context.Context, path string) err
 		c.closeLocal()
 	}()
 	defer c.closeLocal()
+	return c.serveLocalConnections(ctx, listener)
+}
+
+// serveLocalConnections owns one reader at a time; tests can supply an
+// in-memory listener without opening a local socket or input device.
+func (c *TargetController) serveLocalConnections(ctx context.Context, listener net.Listener) error {
+	c.localMu.Lock()
+	c.localRecoveryFrozen = true
+	recoveryRequired := c.localRecoveryEnabled.Load()
+	if recoveryRequired {
+		c.localV2Guard.Store(true)
+	}
+	c.localMu.Unlock()
+	if recoveryRequired {
+		probe, cancel := context.WithTimeout(ctx, localRecoveryBudget)
+		_, _ = c.ObserveLocalStartupRecovery(probe)
+		cancel()
+	}
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -202,7 +233,7 @@ func (c *TargetController) ServeLocalInput(ctx context.Context, path string) err
 			}
 			continue
 		}
-		c.readLocal(ctx, conn)
+		c.readLocal(ctx, conn, recoveryRequired)
 	}
 }
 
@@ -233,7 +264,7 @@ func (c *TargetController) closeLocal() {
 	}
 }
 
-func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
+func (c *TargetController) readLocal(ctx context.Context, conn net.Conn, recoveryRequired bool) {
 	c.localMu.Lock()
 	if c.localClosed {
 		c.localMu.Unlock()
@@ -243,6 +274,9 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 	c.localConn = conn
 	c.localMu.Unlock()
 	var active *localDelegation
+	var v2 *localhid.SourceSession
+	recovered := false
+	var lastControlRequest uint64
 	defer func() {
 		c.localMu.Lock()
 		if c.localConn == conn {
@@ -250,11 +284,18 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 		}
 		c.localMu.Unlock()
 		_ = conn.Close()
+		if v2 != nil && v2.Active() {
+			c.retireV2Source(ctx, v2)
+		}
 		if active != nil {
 			c.retireDelegatedLocal(ctx, *active)
 		}
 		if c.ports != nil {
-			_ = c.ports.releaseSource(sourceLocal)
+			if c.localV2Guard.Load() {
+				c.retireLocalNonHID(ctx)
+			} else {
+				_ = c.ports.releaseSource(sourceLocal)
+			}
 		}
 	}()
 	reader := bufio.NewReaderSize(conn, bridge.MaxFrameBytes)
@@ -265,7 +306,7 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 			return
 		}
 		_ = conn.SetReadDeadline(time.Now().Add(time.Second))
-		delegation, err := readLocalDelegation(reader)
+		line, control, err := readLocalControlLine(reader)
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() && ctx.Err() == nil && !firstRecord {
 				continue
@@ -273,6 +314,91 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 			return
 		}
 		firstRecord = false
+		var delegation *localDelegation
+		if control {
+			var header struct {
+				Version *uint8 `json:"version"`
+			}
+			if json.Unmarshal(line, &header) != nil {
+				return
+			}
+			if header.Version != nil {
+				// Keep the entire v2 receiver unavailable until startup recovery
+				// and the native sender are deliberately enabled together.
+				// In particular, rejected v2 traffic must not latch the raw
+				// keyboard fence on an otherwise legacy listener.
+				if !recoveryRequired {
+					return
+				}
+				if *header.Version != 2 {
+					c.localV2Guard.Store(true)
+					return
+				}
+				req, err := localhid.ReadRequest(bufio.NewReader(bytes.NewReader(line)))
+				if err != nil {
+					c.localV2Guard.Store(true)
+					return
+				}
+				if recoveryRequired {
+					if req.Request <= lastControlRequest {
+						continue
+					}
+					lastControlRequest = req.Request
+					if req.Op == "recover" {
+						busy := active != nil || (v2 != nil && v2.Active())
+						reply, err := c.localRecoveryReply(ctx, req, busy)
+						if err != nil || writeV2Reply(conn, reply) != nil {
+							return
+						}
+						recovered = reply.Status == "reader-drained" || reply.Status == "startup-retired"
+						continue
+					}
+					if !recovered {
+						if req.Op == "begin" {
+							if err := writeV2Reply(conn, localhid.Reply{Version: 2, Op: "begin", Request: req.Request, Status: "quarantined"}); err != nil {
+								return
+							}
+						}
+						continue
+					}
+				}
+				// A newcomer must not retire an existing legacy source. It can
+				// retry after that writer explicitly retires or disconnects.
+				if active != nil && v2 == nil {
+					if req.Op == "begin" {
+						if err := writeV2Reply(conn, localhid.Reply{Version: 2, Op: "begin", Request: req.Request, Status: "quarantined"}); err != nil {
+							return
+						}
+					}
+					continue
+				}
+				c.localV2Guard.Store(true)
+				if v2 == nil {
+					v2 = localhid.NewSourceSession(delegatedV2Backend{controller: c})
+				}
+				call, cancel := context.WithTimeout(ctx, 3*time.Second)
+				reply, err := v2.Handle(call, req)
+				cancel()
+				if err != nil {
+					// A stale token cannot retire the currently owned source.
+					// A rejected BEGIN without a source is explicitly unavailable.
+					if req.Op == "begin" && !v2.Active() {
+						if err := writeV2Reply(conn, localhid.Reply{Version: 2, Op: "begin", Request: req.Request, Status: "quarantined"}); err != nil {
+							return
+						}
+					}
+					continue
+				}
+				if err := writeV2Reply(conn, reply); err != nil {
+					return
+				}
+				continue
+			}
+			delegation, err = readLocalDelegation(bufio.NewReader(bytes.NewReader(line)))
+			if err != nil {
+				return
+			}
+		}
 		if delegation != nil {
 			if c.localLeases == nil {
 				return
@@ -315,6 +441,14 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 			continue
 		}
 		if frame.Header.Type != protocol.InputTypeInput {
+			continue
+		}
+		if recoveryRequired && !recovered {
+			c.localDrops.Add(1)
+			continue
+		}
+		if c.localV2Guard.Load() && !delegatedV2RawAllowed(frame) {
+			c.localDrops.Add(1)
 			continue
 		}
 		if frame.Device == 2 {
@@ -504,11 +638,31 @@ func (c *TargetController) deliverLocal(ctx context.Context, frame protocol.Inpu
 			c.localDrops.Add(1)
 		}
 	}()
-	if !c.lifecycle.TryLock() {
+	epoch := c.transitionEpoch.Load()
+	if c.transitionPending.Load() != 0 || !c.lifecycle.TryLock() {
 		c.localDrops.Add(1)
 		return nil
 	}
 	defer c.lifecycle.Unlock()
+	guard := func(ctx context.Context) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if c.transitionPending.Load() != 0 || c.transitionEpoch.Load() != epoch {
+			return errNoCore
+		}
+		c.mu.Lock()
+		closed := c.closed
+		c.mu.Unlock()
+		if closed {
+			return errNoCore
+		}
+		return nil
+	}
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	ctx = withMatrixGuard(ctx, guard)
 	if err := c.ensureLocalCore(ctx); err != nil {
 		// The socket has already taken this frame. A press still waits for a
 		// confirmed generation. A release for the HID generation an
