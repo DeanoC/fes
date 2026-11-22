@@ -26,6 +26,9 @@ class ConsistencyTest(unittest.TestCase):
         for path in self.sources.values():
             path.mkdir()
         self.sources['FES'] = self.root
+        # The fixture trees hold no runtime or FogCast sources; the table
+        # checks have their own test below.
+        self.module.TABLE_CHECKS = ()
         for _, _, component, destination in self.module.GENERATED:
             path = self.sources[component] / destination
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -119,6 +122,28 @@ class ConsistencyTest(unittest.TestCase):
             'packages/abi/fes_simple_game.yaml', 'packages/abi/fes_simple_computer.yaml',
             'packages/abi/fes_application.yaml', 'packages/abi/fes_computer.yaml',
             'packages/programming/de10_nano.yaml', 'packages/programming/de25_nano.yaml', 'packages/programming/de25_embedded.yaml'})
+
+    def test_pc_floppy_format_tables_agree(self):
+        runtime, fogcast = self.sources['libmister-runtime'], self.sources['FogCast']
+        (runtime / 'src/native').mkdir(parents=True, exist_ok=True)
+        (fogcast / 'protocol').mkdir(parents=True, exist_ok=True)
+        (runtime / 'src/native/hardware.cpp').write_text(
+            'const Pc386FloppyFormat kPc386FloppyFormats[] = {\n'
+            '\t{368640, 40, 2, 9, kDriveB}, {1474560, 80, 2, 18, kDriveA}, {2949120, 80, 2, 36, 0}};\n')
+        (runtime / 'src/native/media_data.hpp').write_text(
+            'inline bool PcFloppySizeAdmitted(std::size_t bytes) {\n'
+            '    for (std::size_t size : {368640u, 1474560u, 2949120u})\n')
+        go = ('var pcFloppyFormats = []PcFloppyFormat{\n\t{368640, 40, 2, 9, false, true},\n'
+              '\t{1474560, 80, 2, 18, true, false},\n\t{2949120, 80, 2, 36, false, false},\n}\n')
+        (fogcast / 'protocol/pc_floppy.go').write_text(go)
+        self.assertEqual(self.module._pc_floppy_formats(self.sources), 3)
+        (fogcast / 'protocol/pc_floppy.go').write_text(go.replace('{1474560, 80, 2, 18, true, false}', '{1474560, 80, 2, 18, true, true}'))
+        with self.assertRaisesRegex(ValueError, 'floppy formats differ'):
+            self.module._pc_floppy_formats(self.sources)
+        (fogcast / 'protocol/pc_floppy.go').write_text(go)
+        (runtime / 'src/native/media_data.hpp').write_text('PcFloppySizeAdmitted { {368640u, 1474560u} }')
+        with self.assertRaisesRegex(ValueError, 'floppy sizes'):
+            self.module._pc_floppy_formats(self.sources)
 
     def test_shared_fixture_copy_drift(self):
         fixture_copies = [(component, destination, None)

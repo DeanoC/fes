@@ -291,4 +291,15 @@ func TestStagedFloppiesResolveFromTheKitStore(t *testing.T) {
 	if _, err := r.resolveStagedFloppies(absent); err == nil {
 		t.Fatal("unstaged floppy resolved")
 	}
+	// A staged copy that no longer matches its digest is removed.
+	if err := os.WriteFile(r.diskImagePath(a), bytes.Repeat([]byte{9}, 1474560), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	corrupt := &protocol.LibraryMachineBinding{GameID: "msdos-622", Floppies: []protocol.StagedFloppy{{Unit: protocol.PcFloppyUnitA, SHA256: a}}}
+	if _, err := r.resolveStagedFloppies(corrupt); err == nil || err.Message != protocol.StagedFloppyCorruptMessage {
+		t.Fatal(err)
+	}
+	if _, staged := r.stagedDiskImage(a); staged {
+		t.Fatal("corrupt floppy kept")
+	}
 }

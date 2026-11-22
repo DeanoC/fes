@@ -172,6 +172,11 @@ def _pc_floppy_formats(sources: dict[str, Path]) -> int:
     return len(native)
 
 
+# Tables written out by hand in more than one component, each checked by a
+# function of the source trees.
+TABLE_CHECKS = (_pc_floppy_formats,)
+
+
 def _run(packages, command, source):
     return subprocess.check_output(
         ['go', 'run', './cmd/mister-packages', command, source], cwd=packages,
@@ -220,7 +225,8 @@ def check(root: Path, sources: dict[str, Path] | None = None):
     for owner, source, component, destination in COMPONENT_FIXTURES:
         if (sources[owner] / source).read_bytes() != (sources[component] / destination).read_bytes():
             raise ValueError(f'fixture {component}/{destination} differs from {owner}')
-    _pc_floppy_formats(sources)
+    for table_check in TABLE_CHECKS:
+        table_check(sources)
     return {'generated_files': len(GENERATED), 'source_pin_copies': 0,
             'fixture_copies': len(COPIED_TREES) + len(COPIED_FILES) + len(COMPONENT_FIXTURES)}
 

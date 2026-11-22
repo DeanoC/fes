@@ -1768,17 +1768,33 @@ func descriptorMediaWrite(d corepackage.Descriptor) bool {
 }
 
 func descriptorPersistentMedia(d corepackage.Descriptor, units []protocol.MediaUnitStatus) bool {
+	// Every bound unit must be one the descriptor makes durable: pc386 can
+	// bind its hard disk and both floppy drives at once.
+	bound := false
 	for _, unit := range units {
-		if unit.Persistence != nil {
-			switch unit.Interface {
-			case protocol.AtariStFloppyInterface(), protocol.PcxtFloppyInterface():
-				return protocol.DescriptorMediaWrite(d, unit.Interface)
-			case protocol.AtaDiskInterface():
-				return protocol.DeclaresAtaDisk(d)
-			default:
+		if unit.Persistence == nil {
+			continue
+		}
+		bound = true
+		switch unit.Interface {
+		case protocol.AtariStFloppyInterface(), protocol.PcxtFloppyInterface():
+			if !protocol.DescriptorMediaWrite(d, unit.Interface) {
 				return false
 			}
+		case protocol.AtaDiskInterface():
+			if !protocol.DeclaresAtaDisk(d) {
+				return false
+			}
+		case protocol.PcFloppyInterface():
+			if !protocol.DeclaresPcFloppy(d) {
+				return false
+			}
+		default:
+			return false
 		}
+	}
+	if bound {
+		return true
 	}
 	for _, unit := range units {
 		if unit.Interface == protocol.AtaDiskInterface() {

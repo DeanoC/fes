@@ -367,6 +367,7 @@ func LibraryMachineHeaders(h http.Header) (*LibraryMachineBinding, bool) {
 // upload that ran the SD card out of space.
 const (
 	StagedDiskCorruptMessage    = "the staged hard-disk image was corrupt and has been removed; launch again to stage it again"
+	StagedFloppyCorruptMessage  = "the staged floppy image was corrupt and has been removed; launch again to stage it again"
 	DiskImageStorageFullMessage = "the kit's SD card has no room for this hard-disk image"
 )
 

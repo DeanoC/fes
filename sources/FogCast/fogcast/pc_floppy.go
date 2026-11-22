@@ -68,7 +68,7 @@ func launchFloppiesInserted(status protocol.Status, machine protocol.LibraryMach
 		unit, ok := protocol.MediaUnit(status.CorePackage, f.Unit)
 		if !ok || unit.Interface != protocol.PcFloppyInterface() || unit.State != protocol.MediaUnitReady ||
 			(f.WriteProtected != (unit.Persistence == nil)) ||
-			(unit.Persistence != nil && unit.Persistence.BaseMediaID != f.SHA256) {
+			(unit.Persistence != nil && (unit.Persistence.BaseMediaID != f.SHA256 || unit.Persistence.GameID != machine.GameID)) {
 			return false
 		}
 	}

@@ -1834,6 +1834,8 @@ Error NativeHardware::EjectPc386Floppy(std::uint8_t unit)
 	FesGpCoreDriver* driver = Pc386FloppyDriver(unit);
 	if (!driver) return {ErrorCode::unsupported_interface, "floppy drive is unavailable", "request"};
 	const auto deadline = Deadline(clock_, timeouts_.media_io_ms);
+	// A failed save returns save_failed; the runtime's recovery resumes
+	// every loaded writable drive, so the disk stays in and running.
 	Error error = SavePc386Floppy(*driver, unit, deadline);
 	if (error.ok()) error = driver->FloppyControl(unit, generated::FesComputerDiskControlEject, deadline);
 	if (!error.ok()) return error;

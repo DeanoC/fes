@@ -189,6 +189,19 @@ func diskImageStorageError() *protocol.APIError {
 	return &protocol.APIError{Code: protocol.CodeInternal, Message: "disk image could not be stored on the kit", Phase: "request"}
 }
 
+func stagedImageMatches(path, sha string) bool {
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return false
+	}
+	return hex.EncodeToString(hash.Sum(nil)) == sha
+}
+
 // resolveStagedFloppies fills each launch floppy's size from its staged file.
 func (r *Runtime) resolveStagedFloppies(machine *protocol.LibraryMachineBinding) ([]floppyRequest, *protocol.APIError) {
 	if machine == nil || len(machine.Floppies) == 0 {
@@ -204,6 +217,12 @@ func (r *Runtime) resolveStagedFloppies(machine *protocol.LibraryMachineBinding)
 		f.Size = size
 		if !f.Valid() {
 			return nil, protocol.PcFloppySizeError(f.Unit, size)
+		}
+		// A floppy is small enough to check on every launch: a copy that no
+		// longer matches its digest is removed, so the next launch stages it.
+		if !stagedImageMatches(r.diskImagePath(f.SHA256), f.SHA256) {
+			_ = os.Remove(r.diskImagePath(f.SHA256))
+			return nil, &protocol.APIError{Code: protocol.CodeDigestMismatch, Message: protocol.StagedFloppyCorruptMessage, Phase: "admission"}
 		}
 		requests = append(requests, floppyRequest{Unit: f.Unit, Path: r.diskImagePath(f.SHA256), Size: size,
 			DataRoot: MediaDataRoot, BaseMediaID: f.SHA256, WriteProtected: f.WriteProtected})

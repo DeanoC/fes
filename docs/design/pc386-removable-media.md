@@ -270,6 +270,8 @@ A floppy is small, so it is saved whole, as the PC/XT floppy is:
 - **Layout:** `fes.pc386-floppy.image` 1.0. The `fes-media-data-v1` envelope holds the whole current image, published with the existing tmp-fsync-rename rule (`MP/docs/media-data.md:44-50`).
 - **Key:** the existing `fes-media-data-v1` namespace of core, game, unit and base image SHA-256 (`MP/docs/media-data.md:9-12`, `:28`), with the unit field fixed at **1** for every pc386 floppy record, whichever drive holds the disk. The drive (unit 1 or 2 on the wire) is never part of the key, so the base SHA alone tells disks apart. Disk 2 of a set keeps its saved game whether the player puts it in A: or B:, and whichever disk was in a drive at Stop. The runtime maps a floppy unit to namespace unit 1 when it binds the record; `media-data.md` records the rule beside the layout.
 - **One drive per writable image.** The runtime refuses to insert a writable disk whose namespace is already bound to the other drive; FogCast says the disk is already in A: (or B:). The same base image may sit in both drives only write-protected, where no record is written. A disk keeps one binding, so each save has one writer.
+
+  **As built in F3 (22 November 2026):** there is no such check. With A: fixed at 1.44M and B: at 1.2M (D11), no image size fits both drives, so a writable image can only ever be in one of them and the refusal could never fire.
 - **Dirty state:** one flag per unit, set when a sector store lands. A Format Track also sets it.
 - **Read-only inserts:** the host can insert any disk write-protected (ST3 WP; writes end with ST1 NW). The library default is writable for disks of a game's own set, and write-protected for install media from a shared OS folder (**D9**).
 - **Reset disk:** FogCast's existing "reset disk" (discard the record) applies per image.
@@ -516,6 +518,14 @@ These are owned as `core-media-evolution.md:113-128` says.
 - the live-media API takes an explicit unit, or a drive name for pc386: `A`, `B`, `CD`;
 - the tenfoot picker gets a drive row, "A: Disk 2 of 5", and one-press next and previous within the set;
 - the launch's boot device (C, A or CD) is a per-entry setting written into the `fes.pc386.machine` record.
+
+**As built in F3 (22 November 2026):**
+
+- A `floppy` media role, catalog schema 27. A floppy entry holds disk 1 and, as a disk set, disks 2 to N. Its launch stages disk 1 on the kit by digest, as for the hard disk, and the runtime inserts it while the machine is held, in the one drive that reads its size. The hard disk is then empty.
+- The host checks the launch result shows the disk in its drive. An older kit agent ignores the floppy header and starts the machine with the drive empty; the host stops it and asks for a kit update.
+- Live media is `insert_library_media` and `eject_media` on units 1 and 2, with an optional `write_protected`. The host gets a unit-aware eject for A:/B:, and the CLI gets `insert-floppy` and `eject-floppy`. There is no `swap_media`: inserting into a full drive saves and ejects the old disk first.
+- Not built in F3: the tenfoot drive row (deferred to the core-screens slice 6 tenfoot work), a per-image floppy reset-disk, and an entry that binds both a hard disk and floppies.
+- `scripts/consistency.py` checks FogCast's format table against the runtime's.
 
 ### Machine configuration
 

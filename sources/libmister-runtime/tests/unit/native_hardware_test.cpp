@@ -4159,6 +4159,8 @@ void TestPc386FloppySwapSaveAndResume()
 	assert(std::equal(a_base.begin(), a_base.end(), window.floppy.begin(),
 		[](char x, std::uint8_t y) { return static_cast<std::uint8_t>(x) == y; }));
 	status = fixture.runtime.status();
+	// Shared with FogCast: A: writable and bound, B: write-protected.
+	RecordLiveComputerStatus(status);
 	for (const auto& unit : status.capabilities.media_units) {
 		if (unit.unit == 1) assert(unit.state == mister::MediaUnitState::ready && unit.persistence_mode == "persistent" &&
 			unit.revision == "absent");
@@ -4176,11 +4178,26 @@ void TestPc386FloppySwapSaveAndResume()
 	assert(MediaDataFile::Open(media.path, identity, &record).ok());
 	MediaDiskRecord saved;
 	assert(record->Read(&saved).ok() && saved.bytes == written && saved.revision != "absent");
+	const std::string ns = media.path + "/" + MediaDataNamespace(identity);
+	// A live eject whose save fails leaves the disk in and the drive running,
+	// not frozen (the save-failure recovery resumes it); the retry saves both
+	// writes and ejects it.
+	window.floppy[3000] ^= 0x11;
+	endpoint.GuestFloppyWrite(1);
+	assert(chmod(ns.c_str(), 0500) == 0);
+	assert(fixture.runtime.EjectMedia(opened.package_id, gen, 1).code == mister::ErrorCode::save_failed);
+	assert(chmod(ns.c_str(), 0700) == 0);
+	assert(!endpoint.floppies[0].frozen && endpoint.floppies[0].state == 3);
+	window.floppy[3001] ^= 0x22;
+	endpoint.GuestFloppyWrite(1);
+	const std::uint8_t at_3000 = window.floppy[3000], at_3001 = window.floppy[3001];
+	assert(fixture.runtime.EjectMedia(opened.package_id, gen, 1).ok() && endpoint.floppies[0].state != 3);
+	assert(record->Read(&saved).ok() && saved.bytes[3000] == at_3000 && saved.bytes[3001] == at_3001);
+	assert(fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a).ok());
 	// A save that fails after Freeze resumes the drive; the guest writes on,
 	// and the retry publishes that later write.
 	window.floppy[1024] ^= 0x33;
 	endpoint.GuestFloppyWrite(1);
-	const std::string ns = media.path + "/" + MediaDataNamespace(identity);
 	assert(chmod(ns.c_str(), 0500) == 0);
 	const auto failed_at = endpoint.requests.size();
 	assert(fixture.runtime.Stop().code == mister::ErrorCode::save_failed);
@@ -6014,7 +6031,7 @@ void TestZx81ComputerDisplayPackageAdmittedWhenAdvertised()
 
 void TestLiveComputerStatusResponsesMatchRuntime()
 {
-	assert(live_computer_status_responses.size() == 3);
+	assert(live_computer_status_responses.size() == 4);
 	if (std::getenv("FES_EMIT_LIVE_COMPUTER_FIXTURES")) {
 		for (const auto& response : live_computer_status_responses)
 			puts(response.c_str());
