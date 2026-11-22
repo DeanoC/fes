@@ -1061,7 +1061,9 @@ their own `identities.evidence` digest. Two producers write design-v2:
   kinds under `cores/fes-pcxt/sim` joins the set in the same commit; a test
   enforces this. After an evidence-only change there, the sealed package may
   be reused once the pcxt sim targets pass in CI on the new configuration
-  (Deano, 22 Nov 2026).
+  (Deano, 22 Nov 2026). CI runs the full pcxt suite, `sim-fes-pcxt-dos`
+  included, in place of the smoke tier on any change under
+  `cores/fes-pcxt/sim` (`FULL_TIER_INPUTS` in `scripts/ci_simulations.py`).
 
 The v2 sets are append-only literals and never take a path that a sealed v2
 record holds. A v1-to-v2 move changes the design ID once and takes a normal

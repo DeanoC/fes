@@ -61,7 +61,7 @@ Each case is one edit committed in a temporary worktree of this PR's head (after
 ## Rules
 
 - **Growth.** A new lint configuration, testbench C++ or testbench top under `M/cores/fes-pcxt/sim` goes into `PCXT_EVIDENCE_INPUTS` in the same commit. The test fails on any tracked file of that kind left out. Each member is also checked live: it must not be in the seal's RTL list or named in the elaboration program or the project QSF.
-- **Reuse (Deano, 22 Nov 2026).** After an evidence-only change under `M/cores/fes-pcxt/sim`, the sealed fes.pcxt-dos package may be reused once the pcxt sim targets pass in CI on the new configuration.
+- **Reuse (Deano, 22 Nov 2026).** After an evidence-only change under `M/cores/fes-pcxt/sim`, the sealed fes.pcxt-dos package may be reused once the pcxt sim targets pass in CI on the new configuration. CI's smoke tier leaves out `sim-fes-pcxt-dos`, which compiles `dos_tb.cpp`, so a change under `M/cores/fes-pcxt/sim` escalates pcxt to its full suite (`FULL_TIER_INPUTS` in `scripts/ci_simulations.py`; tested in `tests/test_ci_gate.py`).
 - **One-time migration.** Moving to design-v2 changes the `BUILD_ID` once, as every v1-to-v2 move does. This PR therefore carries a normal pcxt-dos reseal and a kit run.
 
 ## DE25 decoupling (Deano, 22 Nov 2026: "Accept + decouple here")
