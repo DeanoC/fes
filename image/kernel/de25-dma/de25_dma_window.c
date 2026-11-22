@@ -20,6 +20,7 @@
 #include <linux/build_bug.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
+#include <linux/file.h>
 #include <linux/kref.h>
 #include <linux/list.h>
 #include <linux/mm.h>
