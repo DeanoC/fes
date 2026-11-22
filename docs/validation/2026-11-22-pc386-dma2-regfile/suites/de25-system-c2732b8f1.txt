@@ -1,0 +1,20 @@
+CHECK PASS the typed echo printed M5:Kb!
+CHECK PASS INPUT.COM enabled the mouse through INT 15h C2xx
+CHECK PASS the guest's mouse sums, button changes and Y sign: MOUSE X=+172 Y=-72 LEFT=2/2 RIGHT=1/1 PACKETS=10
+CHECK PASS the guest's codes for Up, F1, Delete and Shift+A: KEYS 48E0 3B00 53E0 1E41
+CHECK PASS every chunk the guest changed is in the dirty map
+CHECK PASS MD C:\M5 wrote the disk, and the epoch counted it
+CHECK PASS Saved clears the dirty map and flag
+CHECK PASS the record keeps the restored settings
+CHECK PASS CMOS 50h keeps the restored byte
+CHECK PASS CMOS 60h-62h hold the restored Sound Blaster setting
+CHECK PASS CMOS 12h and 15h-16h hold the disk and base memory
+CHECK PASS CMOS 2Eh-2Fh hold the checksum of 10h-2Dh
+CHECK PASS CMOS 32h holds the wall clock's century
+CHECK PASS CMOS 00h-0Dh retain seconds, minutes, hours, weekday, day and the 2026-10 clock mode
+CHECK PASS the record's settings and CMOS RAM make the round trip through the RTC
+CHECK PASS the running clock keeps valid seconds, minutes, hours, weekday and date after restore
+CHECK PASS holds cut a port 2 write burst in 4 of 403 trials, and port 2 took write beats after each release
+CHECK PASS the status ring's 2871 records checked hold the status words (0 late)
+END {'reason': 'prompt', 'cycles': 188190905, 'seconds': 3.063}
+PASS de25 system
