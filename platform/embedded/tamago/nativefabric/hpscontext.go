@@ -106,10 +106,6 @@ type HPSContextVerifier struct {
 	menuMemorySHA          [32]byte
 	menuPublication        MenuMemoryObservation
 	menuExpected           []byte
-	windowMemory           *windowMemoryMap
-	windowMemorySHA        [32]byte
-	windowPublication      WindowMemoryObservation
-	windowArenaSHA         [32]byte
 	ddrReaderAttempted     bool
 	computerServiceClaimed bool
 	computerMu             sync.Mutex
@@ -150,7 +146,6 @@ func newHPSContextVerifier(cpu FirmwareCaller, source []byte, extraProfile strin
 	}
 	profileMatchesABI := c.ProgrammingProfile == HPSFirstDiagnosticProfile && c.ControlABI == 0x10203040 ||
 		c.ProgrammingProfile == HPSFirstDDRDiagnosticProfile && c.ControlABI == 0x10203041 ||
-		extraProfile == HPSFirstWindowDiagnosticProfile && c.ProgrammingProfile == HPSFirstWindowDiagnosticProfile && c.ControlABI == 0x10203042 ||
 		extraProfile == HPSFirstMenuProfile && c.ProgrammingProfile == HPSFirstMenuProfile && c.ControlABI == 0x10203043 ||
 		extraProfile == HPSFirstROMDiagnosticProfile && c.ProgrammingProfile == HPSFirstROMDiagnosticProfile && c.ControlABI == 0x10203041 ||
 		extraProfile == NativeComputerProfile && nativeComputerSource(c) ||

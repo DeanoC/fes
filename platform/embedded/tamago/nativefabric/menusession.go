@@ -115,7 +115,7 @@ func (v *HPSContextVerifier) openMenuSession(ctx, lifetime context.Context, cont
 	roleReturn := program != nil && b.rearm
 	if !transfer.done || transfer.err != nil || transfer.region != nil || transfer.phase != "complete" || len(transfer.source) == 0 || len(transfer.pending) != 0 ||
 		transfer.offset != len(transfer.source) || transfer.accepted != len(transfer.source) || b.verifier != v || b.program != program ||
-		b.windowReturn != nil || b.windowOpened || b.menuOpened || !(roleReturn || repeat && v.ddrReaderAttempted || !b.rearm && !v.ddrReaderAttempted) {
+		b.menuOpened || !(roleReturn || repeat && v.ddrReaderAttempted || !b.rearm && !v.ddrReaderAttempted) {
 		return nil, errors.New("native menu: completion does not belong to this owned scope")
 	}
 	v.ddrReaderAttempted = true

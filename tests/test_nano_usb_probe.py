@@ -40,7 +40,7 @@ class ContainedUSBProbeTests(unittest.TestCase):
 
     def test_every_program_resource_and_digest_rejects_even_without_its_peer(self):
         resources=('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read',
-                   'hps_window_read','hps_menu_read','hps_computer','hps_rom',
+                   'hps_menu_read','hps_computer','hps_rom',
                    'hps_program_platform','hps_menu_program','cpu_mapping','rom_selection')
         for resource in resources:
             for field in (resource,resource+'_sha256') if resource!='rom_selection' else (resource,):
@@ -49,8 +49,7 @@ class ContainedUSBProbeTests(unittest.TestCase):
 
     def test_mixed_modes_and_non_boolean_flags_cannot_inherit_probe_scope(self):
         flags=('usb_shared','sd_pio','selected_programs','computer_reload','computer_storage_return',
-               'tenfoot_serial','initial_tape','window_memory','window_read','window_present',
-               'window_storage_return','window_reload','menu_present','smmu_observe')
+               'tenfoot_serial','initial_tape','menu_present','smmu_observe')
         for flag in flags:
             for value in (True,0,None,'false'):
                 with self.subTest(flag=flag,value=value),self.assertRaises(ValueError):
