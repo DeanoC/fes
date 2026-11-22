@@ -59,6 +59,7 @@ constraints assume.
 | `3de378d9d` | `pcxt_video` crossings derived as the ST's are | CDC-50002 down to the two bank bits |
 | `02b58c869` | bank copy on its toggle's synchronizer edge; the 8088 cycle divider's enable recognition off | CDC-50002 still the two bank bits; LNT-30010 unchanged in kind |
 | `b3c12f2e9` | bank as a preserved code read through a loaded flag, synchronizers power up zero (the DE25 C64's form) | timing still all positive; CDC-50002 cleared; CDC-50003 (1) and CDC-50102 (1, low) on the bank code, LNT-30010 (1) |
+| `4eb5b4175` | bank code bounded at 10 ns as the held bundles; its pixel-side copy not identified as a synchronizer; enable recognition off for the whole 8088 bus unit (main merged at `000d60d04`) | signoff passes: all timing positive, no unreviewed rule. The independent repeat compile also passes timing and signoff but its RBF differs (see Open) |
 
 The capture phase is a board choice: this board returns the word later than
 the DE10's. At +4.0 ns the capture still samples in the same read window,
@@ -74,23 +75,36 @@ source digests are byte-identical for both; only output paths and the BUILD_ID
 
 ## Open
 
-At `b3c12f2e9` three unreviewed rules remain:
+At `4eb5b4175` the signoff compile passes the package gate: every reported
+timing analysis has non-negative slack and Design Assistant leaves only the
+reviewed RDC-50003, TMC-20011 and TMC-20012. Each of the three earlier rules was
+traced on the compiled netlist by rerunning timing analysis and Design
+Assistant at finalize on a copy of the `b3c12f2e9` project:
 
-- **CDC-50003, one violation:** the two-bit bank code `published_code` into
-  `pixel_code`, recognised as a CE-type bus loaded on `sent_held`. The
-  report shows its net and data delay constrained and its max skew
-  unconstrained, although `set_max_skew` names the same registers and the ST's
-  bundles pass with the same form.
-- **CDC-50102, one violation (low):** a two-stage synchronizer after that bus.
-  The ZX81 static profile reviews one CDC-50102; the standard-computer gate
-  does not.
-- **LNT-30010, one violation (low):** `pcxt_system`'s `machine_reset` drives
-  the vendored 8253's asynchronous clear (693 asynchronous and 1,351
-  synchronous clears in all) and, through synthesis, 248 clock enables across
-  the machine, in unchanged DE10 RTL. Enable recognition off on one register
-  only moved the example. Candidates: a reset register of their own for the
-  vendored 8253, 8259 and 8255 (loaded from the same logic on the same clock,
-  as the ST's six reset groups), with enable recognition off where the reset
-  still reaches enables, as the DE25 C64 does for its SID; or a reviewed
-  finding, which would loosen the gate and is Deano's call.
-- No repeat compile, no package, no hardware.
+- CDC-50003: Design Assistant counted the 13.4 ns bank-code skew bound as no
+  skew constraint; the 10 ns bound the other held bundles use clears it.
+- CDC-50102: Quartus identified `pixel_code`, a load on the synchronized
+  toggle whose source is held until the acknowledgement returns, as a
+  synchronizer. Its synchronizer identification is now off; CDC-50003 still
+  checks the transfer's constraints.
+- LNT-30010: the reset register's direct net reaches the 8253, 8259 and 8255
+  asynchronous clears, three ISA boundary inputs and exactly 248 clock
+  enables, all in the 8088 bus unit (registers its reset branch leaves out).
+  Enable recognition is off for the bus unit.
+
+The synthesis report has six 16746 warnings and no 16788: two in the DE10
+`pcxt_system.sv` (`disk_storage_ready`/`valid` used on line 72, declared as
+plain 1-bit wires on lines 97-98, so the implicit net is the same wire) and
+four in Qsys's generated `peripheral_subsys.v`, shared by every DE25 machine.
+
+The producer refused to package: the independent repeat compile met timing
+and signoff, but its `linux-boot.core.rbf` differs from the signoff's. Every
+generated HDL file is identical between the two; the one differing input is a
+cached `ADDRESS_MAP` string in `peripheral_subsys.qsys`, where Qsys named the
+f2sdram slave `subsys_hps.f2sdram_adapter_axi4_sub` in one generation and
+`subsys_hps.f2sdram_adapter.axi4_sub` in the other. Synthesis then differs in
+`qsys_top`'s `mm_interconnect_0`. Earlier PC/XT and DE25 C64 compiles show both
+forms at random, including C64 signoff/repeat pairs. This is in the shared
+DE25 shell generation, not the PC/XT.
+
+- No package, no hardware.
