@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Package sdhci initializes SDHC/SDXC cards and provides single-block
-// PIO on the Agilex 5 Cadence controller. Firmware must establish the input
-// clock, ComboPHY and pinmux, then relinquish exclusive controller ownership.
+// Package sdhci initializes SDHC/SDXC cards and provides single-block PIO,
+// optional 4-bit bus width, multi-block CMD18/CMD25, GICv3 IRQ completion, and
+// opt-in ADMA2 DMA on the Agilex 5 Cadence controller. Firmware must establish
+// the input clock, ComboPHY, pinmux (and SMMU stream policy before ADMA2), then
+// relinquish exclusive controller ownership.
 package sdhci
 
 import (
@@ -15,6 +17,8 @@ import (
 	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
+	"github.com/DeanoC/fes/platform/embedded/tamago/dmaops"
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 )
 
 // Register offsets follow Altera's MIT-0 socfpga_sdmmc_reg.h, commit
@@ -34,6 +38,7 @@ const (
 	statusErrors  = uint32(0xffff8000)
 	busy          = uint32(0xb07)
 	clockModeMask = uint32(0x070fffff)
+	baseHost33V   = uint32(7<<9 | 1<<8)
 )
 
 var (
@@ -66,6 +71,14 @@ type Device struct {
 	dataClockHz        uint32
 	defaultSpeed       bool
 	cardWriteProtected bool
+	expectedHost       uint32
+	busWidth4          bool
+	adma               *admaEngine
+	irqGIC             *gic.Controller
+	irqID              uint32
+	irqWake            chan struct{}
+	irqActive          atomic.Bool
+	irqCount           atomic.Uint64
 }
 
 // Identity contains the CID bits supplied by SDHCI's R2 registers (CID[127:8],
@@ -78,12 +91,23 @@ type Identity struct {
 
 func (d *Device) Identity() Identity { return Identity{CID: d.cid, Sectors: d.sectors} }
 
+// BusWidth returns the active SD data bus width (1 or 4).
+func (d *Device) BusWidth() int {
+	if d.busWidth4 {
+		return 4
+	}
+	return 1
+}
+
+// ADMA2Active reports whether ADMA2 DMA transfers are enabled on this device.
+func (d *Device) ADMA2Active() bool { return d.adma != nil }
+
 // Config describes the actual input clock established by firmware, not the
-// requested SD bus rate. The initial transport stays at <=400 kHz, one bit.
+// requested SD bus rate. The initial transport stays at <=400 kHz, one bit, PIO.
 type Config struct {
 	InputClockHz uint32
-	// AllowWrites explicitly selects single-sector PIO writes. The platform must
-	// own writable media and a qualified board write-protect policy. Default is read-only.
+	// AllowWrites explicitly selects sector writes. The platform must own
+	// writable media and a qualified board write-protect policy. Default is read-only.
 	AllowWrites bool
 	// NoSocketWriteProtect describes board wiring, not write authorization.
 	// Select it only when the socket has no mechanical write-protect input.
@@ -91,9 +115,23 @@ type Config struct {
 	// enforced with either wiring; AllowWrites is still required independently.
 	NoSocketWriteProtect bool
 	// TransferClockHz explicitly selects 25 MHz maximum after identification.
-	// Zero retains the existing <=400 kHz transport. Width, voltage and PIO
-	// remain unchanged; the identification divider is restored at quiescence.
+	// Zero retains the existing <=400 kHz transport; the identification divider
+	// is restored at quiescence.
 	TransferClockHz uint32
+	// BusWidth4Bit opts into 4-bit SD bus mode after card selection (verified
+	// via ACMD51 SCR and switched via ACMD6). Default false retains 1-bit mode.
+	BusWidth4Bit bool
+	// MultiBlock opts into CMD18/CMD25 multi-sector transfers (with Block Count
+	// and Auto-CMD12, up to 128 sectors per command). Default false retains
+	// single-sector CMD17/CMD24.
+	MultiBlock bool
+	// UseADMA2 opts into SDHCI ADMA2 DMA transfers backed by DMAPool (requiring
+	// controller ADMA2 capability and platform SMMU stream authorization).
+	// Default false retains PIO transfers.
+	UseADMA2 bool
+	// DMAPool supplies the pinned ADMA2 descriptor table and 64 KiB data buffer
+	// when UseADMA2 is true. Ignored when UseADMA2 is false.
+	DMAPool *dmaops.Pool
 	// PrepareClock, when supplied, runs after host software reset and stable
 	// internal clock, before enabling card clocks or issuing any command.
 	// A firmware-controlled platform uses it for its qualified PHY preparation.
@@ -110,6 +148,9 @@ func validateConfig(config Config) error {
 		(config.TransferClockHz != 0 && config.InputClockHz < config.TransferClockHz) {
 		return fmt.Errorf("sdhci: invalid firmware input or selected transfer clock")
 	}
+	if config.UseADMA2 && config.DMAPool == nil {
+		return fmt.Errorf("sdhci: UseADMA2 requires DMAPool")
+	}
 	return nil
 }
 
@@ -120,14 +161,46 @@ func Open(io Registers, config Config) (*Device, error) {
 	if err := validateConfig(config); err != nil {
 		return nil, err
 	}
-	d := &Device{io: io, config: config}
+	d := &Device{io: io, config: config, expectedHost: baseHost33V}
 	if err := d.initialize(config); err != nil {
 		return nil, err
 	}
+	if err := d.configureADMA(); err != nil {
+		return nil, err
+	}
+	if err := d.selectBusWidth(); err != nil {
+		_ = d.adma.close()
+		d.adma = nil
+		return nil, err
+	}
 	if err := d.selectTransferClock(); err != nil {
+		_ = d.adma.close()
+		d.adma = nil
 		return nil, err
 	}
 	return d, nil
+}
+
+// Close releases optional ADMA2 buffers and disables any bound IRQ when the
+// device is healthy. Retired or poisoned devices keep DMA spans pinned.
+func (d *Device) Close() error {
+	d.lifecycle.Lock()
+	defer d.lifecycle.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.disableIRQLocked()
+	if d.failed {
+		return ErrRetired
+	}
+	if d.adma != nil {
+		if err := d.adma.close(); err != nil {
+			d.failed = true
+			return err
+		}
+		d.adma = nil
+	}
+	d.quiesced = true
+	return nil
 }
 
 func (d *Device) pause(duration time.Duration) error {
@@ -144,12 +217,14 @@ func (d *Device) pause(duration time.Duration) error {
 }
 
 func (d *Device) initialize(config Config) error {
+	d.expectedHost = baseHost33V
+	d.busWidth4 = false
 	d.io.Write32(signalEnable, 0)
 	d.io.Write32(clock, 1<<24) // SDHCI software reset all, including DMA state
 	if err := d.wait(clock, 1<<24, 0, false); err != nil {
 		return err
 	}
-	if d.io.Read32(0x240)&(1<<24) == 0 {
+	if d.io.Read32(capabilities)&cap33V == 0 {
 		return fmt.Errorf("sdhci: 3.3V bus power unsupported")
 	}
 	d.io.Write32(signalEnable, 0)
@@ -159,7 +234,7 @@ func (d *Device) initialize(config Config) error {
 		return err
 	}
 	d.io.Write32(host, 7<<9) // select 3.3V before enabling bus power
-	d.io.Write32(host, 7<<9|1<<8)
+	d.io.Write32(host, baseHost33V)
 	if err := d.pause(time.Millisecond); err != nil {
 		return err
 	}
@@ -273,6 +348,82 @@ func (d *Device) initialize(config Config) error {
 	return d.ready()
 }
 
+func (d *Device) configureADMA() error {
+	if !d.config.UseADMA2 {
+		return nil
+	}
+	caps := d.io.Read32(capabilities)
+	eng := d.adma
+	allocated := false
+	if eng == nil {
+		var err error
+		eng, err = newADMAEngine(d.config.DMAPool, caps)
+		if err != nil {
+			return err
+		}
+		allocated = true
+	}
+	desired := d.expectedHost | eng.hostBits
+	d.io.Write32(host, desired)
+	if d.io.Read32(host) != desired {
+		if allocated {
+			_ = eng.close()
+		}
+		return errors.New("sdhci: ADMA2 host control readback differs")
+	}
+	d.adma = eng
+	d.expectedHost = desired
+	return nil
+}
+
+func (d *Device) selectBusWidth() error {
+	if !d.config.BusWidth4Bit {
+		return nil
+	}
+	// Query 64-bit SCR via CMD55 + ACMD51 (8-byte PIO read) to confirm card 4-bit support.
+	if err := d.issue(55, uint32(d.rca)<<16, responseR1, noData); err != nil {
+		return err
+	}
+	if d.io.Read32(response)&(1<<5) == 0 {
+		return errors.New("sdhci: card refused APP_CMD for ACMD51")
+	}
+	if err := d.issueTransfer(51, 0, responseR1, readData, 1, 8, false); err != nil {
+		return err
+	}
+	if err := d.wait(status, 1<<5, 1<<5, true); err != nil {
+		return err
+	}
+	var scr [8]byte
+	binary.LittleEndian.PutUint32(scr[0:4], d.io.Read32(dataPort))
+	binary.LittleEndian.PutUint32(scr[4:8], d.io.Read32(dataPort))
+	d.io.Write32(status, 1<<5)
+	if err := d.wait(status, 2, 2, true); err != nil {
+		return err
+	}
+	d.io.Write32(status, 2)
+	// SCR[51:48] is SD_BUS_WIDTHS (wire byte 1 low nibble); bit 2 (0x04) = 4-bit.
+	if scr[1]&0x04 == 0 {
+		return fmt.Errorf("sdhci: card SCR (%x) does not advertise 4-bit bus width", scr)
+	}
+	if err := d.issue(55, uint32(d.rca)<<16, responseR1, noData); err != nil {
+		return err
+	}
+	if d.io.Read32(response)&(1<<5) == 0 {
+		return errors.New("sdhci: card refused APP_CMD for ACMD6")
+	}
+	if err := d.issue(6, 2, responseR1, noData); err != nil {
+		return err
+	}
+	desired := d.expectedHost | host4BitWidth
+	d.io.Write32(host, desired)
+	if d.io.Read32(host) != desired {
+		return errors.New("sdhci: 4-bit host control readback differs")
+	}
+	d.expectedHost = desired
+	d.busWidth4 = true
+	return d.ready()
+}
+
 func (d *Device) selectTransferClock() error {
 	if d.config.TransferClockHz == 0 {
 		return nil
@@ -301,10 +452,10 @@ func (d *Device) selectTransferClock() error {
 }
 
 // Change only the SDHCI divider while the command/data engines are idle.
-// Keep the firmware-owned input/PHY, 3.3V, one-bit mode and IRQ/DMA policy.
+// Keep the firmware-owned input/PHY, 3.3V, configured bus/DMA mode and IRQ policy.
 func (d *Device) programClock(expected, selected uint32, enable bool) error {
 	value := d.io.Read32(clock)
-	if value&clockModeMask != expected || d.io.Read32(host) != 7<<9|1<<8 ||
+	if value&clockModeMask != expected || d.io.Read32(host) != d.expectedHost ||
 		d.io.Read32(signalEnable) != 0 || d.io.Read32(command)&1 != 0 || d.io.Read32(status)&statusErrors != 0 {
 		return errors.New("sdhci: unexpected mode before clock transition")
 	}
@@ -338,8 +489,13 @@ func (d *Device) programClock(expected, selected uint32, enable bool) error {
 	}
 	return nil
 }
+
 func (d *Device) SectorCount() uint64 { return d.sectors }
+
 func (d *Device) wait(offset, mask, value uint32, checkErrors bool) error {
+	if offset == status && value == mask && d.irqActive.Load() {
+		return d.waitStatusIRQ(mask, checkErrors)
+	}
 	deadline := d.io.Now().Add(500 * time.Millisecond)
 	for n := 0; n < 1000000; n++ {
 		if checkErrors {
@@ -358,6 +514,55 @@ func (d *Device) wait(offset, mask, value uint32, checkErrors bool) error {
 		}
 	}
 	return fmt.Errorf("sdhci: timeout at register %#x", offset)
+}
+
+func (d *Device) waitStatusIRQ(mask uint32, checkErrors bool) error {
+	check := func() (done bool, err error) {
+		s := d.io.Read32(status)
+		if checkErrors && s&statusErrors != 0 {
+			return true, fmt.Errorf("sdhci: status error %#x", s)
+		}
+		if s&mask == mask {
+			return true, nil
+		}
+		return false, nil
+	}
+	if done, err := check(); done {
+		return err
+	}
+	defer d.io.Write32(signalEnable, 0)
+	deadline := d.io.Now().Add(500 * time.Millisecond)
+	timer := time.NewTimer(500 * time.Millisecond)
+	defer timer.Stop()
+	for n := 0; n < 1000000; n++ {
+		select {
+		case <-d.irqWake:
+		default:
+		}
+		sigMask := mask
+		if checkErrors {
+			sigMask |= statusErrors
+		}
+		d.io.Write32(signalEnable, sigMask)
+		if done, err := check(); done {
+			return err
+		}
+		if !d.io.Now().Before(deadline) {
+			break
+		}
+		select {
+		case <-d.irqWake:
+		case <-timer.C:
+			if done, err := check(); done {
+				return err
+			}
+			return fmt.Errorf("sdhci: timeout at register %#x", status)
+		}
+		if done, err := check(); done {
+			return err
+		}
+	}
+	return fmt.Errorf("sdhci: timeout at register %#x", status)
 }
 
 type responseType uint8
@@ -381,6 +586,10 @@ const (
 )
 
 func (d *Device) issue(index uint32, arg uint32, kind responseType, data dataDirection) error {
+	return d.issueTransfer(index, arg, kind, data, 1, block.SectorSize, false)
+}
+
+func (d *Device) issueTransfer(index uint32, arg uint32, kind responseType, data dataDirection, blocks uint32, blockBytes uint32, useDMA bool) error {
 	if err := d.wait(present, 3, 0, false); err != nil {
 		return err
 	}
@@ -401,9 +610,15 @@ func (d *Device) issue(index uint32, arg uint32, kind responseType, data dataDir
 	if data != noData {
 		flags |= 1 << 21
 		if data == readData {
-			transfer = 1 << 4
+			transfer |= 1 << 4
 		}
-		d.io.Write32(blockSize, 1<<16|512)
+		if blocks > 1 {
+			transfer |= (1 << 5) | (1 << 2) | (1 << 1) // Multi-block + Auto-CMD12 + Block Count Enable
+		}
+		if useDMA {
+			transfer |= 1 << 0 // DMA Enable
+		}
+		d.io.Write32(blockSize, blocks<<16|blockBytes)
 	}
 	d.io.Write32(command, index<<24|flags|transfer)
 	if err := d.wait(status, 1, 1, true); err != nil {
@@ -421,6 +636,7 @@ func (d *Device) issue(index uint32, arg uint32, kind responseType, data dataDir
 	}
 	return nil
 }
+
 func (d *Device) ready() error {
 	if err := d.issue(13, uint32(d.rca)<<16, responseR1, noData); err != nil {
 		return err
@@ -431,6 +647,34 @@ func (d *Device) ready() error {
 	}
 	return nil
 }
+
+func (d *Device) modeUnchanged(checkErrors bool) bool {
+	if d.io.Read32(host) != d.expectedHost || d.io.Read32(signalEnable) != 0 {
+		return false
+	}
+	if !d.config.UseADMA2 && d.io.Read32(command)&1 != 0 {
+		return false
+	}
+	if d.config.TransferClockHz != 0 && d.io.Read32(clock)&clockModeMask != d.dataClock|7 {
+		return false
+	}
+	if checkErrors && d.io.Read32(status)&statusErrors != 0 {
+		return false
+	}
+	return true
+}
+
+func (d *Device) containTransferError(err error, poisonDMA bool) error {
+	d.failed = true
+	if poisonDMA && d.adma != nil {
+		d.adma.poison(err)
+	}
+	// Contain command/data state, but never replay a transfer after a failure.
+	d.io.Write32(clock, d.io.Read32(clock)|6<<24)
+	resetErr := d.wait(clock, 6<<24, 0, false)
+	return errors.Join(err, resetErr)
+}
+
 func (d *Device) ReadSectors(lba uint64, dst []byte) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -443,10 +687,15 @@ func (d *Device) ReadSectors(lba uint64, dst []byte) error {
 	if d.quiesced || d.stopRequested.Load() {
 		return ErrQuiesced
 	}
-	if d.config.TransferClockHz != 0 && (d.io.Read32(clock)&clockModeMask != d.dataClock|7 ||
-		d.io.Read32(host) != 7<<9|1<<8 || d.io.Read32(signalEnable) != 0 || d.io.Read32(command)&1 != 0) {
+	if (d.config.TransferClockHz != 0 || d.config.BusWidth4Bit || d.config.UseADMA2) && !d.modeUnchanged(false) {
 		d.failed = true
 		return errors.New("sdhci: transfer mode changed before read")
+	}
+	if d.adma != nil {
+		return d.readADMA2Locked(lba, dst)
+	}
+	if d.config.MultiBlock && len(dst) > block.SectorSize {
+		return d.readMultiPIOLocked(lba, dst)
 	}
 	for n := 0; n < len(dst); n += 512 {
 		if d.stopRequested.Load() {
@@ -467,12 +716,7 @@ func (d *Device) ReadSectors(lba uint64, dst []byte) error {
 			err = d.wait(status, 2, 2, true)
 		}
 		if err != nil {
-			d.failed = true
-			// Contain command/data state, but never replay a read into an existing
-			// filesystem after a possible removal. A fresh Open and FAT mount is needed.
-			d.io.Write32(clock, d.io.Read32(clock)|6<<24)
-			resetErr := d.wait(clock, 6<<24, 0, false)
-			return errors.Join(err, resetErr)
+			return d.containTransferError(err, false)
 		}
 		d.io.Write32(status, 2)
 		copy(dst[n:n+512], sector[:])
@@ -481,8 +725,96 @@ func (d *Device) ReadSectors(lba uint64, dst []byte) error {
 	return nil
 }
 
-// WriteSectors serializes CMD24 transfers. A sector succeeds only after all
-// words, transfer completion, and the card's ready/TRAN response. A batch error
+func (d *Device) readMultiPIOLocked(lba uint64, dst []byte) error {
+	for offset := 0; offset < len(dst); {
+		if d.stopRequested.Load() {
+			return ErrQuiesced
+		}
+		blocks := (len(dst) - offset) / block.SectorSize
+		if blocks > maxMultiBlocks {
+			blocks = maxMultiBlocks
+		}
+		cmd := uint32(17)
+		if blocks > 1 {
+			cmd = 18
+		}
+		chunkBytes := blocks * block.SectorSize
+		staged := make([]byte, chunkBytes)
+		err := d.issueTransfer(cmd, uint32(lba), responseR1, readData, uint32(blocks), block.SectorSize, false)
+		for b := 0; err == nil && b < blocks; b++ {
+			err = d.wait(status, 1<<5, 1<<5, true)
+			if err != nil {
+				break
+			}
+			// Clear Buffer Read Ready before draining the block's FIFO words so
+			// hardware can assert BRR again as soon as the next block arrives.
+			d.io.Write32(status, 1<<5)
+			base := b * block.SectorSize
+			for i := 0; i < block.SectorSize; i += 4 {
+				binary.LittleEndian.PutUint32(staged[base+i:], d.io.Read32(dataPort))
+			}
+		}
+		if err == nil {
+			err = d.wait(status, 2, 2, true)
+		}
+		if err != nil {
+			return d.containTransferError(err, false)
+		}
+		d.io.Write32(status, 2)
+		copy(dst[offset:offset+chunkBytes], staged)
+		lba += uint64(blocks)
+		offset += chunkBytes
+	}
+	return nil
+}
+
+func (d *Device) readADMA2Locked(lba uint64, dst []byte) error {
+	for offset := 0; offset < len(dst); {
+		if d.stopRequested.Load() {
+			return ErrQuiesced
+		}
+		blocks := (len(dst) - offset) / block.SectorSize
+		if blocks > maxMultiBlocks {
+			blocks = maxMultiBlocks
+		}
+		if !d.config.MultiBlock && blocks > 1 {
+			blocks = 1
+		}
+		chunkBytes := uint64(blocks * block.SectorSize)
+		cmd := uint32(17)
+		if blocks > 1 {
+			cmd = 18
+		}
+		if err := d.adma.dataBuf.SyncRangeForDevice(0, chunkBytes, dmaops.FromDevice); err != nil {
+			return d.containTransferError(err, true)
+		}
+		if err := d.adma.buildDescriptors(chunkBytes); err != nil {
+			return d.containTransferError(err, true)
+		}
+		descPhys := d.adma.descBuf.PhysAddr()
+		d.io.Write32(admaAddrLow, uint32(descPhys))
+		d.io.Write32(admaAddrHigh, uint32(descPhys>>32))
+		err := d.issueTransfer(cmd, uint32(lba), responseR1, readData, uint32(blocks), block.SectorSize, true)
+		if err == nil {
+			err = d.wait(status, 2, 2, true)
+		}
+		if err != nil {
+			admaSt := d.io.Read32(admaError)
+			return d.containTransferError(fmt.Errorf("%w (adma_err=%#x)", err, admaSt), true)
+		}
+		d.io.Write32(status, 2)
+		if err := d.adma.dataBuf.SyncRangeForCPU(0, chunkBytes, dmaops.FromDevice); err != nil {
+			return d.containTransferError(err, true)
+		}
+		copy(dst[offset:offset+int(chunkBytes)], d.adma.dataBuf.Bytes()[:chunkBytes])
+		lba += uint64(blocks)
+		offset += int(chunkBytes)
+	}
+	return nil
+}
+
+// WriteSectors serializes CMD24/CMD25 transfers. A batch succeeds only after
+// data transfer completion and the card's ready/TRAN response. A batch error
 // may follow committed sectors; an uncertain write is never replayed. The caller
 // owns src until return. This is not an atomic multi-sector transaction.
 func (d *Device) WriteSectors(lba uint64, src []byte) error {
@@ -503,15 +835,19 @@ func (d *Device) WriteSectors(lba uint64, src []byte) error {
 	if d.cardWriteProtected {
 		return fmt.Errorf("sdhci: card CSD write protection: %w", block.ErrReadOnly)
 	}
+	if d.adma != nil {
+		return d.writeADMA2Locked(lba, src)
+	}
+	if d.config.MultiBlock && len(src) > block.SectorSize {
+		return d.writeMultiPIOLocked(lba, src)
+	}
 	for n := 0; n < len(src); n += 512 {
 		if d.stopRequested.Load() {
 			return ErrQuiesced
 		}
 		// Check both the transport selection and live write-protect signal before
-		// each sector. No DMA, bus-width or clock-mode change is permitted.
-		if d.io.Read32(clock)&clockModeMask != d.dataClock|7 ||
-			d.io.Read32(host) != 7<<9|1<<8 || d.io.Read32(signalEnable) != 0 ||
-			d.io.Read32(command)&1 != 0 || d.io.Read32(status)&statusErrors != 0 {
+		// each sector. No unexpected DMA, bus-width or clock-mode change is permitted.
+		if d.io.Read32(clock)&clockModeMask != d.dataClock|7 || !d.modeUnchanged(true) {
 			d.failed = true
 			return errors.New("sdhci: transfer mode changed before write")
 		}
@@ -547,13 +883,123 @@ func (d *Device) WriteSectors(lba uint64, src []byte) error {
 			err = d.writeReady()
 		}
 		if err != nil {
-			d.failed = true
-			// Reset host command/data state as containment only. The card may
-			// already have committed this sector; reset cannot roll it back.
-			d.io.Write32(clock, d.io.Read32(clock)|6<<24)
-			return errors.Join(err, d.wait(clock, 6<<24, 0, false))
+			return d.containTransferError(err, false)
 		}
 		lba++
+	}
+	return nil
+}
+
+func (d *Device) checkWriteGateLocked() error {
+	if d.io.Read32(clock)&clockModeMask != d.dataClock|7 || !d.modeUnchanged(true) {
+		d.failed = true
+		return errors.New("sdhci: transfer mode changed before write")
+	}
+	if !d.config.NoSocketWriteProtect {
+		state := d.io.Read32(present)
+		if state&(1<<19) == 0 {
+			return fmt.Errorf("sdhci: socket write protection (present=%#x): %w", state, block.ErrReadOnly)
+		}
+	}
+	return nil
+}
+
+func (d *Device) writeMultiPIOLocked(lba uint64, src []byte) error {
+	for offset := 0; offset < len(src); {
+		if d.stopRequested.Load() {
+			return ErrQuiesced
+		}
+		if err := d.checkWriteGateLocked(); err != nil {
+			return err
+		}
+		blocks := (len(src) - offset) / block.SectorSize
+		if blocks > maxMultiBlocks {
+			blocks = maxMultiBlocks
+		}
+		cmd := uint32(24)
+		if blocks > 1 {
+			cmd = 25
+		}
+		err := d.issueTransfer(cmd, uint32(lba), responseR1, writeData, uint32(blocks), block.SectorSize, false)
+		for b := 0; err == nil && b < blocks; b++ {
+			err = d.wait(status, 1<<4, 1<<4, true)
+			if err == nil {
+				err = d.wait(present, 1<<10, 1<<10, true)
+			}
+			if err == nil && d.io.Read32(status)&2 != 0 {
+				err = errors.New("sdhci: write completed before its data was supplied")
+			}
+			if err != nil {
+				break
+			}
+			// Clear Buffer Write Ready before filling the block's FIFO words so
+			// hardware can assert BWR again as soon as space opens for the next block.
+			d.io.Write32(status, 1<<4)
+			base := offset + b*block.SectorSize
+			for i := 0; i < block.SectorSize; i += 4 {
+				d.io.Write32(dataPort, binary.LittleEndian.Uint32(src[base+i:]))
+			}
+		}
+		if err == nil {
+			err = d.wait(status, 2, 2, true)
+		}
+		if err == nil {
+			d.io.Write32(status, 2)
+			err = d.writeReady()
+		}
+		if err != nil {
+			return d.containTransferError(err, false)
+		}
+		lba += uint64(blocks)
+		offset += blocks * block.SectorSize
+	}
+	return nil
+}
+
+func (d *Device) writeADMA2Locked(lba uint64, src []byte) error {
+	for offset := 0; offset < len(src); {
+		if d.stopRequested.Load() {
+			return ErrQuiesced
+		}
+		if err := d.checkWriteGateLocked(); err != nil {
+			return err
+		}
+		blocks := (len(src) - offset) / block.SectorSize
+		if blocks > maxMultiBlocks {
+			blocks = maxMultiBlocks
+		}
+		if !d.config.MultiBlock && blocks > 1 {
+			blocks = 1
+		}
+		chunkBytes := uint64(blocks * block.SectorSize)
+		cmd := uint32(24)
+		if blocks > 1 {
+			cmd = 25
+		}
+		copy(d.adma.dataBuf.Bytes()[:chunkBytes], src[offset:offset+int(chunkBytes)])
+		if err := d.adma.dataBuf.SyncRangeForDevice(0, chunkBytes, dmaops.ToDevice); err != nil {
+			return d.containTransferError(err, true)
+		}
+		if err := d.adma.buildDescriptors(chunkBytes); err != nil {
+			return d.containTransferError(err, true)
+		}
+		descPhys := d.adma.descBuf.PhysAddr()
+		d.io.Write32(admaAddrLow, uint32(descPhys))
+		d.io.Write32(admaAddrHigh, uint32(descPhys>>32))
+		err := d.issueTransfer(cmd, uint32(lba), responseR1, writeData, uint32(blocks), block.SectorSize, true)
+		if err == nil {
+			err = d.wait(status, 2, 2, true)
+		}
+		if err == nil {
+			d.io.Write32(status, 2)
+			err = d.writeReady()
+		}
+		if err != nil {
+			admaSt := d.io.Read32(admaError)
+			return d.containTransferError(fmt.Errorf("%w (adma_err=%#x)", err, admaSt), true)
+		}
+		lba += uint64(blocks)
+		offset += int(chunkBytes)
 	}
 	return nil
 }
@@ -612,7 +1058,7 @@ func (d *Device) Flush() error {
 // Quiesce serializes with reads, stops further access and independently observes
 // controller idle before and after stopping the card clock. Firmware can then
 // assert its SoC resets under its own ownership contract. Success covers this
-// PIO controller only; the platform must separately contain other masters and
+// controller only; the platform must separately contain other masters and
 // verify reset/bridge state. A repeated call supplies no fresh stop receipt.
 func (d *Device) Quiesce() error {
 	d.lifecycle.Lock()
@@ -626,8 +1072,21 @@ func (d *Device) Quiesce() error {
 	if d.quiesced {
 		return ErrQuiesced
 	}
-	fail := func(err error) error { d.failed = true; return err }
-	if d.io.Read32(command)&1 != 0 || d.io.Read32(clock)&(7|7<<24) != 7 || d.io.Read32(status)&statusErrors != 0 {
+	// Stop IRQ-backed waits before masking the GIC line so the final CMD13
+	// inside Quiesce polls synchronously with signalEnable==0 instead of
+	// waiting on a masked SPI.
+	d.irqActive.Store(false)
+	if d.irqGIC != nil {
+		d.irqGIC.Disable(d.irqID)
+	}
+	fail := func(err error) error {
+		d.failed = true
+		if d.adma != nil {
+			d.adma.poison(err)
+		}
+		return err
+	}
+	if (!d.config.UseADMA2 && d.io.Read32(command)&1 != 0) || d.io.Read32(clock)&(7|7<<24) != 7 || d.io.Read32(status)&statusErrors != 0 {
 		return fail(fmt.Errorf("sdhci: unexpected DMA, clock or pending error before quiesce"))
 	}
 	d.io.Write32(signalEnable, 0)
@@ -638,6 +1097,7 @@ func (d *Device) Quiesce() error {
 		return fail(err)
 	}
 	// Query the selected card while command-complete status is still enabled.
+	// This also clears Transfer Mode DMA Enable (SRS03[0]) when ADMA2 was used.
 	if err := d.ready(); err != nil {
 		return fail(err)
 	}
@@ -682,26 +1142,45 @@ func (d *Device) Resume() error {
 	if !d.quiesced {
 		return errors.New("sdhci: resume requires quiescence")
 	}
-	next := &Device{io: d.io, config: d.config}
-	if err := next.initialize(d.config); err != nil {
+	next := &Device{io: d.io, config: d.config, expectedHost: baseHost33V, adma: d.adma}
+	// Close releases the ADMA2 engine, so configureADMA may allocate a fresh
+	// one on next. Poison both on failure and adopt next's engine on success,
+	// otherwise later transfers would silently fall back to PIO.
+	fail := func(err error) error {
 		d.failed = true
+		d.adma.poison(err)
+		if next.adma != d.adma {
+			next.adma.poison(err)
+		}
 		return err
+	}
+	if err := next.initialize(d.config); err != nil {
+		return fail(err)
 	}
 	if next.Identity() != d.Identity() {
-		d.failed = true
-		return ErrCardChanged
+		return fail(ErrCardChanged)
+	}
+	if err := next.configureADMA(); err != nil {
+		return fail(err)
+	}
+	if err := next.selectBusWidth(); err != nil {
+		return fail(err)
 	}
 	if err := next.selectTransferClock(); err != nil {
-		d.failed = true
-		return err
+		return fail(err)
 	}
-	if next.dataClockHz != d.dataClockHz || next.dataClock != d.dataClock {
-		d.failed = true
-		return errors.New("sdhci: transfer clock changed across resume")
+	if next.dataClockHz != d.dataClockHz || next.dataClock != d.dataClock ||
+		next.expectedHost != d.expectedHost || next.busWidth4 != d.busWidth4 {
+		return fail(errors.New("sdhci: transfer mode changed across resume"))
 	}
+	d.adma = next.adma
 	d.rca = next.rca
 	d.cardWriteProtected = next.cardWriteProtected
 	d.quiesced = false
 	d.stopRequested.Store(false)
+	if d.irqGIC != nil {
+		d.irqActive.Store(true)
+		d.irqGIC.Enable(d.irqID)
+	}
 	return nil
 }

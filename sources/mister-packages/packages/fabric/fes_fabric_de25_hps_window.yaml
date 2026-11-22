@@ -1,0 +1,49 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.de25-hps-window
+description: >-
+  A computer's window in HPS DDR on the DE25: one contiguous grant of
+  WindowSpan bytes that the kernel owner allocates and the runtime publishes
+  here while the machine is held. The fabric presents fes.memory.hps-ddr 1.0's
+  three ports (0 is 128-bit, 1 and 2 are 64-bit) and rebases each command from
+  FES_APPLICATION_HPS_DDR_WINDOW_BASE onto the grant. Every command must lie,
+  with its whole burst, inside the span; one outside it, or any command
+  without a valid grant, latches a sticky fault and is never issued. Bursts
+  never cross a BoundaryBytes boundary. The grant changes only while every
+  port is drained. One SMMU stream carries all three ports, for reads and
+  writes. This contract assigns no Linux device, firewall, boot or runtime
+  admission. See sources/misteross/docs/de25-hps-window.md.
+major: 1
+minor: 0
+constants:
+  - {name: FesDe25HpsWindowIdentity, value: 0x44325748}
+  - {name: FesDe25HpsWindowVersion, value: 0x00010000}
+  - {name: FesDe25HpsWindowPeripheralOffset, value: 0x00010400}
+  - {name: FesDe25HpsWindowControlSpan, value: 64}
+  - {name: FesDe25HpsWindowControlAddressBits, value: 6}
+  - {name: FesDe25HpsWindowSpan, value: 0x10000000}
+  - {name: FesDe25HpsWindowGrantAlignment, value: 4096}
+  - {name: FesDe25HpsWindowDmaAddressBits, value: 32}
+  - {name: FesDe25HpsWindowPortCount, value: 3}
+  - {name: FesDe25HpsWindowBoundaryBytes, value: 4096}
+  - {name: FesDe25HpsWindowIdOffset, value: 0x00}
+  - {name: FesDe25HpsWindowVersionOffset, value: 0x04}
+  - {name: FesDe25HpsWindowStatusOffset, value: 0x08}
+  - {name: FesDe25HpsWindowCommandOffset, value: 0x0c}
+  - {name: FesDe25HpsWindowGrantLoOffset, value: 0x10}
+  - {name: FesDe25HpsWindowGrantHiOffset, value: 0x14}
+  - {name: FesDe25HpsWindowGrantSpanOffset, value: 0x18}
+  - {name: FesDe25HpsWindowGenerationLoOffset, value: 0x1c}
+  - {name: FesDe25HpsWindowGenerationHiOffset, value: 0x20}
+  - {name: FesDe25HpsWindowFaultOffset, value: 0x24}
+  - {name: FesDe25HpsWindowCommandGrant, value: 1}
+  - {name: FesDe25HpsWindowCommandClear, value: 2}
+  - {name: FesDe25HpsWindowStatusGranted, value: 1}
+  - {name: FesDe25HpsWindowStatusDrained, value: 2}
+  - {name: FesDe25HpsWindowStatusHeld, value: 4}
+  - {name: FesDe25HpsWindowStatusFault, value: 8}
+  - {name: FesDe25HpsWindowStatusMask, value: 15}
+  - {name: FesDe25HpsWindowFaultPortMask, value: 7}
+  - {name: FesDe25HpsWindowFaultNoGrant, value: 0x100}
+  - {name: FesDe25HpsWindowFaultOutside, value: 0x200}
+  - {name: FesDe25HpsWindowFaultCommand, value: 0x400}

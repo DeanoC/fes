@@ -125,4 +125,36 @@ struct fes_de25_dma_retirement {
  */
 #define FES_DE25_DMA_OWNER_INFO _IOR(0xD5, 0x14, struct fes_de25_dma_info)
 
+/* A computer's window in HPS DDR (fes.fabric.de25-hps-window), additive to
+ * ABI 3. OWNER_WINDOW_ABI returns FES_DE25_DMA_WINDOW_VERSION as the positive
+ * ioctl result, or fails (ENOTTY on an older kernel, ENODEV without a window
+ * block): query it before OWNER_WINDOW_ALLOC. ALLOC takes no argument and
+ * returns a CLOEXEC window fd once the kernel has allocated, zeroed and
+ * published the grant and the block reports it granted. The window fd maps
+ * shared at any page offset inside the span; REVOKE (no argument) and the
+ * last close zap every mapping and clear the grant only while every port is
+ * drained. A fault or an undrained port keeps the window exposed.
+ */
+#define FES_DE25_DMA_WINDOW_VERSION 1U
+
+struct fes_de25_dma_window_info {
+	__u64 generation;
+	__u32 version;   /* in: FES_DE25_DMA_WINDOW_VERSION; out: the same */
+	__u32 reserved;  /* in and out: 0 */
+	__u32 contract;  /* the control block's contract version */
+	__u32 span;
+	__u32 status;    /* the control block's status word */
+	__u32 fault;     /* the control block's first-fault word */
+	__u32 state;     /* FES_DE25_DMA_REVOKED | EXPOSED | UNCERTAIN */
+	__u32 flags;     /* out: 0 */
+	/* The build identity observed on the bitstream at allocation,
+	 * least-significant word first. No address is exposed. */
+	__u32 build_id[4];
+};
+
+#define FES_DE25_DMA_OWNER_WINDOW_ABI _IO(0xD5, 0x15)
+#define FES_DE25_DMA_OWNER_WINDOW_ALLOC _IO(0xD5, 0x16)
+#define FES_DE25_DMA_WINDOW_INFO _IOWR(0xD5, 0x20, struct fes_de25_dma_window_info)
+#define FES_DE25_DMA_WINDOW_REVOKE _IO(0xD5, 0x21)
+
 #endif
