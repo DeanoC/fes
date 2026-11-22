@@ -144,16 +144,20 @@ The owner allocates with `dma_alloc_attrs` and
 `DMA_ATTR_FORCE_CONTIGUOUS`, from CMA. CMA on J8G is the vendor's 32 MiB
 default. There are two ways to get 256 MiB, and both change the image:
 
-- **A pool (planned).** A `reserved-memory` `shared-dma-pool`:
-  - `reusable`, 272 MiB, `alloc-ranges` inside the F2SDRAM firewall's open
-    region (below; `0x80100000..0xbfffffff`), which is also below 4 GiB;
+- **A pool (built here).** A `reserved-memory` `shared-dma-pool`:
+  - `reusable`, 272 MiB, `alloc-ranges` `0x82000000..0xbfffffff`: inside
+    the F2SDRAM firewall's open region (below; `0x80100000..0xbfffffff`)
+    and above the vendor tree's no-map service buffer at
+    `0x80000000..0x81ffffff`;
   - named by `memory-region` on the owner node;
   - the scanout's 8 MiB then comes from the same pool;
   - bootargs unchanged.
 
-  To verify in 4d: whether the pinned kernel's IOMMU DMA path takes a
-  per-device CMA area with `DMA_ATTR_FORCE_CONTIGUOUS`. KUnit can't check
-  that; it needs the QEMU boot of the platform kernel.
+  The owner binds it at probe (`of_reserved_mem_device_init`) when it has
+  the window block. Still to verify, at the image step: that the pinned
+  kernel's IOMMU DMA path takes a per-device CMA area with
+  `DMA_ATTR_FORCE_CONTIGUOUS`. KUnit can't check that; it needs the
+  platform kernel booted.
 - **No pool (fallback).** Under the SMMU the fabric sees an IOVA, so
   physical contiguity is not a fabric need. A non-contiguous allocation
   mapped into one IOVA range removes the device-tree change. But

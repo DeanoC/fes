@@ -2,7 +2,7 @@
 
 The DE25 DMA owner's KUnit suite, run under QEMU (`linux,dummy-virt`) with
 the locked kernel, SDK and builder (`scripts/de25_kernel_test.py`), at
-`3c342e7fc` (this branch, from main). No hardware is reached and no image is built.
+`5b63b0a64` (this branch, from main). No hardware is reached and no image is built.
 
 ```
 python3 scripts/de25_kernel_test.py run --cache <cache> --image-output <dir> --output <new> --jobs 12
@@ -56,3 +56,20 @@ suite. Before that, the runner failed every run at an unchanged driver
 
 `.kunitconfig` raises the test kernel's CMA from 32 to 320 MiB for the
 256 MiB window.
+
+## The owner tree (no kernel or image built)
+
+`scripts/de25_kernel_platform.py` `owner_fragment()` adds the window `reg`
+and the pool. Checked here with the pinned kernel's own dtc and libfdt, built
+on the host from the locked kernel source:
+
+- The DE25 tree with the fragment compiles. `verify_tree.c` prints
+  `DE25_OWNER_DTB_PASS`.
+- Each counterexample is refused:
+  - a pool whose `alloc-ranges` starts at `0x80000000` ("window pool inside
+    the F2SDRAM firewall region");
+  - a 256 MiB pool ("window pool size");
+  - no window `reg` ("reg");
+  - a pool without `reusable` ("window pool").
+- `tests/test_de25_kernel_platform.py` `OwnerFragmentTests` pins the
+  fragment.
