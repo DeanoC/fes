@@ -108,26 +108,28 @@ func (m *mockGICAccess) fire(ctrl *gic.Controller, id uint32) {
 // advancedCard models Cadence SDHCI 3.0 with SCR/4-bit, CMD18/CMD25 multi-block,
 // real ADMA2 descriptor-table traversal over a backing RAM window, and IRQ firing.
 type advancedCard struct {
-	mu           sync.Mutex
-	regs         map[uint32]uint32
-	tick         time.Time
-	image        []byte
-	dmaBase      uint64
-	dmaRAM       []byte
-	scr          [8]byte
-	busWidth     int
-	acmd         bool
-	rca          uint16
-	commands     []uint32
-	pioBuf       []byte
-	pioPos       int
-	pioWriteLBA  uint32
-	pioWriteLeft int
-	admaFault    bool
-	irqCtrl      *gic.Controller
-	irqHW        *mockGICAccess
-	irqID        uint32
-	asyncIRQ     bool
+	mu             sync.Mutex
+	regs           map[uint32]uint32
+	tick           time.Time
+	image          []byte
+	dmaBase        uint64
+	dmaRAM         []byte
+	scr            [8]byte
+	busWidth       int
+	acmd           bool
+	rca            uint16
+	commands       []uint32
+	pioBuf         []byte
+	pioPos         int
+	pioWriteLBA    uint32
+	pioWriteLeft   int
+	admaFault      bool
+	rejectADMA     bool
+	delayCMD13Poll int
+	irqCtrl        *gic.Controller
+	irqHW          *mockGICAccess
+	irqID          uint32
+	asyncIRQ       bool
 }
 
 func newAdvancedCard(sectors int, dmaBase uint64, dmaRAM []byte, caps uint32) *advancedCard {
@@ -162,6 +164,12 @@ func (c *advancedCard) Now() time.Time {
 func (c *advancedCard) Read32(reg uint32) uint32 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if reg == status && c.delayCMD13Poll > 0 {
+		c.delayCMD13Poll--
+		if c.delayCMD13Poll == 0 {
+			c.regs[status] |= 1
+		}
+	}
 	if reg == dataPort {
 		if c.pioPos+4 > len(c.pioBuf) {
 			return 0
@@ -218,6 +226,11 @@ func (c *advancedCard) Write32(reg, value uint32) {
 				c.regs[status] |= 1 << 4 // Next block buffer write ready
 			}
 		}
+		return
+	}
+	if reg == host && c.rejectADMA && value&(3<<3) != 0 {
+		// Simulate hardware refusing the requested ADMA2 mode bit.
+		c.regs[host] = value &^ (3 << 3)
 		return
 	}
 	c.regs[reg] = value
@@ -293,6 +306,10 @@ func (c *advancedCard) Write32(reg, value uint32) {
 		}
 	}
 	c.regs[status] |= 1 // Command Complete
+	if c.delayCMD13Poll > 0 && index == 13 {
+		// Delay CMD13 completion for several status reads without firing an IRQ.
+		c.regs[status] &^= 1
+	}
 	if c.asyncIRQ && (index == 17 || index == 18 || index == 24 || index == 25) && value&1 != 0 {
 		// Defer Transfer Complete slightly so waitStatusIRQ exercises the IRQ wakeup path.
 		c.regs[status] &^= 2
@@ -333,8 +350,12 @@ func (c *advancedCard) runADMA2Locked(lba uint32, total int, isRead bool) {
 		}
 		var bufAddr uint64
 		if use64 {
-			bufAddr = binary.LittleEndian.Uint64(c.dmaRAM[descOff+8 : descOff+16])
-			descOff += 16
+			// SDHCI v3 64-bit ADMA2 uses 96-bit (12-byte) descriptors:
+			// +0 attr/len, +4 addr low32, +8 addr high32.
+			lo := uint64(binary.LittleEndian.Uint32(c.dmaRAM[descOff+4 : descOff+8]))
+			hi := uint64(binary.LittleEndian.Uint32(c.dmaRAM[descOff+8 : descOff+12]))
+			bufAddr = lo | (hi << 32)
+			descOff += 12
 		} else {
 			bufAddr = uint64(binary.LittleEndian.Uint32(c.dmaRAM[descOff+4 : descOff+8]))
 			descOff += 8
@@ -527,15 +548,32 @@ func TestADMA2ReadWriteCachedAnd64Bit(t *testing.T) {
 	if hw64.regs[host]&(3<<3) != hostADMA2_64 {
 		t.Fatalf("expected 64-bit ADMA2 host bits, got %#x", hw64.regs[host])
 	}
-	got64 := make([]byte, 8*512)
+	// Transfer >32 KiB (80 sectors = 40 KiB) so two chained 96-bit (12-byte)
+	// SDHCI v3 64-bit descriptors are built and traversed.
+	got64 := make([]byte, 80*512)
 	if err := dev64.ReadSectors(0, got64); err != nil {
 		t.Fatalf("ADMA2 64-bit ReadSectors: %v", err)
 	}
-	if !bytes.Equal(got64, hw64.image[:8*512]) {
+	if !bytes.Equal(got64, hw64.image[:80*512]) {
 		t.Fatal("ADMA2 64-bit read mismatch")
+	}
+	// Verify second 96-bit descriptor starts at byte offset 12 with high32 == 1.
+	descOff := dev64.adma.descBuf.PhysAddr() - base64
+	if hi := binary.LittleEndian.Uint32(ram64[descOff+12+8 : descOff+12+12]); hi != 1 {
+		t.Fatalf("expected 2nd 96-bit descriptor addr high32=1 at +20, got %#x", hi)
 	}
 	if err := dev64.Close(); err != nil {
 		t.Fatal(err)
+	}
+
+	// Host-control readback rejection in configureADMA must free both ADMA2 buffers.
+	hwReject := newAdvancedCard(2048, base64, ram64, cap33V|capADMA2|cap64BitBus)
+	hwReject.rejectADMA = true
+	if _, err := Open(hwReject, Config{InputClockHz: 200_000_000, UseADMA2: true, DMAPool: pool64}); err == nil {
+		t.Fatal("expected Open error when ADMA2 host readback mismatches")
+	}
+	if st := pool64.Stats(); st.LiveBuffers != 0 || st.FreeSpans != 1 {
+		t.Fatalf("configureADMA host readback failure leaked buffers: %+v", st)
 	}
 }
 
@@ -629,9 +667,17 @@ func TestSDHCIIRQDrivenADMA2AndQuiesceResume(t *testing.T) {
 		t.Fatalf("signalEnable must be 0 when idle, got %#x", hw.regs[signalEnable])
 	}
 
-	// Quiesce/Resume must keep IRQ mode intact and continue firing IRQs.
+	// Quiesce/Resume must stop IRQ waits before masking the GIC so a delayed
+	// CMD13 inside Quiesce completes via polling without stalling on the masked SPI.
+	hw.mu.Lock()
+	hw.delayCMD13Poll = 5
+	hw.mu.Unlock()
+	quiesceStart := time.Now()
 	if err := dev.Quiesce(); err != nil {
-		t.Fatalf("Quiesce with IRQ: %v", err)
+		t.Fatalf("Quiesce with IRQ and delayed CMD13: %v", err)
+	}
+	if time.Since(quiesceStart) > 200*time.Millisecond {
+		t.Fatalf("Quiesce stalled on masked IRQ (%v)", time.Since(quiesceStart))
 	}
 	if err := dev.Resume(); err != nil {
 		t.Fatalf("Resume with IRQ: %v", err)

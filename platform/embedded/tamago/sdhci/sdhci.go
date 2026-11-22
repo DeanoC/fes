@@ -353,18 +353,25 @@ func (d *Device) configureADMA() error {
 		return nil
 	}
 	caps := d.io.Read32(capabilities)
-	if d.adma == nil {
-		eng, err := newADMAEngine(d.config.DMAPool, caps)
+	eng := d.adma
+	allocated := false
+	if eng == nil {
+		var err error
+		eng, err = newADMAEngine(d.config.DMAPool, caps)
 		if err != nil {
 			return err
 		}
-		d.adma = eng
+		allocated = true
 	}
-	desired := d.expectedHost | d.adma.hostBits
+	desired := d.expectedHost | eng.hostBits
 	d.io.Write32(host, desired)
 	if d.io.Read32(host) != desired {
+		if allocated {
+			_ = eng.close()
+		}
 		return errors.New("sdhci: ADMA2 host control readback differs")
 	}
+	d.adma = eng
 	d.expectedHost = desired
 	return nil
 }
@@ -1065,6 +1072,10 @@ func (d *Device) Quiesce() error {
 	if d.quiesced {
 		return ErrQuiesced
 	}
+	// Stop IRQ-backed waits before masking the GIC line so the final CMD13
+	// inside Quiesce polls synchronously with signalEnable==0 instead of
+	// waiting on a masked SPI.
+	d.irqActive.Store(false)
 	if d.irqGIC != nil {
 		d.irqGIC.Disable(d.irqID)
 	}
@@ -1169,6 +1180,7 @@ func (d *Device) Resume() error {
 	d.quiesced = false
 	d.stopRequested.Store(false)
 	if d.irqGIC != nil {
+		d.irqActive.Store(true)
 		d.irqGIC.Enable(d.irqID)
 	}
 	return nil

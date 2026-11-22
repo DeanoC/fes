@@ -161,6 +161,9 @@ func OpenVirtIOWithPool(base uint32, pool *dmaops.Pool) (*VirtIO, error) {
 			regWrite(base, 0x70, 128)
 			return nil, err
 		}
+	} else if pool.Mode() != dmaops.Uncached {
+		regWrite(base, 0x70, 128)
+		return nil, errors.New("VirtIO block requires an uncached DMA pool")
 	}
 	var err error
 	d.dmaBuf, err = pool.Alloc(dmaBytes, 4096)

@@ -76,15 +76,17 @@ func newADMAEngine(pool *dmaops.Pool, caps uint32) (*admaEngine, error) {
 	}, nil
 }
 
-// buildDescriptors encodes a contiguous ADMA2 scatter-gather descriptor chain
-// pointing at dataBuf[0:length] in <=32 KiB chunks and syncs the table for DMA.
+// buildDescriptors encodes a contiguous SDHCI v3 ADMA2 scatter-gather
+// descriptor chain pointing at dataBuf[0:length] in <=32 KiB chunks and syncs
+// the table for DMA. 32-bit mode uses 64-bit (8-byte) descriptors; v3 64-bit
+// mode uses 96-bit (12-byte) descriptors (attr/len at +0, addr lo at +4, hi at +8).
 func (a *admaEngine) buildDescriptors(length uint64) error {
 	if length == 0 || length > a.dataBuf.Len() || length%block.SectorSize != 0 {
 		return fmt.Errorf("sdhci: invalid ADMA2 transfer length %d", length)
 	}
 	descStride := uint64(8)
 	if a.use64Bit {
-		descStride = 16
+		descStride = 12
 	}
 	var offset uint64
 	var descOffset uint64
@@ -102,15 +104,11 @@ func (a *admaEngine) buildDescriptors(length uint64) error {
 		if err := a.descBuf.Write32(descOffset, header); err != nil {
 			return err
 		}
+		if err := a.descBuf.Write32(descOffset+4, uint32(addr)); err != nil {
+			return err
+		}
 		if a.use64Bit {
-			if err := a.descBuf.Write32(descOffset+4, 0); err != nil {
-				return err
-			}
-			if err := a.descBuf.Write64(descOffset+8, addr); err != nil {
-				return err
-			}
-		} else {
-			if err := a.descBuf.Write32(descOffset+4, uint32(addr)); err != nil {
+			if err := a.descBuf.Write32(descOffset+8, uint32(addr>>32)); err != nil {
 				return err
 			}
 		}
