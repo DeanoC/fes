@@ -2995,8 +2995,11 @@ writes input frames to `/run/fogcast/local-input.sock` through
 the host. A kit-host session with a local feed does not require a host
 remote-input attachment to forward its keyboard when it owns the execution lease.
 A private remote host explicitly admits the physical HID keyboard with the same
-execution token used to attach input. Display
-transitions and launcher controls still suppress input. A pad on
+execution token used to attach input. For an active externally owned game, the
+kit host observes the local agent's held lease without claiming it, publishes
+the observed session with its own input bridge detached, and does not attempt
+remote input reconciliation. Lease observation failure and recovery remain
+fail-closed. Display transitions and launcher controls still suppress input. A pad on
 another machine is delivered on the host-to-kit input stream
 for the session that owns the play. A missing stream is an error to that
 caller. The kit pad does not fall back onto the host route.
