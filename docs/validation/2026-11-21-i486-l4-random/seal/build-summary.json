@@ -1,5 +1,5 @@
 {
-  "build_id": "766bd82aaeed4898149883a6ccc6a012",
+  "build_id": "62305375764cda287bef28b9ef7f08e4",
   "device": "5CSEBA6U23I7",
   "firmware": {
     "bios": "23b9df9134e4f5c1aa32665219de71ddeb425d5764c30ee721d26893fc9780c7",
@@ -135,7 +135,7 @@
     "cores/fes-pc386/rtl/pc386_snapshot.sv": "795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4",
     "cores/fes-pc386/rtl/pc386_status.sv": "7545d208c7ba9c9d3e16f734a600b37613cc35bf9c3202ede77ca3d17832bf22",
     "cores/fes-pc386/rtl/pc386_sysctl.sv": "02832baa8b7878fcdb448108060162034327a160f79868d2109dc5bf7e5047b2",
-    "cores/fes-pc386/rtl/pc386_system.sv": "df3e145411b9bb53379f2d358fcbac125f9240196fc3a23df89876b8d8f68ed0",
+    "cores/fes-pc386/rtl/pc386_system.sv": "28e2346cb2ae7cab74c0e9985ddfc478598ee51cebdf27cc530d3ea1ac8f0527",
     "cores/fes-pc386/rtl/pc386_system_pll.v": "b013b75f1a00f91a5093a35251aa239d6219f657cee4b584d2eef6837609e806",
     "cores/fes-pc386/rtl/pc386_vga.sv": "fb376f8bbe1e9d96fdc4dc6e24ea40a6683508195928f602f654df3edf5705aa",
     "cores/fes-pc386/rtl/pc386_vga_scanout.sv": "281fe4b87ff2016fdab187a83df17b02443b2b8c44729d940494c9a2b994d0a3",
@@ -161,10 +161,8 @@
     "cores/fes-pc386/vendor/opl2_fpga/mem_single_bank.sv": "fbb48556772295440f4ba41405c6e3a0f52c9b4f22fefd2f7b55839b2f674b70",
     "cores/fes-pc386/vendor/opl2_fpga/mem_single_bank_reset.sv": "344f6153c89fdc6a1469c093f1b7a9a8d5fd4bcf4ed0777e46b8bf372744d26c",
     "cores/fes-pc386/vendor/opl2_fpga/operator.sv": "b1fc81fade73f8e779f1b05f2502182567a510a85118c3a2b380594423f45722",
-    "cores/fes-pc386/vendor/opl2_fpga/opl2_exp_lut.sv": "368d149c853e494931141e957d3786ea54a5b46d8291e8783234ae13ccb44291",
-    "cores/fes-pc386/vendor/opl2_fpga/opl2_log_sine_lut.sv": "5a0304073db431076ddc53864f2038600221a5b1e7110797c503ce6a56a93250",
     "cores/fes-pc386/vendor/opl2_fpga/opl2_pkg.sv": "18fdd374ee0416ee7914eec2df2a0e5052e0c4916b444e0426c86d56ec4e43e5",
-    "cores/fes-pc386/vendor/opl2_fpga/phase_generator.sv": "11841c5a1c9747dde8d83a4f326fa64b5256a5d3ef072e32d195dad06b2493ad",
+    "cores/fes-pc386/vendor/opl2_fpga/phase_generator.sv": "f8708e152e235e98b40511768d6c32f111b742bd3948e7716ca893d0c3031b96",
     "cores/fes-pc386/vendor/opl2_fpga/pipeline_sr.sv": "33771b3a1ba6fed4c4f78621c09bd9854690bad23cc1ded7e21642be64916f90",
     "cores/fes-pc386/vendor/opl2_fpga/tremolo.sv": "6c7afcc694ad272155e0a812051d984b59115c4e4ea67bb76ac72ef6d53ac534",
     "cores/fes-pc386/vendor/opl2_fpga/vibrato.sv": "2d3c26c2a3c7184877194d857ad6ff03fd41d42b06d38b0c977d14a562f1e577",
@@ -177,8 +175,8 @@
     "scripts/i386_verilator.py": "5a1c339073f46b6689ed9f9f12842a562809b408286ca6facab43f82ea0ed36e",
     "scripts/input_identity.py": "b0a01b6e8d65ff31d85ec329215a5c2b36807dd4908ceed22019872a580ea1f9",
     "scripts/lockfile.py": "742d5b39c3780b4bb2b6b8b212cb90b1c617b8db285dd51624dbe8c694d2976a",
-    "scripts/pc386_quartus.py": "67473ca608233e728340247290ed23639261a1d026f57c77a2bcf833417f17f3",
-    "scripts/quartus_tools.py": "2bd7c473b4f84a14b06ed75c310ba9adeda07c1baafc0ed01b4db068e6dafcd4",
+    "scripts/pc386_quartus.py": "ffb5326528eacda83976371fe44e7880706509d06fd93da9288c15260caacd8a",
+    "scripts/quartus_tools.py": "e3c0f9d70edd62e3014659e59e2bab463e80a7b9c5e44eda8c008100160d7d80",
     "scripts/run_logged.sh": "973550b688e8af3641135d1a56dfdd10d2543fe8242426b57815cc7ffdc67aa3",
     "scripts/source_provenance.py": "4ea875fb576bbe00d833fb2a78fcf938367bda0a6cb49f65b9c1735fcf832155",
     "scripts/test_fes_i386_frontend.py": "32379520ca4c3f8626e4c3b9da2a7ecef8ba54ba7e5628a4cddcfa084aa77da2",
@@ -194,18 +192,18 @@
       "adapter_sha256": "25c2a5109e037ec47af13caabe102ab27134d2119f3a301532fad5d7080b69c0",
       "linked_sha256": {
         "adapter": "0ad5dccb3ba5fac762d70e30f2bac3cded862565710895fbe257f1dcff1429af",
-        "cpu": "206bc7e1acea20dd91fbd07310de5bd0040fd5a1fbae0490f922c4ecff42a0a1",
-        "fpu": "59351c69d41193d2501024a8685b68da5a9347de9b77e9f5f4e6cb2af405263a",
+        "cpu": "b2733ed80527bb222fb9e70b6d6f896515d0390118c351ba4bc85dc591adc754",
+        "fpu": "58ebcd56aeac7be789d016d63b3dfa120200ea248ae01ba72fb0e390998e04cc",
         "paramtree": "6b8ba5842ba2bfe611cc7268c331fff50214859a164c95895d966de277893e44",
-        "softfloat": "25078d7fbe44b2d2ff276c1f4127e81c9d752bdbf5edc62fbe23b923186f5517"
+        "softfloat": "14b6f7558a3e7c45974af2ac72ef2004dac53b19abb0b84976ac62ec367e9b03"
       },
       "patch_sha256": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
       "provisioner_sha256": "0c4552c2290a0f50681090a65cf25deeb1916568c910bcfcc88a91097f8089b2",
       "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2",
       "suite_sha256": "ab16eb6e98e767053b85c58680c564ffa6b779737a39e008669a319f5e6fc7f3",
-      "testbench_sha256": "a3d26dff9c5acf952fff12954c1a41da22100dd8dfb46a9f8f5411c1f5e75697"
+      "testbench_sha256": "bca9c3fd6c36b6f81f6f3cb04c3137f679856aa9324870448123701173109829"
     },
-    "report_sha256": "f120cac62771a834d16d9538067a39bb20aac52c5ec7b3663b0a61c4e2b17234",
+    "report_sha256": "360eaa34d182160b6b529c83a545893ee899eb4e7f3161ad5043648a2edd1314",
     "simulator": {
       "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
       "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c",
@@ -217,7 +215,7 @@
   },
   "netlist": {
     "cpu_source_sha256": "3c1b817e8a2a53f1b18b29390cf36d373f532b413c5d09080d1dd5a566e22b7b",
-    "machine_netlist_sha256": "23c19a7e76a88fe850ceb1bf941f508529bd28a766f27a5f49fa1fcf9a827aac",
+    "machine_netlist_sha256": "e639dcf9c31189cec28861fb960872ffd42f116f0e2c90acab94a40fe53f74d5",
     "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
     "yosys": {
       "gpu_router": "HIP",
@@ -227,17 +225,17 @@
     }
   },
   "rbf": {
-    "sha256": "ce45a49e119fd1e32f3f5d9a9ecb3e9f27a673f4e3b0bfdf3f6dd4e95c290c6d",
-    "size": 3939660
+    "sha256": "9beed9343c236be97b5abc92d5155e028a50060f8df12b82551e5d9d243c0e27",
+    "size": 3906956
   },
   "resources": {
     "alms": {
       "available": 41910,
-      "used": 36435
+      "used": 36096
     },
     "block_memory_bits": {
       "available": 5662720,
-      "used": 1354806
+      "used": 1360950
     },
     "dsp_blocks": {
       "available": 112,
@@ -245,10 +243,10 @@
     },
     "ram_blocks": {
       "available": 553,
-      "used": 282
+      "used": 283
     },
     "registers": {
-      "used": 31903
+      "used": 31911
     }
   },
   "seed": 1,
@@ -257,7 +255,7 @@
     "analyses": {
       "hold": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.083
+        "worst_slack_ns": 0.109
       },
       "minimum_pulse_width": {
         "tns_ns": 0.0,
@@ -265,15 +263,15 @@
       },
       "recovery": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 7.213
+        "worst_slack_ns": 7.014
       },
       "removal": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.509
+        "worst_slack_ns": 0.434
       },
       "setup": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.339
+        "worst_slack_ns": 0.146
       }
     },
     "clocks": {

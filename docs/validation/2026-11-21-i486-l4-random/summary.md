@@ -8,14 +8,17 @@ open:
 - a governor bench at `I486 = 1`.
 
 The method, written before the first full run, is
-[`method.md`](method.md). Everything ran as host simulation on Powerboat,
-with at most 4 CPU threads at a time: no Quartus run, no seal, no kit.
+[`method.md`](method.md). Everything ran on Powerboat, with at most 4 CPU
+threads at a time. The simulation gates come first; Deano then asked (21
+November 2026) for a DE10 reseal and a Kit B run at the final head.
 
-**Result.** The code head is `ad328d78c`: this branch's changes merged with
-main `0fb3ce80c` ([the merge of main](#the-merge-of-main)), with #AC's error
-code at 0. Every gate below ran there, unless its row names `98cbd9927`, the
-head before the merge and before the error-code change. Later commits change
-only this record.
+**Result.** The CPU code head is `ad328d78c`: this branch's changes merged
+with main `0fb3ce80c` ([the merges of main](#the-merges-of-main)), with #AC's
+error code at 0. Every simulation gate below ran there, unless its row names
+`98cbd9927`, the head before the merge and before the error-code change. The
+branch then merged main again (`544f45918`), which changed pc386's design but
+no CPU or lockstep source; the seal and the kit run are of that head. Later
+commits change only this record.
 
 | Gate | Result |
 | --- | --- |
@@ -25,9 +28,9 @@ only this record.
 | Level-4 random programs, 486SX, netlist | The same 56,000 pass on the seal's Yosys netlist at `I486 = 1` (`2f9160cf…`). Every set's trace hashes and retirements, every form count and every rule count equal the RTL's ([`lockstep/level4-netlist.json`](lockstep/level4-netlist.json)) |
 | Governor bench, `I486 = 1`, RTL | Passes. Each 486 loop's charge equals `governor.toml`'s clocks under every preset, CPUID's 12 included. The 386 part equals slice 2's 386 report in all 1,178 values ([`governor/i486-rtl.json`](governor/i486-rtl.json)) |
 | Level-3 lockstep, 386, RTL | Passes. Equal to main `0fb3ce80c`'s report, run the same way, in all values but 11 source and suite digests: every count, trace hash and cycle figure, the x87 sections included ([`lockstep/level3-rtl.json.gz`](lockstep/level3-rtl.json.gz), main's [`lockstep/main-0fb3ce80c-level3-rtl.json.gz`](lockstep/main-0fb3ce80c-level3-rtl.json.gz)) |
-| Level-3 lockstep, 386, netlist | The seal's own full netlist lockstep (below) passes. It equals main `0fb3ce80c`'s netlist report in all values but 12 source, oracle-build and netlist digests ([`seal/lockstep-report.json.gz`](seal/lockstep-report.json.gz), main's [`lockstep/main-0fb3ce80c-level3-netlist.json.gz`](lockstep/main-0fb3ce80c-level3-netlist.json.gz)) |
-| DE10 seal of the 386 package | Registered producer `build_pc386_product.py --with-lockstep`, seed 1, Quartus 17.0.2 Lite, on Powerboat under a Lite lease slot, from a clean worktree of `ad328d78c`: passes. BUILD_ID `766bd82aaeed4898149883a6ccc6a012`, package `b3cd67c0…`, RBF `ce45a49e…`, 36,435 ALMs, setup +0.339 ns, hold +0.083 ns. `verify_pc386_product_seal.py` gives `SEAL_OK` ([`seal/`](seal/)) |
-| Kit run of that package | Kit B, run `k2087a`: pass. FreeDOS prompt in 0.6 s, then Wolfenstein 3D on floor 1 with graphics. The kit was restored to its baseline and logged FREE ([the kit run](#the-kit-run)) |
+| Level-3 lockstep, 386, netlist | The seal's own full netlist lockstep (below) passes, at `ad328d78c` and again at `544f45918`. The `ad328d78c` report equals main `0fb3ce80c`'s netlist report in all values but 12 source, oracle-build and netlist digests, and the `544f45918` report equals the `ad328d78c` one in all values but the revision and 4 oracle-build digests ([`seal/lockstep-report.json.gz`](seal/lockstep-report.json.gz), main's [`lockstep/main-0fb3ce80c-level3-netlist.json.gz`](lockstep/main-0fb3ce80c-level3-netlist.json.gz)) |
+| DE10 seal of the 386 package | Registered producer `build_pc386_product.py --with-lockstep`, seed 1, Quartus 17.0.2 Lite, on Powerboat under the producer's own Lite lease, from a clean worktree of `544f45918`: passes. BUILD_ID `62305375764cda287bef28b9ef7f08e4`, package `4e4d48fc…`, RBF `9beed934…`, 36,096 ALMs, setup +0.146 ns, hold +0.109 ns. `verify_pc386_product_seal.py` gives `SEAL_OK` ([`seal/`](seal/)). It replaces the seal at `ad328d78c` ([the DE10 seal](#the-de10-seal)) |
+| Kit run of that package | Kit B, run `k2087b`: pass. FreeDOS prompt in 0.7 s, then Wolfenstein 3D on floor 1 with graphics. The kit was restored to its baseline and logged FREE ([the kit run](#the-kit-run)) |
 | The head still builds the sealed design | `head_matches_seal.py` checks that the head's design identity equals the seal's |
 | test386.asm, 386, RTL (`98cbd9927`) | POST codes end at FFh; halts after 79,640,765 retirements, no errors. Equal to the last RTL report on record (`2026-11-12-i386-ud-1701`) but its `text` and `verilator` fields ([`test386/rtl.json`](test386/rtl.json)) |
 | test386.asm, oracle (merged head `cdbdccd7b`) | Equal to slice 2's report in all 707 values ([`test386/oracle.json`](test386/oracle.json)) |
@@ -263,25 +266,36 @@ builds as 0). So pc386's `BUILD_ID` moved, and Deano asked (21 November
 2026) for a reseal and a kit run at the final head.
 
 The registered producer, `build_pc386_product.py --with-lockstep --seed 1
---gpu-router HIP`, ran on Powerboat from a clean detached worktree of
-`ad328d78c`:
-- under the Lite lease slot `/tmp/fes-quartus-lite-1.lock`;
-- pinned to 4 CPUs with `taskset` for this session's cap;
-- `--gpu-router HIP` only picks the authenticated toolchain slot.
+--gpu-router HIP`, ran twice on Powerboat, each time from a clean detached
+worktree, pinned to 4 CPUs with `taskset` for this session's cap.
+`--gpu-router HIP` only picks the authenticated toolchain slot.
 
-It ran from 00:52 to 02:03 EET on 22 November:
-- **The full netlist lockstep passed.** It is the level-3 netlist row above.
-- **Quartus 17.0.2 compiled with 0 errors and passed every timing analysis**
-  at 61.44 MHz system, 74.27 MHz pixel and 12.29 MHz audio. Worst setup
-  slack +0.339 ns, hold +0.083 ns, recovery +7.213 ns, removal +0.509 ns,
-  minimum pulse width +1.122 ns.
-- **Resources:** 36,435 of 41,910 ALMs (slice 2's seal: 36,354), 31,903
-  registers, 282 RAM blocks, 41 DSP blocks.
-- **Identities:** BUILD_ID `766bd82aaeed4898149883a6ccc6a012`, package
-  `b3cd67c0df13b47768f26bfb192dc73308bfe02bb5cacb9bff27cb826cb22ea7`, RBF
-  SHA-256 `ce45a49e…`.
+**First seal, `ad328d78c`, 22 November 00:52 to 02:03 EET** (under the Lite
+lease slot `/tmp/fes-quartus-lite-1.lock`): passed. BUILD_ID
+`766bd82aaeed4898149883a6ccc6a012`, package `b3cd67c0…`, RBF `ce45a49e…`,
+36,435 ALMs, setup +0.339 ns, hold +0.083 ns, `SEAL_OK`; Kit B run `k2087a`
+passed on it (FreeDOS in 0.6 s, Wolfenstein 3D floor 1 with graphics). Main
+then moved: #2033 (the 387 as a `pc386_system` parameter), #2050 (the
+Quartus lease) and #2075 (the OPL2 phase tables in one RAM block) change
+pc386's design. The branch merged main (`544f45918`), the design identity
+moved to `62305375…`, and the seal ran again. The first seal's files are in
+this record at `95cb6a260`.
 
-`verify_pc386_product_seal.py` passes against `ad328d78c` (`SEAL_OK`, 154
+**Second seal, `544f45918`, 22 November 08:57 to 10:06 EET.** The producer
+took the Lite lease itself (#2050), holding `/tmp/fes-quartus-lite-1.lock`:
+- **The full netlist lockstep passed.** Its report equals the first seal's
+  in every count and trace hash; only the revision and 4 oracle-build
+  digests differ. The merge changed no CPU or lockstep source.
+- **Quartus 17.0.2 compiled with 0 errors and passed every timing analysis.**
+  Worst setup slack +0.146 ns, hold +0.109 ns, recovery +7.014 ns, removal
+  +0.434 ns, minimum pulse width +1.122 ns.
+- **Resources:** 36,096 of 41,910 ALMs (first seal: 36,435; #2075's OPL2
+  cut), 31,911 registers, 283 RAM blocks, 41 DSP blocks.
+- **Identities:** BUILD_ID `62305375764cda287bef28b9ef7f08e4`, package
+  `4e4d48fcd059c018810fff3bc5111cd2e1660f4e7c9ff253234e0cb7fe19153a`, RBF
+  SHA-256 `9beed9343c236be97b5abc92d5155e028a50060f8df12b82551e5d9d243c0e27`.
+
+`verify_pc386_product_seal.py` passes against `544f45918` (`SEAL_OK`, 152
 bound files). [`head_matches_seal.py`](head_matches_seal.py) shows a
 checkout builds the sealed design, for later record-only commits. The seal's
 `build-summary.json`, `build-inputs.json` and lockstep report are in
@@ -289,19 +303,19 @@ checkout builds the sealed design, for later record-only commits. The seal's
 
 ## The kit run
 
-Kit B, run `k2087a`, 22 November 02:46 to 02:48 EET. It used slice 2's
-core-only runner (`hil_s4_dos.py`, with its claim, baseline check and
-restore wrapper):
+Kit B, run `k2087b`, 22 November 10:07 to 10:09 EET, of the second seal's
+package. It used slice 2's core-only runner (`hil_s4_dos.py`, with its claim,
+baseline check and restore wrapper), as `k2087a` did for the first seal:
 - **Claim.** The wrapper claimed the kit in `kitB-STATUS.md` only after
   finding its last line FREE, the kit on that line's baseline (image
   `179affbb…`, bundle `c9ae79e2…`), the agent idle and the lease free.
-- **What ran.** The package was packed as a canonical `.fcore`. The packer
-  reproduces slice 2's `k2044b` archive byte for byte; the package ID was
-  checked after packing. It ran on the baseline with no install and no
-  reboot, booting the user-supplied FreeDOS drive `a6977555…` as a fresh
-  library game.
-- **Result** ([`kit/kit-b-k2087a-result.json`](kit/kit-b-k2087a-result.json)):
-  - the FreeDOS prompt was detected in 0.6 s;
+- **What ran.** The package was packed as a canonical `.fcore` (the packer
+  reproduces slice 2's `k2044b` archive byte for byte), and its package ID,
+  `4e4d48fc…`, was checked against `core_package.package_identity`. It ran
+  on the baseline with no install and no reboot, booting the user-supplied
+  FreeDOS drive `a6977555…` as a fresh library game.
+- **Result** ([`kit/kit-b-k2087b-result.json`](kit/kit-b-k2087b-result.json)):
+  - the FreeDOS prompt was detected in 0.7 s;
   - Wolfenstein 3D reached floor 1 with graphics on screen (0.938 of the
     frame lit), and 0.562 of the frame changed after a walk;
   - no load error.
@@ -309,7 +323,7 @@ restore wrapper):
   ID, the agent idle, the lease free, and none of the run's FogCast data
   left. The run is logged IN USE and then FREE in `kitB-STATUS.md`.
 
-## The merge of main
+## The merges of main
 
 Slice 2 ([#2045](https://github.com/DeanoC/fes/pull/2045)) landed as
 `f07cd3384` during the first runs, so this branch merged main (`cdbdccd7b`,
@@ -322,6 +336,12 @@ again there except test386 on the RTL. The level-4 runner's unit tests
 governor-inventory and lockstep-seal tests) pass. Two of the runner's tests
 described the old behaviour and now describe the new: the level-4 oracle
 runs the `random` mode too, and the 486SX list has no stops.
+
+Main moved again during the first seal, and the branch merged it as
+`544f45918` (no rebase). Against the code head that merge changes, in the
+CPU and its lockstep, only `rtl/i386/README.md`; its design changes are
+pc386's (#2033, #2075). So the simulation gates above stand for it, and the
+second seal's netlist lockstep repeats the level-3 netlist gate there.
 
 ## What this does not establish
 
