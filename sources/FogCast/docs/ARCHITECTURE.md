@@ -1677,7 +1677,10 @@ tap support, then sends one generation-bound operation. The target waits at
 most 500 ms for a concurrent kit-local input operation to leave the lifecycle
 fence, then observes the active generation again; cancellation, a longer
 transition, a changed lease or generation, or a focus handoff during that wait
-rejects the tap without a press. The target
+rejects the tap without a press. An admitted bridge follows the target execution
+lease lifetime, so revocation cancels a pending tap even before ownership
+cleanup has drained the CONNECT request. Ordinary stream disconnects do not
+end that lease. The target
 applies the press and release 60 ms apart using its local
 clock; unrelated held keys from other sources remain held. The tap fails if
 the same key is held locally before the tap or becomes held before its release. A cancellation or

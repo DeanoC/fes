@@ -177,6 +177,7 @@ func guardKitLease(next http.Handler, token string, manager *internallease.Manag
 				<-cancelled
 			}
 		}()
+		ctx = internallease.WithLeaseLifetime(ctx, leaseContext)
 		next.ServeHTTP(w, r.WithContext(internallease.WithAdmission(ctx)))
 	}))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

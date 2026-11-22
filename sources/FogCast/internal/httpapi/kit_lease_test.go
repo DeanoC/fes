@@ -607,3 +607,52 @@ func TestRetiredCastRoutesAreAbsent(t *testing.T) {
 		}
 	}
 }
+
+type lifetimeCapturingInput struct {
+	leaseStreamController
+	lifetime context.Context
+}
+
+func (c *lifetimeCapturingInput) Attach(ctx context.Context, _ input.Spec) error {
+	if !kitlease.Admitted(ctx) {
+		return fmt.Errorf("input attach was not admitted")
+	}
+	c.lifetime = kitlease.LeaseLifetime(ctx)
+	if c.lifetime == nil {
+		return fmt.Errorf("admitted input attach has no lease lifetime")
+	}
+	return nil
+}
+
+func TestKitLeaseGuardCarriesLifetimePastAttachRequest(t *testing.T) {
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	defer manager.Close()
+	grant := claimKit(t, manager)
+	controller := &lifetimeCapturingInput{}
+	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithInput(controller))
+	requestCtx, cancelRequest := context.WithCancel(context.Background())
+	defer cancelRequest()
+	body := `{"session":1,"token":"` + strings.Repeat("ab", 16) + `","core":"SNES"}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/input/attach", strings.NewReader(body)).WithContext(requestCtx)
+	request.Header.Set("Authorization", "Bearer bearer")
+	request.Header.Set(httpapi.KitLeaseHeader, grant.Token)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || controller.lifetime == nil {
+		t.Fatalf("attach status=%d lifetime=%v", response.Code, controller.lifetime)
+	}
+	cancelRequest()
+	select {
+	case <-controller.lifetime.Done():
+		t.Fatal("ending the attach request ended the execution lease lifetime")
+	default:
+	}
+	if _, err := manager.Release(grant.Token); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-controller.lifetime.Done():
+	case <-time.After(time.Second):
+		t.Fatal("lease revocation did not cancel the admitted lifetime")
+	}
+}

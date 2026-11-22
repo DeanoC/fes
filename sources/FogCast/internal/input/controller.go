@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -59,11 +60,12 @@ type TargetController struct {
 }
 
 type lease struct {
-	session uint64
-	token   []byte
-	core    string
-	server  *bridge.Server
-	cancel  context.CancelFunc
+	session  uint64
+	token    []byte
+	core     string
+	server   *bridge.Server
+	cancel   context.CancelFunc
+	lifetime context.Context
 }
 
 func NewTargetController() *TargetController {
@@ -158,14 +160,29 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 	if c == nil || ctx == nil || spec.Session == 0 || len(spec.Token) < 16 || !validCore(spec.Core) {
 		return errors.New("invalid input lease")
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	lifetime := kitlease.LeaseLifetime(ctx)
+	if lifetime == nil {
+		if kitlease.Admitted(ctx) {
+			return errors.New("admitted input lease lifetime is unavailable")
+		}
+		// An unguarded controller has no kit lease to revoke; its existing
+		// attachment lifecycle continues to be controlled by Detach or Close.
+		lifetime = context.Background()
+	}
 	done := c.beginLifecycleTransition()
 	defer done()
 	c.lifecycle.Lock()
 	defer c.lifecycle.Unlock()
-	return c.attachLocked(ctx, spec)
+	return c.attachLocked(ctx, spec, lifetime)
 }
 
-func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
+func (c *TargetController) attachLocked(ctx context.Context, spec Spec, lifetime context.Context) error {
+	if lifetime == nil || lifetime.Err() != nil {
+		return errors.New("input lease lifetime is unavailable")
+	}
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -189,6 +206,7 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 	}
 	current := c.active
 	if current != nil && current.session == spec.Session && current.core == spec.Core &&
+		current.lifetime != nil && current.lifetime.Done() == lifetime.Done() &&
 		subtle.ConstantTimeCompare(current.token, spec.Token) == 1 {
 		c.mu.Unlock()
 		return nil
@@ -256,13 +274,14 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 		_ = sink.Close()
 		return err
 	}
-	leaseCtx, cancel := context.WithCancel(context.Background())
+	leaseCtx, cancel := context.WithCancel(lifetime)
 	candidate := &lease{
-		session: spec.Session,
-		token:   append([]byte(nil), spec.Token...),
-		core:    spec.Core,
-		server:  server,
-		cancel:  cancel,
+		session:  spec.Session,
+		token:    append([]byte(nil), spec.Token...),
+		core:     spec.Core,
+		server:   server,
+		cancel:   cancel,
+		lifetime: lifetime,
 	}
 	c.mu.Lock()
 	if c.closed {
@@ -276,7 +295,12 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 	select {
 	case <-ctx.Done():
 		startupErr = ctx.Err()
+	case <-lifetime.Done():
+		startupErr = lifetime.Err()
 	case startupErr = <-server.Startup():
+	}
+	if startupErr == nil {
+		startupErr = errors.Join(ctx.Err(), lifetime.Err())
 	}
 	if startupErr != nil {
 		stopErr := stopLease(candidate)
@@ -374,7 +398,7 @@ func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(conte
 				Session: current.session,
 				Token:   append([]byte(nil), current.token...),
 				Core:    current.core,
-			})
+			}, current.lifetime)
 		})
 		return finishErr
 	}

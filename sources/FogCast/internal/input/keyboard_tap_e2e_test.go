@@ -10,6 +10,7 @@ import (
 
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hidkeys"
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -214,4 +215,123 @@ func TestTargetTapCancelThroughRealBridgeReleases(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("tap did not finish")
 	}
+}
+
+// notifiedTapConn reports that the host's tap frame crossed the existing
+// bridge connection, before the target processes it. It is only a test wrapper
+// around the same connection used by localTapBridge.
+type notifiedTapConn struct {
+	net.Conn
+	sent chan struct{}
+	once *sync.Once
+}
+
+func (c notifiedTapConn) Write(p []byte) (int, error) {
+	n, err := c.Conn.Write(p)
+	if len(p) > 9 && p[9] == protocol.InputTypeTap && err == nil && n == len(p) {
+		c.once.Do(func() { close(c.sent) })
+	}
+	return n, err
+}
+
+type notifiedTapBridge struct {
+	*localTapBridge
+	sent chan struct{}
+	once sync.Once
+}
+
+func (b *notifiedTapBridge) Dial(ctx context.Context) (net.Conn, error) {
+	conn, err := b.controller.OpenStream(ctx, b.session)
+	if err != nil {
+		return nil, err
+	}
+	return notifiedTapConn{Conn: conn, sent: b.sent, once: &b.once}, nil
+}
+
+// Revocation cancels the bridge's target-side tap even while the authenticated
+// CONNECT admission remains outstanding and cleanup has not begun. The socket
+// and poster here are the existing in-memory host/bridge test path; no kit or
+// local-input device is involved.
+func TestTargetTapWaitingForLifecycleStopsOnLeaseRevocation(t *testing.T) {
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	defer manager.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := manager.Settled(ctx); err != nil {
+		t.Fatal(err)
+	}
+	grant, err := manager.Claim(kitlease.ClaimRequest{RequestID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Owner: "private", Purpose: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifetime, endConnect, err := manager.Begin(grant.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer endConnect()
+	posts := make(chan hidkeys.Rows, 8)
+	hid := &keyboardHIDSink{}
+	hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
+	ports := &controllerPortsSink{hid: hid}
+	controller := newTargetControllerWithSink("127.0.0.1:0", ports)
+	controller.ports = ports
+	controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+		return CoreObservation{Active: true, KeyboardHID: &KeyboardHIDBinding{PackageID: "p", Generation: 7}}, nil
+	})
+	t.Cleanup(func() { _ = controller.Close() })
+	sent := make(chan struct{})
+	starter := host.BridgeStarterFunc(func(startCtx context.Context, spec host.BridgeSpec) (host.BridgeHandle, error) {
+		startCtx = kitlease.WithAdmission(kitlease.WithLeaseLifetime(startCtx, lifetime))
+		if err := controller.Attach(startCtx, Spec{Session: spec.Session, Token: spec.Token, Core: spec.Core}); err != nil {
+			return nil, err
+		}
+		ready := make(chan struct{})
+		close(ready)
+		return &notifiedTapBridge{localTapBridge: &localTapBridge{controller: controller, session: spec.Session, ready: ready}, sent: sent}, nil
+	})
+	remote, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: starter, HeartbeatInterval: time.Hour, DialTimeout: time.Second, ReconnectGrace: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = remote.Close() })
+	if err := remote.AttachWithCapabilities(ctx, "fes.c64", true); err != nil {
+		t.Fatal(err)
+	}
+	controller.lifecycle.Lock()
+	tapDone := make(chan error, 1)
+	go func() {
+		_, err := remote.TapKey(ctx, remote.Status().SessionID, 7, remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: 0x1025}, func() error { return nil })
+		tapDone <- err
+	}()
+	select {
+	case <-sent:
+	case <-ctx.Done():
+		controller.lifecycle.Unlock()
+		t.Fatal("tap frame was not sent")
+	}
+	if _, err := manager.Release(grant.Token); err != nil {
+		controller.lifecycle.Unlock()
+		t.Fatal(err)
+	}
+	select {
+	case <-lifetime.Done():
+	case <-ctx.Done():
+		controller.lifecycle.Unlock()
+		t.Fatal("lease lifetime was not canceled")
+	}
+	controller.lifecycle.Unlock()
+	select {
+	case err := <-tapDone:
+		if !errors.Is(err, host.ErrRemoteInputUnconfirmed) {
+			t.Fatalf("revoked tap: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("revoked tap did not finish")
+	}
+	select {
+	case rows := <-posts:
+		t.Fatalf("revoked tap reached the HID poster: %+v", rows)
+	default:
+	}
+	endConnect()
 }
