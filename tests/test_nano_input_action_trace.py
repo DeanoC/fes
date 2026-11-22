@@ -10,7 +10,7 @@ import unittest
 from test_nano_tenfoot_trace import Model, ROOT, trace
 from test_nano_paired_tenfoot_trace import Model as PairedModel, paired
 from test_nano_shared_tenfoot_trace import SharedModel
-from test_nano_program_client import OWNER
+from nano_program_fixtures import OWNER
 import input_action_trace as actions
 
 FIXTURE = ROOT/'tests/fixtures/nano-input-actions'

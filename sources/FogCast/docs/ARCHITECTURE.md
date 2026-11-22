@@ -97,6 +97,14 @@ grants and use the backend's generation-bound pause/drain handoff before
 publishing frames across core transitions. The DE25 native backend now exercises
 package launch and return; that experiment remains opt-in and incomplete.
 
+Spectrum launch media uses the same Go cassette converter in FogCast and the
+native DE25 backend. Both prepare the core's PZX stream from the original tape
+file. The native backend retains and verifies the selected file on FAT32 before
+closing SD access, then sends PZX to board SDRAM through the core's existing
+media mailbox while execution is held. The converter and core media contract
+are independent of the launcher OS. File access and hardware ownership stay
+with each delivery backend.
+
 This boundary supports the experimental
 [Linux-free base](../../../platform/embedded/README.md). Its native QEMU image
 uses real VirtIO networking to a private FogCast host, FAT32 preferences, live
@@ -1499,7 +1507,11 @@ a stale entry.
 The **core screen** (`example.core`, `widgets.core_screen`) is what Home opens
 for the ZX81, Spectrum, Atari ST and Commodore 64 families. It shows one
 family: a Model row for its variants, the computer with its readiness and
-fixed facts on the left, and its drive and games on the right. It reads the
+fixed facts on the left, and its drive and games on the right. For C64 the
+default model is PAL (`fes.c64`). Show all cores also exposes the DE10 NTSC
+6567R8 model (`fes.c64-ntsc`). Each model launches its own library entries
+and binds the user's 36 KiB firmware to its selected package. Both use the
+same D64 drive interface. The screen reads the
 family with the `home_family` library query, the only one that marks a row as
 a machine entry or a title: the machine entry is listed first as the computer
 on its own, and the count is of titles. Home opens the screen with that

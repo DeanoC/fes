@@ -184,9 +184,6 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
             if not compile_only:
                 if not timing['package_timing_admission']:
                     raise BuildError('DE25 ZX81 package blocked by reported timing/signoff findings; candidate retained')
-                repeated, other = compile_at('repeat')
-                if not other['package_timing_admission'] or sha(payload) != sha(repeated):
-                    raise BuildError('DE25 ZX81 independent rebuild failed timing or changed RBF')
         if (_require_clean_source(root, pinned_inputs=(RECIPE, ABI)) != (repository, revision) or
                 common.authenticate_tools(builder, quartus_root) != (paths, identities) or execution_inputs(paths, env) != execution or
                 create_build_record(root, repository, revision, identities, execution, builder.capture_standard_board(revision)) != record):

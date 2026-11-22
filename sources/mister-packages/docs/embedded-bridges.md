@@ -119,7 +119,7 @@ The source context binds the sealed HPS-first FPGA package before native SPL
 construction, avoiding a self-referential SPL hash. Its digest is compiled
 into the matched secure firmware and native image. It is not live FPGA
 identity, measured boot, CPU mapping qualification or programming admission.
-The contained `bootcontext`, `fpgacontext` and `fpgastatus` diagnostics select it. The default
+The contained `hpsio`, `usbcheck` and `fpgaload` programs select it. The default
 provider returns NOT_READY, and the cold dispatcher still denies generic bridge
 mutations and configuration. The fabric warning capability describes the
 optional warning handshake, not the presence of a configured FPGA core.
@@ -147,7 +147,7 @@ pinmux subset; they supply no signed boot, clock/RAM qualification, generic
 bridge mutation, secondary CPU release or runtime programming admission.
 
 Operation 6 is a separate one-shot secure identity probe, available only in a
-matched source-bound cold chain (`fpgacontext` or `fpgaload`). Its fixed CPU aperture, ABI and build ID come
+matched source-bound cold chain (`fpgaload`). Its fixed CPU aperture, ABI and build ID come
 from the sealed project's compiler handoff and are compiled into secure
 firmware. The request contains no address or FPGA write. It requires the
 current owner/generation, never-enabled evidence, contained masters and
@@ -195,10 +195,10 @@ one-shot per boot and does not consume the identity attempt; a later identity
 operation always queries readiness again. A failed query retires authority
 and may assert control reset for containment, without opening any bridge.
 
-The `fpgastatus` native diagnostic uses operation 7 and verifies an identical
-closed Snapshot afterwards. It never invokes operation 6. Its completion
-reports SDM readiness only, regardless of whether fabric is ready; neither
-branch supplies live endpoint identity, HPS I/O measurement or admission.
+The earlier standalone `fpgastatus` diagnostic that exercised operation 7 has
+been retired; operation 7 remains defined in the firmware bridge contract for
+read-only SDM readiness queries without opening any bridge, and supplies no live
+endpoint identity, HPS I/O measurement or admission.
 
 Operation 8 prepares one source-bound cold configuration under the existing
 owner lock. It takes the expected owner and generation through the same

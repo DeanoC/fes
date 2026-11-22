@@ -425,9 +425,10 @@ It hashes the actual tool installation and controlled execution, writes
 the actual Qsys BUILD_ID parameter. Outputs default to a fresh attempt under
 `build/de25-menu/<build-id>/`. Compile-only creates no manifest or package.
 Without `--compile-only`, all reported timing checks must pass, the complete
-85-rule inventory must have zero unreviewed or waived findings, and a second
-compilation must reproduce the RBF,
-before the unchanged normal package exporter runs. Current external IO/reset
+85-rule inventory must have zero unreviewed or waived findings before the
+unchanged normal package exporter runs. There is no second, byte-identical
+compile: Quartus 26.3 Pro's fit is not reproducible across threads or
+project paths. Current external IO/reset
 findings block that export. Candidate compilation does not open any physical
 or normal-kit acceptance gate.
 

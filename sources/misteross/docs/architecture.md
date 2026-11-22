@@ -732,10 +732,11 @@ available. The F2H parameter change has no boot-firmware acceptance yet and
 grants no IO, reset, physical DMA or native acceptance.
 
 The package path requires the complete 85-rule signoff inventory and its detailed
-results, all reported setup/hold/recovery/removal/pulse-width/skew/net-delay checks, zero waived
-findings and an independent identical RBF before using the normal exporter.
+results, all reported setup/hold/recovery/removal/pulse-width/skew/net-delay checks and zero waived
+findings before using the normal exporter. DE25 producers compile once: Quartus 26.3 Pro's fit is
+not reproducible across threads or project paths, so a byte-identical repeat is not required.
 The approved `de25-menu-reviewed-async-inputs-v1` policy accepts only TMC-20011
-for `HDMI_I2C_SDA` and `HDMI_TX_INT`. Each compilation and independent rebuild
+for `HDMI_I2C_SDA` and `HDMI_TX_INT`. Each compilation
 queries a private copy of the final fitted database: raw input and first-stage
 fanout must follow the reviewed two-register chain, with only its intended
 controller consumers (including Quartus copies of ACK1/2/3 and LUT_INDEX0..5

@@ -80,76 +80,22 @@ def menu_present_option(receipt, memory, access):
 
 
 def compiled_menu_option(receipt, companion):
+    return compiled_program_option(receipt, companion, 'main.expectedCompiledMenuProgram')
+
+
+def compiled_program_option(receipt, companion, name):
     command=receipt.get('command',[])
     try:tokens=shlex.split(command[command.index('-ldflags')+1])
     except (ValueError,IndexError,AttributeError,TypeError):
-        raise ValueError('compiled menu requires the native link command') from None
-    name='main.expectedCompiledMenuProgram'
+        raise ValueError('compiled program requires the native link command') from None
     options=[(i,word) for i,word in enumerate(tokens) if name in word]
     if companion is None:
-        if options:raise ValueError('unselected compiled menu appears in the native link command')
+        if options:raise ValueError('unselected compiled program appears in the native link command')
         return None
     value=base64.b64encode((json.dumps(companion,sort_keys=True,separators=(',',':'))+'\n').encode()).decode()
     if len(options)!=1 or options[0][1]!=name+'='+value or options[0][0]==0 or tokens[options[0][0]-1]!='-X':
-        raise ValueError('compiled menu differs from its exact native link assignment')
+        raise ValueError('compiled program differs from its exact native link assignment')
     return companion
-
-
-def window_memory_option(receipt, memory):
-    selected=receipt.get('window_memory',False)
-    if (type(selected) is not bool or selected !=
-            (memory is not None and memory.get('scope')=='sealed-cold-window-reader-memory-v1')):
-        raise ValueError('window memory selection differs from its complete compiled map')
-    command=receipt.get('command',[])
-    try:
-        flags=command[command.index('-ldflags')+1]
-        tokens=shlex.split(flags)
-    except (ValueError,IndexError,AttributeError,TypeError):
-        raise ValueError('window memory requires the native link command') from None
-    options=[(i,word) for i,word in enumerate(tokens) if 'main.expectedWindowMemory' in word]
-    if selected:
-        if (len(options)!=1 or options[0][1]!='main.expectedWindowMemory=1' or
-                options[0][0]==0 or tokens[options[0][0]-1]!='-X'):
-            raise ValueError('window memory selection differs from the native link command')
-    elif options:
-        raise ValueError('unselected window memory appears in the native link command')
-    return selected
-
-
-def window_read_option(receipt,mapping):
-    selected=receipt.get('window_read',False)
-    if (type(selected) is not bool or selected!=(mapping is not None) or
-            selected and receipt.get('window_memory') is not True):
-        raise ValueError('window read selection differs from its complete compiled contract')
-    command=receipt.get('command',[])
-    try:tokens=shlex.split(command[command.index('-ldflags')+1])
-    except (ValueError,IndexError,AttributeError,TypeError):
-        raise ValueError('window read requires the native link command') from None
-    options=[(i,word) for i,word in enumerate(tokens) if 'main.expectedWindowReadMap' in word]
-    if selected:
-        raw=(json.dumps(mapping,sort_keys=True,separators=(',',':'))+'\n').encode()
-        expected='main.expectedWindowReadMap='+base64.b64encode(raw).decode()
-        if len(options)!=1 or options[0][1]!=expected or options[0][0]==0 or tokens[options[0][0]-1]!='-X':
-            raise ValueError('window read differs from the exact native link assignment')
-    elif options:raise ValueError('unselected window read appears in the native link command')
-    return selected
-
-
-def window_present_option(receipt):
-    selected=receipt.get('window_present',False)
-    if (type(selected) is not bool or selected and
-            (receipt.get('window_read') is not True or receipt.get('window_memory') is not True)):
-        raise ValueError('window presentation requires the complete selected read path')
-    command=receipt.get('command',[])
-    try:tokens=shlex.split(command[command.index('-ldflags')+1])
-    except (ValueError,IndexError,AttributeError,TypeError):
-        raise ValueError('window presentation requires the native link command') from None
-    options=[(i,word) for i,word in enumerate(tokens) if 'main.expectedWindowPresent' in word]
-    if selected:
-        if len(options)!=1 or options[0][1]!='main.expectedWindowPresent=1' or options[0][0]==0 or tokens[options[0][0]-1]!='-X':
-            raise ValueError('window presentation differs from the native link assignment')
-    elif options:raise ValueError('unselected window presentation appears in the native link command')
-    return selected
 
 
 class Segment(ctypes.Structure):
@@ -171,64 +117,11 @@ def validate_staging(start, end, lower, upper, excluded):
         raise ValueError("loader staging must be disjoint from Go RAM and every declared firmware/device reservation")
 
 
-def window_storage_return_option(receipt):
-    selected=receipt.get('window_storage_return',False)
-    if (type(selected) is not bool or selected and
-            (receipt.get('window_present') is not True or receipt.get('window_read') is not True or receipt.get('window_memory') is not True)):
-        raise ValueError('window storage return requires the selected complete presentation path')
-    command=receipt.get('command',[])
-    try:tokens=shlex.split(command[command.index('-ldflags')+1])
-    except (ValueError,IndexError,AttributeError,TypeError):
-        raise ValueError('window storage return requires the native link command') from None
-    options=[(i,word) for i,word in enumerate(tokens) if 'main.expectedWindowStorageReturn' in word]
-    if selected:
-        if len(options)!=1 or options[0][1]!='main.expectedWindowStorageReturn=1' or options[0][0]==0 or tokens[options[0][0]-1]!='-X':
-            raise ValueError('window storage return differs from the native link assignment')
-    elif options:raise ValueError('unselected window storage return appears in the native link command')
-    return selected
-
-
-def window_reload_option(receipt):
-    selected=receipt.get('window_reload',False)
-    if (type(selected) is not bool or selected and
-            (receipt.get('window_storage_return') is not True or receipt.get('window_present') is not True or receipt.get('window_read') is not True or receipt.get('window_memory') is not True)):
-        raise ValueError('window reload requires the selected complete presentation path')
-    command=receipt.get('command',[])
-    try:tokens=shlex.split(command[command.index('-ldflags')+1])
-    except (ValueError,IndexError,AttributeError,TypeError):
-        raise ValueError('window reload requires the native link command') from None
-    options=[(i,word) for i,word in enumerate(tokens) if 'main.expectedWindowReload' in word]
-    if selected:
-        if len(options)!=1 or options[0][1]!='main.expectedWindowReload=1' or options[0][0]==0 or tokens[options[0][0]-1]!='-X':
-            raise ValueError('window reload differs from the native link assignment')
-    elif options:raise ValueError('unselected window reload appears in the native link command')
-    return selected
-
-
-def window_service_option(receipt):
-    selected=receipt.get('window_service',False)
-    if (type(selected) is not bool or selected and
-            (receipt.get('window_storage_return') is not True or receipt.get('window_present') is not True or
-             receipt.get('window_read') is not True or receipt.get('window_memory') is not True or receipt.get('window_reload',False) is not False)):
-        raise ValueError('window service requires the complete SD-return path and excludes bounded reload')
-    command=receipt.get('command',[])
-    try:tokens=shlex.split(command[command.index('-ldflags')+1])
-    except (ValueError,IndexError,AttributeError,TypeError):
-        raise ValueError('window service requires the native link command') from None
-    options=[(i,word) for i,word in enumerate(tokens) if 'main.expectedWindowService' in word]
-    if selected:
-        if len(options)!=1 or options[0][1]!='main.expectedWindowService=1' or options[0][0]==0 or tokens[options[0][0]-1]!='-X':
-            raise ValueError('window service differs from the native link assignment')
-    elif options:raise ValueError('unselected window service appears in the native link command')
-    return selected
-
-
 def tenfoot_serial_option(receipt):
     selected=receipt.get('tenfoot_serial',False)
     if (type(selected) is not bool or selected and
             (receipt.get('selected_programs') is not True or receipt.get('computer_reload') is not True or
-             receipt.get('computer_storage_return') is not True or receipt.get('hps_computer') is None or
-             receipt.get('window_memory',False) is not False)):
+             receipt.get('computer_storage_return') is not True or receipt.get('hps_computer') is None)):
         raise ValueError('serial Tenfoot requires selected computer control, rearming and owned SD return')
     command=receipt.get('command',[])
     try:tokens=shlex.split(command[command.index('-ldflags')+1])
@@ -268,20 +161,15 @@ def main():
     native_sources = None
     native_context = native_io = native_cpu_map = native_control = native_configuration = native_reader_memory = native_ddr_read = native_computer = native_rom = native_program_platform = None
     native_selected_programs = False
-    native_menu_program = None
+    native_menu_program = native_spectrum_program = None
+    native_shared_shell = False
     native_tenfoot_serial = False
     native_initial_tape = False
     native_tape_memory = None
     native_reload = False
     native_storage_return = False
-    native_window_memory = False
-    native_window_read = None
     native_menu_read = None
     native_menu_present = False
-    native_window_present = False
-    native_window_storage_return = False
-    native_window_reload = False
-    native_window_service = False
     native_usb_control = False
     if args.target == "qemu":
         if args.nano_build or args.profile or args.image_address is not None:
@@ -320,22 +208,29 @@ def main():
         native_reader_memory=hps.checked_reader_memory(receipt)
         native_cpu_map=hps.checked_cpu_mapping(receipt)
         native_ddr_read=hps.checked_ddr_read(receipt)
-        native_window_read=hps.checked_window_read(receipt)
         native_menu_read=hps.checked_menu_read(receipt)
         native_menu_present=menu_present_option(receipt,native_reader_memory,native_menu_read)
         native_computer=hps.checked_computer(receipt)
         native_rom=hps.checked_rom(receipt)
         native_program_platform=hps.checked_program_platform(receipt)
         native_menu_program=compiled_menu_option(receipt,hps.checked_menu_program(receipt))
+        native_spectrum_program = compiled_program_option(
+            receipt, hps.spectrum48.checked(receipt), 'main.expectedCompiledSpectrum48')
+        native_shared_shell = hps.spectrum48.shared_shell(receipt)
+        command = receipt['command']
+        tokens = shlex.split(command[command.index('-ldflags')+1])
+        shell_options = [i for i, word in enumerate(tokens) if 'main.expectedSharedCoreShell' in word]
+        expected = ['-X', 'main.expectedSharedCoreShell=1']
+        if len(shell_options) != int(native_shared_shell) or any(
+                i == 0 or tokens[i-1:i+1] != expected for i in shell_options):
+            raise ValueError('shared core shell differs from the exact native link assignment')
+        if native_spectrum_program is not None and (
+                not native_menu_program or base64.b64encode(hps.encode(native_spectrum_program)) not in payload.read_bytes()):
+            raise ValueError('compiled Spectrum companion differs from the native ELF')
+
         native_selected_programs=receipt.get('selected_programs',False)
         native_reload=receipt.get('computer_reload',False)
         native_storage_return=receipt.get('computer_storage_return',False)
-        native_window_memory=window_memory_option(receipt,native_reader_memory)
-        window_read_option(receipt,native_window_read)
-        native_window_present=window_present_option(receipt)
-        native_window_storage_return=window_storage_return_option(receipt)
-        native_window_reload=window_reload_option(receipt)
-        native_window_service=window_service_option(receipt)
         native_tenfoot_serial=tenfoot_serial_option(receipt)
         native_initial_tape=hps.initial_tape.linked(receipt)
         native_tape_memory=hps.initial_tape.checked_memory(receipt)
@@ -348,19 +243,6 @@ def main():
         if native_tenfoot_serial and any(value not in payload.read_bytes() for value in
                 (b'FES_NATIVE_TENFOOT_BEGIN ',b'ProgramBackend).RoundTrip',b'tenfoot.RunPlatform',b'ProgramSerialPlatform).Next')):
             raise ValueError('serial Tenfoot is absent from the selected native ELF')
-        if native_window_service and any(value not in payload.read_bytes() for value in
-                (b'FES_NATIVE_WINDOW_REPLY ',b'WindowService).Launch',b'WindowConsole).Handle',b'WindowSession).ResumeStorageAfterReturn')):
-            raise ValueError('window service is absent from the selected native ELF')
-        if native_window_reload and any(value not in payload.read_bytes() for value in
-                (b"FES_NATIVE_FPGA_WINDOW_RELOAD BEGIN ",b"FES_NATIVE_FPGA_WINDOW_RELOAD PASS ",b"WindowSession).NewStoredReconfigurationTransfer")):
-            raise ValueError("window reload is absent from the selected native ELF")
-        if native_window_storage_return and any(value not in payload.read_bytes() for value in
-                (b"FES_NATIVE_FPGA_WINDOW_STORAGE_RETURN PASS ",b"WindowSession).ResumeStorageAfterReturn")):
-            raise ValueError("window storage return is absent from the selected native ELF")
-        if native_window_present and any(value not in payload.read_bytes() for value in
-                (b'FES_NATIVE_FPGA_WINDOW_PRESENT STEP ',b'FES_NATIVE_FPGA_WINDOW_PRESENT FRAME ',b'FES_NATIVE_FPGA_WINDOW_PRESENT PASS ',
-                 b'WindowSession).PresentFrame',b'WindowReader).Drain')):
-            raise ValueError('window presentation is absent from the selected native ELF')
         if native_menu_present and any(value not in payload.read_bytes() for value in
                 (b'FES_NATIVE_FPGA_MENU_PRESENT FRAME ',b'FES_NATIVE_FPGA_MENU_PRESENT PASS ',
                  b'NewMenuHPSContextVerifier',b'MenuSession).PresentFrame',b'MenuSession).Close')):
@@ -387,8 +269,6 @@ def main():
             raise ValueError('native compiled menu selection differs from its linked payload')
         if native_ddr_read is not None and base64.b64encode(hps.encode(native_ddr_read)) not in payload.read_bytes():
             raise ValueError('DDR read contract is absent from the selected native ELF')
-        if native_window_read is not None and base64.b64encode(hps.encode(native_window_read)) not in payload.read_bytes():
-            raise ValueError('full-window access contract is absent from the selected native ELF')
         if native_menu_read is not None and base64.b64encode(hps.encode(native_menu_read)) not in payload.read_bytes():
             raise ValueError('menu access contract is absent from the selected native ELF')
         if native_computer is not None and base64.b64encode(hps.encode(native_computer)) not in payload.read_bytes():
@@ -456,6 +336,7 @@ def main():
         files.append(HERE.parent/'nano/usb_selection.py')
         files.append(HERE.parent/'nano/initial_tape.py')
         if native_context is not None:files.extend(hps.inputs())
+        if native_spectrum_program is not None or native_shared_shell:files.append(Path(hps.spectrum48.__file__))
     files.append(HERE.parent / "experiment.py")
     frozen = {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in files}
     payload_bytes = payload.read_bytes()
@@ -586,19 +467,15 @@ def main():
               "hps_rom":native_rom,
               "hps_rom_sha256":hps.digest(native_rom) if native_rom is not None else None,
               "computer_reload":native_reload,
-              "window_memory":native_window_memory,
               "menu_present":native_menu_present,"hps_menu_read":native_menu_read,
               "hps_menu_read_sha256":hps.digest(native_menu_read) if native_menu_read else None,
-              "window_read":native_window_read is not None,"hps_window_read":native_window_read,
-              "window_present":native_window_present,
-              "window_storage_return":native_window_storage_return,
-              "window_reload":native_window_reload,
-              "window_service":native_window_service,
-              "hps_window_read_sha256":hps.digest(native_window_read) if native_window_read else None,
               "computer_storage_return":native_storage_return,
               "selected_programs":native_selected_programs,"tenfoot_serial":native_tenfoot_serial,"initial_tape":native_initial_tape,
               "initial_tape_memory":native_tape_memory,
               "initial_tape_memory_sha256":hps.initial_tape.memory_digest(native_tape_memory) if native_tape_memory else None,
+              **({"shared_core_shell": True} if native_shared_shell else {}),
+              **({"spectrum48_program": native_spectrum_program,
+                  "spectrum48_program_sha256": hps.digest(native_spectrum_program)} if native_spectrum_program else {}),
               "hps_menu_project":receipt.get('hps_menu_project'),"hps_menu_program":native_menu_program,
               "hps_menu_program_sha256":hps.digest(native_menu_program) if native_menu_program else None,
               "hps_program_platform":native_program_platform,

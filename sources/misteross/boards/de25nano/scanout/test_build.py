@@ -165,6 +165,26 @@ class ScanoutBuildTests(unittest.TestCase):
         path.write_text(original)
         self.assertEqual(B.verify_reset_synchronizers(project)["fifo_peer_cdc_ingresses"], 2)
 
+    def test_native_reset_repair_rejects_a_reintroduced_debug_reset(self):
+        _, directory, _ = self.reset_timing_fixture()
+        project = directory / "project"
+        originals = list(project.glob("generated-*/altera_reset_controller.sdc"))
+        self.assertEqual(len(originals), 6)
+        for i, original in enumerate(originals):
+            if i < 3:
+                owner = project / ("hps_subsys", "peripheral_subsys", "qsys_top")[i]
+                owner.mkdir(exist_ok=True)
+                original.rename(owner / original.name)
+            else:
+                original.unlink()
+        B.write_vendor_reset_timing(directory, no_debug=True)
+        self.assertEqual(len(B.verify_vendor_reset_timing(directory, no_debug=True)["files"]), 3)
+        foreign = project / "jtag_subsys"
+        foreign.mkdir(exist_ok=True)
+        (project / "hps_subsys/altera_reset_controller.sdc").rename(foreign / "altera_reset_controller.sdc")
+        with self.assertRaisesRegex(ValueError, "three reviewed subsystems"):
+            B.verify_vendor_reset_timing(directory, no_debug=True)
+
     def test_reset_repair_rejects_unknown_vendor_files_inventory_links_and_profile(self):
         _, directory, _ = self.reset_timing_fixture()
         path = directory / "project/generated-0/altera_reset_controller.sdc"

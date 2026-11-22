@@ -142,7 +142,7 @@ func TestProgramRoleRejectsUnstagedOrCrossedResources(t *testing.T) {
 			}
 		})
 	}
-	for _, role := range []programRole{0, 3, ^programRole(0)} {
+	for _, role := range []programRole{0, 4, ^programRole(0)} {
 		source, m := bindingFixture(t)
 		if raw, _, err := encodeRoleProgramBinding(source, m, role, nil); err == nil || raw != nil {
 			t.Fatal("unknown role encoded", role)
@@ -157,5 +157,58 @@ func TestProgramRoleRejectsUnstagedOrCrossedResources(t *testing.T) {
 		if raw, _, err := encodeRoleProgramBinding(source, m, role, image); err == nil || raw != nil {
 			t.Fatal("role encoded with invalid ROM resources", role)
 		}
+	}
+}
+
+func TestSpectrumPublicationRequiresTrustedProfile(t *testing.T) {
+	source, m := bindingFixture(t)
+	if _, _, err := encodeRoleProgramBinding(source, m, programRoleSpectrum48, make([]byte, 16384)); err == nil {
+		t.Fatal("Spectrum ROM was staged in the configuration descriptor")
+	}
+	header, offset, err := encodeRoleProgramBinding(source, m, programRoleSpectrum48, nil)
+	if err != nil || offset != 0 {
+		t.Fatal("mailbox Spectrum publication requires a zero ROM extension", err)
+	}
+	arena, err := NewProgramArena(0x94800000, make([]byte, ProgramMetadataBytes+(16<<10)), func() error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	region, err := arena.Reserve(make([]byte, m.CoreSize))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := region.PublishConfiguration(header); err != nil {
+		t.Fatal(err)
+	}
+	output, err := decodeRolePublication(t, buildProgramDecoder(t), header, source, m.ChunkBytes)
+	if err == nil {
+		t.Fatalf("unpaired TF-A decoder admitted Spectrum: %s", output)
+	}
+}
+
+func TestSecureDecoderRejectsUnknownRoleAndOversizedComputerROM(t *testing.T) {
+	decoder := buildProgramDecoder(t)
+	source, m := bindingFixture(t)
+	rom := make([]byte, 8192)
+	raw, _, err := encodeRoleProgramBinding(source, m, programRoleComputer, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, err := decodeRolePublication(t, decoder, raw, source, m.ChunkBytes); err != nil {
+		t.Fatalf("secure decoder rejected unmodified publication: %v %s", err, out)
+	}
+	for _, name := range []string{"unknown-role", "16KiB-ROM"} {
+		t.Run(name, func(t *testing.T) {
+			publication := bytes.Clone(raw)
+			switch name {
+			case "unknown-role":
+				binary.LittleEndian.PutUint32(publication[programRoleOffset:], 4)
+			case "16KiB-ROM":
+				binary.LittleEndian.PutUint32(publication[ProgramHeaderBytes+16:], 16384)
+			}
+			if out, err := decodeRolePublication(t, decoder, publication, source, m.ChunkBytes); err == nil {
+				t.Fatalf("secure decoder admitted %s: %s", name, out)
+			}
+		})
 	}
 }

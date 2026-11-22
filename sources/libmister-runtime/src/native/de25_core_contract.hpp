@@ -88,7 +88,7 @@ constexpr std::array<De25StandardInterface, 7> kDe25StandardShell = {{
 	{"fes.fabric.video.display-plane", 1, 0},
 	{"fes.fabric.de25-scanout", 1, 3},
 }};
-constexpr std::array<De25StandardCore, 7> kDe25StandardCores = {{
+constexpr std::array<De25StandardCore, 8> kDe25StandardCores = {{
 	{"fes.zx81",
 		{{{generated::FesComputerInterfaceMediaZx81TapeID, 1, 0},
 		  {generated::FesComputerInterfaceMediaZx81TapeWriteID, 1, 0}}},
@@ -132,6 +132,12 @@ constexpr std::array<De25StandardCore, 7> kDe25StandardCores = {{
 		  {generated::FesComputerInterfaceMediaAtariStFloppyGeometryID, 1, 0},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
 		{{196608, 0}}, nullptr, 0},
+	// The PAL C64: BASIC, KERNAL, character and 1541 ROMs as one image; its
+	// read-only D64 holds nothing to save.
+	{"fes.c64",
+		{{{generated::FesComputerInterfaceMediaC64DiskID, 1, 0},
+		  {kFirmwareUploadInterfaceID, 1, 0}}},
+		{{36864, 0}}, nullptr, 0},
 	// The DE10 package's PC/XT: its floppy is a fes.computer 1.1 interface. Its
 	// image is the 64 KiB system ROM window and then the 4 KiB CGA font.
 	{"fes.pcxt-dos",

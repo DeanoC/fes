@@ -142,6 +142,11 @@ def input_findings(drc):
     return sorted(PORTS)
 
 
+def native_spectrum48(params):
+    return (params.get("core_id"), params.get("model"), params.get("programming_profile"),
+            params.get("firmware_bytes")) == ("fes.spectrum", "native48", "de25-native-spectrum48-v1", 16384)
+
+
 def bindings(directory):
     directory = Path(directory)
     hps = directory / 'combined/hps'
@@ -154,13 +159,15 @@ def bindings(directory):
                  'fes.spectrum-plus3': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
                  'fes.pentagon': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
                  'fes.atari-st': ('computer', 'boards/de25nano/producers/build_atari_st_package.py'),
+                 'fes.c64': ('computer', 'boards/de25nano/producers/build_c64_package.py'),
                  'fes.pcxt-dos': ('computer', 'boards/de25nano/producers/build_pcxt_package.py'),
                  }.get(fields['parameters']['core_id'])
     require(selection is not None and fields['recipe'] == selection[1], 'unsupported canonical input-review core/recipe')
     profile = 'standard_zx81' if fields['parameters'].get('standard_core') is True else selection[0]
     inputs = json.loads((hps / 'inputs.json').read_text())
     if profile == 'standard_zx81':
-        require(fields['parameters'].get('programming_profile') == 'de25-linux-computer-v1' and
+        require((fields['parameters'].get('programming_profile') == 'de25-linux-computer-v1' or
+                 native_spectrum48(fields['parameters'])) and
                 inputs['scanout']['build_identity_scheme'] == 'canonical-standard-computer-v2' and
                 inputs['scanout']['build_id'] == build_identity(record), 'standard profile/scanout identity mismatch')
     require(inputs['fes_revision'] == fields['revision'] and

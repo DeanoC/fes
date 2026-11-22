@@ -197,7 +197,7 @@ def top_after(spec):
     return top
 
 
-def prepare(spec, archive, output, revision=None, model=None, *, package_build_id=None):
+def prepare(spec, archive, output, revision=None, model=None, *, package_build_id=None, native_hps=False):
     """Select the standard machine in the managed GHRD; never deploy it.
 
     A producer passes the build identity of its record, which the machine then
@@ -206,6 +206,8 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
     model = model or next(iter(spec.MODELS))
     if model not in spec.MODELS:
         raise ValueError("unknown " + spec.NAME + " model")
+    if native_hps and (spec.CORE_ID != "fes.spectrum" or model != "native48" or package_build_id is not None):
+        raise ValueError("native HPS is a Spectrum 48K project-only recipe")
     sources = capture(spec, revision)
     machine_hz, pll_ip, _, sdram_clocks = clocks(spec)
     scanout = selected_scanout(sources[BOARD + "scanout/build.py"])
@@ -220,7 +222,11 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
     observed = identity() if revision is None else {}
     selected_revision = revision or observed.get("base_revision", observed.get("fes_revision"))
     output, combined, hps, display = scanout.prepare(archive, output, selected_revision,
-        hps_first=True, linux_dma=True, package_build_id=build_id)
+        hps_first=True, linux_dma=not native_hps, package_build_id=None if native_hps else build_id)
+    if native_hps:
+        # The projection uses the diagnostic scanout's retained vendor HPS,
+        # JTAG and probe. Adopt the project-only identity produced by it.
+        build_id = json.loads((output / "combined/hps/inputs.json").read_text())["scanout"]["build_id"]
     directory = output / "combined/hps"
     project = directory / "project"
     local = project / "fes_mailbox"

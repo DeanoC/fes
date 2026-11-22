@@ -86,6 +86,7 @@ type Computer struct {
 
 type operation struct {
 	c                            *Computer
+	io                           IO
 	ctx                          context.Context
 	start, last                  time.Time
 	name, phase                  string
@@ -100,7 +101,7 @@ func (o *operation) limit(reason string, now time.Time) error {
 	err := fmt.Errorf("%w: reason=%s operation=%s phase=%s elapsed=%s step=%s limit=%s offset=%#x opcode=%d index=%d polls=%d/%d reads=%d writes=%d",
 		ErrLimit, reason, o.name, o.phase, now.Sub(o.start), now.Sub(o.last), o.timeout,
 		o.offset, o.opcode, o.index, o.polls, o.c.limits.MaxPolls, o.reads, o.writes)
-	if timer, ok := o.c.io.(AccessTimer); ok {
+	if timer, ok := o.io.(AccessTimer); ok {
 		t := timer.LastAccessTiming()
 		return fmt.Errorf("%w access_offset=%#x access_write=%t ownership_before=%s register_io=%s ownership_after=%s access_complete=%t",
 			err, t.Offset, t.Write, t.Before, t.Register, t.After, t.Completed)
@@ -142,7 +143,7 @@ func (c *Computer) begin(ctx context.Context, name string) (*operation, error) {
 		return nil, err
 	}
 	now := c.limits.Now()
-	return &operation{c: c, ctx: ctx, start: now, last: now, name: name, phase: "begin", timeout: c.limits.Timeout}, nil
+	return &operation{c: c, io: c.io, ctx: ctx, start: now, last: now, name: name, phase: "begin", timeout: c.limits.Timeout}, nil
 }
 
 func (o *operation) finish(err error) {
@@ -160,7 +161,7 @@ func (o *operation) read(offset uint32) (uint32, error) {
 		return 0, err
 	}
 	o.reads++
-	v, err := o.c.io.Read32(offset)
+	v, err := o.io.Read32(offset)
 	if err != nil {
 		return 0, err
 	}
@@ -241,7 +242,7 @@ func (o *operation) exchange(opcode, index uint32, argument uint16) (uint16, err
 	// Unlike a direct GP port, the Avalon adapter rejects writes that do not
 	// toggle. There is exactly one write, including for an eventual timeout.
 	o.writes++
-	if err := c.io.Write32(g.FesDe25ComputerGpoOffset, word); err != nil {
+	if err := o.io.Write32(g.FesDe25ComputerGpoOffset, word); err != nil {
 		return 0, err
 	}
 	o.phase = "after-write"

@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT/'platform/embedded/nano'))
 import paired_tenfoot_trace as paired
 from paired_firmware_trace import menu_closed, configuration as paired_configuration
 import test_nano_combined_program as combined
-from test_nano_program_client import LAUNCH, BOOT, SPEC, OWNER
+from nano_program_fixtures import LAUNCH, BOOT, SPEC, OWNER
 from test_nano_tenfoot_trace import Model as AppModel, PROGRAMS, STAGING_FAULTS, corrupt_staging
 from test_nano_shared_tenfoot_trace import POLICY, SHARED_BOOT, SOURCE
 

@@ -31,7 +31,7 @@ REPORTS = {'clocks.tsv', 'paths.tsv'} | {
 # The scanout service-window review changes only the wrapper/Tcl master burst
 # width and the builder's matching transport checks. Audio RTL, clocks, reset,
 # PCM and expansion wiring are unchanged; each new fit still needs its own
-# fitted clock/path review and independent rebuild.
+# fitted clock/path review.
 # The dated policy and fitted records are in docs/validation/
 # 2026-11-04-de25-standard-zx81/audio-clock-{reference-proposal.md,fitted-review.json}.
 # Current canonical per-fit records are retained under /data/
@@ -55,7 +55,7 @@ SOURCES = {
 }
 
 
-# A machine with its own PLL (Spectrum, Atari ST, PC/XT): the same serializer
+# A machine with its own PLL (Spectrum, Atari ST, C64, PC/XT): the same serializer
 # and PCM crossing behind fes_de25_machine_audio, clocked by the machine PLL's
 # second output in place of the stock audio PLL. This is a separate policy
 # with its own frozen sources; it borrows no fitted evidence from the ZX81.
@@ -66,7 +66,8 @@ MACHINE_POLICY = fitted.MACHINE_POLICY
 SHARED_PLL = ('boards/de25nano/machine/machine_pll.ip', '52890ca22dea5743d009dc5a10035918b54565cd9886c0c201a8022019a8d4b4')
 PCXT_PLL = ('boards/de25nano/pcxt/machine_pll.ip', '3933f6c70839736248bef4b93cd7fe1954275975f3200dd24168732e8a18ba40')
 MACHINE_PLLS = {'fes.spectrum': SHARED_PLL, 'fes.spectrum128': SHARED_PLL, 'fes.spectrum-plus3': SHARED_PLL,
-                'fes.pentagon': SHARED_PLL, 'fes.atari-st': SHARED_PLL, 'fes.pcxt-dos': PCXT_PLL}
+                'fes.pentagon': SHARED_PLL, 'fes.atari-st': SHARED_PLL, 'fes.c64': SHARED_PLL,
+                'fes.pcxt-dos': PCXT_PLL}
 # The PLL outputs beside the audio wiring, as machine/board.py writes them.
 MACHINE_PLL_OUTPUTS = {'fes.pcxt-dos': ('.outclk_2(machine_sdram_clk_forward), '
                                         '.outclk_3(machine_sdram_clk_handoff), '
@@ -124,9 +125,10 @@ def eligible(directory):
 
 def eligible_machine(directory, record):
     params = record['parameters']
-    expected = {'programming_profile': 'de25-linux-computer-v1', 'standard_core': True,
+    expected = {'standard_core': True,
                 'expansion_socket': False, 'audio_clock_reference_policy': MACHINE_POLICY}
     require(params.get('core_id') in MACHINE_PLLS and
+            (params.get('programming_profile') == 'de25-linux-computer-v1' or async_inputs.native_spectrum48(params)) and
             all(type(params.get(k)) is type(v) and params[k] == v for k, v in expected.items()),
             'requires a standard machine-PLL profile')
     sources = {**MACHINE_SOURCES, MACHINE_PLLS[params['core_id']][0]: MACHINE_PLLS[params['core_id']][1]}

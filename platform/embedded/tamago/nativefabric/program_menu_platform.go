@@ -6,6 +6,7 @@ import (
 	"errors"
 	stdimage "image"
 	"io"
+	"time"
 
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
@@ -16,6 +17,9 @@ type ProgramMenuPlatform struct {
 	service     *ProgramService
 	inner       tenfoot.Platform
 	framebuffer func() *stdimage.RGBA
+	dmaPollAt   time.Time
+	dmaNotified uint64
+	dmaArmed    uint64
 }
 
 func NewProgramMenuPlatform(service *ProgramService, inner tenfoot.Platform, framebuffer func() *stdimage.RGBA) (*ProgramMenuPlatform, error) {
@@ -29,7 +33,7 @@ func NewProgramMenuPlatform(service *ProgramService, inner tenfoot.Platform, fra
 		return nil, ErrProgramSession
 	}
 	p.menu.presentationClaimed = true
-	return &ProgramMenuPlatform{service, inner, framebuffer}, nil
+	return &ProgramMenuPlatform{service: service, inner: inner, framebuffer: framebuffer}, nil
 }
 
 func (p *ProgramMenuPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
@@ -37,10 +41,36 @@ func (p *ProgramMenuPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, 
 	if err != nil && !errors.Is(err, io.EOF) {
 		return input, p.service.Retire(err)
 	}
-	return input, err
+	if err != nil {
+		return input, err
+	}
+	now := time.Now()
+	if p.dmaArmed != 0 && p.dmaArmed != p.dmaNotified && !now.Before(p.dmaPollAt) {
+		p.dmaPollAt = now.Add(25 * time.Millisecond)
+		generation, rejected, faultErr := p.service.pollDMAReject(ctx)
+		if faultErr != nil {
+			return input, p.service.Retire(faultErr)
+		}
+		if rejected && generation == p.dmaArmed {
+			p.dmaNotified = generation
+			for _, command := range input.Commands {
+				if command == tenfoot.CmdStop || command == tenfoot.CmdQuit {
+					return input, nil
+				}
+			}
+			input.Commands = append(input.Commands, tenfoot.CmdStop)
+		}
+	}
+	return input, nil
 }
 
 func (p *ProgramMenuPlatform) Present(ctx context.Context, snapshot tenfoot.Snapshot) error {
+	p.dmaArmed = 0
+	if snapshot.Session.State == "active" {
+		if view := p.service.Status(); view.State == ProgramRunning {
+			p.dmaArmed = view.Generation
+		}
+	}
 	if err := p.inner.Present(ctx, snapshot); err != nil {
 		return p.service.Retire(err)
 	}

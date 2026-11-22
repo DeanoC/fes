@@ -9,6 +9,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/qemuvirt"
 	"github.com/DeanoC/fes/platform/embedded/tamago/display"
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
@@ -19,6 +20,7 @@ const Name = "qemu"
 
 func ExceptionLevel() uint64                                    { return qemuvirt.ExceptionLevel() }
 func CounterFrequency() uint64                                  { return qemuvirt.CounterFrequency() }
+func GIC() *gic.Controller                                      { return qemuvirt.GIC() }
 func InitDevices() (*dma.Region, error)                         { return qemuvirt.InitDevices() }
 func OpenStorage() (block.Device, error)                        { return block.ScanVirtIO() }
 func OpenDisplay(w, h int, memory *dma.Region) (Display, error) { return display.Open(w, h, memory) }

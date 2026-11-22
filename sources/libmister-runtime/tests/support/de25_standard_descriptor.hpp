@@ -50,6 +50,12 @@ inline mister::CoreDescriptor De25AtariStDescriptor() {
      "fes.media.atari-st-floppy-geometry"})d.interfaces.push_back({id,1,0,true});
  De25FirmwareRequirement(&d,196608);return d;
 }
+// Live capability word 0x204f (boards/de25nano/c64/standard_tb.cpp).
+inline mister::CoreDescriptor De25C64Descriptor() {
+ auto d=De25StandardShellDescriptor("fes.c64");
+ d.interfaces.push_back({"fes.media.c64-disk",1,0,true});
+ De25FirmwareRequirement(&d,36864);return d;
+}
 // Live capability words 0x200f and 0x0030 (boards/de25nano/pcxt/standard_tb.cpp):
 // the PC/XT floppy and its write extension are fes.computer 1.1 interfaces.
 inline mister::CoreDescriptor De25PcxtDescriptor() {

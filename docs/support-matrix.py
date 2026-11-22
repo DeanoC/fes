@@ -61,7 +61,7 @@ HIGHLIGHTS = {
     'fes.spectrum128': 'tape, keys, HDMI',
     'fes.spectrum-plus3': 'tape, disk, keys, HDMI',
     'fes.pentagon': 'tape, disk, keys, HDMI',
-    'fes.c64-ntsc': '—',
+    'fes.c64-ntsc': 'disk, keys, HDMI',
     'fes.atari-st': 'disk, keys, mouse, HDMI',
     'fes.atari-ste': '—',
     'fes.riscv': 'pad, HDMI',
