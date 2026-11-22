@@ -405,6 +405,8 @@ def build(args):
             raise ValueError('context diagnostics require a sealed HPS-first project and their source-derived serial/SD profile')
         hps_project=hps_project.resolve(strict=True)
         context=hps.derive(hps_project)
+        if context['programming_profile'] not in hps.SUPPORTED_PROFILES:
+            raise ValueError('unsupported or retired HPS-first programming profile: ' + str(context['programming_profile']))
         if (context['programming_profile']==hps.MENU_PROFILE)!=(menu_present) and args.program=='fpgaload':
             raise ValueError('menu source requires explicit --menu-present and cannot inherit another reader mode')
         rom_profile=hps.uses_held_rom(context)

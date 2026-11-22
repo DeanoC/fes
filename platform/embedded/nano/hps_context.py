@@ -35,6 +35,12 @@ ROM_PROFILE = 'de25-embedded-hps-first-rom-diagnostic-v1'
 COMPUTER_PROFILE = 'de25-native-computer-v1'
 ROM_PROFILES = (ROM_PROFILE, COMPUTER_PROFILE)
 MENU_PROFILE = 'de25-embedded-hps-first-menu-prototype-v1'
+SUPPORTED_PROFILES = (
+    'de25-embedded-hps-first-diagnostic-v1',
+    'de25-embedded-hps-first-ddr-diagnostic-v1',
+    MENU_PROFILE,
+    *ROM_PROFILES,
+)
 
 
 def menu_selection(record, program_key='program'):
@@ -489,6 +495,8 @@ def _derive(project):
     package = seal.read_package(hps/'packages'/pair['package_id'])
     abi = package.fields['abi']
     profile = seal.profile_for(source)
+    if profile not in SUPPORTED_PROFILES:
+        raise ValueError('unsupported or retired HPS-first programming profile: ' + str(profile))
     if package.fields['target']['programming_profile'] != profile:
         raise ValueError('package profile differs from the sealed memory backend')
     context = {

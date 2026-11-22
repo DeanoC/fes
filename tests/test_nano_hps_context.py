@@ -305,6 +305,42 @@ assert not missing, 'owned firmware omitted from boot identity: '+str(sorted(mis
         with patch.object(context, 'derive', side_effect=AssertionError('unexpected project access')):
             self.assertIsNone(context.checked({'program': 'probe'}))
 
+    def test_retired_window_profile_is_rejected_before_building(self):
+        self.assertNotIn('de25-embedded-hps-first-window-diagnostic-v1', context.SUPPORTED_PROFILES)
+        spec = importlib.util.spec_from_file_location('test_tamago_build', ROOT/'platform/embedded/tamago/build.py')
+        builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(builder)
+        retired = dict(self.descriptor, programming_profile='de25-embedded-hps-first-window-diagnostic-v1',
+                       control_abi=0x10203042)
+        (ROOT/'out').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT/'out') as temp:
+            project = Path(temp)/'retired-window-project'
+            project.mkdir()
+            output = Path(temp)/'not-created'
+            for program in ('bootcontext', 'hpsio', 'usbcheck', 'fpgacontext', 'fpgastatus', 'fpgaload'):
+                profile = NANO/('sd-profile.json' if program == 'fpgaload' else 'probe-profile.json')
+                args = SimpleNamespace(program=program, board='de25-nano', profile=profile,
+                                       hps_first_project=project, output=output,
+                                       compiler=Path('/bin/false'), module_cache=Path('/absent'),
+                                       interactive=False, disk=None, qemu=None, display=None,
+                                       package_id=None,
+                                       usb_input='boot-keyboard' if program == 'usbcheck' else None,
+                                       initial_tape=False, shared_core_shell=False,
+                                       spectrum48_build=None, spectrum48_package=None,
+                                       spectrum48_rom=None, spectrum48_tape=None)
+                with self.subTest(program=program), patch.dict(os.environ, {'FES_EXPERIMENTAL_DE25_EMBEDDED': '1'}), \
+                     patch.object(context, 'derive', return_value=retired):
+                    spec_orig = importlib.util.spec_from_file_location
+                    def fake_spec(name, path, *a, **kw):
+                        if Path(path) == NANO/'hps_context.py':
+                            return SimpleNamespace(loader=SimpleNamespace(exec_module=lambda m: None))
+                        return spec_orig(name, path, *a, **kw)
+                    with patch.object(importlib.util, 'spec_from_file_location', side_effect=fake_spec), \
+                         patch.object(importlib.util, 'module_from_spec', return_value=context):
+                        with self.assertRaisesRegex(ValueError, 'retired'):
+                            builder.build(args)
+                self.assertFalse(output.exists())
+
     def test_cli_rejects_wrong_board_program_and_missing_project_before_output(self):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp)/'not-created'
