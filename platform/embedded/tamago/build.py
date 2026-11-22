@@ -299,20 +299,20 @@ def scratch_inspect_option(program, requested, profile):
     return requested
 
 
-def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, output):
+def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, output, *, spectrum48=False):
     """Snapshot selected content and derive its receipt through the shared linker."""
     rom_path = Path(rom_path).resolve(strict=True)
-    if not rom_path.is_file() or rom_path.stat().st_size != rom_bytes or rom_bytes not in (4096, 8192):
-        raise ValueError('selected firmware ROM must match the sealed 4/8 KiB resource')
+    if not rom_path.is_file() or rom_path.stat().st_size != rom_bytes or rom_bytes not in ((16384,) if spectrum48 else (4096, 8192)):
+        raise ValueError('selected firmware ROM must match the sealed resource')
     with rom_path.open('rb') as stream:
-        data = stream.read(8193)
+        data = stream.read(rom_bytes+1)
     if len(data) != rom_bytes:
         raise ValueError('selected firmware ROM changed while snapshotting')
     (output/'package.fcore').write_bytes(archive)
     (output/'FIRMWARE.BIN').write_bytes(data)
     env = dict(os.environ, GOTOOLCHAIN='local', GOWORK='off', GOENV='off', GOPROXY='off', GOSUMDB='off', GOMAXPROCS='2')
     command = [str(Path(host_go).resolve(strict=True)), 'run', '-mod=readonly', './cmd/nano-rom-selection',
-               str(output/'package.fcore'), str(output/'FIRMWARE.BIN'), package_id]
+               *(['--spectrum48'] if spectrum48 else []), str(output/'package.fcore'), str(output/'FIRMWARE.BIN'), package_id]
     result = subprocess.run(command, cwd=APP, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
     (output/'rom-linker.log').write_bytes(result.stderr)
     if result.returncode:
@@ -477,6 +477,20 @@ def build(args):
         initial_tape_memory=tape_memory, initial_tape_memory_sha256=tape_memory_sha,
         hps_computer=computer_map, hps_rom=rom_map, hps_configuration=configuration_map,
         usb_control=usb_control, usb_shared=usb_shared, usb_input=usb_input))
+    spectrum_paths = [getattr(args, 'spectrum48_'+name, None) for name in ('build', 'package', 'rom')]
+    spectrum_tape = getattr(args, 'spectrum48_tape', None)
+    shared_shell = getattr(args, 'shared_core_shell', False)
+    if shared_shell and (args.program != 'fpgaload' or not menu_program_map or
+                         not all((selected_programs, computer_reload, computer_storage_return, tenfoot_serial))):
+        raise ValueError('shared core shell requires paired native Tenfoot')
+    spectrum_proof = spectrum_program = None
+    if any(spectrum_paths) or spectrum_tape is not None:
+        if not all(spectrum_paths) or menu_program_map is None or not tenfoot_serial:
+            raise ValueError('Spectrum requires a sealed build, package, ROM and paired Tenfoot')
+        producer, spectrum_archive, spectrum_rom = (path.resolve(strict=True) for path in spectrum_paths)
+        worker = Path(hps.spectrum48.__file__)
+        spectrum_proof = json.loads(subprocess.check_output(
+            [sys.executable, str(worker), str(producer), str(spectrum_archive)], timeout=180))
     output = args.output.resolve()
     if output.exists() or not output.is_relative_to(ROOT / "out"):
         raise ValueError("output must be a fresh directory beneath this worktree's out/")
@@ -485,6 +499,38 @@ def build(args):
         rom_selection=prepare_rom_selection(package_archive,firmware_rom,context['package_id'],rom_map['bytes'],rom_host_go,output)
         program_metadata=hps.selected_program(hps_project,rom_selection['rom_receipt_sha256'])
         (output/'hps-rom.json').write_bytes(hps.encode(rom_map))
+    if spectrum_proof is not None:
+        import shutil
+        stage = output/'spectrum48'
+        stage.mkdir()
+        archive = hps.spectrum48.read(spectrum_archive, hps.spectrum48.MAX_ARCHIVE)
+        if hps.spectrum48.sha(archive) != spectrum_proof['archive_sha256']:
+            raise ValueError('Spectrum archive changed after verification')
+        selection = prepare_rom_selection(archive, spectrum_rom, spectrum_proof['package_id'],
+                                           hps.spectrum48.ROM_BYTES, rom_host_go, stage, spectrum48=True)
+        spectrum_program = hps.spectrum48.record_for(spectrum_proof, context, program_platform,
+                                                     configuration_map, selection)
+        export = stage/'export'/'FES'
+        export.mkdir(parents=True)
+        shutil.copyfile(stage/'package.fcore', export/'SPEC48.FCP')
+        shutil.copyfile(stage/'FIRMWARE.BIN', export/'SPEC48.ROM')
+        metadata = hps.encode(spectrum_program)
+        (export/'SPEC48.JSN').write_bytes(metadata)
+        choice = dict(path='FES/SPEC48.FCP', package_id=spectrum_program['package_id'],
+                      metadata_path='FES/SPEC48.JSN', metadata_sha256=hps.spectrum48.sha(metadata),
+                      sources=[dict(id=selection['source_id'], role='firmware', path='FES/SPEC48.ROM',
+                                    sha256=selection['source_sha256'])],
+                      rom_receipt_sha256=selection['rom_receipt_sha256'])
+        if spectrum_tape is not None:
+            tape = hps.spectrum48.read(spectrum_tape, 64 << 10)
+            (export/'SPEC48.PZX').write_bytes(tape)
+            choice['tape'] = dict(path='FES/SPEC48.PZX', format='spectrum-tape',
+                                  size=len(tape), sha256=hps.spectrum48.sha(tape))
+        (export/'CORESEL.JSN').write_bytes(hps.encode(dict(
+            format=1, scope='nano-program-selection-v1', programs=[choice])))
+        (export/'UI.JSON').write_bytes(hps.encode(dict(
+            format=1, scope='nano-tenfoot-catalog-v1',
+            entries=[dict(id='spectrum48', title='ZX Spectrum 48K trial', program=0)])))
     (output / "handoff.json").write_bytes(raw)
     if context is not None:(output/'hps-context.json').write_bytes(hps.encode(context))
     if io_map is not None:(output/'hps-io.json').write_bytes(hps.encode(io_map))
@@ -580,6 +626,8 @@ def build(args):
         files.update({APP/'cpu_features.py', overlay})
         files.update(p for p in feature_sources if p.is_relative_to(ROOT))
     if context is not None:files.update(hps.inputs())
+    if spectrum_program is not None or shared_shell:
+        files.add(Path(hps.spectrum48.__file__))
     if rom_map is not None:files.add(APP/'cmd/nano-rom-selection/main.go')
     for p in packages:
         directory = Path(p["Dir"])
@@ -622,6 +670,10 @@ def build(args):
         link_flags+=' -X main.expectedProgramPlatform='+base64.b64encode(hps.encode(program_platform)).decode()
         link_flags+=' -X main.expectedSelectedPrograms=1'
     if menu_program_map is not None:link_flags+=' -X main.expectedCompiledMenuProgram='+base64.b64encode(hps.encode(menu_program_map)).decode()
+    if shared_shell:
+        link_flags += " -X main.expectedSharedCoreShell=1"
+    elif spectrum_program is not None:
+        link_flags += ' -X main.expectedCompiledSpectrum48=' + base64.b64encode(hps.encode(spectrum_program)).decode()
     command = [str(compiler), "build", *options, "-trimpath", "-ldflags", link_flags, "-o", str(elf), "./cmd/" + args.program]
     with (output / "build.log").open("w") as log:
         subprocess.run(command, cwd=APP, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -662,6 +714,8 @@ def build(args):
     if menu_program_map is not None and (hps.menu_assets(menu_project,menu_program_map)!=menu_assets or
             base64.b64encode(hps.encode(menu_program_map)) not in data):
         raise ValueError('compiled menu companion changed or was not linked into the native image')
+    if spectrum_program is not None and not shared_shell and base64.b64encode(hps.encode(spectrum_program)) not in data:
+        raise ValueError('Spectrum companion was not linked into the native image')
     if feature_sources != {p: sha(p) for p in feature_sources}:
         raise ValueError('ARM64 feature discovery inputs changed while building')
     if sd_write_plan is not None and (sd_write_option(args.program,args.sd_write_plan,profile)!=sd_write_plan or sd_write_encoded.encode() not in data):
@@ -699,6 +753,9 @@ def build(args):
               "computer_storage_return":computer_storage_return,
               "selected_programs":selected_programs,"tenfoot_serial":tenfoot_serial,"initial_tape":initial_tape,
               "initial_tape_memory":tape_memory,"initial_tape_memory_sha256":tape_memory_sha,
+              **({"spectrum48_program": spectrum_program, "spectrum48_program_sha256": hps.digest(spectrum_program)}
+                 if spectrum_program is not None and not shared_shell else {}),
+              **({"shared_core_shell": True} if shared_shell else {}),
               "hps_menu_project":str(menu_project) if menu_project else None,
               "hps_menu_program":menu_program_map,"hps_menu_program_sha256":hps.digest(menu_program_map) if menu_program_map else None,
               "menu_assets":{name:{"sha256":hashlib.sha256(raw).hexdigest(),"size":len(raw)} for name,raw in menu_assets.items()},

@@ -215,7 +215,7 @@ func (s *ProgramSource) fetchContent(ctx context.Context, r packagestore.Request
 		add(source.Path, 256<<10)
 	}
 	if r.Tape != (packagestore.TapeRequest{}) {
-		add(r.Tape.Path, packagestore.MaxRetainedTapeBytes)
+		add(r.Tape.Path, r.Tape.InputLimit())
 	}
 	if checksums != nil {
 		if len(checksums) != len(names) {

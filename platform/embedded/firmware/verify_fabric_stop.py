@@ -12,7 +12,7 @@ ROOT=HERE.parents[2]
 def main():
     output=ROOT/'out'/('nano-fabric-stop-'+uuid.uuid4().hex)
     captured=output/'source';captured.mkdir(parents=True)
-    inputs={name:HERE/name for name in ('nano_fabric_stop.c','nano_fabric_stop.h','nano_probe_stop.c','nano_probe_stop.h',
+    inputs={name:HERE/name for name in ('nano_fabric_stop.c','nano_fabric_stop.h','nano_program.h','nano_probe_stop.c','nano_probe_stop.h',
         'nano_ddr_read.c','nano_ddr_read.h','generated/fes_embedded_control.h','generated/fes_de25_ddr_probe.h',
         'tests/nano_fabric_stop_test.cpp','tests/nano_window_stop_test.cpp','tests/nano_ddr_read_test.inc','verify_fabric_stop.py')}
     board=ROOT/'sources/misteross/boards/de25nano/hps'

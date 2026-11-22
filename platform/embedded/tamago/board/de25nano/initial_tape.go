@@ -17,6 +17,15 @@ type initialTapeCPU struct {
 	arena func() (*nativefabric.InitialTapeArena, error)
 }
 
+type spectrumROMBatcher interface {
+	WithSpectrumROMBatch(uint64, func(computer.IO) error) error
+}
+
+type initialTapeROMCPU struct {
+	initialTapeCPU
+	spectrumROMBatcher
+}
+
 func selectProgramCPU(cpu nativefabric.CPUTransport, arena func() (*nativefabric.InitialTapeArena, error), selected, compiled bool) (nativefabric.CPUTransport, error) {
 	if cpu == nil || selected != compiled || selected && arena == nil {
 		return nil, errors.New("DE25: initial tape selection differs from compiled platform")
@@ -24,7 +33,11 @@ func selectProgramCPU(cpu nativefabric.CPUTransport, arena func() (*nativefabric
 	if !selected {
 		return cpu, nil
 	}
-	return initialTapeCPU{cpu, arena}, nil
+	tapeCPU := initialTapeCPU{cpu, arena}
+	if rom, ok := cpu.(spectrumROMBatcher); ok {
+		return initialTapeROMCPU{tapeCPU, rom}, nil
+	}
+	return tapeCPU, nil
 }
 
 func (cpu initialTapeCPU) LoadInitialTape(ctx context.Context, scope nativefabric.BridgeSnapshot, request computer.InitialTapeRequest) (computer.InitialTapeReceipt, error) {

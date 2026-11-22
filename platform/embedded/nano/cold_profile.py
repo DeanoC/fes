@@ -81,6 +81,13 @@ def entry(entry_build):
     hps_context.checked_computer(receipt,program_key='native_program')
     hps_context.checked_rom(receipt,program_key='native_program')
     hps_context.checked_program_platform(receipt,program_key='native_program')
+    spectrum = hps_context.spectrum48.checked(receipt, key='native_program')
+    hps_context.spectrum48.shared_shell(receipt, key='native_program')
+    if spectrum is not None:
+        import base64
+        if base64.b64encode(hps_context.encode(spectrum)) not in (entry_build/'payload.elf').read_bytes():
+            raise ValueError('compiled Spectrum companion missing from native entry')
+
     selected_tape=hps_context.initial_tape.checked(receipt,program_key='native_program')
     if selected_tape and any(name not in (entry_build/'payload.elf').read_bytes() for name in
             (b'initialTapeCPU.LoadInitialTape',b'InitialTapeArena).PublishInitialTape')):
@@ -202,7 +209,11 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
     rom=hps_context.checked_rom(build,program_key='native_program')
     companion=hps_context.checked_menu_program(build,program_key='native_program')
     program_platform=hps_context.checked_program_platform(build,program_key='native_program')
+    spectrum = hps_context.spectrum48.checked(build, key='native_program')
+    shared_shell = hps_context.spectrum48.shared_shell(build, key='native_program')
     selected=sources()+ (hps_context.inputs() if context is not None else [])
+    if spectrum is not None or shared_shell:
+        selected.append(Path(hps_context.spectrum48.__file__))
     inputs={str(p.relative_to(ROOT)):sha(p) for p in selected}
     identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
               'sd_pio':profile.name=='sd-profile.json','usb_pio':build.get('usb_control',False),'firmware_profile_sha256':sha(profile),
@@ -241,6 +252,9 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
               'selected_programs':build.get('selected_programs',False),
               'hps_program_platform':program_platform,'hps_program_platform_sha256':hps_context.digest(program_platform) if program_platform else None,
               'hps_menu_program':companion,'hps_menu_program_sha256':hps_context.digest(companion) if companion else None,
+              **({'shared_core_shell': True} if shared_shell else {}),
+              **({'spectrum48_program': spectrum, 'spectrum48_program_sha256': hps_context.digest(spectrum)}
+                 if spectrum is not None else {}),
               'window_read':window_read is not None,'hps_window_read':window_read,
               'hps_window_read_sha256':hps_context.digest(window_read) if window_read else None,
               'computer_reload':build.get('computer_reload',False),
@@ -287,6 +301,7 @@ def header(profile):
     capability_contract=capability.checked(profile)
     menu_present=hps_context.menu_selection(dict(profile,program='fpgaload',usb_control=profile.get('usb_pio',False)))
     companion=hps_context.compiled_menu_program(dict(profile,program='fpgaload'))
+    spectrum = hps_context.spectrum48.checked(dict(profile, program='fpgaload'))
     def array(value):return '{'+','.join('0x'+value[i:i+2] for i in range(0,len(value),2))+'}'
     smmu=profile.get('smmu_observe',False)
     if type(smmu) is not bool or smmu and (profile['sd_pio'] or
@@ -438,6 +453,12 @@ def header(profile):
             extra+='#define FES_NANO_'+name+' '+str(m[field])+'U\n'
         extra+='#define FES_NANO_WINDOW_READ_ATTRS_VERIFIED 1\n'
         extra+='#define FES_NANO_WINDOW_READ_MAP_SHA '+array(hps_context.digest(companion['access']))+'\n'
+    if hps_context.spectrum48.shared_shell(dict(profile, program='fpgaload')):
+        extra += ('#define FES_NANO_SHARED_CORE_SHELL 1\n'
+                  '#define FES_NANO_SPECTRUM48 1\n'
+                  '#define FES_NANO_SPECTRUM48_SCANOUT_BASE 0x20010200UL\n')
+    elif spectrum is not None:
+        extra += hps_context.spectrum48.header(spectrum)
     extra+='#define FES_NANO_WINDOW_READ_DIAGNOSTIC '+str(int(window_read is not None or menu or companion is not None))+'\n'
     present=profile.get('window_present',False)
     if type(present) is not bool or present and window_read is None:

@@ -3,6 +3,12 @@
  * Peripheral registers, sealed descriptor/hash input and native activation /
  * stopped fabric state are injected; this is not a hardware or boot proof. */
 #define FES_TEST_WARM_QUEUES 1
+#ifndef FES_TEST_WARM_SERVICE_MAIN
+#define FES_NANO_SPECTRUM48 1
+struct fes_nano_bridges;
+#include <stdint.h>
+static int spectrum48_held_return(const struct fes_nano_bridges *,uint64_t *);
+#endif
 static void warm_meter(unsigned);
 #ifndef FES_TEST_WARM_METER
 #define FES_TEST_WARM_METER(kind) warm_meter(kind)
@@ -10,6 +16,11 @@ static void warm_meter(unsigned);
 #define FES_TEST_SOURCE_RELEASE_MAIN release_fixture_main
 #include "source_release_test.c"
 #include "window_rearm_test.inc"
+#ifndef FES_TEST_WARM_SERVICE_MAIN
+/* The Spectrum scenario ends after transfer, before any live core return. */
+static int spectrum48_held_return(const struct fes_nano_bridges *b,uint64_t *generation)
+{ (void)b;(void)generation;assert(0);return 0; }
+#endif
 static unsigned next_role;
 static int next_bind(void *context,uint64_t owner,uint64_t generation,uint32_t *bytes)
 {
@@ -18,7 +29,11 @@ static int next_bind(void *context,uint64_t owner,uint64_t generation,uint32_t *
  configuration_program.bytes=configuration_program.bytes==1708032 ? 2101248:1708032;
  configuration_program.role=next_role;
  configuration_program.control_abi=next_role==FES_NANO_PROGRAM_ROLE_MENU ? FES_NANO_PROGRAM_MENU_ABI:FES_NANO_PROGRAM_COMPUTER_ABI;
- configuration_program.rom_bytes=next_role==FES_NANO_PROGRAM_ROLE_MENU ? 0:8192;
+ configuration_program.rom_bytes=next_role==FES_NANO_PROGRAM_ROLE_COMPUTER ? 8192:0;
+ if(next_role==FES_NANO_PROGRAM_ROLE_SPECTRUM48){
+  configuration_program.control_abi=FES_NANO_PROGRAM_SPECTRUM48_ABI;
+  configuration_program.shared_core_shell=1;
+ }
  configuration_program.header[FES_NANO_PROGRAM_SHA384]++;
  *bytes=configuration_program.bytes;return 0;
 }
@@ -55,11 +70,11 @@ static void native_return(void)
  assert(!call(&model.base,FES_EMBEDDED_SD_STOP));
  assert(b->state.generation==returned+3 && !fes_nano_sd_returned(&fes_nano_owned_sd,17,returned,returned+3));
 }
-static void cycles(void)
+static void cycles(unsigned spectrum)
 {
  setup_return();unsigned wraps=0;
  configuration.io.bind=next_bind;configuration.io.complete=next_complete;
- for(unsigned n=0;n<12;n++){
+ for(unsigned n=0;n<(spectrum ? 1U:12U);n++){
   uint64_t r[4],generation=fes_nano_owned_bridges.state.generation;
   struct nano_sdm_transfer_result prior;fes_nano_sdm_transfer_result(&prior);
   struct nano_retire *old=&source_retirement;struct nano_retire old_copy=*old;
@@ -70,7 +85,8 @@ static void cycles(void)
   assert(!r[0] && source_released && sdm_source_released);
   if(configuration_program.role==FES_NANO_PROGRAM_ROLE_MENU)
    assert(fes_nano_platform_window_rearm(17,generation)==1);
-  next_role=n%3==0 ? FES_NANO_PROGRAM_ROLE_COMPUTER:FES_NANO_PROGRAM_ROLE_MENU;
+  next_role=spectrum ? FES_NANO_PROGRAM_ROLE_SPECTRUM48 :
+   n%3==0 ? FES_NANO_PROGRAM_ROLE_COMPUTER:FES_NANO_PROGRAM_ROLE_MENU;
   fes_nano_configuration_rearm(&configuration,17,generation,0,r);
   assert(!r[0] && configuration.rearmed && !configuration.started);
   expected.generation=generation;expected.bytes=configuration_program.bytes;
@@ -89,6 +105,11 @@ static void cycles(void)
   if(source_retirement.queue_target<prior_target)wraps++;
   assert(sdm_arm_probe.clears==0 && sdm_arm_probe.writes==4 && registers[0x44/4]==0x100000 && !registers[0x20/4]);
   assert(identity_configured(&provider)==1);
+  if(spectrum){
+   assert(configuration_program.shared_core_shell && !configuration_program.spectrum48 &&
+          active_program_role==FES_NANO_PROGRAM_ROLE_SPECTRUM48);
+   return;
+  }
   native_return();
  }
  assert(wraps && !prepare_active && !control_pending && control_header_seen==1);
@@ -179,11 +200,11 @@ static void fault_case(unsigned fault)
 #endif
 int FES_TEST_WARM_SERVICE_MAIN(void)
 {
- for(unsigned n=0;n<=40;n++){
+ for(unsigned n=0;n<=41;n++){
   pid_t child=fork();assert(child>=0);
-  if(!child){if(n==40)cycles();else fault_case(n);_exit(0);}
+  if(!child){if(n>=40)cycles(n==41);else fault_case(n);_exit(0);}
   int status;assert(waitpid(child,&status,0)==child);
   if(!WIFEXITED(status) || WEXITSTATUS(status)){fprintf(stderr,"warm service case=%u\n",n);return 1;}
  }
- puts("{\"status\":\"passed\",\"completed_generations\":12,\"negative_cases\":40,\"hardware_actions\":false}");return 0;
+ puts("{\"status\":\"passed\",\"completed_generations\":12,\"negative_cases\":40,\"shared_spectrum_transfers\":1,\"hardware_actions\":false}");return 0;
 }
