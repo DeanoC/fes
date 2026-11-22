@@ -12,10 +12,12 @@ with a pre-allocated, zero-allocation LRU sector cache:
 - **Coalesced misses:** contiguous uncached sector runs are issued as a single
   underlying `ReadSectors` call, preserving multi-block VirtIO-block and SDHCI
   transfer throughput.
-- **Streaming bypass:** reads and writes larger than `MaxPopulateSectors`
-  (default `min(Capacity, 16)` = 8 KiB) do not allocate new cache slots so
-  large sequential reads cannot evict hot FAT32 directory and FAT-chain sectors;
-  overlapping cached sectors on writes are still updated in place.
+- **Streaming bypass:** single requests or consecutive sequential miss/write
+  streams exceeding `MaxPopulateSectors` (default `min(Capacity, 16)` = 8 KiB)
+  do not allocate new cache slots — including sector-at-a-time streams such as
+  `fat.file.Read` with interleaved FAT-sector hits — so bulk sequential I/O
+  cannot evict hot FAT32 directory and FAT-chain sectors; overlapping cached
+  sectors on writes are still updated in place.
 - **Write-through & fail-closed:** every `WriteSectors` writes synchronously to
   the underlying device first. Any write error invalidates all cached sectors in
   the attempted range before returning so partial writes can never leave stale

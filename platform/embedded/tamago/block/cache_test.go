@@ -125,8 +125,8 @@ func TestCacheLRUEvictionAndContiguousCoalescing(t *testing.T) {
 	}
 	buf := make([]byte, SectorSize)
 
-	// Populate LBAs 0, 1, 2, 3 (MRU: 3, 2, 1, 0 :LRU).
-	for lba := uint64(0); lba < 4; lba++ {
+	// Populate non-contiguous LBAs 0, 2, 4, 6 (MRU: 6, 4, 2, 0 :LRU).
+	for _, lba := range []uint64{0, 2, 4, 6} {
 		if err := c.ReadSectors(lba, buf); err != nil {
 			t.Fatal(err)
 		}
@@ -138,7 +138,7 @@ func TestCacheLRUEvictionAndContiguousCoalescing(t *testing.T) {
 		t.Fatalf("initial reads=%d, want 4", dev.reads)
 	}
 
-	// Touch LBA 0 (hit) so LBA 1 becomes LRU.
+	// Touch LBA 0 (hit) so LBA 2 becomes LRU.
 	if err := c.ReadSectors(0, buf); err != nil {
 		t.Fatal(err)
 	}
@@ -146,14 +146,14 @@ func TestCacheLRUEvictionAndContiguousCoalescing(t *testing.T) {
 		t.Fatalf("cached LBA 0 caused underlying read")
 	}
 
-	// Reading LBA 4 must evict LBA 1 (not LBA 0).
-	if err := c.ReadSectors(4, buf); err != nil {
+	// Reading LBA 8 must evict LBA 2 (not LBA 0).
+	if err := c.ReadSectors(8, buf); err != nil {
 		t.Fatal(err)
 	}
 	if st := c.Stats(); st.Evictions != 1 || st.Entries != 4 || st.Hits != 1 || st.Misses != 5 {
 		t.Fatalf("unexpected stats after eviction: %+v", st)
 	}
-	// Verify LBA 0 is still cached and LBA 1 was evicted.
+	// Verify LBA 0 is still cached and LBA 2 was evicted.
 	readsBefore := dev.reads
 	if err := c.ReadSectors(0, buf); err != nil {
 		t.Fatal(err)
@@ -161,11 +161,11 @@ func TestCacheLRUEvictionAndContiguousCoalescing(t *testing.T) {
 	if dev.reads != readsBefore {
 		t.Fatal("LBA 0 was wrongly evicted")
 	}
-	if err := c.ReadSectors(1, buf); err != nil {
+	if err := c.ReadSectors(2, buf); err != nil {
 		t.Fatal(err)
 	}
 	if dev.reads != readsBefore+1 {
-		t.Fatal("LBA 1 was not evicted")
+		t.Fatal("LBA 2 was not evicted")
 	}
 
 	// Contiguous miss coalescing: read LBAs [10..13] (4 misses) in one underlying call.
@@ -201,6 +201,75 @@ func TestCacheLRUEvictionAndContiguousCoalescing(t *testing.T) {
 	}
 	if dev.reads != readsBefore {
 		t.Fatal("streaming read polluted hot cached sectors")
+	}
+}
+
+func TestCacheSequentialSingleSectorStreamBypass(t *testing.T) {
+	// Mirror fat.file.Read: single-sector sequential file reads interleaved
+	// with hot FAT/directory hits must stop populating after MaxPopulateSectors
+	// so hot metadata sectors are never evicted by large file streams.
+	dev := newMemDevice(128)
+	c, err := NewCache(dev, CacheConfig{Capacity: 6, MaxPopulateSectors: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, SectorSize)
+	// Warm two hot metadata sectors (FAT LBA 0, directory LBA 1).
+	if err := c.ReadSectors(0, buf); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.ReadSectors(1, buf); err != nil {
+		t.Fatal(err)
+	}
+	// Stream 32 consecutive single-sector reads at LBAs 32..63, interleaving
+	// FAT hits at LBA 0 every 4 sectors (matching FAT32 cluster walks).
+	for i := uint64(0); i < 32; i++ {
+		if i%4 == 0 {
+			if err := c.ReadSectors(0, buf); err != nil {
+				t.Fatal(err)
+			}
+		}
+		lba := 32 + i
+		if err := c.ReadSectors(lba, buf); err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(buf, dev.data[lba*SectorSize:(lba+1)*SectorSize]) {
+			t.Fatalf("stream lba %d mismatch", lba)
+		}
+	}
+	// Both hot metadata sectors (0 and 1) must still be resident in cache.
+	readsBefore := dev.reads
+	if err := c.ReadSectors(0, buf); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.ReadSectors(1, buf); err != nil {
+		t.Fatal(err)
+	}
+	if dev.reads != readsBefore {
+		t.Fatalf("single-sector read stream evicted hot metadata (evictions=%d)", c.Stats().Evictions)
+	}
+	if c.Stats().Evictions != 0 {
+		t.Fatalf("expected 0 evictions during bypassed stream, got %d", c.Stats().Evictions)
+	}
+
+	// Sequential single-sector writes (LBAs 80..95) must also bypass after
+	// MaxPopulateSectors without evicting hot metadata, while updating any
+	// overlapped cached sector in place.
+	for i := uint64(0); i < 16; i++ {
+		sector := bytes.Repeat([]byte{byte(i + 1)}, SectorSize)
+		if err := c.WriteSectors(80+i, sector); err != nil {
+			t.Fatal(err)
+		}
+	}
+	readsBefore = dev.reads
+	if err := c.ReadSectors(0, buf); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.ReadSectors(1, buf); err != nil {
+		t.Fatal(err)
+	}
+	if dev.reads != readsBefore {
+		t.Fatal("single-sector write stream evicted hot metadata")
 	}
 }
 

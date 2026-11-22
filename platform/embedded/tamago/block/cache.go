@@ -51,16 +51,20 @@ type cacheSlot struct {
 // underlying Device before updating cached entries; any write error invalidates
 // all cached sectors in the attempted range so stale data is never served.
 type Cache struct {
-	mu          sync.Mutex
-	dev         Device
-	capacity    int
-	maxPopulate int
-	slots       []cacheSlot
-	freeList    []int
-	index       map[uint64]int
-	head        int // MRU slot index (-1 when empty)
-	tail        int // LRU slot index (-1 when empty)
-	stats       CacheStats
+	mu           sync.Mutex
+	dev          Device
+	capacity     int
+	maxPopulate  int
+	slots        []cacheSlot
+	freeList     []int
+	index        map[uint64]int
+	head         int // MRU slot index (-1 when empty)
+	tail         int // LRU slot index (-1 when empty)
+	lastMissEnd  uint64
+	seqMisses    uint64
+	lastWriteEnd uint64
+	seqWrites    uint64
+	stats        CacheStats
 }
 
 // NewCache creates a bounded write-through sector cache around dev.
@@ -117,7 +121,6 @@ func (c *Cache) ReadSectors(lba uint64, dst []byte) error {
 		return nil
 	}
 	count := uint64(len(dst) / SectorSize)
-	populate := int(count) <= c.maxPopulate
 	for i := uint64(0); i < count; {
 		if slot, ok := c.index[lba+i]; ok {
 			copy(dst[i*SectorSize:(i+1)*SectorSize], c.slots[slot].data[:])
@@ -133,16 +136,24 @@ func (c *Cache) ReadSectors(lba uint64, dst []byte) error {
 			}
 			end++
 		}
-		if err := c.dev.ReadSectors(lba+i, dst[i*SectorSize:end*SectorSize]); err != nil {
+		missStart := lba + i
+		missEnd := lba + end
+		if err := c.dev.ReadSectors(missStart, dst[i*SectorSize:end*SectorSize]); err != nil {
 			c.stats.ReadOps++
 			return err
 		}
 		c.stats.ReadOps++
 		runLen := end - i
 		c.stats.Misses += runLen
-		if populate {
+		if c.seqMisses > 0 && missStart == c.lastMissEnd {
+			c.seqMisses += runLen
+		} else {
+			c.seqMisses = runLen
+		}
+		c.lastMissEnd = missEnd
+		if int(count) <= c.maxPopulate && c.seqMisses <= uint64(c.maxPopulate) {
 			for j := uint64(0); j < runLen; j++ {
-				c.put(lba+i+j, dst[(i+j)*SectorSize:(i+j+1)*SectorSize])
+				c.put(missStart+j, dst[(i+j)*SectorSize:(i+j+1)*SectorSize])
 			}
 		}
 		i = end
@@ -153,7 +164,8 @@ func (c *Cache) ReadSectors(lba uint64, dst []byte) error {
 // WriteSectors writes synchronously to the underlying device. On error, all
 // cached sectors overlapping [lba, lba+count) are invalidated before returning.
 // On success, overlapping cached entries are updated in place, and requests
-// within MaxPopulateSectors also populate newly written sectors.
+// within MaxPopulateSectors (including across consecutive sequential calls)
+// also populate newly written sectors.
 func (c *Cache) WriteSectors(lba uint64, src []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -169,7 +181,13 @@ func (c *Cache) WriteSectors(lba uint64, src []byte) error {
 		c.invalidateRangeLocked(lba, count)
 		return err
 	}
-	if int(count) <= c.maxPopulate {
+	if c.seqWrites > 0 && lba == c.lastWriteEnd {
+		c.seqWrites += count
+	} else {
+		c.seqWrites = count
+	}
+	c.lastWriteEnd = lba + count
+	if int(count) <= c.maxPopulate && c.seqWrites <= uint64(c.maxPopulate) {
 		for i := uint64(0); i < count; i++ {
 			c.put(lba+i, src[i*SectorSize:(i+1)*SectorSize])
 		}
@@ -208,6 +226,8 @@ func (c *Cache) Flush() error {
 func (c *Cache) Invalidate() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.seqMisses = 0
+	c.seqWrites = 0
 	if len(c.index) == 0 {
 		return
 	}
@@ -239,6 +259,8 @@ func (c *Cache) Stats() CacheStats {
 }
 
 func (c *Cache) invalidateRangeLocked(lba, count uint64) {
+	c.seqMisses = 0
+	c.seqWrites = 0
 	if count == 0 || len(c.index) == 0 {
 		return
 	}
