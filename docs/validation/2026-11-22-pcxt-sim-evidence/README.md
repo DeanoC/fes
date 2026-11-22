@@ -63,3 +63,26 @@ Each case is one edit committed in a temporary worktree of the migration commit.
 - **Growth.** A new lint configuration, testbench C++ or testbench top under `M/cores/fes-pcxt/sim` goes into `PCXT_EVIDENCE_INPUTS` in the same commit. The test fails on any tracked file of that kind left out. Each member is also checked live: it must not be in the seal's RTL list or named in the elaboration program or the project QSF.
 - **Reuse (Deano, 22 Nov 2026).** After an evidence-only change under `M/cores/fes-pcxt/sim`, the sealed fes.pcxt-dos package may be reused once the pcxt sim targets pass in CI on the new configuration.
 - **One-time migration.** Moving to design-v2 changes the `BUILD_ID` once, as every v1-to-v2 move does. This PR therefore carries a normal pcxt-dos reseal and a kit run.
+
+## DE25 decoupling (Deano, 22 Nov 2026: "Accept + decouple here")
+
+Switching the pcxt-dos producer to design-v2 also moved five DE25 `BUILD_ID`s: atari-st, c64, menu, spectrum and zx81. The DE25 menu producer imported `tree_digest` from `M/scripts/build_fes_pcxt_quartus.py`. Both it and the DE25 ZX81 producer added that module's import closure to their record roots, so the PC/XT producer was a design input of every DE25 record built through them. A producer has to name its own identity policy, so there was no way to make the switch without editing that file.
+
+Deano chose to accept the five moves and decouple in the same PR:
+
+- `tree_digest` moves into `M/scripts/quartus_tools.py`, a toolchain input.
+- Neither DE25 producer names `build_fes_pcxt_quartus` any more.
+- `M/tests/test_de25_production_identity.py` commits a PC/XT producer edit and checks that neither DE25 record's design or toolchain identity moves. Against the old coupling, the same test fails.
+- The five DE25 producers are resealed through the D25 HILQ path (#2052).
+
+## Identity moves at this PR's head: [`identities.py`](identities.py)
+
+All registered producers, compared with the merge base:
+
+| Producer | Moves | Why |
+| --- | --- | --- |
+| de10-nano:fes.pcxt-dos | `BUILD_ID`, design, toolchain | the design-v2 migration (one time) |
+| de25-nano:fes.atari-st (520st), fes.c64 (pal), fes.menu, fes.spectrum (48, 128, plus3, pentagon), fes.zx81 | design, toolchain | the decoupling edits to the DE25 producers (one time) |
+| de10-nano:fes.pc386, fes.zx81, fes.zx80, fes.ts1000, fes.ts1500 | toolchain only | `quartus_tools.py`, a toolchain input in their closures, gained `tree_digest`. Their `BUILD_ID` does not move, and toolchain drift is advisory for reuse (AGENTS.md), so they need no reseal. |
+
+No other producer's identity moves.
