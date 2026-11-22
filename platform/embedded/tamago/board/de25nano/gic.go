@@ -4,7 +4,11 @@
 
 package de25nano
 
-import "github.com/DeanoC/fes/platform/embedded/tamago/gic"
+import (
+	"errors"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
+)
 
 // Agilex 5 (GIC-600) base addresses and hardware interrupt IDs
 // (from socfpga_agilex5.dtsi and Altera baremetal-drivers socfpga_interrupt.h).
@@ -17,6 +21,7 @@ const (
 
 	IRQFPGA2HPS0  uint32 = 48  // SPI 16 (first FPGA-to-HPS interrupt)
 	IRQFPGA2HPS63 uint32 = 111 // SPI 79 (last FPGA-to-HPS interrupt)
+	FPGAIRQCount  uint32 = 64  // 64 FPGA-to-HPS doorbell lines (0..63)
 
 	IRQUSB0       uint32 = 125 // SPI 93  (DWC2 USB0)
 	IRQSDMMC      uint32 = 128 // SPI 96  (Cadence SDHCI)
@@ -33,3 +38,42 @@ var intc = gic.New(GICDBase, GICRBase)
 
 // GIC returns the Agilex 5 GIC-600 controller. Call Init() before enabling IRQs.
 func GIC() *gic.Controller { return intc }
+
+// FPGAIRQ maps an FPGA-to-HPS doorbell line (0..63) to its GIC-600 SPI INTID (48..111).
+func FPGAIRQ(line uint32) (uint32, bool) {
+	if line >= FPGAIRQCount {
+		return 0, false
+	}
+	return IRQFPGA2HPS0 + line, true
+}
+
+// EnableFPGAIRQ configures an FPGA-to-HPS doorbell line (0..63) as edge-triggered
+// (true) or level-sensitive (false), binds fn, clears any stale pending state,
+// and unmasks the SPI in GIC-600. Call after GIC().Init().
+func EnableFPGAIRQ(line uint32, edge bool, fn func()) error {
+	id, ok := FPGAIRQ(line)
+	if !ok {
+		return errors.New("de25nano: FPGA IRQ line out of range")
+	}
+	if id >= intc.Lines() {
+		return gic.ErrInvalidConfig
+	}
+	intc.Disable(id)
+	intc.ClearPending(id)
+	intc.SetEdge(id, edge)
+	intc.Register(id, fn)
+	intc.Enable(id)
+	return nil
+}
+
+// DisableFPGAIRQ masks an FPGA-to-HPS doorbell line (0..63), clears any pending
+// state, and unregisters its handler.
+func DisableFPGAIRQ(line uint32) {
+	id, ok := FPGAIRQ(line)
+	if !ok {
+		return
+	}
+	intc.Disable(id)
+	intc.ClearPending(id)
+	intc.Register(id, nil)
+}

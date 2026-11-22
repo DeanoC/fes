@@ -21,6 +21,7 @@ from boards.de25nano.producers import build_atari_st_package as atari_st
 from boards.de25nano.producers import build_c64_package as c64
 from boards.de25nano.producers import build_machine_package as shared
 from boards.de25nano.producers import build_spectrum_package as spectrum
+from boards.de25nano.spectrum import native_hps
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = 'https://github.com/DeanoC/fes'
@@ -58,7 +59,7 @@ class MachineProducerTests(unittest.TestCase):
                          for name, value in captured.items()})
         for name in (spectrum.RECIPE, atari_st.RECIPE, c64.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
                      'boards/de25nano/quartus.lock', 'boards/de25nano/package/core_package.py',
-                     'boards/de25nano/package/export_core_package.py', *shared.REVIEW_INPUTS):
+                     'boards/de25nano/package/export_core_package.py', shared.NATIVE_SPECTRUM_COMPOSER, *shared.REVIEW_INPUTS):
             data.setdefault(name, (ROOT / name).read_bytes())
         for root in shared.SOURCE_ROOTS:
             if not Path(root).suffix and not any(name.startswith(root + '/') for name in data):
@@ -137,6 +138,69 @@ class MachineProducerTests(unittest.TestCase):
                 self.assertEqual(mapping, {'format': 1, 'device': shared.DEVICE,
                                            'encoding': 'gp-firmware-upload-v1',
                                            'base_sha256': manifest['payload']['sha256'], 'source_size': size})
+
+    def test_native48_uses_its_own_profile_identity_and_control_maps(self):
+        build = self.root / 'build'
+        build.mkdir(exist_ok=True)
+        payload = build / 'native48.rbf'
+        payload.write_bytes(b'unqualified native payload fixture')
+        self.addCleanup(payload.unlink)
+        record = self.record(spectrum, 'native48')
+        fields = verify_record_source_at_revision(self.root, record)
+        self.assertIn(shared.NATIVE_SPECTRUM_COMPOSER, fields['source_inputs'])
+        self.assertEqual(fields['parameters']['f2sdram_master_profile'], 'native-scanout-and-probe')
+        self.assertEqual(fields['parameters']['fabric_initiator_policy'], 'native-maintenance-absent-v1')
+        self.assertFalse(fields['parameters']['linux_dma'])
+        linux = json.loads(self.record(spectrum, '48'))
+        self.assertNotIn(shared.NATIVE_SPECTRUM_COMPOSER, linux['source_inputs'])
+        self.assertTrue(linux['parameters']['linux_dma'])
+        manifest = tomllib.loads(spectrum.manifest(record, payload).decode())
+        self.assertEqual(manifest['target']['programming_profile'], 'de25-native-spectrum48-v1')
+        self.assertNotEqual(build_identity(record), build_identity(self.record(spectrum, '48')))
+        self.assertEqual(json.loads(spectrum.MACHINE.rom_map(record, payload))['source_size'], 16384)
+        spec = spectrum.MACHINE.spec(ROOT)
+        maps = json.loads(spec.native_controls(manifest['build']['id'], manifest['payload']['sha256']))
+        self.assertEqual(maps['build_id'], manifest['build']['id'])
+        self.assertEqual(maps['payload_sha256'], manifest['payload']['sha256'])
+        self.assertEqual(maps['computer'], {'peripheral_offset': 0x10300, 'span': 32,
+                                            'fetch_count_offset': 0x18, 'fetch_address_offset': 0x1c})
+        self.assertEqual(maps['display_reader'], {'peripheral_offset': 0x10200, 'span': 128,
+                                                  'stop_command': 2, 'status_offset': 8, 'drained_mask': 8,
+                                           'retired_mask': 0x80000000, 'grant_base': 0x95000000, 'grant_bytes': 8 << 20})
+        with tempfile.TemporaryDirectory(dir=build) as name:
+            work = Path(name)
+            (work / 'build-inputs.json').write_bytes(record)
+            candidate = work / 'core.rbf'
+            candidate.write_bytes(payload.read_bytes())
+            rom_map = work / 'rom-map.json'
+            rom_map.write_bytes(spectrum.MACHINE.rom_map(record, candidate))
+            store = work / 'packages'
+            try:
+                exported = export_package(spectrum.manifest(record, candidate), candidate, store,
+                    rom_map=rom_map, rom_id=spectrum.MACHINE.rom_id_for('native48'), rom_role='firmware')
+                package = read_package(exported.with_suffix('.fcore'))
+                self.assertEqual(package.fields['format'], 3)
+                self.assertEqual(package.fields['target'], manifest['target'])
+                self.assertEqual(package.fields['rom']['source_size'], maps['firmware_bytes'])
+                self.assertEqual(package.fields['payload']['sha256'], maps['payload_sha256'])
+            finally:
+                if store.exists():
+                    subprocess.run(['chmod', '-R', 'u+w', str(store)], check=True)
+
+    def test_native_phase_export_rechecks_the_generated_handoff(self):
+        with tempfile.TemporaryDirectory() as name:
+            output = Path(name)
+            directory = output / 'combined/hps'
+            directory.mkdir(parents=True)
+            hps, scanout, tool = mock.Mock(), mock.Mock(), Path('/fixture/quartus_sh')
+            before, changed = {'endpoint': 'selected'}, {'endpoint': 'changed'}
+            for values, export_count in (([before, changed], 0), ([before, before, changed], 1)):
+                hps.reset_mock()
+                with mock.patch.object(native_hps, 'verify_handoff', side_effect=values):
+                    with self.assertRaisesRegex(ValueError, 'handoff changed'):
+                        native_hps.compile_package_candidate(output, hps, scanout, tool)
+                self.assertEqual(hps.linux_configuration_artifacts.call_count, export_count)
+                self.assertFalse((directory / 'generation.json').exists())
 
     def test_refuses_before_any_build(self):
         for producer in PRODUCERS:

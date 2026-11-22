@@ -89,6 +89,31 @@ func probeGIC() {
 	g.Disable(0)
 	g.Register(0, nil)
 
+	// Exercise SPI routing and edge-triggered software pending via GICD_ISPENDR
+	// on SPI 48 (Agilex 5 IRQFPGA2HPS0; unused VirtIO slot 0 during QEMU probe).
+	const testSPI uint32 = 48
+	spiHit := make(chan struct{}, 1)
+	g.Disable(testSPI)
+	g.ClearPending(testSPI)
+	g.SetEdge(testSPI, true)
+	g.Register(testSPI, func() {
+		select {
+		case spiHit <- struct{}{}:
+		default:
+		}
+	})
+	g.Enable(testSPI)
+	g.SetPending(testSPI)
+	select {
+	case <-spiHit:
+	case <-time.After(time.Second):
+		panic("gic: SPI 48 software pending did not fire")
+	}
+	g.Disable(testSPI)
+	g.ClearPending(testSPI)
+	g.SetEdge(testSPI, false)
+	g.Register(testSPI, nil)
+
 	timerHit := make(chan struct{}, 1)
 	g.Register(board.IRQPhysTimer, func() {
 		gic.DisarmPhysicalTimer()
@@ -142,5 +167,5 @@ func probeGIC() {
 	g.Disable(0)
 	g.Register(0, nil)
 
-	fmt.Printf("PASS gic sgi timer wfi-idle redistributor=%#x lines=%d wakeups=%d\n", g.Redistributor(), g.Lines(), wakeups)
+	fmt.Printf("PASS gic sgi spi timer wfi-idle redistributor=%#x lines=%d wakeups=%d\n", g.Redistributor(), g.Lines(), wakeups)
 }

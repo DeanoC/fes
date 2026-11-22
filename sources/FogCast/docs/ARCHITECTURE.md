@@ -97,6 +97,14 @@ grants and use the backend's generation-bound pause/drain handoff before
 publishing frames across core transitions. The DE25 native backend now exercises
 package launch and return; that experiment remains opt-in and incomplete.
 
+Spectrum launch media uses the same Go cassette converter in FogCast and the
+native DE25 backend. Both prepare the core's PZX stream from the original tape
+file. The native backend retains and verifies the selected file on FAT32 before
+closing SD access, then sends PZX to board SDRAM through the core's existing
+media mailbox while execution is held. The converter and core media contract
+are independent of the launcher OS. File access and hardware ownership stay
+with each delivery backend.
+
 This boundary supports the experimental
 [Linux-free base](../../../platform/embedded/README.md). Its native QEMU image
 uses real VirtIO networking to a private FogCast host, FAT32 preferences, live

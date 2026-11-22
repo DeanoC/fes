@@ -1,6 +1,7 @@
 """Native menu selection through real receipt/entry/cold-header validators."""
 import base64
 import copy
+import importlib.util
 import json
 import os
 import re
@@ -9,7 +10,20 @@ import subprocess
 import unittest
 from unittest.mock import patch
 
-from test_nano_window import context, cold, entry, FIXTURES, ROOT
+ROOT = Path(__file__).resolve().parents[1]
+FIXTURES = ROOT/'platform/embedded/tamago/nativefabric/testdata'
+
+
+def _load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+context = _load('menu_boot_hps_context', ROOT/'platform/embedded/nano/hps_context.py')
+cold = _load('menu_boot_cold_profile', ROOT/'platform/embedded/nano/cold_profile.py')
+entry = _load('menu_boot_entry', ROOT/'platform/embedded/entry/build.py')
 
 
 class MenuBootTests(unittest.TestCase):
@@ -50,13 +64,12 @@ class MenuBootTests(unittest.TestCase):
         with self.assertRaises(ValueError):context.checked_menu_read(dict(program='fpgaload',hps_context=self.source))
 
     def test_other_boot_modes_cannot_mix_with_menu(self):
-        for flag in ('ddr_read','window_memory','window_read','window_present','window_storage_return',
-                     'window_reload','window_service','computer_control','computer_reload',
+        for flag in ('ddr_read','computer_control','computer_reload',
                      'computer_storage_return','selected_programs','tenfoot_serial','usb_control','usb_shared'):
             for value in (True,1,None):
                 with self.subTest(flag=flag,value=value),self.assertRaises(ValueError):
                     context.menu_selection(dict(self.receipt,**{flag:value}))
-        for key in ('hps_ddr_read','hps_window_read','hps_computer','hps_rom','hps_program_platform',
+        for key in ('hps_ddr_read','hps_computer','hps_rom','hps_program_platform',
                     'usb_input','shared_usb_input','firmware_rom','rom_host_go'):
             with self.subTest(key=key),self.assertRaises(ValueError):
                 context.menu_selection(dict(self.receipt,**{key:'supplied'}))
@@ -96,7 +109,7 @@ class MenuBootTests(unittest.TestCase):
                      '#define FES_NANO_WINDOW_MEMORY 1','#define FES_NANO_WINDOW_READ_DIAGNOSTIC 1',
                      '#define FES_NANO_WINDOW_READ_ATTRS_VERIFIED 1','#define FES_NANO_WINDOW_STORAGE_RETURN 0'):
             self.assertIn(line,header)
-        for change in ({'menu_present':False},{'menu_present':1},{'window_memory':True},{'window_read':True},
+        for change in ({'menu_present':False},{'menu_present':1},
                 {'hps_menu_read':None},{'hps_menu_read_sha256':'0'*64},{'sd_pio':False},
                 {'hps_control':dict(self.control,fabric_stop=dict(self.control['fabric_stop'],scope='sealed-window-master-stop-v1'))}):
             with self.subTest(change=change),self.assertRaises(ValueError):cold.header({'boot_fit': dict(cold.fit_layout.CONTRACT), **(dict(profile,**change))} )
@@ -111,7 +124,7 @@ class MenuBootTests(unittest.TestCase):
         self.assertFalse(output.exists())
         for options in (['probe','--menu-present'],
                 ['fpgaload','--board','de25-nano','--profile',str(ROOT/'platform/embedded/nano/sd-profile.json'),
-                 '--menu-present','--window-memory']):
+                 '--menu-present','--ddr-read']):
             run=subprocess.run(['python3','platform/embedded/tamago/run.py',*options,'--compiler','/absent',
                 '--output',str(output)],cwd=ROOT,env=dict(os.environ,FES_EXPERIMENTAL_DE25_EMBEDDED="1"),capture_output=True,text=True,timeout=15)
             self.assertNotEqual(run.returncode,0,run.stdout+run.stderr)

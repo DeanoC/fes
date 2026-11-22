@@ -8,35 +8,41 @@ import json
 from pathlib import Path
 import unittest
 
-import test_nano_window_trace as window
+import test_nano_native_trace as fixtures
+import test_nano_cpu_mapping as mapping_fixtures
 
-trace, BUILD, SEED, OWNER = window.trace, window.BUILD, window.SEED, window.OWNER
+trace, BUILD, SEED, OWNER = fixtures.trace, fixtures.BUILD, fixtures.SEED, fixtures.OWNER
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class MenuTraceTests(unittest.TestCase):
     def setUp(self):
-        self.window = window.WindowTraceTests(); self.window.setUp()
-        self.identity = dict(self.window.identity,control_abi=0x10203043)
-        self.configuration = self.window.configuration
+        base = fixtures.NativeContainedConfigurationTraceTests()
+        self.identity = dict(base.identity, control_abi=0x10203043)
+        self.configuration = base.configuration
         self.memory = json.loads((ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-menu-memory.json').read_bytes())
-        self.memory.update(package_id=self.identity['package_id'],build_id=self.identity['build_id'])
-        self.mapping = dict(self.window.mapping,reader_bytes=8<<20)
-        self.contract = dict(self.window.contract,scope='sealed-cold-menu-read-v1',reader_memory_sha256=trace.context_digest(self.memory))
+        self.memory.update(package_id=self.identity['package_id'], build_id=self.identity['build_id'])
+        self.mapping = dict(format=2, scope='pinned-tamago-el1-resources-excluded-v2', ram_base=0x84000000, ram_bytes=256<<20,
+                            control_base=0x20010400, control_bytes=256, dma_base=0x94800000, dma_bytes=8<<20,
+                            reader_base=0x95000000, reader_bytes=8<<20, firmware_base=0x50000, firmware_bytes=0x10000)
+        self.contract = dict(format=1, scope='sealed-cold-menu-read-v1', package_id=self.identity['package_id'],
+                             build_id=self.identity['build_id'], reader_memory_sha256=trace.context_digest(self.memory),
+                             control_map_sha256=self.identity['map_sha256'], adapter_source_sha256='a'*64,
+                             adapter_generated_sha256='b'*64, arcache=2, arprot=3, aruser=224, read_bytes=3686400,
+                             open_mask=8, close_mask=10)
         pinned = (f'FES_NATIVE_FPGA_MENU_MEMORY PINNED cpu_base=95000000 bytes=8388608 slots=2 slot_bytes=4194304 '
                   f'map_sha256={trace.context_digest(self.memory)} initial_sha256={hashlib.sha256(bytes(8<<20)).hexdigest()} '
                   f'owner={OWNER:x} generation=4 fpga_access=held lifetime=until-reboot\n')
-        self.prefix = ''.join(pinned if line.startswith('FES_NATIVE_FPGA_WINDOW_MEMORY') else line
-                              for line in self.window.prefix.splitlines(keepends=True))
-        self.prefix = self.prefix.replace('bytes=4194304 access=unqualified','bytes=8388608 access=unqualified')
-        self.prefix = self.prefix.replace('reader_bytes=4194304','reader_bytes=8388608')
-        self.prefix = self.prefix.replace('bytes='+str((256+8+4)*(1<<20)+256+0x10000),
-                                         'bytes='+str((256+8+8)*(1<<20)+256+0x10000))
+        prefix = base.stored_capture().split('NOTICE:  FES_NANO_IDENTITY phase=open')[0]
+        prefix = prefix.replace('FES_NATIVE_HPS_CONTEXT', pinned+'FES_NATIVE_HPS_CONTEXT', 1)
+        marker = mapping_fixtures.CPUMappingTraceTests.marker(self, bytes=(256+8+8)*(1<<20)+256+0x10000)
+        prefix = prefix.replace('FES_NATIVE_HPS_CONTEXT', marker+'FES_NATIVE_HPS_CONTEXT', 1)
+        self.prefix = prefix + self.gate(4, 15, permit=False)
         self.elapsed = 0
         # The real firmware queries readiness and the initial route inside
         # OpenMenuSession, after its native progress marker and before control.
         split = self.prefix.index('FES_NANO_CONFIG_QUERY')
-        readiness,self.prefix = self.prefix[split:],self.prefix[:split]
+        readiness, self.prefix = self.prefix[split:], self.prefix[:split]
         self.suffix = self.step(1,'open_begin') + readiness + self.scope('control',5,13)
         self.suffix += self.gate(5,13)*2 + self.scope('data',6,5) + self.step(1,'open_end')
         for index in range(1,4):
@@ -64,8 +70,19 @@ class MenuTraceTests(unittest.TestCase):
     def scope(self,phase,generation,reset):
         return f'NOTICE:  FES_NANO_WINDOW_SCOPE phase={phase} owner={OWNER:x} generation={generation} reset={reset:x}\n'
 
-    def gate(self,generation,reset):
-        return self.window.gate(generation,reset).replace('bytes=4194304','bytes=8388608')
+    def gate(self,generation,reset,permit=True):
+        result=('NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=080f7e3f idr1=0e739d18 aidr=1 s_idr1=80000018 '
+                'cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 '
+                'identified=1 settled=1 bypass_controls_clear=1 access=unqualified\n')
+        result+=(f'NOTICE:  FES_NANO_DDR_FIREWALL status=0 owner={OWNER:x} generation={generation} reset={reset:x} '
+                 'mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=8388608 access=unqualified\n')
+        for i in range(8):
+            result+=f'NOTICE:  FES_NANO_DDR_REGION index={i} base={"80000000" if not i else "0"} baseext=0 limit={"bfffffff" if not i else "ffff"} limitext=0\n'
+        result+='NOTICE:  FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified\n'
+        if permit:
+            result+=(f'NOTICE:  FES_NANO_WINDOW_GATE status=0 owner={OWNER:x} generation={generation} reset={reset:x} '
+                     'bytes=8388608 permit=owned-read\n')
+        return result
 
     def decode(self,raw,**changes):
         args = dict(fpga_identity=self.identity,configuration=self.configuration,from_storage=True,
@@ -149,9 +166,9 @@ class MenuTraceTests(unittest.TestCase):
             with self.subTest(field=key),self.assertRaises(ValueError):
                 self.decode(self.raw,menu_read=changed)
         for key,value in [('from_storage',False),('cpu_mapping',None),('ddr_read',{}),('computer',{}),
-                          ('window_read',self.window.contract),('window_present',True),('window_present',0),
                           ('computer_storage_return',0),('computer_activity',0),('computer_reload',True),
-                          ('reader_memory',self.window.memory),('fpga_identity',self.window.identity)]:
+                          ('reader_memory',dict(self.memory,bytes=4<<20,arena_bytes=4<<20)),
+                          ('fpga_identity',dict(self.identity,control_abi=0x10203041))]:
             with self.subTest(mode=key),self.assertRaises(ValueError): self.decode(self.raw,**{key:value})
         with self.assertRaises(ValueError): self.decode(self.raw,menu_read=None)
 

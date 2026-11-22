@@ -162,7 +162,9 @@ HOST_GO` to derive content-bound ROM receipts and export `FIRMWARE.BIN`,
 
 ## Persistent native window requests
 
-The legacy fixed-window service flags (`fpgaload --window-memory --window-read
---window-present --window-storage-return --window-service`) remain distinct
-from the paired Tenfoot launcher (`--menu-project --selected-programs
---tenfoot-serial`) documented in [../nano/launcher.md](../nano/launcher.md).
+The earlier single-slot fixed-window diagnostic flags (`--window-memory`,
+`--window-read`, `--window-present`, `--window-storage-return`,
+`--window-reload`) and standalone `--window-service` serial server were retired
+once the paired Tenfoot launcher (`--menu-project --selected-programs
+--tenfoot-serial`) documented in [../nano/launcher.md](../nano/launcher.md)
+superseded them.

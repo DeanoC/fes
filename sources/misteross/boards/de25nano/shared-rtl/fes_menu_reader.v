@@ -11,7 +11,8 @@ module fes_menu_reader #(
     // Defaults retain the existing single-burst behavior on other platforms.
     parameter [0:0] READ_AHEAD = 1'b0,
     parameter integer FIFO_ADDR_BITS = 8,
-    parameter [0:0] RESET_ABORTS_TRAFFIC = 1'b0
+    parameter [0:0] RESET_ABORTS_TRAFFIC = 1'b0,
+    parameter [31:0] DMA_GUARD_BASE = 32'd0
 ) (
     input wire clk,
     input wire rst,
@@ -28,7 +29,8 @@ module fes_menu_reader #(
     output wire idle,
     output reg [27:0] address = 28'd0,
     output reg [7:0] burstcount = 8'd0,
-    output reg read = 1'b0,
+    output wire read,
+    output reg dma_fault = 1'b0,
     input wire waitrequest,
     input wire [127:0] readdata,
     input wire readdatavalid,
@@ -77,6 +79,16 @@ module fes_menu_reader #(
             last_write_valid <= 1'b1;
         end
     end
+    reg offered = 1'b0;
+    // Check the actual registered Avalon command, including its last beat,
+    // before exposing it to DDR. Rejection never consumes response credit.
+    localparam [32:0] DMA_LIMIT = {1'b0, DMA_GUARD_BASE} + 33'h000800000;
+    wire [32:0] dma_start = {1'b0, address, 4'b0};
+    wire [32:0] dma_end = dma_start + {21'b0, burstcount, 4'b0};
+    wire rejected = DMA_GUARD_BASE != 0 && offered &&
+        (dma_start < {1'b0, DMA_GUARD_BASE} || dma_end > DMA_LIMIT ||
+         DMA_LIMIT > 33'h100000000 || burstcount == 0 || burstcount > 8'd64);
+    assign read = offered && !rejected;
     wire accepting = !reset_abort && read && !waitrequest;
     // A first response may arrive on the command-acceptance edge. Include
     // that burst before subtracting the response; never overwrite its budget.
@@ -111,10 +123,10 @@ module fes_menu_reader #(
     assign pixel_valid = active && enable && !rst && !memory_fault && count != 0;
     assign pixel_bgrx = front[{lane, 5'b00000} +: 32];
     assign pixel_index = index;
-    assign idle = !active && !read && outstanding == 9'd0 && count == 0;
+    assign idle = !active && !offered && outstanding == 9'd0 && count == 0;
     // Include a command held under waitrequest; zero never means that a
     // stalled request may be withdrawn or its backing allocation released.
-    assign outstanding_beats = outstanding + (read ? {1'b0, burstcount} : 9'd0);
+    assign outstanding_beats = outstanding + (offered ? {1'b0, burstcount} : 9'd0);
 
     // These observers do not control the reader. Include this edge
     // in the exported maxima, allowing video to capture the fault edge itself.
@@ -163,13 +175,18 @@ module fes_menu_reader #(
             front <= 128'd0;
             address <= 28'd0;
             burstcount <= 8'd0;
-            read <= 1'b0;
+            offered <= 1'b0;
+            dma_fault <= 1'b0;
             done <= 1'b0;
         end else begin
             done <= 1'b0;
             // Never withdraw a command under waitrequest, even on cancellation.
+            if (rejected) begin
+                offered <= 1'b0;
+                dma_fault <= 1'b1;
+            end
             if (accepting) begin
-                read <= 1'b0;
+                offered <= 1'b0;
                 issued <= issued + {10'd0, burstcount};
             end
             if (accepting || returning)
@@ -221,11 +238,11 @@ module fes_menu_reader #(
             // A held command cannot be replaced. In read-ahead mode all
             // accepted commands plus this command still fit in the FIFO,
             // including cancellation while responses remain in flight.
-            if (active && enable && !rst && !memory_fault && !read && (READ_AHEAD || outstanding == 9'd0) &&
+            if (active && enable && !rst && !memory_fault && !dma_fault && !offered && (READ_AHEAD || outstanding == 9'd0) &&
                 issued < FRAME_BEATS && next_burst != 8'd0 && MAX_BURST_BEATS <= 8'd128 &&
                 reserved_beats <= {1'b0, FIFO_BEATS} - next_fifo_reservation &&
                 next_response_reservation <= {1'b0, MAX_OUTSTANDING_BEATS}) begin
-                read <= 1'b1;
+                offered <= 1'b1;
                 address <= next_address;
                 burstcount <= next_burst;
             end
