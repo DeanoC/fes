@@ -45,7 +45,7 @@ def menu_selection(record, program_key='program'):
     if selected and (record.get(program_key) != 'fpgaload' or
             any(record.get(k, False) is not False for k in
                 ('ddr_read', 'window_memory', 'window_read', 'window_present', 'window_storage_return',
-                 'window_reload', 'window_service', 'computer_control', 'computer_reload',
+                 'window_reload', 'computer_control', 'computer_reload',
                  'computer_storage_return', 'selected_programs', 'tenfoot_serial', 'usb_control', 'usb_shared')) or
             any(record.get(k) is not None for k in
                 ('hps_ddr_read', 'hps_window_read', 'hps_computer', 'hps_rom', 'hps_program_platform',
