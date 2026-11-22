@@ -228,7 +228,7 @@ def _authenticate_c64_tools(root: Path, cache_root: Path | None = None,
                             gpu_router: str = C64_GPU_ROUTER):
     _backend, architectures, configuration = gpu_choice(gpu_router)
     root_path = root / C64_TOOLCHAIN_ROOT if toolchain_root is None else Path(toolchain_root)
-    return _authenticate_tools(
+    tools = _authenticate_tools(
         root,
         lock_path=root / C64_TOOLCHAIN_LOCK,
         toolchain_root=root_path,
@@ -237,6 +237,15 @@ def _authenticate_c64_tools(root: Path, cache_root: Path | None = None,
         hip_architectures=architectures,
         cache_root=cache_root,
     )
+    # Shared lock authentication selects the first registered core. Canonical
+    # package preparation calls this hook before supplying its model option.
+    # Bind both C64 recipes to the same binary before either record is made.
+    try:
+        for machine in MODELS.values():
+            pnr_recipe.validate_nextpnr_tool(machine.core_id, tools["nextpnr-mistral"].path)
+    except pnr_recipe.RecipeError as exc:
+        raise BuildError(f"nextpnr recipe option validation failed: {exc}") from exc
+    return tools
 
 
 def validate_memory_clocks(cells: dict) -> None:

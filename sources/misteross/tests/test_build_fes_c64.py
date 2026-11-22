@@ -11,9 +11,11 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tomllib
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts import c64_slots
@@ -53,6 +55,21 @@ class BuildFesC64Tests(unittest.TestCase):
         self.assertEqual(pnr_recipe.lock_path(ROOT, "fes.c64"), ROOT / producer.C64_TOOLCHAIN_LOCK)
         lock = load_lock(ROOT / producer.C64_TOOLCHAIN_LOCK)
         self.assertEqual(lock["nextpnr"].commit, pnr_recipe.nextpnr_pin("fes.c64"))
+
+    def test_shared_lock_authenticates_ntsc_recipe_before_recording_it(self) -> None:
+        pnr = producer.pnr_recipe
+        # The locked binary exposes additional default CLI flags beyond those
+        # explicitly set by the C64 rows. Routing uses that complete schema.
+        options = next(names for names in pnr._SOURCE_OPTION_SET_SCHEMAS if len(names) == 105)
+        router = Path(sys.executable)
+        tools = {"nextpnr-mistral": SimpleNamespace(path=router)}
+        with patch.dict(pnr._RUNTIME_SCHEMAS, clear=True), patch.dict(
+                pnr._ACTIVE_RUNTIME_SCHEMA_IDENTITIES, clear=True), patch.object(
+                pnr, "_help_option_names", return_value=options), patch.object(
+                producer, "_authenticate_tools", return_value=tools):
+            producer._authenticate_c64_tools(ROOT)
+            initial = pnr.recipe_digest("fes.c64-ntsc")
+            self.assertEqual(initial, pnr.recipe_digest("fes.c64-ntsc", router))
 
     def test_cuda_lane_uses_pci_bus_order(self) -> None:
         self.assertIsNone(producer.execution_extra("HIP"))
