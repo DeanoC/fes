@@ -11,8 +11,8 @@ The method was committed before any board fit: [method.md](method.md).
 
 | | Main | This branch | Change |
 |---|---:|---:|---:|
-| **DE25 board, 387 off, four seeds (median, ALMs needed)** | DE25_BASE | DE25_CUT | **DE25_SAVING** |
-| DE25 board RAM blocks | DE25_BASE_RAM | DE25_CUT_RAM | DE25_RAM_DELTA |
+| **DE25 board, 387 off, four seeds (median, ALMs needed)** | 41,968.5 | **41,648** | **−320.5** |
+| DE25 board RAM blocks | 167 | 168 | +1 |
 | DE10 seal, seed 1 (ALMs) | 36,354 | **36,051** | **−303** |
 | DE10 seal RAM blocks (M10K) | 282 | 283 | +1 |
 | DE10 seal setup / hold slack (ns) | +0.267 / +0.093 | +0.703 / +0.106 | |
@@ -29,7 +29,7 @@ The method was committed before any board fit: [method.md](method.md).
   - Run a2, approved by Deano, used a gate committed before its captures. It **passes**: main's
     package and this one both play the music, and their levels differ by +0.63 dB
     ([below](#kit-b-run-a2)).
-- **DE25:** PAIR_SENTENCE
+- **DE25:** the four-seed board pair saves **320.5 ALMs** at the median (base spread 30, cut spread 73, so the saving is measured), for one extra M20K. Every cut seed closes timing at 61.44 MHz with no negative slack ([below](#de25-board-pair)).
 
 ## The cut
 
@@ -145,7 +145,31 @@ used the same driver, title, key script and capture points.
 
 ## DE25 board pair
 
-PAIR_TABLE
+| Arm | Seed | ALMs needed | RAM | DSP | Worst setup (ns) | Machine setup (ns) | Worst hold (ns) | Negative slack |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| base `3401bb193` | 1 | 41,975 | 167 | 24 | +1.424 | +1.764 | +0.000 | none |
+| base `3401bb193` | 2 | 41,975 | 167 | 24 | +1.551 | +1.864 | +0.000 | none |
+| base `3401bb193` | 3 | 41,962 | 167 | 24 | +1.299 | +1.697 | +0.000 | none |
+| base `3401bb193` | 4 | 41,945 | 167 | 24 | +1.505 | +1.853 | +0.000 | none |
+| cut `bed156c96` | 1 | 41,589 | 168 | 24 | +1.539 | +1.682 | +0.000 | none |
+| cut `bed156c96` | 2 | 41,661 | 168 | 24 | +1.416 | +1.770 | +0.000 | none |
+| cut `bed156c96` | 3 | 41,635 | 168 | 24 | +1.283 | +1.283 | +0.000 | none |
+| cut `bed156c96` | 4 | 41,662 | 168 | 24 | +1.552 | +1.811 | +0.000 | none |
+
+- **Arms:** base is draft PR #2036's head `3401bb193` (main plus the 387-off DE25 pc386 board);
+  cut is that head with `f3140cb33..0637e5def` cherry-picked, giving `bed156c96`. Both were built
+  at the same worktree path, so the netlists differ only by the cut: base `9e471155…`, cut
+  `e48b048f…`. Seeds 2–4 refit the seed-1 project with only `SEED` changed. Every fit ran under
+  Powerboat's Pro Quartus lease.
+- **Medians:** base 41,968.5 (spread 30), cut 41,648 (spread 73). The saving, **320.5 ALMs**,
+  exceeds the larger spread, so it counts as measured. The cut median is below the base median, so
+  the one-sided area band passes.
+- **Timing:** all eight fits close every clock with no negative slack. The cut's worst setup
+  slack is +1.283 ns (seed 3, the machine clock); a worst hold of 0.000 ns is not negative.
+- **Positive control:** the cut fit's RAM summary has one M20K, 512 × 12, named
+  `…operator_phase_generator_phase_rom_rom_rtl_0`, with a mif. The base fit has none. This
+  accounts for the extra RAM block.
+- Raw figures: [`collect.json`](collect.json), from `pair_collect.py`. The fit outputs stay in scratch.
 
 ## Profile and candidates
 
