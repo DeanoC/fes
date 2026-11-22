@@ -215,6 +215,16 @@ Worst slack in ns over every clock and corner:
 - With one thread it is clean and stable.
 - A rebuilt netlist would therefore not have matched seeds 2–4's bytes. That is why seed 1 reran from the project copy.
 
+**DE25 hardware: measurement only, no Kit D25 run.**
+- The DE25 board pair above measures area and timing; it ships nothing.
+- No DE25 producer on main builds pc386. Nothing under
+  `sources/misteross/boards/de25nano` on main references it, and on main
+  `pc386_vga.sv` reaches hardware only through the DE10 sealer.
+- The DE25 pc386 board producer arrives with #2036. Kit D25 acceptance of this
+  RTL comes with #2036 (slice 4), when a DE25 pc386 package first ships.
+- The hardware this PR changes is the DE10 pc386 package, accepted on Kit B
+  below.
+
 **Kit B ([kit/](kit/)):**
 - Core-only run on the baseline: image `179affbb…`, bundle `c9ae79e2…`. Nothing
   was installed and nothing rebooted.
