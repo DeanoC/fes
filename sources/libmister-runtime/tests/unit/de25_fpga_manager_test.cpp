@@ -161,7 +161,8 @@ std::string RecoveryPackage(Fixture& f,bool menu,const std::string& suffix="",co
     if(!menu&&machine!="fes.zx81") {
         // A firmware machine: format 3, its own interface set, and the sealed
         // map of an unpatched payload beside it.
-        const auto d=machine=="fes.atari-st"?mister_test::De25AtariStDescriptor():mister_test::De25SpectrumDescriptor();
+        const auto d=machine=="fes.atari-st"?mister_test::De25AtariStDescriptor():
+            machine=="fes.c64"?mister_test::De25C64Descriptor():mister_test::De25SpectrumDescriptor();
         interfaces.clear();
         for(const auto& i:d.interfaces)interfaces+="[[interfaces]]\nid = \""+i.id+"\"\nmajor = "+std::to_string(i.major)+
             "\nminor = "+std::to_string(i.minor)+"\nrequired = true\n\n";
@@ -194,9 +195,9 @@ void RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement() {
         assert(owner.owner_infos==1&&owner.reaps==1&&owner.allocations==0&&owner.published.empty());
         assert(guarded==(menu?0u:1u));assert(f.ops.removed==1&&f.ops.written==2&&f.ops.created==2);f.Preserved();assert(fresh.ReleaseConfiguration(100).error.ok());
     }
-    // A lost Spectrum or Atari ST is retired the same way: its format-3 package
+    // A lost Spectrum, Atari ST or C64 is retired the same way: its format-3 package
     // is found by the retained payload, and its own guard runs first.
-    for(const std::string machine:{"fes.spectrum","fes.atari-st"}) {
+    for(const std::string machine:{"fes.spectrum","fes.atari-st","fes.c64"}) {
         Fixture f;RecoveryPackage(f,false,"",machine);auto old=f.Manager();
         assert(f.Program(*old,ProgrammingProfile::de25_linux_computer_v1).error.ok());old.reset();
         mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;owner.state.state=1;LinuxDe25Menu memory(f.clock,owner);
