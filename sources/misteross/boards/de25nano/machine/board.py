@@ -209,8 +209,6 @@ def window_script(offset):
 WINDOW_MAX_ADDITIONAL_LATENCY = 0
 WINDOW_TOP = ("add_connection subsys_periph.fes_win_mem subsys_hps.f2sdram_adapter_axi4_sub\n"
               "set_connection_parameter_value subsys_periph.fes_win_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n"
-              "if {[get_domain_assignment {$system} qsys_mm.maxAdditionalLatency] != 4} "
-              "{error \"GHRD interconnect latency changed\"}\n"
               f"set_domain_assignment {{$system}} qsys_mm.maxAdditionalLatency {WINDOW_MAX_ADDITIONAL_LATENCY}\n")
 
 
@@ -288,6 +286,7 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
                       f"set_interface_property fes_scanout_{name} EXPORT_OF subsys_periph.fes_scanout_{name}\n"
                       for name in conduits)
     if spec.WINDOW:
+        require_ghrd_latency(project)
         exports += WINDOW_TOP
     exports += ("add_instance fes_scanout_machine_clock altera_clock_bridge 19.2.0\n"
                 f"set_instance_parameter_value fes_scanout_machine_clock EXPLICIT_CLOCK_RATE {spec.MACHINE_HZ}\n"
@@ -396,11 +395,22 @@ def verify_window(project, modules, endpoint, connections, hps, scanout):
             "bridge": {"parameters": checked, "logical_view": source}, "interconnect_latency": latency}
 
 
+def latency_values(project):
+    return re.findall(r'altera:parameter_name="qsys_mm\.maxAdditionalLatency" altera:parameter_value="([^"]*)"',
+                      (project / "qsys_top.qsys").read_text())
+
+
+def require_ghrd_latency(project):
+    """The GHRD's qsys_top connections carry maxAdditionalLatency 4 before the window changes it."""
+    values = latency_values(project)
+    if not values or set(values) != {"4"}:
+        raise ValueError("GHRD interconnect latency changed: " + repr(sorted(set(values))))
+
+
 def verify_window_latency(project):
     """Every qsys_top connection carries WINDOW_MAX_ADDITIONAL_LATENCY, and the generated
     interconnect that carries the window's F2SDRAM commands has no pipeline stage."""
-    values = re.findall(r'altera:parameter_name="qsys_mm\.maxAdditionalLatency" altera:parameter_value="([^"]*)"',
-                        (project / "qsys_top.qsys").read_text())
+    values = latency_values(project)
     if not values or set(values) != {str(WINDOW_MAX_ADDITIONAL_LATENCY)}:
         raise ValueError("qsys_top interconnect latency differs: " + repr(sorted(set(values))))
     generated = sorted((project / "qsys_top").glob("altera_mm_interconnect_*/synth/*.v"))
