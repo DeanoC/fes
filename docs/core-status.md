@@ -53,7 +53,7 @@ out.
 
 The image selector supports ten IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st`.
-`fes.riscv`, `fes.c64-ntsc`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.zx80`, `fes.ts1000` and `fes.ts1500` are registered for `make core-dev` only.
+`fes.riscv`, `fes.c64-ntsc`, `fes.c64c`, `fes.c64c-ntsc`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.zx80`, `fes.ts1000` and `fes.ts1500` are registered for `make core-dev` only.
 SMS and SG-1000 retain development recipes but are outside the first-party
 catalog. Spectrum and Atari ST have sealed packages for independent installation.
 C64 remains registered and package-only. Its shared-pin retirement

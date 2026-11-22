@@ -210,7 +210,9 @@ def model_for(model: str, sid_model: str = "6581") -> Model:
         return machine
     if sid_model != "8580":
         raise BuildError("SID model must be 6581 or 8580")
-    return machine._replace(name=f"{machine.name} / MOS8580",
+    core_id = "fes.c64c" if model == "pal" else "fes.c64c-ntsc"
+    name = "FES Commodore 64C (PAL)" if model == "pal" else "FES Commodore 64C (NTSC)"
+    return machine._replace(core_id=core_id, name=name,
                             output=machine.output.with_name(f"{machine.output.name}-8580"))
 
 
@@ -249,10 +251,12 @@ def _authenticate_c64_tools(root: Path, cache_root: Path | None = None,
     )
     # Shared lock authentication selects the first registered core. Canonical
     # package preparation calls this hook before supplying its model option.
-    # Bind both C64 recipes to the same binary before either record is made.
+    # Bind every C64 family recipe to the same binary before any record is made.
     try:
-        for machine in MODELS.values():
-            pnr_recipe.validate_nextpnr_tool(machine.core_id, tools["nextpnr-mistral"].path)
+        for region in MODELS:
+            for sid_model in ("6581", "8580"):
+                machine = model_for(region, sid_model)
+                pnr_recipe.validate_nextpnr_tool(machine.core_id, tools["nextpnr-mistral"].path)
     except pnr_recipe.RecipeError as exc:
         raise BuildError(f"nextpnr recipe option validation failed: {exc}") from exc
     return tools

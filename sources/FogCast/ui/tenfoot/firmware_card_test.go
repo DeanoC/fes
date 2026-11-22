@@ -431,3 +431,11 @@ func TestFirmwareCardRender(t *testing.T) {
 		}
 	}
 }
+
+func TestC64CModelsUseC64Firmware(t *testing.T) {
+	for _, coreID := range []string{"fes.c64c", "fes.c64c-ntsc"} {
+		if got := userFirmwareFiles[coreID]; got != c64FirmwareFile {
+			t.Errorf("%s firmware = %q", coreID, got)
+		}
+	}
+}

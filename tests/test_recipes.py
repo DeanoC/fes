@@ -139,6 +139,29 @@ class RecipeRegistryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown format-2 recipe"):
             recipes.recipe_for("fes.c64-ntsc", board="de25-nano")
 
+    def test_c64c_regions_select_the_8580_and_distinct_packages(self):
+        for region, core_id, stem, qsf in (
+            ("pal", "fes.c64c", "C64C", "build/fes-c64-oss-8580/socket.qsf"),
+            ("ntsc", "fes.c64c-ntsc", "C64C_NTSC",
+             "build/fes-c64-ntsc-oss-8580/socket.qsf"),
+        ):
+            with self.subTest(region=region):
+                recipe = recipes.recipe_for(core_id)
+                self.assertEqual(recipe.producer_arguments,
+                                 ("--model", region, "--sid-model", "8580"))
+                self.assertEqual(dict(recipe.producer_options),
+                                 {"model": region, "sid_model": "8580"})
+                self.assertEqual(recipe.producer_module, "scripts.build_fes_c64_oss")
+                self.assertEqual(recipe.lock_path, "cores/fes-c64/toolchain.lock")
+                self.assertEqual(recipe.selection_filename,
+                                 f"{core_id.replace('.', '-')}.package-selection.toml")
+                self.assertEqual(recipe.package_dir_env, f"FES_{stem}_PACKAGE_DIR")
+                self.assertEqual(recipe.package_selection_env,
+                                 f"FES_{stem}_PACKAGE_SELECTION")
+                self.assertEqual(recipe.pnr["qsf"], qsf)
+                with self.assertRaisesRegex(ValueError, "unknown format-2 recipe"):
+                    recipes.recipe_for(core_id, board="de25-nano")
+
     def test_pcxt_diagnostic_package_is_not_registered(self):
         with self.assertRaises(ValueError):
             recipes.recipe_for("fes.pcxt")
