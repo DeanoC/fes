@@ -36,7 +36,8 @@ The DE10 library offers two C64 packages. Existing C64 titles use `fes.c64`
 (PAL 6569). Select `fes.c64-ntsc` for the standard NTSC 6567R8. Its producer
 sets `NTSC=1` on the board top. Both models use the MOS6581, 6526 CIAs,
 independently clocked 1541 and the same 36 KiB firmware layout. Each title
-binds firmware and disks to its selected package.
+binds firmware and disks to its selected package. A development build can select
+the MOS8580 independently of the video region (see “MOS8580 development builds” below).
 The reference schedules are the VICE [C64 clocks](https://github.com/VICE-Team/svn-mirror/blob/08b38de806e309b7f0a2a27043c896cf7c259061/vice/src/c64/c64.h)
 and [VIC-II cycle tables](https://github.com/VICE-Team/svn-mirror/blob/08b38de806e309b7f0a2a27043c896cf7c259061/vice/src/viciisc/vicii-chip-model.c).
 
@@ -936,6 +937,48 @@ all later samples, including warm-reset retention, are compared. Other bus
 registers retain this core's zero-read contract, not SID floating-bus behavior.
 Other chip models/bias, paddles, bus decay, physical audio and current-package
 timing/hardware acceptance stay open.
+
+### MOS8580 development builds
+
+The DE10 board parameter `SID_8580=1` selects the MOS8580. The direct producer
+accepts `--sid-model 8580` with either `--model pal` or `--model ntsc`.
+It records the SID in the functional build identity and uses a separate output
+directory. Both library recipes select the 6581. The 8580 option changes only
+the SID in the existing regional machine.
+
+For example, from `sources/misteross`:
+
+```sh
+python3 scripts/build_fes_c64_oss.py --model pal --sid-model 8580 --cache-root "$CACHE_ROOT"
+make sim-fes-c64-boot-ntsc-8580-build
+```
+
+The second command builds the NTSC whole-machine simulator for
+`scripts/c64_boot_observe.py --ntsc --sid-model 8580`. Omit `-ntsc` in the target
+and `--ntsc` in the observer for PAL. The observer checks the elaborated SID and
+clock before running and includes the revision in its receipt.
+
+`make sim-fes-c64-sid-8580` replays the same SID register writes as VICE 3.10
+reSID with its default nonlinear 8580 filter (`NEW_8580_FILTER=1`), external
+filter enabled, and no external digi boost. It compares signed PCM every Phi,
+OSC3 on combined waves, and the gain of each filter mode relative to bypass.
+The playback sequence writes digitized sample nibbles to `$D418` with released
+voices and again over a sustained saw. The RTL interpolates transfer curves
+and uses the mean voice quantization dither. On the 240,813-sample fixture the
+largest PCM difference was 16 signed counts and the largest of 12 gain
+differences was 0.178 dB. These are measurements of the exercised sequences.
+
+Normal runs use a checked-in reference. To regenerate the curves and verify
+the independent PCM reference against VICE 3.10 sources:
+
+```sh
+python3 scripts/generate_c64_sid_8580_tables.py --vice-source /path/to/vice-3.10 --check
+python3 scripts/generate_c64_sid_audio_vectors.py --mos8580 --vice-source /path/to/vice-3.10 --check
+```
+
+`make sim-fes-c64-sid-6581-regions` runs the existing 6502 SID-write program
+on both default motherboards. It checks timed SID stores and the signed 48 kHz
+PCM against separate main-branch baselines for PAL and NTSC.
 
 ### Development PRG launch
 
