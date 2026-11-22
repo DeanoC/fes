@@ -145,7 +145,7 @@ func (l *ProgramLoader) ReserveMenuMemory(reserve func([]byte) (*Region, error))
 	v := l.boot
 	v.readerMemoryMu.Lock()
 	defer v.readerMemoryMu.Unlock()
-	if v.readerMemoryAttempted || v.menuMemory != nil || v.windowMemory != nil {
+	if v.readerMemoryAttempted || v.menuMemory != nil {
 		return MenuMemoryObservation{}, errors.New("native fabric: reader memory already selected")
 	}
 	m := l.menu.memory

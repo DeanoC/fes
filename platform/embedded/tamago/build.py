@@ -362,26 +362,10 @@ def build(args):
     rom_host_go=getattr(args,'rom_host_go',None)
     rom_selection=None
     active_ddr=getattr(args,'ddr_read',False)
-    window_memory=getattr(args,'window_memory',False)
-    if type(window_memory) is not bool or window_memory and (args.program!='fpgaload' or active_ddr):
-        raise ValueError('--window-memory requires Nano fpgaload, separately from --ddr-read')
-    window_read=getattr(args,'window_read',False)
-    if type(window_read) is not bool or window_read and not window_memory:
-        raise ValueError('--window-read requires explicit --window-memory')
-    window_read_map=None
-    window_present=getattr(args,'window_present',False)
-    if type(window_present) is not bool or window_present and not window_read:
-        raise ValueError('window presentation requires the complete window-read diagnostic')
-    window_storage_return=getattr(args,'window_storage_return',False)
-    if type(window_storage_return) is not bool or window_storage_return and not window_present:
-        raise ValueError('window storage return requires the selected presentation diagnostic')
-    window_reload=getattr(args,'window_reload',False)
-    if type(window_reload) is not bool or window_reload and not window_storage_return:
-        raise ValueError('window reload requires the selected window SD-return diagnostic')
     if type(active_ddr) is not bool or active_ddr and args.program!='fpgaload':
         raise ValueError('--ddr-read requires the Nano fpgaload diagnostic')
     computer_control=getattr(args,'computer_control',False)
-    if type(computer_control) is not bool or computer_control and (args.program!='fpgaload' or active_ddr or window_memory):
+    if type(computer_control) is not bool or computer_control and (args.program!='fpgaload' or active_ddr):
         raise ValueError('--computer-control requires control-only Nano fpgaload, separately from --ddr-read')
     computer_reload=getattr(args,'computer_reload',False)
     if type(computer_reload) is not bool or computer_reload and not computer_control:
@@ -421,6 +405,8 @@ def build(args):
             raise ValueError('context diagnostics require a sealed HPS-first project and their source-derived serial/SD profile')
         hps_project=hps_project.resolve(strict=True)
         context=hps.derive(hps_project)
+        if context['programming_profile'] not in hps.SUPPORTED_PROFILES:
+            raise ValueError('unsupported or retired HPS-first programming profile: ' + str(context['programming_profile']))
         if (context['programming_profile']==hps.MENU_PROFILE)!=(menu_present) and args.program=='fpgaload':
             raise ValueError('menu source requires explicit --menu-present and cannot inherit another reader mode')
         rom_profile=hps.uses_held_rom(context)
@@ -430,8 +416,6 @@ def build(args):
             rom_map=hps.rom(hps_project)
         elif firmware_rom is not None or rom_host_go is not None:
             raise ValueError('firmware ROM selection requires the explicit sealed ROM producer profile')
-        if (context['programming_profile']=='de25-embedded-hps-first-window-diagnostic-v1')!=window_memory:
-            raise ValueError('the window source requires explicit --window-memory and cannot inherit a fixed-reader diagnostic')
         if args.program in ('hpsio','usbcheck') or usb_shared:io_map=hps.hps_io(hps_project)
         if args.program in ('fpgacontext','fpgastatus','fpgaload'):control_map=hps.control(hps_project)
         if args.program=='fpgaload':
@@ -439,7 +423,6 @@ def build(args):
             reader_memory_map=hps.reader_memory(hps_project)
             cpu_map=hps.cpu_mapping(control_map,configuration_map,reader_memory_map)
             if active_ddr:ddr_read_map=hps.ddr_read(hps_project)
-            if window_read:window_read_map=hps.window_read(hps_project)
             if menu_present:menu_read_map=hps.menu_read(hps_project)
             if computer_control:computer_map=hps.computer(hps_project)
             if selected_programs:
@@ -538,7 +521,6 @@ def build(args):
     if menu_program_map is not None:(output/'compiled-menu-program.json').write_bytes(hps.encode(menu_program_map))
     for name,raw_asset in menu_assets.items():(output/name).write_bytes(raw_asset)
     if ddr_read_map is not None:(output/'hps-ddr-read.json').write_bytes(hps.encode(ddr_read_map))
-    if window_read_map is not None:(output/'hps-window-read.json').write_bytes(hps.encode(window_read_map))
     if menu_read_map is not None:(output/'hps-menu-read.json').write_bytes(hps.encode(menu_read_map))
     if computer_map is not None:(output/'hps-computer.json').write_bytes(hps.encode(computer_map))
     if program_platform is not None:
@@ -647,14 +629,9 @@ def build(args):
     if configuration_map is not None:link_flags+=' -X main.expectedConfigurationMap='+base64.b64encode(hps.encode(configuration_map)).decode()
     if reader_memory_map is not None:link_flags+=' -X main.expectedReaderMemoryMap='+base64.b64encode(hps.encode(reader_memory_map)).decode()
     if ddr_read_map is not None:link_flags+=' -X main.expectedDDRReadMap='+base64.b64encode(hps.encode(ddr_read_map)).decode()
-    if window_memory:link_flags+=' -X main.expectedWindowMemory=1'
     if menu_present:
         link_flags+=' -X main.expectedMenuPresent=1'
         link_flags+=' -X main.expectedMenuReadMap='+base64.b64encode(hps.encode(menu_read_map)).decode()
-    if window_read_map is not None:link_flags+=' -X main.expectedWindowReadMap='+base64.b64encode(hps.encode(window_read_map)).decode()
-    if window_present:link_flags+=' -X main.expectedWindowPresent=1'
-    if window_storage_return:link_flags+=' -X main.expectedWindowStorageReturn=1'
-    if window_reload:link_flags+=' -X main.expectedWindowReload=1'
     if tenfoot_serial:link_flags+=' -X main.expectedTenfootSerial=1'
     if initial_tape:link_flags+=' -X main.expectedInitialTape=1'
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
@@ -690,9 +667,6 @@ def build(args):
     if ddr_read_map is not None and (hps.ddr_read(hps_project)!=ddr_read_map or
             base64.b64encode(hps.encode(ddr_read_map)) not in data):
         raise ValueError('sealed DDR read contract changed or was not linked into the native image')
-    if window_read_map is not None and (hps.window_read(hps_project)!=window_read_map or
-            base64.b64encode(hps.encode(window_read_map)) not in data):
-        raise ValueError('sealed full-window access changed or was not linked into the native image')
     if menu_read_map is not None and (hps.menu_read(hps_project)!=menu_read_map or
             base64.b64encode(hps.encode(menu_read_map)) not in data):
         raise ValueError('sealed menu access changed or was not linked into the native image')
@@ -735,12 +709,7 @@ def build(args):
               "hps_configuration":configuration_map,"hps_configuration_sha256":hps.digest(configuration_map) if configuration_map else None,
               "hps_reader_memory":reader_memory_map,"hps_reader_memory_sha256":hps.digest(reader_memory_map) if reader_memory_map else None,
               "hps_ddr_read":ddr_read_map,"hps_ddr_read_sha256":hps.digest(ddr_read_map) if ddr_read_map else None,
-              "window_memory":window_memory,
               "menu_present":menu_present,"hps_menu_read":menu_read_map,"hps_menu_read_sha256":hps.digest(menu_read_map) if menu_read_map else None,
-              "window_present":window_present,
-              "window_storage_return":window_storage_return,
-              "window_reload":window_reload,
-              "window_read":window_read,"hps_window_read":window_read_map,"hps_window_read_sha256":hps.digest(window_read_map) if window_read_map else None,
               "hps_computer":computer_map,"hps_computer_sha256":hps.digest(computer_map) if computer_map else None,
               "hps_rom":rom_map,"hps_rom_sha256":hps.digest(rom_map) if rom_map else None,
               "rom_selection":rom_selection,"rom_host_go_sha256":sha(Path(rom_host_go).resolve()) if rom_map else None,

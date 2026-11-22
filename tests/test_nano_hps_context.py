@@ -101,60 +101,6 @@ assert not missing, 'owned firmware omitted from boot identity: '+str(sorted(mis
             with patch.object(context,'_derive',return_value=self.descriptor):
                 self.assertIsNone(context._reader_memory(project))
 
-    def test_window_memory_requires_its_explicit_geometry_identity_and_stop_contract(self):
-        descriptor=dict(self.descriptor,programming_profile='de25-embedded-hps-first-window-diagnostic-v1',
-                        control_abi=0x10203042,package_id='d'*64,build_id='e'*32)
-        params={'reader_memory_backend':'hps-ddr-window','reader_memory_base':0x95000000,'reader_memory_bytes':4<<20}
-        memory=context.reader_memory_contract(descriptor,params)
-        fixture=ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-window-memory.json'
-        self.assertEqual(context.encode(memory),fixture.read_bytes())
-        self.assertEqual(context.validate_reader_memory(descriptor,memory),memory)
-        for key,value in (('reader_memory_backend','hps-ddr'),('reader_memory_base',0x95001000),
-                          ('reader_memory_bytes',8192),('reader_memory_bytes',True)):
-            with self.subTest(parameter=key),self.assertRaises(ValueError):
-                context.reader_memory_contract(descriptor,dict(params,**{key:value}))
-        configuration={'base':0x94800000,'size':8<<20,'core_size':128,'chunk_bytes':65536,
-                       'core_sha384':'d'*96,'chunk_sha384':['d'*96]}
-        control={'cpu_base':0x20010400,'span':256,'fabric_stop':{'scope':'sealed-window-master-stop-v1',
-                 'probe_cpu_base':0x20010100,'probe_span':128,'maintenance':'held-reset-from-configuration'}}
-        profile={'sd_pio':True,'chain_sha256':'a'*64,'owner_seed':1,'entry_image_sha256':'b'*64,'entry_image_size':128,
-                 'window_memory':True,'hps_context':descriptor,'hps_context_sha256':context.digest(descriptor),
-                 'hps_control':control,'hps_control_sha256':'c'*64,'hps_configuration':configuration,
-                 'hps_reader_memory':memory,'hps_reader_memory_sha256':context.digest(memory)}
-        profile['cpu_mapping']=context.cpu_mapping(control,configuration,memory)
-        profile['cpu_mapping_sha256']=context.digest(profile['cpu_mapping'])
-        self.assertEqual(profile['cpu_mapping']['reader_bytes'],4<<20)
-        header=cold.header({'boot_fit': dict(cold.fit_layout.CONTRACT), **(profile)} )
-        for line in ('#define FES_NANO_WINDOW_MEMORY 1','#define FES_NANO_READER_BYTES 4194304U',
-                     '#define FES_NANO_READER_ARENA_BYTES 4194304U','#define FES_NANO_WINDOW_FRAME_BYTES 3686400U',
-                     '#define FES_NANO_WINDOW_ROW_BYTES 5120U','#define FES_NANO_WINDOW_ROWS 720U',
-                     '#define FES_NANO_DDR_READ_DIAGNOSTIC 0'):
-            self.assertIn(line,header)
-        self.assertNotIn('FES_NANO_READER_PATTERN_SHA',header)
-        for key,value in memory.items():
-            changed=dict(memory,**{key:True if type(value) is int else 'changed'})
-            with self.subTest(memory_field=key),self.assertRaises(ValueError):
-                cold.header({'boot_fit': dict(cold.fit_layout.CONTRACT), **(dict(profile,hps_reader_memory=changed,hps_reader_memory_sha256=context.digest(changed)))} )
-        for key,value in (('window_memory',False),('window_memory',1),('hps_reader_memory',None),
-                          ('hps_ddr_read',{}),('hps_computer',{}),
-                          ('hps_control',dict(control,fabric_stop=dict(control['fabric_stop'],scope='sealed-ddr-master-stop-v1')))):
-            with self.subTest(header_field=key),self.assertRaises(ValueError):cold.header({'boot_fit': dict(cold.fit_layout.CONTRACT), **(dict(profile,**{key:value}))} )
-
-    def test_window_entry_mode_requires_the_exact_single_linker_assignment(self):
-        spec=importlib.util.spec_from_file_location('window_native_entry',NANO.parent/'entry/build.py')
-        entry=importlib.util.module_from_spec(spec);spec.loader.exec_module(entry)
-        memory={'scope':'sealed-cold-window-reader-memory-v1'}
-        def receipt(flags,selected=True):return {'window_memory':selected,'command':['compiler','build','-ldflags',flags]}
-        self.assertTrue(entry.window_memory_option(receipt('-T 0x84000000 -X main.expectedWindowMemory=1'),memory))
-        self.assertFalse(entry.window_memory_option(receipt('-T 0x84000000',False),None))
-        for flags in ('-X main.expectedWindowMemory=10','-X main.expectedWindowMemory=1 -X main.expectedWindowMemory=1',
-                      'main.expectedWindowMemory=1','-X=main.expectedWindowMemory=1','-X "main.expectedWindowMemory=1', ''):
-            with self.subTest(flags=flags),self.assertRaises(ValueError):entry.window_memory_option(receipt(flags),memory)
-        for changed in (receipt('-X main.expectedWindowMemory=1',False),receipt('-X main.expectedWindowMemory=1',1),
-                        {'window_memory':True,'command':[]},{'window_memory':True,'command':['-ldflags',1]}):
-            with self.subTest(changed=changed),self.assertRaises(ValueError):entry.window_memory_option(changed,memory)
-        with self.assertRaises(ValueError):entry.window_memory_option(receipt('-X main.expectedWindowMemory=1'),None)
-
     def test_configuration_receipt_requires_its_dedicated_source_and_map(self):
         mapping={'format':1,'base':0x94800000,'size':8<<20,'core_size':128,
                  'chunk_bytes':65536,'core_sha384':hashlib.sha384(bytes(128)).hexdigest(),
@@ -359,15 +305,48 @@ assert not missing, 'owned firmware omitted from boot identity: '+str(sorted(mis
         with patch.object(context, 'derive', side_effect=AssertionError('unexpected project access')):
             self.assertIsNone(context.checked({'program': 'probe'}))
 
+    def test_retired_window_profile_is_rejected_before_building(self):
+        self.assertNotIn('de25-embedded-hps-first-window-diagnostic-v1', context.SUPPORTED_PROFILES)
+        spec = importlib.util.spec_from_file_location('test_tamago_build', ROOT/'platform/embedded/tamago/build.py')
+        builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(builder)
+        retired = dict(self.descriptor, programming_profile='de25-embedded-hps-first-window-diagnostic-v1',
+                       control_abi=0x10203042)
+        (ROOT/'out').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT/'out') as temp:
+            project = Path(temp)/'retired-window-project'
+            project.mkdir()
+            output = Path(temp)/'not-created'
+            for program in ('bootcontext', 'hpsio', 'usbcheck', 'fpgacontext', 'fpgastatus', 'fpgaload'):
+                profile = NANO/('sd-profile.json' if program == 'fpgaload' else 'probe-profile.json')
+                args = SimpleNamespace(program=program, board='de25-nano', profile=profile,
+                                       hps_first_project=project, output=output,
+                                       compiler=Path('/bin/false'), module_cache=Path('/absent'),
+                                       interactive=False, disk=None, qemu=None, display=None,
+                                       package_id=None,
+                                       usb_input='boot-keyboard' if program == 'usbcheck' else None,
+                                       initial_tape=False, shared_core_shell=False,
+                                       spectrum48_build=None, spectrum48_package=None,
+                                       spectrum48_rom=None, spectrum48_tape=None)
+                with self.subTest(program=program), patch.dict(os.environ, {'FES_EXPERIMENTAL_DE25_EMBEDDED': '1'}), \
+                     patch.object(context, 'derive', return_value=retired):
+                    spec_orig = importlib.util.spec_from_file_location
+                    def fake_spec(name, path, *a, **kw):
+                        if Path(path) == NANO/'hps_context.py':
+                            return SimpleNamespace(loader=SimpleNamespace(exec_module=lambda m: None))
+                        return spec_orig(name, path, *a, **kw)
+                    with patch.object(importlib.util, 'spec_from_file_location', side_effect=fake_spec), \
+                         patch.object(importlib.util, 'module_from_spec', return_value=context):
+                        with self.assertRaisesRegex(ValueError, 'retired'):
+                            builder.build(args)
+                self.assertFalse(output.exists())
+
     def test_cli_rejects_wrong_board_program_and_missing_project_before_output(self):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp)/'not-created'
             common = [sys.executable, str(ROOT/'platform/embedded/tamago/run.py'),
                       '--compiler', '/bin/false', '--output', str(output)]
-            for args in (['bootcontext'], ['fpgacontext'], ['fpgastatus'],['probe','--window-memory'],
-                         ['probe','--board','de25-nano','--profile',str(NANO/'probe-profile.json'),'--window-memory'],
-                         ['fpgaload','--board','de25-nano','--profile',str(NANO/'sd-profile.json'),'--window-memory','--ddr-read'],
-                         ['fpgaload','--board','de25-nano','--profile',str(NANO/'sd-profile.json'),'--window-memory','--computer-control'],
+            for args in (['bootcontext'], ['fpgacontext'], ['fpgastatus'],
                          ['tenfoot','--board','de25-nano','--profile',str(NANO/'smmu-profile.json')],
                          ['bootcontext', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],
                          ['fpgacontext', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],
