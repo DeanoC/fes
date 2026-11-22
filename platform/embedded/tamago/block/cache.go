@@ -1,0 +1,329 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package block
+
+import (
+	"errors"
+	"fmt"
+	"sync"
+)
+
+const (
+	defaultMaxPopulateSectors = 16
+	maxCacheCapacitySectors   = 16384 // 8 MiB ceiling for bare-metal RAM safety
+)
+
+// CacheConfig configures a bounded LRU write-through sector cache.
+type CacheConfig struct {
+	// Capacity is the maximum number of 512-byte sectors held in the cache.
+	// Must be in [1, 16384].
+	Capacity int
+
+	// MaxPopulateSectors caps the size of a single read or write request that
+	// populates new cache entries. Larger sequential transfers bypass
+	// allocation into the cache so streaming reads do not evict hot FAT32
+	// directory/FAT sectors (overlapping cached sectors on writes are still
+	// updated in place). When <= 0, defaults to min(Capacity, 16).
+	MaxPopulateSectors int
+}
+
+// CacheStats reports cumulative sector-cache counters.
+type CacheStats struct {
+	Capacity      int
+	Entries       int
+	Hits          uint64
+	Misses        uint64
+	Evictions     uint64
+	ReadOps       uint64
+	WriteOps      uint64
+	Invalidations uint64
+}
+
+type cacheSlot struct {
+	lba  uint64
+	prev int
+	next int
+	data [SectorSize]byte
+}
+
+// Cache wraps a Device with a fixed-capacity, zero-allocation LRU read and
+// write-through sector cache. Every write is sent synchronously to the
+// underlying Device before updating cached entries; any write error invalidates
+// all cached sectors in the attempted range so stale data is never served.
+type Cache struct {
+	mu          sync.Mutex
+	dev         Device
+	capacity    int
+	maxPopulate int
+	slots       []cacheSlot
+	freeList    []int
+	index       map[uint64]int
+	head        int // MRU slot index (-1 when empty)
+	tail        int // LRU slot index (-1 when empty)
+	stats       CacheStats
+}
+
+// NewCache creates a bounded write-through sector cache around dev.
+func NewCache(dev Device, cfg CacheConfig) (*Cache, error) {
+	if dev == nil {
+		return nil, errors.New("block: nil device")
+	}
+	if dev.SectorCount() == 0 {
+		return nil, ErrBounds
+	}
+	if cfg.Capacity <= 0 || cfg.Capacity > maxCacheCapacitySectors {
+		return nil, fmt.Errorf("block: cache capacity %d out of range [1,%d]", cfg.Capacity, maxCacheCapacitySectors)
+	}
+	maxPop := cfg.MaxPopulateSectors
+	if maxPop <= 0 {
+		maxPop = min(cfg.Capacity, defaultMaxPopulateSectors)
+	} else if maxPop > cfg.Capacity {
+		maxPop = cfg.Capacity
+	}
+	slots := make([]cacheSlot, cfg.Capacity)
+	freeList := make([]int, cfg.Capacity)
+	for i := range cfg.Capacity {
+		slots[i].prev = -1
+		slots[i].next = -1
+		freeList[i] = cfg.Capacity - 1 - i
+	}
+	return &Cache{
+		dev:         dev,
+		capacity:    cfg.Capacity,
+		maxPopulate: maxPop,
+		slots:       slots,
+		freeList:    freeList,
+		index:       make(map[uint64]int, cfg.Capacity),
+		head:        -1,
+		tail:        -1,
+		stats:       CacheStats{Capacity: cfg.Capacity},
+	}, nil
+}
+
+// SectorCount delegates to the underlying device.
+func (c *Cache) SectorCount() uint64 {
+	return c.dev.SectorCount()
+}
+
+// ReadSectors serves cached sectors from RAM and coalesces contiguous misses
+// into a single underlying ReadSectors call.
+func (c *Cache) ReadSectors(lba uint64, dst []byte) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := CheckRange(c.dev.SectorCount(), lba, len(dst)); err != nil {
+		return err
+	}
+	if len(dst) == 0 {
+		return nil
+	}
+	count := uint64(len(dst) / SectorSize)
+	populate := int(count) <= c.maxPopulate
+	for i := uint64(0); i < count; {
+		if slot, ok := c.index[lba+i]; ok {
+			copy(dst[i*SectorSize:(i+1)*SectorSize], c.slots[slot].data[:])
+			c.moveToFront(slot)
+			c.stats.Hits++
+			i++
+			continue
+		}
+		end := i + 1
+		for end < count {
+			if _, ok := c.index[lba+end]; ok {
+				break
+			}
+			end++
+		}
+		if err := c.dev.ReadSectors(lba+i, dst[i*SectorSize:end*SectorSize]); err != nil {
+			c.stats.ReadOps++
+			return err
+		}
+		c.stats.ReadOps++
+		runLen := end - i
+		c.stats.Misses += runLen
+		if populate {
+			for j := uint64(0); j < runLen; j++ {
+				c.put(lba+i+j, dst[(i+j)*SectorSize:(i+j+1)*SectorSize])
+			}
+		}
+		i = end
+	}
+	return nil
+}
+
+// WriteSectors writes synchronously to the underlying device. On error, all
+// cached sectors overlapping [lba, lba+count) are invalidated before returning.
+// On success, overlapping cached entries are updated in place, and requests
+// within MaxPopulateSectors also populate newly written sectors.
+func (c *Cache) WriteSectors(lba uint64, src []byte) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := CheckRange(c.dev.SectorCount(), lba, len(src)); err != nil {
+		return err
+	}
+	if len(src) == 0 {
+		return nil
+	}
+	count := uint64(len(src) / SectorSize)
+	c.stats.WriteOps++
+	if err := c.dev.WriteSectors(lba, src); err != nil {
+		c.invalidateRangeLocked(lba, count)
+		return err
+	}
+	if int(count) <= c.maxPopulate {
+		for i := uint64(0); i < count; i++ {
+			c.put(lba+i, src[i*SectorSize:(i+1)*SectorSize])
+		}
+		return nil
+	}
+	// Streaming write: update any already-cached overlapping sectors without
+	// evicting unrelated metadata.
+	if count <= uint64(len(c.index)) {
+		for i := uint64(0); i < count; i++ {
+			if slot, ok := c.index[lba+i]; ok {
+				copy(c.slots[slot].data[:], src[i*SectorSize:(i+1)*SectorSize])
+				c.moveToFront(slot)
+			}
+		}
+	} else {
+		for cachedLBA, slot := range c.index {
+			if cachedLBA >= lba && cachedLBA-lba < count {
+				off := (cachedLBA - lba) * SectorSize
+				copy(c.slots[slot].data[:], src[off:off+SectorSize])
+				c.moveToFront(slot)
+			}
+		}
+	}
+	return nil
+}
+
+// Flush forwards Flush directly to the underlying device. Because Cache is
+// strictly write-through, no dirty sectors are buffered in RAM.
+func (c *Cache) Flush() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.dev.Flush()
+}
+
+// Invalidate drops all cached sectors.
+func (c *Cache) Invalidate() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.index) == 0 {
+		return
+	}
+	c.stats.Invalidations += uint64(len(c.index))
+	clear(c.index)
+	c.freeList = c.freeList[:0]
+	for i := c.capacity - 1; i >= 0; i-- {
+		c.slots[i].prev = -1
+		c.slots[i].next = -1
+		c.freeList = append(c.freeList, i)
+	}
+	c.head = -1
+	c.tail = -1
+	c.stats.Entries = 0
+}
+
+// InvalidateRange drops any cached sectors within [lba, lba+count).
+func (c *Cache) InvalidateRange(lba, count uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.invalidateRangeLocked(lba, count)
+}
+
+// Stats returns a snapshot of current cache counters.
+func (c *Cache) Stats() CacheStats {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.stats
+}
+
+func (c *Cache) invalidateRangeLocked(lba, count uint64) {
+	if count == 0 || len(c.index) == 0 {
+		return
+	}
+	if count <= uint64(len(c.index)) {
+		for i := uint64(0); i < count; i++ {
+			if i > ^uint64(0)-lba {
+				break
+			}
+			if slot, ok := c.index[lba+i]; ok {
+				c.removeSlot(lba+i, slot)
+				c.stats.Invalidations++
+			}
+		}
+		return
+	}
+	for cachedLBA, slot := range c.index {
+		if cachedLBA >= lba && cachedLBA-lba < count {
+			c.removeSlot(cachedLBA, slot)
+			c.stats.Invalidations++
+		}
+	}
+}
+
+func (c *Cache) put(lba uint64, sector []byte) {
+	if slot, ok := c.index[lba]; ok {
+		copy(c.slots[slot].data[:], sector)
+		c.moveToFront(slot)
+		return
+	}
+	var slot int
+	if n := len(c.freeList); n > 0 {
+		slot = c.freeList[n-1]
+		c.freeList = c.freeList[:n-1]
+	} else {
+		slot = c.tail
+		delete(c.index, c.slots[slot].lba)
+		c.unlink(slot)
+		c.stats.Evictions++
+	}
+	c.slots[slot].lba = lba
+	copy(c.slots[slot].data[:], sector)
+	c.pushFront(slot)
+	c.index[lba] = slot
+	c.stats.Entries = len(c.index)
+}
+
+func (c *Cache) removeSlot(lba uint64, slot int) {
+	delete(c.index, lba)
+	c.unlink(slot)
+	c.freeList = append(c.freeList, slot)
+	c.stats.Entries = len(c.index)
+}
+
+func (c *Cache) pushFront(slot int) {
+	c.slots[slot].prev = -1
+	c.slots[slot].next = c.head
+	if c.head != -1 {
+		c.slots[c.head].prev = slot
+	} else {
+		c.tail = slot
+	}
+	c.head = slot
+}
+
+func (c *Cache) unlink(slot int) {
+	prev := c.slots[slot].prev
+	next := c.slots[slot].next
+	if prev != -1 {
+		c.slots[prev].next = next
+	} else {
+		c.head = next
+	}
+	if next != -1 {
+		c.slots[next].prev = prev
+	} else {
+		c.tail = prev
+	}
+	c.slots[slot].prev = -1
+	c.slots[slot].next = -1
+}
+
+func (c *Cache) moveToFront(slot int) {
+	if c.head == slot {
+		return
+	}
+	c.unlink(slot)
+	c.pushFront(slot)
+}

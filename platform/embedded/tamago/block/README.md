@@ -1,0 +1,25 @@
+# Bare-metal Block Storage & Sector Cache
+
+`platform/embedded/tamago/block` defines the fixed 512-byte sector `Device`
+interface, VirtIO-block DMA/GICv3 driver (`virtio.go`), host file device
+(`block.go`), and bounded LRU write-through sector cache (`cache.go`).
+
+## Sector Cache (`block.Cache`)
+
+`NewCache(dev, CacheConfig{Capacity, MaxPopulateSectors})` wraps any `Device`
+with a pre-allocated, zero-allocation LRU sector cache:
+
+- **Coalesced misses:** contiguous uncached sector runs are issued as a single
+  underlying `ReadSectors` call, preserving multi-block VirtIO-block and SDHCI
+  transfer throughput.
+- **Streaming bypass:** reads and writes larger than `MaxPopulateSectors`
+  (default `min(Capacity, 16)` = 8 KiB) do not allocate new cache slots so
+  large sequential reads cannot evict hot FAT32 directory and FAT-chain sectors;
+  overlapping cached sectors on writes are still updated in place.
+- **Write-through & fail-closed:** every `WriteSectors` writes synchronously to
+  the underlying device first. Any write error invalidates all cached sectors in
+  the attempted range before returning so partial writes can never leave stale
+  cached data. `Flush` delegates directly to the underlying device.
+- **Explicit invalidation:** `Invalidate()` and `InvalidateRange(lba, count)`
+  drop cached entries on demand (e.g. across storage ownership handoffs).
+  `cmd/tenfoot` mounts FAT32 over a 128-sector (64 KiB) `block.Cache`.
