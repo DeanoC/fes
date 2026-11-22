@@ -101,6 +101,11 @@ Error De25HpsWindow::Open(const std::array<std::uint32_t,4>& build_id)
  return {};
 }
 
+bool De25HpsWindow::OwnerAvailable()
+{
+ return operations_.Available();
+}
+
 bool De25HpsWindow::Ready() const
 {
  std::lock_guard<std::mutex> lock(mutex_);
@@ -161,6 +166,19 @@ Error De25HpsWindow::Clean(int, std::uint64_t, std::uint32_t, std::uint32_t, std
 {
  return Refused("window ranges are written back by their revoke");
 }
+
+namespace {
+Error NoOwner()
+{
+ return Refused("the kernel owner offers no window");
+}
+}
+Error De25NoWindowOwner::Allocate(int*) { return NoOwner(); }
+Error De25NoWindowOwner::Info(int,De25WindowGrant*) { return NoOwner(); }
+Error De25NoWindowOwner::Grant(int,std::uint64_t,std::uint64_t,int*) { return NoOwner(); }
+Error De25NoWindowOwner::Map(int,std::size_t,void**) { return NoOwner(); }
+Error De25NoWindowOwner::Revoke(int) { return NoOwner(); }
+Error De25NoWindowOwner::Release(int) { return NoOwner(); }
 
 // A range whose revoke failed may still be mapped somewhere, so the window
 // must not be released or reused under it.

@@ -34,6 +34,9 @@ struct De25WindowGrant {
 class De25WindowOperations {
 public:
  virtual ~De25WindowOperations() {}
+ // Whether the kernel owner offers a window at all (its window ABI). No
+ // allocation is attempted where it does not.
+ virtual bool Available()=0;
  virtual Error Allocate(int* window)=0;
  virtual Error Info(int window,De25WindowGrant*)=0;
  virtual Error Grant(int window,std::uint64_t offset,std::uint64_t bytes,int* range)=0;
@@ -57,6 +60,8 @@ public:
  De25HpsWindow(const De25HpsWindow&)=delete;
  De25HpsWindow& operator=(const De25HpsWindow&)=delete;
  Error Open(const std::array<std::uint32_t,4>& build_id);
+ // The owner offers windows; says nothing about one being open.
+ bool OwnerAvailable();
  bool Ready() const;
  // Reads the kernel's cached report; a latched fault is returned as an
  // error naming the ports and the reason, and poisons the window.
@@ -80,6 +85,20 @@ private:
  bool poisoned_=false;
  std::uint64_t generation_=0;
  std::array<std::uint32_t,4> expected_{};
+};
+// The owner operations of a runtime without the kernel owner's window ABI:
+// nothing is offered, so fes.memory.hps-ddr stays refused on the DE25.
+class De25NoWindowOwner final : public De25WindowOperations {
+public:
+ bool Available() override { return false; }
+ Error Allocate(int*) override;
+ Error Info(int,De25WindowGrant*) override;
+ Error Grant(int,std::uint64_t,std::uint64_t,int*) override;
+ Error Map(int,std::size_t,void**) override;
+ void Unmap(void*,std::size_t) override {}
+ Error Revoke(int) override;
+ Error Release(int) override;
+ void Close(int) override {}
 };
 // The first fault word of the control block as text: "port 0+2, outside".
 std::string De25WindowFaultText(std::uint32_t fault);

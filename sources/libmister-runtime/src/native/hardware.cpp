@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "native/hardware.hpp"
+#include "native/de25_hps_window.hpp"
 
 #include "native/artifacts.hpp"
 #include "native/sha256.hpp"
@@ -317,6 +318,29 @@ NativeHardware::~NativeHardware()
 	if (input_open_) (void)StopInput(Deadline(clock_, timeouts_.core_io_ms));
 }
 
+void NativeHardware::SetHpsWindow(De25HpsWindow* window)
+{
+	hps_window_ = window;
+}
+
+// The machine is held: hand its window back before anything else may be
+// programmed. A window that cannot be released keeps the configuration.
+Error NativeHardware::ReleaseHpsWindow(const char* operation, const std::string& system,
+	const std::string& core)
+{
+	if (!hps_window_ || !hps_window_->Ready()) return {};
+	const Error error = hps_window_->Release();
+	log_.Write({operation, system, core, "hps_window_release", error});
+	return error;
+}
+
+bool NativeHardware::HpsDdrAvailable() const
+{
+	// The DE25 has no boot layout: only its window owner can offer DDR.
+	if (hps_window_) return hps_window_->OwnerAvailable();
+	return platform_ != NativePlatform::de25_nano && fpga_.BootHpsDdrLayout();
+}
+
 Error NativeHardware::Shutdown()
 {
     if (platform_ != NativePlatform::de25_nano) return {};
@@ -562,9 +586,13 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 		ObserveHandoff(operation, {});
 		return {{}, video.mutation_attempted, ""};
 	}
-	const CoreDriverResult driver = active_driver_->Quiesce(active_context_,
+	CoreDriverResult driver = active_driver_->Quiesce(active_context_,
 		Deadline(clock_, timeouts_.core_io_ms));
 	log_.Write({operation, system, core, "driver_quiesce", driver.error});
+	if (driver.error.ok()) {
+		driver.error = ReleaseHpsWindow(operation, system, core);
+		if (!driver.error.ok()) driver.mutation_attempted = true;
+	}
 	ObserveHandoff(operation, driver.error);
  if(!driver.error.ok()&&menu_status_.available){menu_unsafe_=true;menu_status_.available=false;menu_directory_.clear();menu_package_id_.clear();}
 	if (!driver.error.ok() && driver.mutation_attempted) ForgetActiveCore();
@@ -603,7 +631,7 @@ Error NativeHardware::AdmitCorePackageInternal(const std::string& directory,
 	if (error.ok() && HasNativeVideoSocket(opened.descriptor) && !for_composition)
 		error = {ErrorCode::unsupported_interface,
 			"native video shell requires a video parts composition", "admission"};
-	if (error.ok() && RequiresHpsDdr(opened.descriptor) && !fpga_.BootHpsDdrLayout())
+	if (error.ok() && RequiresHpsDdr(opened.descriptor) && !HpsDdrAvailable())
 		error = BootHpsDdrLayoutError();
 	if (error.ok() && HasSessionDisplay(opened.descriptor) && (!menu_display_ || !menu_window_))
 		error = {ErrorCode::unsupported_interface, "session presentation adapter unavailable", "admission"};
@@ -666,7 +694,7 @@ Error NativeHardware::InspectCorePackage(const std::string& directory,
 	if (!error.ok()) return error;
 	Error compatibility = CheckCoreCompatibility(opened.descriptor, platform_);
 	if (compatibility.ok() && RequiresHpsDdr(opened.descriptor) &&
-		!fpga_.BootHpsDdrLayout())
+		!HpsDdrAvailable())
 		compatibility = BootHpsDdrLayoutError();
 	if (compatibility.ok() && HasSessionDisplay(opened.descriptor) && (!menu_display_ || !menu_window_))
 		compatibility = {ErrorCode::unsupported_interface, "session presentation adapter unavailable", "admission"};
@@ -862,7 +890,7 @@ Capabilities NativeHardware::capabilities() const
     // does not have yet, so none of its interfaces is advertised.
     for(const auto& core:kDe25StandardCores)
      for(const auto& interface:core.interfaces) {
-      if(core.hps_window)break;
+      if(core.hps_window&&!HpsDdrAvailable())break;
       if(!interface.id)continue;
       bool listed=false;
       for(const auto& known:computer.interfaces)listed=listed||known.id==interface.id;
@@ -1974,7 +2002,15 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	if (RequiresHpsDdr(admitted->opened_.descriptor)) {
 		// Identity proved capability bit 8. The ports leave reset only when the
 		// live fpga2sdram inputs also match, and before execution is released.
-		error = fpga_.ReleaseHpsDdrPorts(Deadline(clock_, timeouts_.core_io_ms));
+		// On the DE25 the kernel owner grants this build its window instead,
+		// while the machine is still held.
+		if (hps_window_) {
+			std::array<std::uint32_t,4> words{};
+			error = De25BuildWords(admitted->opened_.descriptor.build.id, &words);
+			if (error.ok()) error = hps_window_->Open(words);
+		} else {
+			error = fpga_.ReleaseHpsDdrPorts(Deadline(clock_, timeouts_.core_io_ms));
+		}
 		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
 			identified.observed_core, "hps_ddr", error});
 		if (!error.ok()) {
@@ -2304,6 +2340,10 @@ HardwareResult NativeHardware::LoadSplashIdle()
 			Deadline(clock_, timeouts_.core_io_ms));
 		quiesce_mutation = quiesce_mutation || driver.mutation_attempted;
 		log_.Write({"start", "", "", "driver_quiesce", driver.error});
+		if (driver.error.ok()) {
+			const Error window = ReleaseHpsWindow("start", "", "");
+			if (!window.ok()) return {WithPhase(window, "quiesce"), true, driver.observed_core};
+		}
   if(!driver.error.ok()) {
    if(!menu_status_.available)return {input_error.ok()?driver.error:input_error,quiesce_mutation,driver.observed_core};
    menu_unsafe_=true;menu_status_.error=driver.error;

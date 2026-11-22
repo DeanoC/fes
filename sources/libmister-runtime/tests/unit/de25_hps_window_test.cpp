@@ -23,7 +23,8 @@ public:
  std::map<std::uint64_t, std::vector<unsigned char>> memory;
  std::map<int, std::pair<std::uint64_t, std::uint64_t>> ranges;
  int next = 20;
- bool fail_allocate = false, fail_release = false, fail_revoke = false;
+ bool fail_allocate = false, fail_release = false, fail_revoke = false, available = true;
+ bool Available() override { return available; }
  Owner()
  {
   grant.generation = 7;
@@ -268,6 +269,23 @@ void TestFailedRevokeOrReleasePoisons()
  }
 }
 
+void TestOwnerWithoutWindowsOffersNothing()
+{
+ Owner owner;
+ mister::native::De25HpsWindow window(owner);
+ assert(window.OwnerAvailable());
+ owner.available = false;
+ assert(!window.OwnerAvailable());
+ mister::native::De25NoWindowOwner none;
+ mister::native::De25HpsWindow production(none);
+ assert(!production.OwnerAvailable());
+ assert(production.Open(kBuild).code == mister::ErrorCode::unsupported_interface && !production.Ready());
+ mister::native::DiskWindow disk(production);
+ assert(disk.Access(0, 4096, [](unsigned char*) { return mister::Error{}; }).code ==
+  mister::ErrorCode::unsupported_interface);
+ assert(production.Release().ok());
+}
+
 void TestRangesAreNotSharedOrCleanedInPart()
 {
  Owner owner;
@@ -289,6 +307,7 @@ int main()
  TestDiskWindowRunsOverTheWindow();
  TestFailedRevokeOrReleasePoisons();
  TestRangesAreNotSharedOrCleanedInPart();
- puts("de25_hps_window_test: 8 passed");
+ TestOwnerWithoutWindowsOffersNothing();
+ puts("de25_hps_window_test: 9 passed");
  return 0;
 }

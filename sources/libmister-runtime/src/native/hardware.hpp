@@ -29,6 +29,7 @@ class VideoBringup;
 class MenuDisplay;
 class MenuMemory;
 class DiskWindow;
+class De25HpsWindow;
 class FesGpCoreDriver;
 
 class Clock {
@@ -96,6 +97,11 @@ public:
 		NativePlatform platform = NativePlatform::de10_nano,
 		CoreDriver* de25_driver = nullptr, CoreDriver* de25_menu_driver = nullptr);
 	~NativeHardware();
+	// The DE25's fes.memory.hps-ddr: a window the kernel owner grants per
+	// session (fes.fabric.de25-hps-window). Without one, or where its owner
+	// offers none, the interface stays refused as on a DE10 without the boot
+	// layout. disk_window must run over the same window.
+	void SetHpsWindow(De25HpsWindow*);
 	Error Shutdown();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
@@ -174,6 +180,9 @@ private:
  MenuDisplay* menu_display_;
  MenuMemory* menu_window_;
  DiskWindow* disk_window_;
+ De25HpsWindow* hps_window_ = nullptr;
+ bool HpsDdrAvailable() const;
+ Error ReleaseHpsWindow(const char* operation, const std::string& system, const std::string& core);
  MenuDisplayStatus menu_status_;
  Error menu_revoke_error_;
  std::string menu_directory_,menu_package_id_;
