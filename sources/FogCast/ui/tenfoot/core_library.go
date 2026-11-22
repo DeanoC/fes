@@ -45,8 +45,9 @@ type coreLibraryState struct {
 	Tapes             []hostclient.HardwareTape
 	// BuiltIn is the bundled firmware preselected for a ROM, by ROM ID.
 	BuiltIn map[string]protocol.BundledFirmware
-	// Shelf is the Atari ST disk shelf, shown when HardwareMode is "st-shelf".
-	Shelf stShelfState
+	// Shelf is a computer's disk shelf (Atari ST or PC/XT), shown when
+	// HardwareMode is "disk-shelf".
+	Shelf diskShelfState
 }
 
 func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
@@ -54,8 +55,8 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 	if s.PickID != "" {
 		return s.Files
 	}
-	if s.HardwareMode == "st-shelf" {
-		return a.stShelfRowsLocked()
+	if s.HardwareMode == "disk-shelf" {
+		return a.diskShelfRowsLocked()
 	}
 	if s.HardwareMode == "system-media" {
 		return a.systemMediaRowsLocked()
@@ -138,8 +139,8 @@ func (a *App) coreLibrarySnapshotLocked() FirmwarePickerSnapshot {
 			title = "Add a " + setWord(s.AddDiskRole) + " to this game"
 		}
 	}
-	if s.HardwareMode == "st-shelf" {
-		title = a.stShelfTitleLocked()
+	if s.HardwareMode == "disk-shelf" {
+		title = a.diskShelfTitleLocked()
 	}
 	if s.HardwareMode == "system-expansions" {
 		title = "Expansion for next start"
@@ -322,7 +323,7 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 	if s.Busy {
 		// A shelf change is several steps on the host. Leaving would cancel
 		// it part way, so the shelf waits for the answer.
-		if s.HardwareMode == "st-shelf" && s.Shelf.Loaded {
+		if s.HardwareMode == "disk-shelf" && s.Shelf.Loaded {
 			return
 		}
 		if cmd == CmdBack || cmd == CmdHome || cmd == CmdSettings {
@@ -337,7 +338,7 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		return
 	}
 	if cmd == CmdBack || cmd == CmdHome || cmd == CmdSettings {
-		if cmd == CmdBack && s.HardwareMode == "st-shelf" && a.stShelfBackLocked() {
+		if cmd == CmdBack && s.HardwareMode == "disk-shelf" && a.diskShelfBackLocked() {
 			return
 		}
 		if s.PickID != "" {
@@ -392,8 +393,8 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		a.coreLibraryFileLocked(row)
 		return
 	}
-	if s.HardwareMode == "st-shelf" {
-		a.handleStShelfLocked(row)
+	if s.HardwareMode == "disk-shelf" {
+		a.handleDiskShelfLocked(row)
 		return
 	}
 	if s.HardwareMode == "system-media" {
