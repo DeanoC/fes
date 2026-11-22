@@ -10,12 +10,16 @@ BOARD = Path(__file__).resolve().parents[1] / "boards/de25nano"
 SDCS = (
     BOARD / "spectrum/spectrum-clocks.sdc",
     BOARD / "atari-st/atari-st-clocks.sdc",
+    BOARD / "c64/c64-clocks.sdc",
 )
+# The C64 keeps its memory in block RAM: no SDRAM controller, so no
+# machine-clock release chain to constrain.
+RELEASES = {"spectrum": 1, "atari-st": 1, "c64": 0}
 
 
 class MachineConstraintTclTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("tclsh"), "Tcl required")
-    def test_quoted_bracket_patterns_are_literal_for_both_machines(self):
+    def test_quoted_bracket_patterns_are_literal_for_every_machine(self):
         for sdc in SDCS:
             with self.subTest(machine=sdc.parent.name):
                 content = sdc.read_text()
@@ -25,7 +29,15 @@ class MachineConstraintTclTests(unittest.TestCase):
                 machine_release = re.findall(
                     r"^set machine_release \[get_pins .+$", content, re.MULTILINE
                 )
-                self.assertEqual(len(machine_release), 1)
+                self.assertEqual(len(machine_release), RELEASES[sdc.parent.name])
+                release_check = """
+set expected_pin_query {soc_inst|subsys_periph|machine|machine_release[*]|aclr soc_inst|subsys_periph|machine|machine_release[*]|clrn}
+if {$pin_queries ne [list $expected_pin_query]} {
+    error "machine reset endpoint pattern changed: $pin_queries"
+}
+""" if machine_release else """
+if {$pin_queries ne {}} {error "unexpected pin queries: $pin_queries"}
+"""
 
                 script = """
 set base {soc_inst|subsys_periph|machine}
@@ -46,7 +58,7 @@ foreach {source sink toggle} {
 } {
 """ + gp_statements + """
 }
-""" + machine_release[0] + """
+""" + "".join(machine_release) + """
 set expected_register_queries {
     soc_inst|subsys_periph|machine|gp_crossing|request_payload[*]
     soc_inst|subsys_periph|machine|gp_crossing|request_payload[31]
@@ -60,10 +72,7 @@ set expected_register_queries {
 if {$register_queries ne $expected_register_queries} {
     error "GP endpoint patterns changed: $register_queries"
 }
-set expected_pin_query {soc_inst|subsys_periph|machine|machine_release[*]|aclr soc_inst|subsys_periph|machine|machine_release[*]|clrn}
-if {$pin_queries ne [list $expected_pin_query]} {
-    error "machine reset endpoint pattern changed: $pin_queries"
-}
+""" + release_check + """
 puts PASS
 """
                 result = subprocess.run(
