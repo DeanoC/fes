@@ -52,12 +52,6 @@ module pc386_system #(
     parameter integer AUDIO_N = 3, AUDIO_D = 6250,
     parameter integer GOV_N = 1, GOV_D = 1000,  // 100 kHz, the governor's frequency unit
     parameter integer ATA_RESET_CLOCKS = 1000, X87_PRESENT = 0,  // the board's 387: see the CPU
-    // 1 keeps only DMA controller 2's register file (pc386_dma2_registers in
-    // pc386_at_core.sv), for a board short of area (the DE25). Its registers
-    // read back as the full controller's, but a software request on channels
-    // 4-7 starts no service: its address and count do not count down and no
-    // TC is set. 0, the DE10, is the full fes_dma8237.
-    parameter integer DMA2_REGISTERS_ONLY = 0,
     parameter ROM_HEX = "build/firmware/pc386/pc386-rom.hex",
     // The CPU identity (fes_i386_cpu I486, #1962): 0 the 386DX every package
     // builds; 1 a 486SX (CPUID, no VME). A build parameter, no record word.
@@ -301,8 +295,7 @@ module pc386_system #(
     pc386_machine #(
         .ISA_N(ISA_N), .ISA_D(ISA_D), .PIT_N(PIT_N), .PIT_D(PIT_D), .RTC_N(RTC_N), .RTC_D(RTC_D),
         .US_N(US_N), .US_D(US_D), .DMA_N(DMA_N), .DMA_D(DMA_D), .DOT0_N(DOT0_N), .DOT0_D(DOT0_D),
-        .DOT1_N(DOT1_N), .DOT1_D(DOT1_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS),
-        .DMA2_REGISTERS_ONLY(DMA2_REGISTERS_ONLY)
+        .DOT1_N(DOT1_N), .DOT1_D(DOT1_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS)
     ) machine (
         .clk(clk), .reset(reset), .port2_reset(p2_reset), .pixel_clk(pixel_clk), .pixel_locked(pixel_locked),
         .io_valid(io_valid), .io_write(io_write), .io_port(io_port), .io_size(io_size), .io_wdata(io_wdata),

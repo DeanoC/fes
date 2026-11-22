@@ -22,16 +22,17 @@ sys.path.insert(0, str(HERE))
 from scripts import sim_fes_pc386 as sim  # noqa: E402
 import derive  # noqa: E402
 
-DE25_RTL = (HERE / 'fes_de25_hps_window.v', HERE / 'fes_de25_window_arbiter.v', HERE / 'fes_de25_window_unpack.v',
+DE25_RTL = (HERE / 'pc386_dma2_registers.sv', HERE / 'fes_de25_hps_window.v', HERE / 'fes_de25_window_arbiter.v', HERE / 'fes_de25_window_unpack.v',
             ROOT / 'cores/fes-common/rtl/fes_hps_ddr_guard.v', HERE / 'sim/pc386_de25_sim.sv')
 
 
 def derived_sources(output: Path) -> dict[Path, Path]:
-    """The two DE10 files derive.py changes, written for this build."""
+    """The three DE10 files derive.py changes, written for this build."""
     output.mkdir(parents=True, exist_ok=True)
     rtl = ROOT / 'cores/fes-pc386/rtl'
     result = {}
-    for name, step in (('pc386_machine.sv', derive.retarget_machine), ('pc386_system.sv', derive.retarget_system)):
+    for name, step in (('pc386_machine.sv', derive.retarget_machine), ('pc386_system.sv', derive.retarget_system),
+                       ('pc386_at_core.sv', derive.retarget_at_core)):
         data, _ = step((rtl / name).read_bytes())
         (output / name).write_bytes(data)
         result[rtl / name] = output / name
