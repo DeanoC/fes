@@ -31,6 +31,9 @@ func OpenWatchdog(index int, clockHz uint64) (*wdt.DW, uint32, error) {
 	default:
 		return nil, 0, fmt.Errorf("de25nano: invalid watchdog index %d (want 0 or 1)", index)
 	}
+	if !releaseWatchdogReset(index, load32, store32) {
+		return nil, 0, fmt.Errorf("de25nano: invalid watchdog index %d (want 0 or 1)", index)
+	}
 	dev, err := wdt.OpenMMIO(base, clockHz)
 	if err != nil {
 		return nil, 0, err
