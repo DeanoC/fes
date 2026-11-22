@@ -30,7 +30,6 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from scripts.input_identity import with_identities
-from scripts.build_fes_pcxt_quartus import tree_digest
 from boards.de25nano.package.core_package import encode_manifest
 from boards.de25nano.package.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
 from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_clean_source as require_clean_source
@@ -38,6 +37,7 @@ from scripts.functional_execution import execution_digest, execution_environment
 from scripts.source_closure import imports as script_imports
 from scripts.compiler_read_audit import POLICY as SOURCE_POLICY
 from scripts import quartus_tools
+from scripts.quartus_tools import tree_digest
 from boards.de25nano.scanout import async_inputs
 from boards.de25nano.scanout.build import TIMED_RESET_RELEASE, MANAGED_FABRIC, SHARED_FIFO_RESETS
 
@@ -221,7 +221,7 @@ def captured_source_closure(root, source_roots, captured, recipe, review_inputs)
     # These modules import each other outside scripts/. Bind the complete
     # board-local producer and codec directories, including the static recipe.
     roots.update({'boards/de25nano/producers', 'boards/de25nano/package'})
-    for module in ('build_fes_pcxt_quartus', 'fes_build_common', 'functional_execution',
+    for module in ('fes_build_common', 'functional_execution',
                    'source_closure', 'compiler_read_audit'):
         roots.update(script_imports(module, root))
     paths = {Path(name).relative_to('sources/misteross').as_posix(): data

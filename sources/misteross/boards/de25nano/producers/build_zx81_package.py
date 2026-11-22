@@ -83,7 +83,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
     roots, closure = common.captured_source_closure(root, SOURCE_ROOTS, captured, RECIPE, REVIEW_INPUTS)
     roots = sorted(set(roots) | {'boards/de25nano/package/core_package.py',
                                  'boards/de25nano/package/export_core_package.py'})
-    for module in ('build_fes_pcxt_quartus', 'fes_build_common', 'functional_execution',
+    for module in ('fes_build_common', 'functional_execution',
                    'source_closure', 'compiler_read_audit'):
         roots = sorted(set(roots) | set(common.script_imports(module, root)))
     closure = common.source_input_closure(root, roots, policy=common.SOURCE_POLICY)

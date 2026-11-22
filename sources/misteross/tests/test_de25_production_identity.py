@@ -31,7 +31,7 @@ class ProductionIdentityTests(unittest.TestCase):
                    'boards/de25nano/producers/build_zx81_package.py',
                    'boards/de25nano/package/core_package.py',
                    'boards/de25nano/package/export_core_package.py'}
-        for module in ('build_fes_pcxt_quartus', 'fes_build_common', 'functional_execution',
+        for module in ('fes_build_common', 'functional_execution',
                        'source_closure', 'compiler_read_audit'):
             helpers |= imports(module, ROOT)
         helpers.add('boards/de25nano/producers/review_audio_clocks.py')
@@ -121,6 +121,26 @@ class ProductionIdentityTests(unittest.TestCase):
                 self.assertEqual(build_identity(original), build_identity(changed))
                 self.assertNotEqual(json.loads(original)['identities']['record'], json.loads(changed)['identities']['record'])
                 verify_record_source_at_revision(root, changed)
+
+    def test_a_pcxt_producer_edit_moves_no_de25_identity(self):
+        # #2096: the DE25 producers took tree_digest from the PC/XT producer and
+        # bound its import closure, so every PC/XT producer edit moved five DE25
+        # BUILD_IDs. tree_digest now lives in quartus_tools.
+        pcxt = 'scripts/build_fes_pcxt_quartus.py'
+        for producer in (menu, zx81):
+            with self.subTest(recipe=producer.RECIPE), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                root, captured = self.repository(producer, directory)
+                (root / pcxt).write_bytes((ROOT / pcxt).read_bytes())
+                self.commit(directory)
+                original = self.record(producer, root, captured)
+                self.assertNotIn(pcxt, verify_record_source_at_revision(root, original)['source_inputs'])
+                (root / pcxt).write_bytes((ROOT / pcxt).read_bytes() + b'\n# Changed PC/XT producer.\n')
+                self.commit(directory)
+                changed = self.record(producer, root, captured)
+                self.assertEqual(build_identity(original), build_identity(changed))
+                for kind in ('design', 'toolchain'):
+                    self.assertEqual(json.loads(original)['identities'][kind], json.loads(changed)['identities'][kind])
 
     def test_relocated_common_helper_changes_zx81_identity(self):
         with tempfile.TemporaryDirectory() as temp:
