@@ -77,4 +77,10 @@ What must hold:
 For MENU and ZX81, the record shows that `machine/board.py` is outside their
 producers' closures and that their `BUILD_ID`s do not move.
 
-If #2097 merges first, main is merged in and the comparison is redone.
+#2097 merged on 22 Nov 2026, before the recorded fits. It moved the DE25
+Spectrum, ST, MENU, ZX81 and C64 `BUILD_ID`s, and DE25 producers now take
+`tree_digest` from `quartus_tools`. So:
+- main is merged in (through #2036's base) before any recorded build;
+- the base side, A, is a commit that includes #2097;
+- the MENU and ZX81 closure check runs against the post-#2097 producers.
+Earlier comparisons are not counted.
