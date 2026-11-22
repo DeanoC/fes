@@ -268,6 +268,9 @@ func FillHardwareEntropy(buf []byte) {
 				continue
 			}
 		}
+		// Latch source to non-hardware fallback before emitting fallback bytes
+		// so HardwareEntropySource().IsHardware() never misreports fallback output.
+		hwSource = EntropyCounterFallback
 		hwFallback.mix(readCounter())
 		offset += putLE64(buf[offset:], hwFallback.next())
 	}
@@ -355,6 +358,8 @@ func (p *EntropyPool) Fill(buf []byte) {
 				continue
 			}
 		}
+		// Latch source to non-hardware fallback before emitting fallback bytes.
+		p.source = EntropyCounterFallback
 		var tick uint64
 		if p.counter != nil {
 			tick = p.counter()

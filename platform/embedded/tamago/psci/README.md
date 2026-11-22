@@ -28,3 +28,6 @@ hardcoded xorshift PRNG. Sources are probed in preference order:
 4. **Counter-mixed fallback (`cntpct-fallback`)** — `xoshiro256**` seeded and
    re-mixed from `CNTPCT_EL0`. `EntropySource.IsHardware()` returns `false` for
    this fallback so callers and probes never mistake it for a cryptographic TRNG.
+   If a hardware backend later returns an error or exhausts retries at runtime,
+   the active source permanently latches to `cntpct-fallback` before emitting
+   fallback bytes.

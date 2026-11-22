@@ -295,6 +295,40 @@ func TestEntropyPoolSelectionAndFallback(t *testing.T) {
 	if bytes.Equal(bRNDR[8:16], make([]byte, 8)) {
 		t.Fatal("rndr fallback produced all zeros")
 	}
+	if pRNDR.Source() != EntropyCounterFallback || pRNDR.Source().IsHardware() {
+		t.Fatalf("rndr fallback did not latch non-hardware source: %s", pRNDR.Source())
+	}
+
+	// 3b. SMCCC TRNG runtime failure also latches non-hardware fallback.
+	trngFails := false
+	trngDegrade := &mockConduit{fn: func(x0, _, _, _ uint64) (uint64, uint64, uint64, uint64) {
+		switch uint32(x0) {
+		case FuncTRNGVersion:
+			return 0x00010000, 0, 0, 0
+		case FuncTRNGFeatures:
+			return 0, 0, 0, 0
+		case FuncTRNGRnd64:
+			if trngFails {
+				return ^uint64(2), 0, 0, 0 // NO_ENTROPY
+			}
+			return 0, 1, 2, 3
+		default:
+			return ^uint64(0), 0, 0, 0
+		}
+	}}
+	pDegrade := NewEntropyPool(trngDegrade, nil, nil, nextTick)
+	if !pDegrade.Source().IsHardware() {
+		t.Fatalf("expected hardware source, got %s", pDegrade.Source())
+	}
+	trngFails = true
+	bDegrade := make([]byte, 16)
+	pDegrade.Fill(bDegrade)
+	if bytes.Equal(bDegrade, make([]byte, 16)) {
+		t.Fatal("trng degrade fallback produced all zeros")
+	}
+	if pDegrade.Source() != EntropyCounterFallback || pDegrade.Source().IsHardware() {
+		t.Fatalf("trng degrade did not latch non-hardware source: %s", pDegrade.Source())
+	}
 
 	// 4. Counter fallback produces distinct non-zero blocks across seeds and calls.
 	pFall1 := NewEntropyPool(nil, nil, nil, func() uint64 { return 12345 })
@@ -332,6 +366,9 @@ func TestHardwareEntropyNosplitStubs(t *testing.T) {
 		FillHardwareEntropy(buf[:])
 		if bytes.Equal(buf[:], make([]byte, 32)) {
 			t.Fatalf("src=%s produced all zeros", src)
+		}
+		if HardwareEntropySource() != EntropyCounterFallback || HardwareEntropySource().IsHardware() {
+			t.Fatalf("src=%s did not latch non-hardware fallback: got %s", src, HardwareEntropySource())
 		}
 	}
 	var a, b [32]byte
