@@ -98,12 +98,18 @@ func probeDMA() {
 	if err := buf.SyncForDevice(dmaops.Bidirectional); err != nil {
 		panic(err)
 	}
-	if err := buf.SyncRangeForCPU(3, 19, dmaops.FromDevice); err != nil {
+	if !errors.Is(buf.SyncRangeForCPU(3, 19, dmaops.FromDevice), dmaops.ErrInvalidRange) {
+		panic("dma: unaligned cached receive range must reject")
+	}
+	if err := buf.SyncRangeForDevice(3, 19, dmaops.ToDevice); err != nil {
+		panic(err)
+	}
+	if err := buf.SyncRangeForCPU(line, line, dmaops.FromDevice); err != nil {
 		panic(err)
 	}
 	for i, got := range data {
 		if got != byte(i*29+7) {
-			panic("dma: partial-line invalidate corrupted neighbor bytes")
+			panic("dma: aligned cached sub-range invalidate corrupted bytes")
 		}
 	}
 	if err := buf.Free(); err != nil {

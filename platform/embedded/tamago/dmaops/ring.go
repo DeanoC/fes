@@ -325,20 +325,10 @@ func (r *Ring) Close() error {
 	if r.allocSeq != r.compSeq {
 		return ErrInFlight
 	}
-	if err := r.descs.Err(); err != nil {
-		return fmt.Errorf("%w: %v", ErrPoisoned, err)
-	}
-	for _, b := range r.bufs {
-		if err := b.Err(); err != nil {
-			return fmt.Errorf("%w: %v", ErrPoisoned, err)
-		}
-	}
-	for _, b := range r.bufs {
-		if err := b.Free(); err != nil {
-			return err
-		}
-	}
-	if err := r.descs.Free(); err != nil {
+	all := make([]*Buffer, 0, len(r.bufs)+1)
+	all = append(all, r.bufs...)
+	all = append(all, r.descs)
+	if err := r.pool.freeAll(all); err != nil {
 		return err
 	}
 	r.closed = true

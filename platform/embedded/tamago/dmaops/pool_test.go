@@ -185,6 +185,35 @@ func TestBufferReadWriteSliceAndSync(t *testing.T) {
 	if err := buf.SyncRangeForCPU(64, 64, Bidirectional); err != nil {
 		t.Fatal(err)
 	}
+	// Partial cached receive ranges that share a cache line with neighbor bytes
+	// must reject, while partial ToDevice ranges and full-buffer tail spans work.
+	if err := buf.SyncRangeForDevice(8, 32, FromDevice); !errors.Is(err, ErrInvalidRange) {
+		t.Fatalf("unaligned start cached FromDevice should reject: got %v", err)
+	}
+	if err := buf.SyncRangeForCPU(0, 32, FromDevice); !errors.Is(err, ErrInvalidRange) {
+		t.Fatalf("unaligned mid-buffer cached FromDevice should reject: got %v", err)
+	}
+	if err := buf.SyncRangeForCPU(0, 32, Bidirectional); !errors.Is(err, ErrInvalidRange) {
+		t.Fatalf("unaligned mid-buffer cached Bidirectional should reject: got %v", err)
+	}
+	if err := buf.SyncRangeForDevice(8, 32, ToDevice); err != nil {
+		t.Fatalf("partial cached ToDevice should succeed: %v", err)
+	}
+	// A whole-buffer receive sync on a non-line-multiple Len() expands safely
+	// to its exclusive Cap().
+	shortBuf, err := pool.Alloc(100, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := shortBuf.SyncForDevice(FromDevice); err != nil {
+		t.Fatalf("shortBuf SyncForDevice(FromDevice): %v", err)
+	}
+	if err := shortBuf.SyncForCPU(FromDevice); err != nil {
+		t.Fatalf("shortBuf SyncForCPU(FromDevice): %v", err)
+	}
+	if err := shortBuf.Free(); err != nil {
+		t.Fatal(err)
+	}
 	got := hw.take()
 	want := []coherencyOp{
 		{"clean", 0x94800000, 128},
@@ -193,6 +222,9 @@ func TestBufferReadWriteSliceAndSync(t *testing.T) {
 		{"dmb", 0, 0},
 		{"inv", 0x94800000, 128},
 		{"inv", 0x94800040, 64},
+		{"clean", 0x94800008, 32},
+		{"clean_inv", 0x94800080, 128},
+		{"inv", 0x94800080, 128},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("cached ops count: got %v, want %v", got, want)

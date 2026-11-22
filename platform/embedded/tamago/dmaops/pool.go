@@ -325,6 +325,36 @@ func (b *Buffer) Free() error {
 	return nil
 }
 
+// freeAll atomically verifies that the pool and every buffer in bufs are
+// healthy and live, then releases all of them under a single pool lock hold so
+// a concurrent Buffer.Poison cannot interleave and leave a ring half-freed.
+func (p *Pool) freeAll(bufs []*Buffer) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.poisonErr != nil {
+		return fmt.Errorf("%w: %v", ErrPoisoned, p.poisonErr)
+	}
+	for _, b := range bufs {
+		if b == nil || b.pool != p {
+			return ErrInvalidConfig
+		}
+		if b.released {
+			return ErrReleased
+		}
+		if b.poisonErr != nil {
+			return fmt.Errorf("%w: %v", ErrPoisoned, b.poisonErr)
+		}
+	}
+	for _, b := range bufs {
+		b.released = true
+		b.data = nil
+		p.allocatedBytes -= b.cap
+		p.liveBuffers--
+		p.insertFreeLocked(b.offset, b.cap)
+	}
+	return nil
+}
+
 func (b *Buffer) checkLiveLocked() error {
 	if b.released {
 		return ErrReleased
@@ -412,6 +442,25 @@ func (b *Buffer) Write64(offset uint64, val uint64) error {
 	return nil
 }
 
+// cachedReceiveSpanLocked validates that a Cached FromDevice/Bidirectional
+// sub-range never shares a cache line with neighboring bytes inside the buffer.
+// Ranges ending at b.size expand cleanly to b.cap (the buffer's exclusive
+// cache-line-aligned tail).
+func (b *Buffer) cachedReceiveSpanLocked(offset, length uint64) (uint64, error) {
+	line := b.pool.cacheLine
+	if offset%line != 0 {
+		return 0, ErrInvalidRange
+	}
+	end := offset + length
+	if end == b.size {
+		return b.cap - offset, nil
+	}
+	if length%line != 0 {
+		return 0, ErrInvalidRange
+	}
+	return length, nil
+}
+
 // SyncForDevice prepares the entire buffer for device DMA in the given direction.
 func (b *Buffer) SyncForDevice(dir Direction) error {
 	return b.SyncRangeForDevice(0, b.size, dir)
@@ -421,7 +470,10 @@ func (b *Buffer) SyncForDevice(dir Direction) error {
 //
 // In Uncached mode it issues DSB SY. In Cached mode it cleans (DC CVAC) for
 // ToDevice and cleans+invalidates (DC CIVAC) for FromDevice or Bidirectional so
-// dirty cache lines cannot evict over incoming device writes.
+// dirty cache lines cannot evict over incoming device writes. Cached FromDevice
+// and Bidirectional ranges must be cache-line aligned (or extend to b.Len()
+// from a cache-line-aligned offset) so receive maintenance never shares a line
+// with CPU-owned neighbor bytes.
 func (b *Buffer) SyncRangeForDevice(offset, length uint64, dir Direction) error {
 	if !dir.valid() {
 		return ErrInvalidConfig
@@ -441,7 +493,11 @@ func (b *Buffer) SyncRangeForDevice(offset, length uint64, dir Direction) error 
 	case ToDevice:
 		p.hw.CleanRange(addr, length)
 	case FromDevice, Bidirectional:
-		p.hw.CleanInvalidateRange(addr, length)
+		syncLen, err := b.cachedReceiveSpanLocked(offset, length)
+		if err != nil {
+			return err
+		}
+		p.hw.CleanInvalidateRange(addr, syncLen)
 	}
 	return nil
 }
@@ -453,10 +509,11 @@ func (b *Buffer) SyncForCPU(dir Direction) error {
 
 // SyncRangeForCPU completes device DMA over [offset, offset+length) for CPU reads.
 //
-// In Uncached mode it issues DMB SY. In Cached mode it invalidates (DC IVAC on
-// full lines, DC CIVAC on any partial boundary lines) for FromDevice or
-// Bidirectional transfers to discard speculative prefetches, and issues DMB SY
-// for ToDevice.
+// In Uncached mode it issues DMB SY. In Cached mode it invalidates (DC IVAC)
+// over cache-line-aligned receive ranges for FromDevice or Bidirectional
+// transfers to discard speculative prefetches, and issues DMB SY for ToDevice.
+// Partial cached receive ranges that share a cache line with neighbor bytes are
+// rejected with ErrInvalidRange.
 func (b *Buffer) SyncRangeForCPU(offset, length uint64, dir Direction) error {
 	if !dir.valid() {
 		return ErrInvalidConfig
@@ -476,7 +533,11 @@ func (b *Buffer) SyncRangeForCPU(offset, length uint64, dir Direction) error {
 	case ToDevice:
 		p.hw.DataBarrier()
 	case FromDevice, Bidirectional:
-		p.hw.InvalidateRange(addr, length)
+		syncLen, err := b.cachedReceiveSpanLocked(offset, length)
+		if err != nil {
+			return err
+		}
+		p.hw.InvalidateRange(addr, syncLen)
 	}
 	return nil
 }
