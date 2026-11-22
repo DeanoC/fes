@@ -52,7 +52,11 @@ type qemuNetwork struct{ *network.Interface }
 
 func (n qemuNetwork) Stats() string { return fmt.Sprintf("%+v", n.Statistics()) }
 func OpenNetwork(ctx context.Context) (Network, error) {
-	n, err := network.Open(ctx, network.Config{})
+	pool, err := qemuvirt.DMAPool()
+	if err != nil {
+		return nil, err
+	}
+	n, err := network.OpenWithPool(ctx, network.Config{}, pool)
 	if err != nil {
 		return nil, err
 	}
