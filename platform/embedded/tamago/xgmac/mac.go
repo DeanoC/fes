@@ -123,6 +123,11 @@ func Open(io Registers, memory Memory, config Config) (*Device, error) {
 	if io == nil || memory == nil || memory.Base()%64 != 0 || memory.Size() < RequiredBytes || memory.Base() >= 1<<32 || memory.Size() > 1<<32-memory.Base() {
 		return nil, fmt.Errorf("xgmac: invalid pinned DMA region")
 	}
+	if adopter, ok := memory.(interface{ adopt() error }); ok {
+		if err := adopter.adopt(); err != nil {
+			return nil, err
+		}
+	}
 	d := &Device{io: io, memory: memory, config: config, mac: mac.String(), dmaBase: memory.Base(), dmaBytes: memory.Size(), rxReady: make(chan struct{}, 1)}
 	if err := d.initialize(mac); err != nil {
 		return d, d.retireControl(err)

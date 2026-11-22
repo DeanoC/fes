@@ -272,7 +272,8 @@ func TestPoolMemoryValidationRoundTripAndPoison(t *testing.T) {
 		t.Fatalf("above-4GiB rejection leaked buffer: %+v", highPool.Stats())
 	}
 
-	// Clean allocation + Close without fault frees buffer back to pool.
+	// Open XGMAC over PoolMemory, reject duplicate adoption, exchange a frame,
+	// then trigger a DMA fault and verify PoolMemory is permanently poisoned and pinned.
 	ram := make([]byte, 64<<10)
 	pool, err := dmaops.NewPool(0x92000000, ram, dmaops.Uncached, coh)
 	if err != nil {
@@ -282,26 +283,17 @@ func TestPoolMemoryValidationRoundTripAndPoison(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pm.Base() != 0x92000000 || pm.Size() != RequiredBytes || pm.Buffer() == nil {
-		t.Fatalf("unexpected PoolMemory geometry: base=%#x size=%d", pm.Base(), pm.Size())
-	}
-	if err := pm.Close(); err != nil {
-		t.Fatalf("clean PoolMemory.Close: %v", err)
-	}
-	if st := pool.Stats(); st.LiveBuffers != 0 || st.FreeSpans != 1 {
-		t.Fatalf("pool not reclaimed after clean Close: %+v", st)
-	}
-
-	// Open XGMAC over PoolMemory, exchange a frame, then trigger a DMA fault
-	// and verify PoolMemory is permanently poisoned and pinned.
-	pm, err = NewPoolMemory(pool)
-	if err != nil {
-		t.Fatal(err)
+	if pm.Base() != 0x92000000 || pm.Size() != RequiredBytes || pm.Cap() < RequiredBytes || pm.Err() != nil {
+		t.Fatalf("unexpected PoolMemory geometry: base=%#x size=%d cap=%d err=%v", pm.Base(), pm.Size(), pm.Cap(), pm.Err())
 	}
 	hw := newIRQHardware(pm.Base(), ram)
 	dev, err := Open(hw, pm, configuration())
 	if err != nil {
 		t.Fatalf("Open with PoolMemory: %v", err)
+	}
+	// A PoolMemory adopted by an active device must reject re-adoption.
+	if _, err := Open(hw, pm, configuration()); err == nil {
+		t.Fatal("expected duplicate PoolMemory adoption to reject")
 	}
 	frame := bytes.Repeat([]byte{0x5a}, 64)
 	if !hw.deliverRX(t, frame) {
@@ -329,10 +321,10 @@ func TestPoolMemoryValidationRoundTripAndPoison(t *testing.T) {
 	if _, err := dev.Receive(got); err == nil {
 		t.Fatal("expected DMA bus fault error")
 	}
-	if err := pm.Close(); !errors.Is(err, dmaops.ErrPoisoned) {
-		t.Fatalf("poisoned PoolMemory.Close should fail with ErrPoisoned, got %v", err)
+	if pm.Err() == nil {
+		t.Fatal("expected non-nil PoolMemory.Err() after DMA fault")
 	}
-	if st := pool.Stats(); st.PoisonedBuffers != 1 || st.PinnedBytes != pm.Buffer().Cap() {
+	if st := pool.Stats(); st.PoisonedBuffers != 1 || st.PinnedBytes != pm.Cap() {
 		t.Fatalf("expected PoolMemory permanently pinned after fault: %+v", st)
 	}
 }
@@ -340,26 +332,26 @@ func TestPoolMemoryValidationRoundTripAndPoison(t *testing.T) {
 func TestXGMACIRQWakeupLinkControlAndFaults(t *testing.T) {
 	const irqEMAC0 = uint32(222)
 	coh := &testCoherency{line: 64}
-	ram := make([]byte, 64<<10)
+	ram := make([]byte, 128<<10)
 	pool, err := dmaops.NewPool(0x92000000, ram, dmaops.Uncached, coh)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pm, err := NewPoolMemory(pool)
+	pmPoll, err := NewPoolMemory(pool)
 	if err != nil {
 		t.Fatal(err)
 	}
-	hw := newIRQHardware(pm.Base(), ram)
+	hw := newIRQHardware(pmPoll.Base(), ram)
 
-	// Invalid SPI IDs must reject at Open.
+	// Invalid SPI IDs must reject at Open before adopting memory.
 	badCfg := configuration()
 	badCfg.IRQ = 15 // SGI, not SPI
-	if _, err := Open(hw, pm, badCfg); err == nil {
+	if _, err := Open(hw, pmPoll, badCfg); err == nil {
 		t.Fatal("expected rejection for non-SPI IRQ ID")
 	}
 	// Polling-only (IRQ == 0) returns gic.ErrUnsupported from EnableIRQ.
 	g, ghw := newMockGIC(t)
-	pollDev, err := Open(hw, pm, configuration())
+	pollDev, err := Open(hw, pmPoll, configuration())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,8 +365,13 @@ func TestXGMACIRQWakeupLinkControlAndFaults(t *testing.T) {
 		t.Fatal("polling mode should not set rxIOC on posted RX descriptors")
 	}
 
-	// Open with IRQEMAC0 bound.
-	hw = newIRQHardware(pm.Base(), ram)
+	// Open a fresh PoolMemory with IRQEMAC0 bound.
+	pm, err := NewPoolMemory(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pmOff := pm.Base() - pool.Base()
+	hw = newIRQHardware(pm.Base(), ram[pmOff:pmOff+pm.Size()])
 	hw.irqCtrl = g
 	hw.irqHW = ghw
 	hw.irqID = irqEMAC0
@@ -384,7 +381,7 @@ func TestXGMACIRQWakeupLinkControlAndFaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open with IRQ: %v", err)
 	}
-	if binary.LittleEndian.Uint32(ram[rxRing+12:rxRing+16])&(own|rxIOC) != (own | rxIOC) {
+	if binary.LittleEndian.Uint32(ram[pmOff+uint64(rxRing)+12:pmOff+uint64(rxRing)+16])&(own|rxIOC) != (own | rxIOC) {
 		t.Fatal("IRQ-configured XGMAC must set OWN|IOC on posted RX descriptors")
 	}
 	if err := dev.EnableIRQ(nil); err == nil {

@@ -3,7 +3,9 @@
 package xgmac
 
 import (
+	"errors"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/dmaops"
 )
@@ -11,11 +13,16 @@ import (
 // PoolMemory adapts an uncached dmaops.Buffer allocated from a dmaops.Pool to
 // the xgmac.Memory interface. Concurrent 16-byte XGMAC descriptors require
 // Normal Non-Cacheable memory, so Cached pools are rejected.
+//
+// Matching xgmac.Memory's ownership contract, PoolMemory exposes no free
+// operation and can be adopted by at most one Open call: once allocated for an
+// XGMAC instance, its DMA span remains permanently pinned until reboot.
 type PoolMemory struct {
 	buf       *dmaops.Buffer
 	coherency dmaops.Coherency
 	base      uint64
 	size      uint64
+	adopted   atomic.Bool
 }
 
 var _ Memory = (*PoolMemory)(nil)
@@ -47,8 +54,21 @@ func NewPoolMemory(pool *dmaops.Pool) (*PoolMemory, error) {
 	}, nil
 }
 
+func (m *PoolMemory) adopt() error {
+	if !m.adopted.CompareAndSwap(false, true) {
+		return errors.New("xgmac: DMA memory already adopted by another device")
+	}
+	return nil
+}
+
 func (m *PoolMemory) Base() uint64 { return m.base }
 func (m *PoolMemory) Size() uint64 { return m.size }
+
+// Cap returns the reserved span size in the underlying dmaops.Pool.
+func (m *PoolMemory) Cap() uint64 { return m.buf.Cap() }
+
+// Err returns the poison error recorded on the underlying dmaops.Buffer, if any.
+func (m *PoolMemory) Err() error { return m.buf.Err() }
 
 func (m *PoolMemory) Read32(offset uint32) uint32 {
 	v, err := m.buf.Read32(uint64(offset))
@@ -88,14 +108,8 @@ func (m *PoolMemory) Barrier() {
 	m.coherency.SyncBarrier()
 }
 
-// Poison permanently pins the underlying dmaops.Buffer so it cannot be freed
-// or reused after a fatal XGMAC fault or uncertain firmware boundary.
+// Poison permanently marks the underlying dmaops.Buffer poisoned after a fatal
+// XGMAC fault or uncertain firmware boundary.
 func (m *PoolMemory) Poison(err error) {
 	m.buf.Poison(err)
 }
-
-// Buffer returns the underlying dmaops.Buffer for diagnostics and tests.
-func (m *PoolMemory) Buffer() *dmaops.Buffer { return m.buf }
-
-// Close frees the underlying buffer if it has not been poisoned.
-func (m *PoolMemory) Close() error { return m.buf.Free() }
