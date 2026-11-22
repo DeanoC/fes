@@ -166,11 +166,8 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
         print('DE25 ZX81 build: ' + str(output), flush=True)
         with controlled_environment(env):
             def compile_at(name):
-                return common.compile_pass(output, name, lambda place: compile_in(place, name))
-
-            def compile_in(place, name):
                 selected, scanout, combined, hps, display = builder.prepare_standard_board(
-                    vendor_archive, place, revision, package_build_id=selected_id)
+                    vendor_archive, output / name, revision, package_build_id=selected_id)
                 builder.generate_standard_board(selected, scanout, combined, hps, display,
                     paths['quartus'], identities['quartus'].split(' sha256:')[0])
                 builder.compile_standard_board(selected, scanout, hps, display, paths['quartus'])
