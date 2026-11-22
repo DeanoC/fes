@@ -44,4 +44,5 @@ Call `g.EnableIdle()` after `g.Init()` to replace the polling `runtime/goos.Idle
 stub with an ARMv8 `WFI` idle governor backed by the EL1 physical timer (PPI 30).
 `time.Sleep` and channel waits sleep in `WFI` until either the next Go timer
 deadline or any enabled interrupt fires; `g.DisableIdle()` restores the polling
-stub and disables PPI 30.
+stub and disables PPI 30. Both `cmd/tenfoot` and DE25-Nano native Tenfoot
+(`cmd/fpgaload/tenfoot.go`) enable this idle governor at startup.
