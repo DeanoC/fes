@@ -12,6 +12,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
+	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 	"github.com/usbarmory/tamago/dma"
 )
@@ -21,6 +22,10 @@ const Name = "qemu"
 func ExceptionLevel() uint64            { return qemuvirt.ExceptionLevel() }
 func CounterFrequency() uint64          { return qemuvirt.CounterFrequency() }
 func GIC() *gic.Controller              { return qemuvirt.GIC() }
+func PSCI() *psci.Client                { return qemuvirt.PSCI() }
+func PowerOff() error                   { return qemuvirt.PowerOff() }
+func Reset() error                      { return qemuvirt.Reset() }
+func EntropySource() psci.EntropySource { return qemuvirt.EntropySource() }
 func InitDevices() (*dma.Region, error) { return qemuvirt.InitDevices() }
 func OpenStorage() (block.Device, error) {
 	pool, err := qemuvirt.DMAPool()

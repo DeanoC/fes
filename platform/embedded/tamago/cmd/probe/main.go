@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/dmaops"
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
+	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
 )
 
 func main() {
@@ -52,7 +54,43 @@ func main() {
 	fmt.Println("PASS volatile memory filesystem (not SD/FAT32)")
 	probeGIC()
 	probeDMA()
+	probePSCI()
 	fmt.Printf("FES_NATIVE_GO_PROBE PASS os=tamago board=%s\n", board.Name)
+}
+
+func probePSCI() {
+	var a, b [32]byte
+	if _, err := rand.Read(a[:]); err != nil {
+		panic(err)
+	}
+	if _, err := rand.Read(b[:]); err != nil {
+		panic(err)
+	}
+	var zero [32]byte
+	if bytes.Equal(a[:], zero[:]) || bytes.Equal(b[:], zero[:]) || bytes.Equal(a[:], b[:]) {
+		panic("psci: crypto/rand produced degenerate output")
+	}
+	src := board.EntropySource()
+	client := board.PSCI()
+	major, minor, err := client.Version()
+	if err != nil {
+		if errors.Is(err, psci.ErrUnsupported) {
+			fmt.Printf("SKIP psci (conduit disabled) entropy=%s hw_rng=%t\n", src, src.IsHardware())
+			return
+		}
+		panic(err)
+	}
+	if major == 0 && minor < 2 {
+		panic(fmt.Sprintf("psci: unsupported version %d.%d", major, minor))
+	}
+	canOff := client.Supports(psci.FuncSystemOff)
+	canReset := client.Supports(psci.FuncSystemReset)
+	trng := "none"
+	if tmaj, tmin, terr := client.TRNGVersion(); terr == nil {
+		trng = fmt.Sprintf("%d.%d", tmaj, tmin)
+	}
+	fmt.Printf("PASS psci version=%d.%d reset=%t off=%t trng=%s entropy=%s hw_rng=%t\n",
+		major, minor, canReset, canOff, trng, src, src.IsHardware())
 }
 
 func probeDMA() {
