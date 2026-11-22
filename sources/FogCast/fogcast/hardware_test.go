@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -724,6 +725,98 @@ func TestHardwareDraftChangePreservesLoadedExpansion(t *testing.T) {
 type blockedHardwareCatalog struct {
 	*catalog.Store
 	entered, resume chan struct{}
+}
+
+type blockedHardwareInventory struct {
+	corePackageStore
+	entered, resume chan struct{}
+}
+
+func (s *blockedHardwareInventory) List(ctx context.Context) ([]corepackage.Inspection, error) {
+	close(s.entered)
+	select {
+	case <-s.resume:
+		return s.corePackageStore.List(ctx)
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func TestHardwareInventoryDoesNotBlockSessionObservations(t *testing.T) {
+	archive, _ := hardwareZX81Fixture(t, false, false)
+	s, _, entry, inspection := newCoreEntryLaunchFixture(t, archive, "Inventory ZX81", time.Minute)
+	asset, data := hardwareExpansion(t, inspection)
+	if _, err := s.ImportCoreExpansion(context.Background(), int64(len(data)), bytes.NewReader(data)); err != nil {
+		t.Fatal(err)
+	}
+	blocked := &blockedHardwareInventory{corePackageStore: s.corePackages, entered: make(chan struct{}), resume: make(chan struct{})}
+	s.corePackages = blocked
+	type result struct {
+		machines []HardwareMachine
+		err      error
+	}
+	done := make(chan result, 1)
+	go func() { machines, err := s.Hardware(context.Background()); done <- result{machines, err} }()
+	var unblock sync.Once
+	consumed := false
+	defer func() {
+		unblock.Do(func() { close(blocked.resume) })
+		if !consumed {
+			<-done
+		}
+	}()
+	select {
+	case <-blocked.entered:
+	case <-time.After(time.Second):
+		t.Fatal("hardware inventory did not begin")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := s.Status(ctx); err != nil {
+		t.Fatalf("session status blocked by package inventory: %v", err)
+	}
+	if _, err := s.Health(ctx); err != nil {
+		t.Fatalf("health blocked by package inventory: %v", err)
+	}
+	selectionCtx, selectionCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer selectionCancel()
+	if _, err := s.SelectCoreEntryExpansion(selectionCtx, entry.GameID, entry.PackageID, "", asset.ID); err != nil {
+		t.Fatalf("selection blocked by package inventory: %v", err)
+	}
+	unblock.Do(func() { close(blocked.resume) })
+	got := <-done
+	consumed = true
+	if got.err != nil || len(got.machines) != 1 || got.machines[0].DraftExpansionID != asset.ID {
+		t.Fatalf("hardware snapshot did not include completed selection: %+v, %v", got.machines, got.err)
+	}
+}
+
+func TestHardwareInventoryCancellation(t *testing.T) {
+	archive, _ := hardwareZX81Fixture(t, false, false)
+	s, _, _, _ := newCoreEntryLaunchFixture(t, archive, "Canceled inventory ZX81", time.Minute)
+	blocked := &blockedHardwareInventory{corePackageStore: s.corePackages, entered: make(chan struct{}), resume: make(chan struct{})}
+	s.corePackages = blocked
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { _, err := s.Hardware(ctx); done <- err }()
+	select {
+	case <-blocked.entered:
+	case <-time.After(time.Second):
+		t.Fatal("hardware inventory did not begin")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled hardware inventory error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("hardware inventory ignored cancellation")
+	}
+	if _, err := s.Status(context.Background()); err != nil {
+		t.Fatalf("canceled inventory left lifecycle admission held: %v", err)
+	}
 }
 
 func (c *blockedHardwareCatalog) CoreEntries(ctx context.Context) ([]catalog.CoreEntry, error) {

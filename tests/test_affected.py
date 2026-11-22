@@ -188,11 +188,17 @@ class AffectedTests(unittest.TestCase):
         board = 'sources/misteross/boards/de25nano/'
         for path, cores in (('spectrum/derive.py', ['spectrum']), ('spectrum/spectrum-clocks.sdc', ['spectrum']),
                             ('atari-st/derive.py', ['atari-st']), ('atari-st/sim.py', ['atari-st']),
-                            ('machine/board.py', ['atari-st', 'spectrum']),
+                            ('c64/derive.py', ['c64']), ('c64/c64-clocks.sdc', ['c64']),
+                            ('producers/build_c64_package.py', ['c64']),
+                            ('producers/build_machine_package.py', ['atari-st', 'c64', 'spectrum']),
+                            ('machine/board.py', ['atari-st', 'c64', 'spectrum']),
                             ('shared-rtl/fes_spectrum_core.v', ['spectrum']),
                             ('shared-rtl/fes_atari_st_core.v', ['atari-st']),
-                            ('shared-rtl/fes_firmware_upload.v', ['atari-st', 'spectrum']),
-                            ('shared-rtl/fes_gp_crossing.v', ['atari-st', 'spectrum'])):
+                            ('shared-rtl/fes_c64_core.v', ['c64']),
+                            ('shared-rtl/fes_c64_firmware_rom.v', ['c64']),
+                            ('shared-rtl/fes_media_sdram.v', ['atari-st', 'spectrum']),
+                            ('shared-rtl/fes_firmware_upload.v', ['atari-st', 'c64', 'spectrum']),
+                            ('shared-rtl/fes_gp_crossing.v', ['atari-st', 'c64', 'spectrum'])):
             with self.subTest(path=path):
                 self.assertEqual(sorted(plan([board + path])['cores']), cores)
 
@@ -274,6 +280,7 @@ class AffectedTests(unittest.TestCase):
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
             ('FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),
+            ('FES', 'platform/embedded/tamago/computer/generated/fes_de25_scanout.go'),
             ('libmister-runtime', 'src/native/generated/fes_de25_scanout.hpp'),
         })
         result = plan([definition])

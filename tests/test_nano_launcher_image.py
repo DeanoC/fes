@@ -25,7 +25,7 @@ def encoded(value):
     return (json.dumps(value, sort_keys=True, separators=(',', ':'))+'\n').encode()
 
 
-@unittest.skipUnless(all(shutil.which(n) for n in ('mformat', 'mmd', 'mcopy', 'mtype')), 'mtools required')
+@unittest.skipUnless(all(shutil.which(n) for n in ('mformat', 'mmd', 'mcopy', 'mtype', 'mdir', 'mattrib')), 'mtools required')
 class LauncherImageTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -109,6 +109,47 @@ class LauncherImageTests(unittest.TestCase):
                          (self.recovery/'u-boot.itb').read_bytes())
         with self.assertRaisesRegex(ValueError, 'fresh private'):
             self.prepare()
+
+    def test_packaging_readback_rejects_substituted_payloads_and_extra_files(self):
+        receipt = self.prepare()
+        disk = self.output/'native-launcher-sd.img'
+        fat = str(disk)+'@@'+str(image.PREFIX_SIZE)
+        inputs = {Path(name): expected for name, expected in receipt['inputs'].items()}
+
+        def verify(label):
+            output = self.root/label
+            output.mkdir()
+
+            def run(name, argv):
+                log = output/(name+'.log')
+                with log.open('wb') as stream:
+                    subprocess.run(argv, stdout=stream, check=True, timeout=30)
+                return log
+
+            image.verify_prepared_image(disk, receipt, inputs, self.native_fit.read_bytes(), output, run)
+
+        verify('unchanged')
+        replacement = self.root/'replacement'
+        for index, (name, original) in enumerate((('FES/MENU.FCP', self.payload['FES/MENU.FCP']),
+                                                  ('FES/RECOVERY.JSON', (self.recovery/'RECOVERY.JSON').read_bytes()))):
+            with self.subTest(name=name):
+                replacement.write_bytes(b'x'*len(original))
+                subprocess.run(['mcopy', '-o', '-i', fat, replacement, '::'+name], check=True)
+                receipt['image_sha256'] = image.sha(disk)
+                with self.assertRaisesRegex(ValueError, 'disk payload differs: '+name):
+                    verify('changed-'+str(index))
+                if name in receipt['files']:
+                    saved = receipt['files'][name]['sha256']
+                    receipt['files'][name]['sha256'] = image.sha(replacement)
+                    with self.assertRaisesRegex(ValueError, 'receipt differs from pinned payloads'):
+                        verify('changed-file-receipt')
+                    receipt['files'][name]['sha256'] = saved
+                replacement.write_bytes(original)
+                subprocess.run(['mcopy', '-o', '-i', fat, replacement, '::'+name], check=True)
+        subprocess.run(['mcopy', '-i', fat, replacement, '::FES/EXTRA.BIN'], check=True)
+        subprocess.run(['mattrib', '+h', '-i', fat, '::FES/EXTRA.BIN'], check=True)
+        with self.assertRaisesRegex(ValueError, 'extra or aliased FAT entries'):
+            verify('extra')
 
     def test_return_trace_profile_is_explicit_and_rechecked_without_fallback(self):
         base = image.load_kit(self.recovery)

@@ -10,8 +10,7 @@ def mode(record, program_key='program'):
         if program!='fpgaload' or any(record.get(key) is not True for key in
                 ('tenfoot_serial','selected_programs','computer_reload','computer_storage_return')):
             raise ValueError('shared USB requires selected Tenfoot computer loads and SD return')
-        if any(record.get(key,False) is not False for key in
-                ('window_memory','window_read','window_present','window_storage_return','window_reload','window_service','smmu_observe')) or record.get('hps_ddr_read') is not None:
+        if record.get('smmu_observe',False) is not False or record.get('hps_ddr_read') is not None:
             raise ValueError('shared USB cannot inherit another native memory/observation profile')
     selected=program=='usbcheck' or shared
     if control!=selected:
@@ -29,11 +28,10 @@ def contained_probe(record, program_key='program'):
     selected,shared=mode(record,program_key)
     if not selected or shared or any(record.get(key,False) is not False for key in
             ('sd_pio','selected_programs','computer_reload','computer_storage_return',
-             'tenfoot_serial','initial_tape','window_memory','window_read','window_present',
-             'window_storage_return','window_reload','window_service','menu_present','smmu_observe')):
+             'tenfoot_serial','initial_tape','menu_present','smmu_observe')):
         raise ValueError('USB probe requires a separate contained selection')
     resources=('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read',
-               'hps_window_read','hps_menu_read','hps_computer','hps_rom',
+               'hps_menu_read','hps_computer','hps_rom',
                'hps_program_platform','hps_menu_program','cpu_mapping')
     if any(record.get(key) is not None for name in resources for key in (name,name+'_sha256')) or record.get('rom_selection') is not None:
         raise ValueError('USB probe cannot select FPGA, ROM or program resources')

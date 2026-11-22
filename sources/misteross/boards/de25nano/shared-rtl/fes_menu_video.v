@@ -18,7 +18,8 @@ module fes_menu_video #(
     parameter [0:0] RESET_ABORTS_TRAFFIC = 1'b0,
     // Board shells may need stable HDMI sync while resetting scanout ownership.
     // Keep the fixed raster free-running while the reader/video state resets.
-    parameter [0:0] PRESERVE_RASTER_ON_RESET = 1'b0
+    parameter [0:0] PRESERVE_RASTER_ON_RESET = 1'b0,
+    parameter [31:0] DMA_GUARD_BASE = 32'd0
 ) (
     input wire clk, rst, enable, quiesce,
     input wire presentation_ready,
@@ -34,6 +35,7 @@ module fes_menu_video #(
     output reg [31:0] current_sequence = 32'd0,
     output reg current_slot = 1'b0,
     output wire [1:0] memory_errors,
+    output wire dma_fault,
     output wire [8:0] outstanding_beats,
     output wire quiesced,
     output reg [31:0] underflows = 32'd0,
@@ -144,7 +146,7 @@ module fes_menu_video #(
         .MAX_OUTSTANDING_BEATS(MAX_OUTSTANDING_BEATS),
         .CHECK_RESPONSE(CHECK_RESPONSE), .READ_AHEAD(READ_AHEAD),
         .FIFO_ADDR_BITS(FIFO_ADDR_BITS),
-        .RESET_ABORTS_TRAFFIC(RESET_ABORTS_TRAFFIC)) reader (
+        .RESET_ABORTS_TRAFFIC(RESET_ABORTS_TRAFFIC), .DMA_GUARD_BASE(DMA_GUARD_BASE)) reader (
         .clk(clk), .rst(rst), .enable(reader_enable), .slot(fetch_slot),
         .window_base(TEST_PATTERN ? 32'h00001000 : window_base),
         .window_base_valid(TEST_PATTERN ? 1'b1 : window_base_valid),
@@ -154,7 +156,7 @@ module fes_menu_video #(
         .address(reader_address), .burstcount(reader_burstcount), .read(reader_read),
         .waitrequest(reader_waitrequest), .readdata(reader_readdata),
         .readdatavalid(reader_readdatavalid), .response(reader_response),
-        .memory_errors(memory_errors), .outstanding_beats(outstanding_beats),
+        .memory_errors(memory_errors), .dma_fault(dma_fault), .outstanding_beats(outstanding_beats),
         .diagnostic_fifo_count(diagnostic_fifo_count),
         .diagnostic_accepted_outstanding(diagnostic_accepted_outstanding),
         .diagnostic_lane(diagnostic_lane),

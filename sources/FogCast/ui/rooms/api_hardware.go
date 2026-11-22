@@ -61,6 +61,11 @@ func (r *Instance) installHardware() *lua.LTable {
 			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareMedia))
 			return 0
 		},
+		// add_disk adds one disk, chosen from a file, after the game's last.
+		"add_disk": func(L *lua.LState) int {
+			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareAddDisk))
+			return 0
+		},
 		// open_disks opens the family's disk shelf. package_id is the
 		// installed package a new disk is made for.
 		"open_disks": func(L *lua.LState) int {
@@ -195,6 +200,15 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 		packages.RawSetString(p.PackageID, roles)
 	}
 	out.RawSetString("packages", packages)
+	// start_disks[package_id] names the disk a title of that package starts
+	// from while it has none, such as the PC/XT's bundled FreeDOS disk.
+	startDisks := L.NewTable()
+	for _, p := range v.Packages {
+		if p.PackageID != "" && p.StartDisk != "" {
+			startDisks.RawSetString(p.PackageID, lua.LString(p.StartDisk))
+		}
+	}
+	out.RawSetString("start_disks", startDisks)
 	out.RawSetString("session_error", lua.LString(v.SessionError))
 	// Save support is separate from a machine's content readiness. An omitted
 	// field stays absent so an older unpaired host keeps its existing save.
@@ -237,7 +251,9 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 			}
 		}
 		session.RawSetString("hardware_known", lua.LBool(known))
-		for k, str := range map[string]string{"id": s.ID, "game_id": s.GameID, "state": s.State, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID} {
+		// media_name is the name of the medium put in during play; empty
+		// means the one the game started with.
+		for k, str := range map[string]string{"id": s.ID, "game_id": s.GameID, "state": s.State, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID, "media_name": s.MediaName} {
 			session.RawSetString(k, lua.LString(str))
 		}
 		if c := s.CorePackage; c != nil {

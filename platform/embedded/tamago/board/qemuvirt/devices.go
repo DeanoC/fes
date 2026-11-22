@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map"
+	"github.com/DeanoC/fes/platform/embedded/tamago/dmaops"
 	"github.com/usbarmory/tamago/dma"
 )
 
@@ -18,6 +19,7 @@ import (
 const (
 	DMABase      = 0x50000000
 	DMABytes     = 64 << 20
+	DMAPoolBytes = 16 << 20
 	DisplayBase  = DMABase + DMABytes
 	DisplayBytes = 8 << 20
 )
@@ -25,6 +27,10 @@ const (
 var deviceOnce sync.Once
 var displayMemory *dma.Region
 var deviceError error
+
+var dmaPoolOnce sync.Once
+var sharedDMAPool *dmaops.Pool
+var dmaPoolError error
 
 // InitDevices reserves the global disk/network DMA arena exactly once, then
 // returns a separate framebuffer arena. No driver may reinitialize global DMA.
@@ -40,6 +46,24 @@ func InitDevices() (*dma.Region, error) {
 		}
 	})
 	return displayMemory, deviceError
+}
+
+// DMAPool returns the shared uncached dmaops.Pool carved out of QEMU's
+// Normal-NonCacheable DMA arena. The slice is reserved once from tamago/dma so
+// it remains disjoint from legacy VirtIO/xHCI allocations.
+func DMAPool() (*dmaops.Pool, error) {
+	if _, err := InitDevices(); err != nil {
+		return nil, err
+	}
+	dmaPoolOnce.Do(func() {
+		addr, buf := dma.Reserve(DMAPoolBytes, 4096)
+		if len(buf) != DMAPoolBytes {
+			dmaPoolError = fmt.Errorf("qemuvirt: failed to reserve %d-byte DMA pool", DMAPoolBytes)
+			return
+		}
+		sharedDMAPool, dmaPoolError = dmaops.NewPool(uint64(addr), buf, dmaops.Uncached, dmaops.Native())
+	})
+	return sharedDMAPool, dmaPoolError
 }
 
 // This wrapper retains the QEMU-specific resource policy. The shared mapper

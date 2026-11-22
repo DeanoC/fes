@@ -3,7 +3,8 @@ import copy
 import unittest
 import test_nano_menu_trace as menu
 from test_nano_sdm_input_profile import profile
-from test_nano_window_trace import trace
+
+trace = menu.trace
 
 class SecureReaderTraceTests(unittest.TestCase):
     def setUp(self):

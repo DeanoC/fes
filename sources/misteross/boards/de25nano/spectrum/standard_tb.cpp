@@ -15,6 +15,11 @@
 #include "Vfes_de25_spectrum_standard.h"
 #include "Vfes_de25_spectrum_standard___024root.h"
 #include "verilated.h"
+#ifdef SPECTRUM_NATIVE48
+#include "nano_fabric_stop.h"
+#include "nano_program.h"
+#include "generated/fes_de25_ddr_probe.h"
+#endif
 
 #include <array>
 #include <cstdint>
@@ -22,6 +27,7 @@
 #include <iostream>
 #include <iterator>
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -32,6 +38,11 @@ constexpr uint64_t kBusHalfPs = 5000;    // 100 MHz peripheral clock
 constexpr uint64_t kPixelHalfPs = 6734;  // nominal 74.25 MHz, rounded to ps
 constexpr uint32_t kGpo = 0x0c, kGpi = 0x10, kFault = 0x14;
 constexpr uint32_t kInfo = 29, kBegin = 30, kData = 31, kCommit = 32;
+#ifdef SPECTRUM_NATIVE48
+constexpr uint32_t kDisplayGrantBase = 0x95000000;
+#else
+constexpr uint32_t kDisplayGrantBase = 0x00100000;
+#endif
 constexpr uint32_t kErrorIndex = 2, kErrorArgument = 3, kErrorState = 4;
 
 [[noreturn]] void fail(const std::string& message) {
@@ -70,6 +81,9 @@ struct Board {
     unsigned edge = 0, due = 0, expires = 0;
     uint16_t pending = 0;
     bool have_pending = false, dq_valid = false;
+    unsigned display_pending = 0;
+    bool display_reply = false;
+    bool machine_clock_stopped = false;
 
     Board() : root(*dut.rootp) {
         for (auto& chip : rows) chip.fill(-1);
@@ -149,6 +163,12 @@ struct Board {
         if (next_pixel < next_sys && next_pixel < next_bus) {
             next_pixel += kPixelHalfPs;
             dut.pixel_clk = !dut.pixel_clk;
+            if (dut.pixel_clk) {
+                dut.avm_readdatavalid = display_reply && display_pending != 0;
+                dut.avm_response = 0;
+                if (dut.avm_readdatavalid) --display_pending;
+                if (dut.avm_read && !dut.avm_waitrequest) display_pending += dut.avm_burstcount;
+            }
             dut.eval();
             return 0;
         }
@@ -159,6 +179,7 @@ struct Board {
             return dut.clk_sys ? 2 : 0;
         }
         next_sys += kSysHalfPs;
+        if (machine_clock_stopped) return 0;
         dut.machine_clk = !dut.machine_clk;
         dut.eval();
         if (!dut.machine_clk) sdram_falling();
@@ -170,11 +191,32 @@ struct Board {
     void run_bus(int clocks) {
         for (int i = 0; i < clocks;) i += step() == 2;
     }
+    uint32_t scanout(uint32_t address, bool write, uint32_t value = 0) {
+        dut.scanout_address = address;
+        dut.scanout_byteenable = 0xf;
+        dut.scanout_read = !write;
+        dut.scanout_write = write;
+        dut.scanout_writedata = value;
+        dut.eval();
+        require(!dut.scanout_waitrequest, "scanout stalled a CSR access");
+        // Move from either level to the next actual pixel rising edge.
+        while (dut.pixel_clk) step();
+        while (!dut.pixel_clk) step();
+        require(dut.scanout_response == 0 &&
+                (write ? dut.scanout_writeresponsevalid : dut.scanout_readdatavalid),
+                "scanout CSR rejected");
+        value = dut.scanout_readdata;
+        dut.scanout_read = 0;
+        dut.scanout_write = 0;
+        dut.eval();
+        return value;
+    }
     void write(uint32_t address, uint32_t value) {
         dut.computer_address = address;
         dut.computer_writedata = value;
         dut.computer_byteenable = 0xf;
         dut.computer_write = 1;
+        dut.eval();
         for (int i = 0; i < 16; ++i) {
             const bool accepted = !dut.computer_waitrequest;
             run_bus(1);
@@ -187,15 +229,16 @@ struct Board {
         }
         fail("computer write stalled");
     }
-    uint32_t read(uint32_t address) {
+    uint32_t read(uint32_t address, bool expect_fault = false) {
         dut.computer_address = address;
         dut.computer_read = 1;
-        for (int i = 0; i < 16; ++i) {
+        dut.eval();
+        for (int i = 0; i < 80; ++i) {
             const bool accepted = !dut.computer_waitrequest;
             run_bus(1);
             if (accepted) {
                 dut.computer_read = 0;
-                require(dut.computer_readdatavalid && dut.computer_response == 0,
+                require(dut.computer_readdatavalid && dut.computer_response == (expect_fault ? 2 : 0),
                         "computer read refused");
                 return dut.computer_readdata;
             }
@@ -238,10 +281,221 @@ struct Board {
     }
 };
 
+void prime_display(Board& board) {
+    board.scanout(0x10, true, kDisplayGrantBase);
+    board.scanout(0x18, true, 0x800000);
+    board.scanout(0x1c, true, 1);
+    board.scanout(0x24, true, 1);
+    board.scanout(0x28, true, 1);
+    board.scanout(0x0c, true, 1);
+    for (unsigned i = 0; i < 16000000 && !board.display_pending; ++i) board.step();
+    require(board.display_pending != 0, "scanout did not issue a burst");
+}
+
+#ifdef SPECTRUM_NATIVE48
+struct SecureStop {
+    Board& board;
+    bool withhold;
+    unsigned stops = 0, snapshots = 0, probe_reads = 0;
+
+    static int owns(void*) { return 1; }
+    static int read(void* ptr, uint32_t offset, uint32_t* value) {
+        *value = static_cast<SecureStop*>(ptr)->board.scanout(offset, false);
+        return 0;
+    }
+    static int write(void* ptr, uint32_t offset, uint32_t value) {
+        auto& self = *static_cast<SecureStop*>(ptr);
+        require(offset == 0x0c && (value == 2 || value == 8), "secure stop wrote an unexpected CSR");
+        if (value == 2) ++self.stops;
+        else ++self.snapshots;
+        self.board.scanout(offset, true, value);
+        return 0;
+    }
+    static void wait(void* ptr) {
+        auto& self = *static_cast<SecureStop*>(ptr);
+        if (!self.withhold) self.board.display_reply = true;
+        self.board.run_bus(32);
+    }
+    static int probe_read(void* ptr, uint32_t offset, uint32_t* value) {
+        auto& self = *static_cast<SecureStop*>(ptr);
+        ++self.probe_reads;
+        // The existing probe bench exercises the real independent DDR
+        // endpoint. Here it starts idle while scanout uses the real RTL.
+        *value = offset == FES_DE25_DDR_PROBE_ID_OFFSET ? FES_DE25_DDR_PROBE_IDENTITY :
+                 offset == FES_DE25_DDR_PROBE_VERSION_OFFSET ? FES_DE25_DDR_PROBE_VERSION :
+                 offset == FES_DE25_DDR_PROBE_STATUS_OFFSET ? FES_DE25_DDR_PROBE_STATUS_IDLE : 0;
+        return 0;
+    }
+    static int probe_write(void*, uint32_t, uint32_t) {
+        fail("secure stop wrote an idle DDR probe");
+    }
+
+    void inject_dma_reject() {
+        // Keep one real request in flight and corrupt the next offered command.
+        board.dut.avm_waitrequest = true;
+        auto& reader = board.root;
+        for (unsigned i = 0; i < 10000 && !board.dut.avm_read; ++i) board.step();
+        require(board.dut.avm_read, "missing next scanout DMA command");
+        const auto pending = board.display_pending;
+        reader.fes_de25_spectrum_standard__DOT__display__DOT__memory__DOT__video__DOT__reader__DOT__address =
+            0x9580000;
+        board.run_bus(32);
+        require((board.scanout(0x08, false) & 0x108) == 0x100 && board.display_pending == pending,
+                "DMA rejection was lost or an accepted request falsely drained");
+        board.dut.avm_waitrequest = false;
+    }
+
+    void run(unsigned mode) {
+        if (mode == 4) board.scanout(0x0c, true, 2);
+        else if (mode != 0 && mode != 5 && mode != 6) prime_display(board);
+        if (mode == 8) inject_dma_reject();
+        const unsigned expected_stops = mode == 4 || mode == 5 ? 0 : 1;
+        struct fes_nano_fabric_stop stop{};
+        stop.io = {this, owns, read, write, wait};
+        stop.probe.io = {this, owns, probe_read, probe_write, wait};
+        stop.abi = FES_NANO_PROGRAM_SPECTRUM48_ABI;
+        stop.build[0] = SPECTRUM_BUILD_0; stop.build[1] = SPECTRUM_BUILD_1;
+        stop.build[2] = SPECTRUM_BUILD_2; stop.build[3] = SPECTRUM_BUILD_3;
+        stop.bus_base = kDisplayGrantBase;
+        stop.bytes = 8U << 20;
+        stop.cookie = mode == 3 ? 2 : 1;
+        stop.qualified = 1;
+        if (mode == 6 || mode == 7) {
+            int result = fes_nano_fabric_scanout_ready(&stop);
+            require((mode == 6 ? result == 0 && !stop.failed : result != 0 && stop.failed) &&
+                    !stop.attempted && !snapshots && !stops && !probe_reads,
+                    "secure scanout admission did not require a fresh reader");
+            return;
+        }
+        int result = fes_nano_fabric_stop(&stop);
+        require(stops == expected_stops, "secure scanout STOP count differs");
+        if (mode == 2 || mode == 3) {
+            require(result && stop.failed && !stop.done && probe_reads == 0,
+                    "uncertain display granted a stop receipt");
+            const auto issued = snapshots;
+            require(fes_nano_fabric_stop(&stop) == result && snapshots == issued && stops == 1,
+                    "failed native stop replayed a command");
+        } else {
+            require(!result && stop.done && snapshots == 1 && probe_reads != 0 && board.display_pending == 0,
+                    "native scanout and probe did not reach a joined stop");
+            require(!fes_nano_fabric_stopped(&stop) && snapshots == 1 && stops == expected_stops,
+                    "native stop receipt readback wrote a command");
+        }
+    }
+};
+#endif
+
+// Test-only register transport for the Linux-free Go driver. Reads and writes
+// use the same Avalon slave as the standalone and Linux-side benches.
+int native_mailbox() {
+    Board board;
+    board.run_clocks(8000);
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        std::istringstream input(line);
+        std::string operation;
+        uint32_t address = 0, value = 0;
+        input >> operation >> std::hex;
+        if (operation == "read" && input >> address) {
+            value = board.read(address);
+        } else if (operation == "write" && input >> address >> value) {
+            board.write(address, value);
+            value = 0;
+        } else if (operation == "advance" && input >> value) {
+            require(value <= 100000, "native mailbox batch too large");
+            board.run_clocks(value);
+            value = 0;
+        } else if (operation == "display-read" && input >> address) {
+            value = board.scanout(address, false);
+        } else if (operation == "display-write" && input >> address >> value) {
+            board.scanout(address, true, value);
+            value = 0;
+        } else if (operation == "display-prime") {
+            // A real reader submission with the first burst accepted but its
+            // replies withheld until directed by the test's memory supplier.
+            prime_display(board);
+            value = board.display_pending;
+        } else if (operation == "display-reply") {
+            board.display_reply = true;
+            value = board.display_pending;
+#ifdef SPECTRUM_NATIVE48
+        } else if (operation == "check-secure-display-stop" && input >> value) {
+            require(value <= 8, "unknown secure display stop case");
+            SecureStop stop{board, value == 2};
+            stop.run(value);
+            value = 0;
+        } else if (operation == "check-display-grant" || operation == "check-display-retirement") {
+            if (operation == "check-display-retirement") {
+                board.scanout(0x0c, true, 2);
+                require((board.scanout(0x08, false) & 0x80000008) == 0x80000008,
+                        "empty reader did not retire on STOP");
+                board.scanout(0x0c, true, 4);
+                value = kDisplayGrantBase;
+            } else {
+                require(bool(input >> value), "display grant test missing base");
+            }
+            board.scanout(0x10, true, value);
+            board.scanout(0x18, true, 0x800000);
+            board.scanout(0x1c, true, 1);
+            board.scanout(0x24, true, 1);
+            board.scanout(0x28, true, 1);
+            board.scanout(0x0c, true, 1);
+            const auto status = board.scanout(0x08, false);
+            require((status & 0x11) == 0x10 && board.display_pending == 0,
+                    "unauthorized native DMA grant enabled scanout");
+            value = board.display_pending;
+        } else if (operation == "check-fetch-snapshots") {
+            uint32_t previous_count = 0;
+            for (unsigned i = 0; i < 32; ++i) {
+                board.run_clocks(19 + i * 3);
+                const auto prior_reply = board.root.fes_de25_spectrum_standard__DOT__transport__DOT__fetch_reply;
+                const uint32_t count = board.read(0x18);
+                const auto reply = board.root.fes_de25_spectrum_standard__DOT__transport__DOT__fetch_reply;
+                const uint64_t source = board.root.fes_de25_spectrum_standard__DOT__transport__DOT__fetch_payload;
+                require(reply != prior_reply, "fetch count reused a prior reply");
+                require(count > previous_count && count == source >> 16, "fetch count is stale or differs from its source snapshot");
+                board.run_clocks(53);
+                require(board.read(0x1c) == (source & 0xffff), "fetch address differs from the paired count");
+                previous_count = count;
+            }
+            value = previous_count;
+#endif
+        } else if (operation == "fetch-stall") {
+            board.machine_clock_stopped = true;
+            board.read(0x18, true);
+            value = board.read(kFault);
+        } else if (operation == "spectrum-border") {
+            value = board.root.fes_de25_spectrum_standard__DOT__core__DOT__machine__DOT__border_q;
+        } else if (operation == "spectrum-state" || operation == "tape-result") {
+#if SPECTRUM_BANKS == 3
+            const auto& ram = board.root.fes_de25_spectrum_standard__DOT__core__DOT__machine__DOT__ram__DOT__bank__BRA__1__KET____DOT__mem;
+            if (operation == "tape-result") {
+                value = 0;
+                for (unsigned i = 0; i < 4; ++i)
+                    value = (value << 8) | ram[0x100 + i];
+                std::cout << "R 1 " << std::hex << value << std::endl;
+                continue;
+            }
+            std::cout << "R 1 " << static_cast<unsigned>(board.dut.exec_reset) << ' ' << std::hex
+                      << static_cast<unsigned>(ram[0]) << std::endl;
+            continue;
+#else
+            fail("native mailbox proof is for Spectrum 48K");
+#endif
+        } else {
+            fail("unknown native mailbox request");
+        }
+        std::cout << "R 1 " << std::hex << value << std::endl;
+    }
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
+    if (argc == 2 && std::string(argv[1]) == "--native-mailbox")
+        return native_mailbox();
     require(argc == 3, "usage: firmware tape");
     const std::vector<uint8_t> firmware = read_file(argv[1]);
     const std::vector<uint8_t> tape = read_file(argv[2]);
@@ -262,7 +516,9 @@ int main(int argc, char** argv) {
 #else
     require(board.ok(1, 7, 0, "capabilities") == 0x202f, "capability word");
 #endif
-    require(board.ok(1, 8, 0, "build") == 0x1100, "build identity");
+    constexpr uint16_t first_build_word = (SPECTRUM_BUILD_3 >> 24) |
+                                          ((SPECTRUM_BUILD_3 >> 8) & 0xff00);
+    require(board.ok(1, 8, 0, "build") == first_build_word, "build identity");
 
     // fes.fabric.firmware-upload: exactly the model's ROM, and no release
     // without it.

@@ -265,6 +265,9 @@ state on both hosts, and S6b corrects this section from that record.
 - The license file and any token stay on the host. Nothing licensed goes in
   the repository, a package, a cache key or CI logs. A package records the
   edition and version, never a seat or host ID.
+- Every Quartus run holds a slot of its host's Quartus lease for its edition;
+  [Quartus hosts and the lease](quartus-hosts.md) gives the pools, how they
+  were sized, and how to run a job on whichever host has a free slot.
 - Quartus jobs are scheduled within the actual licenses and host
   authorizations available. Do not assume a two-job global cap until the
   license terms and binding are confirmed. They do not use the GPU lease that

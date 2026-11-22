@@ -90,8 +90,9 @@ The host also keeps a shelf of these disks: the ones made on the kit, and the
 game disks with saved changes. It can make a blank disk under a name, copy a
 disk as it stands, go back to a disk's original, and rename or delete a disk
 made here. The catalog marks a disk made here (schema 25); the saved changes
-stay on the kit and are asked for each time. The routes are under
-`/api/v1/library/atari-st-shelf` in the same guide.
+stay on the kit and are asked for each time. The PC/XT has a shelf of its
+own, and both are under `/api/v1/library/disk-shelves/{core_id}` in the same
+guide.
 
 ## Ownership and extension
 
@@ -101,10 +102,6 @@ and events; libmister-runtime validates, restores, captures and publishes data.
 FogCast supplies library context, leases and APIs. FES selects matching commits
 and records acceptance. Another data layout needs an explicit contract and
 runtime support, not merely a metadata declaration.
-
-The [approved design](superpowers/specs/2026-09-09-core-persistence-design.md)
-and [implementation plan](superpowers/plans/2026-09-09-core-persistence.md)
-define this milestone's boundaries and verification.
 
 ## Writable Atari ST disks
 

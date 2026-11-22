@@ -21,6 +21,7 @@
     "opl2_pkg.sv: INSTANTIATE_SAMPLE_DAC_CDC = 0: the sample stays in the machine clock domain; the mixer resamples it.",
     "phase_generator.sv: $bits(operator_t) is the constant 3 (OPERATOR_T_BITS), since the locked Yosys cannot take $bits of a type in an expression.",
     "phase_generator.sv: Key-on resets the phase accumulator to this sample's increment, not zero, as Nuked-OPL3 resets then adds.",
+    "phase_generator.sv: upstream's opl2_log_sine_lut and opl2_exp_lut (src/opl2_log_sine_lut.sv, src/opl2_exp_lut.sv, not vendored) are one initialised array, opl2_phase_rom, read through two registered ports, so Quartus builds both tables from one RAM block; as case statements they became logic in the pc386 seal's netlist. Same values, latency and power-on outputs.",
     "pipeline_sr.sv: The power-on value is an initial replication instead of a '{default: POR_VALUE} pattern on the output declaration, which the locked Yosys rejects on a packed array (DeanoC/yosys issue linked in the pc386 M4 record). Same registers and values.",
     "tremolo.sv: Tremolo rewritten to Nuked-OPL3's: position 0-209 stepping every 64 samples, depth shift 2 or 4, value for the next sample computed after the last operator.",
     "vibrato.sv: Vibrato rewritten to Nuked-OPL3's: eight positions stepping every 1024 samples, giving a signed f-number offset.",
@@ -113,16 +114,6 @@
       "upstream_sha256": "5c2a441756d2c4186af187460d334d9acb6d0f8b7b31396aac2d050e0ae83d79"
     },
     {
-      "path": "opl2_exp_lut.sv",
-      "upstream_path": "src/opl2_exp_lut.sv",
-      "sha256": "368d149c853e494931141e957d3786ea54a5b46d8291e8783234ae13ccb44291"
-    },
-    {
-      "path": "opl2_log_sine_lut.sv",
-      "upstream_path": "src/opl2_log_sine_lut.sv",
-      "sha256": "5a0304073db431076ddc53864f2038600221a5b1e7110797c503ce6a56a93250"
-    },
-    {
       "path": "opl2_pkg.sv",
       "upstream_path": "src/opl2_pkg.sv",
       "sha256": "18fdd374ee0416ee7914eec2df2a0e5052e0c4916b444e0426c86d56ec4e43e5",
@@ -131,7 +122,7 @@
     {
       "path": "phase_generator.sv",
       "upstream_path": "src/phase_generator.sv",
-      "sha256": "11841c5a1c9747dde8d83a4f326fa64b5256a5d3ef072e32d195dad06b2493ad",
+      "sha256": "f8708e152e235e98b40511768d6c32f111b742bd3948e7716ca893d0c3031b96",
       "upstream_sha256": "adf9ba1892ad71a07bf2d80ad7c8c117a4a16f5421efa48d89bf374289b1ca3f"
     },
     {

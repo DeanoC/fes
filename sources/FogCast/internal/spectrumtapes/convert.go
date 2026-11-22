@@ -93,6 +93,14 @@ func CheckedTAP(data []byte) bool {
 // images are known by their signatures; anything else must be a .tap image
 // whose blocks cover it exactly.
 func Convert(data []byte) ([]byte, error) {
+	return ConvertBounded(data, MaxBytes)
+}
+
+// ConvertBounded emits the same PZX stream within the caller's delivery bound.
+func ConvertBounded(data []byte, limit int) ([]byte, error) {
+	if limit < 10 || limit > MaxBytes {
+		return nil, errTooLarge
+	}
 	if !AdmitSize(int64(len(data))) {
 		return nil, errors.New("tape image size is outside 1..32 MiB")
 	}
@@ -104,7 +112,7 @@ func Convert(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	m := newEmitter(MaxBytes)
+	m := newEmitter(limit)
 	for edges := 0; ; edges++ {
 		if edges == maxEdges {
 			return nil, errors.New("tape does not reach its end")

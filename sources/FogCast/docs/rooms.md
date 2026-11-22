@@ -569,7 +569,13 @@ system. With no argument it opens the Sinclair family selector.
 `hardware.open_media({game_id=..., core_id=..., package_id=...,
 expected_media_id=...})` opens the next-start picker for the exact displayed
 entry. An empty expected media ID is explicit. The native picker reads the
-package's media capabilities and saves with compare-and-swap.
+package's media capabilities and saves with compare-and-swap. A file named
+as one disk of a set, such as "Game (Disk 2 of 3).d64", brings every disk of
+that set in its folder: disk 1 becomes the next-start disk and the rest follow
+it ([disk sets](core-package-library.md#disk-sets)).
+`hardware.add_disk({game_id=..., core_id=..., package_id=...,
+expected_media_id=...})` opens the same picker to add one file after the
+game's last disk, in its first disk's drive.
 `hardware.open_disks({core_id=..., package_id=...})` opens the family's disk
 shelf: the disks made here and the game disks with saved changes. The package
 is the installed one a new disk is made for. It may be opened during play;
@@ -578,6 +584,12 @@ the host refuses changes that need the computer stopped.
 manifest-derived sockets and exact-package cards. Importing and fitting are
 separate actions. These setup actions require an idle machine; live media uses
 `session.open_tape` and its observed session binding.
+`session.change_disk(snapshot.session, media_id, media_name)` puts one library
+medium in the running machine's drive through the live media change, by its
+media ID and the file name it was imported under: the core screen's Next
+disk. The session's `media_name` is the name of the medium put in during play,
+empty for the one the game started with. Game rows carry `media_name` for
+disk 1 and `more_media`, a list of `{media_id, media_name}`, for disks 2 to N.
 `hardware.firmware_info({core_id=..., family_id=..., family_label=...,
 core_ids={...}, first_use=...})` asks for a family's firmware card
 ([bundled firmware](../../../docs/bundled-firmware.md#the-first-use-card)).
@@ -624,11 +636,11 @@ packs still use the same authoring, install, rollback and nested-room APIs.
 
 | id | purpose |
 | --- | --- |
-| `example.fes-cores` | **Home** (#1347): a Recently played row (the library's recents, hidden until something has been played) above one tile per computer family: Sinclair ZX81, ZX Spectrum, Atari ST, Commodore 64, PC/XT and PC 386, then every other family when Show all cores is on. The row shows as many tiles as fit at 140 wide, six at most, so the six default families are all on screen from 1024 wide; more families, or a narrower room, scroll the row. Family readiness comes from admitted host computers and the independent kit shelf; library titles supply game counts. Open goes to its core screen (`example.core`) for the ZX81, Spectrum, Atari ST and Commodore 64 families and to its workbench for the others, PC/XT and PC 386 included. The header has Settings; Show all cores adds Library and Systems. Up from the tiles reaches Recently played, then the hero's actions, then the header. Focus persists by family or title. After Skip setup a Get started banner with Finish setup (`setup_resume`) takes the Recently played slot until setup is finished. |
+| `example.fes-cores` | **Home** (#1347): a Recently played row (the library's recents, hidden until something has been played) above one tile per computer family: Sinclair ZX81, ZX Spectrum, Atari ST, Commodore 64, PC/XT and PC 386, then every other family when Show all cores is on. The row shows as many tiles as fit at 140 wide, six at most, so the six default families are all on screen from 1024 wide; more families, or a narrower room, scroll the row. Family readiness comes from admitted host computers and the independent kit shelf; library titles supply game counts. Open goes to its core screen (`example.core`) for the ZX81, Spectrum, Atari ST, Commodore 64 and PC/XT families and to its workbench for the others, PC 386 included. The header has Settings; Show all cores adds Library and Systems. Up from the tiles reaches Recently played, then the hero's actions, then the header. Focus persists by family or title. After Skip setup a Get started banner with Finish setup (`setup_resume`) takes the Recently played slot until setup is finished. |
 | `example.computers` | **Systems**: prepared systems, models and editions. Confirm launches; Set up opens the selected model's setup. Add system stays available with an empty library. |
-| `example.core` | Internal **core screen** for one computer family ([design](../../../docs/ux/references/core-screens/README.md)): the computer and its fixed facts on the left, its drive and its games on the right. Model chooses the variant; a game row starts that exact entry; the drive row and its button choose media for next start, or change it in a running machine. The ZX81 family adds Expansions, which opens `example.hardware`. Opened from Home for the ZX81, Spectrum, Atari ST and Commodore 64 families. |
+| `example.core` | Internal **core screen** for one computer family ([design](../../../docs/ux/references/core-screens/README.md)): the computer and its fixed facts on the left, its drive and its games on the right. Model chooses the variant; a game row starts that exact entry; the drive row and its button choose media for next start, or change it in a running machine. The ZX81 family adds Expansions, which opens `example.hardware`. The Atari ST and PC/XT add Your disks, which opens that family's disk shelf; a PC/XT title with no disk shows the host's start disk (`start_disks`, the bundled FreeDOS disk) in drive A. Opened from Home for the ZX81, Spectrum, Atari ST, Commodore 64 and PC/XT families. |
 | `example.system` | Internal **System setup** template for registered families and their hardware variants, including PC/XT and PC 386. Next system changes family; Variant chooses the model. Entry, edition, media and expansion selections keep exact core/package identities. |
-| `example.welcome` | **First-run setup, step 1** (#1345): what FES is, the six default computer families and what is built in. PC 386 is marked In development. Continue (`setup_continue`) or Skip setup (`setup_skip`). `destination_panel = "none"`. |
+| `example.welcome` | **First-run setup, step 1** (#1345): what FES is, the six default computer families and what is built in. Continue (`setup_continue`) or Skip setup (`setup_skip`). `destination_panel = "none"`. |
 | `example.setup-controllers` | **First-run setup, step 2** (#980): waits for a pad (Continue with keyboard), then lists each pad with its player, connection and layout, lights the shown pad's held buttons, and offers Continue, Swap A / B (`setup_swap_ab`) and Controller settings (`controllers`). Bluetooth pads pair by holding their pairing button; the step says so. |
 | `example.setup-ready` | **First-run setup, last step**: each family's chip, games and firmware need; Finish (`setup_finish`) or Back (`setup_back`, also B). |
 | `example.hardware` | Internal **Sinclair setup** template with the rear-connector shelf and cassette controls for ZX81, ZX80, TS1000 and TS1500. |

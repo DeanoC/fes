@@ -35,6 +35,7 @@ type tapeCPU struct {
 	used, starts, commits, runs, mediaOpens int
 	mediaGeneration                         uint64
 	held, ready                             bool
+	spectrum                                bool
 	fault                                   string
 	now                                     *time.Time
 	cancel                                  context.CancelFunc
@@ -52,17 +53,21 @@ func (c *tapeCPU) WritePhysical32(address uint64, word uint32) error {
 		}
 		return nil
 	}
+	return c.writeMedia(op, index, value)
+}
+
+func (c *tapeCPU) writeMedia(op, index uint32, value uint16) error {
 	if op < cg.FesComputerOpcodeMediaInfo || op > cg.FesComputerOpcodeMediaEject {
 		return nil
 	}
 	if !c.held {
 		return errors.New("media operation outside held execution")
 	}
-	if c.mediaOpens == 0 || c.mediaGeneration != c.base.state.Generation {
+	if c.files != nil && (c.mediaOpens == 0 || c.mediaGeneration != c.base.state.Generation) {
 		c.mediaOpens = c.files.opens
 		c.mediaGeneration = c.base.state.Generation
 	}
-	if c.files.opens != c.mediaOpens {
+	if c.files != nil && c.files.opens != c.mediaOpens {
 		return errors.New("media accessed filesystem after containment")
 	}
 	switch op {
@@ -71,7 +76,11 @@ func (c *tapeCPU) WritePhysical32(address uint64, word uint32) error {
 		if c.ready {
 			state = uint16(cg.FesComputerMediaStateReady)
 		}
-		values := [6]uint16{uint16(cg.FesComputerZx81TapeMinBytes), 0, uint16(cg.FesDe25ComputerZx81TapeMaxBytes), 0, uint16(cg.FesComputerMediaChunkMaxBytes), state}
+		minimum, maximum := cg.FesComputerZx81TapeMinBytes, cg.FesDe25ComputerZx81TapeMaxBytes
+		if c.spectrum {
+			minimum, maximum = cg.FesComputerSpectrumTapeMinBytes, cg.FesComputerSpectrumTapeMaxBytes
+		}
+		values := [6]uint16{uint16(minimum), uint16(minimum >> 16), uint16(maximum), uint16(maximum >> 16), uint16(cg.FesComputerMediaChunkMaxBytes), state}
 		if index >= 6 {
 			return errors.New("invalid media info")
 		}

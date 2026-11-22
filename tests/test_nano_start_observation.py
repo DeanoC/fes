@@ -8,7 +8,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
 from configuration_trace import START_PHASES,extract
 from test_nano_paired_tenfoot_trace import Model,paired
-from test_nano_program_client import SPEC
+from nano_program_fixtures import SPEC
 
 NOTE=b''.join(f'NOTICE:  FES_NANO_START phase={i} status={2 if i==7 else 0}\n'.encode() for i in (0,1,2,3,4,12,13,14,5,6,7,8,9,10,11))
 

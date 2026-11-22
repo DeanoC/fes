@@ -19,7 +19,7 @@ FOGCAST_ROLES = {
     'fogcast-tenfoot': 'kit-and-host', 'fogcast': 'host',
     'fes-kit-data': 'image', 'fes-update': 'host-tool',
     'fes-software': 'host-tool', 'fes-kit-bundle': 'builder',
-    'target-image-lock': 'builder', 'mister-bridge': 'standalone',
+    'target-image-lock': 'builder',
     'fes-parts': 'standalone', 'fes-spectrum-disk': 'simulation',
     'fes-spectrum-restore': 'simulation',
     'fogcast-embedded-host': 'standalone',

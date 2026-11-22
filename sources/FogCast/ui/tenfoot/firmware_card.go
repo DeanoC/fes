@@ -15,6 +15,8 @@ import (
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
+const c64FirmwareFile = "one 36 KiB image: BASIC, KERNAL and character ROMs, then the 1541 drive ROM"
+
 // userFirmwareFiles says which file a user supplies when FES cannot ship a
 // model's firmware. A model with neither this nor bundled firmware gets no
 // card.
@@ -27,7 +29,8 @@ var userFirmwareFiles = map[string]string{
 	"fes.spectrum128":    "a 32 KiB 128K or +2 ROM (ROM 0, then ROM 1)",
 	"fes.spectrum-plus3": "a 64 KiB +2A or +3 ROM (ROMs 0 to 3)",
 	"fes.pentagon":       "a 48 KiB image: the 128K ROMs, then TR-DOS",
-	"fes.c64":            "one 36 KiB image: BASIC, KERNAL and character ROMs, then the 1541 drive ROM",
+	"fes.c64":            c64FirmwareFile,
+	"fes.c64-ntsc":       c64FirmwareFile,
 	"fes.atari-st":       "a 192 KiB TOS image",
 }
 

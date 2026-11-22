@@ -1,0 +1,41 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	8.874	machine_presenter_h_a[8]~ERTM	machine_presenter_picture[13]~ERTM
+Slow fix4 100C Model	0	hold	analyzed	1	0.073	_42659_[554]	_42659_[668]
+Slow fix4 100C Model	0	recovery	analyzed	1	13.942	reset	machine_at_pit_u_KF8253_Counter_2_dec_binary_q[12]
+Slow fix4 100C Model	0	removal	analyzed	1	0.873	reset	machine_at_pic_slave_interrupt_mask[4]~DUPLICATE
+Slow fix4 100C Model	0	clk_clock_setup	analyzed	1	8.910	machine_at_decoder_cycle_port[14]	machine_at_pic_master_highest_level_in_service[2]~DUPLICATE
+Slow fix4 100C Model	0	clk_clock_hold	analyzed	1	0.073	_42659_[554]	_42659_[668]
+Slow fix4 100C Model	0	pixel_clk_clock_setup	analyzed	1	8.874	machine_presenter_h_a[8]~ERTM	machine_presenter_picture[13]~ERTM
+Slow fix4 100C Model	0	pixel_clk_clock_hold	analyzed	1	0.132	_36828_[16]~18_ERTM	machine_presenter_h_a[18]~ERTM
+Slow fix4 100C Model	0	internal_setup	analyzed	1	8.874	machine_presenter_h_a[8]~ERTM	machine_presenter_picture[13]~ERTM
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.204		
+Slow fix4 0C Model	0	setup	analyzed	1	8.002	machine_presenter_h_a[8]~ERTM	machine_presenter_picture[13]~ERTM
+Slow fix4 0C Model	0	hold	analyzed	1	0.090	_42659_[554]	_42659_[668]
+Slow fix4 0C Model	0	recovery	analyzed	1	13.601	reset	machine_at_pit_u_KF8253_Counter_2_dec_binary_q[12]
+Slow fix4 0C Model	0	removal	analyzed	1	1.004	reset	machine_at_pic_slave_interrupt_mask[4]~DUPLICATE
+Slow fix4 0C Model	0	clk_clock_setup	analyzed	1	8.025	machine_at_decoder_cycle_port[14]	machine_at_pic_master_highest_level_in_service[2]
+Slow fix4 0C Model	0	clk_clock_hold	analyzed	1	0.090	_42659_[554]	_42659_[668]
+Slow fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	8.002	machine_presenter_h_a[8]~ERTM	machine_presenter_picture[13]~ERTM
+Slow fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.149	_36828_[16]~18_ERTM	machine_presenter_h_a[18]~ERTM
+Slow fix4 0C Model	0	internal_setup	analyzed	1	8.002	machine_presenter_h_a[8]~ERTM	machine_presenter_picture[13]~ERTM
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.190		
+Slow fix4a 0C Model	0	setup	analyzed	1	8.032	machine_at_decoder_cycle_port[14]	machine_at_pic_master_highest_level_in_service[2]
+Slow fix4a 0C Model	0	hold	analyzed	1	0.089	_42659_[554]	_42659_[668]
+Slow fix4a 0C Model	0	recovery	analyzed	1	13.616	reset	machine_at_pit_u_KF8253_Counter_2_dec_binary_q[12]
+Slow fix4a 0C Model	0	removal	analyzed	1	0.994	reset	machine_at_pic_slave_interrupt_mask[4]~DUPLICATE
+Slow fix4a 0C Model	0	clk_clock_setup	analyzed	1	8.032	machine_at_decoder_cycle_port[14]	machine_at_pic_master_highest_level_in_service[2]
+Slow fix4a 0C Model	0	clk_clock_hold	analyzed	1	0.089	_42659_[554]	_42659_[668]
+Slow fix4a 0C Model	0	pixel_clk_clock_setup	analyzed	1	8.095	machine_presenter_h_a[8]~ERTM	machine_presenter_picture[13]~ERTM
+Slow fix4a 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.150	_36828_[16]~18_ERTM	machine_presenter_h_a[18]~ERTM
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	8.032	machine_at_decoder_cycle_port[14]	machine_at_pic_master_highest_level_in_service[2]
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.190		
+Fast fix4 0C Model	0	setup	analyzed	1	10.731	mult_69~mac~AY_REG	machine_presenter_wy[4]~ERTM0
+Fast fix4 0C Model	0	hold	analyzed	1	0.014	_42659_[554]	_42659_[668]
+Fast fix4 0C Model	0	recovery	analyzed	1	14.765	reset	machine_at_pit_u_KF8253_Counter_2_dec_binary_q[12]
+Fast fix4 0C Model	0	removal	analyzed	1	0.528	reset	machine_at_pic_slave_interrupt_mask[4]~DUPLICATE
+Fast fix4 0C Model	0	clk_clock_setup	analyzed	1	11.520	machine_at_decoder_cycle_port[14]	machine_at_pic_master_highest_level_in_service[2]~DUPLICATE
+Fast fix4 0C Model	0	clk_clock_hold	analyzed	1	0.014	_42659_[554]	_42659_[668]
+Fast fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	10.731	mult_69~mac~AY_REG	machine_presenter_wy[4]~ERTM0
+Fast fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.054	machine_presenter_p_b1[10]~ERTM	_36829_[8]~10_ERTM
+Fast fix4 0C Model	0	internal_setup	analyzed	1	10.731	mult_69~mac~AY_REG	machine_presenter_wy[4]~ERTM0
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.335		

@@ -101,8 +101,8 @@ The storage image ELF is SHA-256
 `728d78a1d3d96a070c5f4b68a49a7180ddb4b1335fccd0ac190998838173b6be`.
 It uses Zephyr 4.2.0, SDK 0.17.4 and the pinned FatFS module. Its local NVMe
 source adaptation is explicit and hash guarded; the upstream checkout is
-unchanged. The [service guide](../../../platform/embedded/zephyr/README.md)
-describes the PCI and interrupt-allocation changes and their evidence.
+unchanged. The historical service guide (`platform/embedded/zephyr/README.md`, since retired)
+described the PCI and interrupt-allocation changes and their evidence.
 
 Network exchange does not pass. `network-result.json` and its console bind
 a 25-second failed TCP observation to that same ELF. The E1000 interface and
