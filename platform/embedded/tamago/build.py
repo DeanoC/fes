@@ -626,7 +626,8 @@ def build(args):
         files.update({APP/'cpu_features.py', overlay})
         files.update(p for p in feature_sources if p.is_relative_to(ROOT))
     if context is not None:files.update(hps.inputs())
-    if spectrum_program is not None:files.add(worker)
+    if spectrum_program is not None or shared_shell:
+        files.add(Path(hps.spectrum48.__file__))
     if rom_map is not None:files.add(APP/'cmd/nano-rom-selection/main.go')
     for p in packages:
         directory = Path(p["Dir"])
