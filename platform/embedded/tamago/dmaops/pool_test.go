@@ -260,6 +260,34 @@ func TestBufferReadWriteSliceAndSync(t *testing.T) {
 	}
 }
 
+func TestBufferViewsAreCapacityBounded(t *testing.T) {
+	hw := newMockCoherency(64)
+	pool, err := NewPool(0x50000000, make([]byte, 256), Uncached, hw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf, err := pool.Alloc(13, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Alloc(16, 8); err != nil {
+		t.Fatal(err)
+	}
+
+	data := buf.Bytes()
+	if len(data) != 13 || cap(data) != 13 {
+		t.Fatalf("Bytes view: len=%d cap=%d, want len=13 cap=13", len(data), cap(data))
+	}
+
+	_, sub, err := buf.Slice(4, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sub) != 5 || cap(sub) != 5 {
+		t.Fatalf("Slice view: len=%d cap=%d, want len=5 cap=5", len(sub), cap(sub))
+	}
+}
+
 func TestPoolAndBufferPoisonFailClosed(t *testing.T) {
 	hw := newMockCoherency(64)
 	pool, err := NewPool(0x50000000, make([]byte, 256), Uncached, hw)

@@ -201,7 +201,7 @@ func (p *Pool) Alloc(size, align uint64) (*Buffer, error) {
 			phys:   alignedPhys,
 			size:   size,
 			cap:    spanSize,
-			data:   p.backing[allocOffset : allocOffset+size],
+			data:   p.backing[allocOffset : allocOffset+size : allocOffset+size],
 		}, nil
 	}
 	return nil, ErrOutOfMemory
@@ -385,7 +385,7 @@ func (b *Buffer) Slice(offset, length uint64) (uint64, []byte, error) {
 	if err := b.checkRangeLocked(offset, length); err != nil {
 		return 0, nil, err
 	}
-	return b.phys + offset, b.data[offset : offset+length], nil
+	return b.phys + offset, b.data[offset : offset+length : offset+length], nil
 }
 
 // Read32 reads a 4-byte-aligned little-endian uint32 at offset.
