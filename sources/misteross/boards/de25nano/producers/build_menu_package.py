@@ -2,8 +2,9 @@
 """Build the DE25 MENU with a canonical pre-synthesis identity; never program it.
 
 Compile-only retains a candidate. Package export additionally requires zero
-unreviewed or waived signoff findings and every reported timing check to pass,
-and an independent compilation to reproduce the RBF. Physical qualification
+unreviewed or waived signoff findings and every reported timing check to pass.
+There is no byte-identical repeat compile: Quartus 26.3 Pro's fit is not
+reproducible across threads or project paths. Physical qualification
 and managed-kit acceptance remain separate gates.
 """
 from __future__ import annotations
@@ -127,7 +128,7 @@ def execution_environment(home, tools, *, license_file=None):
     env = base_execution_environment(home, tools)
     if license_file is not None:
         # Snapshot the selected bytes once. Later source-file edits cannot change
-        # the license used between the signoff and independent repeat fit.
+        # the license the compile uses.
         data = _license_bytes(license_file)
         target = Path(home) / 'quartus-license.dat'
         with target.open('xb') as stream:
@@ -444,16 +445,6 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
             if not compile_only:
                 if not timing['package_timing_admission']:
                     raise BuildError('DE25 MENU package blocked by reported timing/signoff findings; candidate retained')
-                repeated, c2, h2, d2 = builder.prepare(vendor_archive, output / 'repeat', revision,
-                    hps_first=True, linux_dma=True, package_build_id=selected_id)
-                builder.generate(repeated, c2, h2, d2, paths['quartus'], version)
-                builder.compile_project(repeated, h2, d2, paths['quartus'])
-                repeat_review = async_inputs.collect(repeated, paths['quartus'].with_name('quartus_sta'),
-                                                     vendor_archive=vendor_archive)
-                repeat_timing = timing_evidence(repeated, async_review=repeat_review)
-                (output / 'repeat-timing.json').write_text(json.dumps(repeat_timing, sort_keys=True, indent=2) + '\n')
-                if not repeat_timing['package_timing_admission'] or sha(selected / 'combined/hps/linux-boot.core.rbf') != sha(repeated / 'combined/hps/linux-boot.core.rbf'):
-                    raise BuildError('DE25 MENU independent rebuild failed timing or changed RBF')
         if (_require_clean_source(root, pinned_inputs=(RECIPE, ABI)) != (repository, revision) or
                 authenticate_tools(builder, quartus_root) != (paths, identities) or
                 execution_inputs(paths, env) != execution or

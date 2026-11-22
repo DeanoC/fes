@@ -551,6 +551,76 @@ def reviewed_hps_parameter_changes(inputs):
     return allowed
 
 
+PARENT_SLAVE = re.compile(r"name='parent/subsys_hps\.([A-Za-z0-9_]+\.[A-Za-z0-9_]+)'")
+
+
+def canonical_parent_slaves(project):
+    """Name HPS-subsystem slaves in the peripheral system's cached address maps by
+    their exported interface, as the parent system sees them.
+
+    Platform Designer saves a slave reached through the parent either by the HPS
+    subsystem's exported interface (`f2sdram_adapter_axi4_sub`) or by the internal
+    path behind it (`f2sdram_adapter.axi4_sub`), and which one varies from run to
+    run. The cached string is a synthesis input, so two generations of one design
+    could build different interconnects. Returns the rewritten internal paths."""
+    exported = {}
+    for item in ET.parse(project / "hps_subsys/hps_subsys.qsys").iterfind(".//{*}interface_mapping"):
+        attributes = {key.rsplit("}", 1)[-1]: value for key, value in item.attrib.items()}
+        if attributes.get("internal") and attributes.get("name"):
+            exported[attributes["internal"]] = attributes["name"]
+    path = project / "peripheral_subsys/peripheral_subsys.qsys"
+    text = path.read_text()
+    internal = sorted(set(PARENT_SLAVE.findall(text)))
+    for name in internal:
+        if name not in exported:
+            raise ValueError("peripheral address map names an unexported HPS subsystem slave: " + name)
+        text = text.replace(f"name='parent/subsys_hps.{name}'", f"name='parent/subsys_hps.{exported[name]}'")
+    if internal:
+        path.write_text(text)
+    return internal
+
+
+SUB_IP = re.compile(r'set_global_assignment -library "[^"]+" -name (QIP_FILE|SOURCE_FILE) '
+                    r'\[file join \$::quartus\(qip_path\) "([^"]*/synth/ip/[^"]+)\.(qip|sopcinfo)"\]')
+
+
+def canonical_sub_ip_order(project):
+    """List each generated IP's sibling sub-IPs in path order.
+
+    quartus_ipgenerate writes a generated IP's QIP_FILE/SOURCE_FILE pairs for its
+    sub-IPs (under synth/ip/) in an order that varies from run to run; the EMIF's
+    refclk_gpio and refclk_bridge have been seen both ways round. Synthesis reads
+    them in that order, which renumbers the netlist and moves the fit. Only runs of
+    adjacent sub-IP pairs are reordered; the IP's own files stay where they are.
+    Returns the rewritten files, relative to the project."""
+    rewritten = []
+    for path in sorted(project.rglob("*.qip")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        lines = path.read_text().splitlines(keepends=True)
+        result, index, changed = [], 0, False
+        while index < len(lines):
+            pairs = []
+            while index + 1 < len(lines):
+                first, second = SUB_IP.search(lines[index]), SUB_IP.search(lines[index + 1])
+                if not (first and second and first[1] == "QIP_FILE" and first[3] == "qip" and
+                        second[1] == "SOURCE_FILE" and second[3] == "sopcinfo" and first[2] == second[2]):
+                    break
+                pairs.append((first[2], lines[index], lines[index + 1]))
+                index += 2
+            if pairs:
+                ordered = sorted(pairs)
+                changed |= ordered != pairs
+                result.extend(line for _, *pair in ordered for line in pair)
+            else:
+                result.append(lines[index])
+                index += 1
+        if changed:
+            path.write_text("".join(result))
+            rewritten.append(str(path.relative_to(project)))
+    return rewritten
+
+
 def generate_project(output, tool, version):
     project = output / "project"
     install = tool.parents[2]
@@ -561,11 +631,14 @@ def generate_project(output, tool, version):
     run_logged([qsys, "--quartus-project=golden_top", "--search-path=custom_ip/**/*,fes_mailbox,$",
                 "--script=integrate-mailbox.tcl"], project, output / "integration.log",
                env=os.environ.copy())
+    canonical = {"after_integration": canonical_parent_slaves(project)}
     generator = tool.with_name("quartus_ipgenerate")
     run_logged([generator, "--clear_ip_generation_dirs", PROJECT],
                project, output / "clear-generation.log")
     run_logged([generator, "--generate_project_ip_files", "--synthesis=verilog", PROJECT],
                project, output / "ip-generation.log")
+    canonical["after_ip_generation"] = canonical_parent_slaves(project)
+    canonical["sub_ip_order"] = canonical_sub_ip_order(project)
     inputs = json.loads((output / "inputs.json").read_text())
     changes = {}
     for name, expected in inputs["vendor_hps_emif_parameters"].items():
@@ -589,6 +662,7 @@ def generate_project(output, tool, version):
     handoff = verify_mailbox_handoff(project)
     memory_key, memory = verify_memory_handoff(project, inputs)
     handoff[memory_key] = memory
+    handoff["canonical_parent_slaves"] = canonical
     (output / "generation.json").write_text(json.dumps(handoff, indent=2, sort_keys=True) + "\n")
 
 
