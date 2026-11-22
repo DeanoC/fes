@@ -9,9 +9,16 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	gnet "github.com/usbarmory/go-net"
 )
+
+// rxWaiter is an optional interface for devices that signal RX availability
+// via an interrupt channel so Link.Start can block in WFI instead of spinning.
+type rxWaiter interface {
+	RXReady() <-chan struct{}
+}
 
 type linkFailure struct{ err error }
 
@@ -121,6 +128,17 @@ func (l *Link) Start(ctx context.Context) error {
 			return err
 		}
 		if n == 0 {
+			if waiter, ok := l.device.(rxWaiter); ok {
+				if ready := waiter.RXReady(); ready != nil {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-ready:
+					case <-time.After(10 * time.Millisecond):
+					}
+					continue
+				}
+			}
 			runtime.Gosched()
 			continue
 		}

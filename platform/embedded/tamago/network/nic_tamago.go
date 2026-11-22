@@ -14,6 +14,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/usbarmory/tamago/dma"
 )
 
@@ -70,6 +71,9 @@ type NIC struct {
 	rxPackets atomic.Uint64
 	txPackets atomic.Uint64
 	dropped   atomic.Uint64
+	rxReady   chan struct{}
+	irqActive atomic.Bool
+	irqCount  atomic.Uint64
 }
 
 func readMMIO(address uint32) uint32 {
@@ -107,7 +111,7 @@ func openNIC(base uint32) (*NIC, error) {
 			return nil, err
 		}
 	}
-	n := &NIC{base: base}
+	n := &NIC{base: base, rxReady: make(chan struct{}, 1)}
 	if n.read(0) != virtioMagic || n.read(4) != 2 || n.read(8) != 1 {
 		return nil, errors.New("network: wrong VirtIO identity")
 	}
@@ -228,7 +232,79 @@ func loadShared16(b []byte) uint16 { return *(*uint16)(unsafe.Pointer(&b[0])) }
 func (n *NIC) acknowledge() {
 	if bits := n.read(regInterrupt); bits != 0 {
 		n.write(regInterruptAck, bits)
+		if n.irqActive.Load() {
+			select {
+			case n.rxReady <- struct{}{}:
+			default:
+			}
+		}
 	}
+}
+
+func (n *NIC) irqID() (uint32, bool) {
+	if n.base < 0x0a000000 || n.base >= 0x0a004000 || (n.base-0x0a000000)%0x200 != 0 {
+		return 0, false
+	}
+	// QEMU virt wires VirtIO-MMIO slots 0..31 to SPI 16..47 (INTID 48..79).
+	return 48 + (n.base-0x0a000000)/0x200, true
+}
+
+// RXReady returns the RX interrupt wakeup channel while IRQ mode is active.
+func (n *NIC) RXReady() <-chan struct{} {
+	if !n.irqActive.Load() {
+		return nil
+	}
+	return n.rxReady
+}
+
+// IRQCount returns the number of VirtIO-net interrupts handled since EnableIRQ.
+func (n *NIC) IRQCount() uint64 { return n.irqCount.Load() }
+
+// EnableIRQ routes this VirtIO-net slot's GICv3 SPI to wake Link.Start on RX.
+// Call after g.Init(); g.Serve must run for interrupts to be dispatched.
+func (n *NIC) EnableIRQ(g *gic.Controller) error {
+	if g == nil {
+		return errors.New("network: nil GIC controller")
+	}
+	id, ok := n.irqID()
+	if !ok || id >= g.Lines() {
+		return gic.ErrInvalidConfig
+	}
+	n.rxMu.Lock()
+	defer n.rxMu.Unlock()
+	g.Disable(id)
+	n.irqCount.Store(0)
+	// Clear AVAIL_F_NO_INTERRUPT on RX queue; keep TX queue suppressed.
+	binary.LittleEndian.PutUint16(n.rx.bytes[1024:], 0)
+	barrier()
+	n.acknowledge()
+	g.Register(id, func() {
+		n.irqCount.Add(1)
+		n.acknowledge()
+	})
+	n.irqActive.Store(true)
+	g.Enable(id)
+	select {
+	case n.rxReady <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
+// DisableIRQ re-suppresses VirtIO RX interrupts and masks the GICv3 SPI.
+func (n *NIC) DisableIRQ(g *gic.Controller) {
+	n.rxMu.Lock()
+	defer n.rxMu.Unlock()
+	binary.LittleEndian.PutUint16(n.rx.bytes[1024:], 1)
+	barrier()
+	if g != nil {
+		if id, ok := n.irqID(); ok {
+			g.Disable(id)
+			g.Register(id, nil)
+		}
+	}
+	n.irqActive.Store(false)
+	n.acknowledge()
 }
 
 func (n *NIC) Receive(destination []byte) (int, error) {
