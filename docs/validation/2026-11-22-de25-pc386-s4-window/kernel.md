@@ -66,7 +66,8 @@ window. `OWNER_IDLE` reports busy while either is held. Overlay changes are
 refused while either is leased, as today.
 
 **Allocation.** `OWNER_WINDOW_ALLOC` takes no argument and returns a
-CLOEXEC window fd. Under the window lease:
+CLOEXEC window fd. The grant is published before the file exists, so a
+refused window is freed at once, not by a deferred final `fput`. Under the window lease:
 
 1. Read the window block's `Identity`/`Version`. Require held, drained, not
    granted and no fault. The runtime holds the machine (computer mailbox
@@ -116,14 +117,23 @@ CLOEXEC window fd. Under the window lease:
   netlist identity, so it is left for #2036's next RTL change. The contract
   and its document already say the kernel publishes.
 
-**ABI.**
+**ABI.** Additive; nothing in ABI 3 changes.
 
-- `OWNER_ABI` returns 4. ABI 3's structures and ioctl numbers are
-  unchanged; the new ioctls take new numbers.
+- `OWNER_ABI` still returns 3. The scanout's INFO and PUBLISH structures
+  carry that number as their version, so bumping it would break every
+  scanout client.
+- `OWNER_WINDOW_ABI` (`0x15`) returns the window version (1). It fails with
+  `ENODEV` without the window `reg`, and with `ENOTTY` on an older kernel.
+  The runtime queries it before `OWNER_WINDOW_ALLOC` (`0x16`).
+- The window fd takes `WINDOW_INFO` (`0x20`, 56 bytes) and `WINDOW_REVOKE`
+  (`0x21`).
 - The runtime mirrors the header, as it already does `de25_dma.h`
   (`scripts/consistency.py` `COMPONENT_FIXTURES`).
 - The window constants come from a new `emit-c` row of the contract into
   `image/kernel/de25-dma/generated/`.
+- **A failed publish.** If the block may still hold the grant and it
+  cannot be cleared, the window is handed to the owner, so `REAP` can retry
+  the clear.
 
 ## Storage
 
