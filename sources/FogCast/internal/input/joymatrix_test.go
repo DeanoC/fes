@@ -195,12 +195,12 @@ func TestLocalJoystickMatrixReleasesOnCoreChange(t *testing.T) {
 	if matrix != zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('V'): true}) {
 		t.Fatalf("press: %x", matrix)
 	}
-	// The runtime retires the old matrix during replacement. Observation only
-	// forgets that contribution; it must not post an old release into ZX81.
+	// The runtime retires the old matrix during replacement. Retain physical
+	// contributors for release bookkeeping without posting into ZX81.
 	matrix = zx81keys.Neutral
 	sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.zx81"})
-	if matrix != zx81keys.Matrix(nil) || len(sink.localKeys) != 0 {
-		t.Fatalf("core change kept local matrix keys: %x %v", matrix, sink.localKeys)
+	if matrix != zx81keys.Matrix(nil) || !sink.localKeys[zx81keys.Letter('V')] {
+		t.Fatalf("core change posted input or lost physical hold: %x %v", matrix, sink.localKeys)
 	}
 	sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms"})
 	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonDPadUp, remoteinput.ActionPress, 0)); err != nil {
@@ -208,6 +208,15 @@ func TestLocalJoystickMatrixReleasesOnCoreChange(t *testing.T) {
 	}
 	if matrix != zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.KeyShift: true}) {
 		t.Fatalf("stale A after core change: %x", matrix)
+	}
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if matrix != zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.KeyShift: true, zx81keys.Letter('V'): true}) {
+		t.Fatalf("fresh A after physical release: %x", matrix)
 	}
 }
 
@@ -560,5 +569,56 @@ func TestDepartureRetryCancellationDoesNotDispatch(t *testing.T) {
 	cancel()
 	if c.retryLocalDeparture(ctx, localPlayerDeparture(0), nil) {
 		t.Fatal("canceled retry confirmed")
+	}
+}
+
+func TestDepartureNeutralRetryPreservesOtherContributorsWithoutNewInput(t *testing.T) {
+	keys, binding := matrixFixture(t)
+	var writes []struct {
+		post   localhid.MatrixPost
+		matrix uint64
+	}
+	failNext := false
+	keys.SetPoster(func(_ context.Context, post localhid.MatrixPost, matrix uint64) error {
+		writes = append(writes, struct {
+			post   localhid.MatrixPost
+			matrix uint64
+		}{post, matrix})
+		if failNext {
+			failNext = false
+			return errors.New("ambiguous departure")
+		}
+		return nil
+	})
+	sink := &controllerPortsSink{keys: keys}
+	obs := CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms", RuntimeInstance: binding.RuntimeInstance, PackageID: binding.PackageID, Generation: binding.Generation}
+	if err := sink.setObservationContext(context.Background(), obs); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceRemote, keyboardFrameFor(zx81keys.Letter('J'), remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, gamepad(1, remoteinput.ButtonDPadDown, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	failNext = true
+	if err := sink.apply(sourceLocal, localPlayerDeparture(0)); err == nil {
+		t.Fatal("ambiguous departure succeeded")
+	}
+	failed := writes[len(writes)-1].post.Witness
+	// Retry the same neutral decision; no further physical input is delivered.
+	if err := sink.apply(sourceLocal, localPlayerDeparture(0)); err != nil {
+		t.Fatal(err)
+	}
+	last := writes[len(writes)-1]
+	if last.post.NeutralOf == nil || *last.post.NeutralOf != failed {
+		t.Fatal("neutral did not retain the exact failed witness")
+	}
+	want := zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('J'): true, zx81keys.Letter('X'): true})
+	if last.matrix != want {
+		t.Fatalf("neutral lost unaffected contributors or replayed departed input: %#x", last.matrix)
 	}
 }

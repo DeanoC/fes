@@ -27,8 +27,11 @@ func TestReaderRetriesFailedDepartureWithoutFurtherInput(t *testing.T) {
 	var fail atomic.Bool
 	posts := make(chan uint64, 8)
 	f.c.ports.keys.SetPoster(func(_ context.Context, post localhid.MatrixPost, v uint64) error {
+		// Decide this write's outcome before notifying the test. Otherwise
+		// the next phase can flip fail while this write is still returning.
+		shouldFail := fail.Load()
 		posts <- v
-		if fail.Load() {
+		if shouldFail {
 			return errors.New("ambiguous neutral")
 		}
 		if post.NeutralOf != nil && !post.NeutralOf.Valid() {
