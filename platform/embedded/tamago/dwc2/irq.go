@@ -34,7 +34,7 @@ func (h *Host) EnableIRQ(g *gic.Controller, irqID uint32) error {
 	if g == nil {
 		return errors.New("dwc2: nil GIC controller")
 	}
-	if irqID >= g.Lines() {
+	if irqID < gic.FirstSPI || irqID >= g.Lines() {
 		return gic.ErrInvalidConfig
 	}
 	if h.fault != nil {

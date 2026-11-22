@@ -158,7 +158,7 @@ func TestDWC2IRQValidationAndNilReceivers(t *testing.T) {
 		t.Fatal("nil gamepad returned non-zero IRQ state")
 	}
 
-	ctrl, _ := newMockGIC(t)
+	ctrl, ghw := newMockGIC(t)
 	hw := newSyncController()
 	host, err := Open(hw, Config{PHYClockHz: 60000000})
 	if err != nil {
@@ -172,6 +172,23 @@ func TestDWC2IRQValidationAndNilReceivers(t *testing.T) {
 	}
 	if err := host.EnableIRQ(ctrl, ctrl.Lines()); err != gic.ErrInvalidConfig {
 		t.Fatalf("out-of-range INTID got %v, want ErrInvalidConfig", err)
+	}
+	// PPI 30 is the physical timer used by the runtime idle governor. DWC2
+	// must reject it without replacing the timer's registered handler or
+	// touching controller state.
+	const physicalTimerPPI = uint32(30)
+	timerFired := false
+	ctrl.Register(physicalTimerPPI, func() { timerFired = true })
+	beforeMMIO := hw.accesses()
+	if err := host.EnableIRQ(ctrl, physicalTimerPPI); err != gic.ErrInvalidConfig {
+		t.Fatalf("physical-timer PPI got %v, want ErrInvalidConfig", err)
+	}
+	if got := hw.accesses(); got != beforeMMIO {
+		t.Fatalf("invalid PPI EnableIRQ touched DWC2 registers: accesses %d->%d", beforeMMIO, got)
+	}
+	ghw.fire(ctrl, physicalTimerPPI)
+	if !timerFired {
+		t.Fatal("invalid PPI EnableIRQ replaced the physical-timer handler")
 	}
 
 	// PausePolling blocks EnableIRQ.
