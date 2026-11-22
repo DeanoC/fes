@@ -202,7 +202,9 @@ def window_script(offset):
 
 
 # A window machine's qsys_top interconnects add no optional pipeline stages
-# (the GHRD's maxAdditionalLatency is 4). With the window, the F2SDRAM
+# (the GHRD's system default and most of its connections are 4; its debug
+# translator's, which the managed fabric removes, are 1). verify_window_latency
+# checks the result: every connection left is 0. With the window, the F2SDRAM
 # interconnect has two masters, and its pipeline stages were about 950 ALMs
 # of registers; without them, commands and responses cross in fewer clocks.
 # Only a window machine takes this: every other DE25 core keeps the GHRD's.
@@ -286,7 +288,6 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
                       f"set_interface_property fes_scanout_{name} EXPORT_OF subsys_periph.fes_scanout_{name}\n"
                       for name in conduits)
     if spec.WINDOW:
-        require_ghrd_latency(project)
         exports += WINDOW_TOP
     exports += ("add_instance fes_scanout_machine_clock altera_clock_bridge 19.2.0\n"
                 f"set_instance_parameter_value fes_scanout_machine_clock EXPLICIT_CLOCK_RATE {spec.MACHINE_HZ}\n"
@@ -398,13 +399,6 @@ def verify_window(project, modules, endpoint, connections, hps, scanout):
 def latency_values(project):
     return re.findall(r'altera:parameter_name="qsys_mm\.maxAdditionalLatency" altera:parameter_value="([^"]*)"',
                       (project / "qsys_top.qsys").read_text())
-
-
-def require_ghrd_latency(project):
-    """The GHRD's qsys_top connections carry maxAdditionalLatency 4 before the window changes it."""
-    values = latency_values(project)
-    if not values or set(values) != {"4"}:
-        raise ValueError("GHRD interconnect latency changed: " + repr(sorted(set(values))))
 
 
 def verify_window_latency(project):

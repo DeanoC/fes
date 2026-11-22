@@ -32,18 +32,11 @@ class WindowLatencyTests(unittest.TestCase):
         self.assertIn('set_domain_assignment {$system} qsys_mm.maxAdditionalLatency 0\n', B.WINDOW_TOP)
         source = (ROOT / 'boards/de25nano/machine/board.py').read_text()
         self.assertEqual(source.count('exports += WINDOW_TOP'), 1)
-        self.assertIn('    if spec.WINDOW:\n        require_ghrd_latency(project)\n        exports += WINDOW_TOP\n', source)
+        self.assertIn('    if spec.WINDOW:\n        exports += WINDOW_TOP\n', source)
         # Every other machine on this builder has no window.
         for name in ('spectrum', 'atari-st', 'c64'):
             self.assertIn('\nWINDOW = False\n', (ROOT / f'boards/de25nano/{name}/build.py').read_text())
         self.assertIn('\nWINDOW = True\n', (ROOT / 'boards/de25nano/pc386/build.py').read_text())
-
-    def test_the_ghrd_latency_is_checked_first(self):
-        B.require_ghrd_latency(self.project(['4'] * 3, 0))
-        with self.assertRaisesRegex(ValueError, 'GHRD interconnect latency changed'):
-            B.require_ghrd_latency(self.project(['4', '2'], 0))
-        with self.assertRaisesRegex(ValueError, 'GHRD interconnect latency changed'):
-            B.require_ghrd_latency(self.project([], 0))
 
     def test_generated_latency_is_checked(self):
         self.assertEqual(B.verify_window_latency(self.project(['0'] * 4, 0))['pipeline_stages'], 0)
