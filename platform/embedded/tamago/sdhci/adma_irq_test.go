@@ -519,6 +519,23 @@ func TestADMA2ReadWriteCachedAnd64Bit(t *testing.T) {
 		t.Fatalf("ADMA2 Close leaked buffers: %+v", st)
 	}
 
+	// Close + Resume must reallocate and keep ADMA2 active, not fall back to PIO.
+	if err := dev.Resume(); err != nil {
+		t.Fatalf("ADMA2 Resume after Close: %v", err)
+	}
+	if !dev.ADMA2Active() {
+		t.Fatal("ADMA2 inactive after Close + Resume")
+	}
+	if st := pool32.Stats(); st.LiveBuffers == 0 {
+		t.Fatalf("ADMA2 Resume after Close did not allocate buffers: %+v", st)
+	}
+	if err := dev.Close(); err != nil {
+		t.Fatalf("ADMA2 Close after Resume: %v", err)
+	}
+	if st := pool32.Stats(); st.LiveBuffers != 0 || st.FreeSpans != 1 {
+		t.Fatalf("ADMA2 second Close leaked buffers: %+v", st)
+	}
+
 	// 2. 64-bit ADMA2 above 4 GiB.
 	const base64 = uint64(0x1_0000_0000)
 	ram64 := make([]byte, 128<<10)

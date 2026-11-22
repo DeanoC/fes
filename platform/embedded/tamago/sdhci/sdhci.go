@@ -1143,38 +1143,37 @@ func (d *Device) Resume() error {
 		return errors.New("sdhci: resume requires quiescence")
 	}
 	next := &Device{io: d.io, config: d.config, expectedHost: baseHost33V, adma: d.adma}
-	if err := next.initialize(d.config); err != nil {
+	// Close releases the ADMA2 engine, so configureADMA may allocate a fresh
+	// one on next. Poison both on failure and adopt next's engine on success,
+	// otherwise later transfers would silently fall back to PIO.
+	fail := func(err error) error {
 		d.failed = true
 		d.adma.poison(err)
+		if next.adma != d.adma {
+			next.adma.poison(err)
+		}
 		return err
+	}
+	if err := next.initialize(d.config); err != nil {
+		return fail(err)
 	}
 	if next.Identity() != d.Identity() {
-		d.failed = true
-		d.adma.poison(ErrCardChanged)
-		return ErrCardChanged
+		return fail(ErrCardChanged)
 	}
 	if err := next.configureADMA(); err != nil {
-		d.failed = true
-		d.adma.poison(err)
-		return err
+		return fail(err)
 	}
 	if err := next.selectBusWidth(); err != nil {
-		d.failed = true
-		d.adma.poison(err)
-		return err
+		return fail(err)
 	}
 	if err := next.selectTransferClock(); err != nil {
-		d.failed = true
-		d.adma.poison(err)
-		return err
+		return fail(err)
 	}
 	if next.dataClockHz != d.dataClockHz || next.dataClock != d.dataClock ||
 		next.expectedHost != d.expectedHost || next.busWidth4 != d.busWidth4 {
-		d.failed = true
-		err := errors.New("sdhci: transfer mode changed across resume")
-		d.adma.poison(err)
-		return err
+		return fail(errors.New("sdhci: transfer mode changed across resume"))
 	}
+	d.adma = next.adma
 	d.rca = next.rca
 	d.cardWriteProtected = next.cardWriteProtected
 	d.quiesced = false
