@@ -18,6 +18,9 @@
 #include "de25_dma_internal.h"
 #include "de25_dma_guard.h"
 #include "de25_dma_owner.h"
+#include "generated/fes_de25_hps_window.h"
+
+#define WINDOW_PROFILE "fes,de25-linux-dma-window"
 
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM)
 /* Deliberately pinned-kernel, built-in-only API. The owner must inspect the
@@ -36,11 +39,21 @@ struct fes_de25_owner {
 	struct miscdevice misc;
 	struct fes_de25_dma_guard *guard;
 	struct fes_de25_dma *active;
+	/* The window control block, if the owner node has its second reg. It
+	 * has no guard: it is in the always-running peripheral clock. Its
+	 * configuration proof is the scanout guard's epoch.
+	 */
+	void __iomem *window_base;
+	struct fes_de25_window *window_active;
+	bool window_ready, window_leased;
 	u32 next_epoch;
 	bool ready, leased, static_started, static_pending;
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
 	bool test_fixture, test_registered;
 	struct fes_de25_dma_guard *test_borrowed_guard, *test_guard_template;
+	u32 (*test_window_read)(void *context, u32 offset);
+	void (*test_window_write)(void *context, u32 offset, u32 value);
+	void *test_window_context;
 	struct device_node test_region;
 #endif
 };
@@ -98,6 +111,112 @@ static int owner_fence(void *context)
 	return fes_de25_guard_fence(((struct fes_de25_owner *)context)->guard);
 }
 
+static int window_acquire(void *context)
+{
+	struct fes_de25_owner *owner = context;
+	int ret = 0;
+
+	mutex_lock(&owner->lock);
+	if (owner->window_leased)
+		ret = -EBUSY;
+	else if (!owner->ready || !owner->window_ready)
+		ret = -ENODEV;
+	else
+		owner->window_leased = true;
+	mutex_unlock(&owner->lock);
+	return ret;
+}
+
+static void window_release(void *context)
+{
+	struct fes_de25_owner *owner = context;
+
+	mutex_lock(&owner->lock);
+	owner->window_leased = false;
+	mutex_unlock(&owner->lock);
+}
+
+static int window_read(void *context, u32 offset, u32 *value)
+{
+	struct fes_de25_owner *owner = context;
+
+	if (!IS_ALIGNED(offset, sizeof(u32)) || offset >= FES_DE25_HPS_WINDOW_CONTROL_SPAN)
+		return -EINVAL;
+#if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
+	if (owner->test_window_read) {
+		*value = owner->test_window_read(owner->test_window_context, offset);
+		return 0;
+	}
+#endif
+	*value = readl(owner->window_base + offset);
+	return 0;
+}
+
+static int window_write(void *context, u32 offset, u32 value)
+{
+	struct fes_de25_owner *owner = context;
+
+	if (!IS_ALIGNED(offset, sizeof(u32)) || offset >= FES_DE25_HPS_WINDOW_CONTROL_SPAN)
+		return -EINVAL;
+#if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
+	if (owner->test_window_write) {
+		owner->test_window_write(owner->test_window_context, offset, value);
+		return 0;
+	}
+#endif
+	writel(value, owner->window_base + offset);
+	return 0;
+}
+
+static int window_fence(void *context)
+{
+	struct fes_de25_owner *owner = context;
+	u32 identity;
+	int ret;
+
+	/* A read back completes every earlier write on the bridge. */
+	mb();
+	ret = window_read(owner, FES_DE25_HPS_WINDOW_ID_OFFSET, &identity);
+	if (!ret && identity != FES_DE25_HPS_WINDOW_IDENTITY)
+		ret = -EIO;
+	return ret;
+}
+
+/* The window block has no build register: the bitstream's identity is the
+ * scanout block's, read through its guard under the same epoch.
+ */
+static int window_build_id(void *context, u32 build_id[4])
+{
+	unsigned int i;
+	int ret = 0;
+
+	for (i = 0; i < 4 && !ret; i++)
+		ret = owner_read(context, FES_DE25_SCANOUT_BUILD_ID0_OFFSET + i * sizeof(u32), &build_id[i]);
+	return ret;
+}
+
+static struct file *owner_window_allocate(struct fes_de25_owner *owner)
+{
+	struct fes_de25_window_backend backend = {
+		.acquire = window_acquire, .release = window_release, .epoch = owner_epoch,
+		.read32 = window_read, .write32 = window_write, .io_fence = window_fence,
+		.build_id = window_build_id, .context = owner,
+	};
+	struct file *file;
+
+	mutex_lock(&owner->allocation_lock);
+	if (owner->window_active) {
+		file = ERR_PTR(-EBUSY);
+		goto out;
+	}
+	file = fes_de25_window_create(owner->dev, &backend);
+	if (!IS_ERR(file))
+		owner->window_active = fes_de25_window_get(file);
+out:
+	mutex_unlock(&owner->allocation_lock);
+	return file;
+}
+
 static struct file *owner_allocate(struct fes_de25_owner *owner)
 {
 	struct fes_de25_dma_backend backend = {
@@ -125,7 +244,15 @@ static int owner_reap(struct fes_de25_owner *owner)
 	int ret = 0;
 
 	mutex_lock(&owner->allocation_lock);
-	if (owner->active) {
+	/* The window first: its machine reads the display through the scanout. */
+	if (owner->window_active) {
+		ret = fes_de25_window_revoke_owned(owner->window_active);
+		if (!ret) {
+			fes_de25_window_put(owner->window_active);
+			owner->window_active = NULL;
+		}
+	}
+	if (!ret && owner->active) {
 		ret = fes_de25_dma_revoke_owned(owner->active);
 		if (!ret) {
 			fes_de25_dma_put(owner->active);
@@ -146,7 +273,8 @@ static int owner_idle(struct fes_de25_owner *owner)
 	mutex_lock(&owner->allocation_lock);
 	mutex_lock(&owner->lock);
 	ret = !owner->ready ? -ENODEV :
-		(owner->active || owner->leased ? -EBUSY : 0);
+		(owner->active || owner->leased || owner->window_active ||
+		 owner->window_leased ? -EBUSY : 0);
 	mutex_unlock(&owner->lock);
 	mutex_unlock(&owner->allocation_lock);
 	return ret;
@@ -181,12 +309,16 @@ static long owner_ioctl(struct file *control, unsigned int command, unsigned lon
 		return owner_idle(owner);
 	if (command == FES_DE25_DMA_OWNER_REAP)
 		return owner_reap(owner);
-	if (command != FES_DE25_DMA_OWNER_ALLOC)
+	if (command == FES_DE25_DMA_OWNER_WINDOW_ABI)
+		return owner->window_base ? FES_DE25_DMA_WINDOW_VERSION : -ENODEV;
+	if (command != FES_DE25_DMA_OWNER_ALLOC && command != FES_DE25_DMA_OWNER_WINDOW_ALLOC)
 		return -ENOTTY;
+	if (command == FES_DE25_DMA_OWNER_WINDOW_ALLOC && !owner->window_base)
+		return -ENODEV;
 	fd = get_unused_fd_flags(O_CLOEXEC);
 	if (fd < 0)
 		return fd;
-	file = owner_allocate(owner);
+	file = command == FES_DE25_DMA_OWNER_ALLOC ? owner_allocate(owner) : owner_window_allocate(owner);
 	if (IS_ERR(file)) {
 		put_unused_fd(fd);
 		return PTR_ERR(file);
@@ -291,7 +423,7 @@ static int owner_notify(struct notifier_block *nb, unsigned long action, void *d
 		goto done;
 	}
 	if ((action == OF_OVERLAY_PRE_APPLY || action == OF_OVERLAY_PRE_REMOVE) &&
-	    owner->leased) {
+	    (owner->leased || owner->window_leased)) {
 		ret = -EBUSY;
 		goto done;
 	}
@@ -319,6 +451,7 @@ static int owner_notify(struct notifier_block *nb, unsigned long action, void *d
 		 * Only a full root load clears a previous static-persona attempt.
 		 */
 		owner->ready = false;
+		owner->window_ready = false;
 		owner_retire_guard(owner);
 		if (nd->target == owner->region)
 			owner_clear_static(owner);
@@ -346,6 +479,13 @@ static int owner_notify(struct notifier_block *nb, unsigned long action, void *d
 			break;
 		of_node_put(profile);
 		ret = owner_arm_guard(owner);
+		/* A window profile without the owner's window block arms nothing. */
+		profile = ret || !owner->window_base ? NULL :
+			of_get_compatible_child(nd->overlay, WINDOW_PROFILE);
+		if (profile) {
+			of_node_put(profile);
+			owner->window_ready = true;
+		}
 		break;
 	}
 done:
@@ -558,6 +698,23 @@ int fes_de25_owner_probe(struct platform_device *pdev)
 		ret = PTR_ERR(owner->base);
 		goto put_region;
 	}
+	/* An optional second reg is exactly the window control block. */
+	resource = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (resource) {
+		if (resource->start != FES_DE25_SCANOUT_ARCHITECTURAL_LW_BASE +
+		    FES_DE25_HPS_WINDOW_PERIPHERAL_OFFSET ||
+		    resource_size(resource) != FES_DE25_HPS_WINDOW_CONTROL_SPAN ||
+		    platform_get_resource(pdev, IORESOURCE_MEM, 2)) {
+			ret = -EINVAL;
+			goto put_region;
+		}
+		owner->window_base = devm_ioremap_resource(&pdev->dev, resource);
+		if (IS_ERR(owner->window_base)) {
+			ret = PTR_ERR(owner->window_base);
+			owner->window_base = NULL;
+			goto put_region;
+		}
+	}
 	owner->notifier.notifier_call = owner_notify;
 	owner->notifier.priority = 100; /* before stock of-fpga-region (priority 0) */
 	ret = of_overlay_notifier_register(&owner->notifier);
@@ -587,7 +744,7 @@ void fes_de25_owner_remove(struct platform_device *pdev)
 	/* Permanent base nodes, no unbind attributes, built-in protected suppliers,
 	 * and module pins on files/owner/exposure prevent supported active removal.
 	 */
-	WARN_ON(owner->leased || owner->active);
+	WARN_ON(owner->leased || owner->active || owner->window_leased || owner->window_active);
 	misc_deregister(&owner->misc);
 	of_overlay_notifier_unregister(&owner->notifier);
 	owner_clear_static(owner);
@@ -698,9 +855,31 @@ int fes_de25_owner_test_dependencies(struct device *dev)
 	return protected_driver_chain(dev, NULL);
 }
 
+int fes_de25_owner_test_window(struct fes_de25_owner *owner,
+		u32 (*read)(void *context, u32 offset),
+		void (*write)(void *context, u32 offset, u32 value), void *context)
+{
+	if (!read || !write || owner->window_base)
+		return -EINVAL;
+	/* A fixture block: only the test accessors ever reach it. */
+	owner->window_base = (void __iomem *)owner;
+	owner->test_window_read = read;
+	owner->test_window_write = write;
+	owner->test_window_context = context;
+	mutex_lock(&owner->lock);
+	owner->window_ready = owner->ready;
+	mutex_unlock(&owner->lock);
+	return 0;
+}
+
+struct file *fes_de25_owner_test_window_allocate(struct fes_de25_owner *owner)
+{
+	return owner_window_allocate(owner);
+}
+
 void fes_de25_owner_test_destroy(struct fes_de25_owner *owner)
 {
-	WARN_ON(owner->leased || owner->active);
+	WARN_ON(owner->leased || owner->active || owner->window_leased || owner->window_active);
 	fes_de25_owner_test_detach(owner);
 	owner_retire_guard(owner);
 	kfree(owner);
