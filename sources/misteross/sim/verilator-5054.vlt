@@ -15,7 +15,11 @@ lint_off -rule PROCASSINIT -file "*/fes-apple2/rtl/apple2_keyboard.v"
 lint_off -rule PROCASSINIT -file "*/fes-apple2/rtl/apple2_machine.sv"
 lint_off -rule PROCASSINIT -file "*/fes-apple2/rtl/apple2_slot_sockets.v"
 lint_off -rule PROCASSINIT -file "*/fes-apple2/rtl/apple2_video.v"
+lint_off -rule PROCASSINIT -file "*/fes-atari-st/rtl/st_video.sv"
 lint_off -rule PROCASSINIT -file "*/fes-atari-st/rtl/st_video_socket.sv"
+lint_off -rule PROCASSINIT -file "*/fes-atari-st/sim/st_memory_sim_top.sv"
+lint_off -rule PROCASSINIT -file "*/fes-atari-st/sim/st_video_adapter_sim_top.sv"
+lint_off -rule PROCASSINIT -file "*/fes-atari-st/sim/st_video_sim_top.sv"
 lint_off -rule PROCASSINIT -file "*/fes-c64/rtl/c64_vic.v"
 lint_off -rule PROCASSINIT -file "*/fes-c64/sim/session_video_top.sv"
 lint_off -rule PROCASSINIT -file "*/fes-coleco/expansions/diagnostic.v"
@@ -43,6 +47,7 @@ lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_sn76489.sv"
 lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_video_part_scanlines.v"
 lint_off -rule PROCASSINIT -file "*/fes-common/rtl/fes_z80_ce.sv"
 lint_off -rule PROCASSINIT -file "*/fes-common/rtl/z80/fes_z80_nmos.sv"
+lint_off -rule PROCASSINIT -file "*/fes-common/sim/display_plane_top.v"
 lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/fes_menu_blend.v"
 lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/fes_menu_blit_alpha.v"
 lint_off -rule PROCASSINIT -file "*/fes-menu/rtl/fes_menu_blit_control.v"
@@ -78,6 +83,7 @@ lint_off -rule PROCASSINIT -file "*/fes-spectrum/rtl/spectrum_snapshot.v"
 lint_off -rule PROCASSINIT -file "*/fes-spectrum/rtl/spectrum_tape.v"
 lint_off -rule PROCASSINIT -file "*/fes-spectrum/rtl/spectrum_ula.sv"
 lint_off -rule PROCASSINIT -file "*/fes-spectrum/rtl/spectrum_video.v"
+lint_off -rule PROCASSINIT -file "*/fes-zx81/expansions/qs_chrs.v"
 lint_off -rule PROCASSINIT -file "*/fes-zx81/expansions/zonx.v"
 lint_off -rule PROCASSINIT -file "*/fes-zx81/expansions/zonx_ay.v"
 lint_off -rule PROCASSINIT -file "*/fes-zx81/rtl/zx81_machine_clock.v"
@@ -131,3 +137,9 @@ lint_off -rule UNDRIVEN -file "*/fes-sg1000/rtl/sg1000_machine.sv" -match "*'med
 // Not lint: 5.054 no longer inlines the two 1541 VIAs, and the drive
 // testbench reads their pcr registers by flattened name.
 inline -module "c64_via"
+//
+// Not lint: the SMS and Coleco stream testbenches write exec_reset and
+// media_open from C++ to set up a scenario. Under --public 5.054 treats those
+// registers as read-only and drops the write; public_flat_rw keeps it.
+public_flat_rw -module "fes_computer_gp" -var "exec_reset"
+public_flat_rw -module "fes_computer_gp" -var "media_open"

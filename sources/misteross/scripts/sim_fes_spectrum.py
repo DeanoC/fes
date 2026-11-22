@@ -27,7 +27,7 @@ from pathlib import Path
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.verilator_waivers import waivers
+from scripts.verilator_waivers import lint_config
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = "cores/fes-spectrum"
@@ -64,7 +64,7 @@ FUSE_FILES = {
 def verilate(verilator: str, top: str, build: Path, sources, tb: str, defines=(), public=False,
              parameters=()) -> Path:
     build.mkdir(parents=True, exist_ok=True)
-    command = [verilator, *waivers(verilator), "--cc", "--exe", "--build", "-O2", "-j", "0", "--top-module", top, "-Wall",
+    command = [verilator, *lint_config(verilator), "--cc", "--exe", "--build", "-O2", "-j", "0", "--top-module", top, "-Wall",
                *(f"-Wno-{name}" for name in WAIVERS),
                f"-I{CORE}/rtl", "-Icores/fes-common/generated", "-Icores/fes-common/rtl",
                f"-I{CORE}/expansions", *(f"-D{define}" for define in defines),

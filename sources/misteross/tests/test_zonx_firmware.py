@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from scripts.verilator_waivers import waivers
+from scripts.verilator_waivers import lint_config
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "cores" / "fes-zx81"
@@ -36,7 +36,7 @@ class ZonXFirmwareSimulationTest(unittest.TestCase):
             warnings = ("UNUSEDSIGNAL", "UNOPTFLAT", "CASEINCOMPLETE", "WIDTHTRUNC", "WIDTHEXPAND",
                         "SYNCASYNCNET", "PINCONNECTEMPTY", "DECLFILENAME", "IMPLICITSTATIC",
                         "VARHIDDEN", "UNUSEDPARAM", "CASEX", "BLKSEQ")
-            command = [verilator, *waivers(verilator), "--cc", "--exe", "--build", "--top-module", "expansion_machine",
+            command = [verilator, *lint_config(verilator), "--cc", "--exe", "--build", "--top-module", "expansion_machine",
                        "-GCART_PRESENT=1", f'-GFIRMWARE_INIT="{firmware}"', "-Wall",
                        *[f"-Wno-{warning}" for warning in warnings],
                        f"-I{CORE / 'rtl'}",

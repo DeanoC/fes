@@ -20,11 +20,11 @@ RULES = ('PROCASSINIT', 'SIMILARNAME', 'UNOPTPUBLIC', 'ALWNEVER', 'UNDRIVEN', 'M
 
 
 @functools.cache
-def waivers(verilator: str = 'verilator') -> tuple[str, ...]:
+def lint_config(verilator: str = 'verilator') -> tuple[str, ...]:
     probe = [verilator, *(f'-Wno-{rule}' for rule in RULES), '--version']
     known = subprocess.run(probe, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
     return (str(CONFIG),) if known else ()
 
 
 if __name__ == '__main__':
-    print(' '.join(waivers(*sys.argv[1:2])))
+    print(' '.join(lint_config(*sys.argv[1:2])))

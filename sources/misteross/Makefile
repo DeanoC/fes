@@ -7,8 +7,9 @@ VERILATOR ?= verilator
 # Older supported Verilator releases do not define these warning categories.
 VERILATOR_PROCASSINIT = $(shell $(VERILATOR) -Wno-PROCASSINIT --version >/dev/null 2>&1 && echo -Wno-PROCASSINIT)
 VERILATOR_SIMILARNAME = $(shell $(VERILATOR) -Wno-SIMILARNAME --version >/dev/null 2>&1 && echo -Wno-SIMILARNAME)
-# Lint Verilator 5.054 raises on these simulations, waived per file or signal
-# in sim/verilator-5054.vlt; empty for a Verilator that predates its rules.
+# Lint Verilator 5.054 raises on simulations, waived per file or signal in
+# sim/verilator-5054.vlt; every Verilator recipe loads it. Empty for a
+# Verilator that predates its rules.
 VERILATOR_WAIVERS = $(shell $(PYTHON) scripts/verilator_waivers.py "$(VERILATOR)")
 # --public makes everything public on purpose; 5.054 warns that this costs
 # optimization. The waiver must come before --public to cover it.
@@ -231,7 +232,7 @@ endif
 sim-pong:
 	$(require_local_sim)
 	@mkdir -p build/sim/pong
-	$(VERILATOR) --cc --exe --build --top-module pong_game -Wall -GCLOCK_HZ=8000 \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module pong_game -Wall -GCLOCK_HZ=8000 \
 		--Mdir "$(CURDIR)/build/sim/pong" cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/pong/sim/tb.cpp"
 	@build/sim/pong/Vpong_game
 
@@ -311,20 +312,20 @@ build-fes-splash:
 sim-fes-pong:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-pong-gp
-	$(VERILATOR) --cc --exe --build --top-module fes_gp -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module fes_gp -Wall \
 		-Icores/fes-pong/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-pong-gp" \
 		cores/fes-pong/rtl/fes_gp.v "$(CURDIR)/cores/fes-pong/sim/gp_tb.cpp"
 	@build/sim/fes-pong-gp/Vfes_gp "$(CURDIR)/cores/fes-pong/generated/persistence-exchanges.json"
 	@mkdir -p build/sim/fes-pong-video
-	$(VERILATOR) --cc --exe --build --top-module fes_pong_core -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module fes_pong_core -Wall \
 		-Icores/fes-pong/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-pong-video" \
 		cores/fes-pong/rtl/top.v cores/fes-common/rtl/fes_video_720p.v \
 		cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/fes-pong/sim/video_tb.cpp"
 	@build/sim/fes-pong-video/Vfes_pong_core
 	@mkdir -p build/sim/fes-pong-board
-	$(VERILATOR) --cc --exe --build --top-module top -Wall --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module top -Wall --public-flat-rw \
 		-Icores/fes-pong/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-pong-board" \
 		cores/fes-pong/sim/board_models.v cores/fes-pong/rtl/top.v \
@@ -338,7 +339,7 @@ sim-fes-zx81-bus:
 	@for cart in ram16k zonx qs_chrs; do \
 		name=$$cart; if [ $$cart = qs_chrs ]; then name=qs; fi; \
 		mkdir -p build/sim/fes-zx81-bus-$$name; \
-		$(VERILATOR) --cc --exe --build --top-module expansion_bus_harness -Wall \
+		$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module expansion_bus_harness -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND \
 		-Wno-PINCONNECTEMPTY -Wno-DECLFILENAME -Wno-UNUSEDPARAM \
 		$(VERILATOR_SIMILARNAME) \
@@ -366,7 +367,7 @@ sim-fes-zx81-expansion: zx81-rom-hex
 	$(require_local_sim)
 	@for cart in 0 1; do \
 		mkdir -p build/sim/fes-zx81-expansion-$$cart; \
-		$(VERILATOR) --cc --exe --build --top-module expansion_machine -Wall \
+		$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module expansion_machine -Wall \
 		-GCART_PRESENT=$$cart -GFIRMWARE_INIT='"$(ZX81_ROM_HEX)"' \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
@@ -389,7 +390,7 @@ sim-fes-zx81-expansion: zx81-rom-hex
 sim-fes-zx81-rom: zx81-rom-hex
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-rom
-	$(VERILATOR) --cc --exe --build --top-module rom_init_window -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module rom_init_window -Wall \
 		-GROM_INIT='"$(ZX81_ROM_HEX)"' \
 		-Wno-UNUSEDSIGNAL -Wno-PINCONNECTEMPTY \
 		-Icores/fes-zx81/rtl \
@@ -402,7 +403,7 @@ sim-fes-zx81-rom: zx81-rom-hex
 sim-fes-zx81-machine: zx81-rom-hex
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-machine
-	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module zx81_machine -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -419,7 +420,7 @@ sim-fes-zx81-machine: zx81-rom-hex
 sim-fes-zx81-save: zx81-rom-hex
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-save
-	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module zx81_machine -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -449,7 +450,7 @@ zx81-diagnostic:
 sim-fes-zx81-diagnostic: zx81-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-diagnostic-rom build/sim/fes-zx81-diagnostic
-	$(VERILATOR) --cc --exe --build --top-module rom_init_window -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module rom_init_window -Wall \
 		-GROM_INIT='"$(ZX81_DIAGNOSTIC_HEX)"' \
 		-Wno-UNUSEDSIGNAL -Wno-PINCONNECTEMPTY \
 		-Icores/fes-zx81/rtl \
@@ -553,7 +554,7 @@ sim-fes-zx81-openrom: zx81-openrom
 	@for spec in 1:1: 0:0: ts1000:1:-DZX81_MODEL_TS1000; do \
 		name=$${spec%%:*}; rest=$${spec#*:}; ram=$${rest%%:*}; define=$${rest#*:}; \
 		dir=$(ZX81_OPENROM_SIM_DIR)-$$name; mkdir -p $$dir; \
-		$(VERILATOR) --cc --exe --build -O3 -MAKEFLAGS 'OPT_FAST=-O3 OPT_GLOBAL=-O3' --top-module zx81_machine -Wall \
+		$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O3 -MAKEFLAGS 'OPT_FAST=-O3 OPT_GLOBAL=-O3' --top-module zx81_machine -Wall \
 			-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 			-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 			-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -593,7 +594,7 @@ sim-fes-zx80-openrom: zx80-openrom
 sim-fes-zx81: sim-fes-zx81-diagnostic sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-expansion sim-fes-display-plane sim-fes-zx81-session sim-fes-zx81-variants sim-fes-zx81-save sim-fes-zx81-openrom sim-fes-zx80-openrom
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-video
-	$(VERILATOR) --cc --exe --build --top-module zx81_video_720p -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module zx81_video_720p -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-video" \
 		cores/fes-zx81/rtl/zx81_video_720p.v \
@@ -632,7 +633,7 @@ coleco-diagnostic:
 sim-fes-coleco-graphics sim-fes-coleco-graphics-oss:
 	$(require_local_sim)
 	@mkdir -p build/sim/$@
-	$(VERILATOR) --cc --exe --build --top-module coleco_vdp -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module coleco_vdp -Wall \
 		$(if $(filter %-oss,$@),-DFES_COLECO_OSS=1,) \
 		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
 		--Mdir "$(CURDIR)/build/sim/$@" \
@@ -645,7 +646,7 @@ sim-fes-coleco-graphics sim-fes-coleco-graphics-oss:
 sim-fes-tms9918-timing:
 	$(require_local_sim)
 	@mkdir -p build/sim/$@
-	$(VERILATOR) --cc --exe --build --top-module raster_ce_tb -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module raster_ce_tb -Wall \
 		--Mdir "$(CURDIR)/build/sim/$@" \
 		cores/fes-common/rtl/coleco_vdp.sv cores/fes-coleco/sim/raster_ce_tb.sv \
 		"$(CURDIR)/cores/fes-coleco/sim/raster_ce_tb.cpp"
@@ -841,7 +842,7 @@ sim-fes-coleco-unit: sim-fes-z80-timing sim-fes-tms9918-timing sim-fes-coleco-au
 		"$(CURDIR)/cores/fes-coleco/sim/gp_tb.cpp"
 	@build/sim/fes-coleco-gp/Vfes_computer_gp
 	@mkdir -p build/sim/fes-coleco-vdp
-	$(VERILATOR) --cc --exe --build --top-module coleco_vdp -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module coleco_vdp -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-vdp" \
 		cores/fes-common/rtl/coleco_vdp.sv \
@@ -865,7 +866,7 @@ sim-fes-coleco-unit: sim-fes-z80-timing sim-fes-tms9918-timing sim-fes-coleco-au
 		"$(CURDIR)/cores/fes-coleco/sim/machine_tb.cpp"
 	@build/sim/fes-coleco-machine/Vcoleco_machine
 	@mkdir -p build/sim/fes-coleco-video
-	$(VERILATOR) --cc --exe --build --top-module coleco_video_720p -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module coleco_video_720p -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-UNUSEDPARAM \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-video" \
 		cores/fes-common/rtl/coleco_video_dpram.v cores/fes-common/rtl/coleco_video_720p.v \
@@ -1000,7 +1001,7 @@ sim-fes-coleco-unit-oss: sim-fes-z80-timing sim-fes-coleco-graphics-oss sim-fes-
 		"$(CURDIR)/cores/fes-coleco/sim/gp_tb.cpp"
 	@build/sim/fes-coleco-gp-oss/Vfes_computer_gp
 	@mkdir -p build/sim/fes-coleco-vdp-oss
-	$(VERILATOR) --cc --exe --build --top-module coleco_vdp -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module coleco_vdp -Wall \
 		-DFES_COLECO_OSS=1 -Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
 		-CFLAGS "-DFES_COLECO_OSS=1" \
 		-Icores/fes-coleco/generated \
@@ -1273,7 +1274,7 @@ c64-diagnostic:
 sim-fes-c64-cia:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-cia
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_cia $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_cia $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-cia" \
 		cores/fes-c64/rtl/c64_cia.v "$(CURDIR)/cores/fes-c64/sim/cia_tb.cpp"
 	@build/sim/fes-c64-cia/Vc64_cia
@@ -1281,7 +1282,7 @@ sim-fes-c64-cia:
 sim-fes-c64-cia-reference:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-cia-reference
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_cia $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_cia $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-cia-reference" \
 		cores/fes-c64/rtl/c64_cia.v "$(CURDIR)/cores/fes-c64/sim/cia_timing_tb.cpp"
 	@build/sim/fes-c64-cia-reference/Vc64_cia
@@ -1290,7 +1291,7 @@ sim-fes-c64-cia-reference:
 sim-fes-c64-d021:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-d021
-	$(VERILATOR) --cc --exe --build -O2 --top-module d021_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module d021_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-d021" \
 		cores/fes-c64/sim/d021_sim_top.sv $(C64_RTL) "$(CURDIR)/cores/fes-c64/sim/d021_tb.cpp" \
 		-CFLAGS '-O2 -std=c++17' -MAKEFLAGS 'OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3'
@@ -1303,7 +1304,7 @@ sim-fes-c64-d021:
 sim-fes-c64-vic-timing:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-vic-timing
-	$(VERILATOR) --cc --exe --build -O2 --top-module vic_timing_sim_top $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module vic_timing_sim_top $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-vic-timing" \
 		cores/fes-c64/sim/vic_timing_sim_top.sv cores/fes-c64/rtl/c64_vic.v \
 		cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv \
@@ -1318,7 +1319,7 @@ sim-fes-c64-vic-timing:
 sim-fes-c64-drive-so:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-drive-so
-	$(VERILATOR) --cc --exe --build -O2 --top-module drive_so_sim_top $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module drive_so_sim_top $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-drive-so" \
 		cores/fes-c64/sim/drive_so_sim_top.sv cores/fes-c64/rtl/c64_drive1541.sv \
 		cores/fes-c64/rtl/c64_via.v cores/fes-common/rtl/cpu6502/cpu6502.v \
@@ -1328,12 +1329,12 @@ sim-fes-c64-drive-so:
 sim-fes-c64-so:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-so build/sim/fes-c64-so-disabled
-	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw -GENABLE_SO=1 \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw -GENABLE_SO=1 \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-so" \
 		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
 		"$(CURDIR)/cores/fes-c64/sim/so_tb.cpp"
 	@build/sim/fes-c64-so/Vcpu6502
-	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-so-disabled" \
 		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
 		"$(CURDIR)/cores/fes-c64/sim/so_tb.cpp"
@@ -1342,7 +1343,7 @@ sim-fes-c64-so:
 sim-fes-c64-via:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-via
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_via $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_via $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-via" \
 		cores/fes-c64/rtl/c64_via.v "$(CURDIR)/cores/fes-c64/sim/via_tb.cpp"
 	@build/sim/fes-c64-via/Vc64_via
@@ -1366,7 +1367,7 @@ sim-fes-c64-drive: sim-fes-c64-so sim-fes-c64-drive-so sim-fes-c64-via sim-fes-c
 sim-fes-c64-vic:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-vic
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_vic $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-vic" \
 		cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv cores/fes-c64/rtl/c64_frame_store.sv cores/fes-c64/rtl/c64_color_ram.v \
 		"$(CURDIR)/cores/fes-c64/sim/vic_tb.cpp"
@@ -1376,7 +1377,7 @@ sim-fes-c64-vic:
 sim-fes-c64-keyboard:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-keyboard
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_keyboard $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_keyboard $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-keyboard" \
 		cores/fes-c64/rtl/c64_keyboard.v "$(CURDIR)/cores/fes-c64/sim/keyboard_tb.cpp"
 	@build/sim/fes-c64-keyboard/Vc64_keyboard
@@ -1384,7 +1385,7 @@ sim-fes-c64-keyboard:
 sim-fes-c64-color-ram:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-color-ram
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_color_ram $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_color_ram $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-color-ram" \
 		cores/fes-c64/rtl/c64_color_ram.v \
 		"$(CURDIR)/cores/fes-c64/sim/color_ram_tb.cpp"
@@ -1394,7 +1395,7 @@ sim-fes-c64-color-ram:
 sim-fes-c64-boot-build:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-boot
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) $(C64_BOOT_VISIBILITY) --savable \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) $(C64_BOOT_VISIBILITY) --savable \
 		-MAKEFLAGS 'OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3' \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-boot" \
 		cores/fes-c64/sim/c64_boot_sim_top.sv $(C64_RTL) \
@@ -1404,7 +1405,7 @@ sim-fes-c64-boot-build:
 sim-fes-c64-boot-oracle-build:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-boot-oracle
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) $(C64_BOOT_VISIBILITY) --savable \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) $(C64_BOOT_VISIBILITY) --savable \
 		-MAKEFLAGS 'OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3' \
 		-DFES_C64_EXTERNAL_MEDIUM_SIM -CFLAGS -DFES_C64_EXTERNAL_MEDIUM_SIM \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-boot-oracle" \
@@ -1419,7 +1420,7 @@ c64-medium-fixture:
 sim-fes-c64-medium: c64-medium-fixture
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-medium
-	$(VERILATOR) --cc --exe --build -O2 --top-module medium_top $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module medium_top $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-medium" \
 		cores/fes-c64/sim/medium_top.sv cores/fes-c64/rtl/c64_d64_medium.sv \
 		cores/fes-c64/rtl/c64_disk_store.v "$(CURDIR)/cores/fes-c64/sim/medium_tb.cpp"
@@ -1430,7 +1431,7 @@ sim-fes-c64-medium: c64-medium-fixture
 sim-fes-c64-medium-mailbox: c64-medium-fixture
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-medium-mailbox
-	$(VERILATOR) --cc --exe --build -O2 --top-module mailbox_medium_top $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module mailbox_medium_top $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-medium-mailbox" \
 		cores/fes-c64/sim/mailbox_medium_top.sv cores/fes-c64/rtl/c64_d64_medium.sv \
 		cores/fes-c64/rtl/c64_disk_store.v cores/fes-common/rtl/fes_computer_mailbox.v \
@@ -1444,7 +1445,7 @@ sim-fes-c64-medium-mailbox: c64-medium-fixture
 sim-fes-c64-sprite:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sprite
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic_sprite_fetch $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_vic_sprite_fetch $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sprite" \
 		cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sprite_tb.cpp"
@@ -1460,7 +1461,7 @@ sim-fes-c64-ba-timing:
 sim-fes-c64-ready: c64-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-ready
-	$(VERILATOR) --cc --exe --build -O2 --top-module ready_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module ready_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-ready" \
 		cores/fes-c64/sim/ready_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/ready_tb.cpp"
@@ -1470,7 +1471,7 @@ sim-fes-c64-ready: c64-diagnostic
 sim-fes-c64-joyports: c64-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-joyports
-	$(VERILATOR) --cc --exe --build -O2 --top-module joyports_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module joyports_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-joyports" \
 		cores/fes-c64/sim/joyports_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/joyports_tb.cpp"
@@ -1480,12 +1481,12 @@ sim-fes-c64-joyports: c64-diagnostic
 sim-fes-c64-push: c64-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-push-bus build/sim/fes-c64-push
-	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-push-bus" \
 		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
 		"$(CURDIR)/cores/fes-c64/sim/push_bus_tb.cpp"
 	@build/sim/fes-c64-push-bus/Vcpu6502
-	$(VERILATOR) --cc --exe --build -O2 --top-module ready_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module ready_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-push" \
 		cores/fes-c64/sim/ready_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/push_tb.cpp"
@@ -1495,12 +1496,12 @@ sim-fes-c64-push: c64-diagnostic
 sim-fes-c64-jsr: c64-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-jsr-bus build/sim/fes-c64-jsr
-	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-jsr-bus" \
 		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
 		"$(CURDIR)/cores/fes-c64/sim/jsr_bus_tb.cpp"
 	@build/sim/fes-c64-jsr-bus/Vcpu6502
-	$(VERILATOR) --cc --exe --build -O2 --top-module ready_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module ready_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-jsr" \
 		cores/fes-c64/sim/ready_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/jsr_tb.cpp"
@@ -1510,7 +1511,7 @@ sim-fes-c64-jsr: c64-diagnostic
 sim-fes-c64-nmi:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-nmi
-	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-nmi" \
 		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
 		"$(CURDIR)/cores/fes-c64/sim/nmi_tb.cpp"
@@ -1520,7 +1521,7 @@ sim-fes-c64-nmi:
 sim-fes-c64-irq:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-irq
-	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-irq" \
 		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
 		"$(CURDIR)/cores/fes-c64/sim/irq_tb.cpp"
@@ -1530,7 +1531,7 @@ sim-fes-c64-irq:
 sim-fes-c64-clock: c64-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-clock
-	$(VERILATOR) --cc --exe --build -O2 --top-module clock_sim_top $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module clock_sim_top $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-clock" \
 		cores/fes-c64/sim/clock_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/clock_tb.cpp"
@@ -1540,7 +1541,7 @@ sim-fes-c64-clock: c64-diagnostic
 sim-fes-c64-cadence:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-cadence
-	$(VERILATOR) --cc --exe --build -O2 --top-module cadence_sim_top $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module cadence_sim_top $(C64_VERILATOR_FLAGS) \
 		-CFLAGS "-O2" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-cadence" \
 		cores/fes-c64/sim/cadence_sim_top.sv $(C64_RTL) \
@@ -1551,7 +1552,7 @@ sim-fes-c64-cadence:
 sim-fes-c64-sax:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sax
-	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sax" \
 		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
 		"$(CURDIR)/cores/fes-c64/sim/sax_tb.cpp"
@@ -1561,7 +1562,7 @@ sim-fes-c64-sax:
 sim-fes-c64-axs:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-axs
-	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-axs" \
 		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
 		"$(CURDIR)/cores/fes-c64/sim/axs_tb.cpp"
@@ -1571,7 +1572,7 @@ sim-fes-c64-axs:
 sim-fes-c64-axs-oracle:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-axs-oracle
-	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-axs-oracle" \
 		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
 		"$(CURDIR)/cores/fes-c64/sim/axs_oracle_tb.cpp"
@@ -1581,7 +1582,7 @@ sim-fes-c64-axs-oracle:
 sim-fes-c64-rmw:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-rmw
-	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-rmw" \
 		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
 		"$(CURDIR)/cores/fes-c64/sim/rmw_tb.cpp"
@@ -1591,7 +1592,7 @@ sim-fes-c64-gcr:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-gcr
 	$(PYTHON) cores/fes-c64/sim/gcr_fixture.py --output build/sim/fes-c64-gcr
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_gcr_read $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_gcr_read $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-gcr" cores/fes-c64/rtl/c64_gcr_read.v \
 		"$(CURDIR)/cores/fes-c64/sim/gcr_read_tb.cpp"
 	@build/sim/fes-c64-gcr/Vc64_gcr_read build/sim/fes-c64-gcr/track-1.hex build/sim/fes-c64-gcr/blocks-1.hex 3 21
@@ -1608,7 +1609,7 @@ sim-fes-c64-checkpoint: sim-fes-c64-boot-build sim-fes-c64-boot-oracle-build
 sim-fes-c64-video:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-video
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-video" \
 		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
 		cores/fes-c64/rtl/c64_frame_store.sv \
@@ -1620,7 +1621,7 @@ sim-fes-c64-video:
 sim-fes-c64-rom-primitive:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-rom-primitive
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_rom $(C64_VERILATOR_FLAGS) -UVERILATOR \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_rom $(C64_VERILATOR_FLAGS) -UVERILATOR \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-rom-primitive" cores/fes-c64/rtl/c64_rom.v \
 		cores/fes-c64/sim/rom_primitives.sv "$(CURDIR)/cores/fes-c64/sim/rom_tb.cpp"
 	@build/sim/fes-c64-rom-primitive/Vc64_rom
@@ -1628,7 +1629,7 @@ sim-fes-c64-rom-primitive:
 sim-fes-c64-rom: c64-diagnostic sim-fes-c64-rom-primitive
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-rom
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_rom $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_rom $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-rom" cores/fes-c64/rtl/c64_rom.v \
 		"$(CURDIR)/cores/fes-c64/sim/rom_tb.cpp"
 	@build/sim/fes-c64-rom/Vc64_rom +C64_FIRMWARE_HEX=build/diagnostics/fes-c64/rom-test.hex
@@ -1637,11 +1638,11 @@ sim-fes-c64-rom: c64-diagnostic sim-fes-c64-rom-primitive
 sim-fes-c64-fetch:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-fetch build/sim/fes-c64-fetch-dynamic
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic_fetch $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_vic_fetch $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-fetch" cores/fes-c64/rtl/c64_vic_fetch.sv \
 		"$(CURDIR)/cores/fes-c64/sim/fetch_tb.cpp"
 	@build/sim/fes-c64-fetch/Vc64_vic_fetch
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic_fetch $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_vic_fetch $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-fetch-dynamic" cores/fes-c64/rtl/c64_vic_fetch.sv \
 		"$(CURDIR)/cores/fes-c64/sim/fetch_dynamic_tb.cpp"
 	@build/sim/fes-c64-fetch-dynamic/Vc64_vic_fetch
@@ -1649,7 +1650,7 @@ sim-fes-c64-fetch:
 sim-fes-c64-frame:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-frame
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_frame_store $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_frame_store $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-frame" cores/fes-c64/rtl/c64_frame_store.sv \
 		"$(CURDIR)/cores/fes-c64/sim/frame_tb.cpp"
 	@build/sim/fes-c64-frame/Vc64_frame_store
@@ -1665,7 +1666,7 @@ sim-fes-c64: sim-fes-c64-cpu-group sim-fes-c64-video-a-group sim-fes-c64-video-b
 sim-fes-c64-machine: c64-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-machine" \
 		cores/fes-c64/sim/c64_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/machine_tb.cpp"
@@ -1838,7 +1839,7 @@ sim-fes-sms: sim-fes-z80-timing sms-diagnostic sim-fes-audio-output
 	@build/sim/fes-sms-gp/Vfes_computer_gp \
 		"$(CURDIR)/cores/fes-sms/generated/stream-exchanges.json"
 	@mkdir -p build/sim/fes-sms-vdp
-	$(VERILATOR) --cc --exe --build --top-module sms_vdp -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sms_vdp -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -1849,7 +1850,7 @@ sim-fes-sms: sim-fes-z80-timing sms-diagnostic sim-fes-audio-output
 		"$(CURDIR)/cores/fes-sms/sim/vdp_tb.cpp"
 	@build/sim/fes-sms-vdp/Vsms_vdp
 	@mkdir -p build/sim/fes-sms-psg
-	$(VERILATOR) --cc --exe --build --top-module sms_psg -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sms_psg -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-BLKSEQ \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-psg" \
@@ -1857,7 +1858,7 @@ sim-fes-sms: sim-fes-z80-timing sms-diagnostic sim-fes-audio-output
 		"$(CURDIR)/cores/fes-sms/sim/psg_tb.cpp"
 	@build/sim/fes-sms-psg/Vsms_psg
 	@mkdir -p build/sim/fes-sms-machine
-	$(VERILATOR) --cc --exe --build --top-module sms_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sms_machine -Wall \
 		-DTV80_REFRESH=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
@@ -1905,7 +1906,7 @@ sim-fes-sms-oss: sim-fes-z80-timing sms-diagnostic sim-fes-sms-rom-link-mailbox 
 	@build/sim/fes-sms-gp-oss/Vfes_computer_gp \
 		"$(CURDIR)/cores/fes-sms/generated/stream-exchanges.json"
 	@mkdir -p build/sim/fes-sms-vdp-oss
-	$(VERILATOR) --cc --exe --build --top-module sms_vdp -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sms_vdp -Wall \
 		-DFES_COLECO_OSS=1 -CFLAGS "-DFES_COLECO_OSS=1" \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
@@ -1917,7 +1918,7 @@ sim-fes-sms-oss: sim-fes-z80-timing sms-diagnostic sim-fes-sms-rom-link-mailbox 
 		"$(CURDIR)/cores/fes-sms/sim/vdp_tb.cpp"
 	@build/sim/fes-sms-vdp-oss/Vsms_vdp
 	@mkdir -p build/sim/fes-sms-machine-oss
-	$(VERILATOR) --cc --exe --build --top-module sms_machine -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module sms_machine -Wall \
 		-DTV80_REFRESH=1 -DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1 \
 		-CFLAGS "-DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1" \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
@@ -2199,7 +2200,7 @@ sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-machine
 	@cp $(ST_CPU)/microrom.mem $(ST_CPU)/nanorom.mem build/sim/fes-atari-st-machine/
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_sim_top $(ST_CPU_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_sim_top $(ST_CPU_FLAGS) \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-machine" \
 		$(ST_CORE)/sim/st_sim_top.sv $(ST_MACHINE_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/machine_tb.cpp" -CFLAGS '-O2'
@@ -2208,7 +2209,7 @@ sim-fes-atari-st-machine: atari-st-diagnostic
 sim-fes-atari-st-video:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-video
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_video_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_video_sim_top -Wall \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-video" \
 		$(ST_CORE)/sim/st_video_sim_top.sv $(ST_VIDEO_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/video_tb.cpp" -CFLAGS '-O2'
@@ -2217,7 +2218,7 @@ sim-fes-atari-st-video:
 .PHONY: sim-fes-atari-st-mfp sim-fes-atari-st-input-audio sim-fes-atari-st-floppy sim-fes-atari-st-emutos
 sim-fes-atari-st-mfp:
 	$(require_local_sim)
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_mfp -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_mfp -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-mfp" \
 		$(ST_CORE)/rtl/st_mfp.sv "$(CURDIR)/$(ST_CORE)/sim/mfp_tb.cpp" -CFLAGS '-std=c++17'
 	@build/sim/fes-atari-st-mfp/Vst_mfp
@@ -2225,7 +2226,7 @@ sim-fes-atari-st-mfp:
 sim-fes-atari-st-input-audio:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-input-audio
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_input_audio_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_input_audio_sim_top -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-input-audio" \
 		$(ST_CORE)/sim/st_input_audio_sim_top.sv $(ST_CORE)/rtl/st_acia.sv \
 		$(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_ym2149.sv $(ST_CORE)/rtl/st_ym_filter.sv $(ST_CORE)/rtl/st_ym_mixer.sv $(ST_CORE)/rtl/st_ym_mix_rom.sv cores/fes-zx81/expansions/zonx_ay.v \
@@ -2235,7 +2236,7 @@ sim-fes-atari-st-input-audio:
 sim-fes-atari-st-floppy:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-floppy
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_floppy -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_floppy -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-floppy" \
 		$(ST_CORE)/rtl/st_floppy.sv $(ST_CORE)/rtl/st_floppy_writer.sv "$(CURDIR)/$(ST_CORE)/sim/floppy_tb.cpp" -CFLAGS '-std=c++17'
 	@build/sim/fes-atari-st-floppy/Vst_floppy
@@ -2244,7 +2245,7 @@ sim-fes-atari-st-floppy:
 sim-fes-atari-st-floppy-write:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-floppy-write
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_floppy -Wall "-GENABLE_WRITE=1'b1" \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_floppy -Wall "-GENABLE_WRITE=1'b1" \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-floppy-write" \
 		$(ST_CORE)/rtl/st_floppy.sv $(ST_CORE)/rtl/st_floppy_writer.sv \
 		"$(CURDIR)/$(ST_CORE)/sim/floppy_write_tb.cpp" -CFLAGS '-O2 -std=c++17'
@@ -2252,7 +2253,7 @@ sim-fes-atari-st-floppy-write:
 
 sim-fes-computer-interaction:
 	$(require_local_sim)
-	$(VERILATOR) --cc --exe --build --top-module computer_interaction_sim_top -Wall -Wno-DECLFILENAME \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module computer_interaction_sim_top -Wall -Wno-DECLFILENAME \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/computer-interaction" \
 		cores/fes-common/sim/computer_interaction_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox_direct.v \
 		$(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_acia.sv \
@@ -2262,7 +2263,7 @@ sim-fes-computer-interaction:
 sim-fes-atari-st-mailbox-direct:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-mailbox-direct
-	$(VERILATOR) --cc --exe --build --top-module mailbox_direct_compare_top -Wall -Wno-DECLFILENAME \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module mailbox_direct_compare_top -Wall -Wno-DECLFILENAME \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-mailbox-direct" \
 		cores/fes-common/sim/mailbox_direct_compare_top.sv \
 		cores/fes-common/rtl/fes_computer_mailbox.v cores/fes-common/rtl/fes_computer_mailbox_direct.v \
@@ -2272,14 +2273,14 @@ sim-fes-atari-st-mailbox-direct:
 
 sim-fes-atari-st-media-port:
 	$(require_local_sim)
-	$(VERILATOR) --cc --exe --build --top-module st_media_port -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module st_media_port -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-media-port" \
 		$(ST_CORE)/rtl/st_media_port.sv "$(CURDIR)/$(ST_CORE)/sim/media_port_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-media-port/Vst_media_port
 
 sim-fes-atari-st-media-lifecycle:
 	$(require_local_sim)
-	$(VERILATOR) --cc --exe --build --top-module st_media_lifecycle_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build --top-module st_media_lifecycle_sim_top -Wall \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media-lifecycle" \
 		$(ST_CORE)/sim/st_media_lifecycle_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox_direct.v \
 		$(ST_CORE)/rtl/st_floppy_writer.sv $(ST_CORE)/rtl/st_media_writer.sv $(ST_CORE)/rtl/st_media_port.sv \
@@ -2291,7 +2292,7 @@ sim-fes-atari-st-emutos: atari-st-sources
 	@test -n "$(EMUTOS_ROM)" || (echo 'Set EMUTOS_ROM to a 192 KiB ST image'; exit 1)
 	@mkdir -p build/sim/fes-atari-st-emutos
 	@cp $(ST_CPU)/microrom.mem $(ST_CPU)/nanorom.mem build/sim/fes-atari-st-emutos/
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_boot_sim_top $(ST_CPU_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_boot_sim_top $(ST_CPU_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-emutos" \
 		$(ST_CORE)/sim/st_boot_sim_top.sv $(ST_CORE)/rtl/st_system.sv \
 		$(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv $(ST_IO_RTL) \
@@ -2303,7 +2304,7 @@ sim-fes-atari-st-emutos: atari-st-sources
 .PHONY: sim-fes-atari-st-memory-slots
 sim-fes-atari-st-memory-slots:
 	$(require_local_sim)
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
 		"-GPHASE_SLOTS=1'b1" "-GPOSTED_CPU_WRITES=1'b1" "-GSINGLE_RANK_REFRESH=1'b1" "-GSLOT_REFRESH=1'b1" \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-memory-slots" \
 		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
@@ -2314,25 +2315,25 @@ sim-fes-atari-st-memory-slots:
 sim-fes-atari-st-memory: sim-fes-atari-st-memory-slots
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-memory build/sim/fes-atari-st-memory-legacy-refresh
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-memory" \
 		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
 		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-memory/Vst_memory_sim_top
 	@mkdir -p build/sim/fes-atari-st-memory-late-completion
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall -GEARLY_COMPLETION=0 \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall -GEARLY_COMPLETION=0 \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-memory-late-completion" \
 		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
 		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" -CFLAGS '-O2 -std=c++17 -DST_EARLY_COMPLETION=0'
 	@build/sim/fes-atari-st-memory-late-completion/Vst_memory_sim_top
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
 		-GEARLY_COMPLETION=0 "-GREFRESH_WAIT_CYCLES=14'd16" --Mdir "$(CURDIR)/build/sim/fes-atari-st-memory-legacy-refresh" \
 		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
 		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" \
 		-CFLAGS '-O2 -std=c++17 -DST_REFRESH_WAIT_CYCLES=16 -DST_EARLY_COMPLETION=0'
 	@build/sim/fes-atari-st-memory-legacy-refresh/Vst_memory_sim_top
 	@mkdir -p build/sim/fes-atari-st-memory-registered-input
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall "-GREGISTERED_READ_INPUT=1'b1" \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall "-GREGISTERED_READ_INPUT=1'b1" \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-memory-registered-input" \
 		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
 		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" \
@@ -2341,7 +2342,7 @@ sim-fes-atari-st-memory: sim-fes-atari-st-memory-slots
 
 sim-fes-atari-st-video-adapter:
 	$(require_local_sim)
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_video_adapter_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_video_adapter_sim_top -Wall \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-video-adapter" \
 		$(ST_CORE)/sim/st_video_adapter_sim_top.sv $(ST_CORE)/rtl/st_video_adapter.sv $(ST_VIDEO_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/video_adapter_tb.cpp" -CFLAGS '-O2 -std=c++17'
@@ -2351,7 +2352,7 @@ sim-fes-atari-st-video-adapter:
 sim-fes-atari-st-native-border:
 	$(require_local_sim)
 	@mkdir -p "$(CURDIR)/build/sim/fes-atari-st-native-border"
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_native_border -Wall -GEVENT_BITS=5 \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_native_border -Wall -GEVENT_BITS=5 \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-native-border" \
 		$(ST_CORE)/rtl/st_native_border.sv "$(CURDIR)/$(ST_CORE)/sim/native_border_tb.cpp" \
 		-CFLAGS '-O2 -std=c++17'
@@ -2361,7 +2362,7 @@ sim-fes-atari-st-native-border:
 sim-fes-atari-st-short-line-video:
 	$(require_local_sim)
 	@mkdir -p "$(CURDIR)/build/sim/fes-atari-st-short-line-video"
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_shifter_output_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_shifter_output_sim_top -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-short-line-video" \
 		$(ST_CORE)/sim/st_shifter_output_sim_top.sv $(ST_CORE)/rtl/st_native_low_video.sv $(ST_CORE)/rtl/st_native_border.sv \
 		"$(CURDIR)/$(ST_CORE)/sim/short_line_video_tb.cpp" -CFLAGS '-O2 -std=c++17'
@@ -2379,7 +2380,7 @@ sim-fes-atari-st-cache-write-coherence: sim-fes-atari-st-native-video
 sim-fes-atari-st-native-video:
 	$(require_local_sim)
 	@mkdir -p "$(CURDIR)/build/sim/fes-atari-st-native-video"
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_native_video_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_native_video_sim_top -Wall \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-native-video" \
 		$(ST_CORE)/sim/st_native_video_sim_top.sv $(ST_CORE)/rtl/st_video_adapter.sv $(ST_VIDEO_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/native_video_tb.cpp" -CFLAGS '-O2 -std=c++17'
@@ -2387,7 +2388,7 @@ sim-fes-atari-st-native-video:
 
 sim-fes-atari-st-media:
 	$(require_local_sim)
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_media_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_media_sim_top -Wall \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media" \
 		$(ST_CORE)/sim/st_media_sim_top.sv $(ST_CORE)/rtl/st_media_writer.sv \
 		cores/fes-common/rtl/fes_computer_mailbox_direct.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
@@ -2396,7 +2397,7 @@ sim-fes-atari-st-media:
 sim-fes-atari-st-media-geometry:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-media-geometry
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_media_sim_top -Wall "-GGEOMETRY=1'b1" \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_media_sim_top -Wall "-GGEOMETRY=1'b1" \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media-geometry" \
 		$(ST_CORE)/sim/st_media_sim_top.sv $(ST_CORE)/rtl/st_media_writer.sv \
 		cores/fes-common/rtl/fes_computer_mailbox_direct.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
@@ -2408,7 +2409,7 @@ fetch-fes-atari-st-emutos:
 
 sim-fes-atari-st-io:
 	$(require_local_sim)
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_io_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_io_sim_top -Wall \
 		-GMFP_WAIT_STATES=$(ST_MFP_WAIT_STATES) --Mdir "$(CURDIR)/build/sim/fes-atari-st-io" \
 		$(ST_CORE)/sim/st_io_sim_top.sv $(ST_IO_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/io_tb.cpp" -CFLAGS '-O2 -std=c++17'
@@ -2419,14 +2420,14 @@ sim-fes-atari-st-mfp-bus: atari-st-sources
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-mfp-bus
 	@cp $(ST_CPU)/microrom.mem $(ST_CPU)/nanorom.mem build/sim/fes-atari-st-mfp-bus/
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_boot_sim_top $(ST_CPU_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_boot_sim_top $(ST_CPU_FLAGS) \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-mfp-bus" \
 		$(ST_CORE)/sim/st_boot_sim_top.sv $(ST_CORE)/rtl/st_system.sv \
 		$(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv $(ST_IO_RTL) \
 		$(ST_CORE)/rtl/st_native_border.sv $(ST_CORE)/rtl/st_native_low_video.sv $(ST_CPU_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/mfp_bus_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@cd build/sim/fes-atari-st-mfp-bus && ./Vst_boot_sim_top
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_io_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_io_sim_top -Wall \
 		-GMFP_WAIT_STATES=4 --Mdir "$(CURDIR)/build/sim/fes-atari-st-mfp-wait" \
 		$(ST_CORE)/sim/st_io_sim_top.sv $(ST_IO_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/mfp_wait_tb.cpp" -CFLAGS '-O2 -std=c++17'
@@ -2439,7 +2440,7 @@ sim-fes-atari-st-emutos-memory: atari-st-sources
 	@test -n "$(EMUTOS_ROM)" || (echo 'Set EMUTOS_ROM to a 192 KiB ST image'; exit 1)
 	@mkdir -p build/sim/fes-atari-st-boot-memory
 	@cp $(ST_CPU)/microrom.mem $(ST_CPU)/nanorom.mem build/sim/fes-atari-st-boot-memory/
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_boot_memory_sim_top $(ST_CPU_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_boot_memory_sim_top $(ST_CPU_FLAGS) \
 		-GMFP_WAIT_STATES=$(ST_MFP_WAIT_STATES) -Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-boot-memory" \
 		$(ST_CORE)/sim/st_boot_memory_sim_top.sv $(ST_CORE)/sim/st_memory_sim_top.sv \
 		$(ST_CORE)/rtl/st_system.sv $(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv \
@@ -2456,7 +2457,7 @@ sim-fes-atari-st-ram-bus-0 sim-fes-atari-st-ram-bus-1: sim-fes-atari-st-ram-bus-
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-ram-bus-$*
 	@cp $(ST_CPU)/microrom.mem $(ST_CPU)/nanorom.mem build/sim/fes-atari-st-ram-bus-$*/
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_boot_memory_sim_top $(ST_CPU_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_boot_memory_sim_top $(ST_CPU_FLAGS) \
 		-GEARLY_COMPLETION=$* -GMFP_WAIT_STATES=$(ST_MFP_WAIT_STATES) -Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-ram-bus-$*" \
 		$(ST_CORE)/sim/st_boot_memory_sim_top.sv $(ST_CORE)/sim/st_memory_sim_top.sv \
 		$(ST_CORE)/rtl/st_system.sv $(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv \
@@ -2506,7 +2507,7 @@ sim-fes-atari-st-ym-mixer:
 	$(require_local_sim)
 	$(PYTHON) scripts/generate_st_ym_mix_rom.py --check
 	@mkdir -p build/sim/fes-atari-st-ym-mixer
-	@$(VERILATOR) --cc --exe --build -O2 --top-module st_ym_mixer -Wall \
+	@$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_ym_mixer -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-ym-mixer" \
 		$(ST_CORE)/rtl/st_ym_mixer.sv $(ST_CORE)/rtl/st_ym_mix_rom.sv \
 		"$(CURDIR)/$(ST_CORE)/sim/ym_mixer_tb.cpp" -CFLAGS '-O2 -std=c++17'
@@ -2518,7 +2519,7 @@ sim-fes-atari-st-ym-filter:
 	@set -e; for profile in scaled nominal; do \
 		if [ "$$profile" = scaled ]; then chip=500000; fabric=8000000; else chip=2005311; fabric=52224000; fi; \
 		mkdir -p build/sim/fes-atari-st-ym-filter-$$profile; \
-		$(VERILATOR) --cc --exe --build -O2 --top-module st_ym_filter -Wall \
+		$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_ym_filter -Wall \
 			-GCHIP_CLOCK_HZ=$$chip --Mdir "$(CURDIR)/build/sim/fes-atari-st-ym-filter-$$profile" \
 			$(ST_CORE)/rtl/st_ym_filter.sv "$(CURDIR)/$(ST_CORE)/sim/ym_filter_tb.cpp" \
 			-CFLAGS "-O2 -std=c++17 -DST_YM_FILTER_TEST_CHIP_HZ=$$chip -DST_YM_FILTER_TEST_SYS_HZ=$$fabric"; \
@@ -2529,7 +2530,7 @@ sim-fes-atari-st-ym-filter:
 sim-fes-atari-st-shifter-output:
 	$(require_local_sim)
 	@mkdir -p "$(CURDIR)/build/sim/fes-atari-st-shifter-output"
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_shifter_output_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_shifter_output_sim_top -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-shifter-output" \
 		$(ST_CORE)/sim/st_shifter_output_sim_top.sv $(ST_CORE)/rtl/st_native_low_video.sv \
 		$(ST_CORE)/rtl/st_native_border.sv "$(CURDIR)/$(ST_CORE)/sim/shifter_output_tb.cpp" -CFLAGS '-O2 -std=c++17'
@@ -2538,7 +2539,7 @@ sim-fes-atari-st-shifter-output:
 .PHONY: sim-fes-atari-st-psg-wait
 sim-fes-atari-st-psg-wait:
 	$(require_local_sim)
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_io_sim_top -Wall \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_io_sim_top -Wall \
 		-GPSG_WAIT_STATES=4 --Mdir "$(CURDIR)/build/sim/fes-atari-st-psg-wait" \
 		$(ST_CORE)/sim/st_io_sim_top.sv $(ST_IO_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/psg_wait_tb.cpp" -CFLAGS '-O2 -std=c++17'
@@ -2547,7 +2548,7 @@ sim-fes-atari-st-psg-wait:
 .PHONY: sim-fes-atari-st-mfp-iack-timing
 sim-fes-atari-st-mfp-iack-timing:
 	$(require_local_sim)
-	$(VERILATOR) --cc --exe --build -O2 --top-module st_mfp_iack_timing \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module st_mfp_iack_timing \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-mfp-iack-timing" \
 		$(ST_CORE)/rtl/st_system.sv \
 		"$(CURDIR)/$(ST_CORE)/sim/mfp_iack_timing_tb.cpp" -CFLAGS '-O2 -std=c++17'
@@ -2557,7 +2558,7 @@ sim-fes-atari-st-mfp-iack-timing:
 sim-fes-c64-sprite-video:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sprite-video
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sprite-video" \
 		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
 		cores/fes-c64/rtl/c64_frame_store.sv \
@@ -2569,7 +2570,7 @@ sim-fes-c64-sprite-video:
 sim-fes-c64-border:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-border
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-border" \
 		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
 		cores/fes-c64/rtl/c64_frame_store.sv \
@@ -2581,7 +2582,7 @@ sim-fes-c64-border:
 sim-fes-c64-readback:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-readback
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-readback" \
 		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
 		cores/fes-c64/rtl/c64_frame_store.sv \
@@ -2593,7 +2594,7 @@ sim-fes-c64-readback:
 sim-fes-c64-collisions:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-collisions
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic_collisions $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_vic_collisions $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-collisions" cores/fes-c64/rtl/c64_vic_collisions.sv \
 		"$(CURDIR)/cores/fes-c64/sim/collision_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-c64-collisions/Vc64_vic_collisions
@@ -2603,7 +2604,7 @@ sim-fes-c64-collision-cpu:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-collision-cpu
 	$(PYTHON) cores/fes-c64/sim/collision_cpu_program.py --output build/sim/fes-c64-collision-cpu/program.bin
-	$(VERILATOR) --cc --exe --build -O2 --top-module ready_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module ready_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-collision-cpu" \
 		cores/fes-c64/sim/ready_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/collision_cpu_tb.cpp"
@@ -2613,7 +2614,7 @@ sim-fes-c64-collision-cpu:
 sim-fes-c64-border-position:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-border-position
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-border-position" \
 		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
 		cores/fes-c64/rtl/c64_frame_store.sv \
@@ -2625,7 +2626,7 @@ sim-fes-c64-border-position:
 sim-fes-c64-scroll:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-scroll
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-scroll" \
 		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
 		cores/fes-c64/rtl/c64_frame_store.sv \
@@ -2637,7 +2638,7 @@ sim-fes-c64-scroll:
 sim-fes-c64-graphics-modes:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-graphics-modes
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-graphics-modes" \
 		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
 		cores/fes-c64/rtl/c64_frame_store.sv \
@@ -2649,7 +2650,7 @@ sim-fes-c64-graphics-modes:
 sim-fes-c64-graphics:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-graphics
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic_graphics_pixels $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_vic_graphics_pixels $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-graphics" cores/fes-c64/rtl/c64_vic_graphics_pixels.sv \
 		"$(CURDIR)/cores/fes-c64/sim/graphics_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-c64-graphics/Vc64_vic_graphics_pixels
@@ -2658,7 +2659,7 @@ sim-fes-c64-graphics:
 sim-fes-c64-open-graphics:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-open-graphics
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-open-graphics" \
 		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
 		cores/fes-c64/rtl/c64_frame_store.sv \
@@ -2671,7 +2672,7 @@ sim-fes-c64-sid-audio:
 	$(require_local_sim)
 	@for prepared in 0 1; do \
 		mkdir -p "$(CURDIR)/build/sim/fes-c64-sid-audio-$$prepared"; \
-		$(VERILATOR) --cc --exe --build -j 2 -O2 $(C64_VERILATOR_FLAGS) \
+		$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -j 2 -O2 $(C64_VERILATOR_FLAGS) \
 			-CFLAGS "-std=c++17 -O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
 			--top-module sid_audio_sim_top -GPREPARED=$$prepared \
 			--Mdir "$(CURDIR)/build/sim/fes-c64-sid-audio-$$prepared" \
@@ -2687,7 +2688,7 @@ sim-fes-c64-sid-audio:
 sim-fes-c64-sid: sim-fes-c64-sid-audio sim-fes-c64-sid-envelope-prepared sim-fes-c64-sid-prepared sim-fes-c64-sid-envelope sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3 sim-fes-c64-sid-coupling sim-fes-c64-sid-phase sim-fes-c64-sid-sequenced sim-fes-c64-sid-sequenced-osc3 sim-fes-c64-sid-sequenced-mix sim-fes-c64-sid-svf
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_sid_sim_top $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid" \
 		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sid_tb.cpp"
@@ -2697,7 +2698,7 @@ sim-fes-c64-sid: sim-fes-c64-sid-audio sim-fes-c64-sid-envelope-prepared sim-fes
 sim-fes-c64-sid-oscillator:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid-oscillator
-	$(VERILATOR) --cc --exe --build -O2 --top-module oscillator_sim_top $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module oscillator_sim_top $(C64_VERILATOR_FLAGS) \
 		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-oscillator" \
 		cores/fes-c64/sim/sid_oscillator_sim_top.sv cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv \
@@ -2707,7 +2708,7 @@ sim-fes-c64-sid-oscillator:
 sim-fes-c64-sid-osc3:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid-osc3
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_sid_sim_top $(C64_VERILATOR_FLAGS) \
 		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-osc3" \
 		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
@@ -2719,7 +2720,7 @@ sim-fes-c64-sid-osc3:
 sim-fes-c64-sid-coupling:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid-coupling
-	$(VERILATOR) --cc --exe --build -O2 --top-module sid_coupling_sim_top $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module sid_coupling_sim_top $(C64_VERILATOR_FLAGS) \
 		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-coupling" \
 		cores/fes-c64/sim/sid_coupling_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
@@ -2731,7 +2732,7 @@ sim-fes-c64-sid-coupling:
 sim-fes-c64-sid-phase:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid-phase
-	$(VERILATOR) --cc --exe --build -O2 --top-module sid_coupling_sim_top -GPREPARE_PHASE=1 $(C64_VERILATOR_FLAGS) -CFLAGS "-DC64_PREPARED_PHASE" \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module sid_coupling_sim_top -GPREPARE_PHASE=1 $(C64_VERILATOR_FLAGS) -CFLAGS "-DC64_PREPARED_PHASE" \
 		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-phase" \
 		cores/fes-c64/sim/sid_coupling_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
@@ -2744,7 +2745,7 @@ sim-fes-c64-sid-phase:
 sim-fes-c64-sid-svf:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid-svf
-	$(VERILATOR) --cc --exe --build -O2 --top-module sid_svf_sim_top $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module sid_svf_sim_top $(C64_VERILATOR_FLAGS) \
 		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-svf" \
 		cores/fes-c64/sim/sid_svf_sim_top.sv cores/fes-c64/rtl/c64_sid_svf.sv \
@@ -2757,7 +2758,7 @@ sim-fes-c64-sid-svf:
 sim-fes-c64-sid-sequenced:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid-sequenced
-	$(VERILATOR) --cc --exe --build -O2 --top-module sid_coupling_sim_top -GPREPARE_PHASE=1 -GSEQUENCE_VOICES=1 $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module sid_coupling_sim_top -GPREPARE_PHASE=1 -GSEQUENCE_VOICES=1 $(C64_VERILATOR_FLAGS) \
 		-CFLAGS "-DC64_PREPARED_PHASE -DC64_SEQUENCED_VOICES" \
 		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-sequenced" \
@@ -2769,7 +2770,7 @@ sim-fes-c64-sid-sequenced:
 sim-fes-c64-sid-sequenced-osc3:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid-sequenced-osc3
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 -GSEQUENCE_VOICES=1 $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_sid_sim_top -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 -GSEQUENCE_VOICES=1 $(C64_VERILATOR_FLAGS) \
 		-CFLAGS "-DC64_SEQUENCED_VOICES -O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-sequenced-osc3" \
 		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
@@ -2780,7 +2781,7 @@ sim-fes-c64-sid-sequenced-osc3:
 sim-fes-c64-sid-sequenced-mix:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid-sequenced-mix
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 -GSEQUENCE_VOICES=1 $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_sid_sim_top -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 -GSEQUENCE_VOICES=1 $(C64_VERILATOR_FLAGS) \
 		-CFLAGS "-DC64_SEQUENCED_VOICES" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-sequenced-mix" \
 		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
@@ -2791,7 +2792,7 @@ sim-fes-c64-sid-sequenced-mix:
 sim-fes-c64-sid-envelope:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid-envelope
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_envelope $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_sid_envelope $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-envelope" \
 		cores/fes-c64/rtl/c64_sid_envelope.sv "$(CURDIR)/cores/fes-c64/sim/sid_envelope_tb.cpp"
 	@build/sim/fes-c64-sid-envelope/Vc64_sid_envelope
@@ -2800,7 +2801,7 @@ sim-fes-c64-sid-envelope:
 sim-fes-c64-sid-envelope-prepared:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid-envelope-prepared
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_envelope -GPREPARE_STATE=1 $(C64_VERILATOR_FLAGS) -CFLAGS "-DC64_PREPARED_ENVELOPE" \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_sid_envelope -GPREPARE_STATE=1 $(C64_VERILATOR_FLAGS) -CFLAGS "-DC64_PREPARED_ENVELOPE" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-envelope-prepared" \
 		cores/fes-c64/rtl/c64_sid_envelope.sv "$(CURDIR)/cores/fes-c64/sim/sid_envelope_tb.cpp"
 	@build/sim/fes-c64-sid-envelope-prepared/Vc64_sid_envelope
@@ -2808,7 +2809,7 @@ sim-fes-c64-sid-envelope-prepared:
 sim-fes-c64-sid-prepared:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid-prepared
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_sid_sim_top -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-prepared" \
 		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sid_tb.cpp"
@@ -2818,7 +2819,7 @@ sim-fes-c64-sid-prepared:
 .PHONY: sim-fes-c64-sprite-pal
 sim-fes-c64-sprite-pal:
 	$(require_local_sim)
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic_sprite_pixels $(C64_VERILATOR_FLAGS) -GROW_DATA_DOT=5 \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_vic_sprite_pixels $(C64_VERILATOR_FLAGS) -GROW_DATA_DOT=5 \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sprite-pal" cores/fes-c64/rtl/c64_vic_sprite_pixels.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sprite_pal_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-c64-sprite-pal/Vc64_vic_sprite_pixels
@@ -2961,7 +2962,7 @@ sim-fes-zx81-smoke: sim-fes-zx81-diagnostic sim-fes-zx81-rom sim-fes-zx81-machin
 sim-fes-c64-smoke: c64-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-machine" \
 		cores/fes-c64/sim/c64_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/machine_tb.cpp"

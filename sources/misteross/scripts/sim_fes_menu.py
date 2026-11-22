@@ -8,7 +8,7 @@ import sys
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.verilator_waivers import waivers
+from scripts.verilator_waivers import lint_config
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = ("reader", "video", "pattern", "board", "ddr", "ddr-board", "ddr-disabled", "gp", "gp-board", "blend", "blitter")
@@ -50,7 +50,7 @@ def main():
                 lines.append(f"{(word >> 24) & 127} {(word >> 16) & 255} {word & 65535} {exchange['gpi']} {event}")
             (output / "fixture.txt").write_text("\n".join(lines) + "\n")
         subprocess.run([
-            args.verilator, *waivers(args.verilator), "--cc", "--exe", "--build", "--top-module", top,
+            args.verilator, *lint_config(args.verilator), "--cc", "--exe", "--build", "--top-module", top,
             "-Wall", "-Wno-PINCONNECTEMPTY", "-Wno-UNUSEDSIGNAL", "--Mdir", str(output),
             *(["--public-flat-rw", "-I" + str(ROOT / "cores/fes-common/generated"), "-Wno-DECLFILENAME"] if case in ("board", "ddr", "ddr-board", "ddr-disabled", "gp", "gp-board") else [] if case in ("blend", "blitter") else ["-GWINDOW_BASE=805306368"]),
             *(["-O3", "-CFLAGS", "-O2 -I" + str(ROOT / "cores/fes-menu/sim")] if case in ("gp", "blend", "blitter") else []),

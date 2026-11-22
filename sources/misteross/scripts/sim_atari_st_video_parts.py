@@ -8,7 +8,7 @@ import sys
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.verilator_waivers import waivers
+from scripts.verilator_waivers import lint_config
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,7 +22,7 @@ def main():
     output = ROOT / "build/sim/atari-st-video-parts"
     output.mkdir(parents=True, exist_ok=True)
     subprocess.run([
-        args.verilator, *waivers(args.verilator), "--cc", "--exe", "--build", "--top-module", "video_part_top",
+        args.verilator, *lint_config(args.verilator), "--cc", "--exe", "--build", "--top-module", "video_part_top",
         "-Wall", "--Mdir", str(output),
         "-I" + str(ROOT / "cores/fes-common/generated"),
         str(ROOT / "cores/fes-common/rtl/fes_video_part_direct.v"),

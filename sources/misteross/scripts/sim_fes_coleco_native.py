@@ -8,7 +8,7 @@ import sys
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.verilator_waivers import waivers
+from scripts.verilator_waivers import lint_config
 
 ROOT = Path(__file__).resolve().parents[1]
 COMMON = ROOT / "cores/fes-common"
@@ -27,7 +27,7 @@ def main():
              "-Wno-WIDTHTRUNC", "-Wno-WIDTHEXPAND", "-I" + str(COMMON / "generated")]
     native = [COMMON / "rtl" / name for name in ["coleco_vdp.sv", "coleco_dpram.v",
               "coleco_video_dpram.v", "coleco_native_video.v", "fes_native_cdc.v", "fes_native_video.v"]]
-    subprocess.run([args.verilator, *waivers(args.verilator), "--cc", "--exe", "--build", "--top-module", "native_vdp_top",
+    subprocess.run([args.verilator, *lint_config(args.verilator), "--cc", "--exe", "--build", "--top-module", "native_vdp_top",
                     *flags, "--Mdir", str(output), "-CFLAGS", "-std=c++17 -O2",
                     *map(str, native), str(COLECO / "sim/native_vdp_top.sv"),
                     str(COLECO / "sim/native_vdp_tb.cpp")], cwd=ROOT, check=True)
@@ -56,7 +56,7 @@ def main():
             "cores/fes-menu/rtl/fes_menu_control.v", "cores/fes-menu/rtl/fes_menu_video.v",
             "cores/fes-menu/rtl/fes_menu_reader.v", "cores/fes-common/rtl/fes_hps_ddr.v",
             "cores/fes-common/rtl/fes_hps_ddr_guard.v", "cores/fes-menu/sim/ddr_model.v")]
-        subprocess.run([args.verilator, *waivers(args.verilator), "--lint-only", "--top-module", "top", *flags, *board_flags,
+        subprocess.run([args.verilator, *lint_config(args.verilator), "--lint-only", "--top-module", "top", *flags, *board_flags,
                         "-Wno-PINCONNECTEMPTY", "-DTV80_REFRESH=1", *selected,
                         "-I" + str(COLECO / "rtl"),
                         *map(str, native + board + socket + plane + [COMMON / "rtl/coleco_video_720p.v"])],

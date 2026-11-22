@@ -23,7 +23,7 @@ import sys
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.verilator_waivers import waivers
+from scripts.verilator_waivers import lint_config
 
 ROOT = Path(__file__).resolve().parents[1]
 RTL = ROOT / 'cores/fes-common/rtl/z80'
@@ -236,7 +236,7 @@ def main():
         identities = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                       for path in source_files}
         build = output / 'model'
-        command = [args.verilator, *waivers(args.verilator), '--cc', '--exe', '--build', '--top-module', 'fes_z80_nmos', '-Wall', '-Wno-UNUSEDSIGNAL',
+        command = [args.verilator, *lint_config(args.verilator), '--cc', '--exe', '--build', '--top-module', 'fes_z80_nmos', '-Wall', '-Wno-UNUSEDSIGNAL',
                    '-j', str(args.jobs), '--Mdir', str(build), '-CFLAGS', '-std=c++17 -O2',
                    *(str(path) for path in files), str(SIM / 'pin_trace_tb.cpp')]
         with (output / 'build.log').open('w') as stream:

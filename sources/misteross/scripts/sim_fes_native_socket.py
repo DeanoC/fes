@@ -8,7 +8,7 @@ import sys
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.verilator_waivers import waivers
+from scripts.verilator_waivers import lint_config
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,7 +29,7 @@ def main():
                    "cores/fes-common/rtl/fes_native_video_cart.v",
                    "cores/fes-common/sim/native_socket_top.v",
                    "cores/fes-common/sim/native_socket_tb.cpp"]
-        subprocess.run([args.verilator, *waivers(args.verilator), "--cc", "--exe", "--build", "-Wall",
+        subprocess.run([args.verilator, *lint_config(args.verilator), "--cc", "--exe", "--build", "-Wall",
                         "--top-module", "native_socket_top", "--Mdir", str(output),
                         "-I" + str(ROOT / "cores/fes-common/generated"), *define,
                         "-CFLAGS", "-std=c++17 -O2 " + " ".join(define),
