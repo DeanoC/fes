@@ -20,7 +20,7 @@ type Session struct {
 	firmware *Client
 	device   *sdhci.Device
 	cache    *block.Cache
-	active   bool
+	active   atomic.Bool
 	retired  atomic.Bool
 }
 
@@ -72,7 +72,7 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 	if err = firmware.Resume(); err != nil {
 		return s, s.fail(err)
 	}
-	s.active = true
+	s.active.Store(true)
 	s.device, err = sdhci.Open(io, sdhci.Config{InputClockHz: config.InputClockHz, TransferClockHz: config.TransferClockHz, PrepareClock: firmware.Prepare, AllowWrites: writable, NoSocketWriteProtect: config.NoSocketWriteProtect})
 	if err != nil {
 		return s, s.fail(err)
@@ -85,7 +85,7 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 func (s *Session) fail(err error) error {
 	s.retired.Store(true)
 	s.ioMu.Lock()
-	s.active = false
+	s.active.Store(false)
 	if s.cache != nil {
 		s.cache.Invalidate()
 	}
@@ -174,7 +174,7 @@ func (s *Session) ReadSectors(lba uint64, dst []byte) error {
 		s.ioMu.RUnlock()
 		return ErrRetired
 	}
-	if !s.active {
+	if !s.active.Load() {
 		s.ioMu.RUnlock()
 		return sdhci.ErrQuiesced
 	}
@@ -184,8 +184,12 @@ func (s *Session) ReadSectors(lba uint64, dst []byte) error {
 	} else {
 		err = s.device.ReadSectors(lba, dst)
 	}
+	fatal := err != nil && !errors.Is(err, sdhci.ErrQuiesced) && !errors.Is(err, block.ErrBounds) && !errors.Is(err, block.ErrAlignment)
+	if fatal {
+		s.retired.Store(true)
+	}
 	s.ioMu.RUnlock()
-	if err != nil && !errors.Is(err, sdhci.ErrQuiesced) && !errors.Is(err, block.ErrBounds) && !errors.Is(err, block.ErrAlignment) {
+	if fatal {
 		return s.fail(err)
 	}
 	return err
@@ -199,7 +203,7 @@ func (s *Session) WriteSectors(lba uint64, src []byte) error {
 		s.ioMu.RUnlock()
 		return ErrRetired
 	}
-	if !s.active {
+	if !s.active.Load() {
 		s.ioMu.RUnlock()
 		return sdhci.ErrQuiesced
 	}
@@ -209,9 +213,13 @@ func (s *Session) WriteSectors(lba uint64, src []byte) error {
 	} else {
 		err = s.device.WriteSectors(lba, src)
 	}
+	fatal := err != nil && !errors.Is(err, sdhci.ErrQuiesced) && !errors.Is(err, block.ErrReadOnly) &&
+		!errors.Is(err, block.ErrBounds) && !errors.Is(err, block.ErrAlignment)
+	if fatal {
+		s.retired.Store(true)
+	}
 	s.ioMu.RUnlock()
-	if err != nil && !errors.Is(err, sdhci.ErrQuiesced) && !errors.Is(err, block.ErrReadOnly) &&
-		!errors.Is(err, block.ErrBounds) && !errors.Is(err, block.ErrAlignment) {
+	if fatal {
 		return s.fail(err)
 	}
 	return err
@@ -225,7 +233,7 @@ func (s *Session) Flush() error {
 		s.ioMu.RUnlock()
 		return ErrRetired
 	}
-	if !s.active {
+	if !s.active.Load() {
 		s.ioMu.RUnlock()
 		return sdhci.ErrQuiesced
 	}
@@ -235,8 +243,12 @@ func (s *Session) Flush() error {
 	} else {
 		err = s.device.Flush()
 	}
+	fatal := err != nil && !errors.Is(err, sdhci.ErrQuiesced)
+	if fatal {
+		s.retired.Store(true)
+	}
 	s.ioMu.RUnlock()
-	if err != nil && !errors.Is(err, sdhci.ErrQuiesced) {
+	if fatal {
 		return s.fail(err)
 	}
 	return err
@@ -250,16 +262,18 @@ func (s *Session) Quiesce() error {
 	}
 	s.control.Lock()
 	defer s.control.Unlock()
+	// Drain in-flight cached/uncached I/O under ioMu before checking retired/active
+	// so a concurrent fatal I/O cannot slip past the check into hardware teardown.
+	s.ioMu.Lock()
 	if s.firmware == nil || s.device == nil || s.retired.Load() {
+		s.ioMu.Unlock()
 		return ErrRetired
 	}
-	if !s.active {
+	if !s.active.Load() {
+		s.ioMu.Unlock()
 		return sdhci.ErrQuiesced
 	}
-	// Fence and drain in-flight cached/uncached I/O and invalidate the cache
-	// before quiescing hardware so no stale sector can survive containment.
-	s.ioMu.Lock()
-	s.active = false
+	s.active.Store(false)
 	if s.cache != nil {
 		s.cache.Invalidate()
 	}
@@ -293,7 +307,7 @@ func (s *Session) resume(owner, generation uint64, returned bool) error {
 	if s.firmware == nil || s.device == nil || s.retired.Load() {
 		return ErrRetired
 	}
-	if s.active {
+	if s.active.Load() {
 		return ErrTransition
 	}
 	var err error
@@ -316,10 +330,14 @@ func (s *Session) resume(owner, generation uint64, returned bool) error {
 		return s.fail(err)
 	}
 	s.ioMu.Lock()
+	if s.retired.Load() {
+		s.ioMu.Unlock()
+		return ErrRetired
+	}
 	if s.cache != nil {
 		s.cache.Invalidate()
 	}
-	s.active = true
+	s.active.Store(true)
 	s.ioMu.Unlock()
 	return nil
 }
