@@ -53,4 +53,30 @@ stub and disables PPI 30. Both `cmd/tenfoot` and DE25-Nano native Tenfoot
 buffer (`serial.EnableIRQ(g)` / `serial.DisableIRQ(g)` / `serial.Ready()`),
 routing PL011 UART0 (SPI 33) on QEMU `virt` and DesignWare APB UART0/1 (SPI
 140/141) on DE25-Nano into a fixed 256-byte lock-free ring buffer behind
-`serial.Read()`. `cmd/tenfoot` enables it automatically in UART input mode.
+`serial.Read()`. Both `cmd/tenfoot` (in UART mode) and DE25-Nano native Tenfoot
+(`cmd/fpgaload/tenfoot.go`) enable it at startup.
+
+## Network, Storage & USB SPIs
+
+`network.Link.Start` checks for an optional `RXReady() <-chan struct{}` wakeup
+channel so networked programs can sleep in `WFI` between packets instead of
+spinning on `runtime.Gosched()`. On QEMU `virt`, `(*network.Interface).EnableIRQ(g)`
+routes the VirtIO-net MMIO slot's GICv3 SPI (`48 + slot`) to wake `Link.Start`,
+and `(*block.VirtIO).EnableIRQ(g)` routes the VirtIO-block slot's SPI (`48 + slot`)
+to wake pending disk transfers from `WFI`; `cmd/tenfoot` enables both alongside
+`WFI` idle. On DE25-Nano, `(*sdhci.Device).EnableIRQ(g, de25nano.IRQSDMMC)`
+routes Cadence SDHCI SPI 128 into level-safe status waits,
+`(*xgmac.Device).EnableIRQ(g)` routes Agilex 5 XGMAC SPIs
+(`de25nano.IRQEMAC0/1/2` = 222/239/256) to wake `network.Link.Start` via
+`RXReady()` (wired in `cmd/fpgaload` when Ethernet is enabled), and
+`(*dwc2.Host).EnableIRQ(g, de25nano.IRQUSB0)` (forwarded via `dwc2.GamepadHost`
+and `usbcontrol.Source` / `usbcontrol.GamepadSource`) routes DWC2 USB0 SPI 125
+into a level-safe `Ready()` wakeup channel wired into `nativefabric.ProgramSerialPlatform`
+alongside UART RX in `cmd/fpgaload/tenfoot.go`.
+
+## FPGA-to-HPS doorbells (DE25-Nano)
+
+`board/de25nano` maps the 64 Agilex 5 FPGA-to-HPS lines (`0..63`, GIC-600 SPIs
+`48..111`) via `de25nano.FPGAIRQ`, `de25nano.EnableFPGAIRQ(line, edge, fn)`,
+and `de25nano.DisableFPGAIRQ(line)`. `(*gic.Controller).SetPending` /
+`ClearPending` expose `GICD_ISPENDR` / `GICD_ICPENDR` for software SPI testing.

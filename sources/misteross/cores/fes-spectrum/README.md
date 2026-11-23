@@ -12,10 +12,8 @@ This directory builds four described cores from one shell, each on the
 | `fes.pentagon` | Pentagon 128 with Beta 128 | `pentagon-firmware`, 48 KiB (128, 48 BASIC, then TR-DOS) | 128 KiB | 224 x 320 = 71,680 T, 3.5 MHz | none | beeper, AY |
 
 It follows the Apple II pathfinder: late-bound firmware, removable media while
-the machine runs, and independently linked expansion cards. The original
-cross-component contract is the
-[ZX Spectrum pathfinder design](../../../../docs/superpowers/specs/2026-09-28-spectrum-pathfinder-design.md).
-No Sinclair or Amstrad ROM is in this repository or a package; FogCast links
+the machine runs, and independently linked expansion cards. No Sinclair or
+Amstrad ROM is in this repository or a package; FogCast links
 the selected firmware image into the blank ROM lanes at download time.
 
 ## Machine

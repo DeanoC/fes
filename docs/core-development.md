@@ -40,6 +40,10 @@ mkdir -p out/core-dev
 make core-dev CORE_DEV_ARGS='prepare --core fes.pong --output out/core-dev/pong-001'
 ```
 
+For a standard NTSC Commodore 64 candidate on DE10, use
+`make core-dev CORE_DEV_ARGS='prepare --core fes.c64-ntsc --output out/core-dev/c64-ntsc-001'`.
+Select `fes.c64` for PAL. Both models take the same external 36 KiB firmware.
+
 Choose a new output directory for each candidate. Preparation checks selected
 module selections, takes the normal parent build lock and runs the existing
 authenticated package resolver for **only** that core. Matching package/compiler

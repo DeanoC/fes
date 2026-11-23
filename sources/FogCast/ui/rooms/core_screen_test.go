@@ -110,6 +110,25 @@ func TestCoreScreenReportsTruncatedFamilyLibrary(t *testing.T) {
 	}
 }
 
+func TestCoreScreenChoosesNTSCGameFromC64Family(t *testing.T) {
+	pal := preparedComputer("pal", "PAL disk", "fes.c64")
+	ntsc := preparedComputer("ntsc", "NTSC disk", "fes.c64-ntsc")
+	pal.CoreEntryKind, ntsc.CoreEntryKind = "title", "title"
+	r := loadCoreScreen(t, &fakeServices{games: []hostclient.Game{pal, ntsc}}, "", pal.CoreID, Options{})
+	stepUntil(t, r, func(f Frame) bool { return coreScreenSettled(f) && frameHas(f, "PAL disk") })
+	r.Activate("model:fes.c64-ntsc")
+	f := stepUntil(t, r, func(f Frame) bool {
+		return coreScreenSettled(f) && frameHas(f, "Games for the C64 NTSC") && frameHas(f, "NTSC disk")
+	})
+	if frameHas(f, "PAL disk") || !frameHas(f, "Drive 8") {
+		t.Fatalf("NTSC game list or drive: %s", frameText(f))
+	}
+	r.Activate("game:1")
+	if actions := r.TakeActions(); len(actions) != 1 || actions[0].Kind != ActionLaunch || actions[0].GameID != ntsc.ID {
+		t.Fatalf("selected NTSC title: %+v", actions)
+	}
+}
+
 func TestCoreScreenGameRowStartsItsExactEntry(t *testing.T) {
 	games := spectrumGames()
 	r := loadCoreScreen(t, &fakeServices{games: games}, "", "fes.spectrum", Options{})

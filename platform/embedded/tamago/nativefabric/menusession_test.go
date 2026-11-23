@@ -19,11 +19,16 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
 )
 
+func windowReadLimits() scanout.ReaderLimits {
+	return scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 4, Now: func() time.Time { return time.Unix(100, 0) }, Yield: func() {}}
+}
+
 func menuMaps(t *testing.T) (source, control, memory, access []byte) {
 	t.Helper()
-	source, control, _ = windowMemoryFixtures(t)
 	var ctx map[string]any
-	json.Unmarshal(source, &ctx)
+	if err := json.Unmarshal(ddrContextFixture(t), &ctx); err != nil {
+		t.Fatal(err)
+	}
 	ctx["programming_profile"] = HPSFirstMenuProfile
 	ctx["control_abi"] = scanout.MenuControlABI
 	encode := func(v any) []byte {
@@ -34,8 +39,11 @@ func menuMaps(t *testing.T) (source, control, memory, access []byte) {
 		return append(b, '\n')
 	}
 	source = encode(ctx)
+	control, _, _ = ddrProbeMaps(t)
 	var ctrl map[string]any
-	json.Unmarshal(control, &ctrl)
+	if err := json.Unmarshal(control, &ctrl); err != nil {
+		t.Fatal(err)
+	}
 	ctrl["fabric_stop"].(map[string]any)["scope"] = "sealed-menu-master-stop-v1"
 	control = encode(ctrl)
 	memory = encode(map[string]any{"format": 1, "scope": "sealed-cold-menu-reader-memory-v1", "package_id": ctx["package_id"], "build_id": ctx["build_id"],
@@ -59,12 +67,21 @@ func menuMaps(t *testing.T) (source, control, memory, access []byte) {
 // scanout/verify_menu.py separately drives the real CSR/video/DDR RTL, while
 // the existing joined firmware suite exercises the actual C bridge service.
 type menuCPU struct {
-	windowCPU
-	quiesces, independentStops int
-	accepted, displayed, slot  uint32
+	computerCPU
+	registers                   map[uint32]uint32
+	starts, dataOpens, releases int
+	disables                    int
+	lastDrainCookie             uint64
+	fault                       string
+	after                       func(string)
+	quiesces, independentStops  int
+	accepted, displayed, slot   uint32
 }
 
 func (c *menuCPU) Invoke(a [7]uint64) ([4]uint64, error) {
+	if c.after != nil {
+		defer c.after("firmware")
+	}
 	if a[1] == uint64(g.FesEmbeddedBridgeClose) && c.state.ResetMask == 5 {
 		c.independentStops++
 		if c.fault == "master-stop" {
@@ -76,7 +93,52 @@ func (c *menuCPU) Invoke(a [7]uint64) ([4]uint64, error) {
 		c.registers[g.FesEmbeddedRegStatus] = g.FesEmbeddedStatusDrained
 		c.registers[g.FesEmbeddedRegPending] = 0
 	}
-	return c.windowCPU.Invoke(a)
+	data := uint64(g.FesEmbeddedBridgeRelease | 8<<g.FesEmbeddedBridgeReleaseShift)
+	if a[1] != data && a[1] != uint64(g.FesEmbeddedBridgeClose) {
+		out, err := c.computerCPU.Invoke(a)
+		if a[1] == uint64(g.FesEmbeddedBridgeControl) && c.after != nil {
+			c.after("control")
+		}
+		return out, err
+	}
+	c.calls++
+	if a[0] != uint64(g.FesEmbeddedBridgeCall) || a[3] != uint64(g.FesEmbeddedBridgeCookie) ||
+		a[2] != c.state.Owner || a[4] != c.state.Generation || a[5] != 0 || a[6] != 0 {
+		return [4]uint64{}, errors.New("changed menu ownership")
+	}
+	flags := uint32(FabricHandshakeAbsent) << g.FesEmbeddedBridgeFabricShift
+	if a[1] == data {
+		c.dataOpens++
+		if c.state.ResetMask != 13 {
+			return [4]uint64{}, errors.New("DDR before control")
+		}
+		c.state.Generation++
+		c.state.ResetMask = 5
+		c.state.MastersContained = false
+		if c.fault == "data-open" {
+			return [4]uint64{}, errors.New("uncertain data opening")
+		}
+		flags |= 5
+	} else {
+		c.closes++
+		if c.state.ResetMask != 5 {
+			return [4]uint64{}, errors.New("unexpected active close")
+		}
+		if c.fault == "close" {
+			return [4]uint64{}, errors.New("all-master stop failed")
+		}
+		c.state.Generation++
+		c.state.ResetMask = 15
+		c.state.MastersContained = true
+		flags |= 15 | g.FesEmbeddedBridgeMastersContained | g.FesEmbeddedBridgeProducersQuiescent | 8<<g.FesEmbeddedBridgeDrainShift
+		if c.fault == "wrong-drain" {
+			flags |= 4 << g.FesEmbeddedBridgeDrainShift
+		}
+		if c.after != nil {
+			c.after("closed")
+		}
+	}
+	return [4]uint64{0, uint64(g.FesEmbeddedBridgeTag)<<32 | uint64(flags), c.state.Owner, c.state.Generation}, nil
 }
 func (c *menuCPU) ReadPhysical32(address uint64) (uint32, error) {
 	if address == 0x20010494 {
@@ -90,19 +152,71 @@ func (c *menuCPU) ReadPhysical32(address uint64) (uint32, error) {
 		c.registers[0xa8] = 0
 		c.registers[0xac] = c.slot
 	}
-	return c.windowCPU.ReadPhysical32(address)
+	c.reads++
+	if c.state.ResetMask != 5 || address < 0x20010400 || address > 0x200104c8 {
+		return 0, errors.New("unowned menu read")
+	}
+	offset := uint32(address - 0x20010400)
+	if c.after != nil {
+		defer c.after("read")
+	}
+	if c.fault == "read" {
+		return 0, errors.New("read uncertainty")
+	}
+	if offset == 0 && c.fault == "identity" {
+		return 0, nil
+	}
+	return c.registers[offset], nil
 }
 func (c *menuCPU) WritePhysical32(address uint64, value uint32) error {
+	c.writes++
+	if c.state.ResetMask != 5 || address < 0x20010400 || address > 0x200104c8 {
+		return errors.New("unowned menu write")
+	}
 	offset := uint32(address - 0x20010400)
 	if offset < 0x80 {
-		oldSlot := c.registers[0x90]
-		err := c.windowCPU.WritePhysical32(address, value)
-		c.registers[0x90] = oldSlot
-		return err
-	}
-	c.writes++
-	if c.state.ResetMask != 5 || address > 0x200104c8 {
-		return errors.New("unowned menu write")
+		c.registers[offset] = value
+		if offset == g.FesEmbeddedRegCommand {
+			generation := uint64(c.registers[g.FesEmbeddedRegRequestGenerationHi])<<32 | uint64(c.registers[g.FesEmbeddedRegRequestGenerationLo])
+			if value == g.FesEmbeddedCommandEnable {
+				previous := uint64(c.registers[g.FesEmbeddedRegGenerationHi])<<32 | uint64(c.registers[g.FesEmbeddedRegGenerationLo])
+				if generation <= previous || c.registers[g.FesEmbeddedRegPending] != 0 ||
+					(c.registers[g.FesEmbeddedRegStatus] != 0 && c.registers[g.FesEmbeddedRegStatus] != g.FesEmbeddedStatusDrained) {
+					return errors.New("invalid reader reenable")
+				}
+				c.registers[g.FesEmbeddedRegGenerationLo] = uint32(generation)
+				c.registers[g.FesEmbeddedRegGenerationHi] = uint32(generation >> 32)
+				c.registers[g.FesEmbeddedRegStatus] = g.FesEmbeddedStatusEnabled
+				c.registers[g.FesEmbeddedRegAckGenerationLo] = 0
+				c.registers[g.FesEmbeddedRegAckGenerationHi] = 0
+				c.registers[g.FesEmbeddedRegAckCookieLo] = 0
+				c.registers[g.FesEmbeddedRegAckCookieHi] = 0
+			} else if value == g.FesEmbeddedCommandDisable {
+				cookie := uint64(c.registers[g.FesEmbeddedRegRequestCookieHi])<<32 | uint64(c.registers[g.FesEmbeddedRegRequestCookieLo])
+				if c.registers[g.FesEmbeddedRegStatus] != g.FesEmbeddedStatusEnabled || cookie <= c.lastDrainCookie {
+					return errors.New("invalid reader disable")
+				}
+				c.disables++
+				c.lastDrainCookie = cookie
+				c.registers[g.FesEmbeddedRegStatus] = g.FesEmbeddedStatusDrained
+				c.registers[g.FesEmbeddedRegAckGenerationLo] = uint32(generation)
+				c.registers[g.FesEmbeddedRegAckGenerationHi] = uint32(generation >> 32)
+				c.registers[g.FesEmbeddedRegAckCookieLo] = uint32(cookie)
+				c.registers[g.FesEmbeddedRegAckCookieHi] = uint32(cookie >> 32)
+				if c.fault == "drain-held" {
+					c.registers[g.FesEmbeddedRegStatus] = g.FesEmbeddedStatusDraining
+					c.registers[g.FesEmbeddedRegPending] = 1
+					c.registers[g.FesEmbeddedRegAckGenerationLo] = 0
+					c.registers[g.FesEmbeddedRegAckCookieLo] = 0
+				}
+			} else {
+				return errors.New("unexpected reader command")
+			}
+		}
+		if c.after != nil {
+			c.after("write")
+		}
+		return nil
 	}
 	c.registers[offset] = value
 	if offset == 0x80 {
@@ -152,7 +266,7 @@ func newMenuFixture(t *testing.T) *menuFixture {
 	t.Helper()
 	f := &menuFixture{}
 	f.source, f.control, f.memory, f.access = menuMaps(t)
-	f.cpu = &menuCPU{windowCPU: windowCPU{computerCPU: computerCPU{state: BridgeSnapshot{Capabilities: BridgeCapabilities{15, 2, 12, FabricHandshakeAbsent}, Owner: 17, Generation: 4, ResetMask: 15, NeverEnabled: true, MastersContained: true}, digest: sha256.Sum256(f.source)}, registers: make(map[uint32]uint32)}}
+	f.cpu = &menuCPU{computerCPU: computerCPU{state: BridgeSnapshot{Capabilities: BridgeCapabilities{15, 2, 12, FabricHandshakeAbsent}, Owner: 17, Generation: 4, ResetMask: 15, NeverEnabled: true, MastersContained: true}, digest: sha256.Sum256(f.source)}, registers: make(map[uint32]uint32)}
 	var err error
 	f.v, err = NewMenuHPSContextVerifier(f.cpu, f.source, f.control, f.memory, f.access)
 	if err != nil {
@@ -388,9 +502,6 @@ func TestMenuMapsRejectOlderAndMutatedGrantsWithoutIO(t *testing.T) {
 	cpu := bridgeFirmwareFunc(func([7]uint64) ([4]uint64, error) { t.Fatal("map parsing performed I/O"); return [4]uint64{}, nil })
 	if _, err := NewHPSContextVerifier(cpu, source); err == nil {
 		t.Fatal("default constructor admitted menu")
-	}
-	if _, err := NewWindowHPSContextVerifier(cpu, source, control, memory); err == nil {
-		t.Fatal("window inherited menu")
 	}
 	v, err := NewMenuHPSContextVerifier(cpu, source, control, memory, access)
 	if err != nil {

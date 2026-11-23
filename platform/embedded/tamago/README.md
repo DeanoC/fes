@@ -81,7 +81,8 @@ hardware networking remains disabled in the board profile.
   creates new files/directories without rename or power-loss atomicity.
   TamaGo's default `os` filesystem is volatile RAM; only `PreferenceStore` /
   `sd-checkpoint` writes FAT32.
-- **Subsystem READMEs:** [packagestore](packagestore/README.md),
+- **Subsystem READMEs:** [gic](gic/README.md), [dmaops](dmaops/README.md),
+  [packagestore](packagestore/README.md),
   [storagepolicy](storagepolicy/README.md), [usb](usb/README.md),
   [usbcontrol](usbcontrol/README.md), [network](network/README.md),
   [computer](computer/README.md), [sdm](sdm/README.md),
@@ -162,9 +163,9 @@ HOST_GO` to derive content-bound ROM receipts and export `FIRMWARE.BIN`,
 
 ## Persistent native window requests
 
-The legacy fixed-window diagnostic flags (`fpgaload --window-memory
---window-read --window-present --window-storage-return --window-reload`) remain
-distinct from the paired Tenfoot launcher (`--menu-project --selected-programs
---tenfoot-serial`) documented in [../nano/launcher.md](../nano/launcher.md).
-The earlier standalone `--window-service` serial server was retired once the
-paired Tenfoot launcher superseded it.
+The earlier single-slot fixed-window diagnostic flags (`--window-memory`,
+`--window-read`, `--window-present`, `--window-storage-return`,
+`--window-reload`) and standalone `--window-service` serial server were retired
+once the paired Tenfoot launcher (`--menu-project --selected-programs
+--tenfoot-serial`) documented in [../nano/launcher.md](../nano/launcher.md)
+superseded them.

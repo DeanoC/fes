@@ -136,7 +136,7 @@ per-command paths, roles and targets in `command_evidence`. Compare or build the
 exact base and head artifacts and record the relevant command's execution or
 other appropriate evidence; if an image binary changed, plan its image build
 and boot test. A full image alone does not build or test an independent host
-client or builder. Optional standalone `mister-bridge` and `fes-parts`, and
+client or builder. Optional standalone `fes-parts`, and
 simulation tools, appear as `advisory_commands`; they are not required kit
 artifacts. An embedded asset can select deployment even when it is a README.
 

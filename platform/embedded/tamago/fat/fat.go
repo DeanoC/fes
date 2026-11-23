@@ -29,6 +29,7 @@ var ErrCapacity = errors.New("file exceeds its preallocated FAT32 capacity")
 
 const maxFileBytes = 64 << 20
 const maxDirectoryBytes = 4 << 20
+const maxTransferSectors = 128 // 64 KiB per coalesced ReadSectors/WriteSectors call
 
 type Volume struct {
 	mu                  sync.Mutex
@@ -182,6 +183,65 @@ func (v *Volume) clusterSector(cluster uint32) uint64 {
 	return v.dataStart + uint64(cluster-2)*uint64(v.sectorsPerCluster)
 }
 
+// contiguousSectors returns the starting LBA and sector count (capped at
+// maxSectors) of the contiguous on-disk run starting at chain[clusterIdx] +
+// sectorInCluster.
+func (v *Volume) contiguousSectors(chain []uint32, clusterIdx int, sectorInCluster uint32, maxSectors int) (uint64, int) {
+	if maxSectors <= 0 {
+		return 0, 0
+	}
+	spc := int(v.sectorsPerCluster)
+	startLBA := v.clusterSector(chain[clusterIdx]) + uint64(sectorInCluster)
+	count := min(spc-int(sectorInCluster), maxSectors)
+	prev := chain[clusterIdx]
+	for nextIdx := clusterIdx + 1; count < maxSectors && nextIdx < len(chain); nextIdx++ {
+		if chain[nextIdx] != prev+1 {
+			break
+		}
+		prev = chain[nextIdx]
+		count += min(spc, maxSectors-count)
+	}
+	return startLBA, count
+}
+
+// writeChain writes payload (zero-padded to len(chain)*sectorsPerCluster*512)
+// across contiguous runs of chain using up to maxTransferSectors per writeFn call.
+func (v *Volume) writeChain(chain []uint32, payload []byte, writeFn func(lba uint64, buf []byte) error) error {
+	if len(chain) == 0 {
+		return nil
+	}
+	spc := int(v.sectorsPerCluster)
+	totalSectors := len(chain) * spc
+	var pad []byte
+	sectorPos := 0
+	for sectorPos < totalSectors {
+		clusterIdx := sectorPos / spc
+		sectorInCluster := uint32(sectorPos % spc)
+		want := min(totalSectors-sectorPos, maxTransferSectors)
+		lba, runSectors := v.contiguousSectors(chain, clusterIdx, sectorInCluster, want)
+		bytePos := sectorPos * block.SectorSize
+		runBytes := runSectors * block.SectorSize
+		var chunk []byte
+		if bytePos+runBytes <= len(payload) {
+			chunk = payload[bytePos : bytePos+runBytes]
+		} else {
+			if len(pad) < runBytes {
+				pad = make([]byte, runBytes)
+			}
+			chunk = pad[:runBytes]
+			clear(chunk)
+			if bytePos < len(payload) {
+				copy(chunk, payload[bytePos:])
+			}
+		}
+		if err := writeFn(lba, chunk); err != nil {
+			return err
+		}
+		sectorPos += runSectors
+	}
+	return nil
+}
+
 type entry struct {
 	name       string
 	attributes byte
@@ -233,70 +293,78 @@ func (v *Volume) entriesContext(ctx context.Context, cluster uint32) ([]entry, e
 	var lfn []uint16
 	var checksum byte
 	expected := 0
-	b := make([]byte, 512)
+	spc := int(v.sectorsPerCluster)
+	chunkCap := min(spc, maxTransferSectors)
+	buf := make([]byte, chunkCap*block.SectorSize)
 	for _, c := range chain {
-		for s := uint32(0); s < v.sectorsPerCluster; s++ {
-			sector := v.clusterSector(c) + uint64(s)
+		for s := 0; s < spc; {
+			run := min(spc-s, chunkCap)
 			runtime.Gosched()
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if err := v.device.ReadSectors(sector, b); err != nil {
+			baseLBA := v.clusterSector(c) + uint64(s)
+			if err := v.device.ReadSectors(baseLBA, buf[:run*block.SectorSize]); err != nil {
 				return nil, err
 			}
-			for off := 0; off < 512; off += 32 {
-				d := b[off : off+32]
-				if d[0] == 0 {
-					return result, nil
-				}
-				if d[0] == 0xe5 {
-					lfn = nil
-					expected = 0
-					continue
-				}
-				if d[11] == 0x0f {
-					seq := int(d[0] & 0x1f)
-					if d[0]&0x40 != 0 {
-						if seq == 0 || seq > 20 {
-							lfn = nil
-							expected = 0
-							continue
-						}
-						lfn = make([]uint16, seq*13)
-						expected = seq
-						checksum = d[13]
+			for r := 0; r < run; r++ {
+				sector := baseLBA + uint64(r)
+				b := buf[r*block.SectorSize : (r+1)*block.SectorSize]
+				for off := 0; off < block.SectorSize; off += 32 {
+					d := b[off : off+32]
+					if d[0] == 0 {
+						return result, nil
 					}
-					if seq == 0 || seq != expected || len(lfn) < seq*13 || d[13] != checksum || d[12] != 0 || binary.LittleEndian.Uint16(d[26:]) != 0 {
+					if d[0] == 0xe5 {
 						lfn = nil
 						expected = 0
 						continue
 					}
-					positions := []int{1, 3, 5, 7, 9, 14, 16, 18, 20, 22, 24, 28, 30}
-					for i, p := range positions {
-						lfn[(seq-1)*13+i] = binary.LittleEndian.Uint16(d[p:])
+					if d[11] == 0x0f {
+						seq := int(d[0] & 0x1f)
+						if d[0]&0x40 != 0 {
+							if seq == 0 || seq > 20 {
+								lfn = nil
+								expected = 0
+								continue
+							}
+							lfn = make([]uint16, seq*13)
+							expected = seq
+							checksum = d[13]
+						}
+						if seq == 0 || seq != expected || len(lfn) < seq*13 || d[13] != checksum || d[12] != 0 || binary.LittleEndian.Uint16(d[26:]) != 0 {
+							lfn = nil
+							expected = 0
+							continue
+						}
+						positions := []int{1, 3, 5, 7, 9, 14, 16, 18, 20, 22, 24, 28, 30}
+						for i, p := range positions {
+							lfn[(seq-1)*13+i] = binary.LittleEndian.Uint16(d[p:])
+						}
+						expected--
+						continue
 					}
-					expected--
-					continue
-				}
-				name := shortName(d)
-				if lfn != nil && expected == 0 && checksum == shortChecksum(d) {
-					n := 0
-					for n < len(lfn) && lfn[n] != 0 && lfn[n] != 0xffff {
-						n++
+					name := shortName(d)
+					if lfn != nil && expected == 0 && checksum == shortChecksum(d) {
+						n := 0
+						for n < len(lfn) && lfn[n] != 0 && lfn[n] != 0xffff {
+							n++
+						}
+						name = string(utf16.Decode(lfn[:n]))
 					}
-					name = string(utf16.Decode(lfn[:n]))
+					lfn = nil
+					expected = 0
+					if d[11]&8 != 0 || name == "." || name == ".." {
+						continue
+					}
+					if name == "" || strings.ContainsAny(name, "/\\\x00") {
+						return nil, fmt.Errorf("%w: directory name", ErrCorrupt)
+					}
+					first := uint32(binary.LittleEndian.Uint16(d[20:]))<<16 | uint32(binary.LittleEndian.Uint16(d[26:]))
+					result = append(result, entry{name: name, attributes: d[11], cluster: first, size: binary.LittleEndian.Uint32(d[28:]), sector: sector, offset: off})
 				}
-				lfn = nil
-				expected = 0
-				if d[11]&8 != 0 || name == "." || name == ".." {
-					continue
-				}
-				if name == "" || strings.ContainsAny(name, "/\\\x00") {
-					return nil, fmt.Errorf("%w: directory name", ErrCorrupt)
-				}
-				first := uint32(binary.LittleEndian.Uint16(d[20:]))<<16 | uint32(binary.LittleEndian.Uint16(d[26:]))
-				result = append(result, entry{name: name, attributes: d[11], cluster: first, size: binary.LittleEndian.Uint32(d[28:]), sector: sector, offset: off})
 			}
+			s += run
 		}
 	}
 	return result, nil
@@ -375,6 +443,17 @@ func (v *Volume) ReadFile(name string) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
+	if fi, err := f.Stat(); err == nil && !fi.IsDir() {
+		size := fi.Size()
+		if size == 0 {
+			return []byte{}, nil
+		}
+		buf := make([]byte, size)
+		if _, err := io.ReadFull(f, buf); err != nil {
+			return nil, err
+		}
+		return buf, nil
+	}
 	return io.ReadAll(f)
 }
 func (v *Volume) ReadDir(name string) ([]fs.DirEntry, error) {
@@ -411,22 +490,13 @@ func (v *Volume) WriteFile(name string, data []byte) error {
 	if uint64(len(data)) > capacity || len(data) > maxFileBytes {
 		return ErrCapacity
 	}
-	b := make([]byte, 512)
-	remaining := data
-	for _, c := range chain {
-		for s := uint32(0); s < v.sectorsPerCluster; s++ {
-			clear(b)
-			n := min(len(remaining), len(b))
-			copy(b, remaining[:n])
-			remaining = remaining[n:]
-			if err := v.device.WriteSectors(v.clusterSector(c)+uint64(s), b); err != nil {
-				return err
-			}
-		}
+	if err := v.writeChain(chain, data, v.device.WriteSectors); err != nil {
+		return err
 	}
 	if err := v.device.Flush(); err != nil {
 		return err
 	}
+	b := make([]byte, block.SectorSize)
 	if err := v.device.ReadSectors(e.sector, b); err != nil {
 		return err
 	}
@@ -473,17 +543,30 @@ func (f *file) Read(dst []byte) (int, error) {
 	}
 	count := min(len(dst), int(int64(f.entry.size)-f.position))
 	done := 0
-	b := make([]byte, 512)
-	clusterBytes := int64(f.volume.sectorsPerCluster) * 512
+	var scratch [block.SectorSize]byte
+	clusterBytes := int64(f.volume.sectorsPerCluster) * block.SectorSize
 	for done < count {
-		cluster := f.chain[f.position/clusterBytes]
+		clusterIdx := int(f.position / clusterBytes)
 		within := f.position % clusterBytes
-		if err := f.volume.device.ReadSectors(f.volume.clusterSector(cluster)+uint64(within/512), b); err != nil {
+		sectorInCluster := uint32(within / block.SectorSize)
+		off := int(within % block.SectorSize)
+		if off == 0 && count-done >= block.SectorSize {
+			wantSectors := min((count-done)/block.SectorSize, maxTransferSectors)
+			lba, runSectors := f.volume.contiguousSectors(f.chain, clusterIdx, sectorInCluster, wantSectors)
+			n := runSectors * block.SectorSize
+			if err := f.volume.device.ReadSectors(lba, dst[done:done+n]); err != nil {
+				return done, err
+			}
+			done += n
+			f.position += int64(n)
+			continue
+		}
+		lba := f.volume.clusterSector(f.chain[clusterIdx]) + uint64(sectorInCluster)
+		if err := f.volume.device.ReadSectors(lba, scratch[:]); err != nil {
 			return done, err
 		}
-		off := int(within % 512)
-		n := min(count-done, 512-off)
-		copy(dst[done:done+n], b[off:off+n])
+		n := min(count-done, block.SectorSize-off)
+		copy(dst[done:done+n], scratch[off:off+n])
 		done += n
 		f.position += int64(n)
 	}

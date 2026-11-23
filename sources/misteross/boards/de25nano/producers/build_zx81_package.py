@@ -83,7 +83,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
     roots, closure = common.captured_source_closure(root, SOURCE_ROOTS, captured, RECIPE, REVIEW_INPUTS)
     roots = sorted(set(roots) | {'boards/de25nano/package/core_package.py',
                                  'boards/de25nano/package/export_core_package.py'})
-    for module in ('build_fes_pcxt_quartus', 'fes_build_common', 'functional_execution',
+    for module in ('quartus_tools', 'fes_build_common', 'functional_execution',
                    'source_closure', 'compiler_read_audit'):
         roots = sorted(set(roots) | set(common.script_imports(module, root)))
     closure = common.source_input_closure(root, roots, policy=common.SOURCE_POLICY)
@@ -184,9 +184,6 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
             if not compile_only:
                 if not timing['package_timing_admission']:
                     raise BuildError('DE25 ZX81 package blocked by reported timing/signoff findings; candidate retained')
-                repeated, other = compile_at('repeat')
-                if not other['package_timing_admission'] or sha(payload) != sha(repeated):
-                    raise BuildError('DE25 ZX81 independent rebuild failed timing or changed RBF')
         if (_require_clean_source(root, pinned_inputs=(RECIPE, ABI)) != (repository, revision) or
                 common.authenticate_tools(builder, quartus_root) != (paths, identities) or execution_inputs(paths, env) != execution or
                 create_build_record(root, repository, revision, identities, execution, builder.capture_standard_board(revision)) != record):

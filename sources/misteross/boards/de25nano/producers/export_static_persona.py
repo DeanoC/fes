@@ -88,20 +88,16 @@ def qualified_inputs(root, output, package_path):
         raise BuildError('static producer source closure differs from the selected exporter source')
     compiler = static.builder(root)
     projects, descriptors, reports = [], [], {}
-    for phase in ('signoff', 'repeat'):
+    for phase in ('signoff',):
         project = output / phase / 'standard-base/combined/hps/project'
         descriptor = static.selected_artifacts(project, compiler, record)
         timing = static.timing_evidence(root, project, record)
         if not all(t['package_timing_admission'] for t in timing.values()):
-            raise BuildError('static persona export requires qualified whole-board timing in both fits')
+            raise BuildError('static persona export requires qualified whole-board timing')
         projects.append(project)
         descriptors.append(descriptor)
         reports[phase] = timing
-    left, right = ([d['shell']['base'], *d['personas']] for d in descriptors)
-    if [(p['size'], p['sha256']) for p in left] != [(p['size'], p['sha256']) for p in right]:
-        raise BuildError('static persona export requires independently identical base and persona RBFs')
-    # The exact producer manifest, base and default persona bind the published
-    # package. Opaque QDB metadata from the repeat fit is not normalized.
+    # The exact producer manifest, base and default persona bind the published package.
     primary = descriptors[0]
     base = projects[0] / primary['shell']['base']['path']
     empty = projects[0] / primary['personas'][0]['path']

@@ -164,6 +164,7 @@ func (s *reportLease) close(ctx context.Context) error {
 		s.closed = false
 		return errors.Join(priorFault, stopErr)
 	}
+	s.disableIRQLocked()
 	s.fault = errors.Join(priorFault, stopErr)
 	if priorFault != nil {
 		s.fault = c.retire(s.fault)

@@ -6,10 +6,11 @@ package main
 import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
+	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 )
 
 const tenfootSerialLinked = false
 
-func serveProgramTenfoot(*nativefabric.ProgramLoader, *packagestore.Store) {
+func serveProgramTenfoot(*nativefabric.ProgramLoader, *packagestore.Store, *sdcontrol.Session) {
 	panic("serial Tenfoot was not selected at build time")
 }

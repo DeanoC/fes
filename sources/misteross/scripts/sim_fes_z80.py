@@ -7,6 +7,10 @@ import shutil
 import subprocess
 import sys
 
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.verilator_waivers import lint_config
+
 ROOT = Path(__file__).resolve().parents[1]
 RTL = ROOT / 'cores/fes-common/rtl/z80'
 SIM = ROOT / 'cores/fes-common/sim/z80'
@@ -57,7 +61,7 @@ def main():
                 top = 'fes_z80_engine'
         output = ROOT / 'build/sim/fes-z80' / case
         output.mkdir(parents=True, exist_ok=True)
-        command = [args.verilator, '--cc', '--exe', '--build', '-j', str(args.jobs),
+        command = [args.verilator, *lint_config(args.verilator), '--cc', '--exe', '--build', '-j', str(args.jobs),
                    '--top-module', top, '-Wall', '-Wno-UNUSEDSIGNAL', '--Mdir', str(output),
                    '-CFLAGS', flags, *options, *(str(RTL / name) for name in files), str(SIM / tb)]
         log = output / 'build.log'
