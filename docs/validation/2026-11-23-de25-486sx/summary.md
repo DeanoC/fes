@@ -6,7 +6,9 @@ shell with no 387. This branch is stacked on #2036's head `dfacd28e1`.
 Tracker [#1962](https://github.com/DeanoC/fes/issues/1962).
 
 The fit method, [method.md](method.md), was committed (`d1616104c`) before
-any fit ran.
+any fit ran. The fits ran at `d1616104c`; later commits change only this
+record and `tests/test_build_de25_machine_package.py`, neither in the
+machine's source closure.
 
 **Result.** The DE25 pc386 builds and closes as a 486SX. All four seeds fit
 and close every analysis at 61.437908 MHz; seed 1, the registered producer,
