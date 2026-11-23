@@ -23,7 +23,7 @@ writes from the committed evidence ([fits/](fits/), [profiles/](profiles/),
   - Store-to-load forwarding, the early ALU, the return stack and indirect prediction each save nothing measurable (under the 100-ALM noise band).
   - **Load forwarding saves 360 ALMs for 1.2% of DOOM's CPI.** That is the one Phase 4 trade worth making on the DX.
 - **So the DX should keep the Phase 4 set, except load forwarding.** The rest of the area has to come from:
-  - the x87 (7,315 ALMs in this record's hierarchy fit);
+  - the x87 (7,315 ALMs in this record's exploratory hierarchy fit; 7,557 in #2028's);
   - the base pipeline, most of which predates Phase 4: the front end at 3,813, the L1s at 3,904, the BIU at 1,609;
   - the shell and devices.
   This record measures only module bounds for those, not savings. Measuring the savings is the plan's next step.
@@ -82,27 +82,33 @@ The decisions for Deano are [at the end](#decisions-for-deano).
   - The store-to-load test is a 12-bit compare.
   - Removing them takes nothing out.
 
-**Module bounds on Agilex 5.** These come from this record's exploratory hierarchy-kept fit of `dx` (amendment 3, added after the results; [results.md](results.md)). It needs 34,818 ALMs, +0.48% from the flattened fit, inside the ±5% gate borrowed from #2028. The precommitted per-module rows (rule 7) are #2028's, below. They bound what a module's removal or redesign could save; they are not savings:
+**Module bounds on Agilex 5.** The table has two sources, kept in separate columns:
 
-| Module | ALMs | Registers | What a DX could do there |
-| --- | ---: | ---: | --- |
-| **x87 (`fes_i386_x87`), all** | **7,315** | 5,065 | Iterative arithmetic, serial conversions (question 5) |
-| — the envelope's own logic | 3,510 | 2,303 | |
-| — the transcendental engine | 1,502 | 789 | Needed: it now also runs FBLD and the remainder ops (#2037, #2059) |
-| — `fes_x87_core`: fast lane 1,134, slow lane 594, own 421 | 2,148 | 1,455 | The fast lane holds the clock-limiting path |
-| — multiplier | 155 | 518 | |
-| The CPU's own logic, with the 2,352 virtual-pin ALMs | 12,977 | 8,997 | Not apportioned |
-| Front end: fetch buffer with predecode (decoders 674, sums 542) | 2,629 | 2,919 | Fewer predecode bytes; a narrower buffer |
-| Front end: queue align (byte rotators) | 1,107 | 259 | A narrower issue |
-| L1D (16 KiB, 4-way) | 2,259 | 1,828 | 8 KiB. A real 486 has 8 KiB unified, and the valid bits are flip-flops. |
-| L1I (16 KiB, 4-way) with the ITLB (239) | 1,645 | 992 | As L1D |
-| BIU | 1,609 | 1,754 | |
-| `muldiv` | 816 | 558 | A slower divider; the 486's divide is slow |
-| `dfwd` | 809 | 73 | |
-| DTLB (16 entries × 2 ports) | 708 | 660 | 8 entries with a second level (#1584's fallback) |
+- **This record, exploratory** (amendment 3, added after the results; [results.md](results.md)): a hierarchy-kept fit of `dx`, 34,818 ALMs, +0.48% from the flattened fit, inside the ±5% gate borrowed from #2028 after the fact.
+- **#2028, precommitted (rule 7):** the 387-on machine's hierarchy fit (main `8a162c536`, before #2037 and #2059; `docs/validation/2026-11-20-i386-x87-s6-measure/entities.tsv`), each module's total ALMs inside that machine.
 
-#2028's machine fit (main `8a162c536`, before #2037 and #2059) gives the same
-picture. Its x87 was 7,557 then.
+Both bound what a module's removal or redesign could save; neither is a saving:
+
+| Module | ALMs, this record (exploratory) | ALMs, #2028 (rule 7) | Registers, this record | What a DX could do there |
+| --- | ---: | ---: | ---: | --- |
+| **x87 (`fes_i386_x87`), all** | **7,315** | **7,557** | 5,065 | Iterative arithmetic, serial conversions (question 5) |
+| — the envelope's own logic | 3,510 | 4,408 | 2,303 | |
+| — the transcendental engine | 1,502 | 1,114 | 789 | Needed: it now also runs FBLD and the remainder ops (#2037, #2059) |
+| — `fes_x87_core`: fast lane 1,134, slow lane 594, own 421 | 2,148 | 1,885 | 1,455 | The fast lane holds the clock-limiting path |
+| — multiplier | 155 | 151 | 518 | |
+| The CPU's own logic (this record's includes the 2,352 virtual-pin ALMs) | 12,977 | 9,349 | 8,997 | Not apportioned |
+| Front end: fetch buffer with predecode (decoders 674, sums 542) | 2,629 | 2,664 | 2,919 | Fewer predecode bytes; a narrower buffer |
+| Front end: queue align (byte rotators) | 1,107 | 1,095 | 259 | A narrower issue |
+| L1D (16 KiB, 4-way) | 2,259 | 2,312 | 1,828 | 8 KiB. A real 486 has 8 KiB unified, and the valid bits are flip-flops. |
+| L1I (16 KiB, 4-way) with the ITLB (239) | 1,645 | 1,609 | 992 | As L1D |
+| BIU | 1,609 | 1,506 | 1,754 | |
+| `muldiv` | 816 | 833 | 558 | A slower divider; the 486's divide is slow |
+| `dfwd` | 809 | 873 | 73 | |
+| DTLB (16 entries × 2 ports) | 708 | 735 | 660 | 8 entries with a second level (#1584's fallback) |
+
+The two columns give the same picture. #2028's x87 split differs because #2037
+and #2059 since moved FBLD and the remainder ops onto the engine and made the
+fast lane one stage.
 
 ## 2. What each speed feature buys
 
@@ -223,7 +229,7 @@ gain, and the rest are each about a percent.
 
 ## 5. The 387 on the DX
 
-- **Size.** The x87 is 7,315 ALMs in this record's hierarchy fit (#2028 measured 7,557 before #2037 and #2059). Its parts:
+- **Size.** The x87 is 7,315 ALMs in this record's exploratory hierarchy fit (#2028 measured 7,557 before #2037 and #2059). Its parts:
   - the envelope's own logic, 3,510;
   - `fes_x87_core`, 2,148: the fast lane 1,134, the slow lane 594 and its own logic 421;
   - the transcendental engine, 1,502;
