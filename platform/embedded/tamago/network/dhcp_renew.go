@@ -214,6 +214,7 @@ type LeaseRenewer struct {
 	mac        string
 	cfg        RenewConfig
 	acquiredAt time.Time
+	onUpdate   func(DHCPLease, time.Time)
 	onTerminal func(error)
 
 	mu       sync.Mutex
@@ -399,6 +400,9 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 			r.mu.Lock()
 			r.lease = cloneLease(nextLease)
 			r.mu.Unlock()
+			if r.onUpdate != nil {
+				r.onUpdate(cloneLease(nextLease), acquiredAt)
+			}
 			r.renewals.Add(1)
 			if r.cfg.OnRenew != nil {
 				r.cfg.OnRenew(cloneLease(nextLease))
@@ -425,6 +429,9 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 			r.mu.Lock()
 			r.lease = cloneLease(nextLease)
 			r.mu.Unlock()
+			if r.onUpdate != nil {
+				r.onUpdate(cloneLease(nextLease), acquiredAt)
+			}
 			r.renewals.Add(1)
 			if r.cfg.OnRenew != nil {
 				r.cfg.OnRenew(cloneLease(nextLease))

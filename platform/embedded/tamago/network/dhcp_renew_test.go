@@ -323,8 +323,13 @@ func TestLeaseRenewerT1T2LifecycleAndStopDrain(t *testing.T) {
 		t.Fatalf("Err=%v, want ErrLeaseExpired", expRen.Err())
 	}
 
-	// Preserving original AcquiredAt in the past triggers T1 immediately without extending expiry.
+	// Preserving original AcquiredAt in the past triggers T1 immediately without extending expiry,
+	// and propagates updated lease + timestamp to onUpdate before invoking OnRenew.
 	pastRenewed := make(chan DHCPLease, 1)
+	var updatedMu sync.Mutex
+	var updatedLease DHCPLease
+	var updatedAt time.Time
+	var sawUpdateInOnRenew atomic.Bool
 	portPast := newFakeRenewPort()
 	portPast.onSend = func(frame []byte, p *fakeRenewPort) {
 		xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
@@ -339,10 +344,23 @@ func TestLeaseRenewerT1T2LifecycleAndStopDrain(t *testing.T) {
 	}, RenewConfig{
 		AcquiredAt:    time.Now().Add(-40 * time.Minute), // already past 30m T1!
 		RetryInterval: 5 * time.Millisecond,
-		OnRenew:       func(l DHCPLease) { pastRenewed <- l },
+		OnRenew: func(l DHCPLease) {
+			updatedMu.Lock()
+			if updatedLease.LeaseDuration == time.Hour && !updatedAt.IsZero() {
+				sawUpdateInOnRenew.Store(true)
+			}
+			updatedMu.Unlock()
+			pastRenewed <- l
+		},
 	})
 	if err != nil {
 		t.Fatalf("NewLeaseRenewer past: %v", err)
+	}
+	pastRen.onUpdate = func(next DHCPLease, at time.Time) {
+		updatedMu.Lock()
+		updatedLease = next
+		updatedAt = at
+		updatedMu.Unlock()
 	}
 	if err := pastRen.Start(context.Background()); err != nil {
 		t.Fatalf("Start past: %v", err)
@@ -351,6 +369,9 @@ func TestLeaseRenewerT1T2LifecycleAndStopDrain(t *testing.T) {
 	case <-pastRenewed:
 	case <-time.After(time.Second):
 		t.Fatal("past AcquiredAt did not trigger immediate T1 renewal")
+	}
+	if !sawUpdateInOnRenew.Load() {
+		t.Fatal("onUpdate did not run before OnRenew")
 	}
 	pastRen.Stop()
 }

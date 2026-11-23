@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -33,6 +34,7 @@ type Interface struct {
 	ctx             context.Context
 	stop            context.CancelCauseFunc
 	irqEnabled      atomic.Bool
+	leaseMu         sync.RWMutex
 	lease           DHCPLease
 	leaseAcquiredAt time.Time
 	hasLease        bool
@@ -167,32 +169,48 @@ func (i *Interface) Statistics() Stats { return i.device.Statistics() }
 // Lease returns the acquired DHCPv4 lease and true if the interface was opened
 // via DHCP, or the zero value and false for static IPv4 configurations.
 func (i *Interface) Lease() (DHCPLease, bool) {
-	if i == nil || !i.hasLease {
+	if i == nil {
 		return DHCPLease{}, false
 	}
-	lease := i.lease
-	if len(lease.DNS) > 0 {
-		lease.DNS = append([]string(nil), lease.DNS...)
+	i.leaseMu.RLock()
+	defer i.leaseMu.RUnlock()
+	if !i.hasLease {
+		return DHCPLease{}, false
 	}
-	return lease, true
+	return cloneLease(i.lease), true
 }
 
 // NewLeaseRenewer creates an opt-in RFC 2131 DHCPv4 T1/T2 LeaseRenewer wired
 // to this interface's active *Link (preserving its pause/DMA failure gate and
-// original lease acquisition timestamp). If the lease expires, is NAK'd, or
-// changes IP/gateway, the interface and link are halted immediately per
-// RFC 2131 §4.4.5 so traffic stops using the unleased address.
+// original lease acquisition timestamp). Successful renewals synchronize back
+// to Interface.Lease() and future NewLeaseRenewer calls. If the lease expires,
+// is NAK'd, or changes IP/gateway, the interface and link are halted immediately
+// per RFC 2131 §4.4.5 so traffic stops using the unleased address.
 // Returns ErrDHCPInvalidConfig if the interface was not opened via DHCP.
 func (i *Interface) NewLeaseRenewer(cfg RenewConfig) (*LeaseRenewer, error) {
-	if i == nil || !i.hasLease || i.bridge == nil || i.device == nil {
+	if i == nil || i.bridge == nil || i.device == nil {
+		return nil, fmt.Errorf("%w: interface has no active DHCP lease", ErrDHCPInvalidConfig)
+	}
+	i.leaseMu.RLock()
+	hasLease := i.hasLease
+	lease := cloneLease(i.lease)
+	acquiredAt := i.leaseAcquiredAt
+	i.leaseMu.RUnlock()
+	if !hasLease {
 		return nil, fmt.Errorf("%w: interface has no active DHCP lease", ErrDHCPInvalidConfig)
 	}
 	if cfg.AcquiredAt.IsZero() {
-		cfg.AcquiredAt = i.leaseAcquiredAt
+		cfg.AcquiredAt = acquiredAt
 	}
-	ren, err := NewLeaseRenewer(i.bridge, i.device.MAC(), i.lease, cfg)
+	ren, err := NewLeaseRenewer(i.bridge, i.device.MAC(), lease, cfg)
 	if err != nil {
 		return nil, err
+	}
+	ren.onUpdate = func(next DHCPLease, at time.Time) {
+		i.leaseMu.Lock()
+		i.lease = cloneLease(next)
+		i.leaseAcquiredAt = at
+		i.leaseMu.Unlock()
 	}
 	ren.onTerminal = func(err error) {
 		i.bridge.fail(err)
