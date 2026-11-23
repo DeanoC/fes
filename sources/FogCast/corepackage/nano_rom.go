@@ -51,15 +51,15 @@ func FirmwareUpload(d Descriptor) bool {
 	return nanoROM(d) && d.ROM != nil && ok && encoding == "gp-firmware-upload-v1"
 }
 
-// firmwareUploadMachine admits the machines the DE25 runtime launches this
-// way, each with its endpoint's exact image sizes. The package format allows
-// any 1 KiB multiple; a launch does not.
 // DE25ComputerABI is the exact fes.computer contract a DE25 machine runs. The
 // PC/XT's floppy is a fes.computer 1.1 interface; every other machine is 1.0.
 func DE25ComputerABI(coreID string) Contract {
 	return Contract{ID: "fes.computer", Major: 1, Minor: map[string]int64{"fes.pcxt-dos": 1}[coreID]}
 }
 
+// firmwareUploadMachine admits the machines the DE25 runtime launches this
+// way, each with its endpoint's exact image sizes. The package format allows
+// any 1 KiB multiple; a launch does not.
 func firmwareUploadMachine(d Descriptor) error {
 	sizes := map[string][]int64{
 		"fes.spectrum":       {16384, 32768},
