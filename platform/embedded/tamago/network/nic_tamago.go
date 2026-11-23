@@ -14,6 +14,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/dmaops"
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/usbarmory/tamago/dma"
 )
 
@@ -45,20 +47,39 @@ const (
 	packetMax         = 1518
 )
 
-func barrier()
-
 type queue struct {
-	address       uint
-	bytes         []byte
-	size          uint16
-	available     uint16
-	used          uint16
-	buffers       []byte
-	bufferAddress uint
+	ringBuf   *dmaops.Buffer
+	dataBuf   *dmaops.Buffer
+	bytes     []byte
+	buffers   []byte
+	size      uint16
+	available uint16
+	used      uint16
 }
 
-// NIC owns its DMA allocations for the lifetime of this boot. A failed
-// exchange poisons it rather than reusing buffers whose ownership is unclear.
+func (q *queue) poison(err error) {
+	if q.ringBuf != nil {
+		q.ringBuf.Poison(err)
+	}
+	if q.dataBuf != nil {
+		q.dataBuf.Poison(err)
+	}
+}
+
+func (q *queue) free() {
+	if q.ringBuf != nil {
+		_ = q.ringBuf.Free()
+		q.ringBuf = nil
+	}
+	if q.dataBuf != nil {
+		_ = q.dataBuf.Free()
+		q.dataBuf = nil
+	}
+}
+
+// NIC owns its dmaops allocations for the lifetime of this boot. A failed
+// exchange poisons both the NIC and its underlying dmaops buffers rather than
+// reusing buffers whose ownership is unclear.
 type NIC struct {
 	base      uint32
 	rx        queue
@@ -70,6 +91,15 @@ type NIC struct {
 	rxPackets atomic.Uint64
 	txPackets atomic.Uint64
 	dropped   atomic.Uint64
+	rxReady   chan struct{}
+	irqActive atomic.Bool
+	irqCount  atomic.Uint64
+}
+
+func (n *NIC) poison(err error) {
+	n.failed.Store(true)
+	n.rx.poison(err)
+	n.tx.poison(err)
 }
 
 func readMMIO(address uint32) uint32 {
@@ -82,6 +112,18 @@ func writeMMIO(address uint32, value uint32) {
 
 func (n *NIC) read(offset uint32) uint32  { return readMMIO(n.base + offset) }
 func (n *NIC) write(offset, value uint32) { writeMMIO(n.base+offset, value) }
+
+func (n *NIC) resetDevice() bool {
+	n.write(regStatus, 0)
+	deadline := time.Now().Add(100 * time.Millisecond)
+	for n.read(regStatus) != 0 {
+		if time.Now().After(deadline) {
+			return false
+		}
+		runtime.Gosched()
+	}
+	return true
+}
 
 func discover() (uint32, error) {
 	var found uint32
@@ -99,7 +141,10 @@ func discover() (uint32, error) {
 	return found, nil
 }
 
-func openNIC(base uint32) (*NIC, error) {
+func openNIC(base uint32, pool *dmaops.Pool) (*NIC, error) {
+	if pool != nil && pool.Mode() != dmaops.Uncached {
+		return nil, errors.New("network: VirtIO NIC requires an uncached DMA pool")
+	}
 	var err error
 	if base == 0 {
 		base, err = discover()
@@ -107,17 +152,12 @@ func openNIC(base uint32) (*NIC, error) {
 			return nil, err
 		}
 	}
-	n := &NIC{base: base}
+	n := &NIC{base: base, rxReady: make(chan struct{}, 1)}
 	if n.read(0) != virtioMagic || n.read(4) != 2 || n.read(8) != 1 {
 		return nil, errors.New("network: wrong VirtIO identity")
 	}
-	n.write(regStatus, 0)
-	deadline := time.Now().Add(100 * time.Millisecond)
-	for n.read(regStatus) != 0 {
-		if time.Now().After(deadline) {
-			return nil, errors.New("network: reset timeout")
-		}
-		runtime.Gosched()
+	if !n.resetDevice() {
+		return nil, errors.New("network: reset timeout")
 	}
 	n.write(regStatus, 1|2)
 	n.write(regFeatureSelect, 0)
@@ -152,19 +192,35 @@ func openNIC(base uint32) (*NIC, error) {
 	if len(n.mac) != 6 || n.mac[0]&1 != 0 || (n.mac[0]|n.mac[1]|n.mac[2]|n.mac[3]|n.mac[4]|n.mac[5]) == 0 {
 		return nil, errors.New("network: invalid or unstable MAC configuration")
 	}
-	if n.rx, err = n.setupQueue(0, true); err != nil {
+	if n.rx, err = n.setupQueue(0, true, pool); err != nil {
+		n.write(regStatus, 128)
 		return nil, err
 	}
-	if n.tx, err = n.setupQueue(1, false); err != nil {
+	if n.tx, err = n.setupQueue(1, false, pool); err != nil {
+		// Reset device before reclaiming RX buffers; if reset stalls, poison
+		// RX buffers so memory is never recycled while device may access it.
+		if n.resetDevice() {
+			n.rx.free()
+		} else {
+			n.rx.poison(err)
+		}
 		return nil, err
 	}
-	barrier()
+	dmaops.Native().DataBarrier()
 	n.write(regStatus, 1|2|8|4)
 	n.write(regNotify, 0)
 	return n, nil
 }
 
-func (n *NIC) setupQueue(index uint32, receive bool) (q queue, err error) {
+func allocQueuePool(bytes int) (*dmaops.Pool, error) {
+	addr, raw := dma.Reserve(bytes, 4096)
+	if len(raw) != bytes {
+		return nil, errors.New("network: DMA allocation failed")
+	}
+	return dmaops.NewPool(uint64(addr), raw, dmaops.Uncached, dmaops.Native())
+}
+
+func (n *NIC) setupQueue(index uint32, receive bool, pool *dmaops.Pool) (q queue, err error) {
 	n.write(regQueueSelect, index)
 	maximum := n.read(regQueueMax)
 	if maximum < 2 || n.read(regQueueReady) != 0 {
@@ -174,22 +230,37 @@ func (n *NIC) setupQueue(index uint32, receive bool) (q queue, err error) {
 	for uint32(q.size) > maximum {
 		q.size /= 2
 	}
-	q.address, q.bytes = dma.Reserve(4096, 4096)
 	count := 1
 	if receive {
 		count = int(q.size)
 	}
-	q.bufferAddress, q.buffers = dma.Reserve(count*packetBufferSize, 16)
-	if q.address == 0 || q.bufferAddress == 0 {
-		return q, errors.New("network: DMA allocation failed")
+	dataBytes := count * packetBufferSize
+	qPool := pool
+	if qPool == nil {
+		qPool, err = allocQueuePool(4096 + dataBytes)
+		if err != nil {
+			return q, err
+		}
 	}
-	// Reserve does not zero memory. In particular, stale used indices or
-	// descriptor flags must not survive a firmware-retained RAM region.
+	q.ringBuf, err = qPool.Alloc(4096, 4096)
+	if err != nil {
+		return q, fmt.Errorf("network: ring DMA allocation failed: %w", err)
+	}
+	q.dataBuf, err = qPool.Alloc(uint64(dataBytes), 64)
+	if err != nil {
+		_ = q.ringBuf.Free()
+		q.ringBuf = nil
+		return q, fmt.Errorf("network: buffer DMA allocation failed: %w", err)
+	}
+	q.bytes = q.ringBuf.Bytes()
+	q.buffers = q.dataBuf.Bytes()
+	// Zero explicitly so stale used indices or descriptor flags cannot survive.
 	clear(q.bytes)
 	clear(q.buffers)
+	bufBase := q.dataBuf.PhysAddr()
 	for i := 0; i < count; i++ {
 		descriptor := q.bytes[i*16 : (i+1)*16]
-		binary.LittleEndian.PutUint64(descriptor, uint64(q.bufferAddress+uint(i*packetBufferSize)))
+		binary.LittleEndian.PutUint64(descriptor, bufBase+uint64(i*packetBufferSize))
 		binary.LittleEndian.PutUint32(descriptor[8:], packetBufferSize)
 		if receive {
 			binary.LittleEndian.PutUint16(descriptor[12:], 2)
@@ -201,23 +272,27 @@ func (n *NIC) setupQueue(index uint32, receive bool) (q queue, err error) {
 		q.available = q.size
 		binary.LittleEndian.PutUint16(q.bytes[1026:], q.available)
 	}
+	ringAddr := q.ringBuf.PhysAddr()
 	n.write(regQueueNum, uint32(q.size))
 	for _, field := range []struct {
 		offset  uint32
-		address uint
+		address uint64
 	}{
-		{regQueueDesc, q.address}, {regQueueDriver, q.address + 1024}, {regQueueDevice, q.address + 2048},
+		{regQueueDesc, ringAddr}, {regQueueDriver, ringAddr + 1024}, {regQueueDevice, ringAddr + 2048},
 	} {
 		n.write(field.offset, uint32(field.address))
-		n.write(field.offset+4, uint32(uint64(field.address)>>32))
+		n.write(field.offset+4, uint32(field.address>>32))
 	}
-	barrier()
+	if err := q.ringBuf.SyncForDevice(dmaops.ToDevice); err != nil {
+		q.free()
+		return queue{}, err
+	}
 	n.write(regQueueReady, 1)
 	return q, nil
 }
 
 func usedIndex(q *queue) uint16 {
-	barrier()
+	dmaops.Native().DataBarrier()
 	return loadShared16(q.bytes[2050:])
 }
 
@@ -228,7 +303,79 @@ func loadShared16(b []byte) uint16 { return *(*uint16)(unsafe.Pointer(&b[0])) }
 func (n *NIC) acknowledge() {
 	if bits := n.read(regInterrupt); bits != 0 {
 		n.write(regInterruptAck, bits)
+		if n.irqActive.Load() {
+			select {
+			case n.rxReady <- struct{}{}:
+			default:
+			}
+		}
 	}
+}
+
+func (n *NIC) irqID() (uint32, bool) {
+	if n.base < 0x0a000000 || n.base >= 0x0a004000 || (n.base-0x0a000000)%0x200 != 0 {
+		return 0, false
+	}
+	// QEMU virt wires VirtIO-MMIO slots 0..31 to SPI 16..47 (INTID 48..79).
+	return 48 + (n.base-0x0a000000)/0x200, true
+}
+
+// RXReady returns the RX interrupt wakeup channel while IRQ mode is active.
+func (n *NIC) RXReady() <-chan struct{} {
+	if !n.irqActive.Load() {
+		return nil
+	}
+	return n.rxReady
+}
+
+// IRQCount returns the number of VirtIO-net interrupts handled since EnableIRQ.
+func (n *NIC) IRQCount() uint64 { return n.irqCount.Load() }
+
+// EnableIRQ routes this VirtIO-net slot's GICv3 SPI to wake Link.Start on RX.
+// Call after g.Init(); g.Serve must run for interrupts to be dispatched.
+func (n *NIC) EnableIRQ(g *gic.Controller) error {
+	if g == nil {
+		return errors.New("network: nil GIC controller")
+	}
+	id, ok := n.irqID()
+	if !ok || id >= g.Lines() {
+		return gic.ErrInvalidConfig
+	}
+	n.rxMu.Lock()
+	defer n.rxMu.Unlock()
+	g.Disable(id)
+	n.irqCount.Store(0)
+	// Clear AVAIL_F_NO_INTERRUPT on RX queue; keep TX queue suppressed.
+	binary.LittleEndian.PutUint16(n.rx.bytes[1024:], 0)
+	dmaops.Native().DataBarrier()
+	n.acknowledge()
+	g.Register(id, func() {
+		n.irqCount.Add(1)
+		n.acknowledge()
+	})
+	n.irqActive.Store(true)
+	g.Enable(id)
+	select {
+	case n.rxReady <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
+// DisableIRQ re-suppresses VirtIO RX interrupts and masks the GICv3 SPI.
+func (n *NIC) DisableIRQ(g *gic.Controller) {
+	n.rxMu.Lock()
+	defer n.rxMu.Unlock()
+	binary.LittleEndian.PutUint16(n.rx.bytes[1024:], 1)
+	dmaops.Native().DataBarrier()
+	if g != nil {
+		if id, ok := n.irqID(); ok {
+			g.Disable(id)
+			g.Register(id, nil)
+		}
+	}
+	n.irqActive.Store(false)
+	n.acknowledge()
 }
 
 func (n *NIC) Receive(destination []byte) (int, error) {
@@ -238,8 +385,9 @@ func (n *NIC) Receive(destination []byte) (int, error) {
 		return 0, errors.New("network: NIC is poisoned")
 	}
 	if n.read(regStatus)&(64|4) != 4 {
-		n.failed.Store(true)
-		return 0, errors.New("network: NIC stopped or requires reset")
+		err := errors.New("network: NIC stopped or requires reset")
+		n.poison(err)
+		return 0, err
 	}
 	q := &n.rx
 	pending := uint16(usedIndex(q) - q.used)
@@ -248,16 +396,18 @@ func (n *NIC) Receive(destination []byte) (int, error) {
 		return 0, nil
 	}
 	if pending > q.size {
-		n.failed.Store(true)
-		return 0, errors.New("network: impossible RX completion count")
+		err := errors.New("network: impossible RX completion count")
+		n.poison(err)
+		return 0, err
 	}
-	barrier()
+	dmaops.Native().DataBarrier()
 	entry := q.bytes[2052+int(q.used%q.size)*8:]
 	id := binary.LittleEndian.Uint32(entry)
 	size := binary.LittleEndian.Uint32(entry[4:])
 	if id >= uint32(q.size) || size > packetBufferSize {
-		n.failed.Store(true)
-		return 0, errors.New("network: invalid RX DMA completion")
+		err := errors.New("network: invalid RX DMA completion")
+		n.poison(err)
+		return 0, err
 	}
 	packet := q.buffers[int(id)*packetBufferSize : int(id)*packetBufferSize+int(size)]
 	var err error
@@ -273,9 +423,9 @@ func (n *NIC) Receive(destination []byte) (int, error) {
 	q.used++
 	binary.LittleEndian.PutUint16(q.bytes[1028+int(q.available%q.size)*2:], uint16(id))
 	q.available++
-	barrier()
+	dmaops.Native().DataBarrier()
 	binary.LittleEndian.PutUint16(q.bytes[1026:], q.available)
-	barrier()
+	dmaops.Native().DataBarrier()
 	n.write(regNotify, 0)
 	n.acknowledge()
 	if err != nil {
@@ -292,43 +442,48 @@ func (n *NIC) Transmit(frame []byte) error {
 		return errors.New("network: NIC is poisoned")
 	}
 	if n.read(regStatus)&(64|4) != 4 {
-		n.failed.Store(true)
-		return errors.New("network: NIC stopped or requires reset")
+		err := errors.New("network: NIC stopped or requires reset")
+		n.poison(err)
+		return err
 	}
 	if len(frame) < 14 || len(frame) > packetMax {
 		return errors.New("network: invalid TX frame size")
 	}
 	q := &n.tx
 	if usedIndex(q) != q.used {
-		n.failed.Store(true)
-		return errors.New("network: unexpected TX completion")
+		err := errors.New("network: unexpected TX completion")
+		n.poison(err)
+		return err
 	}
 	clear(q.buffers[:netHeaderSize])
 	copy(q.buffers[netHeaderSize:], frame)
 	binary.LittleEndian.PutUint32(q.bytes[8:], uint32(netHeaderSize+len(frame)))
 	binary.LittleEndian.PutUint16(q.bytes[1028+int(q.available%q.size)*2:], 0)
 	q.available++
-	barrier()
+	dmaops.Native().DataBarrier()
 	binary.LittleEndian.PutUint16(q.bytes[1026:], q.available)
-	barrier()
+	dmaops.Native().DataBarrier()
 	n.write(regNotify, 1)
 	deadline := time.Now().Add(time.Second)
 	for usedIndex(q) == q.used {
 		if time.Now().After(deadline) {
-			n.failed.Store(true)
-			return errors.New("network: TX completion timeout")
+			err := errors.New("network: TX completion timeout")
+			n.poison(err)
+			return err
 		}
 		runtime.Gosched()
 	}
 	if uint16(usedIndex(q)-q.used) != 1 {
-		n.failed.Store(true)
-		return errors.New("network: invalid TX completion count")
+		err := errors.New("network: invalid TX completion count")
+		n.poison(err)
+		return err
 	}
-	barrier()
+	dmaops.Native().DataBarrier()
 	entry := q.bytes[2052+int(q.used%q.size)*8:]
 	if binary.LittleEndian.Uint32(entry) != 0 {
-		n.failed.Store(true)
-		return fmt.Errorf("network: unexpected TX descriptor")
+		err := fmt.Errorf("network: unexpected TX descriptor")
+		n.poison(err)
+		return err
 	}
 	q.used++
 	n.txPackets.Add(1)

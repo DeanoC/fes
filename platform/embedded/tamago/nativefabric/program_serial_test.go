@@ -286,3 +286,37 @@ func TestFullTenfootSerialNativeLaunchReturnAndFailures(t *testing.T) {
 		})
 	}
 }
+
+func TestSerialReadyWakesBeforeFrameDelay(t *testing.T) {
+	f := serviceTest(t)
+	ready := make(chan struct{}, 1)
+	var queue []byte
+	p, err := NewProgramSerialPlatform(f.s, func() (byte, bool) {
+		if len(queue) == 0 {
+			return 0, false
+		}
+		b := queue[0]
+		queue = queue[1:]
+		return b, true
+	}, func(context.Context, []byte) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.SetReady(ready)
+	if _, err := p.Next(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	queue = []byte("l")
+	ready <- struct{}{}
+	start := time.Now()
+	frame, err := p.Next(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(start); elapsed >= 40*time.Millisecond {
+		t.Fatalf("Next waited %v instead of waking on ready channel", elapsed)
+	}
+	if len(frame.Commands) != 1 || frame.Commands[0] != tenfoot.CmdLayoutCycle {
+		t.Fatalf("commands = %v, want [%v]", frame.Commands, tenfoot.CmdLayoutCycle)
+	}
+}

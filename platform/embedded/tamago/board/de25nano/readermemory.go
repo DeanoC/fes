@@ -23,18 +23,8 @@ func ReserveReaderMemory(source []byte) (*nativefabric.Region, error) {
 	return reserveReaderMemory(source, 2<<20, 8192)
 }
 
-// ReserveWindowMemory retains the complete compiled 4 MiB arena through reboot.
-// The same single-attempt owner prevents overlap with the fixed-reader API.
-func ReserveWindowMemory(source []byte) (*nativefabric.Region, error) {
-	region, err := reserveReaderMemory(source, 4<<20, 4<<20)
-	if err == nil {
-		region.OrderFrameStores = func() error { memoryBarrier(); return nil }
-	}
-	return region, err
-}
-
 // ReserveMenuMemory retains both compiled 4 MiB slots through reboot. Existing
-// fixed-reader/window profiles reject this request before any mapping or copy.
+// fixed-reader profiles reject this request before any mapping or copy.
 func ReserveMenuMemory(source []byte) (*nativefabric.Region, error) {
 	region, err := reserveReaderMemory(source, 8<<20, 8<<20)
 	if err == nil {

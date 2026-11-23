@@ -67,6 +67,7 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 				return err
 			}
 			d.paused = true
+			d.suspendIRQLocked()
 			if err := d.stopFIFO(ctx); err != nil {
 				return d.retireControl(err)
 			}
@@ -157,6 +158,7 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 				return d.retireControl(errors.New("xgmac: confirmed DMA window changed"))
 			}
 			contained, d.paused = false, false
+			d.resumeIRQLocked()
 			return nil
 		},
 	}, nil
@@ -169,7 +171,10 @@ func (d *Device) sameMemory() bool {
 // A platform failure can mean MMIO access was revoked. Retire without best-
 // effort register writes; new Receive/Transmit refuse through the cached error.
 func (d *Device) retireControl(err error) error {
-	d.fault.CompareAndSwap(nil, &failure{err: err})
+	if d.fault.CompareAndSwap(nil, &failure{err: err}) {
+		d.retireIRQLocked(false)
+		d.poisonMemory(err)
+	}
 	return d.Err()
 }
 

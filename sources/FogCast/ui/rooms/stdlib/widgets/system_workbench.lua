@@ -484,7 +484,7 @@ local function picture(part)
 
     text(game and disk_line(game) or spec().media .. "  ·  none saved", 24, 396, 20, C.ink, 1060, true)
     text(spec().hint, 24, 426, 18, C.muted, 1060)
-    if selected_core == "fes.c64" then
+    if family().id == "fes.c64" then
       text("Tape .tap and .t64: not on this core", 24, 448, 15, C.ink, 520)
       text("Cartridge file .crt: not on this core", 560, 448, 15, C.ink, 530)
     end
@@ -523,7 +523,7 @@ local function picture(part)
   button("machine", "Next machine", 24, 530, 200, 44, #entries > 1, next_machine)
   button("edition", "Next edition", 240, 530, 200, 44, game and #editions_of(entries[entry_i]) > 1, next_edition)
   button("start", label, 456, 524, 220, 52, enabled, fn)
-  button("disk", selected_core == "fes.c64" and "Choose disk" or "Change media", 692, 530, 200, 44, this_machine() and live.removable_available, function()
+  button("disk", family().id == "fes.c64" and "Choose disk" or "Change media", 692, 530, 200, 44, this_machine() and live.removable_available, function()
     session.open_tape(live)
   end)
   button("resume", "Return to play", 908, 530, 188, 44, state == "active" and not hardware_unavailable, function() session.resume() end)

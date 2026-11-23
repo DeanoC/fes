@@ -1,0 +1,98 @@
+{
+  "classification": "PC/XT FreeDOS prompt capture diagnostic",
+  "width": 1920,
+  "height": 1080,
+  "capture_count": 8,
+  "boot_frames_changed": true,
+  "adjacent_changes": [
+    {
+      "changed_sample_fraction": 0.0174,
+      "mean_max_channel_delta": 3.27,
+      "significant": true
+    },
+    {
+      "changed_sample_fraction": 0.0213,
+      "mean_max_channel_delta": 3.92,
+      "significant": true
+    },
+    {
+      "changed_sample_fraction": 0.0119,
+      "mean_max_channel_delta": 2.39,
+      "significant": true
+    },
+    {
+      "changed_sample_fraction": 0.0686,
+      "mean_max_channel_delta": 11.24,
+      "significant": true
+    },
+    {
+      "changed_sample_fraction": 0.0172,
+      "mean_max_channel_delta": 2.82,
+      "significant": true
+    },
+    {
+      "changed_sample_fraction": 0.0006,
+      "mean_max_channel_delta": 0.1,
+      "significant": false
+    },
+    {
+      "changed_sample_fraction": 0.0,
+      "mean_max_channel_delta": 0.0,
+      "significant": false
+    }
+  ],
+  "prompt": {
+    "row": 21,
+    "column": 0,
+    "score": 1.0,
+    "foreground_rgb": [
+      175,
+      175,
+      175
+    ],
+    "background_rgb": [
+      0,
+      0,
+      0
+    ],
+    "alignment_dx": 0,
+    "alignment_dy": 0,
+    "text": "A:\\>"
+  },
+  "static_signature_rejected": true,
+  "whole_board_qualified": false,
+  "captures": [
+    {
+      "path": "00-empty.png",
+      "sha256": "1e4db934ea2dd286c412c9a35814acfd4f5b4ad5ec64c15e235ee91793c22102"
+    },
+    {
+      "path": "01-boot.png",
+      "sha256": "a1422196bf381e6910273aa8a4c61f1fd6a12164617ba74e8126e02b228ae2ca"
+    },
+    {
+      "path": "02-boot.png",
+      "sha256": "8e861ae42fbbdcf393256892fb942ab8d255ec1aef0d3143a0c35f453e10bd8d"
+    },
+    {
+      "path": "03-boot.png",
+      "sha256": "94137213c80d71ddbcc839192e1583f03b8369fb6498d887f94355e868977075"
+    },
+    {
+      "path": "04-boot.png",
+      "sha256": "e16a4da47f56e65f7605d8da611772aa93cf4b05c475d1af33a6722f9a64ded2"
+    },
+    {
+      "path": "05-boot.png",
+      "sha256": "42e59032eb4144e47b7db960ab21c8a948d01c3c0ad1c18c57ba7546b8e6d8bb"
+    },
+    {
+      "path": "06-boot.png",
+      "sha256": "343f7d9bdd6c533105e9081ac8a5623d35fcafc5c0185cd00eec2b3a58826983"
+    },
+    {
+      "path": "07-prompt.png",
+      "sha256": "c58dd9830185fb3106ba366c319474cfdc43ec222388b5904db974585cb37fef"
+    }
+  ]
+}

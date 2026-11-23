@@ -7,8 +7,9 @@ a separate [XGMAC/firmware contract](../xgmac/README.md). It uses the
 MMIO driver. The default `Open` path selects QEMU `virt`; `OpenDevice` supplies the shared
 IP/socket service to the Nano provider without QEMU address defaults.
 
-After `qemuvirt.InitDevices()`, call `network.Open(ctx, network.Config{})`
-once, before opening application sockets. The default address is
+After `qemuvirt.InitDevices()`, call `network.OpenWithPool(ctx, network.Config{}, pool)`
+(using `qemuvirt.DMAPool()`, or `network.Open(ctx, network.Config{})` for a
+standalone uncached reservation) once, before opening application sockets. The default address is
 `10.0.2.15/24`, with gateway `10.0.2.2`, matching QEMU user networking. Supply
 `Config.Address` and `Config.Gateway` to change them. `MMIOAddress == 0` scans
 the 32 QEMU VirtIO slots and rejects ambiguous multiple-NIC configurations.

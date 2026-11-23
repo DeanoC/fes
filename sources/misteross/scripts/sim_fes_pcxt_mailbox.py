@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
+CHIPSET = ROOT / 'cores/fes-pcxt/sim/chipset.vlt'
 
 
 def main():
@@ -12,7 +13,7 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     subprocess.run([os.environ.get('VERILATOR', 'verilator'), '--cc', '--exe', '--build',
         '--top-module', 'fes_computer_mailbox_pcxt', '-Wall',
-        '-I' + str(ROOT / 'cores/fes-common/generated'), '--Mdir', str(output),
+        '-I' + str(ROOT / 'cores/fes-common/generated'), str(CHIPSET), '--Mdir', str(output),
         '-CFLAGS', '-std=c++17 -O2',
         str(ROOT / 'cores/fes-common/rtl/fes_computer_mailbox.v'),
         str(ROOT / 'cores/fes-common/sim/computer_mailbox_pcxt_tb.cpp')], check=True)
@@ -22,7 +23,7 @@ def main():
     subprocess.run([os.environ.get('VERILATOR', 'verilator'), '--cc', '--exe', '--build',
         '--top-module', 'fes_computer_mailbox_pcxt', '-Wall',
         "-GENABLE_AUDIO=1'b1", "-GENABLE_KEYBOARD=1'b1",
-        '-I' + str(ROOT / 'cores/fes-common/generated'), '--Mdir', str(dos),
+        '-I' + str(ROOT / 'cores/fes-common/generated'), str(CHIPSET), '--Mdir', str(dos),
         '-CFLAGS', '-std=c++17 -O2 -DPCXT_DOS_CAPABILITIES',
         str(ROOT / 'cores/fes-common/rtl/fes_computer_mailbox.v'),
         str(ROOT / 'cores/fes-common/sim/computer_mailbox_pcxt_tb.cpp')], check=True)
@@ -31,7 +32,7 @@ def main():
     writable.mkdir(parents=True, exist_ok=True)
     subprocess.run([os.environ.get('VERILATOR', 'verilator'), '--cc', '--exe', '--build',
         '--top-module', 'fes_computer_mailbox_pcxt', '-Wall', "-GENABLE_WRITE=1'b1",
-        '-I' + str(ROOT / 'cores/fes-common/generated'), '--Mdir', str(writable),
+        '-I' + str(ROOT / 'cores/fes-common/generated'), str(CHIPSET), '--Mdir', str(writable),
         '-CFLAGS', '-std=c++17 -O2 -DPCXT_WRITE_TEST=1',
         str(ROOT / 'cores/fes-common/rtl/fes_computer_mailbox.v'),
         str(ROOT / 'cores/fes-common/sim/computer_mailbox_pcxt_tb.cpp')], check=True)
@@ -41,7 +42,7 @@ def main():
     subprocess.run([os.environ.get('VERILATOR', 'verilator'), '--cc', '--exe', '--build',
         '--top-module', 'fes_computer_mailbox_pcxt', '-Wall',
         "-GENABLE_WRITE=1'b1", "-GENABLE_AUDIO=1'b1", "-GENABLE_KEYBOARD=1'b1",
-        '-I' + str(ROOT / 'cores/fes-common/generated'), '--Mdir', str(combined),
+        '-I' + str(ROOT / 'cores/fes-common/generated'), str(CHIPSET), '--Mdir', str(combined),
         '-CFLAGS', '-std=c++17 -O2 -DPCXT_WRITE_TEST=1 -DPCXT_DOS_CAPABILITIES',
         str(ROOT / 'cores/fes-common/rtl/fes_computer_mailbox.v'),
         str(ROOT / 'cores/fes-common/sim/computer_mailbox_pcxt_tb.cpp')], check=True)
@@ -50,7 +51,7 @@ def main():
     abi.mkdir(parents=True, exist_ok=True)
     subprocess.run([os.environ.get('VERILATOR', 'verilator'), '--cc', '--exe', '--build',
         '--top-module', 'computer_mailbox_pcxt_abi_top', '-Wall',
-        '-I' + str(ROOT / 'cores/fes-common/generated'), '--Mdir', str(abi),
+        '-I' + str(ROOT / 'cores/fes-common/generated'), str(CHIPSET), '--Mdir', str(abi),
         '-CFLAGS', '-std=c++17 -O2',
         str(ROOT / 'cores/fes-common/rtl/fes_computer_mailbox.v'),
         str(ROOT / 'cores/fes-common/sim/computer_mailbox_pcxt_abi_top.sv'),

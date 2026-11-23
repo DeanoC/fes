@@ -66,17 +66,17 @@ func (v *HPSContextVerifier) PreflightStoredConfiguration(control, configuration
 // handoff for its exact selection may reach the live cold ownership checks and
 // DMA reservation. No filesystem handle is used and neither device is released.
 func (p *StoredConfigurationPlan) NewTransfer(handoff *packagestore.Handoff, reserve func([]byte) (*Region, error)) (*ConfigurationTransfer, HPSBootObservation, error) {
-	return p.newTransfer(handoff, reserve, false, nil, nil)
+	return p.newTransfer(handoff, reserve, false, nil)
 }
 
 // NewReconfigurationTransfer consumes a fresh plan after this verifier's own
 // successful computer return. It never resumes storage or treats the older SD
 // receipt as live FPGA authority. Secure rearming still checks the captured program.
 func (p *StoredConfigurationPlan) NewReconfigurationTransfer(handoff *packagestore.Handoff, reserve func([]byte) (*Region, error)) (*ConfigurationTransfer, HPSBootObservation, error) {
-	return p.newTransfer(handoff, reserve, true, nil, nil)
+	return p.newTransfer(handoff, reserve, true, nil)
 }
 
-func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, reserve func([]byte) (*Region, error), rearm bool, window *WindowSession, menu *MenuSession) (*ConfigurationTransfer, HPSBootObservation, error) {
+func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, reserve func([]byte) (*Region, error), rearm bool, menu *MenuSession) (*ConfigurationTransfer, HPSBootObservation, error) {
 	if plan == nil || plan.state == nil {
 		return nil, HPSBootObservation{}, errors.New("native fabric: retained configuration plan missing")
 	}
@@ -91,14 +91,9 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 	if reserve == nil {
 		return nil, HPSBootObservation{}, errors.New("native fabric: retained configuration reservation missing")
 	}
-	if window != nil && menu != nil {
-		return nil, HPSBootObservation{}, errors.New("native fabric: conflicting display returns")
-	}
 	var selection *packagestore.Selection
 	var err error
-	if window != nil {
-		selection, err = handoff.SelectionAfterReturn(window.storage, window.returned.After.Owner, window.returned.After.Generation)
-	} else if menu != nil {
+	if menu != nil {
 		selection, err = handoff.SelectionAfterReturn(menu.storage, menu.returned.After.Owner, menu.returned.After.Generation)
 	} else {
 		selection, err = handoff.Selection()
@@ -116,15 +111,7 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 		return nil, HPSBootObservation{}, err
 	}
 	held, generation := v.coldSource(source), receipt.Generation == source.Bridges.Generation
-	if rearm && window != nil {
-		closed := window.returned.After
-		generation = closed.Generation <= ^uint64(0)-3 && receipt.Generation == source.Bridges.Generation &&
-			receipt.Generation == closed.Generation+3
-		held = window.self == window && window.verifier == v && window.closed && window.closeErr == nil &&
-			window.storageResumed && window.nextAttempted && window.returned.Frames > 0 &&
-			window.source.Digest == source.Digest && closed.Owner == source.Bridges.Owner &&
-			source.Bridges.Generation <= ^uint64(0)-3 && v.reconfigurationSource(source)
-	} else if rearm && menu != nil {
+	if rearm && menu != nil {
 		closed := menu.returned.After
 		generation = closed.Generation <= ^uint64(0)-3 && receipt.Generation == source.Bridges.Generation &&
 			receipt.Generation == closed.Generation+3
@@ -160,18 +147,12 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 		return nil, HPSBootObservation{}, err
 	}
 	transfer.binding.handoff = handoff
-	transfer.binding.windowReturn = window
 	transfer.binding.menuReturn = menu
 	prepare := transfer.beforeStart
 	transfer.beforeStart = func() error {
 		var current *packagestore.Selection
 		var err error
-		if window != nil {
-			if err = window.checkArena(); err != nil {
-				return err
-			}
-			current, err = handoff.SelectionAfterReturn(window.storage, window.returned.After.Owner, window.returned.After.Generation)
-		} else if menu != nil {
+		if menu != nil {
 			if err = menu.checkArena(); err != nil {
 				return err
 			}

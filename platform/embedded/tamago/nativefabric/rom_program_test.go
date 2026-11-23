@@ -433,35 +433,6 @@ func testROMBackendDistinguishesTwoFirmwareImagesForOneFPGAPackage(t *testing.T,
 	}
 }
 
-func TestROMConsolePublishesOnlyTheLiveRetainedReceipt(t *testing.T) {
-	for _, profile := range []string{HPSFirstROMDiagnosticProfile, NativeComputerProfile} {
-		t.Run(profile, func(t *testing.T) { testROMConsolePublishesOnlyTheLiveRetainedReceipt(t, profile) })
-	}
-}
-
-func testROMConsolePublishesOnlyTheLiveRetainedReceipt(t *testing.T, profile string) {
-	r := romProgramTestFor(t, profile)
-	request, _, _ := addROMProgram(t, r, 0, 8192)
-	c, err := NewProgramConsole(r.f.s, []packagestore.Request{request})
-	if err != nil {
-		t.Fatal(err)
-	}
-	status := c.Handle(context.Background(), []byte(`{"op":"status"}`))
-	if status.ROMReceiptSHA256 != "" {
-		t.Fatal("ready status invented a ROM receipt")
-	}
-	launch := fmt.Sprintf(`{"op":"launch","owner":%q,"generation":%d,"program":0}`, status.Owner, status.Generation)
-	status = c.Handle(context.Background(), []byte(launch))
-	if !status.OK || status.ROMReceiptSHA256 != request.ReceiptSHA256 {
-		t.Fatal("console lost the actual retained ROM receipt", status)
-	}
-	stop := fmt.Sprintf(`{"op":"return","owner":%q,"generation":%d}`, status.Owner, status.Generation)
-	status = c.Handle(context.Background(), []byte(stop))
-	if !status.OK || status.State != ProgramReady || status.ROMReceiptSHA256 != "" {
-		t.Fatal("console retained a returned ROM receipt", status)
-	}
-}
-
 func TestROMProgramServiceRetiresUncertainStageAndFirmwareFailures(t *testing.T) {
 	for _, profile := range []string{HPSFirstROMDiagnosticProfile, NativeComputerProfile} {
 		t.Run(profile, func(t *testing.T) { testROMProgramServiceRetiresUncertainStageAndFirmwareFailures(t, profile) })

@@ -8,19 +8,29 @@ import (
 	"errors"
 	"net"
 	"sync/atomic"
+	"time"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
+	"github.com/soypat/lneto"
 	gnet "github.com/usbarmory/go-net"
 )
+
+type irqDevice interface {
+	EnableIRQ(*gic.Controller) error
+	DisableIRQ(*gic.Controller)
+	IRQCount() uint64
+}
 
 // Interface owns one board NIC for the lifetime of the image. The board must
 // initialize a shared DMA arena outside Go's heap before Open is called.
 // DMA must be mapped Normal memory; no buffer is returned to the allocator
 // after the device begins DMA. This prototype polls rather than using IRQs.
 type Interface struct {
-	config Config
-	device Device
-	bridge *Link
-	ctx    context.Context
+	config     Config
+	device     Device
+	bridge     *Link
+	ctx        context.Context
+	irqEnabled atomic.Bool
 }
 
 var opened atomic.Bool
@@ -57,8 +67,16 @@ func OpenDevice(ctx context.Context, address, gateway string, factory func() (De
 	cfg.MaxActiveTCPPorts = 16
 	cfg.MaxListenerConns = 8
 	runCtx, stop := context.WithCancelCause(ctx)
-	stack := gnet.NewLnetoStack(cfg)
 	iface := &Interface{config: c, device: nic, ctx: runCtx}
+	backoff := func(consecutive uint) time.Duration {
+		if !iface.irqEnabled.Load() || consecutive == 0 {
+			return lneto.BackoffFlagGosched
+		}
+		return 5 * time.Millisecond
+	}
+	cfg.BackoffStack = backoff
+	cfg.NewBackoffTCP = func() lneto.BackoffStrategy { return backoff }
+	stack := gnet.NewLnetoStack(cfg)
 	iface.bridge, err = NewLink(stack, nic, c.Address, nic.MAC(), c.Gateway)
 	if err != nil {
 		stop(err)
@@ -86,6 +104,45 @@ func OpenDevice(ctx context.Context, address, gateway string, factory func() (De
 func (i *Interface) Address() string   { return i.config.Address }
 func (i *Interface) MAC() string       { return i.device.MAC() }
 func (i *Interface) Statistics() Stats { return i.device.Statistics() }
+
+// EnableIRQ routes the underlying NIC's RX interrupt through g so Link.Start
+// can wait in WFI between packets. Returns gic.ErrUnsupported on polling-only NICs.
+func (i *Interface) EnableIRQ(g *gic.Controller) error {
+	if i == nil || i.device == nil {
+		return ErrControl
+	}
+	dev, ok := i.device.(irqDevice)
+	if !ok {
+		return gic.ErrUnsupported
+	}
+	if err := dev.EnableIRQ(g); err != nil {
+		return err
+	}
+	i.irqEnabled.Store(true)
+	return nil
+}
+
+// DisableIRQ masks the underlying NIC's RX interrupt and returns Link.Start to polling.
+func (i *Interface) DisableIRQ(g *gic.Controller) {
+	if i == nil || i.device == nil {
+		return
+	}
+	i.irqEnabled.Store(false)
+	if dev, ok := i.device.(irqDevice); ok {
+		dev.DisableIRQ(g)
+	}
+}
+
+// IRQCount returns the number of NIC interrupts handled since EnableIRQ.
+func (i *Interface) IRQCount() uint64 {
+	if i == nil || i.device == nil {
+		return 0
+	}
+	if dev, ok := i.device.(irqDevice); ok {
+		return dev.IRQCount()
+	}
+	return 0
+}
 
 // BindControl requires a trusted platform supplier and binds once. Ordinary
 // OpenDevice and cancellation provide no DMA-drain capability themselves.

@@ -31,9 +31,8 @@ killing other agents' processes, and closing PRs need Deano's OK via
 Bob. The full rules are in [kit sharing](kit-sharing.md).
 Audience: FogCast host and agent, FES image, rooms UX. See
 [phase 1](mesh-phase1.md), [phase 2](mesh-phase2.md),
-[kit sharing](kit-sharing.md), [bootable media](bootable-media.md),
-[getting started](getting-started.md), and
-`docs/superpowers/specs/2026-09-07-target-discovery-design.md`.
+[kit sharing](kit-sharing.md), [bootable media](bootable-media.md), and
+[getting started](getting-started.md).
 
 ---
 

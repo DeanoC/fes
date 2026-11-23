@@ -104,9 +104,9 @@ exact 8 KiB `coleco-bios` and 16 KiB `coleco-cart`. Pad a shorter fixed-map
 cartridge with `0xff` before import. Apple II requires an exact 16 KiB
 `apple2-firmware` image covering `$C000–$FFFF`; its slot cards and floppy
 media are separate inputs (see the
-[Apple II pathfinder design](superpowers/specs/2026-09-26-apple2-pathfinder-design.md)).
-Commodore 64 requires an exact 16 KiB `c64-firmware` image (8 KiB BASIC window,
-then 8 KiB KERNAL window). Its disk is `fes.media.c64-disk` 1.0, an exact
+[core README](../sources/misteross/cores/fes-apple2/README.md)).
+Both DE10 Commodore 64 models use the same 36 KiB `c64-firmware` layout with
+8 KiB BASIC, 8 KiB KERNAL, 4 KiB character ROM and 16 KiB 1541 ROM in that order. The disk interface is `fes.media.c64-disk` 1.0, an exact
 174,848-byte `.d64` on media unit 0, read only. Its two cartridge sockets are
 the optional `fes.expansion.c64-bus` 1.0.
 The ZX Spectrum models each require their exact firmware: the 48K
@@ -117,8 +117,7 @@ then 48 BASIC), the +2A/+3 (`fes.spectrum-plus3`) a 64 KiB
 (`fes.pentagon`) a 48 KiB `pentagon-firmware` (128, 48 BASIC, then TR-DOS).
 Their edge cards, tape (`.tzx`, `.tap`, `.pzx` or `.csw`) and the Pentagon's
 TR-DOS disk (`.trd` or `.scl`) are separate inputs (see the
-[ZX Spectrum pathfinder design](superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)
-and the [core README](../sources/misteross/cores/fes-spectrum/README.md)).
+[core README](../sources/misteross/cores/fes-spectrum/README.md)).
 The ZX81 family shares one shell. `fes.zx81` requires an 8192-byte
 `machine-rom`. The experimental package-only models require their own firmware:
 `fes.zx80` a 4096-byte `zx80-rom`, `fes.ts1000` an 8192-byte `ts1000-firmware`,

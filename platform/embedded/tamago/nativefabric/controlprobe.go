@@ -77,12 +77,9 @@ func checkedControlMapFor(source HPSBootContext, raw []byte) (hpsControlMap, err
 	}
 	canonical, err := json.Marshal(fields)
 	count := 10
-	if source.ProgrammingProfile == HPSFirstDDRDiagnosticProfile || source.ProgrammingProfile == HPSFirstWindowDiagnosticProfile || source.ProgrammingProfile == HPSFirstMenuProfile || heldROMProfile(source.ProgrammingProfile) {
+	if source.ProgrammingProfile == HPSFirstDDRDiagnosticProfile || source.ProgrammingProfile == HPSFirstMenuProfile || heldROMProfile(source.ProgrammingProfile) {
 		count++
 		stopScope := "sealed-ddr-master-stop-v1"
-		if source.ProgrammingProfile == HPSFirstWindowDiagnosticProfile {
-			stopScope = "sealed-window-master-stop-v1"
-		}
 		if source.ProgrammingProfile == HPSFirstMenuProfile {
 			stopScope = "sealed-menu-master-stop-v1"
 		}
