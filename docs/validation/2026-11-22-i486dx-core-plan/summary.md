@@ -23,8 +23,8 @@ writes from the committed evidence ([fits/](fits/), [profiles/](profiles/),
   - Store-to-load forwarding, the early ALU, the return stack and indirect prediction each save nothing measurable (under the 100-ALM noise band).
   - **Load forwarding saves 360 ALMs for 1.2% of DOOM's CPI.** That is the one Phase 4 trade worth making on the DX.
 - **So the DX should keep the Phase 4 set, except load forwarding.** The rest of the area has to come from:
-  - the x87 (7,557 ALMs on Agilex 5);
-  - the base pipeline that predates Phase 4: the front end at 3,835, the L1s at 3,921, the BIU at 1,506;
+  - the x87 (7,315 ALMs in this record's hierarchy fit);
+  - the base pipeline, most of which predates Phase 4: the front end at 3,813, the L1s at 3,904, the BIU at 1,609;
   - the shell and devices.
   This record measures only module bounds for those, not savings. Measuring the savings is the plan's next step.
 - **The DX identity itself costs 290 ALMs** over the 386 identity, on the same CPU.
@@ -59,6 +59,7 @@ The decisions for Deano are [at the end](#decisions-for-deano).
 **The baseline.** The DX-identity CPU needs **34,651 ALMs** (seeds 34,606 to 34,706), 22 DSP and 60 M20K.
 - 2,352 of those ALMs hold the envelope's virtual pins, the same in every fit.
 - The 386 identity of the same source needs 34,361, so **the 486 identity costs 290**.
+- **Against #2028's CPU entity** (31,426 inside the 387-on machine) the envelope adds 2,352 ALMs of virtual pins. The CPU's `init_*` and `arch_x87_*` ports become free inputs and outputs here, where the machine ties or drops them. The remaining difference, about 580 ALMs, is not apportioned.
 - For scale, #1899's CPU fit was 29,300 on 16 November, before the DE25 x87 backend.
 
 | Feature (PR) | ALMs it saves when off | CPI it buys on DOOM (h2) | Per 100 ALMs |
@@ -81,26 +82,27 @@ The decisions for Deano are [at the end](#decisions-for-deano).
   - The store-to-load test is a 12-bit compare.
   - Removing them takes nothing out.
 
-**Module bounds on Agilex 5** (#2028's hierarchy fit of the 387-on machine,
-main `8a162c536`). These bound what a module's removal or redesign could
-save; they are not savings:
+**Module bounds on Agilex 5.** These come from this record's hierarchy-kept fit of `dx` (amendment 3; [results.md](results.md)). It needs 34,818 ALMs, +0.48% from the flattened fit, inside the ±5% gate. They bound what a module's removal or redesign could save; they are not savings:
 
 | Module | ALMs | Registers | What a DX could do there |
 | --- | ---: | ---: | --- |
-| x87 (`fes_i386_x87`, all) | 7,557 | 6,218 | Iterative arithmetic, serial conversions (question 5) |
-| — envelope's own logic | 4,408 | 1,867 | |
-| — `fes_x87_core` (the DE25 backend) | 1,885 | 3,267 | |
-| — transcendental engine | 1,114 | 694 | |
-| — multiplier | 151 | 390 | |
-| CPU's own logic (anonymous) | 9,349 | | Not apportioned |
-| Front end: fetch buffer with predecode | 2,664 | 2,919 | Fewer predecode bytes; a narrower buffer (before Phase 4) |
-| Front end: queue align (byte rotators) | 1,095 | 259 | A narrower issue |
-| L1D (16 KiB, 4-way) | 2,312 | 1,828 | 8 KiB: a real 486 has 8 KiB unified; valid bits are flip-flops |
-| L1I (16 KiB, 4-way) with ITLB | 1,609 | 992 | As L1D |
-| BIU | 1,506 | 1,754 | |
-| `dfwd` | 873 | 73 | |
-| `muldiv` | 833 | 558 | A slower divider (the 486's divide is slow) |
-| DTLB (16 × 2 ports) | 735 | 660 | 8 entries with a second level (#1584's fallback) |
+| **x87 (`fes_i386_x87`), all** | **7,315** | 5,065 | Iterative arithmetic, serial conversions (question 5) |
+| — the envelope's own logic | 3,510 | 2,303 | |
+| — the transcendental engine | 1,502 | 789 | Needed: it now also runs FBLD and the remainder ops (#2037, #2059) |
+| — `fes_x87_core`: fast lane 1,134, slow lane 594, own 421 | 2,148 | 1,455 | The fast lane holds the clock-limiting path |
+| — multiplier | 155 | 518 | |
+| The CPU's own logic, with the 2,352 virtual-pin ALMs | 12,977 | 8,997 | Not apportioned |
+| Front end: fetch buffer with predecode (decoders 674, sums 542) | 2,629 | 2,919 | Fewer predecode bytes; a narrower buffer |
+| Front end: queue align (byte rotators) | 1,107 | 259 | A narrower issue |
+| L1D (16 KiB, 4-way) | 2,259 | 1,828 | 8 KiB. A real 486 has 8 KiB unified, and the valid bits are flip-flops. |
+| L1I (16 KiB, 4-way) with the ITLB (239) | 1,645 | 992 | As L1D |
+| BIU | 1,609 | 1,754 | |
+| `muldiv` | 816 | 558 | A slower divider; the 486's divide is slow |
+| `dfwd` | 809 | 73 | |
+| DTLB (16 entries × 2 ports) | 708 | 660 | 8 entries with a second level (#1584's fallback) |
+
+#2028's machine fit (main `8a162c536`, before #2037 and #2059) gives the same
+picture. Its x87 was 7,557 then.
 
 ## 2. What each speed feature buys
 
@@ -162,10 +164,12 @@ gain, and the rest are each about a percent.
 **Recommended target:**
 - **DX-33 sustained** is the requirement. Every variant here keeps it, even with no prediction.
 - **DX2-66 is the stretch.** Today's core does not reach it on 4 of 6 benchmarks at 61.44 MHz.
-- **DX-50 is not a separate target.** It lies between the other two, and #2000's override reaches it as preset 6 with word 1 = 500.
+- **DX-50 is not a separate target.** It lies between the other two, and #2000's override selects it as preset 6 with word 1 = 500.
 
-A DX that keeps the speed set loses nothing against these presets. The
-x87's own slowdown is a separate question, priced below.
+**The bound covers DOOM `MAX.CFG` only.**
+- **Hidden by the governor:** a DX that keeps the speed set loses nothing at DX-33, or on DOOM `MAX.CFG` at DX2-66.
+- **Not hidden:** on the four benchmarks where #2000 already misses DX2-66, the core runs at its own raw speed. There a CPI loss shows one for one.
+- **The x87's own slowdown** is a separate question, priced below.
 
 ## 4. The clock
 
@@ -177,7 +181,7 @@ x87's own slowdown is a separate question, priced below.
   - #2059 made the x87 fast lane one combinational stage to save 198 ALMs.
   - The machine's worst setup at 61.44 MHz fell from +7.5 to +0.387 ns.
   - In this record, the CPU alone with the 387 alive estimates **63.4 to 72.6 MHz** at its worst corner over three seeds of one netlist ([results.md](results.md)). That is down from #1899's 130 MHz closure, before the DE25 backend.
-  - The worst path's nodes are anonymous after flattening, a `shift_left` register at its end. This record does not attribute it beyond that.
+  - **The x87 fast lane is the clock-limiting path.** In the hierarchy-kept fit, all 20 of the worst setup paths at the slowest corner run from `x87|core|normalized` into `x87|core|fast` (69.8 MHz estimate; [results.md](results.md)). That is the lane #2059 made one stage.
 - **The consequence:** any clock the x87 sees above about 63 MHz needs the x87's pipelining back. That undoes #2059's saving, or more.
 
 ### Options
@@ -191,6 +195,7 @@ x87's own slowdown is a separate question, priced below.
 
 ### The PLL
 
+- **The only integer ratio within the core's reach is k = 2, 122.88 MHz.** k = 3, 184 MHz, is far above any closure measured.
 - **Today's VCO** is 1,044.444 MHz. Its integer divisions give 130.56 (/8), 116.05 (/9), 104.44 (/10), 87.04 (/12) and 61.44 (/17) MHz.
 - **No integer multiple of 61.437908 MHz is among them.** Twice it would need /8.5.
 - **So option C needs a different VCO setting** that still makes the audio clock. That is unchecked and needs `quartus_ipgenerate`, as the shell plan's own VCO limits do.
@@ -203,7 +208,7 @@ x87's own slowdown is a separate question, priced below.
   - In C and D it is clocked from the CPU domain, and the adapter's own clock crossing carries it. The fabric needs no new FIFO.
 - **What gets worse: a miss costs more CPU clocks.** HPS DDR latency is fixed in time, so at about 116 MHz a refill costs about 1.9× today's clocks.
   - The profile bench charges port 0's first data 18 clocks at its 100 MHz model, against 11 at 61.44 MHz (the Phase 4 profile record).
-  - **L1D and port 0 are 16.1%** of the baseline's DOOM clocks ([results.md](results.md)).
+  - **L1D and port 0 are 16.1%** of the baseline's DOOM clocks ([results.md](results.md)), at the bench's own 100 MHz memory model (18 clocks to first data). At the kit's 11 clocks it is less.
   - So the speed-up from k is less than k on DOOM.
 - **DMA snoops** reach the CPU's L1 invalidation through the `dma_*` port, and cross with the rest of it.
 
@@ -218,18 +223,18 @@ x87's own slowdown is a separate question, priced below.
 
 ## 5. The 387 on the DX
 
-- **Size.** The x87 is 7,557 ALMs on Agilex 5 (#2028):
-  - the envelope's own logic, 4,408;
-  - `fes_x87_core`, 1,885;
-  - the transcendental engine, 1,114;
-  - the multiplier, 151.
+- **Size.** The x87 is 7,315 ALMs in this record's hierarchy fit (#2028 measured 7,557 before #2037 and #2059). Its parts:
+  - the envelope's own logic, 3,510;
+  - `fes_x87_core`, 2,148: the fast lane 1,134, the slow lane 594 and its own logic 421;
+  - the transcendental engine, 1,502;
+  - the multiplier, 155.
 - **What #2037 and #2059 took.** They moved the remainder ops and FBLD onto the engine, and made the fast lane one stage, saving 472 and 460.5 ALMs. The candidates from slice 6's plan that are left:
 
 | Candidate | Bound | What it costs, and why it is acceptable on the DX |
 | --- | ---: | --- |
-| **C, rest:** de-pipeline `fes_x87_core`'s slow lane and normaliser; one operation in flight | part of 1,885 (3,267 registers) | Slower FMUL, FDIV and FSQRT. Acceptable on the DX: a real 387 takes tens to hundreds of clocks for these, and the integer side no longer needs a high clock (option C keeps the x87 at the machine clock) |
-| **Iterative multiply and divide** on one DSP: radix-4 or radix-16 over several clocks in place of the full-width array | the multiplier's 151 plus part of the core | A few clocks more an FMUL; the 9 DSP drop to 2 or 3. DSP is slack on the DE25 (155 free), so this is an ALM trade only |
-| **Serial conversions** (FILD, FIST, FBSTP and the extended load/store) through the engine, as FBLD now is | part of the envelope's 4,408 | Clocks per conversion. Loads and stores are 33% and 39% of Quake's and Screamer's x87 instructions (`2026-11-15-i386-x87-game-census/tables.md`), and that table does not split the integer conversions out. So this candidate's cost has to be measured on Quake before it is chosen. |
+| **C, rest:** de-pipeline `fes_x87_core`'s slow lane and normaliser; one operation in flight | part of 2,148 (1,455 registers) | Slower FMUL, FDIV and FSQRT. Acceptable on the DX: a real 387 takes tens to hundreds of clocks for these, and the integer side no longer needs a high clock (option C keeps the x87 at the machine clock) |
+| **Iterative multiply and divide** on one DSP: radix-4 or radix-16 over several clocks in place of the full-width array | the multiplier's 155 plus part of the core | A few clocks more an FMUL; the 9 DSP drop to 2 or 3. DSP is slack on the DE25 (the 387-on machine uses 42 of 188, #2059), so this is an ALM trade only |
+| **Serial conversions** (FILD, FIST, FBSTP and the extended load/store) through the engine, as FBLD now is | part of the envelope's 3,510 | Clocks per conversion. Loads and stores are 33% and 39% of Quake's and Screamer's x87 instructions (`2026-11-15-i386-x87-game-census/tables.md`), and that table does not split the integer conversions out. So this candidate's cost has to be measured on Quake before it is chosen. |
 | **D: state and constants into M20K/MLAB** (the register stack's tags, the engine's ROM is already M20K) | unmeasured | A read port; M20K is the scarcer resource with the 387 on (about 43 RAM blocks free on the board) |
 | **A: share one multiplier with the integer `muldiv`** | 151 | Ranked last (#2028); the DX makes it easier, since the integer side no longer needs MUL at full rate |
 
@@ -319,12 +324,20 @@ Each recommendation comes first. Every one is a proposal until Deano decides it.
 3. **Integer trades on the DX (questions 1–2).**
    - **Recommend:**
      - Keep prediction, the return stack, indirect prediction, the store-to-load test and the early ALU. They save nothing measurable, or, for prediction, cost 49% of DOOM.
-     - Drop load forwarding on the DX: −360 ALMs for +1.2% of DOOM's CPI, which the governor hides at DX2-66.
+     - Drop load forwarding on the DX: −360 ALMs for +1.2% of DOOM's CPI.
+       - The governor hides that at DX-33 and on DOOM `MAX.CFG` at DX2-66.
+       - Where DX2-66 is already missed, the loss shows one for one, at about 1.2% at most.
+       - #1522's record measured 3DBench (16-bit code) unchanged, clock for clock, and its PCPBench 13.2 → 13.3 is within the kit's display.
    - The integer core keeps all of them.
 4. **The clock (question 4).**
    - **Recommend:**
      - The first DX builds at 61.437908 MHz.
-     - The next step is a PLL check, with no RTL, for a VCO that gives an integer multiple of the system clock together with the audio clock. That would make option C possible: the integer core at k × 61.44 MHz, the x87 and the machine at 61.44.
+     - The next step is a PLL check, with no RTL, for a VCO that gives twice the system clock together with the audio clock. That would make option C possible: the integer core at 2 × 61.437908 = 122.88 MHz, the x87 and the machine at 61.44.
+     - **The margin for k = 2 is thin.**
+       - The CPU closed 130 MHz on #1899's older base, with the slice-2 387, and missed 150.
+       - The 387-off machine closes at least 120 MHz (#2028).
+       - So 122.88 MHz is inside the first and just above the second.
+       - Integer Fmax with the x87's paths out has not been measured, and the next step measures it.
      - No machine clock raise (option B) for the DX, since it would undo the x87 savings.
 5. **The x87 on the DX (question 5).**
    - **Recommend:** allow slower x87 forms on the DX, as candidates ranked by measured A/Bs, each against this record's DX baseline:
@@ -351,3 +364,9 @@ Each recommendation comes first. Every one is a proposal until Deano decides it.
 - **One workload.** CPI is DOOM's alone. The front end and prediction matter more on 3DBench, by the Phase 4 records.
 - **Ablations are not designs.** An ablation turns a feature off. A DX designed without it might be smaller still, since logic around it would be simplified too.
 - **Fmax estimates are not closure.** The per-fit Fmax estimates vary 63 to 74 MHz across seeds of one netlist, and nothing is judged on them.
+- **Module rows understate features.** #2028's per-module table gives the BTB 32 ALMs and the return stack 43. The `pred` ablation saves 1,361, because prediction's cost is in the fetch buffer and the CPU's own logic, not in those modules. The next step's module bounds must be read the same way: they bound a module, not a feature.
+- **The DX-specific logic is unmeasured.** The `dx` baseline is the 486SX identity with the 387 alive. i486 slice 4 (the DX identity) has not landed, so its own logic is not in these figures.
+- **Rebuilt Yosys.** `speed` and `pg` were elaborated by a rebuilt binary of the same Yosys commit (amendment 1). Its digest differs from the first build's, but it writes `dx`'s netlist byte-identical (`586ed476…`; [rebuilt-yosys-check.json](rebuilt-yosys-check.json)).
+- **Dependencies.**
+  - The fork's location assumes the DE25 pc386 board directory of #2036, which is not merged.
+  - The `derive.py` precedent is on branch `deano/de25-pc386-dma2-regfile`, which has no PR yet.

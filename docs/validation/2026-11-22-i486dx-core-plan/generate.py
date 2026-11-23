@@ -89,6 +89,32 @@ def render() -> str:
     out += ["", f"Rule 4: `speed` saves {savings['speed']:,.0f}; its parts' single savings sum to {parts:,.0f} "
             f"(difference {savings['speed'] - parts:+,.0f}).", ""]
 
+    hier = fit("dx-hier-s1")
+    gap = 100 * (hier["alms"] - base) / base
+    out += ["### Hierarchy kept (method amendment 3)", "",
+            f"`dx` with `flatten` removed, seed 1: {hier['alms']:,.0f} ALMs, {gap:+.2f}% against `dx` seed 1, "
+            f"{'within' if abs(gap) <= 5 else 'OUTSIDE'} the ±5% gate, so the table below is "
+            f"{'the module bounds' if abs(gap) <= 5 else 'indicative only'}. Worst-corner Fmax estimate "
+            f"{hier['fmax']:.2f} MHz. Rows of 100 ALMs or more, from "
+            "[entities-dx-hier.tsv](entities-dx-hier.tsv) (Quartus Pro's 'Fitter Resource Utilization by "
+            "Entity', read by [entities.py](entities.py)); `<top>` own includes the virtual pins:", "",
+            "| Depth | Entity | ALMs (total) | ALMs (own) | Registers (total) | Registers (own) |",
+            "| ---: | --- | ---: | ---: | ---: | ---: |"]
+    for line in (HERE / "entities-dx-hier.tsv").read_text().splitlines()[1:]:
+        cells = line.split("\t")
+        if float(cells[2]) >= 100:
+            out.append(f"| {cells[0]} | `{cells[1]}` | {float(cells[2]):,.1f} | {float(cells[3]):,.1f} | "
+                       f"{int(cells[4]):,} | {int(cells[5]):,} |")
+    paths = (HERE / "fits/dx-hier-s1/corner1-setup-top20.txt").read_text().splitlines()
+    def nodes(label: str) -> list[str]:
+        cells = (l.split(";") for l in paths if l.startswith(f"; {label}"))
+        return [c[2].strip() for c in cells if len(c) == 4 and "Node" not in c[2]]
+    froms, tos = nodes("From Node"), nodes("To Node")
+    in_x87 = sum(1 for a, b in zip(froms, tos) if a.startswith("x87|") and b.startswith("x87|"))
+    out += ["", f"Worst setup paths at Slow fix4 0C: {in_x87} of the {len(froms)} reported run from `x87|` to "
+            f"`x87|` (the first: `{froms[0]}` to `{tos[0]}`; "
+            "[corner1-setup-top20.txt](fits/dx-hier-s1/corner1-setup-top20.txt)).", ""]
+
     out += ["## B. Lockstep of each functional ablation", ""]
     out += ["| Variant | Lockstep subset | Failures beyond `base` |", "| --- | --- | ---: |"]
     lock = json.loads((HERE / "lockstep.json").read_text()) if (HERE / "lockstep.json").is_file() else {}

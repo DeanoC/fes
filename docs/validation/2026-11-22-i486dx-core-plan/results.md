@@ -26,6 +26,41 @@ Median 34,651, spread 100; noise band N = max(spread, 100) = **100 ALMs** (metho
 
 Rule 4: `speed` saves 1,716; its parts' single savings sum to 1,777 (difference -61).
 
+### Hierarchy kept (method amendment 3)
+
+`dx` with `flatten` removed, seed 1: 34,818 ALMs, +0.48% against `dx` seed 1, within the ±5% gate, so the table below is the module bounds. Worst-corner Fmax estimate 69.79 MHz. Rows of 100 ALMs or more, from [entities-dx-hier.tsv](entities-dx-hier.tsv) (Quartus Pro's 'Fitter Resource Utilization by Entity', read by [entities.py](entities.py)); `<top>` own includes the virtual pins:
+
+| Depth | Entity | ALMs (total) | ALMs (own) | Registers (total) | Registers (own) |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 0 | `<top>` | 34,832.4 | 12,977.0 | 23,378 | 8,997 |
+| 1 | `<top>/agu` | 127.0 | 127.0 | 0 | 0 |
+| 1 | `<top>/biu` | 1,609.3 | 1,609.3 | 1,754 | 1,754 |
+| 1 | `<top>/decode` | 827.1 | 827.1 | 0 | 0 |
+| 1 | `<top>/dfwd` | 808.5 | 808.5 | 73 | 73 |
+| 1 | `<top>/dops` | 493.5 | 493.5 | 74 | 74 |
+| 1 | `<top>/dtlb` | 707.8 | 707.8 | 660 | 660 |
+| 1 | `<top>/ex` | 742.4 | 519.2 | 0 | 0 |
+| 2 | `<top>/ex/shifter` | 223.2 | 223.2 | 0 | 0 |
+| 1 | `<top>/frontend` | 3,812.9 | 0.0 | 3,214 | 0 |
+| 2 | `<top>/frontend/align` | 1,107.0 | 1,107.0 | 259 | 259 |
+| 2 | `<top>/frontend/fetch` | 2,629.4 | 1,413.6 | 2,919 | 2,919 |
+| 3 | `<top>/frontend/fetch/decoders` | 673.7 | 115.7 | 0 | 0 |
+| 3 | `<top>/frontend/fetch/sums` | 542.1 | 542.1 | 0 | 0 |
+| 1 | `<top>/governor` | 401.3 | 401.3 | 163 | 163 |
+| 1 | `<top>/l1d` | 2,259.3 | 2,259.3 | 1,828 | 1,828 |
+| 1 | `<top>/l1i` | 1,645.2 | 1,406.5 | 992 | 693 |
+| 2 | `<top>/l1i/itlb` | 238.7 | 238.7 | 299 | 299 |
+| 1 | `<top>/muldiv` | 816.4 | 816.4 | 558 | 558 |
+| 1 | `<top>/seq` | 185.3 | 185.3 | 0 | 0 |
+| 1 | `<top>/x87` | 7,315.1 | 3,510.3 | 5,065 | 2,303 |
+| 2 | `<top>/x87/core` | 2,148.3 | 420.6 | 1,455 | 436 |
+| 3 | `<top>/x87/core/fast` | 1,134.2 | 1,134.2 | 305 | 305 |
+| 3 | `<top>/x87/core/slow` | 593.5 | 593.5 | 714 | 714 |
+| 2 | `<top>/x87/mul` | 154.5 | 154.5 | 518 | 518 |
+| 2 | `<top>/x87/trans` | 1,502.1 | 1,502.1 | 789 | 789 |
+
+Worst setup paths at Slow fix4 0C: 20 of the 20 reported run from `x87|` to `x87|` (the first: `x87|core|normalized[18]~_Duplicate1` to `x87|core|fast|shift_left_0~342_BLOCK_INPUT_MUX_PASSTHROUGH_X18_Y46_N0_I55_dff`; [corner1-setup-top20.txt](fits/dx-hier-s1/corner1-setup-top20.txt)).
+
 ## B. Lockstep of each functional ablation
 
 | Variant | Lockstep subset | Failures beyond `base` |
