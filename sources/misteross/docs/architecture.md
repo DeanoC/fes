@@ -3534,8 +3534,9 @@ independently of routing legality and CRAM containment. Each response output
 has a separate identity ALUT2 so the pinned merger cannot discard constant
 outputs or collapse aliased response sinks. The probe drives only read cycles.
 No Commodore ROM is in the tree, and the core is not in the
-factory image. The shell uses Yosys `d273c1cb`, Mistral `8fcc4cb4` and nextpnr
-`9128800f` from `cores/fes-c64/toolchain.lock`; fresh routed and hardware
+factory image. The shell uses Yosys `3a5accbd`, Mistral `8fcc4cb4` and nextpnr
+`9128800f` from `cores/fes-c64/toolchain.lock`; its d273c1cb producer failure
+is recorded in the 2026-11-23 validation record. Fresh routed and hardware
 validation remain required. Its
 socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`
 companion of a pinned boundary flip-flop, using the shared
