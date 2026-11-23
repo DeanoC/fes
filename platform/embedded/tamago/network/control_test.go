@@ -247,3 +247,45 @@ func TestControllerRequiresCompleteExclusiveSupplier(t *testing.T) {
 		t.Fatal("fabricated control accepted")
 	}
 }
+
+type irqTestStack struct {
+	gnet.Stack
+	in atomic.Int64
+}
+
+func (s *irqTestStack) RecvInboundPacket([]byte) error { s.in.Add(1); return nil }
+
+type irqTestDevice struct {
+	ready   chan struct{}
+	pending atomic.Bool
+	polls   atomic.Int64
+}
+
+func (d *irqTestDevice) RXReady() <-chan struct{} { return d.ready }
+func (d *irqTestDevice) Transmit([]byte) error    { return nil }
+func (d *irqTestDevice) Receive(dst []byte) (int, error) {
+	d.polls.Add(1)
+	if d.pending.Swap(false) {
+		clear(dst[:14])
+		return 14, nil
+	}
+	return 0, nil
+}
+
+func TestLinkStartWakesOnRXReady(t *testing.T) {
+	st := &irqTestStack{}
+	dev := &irqTestDevice{ready: make(chan struct{}, 1)}
+	l := &Link{stack: st, device: dev, state: &linkState{}}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- l.Start(ctx) }()
+
+	waitControl(t, func() bool { return dev.polls.Load() >= 1 })
+	dev.pending.Store(true)
+	dev.ready <- struct{}{}
+	waitControl(t, func() bool { return st.in.Load() == 1 })
+	cancel()
+	if err := controlResult(t, done); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Link.Start = %v, want context.Canceled", err)
+	}
+}

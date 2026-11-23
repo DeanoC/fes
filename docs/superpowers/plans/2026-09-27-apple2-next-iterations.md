@@ -1,7 +1,7 @@
 # Apple II: next iterations and open decisions
 
 Date: 2026-09-27. Follows the pathfinder
-([design](../specs/2026-09-26-apple2-pathfinder-design.md),
+(design archived in Git history,
 [seal](../../validation/2026-09-26-apple2-pathfinder-seal.md),
 [kit diagnostic](../../validation/2026-09-27-apple2-kit-diagnostic.md)).
 This is a backlog, not an instruction list: each item records the current

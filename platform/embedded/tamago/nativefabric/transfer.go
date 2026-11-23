@@ -45,9 +45,7 @@ type configurationBinding struct {
 	rearm        bool
 	program      *selectedProgram
 	handoff      *packagestore.Handoff
-	windowReturn *WindowSession
 	menuReturn   *MenuSession
-	windowOpened bool
 	menuOpened   bool
 	sourceRegion *Region
 }

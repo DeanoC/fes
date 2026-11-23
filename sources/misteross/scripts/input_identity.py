@@ -8,8 +8,9 @@ independently verifiable. design-v1 is frozen. design-v2 (DeanoC/fes#1984)
 keeps every v1 role and adds two, for files that leave the design projection:
 
 - evidence: the i386 lockstep oracle, the lockstep suite and the pc386 lockstep
-  runners. They validate a sealed design and no compiler reads them. They stay
-  in source_inputs, so the record identity binds them, and get their own
+  runners, and PC/XT's Verilator lint configuration and testbenches. They
+  validate a sealed design and no compiler reads them. They stay in
+  source_inputs, so the record identity binds them, and get their own
   `evidence` digest.
 - firmware-generator: the pc386 firmware recipe and firmware.lock. Their
   output is bound instead by the record's `firmware` parameter, which a
@@ -85,7 +86,7 @@ TOOLCHAIN_PARAMETERS = frozenset({
 # docs/validation/2026-11-18-1984-pc386-identity-scope/classification.json
 # assigns the evidence role, plus #1984 S1's oracle_sources.toml, the data file
 # that lists the oracle and suite for the provisioner and the sealer.
-EVIDENCE_INPUTS = frozenset({
+PC386_EVIDENCE_INPUTS = frozenset({
     'cores/fes-common/sim/i386/i386_oracle.h',
     'cores/fes-common/sim/i386/bochs_oracle.cpp',
     'cores/fes-common/sim/i386/bochs/instrument.h',
@@ -104,6 +105,64 @@ EVIDENCE_INPUTS = frozenset({
     'cores/fes-pc386/tools/pc386_run_lockstep.py',
     'cores/fes-pc386/tools/build_pc386_with_lockstep.py',
 })
+# design-v2 only. fes.pcxt-dos's Verilator lint configuration (cpu.vlt,
+# chipset.vlt), testbench C++ and testbench top modules: the files under
+# cores/fes-pcxt/sim that docs/validation/2026-11-22-pcxt-sim-evidence/
+# classification.json measured as read by no compiler, by none of the seal's
+# Python that generates compiler input, and by neither proof the seal runs.
+# The record binds them through `git ls-files cores/fes-pcxt`. Its .S
+# programs and the BIOS and FreeDOS locks stay design.
+PCXT_EVIDENCE_INPUTS = frozenset({
+    'cores/fes-pcxt/sim/bios_top.sv',
+    'cores/fes-pcxt/sim/capture_pipeline_tb.cpp',
+    'cores/fes-pcxt/sim/capture_pipeline_top.sv',
+    'cores/fes-pcxt/sim/chipset.vlt',
+    'cores/fes-pcxt/sim/clock_bridge_tb.cpp',
+    'cores/fes-pcxt/sim/cpu.vlt',
+    'cores/fes-pcxt/sim/cpu_tb.cpp',
+    'cores/fes-pcxt/sim/cpu_top.sv',
+    'cores/fes-pcxt/sim/display_machine_tb.cpp',
+    'cores/fes-pcxt/sim/display_machine_top.sv',
+    'cores/fes-pcxt/sim/display_tb.cpp',
+    'cores/fes-pcxt/sim/display_top.sv',
+    'cores/fes-pcxt/sim/dma_tb.cpp',
+    'cores/fes-pcxt/sim/dos_tb.cpp',
+    'cores/fes-pcxt/sim/fdc_tb.cpp',
+    'cores/fes-pcxt/sim/fdc_top.sv',
+    'cores/fes-pcxt/sim/hid_keyboard_tb.cpp',
+    'cores/fes-pcxt/sim/isa_tb.cpp',
+    'cores/fes-pcxt/sim/isa_top.sv',
+    'cores/fes-pcxt/sim/keyboard_bat_tb.cpp',
+    'cores/fes-pcxt/sim/keyboard_bat_top.sv',
+    'cores/fes-pcxt/sim/keyboard_tb.cpp',
+    'cores/fes-pcxt/sim/machine_tb.cpp',
+    'cores/fes-pcxt/sim/machine_top.sv',
+    'cores/fes-pcxt/sim/media_arbiter_tb.sv',
+    'cores/fes-pcxt/sim/media_diag_tb.cpp',
+    'cores/fes-pcxt/sim/media_diag_top.sv',
+    'cores/fes-pcxt/sim/media_empty_tb.cpp',
+    'cores/fes-pcxt/sim/media_runtime_tb.cpp',
+    'cores/fes-pcxt/sim/media_runtime_top.sv',
+    'cores/fes-pcxt/sim/memory_machine_tb.cpp',
+    'cores/fes-pcxt/sim/memory_machine_top.sv',
+    'cores/fes-pcxt/sim/memory_model.hpp',
+    'cores/fes-pcxt/sim/memory_model_tb.cpp',
+    'cores/fes-pcxt/sim/memory_tb.cpp',
+    'cores/fes-pcxt/sim/memory_top.sv',
+    'cores/fes-pcxt/sim/motherboard_bench.h',
+    'cores/fes-pcxt/sim/motherboard_tb.cpp',
+    'cores/fes-pcxt/sim/motherboard_top.sv',
+    'cores/fes-pcxt/sim/reboot_tb.cpp',
+    'cores/fes-pcxt/sim/sector_writer_tb.sv',
+    'cores/fes-pcxt/sim/speaker_tb.cpp',
+    'cores/fes-pcxt/sim/system_tb.cpp',
+    'cores/fes-pcxt/sim/system_top.sv',
+    'cores/fes-pcxt/sim/video_machine_tb.cpp',
+    'cores/fes-pcxt/sim/video_machine_top.sv',
+    'cores/fes-pcxt/sim/video_tb.cpp',
+    'cores/fes-pcxt/sim/video_top.sv',
+})
+EVIDENCE_INPUTS = PC386_EVIDENCE_INPUTS | PCXT_EVIDENCE_INPUTS
 # design-v2 only. The recipe lays out the ROM hex Yosys reads and the lock pins
 # its images and that ROM hex; the seal checks the file Yosys reads against the
 # pin, and the record's `firmware` parameter carries the pinned digests.

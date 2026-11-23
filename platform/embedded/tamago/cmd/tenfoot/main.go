@@ -205,6 +205,14 @@ func (p *framePlatform) Present(ctx context.Context, snapshot tenfoot.Snapshot) 
 		fmt.Printf("FES_CATALOG ids=%s\n", catalog)
 		if p.network != nil {
 			fmt.Printf("FES_NETWORK_STATS %+v\n", p.network.Stats())
+			if irqs := p.network.IRQCount(); irqs > 0 {
+				fmt.Printf("FES_NET_IRQ_STATS irqs=%d\n", irqs)
+			}
+		}
+		if g := board.GIC(); g != nil {
+			if wakeups := g.IdleWakeups(); wakeups > 0 {
+				fmt.Printf("FES_GIC_IDLE_READY wakeups=%d\n", wakeups)
+			}
 		}
 		fmt.Println("FES_TENFOOT_READY")
 	}
@@ -235,6 +243,16 @@ func run() (result error) {
 				fmt.Printf("FES_GIC_IDLE_EXIT wakeups=%d\n", wakeups)
 			}()
 			fmt.Printf("FES_GIC_IDLE enabled=true redistributor=%#x lines=%d\n", g.Redistributor(), g.Lines())
+			stop := make(chan struct{})
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				g.Serve(stop)
+			}()
+			defer func() {
+				close(stop)
+				<-done
+			}()
 		}
 	}
 	frameMemory, err := board.InitDevices()
@@ -245,7 +263,32 @@ func run() (result error) {
 	if err != nil {
 		return err
 	}
-	volume, err := fat.Mount(disk)
+	type irqStorage interface {
+		EnableIRQ(*gic.Controller) error
+		DisableIRQ(*gic.Controller)
+		IRQCount() uint64
+	}
+	if gicActive {
+		if irqDisk, ok := disk.(irqStorage); ok {
+			if err := irqDisk.EnableIRQ(g); err != nil {
+				if !errors.Is(err, gic.ErrUnsupported) {
+					return fmt.Errorf("enable storage IRQ: %w", err)
+				}
+			} else {
+				defer func() {
+					irqs := irqDisk.IRQCount()
+					irqDisk.DisableIRQ(g)
+					fmt.Printf("FES_STORAGE_IRQ_EXIT irqs=%d\n", irqs)
+				}()
+				fmt.Println("FES_STORAGE_IRQ enabled=true")
+			}
+		}
+	}
+	cachedDisk, err := block.NewCache(disk, block.CacheConfig{Capacity: 128})
+	if err != nil {
+		return err
+	}
+	volume, err := fat.Mount(cachedDisk)
 	if err != nil {
 		return err
 	}
@@ -318,6 +361,20 @@ func run() (result error) {
 		client = tenfoot.NewClient(config.APIURL, &http.Client{Timeout: 5 * time.Second, Transport: observedTransport{base: &http.Transport{MaxIdleConnsPerHost: 4}}})
 		client.Client = client.Client.WithAPIHost(config.APIHost)
 	}
+	if gicActive && iface != nil {
+		if err := iface.EnableIRQ(g); err != nil {
+			if !errors.Is(err, gic.ErrUnsupported) {
+				return fmt.Errorf("enable network RX IRQ: %w", err)
+			}
+		} else {
+			defer func() {
+				irqs := iface.IRQCount()
+				iface.DisableIRQ(g)
+				fmt.Printf("FES_NET_IRQ_EXIT irqs=%d\n", irqs)
+			}()
+			fmt.Println("FES_NET_IRQ enabled=true")
+		}
+	}
 	var keyboard *input.USBKeyboard
 	uartIRQ := false
 	switch config.Input {
@@ -329,15 +386,7 @@ func run() (result error) {
 	case "uart":
 		fmt.Println("FES_UART_INPUT_READY")
 		if gicActive {
-			stop := make(chan struct{})
-			done := make(chan struct{})
-			go func() {
-				defer close(done)
-				g.Serve(stop)
-			}()
 			if err := serial.EnableIRQ(g); err != nil {
-				close(stop)
-				<-done
 				return fmt.Errorf("enable UART RX IRQ: %w", err)
 			}
 			uartIRQ = true
@@ -345,8 +394,6 @@ func run() (result error) {
 				irqs := serial.IRQCount()
 				dropped := serial.Dropped()
 				serial.DisableIRQ(g)
-				close(stop)
-				<-done
 				fmt.Printf("FES_UART_IRQ_EXIT irqs=%d dropped=%d\n", irqs, dropped)
 			}()
 			fmt.Println("FES_UART_IRQ enabled=true")

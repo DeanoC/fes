@@ -103,10 +103,6 @@ FogCast supplies library context, leases and APIs. FES selects matching commits
 and records acceptance. Another data layout needs an explicit contract and
 runtime support, not merely a metadata declaration.
 
-The [approved design](superpowers/specs/2026-09-09-core-persistence-design.md)
-and [implementation plan](superpowers/plans/2026-09-09-core-persistence.md)
-define this milestone's boundaries and verification.
-
 ## Writable Atari ST disks
 
 Packages with `fes.media.atari-st-floppy-write` 1.0 can persist drive A's exact

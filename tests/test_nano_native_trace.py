@@ -1530,7 +1530,7 @@ class NativeSDWriteTraceTests(unittest.TestCase):
                         {'sectors':8193},{'sectors':1<<33},{'original_sha256':trace.SCRATCH_PATTERN_SHA256},{'extra':1}):
             with self.subTest(changes=changes),self.assertRaises(ValueError):
                 trace.decode_native_boot('',BUILD,SEED,scratch_write=dict(self.plan,**changes))
-        for mode in ({'storage':NativeSDTraceTests.expected},{'scratch_inspect':True},{'package':{}},{'usb_control':True},{'firmware_ram_trace':True},{'_window_prefix':True}):
+        for mode in ({'storage':NativeSDTraceTests.expected},{'scratch_inspect':True},{'package':{}},{'usb_control':True},{'firmware_ram_trace':True},{'_menu_prefix':True}):
             with self.subTest(mode=mode),self.assertRaises(ValueError):
                 trace.decode_native_boot('',BUILD,SEED,scratch_write=self.plan,**mode)
 
@@ -1610,7 +1610,7 @@ class NativeFATFileTraceTests(unittest.TestCase):
             with self.subTest(changes=changes),self.assertRaises(ValueError):
                 trace.decode_native_boot('',BUILD,SEED,fat_file=dict(self.plan,**changes))
         for mode in ({'storage':NativeSDTraceTests.expected},{'scratch_write':NativeSDWriteTraceTests.plan},
-                {'scratch_inspect':True},{'usb_control':True},{'package':{}},{'_window_prefix':True}):
+                {'scratch_inspect':True},{'usb_control':True},{'package':{}},{'_menu_prefix':True}):
             with self.subTest(mode=mode),self.assertRaises(ValueError):
                 trace.decode_native_boot('',BUILD,SEED,fat_file=self.plan,**mode)
 

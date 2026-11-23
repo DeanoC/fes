@@ -12,11 +12,27 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
 )
 
-// A separate scope and complete two-slot geometry; a 4 MiB window cannot grant it.
+// A separate scope and complete two-slot geometry for native MENU scanout.
 type menuMemoryMap struct {
-	windowMemoryMap
-	Slots     uint32 `json:"slots"`
-	SlotBytes uint64 `json:"slot_bytes"`
+	Format         int    `json:"format"`
+	Scope          string `json:"scope"`
+	PackageID      string `json:"package_id"`
+	BuildID        string `json:"build_id"`
+	CPUBase        uint64 `json:"cpu_base"`
+	BusBase        uint64 `json:"bus_base"`
+	Bytes          uint64 `json:"bytes"`
+	ArenaBase      uint64 `json:"arena_base"`
+	ArenaBytes     uint64 `json:"arena_bytes"`
+	CPUAttributes  string `json:"cpu_attributes"`
+	Lifetime       string `json:"lifetime"`
+	FPGAAddressing string `json:"fpga_addressing"`
+	RowBytes       uint32 `json:"row_bytes"`
+	Stride         uint32 `json:"stride"`
+	Rows           uint32 `json:"rows"`
+	FrameBytes     uint32 `json:"frame_bytes"`
+	PixelFormat    string `json:"pixel_format"`
+	Slots          uint32 `json:"slots"`
+	SlotBytes      uint64 `json:"slot_bytes"`
 }
 type menuReadMap struct {
 	Format                 int    `json:"format"`

@@ -4,13 +4,10 @@ The `fes.computer` 1.0 and 1.1 ABIs use identity tag 4 on the existing `fes-gp-v
 programming profile and GP transport. The authoritative wire contract is
 mister-packages [home-computer I/O](../../mister-packages/docs/computer-io.md);
 the constants are generated from `packages/abi/fes_computer.yaml` into
-`src/native/generated/fes_computer.hpp`. The consumers are the FES Apple II
-([pathfinder contract](../../../docs/superpowers/specs/2026-09-26-apple2-pathfinder-design.md)),
-the FES ZX Spectrum
-([pathfinder contract](../../../docs/superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)),
-the FES Commodore 64 and the FES Atari 520ST, all on ABI 1.0, and the FES pc386
-on ABI 1.1. The PC/XT read-only floppy endpoint is exercised in host simulation;
-hardware acceptance remains separate.
+`src/native/generated/fes_computer.hpp`. The consumers are the FES Apple II,
+the FES ZX Spectrum, the FES Commodore 64 and the FES Atari 520ST, all on ABI
+1.0, and the FES pc386 on ABI 1.1. The PC/XT read-only floppy endpoint is
+exercised in host simulation; hardware acceptance remains separate.
 Existing `fes.simple-game`, `fes.simple-computer` and `fes.application`
 packages keep their requirements, wire identities and startup behavior.
 

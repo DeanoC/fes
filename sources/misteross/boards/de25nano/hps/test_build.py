@@ -809,6 +809,56 @@ class HpsBuildTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "mailbox instance|connectivity differs|offset or vendor clock"):
                     BUILD.verify_mailbox_handoff(project)
 
+    def test_parent_slave_names_take_the_exported_interface_whichever_form_was_saved(self):
+        hps = ('<?xml version="1.0"?>\n<ipxact:component xmlns:ipxact="http://www.accellera.org/XMLSchema/IPXACT/1685-2014"'
+               ' xmlns:altera="http://www.altera.com/XMLSchema/IPXact2014/extensions"><ipxact:vendorExtensions>'
+               '<altera:interface_mapping altera:name="f2sdram_adapter_axi4_sub" altera:internal="f2sdram_adapter.axi4_sub"'
+               ' altera:type="axi4" altera:dir="end"/></ipxact:vendorExtensions></ipxact:component>\n')
+        slave = ("&amp;lt;address-map&amp;gt;&amp;lt;slave name='parent/subsys_hps.{}' start='0x0'"
+                 " end='0x100000000' datawidth='256' /&amp;gt;&amp;lt;/address-map&amp;gt;")
+        results = {}
+        for form in ("f2sdram_adapter.axi4_sub", "f2sdram_adapter_axi4_sub"):
+            project = self.root / form
+            (project / "hps_subsys").mkdir(parents=True)
+            (project / "peripheral_subsys").mkdir()
+            (project / "hps_subsys/hps_subsys.qsys").write_text(hps)
+            path = project / "peripheral_subsys/peripheral_subsys.qsys"
+            path.write_text("<system>" + slave.format(form) + "</system>\n")
+            rewritten = BUILD.canonical_parent_slaves(project)
+            self.assertEqual(rewritten, ["f2sdram_adapter.axi4_sub"] if "." in form else [])
+            self.assertEqual(BUILD.canonical_parent_slaves(project), [])
+            results[form] = path.read_bytes()
+        self.assertEqual(len(set(results.values())), 1)
+        self.assertIn(b"parent/subsys_hps.f2sdram_adapter_axi4_sub'", results["f2sdram_adapter.axi4_sub"])
+        project = self.root / "unexported"
+        (project / "hps_subsys").mkdir(parents=True)
+        (project / "peripheral_subsys").mkdir()
+        (project / "hps_subsys/hps_subsys.qsys").write_text(hps)
+        (project / "peripheral_subsys/peripheral_subsys.qsys").write_text(
+            "<system>" + slave.format("agilex_hps.f2sdram") + "</system>\n")
+        with self.assertRaisesRegex(ValueError, "unexported HPS subsystem slave: agilex_hps.f2sdram"):
+            BUILD.canonical_parent_slaves(project)
+
+    def test_sub_ip_pairs_take_path_order_and_the_ips_own_files_stay(self):
+        def pair(path):
+            return (f'set_global_assignment -library "lib" -name QIP_FILE [file join $::quartus(qip_path) "{path}.qip"]\n'
+                    f'set_global_assignment -library "lib" -name SOURCE_FILE [file join $::quartus(qip_path) "{path}.sopcinfo"]\n')
+        head = pair("emif/synth/emif") + "\n"
+        subs = [pair("emif/synth/ip/emif/" + name + "/" + name) for name in ("lpddr4", "refclk_gpio", "refclk_bridge")]
+        tail = 'set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) "emif.v"]\n'
+        results = {}
+        for label, order in (("seen", (0, 1, 2)), ("swapped", (0, 2, 1))):
+            path = self.root / label / "ip/emif/emif.qip"
+            path.parent.mkdir(parents=True)
+            path.write_text(head + "".join(subs[i] for i in order) + tail)
+            rewritten = BUILD.canonical_sub_ip_order(self.root / label)
+            self.assertEqual(rewritten, [] if label == "swapped" else ["ip/emif/emif.qip"])
+            self.assertEqual(BUILD.canonical_sub_ip_order(self.root / label), [])
+            results[label] = path.read_text()
+        self.assertEqual(results["seen"], results["swapped"])
+        self.assertTrue(results["seen"].startswith(head) and results["seen"].endswith(tail))
+        self.assertLess(results["seen"].index("refclk_bridge.qip"), results["seen"].index("refclk_gpio.qip"))
+
     def test_failed_subprocess_retains_diagnostic_output(self):
         log = self.root / "failed-command.log"
         with self.assertRaisesRegex(ValueError, r"command failed \(7\); retained"):

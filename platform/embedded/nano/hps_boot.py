@@ -132,26 +132,8 @@ def prepare(project, uboot, entry, pfg, output):
     tenfoot_serial=window_profile.get('tenfoot_serial',False)
     if type(tenfoot_serial) is not bool or tenfoot_serial and (window_profile.get('selected_programs') is not True or
             window_profile.get('computer_reload') is not True or window_profile.get('computer_storage_return') is not True or
-            window_profile.get('hps_computer') is None or window_profile.get('window_memory',False) is not False):
+            window_profile.get('hps_computer') is None):
         raise ValueError('serial Tenfoot requires the matched selected computer/SD-return path')
-    window_read=window_profile.get('hps_window_read')
-    window_present=window_profile.get('window_present',False)
-    if type(window_present) is not bool or window_present and window_read is None:
-        raise ValueError('window presentation requires the matched full-window read path')
-    window_storage_return=window_profile.get('window_storage_return',False)
-    if type(window_storage_return) is not bool or window_storage_return and (not window_present or window_profile.get('sd_pio') is not True):
-        raise ValueError('window storage return requires matched presentation and SD')
-    window_reload=window_profile.get('window_reload',False)
-    if type(window_reload) is not bool or window_reload and not window_storage_return:
-        raise ValueError('window reload requires matched window SD return')
-    window_service=window_profile.get('window_service',False)
-    if type(window_service) is not bool or window_service and (not window_storage_return or window_reload):
-        raise ValueError('window service requires matched window SD return and excludes bounded reload')
-    if (type(window_profile.get('window_read',False)) is not bool or
-            window_profile.get('window_read',False)!=(window_read is not None)):
-        raise ValueError('native window read selection differs from its sealed contract')
-    if window_read is not None and window_read!=hps_context.window_read(project):
-        raise ValueError('native window read contract differs from the complete sealed generated adapter')
     menu_read=window_profile.get('hps_menu_read')
     menu_present=hps_context.menu_selection(dict(window_profile,program='fpgaload',usb_control=window_profile.get('usb_pio',False)))
     if menu_present!=(menu_read is not None):
@@ -239,15 +221,9 @@ def prepare(project, uboot, entry, pfg, output):
         'usb_probe':usb_probe,
         'hps_rom_sha256':hps_context.digest(rom) if rom is not None else None,
         'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read is not None else None,
-        'bounded_window_read':window_read is not None,
         'bounded_menu_presentation':menu_present,
         'hps_menu_read_sha256':hps_context.digest(menu_read) if menu_read is not None else None,
-        'bounded_window_presentation':window_present and not window_service,
-        'bounded_window_storage_return':window_storage_return and not window_service,
-        'bounded_window_reload':window_reload,
-        'persistent_window_service':window_service,
         'native_tenfoot_serial':tenfoot_serial,
-        'hps_window_read_sha256':hps_context.digest(window_read) if window_read is not None else None,
         'trusted_boot_handoff': False, 'physical_programming_admission': False,
         'hardware_acceptance': 'not-run', 'inputs': hashes, 'commands': commands,
         'limitations': ['file composition only; no board, SD card or flash touched',

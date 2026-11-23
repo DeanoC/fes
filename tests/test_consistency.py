@@ -108,7 +108,7 @@ class ConsistencyTest(unittest.TestCase):
             'packages/fabric/fes_fabric_de25_hps_mailbox.yaml',
             'packages/fabric/fes_fabric_de25_computer.yaml',
             'packages/fabric/fes_fabric_de25_ddr_probe.yaml',
-            'packages/fabric/fes_fabric_de25_scanout.yaml',
+            'packages/fabric/fes_fabric_de25_scanout.yaml', 'packages/fabric/fes_fabric_de25_hps_window.yaml',
             'packages/fabric/fes_fabric_de25_computer.yaml',
             'packages/fabric/fes_fabric_de25_ramtest.yaml',
             'packages/fabric/fes_fabric_de25_pr_control.yaml',

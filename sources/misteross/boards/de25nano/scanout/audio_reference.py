@@ -31,7 +31,7 @@ REPORTS = {'clocks.tsv', 'paths.tsv'} | {
 # The scanout service-window review changes only the wrapper/Tcl master burst
 # width and the builder's matching transport checks. Audio RTL, clocks, reset,
 # PCM and expansion wiring are unchanged; each new fit still needs its own
-# fitted clock/path review and independent rebuild.
+# fitted clock/path review.
 # The dated policy and fitted records are in docs/validation/
 # 2026-11-04-de25-standard-zx81/audio-clock-{reference-proposal.md,fitted-review.json}.
 # Current canonical per-fit records are retained under /data/

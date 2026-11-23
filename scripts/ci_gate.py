@@ -48,7 +48,10 @@ def require_success(results, event=None):
     # Pull requests, the merge queue and pushes use smoke; manual and nightly runs use full.
     if event is not None and tier != tier_for_event(event):
         raise ValueError(f'{event} must run the {tier_for_event(event)} simulation tier, not {tier}')
-    if json.loads(outputs.get('simulations', 'null')) != simulation_matrix(cores, tier):
+    full = json.loads(outputs.get('full_tier_cores', '[]'))
+    if not isinstance(full, list) or len(full) != len(set(full)) or not set(full) <= set(cores):
+        raise ValueError('Full-tier cores must be unique selected cores')
+    if json.loads(outputs.get('simulations', 'null')) != simulation_matrix(cores, tier, full):
         raise ValueError('Simulation matrix does not cover the selected cores exactly')
     selected = {job: lanes[lane] for job, lane in JOB_LANES.items()}
     selected['simulation-tools'] = bool(cores)

@@ -35,6 +35,12 @@ ROM_PROFILE = 'de25-embedded-hps-first-rom-diagnostic-v1'
 COMPUTER_PROFILE = 'de25-native-computer-v1'
 ROM_PROFILES = (ROM_PROFILE, COMPUTER_PROFILE)
 MENU_PROFILE = 'de25-embedded-hps-first-menu-prototype-v1'
+SUPPORTED_PROFILES = (
+    'de25-embedded-hps-first-diagnostic-v1',
+    'de25-embedded-hps-first-ddr-diagnostic-v1',
+    MENU_PROFILE,
+    *ROM_PROFILES,
+)
 
 
 def menu_selection(record, program_key='program'):
@@ -44,11 +50,10 @@ def menu_selection(record, program_key='program'):
         raise ValueError('menu presentation selection must be boolean')
     if selected and (record.get(program_key) != 'fpgaload' or
             any(record.get(k, False) is not False for k in
-                ('ddr_read', 'window_memory', 'window_read', 'window_present', 'window_storage_return',
-                 'window_reload', 'window_service', 'computer_control', 'computer_reload',
+                ('ddr_read', 'computer_control', 'computer_reload',
                  'computer_storage_return', 'selected_programs', 'tenfoot_serial', 'usb_control', 'usb_shared')) or
             any(record.get(k) is not None for k in
-                ('hps_ddr_read', 'hps_window_read', 'hps_computer', 'hps_rom', 'hps_program_platform',
+                ('hps_ddr_read', 'hps_computer', 'hps_rom', 'hps_program_platform',
                  'usb_input', 'shared_usb_input', 'firmware_rom', 'rom_host_go'))):
         raise ValueError('menu presentation requires its separate native configuration mode')
     return selected
@@ -250,7 +255,7 @@ def checked_menu_program(record, program_key='program'):
         return None
     if (record.get(program_key)!='fpgaload' or record.get('selected_programs') is not True or
             record.get('computer_reload') is not True or record.get('computer_storage_return') is not True or
-            record.get('menu_present',False) is not False or record.get('window_memory',False) is not False):
+            record.get('menu_present',False) is not False):
         raise ValueError('compiled menu requires selected computer programs and owned SD return')
     source=checked(record,program_key)
     platform=checked_program_platform(record,program_key)
@@ -270,7 +275,7 @@ def compiled_menu_program(record, program_key='program'):
         return None
     if (record.get(program_key)!='fpgaload' or record.get('selected_programs') is not True or
             record.get('computer_reload') is not True or record.get('computer_storage_return') is not True or
-            record.get('menu_present',False) is not False or record.get('window_memory',False) is not False or
+            record.get('menu_present',False) is not False or
             record.get('hps_menu_program_sha256')!=digest(companion) or
             record.get('hps_program_platform_sha256')!=digest(record.get('hps_program_platform'))):
         raise ValueError('compiled menu requires the complete selected computer and return contract')
@@ -338,9 +343,6 @@ def _ddr_read(project):
                 control_map_sha256=digest(control_map),read_bytes=32,open_mask=8,close_mask=10,**attributes)
 
 
-def window_read(project):
-    return _worker(project,'window-read')
-
 def menu_read(project):
     return _worker(project,'menu-read')
 
@@ -353,31 +355,6 @@ def _menu_read(project):
     return dict(format=1,scope='sealed-cold-menu-read-v1',package_id=context['package_id'],build_id=context['build_id'],
         reader_memory_sha256=digest(memory),control_map_sha256=digest(control_map),
         read_bytes=memory['frame_bytes'],open_mask=8,close_mask=10,**attributes)
-
-
-def _window_read(project):
-    context=_derive(project);memory=_reader_memory(project);control_map=_control(project)
-    if memory is None or memory['scope']!='sealed-cold-window-reader-memory-v1':
-        raise ValueError('window access requires its complete sealed memory reservation')
-    inputs=json.loads((Path(project)/'board/hps/inputs.json').read_text())
-    attributes=_ddr_adapter(project,inputs['vendor_archive_sha256'])
-    return dict(format=1,scope='sealed-cold-window-read-v1',package_id=context['package_id'],build_id=context['build_id'],
-                reader_memory_sha256=digest(memory),control_map_sha256=digest(control_map),
-                read_bytes=memory['frame_bytes'],open_mask=8,close_mask=10,**attributes)
-
-
-def validate_window_read(context,memory,control_sha,mapping):
-    validate_reader_memory(context,memory)
-    if (memory['scope']!='sealed-cold-window-reader-memory-v1' or not isinstance(mapping,dict) or
-            any(not isinstance(mapping.get(k),str) or not re.fullmatch('[0-9a-f]{64}',mapping[k]) or int(mapping[k],16)==0
-                for k in ('adapter_source_sha256','adapter_generated_sha256'))):
-        raise ValueError('complete sealed window adapter contract required')
-    expected=dict(format=1,scope='sealed-cold-window-read-v1',package_id=context['package_id'],build_id=context['build_id'],
-                  reader_memory_sha256=digest(memory),control_map_sha256=control_sha,
-                  adapter_source_sha256=mapping['adapter_source_sha256'],adapter_generated_sha256=mapping['adapter_generated_sha256'],
-                  arcache=2,arprot=3,aruser=224,read_bytes=memory['frame_bytes'],open_mask=8,close_mask=10)
-    if encode(mapping)!=encode(expected):raise ValueError('window access differs from the complete sealed source')
-    return expected
 
 
 def validate_menu_read(context,memory,control_sha,mapping):
@@ -422,18 +399,6 @@ def reader_memory_contract(context, parameters):
                 'cpu_attributes':'normal-uncached','lifetime':'until-reboot',
                 'fpga_addressing':'physical-identity-unqualified','slots':2,'slot_bytes':4<<20,
                 'row_bytes':5120,'stride':5120,'rows':720,'frame_bytes':3686400,'pixel_format':'xrgb8888'}
-    if context['programming_profile']=='de25-embedded-hps-first-window-diagnostic-v1':
-        if (context['control_abi']!=0x10203042 or parameters.get('reader_memory_backend')!='hps-ddr-window' or
-                type(parameters.get('reader_memory_base')) is not int or parameters['reader_memory_base']!=0x95000000 or
-                type(parameters.get('reader_memory_bytes')) is not int or parameters['reader_memory_bytes']!=4<<20):
-            raise ValueError('native window reader requires its exact sealed 4 MiB window')
-        return {'format':1,'scope':'sealed-cold-window-reader-memory-v1',
-                'package_id':context['package_id'],'build_id':context['build_id'],
-                'cpu_base':0x95000000,'bus_base':0x95000000,'bytes':4<<20,
-                'arena_base':0x95000000,'arena_bytes':4<<20,
-                'cpu_attributes':'normal-uncached','lifetime':'until-reboot',
-                'fpga_addressing':'physical-identity-unqualified',
-                'row_bytes':5120,'stride':5120,'rows':720,'frame_bytes':3686400,'pixel_format':'xrgb8888'}
     if (context['programming_profile'] not in ('de25-embedded-hps-first-ddr-diagnostic-v1', *ROM_PROFILES) or
             context['control_abi'] != 0x10203041 or
             parameters.get('reader_memory_backend') != 'hps-ddr' or
@@ -454,9 +419,8 @@ def reader_memory_contract(context, parameters):
 def validate_reader_memory(context, mapping):
     if not isinstance(mapping,dict):
         raise ValueError('compiled reader memory descriptor required')
-    window=context['programming_profile']=='de25-embedded-hps-first-window-diagnostic-v1'
     menu=context['programming_profile']=='de25-embedded-hps-first-menu-prototype-v1'
-    expected=reader_memory_contract(context,{'reader_memory_backend':'hps-ddr-menu' if menu else 'hps-ddr-window' if window else 'hps-ddr',
+    expected=reader_memory_contract(context,{'reader_memory_backend':'hps-ddr-menu' if menu else 'hps-ddr',
         'reader_memory_base':mapping.get('bus_base'),'reader_memory_bytes':mapping.get('bytes')})
     if encode(mapping)!=encode(expected):
         raise ValueError('reader memory differs from its compiled geometry and lifetime')
@@ -531,6 +495,8 @@ def _derive(project):
     package = seal.read_package(hps/'packages'/pair['package_id'])
     abi = package.fields['abi']
     profile = seal.profile_for(source)
+    if profile not in SUPPORTED_PROFILES:
+        raise ValueError('unsupported or retired HPS-first programming profile: ' + str(profile))
     if package.fields['target']['programming_profile'] != profile:
         raise ValueError('package profile differs from the sealed memory backend')
     context = {
@@ -595,7 +561,7 @@ def _control(project):
     result={'format':1,'scope':'sealed-lw-identity-probe-v1','architectural_lw_base':base,
             'bridge_base':bridge,'peripheral_offset':offset,'span':end-start,'cpu_base':base+bridge+offset,
             'handoff_sha256':sha,'package_id':context['package_id'],'build_id':context['build_id']}
-    if context['programming_profile'] in ('de25-embedded-hps-first-ddr-diagnostic-v1','de25-embedded-hps-first-window-diagnostic-v1','de25-embedded-hps-first-menu-prototype-v1', *ROM_PROFILES):
+    if context['programming_profile'] in ('de25-embedded-hps-first-ddr-diagnostic-v1','de25-embedded-hps-first-menu-prototype-v1', *ROM_PROFILES):
         _fabric_stop_inventory(Path(project))
         route=parameters('subsys_periph_pb_cpu_0.m0','subsys_periph_fes_ddr_probe.avs')
         probes=[s for s in slaves if s.get('name')=='subsys_periph.fes_ddr_probe.avs']
@@ -603,7 +569,7 @@ def _control(project):
                 int(probes[0].get('start'),0)!=0x10100 or int(probes[0].get('end'),0)!=0x10180 or
                 probes[0].get('datawidth')!='32'):
             raise ValueError('inherited DDR probe control route differs')
-        stop_scope='sealed-menu-master-stop-v1' if context['control_abi']==0x10203043 else 'sealed-window-master-stop-v1' if context['control_abi']==0x10203042 else 'sealed-ddr-master-stop-v1'
+        stop_scope='sealed-menu-master-stop-v1' if context['control_abi']==0x10203043 else 'sealed-ddr-master-stop-v1'
         result['fabric_stop']={'scope':stop_scope,'probe_cpu_base':base+0x10100,
                                'probe_span':128,'maintenance':'held-reset-from-configuration'}
     return result
@@ -781,7 +747,6 @@ def _fabric_stop_inventory(project):
     hps=project/'board/hps';record=json.loads((hps/'inputs.json').read_text())
     source=record['functional_snapshot_sha256'];memory=record['reader_memory']
     if memory not in ({'backend':'hps-ddr','bus_base':0x95000000,'bytes':8192},
-                      {'backend':'hps-ddr-window','bus_base':0x95000000,'bytes':4<<20},
                       {'backend':'hps-ddr-menu','bus_base':0x95000000,'bytes':8<<20}):
         raise ValueError('master stop requires an exact compiled DDR reader window')
     board=SimpleNamespace(JTAG_CONTROL_BRIDGE_BASE=record['embedded_control']['jtag_bridge_base'])
@@ -895,10 +860,10 @@ def _selected_program(project, rom_receipt_sha256=None):
 def checked(record, program_key='program'):
     keys = ('hps_context', 'hps_context_sha256', 'hps_project')
     if all(record.get(key) is None for key in keys):
-        if record.get(program_key) in ('bootcontext','hpsio','usbcheck','fpgacontext','fpgastatus','fpgaload'):
+        if record.get(program_key) in ('hpsio','usbcheck','fpgaload'):
             raise ValueError('native context image is missing its sealed HPS context')
         return None
-    if any(record.get(key) is None for key in keys) or record.get(program_key) not in ('bootcontext','hpsio','usbcheck','fpgacontext','fpgastatus','fpgaload'):
+    if any(record.get(key) is None for key in keys) or record.get(program_key) not in ('hpsio','usbcheck','fpgaload'):
         raise ValueError('HPS source context requires a dedicated native context image')
     expected = derive(record['hps_project'])
     if record['hps_context'] != expected or record['hps_context_sha256'] != digest(expected):
@@ -924,8 +889,8 @@ def checked_hps_io(record, program_key='program'):
 
 def checked_control(record, program_key='program'):
     keys=('hps_control','hps_control_sha256')
-    if all(record.get(key) is None for key in keys) and record.get(program_key) not in ('fpgacontext','fpgastatus','fpgaload'):return None
-    if record.get(program_key) not in ('fpgacontext','fpgastatus','fpgaload') or any(record.get(key) is None for key in keys):
+    if all(record.get(key) is None for key in keys) and record.get(program_key)!='fpgaload':return None
+    if record.get(program_key)!='fpgaload' or any(record.get(key) is None for key in keys):
         raise ValueError('dedicated native FPGA diagnostic and sealed control map required')
     checked(record,program_key)
     expected=control(record['hps_project'])
@@ -1017,25 +982,6 @@ def checked_ddr_read(record, program_key='program'):
     return expected
 
 
-def checked_window_read(record,program_key='program'):
-    requested=record.get('window_read',False)
-    keys=('hps_window_read','hps_window_read_sha256')
-    if type(requested) is not bool:raise ValueError('window read selection must be explicit')
-    if not requested:
-        if any(record.get(k) is not None for k in keys):raise ValueError('window access supplied without explicit selection')
-        return None
-    if (record.get(program_key)!='fpgaload' or record.get('window_memory') is not True or
-            any(record.get(k) is None for k in keys) or record.get('hps_ddr_read') is not None or record.get('hps_computer') is not None):
-        raise ValueError('window access requires its dedicated native configuration mode')
-    memory=checked_reader_memory(record,program_key)
-    if memory is None or memory['scope']!='sealed-cold-window-reader-memory-v1':
-        raise ValueError('window access requires the complete pinned memory map')
-    expected=window_read(record['hps_project'])
-    if encode(record['hps_window_read'])!=encode(expected) or record['hps_window_read_sha256']!=digest(expected):
-        raise ValueError('window access differs from the sealed adapter')
-    return expected
-
-
 def checked_menu_read(record, program_key='program'):
     selected = menu_selection(record, program_key)
     keys = ('hps_menu_read', 'hps_menu_read_sha256')
@@ -1116,7 +1062,7 @@ def checked_rom(record, program_key='program'):
 
 if __name__ == '__main__':
     actions = {'control': _control, 'configuration': _configuration, 'package': _package,
-               'reader-memory': _reader_memory, 'ddr-read': _ddr_read, 'window-read': _window_read, 'menu-read': _menu_read, 'computer': _computer,
+               'reader-memory': _reader_memory, 'ddr-read': _ddr_read, 'menu-read': _menu_read, 'computer': _computer,
                'hps-io': _hps_io, 'program-platform': _program_platform, 'selected-program': _selected_program, 'rom': _rom}
     if (len(sys.argv) not in (2,3,4) or len(sys.argv)>=3 and sys.argv[2] not in actions or
             len(sys.argv)==4 and sys.argv[2]!='selected-program'):
