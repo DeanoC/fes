@@ -1,9 +1,9 @@
 # Yosys #81 shared and per-core lock validation
 
-Date: 2026-11-23 (Europe/Sofia)  
-Base: `eb4a855a59780f136904f74869e1e567b688491c` (`origin/main`, merged into the branch)  
-Candidate source revisions used for included producer builds: `247e30c12b1b9ceaa42d0a301882fe2dca3193a3`; Spectrum 128K, +2A/+3 and Pentagon at `c488259f74c8d3e4c133fb20efb5d059569cfb57`  
-Yosys: `3a5accbd78c526ab7bae32640044a2e062a3cfc9` → `d273c1cb774f70d58c890745ac1b7dd106d32a26`, squash of DeanoC/yosys#81 (rehash hashlib on insert; fixes threaded OPT_CLEAN crash yosys#77).
+- Date: 2026-11-23 (Europe/Sofia)
+- Base: `eb4a855a59780f136904f74869e1e567b688491c` (`origin/main`, merged into the branch)
+- Candidate source revisions used for included producer builds: `247e30c12b1b9ceaa42d0a301882fe2dca3193a3`; Spectrum 128K, +2A/+3 and Pentagon at `c488259f74c8d3e4c133fb20efb5d059569cfb57`
+- Yosys: `3a5accbd78c526ab7bae32640044a2e062a3cfc9` → `d273c1cb774f70d58c890745ac1b7dd106d32a26`, squash of DeanoC/yosys#81 (rehash hashlib on insert; fixes threaded OPT_CLEAN crash yosys#77).
 
 ## Scope and toolchain provisioning
 
