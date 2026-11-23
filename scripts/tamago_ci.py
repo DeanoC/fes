@@ -11,7 +11,10 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 TAMAGO_DIR = ROOT / 'platform/embedded/tamago'
-DEFAULT_QEMU_PROGRAMS = ('probe', 'mapcheck', 'keyboard', 'display', 'tenfoot')
+DEFAULT_QEMU_PROGRAMS = (
+    'probe', 'mapcheck', 'fabric', 'keyboard', 'display',
+    'packages', 'admission', 'tenfoot', 'play',
+)
 EXCLUDED_BUILD_ERR = 'build constraints exclude all Go files'
 QEMU_LINK_FLAGS = '-T 0x40020000 -R 0x1000'
 NANO_LINK_FLAGS = '-s -w -T 0x84020000 -R 0x1000'
@@ -192,7 +195,14 @@ def check_nano_builds(root, compiler, module_cache, env, output):
 def run_qemu_programs(root, compiler, module_cache, qemu, host, output, programs, timeout):
     root = Path(root)
     tamago_dir = root / 'platform/embedded/tamago'
-    exp_env = dict(os.environ, FES_EXPERIMENTAL_DE25_EMBEDDED='1')
+    # Share the already-populated module cache so offline host helper builds
+    # inside run.py (e.g., play -> ./cmd/session-fixtures with GOPROXY=off)
+    # require no separate download.
+    exp_env = dict(
+        os.environ,
+        FES_EXPERIMENTAL_DE25_EMBEDDED='1',
+        GOMODCACHE=str(Path(module_cache).resolve()),
+    )
     steps = []
     for program in programs:
         prog_out = Path(output) / f'qemu-{program}'
