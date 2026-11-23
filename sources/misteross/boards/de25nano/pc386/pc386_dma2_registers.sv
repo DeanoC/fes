@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-2.0-or-later
 // DE25 pc386: DMA controller 2 as its register file only, without the
 // fes_dma8237 transfer engine (derive.py retarget_at_core puts it in
 // pc386_at_core's dma2). The DE10 keeps the full controller.
