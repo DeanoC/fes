@@ -38,7 +38,7 @@ writes `cond1.json` and this table:
 | `fes.atari-st` | `5b2c7bd4ea56a46e` | `5b2c7bd4ea56a46e` | yes | byte-identical |
 | `fes.spectrum` | `29436bf7023a44f9` | `29436bf7023a44f9` | yes | byte-identical |
 | `fes.spectrum128` | `bb9bedf8fd01c20d` | `e6362c043502ac9e` | yes | differs |
-| `fes.spectrum-plus3` | `e7e24c520633d9ff` | `e7e24c520633d9ff` | yes | byte-identical |
+| `fes.spectrum-plus3` | `e7e24c520633d9ff` | `e7e24c520633d9ff` | yes | byte-identical at 32 zeros only; differs at main's real `BUILD_ID` (see [Spectrum +3](#spectrum-3-moved-under-mains-build_id-reseal-and-hil)) |
 | `fes.pentagon` | `2d81474ad4151e4d` | `59fdbc7a56c74c5c` | yes | differs |
 | `fes.zx81` | `bbaa42dd69f16fc3` | `bbaa42dd69f16fc3` | yes | byte-identical |
 | `fes.zx80` | `3e51fd9384cf81d1` | `3e51fd9384cf81d1` | yes | byte-identical |
@@ -47,7 +47,11 @@ writes `cond1.json` and this table:
 | `fes.pcxt-dos` | `06b2e8cf5d1d7a18` | `06b2e8cf5d1d7a18` | yes | byte-identical |
 
 Every row's pinned inputs differ between the sides while ten netlists do not,
-and both passes agree on every side.
+and both passes agree on every side. **This table pins `BUILD_ID` to zeros, and
+for `fes.spectrum-plus3` that did not predict the routed netlist:** under main's
+real `BUILD_ID` the head maps differently from the base (condition 2 below). An
+identical netlist at zeros is necessary for D12, not sufficient; condition 2 is
+what decides each row.
 
 **ZX81 family.** Its registered producer is Quartus Lite reading the RTL
 itself, so D12's object for it is the QSF, whose path did not change while the
@@ -87,9 +91,99 @@ than gate it behind a define.
 
 ## Conditions 2 and 3
 
-Not yet run. Both are taken at the head that merges, after #2077 and the pc386
-reseal: condition 3 never carries across a base move, and condition 2 is
-re-measured if a merge moves a row's route-deciding inputs.
+Taken at base `856ef5c64` (the merge base after #2077 and #2130) and head
+`0be20e575`. `run_cond23.sh` builds each row in one checkout, in turn: the base
+(main's own build), the head with the base's `BUILD_ID` forced through
+`docs/validation/2026-11-12-1747-toolchain-installs/forced_build_id.py`
+(condition 2: its `core.rbf` must equal the base's byte for byte), and the
+head's own unforced build through the producer's gates (condition 3). Each
+row's two condition-2 builds used one tool install on one host. nextpnr rows
+routed on Powerboat (HIP) or chip-30x0-ai-dev (CUDA); Quartus rows used
+Quartus 17.0.2 Lite under the producers' own lease. Logs, build summaries,
+manifests and hashes are in [`cond23/`](cond23/).
+
+| Artefact | Host | Condition 2 (base RBF = forced RBF) | Condition 3 (own build) |
+|---|---|---|---|
+| `fes.c64` | chip, CUDA | `9666e1a6…` = `9666e1a6…`, reproduced | pass, system 54.0 MHz |
+| `fes.atari-st` | chip, CUDA | `28c3c016…` = `28c3c016…`, reproduced | pass, system 54.1 MHz |
+| `fes.spectrum` | Powerboat, HIP | `77a3a391…` = `77a3a391…`, reproduced | pass, system 59.3 MHz |
+| `fes.spectrum-plus3` | Powerboat, HIP | `50876d4b…` ≠ `7df758e4…`, **differs** | pass, system 61.9 MHz (the reseal) |
+| `fes.spectrum128` | Powerboat, HIP | not applicable (netlist moved) | pass, system 55.2 MHz (the reseal) |
+| `fes.pentagon` | Powerboat, HIP | not applicable (netlist moved) | pass, system 58.4 MHz (the reseal) |
+| `fes.zx81` | Powerboat, Quartus | reproduced | pass, `03e2b911…` |
+| `fes.zx80` | Powerboat, Quartus | reproduced | pass, `fd30d78b…` |
+| `fes.ts1000` | Powerboat, Quartus | reproduced | pass, `e152b542…` |
+| `fes.ts1500` | Powerboat, Quartus | reproduced | pass, `11c13c51…` |
+| `fes.pcxt-dos` | Powerboat, Quartus | `104bc9b2…` = `104bc9b2…`, reproduced | pass, `2c9509aa…` |
+
+`fes.apple2` is `reduced` and owes condition 1 only. `fes.c64-ntsc` (#2072) is
+a bring-up model with no seal on main; its condition 1 is byte-identical
+(`36691197830c3a2d`, both sides, both passes, `cond1-base-ebe2477/` and the
+Powerboat run logs) and it owes nothing further.
+
+Runs that did not count, kept for the record: the first runner took the newest
+`core.rbf` under a build directory, which for OSS producers is a QoR-search
+candidate with no build summary beside it, so its forced runs had no base
+`BUILD_ID` (fixed in `3ea5f37ac`; the streams were rerun as `c2`). The first C64
+base build on chip hit the 600 s route timeout of its best seed under load and
+was rerun on the idle host. Neither touched what is compared.
+
+### Spectrum +3 (moved under main's BUILD_ID; reseal and HIL)
+
+Condition 2 failed for `fes.spectrum-plus3` alone. `probes/spectrum_synth_id.py`
+runs the producer's own Yosys step with a chosen `BUILD_ID`; with main's real
+id `a8aab0409443a6ca2e0de4a1fba7827d`, twice per side in one checkout, the base
+gives `101bf307…` both times and the head `d5a7bf89…` both times
+(`probes/plus3-build-id/`), the same pair the condition-2 builds produced. So it
+is a stable mapping difference, the same effect as the 128 and Pentagon rows,
+showing only under a non-zero constant. D12's last clause applies: the normal
+reseal (condition 3 above, package `a1c07be2…`, `BUILD_ID` `0c42157e…`) and HIL.
+
+## Reseal HIL (Kit A)
+
+`hil/spec_session.py` claims Kit A in its status file only when it is logged
+FREE on the baseline `~/fes-hil/baselines/current-restore.json` names (image
+`179affbb…`, bundle `c9ae79e2…`) with an idle agent and a free lease. It runs
+the package core-only through a private FogCast host built from the head
+(`hil/specrun.py`): no install, no image change, shared host untouched. It
+checks the kit's image, bundle, lease and launcher state are unchanged
+afterwards, removes only the data trees the run created, and releases. Each run
+launches the package with the user's ROM and `hil/make_tap.py`'s one-line tape
+(`10 BORDER 1: PAUSE 0`, auto-run) as its cassette, chooses the menu's tape
+loader, presses a key, types, and grabs HDMI at each step.
+
+| Package | Running `BUILD_ID` (kit report) | Result |
+|---|---|---|
+| `fes.spectrum128` `7eca1fb1…` | `41ce687d…` | 128 menu; tape loads and runs (blue border); key ends `PAUSE` with `0 OK, 10:2` |
+| `fes.pentagon` `451d783e…` | `2db1de12…` | the same |
+| `fes.spectrum-plus3` `a1c07be2…` | `0c42157e…` | +3 menu; tape loads and runs; key ends it with `Drive not ready, 10:2` |
+| main's `fes.spectrum-plus3` `91aa2657…` (control) | `a8aab040…` | identical to the head's, `Drive not ready, 10:2` |
+
+The +3's report is its ROM's, from an empty drive A:, and main's own package
+gives the same, so it is not a change. Coverage: HDMI, keyboard, the ROM's tape
+path and the deck. It does not cover disk on the +3 or Pentagon, and the typed
+`PRINT 22` landed while the 128K-class Tape Loader had re-entered `LOAD`, so it
+shows only that keys arrive. Evidence: `hil/<run>/`.
+
+## pc386 seal
+
+The registered producer `build_pc386_product.py --with-lockstep --gpu-router
+CUDA --seed 1`, Quartus 17.0.2 Lite on chip-30x0-ai-dev under its Lite lease,
+from a clean checkout of each head:
+
+- `0be20e575`: the fresh lockstep passed; Quartus failed setup by 1.278 ns (TNS
+  -68.7 ns). Every one of the 40 worst paths ran from the mailbox storage
+  opcode through two chained DSP multiplies (cylinders x heads x sectors per
+  track) into the DiskCommit geometry registers of `pc386_floppy_media`
+  (`pc386-seal/failed-0be20e575-worst-paths.txt`). Fixed in `b55503b48`: the
+  nine formats are a table of constant sizes; the `pc386-pc-floppy` scenario
+  gained `a-spt-wrong-size`, and dropping the size comparison from the RTL fails
+  `storage` there.
+- `b55503b48`: pass. `BUILD_ID` `6ded586169fa818056b4cdeb0ca51ad8`, RBF
+  `89b9fa50…`, package `46173af6…`, setup +0.457 ns, hold +0.082 ns, recovery
+  +6.147 ns, removal +0.401 ns, system 61.44 MHz, 37,274 / 41,910 ALMs.
+  `verify_pc386_product_seal.py` gives `SEAL_OK` (154 files bound)
+  (`pc386-seal/`).
 
 ## Merge forward to `904140f8f`
 
