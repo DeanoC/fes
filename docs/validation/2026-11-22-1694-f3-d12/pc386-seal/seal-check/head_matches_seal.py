@@ -4,7 +4,7 @@
 The registered pc386 producer's own create_build_record runs selection-only on
 TREE (no tool, no Quartus). Its design identity, which is the first 32 hex
 digits of BUILD_ID, must equal the design identity of the migration seal's
-record (seal/build-inputs.json beside this script: the F3 seal at b55503b48). A checkout that only adds
+record (seal/build-inputs.json beside this script: the F3 seal at 73a1d6f74). A checkout that only adds
 records, docs, tests or other files outside pc386's design closure passes; any
 design-input change fails, and needs a new seal.
 
