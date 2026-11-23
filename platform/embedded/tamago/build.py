@@ -225,6 +225,28 @@ def sd_write_option(program, path, profile):
     return p
 
 
+def watchdog_option(program, selected, tenfoot, timeout_sec, clock_hz):
+    if timeout_sec is None:
+        timeout_sec = 0
+    if clock_hz is None:
+        clock_hz = 0
+    if type(timeout_sec) is not int or type(clock_hz) is not int:
+        raise ValueError('watchdog timeout and clock Hz must be integers')
+    if timeout_sec == 0 and clock_hz == 0:
+        return 0, 0
+    if program != 'fpgaload' or selected is not True or tenfoot is not True:
+        raise ValueError('--watchdog-timeout/--watchdog-clock-hz require Nano fpgaload with --selected-programs and --tenfoot-serial')
+    if timeout_sec == 0 or clock_hz == 0:
+        raise ValueError('both --watchdog-timeout and --watchdog-clock-hz are required together')
+    if not 1 <= timeout_sec <= 60:
+        raise ValueError('--watchdog-timeout must be integer seconds in [1, 60]')
+    if not 1_000_000 <= clock_hz <= 400_000_000:
+        raise ValueError('--watchdog-clock-hz must be Hz in [1000000, 400000000]')
+    if timeout_sec * clock_hz > (1 << 31):
+        raise ValueError(f'--watchdog-timeout {timeout_sec}s at {clock_hz} Hz exceeds DesignWare WDT 2^31-cycle maximum')
+    return timeout_sec, clock_hz
+
+
 def writable_storage_option(program,path,profile,selected,tenfoot):
     if path is None:return None
     if program!='fpgaload' or selected is not True or tenfoot is not True or profile['sd_control'] is None:
@@ -412,6 +434,10 @@ def build(args):
         raise ValueError('--selected-programs requires computer control, rearming, owned SD returns and --tenfoot-serial')
     if type(tenfoot_serial) is not bool or tenfoot_serial and not selected_programs:
         raise ValueError('--tenfoot-serial requires the selected native program service')
+    watchdog_timeout, watchdog_clock_hz = watchdog_option(
+        args.program, selected_programs, tenfoot_serial,
+        getattr(args, 'watchdog_timeout', 0), getattr(args, 'watchdog_clock_hz', 0),
+    )
     configuration_retained=getattr(args,'retain_configuration',False)
     if type(configuration_retained) is not bool or (configuration_retained and not (selected_programs and tenfoot_serial)):
         raise ValueError('--retain-configuration requires selected serial Tenfoot programs')
@@ -682,6 +708,8 @@ def build(args):
         link_flags+=' -X main.expectedMenuPresent=1'
         link_flags+=' -X main.expectedMenuReadMap='+base64.b64encode(hps.encode(menu_read_map)).decode()
     if tenfoot_serial:link_flags+=' -X main.expectedTenfootSerial=1'
+    if watchdog_timeout:
+        link_flags += f' -X main.expectedWatchdogTimeout={watchdog_timeout} -X main.expectedWatchdogClockHz={watchdog_clock_hz}'
     if initial_tape:link_flags+=' -X main.expectedInitialTape=1'
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
     if context is not None and context['programming_profile']==hps.COMPUTER_PROFILE:link_flags+=' -X main.expectedNativeComputer=1'
@@ -741,11 +769,14 @@ def build(args):
         raise ValueError('SD write plan changed during compilation or was not linked')
     if sd_transfer_clock and str(sd_transfer_clock).encode() not in data:
         raise ValueError('selected SD transfer clock was not linked')
+    if watchdog_timeout and (str(watchdog_timeout).encode() not in data or str(watchdog_clock_hz).encode() not in data):
+        raise ValueError('selected watchdog settings were not linked')
     if writable_storage_plan is not None and (writable_storage_option(args.program,args.writable_storage_plan,profile,args.selected_programs,args.tenfoot_serial)!=writable_storage_plan or writable_storage_encoded.encode() not in data):
         raise ValueError('writable storage plan changed or was not linked')
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
               "sd_write_plan":sd_write_plan,"sd_write_plan_sha256":hashlib.sha256(base64.b64decode(sd_write_encoded)).hexdigest() if sd_write_encoded else None,
               "sd_transfer_clock_hz":sd_transfer_clock,
+              "watchdog_timeout_seconds":watchdog_timeout,"watchdog_clock_hz":watchdog_clock_hz,
               "writable_storage_plan":writable_storage_plan,
               "sd_scratch_inspect":sd_scratch_inspect,
               "arm64_features":arm64_features,"cpu_feature_overlay":cpu_feature_overlay,
