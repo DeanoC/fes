@@ -20,7 +20,7 @@ var settingsFirmwareFamilies = []struct {
 	{"zx81", "Sinclair ZX81", []string{"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500"}},
 	{"spectrum", "ZX Spectrum", []string{"fes.spectrum", "fes.spectrum128", "fes.spectrum-plus3", "fes.pentagon"}},
 	{"fes.atari-st", "Atari ST", []string{"fes.atari-st"}},
-	{"fes.c64", "Commodore 64", []string{"fes.c64", "fes.c64-ntsc", "fes.c64c", "fes.c64c-ntsc"}},
+	{"fes.c64", "Commodore 64", []string{"fes.c64"}},
 }
 
 // settingsFirmware is the host's bundled firmware list, fetched as Settings
