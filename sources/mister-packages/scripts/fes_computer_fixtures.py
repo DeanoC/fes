@@ -1221,6 +1221,7 @@ def floppy_session() -> Session11:
     s.send("a-cylinders", OP_DISK_COMMIT, 10, 80)
     s.send("a-heads", OP_DISK_COMMIT, 11, 2)
     s.send("a-spt-not-a-format", OP_DISK_COMMIT, 12, 10)  # 80 x 2 x 10 is no PC format
+    s.send("a-spt-wrong-size", OP_DISK_COMMIT, 12, 18)  # 80 x 2 x 18 is a format, but 2,880 sectors, not 1,440
     s.send("a-spt", OP_DISK_COMMIT, 12, 9)
     s.send("a-crc-lo", OP_DISK_COMMIT, 13, a_crc & 0xFFFF)
     s.send("a-crc-hi", OP_DISK_COMMIT, 14, a_crc >> 16)

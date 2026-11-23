@@ -100,16 +100,23 @@ module pc386_floppy_media (
     assign two_sided = heads2;
     assign fdc_frozen = |frozen;
 
-    // The formats a PC controller reads: (cylinders, heads, sectors per track).
-    function automatic format_ok(input [15:0] c, input [15:0] h, input [15:0] s);
-        format_ok = (c == 16'd40 && h == 16'd1 && (s == 16'd8 || s == 16'd9)) ||
-                    (c == 16'd40 && h == 16'd2 && (s == 16'd8 || s == 16'd9)) ||
-                    (c == 16'd80 && h == 16'd2 &&
-                     (s == 16'd9 || s == 16'd15 || s == 16'd18 || s == 16'd21 || s == 16'd36));
+    // The formats a PC controller reads: (cylinders, heads, sectors per track),
+    // each with its size in sectors, or 0 for a geometry outside the table. A
+    // table, not cylinders x heads x sectors: the product was two chained DSP
+    // multiplies in the DiskCommit cycle and failed the seal's setup timing.
+    function automatic [15:0] format_sectors(input [15:0] c, input [1:0] h, input [15:0] s);
+        format_sectors = c == 16'd40 && h == 2'd1 && s == 16'd8  ? 16'd320  :
+                         c == 16'd40 && h == 2'd1 && s == 16'd9  ? 16'd360  :
+                         c == 16'd40 && h == 2'd2 && s == 16'd8  ? 16'd640  :
+                         c == 16'd40 && h == 2'd2 && s == 16'd9  ? 16'd720  :
+                         c == 16'd80 && h == 2'd2 && s == 16'd9  ? 16'd1440 :
+                         c == 16'd80 && h == 2'd2 && s == 16'd15 ? 16'd2400 :
+                         c == 16'd80 && h == 2'd2 && s == 16'd18 ? 16'd2880 :
+                         c == 16'd80 && h == 2'd2 && s == 16'd21 ? 16'd3360 :
+                         c == 16'd80 && h == 2'd2 && s == 16'd36 ? 16'd5760 : 16'd0;
     endfunction
     reg [1:0][15:0] staged_cylinders;
-    // cylinders x heads x sectors per track of the staged word 4
-    wire [15:0] chs = staged_cylinders[k][6:0] * (staged_heads[k] == 2'd2 ? 16'd2 : 16'd1) * argument[5:0];
+    wire [15:0] staged_format = format_sectors(staged_cylinders[k], staged_heads[k], argument);
 
     task reply(input err, input [15:0] data);
         begin
@@ -224,9 +231,7 @@ module pc386_floppy_media (
                                                             argument == 16'd1 ? 2'd1 : 2'd0;
                                         staged_count[k] <= 4'd4; reply(1'b0, 16'd0); end
                             3'd4: begin
-                                if (staged_heads[k] == 2'd0 ||
-                                    !format_ok(staged_cylinders[k], {14'd0, staged_heads[k]}, argument) ||
-                                    chs != staged_size_lo[k])
+                                if (staged_format == 16'd0 || staged_format != staged_size_lo[k])
                                     reply(1'b1, E_ARGUMENT);
                                 else begin
                                     cylinders[k] <= staged_cylinders[k][6:0];
