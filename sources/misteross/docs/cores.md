@@ -299,7 +299,8 @@ Apple II, C64 (#1007) and Atari ST (#910) pin nextpnr `5fe55f3d` for its
 F0/F1 boundary `$ROUTETHRU` map, and Spectrum pins nextpnr main `bd7a1c0d`
 (#1001, which contains #276 as merged). The cache holds one install per tool
 and commit. Every lock included in this bump uses the shared Yosys `d273c1cb`
-slot; C64 remains on `3a5accbd` after its producer failed at the new pin. See the
+slot; C64 remains on `3a5accbd` after its producer failed at the new pin, and
+PC/XT remains on `3a5accbd` after its diagnostic missed timing at d273. See the
 2026-11-23 validation record. Use the matching `make toolchain-fes-<core>` target
 to provision a local toolchain.
 The splash continues to select the repository-level `toolchain.lock`.
