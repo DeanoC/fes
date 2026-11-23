@@ -6,7 +6,7 @@ package de25nano
 
 import "github.com/DeanoC/fes/platform/embedded/tamago/psci"
 
-var psciClient = psci.New(psci.ConduitSMC())
+var psciClient = psci.New(psci.SMC())
 
 // PSCI returns the ARM PSCI / SMCCC TRNG client backed by TF-A BL31 SMC #0.
 func PSCI() *psci.Client { return psciClient }

@@ -21,7 +21,7 @@ def names(text):
 GROUPS = {
     'policy': names('''affected check_deadcode check_diff check_doc_links ci_gate
         ci_workflow consistency coordination generate hil_plan hil_go_inventory host_affected
-        image_assembly parent_affected test_changed test_policy
+        image_assembly parent_affected tamago_ci test_changed test_policy
         v1_firmware_licensing_doc'''),
     'build': names('''build_diagnostics dev_snapshot import_modules inputs
         image_artifacts kit_software module_sources native_dev receipt source_status staging status'''),
@@ -58,8 +58,9 @@ PARENT_INPUT_GROUPS = {
 PARENT_INPUT_GROUPS.update({
     path: frozenset({'policy'}) for path in (
         'scripts/affected.py', 'scripts/ci_gate.py', 'scripts/check_diff.py',
+        'scripts/ci_tamago.sh', 'scripts/tamago_ci.py',
         'tests/test_affected.py', 'tests/test_ci_gate.py',
-        'tests/test_check_diff.py', 'tests/test_test_changed.py',
+        'tests/test_check_diff.py', 'tests/test_tamago_ci.py', 'tests/test_test_changed.py',
     )
 })
 
