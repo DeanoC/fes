@@ -944,3 +944,59 @@ func TestNativeMissingRuntimeIdentityShowsUnavailableAndKeepsStop(t *testing.T) 
 		t.Fatalf("Stop unavailable: %s", phase)
 	}
 }
+
+// A session read that omits runtime_input (agent coordinator transition or
+// slow runtime read) keeps keyboard and pad authority for the same play until
+// the kept identity is older than the observation window.
+func TestNativeInputAuthoritySurvivesRuntimeIdentityGap(t *testing.T) {
+	gap := func(a *App) {
+		result := a.session
+		result.RuntimeInput = nil
+		a.applySessionLocked(result)
+		a.sessionObservedAt = time.Now() // fetchSession stamps the successful read
+	}
+	expire := func(a *App) { a.sessionRuntimeInputReportedAt = time.Now().Add(-runtimeInputRetention - time.Second) }
+	t.Run("keyboard", func(t *testing.T) {
+		a := readyNativeBindingApp(t)
+		defer a.Stop()
+		a.mu.Lock()
+		a.sessionRuntimeInputReportedAt = time.Now()
+		a.mu.Unlock()
+		expected, err := a.nativeKeyboardPrepareBinding([16]byte{1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.mu.Lock()
+		gap(a)
+		a.mu.Unlock()
+		if current, err := a.nativeKeyboardObserveBinding(); err != nil || current != expected {
+			t.Fatalf("identity gap changed keyboard authority: %v", err)
+		}
+		a.mu.Lock()
+		expire(a)
+		a.mu.Unlock()
+		if _, err := a.nativeKeyboardObserveBinding(); err == nil {
+			t.Fatal("expired kept identity admitted the keyboard")
+		}
+	})
+	t.Run("pad", func(t *testing.T) {
+		a := readyNativeBindingApp(t)
+		defer a.Stop()
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		a.kitLocalKeyboardUnavailable = true
+		a.sessionRuntimeInputReportedAt = time.Now()
+		before, err := a.padOnlyAuthorityLocked(time.Now(), false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gap(a)
+		if after, err := a.padOnlyAuthorityLocked(time.Now(), false); err != nil || after != before {
+			t.Fatalf("identity gap changed pad authority: %v", err)
+		}
+		expire(a)
+		if _, err := a.padOnlyAuthorityLocked(time.Now(), false); err == nil {
+			t.Fatal("expired kept identity admitted pad recovery")
+		}
+	})
+}

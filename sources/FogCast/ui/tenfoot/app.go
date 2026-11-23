@@ -720,6 +720,8 @@ type App struct {
 	hostAwaitStatus                   bool
 	sessionObservation                uint64
 	sessionObservedAt                 time.Time
+	sessionRuntimeInputRetained       bool      // session.RuntimeInput kept from an earlier read of the same play
+	sessionRuntimeInputReportedAt     time.Time // request start of the last session read that reported it
 	sessionReadyWrittenAt             time.Time
 	kitMenuStartedAt                  time.Time
 	kitMenuSessionSeen                bool
@@ -3099,6 +3101,9 @@ func (a *App) fetchSession(ctx context.Context) {
 	a.applySessionLocked(result)
 	if result.ErrorCode == "" {
 		a.sessionObservedAt = requestStarted
+		if result.RuntimeInput != nil {
+			a.sessionRuntimeInputReportedAt = requestStarted
+		}
 	}
 	a.mu.Unlock()
 	a.noteKitMenuSessionObservation(result, nil)
@@ -3610,21 +3615,28 @@ func inputFailureStatus(action string) string {
 func (a *App) applySessionLocked(result hostclient.SessionResult) {
 	a.sessionObservation++
 	a.sessionObservedAt = time.Time{}
-	if result.ErrorCode != "" || !samePlayHIDSession(a.session, result) {
+	// An omitted runtime identity keeps the same play: the agent withholds it
+	// during any coordinator transition and after a failed or slow runtime
+	// read. Input from a kept identity fails closed after the observation window.
+	result, retained := retainSessionRuntimeInput(a.session, result)
+	// An identity that this observation cannot carry ends its play.
+	same := samePlayHIDSession(a.session, result) && (a.session.RuntimeInput == nil || result.RuntimeInput != nil)
+	staleIdentity := retained && !runtimeInputReportFresh(a.sessionRuntimeInputReportedAt, time.Now())
+	if result.ErrorCode != "" || !same || staleIdentity {
 		a.nativePadRevokeConnectionLocked()
 	}
-	if a.delegatedV2Active && (result.ErrorCode != "" || result.RuntimeInput == nil ||
-		(result.RuntimeInput != nil && result.RuntimeInput.Validate() != nil) || !protocol.ValidInputAgentInstance(result.InputAgentInstance) || !samePlayHIDSession(a.session, result)) {
+	if a.delegatedV2Active && (result.ErrorCode != "" || result.RuntimeInput == nil || staleIdentity ||
+		(result.RuntimeInput != nil && result.RuntimeInput.Validate() != nil) || !protocol.ValidInputAgentInstance(result.InputAgentInstance) || !same) {
 		a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
 	}
-	if result.ErrorCode != "" || !samePlayHIDSession(a.session, result) {
+	if result.ErrorCode != "" || !same {
 		a.retireLocalKeyboardLocked()
 		a.clearSessionReadyLocked()
 	}
 	if result.ErrorCode != "" {
 		return
 	}
-	if !samePlayHIDSession(a.session, result) {
+	if !same {
 		a.sessionTitleRequest++
 		a.sessionTitlePending = false
 		a.sessionTitleNext = time.Time{}
@@ -3635,6 +3647,11 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 		a.invalidateSessionDisplayLocked()
 	}
 	a.session = result
+	a.sessionRuntimeInputRetained = retained
+	if !retained {
+		// fetchSession stamps an identity that its read reported.
+		a.sessionRuntimeInputReportedAt = time.Time{}
+	}
 	a.rememberFlightLocked(result.FlightID)
 	// Keep retainedIdleLease. Soft-stop of foreground B can promote A, and
 	// a later launch can go active, while B's idle grant is still retained.

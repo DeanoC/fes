@@ -49,7 +49,7 @@ func (a *App) nativeKeyboardBindingLocked(publisher [16]byte, epoch uint64) (nat
 	}
 	if !a.kitHost || a.client == nil || a.client.paired || !a.delegatedV2Active || a.nativeKeyboardClosing || a.nativeKeyboardGenerationExhausted || a.nativeKeyboardGeneration == 0 || publisher == ([16]byte{}) || epoch == 0 ||
 		!a.nativeKeyboardGuestFocusLocked() ||
-		!a.healthHave || !fresh(a.healthObservedAt) || !fresh(a.sessionObservedAt) || a.hostUnreachable || !a.health.Ready || !a.health.TargetReachable ||
+		!a.healthHave || !fresh(a.healthObservedAt) || !fresh(a.sessionObservedAt) || !a.sessionRuntimeInputFreshLocked(now) || a.hostUnreachable || !a.health.Ready || !a.health.TargetReachable ||
 		!a.kitLeaseHave || a.kitLease.Unavailable || !localhid.ValidRecoveryIdentity(c.TargetID) || !localhid.ValidRecoveryIdentity(c.BootID) ||
 		!fullLocalIdentity(c.LeaseGeneration) || c.LeaseGeneration != strings.ToLower(c.LeaseGeneration) || c.LeaseGeneration == strings.Repeat("0", 64) || a.kitLease.Generation != c.LeaseGeneration ||
 		a.session.State != "active" || (!a.session.CoreKeyboard && !a.session.CoreKeyboardHID) || a.session.TargetID != c.TargetID || a.session.RuntimeInput == nil || a.session.RuntimeInput.Validate() != nil || !protocol.ValidInputAgentInstance(a.session.InputAgentInstance) {

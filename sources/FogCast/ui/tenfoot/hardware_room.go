@@ -527,21 +527,67 @@ func (a *App) queuePlayHIDBindingLocked(events []remoteinput.Event, binding *loc
 	}()
 }
 
+// samePlayHIDSession compares runtime input identities only when both
+// observations carry one. The agent omits the identity during any coordinator
+// transition and after a failed or slow runtime read, so a missing identity is
+// unobserved, not a new runtime. applySessionLocked keeps the last identity
+// across that gap, so a later different identity still ends the session.
 func samePlayHIDSession(a, b hostclient.SessionResult) bool {
 	if a.ID != b.ID || a.State != b.State || a.Target != b.Target || a.TargetID != b.TargetID || a.GameID != b.GameID || a.FlightID != b.FlightID || a.InputAgentInstance != b.InputAgentInstance || a.CoreKeyboard != b.CoreKeyboard || a.CoreKeyboardHID != b.CoreKeyboardHID {
 		return false
 	}
-	if a.RuntimeInput == nil || b.RuntimeInput == nil {
-		if a.RuntimeInput != nil || b.RuntimeInput != nil {
-			return false
-		}
-	} else if a.RuntimeInput.Validate() != nil || b.RuntimeInput.Validate() != nil || *a.RuntimeInput != *b.RuntimeInput {
+	if (a.RuntimeInput != nil && a.RuntimeInput.Validate() != nil) || (b.RuntimeInput != nil && b.RuntimeInput.Validate() != nil) ||
+		(a.RuntimeInput != nil && b.RuntimeInput != nil && *a.RuntimeInput != *b.RuntimeInput) {
 		return false
 	}
 	if a.CorePackage == nil || b.CorePackage == nil {
 		return a.CorePackage == b.CorePackage
 	}
 	return a.CorePackage.PackageID == b.CorePackage.PackageID && a.CorePackage.Generation == b.CorePackage.Generation
+}
+
+// runtimeInputRetention is the session observation window. A kept identity
+// that no observation has reported for longer no longer admits input.
+const runtimeInputRetention = 5 * time.Second
+
+// runtimeInputMatchesSession applies the host client's decode rule: a
+// described identity names the active package generation; a development
+// identity has no package.
+func runtimeInputMatchesSession(identity protocol.RuntimeInputIdentity, s hostclient.SessionResult) bool {
+	if s.State != "active" || identity.Validate() != nil {
+		return false
+	}
+	switch identity.Kind {
+	case protocol.RuntimeInputDescribed:
+		return s.CorePackage != nil && s.CorePackage.PackageID == identity.PackageID && s.CorePackage.Generation == identity.Generation
+	case protocol.RuntimeInputDevelopment:
+		return s.Development && s.CorePackage == nil
+	}
+	return false
+}
+
+// retainSessionRuntimeInput keeps the current runtime identity when an
+// otherwise identical observation omits it. It never labels a changed
+// session, package or generation with the old runtime.
+func retainSessionRuntimeInput(current, next hostclient.SessionResult) (hostclient.SessionResult, bool) {
+	if next.ErrorCode != "" || next.RuntimeInput != nil || current.RuntimeInput == nil ||
+		!runtimeInputMatchesSession(*current.RuntimeInput, next) || !samePlayHIDSession(current, next) {
+		return next, false
+	}
+	identity := *current.RuntimeInput
+	next.RuntimeInput = &identity
+	return next, true
+}
+
+func runtimeInputReportFresh(at, now time.Time) bool {
+	return !at.IsZero() && !now.Before(at) && now.Sub(at) <= runtimeInputRetention
+}
+
+// sessionRuntimeInputFreshLocked bounds input authority from a kept identity
+// to the observation window. A reported identity is as fresh as the session
+// observation that carried it.
+func (a *App) sessionRuntimeInputFreshLocked(now time.Time) bool {
+	return !a.sessionRuntimeInputRetained || runtimeInputReportFresh(a.sessionRuntimeInputReportedAt, now)
 }
 
 func (a *App) cancelPlayHIDLocked() {
