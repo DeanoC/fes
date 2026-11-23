@@ -1389,7 +1389,7 @@ def run_benches(args) -> dict:
 def parse_system(text: str) -> dict:
     """system_tb's lines."""
     report = {'identity': None, 'restore_cycle': None, 'clock_cycle': None, 'crc_rejected': None, 'disk': None,
-              'release_cycle': None, 'post': [], 'debug': [], 'counters': [], 'prompt_cycle': None, 'screen': [],
+              'floppy': None, 'release_cycle': None, 'post': [], 'debug': [], 'counters': [], 'prompt_cycle': None, 'screen': [],
               'status': None, 'save': None, 'record': None, 'roundtrip': None, 'record_checks': [], 'write_test': None,
               'typed': [], 'mouse': [], 'holds': [], 'mailbox': None, 'end': None}
     for line in text.splitlines():
@@ -1405,6 +1405,10 @@ def parse_system(text: str) -> dict:
             cycle, *fields = rest.split()
             report['disk'] = {'cycle': int(cycle), **{key: int(value) for key, value in
                                                      (field.split('=') for field in fields)}}
+        elif kind == 'FLOPPY':
+            cycle, *fields = rest.split()
+            report['floppy'] = {'cycle': int(cycle), **{key: int(value) for key, value in
+                                                       (field.split('=') for field in fields)}}
         elif kind == 'POST':
             code, cycle = rest.split()
             report['post'].append({'code': code, 'cycle': int(cycle)})
@@ -1453,8 +1457,8 @@ def parse_system(text: str) -> dict:
 
 
 def system_failures(report: dict) -> list[str]:
-    """The runtime's launch must stage the disk through the mailbox and its CRC
-    pass, the system must reach the prompt with the CPU alone and every counter
+    """The runtime's launch must stage the disk and a launch floppy through the
+    mailbox and their CRC passes, the system must reach the prompt with the CPU alone and every counter
     at zero, and the Stop's disk save and record must check out."""
     failures = []
     if report.get('mailbox'):
@@ -1464,6 +1468,8 @@ def system_failures(report: dict) -> list[str]:
         failures.append(f'the system did not reach the prompt: {end.get("reason")}')
     if report.get('crc_rejected') is None:
         failures.append('a wrong CRC was not rejected')
+    if report.get('floppy') is None:
+        failures.append('the held launch floppy did not become ready')
     if report.get('write_test') is None:
         failures.append("the bench did not give the boot its disk write (the fixture's AUTOEXEC.BAT)")
     status = report.get('status')

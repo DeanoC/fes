@@ -11,7 +11,13 @@
 //   4. DiskControl Prepare; the image into the window at 0x08000000;
 //      DiskCommit and Commit with a wrong CRC first, which must leave the unit
 //      loading with the CRC error flag; then the right CRC, polling DiskInfo
-//      until the core's pass ends; Execution release.
+//      until the core's pass ends;
+//   5. a launch floppy in B: (fes.media.pc-floppy), still held, as the
+//      runtime inserts it after the disk: DiskControl Prepare on unit 2, a
+//      1.2M image into the window at 0x01C00000, DiskCommit and Commit,
+//      polling unit 2's DiskInfo until its pass ends; Execution release.
+//      The floppy's CRC pass reads port 2 while the machine is held, as the
+//      disk's does; B: is never a boot drive, so the boot is unchanged.
 //
 // It then follows the boot until the prompt. So that the boot writes the disk,
 // the bench's copy of the FreeDOS fixture runs MD C:\M5 in AUTOEXEC.BAT in
@@ -51,6 +57,7 @@
 //   CLOCK <cycle>                            the wall clock applied
 //   CRC-REJECTED <cycle> flags=<n>           the wrong CRC left the unit loading
 //   DISK <cycle> sectors=<n> verify_cycles=<n>  the unit ready
+//   FLOPPY <cycle> unit=<n> sectors=<n> verify_cycles=<n>  the launch floppy ready
 //   RELEASE <cycle>
 //   POST <code> <cycle>                      each new POST code
 //   COUNTER <name>=<value> <cycle>           each change of an underflow or drop counter
@@ -372,9 +379,9 @@ private:
         std::printf("IDENTITY %s\n", words.c_str());
         // Magic, transport 1.0, fes.computer 1.1, then the capability words:
         // video, keyboard, audio, mouse, HPS DDR and session display; bits
-        // 16-19.
+        // 16-19 and 22 (fes.media.pc-floppy).
         if (w[0] != 0x4546 || w[1] != 0x3153 || w[2] != 1 || w[3] != 0 || w[4] != 4 || w[5] != 1 || w[6] != 1 ||
-            w[7] != 0x310b || w[16] != 0x000f)
+            w[7] != 0x310b || w[16] != 0x004f)
             throw MailboxError("identity is not fes.computer 1.1 with the pc386 interfaces");
     }
 
@@ -391,11 +398,11 @@ private:
         return words;
     }
 
-    uint16_t poll_disk(uint64_t *since = nullptr) {
+    uint16_t poll_disk(uint64_t *since = nullptr, uint8_t unit = 0) {
         uint64_t start = cycles;
         for (;;) {
             if (cycles > limit) throw MailboxError("disk verification exceeded --limit-seconds");
-            uint16_t state = exchange(OP_DISK_INFO, 5, 0);
+            uint16_t state = exchange(OP_DISK_INFO, uint8_t(unit * 8 + 5), 0);
             if (state != VERIFYING) {
                 if (since) *since = cycles - start;
                 return state;
@@ -411,6 +418,26 @@ private:
                                    uint16_t(crc), uint16_t(crc >> 16), 0};
         for (uint8_t n = 0; n < 8; ++n) exchange(OP_DISK_COMMIT, n, words[n]);
         exchange(OP_DISK_CONTROL, 0, COMMIT);
+    }
+
+    // B:'s launch floppy, held (step 5): a 1.2M image, 80 cylinders, 2 heads,
+    // 15 sectors a track. Its bytes are a pattern, so the CRC is not a blank's.
+    void insert_floppy() {
+        constexpr uint8_t UNIT = 2;
+        constexpr uint32_t BYTES = 1228800u, AT = 0x01800000u + 0x00400000u;   // A: + one drive's stride
+        std::vector<uint8_t> floppy(BYTES);
+        for (uint32_t n = 0; n < BYTES; ++n) floppy[n] = uint8_t(n * 7 + (n >> 9));
+        exchange(OP_DISK_CONTROL, UNIT, PREPARE);
+        for (uint32_t at = 0; at < BYTES; at += 1u << 20)
+            std::memcpy(window.at(AT + at), floppy.data() + at, std::min<uint32_t>(1u << 20, BYTES - at));
+        const uint32_t crc = crc32(floppy.data(), floppy.size());
+        const uint16_t words[8] = {uint16_t(BYTES / 512), 0, 80, 2, 15, uint16_t(crc), uint16_t(crc >> 16), 0};
+        for (uint8_t n = 0; n < 8; ++n) exchange(OP_DISK_COMMIT, uint8_t(UNIT * 8 + n), words[n]);
+        exchange(OP_DISK_CONTROL, UNIT, COMMIT);
+        uint64_t took = 0;
+        if (poll_disk(&took, UNIT) != READY) throw MailboxError("the core did not match the launch floppy's CRC");
+        std::printf("FLOPPY %llu unit=%u sectors=%u verify_cycles=%llu\n", (unsigned long long)cycles, unsigned(UNIT),
+                    BYTES / 512, (unsigned long long)took);
     }
 
     void launch() {
@@ -439,6 +466,7 @@ private:
         if (poll_disk(&took) != READY) throw MailboxError("the core did not match the image's CRC");
         std::printf("DISK %llu sectors=%zu verify_cycles=%llu\n", (unsigned long long)cycles, image.size() / 512,
                     (unsigned long long)took);
+        insert_floppy();
         exchange(OP_EXECUTION, 0, 1);
         progress_at = cycles;
         std::printf("RELEASE %llu\n", (unsigned long long)cycles);

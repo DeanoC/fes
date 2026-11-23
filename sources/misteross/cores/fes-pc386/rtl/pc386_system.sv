@@ -32,8 +32,8 @@
 // landed every sector it accepted and the floppy controller has no store or
 // read beat in flight (drained), ddr_hold makes fes_hps_ddr hold
 // every port, and once port 0 has taken the hold the machine is reset with
-// them (machine_held). While the disk verifies, ddr_hold is low so that the
-// CRC pass can read port 2; the machine stays in reset. p0_reset..p2_reset
+// them (machine_held). While the disk or a floppy verifies, ddr_hold is low so
+// that its CRC pass can read port 2; the machine stays in reset. p0_reset..p2_reset
 // are fes_hps_ddr's per-port resets. After release the only reset is the
 // CPU's own, from the AT core (8042, port 92h), which asserts FLUSH first: it
 // holds the CPU at least 4 clocks and until its memory is idle, and the
@@ -250,7 +250,7 @@ module pc386_system #(
         drained <= exec_reset && (drained || (quiet == 3'd4 && cpu_mem_idle && rom_idle && !disk_writer_busy &&
                                               !fdc_busy));
         machine_held <= drained && (machine_held || p0_reset);
-        ddr_hold <= drained && !verifying;
+        ddr_hold <= drained && !verifying && !(|floppy_verify);
     end
     // An applied wall clock waits for the RTC's CMOS setup after release.
     reg wall_pending = 1'b0, wall_valid = 1'b0;

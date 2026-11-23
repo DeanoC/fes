@@ -1158,11 +1158,12 @@ class FdcReplayTest(unittest.TestCase):
 
 
 SYSTEM_OUTPUT = """WRITE-TEST 444436
-IDENTITY 17734 12627 1 0 4 1 1 12297 26437 291 52617 1158 61715 2469 13863 3702 15
+IDENTITY 17734 12627 1 0 4 1 1 12297 26437 291 52617 1158 61715 2469 13863 3702 79
 RESTORE 9000
 CLOCK 9400
 CRC-REJECTED 600000 flags=8
 DISK 1200000 sectors=65520 verify_cycles=590000
+FLOPPY 1200050 unit=2 sectors=2400 verify_cycles=21000
 RELEASE 1200100
 POST 00 1265600
 DEBUG BIOS BUILD DATE: 10/26/26
@@ -1188,11 +1189,12 @@ class SystemTest(unittest.TestCase):
     def test_parse(self):
         report = sim.parse_system(SYSTEM_OUTPUT)
         self.assertEqual(len(report['identity']), 17)
-        self.assertEqual(report['identity'][16], 15)
+        self.assertEqual(report['identity'][16], 0x4f)
         self.assertEqual(report['restore_cycle'], 9000)
         self.assertEqual(report['clock_cycle'], 9400)
         self.assertEqual(report['crc_rejected'], {'cycle': 600000, 'flags': 8})
         self.assertEqual(report['disk'], {'cycle': 1200000, 'sectors': 65520, 'verify_cycles': 590000})
+        self.assertEqual(report['floppy'], {'cycle': 1200050, 'unit': 2, 'sectors': 2400, 'verify_cycles': 21000})
         self.assertEqual(report['release_cycle'], 1200100)
         self.assertEqual(report['post'], [{'code': '00', 'cycle': 1265600}])
         self.assertEqual(report['debug'], ['BIOS BUILD DATE: 10/26/26'])
@@ -1220,6 +1222,7 @@ class SystemTest(unittest.TestCase):
             (SYSTEM_OUTPUT.replace('retired=50000000', 'retired=0'), 'retired nothing'),
             (SYSTEM_OUTPUT.replace('CRC-REJECTED 600000 flags=8\n', ''), 'wrong CRC'),
             (SYSTEM_OUTPUT.replace('WRITE-TEST 444436', 'WRITE-TEST absent'), 'disk write'),
+            (SYSTEM_OUTPUT.replace('FLOPPY 1200050 unit=2 sectors=2400 verify_cycles=21000\n', ''), 'launch floppy'),
             (SYSTEM_OUTPUT.replace('CHECK PASS the record keeps', 'CHECK FAIL the record keeps'),
              'record check failed: the record keeps'),
             (SYSTEM_OUTPUT.replace('ROUNDTRIP 0 0 0 0 576 5 1 0\n', ''), 'did not save'),
