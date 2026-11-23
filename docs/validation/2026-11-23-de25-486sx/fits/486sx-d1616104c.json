@@ -1,0 +1,202 @@
+{
+  "s1": {
+    "alms": 41571.4,
+    "closes": true,
+    "dsp_blocks": 24,
+    "netlist_sha256": "7816b5397e01015a608fac40d9655ed92baa35e4da9c216b92e29f796c60a024",
+    "ram_blocks": 168,
+    "seed": 1,
+    "worst": {
+      "Hold": {
+        "clock": "fes_machine_pll|machine_pll_outclk0",
+        "corner": "Fast fix4 0C Model",
+        "slack": 0.0
+      },
+      "Max Skew": {
+        "clock": "set_max_skew",
+        "corner": "Slow fix4 0C Model",
+        "slack": 7.106
+      },
+      "Minimum Pulse Width": {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+        "corner": "Slow fix4 100C Model",
+        "slack": 0.22
+      },
+      "Net Delay": {
+        "clock": "set_net_delay",
+        "corner": "",
+        "slack": 3.671
+      },
+      "Recovery": {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Slow fix4a 0C Model",
+        "slack": 7.23
+      },
+      "Removal": {
+        "clock": "adv7513_config",
+        "corner": "Fast fix4 0C Model",
+        "slack": 0.151
+      },
+      "Setup": {
+        "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack": 1.51
+      },
+      "Setup Data Delay": {
+        "clock": "fes_machine_pll|machine_pll_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack": 3.671
+      }
+    }
+  },
+  "s2": {
+    "alms": 41532.7,
+    "closes": true,
+    "dsp_blocks": 24,
+    "netlist_sha256": "7816b5397e01015a608fac40d9655ed92baa35e4da9c216b92e29f796c60a024",
+    "ram_blocks": 168,
+    "seed": 2,
+    "worst": {
+      "Hold": {
+        "clock": "fes_machine_pll|machine_pll_outclk0",
+        "corner": "Fast fix4 0C Model",
+        "slack": 0.0
+      },
+      "Max Skew": {
+        "clock": "set_max_skew",
+        "corner": "Slow fix4a 0C Model",
+        "slack": 7.076
+      },
+      "Minimum Pulse Width": {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+        "corner": "Slow fix4 100C Model",
+        "slack": 0.22
+      },
+      "Net Delay": {
+        "clock": "set_net_delay",
+        "corner": "",
+        "slack": 3.659
+      },
+      "Recovery": {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Slow fix4a 0C Model",
+        "slack": 6.609
+      },
+      "Removal": {
+        "clock": "adv7513_config",
+        "corner": "Fast fix4 0C Model",
+        "slack": 0.045
+      },
+      "Setup": {
+        "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack": 1.617
+      },
+      "Setup Data Delay": {
+        "clock": "fes_machine_pll|machine_pll_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack": 3.659
+      }
+    }
+  },
+  "s3": {
+    "alms": 41595.8,
+    "closes": true,
+    "dsp_blocks": 24,
+    "netlist_sha256": "7816b5397e01015a608fac40d9655ed92baa35e4da9c216b92e29f796c60a024",
+    "ram_blocks": 168,
+    "seed": 3,
+    "worst": {
+      "Hold": {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Fast fix4 0C Model",
+        "slack": 0.0
+      },
+      "Max Skew": {
+        "clock": "set_max_skew",
+        "corner": "Slow fix4a 0C Model",
+        "slack": 7.078
+      },
+      "Minimum Pulse Width": {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+        "corner": "Slow fix4 100C Model",
+        "slack": 0.22
+      },
+      "Net Delay": {
+        "clock": "set_net_delay",
+        "corner": "",
+        "slack": 3.622
+      },
+      "Recovery": {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Slow fix4a 0C Model",
+        "slack": 6.324
+      },
+      "Removal": {
+        "clock": "adv7513_config",
+        "corner": "Fast fix4 0C Model",
+        "slack": 0.056
+      },
+      "Setup": {
+        "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack": 1.247
+      },
+      "Setup Data Delay": {
+        "clock": "fes_machine_pll|machine_pll_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack": 3.622
+      }
+    }
+  },
+  "s4": {
+    "alms": 41555.4,
+    "closes": true,
+    "dsp_blocks": 24,
+    "netlist_sha256": "7816b5397e01015a608fac40d9655ed92baa35e4da9c216b92e29f796c60a024",
+    "ram_blocks": 168,
+    "seed": 4,
+    "worst": {
+      "Hold": {
+        "clock": "fes_machine_pll|machine_pll_outclk0",
+        "corner": "Fast fix4 0C Model",
+        "slack": 0.0
+      },
+      "Max Skew": {
+        "clock": "set_max_skew",
+        "corner": "Slow fix4a 0C Model",
+        "slack": 6.992
+      },
+      "Minimum Pulse Width": {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+        "corner": "Slow fix4 100C Model",
+        "slack": 0.22
+      },
+      "Net Delay": {
+        "clock": "set_net_delay",
+        "corner": "",
+        "slack": 3.556
+      },
+      "Recovery": {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack": 6.961
+      },
+      "Removal": {
+        "clock": "adv7513_config",
+        "corner": "Fast fix4 0C Model",
+        "slack": 0.054
+      },
+      "Setup": {
+        "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack": 1.571
+      },
+      "Setup Data Delay": {
+        "clock": "fes_machine_pll|machine_pll_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack": 3.556
+      }
+    }
+  }
+}
