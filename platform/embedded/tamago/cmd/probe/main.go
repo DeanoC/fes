@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/dmaops"
+	"github.com/DeanoC/fes/platform/embedded/tamago/fpgairq"
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
 )
@@ -243,30 +245,36 @@ func probeGIC() {
 	g.Disable(0)
 	g.Register(0, nil)
 
-	// Exercise SPI routing and edge-triggered software pending via GICD_ISPENDR
-	// on SPI 48 (Agilex 5 IRQFPGA2HPS0; unused VirtIO slot 0 during QEMU probe).
-	const testSPI uint32 = 48
-	spiHit := make(chan struct{}, 1)
-	g.Disable(testSPI)
-	g.ClearPending(testSPI)
-	g.SetEdge(testSPI, true)
-	g.Register(testSPI, func() {
-		select {
-		case spiHit <- struct{}{}:
-		default:
-		}
-	})
-	g.Enable(testSPI)
-	g.SetPending(testSPI)
-	select {
-	case <-spiHit:
-	case <-time.After(time.Second):
-		panic("gic: SPI 48 software pending did not fire")
+	// Exercise FPGA-to-HPS doorbell dispatcher over SPI 48 (Agilex 5
+	// IRQFPGA2HPS0; unused VirtIO slot 0 during QEMU probe), including
+	// Doorbell.Wait and Doorbell.YieldFunc wakeups.
+	disp, err := fpgairq.New(g)
+	if err != nil {
+		panic(err)
 	}
-	g.Disable(testSPI)
-	g.ClearPending(testSPI)
-	g.SetEdge(testSPI, false)
-	g.Register(testSPI, nil)
+	db, err := disp.Open(fpgairq.Config{Line: 0, Trigger: fpgairq.Edge})
+	if err != nil {
+		panic(err)
+	}
+	db.TriggerPending()
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+	if err := db.Wait(waitCtx); err != nil || db.Count() != 1 {
+		waitCancel()
+		panic(fmt.Sprintf("fpgairq: SPI 48 Wait failed err=%v count=%d", err, db.Count()))
+	}
+	waitCancel()
+	db.TriggerPending()
+	db.YieldFunc(time.Second)()
+	if db.Count() != 2 {
+		panic(fmt.Sprintf("fpgairq: SPI 48 YieldFunc failed count=%d", db.Count()))
+	}
+	if err := db.Close(); err != nil {
+		panic(err)
+	}
+	if err := disp.Close(); err != nil {
+		panic(err)
+	}
+	g.SetEdge(fpgairq.BaseSPI, false)
 
 	timerHit := make(chan struct{}, 1)
 	g.Register(board.IRQPhysTimer, func() {

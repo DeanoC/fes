@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from scripts.verilator_waivers import lint_config
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "cores" / "fes-zx81"
@@ -17,7 +18,7 @@ class ZonXAySimulationTest(unittest.TestCase):
         if not verilator:
             self.skipTest("Verilator is required for AY behavior simulation")
         with tempfile.TemporaryDirectory(prefix="fes-zonx-ay-") as directory:
-            command = [verilator, "--cc", "--exe", "--build", "--top-module", "zonx_ay",
+            command = [verilator, *lint_config(verilator), "--cc", "--exe", "--build", "--top-module", "zonx_ay",
                        "-Wall", "-Wno-UNUSEDSIGNAL", "--Mdir", directory,
                        str(CORE / "expansions" / "zonx_ay.v"),
                        str(CORE / "sim" / "zonx_ay_tb.cpp")]
