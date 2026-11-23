@@ -1,0 +1,703 @@
+{
+  "verilator": {
+    "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+    "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+    "version": "Verilator 5.054 2026-11-01 rev v5.054",
+    "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c"
+  },
+  "instructions_per_stream": 400000,
+  "seed": 1,
+  "netlist": {
+    "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
+    "yosys": {
+      "lock": "cores/fes-pc386/toolchain.lock",
+      "lock_sha256": "84063d735fea8c45ef01fd8e8117516522dd74954e55f3845e62628b670bde02",
+      "gpu_router": "HIP",
+      "tool": "commit=d273c1cb774f70d58c890745ac1b7dd106d32a26; sha256=cc5467d89b059ff22dff54056f7fb87eb4b688645346f6932e1342bc3cf66ad1"
+    }
+  },
+  "lendec": {
+    "records": [
+      {
+        "default_size": 16,
+        "opcodes": 500,
+        "prefix_choices": 12,
+        "cases": 393216000,
+        "compared": 239087616,
+        "oracle_undefined": 154128384,
+        "variants_compared": 717262848,
+        "mismatches": 0
+      },
+      {
+        "default_size": 32,
+        "opcodes": 500,
+        "prefix_choices": 12,
+        "cases": 393216000,
+        "compared": 239087616,
+        "oracle_undefined": 154128384,
+        "variants_compared": 717262848,
+        "mismatches": 0
+      },
+      {
+        "directed": 18320,
+        "directed_failures": 0
+      }
+    ],
+    "failures": []
+  },
+  "frontend": {
+    "records": [
+      {
+        "stream": "random-bytes",
+        "default_size": 16,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 400000,
+        "compared": 389107,
+        "oracle_undefined": 10893,
+        "too_long": 0,
+        "two_byte_opcode": 1645,
+        "by_prefix_count": {
+          "0": 382944,
+          "1": 16330,
+          "2": 684,
+          "3": 42
+        },
+        "cycles": 407642,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "random-bytes-stalled",
+        "default_size": 16,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 400000,
+        "compared": 388859,
+        "oracle_undefined": 11141,
+        "too_long": 0,
+        "two_byte_opcode": 1602,
+        "by_prefix_count": {
+          "0": 382838,
+          "1": 16456,
+          "2": 671,
+          "3": 34,
+          "4": 1
+        },
+        "cycles": 577903,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "prefix-bytes",
+        "default_size": 16,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 400000,
+        "compared": 388476,
+        "oracle_undefined": 11524,
+        "too_long": 0,
+        "two_byte_opcode": 1604,
+        "by_prefix_count": {
+          "0": 267368,
+          "1": 88852,
+          "2": 29233,
+          "3": 9746,
+          "4": 3309,
+          "5": 969,
+          "6": 362,
+          "7": 109,
+          "8": 39,
+          "9": 10,
+          "11": 3
+        },
+        "cycles": 629575,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "prefix-runs",
+        "default_size": 16,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 100000,
+        "compared": 82037,
+        "oracle_undefined": 2791,
+        "too_long": 15172,
+        "two_byte_opcode": 346,
+        "by_prefix_count": {
+          "0": 59370,
+          "1": 2783,
+          "2": 936,
+          "3": 855,
+          "4": 799,
+          "5": 961,
+          "6": 1231,
+          "7": 1847,
+          "8": 2863,
+          "9": 2765,
+          "10": 2826,
+          "11": 2802,
+          "12": 2499,
+          "13": 2781,
+          "14": 2505,
+          "15": 12177
+        },
+        "cycles": 588238,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "instructions",
+        "default_size": 16,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 400000,
+        "compared": 400000,
+        "oracle_undefined": 0,
+        "too_long": 0,
+        "two_byte_opcode": 419,
+        "by_prefix_count": {
+          "0": 79792,
+          "1": 79535,
+          "2": 80054,
+          "3": 80267,
+          "4": 80352
+        },
+        "cycles": 881788,
+        "issue_cycles": 881600,
+        "redirect_to_issue": {
+          "5": 6,
+          "6": 6,
+          "7": 8,
+          "8": 6,
+          "9": 2
+        },
+        "timing_checked": 399972,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "prefix-free",
+        "default_size": 16,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 400000,
+        "compared": 400000,
+        "oracle_undefined": 0,
+        "too_long": 0,
+        "two_byte_opcode": 484,
+        "by_prefix_count": {
+          "0": 400000
+        },
+        "cycles": 400073,
+        "issue_cycles": 400000,
+        "redirect_to_issue": {
+          "5": 11,
+          "6": 3
+        },
+        "timing_checked": 399986,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "prefix-free-long",
+        "default_size": 16,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 100000,
+        "compared": 100000,
+        "oracle_undefined": 0,
+        "too_long": 0,
+        "two_byte_opcode": 978,
+        "by_prefix_count": {
+          "0": 100000
+        },
+        "cycles": 100046,
+        "issue_cycles": 100000,
+        "redirect_to_issue": {
+          "5": 8,
+          "6": 1
+        },
+        "timing_checked": 99991,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "random-bytes-fetch-latency",
+        "default_size": 16,
+        "fetch_latency": true,
+        "l2_empty_releases": 0,
+        "instructions": 100000,
+        "compared": 97282,
+        "oracle_undefined": 2718,
+        "too_long": 0,
+        "two_byte_opcode": 396,
+        "by_prefix_count": {
+          "0": 95718,
+          "1": 4090,
+          "2": 179,
+          "3": 13
+        },
+        "cycles": 146183,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "instructions-fetch-latency",
+        "default_size": 16,
+        "fetch_latency": true,
+        "l2_empty_releases": 0,
+        "instructions": 100000,
+        "compared": 100000,
+        "oracle_undefined": 0,
+        "too_long": 0,
+        "two_byte_opcode": 112,
+        "by_prefix_count": {
+          "0": 19870,
+          "1": 20023,
+          "2": 19981,
+          "3": 20173,
+          "4": 19953
+        },
+        "cycles": 220279,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "prefix-free-long-fetch-latency",
+        "default_size": 16,
+        "fetch_latency": true,
+        "l2_empty_releases": 0,
+        "instructions": 100000,
+        "compared": 100000,
+        "oracle_undefined": 0,
+        "too_long": 0,
+        "two_byte_opcode": 908,
+        "by_prefix_count": {
+          "0": 100000
+        },
+        "cycles": 146226,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "random-bytes",
+        "default_size": 32,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 400000,
+        "compared": 389062,
+        "oracle_undefined": 10938,
+        "too_long": 0,
+        "two_byte_opcode": 1606,
+        "by_prefix_count": {
+          "0": 382882,
+          "1": 16351,
+          "2": 725,
+          "3": 40,
+          "4": 2
+        },
+        "cycles": 407898,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "random-bytes-stalled",
+        "default_size": 32,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 400000,
+        "compared": 388886,
+        "oracle_undefined": 11114,
+        "too_long": 0,
+        "two_byte_opcode": 1618,
+        "by_prefix_count": {
+          "0": 382647,
+          "1": 16616,
+          "2": 713,
+          "3": 24
+        },
+        "cycles": 579382,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "prefix-bytes",
+        "default_size": 32,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 400000,
+        "compared": 388484,
+        "oracle_undefined": 11512,
+        "too_long": 4,
+        "two_byte_opcode": 1691,
+        "by_prefix_count": {
+          "0": 267914,
+          "1": 88203,
+          "2": 28995,
+          "3": 9975,
+          "4": 3461,
+          "5": 960,
+          "6": 335,
+          "7": 101,
+          "8": 39,
+          "9": 7,
+          "10": 2,
+          "11": 2,
+          "12": 3,
+          "13": 2,
+          "14": 1
+        },
+        "cycles": 629993,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "prefix-runs",
+        "default_size": 32,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 100000,
+        "compared": 82582,
+        "oracle_undefined": 2812,
+        "too_long": 14606,
+        "two_byte_opcode": 400,
+        "by_prefix_count": {
+          "0": 58231,
+          "1": 2716,
+          "2": 833,
+          "3": 790,
+          "4": 1076,
+          "5": 1296,
+          "6": 1474,
+          "7": 2082,
+          "8": 2906,
+          "9": 2922,
+          "10": 2854,
+          "11": 2870,
+          "12": 2740,
+          "13": 2701,
+          "14": 2738,
+          "15": 11771
+        },
+        "cycles": 591224,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "instructions",
+        "default_size": 32,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 400000,
+        "compared": 400000,
+        "oracle_undefined": 0,
+        "too_long": 0,
+        "two_byte_opcode": 442,
+        "by_prefix_count": {
+          "0": 80046,
+          "1": 80338,
+          "2": 80469,
+          "3": 79548,
+          "4": 79599
+        },
+        "cycles": 878520,
+        "issue_cycles": 878321,
+        "redirect_to_issue": {
+          "5": 8,
+          "6": 8,
+          "7": 4,
+          "8": 7,
+          "9": 3
+        },
+        "timing_checked": 399970,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "prefix-free",
+        "default_size": 32,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 400000,
+        "compared": 400000,
+        "oracle_undefined": 0,
+        "too_long": 0,
+        "two_byte_opcode": 424,
+        "by_prefix_count": {
+          "0": 400000
+        },
+        "cycles": 400092,
+        "issue_cycles": 400000,
+        "redirect_to_issue": {
+          "5": 10,
+          "6": 7
+        },
+        "timing_checked": 399983,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "prefix-free-long",
+        "default_size": 32,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 100000,
+        "compared": 100000,
+        "oracle_undefined": 0,
+        "too_long": 0,
+        "two_byte_opcode": 786,
+        "by_prefix_count": {
+          "0": 100000
+        },
+        "cycles": 100085,
+        "issue_cycles": 100000,
+        "redirect_to_issue": {
+          "5": 11,
+          "6": 5
+        },
+        "timing_checked": 99984,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "random-bytes-fetch-latency",
+        "default_size": 32,
+        "fetch_latency": true,
+        "l2_empty_releases": 0,
+        "instructions": 100000,
+        "compared": 97132,
+        "oracle_undefined": 2868,
+        "too_long": 0,
+        "two_byte_opcode": 409,
+        "by_prefix_count": {
+          "0": 95708,
+          "1": 4089,
+          "2": 198,
+          "3": 5
+        },
+        "cycles": 146779,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "instructions-fetch-latency",
+        "default_size": 32,
+        "fetch_latency": true,
+        "l2_empty_releases": 0,
+        "instructions": 100000,
+        "compared": 100000,
+        "oracle_undefined": 0,
+        "too_long": 0,
+        "two_byte_opcode": 119,
+        "by_prefix_count": {
+          "0": 19833,
+          "1": 19944,
+          "2": 19984,
+          "3": 20036,
+          "4": 20203
+        },
+        "cycles": 220768,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "prefix-free-long-fetch-latency",
+        "default_size": 32,
+        "fetch_latency": true,
+        "l2_empty_releases": 0,
+        "instructions": 100000,
+        "compared": 100000,
+        "oracle_undefined": 0,
+        "too_long": 0,
+        "two_byte_opcode": 799,
+        "by_prefix_count": {
+          "0": 100000
+        },
+        "cycles": 255351,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 0,
+        "boundary_wait_cycles": 0,
+        "cross_half_instructions": 0,
+        "failures": 0
+      },
+      {
+        "stream": "fetch-stalled",
+        "default_size": 32,
+        "fetch_latency": false,
+        "l2_empty_releases": 0,
+        "instructions": 21,
+        "compared": 21,
+        "oracle_undefined": 0,
+        "too_long": 0,
+        "two_byte_opcode": 0,
+        "by_prefix_count": {
+          "0": 20,
+          "1": 1
+        },
+        "cycles": 111,
+        "issue_cycles": 0,
+        "redirect_to_issue": {},
+        "timing_checked": 0,
+        "timing_failures": 0,
+        "fetch_wait_cycles": 100,
+        "boundary_wait_cycles": 82,
+        "cross_half_instructions": 1,
+        "failures": 0
+      }
+    ],
+    "failures": []
+  },
+  "dag": {
+    "records": [
+      {
+        "uops": 1572864,
+        "dag_cases": 2566739,
+        "addresses": 1572882,
+        "wrapped_16": 490225,
+        "forwarded": 344424,
+        "from_file": 1053782,
+        "late_base": [
+          95018,
+          149049,
+          155411
+        ],
+        "late_index": [
+          44222,
+          68871,
+          71702
+        ],
+        "stall_not_ready": 965852,
+        "stall_both_late": 8351,
+        "stall_scaled_late": 19654,
+        "from_ag": 458430,
+        "released": 453773,
+        "wait_cycles": {
+          "early": [
+            0,
+            0,
+            1
+          ],
+          "load": [
+            2,
+            2,
+            3
+          ],
+          "late": [
+            3,
+            3,
+            4
+          ]
+        },
+        "failures": 0
+      }
+    ],
+    "failures": []
+  },
+  "qalign_synthesis": {
+    "cells": 5009,
+    "multipliers": 0,
+    "carry_cells": 0
+  }
+}
