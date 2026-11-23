@@ -9,7 +9,8 @@
 module c64_machine #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
     parameter integer CPU_CLOCK_HZ = NTSC ? `C64_NTSC_CPU_HZ : `C64_PAL_CPU_HZ,
-    parameter bit NTSC = 0
+    parameter bit NTSC = 0,
+    parameter bit SID_8580 = 0
 ) (
 `ifdef FES_C64_EXTERNAL_MEDIUM_SIM
     // Explicit simulation oracle; normal builds use the internal RTL medium.
@@ -429,7 +430,8 @@ module c64_machine #(
         .PREPARE_ENVELOPE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2),
         .SEQUENCE_VOICES(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 31),
         .FILTER_AUDIO(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= (NTSC ? 51 : 52)),
-        .RESID_FILTER(1'b0)
+        .RESID_FILTER(1'b0),
+        .SID_8580(SID_8580)
     ) sid (
         .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_sid),
         .we(bus_strobe && bus_we && sel_sid), .addr(bus_addr[4:0]), .din(bus_wdata),
