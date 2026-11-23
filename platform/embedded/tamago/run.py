@@ -110,6 +110,8 @@ def main():
                         help="persistent regular FAT32 image beneath out/; created if absent")
     parser.add_argument("--input", choices=("usb", "uart"), default="usb",
                         help="explicit keyboard backend (tenfoot only)")
+    parser.add_argument("--dhcp", action="store_true",
+                        help="acquire guest IPv4 via DHCPv4 instead of static addressing (QEMU network only)")
     parser.add_argument("--interactive", action="store_true",
                         help="keep tenfoot running; USB keys use the QEMU window, Ctrl-] in terminal exits")
     parser.add_argument("--display", default=None,
@@ -126,6 +128,8 @@ def main():
             parser.error('programfetch requires QEMU, --export-root and --program-id')
     elif args.export_root is not None or args.program_id is not None:
         parser.error('--export-root and --program-id require programfetch')
+    if args.dhcp and (args.board != "qemu" or args.program != "network"):
+        parser.error("--dhcp requires QEMU network")
     if args.board == "de25-nano":
         from build import build
         try:
@@ -304,7 +308,10 @@ def main():
             os.utime(initial, (315619200, 315619200))
             checked("write-prefs", ["mcopy", "-m", "-i", disk, initial, "::FES/PREFS.JSON"], utc=True)
         boot = output / "boot.json"
-        boot.write_text(json.dumps({"api_url": api_url, "api_host": urlparse(record["host"]["base"]).netloc, "input": args.input}) + "\n")
+        boot_cfg = {"api_url": api_url, "api_host": urlparse(record["host"]["base"]).netloc, "input": args.input}
+        if args.dhcp:
+            boot_cfg["dhcp"] = True
+        boot.write_text(json.dumps(boot_cfg) + "\n")
         checked("write-boot", ["mcopy", "-o", "-i", disk, boot, "::FES/BOOT.JSON"])
         record["disk"] = {"path": str(disk), "created": fresh, "bytes": disk.stat().st_size,
                           "before_sha256": sha(disk), "boot_config_sha256": sha(boot)}
@@ -513,11 +520,30 @@ def main():
             lock_disk()
             prepare_disk(prepare_host())
             before = sha(disk)
+            record["dhcp"] = bool(args.dhcp)
             with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display) as guest:
                 guest.wait(lambda text: network_catalog(text) is not None, args.timeout, "HTTP catalog probe")
                 ids = network_catalog(guest.text)
                 if sorted(ids) != record["host"]["catalog_ids"]:
                     raise RuntimeError("network probe catalog differs from private host")
+                if args.dhcp:
+                    dhcp_rows = re.findall(
+                        r"^FES_NETWORK_DHCP address=(\S+) gateway=(\S+) server=(\S+) lease_s=(\d+) dns=(\S+)\r?$",
+                        guest.text,
+                        re.MULTILINE,
+                    )
+                    if len(dhcp_rows) != 1:
+                        raise RuntimeError("DHCP network probe is missing FES_NETWORK_DHCP lease evidence")
+                    addr, gw, srv, lease_s, dns = dhcp_rows[0]
+                    if int(lease_s) <= 0:
+                        raise RuntimeError(f"DHCP network probe reported non-positive lease duration: {lease_s}")
+                    record["dhcp_lease"] = {
+                        "address": addr,
+                        "gateway": gw,
+                        "server": srv,
+                        "lease_seconds": int(lease_s),
+                        "dns": [] if dns == "none" else dns.split(","),
+                    }
             record["disk"] = {"path": str(disk), "before_sha256": before, "after_sha256": sha(disk)}
             if before != sha(disk):
                 raise RuntimeError("read-only network probe changed its disk")
