@@ -8,28 +8,39 @@ There it measured 170 ALMs (spread 69), as an ablation against the 387-on envelo
 
 `pc386_ps2_fifo` (`pc386_kbc.sv`) is the 16-entry FIFO that holds bytes from
 the keyboard and from the mouse on their way to the 8042.
-- **Before:** it wrote its five arrays from two places, entry 0 on a clear with a
-  push and `write_at` otherwise. Yosys and Quartus therefore saw two write ports,
-  so each array became registers with two write decoders.
-- **After:** one write port. The clear's push and a normal push share one address
-  (`clear ? 0 : write_at`) and one enable. The arrays carry
-  `ramstyle = "MLAB"` and are read asynchronously, exactly as before.
+- **DE10, unchanged:** it writes its five arrays from two places, entry 0 on a
+  clear with a push and `write_at` otherwise. Yosys and Quartus therefore see
+  two write ports, so each array becomes registers with two write decoders.
+- **DE25:** `boards/de25nano/pc386/pc386_ps2_fifo_mlab.sv` has one write port.
+  The clear's push and a normal push share one address (`clear ? 0 : write_at`)
+  and one enable. The arrays carry `ramstyle = "MLAB"` and are read
+  asynchronously, exactly as before. `derive.py` retargets `pc386_kbc`'s two
+  FIFO instances to it for the DE25 build only, and pins the DE10 module by its
+  SHA-256, so a change to the DE10 FIFO stops the derivation.
 
-There is no parameter selecting the old form. The DE10 build takes the same RTL,
-so its pc386 netlist and `BUILD_ID` move. CLAUDE.md forbids keeping the old form
-as a compatibility branch.
+There is no parameter. The shared RTL is #2036's, so the DE10 pc386 netlist and
+`BUILD_ID` do not move.
+
+**Why a derivation (Deano, 23 Nov 2026).** The first form edited the shared
+`pc386_kbc.sv`. Its DE10 reseal, the registered producer with a fresh lockstep at
+`00f4dd621`, seed 1, passed the lockstep but missed setup: worst slack
+−0.135 ns, TNS −0.399 ns, on `video_clock` in the Slow 1100mV −40C model.
+`system_clock`, where the FIFO is, had +0.952 ns there. Deano chose the DE25-only
+derivation, the same pattern as #2118, over trying other seeds. No other seed
+was run. That reseal is superseded and is recorded in
+[de10-reseal-00f4dd621.md](de10-reseal-00f4dd621.md).
 
 ## What counts as behaviour-preserving
 
-The FIFO must be **cycle-exact at its ports**. In every clock, each output must
-equal the base commit's: `valid`, `head`, `head_last`, `head_key_bit`,
-`head_key_make`, `head_key_repeat` and `space`. That holds while the FIFO is
-empty too, because the head outputs are asynchronous reads of whatever the array
-holds.
+The DE25 FIFO must be **cycle-exact at its ports** with the DE10 one. In every
+clock, each output must be equal: `valid`, `head`, `head_last`,
+`head_key_bit`, `head_key_make`, `head_key_repeat` and `space`. That holds
+while the FIFO is empty too, because the head outputs are asynchronous reads of
+whatever the array holds.
 
 **The proof is a differential bench, [diff/](diff/).**
-- The base commit's FIFO, renamed `pc386_ps2_fifo_ref`, runs beside this
-  branch's on the same inputs.
+- The DE10 `pc386_ps2_fifo`, taken from `pc386_kbc.sv`, runs beside
+  `pc386_ps2_fifo_mlab` on the same inputs.
 - The bench checks every output twice per clock:
   - after the inputs change, which covers the asynchronous reads;
   - after the edge.
@@ -38,18 +49,23 @@ holds.
   while it is full and pops while it is empty are frequent. Each seed reports
   how many of each it saw.
 - **RTL:** RTL against RTL, 16 seeds × 2M clocks.
-- **Netlist:** the base RTL against the netlist that the seal's Yosys recipe
-  (`yosys_netlist.SEAL`, the locked pc386 Yosys) writes for this branch's FIFO,
-  16 seeds × 2M clocks.
-  - Until the fixed Yosys lock lands, Yosys runs with `YOSYS_MAX_THREADS=1`
-    (DeanoC/yosys#81).
+- **Netlist:** the DE10 RTL against the netlist that the seal's Yosys recipe
+  (`yosys_netlist.SEAL`, the pc386 lock's Yosys, `d273c1cb` after #2130) writes
+  for `pc386_ps2_fifo_mlab`, 16 seeds × 2M clocks.
 - **Mutation check:** [diff/mutate.sh](diff/mutate.sh) plants five bugs, one in
   each new piece of logic: the clear's address, the full check, the clear's push,
   and two data fields. The bench must fail on each one.
 
-**The existing suites must pass:**
-- `sim_fes_pc386.py --suite devices`.
-- `--suite system`, reaching the same cycle as the base commit.
+**Derivation tests:** `tests/test_de25_pc386_ps2_fifo_derive.py`. The DE10
+source keeps its FIFO, the DE25 `pc386_kbc` uses the MLAB one at both instances,
+and a changed DE10 module or a moved instance is refused.
+
+**DE10 identity:** [`de10_netlist.py`](de10_netlist.py) writes the DE10 seal's
+machine netlist from one checkout path at #2036's head and at this branch, and
+`cmp` must find them identical (the fixed Yosys lock, one thread).
+
+**DE25 system:** `boards/de25nano/pc386/sim.py` must reach the prompt with check
+lines identical to #2036's head.
 
 ## The DE25 measurement
 
@@ -58,9 +74,9 @@ holds.
 
 **Arms:**
 - **Baseline:** #2036's head at the time of the fits, with the fixed Yosys
-  lock. The baseline is shared with the shell-study S-lat pair if that cut is
-  built.
-- **Arm:** the baseline plus this PR's `pc386_kbc.sv`. Nothing else changes.
+  lock. The baseline is shared with #2117 (S-lat) and #2118 (A-dma2).
+- **Arm:** the baseline plus this PR's derivation (`derive.py`, `build.py`,
+  `pc386_ps2_fifo_mlab.sv`). Nothing else changes.
 
 **Seeds:**
 - Seeds 1–4 per arm.
@@ -99,8 +115,5 @@ exploratory, and they are not counted.
 
 ## DE10
 
-- The DE10 pc386 netlist moves. The registered producer reseals with a fresh
-  lockstep, and the seal must pass every analysis at 61.44 MHz.
-- A claimed kit run follows: the kit is claimed and restored per CLAUDE.md, and
-  the run goes to the FreeDOS prompt with keyboard input. Mouse input is
-  exercised where a title or program uses it.
+The DE10 pc386 netlist does not move (DE10 identity, above), so the DE10 needs
+no reseal and no kit run.

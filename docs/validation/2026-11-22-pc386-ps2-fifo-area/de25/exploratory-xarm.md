@@ -1,5 +1,8 @@
 # Exploratory arm seed 1 (not counted)
 
+This is the first, shared-RTL form at `6722d4bd3` (`pc386_kbc.sv` edited), before the
+DE25-only derivation. The DE25 netlist it compiled has the same FIFO logic.
+
 `board-pair.sh xarm 6722d4bd3` with `SEEDS=""` and `YOSYS_MAX_THREADS=1`, on Powerboat,
 22 Nov 2026 15:00-15:45Z, before the fixed Yosys lock. Not part of the recorded pair.
 

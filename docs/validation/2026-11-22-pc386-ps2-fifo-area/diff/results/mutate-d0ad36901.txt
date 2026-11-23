@@ -1,0 +1,7 @@
+# mutate.sh at d0ad36901, 23 Nov 2026
+caught: clear push lands at write_at (seed 1 FAIL clock 515: valid 1/1 head 2f/a9 key b7/2a last 0)
+caught: push stored when full (seed 1 FAIL clock 345: valid 1/1 head a2/ce key a8/79 last 0)
+caught: clear drops its push (seed 2 FAIL clock 2209: valid 1/1 head f0/dd key 7c/5c last )
+caught: last bit not stored (seed 2 FAIL clock 0: valid 1/1 head 9c/9c key dd/dd last 1/0)
+caught: repeat bit stored from make (seed 2 FAIL clock 0: valid 1/1 head 9c/9c key dd/dd last 1/1)
+mutate exit=0

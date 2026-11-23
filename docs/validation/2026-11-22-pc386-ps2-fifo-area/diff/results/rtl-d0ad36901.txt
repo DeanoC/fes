@@ -1,0 +1,18 @@
+# run.sh rtl 16 2000000 at d0ad36901, 23 Nov 2026
+rtl exit=0
+seed 1 PASS 2000000 clocks: clears 3977, clear+push 2021, push when full 435392, pop when empty 412165, clocks full 551456
+seed 2 PASS 2000000 clocks: clears 3944, clear+push 1892, push when full 403408, pop when empty 418580, clocks full 511743
+seed 3 PASS 2000000 clocks: clears 3977, clear+push 1974, push when full 453771, pop when empty 417553, clocks full 574471
+seed 4 PASS 2000000 clocks: clears 3829, clear+push 1770, push when full 368809, pop when empty 468792, clocks full 468672
+seed 5 PASS 2000000 clocks: clears 3826, clear+push 1883, push when full 407250, pop when empty 403994, clocks full 516288
+seed 6 PASS 2000000 clocks: clears 3773, clear+push 1722, push when full 352878, pop when empty 480863, clocks full 448220
+seed 7 PASS 2000000 clocks: clears 3950, clear+push 2014, push when full 492939, pop when empty 408668, clocks full 622651
+seed 8 PASS 2000000 clocks: clears 3960, clear+push 1894, push when full 420838, pop when empty 432217, clocks full 533566
+seed 9 PASS 2000000 clocks: clears 3906, clear+push 1954, push when full 463555, pop when empty 429382, clocks full 586141
+seed 10 PASS 2000000 clocks: clears 4038, clear+push 1834, push when full 367583, pop when empty 467421, clocks full 466302
+seed 11 PASS 2000000 clocks: clears 3894, clear+push 1828, push when full 374199, pop when empty 472182, clocks full 474516
+seed 12 PASS 2000000 clocks: clears 3954, clear+push 1839, push when full 403951, pop when empty 484526, clocks full 510927
+seed 13 PASS 2000000 clocks: clears 3911, clear+push 1904, push when full 431639, pop when empty 433103, clocks full 546719
+seed 14 PASS 2000000 clocks: clears 3961, clear+push 1872, push when full 405141, pop when empty 480494, clocks full 513043
+seed 15 PASS 2000000 clocks: clears 3957, clear+push 1894, push when full 389320, pop when empty 438592, clocks full 493961
+seed 16 PASS 2000000 clocks: clears 3939, clear+push 1872, push when full 373192, pop when empty 435684, clocks full 473956
