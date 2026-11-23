@@ -6,6 +6,7 @@
     "netlist_sha256": "f7bff7c7eeb939c566e2045f5e3cb6645f805d79f57b634c6d037ce9226f2767",
     "ram_blocks": 168,
     "seed": 1,
+    "system_alms": 33568.7,
     "worst": {
       "Hold": {
         "clock": "fes_machine_pll|machine_pll_outclk0",
@@ -56,6 +57,7 @@
     "netlist_sha256": "f7bff7c7eeb939c566e2045f5e3cb6645f805d79f57b634c6d037ce9226f2767",
     "ram_blocks": 168,
     "seed": 2,
+    "system_alms": 33601.4,
     "worst": {
       "Hold": {
         "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
@@ -106,6 +108,7 @@
     "netlist_sha256": "f7bff7c7eeb939c566e2045f5e3cb6645f805d79f57b634c6d037ce9226f2767",
     "ram_blocks": 168,
     "seed": 3,
+    "system_alms": 33579.3,
     "worst": {
       "Hold": {
         "clock": "pll_inst|iopll_0_outclk0",
@@ -156,6 +159,7 @@
     "netlist_sha256": "f7bff7c7eeb939c566e2045f5e3cb6645f805d79f57b634c6d037ce9226f2767",
     "ram_blocks": 168,
     "seed": 4,
+    "system_alms": 33571.5,
     "worst": {
       "Hold": {
         "clock": "fes_machine_pll|machine_pll_outclk0",

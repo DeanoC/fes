@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """de10_design_id.py TREE: the DE10 pc386 design identity (BUILD_ID's design half) that the
 registered producer's create_build_record selects for TREE, selection-only (no tool, no
-Quartus), as the i486 records' head_matches_seal.py computes it. Run it on a base and a head:
+Quartus), as the i486 records' head_matches_seal.py computes it, then every identity the
+record carries. Run it on a base and a head:
 equal output means the head builds the same DE10 design.
 
   python3 -I de10_design_id.py TREE
@@ -21,7 +22,7 @@ record = json.loads(product.create_build_record(
     root, 'https://github.com/DeanoC/fes', '0' * 40,
     {'yosys': 'selection-only', 'quartus': 'selection-only'}, 1, 'CUDA',
     execution={'toolchain': 'quartus', 'selection_only': True}))
-print(json.dumps({'policy': record['parameters']['identity_policy'], 'design': record['identities']['design']}))
+print(json.dumps({'policy': record['parameters']['identity_policy'], 'identities': record['identities']}))
 '''
 
 tree = Path(sys.argv[1]).resolve()
@@ -31,4 +32,6 @@ head = json.loads(out.stdout.strip().splitlines()[-1])
 revision = subprocess.run(['git', '-C', str(tree), 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
 dirty = subprocess.run(['git', '-C', str(tree), 'status', '--porcelain', '--untracked-files=no'],
                        capture_output=True, text=True).stdout.strip()
-print(f"{revision}{' (modified)' if dirty else ''}  {head['policy']}  BUILD_ID {head['design'][:32]}")
+print(f"{revision}{' (modified)' if dirty else ''}  {head['policy']}  BUILD_ID {head['identities']['design'][:32]}")
+for name, value in sorted(head['identities'].items()):
+    print(f"  {name} {value}")

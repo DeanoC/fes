@@ -966,6 +966,14 @@ public:
         stale.reset();
     }
 
+    // Start from a reset state: a reset leaves the CPU's signature in EDX
+    // (pc386_system's init_gpr), for the 486SX 042Bh, not the level-4
+    // oracle's DX4 (0480h).
+    void start_from_reset(fes_i386::State s) {
+        if (i486) s.gpr[fes_i386::REG_EDX] = 0x42b;
+        start(s);
+    }
+
     // The architectural state, over the fields the RTL does not hold.
     fes_i386::State state(fes_i386::State s) const {
         for (int n = 0; n < 8; ++n) s.gpr[n] = cpu.arch_gpr[n];
@@ -1703,11 +1711,7 @@ int main(int argc, char **argv) {
                 fes_i386::Decoded decoded = oracle->decode(bytes, 15, (rtl->cpu.arch_ar[0] >> 16) & 0x4000);  // CS.D
                 return decoded.complete ? unsigned(decoded.length) : 15u;
             };
-            fes_i386::State start = oracle->get_state();
-            // A reset leaves the CPU's signature in EDX (pc386_system's
-            // init_gpr): the 486SX's 042Bh, not the oracle's DX4 (0480h).
-            if (rtl->i486) start.gpr[fes_i386::REG_EDX] = 0x42b;
-            rtl->start(start);
+            rtl->start_from_reset(oracle->get_state());
         }
         bool on_oracle = !rtl;
         // --cpu-profile, and the handover: with --rtl-from or --rtl-at-flip
@@ -1952,7 +1956,7 @@ int main(int argc, char **argv) {
                     machine.top.cpu_shutdown = 0;
                     std::printf("CPU-RESET %llu\n", (unsigned long long)machine.cycles);
                     oracle->reset();
-                    rtl->start(oracle->get_state());
+                    rtl->start_from_reset(oracle->get_state());
                 }
             }
             if (!options.profile.empty() && !profile.written && machine.cycles >= profile.to)

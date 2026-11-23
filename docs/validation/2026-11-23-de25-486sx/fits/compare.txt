@@ -1,0 +1,11 @@
+arm seeds [1, 2, 3, 4] all close netlists ['7816b5397e01']
+  alms: [41571.4, 41532.7, 41595.8, 41555.4] median 41563.4 spread 63.1
+  system_alms: [33743.5, 33717.8, 33764.1, 33730.0] median 33736.8 spread 46.3
+  worst: Hold +0.000, Max Skew +6.992, Minimum Pulse Width +0.220, Net Delay +3.556, Recovery +6.324, Removal +0.045, Setup +1.247, Setup Data Delay +3.556
+base seeds [1, 2, 3, 4] all close netlists ['f7bff7c7eeb9']
+  alms: [41404.4, 41463.2, 41446.4, 41447.8] median 41447.1 spread 58.8
+  system_alms: [33568.7, 33601.4, 33579.3, 33571.5] median 33575.4 spread 32.7
+  worst: Hold +0.000, Max Skew +6.916, Minimum Pulse Width +0.220, Net Delay +3.388, Recovery +7.033, Removal +0.003, Setup +1.240, Setup Data Delay +3.388
+alms: +116.3 (measured; larger spread 63.1)
+system_alms: +161.3 (measured; larger spread 46.3)
+arm median against the 92% line 43,056: +1492.6 under; against the device 46,800: +5236.6 under; largest seed 41595.8
