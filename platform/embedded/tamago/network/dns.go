@@ -100,21 +100,13 @@ func ParseDNSResponse(msg []byte, expectedID uint16, queryName string) ([]netip.
 	if flags&0x8000 == 0 {
 		return nil, errors.New("network: DNS packet is not a response")
 	}
-	if flags&0x0200 != 0 {
-		return nil, ErrDNSTruncated
-	}
-	rcode := flags & 0x000f
-	if rcode == 3 {
-		return nil, ErrDNSNotFound
-	}
-	if rcode != 0 {
-		return nil, fmt.Errorf("%w: rcode=%d", ErrDNSServerError, rcode)
-	}
 
 	qdCount := int(binary.BigEndian.Uint16(msg[4:6]))
 	anCount := int(binary.BigEndian.Uint16(msg[6:8]))
 	off := dnsHeaderLen
 
+	// Validate the question before honoring TC or error RCODEs so a delayed or
+	// unrelated response sharing the same ID cannot falsely fail this lookup.
 	matchedQuestion := false
 	for i := 0; i < qdCount; i++ {
 		qname, next, err := decodeDNSName(msg, off)
@@ -133,6 +125,16 @@ func ParseDNSResponse(msg []byte, expectedID uint16, queryName string) ([]netip.
 	}
 	if !matchedQuestion {
 		return nil, errors.New("network: DNS question mismatch")
+	}
+	if flags&0x0200 != 0 {
+		return nil, ErrDNSTruncated
+	}
+	rcode := flags & 0x000f
+	if rcode == 3 {
+		return nil, ErrDNSNotFound
+	}
+	if rcode != 0 {
+		return nil, fmt.Errorf("%w: rcode=%d", ErrDNSServerError, rcode)
 	}
 
 	type aRec struct {

@@ -186,6 +186,10 @@ func TestDNSWireEncodingAndResponseParsing(t *testing.T) {
 	if _, err := ParseDNSResponse(nx, 0x4444, "missing.test"); !errors.Is(err, ErrDNSNotFound) {
 		t.Fatalf("NXDOMAIN err=%v", err)
 	}
+	// A mismatched-question NXDOMAIN must NOT return ErrDNSNotFound.
+	if _, err := ParseDNSResponse(nx, 0x4444, "other.test"); err == nil || errors.Is(err, ErrDNSNotFound) {
+		t.Fatalf("mismatched-question NXDOMAIN err=%v, want non-ErrDNSNotFound mismatch error", err)
+	}
 	sf := makeDNSResponsePayload(0x4444, 0x8182, "fail.test", nil, nil, false)
 	if _, err := ParseDNSResponse(sf, 0x4444, "fail.test"); !errors.Is(err, ErrDNSServerError) {
 		t.Fatalf("SERVFAIL err=%v", err)
