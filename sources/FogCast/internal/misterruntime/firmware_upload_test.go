@@ -210,7 +210,7 @@ func TestFirmwareUploadClientRefusesBeforeMutation(t *testing.T) {
 func de25PCXTResponse(t *testing.T, abiMinor int) (string, corepackage.ROMLinkIdentity) {
 	t.Helper()
 	var root map[string]any
-	if err := json.Unmarshal([]byte(fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0]), &root); err != nil {
+	if err := json.Unmarshal([]byte(currentDE25Fixture(t, fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0])), &root); err != nil {
 		t.Fatal(err)
 	}
 	iface := func(id string, major, minor int) map[string]any {
