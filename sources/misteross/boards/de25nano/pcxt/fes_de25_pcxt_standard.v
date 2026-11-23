@@ -6,8 +6,8 @@
 // (clk_sys), as on the ZX81; the machine, mailbox, SDRAM and audio source run
 // on machine_clk, the DE10 machine's 100 MHz, which has no phase relation to
 // it. The machine PLL's three other 100 MHz outputs arrive with the SDRAM
-// pins: the forwarded-clock source (+1.25 ns), the DQ capture clock (phase 0)
-// and the CAS-3 read-word handoff, as on the DE10 board. The GP words,
+// pins: the forwarded-clock source (+1.25 ns), the DQ capture clock (+1.5 ns,
+// where the DE10's is phase 0) and the CAS-3 read-word handoff. The GP words,
 // transport health and the reset release cross here.
 // No Cyclone V primitive belongs here.
 module fes_de25_pcxt_standard #(

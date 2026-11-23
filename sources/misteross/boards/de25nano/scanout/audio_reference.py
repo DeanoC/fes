@@ -61,10 +61,12 @@ SOURCES = {
 # with its own frozen sources; it borrows no fitted evidence from the ZX81.
 # Each machine's PLL is frozen with it. The PC/XT's makes the DE10's 100 MHz
 # and three SDRAM phases beside the audio master (50 x 30 /122, 12.295082
-# MHz); its SDRAM outputs leave beside the reviewed audio wiring.
+# MHz); its SDRAM outputs leave beside the reviewed audio wiring. Its DQ
+# capture phase (outclk4, +1.5 ns) is in the pinned file; moving it moves the
+# pin but not the audio master's request.
 MACHINE_POLICY = fitted.MACHINE_POLICY
 SHARED_PLL = ('boards/de25nano/machine/machine_pll.ip', '52890ca22dea5743d009dc5a10035918b54565cd9886c0c201a8022019a8d4b4')
-PCXT_PLL = ('boards/de25nano/pcxt/machine_pll.ip', '3933f6c70839736248bef4b93cd7fe1954275975f3200dd24168732e8a18ba40')
+PCXT_PLL = ('boards/de25nano/pcxt/machine_pll.ip', '926daec94bdc3e30886675f992a53d1f9b3a4a495dfb7bd516e6ae1ded2ce3ca')
 MACHINE_PLLS = {'fes.spectrum': SHARED_PLL, 'fes.spectrum128': SHARED_PLL, 'fes.spectrum-plus3': SHARED_PLL,
                 'fes.pentagon': SHARED_PLL, 'fes.atari-st': SHARED_PLL, 'fes.c64': SHARED_PLL,
                 'fes.pcxt-dos': PCXT_PLL}

@@ -4,7 +4,7 @@
 // machine and the DE10 core's SDRAM controller and CAS-3 capture pipeline
 // against a logical SDR SDRAM model that checks its command protocol at the
 // chip's own clock edge. The machine clock and its three SDRAM phases run at
-// this PLL's 100 MHz phases: forward +1.25, capture +4.0, handoff +9.25 ns.
+// this PLL's 100 MHz phases: forward +1.25, capture +1.5, handoff +9.25 ns.
 // Execution cannot be released before the firmware is committed; GLaBIOS's
 // window and the CGA font are then uploaded, the window lands in SDRAM at
 // F0000, and the BIOS runs from there until its POST banner is in CGA text
@@ -29,7 +29,7 @@ namespace {
 constexpr uint64_t kHalfPs = 5000;       // the machine's 100 MHz and its phases
 constexpr uint64_t kForwardPs = 1250;    // forwarded SDRAM clock source
 constexpr uint64_t kHandoffPs = 9250;    // CAS-3 read-word handoff
-constexpr uint64_t kCapturePs = 4000;    // DQ capture
+constexpr uint64_t kCapturePs = 1500;    // DQ capture
 constexpr uint64_t kBusHalfPs = 5003;    // 100 MHz peripheral clock, unrelated
 constexpr uint64_t kPixelHalfPs = 6734;  // nominal 74.25 MHz, rounded to ps
 constexpr uint32_t kGpo = 0x0c, kGpi = 0x10, kFault = 0x14;

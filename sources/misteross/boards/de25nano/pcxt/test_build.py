@@ -107,6 +107,42 @@ class Derivations(unittest.TestCase):
         self.assertIs(st.board.top_after(st), st.board.TOP_AFTER)
         self.assertEqual(st.board.clocks(st)[0], 52222222)
 
+    def test_dq_capture_is_timed_at_the_edge_the_handoff_consumes(self):
+        build = load(HERE / "build.py", "de25_pcxt_build")
+        # Only setup moves to the consumed edge. A hold multicycle would move
+        # the hold check 10 ns earlier, to a capture edge nothing reads.
+        sdc = (HERE / "pcxt-clocks.sdc").read_text()
+        multicycles = [line.strip() for line in sdc.splitlines()
+                       if "set_multicycle_path" in line and not line.lstrip().startswith("#")]
+        self.assertEqual(multicycles, [
+            "set_multicycle_path -setup -end 2 -from [get_clocks DRAM_CLK] -to $sdram_capture"])
+        period = 10000
+        phase = {role: float(build.PLL_PARAMETERS["gui_phase_shift%d" % output])
+                 for role, output in build.SDRAM_CLOCKS}
+        # Picoseconds from the machine edge whose pad registers launch a READ.
+        # The chips' clock is the inverted forward clock; CAS 3 sends the
+        # word on their second edge after the command. sdram_cas3_capture's
+        # handoff takes the capture register on the first handoff edge after
+        # the fourth machine edge.
+        launch = 2 * period + (phase["clk_forward"] + period / 2) % period
+        handoff = 4 * period + phase["clk_handoff"]
+        consumed = launch + ((phase["clk_capture"] - launch) % period or period) + period
+        self.assertLess(consumed, handoff)
+        self.assertGreater(consumed + period, handoff)
+        self.assertEqual(consumed - launch, 15250)
+        # Setup and hold at that edge move one for one with the phase. The
+        # cef5ef7e9 compile captured at +4.0 ns (17.75 ns after the launch):
+        # setup 2.869 ns there and hold 8.028 ns at the nearest edge, 10 ns
+        # earlier (docs/validation/2026-11-22-de25-pcxt-compile).
+        shift = (consumed - launch - 17750) / 1000
+        self.assertGreater(2.869 + shift, 0)
+        self.assertGreater(8.028 - 10 - shift, 0)
+        # The standard-shell bench runs the same phases.
+        bench = (HERE / "standard_tb.cpp").read_text()
+        for name, role in (("kForwardPs", "clk_forward"), ("kHandoffPs", "clk_handoff"),
+                           ("kCapturePs", "clk_capture")):
+            self.assertIn("constexpr uint64_t %s = %d;" % (name, phase[role]), bench)
+
 
 if __name__ == "__main__":
     unittest.main()

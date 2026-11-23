@@ -1636,7 +1636,7 @@ Altera and sold by Altera or its authorized distributors.-->
         <ipxact:parameter parameterId="gui_phase_shift4" type="real">
           <ipxact:name>gui_phase_shift4</ipxact:name>
           <ipxact:displayName>Desired Phase Shift</ipxact:displayName>
-          <ipxact:value>4000.0</ipxact:value>
+          <ipxact:value>1500.0</ipxact:value>
         </ipxact:parameter>
         <ipxact:parameter parameterId="gui_phase_shift5" type="real">
           <ipxact:name>gui_phase_shift5</ipxact:name>

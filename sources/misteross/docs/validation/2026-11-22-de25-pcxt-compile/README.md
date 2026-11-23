@@ -17,7 +17,11 @@ python3 boards/de25nano/producers/build_pcxt_package.py \
 The producer admitted and exported the package (exit 0). The design fits and
 every one of the 133 reported timing analyses has non-negative slack
 ([`golden_top.sta.summary`](golden_top.sta.summary),
-[`signoff-timing.json`](signoff-timing.json)). The asynchronous-input and
+[`signoff-timing.json`](signoff-timing.json)). But the DQ capture's hold was
+checked 10 ns before the edge the handoff consumes; at that edge it is about
+-1.97 ns at the fast corner, so this package does not meet timing there
+([below](#the-dq-capture-hold)). The source after `3393cd822` corrects the
+check and the phase and has not been compiled. The asynchronous-input and
 audio-clock reviews ran and passed. Design Assistant ran 85 rules; the three
 that fail (RDC-50003, TMC-20011, TMC-20012) are the reviewed ones, and no
 unreviewed rule fails. The producer compiles once: the byte-identical repeat
@@ -38,7 +42,7 @@ compile was dropped for every DE25 producer in #2090.
 | --- | --- | --- |
 | Machine, 100 MHz (`outclk0`) | 3.014 ns | 0.012 ns |
 | SDRAM pins (`DRAM_CLK`) | 1.944 ns | 0.396 ns |
-| DQ capture (`outclk4`, +4.0 ns) | 2.869 ns | 8.028 ns |
+| DQ capture (`outclk4`, +4.0 ns) | 2.869 ns | 8.028 ns at the nearest edge; about -1.972 ns at the consumed edge |
 | CAS-3 handoff (`outclk3`, +9.25 ns) | 4.212 ns | 0.646 ns |
 | Pixel, 74.25 MHz | 3.872 ns | 0.015 ns |
 | Peripheral, 100 MHz | 5.270 ns | 0.001 ns |
@@ -59,8 +63,8 @@ refresh gap is 712 clocks.
 | --- | --- | --- |
 | `d3f5c6d92` | first compile | SDC not read: a pattern on a new line inside a bracketed `list` |
 | `76659e112` | font: one MLAB copy per display card | synthesis: 119,508 ALMs (255%). The single font array with two asynchronous read ports had been 32,804 registers; with MLABs, synthesis absorbed each card's VRAM read register into the font's read address and built one VRAM copy from 131,000 registers |
-| `7f2c0868f` | kept nodes on the font addresses | fits; DQ capture setup -1.004 ns with 12.0 ns of hold slack |
-| `2622f2815` | DQ capture clock phase 0 to +4.0 ns | all timing positive; one net-delay bound found no nets |
+| `7f2c0868f` | kept nodes on the font addresses | fits; DQ capture setup -1.004 ns, hold 12.0 ns at the nearest edge (about 2.0 ns at the consumed edge) |
+| `2622f2815` | DQ capture clock phase 0 to +4.0 ns | all reported timing positive, the DQ hold at the nearest edge (about -2.0 ns at the consumed edge); one net-delay bound found no nets |
 | `652f21b10` | bank bound by path delay | all 133 analyses pass; signoff: CDC-50002 (5) and LNT-30010 (1) unreviewed |
 | `534591a99` | mailbox synchronizers identified | CDC-50002 still 5 |
 | `3de378d9d` | `pcxt_video` crossings derived as the ST's are | CDC-50002 down to the two bank bits |
@@ -69,10 +73,38 @@ refresh gap is 712 clocks.
 | `4eb5b4175` | bank code bounded at 10 ns as the held bundles; its pixel-side copy not identified as a synchronizer; enable recognition off for the whole 8088 bus unit (main merged at `000d60d04`) | signoff passes: all timing positive, no unreviewed rule. The independent repeat compile also passes timing and signoff but its RBF differs (see below) |
 | `5f8c9a308` | main merged (#2090: canonical Qsys/qip generation, single signoff compile) | package admitted and exported (build `8c4ed875`) |
 | `cef5ef7e9` | main merged (#2126, #2097; shared build-identity and Quartus tool changes move the build ID, no PC/XT RTL change) | package admitted and exported; see Result |
+| after `3393cd822` | DQ hold checked at the consumed edge; capture +4.0 to +1.5 ns | not compiled; see below |
 
-The capture phase is a board choice: this board returns the word later than
-the DE10's. At +4.0 ns the capture still samples in the same read window,
-5.25 ns before the handoff, so the controller's cycle counts are the DE10's.
+## The DQ capture hold
+
+The handoff consumes the capture registers' sample from the second capture
+edge after the chip launches a word: 17.75 ns after the launch at +4.0 ns.
+The setup multicycle of 2 checks setup there. The hold multicycle of 1
+beside it moved the hold check back to the nearest-edge relationship, 10 ns
+earlier, at a capture edge whose sample nothing reads, so the next chip
+edge's word was never checked against the consumed edge. As in the DE10
+[CAS-3 record](../../../../../docs/validation/2026-11-18-pcxt-cas3-capture/README.md),
+the hold at the consumed edge is the nearest-edge hold less 10 ns. Setup and
+hold there each move one for one with the capture phase, so the two compiles
+that report them bound the phase:
+
+| Compile | Capture | Setup | Hold, nearest edge | Hold, consumed edge | Phase window |
+| --- | --- | --- | --- | --- | --- |
+| `7f2c0868f` | phase 0 | -1.004 ns | 12.0 ns | about 2.0 ns | +1.0 to +2.0 ns |
+| `cef5ef7e9` | +4.0 ns | 2.869 ns | 8.028 ns | -1.972 ns | +1.131 to +2.028 ns |
+
+The source after `3393cd822` drops the hold multicycle, so the setup
+multicycle alone puts the hold check at the consumed edge, and captures at
++1.5 ns: 15.25 ns after the launch, still in the same read window, 7.75 ns
+before the handoff, so the controller's cycle counts are the DE10's. These
+compiles predict 0.369 to 0.496 ns of setup and 0.5 to 0.528 ns of hold.
+That is a prediction from two fits at other phases, not a result. The
+package must be resealed, with the IP generation's achieved phase and every
+timing check passing at the consumed edge, and run on a kit again. The
+standard-shell simulation's capture clock moves to +1.5 ns with it; its
+logical SDRAM holds a read's word from the third chip edge after the command
+to the fourth, which contains both phases' consumed edges. The simulation
+has not been rerun at +1.5 ns.
 
 ## The Spectrum and ST are unchanged
 

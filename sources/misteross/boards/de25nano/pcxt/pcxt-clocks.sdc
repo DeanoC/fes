@@ -2,7 +2,7 @@
 # the standard ZX81. Select only its memory-fault hierarchy in that shared
 # constraint. One PLL on CLOCK1_50 makes the machine clock (100 MHz), the
 # audio master clock (12.295082 MHz) and the three SDRAM clocks (100 MHz:
-# forward +1.25 ns, handoff +9.25 ns, capture +4.0 ns); the PLL IP declares
+# forward +1.25 ns, handoff +9.25 ns, capture +1.5 ns); the PLL IP declares
 # them all. The design treats the machine clock as unrelated to the
 # peripheral and pixel clocks, and the PCM crossing as unrelated to the audio
 # clock it shares a PLL with: every path between them is one of the crossings
@@ -247,12 +247,13 @@ set_output_delay -clock DRAM_CLK -min -1.000 $sdram_outputs
 set_input_delay -clock DRAM_CLK -max 6.000 $sdram_data
 set_input_delay -clock DRAM_CLK -min 2.100 $sdram_data
 # CAS latency 3: the chip launches a READ's word tAC after its second clock
-# edge from the command and holds it tOH past the third. The capture
-# registers sample it on the capture clock's edge 17.75 ns after the second
-# chip edge, in sdram_cas3_capture's read window before the handoff: the
-# second capture edge after the launch. The word of the next chip edge must
-# not reach that same capture edge.
+# edge from the command and holds it tOH past the third. The handoff takes
+# the word the capture registers sampled on the capture clock's second edge
+# after that launch, 15.25 ns after it, in sdram_cas3_capture's read window:
+# setup is checked at that edge. The word of the next chip edge must not
+# reach that same capture edge. The setup multicycle alone puts the hold
+# check there, 5.25 ns after the next chip edge; a hold multicycle of 1 would
+# move it back 10 ns, to a capture edge whose sample nothing reads.
 set sdram_capture [get_registers "${base}|core|dq_sample\[*\]"]
 if {[get_collection_size $sdram_capture] != 16} {error "DE25 PC/XT SDRAM capture registers changed"}
 set_multicycle_path -setup -end 2 -from [get_clocks DRAM_CLK] -to $sdram_capture
-set_multicycle_path -hold -end 1 -from [get_clocks DRAM_CLK] -to $sdram_capture

@@ -21,11 +21,17 @@ x 30) makes the machine's 100 MHz for the CPU, motherboard and SDRAM, and
 beside it the three SDRAM clocks `fes_pcxt_top` takes from its memory PLL:
 the forwarded clock's source at +1.25 ns, the CAS-3 read-word handoff and the
 DQ capture clock. The handoff is at +9.25 ns, this PLL's nearest phase to the
-DE10's +9.375 ns. The capture clock is at +4.0 ns where the DE10's is at
-phase 0: this board's pads return the word later (at phase 0 the first
-compile missed setup by 1.0 ns with 12 ns of hold). It samples in the same
-read window, before the handoff, so the controller's cycle counts are the
-DE10's. The fifth output is the audio master clock,
+DE10's +9.375 ns. The capture clock is at +1.5 ns where the DE10's is at
+phase 0: this board's pads return the word later. It samples in the same
+read window, 7.75 ns before the handoff, so the controller's cycle counts are
+the DE10's. Setup and hold are both checked at the capture edge the handoff
+consumes, and each moves one for one with the phase. There, phase 0 missed
+setup by 1.0 ns (`7f2c0868f`) and +4.0 ns, the phase the `cef5ef7e9` package
+was sealed at, misses hold by about 2.0 ns at the fast corner: the window is
+about +1.1 to +2.0 ns. +1.5 ns is predicted to leave 0.37 to 0.50 ns of setup
+and about 0.5 ns of hold
+([record](../../../docs/validation/2026-11-22-de25-pcxt-compile/README.md#the-dq-capture-hold)).
+The fifth output is the audio master clock,
 12.295082 MHz (/122, +564 ppm); on the DE10 too it is unrelated to the
 machine clock, and the speaker's 48 kHz PCM is held across the crossing. The
 board's machine builder takes the clocks from this spec (`MACHINE_HZ`,
@@ -54,8 +60,11 @@ and the floppy) before it is stored.
 `pcxt-clocks.sdc` names every path between the machine, pixel and audio
 clocks: the video mailbox's two toggles and its hold level, and the published
 bank it holds. The SDRAM pins are constrained against the ISSI IS42/45VM16320G
-data sheet at CAS latency 3, with the capture registers two capture edges
-after the chip launches a word, as the DE10 controller's read window takes it.
+data sheet at CAS latency 3. The capture registers are checked at the second
+capture edge after the chip launches a word, the edge the DE10 controller's
+read window takes: setup against that word and hold against the next chip
+edge's. There is no hold multicycle; one would move the hold check 10 ns
+earlier, to a capture edge whose sample nothing reads.
 
 ## Run
 
@@ -78,13 +87,17 @@ PLL, SDRAM pad timing and HDMI are not modeled.
 
 ## Open
 
-The producer meets every reported timing check, passes the input and audio
-reviews and Design Assistant with only the reviewed rules, and exports a
-package
-([record](../../../docs/validation/2026-11-22-de25-pcxt-compile/README.md)).
-Kit results for a sealed package are on DeanoC/fes#2069. The remaining tier 1
-work is on DeanoC/fes#2068 and #2042: the board SDRAM at 100 MHz under
-sustained load (and the mobile SDRAM's extended mode register, which the DE10
-controller does not program), a kit run to `A:\>`, the game corpus, library
-launches with an initial disk (FogCast's initial-disk path is still the DE10
-format 2's), and bundled GLaBIOS/font firmware.
+The package sealed at `cef5ef7e9`
+([record](../../../docs/validation/2026-11-22-de25-pcxt-compile/README.md))
+passed every reported timing check, the input and audio reviews and Design
+Assistant with only the reviewed rules. But it captured DQ at +4.0 ns, and
+its DQ hold was checked 10 ns before the edge the handoff consumes. At that
+edge its hold is about -2.0 ns at the fast corner. Its kit runs on
+DeanoC/fes#2069 used that package, including FreeDOS booting to `A:\>` on
+J8G from the bundled disk. The source now captures at +1.5 ns and checks
+hold at the consumed edge. It has not been compiled. The package must be
+resealed with every timing check passing at that edge, then run on a kit
+again. The remaining tier 1 work is on DeanoC/fes#2068 and #2042: the board
+SDRAM at 100 MHz under sustained load (and the mobile SDRAM's extended mode
+register, which the DE10 controller does not program), the game corpus, and
+bundled GLaBIOS/font firmware.
