@@ -85,13 +85,13 @@ func TestAdvertisedLocalKeyboardUsesSameExecutionGrant(t *testing.T) {
 				t.Error("attach missing execution grant")
 			}
 			requests <- r.URL.Path
-			fmt.Fprintf(w, `{"ready":true,"local_keyboard":{"package_id":%q,"core_generation":3}}`, strings.Repeat("c", 64))
+			fmt.Fprintf(w, `{"ready":true,"local_keyboard":{"runtime_instance":%q,"package_id":%q,"core_generation":3}}`, strings.Repeat("d", 32), strings.Repeat("c", 64))
 		case "/v1/input/local-keyboard":
 			if r.Header.Get(targetclient.KitLeaseHeader) != "shared" {
 				t.Error("local grant used wrong execution token")
 			}
 			body, _ := io.ReadAll(r.Body)
-			if string(body) != fmt.Sprintf(`{"session":9,"package_id":%q,"core_generation":3}`, strings.Repeat("c", 64)) {
+			if string(body) != fmt.Sprintf(`{"session":9,"runtime_instance":%q,"package_id":%q,"core_generation":3}`, strings.Repeat("d", 32), strings.Repeat("c", 64)) {
 				t.Errorf("grant body %s", body)
 			}
 			requests <- r.URL.Path
@@ -120,12 +120,15 @@ func TestLocalKeyboardGrantRetryAndUnavailableStatus(t *testing.T) {
 		name     string
 		failures int
 		offered  bool
+		instance string
 		want     string
 		calls    int
 	}{
-		{"retry", 1, true, "ready", 2},
-		{"exhausted", 2, true, "unavailable", 2},
-		{"not offered", 0, false, "", 0},
+		{"retry", 1, true, strings.Repeat("d", 32), "ready", 2},
+		{"exhausted", 2, true, strings.Repeat("d", 32), "unavailable", 2},
+		{"not offered", 0, false, "", "", 0},
+		{"missing instance", 0, true, "", "unavailable", 0},
+		{"zero instance", 0, true, strings.Repeat("0", 32), "unavailable", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
@@ -137,15 +140,17 @@ func TestLocalKeyboardGrantRetryAndUnavailableStatus(t *testing.T) {
 				case "/v1/kit/release":
 					fmt.Fprint(w, `{"state":"free"}`)
 				case "/v1/input/attach":
-					if tc.offered {
+					if tc.offered && tc.instance == "" {
 						fmt.Fprintf(w, `{"ready":true,"local_keyboard":{"package_id":%q,"core_generation":3}}`, packageID)
+					} else if tc.offered {
+						fmt.Fprintf(w, `{"ready":true,"local_keyboard":{"runtime_instance":%q,"package_id":%q,"core_generation":3}}`, tc.instance, packageID)
 					} else {
 						fmt.Fprint(w, `{"ready":true}`)
 					}
 				case "/v1/input/local-keyboard":
 					calls++
 					body, _ := io.ReadAll(r.Body)
-					if r.Header.Get(targetclient.KitLeaseHeader) != "shared" || string(body) != fmt.Sprintf(`{"session":9,"package_id":%q,"core_generation":3}`, packageID) {
+					if r.Header.Get(targetclient.KitLeaseHeader) != "shared" || string(body) != fmt.Sprintf(`{"session":9,"runtime_instance":%q,"package_id":%q,"core_generation":3}`, strings.Repeat("d", 32), packageID) {
 						t.Errorf("retry did not retain binding and grant: %s", body)
 					}
 					if calls <= tc.failures {

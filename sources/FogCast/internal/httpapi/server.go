@@ -129,8 +129,9 @@ type localKeyboardGranter interface {
 }
 
 type localKeyboardOffer struct {
-	PackageID  string `json:"package_id"`
-	Generation uint64 `json:"core_generation"`
+	RuntimeInstance string `json:"runtime_instance"`
+	PackageID       string `json:"package_id"`
+	Generation      uint64 `json:"core_generation"`
 }
 
 func localKeyboardGrantHandler(controller InputController) http.Handler {
@@ -144,15 +145,16 @@ func localKeyboardGrantHandler(controller InputController) http.Handler {
 		decoder := json.NewDecoder(r.Body)
 		decoder.DisallowUnknownFields()
 		var request struct {
-			Session    uint64 `json:"session"`
-			PackageID  string `json:"package_id"`
-			Generation uint64 `json:"core_generation"`
+			Session         uint64 `json:"session"`
+			RuntimeInstance string `json:"runtime_instance"`
+			PackageID       string `json:"package_id"`
+			Generation      uint64 `json:"core_generation"`
 		}
-		if err := decoder.Decode(&request); err != nil || request.Session == 0 || request.PackageID == "" || request.Generation == 0 || decoder.Decode(&struct{}{}) != io.EOF {
+		if err := decoder.Decode(&request); err != nil || request.Session == 0 || !protocol.ValidInputAgentInstance(request.RuntimeInstance) || request.PackageID == "" || request.Generation == 0 || decoder.Decode(&struct{}{}) != io.EOF {
 			writeBadRequest(w, r, "local keyboard admission requires an input session")
 			return
 		}
-		if err := granter.GrantLocalKeyboard(r.Context(), request.Session, input.KeyboardHIDBinding{PackageID: request.PackageID, Generation: request.Generation}); err != nil {
+		if err := granter.GrantLocalKeyboard(r.Context(), request.Session, input.KeyboardHIDBinding{RuntimeInstance: request.RuntimeInstance, PackageID: request.PackageID, Generation: request.Generation}); err != nil {
 			writeInputError(w, r)
 			return
 		}
@@ -188,7 +190,7 @@ func inputAttachHandler(controller InputController) http.Handler {
 		var localKeyboard *localKeyboardOffer
 		if granter, supported := controller.(localKeyboardGranter); supported {
 			if binding, ok := granter.LocalKeyboardBinding(); ok {
-				localKeyboard = &localKeyboardOffer{PackageID: binding.PackageID, Generation: binding.Generation}
+				localKeyboard = &localKeyboardOffer{RuntimeInstance: binding.RuntimeInstance, PackageID: binding.PackageID, Generation: binding.Generation}
 			}
 		}
 		writeJSON(w, http.StatusOK, struct {

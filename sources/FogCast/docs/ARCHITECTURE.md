@@ -3819,7 +3819,9 @@ generation and launcher queue epoch. The target agent accepts records only on it
 against that execution generation, re-observes the HID binding under the
 lifecycle lock, and holds the admission until the write ends. The owning host
 requests keyboard admission against the attached input session and its exact
-package and core generation using the execution lease token. The host retries
+runtime instance, package and core generation using the execution lease token.
+The instance is carried from the attachment offer; a later runtime cannot
+inherit an admission even if its package and generation match. The host retries
 that idempotent request within a bounded interval and reports `local_keyboard`
 as `ready` or `unavailable` in input status. Admission survives remote input
 disconnect or detach for the same execution lease and core; Stop, replacement

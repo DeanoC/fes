@@ -88,8 +88,9 @@ func (s *HTTPBridgeStarter) Start(ctx context.Context, spec BridgeSpec) (BridgeH
 	var response struct {
 		Ready         bool `json:"ready"`
 		LocalKeyboard *struct {
-			PackageID  string `json:"package_id"`
-			Generation uint64 `json:"core_generation"`
+			RuntimeInstance string `json:"runtime_instance"`
+			PackageID       string `json:"package_id"`
+			Generation      uint64 `json:"core_generation"`
 		} `json:"local_keyboard"`
 	}
 	var sentKitToken string
@@ -105,12 +106,13 @@ func (s *HTTPBridgeStarter) Start(ctx context.Context, spec BridgeSpec) (BridgeH
 		// This optional admission must not consume the deadline for the
 		// ordinary remote-input attach. Retry only the exact admitted grant.
 		deadline, bounded := ctx.Deadline()
-		if sentKitToken != "" && offer.PackageID != "" && offer.Generation != 0 {
+		if sentKitToken != "" && protocol.ValidInputAgentInstance(offer.RuntimeInstance) && offer.PackageID != "" && offer.Generation != 0 {
 			request := struct {
-				Session    uint64 `json:"session"`
-				PackageID  string `json:"package_id"`
-				Generation uint64 `json:"core_generation"`
-			}{spec.Session, offer.PackageID, offer.Generation}
+				Session         uint64 `json:"session"`
+				RuntimeInstance string `json:"runtime_instance"`
+				PackageID       string `json:"package_id"`
+				Generation      uint64 `json:"core_generation"`
+			}{spec.Session, offer.RuntimeInstance, offer.PackageID, offer.Generation}
 			for attempt := 0; attempt < 2 && ctx.Err() == nil; attempt++ {
 				budget := time.Second
 				if bounded {

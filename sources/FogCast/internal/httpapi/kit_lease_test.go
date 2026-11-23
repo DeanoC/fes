@@ -204,13 +204,14 @@ type localKeyboardGrantController struct {
 	leaseStreamController
 	calls      int
 	generation string
+	instance   string
 }
 
-func (*localKeyboardGrantController) LocalKeyboardBinding() (input.KeyboardHIDBinding, bool) {
-	return input.KeyboardHIDBinding{PackageID: strings.Repeat("c", 64), Generation: 3}, true
+func (c *localKeyboardGrantController) LocalKeyboardBinding() (input.KeyboardHIDBinding, bool) {
+	return input.KeyboardHIDBinding{RuntimeInstance: c.instance, PackageID: strings.Repeat("c", 64), Generation: 3}, true
 }
 func (c *localKeyboardGrantController) GrantLocalKeyboard(ctx context.Context, session uint64, binding input.KeyboardHIDBinding) error {
-	if !kitlease.Admitted(ctx) || session != 7 || binding.PackageID != strings.Repeat("c", 64) || binding.Generation != 3 {
+	if !kitlease.Admitted(ctx) || session != 7 || binding.RuntimeInstance != c.instance || binding.PackageID != strings.Repeat("c", 64) || binding.Generation != 3 {
 		return fmt.Errorf("not admitted")
 	}
 	c.calls++
@@ -222,7 +223,7 @@ func TestLocalKeyboardGrantRequiresCurrentExecutionOwner(t *testing.T) {
 	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
 	defer manager.Close()
 	grant := claimKit(t, manager)
-	controller := &localKeyboardGrantController{}
+	controller := &localKeyboardGrantController{instance: strings.Repeat("d", 32)}
 	h := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithInput(controller))
 	for _, tc := range []struct {
 		bearer, lease string
@@ -233,7 +234,7 @@ func TestLocalKeyboardGrantRequiresCurrentExecutionOwner(t *testing.T) {
 		{"bearer", "foreign", http.StatusForbidden},
 		{"bearer", grant.Token, http.StatusOK},
 	} {
-		r := httptest.NewRequest(http.MethodPost, "/v1/input/local-keyboard", strings.NewReader(fmt.Sprintf(`{"session":7,"package_id":%q,"core_generation":3}`, strings.Repeat("c", 64))))
+		r := httptest.NewRequest(http.MethodPost, "/v1/input/local-keyboard", strings.NewReader(fmt.Sprintf(`{"session":7,"runtime_instance":%q,"package_id":%q,"core_generation":3}`, strings.Repeat("d", 32), strings.Repeat("c", 64))))
 		if tc.bearer != "" {
 			r.Header.Set("Authorization", "Bearer "+tc.bearer)
 		}
@@ -248,6 +249,56 @@ func TestLocalKeyboardGrantRequiresCurrentExecutionOwner(t *testing.T) {
 	}
 	if controller.calls != 1 || controller.generation != grant.Status.Generation {
 		t.Fatalf("wrong admitted generation: calls=%d generation=%q", controller.calls, controller.generation)
+	}
+}
+
+func TestLocalKeyboardGrantCarriesOfferedRuntimeInstance(t *testing.T) {
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	defer manager.Close()
+	grant := claimKit(t, manager)
+	old := strings.Repeat("d", 32)
+	controller := &localKeyboardGrantController{instance: old}
+	h := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithInput(controller))
+	send := func(path, body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		r.Header.Set("Authorization", "Bearer bearer")
+		r.Header.Set(httpapi.KitLeaseHeader, grant.Token)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	attach := send("/v1/input/attach", fmt.Sprintf(`{"session":7,"token":%q,"core":"fes.c64"}`, strings.Repeat("ab", 16)))
+	if attach.Code != http.StatusOK {
+		t.Fatalf("attach: %d %s", attach.Code, attach.Body.String())
+	}
+	var offer struct {
+		LocalKeyboard struct {
+			RuntimeInstance string `json:"runtime_instance"`
+			PackageID       string `json:"package_id"`
+			Generation      uint64 `json:"core_generation"`
+		} `json:"local_keyboard"`
+	}
+	if err := json.Unmarshal(attach.Body.Bytes(), &offer); err != nil || offer.LocalKeyboard.RuntimeInstance != old || offer.LocalKeyboard.PackageID != strings.Repeat("c", 64) || offer.LocalKeyboard.Generation != 3 {
+		t.Fatalf("incorrect attached offer: %+v err=%v", offer, err)
+	}
+	for _, instance := range []string{"", strings.Repeat("0", 32), "invalid"} {
+		body := fmt.Sprintf(`{"session":7,"runtime_instance":%q,"package_id":%q,"core_generation":3}`, instance, strings.Repeat("c", 64))
+		if w := send("/v1/input/local-keyboard", body); w.Code != http.StatusBadRequest {
+			t.Fatalf("invalid runtime status %d", w.Code)
+		}
+	}
+	missing := fmt.Sprintf(`{"session":7,"package_id":%q,"core_generation":3}`, strings.Repeat("c", 64))
+	if w := send("/v1/input/local-keyboard", missing); w.Code != http.StatusBadRequest {
+		t.Fatalf("missing runtime status %d", w.Code)
+	}
+	body := fmt.Sprintf(`{"session":7,"runtime_instance":%q,"package_id":%q,"core_generation":3}`, old, strings.Repeat("c", 64))
+	controller.instance = strings.Repeat("e", 32)
+	if w := send("/v1/input/local-keyboard", body); w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("stale runtime status %d", w.Code)
+	}
+	controller.instance = old
+	if w := send("/v1/input/local-keyboard", body); w.Code != http.StatusOK || controller.calls != 1 {
+		t.Fatalf("current grant: status=%d calls=%d", w.Code, controller.calls)
 	}
 }
 
