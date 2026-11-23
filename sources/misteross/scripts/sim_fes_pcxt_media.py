@@ -24,7 +24,8 @@ def main():
         'cores/fes-pcxt/sim/media_runtime_tb.cpp',
     )
     subprocess.run([os.environ.get('VERILATOR', 'verilator'), '--cc', '--exe', '--build',
-        '--top-module', 'media_runtime_top', '-Wall', '--Mdir', str(build),
+        '--top-module', 'media_runtime_top', '-Wall', str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt'),
+        str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt'), '--Mdir', str(build),
         '-I' + str(ROOT / 'cores/fes-common/generated'), '-CFLAGS', '-std=c++17 -O2',
         *(str(ROOT / p) for p in sources)], check=True)
     subprocess.run([str(build / 'Vmedia_runtime_top')], cwd=build, check=True)

@@ -65,6 +65,9 @@ func (s *sharedProgramKeyboard) PausePolling(ctx context.Context) error {
 func (s *sharedProgramKeyboard) ResumePolling(ctx context.Context) error {
 	return s.metrics.boundary(ctx, s.source, false)
 }
+func (s *sharedProgramKeyboard) Ready() <-chan struct{} {
+	return s.source.Ready()
+}
 
 type sharedProgramGamepad struct {
 	source  *usbcontrol.GamepadSource
@@ -80,4 +83,7 @@ func (s *sharedProgramGamepad) PausePolling(ctx context.Context) error {
 }
 func (s *sharedProgramGamepad) ResumePolling(ctx context.Context) error {
 	return s.metrics.boundary(ctx, s.source, false)
+}
+func (s *sharedProgramGamepad) Ready() <-chan struct{} {
+	return s.source.Ready()
 }
