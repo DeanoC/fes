@@ -82,7 +82,7 @@ The decisions for Deano are [at the end](#decisions-for-deano).
   - The store-to-load test is a 12-bit compare.
   - Removing them takes nothing out.
 
-**Module bounds on Agilex 5.** These come from this record's hierarchy-kept fit of `dx` (amendment 3; [results.md](results.md)). It needs 34,818 ALMs, +0.48% from the flattened fit, inside the ±5% gate. They bound what a module's removal or redesign could save; they are not savings:
+**Module bounds on Agilex 5.** These come from this record's exploratory hierarchy-kept fit of `dx` (amendment 3, added after the results; [results.md](results.md)). It needs 34,818 ALMs, +0.48% from the flattened fit, inside the ±5% gate borrowed from #2028. The precommitted per-module rows (rule 7) are #2028's, below. They bound what a module's removal or redesign could save; they are not savings:
 
 | Module | ALMs | Registers | What a DX could do there |
 | --- | ---: | ---: | --- |
@@ -181,7 +181,7 @@ gain, and the rest are each about a percent.
   - #2059 made the x87 fast lane one combinational stage to save 198 ALMs.
   - The machine's worst setup at 61.44 MHz fell from +7.5 to +0.387 ns.
   - In this record, the CPU alone with the 387 alive estimates **63.4 to 72.6 MHz** at its worst corner over three seeds of one netlist ([results.md](results.md)). That is down from #1899's 130 MHz closure, before the DE25 backend.
-  - **The x87 fast lane is the clock-limiting path.** In the hierarchy-kept fit, all 20 of the worst setup paths at the slowest corner run from `x87|core|normalized` into `x87|core|fast` (69.8 MHz estimate; [results.md](results.md)). That is the lane #2059 made one stage.
+  - **The x87 fast lane is the clock-limiting path.** In the exploratory hierarchy-kept fit (amendment 3), all 20 of the worst setup paths at the slowest corner run from `x87|core|normalized` into `x87|core|fast` (69.8 MHz estimate; [results.md](results.md)). That is the lane #2059 made one stage.
 - **The consequence:** any clock the x87 sees above about 63 MHz needs the x87's pipelining back. That undoes #2059's saving, or more.
 
 ### Options
@@ -208,7 +208,7 @@ gain, and the rest are each about a percent.
   - In C and D it is clocked from the CPU domain, and the adapter's own clock crossing carries it. The fabric needs no new FIFO.
 - **What gets worse: a miss costs more CPU clocks.** HPS DDR latency is fixed in time, so at about 116 MHz a refill costs about 1.9× today's clocks.
   - The profile bench charges port 0's first data 18 clocks at its 100 MHz model, against 11 at 61.44 MHz (the Phase 4 profile record).
-  - **L1D and port 0 are 16.1%** of the baseline's DOOM clocks ([results.md](results.md)), at the bench's own 100 MHz memory model (18 clocks to first data). At the kit's 11 clocks it is less.
+  - **L1D and port 0 are 16.1%** of the baseline's DOOM h2 clocks (8,036,203 of 50,000,000; [results.md](results.md), "Where `base`'s h2 clocks go"), at the bench's own 100 MHz memory model (18 clocks to first data). At the kit's 11 clocks it is less.
   - So the speed-up from k is less than k on DOOM.
 - **DMA snoops** reach the CPU's L1 invalidation through the `dma_*` port, and cross with the rest of it.
 
@@ -305,9 +305,20 @@ load forwarding). That costs DOOM's 49%, which the plan does not recommend.
 The remaining 900 to 4,600 has to come from the rows of question 5 and the
 module bounds of question 1, none of which is measured as a saving yet.
 
+## Decisions (23 Nov 2026)
+
+Deano decided the seven questions below on 23 November 2026, relayed through
+the coordinating session. His choices, quoted:
+
+| # | Question | Deano's choice | What it settles |
+| ---: | --- | --- | --- |
+| 1–5 | Fork, speed target, integer trades, clock, x87 | "Accept all (Recommended)" | The recommendations of 1–5 below stand as written: the DE25-only fork tree; DX-33 required, DX2-66 the stretch; Phase 4 kept except load forwarding; the first DX at 61.437908 MHz, then the PLL check for k = 2; slower x87 forms ranked by measured A/Bs. |
+| 7 | The line to fit under | "Device + 4-seed timing" | The DX passes when it fits the device and closes timing on four seeds. About 900 ALMs remain to find, not 4,600. The 92% line is not the DX's target. |
+| 6 | The next step | "Start now" | The precommitted ablation and A/B round runs now, beside the Codex review of this PR: 8 KiB L1s (and a unified 8 KiB), a narrower front end, the x87 candidates and a slower divider, in ALMs and DOOM, Quake and 3DBench CPI. No RTL is merged. |
+
 ## Decisions for Deano
 
-Each recommendation comes first. Every one is a proposal until Deano decides it.
+The questions as they were put, with the recommendations Deano accepted.
 
 1. **The fork mechanism (question 6).**
    - The DX lives in a DE25-only tree, `boards/de25nano/pc386/i486dx/`. It uses `derive.py` for small anchored edits and forked `fes_i486dx_*` files for rewritten modules.

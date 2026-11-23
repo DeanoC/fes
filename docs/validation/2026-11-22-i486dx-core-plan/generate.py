@@ -91,7 +91,7 @@ def render() -> str:
 
     hier = fit("dx-hier-s1")
     gap = 100 * (hier["alms"] - base) / base
-    out += ["### Hierarchy kept (method amendment 3)", "",
+    out += ["### Hierarchy kept (method amendment 3: exploratory, added after the results)", "",
             f"`dx` with `flatten` removed, seed 1: {hier['alms']:,.0f} ALMs, {gap:+.2f}% against `dx` seed 1, "
             f"{'within' if abs(gap) <= 5 else 'OUTSIDE'} the ±5% gate, so the table below is "
             f"{'the module bounds' if abs(gap) <= 5 else 'indicative only'}. Worst-corner Fmax estimate "
@@ -157,6 +157,14 @@ def render() -> str:
             cells = ["kept by the bound" if bound <= REALTICS[p] else "not settled by the bound"
                      for p in ("486DX2-66 (7)", "486DX-33 (6)")]
             out.append(f"| `{name}` | {r:.3f} | {bound:,.0f} | {cells[0]} | {cells[1]} |")
+        out.append("")
+        causes = b2["causes"]
+        out += ["### Where `base`'s h2 clocks go", "",
+                f"`profiles/base-h2.json`, {b2['cycles']:,} clocks. The profile's own cause buckets; the "
+                "bench's memory model is its 100 MHz one (18 clocks to port 0's first data).", "",
+                "| Cause | Clocks | Share |", "| --- | ---: | ---: |"]
+        for cause, n in causes.items():
+            out.append(f"| {cause} | {n:,} | {100 * n / b2['cycles']:.1f}% |")
         out.append("")
     lb = latency("base")
     if lb:

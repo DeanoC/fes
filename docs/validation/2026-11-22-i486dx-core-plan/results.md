@@ -26,7 +26,7 @@ Median 34,651, spread 100; noise band N = max(spread, 100) = **100 ALMs** (metho
 
 Rule 4: `speed` saves 1,716; its parts' single savings sum to 1,777 (difference -61).
 
-### Hierarchy kept (method amendment 3)
+### Hierarchy kept (method amendment 3: exploratory, added after the results)
 
 `dx` with `flatten` removed, seed 1: 34,818 ALMs, +0.48% against `dx` seed 1, within the ±5% gate, so the table below is the module bounds. Worst-corner Fmax estimate 69.79 MHz. Rows of 100 ALMs or more, from [entities-dx-hier.tsv](entities-dx-hier.tsv) (Quartus Pro's 'Fitter Resource Utilization by Entity', read by [entities.py](entities.py)); `<top>` own includes the virtual pins:
 
@@ -99,6 +99,29 @@ Worst setup paths at Slow fix4 0C: 20 of the 20 reported run from `x87|` to `x87
 | `ealu` | 1.009 | 2,080 | kept by the bound | kept by the bound |
 | `lfwd` | 1.012 | 2,086 | kept by the bound | kept by the bound |
 | `speed` | 1.523 | 3,140 | not settled by the bound | kept by the bound |
+
+### Where `base`'s h2 clocks go
+
+`profiles/base-h2.json`, 50,000,000 clocks. The profile's own cause buckets; the bench's memory model is its 100 MHz one (18 clocks to port 0's first data).
+
+| Cause | Clocks | Share |
+| --- | ---: | ---: |
+| issued uops | 32,114,923 | 64.2% |
+| redirect: refill | 1,526,676 | 3.1% |
+| fetch and L1I | 1,416,939 | 2.8% |
+| L1D and port 0 | 8,036,203 | 16.1% |
+| microcode | 993,305 | 2.0% |
+| interlock: AGI | 3,253,925 | 6.5% |
+| interlock: store-to-load | 32,762 | 0.1% |
+| interlock: flags | 1,113 | 0.0% |
+| interlock: ESP | 111,936 | 0.2% |
+| interlock: segment | 13,247 | 0.0% |
+| multiply and divide | 1,544,834 | 3.1% |
+| I/O and VGA: I/O | 691,799 | 1.4% |
+| I/O and VGA: MMIO load | 38,365 | 0.1% |
+| I/O and VGA: store buffer full | 167,858 | 0.3% |
+| halt | 0 | 0.0% |
+| other | 56,115 | 0.1% |
 
 ## Latency bench (clocks per loop; RTL alone at max)
 
