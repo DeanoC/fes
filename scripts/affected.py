@@ -19,10 +19,14 @@ except ImportError:
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga', 'tamago')
+TAMAGO_CI_ROOTS = (
+    'platform/embedded/tamago',
+    'platform/embedded/nano',
+    'sources/FogCast',
+    'sources/misteross/expansion',
+)
 TAMAGO_CI_INPUTS = frozenset({
     'platform/embedded/experiment.py',
-    'platform/embedded/nano/probe-profile.json',
-    'platform/embedded/nano/smmu-profile.json',
     'scripts/ci_tamago.sh',
     'scripts/tamago_ci.py',
     'tests/test_tamago_ci.py',
@@ -30,8 +34,8 @@ TAMAGO_CI_INPUTS = frozenset({
 
 
 def tamago_input(path):
-    return (path == 'platform/embedded/tamago' or
-            path.startswith('platform/embedded/tamago/') or
+    """True when path is in the TamaGo CI runner or local Go/Python dependency closure."""
+    return (any(path == root or path.startswith(root + '/') for root in TAMAGO_CI_ROOTS) or
             path in TAMAGO_CI_INPUTS)
 # Application, z80, pc386 and the DE25 x87 backend are simulation-only
 # families; PC/XT also has a package producer.

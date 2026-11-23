@@ -373,7 +373,7 @@ class AffectedTests(unittest.TestCase):
     def test_parent_owned_changes_union_with_component_lanes(self):
         result = plan(['image/Makefile', 'sources/FogCast/catalog/query.go'])
         self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
-                         {'parent', 'host'})
+                         {'parent', 'host', 'tamago'})
         self.assertEqual(result['cores'], [])
         result = plan(['scripts/media.py',
                        'sources/misteross/cores/fes-atari-st/rtl/st_machine.sv'])
@@ -413,7 +413,7 @@ class AffectedTests(unittest.TestCase):
             for path in (MODULE_ROOTS[module], MODULE_ROOTS[module] + '/src/main.cpp'):
                 result = plan([path])
                 self.assertEqual({k for k,v in result['lanes'].items() if v},
-                                 {'parent', module} | ({'host'} if module == 'runtime' else set()))
+                                 {'parent', module} | ({'host'} if module == 'runtime' else {'tamago'}))
 
     def test_core_families_include_cross_core_consumers(self):
         cases = {
@@ -709,7 +709,7 @@ class AffectedTests(unittest.TestCase):
         for path in ('rbf.go', 'asset_test.go', 'go.mod', 'go.sum', 'testdata/linked.rbf'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/expansion/' + path])
-                self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled}, {'parent', 'host'})
+                self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled}, {'parent', 'host', 'tamago'})
                 self.assertEqual(result['cores'], [])
         # The software module exception must not swallow adjacent FPGA trees.
         self.assertEqual(set(plan(['sources/misteross/expansion-other/new.v'])['cores']), set(CORES))
@@ -876,26 +876,29 @@ class AffectedTests(unittest.TestCase):
         self.assertTrue(native_compatibility_input(path))
 
     def test_tamago_inputs_select_tamago_lane_without_broadening_unrelated_changes(self):
-        for path in (
-            'platform/embedded/tamago/gic/gic.go',
-            'platform/embedded/tamago/toolchain.lock.toml',
-            'platform/embedded/experiment.py',
-            'platform/embedded/nano/probe-profile.json',
-            'scripts/ci_tamago.sh',
-            'scripts/tamago_ci.py',
-            'tests/test_tamago_ci.py',
+        for path, expected_lanes in (
+            ('platform/embedded/tamago/gic/gic.go', {'parent', 'tamago'}),
+            ('platform/embedded/tamago/toolchain.lock.toml', {'parent', 'tamago'}),
+            ('platform/embedded/experiment.py', {'parent', 'tamago'}),
+            ('platform/embedded/nano/probe-profile.json', {'parent', 'tamago'}),
+            ('platform/embedded/nano/hps_context.py', {'parent', 'tamago'}),
+            ('scripts/ci_tamago.sh', {'parent', 'tamago'}),
+            ('scripts/tamago_ci.py', {'parent', 'tamago'}),
+            ('tests/test_tamago_ci.py', {'parent', 'tamago'}),
+            ('sources/FogCast/corepackage/archive.go', {'parent', 'host', 'tamago'}),
+            ('sources/misteross/expansion/rbf.go', {'parent', 'host', 'tamago'}),
         ):
             with self.subTest(path=path):
                 result = plan([path])
-                self.assertEqual({k for k, v in result['lanes'].items() if v}, {'parent', 'tamago'})
+                self.assertEqual({k for k, v in result['lanes'].items() if v}, expected_lanes)
                 self.assertEqual(result['cores'], [])
-        # TamaGo markdown docs still select no lanes.
-        doc_result = plan(['platform/embedded/tamago/README.md'])
-        self.assertFalse(any(doc_result['lanes'].values()))
-        # Unrelated host or FPGA edits do not select the tamago lane.
-        self.assertFalse(plan(['sources/FogCast/README.md'])['lanes']['tamago'])
-        self.assertFalse(plan(['sources/FogCast/host/lease.go'])['lanes']['tamago'])
+        # Markdown docs still select no lanes.
+        self.assertFalse(any(plan(['platform/embedded/tamago/README.md'])['lanes'].values()))
+        self.assertFalse(any(plan(['sources/FogCast/README.md'])['lanes'].values()))
+        # Unrelated FPGA RTL, Linux runtime, or image edits do not select the tamago lane.
         self.assertFalse(plan(['sources/misteross/cores/fes-pong/rtl/pong.v'])['lanes']['tamago'])
+        self.assertFalse(plan(['sources/libmister-runtime/tests/unit/basic.cpp'])['lanes']['tamago'])
+        self.assertFalse(plan(['image/Makefile'])['lanes']['tamago'])
 
 
 

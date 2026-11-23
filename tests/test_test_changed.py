@@ -123,7 +123,7 @@ class TestChangedTest(unittest.TestCase):
                          [[sys.executable, "scripts/host_tests.py", "--ui-if-needed", "--paths-json",
                            json.dumps(result["impact"]["paths"])]])
         self.assertEqual([c["cwd"] for c in host], ["."])
-        self.assertEqual(set(result["impact"]["skipped"]), {"runtime", "contracts", "fpga", "tamago"})
+        self.assertEqual(set(result["impact"]["skipped"]), {"runtime", "contracts", "fpga"})
         self.assertEqual(host[0]["host_ui"]["target"], "test-ui")
         self.assertIn("node", host[0]["tools"])
 
