@@ -594,3 +594,109 @@ func TestLeaseExpiryHaltsActiveLinkAndServerT1T2AndPacing(t *testing.T) {
 		t.Fatalf("20s remaining nextRenewWait=%v, want (0, 20s]", got)
 	}
 }
+
+func TestSingleActiveRenewerEnforcement(t *testing.T) {
+	clientMACStr := "52:54:00:12:34:56"
+	clientMAC, _ := parseUnicastMAC(clientMACStr)
+	serverIP := [4]byte{10, 0, 2, 2}
+	clientIP := [4]byte{10, 0, 2, 15}
+	mask := [4]byte{255, 255, 255, 0}
+
+	dev := newFakeDHCPDevice(clientMACStr, false)
+	link := &Link{stack: &fakeStack{}, device: dev, state: &linkState{}}
+	initial := DHCPLease{
+		Address:       "10.0.2.15/24",
+		Gateway:       "10.0.2.2",
+		Server:        "10.0.2.2",
+		LeaseDuration: 40 * time.Millisecond,
+	}
+
+	// 1. Direct *Link ownership rejects a second renewer until the first stops.
+	direct1, err := NewLeaseRenewer(link, clientMACStr, initial, RenewConfig{RetryInterval: 5 * time.Millisecond})
+	if err != nil {
+		t.Fatalf("direct1: %v", err)
+	}
+	if _, err := NewLeaseRenewer(link, clientMACStr, initial, RenewConfig{RetryInterval: 5 * time.Millisecond}); !errors.Is(err, ErrRenewerActive) {
+		t.Fatalf("concurrent direct NewLeaseRenewer err=%v, want ErrRenewerActive", err)
+	}
+	// Stopping an unstarted renewer releases ownership and prevents later Start.
+	direct1.Stop()
+	if err := direct1.Start(context.Background()); !errors.Is(err, ErrRenewerStopped) {
+		t.Fatalf("Start after Stop err=%v, want ErrRenewerStopped", err)
+	}
+
+	// 2. interfaceLease enforces one active renewer, synchronizes renewed lease/AcquiredAt,
+	//    and releases ownership cleanly on Stop() and on context cancellation.
+	var state interfaceLease
+	if _, ok := state.get(); ok {
+		t.Fatal("uninitialized interfaceLease reported hasLease=true")
+	}
+	if _, err := state.newRenewer(link, clientMACStr, RenewConfig{}, nil); !errors.Is(err, ErrDHCPInvalidConfig) {
+		t.Fatalf("newRenewer without lease err=%v, want ErrDHCPInvalidConfig", err)
+	}
+
+	state.init(initial, time.Now(), true)
+	port := newFakeRenewPort()
+	renewedCh := make(chan DHCPLease, 2)
+	port.onSend = func(frame []byte, p *fakeRenewPort) {
+		xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
+		go p.inject(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, clientIP, xid,
+			makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &serverIP, 1800), false))
+	}
+
+	ren1, err := state.newRenewer(port, clientMACStr, RenewConfig{
+		RetryInterval: 5 * time.Millisecond,
+		OnRenew: func(l DHCPLease) {
+			select {
+			case renewedCh <- l:
+			default:
+			}
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("state.newRenewer(1): %v", err)
+	}
+	if _, err := state.newRenewer(port, clientMACStr, RenewConfig{}, nil); !errors.Is(err, ErrRenewerActive) {
+		t.Fatalf("concurrent state.newRenewer(2) before Start err=%v, want ErrRenewerActive", err)
+	}
+	if err := ren1.Start(context.Background()); err != nil {
+		t.Fatalf("ren1.Start: %v", err)
+	}
+	if _, err := state.newRenewer(port, clientMACStr, RenewConfig{}, nil); !errors.Is(err, ErrRenewerActive) {
+		t.Fatalf("concurrent state.newRenewer(2) while running err=%v, want ErrRenewerActive", err)
+	}
+	select {
+	case <-renewedCh:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for ren1 renewal")
+	}
+	ren1.Stop()
+
+	// After ren1 stops, a replacement renewer succeeds and inherits the synchronized 1800s lease.
+	gotLease, ok := state.get()
+	if !ok || gotLease.LeaseDuration != 1800*time.Second {
+		t.Fatalf("state.get()=(%+v, %t), want 1800s lease", gotLease, ok)
+	}
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	ren2, err := state.newRenewer(link, clientMACStr, RenewConfig{RetryInterval: 5 * time.Millisecond}, nil)
+	if err != nil {
+		t.Fatalf("state.newRenewer(2) after Stop: %v", err)
+	}
+	if ren2.Lease().LeaseDuration != 1800*time.Second {
+		t.Fatalf("ren2 inherited lease=%v, want 1800s", ren2.Lease().LeaseDuration)
+	}
+	if err := ren2.Start(ctx2); err != nil {
+		t.Fatalf("ren2.Start: %v", err)
+	}
+	// Cancelling ren2's context releases both interfaceLease and *Link ownership on loop exit.
+	cancel2()
+	deadline := time.Now().Add(time.Second)
+	for ren2.Running() && time.Now().Before(deadline) {
+		time.Sleep(2 * time.Millisecond)
+	}
+	ren3, err := state.newRenewer(link, clientMACStr, RenewConfig{RetryInterval: 5 * time.Millisecond}, nil)
+	if err != nil {
+		t.Fatalf("state.newRenewer(3) after ctx cancel: %v", err)
+	}
+	ren3.Stop()
+}

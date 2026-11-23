@@ -32,7 +32,14 @@ var (
 	ErrRenewerStarted = errors.New("network: DHCP lease renewer already started")
 	// ErrRenewerStopped is returned when LeaseRenewer.Start is called after Stop.
 	ErrRenewerStopped = errors.New("network: DHCP lease renewer stopped")
+	// ErrRenewerActive is returned when another LeaseRenewer already owns the Interface or Link.
+	ErrRenewerActive = errors.New("network: DHCP lease renewer already active")
 )
+
+type renewerClaimer interface {
+	claimRenewer() bool
+	releaseRenewer()
+}
 
 // DHCPFramePort is the minimal raw Ethernet frame interface used by DHCP renewal
 // over an active Link (satisfied by *Link).
@@ -210,12 +217,14 @@ func nextRenewWait(ctx context.Context, minInterval time.Duration) time.Duration
 // LeaseRenewer runs an opt-in RFC 2131 T1/T2 DHCPv4 lease renewal loop.
 // Creating a LeaseRenewer starts no background work until Start is called.
 type LeaseRenewer struct {
-	port       DHCPFramePort
-	mac        string
-	cfg        RenewConfig
-	acquiredAt time.Time
-	onUpdate   func(DHCPLease, time.Time)
-	onTerminal func(error)
+	port        DHCPFramePort
+	mac         string
+	cfg         RenewConfig
+	acquiredAt  time.Time
+	onUpdate    func(DHCPLease, time.Time)
+	onTerminal  func(error)
+	onRelease   func()
+	releaseOnce sync.Once
 
 	mu       sync.Mutex
 	started  bool
@@ -229,6 +238,8 @@ type LeaseRenewer struct {
 }
 
 // NewLeaseRenewer validates inputs and returns an idle LeaseRenewer.
+// If port enforces single-renewer ownership (such as *Link), only one
+// LeaseRenewer may own port until it stops or its renewal loop exits.
 func NewLeaseRenewer(port DHCPFramePort, mac string, initial DHCPLease, cfg RenewConfig) (*LeaseRenewer, error) {
 	if port == nil {
 		return nil, fmt.Errorf("%w: nil frame port", ErrDHCPInvalidConfig)
@@ -249,6 +260,13 @@ func NewLeaseRenewer(port DHCPFramePort, mac string, initial DHCPLease, cfg Rene
 	if err := validateRenewConfig(cfg); err != nil {
 		return nil, err
 	}
+	var onRelease func()
+	if claimer, ok := port.(renewerClaimer); ok {
+		if !claimer.claimRenewer() {
+			return nil, ErrRenewerActive
+		}
+		onRelease = claimer.releaseRenewer
+	}
 	acquiredAt := cfg.AcquiredAt
 	if acquiredAt.IsZero() {
 		acquiredAt = time.Now()
@@ -258,6 +276,7 @@ func NewLeaseRenewer(port DHCPFramePort, mac string, initial DHCPLease, cfg Rene
 		mac:        mac,
 		cfg:        cfg,
 		acquiredAt: acquiredAt,
+		onRelease:  onRelease,
 		lease:      cloneLease(initial),
 		stopCh:     make(chan struct{}),
 	}, nil
@@ -298,6 +317,88 @@ func (r *LeaseRenewer) Stop() {
 	}
 	r.mu.Unlock()
 	r.wg.Wait()
+	r.release()
+}
+
+func (r *LeaseRenewer) release() {
+	r.releaseOnce.Do(func() {
+		if r.onRelease != nil {
+			r.onRelease()
+		}
+	})
+}
+
+// interfaceLease coordinates DHCP lease state and single-renewer ownership for Interface.
+type interfaceLease struct {
+	mu            sync.RWMutex
+	lease         DHCPLease
+	acquiredAt    time.Time
+	hasLease      bool
+	activeRenewer *LeaseRenewer
+}
+
+func (s *interfaceLease) init(lease DHCPLease, acquiredAt time.Time, hasLease bool) {
+	s.mu.Lock()
+	s.lease = cloneLease(lease)
+	s.acquiredAt = acquiredAt
+	s.hasLease = hasLease
+	s.mu.Unlock()
+}
+
+func (s *interfaceLease) get() (DHCPLease, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.hasLease {
+		return DHCPLease{}, false
+	}
+	return cloneLease(s.lease), true
+}
+
+func (s *interfaceLease) newRenewer(port DHCPFramePort, mac string, cfg RenewConfig, onTerminal func(error)) (*LeaseRenewer, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.hasLease {
+		return nil, fmt.Errorf("%w: interface has no active DHCP lease", ErrDHCPInvalidConfig)
+	}
+	if s.activeRenewer != nil {
+		return nil, ErrRenewerActive
+	}
+	if cfg.AcquiredAt.IsZero() {
+		cfg.AcquiredAt = s.acquiredAt
+	}
+	ren, err := NewLeaseRenewer(port, mac, cloneLease(s.lease), cfg)
+	if err != nil {
+		return nil, err
+	}
+	s.activeRenewer = ren
+	ren.onUpdate = func(next DHCPLease, at time.Time) {
+		s.mu.Lock()
+		if s.activeRenewer == ren {
+			s.lease = cloneLease(next)
+			s.acquiredAt = at
+		}
+		s.mu.Unlock()
+	}
+	ren.onTerminal = func(err error) {
+		s.mu.RLock()
+		owned := s.activeRenewer == ren
+		s.mu.RUnlock()
+		if owned && onTerminal != nil {
+			onTerminal(err)
+		}
+	}
+	prevRelease := ren.onRelease
+	ren.onRelease = func() {
+		if prevRelease != nil {
+			prevRelease()
+		}
+		s.mu.Lock()
+		if s.activeRenewer == ren {
+			s.activeRenewer = nil
+		}
+		s.mu.Unlock()
+	}
+	return ren, nil
 }
 
 // Running reports whether the background renewal goroutine is active.
@@ -361,6 +462,7 @@ func leaseTimers(l DHCPLease) (t1, t2 time.Duration) {
 
 func (r *LeaseRenewer) loop(parent context.Context) {
 	defer func() {
+		r.release()
 		r.running.Store(false)
 		r.wg.Done()
 	}()

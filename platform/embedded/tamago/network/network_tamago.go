@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -28,16 +27,13 @@ type irqDevice interface {
 // DMA must be mapped Normal memory; no buffer is returned to the allocator
 // after the device begins DMA. This prototype polls rather than using IRQs.
 type Interface struct {
-	config          Config
-	device          Device
-	bridge          *Link
-	ctx             context.Context
-	stop            context.CancelCauseFunc
-	irqEnabled      atomic.Bool
-	leaseMu         sync.RWMutex
-	lease           DHCPLease
-	leaseAcquiredAt time.Time
-	hasLease        bool
+	config     Config
+	device     Device
+	bridge     *Link
+	ctx        context.Context
+	stop       context.CancelCauseFunc
+	irqEnabled atomic.Bool
+	leaseState interfaceLease
 }
 
 var opened atomic.Bool
@@ -127,7 +123,8 @@ func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease
 	cfg.MaxActiveTCPPorts = 16
 	cfg.MaxListenerConns = 8
 	runCtx, stop := context.WithCancelCause(ctx)
-	iface := &Interface{config: c, device: nic, ctx: runCtx, stop: stop, lease: lease, leaseAcquiredAt: leaseAcquiredAt, hasLease: hasLease}
+	iface := &Interface{config: c, device: nic, ctx: runCtx, stop: stop}
+	iface.leaseState.init(lease, leaseAcquiredAt, hasLease)
 	backoff := func(consecutive uint) time.Duration {
 		if !iface.irqEnabled.Load() || consecutive == 0 {
 			return lneto.BackoffFlagGosched
@@ -172,18 +169,15 @@ func (i *Interface) Lease() (DHCPLease, bool) {
 	if i == nil {
 		return DHCPLease{}, false
 	}
-	i.leaseMu.RLock()
-	defer i.leaseMu.RUnlock()
-	if !i.hasLease {
-		return DHCPLease{}, false
-	}
-	return cloneLease(i.lease), true
+	return i.leaseState.get()
 }
 
 // NewLeaseRenewer creates an opt-in RFC 2131 DHCPv4 T1/T2 LeaseRenewer wired
 // to this interface's active *Link (preserving its pause/DMA failure gate and
-// original lease acquisition timestamp). Successful renewals synchronize back
-// to Interface.Lease() and future NewLeaseRenewer calls. If the lease expires,
+// original lease acquisition timestamp). Only one LeaseRenewer may own the
+// interface at a time (concurrent calls fail with ErrRenewerActive until the
+// active renewer stops or exits). Successful renewals synchronize back to
+// Interface.Lease() and future NewLeaseRenewer calls. If the lease expires,
 // is NAK'd, or changes IP/gateway, the interface and link are halted immediately
 // per RFC 2131 §4.4.5 so traffic stops using the unleased address.
 // Returns ErrDHCPInvalidConfig if the interface was not opened via DHCP.
@@ -191,34 +185,15 @@ func (i *Interface) NewLeaseRenewer(cfg RenewConfig) (*LeaseRenewer, error) {
 	if i == nil || i.bridge == nil || i.device == nil {
 		return nil, fmt.Errorf("%w: interface has no active DHCP lease", ErrDHCPInvalidConfig)
 	}
-	i.leaseMu.RLock()
-	hasLease := i.hasLease
-	lease := cloneLease(i.lease)
-	acquiredAt := i.leaseAcquiredAt
-	i.leaseMu.RUnlock()
-	if !hasLease {
-		return nil, fmt.Errorf("%w: interface has no active DHCP lease", ErrDHCPInvalidConfig)
-	}
-	if cfg.AcquiredAt.IsZero() {
-		cfg.AcquiredAt = acquiredAt
-	}
-	ren, err := NewLeaseRenewer(i.bridge, i.device.MAC(), lease, cfg)
-	if err != nil {
+	if err := i.Err(); err != nil {
 		return nil, err
 	}
-	ren.onUpdate = func(next DHCPLease, at time.Time) {
-		i.leaseMu.Lock()
-		i.lease = cloneLease(next)
-		i.leaseAcquiredAt = at
-		i.leaseMu.Unlock()
-	}
-	ren.onTerminal = func(err error) {
+	return i.leaseState.newRenewer(i.bridge, i.device.MAC(), cfg, func(err error) {
 		i.bridge.fail(err)
 		if i.stop != nil {
 			i.stop(err)
 		}
-	}
-	return ren, nil
+	})
 }
 
 // EnableIRQ routes the underlying NIC's RX interrupt through g so Link.Start
