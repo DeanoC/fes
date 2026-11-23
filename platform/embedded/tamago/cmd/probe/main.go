@@ -5,6 +5,8 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"os"
@@ -14,7 +16,10 @@ import (
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/dmaops"
+	"github.com/DeanoC/fes/platform/embedded/tamago/fpgairq"
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
+	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
+	"github.com/DeanoC/fes/platform/embedded/tamago/rtc"
 )
 
 func main() {
@@ -52,7 +57,70 @@ func main() {
 	fmt.Println("PASS volatile memory filesystem (not SD/FAT32)")
 	probeGIC()
 	probeDMA()
+	probePSCI()
+	probeRTC()
 	fmt.Printf("FES_NATIVE_GO_PROBE PASS os=tamago board=%s\n", board.Name)
+}
+
+func probeRTC() {
+	dev, err := board.RTC()
+	if err != nil {
+		// QEMU virt always maps a PL031, so a missing or misidentified RTC
+		// there is a failure; only boards without an RTC may skip.
+		if errors.Is(err, rtc.ErrNotFound) && board.Name != "qemu" {
+			fmt.Println("SKIP rtc (no hardware RTC on board)")
+			return
+		}
+		panic(err)
+	}
+	if dev.PartNumber() != rtc.PL031PartNumber || dev.Designer() != rtc.ARMDesignerID {
+		panic(fmt.Sprintf("rtc: unexpected IDs part=%#x designer=%#x", dev.PartNumber(), dev.Designer()))
+	}
+	first, ok := board.WallTime()
+	if !ok || first.Year() < 2020 {
+		panic(fmt.Sprintf("rtc: invalid wall time ok=%t utc=%s", ok, first.Format(time.RFC3339)))
+	}
+	time.Sleep(2 * time.Millisecond)
+	second, ok := board.WallTime()
+	if !ok || second.Sub(first) < 2*time.Millisecond {
+		panic(fmt.Sprintf("rtc: wall clock failed to advance (%s -> %s)", first.Format(time.RFC3339Nano), second.Format(time.RFC3339Nano)))
+	}
+	fmt.Printf("PASS rtc pl031 rev=%d utc=%s\n", dev.Revision(), second.Format(time.RFC3339))
+}
+
+func probePSCI() {
+	var a, b [32]byte
+	if _, err := rand.Read(a[:]); err != nil {
+		panic(err)
+	}
+	if _, err := rand.Read(b[:]); err != nil {
+		panic(err)
+	}
+	var zero [32]byte
+	if bytes.Equal(a[:], zero[:]) || bytes.Equal(b[:], zero[:]) || bytes.Equal(a[:], b[:]) {
+		panic("psci: crypto/rand produced degenerate output")
+	}
+	src := board.EntropySource()
+	client := board.PSCI()
+	major, minor, err := client.Version()
+	if err != nil {
+		if errors.Is(err, psci.ErrUnsupported) {
+			fmt.Printf("SKIP psci (conduit disabled) entropy=%s hw_rng=%t\n", src, src.IsHardware())
+			return
+		}
+		panic(err)
+	}
+	if major == 0 && minor < 2 {
+		panic(fmt.Sprintf("psci: unsupported version %d.%d", major, minor))
+	}
+	canOff := client.Supports(psci.FuncSystemOff)
+	canReset := client.Supports(psci.FuncSystemReset)
+	trng := "none"
+	if tmaj, tmin, terr := client.TRNGVersion(); terr == nil {
+		trng = fmt.Sprintf("%d.%d", tmaj, tmin)
+	}
+	fmt.Printf("PASS psci version=%d.%d reset=%t off=%t trng=%s entropy=%s hw_rng=%t\n",
+		major, minor, canReset, canOff, trng, src, src.IsHardware())
 }
 
 func probeDMA() {
@@ -205,30 +273,36 @@ func probeGIC() {
 	g.Disable(0)
 	g.Register(0, nil)
 
-	// Exercise SPI routing and edge-triggered software pending via GICD_ISPENDR
-	// on SPI 48 (Agilex 5 IRQFPGA2HPS0; unused VirtIO slot 0 during QEMU probe).
-	const testSPI uint32 = 48
-	spiHit := make(chan struct{}, 1)
-	g.Disable(testSPI)
-	g.ClearPending(testSPI)
-	g.SetEdge(testSPI, true)
-	g.Register(testSPI, func() {
-		select {
-		case spiHit <- struct{}{}:
-		default:
-		}
-	})
-	g.Enable(testSPI)
-	g.SetPending(testSPI)
-	select {
-	case <-spiHit:
-	case <-time.After(time.Second):
-		panic("gic: SPI 48 software pending did not fire")
+	// Exercise FPGA-to-HPS doorbell dispatcher over SPI 48 (Agilex 5
+	// IRQFPGA2HPS0; unused VirtIO slot 0 during QEMU probe), including
+	// Doorbell.Wait and Doorbell.YieldFunc wakeups.
+	disp, err := fpgairq.New(g)
+	if err != nil {
+		panic(err)
 	}
-	g.Disable(testSPI)
-	g.ClearPending(testSPI)
-	g.SetEdge(testSPI, false)
-	g.Register(testSPI, nil)
+	db, err := disp.Open(fpgairq.Config{Line: 0, Trigger: fpgairq.Edge})
+	if err != nil {
+		panic(err)
+	}
+	db.TriggerPending()
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+	if err := db.Wait(waitCtx); err != nil || db.Count() != 1 {
+		waitCancel()
+		panic(fmt.Sprintf("fpgairq: SPI 48 Wait failed err=%v count=%d", err, db.Count()))
+	}
+	waitCancel()
+	db.TriggerPending()
+	db.YieldFunc(time.Second)()
+	if db.Count() != 2 {
+		panic(fmt.Sprintf("fpgairq: SPI 48 YieldFunc failed count=%d", db.Count()))
+	}
+	if err := db.Close(); err != nil {
+		panic(err)
+	}
+	if err := disp.Close(); err != nil {
+		panic(err)
+	}
+	g.SetEdge(fpgairq.BaseSPI, false)
 
 	timerHit := make(chan struct{}, 1)
 	g.Register(board.IRQPhysTimer, func() {

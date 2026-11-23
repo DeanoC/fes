@@ -79,13 +79,15 @@ def module(sources, path, name):
     return result
 
 
-def capture(spec, revision=None):
+def capture(spec, revision=None, *, native=False):
     """The managed scanout closure plus the complete machine, media and audio closure."""
     def read(path):
         return (ROOT / path).read_bytes() if revision is None else subprocess.check_output(
             ["git", "show", revision + ":" + path], cwd=ROOT)
     sources = selected_scanout(read(BOARD + "scanout/build.py")).capture(revision)
     paths = set(spec.SOURCES)
+    if native:
+        paths |= getattr(spec, "NATIVE_SOURCES", set())
     paths |= {BOARD + "shared-rtl/" + name for name in SHELL_FILES + ("fes_menu_reader.v", "fes_de25_machine_audio.v")}
     paths |= {BOARD + "machine/board.py", clocks(spec)[1],
               BOARD + "shared-rtl/generated/fes_firmware_upload.vh",
@@ -101,10 +103,10 @@ def capture(spec, revision=None):
     return sources
 
 
-def component_files(spec, sources):
+def component_files(spec, sources, *, native=False):
     """Every file of the Qsys component, and the record of each derivation."""
     display = module(sources, BOARD + "display/build.py", "machine_selected_display")
-    files, derived = spec.component_files(sources)
+    files, derived = spec.component_files(sources, native=True) if native else spec.component_files(sources)
     for name in SHELL_FILES:
         files[name] = sources[BOARD + "shared-rtl/" + name]
     files["fes_display_cdc.v"] = sources[COMMON + "rtl/fes_display_cdc.v"]
@@ -206,12 +208,15 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
     model = model or next(iter(spec.MODELS))
     if model not in spec.MODELS:
         raise ValueError("unknown " + spec.NAME + " model")
-    if native_hps and (spec.CORE_ID != "fes.spectrum" or model != "native48" or package_build_id is not None):
+    native_c64 = (spec.CORE_ID, model) == ("fes.c64", "nativepal")
+    if native_hps and ((spec.CORE_ID, model) != ("fes.spectrum", "native48") and not native_c64 or package_build_id is not None):
         raise ValueError("native HPS is a Spectrum 48K project-only recipe")
-    sources = capture(spec, revision)
+    if native_c64 and not native_hps:
+        raise ValueError("native C64 requires the contained HPS shell composer")
+    sources = capture(spec, revision, native=native_c64)
     machine_hz, pll_ip, _, sdram_clocks = clocks(spec)
     scanout = selected_scanout(sources[BOARD + "scanout/build.py"])
-    files, derived, _ = component_files(spec, sources)
+    files, derived, _ = component_files(spec, sources, native=native_c64)
     if package_build_id is not None and (not revision or not isinstance(package_build_id, str) or
             not re.fullmatch(r"[0-9a-f]{32}", package_build_id) or package_build_id == "0" * 32):
         raise ValueError("machine package identity requires committed source and a nonzero 128-bit ID")

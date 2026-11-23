@@ -1,0 +1,53 @@
+{
+  "status": "passed",
+  "serial": "TRWU8CBL",
+  "input": "uart",
+  "startup": "volatile JTAG SPL then matched FIT from spare SD",
+  "native_boot_id": "fa72bf1e707edbc7",
+  "package_id": "395692a02e1234589f92fe671ea98a8f49a488cde206f7693922fe49c558695d",
+  "disk_sha256": "2ba3d30f6384121156d2b429ab8d464f437b6524fd0e459135e458dda41756a0",
+  "same_boot": true,
+  "host_capture_resumed": true,
+  "launch_gate_ns": 5000000000,
+  "launches": [
+    {
+      "generation": 1,
+      "disk_upload_ns": 2821874578,
+      "control_ns": 765760885,
+      "execution_start_ns": 3587635463,
+      "hdmi_disk_pass": true,
+      "hdmi_tenfoot_return": true
+    },
+    {
+      "generation": 3,
+      "disk_upload_ns": 2823733148,
+      "control_ns": 766038707,
+      "execution_start_ns": 3589771855,
+      "hdmi_disk_pass": true,
+      "hdmi_tenfoot_return": true
+    }
+  ],
+  "parked": true,
+  "park_generation": 5,
+  "evidence_sha256": {
+    "sd/result.json": "0a78f74472d5e442e2239a42a0f6a77c8f3780cafc2ec5295b508189770279c8",
+    "card-written.json": "4ed075b10c3868d2cb960cab233e0a06673f857ec2cd7fcf8bea7daba3f8e644",
+    "card/board/uart.log": "f7905ecb1dc2204b1f7cc8bc1d97ea0c8b62bfc61f963b968bbbe93cae66a53b",
+    "card/board/result.json": "951d071e80cacdb2757958735618abe5818f853c0e47dcaf0f2da1faefab3257",
+    "card/board-resumed/active-1-hdmi.json": "f3e7100be563421568206e4124fd702685bc0c91beae9653cba0b2211959df62",
+    "card/board-resumed/active-1.json": "590246a4568c3735ee8ee1fda156b174d457b0c004b67cbb780aa6fe90e98572",
+    "card/board-resumed/active-2-hdmi.json": "2164d3bf74b5b6c1097a0aca3fab9cecece3e04cdb9857a7bed860fa952c328d",
+    "card/board-resumed/active-2.json": "83cc6140a8261a550e8e9837fd5fb8e1b0f3bb57037cc1b0c8c0dc78d68a5a40",
+    "card/board-resumed/fetch-1.json": "c41998a27f252e01785d75c928a79cb8719c63edcd4a60df57e2a541b584a092",
+    "card/board-resumed/fetch-2.json": "98ced804abaff4216d89a9434ee6932a9762fdb7a776abf3a6573a7b7f789bb5",
+    "card/board-resumed/parked.json": "7ab70666f043f6bf2108d2d785b0b5793901207910bbb344ddb53c59375308aa",
+    "card/board-resumed/ready-hdmi.json": "40d6d2f565d0558cfb2f5c12a4285a7d547d5e040452d38b0541692cca19673f",
+    "card/board-resumed/ready.json": "46ccbb310aa32382df7b487a45e622d72be79b6f2436c5c23beedeefc76bbbf8",
+    "card/board-resumed/result.json": "4e286b4125da4f39cf4801e074c0ccaeb57164fc1fa02b8a4b4a0119b68ce760",
+    "card/board-resumed/returned-1-hdmi.json": "c24ad437f963f1ab2e5f2947e1f02d9d8a6176d19fca06bd05c8145bbdb26d64",
+    "card/board-resumed/returned-1.json": "e54b1cf13bc8266d7c1bf096274fa85f69ca0e1473d34690c5061fc21a8bf280",
+    "card/board-resumed/returned-2-hdmi.json": "e8bb93d7cb6b0277fdbfff7e0f21a10541c34783742c77d85ab48368a2045031",
+    "card/board-resumed/returned-2.json": "32330c744f1c8a283a82490785613432397636dda73ffdeea4ec6efa0c664839",
+    "card/board-resumed/uart.log": "69e3a70819ceb89a7c6ab388da85dd634dd74698105af9ea229837c958a21530"
+  }
+}

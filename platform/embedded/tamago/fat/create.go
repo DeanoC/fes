@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf16"
 	"unicode/utf8"
 
@@ -76,28 +77,34 @@ func (v *Volume) appendDirectory(ctx context.Context, cluster uint32) (*director
 	for _, item := range items {
 		p.names[item.name] = true
 	}
-	b := make([]byte, 512)
-	for _, c := range chain {
-		for s := uint32(0); s < v.sectorsPerCluster; s++ {
-			if err = ctx.Err(); err != nil {
-				return nil, err
-			}
-			if err = v.device.ReadSectors(v.clusterSector(c)+uint64(s), b); err != nil {
-				return nil, err
-			}
-			for off := 0; off < 512 && p.offset < 0; off += 32 {
-				if b[off] == 0 {
-					p.offset = len(p.data) + off
-					break
-				}
-				if b[off] != 0xe5 && b[off+11] != 0x0f {
-					p.aliases[string(b[off:off+11])] = true
-					p.names[shortName(b[off:off+32])] = true
-				}
-			}
-			p.data = append(p.data, b...)
-			runtime.Gosched()
+	spc := int(v.sectorsPerCluster)
+	totalSectors := len(chain) * spc
+	p.data = make([]byte, totalSectors*block.SectorSize)
+	for sectorPos := 0; sectorPos < totalSectors; {
+		if err = ctx.Err(); err != nil {
+			return nil, err
 		}
+		clusterIdx := sectorPos / spc
+		sectorInCluster := uint32(sectorPos % spc)
+		want := min(totalSectors-sectorPos, maxTransferSectors)
+		lba, runSectors := v.contiguousSectors(chain, clusterIdx, sectorInCluster, want)
+		startByte := sectorPos * block.SectorSize
+		endByte := (sectorPos + runSectors) * block.SectorSize
+		if err = v.device.ReadSectors(lba, p.data[startByte:endByte]); err != nil {
+			return nil, err
+		}
+		for off := startByte; off < endByte && p.offset < 0; off += 32 {
+			if p.data[off] == 0 {
+				p.offset = off
+				break
+			}
+			if p.data[off] != 0xe5 && p.data[off+11] != 0x0f {
+				p.aliases[string(p.data[off:off+11])] = true
+				p.names[shortName(p.data[off:off+32])] = true
+			}
+		}
+		sectorPos += runSectors
+		runtime.Gosched()
 	}
 	if p.offset < 0 {
 		p.offset = len(p.data)
@@ -166,7 +173,7 @@ func shortAlias(ctx context.Context, name string, p *directoryAppend) ([11]byte,
 	return alias, ErrNoSpace
 }
 
-func directoryRecords(units []uint16, alias [11]byte, cluster, size uint32, isDir bool) []byte {
+func directoryRecords(units []uint16, alias [11]byte, cluster, size uint32, isDir bool, now time.Time) []byte {
 	n := (len(units) + 12) / 13
 	data := make([]byte, (n+1)*32)
 	positions := [13]int{1, 3, 5, 7, 9, 14, 16, 18, 20, 22, 24, 28, 30}
@@ -199,10 +206,13 @@ func directoryRecords(units []uint16, alias [11]byte, cluster, size uint32, isDi
 	binary.LittleEndian.PutUint16(d[20:], uint16(cluster>>16))
 	binary.LittleEndian.PutUint16(d[26:], uint16(cluster))
 	binary.LittleEndian.PutUint32(d[28:], size)
-	// No wall-clock source is supplied: use the earliest valid FAT date.
-	binary.LittleEndian.PutUint16(d[16:], 0x21)
-	binary.LittleEndian.PutUint16(d[18:], 0x21)
-	binary.LittleEndian.PutUint16(d[24:], 0x21)
+	date, clockTime, tenths := encodeFATTimestamp(now)
+	d[13] = tenths
+	binary.LittleEndian.PutUint16(d[14:], clockTime)
+	binary.LittleEndian.PutUint16(d[16:], date)
+	binary.LittleEndian.PutUint16(d[18:], date)
+	binary.LittleEndian.PutUint16(d[22:], clockTime)
+	binary.LittleEndian.PutUint16(d[24:], date)
 	return data
 }
 
@@ -211,26 +221,32 @@ func (v *Volume) freeClusters(ctx context.Context, count int) ([]uint32, error) 
 	if count == 0 {
 		return result, nil
 	}
-	b := make([]byte, 512)
-	for sector := uint64(0); sector*128 < v.clusterCount+2; sector++ {
+	const fatScanSectors = 16
+	totalFATSectors := (v.clusterCount + 2 + 127) / 128
+	b := make([]byte, min(totalFATSectors, fatScanSectors)*block.SectorSize)
+	for sector := uint64(0); sector < totalFATSectors; {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if err := v.device.ReadSectors(v.fatStart+sector, b); err != nil {
+		run := min(totalFATSectors-sector, fatScanSectors)
+		chunk := b[:run*block.SectorSize]
+		if err := v.device.ReadSectors(v.fatStart+sector, chunk); err != nil {
 			return nil, err
 		}
-		for i := uint64(0); i < 128; i++ {
+		entries := run * 128
+		for i := uint64(0); i < entries; i++ {
 			c := sector*128 + i
 			if c < 2 || c >= v.clusterCount+2 {
 				continue
 			}
-			if binary.LittleEndian.Uint32(b[i*4:])&0x0fffffff == 0 {
+			if binary.LittleEndian.Uint32(chunk[i*4:])&0x0fffffff == 0 {
 				result = append(result, uint32(c))
 				if len(result) == count {
 					return result, nil
 				}
 			}
 		}
+		sector += run
 		runtime.Gosched()
 	}
 	return nil, ErrNoSpace
@@ -430,42 +446,38 @@ func (v *Volume) create(ctx context.Context, name string, data []byte, isDir boo
 			return err
 		}
 	}
-	b := make([]byte, 512)
-	for i, c := range allocated {
-		for s := uint32(0); s < v.sectorsPerCluster; s++ {
-			clear(b)
-			if i < fileClusters && !isDir {
-				offset := i*clusterBytes + int(s)*512
-				if offset < len(data) {
-					copy(b, data[offset:min(offset+512, len(data))])
+	now := v.currentTimeLocked()
+	payload := data
+	if isDir {
+		date, clockTime, tenths := encodeFATTimestamp(now)
+		dots := make([]byte, 64)
+		for j, dot := range []string{".", ".."} {
+			d := dots[j*32 : (j+1)*32]
+			for k := 0; k < 11; k++ {
+				d[k] = ' '
+			}
+			copy(d, dot)
+			d[11] = 0x10
+			cluster := first
+			if j == 1 {
+				cluster = parent.cluster
+				if cluster == v.root {
+					cluster = 0
 				}
 			}
-			if isDir && i == 0 && s == 0 {
-				for j, dot := range []string{".", ".."} {
-					d := b[j*32 : (j+1)*32]
-					for k := 0; k < 11; k++ {
-						d[k] = ' '
-					}
-					copy(d, dot)
-					d[11] = 0x10
-					cluster := first
-					if j == 1 {
-						cluster = parent.cluster
-						if cluster == v.root {
-							cluster = 0
-						}
-					}
-					binary.LittleEndian.PutUint16(d[20:], uint16(cluster>>16))
-					binary.LittleEndian.PutUint16(d[26:], uint16(cluster))
-					binary.LittleEndian.PutUint16(d[16:], 0x21)
-					binary.LittleEndian.PutUint16(d[18:], 0x21)
-					binary.LittleEndian.PutUint16(d[24:], 0x21)
-				}
-			}
-			if err = write(v.clusterSector(c)+uint64(s), b); err != nil {
-				return err
-			}
+			binary.LittleEndian.PutUint16(d[20:], uint16(cluster>>16))
+			binary.LittleEndian.PutUint16(d[26:], uint16(cluster))
+			d[13] = tenths
+			binary.LittleEndian.PutUint16(d[14:], clockTime)
+			binary.LittleEndian.PutUint16(d[16:], date)
+			binary.LittleEndian.PutUint16(d[18:], date)
+			binary.LittleEndian.PutUint16(d[22:], clockTime)
+			binary.LittleEndian.PutUint16(d[24:], date)
 		}
+		payload = dots
+	}
+	if err = v.writeChain(allocated, payload, write); err != nil {
+		return err
 	}
 	if len(allocated) > 0 {
 		if err = flush(); err != nil {
@@ -486,7 +498,7 @@ func (v *Volume) create(ctx context.Context, name string, data []byte, isDir boo
 	if isDir {
 		size = 0
 	}
-	copy(p.data[p.offset:], directoryRecords(units, alias, first, size, isDir))
+	copy(p.data[p.offset:], directoryRecords(units, alias, first, size, isDir, now))
 	clear(p.data[p.offset+recordBytes : p.offset+recordBytes+32])
 	for pos := p.offset / 512 * 512; pos < end; pos += 512 {
 		cluster := p.chain[pos/clusterBytes]

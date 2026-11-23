@@ -20,6 +20,7 @@ RULES = [
     *[(path, 'none', None) for path in (
         'scripts/affected.py', 'scripts/test_changed.py', 'scripts/ci_gate.py',
         'scripts/ci_simulations.py', 'scripts/ci_verilator.sh',
+        'scripts/ci_tamago.sh', 'scripts/tamago_ci.py',
         'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
         'scripts/check_deadcode.py', 'scripts/check_diff.py', 'scripts/changed_paths.py',
         'scripts/check_doc_links.py', 'scripts/coordination.py', 'scripts/de25_runtime.py',

@@ -127,3 +127,17 @@ returning to Tenfoot or parking cleanly.
 lifecycle/firmware/USB/SD records against independently admitted source fields
 under strict per-phase deadlines (`20 s`/`25 s` configuration, `100 s` launch,
 `5 s` close/park). These observers hold no device or programming authority.
+
+## Shared native core shell
+
+The opt-in `--shared-core-shell` native SDK option pairs MENU with the fixed
+upload and scanout shell. BL31 accepts fresh, owned configuration publications
+for that shell role using the existing source, digest, range, bridge and
+retirement checks. TamaGo binds the retained FAT package, FPGA payload and
+firmware receipt to the boot's shell maps. The bounded upload size comes from
+the package manifest. For launch, the compiled driver inventory must support
+the package's profile, ABI and every required interface at its declared
+version. Native Spectrum uses 16 KiB firmware and Spectrum tape. Native C64
+uses 36 KiB firmware and an optional read-only 35-track D64. Both use the same
+BL31 wire role and fixed scanout drain contract. The mode assumes a trusted
+local package producer.

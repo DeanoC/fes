@@ -128,7 +128,7 @@ def eligible_machine(directory, record):
     expected = {'standard_core': True,
                 'expansion_socket': False, 'audio_clock_reference_policy': MACHINE_POLICY}
     require(params.get('core_id') in MACHINE_PLLS and
-            (params.get('programming_profile') == 'de25-linux-computer-v1' or async_inputs.native_spectrum48(params)) and
+            (params.get('programming_profile') == 'de25-linux-computer-v1' or async_inputs.native_upload_shell(params)) and
             all(type(params.get(k)) is type(v) and params[k] == v for k, v in expected.items()),
             'requires a standard machine-PLL profile')
     sources = {**MACHINE_SOURCES, MACHINE_PLLS[params['core_id']][0]: MACHINE_PLLS[params['core_id']][1]}

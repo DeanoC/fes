@@ -74,6 +74,7 @@ type Device struct {
 	expectedHost       uint32
 	busWidth4          bool
 	adma               *admaEngine
+	irqMu              sync.Mutex
 	irqGIC             *gic.Controller
 	irqID              uint32
 	irqWake            chan struct{}
@@ -666,6 +667,7 @@ func (d *Device) modeUnchanged(checkErrors bool) bool {
 
 func (d *Device) containTransferError(err error, poisonDMA bool) error {
 	d.failed = true
+	d.disableIRQLocked()
 	if poisonDMA && d.adma != nil {
 		d.adma.poison(err)
 	}
@@ -689,6 +691,7 @@ func (d *Device) ReadSectors(lba uint64, dst []byte) error {
 	}
 	if (d.config.TransferClockHz != 0 || d.config.BusWidth4Bit || d.config.UseADMA2) && !d.modeUnchanged(false) {
 		d.failed = true
+		d.disableIRQLocked()
 		return errors.New("sdhci: transfer mode changed before read")
 	}
 	if d.adma != nil {
@@ -849,6 +852,7 @@ func (d *Device) WriteSectors(lba uint64, src []byte) error {
 		// each sector. No unexpected DMA, bus-width or clock-mode change is permitted.
 		if d.io.Read32(clock)&clockModeMask != d.dataClock|7 || !d.modeUnchanged(true) {
 			d.failed = true
+			d.disableIRQLocked()
 			return errors.New("sdhci: transfer mode changed before write")
 		}
 		// SDHCI WPSL is high when a wired socket switch is off. A board
@@ -893,6 +897,7 @@ func (d *Device) WriteSectors(lba uint64, src []byte) error {
 func (d *Device) checkWriteGateLocked() error {
 	if d.io.Read32(clock)&clockModeMask != d.dataClock|7 || !d.modeUnchanged(true) {
 		d.failed = true
+		d.disableIRQLocked()
 		return errors.New("sdhci: transfer mode changed before write")
 	}
 	if !d.config.NoSocketWriteProtect {
@@ -1050,6 +1055,7 @@ func (d *Device) Flush() error {
 	}
 	if err := ready(); err != nil {
 		d.failed = true
+		d.disableIRQLocked()
 		return err
 	}
 	return nil
@@ -1075,12 +1081,10 @@ func (d *Device) Quiesce() error {
 	// Stop IRQ-backed waits before masking the GIC line so the final CMD13
 	// inside Quiesce polls synchronously with signalEnable==0 instead of
 	// waiting on a masked SPI.
-	d.irqActive.Store(false)
-	if d.irqGIC != nil {
-		d.irqGIC.Disable(d.irqID)
-	}
+	d.suspendIRQLocked()
 	fail := func(err error) error {
 		d.failed = true
+		d.disableIRQLocked()
 		if d.adma != nil {
 			d.adma.poison(err)
 		}
@@ -1148,6 +1152,7 @@ func (d *Device) Resume() error {
 	// otherwise later transfers would silently fall back to PIO.
 	fail := func(err error) error {
 		d.failed = true
+		d.disableIRQLocked()
 		d.adma.poison(err)
 		if next.adma != d.adma {
 			next.adma.poison(err)
@@ -1178,9 +1183,6 @@ func (d *Device) Resume() error {
 	d.cardWriteProtected = next.cardWriteProtected
 	d.quiesced = false
 	d.stopRequested.Store(false)
-	if d.irqGIC != nil {
-		d.irqActive.Store(true)
-		d.irqGIC.Enable(d.irqID)
-	}
+	d.resumeIRQLocked()
 	return nil
 }

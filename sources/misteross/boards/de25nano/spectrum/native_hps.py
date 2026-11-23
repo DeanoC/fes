@@ -142,13 +142,13 @@ def jtag_stream_constraints(directory, *, generate=False):
     return receipt
 
 
-def project(archive, output, *, revision=None, selected_id=None, spectrum_spec=spectrum):
+def project(archive, output, *, revision=None, selected_id=None, spectrum_spec=spectrum, model="native48"):
     board = spectrum_spec.board
     if selected_id is not None and (not revision or not re.fullmatch(r"[0-9a-f]{32}", selected_id) or
                                     selected_id == "0" * 32):
         raise ValueError("native Spectrum package projection requires a committed build identity")
     output, scanout, _, hps, _ = board.prepare(spectrum_spec, archive, output, revision,
-                                               model="native48", native_hps=True)
+                                               model=model, native_hps=True)
     directory = output / "combined/hps"
     project = directory / "project"
     script_path = project / "integrate-mailbox.tcl"
@@ -164,8 +164,8 @@ def project(archive, output, *, revision=None, selected_id=None, spectrum_spec=s
         inputs[board.RECORD]["build_id"] = selected_id
     hps_system = hps.tcl_word(project / "hps_subsys/hps_subsys.qsys")
     top_system = hps.tcl_word(project / "qsys_top.qsys")
-    # Preserve native H2F/OCM, F2SDRAM without a fabric SMMU SID, and the
-    # separate probe. Disable the unused coherent F2H port as native MENU does.
+    # Preserve the H2F configuration, F2SDRAM without a fabric SMMU SID,
+    # and the separate probe. Disable the unused coherent F2H port as MENU does.
     configure = f'''load_system {hps_system}
 remove_interface fpga2hps
 remove_interface fpga2hps_clk
@@ -187,16 +187,29 @@ save_system {hps_system}
 remove_instance subsys_debug
 remove_instance ext_hps_f2sdram_master
 """
+    # Native C64 needs the vendor OCM blocks for its disk and video buffers.
+    # The native runtime uses the lightweight aperture and HPS DDR. Leave the
+    # full HPS bridge configuration intact while removing its only slave.
+    omit_ocm = model == "nativepal" and inputs[board.RECORD]["core"] == "fes.c64"
+    if omit_ocm:
+        parent += """foreach connection {subsys_hps.hps2fpga/ocm.axi_s1 clk_100.out_clk/ocm.clk1 rst_in.out_reset/ocm.reset1} {
+    remove_connection $connection
+}
+remove_instance ocm
+"""
     save_top = f"save_system {top_system}\n"
     script_path.write_text(board.replace_once(script, save_top, parent + save_top))
     qsf = project / "golden_top.qsf"
     assignments = qsf.read_text()
-    for setting, relative in (
+    unused_assignments = (
         ("QSYS_FILE", "jtag_subsys/jtag_subsys.qsys"),
         ("IP_FILE", "ip/qsys_top/ext_hps_f2sdram_master.ip"),
         *[("IP_FILE", f"jtag_subsys/ip/jtag_subsys/{name}.ip")
           for name in ("fpga_m", "hps_m", "hps_f2sdram", "jtag_clk", "jtag_rst_in")],
-    ):
+    )
+    if omit_ocm:
+        unused_assignments += (("IP_FILE", "ip/qsys_top/ocm.ip"),)
+    for setting, relative in unused_assignments:
         assignments = board.replace_once(assignments, f"set_global_assignment -name {setting} {relative}\n", "")
     qsf.write_text(assignments)
     board_jtag = project / "jtag.sdc"
@@ -258,7 +271,7 @@ def generate(output, hps, scanout, quartus_root):
     verify_handoff(output, hps, scanout)
 
 
-def spectrum_control_handoff(project, tree, hps, scanout, selected_build, probe):
+def spectrum_control_handoff(project, tree, hps, scanout, selected_build, probe, component=spectrum.COMPONENT):
     """Bind the elaborated lightweight bridge decode to the Spectrum build."""
     expected = {
         "subsys_periph.fes_scanout.computer": (0x10300, 0x20),
@@ -275,7 +288,7 @@ def spectrum_control_handoff(project, tree, hps, scanout, selected_build, probe)
         if (len(routes) != 1 or routes[0].get("start") != "subsys_periph_pb_cpu_0.m0" or
                 int(routes[0].findtext("parameter[@name='baseAddress']/value", "-1"), 0) != offset):
             raise ValueError("native Spectrum generated control bridge route differs: " + slave)
-    expected_modules = {"subsys_periph.fes_scanout": spectrum.COMPONENT,
+    expected_modules = {"subsys_periph.fes_scanout": component,
                         "subsys_periph.fes_scanout_guard": "fes_de25_scanout_guard"}
     modules = [m for m in tree.findall("module") if m.get("path") in expected_modules]
     kinds = {m.get("path"): (m.get("kind"), m.get("version")) for m in modules}
@@ -338,8 +351,18 @@ def verify_handoff(output, hps, scanout):
             any(start.startswith(forbidden) or end.startswith(forbidden) for _, start, end in routes)):
         raise ValueError("native Spectrum generated an unowned maintenance master")
     probe = hps.verify_probe_handoff(project, maintenance=False)
-    computer = spectrum_control_handoff(project, tree, hps, scanout,
-                                        inputs[spectrum.board.RECORD]["build_id"], probe)
+    selected = inputs[spectrum.board.RECORD]
+    component = {
+        ("fes.c64", "nativepal"): "fes_de25_c64_standard",
+        ("fes.spectrum", "native48"): spectrum.COMPONENT,
+    }.get((selected["core"], selected["model"]))
+    if component is None:
+        raise ValueError("unsupported native upload shell endpoint")
+    if component == "fes_de25_c64_standard":
+        if (any(module.get("path") == "ocm" for module in tree.findall("module")) or
+                any(start.startswith("ocm.") or end.startswith("ocm.") for _, start, end in routes)):
+            raise ValueError("native C64 retained vendor FPGA on-chip RAM")
+    computer = spectrum_control_handoff(project, tree, hps, scanout, selected["build_id"], probe, component)
     result = {"scope": "native-spectrum48-generated-hps-diagnostic-v1",
               "hps_parameters": expected, "ddr_ingress": sorted(readers),
               "mailbox": hps.verify_mailbox_handoff(project),
@@ -350,6 +373,8 @@ def verify_handoff(output, hps, scanout):
               "jtag_stream_sdc_sha256": jtag_timing,
               "shared_fifo_resets": fifo_resets,
               "firmware_admission": False, "package_signoff": False}
+    if component == "fes_de25_c64_standard":
+        result["vendor_fpga_ocm"] = "absent"
     (directory / "native-spectrum-handoff.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     return result
 

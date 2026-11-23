@@ -1,0 +1,13 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+index 10b75c65d..3d4ec6be9 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+@@ -750,7 +750,7 @@ module fes_i386_cpu #(
+                  && (q_mov || (q_add || q_inc || q_dec) && q_uop.src1.valid && q_uop.src1.space == fes_i386_pkg::RS_GPR
+                               && q_uop.src1.index == q_uop.dst.index)
+                  && (q_inc || q_dec || !q_uop.src2.valid || q_gpr2);
+-    assign dc_q.ealu = q_ealu;
++    assign dc_q.ealu = 1'b0;  // ABLATION ealu
+     assign dc_q.b_sys = q_b_sys;
+     assign dc_q.lea_disp = !q_ealu ? q_lea_disp : q_inc ? 32'd1 : q_dec ? 32'hffff_ffff
+                          : q_uop.src2.valid ? 32'd0 : q_uop.imm;
