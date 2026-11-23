@@ -887,6 +887,8 @@ Capabilities NativeHardware::capabilities() const
    result.abis.insert(result.abis.begin(), std::move(application));
   }
   if (active_driver_) result.media_units = active_driver_->media_units();
+  // A DE25 machine's bound library disk reports its binding as on the DE10.
+  if (active_driver_ && active_driver_ == fes_gp_driver_) ReportDurableMedia(&result.media_units);
   if (De25StaticEnabled() && fes_gp_driver_ && menu_display_ && menu_window_ &&
       fpga_.SupportsStaticComposition())
    result.programming_profiles.push_back("de25-linux-static-computer-v1");
@@ -1080,12 +1082,7 @@ Capabilities NativeHardware::capabilities() const
                 }
                 result.media_units.insert(result.media_units.begin(), unit);
             }
-            if (media_data_file_) for (auto& unit : result.media_units) {
-                if (unit.unit == durable_media_.identity.unit) {
-                    unit.persistence_mode="persistent"; unit.game_id=durable_media_.identity.game_id;
-                    unit.base_media_id=durable_media_.identity.base_media_id; unit.revision=durable_media_.revision;
-                }
-            }
+            ReportDurableMedia(&result.media_units);
 			if (driver != nullptr && driver->StreamInfo(&info).ok()) {
 				result.media_stream.interface = {generated::FesSimpleComputerInterfaceMediaBlobStreamID,
 					generated::FesSimpleComputerInterfaceMediaBlobStreamMajor,
@@ -1484,6 +1481,18 @@ void NativeHardware::ForgetAtaDisk()
 	ata_size_ = 0;
 	ata_ready_ = false;
 	ata_flushed_ = false;
+}
+
+// The durable library disk's binding, on the unit that holds it.
+void NativeHardware::ReportDurableMedia(std::vector<MediaUnitCapability>* units) const
+{
+    if (!media_data_file_) return;
+    for (auto& unit : *units) {
+        if (unit.unit == durable_media_.identity.unit) {
+            unit.persistence_mode="persistent"; unit.game_id=durable_media_.identity.game_id;
+            unit.base_media_id=durable_media_.identity.base_media_id; unit.revision=durable_media_.revision;
+        }
+    }
 }
 
 void NativeHardware::ForgetMediaData()
