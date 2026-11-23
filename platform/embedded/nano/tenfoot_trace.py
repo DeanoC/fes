@@ -19,6 +19,8 @@ EXIT=re.compile(rb'FES_NATIVE_TENFOOT_EXIT state=ready generation=([0-9]+)')
 IDENTITY={'PackageID','CoreID','ABI','BuildID','Platform','Device','ProgrammingProfile','ActivationReceiptSHA256','ProgrammedSHA256','Major','Minor'}
 ZERO={k:0 if k in ('Major','Minor') else '' for k in IDENTITY}
 MAX_BYTES=1<<20
+D64_BYTES=174848
+C64_PROFILE="de25-native-c64-v1"
 
 
 def fetch_observation(raw, *, generation_origin=0):
@@ -27,7 +29,9 @@ def fetch_observation(raw, *, generation_origin=0):
     r=json.loads(raw,object_pairs_hook=_unique,parse_constant=invalid)
     base={'scope','owner','generation','package_id','build_id','before','held','running','delta','polls','elapsed_ns','limit_ns'}
     require(type(r) is dict,'fetch observation must be an object')
-    require(number(r.get('elapsed_ns'),37000000000) and number(r.get('limit_ns'),37000000000),'fetch timer values differ')
+    disk=r.get('scope')=='nano-c64-fetch-d64-v1'
+    maximum=(1+(D64_BYTES+511)//512+4)*1000000000 if disk else 37000000000
+    require(number(r.get('elapsed_ns'),maximum) and number(r.get('limit_ns'),maximum),'fetch timer values differ')
     tape=r.get('scope')=='nano-computer-fetch-tape-v1'
     if tape:
         require(base|{'tape_bytes','tape_limit_ns'}<=set(r)<=base|{'tape_bytes','tape_limit_ns','tape_elapsed_ns','control_elapsed_ns'},'tape fetch observation fields differ')
@@ -37,8 +41,19 @@ def fetch_observation(raw, *, generation_origin=0):
         control=r['elapsed_ns']-r.get('tape_elapsed_ns',0)
         require(number(control,999999999) and number(r.get('control_elapsed_ns',0),999999999) and r.get('control_elapsed_ns',0)==control,'fetch control deadline differs')
         require(r['limit_ns']==1000000000+budget,'fetch aggregate deadline differs')
+    elif disk:
+        fields={'disk_bytes','disk_limit_ns'}
+        require(base|fields<=set(r)<=base|fields|{'disk_elapsed_ns','control_elapsed_ns'},'disk fetch observation fields differ')
+        budget=maximum-1000000000
+        elapsed=r.get('disk_elapsed_ns',0)
+        require(number(r['disk_bytes'],D64_BYTES) and r['disk_bytes']==D64_BYTES and
+                number(r['disk_limit_ns'],budget) and r['disk_limit_ns']==budget and
+                number(elapsed,4999999999) and r['elapsed_ns']<5000000000,'D64 size or deadline differs')
+        control=r['elapsed_ns']-elapsed
+        require(number(control,999999999) and number(r.get('control_elapsed_ns',0),999999999) and
+                r.get('control_elapsed_ns',0)==control and r['limit_ns']==maximum,'D64 control deadline differs')
     else:
-        require(set(r)==base and r.get('scope')=='nano-computer-fetch-v1','fetch observation fields/scope differ')
+        require(set(r)==base and r.get('scope') in ('nano-computer-fetch-v1','nano-c64-fetch-v1'),'fetch observation fields/scope differ')
         require(number(r['limit_ns'],1000000000),'fetch control limit differs')
     require(number(r['owner'],(1<<64)-1) and r['owner']>0 and number(r['generation'],(1<<64)-1) and r['generation']>generation_origin and (r['generation']-generation_origin)%2==1,'fetch owner/generation differs')
     require(type(r['package_id']) is str and re.fullmatch('[0-9a-f]{64}',r['package_id']) and type(r['build_id']) is str and re.fullmatch('[0-9a-f]{32}',r['build_id']),'fetch identity differs')
@@ -47,7 +62,7 @@ def fetch_observation(raw, *, generation_origin=0):
     require(r['before']==r['held'],'fetch counter/address changed under Hold')
     delta=(r['running']['Cycles']-r['held']['Cycles'])&0xffffffff
     require(number(r['delta'],0x7fffffff) and 0<delta==r['delta']<=0x7fffffff,'fetch counter did not advance or reset backwards')
-    require(number(r['polls'],64) and r['polls']>0 and number(r['limit_ns'],37000000000) and number(r['elapsed_ns'],37000000000) and r['elapsed_ns']<r['limit_ns'],'fetch deadline/poll bound differs')
+    require(number(r['polls'],64) and r['polls']>0 and number(r['limit_ns'],maximum) and number(r['elapsed_ns'],maximum) and r['elapsed_ns']<r['limit_ns'],'fetch deadline/poll bound differs')
     return r
 
 
@@ -98,7 +113,7 @@ def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records
             require(r['load_error']==r['launch_error']=='' and not r['retry_stop'],'App reported a failure')
             require(r['session'] in ('','idle','launching','active','stopping') and r['launch'] in ('idle','launching','ok'),'unknown/failed App phase')
             v=r['native'];native_fields={'State','Owner','Generation','Identity','Held','Error'}
-            require(type(v) is dict and native_fields<=set(v) and not set(v)-native_fields-{'rom_receipt_sha256','tape_sha256','tape_bytes'},'native status fields differ')
+            require(type(v) is dict and native_fields<=set(v) and not set(v)-native_fields-{'rom_receipt_sha256','tape_sha256','tape_bytes','disk_sha256','disk_bytes'},'native status fields differ')
             require(v['State'] in ('ready','loading','running','returning') and v['Error']=='','native service failed or retired')
             require(number(v['Owner'],(1<<64)-1) and v['Owner']>0 and number(v['Generation'],(1<<64)-1) and type(v['Held']) is bool,'invalid native ownership')
             ident=v['Identity'];require(type(ident) is dict and set(ident)==IDENTITY,'native identity fields differ')
@@ -110,6 +125,10 @@ def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records
             if 'tape_sha256' in v or 'tape_bytes' in v:
                 require(v['State'] in ('running','returning') and ident['ProgrammingProfile']=='de25-native-computer-v1' and ident['ABI']=='fes.computer','tape receipt outside native computer play')
                 require(type(v.get('tape_sha256')) is str and re.fullmatch('[0-9a-f]{64}',v['tape_sha256']) and int(v['tape_sha256'],16)>0 and number(v.get('tape_bytes'),16375) and v['tape_bytes']>0,'incomplete or invalid tape receipt')
+            if 'disk_sha256' in v or 'disk_bytes' in v:
+                require(v['State'] in ('running','returning') and ident['ProgrammingProfile']==C64_PROFILE and
+                        ident['CoreID']=='fes.c64' and ident['ABI']=='fes.computer','D64 receipt outside native C64 play')
+                validate_disk(dict(sha256=v.get('disk_sha256'),bytes=v.get('disk_bytes')))
             # Launch first publishes the old even/empty view, then pins the
             # selected plan at the next odd generation while still held. That
             # staged identity is not Running or proof of configuration.
@@ -164,6 +183,27 @@ def program_tape(program):
     return tape
 
 
+def validate_disk(disk):
+    require(type(disk) is dict and set(disk)=={'sha256','bytes'} and type(disk['sha256']) is str and
+            re.fullmatch('[0-9a-f]{64}',disk['sha256']) and int(disk['sha256'],16)>0 and
+            number(disk['bytes'],D64_BYTES) and disk['bytes']==D64_BYTES,'invalid expected D64 selection')
+
+
+def program_disk(program):
+    disk=program.get('disk')
+    if disk is not None:
+        validate_disk(disk)
+        require(program['identity']['ProgrammingProfile']==C64_PROFILE and program.get('tape') is None,
+                'D64 needs a native C64 selection with one initial medium')
+    return disk
+
+
+def match_fetch_disk(fetch, program):
+    disk=program_disk(program)
+    require(fetch.get('disk_bytes',0)==(disk['bytes'] if disk else 0) and
+            fetch['scope'].startswith('nano-c64-')==(program['identity']['ProgrammingProfile']==C64_PROFILE),
+            'fetch D64 timing or profile belongs to another selection')
+
 class TenfootClient:
     """Single-use key exchanges with injectable ownership and deadline hooks.
 
@@ -175,7 +215,9 @@ class TenfootClient:
         require(all(callable(f) for f in (exchange,owns,now,record)),'owned exchange and clock hooks required')
         require(type(programs) is list and len(programs)==2 and len({p['title'] for p in programs})==2 and len({(p['identity']['PackageID'],p['identity']['ActivationReceiptSHA256']) for p in programs})==2,'two distinct titled activation choices required')
         require(all('fetch_address' not in p or number(p['fetch_address'],65535) for p in programs),'explicit fetch address must be a 16-bit integer')
-        for p in programs:program_tape(p)
+        for p in programs:
+            program_tape(p)
+            program_disk(p)
         self.programs=copy.deepcopy(programs)
         self.usb=SharedInput(shared_usb) if shared_usb is not None else None
         usb_rows=[]
@@ -210,6 +252,8 @@ class TenfootClient:
             require(selected is not None,'App tape has no selected program')
             actual=None if 'tape_sha256' not in v else dict(sha256=v['tape_sha256'],bytes=v['tape_bytes'])
             require(actual==program_tape(selected),'App published wrong retained tape')
+            disk=None if 'disk_sha256' not in v else dict(sha256=v['disk_sha256'],bytes=v['disk_bytes'])
+            require(disk==program_disk(selected),'App published wrong retained D64')
 
     def key(self,op,selection=None):
         require(not self.retired,'App client retired')
@@ -282,6 +326,7 @@ class TenfootClient:
                 complete=raw.find(b'FES_NANO_CORE_TRANSFER phase=complete ')
                 require(complete>=0 and raw.find(FETCH)>complete,'fetch observation precedes FPGA configuration completion')
                 require(fetch.get('tape_bytes',0)==selected.get('tape',{}).get('bytes',0),'fetch tape timing belongs to another media selection')
+                match_fetch_disk(fetch, selected)
                 row['fetch']=fetch
                 if 'fetch_address' in selected:
                     require(fetch['running']['Address']==selected['fetch_address'],'selected fetch address differs')

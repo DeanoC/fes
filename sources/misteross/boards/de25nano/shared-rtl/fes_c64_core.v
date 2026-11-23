@@ -19,6 +19,10 @@ module fes_c64_core #(
     input wire [31:0] gpo,
     output wire [31:0] gpi,
     output wire exec_reset,
+`ifdef FES_DE25_NATIVE_C64
+    output reg [31:0] fetch_count = 32'd0,
+    output reg [15:0] fetch_address = 16'd0,
+`endif
     output wire [27:0] machine_video,
     output wire signed [15:0] audio_sample,
     output wire display_request,
@@ -81,6 +85,16 @@ module fes_c64_core #(
 
     wire [7:0] red, green, blue;
     wire machine_de, machine_hs, machine_vs;
+`ifdef FES_DE25_NATIVE_C64
+    wire decoded;
+    wire [15:0] decoded_address;
+    always @(posedge clk_sys) begin
+        if (!exec_reset && !reset_hold && decoded) begin
+            fetch_count <= fetch_count + 1'b1;
+            fetch_address <= decoded_address;
+        end
+    end
+`endif
     /* verilator lint_off PINCONNECTEMPTY */
     c64_machine machine (
         .clk_sys(clk_sys), .reset(machine_reset),
@@ -94,6 +108,9 @@ module fes_c64_core #(
         .red(red), .green(green), .blue(blue), .de(machine_de), .hsync(machine_hs), .vsync(machine_vs),
         .audio_sample(audio_sample),
         .debug_stage(), .debug_error(), .debug_iec(), .debug_pc(),
+`ifdef FES_DE25_NATIVE_C64
+        .decoded(decoded), .decoded_address(decoded_address),
+`endif
         .firmware_write_addr(firmware_write_addr), .firmware_write_data(firmware_write_data),
         .firmware_write_enable(firmware_write_enable)
     );

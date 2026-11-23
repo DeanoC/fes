@@ -287,9 +287,9 @@ board therefore edits no core manifest. A cell that needs hand tuning gets an
 override file in the board package (`boards/<board>/cells/<core>.toml`); most
 cells should not need one. From those manifests generate: the Make targets,
 `ci_simulations.py`, the `affected.py` path→core map, the recipe table and the
-catalog entry. Adding a core becomes adding a directory. The single argv
-builder from [cores as apps](../cores-as-apps-plan.md) step 2 is the same idea
-for place-and-route and stays.
+catalog entry. Adding a core becomes adding a directory. The single
+place-and-route argv builder from `#843` (`[recipes.pnr]` in
+`config/core-recipes.toml`) is the same idea and stays.
 
 ### A standard conformance test
 
@@ -349,9 +349,19 @@ core's timing miss blocks only that core's cell.
   Metal workers take timing and route replays, whose results are valid on
   every backend, until the validators accept Metal for seals. CPU workers
   take experiments only.
-- **Nightly per-core toolchain bump.** Finish cores-as-apps steps 3–7. A core
-  moves its lock when the newer toolchain closes it; the lock is its last
-  known good, not a pin to defend.
+- **Nightly per-core toolchain bump.** A core moves its lock when the newer
+  toolchain closes it; the lock is its last known good, not a pin to defend.
+  Remaining steps (the default image is already slimmed to MENU and the idle
+  RBF, with playable cores installed separately):
+  1. Path→core change detection so CI re-places only touched cores (and all
+     dependents on shared RTL/shell edits).
+  2. Report-only nightly runner on Powerboat under `gpu-run --owner nightly`,
+     building a shared tip slot and updating one rolling issue per failing core.
+  3. Per-core `bump(<core>): toolchain → <shas>` PRs carrying the lock change,
+     per-clock fmax delta table and routed artifacts (merged manually at first).
+  4. Auto-merge for passing bumps (with Deano's OK), gated on green CI, all
+     clocks met with no >3% fmax drop (1.5% on marginal cores), unbroken seal
+     checks and the applicable kit HIL or package inspection.
 
 ### Shell releases
 
@@ -533,10 +543,11 @@ much they reuse (MSX, Amstrad CPC, BBC Micro, Amiga and Mega Drive on the
 ## Process
 
 - **One roadmap.** This page, plus GitHub milestones that mirror its phases.
-  Delete `docs/superpowers/` (67 September files), fold the still-true parts of
-  `cores-as-apps-plan.md` and `development-speed.md` into this page or the
-  guides, and remove the `task:*` label workflow from `agent-workflow.md` now
-  that `lane:*` is the live one.
+  Unpinned `docs/superpowers/` plans, the retired `task:*` coordination
+  workflow, and the earlier split plan docs (`cores-as-apps-plan.md`,
+  `recipe-option-audit.md`, `development-speed.md`) have been removed; keep
+  ongoing OS, software, core and room-installer separation tracked here and in
+  [modular updates](../modular-updates.md).
 - **Evidence proportional to risk.** Two levels only: *development* (fast,
   cached, one pass, no kit unless behaviour depends on it) and *release
   certification* (exact artifacts, reproducibility, kit acceptance). Keep

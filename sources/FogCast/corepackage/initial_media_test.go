@@ -224,3 +224,53 @@ func TestInitialSTMediaAdoptionRejectsTamperedCompanion(t *testing.T) {
 		t.Fatal("adopted altered initial disk")
 	}
 }
+
+// The DE25 PC/XT uploads its firmware, so its start disk rides in the ROM
+// input as the ST's does. The receiver learns the medium from the package,
+// stages it as the PC/XT floppy, and refuses any other size or package.
+func TestInitialPcxtMediaRidesWithUploadedFirmware(t *testing.T) {
+	pkg, rom := de25UploadPackage(t, "fes.pcxt-dos", 69632), firmwareImage(69632)
+	disk := bytes.Repeat([]byte{0xf6}, 368640)
+	in := ROMInput{Package: pkg, ROM: rom, InitialMedia: &InitialMedia{InterfaceID: "fes.media.pcxt-floppy", GameID: "freedos", BaseMediaID: romDigest(disk), Bytes: disk}}
+	data, err := WriteROMInput(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	staged, err := StageROMInputBytes(context.Background(), root, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := StagedInitialMedia{InterfaceID: "fes.media.pcxt-floppy", GameID: "freedos", BaseMediaID: romDigest(disk), Size: 368640}
+	if staged.FirmwarePath == "" || staged.InitialMedia == nil {
+		t.Fatalf("staged PC/XT launch: %+v", staged)
+	}
+	got := *staged.InitialMedia
+	got.Path = ""
+	if got != want {
+		t.Fatalf("staged PC/XT disk = %+v, want %+v", got, want)
+	}
+	actual, err := os.ReadFile(staged.InitialMedia.Path)
+	if err != nil || !bytes.Equal(actual, disk) {
+		t.Fatal("staged PC/XT disk differs", err)
+	}
+	adopted, err := Adopt(root)
+	if err != nil || len(adopted) != 1 || !reflect.DeepEqual(adopted[0].InitialMedia, staged.InitialMedia) {
+		t.Fatal("PC/XT disk not adopted with its medium", err)
+	}
+	if err := staged.Cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	short := disk[:327680]
+	for name, bad := range map[string]ROMInput{
+		"320 KiB disk": {Package: pkg, ROM: rom, InitialMedia: &InitialMedia{GameID: "freedos", BaseMediaID: romDigest(short), Bytes: short}},
+		"ST medium":    {Package: pkg, ROM: rom, InitialMedia: &InitialMedia{InterfaceID: "fes.media.atari-st-floppy", GameID: "freedos", BaseMediaID: romDigest(disk), Bytes: disk}},
+		"wrong digest": {Package: pkg, ROM: rom, InitialMedia: &InitialMedia{GameID: "freedos", BaseMediaID: romDigest(short), Bytes: disk}},
+		"PC/XT disk on a C64": {Package: de25UploadPackage(t, "fes.c64", 36864), ROM: firmwareImage(36864),
+			InitialMedia: &InitialMedia{InterfaceID: "fes.media.pcxt-floppy", GameID: "freedos", BaseMediaID: romDigest(disk), Bytes: disk}},
+	} {
+		if _, err := WriteROMInput(bad); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}

@@ -1,0 +1,13 @@
+{
+  "executed_program_sha256": "c38a2841609b063c1bb945a9f2b3f6c8564b64226e09b0df170101d76e784001",
+  "hierarchy": true,
+  "module_count": 35,
+  "netlist": "/data/projects/i486dx-plan/elab-hier/netlist/fes_i386_cpu.netlist.v",
+  "netlist_sha256": "e023a06297ae36faf3eb858248b9ba55ddfadc15ce995e7c5ad08ad706ca87f8",
+  "yosys": {
+    "gpu_router": "HIP",
+    "lock": "cores/fes-pc386/toolchain.lock",
+    "lock_sha256": "294c89450c6c719f649cd4f248d0d844dd431df1138d44d6a26e4a1219ac579c",
+    "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=5c31f6a236b20757834552c16f8c9f024cf25fd25d2a4be869ebc8da33c5edd6"
+  }
+}

@@ -18,6 +18,7 @@ import (
 )
 
 var expectedUSBControl, expectedUSBInput, expectedHPSIO string
+var expectedTenfootUARTOnly string
 var programUSBClient *usbcontrol.Client
 var programKeyboardSource *usbcontrol.Source
 var programGamepadSource *usbcontrol.GamepadSource
@@ -54,6 +55,9 @@ func openProgramUSB(v *nativefabric.HPSContextVerifier) error {
 		return errors.New("shared USB pins changed boot ownership")
 	}
 	fmt.Printf("FES_NATIVE_HPS_IO PASS map_sha256=%s count=%d reads=%d owner=%x generation=%x data_held=1 runtime_admission=unavailable\n", hex.EncodeToString(observed.Digest[:]), observed.Count, observed.Count*2, before.Bridges.Owner, before.Bridges.Generation)
+	if expectedTenfootUARTOnly == "1" {
+		return nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	programUSBClient, err = usbcontrol.NewSharedPIO(ctx, de25nano.FabricCPUTransport{}, before.Bridges.Owner)
@@ -76,7 +80,7 @@ func openProgramUSB(v *nativefabric.HPSContextVerifier) error {
 	return nil
 }
 func closeProgramUSB() error {
-	if expectedUSBControl == "" {
+	if expectedUSBControl == "" || expectedTenfootUARTOnly == "1" {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
