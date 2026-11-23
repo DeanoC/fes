@@ -38,6 +38,8 @@ type SupervisorConfig struct {
 	// Check is an optional health probe invoked before every kick. A non-nil
 	// error halts further kicks so the hardware watchdog can recover a wedged
 	// system, records the error in Err(), and notifies OnError.
+	// It must not call Supervisor.Stop synchronously; return a non-nil error
+	// instead to stop further kicks.
 	Check func() error
 	// OnError is an optional hook invoked when Check or Kick returns an error.
 	// It must not call Supervisor.Stop synchronously.
@@ -135,6 +137,7 @@ func (s *Supervisor) Start(ctx context.Context) (time.Duration, error) {
 
 // Stop halts keepalive kicks and waits for the supervisor goroutine (including
 // any in-flight Check, Kick, or OnError callback) to exit. Idempotent.
+// Callbacks (Check, OnError) must not call Stop synchronously.
 func (s *Supervisor) Stop() {
 	s.mu.Lock()
 	if !s.stopped {
