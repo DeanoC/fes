@@ -22,14 +22,22 @@ LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga', 'tamago')
 TAMAGO_CI_ROOTS = (
     'platform/embedded/tamago',
     'platform/embedded/nano',
+    'platform/embedded/runtime',
     'sources/FogCast',
     'sources/misteross/expansion',
+    'sources/libmister-runtime/include',
+    'sources/libmister-runtime/src/native',
+    'sources/libmister-runtime/third_party/toml11',
 )
 TAMAGO_CI_INPUTS = frozenset({
     'platform/embedded/experiment.py',
     'scripts/ci_tamago.sh',
     'scripts/tamago_ci.py',
     'tests/test_tamago_ci.py',
+    'sources/misteross/scripts/core_package.py',
+    'sources/misteross/scripts/rfc3986_validator.py',
+    'sources/libmister-runtime/src/daemon/json.hpp',
+    'sources/libmister-runtime/src/runtime.cpp',
 })
 
 
