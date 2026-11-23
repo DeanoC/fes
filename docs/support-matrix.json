@@ -1026,7 +1026,7 @@
     {
       "id": "fes.c64c",
       "label": "C64C PAL",
-      "tier": "bring-up-queued",
+      "tier": "bring-up",
       "release": "held-back",
       "covers": [],
       "paths": [],
@@ -1047,11 +1047,11 @@
       "router": "DE10 nextpnr GPU route with the C64 timing constraints.",
       "quartus": "No Quartus producer for the DE10 C64.",
       "features": "PAL VIC-II timing and MOS8580 SID. Linked 36 KiB firmware, native 1541 read-only D64, keyboard, two joysticks and fixed 720p60 HDMI.",
-      "notes": "Experimental DE10 library selection. Package and hardware acceptance are tracked per build.",
+      "notes": "Experimental DE10 library selection, held back from release. A development profile in bring-up: the PAL machine with the MOS8580 SID. No hardware acceptance is recorded for this package identity. The Kit B run on #2128 used an earlier PAL/MOS8580 development build, made before fes.c64c existed.",
       "evidence": [
         "sources/misteross/cores/fes-c64/README.md"
       ],
-      "tier_role": "play",
+      "tier_role": "bring-up",
       "family": "c64",
       "variant": "C64C PAL",
       "display": "C64C (PAL)",
@@ -1075,17 +1075,12 @@
         "catalog_standing": "experimental"
       },
       "quality_tier": null,
-      "check_level": "none",
-      "tier_override": {
-        "tier": "bring-up-queued",
-        "reason": "Deano 2026-10-29",
-        "note": "The C64C recipe and library entry are available. Release standing remains held back."
-      }
+      "check_level": "full"
     },
     {
       "id": "fes.c64c-ntsc",
       "label": "C64C NTSC",
-      "tier": "bring-up-queued",
+      "tier": "bring-up",
       "release": "held-back",
       "covers": [],
       "paths": [],
@@ -1106,11 +1101,11 @@
       "router": "DE10 nextpnr GPU route with the C64 timing constraints.",
       "quartus": "No Quartus producer for the DE10 C64.",
       "features": "NTSC VIC-II timing and MOS8580 SID. Linked 36 KiB firmware, native 1541 read-only D64, keyboard, two joysticks and fixed 720p60 HDMI.",
-      "notes": "Experimental DE10 library selection. Package and hardware acceptance are tracked per build.",
+      "notes": "Experimental DE10 library selection, held back from release. A development profile in bring-up: the NTSC machine with the MOS8580 SID. No hardware acceptance is recorded for this package identity.",
       "evidence": [
         "sources/misteross/cores/fes-c64/README.md"
       ],
-      "tier_role": "play",
+      "tier_role": "bring-up",
       "family": "c64",
       "variant": "C64C NTSC",
       "display": "C64C (NTSC)",
@@ -1134,12 +1129,7 @@
         "catalog_standing": "experimental"
       },
       "quality_tier": null,
-      "check_level": "none",
-      "tier_override": {
-        "tier": "bring-up-queued",
-        "reason": "Deano 2026-10-29",
-        "note": "The C64C recipe and library entry are available. Release standing remains held back."
-      }
+      "check_level": "full"
     },
     {
       "id": "fes.spectrum",
