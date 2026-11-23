@@ -12,10 +12,11 @@ SDCS = (
     BOARD / "spectrum/spectrum-clocks.sdc",
     BOARD / "atari-st/atari-st-clocks.sdc",
     BOARD / "c64/c64-clocks.sdc",
+    BOARD / "pcxt/pcxt-clocks.sdc",
 )
 # The C64 keeps its memory in block RAM: no SDRAM controller, so no
-# machine-clock release chain to constrain.
-RELEASES = {"spectrum": 1, "atari-st": 1, "c64": 0}
+# machine-clock release chain to constrain. The PC/XT's SDRAM has one.
+RELEASES = {"spectrum": 1, "atari-st": 1, "c64": 0, "pcxt": 1}
 # Word 0x18 of the shared transport is display readiness on Linux and the
 # native upload shell's fetch-bus snapshot; the SDC picks by the fetch toggle.
 # The Linux models omit fetch_request, so the probe must pass -nowarn to avoid

@@ -1730,7 +1730,7 @@ Error FesGpCoreDriver::EnsureRetainedComputerSaved(const CoreDescriptor& descrip
 	// package admission before this guard runs.
 	const De25StandardCore* const core = FindDe25StandardCore(descriptor.core.id);
 	bool complete = core != nullptr && descriptor.abi.id == FesComputerABIID &&
-		descriptor.abi.major == 1 && descriptor.abi.minor == 0;
+		descriptor.abi.major == 1 && descriptor.abi.minor == core->abi_minor;
 	bool tape = false, floppy = false;
 	for (std::size_t i = 0; complete && i < core->interfaces.size(); ++i) {
 		const auto& registered = core->interfaces[i];
@@ -1741,7 +1741,8 @@ Error FesGpCoreDriver::EnsureRetainedComputerSaved(const CoreDescriptor& descrip
 				interface.major == registered.major && interface.minor == registered.minor);
 		complete = declared;
 		if (std::string(registered.id) == FesComputerInterfaceMediaZx81TapeWriteID) tape = true;
-		if (std::string(registered.id) == FesComputerInterfaceMediaAtariStFloppyWriteID) floppy = true;
+		if (std::string(registered.id) == FesComputerInterfaceMediaAtariStFloppyWriteID ||
+			std::string(registered.id) == FesComputerInterfaceMediaPcxtFloppyWriteID) floppy = true;
 	}
 	if (!complete)
 		return {ErrorCode::unsupported_interface, "retained computer requires its registered media contract", "save"};

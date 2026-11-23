@@ -42,10 +42,11 @@ func (s *Service) pcxtStartDisk(d corepackage.Descriptor, entry catalog.CoreEntr
 	return s.shelfEntry(entry)
 }
 
-// pcxtWritableFloppyPackage is a format-2 PC/XT package whose floppy keeps
-// what is written to it.
+// pcxtWritableFloppyPackage is a PC/XT package whose floppy keeps what is
+// written to it: format 2 with its BIOS in the bitstream, or format 3 (DE25)
+// with the BIOS uploaded as firmware.
 func pcxtWritableFloppyPackage(d corepackage.Descriptor) bool {
-	if d.Format != 2 || d.Core.ID != pcxtCoreID {
+	if d.Core.ID != pcxtCoreID || !(d.Format == 2 && d.ROM == nil || d.Format == 3 && d.ROM != nil && d.ROM.Role == "firmware") || len(d.ROMs) != 0 {
 		return false
 	}
 	base, write := false, false
