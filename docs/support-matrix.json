@@ -1653,7 +1653,7 @@
       "in_bootstrap_image": false,
       "oss_lock": {
         "path": "sources/misteross/cores/fes-pc386/toolchain.lock",
-        "yosys": "e240a465",
+        "yosys": "d273c1cb",
         "mistral": "8fcc4cb4",
         "nextpnr": "bd7a1c0d"
       },
@@ -1729,7 +1729,7 @@
       "in_bootstrap_image": false,
       "oss_lock": {
         "path": "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",
-        "yosys": "e240a465",
+        "yosys": "d273c1cb",
         "mistral": "8fcc4cb4",
         "nextpnr": "bd7a1c0d"
       },
@@ -1738,7 +1738,7 @@
       "router": "nextpnr routes of this CPU are parked (#1235), and the Phase 1 spike numbers in the CPU design doc are labelled historical. Not a package producer and not a recipe row.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker; since #1235 no new nextpnr route of this CPU is made at all. Quartus 17.0.2 fits the same Yosys netlist (`scripts/quartus_fes_i386.py`), and every current seal of the CPU comes through the pc386 package. The far-transfer record, about 69-74 MHz nextpnr against about 98-104 MHz Quartus, is the historical spike behind that policy (DeanoC/nextpnr#300, `docs/i386-cpu-design.md`). Recipe and package selection for a labelled variant are not implemented.",
       "features": "Not a system package. No media, HDMI, Bluetooth or mesh of its own. The twelve-stage F1-WB pipeline, the L1s and BIU, protected mode and Phase 4's speed work (BTB, return stack, indirect prediction, early ALU and load forwarding) are built; Phase 5 (paging, V86, task switches and the debug registers) is in progress under tracker #1548. The 387 is further on than a plan: since x87 slice 2 (#1768) its state, CPU interface, AT error path, loads, stores and conversions are built in `fes_i386_cpu`, with the arithmetic in slices 3 to 5. The pc386 machine is its consumer: the development package `fes.pc386` seals it with Quartus 17.0.2, and that seal is where this RTL's kit evidence is recorded.",
-      "notes": "Shared CPU RTL. Device `5CSEBA6U23I7` in the spike harness. Yosys pin `e240a465` is newer than the repository lock's `3a5accbd`; it is the pc386 lock's pin, so one Yosys reads the CPU (#1581 D2, S4).",
+      "notes": "Shared CPU RTL. Device `5CSEBA6U23I7` in the spike harness. Yosys pin `d273c1cb` is newer than the repository lock's `3a5accbd`; it is the pc386 lock's pin, so one Yosys reads the CPU (#1581 D2, S4; yosys#81).",
       "evidence": [
         "sources/misteross/docs/i386-cpu-design.md",
         "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",

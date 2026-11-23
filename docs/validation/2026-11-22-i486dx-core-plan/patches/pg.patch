@@ -1,0 +1,13 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+index 10b75c65d..2b2bae96f 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+@@ -2451,7 +2451,7 @@ module fes_i386_cpu #(
+     logic pg, pg_ifl, wb_tlbx, tlb_flush, a20m_q;
+     logic [23:0][1:0] attr_q;
+     logic [6:0] top_q;
+-    assign pg = cr0_pg;
++    assign pg = 1'b0;  // ABLATION pg: area bound only, not functional
+     function automatic logic [PA-12:0] ppage(input logic [19:0] lp, input logic a20m_in);
+         logic [PA:0] p;
+         p = fes_i386_pkg::phys({lp, 12'd0}, a20m_in);

@@ -1,0 +1,160 @@
+{
+  "verilator": {
+    "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+    "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+    "version": "Verilator 5.054 2026-11-01 rev v5.054",
+    "install": "b7d20bdd7b4e07a89842dbe53881063422cf0c93da1cdf47b455a209085d8e74"
+  },
+  "netlist": null,
+  "loops": [
+    {
+      "name": "jcc_loop",
+      "cycles": 8039,
+      "iterations": 4000,
+      "per_iteration": 2.01
+    },
+    {
+      "name": "jcc_taken",
+      "cycles": 77045,
+      "iterations": 1000,
+      "per_iteration": 77.045,
+      "per_case": 9.379
+    },
+    {
+      "name": "call_ret",
+      "cycles": 190127,
+      "iterations": 1000,
+      "per_iteration": 190.127,
+      "per_case": 23.515
+    },
+    {
+      "name": "call_reg",
+      "cycles": 237008,
+      "iterations": 1000,
+      "per_iteration": 237.008,
+      "per_case": 29.375
+    },
+    {
+      "name": "call_mem",
+      "cycles": 236039,
+      "iterations": 1000,
+      "per_iteration": 236.039,
+      "per_case": 29.254
+    },
+    {
+      "name": "far_call",
+      "cycles": 259060,
+      "iterations": 1000,
+      "per_iteration": 259.06,
+      "per_case": 32.131
+    },
+    {
+      "name": "loop",
+      "cycles": 42250,
+      "iterations": 1000,
+      "per_iteration": 42.25,
+      "per_case": 5.03
+    },
+    {
+      "name": "agi_load",
+      "cycles": 35039,
+      "iterations": 1000,
+      "per_iteration": 35.039,
+      "per_case": 4.129
+    },
+    {
+      "name": "agi_alu",
+      "cycles": 22029,
+      "iterations": 1000,
+      "per_iteration": 22.029,
+      "per_case": 2.502
+    },
+    {
+      "name": "store_load_same",
+      "cycles": 26059,
+      "iterations": 1000,
+      "per_iteration": 26.059,
+      "per_case": 3.006
+    },
+    {
+      "name": "store_load_other",
+      "cycles": 18059,
+      "iterations": 1000,
+      "per_iteration": 18.059,
+      "per_case": 2.006
+    },
+    {
+      "name": "store_load_line",
+      "cycles": 18057,
+      "iterations": 1000,
+      "per_iteration": 18.057,
+      "per_case": 2.006
+    },
+    {
+      "name": "store_load_part",
+      "cycles": 26030,
+      "iterations": 1000,
+      "per_iteration": 26.03,
+      "per_case": 3.003
+    },
+    {
+      "name": "store_load_alias",
+      "cycles": 26059,
+      "iterations": 1000,
+      "per_iteration": 26.059,
+      "per_case": 3.006
+    },
+    {
+      "name": "call_ind1",
+      "cycles": 168047,
+      "iterations": 8000,
+      "per_iteration": 21.006,
+      "per_case": 18.996
+    },
+    {
+      "name": "jmp_ind1",
+      "cycles": 32062,
+      "iterations": 8000,
+      "per_iteration": 4.008,
+      "per_case": 1.998
+    },
+    {
+      "name": "call_alt",
+      "cycles": 336042,
+      "iterations": 8000,
+      "per_iteration": 42.005,
+      "per_case": 39.995
+    },
+    {
+      "name": "v86_int_iretd",
+      "cycles": 168080,
+      "iterations": 1000,
+      "per_iteration": 168.08,
+      "per_case": 166.07
+    },
+    {
+      "name": "v86_in",
+      "cycles": 211059,
+      "iterations": 1000,
+      "per_iteration": 211.059,
+      "per_case": 26.131
+    }
+  ],
+  "run": {
+    "cycles": 2137973,
+    "retired": 332172,
+    "halted": 1,
+    "debt_max": 0,
+    "hold_cycles": 0,
+    "charged": 0
+  },
+  "failures": [
+    "call_ret: 190127 cycles, expected 106148 (+83979; a slice that changes it updates EXPECTED)",
+    "call_reg: 237008 cycles, expected 173999 (+63009; a slice that changes it updates EXPECTED)",
+    "call_mem: 236039 cycles, expected 153070 (+82969; a slice that changes it updates EXPECTED)",
+    "loop: 42250 cycles, expected 42270 (-20; a slice that changes it updates EXPECTED)",
+    "call_ind1: 168047 cycles, expected 88068 (+79979; a slice that changes it updates EXPECTED)",
+    "call_alt: 336042 cycles, expected 184081 (+151961; a slice that changes it updates EXPECTED)"
+  ]
+}

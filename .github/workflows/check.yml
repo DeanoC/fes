@@ -87,7 +87,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           if [ "$EVENT" = workflow_dispatch ] || [ "$EVENT" = schedule ]; then BASE=0000000000000000000000000000000000000000; fi
-          python3 -m unittest tests.test_affected tests.test_check_diff tests.test_ci_gate tests.test_test_policy tests.test_test_changed tests.test_ci_workflow -v
+          python3 -m unittest tests.test_affected tests.test_check_diff tests.test_ci_gate tests.test_test_policy tests.test_test_changed tests.test_ci_workflow tests.test_tamago_ci -v
           python3 scripts/check_diff.py --base "$BASE" --head "$HEAD" --fallback-base "refs/remotes/origin/$DEFAULT_BRANCH"
       - name: Documentation links and doc-reading checks
         # Documentation-only changes select no lane, so the fast parent tests
@@ -385,9 +385,87 @@ jobs:
           name: fes-de25-x87-build-log-${{ github.run_id }}-${{ github.run_attempt }}
           path: sources/misteross/build/sim/de25-x87-pipeline/build.log
           if-no-files-found: warn
+  tamago:
+    needs: plan
+    if: fromJSON(needs.plan.outputs.lanes).tamago
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: sources/FogCast/go.mod
+          cache-dependency-path: |
+            sources/FogCast/go.sum
+            platform/embedded/tamago/go.sum
+      - name: Use official Ubuntu HTTPS mirrors
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+          if [ -f /etc/apt/apt-mirrors-security.txt ]; then
+            printf '%s\n' 'https://security.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors-security.txt >/dev/null
+          fi
+      - name: Install TamaGo QEMU and FAT32 dependencies
+        run: |
+          sudo timeout --signal=TERM --kill-after=30s 600s bash -e -c '
+            apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 update
+            apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 install --no-install-recommends -y qemu-system-arm mtools dosfstools
+          '
+          qemu-system-aarch64 --version
+          mformat -V
+      - name: Cache pinned TamaGo compiler
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            out/embedded-base-tools/tamago/usr
+            out/embedded-base-tools/tamago/toolchain-sha256
+          key: fes-tamago-compiler-ubuntu24-${{ runner.arch }}-${{ hashFiles('platform/embedded/tamago/toolchain.lock.toml') }}
+      - name: Install pinned TamaGo compiler
+        run: bash scripts/ci_tamago.sh out/embedded-base-tools/tamago "$RUNNER_TEMP/tamago-build"
+      - name: Cache TamaGo Go modules and build cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            out/embedded-base-tools/tamago/mod
+            out/embedded-base-tools/tamago/cache
+          key: fes-tamago-gomod-ubuntu24-${{ runner.arch }}-${{ hashFiles('platform/embedded/tamago/toolchain.lock.toml', 'platform/embedded/tamago/go.sum') }}
+          restore-keys: |
+            fes-tamago-gomod-ubuntu24-${{ runner.arch }}-${{ hashFiles('platform/embedded/tamago/toolchain.lock.toml') }}-
+      - name: Prepare TamaGo module cache and embedded FogCast host
+        run: |
+          mkdir -p out/embedded-base-tools/tamago/mod out/embedded-base-tools/tamago/cache
+          (
+            cd platform/embedded/tamago
+            GOTOOLCHAIN=local GOENV=off GOWORK=off \
+              GOMODCACHE="$PWD/../../../out/embedded-base-tools/tamago/mod" \
+              "$PWD/../../../out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go" mod download
+          )
+          (
+            cd sources/FogCast
+            GOWORK=off go build -o ../../out/embedded-base-tools/fogcast-host ./cmd/fogcast-embedded-host
+          )
+      - name: Run TamaGo host tests, dual-board builds, and QEMU regressions
+        run: python3 scripts/tamago_ci.py --output out/tamago-ci
+      - name: Retain TamaGo CI logs on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fes-tamago-ci-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            out/tamago-ci/**/result.json
+            out/tamago-ci/**/build.log
+            out/tamago-ci/**/console.log
+            out/tamago-ci/**/qemu.log
+            out/tamago-ci/summary.json
+          retention-days: 7
+          if-no-files-found: warn
   integration:
     if: always()
-    needs: [plan, parent-tests, consistency, host, runtime, contracts, fpga-producer, simulation-tools, fpga-simulation]
+    needs: [plan, parent-tests, consistency, host, runtime, contracts, fpga-producer, simulation-tools, fpga-simulation, tamago]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

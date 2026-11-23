@@ -6,6 +6,8 @@ package board
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/qemuvirt"
 	"github.com/DeanoC/fes/platform/embedded/tamago/display"
@@ -13,6 +15,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
+	"github.com/DeanoC/fes/platform/embedded/tamago/rtc"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 	"github.com/usbarmory/tamago/dma"
 )
@@ -26,6 +29,8 @@ func PSCI() *psci.Client                { return qemuvirt.PSCI() }
 func PowerOff() error                   { return qemuvirt.PowerOff() }
 func Reset() error                      { return qemuvirt.Reset() }
 func EntropySource() psci.EntropySource { return qemuvirt.EntropySource() }
+func RTC() (*rtc.PL031, error)          { return qemuvirt.RTC() }
+func WallTime() (time.Time, bool)       { return qemuvirt.WallTime() }
 func InitDevices() (*dma.Region, error) { return qemuvirt.InitDevices() }
 func OpenStorage() (block.Device, error) {
 	pool, err := qemuvirt.DMAPool()
