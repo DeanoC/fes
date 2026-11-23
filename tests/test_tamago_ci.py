@@ -151,6 +151,22 @@ class TamagoCIRunnerTests(unittest.TestCase):
                 self.assertIn('--timeout', cmd)
                 self.assertIn('120', cmd)
 
+    def test_run_host_vet_invokes_go_vet_with_gowork_off(self):
+        seen = []
+
+        def fake_run_step(name, cmd, *, cwd, env=None, timeout=600):
+            seen.append((name, [str(x) for x in cmd], cwd, env))
+            return {'step': name, 'status': 'passed', 'elapsed_seconds': 0.1}
+
+        with mock.patch.object(tamago_ci, 'run_step', side_effect=fake_run_step):
+            result = tamago_ci.run_host_vet(ROOT, host_go='go')
+
+        self.assertEqual(result['step'], 'host-go-vet')
+        self.assertEqual(seen[0][0], 'host-go-vet')
+        self.assertEqual(seen[0][1], ['go', 'vet', './...'])
+        self.assertEqual(seen[0][2], ROOT / 'platform/embedded/tamago')
+        self.assertEqual(seen[0][3]['GOWORK'], 'off')
+
     def test_default_qemu_programs_cover_packages_admission_and_play(self):
         for expected in ('probe', 'mapcheck', 'fabric', 'keyboard', 'display',
                          'packages', 'admission', 'tenfoot', 'play'):
