@@ -115,6 +115,10 @@ func (s *Session) EnableCache(cfg block.CacheConfig) error {
 		return err
 	}
 	s.ioMu.Lock()
+	if s.retired.Load() {
+		s.ioMu.Unlock()
+		return ErrRetired
+	}
 	if s.cache != nil {
 		s.cache.Invalidate()
 	}
