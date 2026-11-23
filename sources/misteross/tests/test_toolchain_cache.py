@@ -1735,6 +1735,57 @@ class ToolchainCachePruneTests(unittest.TestCase):
         self.assertTrue((published_ng.directory / "ready.json").is_file())
         self.assertIn("skipping post-publish LRU eviction", warn_stderr.getvalue())
 
+        # Unexpected OSError in best-effort post-publish eviction never fails a completed publish.
+        err_lock = self.base / "err.lock"
+        shutil.copy2(self.root / "toolchain.lock", err_lock)
+        _set_pin(err_lock, "verilator", "commit", "3" * 40)
+        err_req = self.request(err_lock)
+        err_stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_MAX_GB": "1"}),
+            mock.patch.object(toolchain_cache.sys, "stderr", err_stderr),
+            mock.patch.object(toolchain_cache, "prune", side_effect=OSError("transient io error")),
+        ):
+            published_err = _publish(err_req, "verilator", content="oserr")
+        self.assertTrue((published_err.directory / "ready.json").is_file())
+        self.assertIn("skipping post-publish LRU eviction: transient io error", err_stderr.getvalue())
+
+    def test_prune_handles_concurrent_eviction_race_without_failing(self):
+        """An install removed by a concurrent prune before rename is treated as already freed."""
+        payload = 128 * 1024
+        pinned = self._publish_sized(self.request(), "yosys", payload_bytes=payload, tag="pinned")
+        unpinned = []
+        for idx, commit_char in enumerate(("4", "5")):
+            lock = self.base / f"race-{idx}.lock"
+            shutil.copy2(self.root / "toolchain.lock", lock)
+            _set_pin(lock, "yosys", "commit", commit_char * 40)
+            req = self.request(lock)
+            inst = self._publish_sized(req, "yosys", payload_bytes=payload, tag=f"r{idx}")
+            unpinned.append((req, inst))
+        now = time.time()
+        os.utime(toolchain_cache.lock_path(unpinned[0][0], "yosys"), (now - 4 * 86400, now - 4 * 86400))
+        os.utime(toolchain_cache.lock_path(unpinned[1][0], "yosys"), (now - 1 * 86400, now - 1 * 86400))
+
+        pinned_bytes = toolchain_cache._tree_bytes(pinned.directory)
+        newer_bytes = toolchain_cache._tree_bytes(unpinned[1][1].directory)
+        cap_gb = (pinned_bytes + newer_bytes + 4096) / 2**30
+
+        real_rename = os.rename
+        raced_dir = unpinned[0][1].directory
+
+        def racing_rename(src, dst):
+            if Path(src) == raced_dir:
+                toolchain_cache._remove_tree(raced_dir)
+                raise FileNotFoundError(src)
+            return real_rename(src, dst)
+
+        with mock.patch.object(toolchain_cache.os, "rename", side_effect=racing_rename):
+            report, _ = self.prune(apply=True, max_gb=cap_gb, now=now)
+        self.assertFalse(raced_dir.exists())
+        self.assertEqual(report["removed"], [])
+        self.assertIn(f"tools/yosys/{unpinned[1][1].key}", report["kept"])
+        self.assertTrue(unpinned[1][1].directory.exists())
+
     def test_compiler_for_post_publish_eviction_preserves_other_host_gpu_lanes(self):
         """An OFF-lane publish on a GPU host still keeps pinned HIP nextpnr protected."""
         hipcc = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-1", "version": "rocm 6.3", "returncode": 0}

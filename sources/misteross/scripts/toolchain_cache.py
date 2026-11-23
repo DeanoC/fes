@@ -2316,7 +2316,7 @@ def _evict_after_publish(
             _protected_installs=frozenset({(tool, key)}),
             _exclude_transient_build_trees=frozenset({(tool, key)}),
         )
-    except CacheError as exc:
+    except (CacheError, OSError) as exc:
         print(f"toolchain-cache: skipping post-publish LRU eviction: {exc}", file=stream)
         return None
 
@@ -2430,7 +2430,10 @@ def prune(
                 report["busy"].append(label)
                 return False
             aside = path.with_name(f".prune-{path.name}-{os.getpid()}")
-            os.rename(path, aside)
+            try:
+                os.rename(path, aside)
+            except FileNotFoundError:
+                return True
             _remove_tree(aside)
         finally:
             os.close(descriptor)
