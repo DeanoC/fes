@@ -65,7 +65,7 @@ machine netlist from one checkout path at #2036's head and at this branch, and
 `cmp` must find them identical (the fixed Yosys lock, one thread).
 
 **DE25 system:** `boards/de25nano/pc386/sim.py` must reach the prompt with check
-lines identical to #2036's head.
+lines identical to #2036's head. Result: [suites/](suites/README.md), the two outputs are byte-identical.
 
 ## The DE25 measurement
 
