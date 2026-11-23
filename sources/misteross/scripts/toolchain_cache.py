@@ -62,6 +62,7 @@ GPU_ENVIRONMENT_NAMES = frozenset(
     }
 )
 ACCELERATOR_COMMANDS = frozenset({"hipcc", "nvcc"})
+_BACKEND_ENVIRONMENT_NAMES = ("CUDA_HOME", "CUDA_PATH", "CUDACXX", "HIPCC", "ROCM_PATH")
 _LANE_ENVIRONMENT_NAMES: Mapping[str, tuple[str, ...]] = {
     "OFF": (),
     "HIP": ("HIPCC", "ROCM_PATH"),
@@ -2095,6 +2096,23 @@ def _prune_gpu_configurations(
     ]
 
 
+def _prune_lane_environment(values: Mapping[str, str], router: str) -> dict[str, str]:
+    """Return the manifest ``environment`` dict a build for *router* would record.
+
+    Matches ``_request_environment()`` for any single-lane environment accepted
+    by ``validate_shared_environment()``: non-empty backend variables are scoped
+    to *router*, while explicitly exported empty backend variables are preserved
+    just as ``_request_environment()`` records them.
+    """
+
+    allowed = _LANE_ENVIRONMENT_NAMES[router]
+    return {
+        name: values[name]
+        for name in _BACKEND_ENVIRONMENT_NAMES
+        if name in values and (not values[name] or name in allowed)
+    }
+
+
 def _prune_gpu_lanes(
     configurations: Sequence[tuple[str, dict[str, Any]]],
     *,
@@ -2126,7 +2144,7 @@ def _prune_gpu_lanes(
             {
                 "configuration": configuration,
                 "accelerator": accelerator,
-                "environment": _lane_environment(environment, router),
+                "environment": _prune_lane_environment(environment, router),
             }
         )
     return lanes

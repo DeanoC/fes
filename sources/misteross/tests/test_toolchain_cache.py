@@ -1293,6 +1293,43 @@ class ToolchainCachePruneTests(unittest.TestCase):
         )
         self.assertEqual(report["removed"], [f"tools/nextpnr/{stale_hip.key}"])
 
+    def test_prune_preserves_explicitly_empty_backend_variables_like_request_environment(self):
+        """An install built with an empty backend var (e.g. CUDA_HOME='') stays pinned."""
+        hipcc = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-1", "version": "rocm 6.3", "returncode": 0}
+        hip_compiler = {"commands": {**COMPILER["commands"], "hipcc": hipcc}}
+        env = {"ROCM_PATH": "/opt/rocm-6.3", "CUDA_HOME": ""}
+        toolchain_cache.validate_shared_environment(env, gpu_router="HIP")
+        request_env = toolchain_cache._request_environment(env, tool="nextpnr")
+        self.assertEqual(request_env, {"CUDA_HOME": "", "ROCM_PATH": "/opt/rocm-6.3"})
+
+        hip_req = self.request(
+            gpu_router="HIP",
+            compiler_identity=hip_compiler,
+            environment=request_env,
+        )
+        off_req = self.request(
+            gpu_router="OFF",
+            environment={"CUDA_HOME": ""},
+        )
+        hip_install = _publish(hip_req, "nextpnr", content="hip-empty-cuda")
+        off_install = _publish(off_req, "nextpnr", content="off-empty-cuda")
+        old = time.time() - 30 * 86400
+        for req in (hip_req, off_req):
+            os.utime(toolchain_cache.lock_path(req, "nextpnr"), (old, old))
+
+        report, output = self.prune(
+            gpu_routers=("HIP", "OFF"),
+            compiler=hip_compiler,
+            environment=env,
+        )
+        self.assertEqual(
+            set(report["kept"]),
+            {f"tools/nextpnr/{hip_install.key}", f"tools/nextpnr/{off_install.key}"},
+        )
+        self.assertIn(f"kept: tools/nextpnr/{hip_install.key} (pinned at HEAD)", output)
+        self.assertIn(f"kept: tools/nextpnr/{off_install.key} (pinned at HEAD)", output)
+        self.assertEqual(report["removed"], [])
+
     def test_prune_defaults_gpu_lane_from_environment_and_rejects_invalid_lanes(self):
         hipcc = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-1", "version": "rocm 6.3", "returncode": 0}
         hip_compiler = {"commands": {**COMPILER["commands"], "hipcc": hipcc}}
