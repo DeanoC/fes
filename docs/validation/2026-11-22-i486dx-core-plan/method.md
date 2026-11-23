@@ -134,3 +134,11 @@ which overstates the loss, since part of that time is I/O and VGA.
    - **What changed.** The two sequential lanes were stopped between variants, by their own PIDs. `base`, `pred` and `stld` were left running.
    - **The other five.** `ras`, `ind`, `ealu`, `lfwd` and `speed` started at once, from a copy of the runner (`runners/i486dxplan_sim8h.sh`). The copy differs only in `machine_tb`'s cap, 8 hours instead of 4.
    - **No DOOM window had produced a profile yet.**
+3. **23 November 2026: one hierarchy-kept fit of `dx` is added, replacing rule 7's reuse of #2028. Every result in results.md had been seen when this was written. No band, window or rule above changed.**
+   - **Why.** #2028's table predates #2037 and #2059, and it is a machine fit, not this record's CPU envelope. Also, section 4 of the summary needs to know which module the slow path is in.
+   - **What is fitted.** `dx`'s source is elaborated with Yosys's `flatten` removed exactly once and modules given plain names, as #2028's `elaborate.py --hierarchy` did. The script is [`elaborate_hier.py`](elaborate_hier.py), which uses the fit script's own `cpu_netlist`. That netlist is fitted at seed 1 through `fit_i386_device.py --netlist`.
+   - **The gate.** This is #2028's gate: the hierarchy fit's ALMs must be within ±5% of `dx` seed 1's 34,651.
+     - Within ±5%, the per-entity table is reported as the module bounds.
+     - Outside it, the table is labelled indicative.
+     - No saving is read from either.
+   - **The slow path.** The worst setup path's endpoints are reported by entity name.
