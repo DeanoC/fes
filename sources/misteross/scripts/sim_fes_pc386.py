@@ -2043,6 +2043,8 @@ def run_game(args, linked: list[Path]) -> dict:
     extra = ['--frame-every', str(args.frame_every)] if args.frame_every else []
     if args.rtl_at_prompt:
         extra += ['--rtl-at-prompt', '1']
+    if getattr(args, 'rtl_from', 0):
+        extra += ['--rtl-from', str(args.rtl_from)]
     if args.x87_fitted:
         extra += ['--x87', '1']
     if args.instruction_census:
@@ -2225,6 +2227,8 @@ def main() -> int:
                              '(wfw: 0.25 by default)')
     parser.add_argument('--rtl-at-prompt', action='store_true',
                         help='game --cpu rtl: boot on the oracle and hand over to the RTL at the prompt')
+    parser.add_argument('--rtl-from', type=float, default=0, metavar='SECONDS',
+                        help='game --cpu rtl: run the oracle to this simulated second, then hand over to the RTL')
     parser.add_argument('--x87-fitted', action='store_true',
                         help='the game suite: run with the i386dx+387 identity on (machine_tb --x87 1), so the '
                              'oracle has a 387 and CMOS 14h reports one; writes game-<id>-x87/')
@@ -2267,6 +2271,8 @@ def main() -> int:
         parser.error('--oracle-profile is for the game suite with --cpu oracle')
     if args.rtl_at_prompt and not (args.suite == 'game' and args.cpu == 'rtl'):
         parser.error('--rtl-at-prompt is for the game suite with --cpu rtl')
+    if args.rtl_from and not (args.suite == 'game' and args.cpu == 'rtl' and not args.rtl_at_prompt):
+        parser.error('--rtl-from is for the game suite with --cpu rtl, without --rtl-at-prompt')
     if args.image != 'boot' and args.suite != 'boot':
         parser.error('--image is supported by the boot suite only')
     if (args.preset or args.frequency or args.turbo) and not (
