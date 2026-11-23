@@ -21,8 +21,8 @@ writes from the committed evidence ([fits/](fits/), [profiles/](profiles/),
   - Turned off together, they save **1,716 ALMs**, 5% of the CPU's 34,651 on Agilex 5.
   - **Branch prediction is 1,361 of that**, and it is worth **49% of DOOM's CPI** (h2 CPI 1.668 → 2.489).
   - Store-to-load forwarding, the early ALU, the return stack and indirect prediction each save nothing measurable (under the 100-ALM noise band).
-  - Load forwarding saves 360. PENDING_LFWD_CPI
-- **So the DX should keep the Phase 4 set.** The area has to come from:
+  - **Load forwarding saves 360 ALMs for 1.2% of DOOM's CPI.** That is the one Phase 4 trade worth making on the DX.
+- **So the DX should keep the Phase 4 set, except load forwarding.** The rest of the area has to come from:
   - the x87 (7,557 ALMs on Agilex 5);
   - the base pipeline that predates Phase 4: the front end at 3,835, the L1s at 3,921, the BIU at 1,506;
   - the shell and devices.
@@ -64,17 +64,17 @@ The decisions for Deano are [at the end](#decisions-for-deano).
 | Feature (PR) | ALMs it saves when off | CPI it buys on DOOM (h2) | Per 100 ALMs |
 | --- | ---: | --- | --- |
 | **All prediction: BTB #1511 + RAS #1512 + indirect #1571** | **1,361** (and 4 M20K) | **CPI 2.489 → 1.668: a 49% loss without it** | 3.6% of CPI |
-| RAS #1512 alone (a lower bound) | −7, under noise | PENDING_RAS | free |
-| Indirect #1571 alone (a lower bound) | −76, under noise | PENDING_IND | free |
+| RAS #1512 alone (a lower bound) | −7, under noise | 1.744 → 1.668: 4.6% | free |
+| Indirect #1571 alone (a lower bound) | −76, under noise | 1.683 → 1.668: 0.9% | free |
 | Store-to-load #1515 | 78, under noise | 1.695 → 1.668: 1.6% | free |
-| Early ALU #1517 | −22, under noise | PENDING_EALU | free |
-| Load forwarding #1522 | **360** | PENDING_LFWD | PENDING_LFWD_PER |
-| **The speed set** (prediction, #1515, #1517, #1522) | **1,716** (the parts sum to 1,777) | PENDING_SPEED | PENDING_SPEED_PER |
+| Early ALU #1517 | −22, under noise | 1.682 → 1.668: 0.9% | free |
+| Load forwarding #1522 | **360** | 1.687 → 1.668: 1.2% | **0.33%** |
+| **The speed set** (prediction, #1515, #1517, #1522) | **1,716** (the parts sum to 1,777) | 2.539 → 1.668: 52% | 3.05% |
 | Front-end split #1524 | none: #1524 changed no RTL | its record splits `fe_empty` into its reasons | — |
 | **Paging** (an area bound; a DX needs it) | 1,913 | not functional off | — |
 
 **What the table says:**
-- **Prediction is the cheapest CPI in the core.** Every other row saves no area at all, or 360 ALMs.
+- **Prediction is the cheapest CPI in the core.** Every other row saves no area at all, except load forwarding's 360 ALMs.
 - **The DX keeps prediction.** Dropping it would trade half of DOOM's speed for 1,361 ALMs, under half of the gap.
 - **The free rows are free because they reuse logic that is already there.**
   - The early ALU uses AG's address adder.
@@ -152,7 +152,12 @@ gain, and the rest are each about a percent.
 | --- | ---: | ---: | --- | --- |
 | baseline | 1.000 | 2,062 | kept | kept |
 | no prediction | 1.493 | 3,078 | not settled by the bound | kept |
-| PENDING_GOV_ROWS | | | | |
+| no return stack | 1.046 | 2,157 | kept | kept |
+| no indirect | 1.009 | 2,081 | kept | kept |
+| no store-to-load test | 1.016 | 2,096 | kept | kept |
+| no early ALU | 1.009 | 2,080 | kept | kept |
+| **no load forwarding** | **1.012** | **2,086** | **kept** | **kept** |
+| no speed set | 1.523 | 3,140 | not settled by the bound | kept |
 
 **Recommended target:**
 - **DX-33 sustained** is the requirement. Every variant here keeps it, even with no prediction.
@@ -297,7 +302,47 @@ module bounds of question 1, none of which is measured as a saving yet.
 
 ## Decisions for Deano
 
-PENDING_DECISIONS
+Each recommendation comes first. Every one is a proposal until Deano decides it.
+
+1. **The fork mechanism (question 6).**
+   - The DX lives in a DE25-only tree, `boards/de25nano/pc386/i486dx/`. It uses `derive.py` for small anchored edits and forked `fes_i486dx_*` files for rewritten modules.
+   - Its file list sits in the DE25 producer, not in `yosys_netlist.py`.
+   - The decoder, microcode, oracle and lockstep corpus stay shared.
+   - CI runs the full lockstep on both cores for any shared-file change, plus a sync check on forked files.
+   - **Recommend: yes.** This is the dma2 branch's pattern, and it keeps the DE10 netlist byte-identical.
+2. **The DX's speed target (question 3).**
+   - **Recommend:**
+     - DX-33 sustained is the requirement.
+     - DX2-66 is the stretch, as on the integer core, which misses it on 4 of 6 benchmarks today.
+     - DX-50 is no separate target.
+   - Under the governor, every Phase 4 trade except prediction keeps both presets by the bound.
+3. **Integer trades on the DX (questions 1–2).**
+   - **Recommend:**
+     - Keep prediction, the return stack, indirect prediction, the store-to-load test and the early ALU. They save nothing measurable, or, for prediction, cost 49% of DOOM.
+     - Drop load forwarding on the DX: −360 ALMs for +1.2% of DOOM's CPI, which the governor hides at DX2-66.
+   - The integer core keeps all of them.
+4. **The clock (question 4).**
+   - **Recommend:**
+     - The first DX builds at 61.437908 MHz.
+     - The next step is a PLL check, with no RTL, for a VCO that gives an integer multiple of the system clock together with the audio clock. That would make option C possible: the integer core at k × 61.44 MHz, the x87 and the machine at 61.44.
+     - No machine clock raise (option B) for the DX, since it would undo the x87 savings.
+5. **The x87 on the DX (question 5).**
+   - **Recommend:** allow slower x87 forms on the DX, as candidates ranked by measured A/Bs, each against this record's DX baseline:
+     - de-pipeline `fes_x87_core`'s slow lane;
+     - iterative multiply and divide on fewer DSPs;
+     - serial conversions through the engine;
+     - state into memory.
+   - The integer core's x87 stays as it is.
+6. **The next step: measure the module-level cuts (no RTL merged).** The Phase 4 set leaves about 900 ALMs to find to fit the device, and about 4,600 to reach the 92% line.
+   - **Recommend:** a precommitted ablation and A/B round on the DX baseline, covering:
+     - L1I and L1D at 8 KiB each (and a unified 8 KiB, the real 486's shape);
+     - a narrower front end (fewer predecode bytes);
+     - the x87 candidates above;
+     - a slower divider.
+     Each is measured in ALMs and DOOM, Quake and 3DBench CPI, as this record does.
+7. **The line to fit under.** D2 of the x87 plan kept 92% (43,056) as the working line.
+   - **Ask:** should the DX aim for the 92% line (about 4,600 more to find), or for fitting the device and passing timing on four seeds (about 900)?
+   - The 92% line is the DE10 lane's prior. On Agilex 5, #2028's four seeds at 43,008 to 43,080 ALMs (about 92%) all passed timing at 61.44 MHz. No fit well above that has been tried.
 
 ## Caveats
 
