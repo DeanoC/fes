@@ -271,13 +271,11 @@ module pc386_ps2_fifo (
     output wire head_key_repeat,
     output wire [4:0] space
 );
-    // One write port, so each array is a small RAM (MLAB) rather than
-    // 16 registers per bit with a write decoder for each of two ports.
-    (* ramstyle = "MLAB" *) reg [7:0] bytes [0:15];
-    (* ramstyle = "MLAB" *) reg last_bytes [0:15];
-    (* ramstyle = "MLAB" *) reg [7:0] key_bits [0:15];
-    (* ramstyle = "MLAB" *) reg key_makes [0:15];
-    (* ramstyle = "MLAB" *) reg key_repeats [0:15];
+    reg [7:0] bytes [0:15];
+    reg last_bytes [0:15];
+    reg [7:0] key_bits [0:15];
+    reg key_makes [0:15];
+    reg key_repeats [0:15];
     reg [3:0] read_at, write_at;
     reg [4:0] count;
     assign valid = count != 0;
@@ -287,23 +285,25 @@ module pc386_ps2_fifo (
     assign head_key_make = key_makes[read_at];
     assign head_key_repeat = key_repeats[read_at];
     assign space = 5'd16 - count;
-    // A byte pushed with the clear (a reset's ACK) is kept, at entry 0.
-    wire store = clear ? push : push && count != 16;
-    wire [3:0] store_at = clear ? 4'd0 : write_at;
-    always @(posedge clk) if (store) begin
-        bytes[store_at] <= push_byte;
-        last_bytes[store_at] <= push_last;
-        key_bits[store_at] <= push_key_bit;
-        key_makes[store_at] <= push_key_make;
-        key_repeats[store_at] <= push_key_repeat;
-    end
     always @(posedge clk) begin
         if (clear) begin
+            // A byte pushed with the clear (a reset's ACK) is kept.
             read_at <= 0;
             write_at <= {3'b0, push};
             count <= {4'b0, push};
+            if (push) begin
+                bytes[0] <= push_byte; last_bytes[0] <= push_last;
+                key_bits[0] <= push_key_bit; key_makes[0] <= push_key_make; key_repeats[0] <= push_key_repeat;
+            end
         end else begin
-            if (push && count != 16) write_at <= write_at + 1'b1;
+            if (push && count != 16) begin
+                bytes[write_at] <= push_byte;
+                last_bytes[write_at] <= push_last;
+                key_bits[write_at] <= push_key_bit;
+                key_makes[write_at] <= push_key_make;
+                key_repeats[write_at] <= push_key_repeat;
+                write_at <= write_at + 1'b1;
+            end
             if (pop && count != 0) read_at <= read_at + 1'b1;
             count <= count + {4'b0, push && count != 16} - {4'b0, pop && count != 0};
         end

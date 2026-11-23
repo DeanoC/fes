@@ -8,6 +8,10 @@ plane comes out of pc386_machine: video is the presenter's 720p word, the
 plane's port-2 requester is idle, and pc386_system carries the mailbox's
 display opcodes out to the board in place of into the machine.
 
+pc386_kbc's two PS/2 FIFOs are pc386_ps2_fifo_mlab.sv: one write port, so
+their arrays are MLAB RAM. It is cycle-exact with pc386_ps2_fifo at its
+ports, and the DE10 keeps pc386_ps2_fifo.
+
 Each derivation fails if its anchor moves. A removed block is pinned by its
 SHA-256, so a change inside it fails too.
 """
@@ -73,6 +77,12 @@ SYSTEM_SNAPSHOT_AFTER = (b"    pc386_snapshot #(.W(64)) pixel_counts (\n"
 SYSTEM = ((SYSTEM_WIRES_BEFORE, b"", 1), (SYSTEM_PORTS_BEFORE, SYSTEM_PORTS_AFTER, 1),
           (SYSTEM_MACHINE_BEFORE, SYSTEM_MACHINE_AFTER, 1), (SYSTEM_SNAPSHOT_BEFORE, SYSTEM_SNAPSHOT_AFTER, 1))
 
+KBC_FIFO_START = b"// 16-byte FIFO for the PS/2 devices' bytes to the controller.\nmodule pc386_ps2_fifo ("
+KBC_FIFO_SHA256 = "4007de5c756f5a3586010893181834affe5ddcf89ba3302f485144665c7e9125"
+KBC_FIFO_BEFORE = b"    pc386_ps2_fifo fifo ("
+KBC_FIFO_AFTER = b"    pc386_ps2_fifo_mlab fifo ("
+KBC_FIFOS = 2
+
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
@@ -106,3 +116,22 @@ def retarget_system(source):
         result = result.replace(before, after)
     return result, _record(source, result, [{"before": b.decode(), "after": a.decode(), "count": n}
                                             for b, a, n in SYSTEM])
+
+
+def retarget_kbc(source):
+    """pc386_kbc with its PS/2 FIFOs as pc386_ps2_fifo_mlab.
+
+    The DE10 module the replacement matches is pinned by its SHA-256, so a
+    change to it fails here rather than leaving the two forms apart.
+    """
+    if source.count(KBC_FIFO_START) != 1:
+        raise ValueError("pc386 PS/2 FIFO module changed")
+    first = source.index(KBC_FIFO_START)
+    module = source[first:source.index(b"endmodule\n", first) + len(b"endmodule\n")]
+    if sha(module) != KBC_FIFO_SHA256:
+        raise ValueError("pc386 PS/2 FIFO module changed")
+    if source.count(KBC_FIFO_BEFORE) != KBC_FIFOS:
+        raise ValueError("pc386 PS/2 FIFO instances changed")
+    result = source.replace(KBC_FIFO_BEFORE, KBC_FIFO_AFTER)
+    return result, _record(source, result, [{"module_sha256": KBC_FIFO_SHA256, "before": KBC_FIFO_BEFORE.decode(),
+                                             "after": KBC_FIFO_AFTER.decode(), "count": KBC_FIFOS}])
