@@ -1,0 +1,160 @@
+{
+ "base": "base23b",
+ "arms": {
+  "base23b": {
+   "seeds": [
+    {
+     "seed": 1,
+     "alms_needed": 41401.0,
+     "memory_alms": 410.0,
+     "mlab_bits": 5637.0,
+     "m20k": 168,
+     "dsp_blocks": 24,
+     "worst_slack_ns": {
+      "Setup": 1.24,
+      "Hold": 0.0,
+      "Recovery": 7.417,
+      "Removal": 0.003,
+      "Minimum Pulse Width": 0.22
+     },
+     "all_kinds": true,
+     "negative": []
+    },
+    {
+     "seed": 2,
+     "alms_needed": 41460.0,
+     "memory_alms": 410.0,
+     "mlab_bits": 5637.0,
+     "m20k": 168,
+     "dsp_blocks": 24,
+     "worst_slack_ns": {
+      "Setup": 1.567,
+      "Hold": 0.0,
+      "Recovery": 7.048,
+      "Removal": 0.009,
+      "Minimum Pulse Width": 0.22
+     },
+     "all_kinds": true,
+     "negative": []
+    },
+    {
+     "seed": 3,
+     "alms_needed": 41443.0,
+     "memory_alms": 410.0,
+     "mlab_bits": 5637.0,
+     "m20k": 168,
+     "dsp_blocks": 24,
+     "worst_slack_ns": {
+      "Setup": 1.653,
+      "Hold": 0.0,
+      "Recovery": 7.102,
+      "Removal": 0.017,
+      "Minimum Pulse Width": 0.22
+     },
+     "all_kinds": true,
+     "negative": []
+    },
+    {
+     "seed": 4,
+     "alms_needed": 41445.0,
+     "memory_alms": 410.0,
+     "mlab_bits": 5637.0,
+     "m20k": 168,
+     "dsp_blocks": 24,
+     "worst_slack_ns": {
+      "Setup": 1.649,
+      "Hold": 0.0,
+      "Recovery": 7.033,
+      "Removal": 0.027,
+      "Minimum Pulse Width": 0.22
+     },
+     "all_kinds": true,
+     "negative": []
+    }
+   ],
+   "complete": true,
+   "median": 41444.0,
+   "spread": 59.0,
+   "closed": true
+  },
+  "slat23b": {
+   "seeds": [
+    {
+     "seed": 1,
+     "alms_needed": 40418.0,
+     "memory_alms": 410.0,
+     "mlab_bits": 5637.0,
+     "m20k": 168,
+     "dsp_blocks": 24,
+     "worst_slack_ns": {
+      "Setup": 1.732,
+      "Hold": 0.001,
+      "Recovery": 6.628,
+      "Removal": 0.052,
+      "Minimum Pulse Width": 0.22
+     },
+     "all_kinds": true,
+     "negative": []
+    },
+    {
+     "seed": 2,
+     "alms_needed": 40407.0,
+     "memory_alms": 410.0,
+     "mlab_bits": 5637.0,
+     "m20k": 168,
+     "dsp_blocks": 24,
+     "worst_slack_ns": {
+      "Setup": 1.425,
+      "Hold": 0.001,
+      "Recovery": 6.437,
+      "Removal": 0.056,
+      "Minimum Pulse Width": 0.22
+     },
+     "all_kinds": true,
+     "negative": []
+    },
+    {
+     "seed": 3,
+     "alms_needed": 40387.0,
+     "memory_alms": 410.0,
+     "mlab_bits": 5637.0,
+     "m20k": 168,
+     "dsp_blocks": 24,
+     "worst_slack_ns": {
+      "Setup": 1.654,
+      "Hold": 0.001,
+      "Recovery": 6.883,
+      "Removal": 0.053,
+      "Minimum Pulse Width": 0.22
+     },
+     "all_kinds": true,
+     "negative": []
+    },
+    {
+     "seed": 4,
+     "alms_needed": 40356.0,
+     "memory_alms": 410.0,
+     "mlab_bits": 5637.0,
+     "m20k": 168,
+     "dsp_blocks": 24,
+     "worst_slack_ns": {
+      "Setup": 1.412,
+      "Hold": 0.001,
+      "Recovery": 6.316,
+      "Removal": 0.049,
+      "Minimum Pulse Width": 0.22
+     },
+     "all_kinds": true,
+     "negative": []
+    }
+   ],
+   "complete": true,
+   "median": 40397.0,
+   "spread": 62.0,
+   "closed": true,
+   "saving": 1047.0,
+   "larger_spread": 62.0,
+   "measured": true
+  }
+ }
+}
