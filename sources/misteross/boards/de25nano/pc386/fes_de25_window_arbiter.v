@@ -67,9 +67,12 @@ module fes_de25_window_arbiter #(
     // ---- Per-port command view
     wire [2:0] want_read = {s2_read, s1_read, s0_read};
     wire [2:0] want_write = {s2_write, s1_write, s0_write};
-    // 64-bit ports: the 128-bit burst.
-    wire [7:0] beats1 = (s1_burstcount + {7'd0, s1_address[3]} + 8'd1) >> 1;
-    wire [7:0] beats2 = (s2_burstcount + {7'd0, s2_address[3]} + 8'd1) >> 1;
+    // 64-bit ports: the 128-bit burst. The sum takes nine bits: 255 beats, or
+    // 254 from the upper lane, reach 256 before the halving gives 128.
+    wire [8:0] sum1 = {1'b0, s1_burstcount} + {8'd0, s1_address[3]} + 9'd1;
+    wire [8:0] sum2 = {1'b0, s2_burstcount} + {8'd0, s2_address[3]} + 9'd1;
+    wire [7:0] beats1 = sum1[8:1];
+    wire [7:0] beats2 = sum2[8:1];
     // Read credit: a 64-bit port's FIFO must hold every beat it owes.
     reg [9:0] owed1 = 10'd0, owed2 = 10'd0;
     wire [10:0] need1 = {1'b0, owed1} + {3'd0, beats1};
@@ -218,5 +221,5 @@ module fes_de25_window_arbiter #(
         if (reset) writes_owed <= 8'd0;
         else writes_owed <= writes_owed + {7'd0, write_done} - {7'd0, m_writeresponsevalid};
     assign idle = !busy && order_count == 0 && owed1 == 10'd0 && owed2 == 10'd0 && writes_owed == 8'd0;
-    wire unused = ^{up_address[2:0], up_rburst[7:1]};
+    wire unused = ^{up_address[2:0], up_rburst[7:1], sum1[0], sum2[0]};
 endmodule

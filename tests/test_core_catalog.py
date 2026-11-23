@@ -150,8 +150,11 @@ x=read_package(p/'core.fcore');print(json.dumps({'package_id':x.package_id,'core
         self.assertNotIn('fes.menu', rows)
         self.assertNotIn('fes.pcxt', rows)
         self.assertEqual(rows['fes.apple2']['standing'], 'experimental')
-        self.assertEqual(rows['fes.c64']['standing'], 'experimental')
-        self.assertEqual(rows['fes.c64']['system'], 'c64')
+        for model, label in (('fes.c64', 'Commodore 64 (PAL)'), ('fes.c64-ntsc', 'Commodore 64 (NTSC)')):
+            with self.subTest(model=model):
+                self.assertEqual(rows[model]['label'], label)
+                self.assertEqual(rows[model]['system'], 'c64')
+                self.assertEqual(rows[model]['standing'], 'experimental')
         self.assertEqual(rows['fes.spectrum']['standing'], 'experimental')
         self.assertEqual(rows['fes.spectrum']['system'], 'spectrum')
         self.assertEqual(rows['fes.spectrum']['label'], 'ZX Spectrum 48K')

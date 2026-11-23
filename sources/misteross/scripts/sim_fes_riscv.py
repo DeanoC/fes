@@ -8,6 +8,10 @@ from pathlib import Path
 import subprocess
 import sys
 
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.verilator_waivers import lint_config
+
 ROOT = Path(__file__).resolve().parents[1]
 RTL = ROOT / 'cores/fes-common/rtl/riscv'
 SIM = ROOT / 'cores/fes-common/sim/riscv'
@@ -80,7 +84,7 @@ def main():
             options = ['--public-flat-rw', '-Wno-UNUSEDSIGNAL', '-Icores/fes-common/generated']
         output = ROOT / 'build/sim/fes-riscv' / case
         output.mkdir(parents=True, exist_ok=True)
-        command = [args.verilator, '--cc', '--exe', '--build', '-j', str(args.jobs),
+        command = [args.verilator, *lint_config(args.verilator), '--cc', '--exe', '--build', '-j', str(args.jobs),
                    '--top-module', top, '-Wall', '--Mdir', str(output),
                    '-CFLAGS', '-std=c++17 -O2', *options, *(str(path) for path in files), str(tb)]
         log = output / 'build.log'

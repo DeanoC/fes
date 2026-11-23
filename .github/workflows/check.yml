@@ -24,6 +24,7 @@ jobs:
       cores: ${{ steps.plan.outputs.cores }}
       simulations: ${{ steps.plan.outputs.simulations }}
       sim_tier: ${{ steps.plan.outputs.sim_tier }}
+      full_tier_cores: ${{ steps.plan.outputs.full_tier_cores }}
       test_modes: ${{ steps.plan.outputs.test_modes }}
       paths_artifact: ${{ steps.plan.outputs.paths_artifact }}
       parent_partitions: ${{ steps.plan.outputs.parent_partitions }}
@@ -44,7 +45,7 @@ jobs:
           python3 - <<'PYCODE'
           import json, os
           from scripts.ci_gate import validate_plan
-          from scripts.ci_simulations import simulation_matrix, tier_for_event
+          from scripts.ci_simulations import full_tier_cores, simulation_matrix, tier_for_event
           from scripts.test_policy import validate_test_modes
           from scripts.parent_tests import parent_partitions
           plan = json.load(open('/tmp/affected.json'))
@@ -55,7 +56,9 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('lanes=' + json.dumps(plan['lanes']) + '\n')
               output.write('cores=' + json.dumps(plan['cores']) + '\n')
-              output.write('simulations=' + json.dumps(simulation_matrix(plan['cores'], tier)) + '\n')
+              full = full_tier_cores(plan['cores'], plan['paths'])
+              output.write('full_tier_cores=' + json.dumps(full) + '\n')
+              output.write('simulations=' + json.dumps(simulation_matrix(plan['cores'], tier, full)) + '\n')
               output.write('sim_tier=' + tier + '\n')
               output.write('test_modes=' + json.dumps(plan['test_modes']) + '\n')
               output.write('parent_partitions=' + json.dumps(parent_partitions(plan['test_modes']['media'])) + '\n')
@@ -63,7 +66,7 @@ jobs:
           with open('/tmp/changed-paths.json', 'w') as output:
               json.dump(plan['paths'], output)
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
-              output.write('Simulation tier: ' + tier + '\n\n')
+              output.write('Simulation tier: ' + tier + (' (full suite for ' + ', '.join(full) + ')' if full else '') + '\n\n')
               output.write('Affected CI plan\n\n```json\n' + json.dumps(plan, indent=2) + '\n```\n')
           PYCODE
       - name: Retain affected plan artifact

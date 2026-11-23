@@ -1,0 +1,14 @@
+Command, run three times from sources/misteross after the full producer:
+
+  YOSYS_MAX_THREADS=4 timeout 1800 \
+    /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/14b00e925554aac92fce2481e3e4414f82da1e0b3f6a3ae9e89a871a69c25dc7/install/bin/yosys \
+    -s build/fes-pc386-quartus/machine.ys
+
+All three used Yosys d273c1cb774f70d58c890745ac1b7dd106d32a26, returned 0,
+and ended normally after `memory_map` and the second `opt -purge`.
+
+| Replay | Elapsed | Peak memory | Yosys logfile hash | Captured log SHA-256 |
+| --- | ---: | ---: | --- | --- |
+| 1 | 66.46s | 1892.07 MB | 1a24cfb0ba | 1a8979436d9fa5adfac185f4e38938b183b4f1c1221863e7728e4e55dff2cdd8 |
+| 2 | 50.64s | 1892.80 MB | 1a24cfb0ba | 20bcb7773873dd5bc240728cfaa580a151ff418314faca7de400940231907910 |
+| 3 | 49.36s | 1893.23 MB | 1a24cfb0ba | 9179740ee6f1939fa72e52422e3e5b7250dfadbd200caf5def20b17a5d93bf46 |

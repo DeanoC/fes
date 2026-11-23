@@ -29,8 +29,12 @@ struct Port {
 
 static void new_command(Port &p) {
     p.is_write = rnd(2);
-    int max_beats = rnd(4) == 0 ? 128 : 9;
-    p.burst = 1 + rnd(max_beats);
+    // The largest burst a port's 8-bit burstcount carries: 128 beats on the
+    // 128-bit port, 255 on a 64-bit one. A 64-bit port's 255 beats, and 254
+    // from its upper lane, convert to 128 wide beats: the edge of the sum.
+    int most = p.bytes == 8 ? 255 : 128;
+    int r = rnd(8);
+    p.burst = r == 0 ? most : r == 1 ? most - 1 : r == 2 ? 1 + rnd(most) : 1 + rnd(9);
     uint32_t span = uint32_t(p.burst * p.bytes);
     uint32_t base = uint32_t(rnd(int((REGION - span) / p.bytes))) * p.bytes;
     p.address = p.id * REGION + base;

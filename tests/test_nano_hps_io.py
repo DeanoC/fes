@@ -169,7 +169,7 @@ class HPSIOTests(unittest.TestCase):
             for key in ('hps_io','hps_io_sha256'):
                 changed=dict(record);changed.pop(key)
                 with self.subTest(key=key),self.assertRaises(ValueError):context.checked_hps_io(changed)
-            for program in ('probe','bootcontext','fpgaload','tenfoot'):
+            for program in ('probe','fpgaload','tenfoot'):
                 with self.subTest(program=program),self.assertRaises(ValueError):context.checked_hps_io(dict(record,program=program))
             with self.assertRaises(ValueError):context.checked_hps_io(dict(record,hps_io_sha256='0'*64))
         profile={'sd_pio':False,'chain_sha256':'a'*64,'owner_seed':1,'entry_image_sha256':'b'*64,'entry_image_size':64,

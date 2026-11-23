@@ -54,6 +54,14 @@ SMOKE_TARGETS = {
     'coleco': ('sim-fes-coleco-unit', 'sim-fes-coleco-unit-oss', 'sim-fes-coleco-board-graphics',
                'sim-fes-coleco-diagnostic', 'sim-fes-coleco-sgm-integrated'),
 }
+# A smoke-tier run escalates a core to its full suite when the change touches
+# that core's design-v2 evidence: files that leave its BUILD_ID, so a sealed
+# package may be reused. Deano's 22 Nov 2026 reuse rule for fes.pcxt-dos
+# (#2096) needs the pcxt simulation targets, including sim-fes-pcxt-dos, to pass
+# on the new configuration.
+FULL_TIER_INPUTS = {
+    'pcxt': ('sources/misteross/cores/fes-pcxt/sim/',),
+}
 TIERS = ('smoke', 'full')
 SMOKE_EVENTS = ('pull_request', 'merge_group', 'push')
 
@@ -62,13 +70,22 @@ def tier_for_event(event):
     return 'smoke' if event in SMOKE_EVENTS else 'full'
 
 
-def simulation_matrix(cores, tier='full'):
+def full_tier_cores(cores, paths):
+    """The selected cores whose evidence the changed paths touch, in order."""
+    return [core for core in cores
+            if any(path.startswith(FULL_TIER_INPUTS.get(core, ())) for path in paths)]
+
+
+def simulation_matrix(cores, tier='full', full=()):
     if tier not in TIERS:
         raise ValueError('Expected a simulation tier: ' + ', '.join(TIERS))
     if not isinstance(cores, list) or any(not isinstance(core, str) for core in cores):
         raise ValueError('Expected a list of core names')
     if len(cores) != len(set(cores)) or not set(cores) <= set(CORES):
         raise ValueError('Expected unique known cores')
+    if not set(full) <= set(cores):
+        raise ValueError('Full-tier cores must be selected cores')
     return {'include': [{'core': core, 'target': target}
                         for core in cores
-                        for target in (SMOKE_TARGETS.get(core) if tier == 'smoke' else None) or TARGETS[core]]}
+                        for target in (SMOKE_TARGETS.get(core) if tier == 'smoke' and core not in full
+                                       else None) or TARGETS[core]]}

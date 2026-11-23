@@ -5,7 +5,11 @@
 // de25nano tag excludes the QEMU BSP; FAT configuration cannot switch hardware.
 package board
 
-import "image"
+import (
+	"image"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
+)
 
 // Architectural ARMv8 Generic Timer PPI interrupt IDs shared by all boards.
 const (
@@ -18,4 +22,7 @@ type Network interface {
 	Err() error
 	Address() string
 	Stats() string
+	EnableIRQ(*gic.Controller) error
+	DisableIRQ(*gic.Controller)
+	IRQCount() uint64
 }
