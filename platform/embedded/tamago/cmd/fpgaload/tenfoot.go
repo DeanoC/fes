@@ -141,6 +141,11 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	}
 	inputMode := "uart"
 	if expectedUSBControl != "" {
+		cleanupUSBIRQ, err := enableProgramUSBIRQ(activeGIC)
+		if err != nil {
+			panic(err)
+		}
+		defer cleanupUSBIRQ()
 		if expectedUSBInput == "gamepad" {
 			keys := nativefabric.ProgramGamepadKeys{Up: 0x52, Down: 0x51, Left: 0x50, Right: 0x4f}
 			// This diagnostic assigns S/start and Space to the first two HID buttons.

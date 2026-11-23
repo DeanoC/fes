@@ -55,6 +55,7 @@ func NewProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, sou
 		return nil, err
 	}
 	p.source, p.menu = source, menu
+	attachInputReady(base, source)
 	return p, nil
 }
 
@@ -77,7 +78,22 @@ func NewProgramGamepadPlatform(base tenfoot.Platform, backend *ProgramBackend, s
 	p.gamepadSource, p.gamepadMenu = source, menu
 	p.gamepadDescriptor = append([]byte(nil), descriptor...)
 	p.gamepadButtons, p.gamepadKeys = buttons, keys
+	attachInputReady(base, source)
 	return p, nil
+}
+
+func attachInputReady(base tenfoot.Platform, source any) {
+	waiter, ok := source.(interface{ Ready() <-chan struct{} })
+	if !ok {
+		return
+	}
+	ready := waiter.Ready()
+	if ready == nil {
+		return
+	}
+	if setter, ok := base.(interface{ SetInputReady(<-chan struct{}) }); ok {
+		setter.SetInputReady(ready)
+	}
 }
 func newProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, control programInputPolling) (*ProgramInputPlatform, error) {
 	if base == nil || backend == nil || backend.service == nil {
