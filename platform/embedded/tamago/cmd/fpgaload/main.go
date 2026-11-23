@@ -172,6 +172,9 @@ func main() {
 	if !ok {
 		panic(errors.New("FPGA load requires owned SD storage"))
 	}
+	if err := lease.EnableCache(block.CacheConfig{Capacity: 128}); err != nil {
+		panic(err)
+	}
 	var volume fs.FS
 	if writablePlan != nil {
 		check, done := context.WithTimeout(context.Background(), 100*time.Second)
