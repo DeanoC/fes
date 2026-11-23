@@ -241,6 +241,15 @@ def synth_c64(tree: Path, cache_root: Path):
     return output / "synth.json", evidence["tools"], producer
 
 
+def synth_c64_ntsc(tree: Path, cache_root: Path):
+    """fes.c64-ntsc (#2072): the same shell with NTSC=1 on the board top."""
+    producer = _load(tree, "build_fes_c64_oss")
+    output = producer.ROOT / producer.model_for("ntsc").output
+    _fresh(output / "synth.json")
+    evidence = producer.synth(producer.ROOT, cache_root=cache_root, model="ntsc")
+    return output / "synth.json", evidence["tools"], producer
+
+
 def synth_apple2(tree: Path, cache_root: Path):
     producer = _load(tree, "build_fes_apple2_oss")
     _fresh(producer.ROOT / producer.OUTPUT_RELATIVE / "synth.json")
@@ -299,6 +308,7 @@ CORES = {
     "fes.spectrum-plus3": _spectrum_model("plus3"),
     "fes.pentagon": _spectrum_model("pentagon"),
     "fes.c64": synth_c64,
+    "fes.c64-ntsc": synth_c64_ntsc,
     "fes.apple2": synth_apple2,
     "fes.atari-st": synth_atari_st,
     "fes.menu": synth_menu,

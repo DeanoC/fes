@@ -8,6 +8,7 @@
 #   model    the producer's --model value, or - for none
 #   builddir the producer's build directory under sources/misteross/build
 #   kind     full = base, forced (head with base's BUILD_ID), c3 (head, unforced)
+#            c2   = base and forced only
 #            c3   = c3 only (rows whose netlist moved: a normal reseal)
 #
 # Condition 2: base.core.rbf == forced.core.rbf, both built in <tree> with the
@@ -41,19 +42,24 @@ build() { # sha tag module model builddir [summary]
   fi
   local rc=$?; say "$tag rc=$rc ($(git -C "$TREE" rev-parse --short HEAD))"
   [ $rc -eq 0 ] || return 1
-  local rbf; rbf=$(find "$d" -name core.rbf -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-)
-  [ -n "$rbf" ] || { say "$tag wrote no core.rbf"; return 1; }
+  # The producer's own output: core.rbf at the top of the build directory (OSS)
+  # or of the newest attempt directory (Quartus). Never a QoR-search candidate.
+  local rbf=$d/core.rbf
+  [ -f "$rbf" ] || rbf=$(find "$d" -mindepth 3 -maxdepth 3 -path '*/attempt-*/core.rbf' -printf '%T@ %p\n' |
+      sort -n | tail -1 | cut -d' ' -f2-)
+  [ -n "$rbf" ] && [ -f "$rbf" ] || { say "$tag wrote no core.rbf"; return 1; }
   local src; src=$(dirname "$rbf")
-  for f in core.rbf synth.json build-summary.json manifest.toml; do
+  for f in core.rbf synth.json build-summary.json manifest.toml timing.json; do
     [ -f "$src/$f" ] && cp --remove-destination "$src/$f" "$OUT/$tag.$f"
   done
-  say "$tag rbf $(sha256sum "$OUT/$tag.core.rbf" | cut -c1-64)"
+  [ -f "$OUT/$tag.build-summary.json" ] || { say "$tag: no build-summary.json beside $rbf"; return 1; }
+  say "$tag rbf $(sha256sum "$OUT/$tag.core.rbf" | cut -c1-64) from ${rbf#$TREE/}"
 }
 
 for spec in "$@"; do
   IFS=: read -r name module model dir kind <<< "$spec"
   say "########## $name ($kind)"
-  if [ "$kind" = full ]; then
+  if [ "$kind" = full ] || [ "$kind" = c2 ]; then
     if build "$BASE" "$name.base" "$module" "$model" "$dir" \
        && build "$HEAD" "$name.forced" "$module" "$model" "$dir" "$OUT/$name.base.build-summary.json"; then
       if cmp -s "$OUT/$name.base.core.rbf" "$OUT/$name.forced.core.rbf"; then
@@ -65,6 +71,7 @@ for spec in "$@"; do
       say "RESULT $name condition 2: build FAILED"
     fi
   fi
+  [ "$kind" = c2 ] && continue
   touch "$OUT/$name.c3.start"
   if build "$HEAD" "$name.c3" "$module" "$model" "$dir"; then
     say "RESULT $name condition 3: gates passed, BUILD_ID $(python3 -c "import json;print(json.load(open('$OUT/$name.c3.build-summary.json'))['build_id'])" 2>/dev/null)"
