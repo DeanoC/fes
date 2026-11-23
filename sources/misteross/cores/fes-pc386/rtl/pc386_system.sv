@@ -238,7 +238,7 @@ module pc386_system #(
     // decided on #1694): A: is a 3.5" 1.44M drive and B: a 5.25" 1.2M one
     // (CMOS types 4 and 2), and the machine boots like an AT, A: then C:
     // (boot device 1: CMOS 3Dh=21h, 38h=30h, 2Dh bit 5).
-    localparam [1:0][2:0] FLOPPY_TYPES = {3'd2, 3'd4};
+    localparam [5:0] FLOPPY_TYPES = {3'd2, 3'd4};   // {B:, A:}
 
     // ---- Hold and the machine reset
     wire cpu_mem_idle, rom_idle;
