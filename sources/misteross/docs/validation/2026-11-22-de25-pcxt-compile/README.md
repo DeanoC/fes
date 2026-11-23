@@ -93,8 +93,10 @@ that report them bound the phase:
 | `7f2c0868f` | phase 0 | -1.004 ns | 12.0 ns | about 2.0 ns | +1.0 to +2.0 ns |
 | `cef5ef7e9` | +4.0 ns | 2.869 ns | 8.028 ns | -1.972 ns | +1.131 to +2.028 ns |
 
-The source after `3393cd822` drops the hold multicycle, so the setup
-multicycle alone puts the hold check at the consumed edge, and captures at
+The source after `3393cd822` drops the hold multicycle of 1, so the setup
+multicycle puts the hold check at the consumed edge (a later commit states
+the default hold multicycle of 0, which keeps it there, because Design
+Assistant reports a setup-only multicycle as TMC-20019), and captures at
 +1.5 ns: 15.25 ns after the launch, still in the same read window, 7.75 ns
 before the handoff, so the controller's cycle counts are the DE10's. These
 compiles predict 0.369 to 0.496 ns of setup and 0.5 to 0.528 ns of hold.

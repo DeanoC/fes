@@ -109,13 +109,15 @@ class Derivations(unittest.TestCase):
 
     def test_dq_capture_is_timed_at_the_edge_the_handoff_consumes(self):
         build = load(HERE / "build.py", "de25_pcxt_build")
-        # Only setup moves to the consumed edge. A hold multicycle would move
+        # Only setup moves to the consumed edge. The hold multicycle stays 0,
+        # the default, stated for Design Assistant (TMC-20019); 1 would move
         # the hold check 10 ns earlier, to a capture edge nothing reads.
         sdc = (HERE / "pcxt-clocks.sdc").read_text()
         multicycles = [line.strip() for line in sdc.splitlines()
                        if "set_multicycle_path" in line and not line.lstrip().startswith("#")]
         self.assertEqual(multicycles, [
-            "set_multicycle_path -setup -end 2 -from [get_clocks DRAM_CLK] -to $sdram_capture"])
+            "set_multicycle_path -setup -end 2 -from [get_clocks DRAM_CLK] -to $sdram_capture",
+            "set_multicycle_path -hold -end 0 -from [get_clocks DRAM_CLK] -to $sdram_capture"])
         period = 10000
         phase = {role: float(build.PLL_PARAMETERS["gui_phase_shift%d" % output])
                  for role, output in build.SDRAM_CLOCKS}

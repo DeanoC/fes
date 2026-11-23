@@ -251,9 +251,12 @@ set_input_delay -clock DRAM_CLK -min 2.100 $sdram_data
 # the word the capture registers sampled on the capture clock's second edge
 # after that launch, 15.25 ns after it, in sdram_cas3_capture's read window:
 # setup is checked at that edge. The word of the next chip edge must not
-# reach that same capture edge. The setup multicycle alone puts the hold
-# check there, 5.25 ns after the next chip edge; a hold multicycle of 1 would
-# move it back 10 ns, to a capture edge whose sample nothing reads.
+# reach that same capture edge. The setup multicycle puts the hold check
+# there, 5.25 ns after the next chip edge. The hold multicycle of 0 keeps it
+# there (it is the default, stated so Design Assistant's TMC-20019 sees the
+# pair); a hold multicycle of 1 would move it back 10 ns, to a capture edge
+# whose sample nothing reads.
 set sdram_capture [get_registers "${base}|core|dq_sample\[*\]"]
 if {[get_collection_size $sdram_capture] != 16} {error "DE25 PC/XT SDRAM capture registers changed"}
 set_multicycle_path -setup -end 2 -from [get_clocks DRAM_CLK] -to $sdram_capture
+set_multicycle_path -hold -end 0 -from [get_clocks DRAM_CLK] -to $sdram_capture

@@ -63,8 +63,9 @@ bank it holds. The SDRAM pins are constrained against the ISSI IS42/45VM16320G
 data sheet at CAS latency 3. The capture registers are checked at the second
 capture edge after the chip launches a word, the edge the DE10 controller's
 read window takes: setup against that word and hold against the next chip
-edge's. There is no hold multicycle; one would move the hold check 10 ns
-earlier, to a capture edge whose sample nothing reads.
+edge's. The hold multicycle is 0, the default, written out so Design
+Assistant does not report a setup-only multicycle (TMC-20019); 1 would move
+the hold check 10 ns earlier, to a capture edge whose sample nothing reads.
 
 ## Run
 
