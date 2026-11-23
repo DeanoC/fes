@@ -802,3 +802,62 @@ func TestRenewalAnchorsLeaseAtRequestSendTime(t *testing.T) {
 		})
 	}
 }
+
+func TestT1SendErrorFailsWithoutPrematureT2Rebind(t *testing.T) {
+	port := newFakeRenewPort()
+	sendBoom := errors.New("tx ring full")
+	var sendCalls atomic.Int32
+	port.sendErr = nil
+	// Fail on first SendRawFrame without setting port.Err() and count total attempts.
+	customPort := &countingErrPort{base: port, err: sendBoom, calls: &sendCalls}
+	errCh := make(chan error, 1)
+	ren, err := NewLeaseRenewer(customPort, "52:54:00:12:34:56", DHCPLease{
+		Address:       "10.0.2.15/24",
+		Gateway:       "10.0.2.2",
+		Server:        "10.0.2.2",
+		LeaseDuration: time.Hour,
+		RenewalTime:   10 * time.Millisecond,
+		RebindTime:    30 * time.Minute,
+	}, RenewConfig{
+		ServerMAC:     "52:55:0a:00:02:02",
+		RetryInterval: 5 * time.Millisecond,
+		OnError: func(err error) {
+			select {
+			case errCh <- err:
+			default:
+			}
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewLeaseRenewer: %v", err)
+	}
+	if err := ren.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	select {
+	case gotErr := <-errCh:
+		if !errors.Is(gotErr, sendBoom) {
+			t.Fatalf("OnError=%v, want %v", gotErr, sendBoom)
+		}
+	case <-time.After(time.Second):
+		ren.Stop()
+		t.Fatal("timed out waiting for T1 send error")
+	}
+	ren.Stop()
+	if got := sendCalls.Load(); got != 1 {
+		t.Fatalf("SendRawFrame calls=%d, want 1 (must not advance to T2 rebind on T1 send error)", got)
+	}
+}
+
+type countingErrPort struct {
+	base  *fakeRenewPort
+	err   error
+	calls *atomic.Int32
+}
+
+func (p *countingErrPort) SendRawFrame([]byte) error {
+	p.calls.Add(1)
+	return p.err
+}
+func (p *countingErrPort) AddTap(fn func([]byte)) func() { return p.base.AddTap(fn) }
+func (p *countingErrPort) Err() error                    { return nil }

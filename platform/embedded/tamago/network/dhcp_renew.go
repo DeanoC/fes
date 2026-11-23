@@ -55,7 +55,7 @@ var _ DHCPFramePort = (*Link)(nil)
 type RenewConfig struct {
 	Hostname      string          // Optional option 12 hostname (default "fes-native")
 	ServerMAC     string          // Optional unicast DHCP server MAC for T1 renew (empty -> broadcast)
-	RetryInterval time.Duration   // Base retransmit interval per renew/rebind phase (default 250ms)
+	RetryInterval time.Duration   // Minimum retransmit floor for RFC 2131 §4.4.5 remaining-time pacing (default 60s)
 	AcquiredAt    time.Time       // Time the initial lease was granted (zero -> time.Now() at NewLeaseRenewer)
 	XID           uint32          // Optional fixed transaction ID for deterministic tests (0 -> random)
 	OnRenew       func(DHCPLease) // Optional callback invoked after each successful renewal; must not call Stop synchronously.
@@ -532,7 +532,10 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 		if runCtx.Err() != nil {
 			return
 		}
-		if errors.Is(err, ErrLeaseNAK) || errors.Is(err, ErrLeaseChanged) || r.port.Err() != nil {
+		if !errors.Is(err, context.DeadlineExceeded) || r.port.Err() != nil {
+			if portErr := r.port.Err(); portErr != nil && errors.Is(err, context.DeadlineExceeded) {
+				err = portErr
+			}
 			r.fail(err)
 			return
 		}
