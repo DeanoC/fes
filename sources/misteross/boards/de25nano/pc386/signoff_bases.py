@@ -13,7 +13,7 @@ from boards.de25nano.scanout.machine_findings import S, E, nodes, bus, crossing,
 TABLE = 'boards/de25nano/pc386/signoff_bases.py'
 SOURCES = {
     'cores/fes-pc386/rtl/pc386_presenter.sv': 'aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3',
-    'cores/fes-pc386/rtl/pc386_vga_scanout.sv': '281fe4b87ff2016fdab187a83df17b02443b2b8c44729d940494c9a2b994d0a3',
+    'cores/fes-pc386/rtl/pc386_vga_scanout.sv': '03d194d816290a6f6977cc84dfe5c64be374f1ca4eb3a297b1562495b0186fec',
     'cores/fes-pc386/rtl/pc386_snapshot.sv': '795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4',
     'cores/fes-pc386/rtl/pc386_machine.sv': 'c1aa79dbefc5c1632601b6097765249c68ed01f0d172ef7d6087e1f71893dabc',
 }
