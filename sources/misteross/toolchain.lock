@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "d273c1cb774f70d58c890745ac1b7dd106d32a26"
 order = 10
-rationale = "DeanoC/yosys d273c1cb77 (squash merge of DeanoC/yosys#81): rehash hashlib on insert, fixing the threaded OPT_CLEAN crash in yosys#77. Validated against previous pin 3a5accbd78 in [2026-11-23-yosys81-shared-lock.md] (2026-11-23)."
+rationale = "DeanoC/yosys d273c1cb77 (squash merge of DeanoC/yosys#81): rehash hashlib on insert, fixing the threaded OPT_CLEAN crash in yosys#77. The pinned source builds through CMake. Validated against previous pin 3a5accbd78 in [2026-11-23-yosys81-shared-lock.md] (2026-11-23)."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"

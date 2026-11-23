@@ -383,7 +383,7 @@ class BuildFesSmsTests(unittest.TestCase):
         for text in (readme, architecture, root_readme):
             self.assertIn("first-pass", text)
             self.assertIn("HeAP 1000", text)
-        self.assertIn("5391eeb1", readme)
+        self.assertIn("d273c1cb", readme)
         self.assertIn("package-only", readme.lower())
         self.assertIn("outside the first-party catalog", readme.lower())
         self.assertNotIn("remain later jobs", readme.lower())

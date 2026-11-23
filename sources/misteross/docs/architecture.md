@@ -1295,7 +1295,7 @@ The `0a253257` schema review is recorded in the
 Each lock resolves to the shared installs of the tools it pins. Menu and ZX81 pin
 nextpnr `1eecf877` (ZX81 fes#936; Menu moved when its blitter took DSP
 multipliers), Pong's lock pins `552ba246` (fes#887), RISC-V's `8f453ebc`
-(fes#945), and Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`
+(fes#945), and Coleco's pins Yosys `d273c1cb` with nextpnr `bec82e36`
 (current main includes #296 and #299, retaining #289, #290, #292); each
 of those nextpnr pins is its own install. Apple II, Atari ST (fes#910) and C64 pin nextpnr
 `5fe55f3d` for nextpnr #276's F0/F1 boundary `$ROUTETHRU` map. Spectrum pins
@@ -1647,7 +1647,7 @@ Registered FES producers select compiler pins from their corresponding
 commit and build configuration, not one per lock, so locks that pin the same
 Yosys or Verilator share it: Menu and ZX81 (nextpnr `1eecf877`), Pong
 (`552ba246`), RISC-V (`8f453ebc`), Apple II, C64 and Atari ST (`5fe55f3d`),
-Spectrum (nextpnr main `bd7a1c0d`) and Coleco (Yosys `5391eeb1` with nextpnr
+Spectrum (nextpnr main `bd7a1c0d`) and Coleco (Yosys `d273c1cb` with nextpnr
 `bec82e36`) differ only in the installs those pins name.
 Producers select that cache only through an explicit `--cache-root` argument or the Make
 `CACHE_ROOT=` variable. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
@@ -2121,7 +2121,7 @@ line banks, sequential clear and publication interlock are deliberate RTL
 scaling accommodations shared by both compiler lanes. The original procedural
 sprite loop expanded to roughly 42K mapped combinational cells; the registered
 one-column/repeat schedule fits the fixed system-clock budget. The Coleco OSS
-recipe uses its core-local lock: Yosys `5391eeb1`, nextpnr-mistral `bec82e36`
+recipe uses its core-local lock: Yosys `d273c1cb`, nextpnr-mistral `bec82e36`
 with `--router gpu`, and Mistral `8fcc4cb4`. Its factory native-video
 first-pass search follows the configured seed order 3, 4, 5, 1, 2, 6, 7, 8,
 9 and 10 at HeAP timing weights 2000 then 1000, with criticality exponent 5
@@ -2150,7 +2150,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | Apple II and C64 use nextpnr `5fe55f3d` (#276), Spectrum uses nextpnr main `bd7a1c0d` (#276 merged), and Coleco v2 pins Yosys `5391eeb1` with nextpnr `bec82e36` (#296, #299; retains #289, #290 and #292); each validates its matching F0/F1 boundary `$ROUTETHRU` map. The Coleco development shell uses the repository-level nextpnr `9128800f` and its C/D map. SMS and SG-1000 match the repository-level pins (Yosys `d273c1cb`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Quartus needs neither lock. |
+| Toolchain selection | Apple II and C64 use nextpnr `5fe55f3d` (#276), Spectrum uses nextpnr main `bd7a1c0d` (#276 merged), and Coleco v2 pins Yosys `d273c1cb` with nextpnr `bec82e36` (#296, #299; retains #289, #290 and #292); each validates its matching F0/F1 boundary `$ROUTETHRU` map. The Coleco development shell uses the repository-level nextpnr `9128800f` and its C/D map. SMS and SG-1000 match the repository-level pins (Yosys `d273c1cb`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -4704,7 +4704,7 @@ retain their original SPDX notices. Core-specific machines, reset ROMs, diagnost
 and constraints remain in their existing directories. The old Coleco producer
 selects the repository-level `toolchain.lock`. Registered Coleco, SMS and
 SG-1000 producers select per-core locks. SMS and SG-1000 match the repository
-lock and share its installs. Coleco pins Yosys `5391eeb1`, which has its own
+lock and share its installs. Coleco pins Yosys `d273c1cb`, which has its own
 Yosys install.
 Per-core generated simple-computer headers remain checked against mister-packages;
 consumers use their own generated include directory.
