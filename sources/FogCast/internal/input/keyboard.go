@@ -57,6 +57,8 @@ type KeyboardSink struct {
 	retiredNoPost bool
 }
 
+type matrixIdleCleanupKey struct{}
+
 func NewKeyboardSink() *KeyboardSink {
 	sink := &KeyboardSink{}
 	if _, err := rand.Read(sink.sinkID[:]); err != nil {
@@ -153,6 +155,43 @@ func (s *KeyboardSink) retireObserved(ctx context.Context, observe func(context.
 	s.retiredNoPost = true
 	for source := inputSource(0); source < sourceCount; source++ {
 		s.suppressSourceLocked(source)
+	}
+	return nil
+}
+
+// retireUnboundIdle avoids inventing a matrix binding for a fresh sink. A
+// missing binding is not evidence of neutral hardware: only a fresh explicit
+// idle observation under the lifecycle guard can retire that empty state.
+func (s *KeyboardSink) retireUnboundIdle(ctx context.Context, observe func(context.Context) (CoreObservation, error), validate func(context.Context) error) error {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if s.binding != nil || s.uncertain != nil || observe == nil || validate == nil {
+		return errMatrixUnconfirmed
+	}
+	for _, pressed := range s.pressed {
+		if len(pressed) != 0 {
+			return errMatrixUnconfirmed
+		}
+	}
+	if err := validate(ctx); err != nil {
+		return err
+	}
+	probe, cancel := context.WithTimeout(ctx, localCoreObserveTimeout)
+	obs, err := observe(probe)
+	if err == nil {
+		err = probe.Err()
+	}
+	cancel()
+	if err != nil {
+		return err
+	}
+	if !obs.IdleConfirmed || obs.Active || obs.PackageID != "" || obs.Generation != 0 || !validObservedMatrixInstance(obs.RuntimeInstance) {
+		return errMatrixUnconfirmed
+	}
+	if err := validate(ctx); err != nil {
+		return err
 	}
 	return nil
 }
@@ -266,8 +305,19 @@ func (s *KeyboardSink) postLocked(ctx context.Context, source inputSource, neutr
 	if s.poster == nil {
 		return nil
 	}
-	if s.binding == nil && s.retiredNoPost && s.uncertain == nil {
-		return nil
+	idleGuard, _ := ctx.Value(matrixIdleCleanupKey{}).(func(context.Context) error)
+	if s.binding == nil && s.uncertain == nil && (s.retiredNoPost || idleGuard != nil) {
+		if idleGuard != nil {
+			if err := idleGuard(ctx); err != nil {
+				return err
+			}
+		}
+		if len(s.unionLocked()) == 0 {
+			return nil
+		}
+		// Idle retirement certifies only an empty cleanup, never a press.
+		// The caller must roll back the unbound provisional mutation.
+		return errors.Join(localhid.ErrMatrixNotDispatched, errMatrixUnconfirmed)
 	}
 	if s.sinkID == ([16]byte{}) || s.nextSequence >= ^uint64(0)-1 {
 		return errMatrixUnconfirmed

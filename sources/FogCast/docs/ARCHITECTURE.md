@@ -3771,6 +3771,10 @@ neutralizes that exact uncertain source while preserving confirmed remote
 contributors; held local mappings remain suppressed until their physical
 contributors release. A proven pre-dispatch failure can instead retry the
 current desired state.
+For a fresh, unbound matrix sink, lifecycle cleanup may omit the matrix write
+only after a fresh explicit idle observation with a valid runtime instance.
+That proof applies to the current guarded cleanup only: it cannot authorize an
+unbound press or hide an unrelated cleanup failure.
 Synthetic pad keys, the physical local keyboard and the remote keyboard retain
 separate contributions, so one release cannot clear another device's hold.
 Per-player pad controls survive a core transition for release bookkeeping,

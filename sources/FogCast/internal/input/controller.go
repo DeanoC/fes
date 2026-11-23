@@ -358,13 +358,13 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 func (c *TargetController) releasePersistentLocked(ctx context.Context, persistent bridge.Sink) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	release := func() error {
+	release := func(ctx context.Context) error {
 		if ports, ok := persistent.(*controllerPortsSink); ok {
 			return ports.releaseAllContext(ctx)
 		}
 		return persistent.ReleaseAll()
 	}
-	releaseErr := release()
+	releaseErr := release(ctx)
 	if releaseErr == nil {
 		return nil
 	}
@@ -390,20 +390,26 @@ func (c *TargetController) releasePersistentLocked(ctx context.Context, persiste
 	}
 	if keyboard != nil {
 		if _, err := keyboard.neutralMedia(ctx, query, neutral, validate); err == nil {
-			releaseErr = release()
+			releaseErr = release(ctx)
 		}
 	}
 	if releaseErr != nil {
 		if err := retireMediaObserved(ctx, observe, query, retire, validate); err != nil {
 			return errors.Join(releaseErr, err)
 		}
-		releaseErr = release()
+		releaseErr = release(ctx)
 	}
 	if releaseErr != nil && keyboard != nil {
 		if err := keyboard.retireObserved(ctx, observe, validate); err != nil {
 			return errors.Join(releaseErr, err)
 		}
-		releaseErr = release()
+		releaseErr = release(ctx)
+	}
+	if releaseErr != nil && keyboard != nil {
+		if err := keyboard.retireUnboundIdle(ctx, observe, validate); err != nil {
+			return errors.Join(releaseErr, err)
+		}
+		releaseErr = release(context.WithValue(ctx, matrixIdleCleanupKey{}, validate))
 	}
 	return releaseErr
 }
