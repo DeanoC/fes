@@ -64,6 +64,38 @@ ordinary diagnostic cleanup cannot restore an older release. Status identifies
 the base image, active software and pending operation independently. Host-only
 regressions do not establish physical acceptance of the bootstrap cutover.
 
+## Remaining installer separation
+
+1. **Separate parent regressions from product lanes.** Select and balance
+   parent Python and host Go tests from package/import dependencies and measured
+   timings while retaining a full scheduled run, targeting ordinary room/host
+   PR feedback within five minutes (measured p50/p95 before claiming the target).
+2. **Make OS building consume installed artifacts.** `make image` consumes an
+   explicit prebuilt bootstrap artifact set ([assembly inputs](image-artifacts.md))
+   while `make build`/`make dev` remain explicit source integration. Offline
+   first boot and an empty playable-core inventory still need kit evidence.
+3. **Separate UI engine and room delivery.** The room installer provides
+   bounded validation, immutable snapshots, atomic selection, live reopen and
+   rollback, and first-party packs declare public `example.*` IDs so rooms can
+   update without compiling Go, restarting the agent or rebuilding MENU.
+   Embedded snapshots remain offline recovery defaults; remote room catalog
+   distribution and end-to-end kit install/reopen evidence remain open (see
+   [room installation](../sources/FogCast/docs/rooms.md#installing-and-opening-rooms)).
+4. **Finish installer dependency handling.** Install a chosen core with its
+   matching video/expansion packages, surface download/install/ready states and
+   missing user-supplied firmware, and ensure cancel/retry preserves the
+   previous working selection and saved data.
+5. **Separate development images from release certification throughout.**
+   Trace bootstrap/export/receipt consumers that still impose release
+   reproducibility assumptions, switch routine development to one-pass builds
+   with explicit release certification, and remove the old path in the same
+   cutover.
+
+End-to-end acceptance for this separation is a clean boot with no playable
+cores, installing and playing one core, updating a room without rebuilding
+software, updating software without building cores, and recovering a failed
+installation.
+
 ## Legacy cutover and acceptance
 
 Inventory active compatibility aliases, old core behaviors and contradictory

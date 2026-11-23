@@ -235,8 +235,9 @@ do not run a full host/image/core campaign for every ready PR.
   completed checks and the specific remaining hardware check so Grokbot can
   run the appropriate path. Do not substitute an all-core build for that plan.
 
-See [modular updates](docs/modular-updates.md) and [the forward plan](docs/plans/forward-plan.md)
-for OS, software, core and room installer separation.
+See [modular updates](docs/modular-updates.md#remaining-installer-separation)
+and [the forward plan](docs/plans/forward-plan.md) for OS, software, core and
+room installer separation.
 
 ## Hardware, media and releases
 
