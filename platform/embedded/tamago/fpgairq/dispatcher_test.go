@@ -437,4 +437,41 @@ func TestYieldOrFallback(t *testing.T) {
 	if fallbackCalls.Load() != 1 {
 		t.Fatalf("fallback unexpectedly called with active doorbell: %d", fallbackCalls.Load())
 	}
+
+	// Non-positive maxWait invokes fallback even with an active doorbell.
+	YieldOrFallback(db, 0, func() { fallbackCalls.Add(1) })()
+	if fallbackCalls.Load() != 2 {
+		t.Fatalf("maxWait<=0 fallbackCalls=%d, want 2", fallbackCalls.Load())
+	}
+
+	// Silence bounds wait to maxWait without invoking fallback.
+	YieldOrFallback(db, 2*time.Millisecond, func() { fallbackCalls.Add(1) })()
+	if fallbackCalls.Load() != 2 {
+		t.Fatalf("timeout unexpectedly called fallback: %d", fallbackCalls.Load())
+	}
+
+	// Closing while parked in YieldOrFallback invokes fallback.
+	parkedDone := make(chan struct{})
+	go func() {
+		YieldOrFallback(db, time.Second, func() { fallbackCalls.Add(1) })()
+		close(parkedDone)
+	}()
+	time.Sleep(2 * time.Millisecond)
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	select {
+	case <-parkedDone:
+	case <-time.After(time.Second):
+		t.Fatal("parked YieldOrFallback did not unblock on Close")
+	}
+	if fallbackCalls.Load() != 3 {
+		t.Fatalf("close-while-parked fallbackCalls=%d, want 3", fallbackCalls.Load())
+	}
+
+	// Already-closed doorbell invokes fallback on subsequent calls.
+	yield()
+	if fallbackCalls.Load() != 4 {
+		t.Fatalf("already-closed fallbackCalls=%d, want 4", fallbackCalls.Load())
+	}
 }
