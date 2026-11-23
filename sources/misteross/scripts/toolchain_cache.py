@@ -1149,6 +1149,12 @@ def stage_evidence(request: ToolchainRequest, tool: str, build_root: Path) -> Pa
         raise CacheError(f"no {tool} authentication evidence found below {tool_dir}")
     return evidence
 
+def _command_path(command: str, environment: Mapping[str, str] | None) -> str | None:
+    """Find *command* on *environment*'s ``PATH``, as every host probe does."""
+
+    return shutil.which(command, path=None if environment is None else environment.get("PATH"))
+
+
 def _command_identity(
     command: str,
     args: tuple[str, ...] = ("--version",),
@@ -1156,7 +1162,7 @@ def _command_identity(
     environment: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     probe_environment = None if environment is None else dict(environment)
-    executable = shutil.which(command, path=None if probe_environment is None else probe_environment.get("PATH"))
+    executable = _command_path(command, probe_environment)
     if executable is None:
         raise CacheError(f"required host command is missing: {command}")
     path = Path(executable)
@@ -2047,20 +2053,50 @@ def _manifest_pins(manifest: InstallManifest) -> bytes:
     )
 
 
+def _host_gpu_routers(
+    *,
+    environment: Mapping[str, str],
+    compiler: Mapping[str, Any] | None,
+) -> tuple[str, ...]:
+    """Every GPU lane this host can build.
+
+    OFF needs no accelerator compiler. HIP and CUDA count when their compiler
+    is in *compiler* or, without an inventory, on the ``PATH`` the lane's
+    probe would search.
+    """
+
+    explicit_accelerators = None if compiler is None else _accelerator_compiler(compiler)
+    routers: list[str] = []
+    for router, accelerator in _LANE_ACCELERATOR_COMMAND.items():
+        if accelerator is not None:
+            command_name = accelerator[0]
+            if explicit_accelerators is not None:
+                if command_name not in explicit_accelerators:
+                    continue
+            elif _command_path(
+                command_name, _controlled_probe_environment(environment, router)
+            ) is None:
+                continue
+        routers.append(router)
+    return tuple(routers)
+
+
 def _normalise_gpu_routers(
     gpu_routers: Sequence[str] | None,
+    *,
     environment: Mapping[str, str],
+    compiler: Mapping[str, Any] | None,
 ) -> tuple[str, ...]:
     if gpu_routers is None:
-        raw_routers: Sequence[str] = (
-            environment.get("FES_TOOLCHAIN_GPU_ROUTER") or DEFAULT_GPU_ROUTER,
-        )
-    else:
-        if isinstance(gpu_routers, (str, bytes)):
-            raise CacheError("gpu_routers must be a sequence of lane names, not a string")
-        raw_routers = tuple(gpu_routers)
-        if not raw_routers:
-            raise CacheError("gpu_routers must name at least one lane")
+        # Producers and the toolchain-fes* targets select HIP, and
+        # toolchain-fes-i386 OFF, only for their own bootstrap runs, so the
+        # prune's environment names no lane; one lane could not cover both.
+        return _host_gpu_routers(environment=environment, compiler=compiler)
+    if isinstance(gpu_routers, (str, bytes)):
+        raise CacheError("gpu_routers must be a sequence of lane names, not a string")
+    raw_routers = tuple(gpu_routers)
+    if not raw_routers:
+        raise CacheError("gpu_routers must name at least one lane")
     normalised: list[str] = []
     seen: set[str] = set()
     for raw in raw_routers:
@@ -2183,13 +2219,15 @@ def prune(
     compiler inventory, or when its lock file (stamped by every consumer and
     build) is younger than *keep_days*. For GPU tools (``nextpnr``), pinned
     retention also requires matching the configuration, accelerator compiler,
-    and backend environment of one of the kept *gpu_routers* lanes (defaulting
-    to ``FES_TOOLCHAIN_GPU_ROUTER`` or ``OFF``), so obsolete lane or
-    accelerator upgrades age out via *keep_days*. A held lock always keeps an
-    install. A directory without ready.json whose lock is free is a failed
-    build and is removed. Legacy per-lock ``slots/`` are only considered with
-    *legacy_slots*; their readers took no lock, so their binaries' access
-    times stand in for last use. Nothing is removed unless *apply* is set.
+    and backend environment of one of the kept *gpu_routers* lanes, so
+    obsolete lane or accelerator upgrades age out via *keep_days*. By default
+    the kept lanes are every lane this host can build: ``OFF``, plus ``HIP``
+    when ``hipcc`` and ``CUDA`` when ``nvcc`` is present (in *compiler*, or
+    else on ``PATH``). A held lock always keeps an install. A directory
+    without ready.json whose lock is free is a failed build and is removed.
+    Legacy per-lock ``slots/`` are only considered with *legacy_slots*; their
+    readers took no lock, so their binaries' access times stand in for last
+    use. Nothing is removed unless *apply* is set.
     """
 
     output = sys.stdout if output is None else output
@@ -2203,7 +2241,7 @@ def prune(
         # window could remove a slot an old checkout is still reading.
         raise CacheError(f"legacy slots need keep-days of at least {LEGACY_MIN_KEEP_DAYS}")
     env = dict(os.environ if environment is None else environment)
-    routers = _normalise_gpu_routers(gpu_routers, env)
+    routers = _normalise_gpu_routers(gpu_routers, environment=env, compiler=compiler)
     gpu_configurations = _prune_gpu_configurations(
         routers,
         environment=env,
@@ -2381,7 +2419,8 @@ def _prune_main(argv: list[str]) -> int:
         dest="gpu_routers",
         action="append",
         default=None,
-        help="GPU lane to keep as pinned for GPU tools (repeatable; defaults to FES_TOOLCHAIN_GPU_ROUTER or OFF)",
+        help="GPU lane to keep as pinned for GPU tools (repeatable; defaults to every lane this host "
+        "can build: OFF, plus HIP with hipcc and CUDA with nvcc on PATH)",
     )
     parser.add_argument(
         "--hip-architectures",
