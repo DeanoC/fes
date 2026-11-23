@@ -93,6 +93,13 @@ class AudioReferenceTests(unittest.TestCase):
                 with self.assertRaises(audio.BuildError):
                     audio.eligible_machine(self.fit, self.record)
                 (self.project / 'golden_top.v').write_text(self.top)
+                # Another machine with the same wiring has another PLL: its bytes are not this one's.
+                other = 'fes.pc386' if core == 'fes.spectrum128' else 'fes.spectrum128'
+                if audio.MACHINE_PLL_OUTPUTS.get(other, '') == audio.MACHINE_PLL_OUTPUTS.get(core, ''):
+                    self.record['parameters']['core_id'] = other
+                    self.write_record()
+                    with self.assertRaises(audio.BuildError):
+                        audio.eligible_machine(self.fit, self.record)
         self.record['parameters']['core_id'] = 'fes.spectrum128-other'
         self.write_record()
         with self.assertRaises(audio.BuildError):
