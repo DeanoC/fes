@@ -8,12 +8,16 @@ import sys
 import subprocess
 
 PROFILE = 'de25-native-spectrum48-v1'
+C64_PROFILE = 'de25-native-c64-v1'
+C64_ROM_BYTES = 36 << 10
 SCOPE = 'nano-compiled-spectrum48-program-v1'
 CHUNK = 0xfffc0
 MAX_CORE = (8 << 20) - 4096
 MAX_ARCHIVE = 8 << 20
 ROM_BYTES = 16384
 BASES = dict(computer_cpu_base=0x20010300, scanout_cpu_base=0x20010200, probe_cpu_base=0x20010100)
+# DE25 machine producers compile once (#2090): the package is this fit's RBF.
+FIT = 'signoff'
 
 
 def encode(value):
@@ -35,14 +39,14 @@ def read(path, maximum):
     return data
 
 
-def inspect(build, archive):
+def inspect(build, archive, *, c64=False):
     """Run in an isolated producer process to keep private imports separate."""
     from boards.de25nano.package.core_package import read_package
     from boards.de25nano.package.export_core_package import (
         build_identity, manifest_toolchain, verify_record_source_at_revision,
     )
     from boards.de25nano.producers.build_menu_package import timing_evidence
-    from boards.de25nano.scanout.async_inputs import native_spectrum48
+    from boards.de25nano.scanout.async_inputs import native_c64, native_spectrum48
     import hps_io
 
     raw = read(archive, MAX_ARCHIVE)
@@ -52,57 +56,55 @@ def inspect(build, archive):
     evidence = archive.with_suffix('.build-inputs.json')
     fields = verify_record_source_at_revision(build, record)
     params = fields['parameters']
+    profile, core, rom_bytes, native_model = ((C64_PROFILE, 'fes.c64', C64_ROM_BYTES, native_c64) if c64 else
+                                              (PROFILE, 'fes.spectrum', ROM_BYTES, native_spectrum48))
     payload = package.payload_bytes
     identity = build_identity(record)
     if (read(evidence, 1 << 20) != record or archive.stem != package.package_id or
             raw != read(archive, MAX_ARCHIVE) or d['format'] != 3 or
             d['target'] != {'platform': 'de25_nano', 'device': 'A5EB013BB23BE4SCS',
-                            'programming_profile': PROFILE} or not native_spectrum48(params) or
+                            'programming_profile': profile} or not native_model(params) or
             params.get('selection_only') or params.get('fabric_initiator_policy') != 'native-maintenance-absent-v1' or
-            d['core']['id'] != 'fes.spectrum' or d['abi'] != {'id': 'fes.computer', 'major': 1, 'minor': 0} or
-            d['rom']['role'] != 'firmware' or d['rom']['source_size'] != ROM_BYTES or
+            d['core']['id'] != core or d['abi'] != {'id': 'fes.computer', 'major': 1, 'minor': 0} or
+            d['rom']['role'] != 'firmware' or d['rom']['source_size'] != rom_bytes or
             d['build']['id'] != identity or d['build']['toolchain'] != manifest_toolchain(fields) or
             any(d['build'][key] != fields[key] for key in ('revision', 'repository', 'recipe_sha256')) or
             len(payload) > MAX_CORE or len(payload) % 4 or read(build / 'core.rbf', MAX_CORE) != payload):
         raise ValueError('Spectrum archive differs from its sealed build')
-    fits = []
-    for fit in ('signoff', 'repeat'):
-        project = build / fit
-        hps = project / 'combined/hps'
-        timing = timing_evidence(project, async_review=build / (fit + '-async-input-review'),
-                                 audio_review=build / (fit + '-audio-clock-review'))
-        if (timing != json.loads(read(build / (fit + '-timing.json'), 4 << 20)) or
-                not timing['package_timing_admission'] or read(hps / 'linux-boot.core.rbf', MAX_CORE) != payload):
-            raise ValueError('Spectrum build did not independently pass package timing')
-        handoff = read(hps / 'native-spectrum-handoff.json', 1 << 20)
-        hw = json.loads(handoff)
-        generation = json.loads(read(hps / 'generation.json', 1 << 20))
-        pinmux = read(hps / 'project/output_files/hps_bootloader_handoff.bin', 4096)
-        compiled = json.loads(read(hps / 'build.json', 4 << 20))
-        if (generation['handoff_sha256'] != sha(handoff) or hw['spectrum_control']['endpoint']['build_id'] != identity or
-                hw['ddr_ingress'] != ['subsys_periph_fes_ddr_probe.avm', 'subsys_periph_fes_mem_cdc.m0'] or
-                compiled['generated_handoff_and_sdc_sha256']['output_files/hps_bootloader_handoff.bin'] != sha(pinmux)):
-            raise ValueError('Spectrum package differs from its fitted handoff')
-        regions = {v['name']: (v['base'], v['span']) for v in hw['spectrum_control']['regions']}
-        if regions != {'subsys_periph.fes_scanout.computer': (0x10300, 32),
-                       'subsys_periph.fes_scanout_guard.avs': (0x10200, 256),
-                       'subsys_periph.fes_ddr_probe.avs': (0x10100, 128)}:
-            raise ValueError('Spectrum fitted bridge regions changed')
-        fits.append((sha(encode(hw['hps_parameters'])), sha(hps_io.configuration_bytes(pinmux)), sha(handoff)))
-    if fits[0][:2] != fits[1][:2]:
-        raise ValueError('Spectrum repeat differs in shared HPS resources')
+    project = build / FIT
+    hps = project / 'combined/hps'
+    timing = timing_evidence(project, async_review=build / (FIT + '-async-input-review'),
+                             audio_review=build / (FIT + '-audio-clock-review'))
+    if (timing != json.loads(read(build / (FIT + '-timing.json'), 4 << 20)) or
+            not timing['package_timing_admission'] or read(hps / 'linux-boot.core.rbf', MAX_CORE) != payload):
+        raise ValueError('Spectrum build did not pass package timing')
+    handoff = read(hps / 'native-spectrum-handoff.json', 1 << 20)
+    hw = json.loads(handoff)
+    generation = json.loads(read(hps / 'generation.json', 1 << 20))
+    pinmux = read(hps / 'project/output_files/hps_bootloader_handoff.bin', 4096)
+    compiled = json.loads(read(hps / 'build.json', 4 << 20))
+    if (generation['handoff_sha256'] != sha(handoff) or hw['spectrum_control']['endpoint']['build_id'] != identity or
+            (c64 and hw.get('vendor_fpga_ocm') != 'absent') or
+            hw['ddr_ingress'] != ['subsys_periph_fes_ddr_probe.avm', 'subsys_periph_fes_mem_cdc.m0'] or
+            compiled['generated_handoff_and_sdc_sha256']['output_files/hps_bootloader_handoff.bin'] != sha(pinmux)):
+        raise ValueError('Spectrum package differs from its fitted handoff')
+    regions = {v['name']: (v['base'], v['span']) for v in hw['spectrum_control']['regions']}
+    if regions != {'subsys_periph.fes_scanout.computer': (0x10300, 32),
+                   'subsys_periph.fes_scanout_guard.avs': (0x10200, 256),
+                   'subsys_periph.fes_ddr_probe.avs': (0x10100, 128)}:
+        raise ValueError('Spectrum fitted bridge regions changed')
     return dict(package_id=package.package_id, build_id=identity, core_size=len(payload),
                 core_sha256=sha(payload), core_sha384=hashlib.sha384(payload).hexdigest(),
                 chunk_sha384=[hashlib.sha384(payload[i:i+CHUNK]).hexdigest() for i in range(0, len(payload), CHUNK)],
-                handoff_sha256=fits[0][2], hps_parameters_sha256=fits[0][0],
-                hps_configuration_sha256=fits[0][1], archive_sha256=sha(raw))
+                handoff_sha256=sha(handoff), hps_parameters_sha256=sha(encode(hw['hps_parameters'])),
+                hps_configuration_sha256=sha(hps_io.configuration_bytes(pinmux)), archive_sha256=sha(raw))
 
 
-def record_for(proof, context, platform, configuration, rom):
+def record_for(proof, context, platform, configuration, rom, *, rom_bytes=ROM_BYTES):
     shared = platform['platform']
     if (any(proof[key] != shared[key] for key in ('hps_parameters_sha256', 'hps_configuration_sha256')) or
             platform['boot_context_sha256'] != sha(encode(context)) or configuration['chunk_bytes'] != CHUNK or
-            rom['package_id'] != proof['package_id'] or rom['source_size'] != ROM_BYTES):
+            rom['package_id'] != proof['package_id'] or rom['source_size'] != rom_bytes):
         raise ValueError('Spectrum companion does not match the native boot resources')
     record = {key: proof[key] for key in ('package_id', 'build_id', 'core_size', 'core_sha256',
                                          'core_sha384', 'chunk_sha384', 'handoff_sha256')}
@@ -163,8 +165,9 @@ def header(record):
 
 
 if __name__ == '__main__':
-    build, archive = (Path(value).resolve(strict=True) for value in sys.argv[1:])
+    c64 = sys.argv[1:2] == ['--c64']
+    build, archive = (Path(value).resolve(strict=True) for value in sys.argv[2 if c64 else 1:])
     root = Path(subprocess.check_output(['git', '-C', str(build), 'rev-parse', '--show-toplevel'],
                                        text=True).strip())
     sys.path.insert(0, str(root / 'sources/misteross'))
-    sys.stdout.buffer.write(encode(inspect(build, archive)))
+    sys.stdout.buffer.write(encode(inspect(build, archive, c64=c64)))

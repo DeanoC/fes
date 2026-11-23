@@ -1,0 +1,13 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+index 10b75c65d..ba6707c2e 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+@@ -127,7 +127,7 @@ module fes_i386_cpu #(
+     // been; 1 a 486SX of a later stepping, with CPUID and without VME (no
+     // CR4). A build parameter: every 486 register, flag and instruction
+     // folds away at 0. See "The i486 identity".
+-    parameter bit I486 = 1'b0
++    parameter bit I486 = 1'b1
+ ) (
+     input  logic             clk,
+     input  logic             cold_reset,   // the machine's start: also empties the write buffer

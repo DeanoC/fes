@@ -14,6 +14,7 @@ const (
 	IRQVirtTimer uint32 = 27 // PPI 11 (EL1 virtual timer)
 	IRQPhysTimer uint32 = 30 // PPI 14 (EL1 non-secure physical timer)
 	IRQUART0     uint32 = 33 // SPI 1  (PL011 UART)
+	IRQRTC       uint32 = 34 // SPI 2  (PL031 RTC)
 )
 
 var intc = gic.New(GICDBase, GICRBase)

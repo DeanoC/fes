@@ -110,9 +110,10 @@ type ProgramLoader struct {
 	control         hpsControlMap
 	computer        computerMap
 	support         *runtimeadmission.DriverSupport
+	uploadSupport   *runtimeadmission.DriverSupport
 	compatibility   *runtimeadmission.RuntimeCompatibility
 	menu            *menuProgramDriver
-	spectrum48      *spectrum48Program
+	spectrum48      *uploadShellProgram
 	sharedCoreShell bool
 }
 
@@ -173,6 +174,10 @@ func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configu
 			return nil, err
 		}
 		loader.compatibility, err = runtimeadmission.NewRuntimeCompatibility(semantic, drivers)
+		if err == nil {
+			loader.uploadSupport, err = runtimeadmission.NewDriverSupport(runtimeadmission.Target{Platform: p.Platform, Device: p.Device},
+				[]runtimeadmission.Driver{spectrum48UploadDriver(), c64UploadDriver()})
+		}
 	} else {
 		loader.support, err = runtimeadmission.NewDriverSupport(runtimeadmission.Target{Platform: p.Platform, Device: p.Device}, drivers)
 	}
@@ -198,6 +203,7 @@ type selectedProgram struct {
 	firmware         []byte
 	romReceipt       string
 	tape             []byte
+	disk             []byte
 }
 
 // Preflight validates the selected package and its retained metadata while SD
@@ -210,11 +216,15 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	i := selection.Inspection()
 	d := i.Descriptor
 	switch d.Target.ProgrammingProfile {
+	case c64Profile:
+		if l.sharedCoreShell {
+			return l.preflightUpload(selection, nil)
+		}
 	case HPSFirstMenuProfile:
 		return l.preflightMenu(selection)
 	case spectrum48Profile:
 		if l.spectrum48 != nil || l.sharedCoreShell {
-			return l.preflightSpectrum48(selection)
+			return l.preflightUpload(selection, l.spectrum48)
 		}
 	}
 	p := l.platform
@@ -431,9 +441,9 @@ func (t *ConfigurationTransfer) ProgramIdentity() (fabricmodel.PackageIdentity, 
 // Kept local so descriptor assertions never become a boot verification call.
 func (v *HPSContextVerifier) programConfiguration(control, raw []byte, p *selectedProgram) (coldConfigurationMap, error) {
 	menu := p != nil && p.loader != nil && p.loader.boot == v && p.loader.menu != nil && p.role == programRoleMenu && p.menu != nil
-	spectrum := p != nil && p.loader != nil && p.loader.boot == v && (p.loader.spectrum48 != nil || p.loader.sharedCoreShell) &&
-		p.role == programRoleSpectrum48 && len(p.firmware) == spectrum48ROMBytes && len(p.rom) == 0
-	if v != nil && v.rom != nil && !menu && !spectrum && (p == nil || len(p.rom) == 0) {
+	upload := p != nil && p.loader != nil && p.loader.boot == v && (p.loader.spectrum48 != nil || p.loader.sharedCoreShell) &&
+		p.role == programRoleUploadShell && computer.ValidFirmwareUploadSize(int64(len(p.firmware))) && len(p.rom) == 0
+	if v != nil && v.rom != nil && !menu && !upload && (p == nil || len(p.rom) == 0) {
 		return coldConfigurationMap{}, errors.New("native fabric: ROM configuration requires its retained selected program")
 	}
 	if p == nil {

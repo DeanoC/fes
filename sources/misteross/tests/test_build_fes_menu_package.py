@@ -6,7 +6,7 @@ import tomllib
 import unittest
 from pathlib import Path
 
-# The blitter's eight DSP products as Yosys 3a5accbd names them: each lane's
+# The blitter's eight DSP products as Yosys d273c1cb names them: each lane's
 # alpha product and its three blend channel products.
 BLITTER_PRODUCTS = tuple(f'endpoint.scanout.blit.blitter.{cell}' for lane in (0,1) for cell in (
     f'a{lane}.coverage1_MISTRAL_MUL9X9_B',
