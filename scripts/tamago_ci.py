@@ -98,6 +98,17 @@ def dump_failure_logs(directory, tail_lines=80):
             print(f'--- tail of {path} ---\n{snippet}\n--- end {path} ---', file=sys.stderr, flush=True)
 
 
+def run_host_vet(root, host_go='go'):
+    env = dict(os.environ, GOWORK='off')
+    return run_step(
+        'host-go-vet',
+        [host_go, 'vet', './...'],
+        cwd=Path(root) / 'platform/embedded/tamago',
+        env=env,
+        timeout=300,
+    )
+
+
 def run_host_tests(root, host_go='go'):
     env = dict(os.environ, GOWORK='off')
     return run_step(
@@ -244,6 +255,7 @@ def main(argv=None):
         args.qemu.resolve(), args.host.resolve(), output, programs, args.timeout,
     ))
     if not args.skip_host_tests:
+        steps.append(run_host_vet(ROOT))
         steps.append(run_host_tests(ROOT))
     summary = {
         'status': 'passed',
