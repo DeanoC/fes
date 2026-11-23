@@ -15,7 +15,7 @@ a dated record. A dated record is not the schedule.
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
 | Change code: worktree, builds, handoff | [Development](development.md), then [agent workflow](agent-workflow.md) |
 | Reduce build/review time and decouple installation | [Development-speed redesign](development-speed.md) |
-| Coordinate cross-vendor tasks and milestone acceptance | [Agent workflow](agent-workflow.md#github-delivery-coordination) |
+| Coordinate PR lanes, review and milestone delivery | [Agent workflow](agent-workflow.md#github-delivery-workflow), [AGENTS.md](../AGENTS.md#pr-workflow-lanes-merge-gate-review-stacks-hil-ops) |
 | Decide whether a PR needs a full image for hardware testing | [HIL plan](hil-plan.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
 | Develop DE25-Nano without Linux | [Embedded base and native tenfoot](../platform/embedded/README.md), [initial feasibility study](design/de25-embedded-os.md) |
