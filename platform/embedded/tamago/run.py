@@ -6,6 +6,7 @@ synthetic .sfc catalog files, a regular-file FAT32 disk, virtio networking,
 ramfb display and an xHCI USB keyboard (or explicit UART diagnostic input). No physical device is opened.
 """
 import argparse
+from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
 import http.server
@@ -195,10 +196,13 @@ def main():
         record["commands"].append([str(x) for x in command])
         save()
 
-    def checked(name, command, *, native=False):
+    def checked(name, command, *, native=False, utc=False):
         command_record(command)
+        run_env = env if native else os.environ
+        if utc:
+            run_env = dict(run_env, TZ="UTC")
         result = subprocess.run([str(x) for x in command], cwd=APP,
-                                env=env if native else os.environ,
+                                env=run_env,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
         (output / (name + ".log")).write_bytes(result.stdout)
         if result.returncode:
@@ -207,8 +211,9 @@ def main():
 
     def preferences(name):
         path = output / (name + ".json")
-        checked(name, ["mcopy", "-i", disk, "::FES/PREFS.JSON", path])
-        return json.loads(path.read_bytes().rstrip(b" \r\n\t\0"))
+        checked(name, ["mcopy", "-m", "-i", disk, "::FES/PREFS.JSON", path], utc=True)
+        mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+        return json.loads(path.read_bytes().rstrip(b" \r\n\t\0")), mtime
 
     def prepare_host():
         nonlocal host_process, host_log
@@ -294,13 +299,21 @@ def main():
             data = json.dumps({"safe_area_pct": 0.05, "layout": "grid",
                                "attract_enabled": False, "home": "library"}).encode() + b"\n"
             initial.write_bytes(data.ljust(4096, b" "))
-            checked("write-prefs", ["mcopy", "-i", disk, initial, "::FES/PREFS.JSON"])
+            # Stamp 1980-01-02T00:00:00Z so post-boot checks prove the guest
+            # updated PREFS.JSON's FAT32 timestamp from the PL031 RTC wall clock.
+            os.utime(initial, (315619200, 315619200))
+            checked("write-prefs", ["mcopy", "-m", "-i", disk, initial, "::FES/PREFS.JSON"], utc=True)
         boot = output / "boot.json"
         boot.write_text(json.dumps({"api_url": api_url, "api_host": urlparse(record["host"]["base"]).netloc, "input": args.input}) + "\n")
         checked("write-boot", ["mcopy", "-o", "-i", disk, boot, "::FES/BOOT.JSON"])
         record["disk"] = {"path": str(disk), "created": fresh, "bytes": disk.stat().st_size,
                           "before_sha256": sha(disk), "boot_config_sha256": sha(boot)}
-        record["initial_preferences"] = preferences("preferences-before")
+        initial_prefs, initial_mtime = preferences("preferences-before")
+        record["initial_preferences"] = initial_prefs
+        record["preferences_timestamps"] = {"before_utc": initial_mtime.isoformat()}
+        if fresh and initial_mtime.year != 1980:
+            raise RuntimeError(f"expected seeded 1980 FAT32 timestamp before boot, got {initial_mtime.isoformat()}")
+        return initial_mtime
 
     def ready(guest, expected):
         guest.wait(lambda text: "FES_TENFOOT_READY" in text, args.timeout, "tenfoot ready")
@@ -399,6 +412,18 @@ def main():
             with Guest(qemu, elf, output / "boot-1", command_record, disk=disk if args.program == "storage" else None, display=display) as guest:
                 marker = {"probe": "FES_NATIVE_GO_PROBE PASS", "mapcheck": "FES_NATIVE_CPU_MAP PASS", "fabric": "FES_FABRIC_MODEL PASS", "storage": "FES_STORAGE_PROBE PASS"}[args.program]
                 guest.wait(lambda text: marker in text, args.timeout, "diagnostic completion")
+                if args.program == "probe":
+                    rtc_rows = re.findall(
+                        r"^PASS rtc pl031 rev=(\d+) utc=(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\r?$",
+                        guest.text,
+                        re.MULTILINE,
+                    )
+                    if len(rtc_rows) != 1:
+                        raise RuntimeError("probe output is missing PL031 RTC observation")
+                    rtc_rev, rtc_utc = int(rtc_rows[0][0]), rtc_rows[0][1]
+                    if int(rtc_utc[:4]) < 2020:
+                        raise RuntimeError(f"PL031 RTC reported implausible UTC timestamp: {rtc_utc}")
+                    record["rtc_observation"] = {"controller": "pl031", "revision": rtc_rev, "utc": rtc_utc}
                 if args.program == 'mapcheck':
                     pattern=(r'FES_NATIVE_CPU_MAP PASS el=1 sctlr=([0-9a-f]{1,16}) tcr=200003519 root=40004000 mair=44ff00 '
                              r'mmfr0=([0-9a-f]{1,16}) mpidr=([0-9a-f]{1,16}) reads=([0-9]{1,5}) translations=([0-9]{1,5}) '
@@ -569,11 +594,12 @@ def main():
             record["termination"] = "runner quit QEMU after package diagnostic; no FPGA programming"
         else:
             lock_disk()
-            prepare_disk(prepare_host())
+            initial_mtime = prepare_disk(prepare_host())
             initial = record["initial_preferences"].get("layout", "grid")
             if initial not in LAYOUT_NEXT:
                 raise RuntimeError("unsupported initial layout in existing disk")
             screenshots = record["screenshots"] = []
+            boot_started = datetime.now(timezone.utc)
             with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display, usb=args.input == "usb") as guest:
                 first = ready(guest, initial)
                 screenshots.append(guest.screenshot("initial"))
@@ -596,22 +622,38 @@ def main():
                                args.timeout, "changed layout and saved preferences")
                     screenshots.append(guest.screenshot("layout"))
                 record["first_boot_frames"] = frames(guest.text)
-            saved = preferences("preferences-after-first-boot")
+            boot_finished = datetime.now(timezone.utc)
+            saved, saved_mtime = preferences("preferences-after-first-boot")
             record["saved_preferences"] = saved
+            record["preferences_timestamps"]["after_first_boot_utc"] = saved_mtime.isoformat()
             record["disk"]["after_first_boot_sha256"] = sha(disk)
             if not args.interactive:
                 if saved.get("layout") != expected:
                     raise RuntimeError("FAT32 preference file does not contain selected layout")
+                # FAT32 timestamps have 2-second granularity; require the guest write
+                # to land within the live boot window (and advance past the 1980 seed
+                # on fresh disks) so reused post-2020 disks cannot mask a stale mtime.
+                min_expected = boot_started - timedelta(seconds=4)
+                max_expected = boot_finished + timedelta(seconds=10)
+                if saved_mtime.year < 2020 or saved_mtime < min_expected or saved_mtime > max_expected:
+                    raise RuntimeError(
+                        f"FAT32 preference timestamp {saved_mtime.isoformat()} is outside live boot window "
+                        f"[{min_expected.isoformat()}, {max_expected.isoformat()}]"
+                    )
+                if record["disk"]["created"] and saved_mtime <= initial_mtime:
+                    raise RuntimeError(f"FAT32 preference timestamp did not advance past {initial_mtime.isoformat()}")
                 if len({s["sha256"] for s in screenshots}) != 3:
                     raise RuntimeError("QMP screenshots did not change with navigation and layout")
                 with Guest(qemu, elf, output / "boot-2", command_record, disk=disk, display=display, usb=args.input == "usb") as guest:
                     ready(guest, expected)
                     screenshots.append(guest.screenshot("restored"))
                     record["second_boot_frames"] = frames(guest.text)
-                record["reboot_preferences"] = preferences("preferences-after-reboot")
+                reboot_prefs, reboot_mtime = preferences("preferences-after-reboot")
+                record["reboot_preferences"] = reboot_prefs
+                record["preferences_timestamps"]["after_reboot_utc"] = reboot_mtime.isoformat()
                 if record["reboot_preferences"].get("layout") != expected:
                     raise RuntimeError("saved layout was not retained across reboot")
-                record["persistence"] = "verified FAT32 write, fresh QEMU boot, loaded preference and displayed layout"
+                record["persistence"] = "verified FAT32 write, PL031 wall-clock timestamp, fresh QEMU boot, loaded preference and displayed layout"
             record["disk"]["final_sha256"] = sha(disk)
             record["termination"] = "runner quit its QEMU process(es) through QMP; not guest shutdown evidence"
         if any(sha(ROOT / path) != digest for path, digest in record["source_sha256"].items()):
