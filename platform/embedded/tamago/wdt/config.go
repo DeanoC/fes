@@ -14,6 +14,7 @@ const (
 	maxKeepaliveTimeoutSec = 60
 	minKeepaliveClockHz    = 1_000_000
 	maxKeepaliveClockHz    = 400_000_000
+	maxWDTStageCycles      = uint64(1) << 31
 )
 
 // KeepaliveSpec holds validated opt-in watchdog keepalive settings parsed from
@@ -45,6 +46,10 @@ func ParseKeepaliveSpec(timeoutSec, clockHz string) (KeepaliveSpec, bool, error)
 	if err != nil || hz < minKeepaliveClockHz || hz > maxKeepaliveClockHz {
 		return KeepaliveSpec{}, false, fmt.Errorf("%w: watchdog clock %q must be Hz in [%d, %d]",
 			ErrInvalidConfig, cStr, minKeepaliveClockHz, maxKeepaliveClockHz)
+	}
+	if uint64(secs)*hz > maxWDTStageCycles {
+		return KeepaliveSpec{}, false, fmt.Errorf("%w: watchdog timeout %ds at %d Hz exceeds 2^31-cycle hardware maximum",
+			ErrInvalidConfig, secs, hz)
 	}
 	return KeepaliveSpec{
 		Timeout: time.Duration(secs) * time.Second,

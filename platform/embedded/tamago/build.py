@@ -242,6 +242,8 @@ def watchdog_option(program, selected, tenfoot, timeout_sec, clock_hz):
         raise ValueError('--watchdog-timeout must be integer seconds in [1, 60]')
     if not 1_000_000 <= clock_hz <= 400_000_000:
         raise ValueError('--watchdog-clock-hz must be Hz in [1000000, 400000000]')
+    if timeout_sec * clock_hz > (1 << 31):
+        raise ValueError(f'--watchdog-timeout {timeout_sec}s at {clock_hz} Hz exceeds DesignWare WDT 2^31-cycle maximum')
     return timeout_sec, clock_hz
 
 
