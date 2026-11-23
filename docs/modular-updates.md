@@ -6,8 +6,8 @@ remaining work. The existing [appliance update](appliance-releases.md) remains
 the installed-system update path; the bootstrap and its recovery policy are
 unchanged.
 
-The [development-speed redesign](development-speed.md) sets the pre-release
-direction and records remaining work. The default image now includes only
+The [forward plan](plans/forward-plan.md) tracks the remaining OS, software,
+core and room installer separation. The default image now includes only
 MENU display firmware and the locked idle RBF; playable cores are installed
 independently. Room packs already load from an external directory, but their
 installer and independent first-party distribution remain to be implemented.

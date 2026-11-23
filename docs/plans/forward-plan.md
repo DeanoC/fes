@@ -287,9 +287,9 @@ board therefore edits no core manifest. A cell that needs hand tuning gets an
 override file in the board package (`boards/<board>/cells/<core>.toml`); most
 cells should not need one. From those manifests generate: the Make targets,
 `ci_simulations.py`, the `affected.py` path→core map, the recipe table and the
-catalog entry. Adding a core becomes adding a directory. The single argv
-builder from [cores as apps](../cores-as-apps-plan.md) step 2 is the same idea
-for place-and-route and stays.
+catalog entry. Adding a core becomes adding a directory. The single
+place-and-route argv builder from `#843` (`[recipes.pnr]` in
+`config/core-recipes.toml`) is the same idea and stays.
 
 ### A standard conformance test
 
@@ -533,10 +533,11 @@ much they reuse (MSX, Amstrad CPC, BBC Micro, Amiga and Mega Drive on the
 ## Process
 
 - **One roadmap.** This page, plus GitHub milestones that mirror its phases.
-  Delete `docs/superpowers/` (67 September files), fold the still-true parts of
-  `cores-as-apps-plan.md` and `development-speed.md` into this page or the
-  guides, and remove the `task:*` label workflow from `agent-workflow.md` now
-  that `lane:*` is the live one.
+  Unpinned `docs/superpowers/` plans, the retired `task:*` coordination
+  workflow, and the earlier split plan docs (`cores-as-apps-plan.md`,
+  `recipe-option-audit.md`, `development-speed.md`) have been removed; keep
+  ongoing OS, software, core and room-installer separation tracked here and in
+  [modular updates](../modular-updates.md).
 - **Evidence proportional to risk.** Two levels only: *development* (fast,
   cached, one pass, no kit unless behaviour depends on it) and *release
   certification* (exact artifacts, reproducibility, kit acceptance). Keep
