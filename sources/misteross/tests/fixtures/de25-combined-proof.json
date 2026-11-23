@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "53e7869ee22c68a0f50448a1d1cbfacc9416cdf4",
+  "source_revision": "0a01f9c28456765a7a4c9140ae4a83b508e1b88a",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -119,7 +119,7 @@
     "sources/libmister-runtime/src/native/video_recipe.hpp": "b471a537d3ed136028465f5dd11db0e7fe52f2534a9762a28f63c8f89583e8c0",
     "sources/libmister-runtime/src/native/de25_computer.hpp": "b4d9232a6848bf705c9789e32ac56d2863e637ddfe4db8bb82b4394682330c52",
     "sources/libmister-runtime/src/native/video.hpp": "b44cd8217c3553ddc9e2ca05070040a55dea2bcc3f8c15dee1236bc2155b4276",
-    "sources/libmister-runtime/src/native/hardware.hpp": "6932050fd13d6aab4e2b20629c76ac4fd0f33486f5f328b56fe4a43cfc8f887a",
+    "sources/libmister-runtime/src/native/hardware.hpp": "f3a7059b191be8e717ccd08c93d44741001c1f8494ce72d480dc0822f5bdf650",
     "sources/libmister-runtime/src/native/linux/fpga_manager.hpp": "0f3ef48bf53f74aaf25a5d5311fa6c5d2a5d5d70d79eb328b5656ed045f8291f",
     "sources/libmister-runtime/src/native/linux/de25_computer_mmio.hpp": "6ac559f0c82da094f720dc660c6a51fceb9814ea7a671b6148a291512e62a6da",
     "sources/libmister-runtime/src/native/linux/input.hpp": "3a82eefc485b0926cec8d9c11dbab479abb83358c732919f7cd5c2ac31fd82e3",
@@ -342,7 +342,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "83985ebb51cb71666e23a5d598aa040450d67d826412edd1b5ea8dd91bbf0120",
-    "Vfes_de25_combined_sim": "90511d09103da234e406290f912b857b23191c0443eb2d2bdd7c2be8923f95c7",
+    "Vfes_de25_combined_sim": "9e775cb9b1d12675295a0863c16f83d1f18a8539d9b0c95af1131c28b3df7c1d",
     "client-aarch64": "7bce4ba2c6ed39a45f61e60a0b5d3d4c68dbef928e0a092b36f7133459b3c000"
   },
   "physical_PR": "selection-mux-model-only",
