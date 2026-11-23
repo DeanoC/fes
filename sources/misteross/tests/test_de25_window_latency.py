@@ -32,10 +32,11 @@ class WindowLatencyTests(unittest.TestCase):
         self.assertIn('set_domain_assignment {$system} qsys_mm.maxAdditionalLatency 0\n', B.WINDOW_TOP)
         source = (ROOT / 'boards/de25nano/machine/board.py').read_text()
         self.assertEqual(source.count('exports += WINDOW_TOP'), 1)
-        self.assertIn('    if spec.WINDOW:\n        exports += WINDOW_TOP\n', source)
-        # Every other machine on this builder has no window.
-        for name in ('spectrum', 'atari-st', 'c64'):
-            self.assertIn('\nWINDOW = False\n', (ROOT / f'boards/de25nano/{name}/build.py').read_text())
+        self.assertIn('    if has_window(spec):\n        exports += WINDOW_TOP\n', source)
+        self.assertIn('def has_window(spec):\n    return getattr(spec, "WINDOW", False)\n', source)
+        # Every other machine on this builder has no window: none sets WINDOW, so it defaults to False.
+        for name in ('spectrum', 'atari-st', 'c64', 'pcxt'):
+            self.assertNotRegex((ROOT / f'boards/de25nano/{name}/build.py').read_text(), r'(?m)^WINDOW\b')
         self.assertIn('\nWINDOW = True\n', (ROOT / 'boards/de25nano/pc386/build.py').read_text())
 
     def test_generated_latency_is_checked(self):
