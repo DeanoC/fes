@@ -13,7 +13,8 @@ import (
 // Config selects one QEMU interface. By default it uses a static IPv4 prefix;
 // setting DHCP acquires an IPv4 lease over RFC 2131 DHCPv4 before configuring
 // the stack. The Nano selects its own MAC/PHY and uses the explicit OpenDevice
-// (or OpenDeviceDHCP) path.
+// path with its profile's static address. Nothing wires OpenDeviceDHCP to the
+// Nano XGMAC and the Nano board refuses DHCP, so only QEMU acquires leases.
 type Config struct {
 	Address     string
 	Gateway     string
