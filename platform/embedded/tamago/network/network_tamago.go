@@ -6,6 +6,7 @@ package network
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"sync/atomic"
 	"time"
@@ -26,13 +27,14 @@ type irqDevice interface {
 // DMA must be mapped Normal memory; no buffer is returned to the allocator
 // after the device begins DMA. This prototype polls rather than using IRQs.
 type Interface struct {
-	config     Config
-	device     Device
-	bridge     *Link
-	ctx        context.Context
-	irqEnabled atomic.Bool
-	lease      DHCPLease
-	hasLease   bool
+	config          Config
+	device          Device
+	bridge          *Link
+	ctx             context.Context
+	irqEnabled      atomic.Bool
+	lease           DHCPLease
+	leaseAcquiredAt time.Time
+	hasLease        bool
 }
 
 var opened atomic.Bool
@@ -49,7 +51,7 @@ func OpenDevice(ctx context.Context, address, gateway string, factory func() (De
 	if err != nil {
 		return nil, err
 	}
-	return installInterface(ctx, c, nic, DHCPLease{}, false)
+	return installInterface(ctx, c, nic, DHCPLease{}, time.Time{}, false)
 }
 
 // OpenDeviceDHCP opens one explicit board device, acquires a validated IPv4
@@ -82,6 +84,7 @@ func OpenDeviceDHCPWithStartup(startup, lifetime context.Context, factory func()
 	if err != nil {
 		return nil, err
 	}
+	acquiredAt := time.Now()
 	if err := lifetime.Err(); err != nil {
 		return nil, err
 	}
@@ -89,7 +92,7 @@ func OpenDeviceDHCPWithStartup(startup, lifetime context.Context, factory func()
 	if err != nil {
 		return nil, err
 	}
-	return installInterface(lifetime, c, nic, lease, true)
+	return installInterface(lifetime, c, nic, lease, acquiredAt, true)
 }
 
 func admitAndOpenDevice(ctx context.Context, factory func() (Device, error)) (Device, context.Context, error) {
@@ -115,13 +118,13 @@ func admitAndOpenDevice(ctx context.Context, factory func() (Device, error)) (De
 	return nic, ctx, nil
 }
 
-func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease, hasLease bool) (*Interface, error) {
+func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease, leaseAcquiredAt time.Time, hasLease bool) (*Interface, error) {
 	cfg := gnet.DefaultLnetoStackConfig()
 	cfg.Hostname = "fes-native"
 	cfg.MaxActiveTCPPorts = 16
 	cfg.MaxListenerConns = 8
 	runCtx, stop := context.WithCancelCause(ctx)
-	iface := &Interface{config: c, device: nic, ctx: runCtx, lease: lease, hasLease: hasLease}
+	iface := &Interface{config: c, device: nic, ctx: runCtx, lease: lease, leaseAcquiredAt: leaseAcquiredAt, hasLease: hasLease}
 	backoff := func(consecutive uint) time.Duration {
 		if !iface.irqEnabled.Load() || consecutive == 0 {
 			return lneto.BackoffFlagGosched
@@ -171,6 +174,20 @@ func (i *Interface) Lease() (DHCPLease, bool) {
 		lease.DNS = append([]string(nil), lease.DNS...)
 	}
 	return lease, true
+}
+
+// NewLeaseRenewer creates an opt-in RFC 2131 DHCPv4 T1/T2 LeaseRenewer wired
+// to this interface's active *Link (preserving its pause/DMA failure gate and
+// original lease acquisition timestamp). Returns ErrDHCPInvalidConfig if the
+// interface was not opened via DHCP.
+func (i *Interface) NewLeaseRenewer(cfg RenewConfig) (*LeaseRenewer, error) {
+	if i == nil || !i.hasLease || i.bridge == nil || i.device == nil {
+		return nil, fmt.Errorf("%w: interface has no active DHCP lease", ErrDHCPInvalidConfig)
+	}
+	if cfg.AcquiredAt.IsZero() {
+		cfg.AcquiredAt = i.leaseAcquiredAt
+	}
+	return NewLeaseRenewer(i.bridge, i.device.MAC(), i.lease, cfg)
 }
 
 // EnableIRQ routes the underlying NIC's RX interrupt through g so Link.Start

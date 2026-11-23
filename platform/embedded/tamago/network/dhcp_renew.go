@@ -41,6 +41,8 @@ type DHCPFramePort interface {
 	Err() error
 }
 
+var _ DHCPFramePort = (*Link)(nil)
+
 // RenewConfig configures RFC 2131 DHCPv4 T1/T2 lease renewal.
 type RenewConfig struct {
 	Hostname      string          // Optional option 12 hostname (default "fes-native")

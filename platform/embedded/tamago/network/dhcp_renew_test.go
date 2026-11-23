@@ -354,3 +354,44 @@ func TestLeaseRenewerT1T2LifecycleAndStopDrain(t *testing.T) {
 	}
 	pastRen.Stop()
 }
+
+func TestRenewDHCPOnceOverRealLink(t *testing.T) {
+	clientMACStr := "52:54:00:12:34:56"
+	serverMACStr := "52:55:0a:00:02:02"
+	clientMAC, _ := parseUnicastMAC(clientMACStr)
+	serverIP := [4]byte{10, 0, 2, 2}
+	clientIP := [4]byte{10, 0, 2, 15}
+	mask := [4]byte{255, 255, 255, 0}
+
+	dev := newFakeDHCPDevice(clientMACStr, false)
+	dev.onTx = func(frame []byte, d *fakeDHCPDevice) {
+		xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
+		d.enqueueRX(makeServerReplyFrame(clientMAC, clientMAC, serverIP, clientIP, xid,
+			makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &serverIP, 3600), false))
+	}
+	link := &Link{stack: &fakeStack{}, device: dev, state: &linkState{}}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- link.Start(ctx) }()
+	defer func() {
+		cancel()
+		<-done
+	}()
+
+	initial := DHCPLease{
+		Address:       "10.0.2.15/24",
+		Gateway:       "10.0.2.2",
+		Server:        "10.0.2.2",
+		LeaseDuration: time.Minute,
+	}
+	renewed, err := RenewDHCPOnce(context.Background(), link, clientMACStr, initial, false, RenewConfig{
+		ServerMAC:     serverMACStr,
+		RetryInterval: 5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("RenewDHCPOnce over *Link: %v", err)
+	}
+	if renewed.LeaseDuration != time.Hour || renewed.Address != initial.Address {
+		t.Fatalf("renewed=%+v", renewed)
+	}
+}
