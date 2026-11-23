@@ -81,7 +81,8 @@ hardware networking remains disabled in the board profile.
   creates new files/directories without rename or power-loss atomicity.
   TamaGo's default `os` filesystem is volatile RAM; only `PreferenceStore` /
   `sd-checkpoint` writes FAT32.
-- **Subsystem READMEs:** [packagestore](packagestore/README.md),
+- **Subsystem READMEs:** [gic](gic/README.md), [dmaops](dmaops/README.md),
+  [packagestore](packagestore/README.md),
   [storagepolicy](storagepolicy/README.md), [usb](usb/README.md),
   [usbcontrol](usbcontrol/README.md), [network](network/README.md),
   [computer](computer/README.md), [sdm](sdm/README.md),

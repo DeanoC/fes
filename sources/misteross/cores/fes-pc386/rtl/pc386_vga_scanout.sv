@@ -66,8 +66,9 @@ module pc386_vga_scanout #(
     input wire [5:0] overscan,
     input wire [3:0] plane_enable, pel_pan, color_select,
     input wire [7:0] pel_mask,
-    input wire [7:0] palette0, palette1, palette2, palette3, palette4, palette5, palette6, palette7,
-    input wire [7:0] palette8, palette9, palette10, palette11, palette12, palette13, palette14, palette15,
+    // The palette, read asynchronously by the pixel path
+    output wire [3:0] palette_index,
+    input wire [7:0] palette_value,
     // DAC, written and read back by the register side
     input wire dac_write,
     input wire [7:0] dac_write_index,
@@ -385,18 +386,6 @@ module pc386_vga_scanout #(
         end
     end
 
-    function automatic [7:0] pick(input [3:0] index, input [7:0] p0, input [7:0] p1, input [7:0] p2,
-                                  input [7:0] p3, input [7:0] p4, input [7:0] p5, input [7:0] p6,
-                                  input [7:0] p7, input [7:0] p8, input [7:0] p9, input [7:0] p10,
-                                  input [7:0] p11, input [7:0] p12, input [7:0] p13, input [7:0] p14,
-                                  input [7:0] p15);
-        case (index)
-            4'd0: pick = p0; 4'd1: pick = p1; 4'd2: pick = p2; 4'd3: pick = p3;
-            4'd4: pick = p4; 4'd5: pick = p5; 4'd6: pick = p6; 4'd7: pick = p7;
-            4'd8: pick = p8; 4'd9: pick = p9; 4'd10: pick = p10; 4'd11: pick = p11;
-            4'd12: pick = p12; 4'd13: pick = p13; 4'd14: pick = p14; default: pick = p15;
-        endcase
-    endfunction
     wire char_blink = !frame_count[4];
     wire cursor_blink = !frame_count[3];
     wire [7:0] character = a_word[7:0];
@@ -417,9 +406,7 @@ module pc386_vga_scanout #(
     wire [3:0] cga_attribute = {cga_high[2 * cga_shift +: 2], cga_low[2 * cga_shift +: 2]};
     wire [3:0] graphic_attribute = (shift_mode[0] ? cga_attribute : a_sub >= 4'd8 ? 4'd0 : planar_attribute);
     wire [3:0] attribute4 = (text ? (text_on ? attribute[3:0] : text_background) : graphic_attribute) & plane_enable;
-    wire [7:0] palette_value = pick(attribute4, palette0, palette1, palette2, palette3, palette4, palette5,
-                                    palette6, palette7, palette8, palette9, palette10, palette11, palette12,
-                                    palette13, palette14, palette15);
+    assign palette_index = attribute4;
     wire [7:0] attribute_index = attr_mode[7] ? {color_select, palette_value[3:0]} :
                                  {color_select[3:2], palette_value[5:0]};
     wire [7:0] pixel_byte = a_word[8 * a_plane +: 8];

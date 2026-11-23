@@ -10,6 +10,7 @@ import (
 	"runtime/goos"
 	_ "unsafe"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
 	"github.com/usbarmory/tamago/arm64"
 )
 
@@ -54,21 +55,16 @@ func timerNanos() int64
 func uartPut(c byte)
 func initializeUART()
 
-// This deterministic source satisfies runtime hash seeding only; a DE25 platform
-// must provide authenticated firmware/TRNG entropy before security use.
-var diagnosticSeed uint64 = 0x6a09e667f3bcc909
-
 //go:linkname initRNG runtime/goos.InitRNG
 //go:nosplit
-func initRNG() {}
+func initRNG() {
+	if psci.HasEL2() {
+		psci.InitHardwareEntropy(psci.ConduitNone)
+		return
+	}
+	psci.InitHardwareEntropy(psci.ConduitHVC)
+}
 
 //go:linkname getRandomData runtime/goos.GetRandomData
 //go:nosplit
-func getRandomData(buf []byte) {
-	for i := range buf {
-		diagnosticSeed ^= diagnosticSeed << 13
-		diagnosticSeed ^= diagnosticSeed >> 7
-		diagnosticSeed ^= diagnosticSeed << 17
-		buf[i] = byte(diagnosticSeed)
-	}
-}
+func getRandomData(buf []byte) { psci.FillHardwareEntropy(buf) }

@@ -243,6 +243,16 @@ func run() (result error) {
 				fmt.Printf("FES_GIC_IDLE_EXIT wakeups=%d\n", wakeups)
 			}()
 			fmt.Printf("FES_GIC_IDLE enabled=true redistributor=%#x lines=%d\n", g.Redistributor(), g.Lines())
+			stop := make(chan struct{})
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				g.Serve(stop)
+			}()
+			defer func() {
+				close(stop)
+				<-done
+			}()
 		}
 	}
 	frameMemory, err := board.InitDevices()
@@ -253,7 +263,32 @@ func run() (result error) {
 	if err != nil {
 		return err
 	}
-	volume, err := fat.Mount(disk)
+	type irqStorage interface {
+		EnableIRQ(*gic.Controller) error
+		DisableIRQ(*gic.Controller)
+		IRQCount() uint64
+	}
+	if gicActive {
+		if irqDisk, ok := disk.(irqStorage); ok {
+			if err := irqDisk.EnableIRQ(g); err != nil {
+				if !errors.Is(err, gic.ErrUnsupported) {
+					return fmt.Errorf("enable storage IRQ: %w", err)
+				}
+			} else {
+				defer func() {
+					irqs := irqDisk.IRQCount()
+					irqDisk.DisableIRQ(g)
+					fmt.Printf("FES_STORAGE_IRQ_EXIT irqs=%d\n", irqs)
+				}()
+				fmt.Println("FES_STORAGE_IRQ enabled=true")
+			}
+		}
+	}
+	cachedDisk, err := block.NewCache(disk, block.CacheConfig{Capacity: 128})
+	if err != nil {
+		return err
+	}
+	volume, err := fat.Mount(cachedDisk)
 	if err != nil {
 		return err
 	}
@@ -325,18 +360,6 @@ func run() (result error) {
 		fmt.Printf("FES_NETWORK_READY address=%s\n", iface.Address())
 		client = tenfoot.NewClient(config.APIURL, &http.Client{Timeout: 5 * time.Second, Transport: observedTransport{base: &http.Transport{MaxIdleConnsPerHost: 4}}})
 		client.Client = client.Client.WithAPIHost(config.APIHost)
-	}
-	if gicActive && (iface != nil || config.Input == "uart") {
-		stop := make(chan struct{})
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			g.Serve(stop)
-		}()
-		defer func() {
-			close(stop)
-			<-done
-		}()
 	}
 	if gicActive && iface != nil {
 		if err := iface.EnableIRQ(g); err != nil {

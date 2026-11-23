@@ -7,6 +7,7 @@ package de25nano
 import (
 	"errors"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/fpgairq"
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 )
 
@@ -29,6 +30,8 @@ const (
 	IRQUART1      uint32 = 141 // SPI 109 (UART1)
 	IRQTimerL4SP0 uint32 = 145 // SPI 113 (DW APB timer 0)
 	IRQTimerL4SP1 uint32 = 146 // SPI 114 (DW APB timer 1)
+	IRQWDT0       uint32 = 149 // SPI 117 (DW APB watchdog L4WD0)
+	IRQWDT1       uint32 = 150 // SPI 118 (DW APB watchdog L4WD1)
 	IRQEMAC0      uint32 = 222 // SPI 190 (XGMAC 0)
 	IRQEMAC1      uint32 = 239 // SPI 207 (XGMAC 1)
 	IRQEMAC2      uint32 = 256 // SPI 224 (XGMAC 2)
@@ -38,6 +41,20 @@ var intc = gic.New(GICDBase, GICRBase)
 
 // GIC returns the Agilex 5 GIC-600 controller. Call Init() before enabling IRQs.
 func GIC() *gic.Controller { return intc }
+
+// EMACIRQ maps an Agilex 5 XGMAC MMIO base address (MAC0/1/2) to its GIC-600 SPI INTID.
+func EMACIRQ(base uintptr) (uint32, bool) {
+	switch base {
+	case 0x10810000:
+		return IRQEMAC0, true
+	case 0x10820000:
+		return IRQEMAC1, true
+	case 0x10830000:
+		return IRQEMAC2, true
+	default:
+		return 0, false
+	}
+}
 
 // FPGAIRQ maps an FPGA-to-HPS doorbell line (0..63) to its GIC-600 SPI INTID (48..111).
 func FPGAIRQ(line uint32) (uint32, bool) {
@@ -76,4 +93,10 @@ func DisableFPGAIRQ(line uint32) {
 	intc.Disable(id)
 	intc.ClearPending(id)
 	intc.Register(id, nil)
+}
+
+// NewFPGADispatcher returns an FPGA-to-HPS doorbell dispatcher bound to the
+// Agilex 5 GIC-600 controller. Call after GIC().Init().
+func NewFPGADispatcher() (*fpgairq.Dispatcher, error) {
+	return fpgairq.New(intc)
 }

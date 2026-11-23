@@ -21,6 +21,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
+	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/serial"
 )
 
@@ -30,8 +31,9 @@ var nativeProgramPlatform tenfoot.Platform
 
 const tenfootSerialLinked = true
 
-func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store) {
+func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store, lease *sdcontrol.Session) {
 	uartIRQ := false
+	var activeGIC *gic.Controller
 	if g := de25nano.GIC(); g != nil {
 		if err := g.Init(); err != nil {
 			if !errors.Is(err, gic.ErrUnsupported) {
@@ -56,7 +58,14 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 				panic(err)
 			}
 			defer serial.DisableIRQ(g)
+			if lease != nil {
+				if err := lease.EnableIRQ(g, de25nano.IRQSDMMC); err != nil {
+					panic(err)
+				}
+				defer lease.DisableIRQ()
+			}
 			uartIRQ = true
+			activeGIC = g
 		}
 	}
 	paired := expectedCompiledMenuProgram != ""
@@ -89,9 +98,11 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 			_ = programService.Retire(errors.New("native Tenfoot exited before owned menu shutdown"))
 		}
 	}()
-	if err := startProgramNetwork(); err != nil {
+	cleanupNetwork, err := startProgramNetwork(activeGIC)
+	if err != nil {
 		panic(err)
 	}
+	defer cleanupNetwork()
 	nativeProgramBackend, err = nativefabric.NewProgramBackend(programService, startup.Entries)
 	if err != nil {
 		panic(err)
@@ -137,6 +148,11 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	}
 	inputMode := "uart"
 	if expectedUSBControl != "" {
+		cleanupUSBIRQ, err := enableProgramUSBIRQ(activeGIC)
+		if err != nil {
+			panic(err)
+		}
+		defer cleanupUSBIRQ()
 		if expectedUSBInput == "gamepad" {
 			keys := nativefabric.ProgramGamepadKeys{Up: 0x52, Down: 0x51, Left: 0x50, Right: 0x4f}
 			// This diagnostic assigns S/start and Space to the first two HID buttons.

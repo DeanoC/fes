@@ -15,6 +15,7 @@ module vga_capture_top (
     wire cap_write, frame_start, frame_done, start_latched;
     wire [63:0] cap_writedata;
     wire [9:0] frame_width, frame_height;
+    wire [3:0] palette_index;
 
     pc386_vga_scanout scanout (
         .clk(clk), .reset(reset), .misc(8'd0), .video_enable(1'b1), .crtc_written(1'b1), .seq_reset(2'b11),
@@ -24,10 +25,7 @@ module vga_capture_top (
         .crtc16(8'd0), .crtc17(8'd0), .crtc18(8'd2), .crtc19(8'd0), .crtc20(8'd0), .crtc23(8'd0),
         .crtc24(8'd0), .attr_pas(1'b1), .attr_mode(8'd0), .overscan(6'd0), .plane_enable(4'hf),
         .pel_pan(4'd0), .color_select(4'd0), .pel_mask(8'hff),
-        .palette0(8'd0), .palette1(8'd0), .palette2(8'd0), .palette3(8'd0),
-        .palette4(8'd0), .palette5(8'd0), .palette6(8'd0), .palette7(8'd0),
-        .palette8(8'd0), .palette9(8'd0), .palette10(8'd0), .palette11(8'd0),
-        .palette12(8'd0), .palette13(8'd0), .palette14(8'd0), .palette15(8'd0),
+        .palette_index(palette_index), .palette_value(8'd0),
         .dac_write(1'b0), .dac_write_index(8'd0), .dac_write_data(18'd0),
         .dac_read_index(8'd0), .dac_read_cycle(2'd0), .dac_read_data(dac_read_data), .status(status),
         .fetch_request(fetch_request), .fetch_beat(fetch_beat), .fetch_grant(1'b0), .fetch_valid(1'b0),
@@ -40,5 +38,6 @@ module vga_capture_top (
     );
 
     wire unused = ^{status, dac_read_data, underflows, fetch_request, fetch_beat, cap_address, cap_burstcount,
-                    cap_write, cap_writedata, frame_width, frame_height, frame_start, frame_done, start_latched};
+                    cap_write, cap_writedata, frame_width, frame_height, frame_start, frame_done, start_latched,
+                    palette_index};
 endmodule
