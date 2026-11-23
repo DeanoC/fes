@@ -22,7 +22,7 @@ func (s *ProgramService) pollDMAReject(ctx context.Context) (uint64, bool, error
 	}
 	defer p.operation.Unlock()
 	view := s.Status()
-	if view.State != ProgramRunning || p.plan == nil || p.plan.state.program.role != programRoleSpectrum48 {
+	if view.State != ProgramRunning || p.plan == nil || p.plan.state.program.role != programRoleUploadShell {
 		return 0, false, nil
 	}
 	if err := ctx.Err(); err != nil {

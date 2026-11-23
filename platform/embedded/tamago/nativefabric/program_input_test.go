@@ -12,6 +12,7 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
+	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 )
 
 type programInputBase struct{ presents int }
@@ -386,5 +387,76 @@ func TestProgramInputCanceledReportUsesFreshOwnedCleanup(t *testing.T) {
 	calls := f.cpu.calls
 	if _, err := p.Next(context.Background()); err == nil || polls != 2 || f.cpu.calls != calls {
 		t.Fatal("canceled source retried")
+	}
+}
+
+type readyKeyboardSource struct {
+	ready   chan struct{}
+	reports [][]byte
+}
+
+func (s *readyKeyboardSource) PollKeyboard() ([]byte, error) {
+	if len(s.reports) == 0 {
+		return nil, nil
+	}
+	r := s.reports[0]
+	s.reports = s.reports[1:]
+	return r, nil
+}
+func (s *readyKeyboardSource) Ready() <-chan struct{} { return s.ready }
+
+type readyGamepadSource struct {
+	ready   chan struct{}
+	reports [][]byte
+}
+
+func (s *readyGamepadSource) PollGamepad() ([]byte, error) {
+	if len(s.reports) == 0 {
+		return nil, nil
+	}
+	r := s.reports[0]
+	s.reports = s.reports[1:]
+	return r, nil
+}
+func (s *readyGamepadSource) Ready() <-chan struct{} { return s.ready }
+
+func TestProgramInputWakesSerialPlatformOnUSBReady(t *testing.T) {
+	for _, kind := range []string{"keyboard", "gamepad"} {
+		t.Run(kind, func(t *testing.T) {
+			f, b, _ := backendFixture(t)
+			serialBase, err := NewProgramSerialPlatform(f.s, func() (byte, bool) { return 0, false }, func(context.Context, []byte) error { return nil })
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Keep UART Ready channel separate to verify both channels coexist.
+			serialBase.SetReady(make(chan struct{}, 1))
+			usbReady := make(chan struct{}, 1)
+			var p *ProgramInputPlatform
+			if kind == "keyboard" {
+				src := &readyKeyboardSource{ready: usbReady}
+				p, err = NewProgramInputPlatform(serialBase, b, src)
+			} else {
+				src := &readyGamepadSource{ready: usbReady}
+				p, err = NewProgramGamepadPlatform(serialBase, b, src, gamepadDescriptor(t), input.GamepadButtons{Confirm: 1, Back: 2}, gamepadKeys())
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := context.Background()
+			// First Next sets p.last = now.
+			if _, err := p.Next(ctx); err != nil {
+				t.Fatal(err)
+			}
+			// Signal USB Ready immediately so the second Next wakes without
+			// waiting for the full 50 ms frame delay.
+			usbReady <- struct{}{}
+			start := time.Now()
+			if _, err := p.Next(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if elapsed := time.Since(start); elapsed >= 35*time.Millisecond {
+				t.Fatalf("Next waited %v instead of waking on USB Ready", elapsed)
+			}
+		})
 	}
 }

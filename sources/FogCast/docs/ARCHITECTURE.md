@@ -218,10 +218,13 @@ The entry points are `internal/hostapi`, `fogcast`, `internal/agent`,
 `internal/httpapi`, and `internal/misterruntime`. `internal/systems/table.go`
 retains library platform metadata; it does not describe raw-core launch recipes.
 
-Writable PC/XT library floppy launches send the exact immutable 360 KiB disk
-with the format-2 package. The target seals and validates both before asking
-the runtime to restore the bound revision and load the disk while the CPU is
-held. It accepts launch only after the runtime reports the requested ready,
+Writable PC/XT library floppy launches send the exact immutable 360 KiB start
+disk with the package: a format-2 package on its own, or a format-3 package
+(the DE25 PC/XT) as a firmware upload with the start disk alongside the linked
+firmware ROM in the same ROM input. The start disk is the entry's selected disk
+or, without one, the FreeDOS boot disk the host bundles. The target seals and validates both
+before asking the runtime to restore the bound revision and load the disk while
+the CPU is held. It accepts launch only after the runtime reports the requested ready,
 persistent game and base identity. Raw development inserts are volatile.
 
 The browser, kit launcher, and ordinary CLI send a game ID to the same

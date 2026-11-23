@@ -37,6 +37,7 @@
 
 #include <assert.h>
 #include <algorithm>
+#include <dirent.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6244,6 +6245,28 @@ void TestDe25FirmwareMachineUploadsBeforeRelease(bool atari_st,FirmwareTrial tri
  bool active=false;
  for(const auto& interface:state.capabilities.active_interfaces)active=active||interface.id=="fes.fabric.firmware-upload";
  assert(active&&state.capabilities.media_units.size()==1&&state.menu_display.session);
+ if(atari_st) {
+  // A bound library disk reports its binding on DE25 as it does on the DE10:
+  // a persistent package whose disk carries no binding is not a valid status.
+  TempDirectory media,storage;
+  const std::string disk=ComputerDisk(737280),path=media.File("desk.st",disk);
+  Sha256 h;h.Update(disk.data(),disk.size());
+  MediaDataBinding binding;binding.game_id="de25-st-desk";binding.base_media_id=Sha256Hex(h.Final());binding.unit=0;
+  const auto inserted=runtime.InsertLibraryMedia(path,game_package.package_id,state.generation,0,737280,storage.path,binding);
+  if(!inserted.ok())fprintf(stderr,"DE25 library disk: %s (%s)\n",inserted.message.c_str(),inserted.phase.c_str());
+  assert(inserted.ok());
+  const auto unit=runtime.status().capabilities.media_units[0];
+  assert(unit.state==MediaUnitState::ready&&unit.persistence_mode=="persistent"&&
+   unit.game_id==binding.game_id&&unit.base_media_id==binding.base_media_id&&unit.revision=="absent");
+  assert(runtime.Stop().ok()&&runtime.status().state==State::idle);
+  const auto ns=storage.path+"/"+MediaDataNamespace(MediaDataIdentity{d.core.id,binding.game_id,binding.base_media_id,0});
+  if(DIR* dir=opendir(ns.c_str())) {
+   while(const dirent* entry=readdir(dir))
+    if(std::string(entry->d_name)!="."&&std::string(entry->d_name)!="..")assert(unlink((ns+"/"+entry->d_name).c_str())==0);
+   closedir(dir);assert(rmdir(ns.c_str())==0);
+  }
+  return;
+ }
  assert(runtime.Stop().ok()&&runtime.status().state==State::idle);
 }
 

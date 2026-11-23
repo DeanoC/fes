@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "e90cf356187a3362e2da5ba07e3c25947a45243c",
+  "source_revision": "edaceb42bdd2daef38175bbb0ede5f2888f40d0e",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -107,10 +107,10 @@
     "sources/libmister-runtime/src/native/pc386_machine.hpp": "a276c03830d412271d45893c4cf397f93187bb6d103ad68dfe6f12b5dbd6d3a7",
     "sources/libmister-runtime/src/native/atari_st_geometry.hpp": "a00dedc42dd1bef6f9aeeeaf8557ddb6fd264e9a2670839c370d89a8c119c6cb",
     "sources/libmister-runtime/src/native/core_composition.hpp": "3f2df836517ed9cfdf2eaa484df3fba6fdabaf80212427b36e44ae4c0a6d8984",
-    "sources/libmister-runtime/src/native/de25_core_contract.hpp": "2ce099d8753d5e46a8193cc2c886cf13a6a6cd97d5ca5acf8b1cf908e48ff246",
+    "sources/libmister-runtime/src/native/de25_core_contract.hpp": "c43e8a54a4862d31ad94e672626ae3129ea25f24b999bf37a2e3c33a6cbe2469",
     "sources/libmister-runtime/src/native/diagnostic.hpp": "778c93c96c5ae4c0eda141cc5c9fa498445ba5748e7b3ee651a370a075e78c7a",
     "sources/libmister-runtime/src/native/artifacts.hpp": "1d1abad2c4bdbf02fe39e115b0b88cbc1c9ba7a66370d09a581d24955fcefeab",
-    "sources/libmister-runtime/src/native/hardware.hpp": "6932050fd13d6aab4e2b20629c76ac4fd0f33486f5f328b56fe4a43cfc8f887a",
+    "sources/libmister-runtime/src/native/hardware.hpp": "f3a7059b191be8e717ccd08c93d44741001c1f8494ce72d480dc0822f5bdf650",
     "sources/libmister-runtime/src/native/core_data.hpp": "8666db6dded0b5f5e14e83b62be2f86f6af79e7cceeb2ddc389ab742729c6dd5",
     "sources/libmister-runtime/src/native/fes_gp.hpp": "b65a88ec81441e11b69195a2e5c2112c8d67d28301dfdf9c2d88c1bf41f12a00",
     "sources/libmister-runtime/src/native/menu_display.hpp": "68d501fd143daa309f4fbac96a12e474b9d7ea63ce2b6497c2ef6e31ee35ee65",
@@ -342,7 +342,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "a3c8d49d179e6a13dedc740fd2e181c2ba884ef9111d35d8e955820960bd35ea",
-    "Vfes_de25_combined_sim": "30141acc6f35602ab01486f0f8a53eb683ed4e7e35212c90eb41a88f138341b0",
+    "Vfes_de25_combined_sim": "2df2379f176f8c1d9ff82513fff24e77041d7eef265a252a06c6fd07b5dff904",
     "client-aarch64": "cf763f001d257e257c8f2fcf56e74e76e296728abfdc624888a2a087236e34d4"
   },
   "physical_PR": "selection-mux-model-only",

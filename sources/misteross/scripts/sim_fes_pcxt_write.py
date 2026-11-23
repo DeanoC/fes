@@ -14,7 +14,7 @@ def main():
         output.mkdir(parents=True, exist_ok=True)
         top = name + '_tb'
         subprocess.run([os.environ.get('VERILATOR', 'verilator'), '--binary', '--timing',
-                        '-Wall', '--top-module', top, '--Mdir', str(output),
+                        '-Wall', str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt'), '--top-module', top, '--Mdir', str(output),
                         str(ROOT / f'cores/fes-pcxt/rtl/{rtl}.sv'),
                         str(ROOT / f'cores/fes-pcxt/sim/{top}.sv')], check=True)
         subprocess.run([str(output / ('V' + top))], cwd=ROOT, check=True)
