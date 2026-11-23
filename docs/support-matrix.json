@@ -627,7 +627,7 @@
       "in_bootstrap_image": false,
       "oss_lock": {
         "path": "sources/misteross/cores/fes-coleco/toolchain.lock",
-        "yosys": "d273c1cb",
+        "yosys": "5391eeb1",
         "mistral": "8fcc4cb4",
         "nextpnr": "bec82e36"
       },

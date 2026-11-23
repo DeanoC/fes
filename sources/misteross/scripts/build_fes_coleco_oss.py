@@ -497,7 +497,10 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT, *,
             raise BuildError(f"forbidden synthesis cell {name} is in use")
     display = None
     if session_display:
-        # Coleco's Yosys predates MISTRAL_MUL sign parameters.
+        # Only the registered native shell reaches this. Its lock,
+        # cores/fes-coleco/toolchain.lock, pins Yosys 5391eeb1, which predates
+        # A_SIGNED/B_SIGNED on MISTRAL_MUL (DeanoC/yosys#25). Moving that lock
+        # past #25 needs signed mode here, or the producer fails after routing.
         fes_de10nano_evidence.plane_dsp_evidence(synthesis, sign_parameters=False)
         fes_de10nano_evidence.session_display_evidence(synthesis, "synthesized", source_root)
         display = fes_de10nano_evidence.session_display_evidence(routed, "routed", source_root)

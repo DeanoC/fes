@@ -38,7 +38,8 @@ The selected FPGA sources are the tracked
 `sources/misteross` module at the selected FES commit. Each registered
 producer selects the per-core lock in its `config/core-recipes.toml` entry.
 The locks currently contain the same Mistral commit. C64, PC/XT and the
-ZX81 family pin Yosys `3a5accbd`; the other registered locks pin `d273c1cb`. Use the matching
+ZX81 family pin Yosys `3a5accbd`, and Coleco pins `5391eeb1`, which has its
+own Yosys install; the other registered locks pin `d273c1cb`. Use the matching
 `make toolchain-fes-<core>` target when provisioning a selected core. Inspect
 `config/core-recipes.toml` for each registered producer's current lock and HIP
 settings. Freeze-scaffold

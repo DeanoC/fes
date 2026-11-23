@@ -294,8 +294,7 @@ Each registered package authenticates the lock named by its `lock_path` in
 install and keeps sharing the other tools. Pong's
 lock pins nextpnr `552ba246`, Menu's and ZX81's pin `1eecf877` (Menu moved
 when its blitter took DSP multipliers), RISC-V's pins `8f453ebc`, and
-Coleco pins Yosys `d273c1cb` with nextpnr `bec82e36` after its socket-v2
-producer passed with the new Yosys lock.
+Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`.
 Apple II, C64 (#1007) and Atari ST (#910) pin nextpnr `5fe55f3d` for its
 F0/F1 boundary `$ROUTETHRU` map, and Spectrum pins nextpnr main `bd7a1c0d`
 (#1001, which contains #276 as merged). The cache holds one install per tool
@@ -303,7 +302,10 @@ and commit. Every lock included in this bump uses the shared Yosys `d273c1cb`
 slot; C64 remains on `3a5accbd` after its producer failed at the new pin, and
 PC/XT remains on `3a5accbd` after its diagnostic missed timing at d273. The
 ZX81-family lock also remains on `3a5accbd` because the ZX80 producer missed
-system-clock timing. See the 2026-11-23 validation record. Use the matching
+system-clock timing. Coleco's lock remains on `5391eeb1`: its registered
+native-video producer was not built at d273, and its display-plane check
+accepts only the products of a Yosys before DeanoC/yosys#25, which carry no
+`A_SIGNED`/`B_SIGNED`. See the 2026-11-23 validation record. Use the matching
 `make toolchain-fes-<core>` target to provision a local toolchain.
 The splash continues to select the repository-level `toolchain.lock`.
 
