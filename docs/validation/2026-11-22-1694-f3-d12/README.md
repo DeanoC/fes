@@ -185,6 +185,29 @@ from a clean checkout of each head:
   `verify_pc386_product_seal.py` gives `SEAL_OK` (154 files bound)
   (`pc386-seal/`).
 
+## Runtime test timing flake
+
+`native_hardware_test` fails now and then on a loaded host. Each failure is a
+wall-clock deadline: "FES GP response stability deadline exceeded" or the 2 s
+`WaitForState`. The failing test moves between runs (lines 5164, 5274,
+5556/5569, 5608/5609, 6502). ASan, UBSan and TSan runs found no memory or race
+fault. Main fails the TSan `WaitForState` run too (2 of 3).
+
+| Host | Load | Branch fails | Main fails |
+|---|---|---|---|
+| Powerboat | about 15 to 75 | 6/97 | 0/83 |
+| chip-30x0-ai-dev, idle | about 0 to 2 | 0/60 | 0/60 |
+
+The idle runs alternate branch and main: branch at `324dd656f`, main at
+`1f563436a`, with the same runtime sources as the merge base. Both binaries
+were built with g++ 13.3.
+
+On the idle host neither side fails. The loaded-host split leans toward the
+branch (one-sided Fisher p about 0.02). The new floppy tests run after the
+tests that fail, and the floppy paths do nothing until a floppy is loaded. So
+the most likely cause is that these deadlines are tight under CPU contention,
+not a fault in the branch. This record does not change any deadline.
+
 ## Merge forward to `904140f8f`
 
 Main was merged into the branch at `f153f04b7` (new base `904140f8f`).
