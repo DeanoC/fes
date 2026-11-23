@@ -6,14 +6,15 @@ Path convention: `M/` means `sources/misteross/`. These are at the repo root: `s
 
 ## Implementation status
 
-As of 13 November 2026:
+As of 23 November 2026:
 
 - S1a–S1d have validation records: [parse census](../validation/2026-11-10-1581-parse-census/README.md) ([#1632](https://github.com/DeanoC/fes/pull/1632)), [Pro probe](../validation/2026-11-10-1581-pro-probe/README.md) ([#1628](https://github.com/DeanoC/fes/pull/1628)), [Quartus-netlist simulation feasibility](../validation/2026-11-10-1581-netlist-sim/README.md) ([#1633](https://github.com/DeanoC/fes/pull/1633)) and [MLAB inference](../validation/2026-11-10-1581-mlab-inference/README.md) ([#1630](https://github.com/DeanoC/fes/pull/1630)). These records report each spike's results and limits; their completion does not by itself approve a native lane.
-- S2's return-stack change landed in [#1638](https://github.com/DeanoC/fes/pull/1638). S3's i386 simulation Verilator lock landed in [#1653](https://github.com/DeanoC/fes/pull/1653); the separate pc386 lock update is open in [#1680](https://github.com/DeanoC/fes/pull/1680).
-- S6a's per-core Quartus Lite locks landed in [#1652](https://github.com/DeanoC/fes/pull/1652). D2's i386 Yosys lock change landed in [#1664](https://github.com/DeanoC/fes/pull/1664).
+- S2's return-stack change landed in [#1638](https://github.com/DeanoC/fes/pull/1638). S3's i386 and pc386 Verilator 5.054 locks landed ([#1653](https://github.com/DeanoC/fes/pull/1653), [#1680](https://github.com/DeanoC/fes/pull/1680)), and CI simulations moved to Verilator 5.054 in [#2145](https://github.com/DeanoC/fes/pull/2145).
+- S6a's per-core Quartus Lite locks landed in [#1652](https://github.com/DeanoC/fes/pull/1652). D2's i386 Yosys lock change landed in [#1664](https://github.com/DeanoC/fes/pull/1664); i386/pc386 and the shared Yosys lock subsequently moved to `d273c1cb` (`yosys#81`) in [#2130](https://github.com/DeanoC/fes/pull/2130) and [#2161](https://github.com/DeanoC/fes/pull/2161).
 - S4's shared Yosys netlist helper landed in [#1758](https://github.com/DeanoC/fes/pull/1758), and S5's pc386 lockstep producer gate in [#1782](https://github.com/DeanoC/fes/pull/1782). S6b's DE25 Pro lock is on main.
 - D12's closure-only BUILD_ID rule landed in [#1649](https://github.com/DeanoC/fes/pull/1649). The binding rule and required evidence are in [AGENTS.md](../../AGENTS.md#hard-rules).
 - [#1984](https://github.com/DeanoC/fes/issues/1984)'s pc386 identity scope was decided on 18 November 2026 (**D14**, [Design identity policies](#design-identity-policies)). S1, the seal process that no longer imports evidence or firmware-recipe code, landed in [#1997](https://github.com/DeanoC/fes/pull/1997). S2, the `design-v2` policy in `M/scripts/input_identity.py`, landed in [#2004](https://github.com/DeanoC/fes/pull/2004). S3, reuse after an evidence-only change only through a recorded fresh full lockstep, landed in [#2015](https://github.com/DeanoC/fes/pull/2015). S4, in which the pc386 producer writes design-v2 records through a normal migration reseal, landed in [#2024](https://github.com/DeanoC/fes/pull/2024) ([record](../validation/2026-11-20-1984-s4-design-v2-migration/README.md)). S5 deletes the format-1 manual sealer, `M/scripts/build_fes_pc386_quartus.py` (D14 decision 6; [record](../validation/2026-11-20-1984-s5-delete-manual-sealer/README.md)). The seal's shared definitions it held move to `M/scripts/pc386_quartus.py`, and format-1 pc386 records stay readable and verifiable. Earlier line references in this document to `build_fes_pc386_quartus.py` name that file at the commits they cite.
+- On 22 November 2026, `fes.pcxt-dos` adopted `design-v2` in [#2097](https://github.com/DeanoC/fes/pull/2097), placing its Verilator lint configuration and testbench files under `cores/fes-pcxt/sim` in `PCXT_EVIDENCE_INPUTS` (`evidence`) while keeping `sim_fes_pcxt.py`, `.S` programs and BIOS/FreeDOS locks in `design`.
 
 ## Summary
 
@@ -79,7 +80,7 @@ What the design does:
 | Migrating the `VERILATOR`/`SYNTHESIS`/`SIM`/`FES_SIMULATION` guards and about 2,800 `MISTRAL_*` instances in about 48 files | Those cores have no planned Quartus front end. They are touched only if one of them gains a Quartus lane (D7). |
 | A single BUILD_ID injection path (today chparam for Yosys, a `FES_<CORE>_BUILD_ID` VERILOG_MACRO for Quartus) | It touches every top and every producer and does nothing for lanes. Out of scope (D8). |
 | A pc386 OSS/nextpnr producer | The pc386 lock rationale cited `build_fes_pc386_oss.py`, which M5 (#1268) deleted. Fixed with the lock's Verilator move to v5.054 (#1660), not in S6a or D2. |
-| DE25 board shell, FPGA runtime, HIL | Not built yet (`docs/de25-linux.md:10-12`, `:149-153`). DE25 HIL is waived (`AGENTS.md:32`). |
+| DE25 board shell, FPGA runtime, HIL | Not built at the 9 November baseline (`docs/de25-linux.md:10-12`, `:149-153`), when DE25 HIL was waived; DE25 shells and Kit D25 HIL (`docs/de25-kit-hil.md`) have since landed separately. |
 | A Quartus lane in CI | CI installs no Quartus: no workflow under `.github/workflows/` mentions Quartus. Lite 17.0.2 needs no licence (`docs/design/quartus-cores.md:251`). What CI should do about Quartus is still open question 2 (`docs/design/quartus-cores.md:447-448`), and this design does not answer it. |
 
 ## Lanes and build identity

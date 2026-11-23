@@ -79,16 +79,23 @@ Each changed path gets a class and a component:
   `core:ALL`). `cmd/fogcast-api` is `kit-go+host`: the bundle ships it as
   `bin/fogcast-kit`, the kit's FogCast host.
 - DE25 packages use `core:de25-menu`, `core:de25-zx81` and
-  `core:de25-ALL` (both packages). These require a claimed DE25 and the
-  corresponding Quartus package. A DE10 test cannot satisfy them; an executor
-  without a DE25 route must stop for that hardware check. Shared DE25 board
+  `core:de25-ALL` in `scripts/hil_plan.py`, while Powerboat HILQ's
+  `de25:auto` seals every changed registered DE25 Quartus Pro recipe
+  (`fes.menu`, `fes.zx81`, `fes.spectrum`, `fes.atari-st`, `fes.c64`,
+  `fes.pcxt-dos`; see [DE25 kit HIL](de25-kit-hil.md#which-packages-a-head-seals)).
+  These require a claimed DE25 and the corresponding Quartus package. A DE10
+  test cannot satisfy them; an executor without a DE25 route must stop for that
+  hardware check. Bare-metal TamaGo work under `platform/embedded/` cannot be
+  tested on Kit D25 (`de25-j8g`) yet; use host tests, QEMU and DE25-Nano
+  cross-builds instead (`AGENTS.md`). Shared DE25 board
   code selects both packages, while computer-specific code selects ZX81.
   The captured ZX81 firmware generator also selects the ZX81 hardware check.
   Select Kit D25 for those changes; a missing or held D25 route leaves HIL
   open and never falls back to A or B. The repo planner and Powerboat HILQ select D25 only. HILQ supervises exact-head
   D25 runs through lander-watch with an explicit cap.
   DE25 HIL is a normal exact-head merge gate.
-  MENU uses volatile `fogcast core-load`; ZX81 uses package import and launch.
+  MENU uses volatile `fogcast core-load`; ZX81 and other DE25 machines use
+  package import and launch.
   PASS requires visible capture from
   `/dev/v4l/by-id/fes-ms2109-hil`, input, Stop to idle, and a verified restore
   diff against the D25 baseline. Only N/A or Deano's explicit waiver can

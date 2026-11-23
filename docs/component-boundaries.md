@@ -117,11 +117,11 @@ Go allowlist.
 
 `native-integration-dev` uses FES's package-only interface and publishes the
 ordered per-core selection records for its selected packages plus its sealed
-`core-packages/` directory. Systems whose nextpnr
-route is not implemented yet are checked explicitly with Quartus; that check
-is not an image production route. The accepted Quartus policy allows labelled
-product variants, but current recipe and package-selection support does not
-select one yet; see [Quartus-built cores](design/quartus-cores.md).
+`core-packages/` directory. Registered recipes select Quartus Lite for the DE10
+ZX81 family, `fes.pcxt-dos` and `fes.pc386`, and Quartus Pro 26.3 for DE25
+recipes; other DE10 cores select HIP/nextpnr. General same-board dual-variant
+selection and `FES_OSS_ONLY` remain rollout work; see
+[Quartus-built cores](design/quartus-cores.md).
 
 ## Keep, combine, split and add
 
