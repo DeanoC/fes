@@ -299,10 +299,10 @@ def scratch_inspect_option(program, requested, profile):
     return requested
 
 
-def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, output, *, spectrum48=False):
+def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, output, *, spectrum48=False, c64=False):
     """Snapshot selected content and derive its receipt through the shared linker."""
     rom_path = Path(rom_path).resolve(strict=True)
-    if not rom_path.is_file() or rom_path.stat().st_size != rom_bytes or rom_bytes not in ((16384,) if spectrum48 else (4096, 8192)):
+    if not rom_path.is_file() or rom_path.stat().st_size != rom_bytes or rom_bytes not in ((36864,) if c64 else (16384,) if spectrum48 else (4096, 8192)):
         raise ValueError('selected firmware ROM must match the sealed resource')
     with rom_path.open('rb') as stream:
         data = stream.read(rom_bytes+1)
@@ -312,7 +312,7 @@ def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, out
     (output/'FIRMWARE.BIN').write_bytes(data)
     env = dict(os.environ, GOTOOLCHAIN='local', GOWORK='off', GOENV='off', GOPROXY='off', GOSUMDB='off', GOMAXPROCS='2')
     command = [str(Path(host_go).resolve(strict=True)), 'run', '-mod=readonly', './cmd/nano-rom-selection',
-               *(['--spectrum48'] if spectrum48 else []), str(output/'package.fcore'), str(output/'FIRMWARE.BIN'), package_id]
+               *(['--c64'] if c64 else ['--spectrum48'] if spectrum48 else []), str(output/'package.fcore'), str(output/'FIRMWARE.BIN'), package_id]
     result = subprocess.run(command, cwd=APP, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
     (output/'rom-linker.log').write_bytes(result.stderr)
     if result.returncode:
@@ -327,6 +327,38 @@ def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, out
         raise ValueError('shared ROM linker returned a mismatched selection')
     (output/'rom-selection.json').write_text(json.dumps(record, sort_keys=True, indent=2)+'\n')
     return record
+
+
+def stage_c64(shell, proof, archive_path, rom, disk, host_go, stage, context, platform, configuration):
+    stage.mkdir()
+    archive = shell.read(archive_path, shell.MAX_ARCHIVE)
+    if shell.sha(archive) != proof['archive_sha256']:
+        raise ValueError('C64 archive changed after verification')
+    receipt = prepare_rom_selection(archive, rom, proof['package_id'],
+                                    shell.C64_ROM_BYTES, host_go, stage, c64=True)
+    record = shell.record_for(proof, context, platform, configuration, receipt, rom_bytes=shell.C64_ROM_BYTES)
+    export = stage / 'export' / 'FES'
+    export.mkdir(parents=True)
+    (export / 'C64.FCP').write_bytes(archive)
+    (export / 'C64.ROM').write_bytes((stage / 'FIRMWARE.BIN').read_bytes())
+    metadata = shell.encode(record)
+    (export / 'C64.JSN').write_bytes(metadata)
+    choice = dict(path='FES/C64.FCP', package_id=record['package_id'],
+                  metadata_path='FES/C64.JSN', metadata_sha256=shell.sha(metadata),
+                  sources=[dict(id=receipt['source_id'], role='firmware', path='FES/C64.ROM',
+                                sha256=receipt['source_sha256'])],
+                  rom_receipt_sha256=receipt['rom_receipt_sha256'])
+    if disk is not None:
+        data = shell.read(disk, 174848)
+        if len(data) != 174848:
+            raise ValueError('C64 requires a standard 174848-byte D64')
+        (export / 'C64.D64').write_bytes(data)
+        choice['tape'] = dict(path='FES/C64.D64', format='c64-d64', size=len(data), sha256=shell.sha(data))
+    (export / 'CORESEL.JSN').write_bytes(shell.encode(dict(
+        format=1, scope='nano-program-selection-v1', programs=[choice])))
+    (export / 'UI.JSON').write_bytes(shell.encode(dict(
+        format=1, scope='nano-tenfoot-catalog-v1',
+        entries=[dict(id='c64', title='Commodore 64 PAL', program=0)])))
 
 
 def build(args):
@@ -460,6 +492,9 @@ def build(args):
     spectrum_paths = [getattr(args, 'spectrum48_'+name, None) for name in ('build', 'package', 'rom')]
     spectrum_tape = getattr(args, 'spectrum48_tape', None)
     shared_shell = getattr(args, 'shared_core_shell', False)
+    uart_only = getattr(args, 'tenfoot_uart_only', False)
+    if uart_only and not (usb_shared and shared_shell):
+        raise ValueError('--tenfoot-uart-only requires the matched shared-shell USB boot profile')
     if shared_shell and (args.program != 'fpgaload' or not menu_program_map or
                          not all((selected_programs, computer_reload, computer_storage_return, tenfoot_serial))):
         raise ValueError('shared core shell requires paired native Tenfoot')
@@ -471,6 +506,16 @@ def build(args):
         worker = Path(hps.spectrum48.__file__)
         spectrum_proof = json.loads(subprocess.check_output(
             [sys.executable, str(worker), str(producer), str(spectrum_archive)], timeout=180))
+    c64_paths = [getattr(args, 'c64_' + name, None) for name in ('build', 'package', 'rom')]
+    c64_disk = getattr(args, 'c64_d64', None)
+    c64_proof = None
+    if any(c64_paths) or c64_disk is not None:
+        if not all(c64_paths) or not shared_shell or spectrum_proof is not None or rom_host_go is None:
+            raise ValueError('C64 requires a sealed build, package, ROM and shared-shell Tenfoot')
+        producer, c64_archive, c64_rom = (path.resolve(strict=True) for path in c64_paths)
+        worker = Path(hps.spectrum48.__file__)
+        c64_proof = json.loads(subprocess.check_output(
+            [sys.executable, str(worker), '--c64', str(producer), str(c64_archive)], timeout=180))
     output = args.output.resolve()
     if output.exists() or not output.is_relative_to(ROOT / "out"):
         raise ValueError("output must be a fresh directory beneath this worktree's out/")
@@ -511,6 +556,9 @@ def build(args):
         (export/'UI.JSON').write_bytes(hps.encode(dict(
             format=1, scope='nano-tenfoot-catalog-v1',
             entries=[dict(id='spectrum48', title='ZX Spectrum 48K trial', program=0)])))
+    if c64_proof is not None:
+        stage_c64(hps.spectrum48, c64_proof, c64_archive, c64_rom, c64_disk, rom_host_go,
+                  output / 'c64', context, program_platform, configuration_map)
     (output / "handoff.json").write_bytes(raw)
     if context is not None:(output/'hps-context.json').write_bytes(hps.encode(context))
     if io_map is not None:(output/'hps-io.json').write_bytes(hps.encode(io_map))
@@ -618,6 +666,7 @@ def build(args):
     link_flags=f"-s -w -T {entry:#x} -R 0x1000"
     if usb_control:
         link_flags+=' -X main.expectedUSBControl='+('owned-shared-usb-pio-v1' if usb_shared else 'owned-usb-pio-v1')+' -X main.expectedUSBInput='+usb_input
+    if uart_only:link_flags+=' -X main.expectedTenfootUARTOnly=1'
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if sd_write_encoded:link_flags+=' -X main.expectedSDWritePlan='+sd_write_encoded
     if sd_transfer_clock:link_flags+=' -X main.expectedSDTransferClock='+str(sd_transfer_clock)
@@ -720,6 +769,7 @@ def build(args):
               **({"spectrum48_program": spectrum_program, "spectrum48_program_sha256": hps.digest(spectrum_program)}
                  if spectrum_program is not None and not shared_shell else {}),
               **({"shared_core_shell": True} if shared_shell else {}),
+              **({"tenfoot_uart_only": True} if uart_only else {}),
               "hps_menu_project":str(menu_project) if menu_project else None,
               "hps_menu_program":menu_program_map,"hps_menu_program_sha256":hps.digest(menu_program_map) if menu_program_map else None,
               "menu_assets":{name:{"sha256":hashlib.sha256(raw).hexdigest(),"size":len(raw)} for name,raw in menu_assets.items()},

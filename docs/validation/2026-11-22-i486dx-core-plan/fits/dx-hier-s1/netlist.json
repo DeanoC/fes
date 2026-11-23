@@ -1,0 +1,20 @@
+{
+  "fitted_netlist": {
+    "duplicate_attribute_count": 0,
+    "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+    "fitted_sha256": "8db295dfdf4b665fec0ee4612bba3777df1c919bf37620ab7ee90743646c2a07",
+    "ram_attribute": "renamed 32 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+    "ram_attribute_count": 32,
+    "source": "/data/projects/i486dx-plan/elab-hier/netlist/fes_i386_cpu.netlist.v",
+    "source_sha256": "e023a06297ae36faf3eb858248b9ba55ddfadc15ce995e7c5ad08ad706ca87f8"
+  },
+  "reused": "/data/projects/i486dx-plan/elab-hier/netlist/fes_i386_cpu.netlist.v",
+  "source_revision": {
+    "clean": false,
+    "commit": "dafabb6db52a0db75475c7832bf56317548f8c5e",
+    "note": "prepared from a modified checkout; this commit alone does not describe the source that ran, and the diff above does",
+    "tracked_diff": "diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv\nindex 10b75c65d..ba6707c2e 100644\n--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv\n+++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv\n@@ -127,7 +127,7 @@ module fes_i386_cpu #(\n     // been; 1 a 486SX of a later stepping, with CPUID and without VME (no\n     // CR4). A build parameter: every 486 register, flag and instruction\n     // folds away at 0. See \"The i486 identity\".\n-    parameter bit I486 = 1'b0\n+    parameter bit I486 = 1'b1\n ) (\n     input  logic             clk,\n     input  logic             cold_reset,   // the machine's start: also empties the write buffer\n",
+    "tracked_diff_sha256": "38c3ec04956f9057e43418badb04b65c1f763ca2e6a10a0371aebd84c6df8355"
+  },
+  "source_revision_note": "declared as elaborated from this checkout; scratch: dafabb6db + dx.patch, hierarchy kept (elaborate_hier.py)"
+}

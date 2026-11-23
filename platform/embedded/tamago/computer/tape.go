@@ -79,7 +79,7 @@ func (c *Computer) LoadInitialTape(ctx context.Context, data []byte) error {
 	return c.loadTape(ctx, data, true)
 }
 
-func (o *operation) tapeState(minimum, maximum uint32) (uint16, error) {
+func (o *operation) mediaState(minimum, maximum uint32) (uint16, error) {
 	var info [6]uint16
 	for i := range info {
 		v, err := o.exchange(g.FesComputerOpcodeMediaInfo, uint32(i), 0)
@@ -146,7 +146,7 @@ func (c *Computer) loadTape(ctx context.Context, data []byte, initial bool) (err
 		c.gpo = receipt.GPO
 		return nil
 	}
-	return o.transferTape(data, g.FesComputerZx81TapeMinBytes, g.FesDe25ComputerZx81TapeMaxBytes, false)
+	return o.transferMedia(data, g.FesComputerZx81TapeMinBytes, g.FesDe25ComputerZx81TapeMaxBytes, false, nil)
 }
 
 // LoadInitialSpectrumTape uploads prepared PZX into the Spectrum board SDRAM
@@ -165,12 +165,47 @@ func (c *Computer) LoadInitialSpectrumTape(ctx context.Context, pzx []byte) (err
 	if c.gpo & ^g.FesComputerRequestMask != g.FesComputerOpcodeExecution<<24|g.FesComputerControlIndex<<16|g.FesComputerExecutionHoldReset {
 		return ErrProtocol
 	}
-	return o.transferTape(pzx, g.FesComputerSpectrumTapeMinBytes, g.FesComputerSpectrumTapeMaxBytes, true)
+	return o.transferMedia(pzx, g.FesComputerSpectrumTapeMinBytes, g.FesComputerSpectrumTapeMaxBytes, true, nil)
 }
 
-// Both decks occupy unit zero and use the same chunk, CRC and commit protocol.
-func (o *operation) transferTape(data []byte, minimum, maximum uint32, requireEmpty bool) (err error) {
-	state, err := o.tapeState(minimum, maximum)
+// C64DiskTransferBudget bounds one standard 35-track D64 transfer.
+func C64DiskTransferBudget(size int, step time.Duration) (time.Duration, error) {
+	const disk = int(g.FesComputerC64DiskBytes)
+	return tapeTransferBudget(size, disk, disk, step)
+}
+
+// LoadInitialC64Disk commits a read-only D64 over the unit-0 media mailbox.
+func (c *Computer) LoadInitialC64Disk(ctx context.Context, image []byte, deadline time.Time) (err error) {
+	budget, err := C64DiskTransferBudget(len(image), c.limits.Timeout)
+	if err != nil || c.identity.Capabilities&g.FesComputerCapabilityMediaC64Disk == 0 {
+		return ErrArgument
+	}
+	o, err := c.begin(ctx, "initial-c64-disk")
+	if err != nil {
+		return err
+	}
+	defer func() { o.finish(err) }()
+	// The caller's monotonic launch deadline remains authoritative even if
+	// runtime timer delivery is delayed while the mailbox is busy.
+	o.timeout = min(budget, deadline.Sub(o.start))
+	if o.timeout <= 0 {
+		return ErrLimit
+	}
+	if c.gpo & ^g.FesComputerRequestMask != g.FesComputerOpcodeExecution<<24|g.FesComputerControlIndex<<16|g.FesComputerExecutionHoldReset {
+		return ErrProtocol
+	}
+	batch, _ := c.io.(MediaChunkBatcher)
+	return o.transferMedia(image, g.FesComputerC64DiskBytes, g.FesComputerC64DiskBytes, true, batch)
+}
+
+// MediaChunkBatcher owns one chunk header and its consecutive Data words.
+type MediaChunkBatcher interface {
+	WithMediaChunkBatch(func(IO) error) error
+}
+
+// Unit zero uses the same chunk, CRC and commit protocol across media types.
+func (o *operation) transferMedia(data []byte, minimum, maximum uint32, requireEmpty bool, batch MediaChunkBatcher) (err error) {
+	state, err := o.mediaState(minimum, maximum)
 	if err != nil {
 		return err
 	}
@@ -187,26 +222,39 @@ func (o *operation) transferTape(data []byte, minimum, maximum uint32, requireEm
 	}
 	for offset := 0; offset < len(image); {
 		length := min(int(g.FesComputerMediaChunkMaxBytes), len(image)-offset)
-		for i, word := range [...]uint16{uint16(offset), uint16(offset >> 16), uint16(length)} {
-			if err = o.mutate(g.FesComputerOpcodeMediaChunk, uint32(i), word); err != nil {
-				return err
+		send := func(port IO) error {
+			o.io = port
+			defer func() { o.io = o.c.io }()
+			for i, word := range [...]uint16{uint16(offset), uint16(offset >> 16), uint16(length)} {
+				if err := o.mutate(g.FesComputerOpcodeMediaChunk, uint32(i), word); err != nil {
+					return err
+				}
 			}
+			for i := 0; i < length; i += 2 {
+				word := uint16(image[offset+i])
+				if i+1 < length {
+					word |= uint16(image[offset+i+1]) << 8
+				}
+				if err := o.mutate(g.FesComputerOpcodeMediaData, uint32(i/2), word); err != nil {
+					return err
+				}
+			}
+			return nil
 		}
-		for i := 0; i < length; i += 2 {
-			word := uint16(image[offset+i])
-			if i+1 < length {
-				word |= uint16(image[offset+i+1]) << 8
-			}
-			if err = o.mutate(g.FesComputerOpcodeMediaData, uint32(i/2), word); err != nil {
-				return err
-			}
+		if batch == nil {
+			err = send(o.io)
+		} else {
+			err = batch.WithMediaChunkBatch(send)
+		}
+		if err != nil {
+			return err
 		}
 		offset += length
 	}
 	if err = o.mutate(g.FesComputerOpcodeMediaCommit, 0, 0); err != nil {
 		return err
 	}
-	state, err = o.tapeState(minimum, maximum)
+	state, err = o.mediaState(minimum, maximum)
 	if err != nil {
 		return err
 	}
@@ -225,13 +273,13 @@ func (c *Computer) EjectTape(ctx context.Context) (err error) {
 		return err
 	}
 	defer func() { o.finish(err) }()
-	if _, err = o.tapeState(g.FesComputerZx81TapeMinBytes, g.FesDe25ComputerZx81TapeMaxBytes); err != nil {
+	if _, err = o.mediaState(g.FesComputerZx81TapeMinBytes, g.FesDe25ComputerZx81TapeMaxBytes); err != nil {
 		return err
 	}
 	if err = o.mutate(g.FesComputerOpcodeMediaEject, g.FesComputerZx81TapeUnit, 0); err != nil {
 		return err
 	}
-	state, err := o.tapeState(g.FesComputerZx81TapeMinBytes, g.FesDe25ComputerZx81TapeMaxBytes)
+	state, err := o.mediaState(g.FesComputerZx81TapeMinBytes, g.FesDe25ComputerZx81TapeMaxBytes)
 	if err != nil {
 		return err
 	}

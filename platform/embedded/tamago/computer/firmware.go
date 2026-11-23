@@ -14,12 +14,21 @@ import (
 // mailbox transactions and the public operation deadline still apply.
 const FirmwareDataBatchWords = 64
 
+// C64DataBatchWords is one complete 512-byte disk chunk. The 36 KiB C64
+// firmware uses the same bound to amortize guarded register mappings.
+const C64DataBatchWords = 256
+
 // FirmwareDataBatcher optionally supplies an owned, synchronous IO scope for
 // a single burst of firmware Data commands. The callback must run once or
 // return an admission error, and must never be retried after partial IO.
 // The supplied port is valid only for the duration of the callback.
 type FirmwareDataBatcher interface {
 	WithFirmwareDataBatch(func(IO) error) error
+}
+
+// ValidFirmwareUploadSize reports the size envelope of the DE25 mailbox ROM map.
+func ValidFirmwareUploadSize(size int64) bool {
+	return size >= 1024 && size <= 256<<10 && size%1024 == 0
 }
 
 // LoadInitialFirmware uploads an already admitted format-3 firmware source
@@ -29,8 +38,7 @@ type FirmwareDataBatcher interface {
 // leaves execution held and never retries a command or trusts a ready image
 // from an earlier owner. Limits bound the whole upload and each acknowledgement.
 func (c *Computer) LoadInitialFirmware(ctx context.Context, image []byte) (err error) {
-	// The DE25 ROM map admits 1 KiB multiples through 256 KiB.
-	if len(image) < 1024 || len(image) > 256<<10 || len(image)%1024 != 0 || c.identity.Minor != 0 {
+	if !ValidFirmwareUploadSize(int64(len(image))) || c.identity.Minor != 0 {
 		return ErrArgument
 	}
 	o, err := c.begin(ctx, "initial-firmware")
@@ -53,8 +61,12 @@ func (c *Computer) LoadInitialFirmware(ctx context.Context, image []byte) (err e
 		}
 	}
 	batch, accelerated := c.io.(FirmwareDataBatcher)
-	for base := 0; base < len(owned); base += 2 * FirmwareDataBatchWords {
-		end := min(base+2*FirmwareDataBatchWords, len(owned))
+	words := FirmwareDataBatchWords
+	if c.identity.Capabilities&g.FesComputerCapabilityMediaC64Disk != 0 {
+		words = C64DataBatchWords
+	}
+	for base := 0; base < len(owned); base += 2 * words {
+		end := min(base+2*words, len(owned))
 		send := func(io IO) error {
 			o.io = io
 			defer func() { o.io = c.io }()

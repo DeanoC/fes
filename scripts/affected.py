@@ -18,7 +18,33 @@ except ImportError:
 # Logical module names survive the monorepo move; update only these roots.
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
-LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
+LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga', 'tamago')
+TAMAGO_CI_ROOTS = (
+    'platform/embedded/tamago',
+    'platform/embedded/nano',
+    'platform/embedded/runtime',
+    'sources/FogCast',
+    'sources/misteross/expansion',
+    'sources/libmister-runtime/include',
+    'sources/libmister-runtime/src/native',
+    'sources/libmister-runtime/third_party/toml11',
+)
+TAMAGO_CI_INPUTS = frozenset({
+    'platform/embedded/experiment.py',
+    'scripts/ci_tamago.sh',
+    'scripts/tamago_ci.py',
+    'tests/test_tamago_ci.py',
+    'sources/misteross/scripts/core_package.py',
+    'sources/misteross/scripts/rfc3986_validator.py',
+    'sources/libmister-runtime/src/daemon/json.hpp',
+    'sources/libmister-runtime/src/runtime.cpp',
+})
+
+
+def tamago_input(path):
+    """True when path is in the TamaGo CI runner or local Go/Python dependency closure."""
+    return (any(path == root or path.startswith(root + '/') for root in TAMAGO_CI_ROOTS) or
+            path in TAMAGO_CI_INPUTS)
 # Application, z80, pc386 and the DE25 x87 backend are simulation-only
 # families; PC/XT also has a package producer.
 CORES = ('application', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt',
@@ -577,6 +603,8 @@ def plan(paths):
             selected.update(LANES)
             reasons.append(f'{path}: software CI infrastructure; RTL unchanged')
             continue
+        if tamago_input(path):
+            selected.add('tamago')
         if path in ('scripts/runtime_tests.py', 'tests/test_runtime_tests.py'):
             selected.update(('parent', 'runtime'))
             reasons.append(f'{path}: runtime check selection and its regressions')
