@@ -23,10 +23,10 @@ was agreed on 17 October; this update reconciles it with the native result.
 | [Core screens](references/core-screens/README.md) | Proposed per-computer screens for the tier 1 set and pc386: model, drives, games and disk creation |
 | [Acceptance](acceptance.md) | User tasks and the evidence required to assess the native result |
 
-Delivery status, owners, dependencies and PRs belong in GitHub issues through
-the existing [FES project](https://github.com/users/DeanoC/projects/4) and
-[agent workflow](../agent-workflow.md#github-delivery-coordination). Keep this
-section as the maintained design; do not turn it into a second live task board.
+Delivery status, owners, dependencies and PRs belong in GitHub issues and PRs
+under the [agent workflow](../agent-workflow.md#github-delivery-workflow). Keep
+this section as the maintained design; do not turn it into a second live task
+board.
 
 **Delivery issue:** [#770 — welcoming Home, clear game actions and machine setup](https://github.com/DeanoC/fes/issues/770).
 
