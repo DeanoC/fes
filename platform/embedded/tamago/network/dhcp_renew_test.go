@@ -395,3 +395,87 @@ func TestRenewDHCPOnceOverRealLink(t *testing.T) {
 		t.Fatalf("renewed=%+v", renewed)
 	}
 }
+
+func TestLeaseRenewerClearsStaleServerMACAfterRebindServerChange(t *testing.T) {
+	clientMACStr := "52:54:00:12:34:56"
+	oldServerMACStr := "52:55:0a:00:02:02"
+	clientMAC, _ := parseUnicastMAC(clientMACStr)
+	oldServerMAC, _ := parseUnicastMAC(oldServerMACStr)
+	newServerIP := [4]byte{10, 0, 2, 9}
+	clientIP := [4]byte{10, 0, 2, 15}
+	mask := [4]byte{255, 255, 255, 0}
+	gw := [4]byte{10, 0, 2, 2}
+
+	var mu sync.Mutex
+	rebound := false
+	sentToOldMACAfterRebind := false
+	renewedCh := make(chan DHCPLease, 4)
+
+	port := newFakeRenewPort()
+	port.onSend = func(frame []byte, p *fakeRenewPort) {
+		var dstMAC [6]byte
+		copy(dstMAC[:], frame[0:6])
+		xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
+		mu.Lock()
+		alreadyRebound := rebound
+		if alreadyRebound && dstMAC == oldServerMAC {
+			sentToOldMACAfterRebind = true
+		}
+		if !alreadyRebound {
+			if dstMAC != broadcastMAC {
+				// Ignore T1 unicast to old server so renewer falls through to T2 rebind.
+				mu.Unlock()
+				return
+			}
+			rebound = true
+			mu.Unlock()
+			// New server answers T2 with a short 40ms lease so a second cycle runs immediately.
+			go p.inject(makeServerReplyFrame(broadcastMAC, clientMAC, newServerIP, clientIP, xid,
+				makeDHCPOptions(dhcpMsgAck, &mask, &gw, nil, &newServerIP, 1), false))
+			return
+		}
+		mu.Unlock()
+		// Next T1 must broadcast (not send to oldServerMAC) and receive ACK from newServerIP.
+		if dstMAC == broadcastMAC {
+			go p.inject(makeServerReplyFrame(broadcastMAC, clientMAC, newServerIP, clientIP, xid,
+				makeDHCPOptions(dhcpMsgAck, &mask, &gw, nil, &newServerIP, 3600), false))
+		}
+	}
+
+	ren, err := NewLeaseRenewer(port, clientMACStr, DHCPLease{
+		Address:       "10.0.2.15/24",
+		Gateway:       "10.0.2.2",
+		Server:        "10.0.2.2",
+		LeaseDuration: 30 * time.Millisecond,
+	}, RenewConfig{
+		ServerMAC:     oldServerMACStr,
+		RetryInterval: 3 * time.Millisecond,
+		OnRenew: func(l DHCPLease) {
+			select {
+			case renewedCh <- l:
+			default:
+			}
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewLeaseRenewer: %v", err)
+	}
+	if err := ren.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	// First renewal (T2 rebind to 10.0.2.9 with 1s lease), then second renewal (T1 at ~500ms).
+	for i := 0; i < 2; i++ {
+		select {
+		case <-renewedCh:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out waiting for renewal %d", i+1)
+		}
+	}
+	ren.Stop()
+	mu.Lock()
+	stale := sentToOldMACAfterRebind
+	mu.Unlock()
+	if stale {
+		t.Fatal("renewer sent T1 request to stale old ServerMAC after rebinding to a new server")
+	}
+}

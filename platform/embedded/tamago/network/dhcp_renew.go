@@ -321,6 +321,7 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 	}()
 
 	acquiredAt := r.acquiredAt
+	loopCfg := r.cfg
 	for {
 		current := r.Lease()
 		t1 := current.LeaseDuration / 2
@@ -341,9 +342,12 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 
 		// Phase 1: T1 RENEWING (unicast if ServerMAC known) until T2.
 		t1Ctx, t1Cancel := context.WithDeadline(runCtx, t2At)
-		nextLease, err := RenewDHCPOnce(t1Ctx, r.port, r.mac, current, false, r.cfg)
+		nextLease, err := RenewDHCPOnce(t1Ctx, r.port, r.mac, current, false, loopCfg)
 		t1Cancel()
 		if err == nil {
+			if nextLease.Server != current.Server {
+				loopCfg.ServerMAC = ""
+			}
 			acquiredAt = time.Now()
 			r.mu.Lock()
 			r.lease = cloneLease(nextLease)
@@ -364,9 +368,12 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 
 		// Phase 2: T2 REBINDING (broadcast) until lease expiry.
 		t2Ctx, t2Cancel := context.WithDeadline(runCtx, expireAt)
-		nextLease, err = RenewDHCPOnce(t2Ctx, r.port, r.mac, current, true, r.cfg)
+		nextLease, err = RenewDHCPOnce(t2Ctx, r.port, r.mac, current, true, loopCfg)
 		t2Cancel()
 		if err == nil {
+			if nextLease.Server != current.Server {
+				loopCfg.ServerMAC = ""
+			}
 			acquiredAt = time.Now()
 			r.mu.Lock()
 			r.lease = cloneLease(nextLease)
