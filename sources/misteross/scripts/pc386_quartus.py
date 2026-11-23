@@ -210,7 +210,8 @@ CORE = {"id": "fes.pc386", "name": "FES pc386", "version": "0.1.0",
                        "Development only."}
 INTERFACES = ("fes.video.fixed-720p60", "fes.keyboard.hid", "fes.audio.pcm-s16-stereo-48k", "fes.mouse.relative",
               "fes.memory.hps-ddr", "fes.video.session-display", "fes.fabric.video.display-plane",
-              "fes.media.ata-disk", "fes.persistence.words", "fes.rtc.wall-clock", "fes.pc386.machine")
+              "fes.media.ata-disk", "fes.persistence.words", "fes.rtc.wall-clock", "fes.pc386.machine",
+              "fes.media.pc-floppy")
 # Every guest time base as a rational enable of the system clock
 # (docs/pc386-machine-design.md, "Clocks and timing"): N/D = rate / clock.
 GUEST_RATES = {
