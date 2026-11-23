@@ -17,10 +17,12 @@ func (s *Session) EnableIRQ(g *gic.Controller, irqID uint32) error {
 	}
 	s.control.Lock()
 	defer s.control.Unlock()
+	s.ioMu.RLock()
+	defer s.ioMu.RUnlock()
 	if s.firmware == nil || s.device == nil || s.retired.Load() {
 		return ErrRetired
 	}
-	if !s.active {
+	if !s.active.Load() {
 		return sdhci.ErrQuiesced
 	}
 	return s.device.EnableIRQ(g, irqID)

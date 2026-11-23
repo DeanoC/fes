@@ -2064,12 +2064,19 @@ toolchain-check:
 
 # Report the shared tool installs no toolchain.lock on origin/main pins and
 # nobody used in KEEP_DAYS (default 14). APPLY=1 removes them; LEGACY_SLOTS=1
-# also considers the per-lock slots/ of the old cache layout. Installs whose
-# lock a running build or consumer holds are never removed.
+# also considers the per-lock slots/ of the old cache layout. GPU_ROUTERS
+# (e.g. "HIP OFF") or GPU_ROUTER selects which nextpnr GPU lanes count as
+# pinned (defaults to FES_TOOLCHAIN_GPU_ROUTER, or OFF); HIP_ARCHITECTURES and
+# CUDA_ARCHITECTURES override the corresponding device architecture lists.
+# Installs whose lock a running build or consumer holds are never removed.
 toolchain-prune:
 	@test -n "$(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE))" || { echo 'toolchain-prune needs CACHE_ROOT (the shared toolchain cache)' >&2; exit 2; }
 	@"$(PYTHON)" scripts/toolchain_cache.py prune --root "$(CURDIR)" --cache "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)" \
-	$(if $(strip $(KEEP_DAYS)),--keep-days "$(KEEP_DAYS)",) $(if $(filter 1,$(APPLY)),--apply,) $(if $(filter 1,$(LEGACY_SLOTS)),--legacy-slots,)
+	$(if $(strip $(KEEP_DAYS)),--keep-days "$(KEEP_DAYS)",) \
+	$(foreach router,$(strip $(GPU_ROUTERS) $(GPU_ROUTER)),--gpu-router "$(router)") \
+	$(if $(strip $(HIP_ARCHITECTURES)),--hip-architectures "$(HIP_ARCHITECTURES)",) \
+	$(if $(strip $(CUDA_ARCHITECTURES)),--cuda-architectures "$(CUDA_ARCHITECTURES)",) \
+	$(if $(filter 1,$(APPLY)),--apply,) $(if $(filter 1,$(LEGACY_SLOTS)),--legacy-slots,)
 
 doctor:
 	@if [ -n "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)" ]; then \

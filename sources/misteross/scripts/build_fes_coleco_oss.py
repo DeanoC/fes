@@ -85,7 +85,7 @@ COLECO_TOOLCHAIN_ROOT = "build/toolchain/fes-coleco"
 COLECO_TOOL_COMMITS = {
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
     "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
-    "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
+    "yosys": "d273c1cb774f70d58c890745ac1b7dd106d32a26",
 }
 RECIPE = "scripts/build_fes_coleco_oss.py"
 ABI_DEFINITION = "cores/fes-common/generated/fes_application.vh"
@@ -497,7 +497,10 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT, *,
             raise BuildError(f"forbidden synthesis cell {name} is in use")
     display = None
     if session_display:
-        # Coleco's Yosys predates MISTRAL_MUL sign parameters.
+        # Only the registered native shell reaches this. Its lock,
+        # cores/fes-coleco/toolchain.lock, pins Yosys 5391eeb1, which predates
+        # A_SIGNED/B_SIGNED on MISTRAL_MUL (DeanoC/yosys#25). Moving that lock
+        # past #25 needs signed mode here, or the producer fails after routing.
         fes_de10nano_evidence.plane_dsp_evidence(synthesis, sign_parameters=False)
         fes_de10nano_evidence.session_display_evidence(synthesis, "synthesized", source_root)
         display = fes_de10nano_evidence.session_display_evidence(routed, "routed", source_root)

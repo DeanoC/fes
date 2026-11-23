@@ -47,6 +47,9 @@ func OpenNetwork(ctx context.Context) (Network, error) {
 	}
 	return nanoNetwork{iface}, nil
 }
+func OpenNetworkDHCP(ctx context.Context) (Network, error) {
+	return nil, fmt.Errorf("de25-nano: DHCPv4 requires a DHCP-enabled firmware profile")
+}
 func OpenDisplay(width, height int, _ *dma.Region) (Display, error) {
 	return de25nano.OpenDisplay(width, height)
 }
