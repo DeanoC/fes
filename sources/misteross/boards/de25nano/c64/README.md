@@ -124,8 +124,9 @@ directory. It checks two diagnostic execution cycles, ROM and D64 retention
 across Hold, instruction activity while running, and the shared firmware
 scanout checks with both returned and withheld read responses.
 
-Use the `nativepal` model of `build_c64_package.py` for the normal repeated
-Quartus signoff and seal. The shared-shell TamaGo SDK accepts
+Use the `nativepal` model of `build_c64_package.py` for the normal Quartus
+signoff and seal. The producer compiles once, with no repeat fit (#2090), and
+the SDK checks that signoff fit. The shared-shell TamaGo SDK accepts
 `--c64-build`, `--c64-package` and `--c64-rom`, with an optional
 `--c64-d64`. The C64 export under `c64/export/FES` contains the SD catalogue and
 selected inputs. TamaGo retains the standard 174,848-byte D64 before

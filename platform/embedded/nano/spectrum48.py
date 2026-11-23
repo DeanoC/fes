@@ -16,6 +16,8 @@ MAX_CORE = (8 << 20) - 4096
 MAX_ARCHIVE = 8 << 20
 ROM_BYTES = 16384
 BASES = dict(computer_cpu_base=0x20010300, scanout_cpu_base=0x20010200, probe_cpu_base=0x20010100)
+# DE25 machine producers compile once (#2090): the package is this fit's RBF.
+FIT = 'signoff'
 
 
 def encode(value):
@@ -69,38 +71,33 @@ def inspect(build, archive, *, c64=False):
             any(d['build'][key] != fields[key] for key in ('revision', 'repository', 'recipe_sha256')) or
             len(payload) > MAX_CORE or len(payload) % 4 or read(build / 'core.rbf', MAX_CORE) != payload):
         raise ValueError('Spectrum archive differs from its sealed build')
-    fits = []
-    for fit in ('signoff', 'repeat'):
-        project = build / fit
-        hps = project / 'combined/hps'
-        timing = timing_evidence(project, async_review=build / (fit + '-async-input-review'),
-                                 audio_review=build / (fit + '-audio-clock-review'))
-        if (timing != json.loads(read(build / (fit + '-timing.json'), 4 << 20)) or
-                not timing['package_timing_admission'] or read(hps / 'linux-boot.core.rbf', MAX_CORE) != payload):
-            raise ValueError('Spectrum build did not independently pass package timing')
-        handoff = read(hps / 'native-spectrum-handoff.json', 1 << 20)
-        hw = json.loads(handoff)
-        generation = json.loads(read(hps / 'generation.json', 1 << 20))
-        pinmux = read(hps / 'project/output_files/hps_bootloader_handoff.bin', 4096)
-        compiled = json.loads(read(hps / 'build.json', 4 << 20))
-        if (generation['handoff_sha256'] != sha(handoff) or hw['spectrum_control']['endpoint']['build_id'] != identity or
-                (c64 and hw.get('vendor_fpga_ocm') != 'absent') or
-                hw['ddr_ingress'] != ['subsys_periph_fes_ddr_probe.avm', 'subsys_periph_fes_mem_cdc.m0'] or
-                compiled['generated_handoff_and_sdc_sha256']['output_files/hps_bootloader_handoff.bin'] != sha(pinmux)):
-            raise ValueError('Spectrum package differs from its fitted handoff')
-        regions = {v['name']: (v['base'], v['span']) for v in hw['spectrum_control']['regions']}
-        if regions != {'subsys_periph.fes_scanout.computer': (0x10300, 32),
-                       'subsys_periph.fes_scanout_guard.avs': (0x10200, 256),
-                       'subsys_periph.fes_ddr_probe.avs': (0x10100, 128)}:
-            raise ValueError('Spectrum fitted bridge regions changed')
-        fits.append((sha(encode(hw['hps_parameters'])), sha(hps_io.configuration_bytes(pinmux)), sha(handoff)))
-    if fits[0][:2] != fits[1][:2]:
-        raise ValueError('Spectrum repeat differs in shared HPS resources')
+    project = build / FIT
+    hps = project / 'combined/hps'
+    timing = timing_evidence(project, async_review=build / (FIT + '-async-input-review'),
+                             audio_review=build / (FIT + '-audio-clock-review'))
+    if (timing != json.loads(read(build / (FIT + '-timing.json'), 4 << 20)) or
+            not timing['package_timing_admission'] or read(hps / 'linux-boot.core.rbf', MAX_CORE) != payload):
+        raise ValueError('Spectrum build did not pass package timing')
+    handoff = read(hps / 'native-spectrum-handoff.json', 1 << 20)
+    hw = json.loads(handoff)
+    generation = json.loads(read(hps / 'generation.json', 1 << 20))
+    pinmux = read(hps / 'project/output_files/hps_bootloader_handoff.bin', 4096)
+    compiled = json.loads(read(hps / 'build.json', 4 << 20))
+    if (generation['handoff_sha256'] != sha(handoff) or hw['spectrum_control']['endpoint']['build_id'] != identity or
+            (c64 and hw.get('vendor_fpga_ocm') != 'absent') or
+            hw['ddr_ingress'] != ['subsys_periph_fes_ddr_probe.avm', 'subsys_periph_fes_mem_cdc.m0'] or
+            compiled['generated_handoff_and_sdc_sha256']['output_files/hps_bootloader_handoff.bin'] != sha(pinmux)):
+        raise ValueError('Spectrum package differs from its fitted handoff')
+    regions = {v['name']: (v['base'], v['span']) for v in hw['spectrum_control']['regions']}
+    if regions != {'subsys_periph.fes_scanout.computer': (0x10300, 32),
+                   'subsys_periph.fes_scanout_guard.avs': (0x10200, 256),
+                   'subsys_periph.fes_ddr_probe.avs': (0x10100, 128)}:
+        raise ValueError('Spectrum fitted bridge regions changed')
     return dict(package_id=package.package_id, build_id=identity, core_size=len(payload),
                 core_sha256=sha(payload), core_sha384=hashlib.sha384(payload).hexdigest(),
                 chunk_sha384=[hashlib.sha384(payload[i:i+CHUNK]).hexdigest() for i in range(0, len(payload), CHUNK)],
-                handoff_sha256=fits[0][2], hps_parameters_sha256=fits[0][0],
-                hps_configuration_sha256=fits[0][1], archive_sha256=sha(raw))
+                handoff_sha256=sha(handoff), hps_parameters_sha256=sha(encode(hw['hps_parameters'])),
+                hps_configuration_sha256=sha(hps_io.configuration_bytes(pinmux)), archive_sha256=sha(raw))
 
 
 def record_for(proof, context, platform, configuration, rom, *, rom_bytes=ROM_BYTES):
