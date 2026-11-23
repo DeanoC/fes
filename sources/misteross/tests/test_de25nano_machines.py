@@ -42,5 +42,6 @@ class MachineSimulationTests(unittest.TestCase):
     def test_c64_diagnostic_on_the_standard_shell(self):
         self.simulate("c64", 2400)
 
+    @unittest.skipUnless(TOOLS, "requires Verilator and C++")
     def test_pcxt_on_the_standard_shell(self):
         self.simulate("pcxt", 3600)

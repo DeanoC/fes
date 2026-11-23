@@ -1,4 +1,4 @@
-Fitter Status : Successful - Sun Nov 22 18:04:47 2026
+Fitter Status : Successful - Sun Nov 22 21:23:35 2026
 Quartus Prime Version : 26.3.0 Build 114 10/14/2026 SC Pro Edition
 Revision Name : golden_top
 Top-level Entity Name : golden_top
@@ -7,8 +7,8 @@ Device : A5EB013BB23BE4SCS
 Timing Models : Final
 Power Models : Final
 Device Status : Final
-Logic utilization (in ALMs) : 12,637 / 46,800 ( 27 % )
-Total dedicated logic registers : 16360
+Logic utilization (in ALMs) : 12,632 / 46,800 ( 27 % )
+Total dedicated logic registers : 16351
 Total pins : 284 / 351 ( 81 % )
 Total block memory bits : 2,359,248 / 7,331,840 ( 32 % )
 Total RAM Blocks : 145 / 358 ( 41 % )

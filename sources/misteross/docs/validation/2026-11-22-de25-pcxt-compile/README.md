@@ -12,7 +12,7 @@ python3 boards/de25nano/producers/build_pcxt_package.py \
   --quartus-root /data/altera_pro/26.3
 ```
 
-## Result at `5f8c9a308`
+## Result at `cef5ef7e9`
 
 The producer admitted and exported the package (exit 0). The design fits and
 every one of the 133 reported timing analyses has non-negative slack
@@ -25,24 +25,24 @@ compile was dropped for every DE25 producer in #2090.
 
 | | |
 | --- | --- |
-| Build ID | `8c4ed8758be6521877fb8d08c34915b9` |
-| Package | `95ab2387a014efbc491ccf3c940ca3eedca7992d534ef285f2055dd481a42cfe.fcore` |
-| Package SHA-256 | `4a0cd71f0b174486c9e8e43eaff3a33b4d9d05e91d1fee6167587b7d6a40b0ba` |
-| `core.rbf` SHA-256 | `76075555e23ff63e10147c95f332d84824c59c8474a206e4a2fb6af5e1842054` |
-| `golden_top.sof` SHA-256 | `4e0d6897bcc01d1f92d216a40f4fdfca04f47f97cc7887ebdc1f844a0e1d3eb0` |
-| Logic (ALMs) | 12,637 / 46,800 (27%) ([`golden_top.fit.summary`](golden_top.fit.summary)) |
-| Registers | 16,360 |
+| Build ID | `55ed093fb2a75dad9cc1b75598b719d7` |
+| Package | `c9b8a60538fcc37609d4657921e2d966c1db48f35cc66076f7a7116e3c2609f5.fcore` |
+| Package SHA-256 | `26ab637e7d28b4d9cc7c5e0be2be406057b62d4f5e326d6f2439fb1cc97e3f40` |
+| `core.rbf` SHA-256 | `87a153011906271ee1254e537a60049d53d2ec7c843be908edd7b8e5ff83a6cf` |
+| `golden_top.sof` SHA-256 | `273f6dd3b2b9f4ca3307cbdb4408f10cfbe378121105a2e5c68bba627d959b74` |
+| Logic (ALMs) | 12,632 / 46,800 (27%) ([`golden_top.fit.summary`](golden_top.fit.summary)) |
+| Registers | 16,351 |
 | RAM blocks (M20K) | 145 / 358 (41%) |
 
 | Clock | Worst setup slack | Worst hold slack |
 | --- | --- | --- |
-| Machine, 100 MHz (`outclk0`) | 2.716 ns | 0.000 ns |
-| SDRAM pins (`DRAM_CLK`) | 1.935 ns | 0.355 ns |
-| DQ capture (`outclk4`, +4.0 ns) | 2.915 ns | 8.049 ns |
-| CAS-3 handoff (`outclk3`, +9.25 ns) | 4.245 ns | 0.648 ns |
-| Pixel, 74.25 MHz | 3.913 ns | 0.004 ns |
-| Peripheral, 100 MHz | 5.445 ns | 0.000 ns |
-| Audio master (`outclk1`) | 8.783 ns | 0.042 ns |
+| Machine, 100 MHz (`outclk0`) | 3.014 ns | 0.012 ns |
+| SDRAM pins (`DRAM_CLK`) | 1.944 ns | 0.396 ns |
+| DQ capture (`outclk4`, +4.0 ns) | 2.869 ns | 8.028 ns |
+| CAS-3 handoff (`outclk3`, +9.25 ns) | 4.212 ns | 0.646 ns |
+| Pixel, 74.25 MHz | 3.872 ns | 0.015 ns |
+| Peripheral, 100 MHz | 5.270 ns | 0.001 ns |
+| Audio master (`outclk1`) | 8.788 ns | 0.041 ns |
 
 The SDRAM pins are constrained against the ISSI IS42/45VM16320G data sheet at
 CAS latency 3 (worst of the -5, -6 and -75 grades: tAC 6.0 ns, tOH 2.1 ns,
@@ -67,7 +67,8 @@ refresh gap is 712 clocks.
 | `02b58c869` | bank copy on its toggle's synchronizer edge; the 8088 cycle divider's enable recognition off | CDC-50002 still the two bank bits; LNT-30010 unchanged in kind |
 | `b3c12f2e9` | bank as a preserved code read through a loaded flag, synchronizers power up zero (the DE25 C64's form) | timing still all positive; CDC-50002 cleared; CDC-50003 (1) and CDC-50102 (1, low) on the bank code, LNT-30010 (1) |
 | `4eb5b4175` | bank code bounded at 10 ns as the held bundles; its pixel-side copy not identified as a synchronizer; enable recognition off for the whole 8088 bus unit (main merged at `000d60d04`) | signoff passes: all timing positive, no unreviewed rule. The independent repeat compile also passes timing and signoff but its RBF differs (see below) |
-| `5f8c9a308` | main merged (#2090: canonical Qsys/qip generation, single signoff compile) | package admitted and exported; see Result |
+| `5f8c9a308` | main merged (#2090: canonical Qsys/qip generation, single signoff compile) | package admitted and exported (build `8c4ed875`) |
+| `cef5ef7e9` | main merged (#2126, #2097; shared build-identity and Quartus tool changes move the build ID, no PC/XT RTL change) | package admitted and exported; see Result |
 
 The capture phase is a board choice: this board returns the word later than
 the DE10's. At +4.0 ns the capture still samples in the same read window,
