@@ -34,7 +34,7 @@ import tempfile
 import time
 import tomllib
 from pathlib import Path
-from typing import Any, Iterator, Mapping
+from typing import Any, Iterator, Mapping, Sequence
 
 
 SCHEMA_VERSION = 2
@@ -62,6 +62,16 @@ GPU_ENVIRONMENT_NAMES = frozenset(
     }
 )
 ACCELERATOR_COMMANDS = frozenset({"hipcc", "nvcc"})
+_LANE_ENVIRONMENT_NAMES: Mapping[str, tuple[str, ...]] = {
+    "OFF": (),
+    "HIP": ("HIPCC", "ROCM_PATH"),
+    "CUDA": ("CUDACXX", "CUDA_HOME", "CUDA_PATH"),
+}
+_LANE_ACCELERATOR_COMMAND: Mapping[str, tuple[str, tuple[str, ...]] | None] = {
+    "OFF": None,
+    "HIP": ("hipcc", ("--version",)),
+    "CUDA": ("nvcc", ("--version",)),
+}
 # The Mistral install carries the database source files producers pin
 # (rom_map.DATABASE_FILES), since src/ is deleted after publication.
 MISTRAL_DATABASE = "share/mistral/source"
@@ -283,11 +293,15 @@ def locked_pins(request: ToolchainRequest) -> dict[str, dict[str, str]]:
     return _pins_from_lock(_lockfile_module(request.root), request.lock_path)
 
 
-def _normalise_configuration(request: ToolchainRequest) -> dict[str, Any]:
-    router = str(request.gpu_router or DEFAULT_GPU_ROUTER).upper()
+def _normalise_lane_configuration(
+    gpu_router: str | None,
+    hip_architectures: str | None = None,
+    cuda_architectures: str | None = None,
+) -> dict[str, Any]:
+    router = str(gpu_router or DEFAULT_GPU_ROUTER).upper()
     if router not in {"OFF", "HIP", "CUDA"}:
         raise CacheError(f"unsupported GPU router for shared cache: {router}")
-    architectures = str(request.hip_architectures or DEFAULT_HIP_ARCHITECTURES)
+    architectures = str(hip_architectures or DEFAULT_HIP_ARCHITECTURES)
     configuration = {
         "gpu-router": router,
         "hip-architectures": architectures if router == "HIP" else "unused",
@@ -295,10 +309,16 @@ def _normalise_configuration(request: ToolchainRequest) -> dict[str, Any]:
     # Only the CUDA lane carries this field, so a CUDA architecture list does
     # not fork the HIP or OFF nextpnr installs.
     if router == "CUDA":
-        configuration["cuda-architectures"] = validated_cuda_architectures(
-            request.cuda_architectures
-        )
+        configuration["cuda-architectures"] = validated_cuda_architectures(cuda_architectures)
     return configuration
+
+
+def _normalise_configuration(request: ToolchainRequest) -> dict[str, Any]:
+    return _normalise_lane_configuration(
+        request.gpu_router,
+        request.hip_architectures,
+        request.cuda_architectures,
+    )
 
 
 def validated_cuda_architectures(value: str | None) -> str:
@@ -1182,6 +1202,16 @@ def host_identity() -> dict[str, Any]:
     }
 
 
+def _lane_environment(values: Mapping[str, str], router: str) -> dict[str, str]:
+    """Return the backend environment identity entries belonging to *router*."""
+
+    return {
+        name: values[name]
+        for name in _LANE_ENVIRONMENT_NAMES.get(router, ())
+        if values.get(name)
+    }
+
+
 def _controlled_probe_environment(values: Mapping[str, str], router: str) -> dict[str, str]:
     """Return the same environment policy used by a shared build child."""
 
@@ -1194,14 +1224,7 @@ def _controlled_probe_environment(values: Mapping[str, str], router: str) -> dic
     # locale or timezone.  These values are also what bootstrap exports for
     # the actual compiler children.
     controlled.update({"LANG": "C", "LC_ALL": "C", "TZ": "UTC"})
-    if router == "HIP":
-        for name in ("ROCM_PATH", "HIPCC"):
-            if values.get(name):
-                controlled[name] = values[name]
-    elif router == "CUDA":
-        for name in ("CUDA_HOME", "CUDACXX", "CUDA_PATH"):
-            if values.get(name):
-                controlled[name] = values[name]
+    controlled.update(_lane_environment(values, router))
     return controlled
 
 
@@ -1235,10 +1258,12 @@ def compiler_inventory(
             "help2man",
         )
     }
-    if router == "HIP":
-        commands["hipcc"] = _command_identity("hipcc", environment=probe_environment)
-    elif router == "CUDA":
-        commands["nvcc"] = _command_identity("nvcc", ("--version",), environment=probe_environment)
+    accelerator = _LANE_ACCELERATOR_COMMAND.get(router)
+    if accelerator is not None:
+        command_name, command_args = accelerator
+        commands[command_name] = _command_identity(
+            command_name, command_args, environment=probe_environment
+        )
     return {
         "commands": commands,
         "dependencies": _dependency_inventory(commands, environment=probe_environment),
@@ -2021,6 +2046,101 @@ def _manifest_pins(manifest: InstallManifest) -> bytes:
     )
 
 
+def _normalise_gpu_routers(
+    gpu_routers: Sequence[str] | None,
+    environment: Mapping[str, str],
+) -> tuple[str, ...]:
+    if gpu_routers is None:
+        raw_routers: Sequence[str] = (
+            environment.get("FES_TOOLCHAIN_GPU_ROUTER") or DEFAULT_GPU_ROUTER,
+        )
+    else:
+        if isinstance(gpu_routers, (str, bytes)):
+            raise CacheError("gpu_routers must be a sequence of lane names, not a string")
+        raw_routers = tuple(gpu_routers)
+        if not raw_routers:
+            raise CacheError("gpu_routers must name at least one lane")
+    normalised: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_routers:
+        router = str(raw).strip().upper()
+        if router not in {"OFF", "HIP", "CUDA"}:
+            raise CacheError(f"unsupported GPU router for shared cache: {router}")
+        if router not in seen:
+            seen.add(router)
+            normalised.append(router)
+    return tuple(normalised)
+
+
+def _prune_gpu_configurations(
+    routers: Sequence[str],
+    *,
+    environment: Mapping[str, str],
+    hip_architectures: str | None,
+    cuda_architectures: str | None,
+) -> list[tuple[str, dict[str, Any]]]:
+    hip_selected = (
+        hip_architectures
+        if hip_architectures is not None
+        else environment.get("FES_TOOLCHAIN_HIP_ARCHITECTURES", DEFAULT_HIP_ARCHITECTURES)
+    )
+    cuda_selected = (
+        cuda_architectures
+        if cuda_architectures is not None
+        else environment.get("FES_TOOLCHAIN_CUDA_ARCHITECTURES", DEFAULT_CUDA_ARCHITECTURES)
+    )
+    return [
+        (router, _normalise_lane_configuration(router, hip_selected, cuda_selected))
+        for router in routers
+    ]
+
+
+def _prune_gpu_lanes(
+    configurations: Sequence[tuple[str, dict[str, Any]]],
+    *,
+    environment: Mapping[str, str],
+    compiler: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    explicit_accelerators = None if compiler is None else _accelerator_compiler(compiler)
+    lanes: list[dict[str, Any]] = []
+    for router, configuration in configurations:
+        accelerator_spec = _LANE_ACCELERATOR_COMMAND[router]
+        if accelerator_spec is None:
+            accelerator: dict[str, Any] = {}
+        else:
+            command_name, command_args = accelerator_spec
+            if explicit_accelerators is not None:
+                if command_name not in explicit_accelerators:
+                    raise CacheError(
+                        f"compiler inventory is missing required accelerator command: {command_name}"
+                    )
+                accelerator = {command_name: explicit_accelerators[command_name]}
+            else:
+                probe_environment = _controlled_probe_environment(environment, router)
+                accelerator = {
+                    command_name: _command_identity(
+                        command_name, command_args, environment=probe_environment
+                    )
+                }
+        lanes.append(
+            {
+                "configuration": configuration,
+                "accelerator": accelerator,
+                "environment": _lane_environment(environment, router),
+            }
+        )
+    return lanes
+
+
+def _matches_gpu_lane(manifest: InstallManifest, gpu_lanes: Sequence[Mapping[str, Any]]) -> bool:
+    return any(
+        manifest.build.get("configuration") == lane["configuration"]
+        and manifest.build.get("accelerator") == lane["accelerator"]
+        and manifest.build.get("environment") == lane["environment"]
+        for lane in gpu_lanes
+    )
+
+
 def prune(
     cache_root: Path,
     root: Path,
@@ -2029,6 +2149,10 @@ def prune(
     ref: str = "origin/main",
     apply: bool = False,
     legacy_slots: bool = False,
+    gpu_routers: Sequence[str] | None = None,
+    hip_architectures: str | None = None,
+    cuda_architectures: str | None = None,
+    environment: Mapping[str, str] | None = None,
     host: Mapping[str, Any] | None = None,
     compiler: Mapping[str, Any] | None = None,
     now: float | None = None,
@@ -2038,13 +2162,16 @@ def prune(
 
     An install is kept when its pins appear in a ``toolchain.lock`` at *ref*
     and it was built from *ref*'s bootstrap.sh on this host with this
-    compiler inventory, or when its
-    lock file (stamped by every consumer and build) is younger than
-    *keep_days*. A held lock always keeps it. A directory without ready.json
-    whose lock is free is a failed build and is removed. Legacy per-lock
-    ``slots/`` are only considered with *legacy_slots*; their readers took
-    no lock, so their binaries' access times stand in for last use.
-    Nothing is removed unless *apply* is set.
+    compiler inventory, or when its lock file (stamped by every consumer and
+    build) is younger than *keep_days*. For GPU tools (``nextpnr``), pinned
+    retention also requires matching the configuration, accelerator compiler,
+    and backend environment of one of the kept *gpu_routers* lanes (defaulting
+    to ``FES_TOOLCHAIN_GPU_ROUTER`` or ``OFF``), so obsolete lane or
+    accelerator upgrades age out via *keep_days*. A held lock always keeps an
+    install. A directory without ready.json whose lock is free is a failed
+    build and is removed. Legacy per-lock ``slots/`` are only considered with
+    *legacy_slots*; their readers took no lock, so their binaries' access
+    times stand in for last use. Nothing is removed unless *apply* is set.
     """
 
     output = sys.stdout if output is None else output
@@ -2057,13 +2184,28 @@ def prune(
         # relatime refreshes an access time at most once a day, so a shorter
         # window could remove a slot an old checkout is still reading.
         raise CacheError(f"legacy slots need keep-days of at least {LEGACY_MIN_KEEP_DAYS}")
+    env = dict(os.environ if environment is None else environment)
+    routers = _normalise_gpu_routers(gpu_routers, env)
+    gpu_configurations = _prune_gpu_configurations(
+        routers,
+        environment=env,
+        hip_architectures=hip_architectures,
+        cuda_architectures=cuda_architectures,
+    )
     now = time.time() if now is None else now
     horizon = now - keep_days * 86400
     references = referenced_pins(root, ref)
     binary_pins = referenced_binary_pins(root, ref)
     recipe = referenced_recipe(root, ref)
     host = host_identity() if host is None else host
-    compiler = _base_compiler(compiler_inventory(DEFAULT_GPU_ROUTER) if compiler is None else compiler)
+    base_compiler = _base_compiler(
+        compiler_inventory(DEFAULT_GPU_ROUTER, environment=env) if compiler is None else compiler
+    )
+    gpu_lanes = _prune_gpu_lanes(
+        gpu_configurations,
+        environment=env,
+        compiler=compiler,
+    )
     report: dict[str, list[str]] = {"kept": [], "removed": [], "busy": []}
     freed = 0
 
@@ -2129,7 +2271,8 @@ def prune(
                 (tool, _manifest_pins(manifest)) in references
                 and manifest.build.get("recipe") == recipe
                 and manifest.build.get("host") == dict(host)
-                and manifest.build.get("compiler") == compiler
+                and manifest.build.get("compiler") == base_compiler
+                and (tool not in GPU_TOOLS or _matches_gpu_lane(manifest, gpu_lanes))
             ):
                 print(f"kept: {label} (pinned at {ref})", file=output)
                 report["kept"].append(label)
@@ -2215,6 +2358,23 @@ def _prune_main(argv: list[str]) -> int:
     parser.add_argument("--cache", dest="cache_root", required=True, type=Path)
     parser.add_argument("--keep-days", type=float, default=14.0)
     parser.add_argument("--ref", default="origin/main", help="the Git ref whose toolchain.lock files are kept")
+    parser.add_argument(
+        "--gpu-router",
+        dest="gpu_routers",
+        action="append",
+        default=None,
+        help="GPU lane to keep as pinned for GPU tools (repeatable; defaults to FES_TOOLCHAIN_GPU_ROUTER or OFF)",
+    )
+    parser.add_argument(
+        "--hip-architectures",
+        default=None,
+        help="HIP device architecture list for kept HIP lanes (defaults to FES_TOOLCHAIN_HIP_ARCHITECTURES)",
+    )
+    parser.add_argument(
+        "--cuda-architectures",
+        default=None,
+        help="CUDA device architecture list for kept CUDA lanes (defaults to FES_TOOLCHAIN_CUDA_ARCHITECTURES)",
+    )
     parser.add_argument("--apply", action="store_true", help="remove; without it, only report")
     parser.add_argument("--legacy-slots", action="store_true", help="also prune per-lock slots/ from schema 1")
     args = parser.parse_args(argv)
@@ -2225,6 +2385,9 @@ def _prune_main(argv: list[str]) -> int:
         ref=args.ref,
         apply=args.apply,
         legacy_slots=args.legacy_slots,
+        gpu_routers=args.gpu_routers,
+        hip_architectures=args.hip_architectures,
+        cuda_architectures=args.cuda_architectures,
     )
     return 0
 
