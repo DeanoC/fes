@@ -23,8 +23,9 @@ Fits from [board-pair.sh](board-pair.sh) on 23 Nov 2026, collected by
 | **Median** | **41,444** | **41,362.5** |
 | Spread | 59 | 88 |
 
-- **Saving:** 41,444 − 41,362.5 = **81.5 ALMs**.
-- **Result: within the spread.** The saving does not exceed the larger spread
+- **Median difference:** 41,444 − 41,362.5 = 81.5 ALMs.
+- **Result: 81.5 vs larger spread 88: within the spread, not measurable as a
+  saving.** The difference does not exceed the larger spread
   (88), so it is not a measured saving under the method's rule.
 - **Band:** the arm does not grow (one-sided band passes).
 - **Also reported, every seed of each arm:** 168 M20K, 24 DSPs. MLAB memory
