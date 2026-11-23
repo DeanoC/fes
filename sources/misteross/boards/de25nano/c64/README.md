@@ -110,3 +110,32 @@ clean committed source and an output directory that does not exist.
   unreviewed (shared with the Spectrum and Atari ST).
 - Linkable cartridge cards and the expansion socket.
 - The C64 NTSC model, which the DE10 does not build either.
+
+## Native Tenfoot
+
+The opt-in `nativepal` package uses the same BL31 upload-shell role as native
+Spectrum. Its 6510 opcode-decode counter and address use the shared
+computer-aperture snapshot at `0x18` and `0x1c`. The C64 scanout reader uses
+the existing fixed DDR grant and its identity and drain protocol. Guest RAM
+and the 1541 disk store stay in block RAM.
+
+Run the native component regression with `python3 sim.py --native` from this
+directory. It checks two diagnostic execution cycles, ROM and D64 retention
+across Hold, instruction activity while running, and the shared firmware
+scanout checks with both returned and withheld read responses.
+
+Use the `nativepal` model of `build_c64_package.py` for the normal Quartus
+signoff and seal. The producer compiles once, with no repeat fit (#2090), and
+the SDK checks that signoff fit. The shared-shell TamaGo SDK accepts
+`--c64-build`, `--c64-package` and `--c64-rom`, with an optional
+`--c64-d64`. The C64 export under `c64/export/FES` contains the SD catalogue and
+selected inputs. TamaGo retains the standard 174,848-byte D64 before
+closing SD access, uploads the 36 KiB firmware and disk while execution is
+held, and checks the disk's commit acknowledgement before releasing the CPU.
+The native path mounts one read-only 35-track image at launch.
+
+The FAT-backed lifecycle tests exercise launch, return and relaunch with the
+actual shared-shell C descriptor decoder. A lost D64 commit acknowledgement
+keeps execution held and retires the session. The 5-second opening deadline
+and 1-second control budget are unchanged. Physical startup performance
+needs measurement on a matched, sealed boot chain.

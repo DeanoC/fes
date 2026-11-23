@@ -14,6 +14,7 @@ from scripts import build_fes_coleco_socket_v2 as shell
 from scripts import build_coleco_sgm as sgm
 from scripts import fes_de10nano_evidence
 from scripts.fes_build_common import BuildError
+from scripts.lockfile import load_lock
 
 
 def clock_coverage_route_fixture():
@@ -497,6 +498,35 @@ class NativeSessionDisplayTest(unittest.TestCase):
             with self.assertRaises(BuildError):
                 fes_de10nano_evidence.plane_dsp_evidence(graph(cells), sign_parameters=False)
         self.assertEqual(factory.SESSION_DISPLAY_RESOURCES, {"cyclonev_hps_interface_fpga2sdram": 1})
+
+    def test_native_plane_sign_mode_matches_the_registered_lock_yosys(self):
+        # Yosys before DeanoC/yosys#25 writes no A_SIGNED/B_SIGNED on
+        # MISTRAL_MUL; 3a5accbd (#25) and later, d273c1cb included, write
+        # both. The registered native shell must check its plane in the mode
+        # its own lock's Yosys emits, or it fails only after a GPU route.
+        unsigned_only_yosys = {"5391eeb1e91b38a3d0e96d04f24cf921743c9c78"}
+        yosys = load_lock(shell.ROOT / shell.TOOLCHAIN_LOCK)["yosys"].commit
+        modes = []
+
+        class PlaneChecked(Exception):
+            pass
+
+        def plane(_design, *, sign_parameters=True):
+            modes.append(sign_parameters)
+            raise PlaneChecked
+
+        counts = {**factory.REQUIRED_RESOURCES, **factory.SESSION_DISPLAY_RESOURCES,
+                  "MISTRAL_M10K": 1, fes_de10nano_evidence.PLANE_DSP: 3}
+        design = {"modules": {"top": {"cells": {}}}}
+        with patch.object(factory, "_read_json", return_value=design), \
+                patch.object(factory, "_i2c_evidence"), \
+                patch.object(factory, "_audio_evidence"), \
+                patch.object(factory, "_cell_counts", return_value=counts), \
+                patch.object(fes_de10nano_evidence, "plane_dsp_evidence", side_effect=plane), \
+                self.assertRaises(PlaneChecked):
+            factory.validate_build_evidence(Path("unused"), shell.ROOT, session_display=True)
+        self.assertEqual(modes, [yosys not in unsigned_only_yosys],
+                         f"{shell.TOOLCHAIN_LOCK} pins Yosys {yosys[:8]}")
 
 if __name__ == "__main__":
     unittest.main()

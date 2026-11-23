@@ -53,8 +53,10 @@ class MachineProducerTests(unittest.TestCase):
         for producer in PRODUCERS:
             spec = producer.MACHINE.spec(ROOT)
             cls.captured[producer] = spec.board.capture(spec)
+        c64_spec = c64.MACHINE.spec(ROOT)
+        cls.native_c64_captured = c64_spec.board.capture(c64_spec, native=True)
         data = {}
-        for captured in cls.captured.values():
+        for captured in (*cls.captured.values(), cls.native_c64_captured):
             data.update({Path(name).relative_to('sources/misteross').as_posix(): value
                          for name, value in captured.items()})
         for name in (spectrum.RECIPE, atari_st.RECIPE, c64.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
@@ -138,6 +140,32 @@ class MachineProducerTests(unittest.TestCase):
                 self.assertEqual(mapping, {'format': 1, 'device': shared.DEVICE,
                                            'encoding': 'gp-firmware-upload-v1',
                                            'base_sha256': manifest['payload']['sha256'], 'source_size': size})
+
+    def test_native_c64_seals_its_own_identity_and_shared_aperture(self):
+        build = self.root / 'build'
+        build.mkdir(exist_ok=True)
+        payload = build / 'nativepal.rbf'
+        payload.write_bytes(b'unqualified native C64 payload fixture')
+        record = c64.create_build_record(self.root, REPOSITORY, self.revision,
+                                         self.tools, self.execution, self.native_c64_captured,
+                                         model='nativepal')
+        with self.assertRaisesRegex(shared.BuildError, "captured upload-shell sources"):
+            self.record(c64, 'nativepal')
+        fields = verify_record_source_at_revision(self.root, record)
+        self.assertIn(shared.NATIVE_SPECTRUM_COMPOSER, fields['source_inputs'])
+        self.assertIn('boards/de25nano/spectrum/derive.py', fields['source_inputs'])
+        self.assertFalse(fields['parameters']['linux_dma'])
+        self.assertEqual(fields['parameters']['guest_memory'], 'fabric-bram')
+        self.assertNotEqual(build_identity(record), build_identity(self.record(c64, 'pal')))
+        manifest = tomllib.loads(c64.manifest(record, payload).decode())
+        self.assertEqual(manifest['target']['programming_profile'], 'de25-native-c64-v1')
+        self.assertIn(dict(id='fes.media.c64-disk', major=1, minor=0, required=True), manifest['interfaces'])
+        spec = c64.MACHINE.spec(self.root)
+        maps = json.loads(spec.native_controls(manifest['build']['id'], manifest['payload']['sha256']))
+        self.assertEqual(maps['firmware_bytes'], 36864)
+        self.assertEqual(maps['computer']['peripheral_offset'], 0x10300)
+        self.assertEqual(maps['display_reader']['grant_base'], 0x95000000)
+        self.assertEqual(json.loads(c64.MACHINE.rom_map(record, payload))['source_size'], 36864)
 
     def test_native48_uses_its_own_profile_identity_and_control_maps(self):
         build = self.root / 'build'

@@ -147,6 +147,16 @@ def native_spectrum48(params):
             params.get("firmware_bytes")) == ("fes.spectrum", "native48", "de25-native-spectrum48-v1", 16384)
 
 
+def native_c64(params):
+    return (
+        params.get("core_id"), params.get("model"), params.get("programming_profile"),
+        params.get("firmware_bytes")) == ("fes.c64", "nativepal", "de25-native-c64-v1", 36864)
+
+
+def native_upload_shell(params):
+    return native_spectrum48(params) or native_c64(params)
+
+
 def bindings(directory):
     directory = Path(directory)
     hps = directory / 'combined/hps'
@@ -166,7 +176,7 @@ def bindings(directory):
     inputs = json.loads((hps / 'inputs.json').read_text())
     if profile == 'standard_zx81':
         require((fields['parameters'].get('programming_profile') == 'de25-linux-computer-v1' or
-                 native_spectrum48(fields['parameters'])) and
+                 native_upload_shell(fields['parameters'])) and
                 inputs['scanout']['build_identity_scheme'] == 'canonical-standard-computer-v2' and
                 inputs['scanout']['build_id'] == build_identity(record), 'standard profile/scanout identity mismatch')
     require(inputs['fes_revision'] == fields['revision'] and
