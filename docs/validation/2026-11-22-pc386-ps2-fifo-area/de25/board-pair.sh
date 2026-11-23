@@ -2,6 +2,7 @@
 # board-pair.sh TAG REV: DE25 387-off pc386 board build of REV (seed 1), then seeds 2-4 as copies of its
 # generated project with only SEED changed (method.md). The board producer takes the Quartus lease itself;
 # each later seed takes one Pro slot through quartus_jobs.py run. SEEDS="" builds seed 1 only (exploratory).
+# BUILD_TIMEOUT (default 5h) bounds the board build, including its wait for a lease slot.
 set -u
 TAG=$1; REV=$2; P=$HOME/fes-scratch/ps2fifo-area; WT=$P/wt-$TAG; L=$P/board-$TAG.log; O=$P/board-$TAG-out
 REPO=${REPO:-/home/deano/fes/.claude/worktrees/de25-shell-cuts-e9b837}
@@ -18,7 +19,7 @@ cd $WT && test -z "$(git status --porcelain)" || { echo tree-fail >> $L; echo DO
 echo "kbc sha256 $(sha256sum sources/misteross/cores/fes-pc386/rtl/pc386_kbc.sv | cut -c1-64)" >> $L
 cd sources/misteross
 timeout 3600 nice python3 scripts/build_pc386_firmware.py --download > $P/board-$TAG-firmware.log 2>&1 || { echo firmware-fail >> $L; echo DONE >> $L; exit 3; }
-(cd boards/de25nano && timeout 5h python3 pc386/build.py build \
+(cd boards/de25nano && timeout ${BUILD_TIMEOUT:-5h} python3 pc386/build.py build \
   --vendor-archive /data/fes-de25-1297-9b36e4729/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip --output $O \
   > $P/board-$TAG-build.log 2>&1)
 echo "build exit=$? $(date -u +%FT%TZ)" >> $L
