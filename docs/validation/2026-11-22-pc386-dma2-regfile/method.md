@@ -50,7 +50,7 @@ checkout path, before and after, and `cmp` must find them identical. The recorde
 check uses the fixed Yosys lock with one thread.
 
 **DE25 system:** `boards/de25nano/pc386/sim.py` must reach the prompt with check
-lines identical to the base's.
+lines identical to the base's. Result: [suites/](suites/README.md).
 
 ## The DE25 measurement
 
