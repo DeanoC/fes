@@ -236,14 +236,15 @@ def main(argv=None):
     env = build_env(args.module_cache, args.go_cache)
     steps = []
     started = time.monotonic()
-    if not args.skip_host_tests:
-        steps.append(run_host_tests(ROOT))
+    # Fail fast on bare-metal compile/link errors (~20s) before the ~4m host race pass.
     steps.append(check_qemu_builds(ROOT, args.compiler.resolve(), env, output))
     steps.extend(check_nano_builds(ROOT, args.compiler.resolve(), args.module_cache.resolve(), env, output))
     steps.extend(run_qemu_programs(
         ROOT, args.compiler.resolve(), args.module_cache.resolve(),
         args.qemu.resolve(), args.host.resolve(), output, programs, args.timeout,
     ))
+    if not args.skip_host_tests:
+        steps.append(run_host_tests(ROOT))
     summary = {
         'status': 'passed',
         'total_elapsed_seconds': round(time.monotonic() - started, 2),
