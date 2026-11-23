@@ -36,6 +36,7 @@ TAMAGO_CI_INPUTS = frozenset({
     'tests/test_tamago_ci.py',
     'sources/misteross/scripts/core_package.py',
     'sources/misteross/scripts/rfc3986_validator.py',
+    'sources/libmister-runtime/src/daemon/json.hpp',
     'sources/libmister-runtime/src/runtime.cpp',
 })
 

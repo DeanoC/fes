@@ -890,6 +890,7 @@ class AffectedTests(unittest.TestCase):
             ('sources/misteross/expansion/rbf.go', {'parent', 'host', 'tamago'}),
             ('sources/misteross/scripts/core_package.py', {'parent', 'fpga', 'tamago'}),
             ('sources/libmister-runtime/src/native/core_package.cpp', {'parent', 'host', 'runtime', 'tamago'}),
+            ('sources/libmister-runtime/src/daemon/json.hpp', {'parent', 'host', 'runtime', 'tamago'}),
         ):
             with self.subTest(path=path):
                 result = plan([path])
