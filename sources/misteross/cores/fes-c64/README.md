@@ -32,10 +32,11 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
 
 ## Machine
 
-The registered package defaults to the PAL C64. The compile-time `NTSC=1`
-parameter on the board top and motherboard selects a standard 6567R8 with the
-same MOS6581, 6526 CIAs and independently clocked 1541. This is a development
-profile. Library selection, a sealed NTSC package and kit acceptance are pending.
+The DE10 library offers two C64 packages. Existing C64 titles use `fes.c64`
+(PAL 6569). Select `fes.c64-ntsc` for the standard NTSC 6567R8. Its producer
+sets `NTSC=1` on the board top. Both models use the MOS6581, 6526 CIAs,
+independently clocked 1541 and the same 36 KiB firmware layout. Each title
+binds firmware and disks to its selected package.
 The reference schedules are the VICE [C64 clocks](https://github.com/VICE-Team/svn-mirror/blob/08b38de806e309b7f0a2a27043c896cf7c259061/vice/src/c64/c64.h)
 and [VIC-II cycle tables](https://github.com/VICE-Team/svn-mirror/blob/08b38de806e309b7f0a2a27043c896cf7c259061/vice/src/viciisc/vicii-chip-model.c).
 

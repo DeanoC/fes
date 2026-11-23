@@ -6,30 +6,50 @@ package board
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/qemuvirt"
 	"github.com/DeanoC/fes/platform/embedded/tamago/display"
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
+	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
+	"github.com/DeanoC/fes/platform/embedded/tamago/rtc"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 	"github.com/usbarmory/tamago/dma"
 )
 
 const Name = "qemu"
 
-func ExceptionLevel() uint64                                    { return qemuvirt.ExceptionLevel() }
-func CounterFrequency() uint64                                  { return qemuvirt.CounterFrequency() }
-func GIC() *gic.Controller                                      { return qemuvirt.GIC() }
-func InitDevices() (*dma.Region, error)                         { return qemuvirt.InitDevices() }
-func OpenStorage() (block.Device, error)                        { return block.ScanVirtIO() }
+func ExceptionLevel() uint64            { return qemuvirt.ExceptionLevel() }
+func CounterFrequency() uint64          { return qemuvirt.CounterFrequency() }
+func GIC() *gic.Controller              { return qemuvirt.GIC() }
+func PSCI() *psci.Client                { return qemuvirt.PSCI() }
+func PowerOff() error                   { return qemuvirt.PowerOff() }
+func Reset() error                      { return qemuvirt.Reset() }
+func EntropySource() psci.EntropySource { return qemuvirt.EntropySource() }
+func RTC() (*rtc.PL031, error)          { return qemuvirt.RTC() }
+func WallTime() (time.Time, bool)       { return qemuvirt.WallTime() }
+func InitDevices() (*dma.Region, error) { return qemuvirt.InitDevices() }
+func OpenStorage() (block.Device, error) {
+	pool, err := qemuvirt.DMAPool()
+	if err != nil {
+		return nil, err
+	}
+	return block.ScanVirtIOWithPool(pool)
+}
 func OpenDisplay(w, h int, memory *dma.Region) (Display, error) { return display.Open(w, h, memory) }
 func OpenKeyboard() (*input.USBKeyboard, error) {
 	base, err := qemuvirt.OpenUSBPCI()
 	if err != nil {
 		return nil, err
 	}
-	host, err := usb.OpenXHCI(base)
+	pool, err := qemuvirt.DMAPool()
+	if err != nil {
+		return nil, err
+	}
+	host, err := usb.OpenXHCIWithPool(base, pool)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +61,11 @@ type qemuNetwork struct{ *network.Interface }
 
 func (n qemuNetwork) Stats() string { return fmt.Sprintf("%+v", n.Statistics()) }
 func OpenNetwork(ctx context.Context) (Network, error) {
-	n, err := network.Open(ctx, network.Config{})
+	pool, err := qemuvirt.DMAPool()
+	if err != nil {
+		return nil, err
+	}
+	n, err := network.OpenWithPool(ctx, network.Config{}, pool)
 	if err != nil {
 		return nil, err
 	}

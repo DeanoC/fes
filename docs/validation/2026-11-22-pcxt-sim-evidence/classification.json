@@ -1,0 +1,602 @@
+{
+ "host": "powerboat",
+ "yosys": "/home/deano/fes/out/cache/misteross-toolchains/tools/yosys/7e0278035610cf012e96b8aae1250f7b6abd90c2ef38e93fa84d3154316012b3/install/bin/yosys",
+ "yosys_version": "Yosys 0.69+ (git sha1 3a5accbd7, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]",
+ "yosys_sha256": "a17b4c8aeac5373dba86faa67124456834c585924503457387631408f84549f8",
+ "revision": "4f1b3975428def15894c1d6d079bf39bec397e72",
+ "record_files": 188,
+ "sim_files_not_candidates": [
+  "cores/fes-pcxt/sim/bios.lock",
+  "cores/fes-pcxt/sim/diagnostic.S",
+  "cores/fes-pcxt/sim/display.S",
+  "cores/fes-pcxt/sim/eu_timing.S",
+  "cores/fes-pcxt/sim/fescom.S",
+  "cores/fes-pcxt/sim/freedos.lock",
+  "cores/fes-pcxt/sim/motherboard.S"
+ ],
+ "yosys_exit": 0,
+ "yosys_seconds": 6,
+ "netlist_sha256": "fa9b362d4ca120d9a29f4c730bf07d567a263ba1a298d44ff8b3da87c332d1f1",
+ "proofs": {
+  "tests/test_pcxt_video_mailbox.py": {
+   "exit": 0,
+   "seconds": 1,
+   "summary": [
+    "Ran 4 tests in 1.235s",
+    "OK"
+   ]
+  },
+  "tests/test_pcxt_audio_cdc.py": {
+   "exit": 0,
+   "seconds": 2,
+   "summary": [
+    "Ran 3 tests in 1.925s",
+    "OK"
+   ]
+  }
+ },
+ "candidates": [
+  {
+   "path": "cores/fes-pcxt/sim/bios_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/capture_pipeline_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/capture_pipeline_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/chipset.vlt",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/clock_bridge_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/cpu.vlt",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/cpu_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/cpu_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/display_machine_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/display_machine_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/display_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/display_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/dma_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/dos_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/fdc_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/fdc_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/hid_keyboard_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/isa_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/isa_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/keyboard_bat_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/keyboard_bat_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/keyboard_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/machine_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/machine_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/media_arbiter_tb.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/media_diag_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/media_diag_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/media_empty_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/media_runtime_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/media_runtime_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/memory_machine_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/memory_machine_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/memory_model.hpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/memory_model_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/memory_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/memory_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/motherboard_bench.h",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/motherboard_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/motherboard_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/reboot_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/sector_writer_tb.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/speaker_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/system_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/system_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/video_machine_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/video_machine_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/video_tb.cpp",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  },
+  {
+   "path": "cores/fes-pcxt/sim/video_top.sv",
+   "yosys_read": false,
+   "quartus_read": false,
+   "inlined_in_qsf": false,
+   "generator_code": false,
+   "proof_read": false
+  }
+ ],
+ "evidence": [
+  "cores/fes-pcxt/sim/bios_top.sv",
+  "cores/fes-pcxt/sim/capture_pipeline_tb.cpp",
+  "cores/fes-pcxt/sim/capture_pipeline_top.sv",
+  "cores/fes-pcxt/sim/chipset.vlt",
+  "cores/fes-pcxt/sim/clock_bridge_tb.cpp",
+  "cores/fes-pcxt/sim/cpu.vlt",
+  "cores/fes-pcxt/sim/cpu_tb.cpp",
+  "cores/fes-pcxt/sim/cpu_top.sv",
+  "cores/fes-pcxt/sim/display_machine_tb.cpp",
+  "cores/fes-pcxt/sim/display_machine_top.sv",
+  "cores/fes-pcxt/sim/display_tb.cpp",
+  "cores/fes-pcxt/sim/display_top.sv",
+  "cores/fes-pcxt/sim/dma_tb.cpp",
+  "cores/fes-pcxt/sim/dos_tb.cpp",
+  "cores/fes-pcxt/sim/fdc_tb.cpp",
+  "cores/fes-pcxt/sim/fdc_top.sv",
+  "cores/fes-pcxt/sim/hid_keyboard_tb.cpp",
+  "cores/fes-pcxt/sim/isa_tb.cpp",
+  "cores/fes-pcxt/sim/isa_top.sv",
+  "cores/fes-pcxt/sim/keyboard_bat_tb.cpp",
+  "cores/fes-pcxt/sim/keyboard_bat_top.sv",
+  "cores/fes-pcxt/sim/keyboard_tb.cpp",
+  "cores/fes-pcxt/sim/machine_tb.cpp",
+  "cores/fes-pcxt/sim/machine_top.sv",
+  "cores/fes-pcxt/sim/media_arbiter_tb.sv",
+  "cores/fes-pcxt/sim/media_diag_tb.cpp",
+  "cores/fes-pcxt/sim/media_diag_top.sv",
+  "cores/fes-pcxt/sim/media_empty_tb.cpp",
+  "cores/fes-pcxt/sim/media_runtime_tb.cpp",
+  "cores/fes-pcxt/sim/media_runtime_top.sv",
+  "cores/fes-pcxt/sim/memory_machine_tb.cpp",
+  "cores/fes-pcxt/sim/memory_machine_top.sv",
+  "cores/fes-pcxt/sim/memory_model.hpp",
+  "cores/fes-pcxt/sim/memory_model_tb.cpp",
+  "cores/fes-pcxt/sim/memory_tb.cpp",
+  "cores/fes-pcxt/sim/memory_top.sv",
+  "cores/fes-pcxt/sim/motherboard_bench.h",
+  "cores/fes-pcxt/sim/motherboard_tb.cpp",
+  "cores/fes-pcxt/sim/motherboard_top.sv",
+  "cores/fes-pcxt/sim/reboot_tb.cpp",
+  "cores/fes-pcxt/sim/sector_writer_tb.sv",
+  "cores/fes-pcxt/sim/speaker_tb.cpp",
+  "cores/fes-pcxt/sim/system_tb.cpp",
+  "cores/fes-pcxt/sim/system_top.sv",
+  "cores/fes-pcxt/sim/video_machine_tb.cpp",
+  "cores/fes-pcxt/sim/video_machine_top.sv",
+  "cores/fes-pcxt/sim/video_tb.cpp",
+  "cores/fes-pcxt/sim/video_top.sv"
+ ],
+ "dropped": [],
+ "seal_reads_under_sim": {
+  "yosys": [],
+  "generator": [
+   "cores/fes-pcxt/sim/bios.lock",
+   "cores/fes-pcxt/sim/freedos.lock"
+  ],
+  "proofs": []
+ },
+ "dos_inputs": {
+  "glabios_rom_sha256": "c2bc9ec1893c0ea4098433c862b97e546c4877c6a21c5bc23792ea2b6639c7d4",
+  "cga_font_sha256": "edce8a11dfa84ce3cfc1fb5cb150ba2b0e1787e781029dc667d8df929a4532d6",
+  "loaded_into_sdram_before_cpu_release": true,
+  "guest_disk_reads_use_sdram_media_path": true
+ },
+ "yosys_opened_under_root": [
+  "cores/fes-common/generated/fes_computer.vh",
+  "cores/fes-common/generated/fes_pcxt_isa.vh",
+  "cores/fes-common/generated/fes_video_part.vh",
+  "cores/fes-common/rtl/coleco_video_dpram.v",
+  "cores/fes-common/rtl/fes_audio_i2s.v",
+  "cores/fes-common/rtl/fes_audio_output.v",
+  "cores/fes-common/rtl/fes_audio_pll.v",
+  "cores/fes-common/rtl/fes_computer_mailbox.v",
+  "cores/fes-common/rtl/fes_dma8237.sv",
+  "cores/fes-common/rtl/fes_video_part_direct.v",
+  "cores/fes-common/rtl/fes_video_part_scanlines.v",
+  "cores/fes-common/vendor/kf8253/KF8253.sv",
+  "cores/fes-common/vendor/kf8253/KF8253_Control_Logic.sv",
+  "cores/fes-common/vendor/kf8253/KF8253_Counter.sv",
+  "cores/fes-common/vendor/kf8253/KF8253_Definitions.svh",
+  "cores/fes-common/vendor/kf8259/KF8259.sv",
+  "cores/fes-common/vendor/kf8259/KF8259_Bus_Control_Logic.sv",
+  "cores/fes-common/vendor/kf8259/KF8259_Common_Package.svh",
+  "cores/fes-common/vendor/kf8259/KF8259_Control_Logic.sv",
+  "cores/fes-common/vendor/kf8259/KF8259_In_Service.sv",
+  "cores/fes-common/vendor/kf8259/KF8259_Interrupt_Request.sv",
+  "cores/fes-common/vendor/kf8259/KF8259_Priority_Resolver.sv",
+  "cores/fes-pcxt/expansions/pcxt_6845.sv",
+  "cores/fes-pcxt/expansions/pcxt_cga_card.sv",
+  "cores/fes-pcxt/expansions/pcxt_display_card.sv",
+  "cores/fes-pcxt/expansions/pcxt_fdc_card.sv",
+  "cores/fes-pcxt/expansions/pcxt_isa_probe.sv",
+  "cores/fes-pcxt/expansions/pcxt_mda_card.sv",
+  "cores/fes-pcxt/quartus/adapters.v",
+  "cores/fes-pcxt/rtl/fes_pcxt_top.sv",
+  "cores/fes-pcxt/rtl/pcxt_board_audio.sv",
+  "cores/fes-pcxt/rtl/pcxt_boot.sv",
+  "cores/fes-pcxt/rtl/pcxt_boot_media_gate.sv",
+  "cores/fes-pcxt/rtl/pcxt_cpu.sv",
+  "cores/fes-pcxt/rtl/pcxt_cpu_bus.sv",
+  "cores/fes-pcxt/rtl/pcxt_disk_loader.sv",
+  "cores/fes-pcxt/rtl/pcxt_display_bus.sv",
+  "cores/fes-pcxt/rtl/pcxt_hid_keyboard.sv",
+  "cores/fes-pcxt/rtl/pcxt_isa_boundary.sv",
+  "cores/fes-pcxt/rtl/pcxt_isa_bridge.sv",
+  "cores/fes-pcxt/rtl/pcxt_isa_endpoint.sv",
+  "cores/fes-pcxt/rtl/pcxt_logic_operand1_mux.sv",
+  "cores/fes-pcxt/rtl/pcxt_machine.sv",
+  "cores/fes-pcxt/rtl/pcxt_media.sv",
+  "cores/fes-pcxt/rtl/pcxt_media_arbiter.sv",
+  "cores/fes-pcxt/rtl/pcxt_media_writer.sv",
+  "cores/fes-pcxt/rtl/pcxt_memory.sv",
+  "cores/fes-pcxt/rtl/pcxt_motherboard.sv",
+  "cores/fes-pcxt/rtl/pcxt_sector_writer.sv",
+  "cores/fes-pcxt/rtl/pcxt_speaker.sv",
+  "cores/fes-pcxt/rtl/pcxt_system.sv",
+  "cores/fes-pcxt/rtl/pcxt_video.sv",
+  "cores/fes-pcxt/rtl/pcxt_video_output.sv",
+  "cores/fes-pcxt/rtl/pcxt_xt_keyboard.sv",
+  "cores/fes-pcxt/rtl/pcxt_xt_keyboard_bat.sv",
+  "cores/fes-pcxt/rtl/pcxt_xtio.sv",
+  "cores/fes-pcxt/vendor/kf8255/KF8255.sv",
+  "cores/fes-pcxt/vendor/kf8255/KF8255_Control_Logic.sv",
+  "cores/fes-pcxt/vendor/kf8255/KF8255_Definitions.svh",
+  "cores/fes-pcxt/vendor/kf8255/KF8255_Group.sv",
+  "cores/fes-pcxt/vendor/kf8255/KF8255_Port.sv",
+  "cores/fes-pcxt/vendor/kf8255/KF8255_Port_C.sv",
+  "cores/fes-pcxt/vendor/mcl86/i8088.sv",
+  "cores/fes-pcxt/vendor/mcl86/mcl86_adder.sv",
+  "cores/fes-pcxt/vendor/mcl86/mcl86_biu_max.sv",
+  "cores/fes-pcxt/vendor/mcl86/mcl86_eu_core.sv",
+  "cores/fes-pcxt/vendor/mcl86/mcl86_ucode.sv",
+  "cores/fes-ramtest/rtl/sdram_addon_port.v",
+  "cores/fes-ramtest/rtl/sdram_cas3_capture.v"
+ ],
+ "generator_opened_under_root": [
+  "cores/fes-common/vendor/kf8253/KF8253.sv",
+  "cores/fes-common/vendor/kf8253/KF8253_Control_Logic.sv",
+  "cores/fes-common/vendor/kf8253/KF8253_Counter.sv",
+  "cores/fes-common/vendor/kf8253/KF8253_Definitions.svh",
+  "cores/fes-common/vendor/kf8253/LICENSE",
+  "cores/fes-common/vendor/kf8253/source.json",
+  "cores/fes-common/vendor/kf8259/KF8259.sv",
+  "cores/fes-common/vendor/kf8259/KF8259_Bus_Control_Logic.sv",
+  "cores/fes-common/vendor/kf8259/KF8259_Common_Package.svh",
+  "cores/fes-common/vendor/kf8259/KF8259_Control_Logic.sv",
+  "cores/fes-common/vendor/kf8259/KF8259_In_Service.sv",
+  "cores/fes-common/vendor/kf8259/KF8259_Interrupt_Request.sv",
+  "cores/fes-common/vendor/kf8259/KF8259_Priority_Resolver.sv",
+  "cores/fes-common/vendor/kf8259/LICENSE",
+  "cores/fes-common/vendor/kf8259/source.json",
+  "cores/fes-pcxt/constraints-audio.qsf",
+  "cores/fes-pcxt/firmware/GLABIOS_0.4.2_8X.ROM",
+  "cores/fes-pcxt/firmware/cga-font-8x8.bin",
+  "cores/fes-pcxt/firmware/freedos-1.4-xt-360.img",
+  "cores/fes-pcxt/firmware/hardware-dos.json",
+  "cores/fes-pcxt/sim/bios.lock",
+  "cores/fes-pcxt/sim/freedos.lock",
+  "cores/fes-pcxt/vendor/kf8255/KF8255.sv",
+  "cores/fes-pcxt/vendor/kf8255/KF8255_Control_Logic.sv",
+  "cores/fes-pcxt/vendor/kf8255/KF8255_Definitions.svh",
+  "cores/fes-pcxt/vendor/kf8255/KF8255_Group.sv",
+  "cores/fes-pcxt/vendor/kf8255/KF8255_Port.sv",
+  "cores/fes-pcxt/vendor/kf8255/KF8255_Port_C.sv",
+  "cores/fes-pcxt/vendor/kf8255/LICENSE",
+  "cores/fes-pcxt/vendor/kf8255/source.json",
+  "cores/fes-pcxt/vendor/mcl86/LICENSE",
+  "cores/fes-pcxt/vendor/mcl86/i8088.sv",
+  "cores/fes-pcxt/vendor/mcl86/mcl86_adder.sv",
+  "cores/fes-pcxt/vendor/mcl86/mcl86_biu_max.sv",
+  "cores/fes-pcxt/vendor/mcl86/mcl86_eu_core.sv",
+  "cores/fes-pcxt/vendor/mcl86/mcl86_ucode.mem",
+  "cores/fes-pcxt/vendor/mcl86/mcl86_ucode.sv",
+  "cores/fes-pcxt/vendor/mcl86/source.json",
+  "cores/fes-ramtest/constraints.qsf",
+  "scripts/__pycache__/sim_fes_pcxt.cpython-313.pyc"
+ ]
+}

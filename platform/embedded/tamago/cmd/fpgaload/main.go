@@ -195,7 +195,7 @@ func main() {
 		if loader == nil {
 			panic("serial Tenfoot requires the owned program loader")
 		}
-		serveProgramTenfoot(loader, store)
+		serveProgramTenfoot(loader, store, lease)
 		return
 	}
 	if loader != nil {

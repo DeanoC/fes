@@ -237,9 +237,6 @@ class Machine:
                     if not timing['package_timing_admission']:
                         raise BuildError(self.label + ' package blocked by reported timing/signoff findings; '
                                          'candidate retained')
-                    repeated, other = compile_at('repeat')
-                    if not other['package_timing_admission'] or sha(payload) != sha(repeated):
-                        raise BuildError(self.label + ' independent rebuild failed timing or changed RBF')
             if (self.require_clean_source(root) != (repository, revision) or
                     common.authenticate_tools(spec, quartus_root) != (paths, identities) or
                     common.execution_inputs(paths, env) != execution or

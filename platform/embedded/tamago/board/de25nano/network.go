@@ -7,9 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
-	"unsafe"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	"github.com/DeanoC/fes/platform/embedded/tamago/xgmac"
@@ -20,24 +18,6 @@ type macRegisters struct{}
 func (macRegisters) Read32(offset uint32) uint32  { return load32(profileNetworkBase + uintptr(offset)) }
 func (macRegisters) Write32(offset, value uint32) { store32(profileNetworkBase+uintptr(offset), value) }
 func (macRegisters) Now() time.Time               { return time.Now() }
-
-type networkMemory struct{}
-
-func (networkMemory) Base() uint64 { return profileNetworkDMAStart }
-func (networkMemory) Size() uint64 { return profileNetworkDMABytes }
-func (networkMemory) Read32(offset uint32) uint32 {
-	return atomic.LoadUint32((*uint32)(unsafe.Pointer(uintptr(profileNetworkDMAStart) + uintptr(offset))))
-}
-func (networkMemory) Write32(offset, value uint32) {
-	atomic.StoreUint32((*uint32)(unsafe.Pointer(uintptr(profileNetworkDMAStart)+uintptr(offset))), value)
-}
-func (networkMemory) Read(offset uint32, dst []byte) {
-	copy(dst, unsafe.Slice((*byte)(unsafe.Pointer(uintptr(profileNetworkDMAStart)+uintptr(offset))), len(dst)))
-}
-func (networkMemory) Write(offset uint32, src []byte) {
-	copy(unsafe.Slice((*byte)(unsafe.Pointer(uintptr(profileNetworkDMAStart)+uintptr(offset))), len(src)), src)
-}
-func (networkMemory) Barrier() { memoryBarrier() }
 
 // The generic diagnostic opener has no independently accepted boot owner.
 // Native startup must explicitly select OpenNetworkWithControl instead.
@@ -50,7 +30,8 @@ func OpenNetwork(ctx context.Context) (*network.Interface, error) {
 
 var networkLock sync.Mutex
 var networkAttempted bool
-var ownedNetworkDevice *xgmac.Device // Never reclaim or replace failed DMA resources.
+var ownedNetworkMemory *xgmac.PoolMemory // Never reclaim or replace failed DMA resources.
+var ownedNetworkDevice *xgmac.Device
 var ownedNetworkInterface *network.Interface
 var ownedNetworkController *network.Controller
 
@@ -81,16 +62,29 @@ func OpenNetworkWithControl(ctx, lifetime context.Context, bootOwner uint64) (*n
 		return nil, nil, fmt.Errorf("de25-nano: Ethernet initialization already attempted")
 	}
 	networkAttempted = true
-	if err := InitDevices(); err != nil {
+	pool, err := NewUncachedPool(profileNetworkDMAStart, profileNetworkDMABytes)
+	if err != nil {
 		return nil, nil, err
 	}
+	mem, err := xgmac.NewPoolMemory(pool)
+	if err != nil {
+		return nil, nil, err
+	}
+	ownedNetworkMemory = mem
+	irqID, _ := EMACIRQ(profileNetworkBase)
 	var control network.DMAControl
-	var err error
 	ownedNetworkInterface, err = network.OpenDevice(lifetime, profileNetworkAddress, profileNetworkGateway, func() (network.Device, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		ownedNetworkDevice, control, err = xgmac.OpenControlled(ctx, FabricCPUTransport{}, bootOwner, macRegisters{}, networkMemory{}, xgmac.Config{MAC: profileNetworkMAC, PHYAddress: profileNetworkPHY, PHYID: profileNetworkPHYID, CSRClockHz: profileNetworkClock, RXBufferShift: profileNetworkRXShift})
+		ownedNetworkDevice, control, err = xgmac.OpenControlled(ctx, FabricCPUTransport{}, bootOwner, macRegisters{}, mem, xgmac.Config{
+			MAC:           profileNetworkMAC,
+			PHYAddress:    profileNetworkPHY,
+			PHYID:         profileNetworkPHYID,
+			CSRClockHz:    profileNetworkClock,
+			RXBufferShift: profileNetworkRXShift,
+			IRQ:           irqID,
+		})
 		if err == nil {
 			err = ctx.Err()
 		}

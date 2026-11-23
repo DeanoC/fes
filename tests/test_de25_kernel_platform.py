@@ -180,3 +180,31 @@ class KernelPlatformTests(unittest.TestCase):
                        {'static_expansion_enabled': False, 'static_expansion_contract': platform.STATIC_CONTRACT}):
             with self.subTest(record=record), self.assertRaisesRegex(ValueError, 'static-expansion'):
                 platform.static_expansion_mode(record)
+
+
+class OwnerFragmentTests(unittest.TestCase):
+    GENERATED = platform.ROOT / 'image/kernel/de25-dma/generated'
+
+    def test_owner_has_both_blocks_and_a_pool_inside_the_firewall_region(self):
+        fragment = platform.owner_fragment(self.GENERATED)
+        self.assertIn('reg = <0 0x20010200 0 0x100>, <0 0x20010400 0 0x40>;', fragment)
+        self.assertIn('memory-region = <&fes_de25_window_pool>;', fragment)
+        self.assertIn('compatible = "shared-dma-pool";', fragment)
+        self.assertIn('reusable;', fragment)
+        self.assertNotIn('no-map', fragment)
+        self.assertNotIn('dma-coherent', fragment)
+        first, end = platform.WINDOW_POOL_RANGE
+        self.assertIn('alloc-ranges = <0 0x%x 0 0x%x>;' % (first, end - first), fragment)
+        # Inside region 0 of the F2SDRAM firewall, above the service buffer.
+        self.assertGreaterEqual(first, 0x82000000)
+        self.assertLessEqual(end, 0xc0000000)
+        self.assertGreaterEqual(platform.WINDOW_POOL_BYTES, 0x10000000 + 0x800000)
+
+    def test_missing_window_constant_refuses(self):
+        with tempfile.TemporaryDirectory() as temp:
+            for name in ('fes_de25_scanout.h', 'fes_de25_hps_window.h'):
+                shutil.copy(self.GENERATED / name, Path(temp) / name)
+            header = Path(temp) / 'fes_de25_hps_window.h'
+            header.write_text(header.read_text().replace('FES_DE25_HPS_WINDOW_CONTROL_SPAN', 'X'))
+            with self.assertRaisesRegex(ValueError, 'CONTROL_SPAN'):
+                platform.owner_fragment(temp)

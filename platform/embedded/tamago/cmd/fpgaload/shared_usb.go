@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usbcontrol"
 )
@@ -101,4 +102,29 @@ func closeProgramUSB() error {
 	}
 	fmt.Printf("FES_NATIVE_SHARED_USB STOP owner=%x generation=%d reports=%d polls=%d\n", receipt.Owner, receipt.Generation, sharedInputMetrics.reports, sharedInputMetrics.polls)
 	return nil
+}
+
+func enableProgramUSBIRQ(g *gic.Controller) (func(), error) {
+	if expectedUSBControl == "" || g == nil {
+		return func() {}, nil
+	}
+	if programGamepadSource != nil {
+		if err := programGamepadSource.EnableIRQ(g, de25nano.IRQUSB0); err != nil {
+			if errors.Is(err, gic.ErrUnsupported) {
+				return func() {}, nil
+			}
+			return nil, err
+		}
+		return programGamepadSource.DisableIRQ, nil
+	}
+	if programKeyboardSource != nil {
+		if err := programKeyboardSource.EnableIRQ(g, de25nano.IRQUSB0); err != nil {
+			if errors.Is(err, gic.ErrUnsupported) {
+				return func() {}, nil
+			}
+			return nil, err
+		}
+		return programKeyboardSource.DisableIRQ, nil
+	}
+	return nil, errors.New("shared USB source absent")
 }

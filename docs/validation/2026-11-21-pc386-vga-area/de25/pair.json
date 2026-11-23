@@ -1,0 +1,160 @@
+{
+ "arm": {
+  "median_alms": 41728.65,
+  "seeds": {
+   "s1": {
+    "alms": 41732.8,
+    "dsp": 24.0,
+    "exit": 0,
+    "m20k": 167.0,
+    "mem_alms": 410.0,
+    "netlist_sha256": "aef0daf9f9b457c5dc81fded70876c179620a1fde8a1f71d6691f242241d3b27",
+    "ram_blocks": 167,
+    "regs": 47696.0,
+    "run": "arm-s1",
+    "timing": {
+     "Hold": 0.0,
+     "Minimum Pulse Width": 0.22,
+     "Recovery": 7.161,
+     "Removal": 0.083,
+     "Setup": 1.592
+    }
+   },
+   "s2": {
+    "alms": 41673.8,
+    "dsp": 24.0,
+    "exit": 0,
+    "m20k": 167.0,
+    "mem_alms": 410.0,
+    "netlist_sha256": "aef0daf9f9b457c5dc81fded70876c179620a1fde8a1f71d6691f242241d3b27",
+    "ram_blocks": 167,
+    "regs": 47792.0,
+    "run": "arm",
+    "timing": {
+     "Hold": 0.0,
+     "Minimum Pulse Width": 0.22,
+     "Recovery": 7.061,
+     "Removal": 0.019,
+     "Setup": 1.599
+    }
+   },
+   "s3": {
+    "alms": 41724.5,
+    "dsp": 24.0,
+    "exit": 0,
+    "m20k": 167.0,
+    "mem_alms": 410.0,
+    "netlist_sha256": "aef0daf9f9b457c5dc81fded70876c179620a1fde8a1f71d6691f242241d3b27",
+    "ram_blocks": 167,
+    "regs": 47877.0,
+    "run": "arm",
+    "timing": {
+     "Hold": 0.0,
+     "Minimum Pulse Width": 0.22,
+     "Recovery": 7.175,
+     "Removal": 0.0,
+     "Setup": 1.54
+    }
+   },
+   "s4": {
+    "alms": 41749.1,
+    "dsp": 24.0,
+    "exit": 0,
+    "m20k": 167.0,
+    "mem_alms": 410.0,
+    "netlist_sha256": "aef0daf9f9b457c5dc81fded70876c179620a1fde8a1f71d6691f242241d3b27",
+    "ram_blocks": 167,
+    "regs": 47712.0,
+    "run": "arm",
+    "timing": {
+     "Hold": 0.0,
+     "Minimum Pulse Width": 0.22,
+     "Recovery": 7.625,
+     "Removal": 0.013,
+     "Setup": 1.505
+    }
+   }
+  },
+  "spread_alms": 75.29999999999563
+ },
+ "base": {
+  "median_alms": 41971.4,
+  "seeds": {
+   "s1": {
+    "alms": 41977.9,
+    "dsp": 24.0,
+    "exit": 0,
+    "m20k": 167.0,
+    "mem_alms": 390.0,
+    "netlist_sha256": "59f9bb40a2164c31bdc4c574f9341ffd253e4c2803fb4325d073ab12f5c2d7a4",
+    "ram_blocks": 167,
+    "regs": 48035.0,
+    "run": "base",
+    "timing": {
+     "Hold": 0.0,
+     "Minimum Pulse Width": 0.22,
+     "Recovery": 7.743,
+     "Removal": 0.032,
+     "Setup": 1.424
+    }
+   },
+   "s2": {
+    "alms": 41978.5,
+    "dsp": 24.0,
+    "exit": 0,
+    "m20k": 167.0,
+    "mem_alms": 390.0,
+    "netlist_sha256": "59f9bb40a2164c31bdc4c574f9341ffd253e4c2803fb4325d073ab12f5c2d7a4",
+    "ram_blocks": 167,
+    "regs": 48019.0,
+    "run": "base",
+    "timing": {
+     "Hold": 0.0,
+     "Minimum Pulse Width": 0.22,
+     "Recovery": 7.479,
+     "Removal": 0.102,
+     "Setup": 1.551
+    }
+   },
+   "s3": {
+    "alms": 41964.9,
+    "dsp": 24.0,
+    "exit": 0,
+    "m20k": 167.0,
+    "mem_alms": 390.0,
+    "netlist_sha256": "59f9bb40a2164c31bdc4c574f9341ffd253e4c2803fb4325d073ab12f5c2d7a4",
+    "ram_blocks": 167,
+    "regs": 47956.0,
+    "run": "base",
+    "timing": {
+     "Hold": 0.0,
+     "Minimum Pulse Width": 0.22,
+     "Recovery": 7.427,
+     "Removal": 0.095,
+     "Setup": 1.299
+    }
+   },
+   "s4": {
+    "alms": 41948.4,
+    "dsp": 24.0,
+    "exit": 0,
+    "m20k": 167.0,
+    "mem_alms": 390.0,
+    "netlist_sha256": "59f9bb40a2164c31bdc4c574f9341ffd253e4c2803fb4325d073ab12f5c2d7a4",
+    "ram_blocks": 167,
+    "regs": 48064.0,
+    "run": "base",
+    "timing": {
+     "Hold": 0.0,
+     "Minimum Pulse Width": 0.22,
+     "Recovery": 7.618,
+     "Removal": 0.082,
+     "Setup": 1.505
+    }
+   }
+  },
+  "spread_alms": 30.099999999998545
+ },
+ "measured": true,
+ "saving_alms": 242.75
+}
