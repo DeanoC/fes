@@ -480,6 +480,9 @@ func TestAcquireDHCPValidationAndErrors(t *testing.T) {
 	if _, err := AcquireDHCP(context.Background(), newFakeDHCPDevice("00:00:00:00:00:00", false), DHCPConfig{}); !errors.Is(err, ErrDHCPInvalidConfig) {
 		t.Fatalf("zero MAC err=%v", err)
 	}
+	if err := ValidateDHCPConfig(DHCPConfig{}); err != nil {
+		t.Fatalf("ValidateDHCPConfig(zero): %v", err)
+	}
 	for _, badCfg := range []DHCPConfig{
 		{InitialInterval: -time.Millisecond},
 		{MaxInterval: -time.Millisecond},
@@ -487,6 +490,9 @@ func TestAcquireDHCPValidationAndErrors(t *testing.T) {
 		{Hostname: strings.Repeat("a", 256)},
 		{Hostname: "bad\nhost"},
 	} {
+		if err := ValidateDHCPConfig(badCfg); !errors.Is(err, ErrDHCPInvalidConfig) {
+			t.Fatalf("ValidateDHCPConfig(%+v) err=%v, want ErrDHCPInvalidConfig", badCfg, err)
+		}
 		if _, err := AcquireDHCP(context.Background(), dev, badCfg); !errors.Is(err, ErrDHCPInvalidConfig) {
 			t.Fatalf("cfg %+v err=%v, want ErrDHCPInvalidConfig", badCfg, err)
 		}
