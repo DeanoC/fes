@@ -107,3 +107,21 @@ changed. So, under D12's merge-forward clause:
 - **Carried:** `fes.apple2`, `fes.atari-st` and the four ZX81-family machines,
   whose compiled sources and route-deciding inputs did not change between the
   two bases.
+
+## Merge forward to `ebe2477b8`
+
+Main was merged again at `1b9434fd8` (new base `ebe2477b8`, with #2077).
+`closure_touched.py 904140f8f ebe2477b8` hits every OSS producer through
+`scripts/input_identity.py`, which moves BUILD_IDs and the Yosys slot key
+(`2942c6ba…` to `b51f1db3…`, still commit `3a5accbd`) but no compiled source.
+The only compiled sources it hits are C64's (#2072). No toolchain lock moved.
+
+- **Re-measured:** `fes.c64` at `ebe2477b8` against `9037ef2c0`, two passes
+  (`cond1-base-ebe2477/`): `eacc394f4063d77d` on all four, byte-identical, base
+  to head. Main's own C64 netlist moved again. This run used the shared
+  toolchain cache's `b51f1db3…` slot, because the record's cache holds only
+  the old key.
+- **Carried:** every other row. Their compiled sources and route-deciding
+  inputs are unchanged since `904140f8f`.
+- `a480e2a1e` (after this measurement) touches only `pc386_system.sv`, which
+  no row here compiles.
