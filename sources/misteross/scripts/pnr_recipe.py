@@ -602,8 +602,7 @@ def _flag_arguments(flags: Mapping[str, object], defaults: Mapping[str, object])
 _GENERATED_SOCKET_QSF_CORES = frozenset({
     "fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500",
     "fes.coleco", "fes.sms", "fes.sg1000", "fes.apple2",
-    "fes.c64", "fes.c64-ntsc", "fes.c64c", "fes.c64c-ntsc",
-    "fes.spectrum", "fes.spectrum128", "fes.spectrum-plus3",
+    "fes.c64", "fes.spectrum", "fes.spectrum128", "fes.spectrum-plus3",
     "fes.pentagon", "fes.atari-st",
 })
 
