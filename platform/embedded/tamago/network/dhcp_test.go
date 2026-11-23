@@ -281,13 +281,14 @@ func TestAcquireDHCPHandshakeAndIRQWait(t *testing.T) {
 	}
 }
 
-func TestAcquireDHCPRetransmitNAKAndRouterFallback(t *testing.T) {
+func TestAcquireDHCPRetransmitNAKAndMissingRouterRejection(t *testing.T) {
 	macStr := "52:54:00:aa:bb:cc"
 	hw, _ := net.ParseMAC(macStr)
 	var clientMAC [6]byte
 	copy(clientMAC[:], hw)
 
 	serverIP := [4]byte{192, 168, 1, 1}
+	routerIP := [4]byte{192, 168, 1, 254}
 	firstIP := [4]byte{192, 168, 1, 50}
 	secondIP := [4]byte{192, 168, 1, 51}
 	mask := [4]byte{255, 255, 255, 0}
@@ -305,16 +306,17 @@ func TestAcquireDHCPRetransmitNAKAndRouterFallback(t *testing.T) {
 		case dhcpMsgDiscover:
 			discovers++
 			if discovers == 1 {
-				// Drop first discover to exercise retransmit + backoff.
+				// First offer omits option 3 router -> must be rejected, forcing retransmit.
+				d.enqueueRX(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, firstIP, xid,
+					makeDHCPOptions(dhcpMsgOffer, &mask, nil, nil, &serverIP, 3600), false))
 				return
 			}
 			ip := firstIP
 			if discovers >= 3 {
 				ip = secondIP
 			}
-			// Omit option 3 router -> client should fall back to serverID within subnet.
 			offer := makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, ip, xid,
-				makeDHCPOptions(dhcpMsgOffer, &mask, nil, nil, &serverIP, 3600), false)
+				makeDHCPOptions(dhcpMsgOffer, &mask, &routerIP, nil, &serverIP, 3600), false)
 			d.enqueueRX(offer)
 		case dhcpMsgRequest:
 			requests++
@@ -329,9 +331,9 @@ func TestAcquireDHCPRetransmitNAKAndRouterFallback(t *testing.T) {
 			}
 			// Also enqueue mismatched-yiaddr ACK (must be ignored) before valid ACK.
 			d.enqueueRX(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, firstIP, xid,
-				makeDHCPOptions(dhcpMsgAck, &mask, nil, nil, &serverIP, 3600), false))
+				makeDHCPOptions(dhcpMsgAck, &mask, &routerIP, nil, &serverIP, 3600), false))
 			d.enqueueRX(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, secondIP, xid,
-				makeDHCPOptions(dhcpMsgAck, &mask, nil, nil, &serverIP, 3600), false))
+				makeDHCPOptions(dhcpMsgAck, &mask, &routerIP, nil, &serverIP, 3600), false))
 		}
 	}
 
@@ -343,9 +345,71 @@ func TestAcquireDHCPRetransmitNAKAndRouterFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AcquireDHCP after retransmit+NAK: %v", err)
 	}
-	if lease.Address != "192.168.1.51/24" || lease.Gateway != "192.168.1.1" {
+	if lease.Address != "192.168.1.51/24" || lease.Gateway != "192.168.1.254" || lease.Server != "192.168.1.1" {
 		t.Fatalf("unexpected lease: %+v", lease)
 	}
+}
+
+func TestAcquireDHCPContinuousNoiseDoesNotStarveRetransmit(t *testing.T) {
+	macStr := "52:54:00:de:ad:01"
+	hw, _ := net.ParseMAC(macStr)
+	var clientMAC [6]byte
+	copy(clientMAC[:], hw)
+
+	serverIP := [4]byte{10, 0, 2, 2}
+	offeredIP := [4]byte{10, 0, 2, 15}
+	mask := [4]byte{255, 255, 255, 0}
+
+	// Custom noisy device that always returns a stray non-DHCP Ethernet frame when queue is empty.
+	base := newFakeDHCPDevice(macStr, false)
+	stray := make([]byte, 64)
+	copy(stray[0:6], broadcastMAC[:])
+	binary.BigEndian.PutUint16(stray[12:14], 0x0806) // ARP
+
+	var mu sync.Mutex
+	discovers := 0
+	base.onTx = func(frame []byte, d *fakeDHCPDevice) {
+		msgType, xid, _, _, _, _ := extractClientDHCP(t, frame)
+		mu.Lock()
+		defer mu.Unlock()
+		switch msgType {
+		case dhcpMsgDiscover:
+			discovers++
+			if discovers >= 2 {
+				d.enqueueRX(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, offeredIP, xid,
+					makeDHCPOptions(dhcpMsgOffer, &mask, &serverIP, nil, &serverIP, 600), false))
+			}
+		case dhcpMsgRequest:
+			d.enqueueRX(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, offeredIP, xid,
+				makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &serverIP, 600), false))
+		}
+	}
+
+	noisy := &noisyDHCPDevice{fakeDHCPDevice: base, stray: stray}
+	lease, err := AcquireDHCP(context.Background(), noisy, DHCPConfig{
+		InitialInterval: 4 * time.Millisecond,
+		MaxInterval:     8 * time.Millisecond,
+		Timeout:         time.Second,
+	})
+	if err != nil {
+		t.Fatalf("AcquireDHCP under continuous noise: %v", err)
+	}
+	if lease.Address != "10.0.2.15/24" || discovers < 2 {
+		t.Fatalf("lease=%+v discovers=%d", lease, discovers)
+	}
+}
+
+type noisyDHCPDevice struct {
+	*fakeDHCPDevice
+	stray []byte
+}
+
+func (n *noisyDHCPDevice) Receive(dst []byte) (int, error) {
+	got, err := n.fakeDHCPDevice.Receive(dst)
+	if err != nil || got > 0 {
+		return got, err
+	}
+	return copy(dst, n.stray), nil
 }
 
 func TestAcquireDHCPRequestExhaustionRestartsDiscover(t *testing.T) {

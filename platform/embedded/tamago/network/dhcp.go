@@ -295,6 +295,9 @@ func dhcpExchange(
 						return reply, nil
 					}
 				}
+				if time.Until(nextRetry) <= 0 {
+					break
+				}
 				continue
 			}
 
@@ -391,11 +394,6 @@ func buildValidatedLease(r dhcpParsedReply) (DHCPLease, bool) {
 		if _, err := staticConfig(prefix.String(), g.String()); err == nil {
 			gw = g.String()
 			break
-		}
-	}
-	if gw == "" {
-		if _, err := staticConfig(prefix.String(), server.String()); err == nil {
-			gw = server.String()
 		}
 	}
 	if gw == "" {
