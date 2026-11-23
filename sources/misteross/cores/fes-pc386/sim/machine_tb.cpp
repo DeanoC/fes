@@ -877,6 +877,9 @@ public:
 
     Vfes_i386_cpu cpu;
     Machine &m;
+    // The CPU is the 486SX identity (Verilated with I486 = 1, beside the
+    // level-4 oracle): EFLAGS holds AC and ID too.
+    bool i486 = false;
     uint64_t retired = 0;        // instructions the RTL retired
     uint64_t tf_retired = 0;     // ... with TF set, which the RTL does not trap on
     uint64_t pe_retired = 0;     // ... leaving CR0.PE set
@@ -966,7 +969,7 @@ public:
     // The architectural state, over the fields the RTL does not hold.
     fes_i386::State state(fes_i386::State s) const {
         for (int n = 0; n < 8; ++n) s.gpr[n] = cpu.arch_gpr[n];
-        s.eflags = cpu.arch_eflags & 0x3ffff;
+        s.eflags = cpu.arch_eflags & (i486 ? 0x27ffffu : 0x3ffffu);
         // CR0's ET is the RTL's (an empty socket), which Bochs's 387 sets.
         s.cr0 = (s.cr0 & 0x10u) | (cpu.arch_cr0 & ~0x10u);
         s.cr2 = cpu.arch_cr2;
@@ -1691,6 +1694,7 @@ int main(int argc, char **argv) {
         std::unique_ptr<RtlCpu> rtl;
         if (options.cpu == "rtl") {
             rtl = std::make_unique<RtlCpu>(machine);
+            rtl->i486 = oracle->name() == "bochs-level4";
             // The governor's settings, which each reset of the CPU samples.
             rtl->cpu.gov_preset = uint8_t(options.preset);
             rtl->cpu.gov_frequency = uint16_t(options.frequency);
@@ -1699,7 +1703,11 @@ int main(int argc, char **argv) {
                 fes_i386::Decoded decoded = oracle->decode(bytes, 15, (rtl->cpu.arch_ar[0] >> 16) & 0x4000);  // CS.D
                 return decoded.complete ? unsigned(decoded.length) : 15u;
             };
-            rtl->start(oracle->get_state());
+            fes_i386::State start = oracle->get_state();
+            // A reset leaves the CPU's signature in EDX (pc386_system's
+            // init_gpr): the 486SX's 042Bh, not the oracle's DX4 (0480h).
+            if (rtl->i486) start.gpr[fes_i386::REG_EDX] = 0x42b;
+            rtl->start(start);
         }
         bool on_oracle = !rtl;
         // --cpu-profile, and the handover: with --rtl-from or --rtl-at-flip

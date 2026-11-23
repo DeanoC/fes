@@ -2,8 +2,9 @@
 """FreeDOS to the prompt on the DE25 pc386 machine, through the board's window.
 
 system_tb (cores/fes-pc386/sim) on pc386_de25_sim: the derived pc386_system
-(derive.py: no display plane), a 486SX as the producer builds it (I486), behind fes_de25_hps_window's guards, rebase and
-bounds and fes_de25_window_arbiter, built with FES_PC386_DE25. The suite, its
+(derive.py: no display plane), a 486SX as the producer builds it (I486),
+behind fes_de25_hps_window's guards, rebase and bounds and
+fes_de25_window_arbiter, built with FES_PC386_DE25. The suite, its
 checks and its report are sim_fes_pc386.py's system suite unchanged; only the
 testbench is this board's. Host-only: no kit, package or routed result.
 
@@ -48,7 +49,7 @@ def system_testbench(args) -> Path:
     images = sim.firmware.images(args.download, args.jobs)
     rom = sim.firmware.write_rom_hex(images)
     # The producer's CPU identity (build.py I486), set explicitly rather than by the bench's default.
-    parameters = {**producer.guest_rates(producer.SYSTEM_CLOCK_HZ), 'ROM_HEX': f'"{rom}"', 'I486': I486}
+    parameters = {**producer.guest_rates(producer.SYSTEM_CLOCK_HZ), 'ROM_HEX': f'"{rom}"', 'I486': f"1'b{I486}"}
     # Under rtl/, so the bench's .vlt waivers for those files apply as they do on the DE10.
     swap = derived_sources(sim.OUTPUT / 'derived' / 'rtl')
     missing = set(swap) - set(sim.SYSTEM_RTL)
