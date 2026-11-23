@@ -758,7 +758,8 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(result['cores'], [])
                 self.assertEqual({k for k, v in result['lanes'].items() if v},
                                  {'parent', 'fpga', 'contracts'} if path.startswith('sources/')
-                                 else {'parent', 'fpga'})
+                                 else ({'parent', 'fpga', 'tamago'} if path.startswith('platform/embedded/tamago/')
+                                       else {'parent', 'fpga'}))
                 self.assertTrue(embedded_control_input(path))
                 self.assertTrue(native_fabric_input(path))
         self.assertEqual(set(plan([*EMBEDDED_TAPE_INPUTS,
@@ -783,7 +784,8 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(result['cores'], [])
                 self.assertEqual({k for k, v in result['lanes'].items() if v},
                                  {'parent', 'fpga', 'contracts'} if path.startswith('sources/')
-                                 else {'parent', 'fpga'})
+                                 else ({'parent', 'fpga', 'tamago'} if path.startswith('platform/embedded/tamago/')
+                                       else {'parent', 'fpga'}))
                 self.assertTrue(embedded_board_control_check_input(path))
         self.assertEqual(set(plan([*EMBEDDED_ROM_INPUTS,
             'sources/mister-packages/packages/fabric/unknown.yaml'])['cores']), set(CORES))
@@ -796,7 +798,8 @@ class AffectedTests(unittest.TestCase):
                      'sources/mister-packages/testdata/oracles/fes-embedded-computer.json'):
             with self.subTest(path=path):
                 result = plan([path])
-                lanes = {'parent', 'contracts'} if path.startswith('sources/') else {'parent'}
+                lanes = ({'parent', 'contracts'} if path.startswith('sources/')
+                         else {'parent', 'tamago'})
                 self.assertEqual(result['cores'], [])
                 self.assertEqual({k for k, v in result['lanes'].items() if v}, lanes)
         self.assertEqual(set(plan(['sources/mister-packages/packages/fabric/unknown.yaml'])['cores']), set(CORES))
@@ -871,6 +874,28 @@ class AffectedTests(unittest.TestCase):
         self.assertEqual(result['cores'], [])
         self.assertFalse(any(result['test_modes'].values()))
         self.assertTrue(native_compatibility_input(path))
+
+    def test_tamago_inputs_select_tamago_lane_without_broadening_unrelated_changes(self):
+        for path in (
+            'platform/embedded/tamago/gic/gic.go',
+            'platform/embedded/tamago/toolchain.lock.toml',
+            'platform/embedded/experiment.py',
+            'platform/embedded/nano/probe-profile.json',
+            'scripts/ci_tamago.sh',
+            'scripts/tamago_ci.py',
+            'tests/test_tamago_ci.py',
+        ):
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertEqual({k for k, v in result['lanes'].items() if v}, {'parent', 'tamago'})
+                self.assertEqual(result['cores'], [])
+        # TamaGo markdown docs still select no lanes.
+        doc_result = plan(['platform/embedded/tamago/README.md'])
+        self.assertFalse(any(doc_result['lanes'].values()))
+        # Unrelated host or FPGA edits do not select the tamago lane.
+        self.assertFalse(plan(['sources/FogCast/README.md'])['lanes']['tamago'])
+        self.assertFalse(plan(['sources/FogCast/host/lease.go'])['lanes']['tamago'])
+        self.assertFalse(plan(['sources/misteross/cores/fes-pong/rtl/pong.v'])['lanes']['tamago'])
 
 
 
