@@ -21,6 +21,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
+	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/serial"
 )
 
@@ -30,7 +31,7 @@ var nativeProgramPlatform tenfoot.Platform
 
 const tenfootSerialLinked = true
 
-func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store) {
+func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store, lease *sdcontrol.Session) {
 	uartIRQ := false
 	var activeGIC *gic.Controller
 	if g := de25nano.GIC(); g != nil {
@@ -57,6 +58,12 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 				panic(err)
 			}
 			defer serial.DisableIRQ(g)
+			if lease != nil {
+				if err := lease.EnableIRQ(g, de25nano.IRQSDMMC); err != nil {
+					panic(err)
+				}
+				defer lease.DisableIRQ()
+			}
 			uartIRQ = true
 			activeGIC = g
 		}
