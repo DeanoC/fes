@@ -147,7 +147,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		serialPlatform.EnableInstallerViews()
 	}
 	inputMode := "uart"
-	if expectedUSBControl != "" {
+	if expectedUSBControl != "" && expectedTenfootUARTOnly != "1" {
 		cleanupUSBIRQ, err := enableProgramUSBIRQ(activeGIC)
 		if err != nil {
 			panic(err)

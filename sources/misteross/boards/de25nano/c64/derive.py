@@ -205,14 +205,20 @@ def _derive(source, replacements, label):
                                 for a, b, n in replacements]}
 
 
-def retarget_machine(source):
+def retarget_machine(source, *, native=False):
     """Swap the linked ROM lanes for the uploaded firmware RAM; declare the CPU read bus first."""
     if b"MISTRAL" in source or b"c64_rom " in source.replace(ROM_BEFORE, b""):
         raise ValueError("C64 machine ROM adaptation contract changed")
     first_use = source.find(b"read_data")
     if first_use < 0 or first_use >= source.find(READ_BUS_BEFORE) or source.find(READ_BUS_ANCHOR) > first_use:
         raise ValueError("C64 machine read bus adaptation contract changed")
-    return _derive(source, ((ROM_BEFORE, ROM_AFTER, 1), (PORTS_BEFORE, PORTS_AFTER, 1),
+    fetch = ()
+    if native:
+        declaration = b"    output wire [15:0] debug_pc,\n"
+        connection = b".RDY(cpu_run_ce), .SO(1'b1)"
+        fetch = ((declaration, declaration + b"    output wire decoded,\n    output wire [15:0] decoded_address,\n", 1),
+                 (connection, connection + b",\n        .decoded(decoded), .decoded_address(decoded_address)", 1))
+    return _derive(source, ((ROM_BEFORE, ROM_AFTER, 1), (PORTS_BEFORE, PORTS_AFTER, 1), *fetch,
                             (READ_BUS_ANCHOR, READ_BUS_ANCHOR + READ_BUS_DECLARATION, 1),
                             (READ_BUS_BEFORE, READ_BUS_AFTER, 1), (RESET_BEFORE, RESET_AFTER, 1),
                             *((before, after, 1) for before, after in RESET_USES)), "C64 machine ROM")
@@ -266,3 +272,19 @@ def transport(source):
               source[source.index(TRANSPORT_MARKER):])
     return result, {"source_sha256": sha(source), "derived_sha256": sha(result),
                     "selection": "fes_de25_computer_transport and its two includes"}
+
+def retarget_cpu(source):
+    """Expose accepted opcode-decode activity in the native project only."""
+    ports = b"RDY, SO );"
+    declarations = b"wire nmi_take = branch_no_cross ? nmi_older : nmi_sampled;\n"
+    return _derive(source, (
+        (ports, b"RDY, SO, decoded, decoded_address );", 1),
+        (declarations, declarations + b"""
+output decoded;
+output [15:0] decoded_address;
+// The synchronous memory pipeline decodes the previous bus cycle's opcode.
+// A hardware interrupt substitutes its own opcode and is not a fetch sample.
+assign decoded = !reset && RDY && state == DECODE && !irq_take && !nmi_take && !IRHOLD_valid;
+assign decoded_address = {ABH, ABL};
+""", 1),
+    ), "C64 native opcode decode")

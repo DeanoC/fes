@@ -48,6 +48,8 @@ type ProgramServiceStatus struct {
 	ROMReceiptSHA256 string `json:"rom_receipt_sha256,omitempty"`
 	TapeSHA256       string `json:"tape_sha256,omitempty"`
 	TapeBytes        int    `json:"tape_bytes,omitempty"`
+	DiskSHA256       string `json:"disk_sha256,omitempty"`
+	DiskBytes        int    `json:"disk_bytes,omitempty"`
 	Held             bool
 	Error            string
 }
@@ -268,14 +270,16 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	if err = p.configure(ctx); err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
-	control, cancel := context.WithTimeout(ctx, 5*time.Second)
+	const controlTimeout = 5 * time.Second
+	controlDeadline := p.limits.Now().Add(controlTimeout)
+	control, cancel := context.WithTimeout(ctx, controlTimeout)
 	defer cancel()
 	p.computer, err = p.loader.OpenComputer(control, p.transfer, p.limits)
 	p.closed = false
 	if err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
-	execution, err := p.startExecution(control, view)
+	execution, err := p.startExecution(control, view, controlDeadline)
 	if err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
@@ -283,6 +287,10 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	if program := plan.state.program; program != nil && len(program.tape) != 0 {
 		sum := sha256.Sum256(program.tape)
 		view.TapeSHA256, view.TapeBytes = hex.EncodeToString(sum[:]), len(program.tape)
+	}
+	if program := plan.state.program; program != nil && len(program.disk) != 0 {
+		sum := sha256.Sum256(program.disk)
+		view.DiskSHA256, view.DiskBytes = hex.EncodeToString(sum[:]), len(program.disk)
 	}
 	p.viewMu.Lock()
 	p.execution, p.view = execution, view
@@ -390,6 +398,7 @@ func (s *ProgramService) finish(ctx context.Context, session ProgramSession, res
 	view.Identity, view.Held = fabricmodel.PackageIdentity{}, true
 	view.ROMReceiptSHA256 = ""
 	view.TapeSHA256, view.TapeBytes = "", 0
+	view.DiskSHA256, view.DiskBytes = "", 0
 	p.rearm = true
 	p.publish(view)
 	return observed, nil
