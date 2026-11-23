@@ -24,6 +24,10 @@ const (
 	IRQFPGA2HPS63 uint32 = 111 // SPI 79 (last FPGA-to-HPS interrupt)
 	FPGAIRQCount  uint32 = 64  // 64 FPGA-to-HPS doorbell lines (0..63)
 
+	// Logical FPGA-to-HPS doorbell line assignments (0..63 -> SPI 48..111).
+	FPGAIRQMenuVSync   uint32 = 0 // SPI 48: menu scanout frame/VSync completion
+	FPGAIRQComputerACK uint32 = 1 // SPI 49: computer mailbox command acknowledgement
+
 	IRQUSB0       uint32 = 125 // SPI 93  (DWC2 USB0)
 	IRQSDMMC      uint32 = 128 // SPI 96  (Cadence SDHCI)
 	IRQUART0      uint32 = 140 // SPI 108 (UART0)

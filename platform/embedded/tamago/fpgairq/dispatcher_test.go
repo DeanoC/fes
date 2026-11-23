@@ -399,3 +399,42 @@ func TestCrossDispatcherLineOwnership(t *testing.T) {
 		t.Fatalf("db2.Close: %v", err)
 	}
 }
+
+func TestYieldOrFallback(t *testing.T) {
+	// Nil doorbell with custom fallback calls fallback.
+	var fallbackCalls atomic.Int32
+	YieldOrFallback(nil, time.Millisecond, func() { fallbackCalls.Add(1) })()
+	if fallbackCalls.Load() != 1 {
+		t.Fatalf("fallbackCalls=%d, want 1", fallbackCalls.Load())
+	}
+
+	// Nil doorbell with nil fallback defaults to runtime.Gosched cleanly.
+	YieldOrFallback(nil, time.Millisecond, nil)()
+
+	// Active doorbell wakes early on IRQ without calling fallback.
+	ctrl, _ := newFakeGIC(t, 7)
+	disp, err := New(ctrl)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer disp.Close()
+
+	db, err := disp.Open(Config{Line: 0, Trigger: Edge})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	yield := YieldOrFallback(db, 50*time.Millisecond, func() { fallbackCalls.Add(1) })
+	start := time.Now()
+	go func() {
+		time.Sleep(2 * time.Millisecond)
+		db.TriggerPending()
+		ctrl.Dispatch()
+	}()
+	yield()
+	if time.Since(start) >= 40*time.Millisecond {
+		t.Fatal("YieldOrFallback did not wake early on doorbell IRQ")
+	}
+	if fallbackCalls.Load() != 1 {
+		t.Fatalf("fallback unexpectedly called with active doorbell: %d", fallbackCalls.Load())
+	}
+}

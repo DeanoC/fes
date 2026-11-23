@@ -291,6 +291,18 @@ func (d *Doorbell) YieldFunc(maxWait time.Duration) func() {
 	}
 }
 
+// YieldOrFallback returns db.YieldFunc(maxWait) when db is non-nil, or falls
+// back to fallback (or runtime.Gosched when fallback is nil).
+func YieldOrFallback(db *Doorbell, maxWait time.Duration, fallback func()) func() {
+	if db != nil {
+		return db.YieldFunc(maxWait)
+	}
+	if fallback != nil {
+		return fallback
+	}
+	return runtime.Gosched
+}
+
 // Close masks and unregisters the SPI, waits for any in-flight IRQ handler and
 // OnEvent callback to finish, releases the controller-wide line claim, and
 // unblocks any callers parked in Wait or YieldFunc. Idempotent. Callbacks must
