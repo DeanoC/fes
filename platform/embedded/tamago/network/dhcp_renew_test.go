@@ -479,3 +479,97 @@ func TestLeaseRenewerClearsStaleServerMACAfterRebindServerChange(t *testing.T) {
 		t.Fatal("renewer sent T1 request to stale old ServerMAC after rebinding to a new server")
 	}
 }
+
+func TestLeaseExpiryHaltsActiveLinkAndServerT1T2AndPacing(t *testing.T) {
+	// 1. Lease expiry halts an active *Link immediately (RFC 2131 §4.4.5) even with no OnError hook.
+	clientMACStr := "52:54:00:12:34:56"
+	dev := newFakeDHCPDevice(clientMACStr, false)
+	link := &Link{stack: &fakeStack{}, device: dev, state: &linkState{}}
+	ctx, cancel := context.WithCancel(context.Background())
+	linkDone := make(chan error, 1)
+	go func() { linkDone <- link.Start(ctx) }()
+	defer func() {
+		cancel()
+		<-linkDone
+	}()
+
+	ren, err := NewLeaseRenewer(link, clientMACStr, DHCPLease{
+		Address:       "10.0.2.15/24",
+		Gateway:       "10.0.2.2",
+		Server:        "10.0.2.2",
+		LeaseDuration: 24 * time.Millisecond,
+	}, RenewConfig{
+		RetryInterval: 3 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewLeaseRenewer: %v", err)
+	}
+	if err := ren.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for ren.Running() && time.Now().Before(deadline) {
+		time.Sleep(2 * time.Millisecond)
+	}
+	ren.Stop()
+	if !errors.Is(ren.Err(), ErrLeaseExpired) {
+		t.Fatalf("ren.Err()=%v, want ErrLeaseExpired", ren.Err())
+	}
+	if !errors.Is(link.Err(), ErrLeaseExpired) {
+		t.Fatalf("link.Err()=%v, want ErrLeaseExpired (active Link was not halted on expiry)", link.Err())
+	}
+	if err := link.SendRawFrame(make([]byte, 60)); !errors.Is(err, ErrLeaseExpired) {
+		t.Fatalf("SendRawFrame after expiry err=%v, want ErrLeaseExpired", err)
+	}
+
+	// 2. Server-supplied T1 (option 58) and T2 (option 59) are parsed and honored by leaseTimers.
+	clientMAC, _ := parseUnicastMAC(clientMACStr)
+	serverIP := [4]byte{10, 0, 2, 2}
+	clientIP := [4]byte{10, 0, 2, 15}
+	mask := [4]byte{255, 255, 255, 0}
+	opts := makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &serverIP, 3600)
+	// Strip trailing End (255), append option 58 (600s) and option 59 (1200s) and End.
+	opts = opts[:len(opts)-1]
+	opts = append(opts, dhcpOptRenewalTime, 4, 0, 0, 0x02, 0x58) // 600s
+	opts = append(opts, dhcpOptRebindTime, 4, 0, 0, 0x04, 0xb0)  // 1200s
+	opts = append(opts, dhcpOptEnd)
+	frame := makeServerReplyFrame(clientMAC, clientMAC, serverIP, clientIP, 0x11223344, opts, false)
+	parsed, ok := parseDHCPFrame(frame, clientMAC, 0x11223344)
+	if !ok {
+		t.Fatal("failed to parse ACK with option 58/59")
+	}
+	lease, ok := buildValidatedLease(parsed)
+	if !ok || lease.RenewalTime != 600*time.Second || lease.RebindTime != 1200*time.Second {
+		t.Fatalf("option 58/59 lease=%+v ok=%t", lease, ok)
+	}
+	t1, t2 := leaseTimers(lease)
+	if t1 != 600*time.Second || t2 != 1200*time.Second {
+		t.Fatalf("leaseTimers=(%v, %v), want (10m, 20m)", t1, t2)
+	}
+	// Earlier server-defined T2 clamps default T1 so rebind is never skipped.
+	earlyT2 := DHCPLease{LeaseDuration: time.Hour, RebindTime: 15 * time.Minute}
+	t1, t2 = leaseTimers(earlyT2)
+	if t1 != 15*time.Minute || t2 != 15*time.Minute {
+		t.Fatalf("early T2 leaseTimers=(%v, %v), want (15m, 15m)", t1, t2)
+	}
+
+	// 3. RFC 2131 §4.4.5 remaining-time retry pacing.
+	if got := nextRenewWait(context.Background(), defaultRenewMinInterval); got != defaultRenewMinInterval {
+		t.Fatalf("no-deadline nextRenewWait=%v, want %v", got, defaultRenewMinInterval)
+	}
+	longCtx, longCancel := context.WithTimeout(context.Background(), 9*time.Hour)
+	defer longCancel()
+	if got := nextRenewWait(longCtx, defaultRenewMinInterval); got < 4*time.Hour || got > 5*time.Hour {
+		t.Fatalf("9h remaining nextRenewWait=%v, want ~4.5h", got)
+	}
+	midCtx, midCancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer midCancel()
+	if got := nextRenewWait(midCtx, defaultRenewMinInterval); got != defaultRenewMinInterval {
+		t.Fatalf("90s remaining nextRenewWait=%v, want 60s floor", got)
+	}
+	shortCtx, shortCancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer shortCancel()
+	if got := nextRenewWait(shortCtx, defaultRenewMinInterval); got <= 0 || got > 20*time.Second {
+		t.Fatalf("20s remaining nextRenewWait=%v, want (0, 20s]", got)
+	}
+}

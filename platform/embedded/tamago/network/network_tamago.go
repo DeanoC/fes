@@ -31,6 +31,7 @@ type Interface struct {
 	device          Device
 	bridge          *Link
 	ctx             context.Context
+	stop            context.CancelCauseFunc
 	irqEnabled      atomic.Bool
 	lease           DHCPLease
 	leaseAcquiredAt time.Time
@@ -124,7 +125,7 @@ func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease
 	cfg.MaxActiveTCPPorts = 16
 	cfg.MaxListenerConns = 8
 	runCtx, stop := context.WithCancelCause(ctx)
-	iface := &Interface{config: c, device: nic, ctx: runCtx, lease: lease, leaseAcquiredAt: leaseAcquiredAt, hasLease: hasLease}
+	iface := &Interface{config: c, device: nic, ctx: runCtx, stop: stop, lease: lease, leaseAcquiredAt: leaseAcquiredAt, hasLease: hasLease}
 	backoff := func(consecutive uint) time.Duration {
 		if !iface.irqEnabled.Load() || consecutive == 0 {
 			return lneto.BackoffFlagGosched
@@ -178,8 +179,10 @@ func (i *Interface) Lease() (DHCPLease, bool) {
 
 // NewLeaseRenewer creates an opt-in RFC 2131 DHCPv4 T1/T2 LeaseRenewer wired
 // to this interface's active *Link (preserving its pause/DMA failure gate and
-// original lease acquisition timestamp). Returns ErrDHCPInvalidConfig if the
-// interface was not opened via DHCP.
+// original lease acquisition timestamp). If the lease expires, is NAK'd, or
+// changes IP/gateway, the interface and link are halted immediately per
+// RFC 2131 §4.4.5 so traffic stops using the unleased address.
+// Returns ErrDHCPInvalidConfig if the interface was not opened via DHCP.
 func (i *Interface) NewLeaseRenewer(cfg RenewConfig) (*LeaseRenewer, error) {
 	if i == nil || !i.hasLease || i.bridge == nil || i.device == nil {
 		return nil, fmt.Errorf("%w: interface has no active DHCP lease", ErrDHCPInvalidConfig)
@@ -187,7 +190,17 @@ func (i *Interface) NewLeaseRenewer(cfg RenewConfig) (*LeaseRenewer, error) {
 	if cfg.AcquiredAt.IsZero() {
 		cfg.AcquiredAt = i.leaseAcquiredAt
 	}
-	return NewLeaseRenewer(i.bridge, i.device.MAC(), i.lease, cfg)
+	ren, err := NewLeaseRenewer(i.bridge, i.device.MAC(), i.lease, cfg)
+	if err != nil {
+		return nil, err
+	}
+	ren.onTerminal = func(err error) {
+		i.bridge.fail(err)
+		if i.stop != nil {
+			i.stop(err)
+		}
+	}
+	return ren, nil
 }
 
 // EnableIRQ routes the underlying NIC's RX interrupt through g so Link.Start

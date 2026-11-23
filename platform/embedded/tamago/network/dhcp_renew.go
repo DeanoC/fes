@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	defaultRenewRetryInterval = 250 * time.Millisecond
-	maxRenewRetryInterval     = 2 * time.Second
+	// RFC 2131 §4.4.5 recommends waiting half of the remaining time until T2 or
+	// lease expiration, down to a minimum of 60 seconds, between renewal retries.
+	defaultRenewMinInterval = 60 * time.Second
 )
 
 var (
@@ -97,9 +98,9 @@ func RenewDHCPOnce(ctx context.Context, port DHCPFramePort, macStr string, curre
 	if hostname == "" {
 		hostname = "fes-native"
 	}
-	retry := cfg.RetryInterval
-	if retry == 0 {
-		retry = defaultRenewRetryInterval
+	minInterval := cfg.RetryInterval
+	if minInterval == 0 {
+		minInterval = defaultRenewMinInterval
 	}
 	xid := cfg.XID
 	if xid == 0 {
@@ -151,7 +152,6 @@ func RenewDHCPOnce(ctx context.Context, port DHCPFramePort, macStr string, curre
 	})
 	defer remove()
 
-	interval := retry
 	for {
 		if err := ctx.Err(); err != nil {
 			return DHCPLease{}, err
@@ -165,7 +165,14 @@ func RenewDHCPOnce(ctx context.Context, port DHCPFramePort, macStr string, curre
 				return DHCPLease{}, err
 			}
 		}
-		timer := time.NewTimer(interval)
+		wait := nextRenewWait(ctx, minInterval)
+		if wait <= 0 {
+			if err := ctx.Err(); err != nil {
+				return DHCPLease{}, err
+			}
+			return DHCPLease{}, context.DeadlineExceeded
+		}
+		timer := time.NewTimer(wait)
 		select {
 		case res := <-replyCh:
 			timer.Stop()
@@ -175,11 +182,29 @@ func RenewDHCPOnce(ctx context.Context, port DHCPFramePort, macStr string, curre
 			return DHCPLease{}, ctx.Err()
 		case <-timer.C:
 		}
-		interval *= 2
-		if interval > maxRenewRetryInterval {
-			interval = maxRenewRetryInterval
-		}
 	}
+}
+
+// nextRenewWait implements RFC 2131 §4.4.5 retransmission pacing: half of the
+// remaining phase duration down to minInterval (default 60s), never exceeding
+// the remaining deadline.
+func nextRenewWait(ctx context.Context, minInterval time.Duration) time.Duration {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return minInterval
+	}
+	rem := time.Until(deadline)
+	if rem <= 0 {
+		return 0
+	}
+	wait := rem / 2
+	if wait < minInterval {
+		wait = minInterval
+	}
+	if wait > rem {
+		wait = rem
+	}
+	return wait
 }
 
 // LeaseRenewer runs an opt-in RFC 2131 T1/T2 DHCPv4 lease renewal loop.
@@ -189,6 +214,7 @@ type LeaseRenewer struct {
 	mac        string
 	cfg        RenewConfig
 	acquiredAt time.Time
+	onTerminal func(error)
 
 	mu       sync.Mutex
 	started  bool
@@ -299,9 +325,37 @@ func (r *LeaseRenewer) fail(err error) {
 		r.lastErr = err
 	}
 	r.mu.Unlock()
+	// RFC 2131 §4.4.5: stop network processing immediately when a lease expires,
+	// is NAK'd, or changes address so the stack never transmits with an unleased IP.
+	if r.onTerminal != nil {
+		r.onTerminal(err)
+	} else if f, ok := r.port.(interface{ fail(error) }); ok {
+		f.fail(err)
+	}
 	if r.cfg.OnError != nil {
 		r.cfg.OnError(err)
 	}
+}
+
+func leaseTimers(l DHCPLease) (t1, t2 time.Duration) {
+	t1 = l.LeaseDuration / 2
+	t2 = (l.LeaseDuration * 7) / 8
+	if l.RenewalTime > 0 && l.RenewalTime < l.LeaseDuration {
+		t1 = l.RenewalTime
+	}
+	if l.RebindTime > 0 && l.RebindTime < l.LeaseDuration {
+		t2 = l.RebindTime
+	}
+	if t2 < t1 {
+		t1 = t2
+	}
+	if t1 <= 0 {
+		t1 = time.Millisecond
+	}
+	if t2 <= 0 {
+		t2 = l.LeaseDuration
+	}
+	return t1, t2
 }
 
 func (r *LeaseRenewer) loop(parent context.Context) {
@@ -324,14 +378,7 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 	loopCfg := r.cfg
 	for {
 		current := r.Lease()
-		t1 := current.LeaseDuration / 2
-		t2 := (current.LeaseDuration * 7) / 8
-		if t1 <= 0 {
-			t1 = time.Millisecond
-		}
-		if t2 <= t1 {
-			t2 = current.LeaseDuration
-		}
+		t1, t2 := leaseTimers(current)
 		t1At := acquiredAt.Add(t1)
 		t2At := acquiredAt.Add(t2)
 		expireAt := acquiredAt.Add(current.LeaseDuration)
@@ -497,6 +544,8 @@ func mergeRenewedLease(current DHCPLease, r dhcpParsedReply) (DHCPLease, bool) {
 		Server:        server,
 		DNS:           dns,
 		LeaseDuration: r.leaseTime,
+		RenewalTime:   r.renewalTime,
+		RebindTime:    r.rebindTime,
 	}, true
 }
 
@@ -515,7 +564,7 @@ func buildDHCPRenewFrame(srcMAC, dstMAC [6]byte, clientIP, dstIP [4]byte, xid ui
 		opts.Write([]byte{dhcpOptHostname, byte(len(hostname))})
 		opts.WriteString(hostname)
 	}
-	opts.Write([]byte{dhcpOptParamList, 5, dhcpOptSubnetMask, dhcpOptRouter, dhcpOptDNS, dhcpOptLeaseTime, dhcpOptServerID})
+	opts.Write([]byte{dhcpOptParamList, 7, dhcpOptSubnetMask, dhcpOptRouter, dhcpOptDNS, dhcpOptLeaseTime, dhcpOptServerID, dhcpOptRenewalTime, dhcpOptRebindTime})
 	opts.WriteByte(dhcpOptEnd)
 	for opts.Len() < 64 {
 		opts.WriteByte(dhcpOptPad)
