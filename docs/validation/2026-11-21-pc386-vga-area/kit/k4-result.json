@@ -1,0 +1,49 @@
+{
+ "kit": "B",
+ "package": "73a4873d9ead77344c6d4139dde2272ef7ef5064cce772e2dd5dc29a670a4058.fcore",
+ "drive": "real",
+ "drive_sha256": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+ "library_game": "s4-dos-c732y5fwjzc4",
+ "nonce": "C732Y5FWJZC4",
+ "goals": {
+  "freedos": {
+   "pass": true,
+   "seconds_to_detect": 2.2,
+   "frame": "frames/freedos-prompt.png"
+  },
+  "wolf3d": {
+   "pass": true,
+   "graphics": true,
+   "lit": 0.938,
+   "changed_after_walk": 0.562,
+   "frames": [
+    "frames/wolf3d-floor1.png",
+    "frames/wolf3d-walked.png"
+   ]
+  }
+ },
+ "events": [],
+ "claim": "## 2026-11-21T19:15:48+02:00 KIT B IN USE: Claude (pc386 VGA area session for Deano) \u2014 branch deano/pc386-vga-area @ 459381f3d, DE10 seal BUILD_ID 8de03af6, package 73a4873d (k2/k3 sent a wrong packag",
+ "kit_created": [
+  "/media/fat/fogcast/core-data/games/5c87d6dd018c7b08279e2acf74d84433cc8f8ffbabd6f2c0b885fc3818c51e89",
+  "/media/fat/fogcast/core-data/media/92ed4355112529343687123dcf76202adbe147b7c113424fe061889c1cd25c14",
+  "/media/fat/fogcast/disk-images/a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c.img"
+ ],
+ "readback": {
+  "dos": true,
+  "notepad": true,
+  "files": {
+   "WFWDOS.TXT": null,
+   "WFWNOTE.TXT": null
+  }
+ },
+ "after": {
+  "agent": "idle",
+  "lease": "free",
+  "rebooted": false,
+  "left": [],
+  "recovery_required": false
+ },
+ "failure": null,
+ "pass": true
+}

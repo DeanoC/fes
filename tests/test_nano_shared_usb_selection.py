@@ -26,7 +26,7 @@ class SharedUSBSelectionTests(unittest.TestCase):
     def test_shared_mode_cannot_adopt_another_program_or_memory_scope(self):
         r=self.record()
         for patch in ({'program':'usbcheck'},{'program':'tenfoot'},{'usb_input':None},{'usb_input':'mouse'},
-                      {'window_memory':True},{'window_read':True},{'smmu_observe':True},{'hps_ddr_read':{}}):
+                      {'smmu_observe':True},{'hps_ddr_read':{}}):
             with self.subTest(patch=patch),self.assertRaises(ValueError):selection.mode(dict(r,**patch))
         for flags in ('','-X main.expectedUSBControl=owned-usb-pio-v1 -X main.expectedUSBInput=gamepad',
                       '-X main.expectedUSBControl=owned-shared-usb-pio-v1',

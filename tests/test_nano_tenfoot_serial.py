@@ -10,14 +10,14 @@ entry=importlib.util.module_from_spec(spec);spec.loader.exec_module(entry)
 class TenfootSerialSelectionTests(unittest.TestCase):
     def receipt(self,flags='-X main.expectedTenfootSerial=1'):
         return dict(tenfoot_serial=True,selected_programs=True,computer_reload=True,computer_storage_return=True,
-                    hps_computer={},window_memory=False,command=['compiler','build','-tags=de25nano,de25tenfootserial','-ldflags',flags])
+                    hps_computer={},command=['compiler','build','-tags=de25nano,de25tenfootserial','-ldflags',flags])
 
     def test_exact_selection_tags_and_link_command(self):
         self.assertTrue(entry.tenfoot_serial_option(self.receipt()))
         self.assertFalse(entry.tenfoot_serial_option(dict(command=['compiler','build','-tags=de25nano','-ldflags','-s -w'])))
         for key,value in [('tenfoot_serial',1),('tenfoot_serial',None),('selected_programs',False),
                           ('selected_programs',1),('computer_reload',False),('computer_storage_return',False),
-                          ('hps_computer',None),('window_memory',True),('window_memory',1),('command',[])]:
+                          ('hps_computer',None),('command',[])]:
             with self.subTest(key=key,value=value),self.assertRaises(ValueError):
                 entry.tenfoot_serial_option(dict(self.receipt(),**{key:value}))
         for flags in ['', 'main.expectedTenfootSerial=1','-X=main.expectedTenfootSerial=1',

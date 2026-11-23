@@ -28,11 +28,14 @@ function draw() end`
 		stepUntil(t, r, func(Frame) bool { return r.CheckGlobal(`got ~= nil`) == nil })
 		check := `#got == 3
 			and systems.by_id["fes.c64"] and systems.by_id["fes.atari-st"] and not systems.by_id["fes.coleco"]
+			and not systems.by_id["fes.c64-ntsc"]
 			and systems.by_id["fes.pcxt-dos"] and systems.by_id["fes.pc386"]
 			and systems.by_id["fes.pc386"].hint == "Choose a machine setup and hard disk image"
 			and not room.core_shown("fes.pong") and room.core_shown("fes.pc386") and room.core_shown("fes.pentagon")`
 		if !releaseOnly {
-			check = `#got == 4 and systems.by_id["fes.coleco"] and room.core_shown("fes.pong")`
+			check = `#got == 4 and systems.by_id["fes.coleco"] and room.core_shown("fes.pong")
+				and systems.family_by_core["fes.c64-ntsc"] == systems.family_by_core["fes.c64"]
+				and systems.family_by_core["fes.c64"].variants[1].id == "fes.c64"`
 		}
 		if err := r.CheckGlobal(check); err != nil {
 			t.Fatalf("release only %v: %v", releaseOnly, err)

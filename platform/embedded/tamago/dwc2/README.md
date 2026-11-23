@@ -1,7 +1,8 @@
 # DWC2 polling USB host (DE25-Nano)
 
-`dwc2` implements a polling PIO USB 2 host driver for DE25-Nano USB0
-(`0x10b00000`) with no DMA buffers, GIC interrupts or Linux dependencies.
+`dwc2` implements a PIO USB 2 host driver for DE25-Nano USB0 (`0x10b00000`)
+with no DMA buffers or Linux dependencies, defaulting to polling mode with
+optional opt-in GICv3 SPI interrupt wakeups (`EnableIRQ` / `Ready()`).
 QEMU retains its separate xHCI backend in [usb](../usb/README.md); both share
 the USB descriptor, boot-report and HID gamepad decoders.
 
@@ -37,6 +38,14 @@ the USB descriptor, boot-report and HID gamepad decoders.
   periodic toggle attempt cleanly), checks intact link and idle channels, and
   blocks all MMIO while paused. `ResumePolling` clears local pause without
   re-enumerating the device.
+- **Optional GICv3 SPI wakeups:** `EnableIRQ(g, de25nano.IRQUSB0)` routes
+  Agilex 5 USB0 SPI 125 into a level-safe handler that immediately masks
+  `GINTMSK=0` and wakes `Ready()` while leaving `GINTSTS`, RX FIFO status and
+  `HCINT` intact for `PollKeyboard` / `PollGamepad`. `PausePolling` suspends
+  the SPI and clears `GINTMSK`, `HAINTMSK` and `GAHBCFG.GLBLINTRMSK` before
+  entering the zero-MMIO paused state; `fail` and `DisableIRQ` permanently
+  mask and unregister the SPI. DMA and descriptor DMA remain forbidden in both
+  polling and IRQ modes.
 - **Fail-closed retirement:** Disconnect, STALL, unexpected RX/PID, frame
   overrun, unexpected DMA enable or expired bounds permanently retire the host
   (retaining a read-only register snapshot and 8-command history for diagnosis).

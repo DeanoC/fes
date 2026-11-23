@@ -918,7 +918,7 @@
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
       "features": "Media: read-only D64 (`fes.media.c64-disk`) and linked `c64-firmware`. No disk-write interface on the producer. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60. The producer requires `fes.video.session-display` and `fes.fabric.video.display-plane`, and `cores/fes-c64/rtl/top.v` instantiates `fes_display_plane`. `docs/display-pipeline.md` still lists this shell's plane as Planned. CPU: shared `cpu6502`, plus a native 1541. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Library standing `experimental`. Not in the bootstrap image. Dated kit notes accept only the packages they name. No Commodore ROM is shipped. This row is PAL 6569. NTSC is fes.c64-ntsc, Bring-up (queued).",
+      "notes": "Library standing `experimental`. Not in the bootstrap image. Dated kit notes accept only the packages they name. No Commodore ROM is shipped. This row is PAL 6569. NTSC is fes.c64-ntsc, a separate experimental DE10 package.",
       "evidence": [
         "config/core-recipes.toml",
         "config/core-library.toml",
@@ -971,28 +971,31 @@
       "release": "held-back",
       "covers": [],
       "paths": [],
-      "recipe": false,
-      "library_standing": null,
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "no oracle required",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_c64_oss.py",
+      "library_standing": "experimental",
       "in_bootstrap_image": false,
-      "oss_lock": null,
-      "board": "none",
-      "router": "No package and no producer.",
-      "quartus": "No Quartus flow. The shipped C64 package is PAL.",
-      "features": "No package. No media, input or HDMI of its own.",
-      "notes": "Deano 2026-10-29: Bring-up (queued). The C64 README says NTSC and 8565 grey-dot behavior remain unqualified. No NTSC model or package.",
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-c64/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "5fe55f3d"
+      },
+      "board": "de10",
+      "router": "DE10 nextpnr GPU route with the C64 timing constraints.",
+      "quartus": "No Quartus producer for the DE10 C64.",
+      "features": "6567R8 NTSC, 65 cycles per line and 263 lines per frame. Linked 36 KiB firmware, native 1541 read-only D64, keyboard, two joysticks and fixed 720p60 HDMI.",
+      "notes": "Experimental DE10 library selection. The default C64 package remains PAL.",
       "evidence": [
         "sources/misteross/cores/fes-c64/README.md"
       ],
-      "oss_note": "No toolchain lock. No NTSC bitstream.",
       "tier_role": "play",
       "family": "c64",
       "variant": "NTSC",
       "display": "C64 (NTSC)",
-      "tier_override": {
-        "tier": "bring-up-queued",
-        "reason": "Deano 2026-10-29",
-        "note": "Queued. The shipped package is PAL 6569. The C64 README says NTSC and 8565 grey-dot remain unqualified. No NTSC model or package."
-      },
       "signals": {
         "as_of": "2026-10-29",
         "window_start": "2026-08-30",
@@ -1010,10 +1013,15 @@
         "open_issues": [],
         "media_gen": "none",
         "image_role": "none",
-        "catalog_standing": null
+        "catalog_standing": "experimental"
       },
       "quality_tier": null,
-      "check_level": "none"
+      "check_level": "none",
+      "tier_override": {
+        "tier": "bring-up-queued",
+        "reason": "Deano 2026-10-29",
+        "note": "The NTSC recipe and library entry are available. Release standing remains held back."
+      }
     },
     {
       "id": "fes.spectrum",
@@ -1645,7 +1653,7 @@
       "in_bootstrap_image": false,
       "oss_lock": {
         "path": "sources/misteross/cores/fes-pc386/toolchain.lock",
-        "yosys": "e240a465",
+        "yosys": "d273c1cb",
         "mistral": "8fcc4cb4",
         "nextpnr": "bd7a1c0d"
       },
@@ -1721,7 +1729,7 @@
       "in_bootstrap_image": false,
       "oss_lock": {
         "path": "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",
-        "yosys": "e240a465",
+        "yosys": "d273c1cb",
         "mistral": "8fcc4cb4",
         "nextpnr": "bd7a1c0d"
       },
@@ -1730,7 +1738,7 @@
       "router": "nextpnr routes of this CPU are parked (#1235), and the Phase 1 spike numbers in the CPU design doc are labelled historical. Not a package producer and not a recipe row.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker; since #1235 no new nextpnr route of this CPU is made at all. Quartus 17.0.2 fits the same Yosys netlist (`scripts/quartus_fes_i386.py`), and every current seal of the CPU comes through the pc386 package. The far-transfer record, about 69-74 MHz nextpnr against about 98-104 MHz Quartus, is the historical spike behind that policy (DeanoC/nextpnr#300, `docs/i386-cpu-design.md`). Recipe and package selection for a labelled variant are not implemented.",
       "features": "Not a system package. No media, HDMI, Bluetooth or mesh of its own. The twelve-stage F1-WB pipeline, the L1s and BIU, protected mode and Phase 4's speed work (BTB, return stack, indirect prediction, early ALU and load forwarding) are built; Phase 5 (paging, V86, task switches and the debug registers) is in progress under tracker #1548. The 387 is further on than a plan: since x87 slice 2 (#1768) its state, CPU interface, AT error path, loads, stores and conversions are built in `fes_i386_cpu`, with the arithmetic in slices 3 to 5. The pc386 machine is its consumer: the development package `fes.pc386` seals it with Quartus 17.0.2, and that seal is where this RTL's kit evidence is recorded.",
-      "notes": "Shared CPU RTL. Device `5CSEBA6U23I7` in the spike harness. Yosys pin `e240a465` is newer than the repository lock's `3a5accbd`; it is the pc386 lock's pin, so one Yosys reads the CPU (#1581 D2, S4).",
+      "notes": "Shared CPU RTL. Device `5CSEBA6U23I7` in the spike harness. Yosys pin `d273c1cb` is newer than the repository lock's `3a5accbd`; it is the pc386 lock's pin, so one Yosys reads the CPU (#1581 D2, S4; yosys#81).",
       "evidence": [
         "sources/misteross/docs/i386-cpu-design.md",
         "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",
@@ -1987,7 +1995,7 @@
     "A play row with media_gen old and owned RTL on or after the recent cutoff derives to unresolved. That result is not a displayed tier. A tier_override with reason Deano 2026-10-29 replaces it.",
     "Coleco derives to unresolved and is Aging by that override. Work toward Current is in progress and still needs work (media handling and the wider Coleco work).",
     "Spectrum and Atari ST derive to current. The same override confirms that tier. Their kit HIL pass on the latest RTL is pending and expected soon.",
-    "C64 NTSC and Atari STE have no package. Their override tier is bring-up-queued.",
+    "C64 NTSC and Atari STE retain the bring-up-queued override.",
     "Spectrum +2 is a ROM variant of fes.spectrum128 (kind rom). It is the same core and the same model, with a different ROM. Deano 2026-10-29.",
     "quality_tier and check_level are not inputs to the tier rule. quality_tier cites the forward plan's ladder; check_level is derived from it, from tier_role and from the bring-up-queued tier, which is the one place a tier feeds the check level. check_level carries the hard rule beside D12 in AGENTS.md, accepted by Deano 2026-11-15."
   ],

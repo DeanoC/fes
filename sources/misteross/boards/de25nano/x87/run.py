@@ -52,13 +52,7 @@ def main() -> int:
                 return False
         return True
 
-    # Verilation stays single-threaded (#1925). The pinned Verilator 5.032 runs
-    # V3FuncOpt on worker threads, and its concat balancing races on the shared
-    # dtype table, corrupting the heap on about 4% of runs at 4 threads.
-    # Upstream made that pass serial in verilator/verilator#6440 (first in
-    # 5.042). Verilation takes 0.05 s; only the C++ build uses --jobs.
-    command = [verilator, '--cc', '--exe', '--build', '--build-jobs', str(args.jobs),
-               '--verilate-jobs', '1', '-O3',
+    command = [verilator, '--cc', '--exe', '--build', '-j', str(args.jobs), '-O3',
                '--top-module', 'fes_x87_pipe', '-Wall', '-Wno-UNUSEDSIGNAL',
                '--Mdir', str(OUTPUT), '-CFLAGS', '-std=c++17 -O2',
                *map(str, sources), str(ROOT / 'sim/x87_pipe_tb.cpp')]

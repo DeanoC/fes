@@ -217,8 +217,8 @@ ignores skip flags and does not rewrite `unavailable-cores.json`. It reuses
 the omission recorded in `inputs.json` and does not place-and-route that core
 again. The two skip forms conflict with `FES_REQUIRE_ALL_CORES=1`.
 
-CI simulations use Verilator 5.032 at source commit
-`8ff77e9d47351b0a59114929880687839a51840b`, selected by
+CI simulations use Verilator 5.054 at source commit
+`bbb60a403932a9f695cb6ff001ceb73de6ad9234`, selected by
 [`scripts/ci_verilator.sh`](../scripts/ci_verilator.sh). This simulation baseline
 is independent of the synthesis toolchain locks; neither Ubuntu's older default
 Verilator nor a development snapshot is substituted automatically. CI caches the

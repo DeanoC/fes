@@ -11,14 +11,19 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
+	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
 	"github.com/usbarmory/tamago/dma"
 )
 
 const Name = "de25-nano"
 
-func ExceptionLevel() uint64   { return de25nano.ExceptionLevel() }
-func CounterFrequency() uint64 { return de25nano.CounterFrequency() }
-func GIC() *gic.Controller     { return de25nano.GIC() }
+func ExceptionLevel() uint64            { return de25nano.ExceptionLevel() }
+func CounterFrequency() uint64          { return de25nano.CounterFrequency() }
+func GIC() *gic.Controller              { return de25nano.GIC() }
+func PSCI() *psci.Client                { return de25nano.PSCI() }
+func PowerOff() error                   { return de25nano.PowerOff() }
+func Reset() error                      { return de25nano.Reset() }
+func EntropySource() psci.EntropySource { return de25nano.EntropySource() }
 
 // PIO storage needs no DMA. Devices map only their explicit profile-owned DMA/display windows.
 func InitDevices() (*dma.Region, error)  { return nil, de25nano.InitDevices() }
