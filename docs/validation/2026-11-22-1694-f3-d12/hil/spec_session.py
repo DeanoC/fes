@@ -3,7 +3,8 @@
 
 usage: spec_session.py MODEL KIT ARCHIVE.fcore HEAD RUN
 
-MODEL is spectrum128 or pentagon. The claim, baseline probe, data-tree delta
+MODEL is spectrum128, pentagon or plus3. Each menu's first item is its tape
+loader (Tape Loader on the 128K and Pentagon, Loader on the +3). The claim, baseline probe, data-tree delta
 and release follow the #2128 C64 core-only wrapper: the kit must be logged
 FREE on the baseline named in ~/fes-hil/baselines/current-restore.json, with an
 idle agent and a free lease, and the image, bundle, lease and launcher state
@@ -21,7 +22,9 @@ import argparse, datetime, fcntl, hashlib, json, pathlib, re, subprocess, sys, t
 ROMS = {'spectrum128': ('fes.spectrum128', 'sinclair/spectrum-128.rom',
                         'c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72'),
         'pentagon': ('fes.pentagon', 'sinclair/pentagon-trd503.rom',
-                     '3ef7872a0769ddf55a207b0178277fbb39d446169886c1c2f7a8b5d662b5f16f')}
+                     '3ef7872a0769ddf55a207b0178277fbb39d446169886c1c2f7a8b5d662b5f16f'),
+        'plus3': ('fes.spectrum-plus3', 'sinclair/spectrum-plus3.rom',
+                  'ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2')}
 p = argparse.ArgumentParser()
 p.add_argument('model', choices=ROMS); p.add_argument('kit', choices=['A', 'B'])
 p.add_argument('archive', type=pathlib.Path); p.add_argument('head'); p.add_argument('run')
@@ -50,12 +53,12 @@ run.mkdir(parents=True, mode=0o700)
 out = run / 'snapshots'; out.mkdir()
 plan = {'package': str(a.archive.resolve()), 'package_id': package_id, 'firmware': str(rom),
         'games': {'machine': f'{core_id} F3 D12 {a.run}'}, 'disks': {'tape': str(tape)},
-        'media_role': 'cassette'}
+        'media_role': 'cassette', 'rom_id': {'spectrum128': 'spectrum128-firmware', 'pentagon': 'pentagon-firmware', 'plus3': 'spectrum-plus3-firmware'}[model]}
 (run / 'plan.json').write_text(json.dumps(plan, indent=1))
 script = [
     {'op': 'launch', 'game': 'machine', 'disk': 'tape'},
     {'op': 'sleep', 's': 8}, {'op': 'grab', 'name': 'menu'},
-    {'op': 'key', 'name': 'enter'},                       # Tape Loader is the menu's first item
+    {'op': 'key', 'name': 'enter'},                       # the tape loader is the menu's first item
     {'op': 'sleep', 's': 25}, {'op': 'grab', 'name': 'loaded'},
     {'op': 'key', 'name': 'space'},                       # breaks PAUSE 0
     {'op': 'sleep', 's': 2}, {'op': 'grab', 'name': 'break'},

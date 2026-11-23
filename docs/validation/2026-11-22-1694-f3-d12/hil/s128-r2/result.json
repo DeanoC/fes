@@ -1,0 +1,190 @@
+{
+ "kit": "A",
+ "plan": {
+  "package": "/data/fes-f3-d12/c23-p2/7eca1fb1f58357f377287e764457c261d0ad11047bdc7fd4baa63c9d8bae30de.fcore",
+  "package_id": "7eca1fb1f58357f377287e764457c261d0ad11047bdc7fd4baa63c9d8bae30de",
+  "firmware": "/home/deano/roms/sinclair/spectrum-128.rom",
+  "games": {
+   "machine": "fes.spectrum128 F3 D12 s128-r2"
+  },
+  "disks": {
+   "tape": "/data/fes-f3-d12/hil/media/fes-hil.tap"
+  },
+  "media_role": "cassette",
+  "rom_id": "spectrum128-firmware"
+ },
+ "events": [
+  {
+   "op": "import",
+   "package_id": "7eca1fb1f58357f377287e764457c261d0ad11047bdc7fd4baa63c9d8bae30de",
+   "archive_sha256": "f58463d5a42e70cac15944bd61bb46b565465fbd38034788b879702b00dce76b",
+   "compatible": true,
+   "compat": "{'package_id': '7eca1fb1f58357f377287e764457c261d0ad11047bdc7fd4baa63c9d8bae30de', 'descriptor': {'rom': {'id': 'spectrum128-firmware', 'role': 'firmware', 'source_size': 32768, 'file': 'rom-map.json', 'size': 2967557, 'sha256': '319169fcb76b4a84ead7cdfde97587ebe0af0dcf29150c610b7bc4bb1ffb1b8b'}, 'f",
+   "t": 3.92
+  },
+  {
+   "op": "upload",
+   "file": "spectrum-128.rom",
+   "sha256": "c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72",
+   "media_id": "c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72",
+   "t": 3.98
+  },
+  {
+   "op": "entry",
+   "game": "machine",
+   "game_id": "fpga-fes-spectrum128-f3-d12-s128-r2-2ae63e8dbcf8",
+   "rom_id": "spectrum128-firmware",
+   "t": 11.54
+  },
+  {
+   "op": "upload",
+   "file": "fes-hil.tap",
+   "sha256": "2949834a889dbb4bfa73c3ed66b5d16a1046128ad46f8e329ce9a0183ec236a5",
+   "media_id": "2949834a889dbb4bfa73c3ed66b5d16a1046128ad46f8e329ce9a0183ec236a5",
+   "t": 11.55
+  },
+  {
+   "op": "launch",
+   "args": {
+    "game": "machine",
+    "disk": "tape"
+   },
+   "reply": {
+    "state": "active",
+    "package_id": "7eca1fb1f58357f377287e764457c261d0ad11047bdc7fd4baa63c9d8bae30de",
+    "generation": 7,
+    "media_units": [
+     {
+      "unit": 0,
+      "interface": {
+       "id": "fes.media.spectrum-tape",
+       "major": 2,
+       "minor": 0
+      },
+      "min_bytes": 10,
+      "max_bytes": 16777216,
+      "chunk_bytes": 512,
+      "state": "ready"
+     }
+    ],
+    "build_id": "41ce687dde354e670768ffa6c3027a70",
+    "seconds": 14.99
+   },
+   "t": 26.56
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 8
+   },
+   "reply": {},
+   "t": 34.86
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "menu"
+   },
+   "reply": {
+    "grab": "menu",
+    "ok": true,
+    "sha256": "7287e128549a41d90b08fba92b505dcc36b968e362b60a0ad0dcc7f949e6f03f"
+   },
+   "t": 35.42
+  },
+  {
+   "op": "key",
+   "args": {
+    "name": "enter"
+   },
+   "reply": {},
+   "t": 35.95
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 25
+   },
+   "reply": {},
+   "t": 61.25
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "loaded"
+   },
+   "reply": {
+    "grab": "loaded",
+    "ok": true,
+    "sha256": "cd8060352221211e63721c191f5c6aaed16f225dafff7397602756caec9e7872"
+   },
+   "t": 62.11
+  },
+  {
+   "op": "key",
+   "args": {
+    "name": "space"
+   },
+   "reply": {},
+   "t": 62.64
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 2
+   },
+   "reply": {},
+   "t": 64.94
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "break"
+   },
+   "reply": {
+    "grab": "break",
+    "ok": true,
+    "sha256": "f89567e9b027d2b665f53b076360273166cc6b9fdef4d789e75d6d20c3b22078"
+   },
+   "t": 65.49
+  },
+  {
+   "op": "type",
+   "args": {
+    "text": "print 22\n"
+   },
+   "reply": {},
+   "t": 67.82
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 2
+   },
+   "reply": {},
+   "t": 70.13
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "typed"
+   },
+   "reply": {
+    "grab": "typed",
+    "ok": true,
+    "sha256": "2acda3da10df8d96281406038709240db6e44e341aafd058c374bd53230ed1d1"
+   },
+   "t": 70.81
+  },
+  {
+   "op": "stop",
+   "args": {},
+   "reply": {
+    "code": 200,
+    "state": "idle",
+    "error": null
+   },
+   "t": 74.44
+  }
+ ]
+}
