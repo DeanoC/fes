@@ -145,10 +145,16 @@ class TamagoCIRunnerTests(unittest.TestCase):
             self.assertEqual([s[0] for s in seen], ['qemu-probe', 'qemu-tenfoot'])
             for _, cmd, env in seen:
                 self.assertEqual(env['FES_EXPERIMENTAL_DE25_EMBEDDED'], '1')
+                self.assertEqual(env['GOMODCACHE'], str((out / 'mod').resolve()))
                 self.assertIn('--board', cmd)
                 self.assertIn('qemu', cmd)
                 self.assertIn('--timeout', cmd)
                 self.assertIn('120', cmd)
+
+    def test_default_qemu_programs_cover_packages_admission_and_play(self):
+        for expected in ('probe', 'mapcheck', 'fabric', 'keyboard', 'display',
+                         'packages', 'admission', 'tenfoot', 'play'):
+            self.assertIn(expected, tamago_ci.DEFAULT_QEMU_PROGRAMS)
 
 
 if __name__ == '__main__':

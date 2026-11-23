@@ -882,11 +882,14 @@ class AffectedTests(unittest.TestCase):
             ('platform/embedded/experiment.py', {'parent', 'tamago'}),
             ('platform/embedded/nano/probe-profile.json', {'parent', 'tamago'}),
             ('platform/embedded/nano/hps_context.py', {'parent', 'tamago'}),
+            ('platform/embedded/runtime/admission_oracle.cpp', {'parent', 'tamago'}),
             ('scripts/ci_tamago.sh', {'parent', 'tamago'}),
             ('scripts/tamago_ci.py', {'parent', 'tamago'}),
             ('tests/test_tamago_ci.py', {'parent', 'tamago'}),
             ('sources/FogCast/corepackage/archive.go', {'parent', 'host', 'tamago'}),
             ('sources/misteross/expansion/rbf.go', {'parent', 'host', 'tamago'}),
+            ('sources/misteross/scripts/core_package.py', {'parent', 'fpga', 'tamago'}),
+            ('sources/libmister-runtime/src/native/core_package.cpp', {'parent', 'host', 'runtime', 'tamago'}),
         ):
             with self.subTest(path=path):
                 result = plan([path])
