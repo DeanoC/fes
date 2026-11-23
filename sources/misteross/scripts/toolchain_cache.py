@@ -22,6 +22,7 @@ import dataclasses
 import fcntl
 import hashlib
 import json
+import math
 import os
 import platform
 import re
@@ -828,6 +829,7 @@ def publish_install(
     """Verify a completed install, freeze it, and atomically publish ready.json."""
 
     _check_tool(tool)
+    max_gb = _parse_max_gb(None, os.environ)
     root = ensure_cache_root(request.cache_root)
     pins = locked_pins(request)
     build = _build_identity(request, tool, pins)
@@ -908,6 +910,12 @@ def publish_install(
         except OSError:
             pass
         raise CacheError(f"cannot atomically publish ready manifest {ready}: {exc}") from exc
+    try:
+        os.utime(root / "locks" / f"{key}.lock", None)
+    except OSError:
+        pass
+    if max_gb is not None:
+        _evict_after_publish(request, tool, key, max_gb=max_gb)
     return manifest
 
 
@@ -1309,7 +1317,9 @@ def validate_shared_environment(
             continue
         if name.startswith("LC_"):
             continue
-        if name in {"FES_TOOLCHAIN_CACHE_ROOT", "FES_TOOLCHAIN_LOCKFILE", "FES_TOOLCHAIN_ROOT", "FES_TOOLCHAIN_GPU_ROUTER", "FES_TOOLCHAIN_HIP_ARCHITECTURES", "FES_TOOLCHAIN_CUDA_ARCHITECTURES", "FES_TOOLCHAIN_CACHE_RESOLVED"}:
+        if name in {"FES_TOOLCHAIN_CACHE_ROOT", "FES_TOOLCHAIN_CACHE_MAX_GB", "FES_TOOLCHAIN_LOCKFILE", "FES_TOOLCHAIN_ROOT", "FES_TOOLCHAIN_GPU_ROUTER", "FES_TOOLCHAIN_HIP_ARCHITECTURES", "FES_TOOLCHAIN_CUDA_ARCHITECTURES", "FES_TOOLCHAIN_CACHE_RESOLVED"}:
+            if name == "FES_TOOLCHAIN_CACHE_MAX_GB":
+                _parse_max_gb(None, values)
             continue
         if name in {"TOOLCHAIN_ROOT", "TOOLCHAIN_INSTALL", "TOOLCHAIN_BUILD"}:
             if allow_resolved_paths and name in {"TOOLCHAIN_ROOT", "TOOLCHAIN_INSTALL", "TOOLCHAIN_BUILD"}:
@@ -1895,9 +1905,12 @@ def _lock_is_free(path: Path) -> bool:
         os.close(descriptor)
 
 
-def _tree_bytes(path: Path) -> int:
+def _tree_bytes(path: Path, *, skip_top_dirs: frozenset[str] = frozenset()) -> int:
     total = 0
+    root_str = str(path)
     for current, directories, files in os.walk(path, followlinks=False):
+        if skip_top_dirs and current == root_str:
+            directories[:] = [name for name in directories if name not in skip_top_dirs]
         for name in (*directories, *files):
             try:
                 total += os.lstat(os.path.join(current, name)).st_blocks * 512
@@ -2195,14 +2208,128 @@ def _matches_gpu_lane(manifest: InstallManifest, gpu_lanes: Sequence[Mapping[str
     )
 
 
+def _parse_max_gb(max_gb: float | None, environment: Mapping[str, str]) -> float | None:
+    """Resolve and validate the optional LRU size cap in GiB."""
+
+    if max_gb is None:
+        raw = environment.get("FES_TOOLCHAIN_CACHE_MAX_GB", "").strip()
+        if not raw:
+            return None
+        try:
+            value = float(raw)
+        except ValueError as exc:
+            raise CacheError(f"invalid FES_TOOLCHAIN_CACHE_MAX_GB value: {raw!r}") from exc
+    else:
+        if isinstance(max_gb, bool):
+            raise CacheError("max-gb must be a non-negative number")
+        try:
+            value = float(max_gb)
+        except (TypeError, ValueError) as exc:
+            raise CacheError(f"invalid max-gb value: {max_gb!r}") from exc
+    if not math.isfinite(value) or value < 0:
+        raise CacheError("max-gb must be finite and non-negative")
+    return value
+
+
+def _resolve_eviction_ref(root: Path) -> str:
+    root = Path(root).resolve()
+    top = Path(_git(root, "rev-parse", "--show-toplevel").strip())
+    for candidate in ("origin/main", "HEAD"):
+        try:
+            _git(top, "rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}")
+            return candidate
+        except CacheError:
+            continue
+    raise CacheError("no origin/main or HEAD commit found for LRU eviction")
+
+
+def _compiler_for_post_publish_eviction(
+    compiler: Mapping[str, Any],
+    environment: Mapping[str, str],
+) -> dict[str, Any]:
+    """Return *compiler* enriched with any other installed host accelerators.
+
+    A bootstrap run for the OFF lane probes no accelerator compiler, yet the
+    shared cache on a GPU host also holds pinned HIP/CUDA nextpnr installs.
+    When *compiler* is a real host inventory (carries ``dependencies``), probe
+    any other host accelerator on ``PATH`` so post-publish LRU eviction keeps
+    every lane this host can build pinned without re-running dependency probes.
+    """
+
+    commands = (
+        dict(compiler.get("commands", {}))
+        if isinstance(compiler.get("commands"), Mapping)
+        else {}
+    )
+    if "dependencies" in compiler:
+        for router, accelerator in _LANE_ACCELERATOR_COMMAND.items():
+            if accelerator is None:
+                continue
+            command_name, command_args = accelerator
+            if command_name in commands:
+                continue
+            probe_environment = _controlled_probe_environment(environment, router)
+            if _command_path(command_name, probe_environment) is None:
+                continue
+            try:
+                commands[command_name] = _command_identity(
+                    command_name, command_args, environment=probe_environment
+                )
+            except CacheError:
+                continue
+    result = dict(compiler)
+    result["commands"] = commands
+    return result
+
+
+def _evict_after_publish(
+    request: ToolchainRequest,
+    tool: str,
+    key: str,
+    *,
+    max_gb: float,
+    environment: Mapping[str, str] | None = None,
+    output=None,
+) -> dict[str, list[str]] | None:
+    """Enforce ``FES_TOOLCHAIN_CACHE_MAX_GB`` by evicting oldest unpinned installs."""
+
+    env = dict(os.environ if environment is None else environment)
+    env.update(request.environment)
+    stream = sys.stderr if output is None else output
+    try:
+        ref = _resolve_eviction_ref(request.root)
+        evict_compiler = _compiler_for_post_publish_eviction(request.compiler_identity, env)
+        return prune(
+            request.cache_root,
+            request.root,
+            keep_days=None,
+            ref=ref,
+            apply=True,
+            legacy_slots=False,
+            max_gb=max_gb,
+            hip_architectures=request.hip_architectures,
+            cuda_architectures=request.cuda_architectures,
+            environment=env,
+            host=request.host_identity,
+            compiler=evict_compiler,
+            output=stream,
+            _protected_installs=frozenset({(tool, key)}),
+            _exclude_transient_build_trees=frozenset({(tool, key)}),
+        )
+    except CacheError as exc:
+        print(f"toolchain-cache: skipping post-publish LRU eviction: {exc}", file=stream)
+        return None
+
+
 def prune(
     cache_root: Path,
     root: Path,
     *,
-    keep_days: float,
+    keep_days: float | None = 14.0,
     ref: str = "origin/main",
     apply: bool = False,
     legacy_slots: bool = False,
+    max_gb: float | None = None,
     gpu_routers: Sequence[str] | None = None,
     hip_architectures: str | None = None,
     cuda_architectures: str | None = None,
@@ -2211,36 +2338,45 @@ def prune(
     compiler: Mapping[str, Any] | None = None,
     now: float | None = None,
     output=None,
+    _protected_installs: frozenset[tuple[str, str]] = frozenset(),
+    _exclude_transient_build_trees: frozenset[tuple[str, str]] = frozenset(),
 ) -> dict[str, list[str]]:
     """Remove installs that no lock on *ref* needs and nobody used lately.
 
     An install is kept when its pins appear in a ``toolchain.lock`` at *ref*
     and it was built from *ref*'s bootstrap.sh on this host with this
     compiler inventory, or when its lock file (stamped by every consumer and
-    build) is younger than *keep_days*. For GPU tools (``nextpnr``), pinned
-    retention also requires matching the configuration, accelerator compiler,
-    and backend environment of one of the kept *gpu_routers* lanes, so
-    obsolete lane or accelerator upgrades age out via *keep_days*. By default
-    the kept lanes are every lane this host can build: ``OFF``, plus ``HIP``
-    when ``hipcc`` and ``CUDA`` when ``nvcc`` is present (in *compiler*, or
-    else on ``PATH``). A held lock always keeps an install. A directory
-    without ready.json whose lock is free is a failed build and is removed.
-    Legacy per-lock ``slots/`` are only considered with *legacy_slots*; their
-    readers took no lock, so their binaries' access times stand in for last
-    use. Nothing is removed unless *apply* is set.
+    build) is younger than *keep_days*. When *max_gb* (or
+    ``FES_TOOLCHAIN_CACHE_MAX_GB``) is set, any remaining unpinned installs
+    are evicted least-recently-used first until the retained cache size is at
+    or below *max_gb* GiB; pinned, binary-pinned, and held installs are never
+    evicted. For GPU tools (``nextpnr``), pinned retention also requires
+    matching the configuration, accelerator compiler, and backend environment
+    of one of the kept *gpu_routers* lanes, so obsolete lane or accelerator
+    upgrades age out via *keep_days* or *max_gb*. By default the kept lanes
+    are every lane this host can build: ``OFF``, plus ``HIP`` when ``hipcc``
+    and ``CUDA`` when ``nvcc`` is present (in *compiler*, or else on
+    ``PATH``). A held lock always keeps an install. A directory without
+    ready.json whose lock is free is a failed build and is removed. Legacy
+    per-lock ``slots/`` are only considered with *legacy_slots*; their readers
+    took no lock, so their binaries' access times stand in for last use.
+    Nothing is removed unless *apply* is set.
     """
 
     output = sys.stdout if output is None else output
     cache_root = _absolute(Path(cache_root), "cache root")
     _check_no_symlink_components(cache_root, allow_missing=False)
     ensure_cache_root(cache_root)
-    if keep_days < 0:
-        raise CacheError("keep-days must not be negative")
-    if legacy_slots and keep_days < LEGACY_MIN_KEEP_DAYS:
+    if keep_days is not None:
+        if isinstance(keep_days, bool) or not math.isfinite(keep_days) or keep_days < 0:
+            raise CacheError("keep-days must not be negative")
+    if legacy_slots and (keep_days is None or keep_days < LEGACY_MIN_KEEP_DAYS):
         # relatime refreshes an access time at most once a day, so a shorter
         # window could remove a slot an old checkout is still reading.
         raise CacheError(f"legacy slots need keep-days of at least {LEGACY_MIN_KEEP_DAYS}")
     env = dict(os.environ if environment is None else environment)
+    cap_gb = _parse_max_gb(max_gb, env)
+    cap_bytes = None if cap_gb is None else cap_gb * 2**30
     routers = _normalise_gpu_routers(gpu_routers, environment=env, compiler=compiler)
     gpu_configurations = _prune_gpu_configurations(
         routers,
@@ -2249,7 +2385,7 @@ def prune(
         cuda_architectures=cuda_architectures,
     )
     now = time.time() if now is None else now
-    horizon = now - keep_days * 86400
+    horizon = None if keep_days is None else now - keep_days * 86400
     references = referenced_pins(root, ref)
     binary_pins = referenced_binary_pins(root, ref)
     recipe = referenced_recipe(root, ref)
@@ -2264,19 +2400,27 @@ def prune(
     )
     report: dict[str, list[str]] = {"kept": [], "removed": [], "busy": []}
     freed = 0
+    retained_bytes = 0
+    # (used_timestamp, label, directory, lock, size_bytes, is_legacy)
+    lru_candidates: list[tuple[float, str, Path, Path, int, bool]] = []
 
-    def remove(path: Path, lock: Path, label: str, reason: str) -> None:
+    def install_bytes(directory: Path, tool: str | None = None, key: str | None = None) -> int:
+        if tool is not None and key is not None and (tool, key) in _exclude_transient_build_trees:
+            return _tree_bytes(directory, skip_top_dirs=frozenset({"src", "build"}))
+        return _tree_bytes(directory)
+
+    def remove(path: Path, lock: Path, label: str, reason: str, *, size: int | None = None) -> bool:
         nonlocal freed
-        size = _tree_bytes(path)
+        entry_size = _tree_bytes(path) if size is None else size
         if not apply:
             if _lock_is_free(lock):
-                freed += size
-                print(f"would remove: {label} ({reason}, {size / 2**30:.1f} GiB)", file=output)
+                freed += entry_size
+                print(f"would remove: {label} ({reason}, {entry_size / 2**30:.1f} GiB)", file=output)
                 report["removed"].append(label)
-            else:
-                print(f"busy, would skip: {label}", file=output)
-                report["busy"].append(label)
-            return
+                return True
+            print(f"busy, would skip: {label}", file=output)
+            report["busy"].append(label)
+            return False
         descriptor = _open_lock(lock)
         try:
             try:
@@ -2284,15 +2428,16 @@ def prune(
             except BlockingIOError:
                 print(f"busy, skipped: {label}", file=output)
                 report["busy"].append(label)
-                return
+                return False
             aside = path.with_name(f".prune-{path.name}-{os.getpid()}")
             os.rename(path, aside)
             _remove_tree(aside)
         finally:
             os.close(descriptor)
-        freed += size
-        print(f"removed: {label} ({reason}, {size / 2**30:.1f} GiB)", file=output)
+        freed += entry_size
+        print(f"removed: {label} ({reason}, {entry_size / 2**30:.1f} GiB)", file=output)
         report["removed"].append(label)
+        return True
 
     tools_root = cache_root / "tools"
     for tool in TOOLS:
@@ -2307,12 +2452,20 @@ def prune(
             lock = cache_root / "locks" / f"{directory.name}.lock"
             ready = directory / "ready.json"
             if not ready.is_file():
-                remove(directory, lock, label, "partial build")
+                if not remove(directory, lock, label, "partial build") and cap_bytes is not None:
+                    retained_bytes += install_bytes(directory, tool, directory.name)
                 continue
             try:
                 manifest = read_manifest(ready)
             except CacheError as exc:
-                remove(directory, lock, label, f"unreadable manifest: {exc}")
+                if not remove(directory, lock, label, f"unreadable manifest: {exc}") and cap_bytes is not None:
+                    retained_bytes += install_bytes(directory, tool, directory.name)
+                continue
+            if (tool, directory.name) in _protected_installs:
+                print(f"kept: {label} (just published)", file=output)
+                report["kept"].append(label)
+                if cap_bytes is not None:
+                    retained_bytes += install_bytes(directory, tool, directory.name)
                 continue
             if ((tool, _manifest_pins(manifest)) in references
                     and isinstance(manifest.record.get("commit"), str)
@@ -2322,6 +2475,8 @@ def prune(
                 # independently of today's provisioning recipe/compiler.
                 print(f"kept: {label} (binary-pinned at {ref})", file=output)
                 report["kept"].append(label)
+                if cap_bytes is not None:
+                    retained_bytes += install_bytes(directory, tool, directory.name)
                 continue
             if (
                 (tool, _manifest_pins(manifest)) in references
@@ -2332,16 +2487,24 @@ def prune(
             ):
                 print(f"kept: {label} (pinned at {ref})", file=output)
                 report["kept"].append(label)
+                if cap_bytes is not None:
+                    retained_bytes += install_bytes(directory, tool, directory.name)
                 continue
             try:
                 used = (lock if lock.exists() else ready).stat().st_mtime
             except OSError:
                 used = 0.0
-            if used >= horizon:
-                print(f"kept: {label} (used {(now - used) / 86400:.1f} days ago)", file=output)
-                report["kept"].append(label)
+            if horizon is None or used >= horizon:
+                if cap_bytes is None:
+                    print(f"kept: {label} (used {(now - used) / 86400:.1f} days ago)", file=output)
+                    report["kept"].append(label)
+                else:
+                    entry_size = install_bytes(directory, tool, directory.name)
+                    retained_bytes += entry_size
+                    lru_candidates.append((used, label, directory, lock, entry_size, False))
                 continue
-            remove(directory, lock, label, f"unused for {(now - used) / 86400:.1f} days")
+            if not remove(directory, lock, label, f"unused for {(now - used) / 86400:.1f} days") and cap_bytes is not None:
+                retained_bytes += install_bytes(directory, tool, directory.name)
 
     slots = cache_root / "slots"
     if legacy_slots and slots.is_dir():
@@ -2350,6 +2513,7 @@ def prune(
             if directory.name.startswith(".") or directory.is_symlink() or not directory.is_dir():
                 continue
             label = f"slots/{directory.name}"
+            lock = cache_root / "locks" / f"{directory.name}.lock"
             used = 0.0
             for path in (directory / "ready.json", *sorted((directory / "install" / "bin").glob("*"))):
                 try:
@@ -2357,11 +2521,43 @@ def prune(
                 except OSError:
                     continue
                 used = max(used, info.st_atime, info.st_mtime)
-            if used >= horizon:
-                print(f"kept: {label} (legacy slot used {(now - used) / 86400:.1f} days ago)", file=output)
-                report["kept"].append(label)
+            if horizon is None or used >= horizon:
+                if cap_bytes is None:
+                    print(f"kept: {label} (legacy slot used {(now - used) / 86400:.1f} days ago)", file=output)
+                    report["kept"].append(label)
+                else:
+                    entry_size = _tree_bytes(directory)
+                    retained_bytes += entry_size
+                    lru_candidates.append((used, label, directory, lock, entry_size, True))
                 continue
-            remove(directory, cache_root / "locks" / f"{directory.name}.lock", label, "legacy slot")
+            if not remove(directory, lock, label, "legacy slot") and cap_bytes is not None:
+                retained_bytes += _tree_bytes(directory)
+
+    if cap_bytes is not None:
+        lru_candidates.sort(key=lambda item: (item[0], item[1]))
+        for used, label, directory, lock, entry_size, is_legacy in lru_candidates:
+            if retained_bytes > cap_bytes:
+                age_days = (now - used) / 86400
+                reason = (
+                    f"legacy slot over {cap_gb:g} GiB cap"
+                    if is_legacy
+                    else f"over {cap_gb:g} GiB cap, unused for {age_days:.1f} days"
+                )
+                if remove(directory, lock, label, reason, size=entry_size):
+                    retained_bytes -= entry_size
+                continue
+            if is_legacy:
+                print(f"kept: {label} (legacy slot used {(now - used) / 86400:.1f} days ago)", file=output)
+            else:
+                print(f"kept: {label} (used {(now - used) / 86400:.1f} days ago)", file=output)
+            report["kept"].append(label)
+        if retained_bytes > cap_bytes:
+            print(
+                f"note: retained {retained_bytes / 2**30:.1f} GiB exceeds {cap_gb:g} GiB cap "
+                "(pinned or in-use installs are never evicted)",
+                file=output,
+            )
+
     if apply:
         print(f"freed {freed / 2**30:.1f} GiB", file=output)
     else:
@@ -2413,6 +2609,13 @@ def _prune_main(argv: list[str]) -> int:
     parser.add_argument("--root", required=True, type=Path, help="the misteross tree whose locks are read")
     parser.add_argument("--cache", dest="cache_root", required=True, type=Path)
     parser.add_argument("--keep-days", type=float, default=14.0)
+    parser.add_argument(
+        "--max-gb",
+        type=float,
+        default=None,
+        help="maximum retained cache size in GiB; evicts oldest unpinned installs first "
+        "(defaults to FES_TOOLCHAIN_CACHE_MAX_GB if set)",
+    )
     parser.add_argument("--ref", default="origin/main", help="the Git ref whose toolchain.lock files are kept")
     parser.add_argument(
         "--gpu-router",
@@ -2442,6 +2645,7 @@ def _prune_main(argv: list[str]) -> int:
         ref=args.ref,
         apply=args.apply,
         legacy_slots=args.legacy_slots,
+        max_gb=args.max_gb,
         gpu_routers=args.gpu_routers,
         hip_architectures=args.hip_architectures,
         cuda_architectures=args.cuda_architectures,

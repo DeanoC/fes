@@ -1513,13 +1513,14 @@ class ToolchainCachePruneTests(unittest.TestCase):
             {f"tools/nextpnr/{hip_install.key}", f"tools/nextpnr/{off_install.key}"},
         )
 
-        # Verify CLI parsing forwards repeatable --gpu-router and architecture flags.
+        # Verify CLI parsing forwards repeatable --gpu-router, --max-gb, and architecture flags.
         with mock.patch.object(toolchain_cache, "prune") as prune_mock:
             rc = toolchain_cache._prune_main([
                 "--root", str(self.root),
                 "--cache", str(self.cache),
                 "--ref", "HEAD",
                 "--keep-days", "7",
+                "--max-gb", "64.5",
                 "--gpu-router", "HIP",
                 "--gpu-router", "OFF",
                 "--hip-architectures", "gfx1201",
@@ -1534,6 +1535,7 @@ class ToolchainCachePruneTests(unittest.TestCase):
             ref="HEAD",
             apply=True,
             legacy_slots=False,
+            max_gb=64.5,
             gpu_routers=["HIP", "OFF"],
             hip_architectures="gfx1201",
             cuda_architectures="75;86",
@@ -1554,9 +1556,208 @@ class ToolchainCachePruneTests(unittest.TestCase):
             ref="origin/main",
             apply=False,
             legacy_slots=False,
+            max_gb=None,
             gpu_routers=None,
             hip_architectures=None,
             cuda_architectures=None,
+        )
+
+    def _publish_sized(self, request, tool: str, *, payload_bytes: int, tag: str):
+        return _publish(request, tool, content=f"{tag}-" + ("x" * payload_bytes))
+
+    def test_prune_max_gb_evicts_lru_unpinned_installs_preserving_pinned_and_held(self):
+        """LRU size cap evicts oldest unpinned installs first and never evicts pinned or held ones."""
+        payload = 128 * 1024
+        pinned_req = self.request()
+        pinned = self._publish_sized(pinned_req, "yosys", payload_bytes=payload, tag="pinned")
+
+        unpinned = []
+        for idx, commit_char in enumerate(("1", "2", "3")):
+            lock = self.base / f"unpinned-{idx}.lock"
+            shutil.copy2(self.root / "toolchain.lock", lock)
+            _set_pin(lock, "yosys", "commit", commit_char * 40)
+            req = self.request(lock)
+            inst = self._publish_sized(req, "yosys", payload_bytes=payload, tag=f"u{idx}")
+            unpinned.append((req, inst))
+
+        now = time.time()
+        # All three are well within keep_days=14, ordered oldest (0) -> middle (1) -> newest (2).
+        for idx, (req, _inst) in enumerate(unpinned):
+            ts = now - (5 - idx) * 86400
+            os.utime(toolchain_cache.lock_path(req, "yosys"), (ts, ts))
+
+        pinned_bytes = toolchain_cache._tree_bytes(pinned.directory)
+        newest_bytes = toolchain_cache._tree_bytes(unpinned[2][1].directory)
+        self.assertGreater(pinned_bytes, 0)
+        self.assertGreater(newest_bytes, 0)
+        # Cap allows pinned + newest, forcing eviction of oldest (0) and middle (1).
+        cap_gb = (pinned_bytes + newest_bytes + 4096) / 2**30
+
+        # Dry run previews LRU eviction order without deleting anything.
+        report, output = self.prune(max_gb=cap_gb, now=now)
+        self.assertEqual(
+            report["removed"],
+            [f"tools/yosys/{unpinned[0][1].key}", f"tools/yosys/{unpinned[1][1].key}"],
+        )
+        self.assertEqual(
+            set(report["kept"]),
+            {f"tools/yosys/{pinned.key}", f"tools/yosys/{unpinned[2][1].key}"},
+        )
+        self.assertIn("dry run", output)
+        self.assertTrue(unpinned[0][1].directory.exists())
+
+        # Holding the oldest install skips it as busy and evicts middle + newest to meet the cap.
+        holder = os.open(toolchain_cache.lock_path(unpinned[0][0], "yosys"), os.O_RDONLY)
+        try:
+            fcntl.flock(holder, fcntl.LOCK_SH)
+            report, output = self.prune(max_gb=cap_gb, now=now)
+            self.assertEqual(report["busy"], [f"tools/yosys/{unpinned[0][1].key}"])
+            self.assertEqual(
+                report["removed"],
+                [f"tools/yosys/{unpinned[1][1].key}", f"tools/yosys/{unpinned[2][1].key}"],
+            )
+            self.assertEqual(report["kept"], [f"tools/yosys/{pinned.key}"])
+            # Cap below pinned alone warns cleanly and never evicts pinned or held installs.
+            tiny_report, tiny_out = self.prune(max_gb=0.0, now=now)
+            self.assertEqual(tiny_report["kept"], [f"tools/yosys/{pinned.key}"])
+            self.assertEqual(tiny_report["busy"], [f"tools/yosys/{unpinned[0][1].key}"])
+            self.assertIn("pinned or in-use installs are never evicted", tiny_out)
+        finally:
+            os.close(holder)
+
+        # Apply via FES_TOOLCHAIN_CACHE_MAX_GB env removes oldest and middle, keeping pinned and newest.
+        report, output = self.prune(
+            apply=True,
+            now=now,
+            environment={"FES_TOOLCHAIN_CACHE_MAX_GB": repr(cap_gb)},
+        )
+        self.assertEqual(
+            report["removed"],
+            [f"tools/yosys/{unpinned[0][1].key}", f"tools/yosys/{unpinned[1][1].key}"],
+        )
+        self.assertFalse(unpinned[0][1].directory.exists())
+        self.assertFalse(unpinned[1][1].directory.exists())
+        self.assertTrue(pinned.directory.exists())
+        self.assertTrue(unpinned[2][1].directory.exists())
+        self.assertIn("freed", output)
+
+        # Invalid cap values are rejected in both prune() and validate_shared_environment().
+        for bad in ("-1", "nan", "inf", "abc"):
+            with self.assertRaisesRegex(toolchain_cache.CacheError, "max-gb|FES_TOOLCHAIN_CACHE_MAX_GB"):
+                self.prune(environment={"FES_TOOLCHAIN_CACHE_MAX_GB": bad})
+            with self.assertRaisesRegex(toolchain_cache.CacheError, "max-gb|FES_TOOLCHAIN_CACHE_MAX_GB"):
+                toolchain_cache.validate_shared_environment({"FES_TOOLCHAIN_CACHE_MAX_GB": bad})
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "max-gb"):
+            self.prune(max_gb=-0.5)
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "max-gb"):
+            self.prune(max_gb=True)
+        # Valid FES_TOOLCHAIN_CACHE_MAX_GB passes environment validation and stays out of build identity.
+        toolchain_cache.validate_shared_environment({"FES_TOOLCHAIN_CACHE_MAX_GB": "80"})
+        self.assertEqual(
+            toolchain_cache._request_environment({"FES_TOOLCHAIN_CACHE_MAX_GB": "80"}, tool="nextpnr"),
+            {},
+        )
+
+    def test_publish_install_stamps_lock_mtime_and_enforces_max_gb_env(self):
+        """Publishing updates lock mtime and enforces FES_TOOLCHAIN_CACHE_MAX_GB without breaking publish."""
+        payload = 128 * 1024
+        pinned_req = self.request()
+        pinned = self._publish_sized(pinned_req, "yosys", payload_bytes=payload, tag="pinned")
+
+        old_lock = self.base / "old.lock"
+        shutil.copy2(self.root / "toolchain.lock", old_lock)
+        _set_pin(old_lock, "yosys", "commit", "1" * 40)
+        old_req = self.request(old_lock)
+        old_install = self._publish_sized(old_req, "yosys", payload_bytes=payload, tag="old")
+        old_ts = time.time() - 3 * 86400
+        os.utime(toolchain_cache.lock_path(old_req, "yosys"), (old_ts, old_ts))
+
+        new_lock = self.base / "new.lock"
+        shutil.copy2(self.root / "toolchain.lock", new_lock)
+        _set_pin(new_lock, "yosys", "commit", "2" * 40)
+        new_req = self.request(new_lock)
+
+        # Pre-create stale lock mtime and huge transient src/ + build/ trees like bootstrap.sh does.
+        new_lock_file = toolchain_cache.ensure_lock_file(new_req, "yosys")
+        os.utime(new_lock_file, (old_ts, old_ts))
+        new_dir = toolchain_cache.install_directory(new_req, "yosys")
+        (new_dir / "install" / "bin").mkdir(parents=True)
+        (new_dir / "evidence").mkdir()
+        (new_dir / "src").mkdir()
+        (new_dir / "build").mkdir()
+        (new_dir / "install" / "bin" / "yosys").write_text("new-" + ("y" * payload), encoding="utf-8")
+        (new_dir / "evidence" / "record").write_text("evidence\n", encoding="utf-8")
+        # Huge transient build tree that bootstrap.sh deletes right after publish.
+        (new_dir / "build" / "huge.o").write_bytes(b"z" * (4 * payload))
+
+        pinned_bytes = toolchain_cache._tree_bytes(pinned.directory)
+        new_install_bytes = toolchain_cache._tree_bytes(new_dir, skip_top_dirs=frozenset({"src", "build"}))
+        # Cap fits pinned + new install (excluding transient src/build), so old_install is evicted
+        # while pinned and the just-published unpinned install both survive.
+        cap_gb = (pinned_bytes + new_install_bytes + 4096) / 2**30
+
+        # Invalid FES_TOOLCHAIN_CACHE_MAX_GB fails before writing ready.json.
+        with (
+            mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_MAX_GB": "bogus"}),
+            toolchain_cache.acquire_build_lock(new_req, "yosys"),
+            self.assertRaisesRegex(toolchain_cache.CacheError, "FES_TOOLCHAIN_CACHE_MAX_GB"),
+        ):
+            toolchain_cache.publish_install(new_req, "yosys", identity="new yosys")
+        self.assertFalse((new_dir / "ready.json").exists())
+
+        before_publish = time.time() - 1.0
+        stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_MAX_GB": repr(cap_gb)}),
+            mock.patch.object(toolchain_cache.sys, "stderr", stderr),
+            toolchain_cache.acquire_build_lock(new_req, "yosys"),
+        ):
+            published = toolchain_cache.publish_install(new_req, "yosys", identity="new yosys")
+        self.assertGreaterEqual(new_lock_file.stat().st_mtime, before_publish)
+        self.assertTrue(published.directory.exists())
+        self.assertTrue(pinned.directory.exists())
+        self.assertFalse(old_install.directory.exists())
+        self.assertIn(f"removed: tools/yosys/{old_install.key}", stderr.getvalue())
+
+        # A non-git checkout logs a warning to stderr and still completes publication cleanly.
+        non_git_root = self.base / "non-git"
+        (non_git_root / "scripts").mkdir(parents=True)
+        shutil.copy2(SOURCE / "scripts" / "lockfile.py", non_git_root / "scripts" / "lockfile.py")
+        shutil.copy2(SOURCE / "scripts" / "bootstrap.sh", non_git_root / "scripts" / "bootstrap.sh")
+        shutil.copy2(SOURCE / "toolchain.lock", non_git_root / "toolchain.lock")
+        non_git_req = self.request(non_git_root / "toolchain.lock", root=non_git_root)
+        warn_stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_MAX_GB": "1"}),
+            mock.patch.object(toolchain_cache.sys, "stderr", warn_stderr),
+        ):
+            published_ng = _publish(non_git_req, "verilator", content="non-git")
+        self.assertTrue((published_ng.directory / "ready.json").is_file())
+        self.assertIn("skipping post-publish LRU eviction", warn_stderr.getvalue())
+
+    def test_compiler_for_post_publish_eviction_preserves_other_host_gpu_lanes(self):
+        """An OFF-lane publish on a GPU host still keeps pinned HIP nextpnr protected."""
+        hipcc = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-1", "version": "rocm 6.3", "returncode": 0}
+        real_off_compiler = {"commands": dict(COMPILER["commands"]), "dependencies": {}}
+
+        def fake_command_path(command, environment=None):
+            return "/opt/rocm/bin/hipcc" if command == "hipcc" else None
+
+        def fake_command_identity(command, args=("--version",), *, environment=None):
+            self.assertEqual(command, "hipcc")
+            return hipcc
+
+        with (
+            mock.patch.object(toolchain_cache, "_command_path", side_effect=fake_command_path),
+            mock.patch.object(toolchain_cache, "_command_identity", side_effect=fake_command_identity),
+        ):
+            enriched = toolchain_cache._compiler_for_post_publish_eviction(
+                real_off_compiler, {"PATH": "/opt/rocm/bin:/usr/bin"}
+            )
+        self.assertEqual(enriched["commands"]["hipcc"], hipcc)
+        self.assertEqual(
+            toolchain_cache._host_gpu_routers(environment={}, compiler=enriched),
+            ("OFF", "HIP"),
         )
 
     def test_prune_cli_is_a_dry_run_by_default(self):
