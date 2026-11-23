@@ -6,7 +6,7 @@ synthetic .sfc catalog files, a regular-file FAT32 disk, virtio networking,
 ramfb display and an xHCI USB keyboard (or explicit UART diagnostic input). No physical device is opened.
 """
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
 import http.server
@@ -313,6 +313,7 @@ def main():
         record["preferences_timestamps"] = {"before_utc": initial_mtime.isoformat()}
         if fresh and initial_mtime.year != 1980:
             raise RuntimeError(f"expected seeded 1980 FAT32 timestamp before boot, got {initial_mtime.isoformat()}")
+        return initial_mtime
 
     def ready(guest, expected):
         guest.wait(lambda text: "FES_TENFOOT_READY" in text, args.timeout, "tenfoot ready")
@@ -593,11 +594,12 @@ def main():
             record["termination"] = "runner quit QEMU after package diagnostic; no FPGA programming"
         else:
             lock_disk()
-            prepare_disk(prepare_host())
+            initial_mtime = prepare_disk(prepare_host())
             initial = record["initial_preferences"].get("layout", "grid")
             if initial not in LAYOUT_NEXT:
                 raise RuntimeError("unsupported initial layout in existing disk")
             screenshots = record["screenshots"] = []
+            boot_started = datetime.now(timezone.utc)
             with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display, usb=args.input == "usb") as guest:
                 first = ready(guest, initial)
                 screenshots.append(guest.screenshot("initial"))
@@ -620,6 +622,7 @@ def main():
                                args.timeout, "changed layout and saved preferences")
                     screenshots.append(guest.screenshot("layout"))
                 record["first_boot_frames"] = frames(guest.text)
+            boot_finished = datetime.now(timezone.utc)
             saved, saved_mtime = preferences("preferences-after-first-boot")
             record["saved_preferences"] = saved
             record["preferences_timestamps"]["after_first_boot_utc"] = saved_mtime.isoformat()
@@ -627,8 +630,18 @@ def main():
             if not args.interactive:
                 if saved.get("layout") != expected:
                     raise RuntimeError("FAT32 preference file does not contain selected layout")
-                if saved_mtime.year < 2020:
-                    raise RuntimeError(f"FAT32 preference file was not stamped from wall clock: {saved_mtime.isoformat()}")
+                # FAT32 timestamps have 2-second granularity; require the guest write
+                # to land within the live boot window (and advance past the 1980 seed
+                # on fresh disks) so reused post-2020 disks cannot mask a stale mtime.
+                min_expected = boot_started - timedelta(seconds=4)
+                max_expected = boot_finished + timedelta(seconds=10)
+                if saved_mtime.year < 2020 or saved_mtime < min_expected or saved_mtime > max_expected:
+                    raise RuntimeError(
+                        f"FAT32 preference timestamp {saved_mtime.isoformat()} is outside live boot window "
+                        f"[{min_expected.isoformat()}, {max_expected.isoformat()}]"
+                    )
+                if record["disk"]["created"] and saved_mtime <= initial_mtime:
+                    raise RuntimeError(f"FAT32 preference timestamp did not advance past {initial_mtime.isoformat()}")
                 if len({s["sha256"] for s in screenshots}) != 3:
                     raise RuntimeError("QMP screenshots did not change with navigation and layout")
                 with Guest(qemu, elf, output / "boot-2", command_record, disk=disk, display=display, usb=args.input == "usb") as guest:
