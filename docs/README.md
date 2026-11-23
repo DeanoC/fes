@@ -14,8 +14,7 @@ a dated record. A dated record is not the schedule.
 | See whether cores match current FPGA choices, and the retirement order | [Core alignment](core-alignment.md) |
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
 | Change code: worktree, builds, handoff | [Development](development.md), then [agent workflow](agent-workflow.md) |
-| Reduce build/review time and decouple installation | [Development-speed redesign](development-speed.md) |
-| Coordinate cross-vendor tasks and milestone acceptance | [Agent workflow](agent-workflow.md#github-delivery-coordination) |
+| Coordinate PR lanes, review and milestone delivery | [Agent workflow](agent-workflow.md#github-delivery-workflow), [AGENTS.md](../AGENTS.md#pr-workflow-lanes-merge-gate-review-stacks-hil-ops) |
 | Decide whether a PR needs a full image for hardware testing | [HIL plan](hil-plan.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
 | Develop DE25-Nano without Linux | [Embedded base and native tenfoot](../platform/embedded/README.md), [initial feasibility study](design/de25-embedded-os.md) |
@@ -84,11 +83,6 @@ open. The root
 they remain in Git at `bb5f1bfc14026b55113202fbc88b730241da9ee1`. List them
 with `git ls-tree -r --name-only bb5f1bfc -- .superpowers/sdd/` and read one
 with `git show bb5f1bfc:<path>`.
-
-The approved [cores-as-apps plan](cores-as-apps-plan.md) and its
-[per-core recipe option audit](recipe-option-audit.md) are design context for
-issue #843. This delivery covers migration steps 1–2; later steps remain
-proposals, not current build instructions.
 
 The [native video parts Kit 2 record](validation/2026-10-03-native-video-parts-kit2.md)
 binds its sealed shell, linked Direct/Scanlines parts and capture evidence.

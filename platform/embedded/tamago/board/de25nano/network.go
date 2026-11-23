@@ -47,6 +47,29 @@ func NetworkEnabled() bool { return profileNetworkEnabled }
 // ctx bounds controller startup; lifetime owns the background socket/IP workers.
 // Canceling startup after successful return must not terminate those workers.
 func OpenNetworkWithControl(ctx, lifetime context.Context, bootOwner uint64) (*network.Interface, *network.Controller, error) {
+	return openControlledNetwork(ctx, lifetime, bootOwner, func(factory func() (network.Device, error)) (*network.Interface, error) {
+		return network.OpenDevice(lifetime, profileNetworkAddress, profileNetworkGateway, factory)
+	})
+}
+
+// OpenNetworkWithControlDHCP is the opt-in RFC 2131 DHCPv4 counterpart to
+// OpenNetworkWithControl. It enforces the same trusted boot-owner, single-attempt
+// DMA ownership, and network.Controller lifecycle contract, bounding XGMAC open
+// and DHCPv4 lease acquisition to ctx while background stack workers run on lifetime.
+func OpenNetworkWithControlDHCP(ctx, lifetime context.Context, bootOwner uint64, dhcpCfg network.DHCPConfig) (*network.Interface, *network.Controller, error) {
+	if err := network.ValidateDHCPConfig(dhcpCfg); err != nil {
+		return nil, nil, err
+	}
+	return openControlledNetwork(ctx, lifetime, bootOwner, func(factory func() (network.Device, error)) (*network.Interface, error) {
+		return network.OpenDeviceDHCPWithStartup(ctx, lifetime, factory, dhcpCfg)
+	})
+}
+
+func openControlledNetwork(
+	ctx, lifetime context.Context,
+	bootOwner uint64,
+	openIface func(factory func() (network.Device, error)) (*network.Interface, error),
+) (*network.Interface, *network.Controller, error) {
 	if !profileNetworkEnabled || ctx == nil || lifetime == nil || bootOwner == 0 {
 		return nil, nil, fmt.Errorf("de25-nano: controlled Ethernet profile and trusted boot owner required")
 	}
@@ -73,7 +96,7 @@ func OpenNetworkWithControl(ctx, lifetime context.Context, bootOwner uint64) (*n
 	ownedNetworkMemory = mem
 	irqID, _ := EMACIRQ(profileNetworkBase)
 	var control network.DMAControl
-	ownedNetworkInterface, err = network.OpenDevice(lifetime, profileNetworkAddress, profileNetworkGateway, func() (network.Device, error) {
+	ownedNetworkInterface, err = openIface(func() (network.Device, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

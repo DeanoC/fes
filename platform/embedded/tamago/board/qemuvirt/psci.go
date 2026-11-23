@@ -13,7 +13,7 @@ func PSCI() *psci.Client {
 	if psci.HasEL2() {
 		return psci.New(nil)
 	}
-	return psci.New(psci.ConduitHVC())
+	return psci.New(psci.HVC())
 }
 
 // PowerOff requests an orderly VM power-off via PSCI_SYSTEM_OFF.

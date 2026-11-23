@@ -15,11 +15,11 @@ const programROMHeaderBytes = 128
 type programRole uint32
 
 const (
-	programRoleMenu       programRole = 1
-	programRoleComputer   programRole = 2
-	programRoleSpectrum48 programRole = 3
-	programRoleVersion                = 3
-	programRoleOffset                 = 632
+	programRoleMenu        programRole = 1
+	programRoleComputer    programRole = 2
+	programRoleUploadShell programRole = 3
+	programRoleVersion                 = 3
+	programRoleOffset                  = 632
 )
 
 func (r programRole) controlABI() uint32 {
@@ -28,7 +28,7 @@ func (r programRole) controlABI() uint32 {
 		return 0x10203043
 	case programRoleComputer:
 		return 0x10203041
-	case programRoleSpectrum48:
+	case programRoleUploadShell:
 		return 0x10203044
 	default:
 		return 0

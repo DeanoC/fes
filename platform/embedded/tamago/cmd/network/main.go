@@ -36,6 +36,7 @@ func run() error {
 	var config struct {
 		APIURL  string `json:"api_url"`
 		APIHost string `json:"api_host"`
+		DHCP    bool   `json:"dhcp"`
 	}
 	if err = json.Unmarshal(data, &config); err != nil {
 		return err
@@ -50,7 +51,12 @@ func run() error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	iface, err := board.OpenNetwork(ctx)
+	var iface board.Network
+	if config.DHCP {
+		iface, err = board.OpenNetworkDHCP(ctx)
+	} else {
+		iface, err = board.OpenNetwork(ctx)
+	}
 	if err != nil {
 		return err
 	}

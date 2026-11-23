@@ -15,11 +15,11 @@ func (hvcConduit) Call(x0, x1, x2, x3 uint64) (uint64, uint64, uint64, uint64) {
 	return callHVC(x0, x1, x2, x3)
 }
 
-// ConduitSMC returns an ARM64 SMC #0 conduit (used under EL3 TF-A BL31 on DE25-Nano).
-func ConduitSMC() Conduit { return smcConduit{} }
+// SMC returns an ARM64 SMC #0 conduit (used under EL3 TF-A BL31 on DE25-Nano).
+func SMC() Conduit { return smcConduit{} }
 
-// ConduitHVC returns an ARM64 HVC #0 conduit (used under QEMU virt -kernel EL1 PSCI).
-func ConduitHVC() Conduit { return hvcConduit{} }
+// HVC returns an ARM64 HVC #0 conduit (used under QEMU virt -kernel EL1 PSCI).
+func HVC() Conduit { return hvcConduit{} }
 
 // HasEL2 reports whether ID_AA64PFR0_EL1 advertises EL2 support. On QEMU virt
 // booted with virtualization=on via entry.S, HCR_EL2.HCD disables HVC from EL1.

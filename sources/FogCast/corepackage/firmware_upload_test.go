@@ -38,10 +38,16 @@ func de25UploadManifest(t *testing.T, core string, size int) []byte {
 		}
 	} else if core == "fes.c64" {
 		add("fes.media.c64-disk", 1, 0)
+	} else if core == "fes.pcxt-dos" {
+		add("fes.media.pcxt-floppy", 1, 0)
+		add("fes.media.pcxt-floppy-write", 1, 0)
 	} else {
 		add("fes.media.spectrum-tape", 2, 0)
 	}
 	text = text[:start] + interfaces + text[end:]
+	if abi := DE25ComputerABI(core); abi.Minor != 0 {
+		text = strings.Replace(text, "id = \"fes.simple-game\"\nmajor = 1\nminor = 0\n", fmt.Sprintf("id = \"fes.simple-game\"\nmajor = 1\nminor = %d\n", abi.Minor), 1)
+	}
 	for old, replacement := range map[string]string{
 		`id = "fes.pong"`:                   fmt.Sprintf("id = %q", core),
 		`programming_profile = "fes-gp-v1"`: `programming_profile = "de25-linux-computer-v1"`,
@@ -56,14 +62,18 @@ func de25UploadManifest(t *testing.T, core string, size int) []byte {
 }
 
 // nanoUploadFixture is the shared mailbox-upload manifest and map for one
-// image size. The C64's 36 KiB has no shared fixture; it is the 32 KiB one
-// with the size, and the map's length and digest, rewritten.
+// image size. The C64's 36 KiB and the PC/XT's 68 KiB have no shared fixture;
+// each is the next smaller one with the size, and the map's length and
+// digest, rewritten.
 func nanoUploadFixture(t *testing.T, size int) (string, []byte) {
 	t.Helper()
 	root := filepath.Join("testdata", "core-bundle-v3")
 	source := size
 	if size == 36864 {
 		source = 32768
+	}
+	if size == 69632 {
+		source = 65536
 	}
 	raw, err := os.ReadFile(filepath.Join(root, "manifests", fmt.Sprintf("valid-nano-upload-%d.toml", source)))
 	if err != nil {

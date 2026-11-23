@@ -36,37 +36,42 @@ func initialROMResponse(t *testing.T, kind string) Protocol2Response {
 	return r
 }
 
-func TestInitialPcxtLocalRequestAndBinding(t *testing.T) {
-	response := func() Protocol2Response {
-		r := writableSTResponse(t, true)
-		r.ActivePackage.Descriptor.Core.ID = "fes.pcxt-dos"
-		r.ActivePackage.Descriptor.ABI.Minor = 1
-		r.ActivePackage.Observed.ABI.Minor = 1
-		r.Capabilities.ABIs[0].Minor = 1
-		*r.Core = "fes.pcxt-dos"
-		for i := range r.ActivePackage.Descriptor.Interfaces {
-			switch r.ActivePackage.Descriptor.Interfaces[i].ID {
-			case protocol.AtariStFloppyInterface().ID:
-				r.ActivePackage.Descriptor.Interfaces[i].ID = protocol.PcxtFloppyInterface().ID
-			case protocol.AtariStFloppyWriteInterface().ID:
-				r.ActivePackage.Descriptor.Interfaces[i].ID = protocol.PcxtFloppyWriteInterface().ID
-			}
+// pcxtInitialResponse is the writable ST reply rewritten into a format-2
+// PC/XT running from its ready, persistent start disk.
+func pcxtInitialResponse(t *testing.T) Protocol2Response {
+	t.Helper()
+	r := writableSTResponse(t, true)
+	r.ActivePackage.Descriptor.Core.ID = "fes.pcxt-dos"
+	r.ActivePackage.Descriptor.ABI.Minor = 1
+	r.ActivePackage.Observed.ABI.Minor = 1
+	r.Capabilities.ABIs[0].Minor = 1
+	*r.Core = "fes.pcxt-dos"
+	for i := range r.ActivePackage.Descriptor.Interfaces {
+		switch r.ActivePackage.Descriptor.Interfaces[i].ID {
+		case protocol.AtariStFloppyInterface().ID:
+			r.ActivePackage.Descriptor.Interfaces[i].ID = protocol.PcxtFloppyInterface().ID
+		case protocol.AtariStFloppyWriteInterface().ID:
+			r.ActivePackage.Descriptor.Interfaces[i].ID = protocol.PcxtFloppyWriteInterface().ID
 		}
-		for _, list := range []*[]Protocol2Interface{&r.Capabilities.ActiveInterfaces, &r.Capabilities.ABIs[0].Interfaces} {
-			for i := range *list {
-				switch (*list)[i].ID {
-				case protocol.AtariStFloppyInterface().ID:
-					(*list)[i].ID = protocol.PcxtFloppyInterface().ID
-				case protocol.AtariStFloppyWriteInterface().ID:
-					(*list)[i].ID = protocol.PcxtFloppyWriteInterface().ID
-				}
-			}
-			sort.Slice(*list, func(i, j int) bool { return (*list)[i].ID < (*list)[j].ID })
-		}
-		u := &r.Capabilities.MediaUnits[0]
-		u.Interface, u.MinBytes, u.MaxBytes = protocol.PcxtFloppyInterface(), uint32(protocol.PcxtFloppyBytes), uint32(protocol.PcxtFloppyBytes)
-		return r
 	}
+	for _, list := range []*[]Protocol2Interface{&r.Capabilities.ActiveInterfaces, &r.Capabilities.ABIs[0].Interfaces} {
+		for i := range *list {
+			switch (*list)[i].ID {
+			case protocol.AtariStFloppyInterface().ID:
+				(*list)[i].ID = protocol.PcxtFloppyInterface().ID
+			case protocol.AtariStFloppyWriteInterface().ID:
+				(*list)[i].ID = protocol.PcxtFloppyWriteInterface().ID
+			}
+		}
+		sort.Slice(*list, func(i, j int) bool { return (*list)[i].ID < (*list)[j].ID })
+	}
+	u := &r.Capabilities.MediaUnits[0]
+	u.Interface, u.MinBytes, u.MaxBytes = protocol.PcxtFloppyInterface(), uint32(protocol.PcxtFloppyBytes), uint32(protocol.PcxtFloppyBytes)
+	return r
+}
+
+func TestInitialPcxtLocalRequestAndBinding(t *testing.T) {
+	response := func() Protocol2Response { return pcxtInitialResponse(t) }
 	media := &InitialMediaRequest{Path: "/stage/initial-media.img", Size: 368640, Unit: 0, DataRoot: MediaDataRoot, GameID: "st-desktop", BaseMediaID: strings.Repeat("b", 64)}
 	wrong := initialROMResponse(t, "plain")
 	wrong.Capabilities.MediaUnits[0].MinBytes, wrong.Capabilities.MediaUnits[0].MaxBytes = 368640, 368640
@@ -216,6 +221,68 @@ func TestInitialSTMediaLaunchMatchAndMutableAdoption(t *testing.T) {
 		}
 		if !reflect.DeepEqual(staged[0].InitialMedia, requested) {
 			t.Fatal("source companion changed")
+		}
+	}
+}
+
+// The DE25 PC/XT uploads its BIOS: a format-3 firmware package whose start
+// disk rides in the firmware launch. The reply is checked as a PC/XT disk,
+// while the request on the wire is the shape the runtime already takes.
+func TestInitialPcxtDiskRidesTheFirmwareLaunch(t *testing.T) {
+	response := func() Protocol2Response {
+		line, _ := de25PCXTResponse(t, 1)
+		r, err := decodeProtocol2Response([]byte(line))
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.ActivePackage.PersistenceMode = "persistent"
+		u := &r.Capabilities.MediaUnits[0]
+		u.State = "ready"
+		u.Persistence = &protocol.MediaDataStatus{Mode: "persistent", GameID: "freedos", BaseMediaID: strings.Repeat("b", 64), Revision: "absent"}
+		return r
+	}
+	media := &InitialMediaRequest{Path: "/stage/initial-media.st", Size: 368640, Unit: 0, DataRoot: MediaDataRoot, GameID: "freedos",
+		BaseMediaID: strings.Repeat("b", 64), InterfaceID: protocol.PcxtFloppyInterface().ID}
+	before := response()
+	if _, err := decodeProtocol2Response([]byte(responseLine(t, before))); err != nil {
+		t.Fatalf("invalid DE25 PC/XT fixture: %v", err)
+	}
+	if !initialRequestMatches(before, media) {
+		t.Fatal("DE25 PC/XT start disk refused on its firmware launch")
+	}
+	st := *media
+	st.InterfaceID = ""
+	if initialRequestMatches(before, &st) {
+		t.Fatal("PC/XT reply accepted for an ST disk")
+	}
+	if initialRequestMatches(initialROMResponse(t, "plain"), media) {
+		t.Fatal("ST reply accepted for a PC/XT disk")
+	}
+	cartridge := response()
+	cartridge.ActivePackage.Descriptor.ROM.Role = "cartridge"
+	if initialRequestMatches(cartridge, media) {
+		t.Fatal("PC/XT disk accepted beside a cartridge")
+	}
+	for _, bad := range []bool{false, true} {
+		before, reply := response(), response()
+		next := *before.Generation + 1
+		reply.Generation = &next
+		if bad {
+			reply.Capabilities.MediaUnits[0].Persistence.GameID = "other-game"
+		}
+		socket := newSequenceSocketFixture(t, []string{responseLine(t, before) + "\n", responseLine(t, reply) + "\n"})
+		_, err := NewClient(socket.path).LoadFirmwareCore(context.Background(), "/stage/shell", before.ActivePackage.PackageID, CoreDataRoot, "/stage/firmware.rom", *before.ActivePackage.ROMLink, media)
+		if (err != nil) != bad {
+			t.Fatalf("bad=%v error=%v", bad, err)
+		}
+		requests := socket.wait(t)
+		var request map[string]json.RawMessage
+		if len(requests) != 2 || json.Unmarshal([]byte(requests[1]), &request) != nil {
+			t.Fatal("firmware launch request", requests)
+		}
+		var sent map[string]any
+		if json.Unmarshal(request["initial_media"], &sent) != nil || len(sent) != 6 || sent["path"] != media.Path || sent["game_id"] != "freedos" {
+			t.Fatalf("initial media on the wire: %s", request["initial_media"])
 		}
 	}
 }

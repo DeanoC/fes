@@ -399,3 +399,79 @@ func TestCrossDispatcherLineOwnership(t *testing.T) {
 		t.Fatalf("db2.Close: %v", err)
 	}
 }
+
+func TestYieldOrFallback(t *testing.T) {
+	// Nil doorbell with custom fallback calls fallback.
+	var fallbackCalls atomic.Int32
+	YieldOrFallback(nil, time.Millisecond, func() { fallbackCalls.Add(1) })()
+	if fallbackCalls.Load() != 1 {
+		t.Fatalf("fallbackCalls=%d, want 1", fallbackCalls.Load())
+	}
+
+	// Nil doorbell with nil fallback defaults to runtime.Gosched cleanly.
+	YieldOrFallback(nil, time.Millisecond, nil)()
+
+	// Active doorbell wakes early on IRQ without calling fallback.
+	ctrl, _ := newFakeGIC(t, 7)
+	disp, err := New(ctrl)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer disp.Close()
+
+	db, err := disp.Open(Config{Line: 0, Trigger: Edge})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	yield := YieldOrFallback(db, 50*time.Millisecond, func() { fallbackCalls.Add(1) })
+	start := time.Now()
+	go func() {
+		time.Sleep(2 * time.Millisecond)
+		db.TriggerPending()
+		ctrl.Dispatch()
+	}()
+	yield()
+	if time.Since(start) >= 40*time.Millisecond {
+		t.Fatal("YieldOrFallback did not wake early on doorbell IRQ")
+	}
+	if fallbackCalls.Load() != 1 {
+		t.Fatalf("fallback unexpectedly called with active doorbell: %d", fallbackCalls.Load())
+	}
+
+	// Non-positive maxWait invokes fallback even with an active doorbell.
+	YieldOrFallback(db, 0, func() { fallbackCalls.Add(1) })()
+	if fallbackCalls.Load() != 2 {
+		t.Fatalf("maxWait<=0 fallbackCalls=%d, want 2", fallbackCalls.Load())
+	}
+
+	// Silence bounds wait to maxWait without invoking fallback.
+	YieldOrFallback(db, 2*time.Millisecond, func() { fallbackCalls.Add(1) })()
+	if fallbackCalls.Load() != 2 {
+		t.Fatalf("timeout unexpectedly called fallback: %d", fallbackCalls.Load())
+	}
+
+	// Closing while parked in YieldOrFallback invokes fallback.
+	parkedDone := make(chan struct{})
+	go func() {
+		YieldOrFallback(db, time.Second, func() { fallbackCalls.Add(1) })()
+		close(parkedDone)
+	}()
+	time.Sleep(2 * time.Millisecond)
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	select {
+	case <-parkedDone:
+	case <-time.After(time.Second):
+		t.Fatal("parked YieldOrFallback did not unblock on Close")
+	}
+	if fallbackCalls.Load() != 3 {
+		t.Fatalf("close-while-parked fallbackCalls=%d, want 3", fallbackCalls.Load())
+	}
+
+	// Already-closed doorbell invokes fallback on subsequent calls.
+	yield()
+	if fallbackCalls.Load() != 4 {
+		t.Fatalf("already-closed fallbackCalls=%d, want 4", fallbackCalls.Load())
+	}
+}

@@ -486,7 +486,11 @@ another stable cache explicitly. Relocating an authenticated compiler installati
 is not supported by merely copying its directory; build/authenticate new installs.
 `make -C sources/misteross toolchain-prune CACHE_ROOT=…` reports the compiler
 installs no lock on `origin/main` pins and nobody used recently, and
-removes them with `APPLY=1`; never delete installs by hand.
+removes them with `APPLY=1`; never delete installs by hand. A nextpnr install
+counts as pinned only for a GPU lane this host can build (`OFF`, plus `HIP`
+when `hipcc` and `CUDA` when `nvcc` is on `PATH`) with the current accelerator
+compiler and backend environment; `GPU_ROUTERS="HIP OFF"` names the lanes
+explicitly.
 Mutable source builds stay in individual snapshots. Cached packages retain their
 original manifests and records; a separate `.provenance.json` selection receipt
 identifies selected versus original source and the exact payload digest.

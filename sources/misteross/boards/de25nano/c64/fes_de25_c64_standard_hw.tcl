@@ -36,7 +36,7 @@ foreach file {fes_de25_computer.vh fes_de25_scanout.vh} {
 foreach file {fes_computer.vh fes_application.vh fes_display_plane.vh fes_firmware_upload.vh} {
     add_fileset_file $file VERILOG_INCLUDE PATH generated/$file
 }
-foreach file {c64_bus.vh c64_sid_combined_waves.vh c64_sid_8580_waves.vh c64_sid_svf_tables.vh} {
+foreach file {c64_bus.vh c64_timing.vh c64_sid_combined_waves.vh c64_sid_8580_waves.vh c64_sid_svf_tables.vh} {
     add_fileset_file $file VERILOG_INCLUDE PATH $file
 }
 foreach {clock port reset reset_port} {clk_sys clk_sys system_reset reset_n clk pixel_clk reset pixel_reset_n} {
