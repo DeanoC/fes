@@ -16,7 +16,6 @@ import (
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
-	"github.com/DeanoC/fes/platform/embedded/tamago/fpgairq"
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
@@ -76,40 +75,14 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	if err != nil {
 		panic(err)
 	}
-	var menuDoorbell, computerDoorbell *fpgairq.Doorbell
-	if activeGIC != nil {
-		disp, err := de25nano.NewFPGADispatcher()
-		if err != nil {
-			panic(err)
-		}
-		defer disp.Close()
-		if computerDoorbell, err = disp.Open(fpgairq.Config{Line: de25nano.FPGAIRQComputerACK, Trigger: fpgairq.Edge}); err != nil {
-			panic(err)
-		}
-		if paired {
-			if menuDoorbell, err = disp.Open(fpgairq.Config{Line: de25nano.FPGAIRQMenuVSync, Trigger: fpgairq.Edge}); err != nil {
-				panic(err)
-			}
-		}
-	}
-	limits := computer.Limits{
-		Timeout:  time.Second,
-		MaxPolls: 64,
-		Now:      time.Now,
-		Yield:    fpgairq.YieldOrFallback(computerDoorbell, 100*time.Microsecond, runtime.Gosched),
-	}
+	limits := computer.Limits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: runtime.Gosched}
 	if paired {
 		load, done := context.WithTimeout(context.Background(), 100*time.Second)
 		programService, err = nativefabric.NewProgramServiceWithMenu(load, loader, store, de25nano.ReserveConfiguration, limits,
 			nativefabric.ProgramMenuOptions{Request: startup.Menu, Reserve: de25nano.ReserveMenuMemory,
 				Observe: emitProgramMenu,
 				Limits: scanout.MenuLimits{PublicationTimeout: 4 * time.Second,
-					ReaderLimits: scanout.ReaderLimits{
-						Timeout:  time.Second,
-						MaxPolls: 64,
-						Now:      time.Now,
-						Yield:    fpgairq.YieldOrFallback(menuDoorbell, time.Millisecond, func() { time.Sleep(time.Millisecond) }),
-					}}})
+					ReaderLimits: scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}}})
 		done()
 	} else {
 		programService, err = nativefabric.NewProgramService(loader, store, de25nano.ReserveConfiguration, limits)
