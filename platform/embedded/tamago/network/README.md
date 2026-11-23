@@ -94,13 +94,15 @@ The service retains partial returned controls and retires without FPGA cleanup
 after uncertain startup, including a propagated platform panic. This supplies
 the call path, not MAC/PHY/DMA qualification or a native upload listener.
 
-This prototype supports IPv4 TCP with static addressing and a 1500-byte MTU.
-It enables neither checksum/segmentation offloads nor merged receive buffers.
-The Lneto configuration limits active TCP ports to 16 and listener connections
-to 8. DHCP, DNS configuration, UDP, IPv6, link-change recovery, network
-throughput qualification and physical Ethernet acceptance remain separate work. Use
-numeric IPv4 addresses for the current private HTTP service. The board's
-deterministic entropy provider is unsuitable for authentication and TLS.
+This prototype supports IPv4 TCP with static addressing (default) or opt-in
+RFC 2131 DHCPv4 (`AcquireDHCP` / `OpenDeviceDHCP` / `Config{DHCP: true}`) and a
+1500-byte MTU. It enables neither checksum/segmentation offloads nor merged
+receive buffers. The Lneto configuration limits active TCP ports to 16 and
+listener connections to 8. Lease renewal, DNS resolution, general UDP, IPv6,
+link-change recovery, network throughput qualification and physical Ethernet
+acceptance remain separate work. Use numeric IPv4 addresses for the current
+private HTTP service. The board's deterministic entropy provider is unsuitable
+for authentication and TLS.
 
 The pinned dependency is `github.com/usbarmory/go-net`
 `v0.0.0-20260924083839-356cbf14db9e`, the revision compatible with the

@@ -21,5 +21,9 @@ func OpenWithPool(ctx context.Context, config Config, pool *dmaops.Pool) (*Inter
 	if err != nil {
 		return nil, err
 	}
-	return OpenDevice(ctx, c.Address, c.Gateway, func() (Device, error) { return openNIC(c.MMIOAddress, pool) })
+	factory := func() (Device, error) { return openNIC(c.MMIOAddress, pool) }
+	if c.DHCP {
+		return OpenDeviceDHCP(ctx, factory, c.DHCPConfig)
+	}
+	return OpenDevice(ctx, c.Address, c.Gateway, factory)
 }
