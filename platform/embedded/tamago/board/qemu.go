@@ -40,7 +40,11 @@ func OpenKeyboard() (*input.USBKeyboard, error) {
 	if err != nil {
 		return nil, err
 	}
-	host, err := usb.OpenXHCI(base)
+	pool, err := qemuvirt.DMAPool()
+	if err != nil {
+		return nil, err
+	}
+	host, err := usb.OpenXHCIWithPool(base, pool)
 	if err != nil {
 		return nil, err
 	}
