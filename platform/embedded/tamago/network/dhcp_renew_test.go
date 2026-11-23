@@ -170,6 +170,29 @@ func TestRenewDHCPOnceUnicastRebindNAKAndChanged(t *testing.T) {
 	if _, err := RenewDHCPOnce(context.Background(), port4, clientMACStr, initial, false, RenewConfig{RetryInterval: 5 * time.Millisecond}); !errors.Is(err, ErrLeaseChanged) {
 		t.Fatalf("changed IP err=%v, want ErrLeaseChanged", err)
 	}
+
+	// 5. Renewal ACK omitting unchanged subnet mask, router, DNS, and server ID preserves them from current.
+	initialWithDNS := initial
+	initialWithDNS.DNS = []string{"10.0.2.3"}
+	port5 := newFakeRenewPort()
+	port5.onSend = func(frame []byte, p *fakeRenewPort) {
+		xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
+		// ACK carries only msgType=ACK and leaseTime=1800 (no mask, router, DNS, or server ID).
+		go p.inject(makeServerReplyFrame(clientMAC, clientMAC, serverIP, clientIP, xid,
+			makeDHCPOptions(dhcpMsgAck, nil, nil, nil, nil, 1800), false))
+	}
+	minimal, err := RenewDHCPOnce(context.Background(), port5, clientMACStr, initialWithDNS, false, RenewConfig{
+		ServerMAC:     serverMACStr,
+		RetryInterval: 5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("minimal ACK RenewDHCPOnce: %v", err)
+	}
+	if minimal.Address != initialWithDNS.Address || minimal.Gateway != initialWithDNS.Gateway ||
+		minimal.Server != initialWithDNS.Server || minimal.LeaseDuration != 30*time.Minute ||
+		len(minimal.DNS) != 1 || minimal.DNS[0] != "10.0.2.3" {
+		t.Fatalf("minimal ACK lease=%+v", minimal)
+	}
 }
 
 func TestLeaseRenewerT1T2LifecycleAndStopDrain(t *testing.T) {
@@ -299,4 +322,35 @@ func TestLeaseRenewerT1T2LifecycleAndStopDrain(t *testing.T) {
 	if !errors.Is(expRen.Err(), ErrLeaseExpired) {
 		t.Fatalf("Err=%v, want ErrLeaseExpired", expRen.Err())
 	}
+
+	// Preserving original AcquiredAt in the past triggers T1 immediately without extending expiry.
+	pastRenewed := make(chan DHCPLease, 1)
+	portPast := newFakeRenewPort()
+	portPast.onSend = func(frame []byte, p *fakeRenewPort) {
+		xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
+		go p.inject(makeServerReplyFrame(clientMAC, clientMAC, serverIP, clientIP, xid,
+			makeDHCPOptions(dhcpMsgAck, nil, nil, nil, &serverIP, 3600), false))
+	}
+	pastRen, err := NewLeaseRenewer(portPast, clientMACStr, DHCPLease{
+		Address:       "10.0.2.15/24",
+		Gateway:       "10.0.2.2",
+		Server:        "10.0.2.2",
+		LeaseDuration: time.Hour,
+	}, RenewConfig{
+		AcquiredAt:    time.Now().Add(-40 * time.Minute), // already past 30m T1!
+		RetryInterval: 5 * time.Millisecond,
+		OnRenew:       func(l DHCPLease) { pastRenewed <- l },
+	})
+	if err != nil {
+		t.Fatalf("NewLeaseRenewer past: %v", err)
+	}
+	if err := pastRen.Start(context.Background()); err != nil {
+		t.Fatalf("Start past: %v", err)
+	}
+	select {
+	case <-pastRenewed:
+	case <-time.After(time.Second):
+		t.Fatal("past AcquiredAt did not trigger immediate T1 renewal")
+	}
+	pastRen.Stop()
 }

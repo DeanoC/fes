@@ -46,6 +46,7 @@ type RenewConfig struct {
 	Hostname      string          // Optional option 12 hostname (default "fes-native")
 	ServerMAC     string          // Optional unicast DHCP server MAC for T1 renew (empty -> broadcast)
 	RetryInterval time.Duration   // Base retransmit interval per renew/rebind phase (default 250ms)
+	AcquiredAt    time.Time       // Time the initial lease was granted (zero -> time.Now() at NewLeaseRenewer)
 	XID           uint32          // Optional fixed transaction ID for deterministic tests (0 -> random)
 	OnRenew       func(DHCPLease) // Optional callback invoked after each successful renewal; must not call Stop synchronously.
 	OnError       func(error)     // Optional callback invoked when renewal terminates with error; must not call Stop synchronously.
@@ -129,8 +130,8 @@ func RenewDHCPOnce(ctx context.Context, port DHCPFramePort, macStr string, curre
 			if !rebind && reply.hasServer && reply.serverID != expectedServer {
 				return
 			}
-			lease, ok := buildValidatedLease(reply)
-			if !ok || lease.LeaseDuration <= 0 {
+			lease, ok := mergeRenewedLease(current, reply)
+			if !ok {
 				return
 			}
 			if lease.Address != current.Address || lease.Gateway != current.Gateway {
@@ -182,9 +183,10 @@ func RenewDHCPOnce(ctx context.Context, port DHCPFramePort, macStr string, curre
 // LeaseRenewer runs an opt-in RFC 2131 T1/T2 DHCPv4 lease renewal loop.
 // Creating a LeaseRenewer starts no background work until Start is called.
 type LeaseRenewer struct {
-	port DHCPFramePort
-	mac  string
-	cfg  RenewConfig
+	port       DHCPFramePort
+	mac        string
+	cfg        RenewConfig
+	acquiredAt time.Time
 
 	mu       sync.Mutex
 	started  bool
@@ -218,12 +220,17 @@ func NewLeaseRenewer(port DHCPFramePort, mac string, initial DHCPLease, cfg Rene
 	if err := validateRenewConfig(cfg); err != nil {
 		return nil, err
 	}
+	acquiredAt := cfg.AcquiredAt
+	if acquiredAt.IsZero() {
+		acquiredAt = time.Now()
+	}
 	return &LeaseRenewer{
-		port:   port,
-		mac:    mac,
-		cfg:    cfg,
-		lease:  cloneLease(initial),
-		stopCh: make(chan struct{}),
+		port:       port,
+		mac:        mac,
+		cfg:        cfg,
+		acquiredAt: acquiredAt,
+		lease:      cloneLease(initial),
+		stopCh:     make(chan struct{}),
 	}, nil
 }
 
@@ -311,7 +318,7 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 		}
 	}()
 
-	acquiredAt := time.Now()
+	acquiredAt := r.acquiredAt
 	for {
 		current := r.Lease()
 		t1 := current.LeaseDuration / 2
@@ -413,6 +420,75 @@ func validateRenewConfig(cfg RenewConfig) error {
 		}
 	}
 	return nil
+}
+
+func mergeRenewedLease(current DHCPLease, r dhcpParsedReply) (DHCPLease, bool) {
+	if r.leaseTime <= 0 {
+		return DHCPLease{}, false
+	}
+	curPrefix, err := netip.ParsePrefix(current.Address)
+	if err != nil {
+		return DHCPLease{}, false
+	}
+	prefixBits := curPrefix.Bits()
+	if r.hasMask {
+		bits, ok := maskPrefixBits(r.mask)
+		if !ok {
+			return DHCPLease{}, false
+		}
+		prefixBits = bits
+	}
+	addr := netip.AddrFrom4(r.yiaddr)
+	prefix := netip.PrefixFrom(addr, prefixBits)
+
+	var gw string
+	if len(r.routers) > 0 {
+		for _, candidate := range r.routers {
+			g := netip.AddrFrom4(candidate)
+			if _, err := staticConfig(prefix.String(), g.String()); err == nil {
+				gw = g.String()
+				break
+			}
+		}
+		if gw == "" {
+			return DHCPLease{}, false
+		}
+	} else {
+		gw = current.Gateway
+	}
+	cfg, err := staticConfig(prefix.String(), gw)
+	if err != nil {
+		return DHCPLease{}, false
+	}
+
+	server := current.Server
+	if r.hasServer {
+		srv := netip.AddrFrom4(r.serverID)
+		if srv.IsUnspecified() || srv.IsMulticast() {
+			return DHCPLease{}, false
+		}
+		server = srv.String()
+	}
+
+	var dns []string
+	if len(r.dns) > 0 {
+		for _, d := range r.dns {
+			a := netip.AddrFrom4(d)
+			if !a.IsUnspecified() && !a.IsMulticast() {
+				dns = append(dns, a.String())
+			}
+		}
+	} else if len(current.DNS) > 0 {
+		dns = append([]string(nil), current.DNS...)
+	}
+
+	return DHCPLease{
+		Address:       cfg.Address,
+		Gateway:       cfg.Gateway,
+		Server:        server,
+		DNS:           dns,
+		LeaseDuration: r.leaseTime,
+	}, true
 }
 
 func cloneLease(l DHCPLease) DHCPLease {
