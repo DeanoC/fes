@@ -337,7 +337,7 @@ This path does not seal `fes.zx81`.
 | `cores/fes-common/` | RTL shared by more than one core |
 | `scripts/experiment_policy.py` | Closed experiment list and checks |
 | `scripts/build_fes_*.py` | Core producers |
-| `toolchain.lock` | Shared OSS compiler pin (Yosys `3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`) and the HIP cache slot for every described recipe whose lock matches it |
+| `toolchain.lock` | Shared OSS compiler pin (Yosys `d273c1cb`, Mistral `8fcc4cb4`, nextpnr `9128800f`) and the HIP cache slot for every described recipe whose lock matches it |
 | `cores/fes-apple2/toolchain.lock`, `cores/fes-c64/toolchain.lock` | Per-core locks using nextpnr `5fe55f3d` for the #276 F0/F1 boundary route-through map |
 | `cores/fes-spectrum/toolchain.lock` | Per-core lock using nextpnr main `bd7a1c0d` (#276 merged, same F0/F1 map) |
 | `cores/fes-coleco/toolchain.lock` | Coleco's Yosys `5391eeb1` and nextpnr `bec82e36` pins; this lock has its own HIP cache slot |

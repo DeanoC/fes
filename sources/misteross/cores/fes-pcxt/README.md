@@ -794,7 +794,7 @@ python3 scripts/core_dev.py prepare --core fes.pcxt-dos --output out/pcxt-packag
 ```
 
 The board producer authenticates `cores/fes-pcxt/toolchain.lock`, with reviewed
-nextpnr main `2fa5ec4c`, Yosys `3a5accbd` and the Mistral timing-line fix `9ab65220`. Without
+nextpnr main `2fa5ec4c`, Yosys `d273c1cb` and the Mistral timing-line fix `9ab65220`. Without
 `CACHE_ROOT`, the toolchain and build commands both use the repository-local
 `build/toolchain/fes-pcxt` install. Select
 `PCXT_GPU_ROUTER=CUDA` for both preparation and build on a CUDA host; HIP and

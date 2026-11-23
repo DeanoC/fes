@@ -2150,7 +2150,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | Apple II and C64 use nextpnr `5fe55f3d` (#276), Spectrum uses nextpnr main `bd7a1c0d` (#276 merged), and Coleco v2 pins Yosys `5391eeb1` with nextpnr `bec82e36` (#296, #299; retains #289, #290 and #292); each validates its matching F0/F1 boundary `$ROUTETHRU` map. The Coleco development shell uses the repository-level nextpnr `9128800f` and its C/D map. SMS and SG-1000 remain byte-identical to the repository-level pins (Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Quartus needs neither lock. |
+| Toolchain selection | Apple II and C64 use nextpnr `5fe55f3d` (#276), Spectrum uses nextpnr main `bd7a1c0d` (#276 merged), and Coleco v2 pins Yosys `5391eeb1` with nextpnr `bec82e36` (#296, #299; retains #289, #290 and #292); each validates its matching F0/F1 boundary `$ROUTETHRU` map. The Coleco development shell uses the repository-level nextpnr `9128800f` and its C/D map. SMS and SG-1000 match the repository-level pins (Yosys `d273c1cb`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -2237,7 +2237,7 @@ and timing evidence without sealing.
 
 `make build-fes-sg1000` is the OSS producer
 (`scripts/build_fes_sg1000_oss.py`). It uses `cores/fes-sg1000/toolchain.lock`
-(nextpnr `9128800f`, Mistral `8fcc4cb4`, Yosys `3a5accbd`), `constraints-oss.qsf`, and `clocks-oss.sdc`.
+(nextpnr `9128800f`, Mistral `8fcc4cb4`, Yosys `d273c1cb`), `constraints-oss.qsf`, and `clocks-oss.sdc`.
 Yosys defines `FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and
 `FES_COLECO_OSS=1`. The cartridge bank-mux output is registered in the system
 domain; its extra system-clock latency fits the native CPU read windows. Both
@@ -2326,7 +2326,7 @@ and timing evidence without sealing.
 
 `make build-fes-sms` is the OSS producer
 (`scripts/build_fes_sms_oss.py`). It uses `cores/fes-sms/toolchain.lock`
-(nextpnr `9128800f` with Mistral `8fcc4cb4` and Yosys `3a5accbd`), SMS `constraints-oss.qsf` (Coleco
+(nextpnr `9128800f` with Mistral `8fcc4cb4` and Yosys `d273c1cb`), SMS `constraints-oss.qsf` (Coleco
 video/I2C pins plus ADV7513 I2S), and Coleco `clocks-oss.sdc`. Yosys defines
 `TV80_REFRESH=1`, `FES_SMS_OSS=1`, `FES_SMS_ROM_LINK=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs
 Yosys without a clean tree and does not seal. The producer uses `--router gpu`
@@ -3534,7 +3534,7 @@ independently of routing legality and CRAM containment. Each response output
 has a separate identity ALUT2 so the pinned merger cannot discard constant
 outputs or collapse aliased response sinks. The probe drives only read cycles.
 No Commodore ROM is in the tree, and the core is not in the
-factory image. The shell uses Yosys `3a5accbd`, Mistral `8fcc4cb4` and nextpnr
+factory image. The shell uses Yosys `d273c1cb`, Mistral `8fcc4cb4` and nextpnr
 `9128800f` from `cores/fes-c64/toolchain.lock`; fresh routed and hardware
 validation remain required. Its
 socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`
