@@ -293,11 +293,14 @@ func (g *nativeKeyboardGate) retire(id localhid.DeviceID) error {
 // up. Both callbacks are infallible, bounded, local bookkeeping. Any failure
 // keeps the guest route quarantined.
 func (g *nativeKeyboardGate) snapshot(capabilities, held func(int) ([]byte, error), reconcile func(*nativeInput, []uint16), unknown func(*nativeInput)) (bool, error) {
-	if !g.dirty {
-		return false, nil
-	}
 	gen, permitted := g.boundary.nativeKeyboardSnapshotPermit()
 	if !permitted {
+		return false, nil
+	}
+	// App-side authority changes can retire a source without a device fault.
+	// A new permitted generation still needs a fresh all-device snapshot,
+	// even when the native event loop has not marked its sources dirty.
+	if !g.dirty && gen == g.generation {
 		return false, nil
 	}
 	if capabilities == nil || held == nil || reconcile == nil || unknown == nil || len(g.sources) == 0 {

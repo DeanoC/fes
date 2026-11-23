@@ -3813,6 +3813,8 @@ ZX81 matrix or arrow code the kit sent before HID, so those cores see the same k
 The managed kit bundle enables acknowledged local-keyboard recovery in both
 the agent and kit-host launcher. The target arms its recovery fence before
 serving input; the native launcher requires a fresh physical snapshot. An
+authority generation change triggers a new all-device snapshot even when no
+device has changed or reported a fault since the previous snapshot. An
 unmanaged target defaults off and can opt in with `FOGCAST_LOCAL_KEYBOARD_V2=1`;
 an invalid value fails agent startup. Optional SDL kit-host mode reports the
 physical keyboard unavailable, while paired-host SDL remains available.

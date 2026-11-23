@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -435,6 +436,119 @@ func TestNativeGateSnapshotWaitsForPermitAndPreservesRawState(t *testing.T) {
 	}
 	if len(f.edges) != 2 || f.edges[0].Sequence >= f.edges[1].Sequence || f.edges[0].Device == f.edges[1].Device {
 		t.Fatalf("edge ordering: %+v", f.edges)
+	}
+}
+
+// A session transition can invalidate App authority without any keyboard
+// hotplug or input error. The gate must capture a fresh boundary when the
+// new authority is recovered, even though its old snapshot was clean.
+func TestNativeGateResnapshotsAfterAuthorityGenerationChanges(t *testing.T) {
+	a := readyNativeBindingApp(t)
+	defer a.Stop()
+	g := &nativeKeyboardGate{boundary: a, publisher: [16]byte{1}}
+	in := &nativeInput{fd: 10, kind: InputKeyboard}
+	if err := g.add(gateID(1), in); err != nil {
+		t.Fatal(err)
+	}
+	reads := 0
+	down := false
+	caps := func(int) ([]byte, error) { return gateCaps(42), nil }
+	held := func(int) ([]byte, error) {
+		reads++
+		if down {
+			return gateCaps(42), nil
+		}
+		return gateCaps(), nil
+	}
+	reconcile := func(*nativeInput, []uint16) {}
+	unknown := func(*nativeInput) { t.Fatal("unexpected unknown keyboard state") }
+	recoverAuthority := func(previousAgent string) nativeGuestBinding {
+		t.Helper()
+		binding, err := a.nativeKeyboardPrepareBinding(g.publisher)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reply := localhid.Reply{Version: 2, Op: "recover", Request: 1, Status: "reader-drained", AgentInstance: previousAgent, TargetID: binding.TargetID, BootID: binding.BootID}
+		if err := a.nativeKeyboardPermitAfterRecovery(binding, previousAgent, reply); err != nil {
+			t.Fatal(err)
+		}
+		return binding
+	}
+	first := recoverAuthority(strings.Repeat("e", 32))
+	if ok, err := g.snapshot(caps, held, reconcile, unknown); err != nil || !ok || reads != 1 {
+		t.Fatalf("first boundary: ok=%v err=%v reads=%d", ok, err, reads)
+	}
+	op, req, ok := a.nativeKeyboardTakeAction(first, first)
+	if !ok || req.Op != "begin" || len(req.Devices) != 1 || len(req.Devices[0].Held) != 0 {
+		t.Fatalf("first begin: %+v", req)
+	}
+	token := strings.Repeat("c", 64)
+	a.nativeKeyboardCompleteAction(op, first, localhid.Reply{Op: "begin", Status: "ready", Token: token}, nil)
+
+	// A session/lease change is observed by App, not by the device gate.
+	a.requestNativeKeyboardQuarantine(nativeFaultAuthority)
+	if g.dirty {
+		t.Fatal("App-side authority loss unexpectedly dirtied the device gate")
+	}
+	op, req, ok = a.nativeKeyboardTakeAction(first, nativeGuestBinding{})
+	if !ok || req.Op != "reset" {
+		t.Fatalf("old source did not require retirement: %+v", req)
+	}
+	a.nativeKeyboardCompleteAction(op, nativeGuestBinding{}, localhid.Reply{Op: "reset", Status: "neutral-confirmed", Token: token}, nil)
+	a.mu.Lock()
+	lease := strings.Repeat("d", 64)
+	a.health.Connection.LeaseGeneration = lease
+	a.kitLease.Generation = lease
+	a.session.RuntimeInput.Generation++
+	a.mu.Unlock()
+	down = true // Shift was held across the boundary and must be snapshotted.
+	if ok, err := g.snapshot(caps, held, reconcile, unknown); err != nil || ok || reads != 1 {
+		t.Fatalf("unpermitted boundary: ok=%v err=%v reads=%d", ok, err, reads)
+	}
+	second := recoverAuthority(first.InputAgentInstance)
+	if second.AuthorityGeneration == first.AuthorityGeneration {
+		t.Fatal("new authority reused the old generation")
+	}
+	if ok, err := g.snapshot(caps, held, reconcile, unknown); err != nil || !ok || reads != 2 {
+		t.Fatalf("new authority boundary: ok=%v err=%v reads=%d", ok, err, reads)
+	}
+	op, req, ok = a.nativeKeyboardTakeAction(second, second)
+	if !ok || req.Op != "begin" || len(req.Devices) != 1 || !reflect.DeepEqual(req.Devices[0].Held, []uint8{0xe1}) {
+		t.Fatalf("second begin did not include the held Shift: %+v", req)
+	}
+	if ok, err := g.snapshot(caps, held, reconcile, unknown); err != nil || ok || reads != 2 {
+		t.Fatalf("same generation resnapshotted: ok=%v err=%v reads=%d", ok, err, reads)
+	}
+}
+
+func TestNativeGateSnapshotsOnlyForDirtyOrNewPermittedGeneration(t *testing.T) {
+	g, f := newGate()
+	if err := g.add(gateID(1), &nativeInput{fd: 10, kind: InputKeyboard}); err != nil {
+		t.Fatal(err)
+	}
+	reads := 0
+	caps := func(int) ([]byte, error) { return gateCaps(42), nil }
+	held := func(int) ([]byte, error) { reads++; return gateCaps(42), nil }
+	reconcile := func(*nativeInput, []uint16) {}
+	unknown := func(*nativeInput) { t.Fatal("unexpected unknown keyboard state") }
+	f.permit = true
+	if ok, err := g.snapshot(caps, held, reconcile, unknown); err != nil || !ok || reads != 1 {
+		t.Fatalf("initial snapshot: ok=%v err=%v reads=%d", ok, err, reads)
+	}
+	if ok, err := g.snapshot(caps, held, reconcile, unknown); err != nil || ok || reads != 1 || len(f.published) != 1 {
+		t.Fatalf("same generation: ok=%v err=%v reads=%d published=%d", ok, err, reads, len(f.published))
+	}
+	f.gen++ // App authority changed without a native gate fault.
+	f.permit = false
+	if ok, err := g.snapshot(caps, held, reconcile, unknown); err != nil || ok || reads != 1 || len(f.published) != 1 {
+		t.Fatalf("new generation without permit: ok=%v err=%v reads=%d published=%d", ok, err, reads, len(f.published))
+	}
+	f.permit = true
+	if ok, err := g.snapshot(caps, held, reconcile, unknown); err != nil || !ok || reads != 2 || len(f.published) != 2 {
+		t.Fatalf("new permitted generation: ok=%v err=%v reads=%d published=%d", ok, err, reads, len(f.published))
+	}
+	if len(f.published[1].Devices) != 1 || !reflect.DeepEqual(f.published[1].Devices[0].Held, []uint16{42}) {
+		t.Fatalf("new snapshot lost the held key: %+v", f.published[1].Devices)
 	}
 }
 
