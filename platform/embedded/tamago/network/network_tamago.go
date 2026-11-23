@@ -79,11 +79,10 @@ func OpenDeviceDHCPWithStartup(startup, lifetime context.Context, factory func()
 	if err != nil {
 		return nil, err
 	}
-	lease, err := AcquireDHCP(startup, nic, dhcpCfg)
+	lease, acquiredAt, err := acquireDHCPWithTime(startup, nic, dhcpCfg)
 	if err != nil {
 		return nil, err
 	}
-	acquiredAt := time.Now()
 	if err := lifetime.Err(); err != nil {
 		return nil, err
 	}

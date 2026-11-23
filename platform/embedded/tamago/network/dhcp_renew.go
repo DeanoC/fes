@@ -65,26 +65,31 @@ type RenewConfig struct {
 // RenewDHCPOnce executes one RFC 2131 RENEWING (rebind=false) or REBINDING
 // (rebind=true) DHCPREQUEST -> DHCPACK/DHCPNAK exchange over port.
 func RenewDHCPOnce(ctx context.Context, port DHCPFramePort, macStr string, current DHCPLease, rebind bool, cfg RenewConfig) (DHCPLease, error) {
+	lease, _, err := renewDHCPOnceWithTime(ctx, port, macStr, current, rebind, cfg)
+	return lease, err
+}
+
+func renewDHCPOnceWithTime(ctx context.Context, port DHCPFramePort, macStr string, current DHCPLease, rebind bool, cfg RenewConfig) (DHCPLease, time.Time, error) {
 	if ctx == nil || port == nil {
-		return DHCPLease{}, fmt.Errorf("%w: nil context or port", ErrDHCPInvalidConfig)
+		return DHCPLease{}, time.Time{}, fmt.Errorf("%w: nil context or port", ErrDHCPInvalidConfig)
 	}
 	if err := ctx.Err(); err != nil {
-		return DHCPLease{}, err
+		return DHCPLease{}, time.Time{}, err
 	}
 	mac, err := parseUnicastMAC(macStr)
 	if err != nil {
-		return DHCPLease{}, fmt.Errorf("%w: %v", ErrDHCPInvalidConfig, err)
+		return DHCPLease{}, time.Time{}, fmt.Errorf("%w: %v", ErrDHCPInvalidConfig, err)
 	}
 	if err := validateRenewConfig(cfg); err != nil {
-		return DHCPLease{}, err
+		return DHCPLease{}, time.Time{}, err
 	}
 	if _, err := staticConfig(current.Address, current.Gateway); err != nil {
-		return DHCPLease{}, fmt.Errorf("%w: invalid current lease: %v", ErrDHCPInvalidConfig, err)
+		return DHCPLease{}, time.Time{}, fmt.Errorf("%w: invalid current lease: %v", ErrDHCPInvalidConfig, err)
 	}
 	prefix := netip.MustParsePrefix(current.Address)
 	serverIP, err := netip.ParseAddr(current.Server)
 	if err != nil || !serverIP.Is4() || serverIP.IsUnspecified() || serverIP.IsMulticast() {
-		return DHCPLease{}, fmt.Errorf("%w: invalid lease server %q", ErrDHCPInvalidConfig, current.Server)
+		return DHCPLease{}, time.Time{}, fmt.Errorf("%w: invalid lease server %q", ErrDHCPInvalidConfig, current.Server)
 	}
 
 	var dstMAC [6]byte
@@ -96,7 +101,7 @@ func RenewDHCPOnce(ctx context.Context, port DHCPFramePort, macStr string, curre
 	} else {
 		dstMAC, err = parseUnicastMAC(cfg.ServerMAC)
 		if err != nil {
-			return DHCPLease{}, fmt.Errorf("%w: invalid ServerMAC: %v", ErrDHCPInvalidConfig, err)
+			return DHCPLease{}, time.Time{}, fmt.Errorf("%w: invalid ServerMAC: %v", ErrDHCPInvalidConfig, err)
 		}
 		dstIP = serverIP.As4()
 	}
@@ -159,34 +164,43 @@ func RenewDHCPOnce(ctx context.Context, port DHCPFramePort, macStr string, curre
 	})
 	defer remove()
 
+	var requestSentAt time.Time
 	for {
 		if err := ctx.Err(); err != nil {
-			return DHCPLease{}, err
+			return DHCPLease{}, time.Time{}, err
 		}
 		if err := port.Err(); err != nil {
-			return DHCPLease{}, err
+			return DHCPLease{}, time.Time{}, err
 		}
+		attemptAt := time.Now()
 		if err := port.SendRawFrame(txFrame); err != nil {
 			// If traffic is temporarily paused (e.g., FPGA reconfiguration), wait and retry.
 			if !errors.Is(err, ErrPaused) {
-				return DHCPLease{}, err
+				return DHCPLease{}, time.Time{}, err
 			}
+		} else if requestSentAt.IsZero() {
+			// RFC 2131 §4.4.5: anchor renewed T1/T2/expiration conservatively to when
+			// the DHCPREQUEST for this XID was first transmitted.
+			requestSentAt = attemptAt
 		}
 		wait := nextRenewWait(ctx, minInterval)
 		if wait <= 0 {
 			if err := ctx.Err(); err != nil {
-				return DHCPLease{}, err
+				return DHCPLease{}, time.Time{}, err
 			}
-			return DHCPLease{}, context.DeadlineExceeded
+			return DHCPLease{}, time.Time{}, context.DeadlineExceeded
 		}
 		timer := time.NewTimer(wait)
 		select {
 		case res := <-replyCh:
 			timer.Stop()
-			return res.lease, res.err
+			if requestSentAt.IsZero() {
+				requestSentAt = attemptAt
+			}
+			return res.lease, requestSentAt, res.err
 		case <-ctx.Done():
 			timer.Stop()
-			return DHCPLease{}, ctx.Err()
+			return DHCPLease{}, time.Time{}, ctx.Err()
 		case <-timer.C:
 		}
 	}
@@ -490,15 +504,11 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 			return
 		}
 
-		// Phase 1: T1 RENEWING (unicast if ServerMAC known) until T2.
-		t1Ctx, t1Cancel := context.WithDeadline(runCtx, t2At)
-		nextLease, err := RenewDHCPOnce(t1Ctx, r.port, r.mac, current, false, loopCfg)
-		t1Cancel()
-		if err == nil {
+		applyRenewal := func(nextLease DHCPLease, sentAt time.Time) {
 			if nextLease.Server != current.Server {
 				loopCfg.ServerMAC = ""
 			}
-			acquiredAt = time.Now()
+			acquiredAt = sentAt
 			r.mu.Lock()
 			r.lease = cloneLease(nextLease)
 			r.mu.Unlock()
@@ -509,6 +519,14 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 			if r.cfg.OnRenew != nil {
 				r.cfg.OnRenew(cloneLease(nextLease))
 			}
+		}
+
+		// Phase 1: T1 RENEWING (unicast if ServerMAC known) until T2.
+		t1Ctx, t1Cancel := context.WithDeadline(runCtx, t2At)
+		nextLease, sentAt, err := renewDHCPOnceWithTime(t1Ctx, r.port, r.mac, current, false, loopCfg)
+		t1Cancel()
+		if err == nil {
+			applyRenewal(nextLease, sentAt)
 			continue
 		}
 		if runCtx.Err() != nil {
@@ -521,23 +539,10 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 
 		// Phase 2: T2 REBINDING (broadcast) until lease expiry.
 		t2Ctx, t2Cancel := context.WithDeadline(runCtx, expireAt)
-		nextLease, err = RenewDHCPOnce(t2Ctx, r.port, r.mac, current, true, loopCfg)
+		nextLease, sentAt, err = renewDHCPOnceWithTime(t2Ctx, r.port, r.mac, current, true, loopCfg)
 		t2Cancel()
 		if err == nil {
-			if nextLease.Server != current.Server {
-				loopCfg.ServerMAC = ""
-			}
-			acquiredAt = time.Now()
-			r.mu.Lock()
-			r.lease = cloneLease(nextLease)
-			r.mu.Unlock()
-			if r.onUpdate != nil {
-				r.onUpdate(cloneLease(nextLease), acquiredAt)
-			}
-			r.renewals.Add(1)
-			if r.cfg.OnRenew != nil {
-				r.cfg.OnRenew(cloneLease(nextLease))
-			}
+			applyRenewal(nextLease, sentAt)
 			continue
 		}
 		if runCtx.Err() != nil {

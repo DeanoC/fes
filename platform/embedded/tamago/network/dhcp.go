@@ -125,18 +125,23 @@ func validateDHCPConfig(cfg DHCPConfig) error {
 // AcquireDHCP runs an RFC 2131 DHCPv4 handshake (DISCOVER -> OFFER -> REQUEST -> ACK)
 // directly over dev before an IP stack claims its receive path.
 func AcquireDHCP(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, error) {
+	lease, _, err := acquireDHCPWithTime(ctx, dev, cfg)
+	return lease, err
+}
+
+func acquireDHCPWithTime(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, time.Time, error) {
 	if ctx == nil || dev == nil {
-		return DHCPLease{}, fmt.Errorf("%w: nil context or device", ErrDHCPInvalidConfig)
+		return DHCPLease{}, time.Time{}, fmt.Errorf("%w: nil context or device", ErrDHCPInvalidConfig)
 	}
 	if err := ctx.Err(); err != nil {
-		return DHCPLease{}, err
+		return DHCPLease{}, time.Time{}, err
 	}
 	mac, err := parseUnicastMAC(dev.MAC())
 	if err != nil {
-		return DHCPLease{}, fmt.Errorf("%w: %v", ErrDHCPInvalidConfig, err)
+		return DHCPLease{}, time.Time{}, fmt.Errorf("%w: %v", ErrDHCPInvalidConfig, err)
 	}
 	if err := validateDHCPConfig(cfg); err != nil {
-		return DHCPLease{}, err
+		return DHCPLease{}, time.Time{}, err
 	}
 
 	hostname := cfg.Hostname
@@ -174,10 +179,10 @@ func AcquireDHCP(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, er
 	rxBuf := make([]byte, 1518)
 	for {
 		if err := ctx.Err(); err != nil {
-			return DHCPLease{}, err
+			return DHCPLease{}, time.Time{}, err
 		}
 		if err := dev.Err(); err != nil {
-			return DHCPLease{}, err
+			return DHCPLease{}, time.Time{}, err
 		}
 
 		// Phase 1: DISCOVER -> OFFER.
@@ -193,10 +198,12 @@ func AcquireDHCP(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, er
 				return true, false
 			})
 		if err != nil {
-			return DHCPLease{}, err
+			return DHCPLease{}, time.Time{}, err
 		}
 
 		// Phase 2: REQUEST -> ACK (or NAK / retry exhaustion -> restart DISCOVER).
+		// RFC 2131 §4.4.1: anchor lease timing to when the DHCPREQUEST is transmitted.
+		requestSentAt := time.Now()
 		reqFrame := buildDHCPFrame(mac, xid, dhcpMsgRequest, hostname, offer.yiaddr, offer.serverID)
 		restarted := false
 		ack, err := dhcpExchange(ctx, dev, rxBuf, mac, xid, initialInterval, maxInterval, maxDHCPRequestRetries,
@@ -230,7 +237,7 @@ func AcquireDHCP(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, er
 				}
 				continue
 			}
-			return DHCPLease{}, err
+			return DHCPLease{}, time.Time{}, err
 		}
 		if restarted {
 			if !fixedXID {
@@ -245,7 +252,7 @@ func AcquireDHCP(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, er
 			}
 			continue
 		}
-		return lease, nil
+		return lease, requestSentAt, nil
 	}
 }
 

@@ -700,3 +700,105 @@ func TestSingleActiveRenewerEnforcement(t *testing.T) {
 	}
 	ren3.Stop()
 }
+
+func TestRenewalAnchorsLeaseAtRequestSendTime(t *testing.T) {
+	clientMACStr := "52:54:00:12:34:56"
+	serverMACStr := "52:55:0a:00:02:02"
+	clientMAC, _ := parseUnicastMAC(clientMACStr)
+	serverIP := [4]byte{10, 0, 2, 2}
+	clientIP := [4]byte{10, 0, 2, 15}
+	mask := [4]byte{255, 255, 255, 0}
+
+	// Test both T1 (unicast) and T2 (broadcast rebind) with a delayed DHCPACK.
+	for _, tc := range []struct {
+		name          string
+		ignoreUnicast bool
+	}{
+		{name: "T1", ignoreUnicast: false},
+		{name: "T2", ignoreUnicast: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			port := newFakeRenewPort()
+			const ackDelay = 60 * time.Millisecond
+			var mu sync.Mutex
+			var firstReqAt time.Time
+			var replied bool
+			port.onSend = func(frame []byte, p *fakeRenewPort) {
+				var dstMAC [6]byte
+				copy(dstMAC[:], frame[0:6])
+				if tc.ignoreUnicast && dstMAC != broadcastMAC {
+					return
+				}
+				xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
+				mu.Lock()
+				if replied {
+					mu.Unlock()
+					return
+				}
+				replied = true
+				firstReqAt = time.Now()
+				mu.Unlock()
+				go func() {
+					time.Sleep(ackDelay)
+					p.inject(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, clientIP, xid,
+						makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &serverIP, 3600), false))
+				}()
+			}
+
+			var state interfaceLease
+			state.init(DHCPLease{
+				Address:       "10.0.2.15/24",
+				Gateway:       "10.0.2.2",
+				Server:        "10.0.2.2",
+				LeaseDuration: 400 * time.Millisecond,
+				RenewalTime:   20 * time.Millisecond,
+				RebindTime:    160 * time.Millisecond,
+			}, time.Now(), true)
+
+			renewedAtCh := make(chan time.Time, 1)
+			ren, err := state.newRenewer(port, clientMACStr, RenewConfig{
+				ServerMAC:     serverMACStr,
+				RetryInterval: 200 * time.Millisecond,
+				OnRenew: func(DHCPLease) {
+					select {
+					case renewedAtCh <- time.Now():
+					default:
+					}
+				},
+			}, nil)
+			if err != nil {
+				t.Fatalf("newRenewer: %v", err)
+			}
+			if err := ren.Start(context.Background()); err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			var ackProcessedAt time.Time
+			select {
+			case ackProcessedAt = <-renewedAtCh:
+			case <-time.After(2 * time.Second):
+				ren.Stop()
+				t.Fatal("timed out waiting for delayed renewal")
+			}
+			ren.Stop()
+
+			mu.Lock()
+			reqAt := firstReqAt
+			mu.Unlock()
+			state.mu.RLock()
+			gotAcquiredAt := state.acquiredAt
+			state.mu.RUnlock()
+
+			if gotAcquiredAt.IsZero() {
+				t.Fatal("state.acquiredAt is zero")
+			}
+			if gotAcquiredAt.After(reqAt.Add(15 * time.Millisecond)) {
+				t.Fatalf("acquiredAt=%v was not anchored at DHCPREQUEST send time %v (ackProcessedAt=%v)",
+					gotAcquiredAt, reqAt, ackProcessedAt)
+			}
+			if lag := ackProcessedAt.Sub(gotAcquiredAt); lag < ackDelay/2 {
+				t.Fatalf("ackProcessedAt - acquiredAt = %v, want >= %v (anchored at request time, not ACK arrival)",
+					lag, ackDelay/2)
+			}
+		})
+	}
+}
