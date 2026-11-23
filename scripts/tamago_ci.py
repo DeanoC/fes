@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TAMAGO_DIR = ROOT / 'platform/embedded/tamago'
 DEFAULT_QEMU_PROGRAMS = (
     'probe', 'mapcheck', 'fabric', 'keyboard', 'display',
-    'packages', 'admission', 'tenfoot', 'play',
+    'packages', 'admission', 'network', 'tenfoot', 'storage', 'play',
 )
 EXCLUDED_BUILD_ERR = 'build constraints exclude all Go files'
 QEMU_LINK_FLAGS = '-T 0x40020000 -R 0x1000'
@@ -192,6 +192,26 @@ def check_nano_builds(root, compiler, module_cache, env, output):
     return steps
 
 
+def _prepare_storage_fixture_disk(disk_path, *, cwd):
+    disk_path = Path(disk_path)
+    disk_path.parent.mkdir(parents=True, exist_ok=True)
+    with disk_path.open('wb') as stream:
+        stream.truncate(64 << 20)
+    formatter = shutil.which('mkfs.fat')
+    if formatter:
+        run_step('storage-fixture-format', [formatter, '-F', '32', '-n', 'FESNATIVE', str(disk_path)], cwd=cwd, timeout=60)
+    else:
+        formatter = shutil.which('mformat')
+        if not formatter:
+            raise RuntimeError('install dosfstools (mkfs.fat) or mtools (mformat) to prepare storage fixture disk')
+        run_step('storage-fixture-format', [formatter, '-i', str(disk_path), '-F', '-v', 'FESNATIVE', '::'], cwd=cwd, timeout=60)
+    run_step('storage-fixture-mkdir', ['mmd', '-i', str(disk_path), '::FES'], cwd=cwd, timeout=60)
+    boot_json = disk_path.parent / 'storage-fixture-boot.json'
+    boot_json.write_text('{"probe":"storage"}\n')
+    run_step('storage-fixture-boot', ['mcopy', '-i', str(disk_path), str(boot_json), '::FES/BOOT.JSON'], cwd=cwd, timeout=60)
+    return disk_path
+
+
 def run_qemu_programs(root, compiler, module_cache, qemu, host, output, programs, timeout):
     root = Path(root)
     tamago_dir = root / 'platform/embedded/tamago'
@@ -204,6 +224,7 @@ def run_qemu_programs(root, compiler, module_cache, qemu, host, output, programs
         GOMODCACHE=str(Path(module_cache).resolve()),
     )
     steps = []
+    storage_disk = None
     for program in programs:
         prog_out = Path(output) / f'qemu-{program}'
         cmd = [
@@ -216,12 +237,20 @@ def run_qemu_programs(root, compiler, module_cache, qemu, host, output, programs
             '--output', str(prog_out),
             '--timeout', str(timeout),
         ]
+        if program == 'storage':
+            if storage_disk is None or not storage_disk.is_file():
+                storage_disk = _prepare_storage_fixture_disk(Path(output) / 'storage-fixture.img', cwd=root)
+            cmd.extend(['--disk', str(storage_disk)])
         try:
             steps.append(run_step(f'qemu-{program}', cmd, cwd=root, env=exp_env,
                                   timeout=max(300, int(timeout) * 3)))
         except RuntimeError:
             dump_failure_logs(prog_out)
             raise
+        if program in ('network', 'tenfoot'):
+            candidate = prog_out / 'fat32.img'
+            if candidate.is_file():
+                storage_disk = candidate
     return steps
 
 

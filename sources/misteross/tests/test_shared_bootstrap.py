@@ -23,7 +23,7 @@ def _prepare_fixture(
     root: Path,
     log: Path,
     *,
-    yosys_commit: str = "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
+    yosys_commit: str = "d273c1cb774f70d58c890745ac1b7dd106d32a26",
     nextpnr_commit: str = "9128800fa6e77c4138088a7107a95376ba47ff15",
 ) -> Path:
     scripts = root / "scripts"

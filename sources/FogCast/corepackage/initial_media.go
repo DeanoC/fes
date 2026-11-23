@@ -43,11 +43,26 @@ func inspectInitialMedia(d Descriptor, media *InitialMedia) (*initialMediaReceip
 	if media == nil {
 		return nil, nil
 	}
-	if len(media.GameID) > 256 || !initialMediaGameID.MatchString(media.GameID) || media.Unit != 0 || !hex64RE.MatchString(media.BaseMediaID) || !ValidAtariStBase(media.Bytes, DeclaresAtariStGeometry(d)) || romDigest(media.Bytes) != media.BaseMediaID {
-		return nil, errors.New("initial disk requires exact immutable ST base bytes and library identity")
+	if len(media.GameID) > 256 || !initialMediaGameID.MatchString(media.GameID) || media.Unit != 0 || !hex64RE.MatchString(media.BaseMediaID) || romDigest(media.Bytes) != media.BaseMediaID {
+		return nil, errors.New("initial disk requires exact immutable base bytes and library identity")
 	}
-	if err := ValidateWritableAtariStLibraryDiskPackage(d); err != nil {
-		return nil, err
+	if d.Core.ID == pcxtCoreID {
+		// The DE25 PC/XT's start disk rides with its uploaded firmware. The
+		// receiver learns the interface from the package, not the sender.
+		if (media.InterfaceID != "" && media.InterfaceID != pcxtFloppyInterfaceID) || len(media.Bytes) != pcxtFloppyBytes {
+			return nil, errors.New("initial disk requires an exact 360 KiB PC/XT base")
+		}
+		if err := ValidateWritablePcxtFirmwareDiskPackage(d); err != nil {
+			return nil, err
+		}
+		media.InterfaceID = pcxtFloppyInterfaceID
+	} else {
+		if media.InterfaceID != "" || !ValidAtariStBase(media.Bytes, DeclaresAtariStGeometry(d)) {
+			return nil, errors.New("initial disk requires exact immutable ST base bytes and library identity")
+		}
+		if err := ValidateWritableAtariStLibraryDiskPackage(d); err != nil {
+			return nil, err
+		}
 	}
 	return &initialMediaReceipt{GameID: media.GameID, BaseMediaID: media.BaseMediaID, Unit: media.Unit, Size: int64(len(media.Bytes))}, nil
 }
@@ -71,6 +86,36 @@ func ValidateWritableAtariStLibraryDiskPackage(d Descriptor) error {
 	}
 	if !base || !write {
 		return errors.New("initial library disk requires the writable ST floppy contract")
+	}
+	return nil
+}
+
+const (
+	pcxtCoreID            = "fes.pcxt-dos"
+	pcxtFloppyInterfaceID = "fes.media.pcxt-floppy"
+	pcxtFloppyBytes       = 368640
+)
+
+// ValidateWritablePcxtFirmwareDiskPackage checks the descriptor contract a
+// format-3 PC/XT needs to start from a library disk beside its uploaded
+// firmware: the writable PC/XT floppy pair.
+func ValidateWritablePcxtFirmwareDiskPackage(d Descriptor) error {
+	if d.Format != 3 || d.ROM == nil || d.ROM.Role != "firmware" || d.Core.ID != pcxtCoreID || !SupportedComputerABI(d.ABI) {
+		return errors.New("initial disk requires a format-3 PC/XT computer firmware package")
+	}
+	base, write := false, false
+	for _, i := range d.Interfaces {
+		if i.Required && i.Major == 1 && i.Minor == 0 {
+			switch i.ID {
+			case pcxtFloppyInterfaceID:
+				base = true
+			case "fes.media.pcxt-floppy-write":
+				write = true
+			}
+		}
+	}
+	if !base || !write {
+		return errors.New("initial library disk requires the writable PC/XT floppy contract")
 	}
 	return nil
 }

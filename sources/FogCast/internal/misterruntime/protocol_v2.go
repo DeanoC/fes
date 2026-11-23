@@ -1563,12 +1563,13 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 			return false
 		}
 	case "de25-hps-first-v1", "de25-linux-menu-v1", "de25-linux-computer-v1", "de25-linux-static-computer-v1":
-		wantABI := "fes.computer"
+		// The same exact per-machine contract package admission enforces.
+		wantABI := corepackage.DE25ComputerABI(active.Descriptor.Core.ID)
 		if active.Descriptor.Target.ProgrammingProfile == "de25-linux-menu-v1" {
-			wantABI = "fes.application"
+			wantABI = corepackage.Contract{ID: "fes.application", Major: 1, Minor: 0}
 		}
 		if active.Observed.ABI == nil || active.Descriptor.Target.Platform != "de25_nano" ||
-			active.Descriptor.ABI != (corepackage.Contract{ID: wantABI, Major: 1, Minor: 0}) {
+			active.Descriptor.ABI != wantABI {
 			return false
 		}
 	default:
