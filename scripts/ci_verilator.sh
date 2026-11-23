@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Simulation baseline, independent of the qualified synthesis toolchain locks.
-revision=8ff77e9d47351b0a59114929880687839a51840b # Verilator v5.032
+revision=bbb60a403932a9f695cb6ff001ceb73de6ad9234 # Verilator v5.054
 prefix=$(realpath -m "${1:?usage: ci_verilator.sh INSTALL_PREFIX BUILD_DIRECTORY}")
 build_directory=$(realpath -m "${2:?usage: ci_verilator.sh INSTALL_PREFIX BUILD_DIRECTORY}")
 if [[ -f "$prefix/source-revision" ]]; then
