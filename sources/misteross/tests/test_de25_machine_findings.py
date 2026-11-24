@@ -142,6 +142,48 @@ class MachineFindingsTests(unittest.TestCase):
         with self.assertRaisesRegex(mf.BuildError, 'basis table'):
             mf.sources({'source_inputs': {**record['source_inputs'], TABLE.TABLE: '0' * 64}}, TABLE)
 
+    def presenter_cdc_50001(self):
+        return self.capture() + [
+            cdc(f'machine_presenter_epoch[{i}]', f'machine_presenter_f_epoch[{i}]', PIXEL, MACHINE)
+            for i in range(35)] + [
+            cdc(f'machine_presenter_loaded_in[{i}]', f'machine_presenter_loaded[{i}]') for i in range(12)]
+
+    def window_groups(self, rows):
+        [entry] = mf.review(report({'CDC-50001': (CDC, rows)}), sdc_text(), TABLE.BASES)
+        return {g['name']: g['rows'] for g in entry['groups'] if g['name'].startswith('window-')}
+
+    def test_the_window_bases_admit_their_bundles_in_any_number_and_nothing_else(self):
+        w = S.replace('system|', '') + 'window_control|'
+        # i486DX slice 1 seed 1's nine rows, verbatim; #2036's own fits report none.
+        base = [[w + f'base_lo[{i}]', w + f'base_machine[{i}]', TABLE.SYS, MACHINE, 'Asynchronous transfer', '']
+                for i in (13, 14, 15, 16, 22, 28, 29, 30, 31)]
+        fault = [[w + f'fault_launch[{i}]', w + f'machine_fault[{i}]', MACHINE, TABLE.SYS, 'Asynchronous transfer', '']
+                 for i in range(5)]
+        duplicate = [[w + 'base_lo[20]~DUPLICATE', w + 'base_machine[20]', TABLE.SYS, MACHINE,
+                      'Asynchronous transfer', '']]
+        presenter = self.presenter_cdc_50001()
+        self.assertEqual(self.window_groups(presenter), {'window-base': 0, 'window-fault-record': 0})
+        self.assertEqual(self.window_groups(presenter + base + fault + duplicate),
+                         {'window-base': 10, 'window-fault-record': 5})
+        unreviewed = {
+            'a base_lo outside window_control': [S + 'base_lo[13]', w + 'base_machine[13]', TABLE.SYS, MACHINE],
+            'an arbiter base_lo': [S.replace('system|', '') + 'arbiter|base_lo[13]', w + 'base_machine[13]',
+                                   TABLE.SYS, MACHINE],
+            'base_lo into another sink': [w + 'base_lo[3]', S.replace('system|', '') + 'arbiter|w_address[3]',
+                                          TABLE.SYS, MACHINE],
+            'base_hi': [w + 'base_hi[13]', w + 'base_machine[13]', TABLE.SYS, MACHINE],
+            'the base in reverse': [w + 'base_lo[13]', w + 'base_machine[13]', MACHINE, TABLE.SYS],
+            'the base from the pixel clock': [w + 'base_lo[13]', w + 'base_machine[13]', PIXEL, MACHINE],
+            'the fault record in reverse': [w + 'fault_launch[0]', w + 'machine_fault[0]', TABLE.SYS, MACHINE],
+            'the fault record into the base': [w + 'fault_launch[0]', w + 'base_machine[0]', MACHINE, TABLE.SYS],
+        }
+        for label, row in unreviewed.items():
+            with self.subTest(label), self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
+                self.window_groups(presenter + base + [row + ['Asynchronous transfer', '']])
+        for basis, line in (('window-base', TABLE.WINDOW_BASE_SDC[0]), ('window-fault-record', TABLE.WINDOW_FAULT_SDC[0])):
+            with self.subTest(basis), self.assertRaisesRegex(mf.BuildError, basis + ' constraint not in the compiled SDC'):
+                mf.review(report({'CDC-50001': (CDC, presenter)}), sdc_text().replace(line + '\n', ''), TABLE.BASES)
+
     def test_a_rule_that_passed_has_no_entry(self):
         self.assertEqual(mf.review(report({'CDC-50001': (CDC, [])}), sdc_text(), TABLE.BASES), [])
 
