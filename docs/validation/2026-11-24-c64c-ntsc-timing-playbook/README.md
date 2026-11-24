@@ -49,7 +49,7 @@ The rows below distinguish a timeout from a completed route that missed timing. 
 
 The seed-11 exploratory run uses the retained 2fb synthesis and passes the producer validation when assessed independently. The fresh 055bfc76 production seal used a different synthesis and embedded build ID. The 300/5 arrival-pin assignment option passed seeds 5 and 12, with seed 11 timing out; both passing routes passed the complete producer evidence validator on private copies. The fresh production seal is recorded below. These routes do not assert hardware acceptance.
 
-Conservative total route elapsed recorded so far is 21159.9 seconds. This counts CPU routing and lease wait as if they were GPU time. The GPU-time upper bound charges the full 600-second route cap for historical routes without measured completion duration, then subtracts only logged pre-grant HeAP intervals with one-second margins, and is 19020.6 seconds. Other CPU and unmeasured waits remain charged.
+The pre-production campaign recorded 21159.9 seconds of conservative total route elapsed. This counts CPU routing and lease wait as if they were GPU time. The GPU-time upper bound charges the full 600-second route cap for historical routes without measured completion duration, then subtracts only logged pre-grant HeAP intervals with one-second margins, and is 19020.6 seconds. Other CPU and unmeasured waits remain charged.
 
 Fresh production seal: FES cbf5a96774fb5748569f44f1266c14aded1ee138, BUILD_ID `e251fee20bce7c13e05806f79c90548b`, RBF SHA-256 `13df5c3ccfb8d6b0b376cf38ea9ebfba324e1ad2cdf6ea4eaee61d677af271dc`. Producer summary status: pass. The run records include every production candidate and retain the prior 055 build separately.
 
@@ -57,6 +57,6 @@ Fresh production seal: FES cbf5a96774fb5748569f44f1266c14aded1ee138, BUILD_ID `e
 | ---: | ---: | ---: | --- | ---: | ---: | ---: |
 | 5 | 300 | 5 | PASS | 56.74 | 80.60 | 221.68 |
 
-The prior conservative incident GPU upper bound was 19020.6 seconds. This production attempt charged 414.151 seconds of route wall time including CPU and lease waits; total bound is 19435.8 seconds including a one-second monitor polling margin.
+The pre-production GPU upper bound is 19020.611 seconds. For the production route, the JSONL records a conservative upper bound of 536.86 seconds: the full 600-second route cap plus a one-second rounding margin, less 64.14 seconds of logged pre-grant HeAP placement. The resulting incident upper bound is 19557.471 seconds, below the 21600-second cap. Independently, the production watchdog journal recorded 414.151 seconds of wall time from first observed route log to process exit, including CPU and lease waits; that measurement is not added to the JSONL bound.
 
 The cbf5a967 exact-recipe production seal completed as recorded above; physical board validation remains separate.
