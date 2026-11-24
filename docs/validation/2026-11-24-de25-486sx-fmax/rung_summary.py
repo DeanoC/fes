@@ -19,6 +19,12 @@ system|pixel_*, system|frame_*), anonymous (system|_N_ and any other system| nam
 relationship is the machine period), `fixed` when it crosses clocks with a relationship equal
 to a max-delay bound of the SDC (10.000 ns), and `edge` otherwise (a cross-clock relationship
 from the two clocks' edges).
+
+Resolved owners (added after the method, labelled as such in the record): an anonymous register
+`_N_` is often a register Yosys merged, followed in the netlist by `assign {names} = _N_;`.
+resolve() maps it to cpu when every name it drives starts with cpu_, to machine when every name
+starts with machine_/pixel_/frame_, and leaves it anonymous otherwise. `resolved_pairs` is the
+machine_pairs count with those owners.
 """
 import collections
 import hashlib
@@ -42,6 +48,28 @@ def owner(node):
     if name.startswith(('machine_', 'pixel_', 'frame_')):
         return 'machine'
     return 'anonymous'
+
+
+def resolver(netlist):
+    """_N_ -> 'cpu' | 'machine' for anonymous registers whose assign names only that owner."""
+    text = netlist.read_text(errors='replace')
+    owners = {}
+    for m in re.finditer(r'^\s*assign \{?([^=;]*?)\}? = (_\d+_);', text, re.M):
+        names = [n.strip().split('[')[0] for n in m.group(1).split(',') if n.strip()]
+        kinds = {'cpu' if n.startswith('cpu_') else 'machine' if n.startswith(('machine_', 'pixel_', 'frame_'))
+                 else 'other' for n in names}
+        if len(kinds) == 1 and 'other' not in kinds:
+            owners[m.group(2)] = kinds.pop()
+    return owners
+
+
+def resolved(node, owners):
+    o = owner(node)
+    if o != 'anonymous':
+        return o
+    name = node.split(PREFIX + 'system|', 1)[1]
+    base = re.match(r'(_\d+_)', name)
+    return owners.get(base.group(1), 'anonymous') if base else 'anonymous'
 
 
 def rows(path):
@@ -68,10 +96,10 @@ def short(row):
     return {'slack': row['slack'], 'from': row['from'].replace(PREFIX, ''), 'to': row['to'].replace(PREFIX, ''),
             'launch': row['launch'], 'latch': row['latch'], 'relationship': row['relationship'],
             'skew': row['skew'], 'delay': row['delay'], 'kind': kind(row),
-            'owners': owner(row['from']) + '->' + owner(row['to'])}
+            'owners': owner(row['from']) + '->' + owner(row['to'])}  # unresolved
 
 
-def classify(paths):
+def classify(paths, owners):
     result = {}
     for report in sorted(paths.glob('machine-setup-*.rpt')):
         corner = report.stem[len('machine-setup-'):]
@@ -82,12 +110,20 @@ def classify(paths):
             p['count'] += 1
             p['negative'] += r['slack'] < 0
             p['worst'] = r['slack'] if p['worst'] is None else min(p['worst'], r['slack'])
+        rpairs = collections.Counter()
+        rworst = {}
+        for r in machine:
+            k = resolved(r['from'], owners) + '->' + resolved(r['to'], owners)
+            rpairs[k] += 1
+            rworst[k] = min(rworst.get(k, r['slack']), r['slack'])
         # The CPU boundary at 2x: a machine-clock path with exactly one end in the CPU, its slack
         # with the relationship cut from the machine period to TARGET_2X_NS (all else equal).
-        boundary = [r for r in machine if (owner(r['from']) == 'cpu') != (owner(r['to']) == 'cpu')]
+        # Owners as resolved (resolver()), so a merged CPU register counts as the CPU's.
+        cpu = lambda n: resolved(n, owners) == 'cpu'
+        boundary = [r for r in machine if cpu(r['from']) != cpu(r['to'])]
         at_2x = sorted(r['slack'] - (r['relationship'] - TARGET_2X_NS) for r in boundary)
         cpu_internal = sorted(r['slack'] - (r['relationship'] - TARGET_2X_NS)
-                              for r in machine if owner(r['from']) == owner(r['to']) == 'cpu')
+                              for r in machine if cpu(r['from']) and cpu(r['to']))
         cross = []
         for name in ('cross-in-setup', 'cross-out-setup'):
             f = paths / f'{name}-{corner}.rpt'
@@ -107,6 +143,7 @@ def classify(paths):
             'machine_paths_reported': len(machine),
             'machine_worst': [short(r) for r in machine[:15]],
             'machine_pairs': dict(sorted(pairs.items())),
+            'resolved_pairs': {k: {'count': rpairs[k], 'worst': rworst[k]} for k in sorted(rpairs)},
             'cpu_boundary_endpoints': len(boundary),
             'cpu_boundary_at_2x': {'worst': at_2x[:1], 'negative': sum(s < 0 for s in at_2x),
                                    'worst_paths': [short(r) for r in sorted(
@@ -159,7 +196,7 @@ def summary(project):
         'passes': alms <= 46800 and all(r['slack'] >= 0 for r in timing),
     }
     if (project / 'paths').is_dir():
-        result['paths'] = classify(project / 'paths')
+        result['paths'] = classify(project / 'paths', resolver(project / 'fes_mailbox/pc386_system.v'))
     return result
 
 
