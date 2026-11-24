@@ -249,3 +249,19 @@ not been read when this file was committed.
      reports on.
    - **TestFloat (G2.3):** the TestFloat build used is named in the record
      with its revision.
+
+3. **24 Nov 2026, after G3's first attempt.** Seen by then: G1 (pass at
+   `63aa526c8`), G2 (pass at `3739c0d43`), and G3's first attempt at
+   `5112461a9`. **That attempt is a fail at the producer's signoff gate:**
+   "CDC-50001 row matches 0 bases" for
+   `fes_scanout|window_control|base_lo[13]` → `base_machine[13]`. No
+   reviewed basis covers the window-base held bundle. As the rule says, the
+   run stopped and seeds 2–4 were not fitted
+   ([fits/attempt1/](fits/attempt1/)). Seed 1's own fit is kept for
+   information only.
+   - **Deano, 24 Nov 2026 (relayed): "Basis PR, then refit".** A separate,
+     reviewed PR adds the basis, stacked on #2036. When it is ready, it is
+     merged here with a plain merge and **G3 runs again, all four seeds, at
+     that head, under the same rules.** Any other unmatched row is a fail
+     again, and no basis is added in this PR.
+   - The first attempt's result stays in the record beside the second.
