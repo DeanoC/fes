@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Core-only kit HIL for the F3 Spectrum 128 / Pentagon reseals (fes#2101).
+"""Core-only kit HIL for the F3 Spectrum reseals (fes#2101).
 
 usage: spec_session.py MODEL KIT ARCHIVE.fcore HEAD RUN
 
-MODEL is spectrum128, pentagon or plus3. Each menu's first item is its tape
-loader (Tape Loader on the 128K and Pentagon, Loader on the +3). The claim, baseline probe, data-tree delta
+MODEL is spectrum, spectrum128, pentagon or plus3. Each menu's first item is its
+tape loader (Tape Loader on the 128K and Pentagon, Loader on the +3). The 48K
+has no menu: it types LOAD "" (J, then SYMBOL SHIFT+P twice; Control is SYMBOL
+SHIFT) and, after the break, PRINT 22 as P22 in keyword mode. The claim, baseline probe, data-tree delta
 and release follow the #2128 C64 core-only wrapper: the kit must be logged
 FREE on the baseline named in ~/fes-hil/baselines/current-restore.json, with an
 idle agent and a free lease, and the image, bundle, lease and launcher state
@@ -19,7 +21,9 @@ the answer, stop. The grabs are the evidence; the verdict is read from them.
 """
 import argparse, datetime, fcntl, hashlib, json, pathlib, re, subprocess, sys, tarfile, time, tomllib, urllib.request
 
-ROMS = {'spectrum128': ('fes.spectrum128', 'sinclair/spectrum-128.rom',
+ROMS = {'spectrum': ('fes.spectrum', 'sinclair/spectrum-48.rom',
+                     'd55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42'),
+        'spectrum128': ('fes.spectrum128', 'sinclair/spectrum-128.rom',
                         'c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72'),
         'pentagon': ('fes.pentagon', 'sinclair/pentagon-trd503.rom',
                      '3ef7872a0769ddf55a207b0178277fbb39d446169886c1c2f7a8b5d662b5f16f'),
@@ -53,16 +57,18 @@ run.mkdir(parents=True, mode=0o700)
 out = run / 'snapshots'; out.mkdir()
 plan = {'package': str(a.archive.resolve()), 'package_id': package_id, 'firmware': str(rom),
         'games': {'machine': f'{core_id} F3 D12 {a.run}'}, 'disks': {'tape': str(tape)},
-        'media_role': 'cassette', 'rom_id': {'spectrum128': 'spectrum128-firmware', 'pentagon': 'pentagon-firmware', 'plus3': 'spectrum-plus3-firmware'}[model]}
+        'media_role': 'cassette', 'rom_id': {'spectrum': 'spectrum-firmware', 'spectrum128': 'spectrum128-firmware', 'pentagon': 'pentagon-firmware', 'plus3': 'spectrum-plus3-firmware'}[model]}
 (run / 'plan.json').write_text(json.dumps(plan, indent=1))
 script = [
     {'op': 'launch', 'game': 'machine', 'disk': 'tape'},
     {'op': 'sleep', 's': 8}, {'op': 'grab', 'name': 'menu'},
-    {'op': 'key', 'name': 'enter'},                       # the tape loader is the menu's first item
+    *([{'op': 'key', 'name': 'j'}, {'op': 'key', 'name': 'p', 'mods': ['lctrl']},   # 48K: LOAD ""
+       {'op': 'key', 'name': 'p', 'mods': ['lctrl']}, {'op': 'key', 'name': 'enter'}] if model == 'spectrum'
+      else [{'op': 'key', 'name': 'enter'}]),             # the tape loader is the menu's first item
     {'op': 'sleep', 's': 25}, {'op': 'grab', 'name': 'loaded'},
     {'op': 'key', 'name': 'space'},                       # breaks PAUSE 0
     {'op': 'sleep', 's': 2}, {'op': 'grab', 'name': 'break'},
-    {'op': 'type', 'text': 'print 22\n'},
+    {'op': 'type', 'text': 'p22\n' if model == 'spectrum' else 'print 22\n'},
     {'op': 'sleep', 's': 2}, {'op': 'grab', 'name': 'typed'},
     {'op': 'stop'}, {'op': 'quit'}]
 

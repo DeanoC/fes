@@ -2,12 +2,12 @@
 # D12 condition 1 for F3 (#1694): each affected core's Yosys netlist with
 # BUILD_ID pinned to 32 zeros, at the merge base and at the head, one shared
 # tool install. No GPU, no route.
-#   CACHE=<cache root> run_cond1_cache.sh <base|head> <p1|p2> <core...>
+#   CACHE=<cache root> [TAG=<run tag, default d273>] run_cond1_cache.sh <base|head> <p1|p2> <core...>
 set -u
 SIDE="$1"; PASS="$2"; shift 2
 D=/data/fes-f3-d12
 HERE="$(cd "$(dirname "$0")" && pwd)"
-OUT="$D/cond1-d273-$PASS"; mkdir -p "$OUT"
+OUT="$D/cond1-${TAG:-d273}-$PASS"; mkdir -p "$OUT"
 fail=0
 for core in "$@"; do
   name="${core#fes.}"; dest="$OUT/$name-$SIDE"
