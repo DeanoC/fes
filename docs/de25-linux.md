@@ -12,8 +12,8 @@ into the separate `BOARD=de25-nano` release/card assembly stage:
 | --- | --- | --- | --- |
 | **Headless diagnostic** | `make de25-linux` (`build.py build`) | BusyBox, Dropbear SSH, DHCP, pinned vendor kernel `6.12.11-gd7d192a9ddd9` + 4 vendor FPGA modules; **no** runtime, agent, or MENU | Standalone diagnostic SD image (`fes-de25-nano.img`) and AArch64 Buildroot SDK |
 | **Managed base** | `build.py managed-base` | Shared read-only FES rootfs policy, AArch64 FogCast agent/UI, BlueZ/D-Bus, storage/software helpers, permanent-owner kernel (ABI 3), `/.fes-bootstrap` | Reusable intermediate rootfs + SDK (no runtime, factory bundle, MENU, or card image) |
-| **Managed factory candidate** | `build.py managed-factory` + `boot-smoke` | Managed base + `mister-runtime`, sealed DE25 `fes.menu`, factory software bundle | Uninstalled factory rootfs/bundle candidate (`card_assembly: not-run`; requires `verify-factory` + `boot-smoke`) |
-| **Release & bootable SD card** | `BOARD=de25-nano` release/media workflow ([appliance-releases.md](appliance-releases.md#de25-factory-selection)) | Verified + `boot-smoke`-passed managed factory, pinned vendor boot files, AArch64 `fes-boot` | Complete 2 GiB FAT + 32 MiB read-only bootstrap ext4 card image for Kit D25 (`de25-j8g`) |
+| **Managed factory candidate** | `build.py managed-factory` | Managed base + `mister-runtime`, sealed DE25 `fes.menu`, factory software bundle | Uninstalled factory rootfs/bundle candidate with bound `boot.json` / `qemu-smoke.log` (`card_assembly: not-run`) |
+| **Release & bootable SD card** | `make release` / `bootstrap` / `appliance-media` with `APPLIANCE_BOARD=de25-nano APPLIANCE_FACTORY=...` (`APPLIANCE_VENDOR_BOOT=...` for cards; [appliance-releases.md](appliance-releases.md#de25-factory-selection)) | Verified managed factory (including its bound boot log), pinned vendor boot files, AArch64 `fes-boot` | Complete 2 GiB FAT + 32 MiB read-only bootstrap ext4 card image for Kit D25 (`de25-j8g`) |
 
 - **Kit operations & exact-head HIL:** Kit D25 (`de25-j8g`, serial `TRWU8J8G`)
   is the managed DE25 Linux kit; see [the DE25 kit HIL guide](de25-kit-hil.md)
@@ -40,8 +40,8 @@ flowchart TD
   Cores["Sealed Quartus Pro 26.3 Cores\n(config/core-recipes.toml:\nfes.menu, zx81, spectrum, atari-st, c64, pcxt-dos)"]
   Headless["Headless Diagnostic Image\n(make de25-linux -> fes-de25-nano.img)"]
   Base["Managed Base Intermediate\n(build.py managed-base -> rootfs + SDK)"]
-  Factory["Managed Factory Candidate\n(build.py managed-factory + boot-smoke;\nrootfs/bundle only, card_assembly: not-run)"]
-  Card["Bootable Managed SD Card\n(BOARD=de25-nano release/media:\n2 GiB FAT + 32 MiB bootstrap ext4)"]
+  Factory["Managed Factory Candidate\n(build.py managed-factory;\nincludes bound boot.json, card_assembly: not-run)"]
+  Card["Bootable Managed SD Card\n(APPLIANCE_BOARD=de25-nano release/media:\n2 GiB FAT + 32 MiB bootstrap ext4)"]
 
   Vendor --> Headless
   BR --> Headless
@@ -134,7 +134,8 @@ python3 image/de25-nano/build.py managed-base \
 python3 image/de25-nano/build.py verify-base \
   --output out/de25-managed-base --cache out/de25-linux-cache
 
-# 2. Assemble managed-factory (adds sealed DE25 MENU, runtime, factory bundle)
+# 2. Assemble & verify managed-factory (adds sealed DE25 MENU, runtime, factory bundle,
+#    and runs the bound full-system QEMU boot smoke -> boot.json / qemu-smoke.log)
 python3 image/de25-nano/build.py managed-factory \
   --kernel /absolute/owner-kernel-build \
   --sdk /absolute/locked/aarch64-sdk.tar.gz \
@@ -143,10 +144,10 @@ python3 image/de25-nano/build.py managed-factory \
 python3 image/de25-nano/build.py verify-factory \
   --output out/de25-managed-factory --cache out/de25-linux-cache
 
-# 3. Virtual AArch64 QEMU full-system boot smoke (prerequisite for release/media)
+# Optional standalone QEMU full-system boot smoke (for managed-base, or separate diagnosis)
 python3 image/de25-nano/build.py boot-smoke \
-  --image-profile managed-factory \
-  --output out/de25-managed-factory --boot-output out/de25-boot-smoke
+  --image-profile managed-base \
+  --output out/de25-managed-base --boot-output out/de25-boot-smoke
 ```
 
 - **Immutable builder pinning:** Managed base/factory authenticates the exact
@@ -156,8 +157,11 @@ python3 image/de25-nano/build.py boot-smoke \
   volumes across software generations while refreshing `mister-runtime` on
   every factory build.
 - **Ordinary FES Make workflows:**
-  - **SDK & kit software:** `make kit-sdk` / `make kit-software` take
+  - **SDK cache (`make kit-sdk`):** takes
     `BOARD=de25-nano DE25_IMAGE=/absolute/verified-image`.
+  - **Kit software bundle (`make kit-software`):** takes
+    `BOARD=de25-nano DE25_IMAGE=/absolute/verified-image KIT_SOFTWARE_BASE=/absolute/linux.img KIT_SOFTWARE_BASE_SHA256=<sha256> KIT_SOFTWARE_VERSION=<version>`
+    ([kit-software-releases.md](kit-software-releases.md)).
   - **Source development (`make dev` / `build` / `rebuild`):** take
     `BOARD=de25-nano DE25_IMAGE=/absolute/verified-managed-image IMAGE_KERNEL=/absolute/kernel IMAGE_SDK=/absolute/owner-sdk.tar.gz`
     ([development.md](development.md#de25-source-development)).
