@@ -200,6 +200,108 @@ func (c *leaseStreamController) OpenStream(context.Context, uint64) (net.Conn, e
 }
 func (*leaseStreamController) Close() error { return nil }
 
+type localKeyboardGrantController struct {
+	leaseStreamController
+	calls      int
+	generation string
+	instance   string
+}
+
+func (c *localKeyboardGrantController) LocalKeyboardBinding() (input.KeyboardHIDBinding, bool) {
+	return input.KeyboardHIDBinding{RuntimeInstance: c.instance, PackageID: strings.Repeat("c", 64), Generation: 3}, true
+}
+func (c *localKeyboardGrantController) GrantLocalKeyboard(ctx context.Context, session uint64, binding input.KeyboardHIDBinding) error {
+	if !kitlease.Admitted(ctx) || session != 7 || binding.RuntimeInstance != c.instance || binding.PackageID != strings.Repeat("c", 64) || binding.Generation != 3 {
+		return fmt.Errorf("not admitted")
+	}
+	c.calls++
+	c.generation = kitlease.Generation(ctx)
+	return nil
+}
+
+func TestLocalKeyboardGrantRequiresCurrentExecutionOwner(t *testing.T) {
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	defer manager.Close()
+	grant := claimKit(t, manager)
+	controller := &localKeyboardGrantController{instance: strings.Repeat("d", 32)}
+	h := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithInput(controller))
+	for _, tc := range []struct {
+		bearer, lease string
+		want          int
+	}{
+		{"", grant.Token, http.StatusUnauthorized},
+		{"bearer", "", http.StatusForbidden},
+		{"bearer", "foreign", http.StatusForbidden},
+		{"bearer", grant.Token, http.StatusOK},
+	} {
+		r := httptest.NewRequest(http.MethodPost, "/v1/input/local-keyboard", strings.NewReader(fmt.Sprintf(`{"session":7,"runtime_instance":%q,"package_id":%q,"core_generation":3}`, strings.Repeat("d", 32), strings.Repeat("c", 64))))
+		if tc.bearer != "" {
+			r.Header.Set("Authorization", "Bearer "+tc.bearer)
+		}
+		if tc.lease != "" {
+			r.Header.Set(httpapi.KitLeaseHeader, tc.lease)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != tc.want {
+			t.Fatalf("grant status %d want %d: %s", w.Code, tc.want, w.Body.String())
+		}
+	}
+	if controller.calls != 1 || controller.generation != grant.Status.Generation {
+		t.Fatalf("wrong admitted generation: calls=%d generation=%q", controller.calls, controller.generation)
+	}
+}
+
+func TestLocalKeyboardGrantCarriesOfferedRuntimeInstance(t *testing.T) {
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	defer manager.Close()
+	grant := claimKit(t, manager)
+	old := strings.Repeat("d", 32)
+	controller := &localKeyboardGrantController{instance: old}
+	h := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithInput(controller))
+	send := func(path, body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		r.Header.Set("Authorization", "Bearer bearer")
+		r.Header.Set(httpapi.KitLeaseHeader, grant.Token)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	attach := send("/v1/input/attach", fmt.Sprintf(`{"session":7,"token":%q,"core":"fes.c64"}`, strings.Repeat("ab", 16)))
+	if attach.Code != http.StatusOK {
+		t.Fatalf("attach: %d %s", attach.Code, attach.Body.String())
+	}
+	var offer struct {
+		LocalKeyboard struct {
+			RuntimeInstance string `json:"runtime_instance"`
+			PackageID       string `json:"package_id"`
+			Generation      uint64 `json:"core_generation"`
+		} `json:"local_keyboard"`
+	}
+	if err := json.Unmarshal(attach.Body.Bytes(), &offer); err != nil || offer.LocalKeyboard.RuntimeInstance != old || offer.LocalKeyboard.PackageID != strings.Repeat("c", 64) || offer.LocalKeyboard.Generation != 3 {
+		t.Fatalf("incorrect attached offer: %+v err=%v", offer, err)
+	}
+	for _, instance := range []string{"", strings.Repeat("0", 32), "invalid"} {
+		body := fmt.Sprintf(`{"session":7,"runtime_instance":%q,"package_id":%q,"core_generation":3}`, instance, strings.Repeat("c", 64))
+		if w := send("/v1/input/local-keyboard", body); w.Code != http.StatusBadRequest {
+			t.Fatalf("invalid runtime status %d", w.Code)
+		}
+	}
+	missing := fmt.Sprintf(`{"session":7,"package_id":%q,"core_generation":3}`, strings.Repeat("c", 64))
+	if w := send("/v1/input/local-keyboard", missing); w.Code != http.StatusBadRequest {
+		t.Fatalf("missing runtime status %d", w.Code)
+	}
+	body := fmt.Sprintf(`{"session":7,"runtime_instance":%q,"package_id":%q,"core_generation":3}`, old, strings.Repeat("c", 64))
+	controller.instance = strings.Repeat("e", 32)
+	if w := send("/v1/input/local-keyboard", body); w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("stale runtime status %d", w.Code)
+	}
+	controller.instance = old
+	if w := send("/v1/input/local-keyboard", body); w.Code != http.StatusOK || controller.calls != 1 {
+		t.Fatalf("current grant: status=%d calls=%d", w.Code, controller.calls)
+	}
+}
+
 func TestKitLeaseExpiryClosesHijackedInputBeforeCleanup(t *testing.T) {
 	cleanup := make(chan struct{}, 2)
 	manager := kitlease.New(150*time.Millisecond, func(context.Context) error { cleanup <- struct{}{}; return nil })
@@ -605,5 +707,54 @@ func TestRetiredCastRoutesAreAbsent(t *testing.T) {
 		if response.Code != http.StatusNotFound {
 			t.Errorf("%s %s = %d, want 404", route.method, route.path, response.Code)
 		}
+	}
+}
+
+type lifetimeCapturingInput struct {
+	leaseStreamController
+	lifetime context.Context
+}
+
+func (c *lifetimeCapturingInput) Attach(ctx context.Context, _ input.Spec) error {
+	if !kitlease.Admitted(ctx) {
+		return fmt.Errorf("input attach was not admitted")
+	}
+	c.lifetime = kitlease.LeaseLifetime(ctx)
+	if c.lifetime == nil {
+		return fmt.Errorf("admitted input attach has no lease lifetime")
+	}
+	return nil
+}
+
+func TestKitLeaseGuardCarriesLifetimePastAttachRequest(t *testing.T) {
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	defer manager.Close()
+	grant := claimKit(t, manager)
+	controller := &lifetimeCapturingInput{}
+	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithInput(controller))
+	requestCtx, cancelRequest := context.WithCancel(context.Background())
+	defer cancelRequest()
+	body := `{"session":1,"token":"` + strings.Repeat("ab", 16) + `","core":"SNES"}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/input/attach", strings.NewReader(body)).WithContext(requestCtx)
+	request.Header.Set("Authorization", "Bearer bearer")
+	request.Header.Set(httpapi.KitLeaseHeader, grant.Token)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || controller.lifetime == nil {
+		t.Fatalf("attach status=%d lifetime=%v", response.Code, controller.lifetime)
+	}
+	cancelRequest()
+	select {
+	case <-controller.lifetime.Done():
+		t.Fatal("ending the attach request ended the execution lease lifetime")
+	default:
+	}
+	if _, err := manager.Release(grant.Token); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-controller.lifetime.Done():
+	case <-time.After(time.Second):
+		t.Fatal("lease revocation did not cancel the admitted lifetime")
 	}
 }

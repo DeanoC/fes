@@ -701,7 +701,7 @@ void TestComputerOperationsDispatchThroughController()
 		"\"major\":1,\"minor\":0},\"min_bytes\":143360,\"max_bytes\":143360,\"chunk_bytes\":512,"
 		"\"state\":\"empty\"}]");
 	response = HandleRequest(controller, std::string("{\"protocol\":2,\"operation\":\"set_keyboard_hid\","
-		"\"package_id\":\"") + kPackageId + "\",\"expected_generation\":1,\"rows\":[16,0,0,0,0,0,0,0,2]}");
+		"\"runtime_instance\":\"") + fixture.runtime.status().runtime_instance + "\",\"package_id\":\"" + kPackageId + "\",\"expected_generation\":1,\"rows\":[16,0,0,0,0,0,0,0,2]}");
 	Contains(response, "\"ok\":true");
 	assert(fixture.hardware.keyboard_hid_calls == 1 && fixture.hardware.keyboard_hid_rows[8] == 2);
 	fixture.hardware.on_insert_media = [&] {

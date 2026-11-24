@@ -105,6 +105,9 @@ func testMediaEndToEnd(t *testing.T, stream bool) {
 	lines := strings.Split(strings.TrimSpace(string(read("../misterruntime/testdata/protocol-v2.jsonl"))), "\n")
 	reply := func(index int) string {
 		result := strings.ReplaceAll(transform(lines[index]), "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0", inspection.PackageID)
+		// The fixture is serialized from a synthetic Runtime without an
+		// authority instance. This daemon simulation represents a live one.
+		result = strings.Replace(result, `"runtime_instance":null`, `"runtime_instance":"123456789abcdef0123456789abcdef0"`, 1)
 		if stream && index == 5 {
 			result = strings.Replace(result, `"capabilities":{`, `"capabilities":{"media_stream":{"interface":{"id":"fes.media.blob-stream","major":1,"minor":0},"min_bytes":1,"max_bytes":32768,"chunk_bytes":512},`, 1)
 		}
@@ -232,7 +235,7 @@ func testMediaEndToEnd(t *testing.T, stream bool) {
 		}
 		result, err := service.Launch(ctx, entry.GameID, nil)
 		if err != nil {
-			t.Fatalf("fresh library stream launch: %v (daemon media calls=%d)", err, mediaCalls.Load())
+			t.Fatalf("fresh library stream launch: %v (daemon media calls=%d, coordinator=%+v)", err, mediaCalls.Load(), coordinator.Status())
 		}
 		defer func() {
 			if _, err := service.Stop(ctx); err != nil {
@@ -271,7 +274,7 @@ func testMediaEndToEnd(t *testing.T, stream bool) {
 		t.Fatal("package activation failed")
 	}
 	if run("core-media", mediaPath) != 0 || mediaCalls.Load() != 1 {
-		t.Fatal("media upload failed")
+		t.Fatalf("media upload failed; coordinator=%+v", coordinator.Status())
 	}
 	response, err := http.Post(api.URL+"/api/v1/session/stop", "application/json", nil)
 	if err != nil {

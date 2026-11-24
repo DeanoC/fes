@@ -193,4 +193,8 @@ type Status struct {
 	Development  bool               `json:"development,omitempty"`
 	Recovery     string             `json:"recovery,omitempty"`
 	CorePackage  *CorePackageStatus `json:"core_package,omitempty"`
+	// RuntimeInput binds input admission to one runtime observation. Absence
+	// means that no restart-safe input identity is available.
+	RuntimeInput       *RuntimeInputIdentity `json:"runtime_input,omitempty"`
+	InputAgentInstance string                `json:"input_agent_instance,omitempty"`
 }
