@@ -1763,3 +1763,76 @@ func TestSetPairingModeClosePropagatesAndRetriesFailedCancellations(t *testing.T
 			dev1, mgr.cancelConnPending, bus.lastParams[hci.OpcodeCreateConnectionCancel])
 	}
 }
+
+func TestSetPairingModeReopenReusesActiveInquiry(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(2500, 0)
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	countInquiry := func() int {
+		n := 0
+		for _, op := range bus.cmds {
+			if op == hci.OpcodeInquiry {
+				n++
+			}
+		}
+		return n
+	}
+
+	// (a) Calling SetPairingMode(true, ...) while already pairing extends the
+	// deadline and reuses the active inquiry instead of reissuing StartInquiry.
+	if err := mgr.SetPairingMode(true, 10*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	firstUntil := mgr.pairingUntil
+	if got := countInquiry(); got != 1 {
+		t.Fatalf("expected 1 StartInquiry call, got %d", got)
+	}
+
+	now = now.Add(5 * time.Second)
+	bus.failInquiry = true
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatalf("reopening active pairing failed: %v", err)
+	}
+	bus.failInquiry = false
+	if got := countInquiry(); got != 1 {
+		t.Fatalf("expected active inquiry to be reused, got %d StartInquiry calls", got)
+	}
+	if !mgr.pairingUntil.After(firstUntil) || !mgr.PairingActive() {
+		t.Fatalf("expected extended pairingUntil > %v, got %v (active=%t)", firstUntil, mgr.pairingUntil, mgr.PairingActive())
+	}
+
+	// (b) After a failed InquiryCancel leaves inquiryActive=true and
+	// cancelInquiryPending=true, reopening pairing clears cancelInquiryPending and
+	// reuses the running inquiry without issuing a duplicate StartInquiry.
+	bus.failCancelInq = true
+	if err := mgr.SetPairingMode(false, 0); err == nil {
+		t.Fatal("expected SetPairingMode(false) to return CancelInquiry failure")
+	}
+	if !mgr.cancelInquiryPending || !mgr.inquiryActive || mgr.PairingActive() {
+		t.Fatalf("unexpected state after failed cancel: cancelInq=%t inqActive=%t pairing=%t",
+			mgr.cancelInquiryPending, mgr.inquiryActive, mgr.PairingActive())
+	}
+	bus.failInquiry = true
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatalf("reopening pairing after failed InquiryCancel failed: %v", err)
+	}
+	bus.failInquiry = false
+	if mgr.cancelInquiryPending || !mgr.inquiryActive || !mgr.PairingActive() {
+		t.Fatalf("expected reopened pairing to clear cancelInquiryPending and reuse inquiry: cancelInq=%t inqActive=%t pairing=%t",
+			mgr.cancelInquiryPending, mgr.inquiryActive, mgr.PairingActive())
+	}
+	if got := countInquiry(); got != 1 {
+		t.Fatalf("expected 1 total StartInquiry across reopen, got %d", got)
+	}
+}

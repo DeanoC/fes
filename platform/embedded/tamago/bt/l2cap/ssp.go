@@ -74,12 +74,25 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 		if duration <= 0 {
 			duration = 30 * time.Second
 		}
-		m.connecting = false
-		m.connectAddr = BDAddr{}
+		if m.pairingActive {
+			m.pairingUntil = m.now().Add(duration)
+			m.cancelInquiryPending = false
+			if !m.inquiryActive && !m.connecting {
+				if err := m.tr.StartInquiry(8, 0); err != nil {
+					m.inquiryRetryPending = true
+					m.inquiryRetryAt = m.now().Add(nameRetryBackoff)
+					return err
+				}
+				m.inquiryActive = true
+			}
+			m.inquiryRetryPending = false
+			m.inquiryRetryAt = time.Time{}
+			return nil
+		}
 		if hasCancelTarget {
 			if err := m.tr.CreateConnectionCancel(cancelTarget); err != nil {
-				m.pairingActive = false
-				m.pairingUntil = time.Time{}
+				m.connecting = false
+				m.connectAddr = BDAddr{}
 				m.inquiryRetryPending = false
 				m.inquiryRetryAt = time.Time{}
 				m.cancelConnPending = true
@@ -90,36 +103,23 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 			m.cancelConnPending = false
 			m.cancelConnAddr = BDAddr{}
 		}
+		m.connecting = false
+		m.connectAddr = BDAddr{}
+		if err := m.tr.WriteScanEnable(hci.ScanInquiryAndPage); err != nil {
+			return err
+		}
+		// 8 * 1.28s = 10.24s inquiry burst (restarted if still pairing)
+		if !m.inquiryActive {
+			if err := m.tr.StartInquiry(8, 0); err != nil {
+				_ = m.tr.WriteScanEnable(hci.ScanPageOnly)
+				return err
+			}
+			m.inquiryActive = true
+		}
 		m.pairingActive = true
 		m.pairingUntil = m.now().Add(duration)
 		m.inquiryRetryPending = false
 		m.inquiryRetryAt = time.Time{}
-		if err := m.tr.WriteScanEnable(hci.ScanInquiryAndPage); err != nil {
-			m.pairingActive = false
-			m.pairingUntil = time.Time{}
-			return err
-		}
-		// 8 * 1.28s = 10.24s inquiry burst (restarted if still pairing)
-		if err := m.tr.StartInquiry(8, 0); err != nil {
-			m.pairingActive = false
-			m.pairingUntil = time.Time{}
-			m.connecting = false
-			m.connectAddr = BDAddr{}
-			m.inquiryRetryPending = false
-			m.inquiryRetryAt = time.Time{}
-			if m.inquiryActive {
-				if cErr := m.tr.CancelInquiry(); cErr == nil {
-					m.inquiryActive = false
-					m.cancelInquiryPending = false
-				} else {
-					m.cancelInquiryPending = true
-					m.cancelRetryAt = m.now().Add(nameRetryBackoff)
-				}
-			}
-			_ = m.tr.WriteScanEnable(hci.ScanPageOnly)
-			return err
-		}
-		m.inquiryActive = true
 		m.cancelInquiryPending = false
 		return nil
 	}
