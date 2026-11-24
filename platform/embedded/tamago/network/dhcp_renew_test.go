@@ -659,11 +659,17 @@ func TestSingleActiveRenewerEnforcement(t *testing.T) {
 
 	state.init(initial, time.Now(), true)
 	port := newFakeRenewPort()
+	newServerIP := [4]byte{10, 0, 2, 9}
 	renewedCh := make(chan DHCPLease, 2)
 	port.onSend = func(frame []byte, p *fakeRenewPort) {
+		var dstMAC [6]byte
+		copy(dstMAC[:], frame[0:6])
+		if dstMAC != broadcastMAC {
+			return
+		}
 		xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
-		go p.inject(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, clientIP, xid,
-			makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &serverIP, 1800), false))
+		go p.inject(makeServerReplyFrame(broadcastMAC, clientMAC, newServerIP, clientIP, xid,
+			makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &newServerIP, 1800), false))
 	}
 
 	// Pre-start rejection on interfaceLease must not leak ownership.
@@ -676,6 +682,7 @@ func TestSingleActiveRenewerEnforcement(t *testing.T) {
 	}
 
 	ren1, err := state.newRenewer(port, clientMACStr, RenewConfig{
+		ServerMAC:     "52:55:0a:00:02:02",
 		RetryInterval: 5 * time.Millisecond,
 		OnRenew: func(l DHCPLease) {
 			select {
@@ -687,9 +694,13 @@ func TestSingleActiveRenewerEnforcement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("state.newRenewer(1): %v", err)
 	}
-	// Construct ren2 before ren1 starts; ren2 must be rejected while ren1 is active,
-	// and once ren1 stops, ren2 must refresh to ren1's synchronized 1800s lease on Start.
-	ren2, err := state.newRenewer(link, clientMACStr, RenewConfig{RetryInterval: 5 * time.Millisecond}, nil, nil)
+	// Construct ren2 before ren1 starts with the old server's MAC; ren2 must be rejected
+	// while ren1 is active, and once ren1 rebinds to 10.0.2.9 and stops, ren2 must refresh
+	// to the 1800s lease and clear its stale ServerMAC on Start.
+	ren2, err := state.newRenewer(link, clientMACStr, RenewConfig{
+		ServerMAC:     "52:55:0a:00:02:02",
+		RetryInterval: 5 * time.Millisecond,
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("state.newRenewer(2): %v", err)
 	}
@@ -707,15 +718,18 @@ func TestSingleActiveRenewerEnforcement(t *testing.T) {
 	ren1.Stop()
 
 	gotLease, ok := state.get()
-	if !ok || gotLease.LeaseDuration != 1800*time.Second {
-		t.Fatalf("state.get()=(%+v, %t), want 1800s lease", gotLease, ok)
+	if !ok || gotLease.LeaseDuration != 1800*time.Second || gotLease.Server != "10.0.2.9" {
+		t.Fatalf("state.get()=(%+v, %t), want 1800s lease from 10.0.2.9", gotLease, ok)
 	}
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	if err := ren2.Start(ctx2); err != nil {
 		t.Fatalf("ren2.Start after ren1.Stop: %v", err)
 	}
-	if ren2.Lease().LeaseDuration != 1800*time.Second {
-		t.Fatalf("ren2 lease after Start=%v, want refreshed 1800s", ren2.Lease().LeaseDuration)
+	if ren2.Lease().LeaseDuration != 1800*time.Second || ren2.Lease().Server != "10.0.2.9" {
+		t.Fatalf("ren2 lease after Start=%+v, want refreshed 1800s lease from 10.0.2.9", ren2.Lease())
+	}
+	if ren2.cfg.ServerMAC != "" {
+		t.Fatalf("ren2.cfg.ServerMAC=%q, want cleared after server change", ren2.cfg.ServerMAC)
 	}
 	// Cancelling ren2's context releases both interfaceLease and *Link ownership on loop exit.
 	cancel2()

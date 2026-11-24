@@ -451,6 +451,9 @@ func (s *interfaceLease) newRenewer(port DHCPFramePort, mac string, cfg RenewCon
 			}
 		}
 		if s.generation != initialGen {
+			if s.lease.Server != ren.lease.Server {
+				ren.cfg.ServerMAC = ""
+			}
 			ren.lease = cloneLease(s.lease)
 			ren.acquiredAt = s.acquiredAt
 		} else if !explicitAcquiredAt {
