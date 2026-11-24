@@ -103,10 +103,9 @@ class MachineFindingsTests(unittest.TestCase):
                              'machine_at_decoder_cycle_port[15]', 'audio_dsp_write', 'audio_dsp_write~_Duplicate_1',
                              # Every copy spelling the recorded fits use.
                              'cpu_md_busy~_Duplicate1', 'cpu_md_busy~_Duplicate0', 'reset~_Duplicate1DUPLICATE',
-                             'machine_at_decoder_state[1]~_Duplicate_2DUPLICATE', 'cpu_wb_fault[4]~_DuplicateDUPLICATE',
-                             '_36426_[140]~DUPLICATE~_Duplicate_1')]
+                             'machine_at_decoder_state[1]~_Duplicate_2DUPLICATE', 'cpu_wb_fault[4]~_DuplicateDUPLICATE')]
         [entry] = mf.review(report({'TMC-20602': (header, rows)}), '', self.bases('cpu-control-tension'))
-        self.assertEqual(entry['groups'][0]['rows'], 20)
+        self.assertEqual(entry['groups'][0]['rows'], 19)
         # A fitter copy is admitted only for a name the basis already names; neighbouring decoder,
         # audio and machine names are not.
         for name in ('machine_at_pic_mask[3]~_Duplicate_2', 'cpu_biu_reset~_Duplicate_', 'cpu_biu_reset_Duplicate_2',
@@ -116,7 +115,9 @@ class MachineFindingsTests(unittest.TestCase):
                      'cpu_md_busy~Duplicate', 'reset~DUPLICATE~DUPLICATE',
                      # Malformed copy suffixes.
                      'reset~DUPLICATE1', 'reset~_Duplicate1_', 'reset~_Duplicate1DUPLICATE2', 'reset~_Duplicate~DUPLICATE',
-                     'reset~_Duplicate1duplicate', 'reset~_duplicate1', 'reset~_Duplicate_1_2', 'reset~_DuplicateX'):
+                     'reset~_Duplicate1duplicate', 'reset~_duplicate1', 'reset~_Duplicate_1_2', 'reset~_DuplicateX',
+                     # Stacked mixtures of the two spellings: no recorded fit writes one.
+                     'reset~DUPLICATE~_Duplicate_1', 'reset~DUPLICATE~_Duplicate_2DUPLICATE', 'reset~DUPLICATE~_Duplicate', 'reset~DUPLICATE~_DuplicateDUPLICATE', 'cpu_biu_reset~DUPLICATE~_Duplicate1', '_36426_[140]~DUPLICATE~_Duplicate_1'):
             copy = rows + [[S + name, '(1, 1)', '9000', '(2, 2)', '20', '200000', '']]
             with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
                 mf.review(report({'TMC-20602': (header, copy)}), '', self.bases('cpu-control-tension'))
@@ -135,13 +136,14 @@ class MachineFindingsTests(unittest.TestCase):
         bases = self.bases('biu-reset', 'machine-reset')
         # slat23b seed 2's three rows, then the other copy spellings.
         drivers = ['cpu_biu_reset~_Duplicate_1', 'cpu_biu_reset~_Duplicate', 'reset', 'cpu_biu_reset',
-                   'cpu_biu_reset~DUPLICATE', 'reset~DUPLICATE~_Duplicate_3', 'cpu_biu_reset~_Duplicate1',
+                   'cpu_biu_reset~DUPLICATE', 'cpu_biu_reset~_Duplicate1',
                    'cpu_biu_reset~_Duplicate1DUPLICATE', 'reset~_Duplicate_2DUPLICATE', 'reset~_DuplicateDUPLICATE']
         [entry] = mf.review(report({'LNT-30010': (header, [row(d) for d in drivers])}), '', bases)
-        self.assertEqual([g['rows'] for g in entry['groups']], [6, 4])
+        self.assertEqual([g['rows'] for g in entry['groups']], [6, 3])
         for driver in ('machine_at_decoder_state[1]~DUPLICATE', 'cpu_biu_reset~_Duplicate_', 'cpu_md_busy~DUPLICATE',
                        'reset_n~DUPLICATE', 'cpu_biu_reset_q', 'reset~_Duplicate~DUPLICATE',
-                       'cpu_biu_reset~_Duplicate1_', 'reset~DUPLICATE2', 'cpu_biu_reset~_Duplicate1DUPLICATE~DUPLICATE'):
+                       'cpu_biu_reset~_Duplicate1_', 'reset~DUPLICATE2', 'cpu_biu_reset~_Duplicate1DUPLICATE~DUPLICATE',
+                       'reset~DUPLICATE~_Duplicate_1', 'reset~DUPLICATE~_Duplicate_2DUPLICATE', 'reset~DUPLICATE~_Duplicate', 'reset~DUPLICATE~_DuplicateDUPLICATE', 'cpu_biu_reset~DUPLICATE~_Duplicate1', 'reset~DUPLICATE~_Duplicate_3'):
             with self.subTest(driver), self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
                 mf.review(report({'LNT-30010': (header, [row(driver)])}), '', bases)
 
@@ -212,6 +214,8 @@ class MachineFindingsTests(unittest.TestCase):
             'the base from the pixel clock': [w + 'base_lo[13]', w + 'base_machine[13]', PIXEL, MACHINE],
             'the fault record in reverse': [w + 'fault_launch[0]', w + 'machine_fault[0]', TABLE.SYS, MACHINE],
             'the fault record into the base': [w + 'fault_launch[0]', w + 'base_machine[0]', MACHINE, TABLE.SYS],
+            'a stacked copy mixture': [w + 'base_lo[13]~DUPLICATE~_Duplicate1', w + 'base_machine[13]', TABLE.SYS, MACHINE],
+            'a malformed copy': [w + 'base_lo[13]~DUPLICATE_x', w + 'base_machine[13]', TABLE.SYS, MACHINE],
         }
         for label, row in unreviewed.items():
             with self.subTest(label), self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):

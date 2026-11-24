@@ -14,12 +14,13 @@ from boards.de25nano.scanout.machine_findings import S, E, MACHINE, nodes, bus, 
 # reports and timing.tsv files spell it ~DUPLICATE, or ~_Duplicate with no
 # number, a number (~_Duplicate1, ~_Duplicate0) or an underscored one
 # (~_Duplicate_2), and the fitter stacks a further copy as a bare DUPLICATE
-# (~_Duplicate1DUPLICATE, ~_Duplicate_1DUPLICATE, ~_DuplicateDUPLICATE). The fit
-# picks which, so a basis that names a register admits each of those spellings
-# of a copy of it, and no other name. Deano accepted fitter copies of the names
-# the bases accept on 24 Nov 2026 (#2187), when a fit reported
-# cpu_biu_reset~_Duplicate.
-COPY = r'(?:~DUPLICATE)?(?:~_Duplicate(?:_?\d+)?(?:DUPLICATE)?)?'
+# (~_Duplicate1DUPLICATE, ~_Duplicate_1DUPLICATE, ~_DuplicateDUPLICATE). No
+# recorded name mixes ~DUPLICATE with ~_Duplicate, so COPY takes one or the
+# other. The fit picks which, so a basis that names a register admits each of
+# those spellings of a copy of it, and no other name. Deano accepted fitter
+# copies of the names the bases accept on 24 Nov 2026 (#2187), when a fit
+# reported cpu_biu_reset~_Duplicate.
+COPY = r'(?:~DUPLICATE|~_Duplicate(?:_?\d+)?(?:DUPLICATE)?)?'
 
 
 def lint(name, driver, qualifier):
@@ -228,7 +229,7 @@ BASES = (
              'machine-to-pixel', 1, RESET_SDC, RESET),
     {'rule': 'CDC-50001', 'name': 'window-base', 'count': None, 'sdc': WINDOW_BASE_SDC,
      'qualifier': WINDOW_BASE,
-     'match': {0: nodes(WINDOW + r'base_lo\[\d+\](?:~DUPLICATE[^ ]*)?'), 1: nodes(WINDOW + r'base_machine\[\d+\]'),
+     'match': {0: nodes(WINDOW + r'base_lo\[\d+\]' + COPY), 1: nodes(WINDOW + r'base_machine\[\d+\]'),
                2: re.escape(SYS), 3: re.escape(MACHINE)}},
     {'rule': 'CDC-50001', 'name': 'window-fault-record', 'count': None, 'sdc': WINDOW_FAULT_SDC,
      'qualifier': WINDOW_FAULT,

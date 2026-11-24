@@ -139,7 +139,8 @@ reports, every rule, with no unmatched row:
 - every seed of base23b, dma223b, fifo23c, slat23b, audio-area, vga-area
   and 486SX.
 
-No reseal: this file is in pc386's closure only, and Deano's in-progress
+No reseal: this file is in pc386's closure only (it moves pc386's BUILD_ID
+and no other machine's), and Deano's in-progress
 exemption covers it. The DX slice merges this branch and refits.
 
 ## Every recorded copy spelling (fourth commit)
@@ -187,3 +188,36 @@ engine is unchanged. So only pc386's BUILD_ID moves, through the table's
 own digest, as with the earlier commits.
 
 The full table still passes all 40 recorded pc386 reports.
+
+## One copy spelling at a time (sixth commit)
+
+Codex (P2 on #2177 against 884b5959c) found that each half of `COPY` was
+optional on its own, so stacked mixtures matched, such as
+`cpu_biu_reset~DUPLICATE~_Duplicate1` and
+`reset~DUPLICATE~_Duplicate_2DUPLICATE`. No recorded report has one.
+Grepping every `timing.tsv`, `*.sta.rpt` and `*.signoff.rpt` under
+`/data/projects` and `~/fes-scratch` for `~DUPLICATE~_Duplicate` or
+`~_Duplicate…~DUPLICATE` finds nothing. Every hit is in this branch's own
+tests, two of which wrongly admitted `~DUPLICATE~_Duplicate_N`. `COPY` is
+now `(?:~DUPLICATE|~_Duplicate(?:_?\d+)?(?:DUPLICATE)?)?`: either one
+spelling or the other.
+
+The window-base source pattern took `~DUPLICATE` followed by any
+characters (`~DUPLICATE[^ ]*`). It now uses `COPY` too.
+
+Tests:
+- The tension, lint and window-base tests refuse stacked mixtures:
+  `~DUPLICATE~_Duplicate`, `~DUPLICATE~_Duplicate_1`,
+  `~DUPLICATE~_Duplicate_2DUPLICATE`, `~DUPLICATE~_DuplicateDUPLICATE`,
+  `~DUPLICATE~_Duplicate1` and `~DUPLICATE~_Duplicate_3`. The window-base
+  test also refuses `~DUPLICATE_x`.
+- The two test cases that had admitted a mixture now refuse it. The
+  tension advisory admits 19 names, and the lint groups are 6 and 3.
+- With the previous `COPY` and window pattern put back, 9 assertions fail.
+
+The full table still passes all 40 recorded pc386 reports.
+
+BUILD_ID: `signoff_bases.py` is a pc386 design input, so every commit on
+this branch moves pc386's BUILD_ID. The coordinating session reports that
+the fifth commit moved it from cee3d3b4 to 6574e507 on the S-lat branch.
+No other machine's BUILD_ID moves.
