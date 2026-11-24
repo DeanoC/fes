@@ -12,12 +12,18 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cerrno>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
 #include <limits>
 #include <thread>
 #include <utility>
+#if defined(__linux__)
+#include <sys/random.h>
+#elif defined(__APPLE__)
+#include <unistd.h>
+#endif
 
 namespace mister {
 namespace {
@@ -78,6 +84,30 @@ bool ValidPackageId(const std::string& value)
 	return true;
 }
 
+std::string NewRuntimeInstance()
+{
+	unsigned char bytes[16] = {};
+#if defined(__linux__)
+	std::size_t offset = 0;
+	while (offset < sizeof(bytes)) {
+		const auto count = getrandom(bytes + offset, sizeof(bytes) - offset, GRND_NONBLOCK);
+		if (count < 0 && errno == EINTR) continue;
+		if (count <= 0) return {};
+		offset += static_cast<std::size_t>(count);
+	}
+#elif defined(__APPLE__)
+	if (getentropy(bytes, sizeof(bytes)) != 0) return {};
+#else
+	// Do not issue a reusable identity on platforms without an entropy source.
+	return {};
+#endif
+	const char hex[] = "0123456789abcdef";
+	std::string value;
+	value.reserve(32);
+	for (const auto byte : bytes) { value.push_back(hex[byte >> 4]); value.push_back(hex[byte & 15]); }
+	return value == std::string(32, '0') ? std::string() : value;
+}
+
 std::vector<SupportedInterface> ActiveInterfaces(
 	const CoreDescriptor& descriptor, const Capabilities& capabilities)
 {
@@ -118,12 +148,13 @@ bool DeclaresComputerInterface(const CoreDescriptor& descriptor, const char* id)
 class Runtime::Impl final : public HardwareFaultSink {
  enum class FailureScope { lifecycle, menu_frame };
 public:
-	Impl(Hardware& hardware, LogSink& log)
+	Impl(Hardware& hardware, LogSink& log, const std::string* test_instance = nullptr)
 		: mutex_(), condition_(), hardware_(hardware),
 		  log_(log), status_(), faults_(), busy_(false), started_(false),
 		  stopping_(false), next_generation_(0), active_generation_(0),
 		  pending_fault_generation_(0), fault_thread_(&Impl::DrainFaults, this)
 	{
+		instance_ = test_instance ? *test_instance : NewRuntimeInstance();
 		hardware_.SetFaultSink(this);
 		status_.capabilities = hardware_.capabilities();
 	}
@@ -411,7 +442,9 @@ public:
 	Status status() const
 	{
 		std::lock_guard<std::mutex> lock(mutex_);
-		return status_;
+		Status result = status_;
+		result.runtime_instance = instance_;
+		return result;
 	}
 
 	Error InspectCore(const std::string& directory,
@@ -461,7 +494,7 @@ public:
 		{
 			std::unique_lock<std::mutex> lock(mutex_);
 			WaitForMenuFrame(lock);
-			if ((composition && composition->has_static_selection && status_.state != State::idle) || busy_ || !started_ || status_.state == State::starting ||
+			if ((composition && composition->has_static_selection && status_.state != State::idle) || busy_ || !started_ || next_generation_ == std::numeric_limits<std::uint64_t>::max() || status_.state == State::starting ||
 				status_.state == State::reboot_required) {
 				rejection = {"load_core", "", "", "validate",
 					Busy("runtime mutation is busy")};
@@ -768,7 +801,7 @@ public:
 		{
 			std::unique_lock<std::mutex> lock(mutex_);
 			WaitForMenuFrame(lock);
-			if (busy_ || !started_ || status_.state != State::idle) {
+			if (busy_ || !started_ || next_generation_ == std::numeric_limits<std::uint64_t>::max() || status_.state != State::idle) {
 				rejection = {"load_development_rbf", "", "", "validate",
 					Busy("runtime is not idle")};
 				rejected = true;
@@ -852,13 +885,19 @@ public:
 		return error;
 	}
 
-	Error SetComputerKeyboard(std::uint64_t matrix)
+	Error SetComputerKeyboard(const std::string& instance, const std::string& package_id, std::uint64_t generation,
+		std::uint64_t matrix)
 	{
 		if (matrix >> 40) return Invalid("invalid computer keyboard matrix");
+		if ((!package_id.empty() && !ValidPackageId(package_id)) || generation == 0)
+			return Invalid("invalid computer keyboard binding");
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
-			if (busy_ || !started_ || status_.state != State::running_development)
+			if (busy_ || !started_ || pending_fault_generation_ != 0 || status_.state != State::running_development)
 				return Busy("FES computer is not running");
+			if (instance_.empty() || instance != instance_ || generation != active_generation_ || generation != status_.generation ||
+				package_id != status_.active_package.package_id)
+				return Invalid("keyboard package or generation changed");
    if(status_.menu_display.launcher_focus&&matrix!=((std::uint64_t(1)<<40)-1))return {};
 			busy_ = true;
 		}
@@ -1030,7 +1069,7 @@ public:
 		return error;
 	}
 
-	Error SetKeyboardHid(const std::string& package_id, std::uint64_t generation,
+	Error SetKeyboardHid(const std::string& instance, const std::string& package_id, std::uint64_t generation,
 		const KeyboardHidRows& rows)
 	{
 		using namespace native::generated;
@@ -1043,7 +1082,7 @@ public:
 			if (busy_ || !started_ || pending_fault_generation_ != 0 ||
 				status_.state != State::running_development)
 				return Busy("keyboard session is not available");
-			if (generation != active_generation_ || generation != status_.generation ||
+			if (instance_.empty() || instance != instance_ || generation != active_generation_ || generation != status_.generation ||
 				package_id != status_.active_package.package_id)
 				return Invalid("keyboard package or generation changed");
 			if (!DeclaresComputerInterface(status_.active_package.descriptor,
@@ -1649,6 +1688,7 @@ public:
 	Hardware& hardware_;
 	LogSink& log_;
 	Status status_;
+	std::string instance_;
 	std::deque<HardwareFault> faults_;
 	bool busy_;
 	bool menu_frame_busy_=false;
@@ -1668,6 +1708,10 @@ public:
 
 Runtime::Runtime(Hardware& hardware, LogSink& log)
 	: impl_(new Impl(hardware, log)) {}
+#ifdef MISTER_RUNTIME_TESTING
+Runtime::Runtime(Hardware& hardware, LogSink& log, const std::string& test_instance)
+	: impl_(new Impl(hardware, log, &test_instance)) {}
+#endif
 
 Runtime::~Runtime() = default;
 
@@ -1807,9 +1851,10 @@ Error Runtime::SetController(const std::string& package_id, std::uint64_t genera
 	return impl_->SetController(package_id, generation, port, buttons, keypad);
 }
 
-Error Runtime::SetComputerKeyboard(std::uint64_t matrix)
+Error Runtime::SetComputerKeyboard(const std::string& instance, const std::string& package_id, std::uint64_t generation,
+	std::uint64_t matrix)
 {
-	return impl_->SetComputerKeyboard(matrix);
+	return impl_->SetComputerKeyboard(instance, package_id, generation, matrix);
 }
 Error Runtime::LoadComputerMedia(const std::string& path)
 {
@@ -1845,10 +1890,10 @@ Error Runtime::SendMouseRelative(const std::string& package_id, std::uint64_t ge
 	return impl_->SendMouseRelative(package_id, generation, dx, dy, buttons);
 }
 
-Error Runtime::SetKeyboardHid(const std::string& package_id, std::uint64_t generation,
+Error Runtime::SetKeyboardHid(const std::string& instance, const std::string& package_id, std::uint64_t generation,
 	const KeyboardHidRows& rows)
 {
-	return impl_->SetKeyboardHid(package_id, generation, rows);
+	return impl_->SetKeyboardHid(instance, package_id, generation, rows);
 }
 Error Runtime::InsertMedia(const std::string& path, const std::string& package_id,
 	std::uint64_t generation, std::uint8_t unit, std::uint32_t size)

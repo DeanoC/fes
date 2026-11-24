@@ -130,6 +130,15 @@ func TestKitHostPhysicalKeyboardWithoutRemoteInput(t *testing.T) {
 			app.session.CoreKeyboardHID = tc.hid
 			if tc.hid {
 				app.session.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{{ID: "fes.keyboard.hid", Major: 1}, {ID: "fes.mouse.relative", Major: 1}}
+				app.session.CorePackage.PackageID = strings.Repeat("a", 64)
+				app.session.CorePackage.Generation = 1
+				app.healthHave = true
+				app.health.Ready, app.health.TargetReady, app.health.TargetReachable = true, true, true
+				app.health.Connection.State, app.health.Connection.LeaseOwned = "active", true
+				app.health.Connection.TargetID = app.session.TargetID
+				app.health.Connection.LeaseGeneration = strings.Repeat("b", 64)
+				app.kitLeaseHave = true
+				app.kitLease = KitLeaseStatus{State: "active", Generation: strings.Repeat("b", 64)}
 			}
 			app.mu.Unlock()
 			device := &nativeInput{kind: InputKeyboard}

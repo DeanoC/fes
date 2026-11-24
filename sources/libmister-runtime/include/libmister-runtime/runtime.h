@@ -528,6 +528,8 @@ private:
 };
 
 struct Status {
+ // Unique to this Runtime authority; empty means its identity is unavailable.
+ std::string runtime_instance;
  MenuDisplayStatus menu_display;
 	State state = State::starting;
 	Execution execution = Execution::none;
@@ -789,6 +791,10 @@ public:
 class Runtime {
 public:
 	Runtime(Hardware&, LogSink&);
+#ifdef MISTER_RUNTIME_TESTING
+	// Deterministic identity/failure injection; absent from production builds.
+	Runtime(Hardware&, LogSink&, const std::string& test_instance);
+#endif
 	~Runtime();
 	Runtime(const Runtime&) = delete;
 	Runtime& operator=(const Runtime&) = delete;
@@ -844,7 +850,8 @@ public:
 	Error InspectCore(const std::string& directory,
 		const std::string& expected_package_id, CorePackageInspection*);
 	Error LoadContainedDevelopmentRBF(const std::string&);
-	Error SetComputerKeyboard(std::uint64_t matrix);
+	Error SetComputerKeyboard(const std::string& instance, const std::string& package_id, std::uint64_t generation,
+		std::uint64_t matrix);
 	Error SetController(const std::string& package_id, std::uint64_t generation,
 		std::uint8_t port, std::uint16_t buttons, std::uint16_t keypad);
 	// Launch-time hold-reset primary bind (optional package/generation when unbound).
@@ -865,7 +872,7 @@ public:
 	// fes.computer: complete HID snapshot. The driver clears all nine rows if
 	// prior state is unknown, then applies releases before makes; a mixed row may
 	// be written twice.
-	Error SetKeyboardHid(const std::string& package_id, std::uint64_t generation,
+	Error SetKeyboardHid(const std::string& instance, const std::string& package_id, std::uint64_t generation,
 		const KeyboardHidRows& rows);
 	// fes.computer: live transfer into one declared media unit without holding
 	// execution reset. A failed transfer ejects that unit once.

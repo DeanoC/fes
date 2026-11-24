@@ -21,7 +21,7 @@ func TestTargetTapPreservesLocalHoldAndReleasesOnTarget(t *testing.T) {
 	var posts []hidkeys.Rows
 	var times []time.Time
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error {
+	hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
 		mu.Lock()
 		defer mu.Unlock()
 		posts = append(posts, rows)
@@ -54,7 +54,7 @@ func TestTargetTapReleasesOnCancelAndUncertainPress(t *testing.T) {
 		t.Run(map[bool]string{false: "cancel", true: "press-fails"}[failPress], func(t *testing.T) {
 			calls := make(chan hidkeys.Rows, 4)
 			hid := &keyboardHIDSink{}
-			hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error {
+			hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
 				calls <- rows
 				if failPress && rows[0]&(1<<4) != 0 {
 					return errors.New("uncertain press")
@@ -100,7 +100,7 @@ func TestTargetTapReleasesOnCancelAndUncertainPress(t *testing.T) {
 func TestTargetTapNeverReleasesIntoReplacementGeneration(t *testing.T) {
 	calls := make(chan hidPost, 4)
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(_ context.Context, id string, g uint64, rows hidkeys.Rows) error {
+	hid.setPoster(func(_ context.Context, _ string, id string, g uint64, rows hidkeys.Rows) error {
 		calls <- hidPost{id, g, rows}
 		return nil
 	})
@@ -133,7 +133,7 @@ func TestTargetTapNeverReleasesIntoReplacementGeneration(t *testing.T) {
 
 func TestTargetTapRejectsAlreadyHeldRemoteKey(t *testing.T) {
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(context.Context, string, uint64, hidkeys.Rows) error { return nil })
+	hid.setPoster(func(context.Context, string, string, uint64, hidkeys.Rows) error { return nil })
 	hid.bind(&KeyboardHIDBinding{PackageID: "p", Generation: 7})
 	code, _ := hidkeys.Code(4)
 	if err := hid.applyFrom(context.Background(), sourceRemote, keyboardFrameFor(code, remoteinput.ActionPress)); err != nil {
@@ -164,7 +164,7 @@ func TestTargetTapRequiresFreshActiveObservation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			posts := 0
 			hid := &keyboardHIDSink{}
-			hid.setPoster(func(context.Context, string, uint64, hidkeys.Rows) error { posts++; return nil })
+			hid.setPoster(func(context.Context, string, string, uint64, hidkeys.Rows) error { posts++; return nil })
 			hid.bind(&KeyboardHIDBinding{PackageID: "p", Generation: 7})
 			ports := &controllerPortsSink{hid: hid}
 			controller := newTargetControllerWithSink("127.0.0.1:0", ports)
@@ -196,7 +196,7 @@ func TestTargetTapRejectsBusyLifecycle(t *testing.T) {
 func TestRejectedTapDoesNotMutateExistingRemoteHold(t *testing.T) {
 	posts := 0
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(context.Context, string, uint64, hidkeys.Rows) error { posts++; return nil })
+	hid.setPoster(func(context.Context, string, string, uint64, hidkeys.Rows) error { posts++; return nil })
 	binding := &KeyboardHIDBinding{PackageID: "p", Generation: 7}
 	hid.bind(binding)
 	code, _ := hidkeys.Code(4)
@@ -220,7 +220,7 @@ func TestRejectedTapDoesNotMutateExistingRemoteHold(t *testing.T) {
 func TestTargetTapRejectsSameLocalHold(t *testing.T) {
 	posts := 0
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(context.Context, string, uint64, hidkeys.Rows) error { posts++; return nil })
+	hid.setPoster(func(context.Context, string, string, uint64, hidkeys.Rows) error { posts++; return nil })
 	hid.bind(&KeyboardHIDBinding{PackageID: "p", Generation: 7})
 	code, _ := hidkeys.Code(4)
 	if err := hid.applyFrom(context.Background(), sourceLocal, keyboardFrameFor(code, remoteinput.ActionPress)); err != nil {
@@ -237,7 +237,7 @@ func TestTargetTapRejectsSameLocalHold(t *testing.T) {
 func TestTargetTapReportsLocalOverlapDuringHold(t *testing.T) {
 	posts := make(chan hidkeys.Rows, 8)
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(_ context.Context, _ string, _ uint64, r hidkeys.Rows) error { posts <- r; return nil })
+	hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, r hidkeys.Rows) error { posts <- r; return nil })
 	hid.bind(&KeyboardHIDBinding{PackageID: "p", Generation: 7})
 	done := make(chan error, 1)
 	go func() { done <- hid.tap(context.Background(), tapFrame(4, 7), nil) }()

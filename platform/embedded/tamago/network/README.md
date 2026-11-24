@@ -113,6 +113,18 @@ identifier and a router (option 3) that is another usable host in the leased
 subnet. Replies without such a router are ignored, so a server that sends none
 yields no lease; the server identifier is not a fallback gateway.
 
+`run.py network --board qemu` boots `cmd/network` on QEMU user networking
+(SLIRP) and checks its HTTP catalog against a private FogCast host. `--dhcp`
+adds `"dhcp": true` to `FES/BOOT.JSON`; the runner then requires exactly one
+`FES_NETWORK_DHCP` line with a positive lease time and records it as
+`dhcp_lease` in `result.json`. Tamago CI (`scripts/tamago_ci.py`) runs both the
+static `network` program and the `network-dhcp` variant, which is
+`run.py network --dhcp`. It fails either run whose `result.json` does not
+record the addressing it requested; the DHCP run also needs a coherent IPv4
+lease. SLIRP's first lease (`10.0.2.15/24`, gateway `10.0.2.2`) equals the
+static default, so a DHCP run is identified by its lease line and `dhcp_lease`,
+not by its address.
+
 The pinned dependency is `github.com/usbarmory/go-net`
 `v0.0.0-20260924083839-356cbf14db9e`, the revision compatible with the
 TamaGo 1.26.5 compiler. Both TCP peers in the smoke test exchange packets

@@ -27,6 +27,7 @@ func (err protocol2MutationError) Unwrap() error { return err.error }
 var (
 	protocol2Identifier = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,95}$`)
 	protocol2Hex64      = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	protocol2Instance   = regexp.MustCompile(`^[0-9a-f]{32}$`)
 )
 
 type Protocol2Error struct {
@@ -105,6 +106,7 @@ type Protocol2MenuDisplay struct {
 }
 
 type Protocol2Response struct {
+	RuntimeInstance  *string                 `json:"runtime_instance"`
 	CoreData         *protocol.CoreData      `json:"core_data,omitempty"`
 	MediaData        *protocol.MediaRecord   `json:"media_data,omitempty"`
 	Protocol         int                     `json:"protocol"`
@@ -141,15 +143,18 @@ func protocol2ROMLinkFromIdentity(identity corepackage.ROMLinkIdentity) protocol
 	}
 }
 
-func (client *Client) SetKeyboard(ctx context.Context, matrix uint64) (Protocol2Response, error) {
-	if matrix > 0xffffffffff {
+func (client *Client) SetKeyboard(ctx context.Context, instance, packageID string, generation, matrix uint64) (Protocol2Response, error) {
+	if !protocol2Instance.MatchString(instance) || instance == "00000000000000000000000000000000" || (packageID != "" && protocol.ValidateDigest(packageID) != nil) || generation == 0 || matrix > 0xffffffffff {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	line, err := client.callRaw(ctx, struct {
-		Protocol  int    `json:"protocol"`
-		Operation string `json:"operation"`
-		Matrix    uint64 `json:"matrix"`
-	}{Protocol: 2, Operation: "set_keyboard", Matrix: matrix})
+		Protocol           int    `json:"protocol"`
+		Operation          string `json:"operation"`
+		RuntimeInstance    string `json:"runtime_instance"`
+		PackageID          string `json:"package_id"`
+		ExpectedGeneration uint64 `json:"expected_generation"`
+		Matrix             uint64 `json:"matrix"`
+	}{Protocol: 2, Operation: "set_keyboard", RuntimeInstance: instance, PackageID: packageID, ExpectedGeneration: generation, Matrix: matrix})
 	if err != nil {
 		return Protocol2Response{}, err
 	}
@@ -537,7 +542,7 @@ func decodeProtocol2Response(line []byte) (Protocol2Response, error) {
 
 func validateProtocol2Shape(line []byte) error {
 	var root json.RawMessage = line
-	object, err := exactRawObject(root, []string{"protocol", "ok", "state", "execution", "system", "core", "error", "version", "capabilities", "active_package", "generation", "inspected_package"}, []string{"core_data", "menu_display", "media_data"})
+	object, err := exactRawObject(root, []string{"protocol", "ok", "state", "execution", "system", "core", "error", "version", "capabilities", "active_package", "runtime_instance", "generation", "inspected_package"}, []string{"core_data", "menu_display", "media_data"})
 	if err != nil {
 		return err
 	}
@@ -546,7 +551,7 @@ func validateProtocol2Shape(line []byte) error {
 		"execution": rawString, "system": rawNullableString,
 		"core": rawNullableString, "error": rawNullableObject,
 		"version": rawString, "capabilities": rawObject,
-		"active_package": rawNullableObject, "generation": rawNullableUnsigned,
+		"active_package": rawNullableObject, "runtime_instance": rawNullableString, "generation": rawNullableUnsigned,
 		"inspected_package": rawNullableObject,
 	}); err != nil {
 		return err
@@ -1238,6 +1243,9 @@ func consumeJSONValue(decoder *json.Decoder) error {
 }
 
 func validProtocol2Response(response Protocol2Response) bool {
+	if response.RuntimeInstance != nil && (!protocol2Instance.MatchString(*response.RuntimeInstance) || *response.RuntimeInstance == "00000000000000000000000000000000") {
+		return false
+	}
 	if response.Capabilities.MediaStream != nil {
 		if response.ActivePackage == nil || !positive(response.Generation) {
 			return false

@@ -5,6 +5,7 @@
 
 #include "daemon/protocol.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <utility>
 
@@ -883,6 +884,9 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   }
   output.Append("}");
  }
+	output.Append(",\"runtime_instance\":");
+	if (status.runtime_instance.empty()) output.Append("null");
+	else AppendQuoted(&output, status.runtime_instance);
 	output.Append(",\"generation\":");
 	if (status.generation == 0) output.Append("null");
 	else output.Append(std::to_string(status.generation));
@@ -1491,14 +1495,24 @@ Error ParseRequest(const std::string& line, Request* request)
 			parsed.controller_buttons = static_cast<std::uint16_t>(buttons->integer_value);
 			parsed.controller_keypad = static_cast<std::uint16_t>(keypad->integer_value);
 		} else if (operation->string_value == "set_keyboard") {
-			const char* const fields[] = {"protocol", "operation", "matrix"};
-			if (!HasOnly(root, fields, 3, &error)) return error;
+			const char* const fields[] = {"protocol", "operation", "runtime_instance", "package_id", "expected_generation", "matrix"};
+			if (!HasOnly(root, fields, 6, &error)) return error;
+			const std::string* package = nullptr;
+			const std::string* instance = nullptr;
+			if (!StringMember(root, "package_id", &package, &error)) return error;
+			if (!StringMember(root, "runtime_instance", &instance, &error)) return error;
 			const json::Value* matrix = Find(root, "matrix");
-			if (matrix == nullptr || matrix->type != json::Type::integer ||
+			if (instance->size() != 32 || *instance == std::string(32, '0') ||
+				!std::all_of(instance->begin(), instance->end(), [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) ||
+				(!package->empty() && !PackageID(*package)) ||
+				!Generation(Find(root, "expected_generation"), &parsed.expected_generation) ||
+				matrix == nullptr || matrix->type != json::Type::integer ||
 				matrix->integer_value < 0 ||
 				static_cast<std::uint64_t>(matrix->integer_value) > 0xffffffffffull)
 				return Invalid("keyboard matrix must be a 40-bit integer");
 			parsed.operation = Operation::set_keyboard;
+			parsed.runtime_instance = *instance;
+			parsed.package_id = *package;
 			parsed.keyboard_matrix =
 				static_cast<std::uint64_t>(matrix->integer_value);
 		} else if (operation->string_value == "load_media_stream") {
@@ -1540,13 +1554,17 @@ Error ParseRequest(const std::string& line, Request* request)
             parsed.mouse_buttons=static_cast<std::uint8_t>(buttons->integer_value);
 		} else if (operation->string_value == "set_keyboard_hid") {
 			using namespace native::generated;
-			const char* const fields[] = {"protocol", "operation", "package_id",
+			const char* const fields[] = {"protocol", "operation", "runtime_instance", "package_id",
 				"expected_generation", "rows"};
-			if (!HasOnly(root, fields, 5, &error)) return error;
+			if (!HasOnly(root, fields, 6, &error)) return error;
 			const std::string* package = nullptr;
+			const std::string* instance = nullptr;
 			if (!StringMember(root, "package_id", &package, &error)) return error;
+			if (!StringMember(root, "runtime_instance", &instance, &error)) return error;
 			const auto* rows = Find(root, "rows");
-			if (!PackageID(*package) ||
+			if (instance->size() != 32 || *instance == std::string(32, '0') ||
+				!std::all_of(instance->begin(), instance->end(), [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) ||
+				!PackageID(*package) ||
 				!Generation(Find(root, "expected_generation"), &parsed.expected_generation) ||
 				rows == nullptr || rows->type != json::Type::array ||
 				rows->array.size() != FesComputerKeyboardRowCount)
@@ -1561,6 +1579,7 @@ Error ParseRequest(const std::string& line, Request* request)
 					~FesComputerKeyboardModifierMask) != 0)
 				return Invalid("invalid keyboard HID snapshot");
 			parsed.operation = Operation::set_keyboard_hid;
+			parsed.runtime_instance = *instance;
 			parsed.package_id = *package;
 		} else if (operation->string_value == "acknowledge_zx81_tape") {
 			const char* const fields[] = {"protocol", "operation",
@@ -1812,7 +1831,7 @@ std::string EncodeResponse(std::int64_t, bool ok, const Status& status,
 		"\"phase\":\"lifecycle\"},\"version\":\"-\","
 		"\"capabilities\":{\"programming_profiles\":[],\"abis\":[],"
 		"\"active_interfaces\":[]},\"active_package\":null,"
-		"\"generation\":null,\"inspected_package\":null}";
+		"\"runtime_instance\":null,\"generation\":null,\"inspected_package\":null}";
 }
 
 } // namespace daemon

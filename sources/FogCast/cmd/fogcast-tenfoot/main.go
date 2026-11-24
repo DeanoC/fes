@@ -130,6 +130,7 @@ func parseArgsWithEnv(args []string, getenv func(string) string) (tenfoot.Option
 	configPath := fs.String("config", "/media/fat/fogcast/launcher.json", "provisioned launcher configuration")
 	fs.String("api", "", "FogCast host API base URL")
 	kitHost := fs.Bool("kit-host", false, "connect unpaired to this kit's local host")
+	nativeKeyboardV2 := fs.Bool("native-keyboard-v2", false, "enable kit-local keyboard authority for an unmanaged kit host")
 	fs.String("token", "", "launcher API bearer token")
 	fs.String("target-id", "", "launcher API target identity")
 	apiHost := fs.String("api-host", envOr("FOGCAST_API_HOST", ""), "optional HTTP Host header (loopback allowlist; -smoke defaults this when the API URL is not loopback)")
@@ -185,36 +186,37 @@ func parseArgsWithEnv(args []string, getenv func(string) string) (tenfoot.Option
 		}
 	})
 	return tenfoot.Options{
-		CPUProfile:   *cpuProfile,
-		HeapProfile:  *heapProfile,
-		APIBase:      apiValue,
-		APIToken:     tokenValue,
-		TargetID:     targetValue,
-		KitHost:      *kitHost,
-		APIHost:      *apiHost,
-		Width:        *width,
-		Height:       *height,
-		Fullscreen:   *fullscreen,
-		Smoke:        *smoke,
-		MaxGames:     *maxGames,
-		SmokeTimeout: *timeout,
-		SafeAreaPct:  *safeArea,
-		SafeAreaSet:  safeAreaSet,
-		Layout:       *layout,
-		LayoutSet:    layoutSet,
-		NoAttract:    *noAttract,
-		NoAttractSet: noAttractSet,
-		Theme:        *themeSpec,
-		GFX:          *gfxName,
-		Framebuffer:  *fb,
-		MenuSocket:   *menuSocket,
-		Input:        *input,
-		DebugHUD:     *debugHUD,
-		DebugHUDSet:  debugHUDSet,
-		RoomsDir:     *roomsDir,
-		Home:         *home,
-		HomeSet:      homeSet,
-		HomeRoom:     strings.TrimSpace(*homeRoom),
+		CPUProfile:       *cpuProfile,
+		HeapProfile:      *heapProfile,
+		APIBase:          apiValue,
+		APIToken:         tokenValue,
+		TargetID:         targetValue,
+		KitHost:          *kitHost,
+		NativeKeyboardV2: *nativeKeyboardV2,
+		APIHost:          *apiHost,
+		Width:            *width,
+		Height:           *height,
+		Fullscreen:       *fullscreen,
+		Smoke:            *smoke,
+		MaxGames:         *maxGames,
+		SmokeTimeout:     *timeout,
+		SafeAreaPct:      *safeArea,
+		SafeAreaSet:      safeAreaSet,
+		Layout:           *layout,
+		LayoutSet:        layoutSet,
+		NoAttract:        *noAttract,
+		NoAttractSet:     noAttractSet,
+		Theme:            *themeSpec,
+		GFX:              *gfxName,
+		Framebuffer:      *fb,
+		MenuSocket:       *menuSocket,
+		Input:            *input,
+		DebugHUD:         *debugHUD,
+		DebugHUDSet:      debugHUDSet,
+		RoomsDir:         *roomsDir,
+		Home:             *home,
+		HomeSet:          homeSet,
+		HomeRoom:         strings.TrimSpace(*homeRoom),
 	}, nil
 }
 
