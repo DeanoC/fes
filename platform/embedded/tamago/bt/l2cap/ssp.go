@@ -185,6 +185,12 @@ func isHIDPeripheralCoD(cod uint32) bool {
 	return major == 0x05 // Major Device Class: Peripheral (Gamepad/Joystick/Keyboard/Mouse)
 }
 
+func (m *Manager) resumeInquiryIfPairing() {
+	if m.pairingActive && !m.connecting && m.now().Before(m.pairingUntil) {
+		_ = m.tr.StartInquiry(8, 0)
+	}
+}
+
 func (m *Manager) maybeInitiatePair(addr BDAddr, cod uint32, pageScanRep byte, clockOff uint16) {
 	if !m.pairingActive || m.connecting || !isHIDPeripheralCoD(cod) {
 		return
@@ -198,9 +204,7 @@ func (m *Manager) maybeInitiatePair(addr BDAddr, cod uint32, pageScanRep byte, c
 	if err := m.tr.CreateConnection(addr, pageScanRep, clockOff); err != nil {
 		m.connecting = false
 		m.connectAddr = BDAddr{}
-		if m.pairingActive && m.now().Before(m.pairingUntil) {
-			_ = m.tr.StartInquiry(8, 0)
-		}
+		m.resumeInquiryIfPairing()
 	}
 }
 
@@ -240,9 +244,7 @@ func (m *Manager) handleEvent(ev []byte) {
 			m.connectAddr = BDAddr{}
 		}
 		if params[0] != 0 {
-			if m.pairingActive && !m.connecting && m.now().Before(m.pairingUntil) {
-				_ = m.tr.StartInquiry(8, 0)
-			}
+			m.resumeInquiryIfPairing()
 			return
 		}
 		handle := binary.LittleEndian.Uint16(params[1:3]) & 0x0fff
@@ -281,6 +283,7 @@ func (m *Manager) handleEvent(ev []byte) {
 				m.OnDisconnect(handle, addr)
 			}
 		}
+		m.resumeInquiryIfPairing()
 
 	case hci.EventRemoteNameRequestComplete:
 		// [0]=status [1..6]=BD_ADDR [7..254]=UTF-8 name (null-terminated)
@@ -428,9 +431,7 @@ func (m *Manager) handleEvent(ev []byte) {
 		m.maybeInitiatePair(addr, cod, params[7], clk)
 
 	case hci.EventInquiryComplete:
-		if m.pairingActive && !m.connecting && m.now().Before(m.pairingUntil) {
-			_ = m.tr.StartInquiry(8, 0)
-		}
+		m.resumeInquiryIfPairing()
 
 	case hci.EventSimplePairingComplete:
 		// [0]=status [1..6]=BD_ADDR
@@ -443,8 +444,6 @@ func (m *Manager) handleEvent(ev []byte) {
 			m.connecting = false
 			m.connectAddr = BDAddr{}
 		}
-		if m.pairingActive && !m.connecting && m.now().Before(m.pairingUntil) {
-			_ = m.tr.StartInquiry(8, 0)
-		}
+		m.resumeInquiryIfPairing()
 	}
 }

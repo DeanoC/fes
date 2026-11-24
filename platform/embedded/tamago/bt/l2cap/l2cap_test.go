@@ -1009,3 +1009,59 @@ func TestDisconnectReclaimsSubmittedACLCreditsWithoutNumCompleted(t *testing.T) 
 		t.Fatalf("expected 7 remaining credits after reclaiming 8 and sending 1, got %d", tr.ACLCredits())
 	}
 }
+
+func TestManagerResumesInquiryAfterPairingDisconnect(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(1200, 0)
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	countInquiry := func() int {
+		n := 0
+		for _, op := range bus.cmds {
+			if op == hci.OpcodeInquiry {
+				n++
+			}
+		}
+		return n
+	}
+	if countInquiry() != 1 {
+		t.Fatalf("expected 1 initial StartInquiry, got %d", countInquiry())
+	}
+
+	dev1, _ := ParseBDAddr("22:33:44:55:66:77")
+	eir := make([]byte, 2+15)
+	eir[0] = hci.EventExtendedInquiryResult
+	eir[1] = 15
+	eir[2] = 1
+	copy(eir[3:9], dev1[:])
+	eir[9] = 1
+	eir[11], eir[12], eir[13] = 0x08, 0x25, 0x00
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, eir)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x48, 0x00}, dev1[:]...)
+	connOK = append(connOK, 0x01, 0x01)
+	disc := []byte{hci.EventDisconnectionComplete, 4, 0, 0x48, 0x00, 0x13}
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK, disc)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	if countInquiry() != 2 {
+		t.Fatalf("expected StartInquiry to resume after pairing connection disconnects (count=%d)", countInquiry())
+	}
+}
