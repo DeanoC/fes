@@ -132,6 +132,8 @@ type multiHub struct {
 	depth         int
 	numPorts      uint8
 	singleTT      bool
+	statusEP      usb.EndpointDescriptor
+	hasStatusEP   bool
 	statusPipe    *multiPipe
 	statusRetryAt time.Time
 	retryCount    [maxHubPorts + 1]uint8
@@ -985,6 +987,17 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 		for {
 			if !h.io.Now().Before(deadline) {
 				return 0, fmt.Errorf("dwc2: CH0 split timeout addr=%d", addr)
+			}
+			// Wait for both a non-periodic request queue entry and enough TX FIFO
+			// words before programming CH0 so concurrent Bulk-OUT traffic cannot
+			// overrun or stall the shared non-periodic FIFO.
+			outWords := 0
+			if !in && !completeSplit {
+				outWords = (len(out) + 3) / 4
+			}
+			if q := h.io.Read32(nptxstatus); (q>>16)&255 == 0 || int(q&65535) < outWords {
+				runtime.Gosched()
+				continue
 			}
 			if split {
 				frame := uint16(h.io.Read32(hfnum)) & 0x3fff
