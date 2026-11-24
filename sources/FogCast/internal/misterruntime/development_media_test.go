@@ -25,7 +25,8 @@ func (c *mediaControl) LoadMedia(ctx context.Context, path string) (misterruntim
 }
 func mediaResponse() misterruntime.Protocol2Response {
 	gen := uint64(9)
-	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "running_development", Execution: "development", Generation: &gen,
+	instance := strings.Repeat("1", 32)
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "running_development", Execution: "development", Generation: &gen, RuntimeInstance: &instance,
 		ActivePackage: &misterruntime.Protocol2ActivePackage{PackageID: strings.Repeat("a", 64), Descriptor: corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.simple-computer", Major: 1}}},
 		Capabilities:  misterruntime.Protocol2Capabilities{ActiveInterfaces: []misterruntime.Protocol2Interface{{ID: "fes.media.blob", Major: 1}}}}
 }

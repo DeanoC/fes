@@ -205,6 +205,7 @@ func (a *App) closeFirmwarePickerLocked() {
 }
 
 func (a *App) openFirmwarePickerLocked(game hostclient.Game) {
+	a.nativePadFenceMappingLocked()
 	a.firmwarePickerFromDetail = a.room == nil && a.detailOpen
 	a.closeDetailLocked()
 	a.roomChoiceOpen = false

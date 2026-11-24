@@ -6,6 +6,13 @@
 `mister-runtime` exposes protocol 2 over the local Unix socket. FogCast owns
 network sessions and library context; the runtime owns physical transitions.
 
+Each Runtime authority creates a nonzero random instance identity. Status
+reports it and keyboard matrix and HID writes must match it along with the
+originating package and generation. Failure to create the identity leaves
+keyboard writes unavailable. This prevents an old queued write from acquiring
+a reused generation after a runtime reconstruction; it does not by itself prove
+that hardware was reset.
+
 `CreateProductionHardware` identifies the exact board/CPU before physical
 preparation. DE10 uses the ARMv7 Cyclone V identity and its existing window,
 manager, GP, I2C and fixed/splash video adapters. DE25 uses AArch64, raw model
@@ -40,6 +47,10 @@ refuses that recipe before programming. If the selected MENU fails, Start logs
 that failure and tries the board's splash recipe once. A successful DE10 splash
 keeps the daemon idle without a MENU display; if splash is unsupported or also
 fails, startup ends in reboot-required. DE25 never programs a Cyclone V splash.
+The production startup recovery contract depends on that successful MENU or
+splash programming before idle is published; a failed startup is unavailable.
+Code using a changed runtime instance as evidence of old input retirement must
+also rely on that production hardware lifecycle, not on the identity alone.
 
 ## DE25 kernel programmer
 

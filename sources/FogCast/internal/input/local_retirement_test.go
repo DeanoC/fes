@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"testing"
 	"time"
 
@@ -29,7 +30,7 @@ func newLocalRetirementRig(t *testing.T) *localRetirementRig {
 		matrix:      zx81keys.Neutral,
 	}
 	keys := NewKeyboardSink()
-	keys.SetPoster(func(ctx context.Context, matrix uint64) error {
+	keys.SetPoster(func(ctx context.Context, _ localhid.MatrixPost, matrix uint64) error {
 		rig.posts++
 		if rig.stall {
 			deadline, ok := ctx.Deadline()

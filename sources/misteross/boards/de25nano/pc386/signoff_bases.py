@@ -8,7 +8,25 @@ in pc386's source closure only.
 """
 import re
 
-from boards.de25nano.scanout.machine_findings import S, E, nodes, bus, crossing, advisory, lint
+from boards.de25nano.scanout.machine_findings import S, E, MACHINE, nodes, bus, crossing, advisory
+
+# A fitter copy of a register keeps its name with a suffix. The recorded fits'
+# reports and timing.tsv files spell it ~DUPLICATE, or ~_Duplicate with no
+# number, a number (~_Duplicate1, ~_Duplicate0) or an underscored one
+# (~_Duplicate_2), and the fitter stacks a further copy as a bare DUPLICATE
+# (~_Duplicate1DUPLICATE, ~_Duplicate_1DUPLICATE, ~_DuplicateDUPLICATE). The fit
+# picks which, so a basis that names a register admits each of those spellings
+# of a copy of it, and no other name. Deano accepted fitter copies of the names
+# the bases accept on 24 Nov 2026 (#2187), when a fit reported
+# cpu_biu_reset~_Duplicate.
+COPY = r'(?:~DUPLICATE)?(?:~_Duplicate(?:_?\d+)?(?:DUPLICATE)?)?'
+
+
+def lint(name, driver, qualifier):
+    # machine_findings.lint admits only ~_Duplicate_N; it is in every DE25 machine's closure, so the
+    # pc386 table builds its own rather than move their BUILD_IDs.
+    return {'rule': 'LNT-30010', 'name': name, 'count': None, 'sdc': (), 'qualifier': qualifier,
+            'match': {0: S + re.escape(driver) + COPY}}
 
 TABLE = 'boards/de25nano/pc386/signoff_bases.py'
 SOURCES = {
@@ -16,6 +34,8 @@ SOURCES = {
     'cores/fes-pc386/rtl/pc386_vga_scanout.sv': '03d194d816290a6f6977cc84dfe5c64be374f1ca4eb3a297b1562495b0186fec',
     'cores/fes-pc386/rtl/pc386_snapshot.sv': '795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4',
     'cores/fes-pc386/rtl/pc386_machine.sv': 'c1aa79dbefc5c1632601b6097765249c68ed01f0d172ef7d6087e1f71893dabc',
+    'boards/de25nano/pc386/fes_de25_hps_window_control.v':
+        '8c313031e408b643ecead148263e3dde06304e8a5603894e99af08d4edcbbcbe',
 }
 
 
@@ -123,7 +143,52 @@ TENSION = ('Placement advisory: registers in the machine netlist with many endpo
            'A fitter copy of a named register (~_Duplicate_N) is the same register: Deano accepted that '
            'spelling on 23 Nov 2026 (#2036), when the fit at dfacd28e1 split cpu_biu_reset and reported '
            'cpu_biu_reset~_Duplicate_2 (6,484 endpoints) where the fit at 3401bb193 reported the undivided '
-           'register (8,001 endpoints); the same copy is reviewed under LNT-30010 biu-reset.')
+           'register (8,001 endpoints); the same copy is reviewed under LNT-30010 biu-reset. '
+           'machine_at_decoder_state, _phase and _cycle_port are pc386_io.sv\'s I/O cycle state, phase counter '
+           'and latched port (the AT core\'s port decoder), and audio_dsp_write is the register on pc386_audio.sv\'s '
+           'Sound Blaster DSP (pc386_sb) write input; all are machine-clock registers. Deano admitted them on 24 Nov 2026 (#2187), when '
+           'the i486DX slice-1 fit (seed 1) reported them and their ~DUPLICATE copies.')
+# The window control block's held bundles (fes_de25_hps_window_control.v),
+# between the board's peripheral clock (clk_sys, 100 MHz) and the machine
+# clock. Their rows depend on the design and not on the seed: every seed of
+# #2036's own fits reports neither, and every seed of some designs built on it
+# reports the same nine base bits. So these two bases bind their rows by name
+# and clock and record the count, as the advisories do, rather than pinning it.
+SYS = 'pll_inst|iopll_0_outclk0'
+WINDOW = E + re.escape('window_control|')
+WINDOW_BASE_SDC = (
+    '    window_base {window_control|base_lo[*] window_control|base_lo[*]~DUPLICATE*} '
+    '{window_control|base_machine[*]} 20 64 20 32',
+    '    window_granted {window_control|granted} {window_control|granted_sync[0]} 1',
+    '    set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]',
+    '    set_false_path -from $launches -to $first_d',
+    *BUNDLE_SDC)
+WINDOW_FAULT_SDC = (
+    '    window_fault_record {window_control|fault_launch[*]} {window_control|machine_fault[*]} 5 5 5 5',
+    '    window_fault_request {window_control|fault_request} {window_control|fault_request_sync[0]} 1',
+    '    window_fault_ack {window_control|fault_ack} {window_control|fault_ack_sync[0]} 1',
+    '    set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]',
+    '    set_false_path -from $launches -to $first_d',
+    *BUNDLE_SDC)
+WINDOW_BASE = ('Peripheral to machine: the grant base. fes_de25_hps_window_control.v writes base_lo only while '
+               'granted is clear (a write while granted answers SLVERR), and sets granted from a separate '
+               'command write, so base_lo is still from at least one clk_sys clock (10 ns) before granted '
+               'launches until granted is cleared. granted is a level into a two-stage machine-clock '
+               'synchroniser (granted_sync, its launch into stage 0 a named false path); the machine side '
+               'copies base_lo into base_machine only on the clock where granted_sync[1] is first seen set '
+               '(granted_sync[1] && !grant_seen), at least two machine clocks (32.6 ns at 61.437908 MHz) after '
+               'granted reaches stage 0. The bundle paths are bounded to 10 ns, with skew, net and data delay '
+               'bounds, so the copy samples a settled base. A fitter copy of a base_lo bit (~DUPLICATE) is '
+               'the same register, as the SDC collection says. clk_sys\'s reset clears base_lo and granted '
+               'together; that is the one way base_lo moves while granted is set.')
+WINDOW_FAULT = ('Machine to peripheral: the fault record (port bits and reason). fes_de25_hps_window_control.v '
+                'launches it from fault_launch, which copies the held record every machine clock, on the same '
+                'machine edge that launches its request toggle (fault_request); the held record changes only '
+                'after clk_sys\'s acknowledge (fault_ack) has crossed back through fault_ack_sync. The request '
+                'enters a two-stage clk_sys synchroniser (fault_request_sync, its launch into stage 0 a named '
+                'false path), and clk_sys copies fault_launch into machine_fault only on the clock where '
+                'fault_request_sync[1] differs from fault_request_seen, at least two clk_sys clocks (20 ns) after '
+                'the request reaches stage 0. The bundle paths are bounded to 10 ns.')
 BIU_RESET = ('fes_i386_cpu\'s BIU reset, a machine-clock register: it drives synchronous clears, and the '
              'synthesis netlist also uses it in clock enables (fetch prediction). It is not an '
              'asynchronous reset; its paths are timed in the machine clock.')
@@ -159,11 +224,19 @@ BASES = (
              bus('machine_presenter_request_sync'), 'pixel-to-machine', 1, TOGGLE_SDC, TOGGLES),
     crossing('CDC-50002', 'pixel-reset', bus('reset'), bus('machine_pixel_reset_sync'),
              'machine-to-pixel', 1, RESET_SDC, RESET),
+    {'rule': 'CDC-50001', 'name': 'window-base', 'count': None, 'sdc': WINDOW_BASE_SDC,
+     'qualifier': WINDOW_BASE,
+     'match': {0: nodes(WINDOW + r'base_lo\[\d+\](?:~DUPLICATE[^ ]*)?'), 1: nodes(WINDOW + r'base_machine\[\d+\]'),
+               2: re.escape(SYS), 3: re.escape(MACHINE)}},
+    {'rule': 'CDC-50001', 'name': 'window-fault-record', 'count': None, 'sdc': WINDOW_FAULT_SDC,
+     'qualifier': WINDOW_FAULT,
+     'match': {0: nodes(WINDOW + r'fault_launch\[\d+\]'), 1: nodes(WINDOW + r'machine_fault\[\d+\]'),
+               2: re.escape(MACHINE), 3: re.escape(SYS)}},
     lint('biu-reset', 'cpu_biu_reset', BIU_RESET),
     lint('machine-reset', 'reset', MACHINE_RESET),
     advisory('FLP-10000', 'small-rams', 3, nodes(
         '(?:' + S + r'[^|]+|' + E + r'window\|port[0-2]\|command_[a-z]+_rtl_\d+|' + E + r'arbiter\|unpack[12]\|[^ ]+|'
         + re.escape('soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|') + r'[^ ]+)(?:\|[^ ]+)?'), RAM),
     advisory('TMC-20602', 'cpu-control-tension', 0,
-             S + r'(?:cpu_[a-z0-9_]+|reset|_\d+_)(?:\[\d+\])?(?:~DUPLICATE)?(?:~_Duplicate_\d+)?', TENSION),
+             S + r'(?:cpu_[a-z0-9_]+|reset|_\d+_|machine_at_decoder_(?:state|phase|cycle_port)|audio_dsp_write)(?:\[\d+\])?' + COPY, TENSION),
 )
