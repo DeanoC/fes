@@ -340,7 +340,10 @@ func (h *MultiHost) failController(err error) error {
 		h.retireIRQ(false)
 		return err
 	}
-	if h.io.Read32(gahb)&(1<<5) != 0 || h.io.Read32(hcfg)&(1<<23) != 0 {
+	h.irqMu.Lock()
+	guard := h.irqGuard
+	h.irqMu.Unlock()
+	if (guard != nil && !guard()) || h.io.Read32(gahb)&(1<<5) != 0 || h.io.Read32(hcfg)&(1<<23) != 0 {
 		h.retireIRQ(false)
 		return h.fault
 	}
@@ -689,7 +692,12 @@ func (h *MultiHost) Service() error {
 		if err := h.pioCheck(); err != nil {
 			return h.failController(err)
 		}
-		h.resumeIRQ()
+		if err := h.resumeIRQ(); err != nil {
+			if h.fault == nil {
+				h.fault = err
+			}
+			return h.fault
+		}
 	}
 	if err := h.pioCheck(); err != nil {
 		return h.failController(err)
@@ -1704,7 +1712,12 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 	if err := h.pioCheck(); err != nil {
 		return h.failController(err)
 	}
-	h.suspendIRQ()
+	if err := h.suspendIRQ(); err != nil {
+		if h.fault == nil {
+			h.fault = err
+		}
+		return h.fault
+	}
 	h.paused = true
 	return nil
 }
