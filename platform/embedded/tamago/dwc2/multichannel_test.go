@@ -3476,3 +3476,137 @@ func TestMultiHostPauseFailsWhenIRQSuspendLosesOwnership(t *testing.T) {
 			g2Before, g2After, h2Before, h2After, a2Before, a2After)
 	}
 }
+
+func TestMultiHostEnableIRQWakesPreOpenedPipes(t *testing.T) {
+	// 1. Idle controller with no open pipes and no pending interrupts must NOT
+	// enable gintSOF or spuriously signal Ready().
+	idleSim := newMultiChannelSim(1024, 16)
+	idleHost, err := OpenMulti(idleSim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti(idle): %v", err)
+	}
+	idleCtrl, _ := newMockGIC(t)
+	if err := idleHost.EnableIRQ(idleCtrl, testUSBIRQ); err != nil {
+		t.Fatalf("EnableIRQ(idle): %v", err)
+	}
+	idleSim.mu.Lock()
+	idleMask := idleSim.regs[gintmask]
+	idleSim.mu.Unlock()
+	if idleMask&gintSOF != 0 {
+		t.Fatalf("idle EnableIRQ unexpectedly armed gintSOF: gintmask=%#x", idleMask)
+	}
+	select {
+	case <-idleHost.Ready():
+		t.Fatal("idle EnableIRQ spuriously signaled Ready()")
+	default:
+	}
+	idleHost.DisableIRQ()
+
+	// 2. Opening an Interrupt-IN pipe BEFORE calling EnableIRQ must enable gintSOF
+	// AND signal Ready() immediately so callers arm the pre-opened pipe without stalling.
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected attach event, got %+v ok=%v", ev, ok)
+	}
+	iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+	epIn, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+
+	inPipe, err := host.OpenPipe(ev.Device.Address, epIn)
+	if err != nil {
+		t.Fatalf("OpenPipe(IN): %v", err)
+	}
+	defer inPipe.Close()
+
+	ctrl, _ := newMockGIC(t)
+	if err := host.EnableIRQ(ctrl, testUSBIRQ); err != nil {
+		t.Fatalf("EnableIRQ: %v", err)
+	}
+	defer host.DisableIRQ()
+
+	sim.mu.Lock()
+	mask := sim.regs[gintmask]
+	haint := sim.regs[haintmsk]
+	sim.mu.Unlock()
+	if mask&gintSOF == 0 || haint == 0 {
+		t.Fatalf("EnableIRQ with pre-opened pipe did not arm gintSOF/HAINTMSK: gintmask=%#x haintmsk=%#x", mask, haint)
+	}
+	select {
+	case <-host.Ready():
+	default:
+		t.Fatal("EnableIRQ with pre-opened IN pipe did not signal Ready() wakeup")
+	}
+
+	pkt := []byte{0x01, 0xca, 0xfe, 0xba, 0xbe, 0x11, 0x22, 0x33}
+	sim.mu.Lock()
+	pad.inQueues[epIn.Number()] = append(pad.inQueues[epIn.Number()], pkt)
+	sim.mu.Unlock()
+	var buf [64]byte
+	var gotN int
+	for range 4 {
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service: %v", err)
+		}
+		gotN, err = inPipe.PollInto(buf[:])
+		if err != nil {
+			t.Fatalf("PollInto: %v", err)
+		}
+		if gotN > 0 {
+			break
+		}
+	}
+	if gotN != len(pkt) || !bytes.Equal(buf[:gotN], pkt) {
+		t.Fatalf("pre-opened pipe packet mismatch: got %x want %x", buf[:gotN], pkt)
+	}
+}
+
+func TestMultiHostEnableIRQWakesExistingUnarmedPipes(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected attach event, got %+v ok=%v", ev, ok)
+	}
+	iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+	epIn, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+
+	// Open an IN pipe BEFORE enabling IRQ mode (no Service() yet, so slot is unarmed).
+	pipe, err := host.OpenPipe(ev.Device.Address, epIn)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+	defer pipe.Close()
+
+	ctrl, _ := newMockGIC(t)
+	if err := host.EnableIRQ(ctrl, testUSBIRQ); err != nil {
+		t.Fatalf("EnableIRQ: %v", err)
+	}
+	defer host.DisableIRQ()
+
+	// EnableIRQ must arm gintSOF and immediately signal Ready() so callers
+	// waiting on <-host.Ready() wake up to call Service() and arm the pipe.
+	sim.mu.Lock()
+	mask := sim.regs[gintmask]
+	sim.mu.Unlock()
+	if mask&gintSOF == 0 {
+		t.Fatalf("EnableIRQ did not arm gintSOF for pre-existing unarmed pipe: gintmask=%#x", mask)
+	}
+	select {
+	case <-host.Ready():
+	default:
+		t.Fatal("EnableIRQ did not signal Ready() for pre-existing unarmed pipe")
+	}
+}

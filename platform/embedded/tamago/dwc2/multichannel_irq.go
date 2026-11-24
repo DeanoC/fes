@@ -82,14 +82,21 @@ func (h *MultiHost) enableIRQ(g *gic.Controller, irqID uint32, guard func() bool
 		h.irqMu.Unlock()
 		h.signalReady()
 	})
+	activeMask, needSOF := h.pendingIRQLocked()
+	mask := multiIRQMask
+	if needSOF {
+		h.io.Write32(gint, gintSOF)
+		mask = multiIRQMaskSF
+	}
+	h.io.Write32(haintmsk, activeMask)
 	h.irqGIC = g
 	h.irqID = irqID
 	h.irqSuspended = false
 	h.irqMode.Store(true)
 	h.irqActive.Store(true)
-	h.io.Write32(gintmask, multiIRQMask)
+	h.io.Write32(gintmask, mask)
 	g.Enable(irqID)
-	pending := h.io.Read32(gint)&multiIRQMask != 0
+	pending := needSOF || h.io.Read32(gint)&mask != 0
 	h.irqMu.Unlock()
 	if pending {
 		h.signalReady()
@@ -161,25 +168,7 @@ func (h *MultiHost) signalReady() {
 	}
 }
 
-func (h *MultiHost) armMultiIRQ(now time.Time) {
-	if !h.irqMode.Load() {
-		return
-	}
-	h.irqMu.Lock()
-	if !h.irqActive.Load() {
-		h.irqMu.Unlock()
-		return
-	}
-	if h.irqGuard != nil && !h.irqGuard() {
-		hadIRQ := h.retireIRQLocked(false)
-		h.irqMu.Unlock()
-		if hadIRQ {
-			h.signalReady()
-		}
-		return
-	}
-	needSOF := false
-	var activeMask uint32
+func (h *MultiHost) pendingIRQLocked() (activeMask uint32, needSOF bool) {
 	for ch := 1; ch < h.channels; ch++ {
 		s := &h.slots[ch]
 		if !s.allocated || s.fault != nil {
@@ -214,6 +203,27 @@ func (h *MultiHost) armMultiIRQ(now time.Time) {
 			}
 		}
 	}
+	return activeMask, needSOF
+}
+
+func (h *MultiHost) armMultiIRQ(now time.Time) {
+	if !h.irqMode.Load() {
+		return
+	}
+	h.irqMu.Lock()
+	if !h.irqActive.Load() {
+		h.irqMu.Unlock()
+		return
+	}
+	if h.irqGuard != nil && !h.irqGuard() {
+		hadIRQ := h.retireIRQLocked(false)
+		h.irqMu.Unlock()
+		if hadIRQ {
+			h.signalReady()
+		}
+		return
+	}
+	activeMask, needSOF := h.pendingIRQLocked()
 	h.io.Write32(haintmsk, activeMask)
 	mask := multiIRQMask
 	if needSOF {
