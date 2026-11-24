@@ -277,6 +277,8 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 	// Enable Multi-TT (SET_INTERFACE alt=1) when high-speed hub advertises
 	// protocol 2 (Multi-TT) and an alternate setting 1 exists. High-speed hubs
 	// without Multi-TT (protocol 1) run with per-hub TT split serialization.
+	var hubIface usb.InterfaceDescriptor
+	haveHubIface := false
 	multiTTSelected := false
 	if dev.info.Speed == usb.SpeedHigh && dev.info.Descriptor.Protocol == 2 {
 		for _, iface := range dev.info.Config.Interfaces {
@@ -285,9 +287,17 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 					h.detachDevice(addr)
 					return fmt.Errorf("dwc2: select Multi-TT alt setting failed: %w", err)
 				}
+				hubIface = iface
+				haveHubIface = true
 				multiTTSelected = true
 				break
 			}
+		}
+	}
+	if !haveHubIface {
+		if iface, ok := dev.info.Config.FindInterface(9, 0, -1); ok {
+			hubIface = iface
+			haveHubIface = true
 		}
 	}
 
@@ -312,14 +322,25 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 		return err
 	}
 
-	// Open the hub's Interrupt-IN status-change endpoint for zero-stall hotplug.
+	// Open the hub's Interrupt-IN status-change endpoint from the selected
+	// alternate setting for zero-stall hotplug.
+	var statusEP usb.EndpointDescriptor
+	hasStatusEP := false
+	if haveHubIface {
+		if ep, ok := hubIface.FindEndpoint(usb.TransferInterrupt, true); ok {
+			statusEP = ep
+			hasStatusEP = true
+		}
+	}
 	hub := &multiHub{
-		addr:     addr,
-		speed:    dev.info.Speed,
-		route:    dev.route,
-		depth:    depth,
-		numPorts: numPorts,
-		singleTT: dev.info.Speed == usb.SpeedHigh && !multiTTSelected,
+		addr:        addr,
+		speed:       dev.info.Speed,
+		route:       dev.route,
+		depth:       depth,
+		numPorts:    numPorts,
+		singleTT:    dev.info.Speed == usb.SpeedHigh && !multiTTSelected,
+		statusEP:    statusEP,
+		hasStatusEP: hasStatusEP,
 	}
 	h.openHubStatusPipe(hub)
 	h.hubs = append(h.hubs, hub)
@@ -333,21 +354,16 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 }
 
 func (h *MultiHost) openHubStatusPipe(hub *multiHub) {
-	if hub == nil || hub.statusPipe != nil {
+	if hub == nil || hub.statusPipe != nil || !hub.hasStatusEP {
 		return
 	}
-	dev := h.devices[hub.addr]
-	if dev == nil {
+	if h.devices[hub.addr] == nil {
 		return
 	}
-	if iface, ok := dev.info.Config.FindInterface(9, 0, -1); ok {
-		if ep, ok := iface.FindEndpoint(usb.TransferInterrupt, true); ok {
-			if p, err := h.OpenPipe(hub.addr, ep); err == nil {
-				hub.statusPipe = p.(*multiPipe)
-				hub.statusRetryAt = time.Time{}
-				return
-			}
-		}
+	if p, err := h.OpenPipe(hub.addr, hub.statusEP); err == nil {
+		hub.statusPipe = p.(*multiPipe)
+		hub.statusRetryAt = time.Time{}
+		return
 	}
 	hub.statusRetryAt = h.io.Now().Add(hubEnumRetryDelay)
 }

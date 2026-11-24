@@ -155,6 +155,8 @@ type multiChannelSim struct {
 	rootResets      int
 	freezeFrame     bool
 	nyetCSplitCount int
+	npBusyReads     int
+	ch0ArmedWhenBusy bool
 }
 
 func newMultiChannelSim(fifoWords uint32, channels int) *multiChannelSim {
@@ -252,6 +254,12 @@ func (s *multiChannelSim) Read32(reg uint32) uint32 {
 			s.frame = (s.frame + 1) & 0x3fff
 		}
 		return v
+	case nptxstatus:
+		if s.npBusyReads > 0 {
+			s.npBusyReads--
+			return 0
+		}
+		return s.regs[reg]
 	case rxpeek:
 		if s.rxHead < len(s.rx) {
 			return s.rx[s.rxHead]
@@ -376,6 +384,9 @@ func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 	}
 	if val&channelEnable == 0 {
 		return
+	}
+	if ch == 0 && s.npBusyReads > 0 {
+		s.ch0ArmedWhenBusy = true
 	}
 	addr := uint8((val >> 22) & 0x7f)
 	ep := uint8((val >> 11) & 0x0f)
@@ -2341,4 +2352,67 @@ func TestMultiHostOpenPipeRejectsDuplicateEndpoint(t *testing.T) {
 		t.Fatalf("OpenPipe after Close: %v", err)
 	}
 	_ = p2.Close()
+}
+
+func TestMultiHostCH0WaitsForNonPeriodicQueueSpace(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	bt := newSimBTDongle()
+	sim.attachRoot(bt)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected attach event, got %+v ok=%v", ev, ok)
+	}
+
+	// Simulate non-periodic request queue/FIFO temporarily full for 3 reads.
+	sim.mu.Lock()
+	sim.npBusyReads = 3
+	sim.ch0ArmedWhenBusy = false
+	sim.mu.Unlock()
+
+	hciReset := []byte{0x03, 0x0c, 0x00}
+	if n, err := host.ControlTransfer(ev.Device.Address, 0x20, 0x00, 0, 0, hciReset); err != nil || n != 3 {
+		t.Fatalf("ControlTransfer after transient nptxstatus busy: n=%d err=%v", n, err)
+	}
+	sim.mu.Lock()
+	armedBusy := sim.ch0ArmedWhenBusy
+	rem := sim.npBusyReads
+	sim.mu.Unlock()
+	if armedBusy {
+		t.Fatal("CH0 was armed while GNPTXSTS reported 0 free queue/FIFO space")
+	}
+	if rem != 0 {
+		t.Fatalf("expected all busy reads to be waited out, remaining=%d", rem)
+	}
+}
+
+func TestMultiHostHubUsesSelectedMultiTTAlternateStatusEndpoint(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	// Give alt 1 (Multi-TT) a distinct Interrupt-IN status endpoint (0x82, interval 8)
+	// from alt 0 (0x81, interval 12).
+	hub.configDesc = []byte{
+		9, 2, 41, 0, 1, 1, 0, 0xe0, 50,
+		9, 4, 0, 0, 1, 9, 0, 1, 0,
+		7, 5, 0x81, 3, 1, 0, 12,
+		9, 4, 0, 1, 1, 9, 0, 2, 0,
+		7, 5, 0x82, 3, 1, 0, 8,
+	}
+	sim.attachRoot(hub)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	if len(host.hubs) != 1 || host.hubs[0].statusPipe == nil {
+		t.Fatalf("expected 1 hub with active statusPipe, got hubs=%d", len(host.hubs))
+	}
+	gotEP := host.hubs[0].statusPipe.Endpoint()
+	if gotEP.Address != 0x82 || gotEP.Interval != 8 {
+		t.Fatalf("hub status pipe opened alt 0 instead of selected Multi-TT alt 1 endpoint: got addr=%#x interval=%d want addr=0x82 interval=8", gotEP.Address, gotEP.Interval)
+	}
 }
