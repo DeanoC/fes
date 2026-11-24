@@ -68,11 +68,15 @@ func TestCoreDataOperationsShareTargetLifecycleAndRefuseRecoveryWrites(t *testin
 		coordinator.InspectCoreData(context.Background(), 1, strings.NewReader("p"), strings.Repeat("a", 64))
 	}()
 	<-runtime.started
-	_, err := coordinator.UpdateCoreSettings(context.Background(), 1, strings.NewReader("p"), protocol.CoreSettingsUpdate{ExpectedPackageID: strings.Repeat("a", 64), ExpectedRevision: "absent", PaddleSpeed: 1})
+	shortCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_, err := coordinator.UpdateCoreSettings(shortCtx, 1, strings.NewReader("p"), protocol.CoreSettingsUpdate{ExpectedPackageID: strings.Repeat("a", 64), ExpectedRevision: "absent", PaddleSpeed: 1})
 	if err == nil || err.Code != protocol.CodeBusy || runtime.writes != 0 {
 		t.Fatalf("update escaped transition: %v", err)
 	}
-	if _, err := coordinator.Stop(context.Background()); err == nil || err.Code != protocol.CodeBusy {
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer stopCancel()
+	if _, err := coordinator.Stop(stopCtx); err == nil || err.Code != protocol.CodeBusy {
 		t.Fatalf("stop escaped transition: %v", err)
 	}
 	close(runtime.release)
