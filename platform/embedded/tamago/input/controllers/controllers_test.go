@@ -25,7 +25,7 @@ func TestIdentifyControllers(t *testing.T) {
 		t.Fatal("unknown VID:PID misidentified")
 	}
 	if IdentifyByName("DualSense Wireless Controller") != KindDualSense ||
-		IdentifyByName("Wireless Controller") != KindDualShock4 ||
+		IdentifyByName("Wireless Controller") != KindUnknown ||
 		IdentifyByName("Pro Controller") != KindSwitchPro ||
 		IdentifyByName("Other Device") != KindUnknown {
 		t.Fatal("name identification failed")

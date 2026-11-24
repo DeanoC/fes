@@ -54,8 +54,19 @@ type aclConn struct {
 	addr           BDAddr
 	name           string
 	kind           controllers.Kind
+	vendorID       uint16
+	productID      uint16
 	hostInitiated  bool
 	pendingOpenPSM uint16
+	sdpQueried     bool
+	pendingOpenSDP bool
+	sdpSendPending bool
+	sdpTxID        uint16
+	sdpCont        [16]byte
+	sdpContLen     uint8
+	sdpContCount   uint8
+	sdpBuf         [256]byte
+	sdpBufLen      int
 	namePending    bool
 	nameRetries    uint8
 	nameRetryAt    time.Time
@@ -174,6 +185,8 @@ func (m *Manager) dispatchPDU(conn *aclConn, cid uint16, payload []byte) {
 		return
 	}
 	switch ch.psm {
+	case PSMSDP:
+		m.handleSDPPDU(conn, ch, payload)
 	case PSMHIDControl:
 		if m.OnHIDControl != nil {
 			m.OnHIDControl(conn.handle, payload)
@@ -288,6 +301,11 @@ func (m *Manager) checkChannelOpen(conn *aclConn, ch *l2capChannel) {
 		return
 	}
 	ch.open = true
+	if ch.psm == PSMSDP {
+		conn.sdpSendPending = true
+		m.pumpSDP(conn)
+		return
+	}
 	if m.OnChannelOpen != nil {
 		m.OnChannelOpen(conn.handle, conn.addr, conn.name, conn.kind, ch.psm)
 	}

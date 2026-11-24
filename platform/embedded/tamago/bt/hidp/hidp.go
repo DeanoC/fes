@@ -211,11 +211,15 @@ func (s *Session) onNameResolved(handle uint16, _ l2cap.BDAddr, name string, kin
 	if slot == nil {
 		return
 	}
+	prevKind := slot.Kind
 	slot.Name = name
 	if kind != controllers.KindUnknown {
 		slot.Kind = kind
 	}
 	s.maybeInitController(slot)
+	if prevKind == controllers.KindUnknown && slot.Kind != controllers.KindUnknown && slot.ctrlOpen && slot.intrOpen && s.OnSlotChanged != nil {
+		s.OnSlotChanged(slot.Slot, true, slot.Kind, slot.Name)
+	}
 }
 
 func (s *Session) onDisconnect(handle uint16, _ l2cap.BDAddr) {

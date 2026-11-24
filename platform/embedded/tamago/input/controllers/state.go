@@ -178,15 +178,15 @@ func IdentifyByVIDPID(vid, pid uint16) Kind {
 	return KindUnknown
 }
 
-// IdentifyByName classifies Classic Bluetooth controllers from their HCI Remote
-// Name response when SDP/PnP IDs are not queried.
+// IdentifyByName classifies Classic Bluetooth controllers from unambiguous HCI
+// Remote Name strings. Shared names such as "Wireless Controller" (used by both
+// DualShock 4 and DualSense units) return KindUnknown so SDP PnP VID:PID
+// resolution identifies the exact model.
 func IdentifyByName(name string) Kind {
 	lower := strings.ToLower(strings.TrimSpace(name))
 	switch {
 	case strings.Contains(lower, "dualsense"):
 		return KindDualSense
-	case lower == "wireless controller":
-		return KindDualShock4
 	case strings.Contains(lower, "pro controller"):
 		return KindSwitchPro
 	default:

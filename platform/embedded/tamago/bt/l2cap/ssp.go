@@ -133,6 +133,14 @@ func (m *Manager) Service() error {
 				conn.pendingOpenPSM = 0
 			}
 		}
+		if conn.pendingOpenSDP {
+			if err := m.OpenChannel(conn.handle, PSMSDP); err == nil {
+				conn.pendingOpenSDP = false
+			}
+		}
+		if conn.sdpSendPending {
+			m.pumpSDP(conn)
+		}
 		for j := range conn.chans {
 			ch := &conn.chans[j]
 			if ch.inUse && (ch.pendingConnRsp || ch.pendingCfg || ch.pendingCfgRsp) {
@@ -256,6 +264,11 @@ func (m *Manager) handleEvent(ev []byte) {
 		if rec, ok := m.bonds.Lookup(addr); ok {
 			conn.name = rec.Name
 			conn.kind = rec.Kind
+			conn.vendorID = rec.VendorID
+			conn.productID = rec.ProductID
+			if conn.kind == controllers.KindUnknown && (rec.VendorID != 0 || rec.ProductID != 0) {
+				conn.kind = controllers.IdentifyByVIDPID(rec.VendorID, rec.ProductID)
+			}
 		}
 		if m.pairingActive {
 			conn.hostInitiated = true
@@ -300,6 +313,9 @@ func (m *Manager) handleEvent(ev []byte) {
 				} else {
 					conn.namePending = false
 					conn.nameRetryAt = time.Time{}
+					if conn.kind == controllers.KindUnknown {
+						m.startSDPQuery(conn)
+					}
 				}
 			}
 			return
@@ -330,6 +346,9 @@ func (m *Manager) handleEvent(ev []byte) {
 			}
 			if m.OnNameResolved != nil {
 				m.OnNameResolved(conn.handle, addr, name, conn.kind)
+			}
+			if conn.kind == controllers.KindUnknown {
+				m.startSDPQuery(conn)
 			}
 		}
 
@@ -385,6 +404,10 @@ func (m *Manager) handleEvent(ev []byte) {
 			}
 			if conn.kind != controllers.KindUnknown {
 				rec.Kind = conn.kind
+			}
+			if conn.vendorID != 0 || conn.productID != 0 {
+				rec.VendorID = conn.vendorID
+				rec.ProductID = conn.productID
 			}
 		}
 		_ = m.bonds.Upsert(rec)

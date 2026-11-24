@@ -1065,3 +1065,176 @@ func TestManagerResumesInquiryAfterPairingDisconnect(t *testing.T) {
 		t.Fatalf("expected StartInquiry to resume after pairing connection disconnects (count=%d)", countInquiry())
 	}
 }
+
+func makeSDPPnPAttrList(vid, pid uint16) []byte {
+	return []byte{
+		0x35, 0x0e, // Outer DES (14 bytes)
+		0x35, 0x0c, // Record DES (12 bytes)
+		0x09, 0x02, 0x01, // AttrID 0x0201 (VendorID)
+		0x09, byte(vid >> 8), byte(vid),
+		0x09, 0x02, 0x02, // AttrID 0x0202 (ProductID)
+		0x09, byte(pid >> 8), byte(pid),
+	}
+}
+
+func makeSDPAttrRsp(txID uint16, attrChunk []byte, cont []byte) []byte {
+	paramLen := 2 + len(attrChunk) + 1 + len(cont)
+	pdu := make([]byte, 5+paramLen)
+	pdu[0] = sdpServiceSearchAttrRsp
+	binary.BigEndian.PutUint16(pdu[1:3], txID)
+	binary.BigEndian.PutUint16(pdu[3:5], uint16(paramLen))
+	binary.BigEndian.PutUint16(pdu[5:7], uint16(len(attrChunk)))
+	copy(pdu[7:7+len(attrChunk)], attrChunk)
+	pdu[7+len(attrChunk)] = byte(len(cont))
+	copy(pdu[7+len(attrChunk)+1:], cont)
+	return pdu
+}
+
+func TestSDPPnPDistinguishesDualSenseAndDualShock4NamedWirelessController(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	bonds := NewBondStore()
+	now := time.Unix(1300, 0)
+	mgr, err := NewManager(tr, bonds, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	var resolved []controllers.Kind
+	mgr.OnNameResolved = func(_ uint16, _ BDAddr, _ string, kind controllers.Kind) {
+		resolved = append(resolved, kind)
+	}
+
+	resolveViaSDP := func(handle uint16, addr BDAddr, vid, pid uint16, twoChunk bool) {
+		t.Helper()
+		_ = bonds.Upsert(BondRecord{Addr: addr, LinkKey: [16]byte{byte(handle)}})
+		connOK := append([]byte{hci.EventConnectionComplete, 11, 0, byte(handle), byte(handle >> 8)}, addr[:]...)
+		connOK = append(connOK, 0x01, 0x01)
+		nameOK := make([]byte, 2+7+len("Wireless Controller")+1)
+		nameOK[0] = hci.EventRemoteNameRequestComplete
+		nameOK[1] = byte(len(nameOK) - 2)
+		copy(nameOK[3:9], addr[:])
+		copy(nameOK[9:], "Wireless Controller")
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK, nameOK)
+		for range 4 {
+			bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, byte(handle), byte(handle >> 8), 0x08, 0x00})
+			if err := mgr.Service(); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		// Locate outgoing L2CAP ConnReq for PSMSDP on handle.
+		var sdpReqSigID byte
+		var localSDPCID uint16
+		for _, pkt := range bus.aclOutPipe.outLog {
+			if len(pkt) < 16 || (binary.LittleEndian.Uint16(pkt[0:2])&0x0fff) != handle {
+				continue
+			}
+			if binary.LittleEndian.Uint16(pkt[6:8]) == CIDSignaling && pkt[8] == sigConnReq && binary.LittleEndian.Uint16(pkt[12:14]) == PSMSDP {
+				sdpReqSigID = pkt[9]
+				localSDPCID = binary.LittleEndian.Uint16(pkt[14:16])
+			}
+		}
+		if localSDPCID == 0 {
+			t.Fatalf("expected outgoing PSMSDP ConnReq for handle %#x", handle)
+		}
+
+		remoteSDPCID := uint16(0x0080 + handle)
+		sdpConnRsp := []byte{sigConnRsp, sdpReqSigID, 8, 0, byte(remoteSDPCID), byte(remoteSDPCID >> 8), byte(localSDPCID), byte(localSDPCID >> 8), 0, 0, 0, 0}
+		sdpCfgReq := []byte{sigConfigReq, 20, 4, 0, byte(localSDPCID), byte(localSDPCID >> 8), 0, 0}
+		sdpCfgRsp := []byte{sigConfigRsp, 1, 6, 0, byte(localSDPCID), byte(localSDPCID >> 8), 0, 0, 0, 0}
+		bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+			makeACLPacket(handle, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, sdpConnRsp),
+			makeACLPacket(handle, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, sdpCfgReq),
+			makeACLPacket(handle, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, sdpCfgRsp),
+		)
+		for range 4 {
+			bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, byte(handle), byte(handle >> 8), 0x08, 0x00})
+			if err := mgr.Service(); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		lastSDPTxID := func() uint16 {
+			var tx uint16
+			for _, pkt := range bus.aclOutPipe.outLog {
+				if len(pkt) >= 13 && (binary.LittleEndian.Uint16(pkt[0:2])&0x0fff) == handle && binary.LittleEndian.Uint16(pkt[6:8]) == remoteSDPCID {
+					pdu := pkt[8:]
+					if pdu[0] == sdpServiceSearchAttrReq {
+						tx = binary.BigEndian.Uint16(pdu[1:3])
+					}
+				}
+			}
+			return tx
+		}
+
+		attrList := makeSDPPnPAttrList(vid, pid)
+		if twoChunk {
+			tx1 := lastSDPTxID()
+			if tx1 == 0 {
+				t.Fatal("missing initial SDP ServiceSearchAttributeRequest")
+			}
+			bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeACLPacket(handle, hci.ACLBoundaryFirstAutoFlush, localSDPCID, makeSDPAttrRsp(tx1, attrList[:8], []byte{0xaa})))
+			for range 3 {
+				if err := mgr.Service(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			tx2 := lastSDPTxID()
+			if tx2 == tx1 {
+				t.Fatal("expected follow-up SDP request for continuation state")
+			}
+			bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeACLPacket(handle, hci.ACLBoundaryFirstAutoFlush, localSDPCID, makeSDPAttrRsp(tx2, attrList[8:], nil)))
+		} else {
+			tx1 := lastSDPTxID()
+			if tx1 == 0 {
+				t.Fatal("missing SDP ServiceSearchAttributeRequest")
+			}
+			bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeACLPacket(handle, hci.ACLBoundaryFirstAutoFlush, localSDPCID, makeSDPAttrRsp(tx1, attrList, nil)))
+		}
+		for range 3 {
+			if err := mgr.Service(); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		// Verify SDP channel was closed with sigDisconnReq.
+		var sawDisconn bool
+		for _, pkt := range bus.aclOutPipe.outLog {
+			if len(pkt) >= 14 && (binary.LittleEndian.Uint16(pkt[0:2])&0x0fff) == handle &&
+				binary.LittleEndian.Uint16(pkt[6:8]) == CIDSignaling && pkt[8] == sigDisconnReq &&
+				binary.LittleEndian.Uint16(pkt[12:14]) == remoteSDPCID {
+				sawDisconn = true
+			}
+		}
+		if !sawDisconn {
+			t.Fatalf("expected sigDisconnReq closing SDP channel for handle %#x", handle)
+		}
+	}
+
+	dsAddr, _ := ParseBDAddr("77:11:22:33:44:55")
+	ds4Addr, _ := ParseBDAddr("77:11:22:33:44:56")
+	resolveViaSDP(0x0049, dsAddr, 0x054c, 0x0ce6, true)
+	resolveViaSDP(0x004a, ds4Addr, 0x054c, 0x09cc, false)
+
+	recDS, ok1 := bonds.Lookup(dsAddr)
+	recDS4, ok2 := bonds.Lookup(ds4Addr)
+	if !ok1 || recDS.Kind != controllers.KindDualSense || recDS.VendorID != 0x054c || recDS.ProductID != 0x0ce6 {
+		t.Fatalf("DualSense named 'Wireless Controller' misclassified: ok=%t rec=%+v", ok1, recDS)
+	}
+	if !ok2 || recDS4.Kind != controllers.KindDualShock4 || recDS4.VendorID != 0x054c || recDS4.ProductID != 0x09cc {
+		t.Fatalf("DualShock 4 named 'Wireless Controller' misclassified: ok=%t rec=%+v", ok2, recDS4)
+	}
+	if len(resolved) < 4 || resolved[1] != controllers.KindDualSense || resolved[3] != controllers.KindDualShock4 {
+		t.Fatalf("unexpected OnNameResolved sequence: %v", resolved)
+	}
+}

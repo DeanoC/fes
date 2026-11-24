@@ -756,3 +756,158 @@ func TestSwitchProInitWaitsForAckAndRetriesOnDropOrNack(t *testing.T) {
 			switchProMaxStepAttempts, sess.slots[1].initStep)
 	}
 }
+
+func TestDualSenseNamedWirelessControllerUnlocksViaSDPPnP(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	bonds := l2cap.NewBondStore()
+	now := time.Unix(700, 0)
+	sess, err := NewSession(tr, bonds, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var slotKinds []controllers.Kind
+	var gotState controllers.State
+	sess.OnSlotChanged = func(_ uint8, connected bool, kind controllers.Kind, _ string) {
+		if connected {
+			slotKinds = append(slotKinds, kind)
+		}
+	}
+	sess.OnGamepadState = func(_ uint8, kind controllers.Kind, st controllers.State) {
+		if kind == controllers.KindDualSense {
+			gotState = st
+		}
+	}
+
+	dsAddr, _ := l2cap.ParseBDAddr("88:11:22:33:44:55")
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: dsAddr, LinkKey: [16]byte{0x42}})
+
+	// Connect and open HID Control (0x0011) + Interrupt (0x0013) BEFORE
+	// Remote Name + SDP complete, while Kind is still KindUnknown.
+	connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, dsAddr[:]...)
+	connOK = append(connOK, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK)
+	openIncomingHIDChannels(bus, 0x0041, 0x0050, 0x0051)
+	for range 6 {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x08, 0x00})
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Must NOT send DualShock 4 unlock (0x02) while Kind is still KindUnknown.
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) >= 10 && binary.LittleEndian.Uint16(pkt[6:8]) == 0x0050 && pkt[8] == hidpGetReportFeature {
+			t.Fatalf("sent premature unlock feature report %#x before SDP resolved", pkt[9])
+		}
+	}
+
+	// Now deliver ambiguous Remote Name "Wireless Controller", triggering SDP PnP query.
+	nameOK := make([]byte, 2+7+len("Wireless Controller")+1)
+	nameOK[0] = hci.EventRemoteNameRequestComplete
+	nameOK[1] = byte(len(nameOK) - 2)
+	copy(nameOK[3:9], dsAddr[:])
+	copy(nameOK[9:], "Wireless Controller")
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, nameOK)
+	for range 3 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Complete the outgoing SDP channel setup and respond with Sony DualSense VID:PID (054c:0ce6).
+	var sdpSigID byte
+	var localSDPCID uint16
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) >= 16 && binary.LittleEndian.Uint16(pkt[6:8]) == l2cap.CIDSignaling &&
+			pkt[8] == 0x02 && binary.LittleEndian.Uint16(pkt[12:14]) == l2cap.PSMSDP {
+			sdpSigID = pkt[9]
+			localSDPCID = binary.LittleEndian.Uint16(pkt[14:16])
+		}
+	}
+	if localSDPCID == 0 {
+		t.Fatal("expected outgoing SDP L2CAP ConnReq")
+	}
+	const remoteSDPCID uint16 = 0x0090
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x03, sdpSigID, 8, 0, byte(remoteSDPCID), byte(remoteSDPCID >> 8), byte(localSDPCID), byte(localSDPCID >> 8), 0, 0, 0, 0}),
+		makeHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 15, 4, 0, byte(localSDPCID), byte(localSDPCID >> 8), 0, 0}),
+		makeHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 1, 6, 0, byte(localSDPCID), byte(localSDPCID >> 8), 0, 0, 0, 0}),
+	)
+	for range 4 {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x08, 0x00})
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var sdpTxID uint16
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) >= 13 && binary.LittleEndian.Uint16(pkt[6:8]) == remoteSDPCID && pkt[8] == 0x06 {
+			sdpTxID = binary.BigEndian.Uint16(pkt[9:11])
+		}
+	}
+	if sdpTxID == 0 {
+		t.Fatal("expected outgoing SDP ServiceSearchAttributeRequest")
+	}
+	attrList := []byte{0x35, 0x0e, 0x35, 0x0c, 0x09, 0x02, 0x01, 0x09, 0x05, 0x4c, 0x09, 0x02, 0x02, 0x09, 0x0c, 0xe6}
+	rsp := make([]byte, 5+2+len(attrList)+1)
+	rsp[0] = 0x07
+	binary.BigEndian.PutUint16(rsp[1:3], sdpTxID)
+	binary.BigEndian.PutUint16(rsp[3:5], uint16(2+len(attrList)+1))
+	binary.BigEndian.PutUint16(rsp[5:7], uint16(len(attrList)))
+	copy(rsp[7:], attrList)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x08, 0x00})
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, localSDPCID, rsp))
+	for range 6 {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x08, 0x00})
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var sawDSUnlock, sawDSLED bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) < 10 {
+			continue
+		}
+		cid := binary.LittleEndian.Uint16(pkt[6:8])
+		hid := pkt[8:]
+		if cid == 0x0050 && len(hid) >= 2 && hid[0] == hidpGetReportFeature && hid[1] == controllers.DualSenseFeatureCalib {
+			sawDSUnlock = true
+		}
+		if cid == 0x0051 && len(hid) == 79 && hid[0] == hidpDataOutput && hid[1] == 0x31 {
+			sawDSLED = true
+		}
+	}
+	if !sawDSUnlock || !sawDSLED {
+		t.Fatalf("expected DualSense 0x05 unlock and 0x31 LED after SDP PnP resolution (unlock=%t led=%t)", sawDSUnlock, sawDSLED)
+	}
+	if len(slotKinds) < 2 || slotKinds[len(slotKinds)-1] != controllers.KindDualSense {
+		t.Fatalf("expected OnSlotChanged update to KindDualSense after SDP, got %v", slotKinds)
+	}
+
+	// Verify 0x31 DualSense input reports decode cleanly now!
+	dsPkt := make([]byte, 79)
+	dsPkt[0] = hidpDataInput
+	dsPkt[1] = controllers.DualSenseBTReportFull
+	dsPkt[3], dsPkt[4], dsPkt[5], dsPkt[6] = 0x80, 0x80, 0x80, 0x80
+	dsPkt[10] = 0x08 | 0x20 // Cross (South)
+	dsSum := crc32.Update(0, crc32.IEEETable, []byte{0xa1})
+	dsSum = crc32.Update(dsSum, crc32.IEEETable, dsPkt[1:75])
+	binary.LittleEndian.PutUint32(dsPkt[75:79], dsSum)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, 0x0041, dsPkt))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if gotState.Buttons != controllers.ButtonSouth {
+		t.Fatalf("expected decoded ButtonSouth on DualSense 0x31 report, got %+v", gotState)
+	}
+}
