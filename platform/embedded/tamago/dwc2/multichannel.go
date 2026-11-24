@@ -137,9 +137,11 @@ type MultiHost struct {
 	owned     bool
 	channels  int
 	fifoWords uint32
-	rootSpeed usb.Speed
-	rootConn  bool
-	paused    bool
+	rootSpeed      usb.Speed
+	rootConn       bool
+	rootRetryCount uint8
+	rootRetryAt    time.Time
+	paused         bool
 	draining  bool
 	fault     error // controller-level fatal fault only (e.g. foreign DMA)
 
@@ -575,7 +577,9 @@ func (h *MultiHost) Service() error {
 				}
 				if s.allocated {
 					s.fault = fmt.Errorf("dwc2: ch %d invalid RX count=%d dpid=%d want=%d", ch, count, dpid, s.toggle)
-					h.haltChannel(ch)
+					if err := h.haltChannel(ch); err != nil {
+						return h.failController(err)
+					}
 					s.armed = false
 				}
 				continue
@@ -627,9 +631,15 @@ func (h *MultiHost) Service() error {
 	}
 
 	// 3. Hotplug monitoring: root port + hub Interrupt-IN status bitmaps.
+	if h.fault != nil {
+		return h.fault
+	}
 	if !h.draining {
 		h.pollRootHotplug()
 		h.pollHubHotplug()
+		if h.fault != nil {
+			return h.fault
+		}
 		h.armMultiIRQ(now)
 	}
 	return nil
@@ -647,7 +657,9 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 		fatal &^= 1 << 6 // NYET is part of split handshake
 	}
 	if ints&fatal != 0 {
-		h.haltChannel(ch)
+		if err := h.haltChannel(ch); err != nil {
+			_ = h.failController(err)
+		}
 		s.armed = false
 		s.fault = fmt.Errorf("dwc2: ch %d addr=%d ep=%#x fatal hcint=%#x", ch, s.ownerAddr, s.ep.Address, ints)
 		if !s.ep.In() && s.outPending {
@@ -680,7 +692,10 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 	}
 	if !s.done && !s.nak && !s.ack && !s.nyet {
 		if !now.Before(s.deadline) {
-			h.haltChannel(ch)
+			if err := h.haltChannel(ch); err != nil {
+				_ = h.failController(err)
+				return
+			}
 			s.armed = false
 			if s.ep.In() {
 				// Periodic/Bulk IN deadline expired (e.g. silent device); re-arm cleanly
@@ -845,7 +860,9 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 			return 0, h.failController(err)
 		}
 		if h.io.Read32(chReg(0, hcchar))&channelEnable != 0 {
-			h.haltChannel(0)
+			if err := h.haltChannel(0); err != nil {
+				return 0, h.failController(err)
+			}
 		}
 		completeSplit := false
 		var startFrame, nextFrame uint16
@@ -910,7 +927,9 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 			gotLen := 0
 			for polls := 0; polls < 1000000; polls++ {
 				if !h.io.Now().Before(deadline) {
-					h.haltChannel(0)
+					if err := h.haltChannel(0); err != nil {
+						return 0, h.failController(err)
+					}
 					return 0, fmt.Errorf("dwc2: CH0 transfer timeout addr=%d", addr)
 				}
 				// Drain RX FIFO entries; route non-CH0 entries to their own slots!
@@ -927,7 +946,9 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 							for i := 0; i < cnt; i += 4 {
 								_ = h.io.Read32(fifo)
 							}
-							h.haltChannel(0)
+							if err := h.haltChannel(0); err != nil {
+								return 0, h.failController(err)
+							}
 							return 0, fmt.Errorf("dwc2: CH0 RX overflow %d > %d", cnt, limit)
 						}
 						received = true
@@ -958,7 +979,9 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 					fatal &^= 1 << 6
 				}
 				if ints&fatal != 0 {
-					h.haltChannel(0)
+					if err := h.haltChannel(0); err != nil {
+						return 0, h.failController(err)
+					}
 					return 0, fmt.Errorf("dwc2: CH0 fatal hcint=%#x addr=%d", ints, addr)
 				}
 				if in && !split && ints&(1<<4) != 0 {
@@ -970,32 +993,42 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 					ints &^= 1 << 5
 				}
 				if ints&1 != 0 {
-					h.haltChannel(0)
+					if err := h.haltChannel(0); err != nil {
+						return 0, h.failController(err)
+					}
 					if in && limit > 0 && !received {
 						return 0, fmt.Errorf("dwc2: CH0 completed without RX")
 					}
 					return gotLen, nil
 				}
 				if split && ints&(1<<5) != 0 && !completeSplit {
-					h.haltChannel(0)
+					if err := h.haltChannel(0); err != nil {
+						return 0, h.failController(err)
+					}
 					completeSplit = true
 					nextFrame = startFrame + 2
 					continue splitLoop
 				}
 				if split && ints&(1<<6) != 0 && completeSplit {
-					h.haltChannel(0)
+					if err := h.haltChannel(0); err != nil {
+						return 0, h.failController(err)
+					}
 					nextFrame = uint16(h.io.Read32(hfnum)) + 1
 					continue splitLoop
 				}
 				if ints&(1<<4) != 0 {
-					h.haltChannel(0)
+					if err := h.haltChannel(0); err != nil {
+						return 0, h.failController(err)
+					}
 					break splitLoop // Retry on NAK
 				}
 				if polls&255 == 255 {
 					runtime.Gosched()
 				}
 			}
-			h.haltChannel(0)
+			if err := h.haltChannel(0); err != nil {
+				return 0, h.failController(err)
+			}
 			return 0, fmt.Errorf("dwc2: CH0 poll budget exhausted addr=%d", addr)
 		}
 	}

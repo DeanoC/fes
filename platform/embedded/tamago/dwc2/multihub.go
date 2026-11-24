@@ -76,6 +76,16 @@ func (h *MultiHost) detachAllDevices() {
 		}
 	}
 	h.rootConn = false
+	h.rootRetryCount = 0
+}
+
+func (h *MultiHost) scheduleRootRetry() {
+	if h.rootRetryCount < maxHubEnumRetries {
+		h.rootRetryCount++
+		h.rootRetryAt = h.io.Now().Add(hubEnumRetryDelay)
+	} else {
+		h.rootRetryCount = 0
+	}
 }
 
 func (h *MultiHost) pollRootHotplug() {
@@ -92,10 +102,18 @@ func (h *MultiHost) pollRootHotplug() {
 	if disconnIRQ {
 		h.io.Write32(gint, gintDisconn)
 	}
-	if h.rootConn && (!conn || disconnIRQ) {
-		h.detachAllDevices()
+	if !conn || disconnIRQ {
+		h.rootRetryCount = 0
+		if h.rootConn {
+			h.detachAllDevices()
+		}
 	}
 	if !h.rootConn && conn {
+		h.rootRetryCount = 0
+		h.enumerateRoot()
+		return
+	}
+	if h.rootConn && conn && h.rootRetryCount > 0 && !h.io.Now().Before(h.rootRetryAt) {
 		h.enumerateRoot()
 	}
 }
@@ -104,13 +122,16 @@ func (h *MultiHost) enumerateRoot() {
 	// Reset root port and wait for enable.
 	h.portWrite(1<<8, 0)
 	if err := h.delay(50 * time.Millisecond); err != nil {
+		h.scheduleRootRetry()
 		return
 	}
 	h.portWrite(0, 1<<8)
 	if err := h.waitReg(hprt, 1|1<<2, 1|1<<2, 500*time.Millisecond); err != nil {
+		h.scheduleRootRetry()
 		return
 	}
 	if err := h.delay(10 * time.Millisecond); err != nil {
+		h.scheduleRootRetry()
 		return
 	}
 	spd := (h.io.Read32(hprt) >> 17) & 3
@@ -125,7 +146,11 @@ func (h *MultiHost) enumerateRoot() {
 	}
 	h.io.Write32(hfir, interval)
 	h.io.Write32(gint, gintDisconn)
-	_ = h.enumerateDevice(h.rootSpeed, 0, 0, splitRoute{}, 0)
+	if err := h.enumerateDevice(h.rootSpeed, 0, 0, splitRoute{}, 0); err != nil {
+		h.scheduleRootRetry()
+		return
+	}
+	h.rootRetryCount = 0
 }
 
 func (h *MultiHost) enumerateDevice(speed usb.Speed, parentHub, parentPort uint8, route splitRoute, depth int) error {
