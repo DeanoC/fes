@@ -24,7 +24,7 @@ netlist and identities do not move.
 x87 unit, not the bench edit: a wrong-path ESC form the unit does not build
 left the unit's "first uop issued" flag set, which holds every later ESC and
 FNINIT for ever. The fix and its lockstep case go in their own PR against
-main ([G5](#g5-quake-on-the-rtl)).
+main, #2195 ([G5](#g5-quake-on-the-rtl)).
 
 | Gate | Result |
 | --- | --- |
@@ -197,9 +197,9 @@ in the method):
   387 is on. The lockstep never met it: its x87 cases are directed, and its
   random programs run with no 387.
 
-**The case and the fix** (their own PR against main, branch
-`deano/x87-wrongpath-fired`; the fix moves the DE10 netlist, so it is not in
-this PR):
+**The case and the fix** are their own PR against main,
+[#2195](https://github.com/DeanoC/fes/pull/2195) (`deano/x87-wrongpath-fired`).
+The fix moves the DE10 netlist, so it is not in this PR:
 - Lockstep x87 case `wrong-path-unbuilt`: FNINIT, `CMP AX, AX`, `JZ` over a
   `D9 4F 00`, FNINIT, FLD. On main it fails: `FAIL x87:wrong-path-unbuilt
   @102d.timeout`.
