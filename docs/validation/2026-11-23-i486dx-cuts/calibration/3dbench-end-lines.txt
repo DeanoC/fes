@@ -1,0 +1,4 @@
+a: SNAP final 320 400 /data/projects/i486dx-plan/r2/sims/cal3d/frames-a/final.ppm
+a: END limit steps=490798720 cycles=2000000003 seconds=20.000
+b: SNAP final 320 400 /data/projects/i486dx-plan/r2/sims/cal3d/frames-b/final.ppm
+b: END limit steps=390647189 cycles=1600000001 seconds=16.000

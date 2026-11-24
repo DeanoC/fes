@@ -41,7 +41,8 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 		return network.DMAControl{}, network.ErrControl
 	}
 	d.controlBound = true
-	contained := false // private state shared by copies of the returned callbacks
+	contained := false          // private state shared by copies of the returned callbacks
+	pausedLink := LinkSpeedDown // link consumers last observed before Stop
 	return network.DMAControl{
 		Stop: func(ctx context.Context) error {
 			if ctx == nil {
@@ -50,6 +51,8 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 			if err := ctx.Err(); err != nil {
 				return err
 			}
+			var linkEv linkEvent
+			defer func() { d.notifyLink(linkEv) }()
 			if !d.mu.TryLock() {
 				return d.retireControl(network.ErrBusy)
 			}
@@ -63,10 +66,15 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 			if !d.sameMemory() {
 				return d.retireControl(errors.New("xgmac: DMA window changed"))
 			}
-			if err := d.health(); err != nil {
+			var err error
+			linkEv, err = d.health(false)
+			if err != nil {
 				return err
 			}
 			d.paused = true
+			// LinkStatus reads down until Start re-probes the PHY. The pause is no
+			// carrier change, so Start reports only a difference from this link.
+			pausedLink = LinkSpeed(d.linkSpeed.Swap(uint32(LinkSpeedDown)))
 			d.suspendIRQLocked()
 			if err := d.stopFIFO(ctx); err != nil {
 				return d.retireControl(err)
@@ -102,6 +110,8 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 			if err := ctx.Err(); err != nil {
 				return err
 			}
+			var linkEv linkEvent
+			defer func() { d.notifyLink(linkEv) }()
 			if !d.mu.TryLock() {
 				return d.retireControl(network.ErrBusy)
 			}
@@ -159,6 +169,9 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 			}
 			contained, d.paused = false, false
 			d.resumeIRQLocked()
+			// initialize re-probed the PHY and reset the link state without an
+			// event; report it against the link consumers observed before Stop.
+			linkEv = d.reportLinkLocked(pausedLink, LinkSpeed(d.linkSpeed.Load()))
 			return nil
 		},
 	}, nil
@@ -172,6 +185,7 @@ func (d *Device) sameMemory() bool {
 // effort register writes; new Receive/Transmit refuse through the cached error.
 func (d *Device) retireControl(err error) error {
 	if d.fault.CompareAndSwap(nil, &failure{err: err}) {
+		d.linkSpeed.Store(uint32(LinkSpeedDown))
 		d.retireIRQLocked(false)
 		d.poisonMemory(err)
 	}

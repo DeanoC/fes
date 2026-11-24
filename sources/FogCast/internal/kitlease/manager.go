@@ -20,6 +20,21 @@ import (
 )
 
 type admittedContextKey struct{}
+type leaseLifetimeContextKey struct{}
+
+// WithLeaseLifetime carries the target-owned execution lease lifetime through
+// an admitted request. It is not a credential or an admission by itself.
+func WithLeaseLifetime(ctx, lifetime context.Context) context.Context {
+	return context.WithValue(ctx, leaseLifetimeContextKey{}, lifetime)
+}
+
+// LeaseLifetime returns the execution lease lifetime associated with a target
+// admission, independently of the shorter HTTP request context.
+func LeaseLifetime(ctx context.Context) context.Context {
+	lifetime, _ := ctx.Value(leaseLifetimeContextKey{}).(context.Context)
+	return lifetime
+}
+
 type generationContextKey struct{}
 type inputCleanupReceiptKey struct{}
 type inputCleanupMarkerKey struct{}

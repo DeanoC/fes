@@ -187,6 +187,9 @@ type lease struct {
 	cancel              context.CancelFunc
 	executionGeneration string
 	keyboardBinding     *KeyboardHIDBinding
+	// lifetime is the admitting execution lease's lifetime. The bridge is
+	// cancelled when that lease is revoked, independently of the request.
+	lifetime context.Context
 }
 
 type localKeyboardGrant struct {
@@ -341,6 +344,18 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 	if c == nil || ctx == nil || spec.Session == 0 || len(spec.Token) < 16 || !validCore(spec.Core) {
 		return errors.New("invalid input lease")
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	lifetime := kitlease.LeaseLifetime(ctx)
+	if lifetime == nil {
+		if kitlease.Admitted(ctx) {
+			return errors.New("admitted input lease lifetime is unavailable")
+		}
+		// An unguarded controller has no kit lease to revoke; its existing
+		// attachment lifecycle continues to be controlled by Detach or Close.
+		lifetime = context.Background()
+	}
 	done := c.beginLifecycleTransition()
 	defer done()
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -350,7 +365,7 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 	}
 	defer c.lifecycle.Unlock()
 	spec.ExecutionGeneration = kitlease.Generation(ctx)
-	return c.attachLocked(ctx, spec)
+	return c.attachLocked(ctx, spec, lifetime)
 }
 
 // releasePersistentLocked performs only confirmed source-neutral recovery while
@@ -414,7 +429,10 @@ func (c *TargetController) releasePersistentLocked(ctx context.Context, persiste
 	return releaseErr
 }
 
-func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
+func (c *TargetController) attachLocked(ctx context.Context, spec Spec, lifetime context.Context) error {
+	if lifetime == nil || lifetime.Err() != nil {
+		return errors.New("input lease lifetime is unavailable")
+	}
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -438,7 +456,9 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 	}
 	current := c.active
 	if current != nil && current.session == spec.Session && current.core == spec.Core &&
-		current.executionGeneration == spec.ExecutionGeneration && subtle.ConstantTimeCompare(current.token, spec.Token) == 1 {
+		current.executionGeneration == spec.ExecutionGeneration &&
+		current.lifetime != nil && current.lifetime.Done() == lifetime.Done() &&
+		subtle.ConstantTimeCompare(current.token, spec.Token) == 1 {
 		c.mu.Unlock()
 		return nil
 	}
@@ -521,7 +541,7 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 	if remote != nil {
 		remote.server = server
 	}
-	leaseCtx, cancel := context.WithCancel(context.Background())
+	leaseCtx, cancel := context.WithCancel(lifetime)
 	candidate := &lease{
 		session:             spec.Session,
 		token:               append([]byte(nil), spec.Token...),
@@ -530,6 +550,7 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 		cancel:              cancel,
 		executionGeneration: spec.ExecutionGeneration,
 		keyboardBinding:     keyboardBinding,
+		lifetime:            lifetime,
 	}
 	c.mu.Lock()
 	if c.closed {
@@ -543,7 +564,12 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 	select {
 	case <-ctx.Done():
 		startupErr = ctx.Err()
+	case <-lifetime.Done():
+		startupErr = lifetime.Err()
 	case startupErr = <-server.Startup():
+	}
+	if startupErr == nil {
+		startupErr = errors.Join(ctx.Err(), lifetime.Err())
 	}
 	if startupErr != nil {
 		stopErr := stopLease(candidate)
@@ -713,7 +739,7 @@ func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(conte
 				Token:               append([]byte(nil), current.token...),
 				Core:                current.core,
 				ExecutionGeneration: current.executionGeneration,
-			})
+			}, current.lifetime)
 			if finishErr == nil {
 				c.mu.Lock()
 				c.localKeyboardGrant = grant
@@ -895,12 +921,55 @@ type retainedTapSink struct {
 	binding    *KeyboardHIDBinding
 }
 
+func (s retainedTapSink) TapChord(ctx context.Context, f protocol.InputFrame) error {
+	return s.Tap(ctx, f)
+}
+
 func (s retainedTapSink) Tap(ctx context.Context, f protocol.InputFrame) error {
 	// Match kit-local admission: no new press may race core replacement or
 	// an unconfirmed active generation. Do not hold lifecycle over the tap
 	// interval, because doing so would drop unrelated kit-local input.
-	if !s.controller.lifecycle.TryLock() {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if s.hid == nil || s.hid.focusFence.Load() {
 		return errTapUnavailable
+	}
+	focusEpoch := s.hid.fenceEpoch.Load()
+	transitionEpoch := s.controller.transitionEpoch.Load()
+	if s.controller.transitionPending.Load() != 0 {
+		return errTapUnavailable
+	}
+	s.controller.mu.Lock()
+	admittedLease, closed := s.controller.active, s.controller.closed
+	s.controller.mu.Unlock()
+	if closed {
+		return errTapUnavailable
+	}
+	// A kit-local key may be in its bounded status/read and HID write while
+	// this independent remote tap arrives. Wait for that short operation,
+	// then observe the core again under the lifecycle fence. Cancellation or
+	// a longer-running replacement still rejects without dispatching a tap.
+	wait, cancelWait := context.WithTimeout(ctx, localCoreObserveTimeout+localCoreWriteTimeout)
+	defer cancelWait()
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if err := wait.Err(); err != nil {
+			return errors.Join(errTapUnavailable, err)
+		}
+		if s.controller.lifecycle.TryLock() {
+			if err := wait.Err(); err != nil {
+				s.controller.lifecycle.Unlock()
+				return errors.Join(errTapUnavailable, err)
+			}
+			break
+		}
+		select {
+		case <-wait.Done():
+			return errors.Join(errTapUnavailable, wait.Err())
+		case <-ticker.C:
+		}
 	}
 	locked := true
 	defer func() {
@@ -908,6 +977,16 @@ func (s retainedTapSink) Tap(ctx context.Context, f protocol.InputFrame) error {
 			s.controller.lifecycle.Unlock()
 		}
 	}()
+	// A waiter admitted before a focus handoff, detach or replacement must
+	// never dispatch into the resulting session, even if its core generation
+	// later happens to match again.
+	s.controller.mu.Lock()
+	sameLease := s.controller.active == admittedLease && !s.controller.closed
+	s.controller.mu.Unlock()
+	if !sameLease || s.controller.transitionPending.Load() != 0 || s.controller.transitionEpoch.Load() != transitionEpoch ||
+		s.hid.focusFence.Load() || s.hid.fenceEpoch.Load() != focusEpoch {
+		return errTapUnavailable
+	}
 	observeCtx, cancel := context.WithTimeout(ctx, localCoreObserveTimeout)
 	s.controller.mu.Lock()
 	observe := s.controller.observe

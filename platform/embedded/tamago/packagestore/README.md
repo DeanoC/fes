@@ -43,10 +43,12 @@ separate qualification.
 
 `ReadPreferences` and `WritePreferences` access only `FES/PREFS.JSON`, a bounded
 JSON object of at most 64 KiB, while this exact SD lease is active and prepared.
-Writes require the trusted filesystem's synchronous write/flush operation;
-FAT32 replaces an existing preallocated file. They serialize against retention
-and containment, do not supply package metadata or FPGA permission, and retire
-the store on uncertain writes or a changed lease. `Quiesce` closes owned storage
+Writes require the trusted filesystem's synchronous copy-on-write `ReplaceFile`
+and flush; without it storage is read-only. A missing file is refused, never
+created. They serialize against retention and containment, do not supply
+package metadata or FPGA permission, and retire the store on uncertain writes
+or a changed lease. A protection refusal after FAT32 began mutating
+(`fat.ErrMutation`) is never a safe refusal. `Quiesce` closes owned storage
 after a final preference flush without producing a programming handoff. These
 APIs do not enable the read-only Nano board profile's writes.
 

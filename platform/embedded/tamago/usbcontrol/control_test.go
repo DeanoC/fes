@@ -162,6 +162,16 @@ func (r *reports) PollKeyboard() ([]byte, error) {
 	r.polls++
 	return []byte{0, 0, 4, 0, 0, 0, 0, 0}, r.err
 }
+func (r *reports) PollKeyboardInto(dst []byte) (int, error) {
+	r.polls++
+	if r.err != nil {
+		return 0, r.err
+	}
+	if len(dst) < 8 {
+		return 0, errors.New("buffer too small")
+	}
+	return copy(dst, []byte{0, 0, 4, 0, 0, 0, 0, 0}), nil
+}
 func TestActualCFirmwarePrepareDriverConfirmStop(t *testing.T) {
 	p := newRPC(t)
 	ctx := context.Background()

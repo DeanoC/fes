@@ -85,7 +85,7 @@ func TestHostInputAttachBindsTargetBeforeV2Begin(t *testing.T) {
 			return nil, err
 		}
 		defer done()
-		if err := f.c.Attach(kitlease.WithAdmission(leaseCtx), Spec{Session: spec.Session, Token: spec.Token, Core: spec.Core}); err != nil {
+		if err := f.c.Attach(kitlease.WithAdmission(kitlease.WithLeaseLifetime(leaseCtx, leaseCtx)), Spec{Session: spec.Session, Token: spec.Token, Core: spec.Core}); err != nil {
 			return nil, err
 		}
 		attached = &memoryTargetBridge{target: f.c, listener: listener, session: spec.Session, ready: make(chan struct{})}

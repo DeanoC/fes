@@ -26,7 +26,9 @@ module pc386_de25_sim #(
     parameter integer AUDIO_N = 3, AUDIO_D = 6250,
     parameter integer GOV_N = 1, GOV_D = 1000,
     parameter integer ATA_RESET_CLOCKS = 1000,
-    parameter ROM_HEX = "build/firmware/pc386/pc386-rom.hex"
+    parameter ROM_HEX = "build/firmware/pc386/pc386-rom.hex",
+    // The CPU identity, as the DE25 producer elaborates it (pc386/build.py I486)
+    parameter bit I486 = 1'b1
 ) (
     input wire clk, pixel_clk, pixel_locked,
     input wire [31:0] gpo,
@@ -91,7 +93,7 @@ module pc386_de25_sim #(
         .US_N(US_N), .US_D(US_D), .DMA_N(DMA_N), .DMA_D(DMA_D), .DOT0_N(DOT0_N), .DOT0_D(DOT0_D),
         .DOT1_N(DOT1_N), .DOT1_D(DOT1_D), .OPL2_N(OPL2_N), .OPL2_D(OPL2_D),
         .AUDIO_N(AUDIO_N), .AUDIO_D(AUDIO_D), .GOV_N(GOV_N), .GOV_D(GOV_D),
-        .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS), .ROM_HEX(ROM_HEX)
+        .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS), .ROM_HEX(ROM_HEX), .I486(I486)
     ) system (
         .clk(clk), .pixel_clk(pixel_clk), .pixel_locked(pixel_locked),
         .gpo(gpo), .build_id(build_id), .gpi(gpi), .exec_reset(exec_reset), .ddr_hold(ddr_hold),

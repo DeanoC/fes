@@ -13,11 +13,13 @@ const (
 	haintmsk      = 0x418
 	haintCh0      = uint32(1 << 0)
 	gahbGlobalIRQ = uint32(1 << 0)
+	gintSOF       = uint32(1 << 3)
 	gintRXFLVL    = uint32(1 << 4)
 	gintHCH       = uint32(1 << 25)
 	gintDisconn   = uint32(1 << 29)
 	hcintChHltd   = uint32(1 << 1)
 	irqMask       = gintRXFLVL | gintHCH | gintDisconn
+	irqMaskSOF    = irqMask | gintSOF
 )
 
 // EnableIRQ binds this DWC2 host controller to a GICv3 SPI (for example
@@ -92,6 +94,9 @@ func (h *Host) enableIRQ(g *gic.Controller, irqID uint32, guard func() bool) err
 		// Mask GINTMSK immediately so the level-sensitive SPI cannot re-trigger
 		// before the owner goroutine services GINTSTS/RX FIFO/HCINT.
 		h.io.Write32(gintmask, 0)
+		if nowNS := h.io.Now().UnixNano(); nowNS > 0 {
+			h.irqTimestampNS.CompareAndSwap(0, nowNS)
+		}
 		h.irqCount.Add(1)
 		h.irqMu.Unlock()
 		h.signalReady()
@@ -189,8 +194,15 @@ func (h *Host) armIRQ() {
 	if h.pending.active && h.pending.halting {
 		h.io.Write32(hcmask, hcintChHltd)
 	}
-	h.io.Write32(gintmask, irqMask)
-	pending := h.io.Read32(gint)&irqMask != 0
+	mask := irqMask
+	if !h.pending.active && h.healthStage == 0 {
+		// While no channel is armed (waiting for h.next), unmask SOF so the
+		// next USB frame wakes Ready() instead of falling back to a slow timer.
+		h.io.Write32(gint, gintSOF)
+		mask = irqMaskSOF
+	}
+	h.io.Write32(gintmask, mask)
+	pending := h.io.Read32(gint)&mask != 0
 	h.irqMu.Unlock()
 	if pending {
 		h.signalReady()

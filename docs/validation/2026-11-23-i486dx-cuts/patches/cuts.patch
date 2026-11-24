@@ -1,0 +1,146 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+index 10b75c65d..8513c3f8b 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+@@ -1935,8 +1935,7 @@ module fes_i386_cpu #(
+         // MOVZX r32, whose load data is zero above its size. A 16-bit load
+         // keeps its register's high half, and MOVSX and a load-op change the
+         // value in EX.
+-        d_out.ldfwd = u.cls == fes_i386_pkg::UOP_ALU && (u.op == 5'(fes_i386_pkg::ALU_MOV) || u.op == 5'(fes_i386_pkg::ALU_MOVZX))
+-                   && mkind == fes_i386_pkg::MEM_LOAD && !u.mem.in_a && u.size == fes_i386_pkg::SIZE_32 && !u.dst.hi8;
++        d_out.ldfwd = 1'b0;  // ABLATION lfwd
+         // A system access (mem.system) is checked against its table's limit,
+         // at its first read: a real-mode vector's offset against IDTR's
+         // limit less 3, a gate's against IDTR's less 7, a descriptor's low
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1d.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1d.sv
+index e406fe7f1..6a7d319a8 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1d.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1d.sv
+@@ -371,8 +371,8 @@ module fes_i386_l1d import fes_i386_pkg::*; (
+ 
+     logic [1:0] free;
+     always_comb begin
+-        free = rr;
+-        for (int w = 3; w >= 0; w--) if (!vm2[w]) free = 2'(w);
++        free = {1'b0, rr[0]};  // ABLATION l1d2: ways 0-1 only (8 KiB)
++        for (int w = 1; w >= 0; w--) if (!vm2[w]) free = 2'(w);
+     end
+ 
+     // The slow path starts: at once (start_c), or for an uncached load once
+@@ -650,7 +650,7 @@ module fes_i386_l1d import fes_i386_pkg::*; (
+                         || pw_valid && pw_addr[11:5] == 7'(k)
+                         || start_c && cached0 && !q_cross && q_line0[6:0] == 7'(k) && free == 2'(w);
+             always_ff @(posedge clk) begin
+-                if (reset) valid_bits[k][w] <= 1'b0;
++                if (reset || w >= 2) valid_bits[k][w] <= 1'b0;  // ABLATION l1d2
+                 else if (set_valid && q_line0[6:0] == 7'(k) && victim == 2'(w)) valid_bits[k][w] <= 1'b1;
+                 else if (clear) valid_bits[k][w] <= 1'b0;
+             end
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1i.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1i.sv
+index 9e956a9e3..78c246aad 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1i.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1i.sv
+@@ -231,8 +231,8 @@ module fes_i386_l1i import fes_i386_pkg::*; (
+     assign miss = req && cached && hit[0] == 4'd0;
+     logic [1:0] free;
+     always_comb begin
+-        free = rr;
+-        for (int w = 3; w >= 0; w--) if (!vf2[w]) free = 2'(w);
++        free = {1'b0, rr[0]};  // ABLATION l1i2: ways 0-1 only (8 KiB)
++        for (int w = 1; w >= 0; w--) if (!vf2[w]) free = 2'(w);
+     end
+ 
+     // A fill's own line written while it fills spoils it.
+@@ -264,7 +264,7 @@ module fes_i386_l1i import fes_i386_pkg::*; (
+                         || si_valid && si_cross && si_set1 == 7'(k)
+                         || start && blk[7:1] == 7'(k) && free == 2'(w);
+             always_ff @(posedge clk) begin
+-                if (reset) valid[k][w] <= 1'b0;
++                if (reset || w >= 2) valid[k][w] <= 1'b0;  // ABLATION l1i2
+                 else if (set_valid && f_line[6:0] == 7'(k) && victim == 2'(w)) valid[k][w] <= 1'b1;
+                 else if (clear) valid[k][w] <= 1'b0;
+             end
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87_mul.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87_mul.sv
+index 043c181ad..d349f6a43 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87_mul.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87_mul.sv
+@@ -11,27 +11,22 @@ module fes_i386_x87_mul (
+     output logic         done,
+     output logic [127:0] p
+ );
+-    logic [63:0] ar, br;
+-    logic [43:0] p00, p01, p02, p10, p11, p12, p20, p21, p22;
+-    logic [87:0] r0, r1, r2;
+-    logic [3:0]  v;
++    // ABLATION xshift: a serial shifter in place of the nine-DSP product. The one
++    // caller (fes_i386_x87 S_SHIFT) sets b = 1 << sh_pow, one-hot, so p = a << sh_pow:
++    // shift a byte while b's low byte is zero, else a bit, until b's bit 0 is set.
++    logic [127:0] acc;
++    logic [63:0]  bm;
++    logic         busy, d;
+     always_ff @(posedge clk) begin
+-        v <= reset ? 4'd0 : {v[2:0], start};
+-        ar <= a;
+-        br <= b;
+-        p00 <= ar[21:0] * br[21:0];
+-        p01 <= ar[21:0] * br[43:22];
+-        p02 <= ar[21:0] * {2'b0, br[63:44]};
+-        p10 <= ar[43:22] * br[21:0];
+-        p11 <= ar[43:22] * br[43:22];
+-        p12 <= ar[43:22] * {2'b0, br[63:44]};
+-        p20 <= {2'b0, ar[63:44]} * br[21:0];
+-        p21 <= {2'b0, ar[63:44]} * br[43:22];
+-        p22 <= {2'b0, ar[63:44]} * {2'b0, br[63:44]};
+-        r0 <= {44'd0, p00} + {22'd0, p01, 22'd0} + {p02, 44'd0};
+-        r1 <= {44'd0, p10} + {22'd0, p11, 22'd0} + {p12, 44'd0};
+-        r2 <= {44'd0, p20} + {22'd0, p21, 22'd0} + {p22, 44'd0};
+-        p <= {40'd0, r0} + {18'd0, r1, 22'd0} + {r2[83:0], 44'd0};
++        d <= 1'b0;
++        if (reset) busy <= 1'b0;
++        else if (start) begin acc <= {64'd0, a}; bm <= b; busy <= 1'b1; end
++        else if (busy) begin
++            if (bm[0] || bm == 64'd0) begin busy <= 1'b0; d <= 1'b1; end
++            else if (bm[7:0] == 8'd0) begin acc <= acc << 8; bm <= bm >> 8; end
++            else begin acc <= acc << 1; bm <= bm >> 1; end
++        end
+     end
+-    assign done = v[3];
++    assign p = acc;
++    assign done = d;
+ endmodule
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv
+index 0e775e2de..b7645f22a 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv
+@@ -63,7 +63,9 @@ module fes_x87_core #(
+     logic [5:0] shift_a, shift_b;
+     // This is the external request timing boundary. Let Quartus retime the
+     // arithmetic stages, but keep normalization behind the captured request.
+-    (* preserve, dont_retime *) request_t dispatch;
++    request_t dispatch;  // ABLATION xdisp: no dispatch register
++    assign dispatch = request;
++    assign dispatch_valid = accept;
+     raw_t fast_raw, slow_raw;
+     logic fast_valid, slow_valid, slow_ready;
+     logic accept, is_slow, dispatch_valid, encoded_valid, normalized_valid;
+@@ -102,7 +104,6 @@ module fes_x87_core #(
+     always_ff @(posedge clk) begin
+         // Isolate virtual/CPU request wiring from unpacking and classification.
+         // Only valid is reset; operands need no enable or reset fanout.
+-        dispatch <= request;
+         // Normalize once for both lanes: encode the shift, then apply it.
+         encoded <= dispatch;
+         shift_a <= normalization_shift(dispatch.a[63:0]);
+@@ -117,12 +118,10 @@ module fes_x87_core #(
+         normalized.ub.exponent <= (encoded.b[78:64] == 0 ? 18'sd1 :
+             $signed({3'd0,encoded.b[78:64]})) - $signed({12'd0,shift_b});
+         if (reset || flush) begin
+-            dispatch_valid <= 0;
+             encoded_valid <= 0;
+             normalized_valid <= 0;
+             slow_reserved <= 0;
+         end else begin
+-            dispatch_valid <= accept;
+             encoded_valid <= dispatch_valid;
+             normalized_valid <= encoded_valid;
+             if (slow_valid && !fast_valid) slow_reserved <= 0;

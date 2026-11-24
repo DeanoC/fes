@@ -149,8 +149,10 @@ static int ulpi(struct fes_nano_usb_board *b,unsigned address,uint8_t *value)
 }
 static int core(struct fes_nano_usb_board *b)
 {
+    /* Allow EL1 GICv3 IRQ delivery (GAHBCFG.GLBLINTRMSK / GINTMSK) while
+     * strictly forbidding DMA (GAHBCFG[5]) and descriptor DMA (HCFG[23]). */
     static const struct {unsigned offset;uint32_t mask,want;} policy[]={
-        {8,0x21U,0},{12,0x600000d8U,0x20000010U},{20,1,1},{24,0xffffffffU,0},
+        {8,0x20U,0},{12,0x600000d8U,0x20000010U},{20,1,1},
         {0x400,1U<<23,0},{0x440,1U<<12|1U<<8|1U<<4,1U<<12},{0xe00,0x3fU,0}
     };
     for (unsigned i=0;i<sizeof(policy)/sizeof(policy[0]);i++) {
@@ -258,10 +260,12 @@ static int contained_read(struct fes_nano_usb_board *b,unsigned offset,uint32_t 
 }
 static int contained_pio(struct fes_nano_usb_board *b)
 {
-    uint32_t ahb,mask,phy;
-    if (contained_read(b,8,&ahb) || contained_read(b,24,&mask) ||
+    /* Bus-master containment forbids DMA (GAHBCFG[5]) and descriptor DMA
+     * (HCFG[23]) while allowing EL1 GICv3 IRQ delivery (GLBLINTRMSK/GINTMSK). */
+    uint32_t ahb,hcfg,phy;
+    if (contained_read(b,8,&ahb) || contained_read(b,0x400,&hcfg) ||
         contained_read(b,12,&phy)) return -1;
-    return (ahb&0x21U) || mask || (phy&0xd8U)!=0x10U ? fail(b,-5) : 0;
+    return (ahb&0x20U) || (hcfg&(1U<<23)) || (phy&0xd8U)!=0x10U ? fail(b,-5) : 0;
 }
 static int contained_body(void *context)
 {

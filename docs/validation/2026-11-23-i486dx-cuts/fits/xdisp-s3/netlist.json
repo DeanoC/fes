@@ -1,0 +1,20 @@
+{
+  "fitted_netlist": {
+    "duplicate_attribute_count": 0,
+    "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+    "fitted_sha256": "bbb05fffa621a3e2bea25e536ccee847067afb5d6656c770b6facaba9261a439",
+    "ram_attribute": "renamed 32 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+    "ram_attribute_count": 32,
+    "source": "/data/projects/i486dx-plan/r2/fits/xdisp-s1/netlist/fes_i386_cpu.netlist.v",
+    "source_sha256": "68994ed364c178e602443bb98a45bbbef8a7e81cbab2dab63b8710246fd2baa5"
+  },
+  "reused": "/data/projects/i486dx-plan/r2/fits/xdisp-s1/netlist/fes_i386_cpu.netlist.v",
+  "source_revision": {
+    "clean": false,
+    "commit": "dafabb6db52a0db75475c7832bf56317548f8c5e",
+    "note": "prepared from a modified checkout; this commit alone does not describe the source that ran, and the diff above does",
+    "tracked_diff": "diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv\nindex 10b75c65d..ba6707c2e 100644\n--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv\n+++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv\n@@ -127,7 +127,7 @@ module fes_i386_cpu #(\n     // been; 1 a 486SX of a later stepping, with CPUID and without VME (no\n     // CR4). A build parameter: every 486 register, flag and instruction\n     // folds away at 0. See \"The i486 identity\".\n-    parameter bit I486 = 1'b0\n+    parameter bit I486 = 1'b1\n ) (\n     input  logic             clk,\n     input  logic             cold_reset,   // the machine's start: also empties the write buffer\ndiff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv\nindex 0e775e2de..b7645f22a 100644\n--- a/sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv\n+++ b/sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv\n@@ -63,7 +63,9 @@ module fes_x87_core #(\n     logic [5:0] shift_a, shift_b;\n     // This is the external request timing boundary. Let Quartus retime the\n     // arithmetic stages, but keep normalization behind the captured request.\n-    (* preserve, dont_retime *) request_t dispatch;\n+    request_t dispatch;  // ABLATION xdisp: no dispatch register\n+    assign dispatch = request;\n+    assign dispatch_valid = accept;\n     raw_t fast_raw, slow_raw;\n     logic fast_valid, slow_valid, slow_ready;\n     logic accept, is_slow, dispatch_valid, encoded_valid, normalized_valid;\n@@ -102,7 +104,6 @@ module fes_x87_core #(\n     always_ff @(posedge clk) begin\n         // Isolate virtual/CPU request wiring from unpacking and classification.\n         // Only valid is reset; operands need no enable or reset fanout.\n-        dispatch <= request;\n         // Normalize once for both lanes: encode the shift, then apply it.\n         encoded <= dispatch;\n         shift_a <= normalization_shift(dispatch.a[63:0]);\n@@ -117,12 +118,10 @@ module fes_x87_core #(\n         normalized.ub.exponent <= (encoded.b[78:64] == 0 ? 18'sd1 :\n             $signed({3'd0,encoded.b[78:64]})) - $signed({12'd0,shift_b});\n         if (reset || flush) begin\n-            dispatch_valid <= 0;\n             encoded_valid <= 0;\n             normalized_valid <= 0;\n             slow_reserved <= 0;\n         end else begin\n-            dispatch_valid <= accept;\n             encoded_valid <= dispatch_valid;\n             normalized_valid <= encoded_valid;\n             if (slow_valid && !fast_valid) slow_reserved <= 0;\n",
+    "tracked_diff_sha256": "d2261ffdbaf71d431d3a13e7fbb25c65d610d6e7930bbbfca5b967bd63ff82cf"
+  },
+  "source_revision_note": "declared as elaborated from this checkout; scratch: dafabb6db + dx.patch + xdisp.patch, elaborated in /data/projects/i486dx-plan/wt-r2-fit-xdisp"
+}

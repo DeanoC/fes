@@ -3760,6 +3760,14 @@ void TestRetainedStandardMachineGuards()
 					(request.opcode == FesComputerOpcodeMediaSnapshotControl &&
 					 request.argument == FesComputerMediaSnapshotFreeze))));
 	}
+	// A retained pc386 keeps its ATA disk in its window in HPS DDR; nothing
+	// here can tell whether the lost session stored it, so it is refused
+	// before any request, whatever its live state.
+	FirmwareFixture pc386(kSpectrumCapabilities, kSpectrumTapeLimits, mister_test::De25Pc386Descriptor(), 0);
+	pc386.driver.BeginSession();
+	const auto refused = pc386.driver.EnsureRetainedComputerSaved(pc386.descriptor, kComputerDeadline);
+	assert(refused.code == mister::ErrorCode::save_failed && refused.phase == "save");
+	assert(pc386.bridge.endpoint.requests.empty());
 }
 
 int main()

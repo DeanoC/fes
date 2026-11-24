@@ -1700,19 +1700,30 @@ authenticates the complete install/support-file closure, internal links, and
 evidence before any tool path is used.
 
 A consumer that resolves an install holds a shared lock on it until the
-process exits and stamps the lock file's mtime as its last use.
+process exits and stamps the lock file's mtime as its last use; publishing a
+new install also stamps its lock file's mtime.
 `make toolchain-prune CACHE_ROOT=…` (`scripts/toolchain_cache.py prune`) reports
 the installs that no `toolchain.lock` on `origin/main` pins for this host and
-nobody used in `KEEP_DAYS` (default 14), and removes them with `APPLY=1`. For
-GPU tools (`nextpnr`), pinned retention also requires matching a kept GPU
-lane's configuration, accelerator compiler, and backend environment
-(repeatable `--gpu-router` or `GPU_ROUTERS`/`GPU_ROUTER`, defaulting to
-`FES_TOOLCHAIN_GPU_ROUTER` or `OFF`, with `--hip-architectures` /
-`--cuda-architectures`), so obsolete lane or accelerator-toolchain variants
-age out via `KEEP_DAYS`. It never removes an install whose lock a build or
-consumer holds, removes failed builds, and considers the per-lock `slots/` of
-the old layout only with `LEGACY_SLOTS=1`, judging their last use by their
-binaries' access times.
+nobody used in `KEEP_DAYS` (default 14), and removes them with `APPLY=1`.
+Passing `MAX_GB=…` (`--max-gb`) or setting `FES_TOOLCHAIN_CACHE_MAX_GB` adds a
+size cap in GiB: after age-based pruning, any remaining unpinned installs are
+evicted least-recently-used first until the retained cache is within the cap,
+and when `FES_TOOLCHAIN_CACHE_MAX_GB` is set during a build, `publish_install()`
+runs the same LRU eviction automatically after publication (logging evictions
+to stderr). Bootstrap scrubs the variable from its build environment and
+forwards it to the publish helper alone (`publish --max-gb`). Bootstrap
+releases each install's lock as soon as that tool is published or hit, so that
+eviction also keeps the installs pinned at `HEAD` and every install the lock
+being built selects.
+For GPU tools (`nextpnr`), pinned retention also requires matching
+a kept GPU lane's configuration, accelerator compiler, and backend environment
+(repeatable `--gpu-router` or `GPU_ROUTERS`/`GPU_ROUTER`, defaulting to every
+lane this host can build, with `--hip-architectures` / `--cuda-architectures`),
+so obsolete lane or accelerator-toolchain variants age out via `KEEP_DAYS` or
+`MAX_GB`. It never removes an install whose lock a build or consumer holds,
+removes failed builds, and considers the per-lock `slots/` of the old layout
+only with `LEGACY_SLOTS=1`, judging their last use by their binaries' access
+times.
 
 `FES_TOOLCHAIN_GPU_ROUTER` (default `OFF`) selects the lane.
 `FES_TOOLCHAIN_HIP_ARCHITECTURES` (default `gfx1100;gfx1201`) and

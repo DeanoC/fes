@@ -30,8 +30,8 @@ func tapRig(t *testing.T) (*RemoteInput, <-chan protocol.InputFrame) {
 			if err != nil {
 				return
 			}
-			if f.Header.Type == protocol.InputTypePing && f.Header.Flags == protocol.InputFlagTapProbe {
-				reply := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeReceipt, Flags: protocol.InputFlagTapSupported, Session: f.Header.Session}, Seq: f.Seq, ClientMonoNS: f.ClientMonoNS, ServerMonoNS: 1}
+			if f.Header.Type == protocol.InputTypePing && (f.Header.Flags == protocol.InputFlagTapProbe || f.Header.Flags == protocol.InputFlagTapChordProbe) {
+				reply := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeReceipt, Flags: f.Header.Flags, Session: f.Header.Session}, Seq: f.Seq, ClientMonoNS: f.ClientMonoNS, ServerMonoNS: 1}
 				wire, _ := protocol.EncodeInputFrame(reply)
 				if _, err := right.Write(wire); err != nil {
 					return
@@ -39,7 +39,7 @@ func tapRig(t *testing.T) (*RemoteInput, <-chan protocol.InputFrame) {
 				continue
 			}
 			frames <- f
-			if f.Header.Type == protocol.InputTypeTap {
+			if f.Header.Type == protocol.InputTypeTap || f.Header.Type == protocol.InputTypeTapChord {
 				time.Sleep(time.Duration(protocol.InputTapHoldMS) * time.Millisecond)
 				reply := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeReceipt, Session: f.Header.Session}, Seq: f.Seq, ClientMonoNS: f.ClientMonoNS, ServerMonoNS: 1}
 				wire, _ := protocol.EncodeInputFrame(reply)
@@ -50,6 +50,60 @@ func tapRig(t *testing.T) (*RemoteInput, <-chan protocol.InputFrame) {
 		}
 	}()
 	return r, frames
+}
+
+func TestTapKeyChordPreservesPhysicalHoldsAndValidatesRequest(t *testing.T) {
+	r, frames := tapRig(t)
+	done := make(chan error, 1)
+	go func() { _, err := r.TapKeyChord(context.Background(), "7", 7, tapA, 2, tapAllowed); done <- err }()
+	f := nextTapFrame(t, frames)
+	if f.Header.Type != protocol.InputTypeTapChord || f.Reserved != 2 || f.Code != uint16(tapA.Code) || f.ServerMonoNS != 7 {
+		t.Fatalf("chord frame %+v", f)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.TapKeyChord(context.Background(), "7", 7, tapA, 0, tapAllowed); !errors.Is(err, ErrRemoteInputInvalid) {
+		t.Fatalf("zero modifier: %v", err)
+	}
+	modifier := tapA
+	modifier.Code = 0x10e1
+	if _, err := r.TapKeyChord(context.Background(), "7", 7, modifier, 2, tapAllowed); !errors.Is(err, ErrRemoteInputInvalid) {
+		t.Fatalf("modifier key: %v", err)
+	}
+	if err := r.inputState.Apply(modifier); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.TapKeyChord(context.Background(), "7", 7, tapA, 2, tapAllowed); !errors.Is(err, ErrRemoteInputBusy) {
+		t.Fatalf("held control: %v", err)
+	}
+	if !r.inputState.Pressed(modifier.Code) {
+		t.Fatal("physical hold lost")
+	}
+}
+
+func TestTapKeyChordWithOldTargetFailsBeforeInput(t *testing.T) {
+	left, right := net.Pipe()
+	t.Cleanup(func() { left.Close(); right.Close() })
+	r := &RemoteInput{conn: left, reader: bufio.NewReader(left), state: RemoteInputAttached, session: 7, now: time.Now, dial: time.Second}
+	got := make(chan protocol.InputFrame, 1)
+	go func() {
+		defer right.Close()
+		f, err := protocol.DecodeInputFrame(right, 1024)
+		if err == nil {
+			got <- f
+		}
+		// Old target rejects the unknown chord probe and closes the connection.
+	}()
+	if _, err := r.TapKeyChord(context.Background(), "7", 7, tapA, 2, tapAllowed); !errors.Is(err, ErrRemoteInputNoStream) {
+		t.Fatalf("old target: %v", err)
+	}
+	if f := <-got; f.Header.Type != protocol.InputTypePing || f.Header.Flags != protocol.InputFlagTapChordProbe {
+		t.Fatalf("unexpected mutation: %+v", f)
+	}
+	if r.inputState.Pressed(tapA.Code) || r.conn != nil {
+		t.Fatal("old target left input or connection active")
+	}
 }
 func nextTapFrame(t *testing.T, frames <-chan protocol.InputFrame) protocol.InputFrame {
 	t.Helper()
