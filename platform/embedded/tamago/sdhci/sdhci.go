@@ -513,7 +513,16 @@ func (d *Device) switchHighSpeed() error {
 	if switchCurr == 0 || switchCurr > maxCurrentLimit || switchStatus[16]&0x0f != 1 {
 		return fmt.Errorf("sdhci: card failed CMD6 High-Speed switch (current=%dmA limit=%dmA)", switchCurr, maxCurrentLimit)
 	}
-	if err := d.ready(); err != nil {
+	// SD Physical Layer §4.3.10 requires at least 8 card clocks after the Mode 1
+	// CMD6 status block before configuring switched host timing or issuing another command.
+	switchDelay := time.Millisecond
+	if d.dataClockHz > 0 {
+		eightClocks := (8*time.Second + time.Duration(d.dataClockHz) - 1) / time.Duration(d.dataClockHz)
+		if eightClocks > switchDelay {
+			switchDelay = eightClocks
+		}
+	}
+	if err := d.pause(switchDelay); err != nil {
 		return err
 	}
 	desired := d.expectedHost | hostHighSpeed

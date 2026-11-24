@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 )
 
 type clockCard struct {
@@ -214,17 +215,24 @@ func TestSelectedClockReadModeMutationIsTerminalAndDefaultIsUnchanged(t *testing
 
 type highSpeedCard struct {
 	*clockCard
-	scr          [8]byte
-	busWidth     int
-	acmd         bool
-	pioBuf       []byte
-	pioPos       int
-	cmd6Func1OK  bool
-	cmd6SwitchOK bool
-	cmd6MaxCurr  uint16
-	rejectHSHost bool
-	acmd51Count  int
-	cmd6Count    int
+	scr              [8]byte
+	busWidth         int
+	acmd             bool
+	pioBuf           []byte
+	pioPos           int
+	cmd6Func1OK      bool
+	cmd6SwitchOK     bool
+	cmd6MaxCurr      uint16
+	rejectHSHost     bool
+	acmd51Count      int
+	cmd6Count        int
+	cmd6Mode1Pending bool
+	cmd6SwitchDoneAt time.Time
+	hostHSAt         time.Time
+	postSwitchCmds   []struct {
+		cmd, host, clock uint32
+		at               time.Time
+	}
 }
 
 func newHighSpeedCard() *highSpeedCard {
@@ -253,6 +261,10 @@ func (c *highSpeedCard) Read32(reg uint32) uint32 {
 			c.regs[status] |= 2
 			c.pioBuf = nil
 			c.pioPos = 0
+			if c.cmd6Mode1Pending {
+				c.cmd6Mode1Pending = false
+				c.cmd6SwitchDoneAt = c.tick
+			}
 		} else if c.pioPos%512 == 0 {
 			c.regs[status] |= 1 << 5
 		}
@@ -266,8 +278,17 @@ func (c *highSpeedCard) Write32(reg, value uint32) {
 		c.regs[host] = value &^ hostHighSpeed
 		return
 	}
+	if reg == host && value&hostHighSpeed != 0 && c.hostHSAt.IsZero() {
+		c.hostHSAt = c.tick
+	}
 	if reg == command {
 		index := value >> 24
+		if !c.cmd6SwitchDoneAt.IsZero() {
+			c.postSwitchCmds = append(c.postSwitchCmds, struct {
+				cmd, host, clock uint32
+				at               time.Time
+			}{index, c.regs[host], c.regs[clock], c.tick})
+		}
 		if index == 51 {
 			if !c.acmd {
 				panic("CMD51 without CMD55")
@@ -312,6 +333,7 @@ func (c *highSpeedCard) Write32(reg, value uint32) {
 					st[16] = 0x0f
 				}
 			} else {
+				c.cmd6Mode1Pending = true
 				if c.cmd6SwitchOK {
 					st[16] = 1
 				} else {
@@ -355,6 +377,15 @@ func TestHighSpeed50MHzSwitchContainAndResume(t *testing.T) {
 	}
 	if c.acmd51Count != 1 || c.cmd6Count != 2 {
 		t.Fatalf("expected 1 ACMD51 (cached across 4-bit + HS) and 2 CMD6 (check+switch), got %d/%d", c.acmd51Count, c.cmd6Count)
+	}
+	if c.cmd6SwitchDoneAt.IsZero() || c.hostHSAt.Sub(c.cmd6SwitchDoneAt) < time.Millisecond {
+		t.Fatalf("host High-Speed set before CMD6 switching delay: switchDone=%v hostHS=%v", c.cmd6SwitchDoneAt, c.hostHSAt)
+	}
+	if len(c.postSwitchCmds) == 0 || c.postSwitchCmds[0].cmd != 13 ||
+		c.postSwitchCmds[0].host&hostHighSpeed == 0 ||
+		c.postSwitchCmds[0].clock&clockModeMask != 14<<16|2<<8|7 ||
+		c.postSwitchCmds[0].at.Sub(c.cmd6SwitchDoneAt) < time.Millisecond {
+		t.Fatalf("post-switch command sequence invalid: %+v", c.postSwitchCmds)
 	}
 
 	if err := d.ReadSectors(0, make([]byte, 512)); err != nil {
