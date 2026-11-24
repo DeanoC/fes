@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"net/netip"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1169,6 +1171,9 @@ func TestLeaseRenewerNotifyLinkUpVerification(t *testing.T) {
 			if dstMAC != broadcastMAC {
 				t.Errorf("link-up verify dstMAC=%x, want broadcast", dstMAC)
 			}
+			if req, _, err := parseDHCPClientRequest(frame); err != nil || req != initRebootRequest(clientIP) {
+				t.Errorf("link-up verify request=%+v err=%v, want INIT-REBOOT %+v", req, err, initRebootRequest(clientIP))
+			}
 			xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
 			go p.inject(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, clientIP, xid,
 				makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &serverIP, 7200), false))
@@ -1290,4 +1295,238 @@ func TestLeaseRenewerNotifyLinkUpVerification(t *testing.T) {
 			t.Fatal("timed out waiting for immediate NAK halt")
 		}
 	})
+
+	t.Run("MovedKitHaltsOnNewNetworkNAK", func(t *testing.T) {
+		// The kit holds 10.0.2.15/24 from 10.0.2.2, and its link returns on
+		// 192.168.7.0/24. That network's server (192.168.7.1) is modelled on
+		// RFC 2131 §4.3.2: it NAKs an INIT-REBOOT request (ciaddr 0, option 50)
+		// for an address on the wrong network, and stays silent for a request
+		// with ciaddr set, which it holds no lease for. A REBINDING-form probe
+		// gets no answer here and keeps the foreign address until T1/T2.
+		newNet := netip.MustParsePrefix("192.168.7.0/24")
+		newServerIP := [4]byte{192, 168, 7, 1}
+		sent := make(chan dhcpClientRequest, 8)
+		dev := newFakeDHCPDevice(clientMACStr, false)
+		dev.onTx = func(frame []byte, d *fakeDHCPDevice) {
+			req, xid, err := parseDHCPClientRequest(frame)
+			if err != nil {
+				t.Errorf("link-up probe frame: %v", err)
+				return
+			}
+			select {
+			case sent <- req:
+			default:
+			}
+			if req.Ciaddr != ([4]byte{}) || !req.HasRequestedIP || req.HasServerID {
+				return // not INIT-REBOOT: nothing shows the client moved
+			}
+			if newNet.Contains(netip.AddrFrom4(req.RequestedIP)) {
+				return // right network; not exercised
+			}
+			// Wrong network. giaddr is 0, so the NAK is broadcast.
+			d.enqueueRX(makeServerReplyFrame(broadcastMAC, clientMAC, newServerIP, [4]byte{}, xid,
+				makeDHCPOptions(dhcpMsgNak, nil, nil, nil, &newServerIP, 0), false))
+		}
+		link := &Link{stack: &fakeStack{}, device: dev, state: &linkState{}}
+		linkCtx, linkCancel := context.WithCancel(context.Background())
+		linkDone := make(chan error, 1)
+		go func() { linkDone <- link.Start(linkCtx) }()
+		defer func() {
+			linkCancel()
+			<-linkDone
+		}()
+
+		errCh := make(chan error, 1)
+		ren, err := NewLeaseRenewer(link, clientMACStr, baseLease, RenewConfig{
+			RetryInterval:      5 * time.Millisecond,
+			LinkUpDebounce:     10 * time.Millisecond,
+			LinkUpProbeTimeout: 2 * time.Second,
+			OnError: func(e error) {
+				select {
+				case errCh <- e:
+				default:
+				}
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ren.Start(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		defer ren.Stop()
+
+		ren.NotifyLinkUp()
+		select {
+		case e := <-errCh:
+			if !errors.Is(e, ErrLeaseNAK) {
+				t.Fatalf("err=%v want ErrLeaseNAK", e)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("no DHCPNAK for the link-up probe: the moved kit keeps 10.0.2.15 until T1/T2")
+		}
+		if !errors.Is(link.Err(), ErrLeaseNAK) {
+			t.Fatalf("link.Err()=%v, want ErrLeaseNAK (link not halted)", link.Err())
+		}
+		select {
+		case got := <-sent:
+			if want := initRebootRequest(clientIP); got != want {
+				t.Fatalf("link-up probe=%+v, want INIT-REBOOT %+v", got, want)
+			}
+		default:
+			t.Fatal("no link-up probe was sent")
+		}
+	})
+}
+
+// dhcpClientRequest holds the fields of a client DHCPREQUEST that tell the
+// RFC 2131 §4.3.2 RENEWING, REBINDING and INIT-REBOOT forms apart.
+type dhcpClientRequest struct {
+	DstMAC         [6]byte
+	SrcIP, DstIP   [4]byte
+	Ciaddr         [4]byte
+	BroadcastFlag  bool
+	HasRequestedIP bool    // option 50 present
+	RequestedIP    [4]byte // option 50 value
+	HasServerID    bool    // option 54 present
+}
+
+// initRebootRequest is the RFC 2131 §4.3.2 INIT-REBOOT form for leaseIP:
+// broadcast from 0.0.0.0, ciaddr 0, leaseIP in option 50, no option 54.
+func initRebootRequest(leaseIP [4]byte) dhcpClientRequest {
+	return dhcpClientRequest{
+		DstMAC:         broadcastMAC,
+		DstIP:          [4]byte{255, 255, 255, 255},
+		BroadcastFlag:  true,
+		HasRequestedIP: true,
+		RequestedIP:    leaseIP,
+	}
+}
+
+// parseDHCPClientRequest decodes a client DHCPREQUEST frame and its xid. It
+// returns errors rather than calling t.Fatal, so fake-port callbacks that run
+// on the renewer goroutine can use it.
+func parseDHCPClientRequest(frame []byte) (dhcpClientRequest, uint32, error) {
+	var req dhcpClientRequest
+	if len(frame) < ethHeaderLen+ipv4MinLen+udpHeaderLen+dhcpMinPayload {
+		return req, 0, fmt.Errorf("short frame: %d bytes", len(frame))
+	}
+	copy(req.DstMAC[:], frame[0:6])
+	ip := frame[ethHeaderLen : ethHeaderLen+ipv4MinLen]
+	if internetChecksum(ip) != 0 {
+		return req, 0, errors.New("bad IPv4 header checksum")
+	}
+	copy(req.SrcIP[:], ip[12:16])
+	copy(req.DstIP[:], ip[16:20])
+	udp := frame[ethHeaderLen+ipv4MinLen:]
+	udpLen := int(binary.BigEndian.Uint16(udp[4:6]))
+	if udpLen < udpHeaderLen+dhcpMinPayload || udpLen > len(udp) {
+		return req, 0, fmt.Errorf("bad UDP length %d", udpLen)
+	}
+	udp = udp[:udpLen]
+	if udpChecksum(ip[12:16], ip[16:20], udp) != 0 {
+		return req, 0, errors.New("bad UDP checksum")
+	}
+	bootp := udp[udpHeaderLen:]
+	if bootp[0] != bootpRequest || [4]byte(bootp[bootpFixedLen:dhcpMinPayload]) != dhcpMagicCookie {
+		return req, 0, errors.New("not a BOOTP request carrying the DHCP magic cookie")
+	}
+	xid := binary.BigEndian.Uint32(bootp[4:8])
+	req.BroadcastFlag = binary.BigEndian.Uint16(bootp[10:12])&dhcpFlagBroadcast != 0
+	copy(req.Ciaddr[:], bootp[12:16])
+	var msgType byte
+	opts := bootp[dhcpMinPayload:]
+	for i := 0; i < len(opts); {
+		code := opts[i]
+		if code == dhcpOptPad {
+			i++
+			continue
+		}
+		if code == dhcpOptEnd {
+			break
+		}
+		if i+2 > len(opts) || i+2+int(opts[i+1]) > len(opts) {
+			return req, 0, fmt.Errorf("truncated option %d", code)
+		}
+		val := opts[i+2 : i+2+int(opts[i+1])]
+		switch code {
+		case dhcpOptMsgType:
+			if len(val) == 1 {
+				msgType = val[0]
+			}
+		case dhcpOptRequestedIP:
+			if len(val) != 4 {
+				return req, 0, fmt.Errorf("option 50 length %d", len(val))
+			}
+			req.HasRequestedIP = true
+			copy(req.RequestedIP[:], val)
+		case dhcpOptServerID:
+			req.HasServerID = true
+		}
+		i += 2 + len(val)
+	}
+	if msgType != dhcpMsgRequest {
+		return req, 0, fmt.Errorf("DHCP message type %d, want DHCPREQUEST", msgType)
+	}
+	return req, xid, nil
+}
+
+// RFC 2131 §4.3.2: RENEWING and REBINDING requests carry the lease address in
+// ciaddr and the IPv4 source with no option 50. An INIT-REBOOT request has
+// both zero, the lease address in option 50 and no server identifier.
+func TestDHCPRequestWireFormPerState(t *testing.T) {
+	clientMACStr := "52:54:00:12:34:56"
+	serverMACStr := "52:55:0a:00:02:02"
+	clientMAC, _ := parseUnicastMAC(clientMACStr)
+	serverMAC, _ := parseUnicastMAC(serverMACStr)
+	serverIP := [4]byte{10, 0, 2, 2}
+	leaseIP := [4]byte{10, 0, 2, 15}
+	mask := [4]byte{255, 255, 255, 0}
+	limited := [4]byte{255, 255, 255, 255}
+	current := DHCPLease{
+		Address:       "10.0.2.15/24",
+		Gateway:       "10.0.2.2",
+		Server:        "10.0.2.2",
+		LeaseDuration: 30 * time.Minute,
+	}
+
+	for _, tc := range []struct {
+		name  string
+		state dhcpRequestState
+		want  dhcpClientRequest
+	}{
+		{"RENEWING", requestRenewing,
+			dhcpClientRequest{DstMAC: serverMAC, SrcIP: leaseIP, DstIP: serverIP, Ciaddr: leaseIP}},
+		{"REBINDING", requestRebinding,
+			dhcpClientRequest{DstMAC: broadcastMAC, SrcIP: leaseIP, DstIP: limited, Ciaddr: leaseIP, BroadcastFlag: true}},
+		{"INIT-REBOOT", requestInitReboot, initRebootRequest(leaseIP)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sent := make(chan []byte, 1)
+			port := newFakeRenewPort()
+			port.onSend = func(frame []byte, p *fakeRenewPort) {
+				select {
+				case sent <- frame:
+				default:
+				}
+				if _, xid, err := parseDHCPClientRequest(frame); err == nil {
+					go p.inject(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, leaseIP, xid,
+						makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &serverIP, 3600), false))
+				}
+			}
+			// ServerMAC is set in every case: only RENEWING may unicast to it.
+			lease, _, err := renewDHCPOnceWithTime(context.Background(), port, clientMACStr, current, tc.state,
+				RenewConfig{ServerMAC: serverMACStr, RetryInterval: 5 * time.Millisecond})
+			if err != nil || lease.Address != current.Address || lease.LeaseDuration != time.Hour {
+				t.Fatalf("renewDHCPOnceWithTime=(%+v, %v), want the ACKed 1h lease", lease, err)
+			}
+			got, _, err := parseDHCPClientRequest(<-sent)
+			if err != nil {
+				t.Fatalf("request frame: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("request form=%+v, want %+v", got, tc.want)
+			}
+		})
+	}
 }

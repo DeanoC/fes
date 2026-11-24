@@ -151,11 +151,16 @@ passes opt-in `NetworkOptions` (`Allow100Full`, `RecoverLinkLoss`, and an
 With DHCP selected it opens `OpenNetworkWithControlDHCPOptions` through
 `ProgramService.StartNetworkWithTimeout` with a 15-second startup budget, then
 starts a `LeaseRenewer`. On link-up before T1, `NotifyLinkUp()` triggers one
-debounced broadcast DHCPREQUEST probe (`LinkUpDebounce`, `LinkUpProbeTimeout`):
-a `DHCPNAK` or address change halts the link immediately, whereas a silent
-timeout keeps the still-valid lease until T1/T2. With an SNTP server it makes
-one query and passes the time to the mounted volume's `SetClock` when the volume
-has one; an SNTP failure only prints a warning.
+debounced RFC 2131 INIT-REBOOT DHCPREQUEST (`LinkUpDebounce`,
+`LinkUpProbeTimeout`): broadcast from 0.0.0.0 with `ciaddr` 0, the lease address
+in option 50 and no server identifier. RFC 2131 §4.3.2 asks a server to NAK that
+form when the address is on the wrong network. It sets no such rule for a
+RENEWING/REBINDING request with `ciaddr` set, so a moved kit sending that form
+may get no answer at all. A `DHCPNAK` from any server, or an ACK for another
+address or gateway, halts the link immediately. A server may also stay silent;
+a probe with no answer keeps the still-valid lease until T1/T2. With an SNTP
+server it makes one query and passes the time to the mounted volume's
+`SetClock` when the volume has one; an SNTP failure only prints a warning.
 
 This path is dormant: no build can enable it. `build.py` builds `fpgaload` only
 from the byte-exact `nano/sd-profile.json`, which has `network: null`, and
@@ -169,9 +174,11 @@ opt-in while `NetworkEnabled()` is false.
 Evidence for this wiring is host-only: unit tests of `ParseStartupFlags`,
 `LeaseRenewer.NotifyLinkUp`, the build option validation, and the separate
 startup and lifetime contexts that `StartNetworkWithTimeout` gives the opener. No Nano build with these flags
-exists, and no boot or kit run has executed the path. Enabling it needs a
-network-enabled `fpgaload` profile: SD ownership that admits Ethernet, plus the
-source-bound firmware MAC lease/drain supplier and control policy described
-above. `tests/test_tamago_build_network.py` checks the refusal against the
-shipped profile and fails if such a profile becomes buildable; revise this
-section when it does.
+exists, and no boot or kit run has executed the path. The `NotifyLinkUp` tests
+check the probe's wire form and the renewer's reaction to a model server that
+follows RFC 2131 §4.3.2; they do not show how any real DHCP server answers.
+Enabling it needs a network-enabled `fpgaload` profile: SD ownership that
+admits Ethernet, plus the source-bound firmware MAC lease/drain supplier and
+control policy described above. `tests/test_tamago_build_network.py` checks the
+refusal against the shipped profile and fails if such a profile becomes
+buildable; revise this section when it does.
