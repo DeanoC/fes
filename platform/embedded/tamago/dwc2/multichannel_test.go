@@ -2253,3 +2253,92 @@ func TestMultiHostSingleTTHubSerializesSplits(t *testing.T) {
 		t.Fatalf("single-TT serialized delivery failed: pad=%x kbd=%x", gotPad, gotKbd)
 	}
 }
+
+func TestMultiHostRefusesCH0WhenSingleTTStaysBusy(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, false) // Single-TT HS hub
+	pad := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	var padAddr uint8
+	var ep usb.EndpointDescriptor
+	for {
+		ev, ok := host.NextEvent()
+		if !ok {
+			break
+		}
+		if ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			padAddr = ev.Device.Address
+			iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+			ep, _ = iface.FindEndpoint(usb.TransferInterrupt, true)
+		}
+	}
+	pipe, err := host.OpenPipe(padAddr, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+	mp := pipe.(*multiPipe)
+
+	// Hold the single-TT hub busy with a channel stuck in CSPLIT NYET/frozen frame
+	// for the entire 4 ms CH0 drain window so CH0 must refuse rather than collide.
+	sim.mu.Lock()
+	sim.frame = 0
+	sim.freezeFrame = true
+	sim.nyetCSplitCount = 100
+	sim.mu.Unlock()
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (SSPLIT): %v", err)
+	}
+	sim.mu.Lock()
+	sim.frame = 2
+	sim.mu.Unlock()
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (CSPLIT): %v", err)
+	}
+	if !host.slots[mp.ch].armed || !host.slots[mp.ch].completeSplit {
+		t.Fatalf("expected active CSPLIT holding single TT busy")
+	}
+
+	var desc [18]byte
+	if _, err := host.ControlTransfer(padAddr, 0x80, 6, 0x0100, 0, desc[:]); err == nil {
+		t.Fatal("ControlTransfer proceeded on CH0 while single-TT hub remained busy past 4 ms")
+	}
+}
+
+func TestMultiHostOpenPipeRejectsDuplicateEndpoint(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected attach event, got %+v ok=%v", ev, ok)
+	}
+	iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+	ep, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+
+	p1, err := host.OpenPipe(ev.Device.Address, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe #1: %v", err)
+	}
+	if _, err := host.OpenPipe(ev.Device.Address, ep); err == nil {
+		t.Fatal("OpenPipe allowed duplicate pipe for already-open (addr, ep.Address)")
+	}
+	if err := p1.Close(); err != nil {
+		t.Fatalf("p1.Close: %v", err)
+	}
+	p2, err := host.OpenPipe(ev.Device.Address, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe after Close: %v", err)
+	}
+	_ = p2.Close()
+}
