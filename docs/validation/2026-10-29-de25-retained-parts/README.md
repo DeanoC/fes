@@ -81,7 +81,8 @@ restart adoption or physical programming. Model completion/Save is software
 observation, not physical quiescence or persistent game state. Native memory,
 interrupt, device and concurrent latency acceptance remains open.
 
-The [board adaptation plan](../../../platform/embedded/board-adaptation.md)
+The former `platform/embedded/board-adaptation.md` (superseded by
+[embedded architecture](../../../platform/embedded/ARCHITECTURE.md))
 recommends starting a Nano backend beside QEMU: boot/console/time/interrupts,
 then SDMMC, USB/network, and qualified FPGA/display ownership. Altera's source
 HEAD was checked at `66bdcc347564c5698a8997169bce83a31647d618` on 2026-10-29.

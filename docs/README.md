@@ -20,7 +20,7 @@ a dated record. A dated record is not the schedule.
 | Decide whether a PR needs a full image or DE25/DE10 kit HIL | [HIL plan](hil-plan.md), [DE25 kit HIL](de25-kit-hil.md), [kit sharing](kit-sharing.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
 | Develop DE25-Nano Linux platform, board shells and kernel DMA ownership | [DE25 Linux platform](design/de25-linux-platform.md), [DE25-Nano Linux](de25-linux.md), [DE25 board shells](../sources/misteross/boards/de25nano/README.md), [DMA ownership](../image/kernel/de25-dma/README.md) |
-| Develop DE25-Nano without Linux (opt-in TamaGo bare-metal stack) | [Embedded base and native tenfoot](../platform/embedded/README.md), [TamaGo runtime and QEMU suites](../platform/embedded/tamago/README.md), [initial feasibility study](design/de25-embedded-os.md) |
+| Develop DE25-Nano without Linux (opt-in TamaGo bare-metal stack) | [Embedded base](../platform/embedded/README.md), [architecture & flow diagrams](../platform/embedded/ARCHITECTURE.md), [TamaGo runtime and QEMU suites](../platform/embedded/tamago/README.md) |
 | Build, provision or verify a flashable disk or appliance release | [Bootable media](bootable-media.md), [appliance releases](appliance-releases.md) |
 | Work in misteross | [misteross README](../sources/misteross/README.md): OSS place-and-route experiments, or a described core |
 
