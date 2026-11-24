@@ -17,6 +17,20 @@ IDENTITIES EQUAL
 
 `af58ebed2` is #2036's head; `bca9b1bf0` is #2115's head before this record.
 
+After #2036 merged to main as `6a3b9e615` and main was merged into #2115
+(`5a1d3335d`):
+
+```
+$ python3 docs/validation/2026-11-22-de25-pc386-s4-window/identity_probe.py 6a3b9e615 5a1d3335d
+6a3b9e615 {"386": {"design": "c2677e8319d4fcf317ae29c552033405560d3d8670302e3acd469fda5b135292", "toolchain": "c8f0f7917336389bccbdce77c3d24792471059440f6f83b802cfe3aff87eddea"}}
+5a1d3335d {"386": {"design": "c2677e8319d4fcf317ae29c552033405560d3d8670302e3acd469fda5b135292", "toolchain": "c8f0f7917336389bccbdce77c3d24792471059440f6f83b802cfe3aff87eddea"}}
+IDENTITIES EQUAL
+```
+
+Main's identities differ from `af58ebed2`'s because #2036's later commits
+(the first-fault latch, the arbiter fixes) and main's lock moves changed
+design and toolchain inputs; #2115 still moves neither.
+
 **The probe can see a change.** A local commit on `bca9b1bf0` that appends
 one comment line to `boards/de25nano/pc386/fes_de25_hps_window.v` gives
 design identity `6f28d535ff3288bef421bff388bb2924f67cf685d80ade6670ca2ad5b2e8b2a4`,
