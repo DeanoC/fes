@@ -347,6 +347,7 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 		numPorts:      numPorts,
 		singleTT:      dev.info.Speed == usb.SpeedHigh && !multiTTSelected,
 		powerSwitched: powerSwitched,
+		pwrGoodDelay:  pwrDelay,
 		statusEP:      statusEP,
 	}
 	h.openHubStatusPipe(hub)
@@ -466,6 +467,11 @@ func (h *MultiHost) handleHubStatusChange(hub *multiHub) bool {
 		if hub.powerSwitched {
 			for port := uint8(1); port <= hub.numPorts; port++ {
 				_, _ = h.ControlTransfer(hub.addr, 0x23, 3, 8, uint16(port), nil) // PORT_POWER
+			}
+			if hub.pwrGoodDelay > 0 {
+				if err := h.delay(hub.pwrGoodDelay); err != nil {
+					return false
+				}
 			}
 		}
 		for port := uint8(1); port <= hub.numPorts; port++ {

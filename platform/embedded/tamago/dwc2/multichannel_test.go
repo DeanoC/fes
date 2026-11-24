@@ -2617,3 +2617,66 @@ func TestMultiHostServiceDefersCompletionsWhileRXFIFOStillNonEmpty(t *testing.T)
 		t.Fatalf("packet lost or corrupted when RX FIFO exceeded per-call drain bound: got %x want %x", buf[:gotN], pkt)
 	}
 }
+
+func TestMultiHostHubRecoveryWaitsPowerGoodDelay(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	hub.hubDesc[5] = 60 // bPwrOn2PwrGood = 60 * 2 ms = 120 ms
+	pad := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	for {
+		if _, ok := host.NextEvent(); !ok {
+			break
+		}
+	}
+	if host.hubs[0].pwrGoodDelay != 120*time.Millisecond {
+		t.Fatalf("expected pwrGoodDelay=120ms, got %s", host.hubs[0].pwrGoodDelay)
+	}
+
+	// Trigger hub overcurrent to detach child, then recover (C_HUB_OVER_CURRENT=1, HUB_OVER_CURRENT=0).
+	sim.mu.Lock()
+	hub.hubStatus = (1 << 1) | (1 << 17)
+	sim.mu.Unlock()
+	for range 25 {
+		sim.advance(25 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+		if ev, ok := host.NextEvent(); ok && ev.Kind == usb.DeviceDetached {
+			break
+		}
+	}
+
+	// Signal overcurrent cleared; record time before the status bitmap is processed.
+	sim.mu.Lock()
+	hub.hubStatus = 1 << 17 // C_HUB_OVER_CURRENT set, HUB_OVER_CURRENT cleared
+	sim.mu.Unlock()
+	var reattached bool
+	var maxStep time.Duration
+	for range 25 {
+		sim.advance(25 * time.Millisecond)
+		before := sim.Now()
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+		if step := sim.Now().Sub(before); step > maxStep {
+			maxStep = step
+		}
+		if ev, ok := host.NextEvent(); ok && ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			reattached = true
+			break
+		}
+	}
+	if !reattached {
+		t.Fatal("downstream gamepad did not re-enumerate after hub overcurrent recovery")
+	}
+	if maxStep < 120*time.Millisecond {
+		t.Fatalf("hub recovery did not wait bPwrOn2PwrGood (120ms) after PORT_POWER: maxServiceStep=%s", maxStep)
+	}
+}
