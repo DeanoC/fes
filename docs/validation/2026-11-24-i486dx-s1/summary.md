@@ -32,7 +32,7 @@ main, #2195 ([G5](#g5-quake-on-the-rtl)).
 | G2, lockstep and the x87 suites | **Pass**: no failure in either arm, at level 3 (with every x87 suite) and level 4 |
 | G3, DE25 fit, device + four seeds | **Pass**, second attempt (`a36169588`). The first attempt (`5112461a9`) **failed** at the producer's signoff gate (no basis for the window-base CDC row); fixed by #2187, a separate reviewed PR |
 | G4, CPI | **Pass**: DOOM r = 1.058, so 2,062 × r = 2,182 realtics ≤ 4,682 (DX-33). DX2-66 (2,912) is kept by the bound too (reported, not gated) |
-| G5, Quake on the RTL | The stall is a real bug, found and fixed with a case that fails before the fix: see [G5](#g5-quake-on-the-rtl) |
+| G5, Quake on the RTL | **Pass.** The stall was a real x87 bug, fixed in #2195 with cases that fail before the fix. With the fix, Quake runs on the DX's RTL past the stall, through its demo, to 24.6 s with no CPU stop ([quake.md](quake.md)) |
 
 ## What was built
 
@@ -214,8 +214,10 @@ The fix moves the DE10 netlist, so it is not in this PR:
 - `fes_i386_x87.sv`: `fired` is set only for an instruction the unit has
   taken (`started || take`). With it the case passes, 126 of 126.
 
-**Quake on the DX with the fix** (a scratch merge, `494479998` + the fix):
-see [quake.md](quake.md).
+**Quake on the DX with the fix** (a scratch merge of `494479998` and the
+fix's first version): it passes the stall and plays its demo. It runs on the
+RTL to the end of its 20-second window: 579,354,541 retirements, 0 oracle
+steps, no stop ([quake.md](quake.md)).
 
 ## What this does not establish
 
