@@ -227,3 +227,25 @@ not been read when this file was committed.
      pinned revision. It runs with such a build made for this slice; if none
      can be made, its row reads "not run" with the reason. The other two
      benches are as written.
+
+2. **24 Nov 2026, before the fit (G3) started.** Seen by then: G1 at
+   `63aa526c8` (pass), and no G2–G5 result. The coordinator answered the
+   question G3 names: the approved DX configuration includes both shell
+   cuts, so both are merged before the fit, with plain merges:
+   - A-dma2, #2178, `deano/de25-pc386-dma2-regfile` at `7147b7d05`
+     (merge `0a357fc62`);
+   - S-lat, #2177, `deano/de25-shell-lat` at `642e22f50` (merge
+     `7f9a8954e`); its head may still move while its D12 reruns finish, and
+     later heads are merged in as they move.
+   - **This PR depends on #2036, #2171, #2177 and #2178 landing.**
+   - **The first-order sum before the fit:** 41,563 (#2171's median) + about
+     7,400 (the x87) − about 1,520 (`cuts`) − 1,047 (S-lat) − 284.5 (A-dma2)
+     ≈ **46,110 ALMs, 98.5% of the device**. An expectation only: G3's rule
+     is unchanged, and a seed that misses the device or timing is a fail.
+     No cut is added to rescue it.
+   - G3's fit is of the merged head. G2 and G4 run at `63aa526c8`: neither
+     merge changes a CPU file, `machine_tb` or a lockstep source, so the
+     CPU they test is the merged head's; G1 is rerun at the head the record
+     reports on.
+   - **TestFloat (G2.3):** the TestFloat build used is named in the record
+     with its revision.
