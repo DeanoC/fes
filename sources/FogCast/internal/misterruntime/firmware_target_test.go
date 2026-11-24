@@ -31,7 +31,32 @@ func de25UploadInput(t *testing.T, core string, size int) corepackage.ROMInput {
 		}
 		return raw
 	}
-	text := string(read("manifests", fmt.Sprintf("valid-nano-upload-%d.toml", size)))
+	// The PC/XT's 68 KiB image has no shared fixture: it is the 64 KiB one
+	// with the size, and the map's length and digest, rewritten.
+	source := size
+	if size == 69632 {
+		source = 65536
+	}
+	text := string(read("manifests", fmt.Sprintf("valid-nano-upload-%d.toml", source)))
+	mapping := read("maps", fmt.Sprintf("valid-nano-upload-%d.json", source))
+	if source != size {
+		before := fmt.Sprintf("\"source_size\":%d}\n", source)
+		if !bytes.HasSuffix(mapping, []byte(before)) {
+			t.Fatal("fixture map layout changed")
+		}
+		original := mapping
+		mapping = append(bytes.TrimSuffix(append([]byte(nil), mapping...), []byte(before)), fmt.Sprintf("\"source_size\":%d}\n", size)...)
+		for old, replacement := range map[string]string{
+			fmt.Sprintf("source_size = %d\n", source):               fmt.Sprintf("source_size = %d\n", size),
+			fmt.Sprintf("size = %d\n", len(original)):               fmt.Sprintf("size = %d\n", len(mapping)),
+			fmt.Sprintf("sha256 = \"%x\"", sha256.Sum256(original)): fmt.Sprintf("sha256 = \"%x\"", sha256.Sum256(mapping)),
+		} {
+			if strings.Count(text, old) != 1 {
+				t.Fatal("fixture manifest lacks", old)
+			}
+			text = strings.Replace(text, old, replacement, 1)
+		}
+	}
 	start, end := strings.Index(text, "[[interfaces]]"), strings.Index(text, "[build]")
 	if start < 0 || end < start {
 		t.Fatal("fixture manifest layout changed")
@@ -50,10 +75,16 @@ func de25UploadInput(t *testing.T, core string, size int) corepackage.ROMInput {
 			"fes.media.atari-st-floppy-geometry"} {
 			add(id, 1, 0)
 		}
+	} else if core == "fes.pcxt-dos" {
+		add("fes.media.pcxt-floppy", 1, 0)
+		add("fes.media.pcxt-floppy-write", 1, 0)
 	} else {
 		add("fes.media.spectrum-tape", 2, 0)
 	}
 	text = text[:start] + interfaces + text[end:]
+	if abi := corepackage.DE25ComputerABI(core); abi.Minor != 0 {
+		text = strings.Replace(text, "id = \"fes.simple-game\"\nmajor = 1\nminor = 0\n", fmt.Sprintf("id = \"fes.simple-game\"\nmajor = 1\nminor = %d\n", abi.Minor), 1)
+	}
 	for old, replacement := range map[string]string{
 		`id = "fes.pong"`:                   fmt.Sprintf("id = %q", core),
 		`programming_profile = "fes-gp-v1"`: `programming_profile = "de25-linux-computer-v1"`,
@@ -68,8 +99,7 @@ func de25UploadInput(t *testing.T, core string, size int) corepackage.ROMInput {
 	for i := range rom {
 		rom[i] = byte(i*13 + 7)
 	}
-	archive := appendROMMap(t, tarCoreArchive(t, []byte(text), read("payloads", "fes-fixture.rbf")),
-		read("maps", fmt.Sprintf("valid-nano-upload-%d.json", size)))
+	archive := appendROMMap(t, tarCoreArchive(t, []byte(text), read("payloads", "fes-fixture.rbf")), mapping)
 	return corepackage.ROMInput{Package: archive, ROM: rom}
 }
 
@@ -147,7 +177,8 @@ func (c *firmwareTargetControl) LoadFirmwareCore(ctx context.Context, path, id, 
 		link.SourceSHA256 = strings.Repeat("0", 64)
 	}
 	a.ROMLink = &link
-	a.Observed.ABI = &misterruntime.Protocol2Contract{ID: "fes.computer", Major: 1}
+	// The runtime reports the package's own computer minor.
+	a.Observed.ABI = &misterruntime.Protocol2Contract{ID: "fes.computer", Major: 1, Minor: uint16(a.Descriptor.ABI.Minor)}
 	r.Capabilities.ActiveInterfaces = nil
 	for _, i := range a.Descriptor.Interfaces {
 		r.Capabilities.ActiveInterfaces = append(r.Capabilities.ActiveInterfaces, misterruntime.Protocol2Interface{ID: i.ID, Major: uint16(i.Major), Minor: uint16(i.Minor)})
@@ -156,10 +187,14 @@ func (c *firmwareTargetControl) LoadFirmwareCore(ctx context.Context, path, id, 
 		return r.Capabilities.ActiveInterfaces[i].ID < r.Capabilities.ActiveInterfaces[j].ID
 	})
 	r.Capabilities.ProgrammingProfiles = []string{a.Descriptor.Target.ProgrammingProfile}
-	r.Capabilities.ABIs = []misterruntime.Protocol2ABI{{ID: "fes.computer", Major: 1, Interfaces: r.Capabilities.ActiveInterfaces}}
+	r.Capabilities.ABIs = []misterruntime.Protocol2ABI{{ID: "fes.computer", Major: 1, Minor: uint16(a.Descriptor.ABI.Minor), Interfaces: r.Capabilities.ActiveInterfaces}}
 	if initial != nil {
 		a.PersistenceMode = "persistent"
-		r.Capabilities.MediaUnits = []protocol.MediaUnitStatus{{Unit: 0, Interface: protocol.AtariStFloppyInterface(), MinBytes: 737280, MaxBytes: 737280, ChunkBytes: protocol.ComputerMediaChunkBytes, State: protocol.MediaUnitReady, Persistence: &protocol.MediaDataStatus{Mode: "persistent", GameID: initial.GameID, BaseMediaID: initial.BaseMediaID, Revision: "absent"}}}
+		floppy, bytes := protocol.AtariStFloppyInterface(), uint32(737280)
+		if a.Descriptor.Core.ID == "fes.pcxt-dos" {
+			floppy, bytes = protocol.PcxtFloppyInterface(), uint32(protocol.PcxtFloppyBytes)
+		}
+		r.Capabilities.MediaUnits = []protocol.MediaUnitStatus{{Unit: 0, Interface: floppy, MinBytes: bytes, MaxBytes: bytes, ChunkBytes: protocol.ComputerMediaChunkBytes, State: protocol.MediaUnitReady, Persistence: &protocol.MediaDataStatus{Mode: "persistent", GameID: initial.GameID, BaseMediaID: initial.BaseMediaID, Revision: "absent"}}}
 	}
 	c.status2 = &r
 	return r, nil
@@ -283,5 +318,30 @@ func TestFirmwareTargetRejectsAnotherSourceInTheReply(t *testing.T) {
 	defer runtime.Stop(context.Background())
 	if _, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(envelope)), bytes.NewReader(envelope)); apiErr == nil || !attempted || control.calls != 1 {
 		t.Fatal("reply naming another ROM confirmed", attempted, apiErr)
+	}
+}
+
+// A library DE25 PC/XT launch carries its start disk beside its uploaded
+// firmware in the same atomic request, and the kit confirms it.
+func TestFirmwareTargetPcxtLaunchCarriesItsStartDisk(t *testing.T) {
+	input := de25UploadInput(t, "fes.pcxt-dos", 69632)
+	disk := bytes.Repeat([]byte{0xf6}, int(protocol.PcxtFloppyBytes))
+	input.InitialMedia = &corepackage.InitialMedia{InterfaceID: protocol.PcxtFloppyInterface().ID, GameID: "freedos", BaseMediaID: fmt.Sprintf("%x", sha256.Sum256(disk)), Bytes: disk}
+	transport, err := corepackage.PrepareROMInput(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staged, err := corepackage.StageROMInputBytes(context.Background(), t.TempDir(), transport.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer staged.Cleanup()
+	control := newFirmwareTargetControl(t, true, 0)
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 20*time.Millisecond, misterruntime.WithCorePackageRoot(t.TempDir()))
+	defer runtime.Stop(context.Background())
+	active, attempted, apiErr := runtime.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), transport.Size(), transport.Reader(), staged.PackageID)
+	if apiErr != nil || !attempted || control.calls != 1 || control.initial == nil || control.initial.GameID != "freedos" ||
+		control.initial.Size != uint32(protocol.PcxtFloppyBytes) || active.ROMLink == nil || active.PersistenceMode != "persistent" {
+		t.Fatalf("activation=%#v attempted=%v error=%v calls=%d initial=%+v", active, attempted, apiErr, control.calls, control.initial)
 	}
 }

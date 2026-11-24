@@ -1,4 +1,4 @@
-"""DE25 Spectrum, Atari ST and C64 producer identity, manifest and firmware binding.
+"""DE25 Spectrum, Atari ST, C64 and PC/XT producer identity, manifest and firmware binding.
 
 The temporary Git tree and payload below exercise source and manifest
 boundaries; they are deliberately unqualified and never stand in for a
@@ -20,6 +20,7 @@ from boards.de25nano.package.export_core_package import (
 from boards.de25nano.producers import build_atari_st_package as atari_st
 from boards.de25nano.producers import build_c64_package as c64
 from boards.de25nano.producers import build_machine_package as shared
+from boards.de25nano.producers import build_pcxt_package as pcxt
 from boards.de25nano.producers import build_spectrum_package as spectrum
 from boards.de25nano.spectrum import native_hps
 
@@ -38,8 +39,13 @@ CASES = (
     (atari_st, '520st', 196608, 'fes.atari-st', 'atari-st-firmware', {'fes.mouse.relative', 'fes.media.atari-st-floppy',
                                  'fes.media.atari-st-floppy-write', 'fes.media.atari-st-floppy-geometry'}),
     (c64, 'pal', 36864, 'fes.c64', 'c64-firmware', {'fes.media.c64-disk'}),
+    (pcxt, 'xt', 69632, 'fes.pcxt-dos', 'pcxt-firmware', {'fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write'}),
 )
-PRODUCERS = (spectrum, atari_st, c64)
+PRODUCERS = (spectrum, atari_st, c64, pcxt)
+# The shared machine PLL's clock, or the machine's own; and the fes.computer
+# minor its endpoint answers.
+MACHINE_CLOCK = {spectrum: 52222222, atari_st: 52222222, c64: 52222222, pcxt: 100000000}
+ABI_MINOR = {spectrum: 0, atari_st: 0, c64: 0, pcxt: 1}
 
 
 class MachineProducerTests(unittest.TestCase):
@@ -59,7 +65,7 @@ class MachineProducerTests(unittest.TestCase):
         for captured in (*cls.captured.values(), cls.native_c64_captured):
             data.update({Path(name).relative_to('sources/misteross').as_posix(): value
                          for name, value in captured.items()})
-        for name in (spectrum.RECIPE, atari_st.RECIPE, c64.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
+        for name in (spectrum.RECIPE, atari_st.RECIPE, c64.RECIPE, pcxt.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
                      'boards/de25nano/quartus.lock', 'boards/de25nano/package/core_package.py',
                      'boards/de25nano/package/export_core_package.py', shared.NATIVE_SPECTRUM_COMPOSER, *shared.REVIEW_INPUTS):
             data.setdefault(name, (ROOT / name).read_bytes())
@@ -97,7 +103,7 @@ class MachineProducerTests(unittest.TestCase):
                 self.assertEqual(parameters['firmware_delivery'], 'gp-firmware-upload-v1')
                 self.assertEqual(parameters['guest_memory'], 'fabric-bram' if producer is c64 else 'board-sdram')
                 self.assertEqual(parameters['programming_profile'], 'de25-linux-computer-v1')
-                self.assertEqual(parameters['machine_clock_hz'], 52222222)
+                self.assertEqual(parameters['machine_clock_hz'], MACHINE_CLOCK[producer])
                 self.assertFalse(parameters['expansion_socket'])
                 self.assertEqual(json.loads(record)['recipe'], producer.RECIPE)
                 identities.add(build_identity(record))
@@ -124,7 +130,7 @@ class MachineProducerTests(unittest.TestCase):
                 self.assertEqual(manifest['core']['id'], core_id)
                 self.assertEqual(manifest['target'], {'platform': 'de25_nano', 'device': shared.DEVICE,
                                                       'programming_profile': 'de25-linux-computer-v1'})
-                self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 0})
+                self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': ABI_MINOR[producer]})
                 self.assertEqual({i['id'] for i in manifest['interfaces']}, SHELL | media)
                 # Only a disk controller is optional, and it is declared beside its disk unit.
                 self.assertEqual({i['id'] for i in manifest['interfaces'] if not i['required']},
