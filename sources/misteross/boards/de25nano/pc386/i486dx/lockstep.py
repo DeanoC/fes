@@ -46,12 +46,19 @@ def main(argv):
     # The level-4 runner records no sources; add the same record to its
     # report, only to one this run wrote: an earlier run's report is removed
     # first, so a run that fails before writing leaves none to relabel.
+    # The record is taken before the run, as level 3 takes its own, and a
+    # source that changed while the run went on fails the report.
     report = level4.OUTPUT / 'report.json'
     report.unlink(missing_ok=True)
+    before = level3.source_record()
     status = level4.main()
     if report.exists():
         data = json.loads(report.read_text())
-        data['i486dx_source'] = level3.source_record()
+        data['i486dx_source'] = before
+        if level3.source_record() != before:
+            data['failures'] = [*data.get('failures', []),
+                                'i486dx sources changed during the run: the report names sources it did not test']
+            status = status or 1
         report.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
     return status
 
