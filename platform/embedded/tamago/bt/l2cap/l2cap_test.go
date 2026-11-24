@@ -1518,16 +1518,17 @@ func TestPairingModeReplacesStaleLinkKeyAndRecoversOnAuthFailure(t *testing.T) {
 	}
 }
 
-func TestBatchedInquiryResultsDecodeFieldArrays(t *testing.T) {
+func TestBatchedInquiryResultsDecodeInterleavedRecords(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		evCode byte
+		codOff int
+		clkOff int
 	}{
-		{name: "inquiry_result", evCode: hci.EventInquiryResult},
-		{name: "inquiry_result_with_rssi", evCode: hci.EventInquiryResultWithRSSI},
+		{name: "inquiry_result", evCode: hci.EventInquiryResult, codOff: 9, clkOff: 12},
+		{name: "inquiry_result_with_rssi", evCode: hci.EventInquiryResultWithRSSI, codOff: 8, clkOff: 11},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			evCode := tc.evCode
 			bus := newL2CAPMockBus()
 			tr, err := hci.Open(bus, bus.dev)
 			if err != nil {
@@ -1548,26 +1549,23 @@ func TestBatchedInquiryResultsDecodeFieldArrays(t *testing.T) {
 			phone, _ := ParseBDAddr("10:11:12:13:14:01")
 			pad, _ := ParseBDAddr("10:11:12:13:14:02")
 
-			// Num_Responses = 2 laid out in HCI column-major parallel arrays:
-			// [addr0, addr1], [psrm0, psrm1], [res...], [cod0, cod1], [clk0, clk1], [rssi...]
+			// Num_Responses = 2 laid out as interleaved 14-byte HCI inquiry records.
 			ev := make([]byte, 2+1+2*14)
-			ev[0] = evCode
+			ev[0] = tc.evCode
 			ev[1] = 1 + 2*14
 			ev[2] = 2 // Num_Responses
-			copy(ev[3:9], phone[:])
-			copy(ev[9:15], pad[:])
-			ev[15] = 0 // psrm[0]
-			ev[16] = 1 // psrm[1]
-			codBase := 3 + 6*2 + 2 + 2*2
-			if evCode == hci.EventInquiryResultWithRSSI {
-				codBase = 3 + 6*2 + 2 + 2
-			}
-			// cod[0] = phone 0x5a020c, cod[1] = gamepad 0x002508
-			ev[codBase+0], ev[codBase+1], ev[codBase+2] = 0x0c, 0x02, 0x5a
-			ev[codBase+3], ev[codBase+4], ev[codBase+5] = 0x08, 0x25, 0x00
-			clkBase := codBase + 6
-			binary.LittleEndian.PutUint16(ev[clkBase:clkBase+2], 0x1111)
-			binary.LittleEndian.PutUint16(ev[clkBase+2:clkBase+4], 0x2233)
+
+			rec0 := ev[3 : 3+14]
+			copy(rec0[0:6], phone[:])
+			rec0[6] = 0 // psrm[0]
+			rec0[tc.codOff], rec0[tc.codOff+1], rec0[tc.codOff+2] = 0x0c, 0x02, 0x5a // phone CoD
+			binary.LittleEndian.PutUint16(rec0[tc.clkOff:tc.clkOff+2], 0x1111)
+
+			rec1 := ev[3+14 : 3+28]
+			copy(rec1[0:6], pad[:])
+			rec1[6] = 1 // psrm[1]
+			rec1[tc.codOff], rec1[tc.codOff+1], rec1[tc.codOff+2] = 0x08, 0x25, 0x00 // gamepad CoD
+			binary.LittleEndian.PutUint16(rec1[tc.clkOff:tc.clkOff+2], 0x2233)
 
 			bus.evPipe.inQueue = append(bus.evPipe.inQueue, ev)
 			if err := mgr.Service(); err != nil {

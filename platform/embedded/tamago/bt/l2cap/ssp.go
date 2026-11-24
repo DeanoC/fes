@@ -467,6 +467,24 @@ func (m *Manager) resumeInquiryIfPairing() {
 	m.inquiryRetryAt = time.Time{}
 }
 
+func (m *Manager) handleInquiryRecords(params []byte, codOff, clkOff int) {
+	if len(params) < 1 {
+		return
+	}
+	n := int(params[0])
+	if n <= 0 || len(params) < 1+n*14 {
+		return
+	}
+	for i := 0; i < n; i++ {
+		rec := params[1+i*14 : 1+(i+1)*14]
+		var addr BDAddr
+		copy(addr[:], rec[0:6])
+		cod := uint32(rec[codOff]) | uint32(rec[codOff+1])<<8 | uint32(rec[codOff+2])<<16
+		clk := binary.LittleEndian.Uint16(rec[clkOff : clkOff+2])
+		m.maybeInitiatePair(addr, cod, rec[6], clk)
+	}
+}
+
 func (m *Manager) maybeInitiatePair(addr BDAddr, cod uint32, pageScanRep byte, clockOff uint16) {
 	if !m.pairingActive || m.connecting || !isHIDPeripheralCoD(cod) {
 		return
@@ -706,48 +724,14 @@ func (m *Manager) handleEvent(ev []byte) {
 		_ = m.bonds.Upsert(rec)
 
 	case hci.EventInquiryResult:
-		// Parallel field arrays (Num_Responses = n):
-		// addr[6*n], psrm[n], reserved[2*n], cod[3*n], clk[2*n]
-		if len(params) < 1 {
-			return
-		}
-		n := int(params[0])
-		if n <= 0 || len(params) < 1+n*14 {
-			return
-		}
-		for i := 0; i < n; i++ {
-			addrOff := 1 + i*6
-			psrmOff := 1 + 6*n + i
-			codOff := 1 + 9*n + i*3
-			clkOff := 1 + 12*n + i*2
-			var addr BDAddr
-			copy(addr[:], params[addrOff:addrOff+6])
-			cod := uint32(params[codOff]) | uint32(params[codOff+1])<<8 | uint32(params[codOff+2])<<16
-			clk := binary.LittleEndian.Uint16(params[clkOff : clkOff+2])
-			m.maybeInitiatePair(addr, cod, params[psrmOff], clk)
-		}
+		// Interleaved 14-byte records per response (Num_Responses = n):
+		// [0..5]=addr, [6]=psrm, [7..8]=reserved, [9..11]=cod, [12..13]=clk
+		m.handleInquiryRecords(params, 9, 12)
 
 	case hci.EventInquiryResultWithRSSI:
-		// Parallel field arrays (Num_Responses = n):
-		// addr[6*n], psrm[n], reserved[n], cod[3*n], clk[2*n], rssi[n]
-		if len(params) < 1 {
-			return
-		}
-		n := int(params[0])
-		if n <= 0 || len(params) < 1+n*14 {
-			return
-		}
-		for i := 0; i < n; i++ {
-			addrOff := 1 + i*6
-			psrmOff := 1 + 6*n + i
-			codOff := 1 + 8*n + i*3
-			clkOff := 1 + 11*n + i*2
-			var addr BDAddr
-			copy(addr[:], params[addrOff:addrOff+6])
-			cod := uint32(params[codOff]) | uint32(params[codOff+1])<<8 | uint32(params[codOff+2])<<16
-			clk := binary.LittleEndian.Uint16(params[clkOff : clkOff+2])
-			m.maybeInitiatePair(addr, cod, params[psrmOff], clk)
-		}
+		// Interleaved 14-byte records per response (Num_Responses = n):
+		// [0..5]=addr, [6]=psrm, [7]=reserved, [8..10]=cod, [11..12]=clk, [13]=rssi
+		m.handleInquiryRecords(params, 8, 11)
 
 	case hci.EventExtendedInquiryResult:
 		// [0]=num(1) [1..6]=addr [7]=psrm [8]=res [9..11]=cod [12..13]=clk [14]=rssi [15..]=EIR
