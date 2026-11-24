@@ -18,6 +18,9 @@ const (
 	// RFC 2131 §4.4.5 recommends waiting half of the remaining time until T2 or
 	// lease expiration, down to a minimum of 60 seconds, between renewal retries.
 	defaultRenewMinInterval = 60 * time.Second
+	// Short pause-aware retry used when SendRawFrame reports ErrPaused (e.g. during
+	// FPGA reconfiguration) so no request was actually transmitted on the wire.
+	defaultRenewPausedRetry = 250 * time.Millisecond
 )
 
 var (
@@ -173,17 +176,29 @@ func renewDHCPOnceWithTime(ctx context.Context, port DHCPFramePort, macStr strin
 			return DHCPLease{}, time.Time{}, err
 		}
 		attemptAt := time.Now()
+		paused := false
 		if err := port.SendRawFrame(txFrame); err != nil {
-			// If traffic is temporarily paused (e.g., FPGA reconfiguration), wait and retry.
+			// If traffic is temporarily paused (e.g., FPGA reconfiguration), wait briefly
+			// and retry rather than applying RFC 2131 unanswered-request backoff.
 			if !errors.Is(err, ErrPaused) {
 				return DHCPLease{}, time.Time{}, err
 			}
+			paused = true
 		} else if requestSentAt.IsZero() {
 			// RFC 2131 §4.4.5: anchor renewed T1/T2/expiration conservatively to when
 			// the DHCPREQUEST for this XID was first transmitted.
 			requestSentAt = attemptAt
 		}
-		wait := nextRenewWait(ctx, minInterval)
+		var wait time.Duration
+		if paused {
+			pauseRetry := defaultRenewPausedRetry
+			if minInterval < pauseRetry {
+				pauseRetry = minInterval
+			}
+			wait = boundedWait(ctx, pauseRetry)
+		} else {
+			wait = nextRenewWait(ctx, minInterval)
+		}
 		if wait <= 0 {
 			if err := ctx.Err(); err != nil {
 				return DHCPLease{}, time.Time{}, err
@@ -204,6 +219,22 @@ func renewDHCPOnceWithTime(ctx context.Context, port DHCPFramePort, macStr strin
 		case <-timer.C:
 		}
 	}
+}
+
+// boundedWait clamps d to the remaining context deadline if one is set.
+func boundedWait(ctx context.Context, d time.Duration) time.Duration {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return d
+	}
+	rem := time.Until(deadline)
+	if rem <= 0 {
+		return 0
+	}
+	if d > rem {
+		return rem
+	}
+	return d
 }
 
 // nextRenewWait implements RFC 2131 §4.4.5 retransmission pacing: half of the

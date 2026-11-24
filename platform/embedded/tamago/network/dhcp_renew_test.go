@@ -861,3 +861,66 @@ func (p *countingErrPort) SendRawFrame([]byte) error {
 }
 func (p *countingErrPort) AddTap(fn func([]byte)) func() { return p.base.AddTap(fn) }
 func (p *countingErrPort) Err() error                    { return nil }
+
+func TestPausedSendRetriesQuicklyBeforeBackoff(t *testing.T) {
+	clientMACStr := "52:54:00:12:34:56"
+	clientMAC, _ := parseUnicastMAC(clientMACStr)
+	serverIP := [4]byte{10, 0, 2, 2}
+	clientIP := [4]byte{10, 0, 2, 15}
+	mask := [4]byte{255, 255, 255, 0}
+
+	port := newFakeRenewPort()
+	var attempts atomic.Int32
+	pausedPort := &pausedOncePort{
+		base:     port,
+		attempts: &attempts,
+		onSuccess: func(frame []byte) {
+			xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
+			go port.inject(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, clientIP, xid,
+				makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &serverIP, 3600), false))
+		},
+	}
+
+	// Simulate a 24h lease's T1->T2 window (9h remaining) with default 60s RetryInterval.
+	// A single ErrPaused must retry quickly (~250ms), NOT back off by ~4.5h.
+	ctx, cancel := context.WithTimeout(context.Background(), 9*time.Hour)
+	defer cancel()
+	start := time.Now()
+	got, err := RenewDHCPOnce(ctx, pausedPort, clientMACStr, DHCPLease{
+		Address:       "10.0.2.15/24",
+		Gateway:       "10.0.2.2",
+		Server:        "10.0.2.2",
+		LeaseDuration: 24 * time.Hour,
+	}, false, RenewConfig{})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("RenewDHCPOnce after pause: %v", err)
+	}
+	if got.LeaseDuration != time.Hour {
+		t.Fatalf("LeaseDuration=%v, want 1h", got.LeaseDuration)
+	}
+	if attempts.Load() < 2 {
+		t.Fatalf("attempts=%d, want >= 2", attempts.Load())
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("paused retry took %v, want < 2s (should not apply RFC unanswered-request backoff)", elapsed)
+	}
+}
+
+type pausedOncePort struct {
+	base      *fakeRenewPort
+	attempts  *atomic.Int32
+	onSuccess func(frame []byte)
+}
+
+func (p *pausedOncePort) SendRawFrame(frame []byte) error {
+	if p.attempts.Add(1) == 1 {
+		return ErrPaused
+	}
+	if p.onSuccess != nil {
+		p.onSuccess(append([]byte(nil), frame...))
+	}
+	return nil
+}
+func (p *pausedOncePort) AddTap(fn func([]byte)) func() { return p.base.AddTap(fn) }
+func (p *pausedOncePort) Err() error                    { return nil }
