@@ -1,0 +1,3 @@
+# l1d.ev3 (way 3 of the even bank) declarations in each level-4 build's Verilated root header
+fes-i486-lockstep/rtl-I4861/Vfes_i386_cpu___024root.h:1
+fes-i486dx-i486-lockstep/rtl-I4861/Vfes_i386_cpu___024root.h:0
