@@ -44,7 +44,7 @@ func awaitChord(t *testing.T, done <-chan error) error {
 func TestChordFocusRetiresKeyAndModifiers(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	posts := make(chan hidkeys.Rows, 16)
-	ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
+	ports.hid.setPoster(func(_ context.Context, _, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
 	controller := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 	resume, done := pausedChord(t, ports.hid, 4)
 	if got := <-posts; got[0] != 1<<4 || got[8] != 2 {
@@ -79,7 +79,7 @@ func TestChordFocusRetiresKeyAndModifiers(t *testing.T) {
 func TestChordDisconnectPreservesLocalModifier(t *testing.T) {
 	posts := make(chan hidkeys.Rows, 16)
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
+	hid.setPoster(func(_ context.Context, _, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
 	hid.bind(&KeyboardHIDBinding{PackageID: "p", Generation: 7})
 	shift, _ := hidkeys.Code(0xe1)
 	if err := hid.applyFrom(context.Background(), sourceLocal, keyboardFrameFor(shift, remoteinput.ActionPress)); err != nil {
@@ -110,7 +110,7 @@ func TestChordDisconnectPreservesLocalModifier(t *testing.T) {
 func TestChordPreservesRemoteModifierPressedDuringTap(t *testing.T) {
 	posts := make(chan hidkeys.Rows, 16)
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
+	hid.setPoster(func(_ context.Context, _, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
 	hid.bind(&KeyboardHIDBinding{PackageID: "p", Generation: 7})
 	resume, done := pausedChord(t, hid, 4)
 	<-posts
@@ -137,7 +137,7 @@ func TestChordPreservesRemoteModifierPressedDuringTap(t *testing.T) {
 func TestChordRejectsOverlappingModifierWithoutChangingFirst(t *testing.T) {
 	posts := make(chan hidkeys.Rows, 16)
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
+	hid.setPoster(func(_ context.Context, _, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
 	hid.bind(&KeyboardHIDBinding{PackageID: "p", Generation: 7})
 	resume, done := pausedChord(t, hid, 4)
 	<-posts
@@ -161,7 +161,7 @@ func TestChordRejectsOverlappingModifierWithoutChangingFirst(t *testing.T) {
 func TestChordRespectsFocusSuppressedRemoteModifier(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	posts := make(chan hidkeys.Rows, 16)
-	ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
+	ports.hid.setPoster(func(_ context.Context, _, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
 	controller := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 	finish, err := controller.BeginSessionDisplay(context.Background(), true)
 	if err != nil {
@@ -199,7 +199,7 @@ func TestChordRespectsFocusSuppressedRemoteModifier(t *testing.T) {
 func TestChordRejectsModifierTapInFlight(t *testing.T) {
 	posts := make(chan hidkeys.Rows, 16)
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
+	hid.setPoster(func(_ context.Context, _, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
 	hid.bind(&KeyboardHIDBinding{PackageID: "p", Generation: 7})
 	started, resume, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
 	go func() { done <- hid.tap(context.Background(), tapFrame(0xe1, 7), func() { close(started); <-resume }) }()
@@ -229,7 +229,7 @@ func TestChordRejectsModifierTapInFlight(t *testing.T) {
 func TestRetiredChordCannotReleaseReplacementWithSameBinding(t *testing.T) {
 	posts := make(chan hidkeys.Rows, 16)
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
+	hid.setPoster(func(_ context.Context, _, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
 	binding := &KeyboardHIDBinding{PackageID: "p", Generation: 7}
 	hid.bind(binding)
 	oldResume, oldDone := pausedChord(t, hid, 4)

@@ -34,6 +34,97 @@ platform may perform additional ownership work within each call.
 `Hold` neutralizes input while preserving the GP epoch and loaded tape. `Run`
 releases execution reset. `Keyboard` delivers all nine HID rows. `LoadTape`
 and `EjectTape` use the shared unit-0 chunk/CRC protocol, preserving execution.
+
+## Spectrum 48K firmware prototype
+
+The DE25 standard Spectrum 48K RTL from #1937 already implements the atomic
+mailbox, firmware upload, ROM storage and execution hold. Its existing format-3
+`gp-firmware-upload-v1` map and FogCast retained ROM receipt bind the source
+size and digest to the unmodified FPGA payload. The native Go driver reuses
+the generated firmware-upload opcodes and the same mailbox transport as native
+ZX81. Following an acknowledged Hold, `LoadInitialFirmware` requires an empty
+endpoint of the selected size, sends the header and byte pairs in order, and
+verifies that Commit left a complete ready image. The caller can then release
+the machine. A reject or uncertain completion retires the handle.
+
+From the repository root:
+
+```sh
+python3 sources/misteross/boards/de25nano/spectrum/sim.py --model 48 --native-mailbox
+```
+
+The Go test retains the open diagnostic ROM against a synthetic package with
+the Spectrum 48K upload map, then drives the Verilated Spectrum wrapper's
+actual Avalon slave. It checks the simulated CPU's RAM marker after Run,
+acknowledged Hold on return, and a fresh upload after reconfiguration. Failure
+cases include the wrong live build or ROM size, release before upload, a
+cancelled submission, CRC rejection, a ready image, and an uncertain Hold.
+
+The `native48` producer variant uses `de25-native-spectrum48-v1`, with a
+distinct build identity and a control-map sidecar bound to the RBF hash. The
+native register at offset 0x18 requests a fresh machine-clock fetch count and
+address. The machine holds the pair while a separately synchronized reply
+crosses to the peripheral clock. A single capture feeds both registers. A
+stopped machine clock returns a bounded Avalon error and poisons the transport.
+The model checks the diagnostic RAM marker and successive count/address pairs
+against the source snapshot across unrelated clocks. The Linux variants retain
+the video-ready register at the same offset.
+
+The off-board Tenfoot test uses the real launcher frontend, a file-backed FAT32
+volume and the runtime package store. The test host models the SD lease and
+loading a fresh FPGA configuration. Each launch retains and validates the
+archive and ROM from FAT32, contains storage, and uploads the retained bytes
+over the actual Spectrum RTL. A corrupt ROM is rejected before containment.
+Return blocks display submissions, issues the local scanout STOP, waits for
+outstanding reads and the GP display plane to drain, and obtains Hold before
+reopening storage. Missing read replies leave the lease contained and prevent
+further mailbox commands.
+
+The managed Spectrum shell and the matched native Tenfoot shell differ in the
+generated Platform Designer handoff. Spectrum configures `H2F_Width=0` and
+`f2sdram_SMMU=true`, while the native shell requires `128` and `false`.
+Spectrum exports its scanout guard at peripheral offset `0x10200` and the
+computer mailbox at `0x10300`. Native TF-A uses a source-bound embedded control
+endpoint and an independent DDR probe at `0x10100`. The Spectrum shell exports
+neither native stop endpoint. Its local STOP acknowledgment does not provide
+the generation/cookie proof used to close native bridges. The native
+ProgramService rejects an unmatched package profile and restores the menu.
+
+The Spectrum role prototype pins the FPGA display grant to the two native
+DDR slots at `0x95000000`. STOP retires the grant until the endpoint resets.
+The TF-A stop engine verifies the matching build, retired state, a fresh
+readback of the grant generation and outstanding count, and the independent
+DDR probe through their owned callbacks. The off-board test links the C
+stop engine to Verilated Spectrum scanout and models the idle probe callback.
+The native descriptor encoder leaves the staged-ROM extension empty. The
+secure decoder admits this role only if trusted initialization supplies the
+exact package, build, size, whole and per-chunk hashes.
+
+The native HPS composition generates the retained H2F bridge, non-SMMU
+F2SDRAM, the independent probe and a scanout-only display master with
+maintenance held in reset. The opt-in cold platform opens only control for
+Spectrum, verifies a fresh reader at the native guard aperture and requires
+the joined stop and held bridge receipt for SD return or source retirement.
+The data bridges stay held. Spectrum media uses the existing unit-0
+mailbox and board SDRAM, so the upload needs only the owned control bridge.
+
+The SD-backed ProgramService accepts Spectrum when the native launcher
+includes an exact compiled companion record. A FAT32 fixture exercises
+launch, return, relaunch and Park with a modeled FPGA endpoint. It also
+checks rejection of mismatched content and containment after uncertain
+mailbox commit, fetch activity during Hold, or reader drain. Spectrum
+uploads its retained 16 KiB ROM through 8,192 mailbox data commands while
+execution is held. The opt-in SD tape choice uses `format: "spectrum-tape"`
+alongside its path, size and SHA-256. The shared FogCast converter prepares
+the PZX stream while SD is owned. The first native delivery path caps the
+source and converted stream at 64 KiB each. A fresh Hold acknowledgement
+binds the tape upload after ROM upload. Ready and stable held fetch counters
+are required before release. The legacy ZX81 tape choice omits the format.
+
+The matched chain still needs the signed-off native Spectrum payload and
+companion record generation. Physical upload timing, bridge ownership and
+HDMI output remain to be measured.
+
 The diagnostic board's limit is 16375 bytes, below the general ABI's 16384.
 Callers must not mutate supplied slices concurrently with a call; tape bytes
 are copied before CRC and transfer. These are command operations, not a runtime

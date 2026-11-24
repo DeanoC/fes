@@ -30,7 +30,7 @@ def selected(directory):
     return policy == POLICY
 
 
-def findings(drc):
+def findings(drc, *, native_spectrum=False):
     from boards.de25nano.scanout import async_inputs as a
     sections = [s for s in drc.split('Status:')[1:] if '; RDC-50003 -' in s]
     a.require(len(sections) == 1, 'missing/ambiguous output-reset RDC detail')
@@ -40,12 +40,17 @@ def findings(drc):
     rows = [r for r in table if len(r) == 5 and r[0] != 'Reset Clock Domain']
     a.require(len(rows) == 1, 'only one output-reset RDC domain is reviewed')
     clock, count, heads, sources, waived = rows[0]
+    # Native Spectrum splits the identical first-lock assertion into a
+    # reset-only register. The allowed pixel domain and heads stay exact.
+    expected_sources = SOURCES
+    if native_spectrum:
+        expected_sources = SOURCES - {'fes_video_inst|first_lock_seen'} | {'fes_video_inst|scanout_release'}
     a.require(clock == CLOCK and count == '2' and not waived and
               set(heads.split()) == HEADS and len(heads.split()) == len(HEADS) and
-              set(sources.split()) == SOURCES and len(sources.split()) == len(SOURCES),
+              set(sources.split()) == expected_sources and len(sources.split()) == len(expected_sources),
               'output-reset RDC topology/sources changed')
     return {'id': 'RDC-50003', 'violations': 1, 'clock': CLOCK,
-            'heads': sorted(HEADS), 'sources': sorted(SOURCES), 'basis': POLICY}
+            'heads': sorted(HEADS), 'sources': sorted(expected_sources), 'basis': POLICY}
 
 
 def review_reports(directory):
@@ -79,10 +84,16 @@ def bindings(directory):
     from boards.de25nano.scanout import async_inputs as a
     directory = Path(directory)
     a.require(selected(directory), 'output-reset policy not selected')
+    fit = a.bindings(directory)
+    params = json.loads((directory.parent / 'build-inputs.json').read_bytes())['parameters']
     board = directory / 'combined/hps/project/fes_mailbox/fes_de25_scanout_board.v'
-    a.require(not board.is_symlink() and a.sha(board) == a.sha(HERE / board.name),
+    reference = (HERE / board.name).read_bytes()
+    if a.native_upload_shell(params):
+        from boards.de25nano.spectrum import native_hps
+        reference = native_hps.separate_scanout_reset(reference.decode()).encode()
+    a.require(not board.is_symlink() and board.read_bytes() == reference,
               'compiled output-reset board differs from reviewed source')
-    return {'fit': a.bindings(directory), 'compiled_board_sha256': a.sha(board)}
+    return {'fit': fit, 'compiled_board_sha256': a.sha(board)}
 
 
 def collect(directory, copied_project, output, quartus_sta):
@@ -119,4 +130,5 @@ def verify(directory, output):
     result = review_reports(reports)
     a.require(result == receipt['result'], 'output-reset result changed')
     drc = (Path(directory) / 'combined/hps/project/output_files/golden_top.tq.drc.signoff.rpt').read_text()
-    return dict(result, finding=findings(drc))
+    params = json.loads((Path(directory).parent / 'build-inputs.json').read_bytes())['parameters']
+    return dict(result, finding=findings(drc, native_spectrum=a.native_upload_shell(params)))

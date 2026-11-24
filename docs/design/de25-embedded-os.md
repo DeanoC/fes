@@ -141,8 +141,8 @@ timing/seal checks.
 
 ## Prototype and evidence boundary
 
-[`examples/de25-embedded-os`](../../examples/de25-embedded-os/README.md)
-contains a shared allocation-free C++14 protocol probe, host fault tests,
+`examples/de25-embedded-os` (retired after the TamaGo base superseded it)
+contained a shared allocation-free C++14 protocol probe, host fault tests,
 a Zephyr application and a pure bare-metal QEMU adapter. It consumes the
 existing generated `fes.simple-game` constants without changing them.
 

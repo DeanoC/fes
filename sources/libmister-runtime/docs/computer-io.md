@@ -4,13 +4,10 @@ The `fes.computer` 1.0 and 1.1 ABIs use identity tag 4 on the existing `fes-gp-v
 programming profile and GP transport. The authoritative wire contract is
 mister-packages [home-computer I/O](../../mister-packages/docs/computer-io.md);
 the constants are generated from `packages/abi/fes_computer.yaml` into
-`src/native/generated/fes_computer.hpp`. The consumers are the FES Apple II
-([pathfinder contract](../../../docs/superpowers/specs/2026-09-26-apple2-pathfinder-design.md)),
-the FES ZX Spectrum
-([pathfinder contract](../../../docs/superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)),
-the FES Commodore 64 and the FES Atari 520ST, all on ABI 1.0, and the FES pc386
-on ABI 1.1. The PC/XT read-only floppy endpoint is exercised in host simulation;
-hardware acceptance remains separate.
+`src/native/generated/fes_computer.hpp`. The consumers are the FES Apple II,
+the FES ZX Spectrum, the FES Commodore 64 and the FES Atari 520ST, all on ABI
+1.0, and the FES pc386 on ABI 1.1. The PC/XT read-only floppy endpoint is
+exercised in host simulation; hardware acceptance remains separate.
 Existing `fes.simple-game`, `fes.simple-computer` and `fes.application`
 packages keep their requirements, wire identities and startup behavior.
 
@@ -191,10 +188,19 @@ positive integers. Each operation binds the exact active package and
 generation and follows the existing lifecycle busy boundary, so input and media
 requests are serialized with each other, Stop and replacement.
 
+Keyboard matrix and HID requests also carry the runtime instance returned by
+status. It is a nonzero 128-bit lowercase hexadecimal identity created for
+each runtime authority, not a generation counter. The runtime checks the
+instance, package and generation together before starting a keyboard write.
+For a contained development matrix session, `package_id` is explicitly the
+empty string; it is not a wildcard. Missing or mismatched identity is rejected.
+The agent and runtime must use the matching protocol contract in the same
+software bundle.
+
 ### `set_keyboard_hid`
 
 ```json
-{"protocol":2,"operation":"set_keyboard_hid","package_id":"<64 lowercase hex>","expected_generation":3,"rows":[16,0,0,0,0,0,0,0,2]}
+{"protocol":2,"operation":"set_keyboard_hid","runtime_instance":"<32 lowercase hex>","package_id":"<64 lowercase hex>","expected_generation":3,"rows":[16,0,0,0,0,0,0,0,2]}
 ```
 
 `rows` is exactly nine integers 0..65535. Row 0 bits 0..3 (HID error usages)

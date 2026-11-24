@@ -18,7 +18,7 @@ import (
 func de25SpectrumResponse(t *testing.T, upload bool) (string, corepackage.ROMLinkIdentity) {
 	t.Helper()
 	var root map[string]any
-	if err := json.Unmarshal([]byte(fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0]), &root); err != nil {
+	if err := json.Unmarshal([]byte(currentDE25Fixture(t, fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0])), &root); err != nil {
 		t.Fatal(err)
 	}
 	iface := func(id string, major, minor int) map[string]any {
@@ -161,7 +161,7 @@ func TestFirmwareUploadClientRefusesBeforeMutation(t *testing.T) {
 	id := active.ActivePackage.PackageID
 	// The ZX81-only DE25 runtime and a Cyclone V linker both lack the interface.
 	for name, status := range map[string]string{
-		"DE25 without upload": fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0],
+		"DE25 without upload": currentDE25Fixture(t, fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0]),
 		"linker":              fixtureLines(t, "protocol-v2-rom-package-responses.jsonl")[1],
 	} {
 		fixture := newSequenceSocketFixture(t, []string{status + "\n"})
@@ -200,4 +200,105 @@ func TestFirmwareUploadClientRefusesBeforeMutation(t *testing.T) {
 			t.Errorf("%s: %v", name, err)
 		}
 	}
+}
+
+// de25PCXTResponse is the DE25 PC/XT running after a firmware upload, as the
+// runtime reports it: a fes.computer 1.1 package (the PC/XT floppy is a 1.1
+// interface), the 64 KiB system ROM plus 4 KiB CGA font as one image, and the
+// empty writable 360 KiB floppy unit. abiMinor sets the declared and observed
+// computer minor.
+func de25PCXTResponse(t *testing.T, abiMinor int) (string, corepackage.ROMLinkIdentity) {
+	t.Helper()
+	var root map[string]any
+	if err := json.Unmarshal([]byte(currentDE25Fixture(t, fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0])), &root); err != nil {
+		t.Fatal(err)
+	}
+	iface := func(id string, major, minor int) map[string]any {
+		return map[string]any{"id": id, "major": major, "minor": minor}
+	}
+	// Ascending identities, as the runtime reports them.
+	live := []any{iface("fes.audio.pcm-s16-stereo-48k", 1, 0), iface("fes.fabric.de25-scanout", 1, 3),
+		iface("fes.fabric.firmware-upload", 1, 0), iface("fes.fabric.video.display-plane", 1, 0),
+		iface("fes.gamepad.ports", 1, 0), iface("fes.keyboard.hid", 1, 0),
+		iface("fes.media.pcxt-floppy", 1, 0), iface("fes.media.pcxt-floppy-write", 1, 0),
+		iface("fes.video.fixed-720p60", 1, 0), iface("fes.video.session-display", 1, 0)}
+	capabilities := root["capabilities"].(map[string]any)
+	computer := capabilities["abis"].([]any)[1].(map[string]any)
+	computer["minor"], computer["interfaces"] = 1, live
+	capabilities["active_interfaces"] = live
+	capabilities["media_units"] = []any{map[string]any{"unit": 0, "interface": iface("fes.media.pcxt-floppy", 1, 0),
+		"min_bytes": protocol.PcxtFloppyBytes, "max_bytes": protocol.PcxtFloppyBytes, "chunk_bytes": 512, "state": "empty"}}
+	root["core"] = "fes.pcxt-dos"
+	active := root["active_package"].(map[string]any)
+	active["observed"].(map[string]any)["abi"].(map[string]any)["minor"] = abiMinor
+	descriptor := active["descriptor"].(map[string]any)
+	descriptor["format"] = 3
+	descriptor["abi"].(map[string]any)["minor"] = abiMinor
+	descriptor["core"].(map[string]any)["id"] = "fes.pcxt-dos"
+	var declared []any
+	for _, id := range []string{"fes.video.fixed-720p60", "fes.keyboard.hid", "fes.gamepad.ports", "fes.audio.pcm-s16-stereo-48k",
+		"fes.video.session-display", "fes.fabric.video.display-plane", "fes.media.pcxt-floppy", "fes.media.pcxt-floppy-write",
+		"fes.fabric.firmware-upload"} {
+		declared = append(declared, map[string]any{"id": id, "major": 1, "minor": 0, "required": true})
+	}
+	declared = append(declared, map[string]any{"id": "fes.fabric.de25-scanout", "major": 1, "minor": 3, "required": true})
+	descriptor["interfaces"] = declared
+	payload := descriptor["payload"].(map[string]any)
+	link := corepackage.ROMLinkIdentity{ROMID: "pcxt-firmware", Role: "firmware", MapSHA256: strings.Repeat("a", 64),
+		SourceSHA256: strings.Repeat("b", 64), SourceSize: 69632,
+		ProgrammedSHA256: payload["sha256"].(string), ProgrammedSize: int64(payload["size"].(float64))}
+	descriptor["rom"] = map[string]any{"id": link.ROMID, "role": link.Role, "source_size": link.SourceSize,
+		"file": "rom-map.json", "size": 177, "sha256": link.MapSHA256}
+	active["rom_link"] = map[string]any{"rom_id": link.ROMID, "map_sha256": link.MapSHA256, "source_sha256": link.SourceSHA256,
+		"source_size": link.SourceSize, "programmed_sha256": link.ProgrammedSHA256, "programmed_size": link.ProgrammedSize}
+	encoded, err := json.Marshal(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(encoded), link
+}
+
+// The PC/XT runs fes.computer 1.1 on the DE25 computer profile. Its launch
+// reply is accepted with exactly that contract, the one package admission
+// requires, and refused at 1.0, as a 1.0 machine is refused at 1.1.
+func TestFirmwareUploadPCXTRunsItsComputerMinor(t *testing.T) {
+	line, link := de25PCXTResponse(t, 1)
+	active, err := decodeProtocol2Response([]byte(line))
+	if err != nil {
+		t.Fatalf("DE25 PC/XT status refused: %v", err)
+	}
+	floppy := protocol.MediaUnitBinding{PackageID: active.ActivePackage.PackageID, Generation: *active.Generation, Unit: protocol.PcxtFloppyUnit}
+	if status := computerMediaStatus(active); !floppy.AcceptsSize(status, protocol.PcxtFloppyBytes) || floppy.AcceptsSize(status, protocol.PcxtFloppyBytes-512) {
+		t.Fatal("PC/XT floppy unit differs from its exact 360 KiB contract")
+	}
+	fixture := newSequenceSocketFixture(t, []string{line + "\n", line + "\n"})
+	response, err := NewClient(fixture.path).LoadFirmwareCore(context.Background(), "/tmp/package", active.ActivePackage.PackageID, "", "/tmp/firmware.rom", link, nil)
+	if err != nil || response.ActivePackage == nil || *response.ActivePackage.ROMLink != link {
+		t.Fatalf("PC/XT firmware launch reply refused: %+v %v", response, err)
+	}
+	fixture.wait(t)
+	if old, _ := de25PCXTResponse(t, 0); decodeOK(old) {
+		t.Fatal("PC/XT accepted at fes.computer 1.0")
+	}
+	spectrum, _ := de25SpectrumResponse(t, true)
+	var root map[string]any
+	if err := json.Unmarshal([]byte(spectrum), &root); err != nil {
+		t.Fatal(err)
+	}
+	active1 := root["active_package"].(map[string]any)
+	active1["descriptor"].(map[string]any)["abi"].(map[string]any)["minor"] = 1
+	active1["observed"].(map[string]any)["abi"].(map[string]any)["minor"] = 1
+	root["capabilities"].(map[string]any)["abis"].([]any)[1].(map[string]any)["minor"] = 1
+	raised, err := json.Marshal(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decodeOK(string(raised)) {
+		t.Fatal("Spectrum accepted at fes.computer 1.1")
+	}
+}
+
+func decodeOK(line string) bool {
+	_, err := decodeProtocol2Response([]byte(line))
+	return err == nil
 }

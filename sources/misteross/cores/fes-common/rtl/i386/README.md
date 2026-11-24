@@ -1603,7 +1603,10 @@ as Bochs's `translate_linear_legacy` at CPU level 3.
 `fes_i386_x87`, with its multiply in `fes_i386_x87_mul`, is the 387 the
 `i386dx+387` identity fits. `x87_present` gates every path, so with the
 identity clear the CPU is the empty socket above and the fit trims the unit
-away; `pc386_system` ties it to `1'b0` until the x87 phase's last slice.
+away. `pc386_system` takes it as the parameter `X87_PRESENT`. It defaults
+to 0, and no board sets it until x87 slice 7 turns the identity on. A fit
+sets it with `fit_i386_device.py --x87-present` or
+`pc386_quartus.machine_program(x87=...)`.
 What the phase's slice 2 builds, and what it does not, is in its record,
 [docs/validation/2026-11-14-i386-x87-s2](../../../../../../docs/validation/2026-11-14-i386-x87-s2/summary.md);
 the unit's own header comment carries the design. In short:
@@ -1705,13 +1708,15 @@ lockstep under a preset and fails on any architectural difference from max.
 ## Synthesis notes
 
 The i386 RTL has its own toolchain lock, [`toolchain.lock`](toolchain.lock)
-here: the DeanoC Yosys fork's main at `e240a465`, with nextpnr `bd7a1c0d`
+here: the DeanoC Yosys fork at `d273c1cb` (yosys#81), with nextpnr `bd7a1c0d`
 and Mistral `8fcc4cb4`. It is the pc386 lock's Yosys pin, so lockstep, the
 Quartus spikes and the pc386 seal read the CPU with one Yosys (#1581 D2, S4,
 [record](../../../../../../docs/validation/2026-11-10-1581-d2-yosys-lock/README.md)).
-The timing spikes default to it. The repository's
-shared lock stays at Yosys `3a5accbd`, which reads this RTL wrongly, so check
-and route the i386 RTL with this lock's Yosys. Each later Yosys fix is a
+The #81 pin changes hash-table iteration and may renumber generated names;
+the full lockstep and frontend suites establish functional equivalence. The
+timing spikes default to it. The repository's
+shared lock now pins the same Yosys, but check and route the i386 RTL with
+this lock, which also pins the i386 nextpnr. Each later Yosys fix is a
 small bump of this lock, the removal of its one workaround, the `--netlist`
 check and a re-measure.
 

@@ -46,10 +46,10 @@ local DEFAULTS = {
 }
 
 -- Rooms by core: the families with a core screen open it; Coleco opens its
--- arcade room; everything else, PC/XT and PC 386 included, uses the shared
--- system setup until its core screen is built.
+-- arcade room; everything else, PC 386 included, uses the shared system
+-- setup until its core screen is built.
 local SYSTEM_SETUP = "example.system"
-local CORE_SCREEN = { zx81 = true, spectrum = true, ["fes.atari-st"] = true, ["fes.c64"] = true }
+local CORE_SCREEN = { zx81 = true, spectrum = true, ["fes.atari-st"] = true, ["fes.c64"] = true, ["fes.pcxt-dos"] = true }
 local WORKBENCH = {
   ["fes.coleco"] = "example.coleco-arcade",
 }
@@ -191,9 +191,10 @@ local STATE_WORDS = {
 -- so Details fits the hero.
 function M.details(f)
   local lines, order, models = {}, {}, {}
+  local settled = M.settled()
   for _, v in ipairs(f.variants) do
     local state, why = model_state(v.id)
-    if not M.settled() then state, why = "checking", nil end
+    if not settled then state, why = "checking", nil end
     if overfull[f.id] then state, why = "blocked", "Too many systems to check" end
     local word = why or STATE_WORDS[state] or "Can't start here"
     if not models[word] then

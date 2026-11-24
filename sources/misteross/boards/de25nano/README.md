@@ -32,6 +32,17 @@ signoff gate and package as candidates
 ([record](../../docs/validation/2026-11-18-de25-machine-signoff/README.md));
 neither has run on hardware.
 
+The [standard Commodore 64](c64/README.md) uses the same machine builder and
+uploaded firmware, with its producer `producers/build_c64_package.py`. Its RAM,
+frame pages and D64 stay in block RAM as on the DE10, so it leaves the board
+SDRAM idle.
+
+The [standard PC/XT](pcxt/README.md) is the DE10 DOS machine on the same
+shell with the DE10's own clocks: the shared machine builder takes its 100 MHz
+PLL and SDRAM phases from the machine's spec. Its producer is
+`producers/build_pcxt_package.py`; GLaBIOS's window and the CGA font are
+uploaded at launch.
+
 DE25-only menu and ZX81 adaptations live under `shared-rtl/`; the DE10 core
 sources remain byte-identical to `origin/main`. The three HDMI board shells
 register D/DE/HS/VS at the pixel clock and constrain the ADV7513's documented

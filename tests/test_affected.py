@@ -187,12 +187,22 @@ class AffectedTests(unittest.TestCase):
     def test_de25_machine_paths_select_their_machines(self):
         board = 'sources/misteross/boards/de25nano/'
         for path, cores in (('spectrum/derive.py', ['spectrum']), ('spectrum/spectrum-clocks.sdc', ['spectrum']),
-                            ('atari-st/derive.py', ['atari-st']), ('atari-st/sim.py', ['atari-st']),
-                            ('machine/board.py', ['atari-st', 'spectrum']),
+                            ('atari-st/derive.py', ['atari-st', 'pcxt']), ('atari-st/sim.py', ['atari-st']),
+                            ('atari-st/build.py', ['atari-st']),
+                            ('c64/derive.py', ['c64']), ('c64/c64-clocks.sdc', ['c64']),
+                            ('producers/build_c64_package.py', ['c64']),
+                            ('pcxt/derive.py', ['pcxt']), ('pcxt/pcxt-clocks.sdc', ['pcxt']),
+                            ('producers/build_pcxt_package.py', ['pcxt']),
+                            ('producers/build_machine_package.py', ['atari-st', 'c64', 'pcxt', 'spectrum']),
+                            ('machine/board.py', ['atari-st', 'c64', 'pcxt', 'spectrum']),
                             ('shared-rtl/fes_spectrum_core.v', ['spectrum']),
                             ('shared-rtl/fes_atari_st_core.v', ['atari-st']),
-                            ('shared-rtl/fes_firmware_upload.v', ['atari-st', 'spectrum']),
-                            ('shared-rtl/fes_gp_crossing.v', ['atari-st', 'spectrum'])):
+                            ('shared-rtl/fes_c64_core.v', ['c64']),
+                            ('shared-rtl/fes_c64_firmware_rom.v', ['c64']),
+                            ('shared-rtl/fes_pcxt_core.v', ['pcxt']),
+                            ('shared-rtl/fes_media_sdram.v', ['atari-st', 'spectrum']),
+                            ('shared-rtl/fes_firmware_upload.v', ['atari-st', 'c64', 'pcxt', 'spectrum']),
+                            ('shared-rtl/fes_gp_crossing.v', ['atari-st', 'c64', 'pcxt', 'spectrum'])):
             with self.subTest(path=path):
                 self.assertEqual(sorted(plan([board + path])['cores']), cores)
 
@@ -274,6 +284,7 @@ class AffectedTests(unittest.TestCase):
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
             ('FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),
+            ('FES', 'platform/embedded/tamago/computer/generated/fes_de25_scanout.go'),
             ('libmister-runtime', 'src/native/generated/fes_de25_scanout.hpp'),
         })
         result = plan([definition])
@@ -366,7 +377,7 @@ class AffectedTests(unittest.TestCase):
     def test_parent_owned_changes_union_with_component_lanes(self):
         result = plan(['image/Makefile', 'sources/FogCast/catalog/query.go'])
         self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
-                         {'parent', 'host'})
+                         {'parent', 'host', 'tamago'})
         self.assertEqual(result['cores'], [])
         result = plan(['scripts/media.py',
                        'sources/misteross/cores/fes-atari-st/rtl/st_machine.sv'])
@@ -406,7 +417,7 @@ class AffectedTests(unittest.TestCase):
             for path in (MODULE_ROOTS[module], MODULE_ROOTS[module] + '/src/main.cpp'):
                 result = plan([path])
                 self.assertEqual({k for k,v in result['lanes'].items() if v},
-                                 {'parent', module} | ({'host'} if module == 'runtime' else set()))
+                                 {'parent', module} | ({'host'} if module == 'runtime' else {'tamago'}))
 
     def test_core_families_include_cross_core_consumers(self):
         cases = {
@@ -702,7 +713,7 @@ class AffectedTests(unittest.TestCase):
         for path in ('rbf.go', 'asset_test.go', 'go.mod', 'go.sum', 'testdata/linked.rbf'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/expansion/' + path])
-                self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled}, {'parent', 'host'})
+                self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled}, {'parent', 'host', 'tamago'})
                 self.assertEqual(result['cores'], [])
         # The software module exception must not swallow adjacent FPGA trees.
         self.assertEqual(set(plan(['sources/misteross/expansion-other/new.v'])['cores']), set(CORES))
@@ -751,7 +762,8 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(result['cores'], [])
                 self.assertEqual({k for k, v in result['lanes'].items() if v},
                                  {'parent', 'fpga', 'contracts'} if path.startswith('sources/')
-                                 else {'parent', 'fpga'})
+                                 else ({'parent', 'fpga', 'tamago'} if path.startswith('platform/embedded/tamago/')
+                                       else {'parent', 'fpga'}))
                 self.assertTrue(embedded_control_input(path))
                 self.assertTrue(native_fabric_input(path))
         self.assertEqual(set(plan([*EMBEDDED_TAPE_INPUTS,
@@ -776,7 +788,8 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(result['cores'], [])
                 self.assertEqual({k for k, v in result['lanes'].items() if v},
                                  {'parent', 'fpga', 'contracts'} if path.startswith('sources/')
-                                 else {'parent', 'fpga'})
+                                 else ({'parent', 'fpga', 'tamago'} if path.startswith('platform/embedded/tamago/')
+                                       else {'parent', 'fpga'}))
                 self.assertTrue(embedded_board_control_check_input(path))
         self.assertEqual(set(plan([*EMBEDDED_ROM_INPUTS,
             'sources/mister-packages/packages/fabric/unknown.yaml'])['cores']), set(CORES))
@@ -789,7 +802,8 @@ class AffectedTests(unittest.TestCase):
                      'sources/mister-packages/testdata/oracles/fes-embedded-computer.json'):
             with self.subTest(path=path):
                 result = plan([path])
-                lanes = {'parent', 'contracts'} if path.startswith('sources/') else {'parent'}
+                lanes = ({'parent', 'contracts'} if path.startswith('sources/')
+                         else {'parent', 'tamago'})
                 self.assertEqual(result['cores'], [])
                 self.assertEqual({k for k, v in result['lanes'].items() if v}, lanes)
         self.assertEqual(set(plan(['sources/mister-packages/packages/fabric/unknown.yaml'])['cores']), set(CORES))
@@ -864,6 +878,35 @@ class AffectedTests(unittest.TestCase):
         self.assertEqual(result['cores'], [])
         self.assertFalse(any(result['test_modes'].values()))
         self.assertTrue(native_compatibility_input(path))
+
+    def test_tamago_inputs_select_tamago_lane_without_broadening_unrelated_changes(self):
+        for path, expected_lanes in (
+            ('platform/embedded/tamago/gic/gic.go', {'parent', 'tamago'}),
+            ('platform/embedded/tamago/toolchain.lock.toml', {'parent', 'tamago'}),
+            ('platform/embedded/experiment.py', {'parent', 'tamago'}),
+            ('platform/embedded/nano/probe-profile.json', {'parent', 'tamago'}),
+            ('platform/embedded/nano/hps_context.py', {'parent', 'tamago'}),
+            ('platform/embedded/runtime/admission_oracle.cpp', {'parent', 'tamago'}),
+            ('scripts/ci_tamago.sh', {'parent', 'tamago'}),
+            ('scripts/tamago_ci.py', {'parent', 'tamago'}),
+            ('tests/test_tamago_ci.py', {'parent', 'tamago'}),
+            ('sources/FogCast/corepackage/archive.go', {'parent', 'host', 'tamago'}),
+            ('sources/misteross/expansion/rbf.go', {'parent', 'host', 'tamago'}),
+            ('sources/misteross/scripts/core_package.py', {'parent', 'fpga', 'tamago'}),
+            ('sources/libmister-runtime/src/native/core_package.cpp', {'parent', 'host', 'runtime', 'tamago'}),
+            ('sources/libmister-runtime/src/daemon/json.hpp', {'parent', 'host', 'runtime', 'tamago'}),
+        ):
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertEqual({k for k, v in result['lanes'].items() if v}, expected_lanes)
+                self.assertEqual(result['cores'], [])
+        # Markdown docs still select no lanes.
+        self.assertFalse(any(plan(['platform/embedded/tamago/README.md'])['lanes'].values()))
+        self.assertFalse(any(plan(['sources/FogCast/README.md'])['lanes'].values()))
+        # Unrelated FPGA RTL, Linux runtime, or image edits do not select the tamago lane.
+        self.assertFalse(plan(['sources/misteross/cores/fes-pong/rtl/pong.v'])['lanes']['tamago'])
+        self.assertFalse(plan(['sources/libmister-runtime/tests/unit/basic.cpp'])['lanes']['tamago'])
+        self.assertFalse(plan(['image/Makefile'])['lanes']['tamago'])
 
 
 

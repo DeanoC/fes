@@ -46,6 +46,7 @@ nothing by itself.
 | `fes.sg1000` | `cores/fes-sg1000` | `fes.application` | `cores/fes-sg1000/toolchain.lock` | `make build-fes-sg1000` | outside first-party catalog |
 | `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `cores/fes-apple2/toolchain.lock` | `make build-fes-apple2` (HIP default; shared-pin seal still open) | experimental; per-slot cards via `scripts/build_apple2_slot_card.py` |
 | `fes.c64` | `cores/fes-c64` | `fes.computer` with session display and HPS DDR | `cores/fes-c64/toolchain.lock` | `make build-fes-c64` (shared-pin CUDA seal recorded) | experimental; cartridge cards via `scripts/build_c64_slot_card.py` |
+| `fes.c64-ntsc` | `cores/fes-c64` | `fes.computer` with session display and HPS DDR | `cores/fes-c64/toolchain.lock` | `make build-fes-c64-ntsc` | experimental; standard NTSC 6567R8 |
 | `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum` | experimental; four edge sockets |
 | `fes.spectrum128` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum128` | experimental; four edge sockets |
 | `fes.spectrum-plus3` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum-plus3` | experimental; four edge sockets |
@@ -297,8 +298,15 @@ Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`.
 Apple II, C64 (#1007) and Atari ST (#910) pin nextpnr `5fe55f3d` for its
 F0/F1 boundary `$ROUTETHRU` map, and Spectrum pins nextpnr main `bd7a1c0d`
 (#1001, which contains #276 as merged). The cache holds one install per tool
-and commit, so every lock pinning Yosys `3a5accbd` uses the same Yosys. Use the
-matching `make toolchain-fes-<core>` target to provision a local toolchain.
+and commit. Every lock included in this bump uses the shared Yosys `d273c1cb`
+slot; C64 remains on `3a5accbd` after its producer failed at the new pin, and
+PC/XT remains on `3a5accbd` after its diagnostic missed timing at d273. The
+ZX81-family lock also remains on `3a5accbd` because the ZX80 producer missed
+system-clock timing. Coleco's lock remains on `5391eeb1`: its registered
+native-video producer was not built at d273, and its display-plane check
+accepts only the products of a Yosys before DeanoC/yosys#25, which carry no
+`A_SIGNED`/`B_SIGNED`. See the 2026-11-23 validation record. Use the matching
+`make toolchain-fes-<core>` target to provision a local toolchain.
 The splash continues to select the repository-level `toolchain.lock`.
 
 For those HIP play-package producers, the route log must name a live HIP
@@ -336,7 +344,7 @@ second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
 
 The Atari ST producer selects `cores/fes-atari-st/toolchain.lock`
-(Yosys `3a5accbd`, nextpnr `5fe55f3d`). The factory recipe stays HIP.
+(Yosys `d273c1cb`, nextpnr `5fe55f3d`). The factory recipe stays HIP.
 A CUDA route is a separate package. RAM Tester uses the repository-level
 lock's pins, while menu's lock pins nextpnr `1eecf877`. The Quartus
 RAM Tester timing comparison authenticates its own

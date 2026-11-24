@@ -32,6 +32,32 @@ type Sink interface {
 	Close() error
 }
 
+// ContextSink and ContextReleaseSink let the owner cancel in-flight work and
+// bound cleanup without abandoning a handler that can still touch the sink.
+// A legacy sink is still drained synchronously before successor admission.
+type ContextSink interface {
+	ApplyContext(context.Context, protocol.InputFrame) error
+}
+type ContextReleaseSink interface{ ReleaseAllContext(context.Context) error }
+
+// CloseError separates a fully drained source-release failure from other
+// close failures. Only the owner may supersede Release by confirmed neutral.
+type CloseError struct{ Listener, Release, Sink error }
+
+func (e *CloseError) Error() string {
+	if e == nil {
+		return "bridge close failed"
+	}
+	if joined := errors.Join(e.Listener, e.Release, e.Sink); joined != nil {
+		return joined.Error()
+	}
+	return "bridge close failed"
+}
+func (e *CloseError) Unwrap() []error { return []error{e.Listener, e.Release, e.Sink} }
+func (e *CloseError) OnlyRelease() bool {
+	return e != nil && e.Listener == nil && e.Release != nil && e.Sink == nil
+}
+
 // TimedTapSink applies both edges on the target and returns only after the
 // release is accepted. It must attempt release even when press is uncertain.
 // A receipt is sink acceptance, not proof that the guest consumed the tap.
@@ -188,13 +214,23 @@ func (s *Server) Close() error {
 		s.activeMu.Unlock()
 		s.wg.Wait()
 		_ = s.releaseAll()
-		s.closeErr = errors.Join(listenerErr, s.recordedReleaseError(), s.sink.Close())
+		releaseErr, sinkErr := s.recordedReleaseError(), s.sink.Close()
+		if listenerErr != nil || releaseErr != nil || sinkErr != nil {
+			s.closeErr = &CloseError{Listener: listenerErr, Release: releaseErr, Sink: sinkErr}
+		}
 	})
 	return s.closeErr
 }
 
 func (s *Server) releaseAll() error {
-	err := s.sink.ReleaseAll()
+	var err error
+	if sink, ok := s.sink.(ContextReleaseSink); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		err = sink.ReleaseAllContext(ctx)
+		cancel()
+	} else {
+		err = s.sink.ReleaseAll()
+	}
 	s.metrics.Releases.Add(1)
 	if err != nil {
 		s.releaseMu.Lock()
@@ -384,7 +420,12 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 			rejectedSinceReceipt = true
 			continue
 		}
-		applyErr := s.sink.Apply(f)
+		var applyErr error
+		if sink, ok := s.sink.(ContextSink); ok {
+			applyErr = sink.ApplyContext(ctx, f)
+		} else {
+			applyErr = s.sink.Apply(f)
+		}
 		// A sink may block while the runtime processes an input. That is active
 		// work, not idle time: leave the sender a full heartbeat interval to
 		// receive a receipt or send the next frame once processing finishes.

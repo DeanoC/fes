@@ -225,6 +225,28 @@ def sd_write_option(program, path, profile):
     return p
 
 
+def watchdog_option(program, selected, tenfoot, timeout_sec, clock_hz):
+    if timeout_sec is None:
+        timeout_sec = 0
+    if clock_hz is None:
+        clock_hz = 0
+    if type(timeout_sec) is not int or type(clock_hz) is not int:
+        raise ValueError('watchdog timeout and clock Hz must be integers')
+    if timeout_sec == 0 and clock_hz == 0:
+        return 0, 0
+    if program != 'fpgaload' or selected is not True or tenfoot is not True:
+        raise ValueError('--watchdog-timeout/--watchdog-clock-hz require Nano fpgaload with --selected-programs and --tenfoot-serial')
+    if timeout_sec == 0 or clock_hz == 0:
+        raise ValueError('both --watchdog-timeout and --watchdog-clock-hz are required together')
+    if not 1 <= timeout_sec <= 60:
+        raise ValueError('--watchdog-timeout must be integer seconds in [1, 60]')
+    if not 1_000_000 <= clock_hz <= 400_000_000:
+        raise ValueError('--watchdog-clock-hz must be Hz in [1000000, 400000000]')
+    if timeout_sec * clock_hz > (1 << 31):
+        raise ValueError(f'--watchdog-timeout {timeout_sec}s at {clock_hz} Hz exceeds DesignWare WDT 2^31-cycle maximum')
+    return timeout_sec, clock_hz
+
+
 def writable_storage_option(program,path,profile,selected,tenfoot):
     if path is None:return None
     if program!='fpgaload' or selected is not True or tenfoot is not True or profile['sd_control'] is None:
@@ -299,20 +321,20 @@ def scratch_inspect_option(program, requested, profile):
     return requested
 
 
-def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, output):
+def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, output, *, spectrum48=False, c64=False):
     """Snapshot selected content and derive its receipt through the shared linker."""
     rom_path = Path(rom_path).resolve(strict=True)
-    if not rom_path.is_file() or rom_path.stat().st_size != rom_bytes or rom_bytes not in (4096, 8192):
-        raise ValueError('selected firmware ROM must match the sealed 4/8 KiB resource')
+    if not rom_path.is_file() or rom_path.stat().st_size != rom_bytes or rom_bytes not in ((36864,) if c64 else (16384,) if spectrum48 else (4096, 8192)):
+        raise ValueError('selected firmware ROM must match the sealed resource')
     with rom_path.open('rb') as stream:
-        data = stream.read(8193)
+        data = stream.read(rom_bytes+1)
     if len(data) != rom_bytes:
         raise ValueError('selected firmware ROM changed while snapshotting')
     (output/'package.fcore').write_bytes(archive)
     (output/'FIRMWARE.BIN').write_bytes(data)
     env = dict(os.environ, GOTOOLCHAIN='local', GOWORK='off', GOENV='off', GOPROXY='off', GOSUMDB='off', GOMAXPROCS='2')
     command = [str(Path(host_go).resolve(strict=True)), 'run', '-mod=readonly', './cmd/nano-rom-selection',
-               str(output/'package.fcore'), str(output/'FIRMWARE.BIN'), package_id]
+               *(['--c64'] if c64 else ['--spectrum48'] if spectrum48 else []), str(output/'package.fcore'), str(output/'FIRMWARE.BIN'), package_id]
     result = subprocess.run(command, cwd=APP, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
     (output/'rom-linker.log').write_bytes(result.stderr)
     if result.returncode:
@@ -327,6 +349,38 @@ def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, out
         raise ValueError('shared ROM linker returned a mismatched selection')
     (output/'rom-selection.json').write_text(json.dumps(record, sort_keys=True, indent=2)+'\n')
     return record
+
+
+def stage_c64(shell, proof, archive_path, rom, disk, host_go, stage, context, platform, configuration):
+    stage.mkdir()
+    archive = shell.read(archive_path, shell.MAX_ARCHIVE)
+    if shell.sha(archive) != proof['archive_sha256']:
+        raise ValueError('C64 archive changed after verification')
+    receipt = prepare_rom_selection(archive, rom, proof['package_id'],
+                                    shell.C64_ROM_BYTES, host_go, stage, c64=True)
+    record = shell.record_for(proof, context, platform, configuration, receipt, rom_bytes=shell.C64_ROM_BYTES)
+    export = stage / 'export' / 'FES'
+    export.mkdir(parents=True)
+    (export / 'C64.FCP').write_bytes(archive)
+    (export / 'C64.ROM').write_bytes((stage / 'FIRMWARE.BIN').read_bytes())
+    metadata = shell.encode(record)
+    (export / 'C64.JSN').write_bytes(metadata)
+    choice = dict(path='FES/C64.FCP', package_id=record['package_id'],
+                  metadata_path='FES/C64.JSN', metadata_sha256=shell.sha(metadata),
+                  sources=[dict(id=receipt['source_id'], role='firmware', path='FES/C64.ROM',
+                                sha256=receipt['source_sha256'])],
+                  rom_receipt_sha256=receipt['rom_receipt_sha256'])
+    if disk is not None:
+        data = shell.read(disk, 174848)
+        if len(data) != 174848:
+            raise ValueError('C64 requires a standard 174848-byte D64')
+        (export / 'C64.D64').write_bytes(data)
+        choice['tape'] = dict(path='FES/C64.D64', format='c64-d64', size=len(data), sha256=shell.sha(data))
+    (export / 'CORESEL.JSN').write_bytes(shell.encode(dict(
+        format=1, scope='nano-program-selection-v1', programs=[choice])))
+    (export / 'UI.JSON').write_bytes(shell.encode(dict(
+        format=1, scope='nano-tenfoot-catalog-v1',
+        entries=[dict(id='c64', title='Commodore 64 PAL', program=0)])))
 
 
 def build(args):
@@ -362,29 +416,10 @@ def build(args):
     rom_host_go=getattr(args,'rom_host_go',None)
     rom_selection=None
     active_ddr=getattr(args,'ddr_read',False)
-    window_memory=getattr(args,'window_memory',False)
-    if type(window_memory) is not bool or window_memory and (args.program!='fpgaload' or active_ddr):
-        raise ValueError('--window-memory requires Nano fpgaload, separately from --ddr-read')
-    window_read=getattr(args,'window_read',False)
-    if type(window_read) is not bool or window_read and not window_memory:
-        raise ValueError('--window-read requires explicit --window-memory')
-    window_read_map=None
-    window_present=getattr(args,'window_present',False)
-    if type(window_present) is not bool or window_present and not window_read:
-        raise ValueError('window presentation requires the complete window-read diagnostic')
-    window_storage_return=getattr(args,'window_storage_return',False)
-    if type(window_storage_return) is not bool or window_storage_return and not window_present:
-        raise ValueError('window storage return requires the selected presentation diagnostic')
-    window_reload=getattr(args,'window_reload',False)
-    if type(window_reload) is not bool or window_reload and not window_storage_return:
-        raise ValueError('window reload requires the selected window SD-return diagnostic')
-    window_service=getattr(args,'window_service',False)
-    if type(window_service) is not bool or window_service and (not window_storage_return or window_reload):
-        raise ValueError('window service requires selected window SD return and excludes bounded reload')
     if type(active_ddr) is not bool or active_ddr and args.program!='fpgaload':
         raise ValueError('--ddr-read requires the Nano fpgaload diagnostic')
     computer_control=getattr(args,'computer_control',False)
-    if type(computer_control) is not bool or computer_control and (args.program!='fpgaload' or active_ddr or window_memory):
+    if type(computer_control) is not bool or computer_control and (args.program!='fpgaload' or active_ddr):
         raise ValueError('--computer-control requires control-only Nano fpgaload, separately from --ddr-read')
     computer_reload=getattr(args,'computer_reload',False)
     if type(computer_reload) is not bool or computer_reload and not computer_control:
@@ -393,12 +428,16 @@ def build(args):
     if type(computer_storage_return) is not bool or computer_storage_return and not computer_reload:
         raise ValueError('--computer-storage-return requires the selected two-load computer diagnostic')
     selected_programs=getattr(args,'selected_programs',False)
-    if (type(selected_programs) is not bool or selected_programs and
-            (not computer_control or not computer_reload or not computer_storage_return)):
-        raise ValueError('--selected-programs requires computer control, rearming and owned SD returns')
     tenfoot_serial=getattr(args,'tenfoot_serial',False)
+    if (type(selected_programs) is not bool or selected_programs and
+            (not computer_control or not computer_reload or not computer_storage_return or not tenfoot_serial)):
+        raise ValueError('--selected-programs requires computer control, rearming, owned SD returns and --tenfoot-serial')
     if type(tenfoot_serial) is not bool or tenfoot_serial and not selected_programs:
         raise ValueError('--tenfoot-serial requires the selected native program service')
+    watchdog_timeout, watchdog_clock_hz = watchdog_option(
+        args.program, selected_programs, tenfoot_serial,
+        getattr(args, 'watchdog_timeout', 0), getattr(args, 'watchdog_clock_hz', 0),
+    )
     configuration_retained=getattr(args,'retain_configuration',False)
     if type(configuration_retained) is not bool or (configuration_retained and not (selected_programs and tenfoot_serial)):
         raise ValueError('--retain-configuration requires selected serial Tenfoot programs')
@@ -418,12 +457,14 @@ def build(args):
         raise ValueError('--menu-project requires selected Nano computer programs')
     package_archive=None
     hps_project=getattr(args,'hps_first_project',None)
-    if args.program in ('bootcontext','hpsio','usbcheck','fpgacontext','fpgastatus','fpgaload'):
+    if args.program in ('hpsio','usbcheck','fpgaload'):
         required_profile='sd-profile.json' if args.program=='fpgaload' else 'probe-profile.json'
         if hps_project is None or raw!=(APP.parent/'nano'/required_profile).read_bytes():
             raise ValueError('context diagnostics require a sealed HPS-first project and their source-derived serial/SD profile')
         hps_project=hps_project.resolve(strict=True)
         context=hps.derive(hps_project)
+        if context['programming_profile'] not in hps.SUPPORTED_PROFILES:
+            raise ValueError('unsupported or retired HPS-first programming profile: ' + str(context['programming_profile']))
         if (context['programming_profile']==hps.MENU_PROFILE)!=(menu_present) and args.program=='fpgaload':
             raise ValueError('menu source requires explicit --menu-present and cannot inherit another reader mode')
         rom_profile=hps.uses_held_rom(context)
@@ -433,16 +474,13 @@ def build(args):
             rom_map=hps.rom(hps_project)
         elif firmware_rom is not None or rom_host_go is not None:
             raise ValueError('firmware ROM selection requires the explicit sealed ROM producer profile')
-        if (context['programming_profile']=='de25-embedded-hps-first-window-diagnostic-v1')!=window_memory:
-            raise ValueError('the window source requires explicit --window-memory and cannot inherit a fixed-reader diagnostic')
         if args.program in ('hpsio','usbcheck') or usb_shared:io_map=hps.hps_io(hps_project)
-        if args.program in ('fpgacontext','fpgastatus','fpgaload'):control_map=hps.control(hps_project)
         if args.program=='fpgaload':
+            control_map=hps.control(hps_project)
             configuration_map=hps.configuration(hps_project)
             reader_memory_map=hps.reader_memory(hps_project)
             cpu_map=hps.cpu_mapping(control_map,configuration_map,reader_memory_map)
             if active_ddr:ddr_read_map=hps.ddr_read(hps_project)
-            if window_read:window_read_map=hps.window_read(hps_project)
             if menu_present:menu_read_map=hps.menu_read(hps_project)
             if computer_control:computer_map=hps.computer(hps_project)
             if selected_programs:
@@ -477,6 +515,33 @@ def build(args):
         initial_tape_memory=tape_memory, initial_tape_memory_sha256=tape_memory_sha,
         hps_computer=computer_map, hps_rom=rom_map, hps_configuration=configuration_map,
         usb_control=usb_control, usb_shared=usb_shared, usb_input=usb_input))
+    spectrum_paths = [getattr(args, 'spectrum48_'+name, None) for name in ('build', 'package', 'rom')]
+    spectrum_tape = getattr(args, 'spectrum48_tape', None)
+    shared_shell = getattr(args, 'shared_core_shell', False)
+    uart_only = getattr(args, 'tenfoot_uart_only', False)
+    if uart_only and not (usb_shared and shared_shell):
+        raise ValueError('--tenfoot-uart-only requires the matched shared-shell USB boot profile')
+    if shared_shell and (args.program != 'fpgaload' or not menu_program_map or
+                         not all((selected_programs, computer_reload, computer_storage_return, tenfoot_serial))):
+        raise ValueError('shared core shell requires paired native Tenfoot')
+    spectrum_proof = spectrum_program = None
+    if any(spectrum_paths) or spectrum_tape is not None:
+        if not all(spectrum_paths) or menu_program_map is None or not tenfoot_serial:
+            raise ValueError('Spectrum requires a sealed build, package, ROM and paired Tenfoot')
+        producer, spectrum_archive, spectrum_rom = (path.resolve(strict=True) for path in spectrum_paths)
+        worker = Path(hps.spectrum48.__file__)
+        spectrum_proof = json.loads(subprocess.check_output(
+            [sys.executable, str(worker), str(producer), str(spectrum_archive)], timeout=180))
+    c64_paths = [getattr(args, 'c64_' + name, None) for name in ('build', 'package', 'rom')]
+    c64_disk = getattr(args, 'c64_d64', None)
+    c64_proof = None
+    if any(c64_paths) or c64_disk is not None:
+        if not all(c64_paths) or not shared_shell or spectrum_proof is not None or rom_host_go is None:
+            raise ValueError('C64 requires a sealed build, package, ROM and shared-shell Tenfoot')
+        producer, c64_archive, c64_rom = (path.resolve(strict=True) for path in c64_paths)
+        worker = Path(hps.spectrum48.__file__)
+        c64_proof = json.loads(subprocess.check_output(
+            [sys.executable, str(worker), '--c64', str(producer), str(c64_archive)], timeout=180))
     output = args.output.resolve()
     if output.exists() or not output.is_relative_to(ROOT / "out"):
         raise ValueError("output must be a fresh directory beneath this worktree's out/")
@@ -485,6 +550,41 @@ def build(args):
         rom_selection=prepare_rom_selection(package_archive,firmware_rom,context['package_id'],rom_map['bytes'],rom_host_go,output)
         program_metadata=hps.selected_program(hps_project,rom_selection['rom_receipt_sha256'])
         (output/'hps-rom.json').write_bytes(hps.encode(rom_map))
+    if spectrum_proof is not None:
+        import shutil
+        stage = output/'spectrum48'
+        stage.mkdir()
+        archive = hps.spectrum48.read(spectrum_archive, hps.spectrum48.MAX_ARCHIVE)
+        if hps.spectrum48.sha(archive) != spectrum_proof['archive_sha256']:
+            raise ValueError('Spectrum archive changed after verification')
+        selection = prepare_rom_selection(archive, spectrum_rom, spectrum_proof['package_id'],
+                                           hps.spectrum48.ROM_BYTES, rom_host_go, stage, spectrum48=True)
+        spectrum_program = hps.spectrum48.record_for(spectrum_proof, context, program_platform,
+                                                     configuration_map, selection)
+        export = stage/'export'/'FES'
+        export.mkdir(parents=True)
+        shutil.copyfile(stage/'package.fcore', export/'SPEC48.FCP')
+        shutil.copyfile(stage/'FIRMWARE.BIN', export/'SPEC48.ROM')
+        metadata = hps.encode(spectrum_program)
+        (export/'SPEC48.JSN').write_bytes(metadata)
+        choice = dict(path='FES/SPEC48.FCP', package_id=spectrum_program['package_id'],
+                      metadata_path='FES/SPEC48.JSN', metadata_sha256=hps.spectrum48.sha(metadata),
+                      sources=[dict(id=selection['source_id'], role='firmware', path='FES/SPEC48.ROM',
+                                    sha256=selection['source_sha256'])],
+                      rom_receipt_sha256=selection['rom_receipt_sha256'])
+        if spectrum_tape is not None:
+            tape = hps.spectrum48.read(spectrum_tape, 64 << 10)
+            (export/'SPEC48.PZX').write_bytes(tape)
+            choice['tape'] = dict(path='FES/SPEC48.PZX', format='spectrum-tape',
+                                  size=len(tape), sha256=hps.spectrum48.sha(tape))
+        (export/'CORESEL.JSN').write_bytes(hps.encode(dict(
+            format=1, scope='nano-program-selection-v1', programs=[choice])))
+        (export/'UI.JSON').write_bytes(hps.encode(dict(
+            format=1, scope='nano-tenfoot-catalog-v1',
+            entries=[dict(id='spectrum48', title='ZX Spectrum 48K trial', program=0)])))
+    if c64_proof is not None:
+        stage_c64(hps.spectrum48, c64_proof, c64_archive, c64_rom, c64_disk, rom_host_go,
+                  output / 'c64', context, program_platform, configuration_map)
     (output / "handoff.json").write_bytes(raw)
     if context is not None:(output/'hps-context.json').write_bytes(hps.encode(context))
     if io_map is not None:(output/'hps-io.json').write_bytes(hps.encode(io_map))
@@ -495,7 +595,6 @@ def build(args):
     if menu_program_map is not None:(output/'compiled-menu-program.json').write_bytes(hps.encode(menu_program_map))
     for name,raw_asset in menu_assets.items():(output/name).write_bytes(raw_asset)
     if ddr_read_map is not None:(output/'hps-ddr-read.json').write_bytes(hps.encode(ddr_read_map))
-    if window_read_map is not None:(output/'hps-window-read.json').write_bytes(hps.encode(window_read_map))
     if menu_read_map is not None:(output/'hps-menu-read.json').write_bytes(hps.encode(menu_read_map))
     if computer_map is not None:(output/'hps-computer.json').write_bytes(hps.encode(computer_map))
     if program_platform is not None:
@@ -580,6 +679,8 @@ def build(args):
         files.update({APP/'cpu_features.py', overlay})
         files.update(p for p in feature_sources if p.is_relative_to(ROOT))
     if context is not None:files.update(hps.inputs())
+    if spectrum_program is not None or shared_shell:
+        files.add(Path(hps.spectrum48.__file__))
     if rom_map is not None:files.add(APP/'cmd/nano-rom-selection/main.go')
     for p in packages:
         directory = Path(p["Dir"])
@@ -591,6 +692,7 @@ def build(args):
     link_flags=f"-s -w -T {entry:#x} -R 0x1000"
     if usb_control:
         link_flags+=' -X main.expectedUSBControl='+('owned-shared-usb-pio-v1' if usb_shared else 'owned-usb-pio-v1')+' -X main.expectedUSBInput='+usb_input
+    if uart_only:link_flags+=' -X main.expectedTenfootUARTOnly=1'
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if sd_write_encoded:link_flags+=' -X main.expectedSDWritePlan='+sd_write_encoded
     if sd_transfer_clock:link_flags+=' -X main.expectedSDTransferClock='+str(sd_transfer_clock)
@@ -602,16 +704,12 @@ def build(args):
     if configuration_map is not None:link_flags+=' -X main.expectedConfigurationMap='+base64.b64encode(hps.encode(configuration_map)).decode()
     if reader_memory_map is not None:link_flags+=' -X main.expectedReaderMemoryMap='+base64.b64encode(hps.encode(reader_memory_map)).decode()
     if ddr_read_map is not None:link_flags+=' -X main.expectedDDRReadMap='+base64.b64encode(hps.encode(ddr_read_map)).decode()
-    if window_memory:link_flags+=' -X main.expectedWindowMemory=1'
     if menu_present:
         link_flags+=' -X main.expectedMenuPresent=1'
         link_flags+=' -X main.expectedMenuReadMap='+base64.b64encode(hps.encode(menu_read_map)).decode()
-    if window_read_map is not None:link_flags+=' -X main.expectedWindowReadMap='+base64.b64encode(hps.encode(window_read_map)).decode()
-    if window_present:link_flags+=' -X main.expectedWindowPresent=1'
-    if window_storage_return:link_flags+=' -X main.expectedWindowStorageReturn=1'
-    if window_reload:link_flags+=' -X main.expectedWindowReload=1'
-    if window_service:link_flags+=' -X main.expectedWindowService=1'
     if tenfoot_serial:link_flags+=' -X main.expectedTenfootSerial=1'
+    if watchdog_timeout:
+        link_flags += f' -X main.expectedWatchdogTimeout={watchdog_timeout} -X main.expectedWatchdogClockHz={watchdog_clock_hz}'
     if initial_tape:link_flags+=' -X main.expectedInitialTape=1'
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
     if context is not None and context['programming_profile']==hps.COMPUTER_PROFILE:link_flags+=' -X main.expectedNativeComputer=1'
@@ -622,6 +720,10 @@ def build(args):
         link_flags+=' -X main.expectedProgramPlatform='+base64.b64encode(hps.encode(program_platform)).decode()
         link_flags+=' -X main.expectedSelectedPrograms=1'
     if menu_program_map is not None:link_flags+=' -X main.expectedCompiledMenuProgram='+base64.b64encode(hps.encode(menu_program_map)).decode()
+    if shared_shell:
+        link_flags += " -X main.expectedSharedCoreShell=1"
+    elif spectrum_program is not None:
+        link_flags += ' -X main.expectedCompiledSpectrum48=' + base64.b64encode(hps.encode(spectrum_program)).decode()
     command = [str(compiler), "build", *options, "-trimpath", "-ldflags", link_flags, "-o", str(elf), "./cmd/" + args.program]
     with (output / "build.log").open("w") as log:
         subprocess.run(command, cwd=APP, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -642,9 +744,6 @@ def build(args):
     if ddr_read_map is not None and (hps.ddr_read(hps_project)!=ddr_read_map or
             base64.b64encode(hps.encode(ddr_read_map)) not in data):
         raise ValueError('sealed DDR read contract changed or was not linked into the native image')
-    if window_read_map is not None and (hps.window_read(hps_project)!=window_read_map or
-            base64.b64encode(hps.encode(window_read_map)) not in data):
-        raise ValueError('sealed full-window access changed or was not linked into the native image')
     if menu_read_map is not None and (hps.menu_read(hps_project)!=menu_read_map or
             base64.b64encode(hps.encode(menu_read_map)) not in data):
         raise ValueError('sealed menu access changed or was not linked into the native image')
@@ -662,17 +761,22 @@ def build(args):
     if menu_program_map is not None and (hps.menu_assets(menu_project,menu_program_map)!=menu_assets or
             base64.b64encode(hps.encode(menu_program_map)) not in data):
         raise ValueError('compiled menu companion changed or was not linked into the native image')
+    if spectrum_program is not None and not shared_shell and base64.b64encode(hps.encode(spectrum_program)) not in data:
+        raise ValueError('Spectrum companion was not linked into the native image')
     if feature_sources != {p: sha(p) for p in feature_sources}:
         raise ValueError('ARM64 feature discovery inputs changed while building')
     if sd_write_plan is not None and (sd_write_option(args.program,args.sd_write_plan,profile)!=sd_write_plan or sd_write_encoded.encode() not in data):
         raise ValueError('SD write plan changed during compilation or was not linked')
     if sd_transfer_clock and str(sd_transfer_clock).encode() not in data:
         raise ValueError('selected SD transfer clock was not linked')
+    if watchdog_timeout and (str(watchdog_timeout).encode() not in data or str(watchdog_clock_hz).encode() not in data):
+        raise ValueError('selected watchdog settings were not linked')
     if writable_storage_plan is not None and (writable_storage_option(args.program,args.writable_storage_plan,profile,args.selected_programs,args.tenfoot_serial)!=writable_storage_plan or writable_storage_encoded.encode() not in data):
         raise ValueError('writable storage plan changed or was not linked')
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
               "sd_write_plan":sd_write_plan,"sd_write_plan_sha256":hashlib.sha256(base64.b64decode(sd_write_encoded)).hexdigest() if sd_write_encoded else None,
               "sd_transfer_clock_hz":sd_transfer_clock,
+              "watchdog_timeout_seconds":watchdog_timeout,"watchdog_clock_hz":watchdog_clock_hz,
               "writable_storage_plan":writable_storage_plan,
               "sd_scratch_inspect":sd_scratch_inspect,
               "arm64_features":arm64_features,"cpu_feature_overlay":cpu_feature_overlay,
@@ -685,13 +789,7 @@ def build(args):
               "hps_configuration":configuration_map,"hps_configuration_sha256":hps.digest(configuration_map) if configuration_map else None,
               "hps_reader_memory":reader_memory_map,"hps_reader_memory_sha256":hps.digest(reader_memory_map) if reader_memory_map else None,
               "hps_ddr_read":ddr_read_map,"hps_ddr_read_sha256":hps.digest(ddr_read_map) if ddr_read_map else None,
-              "window_memory":window_memory,
               "menu_present":menu_present,"hps_menu_read":menu_read_map,"hps_menu_read_sha256":hps.digest(menu_read_map) if menu_read_map else None,
-              "window_present":window_present,
-              "window_storage_return":window_storage_return,
-              "window_reload":window_reload,
-              "window_service":window_service,
-              "window_read":window_read,"hps_window_read":window_read_map,"hps_window_read_sha256":hps.digest(window_read_map) if window_read_map else None,
               "hps_computer":computer_map,"hps_computer_sha256":hps.digest(computer_map) if computer_map else None,
               "hps_rom":rom_map,"hps_rom_sha256":hps.digest(rom_map) if rom_map else None,
               "rom_selection":rom_selection,"rom_host_go_sha256":sha(Path(rom_host_go).resolve()) if rom_map else None,
@@ -699,6 +797,10 @@ def build(args):
               "computer_storage_return":computer_storage_return,
               "selected_programs":selected_programs,"tenfoot_serial":tenfoot_serial,"initial_tape":initial_tape,
               "initial_tape_memory":tape_memory,"initial_tape_memory_sha256":tape_memory_sha,
+              **({"spectrum48_program": spectrum_program, "spectrum48_program_sha256": hps.digest(spectrum_program)}
+                 if spectrum_program is not None and not shared_shell else {}),
+              **({"shared_core_shell": True} if shared_shell else {}),
+              **({"tenfoot_uart_only": True} if uart_only else {}),
               "hps_menu_project":str(menu_project) if menu_project else None,
               "hps_menu_program":menu_program_map,"hps_menu_program_sha256":hps.digest(menu_program_map) if menu_program_map else None,
               "menu_assets":{name:{"sha256":hashlib.sha256(raw).hexdigest(),"size":len(raw)} for name,raw in menu_assets.items()},

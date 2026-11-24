@@ -31,7 +31,7 @@ func TestTargetTimedChordAcrossHostBridgeAndHIDSink(t *testing.T) {
 	var rows []hidkeys.Rows
 	var times []time.Time
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(_ context.Context, _ string, generation uint64, r hidkeys.Rows) error {
+	hid.setPoster(func(_ context.Context, _, _ string, generation uint64, r hidkeys.Rows) error {
 		if generation != 7 {
 			t.Errorf("wrong generation %d", generation)
 		}
@@ -103,7 +103,7 @@ func TestTargetTimedTapAcrossRealHostBridgeAndHIDSink(t *testing.T) {
 	var rows []hidkeys.Rows
 	var times []time.Time
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(_ context.Context, _ string, generation uint64, r hidkeys.Rows) error {
+	hid.setPoster(func(_ context.Context, _ string, _ string, generation uint64, r hidkeys.Rows) error {
 		if generation != 7 {
 			t.Errorf("wrong generation %d", generation)
 		}
@@ -159,7 +159,7 @@ func TestTargetTimedTapAcrossRealHostBridgeAndHIDSink(t *testing.T) {
 func TestTargetTapCancelThroughRealBridgeReleases(t *testing.T) {
 	posts := make(chan hidkeys.Rows, 8)
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(_ context.Context, _ string, _ uint64, r hidkeys.Rows) error { posts <- r; return nil })
+	hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, r hidkeys.Rows) error { posts <- r; return nil })
 	ports := &controllerPortsSink{hid: hid}
 	controller := newTargetControllerWithSink("127.0.0.1:0", ports)
 	controller.ports = ports
@@ -271,7 +271,7 @@ func TestTargetTapWaitingForLifecycleStopsOnLeaseRevocation(t *testing.T) {
 	defer endConnect()
 	posts := make(chan hidkeys.Rows, 8)
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
+	hid.setPoster(func(_ context.Context, _, _ string, _ uint64, rows hidkeys.Rows) error { posts <- rows; return nil })
 	ports := &controllerPortsSink{hid: hid}
 	controller := newTargetControllerWithSink("127.0.0.1:0", ports)
 	controller.ports = ports

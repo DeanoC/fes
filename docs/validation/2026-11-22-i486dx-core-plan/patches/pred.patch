@@ -1,0 +1,13 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+index 10b75c65d..fa64f58ef 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+@@ -670,7 +670,7 @@ module fes_i386_cpu #(
+     logic [6:0][7:0]  fe_pp;
+     logic [6:0]       fe_pk;
+     fes_i386_pkg::ftag_t mem_tag;
+-    always_ff @(posedge clk) if (reset) pred_on <= !queue16;
++    always_ff @(posedge clk) if (reset) pred_on <= 1'b0;  // ABLATION pred
+     fes_i386_frontend frontend (
+         .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load(fe_mem_load),
+         .mem_data, .mem_valid, .mem_tag, .q_valid, .q, .d_ready, .pred_en(pred_on), .btb_wr, .ras_set_ptr, .ras_set_wr,

@@ -59,14 +59,32 @@ class Derivations(unittest.TestCase):
             else:
                 self.assertEqual(result.replace(b'"M20K"', b'"M10K"'), source)
 
-    def test_transport_slice_is_the_shared_module(self):
+    def test_transport_selects_native_fetch_explicitly(self):
         source = (HERE.parent / "zx81-hps/fes_de25_computer.v").read_bytes()
-        result, _ = derive.transport(source)
+        result, _ = derive.transport(source, native=True)
         self.assertEqual(result.count(b"\nmodule "), 1)
         self.assertIn(b"module fes_de25_computer_transport (", result)
-        self.assertTrue(source.endswith(result.split(b"\n", 2)[2]))
+        self.assertIn(b"`ifdef FES_DE25_NATIVE_SPECTRUM48", result)
+        self.assertIn(b"`FES_DE25_COMPUTER_FETCH_COUNT_OFFSET: read_value = fetch_sample[47:16]", result)
+        self.assertIn(b"`FES_DE25_COMPUTER_VIDEO_STATUS_OFFSET: read_value = video_status", result)
         with self.assertRaises(ValueError):
             derive.transport(source.replace(derive.TRANSPORT_MARKER, b""))
+
+    def test_native_hps_video_uses_matched_receiver_budget(self):
+        native = load("native_hps")
+        source = (HERE.parent / "scanout/clocks.sdc").read_text()
+        matched = native.matched_video_sdc(source)
+        original_clocks = [line for line in source.splitlines() if not line.startswith("#")]
+        matched_clocks = [line for line in matched.splitlines() if not line.startswith("#")]
+        self.assertEqual(original_clocks, [
+            line.replace("-max 1.800", "-max 1.000").replace("-min -1.300", "-min -0.700")
+            if line.startswith("set_output_delay -clock HDMI_TX_CLK ") else line
+            for line in matched_clocks
+        ])
+        self.assertIn("set_output_delay -clock HDMI_TX_CLK -max 1.800", matched)
+        self.assertIn("set_output_delay -clock HDMI_TX_CLK -min -1.300", matched)
+        with self.assertRaises(ValueError):
+            native.matched_video_sdc(matched)
 
     def test_component_lists_every_staged_file(self):
         build = load("build")

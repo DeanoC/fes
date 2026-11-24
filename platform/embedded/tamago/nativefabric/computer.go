@@ -89,6 +89,53 @@ type computerIO struct {
 	closing    bool
 	clock      func() time.Time
 	lastTiming computer.AccessTiming
+	romBatch   spectrumROMBatchPlatform
+	mediaBatch heldMediaBatchPlatform
+}
+
+// The board can batch the fixed, already-held held mailbox aperture.
+type spectrumROMBatchPlatform interface {
+	WithSpectrumROMBatch(uint64, func(computer.IO) error) error
+}
+
+type heldMediaBatchPlatform interface {
+	WithHeldMediaBatch(uint64, func(computer.IO) error) error
+}
+
+func (c *computerIO) WithMediaChunkBatch(send func(computer.IO) error) error {
+	if c.mediaBatch == nil {
+		return send(c)
+	}
+	return c.withDataBatch(send, c.mediaBatch.WithHeldMediaBatch)
+}
+
+func (c *computerIO) WithFirmwareDataBatch(send func(computer.IO) error) error {
+	if c.romBatch == nil {
+		return send(c)
+	}
+	return c.withDataBatch(send, c.romBatch.WithSpectrumROMBatch)
+}
+
+func (c *computerIO) withDataBatch(send func(computer.IO) error, run func(uint64, func(computer.IO) error) error) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.retired || c.closing {
+		return errors.New("native fabric: held mailbox aperture closing or retired")
+	}
+	before, err := c.bridges.ObserveBridges()
+	if err != nil || before != c.want {
+		c.retired = true
+		return errors.Join(errors.New("native fabric: held mailbox batch lost control-only ownership"), err)
+	}
+	sendErr := run(c.base, send)
+	after, err := c.bridges.ObserveBridges()
+	if err != nil || after != c.want {
+		err = errors.Join(errors.New("native fabric: held mailbox batch changed ownership"), err)
+	}
+	if sendErr != nil || err != nil {
+		c.retired = true
+	}
+	return errors.Join(sendErr, err)
 }
 
 // InitialTapePlatform is a trusted optional CPU-platform service. Its supplier
@@ -252,7 +299,7 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 	}
 	binding := *transfer.binding
 	menu := binding.menuReturn
-	fromMenu := binding.program != nil && binding.program.role == programRoleComputer && binding.program.loader.menu != nil &&
+	fromMenu := binding.program != nil && (binding.program.role == programRoleComputer || binding.program.role == programRoleUploadShell) && binding.program.loader.menu != nil &&
 		menu != nil && menu.self == menu && menu.verifier == v && v.menuSession == menu &&
 		menu.closed && menu.closeErr == nil && menu.storageResumed && menu.nextAttempted && menu.returned.Frames > 0 &&
 		menu.returned.After.Generation <= math.MaxUint64-3 && binding.source.Bridges.Generation == menu.returned.After.Generation+3
@@ -297,7 +344,14 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 		return nil, errors.New("native fabric: computer build encoding invalid")
 	}
 	copy(wantID.Build[:], build)
-	if _, secure := cpu.(InitialTapePlatform); secure {
+	spectrum := binding.program != nil && binding.program.role == programRoleUploadShell
+	if spectrum {
+		s.port.romBatch, _ = cpu.(spectrumROMBatchPlatform)
+		if binding.program.identity.ProgrammingProfile == c64Profile {
+			s.port.mediaBatch, _ = cpu.(heldMediaBatchPlatform)
+		}
+	}
+	if _, secure := cpu.(InitialTapePlatform); secure && !spectrum {
 		s.control, err = computer.OpenWithInitialTape(ctx, s.port, limits, wantID, s.port.loadInitialTape)
 	} else {
 		s.control, err = computer.Open(ctx, s.port, limits, wantID)

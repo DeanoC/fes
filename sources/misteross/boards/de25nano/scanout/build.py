@@ -91,7 +91,7 @@ def timed_reset_release(inputs):
     return canonical or standard
 
 
-def timed_scanout_sdc(source):
+def timed_scanout_reset_ingress(source):
     # The system reset source and receiver both use the 100 MHz system PLL.
     # Keep the independent reference configuration and pixel bridge ingress cut.
     for pin in ("aclr", "clrn"):
@@ -101,7 +101,11 @@ def timed_scanout_sdc(source):
     source = replace_once(source, "$scanout_clear_count != 6", "$scanout_clear_count != 4")
     source = replace_once(source, "(expected 6)", "(expected 4)")
     source = replace_once(source, "exactly six configuration", "exactly four configuration")
-    return source + FIFO_RESET_SDC
+    return source
+
+
+def timed_scanout_sdc(source):
+    return timed_scanout_reset_ingress(source) + FIFO_RESET_SDC
 
 
 # Canonical MENU only: the two peer reset levels enter the first delay D.
@@ -135,10 +139,15 @@ def timed_vendor_reset_sdc(original, *, timed_instances=TIMED_RESET_INSTANCES):
     return source.encode()
 
 
-def reset_sdc_files(project):
+def reset_sdc_files(project, *, no_debug=False):
     files = sorted(project.rglob("altera_reset_controller.sdc"))
-    if len(files) != 6 or any(p.is_symlink() for p in project.rglob("*") if p.name == "altera_reset_controller.sdc"):
-        raise ValueError("generated reset SDC inventory differs from the reviewed six files")
+    if no_debug:
+        owners = sorted(path.relative_to(project).parts[0] for path in files)
+        if owners != ["hps_subsys", "peripheral_subsys", "qsys_top"]:
+            raise ValueError("generated native reset SDC owners differ from the three reviewed subsystems")
+    if len(files) != (3 if no_debug else 6) or any(path.is_symlink() for path in files):
+        count = "three" if no_debug else "six"
+        raise ValueError(f"generated reset SDC inventory differs from the reviewed {count} files")
     for path in files:
         if any(parent.is_symlink() for parent in path.parents if parent.is_relative_to(project)):
             raise ValueError("generated reset SDC must remain inside the private project")
@@ -148,11 +157,16 @@ def reset_sdc_files(project):
 def repair_generated_reset_timing(directory):
     if not timed_reset_release(json.loads((directory / "inputs.json").read_text())):
         raise ValueError("same-clock reset repair requires canonical MENU")
+    write_vendor_reset_timing(directory)
+    return verify_generated_reset_timing(directory)
+
+
+def write_vendor_reset_timing(directory, *, no_debug=False):
     project = directory / "project"
     originals = directory / "reset-timing-originals"
     originals.mkdir(exist_ok=False)
     files = {}
-    for path in reset_sdc_files(project):
+    for path in reset_sdc_files(project, no_debug=no_debug):
         relative = path.relative_to(project).as_posix()
         original = path.read_bytes()
         changed = timed_vendor_reset_sdc(original)
@@ -164,14 +178,12 @@ def repair_generated_reset_timing(directory):
     record = {"policy": TIMED_RESET_RELEASE, "clock": "pll_inst|iopll_0_outclk0",
               "timed_instances": list(TIMED_RESET_INSTANCES), "files": files}
     (directory / "reset-timing.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
-    return verify_generated_reset_timing(directory)
 
 
 def verify_generated_reset_timing(directory):
     inputs = json.loads((directory / "inputs.json").read_text())
     if not timed_reset_release(inputs):
         raise ValueError("same-clock reset verification requires canonical MENU")
-    record = json.loads((directory / "reset-timing.json").read_text())
     project = directory / "project"
     raw = directory.parents[1] / "functional-source" / BOARD / "scanout/clocks.sdc"
     expected_sdc = timed_scanout_sdc(raw.read_text()).encode()
@@ -179,7 +191,13 @@ def verify_generated_reset_timing(directory):
             inputs["scanout"]["source_sha256"]["clocks.sdc"] != sha(expected_sdc)):
         raise ValueError("canonical MENU same-clock reset SDC differs from captured source")
     verify_reset_synchronizers(project)
-    names = {p.relative_to(project).as_posix() for p in reset_sdc_files(project)}
+    return verify_vendor_reset_timing(directory)
+
+
+def verify_vendor_reset_timing(directory, *, no_debug=False):
+    record = json.loads((directory / "reset-timing.json").read_text())
+    project = directory / "project"
+    names = {p.relative_to(project).as_posix() for p in reset_sdc_files(project, no_debug=no_debug)}
     if (set(record) != {"policy", "clock", "timed_instances", "files"} or
             record["policy"] != TIMED_RESET_RELEASE or record["clock"] != "pll_inst|iopll_0_outclk0" or
             record["timed_instances"] != list(TIMED_RESET_INSTANCES) or set(record["files"]) != names):

@@ -34,7 +34,7 @@ class QuartusLicenseTests(unittest.TestCase):
                 self.assertEqual(stat.S_IMODE(selected.stat().st_mode), 0o400)
                 self.assertNotIn('ALTERAD_LICENSE_FILE', env)
                 before = menu.license_execution_inputs(env)
-                source.write_bytes(b'changed source during independent repeat\n')
+                source.write_bytes(b'changed source during the build\n')
                 self.assertEqual(menu.license_execution_inputs(env), before)
 
     def test_execution_binds_bytes_without_private_path_or_contents(self):

@@ -110,6 +110,25 @@ func TestCoreScreenReportsTruncatedFamilyLibrary(t *testing.T) {
 	}
 }
 
+func TestCoreScreenChoosesNTSCGameFromC64Family(t *testing.T) {
+	pal := preparedComputer("pal", "PAL disk", "fes.c64")
+	ntsc := preparedComputer("ntsc", "NTSC disk", "fes.c64-ntsc")
+	pal.CoreEntryKind, ntsc.CoreEntryKind = "title", "title"
+	r := loadCoreScreen(t, &fakeServices{games: []hostclient.Game{pal, ntsc}}, "", pal.CoreID, Options{})
+	stepUntil(t, r, func(f Frame) bool { return coreScreenSettled(f) && frameHas(f, "PAL disk") })
+	r.Activate("model:fes.c64-ntsc")
+	f := stepUntil(t, r, func(f Frame) bool {
+		return coreScreenSettled(f) && frameHas(f, "Games for the C64 NTSC") && frameHas(f, "NTSC disk")
+	})
+	if frameHas(f, "PAL disk") || !frameHas(f, "Drive 8") {
+		t.Fatalf("NTSC game list or drive: %s", frameText(f))
+	}
+	r.Activate("game:1")
+	if actions := r.TakeActions(); len(actions) != 1 || actions[0].Kind != ActionLaunch || actions[0].GameID != ntsc.ID {
+		t.Fatalf("selected NTSC title: %+v", actions)
+	}
+}
+
 func TestCoreScreenGameRowStartsItsExactEntry(t *testing.T) {
 	games := spectrumGames()
 	r := loadCoreScreen(t, &fakeServices{games: games}, "", "fes.spectrum", Options{})
@@ -536,6 +555,45 @@ func coreScreenDrawWorkAt(t *testing.T, coreID, otherModel string, width, height
 	if otherModel != "" {
 		r.Activate(otherModel)
 		check("a model change")
+	}
+}
+
+func TestCoreScreenDrawWorkCeilingOnThePcxt(t *testing.T) {
+	coreScreenDrawWork(t, "fes.pcxt-dos", "")
+}
+
+// A PC/XT with no disk of its own starts from the host's FreeDOS disk, and
+// its drive row says so. Your disks opens the PC/XT shelf. The start disk is
+// not the title's own, so there is no disk to add after it.
+func TestCoreScreenPcxtStartsFromTheHostsFreeDOSDisk(t *testing.T) {
+	pkg := strings.Repeat("d", 64)
+	for _, withStart := range []bool{true, false} {
+		pc := preparedComputer("pcxt-setup", "PC/XT", "fes.pcxt-dos")
+		pc.CoreEntryKind, pc.PackageID, pc.MediaRole, pc.MediaID = "machine", pkg, "", ""
+		host := &c64Host{fakeServices: fakeServices{games: []hostclient.Game{pc}}}
+		cp := hostclient.ComputerPackage{PackageID: pkg, Media: []hostclient.ComputerMediaSaves{{Role: "disk", Saves: true}}}
+		if withStart {
+			cp.StartDisk = "FreeDOS boot disk"
+		}
+		host.snap.Packages = []hostclient.ComputerPackage{cp}
+		r := loadCoreScreen(t, host, pc.ID, pc.CoreID, Options{})
+		landed := "Nothing chosen"
+		if withStart {
+			landed = "FreeDOS boot disk"
+		}
+		frame := stepUntil(t, r, func(f Frame) bool { return coreScreenSettled(f) && frameHas(f, landed) })
+		text := frameText(frame)
+		if !frameHas(frame, "Drive A") || !frameHas(frame, "Your disks") || frameHas(frame, "Add disk to game") {
+			t.Fatalf("start disk %v:\n%s", withStart, text)
+		}
+		if withStart && (!strings.Contains(text, "For next start") || !strings.Contains(text, "Saves changes\n")) {
+			t.Fatalf("the FreeDOS disk is not shown for next start, saving changes:\n%s", text)
+		}
+		r.Activate("disks")
+		acts := r.TakeActions()
+		if len(acts) != 1 || acts[0].Kind != ActionHardwareDisks || acts[0].CoreID != "fes.pcxt-dos" || acts[0].PackageID != pkg {
+			t.Fatalf("Your disks: %+v", acts)
+		}
 	}
 }
 

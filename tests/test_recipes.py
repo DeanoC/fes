@@ -67,7 +67,8 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(zx81.producer_module, 'boards.de25nano.producers.build_zx81_package')
         self.assertEqual(zx81.toolchain, 'quartus')
         self.assertEqual(recipes.recipe_for('fes.zx81').board, 'de10-nano')
-        for core, name in (('fes.spectrum', 'spectrum'), ('fes.atari-st', 'atari_st')):
+        for core, name in (('fes.spectrum', 'spectrum'), ('fes.atari-st', 'atari_st'), ('fes.c64', 'c64'),
+                           ('fes.pcxt-dos', 'pcxt')):
             machine = recipes.recipe_for(core, board='de25-nano')
             self.assertEqual(machine.producer_module, f'boards.de25nano.producers.build_{name}_package')
             self.assertEqual((machine.toolchain, machine.board), ('quartus', 'de25-nano'))
@@ -123,6 +124,21 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(recipe.quartus["seeds"], [1, 2, 3])
         env = recipes.producer_environment({"FES_TOOLCHAIN_GPU_ROUTER": "HIP"}, recipe)
         self.assertNotIn("FES_TOOLCHAIN_GPU_ROUTER", env)
+
+    def test_c64_ntsc_is_an_explicit_de10_package_selection(self):
+        pal = recipes.recipe_for("fes.c64")
+        ntsc = recipes.recipe_for("fes.c64-ntsc")
+        self.assertEqual(pal.producer_arguments, ("--model", "pal"))
+        self.assertEqual(dict(pal.producer_options), {"model": "pal"})
+        self.assertEqual(ntsc.producer_arguments, ("--model", "ntsc"))
+        self.assertEqual(dict(ntsc.producer_options), {"model": "ntsc"})
+        self.assertEqual(ntsc.producer_module, pal.producer_module)
+        self.assertEqual(ntsc.lock_path, pal.lock_path)
+        self.assertEqual(ntsc.selection_filename, "fes-c64-ntsc.package-selection.toml")
+        self.assertEqual(ntsc.package_dir_env, "FES_C64_NTSC_PACKAGE_DIR")
+        self.assertEqual(ntsc.package_selection_env, "FES_C64_NTSC_PACKAGE_SELECTION")
+        with self.assertRaisesRegex(ValueError, "unknown format-2 recipe"):
+            recipes.recipe_for("fes.c64-ntsc", board="de25-nano")
 
     def test_pcxt_diagnostic_package_is_not_registered(self):
         with self.assertRaises(ValueError):
@@ -353,7 +369,8 @@ class RecipeDataTest(unittest.TestCase):
     def test_board_namespaces_keep_defaults_and_reject_invalid_foreign_entries(self):
         document = self.document()
         self.assertEqual(self.load_document(document), recipes.FORMAT2_RECIPES)
-        self.assertEqual(set(self.load_document(document, board='de25-nano')), {'fes.menu', 'fes.zx81', 'fes.spectrum', 'fes.atari-st'})
+        self.assertEqual(set(self.load_document(document, board='de25-nano')),
+                         {'fes.menu', 'fes.zx81', 'fes.spectrum', 'fes.atari-st', 'fes.c64', 'fes.pcxt-dos'})
         variant = next(r for r in document['recipes'] if r.get('board') == 'de25-nano')
         # The same core/selection/environment names on different boards are
         # intentional. Duplicates within either board remain an error.

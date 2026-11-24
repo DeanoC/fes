@@ -27,7 +27,7 @@ foreach file {fes_spectrum_core.v fes_firmware_upload.v fes_spectrum_firmware_ro
     fes_z80_alu.sv fes_z80_engine.sv fes_z80_bus.sv fes_z80_nmos.sv} {
     add_fileset_file $file SYSTEM_VERILOG PATH $file
 }
-foreach file {fes_de25_computer.vh fes_de25_scanout.vh} {
+foreach file {fes_de25_computer.vh fes_native_de25_computer.vh fes_de25_scanout.vh} {
     add_fileset_file generated/$file VERILOG_INCLUDE PATH generated/$file
 }
 # Portable shared RTL includes these by basename, as the DE10 build's include

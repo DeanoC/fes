@@ -17,11 +17,24 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 )
 
-func run() error {
-	if len(os.Args) != 4 {
-		return errors.New("usage: nano-rom-selection PACKAGE_ARCHIVE FIRMWARE_ROM EXPECTED_PACKAGE_ID")
+const spectrum48Profile = "de25-native-spectrum48-v1"
+const c64Profile = "de25-native-c64-v1"
+
+func run(ctx context.Context, args []string, out io.Writer) error {
+	var profile, core string
+	var size int64
+	if len(args) > 0 && args[0] == "--spectrum48" {
+		profile, core, size = spectrum48Profile, "fes.spectrum", 16384
+	} else if len(args) > 0 && args[0] == "--c64" {
+		profile, core, size = c64Profile, "fes.c64", 36864
 	}
-	f, err := os.Open(os.Args[1])
+	if profile != "" {
+		args = args[1:]
+	}
+	if len(args) != 3 {
+		return errors.New("usage: nano-rom-selection [--spectrum48|--c64] PACKAGE_ARCHIVE FIRMWARE_ROM EXPECTED_PACKAGE_ID")
+	}
+	f, err := os.Open(args[0])
 	if err != nil {
 		return err
 	}
@@ -30,19 +43,27 @@ func run() error {
 		f.Close()
 		return errors.New("bounded regular Nano archive required")
 	}
-	a, err := corepackage.RetainArchive(context.Background(), info.Size(), f)
+	a, err := corepackage.RetainArchive(ctx, info.Size(), f)
 	closeErr := f.Close()
 	if err != nil || closeErr != nil {
 		return errors.Join(err, closeErr)
 	}
 	i := a.Inspection()
 	d := i.Descriptor
-	if i.PackageID != os.Args[3] || d.Format != 3 || d.Target.Platform != "de25_nano" ||
-		d.Target.Device != "A5EB013BB23BE4SCS" || d.ROM == nil || d.ROM.Role != "firmware" ||
-		(d.ROM.SourceSize != 4096 && d.ROM.SourceSize != 8192) {
+	if i.PackageID != args[2] || d.Format != 3 || d.Target.Platform != "de25_nano" ||
+		d.Target.Device != "A5EB013BB23BE4SCS" || d.ROM == nil || d.ROM.Role != "firmware" {
+		return errors.New("expected Nano format-3 firmware package required")
+	}
+	if profile != "" {
+		if d.Target.ProgrammingProfile != profile || d.Core.ID != core ||
+			d.ABI != (corepackage.Contract{ID: "fes.computer", Major: 1}) ||
+			d.ROM.SourceSize != size || !corepackage.FirmwareUpload(d) {
+			return errors.New("expected selected native mailbox firmware package")
+		}
+	} else if d.ROM.SourceSize != 4096 && d.ROM.SourceSize != 8192 {
 		return errors.New("expected Nano held-ROM package required")
 	}
-	f, err = os.Open(os.Args[2])
+	f, err = os.Open(args[1])
 	if err != nil {
 		return err
 	}
@@ -55,12 +76,18 @@ func run() error {
 	if err != nil || int64(len(data)) != d.ROM.SourceSize {
 		return errors.New("firmware image changed while reading")
 	}
-	linked, err := a.LinkROMs(context.Background(), []corepackage.ROMSource{{ID: d.ROM.ID, Role: "firmware", Data: data}})
+	linked, err := a.LinkROMs(ctx, []corepackage.ROMSource{{ID: d.ROM.ID, Role: "firmware", Data: data}})
 	if err != nil {
 		return err
 	}
+	if profile != "" {
+		receipt := linked.Receipt().ROMLink
+		if receipt == nil || !receipt.ValidFor(d) || receipt.ProgrammedSHA256 != d.Payload.SHA256 {
+			return errors.New("mailbox firmware linking changed the programmed payload")
+		}
+	}
 	sum := sha256.Sum256(data)
-	return json.NewEncoder(os.Stdout).Encode(struct {
+	return json.NewEncoder(out).Encode(struct {
 		PackageID        string `json:"package_id"`
 		SourceID         string `json:"source_id"`
 		SourceSize       int    `json:"source_size"`
@@ -70,7 +97,7 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(context.Background(), os.Args[1:], os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

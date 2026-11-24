@@ -5,6 +5,13 @@
 #include <string.h>
 #include <libfdt.h>
 #include "../de25-dma/generated/fes_de25_scanout.h"
+#include "../de25-dma/generated/fes_de25_hps_window.h"
+
+/* The F2SDRAM firewall's open region on J8G, less the vendor service buffer
+ * (scripts/de25_kernel_platform.py WINDOW_POOL_RANGE). End exclusive.
+ */
+#define POOL_FIRST 0x82000000ULL
+#define POOL_END 0xc0000000ULL
 
 static void require(int condition, const char *message)
 {
@@ -27,7 +34,8 @@ int main(int argc, char **argv)
 	FILE *file;
 	void *tree;
 	long size;
-	int owner, smmu, region, manager, symbols, length;
+	int owner, smmu, region, manager, symbols, pool, length;
+	unsigned long long pool_bytes, first, end;
 	const fdt32_t *p;
 	const char *value;
 	char path[256];
@@ -48,11 +56,29 @@ int main(int argc, char **argv)
 	owner = fdt_path_offset(tree, "/dma-owner@20010200");
 	require(owner >= 0 && fdt_parent_offset(tree, owner) == 0, "permanent root owner");
 	require(fdt_node_check_compatible(tree, owner, "fes,de25-dma") == 0, "owner compatible");
-	p = cells(tree, owner, "reg", 4);
+	p = cells(tree, owner, "reg", 8);
 	require(fdt32_to_cpu(p[0]) == 0 && fdt32_to_cpu(p[1]) ==
 		FES_DE25_SCANOUT_ARCHITECTURAL_LW_BASE + FES_DE25_SCANOUT_PERIPHERAL_OFFSET &&
 		fdt32_to_cpu(p[2]) == 0 && fdt32_to_cpu(p[3]) == FES_DE25_SCANOUT_CONTROL_SPAN,
 		"control resource");
+	require(fdt32_to_cpu(p[4]) == 0 && fdt32_to_cpu(p[5]) ==
+		FES_DE25_SCANOUT_ARCHITECTURAL_LW_BASE + FES_DE25_HPS_WINDOW_PERIPHERAL_OFFSET &&
+		fdt32_to_cpu(p[6]) == 0 && fdt32_to_cpu(p[7]) == FES_DE25_HPS_WINDOW_CONTROL_SPAN,
+		"window control resource");
+	p = cells(tree, owner, "memory-region", 1);
+	pool = fdt_node_offset_by_phandle(tree, fdt32_to_cpu(*p));
+	require(pool >= 0 && fdt_node_check_compatible(tree, pool, "shared-dma-pool") == 0 &&
+		fdt_getprop(tree, pool, "reusable", &length) && !fdt_getprop(tree, pool, "no-map", &length) &&
+		!fdt_getprop(tree, pool, "reg", &length), "window pool");
+	p = cells(tree, pool, "size", 2);
+	pool_bytes = ((unsigned long long)fdt32_to_cpu(p[0]) << 32) | fdt32_to_cpu(p[1]);
+	require(pool_bytes >= (unsigned long long)FES_DE25_HPS_WINDOW_SPAN + FES_DE25_SCANOUT_ALLOCATION_BYTES,
+		"window pool size");
+	p = cells(tree, pool, "alloc-ranges", 4);
+	first = ((unsigned long long)fdt32_to_cpu(p[0]) << 32) | fdt32_to_cpu(p[1]);
+	end = first + (((unsigned long long)fdt32_to_cpu(p[2]) << 32) | fdt32_to_cpu(p[3]));
+	require(first >= POOL_FIRST && end <= POOL_END && end - first >= pool_bytes,
+		"window pool inside the F2SDRAM firewall region");
 	require(!fdt_getprop(tree, owner, "dma-coherent", &length), "unproven coherence declaration");
 	p = cells(tree, owner, "iommus", 2);
 	require(fdt32_to_cpu(p[1]) == FES_DE25_SCANOUT_SMMU_STREAM_ID, "stream ID");

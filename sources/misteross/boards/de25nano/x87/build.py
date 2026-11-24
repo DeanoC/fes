@@ -3,30 +3,31 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
-import fcntl
 import hashlib
 import importlib.util
 import json
-import math
 import os
 from pathlib import Path
 import re
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 
 HERE = Path(__file__).resolve().parent
 MISTEROSS = HERE.parents[2]
+if str(MISTEROSS) not in sys.path:
+    sys.path.insert(0, str(MISTEROSS))
+# Installs the Quartus lease's launch guard for this process.
+from scripts.quartus_tools import quartus_lease  # noqa: E402
 ROOT = MISTEROSS.parents[1]
 PROJECT = "fes_de25_x87"
 DEVICE = "A5EB013BB23BE4SCS"
 PERIOD_NS = 5.0
 TIMEOUT_SECONDS = 30 * 60
 MIN_FREE_BYTES = 30 * 1024 ** 3
-LOCK = Path("/tmp/lander-quartus-3090.lock")
 # The backend's RTL is shared i386 RTL: `fes_i386_x87` instantiates
 # `fes_x87_core` directly when its DE25 arithmetic backend is selected, so the
 # files live beside the CPU rather than under this board.
@@ -58,25 +59,10 @@ def require_disk(path: Path) -> None:
         raise BuildError(f"refusing build with {free / 1024**3:.1f} GiB free; at least 30 GiB required")
 
 
-@contextmanager
 def compiler_lease():
-    # The established builder-wide lock covers discovery, snapshot and every
+    # This host's Quartus Pro lease covers discovery, snapshot and every
     # Quartus process. Never interrupt a different owner's compiler job.
-    with LOCK.open("a+") as lease:
-        last_notice = -math.inf
-        while True:
-            try:
-                fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() - last_notice >= 30:
-                    print(f"x87 build heartbeat: waiting for {LOCK}", flush=True)
-                    last_notice = time.monotonic()
-                time.sleep(1)
-        try:
-            yield
-        finally:
-            fcntl.flock(lease, fcntl.LOCK_UN)
+    return quartus_lease("pro", label="x87 build")
 
 
 def prepare(output: Path | None = None) -> Path:

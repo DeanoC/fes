@@ -35,6 +35,12 @@ checks the result.
   with a depth shift of 2 or 4; vibrato is eight positions stepped every 1024
   samples, and its offset moves the f-number before the block shift and
   multiplier instead of the phase increment.
+- `phase_generator.sv`: upstream's `opl2_log_sine_lut` and `opl2_exp_lut` are
+  not vendored. Their two tables are one initialised array, `opl2_phase_rom`,
+  read through two registered ports, so Quartus builds both from one RAM
+  block. Upstream's case statements became logic in the pc386 seal's netlist,
+  about 330 ALMs. Values, latency and power-on outputs are upstream's
+  ([record](../../../../../../docs/validation/2026-11-21-pc386-audio-area/)).
 - `calc_rhythm_phase.sv`: the noise generator is Nuked-OPL3's 23-bit register,
   stepped once per operator slot (36 per sample, as on the OPL3 it models), and
   the top-cymbal phase is latched only in rhythm mode.

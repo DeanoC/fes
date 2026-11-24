@@ -4,6 +4,11 @@ import argparse
 import os
 from pathlib import Path
 import subprocess
+import sys
+
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.verilator_waivers import lint_config
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,7 +29,7 @@ def main():
         "cores/fes-menu/sim/ddr_model.v",
     )
     subprocess.run([
-        args.verilator, "--cc", "--exe", "--build", "--top-module", "display_plane_top",
+        args.verilator, *lint_config(args.verilator), "--cc", "--exe", "--build", "--top-module", "display_plane_top",
         "-Wall", "-Wno-UNUSEDSIGNAL", "-Wno-PINCONNECTEMPTY", "-Wno-SYNCASYNCNET", "-Wno-DECLFILENAME",
         "--Mdir", str(output), "-CFLAGS", "-std=c++17 -O2",
         "-I" + str(ROOT / "cores/fes-common/generated"),

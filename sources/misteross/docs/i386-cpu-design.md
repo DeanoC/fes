@@ -336,14 +336,23 @@ With `I486 = 1`:
   access of 2, 4 or 8 bytes at an address not a multiple of its size, or of
   6 bytes at an odd one; for MOVS (a st2 uop) its store's address too.
   Accesses made at privilege 0 are excepted: system accesses (descriptor
-  tables, the TSS) and a delivery's pushes to its new stack. Far pointers,
+  tables, the TSS) and a delivery's pushes to its new stack. A delivery
+  that stays at CPL 3 pushes onto the current stack as CPL-3 accesses, so
+  a misaligned push raises #AC. Its error code is 0 even inside another
+  event's delivery, without EXT, as the PRM's Table 9-8 has it ("always
+  zero"; Deano, 21 November 2026), where Bochs pushes 1. With gate 17
+  also to CPL 3 the CPU never leaves the delivery, and neither does
+  hardware (Deano, 21 November 2026; CVE-2015-5307). Far pointers,
   BOUND and SGDT are checked as the separate accesses they make. It is
   checked at M1 on the linear address, after the segment's checks and before
   the page walk: the PRM's Table 9-2 ranks alignment faults above page
   faults. Under AM at CPL 3 an access waits in D for an older EFLAGS load.
 - **TR3** is storage, as TR4 to TR7 are; none has its test function.
 - **Reset.** A machine with the identity resets DX to the signature, CR0 to
-  `60000010h` and DR6 to `FFFF0FF0h` (`pc386_system`'s `init_*`).
+  `60000010h` and DR6 to `FFFF0FF0h` (`pc386_system`'s `init_*`). DR6's bit
+  12 is then held as on the 386: a MOV to DR6 may set it (Intel SDM vol. 3,
+  the debug registers' compatibility notes: on the Intel486 it is possible
+  to write a 1 there).
 - **Speed.** The governor costs each new instruction at the i486's count on
   every table (governor.toml).
 
@@ -480,7 +489,7 @@ PC/XT's FFh for unclaimed reads.
 | Item | Value | Source |
 | --- | --- | --- |
 | Device | 5CSEBA6U23I7: 41,910 ALMs (83,820 COMB cells), 553 M10K, 112 DSP blocks | [RISC-V QoR](../cores/fes-riscv/qor.md); DSP count from the Cyclone V SE A6 device table |
-| Compilers | Yosys and nextpnr-mistral with the GPU router, one lock per core. The i386 routes in #1115, #1141 and #1143 use Yosys `238eac9a49`, nextpnr `bd7a1c0d` and Mistral `8fcc4cb4`. The lock is a last known good and moves forward: it now pins Yosys `0a7927bf`, the pc386 lock's pin, which writes the same CPU netlist ([D2 record](../../../docs/validation/2026-11-10-1581-d2-yosys-lock/README.md)) | [i386 lock on main](https://github.com/DeanoC/fes/blob/main/sources/misteross/cores/fes-common/rtl/i386/toolchain.lock), [Yosys pin record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-25-i386-yosys-238eac9a49.md) |
+| Compilers | Yosys and nextpnr-mistral with the GPU router, one lock per core. The i386 routes in #1115, #1141 and #1143 use Yosys `238eac9a49`, nextpnr `bd7a1c0d` and Mistral `8fcc4cb4`. The lock now shares Yosys `d273c1cb` (yosys#81) with pc386; full old/new lockstep and frontend checks cover the compiler move ([dated record](validation/2026-11-22-yosys81-pin-bump/README.md)) | [i386 lock on main](https://github.com/DeanoC/fes/blob/main/sources/misteross/cores/fes-common/rtl/i386/toolchain.lock), [Yosys pin record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-25-i386-yosys-238eac9a49.md) |
 | CPU clocks seen | Pipelined RV32I cores 79.7–83.6 MHz in the QoR harness; the sealed `fes.riscv` system 75–79 MHz | [RISC-V QoR](../cores/fes-riscv/qor.md) |
 | i386 Phase 1 spikes | Historical four-seed isolated endpoints, in MHz; F1–Q share the front-end route, D and AG share pre-DC D+AG, and M2 is separate. The #1095 ranges use the older Yosys `3a5accbd`. The later record-RTL reroute on Yosys `d4ac300d9d` measured F1 83.0–105.6, F2 82.6–87.8, L1 89.5–93.2, L2 89.2–94.5, Q 78.7–82.5, D 85.8–90.1 and AG 85.5–95.7. The M2 control spike is 97.8–106.5 MHz (one seed below 100); it was not re-routed for that RTL. These routes predate DC and the data-port freeze | [#1095](https://github.com/DeanoC/fes/pull/1095), [toolchain-lock record](validation/2026-10-25-i386-toolchain-lock.md) |
 | Memory clocks seen | HPS DDR and SDRAM domains ship at 100 MHz; RAM-test experiments reached about 117–118 MHz; 130 MHz is unresolved | [RAM tester](../cores/fes-ramtest/README.md), [dated records](README.md#dated-records) |

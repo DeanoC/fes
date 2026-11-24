@@ -26,8 +26,9 @@ struct fes_nano_fabric_stop {
     struct fes_nano_fabric_stop_io io;
     struct fes_nano_probe_stop probe;
     uint32_t abi, build[4], bus_base, bytes;
-    /* Nonzero minimum stop token; advances beyond the reader's observed
-     * request cookie before the single DISABLE. Never wraps. */
+    /* The native48 adapter supplies the owned display grant generation.
+     * Existing DDR roles advance this token beyond the observed reader
+     * request cookie before the single DISABLE. It never wraps. */
     uint64_t cookie;
     unsigned qualified, attempted, failed, done, disable_issued, polls, reads;
     int first_error;
@@ -43,6 +44,9 @@ extern "C" {
  * uncertain work is retired without replay. All accesses require open control.
  * Successful repeats re-observe both receipts, without issuing commands. */
 int fes_nano_fabric_stop(struct fes_nano_fabric_stop *);
+/* Validate identity and a fresh, unconfigured native reader while its data
+ * bridge is still held. Successful observation never authorizes data release. */
+int fes_nano_fabric_scanout_ready(struct fes_nano_fabric_stop *);
 /* Independent readback after stop. Returns 0 only for the same complete
  * receipts. The caller retains them after control closes, without more MMIO. */
 int fes_nano_fabric_stopped(struct fes_nano_fabric_stop *);

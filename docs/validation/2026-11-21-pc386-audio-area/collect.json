@@ -1,0 +1,156 @@
+{
+ "base": {
+  "seeds": [
+   {
+    "seed": 1,
+    "alms_needed": 41975.0,
+    "ram_blocks": 167,
+    "dsp_blocks": 24,
+    "worst_slack_ns": {
+     "Setup": 1.424,
+     "Hold": 0.0,
+     "Recovery": 7.743,
+     "Removal": 0.032,
+     "Setup Data Delay": 3.586,
+     "Minimum Pulse Width": 0.22,
+     "Net Delay": 3.586
+    },
+    "machine_setup_ns": 1.764,
+    "negative": []
+   },
+   {
+    "seed": 2,
+    "alms_needed": 41975.0,
+    "ram_blocks": 167,
+    "dsp_blocks": 24,
+    "worst_slack_ns": {
+     "Setup": 1.551,
+     "Hold": 0.0,
+     "Recovery": 7.479,
+     "Removal": 0.102,
+     "Setup Data Delay": 3.68,
+     "Minimum Pulse Width": 0.22,
+     "Net Delay": 3.68
+    },
+    "machine_setup_ns": 1.864,
+    "negative": []
+   },
+   {
+    "seed": 3,
+    "alms_needed": 41962.0,
+    "ram_blocks": 167,
+    "dsp_blocks": 24,
+    "worst_slack_ns": {
+     "Setup": 1.299,
+     "Hold": 0.0,
+     "Recovery": 7.427,
+     "Removal": 0.095,
+     "Setup Data Delay": 3.52,
+     "Minimum Pulse Width": 0.22,
+     "Net Delay": 3.52
+    },
+    "machine_setup_ns": 1.697,
+    "negative": []
+   },
+   {
+    "seed": 4,
+    "alms_needed": 41945.0,
+    "ram_blocks": 167,
+    "dsp_blocks": 24,
+    "worst_slack_ns": {
+     "Setup": 1.505,
+     "Hold": 0.0,
+     "Recovery": 7.618,
+     "Removal": 0.082,
+     "Setup Data Delay": 3.668,
+     "Minimum Pulse Width": 0.22,
+     "Net Delay": 3.691
+    },
+    "machine_setup_ns": 1.853,
+    "negative": []
+   }
+  ],
+  "median": 41968.5,
+  "spread": 30.0,
+  "complete": true
+ },
+ "cut": {
+  "seeds": [
+   {
+    "seed": 1,
+    "alms_needed": 41589.0,
+    "ram_blocks": 168,
+    "dsp_blocks": 24,
+    "worst_slack_ns": {
+     "Setup": 1.539,
+     "Hold": 0.0,
+     "Recovery": 6.953,
+     "Removal": 0.026,
+     "Setup Data Delay": 3.503,
+     "Minimum Pulse Width": 0.22,
+     "Net Delay": 3.503
+    },
+    "machine_setup_ns": 1.682,
+    "negative": []
+   },
+   {
+    "seed": 2,
+    "alms_needed": 41661.0,
+    "ram_blocks": 168,
+    "dsp_blocks": 24,
+    "worst_slack_ns": {
+     "Setup": 1.416,
+     "Hold": 0.0,
+     "Recovery": 7.292,
+     "Removal": 0.097,
+     "Setup Data Delay": 3.587,
+     "Minimum Pulse Width": 0.22,
+     "Net Delay": 3.587
+    },
+    "machine_setup_ns": 1.77,
+    "negative": []
+   },
+   {
+    "seed": 3,
+    "alms_needed": 41635.0,
+    "ram_blocks": 168,
+    "dsp_blocks": 24,
+    "worst_slack_ns": {
+     "Setup": 1.283,
+     "Hold": 0.0,
+     "Recovery": 7.285,
+     "Removal": 0.032,
+     "Setup Data Delay": 3.104,
+     "Minimum Pulse Width": 0.22,
+     "Net Delay": 3.104
+    },
+    "machine_setup_ns": 1.283,
+    "negative": []
+   },
+   {
+    "seed": 4,
+    "alms_needed": 41662.0,
+    "ram_blocks": 168,
+    "dsp_blocks": 24,
+    "worst_slack_ns": {
+     "Setup": 1.552,
+     "Hold": 0.0,
+     "Recovery": 7.579,
+     "Removal": 0.128,
+     "Setup Data Delay": 3.639,
+     "Minimum Pulse Width": 0.22,
+     "Net Delay": 3.639
+    },
+    "machine_setup_ns": 1.811,
+    "negative": []
+   }
+  ],
+  "median": 41648.0,
+  "spread": 73.0,
+  "complete": true
+ },
+ "saving": 320.5,
+ "measured": true,
+ "band_pass": true,
+ "timing_pass": true
+}

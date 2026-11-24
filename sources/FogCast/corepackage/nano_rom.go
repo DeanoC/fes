@@ -51,6 +51,12 @@ func FirmwareUpload(d Descriptor) bool {
 	return nanoROM(d) && d.ROM != nil && ok && encoding == "gp-firmware-upload-v1"
 }
 
+// DE25ComputerABI is the exact fes.computer contract a DE25 machine runs. The
+// PC/XT's floppy is a fes.computer 1.1 interface; every other machine is 1.0.
+func DE25ComputerABI(coreID string) Contract {
+	return Contract{ID: "fes.computer", Major: 1, Minor: map[string]int64{"fes.pcxt-dos": 1}[coreID]}
+}
+
 // firmwareUploadMachine admits the machines the DE25 runtime launches this
 // way, each with its endpoint's exact image sizes. The package format allows
 // any 1 KiB multiple; a launch does not.
@@ -61,10 +67,13 @@ func firmwareUploadMachine(d Descriptor) error {
 		"fes.spectrum-plus3": {65536},
 		"fes.pentagon":       {49152},
 		"fes.atari-st":       {196608},
+		"fes.c64":            {36864},
+		// The 64 KiB system ROM window, then the 4 KiB CGA font.
+		"fes.pcxt-dos": {69632},
 	}[d.Core.ID]
 	if !FirmwareUpload(d) || d.Target.ProgrammingProfile != "de25-linux-computer-v1" ||
-		d.ABI != (Contract{ID: "fes.computer", Major: 1}) || !slices.Contains(sizes, d.ROM.SourceSize) {
-		return errors.New("firmware upload requires a DE25 Spectrum-family or Atari ST computer package and its exact image size")
+		d.ABI != DE25ComputerABI(d.Core.ID) || !slices.Contains(sizes, d.ROM.SourceSize) {
+		return errors.New("firmware upload requires a DE25 Spectrum-family, Atari ST, C64 or PC/XT computer package and its exact image size")
 	}
 	return nil
 }

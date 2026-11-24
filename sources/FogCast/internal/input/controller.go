@@ -3,8 +3,11 @@ package input
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/subtle"
+	"encoding/hex"
 	"errors"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -12,6 +15,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/bridge"
 	"github.com/DeanoC/FogCast/internal/kitlease"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -21,6 +25,9 @@ type Spec struct {
 	Session uint64
 	Token   []byte
 	Core    string
+	// ExecutionGeneration is internal target authority, never supplied in the
+	// attach body. The guarded request context selects it.
+	ExecutionGeneration string
 }
 
 type Controller interface {
@@ -44,28 +51,150 @@ type TargetController struct {
 	ports             *controllerPortsSink
 	portsBinding      func(context.Context) (*ControllerBinding, error)
 	observe           func(context.Context) (CoreObservation, error)
+	mediaUncertainty  func(context.Context) (localhid.MatrixMediaWitness, bool, error)
+	mediaRetirer      func(context.Context, localhid.MatrixMediaRetirement) error
+	mediaNeutral      func(context.Context, localhid.MatrixMediaNeutral) error
+	matrixAdmission   func(context.Context, string, string, uint64, func(context.Context) error) error
 	needsRelease      bool
 	closed            bool
 	localMu           sync.Mutex
 	localLn           net.Listener
+	localStarting     bool
 	localConn         net.Conn
 	localPath         string
 	localClosed       bool
 	localDrops        atomic.Uint64
-	localReported     uint64
-	localWarning      time.Time
-	pending           *lease
-	closeOnce         sync.Once
-	closeErr          error
+	// Once v2 is attempted, raw keyboard stays fenced across connections
+	// until an acknowledged physical-state handoff is implemented.
+	localV2Guard atomic.Bool
+	// Disabled until the native sender and startup recovery path are ready.
+	localRecoveryEnabled atomic.Bool
+	// Protected by localMu. Once serving starts the selected mode cannot change.
+	localRecoveryFrozen bool
+	localReported       uint64
+	localWarning        time.Time
+	localLeases         *kitlease.Manager
+	localKeyboardGrant  *localKeyboardGrant
+	pending             *lease
+	closeOnce           sync.Once
+	closeErr            error
+	localInstanceOnce   sync.Once
+	localInstance       string
+	localInstanceErr    error
+	localEntropy        io.Reader
+	localRecoveryMu     sync.Mutex
+	localRecoverySeen   bool
+	localRecoveryReady  bool
+	localRecoveryStart  MatrixBinding
+	localTargetID       string
+	localBootID         string
+	localQueueLease     string
+	localQueueEpochs    map[string]uint64
+}
+
+// EnableLocalInputRecovery selects the acknowledged local input path before
+// the listener starts. The sender, target identity and physical-state handoff
+// must be configured separately; missing prerequisites remain unavailable. No
+// production caller enables this while that integration is incomplete.
+func (c *TargetController) EnableLocalInputRecovery() error {
+	if c == nil {
+		return errors.New("input controller is closed")
+	}
+	c.localMu.Lock()
+	defer c.localMu.Unlock()
+	if c.localClosed || c.localStarting || c.localLn != nil || c.localRecoveryFrozen {
+		return errors.New("local input listener has started or closed")
+	}
+	c.localRecoveryEnabled.Store(true)
+	return nil
+}
+
+// reserveLocalQueue tombstones each accepted publisher/epoch within the
+// validated execution lease. A failed BEGIN consumes its epoch as well.
+func (c *TargetController) reserveLocalQueue(leaseGeneration, publisher string, epoch uint64) bool {
+	if !localIdentity.MatchString(leaseGeneration) || !validObservedMatrixInstance(publisher) || epoch == 0 || epoch == ^uint64(0) {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.localQueueLease != leaseGeneration {
+		c.localQueueLease = leaseGeneration
+		c.localQueueEpochs = make(map[string]uint64)
+	}
+	old, exists := c.localQueueEpochs[publisher]
+	if (exists && epoch <= old) || (!exists && len(c.localQueueEpochs) >= 1024) {
+		return false
+	}
+	c.localQueueEpochs[publisher] = epoch
+	return true
+}
+
+// SetLocalTargetIdentity installs the immutable configured target and boot
+// identity before local recovery is exposed. Missing or changed identity fails
+// closed for v2 recovery without affecting menu or Stop.
+func (c *TargetController) SetLocalTargetIdentity(targetID, bootID string) error {
+	if c == nil || !localhid.ValidRecoveryIdentity(targetID) || !localhid.ValidRecoveryIdentity(bootID) {
+		return errLocalRecoveryPending
+	}
+	c.localRecoveryMu.Lock()
+	defer c.localRecoveryMu.Unlock()
+	if c.localTargetID != "" && (c.localTargetID != targetID || c.localBootID != bootID) {
+		return errLocalRecoveryPending
+	}
+	c.localTargetID, c.localBootID = targetID, bootID
+	return nil
+}
+
+// LocalAgentInstance names this input authority, not the boot or runtime. A
+// new controller gets a fresh value; entropy failure never invents an identity.
+func (c *TargetController) LocalAgentInstance() (string, error) {
+	if c == nil {
+		return "", errors.New("input controller is closed")
+	}
+	c.localInstanceOnce.Do(func() {
+		source := c.localEntropy
+		if source == nil {
+			source = rand.Reader
+		}
+		var value [16]byte
+		if _, err := io.ReadFull(source, value[:]); err != nil {
+			c.localInstanceErr = err
+			return
+		}
+		if value == ([16]byte{}) {
+			c.localInstanceErr = errors.New("invalid input authority identity")
+			return
+		}
+		c.localInstance = hex.EncodeToString(value[:])
+	})
+	return c.localInstance, c.localInstanceErr
+}
+
+// SetLocalLeaseManager supplies the authority for generation-bound physical
+// input received from the kit's root-only local socket. Configure it before
+// starting the listener.
+func (c *TargetController) SetLocalLeaseManager(leases *kitlease.Manager) {
+	if c != nil {
+		c.localLeases = leases
+	}
 }
 
 type lease struct {
-	session  uint64
-	token    []byte
-	core     string
-	server   *bridge.Server
-	cancel   context.CancelFunc
+	session             uint64
+	token               []byte
+	core                string
+	server              *bridge.Server
+	cancel              context.CancelFunc
+	executionGeneration string
+	keyboardBinding     *KeyboardHIDBinding
+	// lifetime is the admitting execution lease's lifetime. The bridge is
+	// cancelled when that lease is revoked, independently of the request.
 	lifetime context.Context
+}
+
+type localKeyboardGrant struct {
+	executionGeneration string
+	binding             KeyboardHIDBinding
 }
 
 func NewTargetController() *TargetController {
@@ -132,11 +261,66 @@ func (c *TargetController) SetMousePoster(poster MousePoster) {
 	c.ports.mouse.poster = poster
 }
 
-func (c *TargetController) SetKeyboardPoster(poster func(context.Context, uint64) error) {
+func (c *TargetController) SetKeyboardPoster(poster MatrixPoster) {
 	if c == nil || c.keyboard == nil {
 		return
 	}
 	c.keyboard.SetPoster(poster)
+}
+
+func (c *TargetController) SetKeyboardRetirer(retirer MatrixRetirer) {
+	if c == nil || c.keyboard == nil {
+		return
+	}
+	c.keyboard.SetRetirer(retirer)
+}
+
+func (c *TargetController) SetKeyboardMatrixAdmission(admit func(context.Context, string, string, uint64, func(context.Context) error) error) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.matrixAdmission = admit
+}
+
+func (c *TargetController) SetKeyboardMediaRetirement(query func(context.Context) (localhid.MatrixMediaWitness, bool, error), retire func(context.Context, localhid.MatrixMediaRetirement) error, neutral func(context.Context, localhid.MatrixMediaNeutral) error) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.mediaUncertainty, c.mediaRetirer, c.mediaNeutral = query, retire, neutral
+}
+
+// retireMediaObserved is called under lifecycle. The witness is captured
+// before a fresh observation and matched again by the adapter under its lock.
+func retireMediaObserved(ctx context.Context, observe func(context.Context) (CoreObservation, error), query func(context.Context) (localhid.MatrixMediaWitness, bool, error), retire func(context.Context, localhid.MatrixMediaRetirement) error, validate func(context.Context) error) error {
+	if query == nil || retire == nil {
+		return nil
+	}
+	witness, pending, err := query(ctx)
+	if err != nil || !pending {
+		return err
+	}
+	if observe == nil {
+		return errMatrixUnconfirmed
+	}
+	probe, cancel := context.WithTimeout(ctx, localCoreObserveTimeout)
+	obs, err := observe(probe)
+	if err == nil {
+		err = probe.Err()
+	}
+	cancel()
+	if err != nil {
+		return err
+	}
+	if !matrixObservationRetires(obs, witness.RuntimeInstance, witness.PackageID, witness.Generation) {
+		return errMatrixUnconfirmed
+	}
+	return retire(ctx, localhid.MatrixMediaRetirement{RetireOf: witness,
+		ObservedRuntimeInstance: obs.RuntimeInstance, ObservedPackageID: obs.PackageID,
+		ObservedGeneration: obs.Generation, Idle: obs.IdleConfirmed, Validate: validate})
 }
 
 func newTargetControllerWithSink(listenAddress string, sink bridge.Sink) *TargetController {
@@ -174,9 +358,75 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 	}
 	done := c.beginLifecycleTransition()
 	defer done()
-	c.lifecycle.Lock()
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if err := lockInputMutex(ctx, &c.lifecycle); err != nil {
+		return err
+	}
 	defer c.lifecycle.Unlock()
+	spec.ExecutionGeneration = kitlease.Generation(ctx)
 	return c.attachLocked(ctx, spec, lifetime)
+}
+
+// releasePersistentLocked performs only confirmed source-neutral recovery while
+// the caller owns lifecycle. Each retirement observation follows the failure.
+func (c *TargetController) releasePersistentLocked(ctx context.Context, persistent bridge.Sink) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	release := func(ctx context.Context) error {
+		if ports, ok := persistent.(*controllerPortsSink); ok {
+			return ports.releaseAllContext(ctx)
+		}
+		return persistent.ReleaseAll()
+	}
+	releaseErr := release(ctx)
+	if releaseErr == nil {
+		return nil
+	}
+	c.mu.Lock()
+	observe, query, retire, neutral := c.observe, c.mediaUncertainty, c.mediaRetirer, c.mediaNeutral
+	keyboard := c.keyboard
+	c.mu.Unlock()
+	epoch := c.transitionEpoch.Load()
+	validate := func(ctx context.Context) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if c.transitionEpoch.Load() != epoch {
+			return errNoCore
+		}
+		c.mu.Lock()
+		closed := c.closed
+		c.mu.Unlock()
+		if closed {
+			return errNoCore
+		}
+		return nil
+	}
+	if keyboard != nil {
+		if _, err := keyboard.neutralMedia(ctx, query, neutral, validate); err == nil {
+			releaseErr = release(ctx)
+		}
+	}
+	if releaseErr != nil {
+		if err := retireMediaObserved(ctx, observe, query, retire, validate); err != nil {
+			return errors.Join(releaseErr, err)
+		}
+		releaseErr = release(ctx)
+	}
+	if releaseErr != nil && keyboard != nil {
+		if err := keyboard.retireObserved(ctx, observe, validate); err != nil {
+			return errors.Join(releaseErr, err)
+		}
+		releaseErr = release(ctx)
+	}
+	if releaseErr != nil && keyboard != nil {
+		if err := keyboard.retireUnboundIdle(ctx, observe, validate); err != nil {
+			return errors.Join(releaseErr, err)
+		}
+		releaseErr = release(context.WithValue(ctx, matrixIdleCleanupKey{}, validate))
+	}
+	return releaseErr
 }
 
 func (c *TargetController) attachLocked(ctx context.Context, spec Spec, lifetime context.Context) error {
@@ -194,7 +444,7 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec, lifetime
 		if persistent == nil {
 			return errors.New("input state could not be released")
 		}
-		if err := persistent.ReleaseAll(); err != nil {
+		if err := c.releasePersistentLocked(ctx, persistent); err != nil {
 			return err
 		}
 		c.mu.Lock()
@@ -206,6 +456,7 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec, lifetime
 	}
 	current := c.active
 	if current != nil && current.session == spec.Session && current.core == spec.Core &&
+		current.executionGeneration == spec.ExecutionGeneration &&
 		current.lifetime != nil && current.lifetime.Done() == lifetime.Done() &&
 		subtle.ConstantTimeCompare(current.token, spec.Token) == 1 {
 		c.mu.Unlock()
@@ -221,6 +472,9 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec, lifetime
 	}
 
 	var sink bridge.Sink
+	var remote *remoteSourceSink
+	var keyboardBinding *KeyboardHIDBinding
+	var matrixBinding *MatrixBinding
 	c.mu.Lock()
 	observe := c.observe
 	bindingFn := c.portsBinding
@@ -231,9 +485,18 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec, lifetime
 			if err != nil {
 				return err
 			}
-			c.ports.setObservation(obs)
+			if err := c.ports.setObservationContext(ctx, obs); err != nil {
+				return err
+			}
 			if err := c.ports.bind(obs.Binding); err != nil {
 				return err
+			}
+			if obs.Active && obs.KeyboardHID != nil {
+				copy := *obs.KeyboardHID
+				keyboardBinding = &copy
+			}
+			if obs.Active && obs.Keyboard && obs.RuntimeInstance != "" && obs.Generation != 0 {
+				matrixBinding = &MatrixBinding{RuntimeInstance: obs.RuntimeInstance, PackageID: obs.PackageID, Generation: obs.Generation}
 			}
 		} else {
 			binding, err := bindingFn(ctx)
@@ -248,9 +511,10 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec, lifetime
 	if c.ports != nil {
 		// The host bridge releases only its own source. The retained sink
 		// still receives lease and core-replacement neutralization.
-		retained := retainedSink{Sink: remoteSourceSink{ports: c.ports}}
+		remote = &remoteSourceSink{ports: c.ports, matrix: matrixBinding, hid: keyboardBinding, controller: c}
+		retained := retainedSink{Sink: remote}
 		if c.ports.hid != nil {
-			sink = retainedTapSink{retainedSink: retained, controller: c, hid: c.ports.hid}
+			sink = retainedTapSink{retainedSink: retained, controller: c, hid: c.ports.hid, binding: keyboardBinding}
 		} else {
 			sink = retained
 		}
@@ -274,14 +538,19 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec, lifetime
 		_ = sink.Close()
 		return err
 	}
+	if remote != nil {
+		remote.server = server
+	}
 	leaseCtx, cancel := context.WithCancel(lifetime)
 	candidate := &lease{
-		session:  spec.Session,
-		token:    append([]byte(nil), spec.Token...),
-		core:     spec.Core,
-		server:   server,
-		cancel:   cancel,
-		lifetime: lifetime,
+		session:             spec.Session,
+		token:               append([]byte(nil), spec.Token...),
+		core:                spec.Core,
+		server:              server,
+		cancel:              cancel,
+		executionGeneration: spec.ExecutionGeneration,
+		keyboardBinding:     keyboardBinding,
+		lifetime:            lifetime,
 	}
 	c.mu.Lock()
 	if c.closed {
@@ -335,6 +604,60 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec, lifetime
 	return nil
 }
 
+// GrantLocalKeyboard is an explicit request by the current execution owner.
+// It belongs to the execution lease and HID generation observed now. A remote
+// stream detach alone does not revoke a kit-local hold.
+func (c *TargetController) LocalKeyboardBinding() (KeyboardHIDBinding, bool) {
+	if c == nil {
+		return KeyboardHIDBinding{}, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.active == nil || c.active.executionGeneration == "" || c.active.keyboardBinding == nil {
+		return KeyboardHIDBinding{}, false
+	}
+	return *c.active.keyboardBinding, true
+}
+
+func (c *TargetController) GrantLocalKeyboard(ctx context.Context, session uint64, expected KeyboardHIDBinding) error {
+	if c == nil || ctx == nil || !kitlease.Admitted(ctx) || kitlease.Generation(ctx) == "" || session == 0 {
+		return errors.New("local keyboard admission requires the execution owner")
+	}
+	c.lifecycle.Lock()
+	defer c.lifecycle.Unlock()
+	c.mu.Lock()
+	active, observe := c.active, c.observe
+	c.mu.Unlock()
+	if active == nil || active.session != session || active.executionGeneration != kitlease.Generation(ctx) ||
+		active.keyboardBinding == nil || *active.keyboardBinding != expected || observe == nil {
+		return errors.New("local keyboard input session is unavailable")
+	}
+	probe, cancel := context.WithTimeout(ctx, localCoreObserveTimeout)
+	defer cancel()
+	obs, err := observe(probe)
+	if err != nil || !obs.Active || obs.KeyboardHID == nil || *obs.KeyboardHID != expected || expected.PackageID == "" || expected.Generation == 0 {
+		return errors.New("local HID keyboard core is unavailable")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.active != active || ctx.Err() != nil {
+		return errors.New("local keyboard input session changed")
+	}
+	c.localKeyboardGrant = &localKeyboardGrant{executionGeneration: kitlease.Generation(ctx), binding: *obs.KeyboardHID}
+	return nil
+}
+
+func (c *TargetController) localKeyboardAdmitted(binding localDelegation) bool {
+	if c.localLeases.LocalHostGeneration(binding.LeaseGeneration) {
+		return true
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.localKeyboardGrant != nil && c.localKeyboardGrant.executionGeneration == binding.LeaseGeneration &&
+		c.localKeyboardGrant.binding.RuntimeInstance == binding.RuntimeInstance &&
+		c.localKeyboardGrant.binding.PackageID == binding.PackageID && c.localKeyboardGrant.binding.Generation == binding.CoreGeneration
+}
+
 // BeginCoreReplacement closes the active producer, waits for its in-flight
 // writes, and neutralizes the retained sink before the runtime may open a new
 // input reader. The lifecycle lock stays held until the returned function
@@ -347,6 +670,8 @@ func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(conte
 	if c == nil || ctx == nil {
 		return nil, errors.New("invalid input replacement barrier")
 	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	done := c.beginLifecycleTransition()
 	transferred := false
 	defer func() {
@@ -354,7 +679,9 @@ func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(conte
 			done()
 		}
 	}()
-	c.lifecycle.Lock()
+	if err := lockInputMutex(ctx, &c.lifecycle); err != nil {
+		return nil, err
+	}
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -362,17 +689,30 @@ func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(conte
 		return nil, errors.New("input controller is closed")
 	}
 	current := c.active
+	grant := c.localKeyboardGrant
 	c.active = nil
+	c.localKeyboardGrant = nil
 	c.mu.Unlock()
+	stopped := false
 	if err := stopLease(current); err != nil {
-		c.mu.Lock()
-		c.needsRelease = c.persistent != nil
-		c.mu.Unlock()
-		c.lifecycle.Unlock()
-		return nil, err
+		closeErr, pureClose := err.(*bridge.CloseError)
+		if c.ports != nil && pureClose && closeErr.OnlyRelease() {
+			if recoveryErr := c.releasePersistentLocked(ctx, c.ports); recoveryErr == nil {
+				stopped = true
+			} else {
+				err = errors.Join(err, recoveryErr)
+			}
+		}
+		if !stopped {
+			c.mu.Lock()
+			c.needsRelease = c.persistent != nil
+			c.mu.Unlock()
+			c.lifecycle.Unlock()
+			return nil, err
+		}
 	}
-	if c.ports != nil {
-		if err := c.ports.ReleaseAll(); err != nil {
+	if c.ports != nil && !stopped {
+		if err := c.releasePersistentLocked(ctx, c.ports); err != nil {
 			c.mu.Lock()
 			c.needsRelease = true
 			c.mu.Unlock()
@@ -395,10 +735,16 @@ func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(conte
 				return
 			}
 			finishErr = c.attachLocked(finishCtx, Spec{
-				Session: current.session,
-				Token:   append([]byte(nil), current.token...),
-				Core:    current.core,
+				Session:             current.session,
+				Token:               append([]byte(nil), current.token...),
+				Core:                current.core,
+				ExecutionGeneration: current.executionGeneration,
 			}, current.lifetime)
+			if finishErr == nil {
+				c.mu.Lock()
+				c.localKeyboardGrant = grant
+				c.mu.Unlock()
+			}
 		})
 		return finishErr
 	}
@@ -474,6 +820,11 @@ func (c *TargetController) OpenStream(ctx context.Context, session uint64) (net.
 // ReleaseAll ends remote input without destroying the retained uinput device.
 // The kit lease calls this only after all admitted HTTP operations finish.
 func (c *TargetController) ReleaseAll(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	done := c.beginLifecycleTransition()
 	defer done()
 	c.mu.Lock()
@@ -486,13 +837,16 @@ func (c *TargetController) ReleaseAll(ctx context.Context) error {
 	if current != nil {
 		result = errors.Join(result, c.Detach(ctx, current.session))
 	}
-	c.lifecycle.Lock()
+	if err := lockInputMutex(ctx, &c.lifecycle); err != nil {
+		return errors.Join(result, err)
+	}
 	defer c.lifecycle.Unlock()
 	c.mu.Lock()
+	c.localKeyboardGrant = nil
 	persistent := c.persistent
 	c.mu.Unlock()
 	if persistent != nil {
-		releaseErr := persistent.ReleaseAll()
+		releaseErr := c.releasePersistentLocked(ctx, persistent)
 		result = errors.Join(result, releaseErr)
 		c.mu.Lock()
 		c.needsRelease = releaseErr != nil
@@ -545,6 +899,18 @@ type retainedSink struct {
 }
 
 func (retainedSink) Close() error { return nil }
+func (s retainedSink) ApplyContext(ctx context.Context, frame protocol.InputFrame) error {
+	if sink, ok := s.Sink.(bridge.ContextSink); ok {
+		return sink.ApplyContext(ctx, frame)
+	}
+	return s.Sink.Apply(frame)
+}
+func (s retainedSink) ReleaseAllContext(ctx context.Context) error {
+	if sink, ok := s.Sink.(bridge.ContextReleaseSink); ok {
+		return sink.ReleaseAllContext(ctx)
+	}
+	return s.Sink.ReleaseAll()
+}
 
 // Only the native HID sink offers target-timed taps. Other bridges continue
 // their existing input behavior and decline the optional tap probe.
@@ -552,6 +918,7 @@ type retainedTapSink struct {
 	retainedSink
 	controller *TargetController
 	hid        *keyboardHIDSink
+	binding    *KeyboardHIDBinding
 }
 
 func (s retainedTapSink) TapChord(ctx context.Context, f protocol.InputFrame) error {
@@ -632,7 +999,7 @@ func (s retainedTapSink) Tap(ctx context.Context, f protocol.InputFrame) error {
 	if err == nil && observeCtx.Err() != nil {
 		err = observeCtx.Err()
 	}
-	if err != nil || !obs.Active || obs.KeyboardHID == nil || obs.KeyboardHID.Generation != f.ServerMonoNS {
+	if err != nil || !obs.Active || s.binding == nil || obs.KeyboardHID == nil || *obs.KeyboardHID != *s.binding || obs.KeyboardHID.Generation != f.ServerMonoNS {
 		cancel()
 		return errors.Join(errTapUnavailable, err)
 	}

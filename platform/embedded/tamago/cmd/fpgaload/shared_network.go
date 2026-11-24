@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 )
@@ -34,12 +35,28 @@ func prepareProgramNetwork(v *nativefabric.HPSContextVerifier) error {
 	return nil
 }
 
-func startProgramNetwork() error {
+func startProgramNetwork(g *gic.Controller) (func(), error) {
 	if !de25nano.NetworkEnabled() {
-		return nil
+		return func() {}, nil
 	}
-	return programService.StartNetwork(context.Background(), programNetworkBootOwner, func(ctx, lifetime context.Context, owner uint64) (*network.Controller, error) {
-		_, control, err := de25nano.OpenNetworkWithControl(ctx, lifetime, owner)
+	var iface *network.Interface
+	err := programService.StartNetwork(context.Background(), programNetworkBootOwner, func(ctx, lifetime context.Context, owner uint64) (*network.Controller, error) {
+		var control *network.Controller
+		var err error
+		iface, control, err = de25nano.OpenNetworkWithControl(ctx, lifetime, owner)
 		return control, err
 	})
+	if err != nil {
+		return func() {}, err
+	}
+	if g != nil && iface != nil {
+		if err := iface.EnableIRQ(g); err != nil {
+			if !errors.Is(err, gic.ErrUnsupported) {
+				return func() {}, err
+			}
+		} else {
+			return func() { iface.DisableIRQ(g) }, nil
+		}
+	}
+	return func() {}, nil
 }

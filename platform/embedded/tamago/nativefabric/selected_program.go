@@ -104,14 +104,17 @@ func canonicalProgramRecord(value any) ([]byte, error) {
 // additionally requires shared ABI semantics and native driver support. Neither
 // path supplies a new master, data release or BootHandoffVerifier.
 type ProgramLoader struct {
-	boot          *HPSContextVerifier
-	platform      programPlatform
-	configuration coldConfigurationMap
-	control       hpsControlMap
-	computer      computerMap
-	support       *runtimeadmission.DriverSupport
-	compatibility *runtimeadmission.RuntimeCompatibility
-	menu          *menuProgramDriver
+	boot            *HPSContextVerifier
+	platform        programPlatform
+	configuration   coldConfigurationMap
+	control         hpsControlMap
+	computer        computerMap
+	support         *runtimeadmission.DriverSupport
+	uploadSupport   *runtimeadmission.DriverSupport
+	compatibility   *runtimeadmission.RuntimeCompatibility
+	menu            *menuProgramDriver
+	spectrum48      *uploadShellProgram
+	sharedCoreShell bool
 }
 
 func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configuration, computerRaw []byte) (*ProgramLoader, error) {
@@ -171,6 +174,10 @@ func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configu
 			return nil, err
 		}
 		loader.compatibility, err = runtimeadmission.NewRuntimeCompatibility(semantic, drivers)
+		if err == nil {
+			loader.uploadSupport, err = runtimeadmission.NewDriverSupport(runtimeadmission.Target{Platform: p.Platform, Device: p.Device},
+				[]runtimeadmission.Driver{spectrum48UploadDriver(), c64UploadDriver()})
+		}
 	} else {
 		loader.support, err = runtimeadmission.NewDriverSupport(runtimeadmission.Target{Platform: p.Platform, Device: p.Device}, drivers)
 	}
@@ -193,8 +200,10 @@ type selectedProgram struct {
 	configurationRaw []byte
 	computerRaw      []byte
 	rom              []byte
+	firmware         []byte
 	romReceipt       string
 	tape             []byte
+	disk             []byte
 }
 
 // Preflight validates the selected package and its retained metadata while SD
@@ -204,8 +213,23 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	if l == nil || l.boot == nil || selection == nil {
 		return nil, errors.New("native fabric: program loader and retained selection required")
 	}
-	if selection.Inspection().Descriptor.Target.ProgrammingProfile == HPSFirstMenuProfile {
+	i := selection.Inspection()
+	d := i.Descriptor
+	switch d.Target.ProgrammingProfile {
+	case c64Profile:
+		if l.sharedCoreShell {
+			return l.preflightUpload(selection, nil)
+		}
+	case HPSFirstMenuProfile:
 		return l.preflightMenu(selection)
+	case spectrum48Profile:
+		if l.spectrum48 != nil || l.sharedCoreShell {
+			return l.preflightUpload(selection, l.spectrum48)
+		}
+	}
+	p := l.platform
+	if d.Target.ProgrammingProfile != p.ProgrammingProfile {
+		return nil, errors.New("native fabric: selected programming profile has no matching compiled platform")
 	}
 	var record selectedProgramRecord
 	romMode := l.boot.rom != nil
@@ -222,9 +246,6 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 			return nil, err
 		}
 	}
-	i := selection.Inspection()
-	d := i.Descriptor
-	p := l.platform
 	format, scope := int64(2), "nano-selected-program-v1"
 	if romMode {
 		format, scope = 3, "nano-selected-rom-program-v1"
@@ -232,7 +253,7 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	if record.Format != 1 || record.Scope != scope || record.Platform != p ||
 		record.PackageID != i.PackageID || record.BuildID != d.Build.ID ||
 		d.Format != format || (!romMode && selection.Linked() != nil) || d.Target.Platform != p.Platform || d.Target.Device != p.Device ||
-		d.Target.ProgrammingProfile != p.ProgrammingProfile || d.ABI.ID != p.ABI || d.ABI.Major != int64(p.Major) || d.ABI.Minor != int64(p.Minor) ||
+		d.ABI.ID != p.ABI || d.ABI.Major != int64(p.Major) || d.ABI.Minor != int64(p.Minor) ||
 		d.Payload.Size <= 0 || d.Payload.Size > MaxProgramBytes || d.Payload.Size%4 != 0 {
 		return nil, errors.New("native fabric: selected package differs from the contained platform contract")
 	}
@@ -254,7 +275,7 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 		for _, iface := range d.Interfaces {
 			declared = declared || iface.ID == "fes.media.zx81-tape" && iface.Major == 1 && iface.Minor == 0
 		}
-		if p.ProgrammingProfile != NativeComputerProfile || !declared ||
+		if selection.TapeFormat() != "" || p.ProgrammingProfile != NativeComputerProfile || !declared ||
 			len(tape) < int(cg.FesComputerZx81TapeMinBytes) || len(tape) > int(cg.FesDe25ComputerZx81TapeMaxBytes) {
 			return nil, errors.New("native fabric: selected package and native driver must support this tape")
 		}
@@ -420,7 +441,9 @@ func (t *ConfigurationTransfer) ProgramIdentity() (fabricmodel.PackageIdentity, 
 // Kept local so descriptor assertions never become a boot verification call.
 func (v *HPSContextVerifier) programConfiguration(control, raw []byte, p *selectedProgram) (coldConfigurationMap, error) {
 	menu := p != nil && p.loader != nil && p.loader.boot == v && p.loader.menu != nil && p.role == programRoleMenu && p.menu != nil
-	if v != nil && v.rom != nil && !menu && (p == nil || len(p.rom) == 0) {
+	upload := p != nil && p.loader != nil && p.loader.boot == v && (p.loader.spectrum48 != nil || p.loader.sharedCoreShell) &&
+		p.role == programRoleUploadShell && computer.ValidFirmwareUploadSize(int64(len(p.firmware))) && len(p.rom) == 0
+	if v != nil && v.rom != nil && !menu && !upload && (p == nil || len(p.rom) == 0) {
 		return coldConfigurationMap{}, errors.New("native fabric: ROM configuration requires its retained selected program")
 	}
 	if p == nil {

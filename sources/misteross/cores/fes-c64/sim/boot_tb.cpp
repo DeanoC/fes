@@ -83,6 +83,12 @@ int main(int argc, char **argv) {
         const char *value=Verilated::commandArgsPlusMatch(name);
         return *value ? value+std::char_traits<char>::length(name)+1 : "";
     };
+    const char *expected_cpu_hz = option("C64_EXPECT_CPU_HZ=");
+    if (*expected_cpu_hz && top.cpu_clock_hz != std::strtoul(expected_cpu_hz, nullptr, 10))
+        throw std::runtime_error("boot simulator does not match requested machine clock");
+    const char *expected_sid = option("C64_EXPECT_SID=");
+    if (*expected_sid && top.sid_model != std::strtoul(expected_sid, nullptr, 10))
+        throw std::runtime_error("boot simulator does not match requested SID revision");
     const std::string identity=option("C64_STATE_ID=");
     const std::string restore_path=option("C64_RESTORE=");
     const std::string save_path=option("C64_SAVE=");
@@ -228,7 +234,7 @@ int main(int argc, char **argv) {
         if(!sid_trace_path.empty() || !audio_pcm_path.empty()) {
             std::ofstream metadata("capture.json");
             metadata << "{\n  \"schema\": \"FES-C64-native-capture-v1\",\n"
-                << "  \"system_clock_hz\": 52224000,\n  \"cpu_clock_hz\": 985248,\n"
+                << "  \"system_clock_hz\": 52224000,\n  \"cpu_clock_hz\": " << top.cpu_clock_hz << ",\n"
                 << "  \"start_cycle_inclusive\": " << capture_start_cycle << ",\n"
                 << "  \"end_cycle_exclusive\": " << sys_edge/2 << ",\n"
                 << "  \"start_phi_count\": " << capture_start_phi << ",\n"

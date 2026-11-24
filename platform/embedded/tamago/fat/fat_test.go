@@ -246,3 +246,43 @@ func TestMBRPartition(t *testing.T) {
 		t.Fatal("partition creation readback", string(got), err)
 	}
 }
+
+func TestFatCachedDeviceWriteThrough(t *testing.T) {
+	image := fixture(t)
+	file, err := block.OpenFile(image, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	cached, err := block.NewCache(file, block.CacheConfig{Capacity: 128})
+	if err != nil {
+		t.Fatal(err)
+	}
+	vol, err := Mount(cached)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		got, err := vol.ReadFile("FES/CATALOG.JSON")
+		if err != nil || string(got) != `[{"title":"Pong"}]` {
+			t.Fatalf("cached read=%q err=%v", got, err)
+		}
+	}
+	if st := cached.Stats(); st.Hits == 0 {
+		t.Fatalf("expected cache hits on repeated FAT32 reads: %+v", st)
+	}
+	want := []byte(`{"layout":"grid"}`)
+	if err := vol.WriteFile("FES/PREFS.JSON", want); err != nil {
+		t.Fatal(err)
+	}
+	// Fresh uncached mount over the same backing file must immediately observe
+	// the write-through update.
+	direct, err := Mount(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := direct.ReadFile("FES/PREFS.JSON")
+	if err != nil || !bytes.Equal(got, want) {
+		t.Fatalf("uncached readback=%q err=%v, want %q", got, err, want)
+	}
+}

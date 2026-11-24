@@ -20,17 +20,12 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
-	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/storagepolicy"
 )
 
 var expectedBootContext, expectedControlMap, expectedConfigurationMap, expectedReaderMemoryMap string
 var expectedDDRReadMap string
-var expectedWindowMemory string
-var expectedWindowReadMap string
-var expectedWindowPresent, expectedWindowStorageReturn, expectedWindowReload string
-var expectedWindowService string
 var expectedMenuPresent, expectedMenuReadMap string
 var expectedComputerMap, expectedComputerReload string
 var expectedROMMap string
@@ -38,10 +33,11 @@ var expectedNativeComputer string
 var expectedInitialTape string
 var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
-var expectedCompiledMenuProgram string
+var expectedCompiledMenuProgram, expectedCompiledSpectrum48, expectedSharedCoreShell string
 var expectedTenfootSerial string
 var expectedWritableStoragePlan, expectedSDTransferClock string
 var programWritableStorageSelected bool
+var programService *nativefabric.ProgramService
 var retained *nativefabric.ConfigurationTransfer
 
 func decoded(s string, limit int) []byte {
@@ -57,6 +53,10 @@ func decoded(s string, limit int) []byte {
 
 func main() {
 	de25nano.StartupCheckpoint("go_main")
+	if expectedSharedCoreShell != "" && (expectedSharedCoreShell != "1" || expectedCompiledSpectrum48 != "" ||
+		expectedCompiledMenuProgram == "" || expectedSelectedPrograms != "1" || expectedTenfootSerial != "1") {
+		panic("shared core shell requires the paired native platform")
+	}
 	var writablePlan *storagepolicy.Plan
 	if expectedWritableStoragePlan != "" {
 		if expectedSDTransferClock != "25000000" || expectedSelectedPrograms != "1" || expectedTenfootSerial != "1" {
@@ -71,27 +71,15 @@ func main() {
 		panic("native transfer clock requires trusted writable storage plan")
 	}
 	if expectedMenuPresent != "" || expectedMenuReadMap != "" {
-		if expectedMenuPresent != "1" || expectedMenuReadMap == "" || expectedWindowMemory != "" || expectedWindowReadMap != "" ||
-			expectedWindowPresent != "" || expectedWindowStorageReturn != "" || expectedWindowReload != "" || expectedWindowService != "" ||
+		if expectedMenuPresent != "1" || expectedMenuReadMap == "" ||
 			expectedDDRReadMap != "" || expectedComputerMap != "" || expectedROMMap != "" || expectedNativeComputer != "" ||
-			expectedComputerReload != "" || expectedComputerStorageReturn != "" || expectedSelectedPrograms != "" || expectedProgramPlatform != "" ||
+			expectedComputerReload != "" || expectedComputerStorageReturn != "" || expectedSelectedPrograms != "" || expectedProgramPlatform != "" || expectedCompiledSpectrum48 != "" ||
 			expectedTenfootSerial != "" || expectedUSBControl != "" || expectedCompiledMenuProgram != "" {
 			panic("menu presentation requires its complete separate compiled boot selection")
 		}
 	}
-	if expectedWindowPresent != "" && (expectedWindowPresent != "1" || expectedWindowReadMap == "" || expectedWindowMemory != "1") {
-		panic("window presentation requires the selected full-window read path")
-	}
-	if expectedWindowStorageReturn != "" && (expectedWindowStorageReturn != "1" || expectedWindowPresent != "1") {
-		panic("window storage return requires the selected presentation diagnostic")
-	}
-	if expectedWindowReload != "" && (expectedWindowReload != "1" || expectedWindowStorageReturn != "1") {
-		panic("window reload requires the selected window SD-return diagnostic")
-	}
-	if expectedWindowService != "" && (expectedWindowService != "1" || expectedWindowStorageReturn != "1" || expectedWindowReload != "") {
-		panic("window service requires the complete SD-return path and a separate selection from bounded reload")
-	}
-	if (expectedTenfootSerial != "") != tenfootSerialLinked || expectedTenfootSerial != "" && (expectedTenfootSerial != "1" || expectedSelectedPrograms != "1") {
+	if (expectedTenfootSerial != "") != tenfootSerialLinked || expectedTenfootSerial != "" && (expectedTenfootSerial != "1" || expectedSelectedPrograms != "1") ||
+		expectedSelectedPrograms != "" && expectedTenfootSerial != "1" {
 		panic("serial Tenfoot requires selected native programs")
 	}
 	if runtime.GOOS != "tamago" || board.ExceptionLevel() != 1 || board.CounterFrequency() != 400000000 {
@@ -114,19 +102,14 @@ func main() {
 	}
 	control, configuration := decoded(expectedControlMap, 8192), decoded(expectedConfigurationMap, 32768)
 	var v *nativefabric.HPSContextVerifier
-	if expectedNativeComputer != "" && (expectedNativeComputer != "1" || expectedROMMap == "" || expectedWindowMemory != "") {
+	if expectedNativeComputer != "" && (expectedNativeComputer != "1" || expectedROMMap == "") {
 		panic("native computer requires its explicitly selected complete held-ROM resources")
 	}
 	if expectedMenuPresent == "1" {
 		v, err = nativefabric.NewMenuHPSContextVerifier(cpu, decoded(expectedBootContext, 8192), control,
 			decoded(expectedReaderMemoryMap, 8192), decoded(expectedMenuReadMap, 8192))
-	} else if expectedWindowMemory != "" {
-		if expectedWindowMemory != "1" || expectedROMMap != "" || expectedDDRReadMap != "" || expectedComputerMap != "" || expectedComputerReload != "" || expectedProgramPlatform != "" || expectedSelectedPrograms != "" || expectedComputerStorageReturn != "" {
-			panic("window memory requires its separate contained frame diagnostic")
-		}
-		v, err = nativefabric.NewWindowHPSContextVerifier(cpu, decoded(expectedBootContext, 8192), control, decoded(expectedReaderMemoryMap, 8192))
 	} else if expectedROMMap != "" {
-		if expectedWindowReadMap != "" || expectedDDRReadMap != "" || expectedSelectedPrograms != "1" || expectedComputerMap == "" {
+		if expectedDDRReadMap != "" || expectedSelectedPrograms != "1" || expectedComputerMap == "" {
 			panic("held ROM requires selected computer programs and its complete compiled resources")
 		}
 		if expectedNativeComputer == "1" {
@@ -135,9 +118,6 @@ func main() {
 			v, err = nativefabric.NewROMHPSContextVerifier(cpu, decoded(expectedBootContext, 8192), control, decoded(expectedComputerMap, 8192), decoded(expectedROMMap, 8192))
 		}
 	} else {
-		if expectedWindowReadMap != "" {
-			panic("window reads require the complete compiled reservation")
-		}
 		v, err = nativefabric.NewHPSContextVerifier(cpu, decoded(expectedBootContext, 8192))
 	}
 	if err != nil {
@@ -158,10 +138,16 @@ func main() {
 		} else {
 			loader, err = nativefabric.NewProgramLoader(v, decoded(expectedProgramPlatform, 16384), control, configuration, decoded(expectedComputerMap, 8192))
 		}
+		if err == nil && expectedCompiledSpectrum48 != "" {
+			loader, err = loader.WithSpectrum48(decoded(expectedCompiledSpectrum48, 16384))
+		}
+		if err == nil && expectedSharedCoreShell == "1" {
+			loader, err = loader.WithSharedCoreShell()
+		}
 		if err != nil {
 			panic(err)
 		}
-	} else if expectedProgramPlatform != "" || expectedCompiledMenuProgram != "" {
+	} else if expectedProgramPlatform != "" || expectedCompiledMenuProgram != "" || expectedCompiledSpectrum48 != "" {
 		panic("program platform provided without selected program mode")
 	}
 	if err := prepareProgramNetwork(v); err != nil {
@@ -186,6 +172,9 @@ func main() {
 	if !ok {
 		panic(errors.New("FPGA load requires owned SD storage"))
 	}
+	if err := lease.EnableCache(block.CacheConfig{Capacity: 128}); err != nil {
+		panic(err)
+	}
 	var volume fs.FS
 	if writablePlan != nil {
 		check, done := context.WithTimeout(context.Background(), 100*time.Second)
@@ -209,12 +198,11 @@ func main() {
 		if loader == nil {
 			panic("serial Tenfoot requires the owned program loader")
 		}
-		serveProgramTenfoot(loader, store)
+		serveProgramTenfoot(loader, store, lease)
 		return
 	}
 	if loader != nil {
-		servePrograms(loader, store, volume)
-		return
+		panic("selected programs require serial Tenfoot")
 	}
 	request := packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID}
 	de25nano.StartupCheckpoint("retain_begin")
@@ -254,21 +242,6 @@ func main() {
 		}
 		fmt.Printf("FES_NATIVE_FPGA_MENU_MEMORY PINNED cpu_base=%x bytes=%d slots=%d slot_bytes=%d map_sha256=%x initial_sha256=%x owner=%x generation=%d fpga_access=held lifetime=until-reboot\n",
 			memory.CPUBase, memory.ArenaBytes, memory.Slots, memory.SlotBytes, memory.MapSHA256, memory.InitialSHA256, closed.Owner, closed.Generation)
-	} else if expectedWindowMemory == "1" {
-		frame, err := windowFrame()
-		if err != nil {
-			panic(err)
-		}
-		memory, err := v.ReserveWindowMemory(frame, de25nano.ReserveWindowMemory)
-		if err != nil {
-			panic(err)
-		}
-		if memory.Source.Bridges.Owner != closed.Owner || memory.Source.Bridges.Generation != closed.Generation {
-			panic("window publication differs from storage containment")
-		}
-		fmt.Printf("FES_NATIVE_FPGA_WINDOW_MEMORY PINNED cpu_base=%x bus_base=%x bytes=%d frame_bytes=%d row_bytes=%d stride=%d rows=%d map_sha256=%x frame_sha256=%x crc32=%08x owner=%x generation=%d fpga_access=held lifetime=until-reboot renderer=tenfoot\n",
-			memory.CPUBase, memory.Geometry.Base, memory.ArenaBytes, memory.FrameBytes, memory.Geometry.RowBytes, memory.Geometry.Stride, memory.Geometry.Rows,
-			memory.MapSHA256, memory.FrameSHA256, memory.CRC32, closed.Owner, closed.Generation)
 	} else if expectedReaderMemoryMap != "" {
 		panic("on-chip reader cannot supply a DDR memory map")
 	}
@@ -371,49 +344,8 @@ func main() {
 		}
 		return
 	}
-	if expectedWindowReadMap != "" {
-		limits := scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}
-		if expectedWindowService == "1" {
-			if err := serveWindows(v, store, request, control, configuration, decoded(expectedWindowReadMap, 8192), limits); err != nil {
-				reportWindowFailure(err)
-				panic(err)
-			}
-			return
-		}
-		if expectedWindowPresent == "1" {
-			session, err := presentWindowFrames(v, control, decoded(expectedWindowReadMap, 8192), limits, 12)
-			if err != nil {
-				reportWindowFailure(err)
-				panic(err)
-			}
-			if expectedWindowStorageReturn == "1" {
-				fresh, err := verifyWindowStorageReturn(session, store, handoff, request)
-				if err != nil {
-					reportWindowFailure(err)
-					panic(err)
-				}
-				if expectedWindowReload == "1" {
-					if err := reloadWindow(v, control, configuration, decoded(expectedWindowReadMap, 8192), session, fresh, limits); err != nil {
-						reportWindowFailure(err)
-						panic(err)
-					}
-				}
-			}
-			return
-		}
-		observation, err := v.ProbeWindowReader(context.Background(), control, decoded(expectedWindowReadMap, 8192), retained, limits)
-		if err != nil {
-			reportWindowFailure(err)
-			panic(err)
-		}
-		fmt.Printf("FES_NATIVE_FPGA_WINDOW_READ PASS package_id=%s build_id=%s owner=%x source_generation=%d closed_generation=%d reader_generation=%d cookie=%d bytes=%d crc32=%08x frame_sha256=%x access_map_sha256=%x data_closed=1 memory_retained=1 runtime_admission=unavailable\n",
-			id.PackageID, id.BuildID, observation.After.Owner, observation.Source.Bridges.Generation, observation.After.Generation,
-			observation.Frame.Generation, observation.Frame.Cookie, observation.Frame.DeliveredBytes, observation.Frame.CRC32,
-			observation.Memory.FrameSHA256, observation.AccessMapSHA256)
-		return
-	}
 	var observed nativefabric.FPGAIdentityObservation
-	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile || id.ProgrammingProfile == nativefabric.HPSFirstWindowDiagnosticProfile {
+	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
 		if expectedDDRReadMap != "" {
 			observed, err = v.ProbeDDRReader(control, decoded(expectedReaderMemoryMap, 8192), decoded(expectedDDRReadMap, 8192))
 		} else {
@@ -430,9 +362,7 @@ func main() {
 	}
 	fmt.Printf("FES_NATIVE_FPGA_IDENTITY PASS package_id=%s build_id=%s abi=%x base=%x map_sha256=%s owner=%x generation=%d data_held=1 runtime_programming=unavailable\n",
 		id.PackageID, id.BuildID, observed.Identity.ABI, observed.CPUBase, hex.EncodeToString(observed.ControlMapSHA256[:]), observed.After.Owner, observed.After.Generation)
-	if id.ProgrammingProfile == nativefabric.HPSFirstWindowDiagnosticProfile {
-		fmt.Printf("FES_NATIVE_FPGA_WINDOW_READER BLOCKED owner=%x generation=%d data_held=1 translation=unqualified runtime_programming=unavailable\n", observed.After.Owner, observed.After.Generation)
-	} else if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
+	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
 		if expectedDDRReadMap != "" {
 			fmt.Printf("FES_NATIVE_FPGA_DDR_READER PASS owner=%x generation=%d reader_generation=1 cookie=7 bytes=32 data_closed=1 runtime_programming=unavailable\n", observed.After.Owner, observed.After.Generation)
 		} else {

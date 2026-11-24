@@ -302,7 +302,7 @@ func TestMenuActualRTL(t *testing.T) {
 	t.Run("copied_handle_cannot_fork_ownership", func(t *testing.T) {
 		p := newMenuProbe(t)
 		m := p.open(t)
-		copy := *m
+		copy := shallowCopyMenuPresenter(m)
 		before := p.calls
 		if _, err := copy.PresentFrame(context.Background(), p.frames[0]); !errors.Is(err, ErrReaderArgument) {
 			t.Fatal(err)
@@ -688,4 +688,24 @@ func testMenuQueuedCapacity(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log("CSR capacity stays available through scanout phases; one descriptor accepted, second rejected, exact frame2/slot1 displayed and reader drained without retry")
+}
+
+func shallowCopyMenuPresenter(m *MenuPresenter) *MenuPresenter {
+	c := &MenuPresenter{
+		self:       m.self,
+		hooks:      m.hooks,
+		want:       m.want,
+		generation: m.generation,
+		limits:     m.limits,
+		context:    m.context,
+		surfaces:   m.surfaces,
+		operation:  m.operation,
+		retired:    m.retired,
+		started:    m.started,
+		sequence:   m.sequence,
+		slot:       m.slot,
+		underflows: m.underflows,
+	}
+	c.active.Store(m.active.Load())
+	return c
 }

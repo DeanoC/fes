@@ -73,5 +73,5 @@ func (s *MenuSession) NewStoredReconfigurationTransfer(plan *StoredConfiguration
 	if err := s.checkArena(); err != nil {
 		return nil, HPSBootObservation{}, err
 	}
-	return plan.newTransfer(handoff, reserve, true, nil, s)
+	return plan.newTransfer(handoff, reserve, true, s)
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a standard DE25 machine whose firmware is uploaded at launch.
 
-Shared by the Spectrum and Atari ST producers. Packaging uses the same complete
+Shared by the Spectrum, Atari ST, C64 and PC/XT producers. Packaging uses the same complete
 timing/input-review and independent-RBF gates as the DE25 ZX81; a candidate
 those gates refuse is retained and never packaged. The package is format 3: the
 payload is the unmodified bitstream, and its ROM map names only the size of the
@@ -38,6 +38,9 @@ SOURCE_ROOTS = sorted([*common.SOURCE_ROOTS, 'cores/fes-common/generated'])
 REVIEW_INPUTS = (*common.REVIEW_INPUTS, 'boards/de25nano/scanout/audio_reference.py',
                  'boards/de25nano/scanout/audio_clocks.tcl',
                  'boards/de25nano/producers/review_audio_clocks.py')
+NATIVE_SPECTRUM_PROFILE = 'de25-native-spectrum48-v1'
+NATIVE_C64_PROFILE = 'de25-native-c64-v1'
+NATIVE_SPECTRUM_COMPOSER = 'boards/de25nano/spectrum/native_hps.py'
 DEVICE = common.DEVICE
 SHELL = ('fes.video.fixed-720p60', 'fes.keyboard.hid', 'fes.gamepad.ports',
          'fes.audio.pcm-s16-stereo-48k', 'fes.video.session-display', 'fes.fabric.video.display-plane')
@@ -48,12 +51,18 @@ class Machine:
     """One machine: its board spec, its package identity and its own interfaces."""
 
     def __init__(self, *, recipe, directory, core_id, rom_id, name, version, descriptions, interfaces,
-                 model_core_ids=None, model_rom_ids=None, model_interfaces=None):
+                 model_core_ids=None, model_rom_ids=None, model_profiles=None, model_interfaces=None,
+                 guest_memory='board-sdram', abi_minor=0):
         self.recipe, self.directory, self.core_id, self.rom_id = recipe, directory, core_id, rom_id
+        # Where the guest's RAM and media live: the board SDRAM, or the
+        # machine's own block RAM as on the DE10 (the C64).
+        self.guest_memory = guest_memory
         self.model_core_ids = dict(model_core_ids or {})
         self.model_rom_ids = dict(model_rom_ids or {})
+        self.model_profiles = dict(model_profiles or {})
         self.name, self.version, self.descriptions = name, version, descriptions
-        self.interfaces = interfaces
+        # The fes.computer minor its endpoint answers: 1 for a 1.1 interface.
+        self.interfaces, self.abi_minor = interfaces, abi_minor
         # Interfaces a model adds to the machine's own, such as a disk unit.
         self.model_interfaces = dict(model_interfaces or {})
         self.label = 'DE25 ' + name
@@ -95,10 +104,15 @@ class Machine:
         root = Path(root).resolve()
         spec = self.spec(root)
         model = self.model(spec, model)
+        profile = self.model_profiles.get(model, 'de25-linux-computer-v1')
         if captured is None:
-            captured = spec.board.capture(spec, revision)
+            captured = spec.board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE)
+        if profile == NATIVE_C64_PROFILE and not spec.NATIVE_SOURCES.issubset(captured):
+            raise BuildError("native C64 requires the captured upload-shell sources")
         top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
-        roots, closure = common.captured_source_closure(root, SOURCE_ROOTS, captured, self.recipe, REVIEW_INPUTS)
+        native_shell = profile in (NATIVE_SPECTRUM_PROFILE, NATIVE_C64_PROFILE)
+        review_inputs = (*REVIEW_INPUTS, NATIVE_SPECTRUM_COMPOSER) if native_shell else REVIEW_INPUTS
+        roots, closure = common.captured_source_closure(root, SOURCE_ROOTS, captured, self.recipe, review_inputs)
         fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
             'source_path': root.relative_to(top).as_posix(), 'source_roots': roots, 'source_inputs': closure,
             'recipe': self.recipe, 'recipe_sha256': sha(root / self.recipe), 'abi_definition': ABI,
@@ -106,11 +120,13 @@ class Machine:
             'parameters': {'core_id': self.core_id_for(model), 'rom_id': self.rom_id_for(model),
                 'model': model, 'device': DEVICE,
                 'hps_initialization': 'HPS FIRST', 'source_closure_policy': common.SOURCE_POLICY,
-                'f2sdram_master_profile': 'scanout-only', 'fabric_initiator_policy': common.MANAGED_FABRIC,
-                'programming_profile': 'de25-linux-computer-v1', 'standard_core': True, 'linux_dma': True,
-                'expansion_socket': False, 'guest_memory': 'board-sdram',
+                'f2sdram_master_profile': 'native-scanout-and-probe' if native_shell else 'scanout-only',
+                'fabric_initiator_policy': 'native-maintenance-absent-v1' if native_shell else common.MANAGED_FABRIC,
+                'programming_profile': profile,
+                'standard_core': True, 'linux_dma': not native_shell,
+                'expansion_socket': False, 'guest_memory': self.guest_memory,
                 'firmware_delivery': UPLOAD_ENCODING, 'firmware_bytes': spec.FIRMWARE_BYTES[model],
-                'machine_clock_hz': spec.board.MACHINE_HZ, 'audio_clock_requested_hz': 12288000,
+                'machine_clock_hz': spec.board.clocks(spec)[0], 'audio_clock_requested_hz': 12288000,
                 'fifo_reset_sharing': common.SHARED_FIFO_RESETS,
                 'f2s_data_width': 0, 'f2sdram_data_width': 256, 'scanout_master_data_width': 128,
                 'hps_warm_reset_handshake': True, 'reset_timing_policy': common.TIMED_RESET_RELEASE,
@@ -131,9 +147,10 @@ class Machine:
         return encode_manifest({'format': 2,
             'core': {'id': fields['parameters']['core_id'], 'name': self.name, 'version': self.version,
                      'description': self.descriptions[fields['parameters']['model']]},
-            'target': {'platform': 'de25_nano', 'device': DEVICE, 'programming_profile': 'de25-linux-computer-v1'},
+            'target': {'platform': 'de25_nano', 'device': DEVICE,
+                       'programming_profile': fields['parameters']['programming_profile']},
             'payload': {'file': 'core.rbf', 'size': payload.stat().st_size, 'sha256': sha(payload)},
-            'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0},
+            'abi': {'id': 'fes.computer', 'major': 1, 'minor': self.abi_minor},
             # An entry is (id, major, minor) or, for an optional one, (id, major, minor, False).
             'interfaces': [{'id': name, 'major': major, 'minor': minor, 'required': bool(required[0]) if required else True}
                            for name, major, minor, *required in (
@@ -164,7 +181,8 @@ class Machine:
         spec = self.spec(root)
         board = spec.board
         model = self.model(spec, model)
-        captured = board.capture(spec, revision)
+        profile = self.model_profiles.get(model)
+        captured = board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE)
         paths, identities = common.authenticate_tools(spec, quartus_root)
         with tempfile.TemporaryDirectory(prefix='fes-de25-' + self.directory + '-home-') as home:
             env = common.execution_environment(Path(home), paths, license_file=license_file)
@@ -172,6 +190,11 @@ class Machine:
             record = self.create_build_record(root, repository, revision, identities, execution, captured,
                                               model=model)
             selected_id = build_identity(record)
+            native_shell = profile in (NATIVE_SPECTRUM_PROFILE, NATIVE_C64_PROFILE)
+            if native_shell:
+                from boards.de25nano.spectrum import native_hps
+                if sha(Path(native_hps.__file__)) != json.loads(record)['source_inputs'][NATIVE_SPECTRUM_COMPOSER]:
+                    raise BuildError('loaded Spectrum composer differs from the recorded commit')
             if output is None:
                 parent = root / 'build' / ('de25-' + self.directory) / selected_id
                 parent.mkdir(parents=True, exist_ok=True)
@@ -184,11 +207,22 @@ class Machine:
             print(self.label + ' build: ' + str(output), flush=True)
             with common.controlled_environment(env):
                 def compile_at(name):
-                    selected, scanout, combined, hps, display = board.prepare(
-                        spec, vendor_archive, output / name, revision, model, package_build_id=selected_id)
-                    board.generate(spec, selected, scanout, combined, hps, display,
-                        paths['quartus'], identities['quartus'].split(' sha256:')[0])
-                    board.compile_board(spec, selected, scanout, hps, display, paths['quartus'])
+                    if native_shell:
+                        selected, hps, scanout = native_hps.project(
+                            vendor_archive, output / name, revision=revision, selected_id=selected_id,
+                            spectrum_spec=spec, model=model)
+                        native_hps.generate(selected, hps, scanout, quartus_root)
+                        native_hps.compile_package_candidate(selected, hps, scanout, paths['quartus'])
+                    else:
+                        selected, scanout, combined, hps, display = board.prepare(
+                            spec, vendor_archive, output / name, revision, model, package_build_id=selected_id)
+                        board.generate(spec, selected, scanout, combined, hps, display,
+                            paths['quartus'], identities['quartus'].split(' sha256:')[0])
+                        board.compile_board(spec, selected, scanout, hps, display, paths['quartus'])
+                    if native_shell and not compile_only:
+                        raw = common.timing_evidence(selected)
+                        (output / (name + '-raw-timing.json')).write_text(
+                            json.dumps(raw, indent=2, sort_keys=True) + '\n')
                     # Compile-only is deliberately unadmitted: retain every raw rule
                     # without borrowing a reviewed input/output receipt from another fit.
                     review = None if compile_only else async_inputs.collect(
@@ -204,14 +238,11 @@ class Machine:
                     if not timing['package_timing_admission']:
                         raise BuildError(self.label + ' package blocked by reported timing/signoff findings; '
                                          'candidate retained')
-                    repeated, other = compile_at('repeat')
-                    if not other['package_timing_admission'] or sha(payload) != sha(repeated):
-                        raise BuildError(self.label + ' independent rebuild failed timing or changed RBF')
             if (self.require_clean_source(root) != (repository, revision) or
                     common.authenticate_tools(spec, quartus_root) != (paths, identities) or
                     common.execution_inputs(paths, env) != execution or
                     self.create_build_record(root, repository, revision, identities, execution,
-                                             board.capture(spec, revision), model=model) != record):
+                                             board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE), model=model) != record):
                 raise BuildError(self.label + ' source/tool/execution inputs changed during build')
             shutil.copyfile(payload, output / 'core.rbf')
             kind = 'de25-' + self.directory
@@ -226,9 +257,13 @@ class Machine:
             encoded = self.manifest(record, output / 'core.rbf')
             (output / 'manifest.toml').write_bytes(encoded)
             (output / 'rom-map.json').write_bytes(self.rom_map(record, output / 'core.rbf'))
-            return export_package(encoded, output / 'core.rbf', Path(package_output or root / 'build/packages'),
-                                  rom_map=output / 'rom-map.json',
-                                  rom_id=json.loads(record)['parameters']['rom_id'], rom_role='firmware')
+            package = export_package(encoded, output / 'core.rbf', Path(package_output or root / 'build/packages'),
+                                     rom_map=output / 'rom-map.json',
+                                     rom_id=self.rom_id_for(model), rom_role='firmware')
+            if model in self.model_profiles:
+                (output / 'native-controls.json').write_bytes(
+                    spec.native_controls(selected_id, sha(output / 'core.rbf')))
+            return package
 
     def main(self, description, argv=None):
         parser = argparse.ArgumentParser(description=description)

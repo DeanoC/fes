@@ -1,0 +1,75 @@
+{
+ "pr": 2097,
+ "head": "0c16ab4dade5e82045d84f3f57827c5fda9d50e8",
+ "package": "3a92e1fb49fa767a64f34d7848bddf71a49054c5cb05d8ff1c61bd45ed2b4e07",
+ "verdict": "PASS",
+ "cause": null,
+ "kit": "B",
+ "restore_verified": true,
+ "checks": [
+  {
+   "name": "package-identity",
+   "result": "pass",
+   "detail": "package_identity(manifest, core.rbf)=3a92e1fb...; manifest build.id 16a916c1eba005fa38bd3cd80b917035, revision 0c16ab4d, payload sha256 104bc9b2...940e matches core.rbf; .fcore file sha256 d81de4425c34e7db915a7ee7b20c2b5809225abb1db8f8e9deed334188b72eda"
+  },
+  {
+   "name": "floppy-lock",
+   "result": "pass",
+   "detail": "freedos-1.4-xt-360.img 368640 bytes sha256 140a2d0a507f7452790e73416dd4dab2c66a89e09a71e26b2ca8f95d1f3c5e5c = sim/freedos.lock and hardware-dos.json; producer dos_assets() accepted it"
+  },
+  {
+   "name": "exact-package-launch",
+   "result": "pass",
+   "detail": "live /v1/status after load: package_id 3a92e1fb..., build_id 16a916c1..., generation 4, unit 0 fes.media.pcxt-floppy state empty"
+  },
+  {
+   "name": "runtime-floppy-insert",
+   "result": "pass",
+   "detail": "POST /v1/library/media/insert unit 0 accepted the full 368640-byte image once; unit 0 state ready"
+  },
+  {
+   "name": "freedos-prompt-hdmi",
+   "result": "pass",
+   "detail": "after insert and one Space press at GLaBIOS 'Disk Boot Fail / Press the Any Key' (insert does not restart boot, per core README), FreeDOS kernel 2043 + FreeCOM 0.86 reached A:\\> 46.5 s after insert; pcxt_dos_hil_acceptance.py rc=0, prompt row 21 col 0 score 1.0, boot_frames_changed true over 8 captures"
+  },
+  {
+   "name": "dir-listing",
+   "result": "pass-informational",
+   "detail": "typed 'dir' via agent input stream; frames/dir.png (read visually; OCR imperfect) shows volume FESXT, KERNEL.SYS 43,863, COMMAND.COM 87,772, FDCONFIG.SYS 25, AUTOEXEC.BAT 24, FESXT.TXT 20, 5 file(s) 131,704 bytes, 227,328 bytes free, then A:\\>; not part of the gate"
+  },
+  {
+   "name": "session-stop-cleanup",
+   "result": "pass",
+   "detail": "Stop -> idle, no recovery; lease released; run media record removed; agent idle, lease free/ownerless, no reboot, nothing left"
+  },
+  {
+   "name": "baseline-restore",
+   "result": "pass",
+   "detail": "live post snapshot: image 179affbb... good, trial empty, no pending, bundle c9ae79e2... selected+active no-pending, kernel boot_id, idle.rbf, launcher.json, u-boot.txt, boot.json, images unchanged, usb-storage.quirks=152d:0583:i kept; Home frame identical to pre-run Home (changed fraction 0.0)"
+  },
+  {
+   "name": "attempt-1-no-key",
+   "result": "harness",
+   "detail": "First claim/run (evidence/runs/pcxt) used the 31 Oct sequence with no key press. The empty-drive frame (+8 s, before insert-start) showed GLaBIOS mid-POST. The insert was accepted and unit 0 went ready. Every later frame showed 'Disk Boot Fail. You monster. Press the Any Key' for 150 s, with no prompt. The frames do not show whether the boot attempt came before or after unit 0 went ready. Classified as harness: at the 31 Oct build commit 0fdae134 the core README said 'The guest stays in reset until the initial image is physically written and committed'. The current README says 'Inserting a disk into a running guest does not reset it or automatically restart its boot' (introduced before this PR's merge-base 4f1b3975). PR #2097 changes no file under cores/fes-pcxt (git diff 4f1b3975..0c16ab4d lists only identity/producer/test/docs files). Kit was restored and released FREE before attempt 2."
+  }
+ ],
+ "acceptance_json": "/home/deano/fes-hil/k2097-pcxt-v1/evidence/acceptance.json",
+ "captures": [
+  "/home/deano/fes-hil/k2097-pcxt-v1/evidence/runs/pcxt2/frames/00-empty.png",
+  "/home/deano/fes-hil/k2097-pcxt-v1/evidence/runs/pcxt2/frames/01-boot.png",
+  "/home/deano/fes-hil/k2097-pcxt-v1/evidence/runs/pcxt2/frames/02-boot.png",
+  "/home/deano/fes-hil/k2097-pcxt-v1/evidence/runs/pcxt2/frames/03-boot.png",
+  "/home/deano/fes-hil/k2097-pcxt-v1/evidence/runs/pcxt2/frames/04-boot.png",
+  "/home/deano/fes-hil/k2097-pcxt-v1/evidence/runs/pcxt2/frames/05-boot.png",
+  "/home/deano/fes-hil/k2097-pcxt-v1/evidence/runs/pcxt2/frames/06-boot.png",
+  "/home/deano/fes-hil/k2097-pcxt-v1/evidence/runs/pcxt2/frames/07-prompt.png"
+ ],
+ "evidence_dir": "/home/deano/fes-hil/k2097-pcxt-v1/evidence",
+ "ledger_claim": "## 2026-11-22T13:05:52+02:00 KIT B IN USE: Claude Deano PR #2097 exact-package core-only DE10 HIL @ 0c16ab4dade5e82045d84f3f57827c5fda9d50e8; fes.pcxt-dos package 3a92e1fb49fa767a64f34d7848bddf71a49054c5cb05d8ff1c61bd45ed2b4e07 (BUILD_ID 16a916c1eba005fa38bd3cd80b917035) FreeDOS 1.4 XT 360 KiB runtime floppy boot to A:\\> (attempt 2: key press retries the BIOS boot after insert); baseline image 179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018 bundle c9ae79e27eb3a8d3b9f4e1b5de322838725637d6c9c25548e8b64ef500959a98; no install, image/bundle/boot/host changes or reboot; evidence /home/deano/fes-hil/k2097-pcxt-v1/evidence",
+ "ledger_free": "## 2026-11-22T13:07:29+02:00 KIT B FREE \u2014 Claude Deano PR #2097 core-only fes.pcxt-dos HIL complete; baseline image 179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018 and bundle c9ae79e27eb3a8d3b9f4e1b5de322838725637d6c9c25548e8b64ef500959a98 selected/active, trial empty, no pending update, boot identity unchanged; Kit B agent idle, lease free/ownerless, Home on HDMI, run data removed; evidence /home/deano/fes-hil/k2097-pcxt-v1/evidence",
+ "ledger_attempt1": [
+  "## 2026-11-22T13:02:04+02:00 KIT B IN USE: Claude Deano PR #2097 exact-package core-only DE10 HIL @ 0c16ab4dade5e82045d84f3f57827c5fda9d50e8; fes.pcxt-dos package 3a92e1fb49fa767a64f34d7848bddf71a49054c5cb05d8ff1c61bd45ed2b4e07 (BUILD_ID 16a916c1eba005fa38bd3cd80b917035) FreeDOS 1.4 XT 360 KiB runtime floppy boot to A:\\>; baseline image 179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018 bundle c9ae79e27eb3a8d3b9f4e1b5de322838725637d6c9c25548e8b64ef500959a98; no install, image/bundle/boot/host changes or reboot; evidence /home/deano/fes-hil/k2097-pcxt-v1/evidence",
+  "## 2026-11-22T13:05:17+02:00 KIT B FREE \u2014 Claude Deano PR #2097 core-only fes.pcxt-dos HIL complete; baseline image 179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018 and bundle c9ae79e27eb3a8d3b9f4e1b5de322838725637d6c9c25548e8b64ef500959a98 selected/active, trial empty, no pending update, boot identity unchanged; Kit B agent idle, lease free/ownerless, Home on HDMI, run data removed; evidence /home/deano/fes-hil/k2097-pcxt-v1/evidence"
+ ],
+ "notes": "Core-only Kit B: no install, image, bundle, boot or host change, no reboot. The runtime-insert path differs from the current FogCast host launch path for writable PC/XT packages, which sends the floppy with the package as initial input (fogcast/core_initial_disk.go); this run exercised the library media insert (unit 0) plus a BIOS boot retry by key. Attempt 1 (no key press) is retained under evidence/runs/pcxt. PASS came on the second claim; attempt 2 added exactly one Space press at the BIOS retry prompt; the checker gate and capture rules were unchanged."
+}

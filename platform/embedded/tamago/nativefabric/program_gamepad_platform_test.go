@@ -96,13 +96,13 @@ func TestProgramGamepadPlatformValidationPollingAndMenuFailure(t *testing.T) {
 	source := &programPadReports{}
 	base := &programInputBase{}
 	d := gamepadDescriptor(t)
-	if _, err := NewProgramGamepadPlatform(base, b, source, []byte{0}, input.GamepadButtons{1, 2}, gamepadKeys()); err == nil || b.inputAttached {
+	if _, err := NewProgramGamepadPlatform(base, b, source, []byte{0}, input.GamepadButtons{Confirm: 1, Back: 2}, gamepadKeys()); err == nil || b.inputAttached {
 		t.Fatal("bad schema claimed input", err)
 	}
-	if _, err := NewProgramGamepadPlatform(base, b, source, d, input.GamepadButtons{1, 1}, gamepadKeys()); err == nil || b.inputAttached {
+	if _, err := NewProgramGamepadPlatform(base, b, source, d, input.GamepadButtons{Confirm: 1, Back: 1}, gamepadKeys()); err == nil || b.inputAttached {
 		t.Fatal("bad menu mapping claimed input", err)
 	}
-	p, err := NewProgramGamepadPlatform(base, b, source, d, input.GamepadButtons{1, 2}, gamepadKeys())
+	p, err := NewProgramGamepadPlatform(base, b, source, d, input.GamepadButtons{Confirm: 1, Back: 2}, gamepadKeys())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestProgramGamepadFullTenfootLaunchReturnAndFailures(t *testing.T) {
 			defer device.Close()
 			source := &programPadReports{}
 			base := &programGamepadApp{app: app, fixture: f, source: source, fault: fault}
-			platform, err := NewProgramGamepadPlatform(base, b, source, gamepadDescriptor(t), input.GamepadButtons{1, 2}, gamepadKeys())
+			platform, err := NewProgramGamepadPlatform(base, b, source, gamepadDescriptor(t), input.GamepadButtons{Confirm: 1, Back: 2}, gamepadKeys())
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -17,11 +17,7 @@ import (
 // machine's media and the upload interface. Nothing exports such a package yet.
 func de25UploadManifest(t *testing.T, core string, size int) []byte {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("testdata", "core-bundle-v3", "manifests", fmt.Sprintf("valid-nano-upload-%d.toml", size)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(raw)
+	text, _ := nanoUploadFixture(t, size)
 	start, end := strings.Index(text, "[[interfaces]]"), strings.Index(text, "[build]")
 	if start < 0 || end < start {
 		t.Fatal("fixture manifest layout changed")
@@ -40,10 +36,18 @@ func de25UploadManifest(t *testing.T, core string, size int) []byte {
 			"fes.media.atari-st-floppy-geometry"} {
 			add(id, 1, 0)
 		}
+	} else if core == "fes.c64" {
+		add("fes.media.c64-disk", 1, 0)
+	} else if core == "fes.pcxt-dos" {
+		add("fes.media.pcxt-floppy", 1, 0)
+		add("fes.media.pcxt-floppy-write", 1, 0)
 	} else {
 		add("fes.media.spectrum-tape", 2, 0)
 	}
 	text = text[:start] + interfaces + text[end:]
+	if abi := DE25ComputerABI(core); abi.Minor != 0 {
+		text = strings.Replace(text, "id = \"fes.simple-game\"\nmajor = 1\nminor = 0\n", fmt.Sprintf("id = \"fes.simple-game\"\nmajor = 1\nminor = %d\n", abi.Minor), 1)
+	}
 	for old, replacement := range map[string]string{
 		`id = "fes.pong"`:                   fmt.Sprintf("id = %q", core),
 		`programming_profile = "fes-gp-v1"`: `programming_profile = "de25-linux-computer-v1"`,
@@ -57,6 +61,51 @@ func de25UploadManifest(t *testing.T, core string, size int) []byte {
 	return []byte(text)
 }
 
+// nanoUploadFixture is the shared mailbox-upload manifest and map for one
+// image size. The C64's 36 KiB and the PC/XT's 68 KiB have no shared fixture;
+// each is the next smaller one with the size, and the map's length and
+// digest, rewritten.
+func nanoUploadFixture(t *testing.T, size int) (string, []byte) {
+	t.Helper()
+	root := filepath.Join("testdata", "core-bundle-v3")
+	source := size
+	if size == 36864 {
+		source = 32768
+	}
+	if size == 69632 {
+		source = 65536
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "manifests", fmt.Sprintf("valid-nano-upload-%d.toml", source)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mapping, err := os.ReadFile(filepath.Join(root, "maps", fmt.Sprintf("valid-nano-upload-%d.json", source)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if source != size {
+		before := fmt.Sprintf("\"source_size\":%d}\n", source)
+		if !bytes.HasSuffix(mapping, []byte(before)) {
+			t.Fatal("fixture map layout changed")
+		}
+		original := mapping
+		mapping = append(bytes.TrimSuffix(append([]byte(nil), mapping...), []byte(before)),
+			fmt.Sprintf("\"source_size\":%d}\n", size)...)
+		for old, replacement := range map[string]string{
+			fmt.Sprintf("source_size = %d\n", source):       fmt.Sprintf("source_size = %d\n", size),
+			fmt.Sprintf("size = %d\n", len(original)):       fmt.Sprintf("size = %d\n", len(mapping)),
+			fmt.Sprintf("sha256 = %q", romDigest(original)): fmt.Sprintf("sha256 = %q", romDigest(mapping)),
+		} {
+			if strings.Count(text, old) != 1 {
+				t.Fatal("fixture manifest lacks", old)
+			}
+			text = strings.Replace(text, old, replacement, 1)
+		}
+	}
+	return text, mapping
+}
+
 // de25UploadPackage is that manifest with the fixture's payload and map.
 func de25UploadPackage(t *testing.T, core string, size int, transforms ...func(string) string) []byte {
 	t.Helper()
@@ -65,10 +114,7 @@ func de25UploadPackage(t *testing.T, core string, size int, transforms ...func(s
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapping, err := os.ReadFile(filepath.Join(root, "maps", fmt.Sprintf("valid-nano-upload-%d.json", size)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, mapping := nanoUploadFixture(t, size)
 	manifest := string(de25UploadManifest(t, core, size))
 	for _, transform := range transforms {
 		manifest = transform(manifest)
@@ -91,7 +137,8 @@ func TestFirmwareUploadStagesTheSourceBesideTheUnchangedPackage(t *testing.T) {
 		core string
 		size int
 	}{{"fes.spectrum", 16384}, {"fes.spectrum", 32768}, {"fes.spectrum128", 32768}, {"fes.spectrum-plus3", 65536},
-		{"fes.pentagon", 49152}, {"fes.atari-st", 196608}} {
+		{"fes.pentagon", 49152}, {"fes.atari-st", 196608},
+		{"fes.c64", 36864}} {
 		t.Run(fmt.Sprint(machine.core, "-", machine.size), func(t *testing.T) {
 			pkg, rom := de25UploadPackage(t, machine.core, machine.size), firmwareImage(machine.size)
 			in := ROMInput{Package: pkg, ROM: rom}
@@ -195,6 +242,7 @@ func TestFirmwareUploadRefusesOtherMachinesSizesAndCycloneVInputs(t *testing.T) 
 		"ST image on a Spectrum":     {Package: de25UploadPackage(t, "fes.spectrum", 196608), ROM: firmwareImage(196608)},
 		"48K image on Spectrum 128K": {Package: de25UploadPackage(t, "fes.spectrum128", 16384), ROM: firmwareImage(16384)},
 		"Spectrum image on an ST":    {Package: de25UploadPackage(t, "fes.atari-st", 16384), ROM: firmwareImage(16384)},
+		"Spectrum image on a C64":    {Package: de25UploadPackage(t, "fes.c64", 32768), ROM: firmwareImage(32768)},
 		"smallest format size":       {Package: de25UploadPackage(t, "fes.spectrum", 1024), ROM: firmwareImage(1024)},
 		"another machine":            {Package: de25UploadPackage(t, "fes.zx81", 16384), ROM: firmwareImage(16384)},
 		"another profile":            {Package: de25UploadPackage(t, "fes.spectrum", 16384, replace(`"de25-linux-computer-v1"`, `"de25-hps-first-v1"`)), ROM: firmwareImage(16384)},

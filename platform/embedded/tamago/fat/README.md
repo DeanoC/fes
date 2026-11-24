@@ -17,7 +17,8 @@ Creation marks the volume dirty, invalidates the primary FSInfo free-space
 hints, initializes and flushes new data/directory clusters, writes and flushes
 FAT chains, then publishes and flushes the directory entry. Only then can an
 originally clean volume regain its original clean flag. An originally dirty
-volume stays dirty. No clock source is assumed; new entries use 1980-01-01.
+volume stays dirty. No clock source is assumed by default (new entries use
+1980-01-01 unless callers configure an optional UTC wall clock via `SetClock`).
 Planning and mutation check cancellation and cooperate with native scheduling.
 
 Success is a clean-restart durability boundary. Cancellation or an uncertain

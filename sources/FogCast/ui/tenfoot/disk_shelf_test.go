@@ -14,9 +14,12 @@ import (
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
-// shelfHost is a host whose Atari ST shelf the picker reads and changes.
+// shelfHost is a host whose disk shelf the picker reads and changes: the
+// Atari ST's, or with core set the PC/XT's.
 type shelfHost struct {
 	t         *testing.T
+	core      string // the shelf's core; empty is the Atari ST
+	freeDOS   bool   // the host bundles a FreeDOS disk
 	pkg       string
 	disks     []hostclient.ShelfDisk
 	keptKnown bool
@@ -31,7 +34,11 @@ type shelfHost struct {
 
 func (h *shelfHost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	const base = "/api/v1/library/disk-shelves/fes.atari-st"
+	core, format := "fes.atari-st", "atari-st-floppy"
+	if h.core != "" {
+		core, format = h.core, "pcxt-floppy"
+	}
+	base := "/api/v1/library/disk-shelves/" + core
 	var body map[string]any
 	raw, _ := io.ReadAll(r.Body)
 	_ = json.Unmarshal(raw, &body)
@@ -54,9 +61,16 @@ func (h *shelfHost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/api/v1/games":
 		io.WriteString(w, `{"games":[]}`)
 		return
+	case r.URL.Path == "/api/v1/library/firmware/bundled":
+		list := protocol.BundledFirmwareList{Firmware: []protocol.BundledFirmware{}}
+		if h.freeDOS {
+			list.Disks = []protocol.BundledDisk{{ID: "freedos-xt-360", Name: "FreeDOS boot disk", CoreID: "fes.pcxt-dos", Size: 368640, MediaID: strings.Repeat("f", 64)}}
+		}
+		json.NewEncoder(w).Encode(list)
+		return
 	case strings.HasPrefix(r.URL.Path, "/api/v1/core-packages/"):
 		json.NewEncoder(w).Encode(protocol.CoreMediaCapabilities{PackageID: h.pkg, Media: []protocol.CoreMediaCapability{
-			{Role: "disk", Format: "atari-st-floppy", MinBytes: h.sizes[0], MaxBytes: h.sizes[1], Extensions: []string{".st"}}}})
+			{Role: "disk", Format: format, MinBytes: h.sizes[0], MaxBytes: h.sizes[1], Extensions: []string{".st"}}}})
 		return
 	case strings.HasPrefix(r.URL.Path, base) && h.oldHost:
 		http.NotFound(w, r)
@@ -102,7 +116,11 @@ func (h *shelfHost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == base {
 		w.WriteHeader(http.StatusCreated)
 		d := made(text("title"), strings.Repeat("1", 64))
-		d.Size = int64(body["tracks"].(float64)) * int64(body["heads"].(float64)) * int64(body["sectors"].(float64)) * 512
+		if h.core != "" {
+			d.Size = 368640
+		} else {
+			d.Size = int64(body["tracks"].(float64)) * int64(body["heads"].(float64)) * int64(body["sectors"].(float64)) * 512
+		}
 		h.disks[len(h.disks)-1].Size = d.Size
 		json.NewEncoder(w).Encode(d)
 		return
@@ -136,14 +154,23 @@ func (h *shelfHost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func newShelfApp(t *testing.T) (*App, *shelfHost) {
 	t.Helper()
+	return newShelfAppFor(t, &shelfHost{keptKnown: true, sizes: [2]int64{368640, 839680}})
+}
+
+func newShelfAppFor(t *testing.T, h *shelfHost) (*App, *shelfHost) {
+	t.Helper()
 	pkg := strings.Repeat("a", 64)
-	h := &shelfHost{t: t, pkg: pkg, keptKnown: true, sizes: [2]int64{368640, 839680}}
+	h.t, h.pkg = t, pkg
 	server := httptest.NewServer(h)
 	t.Cleanup(server.Close)
 	a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	a.ctx = context.Background()
+	core := "fes.atari-st"
+	if h.core != "" {
+		core = h.core
+	}
 	a.mu.Lock()
-	a.openStShelfLocked(rooms.Action{Kind: rooms.ActionHardwareDisks, CoreID: "fes.atari-st", PackageID: pkg})
+	a.openDiskShelfLocked(rooms.Action{Kind: rooms.ActionHardwareDisks, CoreID: core, PackageID: pkg})
 	a.mu.Unlock()
 	waitCoreLibrary(t, a)
 	return a, h
@@ -199,7 +226,7 @@ func shelfSnap(a *App) FirmwarePickerSnapshot {
 	return a.coreLibrarySnapshotLocked()
 }
 
-func TestStShelfMakesANamedDiskOfAChosenSize(t *testing.T) {
+func TestDiskShelfMakesANamedDiskOfAChosenSize(t *testing.T) {
 	a, h := newShelfApp(t)
 	if snap := shelfSnap(a); snap.Title != "Your disks" || shelfKinds(a) != "shelf-new" || !strings.Contains(snap.Status, "blank disk to save your work on") {
 		t.Fatalf("empty shelf: %q rows %s status %q", snap.Title, shelfKinds(a), snap.Status)
@@ -230,11 +257,11 @@ func TestStShelfMakesANamedDiskOfAChosenSize(t *testing.T) {
 	}
 }
 
-func TestStShelfOffersOnlyTheSizesThePackageTakes(t *testing.T) {
+func TestDiskShelfOffersOnlyTheSizesThePackageTakes(t *testing.T) {
 	a, h := newShelfApp(t)
 	h.sizes = [2]int64{737280, 737280}
 	a.mu.Lock()
-	a.loadStShelfLocked("", "")
+	a.loadDiskShelfLocked("", "")
 	a.mu.Unlock()
 	waitCoreLibrary(t, a)
 	shelfPick(t, a, "shelf-new")
@@ -245,7 +272,7 @@ func TestStShelfOffersOnlyTheSizesThePackageTakes(t *testing.T) {
 	// A package with no ST floppy offers no new disk.
 	h.sizes = [2]int64{1, 2}
 	a.mu.Lock()
-	a.loadStShelfLocked("", "")
+	a.loadDiskShelfLocked("", "")
 	a.mu.Unlock()
 	waitCoreLibrary(t, a)
 	if kinds := shelfKinds(a); kinds != "" {
@@ -253,7 +280,7 @@ func TestStShelfOffersOnlyTheSizesThePackageTakes(t *testing.T) {
 	}
 }
 
-func TestStShelfDiskActionsFollowWhatTheDiskIs(t *testing.T) {
+func TestDiskShelfDiskActionsFollowWhatTheDiskIs(t *testing.T) {
 	a, h := newShelfApp(t)
 	rev := strings.Repeat("e", 64)
 	h.disks = []hostclient.ShelfDisk{
@@ -263,7 +290,7 @@ func TestStShelfDiskActionsFollowWhatTheDiskIs(t *testing.T) {
 	}
 	reload := func() {
 		a.mu.Lock()
-		a.loadStShelfLocked("", "")
+		a.loadDiskShelfLocked("", "")
 		a.mu.Unlock()
 		waitCoreLibrary(t, a)
 	}
@@ -300,12 +327,12 @@ func TestStShelfDiskActionsFollowWhatTheDiskIs(t *testing.T) {
 	}
 }
 
-func TestStShelfGoingBackAsksFirstAndOffersACopy(t *testing.T) {
+func TestDiskShelfGoingBackAsksFirstAndOffersACopy(t *testing.T) {
 	a, h := newShelfApp(t)
 	rev := strings.Repeat("e", 64)
 	h.disks = []hostclient.ShelfDisk{{GameID: "fpga-dungeon", Title: "Dungeon", PackageID: h.pkg, MediaID: strings.Repeat("4", 64), Size: 737280, Kept: hostclient.ShelfKeptChanges, KeptRevision: rev}}
 	a.mu.Lock()
-	a.loadStShelfLocked("", "")
+	a.loadDiskShelfLocked("", "")
 	a.mu.Unlock()
 	waitCoreLibrary(t, a)
 	shelfPick(t, a, "shelf-disk:fpga-dungeon")
@@ -345,12 +372,12 @@ func TestStShelfGoingBackAsksFirstAndOffersACopy(t *testing.T) {
 	}
 }
 
-func TestStShelfRenameDeleteAndRefusals(t *testing.T) {
+func TestDiskShelfRenameDeleteAndRefusals(t *testing.T) {
 	a, h := newShelfApp(t)
 	rev := strings.Repeat("e", 64)
 	h.disks = []hostclient.ShelfDisk{{GameID: "fpga-work", Title: "Work", PackageID: h.pkg, MediaID: strings.Repeat("5", 64), Size: 737280, Made: true, Kept: hostclient.ShelfKeptNone, KeptRevision: rev}}
 	a.mu.Lock()
-	a.loadStShelfLocked("", "")
+	a.loadDiskShelfLocked("", "")
 	a.mu.Unlock()
 	waitCoreLibrary(t, a)
 	shelfPick(t, a, "shelf-disk:fpga-work")
@@ -407,7 +434,7 @@ func TestStShelfRenameDeleteAndRefusals(t *testing.T) {
 // several steps, and a rename cut short would leave two disks.
 // A new disk takes about half a minute on a kit, so the shelf says what it
 // is doing until the host answers.
-func TestStShelfSaysWhatItIsDoingWhileAChangeRuns(t *testing.T) {
+func TestDiskShelfSaysWhatItIsDoingWhileAChangeRuns(t *testing.T) {
 	a, h := newShelfApp(t)
 	shelfPick(t, a, "shelf-new")
 	shelfPick(t, a, "shelf-name")
@@ -431,7 +458,7 @@ func TestStShelfSaysWhatItIsDoingWhileAChangeRuns(t *testing.T) {
 	}
 }
 
-func TestStShelfWaitsForAChangeInFlight(t *testing.T) {
+func TestDiskShelfWaitsForAChangeInFlight(t *testing.T) {
 	a, _ := newShelfApp(t)
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -448,12 +475,12 @@ func TestStShelfWaitsForAChangeInFlight(t *testing.T) {
 
 // A copy that worked and a go-back that was refused leave two facts to show:
 // the new disk exists, and the old one still has its changes.
-func TestStShelfHalfDoneCopyThenGoBackShowsBoth(t *testing.T) {
+func TestDiskShelfHalfDoneCopyThenGoBackShowsBoth(t *testing.T) {
 	a, h := newShelfApp(t)
 	rev := strings.Repeat("e", 64)
 	h.disks = []hostclient.ShelfDisk{{GameID: "fpga-dungeon", Title: "Dungeon", PackageID: h.pkg, MediaID: strings.Repeat("4", 64), Size: 737280, Kept: hostclient.ShelfKeptChanges, KeptRevision: rev}}
 	a.mu.Lock()
-	a.loadStShelfLocked("", "")
+	a.loadDiskShelfLocked("", "")
 	a.mu.Unlock()
 	waitCoreLibrary(t, a)
 	shelfPick(t, a, "shelf-disk:fpga-dungeon")
@@ -467,12 +494,12 @@ func TestStShelfHalfDoneCopyThenGoBackShowsBoth(t *testing.T) {
 	}
 }
 
-func TestStShelfStartsTheComputerWithTheDiskAsItIs(t *testing.T) {
+func TestDiskShelfStartsTheComputerWithTheDiskAsItIs(t *testing.T) {
 	a, h := newShelfApp(t)
 	h.disks = []hostclient.ShelfDisk{{GameID: "fpga-work", Title: "Work", PackageID: h.pkg, MediaID: strings.Repeat("5", 64), Size: 737280, Made: true, Kept: hostclient.ShelfKeptNone}}
 	a.mu.Lock()
 	a.room = &rooms.Instance{}
-	a.loadStShelfLocked("", "")
+	a.loadDiskShelfLocked("", "")
 	a.mu.Unlock()
 	waitCoreLibrary(t, a)
 	shelfPick(t, a, "shelf-disk:fpga-work")
@@ -491,7 +518,7 @@ func TestStShelfStartsTheComputerWithTheDiskAsItIs(t *testing.T) {
 	}
 }
 
-func TestStShelfOnAnOlderHostSaysSo(t *testing.T) {
+func TestDiskShelfOnAnOlderHostSaysSo(t *testing.T) {
 	pkg := strings.Repeat("a", 64)
 	h := &shelfHost{t: t, pkg: pkg, keptKnown: true, oldHost: true, sizes: [2]int64{368640, 839680}}
 	server := httptest.NewServer(h)
@@ -499,10 +526,61 @@ func TestStShelfOnAnOlderHostSaysSo(t *testing.T) {
 	a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	a.ctx = context.Background()
 	a.mu.Lock()
-	a.openStShelfLocked(rooms.Action{Kind: rooms.ActionHardwareDisks, CoreID: "fes.atari-st", PackageID: pkg})
+	a.openDiskShelfLocked(rooms.Action{Kind: rooms.ActionHardwareDisks, CoreID: "fes.atari-st", PackageID: pkg})
 	a.mu.Unlock()
 	waitCoreLibrary(t, a)
 	if snap := shelfSnap(a); len(snap.Rows) != 0 || !strings.Contains(snap.Status, "doesn't have the disk shelf yet") {
 		t.Fatalf("older host: %+v", snap)
+	}
+}
+
+func TestPcxtShelfMakesAFreeDOSOrABlankDisk(t *testing.T) {
+	a, h := newShelfAppFor(t, &shelfHost{core: "fes.pcxt-dos", freeDOS: true, keptKnown: true, sizes: [2]int64{368640, 368640}})
+	if snap := shelfSnap(a); snap.Title != "Your disks" || shelfKinds(a) != "shelf-new" || !strings.Contains(snap.Status, "can start FreeDOS") {
+		t.Fatalf("empty PC/XT shelf: %q rows %s status %q", snap.Title, shelfKinds(a), snap.Status)
+	}
+	shelfPick(t, a, "shelf-new")
+	rows := shelfSnap(a).Rows
+	if len(rows) != 4 || rows[1].Name != "Size · 360K" || rows[2].Name != "Contents · Starts FreeDOS" {
+		t.Fatalf("PC/XT new disk form: %+v", rows)
+	}
+	// The size is shown so the limit is visible; it has nothing else to be.
+	shelfPick(t, a, "shelf-size")
+	if got := shelfSnap(a).Rows[1].Name; got != "Size · 360K" {
+		t.Fatalf("size after a change: %q", got)
+	}
+	shelfPick(t, a, "shelf-name")
+	shelfType(t, a, "FreeDOS boot disk")
+	shelfPick(t, a, "shelf-make")
+	want := `{"contents":"freedos","package_id":"` + h.pkg + `","title":"FreeDOS boot disk"}`
+	if got := h.calls[len(h.calls)-2]; got != " "+want {
+		t.Fatalf("FreeDOS disk request %q", got)
+	}
+	if snap := shelfSnap(a); len(snap.Rows) != 2 || snap.Rows[1].Name != "FreeDOS boot disk · 360K" {
+		t.Fatalf("shelf after making: %+v", snap.Rows)
+	}
+	shelfPick(t, a, "shelf-new")
+	shelfPick(t, a, "shelf-contents")
+	if got := shelfSnap(a).Rows[2].Name; got != "Contents · Formatted and empty" {
+		t.Fatalf("contents after a change: %q", got)
+	}
+	shelfPick(t, a, "shelf-name")
+	shelfType(t, a, "Work disk")
+	shelfPick(t, a, "shelf-make")
+	if got := h.calls[len(h.calls)-2]; !strings.Contains(got, `"contents":"blank"`) || strings.Contains(got, "tracks") {
+		t.Fatalf("blank disk request %q", got)
+	}
+}
+
+// A host without the FreeDOS disk offers only a blank one.
+func TestPcxtShelfWithoutFreeDOSOffersABlankDisk(t *testing.T) {
+	a, _ := newShelfAppFor(t, &shelfHost{core: "fes.pcxt-dos", keptKnown: true, sizes: [2]int64{368640, 368640}})
+	shelfPick(t, a, "shelf-new")
+	if rows := shelfSnap(a).Rows; len(rows) != 4 || rows[2].Name != "Contents · Formatted and empty" {
+		t.Fatalf("form without FreeDOS: %+v", rows)
+	}
+	shelfPick(t, a, "shelf-contents")
+	if got := shelfSnap(a).Rows[2].Name; got != "Contents · Formatted and empty" {
+		t.Fatalf("contents cycled to %q", got)
 	}
 }
