@@ -40,6 +40,8 @@ type multiSimDevice struct {
 	failSetIfaceCount int
 	// Count of CLEAR_FEATURE(ENDPOINT_HALT) requests per endpoint address
 	clearHaltCount map[uint8]int
+	// Reject SET_PORT_FEATURE(PORT_POWER) with STALL (models always-powered hub)
+	stallPortPower bool
 }
 
 func newSimHub(ports int, multiTT bool) *multiSimDevice {
@@ -465,6 +467,12 @@ func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 				newAddr := uint8(s.ctrl.value)
 				s.ctrl.dev.addr = newAddr
 				s.byAddr[newAddr] = s.ctrl.dev
+			}
+			if s.ctrl.reqType == 0x23 && s.ctrl.req == 3 && s.ctrl.value == 8 && s.ctrl.dev.stallPortPower {
+				s.ctrl = nil
+				s.regs[chReg(0, hcchar)] &^= channelEnable
+				s.regs[chReg(0, hcint)] |= 1<<3 | 1<<1 // STALL
+				return
 			}
 			if s.ctrl.reqType == 0x02 && s.ctrl.req == 1 && s.ctrl.value == 0 { // CLEAR_FEATURE(ENDPOINT_HALT)
 				if s.ctrl.dev.clearHaltCount == nil {
@@ -2444,5 +2452,45 @@ func TestMultiHostRejectsHubWithoutStatusEndpoint(t *testing.T) {
 	}
 	if len(host.hubs) != 0 {
 		t.Fatalf("expected hub without Interrupt-IN status endpoint to be rejected, got %d hubs", len(host.hubs))
+	}
+}
+
+func TestMultiHostAlwaysPoweredHubSkipsPortPower(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	// wHubCharacteristics bits 1:0 = 2 (no power switching / always-powered hub)
+	hub.hubDesc[3] = 0x02
+	hub.stallPortPower = true
+	pad := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	if len(host.hubs) != 1 || host.hubs[0].powerSwitched {
+		t.Fatalf("expected 1 always-powered hub (powerSwitched=false), got hubs=%d powerSwitched=%v", len(host.hubs), len(host.hubs) > 0 && host.hubs[0].powerSwitched)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached || ev.Device.Descriptor.VendorID != 0x054c {
+		t.Fatalf("expected child gamepad attached behind always-powered hub, got ok=%v ev=%+v", ok, ev)
+	}
+}
+
+func TestMultiHostOpenMultiReturnsFatalFaultDuringInitialEnumeration(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+	// Wedge CH0 so initial enumerateRoot hits a fatal controller fault.
+	sim.wedgeSet = true
+	sim.wedgeCh = 0
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err == nil {
+		t.Fatal("OpenMulti succeeded despite fatal controller fault during initial enumeration")
+	}
+	if host == nil {
+		t.Fatal("OpenMulti did not retain partial host when returning fatal enumeration fault")
 	}
 }
