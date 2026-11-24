@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -17,19 +18,29 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 )
 
+// preferenceFiles models the trusted filesystem's copy-on-write replace and
+// flush. Each replace independently checks the SD lease's current receipt.
 type preferenceFiles struct {
 	*trackedFS
-	writes int
-	write  func(string, []byte) error
+	replaces int
+	replace  func(string, []byte) error
 }
 
-func (f *preferenceFiles) WriteFile(path string, data []byte) error {
-	f.writes++
+func (f *preferenceFiles) ReplaceFile(ctx context.Context, path string, data []byte) error {
+	f.replaces++
 	r, ok := f.lease.LastReceipt()
 	if !ok || !r.Active || !r.Prepared {
 		return ErrState
 	}
-	return f.write(path, data)
+	// An issued replace completes even if its requester disconnects.
+	if ctx == nil || ctx.Err() != nil {
+		return errors.New("replace given a missing or cancelled context")
+	}
+	return f.replace(path, data)
+}
+
+func preferenceFS(l *testLease) *trackedFS {
+	return &trackedFS{base: fstest.MapFS{PreferencesPath: &fstest.MapFile{Data: []byte(`{}`)}}, lease: l}
 }
 
 func TestPreferencesBoundedReadAndLease(t *testing.T) {
@@ -103,19 +114,28 @@ func TestPreferencesReaderFailuresAndOwnershipChange(t *testing.T) {
 }
 
 func TestPreferencesWriteErrorsNeverReplayUncertainIO(t *testing.T) {
-	for _, fault := range []error{nil, block.ErrReadOnly, fat.ErrCapacity, fs.ErrNotExist, errors.New("flush reply lost")} {
-		name := "success"
-		if fault != nil {
-			name = fault.Error()
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		fault   error
+		retires bool
+	}{
+		{"success", nil, false},
+		{"read-only", block.ErrReadOnly, false},
+		{"capacity", fat.ErrCapacity, false},
+		{"no-space", fat.ErrNoSpace, false},
+		{"missing", fs.ErrNotExist, false},
+		// sdhci socket write-protect after the first sector: FAT retired its mount.
+		{"read-only-after-mutation", errors.Join(fat.ErrMutation, block.ErrReadOnly), true},
+		{"flush-reply-lost", errors.New("flush reply lost"), true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
 			l := lease()
-			tracked := &trackedFS{base: fstest.MapFS{}, lease: l}
-			f := &preferenceFiles{trackedFS: tracked, write: func(path string, data []byte) error {
+			tracked := preferenceFS(l)
+			f := &preferenceFiles{trackedFS: tracked, replace: func(path string, data []byte) error {
 				if path != PreferencesPath || string(data) != `{"layout":"shelf"}` {
 					t.Fatal("wrong file or bytes")
 				}
-				return fault
+				return c.fault
 			}}
 			s, err := New(f, l)
 			if err != nil {
@@ -123,23 +143,23 @@ func TestPreferencesWriteErrorsNeverReplayUncertainIO(t *testing.T) {
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			if err = s.WritePreferences(ctx, []byte(`{}`)); !errors.Is(err, context.Canceled) || f.writes != 0 {
+			if err = s.WritePreferences(ctx, []byte(`{}`)); !errors.Is(err, context.Canceled) || f.replaces != 0 {
 				t.Fatal(err)
 			}
-			if err = s.WritePreferences(context.Background(), []byte(`[]`)); err == nil || f.writes != 0 {
+			if err = s.WritePreferences(context.Background(), []byte(`[]`)); err == nil || f.replaces != 0 {
 				t.Fatal("invalid settings reached storage")
 			}
 			err = s.WritePreferences(context.Background(), []byte(`{"layout":"shelf"}`))
-			if !errors.Is(err, fault) {
-				t.Fatal(err, fault)
+			if !errors.Is(err, c.fault) || f.replaces != 1 || tracked.handles.Load() != 0 {
+				t.Fatal(err, c.fault, f.replaces)
 			}
 			_, activeErr := s.ActiveReceipt()
-			uncertain := fault != nil && !errors.Is(fault, block.ErrReadOnly) && !errors.Is(fault, fat.ErrCapacity) && !errors.Is(fault, fs.ErrNotExist)
-			if uncertain {
-				if !errors.Is(activeErr, ErrRetired) {
-					t.Fatal(activeErr)
+			if c.retires {
+				if !errors.Is(activeErr, ErrRetired) || !errors.Is(err, ErrRetired) {
+					t.Fatal("uncertain write left storage active", err, activeErr)
 				}
-				if err = s.WritePreferences(context.Background(), []byte(`{}`)); !errors.Is(err, ErrRetired) || f.writes != 1 {
+				opens := tracked.opens.Load()
+				if err = s.WritePreferences(context.Background(), []byte(`{}`)); !errors.Is(err, ErrRetired) || f.replaces != 1 || tracked.opens.Load() != opens {
 					t.Fatal("uncertain write replayed", err)
 				}
 			} else {
@@ -149,7 +169,7 @@ func TestPreferencesWriteErrorsNeverReplayUncertainIO(t *testing.T) {
 				if err = s.Quiesce(); err != nil {
 					t.Fatal(err)
 				}
-				if err = s.WritePreferences(context.Background(), []byte(`{}`)); !errors.Is(err, ErrState) || f.writes != 1 {
+				if err = s.WritePreferences(context.Background(), []byte(`{}`)); !errors.Is(err, ErrState) || f.replaces != 1 {
 					t.Fatal("contained write reached disk", err)
 				}
 			}
@@ -157,10 +177,36 @@ func TestPreferencesWriteErrorsNeverReplayUncertainIO(t *testing.T) {
 	}
 }
 
+func TestPreferencesWriteRefusesMissingFileAndReadOnlyFilesystem(t *testing.T) {
+	l := lease()
+	f := &preferenceFiles{trackedFS: &trackedFS{base: fstest.MapFS{}, lease: l}, replace: func(string, []byte) error {
+		t.Fatal("ReplaceFile must not create a missing preferences file")
+		return nil
+	}}
+	s, err := New(f, l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.WritePreferences(context.Background(), []byte(`{}`)); !errors.Is(err, fs.ErrNotExist) || f.replaces != 0 {
+		t.Fatal(err, f.replaces)
+	}
+	if _, err = s.ActiveReceipt(); err != nil {
+		t.Fatal("missing preferences retired store", err)
+	}
+	// Without ReplaceFile the filesystem is read-only: there is no other write path.
+	readOnly, tracked := open(t, fstest.MapFS{PreferencesPath: &fstest.MapFile{Data: []byte(`{}`)}}, lease())
+	if err = readOnly.WritePreferences(context.Background(), []byte(`{}`)); !errors.Is(err, block.ErrReadOnly) || tracked.opens.Load() != 0 {
+		t.Fatal(err)
+	}
+	if _, err = readOnly.ActiveReceipt(); err != nil {
+		t.Fatal("read-only refusal retired store", err)
+	}
+}
+
 func TestPreferenceWriteSerializesShutdownAndDetectsChangedLease(t *testing.T) {
 	l := lease()
 	entered, release := make(chan struct{}), make(chan struct{})
-	f := &preferenceFiles{trackedFS: &trackedFS{base: fstest.MapFS{}, lease: l}, write: func(string, []byte) error { close(entered); <-release; return nil }}
+	f := &preferenceFiles{trackedFS: preferenceFS(l), replace: func(string, []byte) error { close(entered); <-release; return nil }}
 	s, err := New(f, l)
 	if err != nil {
 		t.Fatal(err)
@@ -189,96 +235,15 @@ func TestPreferenceWriteSerializesShutdownAndDetectsChangedLease(t *testing.T) {
 	if err = s.Resume(); err != nil {
 		t.Fatal(err)
 	}
-	f.write = func(string, []byte) error { l.mu.Lock(); l.r.Generation++; l.mu.Unlock(); return nil }
+	f.replace = func(string, []byte) error { l.mu.Lock(); l.r.Generation++; l.mu.Unlock(); return nil }
 	if err = s.WritePreferences(context.Background(), []byte(`{}`)); !errors.Is(err, ErrRetired) {
 		t.Fatal("changed lease accepted", err)
 	}
 }
 
-type preferenceReplaceFiles struct {
-	*trackedFS
-	replaces int
-	writes   int
-	replace  func(context.Context, string, []byte) error
-}
-
-func (f *preferenceReplaceFiles) ReplaceFile(ctx context.Context, path string, data []byte) error {
-	f.replaces++
-	return f.replace(ctx, path, data)
-}
-
-func (f *preferenceReplaceFiles) WriteFile(string, []byte) error {
-	f.writes++
-	return errors.New("unexpected WriteFile fallback when ReplaceFile is implemented")
-}
-
-func TestPreferencesWriteUsesReplaceFileWhenSupported(t *testing.T) {
-	t.Run("replaces_existing_file_and_checks_errors", func(t *testing.T) {
-		for _, fault := range []error{nil, block.ErrReadOnly, fat.ErrCapacity, fat.ErrNoSpace, errors.New("replace flush failed")} {
-			name := "success"
-			if fault != nil {
-				name = fault.Error()
-			}
-			t.Run(name, func(t *testing.T) {
-				l := lease()
-				f := &preferenceReplaceFiles{
-					trackedFS: &trackedFS{base: fstest.MapFS{PreferencesPath: &fstest.MapFile{Data: []byte(`{}`)}}, lease: l},
-					replace: func(ctx context.Context, path string, data []byte) error {
-						if ctx == nil || ctx.Err() != nil {
-							t.Fatal("expected non-nil uncanceled context passed to ReplaceFile")
-						}
-						if path != PreferencesPath || string(data) != `{"layout":"shelf"}` {
-							t.Fatalf("unexpected ReplaceFile call: %s %q", path, data)
-						}
-						return fault
-					},
-				}
-				s, err := New(f, l)
-				if err != nil {
-					t.Fatal(err)
-				}
-				err = s.WritePreferences(context.Background(), []byte(`{"layout":"shelf"}`))
-				if !errors.Is(err, fault) {
-					t.Fatalf("err=%v want %v", err, fault)
-				}
-				if f.replaces != 1 || f.writes != 0 {
-					t.Fatalf("replaces=%d writes=%d want 1/0", f.replaces, f.writes)
-				}
-				_, activeErr := s.ActiveReceipt()
-				uncertain := fault != nil && !errors.Is(fault, block.ErrReadOnly) && !errors.Is(fault, fat.ErrCapacity) && !errors.Is(fault, fat.ErrNoSpace)
-				if uncertain != errors.Is(activeErr, ErrRetired) {
-					t.Fatalf("uncertain=%t activeErr=%v", uncertain, activeErr)
-				}
-			})
-		}
-	})
-
-	t.Run("missing_file_returns_ErrNotExist_without_creating_or_retiring", func(t *testing.T) {
-		l := lease()
-		f := &preferenceReplaceFiles{
-			trackedFS: &trackedFS{base: fstest.MapFS{}, lease: l},
-			replace: func(context.Context, string, []byte) error {
-				t.Fatal("ReplaceFile must not create a missing preferences file")
-				return nil
-			},
-		}
-		s, err := New(f, l)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := s.WritePreferences(context.Background(), []byte(`{}`)); !errors.Is(err, fs.ErrNotExist) {
-			t.Fatalf("err=%v want fs.ErrNotExist", err)
-		}
-		if f.replaces != 0 || f.writes != 0 {
-			t.Fatalf("replaces=%d writes=%d want 0/0", f.replaces, f.writes)
-		}
-		if _, err := s.ActiveReceipt(); err != nil {
-			t.Fatalf("missing preferences retired store: %v", err)
-		}
-	})
-}
-
-func TestPreferencesRealFATCleanRestart(t *testing.T) {
+// preferencesImage formats a FAT32 image holding a 4096-byte FES/PREFS.JSON.
+func preferencesImage(t *testing.T) string {
+	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sd.img")
 	f, err := os.Create(path)
@@ -301,6 +266,11 @@ func TestPreferencesRealFATCleanRestart(t *testing.T) {
 			t.Fatalf("%v: %v %s", args, e, output)
 		}
 	}
+	return path
+}
+
+func TestPreferencesRealFATCleanRestart(t *testing.T) {
+	path := preferencesImage(t)
 	device, err := block.OpenFile(path, true)
 	if err != nil {
 		t.Fatal(err)
@@ -362,4 +332,92 @@ func TestPreferencesRealFATCleanRestart(t *testing.T) {
 	if err != nil || !bytes.Equal(got, grown) {
 		t.Fatal(len(got), err)
 	}
+}
+
+// protectedDevice models sdhci's live socket write-protect check before each
+// sector: from the protectAt'th WriteSectors call (1-based) every write is
+// refused with a wrapped block.ErrReadOnly before it reaches the card.
+type protectedDevice struct {
+	*block.File
+	writes, protectAt int
+}
+
+func (d *protectedDevice) WriteSectors(lba uint64, src []byte) error {
+	d.writes++
+	if d.protectAt > 0 && d.writes >= d.protectAt {
+		return fmt.Errorf("sdhci: socket write protection: %w", block.ErrReadOnly)
+	}
+	return d.File.WriteSectors(lba, src)
+}
+
+// A write-protect refusal is safe only before the first device write. After
+// it, the real FAT mount retires with ErrMutation joined to block.ErrReadOnly,
+// and the store must retire with it.
+func TestPreferencesRealFATWriteProtectAfterMutationRetiresStore(t *testing.T) {
+	data := []byte(`{"layout":"shelf"}`)
+	mount := func(t *testing.T, protectAt int) (*protectedDevice, *fat.Volume, *Store) {
+		t.Helper()
+		base, err := block.OpenFile(preferencesImage(t), true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { base.Close() })
+		d := &protectedDevice{File: base, protectAt: protectAt}
+		volume, err := fat.Mount(d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := New(volume, lease())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d, volume, s
+	}
+	happy, _, s := mount(t, 0)
+	if err := s.WritePreferences(context.Background(), data); err != nil {
+		t.Fatal(err)
+	}
+	if happy.writes < 2 {
+		t.Fatal("replace wrote too few times to refuse mid-replace", happy.writes)
+	}
+	for protectAt := 1; protectAt <= happy.writes; protectAt++ {
+		t.Run(fmt.Sprint(protectAt), func(t *testing.T) {
+			d, _, s := mount(t, protectAt)
+			err := s.WritePreferences(context.Background(), data)
+			_, activeErr := s.ActiveReceipt()
+			if !errors.Is(err, block.ErrReadOnly) {
+				t.Fatal(err)
+			}
+			if protectAt == 1 {
+				if errors.Is(err, fat.ErrMutation) || activeErr != nil {
+					t.Fatal("pre-mutation refusal retired storage", err, activeErr)
+				}
+				d.protectAt = 0
+				if err = s.WritePreferences(context.Background(), data); err != nil {
+					t.Fatal("healthy store refused a later write", err)
+				}
+				return
+			}
+			if !errors.Is(err, fat.ErrMutation) || !errors.Is(err, ErrRetired) || !errors.Is(activeErr, ErrRetired) {
+				t.Fatal("retired FAT mount left the store active", err, activeErr)
+			}
+			writes := d.writes
+			if err = s.WritePreferences(context.Background(), data); !errors.Is(err, ErrRetired) || d.writes != writes {
+				t.Fatal("retired store reached the device", err)
+			}
+		})
+	}
+	// A mount already retired by a direct volume write fails the existence
+	// pre-check's Open with the same joined error, which must retire too.
+	t.Run("open-on-retired-mount", func(t *testing.T) {
+		_, volume, s := mount(t, 2)
+		if err := volume.ReplaceFile(context.Background(), PreferencesPath, data); !errors.Is(err, fat.ErrMutation) || !errors.Is(err, block.ErrReadOnly) {
+			t.Fatal(err)
+		}
+		err := s.WritePreferences(context.Background(), data)
+		_, activeErr := s.ActiveReceipt()
+		if !errors.Is(err, fat.ErrMutation) || !errors.Is(err, ErrRetired) || !errors.Is(activeErr, ErrRetired) {
+			t.Fatal("retired FAT mount left the store active", err, activeErr)
+		}
+	})
 }
