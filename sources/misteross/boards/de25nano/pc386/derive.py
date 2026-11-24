@@ -8,6 +8,8 @@ plane comes out of pc386_machine: video is the presenter's 720p word, the
 plane's port-2 requester is idle, and pc386_system carries the mailbox's
 display opcodes out to the board in place of into the machine.
 
+pc386_system's CPU is the DE25's i486DX, fes_i486dx_cpu (i486dx/derive.py).
+
 Each derivation fails if its anchor moves. A removed block is pinned by its
 SHA-256, so a change inside it fails too.
 """
@@ -70,8 +72,13 @@ SYSTEM_SNAPSHOT_AFTER = (b"    pc386_snapshot #(.W(64)) pixel_counts (\n"
                          b"        .clk(clk), .snapshot({frames_shown_sys, present_underflows_sys})\n"
                          b"    );\n"
                          b"    assign plane_underflows_sys = 32'd0;\n")
+# The CPU is the DE25's i486DX (i486dx/derive.py), fes_i386_cpu's DE25-only
+# derivation, which keeps its parameters and ports.
+SYSTEM_CPU_BEFORE = b"    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n"
+SYSTEM_CPU_AFTER = b"    fes_i486dx_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n"
 SYSTEM = ((SYSTEM_WIRES_BEFORE, b"", 1), (SYSTEM_PORTS_BEFORE, SYSTEM_PORTS_AFTER, 1),
-          (SYSTEM_MACHINE_BEFORE, SYSTEM_MACHINE_AFTER, 1), (SYSTEM_SNAPSHOT_BEFORE, SYSTEM_SNAPSHOT_AFTER, 1))
+          (SYSTEM_MACHINE_BEFORE, SYSTEM_MACHINE_AFTER, 1), (SYSTEM_SNAPSHOT_BEFORE, SYSTEM_SNAPSHOT_AFTER, 1),
+          (SYSTEM_CPU_BEFORE, SYSTEM_CPU_AFTER, 1))
 
 
 def sha(data):
@@ -98,7 +105,7 @@ def retarget_machine(source):
 
 
 def retarget_system(source):
-    """pc386_system with the mailbox's display opcodes carried out to the board."""
+    """pc386_system with the mailbox's display opcodes carried out to the board, and the i486DX CPU."""
     result = source
     for before, after, count in SYSTEM:
         if result.count(before) != count:

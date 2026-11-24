@@ -2,7 +2,8 @@
 """FreeDOS to the prompt on the DE25 pc386 machine, through the board's window.
 
 system_tb (cores/fes-pc386/sim) on pc386_de25_sim: the derived pc386_system
-(derive.py: no display plane), a 486SX as the producer builds it (I486),
+(derive.py: no display plane), the i486DX as the producer builds it (I486,
+X87_PRESENT and i486dx/derive.py's CPU),
 behind fes_de25_hps_window's guards, rebase and bounds and
 fes_de25_window_arbiter, built with FES_PC386_DE25. The suite, its
 checks and its report are sim_fes_pc386.py's system suite unchanged; only the
@@ -12,6 +13,7 @@ testbench is this board's. Host-only: no kit, package or routed result.
 """
 from pathlib import Path
 import argparse
+import importlib
 import json
 import os
 import re
@@ -24,15 +26,18 @@ sys.path.insert(0, str(HERE))
 from scripts import sim_fes_pc386 as sim  # noqa: E402
 import derive  # noqa: E402
 
-# pc386/build.py's I486, read from its source so the bench needs none of the producer's imports.
+# pc386/build.py's I486 and X87_PRESENT, read from its source so the bench needs none of the producer's imports.
 I486 = int(re.search(r'^I486 = (\d)$', (HERE / 'build.py').read_text(), re.M).group(1))
+X87_PRESENT = int(re.search(r'^X87_PRESENT = (\d)$', (HERE / 'build.py').read_text(), re.M).group(1))
+i486dx = importlib.import_module('i486dx.derive')
 
 DE25_RTL = (HERE / 'fes_de25_hps_window.v', HERE / 'fes_de25_window_arbiter.v', HERE / 'fes_de25_window_unpack.v',
             ROOT / 'cores/fes-common/rtl/fes_hps_ddr_guard.v', HERE / 'sim/pc386_de25_sim.sv')
 
 
 def derived_sources(output: Path) -> dict[Path, Path]:
-    """The two DE10 files derive.py changes, written for this build."""
+    """The two DE10 files derive.py changes, written for this build, and the i486DX's CPU sources in place of
+    the integer core's."""
     output.mkdir(parents=True, exist_ok=True)
     rtl = ROOT / 'cores/fes-pc386/rtl'
     result = {}
@@ -40,6 +45,9 @@ def derived_sources(output: Path) -> dict[Path, Path]:
         data, _ = step((rtl / name).read_bytes())
         (output / name).write_bytes(data)
         result[rtl / name] = output / name
+    for old, new in zip(sim.CPU_RTL, i486dx.sim_sources(output.parent / 'i486dx', ROOT)):
+        if old != new:
+            result[old] = new
     return result
 
 
@@ -49,7 +57,8 @@ def system_testbench(args) -> Path:
     images = sim.firmware.images(args.download, args.jobs)
     rom = sim.firmware.write_rom_hex(images)
     # The producer's CPU identity (build.py I486), set explicitly rather than by the bench's default.
-    parameters = {**producer.guest_rates(producer.SYSTEM_CLOCK_HZ), 'ROM_HEX': f'"{rom}"', 'I486': f"1'b{I486}"}
+    parameters = {**producer.guest_rates(producer.SYSTEM_CLOCK_HZ), 'ROM_HEX': f'"{rom}"', 'I486': f"1'b{I486}",
+                  'X87_PRESENT': X87_PRESENT}
     # Under rtl/, so the bench's .vlt waivers for those files apply as they do on the DE10.
     swap = derived_sources(sim.OUTPUT / 'derived' / 'rtl')
     missing = set(swap) - set(sim.SYSTEM_RTL)

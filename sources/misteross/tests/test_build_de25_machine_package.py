@@ -268,8 +268,8 @@ class MachineProducerTests(unittest.TestCase):
         from scripts import pc386_quartus as sealer
         tools = {**self.tools, 'yosys': 'explicit fixture yosys'}
         with self.assertRaisesRegex(shared.BuildError, 'controlled Quartus execution inputs'):
-            self.record(pc386, '486sx')  # the record names the front end's Yosys
-        record = self.record(pc386, '486sx', tools)
+            self.record(pc386, '486dx')  # the record names the front end's Yosys
+        record = self.record(pc386, '486dx', tools)
         parameters = verify_record_source_at_revision(self.root, record)['parameters']
         self.assertEqual(parameters['core_id'], 'fes.pc386')
         self.assertNotIn('rom_id', parameters)
@@ -282,9 +282,10 @@ class MachineProducerTests(unittest.TestCase):
         self.assertEqual(json.loads(parameters['guest_rates']), spec.guest_rates())
         self.assertEqual(json.loads(parameters['firmware']),
                          {**sealer.firmware_digests(ROOT), 'rom_hex': sealer.pinned_rom_digest(ROOT)})
-        self.assertIs(parameters['x87_present'], False)
-        # The DE25 machine is the 486SX identity (pc386/build.py I486), set in the record.
-        self.assertEqual((parameters['model'], parameters['i486']), ('486sx', 1))
+        # The DE25 machine is the i486DX (pc386/build.py): the 486 identity, the 387 on and the
+        # DE25-only CPU, each in the record.
+        self.assertIs(parameters['x87_present'], True)
+        self.assertEqual((parameters['model'], parameters['i486'], parameters['cpu']), ('486dx', 1, 'fes_i486dx_cpu'))
         self.assertEqual(json.loads(record)['tools']['yosys'], 'explicit fixture yosys')
         # The reviewed signoff bases and the handshake sources they cite are in the record.
         from boards.de25nano.scanout import machine_findings

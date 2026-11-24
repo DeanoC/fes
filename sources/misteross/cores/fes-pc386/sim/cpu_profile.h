@@ -71,6 +71,16 @@
 // Verilated model into cpu_profile_layout.h.
 #pragma once
 
+// The CPU top's name in the Verilated hierarchy: fes_i386_cpu, or with
+// FES_I386_CPU_DX the DE25's i486DX, fes_i486dx_cpu (boards/de25nano/pc386/
+// i486dx), Verilated with --prefix Vfes_i386_cpu so the class is the same.
+#ifndef FES_I386_CPU_DOT
+#ifdef FES_I386_CPU_DX
+#define FES_I386_CPU_DOT(name) fes_i486dx_cpu__DOT__##name
+#else
+#define FES_I386_CPU_DOT(name) fes_i386_cpu__DOT__##name
+#endif
+#endif
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
@@ -224,7 +234,7 @@ struct CpuProfile {
             return;
         }
         auto *r = cpu.rootp;
-#define S(name) (r->fes_i386_cpu__DOT__##name)
+#define S(name) (r->FES_I386_CPU_DOT(name))
 #define QA(name) S(frontend__DOT__align__DOT__##name)
 #define FB(name) S(frontend__DOT__fetch__DOT__##name)
         const bool redirect = S(redirect);
@@ -352,9 +362,9 @@ struct CpuProfile {
         auto valid = [](const auto &stage) {
             return unsigned(stage[CPU_PROFILE_PIPE_MSB / 32] >> (CPU_PROFILE_PIPE_MSB % 32)) & 1u;
         };
-        return valid(r->fes_i386_cpu__DOT__ag_s) + valid(r->fes_i386_cpu__DOT__m1_s)
-               + valid(r->fes_i386_cpu__DOT__m2_s) + valid(r->fes_i386_cpu__DOT__ex_s)
-               + valid(r->fes_i386_cpu__DOT__wb_s);
+        return valid(r->FES_I386_CPU_DOT(ag_s)) + valid(r->FES_I386_CPU_DOT(m1_s))
+               + valid(r->FES_I386_CPU_DOT(m2_s)) + valid(r->FES_I386_CPU_DOT(ex_s))
+               + valid(r->FES_I386_CPU_DOT(wb_s));
     }
 #endif
     // A clock the bench runs the machine alone while the CPU waits on an I/O

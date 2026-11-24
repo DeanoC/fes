@@ -140,6 +140,16 @@
 // mode refuses it.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
+// The CPU top's name in the Verilated hierarchy: fes_i386_cpu, or with
+// FES_I386_CPU_DX the DE25's i486DX, fes_i486dx_cpu (boards/de25nano/pc386/
+// i486dx), Verilated with --prefix Vfes_i386_cpu so the class is the same.
+#ifndef FES_I386_CPU_DOT
+#ifdef FES_I386_CPU_DX
+#define FES_I386_CPU_DOT(name) fes_i486dx_cpu__DOT__##name
+#else
+#define FES_I386_CPU_DOT(name) fes_i386_cpu__DOT__##name
+#endif
+#endif
 #include "Vfes_i386_cpu.h"
 #ifndef FES_I386_NETLIST
 #include "Vfes_i386_cpu___024root.h"
@@ -464,8 +474,8 @@ public:
     void tally_x87_backend() const {
 #ifndef FES_I386_NETLIST
         for (int n = 0; n < 8; ++n) {
-            x87_backend_offered[n] += top.rootp->fes_i386_cpu__DOT__x87__DOT__bk_offered[n];
-            x87_backend_taken[n] += top.rootp->fes_i386_cpu__DOT__x87__DOT__bk_taken[n];
+            x87_backend_offered[n] += top.rootp->FES_I386_CPU_DOT(x87__DOT__bk_offered)[n];
+            x87_backend_taken[n] += top.rootp->FES_I386_CPU_DOT(x87__DOT__bk_taken)[n];
         }
 #endif
     }

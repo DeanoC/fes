@@ -595,13 +595,30 @@ def source_record() -> dict:
             'files_sha256': hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()}
 
 
+def cpu_core(core: str, output: Path) -> tuple[list[Path], str, list[str], str]:
+    """The RTL CPU's design files, top, Verilator flags and testbench C++ flags: the integer core, or the
+    DE25's i486DX (boards/de25nano/pc386/i486dx; --cpu-core i486dx), its derived top written into output and
+    Verilated under the integer core's class name."""
+    if core == 'i386':
+        return [RTL / path for path in CPU_RTL], TOP, [], ''
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('de25_pc386_i486dx_derive',
+                                                  ROOT / 'boards/de25nano/pc386/i486dx/derive.py')
+    dx = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(dx)
+    return list(dx.sim_sources(output / 'derived', ROOT)), dx.TOP, ['--prefix', 'V' + TOP], ' -DFES_I386_CPU_DX'
+
+
 def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs: int, yosys: Path | None,
-             parameters: dict[str, int] | None = None) -> Path:
+             parameters: dict[str, int] | None = None, core: str = 'i386') -> Path:
     """The testbench, with the CPU's parameters if any: -G on the RTL, and on
     the netlist the seal's hierarchy -chparam, since a netlist has none left."""
-    output = OUTPUT / (('netlist' if yosys else 'rtl')
+    if yosys and core != 'i386':
+        raise LockstepError('--cpu-core i486dx runs on the RTL only')
+    output = OUTPUT / (('netlist' if yosys else 'rtl') + ('' if core == 'i386' else '-' + core)
                        + ''.join(f'-{name}{value}' for name, value in sorted((parameters or {}).items())))
     output.mkdir(parents=True, exist_ok=True)
+    top, core_flags, core_cflags = TOP, [], ''
     if yosys:
         design = [yosys_netlist.seal_netlist(yosys, output, ROOT, parameters=parameters)]
         # A flattened, purged netlist has no hierarchy, so the bench cannot
@@ -609,15 +626,15 @@ def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs
         # so, as the x87 unit runner's netlist mode already does.
         warnings = [*frontend.NETLIST_WARNINGS]
     else:
-        design = [RTL / path for path in CPU_RTL]
+        design, top, core_flags, core_cflags = cpu_core(core, output)
         warnings = []
-    command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
-               '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
+    command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', top,
+               *core_flags, '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
                *(f'-G{name}={value}' for name, value in sorted((parameters or {}).items()) if not yosys),
                # -D, not +define+: the guard is in the C++ testbench, not the RTL. A
                # flattened netlist has no hierarchy for the x87's backend counters.
                '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{DDR_MODEL}'
-                         + (' -DFES_I386_NETLIST' if yosys else ''), '-LDFLAGS', '-pthread',
+                         + (' -DFES_I386_NETLIST' if yosys else '') + core_cflags, '-LDFLAGS', '-pthread',
                *map(str, design), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
     log = output / 'build.log'
     with log.open('w') as stream:
@@ -920,6 +937,9 @@ def main() -> int:
     parser.add_argument('--no-latency', action='store_true', help='no fetch latency in the corpus run')
     i386_verilator.add_argument(parser)
     yosys_netlist.add_arguments(parser)
+    parser.add_argument('--cpu-core', choices=('i386', 'i486dx'), default='i386',
+                        help="the RTL CPU: the integer core (default) or the DE25's i486DX "
+                             '(boards/de25nano/pc386/i486dx), on the RTL only')
     parser.add_argument('--preset', type=int, default=0, choices=range(8),
                         help="the governor's preset, fes.pc386.machine word 0 (default 0, max)")
     parser.add_argument('--same-as', type=Path, help="max's report.json (absolute), which a governed run must match")
@@ -955,7 +975,8 @@ def main() -> int:
         yosys = yosys_netlist.locate(args)
         linked = oracle.link_inputs(args.jobs, args.download)
         report['oracle'] = oracle.build_record(linked)
-        testbench = str(verilate(verilator, linked, args.jobs, yosys.path if yosys else None))
+        report['cpu_core'] = args.cpu_core
+        testbench = str(verilate(verilator, linked, args.jobs, yosys.path if yosys else None, core=args.cpu_core))
         report['oracle']['suite_sha256'] = suite_sha256
         report['oracle']['testbench_sha256'] = hashlib.sha256(Path(testbench).read_bytes()).hexdigest()
         if yosys:
