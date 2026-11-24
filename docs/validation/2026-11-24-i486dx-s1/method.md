@@ -265,3 +265,22 @@ not been read when this file was committed.
      that head, under the same rules.** Any other unmatched row is a fail
      again, and no basis is added in this PR.
    - The first attempt's result stays in the record beside the second.
+
+4. **24 Nov 2026, before G3's second attempt.** Seen by then: G1, G2, G3's
+   first attempt (amendment 3), and G4 and G5 still running with no result
+   read. **#2187** (`deano/de25-pc386-window-bases`, head `884b5959c`,
+   Codex clean at that head) is merged with a plain merge (`10ed64d91`). It adds
+   the reviewed bases. Deano approved three widenings in it (relayed):
+   - CDC-50001 bases for `window_base` and `window_fault_record`, their
+     rows unpinned and bound by register name and both clocks;
+   - fitter-copy suffixes on names already accepted, plus
+     `machine_at_decoder_state`;
+   - `machine_at_decoder_phase`, `machine_at_decoder_cycle_port` and
+     `audio_dsp_write` in the TMC-20602 tension advisory.
+
+   The merge also brings #2187's base, which carries newer main and a
+   window-arbiter change. It changes no CPU, pc386 core, sealer or bench
+   file, so G2 stands. **G3 runs again, all four seeds, at the head that
+   commits this amendment, under the same rules.** A seed refused on a row
+   #2187 does not cover is a fail, and no basis is added here. This PR now
+   also depends on #2187.
