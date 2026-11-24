@@ -128,3 +128,56 @@ func TestGameplayFastPathBypassesTenfootUntilReturnChord(t *testing.T) {
 		t.Fatalf("keyboardWrites=%d, want 13 (9 init + 4 dirty rows)", f.cpu.keyboardWrites)
 	}
 }
+
+func TestGameplayFastPathPreservesUARTWakeupOnSerialPlatform(t *testing.T) {
+	f, b, client := backendFixture(t)
+	uartReady := make(chan struct{}, 1)
+	var serialMu sync.Mutex
+	var serialBytes []byte
+	serialBase, err := NewProgramSerialPlatform(f.s, func() (byte, bool) {
+		serialMu.Lock()
+		defer serialMu.Unlock()
+		if len(serialBytes) == 0 {
+			return 0, false
+		}
+		v := serialBytes[0]
+		serialBytes = serialBytes[1:]
+		return v, true
+	}, func(context.Context, []byte) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	serialBase.SetReady(uartReady)
+
+	source := &fastPathKeyboardSource{ready: make(chan struct{}, 1)}
+	platform, err := NewProgramInputPlatform(serialBase, b, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, err := client.Launch(ctx, "native-0"); err != nil {
+		t.Fatal(err)
+	}
+	// Seed serialBase.last = time.Now() as if a base frame just completed, so
+	// delegating without wakeNext() would sleep ~50 ms.
+	serialBase.last = time.Now()
+
+	// Fire UART ready with 'q' (quit -> CmdStop while ProgramRunning).
+	serialMu.Lock()
+	serialBytes = append(serialBytes, 'q')
+	serialMu.Unlock()
+	uartReady <- struct{}{}
+
+	start := time.Now()
+	frame, err := platform.Next(ctx)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("Next: %v", err)
+	}
+	if len(frame.Commands) != 1 || frame.Commands[0] != tenfoot.CmdStop {
+		t.Fatalf("expected CmdStop from UART quit, got %+v", frame)
+	}
+	if elapsed >= 35*time.Millisecond {
+		t.Fatalf("UART wakeup was delayed by base frame timer: elapsed=%s", elapsed)
+	}
+}
