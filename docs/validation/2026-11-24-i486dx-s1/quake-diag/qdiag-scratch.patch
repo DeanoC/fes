@@ -1,0 +1,116 @@
+diff --git a/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt b/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt
+index 935d4b506..111162c76 100644
+--- a/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt
++++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt
+@@ -63,3 +63,23 @@ public_flat_rd -module "fes_i386_qalign" -var "prof_tself"
+ public_flat_rd -module "fes_i386_fetchbuf" -var "active"
+ public_flat_rd -module "fes_i386_fetchbuf" -var "half_valid"
+ public_flat_rd -module "fes_i386_fetchbuf" -var "tail_ok"
++// SCRATCH qdiag: the x87 unit's issue state at a stall
++public_flat_rd -module "fes_i386_x87" -var "busy"
++public_flat_rd -module "fes_i386_x87" -var "nw"
++public_flat_rd -module "fes_i386_x87" -var "nw_waiting"
++public_flat_rd -module "fes_i386_x87" -var "started"
++public_flat_rd -module "fes_i386_x87" -var "fired"
++public_flat_rd -module "fes_i386_x87" -var "latched"
++public_flat_rd -module "fes_i386_x87" -var "seq"
++public_flat_rd -module "fes_i386_x87" -var "hold"
++public_flat_rd -module "fes_i386_x87" -var "iss"
++public_flat_rd -module "fes_i386_x87" -var "iss_first"
++public_flat_rd -module "fes_i386_x87" -var "iss_wait"
++public_flat_rd -module "fes_i386_x87" -var "iss_op"
++public_flat_rd -module "fes_i386_x87" -var "iss_fire"
++public_flat_rd -module "fes_i386_x87" -var "take"
++public_flat_rd -module "fes_i386_x87" -var "take_nw"
++public_flat_rd -module "fes_i386_x87" -var "flush"
++public_flat_rd -module "fes_i386_x87" -var "unbuilt"
++public_flat_rd -module "fes_i386_x87" -var "committed"
++public_flat_rd -module "fes_i386_x87" -var "iss_dec"
+diff --git a/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp b/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp
+index 8aa67ab0c..3f07b402b 100644
+--- a/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp
++++ b/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp
+@@ -864,6 +864,7 @@ public:
+         cpu.attr_upper = map;
+         cpu.ram_top = RAM_BYTES >> 20;
+         cpu.queue16 = 0;  // the coherent profile
++        cpu.x87_present = m.top.x87_present;  // SCRATCH qdiag (bench-x87)
+         cpu.cold_reset = 1;
+         cpu.reset = 1;
+         for (int n = 0; n < 3; ++n) {
+@@ -877,6 +878,8 @@ public:
+ 
+     Vfes_i386_cpu cpu;
+     Machine &m;
++    std::string qring[64], xring[64]; uint64_t qn = 0, xn = 0;  // SCRATCH qdiag
++    std::string iring[16]; uint64_t in_ = 0; unsigned qtrig = 0; bool qpre = false;  // SCRATCH qdiag 2
+     // The CPU is the 486SX identity (Verilated with I486 = 1, beside the
+     // level-4 oracle): EFLAGS holds AC and ID too.
+     bool i486 = false;
+@@ -1044,6 +1047,29 @@ public:
+     void cycle() {
+         cpu.clk = 0;
+         cpu.eval();
++        {  // SCRATCH qdiag: the first edge where fired is set with started clear, and 4 after
++            auto *r = cpu.rootp;
++#define Y(n) (unsigned long long)(r->fes_i386_cpu__DOT__x87__DOT__##n)
++            const bool bad = Y(fired) && !Y(started);
++            if ((bad && qtrig < 1) || (qtrig >= 1 && qtrig < 6) || qpre) {
++                std::printf("QTRIG %llu fired=%llu started=%llu committed=%llu nw=%llu nw_waiting=%llu iss=%llu iss_first=%llu iss_fire=%llu iss_op=%03llx iss_dec=%llu take=%llu take_nw=%llu flush=%llu unbuilt=%llu hold=%llu seq=%llu busy=%llu latched=%llu cr0=%08x eip=%08x cs=%04x\n",
++                    (unsigned long long)m.cycles, Y(fired), Y(started), Y(committed), Y(nw), Y(nw_waiting), Y(iss), Y(iss_first), Y(iss_fire),
++                    Y(iss_op), Y(iss_dec), Y(take), Y(take_nw), Y(flush), Y(unbuilt), Y(hold), Y(seq), Y(busy), Y(latched),
++                    (unsigned)cpu.arch_cr0, (unsigned)cpu.arch_eip, (unsigned)get16(cpu.arch_sel, 1));
++                if (bad || qtrig) ++qtrig;
++                if (qtrig == 1) for (uint64_t k = qn > 64 ? qn - 64 : 0; k < qn; ++k) std::printf("QTRIGLAST %s\n", qring[k % 64].c_str());
++                std::fflush(stdout);
++            }
++            // The edges before: keep the last 8 states with iss set.
++            if (Y(iss)) {
++                char line[200];
++                std::snprintf(line, sizeof line, "%llu iss_op=%03llx dec=%llu first=%llu fire=%llu take=%llu take_nw=%llu flush=%llu unbuilt=%llu started=%llu fired=%llu hold=%llu",
++                    (unsigned long long)m.cycles, Y(iss_op), Y(iss_dec), Y(iss_first), Y(iss_fire), Y(take), Y(take_nw), Y(flush), Y(unbuilt), Y(started), Y(fired), Y(hold));
++                iring[in_++ % 16] = line;
++            }
++            if (qtrig == 1) for (uint64_t k = in_ > 16 ? in_ - 16 : 0; k < in_; ++k) std::printf("QTRIGISS %s\n", iring[k % 16].c_str());
++#undef Y
++        }
+         if (prof) prof->sample(cpu, mmio_presented || mmio_reading || cpu.mmio_valid, resetting);
+         const bool fetch = cpu.trace_fetch, store = cpu.trace_store;
+         const uint32_t block = cpu.trace_fetch_block, waddr = cpu.trace_store_addr & ~3u;
+@@ -1223,6 +1249,16 @@ public:
+             uint32_t byte = 0;
+             const unsigned ilen = length(ib);
+             if (prof) prof->retire(m.cycles, start, retire_next, ib, ilen, cpu.trace_exception, cpu.arch_cr0 & 1);
++            {  // SCRATCH qdiag rings
++                char line[160];
++                std::snprintf(line, sizeof line, "%llu %08x %02x %02x %02x %02x exc=%u x87busy=%u cr0=%08x",
++                              (unsigned long long)m.cycles, start, ib[0], ib[1], ib[2], ib[3], (unsigned)cpu.trace_exception,
++                              (unsigned)cpu.trace_x87_busy, (unsigned)cpu.arch_cr0);
++                qring[qn++ % 64] = line;
++                unsigned k = 0;
++                while (k < 4 && (ib[k] == 0x66 || ib[k] == 0x67 || ib[k] == 0x26 || ib[k] == 0x2e || ib[k] == 0x36 || ib[k] == 0x3e || ib[k] == 0x64 || ib[k] == 0x65)) ++k;
++                if ((ib[k] >= 0xd8 && ib[k] <= 0xdf) || ib[k] == 0x9b || cpu.trace_exception) xring[xn++ % 64] = line;
++            }
+             if (!cpu.trace_exception && stale.executed(start, start + ilen, byte)) {
+                 ++smc_executed;
+                 if (smc_sites.size() < 24) smc_sites.push_back(site("executed", start, byte));
+@@ -1949,7 +1985,18 @@ int main(int argc, char **argv) {
+                     machine.top.cpu_shutdown = 1;
+                 }
+                 if (event == RtlCpu::Event::Stopped) stop("unimplemented");
+-                else if (event == RtlCpu::Event::Stall) stop("stall");
++                else if (event == RtlCpu::Event::Stall) {
++                    auto *r = rtl->cpu.rootp;
++#define X(n) (unsigned long long)(r->fes_i386_cpu__DOT__x87__DOT__##n)
++                    std::printf("QDIAG busy=%llu nw=%llu nw_waiting=%llu started=%llu fired=%llu latched=%llu seq=%llu hold=%llu iss=%llu iss_first=%llu iss_wait=%llu cr0=%08x eflags=%08x\n",
++                        X(busy), X(nw), X(nw_waiting), X(started), X(fired), X(latched), X(seq), X(hold), X(iss), X(iss_first), X(iss_wait),
++                        (unsigned)rtl->cpu.arch_cr0, (unsigned)rtl->cpu.arch_eflags);
++#undef X
++                    for (uint64_t k = rtl->xn > 64 ? rtl->xn - 64 : 0; k < rtl->xn; ++k) std::printf("QX87 %s\n", rtl->xring[k % 64].c_str());
++                    for (uint64_t k = rtl->qn > 64 ? rtl->qn - 64 : 0; k < rtl->qn; ++k) std::printf("QLAST %s\n", rtl->qring[k % 64].c_str());
++                    std::fflush(stdout);
++                    stop("stall");
++                }
+                 else if (event == RtlCpu::Event::HaltedForGood) { reason = "halt-with-interrupts-off"; break; }
+                 else if (event == RtlCpu::Event::Reset) {
+                     machine.cpu_reset_seen = false;
