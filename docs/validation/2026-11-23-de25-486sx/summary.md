@@ -38,7 +38,9 @@ registered producer, `build_pc386_package.py`: BUILD_ID
 `4da642f9cab7f730359b51e251b495b0`, RBF `56c75370…`, `package_timing_admission`
 true ([`fits/build-summary.json`](fits/build-summary.json),
 [`fits/signoff-timing.json`](fits/signoff-timing.json)). Seeds 2–4 are copies of its
-project with only `SEED` changed. All four fitted the same machine netlist,
+project with only `SEED` changed. (Codex's review of `f4aa99646` found the script
+logged a refused seed 1 and went on; it now stops. The fits ran before that
+fix, and their seed 1 exited 0, `fits/run.log`, so no result changes.) All four fitted the same machine netlist,
 `7816b5397e01015a608fac40d9655ed92baa35e4da9c216b92e29f796c60a024`. It is the
 486SX: its elaboration program ends `-chparam I486 1`, and the netlist
 declares `wire [21:0] cpu_eflags_q` with bits 21 (ID) and 18 (AC) and has
