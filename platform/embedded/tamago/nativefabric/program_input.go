@@ -21,11 +21,9 @@ type ProgramInputPlatform struct {
 	base               tenfoot.Platform
 	backend            *ProgramBackend
 	source             input.USBReports
-	sourceInto         interface{ PollKeyboardInto([]byte) (int, error) }
 	menu               *input.USBKeyboard
 	keyboard           ProgramKeyboard
 	gamepadSource      input.USBGamepadReports
-	gamepadSourceInto  interface{ PollGamepadInto([]byte) (int, error) }
 	gamepadMenu        *input.USBGamepad
 	gamepad            ProgramGamepad
 	gamepadDescriptor  []byte
@@ -63,7 +61,6 @@ func NewProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, sou
 		return nil, err
 	}
 	p.source, p.menu = source, menu
-	p.sourceInto, _ = source.(interface{ PollKeyboardInto([]byte) (int, error) })
 	p.inputReady = attachInputReady(base, source)
 	return p, nil
 }
@@ -85,7 +82,6 @@ func NewProgramGamepadPlatform(base tenfoot.Platform, backend *ProgramBackend, s
 		return nil, err
 	}
 	p.gamepadSource, p.gamepadMenu = source, menu
-	p.gamepadSourceInto, _ = source.(interface{ PollGamepadInto([]byte) (int, error) })
 	p.gamepadDescriptor = append([]byte(nil), descriptor...)
 	p.gamepadButtons, p.gamepadKeys = buttons, keys
 	p.inputReady = attachInputReady(base, source)
@@ -310,25 +306,15 @@ func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.E
 			return nil, err
 		}
 		var report []byte
+		var count int
 		var err error
 		if p.gamepadSource != nil {
-			if p.gamepadSourceInto != nil {
-				var count int
-				count, err = p.gamepadSourceInto.PollGamepadInto(reportBuf[:])
-				if count > 0 {
-					report = reportBuf[:count]
-				}
-			} else {
-				report, err = p.gamepadSource.PollGamepad()
-			}
-		} else if p.sourceInto != nil {
-			var count int
-			count, err = p.sourceInto.PollKeyboardInto(reportBuf[:8])
-			if count > 0 {
-				report = reportBuf[:count]
-			}
+			count, err = p.gamepadSource.PollGamepadInto(reportBuf[:])
 		} else {
-			report, err = p.source.PollKeyboard()
+			count, err = p.source.PollKeyboardInto(reportBuf[:])
+		}
+		if count > 0 {
+			report = reportBuf[:count]
 		}
 		if err != nil {
 			b.inputFault = err

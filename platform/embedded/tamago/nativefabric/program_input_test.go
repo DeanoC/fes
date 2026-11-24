@@ -358,6 +358,16 @@ func TestProgramInputFullTenfootUSBLaunchAndReturn(t *testing.T) {
 type programReportFunc func() ([]byte, error)
 
 func (f programReportFunc) PollKeyboard() ([]byte, error) { return f() }
+func (f programReportFunc) PollKeyboardInto(dst []byte) (int, error) {
+	r, err := f()
+	if err != nil || r == nil {
+		return 0, err
+	}
+	if len(r) == 0 || len(r) > len(dst) {
+		return 0, errors.New("invalid keyboard report length")
+	}
+	return copy(dst, r), nil
+}
 func TestProgramInputCanceledReportUsesFreshOwnedCleanup(t *testing.T) {
 	f, b, c := backendFixture(t)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -403,6 +413,16 @@ func (s *readyKeyboardSource) PollKeyboard() ([]byte, error) {
 	s.reports = s.reports[1:]
 	return r, nil
 }
+func (s *readyKeyboardSource) PollKeyboardInto(dst []byte) (int, error) {
+	r, err := s.PollKeyboard()
+	if err != nil || r == nil {
+		return 0, err
+	}
+	if len(r) == 0 || len(r) > len(dst) {
+		return 0, errors.New("invalid keyboard report length")
+	}
+	return copy(dst, r), nil
+}
 func (s *readyKeyboardSource) Ready() <-chan struct{} { return s.ready }
 
 type readyGamepadSource struct {
@@ -417,6 +437,16 @@ func (s *readyGamepadSource) PollGamepad() ([]byte, error) {
 	r := s.reports[0]
 	s.reports = s.reports[1:]
 	return r, nil
+}
+func (s *readyGamepadSource) PollGamepadInto(dst []byte) (int, error) {
+	r, err := s.PollGamepad()
+	if err != nil || r == nil {
+		return 0, err
+	}
+	if len(r) == 0 || len(r) > len(dst) {
+		return 0, errors.New("invalid gamepad report length")
+	}
+	return copy(dst, r), nil
 }
 func (s *readyGamepadSource) Ready() <-chan struct{} { return s.ready }
 

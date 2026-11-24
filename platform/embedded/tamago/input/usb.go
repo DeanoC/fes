@@ -11,7 +11,10 @@ import (
 
 // USBReports is a nonblocking boot-keyboard interrupt report source. A physical
 // USB host owns enumeration and transfers; this adapter never fabricates them.
-type USBReports interface{ PollKeyboard() ([]byte, error) }
+type USBReports interface {
+	PollKeyboard() ([]byte, error)
+	PollKeyboardInto(dst []byte) (int, error)
+}
 
 // USBKeyboard tracks report edges and translates key presses for tenfoot.
 // Releases update the decoder so the next real press can fire again. Held-key

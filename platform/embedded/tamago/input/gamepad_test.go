@@ -26,6 +26,16 @@ func (q *gamepadQueue) PollGamepad() ([]byte, error) {
 	q.reports = q.reports[1:]
 	return r, nil
 }
+func (q *gamepadQueue) PollGamepadInto(dst []byte) (int, error) {
+	r, err := q.PollGamepad()
+	if err != nil || r == nil {
+		return 0, err
+	}
+	if len(r) == 0 || len(r) > len(dst) {
+		return 0, errors.New("invalid report length")
+	}
+	return copy(dst, r), nil
+}
 func menuPad(t *testing.T, q *gamepadQueue) *USBGamepad {
 	t.Helper()
 	d, err := hex.DecodeString(menuPadDescriptor)
