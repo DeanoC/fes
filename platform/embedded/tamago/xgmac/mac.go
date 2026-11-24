@@ -92,11 +92,11 @@ const (
 )
 
 // LinkStats reports non-fatal PHY carrier transitions observed when
-// Config.RecoverLinkLoss is enabled, including any BindControl.Start finds
-// against the link before Stop. Flaps counts losses of an up link; Recoveries
-// counts the link-ups ending them, so it never exceeds Flaps. The first link-up
-// after Open found the carrier down is reported through OnLinkChange but is not
-// a recovery.
+// Config.RecoverLinkLoss is enabled, including one BindControl.Start finds
+// relative to the link before Stop. Flaps counts losses of an up link;
+// Recoveries counts the link-ups ending them, so it never exceeds Flaps. The
+// first link-up after Open found the carrier down is reported through
+// OnLinkChange but is not a recovery.
 type LinkStats struct {
 	Flaps      uint64
 	Recoveries uint64

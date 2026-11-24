@@ -72,8 +72,8 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 				return err
 			}
 			d.paused = true
-			// LinkStatus reads down while contained. The pause is no carrier
-			// change, so Start reports only a difference from this link.
+			// LinkStatus reads down until Start re-probes the PHY. The pause is no
+			// carrier change, so Start reports only a difference from this link.
 			pausedLink = LinkSpeed(d.linkSpeed.Swap(uint32(LinkSpeedDown)))
 			d.suspendIRQLocked()
 			if err := d.stopFIFO(ctx); err != nil {
