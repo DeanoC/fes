@@ -1,0 +1,231 @@
+{
+  "post": [
+    {
+      "code": "00",
+      "cycle": 9563
+    },
+    {
+      "code": "21",
+      "cycle": 1743177
+    },
+    {
+      "code": "31",
+      "cycle": 1843191
+    },
+    {
+      "code": "41",
+      "cycle": 2243563
+    },
+    {
+      "code": "71",
+      "cycle": 2345715
+    },
+    {
+      "code": "77",
+      "cycle": 2445569
+    }
+  ],
+  "debug": [
+    {
+      "port": "402",
+      "text": "BIOS BUILD DATE: 11/03/26"
+    },
+    {
+      "port": "500",
+      "text": "VGABios ID: vgabios.c 2026-08-07"
+    },
+    {
+      "port": "402",
+      "text": "ata0-0: PCHS=65/16/63 translation=none LCHS=65/16/63"
+    },
+    {
+      "port": "402",
+      "text": "IDE time out"
+    },
+    {
+      "port": "402",
+      "text": "Booting from 0000:7c00"
+    }
+  ],
+  "panic": [],
+  "io": {
+    "isa16 2": {
+      "38": 123392
+    },
+    "isa8 1": {
+      "74": 72265
+    },
+    "vga-in 1": {
+      "6": 6
+    },
+    "vga-out 1": {
+      "4": 823
+    },
+    "vga-out 2": {
+      "7": 3305
+    }
+  },
+  "io_wait": {},
+  "inta": {
+    "146": 71
+  },
+  "screen": [
+    "Kernel compatibility 6.22 - WATCOMC - 80386 CPU required                        ",
+    "                                                                                ",
+    "(C) Copyright 1995-2023 Pasquale J. Villani and The FreeDOS Project.            ",
+    "All Rights Reserved. This is free software and comes with ABSOLUTELY NO         ",
+    "WARRANTY; you can redistribute it and/or modify it under the terms of the       ",
+    "GNU General Public License as published by the Free Software Foundation;        ",
+    "either version 2, or (at your option) any later version.                        ",
+    "C: HD1, Pri[ 1], CHS=    0-1-1, start=     0 MB, size=    31 MB                 ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "C:\\>dir                                                                         ",
+    " Volume in drive C is FREEDOS                                                   ",
+    " Volume Serial Number is 1386-0026                                              ",
+    " Directory of C:\\                                                               ",
+    "                                                                                ",
+    "KERNEL   SYS        68,386  10-26-26 12:00p                                     ",
+    "COMMAND  COM        87,772  10-26-26 12:00p                                     ",
+    "FDCONFIG SYS            75  10-26-26 12:00p                                     ",
+    "AUTOEXEC BAT            39  10-26-26 12:00p                                     ",
+    "FDOS                 <DIR>  10-26-26 12:00p                                     ",
+    "         4 file(s)        156,272 bytes                                         ",
+    "         1 dir(s)      33,259,520 bytes free                                    ",
+    "C:\\>                                                                            "
+  ],
+  "end": {
+    "reason": "prompt",
+    "steps": 145543067,
+    "cycles": 350000045,
+    "seconds": 3.5
+  },
+  "prompt_cycle": 220000045,
+  "cpu_resets": 0,
+  "snaps": {},
+  "present": {},
+  "vga": {
+    "frames": 7479,
+    "scanout_underflows": 0,
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "frames_shown": 0,
+    "port1_commands": 16088056,
+    "port2_commands": 2247895
+  },
+  "marks": {},
+  "game_launch": null,
+  "opl2": {
+    "samples": 174005,
+    "exact": 174005,
+    "nonzero": 0,
+    "writes": 0
+  },
+  "opl2_mismatch": null,
+  "audio_samples": 168000,
+  "sb": {
+    "resets": 0,
+    "commands": 0,
+    "dma": 0,
+    "irqs": 0
+  },
+  "mouse": {
+    "sent": 1,
+    "scheduled": 1
+  },
+  "ems": {
+    "pages": 128,
+    "reads": 1,
+    "writes": 0
+  },
+  "rtl_begin": null,
+  "floppy": [],
+  "rtl": {
+    "stops": [],
+    "pmode": [],
+    "gaps": [],
+    "smc": [
+      {
+        "event": "store",
+        "cycle": 17248734,
+        "site": "8fd3:00009af7",
+        "instruction": "00099827",
+        "address": "0009984c"
+      },
+      {
+        "event": "store",
+        "cycle": 216533325,
+        "site": "0fa5:00002bae",
+        "instruction": "000125fe",
+        "address": "00012620"
+      }
+    ],
+    "notes": [],
+    "counters": {
+      "retired": 145543067,
+      "oracle_steps": 0,
+      "protected_steps": 0,
+      "parked_clocks": 6716556,
+      "tf_retired": 0,
+      "pe_retired": 0,
+      "pe_entries": 0,
+      "vga_loads": 30737,
+      "replays": 384,
+      "port0_reads": 1932216,
+      "port0_writes": 45795138,
+      "smc_stores": 574898,
+      "smc_addresses": 2,
+      "smc_executed": 0,
+      "smc_restarts": 753319,
+      "store_page_mismatches": 0
+    }
+  },
+  "command": [
+    "build/sim/fes-pc386-level4/machine/obj/Vpc386_machine",
+    "--bios",
+    "build/firmware/pc386/pc386-bios.bin",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "build/sim/fes-pc386/freedos.img",
+    "--limit-seconds",
+    "8",
+    "--type",
+    "dir|",
+    "--expect",
+    "bytes free",
+    "--trace",
+    "build/sim/fes-pc386-level4/boot-rtl/vga.trace",
+    "--cpu",
+    "rtl",
+    "--mouse",
+    "0:0,0,0"
+  ],
+  "exit": 0,
+  "failures": [],
+  "replay": {
+    "exit": 0,
+    "counts": {
+      "events-I": 6,
+      "events-O": 4128,
+      "events-R": 30736,
+      "events-W": 54169,
+      "frames": 7444,
+      "frames-blink-phase": 102,
+      "frames-compared": 93,
+      "frames-divergence-reference-unprogrammed": 7232,
+      "frames-matched": 93,
+      "frames-matched-720x400-text": 93,
+      "frames-unstable": 17,
+      "scanout_underflows": 0,
+      "capture_drops": 0
+    },
+    "mismatches": [],
+    "summary": "match events=89039 replay_mismatches=0 read_mismatches=0 vram_mismatches=0 frame_mismatches=0 end_vram_bytes_differing=0",
+    "failures": []
+  },
+  "cpu_level": 4
+}

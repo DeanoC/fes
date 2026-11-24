@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"sync/atomic"
 	"time"
 
@@ -193,6 +194,72 @@ func (i *Interface) NewLeaseRenewer(cfg RenewConfig) (*LeaseRenewer, error) {
 			i.stop(err)
 		}
 	})
+}
+
+// RenewLeaseOnce executes one RFC 2131 DHCPv4 RENEWING (rebind=false) or
+// REBINDING (rebind=true) exchange over this interface's active *Link and
+// synchronizes the renewed lease back to Interface.Lease(). Fails with
+// ErrRenewerActive if another renewal or LeaseRenewer is already active, and
+// halts the interface immediately on ErrLeaseNAK or ErrLeaseChanged.
+func (i *Interface) RenewLeaseOnce(ctx context.Context, rebind bool, cfg RenewConfig) (DHCPLease, error) {
+	if i == nil || i.bridge == nil || i.device == nil {
+		return DHCPLease{}, fmt.Errorf("%w: interface has no active DHCP lease", ErrDHCPInvalidConfig)
+	}
+	return i.leaseState.renewOnce(ctx, i.bridge, i.device.MAC(), rebind, cfg, i.Err, func(err error) {
+		i.bridge.fail(err)
+		if i.stop != nil {
+			i.stop(err)
+		}
+	})
+}
+
+// ResolveA resolves name to IPv4 addresses over this interface's active *Link.
+// Unset LocalMAC, LocalPrefix, and Gateway default to the interface's active
+// configuration; unset Servers default to the interface's DHCP lease DNS list.
+func (i *Interface) ResolveA(ctx context.Context, name string, cfg DNSConfig) ([]netip.Addr, error) {
+	if i == nil || i.bridge == nil || i.device == nil {
+		return nil, fmt.Errorf("%w: interface unavailable", ErrDNSInvalidConfig)
+	}
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	if cfg.LocalMAC == "" {
+		cfg.LocalMAC = i.device.MAC()
+	}
+	if cfg.LocalPrefix == "" {
+		cfg.LocalPrefix = i.config.Address
+	}
+	if cfg.Gateway == "" {
+		cfg.Gateway = i.config.Gateway
+	}
+	if len(cfg.Servers) == 0 {
+		if lease, ok := i.Lease(); ok && len(lease.DNS) > 0 {
+			cfg.Servers = append([]string(nil), lease.DNS...)
+		}
+	}
+	return ResolveA(ctx, i.bridge, cfg, name)
+}
+
+// QuerySNTP executes one RFC 4330 SNTPv4 UTC time query over this interface's
+// active *Link. Unset LocalMAC, LocalPrefix, and Gateway default to the
+// interface's active configuration.
+func (i *Interface) QuerySNTP(ctx context.Context, cfg SNTPConfig) (SNTPResult, error) {
+	if i == nil || i.bridge == nil || i.device == nil {
+		return SNTPResult{}, fmt.Errorf("%w: interface unavailable", ErrSNTPInvalidConfig)
+	}
+	if err := i.Err(); err != nil {
+		return SNTPResult{}, err
+	}
+	if cfg.LocalMAC == "" {
+		cfg.LocalMAC = i.device.MAC()
+	}
+	if cfg.LocalPrefix == "" {
+		cfg.LocalPrefix = i.config.Address
+	}
+	if cfg.Gateway == "" {
+		cfg.Gateway = i.config.Gateway
+	}
+	return QuerySNTP(ctx, i.bridge, cfg)
 }
 
 // EnableIRQ routes the underlying NIC's RX interrupt through g so Link.Start

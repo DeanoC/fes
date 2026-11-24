@@ -35,6 +35,171 @@ type GamepadConfiguration struct {
 	ReportDescriptorBytes uint16
 }
 
+// TransferType identifies a USB endpoint's bmAttributes[1:0] transfer type.
+type TransferType uint8
+
+const (
+	TransferControl     TransferType = 0
+	TransferIsochronous TransferType = 1
+	TransferBulk        TransferType = 2
+	TransferInterrupt   TransferType = 3
+)
+
+// DeviceDescriptor holds parsed fields from the standard 18-byte USB device descriptor.
+type DeviceDescriptor struct {
+	USBVersion     uint16
+	Class          uint8
+	SubClass       uint8
+	Protocol       uint8
+	MaxPacketSize0 uint16
+	VendorID       uint16
+	ProductID      uint16
+	DeviceVersion  uint16
+	NumConfigs     uint8
+}
+
+// EndpointDescriptor holds one parsed USB endpoint descriptor.
+type EndpointDescriptor struct {
+	Address       uint8
+	TransferType  TransferType
+	MaxPacketSize uint16
+	Interval      uint8
+}
+
+// Number returns the 4-bit endpoint number (1..15).
+func (e EndpointDescriptor) Number() uint8 { return e.Address & 0x0f }
+
+// In reports whether the endpoint transfers data from device to host.
+func (e EndpointDescriptor) In() bool { return e.Address&0x80 != 0 }
+
+// InterfaceDescriptor holds one parsed USB interface (and alternate setting),
+// its optional HID report descriptor byte count, and all valid endpoints.
+type InterfaceDescriptor struct {
+	Number           uint8
+	AlternateSetting uint8
+	Class            uint8
+	SubClass         uint8
+	Protocol         uint8
+	HIDReportBytes   uint16
+	Endpoints        []EndpointDescriptor
+}
+
+// FullConfiguration holds every interface and endpoint parsed from a standard
+// USB configuration descriptor tree, supporting composite devices (HID + XInput
+// + Bluetooth HCI + Multi-TT Hubs) without rejecting unknown classes.
+type FullConfiguration struct {
+	Value      uint8
+	Interfaces []InterfaceDescriptor
+}
+
+// ParseDeviceDescriptor validates and decodes a standard 18-byte USB device descriptor.
+func ParseDeviceDescriptor(data []byte) (DeviceDescriptor, error) {
+	if len(data) != 18 || data[0] != 18 || data[1] != 1 {
+		return DeviceDescriptor{}, fmt.Errorf("%w: device descriptor header", ErrDescriptor)
+	}
+	mps := uint16(data[7])
+	if mps != 8 && mps != 16 && mps != 32 && mps != 64 {
+		return DeviceDescriptor{}, fmt.Errorf("%w: invalid EP0 max packet size %d", ErrDescriptor, mps)
+	}
+	if data[17] == 0 {
+		return DeviceDescriptor{}, fmt.Errorf("%w: zero configurations", ErrDescriptor)
+	}
+	return DeviceDescriptor{
+		USBVersion:     binary.LittleEndian.Uint16(data[2:4]),
+		Class:          data[4],
+		SubClass:       data[5],
+		Protocol:       data[6],
+		MaxPacketSize0: mps,
+		VendorID:       binary.LittleEndian.Uint16(data[8:10]),
+		ProductID:      binary.LittleEndian.Uint16(data[10:12]),
+		DeviceVersion:  binary.LittleEndian.Uint16(data[12:14]),
+		NumConfigs:     data[17],
+	}, nil
+}
+
+// ParseFullConfiguration parses all interfaces, alternate settings, HID report
+// sizes, and endpoints in a USB configuration descriptor without rejecting
+// composite or multi-class devices.
+func ParseFullConfiguration(data []byte) (FullConfiguration, error) {
+	invalid := func(reason string) (FullConfiguration, error) {
+		return FullConfiguration{}, fmt.Errorf("%w: %s", ErrDescriptor, reason)
+	}
+	if len(data) < 9 || data[0] != 9 || data[1] != 2 {
+		return invalid("configuration header")
+	}
+	total := int(binary.LittleEndian.Uint16(data[2:4]))
+	if total < 9 || total > MaxConfigurationBytes || total > len(data) {
+		return invalid("total length")
+	}
+	if data[4] == 0 || data[5] == 0 {
+		return invalid("configuration fields")
+	}
+	cfg := FullConfiguration{Value: data[5]}
+	cur := -1
+	for off := 9; off < total; {
+		if total-off < 2 {
+			return invalid("truncated descriptor header")
+		}
+		length := int(data[off])
+		if length < 2 || length > total-off {
+			return invalid("descriptor length")
+		}
+		d := data[off : off+length]
+		switch d[1] {
+		case 2:
+			return invalid("nested configuration")
+		case 4: // INTERFACE
+			if length < 9 {
+				return invalid("truncated interface descriptor")
+			}
+			cfg.Interfaces = append(cfg.Interfaces, InterfaceDescriptor{
+				Number:           d[2],
+				AlternateSetting: d[3],
+				Class:            d[5],
+				SubClass:         d[6],
+				Protocol:         d[7],
+			})
+			cur = len(cfg.Interfaces) - 1
+		case 0x21: // HID
+			if cur >= 0 && cfg.Interfaces[cur].Class == 3 && length >= 9 && d[5] > 0 && length >= 6+3*int(d[5]) {
+				for field := 6; field+3 <= length; field += 3 {
+					if d[field] == 0x22 {
+						rb := binary.LittleEndian.Uint16(d[field+1 : field+3])
+						if rb > 0 && rb <= MaxConfigurationBytes {
+							cfg.Interfaces[cur].HIDReportBytes = rb
+							break
+						}
+					}
+				}
+			}
+		case 5: // ENDPOINT
+			if cur >= 0 && length >= 7 {
+				addr := d[2]
+				if addr&0x70 == 0 && addr&0x0f != 0 {
+					rawMPS := binary.LittleEndian.Uint16(d[4:6])
+					tt := TransferType(d[3] & 3)
+					// Reject high-bandwidth endpoints (bits 12:11 != 0) and reserved bits
+					// (bits 15:13 != 0) instead of masking off the transaction multiplier;
+					// the PIO scheduler supports single-transaction-per-microframe endpoints only.
+					if rawMPS&0xf800 == 0 && rawMPS > 0 && rawMPS <= 1024 {
+						cfg.Interfaces[cur].Endpoints = append(cfg.Interfaces[cur].Endpoints, EndpointDescriptor{
+							Address:       addr,
+							TransferType:  tt,
+							MaxPacketSize: rawMPS,
+							Interval:      d[6],
+						})
+					}
+				}
+			}
+		}
+		off += length
+	}
+	if len(cfg.Interfaces) == 0 {
+		return invalid("no interfaces")
+	}
+	return cfg, nil
+}
+
 var ErrNoGamepadInterface = errors.New("USB configuration has no gamepad HID candidate")
 
 // ParseConfiguration accepts a complete standard configuration descriptor set.

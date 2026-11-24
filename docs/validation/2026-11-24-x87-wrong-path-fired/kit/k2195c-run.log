@@ -1,0 +1,8 @@
+2026-11-24 17:23:24 lease held 4666081ddaceaf5d55717d3c0d312ab7613ef3fa93a8cd8b56bee8ae93a0da8a game x2195-dos-j7woyv5ody8d
+2026-11-24 17:24:11 GOAL freedos PASS {"seconds_to_detect": 0.6, "frame": "frames/freedos-prompt.png"}
+2026-11-24 17:26:30 GOAL doom PASS {"colourful": 0.07, "changed": 0.122, "seconds_to_prompt": 82.3, "frames": ["frames/doom-demo-1.png", "frames/doom-demo-2.png", "frames/doom-timedemo-done.png"]}
+2026-11-24 17:26:30 STOP FAILED /v1/input/detach: HTTP 503 {"code": "MISTER_UNAVAILABLE", "message": "remote input is unavailable"}
+2026-11-24 17:26:30 lease kept: the kit needs recovery
+2026-11-24 17:26:30 kit data kept: stop was not confirmed
+2026-11-24 17:26:30 FAIL stop: KitError: /v1/input/detach: HTTP 503 {"code": "MISTER_UNAVAILABLE", "message": "remote input is unavailable"}
+RESULT FAIL

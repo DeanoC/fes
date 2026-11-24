@@ -5,9 +5,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
+	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
+	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/wdt"
 )
 
@@ -19,7 +22,7 @@ var (
 	expectedWatchdogClockHz string
 )
 
-func startProgramWatchdog(ctx context.Context) (func(), error) {
+func startProgramWatchdog(ctx context.Context, lease *sdcontrol.Session) (func(), error) {
 	spec, enabled, err := wdt.ParseKeepaliveSpec(expectedWatchdogTimeout, expectedWatchdogClockHz)
 	if err != nil {
 		return nil, err
@@ -31,9 +34,30 @@ func startProgramWatchdog(ctx context.Context) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
+	check := wdt.CompositeCheck(
+		wdt.HealthProbe{
+			Name: "program-service",
+			Check: func() error {
+				if programService != nil && programService.Status().State == nativefabric.ProgramRebootRequired {
+					return errors.New("program service entered reboot-required containment")
+				}
+				return nil
+			},
+		},
+		wdt.HealthProbe{
+			Name: "sd-storage",
+			Check: func() error {
+				if lease != nil && lease.Retired() {
+					return errors.New("owned SD storage session retired")
+				}
+				return nil
+			},
+		},
+	)
 	sup, err := wdt.NewSupervisor(dev, wdt.SupervisorConfig{
 		Timeout: spec.Timeout,
 		Mode:    wdt.ModeReset,
+		Check:   check,
 		OnError: func(err error) {
 			fmt.Printf("FES_NATIVE_WATCHDOG_ERROR err=%v\n", err)
 		},

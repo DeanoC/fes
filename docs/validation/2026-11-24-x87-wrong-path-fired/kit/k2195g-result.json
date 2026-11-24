@@ -1,0 +1,46 @@
+{
+ "kit": "B",
+ "package": "6dd0a612f285b5b93be3708597079a4f4041fe8cb76204d4bcad66293e8a70e8.fcore",
+ "drive": "pmode",
+ "drive_sha256": "b4be6e29297168abb31ca536829cbd8a42e9fb05093d16793932ea51d72814b3",
+ "library_game": "x2195-dos-m9afdmiuvflr",
+ "nonce": "M9AFDMIUVFLR",
+ "goals": {
+  "freedos": {
+   "pass": true,
+   "seconds_to_detect": 0.8,
+   "frame": "frames/freedos-prompt.png"
+  },
+  "doom": {
+   "pass": true,
+   "colourful": 0.072,
+   "changed": 0.125,
+   "seconds_to_prompt": 76.8,
+   "frames": [
+    "frames/doom-demo-1.png",
+    "frames/doom-demo-2.png",
+    "frames/doom-timedemo-done.png"
+   ]
+  }
+ },
+ "events": [],
+ "claim": "## 2026-11-24T18:09:11+02:00 KIT B IN USE: Claude (fes#2135 i486DX slice-1 session for Deano) \u2014 control arm 2 for fes#2195's stop failure: #2195 c4711cb12's pc386 seal 6dd0a612 (BUILD_ID 3b7c0696), on",
+ "kit_created": [
+  "/media/fat/fogcast/core-data/games/098b7cf62daf6b9e56b8f66ada0929b6db4336641fb14351d50e81de65843aaa",
+  "/media/fat/fogcast/core-data/media/bf6253fa9f351979be0d79cc0f501869f28a703c8cdb8983259c0ac45ab6a34c",
+  "/media/fat/fogcast/disk-images/b4be6e29297168abb31ca536829cbd8a42e9fb05093d16793932ea51d72814b3.img"
+ ],
+ "after": {
+  "agent": "active",
+  "lease": "held",
+  "rebooted": false,
+  "left": [
+   "/media/fat/fogcast/core-data/games/098b7cf62daf6b9e56b8f66ada0929b6db4336641fb14351d50e81de65843aaa",
+   "/media/fat/fogcast/core-data/media/bf6253fa9f351979be0d79cc0f501869f28a703c8cdb8983259c0ac45ab6a34c",
+   "/media/fat/fogcast/disk-images/b4be6e29297168abb31ca536829cbd8a42e9fb05093d16793932ea51d72814b3.img"
+  ],
+  "recovery_required": true
+ },
+ "failure": "stop: KitError: /v1/input/detach: HTTP 503 {\"code\": \"MISTER_UNAVAILABLE\", \"message\": \"remote input is unavailable\"}",
+ "pass": false
+}

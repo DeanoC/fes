@@ -1294,7 +1294,13 @@ takes the same body, needs the kit lease, and removes the record so the next
 launch reads the imported disk again; the runtime refuses it while a core is
 running. A discard may borrow the caller's kit lease, but retains it after a
 `BUSY` response because another concurrent discard may still be using that
-shared grant. Inspect and export change nothing and need no lease.
+shared grant. Inspect and export change nothing and need no lease. They use the
+coordinator's read-only hold rather than the launch/stop transition slot: reads
+serialize briefly against one another to respect `libmister-runtime`'s `busy_`
+guard, yield immediately with `BUSY` whenever a transition is active or waiting,
+and transitions reserve admission first and wait up to 2 s (bounded by caller
+context) for any single in-flight read to finish so shelf polling does not
+reject a concurrent Stop or Launch with `BUSY`.
 
 The `fes.computer` 1.1 pc386 `fes.media.ata-disk` unit is a fixed 1..128 MiB
 unit with 65,536-byte chunks and always reports `saveable:false`. Its package
@@ -3790,8 +3796,14 @@ neutralizes that exact uncertain source while preserving confirmed remote
 contributors; held local mappings remain suppressed until their physical
 contributors release. A proven pre-dispatch failure can instead retry the
 current desired state.
-For a fresh, unbound matrix sink, lifecycle cleanup may omit the matrix write
-only after a fresh explicit idle observation with a valid runtime instance.
+Source detach or disconnect skips an unbound, empty matrix sink when no
+`fes.keyboard` capability, matrix binding, or pending matrix neutral is active,
+so non-matrix HID cores without controller ports (such as `fes.pc386`) can
+detach without issuing an unbound matrix write. For a fresh, unbound matrix
+sink, lifecycle cleanup may omit the matrix write only after a fresh explicit
+observation with a valid runtime instance confirming either idle or an active
+packaged core without `fes.keyboard` (raw development RBFs and active matrix
+cores remain rejected).
 That proof applies to the current guarded cleanup only: it cannot authorize an
 unbound press or hide an unrelated cleanup failure.
 Synthetic pad keys, the physical local keyboard and the remote keyboard retain
@@ -4286,8 +4298,14 @@ including when no record has yet been written, and checks durable target data.
 
 `targetclient/core_data_client.go` sends bounded archives and expected package IDs to
 `internal/httpapi/core_data.go`; writes and library loads use the existing kit
-lease. Read-only data inspection does not claim hardware. The target coordinator
-serializes these calls against lifecycle operations. `internal/misterruntime/core_data.go`
+lease. Read-only data inspection (`InspectCoreData`, `InspectGameCoreData`,
+`InspectMediaRecord`, `ExportMediaRecord`) does not claim hardware or take the
+launch/stop transition slot: the target coordinator serializes reads against one
+another under a separate read hold without bumping `transitionEpoch` (so
+`StatusWithRuntimeInput` stays live), returns `BUSY` immediately to new reads
+once any transition is active or waiting, and lets transitions reserve admission
+first and wait up to 2 s (bounded by caller context) for any single in-flight
+read to release the runtime before proceeding. `internal/misterruntime/core_data.go`
 privately stages/admit-checks exact bytes, supplies the fixed trusted
 `/media/fat/fogcast/core-data` root, and calls protocol-2 `inspect_core_data`,
 `update_core_settings`, or `load_library_core`. No network caller supplies a
