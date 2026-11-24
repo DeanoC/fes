@@ -166,3 +166,24 @@ The other rare spellings come only from test files. `COPY` is now
 - under the previous `COPY` the two copy tests fail.
 
 The full table still passes all 40 recorded pc386 reports.
+
+## The advisory's RTL pinned (fifth commit)
+
+Codex (P2 on #2177 against 37ba9e67a) found that the third commit's
+advisory names cite RTL that `SOURCES` did not pin. `SOURCES` now pins:
+- `cores/fes-pc386/rtl/pc386_io.sv` (`4ae84cce…`): the AT decoder's state,
+  phase and port;
+- `cores/fes-pc386/rtl/pc386_audio.sv` (`3e3d1f4f…`): `audio_dsp_write`.
+
+A change to either file now stops the review until the bases are
+reviewed again. Neither file differs between main, this branch, the
+S-lat branch (`deano/de25-shell-lat`) and the i486DX branches. The i486DX
+seed 1 and 486SX records, and the recorded x87, i486 and audio-area
+reseals, captured these same digests.
+
+BUILD_IDs: `signoff_bases.py` is one of pc386's `LOCAL_FILES` and no
+other machine's. Both RTL files were already pc386 source inputs, and the
+engine is unchanged. So only pc386's BUILD_ID moves, through the table's
+own digest, as with the earlier commits.
+
+The full table still passes all 40 recorded pc386 reports.
