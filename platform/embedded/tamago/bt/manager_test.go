@@ -25,12 +25,12 @@ type mgrPipe struct {
 	closed   bool
 }
 
-func (p *mgrPipe) DeviceAddress() uint8             { return 2 }
-func (p *mgrPipe) Endpoint() usb.EndpointDescriptor { return p.ep }
+func (p *mgrPipe) DeviceAddress() uint8              { return 2 }
+func (p *mgrPipe) Endpoint() usb.EndpointDescriptor  { return p.ep }
 func (p *mgrPipe) SetIntervalOverride(time.Duration) {}
-func (p *mgrPipe) Close() error                     { p.closed = true; return nil }
-func (p *mgrPipe) WriteDone() (bool, error)         { return true, nil }
-func (p *mgrPipe) Write([]byte) error               { p.outCount++; return nil }
+func (p *mgrPipe) Close() error                      { p.closed = true; return nil }
+func (p *mgrPipe) WriteDone() (bool, error)          { return true, nil }
+func (p *mgrPipe) Write([]byte) error                { p.outCount++; return nil }
 func (p *mgrPipe) PollInto(dst []byte) (int, error) {
 	if p.pollErr != nil {
 		err := p.pollErr
@@ -46,19 +46,19 @@ func (p *mgrPipe) PollInto(dst []byte) (int, error) {
 }
 
 type mgrBus struct {
-	events     []usb.HostEvent
-	devices    []usb.BusDevice
-	evPipe     *mgrPipe
-	aclInPipe  *mgrPipe
+	events          []usb.HostEvent
+	devices         []usb.BusDevice
+	evPipe          *mgrPipe
+	aclInPipe       *mgrPipe
 	aclOutPipe      *mgrPipe
 	rtlChunks       int
 	lmpSub          uint16
 	failScanDisable bool
 }
 
-func (b *mgrBus) Service() error             { return nil }
-func (b *mgrBus) Devices() []usb.BusDevice   { return b.devices }
-func (b *mgrBus) Ready() <-chan struct{}     { return nil }
+func (b *mgrBus) Service() error           { return nil }
+func (b *mgrBus) Devices() []usb.BusDevice { return b.devices }
+func (b *mgrBus) Ready() <-chan struct{}   { return nil }
 func (b *mgrBus) NextEvent() (usb.HostEvent, bool) {
 	if len(b.events) == 0 {
 		return usb.HostEvent{}, false
@@ -445,5 +445,46 @@ func TestManagerRejectsAndRetriesAttachWhenGameplayRadioFails(t *testing.T) {
 	}
 	if len(dongleEvents) != 1 || !dongleEvents[0] {
 		t.Fatalf("expected [true] OnDongleChanged after retry attach, got %v", dongleEvents)
+	}
+}
+
+func TestManagerExternalBusDispatchIgnoresNonBTBackoff(t *testing.T) {
+	bus := &mgrBus{lmpSub: 0x8761}
+	now := time.Unix(800, 0)
+	mgr := NewManager(bus, l2cap.NewBondStore(), nil, func() time.Time { return now })
+
+	// External coordinator delivers a non-BT USB keyboard attach followed
+	// immediately by a BT dongle attach on the same tick. The non-BT attach
+	// must NOT trigger dongleRetryBackoff or block the BT dongle attach.
+	kbd := usb.BusDevice{
+		Address: 3,
+		Speed:   usb.SpeedFull,
+		Config: usb.FullConfiguration{
+			Value: 1,
+			Interfaces: []usb.InterfaceDescriptor{{
+				Number: 0, Class: 3, SubClass: 1, Protocol: 1,
+				Endpoints: []usb.EndpointDescriptor{{Address: 0x81, TransferType: usb.TransferInterrupt, MaxPacketSize: 8}},
+			}},
+		},
+	}
+	mgr.HandleBusEvent(usb.HostEvent{Kind: usb.DeviceAttached, Device: kbd})
+	if !mgr.retryAfter.IsZero() {
+		t.Fatalf("non-BT device triggered retryAfter=%v", mgr.retryAfter)
+	}
+	dev := makeDongleDevice(4)
+	mgr.HandleBusEvent(usb.HostEvent{Kind: usb.DeviceAttached, Device: dev})
+	if err := mgr.ServiceSession(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("BT dongle attach after non-BT device failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	// Non-BT detach must not disturb active BT dongle.
+	mgr.HandleBusEvent(usb.HostEvent{Kind: usb.DeviceDetached, Device: kbd})
+	if !mgr.DongleConnected() {
+		t.Fatal("non-BT detach disconnected active BT dongle")
+	}
+
+	mgr.HandleBusEvent(usb.HostEvent{Kind: usb.DeviceDetached, Device: dev})
+	if mgr.DongleConnected() {
+		t.Fatal("BT dongle detach did not clear connected state")
 	}
 }

@@ -503,7 +503,7 @@ def build(args):
     usb_shared=shared_input is not None
     if usb_shared:
         if (args.program!='fpgaload' or not tenfoot_serial or not selected_programs or
-                shared_input not in ('boot-keyboard','gamepad') or getattr(args,'usb_input',None) is not None):
+                shared_input not in ('boot-keyboard','gamepad','multi') or getattr(args,'usb_input',None) is not None):
             raise ValueError('--shared-usb-input requires selected serial Tenfoot and one explicit protocol')
         usb_input=shared_input
     usb_control=args.program=='usbcheck' or usb_shared

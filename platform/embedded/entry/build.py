@@ -51,7 +51,8 @@ def usb_control_option(receipt):
         if (len(options)!=1 or options[0][1]!='main.expectedUSBControl='+('owned-shared-usb-pio-v1' if shared else 'owned-usb-pio-v1') or
                 options[0][0]==0 or tokens[options[0][0]-1]!='-X' or command[-1]!='./cmd/'+receipt['program']):
             raise ValueError('USB lease differs from the exact selected native link command')
-        if (protocol not in ('boot-keyboard','gamepad') or len(inputs)!=1 or
+        allowed=('boot-keyboard','gamepad','multi') if shared else ('boot-keyboard','gamepad')
+        if (protocol not in allowed or len(inputs)!=1 or
                 inputs[0][1]!='main.expectedUSBInput='+protocol or inputs[0][0]==0 or tokens[inputs[0][0]-1]!='-X'):
             raise ValueError('USB input differs from the exact selected native link command')
     elif options or inputs or protocol is not None:
@@ -201,7 +202,7 @@ def main():
         native_io=hps.checked_hps_io(receipt)
         native_usb_control=usb_control_option(receipt)
         if native_usb_control and any(token not in payload.read_bytes() for token in
-                (b"FES_NATIVE_SHARED_USB READY" if receipt.get("usb_shared",False) else b"FES_NATIVE_USB READY",b"usbcontrol.Open",b"OpenGamepadWithControl" if receipt['usb_input']=='gamepad' else b"OpenKeyboardWithControl")):
+                (b"FES_NATIVE_SHARED_USB READY" if receipt.get("usb_shared",False) else b"FES_NATIVE_USB READY",b"usbcontrol.Open",{'gamepad':b"OpenGamepadWithControl",'boot-keyboard':b"OpenKeyboardWithControl",'multi':b"OpenMultiWithControl"}[receipt['usb_input']])):
             raise ValueError("selected USB driver/client path is absent from the native ELF")
         native_control=hps.checked_control(receipt)
         native_configuration=hps.checked_configuration(receipt)

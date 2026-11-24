@@ -16,7 +16,8 @@ def mode(record, program_key='program'):
     if control!=selected:
         raise ValueError('USB lease selection differs from native program')
     protocol=record.get('usb_input')
-    if selected and protocol not in ('boot-keyboard','gamepad') or not selected and protocol is not None:
+    allowed=('boot-keyboard','gamepad','multi') if shared else ('boot-keyboard','gamepad')
+    if selected and protocol not in allowed or not selected and protocol is not None:
         raise ValueError('USB input protocol differs from explicit selection')
     return selected,shared
 

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"runtime"
 	"time"
@@ -15,9 +16,11 @@ import (
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
+	"github.com/DeanoC/fes/platform/embedded/tamago/bt/l2cap"
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
+	"github.com/DeanoC/fes/platform/embedded/tamago/input/usbhub"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
@@ -147,18 +150,73 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		serialPlatform.EnableInstallerViews()
 	}
 	inputMode := "uart"
+	var activeHub *usbhub.Hub
+	defer func() {
+		if activeHub != nil {
+			activeHub.Close()
+		}
+	}()
 	if expectedUSBControl != "" && expectedTenfootUARTOnly != "1" {
 		cleanupUSBIRQ, err := enableProgramUSBIRQ(activeGIC)
 		if err != nil {
 			panic(err)
 		}
 		defer cleanupUSBIRQ()
-		if expectedUSBInput == "gamepad" {
+		switch expectedUSBInput {
+		case "gamepad":
 			keys := nativefabric.ProgramGamepadKeys{Up: 0x52, Down: 0x51, Left: 0x50, Right: 0x4f}
 			// This diagnostic assigns S/start and Space to the first two HID buttons.
 			keys.Buttons[0], keys.Buttons[1] = 0x16, 0x2c
 			platform, err = nativefabric.NewProgramGamepadPlatform(serialPlatform, nativeProgramBackend, &sharedProgramGamepad{programGamepadSource, &sharedInputMetrics}, programGamepadDescriptor, input.GamepadButtons{Confirm: 1, Back: 2}, keys)
-		} else {
+		case "multi":
+			bonds := l2cap.NewBondStore()
+			var fw programBTFirmwareLoader
+			if store != nil {
+				loadCtx, loadCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				raw, bondErr := store.ReadBTBonds(loadCtx)
+				loadCancel()
+				if bondErr == nil {
+					if unmarshalErr := bonds.UnmarshalJSON(raw); unmarshalErr != nil {
+						fmt.Printf("FES_NATIVE_BT_BONDS WARN action=load err=%v\n", unmarshalErr)
+					}
+				} else if !errors.Is(bondErr, fs.ErrNotExist) {
+					fmt.Printf("FES_NATIVE_BT_BONDS WARN action=load err=%v\n", bondErr)
+				}
+				fw.store = store
+			}
+			hub, hubErr := usbhub.NewHub(programBusHost, usbhub.Config{
+				Bonds:    bonds,
+				Firmware: fw,
+				PersistBonds: func(pctx context.Context, raw []byte) error {
+					if store == nil {
+						return nil
+					}
+					writeCtx, writeCancel := context.WithTimeout(pctx, 5*time.Second)
+					defer writeCancel()
+					return store.WriteBTBonds(writeCtx, raw)
+				},
+				OnDeviceEvent: func(ev usbhub.DeviceEvent) {
+					fmt.Printf("FES_NATIVE_USB_HUB event=%s addr=%d iface=%d slot=%d name=%q\n", ev.Kind, ev.Address, ev.Interface, ev.Slot, ev.Name)
+				},
+			})
+			if hubErr != nil {
+				panic(hubErr)
+			}
+			activeHub = hub
+			keys := nativefabric.ProgramGamepadKeys{Up: 0x52, Down: 0x51, Left: 0x50, Right: 0x4f}
+			keys.Buttons[0], keys.Buttons[1] = 0x16, 0x2c
+			platform, err = nativefabric.NewProgramMultiInputPlatform(serialPlatform, nativeProgramBackend, &sharedProgramMulti{hub: hub, bus: programBusHost, metrics: &sharedInputMetrics}, nativefabric.ProgramMultiConfig{
+				MenuButtons:     input.GamepadButtons{Confirm: 1, Back: 2},
+				CoreKeys:        keys,
+				PairingDuration: 30 * time.Second,
+				OnPairingEvent: func(active bool, pairErr error) {
+					fmt.Printf("FES_NATIVE_BT_PAIRING active=%t err=%v\n", active, pairErr)
+				},
+				OnBondsSaved: func(saveErr error) {
+					fmt.Printf("FES_NATIVE_BT_BONDS action=save err=%v\n", saveErr)
+				},
+			})
+		default:
 			platform, err = nativefabric.NewProgramInputPlatform(serialPlatform, nativeProgramBackend, &sharedProgramKeyboard{programKeyboardSource, &sharedInputMetrics})
 		}
 		if err != nil {
@@ -198,11 +256,27 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 			}
 			status = programService.Status()
 		}
+		if activeHub != nil {
+			activeHub.Close()
+		}
 		if err := closeProgramUSB(); err != nil {
 			panic(err)
 		}
 	}
 	fmt.Printf("FES_NATIVE_TENFOOT_EXIT state=%s generation=%d\n", status.State, status.Generation)
+}
+
+type programBTFirmwareLoader struct {
+	store *packagestore.Store
+}
+
+func (l programBTFirmwareLoader) LoadFirmware(name string) ([]byte, error) {
+	if l.store == nil {
+		return nil, fs.ErrNotExist
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return l.store.ReadBTFirmware(ctx, name)
 }
 
 func emitProgramMenu(observation nativefabric.ProgramMenuObservation) error {

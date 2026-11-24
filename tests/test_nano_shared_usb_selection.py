@@ -15,7 +15,7 @@ class SharedUSBSelectionTests(unittest.TestCase):
                 'tenfoot_serial':True,'selected_programs':True,'computer_reload':True,'computer_storage_return':True,
                 'command':['go','build','-ldflags','-X main.expectedUSBControl=owned-shared-usb-pio-v1 -X main.expectedUSBInput='+protocol,'./cmd/fpgaload']}
     def test_explicit_shared_scope_and_exact_native_link_match(self):
-        for protocol in ('boot-keyboard','gamepad'):
+        for protocol in ('boot-keyboard','gamepad','multi'):
             r=self.record(protocol)
             self.assertEqual(selection.mode(r),(True,True))
             self.assertTrue(entry.usb_control_option(r))
@@ -26,6 +26,7 @@ class SharedUSBSelectionTests(unittest.TestCase):
     def test_shared_mode_cannot_adopt_another_program_or_memory_scope(self):
         r=self.record()
         for patch in ({'program':'usbcheck'},{'program':'tenfoot'},{'usb_input':None},{'usb_input':'mouse'},
+                      {'program':'usbcheck','usb_shared':False,'usb_input':'multi'},
                       {'smmu_observe':True},{'hps_ddr_read':{}}):
             with self.subTest(patch=patch),self.assertRaises(ValueError):selection.mode(dict(r,**patch))
         for flags in ('','-X main.expectedUSBControl=owned-usb-pio-v1 -X main.expectedUSBInput=gamepad',
