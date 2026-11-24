@@ -234,3 +234,40 @@ recommendation for Deano, not a change.
 - **Totals:** 7 board seed-1 fits, 3–6 board closure seeds, 8–16 envelope
   fits.
 - No GPU routes anything, and nothing touches a kit.
+
+## Amendments
+
+1. **24 November 2026, after the producer had refused rungs 1 and 3 at
+   generation and before any rung had been fitted. No rung, seed, pass rule
+   or ladder rule changes.** Seen by then: the control's producer was
+   compiling; the rung producers at C0 = 42 and 34 had stopped before the
+   fitter with `de25-pc386: shared FIFO reset: unreviewed generated input:
+   peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v`
+   (`boards/de25nano/scanout/shared_resets.py`, the reviewed digest
+   `PARENT_SHA256` in `build.py`). Qsys names the window's machine-clock
+   interconnect module with a hash of its parameters, which include the
+   machine clock rate (`mm_interconnect_1920_xi5gepi` at 61.44,
+   `…_ruphjby` at 74.60); that module's body is otherwise byte-identical.
+   So the registered producer cannot build any machine clock but the shipped
+   one, and this is recorded as the producer's verdict at every rung. No
+   digest or basis is changed to get past it.
+   - **Seed 1 at a rung is no longer the producer.** Every rung seed, 1 to
+     4, runs through [`compile_rung.sh`](compile_rung.sh): the control's
+     generated project (the producer's, at the method commit) with exactly
+     these files from the rung's own generated project, then `SEED`, then
+     `quartus_sh --flow compile`: `fes_mailbox/machine_pll.ip` and its
+     generated `fes_mailbox/machine_pll/`, and the rung's netlist in both
+     places the project holds it. Each seed's `diff -rq` against the control
+     project is kept, to show nothing else moved. What stays the control's:
+     the `BUILD_ID` constant in the scanout component and the Qsys output,
+     whose only difference at a rung is that interconnect module's name and
+     the clock-rate metadata (checked by digest over every `.v`, `.sv`,
+     `.sdc` and `.vh` of the two generated projects at C0 = 42, apart from
+     the files the shared-reset derivation rewrites).
+   - The producer's post-fit gates (package timing admission, the reviewed
+     signoff findings) are therefore not run at any rung. A rung's verdict
+     is the pass rule alone, and "admitted" is not claimed for any rung.
+   - Seeds 2–4 of the control are not needed by the ladder and are not run.
+   - [`rung_summary.py`](rung_summary.py) is the record's reader of every
+     quantity this method names, written before any rung was fitted and
+     tested on #2171's kept seed 2.
