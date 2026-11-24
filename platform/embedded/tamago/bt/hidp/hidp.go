@@ -258,21 +258,24 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 			return
 		}
 		if slot.initStep == 0 {
-			// 1. Send HIDP GET_REPORT Feature 0x05 (DualSense) / 0x02 (DS4) over
-			// PSM 0x0011 to unlock full 78-byte high-rate input reports (0x31 / 0x11).
+			// 1. Send HIDP GET_REPORT Feature 0x05 over PSM 0x0011 to unlock full
+			// 78-byte high-rate Bluetooth input reports (0x31 / 0x11).
 			getRep := [2]byte{hidpGetReportFeature, controllers.DualSenseUnlockFeatureReportID(slot.Kind)}
 			if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDControl, getRep[:]); err != nil {
 				return
 			}
-			if slot.Kind == controllers.KindDualShock4 {
-				slot.initStep = initStepDone
-				return
-			}
 			slot.initStep = 1
 		}
-		// 2. For DualSense, set Player 1..4 LEDs & lightbar on PSM 0x0013.
+		// 2. Send initial Player 1..4 lightbar/LED output report on PSM 0x0013
+		// (0x31 for DualSense, 0x11 CRC-protected for DualShock 4).
 		if slot.initStep == 1 {
-			if err := s.sendDualSenseOutput(slot, 0, 0); err != nil {
+			var err error
+			if slot.Kind == controllers.KindDualShock4 {
+				err = s.sendDualShock4Output(slot, 0, 0)
+			} else {
+				err = s.sendDualSenseOutput(slot, 0, 0)
+			}
+			if err != nil {
 				return
 			}
 			slot.initStep = initStepDone
@@ -341,16 +344,32 @@ func (s *Session) sendDualSenseOutput(slot *PlayerSlot, right, left uint8) error
 	return nil
 }
 
-// SetRumble sends a rumble/LED update to an active DualSense slot (0..3).
+func (s *Session) sendDualShock4Output(slot *PlayerSlot, right, left uint8) error {
+	s.txBuf[0] = hidpDataOutput
+	n := controllers.BuildDualShock4BTOutput(s.txBuf[1:], slot.Slot, right, left)
+	if n == 0 {
+		return errors.New("bt/hidp: DualShock 4 output build failed")
+	}
+	return s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n])
+}
+
+// SetRumble sends a rumble/LED update to an active DualSense or DualShock 4 slot (0..3).
 func (s *Session) SetRumble(slotIdx uint8, right, left uint8) error {
 	if slotIdx >= MaxPlayerSlots || !s.slots[slotIdx].Connected {
 		return fmt.Errorf("bt/hidp: slot %d not connected", slotIdx)
 	}
 	slot := &s.slots[slotIdx]
-	if slot.Kind != controllers.KindDualSense || !slot.intrOpen {
+	if !slot.intrOpen {
 		return nil
 	}
-	return s.sendDualSenseOutput(slot, right, left)
+	switch slot.Kind {
+	case controllers.KindDualSense:
+		return s.sendDualSenseOutput(slot, right, left)
+	case controllers.KindDualShock4:
+		return s.sendDualShock4Output(slot, right, left)
+	default:
+		return nil
+	}
 }
 
 func (s *Session) onHIDControl(_ uint16, _ []byte) {

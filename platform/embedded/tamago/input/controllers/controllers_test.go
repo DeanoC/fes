@@ -34,7 +34,7 @@ func TestIdentifyControllers(t *testing.T) {
 		KindSwitchPro.String() != "switchpro" || KindGenericHID.String() != "hid" || KindUnknown.String() != "unknown" {
 		t.Fatal("Kind.String mismatch")
 	}
-	if DualSenseUnlockFeatureReportID(KindDualSense) != 0x05 || DualSenseUnlockFeatureReportID(KindDualShock4) != 0x02 {
+	if DualSenseUnlockFeatureReportID(KindDualSense) != 0x05 || DualSenseUnlockFeatureReportID(KindDualShock4) != 0x05 {
 		t.Fatal("unlock feature report ID mismatch")
 	}
 }
@@ -133,6 +133,18 @@ func TestDualSenseBTFullAndBasicAndOutputCRC32(t *testing.T) {
 	if out[1] != 0x00 || binary.LittleEndian.Uint32(out[74:78]) != crc32.Update(crc32.Update(0, crc32.IEEETable, []byte{0xa2}), crc32.IEEETable, out[:74]) {
 		t.Fatalf("unexpected wrapped seq=16 DualSense output header/CRC: out[1]=%#02x", out[1])
 	}
+
+	// DualShock 4 Bluetooth output report 0x11 with HID|CRC flags and IEEE CRC-32.
+	n4 := BuildDualShock4BTOutput(out[:], 1, 0x35, 0x15)
+	if n4 != DualSenseBTOutputLen || out[0] != DualShock4BTReportFull || out[1] != 0xc0 || out[2] != 0x00 ||
+		out[3] != 0x03 || out[6] != 0x35 || out[7] != 0x15 ||
+		out[8] != 0x80 || out[9] != 0x10 || out[10] != 0x10 {
+		t.Fatalf("unexpected DS4 output n=%d header=%x rgb=%x", n4, out[:11], out[8:11])
+	}
+	wantDS4CRC := crc32.Update(crc32.Update(0, crc32.IEEETable, []byte{0xa2}), crc32.IEEETable, out[:74])
+	if got := binary.LittleEndian.Uint32(out[74:78]); got != wantDS4CRC {
+		t.Fatalf("DS4 output CRC32 mismatch got=%#08x want=%#08x", got, wantDS4CRC)
+	}
 }
 
 func TestSwitchProCalibrationAndFullReportAndSubcommands(t *testing.T) {
@@ -222,6 +234,7 @@ func TestControllersParseZeroAllocs(t *testing.T) {
 		_ = st.ToComputerMask()
 		_ = st.ToUSBGamepadState()
 		_ = BuildDualSenseBTOutput(out[:], 0, 0, 0, 0)
+		_ = BuildDualShock4BTOutput(out[:], 0, 0, 0)
 	})
 	if allocs > 0 {
 		t.Fatalf("controller parse/build allocated %.2f allocs/run, want 0", allocs)

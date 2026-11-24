@@ -16,8 +16,9 @@ const (
 
 	// DualShock4BTReportFull is the unlocked 78-byte BT report.
 	DualShock4BTReportFull = 0x11
-	// DualShock4FeatureCalib is the Feature report ID whose GET_REPORT unlocks 0x11.
-	DualShock4FeatureCalib = 0x02
+	// DualShock4FeatureCalib is the BT Feature report ID (0x05) queried during
+	// Bluetooth initialization alongside CRC-32 output report 0x11.
+	DualShock4FeatureCalib = 0x05
 
 	// DualSenseBTOutputLen is the exact payload length for Sony BT full reports
 	// 0x31 and 0x11 (excluding the 1-byte HIDP 0xA1/0xA2 header).
@@ -304,6 +305,30 @@ func BuildDualSenseBTOutput(dst []byte, seq, playerSlot, rumbleRight, rumbleLeft
 	dst[47] = dualSensePlayerRGB[slot][0]
 	dst[48] = dualSensePlayerRGB[slot][1]
 	dst[49] = dualSensePlayerRGB[slot][2]
+
+	// CRC-32 over [0xA2] || dst[0:74] stored little-endian in dst[74:78].
+	binary.LittleEndian.PutUint32(dst[74:78], sonyBTCRC32(dualSenseOutputCRCSeed[:], dst[:74]))
+	return DualSenseBTOutputLen
+}
+
+// BuildDualShock4BTOutput writes a valid 78-byte DualShock 4 Bluetooth output
+// report 0x11 (setting HID+CRC flags 0xc0, valid flags 0x03, rumble, and
+// player lightbar RGB) with the required IEEE CRC-32 seeded with 0xA2.
+func BuildDualShock4BTOutput(dst []byte, playerSlot, rumbleRight, rumbleLeft uint8) int {
+	if len(dst) < DualSenseBTOutputLen {
+		return 0
+	}
+	clear(dst[:DualSenseBTOutputLen])
+	slot := playerSlot & 3
+	dst[0] = DualShock4BTReportFull
+	dst[1] = 0xc0 // HID | CRC32 flags required on Bluetooth 0x11 output reports
+	dst[2] = 0x00
+	dst[3] = 0x03 // enable rumble (0x01) + lightbar RGB (0x02)
+	dst[6] = rumbleRight
+	dst[7] = rumbleLeft
+	dst[8] = dualSensePlayerRGB[slot][0]
+	dst[9] = dualSensePlayerRGB[slot][1]
+	dst[10] = dualSensePlayerRGB[slot][2]
 
 	// CRC-32 over [0xA2] || dst[0:74] stored little-endian in dst[74:78].
 	binary.LittleEndian.PutUint32(dst[74:78], sonyBTCRC32(dualSenseOutputCRCSeed[:], dst[:74]))

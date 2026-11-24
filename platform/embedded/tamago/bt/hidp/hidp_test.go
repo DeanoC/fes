@@ -911,3 +911,90 @@ func TestDualSenseNamedWirelessControllerUnlocksViaSDPPnP(t *testing.T) {
 		t.Fatalf("expected decoded ButtonSouth on DualSense 0x31 report, got %+v", gotState)
 	}
 }
+
+func TestDualShock4BluetoothInitUnlocksWith05And11Output(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	ds4Addr, _ := l2cap.ParseBDAddr("99:22:33:44:55:66")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{
+		Addr:      ds4Addr,
+		LinkKey:   [16]byte{0x11},
+		Name:      "Wireless Controller",
+		VendorID:  0x054c,
+		ProductID: 0x09cc,
+		Kind:      controllers.KindDualShock4,
+		Slot:      1,
+	})
+
+	sess, err := NewSession(tr, bonds, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var gotDS4 controllers.State
+	sess.OnGamepadState = func(slot uint8, kind controllers.Kind, st controllers.State) {
+		if slot == 1 && kind == controllers.KindDualShock4 {
+			gotDS4 = st
+		}
+	}
+
+	connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, ds4Addr[:]...)
+	connOK = append(connOK, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK)
+	openIncomingHIDChannels(bus, 0x0041, 0x0050, 0x0051)
+	for range 8 {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x08, 0x00})
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var sawDS4Feat05, sawDS4Out11 bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) < 10 {
+			continue
+		}
+		cid := binary.LittleEndian.Uint16(pkt[6:8])
+		hid := pkt[8:]
+		if cid == 0x0050 && len(hid) >= 2 && hid[0] == hidpGetReportFeature && hid[1] == 0x05 {
+			sawDS4Feat05 = true
+		}
+		if cid == 0x0051 && len(hid) == 79 && hid[0] == hidpDataOutput &&
+			hid[1] == 0x11 && hid[2] == 0xc0 && hid[3] == 0x00 && hid[4] == 0x03 &&
+			hid[9] == 0x80 && hid[10] == 0x10 && hid[11] == 0x10 {
+			wantCRC := crc32.Update(crc32.Update(0, crc32.IEEETable, []byte{0xa2}), crc32.IEEETable, hid[1:75])
+			if binary.LittleEndian.Uint32(hid[75:79]) == wantCRC {
+				sawDS4Out11 = true
+			}
+		}
+	}
+	if !sawDS4Feat05 || !sawDS4Out11 {
+		t.Fatalf("missing DS4 BT init packets: feat05=%t out11=%t", sawDS4Feat05, sawDS4Out11)
+	}
+	if sess.slots[1].initStep != initStepDone {
+		t.Fatalf("expected DS4 slot 1 initStepDone, got %d", sess.slots[1].initStep)
+	}
+
+	// Verify DS4 0x11 full report with IEEE CRC-32 decodes cleanly.
+	ds4Pkt := make([]byte, 79)
+	ds4Pkt[0] = hidpDataInput
+	ds4Pkt[1] = controllers.DualShock4BTReportFull
+	ds4Pkt[4], ds4Pkt[5], ds4Pkt[6], ds4Pkt[7] = 0x80, 0x80, 0x80, 0x80
+	ds4Pkt[8] = 0x08 | 0x20 // neutral hat + Cross (South)
+	ds4Sum := crc32.Update(0, crc32.IEEETable, []byte{0xa1})
+	ds4Sum = crc32.Update(ds4Sum, crc32.IEEETable, ds4Pkt[1:75])
+	binary.LittleEndian.PutUint32(ds4Pkt[75:79], ds4Sum)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, 0x0041, ds4Pkt))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if gotDS4.Buttons != controllers.ButtonSouth {
+		t.Fatalf("expected decoded ButtonSouth on DS4 0x11 report, got %+v", gotDS4)
+	}
+}
