@@ -545,6 +545,47 @@ func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
 	return nil
 }
 
+// consumeSlotRX processes one RX FIFO entry targeting a non-CH0 channel slot
+// with full ownership, armed-state, IN direction, buffer size, and DATA PID checks.
+func (h *MultiHost) consumeSlotRX(ch, count int, dpid, kind uint32) error {
+	if ch <= 0 || ch >= h.channels {
+		// Unexpected channel in RX FIFO: drain words to keep FIFO healthy.
+		if kind == 2 {
+			for i := 0; i < count; i += 4 {
+				_ = h.io.Read32(fifo)
+			}
+		}
+		return nil
+	}
+	s := &h.slots[ch]
+	switch kind {
+	case 2: // IN data packet
+		if !s.allocated || !s.armed || !s.ep.In() || count > len(s.inBuf) || dpid != s.toggle {
+			for i := 0; i < count; i += 4 {
+				_ = h.io.Read32(fifo)
+			}
+			if s.allocated {
+				s.fault = fmt.Errorf("dwc2: ch %d invalid RX count=%d dpid=%d want=%d", ch, count, dpid, s.toggle)
+				if err := h.haltChannel(ch); err != nil {
+					return h.failController(err)
+				}
+				s.armed = false
+			}
+			return nil
+		}
+		s.received = true
+		s.inLen = count
+		for i := 0; i < count; i += 4 {
+			var word [4]byte
+			binary.LittleEndian.PutUint32(word[:], h.io.Read32(fifo))
+			copy(s.inBuf[i:count], word[:min(4, count-i)])
+		}
+	case 3, 5, 7:
+		// Transfer-complete, data-toggle error, channel-halted markers carry no payload.
+	}
+	return nil
+}
+
 // drainRXIntoSlots drains up to maxEntries RX FIFO status/payload records into
 // the corresponding active channel slots without discarding valid IN data.
 func (h *MultiHost) drainRXIntoSlots(maxEntries int) error {
@@ -557,40 +598,8 @@ func (h *MultiHost) drainRXIntoSlots(maxEntries int) error {
 		count := int((v >> 4) & 0x7ff)
 		dpid := (v >> 15) & 3
 		kind := (v >> 17) & 0x0f
-		if ch == 0 || ch >= h.channels {
-			// Unexpected channel in RX FIFO: drain words to keep FIFO healthy.
-			if kind == 2 {
-				for i := 0; i < count; i += 4 {
-					_ = h.io.Read32(fifo)
-				}
-			}
-			continue
-		}
-		s := &h.slots[ch]
-		switch kind {
-		case 2: // IN data packet
-			if !s.allocated || !s.armed || !s.ep.In() || count > len(s.inBuf) || dpid != s.toggle {
-				for i := 0; i < count; i += 4 {
-					_ = h.io.Read32(fifo)
-				}
-				if s.allocated {
-					s.fault = fmt.Errorf("dwc2: ch %d invalid RX count=%d dpid=%d want=%d", ch, count, dpid, s.toggle)
-					if err := h.haltChannel(ch); err != nil {
-						return h.failController(err)
-					}
-					s.armed = false
-				}
-				continue
-			}
-			s.received = true
-			s.inLen = count
-			for i := 0; i < count; i += 4 {
-				var word [4]byte
-				binary.LittleEndian.PutUint32(word[:], h.io.Read32(fifo))
-				copy(s.inBuf[i:count], word[:min(4, count-i)])
-			}
-		case 3, 5, 7:
-			// Transfer-complete, data-toggle error, channel-halted markers carry no payload.
+		if err := h.consumeSlotRX(ch, count, dpid, kind); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -956,16 +965,18 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 					}
 					return 0, fmt.Errorf("dwc2: CH0 transfer timeout addr=%d", addr)
 				}
-				// Drain RX FIFO entries; route non-CH0 entries to their own slots!
+				// Drain RX FIFO entries; route non-CH0 entries through the same
+				// ownership/armed/direction/size/PID validator used by Service().
 				for h.io.Read32(gint)&gintRXFLVL != 0 {
 					v := h.io.Read32(rxpop)
 					rch := int(v & 0x0f)
 					cnt := int((v >> 4) & 0x7ff)
+					dpid := (v >> 15) & 3
 					kind := (v >> 17) & 0x0f
-					if kind != 2 {
-						continue
-					}
 					if rch == 0 {
+						if kind != 2 {
+							continue
+						}
 						if cnt > limit || cnt > maxMultiMPS {
 							for i := 0; i < cnt; i += 4 {
 								_ = h.io.Read32(fifo)
@@ -982,18 +993,9 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 							binary.LittleEndian.PutUint32(word[:], h.io.Read32(fifo))
 							copy(h.slots[0].inBuf[i:cnt], word[:min(4, cnt-i)])
 						}
-					} else if rch < h.channels && h.slots[rch].allocated && cnt <= maxMultiMPS {
-						rs := &h.slots[rch]
-						rs.received = true
-						rs.inLen = cnt
-						for i := 0; i < cnt; i += 4 {
-							var word [4]byte
-							binary.LittleEndian.PutUint32(word[:], h.io.Read32(fifo))
-							copy(rs.inBuf[i:cnt], word[:min(4, cnt-i)])
-						}
 					} else {
-						for i := 0; i < cnt; i += 4 {
-							_ = h.io.Read32(fifo)
+						if err := h.consumeSlotRX(rch, cnt, dpid, kind); err != nil {
+							return 0, err
 						}
 					}
 				}
@@ -1252,7 +1254,8 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 
 	// 2. Halt every hardware channel while capturing any HCINT completion bits
 	// observed as CHENA clears, keeping s.armed set until the post-halt RX drain
-	// runs so DATA0/DATA1 toggles and received IN payloads stay synchronized.
+	// runs so DATA0/DATA1 toggles, received IN payloads, and ACKed start-splits
+	// stay synchronized.
 	var haltedInts [maxMultiChannels]uint32
 	for ch := 0; ch < h.channels; ch++ {
 		if err := ctx.Err(); err != nil {
@@ -1267,9 +1270,14 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 	if err := h.drainRXIntoSlots(256); err != nil {
 		return err
 	}
+	hasPendingCSplit := false
 	for ch := 1; ch < h.channels; ch++ {
-		if h.slots[ch].allocated && h.slots[ch].armed {
-			s := &h.slots[ch]
+		s := &h.slots[ch]
+		if !s.allocated {
+			continue
+		}
+		if s.armed {
+			split := s.route.hub != 0
 			if haltedInts[ch]&1 != 0 || s.done || (s.ep.In() && s.received) {
 				s.toggle ^= 2
 				if s.ep.In() {
@@ -1282,11 +1290,113 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 					s.outPending = false
 					s.outDone = true
 				}
+				s.waitingSplit = false
+				s.completeSplit = false
+			} else if split && !s.completeSplit && (haltedInts[ch]&(1<<5) != 0 || s.ack) {
+				// SSPLIT was accepted by the hub transaction translator concurrently
+				// with halt: promote to CSPLIT and finish the split phase before pause.
+				s.ack = false
+				s.completeSplit = true
+				s.waitingSplit = true
+				s.nextFrame = s.startFrame + 2
+			} else {
+				s.waitingSplit = false
+				s.completeSplit = false
 			}
 			s.armed = false
 			s.halting = false
-			s.waitingSplit = false
-			s.completeSplit = false
+		}
+		if s.fault == nil && s.waitingSplit && s.completeSplit {
+			hasPendingCSplit = true
+		}
+	}
+
+	// 3. Finish any ACKed split transactions (CSPLIT) within a bounded 4 ms window
+	// so hub transaction translators are not left holding an uncompleted split
+	// across an arbitrary pause duration.
+	if hasPendingCSplit {
+		csplitDeadline := h.io.Now().Add(4 * time.Millisecond)
+		for {
+			if err := ctx.Err(); err != nil {
+				return h.failController(err)
+			}
+			if err := h.drainRXIntoSlots(64); err != nil {
+				return err
+			}
+			t := h.io.Now()
+			pending := false
+			for ch := 1; ch < h.channels; ch++ {
+				s := &h.slots[ch]
+				if !s.allocated || s.fault != nil {
+					continue
+				}
+				if s.armed {
+					h.stepChannel(ch, t)
+				}
+				if s.fault != nil {
+					continue
+				}
+				if !s.armed && s.waitingSplit && s.completeSplit {
+					if err := h.armSlot(ch, true); err != nil {
+						s.fault = err
+					}
+				}
+				if s.fault == nil && (s.armed || (s.waitingSplit && s.completeSplit)) {
+					pending = true
+				}
+			}
+			if h.fault != nil {
+				return h.fault
+			}
+			if !pending || !t.Before(csplitDeadline) {
+				break
+			}
+		}
+		// Halt any CSPLIT channel still armed at the deadline and account for any
+		// completion observed while halting.
+		var postInts [maxMultiChannels]uint32
+		for ch := 1; ch < h.channels; ch++ {
+			if h.slots[ch].allocated && h.slots[ch].armed {
+				ints, err := h.haltChannelCapture(ch)
+				if err != nil {
+					return h.failController(err)
+				}
+				postInts[ch] = ints
+			}
+		}
+		if err := h.drainRXIntoSlots(256); err != nil {
+			return err
+		}
+		t := h.io.Now()
+		for ch := 1; ch < h.channels; ch++ {
+			s := &h.slots[ch]
+			if !s.allocated {
+				continue
+			}
+			if s.armed {
+				if postInts[ch]&1 != 0 || s.done || (s.ep.In() && s.received) {
+					s.toggle ^= 2
+					if s.ep.In() {
+						if s.received {
+							s.inReady = true
+							s.inReadyLen = s.inLen
+						}
+						s.nextDue = t.Add(s.effectiveInterval())
+					} else {
+						s.outPending = false
+						s.outDone = true
+					}
+					s.waitingSplit = false
+					s.completeSplit = false
+				} else if s.completeSplit {
+					s.waitingSplit = true
+				}
+				s.armed = false
+				s.halting = false
+			} else if s.waitingSplit && !s.completeSplit {
+				// armSlot saw wire>>3 != startFrame>>3 (window closed); clear waitingSplit.
+				s.waitingSplit = false
+			}
 		}
 	}
 	for ch := 0; ch < h.channels; ch++ {
