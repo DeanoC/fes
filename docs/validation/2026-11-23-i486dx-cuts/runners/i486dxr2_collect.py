@@ -28,14 +28,32 @@ def failures(log: pathlib.Path) -> list[str]:
     return sorted({l.strip() for l in lines if l.startswith('FAIL') or re.search(r'\b[1-9]\d* fail\b', l)})
 
 
+def suites(log: pathlib.Path) -> dict:
+    """Each suite line's pass and fail counts (the built-form comparison's mismatches as its fails)."""
+    out = {}
+    for l in log.read_text().splitlines():
+        m = re.match(r'^([A-Za-z][^:]*?): ', l)
+        if not m:
+            continue
+        p, f, mm = re.search(r'(\d+) pass\b', l), re.search(r'(\d+) fail\b', l), re.search(r'(\d+) mismatches', l)
+        if p and f:
+            out[m.group(1)] = {'pass': int(p.group(1)), 'fail': int(f.group(1))}
+        elif mm:
+            out[m.group(1)] = {'pass': None, 'fail': int(mm.group(1))}
+        elif l.startswith('BIU DMA/store: PASS'):
+            out['BIU DMA/store'] = {'pass': 1, 'fail': 0}
+    return out
+
+
 base_bad = failures(P / 'sims/base/lockstep.log')
-lock = {'base': {'source': 'plan record (sims/base)', 'rc': 0, 'failures': base_bad, 'new_failures': []}}
+lock = {'base': {'source': 'plan record (sims/base)', 'rc': 0, 'failures': base_bad, 'new_failures': [],
+                 'suites': suites(P / 'sims/base/lockstep.log')}}
 for v in ('l1i2', 'l1d2', 'l12', 'xshift', 'xdisp', 'x87', 'cuts', 'qhalf'):
     log = R2 / 'sims' / v / 'lockstep.log'
     rc = int(re.search(r'lockstep rc=(\d+)', (R2 / 'sims' / v / 'status').read_text()).group(1))
     bad = failures(log)
     lock[v] = {'rc': rc, 'last_line': log.read_text().splitlines()[-1].strip(), 'failures': bad,
-               'new_failures': [b for b in bad if b not in base_bad]}
+               'new_failures': [b for b in bad if b not in base_bad], 'suites': suites(log)}
 (REC / 'lockstep.json').write_text(json.dumps(lock, indent=1) + '\n')
 
 # B. The x87 unit bench: its summary line per variant.

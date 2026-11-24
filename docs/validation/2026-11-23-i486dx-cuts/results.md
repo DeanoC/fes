@@ -50,6 +50,29 @@ DSP and M20K deltas are the same at every seed of a variant (one netlist); they 
 | `cuts` | 0 | none | passes |
 | `qhalf` | 1 | FAIL flag hold: 3 after_shift retirements 2 cycles apart; FAIL stack hold: 1 stack_stack retirements 2 cycles apart | FAILS (rule B) |
 
+`qhalf`'s suites, each line's pass and fail counts against `base`'s (the hold checks above are the run's only failures):
+
+| Suite | `base` pass | `base` fail | `qhalf` pass | `qhalf` fail |
+| --- | ---: | ---: | ---: | ---: |
+| corpus | 18,820 | 0 | 18,820 | 0 |
+| random | 4,000 | 0 | 4,000 | 0 |
+| protected mode | 4,000 | 0 | 4,000 | 0 |
+| task switches | 2,000 | 0 | 2,000 | 0 |
+| breakpoints and single step | 2,000 | 0 | 2,000 | 0 |
+| undefined encodings | 2,000 | 0 | 2,000 | 0 |
+| BIU DMA/store | 1 | 0 | 1 | 0 |
+| reset-store-on-reset | 1 | 0 | 1 | 0 |
+| directed cases | 84 | 0 | 84 | 0 |
+| unreal-mode cases | 7 | 0 | 7 | 0 |
+| protected-mode cases | 726 | 0 | 726 | 0 |
+| paging cases | 170 | 0 | 170 | 0 |
+| x87 cases (the identity on) | 125 | 0 | 125 | 0 |
+| x87 BCD cases | 28 | 0 | 28 | 0 |
+| x87 transcendental cases | 181 | 0 | 181 | 0 |
+| x87 built forms, the bench's copy against the RTL's over 2048 opcodes | — | 0 | — | 0 |
+| no-387 cases | 1,933 | 0 | 1,933 | 0 |
+| memory cases (DMA, FLUSH) | 27 | 0 | 27 | 0 |
+
 ### The x87 unit bench (`scripts/test_fes_i386_x87_unit.py --download`)
 
 | Build | Exit | Summary |

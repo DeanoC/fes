@@ -123,6 +123,16 @@ def render() -> str:
         new = lock[v]["new_failures"]
         out.append(f"| `{v}` | {lock[v]['rc']} | {'; '.join(new) if new else 'none'} | "
                    f"{'passes' if not new else 'FAILS (rule B)'} |")
+    failing = [v for v in LOCKSTEP if lock[v]["new_failures"]]
+    for v in failing:
+        out += ["", f"`{v}`'s suites, each line's pass and fail counts against `base`'s (the hold checks above are "
+                "the run's only failures):", "",
+                f"| Suite | `base` pass | `base` fail | `{v}` pass | `{v}` fail |", "| --- | ---: | ---: | ---: | ---: |"]
+        for name, c in lock[v]["suites"].items():
+            b = lock["base"]["suites"].get(name, {})
+            cell = lambda x: "—" if x is None else f"{x:,}"
+            out.append(f"| {name} | {cell(b.get('pass'))} | {cell(b.get('fail'))} | {cell(c['pass'])} | "
+                       f"{cell(c['fail'])} |")
     out += ["", "### The x87 unit bench (`scripts/test_fes_i386_x87_unit.py --download`)", "",
             "| Build | Exit | Summary |", "| --- | ---: | --- |"]
     for v in X87_UNIT:

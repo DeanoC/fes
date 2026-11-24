@@ -3,49 +3,641 @@
   "source": "plan record (sims/base)",
   "rc": 0,
   "failures": [],
-  "new_failures": []
+  "new_failures": [],
+  "suites": {
+   "corpus": {
+    "pass": 18820,
+    "fail": 0
+   },
+   "random": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "protected mode": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "task switches": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "breakpoints and single step": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "undefined encodings": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "BIU DMA/store": {
+    "pass": 1,
+    "fail": 0
+   },
+   "reset-store-on-reset": {
+    "pass": 1,
+    "fail": 0
+   },
+   "directed cases": {
+    "pass": 84,
+    "fail": 0
+   },
+   "unreal-mode cases": {
+    "pass": 7,
+    "fail": 0
+   },
+   "protected-mode cases": {
+    "pass": 726,
+    "fail": 0
+   },
+   "paging cases": {
+    "pass": 170,
+    "fail": 0
+   },
+   "x87 cases (the identity on)": {
+    "pass": 125,
+    "fail": 0
+   },
+   "x87 BCD cases": {
+    "pass": 28,
+    "fail": 0
+   },
+   "x87 transcendental cases": {
+    "pass": 181,
+    "fail": 0
+   },
+   "x87 built forms, the bench's copy against the RTL's over 2048 opcodes": {
+    "pass": null,
+    "fail": 0
+   },
+   "no-387 cases": {
+    "pass": 1933,
+    "fail": 0
+   },
+   "memory cases (DMA, FLUSH)": {
+    "pass": 27,
+    "fail": 0
+   }
+  }
  },
  "l1i2": {
   "rc": 0,
   "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-l1i2/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
   "failures": [],
-  "new_failures": []
+  "new_failures": [],
+  "suites": {
+   "corpus": {
+    "pass": 18820,
+    "fail": 0
+   },
+   "random": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "protected mode": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "task switches": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "breakpoints and single step": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "undefined encodings": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "BIU DMA/store": {
+    "pass": 1,
+    "fail": 0
+   },
+   "reset-store-on-reset": {
+    "pass": 1,
+    "fail": 0
+   },
+   "directed cases": {
+    "pass": 84,
+    "fail": 0
+   },
+   "unreal-mode cases": {
+    "pass": 7,
+    "fail": 0
+   },
+   "protected-mode cases": {
+    "pass": 726,
+    "fail": 0
+   },
+   "paging cases": {
+    "pass": 170,
+    "fail": 0
+   },
+   "x87 cases (the identity on)": {
+    "pass": 125,
+    "fail": 0
+   },
+   "x87 BCD cases": {
+    "pass": 28,
+    "fail": 0
+   },
+   "x87 transcendental cases": {
+    "pass": 181,
+    "fail": 0
+   },
+   "x87 built forms, the bench's copy against the RTL's over 2048 opcodes": {
+    "pass": null,
+    "fail": 0
+   },
+   "no-387 cases": {
+    "pass": 1933,
+    "fail": 0
+   },
+   "memory cases (DMA, FLUSH)": {
+    "pass": 27,
+    "fail": 0
+   }
+  }
  },
  "l1d2": {
   "rc": 0,
   "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-l1d2/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
   "failures": [],
-  "new_failures": []
+  "new_failures": [],
+  "suites": {
+   "corpus": {
+    "pass": 18820,
+    "fail": 0
+   },
+   "random": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "protected mode": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "task switches": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "breakpoints and single step": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "undefined encodings": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "BIU DMA/store": {
+    "pass": 1,
+    "fail": 0
+   },
+   "reset-store-on-reset": {
+    "pass": 1,
+    "fail": 0
+   },
+   "directed cases": {
+    "pass": 84,
+    "fail": 0
+   },
+   "unreal-mode cases": {
+    "pass": 7,
+    "fail": 0
+   },
+   "protected-mode cases": {
+    "pass": 726,
+    "fail": 0
+   },
+   "paging cases": {
+    "pass": 170,
+    "fail": 0
+   },
+   "x87 cases (the identity on)": {
+    "pass": 125,
+    "fail": 0
+   },
+   "x87 BCD cases": {
+    "pass": 28,
+    "fail": 0
+   },
+   "x87 transcendental cases": {
+    "pass": 181,
+    "fail": 0
+   },
+   "x87 built forms, the bench's copy against the RTL's over 2048 opcodes": {
+    "pass": null,
+    "fail": 0
+   },
+   "no-387 cases": {
+    "pass": 1933,
+    "fail": 0
+   },
+   "memory cases (DMA, FLUSH)": {
+    "pass": 27,
+    "fail": 0
+   }
+  }
  },
  "l12": {
   "rc": 0,
   "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-l12/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
   "failures": [],
-  "new_failures": []
+  "new_failures": [],
+  "suites": {
+   "corpus": {
+    "pass": 18820,
+    "fail": 0
+   },
+   "random": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "protected mode": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "task switches": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "breakpoints and single step": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "undefined encodings": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "BIU DMA/store": {
+    "pass": 1,
+    "fail": 0
+   },
+   "reset-store-on-reset": {
+    "pass": 1,
+    "fail": 0
+   },
+   "directed cases": {
+    "pass": 84,
+    "fail": 0
+   },
+   "unreal-mode cases": {
+    "pass": 7,
+    "fail": 0
+   },
+   "protected-mode cases": {
+    "pass": 726,
+    "fail": 0
+   },
+   "paging cases": {
+    "pass": 170,
+    "fail": 0
+   },
+   "x87 cases (the identity on)": {
+    "pass": 125,
+    "fail": 0
+   },
+   "x87 BCD cases": {
+    "pass": 28,
+    "fail": 0
+   },
+   "x87 transcendental cases": {
+    "pass": 181,
+    "fail": 0
+   },
+   "x87 built forms, the bench's copy against the RTL's over 2048 opcodes": {
+    "pass": null,
+    "fail": 0
+   },
+   "no-387 cases": {
+    "pass": 1933,
+    "fail": 0
+   },
+   "memory cases (DMA, FLUSH)": {
+    "pass": 27,
+    "fail": 0
+   }
+  }
  },
  "xshift": {
   "rc": 0,
   "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-xshift/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
   "failures": [],
-  "new_failures": []
+  "new_failures": [],
+  "suites": {
+   "corpus": {
+    "pass": 18820,
+    "fail": 0
+   },
+   "random": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "protected mode": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "task switches": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "breakpoints and single step": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "undefined encodings": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "BIU DMA/store": {
+    "pass": 1,
+    "fail": 0
+   },
+   "reset-store-on-reset": {
+    "pass": 1,
+    "fail": 0
+   },
+   "directed cases": {
+    "pass": 84,
+    "fail": 0
+   },
+   "unreal-mode cases": {
+    "pass": 7,
+    "fail": 0
+   },
+   "protected-mode cases": {
+    "pass": 726,
+    "fail": 0
+   },
+   "paging cases": {
+    "pass": 170,
+    "fail": 0
+   },
+   "x87 cases (the identity on)": {
+    "pass": 125,
+    "fail": 0
+   },
+   "x87 BCD cases": {
+    "pass": 28,
+    "fail": 0
+   },
+   "x87 transcendental cases": {
+    "pass": 181,
+    "fail": 0
+   },
+   "x87 built forms, the bench's copy against the RTL's over 2048 opcodes": {
+    "pass": null,
+    "fail": 0
+   },
+   "no-387 cases": {
+    "pass": 1933,
+    "fail": 0
+   },
+   "memory cases (DMA, FLUSH)": {
+    "pass": 27,
+    "fail": 0
+   }
+  }
  },
  "xdisp": {
   "rc": 0,
   "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-xdisp/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
   "failures": [],
-  "new_failures": []
+  "new_failures": [],
+  "suites": {
+   "corpus": {
+    "pass": 18820,
+    "fail": 0
+   },
+   "random": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "protected mode": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "task switches": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "breakpoints and single step": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "undefined encodings": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "BIU DMA/store": {
+    "pass": 1,
+    "fail": 0
+   },
+   "reset-store-on-reset": {
+    "pass": 1,
+    "fail": 0
+   },
+   "directed cases": {
+    "pass": 84,
+    "fail": 0
+   },
+   "unreal-mode cases": {
+    "pass": 7,
+    "fail": 0
+   },
+   "protected-mode cases": {
+    "pass": 726,
+    "fail": 0
+   },
+   "paging cases": {
+    "pass": 170,
+    "fail": 0
+   },
+   "x87 cases (the identity on)": {
+    "pass": 125,
+    "fail": 0
+   },
+   "x87 BCD cases": {
+    "pass": 28,
+    "fail": 0
+   },
+   "x87 transcendental cases": {
+    "pass": 181,
+    "fail": 0
+   },
+   "x87 built forms, the bench's copy against the RTL's over 2048 opcodes": {
+    "pass": null,
+    "fail": 0
+   },
+   "no-387 cases": {
+    "pass": 1933,
+    "fail": 0
+   },
+   "memory cases (DMA, FLUSH)": {
+    "pass": 27,
+    "fail": 0
+   }
+  }
  },
  "x87": {
   "rc": 0,
   "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-x87/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
   "failures": [],
-  "new_failures": []
+  "new_failures": [],
+  "suites": {
+   "corpus": {
+    "pass": 18820,
+    "fail": 0
+   },
+   "random": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "protected mode": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "task switches": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "breakpoints and single step": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "undefined encodings": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "BIU DMA/store": {
+    "pass": 1,
+    "fail": 0
+   },
+   "reset-store-on-reset": {
+    "pass": 1,
+    "fail": 0
+   },
+   "directed cases": {
+    "pass": 84,
+    "fail": 0
+   },
+   "unreal-mode cases": {
+    "pass": 7,
+    "fail": 0
+   },
+   "protected-mode cases": {
+    "pass": 726,
+    "fail": 0
+   },
+   "paging cases": {
+    "pass": 170,
+    "fail": 0
+   },
+   "x87 cases (the identity on)": {
+    "pass": 125,
+    "fail": 0
+   },
+   "x87 BCD cases": {
+    "pass": 28,
+    "fail": 0
+   },
+   "x87 transcendental cases": {
+    "pass": 181,
+    "fail": 0
+   },
+   "x87 built forms, the bench's copy against the RTL's over 2048 opcodes": {
+    "pass": null,
+    "fail": 0
+   },
+   "no-387 cases": {
+    "pass": 1933,
+    "fail": 0
+   },
+   "memory cases (DMA, FLUSH)": {
+    "pass": 27,
+    "fail": 0
+   }
+  }
  },
  "cuts": {
   "rc": 0,
   "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-cuts/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
   "failures": [],
-  "new_failures": []
+  "new_failures": [],
+  "suites": {
+   "corpus": {
+    "pass": 18820,
+    "fail": 0
+   },
+   "random": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "protected mode": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "task switches": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "breakpoints and single step": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "undefined encodings": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "BIU DMA/store": {
+    "pass": 1,
+    "fail": 0
+   },
+   "reset-store-on-reset": {
+    "pass": 1,
+    "fail": 0
+   },
+   "directed cases": {
+    "pass": 84,
+    "fail": 0
+   },
+   "unreal-mode cases": {
+    "pass": 7,
+    "fail": 0
+   },
+   "protected-mode cases": {
+    "pass": 726,
+    "fail": 0
+   },
+   "paging cases": {
+    "pass": 170,
+    "fail": 0
+   },
+   "x87 cases (the identity on)": {
+    "pass": 125,
+    "fail": 0
+   },
+   "x87 BCD cases": {
+    "pass": 28,
+    "fail": 0
+   },
+   "x87 transcendental cases": {
+    "pass": 181,
+    "fail": 0
+   },
+   "x87 built forms, the bench's copy against the RTL's over 2048 opcodes": {
+    "pass": null,
+    "fail": 0
+   },
+   "no-387 cases": {
+    "pass": 1933,
+    "fail": 0
+   },
+   "memory cases (DMA, FLUSH)": {
+    "pass": 27,
+    "fail": 0
+   }
+  }
  },
  "qhalf": {
   "rc": 1,
@@ -57,6 +649,80 @@
   "new_failures": [
    "FAIL flag hold: 3 after_shift retirements 2 cycles apart",
    "FAIL stack hold: 1 stack_stack retirements 2 cycles apart"
-  ]
+  ],
+  "suites": {
+   "corpus": {
+    "pass": 18820,
+    "fail": 0
+   },
+   "random": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "protected mode": {
+    "pass": 4000,
+    "fail": 0
+   },
+   "task switches": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "breakpoints and single step": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "undefined encodings": {
+    "pass": 2000,
+    "fail": 0
+   },
+   "BIU DMA/store": {
+    "pass": 1,
+    "fail": 0
+   },
+   "reset-store-on-reset": {
+    "pass": 1,
+    "fail": 0
+   },
+   "directed cases": {
+    "pass": 84,
+    "fail": 0
+   },
+   "unreal-mode cases": {
+    "pass": 7,
+    "fail": 0
+   },
+   "protected-mode cases": {
+    "pass": 726,
+    "fail": 0
+   },
+   "paging cases": {
+    "pass": 170,
+    "fail": 0
+   },
+   "x87 cases (the identity on)": {
+    "pass": 125,
+    "fail": 0
+   },
+   "x87 BCD cases": {
+    "pass": 28,
+    "fail": 0
+   },
+   "x87 transcendental cases": {
+    "pass": 181,
+    "fail": 0
+   },
+   "x87 built forms, the bench's copy against the RTL's over 2048 opcodes": {
+    "pass": null,
+    "fail": 0
+   },
+   "no-387 cases": {
+    "pass": 1933,
+    "fail": 0
+   },
+   "memory cases (DMA, FLUSH)": {
+    "pass": 27,
+    "fail": 0
+   }
+  }
  }
 }

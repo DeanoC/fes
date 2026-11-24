@@ -3,7 +3,8 @@
 Round 2 of the i486DX plan (plan record
 `docs/validation/2026-11-22-i486dx-core-plan/`, PR #2146, tracker #2135).
 It measures the cuts Deano approved on 23 November 2026, in Agilex 5 ALMs and
-in DOOM, 3DBench and Quake CPI. The method was committed first, in
+in DOOM and 3DBench CPI. Quake CPI was attempted and is not measurable
+(point 6). The method was committed first, in
 [method.md](method.md); the 3DBench window was fixed later by its dated
 amendment 1, before any window ran. Every figure below comes from
 [results.md](results.md), which [generate.py](generate.py) writes from the
@@ -54,7 +55,7 @@ proposes no RTL.
 5. **`qhalf` fails rule B.** Lockstep's cycle-exact hold checks fail: three
    `after_shift` retirements and one `stack_stack` pair land 2 cycles apart
    where the checks expect 1. A Q that issues every other clock breaks them
-   by construction. Every functional suite passes. `qhalf` was a CPI bound,
+   by construction. Every suite line has the same pass count as `base`'s and no failures (results.md, section B, `qhalf`'s suite table). `qhalf` was a CPI bound,
    never a fit, so no saving depends on it. Its CPI ratios (DOOM 1.475,
    3DBench 1.316) are reported with that label. They bound what front-end
    throughput is worth; they do not price a narrower front end, which needs a
