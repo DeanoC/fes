@@ -500,12 +500,20 @@ func (v *Volume) create(ctx context.Context, name string, data []byte, isDir boo
 	}
 	copy(p.data[p.offset:], directoryRecords(units, alias, first, size, isDir, now))
 	clear(p.data[p.offset+recordBytes : p.offset+recordBytes+32])
-	for pos := p.offset / 512 * 512; pos < end; pos += 512 {
-		cluster := p.chain[pos/clusterBytes]
-		sector := v.clusterSector(cluster) + uint64(pos%clusterBytes/512)
-		if err = write(sector, p.data[pos:pos+512]); err != nil {
+	spc := int(v.sectorsPerCluster)
+	startSector := p.offset / block.SectorSize
+	endSector := (end + block.SectorSize - 1) / block.SectorSize
+	for sectorPos := startSector; sectorPos < endSector; {
+		clusterIdx := sectorPos / spc
+		sectorInCluster := uint32(sectorPos % spc)
+		want := min(endSector-sectorPos, maxTransferSectors)
+		lba, runSectors := v.contiguousSectors(p.chain, clusterIdx, sectorInCluster, want)
+		startByte := sectorPos * block.SectorSize
+		endByte := (sectorPos + runSectors) * block.SectorSize
+		if err = write(lba, p.data[startByte:endByte]); err != nil {
 			return err
 		}
+		sectorPos += runSectors
 	}
 	if err = flush(); err != nil {
 		return err
