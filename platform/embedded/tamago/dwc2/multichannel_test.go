@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -1291,5 +1292,246 @@ func TestMultiHostHotplugRetryAndMaxHubDepth(t *testing.T) {
 	}
 	if len(host.hubs) != hubsBefore {
 		t.Fatalf("hub beyond maxHubDepth was admitted during dynamic hotplug: hubs=%d want=%d", len(host.hubs), hubsBefore)
+	}
+}
+
+func TestMultiHostPausePreservesCompletedPacketAndToggle(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected attached gamepad event, got %+v ok=%v", ev, ok)
+	}
+	iface, ok := ev.Device.Config.FindInterface(3, -1, -1)
+	if !ok {
+		t.Fatal("missing HID interface")
+	}
+	ep, ok := iface.FindEndpoint(usb.TransferInterrupt, true)
+	if !ok {
+		t.Fatal("missing Interrupt-IN endpoint")
+	}
+	pipe, err := host.OpenPipe(ev.Device.Address, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+	mp := pipe.(*multiPipe)
+
+	// Queue first packet so Service() arms the channel, hardware immediately posts
+	// the DATA0 packet into RX FIFO + HCINT.XFERCOMPL, and PausePolling runs
+	// before a second Service() processes it.
+	pkt1 := []byte{0x01, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77}
+	pad.inQueues[ep.Number()] = append(pad.inQueues[ep.Number()], pkt1)
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (arm): %v", err)
+	}
+	if !host.slots[mp.ch].armed {
+		t.Fatal("expected channel to be armed before PausePolling")
+	}
+
+	if err := host.PausePolling(context.Background()); err != nil {
+		t.Fatalf("PausePolling: %v", err)
+	}
+	if got := host.slots[mp.ch].toggle; got != 2 {
+		t.Fatalf("PausePolling failed to advance DATA toggle: got %d want 2 (DATA1)", got)
+	}
+
+	var buf [64]byte
+	n, err := pipe.PollInto(buf[:])
+	if err != nil {
+		t.Fatalf("PollInto after pause: %v", err)
+	}
+	if n != len(pkt1) || string(buf[:n]) != string(pkt1) {
+		t.Fatalf("lost or corrupted packet across PausePolling: got %x want %x", buf[:n], pkt1)
+	}
+
+	if err := host.ResumePolling(context.Background()); err != nil {
+		t.Fatalf("ResumePolling: %v", err)
+	}
+	// Next packet on the wire uses DATA1; if toggle had desynchronized, drainRXIntoSlots
+	// would reject it with an invalid dpid fault.
+	pkt2 := []byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00}
+	pad.inQueues[ep.Number()] = append(pad.inQueues[ep.Number()], pkt2)
+	for range 5 {
+		sim.advance(5 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service after resume: %v", err)
+		}
+		n, err = pipe.PollInto(buf[:])
+		if err != nil {
+			t.Fatalf("PollInto after resume: %v", err)
+		}
+		if n > 0 {
+			break
+		}
+	}
+	if n != len(pkt2) || string(buf[:n]) != string(pkt2) {
+		t.Fatalf("post-resume packet mismatch: got %x want %x", buf[:n], pkt2)
+	}
+}
+
+func TestMultiHostHubStatusPipeRecovery(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	pad := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	for {
+		if _, ok := host.NextEvent(); !ok {
+			break
+		}
+	}
+	if len(host.hubs) != 1 || host.hubs[0].statusPipe == nil {
+		t.Fatalf("expected 1 hub with active statusPipe, got hubs=%d", len(host.hubs))
+	}
+	origPipe := host.hubs[0].statusPipe
+	origGen := origPipe.gen
+
+	// Inject a fatal error on the hub status pipe channel so it faults on Service().
+	host.slots[origPipe.ch].fault = errors.New("injected hub status pipe error")
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service on faulted hub status pipe: %v", err)
+	}
+	if host.hubs[0].statusPipe != nil {
+		t.Fatal("expected pollHubHotplug to close faulted statusPipe before backoff retry")
+	}
+
+	// Advance past hubEnumRetryDelay and verify the status pipe is re-established.
+	sim.advance(300 * time.Millisecond)
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (reopen): %v", err)
+	}
+	if host.hubs[0].statusPipe == nil {
+		t.Fatal("expected hub statusPipe to be re-opened after retry delay")
+	}
+	if host.hubs[0].statusPipe.gen <= origGen {
+		t.Fatalf("expected fresh pipe generation > %d, got %d", origGen, host.hubs[0].statusPipe.gen)
+	}
+
+	// Verify downstream hot-unplug still fires through the recovered status pipe.
+	sim.detachHubPort(hub, 1)
+	var detached bool
+	for range 20 {
+		sim.advance(10 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service (detach): %v", err)
+		}
+		if ev, ok := host.NextEvent(); ok && ev.Kind == usb.DeviceDetached {
+			detached = true
+			break
+		}
+	}
+	if !detached {
+		t.Fatal("downstream detach not detected after hub status pipe recovery")
+	}
+}
+
+func TestMultiHostStalePipeGenerationRejected(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	pad1 := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad1)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	var padID uint8
+	var ep usb.EndpointDescriptor
+	for {
+		ev, ok := host.NextEvent()
+		if !ok {
+			break
+		}
+		if ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			padID = ev.Device.Address
+			iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+			ep, _ = iface.FindEndpoint(usb.TransferInterrupt, true)
+		}
+	}
+	stalePipe, err := host.OpenPipe(padID, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe(pad1): %v", err)
+	}
+	staleCh := stalePipe.(*multiPipe).ch
+
+	// Detach pad1 and force address allocation to wrap back to padID so the new
+	// device gets the exact same (ch, ownerAddr) tuple with a new slot generation.
+	sim.detachHubPort(hub, 1)
+	for range 25 {
+		sim.advance(25 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+		if ev, ok := host.NextEvent(); ok && ev.Kind == usb.DeviceDetached && ev.Device.Address == padID {
+			break
+		}
+	}
+	host.nextID = padID
+
+	pad2 := newSimGamepad()
+	sim.attachHubPort(hub, 1, pad2)
+	var pad2ID uint8
+	for range 25 {
+		sim.advance(25 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+		if ev, ok := host.NextEvent(); ok && ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			pad2ID = ev.Device.Address
+			break
+		}
+	}
+	if pad2ID != padID {
+		t.Fatalf("test setup expected wrapped addr %d, got %d", padID, pad2ID)
+	}
+	livePipe, err := host.OpenPipe(pad2ID, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe(pad2): %v", err)
+	}
+	if livePipe.(*multiPipe).ch != staleCh {
+		t.Fatalf("test setup expected reused channel %d, got %d", staleCh, livePipe.(*multiPipe).ch)
+	}
+
+	var buf [64]byte
+	if _, err := stalePipe.PollInto(buf[:]); err == nil {
+		t.Fatal("stalePipe.PollInto succeeded against reused channel/address")
+	}
+	if err := stalePipe.Close(); err != nil {
+		t.Fatalf("stalePipe.Close returned unexpected error: %v", err)
+	}
+	// Closing the stale pipe must NOT have disturbed livePipe.
+	if !host.slots[staleCh].allocated || host.slots[staleCh].gen != livePipe.(*multiPipe).gen {
+		t.Fatal("stalePipe.Close disturbed live reused channel slot")
+	}
+	pkt := []byte{0x05, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}
+	pad2.inQueues[ep.Number()] = append(pad2.inQueues[ep.Number()], pkt)
+	var gotN int
+	for range 40 {
+		sim.advance(2 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+		gotN, err = livePipe.PollInto(buf[:])
+		if err != nil {
+			t.Fatalf("livePipe.PollInto: %v", err)
+		}
+		if gotN > 0 {
+			break
+		}
+	}
+	if gotN != len(pkt) || string(buf[:gotN]) != string(pkt) {
+		t.Fatalf("livePipe did not receive packet after stalePipe.Close: got %x want %x", buf[:gotN], pkt)
 	}
 }
