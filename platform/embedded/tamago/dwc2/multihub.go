@@ -279,7 +279,10 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 	if dev.info.Speed == usb.SpeedHigh && dev.info.Descriptor.Protocol == 2 {
 		for _, iface := range dev.info.Config.Interfaces {
 			if iface.Class == 9 && iface.AlternateSetting == 1 {
-				_, _ = h.ControlTransfer(addr, 0x01, 11, 1, uint16(iface.Number), nil)
+				if _, err := h.ControlTransfer(addr, 0x01, 11, 1, uint16(iface.Number), nil); err != nil {
+					h.detachDevice(addr)
+					return fmt.Errorf("dwc2: select Multi-TT alt setting failed: %w", err)
+				}
 				break
 			}
 		}

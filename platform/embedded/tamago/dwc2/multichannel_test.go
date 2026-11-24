@@ -35,8 +35,9 @@ type multiSimDevice struct {
 	outLog map[uint8][][]byte
 	// Inject fatal STALL on a specific endpoint number
 	stallEP map[uint8]bool
-	// Transiently STALL the first N EP0 device-descriptor reads (tests hotplug retry)
-	failDescCount int
+	// Transiently STALL the first N EP0 device-descriptor or SET_INTERFACE requests
+	failDescCount     int
+	failSetIfaceCount int
 }
 
 func newSimHub(ports int, multiTT bool) *multiSimDevice {
@@ -440,6 +441,13 @@ func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 				s.byAddr[newAddr] = s.ctrl.dev
 			}
 			if s.ctrl.reqType == 0x01 && s.ctrl.req == 11 && s.ctrl.value == 1 { // SET_INTERFACE alt=1
+				if s.ctrl.dev.failSetIfaceCount > 0 {
+					s.ctrl.dev.failSetIfaceCount--
+					s.ctrl = nil
+					s.regs[chReg(0, hcchar)] &^= channelEnable
+					s.regs[chReg(0, hcint)] |= 1<<3 | 1<<1 // transient STALL
+					return
+				}
 				s.ctrl.dev.multiTTSet = true
 			}
 			if s.ctrl.length > 0 {
@@ -1946,5 +1954,108 @@ func TestMultiHostHubStatusBitZeroClearsAndDetaches(t *testing.T) {
 	sim.mu.Unlock()
 	if st&(1<<17) != 0 {
 		t.Fatalf("C_HUB_OVER_CURRENT was not cleared: hubStatus=%#x", st)
+	}
+}
+
+func TestMultiHostPauseChecksPIOBeforeDraining(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, _ := host.NextEvent()
+	iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+	ep, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+	pipe, err := host.OpenPipe(ev.Device.Address, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+	mp := pipe.(*multiPipe)
+
+	// Queue an RX entry and mark the channel armed, then simulate a foreign owner
+	// enabling DMA before PausePolling runs.
+	sim.mu.Lock()
+	sim.enqueueRX(mp.ch, 0, []byte{1, 2, 3, 4})
+	rxCountBefore := len(sim.rx)
+	sim.regs[gahb] |= 1 << 5 // foreign DMAEN
+	sim.mu.Unlock()
+
+	if err := host.PausePolling(context.Background()); err == nil {
+		t.Fatal("PausePolling succeeded despite foreign DMA enabled")
+	}
+	sim.mu.Lock()
+	rxCountAfter := len(sim.rx)
+	sim.mu.Unlock()
+	if rxCountAfter != rxCountBefore {
+		t.Fatalf("PausePolling drained RX FIFO before pioCheck: rx before=%d after=%d", rxCountBefore, rxCountAfter)
+	}
+}
+
+func TestMultiHostOpenPipeRejectsMPSExceedingFIFO(t *testing.T) {
+	// 256-word minimum profile partitions to rx=128, nptx=64, ptx=64 words.
+	sim := newMultiChannelSim(256, 8)
+	bt := newSimBTDongle()
+	sim.attachRoot(bt)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti(256 words): %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected BT attach event, got %+v ok=%v", ev, ok)
+	}
+	hciIf, _ := ev.Device.Config.FindInterface(0xe0, 0x01, 0x01)
+	epEv, _ := hciIf.FindEndpoint(usb.TransferInterrupt, true)    // 16B -> fits 128-word RX
+	epAclIn, _ := hciIf.FindEndpoint(usb.TransferBulk, true)      // 512B (128+2 > 128) -> must fail
+	epAclOut, _ := hciIf.FindEndpoint(usb.TransferBulk, false)    // 512B (128 > 64) -> must fail
+
+	if _, err := host.OpenPipe(ev.Device.Address, epAclOut); err == nil {
+		t.Fatal("OpenPipe accepted 512B Bulk-OUT endpoint on 64-word non-periodic TX FIFO")
+	}
+	if _, err := host.OpenPipe(ev.Device.Address, epAclIn); err == nil {
+		t.Fatal("OpenPipe accepted 512B Bulk-IN endpoint exceeding 128-word RX FIFO status+data budget")
+	}
+	if _, err := host.OpenPipe(ev.Device.Address, epEv); err != nil {
+		t.Fatalf("OpenPipe rejected valid 16B Interrupt-IN endpoint: %v", err)
+	}
+}
+
+func TestMultiHostInitHubAbortsOnMultiTTSelectFailure(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	hub.failSetIfaceCount = 1 // Fail initial SET_INTERFACE(alt=1) transiently
+	pad := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	if len(host.hubs) != 0 {
+		t.Fatalf("expected hub setup to abort when Multi-TT SET_INTERFACE fails, got %d hubs", len(host.hubs))
+	}
+	if _, ok := host.NextEvent(); ok {
+		t.Fatal("unexpected child attach event before Multi-TT hub setup succeeded")
+	}
+
+	// Retry after backoff should succeed in selecting Multi-TT and enumerating the child.
+	var attached bool
+	for range 25 {
+		sim.advance(25 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service (hub retry): %v", err)
+		}
+		if ev, ok := host.NextEvent(); ok && ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			attached = true
+			break
+		}
+	}
+	if !attached || !hub.multiTTSet {
+		t.Fatalf("expected Multi-TT hub retry to succeed: attached=%v multiTTSet=%v", attached, hub.multiTTSet)
 	}
 }
