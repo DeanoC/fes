@@ -2842,7 +2842,17 @@ module fes_i386_x87 (
             // The instruction the unit owns has issued its first uop, which
             // is set after the case so that a take and an issue in the same
             // cycle -- a load form, which does not hold -- leaves it set.
-            if (iss && iss_fire && iss_first && !iss_wait && !iss_nowait) fired <= 1'b1;
+            // Only an instruction the unit has taken (or takes now) owns it:
+            // a form it never takes -- one it does not build, issued on a
+            // wrong path and flushed -- must leave nothing behind, since a
+            // flush clears `fired` only with `started` (#2135 slice 1:
+            // Quake's FNINIT held for ever behind a flushed D9 /1). `hold`
+            // lets an unbuilt form issue while an older operation still holds
+            // `started` (it has committed and runs on to its apply), so
+            // `started` alone does not make the issuing uop the unit's: an
+            // unbuilt form never sets `fired`, or this edge would override
+            // the apply's clear (Codex, #2195).
+            if (iss && iss_fire && iss_first && !iss_wait && !iss_nowait && !unbuilt && (started || take)) fired <= 1'b1;
             // FNINIT and FNCLEX, at their own commit, after the case above
             // so FNINIT's reset wins over an operation finishing with it.
             if (wb && wb_last && nw != 2'd0) begin

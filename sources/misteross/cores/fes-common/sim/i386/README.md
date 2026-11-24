@@ -213,7 +213,9 @@ python3 scripts/test_fes_i486_lockstep.py --oracle-only
 ```
 
 `scripts/sim_fes_pc386.py --cpu-level 4` boots the machine on this oracle
-(boot, game and wfw with `--cpu oracle`), under `build/sim/fes-pc386-level4`.
+(boot, game and wfw), under `build/sim/fes-pc386-level4`. With `--cpu rtl`
+the RTL is then the 486SX identity (`I486 = 1`): the oracle backs its stops,
+and a reset starts it with the 486SX's signature, 042Bh, in EDX.
 With it the instruction census adds `ac:<stem>` and `id:<stem>` (EFLAGS.AC
 or ID changed), `cr0.486:<bits>:<stem>` (CR0's NE, WP, AM, NW or CD changed)
 and `exc:<vector>:<stem>` (exception 6, 16 or 17 raised, which names an

@@ -5,11 +5,13 @@ import (
 	"errors"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
@@ -353,5 +355,158 @@ func TestUnboundIdleProofDoesNotHideOtherCleanupFailure(t *testing.T) {
 	})
 	if err := controller.ReleaseAll(context.Background()); err == nil {
 		t.Fatal("other cleanup failure hidden")
+	}
+}
+
+func TestNonMatrixHIDCoreDetachReleaseAllAndReplacementSucceed(t *testing.T) {
+	instance, id, generation := strings.Repeat("a", 32), strings.Repeat("b", 64), uint64(7)
+	response := misterruntime.Protocol2Response{
+		Protocol:        2,
+		OK:              true,
+		State:           "running_development",
+		Execution:       "development",
+		RuntimeInstance: &instance,
+		Generation:      &generation,
+		ActivePackage:   &misterruntime.Protocol2ActivePackage{PackageID: id, Descriptor: corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 1}}},
+		Capabilities: misterruntime.Protocol2Capabilities{ActiveInterfaces: []misterruntime.Protocol2Interface{
+			{ID: "fes.keyboard.hid", Major: 1},
+			{ID: "fes.mouse.relative", Major: 1},
+		}},
+	}
+	control := &matrixLifecycleControl{response: response}
+	runtime := misterruntime.NewRuntime(control, "", 0, 0)
+	keys := NewKeyboardSink()
+	keys.SetPoster(runtime.SetKeyboard)
+	keys.SetRetirer(runtime.RetireMatrixUncertainty)
+	var hidMu sync.Mutex
+	var hidPosts []hidkeys.Rows
+	hid := &keyboardHIDSink{}
+	hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
+		hidMu.Lock()
+		hidPosts = append(hidPosts, rows)
+		hidMu.Unlock()
+		return nil
+	})
+	mouse := &mouseSink{
+		poster: func(context.Context, string, uint64, int16, int16, uint8) error { return nil },
+	}
+	ports := &controllerPortsSink{keys: keys, hid: hid, mouse: mouse}
+	controller := newTargetControllerWithSink("", ports)
+	controller.ports, controller.keyboard = ports, keys
+	controller.listen = func(string, string) (net.Listener, error) {
+		return &memoryListener{incoming: make(chan net.Conn, 1), done: make(chan struct{})}, nil
+	}
+	controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+		return CoreObservation{
+			Active:          true,
+			Keyboard:        false,
+			CoreID:          "fes.pc386",
+			RuntimeInstance: instance,
+			PackageID:       id,
+			Generation:      generation,
+			KeyboardHID:     &KeyboardHIDBinding{RuntimeInstance: instance, PackageID: id, Generation: generation},
+			Mouse:           &MouseBinding{PackageID: id, Generation: generation},
+		}, nil
+	})
+	controller.SetKeyboardMediaRetirement(runtime.MatrixMediaUncertainty, runtime.RetireMatrixMediaUncertainty, runtime.NeutralMatrixMediaUncertainty)
+
+	if err := controller.Attach(context.Background(), Spec{Session: 1, Token: []byte("0123456789abcdef"), Core: "fes.pc386"}); err != nil {
+		t.Fatal(err)
+	}
+	keyA, _ := hidkeys.Code(0x04)
+	if err := ports.applyContext(context.Background(), sourceRemote, keyboardFrameFor(keyA, remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	if err := controller.Detach(context.Background(), 1); err != nil {
+		t.Fatalf("non-matrix detach failed: %v", err)
+	}
+	hidMu.Lock()
+	postCount := len(hidPosts)
+	var lastRows hidkeys.Rows
+	if postCount > 0 {
+		lastRows = hidPosts[postCount-1]
+	}
+	hidMu.Unlock()
+	if postCount < 2 || lastRows != (hidkeys.Rows{}) {
+		t.Fatalf("detach did not neutralize HID state: posts=%d last=%+v", postCount, lastRows)
+	}
+	if control.neutralPosts != 0 {
+		t.Fatalf("non-matrix detach posted matrix neutral: %d", control.neutralPosts)
+	}
+
+	if err := controller.ReleaseAll(context.Background()); err != nil {
+		t.Fatalf("non-matrix ReleaseAll failed: %v", err)
+	}
+	if keys.retiredNoPost || control.neutralPosts != 0 {
+		t.Fatalf("non-matrix ReleaseAll mutated matrix state: retiredNoPost=%t posts=%d", keys.retiredNoPost, control.neutralPosts)
+	}
+
+	if err := controller.Attach(context.Background(), Spec{Session: 2, Token: []byte("0123456789abcdef"), Core: "fes.pc386"}); err != nil {
+		t.Fatal(err)
+	}
+	finish, err := controller.BeginCoreReplacement(context.Background())
+	if err != nil {
+		t.Fatalf("non-matrix BeginCoreReplacement failed: %v", err)
+	}
+	if err := finish(context.Background(), false); err != nil {
+		t.Fatalf("non-matrix replacement finish failed: %v", err)
+	}
+	if control.neutralPosts != 0 {
+		t.Fatalf("non-matrix replacement posted matrix neutral: %d", control.neutralPosts)
+	}
+}
+
+func TestActivePackagedMatrixCoreStillRejectsUnboundCleanup(t *testing.T) {
+	instance, id, generation := strings.Repeat("a", 32), strings.Repeat("b", 64), uint64(7)
+	control := &matrixLifecycleControl{}
+	runtime := misterruntime.NewRuntime(control, "", 0, 0)
+	keys := NewKeyboardSink()
+	keys.SetPoster(runtime.SetKeyboard)
+	keys.SetRetirer(runtime.RetireMatrixUncertainty)
+	ports := &controllerPortsSink{keys: keys}
+	controller := newTargetControllerWithSink("", ports)
+	controller.ports, controller.keyboard = ports, keys
+	controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+		return CoreObservation{
+			Active:          true,
+			Keyboard:        true,
+			CoreID:          "fes.sms",
+			RuntimeInstance: instance,
+			PackageID:       id,
+			Generation:      generation,
+		}, nil
+	})
+	controller.SetKeyboardMediaRetirement(runtime.MatrixMediaUncertainty, runtime.RetireMatrixMediaUncertainty, runtime.NeutralMatrixMediaUncertainty)
+	if err := controller.ReleaseAll(context.Background()); err == nil {
+		t.Fatal("active packaged matrix core admitted unbound cleanup")
+	}
+	if keys.retiredNoPost || control.neutralPosts != 0 {
+		t.Fatalf("active packaged matrix core retired or posted: retiredNoPost=%t posts=%d", keys.retiredNoPost, control.neutralPosts)
+	}
+}
+
+func TestNonMatrixHIDCoreLocalDisconnectDoesNotPoisonPendingMatrixNeutral(t *testing.T) {
+	instance, id, generation := strings.Repeat("a", 32), strings.Repeat("b", 64), uint64(7)
+	control := &matrixLifecycleControl{}
+	runtime := misterruntime.NewRuntime(control, "", 0, 0)
+	keys := NewKeyboardSink()
+	keys.SetPoster(runtime.SetKeyboard)
+	hid := &keyboardHIDSink{}
+	hid.setPoster(func(context.Context, string, string, uint64, hidkeys.Rows) error { return nil })
+	ports := &controllerPortsSink{keys: keys, hid: hid}
+	ports.setObservation(CoreObservation{
+		Active:          true,
+		Keyboard:        false,
+		CoreID:          "fes.pc386",
+		RuntimeInstance: instance,
+		PackageID:       id,
+		Generation:      generation,
+		KeyboardHID:     &KeyboardHIDBinding{RuntimeInstance: instance, PackageID: id, Generation: generation},
+	})
+	if err := ports.releaseSourceContext(context.Background(), sourceLocal); err != nil {
+		t.Fatalf("local disconnect on non-matrix core failed: %v", err)
+	}
+	if ports.pendingMatrixNeutral || control.neutralPosts != 0 {
+		t.Fatalf("local disconnect tainted matrix state: pending=%t posts=%d", ports.pendingMatrixNeutral, control.neutralPosts)
 	}
 }
