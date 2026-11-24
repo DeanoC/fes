@@ -825,11 +825,18 @@ def publish_install(
     *,
     identity: str,
     external_lock_fd: int | None = None,
+    max_gb: float | str | None = None,
 ) -> InstallManifest:
-    """Verify a completed install, freeze it, and atomically publish ready.json."""
+    """Verify a completed install, freeze it, and atomically publish ready.json.
+
+    *max_gb* (default ``FES_TOOLCHAIN_CACHE_MAX_GB``) caps the cache: once
+    the install is published, unpinned installs are evicted least-recently
+    used first. Bootstrap scrubs its build environment, so it forwards the
+    variable as ``publish --max-gb``.
+    """
 
     _check_tool(tool)
-    max_gb = _parse_max_gb(None, os.environ)
+    max_gb = _parse_max_gb(max_gb, os.environ)
     root = ensure_cache_root(request.cache_root)
     pins = locked_pins(request)
     build = _build_identity(request, tool, pins)
@@ -2208,17 +2215,25 @@ def _matches_gpu_lane(manifest: InstallManifest, gpu_lanes: Sequence[Mapping[str
     )
 
 
-def _parse_max_gb(max_gb: float | None, environment: Mapping[str, str]) -> float | None:
-    """Resolve and validate the optional LRU size cap in GiB."""
+def _parse_max_gb(max_gb: float | str | None, environment: Mapping[str, str]) -> float | None:
+    """Resolve and validate the optional LRU size cap in GiB.
 
+    An explicit *max_gb* wins over ``FES_TOOLCHAIN_CACHE_MAX_GB``. Text, the
+    variable's own or the copy bootstrap forwards, means no cap when blank.
+    """
+
+    label = "max-gb"
     if max_gb is None:
-        raw = environment.get("FES_TOOLCHAIN_CACHE_MAX_GB", "").strip()
+        max_gb = environment.get("FES_TOOLCHAIN_CACHE_MAX_GB", "")
+        label = "FES_TOOLCHAIN_CACHE_MAX_GB"
+    if isinstance(max_gb, str):
+        raw = max_gb.strip()
         if not raw:
             return None
         try:
             value = float(raw)
         except ValueError as exc:
-            raise CacheError(f"invalid FES_TOOLCHAIN_CACHE_MAX_GB value: {raw!r}") from exc
+            raise CacheError(f"invalid {label} value: {raw!r}") from exc
     else:
         if isinstance(max_gb, bool):
             raise CacheError("max-gb must be a non-negative number")
@@ -2231,16 +2246,27 @@ def _parse_max_gb(max_gb: float | None, environment: Mapping[str, str]) -> float
     return value
 
 
-def _resolve_eviction_ref(root: Path) -> str:
+def _eviction_refs(root: Path) -> tuple[str, ...]:
+    """The refs whose committed locks post-publish eviction keeps.
+
+    ``HEAD`` is the checkout being built: on a branch its locks pin installs
+    ``origin/main`` does not, and its producers resolve them once bootstrap
+    finishes. ``origin/main`` adds what every other checkout needs. Without a
+    ``HEAD`` commit nothing names what this checkout uses, so there is no
+    eviction.
+    """
+
     root = Path(root).resolve()
     top = Path(_git(root, "rev-parse", "--show-toplevel").strip())
-    for candidate in ("origin/main", "HEAD"):
-        try:
-            _git(top, "rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}")
-            return candidate
-        except CacheError:
-            continue
-    raise CacheError("no origin/main or HEAD commit found for LRU eviction")
+    try:
+        head = _git(top, "rev-parse", "--verify", "--quiet", "HEAD^{commit}").strip()
+    except CacheError as exc:
+        raise CacheError("no HEAD commit names the locks this checkout builds") from exc
+    try:
+        main = _git(top, "rev-parse", "--verify", "--quiet", "origin/main^{commit}").strip()
+    except CacheError:
+        return ("HEAD",)
+    return ("origin/main",) if main == head else ("origin/main", "HEAD")
 
 
 def _compiler_for_post_publish_eviction(
@@ -2291,19 +2317,31 @@ def _evict_after_publish(
     environment: Mapping[str, str] | None = None,
     output=None,
 ) -> dict[str, list[str]] | None:
-    """Enforce ``FES_TOOLCHAIN_CACHE_MAX_GB`` by evicting oldest unpinned installs."""
+    """Enforce ``FES_TOOLCHAIN_CACHE_MAX_GB`` by evicting oldest unpinned installs.
+
+    Installs pinned at ``origin/main`` or ``HEAD`` stay, and so does every
+    install *request*'s lock selects: bootstrap releases each install's lock
+    once it is published or hit, and the producer resolves them only after
+    the last tool, so nothing holds this build's earlier installs yet. Its
+    lock may also be uncommitted or outside the checkout.
+    """
 
     env = dict(os.environ if environment is None else environment)
     env.update(request.environment)
     stream = sys.stderr if output is None else output
     try:
-        ref = _resolve_eviction_ref(request.root)
+        refs = _eviction_refs(request.root)
         evict_compiler = _compiler_for_post_publish_eviction(request.compiler_identity, env)
+        protected = {
+            (name, value): "selected by this build's lock"
+            for name, value in tool_keys(request).items()
+        }
+        protected[(tool, key)] = "just published"
         return prune(
             request.cache_root,
             request.root,
             keep_days=None,
-            ref=ref,
+            ref=refs[0],
             apply=True,
             legacy_slots=False,
             max_gb=max_gb,
@@ -2313,7 +2351,8 @@ def _evict_after_publish(
             host=request.host_identity,
             compiler=evict_compiler,
             output=stream,
-            _protected_installs=frozenset({(tool, key)}),
+            _extra_refs=refs[1:],
+            _protected_installs=protected,
             _exclude_transient_build_trees=frozenset({(tool, key)}),
         )
     except (CacheError, OSError) as exc:
@@ -2338,7 +2377,8 @@ def prune(
     compiler: Mapping[str, Any] | None = None,
     now: float | None = None,
     output=None,
-    _protected_installs: frozenset[tuple[str, str]] = frozenset(),
+    _extra_refs: Sequence[str] = (),
+    _protected_installs: Mapping[tuple[str, str], str] | None = None,
     _exclude_transient_build_trees: frozenset[tuple[str, str]] = frozenset(),
 ) -> dict[str, list[str]]:
     """Remove installs that no lock on *ref* needs and nobody used lately.
@@ -2386,9 +2426,13 @@ def prune(
     )
     now = time.time() if now is None else now
     horizon = None if keep_days is None else now - keep_days * 86400
-    references = referenced_pins(root, ref)
-    binary_pins = referenced_binary_pins(root, ref)
-    recipe = referenced_recipe(root, ref)
+    # Each ref's (name, referenced pins, binary pins, recipe); an install
+    # pinned at any of them is kept.
+    pinning_refs = [
+        (name, referenced_pins(root, name), referenced_binary_pins(root, name), referenced_recipe(root, name))
+        for name in (ref, *_extra_refs)
+    ]
+    protected = dict(_protected_installs or {})
     host = host_identity() if host is None else host
     base_compiler = _base_compiler(
         compiler_inventory(DEFAULT_GPU_ROUTER, environment=env) if compiler is None else compiler
@@ -2464,31 +2508,49 @@ def prune(
                 if not remove(directory, lock, label, f"unreadable manifest: {exc}") and cap_bytes is not None:
                     retained_bytes += install_bytes(directory, tool, directory.name)
                 continue
-            if (tool, directory.name) in _protected_installs:
-                print(f"kept: {label} (just published)", file=output)
+            reason = protected.get((tool, directory.name))
+            if reason is not None:
+                print(f"kept: {label} ({reason})", file=output)
                 report["kept"].append(label)
                 if cap_bytes is not None:
                     retained_bytes += install_bytes(directory, tool, directory.name)
                 continue
-            if ((tool, _manifest_pins(manifest)) in references
-                    and isinstance(manifest.record.get("commit"), str)
-                    and isinstance(manifest.record.get("sha256"), str)
-                    and (tool, manifest.record.get("commit"), manifest.record.get("sha256")) in binary_pins):
+            install_pins = (tool, _manifest_pins(manifest))
+            commit, digest = manifest.record.get("commit"), manifest.record.get("sha256")
+            binary_ref = next(
+                (
+                    name
+                    for name, references, binary_pins, _recipe in pinning_refs
+                    if install_pins in references
+                    and isinstance(commit, str)
+                    and isinstance(digest, str)
+                    and (tool, commit, digest) in binary_pins
+                ),
+                None,
+            )
+            if binary_ref is not None:
                 # A binary-pinned consumer deliberately selects this install
                 # independently of today's provisioning recipe/compiler.
-                print(f"kept: {label} (binary-pinned at {ref})", file=output)
+                print(f"kept: {label} (binary-pinned at {binary_ref})", file=output)
                 report["kept"].append(label)
                 if cap_bytes is not None:
                     retained_bytes += install_bytes(directory, tool, directory.name)
                 continue
+            pinned_ref = next(
+                (
+                    name
+                    for name, references, _binary_pins, recipe in pinning_refs
+                    if install_pins in references and manifest.build.get("recipe") == recipe
+                ),
+                None,
+            )
             if (
-                (tool, _manifest_pins(manifest)) in references
-                and manifest.build.get("recipe") == recipe
+                pinned_ref is not None
                 and manifest.build.get("host") == dict(host)
                 and manifest.build.get("compiler") == base_compiler
                 and (tool not in GPU_TOOLS or _matches_gpu_lane(manifest, gpu_lanes))
             ):
-                print(f"kept: {label} (pinned at {ref})", file=output)
+                print(f"kept: {label} (pinned at {pinned_ref})", file=output)
                 report["kept"].append(label)
                 if cap_bytes is not None:
                     retained_bytes += install_bytes(directory, tool, directory.name)
@@ -2587,6 +2649,12 @@ def _load_request_arguments(argv: list[str]):
         "--lock-fd",
         type=int,
         help="inherited descriptor whose held flock must be proven for publish",
+    )
+    parser.add_argument(
+        "--max-gb",
+        default=None,
+        help="publish: after publication, evict least-recently-used unpinned installs until the cache "
+        "fits this many GiB (bootstrap forwards FES_TOOLCHAIN_CACHE_MAX_GB here; blank means no cap)",
     )
     args = parser.parse_args(argv)
     environment = os.environ.copy()
@@ -2728,6 +2796,7 @@ def _main(argv: list[str]) -> int:
                 args.tool,
                 identity=identity_path.read_text(encoding="utf-8").strip(),
                 external_lock_fd=args.lock_fd,
+                max_gb=args.max_gb,
             )
             print(json.dumps({"key": manifest.key, "install": str(manifest.install)}, sort_keys=True))
         return 0

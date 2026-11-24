@@ -30,7 +30,8 @@ def _set_pin(lock: Path, tool: str, field: str, value: str) -> None:
     lock.write_text(text, encoding="utf-8")
 
 
-def _publish(request: toolchain_cache.ToolchainRequest, tool: str, *, content: str = "fake") -> toolchain_cache.InstallManifest:
+def _publish(request: toolchain_cache.ToolchainRequest, tool: str, *, content: str = "fake",
+             max_gb: str | None = None) -> toolchain_cache.InstallManifest:
     """Publish a fake install of *tool* through the real cache API."""
 
     directory = toolchain_cache.install_directory(request, tool)
@@ -45,7 +46,7 @@ def _publish(request: toolchain_cache.ToolchainRequest, tool: str, *, content: s
         database.mkdir(parents=True)
         (database / "fixture").write_text("database\n", encoding="utf-8")
     with toolchain_cache.acquire_build_lock(request, tool):
-        return toolchain_cache.publish_install(request, tool, identity=f"{content} {tool}")
+        return toolchain_cache.publish_install(request, tool, identity=f"{content} {tool}", max_gb=max_gb)
 
 
 class ToolchainCacheContractTests(unittest.TestCase):
@@ -1785,6 +1786,88 @@ class ToolchainCachePruneTests(unittest.TestCase):
         self.assertEqual(report["removed"], [])
         self.assertIn(f"tools/yosys/{unpinned[1][1].key}", report["kept"])
         self.assertTrue(unpinned[1][1].directory.exists())
+
+    def test_post_publish_eviction_keeps_this_builds_and_heads_installs(self):
+        """A tight cap never evicts what this build's lock or the locks at HEAD select.
+
+        Bootstrap releases each install's lock once it is published or hit and
+        the producer resolves them only after the last tool, so on a branch
+        whose locks pin installs origin/main does not, a lock held by nobody
+        cannot be what keeps them.
+        """
+        git = ["git", "-C", str(self.repository), "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+        subprocess.run([*git, "update-ref", "refs/remotes/origin/main", "HEAD"], check=True)
+        # Built for origin/main; the branch moves every lock off this Verilator.
+        main_only = _publish(self.request(), "verilator")
+        core_lock = self.root / "cores" / "fes-core" / "toolchain.lock"
+        for lock in (self.root / "toolchain.lock", core_lock):
+            _set_pin(lock, "verilator", "commit", "e" * 40)
+        _set_pin(core_lock, "openfpgaloader", "commit", "1" * 40)
+        subprocess.run([*git, "commit", "-q", "-a", "-m", "branch"], check=True)
+        # Another lock at HEAD, built earlier: nobody holds it now.
+        head_only = _publish(self.request(core_lock), "openfpgaloader")
+        # An install no lock selects, used long ago: what the cap does evict.
+        stale_lock = self.base / "stale.lock"
+        shutil.copy2(self.root / "toolchain.lock", stale_lock)
+        _set_pin(stale_lock, "yosys", "commit", "d" * 40)
+        stale = self.request(stale_lock)
+        stale_install = _publish(stale, "yosys")
+        old = time.time() - 30 * 86400
+        os.utime(toolchain_cache.lock_path(stale, "yosys"), (old, old))
+        # This build's own lock is an uncommitted edit: no ref pins its Yosys.
+        _set_pin(self.root / "toolchain.lock", "yosys", "commit", "9" * 40)
+        build = self.request()
+
+        stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_MAX_GB": "0"}),
+            mock.patch.object(toolchain_cache.sys, "stderr", stderr),
+        ):
+            # Bootstrap's order: each publish releases its lock before the next.
+            installs = {tool: _publish(build, tool) for tool in toolchain_cache.TOOLS}
+        log = stderr.getvalue()
+        self.assertFalse(stale_install.directory.exists(), log)
+        self.assertIn(f"removed: tools/yosys/{stale_install.key}", log)
+        for install in installs.values():
+            self.assertTrue((install.directory / "ready.json").is_file(), log)
+        toolchain_cache.verify_ready(build)
+        self.assertEqual({tool: install.key for tool, install in installs.items()}, toolchain_cache.tool_keys(build))
+        self.assertIn(f"kept: tools/yosys/{installs['yosys'].key} (selected by this build's lock)", log)
+        self.assertTrue(head_only.directory.exists(), log)
+        self.assertIn(f"kept: tools/openfpgaloader/{head_only.key} (pinned at HEAD)", log)
+        self.assertTrue(main_only.directory.exists(), log)
+        self.assertIn(f"kept: tools/verilator/{main_only.key} (pinned at origin/main)", log)
+
+    def test_publish_install_takes_the_cap_bootstrap_forwards(self):
+        """Bootstrap scrubs FES_TOOLCHAIN_CACHE_MAX_GB and forwards its text to publish."""
+        stale_lock = self.base / "stale.lock"
+        shutil.copy2(self.root / "toolchain.lock", stale_lock)
+        _set_pin(stale_lock, "yosys", "commit", "d" * 40)
+        stale = self.request(stale_lock)
+        stale_install = _publish(stale, "yosys")
+        old = time.time() - 30 * 86400
+        os.utime(toolchain_cache.lock_path(stale, "yosys"), (old, old))
+        build = self.request()
+
+        # Blank text means no cap, as a blank variable does, and wins over the variable.
+        stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_MAX_GB": "0"}),
+            mock.patch.object(toolchain_cache.sys, "stderr", stderr),
+        ):
+            _publish(build, "yosys", max_gb=" ")
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertTrue(stale_install.directory.exists())
+        # The scrubbed build environment has no cap of its own.
+        stderr = io.StringIO()
+        with mock.patch.dict(os.environ), mock.patch.object(toolchain_cache.sys, "stderr", stderr):
+            os.environ.pop("FES_TOOLCHAIN_CACHE_MAX_GB", None)
+            _publish(build, "verilator", max_gb=" 0 ")
+        self.assertIn(f"removed: tools/yosys/{stale_install.key}", stderr.getvalue())
+        self.assertFalse(stale_install.directory.exists())
+        toolchain_cache.verify_install(build, "yosys")
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "invalid max-gb value: 'many'"):
+            toolchain_cache._parse_max_gb("many", {})
 
     def test_compiler_for_post_publish_eviction_preserves_other_host_gpu_lanes(self):
         """An OFF-lane publish on a GPU host still keeps pinned HIP nextpnr protected."""

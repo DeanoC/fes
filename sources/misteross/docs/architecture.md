@@ -1710,7 +1710,12 @@ size cap in GiB: after age-based pruning, any remaining unpinned installs are
 evicted least-recently-used first until the retained cache is within the cap,
 and when `FES_TOOLCHAIN_CACHE_MAX_GB` is set during a build, `publish_install()`
 runs the same LRU eviction automatically after publication (logging evictions
-to stderr). For GPU tools (`nextpnr`), pinned retention also requires matching
+to stderr). Bootstrap scrubs the variable from its build environment and
+forwards it to the publish helper alone (`publish --max-gb`). Bootstrap
+releases each install's lock as soon as that tool is published or hit, so that
+eviction also keeps the installs pinned at `HEAD` and every install the lock
+being built selects.
+For GPU tools (`nextpnr`), pinned retention also requires matching
 a kept GPU lane's configuration, accelerator compiler, and backend environment
 (repeatable `--gpu-router` or `GPU_ROUTERS`/`GPU_ROUTER`, defaulting to every
 lane this host can build, with `--hip-architectures` / `--cuda-architectures`),
