@@ -614,12 +614,14 @@ type HealthResult struct {
 
 // TargetConnection is discovery and reconciliation state, independent of game state.
 type TargetConnection struct {
-	State    string `json:"state"`
-	Message  string `json:"message,omitempty"`
-	Address  string `json:"address,omitempty"`
-	TargetID string `json:"target_id,omitempty"`
-	BootID   string `json:"boot_id,omitempty"`
-	Owner    string `json:"owner,omitempty"`
+	State           string `json:"state"`
+	Message         string `json:"message,omitempty"`
+	Address         string `json:"address,omitempty"`
+	TargetID        string `json:"target_id,omitempty"`
+	BootID          string `json:"boot_id,omitempty"`
+	Owner           string `json:"owner,omitempty"`
+	LeaseGeneration string `json:"lease_generation,omitempty"`
+	LeaseOwned      bool   `json:"lease_owned,omitempty"`
 }
 
 // TargetStatus is GET /api/v1/status. HTTP 503 TARGET_UNAVAILABLE means the kit

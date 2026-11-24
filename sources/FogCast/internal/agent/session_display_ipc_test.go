@@ -345,7 +345,7 @@ func TestDisplayPublicationGuardHeldThroughFinish(t *testing.T) {
 	}
 }
 
-type failingDisplayRuntime struct{ displayRuntime }
+type failingDisplayRuntime struct{ *displayRuntime }
 
 func (r *failingDisplayRuntime) SetSessionDisplay(context.Context, protocol.SessionDisplay, protocol.DevelopmentMediaBinding) *protocol.APIError {
 	r.calls++
@@ -359,7 +359,7 @@ func TestRuntimeDisplayFailureReleasesPublicationGuard(t *testing.T) {
 	}
 	path := filepath.Join(dir, "launcher.sock")
 	_, base, b := displayIPCTestCoordinator(t, path)
-	runtime := &failingDisplayRuntime{displayRuntime: *base}
+	runtime := &failingDisplayRuntime{displayRuntime: base}
 	c := agent.New(runtime, time.Second, time.Second, agent.WithSessionDisplayIPC(path, b.TargetID))
 	c.Initialize(context.Background())
 	outcomes := make(chan sessiondisplayipc.Outcome, 1)

@@ -21,6 +21,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
+	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/serial"
 )
 
@@ -30,7 +31,7 @@ var nativeProgramPlatform tenfoot.Platform
 
 const tenfootSerialLinked = true
 
-func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store) {
+func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store, lease *sdcontrol.Session) {
 	uartIRQ := false
 	var activeGIC *gic.Controller
 	if g := de25nano.GIC(); g != nil {
@@ -57,6 +58,12 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 				panic(err)
 			}
 			defer serial.DisableIRQ(g)
+			if lease != nil {
+				if err := lease.EnableIRQ(g, de25nano.IRQSDMMC); err != nil {
+					panic(err)
+				}
+				defer lease.DisableIRQ()
+			}
 			uartIRQ = true
 			activeGIC = g
 		}
@@ -140,7 +147,12 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		serialPlatform.EnableInstallerViews()
 	}
 	inputMode := "uart"
-	if expectedUSBControl != "" {
+	if expectedUSBControl != "" && expectedTenfootUARTOnly != "1" {
+		cleanupUSBIRQ, err := enableProgramUSBIRQ(activeGIC)
+		if err != nil {
+			panic(err)
+		}
+		defer cleanupUSBIRQ()
 		if expectedUSBInput == "gamepad" {
 			keys := nativefabric.ProgramGamepadKeys{Up: 0x52, Down: 0x51, Left: 0x50, Right: 0x4f}
 			// This diagnostic assigns S/start and Space to the first two HID buttons.
@@ -163,6 +175,11 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		}
 		display = "fpga-menu"
 	}
+	stopWatchdog, err := startProgramWatchdog(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	defer stopWatchdog()
 	fmt.Printf("FES_NATIVE_TENFOOT_BEGIN display=%s input=%s preferences=%s\n", display, inputMode, startup.PreferencesMode)
 	nativeProgramPlatform = platform
 	if err := tenfoot.RunPlatform(context.Background(), app, device, nativeProgramPlatform); err != nil {

@@ -191,6 +191,7 @@ class PairedTenfootClient(app.TenfootClient):
         self.programs = copy.deepcopy(programs)
         for p in self.programs:
             app.program_tape(p)
+            app.program_disk(p)
         self.usb = SharedInput(shared_usb) if shared_usb is not None else None
         self.input_mode = 'uart' if self.usb is None else self.usb.input_mode
         writable = build_record.get('writable_storage_plan')
@@ -290,6 +291,8 @@ class PairedTenfootClient(app.TenfootClient):
             require(program is not None, 'App tape has no selected program')
             actual = None if 'tape_sha256' not in n else dict(sha256=n['tape_sha256'],bytes=n['tape_bytes'])
             require(actual == app.program_tape(program), 'App published wrong retained tape')
+            disk = None if 'disk_sha256' not in n else dict(sha256=n['disk_sha256'],bytes=n['disk_bytes'])
+            require(disk == app.program_disk(program), 'App published wrong retained D64')
 
     def _configured(self, result):
         timing = result['configuration_timing']
@@ -425,6 +428,7 @@ class PairedTenfootClient(app.TenfootClient):
                         value['package_id'] == selected['identity']['PackageID'] and
                         value['build_id'] == selected['identity']['BuildID'], 'fetch belongs to another activation')
                 require(value.get('tape_bytes',0)==selected.get('tape',{}).get('bytes',0),'fetch tape timing belongs to another media selection')
+                app.match_fetch_disk(value, selected)
                 if 'fetch_address' in selected:
                     require(value['running']['Address'] == selected['fetch_address'], 'selected fetch address differs')
                 source = self.bridge_generation+3

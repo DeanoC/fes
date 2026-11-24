@@ -97,7 +97,7 @@ int FES_NANO_ROM_OWNER_ENTRY(int argc,char **argv)
     if(fault==25)mpidr=0x200;
     if(fault==26)rom_hz=1;
     if(fault==27)model.base.h.usb[8/4]|=1U<<5;
-    if(fault==28)model.base.h.usb[24/4]=1;
+    if(fault==28)model.base.h.usb[0x400/4]|=1U<<23;
     if(fault==29)model.base.h.usb[16/4]=0;
     if(fault==30)model.clocks[0]^=1;
     if(fault==31)model.base.h.per0|=FES_NANO_COLD_USB_RAM_RESET;

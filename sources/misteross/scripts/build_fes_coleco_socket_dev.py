@@ -31,7 +31,7 @@ RECIPE = "scripts/build_fes_coleco_socket_dev.py"
 OUTPUT_RELATIVE = Path("build/fes-coleco-socket-dev")
 TOOLCHAIN_LOCK = "toolchain.lock"
 TOOL_COMMITS = {
-    "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
+    "yosys": "d273c1cb774f70d58c890745ac1b7dd106d32a26",
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
     "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
 }

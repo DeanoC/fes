@@ -11,6 +11,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -19,11 +20,71 @@ import (
 )
 
 type admittedContextKey struct{}
+type leaseLifetimeContextKey struct{}
+
+// WithLeaseLifetime carries the target-owned execution lease lifetime through
+// an admitted request. It is not a credential or an admission by itself.
+func WithLeaseLifetime(ctx, lifetime context.Context) context.Context {
+	return context.WithValue(ctx, leaseLifetimeContextKey{}, lifetime)
+}
+
+// LeaseLifetime returns the execution lease lifetime associated with a target
+// admission, independently of the shorter HTTP request context.
+func LeaseLifetime(ctx context.Context) context.Context {
+	lifetime, _ := ctx.Value(leaseLifetimeContextKey{}).(context.Context)
+	return lifetime
+}
+
+type generationContextKey struct{}
+type inputCleanupReceiptKey struct{}
+type inputCleanupMarkerKey struct{}
+
+// inputCleanupReceipt belongs to one lease incarnation and is published only
+// after its admitted operations and explicitly confirmed cleanup have drained.
+type inputCleanupReceipt struct{ confirmed atomic.Bool }
+type inputCleanupMarker struct{ confirmed atomic.Bool }
+
+// InputCleanupConfirmed reports the cleanup result for the exact lease
+// lifetime context returned by BeginLocalInput. Revocation alone is not proof.
+func InputCleanupConfirmed(leaseCtx context.Context) bool {
+	if leaseCtx == nil {
+		return false
+	}
+	receipt, _ := leaseCtx.Value(inputCleanupReceiptKey{}).(*inputCleanupReceipt)
+	return receipt != nil && receipt.confirmed.Load()
+}
+
+// ConfirmInputCleanup marks the manager-provided cleanup context only after
+// the configured cleanup has actually confirmed neutral input and idle core.
+// The manager still checks the callback result and deadline before publishing.
+func ConfirmInputCleanup(ctx context.Context) {
+	if ctx == nil || ctx.Err() != nil {
+		return
+	}
+	marker, _ := ctx.Value(inputCleanupMarkerKey{}).(*inputCleanupMarker)
+	if marker != nil {
+		marker.confirmed.Store(true)
+	}
+}
+
+func inputCleanupSucceeded(ctx context.Context, marker *inputCleanupMarker, err error) bool {
+	return ctx != nil && ctx.Err() == nil && err == nil && marker != nil && marker.confirmed.Load()
+}
 
 // WithAdmission marks an operation whose execution lease was admitted by the
 // target HTTP guard. Its context is also cancelled when that lease ends.
 func WithAdmission(ctx context.Context) context.Context {
 	return context.WithValue(ctx, admittedContextKey{}, true)
+}
+
+// WithGeneration preserves the exact generation admitted by the HTTP guard.
+func WithGeneration(ctx context.Context, generation string) context.Context {
+	return context.WithValue(ctx, generationContextKey{}, generation)
+}
+
+func Generation(ctx context.Context) string {
+	generation, _ := ctx.Value(generationContextKey{}).(string)
+	return generation
 }
 
 // Admitted reports whether the target lease guard admitted this operation.
@@ -50,6 +111,7 @@ type Grant = contract.Grant
 type Manager struct {
 	mu                          sync.Mutex
 	ttl                         time.Duration
+	cleanupTimeout              time.Duration
 	localHost                   bool
 	cleanup                     func(context.Context) error
 	status                      Status
@@ -90,7 +152,7 @@ func New(ttl time.Duration, cleanup func(context.Context) error, options ...Opti
 	if ttl <= 0 {
 		ttl = 90 * time.Second
 	}
-	m := &Manager{ttl: ttl, cleanup: cleanup, retired: make(map[string]bool), status: Status{State: "free", Generation: secret()}}
+	m := &Manager{ttl: ttl, cleanupTimeout: 30 * time.Second, cleanup: cleanup, retired: make(map[string]bool), status: Status{State: "free", Generation: secret()}}
 	for _, option := range options {
 		if option != nil {
 			option(m)
@@ -141,8 +203,9 @@ func (m *Manager) grantLocked(r ClaimRequest) Grant {
 	m.claim = r
 	m.token = secret()
 	m.takeover = nil
-	m.leaseContext, m.cancel = context.WithCancel(context.Background())
 	m.status = Status{State: "held", Generation: secret(), Owner: r.Owner, Purpose: r.Purpose}
+	leaseCtx := context.WithValue(WithGeneration(context.Background(), m.status.Generation), inputCleanupReceiptKey{}, &inputCleanupReceipt{})
+	m.leaseContext, m.cancel = context.WithCancel(leaseCtx)
 	m.renewLocked()
 	return Grant{Status: m.snapshotLocked(), Token: m.token}
 }
@@ -278,6 +341,34 @@ func (m *Manager) Begin(token string) (context.Context, func(), error) {
 	if m.closed || m.status.State != "held" || !m.ownsLocked(token) {
 		return nil, nil, ErrLease
 	}
+	return m.beginLocked()
+}
+
+// BeginLocalInput binds a kit-local physical-input operation to the exact
+// execution generation observed by the launcher. The generation is not a
+// credential: callers must themselves be restricted to the root-owned local
+// input transport. Revocation cancels and drains the operation just as it
+// does a token-admitted host operation.
+func (m *Manager) BeginLocalInput(generation string) (context.Context, func(), error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.expireLocked()
+	if m.closed || m.status.State != "held" || generation == "" || m.status.Generation != generation {
+		return nil, nil, ErrLease
+	}
+	return m.beginLocked()
+}
+
+// LocalHostGeneration identifies the supervisor's own kit host without
+// inferring authority from an owner label supplied by a remote claimant.
+func (m *Manager) LocalHostGeneration(generation string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.expireLocked()
+	return !m.closed && m.status.State == "held" && m.localHost && generation != "" && m.status.Generation == generation
+}
+
+func (m *Manager) beginLocked() (context.Context, func(), error) {
 	if m.refs == 0 {
 		m.drained = make(chan struct{})
 	}
@@ -430,6 +521,10 @@ func (m *Manager) revokeLocked(reason string) {
 	if m.cancel != nil {
 		m.cancel()
 	}
+	var receipt *inputCleanupReceipt
+	if m.leaseContext != nil {
+		receipt, _ = m.leaseContext.Value(inputCleanupReceiptKey{}).(*inputCleanupReceipt)
+	}
 	drained := m.drained
 	if m.refs == 0 {
 		drained = make(chan struct{})
@@ -437,10 +532,14 @@ func (m *Manager) revokeLocked(reason string) {
 	}
 	m.finished = make(chan struct{})
 	finished := m.finished
+	cleanupTimeout := m.cleanupTimeout
 	go func() {
 		defer close(finished)
 		<-drained
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
+		defer cancel()
+		marker := &inputCleanupMarker{}
+		ctx = context.WithValue(ctx, inputCleanupMarkerKey{}, marker)
 		// A replacement agent may start while the root-only executor holds
 		// the maintenance lock. Serve health while loading asynchronously,
 		// with admission still revoking until the reservation is reconciled.
@@ -465,7 +564,7 @@ func (m *Manager) revokeLocked(reason string) {
 		} else {
 			err = m.cleanup(ctx)
 		}
-		cancel()
+		confirmed := inputCleanupSucceeded(ctx, marker, err)
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		if m.maintenanceFault {
@@ -481,6 +580,9 @@ func (m *Manager) revokeLocked(reason string) {
 			m.status.State = "blocked"
 			m.status.Reason = "kit cleanup failed or agent shutting down; operator recovery required"
 			return
+		}
+		if receipt != nil && confirmed && ctx.Err() == nil {
+			receipt.confirmed.Store(true)
 		}
 		if m.claim.RequestID != "" {
 			m.retired[m.claim.RequestID] = true

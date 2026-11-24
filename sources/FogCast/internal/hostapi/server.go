@@ -506,6 +506,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		var body struct {
 			SessionID string             `json:"session_id"`
 			Event     *remoteinput.Event `json:"event"`
+			Modifiers json.RawMessage    `json:"modifiers"`
 		}
 		decoder := json.NewDecoder(io.LimitReader(r.Body, 4096))
 		decoder.DisallowUnknownFields()
@@ -513,8 +514,13 @@ func New(service Service, options ...ServerOption) http.Handler {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "input tap is invalid")
 			return
 		}
+		var modifiers uint8
+		if len(body.Modifiers) != 0 && (string(body.Modifiers) == "null" || json.Unmarshal(body.Modifiers, &modifiers) != nil) {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "input tap modifiers are invalid")
+			return
+		}
 		coordinator := requestSessionCoordinator(session, service, r, "")
-		duration, err := coordinator.tapCoreKey(r.Context(), body.SessionID, *body.Event)
+		duration, err := coordinator.tapCoreKey(r.Context(), body.SessionID, *body.Event, modifiers)
 		if err != nil {
 			if errors.Is(err, host.ErrRemoteInputUnconfirmed) {
 				writeError(w, http.StatusServiceUnavailable, "INPUT_UNCONFIRMED", "input may have applied but could not be confirmed")

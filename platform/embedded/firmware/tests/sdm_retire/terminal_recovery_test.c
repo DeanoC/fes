@@ -30,7 +30,7 @@ static int recovery_cpu(void)
   switch(recovery_case){
   case 3:model.base.h.usb[8/4]|=1U<<5;break;
   case 4:model.base.h.usb[16/4]&=~(1U<<31);break;
-  case 5:model.base.h.usb[24/4]=1;break;
+  case 5:model.base.h.usb[0x400/4]|=1U<<23;break;
   case 6:sd_platform.active=1;break;
   case 7:sdm_arm_probe.input.bytes+=4;break;
   case 8:transfer.pending=1;break;

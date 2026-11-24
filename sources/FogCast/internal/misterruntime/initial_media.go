@@ -17,6 +17,9 @@ type InitialMediaRequest struct {
 	DataRoot    string `json:"data_root"`
 	GameID      string `json:"game_id"`
 	BaseMediaID string `json:"base_media_id"`
+	// InterfaceID is the staged disk's medium. The runtime infers it from the
+	// package; FogCast keeps it to check the launch reply.
+	InterfaceID string `json:"-"`
 }
 
 func validInitialMediaRequest(media *InitialMediaRequest) bool {
@@ -91,7 +94,7 @@ func (r *Runtime) supportsInitialROMCore(staged corepackage.Staged) bool {
 }
 func (r *Runtime) loadInitialROMCore(ctx context.Context, staged corepackage.Staged) (Protocol2Response, error) {
 	media := staged.InitialMedia
-	initial := &InitialMediaRequest{Path: media.Path, Size: uint32(media.Size), Unit: media.Unit, DataRoot: MediaDataRoot, GameID: media.GameID, BaseMediaID: media.BaseMediaID}
+	initial := &InitialMediaRequest{Path: media.Path, Size: uint32(media.Size), Unit: media.Unit, DataRoot: MediaDataRoot, GameID: media.GameID, BaseMediaID: media.BaseMediaID, InterfaceID: media.InterfaceID}
 	var response Protocol2Response
 	var err error
 	operation := "load_rom_core"
@@ -131,14 +134,20 @@ func initialMediaMatches(response Protocol2Response, initial *corepackage.Staged
 	unit, ok := protocol.MediaUnit(p, initial.Unit)
 	expected := protocol.AtariStFloppyInterface()
 	core := "fes.atari-st"
-	format := int64(3)
 	if initial.InterfaceID == protocol.PcxtFloppyInterface().ID {
-		expected, core, format = protocol.PcxtFloppyInterface(), "fes.pcxt-dos", 2
+		expected, core = protocol.PcxtFloppyInterface(), "fes.pcxt-dos"
 	} else if initial.InterfaceID != "" && initial.InterfaceID != expected.ID {
 		return false
 	}
 	d := response.ActivePackage.Descriptor
-	return d.Core.ID == core && d.Format == format && protocol.DescriptorMediaWrite(d, expected) && (expected != protocol.AtariStFloppyInterface() || (d.ROM != nil && d.ROM.Role == "firmware")) && (expected != protocol.PcxtFloppyInterface() || (d.ROM == nil && len(d.ROMs) == 0)) && ok && unit.Interface == expected && protocol.PersistentMediaUnitCapable(p, unit) && (initial.Size == 0 || (initial.Size >= int64(unit.MinBytes) && initial.Size <= int64(unit.MaxBytes))) && unit.State == protocol.MediaUnitReady && unit.Persistence != nil && unit.Persistence.Valid() && unit.Persistence.GameID == initial.GameID && unit.Persistence.BaseMediaID == initial.BaseMediaID
+	firmware := d.Format == 3 && d.ROM != nil && d.ROM.Role == "firmware" && len(d.ROMs) == 0
+	// The ST runs from uploaded firmware; the PC/XT either carries its BIOS
+	// in the bitstream (format 2) or has it uploaded (format 3, DE25).
+	shape := firmware
+	if expected == protocol.PcxtFloppyInterface() {
+		shape = firmware || (d.Format == 2 && d.ROM == nil && len(d.ROMs) == 0)
+	}
+	return d.Core.ID == core && shape && protocol.DescriptorMediaWrite(d, expected) && ok && unit.Interface == expected && protocol.PersistentMediaUnitCapable(p, unit) && (initial.Size == 0 || (initial.Size >= int64(unit.MinBytes) && initial.Size <= int64(unit.MaxBytes))) && unit.State == protocol.MediaUnitReady && unit.Persistence != nil && unit.Persistence.Valid() && unit.Persistence.GameID == initial.GameID && unit.Persistence.BaseMediaID == initial.BaseMediaID
 }
 func initialPcxtRequestMatches(response Protocol2Response, initial *InitialMediaRequest) bool {
 	if initial == nil {
@@ -150,7 +159,7 @@ func initialRequestMatches(response Protocol2Response, initial *InitialMediaRequ
 	if initial == nil {
 		return true
 	}
-	return initialMediaMatches(response, &corepackage.StagedInitialMedia{GameID: initial.GameID, BaseMediaID: initial.BaseMediaID, Unit: initial.Unit, Size: int64(initial.Size)})
+	return initialMediaMatches(response, &corepackage.StagedInitialMedia{InterfaceID: initial.InterfaceID, GameID: initial.GameID, BaseMediaID: initial.BaseMediaID, Unit: initial.Unit, Size: int64(initial.Size)})
 }
 
 // initialMediaGenerationMatches fences only this atomic launch. The mutable

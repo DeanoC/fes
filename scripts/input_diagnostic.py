@@ -20,6 +20,7 @@ class Diagnostic:
     sha256: str
     interface: dict
     events: tuple
+    format: int = 1
 
 
 def _object(value, keys):
@@ -65,7 +66,7 @@ def load_diagnostic(path, expected_sha256):
     except (UnicodeError, ValueError) as exc:
         raise ValueError("invalid input diagnostic JSON") from exc
     _object(data, ("format", "interface", "events"))
-    if type(data["format"]) is not int or data["format"] != 1:
+    if type(data["format"]) is not int or data["format"] not in (1, 2):
         raise ValueError("unsupported input diagnostic format")
     interface = data["interface"]
     _object(interface, ("id", "major", "minor"))
@@ -79,6 +80,14 @@ def load_diagnostic(path, expected_sha256):
     events = data["events"]
     if not isinstance(events, list) or not 1 <= len(events) <= MAX_EVENTS:
         raise ValueError("input diagnostic requires 1..64 events")
+    if data["format"] == 2:
+        if not hid:
+            raise ValueError("tap diagnostics require the HID keyboard interface")
+        for event in events:
+            _object(event, ("code", "modifiers"))
+            if not _integer(event["code"], 0x1004, 0x107f) or not _integer(event["modifiers"], 0, 255):
+                raise ValueError("invalid target-timed HID tap")
+        return Diagnostic(raw, digest, interface, tuple(events), 2)
     pressed, axes = set(), {}
     for event in events:
         _object(event, ("device", "kind", "action", "code", "value"))
@@ -112,7 +121,7 @@ def load_diagnostic(path, expected_sha256):
                 pressed.remove(code)
     if pressed or any(axes.values()):
         raise ValueError("input diagnostic must finish with released keys and neutral axes")
-    return Diagnostic(raw, digest, interface, tuple(events))
+    return Diagnostic(raw, digest, interface, tuple(events), 1)
 
 
 def validate_timeout(value):
@@ -207,7 +216,19 @@ def run_diagnostic(runner, expected, diagnostic, timeout):
             for event in diagnostic.events:
                 observe()
                 clamp()
-                response = runner.api.post_json("/api/v1/session/input/event", {"event": event})
+                if diagnostic.format == 2:
+                    response = runner.api.post_json("/api/v1/session/input/tap", {
+                        "session_id": input_id,
+                        "event": {"Player": 0, "Device": 0, "Kind": 0, "Action": 1,
+                                  "Code": event["code"], "Value": 0},
+                        "modifiers": event["modifiers"],
+                    })
+                    duration = response.get("host_duration_ms") if isinstance(response, dict) else None
+                    if (isinstance(duration, bool) or not isinstance(duration, (int, float))
+                            or not math.isfinite(duration) or duration < 0):
+                        raise ValueError("input tap receipt is invalid")
+                else:
+                    response = runner.api.post_json("/api/v1/session/input/event", {"event": event})
                 remaining()
                 if not isinstance(response, dict) or response.get("ok") is not True:
                     raise ValueError("input event acknowledgement is invalid")

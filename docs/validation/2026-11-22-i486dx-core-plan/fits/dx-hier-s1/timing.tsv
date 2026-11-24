@@ -1,0 +1,33 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	3.702	x87|core|normalized[18]~_Duplicate1	x87|core|fast|shift_left_0~342_BLOCK_INPUT_MUX_PASSTHROUGH_X18_Y46_N0_I55_dff
+Slow fix4 100C Model	0	hold	analyzed	1	0.128	x87|core|_145_[72]~ERTM	x87|core|fast|decoded[73]~95_ERTM0
+Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+Slow fix4 100C Model	0	clk_clock_setup	analyzed	1	3.702	x87|core|normalized[18]~_Duplicate1	x87|core|fast|shift_left_0~342_BLOCK_INPUT_MUX_PASSTHROUGH_X18_Y46_N0_I55_dff
+Slow fix4 100C Model	0	clk_clock_hold	analyzed	1	0.128	x87|core|_145_[72]~ERTM	x87|core|fast|decoded[73]~95_ERTM0
+Slow fix4 100C Model	0	internal_setup	analyzed	1	3.702	x87|core|normalized[18]~_Duplicate1	x87|core|fast|shift_left_0~342_BLOCK_INPUT_MUX_PASSTHROUGH_X18_Y46_N0_I55_dff
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	7.532		
+Slow fix4 0C Model	0	setup	analyzed	1	1.957	x87|core|normalized[18]~_Duplicate1	x87|core|fast|shift_left_0~342_BLOCK_INPUT_MUX_PASSTHROUGH_X18_Y46_N0_I55_dff
+Slow fix4 0C Model	0	hold	analyzed	1	0.149	x87|_0131_[0]~20_ERTM	x87|core|_145_[83]~ERTM
+Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+Slow fix4 0C Model	0	clk_clock_setup	analyzed	1	1.957	x87|core|normalized[18]~_Duplicate1	x87|core|fast|shift_left_0~342_BLOCK_INPUT_MUX_PASSTHROUGH_X18_Y46_N0_I55_dff
+Slow fix4 0C Model	0	clk_clock_hold	analyzed	1	0.149	x87|_0131_[0]~20_ERTM	x87|core|_145_[83]~ERTM
+Slow fix4 0C Model	0	internal_setup	analyzed	1	1.957	x87|core|normalized[18]~_Duplicate1	x87|core|fast|shift_left_0~342_BLOCK_INPUT_MUX_PASSTHROUGH_X18_Y46_N0_I55_dff
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.499		
+Slow fix4a 0C Model	0	setup	analyzed	1	1.948	x87|core|normalized[18]~_Duplicate1	x87|core|fast|shift_left_0~342_BLOCK_INPUT_MUX_PASSTHROUGH_X18_Y46_N0_I55_dff
+Slow fix4a 0C Model	0	hold	analyzed	1	0.151	x87|_0131_[0]~20_ERTM	x87|core|_145_[83]~ERTM
+Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+Slow fix4a 0C Model	0	clk_clock_setup	analyzed	1	1.948	x87|core|normalized[18]~_Duplicate1	x87|core|fast|shift_left_0~342_BLOCK_INPUT_MUX_PASSTHROUGH_X18_Y46_N0_I55_dff
+Slow fix4a 0C Model	0	clk_clock_hold	analyzed	1	0.151	x87|_0131_[0]~20_ERTM	x87|core|_145_[83]~ERTM
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	1.948	x87|core|normalized[18]~_Duplicate1	x87|core|fast|shift_left_0~342_BLOCK_INPUT_MUX_PASSTHROUGH_X18_Y46_N0_I55_dff
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	7.500		
+Fast fix4 0C Model	0	setup	analyzed	1	8.654	x87|core|normalized[148]	x87|core|fast|shift_left_0~342_BLOCK_INPUT_MUX_PASSTHROUGH_X18_Y46_N0_I55_dff
+Fast fix4 0C Model	0	hold	analyzed	1	0.048	x87|ra_idx[0]	x87|ra_live[0]
+Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+Fast fix4 0C Model	0	clk_clock_setup	analyzed	1	8.654	x87|core|normalized[148]	x87|core|fast|shift_left_0~342_BLOCK_INPUT_MUX_PASSTHROUGH_X18_Y46_N0_I55_dff
+Fast fix4 0C Model	0	clk_clock_hold	analyzed	1	0.048	x87|ra_idx[0]	x87|ra_live[0]
+Fast fix4 0C Model	0	internal_setup	analyzed	1	8.654	x87|core|normalized[148]	x87|core|fast|shift_left_0~342_BLOCK_INPUT_MUX_PASSTHROUGH_X18_Y46_N0_I55_dff
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.735		

@@ -90,31 +90,59 @@ type computerIO struct {
 	clock      func() time.Time
 	lastTiming computer.AccessTiming
 	romBatch   spectrumROMBatchPlatform
+	mediaBatch heldMediaBatchPlatform
+	inputBatch inputBatchPlatform
 }
 
-// The board can batch the fixed, already-held Spectrum ROM aperture.
+// The board can batch the fixed, already-held held mailbox aperture.
 type spectrumROMBatchPlatform interface {
 	WithSpectrumROMBatch(uint64, func(computer.IO) error) error
+}
+
+type heldMediaBatchPlatform interface {
+	WithHeldMediaBatch(uint64, func(computer.IO) error) error
+}
+
+type inputBatchPlatform interface {
+	WithInputBatch(uint64, func(computer.IO) error) error
+}
+
+func (c *computerIO) WithInputBatch(send func(computer.IO) error) error {
+	if c.inputBatch == nil {
+		return send(c)
+	}
+	return c.withDataBatch(send, c.inputBatch.WithInputBatch)
+}
+
+func (c *computerIO) WithMediaChunkBatch(send func(computer.IO) error) error {
+	if c.mediaBatch == nil {
+		return send(c)
+	}
+	return c.withDataBatch(send, c.mediaBatch.WithHeldMediaBatch)
 }
 
 func (c *computerIO) WithFirmwareDataBatch(send func(computer.IO) error) error {
 	if c.romBatch == nil {
 		return send(c)
 	}
+	return c.withDataBatch(send, c.romBatch.WithSpectrumROMBatch)
+}
+
+func (c *computerIO) withDataBatch(send func(computer.IO) error, run func(uint64, func(computer.IO) error) error) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.retired || c.closing {
-		return errors.New("native fabric: Spectrum ROM aperture closing or retired")
+		return errors.New("native fabric: held mailbox aperture closing or retired")
 	}
 	before, err := c.bridges.ObserveBridges()
 	if err != nil || before != c.want {
 		c.retired = true
-		return errors.Join(errors.New("native fabric: Spectrum ROM batch lost control-only ownership"), err)
+		return errors.Join(errors.New("native fabric: held mailbox batch lost control-only ownership"), err)
 	}
-	sendErr := c.romBatch.WithSpectrumROMBatch(c.base, send)
+	sendErr := run(c.base, send)
 	after, err := c.bridges.ObserveBridges()
 	if err != nil || after != c.want {
-		err = errors.Join(errors.New("native fabric: Spectrum ROM batch changed ownership"), err)
+		err = errors.Join(errors.New("native fabric: held mailbox batch changed ownership"), err)
 	}
 	if sendErr != nil || err != nil {
 		c.retired = true
@@ -283,7 +311,7 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 	}
 	binding := *transfer.binding
 	menu := binding.menuReturn
-	fromMenu := binding.program != nil && (binding.program.role == programRoleComputer || binding.program.role == programRoleSpectrum48) && binding.program.loader.menu != nil &&
+	fromMenu := binding.program != nil && (binding.program.role == programRoleComputer || binding.program.role == programRoleUploadShell) && binding.program.loader.menu != nil &&
 		menu != nil && menu.self == menu && menu.verifier == v && v.menuSession == menu &&
 		menu.closed && menu.closeErr == nil && menu.storageResumed && menu.nextAttempted && menu.returned.Frames > 0 &&
 		menu.returned.After.Generation <= math.MaxUint64-3 && binding.source.Bridges.Generation == menu.returned.After.Generation+3
@@ -322,15 +350,19 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 		return nil, errors.New("native fabric: computer control opening changed unexpected ownership or paths")
 	}
 	s := &ComputerSession{v: v, source: source, mapSHA: sha256.Sum256(raw), port: &computerIO{cpu: cpu, bridges: b, want: want, base: m.CPUBase}}
+	s.port.inputBatch, _ = cpu.(inputBatchPlatform)
 	wantID := computer.Identity{Minor: m.Minor, Capabilities: m.Capabilities}
 	build, err := hex.DecodeString(m.BuildID)
 	if err != nil || len(build) != 16 {
 		return nil, errors.New("native fabric: computer build encoding invalid")
 	}
 	copy(wantID.Build[:], build)
-	spectrum := binding.program != nil && binding.program.role == programRoleSpectrum48
+	spectrum := binding.program != nil && binding.program.role == programRoleUploadShell
 	if spectrum {
 		s.port.romBatch, _ = cpu.(spectrumROMBatchPlatform)
+		if binding.program.identity.ProgrammingProfile == c64Profile {
+			s.port.mediaBatch, _ = cpu.(heldMediaBatchPlatform)
+		}
 	}
 	if _, secure := cpu.(InitialTapePlatform); secure && !spectrum {
 		s.control, err = computer.OpenWithInitialTape(ctx, s.port, limits, wantID, s.port.loadInitialTape)

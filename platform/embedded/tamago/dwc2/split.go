@@ -72,9 +72,9 @@ func (h *Host) armPacket(complete bool) error {
 		h.writeChannel("arm", flags|channelEnable)
 	}
 	if !complete {
-		for i := 0; i < len(p.out); i += 4 {
+		for i := 0; i < p.outLen; i += 4 {
 			var word [4]byte
-			copy(word[:], p.out[i:min(i+4, len(p.out))])
+			copy(word[:], p.outBuf[i:min(i+4, p.outLen)])
 			h.io.Write32(fifo, binary.LittleEndian.Uint32(word[:]))
 		}
 	}

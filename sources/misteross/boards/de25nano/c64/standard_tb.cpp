@@ -20,6 +20,14 @@
 #include <string>
 #include <vector>
 
+#ifdef C64_NATIVE
+extern "C" {
+#include "nano_fabric_stop.h"
+#include "nano_program.h"
+#include "generated/fes_de25_ddr_probe.h"
+}
+#endif
+
 namespace {
 
 constexpr uint64_t kSysHalfPs = 9574;    // nominal 52.224 MHz, rounded to ps
@@ -58,6 +66,10 @@ struct Board {
     Vfes_de25_c64_standard___024root& root;
     uint64_t next_sys = 0, next_pixel = 0, next_bus = 0;
     bool toggle = false;
+#ifdef C64_NATIVE
+    unsigned display_pending = 0;
+    bool display_reply = false;
+#endif
 
     Board() : root(*dut.rootp) {
         dut.clk_sys = 0;
@@ -91,6 +103,18 @@ struct Board {
         if (next_pixel < next_sys && next_pixel < next_bus) {
             next_pixel += kPixelHalfPs;
             dut.pixel_clk = !dut.pixel_clk;
+#ifdef C64_NATIVE
+            if (dut.pixel_clk) {
+                dut.avm_readdatavalid = display_reply && display_pending != 0;
+                dut.avm_response = 0;
+                if (dut.avm_readdatavalid) --display_pending;
+                if (dut.avm_read && !dut.avm_waitrequest) {
+                    require(dut.avm_address >= 0x95000000u && dut.avm_address < 0x95800000u,
+                            "scanout escaped the fixed grant");
+                    display_pending += dut.avm_burstcount;
+                }
+            }
+#endif
             dut.eval();
             return 0;
         }
@@ -116,13 +140,14 @@ struct Board {
         dut.computer_writedata = value;
         dut.computer_byteenable = 0xf;
         dut.computer_write = 1;
+        dut.eval();
         for (int i = 0; i < 16; ++i) {
             const bool accepted = !dut.computer_waitrequest;
             run_bus(1);
             if (accepted) {
                 dut.computer_write = 0;
                 require(dut.computer_writeresponsevalid && dut.computer_response == 0,
-                        "computer write refused");
+                        "computer write refused at " + std::to_string(address) + " response " + std::to_string(dut.computer_response));
                 return;
             }
         }
@@ -131,7 +156,8 @@ struct Board {
     uint32_t read(uint32_t address) {
         dut.computer_address = address;
         dut.computer_read = 1;
-        for (int i = 0; i < 16; ++i) {
+        dut.eval();
+        for (int i = 0; i < 80; ++i) {
             const bool accepted = !dut.computer_waitrequest;
             run_bus(1);
             if (accepted) {
@@ -143,6 +169,25 @@ struct Board {
         }
         fail("computer read stalled");
     }
+#ifdef C64_NATIVE
+    uint32_t scanout(uint32_t address, bool write, uint32_t value = 0) {
+        dut.scanout_address = address;
+        dut.scanout_byteenable = 0xf;
+        dut.scanout_read = !write;
+        dut.scanout_write = write;
+        dut.scanout_writedata = value;
+        dut.eval();
+        require(!dut.scanout_waitrequest, "scanout CSR stalled");
+        while (dut.pixel_clk) step();
+        while (!dut.pixel_clk) step();
+        require(dut.scanout_response == 0 &&
+                (write ? dut.scanout_writeresponsevalid : dut.scanout_readdatavalid), "scanout CSR rejected");
+        value = dut.scanout_readdata;
+        dut.scanout_read = dut.scanout_write = 0;
+        dut.eval();
+        return value;
+    }
+#endif
     // One atomic GPO submission with a new toggle, then the matching ACK.
     uint32_t request(uint32_t opcode, uint32_t index, uint32_t argument) {
         toggle = !toggle;
@@ -175,6 +220,69 @@ struct Board {
     }
 };
 
+#ifdef C64_NATIVE
+struct SecureStop {
+    Board board;
+    unsigned probe_reads = 0;
+    unsigned stops = 0;
+
+    static int owns(void*) { return 1; }
+    static int read(void* ptr, uint32_t offset, uint32_t* value) {
+        *value = static_cast<SecureStop*>(ptr)->board.scanout(offset, false);
+        return 0;
+    }
+    static int write(void* ptr, uint32_t offset, uint32_t value) {
+        auto& self = *static_cast<SecureStop*>(ptr);
+        require(offset == 0x0c && (value == 2 || value == 8), "unexpected secure scanout write");
+        if (value == 2) ++self.stops;
+        self.board.scanout(offset, true, value);
+        return 0;
+    }
+    static void wait(void* ptr) { static_cast<SecureStop*>(ptr)->board.run_bus(32); }
+    static int probe_read(void* ptr, uint32_t offset, uint32_t* value) {
+        ++static_cast<SecureStop*>(ptr)->probe_reads;
+        *value = offset == FES_DE25_DDR_PROBE_ID_OFFSET ? FES_DE25_DDR_PROBE_IDENTITY :
+                 offset == FES_DE25_DDR_PROBE_VERSION_OFFSET ? FES_DE25_DDR_PROBE_VERSION :
+                 offset == FES_DE25_DDR_PROBE_STATUS_OFFSET ? FES_DE25_DDR_PROBE_STATUS_IDLE : 0;
+        return 0;
+    }
+    static int probe_write(void*, uint32_t, uint32_t) { fail("wrote the idle probe"); }
+
+    void run(bool wedge) {
+        struct fes_nano_fabric_stop stop{};
+        stop.io = {this, owns, read, write, wait};
+        stop.probe.io = {this, owns, probe_read, probe_write, wait};
+        stop.abi = FES_NANO_PROGRAM_SPECTRUM48_ABI;
+        stop.build[0] = 0xccddeeff; stop.build[1] = 0x8899aabb;
+        stop.build[2] = 0x44556677; stop.build[3] = 0x00112233;
+        stop.bus_base = 0x95000000;
+        stop.bytes = 8U << 20;
+        stop.cookie = 1;
+        stop.qualified = 1;
+        require(!fes_nano_fabric_scanout_ready(&stop), "C64 fresh reader identity rejected");
+
+        board.scanout(0x10, true, 0x95000000);
+        board.scanout(0x18, true, 0x800000);
+        board.scanout(0x1c, true, 1);
+        board.scanout(0x24, true, 1);
+        board.scanout(0x28, true, 1);
+        board.scanout(0x0c, true, 1);
+        for (unsigned i = 0; i < 16000000 && !board.display_pending; ++i) board.step();
+        require(board.display_pending != 0, "C64 scanout issued no burst");
+        board.display_reply = !wedge;
+        const int result = fes_nano_fabric_stop(&stop);
+        require(stops == 1, "C64 secure STOP did not issue exactly once");
+        if (wedge) {
+            require(result != 0 && stop.failed && !stop.done && !probe_reads &&
+                    fes_nano_fabric_stop(&stop) == result && stops == 1, "wedged C64 reader authorized closure");
+        } else {
+            require(!result && stop.done && probe_reads && !board.display_pending && !fes_nano_fabric_stopped(&stop),
+                    "C64 reader and probe did not drain");
+        }
+    }
+};
+#endif
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -185,6 +293,11 @@ int main(int argc, char** argv) {
     require(firmware.size() == kFirmwareBytes, "no diagnostic firmware");
     require(disk.size() == kDiskBytes, "no diagnostic D64");
 
+#ifdef C64_NATIVE
+    SecureStop{}.run(false);
+    SecureStop{}.run(true);
+    std::cout << "de25 c64 native: secure scanout ready, drain and wedge checks passed" << std::endl;
+#endif
     Board board;
     auto& core = board.root;
     board.check_sdram_idle();
@@ -277,32 +390,50 @@ int main(int argc, char** argv) {
         require(stored == disk[i], "disk byte " + std::to_string(i) + " differs");
     }
 
-    // The diagnostic's input stages wait for port 2 fire (controller port 0,
-    // bit 0 here as on the DE10) and the A key (HID usage 0x04, row 0 bit 4).
-    board.ok(4, 0, 1, "pad 0");
-    board.ok(3, 0, 1u << 4, "key A");
-    board.ok(2, 0, 1, "release");
-    board.refused(kBegin, 0, 0, kErrorState, "firmware header while running");
+    for (int launch = 1; launch <= 2; ++launch) {
+        // The diagnostic waits for port 2 fire and the A key (row 0 bit 4).
+        board.ok(4, 0, 1, "pad 0");
+        board.ok(3, 0, 1u << 4, "key A");
+#ifdef C64_NATIVE
+        const auto before = board.read(0x18);
+#endif
+        board.ok(2, 0, 1, "release");
+        board.refused(kBegin, 0, 0, kErrorState, "firmware header while running");
 
-    bool sound = false;
-    for (uint64_t clocks = 0;; ++clocks) {
-        board.run_clocks(1);
-        const uint8_t stage = core.fes_de25_c64_standard__DOT__core__DOT__machine__DOT__debug_stage;
-        const uint8_t error = core.fes_de25_c64_standard__DOT__core__DOT__machine__DOT__debug_error;
-        if (board.dut.audio_sample != 0) sound = true;
-        if (stage != 0 && stage != 0xff && error == 1)
-            fail("diagnostic failed at stage " + std::to_string(stage));
-        if (stage == 0xff) break;
-        require(clocks < 60000000ull, "diagnostic did not reach PASS (stage " + std::to_string(stage) + ")");
+        const std::string label = "launch " + std::to_string(launch);
+        bool sound = false;
+        for (uint64_t clocks = 0;; ++clocks) {
+            board.run_clocks(1);
+            const uint8_t stage = core.fes_de25_c64_standard__DOT__core__DOT__machine__DOT__debug_stage;
+            const uint8_t error = core.fes_de25_c64_standard__DOT__core__DOT__machine__DOT__debug_error;
+            if (board.dut.audio_sample != 0) sound = true;
+            if (stage != 0 && stage != 0xff && error == 1)
+                fail(label + ": diagnostic failed at stage " + std::to_string(stage));
+            if (stage == 0xff) break;
+            if (clocks >= 60000000ull)
+                fail(label + ": did not reach PASS (stage " + std::to_string(stage) + ")");
+        }
+#ifdef C64_NATIVE
+        const auto running = board.read(0x18);
+        const auto fetch = core.fes_de25_c64_standard__DOT__transport__DOT__fetch_payload;
+        require(running > before && running == (fetch >> 16) && board.read(0x1c) == (fetch & 0xffff),
+                label + ": native opcode activity snapshot disagrees");
+#endif
+        require(sound, label + ": no SID sample reached the audio output");
+        board.ok(2, 0, 0, "hold");
+        board.run_clocks(16);
+        require(board.dut.exec_reset && core.fes_de25_c64_standard__DOT__core__DOT__machine__DOT__debug_stage == 0,
+                label + ": hold did not reset the diagnostic");
+        require(board.ok(kInfo, 2, 0, "state") == 2, label + ": hold dropped the firmware");
+        require(board.ok(5, 5, 0, "disk state") == 3, label + ": hold dropped the disk");
+        board.check_sdram_idle();
+#ifdef C64_NATIVE
+        const auto held = board.read(0x18);
+        board.run_clocks(256);
+        require(held == board.read(0x18), label + ": opcode count moved while held");
+#endif
     }
-    require(sound, "no SID sample reached the audio output");
-    board.check_sdram_idle();
-
-    // The committed firmware survives a hold: a relaunch needs no new upload.
-    board.ok(2, 0, 0, "hold");
-    require(board.ok(kInfo, 2, 0, "state") == 2, "a hold dropped the firmware");
-    board.ok(2, 0, 1, "second release");
     require(board.read(kFault) == 0, "transport fault");
-    std::cout << "de25 c64 standard: ok\n";
+    std::cout << "de25 c64 standard: two diagnostic launches and holds passed\n";
     return 0;
 }

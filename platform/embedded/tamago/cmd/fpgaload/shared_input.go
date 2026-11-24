@@ -28,6 +28,15 @@ func (m *programUSBMetrics) count(report []byte, err error) ([]byte, error) {
 	}
 	return report, err
 }
+func (m *programUSBMetrics) countInto(n int, err error) (int, error) {
+	if err == nil {
+		m.polls++
+		if n > 0 {
+			m.reports++
+		}
+	}
+	return n, err
+}
 func (m *programUSBMetrics) boundary(ctx context.Context, source input.PollingControl, pause bool) error {
 	var err error
 	phase := "resume"
@@ -59,11 +68,18 @@ func (s *sharedProgramKeyboard) PollKeyboard() ([]byte, error) {
 	r, e := s.source.PollKeyboard()
 	return s.metrics.count(r, e)
 }
+func (s *sharedProgramKeyboard) PollKeyboardInto(dst []byte) (int, error) {
+	n, e := s.source.PollKeyboardInto(dst)
+	return s.metrics.countInto(n, e)
+}
 func (s *sharedProgramKeyboard) PausePolling(ctx context.Context) error {
 	return s.metrics.boundary(ctx, s.source, true)
 }
 func (s *sharedProgramKeyboard) ResumePolling(ctx context.Context) error {
 	return s.metrics.boundary(ctx, s.source, false)
+}
+func (s *sharedProgramKeyboard) Ready() <-chan struct{} {
+	return s.source.Ready()
 }
 
 type sharedProgramGamepad struct {
@@ -75,9 +91,16 @@ func (s *sharedProgramGamepad) PollGamepad() ([]byte, error) {
 	r, e := s.source.PollGamepad()
 	return s.metrics.count(r, e)
 }
+func (s *sharedProgramGamepad) PollGamepadInto(dst []byte) (int, error) {
+	n, e := s.source.PollGamepadInto(dst)
+	return s.metrics.countInto(n, e)
+}
 func (s *sharedProgramGamepad) PausePolling(ctx context.Context) error {
 	return s.metrics.boundary(ctx, s.source, true)
 }
 func (s *sharedProgramGamepad) ResumePolling(ctx context.Context) error {
 	return s.metrics.boundary(ctx, s.source, false)
+}
+func (s *sharedProgramGamepad) Ready() <-chan struct{} {
+	return s.source.Ready()
 }
