@@ -140,9 +140,10 @@ TENSION = ('Placement advisory: registers in the machine netlist with many endpo
            'spelling on 23 Nov 2026 (#2036), when the fit at dfacd28e1 split cpu_biu_reset and reported '
            'cpu_biu_reset~_Duplicate_2 (6,484 endpoints) where the fit at 3401bb193 reported the undivided '
            'register (8,001 endpoints); the same copy is reviewed under LNT-30010 biu-reset. '
-           'machine_at_decoder_state is pc386_io.sv\'s two-bit I/O cycle state (the AT core\'s port decoder), '
-           'a machine-clock register: Deano admitted it on 24 Nov 2026 (#2187), when the i486DX slice-1 fit '
-           'reported its ~DUPLICATE copies.')
+           'machine_at_decoder_state, _phase and _cycle_port are pc386_io.sv\'s I/O cycle state, phase counter '
+           'and latched port (the AT core\'s port decoder), and audio_dsp_write is the register on pc386_audio.sv\'s '
+           'Sound Blaster DSP (pc386_sb) write input; all are machine-clock registers. Deano admitted them on 24 Nov 2026 (#2187), when '
+           'the i486DX slice-1 fit (seed 1) reported them and their ~DUPLICATE copies.')
 # The window control block's held bundles (fes_de25_hps_window_control.v),
 # between the board's peripheral clock (clk_sys, 100 MHz) and the machine
 # clock. Their rows depend on the design and not on the seed: every seed of
@@ -233,5 +234,5 @@ BASES = (
         '(?:' + S + r'[^|]+|' + E + r'window\|port[0-2]\|command_[a-z]+_rtl_\d+|' + E + r'arbiter\|unpack[12]\|[^ ]+|'
         + re.escape('soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|') + r'[^ ]+)(?:\|[^ ]+)?'), RAM),
     advisory('TMC-20602', 'cpu-control-tension', 0,
-             S + r'(?:cpu_[a-z0-9_]+|reset|_\d+_|machine_at_decoder_state)(?:\[\d+\])?' + COPY, TENSION),
+             S + r'(?:cpu_[a-z0-9_]+|reset|_\d+_|machine_at_decoder_(?:state|phase|cycle_port)|audio_dsp_write)(?:\[\d+\])?' + COPY, TENSION),
 )

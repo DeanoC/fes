@@ -106,16 +106,38 @@ The full table against every report above, all rules:
 | seal f93f215e | passes |
 | base23b, dma223b, fifo23c, slat23b seeds 2–4 (slat23b seed 2's `cpu_biu_reset~_Duplicate` included) | pass |
 | audio-area, vga-area, 486SX seeds 2–4 | pass |
-| i486DX seed 1 | **stops**: 23 TMC-20602 rows still match no basis |
+| i486DX seed 1 | stopped then: 23 TMC-20602 rows still matched no basis |
 
-The 23 rows are:
+The 23 rows were:
 - `audio_dsp_write`;
-- `machine_at_decoder_phase[0–5]`, `[2]` as a `~DUPLICATE`;
+- `machine_at_decoder_phase[0–5]` (`[2]` as a `~DUPLICATE`);
 - `machine_at_decoder_cycle_port[0–15]`.
 
-They are not fitter copies of an accepted name, and they are not
-`machine_at_decoder_state`, so this change does not admit them. Tests
-assert that they match 0 bases.
+## The decoder phase and port, and the DSP write (third commit)
+
+Deano answered "Add them, with tests" on 24 Nov 2026, through the
+coordinating session. The tension advisory now also names these registers,
+with their fitter copies:
+- `machine_at_decoder_phase` and `machine_at_decoder_cycle_port`,
+  pc386_io.sv's phase counter and latched port;
+- `audio_dsp_write`, the register on pc386_audio.sv's DSP (`pc386_sb`)
+  write input.
+
+Tests show that neighbouring names still match 0 bases:
+- `machine_at_decoder_cycle_write`;
+- `machine_at_decoder_next_port[3]~DUPLICATE`;
+- `machine_at_decoder_phase_x[1]`;
+- `audio_dsp_read~DUPLICATE`;
+- `audio_dsp_write_data[3]`;
+- `machine_audio_dsp_write`.
+
+The full table now passes on all 40 recorded pc386 design assistant
+reports, every rule, with no unmatched row:
+- seal f93f215e;
+- i486DX seed 1, with 42 TMC-20602 rows;
+- slat23b seed 2;
+- every seed of base23b, dma223b, fifo23c, slat23b, audio-area, vga-area
+  and 486SX.
 
 No reseal: this file is in pc386's closure only, and Deano's in-progress
 exemption covers it. The DX slice merges this branch and refits.

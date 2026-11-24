@@ -98,14 +98,17 @@ class MachineFindingsTests(unittest.TestCase):
         rows = [[S + name, '(1, 1)', '9000', '(2, 2)', '20', '200000', '']
                 for name in ('cpu_md_busy', 'cpu_wb_fault[4]', '_36426_[140]~DUPLICATE', 'reset',
                              'cpu_biu_reset~_Duplicate_2', 'cpu_biu_reset~_Duplicate', 'reset~DUPLICATE',
-                             'machine_at_decoder_state[1]', 'machine_at_decoder_state[0]~DUPLICATE')]
+                             'machine_at_decoder_state[1]', 'machine_at_decoder_state[0]~DUPLICATE',
+                             'machine_at_decoder_phase[5]', 'machine_at_decoder_phase[2]~DUPLICATE',
+                             'machine_at_decoder_cycle_port[15]', 'audio_dsp_write', 'audio_dsp_write~_Duplicate_1')]
         [entry] = mf.review(report({'TMC-20602': (header, rows)}), '', self.bases('cpu-control-tension'))
-        self.assertEqual(entry['groups'][0]['rows'], 9)
-        # A fitter copy is admitted only for a name the basis already names. The i486DX slice-1
-        # fit's other tension rows (machine_at_decoder_phase, _cycle_port, audio_dsp_write) are not.
+        self.assertEqual(entry['groups'][0]['rows'], 14)
+        # A fitter copy is admitted only for a name the basis already names; neighbouring decoder,
+        # audio and machine names are not.
         for name in ('machine_at_pic_mask[3]~_Duplicate_2', 'cpu_biu_reset~_Duplicate_', 'cpu_biu_reset_Duplicate_2',
-                     'machine_at_decoder_phase[2]~DUPLICATE', 'machine_at_decoder_cycle_port[3]',
-                     'audio_dsp_write~DUPLICATE', 'audio_dsp_write', 'machine_at_decoder_state_x[1]',
+                     'machine_at_decoder_cycle_write', 'machine_at_decoder_next_port[3]~DUPLICATE',
+                     'machine_at_decoder_phase_x[1]', 'audio_dsp_read~DUPLICATE', 'audio_dsp_write_data[3]',
+                     'machine_audio_dsp_write', 'machine_at_decoder_state_x[1]',
                      'cpu_md_busy~Duplicate', 'reset~DUPLICATE~DUPLICATE'):
             copy = rows + [[S + name, '(1, 1)', '9000', '(2, 2)', '20', '200000', '']]
             with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
