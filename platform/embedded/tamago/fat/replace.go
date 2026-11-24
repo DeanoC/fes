@@ -8,11 +8,16 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path"
 	"runtime"
 	"sort"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 )
+
+// ErrReplaced is returned when reading from an open file handle whose underlying
+// file was replaced via ReplaceFile after the handle was opened.
+var ErrReplaced = errors.New("FAT32 file replaced after open")
 
 // ReplaceFile updates name using copy-on-write cluster allocation and a
 // single-sector directory entry commit. If name does not exist, ReplaceFile
@@ -38,21 +43,21 @@ func (v *Volume) ReplaceFile(ctx context.Context, name string, data []byte) (err
 	}
 
 	v.mu.Lock()
+	defer v.mu.Unlock()
 	if v.mutationErr != nil {
-		err = v.mutationErr
-		v.mu.Unlock()
-		return err
+		return v.mutationErr
 	}
 	if !v.allocationValid {
-		v.mu.Unlock()
 		return fmt.Errorf("%w: unsupported allocation metadata", ErrCorrupt)
 	}
 	e, err := v.lookupContext(ctx, name)
 	if errors.Is(err, fs.ErrNotExist) {
-		v.mu.Unlock()
-		return v.CreateFile(ctx, name, data)
+		units, err := createName(path.Base(name))
+		if err != nil {
+			return err
+		}
+		return v.createLocked(ctx, name, units, data, false)
 	}
-	defer v.mu.Unlock()
 	if err != nil {
 		return &fs.PathError{Op: "replace", Path: name, Err: err}
 	}
@@ -233,6 +238,13 @@ func (v *Volume) ReplaceFile(ctx context.Context, name string, data []byte) (err
 	if err = flush(); err != nil {
 		return err
 	}
+
+	// Invalidate any open file handles pointing at the superseded cluster chain
+	// before freeing those clusters for reuse.
+	if v.replacedGen == nil {
+		v.replacedGen = make(map[entryLocation]uint64)
+	}
+	v.replacedGen[entryLocation{sector: e.sector, offset: e.offset}]++
 
 	// 5. Reclaim previous clusters only after the directory commit is durable.
 	if len(freeChanges) > 0 {

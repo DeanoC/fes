@@ -302,6 +302,10 @@ func (v *Volume) create(ctx context.Context, name string, data []byte, isDir boo
 	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	return v.createLocked(ctx, name, units, data, isDir)
+}
+
+func (v *Volume) createLocked(ctx context.Context, name string, units []uint16, data []byte, isDir bool) (err error) {
 	if v.mutationErr != nil {
 		return v.mutationErr
 	}

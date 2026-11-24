@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"io"
 	"io/fs"
 	"maps"
 	"sync"
@@ -229,5 +230,62 @@ func TestReplaceFileErrorsAndCoalescedLongDirectoryWrite(t *testing.T) {
 	d.failFlush = false
 	if _, err := v.ReadFile("FES/ORIG.BIN"); !errors.Is(err, ErrMutation) {
 		t.Fatalf("ReadFile after ErrMutation err=%v, want ErrMutation", err)
+	}
+}
+
+func TestReplaceFileInvalidatesOpenHandlesAndSerializesConcurrentCreate(t *testing.T) {
+	_, v := newRecordingDisk(t, 2)
+	ctx := context.Background()
+	if err := v.Mkdir(ctx, "FES"); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.CreateFile(ctx, "FES/A.BIN", bytes.Repeat([]byte("A"), 2500)); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.CreateFile(ctx, "FES/B.BIN", bytes.Repeat([]byte("B"), 2500)); err != nil {
+		t.Fatal(err)
+	}
+
+	fa, err := v.Open("FES/A.BIN")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fa.Close()
+	fb, err := v.Open("FES/B.BIN")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fb.Close()
+
+	// Replace A and overwrite freed clusters with new content in C.
+	if err := v.ReplaceFile(ctx, "FES/A.BIN", bytes.Repeat([]byte("X"), 2500)); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.CreateFile(ctx, "FES/C.BIN", bytes.Repeat([]byte("Z"), 4000)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Old handle to A must fail closed with ErrReplaced (never exposing C's bytes), while B stays readable.
+	if _, err := fa.Read(make([]byte, 64)); !errors.Is(err, ErrReplaced) {
+		t.Fatalf("stale handle Read err=%v, want ErrReplaced", err)
+	}
+	gotB, err := io.ReadAll(fb)
+	if err != nil || len(gotB) != 2500 || gotB[0] != 'B' {
+		t.Fatalf("unrelated handle B affected: len=%d err=%v", len(gotB), err)
+	}
+
+	// Concurrent ReplaceFile on the same initially absent path must never fail with fs.ErrExist.
+	const workers = 4
+	errCh := make(chan error, workers)
+	for i := 0; i < workers; i++ {
+		i := i
+		go func() {
+			errCh <- v.ReplaceFile(ctx, "FES/RACE.BIN", []byte{byte('0' + i)})
+		}()
+	}
+	for i := 0; i < workers; i++ {
+		if err := <-errCh; err != nil {
+			t.Fatalf("concurrent ReplaceFile on absent path failed: %v", err)
+		}
 	}
 }
