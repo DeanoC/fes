@@ -8,8 +8,12 @@ export FES_TOOLCHAIN_CACHE_ROOT=$HOME/fes-toolchain-cache VERILATOR=/usr/local/b
 S=$HOME/fes-scratch/duke486; L=$S/chip-logs
 KEYS="--game-keys 6:| --game-keys 9:  --game-keys 12:| --game-keys 24:y --game-keys 25:Y --game-keys 30:| --game-keys 34:|"
 sim() { nice python3 scripts/sim_fes_pc386.py --suite game --game swshar --drive $S/sw-vga0.img --cpu-level 4 --instruction-census --frame-every 1 $KEYS --jobs 4 "$@"; }
-sim --cpu oracle --x87-fitted --limit-seconds 1 > $L/swy-warmup-l4.log 2>&1; [ $? -le 1 ] || exit 3
-sim --cpu rtl --limit-seconds 1 > $L/swy-warmup-rtl.log 2>&1; [ $? -le 1 ] || exit 3
+# Each warm-up counts only if its testbench ran to the one-second limit (the sim's exit is 1 for
+# a FAIL verdict and for a build error alike).
+for w in "l4 --cpu oracle --x87-fitted" "rtl --cpu rtl"; do
+  sim ${w#* } --limit-seconds 1 > $L/swy-warmup-${w%% *}.log 2>&1
+  grep -q "^END {'reason': 'limit'" $L/swy-warmup-${w%% *}.log || exit 3
+done
 ( sim --cpu oracle --x87-fitted --limit-seconds 70 > $L/swy-l4.log 2>&1; rc=$?; echo "swy-l4 rc=$rc" >> $L/done.txt; exit $rc ) & a=$!
 ( sim --cpu rtl --rtl-from 20 --limit-seconds 70 > $L/swy-rtl.log 2>&1; rc=$?; echo "swy-rtl rc=$rc" >> $L/done.txt; exit $rc ) & b=$!
 wait $a; ra=$?; wait $b; rb=$?

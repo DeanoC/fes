@@ -189,6 +189,7 @@ this PR. The committed scripts are fixed; the runs were not repeated.
   minutes after Duke). Both runs had the same build inputs (`--cpu rtl
   --cpu-level 4`). Each verdict's report shows its own title's screens and
   counters.
-  The fixed scripts run a one-second warm-up first, then wait on each run
+  The fixed scripts run a one-second warm-up first, which must reach its
+  limit (a sim exits 1 for a FAIL verdict and a build error alike), then wait on each run
   and exit nonzero if any fails; `chip_reset486.sh` also requires
   `PASS game` in each log.
