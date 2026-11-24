@@ -48,7 +48,7 @@ It writes only under a fresh `out/` directory and builds with `GOPROXY=off`,
 | `network` (`--dhcp`) | `qemu` | VirtIO-net + `lneto` static/DHCPv4/DNSv4/SNTP + HTTP catalog |
 | `tenfoot` | `qemu` | Two-boot Tenfoot UI + `ramfb` + USB keyboard + FAT32 prefs + FogCast host |
 | `play` | `qemu` | Tenfoot Play/Return over `modelbackend` (ROMs, parts, errors, saves) |
-| `programfetch` | `qemu` | `nativefabric.ProgramSource.Fetch` over VirtIO/`lneto` HTTP |
+| `programfetch` | `qemu` (manual) | `nativefabric.ProgramSource.Fetch` over VirtIO/`lneto` HTTP (not in default CI set) |
 | `fpgaload` | `de25-nano` | Full DE25-Nano Tenfoot launcher image (paired MENU, USB, FAT32, EL3 SMCs) |
 
 ### Example: Tenfoot two-boot QEMU regression
@@ -63,7 +63,13 @@ FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/tamago/run.py tenfoot
 Add `--interactive --display sdl --disk out/my-boot.img` for interactive use
 (`--input uart` selects serial input instead of USB).
 
-### Example: Runtime admission & host `-race` oracle parity
+## Runtime admission of verified packages
+
+`run.py admission` connects retained archives to the software fabric lifecycle
+and checks pure-Go [runtimeadmission](runtimeadmission/README.md) against the
+host C++14 oracle
+([../runtime/admission_oracle.cpp](../runtime/admission_oracle.cpp)) built from
+`libmister-runtime`'s `OpenCorePackage` and `CheckCoreCompatibility`:
 
 ```sh
 FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/tamago/run.py admission \
@@ -76,10 +82,14 @@ FES_ADMISSION_FIXTURES="$PWD/out/native-runtime-admission/package-fixtures" \
   ./runtimeadmission ./admissioncheck ./fabricmodel
 ```
 
-`admission` validates format-2/3/4 packages, links format-3/4 synthetic Mistral
-RBFs via `Archive.LinkROMs` (with content-bound `LinkedArchive` receipts), and
-checks pure-Go [runtimeadmission](runtimeadmission/README.md) against the C++14
-oracle ([../runtime/admission_oracle.cpp](../runtime/admission_oracle.cpp)).
+### Retained ROM linking and activation receipts
+
+`run.py admission` also links format-3 firmware/cartridge and format-4
+BIOS+cartridge synthetic Mistral RBF vectors in RAM via `Archive.LinkROMs` and
+activates them through `LoadLinkedModel` with an opaque content-bound
+`LinkedArchive` receipt (binding source digests/roles, sealed map, package, and
+programmed digest). Post-retention FAT32 source mutations reject under the
+original receipt.
 
 ## Tenfoot Play and return through the model
 
@@ -92,8 +102,17 @@ FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/tamago/run.py play \
 
 Drives Play and Back in `cmd/tenfoot` over QEMU USB keyboard against
 [modelbackend](modelbackend/README.md) (normal launch/return, wrong ROM/receipt,
-canceled preparation, identity recovery, failed save retry, and CPU/video
-`PartInput` composition via `Archive.LinkROMs`) without physical FPGA output.
+canceled preparation, identity recovery, failed save retry, and CPU/video parts
+cases) without physical FPGA output.
+
+### CPU/video parts in retained activation
+
+`Archive.LinkROMs(ctx, sources, parts...)` accepts `PartInput` archives,
+records `PartsComposition` and the pre-ROM overlay digest in the activation
+receipt, and is exercised by `run.py play`. For the Nano held-ROM profile,
+`fpgaload --selected-programs` requires `--firmware-rom IMAGE --rom-host-go
+HOST_GO` to derive content-bound ROM receipts and export `FIRMWARE.BIN`,
+`rom-selection.json`, `PROGRAM.JSN`, and `CORESEL.JSN`.
 
 ## Runtime contract and CI
 
@@ -107,7 +126,9 @@ canceled preparation, identity recovery, failed save retry, and CPU/video
   up to 64 KiB and updates `FES/PREFS.JSON` via copy-on-write `ReplaceFile`.
 - **CI lane:** `scripts/ci_tamago.sh` and `scripts/tamago_ci.py` run host
   `go vet` + `-race` tests, dual-board cross-builds (`qemu` and `de25-nano`),
-  and all 11 QEMU suites above (including static and `--dhcp` network runs).
+  and the 12 `DEFAULT_QEMU_PROGRAMS` runs (`probe`, `mapcheck`, `fabric`,
+  `keyboard`, `display`, `packages`, `admission`, `network`, `network-dhcp`,
+  `tenfoot`, `storage`, `play`; `programfetch` is manual/targeted).
 
 ## Package index
 

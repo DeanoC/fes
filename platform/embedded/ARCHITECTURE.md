@@ -200,8 +200,10 @@ sequenceDiagram
   BE->>USB: Revoke binding + PausePolling()
   BE->>FPGA: computer.Hold()
   BE->>EL3: Master stop, drain proof & bridge close
-  BE->>EL3: Reconfigure MENU .fcore
-  BE->>SD: ResumeAfterReturn() + checkpoint pending PREFS.JSON
+  BE->>SD: ResumeAfterReturn() (reopen SD while FPGA contained)
+  BE->>SD: Checkpoint pending PREFS.JSON (CoW ReplaceFile) + Retain(MENU) + Contain()
+  BE->>EL3: PrepareConfiguration + SDM stream (MENU .fcore)
+  EL3->>FPGA: Reconfigure MENU scanout shell
   BE->>USB: ResumePolling() for Tenfoot navigation
   BE-->>UI: Ready (MENU restored)
 ```

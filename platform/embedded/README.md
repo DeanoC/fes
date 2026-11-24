@@ -46,9 +46,9 @@ delegate to each other.
 
 - **Automated `tamago` CI lane** (`scripts/ci_tamago.sh`, `scripts/tamago_ci.py`):
   runs host `go vet` and `-race` tests, dual-board bare-metal cross-builds
-  (QEMU `virt` and DE25-Nano), and 11 QEMU regression suites (`probe`,
+  (QEMU `virt` and DE25-Nano), and 12 QEMU regression runs (`probe`,
   `mapcheck`, `fabric`, `keyboard`, `display`, `packages`, `admission`,
-  `network` static + DHCP, `tenfoot`, `storage`, `play`).
+  `network`, `network-dhcp`, `tenfoot`, `storage`, `play`).
 - **Kit boundary:** Standard DE25 HIL runs on Kit D25 (`TRWU8J8G`) using the
   Linux DE25 image; bare-metal TamaGo PRs cannot be tested on J8G yet
   (`AGENTS.md`). Historical DE25 bring-up and trial records are preserved under
