@@ -15,6 +15,16 @@ type padReports struct {
 }
 
 func (p *padReports) PollGamepad() ([]byte, error) { p.polls++; return []byte{128, 128, 1, 0}, p.err }
+func (p *padReports) PollGamepadInto(dst []byte) (int, error) {
+	p.polls++
+	if p.err != nil {
+		return 0, p.err
+	}
+	if len(dst) < 4 {
+		return 0, errors.New("buffer too small")
+	}
+	return copy(dst, []byte{128, 128, 1, 0}), nil
+}
 
 func TestGamepadActualCFirmwareOwnershipAndReplacement(t *testing.T) {
 	p := newRPC(t)
@@ -113,59 +123,6 @@ func TestGamepadActualCFirmwareFailures(t *testing.T) {
 			if err := s.Close(ctx); err == nil || p.calls != calls {
 				t.Fatal("faulted close retried", err)
 			}
-		})
-	}
-}
-
-type legacyReports struct {
-	report []byte
-}
-
-func (l *legacyReports) PollKeyboard() ([]byte, error) { return l.report, nil }
-func (l *legacyReports) PollGamepad() ([]byte, error)  { return l.report, nil }
-
-func TestPollIntoRejectsOversizedAndEmptyLegacyReports(t *testing.T) {
-	ctx := context.Background()
-	for _, tc := range []struct {
-		name   string
-		report []byte
-	}{
-		{name: "oversized-keyboard", report: []byte{0, 0, 4, 0, 0, 0, 0, 0, 99}},
-		{name: "empty-non-nil", report: []byte{}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			tr := &irqMockTransport{owner: 17}
-			c, err := New(ctx, tr, 17)
-			if err != nil {
-				t.Fatal(err)
-			}
-			s, err := Open(ctx, c, func() (input.USBReports, error) {
-				return &legacyReports{report: tc.report}, nil
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			var dst [8]byte
-			if n, err := s.PollKeyboardInto(dst[:]); err == nil || n != 0 {
-				t.Fatalf("PollKeyboardInto(%s) admitted malformed report: n=%d err=%v", tc.name, n, err)
-			}
-			_ = s.Close(ctx)
-
-			tr2 := &irqMockTransport{owner: 17}
-			c2, err := New(ctx, tr2, 17)
-			if err != nil {
-				t.Fatal(err)
-			}
-			gs, err := OpenGamepad(ctx, c2, func() (input.USBGamepadReports, error) {
-				return &legacyReports{report: tc.report}, nil
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if n, err := gs.PollGamepadInto(dst[:]); err == nil || n != 0 {
-				t.Fatalf("PollGamepadInto(%s) admitted malformed report: n=%d err=%v", tc.name, n, err)
-			}
-			_ = gs.Close(ctx)
 		})
 	}
 }

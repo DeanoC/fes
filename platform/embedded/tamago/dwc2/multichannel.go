@@ -47,6 +47,7 @@ func partitionFIFOs(totalWords uint32) (rxWords, nptxWords, ptxWords uint32) {
 type multiChannel struct {
 	allocated        bool
 	ownerAddr        uint8
+	gen              uint64
 	speed            usb.Speed
 	route            splitRoute
 	ep               usb.EndpointDescriptor
@@ -119,14 +120,15 @@ const (
 )
 
 type multiHub struct {
-	addr       uint8
-	speed      usb.Speed
-	route      splitRoute
-	depth      int
-	numPorts   uint8
-	statusPipe *multiPipe
-	retryCount [maxHubPorts + 1]uint8
-	retryAt    [maxHubPorts + 1]time.Time
+	addr          uint8
+	speed         usb.Speed
+	route         splitRoute
+	depth         int
+	numPorts      uint8
+	statusPipe    *multiPipe
+	statusRetryAt time.Time
+	retryCount    [maxHubPorts + 1]uint8
+	retryAt       [maxHubPorts + 1]time.Time
 }
 
 // MultiHost is a 16-channel PIO-only DWC2 USB 2.0 host supporting concurrent
@@ -145,10 +147,11 @@ type MultiHost struct {
 	draining  bool
 	fault     error // controller-level fatal fault only (e.g. foreign DMA)
 
-	slots   [maxMultiChannels]multiChannel
-	devices [maxMultiDevices + 1]*multiDevice // indexed by USB address 1..31
-	hubs    []*multiHub
-	nextID  uint8
+	slots       [maxMultiChannels]multiChannel
+	devices     [maxMultiDevices + 1]*multiDevice // indexed by USB address 1..31
+	hubs        []*multiHub
+	nextID      uint8
+	nextPipeGen uint64
 
 	events    [maxEventQueue]usb.HostEvent
 	evHead    int
@@ -407,19 +410,28 @@ func (h *MultiHost) activeChannelMask() uint32 {
 // Returns an error if hardware leaves CHENA set past the 50 ms budget so callers
 // never clear, reuse, or hand a live channel to firmware Stop.
 func (h *MultiHost) haltChannel(ch int) error {
+	_, err := h.haltChannelCapture(ch)
+	return err
+}
+
+// haltChannelCapture halts channel ch and returns its HCINT bits observed once
+// CHENA has cleared (before clearing HCINT), so PausePolling can account for
+// transfers that completed concurrently with the halt.
+func (h *MultiHost) haltChannelCapture(ch int) (uint32, error) {
 	c := h.io.Read32(chReg(ch, hcchar))
 	if c&channelEnable != 0 {
 		h.io.Write32(chReg(ch, hcchar), c|channelEnable|channelDisable)
 		if err := h.waitReg(chReg(ch, hcchar), channelEnable, 0, 50*time.Millisecond); err != nil {
-			return fmt.Errorf("dwc2: ch %d failed to halt: %w", ch, err)
+			return 0, fmt.Errorf("dwc2: ch %d failed to halt: %w", ch, err)
 		}
 	}
+	ints := h.io.Read32(chReg(ch, hcint))
 	h.io.Write32(chReg(ch, hcmask), 0)
 	h.io.Write32(chReg(ch, hcint), 0x7ff)
 	if h.io.Read32(chReg(ch, hcchar))&channelEnable != 0 {
-		return fmt.Errorf("dwc2: ch %d remained enabled after halt", ch)
+		return 0, fmt.Errorf("dwc2: ch %d remained enabled after halt", ch)
 	}
-	return nil
+	return ints, nil
 }
 
 func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
@@ -448,27 +460,30 @@ func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
 	selected := h.io.Read32(hfnum)
 	frame := uint16(selected)
 	if split {
+		wire := frame
+		if epType == uint32(usb.TransferInterrupt) {
+			wire++
+		}
 		if !completeSplit {
-			// Allow SSPLIT on microframes 0..5 so CSPLIT fits inside the same
-			// 8-microframe window (3x better slot availability than 0..1).
-			if frame&7 > 5 {
+			// Allow SSPLIT on wire microframes 0..5 so CSPLIT (+2) fits inside the
+			// same 8-microframe translator window.
+			if wire&7 > 5 {
 				s.waitingSplit = true
 				s.completeSplit = false
 				return nil
 			}
-			s.startFrame = frame
-			if epType == uint32(usb.TransferInterrupt) {
-				s.startFrame++
-			}
+			s.startFrame = wire
 		} else {
-			wire := frame
-			if epType == uint32(usb.TransferInterrupt) {
-				wire++
-			}
-			if uint16(wire-s.startFrame) < 2 || wire>>3 != s.startFrame>>3 {
+			if wire>>3 != s.startFrame>>3 {
 				// Missed translator window: restart SSPLIT on next frame rather
 				// than fatally retiring the device.
 				s.completeSplit = false
+				s.waitingSplit = true
+				return nil
+			}
+			if uint16(wire-s.startFrame) < 2 {
+				// Too early for CSPLIT; keep waiting until startFrame+2.
+				s.completeSplit = true
 				s.waitingSplit = true
 				return nil
 			}
@@ -530,27 +545,10 @@ func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
 	return nil
 }
 
-// Service drains RX FIFO entries, advances all active hardware channels,
-// schedules due periodic/bulk transfers, and processes root & hub hotplug.
-func (h *MultiHost) Service() error {
-	if h.fault != nil {
-		return h.fault
-	}
-	if h.paused {
-		return nil
-	}
-	if h.irqSuspended {
-		if err := h.pioCheck(); err != nil {
-			return h.failController(err)
-		}
-		h.resumeIRQ()
-	}
-	if err := h.pioCheck(); err != nil {
-		return h.failController(err)
-	}
-
-	// 1. Drain RX FIFO entries directly into per-channel fixed buffers.
-	for n := 0; n < 32; n++ {
+// drainRXIntoSlots drains up to maxEntries RX FIFO status/payload records into
+// the corresponding active channel slots without discarding valid IN data.
+func (h *MultiHost) drainRXIntoSlots(maxEntries int) error {
+	for n := 0; n < maxEntries; n++ {
 		if h.io.Read32(gint)&gintRXFLVL == 0 {
 			break
 		}
@@ -594,6 +592,32 @@ func (h *MultiHost) Service() error {
 		case 3, 5, 7:
 			// Transfer-complete, data-toggle error, channel-halted markers carry no payload.
 		}
+	}
+	return nil
+}
+
+// Service drains RX FIFO entries, advances all active hardware channels,
+// schedules due periodic/bulk transfers, and processes root & hub hotplug.
+func (h *MultiHost) Service() error {
+	if h.fault != nil {
+		return h.fault
+	}
+	if h.paused {
+		return nil
+	}
+	if h.irqSuspended {
+		if err := h.pioCheck(); err != nil {
+			return h.failController(err)
+		}
+		h.resumeIRQ()
+	}
+	if err := h.pioCheck(); err != nil {
+		return h.failController(err)
+	}
+
+	// 1. Drain RX FIFO entries directly into per-channel fixed buffers.
+	if err := h.drainRXIntoSlots(32); err != nil {
+		return err
 	}
 
 	now := h.io.Now()
@@ -1061,9 +1085,12 @@ func (h *MultiHost) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, e
 		return nil, fmt.Errorf("dwc2: all %d hardware channels in use", h.channels-1)
 	}
 	dev := h.devices[addr]
+	h.nextPipeGen++
+	gen := h.nextPipeGen
 	h.slots[ch] = multiChannel{
 		allocated: true,
 		ownerAddr: addr,
+		gen:       gen,
 		speed:     dev.info.Speed,
 		route:     dev.route,
 		ep:        ep,
@@ -1071,7 +1098,7 @@ func (h *MultiHost) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, e
 		interval:  endpointInterval(dev.info.Speed, ep),
 		nextDue:   h.io.Now(),
 	}
-	p := &multiPipe{host: h, ch: ch, addr: addr, ep: ep}
+	p := &multiPipe{host: h, ch: ch, addr: addr, gen: gen, ep: ep}
 	if h.irqMode.Load() && h.irqActive.Load() {
 		h.io.Write32(haintmsk, h.activeChannelMask())
 	}
@@ -1082,6 +1109,7 @@ type multiPipe struct {
 	host   *MultiHost
 	ch     int
 	addr   uint8
+	gen    uint64
 	ep     usb.EndpointDescriptor
 	closed bool
 }
@@ -1094,7 +1122,7 @@ func (p *multiPipe) PollInto(dst []byte) (int, error) {
 		return 0, errors.New("dwc2: pipe closed")
 	}
 	s := &p.host.slots[p.ch]
-	if !s.allocated || s.ownerAddr != p.addr {
+	if !s.allocated || s.ownerAddr != p.addr || s.gen != p.gen {
 		return 0, errors.New("dwc2: device detached")
 	}
 	if s.fault != nil {
@@ -1124,7 +1152,7 @@ func (p *multiPipe) Write(data []byte) error {
 		return fmt.Errorf("dwc2: OUT write %d exceeds MPS %d", len(data), p.ep.MaxPacketSize)
 	}
 	s := &p.host.slots[p.ch]
-	if !s.allocated || s.ownerAddr != p.addr {
+	if !s.allocated || s.ownerAddr != p.addr || s.gen != p.gen {
 		return errors.New("dwc2: device detached")
 	}
 	if s.fault != nil {
@@ -1147,7 +1175,7 @@ func (p *multiPipe) WriteDone() (bool, error) {
 		return false, errors.New("dwc2: pipe closed")
 	}
 	s := &p.host.slots[p.ch]
-	if !s.allocated || s.ownerAddr != p.addr {
+	if !s.allocated || s.ownerAddr != p.addr || s.gen != p.gen {
 		return false, errors.New("dwc2: device detached")
 	}
 	if s.outErr != nil {
@@ -1164,7 +1192,7 @@ func (p *multiPipe) SetIntervalOverride(interval time.Duration) {
 		return
 	}
 	s := &p.host.slots[p.ch]
-	if s.allocated && s.ownerAddr == p.addr {
+	if s.allocated && s.ownerAddr == p.addr && s.gen == p.gen {
 		s.overrideInterval = interval
 	}
 }
@@ -1175,7 +1203,7 @@ func (p *multiPipe) Close() error {
 	}
 	p.closed = true
 	s := &p.host.slots[p.ch]
-	if s.allocated && s.ownerAddr == p.addr {
+	if s.allocated && s.ownerAddr == p.addr && s.gen == p.gen {
 		if err := p.host.haltChannel(p.ch); err != nil {
 			// Retain slot as allocated/faulted so an active hardware channel is never reused.
 			s.fault = err
@@ -1189,8 +1217,9 @@ func (p *multiPipe) Close() error {
 	return nil
 }
 
-// PausePolling halts and drains every active hardware channel and suspends
-// GICv3 IRQs so zero MMIO occurs during FPGA reconfiguration or firmware Stop.
+// PausePolling drains any completed IN/OUT transfers (preserving data toggles
+// and received payloads across ResumePolling), halts every active hardware
+// channel, and suspends GICv3 IRQs so zero MMIO occurs while paused.
 func (h *MultiHost) PausePolling(ctx context.Context) error {
 	if h == nil || ctx == nil || h.io == nil || !h.owned {
 		return fmt.Errorf("dwc2: polling context required")
@@ -1206,25 +1235,58 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 	}
 	h.draining = true
 	defer func() { h.draining = false }()
+
+	// 1. Account for any already-completed transfers in RX FIFO / HCINT first.
+	if err := h.drainRXIntoSlots(64); err != nil {
+		return err
+	}
+	now := h.io.Now()
+	for ch := 1; ch < h.channels; ch++ {
+		if h.slots[ch].allocated && h.slots[ch].armed {
+			h.stepChannel(ch, now)
+		}
+	}
+	if h.fault != nil {
+		return h.fault
+	}
+
+	// 2. Halt every hardware channel while capturing any HCINT completion bits
+	// observed as CHENA clears, keeping s.armed set until the post-halt RX drain
+	// runs so DATA0/DATA1 toggles and received IN payloads stay synchronized.
+	var haltedInts [maxMultiChannels]uint32
 	for ch := 0; ch < h.channels; ch++ {
 		if err := ctx.Err(); err != nil {
 			return h.failController(err)
 		}
-		if err := h.haltChannel(ch); err != nil {
+		ints, err := h.haltChannelCapture(ch)
+		if err != nil {
 			return h.failController(err)
 		}
-		h.slots[ch].armed = false
-		h.slots[ch].halting = false
-		h.slots[ch].waitingSplit = false
+		haltedInts[ch] = ints
 	}
-	// Drain any residual RX FIFO entries cleanly.
-	for n := 0; n < 64 && h.io.Read32(gint)&gintRXFLVL != 0; n++ {
-		v := h.io.Read32(rxpop)
-		if (v>>17)&0xf == 2 {
-			cnt := int((v >> 4) & 0x7ff)
-			for i := 0; i < cnt; i += 4 {
-				_ = h.io.Read32(fifo)
+	if err := h.drainRXIntoSlots(256); err != nil {
+		return err
+	}
+	for ch := 1; ch < h.channels; ch++ {
+		if h.slots[ch].allocated && h.slots[ch].armed {
+			s := &h.slots[ch]
+			if haltedInts[ch]&1 != 0 || s.done || (s.ep.In() && s.received) {
+				s.toggle ^= 2
+				if s.ep.In() {
+					if s.received {
+						s.inReady = true
+						s.inReadyLen = s.inLen
+					}
+					s.nextDue = now.Add(s.effectiveInterval())
+				} else {
+					s.outPending = false
+					s.outDone = true
+				}
 			}
+			s.armed = false
+			s.halting = false
+			s.waitingSplit = false
+			s.completeSplit = false
 		}
 	}
 	for ch := 0; ch < h.channels; ch++ {

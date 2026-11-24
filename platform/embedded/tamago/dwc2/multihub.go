@@ -280,22 +280,14 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 	}
 
 	// Open the hub's Interrupt-IN status-change endpoint for zero-stall hotplug.
-	var statusPipe *multiPipe
-	if iface, ok := dev.info.Config.FindInterface(9, 0, -1); ok {
-		if ep, ok := iface.FindEndpoint(usb.TransferInterrupt, true); ok {
-			if p, err := h.OpenPipe(addr, ep); err == nil {
-				statusPipe = p.(*multiPipe)
-			}
-		}
-	}
 	hub := &multiHub{
-		addr:       addr,
-		speed:      dev.info.Speed,
-		route:      dev.route,
-		depth:      depth,
-		numPorts:   numPorts,
-		statusPipe: statusPipe,
+		addr:     addr,
+		speed:    dev.info.Speed,
+		route:    dev.route,
+		depth:    depth,
+		numPorts: numPorts,
 	}
+	h.openHubStatusPipe(hub)
 	h.hubs = append(h.hubs, hub)
 
 	// Enumerate initially connected downstream ports (isolated per port so one
@@ -306,15 +298,47 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 	return nil
 }
 
+func (h *MultiHost) openHubStatusPipe(hub *multiHub) {
+	if hub == nil || hub.statusPipe != nil {
+		return
+	}
+	dev := h.devices[hub.addr]
+	if dev == nil {
+		return
+	}
+	if iface, ok := dev.info.Config.FindInterface(9, 0, -1); ok {
+		if ep, ok := iface.FindEndpoint(usb.TransferInterrupt, true); ok {
+			if p, err := h.OpenPipe(hub.addr, ep); err == nil {
+				hub.statusPipe = p.(*multiPipe)
+				hub.statusRetryAt = time.Time{}
+				return
+			}
+		}
+	}
+	hub.statusRetryAt = h.io.Now().Add(hubEnumRetryDelay)
+}
+
 func (h *MultiHost) pollHubHotplug() {
 	var statusBuf [4]byte
 	now := h.io.Now()
 	// Iterate over a snapshot index since detaching a nested hub mutates h.hubs.
 	for i := 0; i < len(h.hubs); i++ {
 		hub := h.hubs[i]
+		if hub.statusPipe == nil && !now.Before(hub.statusRetryAt) {
+			h.openHubStatusPipe(hub)
+		}
 		if hub.statusPipe != nil {
 			n, err := hub.statusPipe.PollInto(statusBuf[:])
-			if err == nil && n > 0 {
+			if err != nil {
+				// Close the faulted status pipe and retry after hubEnumRetryDelay so
+				// transient errors recover without churning channels on permanent faults.
+				_ = hub.statusPipe.Close()
+				hub.statusPipe = nil
+				hub.statusRetryAt = now.Add(hubEnumRetryDelay)
+				if h.fault != nil {
+					return
+				}
+			} else if n > 0 {
 				// Bit p (1..numPorts) in the status bitmap indicates a change on port p.
 				for port := uint8(1); port <= hub.numPorts; port++ {
 					byteIdx := int(port) / 8

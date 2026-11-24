@@ -30,6 +30,16 @@ func (s *programPadReports) PollGamepad() ([]byte, error) {
 	s.reports = s.reports[1:]
 	return r, nil
 }
+func (s *programPadReports) PollGamepadInto(dst []byte) (int, error) {
+	r, err := s.PollGamepad()
+	if err != nil || r == nil {
+		return 0, err
+	}
+	if len(r) == 0 || len(r) > len(dst) {
+		return 0, errors.New("invalid gamepad report length")
+	}
+	return copy(dst, r), nil
+}
 func TestProgramGamepadPlatformMenuCoreAndReturnFences(t *testing.T) {
 	f, b, c := backendFixture(t)
 	source := &programPadReports{}

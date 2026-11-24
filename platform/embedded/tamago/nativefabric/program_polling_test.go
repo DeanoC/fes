@@ -119,6 +119,12 @@ func (s *pausableKeyboard) PollKeyboard() ([]byte, error) {
 	}
 	return s.programKeyboardReports.PollKeyboard()
 }
+func (s *pausableKeyboard) PollKeyboardInto(dst []byte) (int, error) {
+	if s.paused {
+		return 0, errors.New("polled during transition")
+	}
+	return s.programKeyboardReports.PollKeyboardInto(dst)
+}
 func TestProgramPollingBoundariesCoverLaunchAndReturn(t *testing.T) {
 	f, b, c := backendFixture(t)
 	source := &pausableKeyboard{}
