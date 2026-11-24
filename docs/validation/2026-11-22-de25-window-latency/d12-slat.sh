@@ -2,9 +2,9 @@
 # d12-slat.sh BASEREV ARMREV: the D12 comparison for the DE25 Spectrum 48, Spectrum 128 and ST packages
 # (#2117 S-lat), by #2036's d12.md method. A: base compile-only; B: arm full producer (its gates);
 # C: arm tooling with A's BUILD_ID forced (#2036's d12_repro.py). One job at a time, each holding a Pro
-# slot of the Quartus lease (quartus_jobs.py run).
+# slot of the Quartus lease (quartus_jobs.py run). D12_DIR sets the scratch directory.
 set -u
-BASE=$1; ARM=$2; P=$HOME/fes-scratch/slat-d12; L=$P/d12.log; REPO=/home/deano/fes
+BASE=$1; ARM=$2; P=${D12_DIR:-$HOME/fes-scratch/slat-d12}; mkdir -p $P; L=$P/d12.log; REPO=/home/deano/fes
 Q=/data/altera_pro/26.3/quartus; Z=/data/fes-de25-1297-9b36e4729/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip
 export LM_LICENSE_FILE=$HOME/.altera.quartus/quartus2_lic.dat QUARTUS_ROOTDIR=$Q
 export FES_TOOLCHAIN_CACHE_ROOT=/home/deano/fes/out/cache/misteross-toolchains
