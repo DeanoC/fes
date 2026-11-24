@@ -55,22 +55,41 @@ func OpenDevice(ctx context.Context, address, gateway string, factory func() (De
 // OpenDeviceDHCP opens one explicit board device, acquires a validated IPv4
 // lease via RFC 2131 DHCPv4, and installs the shared Go socket/IP service.
 func OpenDeviceDHCP(ctx context.Context, factory func() (Device, error), dhcpCfg DHCPConfig) (*Interface, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return OpenDeviceDHCPWithStartup(ctx, ctx, factory, dhcpCfg)
+}
+
+// OpenDeviceDHCPWithStartup separates the bounded startup context (used for
+// device open and RFC 2131 DHCPv4 lease acquisition) from the stack lifetime
+// context (used by background Lneto socket/IP workers after return).
+func OpenDeviceDHCPWithStartup(startup, lifetime context.Context, factory func() (Device, error), dhcpCfg DHCPConfig) (*Interface, error) {
 	if err := validateDHCPConfig(dhcpCfg); err != nil {
 		return nil, err
 	}
-	nic, ctx, err := admitAndOpenDevice(ctx, factory)
+	if startup == nil {
+		startup = context.Background()
+	}
+	if err := startup.Err(); err != nil {
+		return nil, err
+	}
+	nic, lifetime, err := admitAndOpenDevice(lifetime, factory)
 	if err != nil {
 		return nil, err
 	}
-	lease, err := AcquireDHCP(ctx, nic, dhcpCfg)
+	lease, err := AcquireDHCP(startup, nic, dhcpCfg)
 	if err != nil {
+		return nil, err
+	}
+	if err := lifetime.Err(); err != nil {
 		return nil, err
 	}
 	c, err := staticConfig(lease.Address, lease.Gateway)
 	if err != nil {
 		return nil, err
 	}
-	return installInterface(ctx, c, nic, lease, true)
+	return installInterface(lifetime, c, nic, lease, true)
 }
 
 func admitAndOpenDevice(ctx context.Context, factory func() (Device, error)) (Device, context.Context, error) {

@@ -2,11 +2,13 @@
 # SPDX-License-Identifier: MIT
 """Generate synthetic complete-SID checkpoints using pinned VICE 3.10 sources.
 
-The upstream kernel is unmodified. A test-only derived Filter configures its
-writable lookup data to the documented bounded policy; VCR/cutoff stay exact.
-Normal simulation reads only the generated header and needs no VICE checkout.
+The 6581 oracle configures writable reSID tables with its bounded lookup policy.
+The 8580 oracle uses VICE's default nonlinear filter and the original full tables.
+Its gzip payload stores one little-endian signed PCM word and one OSC3 byte per
+Phi sample. Running the tests uses the generated fixtures offline.
 """
 import argparse
+import gzip
 import hashlib
 import re
 from pathlib import Path
@@ -55,6 +57,7 @@ def main():
     parser.add_argument('--sim-dir', type=Path, default=Path(__file__).resolve().parents[1]/'cores/fes-c64/sim')
     parser.add_argument('--output', type=Path)
     parser.add_argument('--check', action='store_true')
+    parser.add_argument('--mos8580', action='store_true', help='generate the 8580 filter and MODE/VOL register replay')
     args=parser.parse_args();source=args.vice_source/'src/resid'
     for name,digest in SOURCE_HASHES.items():
         try:actual=hashlib.sha256((source/name).read_bytes()).hexdigest()
@@ -65,20 +68,26 @@ def main():
         for name in SOURCE_HASHES:
             if name!='siddefs.h.in':shutil.copy2(source/name,temp/name)
         config=(source/'siddefs.h.in').read_text()
-        for key,value in CONFIG.items():config=config.replace('@'+key+'@',value)
+        for key,value in dict(CONFIG, NEW_8580_FILTER=str(int(args.mos8580))).items():
+            config=config.replace('@'+key+'@',value)
         if re.search(r'@[A-Z_]+@',config):parser.error('unexpanded reSID configuration')
         (temp/'siddefs.h').write_text(config)
         command=['c++','-std=c++17','-O2','-DC64_SID_AUDIO_ORACLE','-I'+str(temp),
-                 '-I'+str(args.sim_dir),str(args.sim_dir/'sid_audio_tb.cpp')]
-        command += [str(temp/(name+'.cc')) for name in ('sid','voice','wave','envelope','filter','extfilt','pot','dac')]
+                 '-I'+str(args.sim_dir),str(args.sim_dir/('sid_8580_tb.cpp' if args.mos8580 else 'sid_audio_tb.cpp'))]
+        filter_source = 'filter8580new' if args.mos8580 else 'filter'
+        command += [str(temp/(name+'.cc')) for name in ('sid','voice','wave','envelope',filter_source,'extfilt','pot','dac')]
         subprocess.run(command+['-o',str(temp/'oracle')],check=True)
-        result=subprocess.run([str(temp/'oracle')],check=True,capture_output=True,text=True)
-    output=args.output or args.sim_dir/'sid_audio_vectors.h'
+        data = subprocess.run([str(temp/'oracle')], check=True, stdout=subprocess.PIPE).stdout
+    filename = 'sid_8580_reference.bin.gz' if args.mos8580 else 'sid_audio_vectors.h'
+    output = args.output or args.sim_dir / filename
     if args.check:
-        if output.read_text()!=result.stdout:parser.error(f'{output}: generated fixture differs')
+        recorded = gzip.decompress(output.read_bytes()) if args.mos8580 else output.read_bytes()
+        if recorded != data: parser.error(f'{output}: generated fixture differs')
         print(f'{output}: unchanged')
     else:
-        output.parent.mkdir(parents=True,exist_ok=True);output.write_text(result.stdout);print(output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(gzip.compress(data, mtime=0) if args.mos8580 else data)
+        print(output)
 
 
 if __name__=='__main__':main()

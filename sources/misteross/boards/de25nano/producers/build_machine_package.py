@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a standard DE25 machine whose firmware is uploaded at launch.
 
-Shared by the Spectrum, Atari ST and C64 producers. Packaging uses the same complete
+Shared by the Spectrum, Atari ST, C64 and PC/XT producers. Packaging uses the same complete
 timing/input-review and independent-RBF gates as the DE25 ZX81; a candidate
 those gates refuse is retained and never packaged. The package is format 3: the
 payload is the unmodified bitstream, and its ROM map names only the size of the
@@ -52,7 +52,7 @@ class Machine:
 
     def __init__(self, *, recipe, directory, core_id, rom_id, name, version, descriptions, interfaces,
                  model_core_ids=None, model_rom_ids=None, model_profiles=None, model_interfaces=None,
-                 guest_memory='board-sdram'):
+                 guest_memory='board-sdram', abi_minor=0):
         self.recipe, self.directory, self.core_id, self.rom_id = recipe, directory, core_id, rom_id
         # Where the guest's RAM and media live: the board SDRAM, or the
         # machine's own block RAM as on the DE10 (the C64).
@@ -61,7 +61,8 @@ class Machine:
         self.model_rom_ids = dict(model_rom_ids or {})
         self.model_profiles = dict(model_profiles or {})
         self.name, self.version, self.descriptions = name, version, descriptions
-        self.interfaces = interfaces
+        # The fes.computer minor its endpoint answers: 1 for a 1.1 interface.
+        self.interfaces, self.abi_minor = interfaces, abi_minor
         # Interfaces a model adds to the machine's own, such as a disk unit.
         self.model_interfaces = dict(model_interfaces or {})
         self.label = 'DE25 ' + name
@@ -125,7 +126,7 @@ class Machine:
                 'standard_core': True, 'linux_dma': not native_shell,
                 'expansion_socket': False, 'guest_memory': self.guest_memory,
                 'firmware_delivery': UPLOAD_ENCODING, 'firmware_bytes': spec.FIRMWARE_BYTES[model],
-                'machine_clock_hz': spec.board.MACHINE_HZ, 'audio_clock_requested_hz': 12288000,
+                'machine_clock_hz': spec.board.clocks(spec)[0], 'audio_clock_requested_hz': 12288000,
                 'fifo_reset_sharing': common.SHARED_FIFO_RESETS,
                 'f2s_data_width': 0, 'f2sdram_data_width': 256, 'scanout_master_data_width': 128,
                 'hps_warm_reset_handshake': True, 'reset_timing_policy': common.TIMED_RESET_RELEASE,
@@ -149,7 +150,7 @@ class Machine:
             'target': {'platform': 'de25_nano', 'device': DEVICE,
                        'programming_profile': fields['parameters']['programming_profile']},
             'payload': {'file': 'core.rbf', 'size': payload.stat().st_size, 'sha256': sha(payload)},
-            'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0},
+            'abi': {'id': 'fes.computer', 'major': 1, 'minor': self.abi_minor},
             # An entry is (id, major, minor) or, for an optional one, (id, major, minor, False).
             'interfaces': [{'id': name, 'major': major, 'minor': minor, 'required': bool(required[0]) if required else True}
                            for name, major, minor, *required in (

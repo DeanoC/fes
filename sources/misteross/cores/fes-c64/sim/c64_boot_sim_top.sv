@@ -2,8 +2,9 @@
 // Real-firmware diagnostic with vacant cartridge sockets. Media is preloaded
 // into the actual disk store; no CPU, RAM, CIA or IEC behavior is substituted.
 `include "c64_bus.vh"
-module c64_boot_sim_top #(parameter bit NTSC = 0) (
+module c64_boot_sim_top #(parameter bit NTSC = 0, parameter bit SID_8580 = 0) (
     output wire [31:0] cpu_clock_hz,
+    output wire [15:0] sid_model,
 `ifndef FES_C64_EXTERNAL_MEDIUM_SIM
     input wire medium_ready,
     input wire [17:0] medium_write_addr,
@@ -47,8 +48,9 @@ module c64_boot_sim_top #(parameter bit NTSC = 0) (
     assign medium_byte_addr=machine.medium_byte_addr;
     assign medium_byte=machine.medium_byte;
 `endif
+    assign sid_model = machine.sid.SID_8580 ? 16'd8580 : 16'd6581;
     assign cpu_clock_hz = machine.CPU_CLOCK_HZ;
-    c64_machine #(.NTSC(NTSC)) machine (
+    c64_machine #(.NTSC(NTSC), .SID_8580(SID_8580)) machine (
 `ifdef FES_C64_EXTERNAL_MEDIUM_SIM
         .drive_flux(drive_flux),
 `endif

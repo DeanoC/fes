@@ -697,15 +697,25 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		}
 		if inspection.Descriptor.ROM != nil || inspection.Descriptor.Format == 4 {
 			// Cartridge bytes are consumed by linking, never delivered again as media.
+			// A PC/XT with uploaded firmware starts from its own disk or the
+			// bundled FreeDOS disk, as a format-2 PC/XT does below.
+			disk := entry
+			if inspection.Descriptor.Format == 3 {
+				disk = s.pcxtStartDisk(inspection.Descriptor, entry)
+			}
 			if inspection.Descriptor.Format != 4 && inspection.Descriptor.ROM.Role != "cartridge" {
-				media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, entry.MediaID)
+				media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, disk.MediaRole, disk.MediaID)
 				if err != nil {
 					return coreLoadSource{}, err
 				}
 			}
 			var initial *corepackage.InitialMedia
-			if media != nil && initialSTDisk(inspection.Descriptor, media) {
-				initial, err = snapshotInitialSTDisk(entry, media)
+			if media != nil && (initialSTDisk(inspection.Descriptor, media) || initialPcxtDisk(inspection.Descriptor, media)) {
+				if initialPcxtDisk(inspection.Descriptor, media) {
+					initial, err = snapshotInitialPcxtDisk(disk, media)
+				} else {
+					initial, err = snapshotInitialSTDisk(entry, media)
+				}
 				closeErr := media.Close()
 				media = nil
 				if err = errors.Join(err, closeErr); err != nil {

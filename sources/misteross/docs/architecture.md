@@ -1703,10 +1703,16 @@ A consumer that resolves an install holds a shared lock on it until the
 process exits and stamps the lock file's mtime as its last use.
 `make toolchain-prune CACHE_ROOT=…` (`scripts/toolchain_cache.py prune`) reports
 the installs that no `toolchain.lock` on `origin/main` pins for this host and
-nobody used in `KEEP_DAYS` (default 14), and removes them with `APPLY=1`. It
-never removes an install whose lock a build or consumer holds, removes failed
-builds, and considers the per-lock `slots/` of the old layout only with
-`LEGACY_SLOTS=1`, judging their last use by their binaries' access times.
+nobody used in `KEEP_DAYS` (default 14), and removes them with `APPLY=1`. For
+GPU tools (`nextpnr`), pinned retention also requires matching a kept GPU
+lane's configuration, accelerator compiler, and backend environment
+(repeatable `--gpu-router` or `GPU_ROUTERS`/`GPU_ROUTER`, defaulting to
+`FES_TOOLCHAIN_GPU_ROUTER` or `OFF`, with `--hip-architectures` /
+`--cuda-architectures`), so obsolete lane or accelerator-toolchain variants
+age out via `KEEP_DAYS`. It never removes an install whose lock a build or
+consumer holds, removes failed builds, and considers the per-lock `slots/` of
+the old layout only with `LEGACY_SLOTS=1`, judging their last use by their
+binaries' access times.
 
 `FES_TOOLCHAIN_GPU_ROUTER` (default `OFF`) selects the lane.
 `FES_TOOLCHAIN_HIP_ARCHITECTURES` (default `gfx1100;gfx1201`) and

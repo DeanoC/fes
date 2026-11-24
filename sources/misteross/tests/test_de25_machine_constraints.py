@@ -12,22 +12,25 @@ SDCS = (
     BOARD / "spectrum/spectrum-clocks.sdc",
     BOARD / "atari-st/atari-st-clocks.sdc",
     BOARD / "c64/c64-clocks.sdc",
+    BOARD / "pcxt/pcxt-clocks.sdc",
 )
 # The C64 keeps its memory in block RAM: no SDRAM controller, so no
-# machine-clock release chain to constrain.
-RELEASES = {"spectrum": 1, "atari-st": 1, "c64": 0}
+# machine-clock release chain to constrain. The PC/XT's SDRAM has one.
+RELEASES = {"spectrum": 1, "atari-st": 1, "c64": 0, "pcxt": 1}
 # Word 0x18 of the shared transport is display readiness on Linux and the
 # native upload shell's fetch-bus snapshot; the SDC picks by the fetch toggle.
-TRANSPORT_STATUS = 'set fetch_tag [get_registers "${base}|transport|fetch_request"]\n'
+# The Linux models omit fetch_request, so the probe must pass -nowarn to avoid
+# Quartus Design Assistant TMC-20026 on an intentionally empty collection.
+TRANSPORT_STATUS = 'set fetch_tag [get_registers -nowarn "${base}|transport|fetch_request"]\n'
 # Each query returns its own pattern as the collection, so the log shows the
 # exact strings Quartus would receive. Only the native fetch toggle exists in
 # the native shell; the snapshot buses are 48 bits.
 STATUS_HARNESS = r"""
 set base {soc_inst|subsys_periph|machine}
 set native NATIVE
-proc get_registers {pattern} {
-    puts "get_registers\t$pattern"
-    return $pattern
+proc get_registers {args} {
+    puts "get_registers\t[join $args \t]"
+    return [lindex $args end]
 }
 proc get_pins {args} {
     puts "get_pins\t[join $args \t]"
@@ -59,12 +62,12 @@ def transport_status(native):
     if not native:
         ready = "soc_inst|subsys_periph|machine|video_ready_source"
         first = transport + "video_ready_sync[0]|d"
-        return [("get_registers", transport + "fetch_request"),
+        return [("get_registers", "-nowarn", transport + "fetch_request"),
                 ("get_registers", ready),
                 ("get_pins", "-compatibility_mode", "-nocase", first),
                 ("get_registers", transport + "video_ready_sync[1]"),
                 ("set_false_path", "-from", ready, "-to", first)]
-    rows = [("get_registers", transport + "fetch_request")]
+    rows = [("get_registers", "-nowarn", transport + "fetch_request")]
     for source in ("fetch_request", "fetch_reply"):
         first = transport + source + "_sync[0]|d"
         rows += [("get_registers", transport + source),

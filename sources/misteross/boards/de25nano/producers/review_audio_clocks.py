@@ -19,7 +19,8 @@ from scripts.fes_build_common import BuildError
 HERE = Path(__file__).resolve().parents[3]
 TCL = HERE / 'boards/de25nano/scanout/audio_clocks.tcl'
 MASTER = 'fes_audio_inst|clock|iopll_0_outclk0'
-# A machine with its own PLL: CLOCK1_50 x 188/15, then /51 for the audio master.
+# A machine with its own PLL on CLOCK1_50: output 1 is the audio master, at
+# the frequency its staged IP names (the shared PLL's x 188/15 /51).
 MACHINE_MASTER = 'fes_machine_pll|machine_pll_outclk1'
 MACHINE_POLICY = 'de25-machine-pll-audio-clocks-v1'
 PINS = {'CLOCK1_50': 'V16', 'HDMI_SCLK': 'BW1', 'HDMI_LRCLK': 'BR6',
@@ -47,8 +48,18 @@ def machine(record):
     return record['parameters'].get('audio_clock_reference_policy') == MACHINE_POLICY
 
 
-def observations(directory, *, machine_pll=False):
-    """Check report coverage and compute conditional, rather than PCB, budgets."""
+def machine_master_mhz(inputs):
+    """The audio master frequency the staged machine PLL names (output 1)."""
+    return inputs['standard_zx81']['machine_pll']['parameters']['gui_output_clock_frequency1']
+
+
+def observations(directory, *, machine_pll=False, master_mhz=None):
+    """Check report coverage and compute conditional, rather than PCB, budgets.
+
+    A machine PLL's master period is that of the frequency its IP names
+    (`master_mhz`), to the report's resolution.
+    """
+    require(machine_pll == (master_mhz is not None), 'machine PLL master frequency differs from its policy')
     master = MACHINE_MASTER if machine_pll else MASTER
     clocks = {}
     for row in csv.DictReader((Path(directory) / 'clocks.tsv').read_text().splitlines(), delimiter='\t'):
@@ -60,8 +71,9 @@ def observations(directory, *, machine_pll=False):
                       for label in ('bit_clock', 'word_clock') for suffix in ('', '_output'))}
     require(set(clocks) == names, 'missing or unexpected audio clock')
     period = number(clocks[master]['period_ns'])
-    require(abs(period - (Decimal(20) * 15 * 51 / 188 if machine_pll else Decimal(20) * 236 / 58)) <= Decimal('.001'),
-            'master period differs from the machine x188/15 /51 divider' if machine_pll else
+    require(abs(period - (Decimal(1000) / number(master_mhz) if machine_pll else Decimal(20) * 236 / 58))
+            <= Decimal('.001'),
+            'master period differs from the machine PLL\'s audio output' if machine_pll else
             'master period differs from the stock M58/C236 divider')
     for label, edges, divisor in (('bit_clock', (3, 7, 11), 4), ('word_clock', (255, 511, 767), 256)):
         name = 'de25_i2s_' + label
@@ -196,7 +208,8 @@ def collect_selected(selected, output, quartus_sta, archive):
                *([MACHINE_MASTER] if machine_pll else [])]
     with (output / 'quartus-sta.log').open('wb') as stream:
         subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT, check=True, timeout=240)
-    result = observations(reports, machine_pll=machine_pll)
+    result = observations(reports, machine_pll=machine_pll,
+                          master_mhz=machine_master_mhz(inputs) if machine_pll else None)
     require(async_inputs.bindings(selected) == before and identities == {
             str(p): async_inputs.sha(p) for p in (tool, script, Path(__file__).resolve())},
             'original fit or observation tools changed')

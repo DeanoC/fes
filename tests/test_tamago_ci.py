@@ -167,10 +167,59 @@ class TamagoCIRunnerTests(unittest.TestCase):
         self.assertEqual(seen[0][2], ROOT / 'platform/embedded/tamago')
         self.assertEqual(seen[0][3]['GOWORK'], 'off')
 
-    def test_default_qemu_programs_cover_packages_admission_and_play(self):
+    def test_default_qemu_programs_cover_all_standalone_suites(self):
         for expected in ('probe', 'mapcheck', 'fabric', 'keyboard', 'display',
-                         'packages', 'admission', 'tenfoot', 'play'):
+                         'packages', 'admission', 'network', 'tenfoot', 'storage', 'play'):
             self.assertIn(expected, tamago_ci.DEFAULT_QEMU_PROGRAMS)
+
+    def test_run_qemu_programs_passes_disk_for_storage_reused_and_standalone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            seen = []
+
+            def fake_run_step(name, cmd, *, cwd, env=None, timeout=600):
+                seen.append((name, [str(x) for x in cmd]))
+                if name == 'qemu-network':
+                    (out / 'qemu-network').mkdir(parents=True, exist_ok=True)
+                    (out / 'qemu-network/fat32.img').write_bytes(b'img')
+                return {'step': name, 'status': 'passed', 'elapsed_seconds': 0.1}
+
+            with mock.patch.object(tamago_ci, 'run_step', side_effect=fake_run_step):
+                tamago_ci.run_qemu_programs(
+                    ROOT, Path('/bin/tamago-go'), out / 'mod',
+                    Path('/usr/bin/qemu-system-aarch64'), Path('/bin/fogcast-host'),
+                    out, ('network', 'storage'), 120,
+                )
+
+            self.assertEqual([s[0] for s in seen], ['qemu-network', 'qemu-storage'])
+            self.assertIn('--disk', seen[1][1])
+            self.assertIn(str(out / 'qemu-network/fat32.img'), seen[1][1])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            seen = []
+            fixture = out / 'storage-fixture.img'
+
+            def fake_prepare(path, *, cwd):
+                Path(path).write_bytes(b'fixture')
+                return Path(path)
+
+            def fake_run_step(name, cmd, *, cwd, env=None, timeout=600):
+                seen.append((name, [str(x) for x in cmd]))
+                return {'step': name, 'status': 'passed', 'elapsed_seconds': 0.1}
+
+            with mock.patch.object(tamago_ci, '_prepare_storage_fixture_disk', side_effect=fake_prepare) as prep, \
+                 mock.patch.object(tamago_ci, 'run_step', side_effect=fake_run_step):
+                tamago_ci.run_qemu_programs(
+                    ROOT, Path('/bin/tamago-go'), out / 'mod',
+                    Path('/usr/bin/qemu-system-aarch64'), Path('/bin/fogcast-host'),
+                    out, ('storage',), 120,
+                )
+
+            prep.assert_called_once()
+            self.assertEqual([s[0] for s in seen], ['qemu-storage'])
+            self.assertIn('--disk', seen[0][1])
+            self.assertIn(str(fixture), seen[0][1])
 
 
 if __name__ == '__main__':

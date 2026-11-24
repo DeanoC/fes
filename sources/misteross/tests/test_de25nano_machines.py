@@ -1,4 +1,4 @@
-"""DE25 Spectrum, Atari ST and C64 derivation guards and standard-shell simulations."""
+"""DE25 Spectrum, Atari ST, C64 and PC/XT derivation guards and standard-shell simulations."""
 import importlib.util
 from pathlib import Path
 import shutil
@@ -21,6 +21,7 @@ def suite(name, directory):
 SpectrumDerivations = suite("de25_spectrum_build_tests", "spectrum")
 AtariSTDerivations = suite("de25_atari_st_build_tests", "atari-st")
 C64Derivations = suite("de25_c64_build_tests", "c64")
+PCXTDerivations = suite("de25_pcxt_build_tests", "pcxt")
 
 
 class MachineSimulationTests(unittest.TestCase):
@@ -40,3 +41,7 @@ class MachineSimulationTests(unittest.TestCase):
     @unittest.skipUnless(TOOLS, "requires Verilator and C++")
     def test_c64_diagnostic_on_the_standard_shell(self):
         self.simulate("c64", 2400)
+
+    @unittest.skipUnless(TOOLS, "requires Verilator and C++")
+    def test_pcxt_on_the_standard_shell(self):
+        self.simulate("pcxt", 3600)

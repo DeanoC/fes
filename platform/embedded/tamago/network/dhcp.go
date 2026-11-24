@@ -96,6 +96,11 @@ type dhcpParsedReply struct {
 	leaseTime time.Duration
 }
 
+// ValidateDHCPConfig validates DHCPConfig without touching any network device.
+func ValidateDHCPConfig(cfg DHCPConfig) error {
+	return validateDHCPConfig(cfg)
+}
+
 func validateDHCPConfig(cfg DHCPConfig) error {
 	if cfg.InitialInterval < 0 || cfg.MaxInterval < 0 || cfg.Timeout < 0 {
 		return fmt.Errorf("%w: negative duration", ErrDHCPInvalidConfig)

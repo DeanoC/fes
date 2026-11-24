@@ -862,6 +862,8 @@ Capabilities NativeHardware::capabilities() const
     result.programming_profiles.push_back("de25-linux-computer-v1");
    SupportedABI computer;
    computer.id = generated::FesComputerABIID; computer.major = 1; computer.minor = 0;
+   // The standard shell's PC/XT declares the fes.computer 1.1 floppy.
+   if(fes_gp_driver_&&menu_display_&&menu_window_) computer.minor = generated::FesComputerABIMinor;
    computer.interfaces = {{generated::FesComputerInterfaceKeyboardHidID, 1, 0},
     {generated::FesComputerInterfaceMediaZx81TapeID, 1, 0},
     {generated::FesComputerInterfaceVideoFixed720p60ID, 1, 0}};
@@ -901,6 +903,8 @@ Capabilities NativeHardware::capabilities() const
    result.abis.insert(result.abis.begin(), std::move(application));
   }
   if (active_driver_) result.media_units = active_driver_->media_units();
+  // A DE25 machine's bound library disk reports its binding as on the DE10.
+  if (active_driver_ && active_driver_ == fes_gp_driver_) ReportDurableMedia(&result.media_units);
   if (De25StaticEnabled() && fes_gp_driver_ && menu_display_ && menu_window_ &&
       fpga_.SupportsStaticComposition())
    result.programming_profiles.push_back("de25-linux-static-computer-v1");
@@ -1116,12 +1120,7 @@ Capabilities NativeHardware::capabilities() const
                     result.media_units.push_back(unit);
                 }
             }
-            if (media_data_file_) for (auto& unit : result.media_units) {
-                if (unit.unit == durable_media_.identity.unit) {
-                    unit.persistence_mode="persistent"; unit.game_id=durable_media_.identity.game_id;
-                    unit.base_media_id=durable_media_.identity.base_media_id; unit.revision=durable_media_.revision;
-                }
-            }
+            ReportDurableMedia(&result.media_units);
 			if (driver != nullptr && driver->StreamInfo(&info).ok()) {
 				result.media_stream.interface = {generated::FesSimpleComputerInterfaceMediaBlobStreamID,
 					generated::FesSimpleComputerInterfaceMediaBlobStreamMajor,
@@ -1523,6 +1522,18 @@ void NativeHardware::ForgetAtaDisk()
 	ata_flushed_ = false;
 }
 
+// The durable library disk's binding, on the unit that holds it.
+void NativeHardware::ReportDurableMedia(std::vector<MediaUnitCapability>* units) const
+{
+    if (!media_data_file_) return;
+    for (auto& unit : *units) {
+        if (unit.unit == durable_media_.identity.unit) {
+            unit.persistence_mode="persistent"; unit.game_id=durable_media_.identity.game_id;
+            unit.base_media_id=durable_media_.identity.base_media_id; unit.revision=durable_media_.revision;
+        }
+    }
+}
+
 void NativeHardware::ForgetMediaData()
 {
     media_data_file_.reset(); media_snapshot_.clear(); durable_media_={}; media_base_size_=0; media_data_flushed_=false;
@@ -1875,7 +1886,9 @@ Error NativeHardware::PrepareInitialComputerMedia(AdmittedCorePackage* package,
 		if (interface.id == generated::FesComputerInterfaceMediaPcxtFloppyID) pcxt_floppy = true;
 		if (interface.id == generated::FesComputerInterfaceMediaPcxtFloppyWriteID) pcxt_writable = true;
 	}
-	const bool pcxt = descriptor.format == 2 && descriptor.core.id == "fes.pcxt-dos" && pcxt_floppy && pcxt_writable;
+	// The DE10 package links its firmware (format 2); the DE25 one uploads it (format 3).
+	const bool pcxt = (descriptor.format == 2 || (descriptor.format == 3 && descriptor.rom.role == "firmware")) &&
+		descriptor.core.id == "fes.pcxt-dos" && pcxt_floppy && pcxt_writable;
 	const bool st = descriptor.format == 3 && descriptor.rom.role == "firmware" &&
 		descriptor.core.id == "fes.atari-st" && floppy && writable;
 	if ((!st && !pcxt) || descriptor.abi.id != generated::FesComputerABIID)
