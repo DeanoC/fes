@@ -199,7 +199,7 @@ $(BUILD_DIR)/tests/unit/runtime_test: tests/unit/runtime_test.cpp \
 		tests/support/fake_hardware.cpp tests/support/capture_log.cpp \
 		 src/runtime.cpp src/native/diagnostic.cpp
 	@mkdir -p "$(dir $@)"
-	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/runtime_test.cpp \
+	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) tests/unit/runtime_test.cpp \
 		tests/support/fake_hardware.cpp tests/support/capture_log.cpp \
 		 src/runtime.cpp src/native/diagnostic.cpp -o "$@"
 

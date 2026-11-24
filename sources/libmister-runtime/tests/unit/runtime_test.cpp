@@ -1194,7 +1194,7 @@ void TestComputerKeyboardBindingSerializationAndFaults()
 	mister::KeyboardHidRows rows{};
 	rows[0] = 0x0010;
 	rows[8] = 0x0002;
-	assert(f.runtime.SetKeyboardHid(id, 1, rows).code == ErrorCode::busy);
+	assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, 1, rows).code == ErrorCode::busy);
 	assert(f.runtime.LoadCore("/packages/apple2", id).ok());
 	const auto generation = f.runtime.status().generation;
 	assert(f.runtime.status().active_package.observed.abi.id == "fes.computer");
@@ -1202,38 +1202,38 @@ void TestComputerKeyboardBindingSerializationAndFaults()
 	reserved[0] |= 0x0001;
 	auto modifier = rows;
 	modifier[8] = 0x0100;
-	assert(f.runtime.SetKeyboardHid(id, generation, reserved).code == ErrorCode::invalid_request);
-	assert(f.runtime.SetKeyboardHid(id, generation, modifier).code == ErrorCode::invalid_request);
-	assert(f.runtime.SetKeyboardHid(id, generation + 1, rows).code == ErrorCode::invalid_request);
-	assert(f.runtime.SetKeyboardHid(std::string(64, 'b'), generation, rows).code == ErrorCode::invalid_request);
-	assert(f.runtime.SetKeyboardHid(id, 0, rows).code == ErrorCode::invalid_request);
+	assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, generation, reserved).code == ErrorCode::invalid_request);
+	assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, generation, modifier).code == ErrorCode::invalid_request);
+	assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, generation + 1, rows).code == ErrorCode::invalid_request);
+	assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, std::string(64, 'b'), generation, rows).code == ErrorCode::invalid_request);
+	assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, 0, rows).code == ErrorCode::invalid_request);
 	assert(f.hardware.keyboard_hid_calls == 0);
 	f.hardware.on_keyboard_hid = [&] {
 		assert(f.runtime.Stop().code == ErrorCode::busy);
-		assert(f.runtime.SetKeyboardHid(id, generation, rows).code == ErrorCode::busy);
+		assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, generation, rows).code == ErrorCode::busy);
 		assert(f.runtime.EjectMedia(id, generation, 0).code == ErrorCode::busy);
 	};
-	assert(f.runtime.SetKeyboardHid(id, generation, rows).ok());
+	assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, generation, rows).ok());
 	assert(f.hardware.keyboard_hid_calls == 1 && f.hardware.keyboard_hid_rows == rows);
 	f.hardware.on_keyboard_hid = {};
 	f.hardware.keyboard_hid_result = {ErrorCode::unsupported_interface, "inactive", "input"};
-	assert(f.runtime.SetKeyboardHid(id, generation, rows).code == ErrorCode::unsupported_interface);
+	assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, generation, rows).code == ErrorCode::unsupported_interface);
 	assert(f.runtime.status().state == State::running_development);
 	// A failed row exchange retires the generation like a controller fault.
 	f.hardware.keyboard_hid_result = {ErrorCode::io_failed, "partial HID snapshot", "input"};
-	assert(!f.runtime.SetKeyboardHid(id, generation, rows).ok());
+	assert(!f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, generation, rows).ok());
 	assert(f.hardware.WaitForIdleCalls(2));
 	assert(WaitForState(f.runtime, State::idle));
 	assert(f.runtime.status().error.message == "partial HID snapshot");
 	assert(f.runtime.status().capabilities.media_units.empty());
-	assert(f.runtime.SetKeyboardHid(id, generation, rows).code == ErrorCode::busy);
+	assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, generation, rows).code == ErrorCode::busy);
 
 	// Other ABIs, and computers without the keyboard, never reach hardware.
 	Fixture game;
 	Start(game);
 	assert(game.runtime.LoadCore("/packages/pong", id).ok());
 	const auto calls = game.hardware.keyboard_hid_calls;
-	assert(game.runtime.SetKeyboardHid(id, game.runtime.status().generation, rows).code ==
+	assert(game.runtime.SetKeyboardHid(game.runtime.status().runtime_instance, id, game.runtime.status().generation, rows).code ==
 		ErrorCode::unsupported_interface);
 	Fixture silent;
 	UseComputerPackage(silent.hardware);
@@ -1241,7 +1241,7 @@ void TestComputerKeyboardBindingSerializationAndFaults()
 		silent.hardware.core_info.descriptor.interfaces.begin() + 1);
 	Start(silent);
 	assert(silent.runtime.LoadCore("/packages/apple2", id).ok());
-	assert(silent.runtime.SetKeyboardHid(id, silent.runtime.status().generation, rows).code ==
+	assert(silent.runtime.SetKeyboardHid(silent.runtime.status().runtime_instance, id, silent.runtime.status().generation, rows).code ==
 		ErrorCode::unsupported_interface);
 	assert(game.hardware.keyboard_hid_calls == calls && silent.hardware.keyboard_hid_calls == 0);
 }
@@ -1310,7 +1310,7 @@ void TestComputerMediaUnitsStayLiveAndReportUnitState()
 	assert(f.hardware.insert_media_calls == 0 && f.hardware.eject_media_calls == 0);
 	f.hardware.on_insert_media = [&] {
 		assert(f.runtime.Stop().code == ErrorCode::busy);
-		assert(f.runtime.SetKeyboardHid(id, generation, mister::KeyboardHidRows{}).code == ErrorCode::busy);
+		assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, generation, mister::KeyboardHidRows{}).code == ErrorCode::busy);
 		assert(f.runtime.InsertMedia("/media/dos33.dsk", id, generation, 0, 143360).code == ErrorCode::busy);
 		f.hardware.supported.media_units[0].state = mister::MediaUnitState::ready;
 	};
@@ -1860,7 +1860,7 @@ void TestComputerSessionDisplayPresentsFramesAndRestoresVideo()
 	assert(loaded.menu_display.core_generation == generation);
 	mister::KeyboardHidRows rows{};
 	rows[2] = 1;
-	assert(f.runtime.SetKeyboardHid(id, generation, rows).ok());
+	assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, generation, rows).ok());
 	assert(f.hardware.keyboard_hid_calls == 1);
 	const auto idle_before = f.hardware.idle_calls;
 	const auto core_before = f.hardware.core_calls;
@@ -1870,9 +1870,9 @@ void TestComputerSessionDisplayPresentsFramesAndRestoresVideo()
 	assert(opened.package_id == id && opened.core_generation == generation);
 	assert(f.runtime.status().generation == generation);
 	assert(f.hardware.idle_calls == idle_before && f.hardware.core_calls == core_before);
-	assert(f.runtime.SetKeyboardHid(id, generation, rows).ok());
+	assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, generation, rows).ok());
 	assert(f.hardware.keyboard_hid_calls == 1);
-	assert(f.runtime.SetKeyboardHid(id, generation, {}).ok());
+	assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, generation, {}).ok());
 	assert(f.hardware.keyboard_hid_calls == 2);
 	std::unique_ptr<mister::MenuFrame> frame;
 	PrepareMenuFrame(f.runtime, opened.generation, &frame);
@@ -1887,7 +1887,7 @@ void TestComputerSessionDisplayPresentsFramesAndRestoresVideo()
 	assert(f.hardware.idle_calls == idle_before && f.hardware.core_calls == core_before);
 	assert(!f.runtime.PresentMenuFrame(opened.generation, *frame, &info).ok());
 	assert(f.hardware.menu_present_calls == 1);
-	assert(f.runtime.SetKeyboardHid(id, generation, rows).ok());
+	assert(f.runtime.SetKeyboardHid(f.runtime.status().runtime_instance, id, generation, rows).ok());
 	assert(f.hardware.keyboard_hid_calls == 3);
 }
 
@@ -1902,19 +1902,19 @@ void TestSessionDisplayBindingsFocusAndFrameRevocation()
  assert(f.runtime.SetSessionDisplay(id,core_generation+1,true,true).code==ErrorCode::invalid_request);
  assert(f.runtime.SetSessionDisplay(std::string(64,'b'),core_generation,true,true).code==ErrorCode::invalid_request);
  assert(f.hardware.session_display_calls==0);
- assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==1);
+ assert(f.runtime.SetComputerKeyboard(f.runtime.status().runtime_instance, id, f.runtime.status().generation, 0).ok()&&f.hardware.keyboard_calls==1);
  assert(f.runtime.SetSessionDisplay(id,core_generation,true,true).ok());
  const auto opened=f.runtime.status().menu_display;
  assert(opened.available&&opened.generation&&opened.core_generation==core_generation);
  assert(f.runtime.SetSessionDisplay(id,core_generation,true,true).ok());
  assert(f.runtime.status().menu_display.generation==opened.generation&&f.hardware.session_display_calls==1);
- assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==1);
- assert(f.runtime.SetComputerKeyboard((std::uint64_t(1)<<40)-1).ok()&&f.hardware.keyboard_calls==2);
- assert(f.runtime.SetComputerKeyboard(std::uint64_t(1)<<40).code==ErrorCode::invalid_request);
+ assert(f.runtime.SetComputerKeyboard(f.runtime.status().runtime_instance, id, f.runtime.status().generation, 0).ok()&&f.hardware.keyboard_calls==1);
+ assert(f.runtime.SetComputerKeyboard(f.runtime.status().runtime_instance, id, f.runtime.status().generation, (std::uint64_t(1)<<40)-1).ok()&&f.hardware.keyboard_calls==2);
+ assert(f.runtime.SetComputerKeyboard(f.runtime.status().runtime_instance, id, f.runtime.status().generation, std::uint64_t(1)<<40).code==ErrorCode::invalid_request);
  std::unique_ptr<mister::MenuFrame> old;PrepareMenuFrame(f.runtime,opened.generation,&old);
  assert(f.runtime.SetSessionDisplay(id,core_generation,false,false).ok());
  assert(!f.runtime.status().menu_display.available&&f.runtime.status().menu_display.generation==0);
- assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==3);
+ assert(f.runtime.SetComputerKeyboard(f.runtime.status().runtime_instance, id, f.runtime.status().generation, 0).ok()&&f.hardware.keyboard_calls==3);
  assert(f.runtime.SetSessionDisplay(id,core_generation,true,true).ok());
  const auto fresh=f.runtime.status().menu_display.generation;assert(fresh>opened.generation);
  std::unique_ptr<mister::MenuFrame> frame;PrepareMenuFrame(f.runtime,fresh,&frame);
@@ -1924,7 +1924,7 @@ void TestSessionDisplayBindingsFocusAndFrameRevocation()
  assert(f.hardware.menu_present_calls==0);
  f.hardware.on_menu_present=[&] {
   assert(f.runtime.ReplaceLiveComputerMedia("/next.p",id,core_generation).code==ErrorCode::busy);
-  assert(f.runtime.SetComputerKeyboard(0).code==ErrorCode::busy);
+  assert(f.runtime.SetComputerKeyboard(f.runtime.status().runtime_instance, id, f.runtime.status().generation, 0).code==ErrorCode::busy);
  };
  assert(f.runtime.PresentMenuFrame(fresh,*frame,&info).ok());
  assert(f.runtime.ReplaceLiveComputerMedia("/next.p",id,core_generation).ok());
@@ -1934,11 +1934,48 @@ void TestSessionDisplayBindingsFocusAndFrameRevocation()
  assert(f.runtime.LoadCore("/replacement",id).ok());
  assert(!f.runtime.PresentMenuFrame(fresh,*frame,&info).ok());
  const auto replacement=f.runtime.status().generation;assert(replacement>core_generation);
+	assert(!f.runtime.SetComputerKeyboard(active.runtime_instance, id, core_generation, 0).ok());
  assert(!f.runtime.SetSessionDisplay(id,core_generation,true,true).ok());
  assert(f.runtime.SetSessionDisplay(id,replacement,true,true).ok());
  std::unique_ptr<mister::MenuFrame> next;PrepareMenuFrame(f.runtime,f.runtime.status().menu_display.generation,&next);
  assert(f.runtime.Stop().ok());
  assert(!f.runtime.PresentMenuFrame(fresh,*next,&info).ok());
+}
+
+void TestMatrixKeyboardRejectsPreviousRuntimeInstance()
+{
+ Fixture first; Fixture second; const std::string id(64,'a');
+ StartSessionDisplayFixture(first,id); StartSessionDisplayFixture(second,id);
+	// Every new Runtime reaches active only after its own successful idle load.
+	assert(first.hardware.idle_calls==1 && second.hardware.idle_calls==1);
+ const auto a=first.runtime.status(); const auto b=second.runtime.status();
+ assert(!a.runtime_instance.empty() && !b.runtime_instance.empty());
+ assert(a.runtime_instance != b.runtime_instance && a.generation == b.generation);
+ assert(!second.runtime.SetComputerKeyboard(a.runtime_instance,id,a.generation,0).ok());
+	assert(second.runtime.SetKeyboardHid(a.runtime_instance,id,a.generation,{}).code==ErrorCode::invalid_request);
+ assert(second.hardware.keyboard_calls==0);
+ assert(second.runtime.SetComputerKeyboard(b.runtime_instance,id,b.generation,0).ok());
+ assert(second.hardware.keyboard_calls==1);
+	Fixture failed;
+	failed.hardware.idle_result={{ErrorCode::io_failed,"idle failed"},true,""};
+	assert(!failed.runtime.Start().ok());
+	assert(!failed.runtime.LoadCore("/zx81",id).ok());
+	assert(failed.hardware.core_calls==0);
+}
+
+void TestMissingRuntimeEntropyRefusesKeyboardWrites()
+{
+	mister_test::FakeHardware hardware;
+	mister_test::CaptureLog log;
+	mister::Runtime runtime(hardware, log, "");
+	const std::string id(64, 'a');
+	assert(runtime.Start().ok());
+	assert(runtime.LoadCore("/zx81", id).ok());
+	const auto status = runtime.status();
+	assert(status.runtime_instance.empty());
+	assert(!runtime.SetComputerKeyboard("", id, status.generation, 0).ok());
+	assert(!runtime.SetKeyboardHid("", id, status.generation, {}).ok());
+	assert(hardware.keyboard_calls == 0 && hardware.keyboard_hid_calls == 0);
 }
 
 // A surround shows the plane while the machine keeps its keys. Moving focus on
@@ -1952,20 +1989,20 @@ void TestSessionDisplayMachineFocusKeepsInput()
  assert(f.runtime.SetSessionDisplay(id,core_generation,true,false).ok());
  const auto shown=f.runtime.status().menu_display;
  assert(shown.available&&shown.generation&&!shown.launcher_focus&&f.hardware.session_display_calls==1);
- assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==1);
+ assert(f.runtime.SetComputerKeyboard(f.runtime.status().runtime_instance, id, f.runtime.status().generation, 0).ok()&&f.hardware.keyboard_calls==1);
  assert(f.runtime.SetSessionDisplay(id,core_generation,true,false).ok()&&f.hardware.session_display_calls==1);
  std::unique_ptr<mister::MenuFrame> frame;PrepareMenuFrame(f.runtime,shown.generation,&frame);
  mister::MenuDisplayInfo info;assert(f.runtime.PresentMenuFrame(shown.generation,*frame,&info).ok());
  assert(f.runtime.SetSessionDisplay(id,core_generation,true,true).ok());
  auto focused=f.runtime.status().menu_display;
  assert(focused.available&&focused.launcher_focus&&focused.generation==shown.generation);
- assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==1);
+ assert(f.runtime.SetComputerKeyboard(f.runtime.status().runtime_instance, id, f.runtime.status().generation, 0).ok()&&f.hardware.keyboard_calls==1);
  frame.reset();PrepareMenuFrame(f.runtime,shown.generation,&frame);
  assert(f.runtime.PresentMenuFrame(shown.generation,*frame,&info).ok());
  assert(f.runtime.SetSessionDisplay(id,core_generation,true,false).ok());
  focused=f.runtime.status().menu_display;
  assert(focused.available&&!focused.launcher_focus&&focused.generation==shown.generation);
- assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==2);
+ assert(f.runtime.SetComputerKeyboard(f.runtime.status().runtime_instance, id, f.runtime.status().generation, 0).ok()&&f.hardware.keyboard_calls==2);
  assert(f.runtime.SetSessionDisplay(id,core_generation,false,false).ok());
  assert(!f.runtime.status().menu_display.available&&f.runtime.status().menu_display.generation==0);
  assert(f.hardware.menu_present_calls==2&&f.hardware.idle_calls==1&&f.hardware.core_calls==1);
@@ -1989,10 +2026,10 @@ void TestSessionDisplayFailuresNeverReloadIdleOrRetireCore()
  assert(f.runtime.ClearComputerMedia(id,generation).ok());
  f.hardware.session_display_result={ErrorCode::io_failed,"drain not proved","menu"};
  assert(!f.runtime.SetSessionDisplay(id,generation,false,false).ok());
- assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==0);
+ assert(f.runtime.SetComputerKeyboard(f.runtime.status().runtime_instance, id, f.runtime.status().generation, 0).ok()&&f.hardware.keyboard_calls==0);
  assert(f.runtime.status().generation==generation&&f.hardware.idle_calls==1);
  f.hardware.session_display_result={};assert(f.runtime.SetSessionDisplay(id,generation,false,false).ok());
- assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==1);
+ assert(f.runtime.SetComputerKeyboard(f.runtime.status().runtime_instance, id, f.runtime.status().generation, 0).ok()&&f.hardware.keyboard_calls==1);
  f.hardware.session_display_result={ErrorCode::io_failed,"enable failed","menu"};
  assert(!f.runtime.SetSessionDisplay(id,generation,true,true).ok());
  assert(f.runtime.status().generation==generation&&f.hardware.idle_calls==1);
@@ -2188,6 +2225,8 @@ int main()
  TestStartWithSelectedMenuAvoidsSplash();
  TestComputerSessionDisplayPresentsFramesAndRestoresVideo();
  TestSessionDisplayBindingsFocusAndFrameRevocation();
+ TestMatrixKeyboardRejectsPreviousRuntimeInstance();
+ TestMissingRuntimeEntropyRefusesKeyboardWrites();
  TestSessionDisplayMachineFocusKeepsInput();
  TestSessionDisplayFailuresNeverReloadIdleOrRetireCore();
  TestSessionCloseAndStopWaitForInFlightFrame();

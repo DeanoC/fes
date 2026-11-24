@@ -118,6 +118,10 @@ func (r *Runtime) SetSessionDisplay(ctx context.Context, display protocol.Sessio
 	if focused {
 		r.keyboardMatrix = 0xffffffffff
 		r.keyboardPackageID, r.keyboardGeneration = b.PackageID, b.Generation
+		r.keyboardInstance = ""
+		if before.RuntimeInstance != nil && response.RuntimeInstance != nil && *before.RuntimeInstance == *response.RuntimeInstance {
+			r.keyboardInstance = *before.RuntimeInstance
+		}
 	}
 	return nil
 }

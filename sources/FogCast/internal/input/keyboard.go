@@ -2,35 +2,356 @@ package input
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
+	"regexp"
 	"sync"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
-// KeyboardSink maps FogCast key frames onto the ZX81 ULA matrix and posts
-// them through the native runtime set_keyboard operation. Each source keeps
-// its own held keys; the matrix is the union, so one source releasing a key
-// leaves another source's hold in place.
-type KeyboardSink struct {
-	mu      sync.Mutex
-	pressed [sourceCount]map[remoteinput.Code]bool
-	blocked [sourceCount]map[remoteinput.Code]bool
-	focused bool
-	poster  func(context.Context, uint64) error
+var errMatrixUnconfirmed = errors.New("keyboard matrix source is unconfirmed")
+var matrixInstancePattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
+
+func validObservedMatrixInstance(instance string) bool {
+	return matrixInstancePattern.MatchString(instance) && instance != "00000000000000000000000000000000"
 }
+
+func matrixObservationRetires(obs CoreObservation, instance, packageID string, generation uint64) bool {
+	// Production Runtime cannot publish active/idle status for a fresh
+	// instance until Start has successfully programmed MENU or idle. Thus a
+	// validated new instance also retires the prior physical core. Unknown or
+	// failed startup must not be projected as Active or IdleConfirmed.
+	idle := obs.IdleConfirmed && !obs.Active && obs.Generation == 0 && obs.PackageID == ""
+	active := obs.Active && !obs.IdleConfirmed && obs.Generation != 0
+	return validObservedMatrixInstance(obs.RuntimeInstance) && (idle || active &&
+		(obs.RuntimeInstance != instance || obs.Generation != generation || obs.PackageID != packageID))
+}
+
+type MatrixBinding struct {
+	RuntimeInstance string
+	PackageID       string
+	Generation      uint64
+}
+
+type MatrixPoster func(context.Context, localhid.MatrixPost, uint64) error
+type MatrixRetirer func(context.Context, localhid.MatrixRetirement) error
+
+// KeyboardSink serializes source union mutations and their physical posts.
+// An ambiguous post fences the union until that exact source is neutralized.
+type KeyboardSink struct {
+	mu            sync.Mutex
+	pressed       [sourceCount]map[remoteinput.Code]bool
+	blocked       [sourceCount]map[remoteinput.Code]bool
+	focused       bool
+	poster        MatrixPoster
+	retirer       MatrixRetirer
+	binding       *MatrixBinding
+	sinkID        [16]byte
+	nextSequence  uint64
+	uncertain     *localhid.MatrixWitness
+	retiredNoPost bool
+}
+
+type matrixIdleCleanupKey struct{}
 
 func NewKeyboardSink() *KeyboardSink {
-	return &KeyboardSink{}
+	sink := &KeyboardSink{}
+	if _, err := rand.Read(sink.sinkID[:]); err != nil {
+		sink.sinkID = [16]byte{}
+	}
+	return sink
 }
 
-func (s *KeyboardSink) SetPoster(poster func(context.Context, uint64) error) {
+func (s *KeyboardSink) SetPoster(poster MatrixPoster) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.poster = poster
+}
+
+func (s *KeyboardSink) SetRetirer(retirer MatrixRetirer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.retirer = retirer
+}
+
+// neutralMediaLocked holds the source ledger stable from witness capture
+// through the adapter's confirmed all-source neutral. It preserves held-key
+// suppression on every failure, including proven pre-dispatch rejection.
+func (s *KeyboardSink) neutralMedia(ctx context.Context, query func(context.Context) (localhid.MatrixMediaWitness, bool, error), neutral func(context.Context, localhid.MatrixMediaNeutral) error, validate func(context.Context) error) (bool, error) {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return false, err
+	}
+	defer s.mu.Unlock()
+	if query == nil || neutral == nil || validate == nil {
+		return false, nil
+	}
+	witness, pending, err := query(ctx)
+	if err != nil || !pending {
+		return pending, err
+	}
+	if s.binding == nil || witness.RuntimeInstance != s.binding.RuntimeInstance || witness.PackageID != s.binding.PackageID || witness.Generation != s.binding.Generation {
+		return true, errMatrixUnconfirmed
+	}
+	if err := validate(ctx); err != nil {
+		return true, err
+	}
+	for source := inputSource(0); source < sourceCount; source++ {
+		s.suppressSourceLocked(source)
+	}
+	request := localhid.MatrixMediaNeutral{MediaOf: witness, Validate: validate}
+	if s.uncertain != nil {
+		copy := *s.uncertain
+		request.SourceOf = &copy
+	}
+	if err := neutral(ctx, request); err != nil {
+		return true, err
+	}
+	s.uncertain = nil
+	return true, nil
+}
+
+// retireObserved samples after the uncertain post drained, while the sink
+// remains locked. The caller holds the lifecycle fence through the adapter's
+// validation and exact-witness retirement; neither path posts a matrix.
+func (s *KeyboardSink) retireObserved(ctx context.Context, observe func(context.Context) (CoreObservation, error), validate func(context.Context) error) error {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if s.uncertain == nil {
+		return nil
+	}
+	if observe == nil || validate == nil || s.retirer == nil {
+		return errMatrixUnconfirmed
+	}
+	if err := validate(ctx); err != nil {
+		return err
+	}
+	probe, cancel := context.WithTimeout(ctx, localCoreObserveTimeout)
+	obs, err := observe(probe)
+	if err == nil {
+		err = probe.Err()
+	}
+	cancel()
+	if err != nil {
+		return err
+	}
+	old := *s.uncertain
+	if !matrixObservationRetires(obs, old.RuntimeInstance, old.PackageID, old.Generation) {
+		return errMatrixUnconfirmed
+	}
+	proof := localhid.MatrixRetirement{RetireOf: old, ObservedRuntimeInstance: obs.RuntimeInstance,
+		ObservedPackageID: obs.PackageID, ObservedGeneration: obs.Generation, Idle: obs.IdleConfirmed, Validate: validate}
+	if err := s.retirer(ctx, proof); err != nil {
+		return err
+	}
+	s.uncertain = nil
+	s.binding = nil
+	s.retiredNoPost = true
+	for source := inputSource(0); source < sourceCount; source++ {
+		s.suppressSourceLocked(source)
+	}
+	return nil
+}
+
+// retireUnboundIdle avoids inventing a matrix binding for a fresh sink. A
+// missing binding is not evidence of neutral hardware: only a fresh explicit
+// idle observation under the lifecycle guard can retire that empty state.
+func (s *KeyboardSink) retireUnboundIdle(ctx context.Context, observe func(context.Context) (CoreObservation, error), validate func(context.Context) error) error {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if s.binding != nil || s.uncertain != nil || observe == nil || validate == nil {
+		return errMatrixUnconfirmed
+	}
+	for _, pressed := range s.pressed {
+		if len(pressed) != 0 {
+			return errMatrixUnconfirmed
+		}
+	}
+	if err := validate(ctx); err != nil {
+		return err
+	}
+	probe, cancel := context.WithTimeout(ctx, localCoreObserveTimeout)
+	obs, err := observe(probe)
+	if err == nil {
+		err = probe.Err()
+	}
+	cancel()
+	if err != nil {
+		return err
+	}
+	if !obs.IdleConfirmed || obs.Active || obs.PackageID != "" || obs.Generation != 0 || !validObservedMatrixInstance(obs.RuntimeInstance) {
+		return errMatrixUnconfirmed
+	}
+	if err := validate(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+// retireBindingObserved is used by a source token whose entire old core has
+// retired. It samples after acquiring the sink lock and never changes a
+// successor binding, even when the package and generation numbers repeat.
+func (s *KeyboardSink) retireBindingObserved(ctx context.Context, expected MatrixBinding, observe func(context.Context) (CoreObservation, error), validate func(context.Context) error) error {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if s.binding == nil || *s.binding != expected || observe == nil || validate == nil {
+		return errMatrixUnconfirmed
+	}
+	if err := validate(ctx); err != nil {
+		return err
+	}
+	probe, cancel := context.WithTimeout(ctx, localCoreObserveTimeout)
+	obs, err := observe(probe)
+	if err == nil {
+		err = probe.Err()
+	}
+	cancel()
+	if err != nil {
+		return err
+	}
+	if !matrixObservationRetires(obs, expected.RuntimeInstance, expected.PackageID, expected.Generation) {
+		return errMatrixUnconfirmed
+	}
+	if s.uncertain != nil {
+		old := *s.uncertain
+		if old.RuntimeInstance != expected.RuntimeInstance || old.PackageID != expected.PackageID || old.Generation != expected.Generation || s.retirer == nil {
+			return errMatrixUnconfirmed
+		}
+		proof := localhid.MatrixRetirement{RetireOf: old, ObservedRuntimeInstance: obs.RuntimeInstance, ObservedPackageID: obs.PackageID, ObservedGeneration: obs.Generation, Idle: obs.IdleConfirmed, Validate: validate}
+		if err := s.retirer(ctx, proof); err != nil {
+			return err
+		}
+		s.uncertain = nil
+	} else {
+		if err := validate(ctx); err != nil {
+			return err
+		}
+	}
+	for source := inputSource(0); source < sourceCount; source++ {
+		s.suppressSourceLocked(source)
+	}
+	s.binding = nil
+	s.retiredNoPost = true
+	return nil
+}
+
+// BindInitial installs the first observed authority. Replacement requires the
+// controller's lifecycle proof and cannot be asserted by this method.
+func (s *KeyboardSink) BindInitial(binding MatrixBinding) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.binding != nil {
+		if *s.binding == binding {
+			return nil
+		}
+		return errMatrixUnconfirmed
+	}
+	if binding.RuntimeInstance == "" || binding.Generation == 0 || s.uncertain != nil {
+		return errMatrixUnconfirmed
+	}
+	copy := binding
+	s.binding = &copy
+	s.retiredNoPost = false
+	return nil
+}
+
+// bind replaces a matrix authority only after the caller has positively proven
+// the old generation retired. It never posts an old union into a successor.
+func (s *KeyboardSink) bindContext(ctx context.Context, binding *MatrixBinding, oldRetired, updateBinding, forgetLocal bool) error {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	same := s.binding != nil && binding != nil && *s.binding == *binding
+	// A status observation may have started before the failed post drained.
+	// It cannot clear uncertainty merely because it differs from this binding.
+	if updateBinding && !same {
+		if s.uncertain != nil {
+			return errMatrixUnconfirmed
+		}
+		s.binding = nil
+		if binding != nil {
+			copy := *binding
+			s.binding = &copy
+			s.retiredNoPost = false
+		}
+		if oldRetired {
+			for source := inputSource(0); source < sourceCount; source++ {
+				s.suppressSourceLocked(source)
+			}
+		}
+	}
+	if forgetLocal {
+		s.suppressSourceLocked(sourceLocal)
+		s.suppressSourceLocked(sourceLocalMatrix)
+	}
+	return nil
+}
+
+func (s *KeyboardSink) postLocked(ctx context.Context, source inputSource, neutral bool, validate func(context.Context) error) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if s.poster == nil {
+		return nil
+	}
+	idleGuard, _ := ctx.Value(matrixIdleCleanupKey{}).(func(context.Context) error)
+	if s.binding == nil && s.uncertain == nil && (s.retiredNoPost || idleGuard != nil) {
+		if idleGuard != nil {
+			if err := idleGuard(ctx); err != nil {
+				return err
+			}
+		}
+		if len(s.unionLocked()) == 0 {
+			return nil
+		}
+		// Idle retirement certifies only an empty cleanup, never a press.
+		// The caller must roll back the unbound provisional mutation.
+		return errors.Join(localhid.ErrMatrixNotDispatched, errMatrixUnconfirmed)
+	}
+	if s.sinkID == ([16]byte{}) || s.nextSequence >= ^uint64(0)-1 {
+		return errMatrixUnconfirmed
+	}
+	if s.uncertain != nil && (!neutral || s.uncertain.Source != uint8(source)) {
+		return errMatrixUnconfirmed
+	}
+	s.nextSequence++
+	witness := localhid.MatrixWitness{Sink: s.sinkID, Sequence: s.nextSequence, Source: uint8(source)}
+	if s.binding != nil {
+		witness.RuntimeInstance = s.binding.RuntimeInstance
+		witness.PackageID = s.binding.PackageID
+		witness.Generation = s.binding.Generation
+	}
+	if validate == nil {
+		validate = func(ctx context.Context) error { return ctx.Err() }
+	}
+	post := localhid.MatrixPost{Witness: witness, Validate: validate}
+	if s.uncertain != nil {
+		old := *s.uncertain
+		post.NeutralOf = &old
+	}
+	err := s.poster(ctx, post, zx81keys.Matrix(s.unionLocked()))
+	if err != nil {
+		if s.uncertain == nil && !errors.Is(err, localhid.ErrMatrixNotDispatched) {
+			old := witness
+			s.uncertain = &old
+		}
+		return err
+	}
+	if post.NeutralOf != nil {
+		s.uncertain = nil
+	}
+	return nil
 }
 
 func (s *KeyboardSink) Apply(f protocol.InputFrame) error {
@@ -38,6 +359,12 @@ func (s *KeyboardSink) Apply(f protocol.InputFrame) error {
 }
 
 func (s *KeyboardSink) ApplyFrom(ctx context.Context, source inputSource, f protocol.InputFrame) error {
+	return s.applyFromBound(ctx, source, f, nil, matrixGuardFrom(ctx))
+}
+
+// applyFromBound checks the immutable admission identity under the same lock
+// as mutation/post; nil is for callers that have no external binding.
+func (s *KeyboardSink) applyFromBound(ctx context.Context, source inputSource, f protocol.InputFrame, expected *MatrixBinding, validate func(context.Context) error) error {
 	if f.Kind != uint8(remoteinput.KindKey) && f.Device != uint8(remoteinput.DeviceKeyboard) {
 		return errors.New("unsupported input frame")
 	}
@@ -45,7 +372,26 @@ func (s *KeyboardSink) ApplyFrom(ctx context.Context, source inputSource, f prot
 		source = sourceRemote
 	}
 	code := remoteinput.Code(f.Code)
-	s.mu.Lock()
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if expected != nil && (s.binding == nil || *s.binding != *expected) {
+		return errNoCore
+	}
+	if validate != nil {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		if err := validate(ctx); err != nil {
+			return err
+		}
+	}
+	if s.uncertain != nil {
+		return errMatrixUnconfirmed
+	}
+	oldPressed := cloneMatrixKeys(s.pressed[source])
+	oldBlocked := cloneMatrixKeys(s.blocked[source])
 	if f.Action == uint8(remoteinput.ActionRelease) {
 		delete(s.blocked[source], code)
 	}
@@ -57,7 +403,6 @@ func (s *KeyboardSink) ApplyFrom(ctx context.Context, source inputSource, f prot
 			s.blocked[source][code] = true
 		}
 		delete(s.pressed[source], code)
-		s.mu.Unlock()
 		return nil
 	}
 	if s.pressed[source] == nil {
@@ -68,21 +413,25 @@ func (s *KeyboardSink) ApplyFrom(ctx context.Context, source inputSource, f prot
 	} else if f.Action == uint8(remoteinput.ActionRelease) {
 		delete(s.pressed[source], code)
 	}
-	matrix := zx81keys.Matrix(s.unionLocked())
-	poster := s.poster
-	s.mu.Unlock()
-	if poster == nil {
-		return nil
+	err := s.postLocked(ctx, source, false, validate)
+	if errors.Is(err, localhid.ErrMatrixNotDispatched) {
+		s.pressed[source] = oldPressed
+		s.blocked[source] = oldBlocked
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	return poster(ctx, matrix)
+	return err
 }
 
-// replaceSource sets one source's held keys to desired and posts the union.
-// A failed post leaves that source on desired so the next reconcile can
-// publish the matrix the runtime should hold.
+func cloneMatrixKeys(keys map[remoteinput.Code]bool) map[remoteinput.Code]bool {
+	if keys == nil {
+		return nil
+	}
+	copy := make(map[remoteinput.Code]bool, len(keys))
+	for key, held := range keys {
+		copy[key] = held
+	}
+	return copy
+}
+
 func (s *KeyboardSink) replaceSource(ctx context.Context, source inputSource, desired map[remoteinput.Code]bool) error {
 	if s == nil {
 		return nil
@@ -90,27 +439,117 @@ func (s *KeyboardSink) replaceSource(ctx context.Context, source inputSource, de
 	if source >= sourceCount {
 		source = sourceRemote
 	}
-	s.mu.Lock()
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if s.uncertain != nil {
+		return errMatrixUnconfirmed
+	}
 	next := map[remoteinput.Code]bool{}
 	if !s.focused {
 		for code := range desired {
-			if s.blocked[source][code] {
-				continue
+			if !s.blocked[source][code] {
+				next[code] = true
 			}
-			next[code] = true
 		}
 	}
+	old := s.pressed[source]
 	s.pressed[source] = next
-	matrix := zx81keys.Matrix(s.unionLocked())
-	poster := s.poster
-	s.mu.Unlock()
-	if poster == nil {
+	err := s.postLocked(ctx, source, false, matrixGuardFrom(ctx))
+	if errors.Is(err, localhid.ErrMatrixNotDispatched) {
+		s.pressed[source] = old
+	}
+	return err
+}
+
+// neutralUnconfirmedSource resolves only this source's ambiguous post. Held
+// inputs remain suppressed until their physical release; no desired press is
+// replayed while resolving the uncertainty.
+func (s *KeyboardSink) neutralUnconfirmedSource(ctx context.Context, source inputSource, desired map[remoteinput.Code]bool) (bool, error) {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return false, err
+	}
+	defer s.mu.Unlock()
+	if s.uncertain == nil {
+		return false, nil
+	}
+	if source >= sourceCount || uint8(source) != s.uncertain.Source {
+		return true, errMatrixUnconfirmed
+	}
+	s.suppressSourceLocked(source)
+	for code := range desired {
+		s.blocked[source][code] = true
+	}
+	if err := s.postLocked(ctx, source, true, matrixGuardFrom(ctx)); err != nil {
+		return true, err
+	}
+	for code := range s.blocked[source] {
+		if !desired[code] {
+			delete(s.blocked[source], code)
+		}
+	}
+	return true, nil
+}
+
+// suppressMappedKeys fences physically held pad contributors across a core
+// transition. It changes bookkeeping only and never posts a guest matrix.
+func (s *KeyboardSink) suppressMappedKeys(ctx context.Context, desired map[remoteinput.Code]bool) error {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if s.blocked[sourceLocalMatrix] == nil {
+		s.blocked[sourceLocalMatrix] = make(map[remoteinput.Code]bool)
+	}
+	for code := range desired {
+		s.blocked[sourceLocalMatrix][code] = true
+	}
+	return nil
+}
+
+// reconcileMappedReleases rearms a historical mapped key only when no
+// continuous-reader contributor still maps to it on any supported core.
+// A disconnected reader's orphaned keys require authoritative recovery.
+func (s *KeyboardSink) reconcileMappedReleases(ctx context.Context, held, orphans map[remoteinput.Code]bool) error {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if s.uncertain != nil {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
+	for code := range s.blocked[sourceLocalMatrix] {
+		if !held[code] && !orphans[code] {
+			delete(s.blocked[sourceLocalMatrix], code)
+		}
 	}
-	return poster(ctx, matrix)
+	return nil
+}
+
+// quarantineMappedSubset removes only ambiguous mappings while preserving
+// unrelated local and remote contributors in the confirmed union.
+func (s *KeyboardSink) quarantineMappedSubset(ctx context.Context, mappings map[remoteinput.Code]bool, expected *localhid.MatrixWitness) (*localhid.MatrixWitness, error) {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return expected, err
+	}
+	defer s.mu.Unlock()
+	if (s.uncertain == nil) != (expected == nil) || (s.uncertain != nil && *s.uncertain != *expected) {
+		return expected, errMatrixUnconfirmed
+	}
+	if s.blocked[sourceLocalMatrix] == nil {
+		s.blocked[sourceLocalMatrix] = make(map[remoteinput.Code]bool)
+	}
+	for code := range mappings {
+		s.blocked[sourceLocalMatrix][code] = true
+		delete(s.pressed[sourceLocalMatrix], code)
+	}
+	err := s.postLocked(ctx, sourceLocalMatrix, expected != nil, matrixGuardFrom(ctx))
+	if err != nil && expected == nil && s.uncertain != nil {
+		copy := *s.uncertain
+		expected = &copy
+	}
+	return expected, err
 }
 
 func (s *KeyboardSink) unionLocked() map[remoteinput.Code]bool {
@@ -123,66 +562,85 @@ func (s *KeyboardSink) unionLocked() map[remoteinput.Code]bool {
 	return union
 }
 
-func (s *KeyboardSink) ReleaseSource(source inputSource) error {
-	// Disconnect cleanup is best-effort and keeps the poster's deadline.
-	_ = s.releaseSourceContext(context.Background(), source)
-	return nil
+// suppressSourceLocked preserves physical-held suppression even when a
+// lifecycle neutral removes the contribution from the target union.
+func (s *KeyboardSink) suppressSourceLocked(source inputSource) {
+	if s.blocked[source] == nil {
+		s.blocked[source] = map[remoteinput.Code]bool{}
+	}
+	for code := range s.pressed[source] {
+		s.blocked[source][code] = true
+	}
+	s.pressed[source] = nil
 }
 
+func (s *KeyboardSink) ReleaseSource(source inputSource) error {
+	return s.releaseSourceContext(context.Background(), source)
+}
 func (s *KeyboardSink) releaseSourceContext(ctx context.Context, source inputSource) error {
 	return s.releaseSourcesContext(ctx, source)
 }
-
 func (s *KeyboardSink) releaseSourcesContext(ctx context.Context, sources ...inputSource) error {
-	s.mu.Lock()
+	return s.releaseSourcesBound(ctx, nil, matrixGuardFrom(ctx), sources...)
+}
+
+func (s *KeyboardSink) releaseSourcesBound(ctx context.Context, expected *MatrixBinding, validate func(context.Context) error, sources ...inputSource) error {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if expected != nil && (s.binding == nil || *s.binding != *expected) {
+		return errNoCore
+	}
+	if validate != nil {
+		if err := validate(ctx); err != nil {
+			return err
+		}
+	}
+	neutralSource := sourceRemote
+	neutral := false
+	if s.uncertain != nil {
+		for _, source := range sources {
+			if uint8(source) == s.uncertain.Source {
+				neutral = true
+				neutralSource = source
+			}
+		}
+		if !neutral {
+			return errMatrixUnconfirmed
+		}
+	}
 	for _, source := range sources {
 		if source >= sourceCount {
 			source = sourceRemote
 		}
-		s.pressed[source] = nil
-		s.blocked[source] = nil
+		s.suppressSourceLocked(source)
+		if !neutral {
+			neutralSource = source
+		}
 	}
-	matrix := zx81keys.Matrix(s.unionLocked())
-	poster := s.poster
-	s.mu.Unlock()
-	if poster == nil {
-		return nil
-	}
-	return poster(ctx, matrix)
+	return s.postLocked(ctx, neutralSource, neutral, validate)
 }
 
-// forgetSource discards a contribution after observation proves its core has
-// retired. The runtime retired that matrix; posting here would target the new core.
-func (s *KeyboardSink) forgetSource(source inputSource) {
-	s.mu.Lock()
+func (s *KeyboardSink) ReleaseAll() error { return s.releaseAllContext(context.Background()) }
+
+func (s *KeyboardSink) releaseAllContext(ctx context.Context) error {
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return err
+	}
 	defer s.mu.Unlock()
-	s.pressed[source] = nil
-	s.blocked[source] = nil
-}
-
-func (s *KeyboardSink) ReleaseAll() error {
-	s.mu.Lock()
 	s.focused = false
-	s.blocked = [sourceCount]map[remoteinput.Code]bool{}
-	for source := range s.pressed {
-		s.pressed[source] = map[remoteinput.Code]bool{}
+	for source := inputSource(0); source < sourceCount; source++ {
+		s.suppressSourceLocked(source)
 	}
-	poster := s.poster
-	s.mu.Unlock()
-	if poster == nil {
-		return nil
+	source := sourceRemote
+	neutral := s.uncertain != nil
+	if neutral {
+		source = inputSource(s.uncertain.Source)
 	}
-	// Neutralize is best-effort: no simple-computer core means the runtime
-	// rejects set_keyboard, and kit-lease cleanup still has to succeed.
-	// This path is host cleanup, not a kit-local frame, so it keeps the
-	// poster's own deadline instead of the local write bound.
-	_ = poster(context.Background(), zx81keys.Neutral)
-	return nil
+	return s.postLocked(ctx, source, neutral, nil)
 }
 
-// setDisplayFocus retires held keys without posting while an input fence is
-// held. The physical display operation neutralizes the matrix. Keys held on
-// either side of the visit require release and a fresh press before delivery.
 func (s *KeyboardSink) setDisplayFocus(focused bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

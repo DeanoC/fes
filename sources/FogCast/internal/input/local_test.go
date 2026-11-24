@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"net"
 	"os"
 	"path/filepath"
@@ -546,7 +547,7 @@ func TestLocalFailedBindingDoesNotCacheAnActiveFallback(t *testing.T) {
 func TestLocalObservationExpiryBoundsMatrixRetirement(t *testing.T) {
 	keys := NewKeyboardSink()
 	stall := false
-	keys.SetPoster(func(ctx context.Context, _ uint64) error {
+	keys.SetPoster(func(ctx context.Context, _ localhid.MatrixPost, _ uint64) error {
 		if !stall {
 			return nil
 		}
@@ -602,7 +603,7 @@ func TestLocalObservationRefreshDoesNotWaitForRemoteHIDPost(t *testing.T) {
 			var once sync.Once
 			unblock := func() { once.Do(func() { close(release) }) }
 			defer unblock()
-			sink.hid.setPoster(func(context.Context, string, uint64, hidkeys.Rows) error {
+			sink.hid.setPoster(func(context.Context, string, string, uint64, hidkeys.Rows) error {
 				close(entered)
 				<-release
 				return nil
@@ -679,7 +680,7 @@ func TestLocalRawKeyboardIsShapedOntoThePortsCore(t *testing.T) {
 func TestKeyboardSourcesMerge(t *testing.T) {
 	var matrix uint64
 	keys := NewKeyboardSink()
-	keys.SetPoster(func(_ context.Context, value uint64) error {
+	keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, value uint64) error {
 		matrix = value
 		return nil
 	})
@@ -1262,10 +1263,10 @@ func TestStalledLocalStatusCannotWedgeLifecycle(t *testing.T) {
 func TestStalledLocalKeyboardCannotWedgeLifecycle(t *testing.T) {
 	keys := NewKeyboardSink()
 	started := make(chan time.Duration, 1)
-	keys.SetPoster(func(ctx context.Context, _ uint64) error {
-		// Host cleanup still posts with context.Background(). A context
-		// with no deadline is not the local write under test.
-		if ctx == nil || ctx.Done() == nil {
+	var writes atomic.Int32
+	keys.SetPoster(func(ctx context.Context, _ localhid.MatrixPost, _ uint64) error {
+		// Cleanup also has a deadline; only the original local write stalls.
+		if writes.Add(1) != 1 {
 			return nil
 		}
 		deadline, ok := ctx.Deadline()
@@ -1350,7 +1351,11 @@ func TestStalledLocalKeyboardCannotWedgeLifecycle(t *testing.T) {
 // deadline and must still return.
 func TestStalledLocalControllerWriteCannotWedgeLifecycle(t *testing.T) {
 	started := make(chan time.Duration, 1)
+	var writes atomic.Int32
 	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(ctx context.Context, id string, generation uint64, port, buttons uint8, keypad uint16) error {
+		if writes.Add(1) != 1 {
+			return nil
+		}
 		deadline, ok := ctx.Deadline()
 		if !ok {
 			return nil

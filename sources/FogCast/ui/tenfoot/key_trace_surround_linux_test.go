@@ -59,6 +59,8 @@ func TestDiagnosticHoldUsesRealNonHandoffTransition(t *testing.T) {
 	app.SetMenuDisplay(display)
 	app.mu.Lock()
 	app.session, app.surround, app.sessionDisplay, app.kitHost = prior, true, protocol.SessionDisplayShown, true
+	ownedLocalKeyboardForTest(app)
+	prior = app.session
 	app.hostAwaitStatus, app.kitHostPreparing = false, false
 	app.frameTrace = newFrameTrace()
 	now := time.Now()

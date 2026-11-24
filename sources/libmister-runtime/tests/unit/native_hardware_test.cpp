@@ -84,7 +84,12 @@ std::vector<std::string> live_computer_status_responses;
 void RecordLiveComputerStatus(const mister::Status& status)
 {
 	AssertComputerABIVersions(status.capabilities);
-	const std::string response = mister::daemon::EncodeResponse(2, true, status, "fixture");
+	// Keep the checked-in synthetic fixture deterministic while exercising the
+	// production serializer with the same shape as a real Runtime instance.
+	assert(status.runtime_instance.size() == 32);
+	mister::Status fixture_status = status;
+	fixture_status.runtime_instance = "123456789abcdef0123456789abcdef0";
+	const std::string response = mister::daemon::EncodeResponse(2, true, fixture_status, "fixture");
 	live_computer_status_responses.push_back(response);
 }
 
@@ -3801,7 +3806,7 @@ void TestPc386LibraryRecordAndWallClock()
 		}
 		return false;
 	};
-	assert(!fixture.runtime.SetKeyboardHid(id, fault_generation, mister::KeyboardHidRows{}).ok());
+	assert(!fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, id, fault_generation, mister::KeyboardHidRows{}).ok());
 	if (!WaitForState(fixture.runtime, mister::State::idle)) {
 		const auto failed = fixture.runtime.status();
 		std::fprintf(stderr, "pc386 input fault state=%u error=%s phase=%s\n",
@@ -4126,7 +4131,7 @@ void TestPc386DiskFaultSaveRealignsMailbox()
 				poisoned = endpoint.requests.size();
 				return true;
 			};
-			assert(!fixture.runtime.SetKeyboardHid(opened.package_id, generation, mister::KeyboardHidRows{}).ok());
+			assert(!fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, opened.package_id, generation, mister::KeyboardHidRows{}).ok());
 		}
 		if (!WaitForState(fixture.runtime, mister::State::idle)) {
 			const auto failed = fixture.runtime.status();
@@ -5326,7 +5331,7 @@ void TestWritableDiskInputFaultSavesBeforeIdleOrRetainsRAM()
             if(capture_fails&&request.opcode==FesComputerOpcodeMediaSnapshotControl&&request.argument==FesComputerMediaSnapshotFreeze&&!snapshot_failed){snapshot_failed=true;return true;}
             return false;
         };
-        assert(!fixture.runtime.SetKeyboardHid(opened.package_id,gen,mister::KeyboardHidRows{}).ok());
+        assert(!fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, opened.package_id,gen,mister::KeyboardHidRows{}).ok());
         assert(WaitForState(fixture.runtime,capture_fails?mister::State::reboot_required:mister::State::idle));
         assert(!fixture.native.input.HasActiveCallback());
         endpoint.fail_after_request={};assert(input_failed);
@@ -5393,7 +5398,7 @@ void TestComputerLiveMediaLifecycleThroughRuntime()
 		rows[0] = 0x0010;
 		rows[8] = 0x0002;
 		auto before = endpoint.requests.size();
-		assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, rows).ok());
+		assert(fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, opened.package_id, generation, rows).ok());
 		assert(endpoint.requests.size() == before + 11);
 		for (unsigned row = 0; row < 9; ++row) {
 			const auto& request = endpoint.requests[before + row];
@@ -5404,7 +5409,7 @@ void TestComputerLiveMediaLifecycleThroughRuntime()
 		assert(endpoint.requests[before + 10].opcode == FesComputerOpcodeKeyboardHid &&
 			endpoint.requests[before + 10].index == 0 && endpoint.requests[before + 10].argument == 0x10);
 		rows[0] = 0;
-		assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, rows).ok());
+		assert(fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, opened.package_id, generation, rows).ok());
 		assert(endpoint.requests.size() == before + 12);
 		assert(endpoint.requests[before + 11].opcode == FesComputerOpcodeKeyboardHid &&
 			endpoint.requests[before + 11].index == 0 && endpoint.requests[before + 11].argument == 0);
@@ -5507,7 +5512,7 @@ void TestPcxtFloppyLifecycleThroughRuntime()
 	mister::KeyboardHidRows keys{};
 	keys[0] = 0x0010; keys[8] = 0x0002; // Shift+A
 	const auto keyboard_start = endpoint.requests.size();
-	assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, keys).ok());
+	assert(fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, opened.package_id, generation, keys).ok());
 	assert(endpoint.requests.size() == keyboard_start + 11);
 	for (unsigned row = 0; row < 9; ++row) {
 		const auto& request = endpoint.requests[keyboard_start + row];
@@ -5518,7 +5523,7 @@ void TestPcxtFloppyLifecycleThroughRuntime()
 	assert(endpoint.requests[keyboard_start + 10].opcode == FesComputerOpcodeKeyboardHid &&
 		endpoint.requests[keyboard_start + 10].index == 0 && endpoint.requests[keyboard_start + 10].argument == 0x10);
 	keys[0] = 0; keys[8] = 0;
-	assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, keys).ok());
+	assert(fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, opened.package_id, generation, keys).ok());
 	assert(endpoint.requests.size() == keyboard_start + 13);
 	assert(endpoint.requests[keyboard_start + 11].opcode == FesComputerOpcodeKeyboardHid &&
 		endpoint.requests[keyboard_start + 11].index == 0 && endpoint.requests[keyboard_start + 11].argument == 0);
