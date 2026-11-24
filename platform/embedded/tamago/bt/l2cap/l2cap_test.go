@@ -1238,3 +1238,69 @@ func TestSDPPnPDistinguishesDualSenseAndDualShock4NamedWirelessController(t *tes
 		t.Fatalf("unexpected OnNameResolved sequence: %v", resolved)
 	}
 }
+
+func TestSetPairingModeFalseCancelsPendingCreateConnection(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(1400, 0)
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	makeEIR := func(addr BDAddr) []byte {
+		eir := make([]byte, 2+15)
+		eir[0] = hci.EventExtendedInquiryResult
+		eir[1] = 15
+		eir[2] = 1
+		copy(eir[3:9], addr[:])
+		eir[9] = 1
+		eir[11], eir[12], eir[13] = 0x08, 0x25, 0x00
+		return eir
+	}
+
+	// 1. Explicit SetPairingMode(false, 0) cancels pending CreateConnection page.
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	dev1, _ := ParseBDAddr("99:11:22:33:44:55")
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, makeEIR(dev1))
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !mgr.connecting {
+		t.Fatal("expected mgr.connecting=true before ConnectionComplete")
+	}
+	if err := mgr.SetPairingMode(false, 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := bus.lastParams[hci.OpcodeCreateConnectionCancel]; !bytes.Equal(got, dev1[:]) {
+		t.Fatalf("expected CreateConnectionCancel for %s, got %x", dev1, got)
+	}
+	if mgr.connecting {
+		t.Fatal("expected mgr.connecting=false after SetPairingMode(false)")
+	}
+
+	// 2. Pairing window expiry inside Service() also cancels pending CreateConnection.
+	delete(bus.lastParams, hci.OpcodeCreateConnectionCancel)
+	if err := mgr.SetPairingMode(true, 10*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	dev2, _ := ParseBDAddr("99:11:22:33:44:56")
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, makeEIR(dev2))
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(11 * time.Second)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bus.lastParams[hci.OpcodeCreateConnectionCancel]; !bytes.Equal(got, dev2[:]) {
+		t.Fatalf("expected CreateConnectionCancel on pairing expiry for %s, got %x", dev2, got)
+	}
+}

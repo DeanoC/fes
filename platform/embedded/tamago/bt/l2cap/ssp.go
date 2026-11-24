@@ -57,6 +57,7 @@ func (m *Manager) PairingActive() bool { return m.pairingActive }
 // SetPairingMode opens or closes a bounded SSP pairing window. Outside pairing
 // mode, unknown devices and SSP User Confirmation requests are rejected fail-closed.
 func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
+	pendingConnecting, pendingAddr := m.connecting, m.connectAddr
 	if enabled {
 		if duration <= 0 {
 			duration = 30 * time.Second
@@ -65,6 +66,9 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 		m.pairingUntil = m.now().Add(duration)
 		m.connecting = false
 		m.connectAddr = BDAddr{}
+		if pendingConnecting {
+			_ = m.tr.CreateConnectionCancel(pendingAddr)
+		}
 		if err := m.tr.WriteScanEnable(hci.ScanInquiryAndPage); err != nil {
 			m.pairingActive = false
 			m.pairingUntil = time.Time{}
@@ -86,6 +90,9 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 	m.pairingUntil = time.Time{}
 	m.connecting = false
 	m.connectAddr = BDAddr{}
+	if pendingConnecting {
+		_ = m.tr.CreateConnectionCancel(pendingAddr)
+	}
 	_ = m.tr.CancelInquiry()
 	return m.tr.WriteScanEnable(hci.ScanPageOnly)
 }

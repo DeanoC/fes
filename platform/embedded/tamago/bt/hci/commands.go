@@ -13,6 +13,7 @@ const (
 	OpcodeInquiryCancel             uint16 = 0x0402
 	OpcodeCreateConnection          uint16 = 0x0405
 	OpcodeDisconnect                uint16 = 0x0406
+	OpcodeCreateConnectionCancel    uint16 = 0x0408
 	OpcodeAcceptConnectionRequest   uint16 = 0x0409
 	OpcodeRejectConnectionRequest   uint16 = 0x040a
 	OpcodeLinkKeyRequestReply       uint16 = 0x040b
@@ -143,6 +144,11 @@ func (t *Transport) CreateConnection(bdAddr [6]byte, pageScanRepMode byte, clock
 	binary.LittleEndian.PutUint16(params[10:12], clockOffset)
 	params[12] = 0x01 // Allow role switch
 	return t.sendStatusCommand(OpcodeCreateConnection, params[:])
+}
+
+// CreateConnectionCancel aborts an in-flight outgoing CreateConnection page.
+func (t *Transport) CreateConnectionCancel(bdAddr [6]byte) error {
+	return t.sendStatusCommand(OpcodeCreateConnectionCancel, bdAddr[:])
 }
 
 // Disconnect terminates an active ACL connection handle.
