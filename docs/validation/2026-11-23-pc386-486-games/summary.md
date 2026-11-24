@@ -6,8 +6,9 @@ Nukem 3d being the obvious candidate)". The 486SX DE25 build is
 [`2026-11-23-de25-486sx`](../2026-11-23-de25-486sx/summary.md)). Tracker
 [#1962](https://github.com/DeanoC/fes/issues/1962).
 
-This is a **proposal for Deano's decisions**. Nothing here is built: no VBE,
-no drive manifest change, no acceptance rows.
+This is a **census record**. Deano's decisions on its proposal are in
+[Decisions](#decisions). Nothing here is built: no VBE, no drive manifest
+change, no acceptance rows. That work is in the follow-up issues #2216–#2220.
 
 ## Method
 
@@ -121,27 +122,33 @@ is not the limit (5,236 ALMs free at the median); the work is the scanout and
 BIOS integration, and VBE's own oracle (Bochs's VGA with VBE) for the replay
 check.
 
-## Decisions for Deano
+## Decisions
 
-1. **Duke Nukem 3D joins the DE25 486SX acceptance set at 320×200 VGA, with
-   a config sidecar, and no VBE.** It needs a 486, runs without VBE on the
-   486 oracle, and its from-reset run on the no-387 486SX RTL passes the rule
-   to its title screen at 30 s. Recommended.
-2. **Shadow Warrior shareware joins too**, with an SB 2.0 sidecar. Its
+Deano decided on 24 Nov 2026, relayed through the i386 coordination session.
+His answers are quoted; the follow-up issues hold the work.
+
+1. **Acceptance set: "Both (Recommended)".** Duke Nukem 3D goes first: 320×200
+   chained VGA, a `DUKE3D.CFG` sidecar with SB 2.0 and FM music, no VBE. Its
    from-reset run on the no-387 486SX RTL passes the rule to its title screen
-   at 36 s. Recommended; the full game (88 MB) fits
-   a drive too.
-3. **VBE is a separate plan, not part of the 486 work.** It unlocks Death Rally
-   and the higher-resolution modes of the Build games, not a 486 requirement.
-   Recommended: defer, and write its plan when a VBE-only title is wanted.
-4. **CD titles** (Z, Blood, Redneck Rampage, the full Build games' music):
-   attach CD images to game drives as a separate change. Deano's call on
-   priority.
-5. **Warcraft II**: look at the oracle panic before classifying it, as a
-   small follow-up.
-6. **A wider census** (the rest of the 1995–97 DOS/4GW titles) runs kit-first
-   once a DE25 kit path exists (slice 4), as the census rule says; this
-   record's oracle runs were the targeted first pass.
+   at 30 s. Shadow Warrior shareware follows: an SB 2.0 sidecar and a `Y` at
+   its 320×200 prompt. Its from-reset RTL run passes to its title screen at
+   36 s. The drives, sidecars and rows are
+   [#2216](https://github.com/DeanoC/fes/issues/2216); its kit rows wait for a
+   Kit D25 pc386 path (#2109 slice 4g).
+2. **VBE: "Own plan, deferred (Recommended)".** It unlocks Death Rally and the
+   higher-resolution modes of the Build games; it is not a 486 requirement.
+   [#2217](https://github.com/DeanoC/fes/issues/2217) holds the pricing
+   above, and its plan is written when a VBE-only title is wanted.
+3. **CD images on game drives: yes**, as a separate change
+   ([#2218](https://github.com/DeanoC/fes/issues/2218)). It covers Z, Blood,
+   Redneck Rampage and the full Build games' music.
+4. **Warcraft II oracle panic: yes**, a small follow-up
+   ([#2219](https://github.com/DeanoC/fes/issues/2219)), before the title is
+   classified.
+5. **Wider census, kit-first: yes**
+   ([#2220](https://github.com/DeanoC/fes/issues/2220)). It covers the rest of
+   the 1995–97 DOS/4GW titles and is blocked on #2109 slice 4g. This record's
+   oracle runs were the targeted first pass.
 
 ## Tools and runs
 
