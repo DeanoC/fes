@@ -24,7 +24,7 @@ func (c *Coordinator) RawIdleReady(ctx context.Context) bool {
 // BeginMaintenance retains the ordinary transition after Stop/save completes.
 // The caller releases it on an error, or retains it until process reboot.
 func (c *Coordinator) BeginMaintenance(ctx context.Context) (func(), error) {
-	if !c.begin() {
+	if !c.beginContext(ctx) {
 		return nil, &protocol.APIError{Code: protocol.CodeBusy, Message: "another transition is running"}
 	}
 	var once sync.Once

@@ -65,6 +65,11 @@ type TimedTapSink interface {
 	Tap(context.Context, protocol.InputFrame) error
 }
 
+// TimedTapChordSink adds an atomic key plus modifier tap.
+type TimedTapChordSink interface {
+	TapChord(context.Context, protocol.InputFrame) error
+}
+
 // errRejectedInputFrame marks validation failures that occur before a sink
 // can mutate its device. The stream may reject these frames and keep serving;
 // all other Apply errors are treated as possibly partial device writes.
@@ -287,6 +292,7 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 	tracker := protocol.SequenceTracker{}
 	rejectedSinceReceipt := false
 	tapProbed := false
+	chordProbed := false
 	last := time.Now()
 	timer := time.NewTicker(100 * time.Millisecond)
 	defer timer.Stop()
@@ -314,7 +320,8 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 				return
 			}
 			probeTap := f.Header.Flags == protocol.InputFlagTapProbe
-			wantsReceipt := f.Header.Flags == protocol.InputFlagReceiptRequested || probeTap
+			probeChord := f.Header.Flags == protocol.InputFlagTapChordProbe
+			wantsReceipt := f.Header.Flags == protocol.InputFlagReceiptRequested || probeTap || probeChord
 			if wantsReceipt {
 				f.Header.Type = protocol.InputTypeReceipt
 				f.Header.Flags = 0
@@ -322,6 +329,12 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 					_, tapProbed = s.sink.(TimedTapSink)
 					if tapProbed {
 						f.Header.Flags = protocol.InputFlagTapSupported
+					}
+				}
+				if probeChord {
+					_, chordProbed = s.sink.(TimedTapChordSink)
+					if chordProbed {
+						f.Header.Flags = protocol.InputFlagTapChordSupported
 					}
 				}
 				if rejectedSinceReceipt {
@@ -343,8 +356,8 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 			}
 			continue
 		}
-		if f.Header.Type == protocol.InputTypeTap {
-			if f.Header.Session != s.cfg.Session || !tapProbed {
+		if f.Header.Type == protocol.InputTypeTap || f.Header.Type == protocol.InputTypeTapChord {
+			if f.Header.Session != s.cfg.Session || (f.Header.Type == protocol.InputTypeTap && !tapProbed) || (f.Header.Type == protocol.InputTypeTapChord && !chordProbed) {
 				return
 			}
 			accepted, gap := tracker.ObserveTransient(f.Seq)
@@ -356,7 +369,12 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 			}
 			// Tap is serialized with all other events on this connection. The
 			// target sink owns the two edges and must release on cancellation.
-			err := s.sink.(TimedTapSink).Tap(ctx, f)
+			var err error
+			if f.Header.Type == protocol.InputTypeTap {
+				err = s.sink.(TimedTapSink).Tap(ctx, f)
+			} else {
+				err = s.sink.(TimedTapChordSink).TapChord(ctx, f)
+			}
 			last = time.Now()
 			reply := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeReceipt, Session: s.cfg.Session}, Seq: f.Seq, ClientMonoNS: f.ClientMonoNS, ServerMonoNS: uint64(time.Now().UnixNano())}
 			if err != nil {

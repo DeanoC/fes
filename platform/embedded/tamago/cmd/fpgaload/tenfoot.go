@@ -175,7 +175,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		}
 		display = "fpga-menu"
 	}
-	stopWatchdog, err := startProgramWatchdog(context.Background())
+	stopWatchdog, err := startProgramWatchdog(context.Background(), lease)
 	if err != nil {
 		panic(err)
 	}

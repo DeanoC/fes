@@ -9,7 +9,7 @@
 #include <stdint.h>
 
 enum { GAHB=8, GUSB=12, RESET=16, INTMASK=24, HWID=0x40, CFG2=0x48,
-       CFG3=0x4c, PORT=0x440, CHANNEL=0x500, CHANNEL_INT=0x508,
+       CFG3=0x4c, HCFG=0x400, PORT=0x440, CHANNEL=0x500, CHANNEL_INT=0x508,
        CHANNEL_MASK=0x50c };
 #define ENABLE (1U<<31)
 #define DISABLE (1U<<30)
@@ -73,15 +73,26 @@ static int pio_owner(struct fes_nano_usb_platform *p)
     uint32_t ahb, mask;
     if (read_reg(p,FES_NANO_USB_BASE+GAHB,&ahb) ||
         read_reg(p,FES_NANO_USB_BASE+INTMASK,&mask)) return -1;
-    /* Do not silently disable a foreign DMA/IRQ owner or accept changed PHY. */
+    /* Acquire and Stop require masked IRQs and disabled DMA before mutations. */
     if ((ahb&0x21U) || mask) return fail(p,-5);
     return 0;
 }
-static int pio(struct fes_nano_usb_platform *p)
+static int pio_masked(struct fes_nano_usb_platform *p)
 {
     uint32_t phy;
     if (pio_owner(p) || read_reg(p,FES_NANO_USB_BASE+GUSB,&phy)) return -1;
     if ((phy&0xd8U)!=0x10U) return fail(p,-5);
+    return 0;
+}
+static int pio(struct fes_nano_usb_platform *p)
+{
+    uint32_t ahb, hcfg, phy;
+    if (read_reg(p,FES_NANO_USB_BASE+GAHB,&ahb) ||
+        read_reg(p,FES_NANO_USB_BASE+HCFG,&hcfg) ||
+        read_reg(p,FES_NANO_USB_BASE+GUSB,&phy)) return -1;
+    /* Live observation/containment forbids DMA and descriptor DMA while
+     * permitting EL1 GICv3 IRQ delivery (GAHBCFG.GLBLINTRMSK / GINTMSK). */
+    if ((ahb&0x20U) || (hcfg&(1U<<23)) || (phy&0xd8U)!=0x10U) return fail(p,-5);
     return 0;
 }
 int fes_nano_usb_platform_init(struct fes_nano_usb_platform *p, struct fes_nano_cold *cold,
@@ -142,7 +153,7 @@ int fes_nano_usb_platform_acquire(struct fes_nano_usb_platform *p, uint64_t owne
     /* Only ULPI single-data-rate selection is established here. Host startup
      * and live PHY/VBUS confirmation are separate; no readiness is published. */
     if (read_reg(p,FES_NANO_USB_BASE+GUSB,&phy) ||
-        write_reg(p,FES_NANO_USB_BASE+GUSB,(phy&~0xd8U)|0x10U) || pio(p) ||
+        write_reg(p,FES_NANO_USB_BASE+GUSB,(phy&~0xd8U)|0x10U) || pio_masked(p) ||
         poll(p,RESET,ENABLE,ENABLE) || scope(p)) return -1;
     p->generation++;
     return 0;
@@ -193,7 +204,7 @@ int fes_nano_usb_platform_stop(struct fes_nano_usb_platform *p, uint64_t owner,
     if (admit(p,owner,generation)) return -1;
     if (!p->active) return scope(p); /* Already held: no controller accesses. */
     if (p->generation==UINT64_MAX) return fail(p,-75);
-    if (scope(p) || pio(p)) return -1;
+    if (scope(p) || pio_masked(p)) return -1;
     for (unsigned i=0;i<p->channels;i++) {
         unsigned offset=CHANNEL+32*i;
         if (read_reg(p,FES_NANO_USB_BASE+offset,&v)) return -1;
@@ -211,7 +222,7 @@ int fes_nano_usb_platform_stop(struct fes_nano_usb_platform *p, uint64_t owner,
     if (poll(p,RESET,ENABLE,ENABLE) ||
         write_reg(p,FES_NANO_USB_BASE+RESET,0x10U<<6|1U<<5|1U<<4) ||
         poll(p,RESET,1U<<5|1U<<4,0) || poll(p,RESET,ENABLE,ENABLE) ||
-        pio(p) || scope(p) || read_reg(p,PER0,&per0) ||
+        pio_masked(p) || scope(p) || read_reg(p,PER0,&per0) ||
         write_reg(p,PER0,per0|FES_NANO_USB_RESET)) return -1;
     /* Do not publish inactive until independent reset/boot readback succeeds. */
     if (fes_nano_cold_usb_stopped(p->cold,p->owner,p->epoch)) return fail(p,-5);

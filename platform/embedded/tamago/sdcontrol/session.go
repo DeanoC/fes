@@ -168,6 +168,10 @@ func (s *Session) Identity() sdhci.Identity {
 	}
 	return s.device.Identity()
 }
+
+// Retired reports whether s is nil or has entered terminal ErrRetired containment.
+// Lock-free and safe for watchdog/liveness probes.
+func (s *Session) Retired() bool       { return s == nil || s.retired.Load() }
 func (s *Session) SectorCount() uint64 { return s.Identity().Sectors }
 func (s *Session) ReadSectors(lba uint64, dst []byte) error {
 	if s == nil || s.firmware == nil || s.device == nil || s.retired.Load() {

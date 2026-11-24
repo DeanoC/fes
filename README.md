@@ -4,38 +4,22 @@ Fogger Expandable System is a OSS FPGA based on 'mister' (DE-10 Nano) that provi
 should be. Compared to mister it currently supports only a few system but builds them with a fully OSS toolchain by default (Yosys + nextpnr) and provide a
 closer analog to real expansion and cartridge buses that many system had.
 
-DE25-Nano bring-up includes a [headless AArch64 image](docs/de25-linux.md),
-[Quartus Pro clock/LED and HPS mailbox diagnostics](sources/misteross/boards/de25nano/README.md),
-and [off-board runtime software checks](docs/de25-linux.md#aarch64-runtime-and-agent-checks-without-a-board).
-[Physical HPS-first bring-up](docs/validation/2026-10-31-de25-hps-first-hardware/README.md)
-boots FES Linux, loads ZX81 through Linux and runs BASIC through native CPU
-control with captured HDMI. The
-[managed ZX81 integration proof](docs/validation/2026-11-04-de25-normal-zx81/README.md)
-exercises catalog Play/Stop, BASIC load/run/reload and software reboot.
-[Permanent Ethernet pairing](docs/validation/2026-11-04-de25-permanent-pairing/README.md)
-survives a kit reboot and host-service restart. Full normal-kit acceptance,
-including display stress and broader fault recovery, remains open.
-The [ordinary ZX81 development-kit milestone](docs/validation/2026-11-08-de25-ordinary-dev-kit/README.md)
-records Deano's scoped expansion waiver; partial-persona loading remains
-unsupported and default-off pending [#1568](https://github.com/DeanoC/fes/issues/1568).
-The default appliance and playable packages target DE10-Nano.
-The [image commands](docs/image-artifacts.md#de25-image-and-export-commands)
-also select DE25 explicitly for managed factory assembly, verification and
-artifact export. The [Terasic-based factory proof](docs/validation/2026-11-03-de25-terasic-managed-factory/README.md)
-builds the AArch64 runtime/agent, sealed MENU, release, boot selector and
-reproducible card through ordinary FES commands. Its real kernel/rootfs virtual
-boot passes; the subsequent managed native integration proof covers MENU and
-catalog ZX81, with full normal-kit acceptance still open.
-The separate [Linux-free native experiment](platform/embedded/README.md),
-remains an explicitly opted-in path through `FES_EXPERIMENTAL_DE25_EMBEDDED=1`.
-The [historical matched physical trial](docs/validation/2026-11-15-de25-merge-readiness/README.md)
-used source `e04af2f8`: ZX81 startup and tape execution passed, but return to
-MENU failed when secure source release was rejected. It did not complete a
-ZX81 → ZX80 → ZX81 cycle or establish hardware acceptance. Bounded native ZX81
-installation and independent reboot discovery/launch also pass. Broader
-package/device support, source-memory retirement and full appliance acceptance
-remain open. Linux build and image defaults are unchanged. The default
-appliance and playable packages target DE10-Nano.
+The default appliance and playable packages target DE10-Nano. DE25-Nano is a
+standard Quartus Pro 26.3 development kit (Kit D25 `de25-j8g`, serial
+`TRWU8J8G`; see [DE25 kit HIL](docs/de25-kit-hil.md) and
+[DE25 Linux platform](docs/design/de25-linux-platform.md)) with six registered
+Quartus Pro recipes (`fes.menu`, `fes.zx81`, `fes.spectrum`, `fes.atari-st`,
+`fes.c64`, `fes.pcxt-dos`), a [headless AArch64 image](docs/de25-linux.md),
+[board shells and diagnostics](sources/misteross/boards/de25nano/README.md),
+and [image export commands](docs/image-artifacts.md#de25-image-and-export-commands).
+Partial-persona loading remains unsupported and default-off pending
+[#1568](https://github.com/DeanoC/fes/issues/1568), and full normal-kit
+acceptance remains open. The separate
+[Linux-free TamaGo experiment](platform/embedded/README.md) remains an
+explicitly opted-in path through `FES_EXPERIMENTAL_DE25_EMBEDDED=1`, with
+dedicated CI host/QEMU regressions and ongoing hardware qualification under
+[#1867](https://github.com/DeanoC/fes/issues/1867); Linux build and image
+defaults are unchanged.
 
 Agents: read [AGENTS.md](AGENTS.md), then the
 [development guide](docs/development.md) and the selected component's guidance.
@@ -43,7 +27,8 @@ Agents: read [AGENTS.md](AGENTS.md), then the
 
 ## Documentation
 
-Start at the [documentation index](docs/README.md). Core ABI, interfaces and
+Start at the [documentation index](docs/README.md) and the single roadmap in
+the [forward plan](docs/plans/forward-plan.md). Core ABI, interfaces and
 standing are the [core status](docs/core-status.md) matrix. Boards, toolchains
 and support tiers are the [core support matrix](docs/support-matrix.md).
 
@@ -67,9 +52,11 @@ dependency. The target agent talks to the runtime's local socket; only the
 runtime controls hardware. The normal FES package route uses misteross's
 authenticated HIP/nextpnr producer. FES policy also allows labelled
 Quartus-built core variants (accepted in #1163), and Quartus is used wherever
-nextpnr timing closure is hard. Playable recipes use OSS packages except the
-ZX81 family (ZX81, ZX80, TS1000, TS1500), which selects its Quartus Lite
-producer with nextpnr as an advisory lane; PC/XT selects its sole Quartus DOS package.
+nextpnr timing closure is hard. On DE10-Nano, playable recipes use OSS packages
+except the ZX81 family (ZX81, ZX80, TS1000, TS1500), which selects its Quartus
+Lite producer with nextpnr as an advisory lane, and PC/XT (`fes.pcxt-dos`) and
+`fes.pc386`, which select their Quartus Lite producers (Yosys front end). On
+DE25-Nano, registered recipes select Quartus Pro 26.3.
 The general variant selector and OSS-only image option are rollout
 work described in the design. See
 [Quartus-built cores](docs/design/quartus-cores.md).
@@ -149,26 +136,30 @@ require a matching video part; older raster shells retain their built-in
 Direct fallback.
 
 The normal package-only build uses the authenticated HIP/nextpnr producers, and
-the Quartus Lite producers for the ZX81 family and PC/XT, with the HIP/nextpnr
+the Quartus Lite producers for the ZX81 family, PC/XT (`fes.pcxt-dos`) and
+`fes.pc386` (with Quartus Pro 26.3 for DE25 recipes), with the HIP/nextpnr
 shared compiler cache beneath the primary FES checkout’s `out/cache`
 (or the absolute `FES_CACHE_ROOT` override), reused across FES worktrees. A
 matching package is reused only after its locked inputs, manifest, payload and
 sealed selection are checked; a miss runs that package's registered producer.
-The menu uses its per-core HIP lock. The RAM Tester's one OSS build uses
-`sources/misteross/cores/fes-ramtest/toolchain.lock`; these per-core locks
-currently select the same compiler pins.
+Each registered OSS core selects its per-core lock (`cores/fes-menu/toolchain.lock`
+for MENU, `cores/fes-ramtest/toolchain.lock` for RAM Tester's 100 MHz OSS build,
+and so on; locks share Yosys and Mistral pins except documented exclusions while
+each pins its own last-known-good nextpnr commit).
 Quartus Lite 17.0.2 (`QUARTUS_ROOTDIR` naming the install that the core's
-`quartus.lock` pins) builds the registered ZX81-family and PC/XT packages; the
-ZX81 family also reads the pinned Mistral ROM database from the shared cache or
-`make toolchain-fes-zx81`. Elsewhere it is an explicit bring-up/oracle check
-where a recipe documents one. The [Quartus-built cores](docs/design/quartus-cores.md)
-policy allows a labelled Quartus variant of a core, built on a pinned host
-authorized for its edition and device, with a license when required. The
-integrated path selects exactly one producer per core and board, and does not
-yet select between OSS and Quartus variants of one core; a failed HIP route
-never falls back to Quartus.
-Downloads are checked against component locks; image compilation runs twice in
-independent build roots with networking disabled.
+`quartus.lock` pins) builds the registered DE10 ZX81-family, PC/XT and pc386
+packages; the ZX81 family also reads the pinned Mistral ROM database from the
+shared cache or `make toolchain-fes-zx81`. Elsewhere it is an explicit
+bring-up/oracle check where a recipe documents one. The
+[Quartus-built cores](docs/design/quartus-cores.md) policy allows a labelled
+Quartus variant of a core, built on a pinned host authorized for its edition
+and device, with a license when required, under the shared
+[Quartus lease](docs/design/quartus-hosts.md). The integrated path selects
+exactly one producer per core and board, and does not yet select between OSS
+and Quartus variants of one core; a failed HIP route never falls back to
+Quartus. Downloads are checked against component locks; image compilation runs
+with networking disabled (one pass by default, or two independent build roots
+with `IMAGE_PASSES=2`).
 
 ```text
 out/native-integration-dev/
@@ -234,10 +225,10 @@ The parent defaults to the DE10 integration profile. Systems whose nextpnr route
 not implemented yet are checked explicitly with Quartus when their recipe
 requires it; that check does not create an image package or change the default
 package-only path. The accepted policy also allows labelled Quartus variants:
-the ZX81 family selects its Quartus Lite package producer and PC/XT selects its
-sole Quartus DOS package; see
-[Quartus-built cores](docs/design/quartus-cores.md). Quartus is never an
-automatic fallback.
+on DE10, the ZX81 family, PC/XT (`fes.pcxt-dos`) and `fes.pc386` select their
+registered Quartus Lite producers, and on DE25, registered recipes select
+Quartus Pro 26.3; see [Quartus-built cores](docs/design/quartus-cores.md).
+Quartus is never an automatic fallback.
 
 ## Development and integration
 
@@ -252,11 +243,12 @@ records the tested commit. See [development and handoffs](docs/development.md)
 for exact commands and how several agents can work independently.
 
 CI computes affected modules and dependent consumers, then runs independent
-software checks and core simulation cases in parallel with an always-reported
-integration result. PRs, main-branch pushes and merge groups run the smoke
-simulation tier; nightly and manual runs cover the complete suite in the full
-tier. Feature-branch pushes do not duplicate PR runs. Routine runs also skip the full-device video and
-real-media suites and use concurrency-focused race checks; those extended
+software checks, core simulation cases and the TamaGo bare-metal/QEMU lane
+(`platform/embedded/`) in parallel with an always-reported integration result.
+PRs, main-branch pushes and merge groups run the smoke simulation tier; nightly
+and manual runs cover the complete suite in the full tier. Feature-branch
+pushes do not duplicate PR runs. Routine runs also skip the full-device video
+and real-media suites and use concurrency-focused race checks; those extended
 modes return when their inputs change or on scheduled/manual runs. See
 [selection and coverage](docs/test-changed.md#selection-and-coverage).
 The normal repository token

@@ -264,7 +264,7 @@ Data Storm 1.00 digest.
 The object below is the kit-only projection `Service.MeshBackendLibrary`
 returns for that fixture: the kit `fes.sms` option and the host-local
 emulator option. `resolveExecution` returns only `fpga_native` or
-`host_only` (`fogcast/service.go`). `host_local` is true only when the
+`host_only` (`fogcast/service_launch.go`). `host_local` is true only when the
 title's execute label is `host_only`. With only the kit in inventory
 the host-local option's `nodes` is empty, because the kit advertises
 `fpga_native`, and the document stays these two options. When inventory

@@ -8,7 +8,10 @@ import (
 
 // USBGamepadReports delivers gamepad reports under the selected USB owner.
 // It deliberately has no keyboard-report method.
-type USBGamepadReports interface{ PollGamepad() ([]byte, error) }
+type USBGamepadReports interface {
+	PollGamepad() ([]byte, error)
+	PollGamepadInto(dst []byte) (int, error)
+}
 type GamepadButtons struct{ Confirm, Back uint8 }
 type USBGamepad struct {
 	source  USBGamepadReports

@@ -4,6 +4,10 @@
 sectors. Files are bounded at 64 MiB and directories at 4 MiB. `WriteFile`
 updates an existing preallocated regular file without reallocating its chain;
 it flushes file data before updating and flushing the directory size.
+`ReplaceFile(ctx, name, data)` updates any existing regular file (or creates it
+if absent) via copy-on-write cluster allocation and a single-sector directory
+entry commit before freeing the previous clusters, ensuring a power cut before
+the directory commit leaves the previous file intact rather than half-written.
 
 `CreateFile(ctx, name, data)` and `Mkdir(ctx, name)` explicitly allocate new
 entries under an existing parent. They reject existing names and short aliases,
