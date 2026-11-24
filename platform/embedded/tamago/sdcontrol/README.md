@@ -112,11 +112,11 @@ allocation, shrinking updates and a fresh post-resume mount to this same owned
 writer. It requires its own compiled card/file plan and an absent unique target;
 raw scratch-write evidence does not qualify that file path physically.
 
-The separate `sdfile` diagnostic accepts opt-in `-X main.expectedSDBusWidth4Bit=1`
-and `-X main.expectedSDMultiBlock=1` flags alongside `TransferClockHz`, and
-`de25nano.OpenStorageWithOptions` / `OpenWritableStorageWithOptions` expose the
-same opt-in controls while keeping `UseADMA2` disabled at the board layer until
-EL3 BL31 SMMU stream authorization lands.
+`de25nano.OpenStorageWithOptions` and `OpenWritableStorageWithOptions` now expose
+opt-in `StorageOptions` (`TransferClockHz`, `BusWidth4Bit`, and `MultiBlock`)
+to board callers while keeping `UseADMA2` disabled at the board layer until EL3
+BL31 SMMU stream authorization lands (wiring CLI flags through `sdfile`,
+`run.py`, `build.py`, and `native_trace.py` stays separate).
 
 `sdcontrol.Config` also forwards `sdhci.Config.BusWidth4Bit`, `MultiBlock`, and
 `UseADMA2` + `DMAPool` when explicitly set (zero values keep conservative
