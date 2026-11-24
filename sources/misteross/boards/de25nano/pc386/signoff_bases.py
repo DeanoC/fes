@@ -8,7 +8,7 @@ in pc386's source closure only.
 """
 import re
 
-from boards.de25nano.scanout.machine_findings import S, E, MACHINE, nodes, bus, crossing, advisory
+from boards.de25nano.scanout.machine_findings import S, E, MACHINE, nodes, crossing, advisory
 
 # A fitter copy of a register keeps its name with a suffix. The recorded fits'
 # reports and timing.tsv files spell it ~DUPLICATE, or ~_Duplicate with no
@@ -21,6 +21,17 @@ from boards.de25nano.scanout.machine_findings import S, E, MACHINE, nodes, bus, 
 # copies of the names the bases accept on 24 Nov 2026 (#2187), when a fit
 # reported cpu_biu_reset~_Duplicate.
 COPY = r'(?:~DUPLICATE|~_Duplicate(?:_?\d+)?(?:DUPLICATE)?)?'
+
+
+def regs(*names):
+    """system| registers, spelled as the SDC line that bounds them collects them: name[*] is any one
+    bit of the bus (or the report's name[*] group of it), any other name is that register exactly.
+
+    machine_findings.bus admits any index or none for every name, wider than the SDC collections;
+    it is in every DE25 machine's closure, so the pc386 table builds its own rather than move
+    their BUILD_IDs."""
+    return S + '(?:' + '|'.join(re.escape(n[:-3]) + r'\[(?:\d+|\*)\]' if n.endswith('[*]') else re.escape(n)
+                               for n in names) + ')'
 
 
 def lint(name, driver, qualifier):
@@ -201,31 +212,34 @@ MACHINE_RESET = ('pc386_system\'s machine reset, a machine-clock register fed by
                  'machine clock.')
 
 BASES = (
-    crossing('CDC-50001', 'presenter-capture', bus('frame_width', 'frame_height'),
-             bus('machine_presenter_latest_width', 'machine_presenter_latest_height'),
+    crossing('CDC-50001', 'presenter-capture', regs('frame_width[*]', 'frame_height[*]'),
+             regs('machine_presenter_latest_width[*]', 'machine_presenter_latest_height[*]'),
              'machine-to-pixel', 20, CAPTURE_SDC, CAPTURE),
-    crossing('CDC-50002', 'presenter-capture-buffer', bus('frame_buffer'),
-             bus('machine_presenter_latest_buffer'), 'machine-to-pixel', 2, CAPTURE_SDC, CAPTURE),
+    crossing('CDC-50002', 'presenter-capture-buffer', regs('frame_buffer[*]'),
+             regs('machine_presenter_latest_buffer[*]'), 'machine-to-pixel', 2, CAPTURE_SDC, CAPTURE),
     crossing('CDC-50001', 'presenter-fetch',
-             bus('machine_presenter_epoch', 'machine_presenter_width', 'machine_presenter_height',
-                 'machine_presenter_request_limit', 'machine_presenter_shown_buffer'),
-             bus('machine_presenter_f_epoch', 'machine_presenter_f_new_epoch', 'machine_presenter_f_width',
-                 'machine_presenter_f_height', 'machine_presenter_f_limit', 'machine_present_buffer',
-                 'machine_presenter_f_buffer'),
+             regs('machine_presenter_epoch[*]', 'machine_presenter_width[*]', 'machine_presenter_height[*]',
+                  'machine_presenter_request_limit[*]', 'machine_presenter_shown_buffer[*]'),
+             regs('machine_presenter_f_epoch[*]', 'machine_presenter_f_new_epoch', 'machine_presenter_f_width[*]',
+                  'machine_presenter_f_height[*]', 'machine_presenter_f_limit[*]', 'machine_present_buffer[*]',
+                  'machine_presenter_f_buffer[*]'),
              'pixel-to-machine', 35, FETCH_SDC, FETCH),
     crossing('CDC-50001', 'presenter-loaded',
-             bus('machine_presenter_loaded_in', 'machine_presenter_loaded_epoch_in'),
-             bus('machine_presenter_loaded', 'machine_presenter_loaded_epoch'),
+             regs('machine_presenter_loaded_in[*]', 'machine_presenter_loaded_epoch_in[*]'),
+             regs('machine_presenter_loaded[*]', 'machine_presenter_loaded_epoch[*]'),
              'machine-to-pixel', 12, LOADED_SDC, LOADED),
-    crossing('CDC-50102', 'status-counts', bus('pixel_counts_copy'), bus('pixel_counts_snapshot'),
+    crossing('CDC-50102', 'status-counts', regs('pixel_counts_copy[*]'), regs('pixel_counts_snapshot[*]'),
              'pixel-to-machine', 1, COUNTS_SDC, COUNTS),
-    crossing('CDC-50002', 'presenter-toggles-to-pixel',
-             bus('machine_frame_sequence', 'machine_presenter_loaded_flag'),
-             bus('machine_presenter_sequence_sync', 'machine_presenter_loaded_sync'),
-             'machine-to-pixel', 2, TOGGLE_SDC, TOGGLES),
-    crossing('CDC-50002', 'presenter-toggle-to-machine', bus('machine_presenter_request_toggle'),
-             bus('machine_presenter_request_sync'), 'pixel-to-machine', 1, TOGGLE_SDC, TOGGLES),
-    crossing('CDC-50002', 'pixel-reset', bus('reset'), bus('machine_pixel_reset_sync'),
+    # Each toggle's SDC cuts its launch (and a ~DUPLICATE of it, which no recorded fit makes) into
+    # the first stage's d pin only, so a basis admits the launch and that first stage alone, one
+    # basis per toggle so that no launch is admitted into another toggle's synchroniser.
+    crossing('CDC-50002', 'presenter-sequence-toggle', regs('machine_frame_sequence[0]'),
+             regs('machine_presenter_sequence_sync[0]'), 'machine-to-pixel', 1, TOGGLE_SDC, TOGGLES),
+    crossing('CDC-50002', 'presenter-loaded-toggle', regs('machine_presenter_loaded_flag'),
+             regs('machine_presenter_loaded_sync[0]'), 'machine-to-pixel', 1, TOGGLE_SDC, TOGGLES),
+    crossing('CDC-50002', 'presenter-toggle-to-machine', regs('machine_presenter_request_toggle'),
+             regs('machine_presenter_request_sync[0]'), 'pixel-to-machine', 1, TOGGLE_SDC, TOGGLES),
+    crossing('CDC-50002', 'pixel-reset', regs('reset'), regs('machine_pixel_reset_sync[0]'),
              'machine-to-pixel', 1, RESET_SDC, RESET),
     {'rule': 'CDC-50001', 'name': 'window-base', 'count': None, 'sdc': WINDOW_BASE_SDC,
      'qualifier': WINDOW_BASE,

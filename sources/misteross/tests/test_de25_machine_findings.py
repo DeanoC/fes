@@ -152,9 +152,18 @@ class MachineFindingsTests(unittest.TestCase):
         rows = [cdc('machine_frame_sequence[0]', 'machine_presenter_sequence_sync[0]'),
                 cdc('machine_presenter_loaded_flag', 'machine_presenter_loaded_sync[0]'),
                 cdc('machine_presenter_request_toggle', 'machine_presenter_request_sync[0]', PIXEL, MACHINE)]
-        bases = self.bases('presenter-toggles-to-pixel', 'presenter-toggle-to-machine')
+        bases = self.bases('presenter-sequence-toggle', 'presenter-loaded-toggle', 'presenter-toggle-to-machine')
         [entry] = mf.review(report({'CDC-50002': (CDC, rows)}), sdc_text(), bases)
-        self.assertEqual([g['rows'] for g in entry['groups']], [2, 1])
+        self.assertEqual([g['rows'] for g in entry['groups']], [1, 1, 1])
+        # Each toggle's SDC cuts bit 0 into the first stage only.
+        for label, row in (('a later sequence bit', cdc('machine_frame_sequence[3]', 'machine_presenter_sequence_sync[0]')),
+                           ('a later stage', cdc('machine_frame_sequence[0]', 'machine_presenter_sequence_sync[1]')),
+                           ('an indexed loaded flag', cdc('machine_presenter_loaded_flag[0]',
+                                                          'machine_presenter_loaded_sync[0]')),
+                           ('one toggle into another\'s synchroniser',
+                            cdc('machine_frame_sequence[0]', 'machine_presenter_loaded_sync[0]'))):
+            with self.subTest(label), self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
+                mf.review(report({'CDC-50002': (CDC, rows[:1] + [row] + rows[2:])}), sdc_text(), bases)
         rows[2] = cdc('machine_presenter_request_toggle', 'machine_presenter_request_sync[0]')
         with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
             mf.review(report({'CDC-50002': (CDC, rows)}), sdc_text(), bases)
@@ -231,33 +240,55 @@ class MachineFindingsTests(unittest.TestCase):
             with self.subTest(basis), self.assertRaisesRegex(mf.BuildError, basis + ' constraint not in the compiled SDC'):
                 mf.review(report({'CDC-50001': (CDC, presenter)}), sdc_text().replace(line + '\n', ''), TABLE.BASES)
 
-    def test_each_window_basis_admits_only_registers_its_sdc_bundle_collects(self):
-        # A row a window basis admits must be in the launch or capture collection its SDC line bounds,
-        # so a fitter copy the SDC misses is never approved. Quartus name patterns: * is any run of
-        # characters and brackets are literal.
+    def test_every_crossing_basis_admits_only_registers_its_sdc_collects(self):
+        # A row a crossing basis admits must be a launch and a capture of one SDC entry the basis quotes,
+        # so nothing the SDC leaves unbounded is approved. The entries come from pc386-clocks.sdc itself
+        # (a basis may quote only part of one): a foreach entry's launches are its source(s), plus
+        # source~DUPLICATE where the block collects it, and its captures are its sink(s) or the head
+        # whose d pin it cuts. Quartus name patterns: * is any run of characters, brackets are literal.
+        text = (ROOT / 'boards/de25nano/pc386/pc386-clocks.sdc').read_text()
+        entries = {}
+        for names, listing, body in re.findall(r'^foreach \{([^}]*)\} \{\n(.*?)\n\} \{\n(.*?)\n\}$', text, re.M | re.S):
+            names = names.split()
+            if not {'source', 'sources'} & set(names):
+                continue  # the audio edge list names no register pair
+            tokens = re.findall(r'\{([^}]*)\}|(\S+)', listing)
+            tokens = [braced or bare for braced, bare in tokens]
+            for i in range(0, len(tokens), len(names)):
+                entry = dict(zip(names, tokens[i:i + len(names)]))
+                launches = entry['sources'].split() if 'sources' in entry else [entry['source']]
+                if 'source' in entry and '${source}~DUPLICATE' in body:
+                    launches.append(entry['source'] + '~DUPLICATE')
+                captures = (entry.get('sinks') or entry.get('sink') or entry['head']).split()
+                entries.setdefault(entry['label'], []).append((launches, captures))
+        launch = re.search(r'set launches \[get_registers "\$\{base\}\|(system\|reset)"\]', text).group(1)
+        head = re.search(r'"\$\{base\}\|(system\|machine_pixel_reset_sync\[0\])\|d"', text).group(1)
+        entries['pixel_reset'] = [([launch], [head])]
+
         def collects(globs, name):
             return any(re.fullmatch(re.escape(g).replace(r'\*', '[^ ]*'), name) for g in globs)
 
         prefix = 'soc_inst|subsys_periph|fes_scanout|fes_scanout|'
-        suffixes = ['', '~DUPLICATE', '~_Duplicate', '~_Duplicate1', '~_Duplicate0', '~_Duplicate_2',
-                    '~_Duplicate1DUPLICATE', '~_Duplicate_2DUPLICATE', '~_DuplicateDUPLICATE',
-                    '~DUPLICATE~_Duplicate1', '~DUPLICATE_x', '~DUPLICATE2', '_q']
-        checked = 0
-        for basis, sdc in (('window-base', TABLE.WINDOW_BASE_SDC), ('window-fault-record', TABLE.WINDOW_FAULT_SDC)):
-            [entry] = [b for b in TABLE.BASES if b['name'] == basis]
-            label, sources, sinks = re.fullmatch(r'\s*(\w+) \{([^}]*)\} \{([^}]*)\} [\d ]+', sdc[0]).groups()
-            self.assertEqual(label, basis.replace('-', '_'))
-            for column, globs in ((0, sources.split()), (1, sinks.split())):
-                stems = {re.sub(r'\[\*\].*', '', g) for g in globs}
-                for stem in stems:
-                    name = stem + '[7]'
-                    self.assertTrue(re.fullmatch(entry['match'][column], prefix + name), (basis, name))
-                    for suffix in suffixes:
-                        if re.fullmatch(entry['match'][column], prefix + name + suffix):
-                            checked += 1
-                            self.assertTrue(collects(globs, name + suffix), (basis, name + suffix))
-        # base_lo, base_lo~DUPLICATE, base_machine, fault_launch, machine_fault.
-        self.assertEqual(checked, 5)
+        stems = {re.sub(r'[\[~].*', '', g) for found in entries.values() for launches, captures in found
+                 for g in launches + captures}
+        suffixes = ['', '[0]', '[1]', '[3]', '[*]', '~DUPLICATE', '[0]~DUPLICATE', '[3]~DUPLICATE', '~_Duplicate',
+                    '[3]~_Duplicate', '[3]~_Duplicate_1', '[3]~DUPLICATE~_Duplicate1', '_q', '[3]_q']
+        corpus = [stem + suffix for stem in sorted(stems) for suffix in suffixes]
+        bases = [b for b in TABLE.BASES if b['rule'].startswith('CDC-') and b['sdc']]
+        self.assertEqual(len(bases), 11)
+        for basis in bases:
+            quoted = [label for line in basis['sdc'] for label in re.findall(r'^\s*(\w+) \{', line)]
+            if basis['name'] == 'pixel-reset':
+                quoted = ['pixel_reset']
+            # Each quoted label names one entry (the GP blocks reuse theirs, but no basis quotes them).
+            self.assertTrue(quoted and all(len(entries.get(label, ())) == 1 for label in quoted), (basis['name'], quoted))
+            sources = [n for n in corpus if re.fullmatch(basis['match'][0], prefix + n)]
+            sinks = [n for n in corpus if re.fullmatch(basis['match'][1], prefix + n)]
+            self.assertTrue(sources and sinks, basis['name'])
+            for source in sources:
+                for sink in sinks:
+                    self.assertTrue(any(collects(entries[label][0][0], source) and collects(entries[label][0][1], sink)
+                                        for label in quoted), (basis['name'], source, sink))
 
     def test_a_rule_that_passed_has_no_entry(self):
         self.assertEqual(mf.review(report({'CDC-50001': (CDC, [])}), sdc_text(), TABLE.BASES), [])
