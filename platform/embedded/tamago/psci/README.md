@@ -42,3 +42,17 @@ recovers step panics so later hardware containment steps still execute, and then
 invokes `SystemReset()` (`ActionReset`) or `SystemOff()` (`ActionPowerOff`).
 Setting `RequireCleanTeardown: true` runs every step and returns
 `ErrTeardownFailed` without calling PSCI if any containment step fails.
+
+Steps run one at a time: each runs on its own goroutine and `Shutdown` waits
+for it to return before starting the next step or calling PSCI. A step that has
+not returned when its `StepTimeout` elapses is abandoned (left running) and
+recorded as `context.DeadlineExceeded`; that is the only way a step outlives
+`Shutdown`.
+
+`ctx` cancels the shutdown itself. `Shutdown` checks it before every step and
+before PSCI: once `ctx` is cancelled or past its deadline, no further step
+starts, PSCI is not called, and the error wraps `ErrShutdownAborted` and
+`ctx.Err()`. A step already running when `ctx` ends sees its own context end
+and is awaited (up to its `StepTimeout`) first. An error wrapping
+`ErrInvalidShutdown`, `ErrShutdownAborted` or `ErrTeardownFailed` means PSCI
+was not called.

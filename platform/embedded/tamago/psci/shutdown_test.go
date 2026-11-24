@@ -66,8 +66,14 @@ func TestShutdownValidationFailsClosed(t *testing.T) {
 
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := Shutdown(canceled, ctrl, ActionReset, ShutdownConfig{Steps: []ShutdownStep{step}}); !errors.Is(err, context.Canceled) || called {
-		t.Fatalf("canceled ctx ran step or wrong err: err=%v called=%t", err, called)
+	for _, cfg := range []ShutdownConfig{{Steps: []ShutdownStep{step}}, {}} {
+		err := Shutdown(canceled, ctrl, ActionReset, cfg)
+		if !errors.Is(err, ErrShutdownAborted) || !errors.Is(err, context.Canceled) || called {
+			t.Fatalf("canceled ctx ran step or wrong err: steps=%d err=%v called=%t", len(cfg.Steps), err, called)
+		}
+		if ctrl.resetCalls != 0 || ctrl.offCalls != 0 {
+			t.Fatalf("canceled ctx called PSCI: steps=%d reset=%d off=%d", len(cfg.Steps), ctrl.resetCalls, ctrl.offCalls)
+		}
 	}
 }
 
@@ -226,5 +232,166 @@ func TestShutdownEnforcesTimeoutOnNonCooperativeHook(t *testing.T) {
 	}
 	if strictCtrl.resetCalls != 0 {
 		t.Fatalf("resetCalls=%d want 0 on strict non-cooperative timeout", strictCtrl.resetCalls)
+	}
+}
+
+// stepsStarted collects every step name sent on started, then keeps listening
+// for grace so a step that a broken Shutdown started late, on a goroutine it
+// never awaited, is caught too.
+func stepsStarted(started <-chan string, grace time.Duration) []string {
+	var names []string
+	quiet := time.After(grace)
+	for {
+		select {
+		case name := <-started:
+			names = append(names, name)
+		case <-quiet:
+			return names
+		}
+	}
+}
+
+// A ctx cancelled between steps stops Shutdown at the next boundary, as a ctx
+// cancelled on entry does: no later step starts, even late on a stray
+// goroutine, and PSCI is never called, with or without RequireCleanTeardown.
+func TestShutdownCtxCancelledMidSequenceStartsNoStepAndSkipsPSCI(t *testing.T) {
+	names := []string{"stop-watchdog", "park-fabric", "flush-sd", "quiesce-usb"}
+	for _, tc := range []struct {
+		name     string
+		action   PowerAction
+		strict   bool
+		cancelIn int // index of the step that cancels ctx and then returns nil
+	}{
+		{name: "reset", action: ActionReset, cancelIn: 1},
+		{name: "poweroff-require-clean", action: ActionPowerOff, strict: true, cancelIn: 1},
+		{name: "reset-cancel-in-last-step", action: ActionReset, cancelIn: len(names) - 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			started := make(chan string, len(names))
+			var steps []ShutdownStep
+			for i, name := range names {
+				steps = append(steps, ShutdownStep{Name: name, Fn: func(context.Context) error {
+					started <- name
+					if i == tc.cancelIn {
+						cancel()
+					}
+					return nil
+				}})
+			}
+			var reported []string
+			ctrl := &fakePowerController{}
+			err := Shutdown(ctx, ctrl, tc.action, ShutdownConfig{
+				StepTimeout:          time.Minute,
+				RequireCleanTeardown: tc.strict,
+				OnStepError:          func(name string, e error) { reported = append(reported, name+":"+e.Error()) },
+				Steps:                steps,
+			})
+			if ctrl.resetCalls != 0 || ctrl.offCalls != 0 {
+				t.Errorf("PSCI called after ctx was cancelled: reset=%d off=%d", ctrl.resetCalls, ctrl.offCalls)
+			}
+			if got, want := stepsStarted(started, 50*time.Millisecond), names[:tc.cancelIn+1]; !reflect.DeepEqual(got, want) {
+				t.Errorf("steps started=%v want %v", got, want)
+			}
+			// The cancelling step returned nil and was awaited, so it is not
+			// misreported as cancelled.
+			if len(reported) != 0 {
+				t.Errorf("OnStepError reported %v, want none", reported)
+			}
+			if !errors.Is(err, ErrShutdownAborted) || !errors.Is(err, context.Canceled) || errors.Is(err, ErrTeardownFailed) {
+				t.Errorf("err=%v want ErrShutdownAborted+context.Canceled and not ErrTeardownFailed", err)
+			}
+		})
+	}
+}
+
+// When ctx's deadline passes while a step runs, the step sees its own context
+// end and Shutdown waits for it to finish before returning; it then starts no
+// later step and skips PSCI.
+func TestShutdownCtxDeadlineAwaitsRunningStepThenAborts(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	finished := make(chan struct{})
+	started := make(chan string, 1)
+	var reported []string
+	ctrl := &fakePowerController{}
+	start := time.Now()
+	err := Shutdown(ctx, ctrl, ActionReset, ShutdownConfig{
+		StepTimeout: time.Minute, // only ctx's deadline can end flush-sd early
+		OnStepError: func(name string, e error) { reported = append(reported, name+":"+e.Error()) },
+		Steps: []ShutdownStep{
+			{Name: "flush-sd", Fn: func(ctx context.Context) error {
+				<-ctx.Done()
+				time.Sleep(10 * time.Millisecond) // cooperative wind-down after cancellation
+				close(finished)
+				return ctx.Err()
+			}},
+			{Name: "park-fabric", Fn: func(context.Context) error { started <- "park-fabric"; return nil }},
+		},
+	})
+	elapsed := time.Since(start)
+	select {
+	case <-finished:
+	default:
+		t.Error("Shutdown returned while the step interrupted by ctx was still running")
+	}
+	if ctrl.resetCalls != 0 || ctrl.offCalls != 0 {
+		t.Errorf("PSCI called after ctx deadline: reset=%d off=%d", ctrl.resetCalls, ctrl.offCalls)
+	}
+	if got := stepsStarted(started, 50*time.Millisecond); len(got) != 0 {
+		t.Errorf("steps started after ctx deadline: %v", got)
+	}
+	if want := []string{"flush-sd:" + context.DeadlineExceeded.Error()}; !reflect.DeepEqual(reported, want) {
+		t.Errorf("reported=%v want %v", reported, want)
+	}
+	if !errors.Is(err, ErrShutdownAborted) || !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("err=%v want ErrShutdownAborted+context.DeadlineExceeded", err)
+	}
+	if elapsed > 30*time.Second {
+		t.Errorf("ctx deadline did not cut the cooperative step short: %v", elapsed)
+	}
+}
+
+// Cancelling ctx does not abandon a step that ignores its context: Shutdown
+// waits for it up to StepTimeout, then still starts no later step and skips
+// PSCI.
+func TestShutdownCtxCancelBoundsNonCooperativeStepByStepTimeout(t *testing.T) {
+	unblock := make(chan struct{})
+	defer close(unblock)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	started := make(chan string, 1)
+	var reported []string
+	ctrl := &fakePowerController{}
+	const stepTimeout = 50 * time.Millisecond
+	start := time.Now()
+	err := Shutdown(ctx, ctrl, ActionPowerOff, ShutdownConfig{
+		StepTimeout: stepTimeout,
+		OnStepError: func(name string, e error) { reported = append(reported, name+":"+e.Error()) },
+		Steps: []ShutdownStep{
+			{Name: "wedged-driver", Fn: func(context.Context) error {
+				cancel()
+				<-unblock // ignores ctx.Done() intentionally
+				return nil
+			}},
+			{Name: "park-fabric", Fn: func(context.Context) error { started <- "park-fabric"; return nil }},
+		},
+	})
+	elapsed := time.Since(start)
+	if ctrl.resetCalls != 0 || ctrl.offCalls != 0 {
+		t.Errorf("PSCI called after ctx was cancelled: reset=%d off=%d", ctrl.resetCalls, ctrl.offCalls)
+	}
+	if got := stepsStarted(started, 50*time.Millisecond); len(got) != 0 {
+		t.Errorf("steps started after ctx was cancelled: %v", got)
+	}
+	if elapsed < stepTimeout {
+		t.Errorf("Shutdown abandoned the running step after %v, before StepTimeout %v", elapsed, stepTimeout)
+	}
+	if want := []string{"wedged-driver:" + context.DeadlineExceeded.Error()}; !reflect.DeepEqual(reported, want) {
+		t.Errorf("reported=%v want %v", reported, want)
+	}
+	if !errors.Is(err, ErrShutdownAborted) || !errors.Is(err, context.Canceled) || !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("err=%v want ErrShutdownAborted+context.Canceled+context.DeadlineExceeded", err)
 	}
 }
