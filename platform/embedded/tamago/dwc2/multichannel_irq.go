@@ -39,11 +39,11 @@ func (h *MultiHost) enableIRQ(g *gic.Controller, irqID uint32, guard func() bool
 	if h.paused {
 		return fmt.Errorf("dwc2: cannot enable IRQ while polling is paused")
 	}
-	if err := h.pioCheck(); err != nil {
-		return err
-	}
 	if guard != nil && !guard() {
 		return fmt.Errorf("dwc2: IRQ ownership guard inactive")
+	}
+	if err := h.pioCheck(); err != nil {
+		return err
 	}
 	h.irqMu.Lock()
 	if h.irqGIC != nil {
