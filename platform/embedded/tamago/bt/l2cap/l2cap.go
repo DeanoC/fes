@@ -27,6 +27,7 @@ const (
 	sigInfoRsp      byte = 0x0b
 
 	defaultMTU       uint16 = 672
+	minL2CAPMTU      uint16 = 48
 	maxL2CAPPayload         = 680
 	maxConnections          = 4
 	maxChansPerConn         = 4
@@ -38,6 +39,7 @@ type l2capChannel struct {
 	psm              uint16
 	localCID         uint16
 	remoteCID        uint16
+	peerMTU          uint16
 	awaitingAuth     bool
 	pendingAuthRsp   bool
 	pendingConnRsp   bool
@@ -66,6 +68,8 @@ type aclConn struct {
 	vendorID        uint16
 	productID       uint16
 	hostInitiated   bool
+	pairingConn     bool
+	secFailed       bool
 	authenticated   bool
 	encrypted       bool
 	authRequested   bool
@@ -103,11 +107,11 @@ type aclConn struct {
 }
 
 func (c *aclConn) secured() bool {
-	return c.authenticated && c.encrypted
+	return !c.secFailed && c.authenticated && c.encrypted
 }
 
 func (c *aclConn) securityInProgress() bool {
-	return !c.secured() && (c.authRequested || c.encRequested || c.secRetryPending)
+	return !c.secFailed && !c.secured() && (c.authRequested || c.encRequested || c.secRetryPending)
 }
 
 func (c *aclConn) allocSigID() byte {
@@ -130,6 +134,7 @@ func (c *aclConn) allocChannel(psm uint16) *l2capChannel {
 				inUse:    true,
 				psm:      psm,
 				localCID: cid,
+				peerMTU:  defaultMTU,
 			}
 			return &c.chans[i]
 		}
@@ -327,6 +332,9 @@ func (m *Manager) SendChannel(handle, psm uint16, payload []byte) error {
 	if ch == nil || !ch.open {
 		return fmt.Errorf("bt/l2cap: PSM %#04x not open on handle %#04x", psm, handle)
 	}
+	if ch.peerMTU > 0 && len(payload) > int(ch.peerMTU) {
+		return fmt.Errorf("bt/l2cap: payload %d exceeds peer MTU %d on PSM %#04x", len(payload), ch.peerMTU, psm)
+	}
 	return m.sendL2CAPPDU(handle, ch.remoteCID, payload)
 }
 
@@ -486,11 +494,68 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 				continue
 			}
 			dstCID := binary.LittleEndian.Uint16(body[0:2])
+			flags := binary.LittleEndian.Uint16(body[2:4])
 			ch := conn.findByLocalCID(dstCID)
 			if ch == nil {
 				continue
 			}
 			if (ch.psm == PSMHIDControl || ch.psm == PSMHIDInterrupt) && (!conn.secured() || ch.awaitingAuth) {
+				continue
+			}
+			opts := body[4:]
+			hasMTU := false
+			peerMTU := ch.peerMTU
+			malformed := false
+			badMTU := false
+			for len(opts) > 0 {
+				if len(opts) < 2 || 2+int(opts[1]) > len(opts) {
+					malformed = true
+					break
+				}
+				optType := opts[0] & 0x7f
+				optLen := int(opts[1])
+				optVal := opts[2 : 2+optLen]
+				opts = opts[2+optLen:]
+				if optType == 0x01 { // MTU option
+					if optLen != 2 {
+						malformed = true
+						break
+					}
+					v := binary.LittleEndian.Uint16(optVal)
+					if v < minL2CAPMTU {
+						badMTU = true
+						break
+					}
+					peerMTU = v
+					hasMTU = true
+				}
+			}
+			if malformed {
+				var rsp [6]byte
+				binary.LittleEndian.PutUint16(rsp[0:2], ch.remoteCID)
+				binary.LittleEndian.PutUint16(rsp[4:6], 0x0002) // Failure - rejected
+				m.sendOrQueueSig(conn, sigConfigRsp, id, rsp[:])
+				continue
+			}
+			if badMTU {
+				var rsp [10]byte
+				binary.LittleEndian.PutUint16(rsp[0:2], ch.remoteCID)
+				binary.LittleEndian.PutUint16(rsp[4:6], 0x0001) // Failure - unacceptable parameters
+				rsp[6] = 0x01
+				rsp[7] = 0x02
+				binary.LittleEndian.PutUint16(rsp[8:10], defaultMTU)
+				m.sendOrQueueSig(conn, sigConfigRsp, id, rsp[:])
+				continue
+			}
+			if hasMTU {
+				ch.peerMTU = peerMTU
+			}
+			if flags&0x0001 != 0 {
+				var rsp [6]byte
+				binary.LittleEndian.PutUint16(rsp[0:2], ch.remoteCID)
+				binary.LittleEndian.PutUint16(rsp[2:4], 0x0001) // Continuation flag
+				binary.LittleEndian.PutUint16(rsp[4:6], 0x0000) // Success
+				m.sendOrQueueSig(conn, sigConfigRsp, id, rsp[:])
 				continue
 			}
 			ch.pendingCfgRsp = true

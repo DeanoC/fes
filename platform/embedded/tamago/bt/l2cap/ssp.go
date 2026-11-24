@@ -33,6 +33,8 @@ type Manager struct {
 	cancelConnPending    bool
 	cancelConnAddr       BDAddr
 	cancelRetryAt        time.Time
+	pairingAccepted      [maxConnections]BDAddr
+	pairingAcceptedUsed  [maxConnections]bool
 
 	OnChannelOpen  func(handle uint16, addr BDAddr, name string, kind controllers.Kind, psm uint16)
 	OnChannelClose func(handle uint16, addr BDAddr, psm uint16)
@@ -158,7 +160,41 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 	if err := m.tr.WriteScanEnable(hci.ScanPageOnly); err != nil && firstErr == nil {
 		firstErr = err
 	}
+	for i := range m.conns {
+		conn := &m.conns[i]
+		if conn.active && conn.pairingConn {
+			if _, bonded := m.bonds.Lookup(conn.addr); !bonded {
+				m.failConnSecurity(conn)
+			}
+		}
+	}
 	return firstErr
+}
+
+func (m *Manager) recordPairingAccepted(addr BDAddr) {
+	for i := range m.pairingAcceptedUsed {
+		if m.pairingAcceptedUsed[i] && m.pairingAccepted[i] == addr {
+			return
+		}
+	}
+	for i := range m.pairingAcceptedUsed {
+		if !m.pairingAcceptedUsed[i] {
+			m.pairingAcceptedUsed[i] = true
+			m.pairingAccepted[i] = addr
+			return
+		}
+	}
+}
+
+func (m *Manager) consumePairingAccepted(addr BDAddr) bool {
+	for i := range m.pairingAcceptedUsed {
+		if m.pairingAcceptedUsed[i] && m.pairingAccepted[i] == addr {
+			m.pairingAcceptedUsed[i] = false
+			m.pairingAccepted[i] = BDAddr{}
+			return true
+		}
+	}
+	return false
 }
 
 const (
@@ -168,7 +204,7 @@ const (
 )
 
 func (m *Manager) requestAuthentication(conn *aclConn) {
-	if conn == nil || !conn.active || conn.authenticated {
+	if conn == nil || !conn.active || conn.secFailed || conn.authenticated {
 		return
 	}
 	conn.authRequested = true
@@ -187,7 +223,7 @@ func (m *Manager) requestAuthentication(conn *aclConn) {
 }
 
 func (m *Manager) requestEncryption(conn *aclConn) {
-	if conn == nil || !conn.active || !conn.authenticated || conn.encrypted {
+	if conn == nil || !conn.active || conn.secFailed || !conn.authenticated || conn.encrypted {
 		return
 	}
 	conn.encRequested = true
@@ -208,6 +244,13 @@ func (m *Manager) requestEncryption(conn *aclConn) {
 func (m *Manager) onConnSecured(conn *aclConn) {
 	if conn == nil || !conn.active || !conn.secured() {
 		return
+	}
+	if conn.pairingConn && !m.pairingActive {
+		if _, bonded := m.bonds.Lookup(conn.addr); !bonded {
+			m.failConnSecurity(conn)
+			conn.pairingConn = false
+			return
+		}
 	}
 	for i := range conn.chans {
 		ch := &conn.chans[i]
@@ -251,6 +294,7 @@ func (m *Manager) failConnSecurity(conn *aclConn) {
 			}
 		}
 	}
+	conn.secFailed = true
 	conn.authenticated = false
 	conn.encrypted = false
 	conn.authRequested = false
@@ -463,6 +507,9 @@ func (m *Manager) handleEvent(ev []byte) {
 		_, bonded := m.bonds.Lookup(addr)
 		if bonded || (m.pairingActive && isHIDPeripheralCoD(cod)) {
 			// Role 0x00: request Master/Central role for deterministic polling slots!
+			if !bonded {
+				m.recordPairingAccepted(addr)
+			}
 			_ = m.tr.AcceptConnectionRequest(addr, 0x00)
 		} else {
 			// Fail-closed: reject unknown or non-HID devices even during pairing.
@@ -486,23 +533,24 @@ func (m *Manager) handleEvent(ev []byte) {
 			m.cancelConnPending = false
 			m.cancelConnAddr = BDAddr{}
 		}
+		fromPairing := m.consumePairingAccepted(addr) || outgoing || canceled
 		if params[0] != 0 {
 			m.resumeInquiryIfPairing()
 			return
 		}
 		handle := binary.LittleEndian.Uint16(params[1:3]) & 0x0fff
-		if canceled && !m.pairingActive {
-			if _, bonded := m.bonds.Lookup(addr); !bonded {
-				_ = m.tr.Disconnect(handle, 0x13)
-				return
-			}
+		rec, bonded := m.bonds.Lookup(addr)
+		if !m.pairingActive && fromPairing && !bonded {
+			_ = m.tr.Disconnect(handle, 0x13)
+			return
 		}
 		conn := m.allocConn(handle, addr)
 		if conn == nil {
 			_ = m.tr.Disconnect(handle, 0x13)
 			return
 		}
-		if rec, ok := m.bonds.Lookup(addr); ok {
+		conn.pairingConn = !bonded && (m.pairingActive || fromPairing)
+		if bonded {
 			conn.name = rec.Name
 			conn.kind = rec.Kind
 			conn.vendorID = rec.VendorID
@@ -643,6 +691,7 @@ func (m *Manager) handleEvent(ev []byte) {
 			rec.Slot = existing.Slot
 		}
 		if conn := m.findConnByAddr(addr); conn != nil {
+			conn.pairingConn = false
 			if conn.name != "" {
 				rec.Name = conn.name
 			}
@@ -747,7 +796,7 @@ func (m *Manager) handleEvent(ev []byte) {
 			m.resumeInquiryIfPairing()
 			return
 		}
-		if conn == nil {
+		if conn == nil || conn.secFailed {
 			return
 		}
 		conn.authRequested = false
@@ -768,7 +817,7 @@ func (m *Manager) handleEvent(ev []byte) {
 		}
 		handle := binary.LittleEndian.Uint16(params[1:3]) & 0x0fff
 		conn := m.findConnByHandle(handle)
-		if conn == nil {
+		if conn == nil || conn.secFailed {
 			return
 		}
 		if params[0] != 0 || params[3] == 0 {

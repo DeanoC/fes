@@ -16,7 +16,9 @@ const (
 	MaxPlayerSlots = 4
 
 	// HIDP transaction header bytes (Bluetooth HID Profile 1.1).
+	hidpHandshake        byte = 0x00 // HANDSHAKE (0x00) | HANDSHAKE_SUCCESSFUL (0x00)
 	hidpGetReportFeature byte = 0x43 // GET_REPORT (0x40) | Feature (0x03)
+	hidpSetProtocolBoot  byte = 0x70 // SET_PROTOCOL (0x70) | Boot Protocol (0x00)
 	hidpDataInput        byte = 0xa1 // DATA (0xA0) | Input (0x01)
 	hidpDataOutput       byte = 0xa2 // DATA (0xA0) | Output (0x02)
 
@@ -228,6 +230,12 @@ func (s *Session) onNameResolved(handle uint16, _ l2cap.BDAddr, name string, kin
 	if kind != controllers.KindUnknown {
 		slot.Kind = kind
 	}
+	if prevKind == controllers.KindUnknown && slot.Kind != controllers.KindUnknown {
+		slot.initStep = 0
+		slot.initWaitingAck = false
+		slot.initNextTry = time.Time{}
+		slot.initAttempts = 0
+	}
 	s.maybeInitController(slot)
 	if prevKind == controllers.KindUnknown && slot.Kind != controllers.KindUnknown && slot.ctrlOpen && slot.intrOpen && s.OnSlotChanged != nil {
 		s.OnSlotChanged(slot.Slot, true, slot.Kind, slot.Name)
@@ -301,7 +309,7 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 	}
 	// Reconcile bond slot even if LinkKeyNotification completed after onChannelOpen.
 	s.syncBondSlot(slot.Addr, slot.Slot)
-	if slot.initStep == initStepDone || slot.Kind == controllers.KindUnknown {
+	if slot.initStep == initStepDone {
 		return
 	}
 	switch slot.Kind {
@@ -380,6 +388,29 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 		slot.initWaitingAck = true
 		slot.initAttempts++
 		slot.initNextTry = s.now().Add(switchProSubcmdRetryInterval)
+
+	case controllers.KindUnknown:
+		// Boot keyboard fallback: select Boot Protocol (0x70) on Control channel
+		// and wait for HANDSHAKE_SUCCESSFUL (0x00) before decoding boot reports.
+		if !slot.ctrlOpen || !slot.intrOpen {
+			return
+		}
+		if slot.initWaitingAck {
+			if s.now().Before(slot.initNextTry) {
+				return
+			}
+			slot.initWaitingAck = false
+		}
+		if slot.initAttempts >= switchProMaxStepAttempts {
+			return
+		}
+		pkt := [1]byte{hidpSetProtocolBoot}
+		if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDControl, pkt[:]); err != nil {
+			return
+		}
+		slot.initWaitingAck = true
+		slot.initAttempts++
+		slot.initNextTry = s.now().Add(switchProSubcmdRetryInterval)
 	}
 }
 
@@ -421,9 +452,20 @@ func (s *Session) SetRumble(slotIdx uint8, right, left uint8) error {
 	}
 }
 
-func (s *Session) onHIDControl(_ uint16, _ []byte) {
-	// Feature report replies (e.g. DualSense 0x05 calibration) complete the
-	// unlock transition on the controller side; no hot-path parsing needed.
+func (s *Session) onHIDControl(handle uint16, payload []byte) {
+	// Handle SET_PROTOCOL(BOOT) handshake for boot keyboard fallback; gamepads use
+	// feature reports whose responses don't gate input decoding here.
+	slot := s.findSlotByHandle(handle)
+	if slot != nil && slot.Kind == controllers.KindUnknown && slot.initWaitingAck && len(payload) >= 1 && (payload[0]&0xf0) == hidpHandshake {
+		slot.initWaitingAck = false
+		slot.initNextTry = time.Time{}
+		if payload[0] == hidpHandshake {
+			slot.initStep = initStepDone
+			slot.initAttempts = 0
+		} else {
+			slot.initAttempts = switchProMaxStepAttempts
+		}
+	}
 }
 
 func (s *Session) onHIDInterrupt(handle uint16, payload []byte) {
@@ -464,7 +506,11 @@ func (s *Session) onHIDInterrupt(handle uint16, payload []byte) {
 		}
 
 	default:
-		// Classic BT HID boot keyboard fallback: 8-byte payload (or 9 bytes with report ID 0x01).
+		// Classic BT HID boot keyboard fallback: only decode 8-byte (or 0x01-prefixed
+		// 9-byte) boot reports after SET_PROTOCOL(BOOT) handshake succeeded.
+		if slot.initStep != initStepDone {
+			return
+		}
 		if s.OnKeyboardReport != nil {
 			if len(report) == 8 {
 				s.OnKeyboardReport(report)

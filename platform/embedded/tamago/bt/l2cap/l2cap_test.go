@@ -2016,3 +2016,165 @@ func TestHIDChannelsRequireAuthenticationAndEncryption(t *testing.T) {
 		t.Fatalf("expected HID PDU after encryption downgrade to be dropped, got %d", hidPayloads)
 	}
 }
+
+func TestL2CAPConfigHonorsPeerMTUAndRejectsBelowMinimum(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	bonds := NewBondStore()
+	peer, _ := ParseBDAddr("22:33:44:55:66:77")
+	_ = bonds.Upsert(BondRecord{Addr: peer, LinkKey: [16]byte{7}, Name: "Switch Pro", Kind: controllers.KindSwitchPro})
+
+	mgr, err := NewManager(tr, bonds, func() time.Time { return time.Unix(2700, 0) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	var opened []uint16
+	mgr.OnChannelOpen = func(_ uint16, _ BDAddr, _ string, _ controllers.Kind, psm uint16) {
+		opened = append(opened, psm)
+	}
+
+	connEv := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, peer[:]...)
+	connEv = append(connEv, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connEv)
+	// Peer opens PSMHIDControl and requests invalid MTU = 32 (< minL2CAPMTU=48).
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeACLPacket(0x0041, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConnReq, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}),
+		makeACLPacket(0x0041, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConfigReq, 2, 8, 0, 0x40, 0x00, 0x00, 0x00, 0x01, 0x02, 32, 0}),
+		makeACLPacket(0x0041, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConfigRsp, 2, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	var sawUnacceptable bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) >= 18 && pkt[8] == sigConfigRsp && binary.LittleEndian.Uint16(pkt[16:18]) == 0x0001 {
+			sawUnacceptable = true
+		}
+	}
+	if !sawUnacceptable || len(opened) != 0 {
+		t.Fatalf("expected ConfigRsp Unacceptable Parameters (0x0001) and closed channel, saw=%t opened=%v", sawUnacceptable, opened)
+	}
+
+	// Peer retries with minimum valid MTU = 48 -> accepted, channel opens, 48-byte SendChannel succeeds, >48 fails.
+	bus.aclOutPipe.outLog = nil
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeACLPacket(0x0041, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConfigReq, 3, 8, 0, 0x40, 0x00, 0x00, 0x00, 0x01, 0x02, 48, 0}),
+	)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if len(opened) != 1 || opened[0] != PSMHIDControl {
+		t.Fatalf("expected PSMHIDControl open after valid MTU=48, got %v", opened)
+	}
+	bus.aclOutPipe.outLog = nil
+	if err := mgr.SendChannel(0x0041, PSMHIDControl, make([]byte, 48)); err != nil {
+		t.Fatalf("SendChannel(48) failed: %v", err)
+	}
+	if err := mgr.SendChannel(0x0041, PSMHIDControl, make([]byte, 50)); err == nil {
+		t.Fatal("expected SendChannel(50) to fail against peerMTU=48")
+	}
+}
+
+func TestSetPairingModeFalseAbortsUnbondedPairingACL(t *testing.T) {
+	bus := newL2CAPMockBus()
+	bus.manualAuth = true
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(2800, 0)
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	var opened []uint16
+	mgr.OnChannelOpen = func(_ uint16, _ BDAddr, _ string, _ controllers.Kind, psm uint16) {
+		opened = append(opened, psm)
+	}
+
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	// 1. Outgoing unbonded pairing connection reaches ConnectionComplete (clears connecting),
+	// then pairing closes before LinkKeyNotification arrives -> must Disconnect and block HID.
+	peer1, _ := ParseBDAddr("33:44:55:66:77:88")
+	eir := make([]byte, 2+15)
+	eir[0] = hci.EventExtendedInquiryResult
+	eir[1] = 15
+	eir[2] = 1
+	copy(eir[3:9], peer1[:])
+	eir[9] = 1
+	eir[11], eir[12], eir[13] = 0x08, 0x25, 0x00
+	conn1 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, peer1[:]...)
+	conn1 = append(conn1, 0x01, 0x00)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, eir, conn1)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	delete(bus.lastParams, hci.OpcodeDisconnect)
+	if err := mgr.SetPairingMode(false, 0); err != nil {
+		t.Fatal(err)
+	}
+	if disc := bus.lastParams[hci.OpcodeDisconnect]; len(disc) < 3 || binary.LittleEndian.Uint16(disc[:2]) != 0x0041 {
+		t.Fatalf("expected immediate Disconnect on unbonded pairing ACL 0x0041, got %x", disc)
+	}
+	// Even if delayed auth/enc + incoming HID ConnReq arrive before DisconnectComplete, stay blocked.
+	bus.aclOutPipe.outLog = nil
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue,
+		[]byte{hci.EventAuthenticationComplete, 3, 0x00, 0x41, 0x00},
+		[]byte{hci.EventEncryptionChange, 4, 0x00, 0x41, 0x00, 0x01},
+	)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeACLPacket(0x0041, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConnReq, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}),
+	)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	var sawSecBlock bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) >= 20 && pkt[8] == sigConnRsp && binary.LittleEndian.Uint16(pkt[16:18]) == 0x0003 {
+			sawSecBlock = true
+		}
+	}
+	if !sawSecBlock || len(opened) != 0 {
+		t.Fatalf("expected aborted pairing ACL to stay blocked: secBlock=%t opened=%v", sawSecBlock, opened)
+	}
+
+	// 2. Incoming unbonded ConnectionRequest accepted during pairing whose ConnectionComplete
+	// arrives after SetPairingMode(false, 0) must be disconnected immediately without allocating conn.
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	peer2, _ := ParseBDAddr("33:44:55:66:77:99")
+	creq := append([]byte{hci.EventConnectionRequest, 10}, peer2[:]...)
+	creq = append(creq, 0x08, 0x25, 0x00, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, creq)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.SetPairingMode(false, 0); err != nil {
+		t.Fatal(err)
+	}
+	delete(bus.lastParams, hci.OpcodeDisconnect)
+	conn2 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x42, 0x00}, peer2[:]...)
+	conn2 = append(conn2, 0x01, 0x00)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, conn2)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if disc := bus.lastParams[hci.OpcodeDisconnect]; len(disc) < 3 || binary.LittleEndian.Uint16(disc[:2]) != 0x0042 {
+		t.Fatalf("expected Disconnect for late ConnectionComplete 0x0042 after pairing closed, got %x", disc)
+	}
+	if mgr.findConnByHandle(0x0042) != nil {
+		t.Fatal("expected no allocated aclConn for late unbonded pairing completion")
+	}
+}

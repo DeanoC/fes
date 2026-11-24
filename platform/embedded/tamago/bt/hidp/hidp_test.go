@@ -340,10 +340,19 @@ func TestDualSenseAndSwitchProConcurrentHIDPAndZeroAllocs(t *testing.T) {
 	kbdConn = append(kbdConn, 0x01, 0x01)
 	bus.evPipe.inQueue = append(bus.evPipe.inQueue, kbdConn)
 	openIncomingHIDChannels(bus, 0x0043, 0x0070, 0x0071)
+	for range 4 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
 	var gotKbd []byte
 	sess.OnKeyboardReport = func(r []byte) { gotKbd = append(gotKbd[:0], r...) }
 	kbdWant := []byte{0, 0, 0x04, 0, 0, 0, 0, 0}
-	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0043, 0x0041, append([]byte{hidpDataInput, 0x01}, kbdWant...)))
+	// Peer acknowledges SET_PROTOCOL(BOOT) with HANDSHAKE_SUCCESSFUL (0x00) on Control CID 0x0040.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0043, 0x0040, []byte{0x00}),
+		makeHIDACL(0x0043, 0x0041, append([]byte{hidpDataInput, 0x01}, kbdWant...)),
+	)
 	for range 4 {
 		if err := sess.Service(); err != nil {
 			t.Fatal(err)
@@ -1136,5 +1145,104 @@ func TestHIDChannelCloseNeutralizesInputAndUpdatesReadiness(t *testing.T) {
 	}
 	if sess.ConnectedCount() != 1 || len(events) != 1 || events[0] != "connected" {
 		t.Fatalf("expected slot reconnect on live ACL: count=%d events=%v", sess.ConnectedCount(), events)
+	}
+}
+
+func TestKeyboardRequiresSetProtocolBootHandshake(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	kbd1, _ := l2cap.ParseBDAddr("CA:11:22:33:44:01")
+	kbd2, _ := l2cap.ParseBDAddr("CA:11:22:33:44:02")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: kbd1, LinkKey: [16]byte{1}, Name: "BT Keyboard 1", Slot: 0})
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: kbd2, LinkKey: [16]byte{2}, Name: "BT Keyboard 2", Slot: 1})
+
+	now := time.Unix(3000, 0)
+	sess, err := NewSession(tr, bonds, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	var gotReports [][]byte
+	sess.OnKeyboardReport = func(r []byte) {
+		gotReports = append(gotReports, append([]byte(nil), r...))
+	}
+
+	// 1. Open kbd1 channels: SET_PROTOCOL(BOOT) (0x70) is sent on Control CID 0x0050,
+	// and boot keyboard reports arriving before HANDSHAKE (0x00) are ignored.
+	c1 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, kbd1[:]...)
+	c1 = append(c1, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, c1)
+	openIncomingHIDChannels(bus, 0x0041, 0x0050, 0x0051)
+	for range 4 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var sawSetProto1 bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) == 9 && binary.LittleEndian.Uint16(pkt[6:8]) == 0x0050 && pkt[8] == hidpSetProtocolBoot {
+			sawSetProto1 = true
+		}
+	}
+	if !sawSetProto1 {
+		t.Fatalf("expected SET_PROTOCOL(BOOT) 0x70 on Control CID 0x0050, out=%x", bus.aclOutPipe.outLog)
+	}
+	earlyRep := []byte{0, 0, 0x04, 0, 0, 0, 0, 0}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, 0x0041, append([]byte{hidpDataInput}, earlyRep...)))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if len(gotReports) != 0 {
+		t.Fatalf("expected report before SET_PROTOCOL handshake to be ignored, got %x", gotReports)
+	}
+
+	// 2. Peer confirms HANDSHAKE_SUCCESSFUL (0x00); subsequent boot report is decoded.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0041, 0x0040, []byte{0x00}),
+		makeHIDACL(0x0041, 0x0041, append([]byte{hidpDataInput, 0x01}, earlyRep...)),
+	)
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if len(gotReports) != 1 || !bytes.Equal(gotReports[0], earlyRep) {
+		t.Fatalf("expected decoded boot report after handshake, got %x", gotReports)
+	}
+
+	// 3. kbd2 receives HANDSHAKE error (0x03): reports stay ignored and 0x70 is not retried.
+	gotReports = nil
+	bus.aclOutPipe.outLog = nil
+	c2 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x42, 0x00}, kbd2[:]...)
+	c2 = append(c2, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, c2)
+	openIncomingHIDChannels(bus, 0x0042, 0x0060, 0x0061)
+	for range 4 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bus.aclOutPipe.outLog = nil
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0042, 0x0040, []byte{0x03}), // HANDSHAKE_ERR_UNSUPPORTED_REQUEST
+		makeHIDACL(0x0042, 0x0041, append([]byte{hidpDataInput}, earlyRep...)),
+	)
+	now = now.Add(2 * time.Second)
+	for range 4 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(gotReports) != 0 {
+		t.Fatalf("expected reports rejected after failed SET_PROTOCOL handshake, got %x", gotReports)
+	}
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) == 9 && binary.LittleEndian.Uint16(pkt[6:8]) == 0x0060 && pkt[8] == hidpSetProtocolBoot {
+			t.Fatal("unexpected SET_PROTOCOL(BOOT) retry after explicit non-zero handshake error")
+		}
 	}
 }

@@ -339,9 +339,18 @@ func TestDetachDongleNeutralizesKeyboardAndGamepad(t *testing.T) {
 		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x51, 0x00}),
 		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
 		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Acknowledge SET_PROTOCOL(BOOT) on Control CID 0x0040 before sending boot report.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeMgrHIDACL(0x0041, 0x0040, []byte{0x00}),
 		makeMgrHIDACL(0x0041, 0x0041, []byte{0xa1, 0x01, 0, 0, 0x04, 0, 0, 0, 0, 0}),
 	)
-	for range 6 {
+	for range 4 {
 		if err := mgr.Service(); err != nil {
 			t.Fatal(err)
 		}
