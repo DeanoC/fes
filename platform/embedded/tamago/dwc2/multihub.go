@@ -522,6 +522,7 @@ func (h *MultiHost) scheduleHubPortRetry(hub *multiHub, port uint8) {
 func (h *MultiHost) handleHubPortChange(hub *multiHub, port uint8, depth int) {
 	var raw [4]byte
 	if n, err := h.ControlTransfer(hub.addr, 0xa3, 0, 0, uint16(port), raw[:]); err != nil || n != 4 {
+		h.scheduleHubPortRetry(hub, port)
 		return
 	}
 	status := binary.LittleEndian.Uint32(raw[:])
