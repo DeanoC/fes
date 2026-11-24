@@ -170,7 +170,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 			platform, err = nativefabric.NewProgramGamepadPlatform(serialPlatform, nativeProgramBackend, &sharedProgramGamepad{programGamepadSource, &sharedInputMetrics}, programGamepadDescriptor, input.GamepadButtons{Confirm: 1, Back: 2}, keys)
 		case "multi":
 			bonds := l2cap.NewBondStore()
-			var fw programBTFirmwareLoader
+			fw := programBTFirmwareLoader{store: store}
 			if store != nil {
 				loadCtx, loadCancel := context.WithTimeout(context.Background(), 5*time.Second)
 				raw, bondErr := store.ReadBTBonds(loadCtx)
@@ -182,7 +182,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 				} else if !errors.Is(bondErr, fs.ErrNotExist) {
 					fmt.Printf("FES_NATIVE_BT_BONDS WARN action=load err=%v\n", bondErr)
 				}
-				fw.store = store
+				fw.preload("rtl8761bu_fw.bin", "rtl8761bu_config.bin")
 			}
 			hub, hubErr := usbhub.NewHub(programBusHost, usbhub.Config{
 				Bonds:    bonds,
@@ -205,7 +205,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 			activeHub = hub
 			keys := nativefabric.ProgramGamepadKeys{Up: 0x52, Down: 0x51, Left: 0x50, Right: 0x4f}
 			keys.Buttons[0], keys.Buttons[1] = 0x16, 0x2c
-			platform, err = nativefabric.NewProgramMultiInputPlatform(serialPlatform, nativeProgramBackend, &sharedProgramMulti{hub: hub, bus: programBusHost, metrics: &sharedInputMetrics}, nativefabric.ProgramMultiConfig{
+			platform, err = nativefabric.NewProgramMultiInputPlatform(serialPlatform, nativeProgramBackend, &sharedProgramMulti{hub: hub, metrics: &sharedInputMetrics}, nativefabric.ProgramMultiConfig{
 				MenuButtons:     input.GamepadButtons{Confirm: 1, Back: 2},
 				CoreKeys:        keys,
 				PairingDuration: 30 * time.Second,
@@ -267,16 +267,41 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 }
 
 type programBTFirmwareLoader struct {
-	store *packagestore.Store
+	store  *packagestore.Store
+	cached map[string][]byte
+}
+
+func (l *programBTFirmwareLoader) preload(names ...string) {
+	if l.store == nil {
+		return
+	}
+	for _, name := range names {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		b, err := l.store.ReadBTFirmware(ctx, name)
+		cancel()
+		if err == nil {
+			if l.cached == nil {
+				l.cached = make(map[string][]byte, len(names))
+			}
+			l.cached[name] = b
+		}
+	}
 }
 
 func (l programBTFirmwareLoader) LoadFirmware(name string) ([]byte, error) {
+	if b, ok := l.cached[name]; ok {
+		return b, nil
+	}
 	if l.store == nil {
 		return nil, fs.ErrNotExist
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return l.store.ReadBTFirmware(ctx, name)
+	b, err := l.store.ReadBTFirmware(ctx, name)
+	if errors.Is(err, packagestore.ErrState) {
+		return nil, fs.ErrNotExist
+	}
+	return b, err
 }
 
 func emitProgramMenu(observation nativefabric.ProgramMenuObservation) error {

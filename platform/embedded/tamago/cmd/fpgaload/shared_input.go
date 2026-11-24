@@ -110,7 +110,6 @@ func (s *sharedProgramGamepad) Ready() <-chan struct{} {
 
 type sharedProgramMulti struct {
 	hub     *usbhub.Hub
-	bus     *usbcontrol.BusHost
 	metrics *programUSBMetrics
 }
 
@@ -147,9 +146,9 @@ func (s *sharedProgramMulti) SaveBondsIfDirty(ctx context.Context) (bool, error)
 	return s.hub.SaveBondsIfDirty(ctx)
 }
 func (s *sharedProgramMulti) PausePolling(ctx context.Context) error {
-	return s.metrics.boundary(ctx, s.bus, true)
+	return s.metrics.boundary(ctx, s.hub, true)
 }
 func (s *sharedProgramMulti) ResumePolling(ctx context.Context) error {
-	return s.metrics.boundary(ctx, s.bus, false)
+	return s.metrics.boundary(ctx, s.hub, false)
 }
 func (s *sharedProgramMulti) Ready() <-chan struct{} { return s.hub.Ready() }
