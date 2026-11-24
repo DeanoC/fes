@@ -21,6 +21,10 @@ const (
 	// Short pause-aware retry used when SendRawFrame reports ErrPaused (e.g. during
 	// FPGA reconfiguration) so no request was actually transmitted on the wire.
 	defaultRenewPausedRetry = 250 * time.Millisecond
+	// RFC 2131 §3.3 reserves lease time 0xffffffff seconds (option 51) for an
+	// infinite lease, which never expires and is never renewed. leaseTimers
+	// treats any duration at or above it as infinite.
+	dhcpInfiniteLease = time.Duration(0xffffffff) * time.Second
 )
 
 var (
@@ -270,6 +274,8 @@ func nextRenewWait(ctx context.Context, minInterval time.Duration) time.Duration
 
 // LeaseRenewer runs an opt-in RFC 2131 T1/T2 DHCPv4 lease renewal loop.
 // Creating a LeaseRenewer starts no background work until Start is called.
+// An infinite lease (RFC 2131 §3.3, lease time 0xffffffff) is never renewed:
+// the started renewer stays Running without sending until Stop or cancellation.
 type LeaseRenewer struct {
 	port        DHCPFramePort
 	mac         string
@@ -539,13 +545,20 @@ func (r *LeaseRenewer) fail(err error) {
 	}
 }
 
-func leaseTimers(l DHCPLease) (t1, t2 time.Duration) {
-	t1 = l.LeaseDuration / 2
-	t2 = (l.LeaseDuration * 7) / 8
-	if l.RenewalTime > 0 && l.RenewalTime < l.LeaseDuration {
+// leaseTimers returns the RFC 2131 §4.4.5 T1 (RENEWING) and T2 (REBINDING)
+// offsets from lease acquisition. renew is false for an infinite lease
+// (RFC 2131 §3.3), which is never renewed whatever options 58/59 say.
+func leaseTimers(l DHCPLease) (t1, t2 time.Duration, renew bool) {
+	d := l.LeaseDuration
+	if d >= dhcpInfiniteLease {
+		return 0, 0, false
+	}
+	t1 = d / 2
+	t2 = d - d/8 // 7/8 of d; d*7 overflows int64 for leases over ~1.32e9 s
+	if l.RenewalTime > 0 && l.RenewalTime < d {
 		t1 = l.RenewalTime
 	}
-	if l.RebindTime > 0 && l.RebindTime < l.LeaseDuration {
+	if l.RebindTime > 0 && l.RebindTime < d {
 		t2 = l.RebindTime
 	}
 	if t2 < t1 {
@@ -555,9 +568,9 @@ func leaseTimers(l DHCPLease) (t1, t2 time.Duration) {
 		t1 = time.Millisecond
 	}
 	if t2 <= 0 {
-		t2 = l.LeaseDuration
+		t2 = d
 	}
-	return t1, t2
+	return t1, t2, true
 }
 
 func (r *LeaseRenewer) loop(parent context.Context) {
@@ -581,7 +594,12 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 	loopCfg := r.cfg
 	for {
 		current := r.Lease()
-		t1, t2 := leaseTimers(current)
+		t1, t2, renew := leaseTimers(current)
+		if !renew {
+			// Infinite lease: nothing to renew; idle until Stop or cancellation.
+			<-runCtx.Done()
+			return
+		}
 		t1At := acquiredAt.Add(t1)
 		t2At := acquiredAt.Add(t2)
 		expireAt := acquiredAt.Add(current.LeaseDuration)

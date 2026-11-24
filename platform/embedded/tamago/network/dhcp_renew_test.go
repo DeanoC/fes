@@ -563,15 +563,15 @@ func TestLeaseExpiryHaltsActiveLinkAndServerT1T2AndPacing(t *testing.T) {
 	if !ok || lease.RenewalTime != 600*time.Second || lease.RebindTime != 1200*time.Second {
 		t.Fatalf("option 58/59 lease=%+v ok=%t", lease, ok)
 	}
-	t1, t2 := leaseTimers(lease)
-	if t1 != 600*time.Second || t2 != 1200*time.Second {
-		t.Fatalf("leaseTimers=(%v, %v), want (10m, 20m)", t1, t2)
+	t1, t2, renew := leaseTimers(lease)
+	if !renew || t1 != 600*time.Second || t2 != 1200*time.Second {
+		t.Fatalf("leaseTimers=(%v, %v, %t), want (10m, 20m, true)", t1, t2, renew)
 	}
 	// Earlier server-defined T2 clamps default T1 so rebind is never skipped.
 	earlyT2 := DHCPLease{LeaseDuration: time.Hour, RebindTime: 15 * time.Minute}
-	t1, t2 = leaseTimers(earlyT2)
-	if t1 != 15*time.Minute || t2 != 15*time.Minute {
-		t.Fatalf("early T2 leaseTimers=(%v, %v), want (15m, 15m)", t1, t2)
+	t1, t2, renew = leaseTimers(earlyT2)
+	if !renew || t1 != 15*time.Minute || t2 != 15*time.Minute {
+		t.Fatalf("early T2 leaseTimers=(%v, %v, %t), want (15m, 15m, true)", t1, t2, renew)
 	}
 
 	// 3. RFC 2131 §4.4.5 remaining-time retry pacing.
@@ -1000,4 +1000,133 @@ func TestLateACKAfterDeadlineRejected(t *testing.T) {
 			t.Fatalf("iter %d: late ACK after deadline err=%v, want context.DeadlineExceeded", i, err)
 		}
 	}
+}
+
+// RFC 2131 §3.3: lease time 0xffffffff means an infinite lease, which is never
+// renewed. T2 used to be (LeaseDuration*7)/8, which overflows int64 for leases
+// over ~1.32e9 s; T1 then clamped to 1 ms and the renewer re-sent DHCPREQUEST
+// about every millisecond after each ACK.
+func TestLeaseRenewerInfiniteLeaseNeverRenews(t *testing.T) {
+	clientMACStr := "52:54:00:12:34:56"
+	clientMAC, _ := parseUnicastMAC(clientMACStr)
+	serverIP := [4]byte{10, 0, 2, 2}
+	clientIP := [4]byte{10, 0, 2, 15}
+	mask := [4]byte{255, 255, 255, 0}
+	infinite := time.Duration(0xffffffff) * time.Second
+
+	// An infinite lease has no T1/T2, even when the server also sends options 58/59.
+	for _, l := range []DHCPLease{
+		{LeaseDuration: infinite},
+		{LeaseDuration: infinite, RenewalTime: time.Hour, RebindTime: 2 * time.Hour},
+	} {
+		if t1, t2, renew := leaseTimers(l); renew {
+			t.Fatalf("leaseTimers(%+v)=(%v, %v, true), want renew=false for an infinite lease", l, t1, t2)
+		}
+	}
+	// Finite leases either side of the old d*7 int64 overflow (1317624577 s was the
+	// first to wrap) and up to the largest finite lease keep the 1/2 and 7/8 defaults.
+	for _, secs := range []uint32{3600, 1317624576, 1317624577, 0xfffffffe} {
+		t1, t2, renew := leaseTimers(DHCPLease{LeaseDuration: time.Duration(secs) * time.Second})
+		wantT1 := time.Duration(secs) * 500 * time.Millisecond
+		wantT2 := time.Duration(secs) * 875 * time.Millisecond
+		if !renew || t1 != wantT1 || t2 != wantT2 {
+			t.Fatalf("leaseTimers(%ds)=(%v, %v, %t), want (%v, %v, true)", secs, t1, t2, renew, wantT1, wantT2)
+		}
+	}
+
+	// The fake server answers every DHCPREQUEST with an infinite-lease DHCPACK.
+	newAckingPort := func(sends *atomic.Int32) *fakeRenewPort {
+		port := newFakeRenewPort()
+		port.onSend = func(frame []byte, p *fakeRenewPort) {
+			sends.Add(1)
+			xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
+			go p.inject(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, clientIP, xid,
+				makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &serverIP, 0xffffffff), false))
+		}
+		return port
+	}
+
+	t.Run("RenewalACK", func(t *testing.T) {
+		// A T1 renewal ACK granting an infinite lease is applied once and never re-requested.
+		var sends atomic.Int32
+		sendsAtRenew := make(chan int32, 1)
+		ren, err := NewLeaseRenewer(newAckingPort(&sends), clientMACStr, DHCPLease{
+			Address:       "10.0.2.15/24",
+			Gateway:       "10.0.2.2",
+			Server:        "10.0.2.2",
+			LeaseDuration: time.Hour,
+		}, RenewConfig{
+			AcquiredAt:    time.Now().Add(-40 * time.Minute), // past T1 (30m), before T2 (52.5m)
+			RetryInterval: 5 * time.Millisecond,
+			OnRenew: func(DHCPLease) {
+				select {
+				case sendsAtRenew <- sends.Load():
+				default:
+				}
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewLeaseRenewer: %v", err)
+		}
+		if err := ren.Start(context.Background()); err != nil {
+			t.Fatalf("Start: %v", err)
+		}
+		defer ren.Stop()
+		var atRenew int32
+		select {
+		case atRenew = <-sendsAtRenew:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the renewal granting an infinite lease")
+		}
+		time.Sleep(100 * time.Millisecond)
+		if got := sends.Load(); got != atRenew {
+			t.Fatalf("DHCPREQUEST sends grew %d -> %d after an infinite-lease ACK, want no renewal", atRenew, got)
+		}
+		if got := ren.Lease().LeaseDuration; got != infinite {
+			t.Fatalf("renewed LeaseDuration=%v, want infinite %v", got, infinite)
+		}
+		if !ren.Running() || ren.Renewals() != 1 || ren.Err() != nil {
+			t.Fatalf("infinite lease running=%t renewals=%d err=%v, want running with 1 renewal and no error",
+				ren.Running(), ren.Renewals(), ren.Err())
+		}
+		ren.Stop()
+		if ren.Running() || ren.Err() != nil {
+			t.Fatalf("after Stop running=%t err=%v, want stopped with no error", ren.Running(), ren.Err())
+		}
+	})
+
+	t.Run("InitialLease", func(t *testing.T) {
+		// A renewer started on an infinite lease sends nothing and idles until its
+		// context is cancelled.
+		var sends atomic.Int32
+		ren, err := NewLeaseRenewer(newAckingPort(&sends), clientMACStr, DHCPLease{
+			Address:       "10.0.2.15/24",
+			Gateway:       "10.0.2.2",
+			Server:        "10.0.2.2",
+			LeaseDuration: infinite,
+		}, RenewConfig{RetryInterval: 5 * time.Millisecond})
+		if err != nil {
+			t.Fatalf("NewLeaseRenewer: %v", err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		if err := ren.Start(ctx); err != nil {
+			t.Fatalf("Start: %v", err)
+		}
+		defer ren.Stop()
+		time.Sleep(50 * time.Millisecond)
+		if got := sends.Load(); got != 0 || !ren.Running() || ren.Renewals() != 0 {
+			t.Fatalf("infinite initial lease sends=%d running=%t renewals=%d, want 0 sends while running idle",
+				got, ren.Running(), ren.Renewals())
+		}
+		cancel()
+		deadline := time.Now().Add(time.Second)
+		for ren.Running() && time.Now().Before(deadline) {
+			time.Sleep(2 * time.Millisecond)
+		}
+		if ren.Running() || ren.Err() != nil || sends.Load() != 0 {
+			t.Fatalf("after cancel running=%t err=%v sends=%d, want stopped, no error, 0 sends",
+				ren.Running(), ren.Err(), sends.Load())
+		}
+	})
 }
