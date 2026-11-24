@@ -5,13 +5,15 @@ The DE25-Nano Linux lane (`image/de25-nano/`, `image/kernel/de25-platform/`,
 DE25-Nano (Agilex 5) independently of the DE10-Nano boot-media and toolchain
 locks.
 
-It produces three distinct profiles from the same builder (`image/de25-nano/build.py`):
+It produces three builder profiles under `image/de25-nano/build.py`, feeding
+into the separate `BOARD=de25-nano` release/card assembly stage:
 
-| Profile | Command | Contents | Purpose |
+| Stage / Profile | Command | Contents | Output & boundary |
 | --- | --- | --- | --- |
-| **Headless diagnostic** | `make de25-linux` (`build.py build`) | BusyBox, Dropbear SSH, DHCP, pinned vendor kernel `6.12.11-gd7d192a9ddd9` + 4 vendor FPGA modules; **no** runtime, agent, or MENU | Minimal serial/SSH bring-up and standalone AArch64 Buildroot SDK export |
-| **Managed base** | `build.py managed-base` | Shared read-only FES rootfs policy, AArch64 FogCast agent/UI, BlueZ/D-Bus, storage/software helpers, permanent-owner kernel (ABI 3), `/.fes-bootstrap` | Reusable intermediate rootfs + SDK (no runtime/factory bundle/MENU yet) |
-| **Managed factory / kit** | `build.py managed-factory` / `BOARD=de25-nano` workflow | Managed base + `mister-runtime`, sealed DE25 `fes.menu`, factory software bundle, and 2 GiB FAT + 32 MiB bootstrap SD layout | Full managed DE25 development-kit image (runs on Kit D25 `de25-j8g`) |
+| **Headless diagnostic** | `make de25-linux` (`build.py build`) | BusyBox, Dropbear SSH, DHCP, pinned vendor kernel `6.12.11-gd7d192a9ddd9` + 4 vendor FPGA modules; **no** runtime, agent, or MENU | Standalone diagnostic SD image (`fes-de25-nano.img`) and AArch64 Buildroot SDK |
+| **Managed base** | `build.py managed-base` | Shared read-only FES rootfs policy, AArch64 FogCast agent/UI, BlueZ/D-Bus, storage/software helpers, permanent-owner kernel (ABI 3), `/.fes-bootstrap` | Reusable intermediate rootfs + SDK (no runtime, factory bundle, MENU, or card image) |
+| **Managed factory candidate** | `build.py managed-factory` + `boot-smoke` | Managed base + `mister-runtime`, sealed DE25 `fes.menu`, factory software bundle | Uninstalled factory rootfs/bundle candidate (`card_assembly: not-run`; requires `verify-factory` + `boot-smoke`) |
+| **Release & bootable SD card** | `BOARD=de25-nano` release/media workflow ([appliance-releases.md](appliance-releases.md#de25-factory-selection)) | Verified + `boot-smoke`-passed managed factory, pinned vendor boot files, AArch64 `fes-boot` | Complete 2 GiB FAT + 32 MiB read-only bootstrap ext4 card image for Kit D25 (`de25-j8g`) |
 
 - **Kit operations & exact-head HIL:** Kit D25 (`de25-j8g`, serial `TRWU8J8G`)
   is the managed DE25 Linux kit; see [the DE25 kit HIL guide](de25-kit-hil.md)
@@ -38,15 +40,17 @@ flowchart TD
   Cores["Sealed Quartus Pro 26.3 Cores\n(config/core-recipes.toml:\nfes.menu, zx81, spectrum, atari-st, c64, pcxt-dos)"]
   Headless["Headless Diagnostic Image\n(make de25-linux -> fes-de25-nano.img)"]
   Base["Managed Base Intermediate\n(build.py managed-base -> rootfs + SDK)"]
-  Factory["Managed Factory & Kit Image\n(build.py managed-factory +\nBOARD=de25-nano release/media)"]
+  Factory["Managed Factory Candidate\n(build.py managed-factory + boot-smoke;\nrootfs/bundle only, card_assembly: not-run)"]
+  Card["Bootable Managed SD Card\n(BOARD=de25-nano release/media:\n2 GiB FAT + 32 MiB bootstrap ext4)"]
 
   Vendor --> Headless
   BR --> Headless
   Kernel --> Base
   BR --> Base
   Base --> Factory
-  Vendor --> Factory
   Cores --> Factory
+  Factory --> Card
+  Vendor --> Card
 ```
 
 ### 2. Runtime and kernel delegation on DE25-Nano Linux
