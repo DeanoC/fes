@@ -427,6 +427,10 @@ func (h *MultiHost) pollHubHotplug() {
 				}
 			}
 		}
+		// Retry any hub repower recovery whose PORT_POWER failed transiently.
+		if hub.repowerRetries > 0 && !now.Before(hub.repowerRetryAt) {
+			h.repowerHubPorts(hub)
+		}
 		// Retry any port whose initial hotplug enumeration failed transiently.
 		for port := uint8(1); port <= hub.numPorts; port++ {
 			if hub.retryCount[port] > 0 && !now.Before(hub.retryAt[port]) {
@@ -434,6 +438,38 @@ func (h *MultiHost) pollHubHotplug() {
 			}
 		}
 	}
+}
+
+func (h *MultiHost) scheduleHubRepowerRetry(hub *multiHub) {
+	if hub.repowerRetries < maxHubEnumRetries {
+		hub.repowerRetries++
+		hub.repowerRetryAt = h.io.Now().Add(hubEnumRetryDelay)
+	} else {
+		hub.repowerRetries = 0
+	}
+}
+
+func (h *MultiHost) repowerHubPorts(hub *multiHub) bool {
+	if hub.powerSwitched {
+		for port := uint8(1); port <= hub.numPorts; port++ {
+			if _, err := h.ControlTransfer(hub.addr, 0x23, 3, 8, uint16(port), nil); err != nil {
+				h.scheduleHubRepowerRetry(hub)
+				return false
+			}
+		}
+		if hub.pwrGoodDelay > 0 {
+			if err := h.delay(hub.pwrGoodDelay); err != nil {
+				h.scheduleHubRepowerRetry(hub)
+				return false
+			}
+		}
+	}
+	hub.repowerRetries = 0
+	for port := uint8(1); port <= hub.numPorts; port++ {
+		hub.retryCount[port] = 0
+		h.handleHubPortChange(hub, port, hub.depth+1)
+	}
+	return true
 }
 
 // handleHubStatusChange processes hub-level status changes (bitmap bit 0),
@@ -453,6 +489,7 @@ func (h *MultiHost) handleHubStatusChange(hub *multiHub) bool {
 		_, _ = h.ControlTransfer(hub.addr, 0x20, 1, 1, 0, nil) // C_HUB_OVER_CURRENT
 	}
 	if status&(1<<0|1<<1) != 0 {
+		hub.repowerRetries = 0
 		for port := uint8(1); port <= hub.numPorts; port++ {
 			hub.retryCount[port] = 0
 		}
@@ -464,20 +501,8 @@ func (h *MultiHost) handleHubStatusChange(hub *multiHub) bool {
 		return true
 	}
 	if change&(1<<0|1<<1) != 0 {
-		if hub.powerSwitched {
-			for port := uint8(1); port <= hub.numPorts; port++ {
-				_, _ = h.ControlTransfer(hub.addr, 0x23, 3, 8, uint16(port), nil) // PORT_POWER
-			}
-			if hub.pwrGoodDelay > 0 {
-				if err := h.delay(hub.pwrGoodDelay); err != nil {
-					return false
-				}
-			}
-		}
-		for port := uint8(1); port <= hub.numPorts; port++ {
-			hub.retryCount[port] = 0
-			h.handleHubPortChange(hub, port, hub.depth+1)
-		}
+		hub.repowerRetries = 0
+		h.repowerHubPorts(hub)
 	}
 	return false
 }
