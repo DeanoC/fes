@@ -324,13 +324,26 @@ void NativeHardware::SetHpsWindow(De25HpsWindow* window)
 }
 
 // The machine is held: hand its window back before anything else may be
-// programmed. A window that cannot be released keeps the configuration.
+// programmed. A window that cannot be released keeps the configuration and
+// stays poisoned, so every later replacement is refused too.
 Error NativeHardware::ReleaseHpsWindow(const char* operation, const std::string& system,
 	const std::string& core)
 {
-	if (!hps_window_ || !hps_window_->Ready()) return {};
+	if (!hps_window_) return {};
+	if (!hps_window_->Ready()) return HpsWindowBlocking(operation, system, core);
 	const Error error = hps_window_->Release();
 	log_.Write({operation, system, core, "hps_window_release", error});
+	return error;
+}
+
+// Where no driver holds a machine nothing is released, but a poisoned
+// window still refuses the programming.
+Error NativeHardware::HpsWindowBlocking(const char* operation, const std::string& system,
+	const std::string& core)
+{
+	if (!hps_window_) return {};
+	const Error error = hps_window_->Blocking();
+	if (!error.ok()) log_.Write({operation, system, core, "hps_window_release", error});
 	return error;
 }
 
@@ -583,8 +596,9 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 			video.mutation_attempted, ""};
 	}
 	if (active_driver_ == nullptr) {
-		ObserveHandoff(operation, {});
-		return {{}, video.mutation_attempted, ""};
+		const Error blocked = HpsWindowBlocking(operation, system, core);
+		ObserveHandoff(operation, blocked);
+		return {WithPhase(blocked, "quiesce"), video.mutation_attempted, ""};
 	}
 	CoreDriverResult driver = active_driver_->Quiesce(active_context_,
 		Deadline(clock_, timeouts_.core_io_ms));
@@ -2361,6 +2375,11 @@ HardwareResult NativeHardware::LoadSplashIdle()
    if(!menu_status_.available)return {input_error.ok()?driver.error:input_error,quiesce_mutation,driver.observed_core};
    menu_unsafe_=true;menu_status_.error=driver.error;
   }
+	}
+	{
+		// A poisoned window refuses the idle image as it refuses a core.
+		const Error blocked = HpsWindowBlocking("start", "", "");
+		if (!blocked.ok()) return {WithPhase(blocked, "quiesce"), quiesce_mutation, ""};
 	}
 	const NativeResult programmed = fpga_.Program(artifact,
 		idle_recipe_.programming_profile,

@@ -136,6 +136,14 @@ Error De25HpsWindow::Release()
  return {};
 }
 
+Error De25HpsWindow::Blocking() const
+{
+ std::lock_guard<std::mutex> lock(mutex_);
+ if (!poisoned_) return {};
+ return Refused(window_ >= 0 ? "a faulted or unrevoked window cannot be released before reprogramming"
+                             : "an earlier window was not released");
+}
+
 Error De25HpsWindow::Grant(std::uint64_t offset, std::uint64_t bytes, int* fd)
 {
  std::lock_guard<std::mutex> lock(mutex_);

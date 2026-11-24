@@ -68,6 +68,9 @@ public:
  Error Check();
  // Every range must have been revoked and closed first.
  Error Release();
+ // Refuses while a window that faulted or failed its release is held: it
+ // stays poisoned, and nothing may be programmed over it. Touches no owner.
+ Error Blocking() const;
  Error Grant(std::uint64_t offset,std::uint64_t bytes,int* fd) override;
  Error Map(int fd,std::size_t bytes,void** mapping) override;
  void Unmap(void* mapping,std::size_t bytes) override;

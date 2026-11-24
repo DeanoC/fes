@@ -3366,6 +3366,21 @@ void TestDe25WindowIsGrantedPerSession()
 			assert(!stopped.ok());
 			assert(fixture.native.fpga.calls == programs);
 			assert(!window.Ready());
+			// The unreleased window stays poisoned: no later Stop or load may
+			// program over it either.
+			TempDirectory plain;
+			mister::native::OpenedCorePackage other;
+			PopulateHpsDdrApplication(&plain, false, &other);
+			assert(!fixture.runtime.Stop().ok());
+			assert(!fixture.runtime.LoadCore(plain.path, other.package_id).ok());
+			// The hardware refuses on its own, not only through the runtime's
+			// latched failure: it has forgotten the core, so no driver is left
+			// to quiesce, and the poisoned window must still refuse.
+			std::unique_ptr<mister::AdmittedCorePackage> admitted;
+			assert(fixture.native.hardware.AdmitCorePackage(plain.path, other.package_id, &admitted).ok());
+			assert(!fixture.native.hardware.LoadCore(std::move(admitted), 0).error.ok());
+			assert(!fixture.native.hardware.LoadIdle().error.ok());
+			assert(fixture.native.fpga.calls == programs);
 			continue;
 		}
 		assert(stopped.ok());
