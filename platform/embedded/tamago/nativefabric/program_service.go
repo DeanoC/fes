@@ -426,6 +426,12 @@ func (s *ProgramService) Execution(ctx context.Context, session ProgramSession, 
 func (s *ProgramService) Keyboard(ctx context.Context, session ProgramSession, rows [9]uint16) error {
 	return s.control(ctx, session, func(c *computer.Computer) error { return c.Keyboard(ctx, rows) }, nil)
 }
+func (s *ProgramService) ControllerButtons(ctx context.Context, session ProgramSession, port uint8, mask uint16) error {
+	return s.control(ctx, session, func(c *computer.Computer) error { return c.ControllerButtons(ctx, port, mask) }, nil)
+}
+func (s *ProgramService) MouseRelative(ctx context.Context, session ProgramSession, dx, dy int8, buttons uint8) error {
+	return s.control(ctx, session, func(c *computer.Computer) error { return c.MouseRelative(ctx, dx, dy, buttons) }, nil)
+}
 func (s *ProgramService) control(ctx context.Context, session ProgramSession, perform func(*computer.Computer) error, running *bool) error {
 	p, view, err := s.begin(ctx)
 	if err != nil {

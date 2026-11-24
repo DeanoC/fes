@@ -98,7 +98,7 @@ func TestProgramInputKeyboardReturnNeutralizationFailure(t *testing.T) {
 	if _, err := c.Launch(ctx, "native-0"); err != nil {
 		t.Fatal(err)
 	}
-	source.reports = [][]byte{make([]byte, 8), {0, 0, 4, 0, 0, 0, 0, 0}}
+	source.reports = [][]byte{make([]byte, 8), {1, 0, 4, 0, 0, 0, 0, 0}}
 	if _, err := p.Next(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestProgramInputRoutesMenuAndCoreAcrossReturn(t *testing.T) {
 	}
 	source.reports = [][]byte{{0, 0, 40, 0, 0, 0, 0, 0}, make([]byte, 8), {0, 0, 22, 0, 0, 0, 0, 0}, make([]byte, 8)}
 	frame, err = p.Next(ctx)
-	if err != nil || len(frame.Commands) != 0 || frame.Text != "" || f.cpu.keyboardWrites != 27 || f.cpu.keyboardRows != ([9]uint16{}) {
+	if err != nil || len(frame.Commands) != 0 || frame.Text != "" || f.cpu.keyboardWrites != 11 || f.cpu.keyboardRows != ([9]uint16{}) {
 		t.Fatal("core keys became shortcuts or lost releases", frame, err, f.cpu.keyboardWrites)
 	}
 	old := p.keyboard
@@ -347,7 +347,7 @@ func TestProgramInputFullTenfootUSBLaunchAndReturn(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%v stage=%d cycles=%d", err, base.stage, base.cycles)
 			}
-			if base.cycles != 3 || f.s.Status().Generation != 6 || !f.lease.r.Active || f.cpu.keyboardWrites != 81 {
+			if base.cycles != 3 || f.s.Status().Generation != 6 || !f.lease.r.Active || f.cpu.keyboardWrites != 39 {
 				t.Fatalf("cycles=%d writes=%d state=%+v", base.cycles, f.cpu.keyboardWrites, f.s.Status())
 			}
 

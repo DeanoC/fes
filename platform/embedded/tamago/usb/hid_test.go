@@ -66,6 +66,26 @@ func TestKeyboardErrorKinds(t *testing.T) {
 	}
 }
 
+func TestBootKeyboardFeedIntoZeroAllocs(t *testing.T) {
+	var keyboard BootKeyboard
+	var edges [28]KeyEvent
+	press := []byte{0x02, 0, 4, 5, 0, 0, 0, 0}
+	release := []byte{0, 0, 0, 0, 0, 0, 0, 0}
+	allocs := testing.AllocsPerRun(50, func() {
+		n, err := keyboard.FeedInto(press, edges[:])
+		if err != nil || n != 3 {
+			t.Fatalf("press n=%d err=%v", n, err)
+		}
+		n, err = keyboard.FeedInto(release, edges[:])
+		if err != nil || n != 3 {
+			t.Fatalf("release n=%d err=%v", n, err)
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("FeedInto allocated %.2f objects/cycle, want 0", allocs)
+	}
+}
+
 func FuzzBootKeyboardReports(f *testing.F) {
 	f.Add([]byte{0, 0, 4, 0, 0, 0, 0, 0})
 	f.Add([]byte{0, 0, 1, 1, 1, 1, 1, 1})

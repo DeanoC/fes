@@ -46,7 +46,7 @@ func TestProgramKeyboardReportsReachOwnedComputer(t *testing.T) {
 		t.Fatal(err)
 	}
 	expected := [9]uint16{0: 1 << 4, 7: 1 << 15, 8: 0x82}
-	if f.cpu.keyboardRows != expected || f.cpu.keyboardWrites != 18 {
+	if f.cpu.keyboardRows != expected || f.cpu.keyboardWrites != 12 {
 		t.Fatalf("rows=%x writes=%d", f.cpu.keyboardRows, f.cpu.keyboardWrites)
 	}
 	// Reports are snapshots, not repeats; copying a handle shares its decoder.
@@ -54,7 +54,7 @@ func TestProgramKeyboardReportsReachOwnedComputer(t *testing.T) {
 	if err := copyHandle.Report(ctx, report); err != nil {
 		t.Fatal(err)
 	}
-	if f.cpu.keyboardWrites != 18 {
+	if f.cpu.keyboardWrites != 12 {
 		t.Fatal("duplicate report rewrote hardware")
 	}
 	bad := [][]byte{{0}, {0, 0, 1, 0, 0, 0, 0, 0}, {0, 0, 4, 4, 0, 0, 0, 0}, {0, 0, 0xe0, 0, 0, 0, 0, 0}}
@@ -62,21 +62,21 @@ func TestProgramKeyboardReportsReachOwnedComputer(t *testing.T) {
 		if err := k.Report(ctx, r); err == nil {
 			t.Fatal("malformed report accepted", r)
 		}
-		if f.cpu.keyboardRows != expected || f.cpu.keyboardWrites != 18 {
+		if f.cpu.keyboardRows != expected || f.cpu.keyboardWrites != 12 {
 			t.Fatal("malformed report changed hardware")
 		}
 	}
 	if err := copyHandle.Report(ctx, make([]byte, 8)); err != nil {
 		t.Fatal(err)
 	}
-	if f.cpu.keyboardRows != ([9]uint16{}) || f.cpu.keyboardWrites != 27 {
+	if f.cpu.keyboardRows != ([9]uint16{}) || f.cpu.keyboardWrites != 15 {
 		t.Fatal("release lost")
 	}
 	// ABI-unrepresentable usages do not turn into arbitrary keys.
 	if err := k.Report(ctx, []byte{0, 0, 0x80, 0, 0, 0, 0, 0}); err != nil {
 		t.Fatal(err)
 	}
-	if f.cpu.keyboardWrites != 27 {
+	if f.cpu.keyboardWrites != 15 {
 		t.Fatal("unrepresentable usage wrote hardware")
 	}
 }
@@ -141,7 +141,7 @@ func TestProgramKeyboardBusyCancellationAndPartialFailure(t *testing.T) {
 	if err := k.Report(ctx, make([]byte, 8)); err != nil {
 		t.Fatal(err)
 	}
-	report := []byte{0, 0, 4, 0, 0, 0, 0, 0}
+	report := []byte{1, 0, 4, 0, 0, 0, 0, 0}
 	calls := f.cpu.calls
 	cancelCtx, cancel := context.WithCancel(ctx)
 	cancel()
@@ -283,7 +283,7 @@ func TestProgramKeyboardPollsRealReportContract(t *testing.T) {
 func TestProgramKeyboardPollStopsAtNativeFailure(t *testing.T) {
 	f, _, _, _, k := keyboardFixture(t)
 	f.cpu.failKeyboardAt = f.cpu.keyboardWrites + 2
-	s := &programKeyboardReports{reports: [][]byte{make([]byte, 8), {0, 0, 4, 0, 0, 0, 0, 0}, make([]byte, 8)}}
+	s := &programKeyboardReports{reports: [][]byte{make([]byte, 8), {1, 0, 4, 0, 0, 0, 0, 0}, make([]byte, 8)}}
 	if err := k.Poll(context.Background(), s); err == nil {
 		t.Fatal("native write failure hidden")
 	}

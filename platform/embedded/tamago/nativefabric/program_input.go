@@ -17,29 +17,37 @@ import (
 // and any explicitly configured diagnostic controls. No USB hardware is opened.
 // Keep this platform, backend, service and uncertain device resources until reboot.
 type ProgramInputPlatform struct {
-	operation         sync.Mutex
-	base              tenfoot.Platform
-	backend           *ProgramBackend
-	source            input.USBReports
-	menu              *input.USBKeyboard
-	keyboard          ProgramKeyboard
-	gamepadSource     input.USBGamepadReports
-	gamepadMenu       *input.USBGamepad
-	gamepad           ProgramGamepad
-	gamepadDescriptor []byte
-	gamepadButtons    input.GamepadButtons
-	gamepadKeys       ProgramGamepadKeys
-	session           ProgramSession
-	mode              ProgramServiceState
-	generation        uint64
-	boundary          uint64
-	menuArmed         bool
-	returnRequested   bool
-	fault             error
-	pending           []input.Event
+	operation          sync.Mutex
+	base               tenfoot.Platform
+	backend            *ProgramBackend
+	source             input.USBReports
+	sourceInto         interface{ PollKeyboardInto([]byte) (int, error) }
+	menu               *input.USBKeyboard
+	keyboard           ProgramKeyboard
+	gamepadSource      input.USBGamepadReports
+	gamepadSourceInto  interface{ PollGamepadInto([]byte) (int, error) }
+	gamepadMenu        *input.USBGamepad
+	gamepad            ProgramGamepad
+	gamepadDescriptor  []byte
+	gamepadButtons     input.GamepadButtons
+	gamepadKeys        ProgramGamepadKeys
+	hasGamepadObserver bool
+	inputReady         <-chan struct{}
+	uartReady          <-chan struct{}
+	session            ProgramSession
+	mode               ProgramServiceState
+	generation         uint64
+	boundary           uint64
+	menuArmed          bool
+	returnRequested    bool
+	fault              error
+	pending            []input.Event
 }
 
-const maxProgramMenuEvents = 64
+const (
+	maxProgramMenuEvents       = 64
+	gameplayHousekeepingWindow = 50 * time.Millisecond
+)
 
 func NewProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, source input.USBReports) (*ProgramInputPlatform, error) {
 	if source == nil {
@@ -55,7 +63,8 @@ func NewProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, sou
 		return nil, err
 	}
 	p.source, p.menu = source, menu
-	attachInputReady(base, source)
+	p.sourceInto, _ = source.(interface{ PollKeyboardInto([]byte) (int, error) })
+	p.inputReady = attachInputReady(base, source)
 	return p, nil
 }
 
@@ -76,24 +85,26 @@ func NewProgramGamepadPlatform(base tenfoot.Platform, backend *ProgramBackend, s
 		return nil, err
 	}
 	p.gamepadSource, p.gamepadMenu = source, menu
+	p.gamepadSourceInto, _ = source.(interface{ PollGamepadInto([]byte) (int, error) })
 	p.gamepadDescriptor = append([]byte(nil), descriptor...)
 	p.gamepadButtons, p.gamepadKeys = buttons, keys
-	attachInputReady(base, source)
+	p.inputReady = attachInputReady(base, source)
 	return p, nil
 }
 
-func attachInputReady(base tenfoot.Platform, source any) {
+func attachInputReady(base tenfoot.Platform, source any) <-chan struct{} {
 	waiter, ok := source.(interface{ Ready() <-chan struct{} })
 	if !ok {
-		return
+		return nil
 	}
 	ready := waiter.Ready()
 	if ready == nil {
-		return
+		return nil
 	}
 	if setter, ok := base.(interface{ SetInputReady(<-chan struct{}) }); ok {
 		setter.SetInputReady(ready)
 	}
+	return ready
 }
 func newProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, control programInputPolling) (*ProgramInputPlatform, error) {
 	if base == nil || backend == nil || backend.service == nil {
@@ -108,41 +119,31 @@ func newProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, con
 	}
 	backend.inputAttached = true
 	backend.inputPolling = control
+	p := &ProgramInputPlatform{base: base, backend: backend}
+	_, p.hasGamepadObserver = base.(interface {
+		ObserveProgramGamepad(context.Context, ProgramGamepadObservation) error
+	})
+	if uart, ok := base.(interface{ Ready() <-chan struct{} }); ok {
+		p.uartReady = uart.Ready()
+	}
 	// A held control at boot is not a new menu press. Startup uses the same
 	// real neutral-report fence as return; a missing report never arms input.
-	return &ProgramInputPlatform{base: base, backend: backend}, nil
+	return p, nil
 }
 
-func (p *ProgramInputPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
-	if ctx == nil {
-		return tenfoot.PlatformInput{}, ErrProgramSession
+func (p *ProgramInputPlatform) handleInputFault(err error) (tenfoot.PlatformInput, error) {
+	// A failed source is never polled again. Close only this exact play with a
+	// separate bounded control cleanup; do not resume SD or release its memory.
+	p.fault = err
+	if p.session.Generation() != 0 && p.backend.service.Status().State == ProgramRunning {
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		p.fault = errors.Join(err, p.park(cleanup))
+		cancel()
 	}
-	if err := ctx.Err(); err != nil {
-		return tenfoot.PlatformInput{}, err
-	}
-	if !p.operation.TryLock() {
-		return tenfoot.PlatformInput{}, ErrProgramBusy
-	}
-	defer p.operation.Unlock()
-	if p.fault != nil {
-		return tenfoot.PlatformInput{}, p.fault
-	}
-	frame, err := p.base.Next(ctx)
-	if err != nil {
-		return frame, err
-	}
-	events, err := p.poll(ctx, false)
-	if err != nil {
-		// A failed source is never polled again. Close only this exact play with a
-		// separate bounded control cleanup; do not resume SD or release its memory.
-		p.fault = err
-		if p.session.Generation() != 0 && p.backend.service.Status().State == ProgramRunning {
-			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			p.fault = errors.Join(err, p.park(cleanup))
-			cancel()
-		}
-		return tenfoot.PlatformInput{}, p.fault
-	}
+	return tenfoot.PlatformInput{}, p.fault
+}
+
+func (p *ProgramInputPlatform) applyEvents(ctx context.Context, frame tenfoot.PlatformInput, events []input.Event) (tenfoot.PlatformInput, error) {
 	var commands []tenfoot.Command
 	for _, event := range events {
 		if command := tenfoot.CommandFromKey(event.Key); command != tenfoot.CmdNone {
@@ -166,6 +167,69 @@ func (p *ProgramInputPlatform) Next(ctx context.Context) (tenfoot.PlatformInput,
 	}
 	frame.Commands = append(frame.Commands, commands...)
 	return frame, nil
+}
+
+// runGameplayFastPath services IRQ-driven USB reports directly into the running
+// FPGA core without waking Tenfoot's UI Tick/Snapshot/Present loop on every
+// report. It yields back to base/Tenfoot immediately on a return chord, UART
+// event, state change, or the 50 ms housekeeping tick.
+func (p *ProgramInputPlatform) runGameplayFastPath(ctx context.Context) (tenfoot.PlatformInput, bool, error) {
+	timer := time.NewTimer(gameplayHousekeepingWindow)
+	defer timer.Stop()
+	for {
+		events, err := p.poll(ctx, false)
+		if err != nil {
+			frame, faultErr := p.handleInputFault(err)
+			return frame, true, faultErr
+		}
+		if len(events) > 0 || p.returnRequested {
+			frame, err := p.applyEvents(ctx, tenfoot.PlatformInput{At: time.Now()}, events)
+			return frame, true, err
+		}
+		if p.backend.service.Status().State != ProgramRunning {
+			return tenfoot.PlatformInput{}, false, nil
+		}
+		select {
+		case <-ctx.Done():
+			return tenfoot.PlatformInput{}, true, ctx.Err()
+		case <-p.inputReady:
+			continue
+		case <-p.uartReady:
+			return tenfoot.PlatformInput{}, false, nil
+		case <-timer.C:
+			return tenfoot.PlatformInput{}, false, nil
+		}
+	}
+}
+
+func (p *ProgramInputPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
+	if ctx == nil {
+		return tenfoot.PlatformInput{}, ErrProgramSession
+	}
+	if err := ctx.Err(); err != nil {
+		return tenfoot.PlatformInput{}, err
+	}
+	if !p.operation.TryLock() {
+		return tenfoot.PlatformInput{}, ErrProgramBusy
+	}
+	defer p.operation.Unlock()
+	if p.fault != nil {
+		return tenfoot.PlatformInput{}, p.fault
+	}
+	if p.inputReady != nil && p.backend.service.Status().State == ProgramRunning {
+		if frame, handled, err := p.runGameplayFastPath(ctx); handled {
+			return frame, err
+		}
+	}
+	frame, err := p.base.Next(ctx)
+	if err != nil {
+		return frame, err
+	}
+	events, err := p.poll(ctx, false)
+	if err != nil {
+		return p.handleInputFault(err)
+	}
+	return p.applyEvents(ctx, frame, events)
 }
 
 // serviceMenuInput advances the same exclusively owned source while the menu
@@ -231,6 +295,7 @@ func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.E
 	p.mode, p.generation, p.boundary = v.State, v.Generation, b.inputBoundary
 	events := p.pending
 	p.pending = nil
+	var reportBuf [usb.MaxHIDReportBytes]byte
 	for n := 0; n < 8; n++ {
 		// Once return is requested, keep the core neutral until the App starts
 		// its owned transition. Repeated reports cannot queue another Stop.
@@ -244,7 +309,21 @@ func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.E
 		var report []byte
 		var err error
 		if p.gamepadSource != nil {
-			report, err = p.gamepadSource.PollGamepad()
+			if p.gamepadSourceInto != nil {
+				var count int
+				count, err = p.gamepadSourceInto.PollGamepadInto(reportBuf[:])
+				if count > 0 {
+					report = reportBuf[:count]
+				}
+			} else {
+				report, err = p.gamepadSource.PollGamepad()
+			}
+		} else if p.sourceInto != nil {
+			var count int
+			count, err = p.sourceInto.PollKeyboardInto(reportBuf[:8])
+			if count > 0 {
+				report = reportBuf[:count]
+			}
 		} else {
 			report, err = p.source.PollKeyboard()
 		}
@@ -259,8 +338,8 @@ func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.E
 		if v.State == ProgramRunning {
 			if p.gamepadSource != nil {
 				sequence := p.gamepad.state.observation.Sequence
-				err = p.gamepad.state.report(ctx, report)
-				if err == nil && p.gamepad.state.observation.Sequence != sequence {
+				err = p.gamepad.state.report(ctx, report, p.hasGamepadObserver)
+				if err == nil && p.hasGamepadObserver && p.gamepad.state.observation.Sequence != sequence {
 					if observer, ok := p.base.(interface {
 						ObserveProgramGamepad(context.Context, ProgramGamepadObservation) error
 					}); ok {
@@ -325,12 +404,13 @@ func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.E
 func (p *ProgramInputPlatform) coreKeyboard(ctx context.Context, report []byte) (bool, error) {
 	k := p.keyboard.state
 	next := k.decoder
-	edges, err := next.Feed(report)
+	var edgeBuf [28]usb.KeyEvent
+	n, err := next.FeedInto(report, edgeBuf[:])
 	if err != nil {
 		return false, err
 	}
 	if k.armed {
-		for _, edge := range edges {
+		for _, edge := range edgeBuf[:n] {
 			if edge.Pressed && edge.Usage == 0x29 && edge.Modifiers&0x11 != 0 && edge.Modifiers&0x44 != 0 {
 				if err := k.writeRows(ctx, [9]uint16{}); err != nil {
 					return false, err

@@ -20,6 +20,21 @@ func (g *GamepadHost) PollGamepad() ([]byte, error) {
 	return g.host.pollInput()
 }
 
+// PollGamepadInto is the zero-allocation fast path for PollGamepad.
+func (g *GamepadHost) PollGamepadInto(dst []byte) (int, error) {
+	if g == nil || g.host == nil {
+		return 0, fmt.Errorf("dwc2: gamepad host absent")
+	}
+	r, err := g.host.pollInputRaw()
+	if err != nil || r == nil {
+		return 0, err
+	}
+	if len(dst) < len(r) {
+		return 0, fmt.Errorf("dwc2: gamepad report buffer too small")
+	}
+	return copy(dst, r), nil
+}
+
 // The descriptor is copied so the report schema cannot change under a live
 // owner. A menu/core decoder constructs its own state from these same bytes.
 func (g *GamepadHost) ReportDescriptor() []byte {

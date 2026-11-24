@@ -4,6 +4,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
 
 type reportQueue struct {
@@ -72,5 +74,27 @@ func TestUSBShiftTabAndRollover(t *testing.T) {
 	got, err = keyboard.Poll()
 	if err != nil || len(got) != 0 {
 		t.Fatalf("rollover lost prior held state: %v %v", got, err)
+	}
+}
+
+func TestUSBPressZeroAllocs(t *testing.T) {
+	samples := []usb.KeyEvent{
+		{Usage: 4, Pressed: true},
+		{Usage: 4, Pressed: true, Modifiers: 2},
+		{Usage: 30, Pressed: true, Modifiers: 2},
+		{Usage: 40, Pressed: true},
+		{Usage: 43, Pressed: true, Modifiers: 2},
+		{Usage: 45, Pressed: true, Modifiers: 2},
+	}
+	allocs := testing.AllocsPerRun(50, func() {
+		for _, s := range samples {
+			ev, ok := usbPress(s)
+			if !ok || ev.Key == "" {
+				t.Fatalf("usbPress(%+v) failed", s)
+			}
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("usbPress allocated %.2f objects/batch, want 0", allocs)
 	}
 }

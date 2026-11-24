@@ -106,6 +106,9 @@ func (p *ProgramSerialPlatform) EnableInstallerViews() { p.installerViews = true
 // immediately on console RX instead of waiting for the 50 ms frame delay.
 func (p *ProgramSerialPlatform) SetReady(ready <-chan struct{}) { p.ready = ready }
 
+// Ready returns the installed console RX wakeup channel, if any.
+func (p *ProgramSerialPlatform) Ready() <-chan struct{} { return p.ready }
+
 // SetInputReady installs an optional secondary interrupt wakeup channel (for
 // example DWC2 USB host IRQ) so Next wakes immediately on local input events
 // alongside console RX.
