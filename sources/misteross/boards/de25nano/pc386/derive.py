@@ -8,6 +8,12 @@ plane comes out of pc386_machine: video is the presenter's 720p word, the
 plane's port-2 requester is idle, and pc386_system carries the mailbox's
 display opcodes out to the board in place of into the machine.
 
+Controller 2 of the AT core's DMA is its register file only
+(pc386_dma2_registers.sv): it reads back as fes_dma8237 does, but runs no
+cycle, so a software request on channels 4-7 does not count down or set TC.
+Nothing in the machine raises a controller-2 DREQ. The DE10 keeps the full
+controller.
+
 Each derivation fails if its anchor moves. A removed block is pinned by its
 SHA-256, so a change inside it fails too.
 """
@@ -73,6 +79,30 @@ SYSTEM_SNAPSHOT_AFTER = (b"    pc386_snapshot #(.W(64)) pixel_counts (\n"
 SYSTEM = ((SYSTEM_WIRES_BEFORE, b"", 1), (SYSTEM_PORTS_BEFORE, SYSTEM_PORTS_AFTER, 1),
           (SYSTEM_MACHINE_BEFORE, SYSTEM_MACHINE_AFTER, 1), (SYSTEM_SNAPSHOT_BEFORE, SYSTEM_SNAPSHOT_AFTER, 1))
 
+AT_DMA2_BEFORE = (
+    b"    fes_dma8237 #(.ADDRESS_BITS(24), .AT_PAGES(1), .REFRESH(0), .WORD_ADDRESS(1)) dma2 (\n"
+    b"        .clk(clk), .reset(reset), .guest_ce(dma_tick),\n"
+    b"        .reg_read(access && !cycle_write && select_dma2), .reg_write(access && cycle_write && select_dma2),\n"
+    b"        .page_write(page_write && page_second),\n"
+    b"        .reg_address(select_page ? {2'b00, page_channel} : port[4:1]), .reg_wdata(cycle_wdata[7:0]),\n"
+    b"        .reg_rdata(dma2_data),\n"
+    b"        .drq(3'b000), .refresh_clock(1'b0), .hold_request(dma2_hold), .granted(dma2_hold),\n"
+    b"        .cpu_waiting(1'b0), .cpu_done(1'b0),\n"
+    b"        .cycle_valid(dma2_valid), .cycle_ready(1'b1), .cycle_done(dma2_done),\n"
+    b"        .cycle_address(), .cycle_wdata(), .cycle_kind(), .cycle_channel(), .cycle_write(), .cycle_tc(),\n"
+    b"        .cycle_rdata(8'hff), .cycle_fault(2'b00), .fault(), .refresh_done()\n"
+    b"    );\n")
+AT_DMA2_AFTER = (
+    b"    // DE25: controller 2 is its register file only (pc386_dma2_registers).\n"
+    b"    pc386_dma2_registers dma2 (\n"
+    b"        .clk(clk), .reset(reset),\n"
+    b"        .reg_read(access && !cycle_write && select_dma2), .reg_write(access && cycle_write && select_dma2),\n"
+    b"        .reg_address(port[4:1]), .reg_wdata(cycle_wdata[7:0]), .reg_rdata(dma2_data)\n"
+    b"    );\n"
+    b"    assign dma2_hold = 1'b0;\n"
+    b"    assign dma2_valid = 1'b0;\n")
+AT_CORE = ((AT_DMA2_BEFORE, AT_DMA2_AFTER, 1),)
+
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
@@ -106,3 +136,14 @@ def retarget_system(source):
         result = result.replace(before, after)
     return result, _record(source, result, [{"before": b.decode(), "after": a.decode(), "count": n}
                                             for b, a, n in SYSTEM])
+
+
+def retarget_at_core(source):
+    """pc386_at_core with DMA controller 2 as its register file only."""
+    result = source
+    for before, after, count in AT_CORE:
+        if result.count(before) != count:
+            raise ValueError("pc386 AT core DMA controller 2 instance changed")
+        result = result.replace(before, after)
+    return result, _record(source, result, [{"before": b.decode(), "after": a.decode(), "count": n}
+                                            for b, a, n in AT_CORE])
