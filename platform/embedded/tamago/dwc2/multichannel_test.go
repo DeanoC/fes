@@ -38,6 +38,8 @@ type multiSimDevice struct {
 	// Transiently STALL the first N EP0 device-descriptor or SET_INTERFACE requests
 	failDescCount     int
 	failSetIfaceCount int
+	// Count of CLEAR_FEATURE(ENDPOINT_HALT) requests per endpoint address
+	clearHaltCount map[uint8]int
 }
 
 func newSimHub(ports int, multiTT bool) *multiSimDevice {
@@ -463,6 +465,12 @@ func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 				newAddr := uint8(s.ctrl.value)
 				s.ctrl.dev.addr = newAddr
 				s.byAddr[newAddr] = s.ctrl.dev
+			}
+			if s.ctrl.reqType == 0x02 && s.ctrl.req == 1 && s.ctrl.value == 0 { // CLEAR_FEATURE(ENDPOINT_HALT)
+				if s.ctrl.dev.clearHaltCount == nil {
+					s.ctrl.dev.clearHaltCount = map[uint8]int{}
+				}
+				s.ctrl.dev.clearHaltCount[uint8(s.ctrl.index)]++
 			}
 			if s.ctrl.reqType == 0x01 && s.ctrl.req == 11 && s.ctrl.value == 1 { // SET_INTERFACE alt=1
 				if s.ctrl.dev.failSetIfaceCount > 0 {
@@ -1466,6 +1474,9 @@ func TestMultiHostHubStatusPipeRecovery(t *testing.T) {
 	if host.hubs[0].statusPipe.gen <= origGen {
 		t.Fatalf("expected fresh pipe generation > %d, got %d", origGen, host.hubs[0].statusPipe.gen)
 	}
+	if hub.clearHaltCount[0x81] != 1 {
+		t.Fatalf("expected CLEAR_FEATURE(ENDPOINT_HALT) on status endpoint 0x81 to resync DATA0 toggle before reopening, got %d", hub.clearHaltCount[0x81])
+	}
 
 	// Verify downstream hot-unplug still fires through the recovered status pipe.
 	sim.detachHubPort(hub, 1)
@@ -2414,5 +2425,24 @@ func TestMultiHostHubUsesSelectedMultiTTAlternateStatusEndpoint(t *testing.T) {
 	gotEP := host.hubs[0].statusPipe.Endpoint()
 	if gotEP.Address != 0x82 || gotEP.Interval != 8 {
 		t.Fatalf("hub status pipe opened alt 0 instead of selected Multi-TT alt 1 endpoint: got addr=%#x interval=%d want addr=0x82 interval=8", gotEP.Address, gotEP.Interval)
+	}
+}
+
+func TestMultiHostRejectsHubWithoutStatusEndpoint(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, false)
+	// Hub interface with 0 endpoints (missing Interrupt-IN status-change endpoint).
+	hub.configDesc = []byte{
+		9, 2, 18, 0, 1, 1, 0, 0xe0, 50,
+		9, 4, 0, 0, 0, 9, 0, 1, 0,
+	}
+	sim.attachRoot(hub)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	if len(host.hubs) != 0 {
+		t.Fatalf("expected hub without Interrupt-IN status endpoint to be rejected, got %d hubs", len(host.hubs))
 	}
 }

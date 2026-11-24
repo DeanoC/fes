@@ -300,6 +300,15 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 			haveHubIface = true
 		}
 	}
+	if !haveHubIface {
+		h.detachDevice(addr)
+		return fmt.Errorf("dwc2: hub missing interface descriptor")
+	}
+	statusEP, ok := hubIface.FindEndpoint(usb.TransferInterrupt, true)
+	if !ok {
+		h.detachDevice(addr)
+		return fmt.Errorf("dwc2: hub missing Interrupt-IN status endpoint")
+	}
 
 	// Read 7-byte hub descriptor header to learn bNbrPorts and bPwrOn2PwrGood.
 	var hdr [7]byte
@@ -324,23 +333,14 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 
 	// Open the hub's Interrupt-IN status-change endpoint from the selected
 	// alternate setting for zero-stall hotplug.
-	var statusEP usb.EndpointDescriptor
-	hasStatusEP := false
-	if haveHubIface {
-		if ep, ok := hubIface.FindEndpoint(usb.TransferInterrupt, true); ok {
-			statusEP = ep
-			hasStatusEP = true
-		}
-	}
 	hub := &multiHub{
-		addr:        addr,
-		speed:       dev.info.Speed,
-		route:       dev.route,
-		depth:       depth,
-		numPorts:    numPorts,
-		singleTT:    dev.info.Speed == usb.SpeedHigh && !multiTTSelected,
-		statusEP:    statusEP,
-		hasStatusEP: hasStatusEP,
+		addr:     addr,
+		speed:    dev.info.Speed,
+		route:    dev.route,
+		depth:    depth,
+		numPorts: numPorts,
+		singleTT: dev.info.Speed == usb.SpeedHigh && !multiTTSelected,
+		statusEP: statusEP,
 	}
 	h.openHubStatusPipe(hub)
 	h.hubs = append(h.hubs, hub)
@@ -354,11 +354,21 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 }
 
 func (h *MultiHost) openHubStatusPipe(hub *multiHub) {
-	if hub == nil || hub.statusPipe != nil || !hub.hasStatusEP {
+	if hub == nil || hub.statusPipe != nil {
 		return
 	}
 	if h.devices[hub.addr] == nil {
 		return
+	}
+	if hub.statusNeedsReset {
+		// USB 2.0 §9.4.5: CLEAR_FEATURE(ENDPOINT_HALT) clears any endpoint stall
+		// and resets the hub status endpoint's DATA toggle back to DATA0 so the
+		// reopened pipe starts synchronized with hardware.
+		if _, err := h.ControlTransfer(hub.addr, 0x02, 1, 0, uint16(hub.statusEP.Address), nil); err != nil {
+			hub.statusRetryAt = h.io.Now().Add(hubEnumRetryDelay)
+			return
+		}
+		hub.statusNeedsReset = false
 	}
 	if p, err := h.OpenPipe(hub.addr, hub.statusEP); err == nil {
 		hub.statusPipe = p.(*multiPipe)
@@ -380,10 +390,11 @@ func (h *MultiHost) pollHubHotplug() {
 		if hub.statusPipe != nil {
 			n, err := hub.statusPipe.PollInto(statusBuf[:])
 			if err != nil {
-				// Close the faulted status pipe and retry after hubEnumRetryDelay so
-				// transient errors recover without churning channels on permanent faults.
+				// Close the faulted status pipe, mark it for CLEAR_FEATURE(ENDPOINT_HALT)
+				// to resync its DATA0 toggle, and retry after hubEnumRetryDelay.
 				_ = hub.statusPipe.Close()
 				hub.statusPipe = nil
+				hub.statusNeedsReset = true
 				hub.statusRetryAt = now.Add(hubEnumRetryDelay)
 				if h.fault != nil {
 					return
