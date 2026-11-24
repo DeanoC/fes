@@ -184,6 +184,14 @@ from a clean checkout of each head:
   +6.147 ns, removal +0.401 ns, system 61.44 MHz, 37,274 / 41,910 ALMs.
   `verify_pc386_product_seal.py` gives `SEAL_OK` (154 files bound)
   (`pc386-seal/`).
+- `73a1d6f74`: the reseal after the held-floppy fix (`pc386_system` keeps
+  `ddr_hold` off while a floppy verify runs; before it, a launch with a floppy
+  inserted deadlocked at the floppy poll, and `system_tb` now inserts one and
+  waits for it). Pass. `BUILD_ID` `6ffb592f1940c8b14e11586dd7f59bb1`, RBF
+  `bd831dc4…`, package `5a61341d…`, setup +0.751 ns, hold +0.087 ns, recovery
+  +6.704 ns, removal +0.469 ns, system 61.44 MHz, 37,373 / 41,910 ALMs
+  (`pc386-seal/73a1d6f74/`; `seal-check/` binds it). The later merges of main
+  leave its design inputs unchanged (`head_matches_seal.py`: same design).
 
 ## Runtime test timing flake
 
@@ -242,3 +250,89 @@ The only compiled sources it hits are C64's (#2072). No toolchain lock moved.
   inputs are unchanged since `904140f8f`.
 - `a480e2a1e` (after this measurement) touches only `pc386_system.sv`, which
   no row here compiles.
+
+## Merge forward to `c3be8d0a6` and `27999e9df` (Yosys d273)
+
+Main was merged at `d68224547` (base `c3be8d0a6`, with #2161). #2161 moved the
+Apple II, Atari ST and Spectrum toolchain locks to Yosys `d273c1cb`. A moved
+lock voids the earlier RBF comparison, so condition 1 was re-run for those
+cores at the new base and head. Two passes, `run_cond1_cache.sh`, 32-zero
+`BUILD_ID` (`cond1-d273/`):
+
+| Artefact | Base `c3be8d0a6` | Head `d68224547` | Result |
+|---|---|---|---|
+| `fes.apple2` | `a37c90ecb9ba5828` | `a37c90ecb9ba5828` | byte-identical; D12 complete (reduced) |
+| `fes.atari-st` | `c75967fb6bb43d84` | `c75967fb6bb43d84` | byte-identical |
+| `fes.spectrum` | `191e26c2b8d890d2` | `89f00fae272e6710` | differs (the 48K now moves too) |
+| `fes.spectrum128` | `53f632362d8fed95` | `d523ca04a806c932` | differs |
+| `fes.spectrum-plus3` | `5a0d19f3f94481e5` | `20fd9b659c1fc116` | differs |
+| `fes.pentagon` | `543232aff6a4d1c9` | `46697809fd765919` | differs |
+
+Main was merged twice more. The head that the routes and HIL below cover is
+`b67bddbd6`, merge base `27999e9df`. `closure_touched.py` from `c3be8d0a6` to
+`27999e9df` hits every producer through `scripts/toolchain_cache.py` (GPU-lane
+pruning of pinned nextpnr installs, #2160). That file is in every closure but
+compiles nothing, and it does not change the design `BUILD_ID`s here. Main
+also changed C64 RTL (#2128). No lock moved. Condition 1 was re-run at
+`27999e9df` against `b67bddbd6`, two passes, `TAG=m279` (`cond1-m279/`). Each
+hash equals the d273 run's: Atari ST `c75967fb…` and C64 `4e82a122…`
+byte-identical; the four Spectrum models differ by the same pairs.
+
+Routes on Powerboat (HIP), `run_cond23.sh` at base `27999e9df` and head
+`b67bddbd6` (`cond23/powerboat-m279-s1..s3/`):
+
+| Artefact | Condition 2 (base RBF = forced RBF) | Condition 3 (own build) |
+|---|---|---|
+| `fes.atari-st` | `d2fe3931…` = `d2fe3931…`, reproduced | pass, `BUILD_ID` `65fc2d32…`, system 56.51 MHz, package `ea48447b…` |
+| `fes.spectrum` | not applicable (netlist moved) | pass, `35950ff0…`, 62.14 MHz, package `c9f9467b…` (the reseal) |
+| `fes.spectrum128` | not applicable (netlist moved) | pass, `41ce687d…`, 62.70 MHz, package `9f50650d…` (the reseal) |
+| `fes.spectrum-plus3` | not applicable (netlist moved) | pass, `0c42157e…`, 59.55 MHz, package `d903ca6e…` (the reseal) |
+| `fes.pentagon` | not applicable (netlist moved) | pass, `2db1de12…`, 54.13 MHz, package `57e750bd…` (the reseal) |
+
+All constraints are 52.22 MHz. The 128, +3 and Pentagon `BUILD_ID`s equal the
+earlier reseals': the design identity does not name the toolchain, and their
+closures did not change. Their RBFs differ because Yosys did.
+
+Kit HIL of the four reseals, core only through `hil/spec_session.py` as in
+[Reseal HIL](#reseal-hil-kit-a). The wrapper now reads the baseline from
+Lander's `~/lander-hilq/current.json`, one bundle per kit (image `179affbb…`;
+Kit A `02eb7d67…`, Kit B `7e3495b2…`). Its pre-run probe checks the live kit
+against that before anything changes. The 48K has no menu, so it types
+`LOAD ""` and `PRINT 22` in keyword mode. Every run restored the kit and
+logged it FREE, verified.
+
+| Run | Kit | Result (HDMI grabs, `hil/<run>/`) |
+|---|---|---|
+| `s48-m1` `fes.spectrum` | B | © 1982 screen; `LOAD ""` loads `FES HIL`, which runs (blue border); key ends `PAUSE` with `0 OK, 10:2`; `PRINT 22` prints `22`, `0 OK, 0:1` |
+| `s128-m1` `fes.spectrum128` | A | 128 menu; Tape Loader loads and runs it; `0 OK, 10:2`; the typed keys land while the loader has re-entered `LOAD` |
+| `splus3-m1` `fes.spectrum-plus3` | B | +3 menu; Loader loads and runs it; `Drive not ready, 10:2` (the ROM's report from an empty A:, as main's own package gave) |
+| `spent-m1` `fes.pentagon` | A | 128 menu; as the 128 |
+
+The C64's netlist is byte-identical at the new pair. Its routed evidence
+(conditions 2 and 3 above) was taken at `856ef5c64`, before main's C64 RTL
+change, and has not been re-routed.
+
+## Floppy kit smoke
+
+`hil/f3_smoke_session.py` installs and activates the PR's kit-software bundle
+on the kit's running image. It runs the sealed `fes.pc386` package
+`5a61341d…` with A: (1.44M) and B: (1.2M) from `hil/make_floppies.py`, and
+`hil/hil_f3_floppy.py` drives the two launches. The wrapper then restores the
+baseline bundle and checks the kit against its pre-run capture.
+
+Run k6, Kit B: pass. FreeDOS lists and types both drives. A:'s file is copied
+to `B:\WRITTEN.TXT`. The relaunch lists `WRITTEN.TXT` on B: and types A:'s text
+from it. The saved B: record is a `fes.pc386-floppy.image` of B:'s size
+(1,228,970 bytes) holding A:'s text twice and B:'s own boot sector and file.
+
+The first runs (k5) showed both drives empty (serial `1FC2-0004`). The cause
+was the images, not the machine. The kit's FreeDOS drive uses an older kernel
+that ignores a floppy BPB without the 55AA signature, and the hand-made images
+lacked it. On that drive, the sim gives the same empty drives on both the
+oracle and RTL CPUs. Copying in the sim drive's kernel, or restoring 55AA,
+reads both. `make_floppies.py` writes 55AA with `INT 18h` boot code, so the
+BIOS goes on to the hard disk. k6 first logged `RESTORE_INCOMPLETE`: the run had
+created the empty `core-data/games` directory, and the cleanup removed only its
+hashed child. It was removed with `rmdir`, then the kit state, paths, image,
+bundle, idle agent and free lease were re-checked live and the kit logged FREE.
+The wrapper now removes that parent itself.

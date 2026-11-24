@@ -1,0 +1,13 @@
+{
+ "package": "/data/fes-f3-d12/cond23-m279/s2/9f50650de885d6e7fe3a7b8ef8797bf861ffd5da7af5ecd0d9d03821c8822a40.fcore",
+ "package_id": "9f50650de885d6e7fe3a7b8ef8797bf861ffd5da7af5ecd0d9d03821c8822a40",
+ "firmware": "/home/deano/roms/sinclair/spectrum-128.rom",
+ "games": {
+  "machine": "fes.spectrum128 F3 D12 s128-m1"
+ },
+ "disks": {
+  "tape": "/data/fes-f3-d12/hil/media/fes-hil.tap"
+ },
+ "media_role": "cassette",
+ "rom_id": "spectrum128-firmware"
+}
