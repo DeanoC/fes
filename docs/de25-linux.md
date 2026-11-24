@@ -155,12 +155,19 @@ python3 image/de25-nano/build.py boot-smoke \
   `mister-runtime` from Buildroot stripping, and reuses compiler/base cache
   volumes across software generations while refreshing `mister-runtime` on
   every factory build.
-- **Ordinary FES Make workflow:** `BOARD=de25-nano DE25_IMAGE=/absolute/verified-image`
-  connects `make kit-sdk`, `make kit-software`, source development
-  ([development.md](development.md#de25-source-development)), image/export
-  ([image-artifacts.md](image-artifacts.md#de25-image-and-export-commands)),
-  and release/card assembly
-  ([appliance-releases.md](appliance-releases.md#de25-factory-selection)).
+- **Ordinary FES Make workflows:**
+  - **SDK & kit software:** `make kit-sdk` / `make kit-software` take
+    `BOARD=de25-nano DE25_IMAGE=/absolute/verified-image`.
+  - **Source development (`make dev` / `build` / `rebuild`):** take
+    `BOARD=de25-nano DE25_IMAGE=/absolute/verified-managed-image IMAGE_KERNEL=/absolute/kernel IMAGE_SDK=/absolute/owner-sdk.tar.gz`
+    ([development.md](development.md#de25-source-development)).
+  - **Factory assembly & export (`make image` / `verify`):** take
+    `BOARD=de25-nano IMAGE_ARTIFACTS=/absolute/artifacts IMAGE_KERNEL=/absolute/kernel IMAGE_SDK=/absolute/owner-sdk.tar.gz`
+    ([image-artifacts.md](image-artifacts.md#de25-image-and-export-commands)).
+  - **Release, bootstrap & SD card assembly (`make release` / `bootstrap` / `appliance-media`):**
+    take `APPLIANCE_BOARD=de25-nano APPLIANCE_FACTORY=/absolute/managed-factory`
+    (plus `APPLIANCE_VENDOR_BOOT=/absolute/vendor-boot` for card commands;
+    [appliance-releases.md](appliance-releases.md#de25-factory-selection)).
 
 ---
 
