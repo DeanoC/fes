@@ -20,8 +20,9 @@ func (c observationControl) Protocol2Status(context.Context) (misterruntime.Prot
 
 func TestObserveRuntimeInputBindsComputerKeyboardHID(t *testing.T) {
 	generation := uint64(4)
+	instance := strings.Repeat("1", 32)
 	response := func(abi string, interfaces ...string) misterruntime.Protocol2Response {
-		r := misterruntime.Protocol2Response{OK: true, State: "running_development", Generation: &generation,
+		r := misterruntime.Protocol2Response{OK: true, State: "running_development", Execution: "development", RuntimeInstance: &instance, Generation: &generation,
 			ActivePackage: &misterruntime.Protocol2ActivePackage{PackageID: strings.Repeat("a", 64), Descriptor: corepackage.Descriptor{Core: corepackage.Core{ID: "fes.sms"}, ABI: corepackage.Contract{ID: abi, Major: 1}}}}
 		for _, id := range interfaces {
 			r.Capabilities.ActiveInterfaces = append(r.Capabilities.ActiveInterfaces, misterruntime.Protocol2Interface{ID: id, Major: 1})
@@ -29,7 +30,7 @@ func TestObserveRuntimeInputBindsComputerKeyboardHID(t *testing.T) {
 		return r
 	}
 	obs, err := observeRuntimeInput(context.Background(), misterruntime.NewRuntime(observationControl{response: response("fes.computer", "fes.gamepad.ports", "fes.keyboard.hid")}, "", 0, 0))
-	if err != nil || obs.KeyboardHID == nil || obs.KeyboardHID.Generation != 4 || obs.Generation != 4 || obs.Keyboard || obs.Binding == nil || obs.Binding.Keypad || obs.CoreID != "fes.sms" {
+	if err != nil || obs.KeyboardHID == nil || obs.KeyboardHID.RuntimeInstance != instance || obs.RuntimeInstance != instance || obs.KeyboardHID.Generation != 4 || obs.Generation != 4 || obs.Keyboard || obs.Binding == nil || obs.Binding.Keypad || obs.CoreID != "fes.sms" {
 		t.Fatalf("computer observation %+v %v", obs, err)
 	}
 	obs, err = observeRuntimeInput(context.Background(), misterruntime.NewRuntime(observationControl{response: response("fes.computer", "fes.keyboard.hid")}, "", 0, 0))
@@ -45,5 +46,52 @@ func TestObserveRuntimeInputBindsComputerKeyboardHID(t *testing.T) {
 	obs, err = observeRuntimeInput(context.Background(), misterruntime.NewRuntime(observationControl{response: response("fes.simple-computer", "fes.keyboard.hid")}, "", 0, 0))
 	if err != nil || obs.KeyboardHID != nil {
 		t.Fatalf("HID outside fes.computer bound: %+v %v", obs, err)
+	}
+}
+
+func TestObserveRuntimeInputDirectDevelopmentKeepsRuntimeIdentity(t *testing.T) {
+	generation := uint64(4)
+	instance := strings.Repeat("1", 32)
+	response := misterruntime.Protocol2Response{OK: true, State: "running_development", Execution: "development", RuntimeInstance: &instance, Generation: &generation}
+	obs, err := observeRuntimeInput(context.Background(), misterruntime.NewRuntime(observationControl{response: response}, "", 0, 0))
+	if err != nil || !obs.Active || obs.RuntimeInstance != instance || obs.PackageID != "" || obs.Generation != generation || obs.KeyboardHID != nil {
+		t.Fatalf("direct development observation %+v %v", obs, err)
+	}
+	response.RuntimeInstance = nil
+	obs, err = observeRuntimeInput(context.Background(), misterruntime.NewRuntime(observationControl{response: response}, "", 0, 0))
+	if err != nil || obs.Active {
+		t.Fatalf("missing runtime identity admitted %+v %v", obs, err)
+	}
+}
+
+func TestObserveRuntimeInputProvesOnlySuccessfulIdle(t *testing.T) {
+	gen := uint64(1)
+	instance := strings.Repeat("1", 32)
+	cases := []struct {
+		name   string
+		status misterruntime.Protocol2Response
+		idle   bool
+	}{
+		{"idle", misterruntime.Protocol2Response{OK: true, State: "idle", RuntimeInstance: &instance}, true},
+		{"idle-no-instance", misterruntime.Protocol2Response{OK: true, State: "idle"}, false},
+		{"not-ok", misterruntime.Protocol2Response{State: "idle"}, false},
+		{"error", misterruntime.Protocol2Response{OK: true, State: "idle", Error: &misterruntime.Protocol2Error{Code: "x"}}, false},
+		{"idle-generation", misterruntime.Protocol2Response{OK: true, State: "idle", Generation: &gen}, false},
+		{"idle-package", misterruntime.Protocol2Response{OK: true, State: "idle", ActivePackage: &misterruntime.Protocol2ActivePackage{}}, false},
+		{"unknown", misterruntime.Protocol2Response{OK: true, State: "unknown"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			obs, err := observeRuntimeInput(context.Background(), misterruntime.NewRuntime(observationControl{response: tc.status}, "", 0, 0))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if obs.IdleConfirmed != tc.idle {
+				t.Fatalf("obs=%+v", obs)
+			}
+			if tc.idle && obs.RuntimeInstance != instance {
+				t.Fatalf("idle lost runtime identity: %+v", obs)
+			}
+		})
 	}
 }

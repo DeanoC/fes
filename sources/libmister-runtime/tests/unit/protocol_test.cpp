@@ -500,11 +500,14 @@ void TestPersistenceRequestsAndResponseFixtures()
 							   ",\"expected_revision\":\"absent\",\"paddle_speed\":";
 	assert(Parse(update + "2}", &request).ok() && request.settings.paddle_speed == 2 && !request.settings.pc386 &&
 		   request.expected_revision == "absent");
-	assert(Parse(R"({"protocol":2,"operation":"set_keyboard","matrix":1099511627775})",
+	assert(Parse(R"({"protocol":2,"operation":"set_keyboard","runtime_instance":"123456789abcdef0123456789abcdef0","package_id":"","expected_generation":1,"matrix":1099511627775})",
 		&request)
 			   .ok());
 	assert(request.operation == Operation::set_keyboard &&
 		request.keyboard_matrix == 0xffffffffffull);
+	assert(!Parse(R"({"protocol":2,"operation":"set_keyboard","package_id":"","expected_generation":1,"matrix":0})", &request).ok());
+	assert(!Parse(R"({"protocol":2,"operation":"set_keyboard","runtime_instance":"00000000000000000000000000000000","package_id":"","expected_generation":1,"matrix":0})", &request).ok());
+	assert(!Parse(R"({"protocol":2,"operation":"set_keyboard","runtime_instance":"123456789abcdef0123456789abcdef0","package_id":null,"expected_generation":1,"matrix":0})", &request).ok());
 	assert(Parse(R"({"protocol":2,"operation":"load_media","path":"/tmp/a.p"})",
 		&request)
 			   .ok());
@@ -536,7 +539,7 @@ void TestPersistenceRequestsAndResponseFixtures()
 	assert(!Parse(R"({"protocol":2,"operation":"clear_media"})", &request).ok());
 	assert(!Parse(R"({"protocol":2,"operation":"load_firmware","path":"/tmp/bios.bin"})",
 		&request).ok());
-	assert(!Parse(R"({"protocol":2,"operation":"set_keyboard","matrix":1099511627776})",
+	assert(!Parse(R"({"protocol":2,"operation":"set_keyboard","runtime_instance":"123456789abcdef0123456789abcdef0","package_id":"","expected_generation":1,"matrix":1099511627776})",
 		&request)
 				.ok());
 	assert(!Parse(R"({"protocol":2,"operation":"load_media","path":"a.p"})", &request).ok());
@@ -1046,7 +1049,7 @@ void TestMouseRelativeRequests()
 void TestComputerOperationRequests()
 {
 	const std::string id(64, 'a');
-	const std::string hid_prefix = "{\"protocol\":2,\"operation\":\"set_keyboard_hid\",\"package_id\":\"" +
+	const std::string hid_prefix = "{\"protocol\":2,\"operation\":\"set_keyboard_hid\",\"runtime_instance\":\"123456789abcdef0123456789abcdef0\",\"package_id\":\"" +
 		id + "\",\"expected_generation\":7,\"rows\":";
 	Request request;
 	assert(Parse(hid_prefix + "[16,0,256,0,0,0,0,32768,2]}", &request).ok());
@@ -1060,11 +1063,11 @@ void TestComputerOperationRequests()
 			"[0,null,0,0,0,0,0,0,0]", "{}", "0"})
 		ExpectError(hid_prefix + rows + "}", ErrorCode::invalid_request);
 	ExpectError(hid_prefix + "[0,0,0,0,0,0,0,0,0],\"extra\":0}", ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":2,\"operation\":\"set_keyboard_hid\",\"package_id\":\"" + id +
+	ExpectError("{\"protocol\":2,\"operation\":\"set_keyboard_hid\",\"runtime_instance\":\"123456789abcdef0123456789abcdef0\",\"package_id\":\"" + id +
 		"\",\"expected_generation\":0,\"rows\":[0,0,0,0,0,0,0,0,0]}", ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":2,\"operation\":\"set_keyboard_hid\",\"package_id\":\"" + id +
+	ExpectError("{\"protocol\":2,\"operation\":\"set_keyboard_hid\",\"runtime_instance\":\"123456789abcdef0123456789abcdef0\",\"package_id\":\"" + id +
 		"\",\"rows\":[0,0,0,0,0,0,0,0,0]}", ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":2,\"operation\":\"set_keyboard_hid\",\"package_id\":\"" +
+	ExpectError("{\"protocol\":2,\"operation\":\"set_keyboard_hid\",\"runtime_instance\":\"123456789abcdef0123456789abcdef0\",\"package_id\":\"" +
 		std::string(64, 'A') + "\",\"expected_generation\":1,\"rows\":[0,0,0,0,0,0,0,0,0]}",
 		ErrorCode::invalid_request);
 

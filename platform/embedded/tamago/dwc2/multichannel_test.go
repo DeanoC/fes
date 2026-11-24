@@ -149,10 +149,12 @@ type multiChannelSim struct {
 	txEP     [16]uint8
 	txSplit  [16]bool
 	noOutLog bool
-	wedgeCh        int // if >= 0 (when wedgeSet), channel wedgeCh refuses to clear CHENA on halt
-	wedgeSet       bool
-	failRootEnable bool
-	rootResets     int
+	wedgeCh         int // if >= 0 (when wedgeSet), channel wedgeCh refuses to clear CHENA on halt
+	wedgeSet        bool
+	failRootEnable  bool
+	rootResets      int
+	freezeFrame     bool
+	nyetCSplitCount int
 }
 
 func newMultiChannelSim(fifoWords uint32, channels int) *multiChannelSim {
@@ -246,7 +248,9 @@ func (s *multiChannelSim) Read32(reg uint32) uint32 {
 		return v
 	case hfnum:
 		v := uint32(s.frame)
-		s.frame = (s.frame + 1) & 0x3fff
+		if !s.freezeFrame {
+			s.frame = (s.frame + 1) & 0x3fff
+		}
 		return v
 	case rxpeek:
 		if s.rxHead < len(s.rx) {
@@ -387,6 +391,15 @@ func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 	if dev == nil {
 		s.regs[chReg(ch, hcchar)] &^= channelEnable
 		s.regs[chReg(ch, hcint)] |= 1<<7 | 1<<1 // XACTERR + CHHLTD
+		s.regs[haint] |= 1 << uint(ch)
+		return
+	}
+
+	// Optional CSPLIT NYET injection for testing deferred nextFrame backoff.
+	if split && compSplit && ch != 0 && s.nyetCSplitCount > 0 {
+		s.nyetCSplitCount--
+		s.regs[chReg(ch, hcchar)] &^= channelEnable
+		s.regs[chReg(ch, hcint)] |= 1<<6 | 1<<1 // NYET + CHHLTD
 		s.regs[haint] |= 1 << uint(ch)
 		return
 	}
@@ -2057,5 +2070,186 @@ func TestMultiHostInitHubAbortsOnMultiTTSelectFailure(t *testing.T) {
 	}
 	if !attached || !hub.multiTTSet {
 		t.Fatalf("expected Multi-TT hub retry to succeed: attached=%v multiTTSet=%v", attached, hub.multiTTSet)
+	}
+}
+
+func TestMultiHostCSPLITNYETHonorsDeferredNextFrame(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	pad := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	var padAddr uint8
+	var ep usb.EndpointDescriptor
+	for {
+		ev, ok := host.NextEvent()
+		if !ok {
+			break
+		}
+		if ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			padAddr = ev.Device.Address
+			iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+			ep, _ = iface.FindEndpoint(usb.TransferInterrupt, true)
+		}
+	}
+	pipe, err := host.OpenPipe(padAddr, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+	mp := pipe.(*multiPipe)
+
+	pkt := []byte{0x01, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd}
+	sim.mu.Lock()
+	pad.inQueues[ep.Number()] = append(pad.inQueues[ep.Number()], pkt)
+	// Freeze hfnum at microframe 0 (wire=1 for Interrupt) to arm SSPLIT.
+	sim.frame = 0
+	sim.freezeFrame = true
+	sim.nyetCSplitCount = 1
+	sim.mu.Unlock()
+
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (SSPLIT): %v", err)
+	}
+	// Advance to microframe 2 (wire=3 == startFrame+2) so CSPLIT fires and hits NYET!
+	// Because freezeFrame=true, armSlot in the same Service() sees the SAME microframe
+	// and MUST NOT immediately re-arm CSPLIT before nextFrame = wire+1.
+	sim.mu.Lock()
+	sim.frame = 2
+	sim.mu.Unlock()
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (CSPLIT arm): %v", err)
+	}
+	if !host.slots[mp.ch].armed || !host.slots[mp.ch].completeSplit {
+		t.Fatalf("expected CSPLIT armed on microframe 2: armed=%v completeSplit=%v", host.slots[mp.ch].armed, host.slots[mp.ch].completeSplit)
+	}
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (CSPLIT NYET): %v", err)
+	}
+	if host.slots[mp.ch].armed {
+		t.Fatal("armSlot re-armed CSPLIT in the same microframe immediately after NYET instead of waiting for nextFrame")
+	}
+	if !host.slots[mp.ch].waitingSplit || !host.slots[mp.ch].completeSplit {
+		t.Fatalf("expected channel waiting for deferred CSPLIT: waitingSplit=%v completeSplit=%v", host.slots[mp.ch].waitingSplit, host.slots[mp.ch].completeSplit)
+	}
+
+	// Advance by 1 microframe (frame=3 -> wire=4 == nextFrame): CSPLIT now arms and completes!
+	sim.mu.Lock()
+	sim.frame = 3
+	sim.mu.Unlock()
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (CSPLIT retry arm): %v", err)
+	}
+	if !host.slots[mp.ch].armed {
+		t.Fatal("expected CSPLIT to arm once microframe reached nextFrame")
+	}
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (CSPLIT complete): %v", err)
+	}
+	var buf [64]byte
+	n, err := pipe.PollInto(buf[:])
+	if err != nil {
+		t.Fatalf("PollInto: %v", err)
+	}
+	if n != len(pkt) || !bytes.Equal(buf[:n], pkt) {
+		t.Fatalf("packet mismatch after CSPLIT NYET backoff: got %x want %x", buf[:n], pkt)
+	}
+}
+
+func TestMultiHostSingleTTHubSerializesSplits(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, false) // Single-TT high-speed hub (bDeviceProtocol == 1)
+	pad := newSimGamepad()
+	kbd := newSimKeyboard()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+	sim.attachHubPort(hub, 2, kbd)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	if len(host.hubs) != 1 || !host.hubs[0].singleTT {
+		t.Fatalf("expected 1 single-TT hub, got hubs=%d singleTT=%v", len(host.hubs), len(host.hubs) > 0 && host.hubs[0].singleTT)
+	}
+	var padDev, kbdDev usb.BusDevice
+	for {
+		ev, ok := host.NextEvent()
+		if !ok {
+			break
+		}
+		if ev.Kind == usb.DeviceAttached {
+			switch ev.Device.Descriptor.VendorID {
+			case 0x054c:
+				padDev = ev.Device
+			case 0x1234:
+				kbdDev = ev.Device
+			}
+		}
+	}
+	if padDev.Address == 0 || kbdDev.Address == 0 {
+		t.Fatalf("expected both children behind single-TT hub, got pad=%d kbd=%d", padDev.Address, kbdDev.Address)
+	}
+	padEp, _ := padDev.Config.Interfaces[0].FindEndpoint(usb.TransferInterrupt, true)
+	kbdEp, _ := kbdDev.Config.Interfaces[0].FindEndpoint(usb.TransferInterrupt, true)
+	padPipe, err := host.OpenPipe(padDev.Address, padEp)
+	if err != nil {
+		t.Fatalf("OpenPipe(pad): %v", err)
+	}
+	kbdPipe, err := host.OpenPipe(kbdDev.Address, kbdEp)
+	if err != nil {
+		t.Fatalf("OpenPipe(kbd): %v", err)
+	}
+
+	padPkt := []byte{0x01, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77}
+	kbdPkt := []byte{0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00}
+	sim.mu.Lock()
+	pad.inQueues[padEp.Number()] = append(pad.inQueues[padEp.Number()], padPkt)
+	kbd.inQueues[kbdEp.Number()] = append(kbd.inQueues[kbdEp.Number()], kbdPkt)
+	sim.mu.Unlock()
+
+	var gotPad, gotKbd []byte
+	var buf [64]byte
+	for range 60 {
+		sim.advance(2 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service: %v", err)
+		}
+		// Verify invariant: at most ONE split channel targeting the single-TT hub
+		// is ever simultaneously armed or waiting for CSPLIT.
+		active := 0
+		for ch := 1; ch < host.channels; ch++ {
+			s := &host.slots[ch]
+			if s.allocated && s.route.hub == uint32(hub.addr) && (s.armed || (s.waitingSplit && s.completeSplit)) {
+				active++
+			}
+		}
+		if active > 1 {
+			t.Fatalf("single-TT hub had %d concurrent active split channels (must serialize to <= 1)", active)
+		}
+		if gotPad == nil {
+			if n, err := padPipe.PollInto(buf[:]); err != nil {
+				t.Fatal(err)
+			} else if n > 0 {
+				gotPad = append([]byte(nil), buf[:n]...)
+			}
+		}
+		if gotKbd == nil {
+			if n, err := kbdPipe.PollInto(buf[:]); err != nil {
+				t.Fatal(err)
+			} else if n > 0 {
+				gotKbd = append([]byte(nil), buf[:n]...)
+			}
+		}
+		if gotPad != nil && gotKbd != nil {
+			break
+		}
+	}
+	if !bytes.Equal(gotPad, padPkt) || !bytes.Equal(gotKbd, kbdPkt) {
+		t.Fatalf("single-TT serialized delivery failed: pad=%x kbd=%x", gotPad, gotKbd)
 	}
 }

@@ -51,6 +51,7 @@ func (a *App) beginStartupDisplayFence() error {
 	}
 	// The published socket must reject callbacks until the runtime and host
 	// observations agree, including the whole retry interval.
+	a.nativePadFenceMappingLocked()
 	a.sessionDisplayBusy = true
 	return nil
 }

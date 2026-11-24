@@ -30,6 +30,12 @@ const (
 func chReg(ch int, base uint32) uint32 { return base + uint32(ch)*0x20 }
 func chFIFO(ch int) uint32             { return fifo + uint32(ch)*0x1000 }
 
+// frameBefore reports whether 14-bit USB microframe counter a precedes b
+// modulo 0x4000.
+func frameBefore(a, b uint16) bool {
+	return ((a - b) & 0x3fff) >= 0x2000
+}
+
 // partitionFIFOs scales DWC2 dynamic packet RAM from HWCFG3[31:16] so Agilex 5
 // (>= 1024 words) accommodates 512-byte HS Bulk ACL packets alongside concurrent
 // periodic HID channels while preserving the 256-word minimum profile.
@@ -125,6 +131,7 @@ type multiHub struct {
 	route         splitRoute
 	depth         int
 	numPorts      uint8
+	singleTT      bool
 	statusPipe    *multiPipe
 	statusRetryAt time.Time
 	retryCount    [maxHubPorts + 1]uint8
@@ -441,6 +448,32 @@ func (h *MultiHost) haltChannelCapture(ch int) (uint32, error) {
 	return ints, nil
 }
 
+func (h *MultiHost) isSingleTTHubBusy(hubAddr uint32, excludeCh int) bool {
+	if hubAddr == 0 {
+		return false
+	}
+	var singleTT bool
+	for _, hub := range h.hubs {
+		if uint32(hub.addr) == hubAddr {
+			singleTT = hub.singleTT
+			break
+		}
+	}
+	if !singleTT {
+		return false
+	}
+	for ch := 1; ch < h.channels; ch++ {
+		if ch == excludeCh {
+			continue
+		}
+		s := &h.slots[ch]
+		if s.allocated && s.fault == nil && s.route.hub == hubAddr && (s.armed || (s.waitingSplit && s.completeSplit)) {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
 	s := &h.slots[ch]
 	in := s.ep.In()
@@ -467,11 +500,19 @@ func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
 	selected := h.io.Read32(hfnum)
 	frame := uint16(selected)
 	if split {
-		wire := frame
+		wire := frame & 0x3fff
 		if epType == uint32(usb.TransferInterrupt) {
-			wire++
+			wire = (wire + 1) & 0x3fff
 		}
 		if !completeSplit {
+			// Single-TT high-speed hubs share one transaction translator across all
+			// downstream ports; serialize new SSPLITs until any active split on this
+			// hub finishes its CSPLIT phase.
+			if h.isSingleTTHubBusy(s.route.hub, ch) {
+				s.waitingSplit = true
+				s.completeSplit = false
+				return nil
+			}
 			// Allow SSPLIT on wire microframes 0..5 so CSPLIT (+2) fits inside the
 			// same 8-microframe translator window.
 			if wire&7 > 5 {
@@ -481,15 +522,16 @@ func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
 			}
 			s.startFrame = wire
 		} else {
-			if wire>>3 != s.startFrame>>3 {
+			if (wire>>3)&0x7ff != (s.startFrame>>3)&0x7ff {
 				// Missed translator window: restart SSPLIT on next frame rather
 				// than fatally retiring the device.
 				s.completeSplit = false
 				s.waitingSplit = true
 				return nil
 			}
-			if uint16(wire-s.startFrame) < 2 {
-				// Too early for CSPLIT; keep waiting until startFrame+2.
+			if frameBefore(wire, s.nextFrame) {
+				// Wait until the scheduled CSPLIT microframe (startFrame+2 after
+				// SSPLIT ACK, or cur+1 after CSPLIT NYET).
 				s.completeSplit = true
 				s.waitingSplit = true
 				return nil
@@ -765,12 +807,16 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 
 	if split && s.ack && !s.completeSplit {
 		s.completeSplit = true
-		s.nextFrame = s.startFrame + 2
+		s.nextFrame = (s.startFrame + 2) & 0x3fff
 		s.waitingSplit = true
 		return
 	}
 	if split && s.nyet && s.completeSplit {
-		s.nextFrame = uint16(h.io.Read32(hfnum)) + 1
+		cur := uint16(h.io.Read32(hfnum)) & 0x3fff
+		if s.ep.TransferType == usb.TransferInterrupt {
+			cur = (cur + 1) & 0x3fff
+		}
+		s.nextFrame = (cur + 1) & 0x3fff
 		s.waitingSplit = true
 		return
 	}
@@ -892,6 +938,32 @@ func (h *MultiHost) controlTransferTarget(addr uint8, speed usb.Speed, ep0 uint1
 
 func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route splitRoute, in bool, pid uint32, out []byte, limit int, deadline time.Time) (int, error) {
 	split := route.hub != 0
+	if split && h.isSingleTTHubBusy(route.hub, 0) {
+		ttDeadline := h.io.Now().Add(4 * time.Millisecond)
+		for h.isSingleTTHubBusy(route.hub, 0) && h.io.Now().Before(ttDeadline) {
+			if err := h.drainRXIntoSlots(64); err != nil {
+				return 0, err
+			}
+			now := h.io.Now()
+			for ch := 1; ch < h.channels; ch++ {
+				s := &h.slots[ch]
+				if !s.allocated || s.fault != nil || s.route.hub != route.hub {
+					continue
+				}
+				if s.armed {
+					h.stepChannel(ch, now)
+				}
+				if s.fault == nil && !s.armed && s.waitingSplit && s.completeSplit {
+					if err := h.armSlot(ch, true); err != nil {
+						s.fault = err
+					}
+				}
+			}
+			if h.fault != nil {
+				return 0, h.fault
+			}
+		}
+	}
 	for retries := 0; retries < 1000; retries++ {
 		if !h.io.Now().Before(deadline) {
 			return 0, fmt.Errorf("dwc2: CH0 control timeout addr=%d", addr)
@@ -912,7 +984,7 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 				return 0, fmt.Errorf("dwc2: CH0 split timeout addr=%d", addr)
 			}
 			if split {
-				frame := uint16(h.io.Read32(hfnum))
+				frame := uint16(h.io.Read32(hfnum)) & 0x3fff
 				if !completeSplit {
 					if frame&7 > 5 {
 						runtime.Gosched()
@@ -920,12 +992,12 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 					}
 					startFrame = frame
 				} else {
-					if uint16(frame-nextFrame) >= 0x8000 {
-						runtime.Gosched()
+					if (frame>>3)&0x7ff != (startFrame>>3)&0x7ff {
+						completeSplit = false
 						continue
 					}
-					if frame>>3 != startFrame>>3 {
-						completeSplit = false
+					if frameBefore(frame, nextFrame) {
+						runtime.Gosched()
 						continue
 					}
 				}
@@ -1329,7 +1401,7 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 				s.ack = false
 				s.completeSplit = true
 				s.waitingSplit = true
-				s.nextFrame = s.startFrame + 2
+				s.nextFrame = (s.startFrame + 2) & 0x3fff
 			} else {
 				s.waitingSplit = false
 				s.completeSplit = false

@@ -3,6 +3,7 @@ package input
 import (
 	"context"
 	"errors"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"sync"
 	"testing"
 
@@ -24,7 +25,7 @@ func newHIDPortsFixture(t *testing.T, ports bool) (*controllerPortsSink, *[]hidP
 	var posts []hidPost
 	var writes []portWrite
 	hid := &keyboardHIDSink{}
-	hid.setPoster(func(_ context.Context, id string, generation uint64, rows hidkeys.Rows) error {
+	hid.setPoster(func(_ context.Context, _ string, id string, generation uint64, rows hidkeys.Rows) error {
 		mu.Lock()
 		posts = append(posts, hidPost{id, generation, rows})
 		mu.Unlock()
@@ -168,7 +169,10 @@ func TestHIDKeyboardWithoutControllerPorts(t *testing.T) {
 func TestMatrixCoreStillReceivesZX81CodesFromHIDKitFrames(t *testing.T) {
 	var matrices []uint64
 	keys := NewKeyboardSink()
-	keys.SetPoster(func(_ context.Context, matrix uint64) error { matrices = append(matrices, matrix); return nil })
+	keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, matrix uint64) error {
+		matrices = append(matrices, matrix)
+		return nil
+	})
 	sink := &controllerPortsSink{fallback: &recordingSink{}, keys: keys, hid: &keyboardHIDSink{}}
 	sink.setObservation(CoreObservation{Active: true, Keyboard: true})
 	a, _ := hidkeys.Code(0x04)
@@ -188,7 +192,7 @@ func TestMatrixCoreStillReceivesZX81CodesFromHIDKitFrames(t *testing.T) {
 func TestHIDPostFailureKeepsNeutralReleasePending(t *testing.T) {
 	hid := &keyboardHIDSink{}
 	calls := 0
-	hid.setPoster(func(context.Context, string, uint64, hidkeys.Rows) error {
+	hid.setPoster(func(context.Context, string, string, uint64, hidkeys.Rows) error {
 		calls++
 		if calls == 1 {
 			return errors.New("lost")
@@ -212,7 +216,7 @@ func TestHIDRetryAfterFailedPostRepostsState(t *testing.T) {
 	hid := &keyboardHIDSink{}
 	var posted []hidkeys.Rows
 	fail := false
-	hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error {
+	hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
 		posted = append(posted, rows)
 		if fail {
 			return errors.New("busy")
@@ -288,7 +292,7 @@ func TestLocalHIDReleaseSurvivesFailedProbe(t *testing.T) {
 	var posts []hidPost
 	observations := 0
 	fail := false
-	controller, sink := newLocalHIDFeed(t, func(_ context.Context, id string, generation uint64, rows hidkeys.Rows) error {
+	controller, sink := newLocalHIDFeed(t, func(_ context.Context, _ string, id string, generation uint64, rows hidkeys.Rows) error {
 		mu.Lock()
 		posts = append(posts, hidPost{id, generation, rows})
 		mu.Unlock()
@@ -349,7 +353,7 @@ func TestLocalHIDUnconfirmedReleaseReplaysForSameGeneration(t *testing.T) {
 	var posts []hidPost
 	failPost := false
 	failProbe := false
-	controller, sink := newLocalHIDFeed(t, func(_ context.Context, id string, generation uint64, rows hidkeys.Rows) error {
+	controller, sink := newLocalHIDFeed(t, func(_ context.Context, _ string, id string, generation uint64, rows hidkeys.Rows) error {
 		mu.Lock()
 		posts = append(posts, hidPost{id, generation, rows})
 		mu.Unlock()
@@ -392,7 +396,7 @@ func TestLocalHIDReleaseDoesNotReplayOntoReplacement(t *testing.T) {
 	live := uint64(7)
 	failProbe := false
 	idle := false
-	controller, sink := newLocalHIDFeed(t, func(_ context.Context, id string, generation uint64, rows hidkeys.Rows) error {
+	controller, sink := newLocalHIDFeed(t, func(_ context.Context, _ string, id string, generation uint64, rows hidkeys.Rows) error {
 		mu.Lock()
 		posts = append(posts, hidPost{id, generation, rows})
 		rejected := generation != live
@@ -462,7 +466,7 @@ func TestLocalHIDFailedReplayRetriesOnGamepadWhilePortsBound(t *testing.T) {
 	failProbe := false
 	withPorts := false
 	observations := 0
-	controller, sink := newLocalHIDFeed(t, func(_ context.Context, id string, generation uint64, rows hidkeys.Rows) error {
+	controller, sink := newLocalHIDFeed(t, func(_ context.Context, _ string, id string, generation uint64, rows hidkeys.Rows) error {
 		mu.Lock()
 		posts = append(posts, hidPost{id, generation, rows})
 		fail := hidFails > 0

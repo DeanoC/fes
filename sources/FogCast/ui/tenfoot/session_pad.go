@@ -65,7 +65,7 @@ func (a *App) suppressHeldSessionPadLocked() {
 // session. Select opens controls on release, leaving Select+Start first
 // priority while both are held. Navigation never reaches the machine.
 func (a *App) sessionPadLocked(e remoteinput.Event, now time.Time) (bool, []remoteinput.Event) {
-	if !a.needsSessionDisplayLocked() || a.session.State != "active" {
+	if (!a.needsSessionDisplayLocked() && !(a.kitHost && a.localFeed != nil)) || a.session.State != "active" {
 		return false, nil
 	}
 	if a.playPadHeld == nil {

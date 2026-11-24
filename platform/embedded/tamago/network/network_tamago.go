@@ -6,6 +6,7 @@ package network
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"sync/atomic"
 	"time"
@@ -30,9 +31,9 @@ type Interface struct {
 	device     Device
 	bridge     *Link
 	ctx        context.Context
+	stop       context.CancelCauseFunc
 	irqEnabled atomic.Bool
-	lease      DHCPLease
-	hasLease   bool
+	leaseState interfaceLease
 }
 
 var opened atomic.Bool
@@ -49,7 +50,7 @@ func OpenDevice(ctx context.Context, address, gateway string, factory func() (De
 	if err != nil {
 		return nil, err
 	}
-	return installInterface(ctx, c, nic, DHCPLease{}, false)
+	return installInterface(ctx, c, nic, DHCPLease{}, time.Time{}, false)
 }
 
 // OpenDeviceDHCP opens one explicit board device, acquires a validated IPv4
@@ -78,7 +79,7 @@ func OpenDeviceDHCPWithStartup(startup, lifetime context.Context, factory func()
 	if err != nil {
 		return nil, err
 	}
-	lease, err := AcquireDHCP(startup, nic, dhcpCfg)
+	lease, acquiredAt, err := acquireDHCPWithTime(startup, nic, dhcpCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +90,7 @@ func OpenDeviceDHCPWithStartup(startup, lifetime context.Context, factory func()
 	if err != nil {
 		return nil, err
 	}
-	return installInterface(lifetime, c, nic, lease, true)
+	return installInterface(lifetime, c, nic, lease, acquiredAt, true)
 }
 
 func admitAndOpenDevice(ctx context.Context, factory func() (Device, error)) (Device, context.Context, error) {
@@ -115,13 +116,14 @@ func admitAndOpenDevice(ctx context.Context, factory func() (Device, error)) (De
 	return nic, ctx, nil
 }
 
-func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease, hasLease bool) (*Interface, error) {
+func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease, leaseAcquiredAt time.Time, hasLease bool) (*Interface, error) {
 	cfg := gnet.DefaultLnetoStackConfig()
 	cfg.Hostname = "fes-native"
 	cfg.MaxActiveTCPPorts = 16
 	cfg.MaxListenerConns = 8
 	runCtx, stop := context.WithCancelCause(ctx)
-	iface := &Interface{config: c, device: nic, ctx: runCtx, lease: lease, hasLease: hasLease}
+	iface := &Interface{config: c, device: nic, ctx: runCtx, stop: stop}
+	iface.leaseState.init(lease, leaseAcquiredAt, hasLease)
 	backoff := func(consecutive uint) time.Duration {
 		if !iface.irqEnabled.Load() || consecutive == 0 {
 			return lneto.BackoffFlagGosched
@@ -163,14 +165,34 @@ func (i *Interface) Statistics() Stats { return i.device.Statistics() }
 // Lease returns the acquired DHCPv4 lease and true if the interface was opened
 // via DHCP, or the zero value and false for static IPv4 configurations.
 func (i *Interface) Lease() (DHCPLease, bool) {
-	if i == nil || !i.hasLease {
+	if i == nil {
 		return DHCPLease{}, false
 	}
-	lease := i.lease
-	if len(lease.DNS) > 0 {
-		lease.DNS = append([]string(nil), lease.DNS...)
+	return i.leaseState.get()
+}
+
+// NewLeaseRenewer creates an opt-in RFC 2131 DHCPv4 T1/T2 LeaseRenewer wired
+// to this interface's active *Link (preserving its pause/DMA failure gate and
+// original lease acquisition timestamp). Only one LeaseRenewer may be active on
+// the interface at a time (concurrent Start calls fail with ErrRenewerActive
+// until the active renewer stops or exits). Successful renewals synchronize back
+// to Interface.Lease() and future renewer starts. If the lease expires, is
+// NAK'd, or changes IP/gateway, the interface and link are halted immediately
+// per RFC 2131 §4.4.5 so traffic stops using the unleased address.
+// Returns ErrDHCPInvalidConfig if the interface was not opened via DHCP.
+func (i *Interface) NewLeaseRenewer(cfg RenewConfig) (*LeaseRenewer, error) {
+	if i == nil || i.bridge == nil || i.device == nil {
+		return nil, fmt.Errorf("%w: interface has no active DHCP lease", ErrDHCPInvalidConfig)
 	}
-	return lease, true
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	return i.leaseState.newRenewer(i.bridge, i.device.MAC(), cfg, i.Err, func(err error) {
+		i.bridge.fail(err)
+		if i.stop != nil {
+			i.stop(err)
+		}
+	})
 }
 
 // EnableIRQ routes the underlying NIC's RX interrupt through g so Link.Start

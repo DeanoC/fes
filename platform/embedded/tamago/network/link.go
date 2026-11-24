@@ -32,13 +32,14 @@ type Link struct {
 
 // Handles may be copied; all mutable ownership remains in this private object.
 type linkState struct {
-	failure   atomic.Pointer[linkFailure]
-	io        sync.RWMutex
-	paused    atomic.Bool
-	claimed   atomic.Bool
-	tapMu     sync.Mutex
-	nextTapID uint64
-	taps      map[uint64]func([]byte)
+	failure       atomic.Pointer[linkFailure]
+	io            sync.RWMutex
+	paused        atomic.Bool
+	claimed       atomic.Bool
+	renewerActive atomic.Bool
+	tapMu         sync.Mutex
+	nextTapID     uint64
+	taps          map[uint64]func([]byte)
 }
 
 func NewLink(stack *gnet.LnetoStack, device gnet.NetworkDevice, address, mac, gateway string) (*Link, error) {
@@ -80,6 +81,16 @@ func (l *Link) Err() error {
 	return nil
 }
 func (l *Link) fail(err error) { l.state.failure.CompareAndSwap(nil, &linkFailure{err: err}) }
+
+func (l *Link) claimRenewer() bool {
+	return l != nil && l.state != nil && l.state.renewerActive.CompareAndSwap(false, true)
+}
+
+func (l *Link) releaseRenewer() {
+	if l != nil && l.state != nil {
+		l.state.renewerActive.Store(false)
+	}
+}
 func (l *Link) transmit(buf []byte) {
 	if !l.enter() {
 		return

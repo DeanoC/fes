@@ -52,21 +52,22 @@ func TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial(t *testing.T) {
 }
 
 func TestClientRejectsWrongProtocolAndUnknownResponseFields(t *testing.T) {
+	const envelope = `{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"runtime_instance":"123456789abcdef0123456789abcdef0","generation":null,"inspected_package":null}`
 	cases := []struct {
 		name     string
 		response string
 	}{
 		{
 			name:     "wrong protocol",
-			response: `{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}` + "\n",
+			response: strings.Replace(envelope, `"protocol":2`, `"protocol":1`, 1) + "\n",
 		},
 		{
 			name:     "unknown top-level field",
-			response: `{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test","extra":true}` + "\n",
+			response: strings.TrimSuffix(envelope, "}") + `,"extra":true}` + "\n",
 		},
 		{
 			name:     "unknown error field",
-			response: `{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"busy","message":"busy","extra":true},"version":"git-test"}` + "\n",
+			response: strings.Replace(envelope, `"error":null`, `"error":{"code":"busy","message":"busy","phase":"request","extra":true}`, 1) + "\n",
 		},
 	}
 
@@ -451,7 +452,7 @@ func requireClientClose(connection net.Conn) error {
 func responseLineAtLength(t *testing.T, length int) string {
 	t.Helper()
 	const prefix = `{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"`
-	const suffix = `","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"generation":null,"inspected_package":null}` + "\n"
+	const suffix = `","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"runtime_instance":"123456789abcdef0123456789abcdef0","generation":null,"inspected_package":null}` + "\n"
 	padding := length - len(prefix) - len(suffix)
 	if padding < 1 {
 		t.Fatalf("requested response line is too short: %d", length)

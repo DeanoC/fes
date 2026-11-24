@@ -56,6 +56,7 @@ struct Request {
 	std::string rbf;
 	std::string package_path;
 	std::string package_id;
+	std::string runtime_instance;
 	std::string programming_profile;
 	std::string data_root;
 	std::string expected_revision;
