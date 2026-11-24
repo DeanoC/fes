@@ -278,15 +278,16 @@ func BuildDualSenseBTOutput(dst []byte, playerSlot uint8, rumbleRight, rumbleLef
 	clear(dst[:DualSenseBTOutputLen])
 	slot := playerSlot & 3
 	dst[0] = DualSenseBTReportFull
-	dst[1] = 0x02 // BT output tag (DS_OUTPUT_TAG)
-	dst[2] = 0x03 // valid_flag0: compatible vibration + haptics select
-	dst[3] = 0x14 // valid_flag1: lightbar (0x04) + player LEDs (0x10)
-	dst[4] = rumbleRight
-	dst[5] = rumbleLeft
-	dst[45] = dualSensePlayerLEDs[slot]
-	dst[46] = dualSensePlayerRGB[slot][0]
-	dst[47] = dualSensePlayerRGB[slot][1]
-	dst[48] = dualSensePlayerRGB[slot][2]
+	dst[1] = 0x02 // seq_tag (seq=0)
+	dst[2] = 0x10 // DS_OUTPUT_TAG
+	dst[3] = 0x03 // valid_flag0: compatible vibration + haptics select
+	dst[4] = 0x14 // valid_flag1: lightbar (0x04) + player LEDs (0x10)
+	dst[5] = rumbleRight
+	dst[6] = rumbleLeft
+	dst[46] = dualSensePlayerLEDs[slot]
+	dst[47] = dualSensePlayerRGB[slot][0]
+	dst[48] = dualSensePlayerRGB[slot][1]
+	dst[49] = dualSensePlayerRGB[slot][2]
 
 	// CRC-32 over [0xA2] || dst[0:74] stored little-endian in dst[74:78].
 	sum := crc32.Update(0, crc32.IEEETable, dualSenseCRCSeed[:])

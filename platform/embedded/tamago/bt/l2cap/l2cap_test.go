@@ -4,6 +4,7 @@ package l2cap
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"testing"
 	"time"
 
@@ -50,6 +51,7 @@ type l2capMockBus struct {
 	aclOutPipe *l2capMockPipe
 	cmds       []uint16
 	lastParams map[uint16][]byte
+	failCreate bool
 }
 
 func newL2CAPMockBus() *l2capMockBus {
@@ -95,6 +97,10 @@ func (b *l2capMockBus) OpenPipe(_ uint8, ep usb.EndpointDescriptor) (usb.Pipe, e
 func (b *l2capMockBus) ControlTransfer(_ uint8, reqType, req byte, _, _ uint16, data []byte) (int, error) {
 	if reqType == 0x20 && req == 0 && len(data) >= 3 {
 		op := binary.LittleEndian.Uint16(data[0:2])
+		if op == hci.OpcodeCreateConnection && b.failCreate {
+			b.failCreate = false
+			return 0, errors.New("injected CreateConnection error")
+		}
 		b.cmds = append(b.cmds, op)
 		b.lastParams[op] = append([]byte(nil), data[3:]...)
 		ev := []byte{hci.EventCommandComplete, 4, 1, byte(op), byte(op >> 8), 0}
@@ -344,5 +350,95 @@ func TestSSPFailClosedOutsidePairingAndReconnectL2CAPZeroAlloc(t *testing.T) {
 	})
 	if allocs > 0 || intrSeen == 0 {
 		t.Fatalf("L2CAP HID Interrupt hot path allocated %.2f allocs/run (seen=%d), want 0", allocs, intrSeen)
+	}
+}
+
+func TestManagerResumesInquiryOnCreateConnectionFailure(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(200, 0)
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	countInquiry := func() int {
+		n := 0
+		for _, op := range bus.cmds {
+			if op == hci.OpcodeInquiry {
+				n++
+			}
+		}
+		return n
+	}
+	if countInquiry() != 1 {
+		t.Fatalf("expected 1 initial StartInquiry, got %d", countInquiry())
+	}
+
+	dev1, _ := ParseBDAddr("10:20:30:40:50:60")
+	dev2, _ := ParseBDAddr("10:20:30:40:50:61")
+	makeEIR := func(addr BDAddr) []byte {
+		eir := make([]byte, 2+15)
+		eir[0] = hci.EventExtendedInquiryResult
+		eir[1] = 15
+		eir[2] = 1
+		copy(eir[3:9], addr[:])
+		eir[9] = 1
+		eir[11], eir[12], eir[13] = 0x08, 0x25, 0x00 // Gamepad CoD
+		return eir
+	}
+
+	// 1. Synchronous CreateConnection error must clear m.connecting and restart Inquiry.
+	bus.failCreate = true
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, makeEIR(dev1))
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if mgr.connecting {
+		t.Fatal("m.connecting remained true after synchronous CreateConnection failure")
+	}
+	if countInquiry() != 2 {
+		t.Fatalf("expected StartInquiry to resume after sync CreateConnection failure (count=%d)", countInquiry())
+	}
+
+	// 2. Async failed ConnectionComplete (status=0x04 Page Timeout) must clear
+	// m.connecting, restart Inquiry, and allow dev2 to connect.
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, makeEIR(dev1))
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !mgr.connecting {
+		t.Fatal("expected m.connecting=true while waiting on ConnectionComplete")
+	}
+	failConn := []byte{hci.EventConnectionComplete, 11, 0x04, 0x00, 0x00} // Page Timeout
+	failConn = append(failConn, dev1[:]...)
+	failConn = append(failConn, 0x01, 0x00)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, failConn)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if mgr.connecting {
+		t.Fatal("m.connecting remained true after async failed ConnectionComplete")
+	}
+	if countInquiry() != 3 {
+		t.Fatalf("expected StartInquiry to resume after async failed ConnectionComplete (count=%d)", countInquiry())
+	}
+
+	// Verify dev2 can now be discovered and initiate CreateConnection cleanly.
+	delete(bus.lastParams, hci.OpcodeCreateConnection)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, makeEIR(dev2))
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bus.lastParams[hci.OpcodeCreateConnection]; len(got) < 6 || !bytes.Equal(got[:6], dev2[:]) {
+		t.Fatalf("expected CreateConnection for dev2 after recovery, got %x", got)
 	}
 }

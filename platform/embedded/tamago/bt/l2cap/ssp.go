@@ -138,7 +138,13 @@ func (m *Manager) maybeInitiatePair(addr BDAddr, cod uint32, pageScanRep byte, c
 	m.connecting = true
 	m.connectAddr = addr
 	_ = m.tr.CancelInquiry()
-	_ = m.tr.CreateConnection(addr, pageScanRep, clockOff)
+	if err := m.tr.CreateConnection(addr, pageScanRep, clockOff); err != nil {
+		m.connecting = false
+		m.connectAddr = BDAddr{}
+		if m.pairingActive && m.now().Before(m.pairingUntil) {
+			_ = m.tr.StartInquiry(8, 0)
+		}
+	}
 }
 
 func (m *Manager) handleEvent(ev []byte) {
@@ -173,8 +179,12 @@ func (m *Manager) handleEvent(ev []byte) {
 		copy(addr[:], params[3:9])
 		if m.connecting && m.connectAddr == addr {
 			m.connecting = false
+			m.connectAddr = BDAddr{}
 		}
 		if params[0] != 0 {
+			if m.pairingActive && !m.connecting && m.now().Before(m.pairingUntil) {
+				_ = m.tr.StartInquiry(8, 0)
+			}
 			return
 		}
 		handle := binary.LittleEndian.Uint16(params[1:3]) & 0x0fff
@@ -281,9 +291,20 @@ func (m *Manager) handleEvent(ev []byte) {
 		copy(addr[:], params[0:6])
 		copy(key[:], params[6:22])
 		rec := BondRecord{Addr: addr, LinkKey: key}
+		if existing, ok := m.bonds.Lookup(addr); ok {
+			rec.Name = existing.Name
+			rec.Kind = existing.Kind
+			rec.VendorID = existing.VendorID
+			rec.ProductID = existing.ProductID
+			rec.Slot = existing.Slot
+		}
 		if conn := m.findConnByAddr(addr); conn != nil {
-			rec.Name = conn.name
-			rec.Kind = conn.kind
+			if conn.name != "" {
+				rec.Name = conn.name
+			}
+			if conn.kind != controllers.KindUnknown {
+				rec.Kind = conn.kind
+			}
 		}
 		_ = m.bonds.Upsert(rec)
 

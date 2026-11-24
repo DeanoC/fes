@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io/fs"
 	"testing"
 	"testing/fstest"
 )
@@ -65,5 +66,79 @@ func TestBTBondsAndFirmwareBoundedReadWriteAndLease(t *testing.T) {
 	}
 	if err := s.WriteBTBonds(context.Background(), []byte(updated)); !errors.Is(err, ErrState) {
 		t.Fatalf("quiesced WriteBTBonds=%v", err)
+	}
+}
+
+type creatableBondsFS struct {
+	*trackedFS
+	files fstest.MapFS
+	dirs  map[string]bool
+}
+
+func (f *creatableBondsFS) Mkdir(_ context.Context, name string) error {
+	if f.dirs[name] {
+		return fs.ErrExist
+	}
+	f.dirs[name] = true
+	return nil
+}
+
+func (f *creatableBondsFS) CreateFile(_ context.Context, name string, data []byte) error {
+	if !f.dirs["FES"] {
+		return fs.ErrNotExist
+	}
+	if _, exists := f.files[name]; exists {
+		return fs.ErrExist
+	}
+	f.files[name] = &fstest.MapFile{Data: append([]byte(nil), data...)}
+	return nil
+}
+
+func (f *creatableBondsFS) WriteFile(path string, data []byte) error {
+	entry, exists := f.files[path]
+	if !exists {
+		return fs.ErrNotExist
+	}
+	if len(data) > len(entry.Data) {
+		return errors.New("capacity exceeded")
+	}
+	entry.Data = append([]byte(nil), data...)
+	return nil
+}
+
+func TestWriteBTBondsProvisionsMissingFileOnFreshCard(t *testing.T) {
+	l := lease()
+	mapFS := fstest.MapFS{}
+	fsys := &creatableBondsFS{
+		trackedFS: &trackedFS{base: mapFS, lease: l},
+		files:     mapFS,
+		dirs:      map[string]bool{},
+	}
+	s, err := New(fsys, l)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first := `{"version":1,"bonds":[{"addr":"11:22:33:44:55:66","link_key":"00112233445566778899aabbccddeeff","slot":0}]}`
+	if err := s.WriteBTBonds(context.Background(), []byte(first)); err != nil {
+		t.Fatalf("first WriteBTBonds on fresh card failed: %v", err)
+	}
+	created := mapFS[BTBondsPath]
+	if created == nil || len(created.Data) != MaxBTBondsBytes {
+		t.Fatalf("expected preallocated %d-byte %s, got len=%v", MaxBTBondsBytes, BTBondsPath, created)
+	}
+	got, err := s.ReadBTBonds(context.Background())
+	if err != nil || !bytes.Equal(bytes.TrimSpace(got), []byte(first)) {
+		t.Fatalf("ReadBTBonds after provision: got=%q err=%v", got, err)
+	}
+
+	// Second larger write updates the preallocated file via WriteFile without capacity failure.
+	second := `{"version":1,"bonds":[{"addr":"11:22:33:44:55:66","link_key":"00112233445566778899aabbccddeeff","slot":0},{"addr":"AA:BB:CC:DD:EE:FF","link_key":"ffeeddccbbaa99887766554433221100","slot":1}]}`
+	if err := s.WriteBTBonds(context.Background(), []byte(second)); err != nil {
+		t.Fatalf("second WriteBTBonds failed: %v", err)
+	}
+	got2, err := s.ReadBTBonds(context.Background())
+	if err != nil || string(got2) != second {
+		t.Fatalf("ReadBTBonds after update: got=%q err=%v", got2, err)
 	}
 }

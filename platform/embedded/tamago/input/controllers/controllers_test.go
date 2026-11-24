@@ -96,8 +96,10 @@ func TestDualSenseBTFullAndBasicAndOutputCRC32(t *testing.T) {
 	// Output report 0x31 with IEEE CRC-32 seeded by 0xA2
 	var out [DualSenseBTOutputLen]byte
 	n := BuildDualSenseBTOutput(out[:], 0, 0x40, 0x20)
-	if n != DualSenseBTOutputLen || out[0] != 0x31 || out[1] != 0x02 || out[45] != 0x04 {
-		t.Fatalf("unexpected DualSense output header n=%d out[0:6]=%x led=%#x", n, out[:6], out[45])
+	if n != DualSenseBTOutputLen || out[0] != 0x31 || out[1] != 0x02 || out[2] != 0x10 ||
+		out[3] != 0x03 || out[4] != 0x14 || out[5] != 0x40 || out[6] != 0x20 ||
+		out[46] != 0x04 || out[47] != 0x00 || out[48] != 0x20 || out[49] != 0x80 {
+		t.Fatalf("unexpected DualSense output header n=%d out[0:7]=%x leds=%x", n, out[:7], out[46:50])
 	}
 	wantCRC := crc32.Update(crc32.Update(0, crc32.IEEETable, []byte{0xa2}), crc32.IEEETable, out[:74])
 	gotCRC := binary.LittleEndian.Uint32(out[74:78])

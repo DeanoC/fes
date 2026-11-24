@@ -125,7 +125,10 @@ func (s *Store) ReadBTBonds(ctx context.Context) ([]byte, error) {
 }
 
 // WriteBTBonds persists the bounded Bluetooth bond store JSON (FES/BTBONDS.JSON)
-// using the same SD-checkpoint flush semantics as WritePreferences.
+// using SD-checkpoint flush semantics. On a fresh card where FES/BTBONDS.JSON
+// does not yet exist, it provisions a preallocated MaxBTBondsBytes file (via
+// CreateFile) space-padded with valid JSON whitespace so future WriteFile
+// updates succeed in place.
 func (s *Store) WriteBTBonds(ctx context.Context, data []byte) error {
 	if s == nil || ctx == nil {
 		return ErrState
@@ -145,16 +148,51 @@ func (s *Store) WriteBTBonds(ctx context.Context, data []byte) error {
 	if !s.last.Active || !s.last.Prepared {
 		return ErrState
 	}
-	writer, ok := s.files.(interface{ WriteFile(string, []byte) error })
-	if !ok {
+	writer, hasWrite := s.files.(interface{ WriteFile(string, []byte) error })
+	creator, hasCreate := s.files.(interface {
+		CreateFile(context.Context, string, []byte) error
+	})
+	if !hasWrite && !hasCreate {
 		return block.ErrReadOnly
 	}
-	err := writer.WriteFile(BTBondsPath, data)
+
+	var err error
+	if hasWrite {
+		err = writer.WriteFile(BTBondsPath, data)
+	} else {
+		err = fs.ErrNotExist
+	}
+	if errors.Is(err, fs.ErrNotExist) && hasCreate {
+		err = s.provisionBTBondsLocked(ctx, creator, data)
+	}
 	if observed := s.observe(); observed != nil {
 		return errors.Join(err, observed)
 	}
-	if err != nil && !errors.Is(err, block.ErrReadOnly) && !errors.Is(err, fat.ErrCapacity) && !errors.Is(err, fs.ErrNotExist) {
+	if err != nil && !errors.Is(err, block.ErrReadOnly) && !errors.Is(err, fat.ErrCapacity) && !errors.Is(err, fat.ErrNoSpace) && !errors.Is(err, fs.ErrNotExist) {
 		return s.retire(err)
+	}
+	return err
+}
+
+func (s *Store) provisionBTBondsLocked(ctx context.Context, creator interface {
+	CreateFile(context.Context, string, []byte) error
+}, data []byte) error {
+	padded := make([]byte, MaxBTBondsBytes)
+	copy(padded, data)
+	for i := len(data); i < len(padded); i++ {
+		padded[i] = ' '
+	}
+	err := creator.CreateFile(ctx, BTBondsPath, padded)
+	if errors.Is(err, fs.ErrNotExist) {
+		if mk, ok := s.files.(interface {
+			Mkdir(context.Context, string) error
+		}); ok {
+			if mkErr := mk.Mkdir(ctx, "FES"); mkErr == nil || errors.Is(mkErr, fs.ErrExist) {
+				err = creator.CreateFile(ctx, BTBondsPath, padded)
+			} else {
+				err = mkErr
+			}
+		}
 	}
 	return err
 }

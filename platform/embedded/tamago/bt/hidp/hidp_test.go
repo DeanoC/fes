@@ -219,7 +219,7 @@ func TestDualSenseAndSwitchProConcurrentHIDPAndZeroAllocs(t *testing.T) {
 		if handle == 0x0041 && cid == 0x0050 && len(hid) >= 2 && hid[0] == hidpGetReportFeature && hid[1] == 0x05 {
 			sawDSUnlock = true
 		}
-		if handle == 0x0041 && cid == 0x0051 && len(hid) == 79 && hid[0] == hidpDataOutput && hid[1] == 0x31 && hid[46] == 0x04 {
+		if handle == 0x0041 && cid == 0x0051 && len(hid) == 79 && hid[0] == hidpDataOutput && hid[1] == 0x31 && hid[3] == 0x10 && hid[47] == 0x04 {
 			sawDSLED = true
 		}
 		if handle == 0x0042 && cid == 0x0061 && len(hid) == 50 && hid[0] == hidpDataOutput && hid[1] == 0x01 {
@@ -299,5 +299,70 @@ func TestDualSenseAndSwitchProConcurrentHIDPAndZeroAllocs(t *testing.T) {
 	})
 	if allocs > 0 || frames == 0 {
 		t.Fatalf("HIDP DualSense hot path allocated %.2f allocs/run (frames=%d), want 0", allocs, frames)
+	}
+}
+
+func TestSessionPersistsAssignedSlotOnConcurrentPairingCollision(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	bonds := l2cap.NewBondStore()
+	sess, err := NewSession(tr, bonds, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pad1, _ := l2cap.ParseBDAddr("01:02:03:04:05:06")
+	pad2, _ := l2cap.ParseBDAddr("06:05:04:03:02:01")
+
+	// Both newly paired bonds start with default Slot: 0.
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: pad1, LinkKey: [16]byte{1}, Name: "DualSense Wireless Controller", Kind: controllers.KindDualSense, Slot: 0})
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: pad2, LinkKey: [16]byte{2}, Name: "DualSense Wireless Controller", Kind: controllers.KindDualSense, Slot: 0})
+
+	c1 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, pad1[:]...)
+	c1 = append(c1, 0x01, 0x01)
+	c2 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x42, 0x00}, pad2[:]...)
+	c2 = append(c2, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, c1, c2)
+	openIncomingHIDChannels(bus, 0x0041, 0x0050, 0x0051)
+	openIncomingHIDChannels(bus, 0x0042, 0x0060, 0x0061)
+	for range 6 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rec1, ok1 := bonds.Lookup(pad1)
+	rec2, ok2 := bonds.Lookup(pad2)
+	if !ok1 || !ok2 || rec1.Slot != 0 || rec2.Slot != 1 {
+		t.Fatalf("expected persisted slots 0 and 1, got ok=(%t,%t) slots=(%d,%d)", ok1, ok2, rec1.Slot, rec2.Slot)
+	}
+
+	// Disconnect both, then reconnect ONLY pad2: it must return directly to slot 1!
+	disc1 := []byte{hci.EventDisconnectionComplete, 4, 0, 0x41, 0x00, 0x13}
+	disc2 := []byte{hci.EventDisconnectionComplete, 4, 0, 0x42, 0x00, 0x13}
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, disc1, disc2)
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	c2b := append([]byte{hci.EventConnectionComplete, 11, 0, 0x43, 0x00}, pad2[:]...)
+	c2b = append(c2b, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, c2b)
+	openIncomingHIDChannels(bus, 0x0043, 0x0070, 0x0071)
+	for range 4 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, ok := sess.Slot(0); ok {
+		t.Fatal("pad2 hijacked slot 0 instead of returning to persisted slot 1")
+	}
+	if s1, ok := sess.Slot(1); !ok || s1.Addr != pad2 {
+		t.Fatalf("expected pad2 in slot 1 on reconnect, got ok=%t slot=%+v", ok, s1)
 	}
 }

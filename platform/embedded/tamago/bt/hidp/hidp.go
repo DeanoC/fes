@@ -117,6 +117,20 @@ func (s *Session) ConnectedCount() int {
 	return n
 }
 
+func (s *Session) syncBondSlot(addr l2cap.BDAddr, slotIdx uint8) {
+	if s.mgr == nil {
+		return
+	}
+	bonds := s.mgr.Bonds()
+	if bonds == nil {
+		return
+	}
+	if rec, ok := bonds.Lookup(addr); ok && rec.Slot != slotIdx {
+		rec.Slot = slotIdx
+		_ = bonds.Upsert(rec)
+	}
+}
+
 func (s *Session) findOrAllocSlot(handle uint16, addr l2cap.BDAddr, name string, kind controllers.Kind) *PlayerSlot {
 	for i := range s.slots {
 		if s.slots[i].Connected && s.slots[i].Handle == handle {
@@ -126,6 +140,7 @@ func (s *Session) findOrAllocSlot(handle uint16, addr l2cap.BDAddr, name string,
 			if kind != controllers.KindUnknown {
 				s.slots[i].Kind = kind
 			}
+			s.syncBondSlot(s.slots[i].Addr, s.slots[i].Slot)
 			return &s.slots[i]
 		}
 	}
@@ -137,7 +152,9 @@ func (s *Session) findOrAllocSlot(handle uint16, addr l2cap.BDAddr, name string,
 	}
 	for i := range s.slots {
 		if !s.slots[i].Connected {
-			s.slots[i] = PlayerSlot{Connected: true, Slot: uint8(i), Handle: handle, Addr: addr, Name: name, Kind: kind}
+			slotIdx := uint8(i)
+			s.slots[i] = PlayerSlot{Connected: true, Slot: slotIdx, Handle: handle, Addr: addr, Name: name, Kind: kind}
+			s.syncBondSlot(addr, slotIdx)
 			return &s.slots[i]
 		}
 	}
@@ -196,7 +213,12 @@ func (s *Session) onDisconnect(handle uint16, _ l2cap.BDAddr) {
 }
 
 func (s *Session) maybeInitController(slot *PlayerSlot) {
-	if slot == nil || slot.initDone || slot.Kind == controllers.KindUnknown {
+	if slot == nil {
+		return
+	}
+	// Reconcile bond slot even if LinkKeyNotification completed after onChannelOpen.
+	s.syncBondSlot(slot.Addr, slot.Slot)
+	if slot.initDone || slot.Kind == controllers.KindUnknown {
 		return
 	}
 	switch slot.Kind {
