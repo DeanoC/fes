@@ -352,6 +352,8 @@ type App struct {
 	shotCtx                context.Context
 	shotCancel             context.CancelFunc
 	loadGen                int
+	loadFinishedGen        int
+	loadFinishedOK         bool
 	keepFocusID            string
 	keepFocusIndex         int
 	navDirty               bool

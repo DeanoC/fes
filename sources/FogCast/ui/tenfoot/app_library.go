@@ -315,6 +315,11 @@ func (a *App) finishLibraryLoad(ctx context.Context, gen int, query hostclient.G
 	if gen != a.loadGen {
 		return
 	}
+	if ctx.Err() != nil {
+		return
+	}
+	a.loadFinishedGen = gen
+	a.loadFinishedOK = err == nil
 	a.loading = false
 	a.libraryRetrying = false
 	if err != nil {

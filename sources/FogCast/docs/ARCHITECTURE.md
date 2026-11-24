@@ -1941,6 +1941,16 @@ profiles. On exit, CPU sampling stops before heap GC and serialization.
 Benchmark recipes and measurement limits are in
 [native CPU rendering](native-tenfoot-launcher/CPU.md).
 
+The Linux direct-display kit-host launcher provides the kit-local diagnostic
+`fogcast-tenfoot library-reload`. It triggers the same asynchronous library
+reload while a session is busy and exits successfully only after that exact
+generation has completed successfully. A failed, superseded, stopped or
+timed-out reload reports an error. The command talks to the running launcher
+over a Linux abstract Unix socket, so no stale socket file survives a crash;
+the listener is absent for smoke and non-kit hosts. Completion describes the
+library load, not display presentation: HIL should wait for the command and
+capture the footer separately while the session is still busy.
+
 The framebuffer shell reads native-width evdev records for US keyboard text
 and gamepad buttons plus range-normalized stick/hat axes, merges held commands across devices,
 and applies each pad's saved profile and the shared hold gate. `nativeInputs.poll` takes those
