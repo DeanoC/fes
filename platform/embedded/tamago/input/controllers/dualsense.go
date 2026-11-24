@@ -19,10 +19,27 @@ const (
 	// DualShock4FeatureCalib is the Feature report ID whose GET_REPORT unlocks 0x11.
 	DualShock4FeatureCalib = 0x02
 
-	// DualSenseBTOutputLen is the exact payload length for BT output report 0x31
-	// (excluding the 1-byte HIDP 0xA2 header).
+	// DualSenseBTOutputLen is the exact payload length for Sony BT full reports
+	// 0x31 and 0x11 (excluding the 1-byte HIDP 0xA1/0xA2 header).
 	DualSenseBTOutputLen = 78
 )
+
+var (
+	dualSenseInputCRCSeed  = [1]byte{0xa1}
+	dualSenseOutputCRCSeed = [1]byte{0xa2}
+)
+
+func sonyBTCRC32(seed []byte, body []byte) uint32 {
+	sum := crc32.Update(0, crc32.IEEETable, seed)
+	return crc32.Update(sum, crc32.IEEETable, body)
+}
+
+func validSonyBTFullReport(report []byte) bool {
+	if len(report) != DualSenseBTOutputLen {
+		return false
+	}
+	return binary.LittleEndian.Uint32(report[74:78]) == sonyBTCRC32(dualSenseInputCRCSeed[:], report[:74])
+}
 
 // DualSenseUnlockFeatureReportID returns the HID Feature report ID that must be
 // fetched via HIDP GET_REPORT on L2CAP PSM 0x0011 to switch Sony controllers
@@ -47,7 +64,8 @@ func ParseDualSenseBT(report []byte, out *State) bool {
 		// [0]=0x31 [1]=bt_seq [2]=LX [3]=LY [4]=RX [5]=RY [6]=L2 [7]=R2
 		// [8]=seq [9]=hat|face [10]=shoulders|start|select|l3|r3 [11]=ps|touch|mute
 		// [54]=battery nibble (0..10) + charging bit (0x10)
-		if len(report) < 12 {
+		// [74..77]=little-endian IEEE CRC-32 seeded with HIDP DATA|INPUT (0xA1)
+		if !validSonyBTFullReport(report) {
 			return false
 		}
 		var b Button
@@ -184,7 +202,7 @@ func ParseDualShock4BT(report []byte, out *State) bool {
 	if report[0] == DualSenseBTReportBasic {
 		return ParseDualSenseBT(report, out)
 	}
-	if report[0] != DualShock4BTReportFull || len(report) < 12 {
+	if report[0] != DualShock4BTReportFull || !validSonyBTFullReport(report) {
 		return false
 	}
 	// Full 78-byte DS4 BT report 0x11:
@@ -266,8 +284,6 @@ var dualSensePlayerRGB = [4][3]byte{
 	{0x70, 0x10, 0x70}, // Player 4: magenta
 }
 
-var dualSenseCRCSeed = [1]byte{0xa2}
-
 // BuildDualSenseBTOutput writes a valid 78-byte DualSense Bluetooth output
 // report 0x31 (setting player 1..4 LEDs, lightbar color, and rumble motors)
 // with the required IEEE CRC-32 seeded with HIDP DATA|OUTPUT (0xA2).
@@ -290,8 +306,6 @@ func BuildDualSenseBTOutput(dst []byte, playerSlot uint8, rumbleRight, rumbleLef
 	dst[49] = dualSensePlayerRGB[slot][2]
 
 	// CRC-32 over [0xA2] || dst[0:74] stored little-endian in dst[74:78].
-	sum := crc32.Update(0, crc32.IEEETable, dualSenseCRCSeed[:])
-	sum = crc32.Update(sum, crc32.IEEETable, dst[:74])
-	binary.LittleEndian.PutUint32(dst[74:78], sum)
+	binary.LittleEndian.PutUint32(dst[74:78], sonyBTCRC32(dualSenseOutputCRCSeed[:], dst[:74]))
 	return DualSenseBTOutputLen
 }

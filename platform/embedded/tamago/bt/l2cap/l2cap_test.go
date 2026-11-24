@@ -45,13 +45,15 @@ func (p *l2capMockPipe) PollInto(dst []byte) (int, error) {
 }
 
 type l2capMockBus struct {
-	dev        usb.BusDevice
-	evPipe     *l2capMockPipe
-	aclInPipe  *l2capMockPipe
-	aclOutPipe *l2capMockPipe
-	cmds       []uint16
-	lastParams map[uint16][]byte
-	failCreate bool
+	dev          usb.BusDevice
+	evPipe       *l2capMockPipe
+	aclInPipe    *l2capMockPipe
+	aclOutPipe   *l2capMockPipe
+	cmds         []uint16
+	lastParams   map[uint16][]byte
+	failCreate   bool
+	failInquiry  bool
+	scanEnable   byte
 }
 
 func newL2CAPMockBus() *l2capMockBus {
@@ -101,8 +103,17 @@ func (b *l2capMockBus) ControlTransfer(_ uint8, reqType, req byte, _, _ uint16, 
 			b.failCreate = false
 			return 0, errors.New("injected CreateConnection error")
 		}
+		if op == hci.OpcodeInquiry && b.failInquiry {
+			b.failInquiry = false
+			// Simulate controller returning Command Disallowed (0x0c) in CommandStatus.
+			b.evPipe.inQueue = append(b.evPipe.inQueue, []byte{hci.EventCommandStatus, 4, 0x0c, 1, byte(op), byte(op >> 8)})
+			return len(data), nil
+		}
 		b.cmds = append(b.cmds, op)
 		b.lastParams[op] = append([]byte(nil), data[3:]...)
+		if op == hci.OpcodeWriteScanEnable && len(data) >= 4 {
+			b.scanEnable = data[3]
+		}
 		ev := []byte{hci.EventCommandComplete, 4, 1, byte(op), byte(op >> 8), 0}
 		if op == hci.OpcodeReadLocalVersion {
 			ev = []byte{hci.EventCommandComplete, 12, 1, byte(op), byte(op >> 8), 0, 9, 0, 0, 9, 0x0a, 0, 0x22, 0x11}
@@ -440,5 +451,43 @@ func TestManagerResumesInquiryOnCreateConnectionFailure(t *testing.T) {
 	}
 	if got := bus.lastParams[hci.OpcodeCreateConnection]; len(got) < 6 || !bytes.Equal(got[:6], dev2[:]) {
 		t.Fatalf("expected CreateConnection for dev2 after recovery, got %x", got)
+	}
+}
+
+func TestSetPairingModeRollsBackOnInquiryFailure(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return time.Unix(300, 0) })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bus.failInquiry = true
+	if err := mgr.SetPairingMode(true, 30*time.Second); err == nil {
+		t.Fatal("expected SetPairingMode(true) error when StartInquiry fails")
+	}
+	if mgr.PairingActive() || !mgr.pairingUntil.IsZero() {
+		t.Fatalf("pairing state not rolled back: active=%t until=%v", mgr.PairingActive(), mgr.pairingUntil)
+	}
+	if bus.scanEnable != hci.ScanPageOnly {
+		t.Fatalf("radio scanEnable=%#02x, want ScanPageOnly (%#02x)", bus.scanEnable, hci.ScanPageOnly)
+	}
+
+	// Verify unknown devices remain rejected fail-closed after inquiry failure rollback.
+	stranger, _ := ParseBDAddr("22:33:44:55:66:77")
+	connReq := append([]byte{hci.EventConnectionRequest, 10}, stranger[:]...)
+	connReq = append(connReq, 0x08, 0x25, 0x00, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connReq)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bus.lastParams[hci.OpcodeRejectConnectionRequest]; len(got) < 6 || !bytes.Equal(got[:6], stranger[:]) {
+		t.Fatalf("expected stranger to be rejected fail-closed after failed SetPairingMode, got %x", got)
 	}
 }

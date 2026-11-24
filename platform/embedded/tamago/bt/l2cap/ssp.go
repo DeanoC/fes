@@ -64,15 +64,28 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 		m.pairingActive = true
 		m.pairingUntil = m.now().Add(duration)
 		m.connecting = false
+		m.connectAddr = BDAddr{}
 		if err := m.tr.WriteScanEnable(hci.ScanInquiryAndPage); err != nil {
 			m.pairingActive = false
+			m.pairingUntil = time.Time{}
 			return err
 		}
 		// 8 * 1.28s = 10.24s inquiry burst (restarted if still pairing)
-		return m.tr.StartInquiry(8, 0)
+		if err := m.tr.StartInquiry(8, 0); err != nil {
+			m.pairingActive = false
+			m.pairingUntil = time.Time{}
+			m.connecting = false
+			m.connectAddr = BDAddr{}
+			_ = m.tr.CancelInquiry()
+			_ = m.tr.WriteScanEnable(hci.ScanPageOnly)
+			return err
+		}
+		return nil
 	}
 	m.pairingActive = false
+	m.pairingUntil = time.Time{}
 	m.connecting = false
+	m.connectAddr = BDAddr{}
 	_ = m.tr.CancelInquiry()
 	return m.tr.WriteScanEnable(hci.ScanPageOnly)
 }

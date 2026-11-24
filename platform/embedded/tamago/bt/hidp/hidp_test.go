@@ -4,6 +4,7 @@ package hidp
 import (
 	"bytes"
 	"encoding/binary"
+	"hash/crc32"
 	"testing"
 	"time"
 
@@ -252,6 +253,9 @@ func TestDualSenseAndSwitchProConcurrentHIDPAndZeroAllocs(t *testing.T) {
 	dsPkt[1] = controllers.DualSenseBTReportFull
 	dsPkt[3], dsPkt[4], dsPkt[5], dsPkt[6] = 0x80, 0x80, 0x80, 0x80
 	dsPkt[10] = 0x08 | 0x20 // Cross (South)
+	dsSum := crc32.Update(0, crc32.IEEETable, []byte{0xa1})
+	dsSum = crc32.Update(dsSum, crc32.IEEETable, dsPkt[1:75])
+	binary.LittleEndian.PutUint32(dsPkt[75:79], dsSum)
 	swPkt := make([]byte, 50)
 	swPkt[0] = hidpDataInput
 	swPkt[1] = controllers.SwitchProReportFull

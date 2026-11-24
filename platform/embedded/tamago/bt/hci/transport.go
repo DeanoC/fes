@@ -378,7 +378,8 @@ func (t *Transport) handleNumCompletedPackets(ev []byte) {
 		return
 	}
 	for i := 0; i < numHandles; i++ {
-		completed := int(binary.LittleEndian.Uint16(ev[3+numHandles*2+i*2:]))
+		// Each entry is a packed {uint16 handle, uint16 count} pair (Core Spec 7.7.19).
+		completed := int(binary.LittleEndian.Uint16(ev[3+i*4+2:]))
 		t.credits += completed
 		if t.credits > t.maxCredits {
 			t.credits = t.maxCredits

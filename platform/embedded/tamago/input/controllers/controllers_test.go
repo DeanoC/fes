@@ -39,6 +39,12 @@ func TestIdentifyControllers(t *testing.T) {
 	}
 }
 
+func sealSonyBTInput(rep []byte) {
+	sum := crc32.Update(0, crc32.IEEETable, []byte{0xa1})
+	sum = crc32.Update(sum, crc32.IEEETable, rep[:74])
+	binary.LittleEndian.PutUint32(rep[74:78], sum)
+}
+
 func TestDualSenseBTFullAndBasicAndOutputCRC32(t *testing.T) {
 	var rep [78]byte
 	rep[0] = DualSenseBTReportFull
@@ -53,8 +59,17 @@ func TestDualSenseBTFullAndBasicAndOutputCRC32(t *testing.T) {
 	rep[10] = 0x01 | 0x20       // L1 + Options(Start)
 	rep[11] = 0x01 | 0x02 | 0x04 // PS(Home) + Touchpad + Mute(Capture)
 	rep[54] = 0x18              // 80% + charging
+	sealSonyBTInput(rep[:])
 
 	var st State
+	if ParseDualSenseBT(rep[:77], &st) {
+		t.Fatal("truncated DualSense 0x31 report must be rejected")
+	}
+	repBad := rep
+	repBad[74] ^= 0xff
+	if ParseDualSenseBT(repBad[:], &st) {
+		t.Fatal("bad-CRC DualSense 0x31 report must be rejected")
+	}
 	if !ParseDualSenseBT(rep[:], &st) {
 		t.Fatal("ParseDualSenseBT(0x31) failed")
 	}
@@ -89,6 +104,10 @@ func TestDualSenseBTFullAndBasicAndOutputCRC32(t *testing.T) {
 	ds4[8] = 0x02        // R1
 	ds4[9] = 0x01        // PS
 	ds4[32] = 0x06       // 60%, not charging
+	if ParseDualShock4BT(ds4[:77], &st) || ParseDualShock4BT(ds4[:], &st) {
+		t.Fatal("truncated or unsealed DS4 0x11 report must be rejected")
+	}
+	sealSonyBTInput(ds4[:])
 	if !ParseDualShock4BT(ds4[:], &st) || st.Buttons != (ButtonDPadDown|ButtonNorth|ButtonR1|ButtonHome) || st.Battery != 60 || st.Charging {
 		t.Fatalf("unexpected DS4 0x11 state: %+v", st)
 	}
@@ -180,6 +199,7 @@ func TestControllersParseZeroAllocs(t *testing.T) {
 	var dsRep [78]byte
 	dsRep[0] = DualSenseBTReportFull
 	dsRep[2], dsRep[3], dsRep[4], dsRep[5] = 0x80, 0x80, 0x80, 0x80
+	sealSonyBTInput(dsRep[:])
 	var swRep [49]byte
 	swRep[0] = SwitchProReportFull
 	swRep[6], swRep[7], swRep[8] = pack12Pair(2048, 2048)

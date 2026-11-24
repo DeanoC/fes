@@ -322,6 +322,38 @@ func TestHCIAclFlowControlFragmentationAndZeroAllocs(t *testing.T) {
 		t.Fatalf("credits not restored: %d", tr.ACLCredits())
 	}
 
+	// Verify multi-handle Number_Of_Completed_Packets (0x13) reads adjacent {handle,count} pairs
+	// instead of treating the second handle ID (e.g. 0x0042) as the first count.
+	bus.aclOutPipe.noOutLog = true
+	for range 4 {
+		if err := tr.SendACL(0x0041, ACLBoundaryFirstAutoFlush, []byte{1, 2, 3, 4}); err != nil {
+			t.Fatal(err)
+		}
+		if err := tr.Service(nil, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if tr.ACLCredits() != 0 {
+		t.Fatalf("expected 0 credits after 4 ACL writes, got %d", tr.ACLCredits())
+	}
+	multiComp := []byte{
+		EventNumCompletedPackets, 9, 2,
+		0x41, 0x00, 0x01, 0x00,
+		0x42, 0x00, 0x01, 0x00,
+	}
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, multiComp)
+	if err := tr.Service(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if tr.ACLCredits() != 2 {
+		t.Fatalf("expected exactly 2 credits from 2-handle 0x13 event, got %d", tr.ACLCredits())
+	}
+	// Restore credits to max (4) before the steady-state zero-alloc check.
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x02, 0x00})
+	if err := tr.Service(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+
 	// Zero-allocation check on steady-state ACL RX + ACL TX + credit replenishment.
 	bus.aclOutPipe.noOutLog = true
 	inACL := make([]byte, 4+82)
