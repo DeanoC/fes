@@ -77,6 +77,7 @@ func (h *MultiHost) detachAllDevices() {
 	}
 	h.rootConn = false
 	h.rootRetryCount = 0
+	h.rootExhausted = false
 }
 
 func (h *MultiHost) scheduleRootRetry() {
@@ -85,6 +86,7 @@ func (h *MultiHost) scheduleRootRetry() {
 		h.rootRetryAt = h.io.Now().Add(hubEnumRetryDelay)
 	} else {
 		h.rootRetryCount = 0
+		h.rootExhausted = true
 	}
 }
 
@@ -116,26 +118,35 @@ func (h *MultiHost) pollRootHotplug() {
 	if disconnIRQ {
 		h.io.Write32(gint, gintDisconn)
 	}
+	if connChanged && conn {
+		// Fresh physical plug-in clears any prior retry exhaustion.
+		h.rootRetryCount = 0
+		h.rootExhausted = false
+	}
 	portLostEnable := h.rootConn && (!enabled || overcurr)
 	if !conn || disconnIRQ || portLostEnable {
 		h.rootRetryCount = 0
+		h.rootExhausted = false
 		if h.rootConn {
 			h.detachAllDevices()
 		}
 	}
-	if !h.rootConn && conn && !overcurr {
-		h.rootRetryCount = 0
-		h.enumerateRoot()
-		return
-	}
-	if h.rootConn && conn && !overcurr && h.rootRetryCount > 0 && !h.io.Now().Before(h.rootRetryAt) {
-		h.enumerateRoot()
+	if conn && !overcurr && !h.rootExhausted {
+		if !h.rootConn {
+			if h.rootRetryCount == 0 || !h.io.Now().Before(h.rootRetryAt) {
+				h.enumerateRoot()
+			}
+			return
+		}
+		if h.rootRetryCount > 0 && !h.io.Now().Before(h.rootRetryAt) {
+			h.enumerateRoot()
+		}
 	}
 }
 
 func (h *MultiHost) enumerateRoot() {
-	// Reset root port and wait for enable.
-	h.portWrite(1<<8, 0)
+	// Clear any latched connect/enable change bits and assert root port reset.
+	h.portWrite(1<<1|1<<3|1<<8, 0)
 	if err := h.delay(50 * time.Millisecond); err != nil {
 		h.scheduleRootRetry()
 		return
@@ -166,6 +177,7 @@ func (h *MultiHost) enumerateRoot() {
 		return
 	}
 	h.rootRetryCount = 0
+	h.rootExhausted = false
 }
 
 func (h *MultiHost) enumerateDevice(speed usb.Speed, parentHub, parentPort uint8, route splitRoute, depth int) error {
@@ -354,13 +366,21 @@ func (h *MultiHost) pollHubHotplug() {
 					return
 				}
 			} else if n > 0 {
+				// Bit 0 in the hub status-change bitmap reports hub-level local-power
+				// or global overcurrent changes (USB 2.0 §11.12.4).
+				hubFaultActive := false
+				if statusBuf[0]&1 != 0 {
+					hubFaultActive = h.handleHubStatusChange(hub)
+				}
 				// Bit p (1..numPorts) in the status bitmap indicates a change on port p.
-				for port := uint8(1); port <= hub.numPorts; port++ {
-					byteIdx := int(port) / 8
-					bit := uint(port % 8)
-					if byteIdx < n && statusBuf[byteIdx]&(1<<bit) != 0 {
-						hub.retryCount[port] = 0
-						h.handleHubPortChange(hub, port, hub.depth+1)
+				if !hubFaultActive && h.devices[hub.addr] != nil {
+					for port := uint8(1); port <= hub.numPorts; port++ {
+						byteIdx := int(port) / 8
+						bit := uint(port % 8)
+						if byteIdx < n && statusBuf[byteIdx]&(1<<bit) != 0 {
+							hub.retryCount[port] = 0
+							h.handleHubPortChange(hub, port, hub.depth+1)
+						}
 					}
 				}
 			}
@@ -372,6 +392,45 @@ func (h *MultiHost) pollHubHotplug() {
 			}
 		}
 	}
+}
+
+// handleHubStatusChange processes hub-level status changes (bitmap bit 0),
+// clearing C_HUB_LOCAL_POWER / C_HUB_OVER_CURRENT and reconciling children.
+// Returns true if a hub-level power loss or global overcurrent is active.
+func (h *MultiHost) handleHubStatusChange(hub *multiHub) bool {
+	var raw [4]byte
+	if n, err := h.ControlTransfer(hub.addr, 0xa0, 0, 0, 0, raw[:]); err != nil || n != 4 {
+		return false
+	}
+	status := binary.LittleEndian.Uint16(raw[0:2])
+	change := binary.LittleEndian.Uint16(raw[2:4])
+	if change&(1<<0) != 0 {
+		_, _ = h.ControlTransfer(hub.addr, 0x20, 1, 0, 0, nil) // C_HUB_LOCAL_POWER
+	}
+	if change&(1<<1) != 0 {
+		_, _ = h.ControlTransfer(hub.addr, 0x20, 1, 1, 0, nil) // C_HUB_OVER_CURRENT
+	}
+	if status&(1<<0|1<<1) != 0 {
+		for port := uint8(1); port <= hub.numPorts; port++ {
+			hub.retryCount[port] = 0
+		}
+		for a := uint8(1); a <= maxMultiDevices; a++ {
+			if d := h.devices[a]; d != nil && d.info.ParentHub == hub.addr {
+				h.detachDevice(a)
+			}
+		}
+		return true
+	}
+	if change&(1<<0|1<<1) != 0 {
+		for port := uint8(1); port <= hub.numPorts; port++ {
+			_, _ = h.ControlTransfer(hub.addr, 0x23, 3, 8, uint16(port), nil) // PORT_POWER
+		}
+		for port := uint8(1); port <= hub.numPorts; port++ {
+			hub.retryCount[port] = 0
+			h.handleHubPortChange(hub, port, hub.depth+1)
+		}
+	}
+	return false
 }
 
 func (h *MultiHost) scheduleHubPortRetry(hub *multiHub, port uint8) {

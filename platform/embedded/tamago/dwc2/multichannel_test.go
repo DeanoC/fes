@@ -23,6 +23,7 @@ type multiSimDevice struct {
 	hubDesc      []byte
 	isHub        bool
 	multiTTSet   bool
+	hubStatus    uint32
 	ports        [4]uint32
 	portChildren [4]*multiSimDevice
 
@@ -147,8 +148,10 @@ type multiChannelSim struct {
 	txEP     [16]uint8
 	txSplit  [16]bool
 	noOutLog bool
-	wedgeCh  int // if >= 0 (when wedgeSet), channel wedgeCh refuses to clear CHENA on halt
-	wedgeSet bool
+	wedgeCh        int // if >= 0 (when wedgeSet), channel wedgeCh refuses to clear CHENA on halt
+	wedgeSet       bool
+	failRootEnable bool
+	rootResets     int
 }
 
 func newMultiChannelSim(fifoWords uint32, channels int) *multiChannelSim {
@@ -301,9 +304,12 @@ func (s *multiChannelSim) Write32(reg, val uint32) {
 		cur &^= val & uint32(1<<1|1<<3|1<<5)
 		cur = (cur &^ uint32(1<<12|1<<8)) | (val & uint32(1<<12|1<<8))
 		if val&(1<<8) == 0 && s.regs[hprt]&(1<<8) != 0 && s.rootDev != nil {
-			cur |= 1<<2 | 1 | uint32(s.rootDev.speed)<<17
-			s.resetDev = s.rootDev
-			s.rootDev.addr = 0
+			s.rootResets++
+			if !s.failRootEnable {
+				cur |= 1<<2 | 1 | uint32(s.rootDev.speed)<<17
+				s.resetDev = s.rootDev
+				s.rootDev.addr = 0
+			}
 		}
 		s.regs[hprt] = cur
 		return
@@ -472,8 +478,11 @@ func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 		return
 	}
 	if dev.isHub && ep == 1 {
-		// Real USB 2.0 hub status-change endpoint reports live C_PORT_* bits.
+		// Real USB 2.0 hub status-change endpoint reports bit 0 (C_HUB_*) and live C_PORT_* bits.
 		var bitmap byte
+		if dev.hubStatus&(0x3<<16) != 0 {
+			bitmap |= 1
+		}
 		for p := 0; p < len(dev.ports); p++ {
 			if dev.ports[p]&(0x1f<<16) != 0 {
 				bitmap |= 1 << uint(p+1)
@@ -537,6 +546,14 @@ func (s *multiChannelSim) finishTX(ch int) {
 				cs.resp = dev.configDesc[:min(length, len(dev.configDesc))]
 			case reqType == 0xa0 && req == 6 && val>>8 == 0x29: // GET_DESCRIPTOR Hub
 				cs.resp = dev.hubDesc[:min(length, len(dev.hubDesc))]
+			case reqType == 0xa0 && req == 0: // GET_HUB_STATUS
+				var b [4]byte
+				binary.LittleEndian.PutUint32(b[:], dev.hubStatus)
+				cs.resp = b[:]
+			case reqType == 0x20 && req == 1: // CLEAR_HUB_FEATURE
+				if val <= 1 {
+					dev.hubStatus &^= 1 << (16 + val)
+				}
 			case reqType == 0xa3 && req == 0: // GET_PORT_STATUS
 				var b [4]byte
 				if idx >= 1 && int(idx) <= len(dev.ports) {
@@ -1791,5 +1808,143 @@ func TestMultiHostRootPortEnableLossRecovery(t *testing.T) {
 	}
 	if !sawDetach || !sawReattach {
 		t.Fatalf("expected detach+reattach after PRTENA loss: sawDetach=%v sawReattach=%v", sawDetach, sawReattach)
+	}
+}
+
+func TestMultiHostPollIntoPreservesPacketWhenBufferTooSmall(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected attach event, got %+v ok=%v", ev, ok)
+	}
+	iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+	ep, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+	pipe, err := host.OpenPipe(ev.Device.Address, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+
+	pkt := []byte{0x01, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70}
+	sim.mu.Lock()
+	pad.inQueues[ep.Number()] = append(pad.inQueues[ep.Number()], pkt)
+	sim.mu.Unlock()
+	for range 3 {
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service: %v", err)
+		}
+	}
+
+	var small [4]byte
+	if n, err := pipe.PollInto(small[:]); err == nil || n != 0 {
+		t.Fatalf("expected buffer-too-small error and n=0, got n=%d err=%v", n, err)
+	}
+	var full [64]byte
+	n, err := pipe.PollInto(full[:])
+	if err != nil {
+		t.Fatalf("PollInto retry with full buffer: %v", err)
+	}
+	if n != len(pkt) || !bytes.Equal(full[:n], pkt) {
+		t.Fatalf("packet not preserved after short-buffer error: got %x want %x", full[:n], pkt)
+	}
+}
+
+func TestMultiHostRootResetRespectsBackoffAndRetryBound(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.failRootEnable = true
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	// OpenMulti's initial enumerateRoot attempted 1 reset and scheduled retry #1.
+	if sim.rootResets != 1 {
+		t.Fatalf("expected 1 initial reset, got %d", sim.rootResets)
+	}
+	// Immediate Service() calls before hubEnumRetryDelay must NOT re-reset the port.
+	for range 5 {
+		sim.advance(5 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service (during backoff): %v", err)
+		}
+	}
+	if sim.rootResets != 1 {
+		t.Fatalf("root port was reset during backoff window: resets=%d want 1", sim.rootResets)
+	}
+
+	// Advancing past backoff retries up to maxHubEnumRetries (3 retries = 4 total attempts),
+	// then marks rootExhausted and stops resetting.
+	for range 8 {
+		sim.advance(150 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service (retry): %v", err)
+		}
+	}
+	wantTotal := 1 + maxHubEnumRetries
+	if sim.rootResets != wantTotal {
+		t.Fatalf("expected bounded %d total reset attempts, got %d", wantTotal, sim.rootResets)
+	}
+	if !host.rootExhausted {
+		t.Fatal("expected rootExhausted=true after retry bound exhausted")
+	}
+}
+
+func TestMultiHostHubStatusBitZeroClearsAndDetaches(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	pad := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	var padAddr uint8
+	for {
+		ev, ok := host.NextEvent()
+		if !ok {
+			break
+		}
+		if ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			padAddr = ev.Device.Address
+		}
+	}
+	if padAddr == 0 {
+		t.Fatal("expected gamepad attached behind hub")
+	}
+
+	// Assert hub-level global overcurrent (HUB_OVER_CURRENT=bit 1, C_HUB_OVER_CURRENT=bit 17).
+	sim.mu.Lock()
+	hub.hubStatus = (1 << 1) | (1 << 17)
+	sim.mu.Unlock()
+
+	var detached bool
+	for range 25 {
+		sim.advance(25 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service (hub overcurrent): %v", err)
+		}
+		if ev, ok := host.NextEvent(); ok && ev.Kind == usb.DeviceDetached && ev.Device.Address == padAddr {
+			detached = true
+			break
+		}
+	}
+	if !detached {
+		t.Fatal("downstream gamepad was not detached on hub-level overcurrent (bitmap bit 0)")
+	}
+	sim.mu.Lock()
+	st := hub.hubStatus
+	sim.mu.Unlock()
+	if st&(1<<17) != 0 {
+		t.Fatalf("C_HUB_OVER_CURRENT was not cleared: hubStatus=%#x", st)
 	}
 }
