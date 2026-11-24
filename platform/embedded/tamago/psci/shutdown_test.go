@@ -136,13 +136,14 @@ func TestShutdownRequireCleanTeardownRunsAllStepsBeforeAborting(t *testing.T) {
 func TestShutdownTimeoutPanicRecoveryAndBestEffortPSCI(t *testing.T) {
 	var events []string
 	ctrl := &fakePowerController{events: &events, offErr: ErrUnsupported}
+	hangCanceled := make(chan struct{})
 
 	err := Shutdown(context.Background(), ctrl, ActionPowerOff, ShutdownConfig{
 		StepTimeout: 20 * time.Millisecond,
 		Steps: []ShutdownStep{
 			{Name: "hang", Fn: func(ctx context.Context) error {
 				<-ctx.Done()
-				events = append(events, "hang")
+				close(hangCanceled)
 				return ctx.Err()
 			}},
 			{Name: "panic-step", Fn: func(context.Context) error {
@@ -158,7 +159,8 @@ func TestShutdownTimeoutPanicRecoveryAndBestEffortPSCI(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, ErrUnsupported) {
 		t.Fatalf("err=%v want DeadlineExceeded+ErrUnsupported", err)
 	}
-	want := []string{"hang", "panic-step", "quiesce-sd", "psci:poweroff"}
+	<-hangCanceled
+	want := []string{"panic-step", "quiesce-sd", "psci:poweroff"}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events=%v want %v", events, want)
 	}
@@ -173,5 +175,56 @@ func TestShutdownTimeoutPanicRecoveryAndBestEffortPSCI(t *testing.T) {
 	})
 	if !errors.Is(err, ErrUnsupported) || !reflect.DeepEqual(events, []string{"flush"}) {
 		t.Fatalf("realClient err=%v events=%v", err, events)
+	}
+}
+
+func TestShutdownEnforcesTimeoutOnNonCooperativeHook(t *testing.T) {
+	unblock := make(chan struct{})
+	defer close(unblock)
+
+	var events []string
+	ctrl := &fakePowerController{events: &events}
+	start := time.Now()
+	err := Shutdown(context.Background(), ctrl, ActionReset, ShutdownConfig{
+		StepTimeout: 25 * time.Millisecond,
+		Steps: []ShutdownStep{
+			{Name: "wedged-driver", Fn: func(context.Context) error {
+				<-unblock // ignores ctx.Done() intentionally
+				return nil
+			}},
+			{Name: "quiesce-sd", Fn: func(context.Context) error {
+				events = append(events, "quiesce-sd")
+				return nil
+			}},
+		},
+	})
+	elapsed := time.Since(start)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err=%v want context.DeadlineExceeded", err)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("non-cooperative hook blocked Shutdown for %v", elapsed)
+	}
+	want := []string{"quiesce-sd", "psci:reset"}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("events=%v want %v", events, want)
+	}
+
+	strictCtrl := &fakePowerController{}
+	strictErr := Shutdown(context.Background(), strictCtrl, ActionReset, ShutdownConfig{
+		StepTimeout:          25 * time.Millisecond,
+		RequireCleanTeardown: true,
+		Steps: []ShutdownStep{
+			{Name: "wedged-driver", Fn: func(context.Context) error {
+				<-unblock
+				return nil
+			}},
+		},
+	})
+	if !errors.Is(strictErr, ErrTeardownFailed) || !errors.Is(strictErr, context.DeadlineExceeded) {
+		t.Fatalf("strictErr=%v want ErrTeardownFailed+DeadlineExceeded", strictErr)
+	}
+	if strictCtrl.resetCalls != 0 {
+		t.Fatalf("resetCalls=%d want 0 on strict non-cooperative timeout", strictCtrl.resetCalls)
 	}
 }

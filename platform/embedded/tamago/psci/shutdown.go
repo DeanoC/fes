@@ -119,13 +119,24 @@ func Shutdown(ctx context.Context, ctrl PowerController, action PowerAction, cfg
 	return errors.Join(stepErrs...)
 }
 
-func runShutdownStep(parent context.Context, timeout time.Duration, step ShutdownStep) (err error) {
+func runShutdownStep(parent context.Context, timeout time.Duration, step ShutdownStep) error {
 	stepCtx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("panic: %v", r)
-		}
+
+	done := make(chan error, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				done <- fmt.Errorf("panic: %v", r)
+			}
+		}()
+		done <- step.Fn(stepCtx)
 	}()
-	return step.Fn(stepCtx)
+
+	select {
+	case err := <-done:
+		return err
+	case <-stepCtx.Done():
+		return stepCtx.Err()
+	}
 }
