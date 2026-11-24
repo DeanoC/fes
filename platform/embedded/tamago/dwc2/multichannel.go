@@ -126,18 +126,18 @@ const (
 )
 
 type multiHub struct {
-	addr          uint8
-	speed         usb.Speed
-	route         splitRoute
-	depth         int
-	numPorts      uint8
-	singleTT      bool
-	statusEP      usb.EndpointDescriptor
-	hasStatusEP   bool
-	statusPipe    *multiPipe
-	statusRetryAt time.Time
-	retryCount    [maxHubPorts + 1]uint8
-	retryAt       [maxHubPorts + 1]time.Time
+	addr             uint8
+	speed            usb.Speed
+	route            splitRoute
+	depth            int
+	numPorts         uint8
+	singleTT         bool
+	statusEP         usb.EndpointDescriptor
+	statusNeedsReset bool
+	statusPipe       *multiPipe
+	statusRetryAt    time.Time
+	retryCount       [maxHubPorts + 1]uint8
+	retryAt          [maxHubPorts + 1]time.Time
 }
 
 // MultiHost is a 16-channel PIO-only DWC2 USB 2.0 host supporting concurrent
