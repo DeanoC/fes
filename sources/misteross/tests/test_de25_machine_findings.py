@@ -97,17 +97,41 @@ class MachineFindingsTests(unittest.TestCase):
                   'Waived']
         rows = [[S + name, '(1, 1)', '9000', '(2, 2)', '20', '200000', '']
                 for name in ('cpu_md_busy', 'cpu_wb_fault[4]', '_36426_[140]~DUPLICATE', 'reset',
-                             'cpu_biu_reset~_Duplicate_2')]
+                             'cpu_biu_reset~_Duplicate_2', 'cpu_biu_reset~_Duplicate', 'reset~DUPLICATE',
+                             'machine_at_decoder_state[1]', 'machine_at_decoder_state[0]~DUPLICATE')]
         [entry] = mf.review(report({'TMC-20602': (header, rows)}), '', self.bases('cpu-control-tension'))
-        self.assertEqual(entry['groups'][0]['rows'], 5)
-        # A fitter copy is admitted only for a name the basis already names.
-        for name in ('machine_at_pic_mask[3]~_Duplicate_2', 'cpu_biu_reset~_Duplicate_', 'cpu_biu_reset_Duplicate_2'):
+        self.assertEqual(entry['groups'][0]['rows'], 9)
+        # A fitter copy is admitted only for a name the basis already names. The i486DX slice-1
+        # fit's other tension rows (machine_at_decoder_phase, _cycle_port, audio_dsp_write) are not.
+        for name in ('machine_at_pic_mask[3]~_Duplicate_2', 'cpu_biu_reset~_Duplicate_', 'cpu_biu_reset_Duplicate_2',
+                     'machine_at_decoder_phase[2]~DUPLICATE', 'machine_at_decoder_cycle_port[3]',
+                     'audio_dsp_write~DUPLICATE', 'audio_dsp_write', 'machine_at_decoder_state_x[1]',
+                     'cpu_md_busy~Duplicate', 'reset~DUPLICATE~DUPLICATE'):
             copy = rows + [[S + name, '(1, 1)', '9000', '(2, 2)', '20', '200000', '']]
             with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
                 mf.review(report({'TMC-20602': (header, copy)}), '', self.bases('cpu-control-tension'))
         outside = rows + [['fes_video_inst|output_release[0]', '(1, 1)', '9000', '(2, 2)', '20', '200000', '']]
         with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
             mf.review(report({'TMC-20602': (header, outside)}), '', self.bases('cpu-control-tension'))
+
+    def test_the_lint_bases_admit_their_drivers_and_fitter_copies_of_them_only(self):
+        header = ['Driver', 'Asynchronous Reset Signal', 'Synchronous Reset Signal', 'Clock Enable Signal',
+                  'Number of Asynchronous Reset Signals', 'Number of Synchronous Reset Signals',
+                  'Number of Clock Enable Signals', 'Waived']
+
+        def row(driver):
+            return [S + driver, '--', S + 'cpu_int_take|SCLR', S + 'cpu_q16|ENA', '0', '1482', '1', '']
+
+        bases = self.bases('biu-reset', 'machine-reset')
+        # slat23b seed 2's three rows, then the other copy spellings.
+        drivers = ['cpu_biu_reset~_Duplicate_1', 'cpu_biu_reset~_Duplicate', 'reset', 'cpu_biu_reset',
+                   'cpu_biu_reset~DUPLICATE', 'reset~DUPLICATE~_Duplicate_3']
+        [entry] = mf.review(report({'LNT-30010': (header, [row(d) for d in drivers])}), '', bases)
+        self.assertEqual([g['rows'] for g in entry['groups']], [4, 2])
+        for driver in ('machine_at_decoder_state[1]~DUPLICATE', 'cpu_biu_reset~_Duplicate_', 'cpu_md_busy~DUPLICATE',
+                       'reset_n~DUPLICATE', 'cpu_biu_reset_q', 'reset~_Duplicate~DUPLICATE'):
+            with self.subTest(driver), self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
+                mf.review(report({'LNT-30010': (header, [row(driver)])}), '', bases)
 
     def test_the_toggle_basis_needs_its_direction_and_the_board_assignments(self):
         rows = [cdc('machine_frame_sequence[0]', 'machine_presenter_sequence_sync[0]'),

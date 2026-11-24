@@ -64,11 +64,6 @@ it has a basis too.
   - base23b and dma223b seeds 2–4: pass, at 0;
   - fifo23c seeds 2–4, slat23b seeds 3–4: pass, at 9;
   - DX seed 1 and slat23b seed 2: CDC rules pass, at 9.
-- Both bases also stop at a later rule, outside this change's scope:
-  - DX seed 1: TMC-20602
-    `system|machine_at_decoder_state[1]~DUPLICATE` (the tension
-    advisory names `cpu_*`, `reset` and `_N_` registers only);
-  - slat23b seed 2: LNT-30010 `cpu_biu_reset~_Duplicate`, with no number.
 - `tests/test_de25_machine_findings.py`, against the full table:
   - 0 rows, and DX's nine rows verbatim plus a `~DUPLICATE` and the five
     fault bits, are admitted;
@@ -86,6 +81,41 @@ it has a basis too.
 - `fes_de25_hps_window_control.v` is pinned in `SOURCES`, at
   `8c313031…bcbe`. It and `pc386-clocks.sdc` are byte-identical in the DX
   fit's tree.
+
+## Fitter copies and the decoder state (second commit)
+
+Deano answered two questions on 24 Nov 2026, through the coordinating
+session:
+- "Accept unpinned": the window bases above.
+- "Widen, with tests": admit fitter ~DUPLICATE/~_Duplicate copies of
+  names the bases already accept, plus machine_at_decoder_state.
+
+`signoff_bases.py` now has one copy suffix, `COPY`: `~DUPLICATE`, then
+`~_Duplicate` with or without a number. The TMC-20602 tension advisory
+and both LNT-30010 bases use it. The tension advisory also names
+`machine_at_decoder_state`, pc386_io.sv's two-bit I/O cycle state.
+`machine_findings.lint` admits only `~_Duplicate_N`, and it is in every
+DE25 machine's closure, so the pc386 table builds its own LNT-30010 bases.
+The engine's `lint` now has no caller; deleting it would move every DE25
+machine's BUILD_ID, so that is left for a change that rebuilds them.
+
+The full table against every report above, all rules:
+
+| Fit | Result |
+|---|---|
+| seal f93f215e | passes |
+| base23b, dma223b, fifo23c, slat23b seeds 2–4 (slat23b seed 2's `cpu_biu_reset~_Duplicate` included) | pass |
+| audio-area, vga-area, 486SX seeds 2–4 | pass |
+| i486DX seed 1 | **stops**: 23 TMC-20602 rows still match no basis |
+
+The 23 rows are:
+- `audio_dsp_write`;
+- `machine_at_decoder_phase[0–5]`, `[2]` as a `~DUPLICATE`;
+- `machine_at_decoder_cycle_port[0–15]`.
+
+They are not fitter copies of an accepted name, and they are not
+`machine_at_decoder_state`, so this change does not admit them. Tests
+assert that they match 0 bases.
 
 No reseal: this file is in pc386's closure only, and Deano's in-progress
 exemption covers it. The DX slice merges this branch and refits.
