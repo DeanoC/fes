@@ -33,13 +33,18 @@ const (
 )
 
 type l2capChannel struct {
-	inUse       bool
-	psm         uint16
-	localCID    uint16
-	remoteCID   uint16
-	localCfgOK  bool
-	remoteCfgOK bool
-	open        bool
+	inUse            bool
+	psm              uint16
+	localCID         uint16
+	remoteCID        uint16
+	pendingConnRsp   bool
+	pendingConnRspID byte
+	pendingCfg       bool
+	pendingCfgRsp    bool
+	pendingCfgRspID  byte
+	localCfgOK       bool
+	remoteCfgOK      bool
+	open             bool
 }
 
 type aclConn struct {
@@ -236,15 +241,42 @@ func (m *Manager) SendChannel(handle, psm uint16, payload []byte) error {
 	return m.sendL2CAPPDU(handle, ch.remoteCID, payload)
 }
 
-func (m *Manager) sendConfigRequest(conn *aclConn, ch *l2capChannel) {
-	// Request MTU = 672 bytes (option type 0x01, len 0x02, value 672 LE).
-	var body [8]byte
-	binary.LittleEndian.PutUint16(body[0:2], ch.remoteCID)
-	binary.LittleEndian.PutUint16(body[2:4], 0x0000) // flags
-	body[4] = 0x01                                   // MTU option
-	body[5] = 0x02
-	binary.LittleEndian.PutUint16(body[6:8], defaultMTU)
-	_ = m.sendSig(conn.handle, sigConfigReq, conn.allocSigID(), body[:])
+func (m *Manager) pumpChannelSignaling(conn *aclConn, ch *l2capChannel) {
+	if ch.pendingConnRsp {
+		var rsp [8]byte
+		binary.LittleEndian.PutUint16(rsp[0:2], ch.localCID)
+		binary.LittleEndian.PutUint16(rsp[2:4], ch.remoteCID)
+		binary.LittleEndian.PutUint16(rsp[4:6], 0x0000) // Connection successful
+		if err := m.sendSig(conn.handle, sigConnRsp, ch.pendingConnRspID, rsp[:]); err != nil {
+			return
+		}
+		ch.pendingConnRsp = false
+	}
+	if ch.pendingCfg {
+		// Request MTU = 672 bytes (option type 0x01, len 0x02, value 672 LE).
+		var body [8]byte
+		binary.LittleEndian.PutUint16(body[0:2], ch.remoteCID)
+		binary.LittleEndian.PutUint16(body[2:4], 0x0000) // flags
+		body[4] = 0x01                                   // MTU option
+		body[5] = 0x02
+		binary.LittleEndian.PutUint16(body[6:8], defaultMTU)
+		if err := m.sendSig(conn.handle, sigConfigReq, conn.allocSigID(), body[:]); err != nil {
+			return
+		}
+		ch.pendingCfg = false
+	}
+	if ch.pendingCfgRsp {
+		var rsp [6]byte
+		binary.LittleEndian.PutUint16(rsp[0:2], ch.remoteCID)
+		binary.LittleEndian.PutUint16(rsp[2:4], 0x0000) // flags
+		binary.LittleEndian.PutUint16(rsp[4:6], 0x0000) // Success
+		if err := m.sendSig(conn.handle, sigConfigRsp, ch.pendingCfgRspID, rsp[:]); err != nil {
+			return
+		}
+		ch.pendingCfgRsp = false
+		ch.remoteCfgOK = true
+		m.checkChannelOpen(conn, ch)
+	}
 }
 
 func (m *Manager) checkChannelOpen(conn *aclConn, ch *l2capChannel) {
@@ -296,10 +328,10 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 				continue
 			}
 			ch.remoteCID = srcCID
-			binary.LittleEndian.PutUint16(rsp[0:2], ch.localCID)
-			binary.LittleEndian.PutUint16(rsp[4:6], 0x0000) // Connection successful
-			_ = m.sendSig(conn.handle, sigConnRsp, id, rsp[:])
-			m.sendConfigRequest(conn, ch)
+			ch.pendingConnRsp = true
+			ch.pendingConnRspID = id
+			ch.pendingCfg = true
+			m.pumpChannelSignaling(conn, ch)
 
 		case sigConnRsp:
 			if len(body) < 8 {
@@ -314,7 +346,8 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 			}
 			if result == 0x0000 { // Success
 				ch.remoteCID = dstCID
-				m.sendConfigRequest(conn, ch)
+				ch.pendingCfg = true
+				m.pumpChannelSignaling(conn, ch)
 			} else if result != 0x0001 { // 0x0001 = Pending; anything else = failure
 				*ch = l2capChannel{}
 			}
@@ -328,13 +361,9 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 			if ch == nil {
 				continue
 			}
-			var rsp [6]byte
-			binary.LittleEndian.PutUint16(rsp[0:2], ch.remoteCID)
-			binary.LittleEndian.PutUint16(rsp[2:4], 0x0000) // flags
-			binary.LittleEndian.PutUint16(rsp[4:6], 0x0000) // Success
-			_ = m.sendSig(conn.handle, sigConfigRsp, id, rsp[:])
-			ch.remoteCfgOK = true
-			m.checkChannelOpen(conn, ch)
+			ch.pendingCfgRsp = true
+			ch.pendingCfgRspID = id
+			m.pumpChannelSignaling(conn, ch)
 
 		case sigConfigRsp:
 			if len(body) < 6 {

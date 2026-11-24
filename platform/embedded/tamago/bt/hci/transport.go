@@ -97,7 +97,7 @@ func Open(bus usb.BusHost, dev usb.BusDevice) (*Transport, error) {
 		_ = aclInPipe.Close()
 		return nil, err
 	}
-	return &Transport{
+	tr := &Transport{
 		bus:        bus,
 		addr:       dev.Address,
 		ifaceNum:   iface.Number,
@@ -105,10 +105,21 @@ func Open(bus usb.BusHost, dev usb.BusDevice) (*Transport, error) {
 		evPipe:     evPipe,
 		aclInPipe:  aclInPipe,
 		aclOutPipe: aclOutPipe,
-		aclMaxLen:  defaultACLMaxLen,
 		maxCredits: defaultACLCredit,
 		credits:    defaultACLCredit,
-	}, nil
+	}
+	tr.aclMaxLen = min(defaultACLMaxLen, tr.maxACLPayloadLimit())
+	return tr, nil
+}
+
+func (t *Transport) maxACLPayloadLimit() int {
+	limit := maxACLUSBPacket - 4
+	if t.aclOutPipe != nil {
+		if mps := int(t.aclOutPipe.Endpoint().MaxPacketSize); mps > 4 && mps-4 < limit {
+			limit = mps - 4
+		}
+	}
+	return limit
 }
 
 // Spec returns the matched dongle metadata and quirks.
@@ -261,15 +272,20 @@ func (t *Transport) Initialize(fw FirmwareLoader) error {
 		}
 	}
 
-	// Query ACL MTU and controller packet credit count.
+	// Query ACL MTU and controller packet credit count, capped to bulk OUT MPS.
+	maxPayload := t.maxACLPayloadLimit()
+	if t.aclMaxLen > maxPayload {
+		t.aclMaxLen = maxPayload
+	}
 	var resp [16]byte
 	if n, err := t.SendCommand(OpcodeReadBufferSize, nil, resp[:]); err == nil && n >= 8 && resp[0] == 0 {
 		aclLen := int(binary.LittleEndian.Uint16(resp[1:3]))
 		aclNum := int(binary.LittleEndian.Uint16(resp[4:6]))
-		if aclLen >= 64 && aclLen <= maxACLUSBPacket-4 {
+		if aclLen >= 16 {
+			if aclLen > maxPayload {
+				aclLen = maxPayload
+			}
 			t.aclMaxLen = aclLen
-		} else if aclLen > maxACLUSBPacket-4 {
-			t.aclMaxLen = maxACLUSBPacket - 4
 		}
 		if aclNum > 0 {
 			t.maxCredits = aclNum
@@ -319,9 +335,13 @@ func (t *Transport) SendACL(handle uint16, pb uint8, payload []byte) error {
 	if len(payload) == 0 {
 		return nil
 	}
+	maxPayload := t.maxACLPayloadLimit()
 	maxChunk := t.aclMaxLen
-	if maxChunk <= 0 || maxChunk > maxACLUSBPacket-4 {
+	if maxChunk <= 0 {
 		maxChunk = defaultACLMaxLen
+	}
+	if maxChunk > maxPayload {
+		maxChunk = maxPayload
 	}
 	needed := (len(payload) + maxChunk - 1) / maxChunk
 	if t.txCount+needed > maxACLTxQueue {

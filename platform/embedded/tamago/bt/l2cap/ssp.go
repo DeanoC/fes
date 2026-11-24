@@ -101,9 +101,18 @@ func (m *Manager) Service() error {
 	}
 	for i := range m.conns {
 		conn := &m.conns[i]
-		if conn.active && conn.pendingOpenPSM != 0 {
+		if !conn.active {
+			continue
+		}
+		if conn.pendingOpenPSM != 0 {
 			if err := m.OpenChannel(conn.handle, conn.pendingOpenPSM); err == nil {
 				conn.pendingOpenPSM = 0
+			}
+		}
+		for j := range conn.chans {
+			ch := &conn.chans[j]
+			if ch.inUse && (ch.pendingConnRsp || ch.pendingCfg || ch.pendingCfgRsp) {
+				m.pumpChannelSignaling(conn, ch)
 			}
 		}
 	}

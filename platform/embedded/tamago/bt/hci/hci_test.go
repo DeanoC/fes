@@ -375,3 +375,47 @@ func TestHCIAclFlowControlFragmentationAndZeroAllocs(t *testing.T) {
 		t.Fatalf("HCI Service ACL RX allocated %.2f allocs/run (rxCount=%d), want 0", allocs, rxCount)
 	}
 }
+
+func TestSendACLCapsFragmentsToBulkOutMPS(t *testing.T) {
+	bus := newMockBTBus(0x0a12, 0x0001, 0)
+	bus.rtlVersion = 0x22bb
+	// Simulate a Full-Speed / small-MPS bulk OUT endpoint (64-byte MPS) while
+	// Read_Buffer_Size returns 256 bytes.
+	bus.dev.Config.Interfaces[0].Endpoints[2].MaxPacketSize = 64
+	tr, err := Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := make([]byte, 83)
+	for i := range payload {
+		payload[i] = byte(i + 1)
+	}
+	if err := tr.SendACL(0x0042, ACLBoundaryFirstAutoFlush, payload); err != nil {
+		t.Fatalf("SendACL: %v", err)
+	}
+	for range 3 {
+		if err := tr.Service(nil, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(bus.aclOutPipe.outLog) != 2 {
+		t.Fatalf("expected 2 MPS-bounded ACL fragments, got %d", len(bus.aclOutPipe.outLog))
+	}
+	f0, f1 := bus.aclOutPipe.outLog[0], bus.aclOutPipe.outLog[1]
+	if len(f0) != 64 || len(f1) != 27 {
+		t.Fatalf("unexpected fragment USB lengths %d, %d (want 64, 27)", len(f0), len(f1))
+	}
+	hdr0 := binary.LittleEndian.Uint16(f0[0:2])
+	hdr1 := binary.LittleEndian.Uint16(f1[0:2])
+	if hdr0 != (0x0042|uint16(ACLBoundaryFirstAutoFlush)<<12) || hdr1 != (0x0042|uint16(ACLBoundaryContinuing)<<12) {
+		t.Fatalf("unexpected fragment PB headers %#04x %#04x", hdr0, hdr1)
+	}
+	if !bytes.Equal(f0[4:], payload[:60]) || !bytes.Equal(f1[4:], payload[60:]) {
+		t.Fatal("MPS-capped ACL fragment payload mismatch")
+	}
+}

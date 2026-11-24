@@ -624,3 +624,97 @@ func TestOpenChannelRollsBackAndRetriesOnACLQueueFull(t *testing.T) {
 		t.Fatalf("expected retried L2CAP sigConnReq for PSMHIDControl, outLog=%x", bus.aclOutPipe.outLog)
 	}
 }
+
+func TestConfigRequestRetriesAfterACLQueueFull(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return time.Unix(600, 0) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	peer, _ := ParseBDAddr("55:66:77:88:99:AA")
+	connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x46, 0x00}, peer[:]...)
+	connOK = append(connOK, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	var opened []uint16
+	mgr.OnChannelOpen = func(_ uint16, _ BDAddr, _ string, _ controllers.Kind, psm uint16) {
+		opened = append(opened, psm)
+	}
+
+	// Stall ACL OUT and fill all 16 queued ring entries (plus 1 in-flight) before sigConnRsp arrives.
+	bus.aclOutPipe.writeStalled = true
+	for range 17 {
+		if err := tr.SendACL(0x0041, hci.ACLBoundaryFirstAutoFlush, []byte{0x12, 0x34}); err != nil {
+			t.Fatalf("prefill SendACL failed early: %v", err)
+		}
+	}
+	bus.aclOutPipe.outLog = nil
+
+	// Incoming sigConnRsp succeeds, triggers sigConfigReq -> drops on TX queue full -> must record pendingCfg.
+	sigConnRspCtrl := []byte{sigConnRsp, 1, 8, 0, 0x50, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeACLPacket(0x0046, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, sigConnRspCtrl),
+	)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	conn := mgr.findConnByHandle(0x0046)
+	ch := conn.findByPSM(PSMHIDControl)
+	if ch == nil || !ch.pendingCfg {
+		t.Fatalf("expected pendingCfg=true after dropped sigConfigReq, ch=%+v", ch)
+	}
+
+	// Unstall ACL OUT, replenish credits, and pump Service() -> must retry sigConfigReq.
+	bus.aclOutPipe.writeStalled = false
+	for range 24 {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x08, 0x00})
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if ch.pendingCfg {
+		t.Fatal("expected pendingCfg to clear after sigConfigReq retry")
+	}
+	var sawCfgReq bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		// 4B ACL hdr + 4B L2CAP hdr + 12B sigConfigReq
+		if len(pkt) == 20 &&
+			(binary.LittleEndian.Uint16(pkt[0:2])&0x0fff) == 0x0046 &&
+			binary.LittleEndian.Uint16(pkt[6:8]) == CIDSignaling &&
+			pkt[8] == sigConfigReq &&
+			binary.LittleEndian.Uint16(pkt[12:14]) == 0x0050 {
+			sawCfgReq = true
+		}
+	}
+	if !sawCfgReq {
+		t.Fatalf("expected retried sigConfigReq for remoteCID=0x0050, outLog=%x", bus.aclOutPipe.outLog)
+	}
+
+	// Finish handshake -> channel opens cleanly.
+	sigCfgReqCtrl := []byte{sigConfigReq, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}
+	sigCfgRspCtrl := []byte{sigConfigRsp, 2, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeACLPacket(0x0046, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, sigCfgReqCtrl),
+		makeACLPacket(0x0046, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, sigCfgRspCtrl),
+	)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if len(opened) != 1 || opened[0] != PSMHIDControl || !ch.open {
+		t.Fatalf("expected PSMHIDControl to open after retry, opened=%x ch=%+v", opened, ch)
+	}
+}
