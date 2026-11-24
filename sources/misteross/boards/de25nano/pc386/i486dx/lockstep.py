@@ -50,6 +50,12 @@ def main(argv):
     # source that changed while the run went on fails the report.
     report = level4.OUTPUT / 'report.json'
     report.unlink(missing_ok=True)
+    # Level 4's own runner and suite inputs as well: its cases, its oracle
+    # build and the expected-stops lists it checks against.
+    with_level3 = level3.tested_sources
+    level3.tested_sources = lambda: sorted({
+        *with_level3(), Path(level4.__file__).resolve(), ROOT / 'scripts/fes_i486_cases.py',
+        ROOT / 'scripts/fes_i486_oracle.py', *level3.SIM.glob('i486-expected-stops*.txt')})
     before = level3.source_record()
     status = level4.main()
     if report.exists():
