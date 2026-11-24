@@ -49,7 +49,7 @@ for a future core-specific route. It does not fabricate keyboard reports, and
 neither this parser nor its model tests establish physical input acceptance.
 
 `bus.go` and `descriptor.go` also define the controller-independent multi-device
-bus abstraction (`BusHost`, `Pipe`, `DeviceInfo`, `HostEvent`) and full
+bus abstraction (`BusHost`, `Pipe`, `BusDevice`, `HostEvent`) and full
 composite descriptor parsers (`ParseDeviceDescriptor`, `ParseFullConfiguration`)
 used by `dwc2.MultiHost` to support hubs, Bluetooth HCI dongles (Interrupt-IN +
 Bulk-IN/OUT + Control-OUT), and composite HID/XInput controllers.

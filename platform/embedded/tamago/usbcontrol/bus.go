@@ -128,7 +128,7 @@ func (b *BusHost) NextEvent() (usb.HostEvent, bool) {
 }
 
 // Devices returns currently enumerated non-hub devices while active.
-func (b *BusHost) Devices() []usb.DeviceInfo {
+func (b *BusHost) Devices() []usb.BusDevice {
 	if b == nil || b.lease == nil || b.host == nil {
 		return nil
 	}

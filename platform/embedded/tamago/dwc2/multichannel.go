@@ -108,7 +108,7 @@ func endpointInterval(speed usb.Speed, ep usb.EndpointDescriptor) time.Duration 
 }
 
 type multiDevice struct {
-	info  usb.DeviceInfo
+	info  usb.BusDevice
 	route splitRoute
 	isHub bool
 }
@@ -367,8 +367,8 @@ func (h *MultiHost) NextEvent() (usb.HostEvent, bool) {
 }
 
 // Devices returns all currently attached enumerated non-hub devices.
-func (h *MultiHost) Devices() []usb.DeviceInfo {
-	var out []usb.DeviceInfo
+func (h *MultiHost) Devices() []usb.BusDevice {
+	var out []usb.BusDevice
 	for _, dev := range h.devices {
 		if dev != nil && !dev.isHub {
 			out = append(out, dev.info)

@@ -12,8 +12,8 @@ const (
 	SpeedLow  Speed = 2 // 1.5 Mbps
 )
 
-// DeviceInfo describes an enumerated non-hub USB device attached to a BusHost.
-type DeviceInfo struct {
+// BusDevice describes an enumerated non-hub USB device attached to a BusHost.
+type BusDevice struct {
 	Address    uint8
 	Speed      Speed
 	ParentHub  uint8 // 0 for directly connected root port devices
@@ -33,7 +33,7 @@ const (
 // HostEvent reports an enumerated device attach or disconnect.
 type HostEvent struct {
 	Kind   HostEventKind
-	Device DeviceInfo
+	Device BusDevice
 }
 
 // Pipe is an allocated hardware channel bound to one non-EP0 endpoint on an
@@ -66,7 +66,7 @@ type BusHost interface {
 	// NextEvent pops the next attach/detach event, if any.
 	NextEvent() (HostEvent, bool)
 	// Devices returns a snapshot of currently attached non-hub devices.
-	Devices() []DeviceInfo
+	Devices() []BusDevice
 	// ControlTransfer executes a bounded synchronous EP0 control transfer on addr.
 	// When reqType&0x80 != 0 (IN), it reads up to len(data) bytes into data.
 	// When reqType&0x80 == 0 (OUT), it sends data in the DATA OUT stage.

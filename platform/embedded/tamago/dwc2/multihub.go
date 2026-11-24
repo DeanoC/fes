@@ -190,7 +190,7 @@ func (h *MultiHost) enumerateDevice(speed usb.Speed, parentHub, parentPort uint8
 
 	isHub := desc.Class == 9
 	dev := &multiDevice{
-		info: usb.DeviceInfo{
+		info: usb.BusDevice{
 			Address:    addr,
 			Speed:      speed,
 			ParentHub:  parentHub,

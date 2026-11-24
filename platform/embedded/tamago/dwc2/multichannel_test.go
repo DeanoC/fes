@@ -637,7 +637,7 @@ func TestMultiHostConcurrentBTDongleGamepadKeyboardAndHubHotplug(t *testing.T) {
 	}
 
 	// Drain initial attach events and locate addresses.
-	var btDev, padDev, kbdDev usb.DeviceInfo
+	var btDev, padDev, kbdDev usb.BusDevice
 	for range 3 {
 		ev, ok := host.NextEvent()
 		if !ok || ev.Kind != usb.DeviceAttached {
@@ -928,7 +928,7 @@ func TestMultiHostHubHotReplugReusesChannels(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenMulti: %v", err)
 	}
-	var btDev, kbdDev usb.DeviceInfo
+	var btDev, kbdDev usb.BusDevice
 	for {
 		ev, ok := host.NextEvent()
 		if !ok {

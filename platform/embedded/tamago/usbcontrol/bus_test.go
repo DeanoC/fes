@@ -16,7 +16,7 @@ type busTestHost struct {
 	ctrlCalls int
 	openPipes int
 	serviceErr error
-	devices   []usb.DeviceInfo
+	devices   []usb.BusDevice
 	events    []usb.HostEvent
 }
 
@@ -32,7 +32,7 @@ func (b *busTestHost) NextEvent() (usb.HostEvent, bool) {
 	b.events = b.events[1:]
 	return ev, true
 }
-func (b *busTestHost) Devices() []usb.DeviceInfo { return b.devices }
+func (b *busTestHost) Devices() []usb.BusDevice { return b.devices }
 func (b *busTestHost) ControlTransfer(uint8, byte, byte, uint16, uint16, []byte) (int, error) {
 	b.ctrlCalls++
 	return 0, nil
@@ -64,11 +64,11 @@ func TestBusHostActualCFirmwareLifecycleIRQAndPause(t *testing.T) {
 
 	drv := &busTestHost{
 		irqTestDriver: irqTestDriver{ready: make(chan struct{}, 1), count: 7},
-		devices: []usb.DeviceInfo{
+		devices: []usb.BusDevice{
 			{Address: 2, Speed: usb.SpeedHigh},
 		},
 		events: []usb.HostEvent{
-			{Kind: usb.DeviceAttached, Device: usb.DeviceInfo{Address: 2, Speed: usb.SpeedHigh}},
+			{Kind: usb.DeviceAttached, Device: usb.BusDevice{Address: 2, Speed: usb.SpeedHigh}},
 		},
 	}
 	bus, err := OpenBus(ctx, c, func() (usb.BusHost, error) {
