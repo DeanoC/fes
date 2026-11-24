@@ -317,30 +317,37 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 		return fmt.Errorf("dwc2: invalid hub descriptor err=%v n=%d", err, n)
 	}
 	numPorts := hdr[2]
+	// USB 2.0 Table 11-13: wHubCharacteristics bits 1:0 = 0 (ganged) or 1
+	// (individual) support PORT_POWER; values >= 2 indicate always-powered hubs
+	// with no power switching where SET_FEATURE(PORT_POWER) may STALL.
+	powerSwitched := binary.LittleEndian.Uint16(hdr[3:5])&0x03 < 2
 	pwrDelay := time.Duration(max(20, int(hdr[5])*2)) * time.Millisecond
 
-	// Power on all downstream ports.
-	for port := uint16(1); port <= uint16(numPorts); port++ {
-		if _, err := h.ControlTransfer(addr, 0x23, 3, 8, port, nil); err != nil {
+	// Power on all downstream ports when the hub supports power switching.
+	if powerSwitched {
+		for port := uint16(1); port <= uint16(numPorts); port++ {
+			if _, err := h.ControlTransfer(addr, 0x23, 3, 8, port, nil); err != nil {
+				h.detachDevice(addr)
+				return err
+			}
+		}
+		if err := h.delay(pwrDelay); err != nil {
 			h.detachDevice(addr)
 			return err
 		}
-	}
-	if err := h.delay(pwrDelay); err != nil {
-		h.detachDevice(addr)
-		return err
 	}
 
 	// Open the hub's Interrupt-IN status-change endpoint from the selected
 	// alternate setting for zero-stall hotplug.
 	hub := &multiHub{
-		addr:     addr,
-		speed:    dev.info.Speed,
-		route:    dev.route,
-		depth:    depth,
-		numPorts: numPorts,
-		singleTT: dev.info.Speed == usb.SpeedHigh && !multiTTSelected,
-		statusEP: statusEP,
+		addr:          addr,
+		speed:         dev.info.Speed,
+		route:         dev.route,
+		depth:         depth,
+		numPorts:      numPorts,
+		singleTT:      dev.info.Speed == usb.SpeedHigh && !multiTTSelected,
+		powerSwitched: powerSwitched,
+		statusEP:      statusEP,
 	}
 	h.openHubStatusPipe(hub)
 	h.hubs = append(h.hubs, hub)
@@ -456,8 +463,10 @@ func (h *MultiHost) handleHubStatusChange(hub *multiHub) bool {
 		return true
 	}
 	if change&(1<<0|1<<1) != 0 {
-		for port := uint8(1); port <= hub.numPorts; port++ {
-			_, _ = h.ControlTransfer(hub.addr, 0x23, 3, 8, uint16(port), nil) // PORT_POWER
+		if hub.powerSwitched {
+			for port := uint8(1); port <= hub.numPorts; port++ {
+				_, _ = h.ControlTransfer(hub.addr, 0x23, 3, 8, uint16(port), nil) // PORT_POWER
+			}
 		}
 		for port := uint8(1); port <= hub.numPorts; port++ {
 			hub.retryCount[port] = 0

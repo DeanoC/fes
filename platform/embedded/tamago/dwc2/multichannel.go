@@ -132,6 +132,7 @@ type multiHub struct {
 	depth            int
 	numPorts         uint8
 	singleTT         bool
+	powerSwitched    bool
 	statusEP         usb.EndpointDescriptor
 	statusNeedsReset bool
 	statusPipe       *multiPipe
@@ -199,6 +200,9 @@ func OpenMulti(io Registers, config Config) (*MultiHost, error) {
 	}
 	if h.io.Read32(hprt)&1 != 0 {
 		h.enumerateRoot()
+	}
+	if h.fault != nil {
+		return h, h.fault
 	}
 	return h, nil
 }
