@@ -113,12 +113,20 @@ type multiDevice struct {
 	isHub bool
 }
 
+const (
+	maxHubEnumRetries = 3
+	hubEnumRetryDelay = 100 * time.Millisecond
+)
+
 type multiHub struct {
 	addr       uint8
 	speed      usb.Speed
 	route      splitRoute
+	depth      int
 	numPorts   uint8
 	statusPipe *multiPipe
+	retryCount [maxHubPorts + 1]uint8
+	retryAt    [maxHubPorts + 1]time.Time
 }
 
 // MultiHost is a 16-channel PIO-only DWC2 USB 2.0 host supporting concurrent
@@ -394,14 +402,22 @@ func (h *MultiHost) activeChannelMask() uint32 {
 }
 
 // haltChannel cleanly disables channel ch and clears its pending interrupts.
-func (h *MultiHost) haltChannel(ch int) {
+// Returns an error if hardware leaves CHENA set past the 50 ms budget so callers
+// never clear, reuse, or hand a live channel to firmware Stop.
+func (h *MultiHost) haltChannel(ch int) error {
 	c := h.io.Read32(chReg(ch, hcchar))
 	if c&channelEnable != 0 {
 		h.io.Write32(chReg(ch, hcchar), c|channelEnable|channelDisable)
-		_ = h.waitReg(chReg(ch, hcchar), channelEnable, 0, 50*time.Millisecond)
+		if err := h.waitReg(chReg(ch, hcchar), channelEnable, 0, 50*time.Millisecond); err != nil {
+			return fmt.Errorf("dwc2: ch %d failed to halt: %w", ch, err)
+		}
 	}
 	h.io.Write32(chReg(ch, hcmask), 0)
 	h.io.Write32(chReg(ch, hcint), 0x7ff)
+	if h.io.Read32(chReg(ch, hcchar))&channelEnable != 0 {
+		return fmt.Errorf("dwc2: ch %d remained enabled after halt", ch)
+	}
+	return nil
 }
 
 func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
@@ -1127,7 +1143,11 @@ func (p *multiPipe) Close() error {
 	p.closed = true
 	s := &p.host.slots[p.ch]
 	if s.allocated && s.ownerAddr == p.addr {
-		p.host.haltChannel(p.ch)
+		if err := p.host.haltChannel(p.ch); err != nil {
+			// Retain slot as allocated/faulted so an active hardware channel is never reused.
+			s.fault = err
+			return p.host.failController(err)
+		}
 		p.host.slots[p.ch] = multiChannel{}
 		if p.host.irqMode.Load() && p.host.irqActive.Load() {
 			p.host.io.Write32(haintmsk, p.host.activeChannelMask())
@@ -1157,7 +1177,9 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return h.failController(err)
 		}
-		h.haltChannel(ch)
+		if err := h.haltChannel(ch); err != nil {
+			return h.failController(err)
+		}
 		h.slots[ch].armed = false
 		h.slots[ch].halting = false
 		h.slots[ch].waitingSplit = false
@@ -1170,6 +1192,11 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 			for i := 0; i < cnt; i += 4 {
 				_ = h.io.Read32(fifo)
 			}
+		}
+	}
+	for ch := 0; ch < h.channels; ch++ {
+		if h.io.Read32(chReg(ch, hcchar))&channelEnable != 0 {
+			return h.failController(fmt.Errorf("dwc2: ch %d active after pause drain", ch))
 		}
 	}
 	if err := h.pioCheck(); err != nil {
