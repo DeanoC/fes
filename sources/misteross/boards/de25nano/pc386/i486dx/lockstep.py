@@ -43,9 +43,12 @@ def main(argv):
         return level3.main()
     from scripts import test_fes_i486_lockstep as level4
     level4.OUTPUT = ROOT / 'build/sim/fes-i486dx-i486-lockstep'
-    status = level4.main()
-    # The level-4 runner records no sources; add the same record to its report.
+    # The level-4 runner records no sources; add the same record to its
+    # report, only to one this run wrote: an earlier run's report is removed
+    # first, so a run that fails before writing leaves none to relabel.
     report = level4.OUTPUT / 'report.json'
+    report.unlink(missing_ok=True)
+    status = level4.main()
     if report.exists():
         data = json.loads(report.read_text())
         data['i486dx_source'] = level3.source_record()
