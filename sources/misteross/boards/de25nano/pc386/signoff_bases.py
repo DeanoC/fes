@@ -229,10 +229,13 @@ BASES = (
              'machine-to-pixel', 1, RESET_SDC, RESET),
     {'rule': 'CDC-50001', 'name': 'window-base', 'count': None, 'sdc': WINDOW_BASE_SDC,
      'qualifier': WINDOW_BASE,
-     'match': {0: nodes(WINDOW + r'base_lo\[\d+\]' + COPY), 1: nodes(WINDOW + r'base_machine\[\d+\]'),
+     # Only the launches window_base's SDC collects (base_lo[*] and base_lo[*]~DUPLICATE*), and of
+     # those only the spelling the recorded fits use; a ~_Duplicate copy would sit outside the bounds.
+     'match': {0: nodes(WINDOW + r'base_lo\[\d+\](?:~DUPLICATE)?'), 1: nodes(WINDOW + r'base_machine\[\d+\]'),
                2: re.escape(SYS), 3: re.escape(MACHINE)}},
     {'rule': 'CDC-50001', 'name': 'window-fault-record', 'count': None, 'sdc': WINDOW_FAULT_SDC,
      'qualifier': WINDOW_FAULT,
+     # window_fault_record's SDC collects fault_launch[*] alone, so no copy is admitted.
      'match': {0: nodes(WINDOW + r'fault_launch\[\d+\]'), 1: nodes(WINDOW + r'machine_fault\[\d+\]'),
                2: re.escape(MACHINE), 3: re.escape(SYS)}},
     lint('biu-reset', 'cpu_biu_reset', BIU_RESET),

@@ -4,6 +4,7 @@ The DRC text below is synthetic, in the signoff report's table format; it
 exercises the matching rules and never stands in for a fitted report.
 """
 import json
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -214,6 +215,12 @@ class MachineFindingsTests(unittest.TestCase):
             'the base from the pixel clock': [w + 'base_lo[13]', w + 'base_machine[13]', PIXEL, MACHINE],
             'the fault record in reverse': [w + 'fault_launch[0]', w + 'machine_fault[0]', TABLE.SYS, MACHINE],
             'the fault record into the base': [w + 'fault_launch[0]', w + 'base_machine[0]', MACHINE, TABLE.SYS],
+            'a ~_Duplicate base_lo, outside the SDC bundle': [w + 'base_lo[13]~_Duplicate', w + 'base_machine[13]',
+                                                              TABLE.SYS, MACHINE],
+            'a ~_Duplicate_1 base_lo': [w + 'base_lo[13]~_Duplicate_1', w + 'base_machine[13]', TABLE.SYS, MACHINE],
+            'a ~DUPLICATE fault_launch, outside the SDC bundle': [w + 'fault_launch[0]~DUPLICATE', w + 'machine_fault[0]',
+                                                                  MACHINE, TABLE.SYS],
+            'a ~_Duplicate fault_launch': [w + 'fault_launch[0]~_Duplicate1', w + 'machine_fault[0]', MACHINE, TABLE.SYS],
             'a stacked copy mixture': [w + 'base_lo[13]~DUPLICATE~_Duplicate1', w + 'base_machine[13]', TABLE.SYS, MACHINE],
             'a malformed copy': [w + 'base_lo[13]~DUPLICATE_x', w + 'base_machine[13]', TABLE.SYS, MACHINE],
         }
@@ -223,6 +230,34 @@ class MachineFindingsTests(unittest.TestCase):
         for basis, line in (('window-base', TABLE.WINDOW_BASE_SDC[0]), ('window-fault-record', TABLE.WINDOW_FAULT_SDC[0])):
             with self.subTest(basis), self.assertRaisesRegex(mf.BuildError, basis + ' constraint not in the compiled SDC'):
                 mf.review(report({'CDC-50001': (CDC, presenter)}), sdc_text().replace(line + '\n', ''), TABLE.BASES)
+
+    def test_each_window_basis_admits_only_registers_its_sdc_bundle_collects(self):
+        # A row a window basis admits must be in the launch or capture collection its SDC line bounds,
+        # so a fitter copy the SDC misses is never approved. Quartus name patterns: * is any run of
+        # characters and brackets are literal.
+        def collects(globs, name):
+            return any(re.fullmatch(re.escape(g).replace(r'\*', '[^ ]*'), name) for g in globs)
+
+        prefix = 'soc_inst|subsys_periph|fes_scanout|fes_scanout|'
+        suffixes = ['', '~DUPLICATE', '~_Duplicate', '~_Duplicate1', '~_Duplicate0', '~_Duplicate_2',
+                    '~_Duplicate1DUPLICATE', '~_Duplicate_2DUPLICATE', '~_DuplicateDUPLICATE',
+                    '~DUPLICATE~_Duplicate1', '~DUPLICATE_x', '~DUPLICATE2', '_q']
+        checked = 0
+        for basis, sdc in (('window-base', TABLE.WINDOW_BASE_SDC), ('window-fault-record', TABLE.WINDOW_FAULT_SDC)):
+            [entry] = [b for b in TABLE.BASES if b['name'] == basis]
+            label, sources, sinks = re.fullmatch(r'\s*(\w+) \{([^}]*)\} \{([^}]*)\} [\d ]+', sdc[0]).groups()
+            self.assertEqual(label, basis.replace('-', '_'))
+            for column, globs in ((0, sources.split()), (1, sinks.split())):
+                stems = {re.sub(r'\[\*\].*', '', g) for g in globs}
+                for stem in stems:
+                    name = stem + '[7]'
+                    self.assertTrue(re.fullmatch(entry['match'][column], prefix + name), (basis, name))
+                    for suffix in suffixes:
+                        if re.fullmatch(entry['match'][column], prefix + name + suffix):
+                            checked += 1
+                            self.assertTrue(collects(globs, name + suffix), (basis, name + suffix))
+        # base_lo, base_lo~DUPLICATE, base_machine, fault_launch, machine_fault.
+        self.assertEqual(checked, 5)
 
     def test_a_rule_that_passed_has_no_entry(self):
         self.assertEqual(mf.review(report({'CDC-50001': (CDC, [])}), sdc_text(), TABLE.BASES), [])

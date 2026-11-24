@@ -221,3 +221,38 @@ BUILD_ID: `signoff_bases.py` is a pc386 design input, so every commit on
 this branch moves pc386's BUILD_ID. The coordinating session reports that
 the fifth commit moved it from cee3d3b4 to 6574e507 on the S-lat branch.
 No other machine's BUILD_ID moves.
+
+## The window bases follow their SDC collections (seventh commit)
+
+Codex (P1 at 2a504d2ff) found that window-base admitted `base_lo` copies
+in every `COPY` spelling. `window_base`'s SDC line only collects
+`base_lo[*]` and `base_lo[*]~DUPLICATE*`, so a `~_Duplicate` launch would
+have been approved while it sat outside the bundle's bounds. The SDC is
+unchanged. Each basis now admits only launches its SDC collects, and of
+those only the spellings the recorded fits use:
+- window-base: `base_lo[k]` and `base_lo[k]~DUPLICATE`;
+- window-fault-record: `fault_launch[k]` alone, because its SDC collects
+  `fault_launch[*]` alone.
+
+Tests:
+- A `~_Duplicate` or `~_Duplicate_1` `base_lo` matches 0 bases. So does a
+  `~DUPLICATE` or `~_Duplicate1` `fault_launch`.
+- A new test reads each window basis's SDC line from the table. It
+  applies the Quartus name patterns (`*` is any run of characters,
+  brackets are literal). Every source and sink spelling the basis admits,
+  from a corpus of copy suffixes, must be one that line collects. It
+  checks 5 admitted spellings.
+- With the base back on `COPY`, or the fault record given
+  `~DUPLICATE`, the tie test fails.
+
+The presenter bases have no copy-suffix gap, because the engine's `bus()`
+admits no copy suffix. They do have a different, pre-existing gap: `bus()`
+admits any index, an unindexed name, or `[*]`. The SDC collects
+`name[*]`, a scalar `machine_presenter_f_new_epoch`, and for the toggles
+only `[0]` and the first stage's `d` pin. So a row into
+`machine_presenter_sequence_sync[1]`, or one from
+`machine_frame_sequence[3]`, would match a basis outside its SDC. Their
+exact row counts bound this, and it is left for its own change.
+
+The full table still passes all 40 recorded pc386 reports. Ten of them
+carry the nine window-base rows.
