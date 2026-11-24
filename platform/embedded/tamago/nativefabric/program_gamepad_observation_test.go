@@ -45,7 +45,7 @@ func TestProgramGamepadReceiptsFollowOwnedWritesAndRelease(t *testing.T) {
 		t.Fatal(err, base.records)
 	}
 	source.reports = [][]byte{padReport(128, 128, 1), padReport(128, 128, 1), padReport(128, 128, 0)}
-	if _, err = p.Next(ctx); err != nil || len(base.records) != 2 || f.cpu.keyboardWrites != 27 {
+	if _, err = p.Next(ctx); err != nil || len(base.records) != 2 || f.cpu.keyboardWrites != 11 {
 		t.Fatal(err, base.records, f.cpu.keyboardWrites)
 	}
 	digest := sha256.Sum256(descriptor)
@@ -100,7 +100,7 @@ func TestProgramGamepadFailedWriteDoesNotPublishReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.cpu.failKeyboardAt = f.cpu.keyboardWrites + 2
-	source.reports = [][]byte{padReport(128, 128, 1)}
+	source.reports = [][]byte{padReport(128, 128, 3)}
 	if _, err = p.Next(ctx); err == nil || len(base.records) != 0 || p.gamepad.state.observation.Sequence != 0 || b.service.Status().State != ProgramRebootRequired {
 		t.Fatal("partial write published", err, base.records)
 	}

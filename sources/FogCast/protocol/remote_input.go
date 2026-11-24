@@ -17,22 +17,26 @@ const (
 	// ServerMonoNS field carries the expected target core generation, while
 	// Value is the fixed hold duration in milliseconds.
 	InputTypeTap uint8 = 5
+	// InputTypeTapChord carries a nonzero HID modifier mask in Reserved.
+	InputTypeTapChord uint8 = 6
 	// PING and RECEIPT use the same flag bit for different purposes.
 	InputFlagReceiptRequested uint16 = 1
 	InputFlagReceiptRejected  uint16 = 1
 	// A tap probe is made only for an explicit tap. Older bridges reject the
 	// unknown flag before any input is sent.
-	InputFlagTapProbe     uint16 = 2
-	InputFlagTapSupported uint16 = 2
-	InputTapHoldMS        int32  = 60
-	InputCodeButtonC      uint16 = 108
-	InputCodeButtonX      uint16 = 109
-	InputCodeButtonY      uint16 = 110
-	InputCodeButtonL      uint16 = 111
-	InputCodeButtonR      uint16 = 112
-	inputMagic                   = "MSTR"
-	inputHeaderSize              = 16
-	inputPayloadSize             = 32
+	InputFlagTapProbe          uint16 = 2
+	InputFlagTapSupported      uint16 = 2
+	InputFlagTapChordProbe     uint16 = 4
+	InputFlagTapChordSupported uint16 = 4
+	InputTapHoldMS             int32  = 60
+	InputCodeButtonC           uint16 = 108
+	InputCodeButtonX           uint16 = 109
+	InputCodeButtonY           uint16 = 110
+	InputCodeButtonL           uint16 = 111
+	InputCodeButtonR           uint16 = 112
+	inputMagic                        = "MSTR"
+	inputHeaderSize                   = 16
+	inputPayloadSize                  = 32
 )
 
 type InputHeader struct {
@@ -113,17 +117,17 @@ func DecodeInputFrame(r io.Reader, max uint32) (InputFrame, error) {
 }
 
 func validInputFrame(f InputFrame) bool {
-	if (f.Header.Type != InputTypeInput && f.Header.Type != InputTypePing && f.Header.Type != InputTypePong && f.Header.Type != InputTypeReceipt && f.Header.Type != InputTypeTap) ||
-		f.Header.Session == 0 || f.Player > 3 || f.Reserved != 0 {
+	if (f.Header.Type != InputTypeInput && f.Header.Type != InputTypePing && f.Header.Type != InputTypePong && f.Header.Type != InputTypeReceipt && f.Header.Type != InputTypeTap && f.Header.Type != InputTypeTapChord) ||
+		f.Header.Session == 0 || f.Player > 3 || (f.Header.Type != InputTypeTapChord && f.Reserved != 0) {
 		return false
 	}
 	switch f.Header.Type {
 	case InputTypePing:
-		if f.Header.Flags != 0 && f.Header.Flags != InputFlagReceiptRequested && f.Header.Flags != InputFlagTapProbe {
+		if f.Header.Flags != 0 && f.Header.Flags != InputFlagReceiptRequested && f.Header.Flags != InputFlagTapProbe && f.Header.Flags != InputFlagTapChordProbe {
 			return false
 		}
 	case InputTypeReceipt:
-		if f.Header.Flags != 0 && f.Header.Flags != InputFlagReceiptRejected && f.Header.Flags != InputFlagTapSupported && f.Header.Flags != InputFlagTapSupported|InputFlagReceiptRejected {
+		if f.Header.Flags != 0 && f.Header.Flags != InputFlagReceiptRejected && f.Header.Flags != InputFlagTapSupported && f.Header.Flags != InputFlagTapSupported|InputFlagReceiptRejected && f.Header.Flags != InputFlagTapChordSupported && f.Header.Flags != InputFlagTapChordSupported|InputFlagReceiptRejected {
 			return false
 		}
 	default:
@@ -131,9 +135,10 @@ func validInputFrame(f InputFrame) bool {
 			return false
 		}
 	}
-	if f.Header.Type == InputTypeTap {
+	if f.Header.Type == InputTypeTap || f.Header.Type == InputTypeTapChord {
 		return f.Player == 0 && f.Device == 0 && f.Kind == 0 && f.Action == 1 &&
-			f.Code != 0 && f.Value == InputTapHoldMS && f.ServerMonoNS != 0 && f.Seq != 0
+			f.Code != 0 && f.Value == InputTapHoldMS && f.ServerMonoNS != 0 && f.Seq != 0 &&
+			(f.Header.Type != InputTypeTapChord || f.Reserved > 0 && f.Reserved <= 255)
 	}
 	if f.Header.Type != InputTypeInput {
 		if f.Player != 0 || f.Device != 0 || f.Kind != 0 || f.Action != 0 || f.Code != 0 || f.Reserved != 0 || f.Value != 0 {

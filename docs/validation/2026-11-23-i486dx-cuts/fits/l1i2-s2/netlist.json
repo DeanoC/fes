@@ -1,0 +1,20 @@
+{
+  "fitted_netlist": {
+    "duplicate_attribute_count": 0,
+    "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+    "fitted_sha256": "076762dcc372420169fa58fb5f9d7ed1e090389d2c7ab342934da886c2cfb136",
+    "ram_attribute": "renamed 32 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+    "ram_attribute_count": 32,
+    "source": "/data/projects/i486dx-plan/r2/fits/l1i2-s1/netlist/fes_i386_cpu.netlist.v",
+    "source_sha256": "1898732049d9512e285339ddb884534a5a2f1e738d834dacd0920378ec42f613"
+  },
+  "reused": "/data/projects/i486dx-plan/r2/fits/l1i2-s1/netlist/fes_i386_cpu.netlist.v",
+  "source_revision": {
+    "clean": false,
+    "commit": "dafabb6db52a0db75475c7832bf56317548f8c5e",
+    "note": "prepared from a modified checkout; this commit alone does not describe the source that ran, and the diff above does",
+    "tracked_diff": "diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv\nindex 10b75c65d..ba6707c2e 100644\n--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv\n+++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv\n@@ -127,7 +127,7 @@ module fes_i386_cpu #(\n     // been; 1 a 486SX of a later stepping, with CPUID and without VME (no\n     // CR4). A build parameter: every 486 register, flag and instruction\n     // folds away at 0. See \"The i486 identity\".\n-    parameter bit I486 = 1'b0\n+    parameter bit I486 = 1'b1\n ) (\n     input  logic             clk,\n     input  logic             cold_reset,   // the machine's start: also empties the write buffer\ndiff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1i.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1i.sv\nindex 9e956a9e3..78c246aad 100644\n--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1i.sv\n+++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1i.sv\n@@ -231,8 +231,8 @@ module fes_i386_l1i import fes_i386_pkg::*; (\n     assign miss = req && cached && hit[0] == 4'd0;\n     logic [1:0] free;\n     always_comb begin\n-        free = rr;\n-        for (int w = 3; w >= 0; w--) if (!vf2[w]) free = 2'(w);\n+        free = {1'b0, rr[0]};  // ABLATION l1i2: ways 0-1 only (8 KiB)\n+        for (int w = 1; w >= 0; w--) if (!vf2[w]) free = 2'(w);\n     end\n \n     // A fill's own line written while it fills spoils it.\n@@ -264,7 +264,7 @@ module fes_i386_l1i import fes_i386_pkg::*; (\n                         || si_valid && si_cross && si_set1 == 7'(k)\n                         || start && blk[7:1] == 7'(k) && free == 2'(w);\n             always_ff @(posedge clk) begin\n-                if (reset) valid[k][w] <= 1'b0;\n+                if (reset || w >= 2) valid[k][w] <= 1'b0;  // ABLATION l1i2\n                 else if (set_valid && f_line[6:0] == 7'(k) && victim == 2'(w)) valid[k][w] <= 1'b1;\n                 else if (clear) valid[k][w] <= 1'b0;\n             end\n",
+    "tracked_diff_sha256": "2ae67c19ac280c3b688f82f67771d751a2fe27f7b61a4f08a7143da135db4f04"
+  },
+  "source_revision_note": "declared as elaborated from this checkout; scratch: dafabb6db + dx.patch + l1i2.patch, elaborated in /data/projects/i486dx-plan/wt-r2-fit-l1i2"
+}

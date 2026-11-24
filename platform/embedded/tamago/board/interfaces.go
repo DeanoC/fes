@@ -6,7 +6,9 @@
 package board
 
 import (
+	"context"
 	"image"
+	"net/netip"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
@@ -24,6 +26,10 @@ type Network interface {
 	Address() string
 	Stats() string
 	Lease() (network.DHCPLease, bool)
+	NewLeaseRenewer(network.RenewConfig) (*network.LeaseRenewer, error)
+	RenewLeaseOnce(context.Context, bool, network.RenewConfig) (network.DHCPLease, error)
+	ResolveA(context.Context, string, network.DNSConfig) ([]netip.Addr, error)
+	QuerySNTP(context.Context, network.SNTPConfig) (network.SNTPResult, error)
 	EnableIRQ(*gic.Controller) error
 	DisableIRQ(*gic.Controller)
 	IRQCount() uint64

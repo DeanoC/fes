@@ -75,13 +75,19 @@ type FetchActivity struct {
 }
 
 type Computer struct {
-	io          IO
-	limits      Limits
-	identity    Identity
-	active      atomic.Bool
-	retired     bool
-	gpo         uint32
-	initialTape InitialTapeLoader
+	io           IO
+	limits       Limits
+	identity     Identity
+	active       atomic.Bool
+	retired      bool
+	gpo          uint32
+	hasKeyboard  bool
+	lastKeyboard [9]uint16
+	initialTape  InitialTapeLoader
+}
+
+type inputBatchIO interface {
+	WithInputBatch(func(IO) error) error
 }
 
 type operation struct {
@@ -409,7 +415,12 @@ func (c *Computer) execution(ctx context.Context, value uint16) (err error) {
 
 // Hold holds execution reset and clears input without resetting the GP epoch.
 func (c *Computer) Hold(ctx context.Context) error {
-	return c.execution(ctx, uint16(g.FesComputerExecutionHoldReset))
+	if err := c.execution(ctx, uint16(g.FesComputerExecutionHoldReset)); err != nil {
+		return err
+	}
+	c.hasKeyboard = false
+	c.lastKeyboard = [9]uint16{}
+	return nil
 }
 
 // Run releases execution reset. An ACK proves command acceptance, not CPU work
@@ -418,8 +429,22 @@ func (c *Computer) Run(ctx context.Context) error {
 	return c.execution(ctx, uint16(g.FesComputerExecutionRelease))
 }
 
-// Keyboard submits nine HID rows in order. Validation precedes all I/O. A
-// partial failure retires the transport and requires platform containment.
+func (o *operation) withInputBatch(run func() error) error {
+	batch, ok := o.c.io.(inputBatchIO)
+	if !ok {
+		return run()
+	}
+	return batch.WithInputBatch(func(io IO) error {
+		prev := o.io
+		o.io = io
+		defer func() { o.io = prev }()
+		return run()
+	})
+}
+
+// Keyboard submits the initial nine HID rows after Open/Hold and only dirty
+// changed rows thereafter. Validation precedes all I/O. A partial failure
+// retires the transport and requires platform containment.
 func (c *Computer) Keyboard(ctx context.Context, rows [9]uint16) (err error) {
 	if c.identity.Capabilities&g.FesComputerCapabilityKeyboardHid == 0 ||
 		uint32(rows[0])&g.FesComputerKeyboardReservedRow0Mask != 0 ||
@@ -431,10 +456,70 @@ func (c *Computer) Keyboard(ctx context.Context, rows [9]uint16) (err error) {
 		return err
 	}
 	defer func() { o.finish(err) }()
-	for i, row := range rows {
-		if err = o.mutate(g.FesComputerOpcodeKeyboardHid, uint32(i), row); err != nil {
-			return err
+	dirty := false
+	if !c.hasKeyboard {
+		dirty = true
+	} else {
+		for i, row := range rows {
+			if row != c.lastKeyboard[i] {
+				dirty = true
+				break
+			}
 		}
 	}
-	return nil
+	if !dirty {
+		return nil
+	}
+	err = o.withInputBatch(func() error {
+		for i, row := range rows {
+			if c.hasKeyboard && row == c.lastKeyboard[i] {
+				continue
+			}
+			if err := o.mutate(g.FesComputerOpcodeKeyboardHid, uint32(i), row); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err == nil {
+		c.lastKeyboard = rows
+		c.hasKeyboard = true
+	}
+	return err
+}
+
+// ControllerButtons updates one controller port button bitmask using the
+// single-word FesComputerOpcodeControllerButtons mailbox command.
+func (c *Computer) ControllerButtons(ctx context.Context, port uint8, mask uint16) (err error) {
+	if c.identity.Capabilities&g.FesComputerCapabilityGamepadPorts == 0 ||
+		uint32(port) >= g.FesComputerControllerPortCount ||
+		uint32(mask) & ^g.FesComputerControllerButtonMask != 0 {
+		return ErrArgument
+	}
+	o, err := c.begin(ctx, "controller")
+	if err != nil {
+		return err
+	}
+	defer func() { o.finish(err) }()
+	return o.withInputBatch(func() error {
+		return o.mutate(g.FesComputerOpcodeControllerButtons, uint32(port), mask)
+	})
+}
+
+// MouseRelative submits one signed 8-bit relative motion and button update
+// using FesComputerOpcodeMouseRelative.
+func (c *Computer) MouseRelative(ctx context.Context, dx, dy int8, buttons uint8) (err error) {
+	if c.identity.Capabilities&g.FesComputerCapabilityMouseRelative == 0 ||
+		uint32(buttons) & ^g.FesComputerMouseButtonMask != 0 {
+		return ErrArgument
+	}
+	o, err := c.begin(ctx, "mouse")
+	if err != nil {
+		return err
+	}
+	defer func() { o.finish(err) }()
+	arg := uint16(uint8(dx)) | uint16(uint8(dy))<<8
+	return o.withInputBatch(func() error {
+		return o.mutate(g.FesComputerOpcodeMouseRelative, uint32(buttons), arg)
+	})
 }
