@@ -220,6 +220,10 @@ try:
     for path in sorted(files() - old):
         if re.fullmatch(r'/media/fat/fogcast/(core-data/(media|games)/[a-f0-9]{64}|disk-images/[a-f0-9]{64}\.img)', path):
             remote("rm -r -- '" + path + "'")
+    # A first launch on a kit creates the parent too; rmdir refuses one that is not empty.
+    for path in sorted(files() - old, reverse=True):
+        if path in ('/media/fat/fogcast/core-data/games', '/media/fat/fogcast/core-data/media'):
+            remote("rmdir -- '" + path + "'")
     now = files()
     assert not now - old, ('the run left kit data', sorted(now - old))
     # The agent's staging cache keeps the four most recently used disk images
