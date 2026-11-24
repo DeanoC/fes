@@ -3314,8 +3314,9 @@ private:
 
 void TestDe25WindowIsGrantedPerSession()
 {
-	enum class Trial { offered, not_offered, release_fails, replaced };
-	for (const Trial trial : {Trial::offered, Trial::not_offered, Trial::release_fails, Trial::replaced}) {
+	enum class Trial { offered, not_offered, release_fails, replaced, quiesce_fails, quiesce_and_release_fail };
+	for (const Trial trial : {Trial::offered, Trial::not_offered, Trial::release_fails, Trial::replaced,
+			Trial::quiesce_fails, Trial::quiesce_and_release_fail}) {
 		std::vector<std::string> driver_events;
 		RecordingDriver gp(driver_events);
 		IntegratedFixture fixture(&gp);
@@ -3326,7 +3327,8 @@ void TestDe25WindowIsGrantedPerSession()
 		PopulateHpsDdrApplication(&package, true, &opened);
 		WindowOwner owner(driver_events, opened.descriptor.build.id);
 		owner.available = trial != Trial::not_offered;
-		if (trial == Trial::release_fails) owner.release = {mister::ErrorCode::busy, "ports not drained"};
+		if (trial == Trial::release_fails || trial == Trial::quiesce_and_release_fail)
+			owner.release = {mister::ErrorCode::busy, "ports not drained"};
 		mister::native::De25HpsWindow window(owner);
 		fixture.native.hardware.SetHpsWindow(&window);
 		fixture.Start();
@@ -3357,6 +3359,43 @@ void TestDe25WindowIsGrantedPerSession()
 			assert(fixture.runtime.LoadCore(plain.path, other.package_id).ok());
 			assert(Find(driver_events, "driver.quiesce") < Find(driver_events, "window.release"));
 			assert(programs_at_release == programs + 1 && !window.Ready());
+			continue;
+		}
+		if (trial == Trial::quiesce_fails || trial == Trial::quiesce_and_release_fail) {
+			// The driver's quiesce fails after mutating, so the window is never
+			// released there and the core is forgotten. The next replacement
+			// finds no driver, but the window is still open: the owner must
+			// release it (only while drained) before anything is programmed.
+			gp.quiesce_result = {{mister::ErrorCode::io_failed, "quiesce lost"}, true, ""};
+			TempDirectory plain;
+			mister::native::OpenedCorePackage other;
+			PopulateHpsDdrApplication(&plain, false, &other);
+			const auto load_plain = [&] {
+				std::unique_ptr<mister::AdmittedCorePackage> admitted;
+				assert(fixture.native.hardware.AdmitCorePackage(plain.path, other.package_id, &admitted).ok());
+				return fixture.native.hardware.LoadCore(std::move(admitted), 0).error;
+			};
+			assert(!load_plain().ok());
+			assert(Count(driver_events, "window.release") == 0 && window.Ready());
+			assert(fixture.native.fpga.calls == programs);
+			int releases_at_program = -1;
+			fixture.native.fpga.on_program = [&] {
+				if (releases_at_program < 0) releases_at_program = static_cast<int>(Count(driver_events, "window.release"));
+			};
+			const std::size_t quiesces = Count(driver_events, "driver.quiesce");
+			const mister::Error loaded = load_plain();
+			// No driver was left to quiesce.
+			assert(Count(driver_events, "driver.quiesce") == quiesces);
+			assert(Count(driver_events, "window.release") == 1 && !window.Ready());
+			if (trial == Trial::quiesce_fails) {
+				assert(loaded.ok() && releases_at_program == 1);
+			} else {
+				// A release the owner refuses poisons the window: nothing is
+				// programmed, now or by the idle image.
+				assert(!loaded.ok() && fixture.native.fpga.calls == programs);
+				assert(!fixture.native.hardware.LoadIdle().error.ok());
+				assert(fixture.native.fpga.calls == programs);
+			}
 			continue;
 		}
 		const mister::Error stopped = fixture.runtime.Stop();

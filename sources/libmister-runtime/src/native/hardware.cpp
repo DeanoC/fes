@@ -323,27 +323,20 @@ void NativeHardware::SetHpsWindow(De25HpsWindow* window)
 	hps_window_ = window;
 }
 
-// The machine is held: hand its window back before anything else may be
-// programmed. A window that cannot be released keeps the configuration and
-// stays poisoned, so every later replacement is refused too.
+// Hand the window back before anything else may be programmed. Normally the
+// driver holds the machine first; where no driver is left (a failed quiesce
+// forgot it, or a load failed after the window opened) the owner's release
+// still clears the grant only while every port is drained. A window that
+// cannot be released keeps the configuration and stays poisoned, so every
+// later replacement is refused too.
 Error NativeHardware::ReleaseHpsWindow(const char* operation, const std::string& system,
 	const std::string& core)
 {
 	if (!hps_window_) return {};
-	if (!hps_window_->Ready()) return HpsWindowBlocking(operation, system, core);
-	const Error error = hps_window_->Release();
+	Error error = hps_window_->Blocking();
+	if (error.ok() && hps_window_->Ready()) error = hps_window_->Release();
+	else if (error.ok()) return {};
 	log_.Write({operation, system, core, "hps_window_release", error});
-	return error;
-}
-
-// Where no driver holds a machine nothing is released, but a poisoned
-// window still refuses the programming.
-Error NativeHardware::HpsWindowBlocking(const char* operation, const std::string& system,
-	const std::string& core)
-{
-	if (!hps_window_) return {};
-	const Error error = hps_window_->Blocking();
-	if (!error.ok()) log_.Write({operation, system, core, "hps_window_release", error});
 	return error;
 }
 
@@ -596,7 +589,7 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 			video.mutation_attempted, ""};
 	}
 	if (active_driver_ == nullptr) {
-		const Error blocked = HpsWindowBlocking(operation, system, core);
+		const Error blocked = ReleaseHpsWindow(operation, system, core);
 		ObserveHandoff(operation, blocked);
 		return {WithPhase(blocked, "quiesce"), video.mutation_attempted, ""};
 	}
@@ -2377,8 +2370,8 @@ HardwareResult NativeHardware::LoadSplashIdle()
   }
 	}
 	{
-		// A poisoned window refuses the idle image as it refuses a core.
-		const Error blocked = HpsWindowBlocking("start", "", "");
+		// The idle image replaces a window machine as a core does.
+		const Error blocked = ReleaseHpsWindow("start", "", "");
 		if (!blocked.ok()) return {WithPhase(blocked, "quiesce"), quiesce_mutation, ""};
 	}
 	const NativeResult programmed = fpga_.Program(artifact,
