@@ -31,6 +31,13 @@ The package declares DE10 pc386's eleven interfaces at fes.computer 1.1, plus
 
 ## What exists
 
+This is the survey at #2036's head `af58ebed2`, before any slice 4 work.
+Since then #2126 (4d) has landed on main as `64b729b1e`: the owner keeps
+ABI 3 and adds window ABI 1, a second `reg` for the window block, and a
+reusable 272 MiB `shared-dma-pool` inside the F2SDRAM firewall region that
+the scanout's 8 MiB now also comes from; KUnit runs 68 cases. The kernel
+facts below are the pre-4d baseline.
+
 **Kernel owner** (`image/kernel/de25-dma/`, built in by
 `scripts/de25_kernel_platform.py`, `FES_DE25_DMA_PLATFORM=y`):
 
@@ -200,14 +207,14 @@ now targets main.
 | --- | --- | --- | --- | --- |
 | 4b+4c | The contract's "kernel publishes the grant", the generated C++ header, and `De25HpsWindow` over a scripted owner (#2110) | **#2115, draft** | nothing | main |
 | 4a | Admission table: per-machine ABI minor, gamepad and HPS-window flags, the pc386 row (refused until a window backend exists) | **in #2115** | #2069 merged first; #2115 takes its `abi_minor` | main |
-| 4d | Kernel owner window (owner window ABI beside an unchanged ABI 3), the window's C header, the owner tree's second `reg` and a reusable pool pinned inside the F2SDRAM firewall region, KUnit, and the KUnit runner fix (#2122) (#2125) | **#2126, draft; Kit D25 pass at `615f5dad5`** | image change (build and test only) | main |
-| 4w | Runtime wiring: the Linux owner operations over #2126's ioctls, `ProductionHardware`'s DE25 `DiskWindow`, the `fes.memory.hps-ddr` and `fes.media.ata-disk` gates, `ReleaseHpsDdrPorts` | the UAPI-free part in #2115 (`SetHpsWindow`, the gates, release on quiesce); the Linux operations next | #2126's ABI (its header is mirrored) | main |
+| 4d | Kernel owner window (owner window ABI beside an unchanged ABI 3), the window's C header, the owner tree's second `reg` and a reusable pool pinned inside the F2SDRAM firewall region, KUnit, and the KUnit runner fix (#2122) (#2125) | **merged as `64b729b1e`** (#2126; Kit D25 pass at its head `615f5dad5`) | image change (build and test only) | main |
+| 4w | Runtime wiring: the Linux owner operations over #2126's ioctls, `ProductionHardware`'s DE25 `DiskWindow`, the `fes.memory.hps-ddr` and `fes.media.ata-disk` gates, `ReleaseHpsDdrPorts` | the UAPI-free part in #2115 (`SetHpsWindow`, the gates, release on quiesce); the Linux operations next | #2126's ABI, on main (its header is mirrored) | main |
 | 4e | FogCast: the DE25 computer profile accepts fes.computer 1.1 (`protocol_v2.go` requires minor 0 today), pc386 admission, initial disk | not built | 4a, and #2101 for its DE10 pc386 media paths | main |
 | 4f | Status-ring read through the runtime | not built | 4w | main |
-| 4g | Image build + Kit D25 run | not started | all above, Deano's flash OK | — |
+| 4g | Image build + Kit D25 run with a pc386 package | the 4d image passed on J8G at `615f5dad5` (pool, owner ABIs, MENU and ZX81 smokes; no window allocated, since no window machine was loaded); the pc386 run is not started | 4w, Deano's flash OK | — |
 
-#2115, 4e and 4f need neither a kit nor an image change. #2126 (4d) is an
-image change, built and tested only until 4g.
+#2115, 4e and 4f need neither a kit nor an image change. 4d is on main; it
+reaches a kit only in an image, which needs Deano's OK each time.
 
 The owner's window report must carry the build identity it observed on the
 programmed bitstream: the window block has no build register, and the runtime
@@ -216,19 +223,17 @@ after it, DDR holds what the CPU wrote and no line of the range is cached.
 
 ## Open
 
-- **The kernel storage design is unverified** and is checked in 4d under
-  QEMU/KUnit before anything is flashed:
-  - a `memory-region` on the owner node also redirects the scanout's 8 MiB
-    allocation into the pool (acceptable, but it must be measured);
-  - whether the pinned kernel's IOMMU DMA path honours a per-device pool
-    with `DMA_ATTR_FORCE_CONTIGUOUS`;
-  - under the SMMU the fabric sees an IOVA, so physical contiguity is a
-    driver choice, not a fabric need. The alternative is no DT pool and a
-    non-contiguous allocation mapped into one contiguous IOVA range; it
-    removes the device-tree change from the image list, at the cost of a
-    mapping shape the owner's revoke rules must still cover.
-  - Allocating and zeroing 256 MiB on every launch costs launch time; 4d
-    measures it under QEMU and 4g on the kit.
+- **The kernel storage design** was settled in 4d as the DT pool and checked
+  under KUnit; on J8G the pool came up at its place and size with the owner
+  bound to it. What stays open until a window machine runs on the kit:
+  - the scanout's 8 MiB now comes from the pool, and MENU drew through it
+    on J8G; settled;
+  - KUnit allocates the 256 MiB window from the pool under QEMU; the kit has
+    not allocated one yet;
+  - the no-pool alternative (a non-contiguous allocation behind one IOVA
+    range) was not taken;
+  - allocating and zeroing 256 MiB on every launch costs launch time; 4g
+    measures it on the kit.
 - Whether the coherent (uncached) mapping is fast enough to write 128 MiB of
   disk at launch. If not, a cacheable mapping needs a cache-maintenance
   ioctl that window ABI 1 does not have, and a dma-coherent claim the
