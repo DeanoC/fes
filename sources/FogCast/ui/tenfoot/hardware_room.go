@@ -11,6 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/localfeed"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -216,6 +217,7 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	if !a.playingHardwareRoomAvailableLocked() {
 		return
 	}
+	a.nativePadFenceMappingLocked()
 	directMedia := a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked()
 	if !a.colecoSessionLocked() && !directMedia && a.playingSetupCoreLocked() == "" && a.session.CorePackage != nil {
 		a.resolvePlayingSetupLocked()
@@ -276,6 +278,7 @@ func (a *App) beginColecoCartridgeControlsLocked() bool {
 	if !a.needsSessionDisplayLocked() || !a.colecoCartridgeOfferedLocked() || a.sessionLiveMediaOfferedLocked() {
 		return false
 	}
+	a.nativePadFenceMappingLocked()
 	a.roomDuringPlay = true
 	a.mediaControlsDirect = true
 	a.syncGPUParkLocked()
@@ -452,6 +455,22 @@ func (a *App) rememberPlayHIDLocked(event remoteinput.Event) {
 // queuePlayHIDLocked preserves press/release order, including releases queued
 // when local input moves from the core to menu navigation.
 func (a *App) queuePlayHIDLocked(events []remoteinput.Event) {
+	a.queuePlayHIDBindingLocked(events, nil)
+}
+
+func (a *App) queuePlayHIDBindingLocked(events []remoteinput.Event, binding *localfeed.Binding) {
+	if a.kitV2InputDisabled {
+		return
+	}
+	if a.kitSDLKeyboardGuestBlockedLocked() || a.delegatedV2Active || a.nativeUIOnlyInFlight != 0 {
+		filtered := make([]remoteinput.Event, 0, len(events))
+		for _, event := range events {
+			if event.Device != remoteinput.DeviceKeyboard && event.Kind != remoteinput.KindKey {
+				filtered = append(filtered, event)
+			}
+		}
+		events = filtered
+	}
 	if len(events) == 0 || a.client == nil {
 		return
 	}
@@ -469,7 +488,7 @@ func (a *App) queuePlayHIDLocked(events []remoteinput.Event) {
 	a.playHIDPending++
 	client := a.client
 	var feed localPadSender
-	if a.needsSessionDisplayLocked() {
+	if a.needsSessionDisplayLocked() || a.kitHost {
 		feed = a.localFeed
 	}
 	go func() {
@@ -482,17 +501,25 @@ func (a *App) queuePlayHIDLocked(events []remoteinput.Event) {
 			a.mu.Unlock()
 		}()
 		if previous != nil {
-			select {
-			case <-parent.Done():
-				return
-			case <-previous:
-			}
+			// Even a cancelled queue element must remain behind its prior
+			// in-flight write. Otherwise its tail can close early and let a
+			// successor cross a focus or session transition.
+			<-previous
 		}
 		ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 		defer cancel()
 		for _, event := range events {
+			if ctx.Err() != nil {
+				return
+			}
 			if feed != nil {
-				_ = feed.Send(event, time.Now())
+				if binding != nil {
+					if bound, ok := feed.(boundLocalKeyboard); ok {
+						_ = bound.SendBound(ctx, event, time.Now(), *binding)
+					}
+				} else {
+					_ = feed.Send(event, time.Now())
+				}
 			} else {
 				_ = client.SendCoreKey(ctx, event)
 			}
@@ -500,14 +527,67 @@ func (a *App) queuePlayHIDLocked(events []remoteinput.Event) {
 	}()
 }
 
+// samePlayHIDSession compares runtime input identities only when both
+// observations carry one. The agent omits the identity during any coordinator
+// transition and after a failed or slow runtime read, so a missing identity is
+// unobserved, not a new runtime. applySessionLocked keeps the last identity
+// across that gap, so a later different identity still ends the session.
 func samePlayHIDSession(a, b hostclient.SessionResult) bool {
-	if a.ID != b.ID || a.State != b.State || a.Target != b.Target || a.TargetID != b.TargetID || a.GameID != b.GameID || a.FlightID != b.FlightID {
+	if a.ID != b.ID || a.State != b.State || a.Target != b.Target || a.TargetID != b.TargetID || a.GameID != b.GameID || a.FlightID != b.FlightID || a.InputAgentInstance != b.InputAgentInstance || a.CoreKeyboard != b.CoreKeyboard || a.CoreKeyboardHID != b.CoreKeyboardHID {
+		return false
+	}
+	if (a.RuntimeInput != nil && a.RuntimeInput.Validate() != nil) || (b.RuntimeInput != nil && b.RuntimeInput.Validate() != nil) ||
+		(a.RuntimeInput != nil && b.RuntimeInput != nil && *a.RuntimeInput != *b.RuntimeInput) {
 		return false
 	}
 	if a.CorePackage == nil || b.CorePackage == nil {
 		return a.CorePackage == b.CorePackage
 	}
 	return a.CorePackage.PackageID == b.CorePackage.PackageID && a.CorePackage.Generation == b.CorePackage.Generation
+}
+
+// runtimeInputRetention is the session observation window. A kept identity
+// that no observation has reported for longer no longer admits input.
+const runtimeInputRetention = 5 * time.Second
+
+// runtimeInputMatchesSession applies the host client's decode rule: a
+// described identity names the active package generation; a development
+// identity has no package.
+func runtimeInputMatchesSession(identity protocol.RuntimeInputIdentity, s hostclient.SessionResult) bool {
+	if s.State != "active" || identity.Validate() != nil {
+		return false
+	}
+	switch identity.Kind {
+	case protocol.RuntimeInputDescribed:
+		return s.CorePackage != nil && s.CorePackage.PackageID == identity.PackageID && s.CorePackage.Generation == identity.Generation
+	case protocol.RuntimeInputDevelopment:
+		return s.Development && s.CorePackage == nil
+	}
+	return false
+}
+
+// retainSessionRuntimeInput keeps the current runtime identity when an
+// otherwise identical observation omits it. It never labels a changed
+// session, package or generation with the old runtime.
+func retainSessionRuntimeInput(current, next hostclient.SessionResult) (hostclient.SessionResult, bool) {
+	if next.ErrorCode != "" || next.RuntimeInput != nil || current.RuntimeInput == nil ||
+		!runtimeInputMatchesSession(*current.RuntimeInput, next) || !samePlayHIDSession(current, next) {
+		return next, false
+	}
+	identity := *current.RuntimeInput
+	next.RuntimeInput = &identity
+	return next, true
+}
+
+func runtimeInputReportFresh(at, now time.Time) bool {
+	return !at.IsZero() && !now.Before(at) && now.Sub(at) <= runtimeInputRetention
+}
+
+// sessionRuntimeInputFreshLocked bounds input authority from a kept identity
+// to the observation window. A reported identity is as fresh as the session
+// observation that carried it.
+func (a *App) sessionRuntimeInputFreshLocked(now time.Time) bool {
+	return !a.sessionRuntimeInputRetained || runtimeInputReportFresh(a.sessionRuntimeInputReportedAt, now)
 }
 
 func (a *App) cancelPlayHIDLocked() {
@@ -518,21 +598,43 @@ func (a *App) cancelPlayHIDLocked() {
 		a.playHIDCancel()
 	}
 	a.playHIDContext, a.playHIDCancel = nil, nil
-	a.playHIDTail, a.playHIDHeld = nil, nil
+	// Keep the old tail until it drains. A successor must not overtake a
+	// write that had already left the cancelled session's queue.
+	a.playHIDHeld = nil
 	a.playHIDPending = 0
 	a.playHIDEpoch++
 }
 
 func (a *App) releasePlayHIDLocked() {
+	if a.delegatedV2Active {
+		// Neutralization belongs to the acknowledged v2 source. Merely
+		// enqueueing a legacy key-up cannot prove that source is neutral.
+		a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
+	}
 	a.playKeyAdmitted = nil
 	a.playKeyPendingRelease = nil
 	a.playMice = nil
-	if a.playHIDFailClosedLocked() {
-		a.playHIDHeld = nil
-		return
-	}
+	boundKeyboard := a.kitHost && a.session.CoreKeyboardHID && a.needsSessionDisplayLocked()
+	binding, bound := a.localKeyboardBindingLocked()
+	foreign := a.playHIDFailClosedLocked()
+	var keyboard []remoteinput.Event
 	events := make([]remoteinput.Event, 0, len(a.playHIDHeld))
 	for _, event := range a.playHIDHeld {
+		if (a.delegatedV2Active || a.nativeUIOnlyInFlight != 0 || a.kitSDLKeyboardGuestBlockedLocked()) &&
+			(event.Device == remoteinput.DeviceKeyboard || event.Kind == remoteinput.KindKey) {
+			continue
+		}
+		if boundKeyboard && event.Device == remoteinput.DeviceKeyboard {
+			if bound {
+				event.Action = remoteinput.ActionRelease
+				event.Value = 0
+				keyboard = append(keyboard, event)
+			}
+			continue
+		}
+		if foreign {
+			continue
+		}
 		if event.Device == remoteinput.DeviceMouse {
 			events = append(events, remoteinput.MouseEvent(0, 0, 0))
 			continue
@@ -545,6 +647,9 @@ func (a *App) releasePlayHIDLocked() {
 		events = append(events, event)
 	}
 	a.playHIDHeld = nil
+	if bound {
+		a.queuePlayHIDBindingLocked(keyboard, &binding)
+	}
 	a.queuePlayHIDLocked(events)
 }
 

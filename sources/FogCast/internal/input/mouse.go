@@ -168,7 +168,12 @@ func (s *mouseSink) applyFrom(ctx context.Context, source inputSource, f protoco
 	return s.postLocked(ctx, dx, dy)
 }
 func (s *mouseSink) releaseSource(source inputSource) error {
-	s.mu.Lock()
+	return s.releaseSourceContext(context.Background(), source)
+}
+func (s *mouseSink) releaseSourceContext(ctx context.Context, source inputSource) error {
+	if err := s.lock(ctx); err != nil {
+		return err
+	}
 	defer s.mu.Unlock()
 	s.cancelReconciliationLocked()
 	if source >= sourceCount {
@@ -179,20 +184,28 @@ func (s *mouseSink) releaseSource(source inputSource) error {
 	if !changed && !s.unconfirmed {
 		return nil
 	}
-	return s.postLocked(context.Background(), 0, 0)
+	return s.postLocked(ctx, 0, 0)
 }
 func (s *mouseSink) releaseAll() {
-	s.mu.Lock()
+	_ = s.releaseAllContext(context.Background())
+}
+func (s *mouseSink) releaseAllContext(ctx context.Context) error {
+	if err := s.lock(ctx); err != nil {
+		return err
+	}
 	defer s.mu.Unlock()
 	s.cancelReconciliationLocked()
 	dirty := s.buttons[0]|s.buttons[1] != 0 || s.unconfirmed
 	s.buttons = [sourceCount]uint8{}
 	if dirty {
-		_ = s.postLocked(context.Background(), 0, 0)
+		if err := s.postLocked(ctx, 0, 0); err != nil {
+			return err
+		}
 	}
 	s.cancelReconciliationLocked()
 	s.binding = nil
 	s.unconfirmed = false
+	return nil
 }
 
 // neutral waits for any earlier post, then clears both input sources while

@@ -61,6 +61,21 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	})
 	mux.Handle("GET /v1/status", authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		status := controller.Status()
+		// A cached status cannot establish that the runtime has not restarted.
+		// Controllers that support input identity must make a fresh, bounded
+		// observation; all others report that identity unavailable.
+		status.RuntimeInput = nil
+		if observer, ok := controller.(interface {
+			StatusWithRuntimeInput(context.Context) protocol.Status
+		}); ok {
+			status = observer.StatusWithRuntimeInput(r.Context())
+		}
+		status.InputAgentInstance = ""
+		if source, ok := settings.input.(interface{ LocalAgentInstance() (string, error) }); ok {
+			if id, err := source.LocalAgentInstance(); err == nil && protocol.ValidInputAgentInstance(id) {
+				status.InputAgentInstance = id
+			}
+		}
 		setRequestState(r, status)
 		writeJSON(w, http.StatusOK, status)
 	})))
@@ -103,8 +118,50 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 
 func registerInputRoutes(mux *http.ServeMux, token string, controller InputController) {
 	mux.Handle("/v1/input/attach", authenticate(token, exactMethod(http.MethodPost, inputAttachHandler(controller))))
+	mux.Handle("/v1/input/local-keyboard", authenticate(token, exactMethod(http.MethodPost, localKeyboardGrantHandler(controller))))
 	mux.Handle("/v1/input/detach", authenticate(token, exactMethod(http.MethodPost, inputDetachHandler(controller))))
 	mux.Handle("/v1/input/stream", authenticate(token, inputStreamHandler(controller)))
+}
+
+type localKeyboardGranter interface {
+	GrantLocalKeyboard(context.Context, uint64, input.KeyboardHIDBinding) error
+	LocalKeyboardBinding() (input.KeyboardHIDBinding, bool)
+}
+
+type localKeyboardOffer struct {
+	RuntimeInstance string `json:"runtime_instance"`
+	PackageID       string `json:"package_id"`
+	Generation      uint64 `json:"core_generation"`
+}
+
+func localKeyboardGrantHandler(controller InputController) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		granter, ok := controller.(localKeyboardGranter)
+		if !ok {
+			writeInputError(w, r)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1024)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		var request struct {
+			Session         uint64 `json:"session"`
+			RuntimeInstance string `json:"runtime_instance"`
+			PackageID       string `json:"package_id"`
+			Generation      uint64 `json:"core_generation"`
+		}
+		if err := decoder.Decode(&request); err != nil || request.Session == 0 || !protocol.ValidInputAgentInstance(request.RuntimeInstance) || request.PackageID == "" || request.Generation == 0 || decoder.Decode(&struct{}{}) != io.EOF {
+			writeBadRequest(w, r, "local keyboard admission requires an input session")
+			return
+		}
+		if err := granter.GrantLocalKeyboard(r.Context(), request.Session, input.KeyboardHIDBinding{RuntimeInstance: request.RuntimeInstance, PackageID: request.PackageID, Generation: request.Generation}); err != nil {
+			writeInputError(w, r)
+			return
+		}
+		writeJSON(w, http.StatusOK, struct {
+			Ready bool `json:"ready"`
+		}{Ready: true})
+	})
 }
 
 func inputAttachHandler(controller InputController) http.Handler {
@@ -130,9 +187,16 @@ func inputAttachHandler(controller InputController) http.Handler {
 			writeInputError(w, r)
 			return
 		}
+		var localKeyboard *localKeyboardOffer
+		if granter, supported := controller.(localKeyboardGranter); supported {
+			if binding, ok := granter.LocalKeyboardBinding(); ok {
+				localKeyboard = &localKeyboardOffer{RuntimeInstance: binding.RuntimeInstance, PackageID: binding.PackageID, Generation: binding.Generation}
+			}
+		}
 		writeJSON(w, http.StatusOK, struct {
-			Ready bool `json:"ready"`
-		}{Ready: true})
+			Ready         bool                `json:"ready"`
+			LocalKeyboard *localKeyboardOffer `json:"local_keyboard,omitempty"`
+		}{Ready: true, LocalKeyboard: localKeyboard})
 	})
 }
 

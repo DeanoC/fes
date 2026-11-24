@@ -115,7 +115,10 @@ for each port:
   which pc386's masters add as a constant (`pc386_disk.sv:43`,
   `pc386_fdc.sv:149`, `pc386_status.sv:44`), check it against the span,
   and add the grant base;
-- bursts are split at 4 KiB boundaries and at the bridge's MAX_BURST_SIZE;
+- bursts are split at 4 KiB boundaries and at the bridge's MAX_BURST_SIZE.
+  As built, the split is in `fes_de25_window_arbiter`, which joins the three
+  ports into one master: a burst that would cross a 4 KiB boundary goes as
+  two. Its bursts are at most 128 beats, the window bridge's MAX_BURST_SIZE;
 - an `mm_ccb` crosses each port from the machine clock to the 100 MHz
   F2SDRAM side.
 

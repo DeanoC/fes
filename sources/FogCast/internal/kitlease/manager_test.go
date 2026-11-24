@@ -122,6 +122,53 @@ func TestExpiryWaitsForAdmittedOperation(t *testing.T) {
 		t.Fatal(n.Load())
 	}
 }
+
+func TestLocalInputAdmissionDrainsAndRejectsReplacementGeneration(t *testing.T) {
+	var cleanups atomic.Int32
+	m := ready(t, time.Minute, func(context.Context) error { cleanups.Add(1); return nil })
+	g, err := m.Claim(req("a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, generation := range []string{"", "stale"} {
+		if _, _, err := m.BeginLocalInput(generation); !errors.Is(err, ErrLease) {
+			t.Fatalf("generation %q admitted: %v", generation, err)
+		}
+	}
+	ctx, done, err := m.BeginLocalInput(g.Status.Generation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Release(g.Token); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("local input context did not cancel on revoke")
+	}
+	if _, _, err := m.BeginLocalInput(g.Status.Generation); !errors.Is(err, ErrLease) {
+		t.Fatalf("revoked generation admitted: %v", err)
+	}
+	if cleanups.Load() != 1 { // startup cleanup only
+		t.Fatal("cleanup ran before the admitted physical input drained")
+	}
+	done()
+	done()
+	wait(t, m, "free")
+	next, err := m.Claim(req("b"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := m.BeginLocalInput(g.Status.Generation); !errors.Is(err, ErrLease) {
+		t.Fatalf("prior owner's local input admitted to replacement: %v", err)
+	}
+	_, nextDone, err := m.BeginLocalInput(next.Status.Generation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nextDone()
+}
 func TestRenewTimer(t *testing.T) {
 	m := ready(t, 150*time.Millisecond, func(context.Context) error { return nil })
 	g, _ := m.Claim(req("a"))
