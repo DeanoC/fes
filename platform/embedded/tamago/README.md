@@ -67,26 +67,46 @@ hardware networking remains disabled in the board profile.
 
 - **QEMU `virt` memory map:** Enters at EL1 linked at `0x40020000` (256 MiB Go
   RAM at `0x40000000`, 64 MiB noncacheable DMA arena at `0x50000000`, 8 MiB
-  framebuffer arena). DMA buffers stay pinned until completion or reboot.
-- **Cooperative single-core execution:** Interrupts stay masked; drivers poll
-  with explicit deadlines and yield cooperatively. The Tenfoot software
-  renderer yields every four rows and splits large copies into 32 KiB chunks.
+  framebuffer arena). DMA buffers stay pinned until completion or reboot,
+  allocated through the shared [dmaops](dmaops/README.md) uncached pool.
+- **Cooperative single-core execution with GICv3 IRQs & `WFI` idle:** TamaGo
+  has no asynchronous goroutine preemption, so drivers use bounded deadlines
+  and the Tenfoot software renderer yields every four rows (splitting large
+  copies into 32 KiB chunks). Polling remains the default unless a program
+  calls `board.GIC().Init()`; both `cmd/tenfoot` and DE25-Nano `cmd/fpgaload`
+  enable [gic](gic/README.md) GICv3 Non-Secure Group 1 interrupts, the `WFI`
+  idle governor (PPI 30), and SPI wakeups for UART RX, USB/DWC2, SDHCI,
+  VirtIO/XGMAC and FPGA doorbells ([fpgairq](fpgairq/README.md)).
 - **No QEMU constants on DE25:** QEMU PCI/MMIO addresses are test-only. Nano
   memory maps, EL1 page tables, clocks and drivers live under
   [board](board/README.md),
   [board/arm64map](board/arm64map/README.md), [dwc2](dwc2/README.md),
   [sdhci](sdhci/README.md), [sdcontrol](sdcontrol/README.md),
-  [scanout](scanout/README.md) and [xgmac](xgmac/README.md).
-- **FAT32 & preferences:** [fat](fat/README.md) updates preallocated files and
-  creates new files/directories without rename or power-loss atomicity.
-  TamaGo's default `os` filesystem is volatile RAM; only `PreferenceStore` /
-  `sd-checkpoint` writes FAT32.
-- **Subsystem READMEs:** [packagestore](packagestore/README.md),
+  [scanout](scanout/README.md), [xgmac](xgmac/README.md),
+  [wdt](wdt/README.md) and [fpgairq](fpgairq/README.md).
+- **FAT32, caching & timestamps:** [block](block/README.md) provides a bounded
+  LRU write-through sector cache (wired lease-invalidating into `sdcontrol` and
+  `fpgaload`); [fat](fat/README.md) coalesces multi-sector reads/writes up to
+  64 KiB and supports optional wall-clock timestamps from [rtc](rtc/README.md)
+  (PL031). FAT32 updates preallocated files and creates new files/directories
+  without rename or power-loss atomicity. TamaGo's default `os` filesystem is
+  volatile RAM; only `PreferenceStore` / `sd-checkpoint` writes FAT32.
+- **Networking:** [network](network/README.md) provides `lneto` TCP/IP over
+  VirtIO-net or DE25-Nano XGMAC, an opt-in RFC 2131 DHCPv4 client, a pure-Go
+  RFC 1035 DNSv4 A-record resolver, and a controlled DE25-Nano XGMAC DHCPv4
+  opener (Ethernet remains disabled in the default Nano boot profile).
+- **CI coverage:** `scripts/ci_tamago.sh` and `scripts/tamago_ci.py` run host
+  `go vet` and `-race` tests, dual-board bare-metal builds (QEMU `virt` and
+  DE25-Nano), and 11 QEMU suites (`probe`, `mapcheck`, `fabric`, `keyboard`,
+  `display`, `packages`, `admission`, `network`, `tenfoot`, `storage`, `play`).
+- **Subsystem READMEs:** [block](block/README.md), [computer](computer/README.md),
+  [dmaops](dmaops/README.md), [fabricmodel](fabricmodel/README.md),
+  [fpgairq](fpgairq/README.md), [gic](gic/README.md),
+  [nativefabric](nativefabric/README.md), [network](network/README.md),
+  [packagestore](packagestore/README.md), [psci](psci/README.md),
+  [rtc](rtc/README.md), [sdm](sdm/README.md),
   [storagepolicy](storagepolicy/README.md), [usb](usb/README.md),
-  [usbcontrol](usbcontrol/README.md), [network](network/README.md),
-  [computer](computer/README.md), [sdm](sdm/README.md),
-  [fabricmodel](fabricmodel/README.md) and
-  [nativefabric](nativefabric/README.md).
+  [usbcontrol](usbcontrol/README.md) and [wdt](wdt/README.md).
 
 ## Package inspection without a host OS
 

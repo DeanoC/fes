@@ -30,7 +30,7 @@ endif
 GO_RACE_TIMEOUT ?= 30m
 GO_TEST_FLAGS ?= -short
 
-.PHONY: fmt test test-ui test-ui-boundary test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-kit-diagnostics test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-cli build-fogcast-kit build-fogcast-tenfoot-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-package-smoke
+.PHONY: fmt test test-ui test-ui-boundary test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-kit-diagnostics test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-cli build-fogcast-kit build-fogcast-tenfoot-kit build-agent build-target-image-lock build-target-image-lock-container target-package-smoke
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -78,7 +78,7 @@ vet:
 
 check: fmt test vet
 
-build: build-fogcast build-fogcast-api build-cli build-fes-software build-agent build-bridge build-target-image-lock build-target-image-lock-container
+build: build-fogcast build-fogcast-api build-cli build-fes-software build-agent build-target-image-lock build-target-image-lock-container
 
 build-fogcast:
 	mkdir -p "$(dir $(FOGCAST_OUTPUT))"
@@ -151,10 +151,6 @@ build-fes-kit-bundle-container:
 build-agent: build-fogcast-kit build-fogcast-tenfoot-kit build-fes-kit-data build-fes-kit-bundle-container
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/mister-agent-linux-armv7 ./cmd/mister-agent
-
-build-bridge:
-	mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/mister-bridge-linux-armv7 ./cmd/mister-bridge
 
 build-target-image-lock:
 	mkdir -p bin

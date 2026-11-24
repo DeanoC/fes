@@ -1,0 +1,42 @@
+{
+ "base": {
+  "verdict": "passed: --random-programs 500 --random-seeds 8 --limit-per-file 20",
+  "new_failures": 0,
+  "failure_lines": []
+ },
+ "pred": {
+  "verdict": "passed: --random-programs 500 --random-seeds 8 --limit-per-file 20",
+  "new_failures": 0,
+  "failure_lines": []
+ },
+ "ras": {
+  "verdict": "passed: --random-programs 500 --random-seeds 8 --limit-per-file 20",
+  "new_failures": 0,
+  "failure_lines": []
+ },
+ "ind": {
+  "verdict": "passed: --random-programs 500 --random-seeds 8 --limit-per-file 20",
+  "new_failures": 0,
+  "failure_lines": []
+ },
+ "stld": {
+  "verdict": "passed: --random-programs 500 --random-seeds 8 --limit-per-file 20",
+  "new_failures": 0,
+  "failure_lines": []
+ },
+ "ealu": {
+  "verdict": "passed: --random-programs 500 --random-seeds 8 --limit-per-file 20",
+  "new_failures": 0,
+  "failure_lines": []
+ },
+ "lfwd": {
+  "verdict": "passed: --random-programs 500 --random-seeds 8 --limit-per-file 20",
+  "new_failures": 0,
+  "failure_lines": []
+ },
+ "speed": {
+  "verdict": "passed: --random-programs 500 --random-seeds 8 --limit-per-file 20",
+  "new_failures": 0,
+  "failure_lines": []
+ }
+}

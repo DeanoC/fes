@@ -12,7 +12,9 @@
 // is the I/O window. Both are vacant here; a linked card replaces the
 // vacant response.
 module top #(
-    parameter [127:0] BUILD_ID = `FES_C64_BUILD_ID
+    parameter [127:0] BUILD_ID = `FES_C64_BUILD_ID,
+    parameter bit NTSC = 0,
+    parameter bit SID_8580 = 0
 ) (
     input  wire        FPGA_CLK1_50,
     output wire        HDMI_TX_CLK,
@@ -97,7 +99,7 @@ module top #(
     wire de, hsync, vsync;
     wire signed [15:0] audio_sample;
     /* verilator lint_off PINCONNECTEMPTY */
-    c64_machine machine (
+    c64_machine #(.NTSC(NTSC), .SID_8580(SID_8580)) machine (
         .clk_sys(clk_sys), .reset(exec_reset),
         .keyboard_rows(keyboard_rows), .controller_buttons(controller_buttons),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),

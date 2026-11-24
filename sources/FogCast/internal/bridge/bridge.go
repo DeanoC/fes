@@ -32,11 +32,42 @@ type Sink interface {
 	Close() error
 }
 
+// ContextSink and ContextReleaseSink let the owner cancel in-flight work and
+// bound cleanup without abandoning a handler that can still touch the sink.
+// A legacy sink is still drained synchronously before successor admission.
+type ContextSink interface {
+	ApplyContext(context.Context, protocol.InputFrame) error
+}
+type ContextReleaseSink interface{ ReleaseAllContext(context.Context) error }
+
+// CloseError separates a fully drained source-release failure from other
+// close failures. Only the owner may supersede Release by confirmed neutral.
+type CloseError struct{ Listener, Release, Sink error }
+
+func (e *CloseError) Error() string {
+	if e == nil {
+		return "bridge close failed"
+	}
+	if joined := errors.Join(e.Listener, e.Release, e.Sink); joined != nil {
+		return joined.Error()
+	}
+	return "bridge close failed"
+}
+func (e *CloseError) Unwrap() []error { return []error{e.Listener, e.Release, e.Sink} }
+func (e *CloseError) OnlyRelease() bool {
+	return e != nil && e.Listener == nil && e.Release != nil && e.Sink == nil
+}
+
 // TimedTapSink applies both edges on the target and returns only after the
 // release is accepted. It must attempt release even when press is uncertain.
 // A receipt is sink acceptance, not proof that the guest consumed the tap.
 type TimedTapSink interface {
 	Tap(context.Context, protocol.InputFrame) error
+}
+
+// TimedTapChordSink adds an atomic key plus modifier tap.
+type TimedTapChordSink interface {
+	TapChord(context.Context, protocol.InputFrame) error
 }
 
 // errRejectedInputFrame marks validation failures that occur before a sink
@@ -183,13 +214,23 @@ func (s *Server) Close() error {
 		s.activeMu.Unlock()
 		s.wg.Wait()
 		_ = s.releaseAll()
-		s.closeErr = errors.Join(listenerErr, s.recordedReleaseError(), s.sink.Close())
+		releaseErr, sinkErr := s.recordedReleaseError(), s.sink.Close()
+		if listenerErr != nil || releaseErr != nil || sinkErr != nil {
+			s.closeErr = &CloseError{Listener: listenerErr, Release: releaseErr, Sink: sinkErr}
+		}
 	})
 	return s.closeErr
 }
 
 func (s *Server) releaseAll() error {
-	err := s.sink.ReleaseAll()
+	var err error
+	if sink, ok := s.sink.(ContextReleaseSink); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		err = sink.ReleaseAllContext(ctx)
+		cancel()
+	} else {
+		err = s.sink.ReleaseAll()
+	}
 	s.metrics.Releases.Add(1)
 	if err != nil {
 		s.releaseMu.Lock()
@@ -251,6 +292,7 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 	tracker := protocol.SequenceTracker{}
 	rejectedSinceReceipt := false
 	tapProbed := false
+	chordProbed := false
 	last := time.Now()
 	timer := time.NewTicker(100 * time.Millisecond)
 	defer timer.Stop()
@@ -278,7 +320,8 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 				return
 			}
 			probeTap := f.Header.Flags == protocol.InputFlagTapProbe
-			wantsReceipt := f.Header.Flags == protocol.InputFlagReceiptRequested || probeTap
+			probeChord := f.Header.Flags == protocol.InputFlagTapChordProbe
+			wantsReceipt := f.Header.Flags == protocol.InputFlagReceiptRequested || probeTap || probeChord
 			if wantsReceipt {
 				f.Header.Type = protocol.InputTypeReceipt
 				f.Header.Flags = 0
@@ -286,6 +329,12 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 					_, tapProbed = s.sink.(TimedTapSink)
 					if tapProbed {
 						f.Header.Flags = protocol.InputFlagTapSupported
+					}
+				}
+				if probeChord {
+					_, chordProbed = s.sink.(TimedTapChordSink)
+					if chordProbed {
+						f.Header.Flags = protocol.InputFlagTapChordSupported
 					}
 				}
 				if rejectedSinceReceipt {
@@ -307,8 +356,8 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 			}
 			continue
 		}
-		if f.Header.Type == protocol.InputTypeTap {
-			if f.Header.Session != s.cfg.Session || !tapProbed {
+		if f.Header.Type == protocol.InputTypeTap || f.Header.Type == protocol.InputTypeTapChord {
+			if f.Header.Session != s.cfg.Session || (f.Header.Type == protocol.InputTypeTap && !tapProbed) || (f.Header.Type == protocol.InputTypeTapChord && !chordProbed) {
 				return
 			}
 			accepted, gap := tracker.ObserveTransient(f.Seq)
@@ -320,7 +369,12 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 			}
 			// Tap is serialized with all other events on this connection. The
 			// target sink owns the two edges and must release on cancellation.
-			err := s.sink.(TimedTapSink).Tap(ctx, f)
+			var err error
+			if f.Header.Type == protocol.InputTypeTap {
+				err = s.sink.(TimedTapSink).Tap(ctx, f)
+			} else {
+				err = s.sink.(TimedTapChordSink).TapChord(ctx, f)
+			}
 			last = time.Now()
 			reply := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeReceipt, Session: s.cfg.Session}, Seq: f.Seq, ClientMonoNS: f.ClientMonoNS, ServerMonoNS: uint64(time.Now().UnixNano())}
 			if err != nil {
@@ -366,7 +420,12 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 			rejectedSinceReceipt = true
 			continue
 		}
-		applyErr := s.sink.Apply(f)
+		var applyErr error
+		if sink, ok := s.sink.(ContextSink); ok {
+			applyErr = sink.ApplyContext(ctx, f)
+		} else {
+			applyErr = s.sink.Apply(f)
+		}
 		// A sink may block while the runtime processes an input. That is active
 		// work, not idle time: leave the sender a full heartbeat interval to
 		// receive a receipt or send the next frame once processing finishes.

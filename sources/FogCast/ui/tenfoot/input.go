@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -242,10 +243,39 @@ func absAxis(v int) int {
 // Repeater emits held-direction repeats without blocking the frame loop.
 // Methods synchronize frame-loop input with asynchronous session handoffs.
 type Repeater struct {
-	mu        sync.Mutex
-	held      Command
-	heldSince time.Time
-	lastFire  time.Time
+	mu sync.Mutex
+	// held is the existing aggregate legacy contributor (pads and ordinary
+	// keyboard). Native v2 contributors retain per-incarnation ownership.
+	held            Command
+	heldSince       time.Time
+	lastFire        time.Time
+	legacyOrder     uint64
+	nextOrder       uint64
+	nativeExhausted bool
+	native          map[nativeRepeatSource]*nativeRepeatHeld
+}
+
+type nativeRepeatSource struct {
+	device [16]byte
+	code   uint16
+}
+type nativeRepeatHeld struct {
+	command     Command
+	order       uint64
+	since, last time.Time
+}
+
+const maxNativeRepeatSources = 16 * 255
+
+func (r *Repeater) nextOrderLocked() (uint64, bool) {
+	if r.nativeExhausted || r.nextOrder == ^uint64(0) {
+		// Preserve the existing legacy lane, but fail closed for native v2.
+		r.nativeExhausted = true
+		r.native = nil
+		return 0, false
+	}
+	r.nextOrder++
+	return r.nextOrder, true
 }
 
 // Down records a newly pressed command. Repeat only applies to movement.
@@ -256,9 +286,11 @@ func (r *Repeater) Down(cmd Command, now time.Time) Command {
 		return CmdNone
 	}
 	if isHoldable(cmd) {
+		order, _ := r.nextOrderLocked()
 		r.held = cmd
 		r.heldSince = now
 		r.lastFire = now
+		r.legacyOrder = order
 	}
 	return cmd
 }
@@ -270,9 +302,11 @@ func (r *Repeater) Arm(cmd Command, now time.Time) {
 	if !isHoldable(cmd) {
 		return
 	}
+	order, _ := r.nextOrderLocked()
 	r.held = cmd
 	r.heldSince = now
 	r.lastFire = now
+	r.legacyOrder = order
 }
 
 // Up clears a held movement command.
@@ -289,19 +323,105 @@ func (r *Repeater) Clear() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.held = CmdNone
+	r.native = nil
 }
 
 // Held returns the currently armed movement command.
 func (r *Repeater) Held() Command {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	_, selected := r.selectedNativeLocked()
+	if selected != nil {
+		return selected.command
+	}
 	return r.held
+}
+
+// LegacyHeld is the aggregate pad/ordinary-keyboard repeat contributor. Pad
+// rearming must not treat an independently held native key as a pad release.
+func (r *Repeater) LegacyHeld() Command { r.mu.Lock(); defer r.mu.Unlock(); return r.held }
+
+func (r *Repeater) selectedNativeLocked() (nativeRepeatSource, *nativeRepeatHeld) {
+	var key nativeRepeatSource
+	var selected *nativeRepeatHeld
+	order := r.legacyOrder
+	if r.held == CmdNone {
+		order = 0
+	}
+	for candidate, hold := range r.native {
+		if hold.order > order {
+			key, selected, order = candidate, hold, hold.order
+		}
+	}
+	return key, selected
+}
+
+// DownNative contributes an exact physical key without changing the legacy
+// contributor. Up/retirement reselects a survivor without emitting a click.
+func (r *Repeater) DownNative(device [16]byte, code uint16, cmd Command, now time.Time) (Command, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if device == [16]byte{} || code == 0 || code >= 256 {
+		return CmdNone, errors.New("invalid native repeat source")
+	}
+	if r.nativeExhausted {
+		return CmdNone, errors.New("native repeat order exhausted")
+	}
+	if cmd == CmdNone {
+		return CmdNone, nil
+	}
+	if !isHoldable(cmd) {
+		return cmd, nil
+	}
+	key := nativeRepeatSource{device: device, code: code}
+	if r.native[key] != nil || len(r.native) >= maxNativeRepeatSources {
+		return CmdNone, errors.New("duplicate or excessive native repeat source")
+	}
+	order, ok := r.nextOrderLocked()
+	if !ok {
+		return CmdNone, errors.New("native repeat order exhausted")
+	}
+	if r.native == nil {
+		r.native = make(map[nativeRepeatSource]*nativeRepeatHeld)
+	}
+	r.native[key] = &nativeRepeatHeld{command: cmd, order: order, since: now, last: now}
+	return cmd, nil
+}
+
+func (r *Repeater) UpNative(device [16]byte, code uint16) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.native, nativeRepeatSource{device: device, code: code})
+}
+
+func (r *Repeater) RetireNative(device [16]byte) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for key := range r.native {
+		if key.device == device {
+			delete(r.native, key)
+		}
+	}
+}
+
+func (r *Repeater) ClearNative() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.native = nil
 }
 
 // Tick returns a movement command when the hold repeat interval elapses.
 func (r *Repeater) Tick(now time.Time) Command {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	_, selected := r.selectedNativeLocked()
+	if selected != nil {
+		if now.Sub(selected.since) < repeatDelay || now.Sub(selected.last) < repeatEvery {
+			return CmdNone
+		}
+		selected.last = now
+		return selected.command
+	}
 	if !isHoldable(r.held) {
 		return CmdNone
 	}
@@ -373,7 +493,7 @@ func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool 
 		app.Press(cmd, now)
 		held[cmd] = true
 	}
-	if !pressed[app.repeat.Held()] {
+	if !pressed[app.repeat.LegacyHeld()] {
 		for cmd := range held {
 			if !isHoldable(cmd) {
 				continue

@@ -35,12 +35,14 @@ type MeshNode struct {
 func (MeshNode) SilenceReleasesLease() bool { return false }
 
 type TargetConnection struct {
-	State    string `json:"state"`
-	Message  string `json:"message,omitempty"`
-	Address  string `json:"address,omitempty"`
-	TargetID string `json:"target_id,omitempty"`
-	BootID   string `json:"boot_id,omitempty"`
-	Owner    string `json:"owner,omitempty"`
+	State           string `json:"state"`
+	Message         string `json:"message,omitempty"`
+	Address         string `json:"address,omitempty"`
+	TargetID        string `json:"target_id,omitempty"`
+	BootID          string `json:"boot_id,omitempty"`
+	Owner           string `json:"owner,omitempty"`
+	LeaseGeneration string `json:"lease_generation,omitempty"`
+	LeaseOwned      bool   `json:"lease_owned,omitempty"`
 	// leaseSeen is true after this host has read kit ownership for the
 	// connection. The fields are not a wire format. leaseOwned is the
 	// observed session grant. leaseGeneration is that observation's
@@ -864,7 +866,7 @@ func (s *Service) launchObservesSelectedConnection(pinned launchSnapshot) bool {
 
 func connectionFromStatus(health protocol.Health, status protocol.Status, ownership targetclient.KitOwnership, address, id string) TargetConnection {
 	connection := TargetConnection{
-		State: "ready", Address: address, TargetID: id, BootID: health.BootID,
+		State: "ready", Address: address, TargetID: id, BootID: health.BootID, LeaseGeneration: ownership.Generation, LeaseOwned: ownership.Owned,
 		leaseSeen: true, leaseOwned: ownership.Owned, leaseGeneration: ownership.Generation,
 		persistentMediaBound: protocol.PersistentMediaBound(status.CorePackage),
 	}

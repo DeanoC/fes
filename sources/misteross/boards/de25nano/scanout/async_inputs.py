@@ -14,7 +14,7 @@ import subprocess
 # The DE25 producers encode their records with this board's exporter, so read
 # them back with the same one. Both derive a format-2 identity identically.
 from boards.de25nano.package.export_core_package import build_identity
-from boards.de25nano.scanout import vendor_reference, video_outputs, output_reset
+from boards.de25nano.scanout import vendor_reference, video_outputs, output_reset, bridge_reset
 from scripts.fes_build_common import BuildError
 
 POLICY = 'de25-menu-reviewed-async-inputs-v1'
@@ -147,6 +147,16 @@ def native_spectrum48(params):
             params.get("firmware_bytes")) == ("fes.spectrum", "native48", "de25-native-spectrum48-v1", 16384)
 
 
+def native_c64(params):
+    return (
+        params.get("core_id"), params.get("model"), params.get("programming_profile"),
+        params.get("firmware_bytes")) == ("fes.c64", "nativepal", "de25-native-c64-v1", 36864)
+
+
+def native_upload_shell(params):
+    return native_spectrum48(params) or native_c64(params)
+
+
 def bindings(directory):
     directory = Path(directory)
     hps = directory / 'combined/hps'
@@ -159,14 +169,16 @@ def bindings(directory):
                  'fes.spectrum-plus3': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
                  'fes.pentagon': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
                  'fes.atari-st': ('computer', 'boards/de25nano/producers/build_atari_st_package.py'),
+                 'fes.pc386': ('computer', 'boards/de25nano/producers/build_pc386_package.py'),
                  'fes.c64': ('computer', 'boards/de25nano/producers/build_c64_package.py'),
+                 'fes.pcxt-dos': ('computer', 'boards/de25nano/producers/build_pcxt_package.py'),
                  }.get(fields['parameters']['core_id'])
     require(selection is not None and fields['recipe'] == selection[1], 'unsupported canonical input-review core/recipe')
     profile = 'standard_zx81' if fields['parameters'].get('standard_core') is True else selection[0]
     inputs = json.loads((hps / 'inputs.json').read_text())
     if profile == 'standard_zx81':
         require((fields['parameters'].get('programming_profile') == 'de25-linux-computer-v1' or
-                 native_spectrum48(fields['parameters'])) and
+                 native_upload_shell(fields['parameters'])) and
                 inputs['scanout']['build_identity_scheme'] == 'canonical-standard-computer-v2' and
                 inputs['scanout']['build_id'] == build_identity(record), 'standard profile/scanout identity mismatch')
     require(inputs['fes_revision'] == fields['revision'] and
@@ -215,6 +227,10 @@ def collect(directory, quartus_sta, *, vendor_archive=None):
     if output_reset.selected(directory):
         output_reset.collect(directory, copied / 'combined/hps/project',
                              output / 'output-reset', tool)
+    if bridge_reset.selected(directory):
+        require(output_reset.selected(directory), 'the window bridge review needs the output-reset review')
+        bridge_reset.collect(directory, copied / 'combined/hps/project',
+                             output / 'window-bridge-reset', tool)
     (output / 'receipt.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
     return output
 
@@ -235,4 +251,8 @@ def verify(directory, review):
         result['video_output_timing'] = video_outputs.verify(directory, Path(review) / 'video-outputs')
     if output_reset.selected(directory):
         result['output_reset_review'] = output_reset.verify(directory, Path(review) / 'output-reset')
+    if bridge_reset.selected(directory):
+        require('output_reset_review' in result, 'the window bridge review needs the output-reset review')
+        result['window_bridge_reset_review'] = bridge_reset.verify(
+            directory, Path(review) / 'window-bridge-reset', result['output_reset_review']['finding'])
     return result

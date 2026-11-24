@@ -1,4 +1,4 @@
-"""DE25 Spectrum, Atari ST and C64 producer identity, manifest and firmware binding.
+"""DE25 Spectrum, Atari ST, C64, PC/XT and pc386 producer identity, manifest and firmware binding.
 
 The temporary Git tree and payload below exercise source and manifest
 boundaries; they are deliberately unqualified and never stand in for a
@@ -20,6 +20,8 @@ from boards.de25nano.package.export_core_package import (
 from boards.de25nano.producers import build_atari_st_package as atari_st
 from boards.de25nano.producers import build_c64_package as c64
 from boards.de25nano.producers import build_machine_package as shared
+from boards.de25nano.producers import build_pcxt_package as pcxt
+from boards.de25nano.producers import build_pc386_package as pc386
 from boards.de25nano.producers import build_spectrum_package as spectrum
 from boards.de25nano.spectrum import native_hps
 
@@ -38,8 +40,13 @@ CASES = (
     (atari_st, '520st', 196608, 'fes.atari-st', 'atari-st-firmware', {'fes.mouse.relative', 'fes.media.atari-st-floppy',
                                  'fes.media.atari-st-floppy-write', 'fes.media.atari-st-floppy-geometry'}),
     (c64, 'pal', 36864, 'fes.c64', 'c64-firmware', {'fes.media.c64-disk'}),
+    (pcxt, 'xt', 69632, 'fes.pcxt-dos', 'pcxt-firmware', {'fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write'}),
 )
-PRODUCERS = (spectrum, atari_st, c64)
+PRODUCERS = (spectrum, atari_st, c64, pcxt, pc386)
+# The shared machine PLL's clock, or the machine's own; and the fes.computer
+# minor its endpoint answers.
+MACHINE_CLOCK = {spectrum: 52222222, atari_st: 52222222, c64: 52222222, pcxt: 100000000}
+ABI_MINOR = {spectrum: 0, atari_st: 0, c64: 0, pcxt: 1}
 
 
 class MachineProducerTests(unittest.TestCase):
@@ -53,11 +60,13 @@ class MachineProducerTests(unittest.TestCase):
         for producer in PRODUCERS:
             spec = producer.MACHINE.spec(ROOT)
             cls.captured[producer] = spec.board.capture(spec)
+        c64_spec = c64.MACHINE.spec(ROOT)
+        cls.native_c64_captured = c64_spec.board.capture(c64_spec, native=True)
         data = {}
-        for captured in cls.captured.values():
+        for captured in (*cls.captured.values(), cls.native_c64_captured):
             data.update({Path(name).relative_to('sources/misteross').as_posix(): value
                          for name, value in captured.items()})
-        for name in (spectrum.RECIPE, atari_st.RECIPE, c64.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
+        for name in (spectrum.RECIPE, atari_st.RECIPE, c64.RECIPE, pcxt.RECIPE, pc386.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
                      'boards/de25nano/quartus.lock', 'boards/de25nano/package/core_package.py',
                      'boards/de25nano/package/export_core_package.py', shared.NATIVE_SPECTRUM_COMPOSER, *shared.REVIEW_INPUTS):
             data.setdefault(name, (ROOT / name).read_bytes())
@@ -95,7 +104,7 @@ class MachineProducerTests(unittest.TestCase):
                 self.assertEqual(parameters['firmware_delivery'], 'gp-firmware-upload-v1')
                 self.assertEqual(parameters['guest_memory'], 'fabric-bram' if producer is c64 else 'board-sdram')
                 self.assertEqual(parameters['programming_profile'], 'de25-linux-computer-v1')
-                self.assertEqual(parameters['machine_clock_hz'], 52222222)
+                self.assertEqual(parameters['machine_clock_hz'], MACHINE_CLOCK[producer])
                 self.assertFalse(parameters['expansion_socket'])
                 self.assertEqual(json.loads(record)['recipe'], producer.RECIPE)
                 identities.add(build_identity(record))
@@ -122,7 +131,7 @@ class MachineProducerTests(unittest.TestCase):
                 self.assertEqual(manifest['core']['id'], core_id)
                 self.assertEqual(manifest['target'], {'platform': 'de25_nano', 'device': shared.DEVICE,
                                                       'programming_profile': 'de25-linux-computer-v1'})
-                self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 0})
+                self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': ABI_MINOR[producer]})
                 self.assertEqual({i['id'] for i in manifest['interfaces']}, SHELL | media)
                 # Only a disk controller is optional, and it is declared beside its disk unit.
                 self.assertEqual({i['id'] for i in manifest['interfaces'] if not i['required']},
@@ -138,6 +147,32 @@ class MachineProducerTests(unittest.TestCase):
                 self.assertEqual(mapping, {'format': 1, 'device': shared.DEVICE,
                                            'encoding': 'gp-firmware-upload-v1',
                                            'base_sha256': manifest['payload']['sha256'], 'source_size': size})
+
+    def test_native_c64_seals_its_own_identity_and_shared_aperture(self):
+        build = self.root / 'build'
+        build.mkdir(exist_ok=True)
+        payload = build / 'nativepal.rbf'
+        payload.write_bytes(b'unqualified native C64 payload fixture')
+        record = c64.create_build_record(self.root, REPOSITORY, self.revision,
+                                         self.tools, self.execution, self.native_c64_captured,
+                                         model='nativepal')
+        with self.assertRaisesRegex(shared.BuildError, "captured upload-shell sources"):
+            self.record(c64, 'nativepal')
+        fields = verify_record_source_at_revision(self.root, record)
+        self.assertIn(shared.NATIVE_SPECTRUM_COMPOSER, fields['source_inputs'])
+        self.assertIn('boards/de25nano/spectrum/derive.py', fields['source_inputs'])
+        self.assertFalse(fields['parameters']['linux_dma'])
+        self.assertEqual(fields['parameters']['guest_memory'], 'fabric-bram')
+        self.assertNotEqual(build_identity(record), build_identity(self.record(c64, 'pal')))
+        manifest = tomllib.loads(c64.manifest(record, payload).decode())
+        self.assertEqual(manifest['target']['programming_profile'], 'de25-native-c64-v1')
+        self.assertIn(dict(id='fes.media.c64-disk', major=1, minor=0, required=True), manifest['interfaces'])
+        spec = c64.MACHINE.spec(self.root)
+        maps = json.loads(spec.native_controls(manifest['build']['id'], manifest['payload']['sha256']))
+        self.assertEqual(maps['firmware_bytes'], 36864)
+        self.assertEqual(maps['computer']['peripheral_offset'], 0x10300)
+        self.assertEqual(maps['display_reader']['grant_base'], 0x95000000)
+        self.assertEqual(json.loads(c64.MACHINE.rom_map(record, payload))['source_size'], 36864)
 
     def test_native48_uses_its_own_profile_identity_and_control_maps(self):
         build = self.root / 'build'
@@ -262,6 +297,55 @@ class MachineProducerTests(unittest.TestCase):
             change(bad)
             with self.assertRaises(PackageError):
                 encode_manifest(bad)
+
+    def test_pc386_record_and_manifest_name_the_window_and_the_linked_firmware(self):
+        from scripts import pc386_quartus as sealer
+        tools = {**self.tools, 'yosys': 'explicit fixture yosys'}
+        with self.assertRaisesRegex(shared.BuildError, 'controlled Quartus execution inputs'):
+            self.record(pc386, '386')  # the record names the front end's Yosys
+        record = self.record(pc386, '386', tools)
+        parameters = verify_record_source_at_revision(self.root, record)['parameters']
+        self.assertEqual(parameters['core_id'], 'fes.pc386')
+        self.assertNotIn('rom_id', parameters)
+        self.assertNotIn('firmware_delivery', parameters)
+        self.assertEqual((parameters['f2sdram_master_profile'], parameters['guest_memory'],
+                          parameters['window_contract']),
+                         ('scanout+window', 'hps-window', 'fes.fabric.de25-hps-window 1.0'))
+        self.assertEqual(parameters['machine_clock_hz'], 61437908)
+        spec = pc386.MACHINE.spec(ROOT)
+        self.assertEqual(json.loads(parameters['guest_rates']), spec.guest_rates())
+        self.assertEqual(json.loads(parameters['firmware']),
+                         {**sealer.firmware_digests(ROOT), 'rom_hex': sealer.pinned_rom_digest(ROOT)})
+        self.assertIs(parameters['x87_present'], False)
+        self.assertEqual(json.loads(record)['tools']['yosys'], 'explicit fixture yosys')
+        # The reviewed signoff bases and the handshake sources they cite are in the record.
+        from boards.de25nano.scanout import machine_findings
+        table = machine_findings.bases()
+        self.assertEqual(set(machine_findings.sources(json.loads(record), table)), {*table.SOURCES, table.TABLE})
+        self.assertEqual(parameters['signoff_findings_review_policy'], machine_findings.POLICY)
+        work = self.root / 'build/pc386'
+        work.mkdir(parents=True)
+        self.addCleanup(shutil.rmtree, self.root / 'build')
+        payload = work / 'core.rbf'
+        payload.write_bytes(b'unqualified payload fixture')
+        (work / 'build-inputs.json').write_bytes(record)
+        manifest = tomllib.loads(pc386.manifest(record, payload).decode())
+        self.assertEqual(manifest['format'], 2)
+        self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
+        versions = {i['id']: (i['major'], i['minor']) for i in manifest['interfaces']}
+        self.assertEqual(versions, {**{name: (1, 0) for name in sealer.INTERFACES},
+                                    'fes.fabric.de25-hps-window': (1, 0), 'fes.fabric.de25-scanout': (1, 3)})
+        self.assertTrue(all(i['required'] for i in manifest['interfaces']))
+        # Format 2: no ROM map, and no ROM metadata.
+        store = Path(tempfile.mkdtemp(prefix='de25-pc386-store-'))
+        def discard():
+            subprocess.run(['chmod', '-R', 'u+w', str(store)], check=True)
+            shutil.rmtree(store)
+        self.addCleanup(discard)
+        package = read_package(export_package(pc386.manifest(record, payload), payload, store))
+        self.assertEqual(package.fields['format'], 2)
+        self.assertNotIn('rom', package.fields)
+        self.assertIsNone(package.rom_map_bytes)
 
 
 if __name__ == '__main__':

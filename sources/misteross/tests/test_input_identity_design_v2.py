@@ -123,7 +123,7 @@ class DesignV1IsFrozenTest(unittest.TestCase):
 class ClassificationTest(unittest.TestCase):
     def test_the_sets_are_the_generated_role_table(self):
         rows = classification()
-        self.assertEqual(ii.EVIDENCE_INPUTS - ADDED_SINCE_RECORD,
+        self.assertEqual(ii.PC386_EVIDENCE_INPUTS - ADDED_SINCE_RECORD,
                          {row['path'] for row in rows if row['proposed_role'] == 'evidence'})
         self.assertEqual(ii.FIRMWARE_GENERATOR_INPUTS,
                          {row['path'] for row in rows if row['proposed_role'] == 'firmware-generator'})
@@ -131,7 +131,7 @@ class ClassificationTest(unittest.TestCase):
 
     def test_no_member_is_read_by_a_compiler(self):
         self.assertEqual(cleared_now(ADDED_SINCE_RECORD), ADDED_SINCE_RECORD)
-        ii.refuse_compiler_read(classification(), cleared=cleared_now(ADDED_SINCE_RECORD))
+        ii.refuse_compiler_read(classification(), ii.PC386_EVIDENCE_INPUTS, cleared=cleared_now(ADDED_SINCE_RECORD))
         reads = set(json.loads((RECORD / 'yosys-reads.json').read_text())['opened_under_root'])
         self.assertFalse((ii.EVIDENCE_INPUTS | ii.FIRMWARE_GENERATOR_INPUTS) & reads)
 
@@ -142,14 +142,14 @@ class ClassificationTest(unittest.TestCase):
         self.assertIn('cores/fes-common/rtl/i386/fes_i386_cpu.sv', compiler_read)
         self.assertIn('cores/fes-pc386/constraints-oss.qsf', compiler_read)
         for path in ('cores/fes-common/rtl/i386/fes_i386_cpu.sv', 'cores/fes-pc386/constraints-oss.qsf'):
-            for evidence, firmware in ((ii.EVIDENCE_INPUTS | {path}, ii.FIRMWARE_GENERATOR_INPUTS),
-                                       (ii.EVIDENCE_INPUTS, ii.FIRMWARE_GENERATOR_INPUTS | {path})):
+            for evidence, firmware in ((ii.PC386_EVIDENCE_INPUTS | {path}, ii.FIRMWARE_GENERATOR_INPUTS),
+                                       (ii.PC386_EVIDENCE_INPUTS, ii.FIRMWARE_GENERATOR_INPUTS | {path})):
                 with self.subTest(path=path), self.assertRaisesRegex(ValueError, path + ': read by a compiler'):
                     ii.refuse_compiler_read(rows, evidence, firmware, cleared=ADDED_SINCE_RECORD)
 
     def test_a_member_the_record_never_measured_is_refused_unless_cleared_live(self):
         with self.assertRaisesRegex(ValueError, 'oracle_sources.toml: not in the classification'):
-            ii.refuse_compiler_read(classification())
+            ii.refuse_compiler_read(classification(), ii.PC386_EVIDENCE_INPUTS)
         # An RTL file the record predates, added to both the set and the added list: the live check
         # finds the compiler reading it, so it is never cleared.
         # The record is made to predate it by dropping its row.
@@ -159,21 +159,21 @@ class ClassificationTest(unittest.TestCase):
         self.assertTrue(compiler_reads_now(rtl))
         self.assertEqual(cleared_now(added), ADDED_SINCE_RECORD)
         with self.assertRaisesRegex(ValueError, 'fes_x87_core.sv: not in the classification'):
-            ii.refuse_compiler_read(rows, ii.EVIDENCE_INPUTS | added, cleared=cleared_now(added))
+            ii.refuse_compiler_read(rows, ii.PC386_EVIDENCE_INPUTS | added, cleared=cleared_now(added))
 
     def test_an_evidence_file_that_starts_being_read_is_refused(self):
         rows = copy.deepcopy(classification())
         row = next(row for row in rows if row['path'] == 'cores/fes-common/sim/i386/smc_stale.h')
         row['yosys_read'] = True
         with self.assertRaisesRegex(ValueError, 'smc_stale.h: read by a compiler'):
-            ii.refuse_compiler_read(rows, cleared=ADDED_SINCE_RECORD)
+            ii.refuse_compiler_read(rows, ii.PC386_EVIDENCE_INPUTS, cleared=ADDED_SINCE_RECORD)
 
     def test_the_seal_program_stays_design_though_the_suite_lists_it(self):
         # Case D2: yosys_netlist.py is a suite source and the seal's Yosys program.
         rows = classification()
         self.assertTrue(next(row for row in rows if row['path'] == 'scripts/yosys_netlist.py')['generator_code'])
         with self.assertRaisesRegex(ValueError, 'yosys_netlist.py: generates compiler input'):
-            ii.refuse_compiler_read(rows, ii.EVIDENCE_INPUTS | {'scripts/yosys_netlist.py'}, cleared=ADDED_SINCE_RECORD)
+            ii.refuse_compiler_read(rows, ii.PC386_EVIDENCE_INPUTS | {'scripts/yosys_netlist.py'}, cleared=ADDED_SINCE_RECORD)
         self.assertEqual(ii.input_role('scripts/yosys_netlist.py', ii.DESIGN_V2), 'design')
 
     def test_python_members_never_run_in_the_seal_process(self):

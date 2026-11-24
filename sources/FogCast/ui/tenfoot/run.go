@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/localfeed"
 	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/theme"
 )
@@ -25,22 +27,25 @@ type Options struct {
 	APIToken    string
 	TargetID    string
 	// KitHost connects the kit UI to its own unpaired host API.
-	KitHost      bool
-	Width        int
-	Height       int
-	Fullscreen   bool
-	Hidden       bool
-	Smoke        bool
-	MaxGames     int
-	SmokeTimeout time.Duration
-	SafeAreaPct  float64
-	SafeAreaSet  bool
-	Layout       string
-	LayoutSet    bool
-	NoAttract    bool
-	NoAttractSet bool
-	PrefsPath    string
-	APIHost      string
+	KitHost bool
+	// NativeKeyboardV2 opts an unmanaged kit-host into the local keyboard
+	// authority path. Managed kit-host bundles select it automatically.
+	NativeKeyboardV2 bool
+	Width            int
+	Height           int
+	Fullscreen       bool
+	Hidden           bool
+	Smoke            bool
+	MaxGames         int
+	SmokeTimeout     time.Duration
+	SafeAreaPct      float64
+	SafeAreaSet      bool
+	Layout           string
+	LayoutSet        bool
+	NoAttract        bool
+	NoAttractSet     bool
+	PrefsPath        string
+	APIHost          string
 	// GFX selects sdl (default), software, fpga, fpga-stub, linuxfb, or
 	// menu-display. Empty falls back to TENFOOT_GFX, then sdl. linuxfb and
 	// menu-display run the shared App directly without SDL. menu-display
@@ -262,12 +267,30 @@ func envTruthy(value string) bool {
 	}
 }
 
+// Managed kit-host bundles always select the same authority protocol as the
+// managed agent. Explicit false flags cannot create a mixed-protocol launch.
+// Unmanaged and paired-host defaults are unchanged.
+func managedNativeKeyboardOptions(opts Options, managed string) Options {
+	if opts.KitHost && managed == "1" {
+		opts.NativeKeyboardV2 = true
+	}
+	return opts
+}
+
+// Smoke and explicitly disabled input need no local input connection.
+func nativeKeyboardInputEnabled(opts Options) bool {
+	return opts.NativeKeyboardV2 && !opts.Smoke && strings.TrimSpace(opts.Input) != "none"
+}
+
 // Run starts the native launcher. SDL3 builds use the window backend.
 func Run(ctx context.Context, opts Options) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	opts = opts.normalized()
+	opts = managedNativeKeyboardOptions(opts.normalized(), os.Getenv("FES_SOFTWARE_MANAGED"))
+	if opts.NativeKeyboardV2 && !opts.KitHost {
+		return errors.New("native keyboard v2 requires kit-host mode")
+	}
 	backend, err := gfx.ParseBackend(opts.GFX)
 	if err != nil {
 		return err
@@ -300,6 +323,15 @@ func configuredApp(opts Options) (*App, error) {
 	}
 	app := NewApp(NewClient(opts.APIBase, auth).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
 	app.kitHost = opts.KitHost
+	app.managedKitSoftware = opts.KitHost && os.Getenv("FES_SOFTWARE_MANAGED") == "1"
+	app.kitV2InputDisabled = opts.KitHost && opts.NativeKeyboardV2 && !nativeKeyboardInputEnabled(opts)
+	backend, err := gfx.ParseBackend(opts.GFX)
+	if err != nil {
+		return nil, err
+	}
+	// Every window backend uses SDL's aggregate keyboard state. It cannot
+	// supply the per-device snapshot required by kit-local delegation.
+	app.kitLocalKeyboardUnavailable = opts.KitHost && backend != gfx.BackendLinuxFB && backend != gfx.BackendMenuDisplay
 	if opts.KitHost {
 		app.kitMenuStartedAt = time.Now()
 		// A prior UI process may have exited while a host session kept the
@@ -341,12 +373,19 @@ func configuredApp(opts Options) (*App, error) {
 			targetID = ""
 		}
 		app.SetKitDisplay(targetID)
-		if opts.KitHost {
-			app.EnableKitHost()
-		} else {
+		if !opts.KitHost {
 			app.EnableKitLocal()
 		}
 
+	}
+	// Window and framebuffer kit hosts need the input feed without inventing
+	// a menu-display plane or changing the host window's room behavior.
+	if opts.KitHost {
+		if backend == gfx.BackendMenuDisplay {
+			app.EnableKitHost()
+		} else if nativeKeyboardInputEnabled(opts) {
+			app.SetKitLocal(nil, localfeed.New(localfeed.DefaultSocket, nil))
+		}
 	}
 
 	return app, nil

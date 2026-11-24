@@ -10,7 +10,7 @@ from scripts.ci_simulations import simulation_matrix
 from scripts.parent_tests import parent_partitions
 
 
-def results_for(selected=(), cores=(), modes=None, tier='full'):
+def results_for(selected=(), cores=(), modes=None, tier='full', full=()):
     lanes = {lane: lane in selected for lane in LANES}
     if modes is None:
         modes = {'video': False, 'media': False, 'full_race': False}
@@ -18,8 +18,8 @@ def results_for(selected=(), cores=(), modes=None, tier='full'):
         'lanes': json.dumps(lanes), 'cores': json.dumps(list(cores)),
         'test_modes': json.dumps(modes),
         'parent_partitions': json.dumps(parent_partitions(modes['media'])),
-        'sim_tier': tier,
-        'simulations': json.dumps(simulation_matrix(list(cores), tier))}}}
+        'sim_tier': tier, 'full_tier_cores': json.dumps(list(full)),
+        'simulations': json.dumps(simulation_matrix(list(cores), tier, list(full)))}}}
     results.update({job: {'result': 'success' if lanes[lane] else 'skipped'}
                     for job, lane in JOB_LANES.items()})
     results['simulation-tools'] = {'result': 'success' if cores else 'skipped'}
@@ -61,6 +61,39 @@ class TierTests(unittest.TestCase):
         self.assertEqual(simulation_matrix(['c64']), simulation_matrix(['c64'], 'full'))
         with self.assertRaises(ValueError):
             simulation_matrix(['c64'], 'quick')
+
+    def test_a_pcxt_evidence_change_runs_the_full_pcxt_suite(self):
+        # #2096: an evidence-only change under cores/fes-pcxt/sim leaves the
+        # fes.pcxt-dos BUILD_ID, so a sealed package may be reused once the pcxt
+        # sims pass. The smoke tier must then include sim-fes-pcxt-dos.
+        from scripts.ci_simulations import TARGETS, full_tier_cores
+        for path in ('sources/misteross/cores/fes-pcxt/sim/dos_tb.cpp',
+                     'sources/misteross/cores/fes-pcxt/sim/cpu.vlt'):
+            with self.subTest(path=path):
+                full = full_tier_cores(['c64', 'pcxt'], [path])
+                self.assertEqual(full, ['pcxt'])
+                targets = [r['target'] for r in simulation_matrix(['c64', 'pcxt'], 'smoke', full)['include']]
+                self.assertIn('sim-fes-pcxt-dos', targets)
+                self.assertTrue(set(TARGETS['pcxt']) <= set(targets))
+                self.assertNotIn('sim-fes-c64-system-group', targets)
+        self.assertEqual(full_tier_cores(['pcxt'], ['sources/misteross/cores/fes-pcxt/rtl/pcxt_system.sv']), [])
+        self.assertEqual(full_tier_cores(['c64'], ['sources/misteross/cores/fes-pcxt/sim/cpu.vlt']), [])
+        self.assertNotIn('sim-fes-pcxt-dos',
+                         [r['target'] for r in simulation_matrix(['pcxt'], 'smoke')['include']])
+        with self.assertRaises(ValueError):
+            simulation_matrix(['c64'], 'smoke', ['pcxt'])
+
+    def test_gate_checks_the_full_tier_cores(self):
+        results = results_for(('parent', 'fpga'), ('pcxt',), tier='smoke', full=('pcxt',))
+        require_success(results, 'pull_request')
+        dropped = copy.deepcopy(results)
+        dropped['plan']['outputs']['full_tier_cores'] = '[]'
+        with self.assertRaisesRegex(ValueError, 'Simulation matrix'):
+            require_success(dropped, 'pull_request')
+        unselected = copy.deepcopy(results)
+        unselected['plan']['outputs']['full_tier_cores'] = json.dumps(['pcxt', 'c64'])
+        with self.assertRaisesRegex(ValueError, 'Full-tier cores'):
+            require_success(unselected, 'pull_request')
 
     def test_gate_ties_the_tier_to_the_event(self):
         results = results_for(('parent', 'fpga'), ('c64',))
@@ -114,9 +147,14 @@ class GateTests(unittest.TestCase):
         all_modes = {'video': True, 'media': True, 'full_race': True}
         for selected, cores, modes in [((), (), None), (('parent', 'fpga'), (), None),
                                        (('host', 'parent'), (), None),
+                                       (('parent', 'tamago'), (), None),
                                        (LANES, CORES, all_modes)]:
             with self.subTest(selected=selected):
                 require_success(results_for(selected, cores, modes))
+        skipped_tamago = results_for(('parent', 'tamago'))
+        skipped_tamago['tamago']['result'] = 'skipped'
+        with self.assertRaises(ValueError):
+            require_success(skipped_tamago)
 
     def test_selected_modes_must_be_valid_and_lane_consistent(self):
         baseline = results_for(LANES, CORES,

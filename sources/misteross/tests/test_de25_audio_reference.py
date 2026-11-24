@@ -62,17 +62,11 @@ class AudioReferenceTests(unittest.TestCase):
             self.record = original
             self.write_record()
 
-    def test_spectrum_128_is_eligible_for_the_reviewed_machine_audio_profile(self):
-        self.record['parameters'].update(core_id='fes.spectrum128',
-            audio_clock_reference_policy=audio.MACHINE_POLICY)
-        self.record['source_inputs'] = dict(audio.MACHINE_SOURCES)
-        for name, expected in audio.MACHINE_SOURCES.items():
-            source = ROOT / name
-            self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), expected)
-            (self.local / source.name).write_bytes(source.read_bytes())
-        self.top = '''wire [15:0] standard_audio_sample;
+    def test_machine_pll_cores_are_eligible_with_their_own_pll(self):
+        wiring = '''wire [15:0] standard_audio_sample;
         machine_pll fes_machine_pll (
           .refclk(CLOCK1_50), .rst(!top_reset_n), .outclk_0(machine_clk), .outclk_1(machine_audio_clk),
+          %s
           .locked(machine_pll_locked) );
           fes_de25_machine_audio fes_audio_inst (
           .source_clk(machine_clk), .audio_clk(machine_audio_clk), .locked(machine_pll_locked),
@@ -80,11 +74,32 @@ class AudioReferenceTests(unittest.TestCase):
           .left_sample(standard_audio_sample), .right_sample(standard_audio_sample),
           .HDMI_MCLK(HDMI_MCLK), .HDMI_SCLK(HDMI_SCLK),
           .HDMI_LRCLK(HDMI_LRCLK), .HDMI_I2S(HDMI_I2S) );'''
-        (self.project / 'golden_top.v').write_text(self.top)
-        self.write_record()
-
-        self.assertIn('golden_top.v', audio.eligible_machine(self.fit, self.record))
-
+        for core in ('fes.spectrum128', 'fes.pcxt-dos', 'fes.pc386'):
+            with self.subTest(core=core):
+                self.record['parameters'].update(core_id=core, audio_clock_reference_policy=audio.MACHINE_POLICY)
+                sources = {**audio.MACHINE_SOURCES, audio.MACHINE_PLLS[core][0]: audio.MACHINE_PLLS[core][1]}
+                self.record['source_inputs'] = dict(sources)
+                for name, expected in sources.items():
+                    source = ROOT / name
+                    self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), expected)
+                    (self.local / source.name).write_bytes(source.read_bytes())
+                self.top = wiring % audio.MACHINE_PLL_OUTPUTS.get(core, '')
+                (self.project / 'golden_top.v').write_text(self.top)
+                self.write_record()
+                self.assertIn('golden_top.v', audio.eligible_machine(self.fit, self.record))
+                # Another machine's PLL outputs are not this machine's wiring.
+                (self.project / 'golden_top.v').write_text(
+                    wiring % audio.MACHINE_PLL_OUTPUTS.get('fes.pcxt-dos' if core != 'fes.pcxt-dos' else '', ''))
+                with self.assertRaises(audio.BuildError):
+                    audio.eligible_machine(self.fit, self.record)
+                (self.project / 'golden_top.v').write_text(self.top)
+                # Another machine with the same wiring has another PLL: its bytes are not this one's.
+                other = 'fes.pc386' if core == 'fes.spectrum128' else 'fes.spectrum128'
+                if audio.MACHINE_PLL_OUTPUTS.get(other, '') == audio.MACHINE_PLL_OUTPUTS.get(core, ''):
+                    self.record['parameters']['core_id'] = other
+                    self.write_record()
+                    with self.assertRaises(audio.BuildError):
+                        audio.eligible_machine(self.fit, self.record)
         self.record['parameters']['core_id'] = 'fes.spectrum128-other'
         self.write_record()
         with self.assertRaises(audio.BuildError):

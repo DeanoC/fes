@@ -12,11 +12,13 @@ import (
 	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usbcontrol"
 )
 
 var expectedUSBControl, expectedUSBInput, expectedHPSIO string
+var expectedTenfootUARTOnly string
 var programUSBClient *usbcontrol.Client
 var programKeyboardSource *usbcontrol.Source
 var programGamepadSource *usbcontrol.GamepadSource
@@ -53,6 +55,9 @@ func openProgramUSB(v *nativefabric.HPSContextVerifier) error {
 		return errors.New("shared USB pins changed boot ownership")
 	}
 	fmt.Printf("FES_NATIVE_HPS_IO PASS map_sha256=%s count=%d reads=%d owner=%x generation=%x data_held=1 runtime_admission=unavailable\n", hex.EncodeToString(observed.Digest[:]), observed.Count, observed.Count*2, before.Bridges.Owner, before.Bridges.Generation)
+	if expectedTenfootUARTOnly == "1" {
+		return nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	programUSBClient, err = usbcontrol.NewSharedPIO(ctx, de25nano.FabricCPUTransport{}, before.Bridges.Owner)
@@ -75,7 +80,7 @@ func openProgramUSB(v *nativefabric.HPSContextVerifier) error {
 	return nil
 }
 func closeProgramUSB() error {
-	if expectedUSBControl == "" {
+	if expectedUSBControl == "" || expectedTenfootUARTOnly == "1" {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -97,4 +102,29 @@ func closeProgramUSB() error {
 	}
 	fmt.Printf("FES_NATIVE_SHARED_USB STOP owner=%x generation=%d reports=%d polls=%d\n", receipt.Owner, receipt.Generation, sharedInputMetrics.reports, sharedInputMetrics.polls)
 	return nil
+}
+
+func enableProgramUSBIRQ(g *gic.Controller) (func(), error) {
+	if expectedUSBControl == "" || g == nil {
+		return func() {}, nil
+	}
+	if programGamepadSource != nil {
+		if err := programGamepadSource.EnableIRQ(g, de25nano.IRQUSB0); err != nil {
+			if errors.Is(err, gic.ErrUnsupported) {
+				return func() {}, nil
+			}
+			return nil, err
+		}
+		return programGamepadSource.DisableIRQ, nil
+	}
+	if programKeyboardSource != nil {
+		if err := programKeyboardSource.EnableIRQ(g, de25nano.IRQUSB0); err != nil {
+			if errors.Is(err, gic.ErrUnsupported) {
+				return func() {}, nil
+			}
+			return nil, err
+		}
+		return programKeyboardSource.DisableIRQ, nil
+	}
+	return nil, errors.New("shared USB source absent")
 }

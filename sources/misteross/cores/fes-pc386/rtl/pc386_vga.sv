@@ -90,7 +90,6 @@ module pc386_vga #(
     reg [7:0] crtc [0:24];
     reg [4:0] attr_index;
     reg attr_pas, attr_flip;
-    reg [7:0] palette [0:15];
     reg [7:0] attr_mode;     // bit 4 is not stored
     reg [5:0] overscan;
     reg [3:0] plane_enable, pel_pan, color_select;
@@ -98,6 +97,16 @@ module pc386_vga #(
     reg [1:0] dac_read_cycle, dac_write_cycle, dac_state;
     reg [5:0] dac_red, dac_green;
     reg [31:0] latch;
+    // The palette and the CRTC's readback copy are small RAMs, read
+    // asynchronously: the palette by the scanout's pixel path and by register
+    // reads, the CRTC copy by register reads (the scanout reads its CRTC
+    // registers from crtc). A RAM is not cleared by reset, so each entry
+    // reads as zero, its reset value, until it is written after a reset.
+    (* ramstyle = "MLAB" *) reg [7:0] palette_scan [0:15];
+    (* ramstyle = "MLAB" *) reg [7:0] palette_cpu [0:15];
+    (* ramstyle = "MLAB" *) reg [7:0] crtc_cpu [0:31];
+    reg [15:0] palette_set;
+    reg [24:0] crtc_set;
 
     // ---- Front FIFO --------------------------------------------------------------
     // {io, address[16:2] or port, byte enables, data}
@@ -153,18 +162,26 @@ module pc386_vga #(
         end
     endfunction
 
-    reg [15:0] byte_offset [0:3];
-    reg [3:0] byte_planes [0:3];
-    reg [3:0] byte_inside;
+    // The four bytes of a dword share whether they are inside and offset bits
+    // 15:2; bits 1:0 are byte 0's in chain-4, {b[1], 0} in odd/even and b in
+    // planar mode. So one translation per dword serves all four bytes.
+    function automatic [15:0] byte_at(input [15:0] dword_offset, input [1:0] b, input chain4, input odd_even);
+        byte_at = chain4 ? dword_offset : odd_even ? {dword_offset[15:2], b[1], 1'b0} : {dword_offset[15:2], b};
+    endfunction
+    wire [15:0] head_dword, read_dword;
+    wire head_inside, read_dword_inside;
+    assign {head_dword, head_inside} = translate({head_address, 2'b00}, memory_map, chain_four, !odd_even_disable);
+    assign {read_dword, read_dword_inside} = translate({read_address, 2'b00}, memory_map, chain_four, !odd_even_disable);
     reg [15:0] read_offset [0:3];
-    reg [3:0] read_inside;
+    reg [3:0] byte_planes [0:3];
+    wire [3:0] byte_inside = {4{head_inside}};
+    wire [3:0] read_inside = {4{read_dword_inside}};
     integer b;
     always @* begin
         for (b = 0; b < 4; b = b + 1) begin
-            {byte_offset[b], byte_inside[b]} = translate({head_address, b[1:0]}, memory_map, chain_four, !odd_even_disable);
             byte_planes[b] = chain_four ? 4'b0001 << b[1:0] :
                              !odd_even_disable ? (b[0] ? 4'b1010 : 4'b0101) : 4'b1111;
-            {read_offset[b], read_inside[b]} = translate({read_address, b[1:0]}, memory_map, chain_four, !odd_even_disable);
+            read_offset[b] = byte_at(read_dword, b[1:0], chain_four, !odd_even_disable);
         end
     end
 
@@ -195,8 +212,9 @@ module pc386_vga #(
 
     // ---- Planar engine -----------------------------------------------------------
     // Group: the first remaining enabled byte's offset and every remaining byte
-    // at that offset. Each plane takes its byte from the group member that
-    // targets it.
+    // at that offset (every live byte in chain-4, the first's pair in odd/even,
+    // the first alone in planar mode). Each plane takes its byte from the
+    // group member that targets it.
     reg [3:0] remaining;
     reg head_loaded;
     wire [3:0] live = (head_loaded ? remaining : head_enables) & byte_inside & {4{video_enable}};
@@ -209,12 +227,12 @@ module pc386_vga #(
     always @* begin
         first = 0;
         for (g = 3; g >= 0; g = g - 1) if (live[g]) first = g[1:0];
-        group = 0;
+        group = live & (chain_four ? 4'b1111 : !odd_even_disable ? (first[1] ? 4'b1100 : 4'b0011) :
+                                                                   4'b0001 << first);
         group_planes = 0;
         for (p = 0; p < 4; p = p + 1) plane_cpu[p] = 0;
         for (g = 0; g < 4; g = g + 1)
-            if (live[g] && byte_offset[g] == byte_offset[first]) begin
-                group[g] = 1'b1;
+            if (group[g]) begin
                 group_planes = group_planes | byte_planes[g];
                 for (p = 0; p < 4; p = p + 1)
                     if (byte_planes[g][p]) plane_cpu[p] = head_data[8 * g +: 8];
@@ -241,7 +259,7 @@ module pc386_vga #(
     reg [6:0] idle;
     reg flush_all;
     wire word_valid;
-    wire [15:0] word_offset = byte_offset[first];
+    wire [15:0] word_offset = byte_at(head_dword, first, chain_four, !odd_even_disable);
     wire [12:0] word_tag = word_offset[15:3];
     reg hit;
     reg [1:0] hit_line;
@@ -278,7 +296,6 @@ module pc386_vga #(
     wire head_retire = engine == E_RUN && !fifo_empty &&
                        (head_io || live == 0 || (word_accept && (live & ~group) == 0));
     always @* fifo_pop = head_retire;
-    wire [14:0] read_first_beat = read_offset[read_lowest][15:1];
     reg [1:0] read_lowest, read_highest;
     integer r;
     always @* begin
@@ -286,10 +303,11 @@ module pc386_vga #(
         for (r = 3; r >= 0; r = r - 1) if (read_enables[r] && read_inside[r]) read_lowest = r[1:0];
         for (r = 0; r < 4; r = r + 1) if (read_enables[r] && read_inside[r]) read_highest = r[1:0];
     end
-    wire [14:0] read_last_beat = read_offset[read_highest][15:1];
-    wire [14:0] read_span = read_last_beat - read_first_beat;
-    wire [2:0] read_beat_count = read_span[2:0] + 3'd1;
-    reg [63:0] read_beats [0:3];
+    // The dword's bytes share offset bits 15:2, so a read is one beat, or two
+    // when its enabled bytes straddle offset bit 1.
+    wire read_low_bit = read_offset[read_lowest][1];
+    wire [14:0] read_first_beat = {read_dword[15:2], read_low_bit};
+    wire [2:0] read_beat_count = {2'b0, !read_low_bit && read_offset[read_highest][1]} + 3'd1;
     reg [2:0] read_received;
     wire cpu_read_data;
     reg [7:0] register_value;
@@ -399,7 +417,9 @@ module pc386_vga #(
     // Register read value, with Bochs's masks; the read's side effects
     // (flip-flop, DAC read index) are applied with it.
     wire [7:0] dac_read_data;
-    wire [7:0] attr_read = attr_index < 5'd16 ? palette[attr_index[3:0]] :
+    wire [3:0] scan_palette_index;
+    wire [7:0] scan_palette = palette_set[scan_palette_index] ? palette_scan[scan_palette_index] : 8'h00;
+    wire [7:0] attr_read = attr_index < 5'd16 ? (palette_set[attr_index[3:0]] ? palette_cpu[attr_index[3:0]] : 8'h00) :
                            attr_index == 5'h10 ? attr_mode :
                            attr_index == 5'h11 ? {2'b0, overscan} :
                            attr_index == 5'h12 ? {4'b0, plane_enable} :
@@ -445,44 +465,56 @@ module pc386_vga #(
                 10'h3ce: register_value = gc_index;
                 10'h3cf: register_value = gc_read;
                 10'h3b4, 10'h3d4: register_value = {2'b0, crtc_index};
-                10'h3b5, 10'h3d5: register_value = crtc_index <= 6'd24 ? crtc[crtc_index[4:0]] :
+                10'h3b5, 10'h3d5: register_value = crtc_index <= 6'd24 ?
+                                                       (crtc_set[crtc_index[4:0]] ? crtc_cpu[crtc_index[4:0]] : 8'h00) :
                                                    crtc_index == 6'h22 ? latch[8 * read_map +: 8] : 8'h00;
                 10'h3ba, 10'h3da: register_value = status;
                 default: register_value = 8'h00;
             endcase
     end
 
-    // MMIO read result: each byte from the word at its offset. Read mode 1
-    // sets a bit where every plane not in colour don't care matches its
-    // colour compare bit.
+    // MMIO read result, a byte at a time as each byte's beat arrives: the
+    // word at its offset, then read mode 1 sets a bit where every plane not in
+    // colour don't care matches its colour compare bit. Bytes not read stay
+    // FFh. The registers it uses cannot change while the read is out: the
+    // engine applies no FIFO entry until it answers.
     reg [31:0] read_result;
-    reg [31:0] read_latch;
     reg [31:0] word_of [0:3];
-    reg [14:0] beat_index;
-    reg [7:0] compare_byte;
+    reg [3:0] byte_arrives;
+    reg [7:0] compare_byte [0:3];
+    reg [7:0] result_byte [0:3];
     integer k;
     always @* begin
-        read_result = 32'hffffffff;
-        read_latch = latch;
-        compare_byte = 0;
         for (k = 0; k < 4; k = k + 1) begin
-            beat_index = read_offset[k][15:1] - read_first_beat;
-            word_of[k] = read_offset[k][0] ? read_beats[beat_index[1:0]][63:32] : read_beats[beat_index[1:0]][31:0];
-            if (read_enables[k] && read_inside[k]) begin
-                read_latch = word_of[k];
-                compare_byte = ~(((word_of[k][7:0] ^ {8{color_compare[0]}}) & {8{color_dont_care[0]}}) |
-                                 ((word_of[k][15:8] ^ {8{color_compare[1]}}) & {8{color_dont_care[1]}}) |
-                                 ((word_of[k][23:16] ^ {8{color_compare[2]}}) & {8{color_dont_care[2]}}) |
-                                 ((word_of[k][31:24] ^ {8{color_compare[3]}}) & {8{color_dont_care[3]}}));
-                if (read_mode) read_result[8 * k +: 8] = compare_byte;
-                else if (chain_four) read_result[8 * k +: 8] = word_of[k][8 * {k[1:0]} +: 8];
-                else if (!odd_even_disable)
-                    read_result[8 * k +: 8] = word_of[k][8 * {read_map[1], k[0]} +: 8];
-                else read_result[8 * k +: 8] = word_of[k][8 * read_map +: 8];
-            end
+            word_of[k] = read_offset[k][0] ? p1_readdata[63:32] : p1_readdata[31:0];
+            byte_arrives[k] = cpu_read_data && read_enables[k] && read_inside[k] &&
+                              read_received[0] == (read_offset[k][1] ^ read_low_bit);
+            compare_byte[k] = ~(((word_of[k][7:0] ^ {8{color_compare[0]}}) & {8{color_dont_care[0]}}) |
+                                ((word_of[k][15:8] ^ {8{color_compare[1]}}) & {8{color_dont_care[1]}}) |
+                                ((word_of[k][23:16] ^ {8{color_compare[2]}}) & {8{color_dont_care[2]}}) |
+                                ((word_of[k][31:24] ^ {8{color_compare[3]}}) & {8{color_dont_care[3]}}));
+            if (read_mode) result_byte[k] = compare_byte[k];
+            else if (chain_four) result_byte[k] = word_of[k][8 * {k[1:0]} +: 8];
+            else if (!odd_even_disable) result_byte[k] = word_of[k][8 * {read_map[1], k[0]} +: 8];
+            else result_byte[k] = word_of[k][8 * read_map +: 8];
         end
     end
 
+    integer q;
+    // A register write the engine applies this clock, for the RAM copies.
+    wire port_write = !reset && engine == E_RUN && !fifo_empty && head_io && head_claimed;
+    wire palette_write = port_write && head_port == 10'h3c0 && attr_flip && attr_index < 5'd16;
+    // CRTC 0-7 are write-protected by CRTC 11h bit 7, except CRTC 7's bit 4.
+    wire crtc_write = (head_port == 10'h3b5 || head_port == 10'h3d5) && crtc_index <= 6'd24 &&
+                      (!crtc_protected || crtc_index == 6'd7);
+    wire [7:0] crtc_value = crtc_protected ? {crtc[7][7:5], head_byte[4], crtc[7][3:0]} : head_byte;
+    always @(posedge clk) begin
+        if (palette_write) begin
+            palette_scan[attr_index[3:0]] <= head_byte;
+            palette_cpu[attr_index[3:0]] <= head_byte;
+        end
+        if (port_write && crtc_write) crtc_cpu[crtc_index[4:0]] <= crtc_value;
+    end
     wire dac_write = engine == E_RUN && !fifo_empty && head_io && head_claimed &&
                      head_port == 10'h3c9 && dac_write_cycle == 2'd2;
     always @(posedge clk) begin
@@ -503,7 +535,7 @@ module pc386_vga #(
             crtc_index <= 0;
             for (i = 0; i < 25; i = i + 1) crtc[i] <= 0;
             attr_index <= 0; attr_pas <= 1; attr_flip <= 0;
-            for (i = 0; i < 16; i = i + 1) palette[i] <= 0;
+            palette_set <= 0; crtc_set <= 0;
             attr_mode <= 8'h04; overscan <= 0; plane_enable <= 4'hf; pel_pan <= 0; color_select <= 0;
             pel_mask <= 8'hff; dac_read_index <= 0; dac_write_index <= 0;
             dac_read_cycle <= 0; dac_write_cycle <= 0; dac_state <= 2'd1; dac_red <= 0; dac_green <= 0;
@@ -526,7 +558,7 @@ module pc386_vga #(
                     if (!fifo_empty && head_io && head_claimed) case (head_port)
                         10'h3c0: begin
                             if (!attr_flip) begin attr_index <= head_byte[4:0]; attr_pas <= head_byte[5]; end
-                            else if (attr_index < 5'd16) palette[attr_index[3:0]] <= head_byte;
+                            else if (attr_index < 5'd16) palette_set[attr_index[3:0]] <= 1'b1;
                             else case (attr_index)
                                 5'h10: attr_mode <= {head_byte[7:5], 1'b0, head_byte[3:0]};
                                 5'h11: overscan <= head_byte[5:0];
@@ -584,8 +616,10 @@ module pc386_vga #(
                         10'h3b5, 10'h3d5:
                             if (crtc_index <= 6'd24) begin
                                 crtc_written <= 1;
-                                if (!crtc_protected) crtc[crtc_index[4:0]] <= head_byte;
-                                else if (crtc_index == 6'd7) crtc[7] <= {crtc[7][7:5], head_byte[4], crtc[7][3:0]};
+                                if (crtc_write) begin
+                                    crtc[crtc_index[4:0]] <= crtc_value;
+                                    crtc_set[crtc_index[4:0]] <= 1'b1;
+                                end
                             end
                         10'h3ba, 10'h3da: feature <= head_byte & 8'h08;
                         default: ;
@@ -617,17 +651,22 @@ module pc386_vga #(
                         mem_rvalid <= 1;
                         read_pending <= 0;
                         engine <= E_RUN;
-                    end else engine <= E_READ_ISSUE;
+                    end else begin
+                        read_result <= 32'hffffffff;
+                        engine <= E_READ_ISSUE;
+                    end
                 end
                 E_READ_ISSUE: if (cpu_read_issue) engine <= E_READ_WAIT;
                 E_READ_WAIT: if (cpu_read_data) begin
-                    read_beats[read_received[1:0]] <= p1_readdata;
+                    for (q = 0; q < 4; q = q + 1)
+                        if (byte_arrives[q]) read_result[8 * q +: 8] <= result_byte[q];
+                    // Every read loads the latches from the highest byte read.
+                    if (byte_arrives[read_highest]) latch <= word_of[read_highest];
                     read_received <= read_received + 3'd1;
                     if (read_received + 3'd1 == read_beat_count) engine <= E_READ_ANSWER;
                 end
                 E_READ_ANSWER: begin
                     mem_rdata <= read_result;
-                    latch <= read_latch;
                     mem_rvalid <= 1;
                     read_pending <= 0;
                     engine <= E_RUN;
@@ -652,10 +691,7 @@ module pc386_vga #(
         .crtc20(crtc[20]), .crtc23(crtc[23]), .crtc24(crtc[24]),
         .attr_pas(attr_pas), .attr_mode(attr_mode), .overscan(overscan), .plane_enable(plane_enable),
         .pel_pan(pel_pan), .color_select(color_select), .pel_mask(pel_mask),
-        .palette0(palette[0]), .palette1(palette[1]), .palette2(palette[2]), .palette3(palette[3]),
-        .palette4(palette[4]), .palette5(palette[5]), .palette6(palette[6]), .palette7(palette[7]),
-        .palette8(palette[8]), .palette9(palette[9]), .palette10(palette[10]), .palette11(palette[11]),
-        .palette12(palette[12]), .palette13(palette[13]), .palette14(palette[14]), .palette15(palette[15]),
+        .palette_index(scan_palette_index), .palette_value(scan_palette),
         .dac_write(dac_write), .dac_write_index(dac_write_index),
         .dac_write_data({dac_red, dac_green, head_byte[5:0]}),
         .dac_read_index(dac_read_index), .dac_read_cycle(dac_read_cycle), .dac_read_data(dac_read_data),

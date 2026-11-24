@@ -631,6 +631,7 @@ class HilPlanTest(unittest.TestCase):
     def test_ci_tooling_changes_do_not_request_an_image_or_kit(self):
         for path in ('scripts/affected.py', 'scripts/test_changed.py',
                      'scripts/check_deadcode.py', 'scripts/host_tests.py',
+                     'scripts/check_govet.py',
                      'scripts/host_affected.py',
                      'scripts/test_policy.py', 'scripts/ci_gate.py',
                      'scripts/hil_plan.py', 'scripts/consistency.py',
@@ -642,6 +643,23 @@ class HilPlanTest(unittest.TestCase):
         result = run('classify', '--paths-file',
                      self.path_file('scripts/check_deadcode.py\nimage/buildroot/config'), '--json')
         self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
+
+    def test_go_vet_gate_change_set_does_not_request_hardware(self):
+        planner = hil_module()
+        paths = [
+            '.github/workflows/check.yml',
+            'scripts/check_govet.py',
+            'scripts/hil_plan.py',
+            'scripts/parent_affected.py',
+            'sources/FogCast/internal/agent/session_display_ipc_test.go',
+            'tests/test_check_govet.py',
+            'tests/test_ci_workflow.py',
+            'tests/test_hil_plan.py',
+        ]
+        result = planner.plan(paths, texts={})
+        self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
+        self.assertEqual(result['kit_targets'], [])
+        self.assertTrue(all(row['class'] == 'none' for row in result['rows']))
 
     def test_standalone_de25_bringup_has_no_deployed_consumer(self):
         planner = hil_module()
@@ -1065,7 +1083,7 @@ class HilPlanTest(unittest.TestCase):
         required = {item['command'] for item in result['command_evidence']}
         self.assertTrue({'fes-boot', 'fes-kit-software', 'fes-kit-data'} <= required, required)
         self.assertNotIn('target-image-lock', required)
-        self.assertNotIn('mister-bridge', {item['command'] for item in result['advisory_commands']})
+        self.assertNotIn('fes-parts', {item['command'] for item in result['advisory_commands']})
         self.assertIn(path, result['go_graph_unverified'])
 
     def test_go_source_under_docs_or_testdata_is_not_assumed_documentation(self):
@@ -1094,7 +1112,7 @@ class HilPlanTest(unittest.TestCase):
                 self.assertEqual(result['decision'], 'COMMAND_EVIDENCE_REQUIRED')
                 self.assertIn(name, {item['command'] for item in result['command_evidence']})
                 self.assertNotEqual(result['deployment_decision'], 'FULL_IMAGE')
-        for name in ('mister-bridge', 'fes-parts', 'fes-spectrum-disk', 'fes-spectrum-restore'):
+        for name in ('fes-parts', 'fes-spectrum-disk', 'fes-spectrum-restore'):
             with self.subTest(command=name):
                 path = f'sources/FogCast/cmd/{name}/main.go'
                 result = planner.plan([path], texts={}, go_graph_changes=[])

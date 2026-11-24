@@ -246,6 +246,25 @@ class TenfootTraceTests(unittest.TestCase):
         for change in (dict(tape_bytes=16376),dict(tape_limit_ns=7000000000),dict(tape_elapsed_ns=6000000000),dict(control_elapsed_ns=1000000000),dict(elapsed_ns=True),dict(tape_bytes=True),dict(tape_limit_ns=6000000000.0),dict(control_elapsed_ns=1000000.0),dict(scope='nano-computer-fetch-v1'),dict(limit_ns=8000000000)):
             with self.subTest(change=change),self.assertRaises(ValueError):trace.fetch_observation(json.dumps(dict(row,**change)))
 
+    def test_d64_fetch_requires_exact_media_and_control_deadlines(self):
+        model=Model();model.service.generation=1
+        record=json.loads(model.fetch()[len(trace.FETCH):])
+        budget=((174848+511)//512+4)*1000000000
+        record.update(scope='nano-c64-fetch-d64-v1', disk_bytes=174848, disk_limit_ns=budget,
+                      disk_elapsed_ns=2000000000, elapsed_ns=2001000000,
+                      control_elapsed_ns=1000000, limit_ns=budget+1000000000)
+        good=trace.fetch_observation(json.dumps(record))
+        program=dict(identity=dict(IDENTITY, ProgrammingProfile='de25-native-c64-v1'),
+                     disk=dict(sha256='a'*64, bytes=174848))
+        trace.match_fetch_disk(good, program)
+        for change in (dict(disk_bytes=174849), dict(disk_limit_ns=budget+1),
+                       dict(elapsed_ns=5000000000), dict(control_elapsed_ns=999999),
+                       dict(scope='nano-c64-fetch-v1')):
+            with self.subTest(change=change),self.assertRaises(ValueError):
+                trace.fetch_observation(json.dumps(dict(record,**change)))
+        with self.assertRaises(ValueError):
+            trace.match_fetch_disk(good, dict(identity=program['identity']))
+
     def test_fetch_counter_wrap_and_unsolicited_observations(self):
         model=Model();model.service.generation=1
         record=json.loads(model.fetch()[len(trace.FETCH):])

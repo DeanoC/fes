@@ -393,3 +393,25 @@ class ParentWorkflowTests(unittest.TestCase):
                             'Acquire::Retries "5";'):
                 with self.subTest(dockerfile=name, setting=setting):
                     self.assertIn(setting, dockerfile)
+
+    def test_tamago_job_is_gated_installed_cached_and_wired_into_integration(self):
+        repository = Path(__file__).resolve().parents[1]
+        workflow = (repository / '.github/workflows/check.yml').read_text()
+        job = workflow.split('  tamago:\n', 1)[1].split('  integration:\n', 1)[0]
+        integration = workflow.split('  integration:\n', 1)[1]
+        self.assertIn('if: fromJSON(needs.plan.outputs.lanes).tamago', job)
+        self.assertIn('timeout-minutes: 30', job)
+        self.assertIn('qemu-system-arm mtools dosfstools', job)
+        self.assertIn('bash scripts/ci_tamago.sh out/embedded-base-tools/tamago "$RUNNER_TEMP/tamago-build"', job)
+        self.assertIn('python3 scripts/tamago_ci.py --output out/tamago-ci', job)
+        self.assertIn('hashFiles(\'platform/embedded/tamago/toolchain.lock.toml\')', job)
+        self.assertIn('needs: [plan, parent-tests, consistency, host, runtime, contracts, fpga-producer, simulation-tools, fpga-simulation, tamago]', integration)
+
+    def test_govet_step_forwards_paths_to_real_selector(self):
+        repository = Path(__file__).resolve().parents[1]
+        workflow = (repository / '.github/workflows/check.yml').read_text()
+        job = workflow.split('  consistency:\n', 1)[1].split('  host:\n', 1)[0]
+        self.assertIn(
+            'python3 scripts/check_govet.py --paths-json-file "$RUNNER_TEMP/fes-ci-plan/changed-paths.json"',
+            job,
+        )

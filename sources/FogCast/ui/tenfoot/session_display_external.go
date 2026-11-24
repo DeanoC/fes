@@ -131,6 +131,7 @@ func (a *App) prepareExternalSessionDisplay(ctx context.Context, request session
 	}
 	a.sessionDisplayEpoch++
 	epoch := a.sessionDisplayEpoch
+	a.nativePadFenceMappingLocked()
 	a.sessionDisplayBusy = true
 	a.sessionDisplayNonHandoff = !handoff && from.Focus == protocol.SessionFocusMachine && request.Display.Focus == protocol.SessionFocusMachine
 	a.sessionDisplayBinding = prior
@@ -230,6 +231,7 @@ func (a *App) prepareExternalSessionDisplay(ctx context.Context, request session
 		alreadyRendered := from == request.Display && (request.Display != protocol.SessionDisplayFocused || roomAlreadyOpen) && display.ReadinessDiagnostic().Ready
 		// Keep Stop and competing transitions fenced until the required frame
 		// actually presents. Room opening above requires the busy bit clear.
+		a.nativePadFenceMappingLocked()
 		a.sessionDisplayBusy = true
 		a.sessionDisplayWait = done
 		a.mu.Unlock()
@@ -269,6 +271,7 @@ func (a *App) fenceStartupFrameLocked() {
 	if !a.sessionDisplay.Visible {
 		return
 	}
+	a.nativePadFenceMappingLocked()
 	a.sessionDisplayBusy = true
 	a.displayStartupFenced = true
 	a.displayFrameRequest++

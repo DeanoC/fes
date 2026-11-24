@@ -23,7 +23,7 @@ def _prepare_fixture(
     root: Path,
     log: Path,
     *,
-    yosys_commit: str = "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
+    yosys_commit: str = "d273c1cb774f70d58c890745ac1b7dd106d32a26",
     nextpnr_commit: str = "9128800fa6e77c4138088a7107a95376ba47ff15",
 ) -> Path:
     scripts = root / "scripts"
@@ -273,6 +273,59 @@ def _ready_installs(cache: Path) -> dict[str, list[Path]]:
     for ready in sorted((cache / "tools").glob("*/*/ready.json")):
         installs.setdefault(ready.parent.parent.name, []).append(ready)
     return installs
+
+
+def _serve_committed_files(fake_bin: Path, checkout: Path, refs: Path) -> None:
+    """Answer the cache helper's Git queries about *checkout* from *refs*.
+
+    The fixture's git only fakes tool checkouts. Post-publish eviction reads
+    the checkout's committed locks and bootstrap.sh through rev-parse, ls-tree
+    and show; each ref's tree is a directory below *refs* (``origin/main`` is
+    ``origin-main``), written by ``_snapshot_ref``.
+    """
+    (fake_bin / "git").rename(fake_bin / "git-tools")
+    checkout_literal = str(checkout).replace("'", "'\\''")
+    refs_literal = str(refs).replace("'", "'\\''")
+    _write_executable(
+        fake_bin / "git",
+        f"#!/bin/sh\nset -eu\nCHECKOUT='{checkout_literal}'\nREFS='{refs_literal}'\n"
+        + r'''
+tree() { printf '%s/%s' "$REFS" "$(printf '%s' "$1" | tr / -)"; }
+if [ "$#" -ge 3 ] && [ "$1" = -C ] && [ "$2" = "$CHECKOUT" ]; then
+    command=$3
+    shift 3
+    case "$command" in
+        rev-parse)
+            for argument in "$@"; do last=$argument; done
+            if [ "$last" = --show-toplevel ]; then
+                printf '%s\n' "$CHECKOUT"
+            else
+                ref=${last%'^{commit}'}
+                [ -d "$(tree "$ref")" ] || exit 128
+                printf '%s\n' "$ref"
+            fi
+            ;;
+        ls-tree)
+            # ls-tree -r --name-only <ref> -- <path>
+            cd "$(tree "$3")"
+            find . -type f | sed 's|^\./||' | sort
+            ;;
+        show) cat "$(tree "${1%%:*}")/${1#*:}" ;;
+        *) exit 1 ;;
+    esac
+    exit 0
+fi
+exec "$(dirname "$0")/git-tools" "$@"
+''',
+    )
+
+
+def _snapshot_ref(refs: Path, ref: str, checkout: Path) -> None:
+    """Record *checkout*'s lock and bootstrap.sh as *ref*'s committed tree."""
+    for name in ("toolchain.lock", "scripts/bootstrap.sh"):
+        target = refs / ref.replace("/", "-") / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(checkout / name, target)
 
 
 def _plan(root: Path, lock: Path, cache: Path, environment: dict, *arguments: str) -> dict:
@@ -724,6 +777,63 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
             self.assertIn("removing failed", second.stdout)
             self.assertTrue((partial[0].parent / "ready.json").is_file())
             self.assertFalse(partial[0].exists())
+
+    def test_cache_cap_evicts_after_publish_but_never_this_builds_installs(self):
+        """FES_TOOLCHAIN_CACHE_MAX_GB evicts during a real build, never this build's installs.
+
+        prepare_shared_build_environment scrubs the cap with the rest of the
+        caller's environment, so bootstrap forwards it to publish itself. Each
+        install's lock is released once that tool is published, and a branch
+        whose bootstrap.sh is not origin/main's builds installs origin/main
+        does not pin, so the eviction after each publication must keep them.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "checkout"
+            log = base / "child-env.log"
+            fake_bin = _prepare_fixture(root, log)
+            refs = base / "refs"
+            _serve_committed_files(fake_bin, root.resolve(), refs)
+            cache = base / "cache"
+            environment = {
+                "PATH": f"{fake_bin}:{os.environ['PATH']}",
+                "HOME": str(base),
+                "USER": "test",
+                "LANG": "C",
+                "LC_ALL": "C",
+                "FES_TOOLCHAIN_CACHE_ROOT": str(cache),
+            }
+            bootstrap = root / "scripts" / "bootstrap.sh"
+            recipe = bootstrap.read_text(encoding="utf-8")
+            _snapshot_ref(refs, "origin/main", root)
+            # Installs from a bootstrap.sh no ref carries: nothing pins them.
+            bootstrap.write_text(recipe + "# an abandoned recipe\n", encoding="utf-8")
+            first = subprocess.run([str(bootstrap)], cwd=root, env=environment, text=True, capture_output=True)
+            self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+            stale = [paths[0].parent for paths in _ready_installs(cache).values()]
+            self.assertEqual(len(stale), len(TOOLS))
+
+            bootstrap.write_text(recipe + "# the branch's recipe\n", encoding="utf-8")
+            _snapshot_ref(refs, "HEAD", root)
+            keys = _plan(root, root / "toolchain.lock", cache, environment)
+            built = subprocess.run(
+                [str(bootstrap)],
+                cwd=root,
+                env=dict(environment, FES_TOOLCHAIN_CACHE_MAX_GB="0"),
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+            for install in stale:
+                self.assertFalse(install.exists(), built.stderr)
+                self.assertIn(f"removed: tools/{install.parent.name}/{install.name}", built.stderr)
+            for tool in TOOLS:
+                self.assertTrue((cache / "tools" / tool / keys[tool] / "ready.json").is_file(), built.stderr)
+            self.assertIn(f"kept: tools/yosys/{keys['yosys']} (selected by this build's lock)", built.stderr)
+            # Releasing each install's lock leaves stderr open for the last tool's eviction.
+            self.assertIn(f"kept: tools/openfpgaloader/{keys['openfpgaloader']} (just published)", built.stderr)
+            # The cap is the publish helper's alone: no probe or build child sees it.
+            self.assertNotIn("FES_TOOLCHAIN_CACHE_MAX_GB", log.read_text(encoding="utf-8"))
 
     def test_unlocked_publish_cli_is_denied(self):
         with tempfile.TemporaryDirectory() as directory:

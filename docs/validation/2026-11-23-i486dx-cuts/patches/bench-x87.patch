@@ -1,0 +1,12 @@
+diff --git a/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp b/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp
+index 41f2685be..7b94e2c7c 100644
+--- a/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp
++++ b/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp
+@@ -864,6 +864,7 @@ public:
+         cpu.attr_upper = map;
+         cpu.ram_top = RAM_BYTES >> 20;
+         cpu.queue16 = 0;  // the coherent profile
++        cpu.x87_present = m.top.x87_present;  // SCRATCH bench-x87: --x87 1 reaches the RTL CPU
+         cpu.cold_reset = 1;
+         cpu.reset = 1;
+         for (int n = 0; n < 3; ++n) {

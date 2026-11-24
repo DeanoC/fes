@@ -4,9 +4,7 @@ This directory is the described core `fes.apple2`: an Apple II+ class home
 computer on the `fes.computer` 1.0 mailbox
 ([home-computer I/O](../../../mister-packages/docs/computer-io.md)). It is the
 first FES home computer and the pathfinder for cards, late-bound firmware and
-removable media. The cross-component contract is the
-[Apple II pathfinder design](../../../../docs/superpowers/specs/2026-09-26-apple2-pathfinder-design.md).
-The core lane is [docs/cores.md](../../docs/cores.md).
+removable media. The core lane is [docs/cores.md](../../docs/cores.md).
 
 ## Machine
 

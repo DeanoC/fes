@@ -18,7 +18,33 @@ except ImportError:
 # Logical module names survive the monorepo move; update only these roots.
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
-LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
+LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga', 'tamago')
+TAMAGO_CI_ROOTS = (
+    'platform/embedded/tamago',
+    'platform/embedded/nano',
+    'platform/embedded/runtime',
+    'sources/FogCast',
+    'sources/misteross/expansion',
+    'sources/libmister-runtime/include',
+    'sources/libmister-runtime/src/native',
+    'sources/libmister-runtime/third_party/toml11',
+)
+TAMAGO_CI_INPUTS = frozenset({
+    'platform/embedded/experiment.py',
+    'scripts/ci_tamago.sh',
+    'scripts/tamago_ci.py',
+    'tests/test_tamago_ci.py',
+    'sources/misteross/scripts/core_package.py',
+    'sources/misteross/scripts/rfc3986_validator.py',
+    'sources/libmister-runtime/src/daemon/json.hpp',
+    'sources/libmister-runtime/src/runtime.cpp',
+})
+
+
+def tamago_input(path):
+    """True when path is in the TamaGo CI runner or local Go/Python dependency closure."""
+    return (any(path == root or path.startswith(root + '/') for root in TAMAGO_CI_ROOTS) or
+            path in TAMAGO_CI_INPUTS)
 # Application, z80, pc386 and the DE25 x87 backend are simulation-only
 # families; PC/XT also has a package producer.
 CORES = ('application', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt',
@@ -306,7 +332,9 @@ def fpga_cores(path):
                         'export_static_persona.py', 'review_audio_clocks.py'):
                 return ('zx81',), 'DE25 ZX81 package producer and qualified review'
             if name == 'build_machine_package.py':
-                return ('spectrum', 'atari-st', 'c64'), 'DE25 uploaded-firmware machine package producer'
+                return ('spectrum', 'atari-st', 'c64', 'pcxt'), 'DE25 uploaded-firmware machine package producer'
+            if name == 'build_pcxt_package.py':
+                return ('pcxt',), 'DE25 PC/XT package producer'
             if name == 'build_spectrum_package.py':
                 return ('spectrum',), 'DE25 Spectrum package producer'
             if name == 'build_atari_st_package.py':
@@ -318,11 +346,16 @@ def fpga_cores(path):
         if parts[2] == 'spectrum':
             return ('spectrum',), 'DE25 Spectrum integration and its derivations'
         if parts[2] == 'atari-st':
+            # The PC/XT takes the ST's SDRAM clock and transport derivations.
+            if parts[3:] == ('derive.py',):
+                return ('atari-st', 'pcxt'), 'DE25 Atari ST derivations, shared with the PC/XT'
             return ('atari-st',), 'DE25 Atari ST integration and its derivations'
         if parts[2] == 'c64':
             return ('c64',), 'DE25 C64 integration and its derivations'
+        if parts[2] == 'pcxt':
+            return ('pcxt',), 'DE25 PC/XT integration and its derivations'
         if parts[2] == 'machine':
-            return ('spectrum', 'atari-st', 'c64'), 'DE25 uploaded-firmware machine builder'
+            return ('spectrum', 'atari-st', 'c64', 'pcxt'), 'DE25 uploaded-firmware machine builder'
         if len(parts) >= 4 and parts[2] == 'shared-rtl':
             name = parts[3]
             if name in ('fes_menu_reader.v', 'fes_menu_video.v', 'fes_menu_control.v'):
@@ -333,10 +366,12 @@ def fpga_cores(path):
                 return ('atari-st',), 'DE25 Atari ST machine shell'
             if name in ('fes_c64_core.v', 'fes_c64_firmware_rom.v'):
                 return ('c64',), 'DE25 C64 machine shell'
+            if name in ('fes_pcxt_core.v', 'fes_pcxt_firmware.v'):
+                return ('pcxt',), 'DE25 PC/XT machine shell'
             if name == 'fes_media_sdram.v':
                 return ('spectrum', 'atari-st'), 'DE25 board SDRAM media store'
             if name in ('fes_firmware_upload.v', 'fes_gp_crossing.v', 'fes_de25_machine_audio.v'):
-                return ('spectrum', 'atari-st', 'c64'), 'DE25 uploaded-firmware machine shell'
+                return ('spectrum', 'atari-st', 'c64', 'pcxt'), 'DE25 uploaded-firmware machine shell'
             if name in ('fes_computer_mailbox.v', 'fes_display_plane.v',
                         'fes_zx81_core.v', 'zx81_machine.sv', 'zx81_machine_clock.v',
                         'zx81_top.v'):
@@ -577,6 +612,8 @@ def plan(paths):
             selected.update(LANES)
             reasons.append(f'{path}: software CI infrastructure; RTL unchanged')
             continue
+        if tamago_input(path):
+            selected.add('tamago')
         if path in ('scripts/runtime_tests.py', 'tests/test_runtime_tests.py'):
             selected.update(('parent', 'runtime'))
             reasons.append(f'{path}: runtime check selection and its regressions')

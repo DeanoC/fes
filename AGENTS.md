@@ -20,15 +20,17 @@ This section is the shared rulebook for every agent (Codex, Cursor, Claude, Grok
 - `needs:design`: too big for a merge-fix. Add it together with `lane:deano` to hand a PR back.
 - An unlabelled ready PR counts as `lane:lander`.
 - Draft means only "not ready for review". It is not an ownership signal.
-- To hand off, swap the lane label and comment why and what is left.
+- To hand off a PR for merge, run a `@codex review` cycle until Codex reports okay (no major issues) or only nitpicky (P3) findings, then mark the PR ready (not draft), add `lane:lander`, and comment why and what is left.
+- To hand off between lanes otherwise, swap the lane label and comment why and what is left.
 - Take `lane:deano` work only when Deano assigned it to you.
 
 ### Merge gate
 Merge only when all of these hold:
+- The PR is ready (not draft) and in `lane:lander` (for Lander merges; Deano merges `lane:deano` PRs or tells Lander to).
 - The head SHA is exactly the one checked.
 - CI is green: `gh pr checks N --json name,bucket --jq 'if length==0 then error("no checks") else map(select(.bucket!="pass" and .bucket!="skipping")) | length end'` exits 0 and prints `0`. Any error, no checks, or a non-zero count means not green.
 - 0 unresolved review threads.
-- A clean SuperGrok or Codex review on the exact head. One exception: a clean review carries over to a new head that only adds a merge from the base branch, when the PR's own diff against its base is unchanged and CI is green on the new head.
+- A clean SuperGrok or Codex review on the exact head (okay / no major issues, or only nitpicky P3 findings). One exception: a clean review carries over to a new head that only adds a merge from the base branch, when the PR's own diff against its base is unchanged and CI is green on the new head.
 - HIL is PASS on the exact head, N/A, or explicitly waived by Deano. HIL N/A means no kit test applies: the PR changes no kit-run bitstream, firmware or runtime (docs, CI, host tooling only), the core has no kit (pc386/i386), or the PR is bare-metal TamaGo work under `platform/embedded/` (which cannot be tested on the Linux-focused Kit D25 `de25-j8g` yet). DE25 Linux hardware changes use Kit D25 (`de25-j8g`, serial TRWU8J8G) and require PASS on the exact head with the restore diff verified. A pass on a diagnostic build does not count.
 - The base branch is live, and no open PR uses this head branch as its base.
 - Stacks merge top-down. After each merge, the next PR's tree must equal the reviewed tree, or it needs a fresh review.
@@ -36,6 +38,7 @@ Merge only when all of these hold:
 Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and mistral itself, only after the full gate passes, with `gh pr merge N --squash --match-head-commit <sha>`, and sends Deano an FYI after each merge. Deano merges `lane:deano` PRs or tells Lander to. Other agents do not merge.
 
 ### Review
+- Before handing a PR off to `lane:lander` for merge, run a `@codex review` cycle (comment `@codex review` and address findings) until Codex reports okay (no major issues) or only nitpicky (P3) findings.
 - One full review, then re-reviews check only the fix.
 - P3s never block. File a follow-up issue instead.
 - Budget is 2 review rounds. After that the PR goes to one owner for a bigger fix, or to `needs:design` + `lane:deano`.
@@ -84,7 +87,7 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 - No rebase, force-push or amend.
 - Never relax timing or seal checks.
 - For design-v1 records, audited packaging/recording edits do not move `BUILD_ID` and require no rebuild, reseal or HIL when the original sealed package and record are reused unchanged. Toolchain drift is advisory for reuse; rebuilding with a different execution needs fresh timing/seal checks and applicable exact-artifact HIL. A design ID alone is never exact artifact acceptance. The following measured D12 exception still applies to legacy records, the one-time design-ID migration, and design-generating producer changes without RTL edits.
-- `design-v1` is frozen; never edit its sets. `design-v2` (#1984, [design](docs/design/rtl-frontend-lanes.md#design-identity-policies)) keeps every v1 rule and adds two roles that leave the design ID but stay in the record identity: `evidence` (the i386 oracle, the lockstep suite less `yosys_netlist.py`, and the pc386 lockstep runners), with its own `identities.evidence` digest, and `firmware-generator` (the pc386 firmware recipe and `firmware.lock`), whose output digests, `rom_hex` included, the record's `firmware` parameter must carry. Never give either role to a file a compiler reads or code the seal process runs. Adding a file to `oracle_sources.toml` adds it to `EVIDENCE_INPUTS` in the same commit; the v2 sets are append-only and never take a path a sealed v2 record holds. A v1-to-v2 move is a one-time design-ID migration and takes a normal reseal. An evidence-only change does not by itself allow reuse of a sealed package: that needs a fresh full lockstep on the current suite against the regenerated CPU netlist (#1984 S3).
+- `design-v1` is frozen; never edit its sets. `design-v2` (#1984, [design](docs/design/rtl-frontend-lanes.md#design-identity-policies)) keeps every v1 rule and adds two roles that leave the design ID but stay in the record identity: `evidence` (the i386 oracle, the lockstep suite less `yosys_netlist.py`, the pc386 lockstep runners, and fes.pcxt-dos's Verilator lint configuration, testbench C++ and testbench tops under `cores/fes-pcxt/sim`), with its own `identities.evidence` digest, and `firmware-generator` (the pc386 firmware recipe and `firmware.lock`), whose output digests, `rom_hex` included, the record's `firmware` parameter must carry. Never give either role to a file a compiler reads or code the seal process runs. Adding a file to `oracle_sources.toml` adds it to `EVIDENCE_INPUTS` in the same commit; the v2 sets are append-only and never take a path a sealed v2 record holds. A v1-to-v2 move is a one-time design-ID migration and takes a normal reseal. An evidence-only change does not by itself allow reuse of a sealed package: that needs a fresh full lockstep on the current suite against the regenerated CPU netlist (#1984 S3). For fes.pcxt-dos (on design-v2 since #2096), a lint configuration or testbench file added under `cores/fes-pcxt/sim` goes into `PCXT_EVIDENCE_INPUTS` in the same commit; `sim_fes_pcxt.py`, the `.S` programs and the BIOS and FreeDOS locks stay design because the seal runs or reads them. After an evidence-only change there, the sealed fes.pcxt-dos package may be reused once the pcxt sim targets pass in CI on the new configuration (Deano, 22 Nov 2026). That means the full pcxt suite, `sim-fes-pcxt-dos` included: a PR touching `cores/fes-pcxt/sim` runs it in place of the smoke tier (`FULL_TIER_INPUTS` in `scripts/ci_simulations.py`).
 - A change that moves a core's `BUILD_ID` only through its build record or source closure (a producer script, lock or helper edit, with no RTL change) needs no reseal or HIL when the PR shows all of: the core's Yosys netlist (for a native Quartus front end, its QSF) is byte-identical to main apart from the `BUILD_ID` constant and from file paths in `src` attributes (the checkout and the tool install directory: a toolchain at the same commit is the same toolchain wherever it is installed); a build with the PR's tooling and main's `BUILD_ID` reproduces main's RBF byte for byte; and the PR's own build passes the core's normal timing and seal gates. "Main" in those comparisons means the PR's current merge base. Merging main forward does not by itself void recorded evidence: a comparison still holds for a core whose compiled source set is unchanged between the old base and the new one and whose route-deciding inputs are unchanged too — its toolchain lock, its timing and pin constraints, and its placement recipe. Where any of those moved, the RBF comparison must be re-measured for that core even where its netlist is byte-identical, because a different router, constraint or seed list places the same netlist differently. A core whose compiled source set did change still keeps its recorded comparison where main's own netlist is byte-identical at the old base and the new one, apart from the `BUILD_ID` constant and the paths this rule already exempts. Run both sides with one tool install, and in the same checkout path where that is possible, so the comparison is byte-identical with nothing normalised away. Record both digests, and the command that produced them, in the PR's validation record. That measurement is the only thing that carries: that a change looks inert is not evidence that it is. Where the netlist moved, the comparison is re-measured however small the source change was. Quartus maps a different `BUILD_ID` constant differently, so resource counts and the RBF may differ; that alone does not need a reseal. Any other difference needs the core's normal reseal and HIL. (#1581, D12)
 - For a core the support matrix records at `check_level: reduced`, that same closure change owes only the first of those three: its netlist comparison is still measured and recorded exactly as the rule above says, and the RBF reproduction, the timing and seal gate and the HIL are not expected of it. A netlist that is not byte-identical puts that core back under the full rule, as does any change that touches the core's own RTL, programs, toolchain lock or placement recipe, and as does any change that ships it. The levels are derived in `docs/support-matrix.py` from the quality ladder in `docs/plans/forward-plan.md` and are listed in [the support matrix](docs/support-matrix.md): they say which cores a sweep is not about, and they never lower a gate on work being done to a core, which the rule above this one still forbids. (#1863, accepted 2026-11-15)
 - Do not close PRs without Deano's OK.
@@ -235,8 +238,9 @@ do not run a full host/image/core campaign for every ready PR.
   completed checks and the specific remaining hardware check so Grokbot can
   run the appropriate path. Do not substitute an all-core build for that plan.
 
-See [the development-speed redesign](docs/development-speed.md) for the
-remaining OS, software and room installer separation.
+See [modular updates](docs/modular-updates.md#remaining-installer-separation)
+and [the forward plan](docs/plans/forward-plan.md) for OS, software, core and
+room installer separation.
 
 ## Hardware, media and releases
 
@@ -391,5 +395,7 @@ Long term this matrix becomes an automatic, alphamister-style search over the sa
 State scope, base and result commit (or uncommitted diff), tests and results,
 hardware evidence class, effects on module/shared contracts, and the next
 integration step. Commit, push and open PRs as needed without further approval.
-Merging requires review by Deano or another agent/model reviewer; agents never
-merge on their own authority.
+To be merged, complete a `@codex review` cycle until Codex reports okay (no
+major issues) or only nitpicky (P3) findings, then mark the PR ready (not draft)
+and put it in `lane:lander`. Merging requires review by Deano or another
+agent/model reviewer; agents never merge on their own authority.

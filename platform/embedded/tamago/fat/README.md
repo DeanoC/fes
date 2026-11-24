@@ -4,6 +4,10 @@
 sectors. Files are bounded at 64 MiB and directories at 4 MiB. `WriteFile`
 updates an existing preallocated regular file without reallocating its chain;
 it flushes file data before updating and flushing the directory size.
+`ReplaceFile(ctx, name, data)` updates any existing regular file (or creates it
+if absent) via copy-on-write cluster allocation and a single-sector directory
+entry commit before freeing the previous clusters, ensuring a power cut before
+the directory commit leaves the previous file intact rather than half-written.
 
 `CreateFile(ctx, name, data)` and `Mkdir(ctx, name)` explicitly allocate new
 entries under an existing parent. They reject existing names and short aliases,
@@ -17,7 +21,8 @@ Creation marks the volume dirty, invalidates the primary FSInfo free-space
 hints, initializes and flushes new data/directory clusters, writes and flushes
 FAT chains, then publishes and flushes the directory entry. Only then can an
 originally clean volume regain its original clean flag. An originally dirty
-volume stays dirty. No clock source is assumed; new entries use 1980-01-01.
+volume stays dirty. No clock source is assumed by default (new entries use
+1980-01-01 unless callers configure an optional UTC wall clock via `SetClock`).
 Planning and mutation check cancellation and cooperate with native scheduling.
 
 Success is a clean-restart durability boundary. Cancellation or an uncertain

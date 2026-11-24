@@ -12,6 +12,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/dmaops"
 	"github.com/usbarmory/tamago/dma"
 )
 
@@ -21,6 +22,7 @@ import (
 // DMA stays reserved until reboot, including after a controller error.
 type XHCI struct {
 	base, op, doorbell, interrupter uintptr
+	dmaBuf                          *dmaops.Buffer
 	memory                          []byte
 	memoryAddress                   uint64
 	next                            int
@@ -52,21 +54,34 @@ type DeviceInfo struct {
 // attached USB2 device, retrieves its real descriptors, and selects boot HID.
 // This first adapter requires 32-byte contexts, no scratchpads and 4KiB pages.
 func OpenXHCI(mmio uintptr) (*XHCI, error) {
+	return OpenXHCIWithPool(mmio, nil)
+}
+
+// OpenXHCIWithPool resets and enumerates a directly attached USB2 boot keyboard
+// allocating its 64 KiB xHCI DMA arena from pool (which must use dmaops.Uncached),
+// or reserving a standalone uncached slice from tamago/dma when pool is nil.
+func OpenXHCIWithPool(mmio uintptr, pool *dmaops.Pool) (*XHCI, error) {
 	if mmio == 0 || mmio&0xfff != 0 {
 		return nil, fmt.Errorf("xHCI: invalid MMIO base")
 	}
-	region := dma.Default()
-	if region == nil {
-		return nil, fmt.Errorf("xHCI: initialize board DMA first")
+	if pool != nil && pool.Mode() != dmaops.Uncached {
+		return nil, fmt.Errorf("xHCI: requires an uncached DMA pool")
 	}
-	available := false
-	for _, size := range region.FreeBlocks() {
-		if size >= (64<<10)+4096 {
-			available = true
+	var region *dma.Region
+	if pool == nil {
+		region = dma.Default()
+		if region == nil {
+			return nil, fmt.Errorf("xHCI: initialize board DMA first")
 		}
-	}
-	if !available {
-		return nil, fmt.Errorf("xHCI: insufficient contiguous DMA memory")
+		available := false
+		for _, size := range region.FreeBlocks() {
+			if size >= (64<<10)+4096 {
+				available = true
+			}
+		}
+		if !available {
+			return nil, fmt.Errorf("xHCI: insufficient contiguous DMA memory")
+		}
 	}
 	h := &XHCI{base: mmio, eventCycle: 1}
 	caps := h.read(0)
@@ -98,9 +113,25 @@ func OpenXHCI(mmio uintptr) (*XHCI, error) {
 	if err := waitRegister(h.op+4, 1<<11, 0); err != nil {
 		return nil, err
 	}
-	addr, memory := region.Reserve(64<<10, 4096)
-	clear(memory)
-	h.memoryAddress, h.memory = uint64(addr), memory
+	const arenaBytes = 64 << 10
+	if pool == nil {
+		addr, raw := region.Reserve(arenaBytes, 4096)
+		if len(raw) != arenaBytes {
+			return nil, fmt.Errorf("xHCI: DMA allocation failed")
+		}
+		var err error
+		pool, err = dmaops.NewPool(uint64(addr), raw, dmaops.Uncached, dmaops.Native())
+		if err != nil {
+			return nil, err
+		}
+	}
+	dmaBuf, err := pool.Alloc(arenaBytes, 4096)
+	if err != nil {
+		return nil, fmt.Errorf("xHCI: DMA pool allocation failed: %w", err)
+	}
+	h.dmaBuf = dmaBuf
+	h.memoryAddress, h.memory = dmaBuf.PhysAddr(), dmaBuf.Bytes()
+	clear(h.memory)
 	dcbaaAddress, dcbaa := h.reserve(2048, 64)
 	h.command = h.newRing()
 	h.control = h.newRing()
@@ -122,10 +153,13 @@ func OpenXHCI(mmio uintptr) (*XHCI, error) {
 	write32(h.interrupter+8, 1)
 	write64(h.interrupter+0x10, erstAddress)
 	write64(h.interrupter+0x18, h.eventsAddress)
-	barrier()
+	if err := h.dmaBuf.SyncForDevice(dmaops.ToDevice); err != nil {
+		return nil, h.fail(err)
+	}
+	dmaops.Native().SyncBarrier()
 	write32(h.op, 1)
 	if err := waitRegister(h.op+4, 1, 0); err != nil {
-		return nil, err
+		return nil, h.fail(err)
 	}
 	for p := uint8(1); p <= ports; p++ {
 		if read32(h.op+0x400+uintptr(p-1)*16)&1 != 0 {
@@ -265,7 +299,13 @@ func (h *XHCI) newRing() transferRing {
 	return transferRing{address: address, data: data, cycle: 1}
 }
 func (h *XHCI) read(offset uintptr) uint32 { return read32(h.base + offset) }
-func (h *XHCI) fail(err error) error       { h.fault = err; return err }
+func (h *XHCI) fail(err error) error {
+	h.fault = err
+	if h.dmaBuf != nil {
+		h.dmaBuf.Poison(err)
+	}
+	return err
+}
 func (h *XHCI) setupEndpoint(data []byte, address uint64, packet, kind, interval uint32) {
 	binary.LittleEndian.PutUint32(data, interval<<16)
 	binary.LittleEndian.PutUint32(data[4:], packet<<16|kind<<3|3<<1)
@@ -305,7 +345,7 @@ func (h *XHCI) event() (eventTRB, bool, error) {
 	if control&1 != h.eventCycle {
 		return eventTRB{}, false, nil
 	}
-	barrier()
+	dmaops.Native().SyncBarrier()
 	event := eventTRB{parameter: binary.LittleEndian.Uint64(h.events[offset:]), status: binary.LittleEndian.Uint32(h.events[offset+8:]), control: control}
 	h.eventIndex++
 	if h.eventIndex == 256 {
@@ -351,7 +391,7 @@ func (h *XHCI) waitEvent(kind uint32, address uint64) (eventTRB, error) {
 }
 func (h *XHCI) runCommand(parameter uint64, status, control uint32) (eventTRB, error) {
 	address := h.command.push(parameter, status, control)
-	barrier()
+	dmaops.Native().SyncBarrier()
 	write32(h.doorbell, 0)
 	return h.waitEvent(33, address)
 }
@@ -380,7 +420,7 @@ func (h *XHCI) request(requestType, request uint8, value, index uint16, length i
 		statusDirection = 0
 	}
 	address := h.control.push(0, 0, 4<<10|1<<5|statusDirection)
-	barrier()
+	dmaops.Native().SyncBarrier()
 	write32(h.doorbell+uintptr(h.slot)*4, 1)
 	if _, err := h.waitEvent(32, address); err != nil {
 		return nil, err
@@ -392,7 +432,7 @@ func (h *XHCI) request(requestType, request uint8, value, index uint16, length i
 func (h *XHCI) armKeyboard() {
 	clear(h.report)
 	h.pending = h.interrupt.push(h.reportAddress, 8, 1<<10|1<<5)
-	barrier()
+	dmaops.Native().SyncBarrier()
 	write32(h.doorbell+uintptr(h.slot)*4, uint32(h.config.Endpoint&15)*2+1)
 }
 
@@ -424,6 +464,35 @@ func (h *XHCI) PollKeyboard() ([]byte, error) {
 	return nil, nil
 }
 
+// PollKeyboardInto is the zero-allocation companion to PollKeyboard.
+func (h *XHCI) PollKeyboardInto(dst []byte) (int, error) {
+	if len(dst) < len(h.report) {
+		return 0, fmt.Errorf("xHCI: keyboard report buffer too small: need %d, have %d", len(h.report), len(dst))
+	}
+	for n := 0; n < 16; n++ {
+		event, ok, err := h.event()
+		if err != nil {
+			return 0, err
+		}
+		if !ok {
+			return 0, nil
+		}
+		if event.kind() == 34 {
+			continue
+		}
+		if event.kind() != 32 || event.parameter&^15 != h.pending || uint8(event.control>>24) != h.slot {
+			return 0, h.fail(fmt.Errorf("xHCI: unexpected keyboard completion"))
+		}
+		if event.code() != 1 || event.status&0xffffff != 0 {
+			return 0, h.fail(fmt.Errorf("xHCI: invalid keyboard transfer code=%d remainder=%d", event.code(), event.status&0xffffff))
+		}
+		copied := copy(dst, h.report)
+		h.armKeyboard()
+		return copied, nil
+	}
+	return 0, nil
+}
+
 type transferRing struct {
 	address uint64
 	data    []byte
@@ -446,7 +515,7 @@ func (r *transferRing) push(parameter uint64, status, control uint32) uint64 {
 func putTRB(data []byte, parameter uint64, status, control uint32) {
 	binary.LittleEndian.PutUint64(data, parameter)
 	binary.LittleEndian.PutUint32(data[8:], status)
-	barrier()
+	dmaops.Native().SyncBarrier()
 	atomic.StoreUint32((*uint32)(unsafe.Pointer(&data[12])), control)
 }
 
@@ -460,7 +529,6 @@ func (e eventTRB) code() uint32 { return e.status >> 24 }
 
 func read32(uintptr) uint32
 func write32(uintptr, uint32)
-func barrier()
 func write64(address uintptr, value uint64) {
 	write32(address, uint32(value))
 	write32(address+4, uint32(value>>32))

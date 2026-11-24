@@ -41,8 +41,8 @@ static void failures(void)
         struct test t;confirmed(&t);
         switch(kind) {
         case 0:t.h.usb[8/4]|=1U<<5;break; /* DMA */
-        case 1:t.h.usb[8/4]|=1U;break; /* global IRQ */
-        case 2:t.h.usb[24/4]=1;break;
+        case 1:t.h.usb[0x400/4]|=1U<<23;break; /* descriptor DMA */
+        case 2:t.h.usb[16/4]=0;break; /* AHB not idle */
         case 3:t.h.usb[12/4]=0;break;
         case 4:t.h.per0|=FES_NANO_COLD_USB_RAM_RESET;break;
         case 5:t.h.per0&=~1U;break; /* unrelated EMAC */

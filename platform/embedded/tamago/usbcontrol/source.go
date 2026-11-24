@@ -113,6 +113,39 @@ func (s *reportLease) poll() ([]byte, error) {
 	}
 	return report, nil
 }
+func (s *reportLease) pollInto(dst []byte) (int, error) {
+	if s == nil {
+		return 0, ErrRetired
+	}
+	if !s.operation.TryLock() {
+		return 0, nil
+	}
+	defer s.operation.Unlock()
+	if s.closed || s.driver == nil {
+		return 0, errors.Join(ErrRetired, s.fault)
+	}
+	if s.fault != nil {
+		return 0, errors.Join(ErrRetired, s.fault)
+	}
+	c := s.client
+	if !c.operation.TryLock() {
+		return 0, nil
+	}
+	defer c.operation.Unlock()
+	current, valid := c.LastReceipt()
+	if !valid || current != s.receipt || !current.Active || !current.Confirmed {
+		return 0, ErrRetired
+	}
+	if s.paused {
+		return 0, nil
+	}
+	n, err := s.driver.pollReportInto(dst)
+	if err != nil {
+		s.fault = err
+		return 0, err
+	}
+	return n, nil
+}
 
 // Close revokes local polling and drains a capable asynchronous report driver
 // before one firmware stop. Copies share closed state; an old source cannot
@@ -164,6 +197,7 @@ func (s *reportLease) close(ctx context.Context) error {
 		s.closed = false
 		return errors.Join(priorFault, stopErr)
 	}
+	s.disableIRQLocked()
 	s.fault = errors.Join(priorFault, stopErr)
 	if priorFault != nil {
 		s.fault = c.retire(s.fault)

@@ -1,8 +1,8 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "e240a4653bb6578e0b267f730128f8a5dac28483"
+commit = "d273c1cb774f70d58c890745ac1b7dd106d32a26"
 order = 10
-rationale = "DeanoC/yosys main commit e240a465, the squash merge of #76: rename -unescape gives names unique within one run, never spells a keyword, and renames memories (#75). The seal runs it in the same Yosys run in place of the Python identifier rewrite (#1581 S4, scripts/yosys_netlist.py); at 0a7927bf it asserted on pc386_system, where cpu.ex_out and cpu.ex.out both map to cpu_ex_out. Since 0a7927bf (#68, the hardware thread count read once) it adds #70 (AGENTS.md only) and #76. The i386 lock pins the same commit (#1581 D2), so one Yosys reads the CPU for lockstep, the Quartus spikes and this seal. The shared toolchain.lock stays at 3a5accbd. Pair with nextpnr bd7a1c0d and Mistral 8fcc4cb4. Previous pin 0a7927bf."
+rationale = "DeanoC/yosys d273c1cb774f70d58c890745ac1b7dd106d32a26, the squash of yosys#81, moves hashlib rehashing to insert and fixes the multithreaded OPT_CLEAN crash (#77). rename -unescape and the same-run Quartus netlist flow remain from #75/#76 (#1581 S4). The i386 lock pins the same compiler. Full old/new CPU lockstep, the frontend suite, OPT_CLEAN multithread regression, and this pc386 Quartus producer were checked; generated names and pass ordering may differ, with functional equivalence as the gate. Previous pin e240a4653bb6578e0b267f730128f8a5dac28483. The shared toolchain.lock stays at 3a5accbd. Pair with nextpnr bd7a1c0d and Mistral 8fcc4cb4."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"

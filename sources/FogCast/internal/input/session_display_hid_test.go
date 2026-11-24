@@ -18,7 +18,7 @@ func TestHIDDisplayFocusRetiresKeysPerSource(t *testing.T) {
 				ports, _, _ := newHIDPortsFixture(t, true)
 				var machine hidkeys.Rows
 				posts := 0
-				ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error {
+				ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
 					posts++
 					machine = rows
 					return nil
@@ -81,7 +81,10 @@ func TestHIDDisplayFocusRetiresKeysPerSource(t *testing.T) {
 func TestHIDFocusRefusalRetainsSafeNeutralForRelease(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	var machine hidkeys.Rows
-	ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { machine = rows; return nil })
+	ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
+		machine = rows
+		return nil
+	})
 	c := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 	a, _ := hidkeys.Code(0x04)
 	press := keyboardFrameFor(a, remoteinput.ActionPress)
@@ -125,7 +128,7 @@ func TestHIDFocusAdmissionHonorsPendingPostCancellation(t *testing.T) {
 func TestHIDTapCrossingFocusKeepsRemoteSuppression(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	posts := 0
-	ports.hid.setPoster(func(context.Context, string, uint64, hidkeys.Rows) error { posts++; return nil })
+	ports.hid.setPoster(func(context.Context, string, string, uint64, hidkeys.Rows) error { posts++; return nil })
 	c := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 	started := make(chan struct{})
 	done := make(chan error, 1)
@@ -183,7 +186,7 @@ func TestHIDReleaseDuringRefusedFocusReconcilesNeutral(t *testing.T) {
 			ports, _, _ := newHIDPortsFixture(t, true)
 			var machine hidkeys.Rows
 			fail := false
-			ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error {
+			ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
 				if fail {
 					fail = false
 					return errors.New("neutral failed")
@@ -225,7 +228,10 @@ func TestHIDReleaseDuringRefusedFocusReconcilesNeutral(t *testing.T) {
 func TestHIDSameKeySuppressionIsIndependentPerSource(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	var machine hidkeys.Rows
-	ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { machine = rows; return nil })
+	ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
+		machine = rows
+		return nil
+	})
 	c := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 	a, _ := hidkeys.Code(0x04)
 	press := keyboardFrameFor(a, remoteinput.ActionPress)
@@ -272,7 +278,10 @@ func TestHIDSameKeySuppressionIsIndependentPerSource(t *testing.T) {
 func TestHIDMouseNeutralFailureReconcilesConsumedRelease(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	var machine hidkeys.Rows
-	ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { machine = rows; return nil })
+	ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
+		machine = rows
+		return nil
+	})
 	c := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 	a, _ := hidkeys.Code(0x04)
 	press := keyboardFrameFor(a, remoteinput.ActionPress)
@@ -303,7 +312,7 @@ func TestHIDUnknownFocusAndSourceDisconnectStayFenced(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	posts := 0
 	var machine hidkeys.Rows
-	ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error {
+	ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
 		posts++
 		machine = rows
 		return nil
@@ -352,7 +361,7 @@ func TestHIDUnknownFocusAndSourceDisconnectStayFenced(t *testing.T) {
 func TestHIDRebindDuringFocusRetainsFence(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	posts := 0
-	ports.hid.setPoster(func(context.Context, string, uint64, hidkeys.Rows) error { posts++; return nil })
+	ports.hid.setPoster(func(context.Context, string, string, uint64, hidkeys.Rows) error { posts++; return nil })
 	c := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 	finish, err := c.BeginSessionDisplay(context.Background(), true)
 	if err != nil {
@@ -374,7 +383,10 @@ func TestHIDDelayedFrameCannotCrossFocusCycle(t *testing.T) {
 		t.Run(map[bool]string{false: "admitted before focus", true: "admitted during focus"}[admittedFocused], func(t *testing.T) {
 			ports, _, _ := newHIDPortsFixture(t, true)
 			var machine hidkeys.Rows
-			ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { machine = rows; return nil })
+			ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
+				machine = rows
+				return nil
+			})
 			c := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 			a, _ := hidkeys.Code(0x04)
 			b, _ := hidkeys.Code(0x05)
@@ -427,7 +439,7 @@ func TestHIDDelayedFrameCannotCrossFocusCycle(t *testing.T) {
 func TestHIDUnknownFinishFencesEvenWhenSinkBusy(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	posts := 0
-	ports.hid.setPoster(func(context.Context, string, uint64, hidkeys.Rows) error { posts++; return nil })
+	ports.hid.setPoster(func(context.Context, string, string, uint64, hidkeys.Rows) error { posts++; return nil })
 	c := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 	finish, err := c.BeginSessionDisplay(context.Background(), false)
 	if err != nil {
@@ -461,7 +473,10 @@ func TestHIDUnknownFinishFencesEvenWhenSinkBusy(t *testing.T) {
 func TestHIDUnknownBusyFenceRetiresOldHoldOnClose(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	var machine hidkeys.Rows
-	ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { machine = rows; return nil })
+	ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
+		machine = rows
+		return nil
+	})
 	c := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 	a, _ := hidkeys.Code(0x04)
 	b, _ := hidkeys.Code(0x05)
@@ -501,7 +516,10 @@ func TestHIDUnknownBusyFenceRetiresOldHoldOnClose(t *testing.T) {
 func TestHIDUnknownBusyPostEventuallyNeutralizesWithoutClose(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	writes := make(chan hidkeys.Rows, 4)
-	ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { writes <- rows; return nil })
+	ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
+		writes <- rows
+		return nil
+	})
 	c := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 	a, _ := hidkeys.Code(0x04)
 	if err := ports.applyContext(context.Background(), sourceRemote, keyboardFrameFor(a, remoteinput.ActionPress)); err != nil {
@@ -538,7 +556,7 @@ func TestHIDUnknownBusyPostEventuallyNeutralizesWithoutClose(t *testing.T) {
 func TestHIDUnknownReconciliationCannotTouchReplacement(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	posts := 0
-	ports.hid.setPoster(func(context.Context, string, uint64, hidkeys.Rows) error { posts++; return nil })
+	ports.hid.setPoster(func(context.Context, string, string, uint64, hidkeys.Rows) error { posts++; return nil })
 	old := KeyboardHIDBinding{PackageID: "apple2", Generation: 7}
 	ports.hid.fenceEpoch.Store(9)
 	ports.hid.focusFence.Store(true)
@@ -555,7 +573,7 @@ func TestHIDUnknownFastInFlightPostIsNeutralized(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	entered, unblock := make(chan struct{}), make(chan struct{})
 	writes := make(chan hidkeys.Rows, 4)
-	ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error {
+	ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
 		if rows != (hidkeys.Rows{}) {
 			close(entered)
 			<-unblock
@@ -610,7 +628,10 @@ func TestHIDUnknownFastInFlightPostIsNeutralized(t *testing.T) {
 func TestHIDRebindDuringFocusKeepsHeldSourceBlocked(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	var machine hidkeys.Rows
-	ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { machine = rows; return nil })
+	ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
+		machine = rows
+		return nil
+	})
 	c := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 	a, _ := hidkeys.Code(0x04)
 	press := keyboardFrameFor(a, remoteinput.ActionPress)
@@ -652,7 +673,10 @@ func TestHIDReleaseInOtherKeyboardModeClearsSuppression(t *testing.T) {
 		t.Run(map[inputSource]string{sourceLocal: "local", sourceRemote: "remote"}[source], func(t *testing.T) {
 			ports, _, _ := newHIDPortsFixture(t, true)
 			var machine hidkeys.Rows
-			ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { machine = rows; return nil })
+			ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
+				machine = rows
+				return nil
+			})
 			c := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 			a, _ := hidkeys.Code(0x04)
 			press := keyboardFrameFor(a, remoteinput.ActionPress)
@@ -696,7 +720,10 @@ func TestHIDReleaseInOtherKeyboardModeClearsSuppression(t *testing.T) {
 func TestHIDLegacyShiftPressMakesReleaseAmbiguous(t *testing.T) {
 	ports, _, _ := newHIDPortsFixture(t, true)
 	var machine hidkeys.Rows
-	ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { machine = rows; return nil })
+	ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
+		machine = rows
+		return nil
+	})
 	c := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 	right, _ := hidkeys.Code(0xe5)
 	apply := func(code remoteinput.Code, action remoteinput.Action) {
@@ -744,7 +771,10 @@ func TestHIDLegacyShiftReleaseRespectsAmbiguousSides(t *testing.T) {
 		t.Run(map[bool]string{false: "right only", true: "both sides"}[both], func(t *testing.T) {
 			ports, _, _ := newHIDPortsFixture(t, true)
 			var machine hidkeys.Rows
-			ports.hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { machine = rows; return nil })
+			ports.hid.setPoster(func(_ context.Context, _ string, _ string, _ uint64, rows hidkeys.Rows) error {
+				machine = rows
+				return nil
+			})
 			c := &TargetController{ports: ports, keyboard: NewKeyboardSink()}
 			left, _ := hidkeys.Code(0xe1)
 			right, _ := hidkeys.Code(0xe5)

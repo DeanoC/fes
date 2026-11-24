@@ -2,8 +2,9 @@
 """Build the DE25 MENU with a canonical pre-synthesis identity; never program it.
 
 Compile-only retains a candidate. Package export additionally requires zero
-unreviewed or waived signoff findings and every reported timing check to pass,
-and an independent compilation to reproduce the RBF. Physical qualification
+unreviewed or waived signoff findings and every reported timing check to pass.
+There is no byte-identical repeat compile: Quartus 26.3 Pro's fit is not
+reproducible across threads or project paths. Physical qualification
 and managed-kit acceptance remain separate gates.
 """
 from __future__ import annotations
@@ -30,7 +31,6 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from scripts.input_identity import with_identities
-from scripts.build_fes_pcxt_quartus import tree_digest
 from boards.de25nano.package.core_package import encode_manifest
 from boards.de25nano.package.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
 from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_clean_source as require_clean_source
@@ -38,6 +38,7 @@ from scripts.functional_execution import execution_digest, execution_environment
 from scripts.source_closure import imports as script_imports
 from scripts.compiler_read_audit import POLICY as SOURCE_POLICY
 from scripts import quartus_tools
+from scripts.quartus_tools import tree_digest
 from boards.de25nano.scanout import async_inputs
 from boards.de25nano.scanout.build import TIMED_RESET_RELEASE, MANAGED_FABRIC, SHARED_FIFO_RESETS
 
@@ -58,7 +59,10 @@ REVIEW_INPUTS = ('boards/de25nano/scanout/async_inputs.py',
                  'boards/de25nano/scanout/video_outputs.tcl',
                  'boards/de25nano/scanout/output_reset.py',
                  'boards/de25nano/scanout/output_reset.tcl',
-                 'boards/de25nano/scanout/vendor_reference.py')
+                 'boards/de25nano/scanout/vendor_reference.py',
+                 'boards/de25nano/scanout/machine_findings.py',
+                 'boards/de25nano/scanout/bridge_reset.py',
+                 'boards/de25nano/scanout/bridge_reset.tcl')
 DEVICE = 'A5EB013BB23BE4SCS'
 
 
@@ -127,7 +131,7 @@ def execution_environment(home, tools, *, license_file=None):
     env = base_execution_environment(home, tools)
     if license_file is not None:
         # Snapshot the selected bytes once. Later source-file edits cannot change
-        # the license used between the signoff and independent repeat fit.
+        # the license the compile uses.
         data = _license_bytes(license_file)
         target = Path(home) / 'quartus-license.dat'
         with target.open('xb') as stream:
@@ -221,7 +225,7 @@ def captured_source_closure(root, source_roots, captured, recipe, review_inputs)
     # These modules import each other outside scripts/. Bind the complete
     # board-local producer and codec directories, including the static recipe.
     roots.update({'boards/de25nano/producers', 'boards/de25nano/package'})
-    for module in ('build_fes_pcxt_quartus', 'fes_build_common', 'functional_execution',
+    for module in ('quartus_tools', 'fes_build_common', 'functional_execution',
                    'source_closure', 'compiler_read_audit'):
         roots.update(script_imports(module, root))
     paths = {Path(name).relative_to('sources/misteross').as_posix(): data
@@ -265,6 +269,20 @@ def create_build_record(root, repository, revision, identities, execution, captu
     if execution.get("selection_only"):
         fields["parameters"]["selection_only"] = True
     return encode_build_record(with_identities(fields, root=root))
+
+
+def unreviewed_rules(reviewed, rows):
+    """How many failed rules no reviewed entry covers.
+
+    Coverage is per rule: each reviewed entry names one failed rule and
+    accounts for every one of its rows, and no rule is reviewed twice, so one
+    rule's bases can never stand in for another rule's absence.
+    """
+    reviewed_ids = [entry['id'] for entry in reviewed]
+    failed_ids = {r[0] for r in rows if int(r[2])}
+    if len(set(reviewed_ids)) != len(reviewed_ids) or not set(reviewed_ids) <= failed_ids:
+        raise BuildError('DE25 reviewed signoff findings must each name one distinct failed rule')
+    return len(failed_ids - set(reviewed_ids))
 
 
 def timing_evidence(directory, *, async_review=None, audio_review=None, revision='golden_top'):
@@ -337,10 +355,13 @@ def timing_evidence(directory, *, async_review=None, audio_review=None, revision
     if async_review is not None:
         proof = async_inputs.verify(directory, async_review)
         if 'output_reset_review' in proof:
+            # One RDC-50003 entry: the HDMI output-reset row, and with a window
+            # the bridge's two named rows beside it (bridge_reset.py).
+            bridge = proof.get('window_bridge_reset_review')
             reset = next(r for r in rows if r[0] == 'RDC-50003')
-            if reset[2:] != ('1', '0'):
+            if reset[2:] != (('3', '0') if bridge else ('1', '0')):
                 raise BuildError('DE25 output-reset RDC finding count/waivers changed')
-            reviewed.append(proof['output_reset_review']['finding'])
+            reviewed.append(bridge['finding'] if bridge else proof['output_reset_review']['finding'])
         findings = next(r for r in rows if r[0] == 'TMC-20011')
         if int(findings[2]):
             if findings[2:] != ('2', '0'):
@@ -361,7 +382,10 @@ def timing_evidence(directory, *, async_review=None, audio_review=None, revision
                              async_inputs.vendor_reference.output_findings(drc, timed_video=timed_video),
                     'basis': audio_proof['policy'] if audio_proof is not None else
                              async_inputs.vendor_reference.POLICY})
-    unreviewed = failed - len(reviewed)
+    from boards.de25nano.scanout import machine_findings
+    if machine_findings.selected(directory):
+        reviewed.extend(machine_findings.findings(directory, drc))
+    unreviewed = unreviewed_rules(reviewed, rows)
     return {'signoff_rules': total, 'failed_rules': failed,
         'unreviewed_failed_rules': unreviewed, 'reviewed_findings': reviewed,
         **({'async_input_review': proof} if proof is not None else {}),
@@ -444,16 +468,6 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
             if not compile_only:
                 if not timing['package_timing_admission']:
                     raise BuildError('DE25 MENU package blocked by reported timing/signoff findings; candidate retained')
-                repeated, c2, h2, d2 = builder.prepare(vendor_archive, output / 'repeat', revision,
-                    hps_first=True, linux_dma=True, package_build_id=selected_id)
-                builder.generate(repeated, c2, h2, d2, paths['quartus'], version)
-                builder.compile_project(repeated, h2, d2, paths['quartus'])
-                repeat_review = async_inputs.collect(repeated, paths['quartus'].with_name('quartus_sta'),
-                                                     vendor_archive=vendor_archive)
-                repeat_timing = timing_evidence(repeated, async_review=repeat_review)
-                (output / 'repeat-timing.json').write_text(json.dumps(repeat_timing, sort_keys=True, indent=2) + '\n')
-                if not repeat_timing['package_timing_admission'] or sha(selected / 'combined/hps/linux-boot.core.rbf') != sha(repeated / 'combined/hps/linux-boot.core.rbf'):
-                    raise BuildError('DE25 MENU independent rebuild failed timing or changed RBF')
         if (_require_clean_source(root, pinned_inputs=(RECIPE, ABI)) != (repository, revision) or
                 authenticate_tools(builder, quartus_root) != (paths, identities) or
                 execution_inputs(paths, env) != execution or
