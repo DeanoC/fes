@@ -1,7 +1,7 @@
 #!/bin/bash
 # i486dxs1_g1.sh HEAD: method G1. DE10 pc386 netlist at the base and HEAD from one checkout path, then identities.
 set -uo pipefail
-HEAD=$1; BASE=2d4edf547; P=/data/projects/i486dx-s1; WT=$P/wt-g1; O=$P/g1
+HEAD=$1; BASE=${2:-2d4edf547}; P=/data/projects/i486dx-s1; WT=$P/wt-g1; O=$P/g1
 export FES_TOOLCHAIN_CACHE_ROOT=/home/deano/fes/out/cache/misteross-toolchains YOSYS_MAX_THREADS=1
 [ -d $WT ] || git -C /home/deano/fes worktree add -q --detach $WT $BASE || exit 2
 for rev in $BASE $HEAD; do

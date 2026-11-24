@@ -28,7 +28,7 @@ main ([G5](#g5-quake-on-the-rtl)).
 
 | Gate | Result |
 | --- | --- |
-| G1, DE10 identity | **Pass** at the head reported here: see [G1](#g1-de10-identity) |
+| G1, DE10 identity | **Pass** at `eab2fe8b5` against the four bases merged: netlist `cmp` equal, every identity equal ([G1](#g1-de10-identity)) |
 | G2, lockstep and the x87 suites | **Pass**: no failure in either arm, at level 3 (with every x87 suite) and level 4 |
 | G3, DE25 fit, device + four seeds | **Pass**, second attempt (`a36169588`). The first attempt (`5112461a9`) **failed** at the producer's signoff gate (no basis for the window-base CDC row); fixed by #2187, a separate reviewed PR |
 | G4, CPI | **Pass**: DOOM r = 1.058, so 2,062 × r = 2,182 realtics ≤ 4,682 (DX-33). DX2-66 (2,912) is kept by the bound too (reported, not gated) |
@@ -66,7 +66,7 @@ Yosys `d273c1cb`, `YOSYS_MAX_THREADS=1`.
 | --- | --- | --- | --- | --- | --- |
 | `2d4edf547` → `cc136b1a6` (the method's commit) | not run (no firmware build) | equal | **moved** | **moved** | equal |
 | `2d4edf547` → `63aa526c8` (amendment 1) | `cmp` equal, `65cbd412…` | equal | equal | equal | equal |
-| the four bases merged (`87562da40`, tree `291a6c31…`) → final head | see [g1-final.md](de10/g1-final.md) | | | | |
+| the four bases merged (`87562da40`, tree `291a6c31…`) → `eab2fe8b5` | `cmp` equal, `65cbd412…` | equal | equal | equal | equal ([g1-final.md](de10/g1-final.md)) |
 
 At `cc136b1a6` the lockstep runner and bench edits were pc386 design-v2
 evidence, and the record digest covers every source input, so both moved.
