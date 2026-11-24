@@ -407,6 +407,7 @@ type interfaceLease struct {
 	hasLease      bool
 	generation    uint64
 	activeRenewer *LeaseRenewer
+	renewInFlight bool
 }
 
 func (s *interfaceLease) init(lease DHCPLease, acquiredAt time.Time, hasLease bool) {
@@ -457,7 +458,7 @@ func (s *interfaceLease) newRenewer(port DHCPFramePort, mac string, cfg RenewCon
 		if !s.hasLease {
 			return fmt.Errorf("%w: interface has no active DHCP lease", ErrDHCPInvalidConfig)
 		}
-		if s.activeRenewer != nil {
+		if s.activeRenewer != nil || s.renewInFlight {
 			return ErrRenewerActive
 		}
 		if portClaim != nil {
@@ -505,6 +506,67 @@ func (s *interfaceLease) newRenewer(port DHCPFramePort, mac string, cfg RenewCon
 		s.mu.Unlock()
 	}
 	return ren, nil
+}
+
+func (s *interfaceLease) renewOnce(ctx context.Context, port DHCPFramePort, mac string, rebind bool, cfg RenewConfig, checkReady func() error, onTerminal func(error)) (DHCPLease, error) {
+	if ctx == nil {
+		return DHCPLease{}, fmt.Errorf("%w: nil context", ErrDHCPInvalidConfig)
+	}
+	if err := ctx.Err(); err != nil {
+		return DHCPLease{}, err
+	}
+	if checkReady != nil {
+		if err := checkReady(); err != nil {
+			return DHCPLease{}, err
+		}
+	}
+	s.mu.Lock()
+	if !s.hasLease {
+		s.mu.Unlock()
+		return DHCPLease{}, fmt.Errorf("%w: interface has no active DHCP lease", ErrDHCPInvalidConfig)
+	}
+	if s.activeRenewer != nil || s.renewInFlight {
+		s.mu.Unlock()
+		return DHCPLease{}, ErrRenewerActive
+	}
+	var releasePort func()
+	if claimer, ok := port.(renewerClaimer); ok {
+		if !claimer.claimRenewer() {
+			s.mu.Unlock()
+			return DHCPLease{}, ErrRenewerActive
+		}
+		releasePort = claimer.releaseRenewer
+	}
+	s.renewInFlight = true
+	current := cloneLease(s.lease)
+	s.mu.Unlock()
+
+	defer func() {
+		if releasePort != nil {
+			releasePort()
+		}
+		s.mu.Lock()
+		s.renewInFlight = false
+		s.mu.Unlock()
+	}()
+
+	next, sentAt, err := renewDHCPOnceWithTime(ctx, port, mac, current, rebind, cfg)
+	if err != nil {
+		if errors.Is(err, ErrLeaseNAK) || errors.Is(err, ErrLeaseChanged) {
+			if onTerminal != nil {
+				onTerminal(err)
+			} else if f, ok := port.(interface{ fail(error) }); ok {
+				f.fail(err)
+			}
+		}
+		return DHCPLease{}, err
+	}
+	s.mu.Lock()
+	s.lease = cloneLease(next)
+	s.acquiredAt = sentAt
+	s.generation++
+	s.mu.Unlock()
+	return cloneLease(next), nil
 }
 
 // Running reports whether the background renewal goroutine is active.
