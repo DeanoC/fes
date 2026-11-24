@@ -963,6 +963,9 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 				return 0, h.fault
 			}
 		}
+		if h.isSingleTTHubBusy(route.hub, 0) {
+			return 0, fmt.Errorf("dwc2: single-TT hub %d busy; refusing CH0 split addr=%d", route.hub, addr)
+		}
 	}
 	for retries := 0; retries < 1000; retries++ {
 		if !h.io.Now().Before(deadline) {
@@ -1171,9 +1174,15 @@ func (h *MultiHost) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, e
 	}
 	ch := -1
 	for i := 1; i < h.channels; i++ {
-		if !h.slots[i].allocated {
+		s := &h.slots[i]
+		if s.allocated {
+			if s.ownerAddr == addr && s.ep.Address == ep.Address {
+				return nil, fmt.Errorf("dwc2: endpoint %#x on device %d already open", ep.Address, addr)
+			}
+			continue
+		}
+		if ch < 0 {
 			ch = i
-			break
 		}
 	}
 	if ch < 0 {
