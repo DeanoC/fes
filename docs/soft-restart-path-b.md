@@ -86,7 +86,7 @@ and returns. Production sets that path in `cmd/mister-agent/main.go` as
 `MISTER_UNAVAILABLE` and starts nothing. Tests replace the path with
 `misterruntime.WithRebootCommand`. The production constant is unchanged.
 
-The host in `Service.stopLocked` (`sources/FogCast/fogcast/service.go`) calls
+The host in `Service.stopLocked` (`sources/FogCast/fogcast/service_stop.go`) calls
 `RebootDevelopment` only when the agent Stop body is HTTP 200 with
 `stopping`, `development`, and `recovery=reboot_required`. An agent
 `APIError` is returned immediately, so the host does not wait for a new boot
