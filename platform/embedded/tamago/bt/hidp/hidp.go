@@ -66,9 +66,10 @@ type Session struct {
 	slots [MaxPlayerSlots]PlayerSlot
 	txBuf [1 + controllers.DualSenseBTOutputLen]byte
 
-	OnGamepadState   func(slot uint8, kind controllers.Kind, state controllers.State)
-	OnKeyboardReport func(report []byte)
-	OnSlotChanged    func(slot uint8, connected bool, kind controllers.Kind, name string)
+	OnGamepadState       func(slot uint8, kind controllers.Kind, state controllers.State)
+	OnKeyboardReport     func(report []byte)
+	OnSlotKeyboardReport func(slot uint8, report []byte)
+	OnSlotChanged        func(slot uint8, connected bool, kind controllers.Kind, name string)
 }
 
 // NewSession attaches Classic BT HIDP handling to an initialized hci.Transport.
@@ -242,13 +243,22 @@ func (s *Session) onNameResolved(handle uint16, _ l2cap.BDAddr, name string, kin
 	}
 }
 
+func (s *Session) emitKeyboardReport(slot uint8, report []byte) {
+	if s.OnSlotKeyboardReport != nil {
+		s.OnSlotKeyboardReport(slot, report)
+	}
+	if s.OnKeyboardReport != nil {
+		s.OnKeyboardReport(report)
+	}
+}
+
 func (s *Session) neutralizeSlotInput(idx uint8, kind controllers.Kind) {
 	if kind != controllers.KindUnknown {
 		if s.OnGamepadState != nil {
 			s.OnGamepadState(idx, kind, controllers.State{})
 		}
-	} else if s.OnKeyboardReport != nil {
-		s.OnKeyboardReport(neutralKeyboardReport[:])
+	} else {
+		s.emitKeyboardReport(idx, neutralKeyboardReport[:])
 	}
 }
 
@@ -502,12 +512,10 @@ func (s *Session) onHIDInterrupt(handle uint16, payload []byte) {
 		if slot.initStep != initStepDone {
 			return
 		}
-		if s.OnKeyboardReport != nil {
-			if len(report) == 8 {
-				s.OnKeyboardReport(report)
-			} else if len(report) == 9 && report[0] == 0x01 {
-				s.OnKeyboardReport(report[1:9])
-			}
+		if len(report) == 8 {
+			s.emitKeyboardReport(slot.Slot, report)
+		} else if len(report) == 9 && report[0] == 0x01 {
+			s.emitKeyboardReport(slot.Slot, report[1:9])
 		}
 	}
 }

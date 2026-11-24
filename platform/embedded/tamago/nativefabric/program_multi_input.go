@@ -21,8 +21,6 @@ type ProgramMultiSource interface {
 	Service() error
 	NextKeyboardReport() ([8]byte, bool)
 	NextGamepadUpdate() (usbhub.GamepadUpdate, bool)
-	KeyboardNeutral() bool
-	GamepadNeutral() bool
 	SetGameplayActive(bool) error
 	StartPairing(time.Duration) error
 	StopPairing() error
@@ -102,12 +100,10 @@ func NewProgramMultiInputPlatform(base tenfoot.Platform, backend *ProgramBackend
 	backend.inputAttached = true
 	backend.inputPolling = source
 	p := &ProgramMultiInputPlatform{
-		base:     base,
-		backend:  backend,
-		source:   source,
-		cfg:      cfg,
-		kbArmed:  source.KeyboardNeutral(),
-		padArmed: source.GamepadNeutral(),
+		base:    base,
+		backend: backend,
+		source:  source,
+		cfg:     cfg,
 	}
 	p.inputReady = attachInputReady(base, source)
 	if uart, ok := base.(interface{ Ready() <-chan struct{} }); ok {
@@ -290,8 +286,8 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		p.menuKB = usb.BootKeyboard{}
 		p.coreKB = usb.BootKeyboard{}
 		p.menuPadPressed = [6]bool{}
-		p.kbArmed = p.source.KeyboardNeutral()
-		p.padArmed = p.source.GamepadNeutral()
+		p.kbArmed = false
+		p.padArmed = false
 	}
 	wantGameplay := v.State == ProgramRunning
 	if !p.gameplaySynced || p.gameplayActive != wantGameplay {

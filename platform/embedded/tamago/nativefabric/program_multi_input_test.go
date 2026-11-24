@@ -15,8 +15,6 @@ import (
 )
 
 type fakeMultiSource struct {
-	kbNeutral     bool
-	padNeutral    bool
 	kbQueue       [][8]byte
 	padQueue      []usbhub.GamepadUpdate
 	serviceErr    error
@@ -33,9 +31,7 @@ type fakeMultiSource struct {
 
 func newFakeMultiSource() *fakeMultiSource {
 	return &fakeMultiSource{
-		kbNeutral:  true,
-		padNeutral: true,
-		ready:      make(chan struct{}, 4),
+		ready: make(chan struct{}, 4),
 	}
 }
 
@@ -56,8 +52,6 @@ func (s *fakeMultiSource) NextGamepadUpdate() (usbhub.GamepadUpdate, bool) {
 	s.padQueue = s.padQueue[1:]
 	return upd, true
 }
-func (s *fakeMultiSource) KeyboardNeutral() bool { return s.kbNeutral }
-func (s *fakeMultiSource) GamepadNeutral() bool  { return s.padNeutral }
 func (s *fakeMultiSource) SetGameplayActive(active bool) error {
 	s.gameplayCalls = append(s.gameplayCalls, active)
 	if active {
@@ -131,15 +125,20 @@ func TestProgramMultiInputPlatformMenuCoreMergeReturnAndPairing(t *testing.T) {
 		t.Fatalf("expected ErrProgramBusy for duplicate attachment, got %v", err)
 	}
 
-	// 1. In ProgramReady: Ctrl+Alt+P toggles BT pairing without emitting text 'p',
+	// 1. In ProgramReady: held inputs at boot cannot fire until real neutral snapshots
+	// arm the release fence; then Ctrl+Alt+P toggles BT pairing without emitting text 'p',
 	// while normal keyboard + gamepad events navigate Tenfoot simultaneously.
 	src.bondsDirty = true
 	src.kbQueue = append(src.kbQueue,
+		[8]byte{0x00, 0, 0x28, 0, 0, 0, 0, 0}, // held Enter at boot -> blocked
+		[8]byte{},                             // neutral -> arms keyboard
 		[8]byte{0x05, 0, 0x13, 0, 0, 0, 0, 0}, // Ctrl+Alt+P -> start pairing
 		[8]byte{0x00, 0, 0x1d, 0, 0, 0, 0, 0}, // 'z' -> Tenfoot text (no nav command)
 		[8]byte{},
 	)
 	src.padQueue = append(src.padQueue,
+		usbhub.GamepadUpdate{State: usb.GamepadState{Buttons: 1, Hat: 0}}, // held Confirm at boot -> blocked
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},            // neutral -> arms gamepad
 		usbhub.GamepadUpdate{State: usb.GamepadState{Buttons: 1, Hat: 0}}, // Up + Confirm
 		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
 	)
@@ -190,8 +189,16 @@ func TestProgramMultiInputPlatformMenuCoreMergeReturnAndPairing(t *testing.T) {
 		t.Fatalf("expected PausePolling/ResumePolling around Launch, pause=%d resume=%d", src.pauseCalls, src.resumeCalls)
 	}
 
-	src.kbQueue = append(src.kbQueue, [8]byte{0, 0, 0x04, 0, 0, 0, 0, 0})                                   // 'a' (row0 bit 4)
-	src.padQueue = append(src.padQueue, usbhub.GamepadUpdate{State: usb.GamepadState{Buttons: 1, Hat: -1}}) // S (0x16 -> row1 bit 6)
+	src.kbQueue = append(src.kbQueue,
+		[8]byte{0, 0, 0x05, 0, 0, 0, 0, 0}, // held before neutral -> blocked
+		[8]byte{},                          // neutral -> arms
+		[8]byte{0, 0, 0x04, 0, 0, 0, 0, 0}, // 'a' (row0 bit 4)
+	)
+	src.padQueue = append(src.padQueue,
+		usbhub.GamepadUpdate{State: usb.GamepadState{Buttons: 2, Hat: -1}}, // held before neutral -> blocked
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},             // neutral -> arms
+		usbhub.GamepadUpdate{State: usb.GamepadState{Buttons: 1, Hat: -1}}, // S (0x16 -> row1 bit 6)
+	)
 	if _, err := p.Next(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +246,9 @@ func TestProgramMultiInputPlatformMenuCoreMergeReturnAndPairing(t *testing.T) {
 		t.Fatal(err)
 	}
 	src.kbQueue = append(src.kbQueue,
-		[8]byte{0x05, 0, 0x29, 0, 0, 0, 0, 0},
+		[8]byte{0x05, 0, 0x29, 0, 0, 0, 0, 0}, // held before neutral -> blocked
+		[8]byte{},
+		[8]byte{0x05, 0, 0x29, 0, 0, 0, 0, 0}, // fresh Ctrl+Alt+Escape -> returns
 	)
 	frame, err = p.Next(ctx)
 	if err != nil || len(frame.Commands) != 1 || frame.Commands[0] != tenfoot.CmdStop {

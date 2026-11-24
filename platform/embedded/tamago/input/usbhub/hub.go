@@ -117,7 +117,7 @@ type Hub struct {
 	wiredKeyboards [maxWiredKeyboards]wiredKeyboardSlot
 	wiredGamepads  [maxWiredGamepads]wiredGamepadSlot
 
-	btKeyboard   [8]byte
+	btKeyboards  [hidp.MaxPlayerSlots][8]byte
 	btSlotActive [hidp.MaxPlayerSlots]bool
 	btGamepads   [hidp.MaxPlayerSlots]usb.GamepadState
 	btHome       [hidp.MaxPlayerSlots]bool
@@ -162,16 +162,16 @@ func NewHub(bus usb.BusHost, cfg Config) (*Hub, error) {
 		h.btGamepads[i] = usb.GamepadState{Hat: -1}
 	}
 	h.bt = bt.NewManager(bus, cfg.Bonds, cfg.Firmware, cfg.Now)
-	h.bt.OnKeyboardReport = func(report []byte) {
-		if !validBootKeyboardReport(report) {
+	h.bt.OnSlotKeyboardReport = func(slot uint8, report []byte) {
+		if slot >= hidp.MaxPlayerSlots || !validBootKeyboardReport(report) {
 			return
 		}
 		var next [8]byte
 		copy(next[:], report)
-		if next == h.btKeyboard {
+		if next == h.btKeyboards[slot] {
 			return
 		}
-		h.btKeyboard = next
+		h.btKeyboards[slot] = next
 		h.recomputeKeyboard()
 	}
 	h.bt.OnGamepadState = func(slot uint8, _ controllers.Kind, state controllers.State) {
@@ -192,8 +192,8 @@ func NewHub(bus usb.BusHost, cfg Config) (*Hub, error) {
 				h.btGamepads[slot] = usb.GamepadState{Hat: -1}
 				h.btHome[slot] = false
 				h.recomputeGamepad()
-				if kind == controllers.KindUnknown && h.btKeyboard != ([8]byte{}) {
-					h.btKeyboard = [8]byte{}
+				if kind == controllers.KindUnknown && h.btKeyboards[slot] != ([8]byte{}) {
+					h.btKeyboards[slot] = [8]byte{}
 					h.recomputeKeyboard()
 				}
 			}
@@ -368,7 +368,9 @@ func (h *Hub) Close() {
 	for i := range h.wiredGamepads {
 		h.closeWiredGamepad(i)
 	}
-	h.btKeyboard = [8]byte{}
+	for i := range h.btKeyboards {
+		h.btKeyboards[i] = [8]byte{}
+	}
 	for i := range h.btGamepads {
 		h.btSlotActive[i] = false
 		h.btGamepads[i] = usb.GamepadState{Hat: -1}
@@ -656,7 +658,9 @@ func (h *Hub) recomputeKeyboard() {
 			addReport(h.wiredKeyboards[i].report)
 		}
 	}
-	addReport(h.btKeyboard)
+	for i := range h.btKeyboards {
+		addReport(h.btKeyboards[i])
+	}
 	if next != h.mergedKeyboard {
 		h.mergedKeyboard = next
 		h.enqueueKeyboard(next)

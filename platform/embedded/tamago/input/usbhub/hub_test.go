@@ -435,6 +435,24 @@ func TestHubPipeFaultIsolationGameplayGuardAndSaveBonds(t *testing.T) {
 		t.Fatal("expected StartPairing rejected during gameplay")
 	}
 
+	// Verify two Bluetooth HID keyboards in separate slots merge independently
+	// and detaching/releasing one preserves keys held on the other.
+	hub.bt.OnSlotKeyboardReport(0, []byte{0x01, 0, 0x04, 0, 0, 0, 0, 0}) // LCtrl+'a'
+	hub.bt.OnSlotKeyboardReport(1, []byte{0x00, 0, 0x05, 0, 0, 0, 0, 0}) // 'b'
+	hub.bt.OnSlotChanged(0, false, controllers.KindUnknown, "BT Kbd 0")
+	var lastBTKB [8]byte
+	for {
+		rep, ok := hub.NextKeyboardReport()
+		if !ok {
+			break
+		}
+		lastBTKB = rep
+	}
+	if lastBTKB != ([8]byte{0x00, 0, 0x05, 0, 0, 0, 0, 0}) {
+		t.Fatalf("expected BT slot 1 key preserved after slot 0 disconnect, got %x", lastBTKB)
+	}
+	hub.bt.OnSlotKeyboardReport(1, make([]byte, 8))
+
 	// Verify active BT analog trigger merging uses highest signed value (-1000 beats -32768 rest).
 	hub.bt.OnGamepadState(0, controllers.KindDualSense, controllers.State{LeftTrigger: 0})
 	hub.bt.OnGamepadState(1, controllers.KindDualSense, controllers.State{LeftTrigger: 124})

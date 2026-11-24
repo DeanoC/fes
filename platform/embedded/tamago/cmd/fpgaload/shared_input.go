@@ -134,8 +134,6 @@ func (s *sharedProgramMulti) NextGamepadUpdate() (usbhub.GamepadUpdate, bool) {
 	}
 	return upd, ok
 }
-func (s *sharedProgramMulti) KeyboardNeutral() bool { return s.hub.KeyboardNeutral() }
-func (s *sharedProgramMulti) GamepadNeutral() bool  { return s.hub.GamepadNeutral() }
 func (s *sharedProgramMulti) SetGameplayActive(active bool) error {
 	return s.hub.SetGameplayActive(active)
 }

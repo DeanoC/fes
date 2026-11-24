@@ -29,10 +29,11 @@ type Manager struct {
 	gameplayActive bool
 	retryAfter     time.Time
 
-	OnGamepadState   func(slot uint8, kind controllers.Kind, state controllers.State)
-	OnKeyboardReport func(report []byte)
-	OnSlotChanged    func(slot uint8, connected bool, kind controllers.Kind, name string)
-	OnDongleChanged  func(connected bool, spec hci.DongleSpec)
+	OnGamepadState       func(slot uint8, kind controllers.Kind, state controllers.State)
+	OnKeyboardReport     func(report []byte)
+	OnSlotKeyboardReport func(slot uint8, report []byte)
+	OnSlotChanged        func(slot uint8, connected bool, kind controllers.Kind, name string)
+	OnDongleChanged      func(connected bool, spec hci.DongleSpec)
 }
 
 // NewManager constructs a Bluetooth input manager bound to bus. Any USB
@@ -153,6 +154,11 @@ func (m *Manager) attachDongle(dev usb.BusDevice) {
 			m.OnKeyboardReport(report)
 		}
 	}
+	sess.OnSlotKeyboardReport = func(slot uint8, report []byte) {
+		if m.OnSlotKeyboardReport != nil {
+			m.OnSlotKeyboardReport(slot, report)
+		}
+	}
 	sess.OnSlotChanged = func(slot uint8, connected bool, kind controllers.Kind, name string) {
 		if m.OnSlotChanged != nil {
 			m.OnSlotChanged(slot, connected, kind, name)
@@ -187,8 +193,13 @@ func (m *Manager) detachDongle() {
 					if m.OnGamepadState != nil {
 						m.OnGamepadState(idx, slot.Kind, controllers.State{})
 					}
-				} else if m.OnKeyboardReport != nil {
-					m.OnKeyboardReport(neutralKeyboardReport[:])
+				} else {
+					if m.OnSlotKeyboardReport != nil {
+						m.OnSlotKeyboardReport(idx, neutralKeyboardReport[:])
+					}
+					if m.OnKeyboardReport != nil {
+						m.OnKeyboardReport(neutralKeyboardReport[:])
+					}
 				}
 				if m.OnSlotChanged != nil {
 					m.OnSlotChanged(idx, false, slot.Kind, slot.Name)
