@@ -525,6 +525,143 @@ func TestHubPipeFaultIsolationGameplayGuardAndSaveBonds(t *testing.T) {
 	}
 }
 
+// The queues carry only merged changes, so release fences re-arm from the live
+// neutral queries. They stay false until enumeration and until every wired
+// device has reported: a device that has not reported may be holding input.
+func TestHubNeutralRequiresEnumerationAndAReportFromEveryWiredDevice(t *testing.T) {
+	bus := newFakeBus()
+	bus.reportDescs[key32(4, 0)] = sampleGamepadDescriptor()
+	bus.attach(makeKeyboardDev(2))
+	bus.attach(makeGamepadDev(4))
+	hub, err := NewHub(bus, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hub.KeyboardNeutral() || hub.GamepadNeutral() {
+		t.Fatal("neutral before the bus was enumerated")
+	}
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if hub.KeyboardNeutral() || hub.GamepadNeutral() {
+		t.Fatal("neutral before the attached devices reported")
+	}
+	// Idle reports: the keyboard's matches its initial all-up report, so nothing
+	// is queued for it, yet both devices are now known to be released.
+	bus.pipes[key32(2, 0x81)].inQueue = append(bus.pipes[key32(2, 0x81)].inQueue, make([]byte, 8))
+	bus.pipes[key32(4, 0x81)].inQueue = append(bus.pipes[key32(4, 0x81)].inQueue, []byte{128, 128, 0})
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := hub.NextKeyboardReport(); ok {
+		t.Fatal("an idle all-up keyboard report was queued as a change")
+	}
+	if !hub.KeyboardNeutral() || !hub.GamepadNeutral() {
+		t.Fatal("reported idle devices are not neutral")
+	}
+	// A newly attached keyboard is unknown until it reports, even while released.
+	bus.attach(makeKeyboardDev(3))
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if hub.KeyboardNeutral() || !hub.GamepadNeutral() {
+		t.Fatal("an unreported keyboard must hold only the keyboard fence")
+	}
+	bus.pipes[key32(3, 0x81)].inQueue = append(bus.pipes[key32(3, 0x81)].inQueue, []byte{0, 0, 0x04, 0, 0, 0, 0, 0})
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if hub.KeyboardNeutral() {
+		t.Fatal("a held key reads as neutral")
+	}
+	bus.pipes[key32(3, 0x81)].inQueue = append(bus.pipes[key32(3, 0x81)].inQueue, make([]byte, 8))
+	bus.pipes[key32(4, 0x81)].inQueue = append(bus.pipes[key32(4, 0x81)].inQueue, []byte{128, 128, 1})
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !hub.KeyboardNeutral() || hub.GamepadNeutral() {
+		t.Fatal("keyboard release or held gamepad button misreported")
+	}
+	// Unplugging the held gamepad leaves nothing held.
+	bus.detach(makeGamepadDev(4))
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !hub.GamepadNeutral() {
+		t.Fatal("detached gamepad still holds the fence")
+	}
+}
+
+// A refusing store (for example a read-only card) must not be rewritten and
+// reported on every poll: failures back off 1 s, 2 s, ... up to 1 min, and a
+// success clears the backoff.
+func TestHubSaveBondsBacksOffAfterFailure(t *testing.T) {
+	now := time.Unix(1000, 0)
+	writes := 0
+	refuse := errors.New("block device is read-only")
+	persistErr := refuse
+	bonds := l2cap.NewBondStore()
+	addr, _ := l2cap.ParseBDAddr("11:22:33:44:55:66")
+	if err := bonds.Upsert(l2cap.BondRecord{Addr: addr, LinkKey: [16]byte{1}}); err != nil {
+		t.Fatal(err)
+	}
+	hub, err := NewHub(newFakeBus(), Config{
+		Bonds: bonds,
+		Now:   func() time.Time { return now },
+		PersistBonds: func(context.Context, []byte) error {
+			writes++
+			return persistErr
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	attempt := func(step string, wantSaved bool, wantWrites int, wantErr error) {
+		t.Helper()
+		saved, err := hub.SaveBondsIfDirty(ctx)
+		if saved != wantSaved || !errors.Is(err, wantErr) || writes != wantWrites {
+			t.Fatalf("%s: saved=%t err=%v writes=%d, want saved=%t err=%v writes=%d", step, saved, err, writes, wantSaved, wantErr, wantWrites)
+		}
+	}
+	attempt("first failure", false, 1, refuse)
+	attempt("polled again at once", false, 1, nil)
+	now = now.Add(999 * time.Millisecond)
+	attempt("before 1 s", false, 1, nil)
+	now = now.Add(time.Millisecond)
+	attempt("retry after 1 s", false, 2, refuse)
+	now = now.Add(1999 * time.Millisecond)
+	attempt("before 2 s", false, 2, nil)
+	now = now.Add(time.Millisecond)
+	attempt("retry after 2 s", false, 3, refuse)
+	for range 8 {
+		now = now.Add(time.Hour)
+		_, _ = hub.SaveBondsIfDirty(ctx)
+	}
+	if writes != 11 || hub.bondRetryDelay != bondRetryMax {
+		t.Fatalf("writes=%d retry delay %v, want 11 writes capped at %v", writes, hub.bondRetryDelay, bondRetryMax)
+	}
+	if !bonds.Dirty() {
+		t.Fatal("failed saves cleared the dirty flag")
+	}
+	persistErr = nil
+	now = now.Add(bondRetryMax)
+	attempt("success after backoff", true, 12, nil)
+	if bonds.Dirty() || !hub.bondRetryAt.IsZero() || hub.bondRetryDelay != 0 {
+		t.Fatalf("success left dirty=%t retryAt=%v delay=%v", bonds.Dirty(), hub.bondRetryAt, hub.bondRetryDelay)
+	}
+	attempt("clean store", false, 12, nil)
+	// A later failure starts again from the initial delay.
+	persistErr = refuse
+	if err := bonds.Upsert(l2cap.BondRecord{Addr: addr, LinkKey: [16]byte{2}}); err != nil {
+		t.Fatal(err)
+	}
+	attempt("new failure", false, 13, refuse)
+	if hub.bondRetryDelay != bondRetryInitial {
+		t.Fatalf("retry delay %v did not restart at %v", hub.bondRetryDelay, bondRetryInitial)
+	}
+}
+
 func TestHubSteadyStateServiceZeroAllocs(t *testing.T) {
 	bus := newFakeBus()
 	kbd := makeKeyboardDev(2)

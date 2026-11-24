@@ -25,6 +25,11 @@ const (
 	maxWiredGamepads  = 4
 	maxQueuedReports  = 16
 	maxPollsPerSlot   = 4
+
+	// A failed bond write is retried after a doubling delay, so callers may
+	// poll SaveBondsIfDirty every frame without hammering storage.
+	bondRetryInitial = time.Second
+	bondRetryMax     = time.Minute
 )
 
 // GamepadUpdate carries a normalized merged gamepad snapshot plus whether a
@@ -91,19 +96,25 @@ type Config struct {
 
 type wiredKeyboardSlot struct {
 	active bool
-	addr   uint8
-	iface  uint8
-	pipe   usb.Pipe
-	report [8]byte
+	// reported is set by the first valid report since attach. Until then the
+	// slot's state is unknown, so KeyboardNeutral stays false.
+	reported bool
+	addr     uint8
+	iface    uint8
+	pipe     usb.Pipe
+	report   [8]byte
 }
 
 type wiredGamepadSlot struct {
-	active  bool
-	addr    uint8
-	iface   uint8
-	pipe    usb.Pipe
-	decoder *usb.Gamepad
-	state   usb.GamepadState
+	active bool
+	// reported is set by the first decoded report since attach. Until then
+	// the slot's state is unknown, so GamepadNeutral stays false.
+	reported bool
+	addr     uint8
+	iface    uint8
+	pipe     usb.Pipe
+	decoder  *usb.Gamepad
+	state    usb.GamepadState
 }
 
 // Hub supervises wired USB boot keyboards, wired USB HID gamepads, and one
@@ -136,6 +147,9 @@ type Hub struct {
 	pollBuf     [usb.MaxHIDReportBytes]byte
 	descBuf     [usb.MaxConfigurationBytes]byte
 	initialized bool
+
+	bondRetryAt    time.Time
+	bondRetryDelay time.Duration
 }
 
 // NewHub constructs a Hub over bus. Call Close when shutting down wired pipes;
@@ -233,7 +247,9 @@ func (h *Hub) Ready() <-chan struct{} {
 
 // PausePolling forwards input-boundary pause requests to the bus if supported
 // and flushes stale unconsumed report queues while keeping live merged state
-// intact so held inputs still trip release fences.
+// intact. The queues carry only merged changes, so consumers re-arm release
+// fences from KeyboardNeutral/GamepadNeutral at the boundary: inputs held
+// across it keep the fences closed, while released ones arm them at once.
 func (h *Hub) PausePolling(ctx context.Context) error {
 	if h == nil || h.bus == nil {
 		return errors.New("usbhub: nil bus host")
@@ -288,30 +304,68 @@ func (h *Hub) PairingActive() bool {
 	return h != nil && h.bt != nil && h.bt.PairingActive()
 }
 
-// SaveBondsIfDirty persists updated Bluetooth bonds when configured and clear-marks dirty on success.
+// SaveBondsIfDirty persists updated Bluetooth bonds when configured and
+// clear-marks dirty on success. After a failed attempt it returns (false, nil)
+// without writing until a doubling delay (1 s, capped at 1 min) has elapsed,
+// so a refusing store reports each failure once per retry, not once per poll.
 func (h *Hub) SaveBondsIfDirty(ctx context.Context) (bool, error) {
 	if h == nil || h.cfg.Bonds == nil || !h.cfg.Bonds.Dirty() || h.cfg.PersistBonds == nil {
 		return false, nil
 	}
-	raw, err := h.cfg.Bonds.MarshalJSON()
-	if err != nil {
-		return false, err
+	now := h.cfg.Now()
+	if !h.bondRetryAt.IsZero() && now.Before(h.bondRetryAt) {
+		return false, nil
 	}
-	if err := h.cfg.PersistBonds(ctx, raw); err != nil {
+	raw, err := h.cfg.Bonds.MarshalJSON()
+	if err == nil {
+		err = h.cfg.PersistBonds(ctx, raw)
+	}
+	if err != nil {
+		h.bondRetryDelay = min(max(2*h.bondRetryDelay, bondRetryInitial), bondRetryMax)
+		h.bondRetryAt = now.Add(h.bondRetryDelay)
 		return false, err
 	}
 	h.cfg.Bonds.ClearDirty()
+	h.bondRetryAt, h.bondRetryDelay = time.Time{}, 0
 	return true, nil
 }
 
-// KeyboardNeutral reports whether all combined keyboard state is currently released.
+// KeyboardNeutral reports whether the combined keyboard is known to be
+// released: the bus has been enumerated, every wired keyboard has delivered a
+// report (SET_IDLE makes idle keyboards repeat theirs) and the merged report is
+// all-up. A keyboard that has not reported yet may be held, so it keeps this
+// false, matching the single-keyboard rule that a missing report never arms.
 func (h *Hub) KeyboardNeutral() bool {
-	return h == nil || h.mergedKeyboard == ([8]byte{})
+	if h == nil {
+		return true
+	}
+	if !h.initialized || h.mergedKeyboard != ([8]byte{}) {
+		return false
+	}
+	for i := range h.wiredKeyboards {
+		if h.wiredKeyboards[i].active && !h.wiredKeyboards[i].reported {
+			return false
+		}
+	}
+	return true
 }
 
-// GamepadNeutral reports whether all combined gamepad buttons, sticks, hats, and Home are neutral.
+// GamepadNeutral reports whether the combined gamepad is known to be neutral:
+// the bus has been enumerated, every wired gamepad has delivered a report, and
+// the merged buttons, sticks, hats and Home are released.
 func (h *Hub) GamepadNeutral() bool {
-	return h == nil || (input.GamepadNeutral(h.mergedGamepad) && !h.mergedHome)
+	if h == nil {
+		return true
+	}
+	if !h.initialized || !input.GamepadNeutral(h.mergedGamepad) || h.mergedHome {
+		return false
+	}
+	for i := range h.wiredGamepads {
+		if h.wiredGamepads[i].active && !h.wiredGamepads[i].reported {
+			return false
+		}
+	}
+	return true
 }
 
 // NextKeyboardReport pops the next merged 8-byte boot keyboard snapshot change, if any.
@@ -430,6 +484,7 @@ func (h *Hub) Service() error {
 				break
 			}
 			if validBootKeyboardReport(h.pollBuf[:n]) {
+				h.wiredKeyboards[i].reported = true
 				var snap [8]byte
 				copy(snap[:], h.pollBuf[:8])
 				if snap != h.wiredKeyboards[i].report {
@@ -456,6 +511,9 @@ func (h *Hub) Service() error {
 				break
 			}
 			state, changed, feedErr := h.wiredGamepads[i].decoder.Feed(h.pollBuf[:n])
+			if feedErr == nil {
+				h.wiredGamepads[i].reported = true
+			}
 			if feedErr == nil && changed {
 				h.wiredGamepads[i].state = state
 				h.recomputeGamepad()

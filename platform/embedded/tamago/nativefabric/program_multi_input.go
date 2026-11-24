@@ -17,10 +17,17 @@ const defaultBTPairingDuration = 30 * time.Second
 
 // ProgramMultiSource abstracts the unified USB + Bluetooth hotplug hub for
 // Tenfoot navigation, running FPGA cores, radio quiesce, and bond saving.
+//
+// The report queues carry merged-state changes only and PausePolling drops
+// them, so release fences cannot wait for a queued all-up snapshot: one is
+// never queued while everything stays released. KeyboardNeutral and
+// GamepadNeutral report whether the live merged state is known to be all-up.
 type ProgramMultiSource interface {
 	Service() error
 	NextKeyboardReport() ([8]byte, bool)
 	NextGamepadUpdate() (usbhub.GamepadUpdate, bool)
+	KeyboardNeutral() bool
+	GamepadNeutral() bool
 	SetGameplayActive(bool) error
 	StartPairing(time.Duration) error
 	StopPairing() error
@@ -286,8 +293,12 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		p.menuKB = usb.BootKeyboard{}
 		p.coreKB = usb.BootKeyboard{}
 		p.menuPadPressed = [6]bool{}
-		p.kbArmed = false
-		p.padArmed = false
+		// No source service has run since the boundary drained the queues,
+		// so the live state is the state at the boundary. Inputs held (or
+		// not yet reported) across it keep the fence closed until a queued
+		// all-up snapshot; released ones let the first fresh press through.
+		p.kbArmed = p.source.KeyboardNeutral()
+		p.padArmed = p.source.GamepadNeutral()
 	}
 	wantGameplay := v.State == ProgramRunning
 	if !p.gameplaySynced || p.gameplayActive != wantGameplay {
@@ -318,6 +329,7 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 	p.pending = nil
 	var edgeBuf [28]usb.KeyEvent
 
+	kbDrained := false
 	for n := 0; n < 8; n++ {
 		if v.State == ProgramRunning && p.returnRequested {
 			break
@@ -328,6 +340,7 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		}
 		rep, ok := p.source.NextKeyboardReport()
 		if !ok {
+			kbDrained = true
 			break
 		}
 		if v.State == ProgramRunning {
@@ -396,7 +409,13 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 			return nil, b.inputFault
 		}
 	}
+	// With the queue drained the live state is the newest snapshot. Startup
+	// arms here: devices reporting all-up change nothing, so queue nothing.
+	if !p.kbArmed && kbDrained {
+		p.kbArmed = p.source.KeyboardNeutral()
+	}
 
+	padDrained := false
 	for n := 0; n < 8; n++ {
 		if v.State == ProgramRunning && p.returnRequested {
 			break
@@ -407,6 +426,7 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		}
 		upd, ok := p.source.NextGamepadUpdate()
 		if !ok {
+			padDrained = true
 			break
 		}
 		if v.State == ProgramRunning {
@@ -456,8 +476,13 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 			return nil, b.inputFault
 		}
 	}
+	if !p.padArmed && padDrained {
+		p.padArmed = p.source.GamepadNeutral()
+	}
 
-	if v.State == ProgramReady {
+	// Bond writes run between frames from Next, never from serviceMenuInput
+	// while the menu copies scanout rows; the source backs off failed writes.
+	if v.State == ProgramReady && !buffer {
 		if saved, err := p.source.SaveBondsIfDirty(ctx); (saved || err != nil) && p.cfg.OnBondsSaved != nil {
 			p.cfg.OnBondsSaved(err)
 		}

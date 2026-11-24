@@ -184,17 +184,21 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 				}
 				fw.preload("rtl8761bu_fw.bin", "rtl8761bu_config.bin")
 			}
-			hub, hubErr := usbhub.NewHub(programBusHost, usbhub.Config{
-				Bonds:    bonds,
-				Firmware: fw,
-				PersistBonds: func(pctx context.Context, raw []byte) error {
-					if store == nil {
-						return nil
-					}
+			// Like preferences, bonds stay in RAM without the writable storage
+			// plan: the read-only FAT refuses every write, so a writer would
+			// only retry and report ErrReadOnly for the rest of the session.
+			var persistBonds func(context.Context, []byte) error
+			if store != nil && programWritableStorageSelected {
+				persistBonds = func(pctx context.Context, raw []byte) error {
 					writeCtx, writeCancel := context.WithTimeout(pctx, 5*time.Second)
 					defer writeCancel()
 					return store.WriteBTBonds(writeCtx, raw)
-				},
+				}
+			}
+			hub, hubErr := usbhub.NewHub(programBusHost, usbhub.Config{
+				Bonds:        bonds,
+				Firmware:     fw,
+				PersistBonds: persistBonds,
 				OnDeviceEvent: func(ev usbhub.DeviceEvent) {
 					fmt.Printf("FES_NATIVE_USB_HUB event=%s addr=%d iface=%d slot=%d name=%q\n", ev.Kind, ev.Address, ev.Interface, ev.Slot, ev.Name)
 				},
