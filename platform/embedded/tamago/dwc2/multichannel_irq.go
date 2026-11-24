@@ -228,39 +228,47 @@ func (h *MultiHost) armMultiIRQ(now time.Time) {
 	}
 }
 
-func (h *MultiHost) suspendIRQ() {
+func (h *MultiHost) suspendIRQ() error {
 	if !h.irqMode.Load() {
-		return
+		return nil
 	}
 	h.irqMu.Lock()
-	defer h.irqMu.Unlock()
 	if h.irqGIC == nil {
-		return
+		h.irqMu.Unlock()
+		return nil
 	}
 	h.irqActive.Store(false)
 	h.irqSuspended = true
 	h.irqGIC.Disable(h.irqID)
-	if (h.irqGuard == nil || h.irqGuard()) && h.io.Read32(gahb)&(1<<5) == 0 && h.io.Read32(hcfg)&(1<<23) == 0 {
-		h.io.Write32(gintmask, 0)
-		h.io.Write32(haintmsk, 0)
-		h.io.Write32(gahb, 0)
-	}
-}
-
-func (h *MultiHost) resumeIRQ() {
-	h.irqMu.Lock()
-	if h.irqGIC == nil {
-		h.irqSuspended = false
-		h.irqMu.Unlock()
-		return
-	}
-	if h.irqGuard != nil && !h.irqGuard() {
+	if (h.irqGuard != nil && !h.irqGuard()) || h.io.Read32(gahb)&(1<<5) != 0 || h.io.Read32(hcfg)&(1<<23) != 0 {
 		hadIRQ := h.retireIRQLocked(false)
 		h.irqMu.Unlock()
 		if hadIRQ {
 			h.signalReady()
 		}
-		return
+		return fmt.Errorf("dwc2: PIO/IRQ ownership lost during pause")
+	}
+	h.io.Write32(gintmask, 0)
+	h.io.Write32(haintmsk, 0)
+	h.io.Write32(gahb, 0)
+	h.irqMu.Unlock()
+	return nil
+}
+
+func (h *MultiHost) resumeIRQ() error {
+	h.irqMu.Lock()
+	if h.irqGIC == nil {
+		h.irqSuspended = false
+		h.irqMu.Unlock()
+		return nil
+	}
+	if (h.irqGuard != nil && !h.irqGuard()) || h.io.Read32(gahb)&(1<<5) != 0 || h.io.Read32(hcfg)&(1<<23) != 0 {
+		hadIRQ := h.retireIRQLocked(false)
+		h.irqMu.Unlock()
+		if hadIRQ {
+			h.signalReady()
+		}
+		return fmt.Errorf("dwc2: PIO/IRQ ownership lost during resume")
 	}
 	h.io.Write32(gintmask, 0)
 	h.io.Write32(haintmsk, h.activeChannelMask())
@@ -269,6 +277,7 @@ func (h *MultiHost) resumeIRQ() {
 	h.irqActive.Store(true)
 	h.irqGIC.Enable(h.irqID)
 	h.irqMu.Unlock()
+	return nil
 }
 
 func (h *MultiHost) retireIRQ(allowMMIO bool) {

@@ -3393,3 +3393,86 @@ func TestMultiHostDisableIRQRefusesDescriptorDMAMMIO(t *testing.T) {
 		t.Fatal("OpenMulti succeeded despite HCFG.DESCDMA already active at init")
 	}
 }
+
+func TestMultiHostPauseFailsWhenIRQSuspendLosesOwnership(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ctrl, _ := newMockGIC(t)
+	allowed := true
+	if err := host.EnableIRQGuarded(ctrl, testUSBIRQ, func() bool { return allowed }); err != nil {
+		t.Fatalf("EnableIRQGuarded: %v", err)
+	}
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service: %v", err)
+	}
+
+	// Simulate lease guard revoking ownership after PausePolling's pioCheck passes
+	// (while GAHB/GINTMSK still look intact so pioCheck itself returns nil).
+	allowed = false
+	sim.mu.Lock()
+	gintBefore := sim.regs[gintmask]
+	haintBefore := sim.regs[haintmsk]
+	gahbBefore := sim.regs[gahb]
+	sim.mu.Unlock()
+
+	if err := host.PausePolling(context.Background()); err == nil {
+		t.Fatal("PausePolling succeeded when suspendIRQ lost lease ownership")
+	}
+	if host.paused {
+		t.Fatal("PausePolling left host.paused=true after suspendIRQ ownership loss")
+	}
+	if host.fault == nil {
+		t.Fatal("PausePolling did not latch host.fault on suspendIRQ ownership loss")
+	}
+	if host.Ready() != nil {
+		t.Fatal("PausePolling did not unregister GIC handler on suspendIRQ ownership loss")
+	}
+	sim.mu.Lock()
+	gintAfter := sim.regs[gintmask]
+	haintAfter := sim.regs[haintmsk]
+	gahbAfter := sim.regs[gahb]
+	sim.mu.Unlock()
+	if gintAfter != gintBefore || haintAfter != haintBefore || gahbAfter != gahbBefore {
+		t.Fatalf("PausePolling touched DWC2 IRQ registers after guard became inactive: gintmask %#x->%#x haintmsk %#x->%#x gahb %#x->%#x",
+			gintBefore, gintAfter, haintBefore, haintAfter, gahbBefore, gahbAfter)
+	}
+
+	// Also verify suspendIRQ directly refuses HCFG.DESCDMA without DWC2 MMIO.
+	sim2 := newMultiChannelSim(1024, 16)
+	sim2.attachRoot(newSimGamepad())
+	host2, err := OpenMulti(sim2, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti #2: %v", err)
+	}
+	ctrl2, _ := newMockGIC(t)
+	if err := host2.EnableIRQ(ctrl2, testUSBIRQ); err != nil {
+		t.Fatalf("EnableIRQ #2: %v", err)
+	}
+	if err := host2.Service(); err != nil {
+		t.Fatalf("Service #2: %v", err)
+	}
+	sim2.mu.Lock()
+	g2Before := sim2.regs[gintmask]
+	h2Before := sim2.regs[haintmsk]
+	a2Before := sim2.regs[gahb]
+	sim2.regs[hcfg] |= 1 << 23
+	sim2.mu.Unlock()
+	if err := host2.suspendIRQ(); err == nil {
+		t.Fatal("suspendIRQ succeeded despite HCFG.DESCDMA active")
+	}
+	sim2.mu.Lock()
+	g2After := sim2.regs[gintmask]
+	h2After := sim2.regs[haintmsk]
+	a2After := sim2.regs[gahb]
+	sim2.mu.Unlock()
+	if g2After != g2Before || h2After != h2Before || a2After != a2Before {
+		t.Fatalf("suspendIRQ wrote DWC2 registers with HCFG.DESCDMA active: gintmask %#x->%#x haintmsk %#x->%#x gahb %#x->%#x",
+			g2Before, g2After, h2Before, h2After, a2Before, a2After)
+	}
+}
