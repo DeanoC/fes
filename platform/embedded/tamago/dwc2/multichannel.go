@@ -133,6 +133,7 @@ type multiHub struct {
 	numPorts         uint8
 	singleTT         bool
 	powerSwitched    bool
+	pwrGoodDelay     time.Duration
 	statusEP         usb.EndpointDescriptor
 	statusNeedsReset bool
 	statusPipe       *multiPipe
