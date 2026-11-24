@@ -141,3 +141,28 @@ reports, every rule, with no unmatched row:
 
 No reseal: this file is in pc386's closure only, and Deano's in-progress
 exemption covers it. The DX slice merges this branch and refits.
+
+## Every recorded copy spelling (fourth commit)
+
+Codex (P2 at 88fbca0cb) found that `COPY` missed `~_Duplicate1` and
+`~_Duplicate1DUPLICATE`. Those spellings appear in the recorded i486DX
+plan fits' `timing.tsv`. A grep of every tracked file, and every
+`timing.tsv`, `*.sta.rpt` and `*.signoff.rpt` under `/data/projects` and
+`~/fes-scratch`, finds these Quartus spellings:
+- `~DUPLICATE`;
+- `~_Duplicate`;
+- `~_DuplicateN` (N may be 0);
+- `~_Duplicate_N`;
+- `~_DuplicateNDUPLICATE`;
+- `~_Duplicate_NDUPLICATE`;
+- `~_DuplicateDUPLICATE`.
+
+The other rare spellings come only from test files. `COPY` is now
+`(?:~DUPLICATE)?(?:~_Duplicate(?:_?\d+)?(?:DUPLICATE)?)?`. Tests:
+- each recorded form is admitted for a name the bases accept;
+- malformed suffixes still match 0 bases: `~DUPLICATE1`,
+  `~_Duplicate1_`, `~_Duplicate1DUPLICATE2`, `~_Duplicate~DUPLICATE`,
+  lower-case forms, `~_Duplicate_1_2`, `~_DuplicateX`;
+- under the previous `COPY` the two copy tests fail.
+
+The full table still passes all 40 recorded pc386 reports.

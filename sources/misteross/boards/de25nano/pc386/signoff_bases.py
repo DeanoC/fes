@@ -10,12 +10,16 @@ import re
 
 from boards.de25nano.scanout.machine_findings import S, E, MACHINE, nodes, bus, crossing, advisory
 
-# A fitter copy of a register keeps its name with a suffix: ~DUPLICATE, or
-# ~_Duplicate, numbered or not, and the two can stack. The fit picks which, so
-# a basis that names a register admits each spelling of a copy of it, and no
-# other name. Deano accepted the unnumbered ~_Duplicate on 24 Nov 2026 (#2187),
-# when a fit reported cpu_biu_reset~_Duplicate.
-COPY = r'(?:~DUPLICATE)?(?:~_Duplicate(?:_\d+)?)?'
+# A fitter copy of a register keeps its name with a suffix. The recorded fits'
+# reports and timing.tsv files spell it ~DUPLICATE, or ~_Duplicate with no
+# number, a number (~_Duplicate1, ~_Duplicate0) or an underscored one
+# (~_Duplicate_2), and the fitter stacks a further copy as a bare DUPLICATE
+# (~_Duplicate1DUPLICATE, ~_Duplicate_1DUPLICATE, ~_DuplicateDUPLICATE). The fit
+# picks which, so a basis that names a register admits each of those spellings
+# of a copy of it, and no other name. Deano accepted fitter copies of the names
+# the bases accept on 24 Nov 2026 (#2187), when a fit reported
+# cpu_biu_reset~_Duplicate.
+COPY = r'(?:~DUPLICATE)?(?:~_Duplicate(?:_?\d+)?(?:DUPLICATE)?)?'
 
 
 def lint(name, driver, qualifier):
