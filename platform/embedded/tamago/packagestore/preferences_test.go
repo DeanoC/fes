@@ -214,7 +214,7 @@ func (f *preferenceReplaceFiles) WriteFile(string, []byte) error {
 
 func TestPreferencesWriteUsesReplaceFileWhenSupported(t *testing.T) {
 	t.Run("replaces_existing_file_and_checks_errors", func(t *testing.T) {
-		for _, fault := range []error{nil, block.ErrReadOnly, fat.ErrCapacity, errors.New("replace flush failed")} {
+		for _, fault := range []error{nil, block.ErrReadOnly, fat.ErrCapacity, fat.ErrNoSpace, errors.New("replace flush failed")} {
 			name := "success"
 			if fault != nil {
 				name = fault.Error()
@@ -245,7 +245,7 @@ func TestPreferencesWriteUsesReplaceFileWhenSupported(t *testing.T) {
 					t.Fatalf("replaces=%d writes=%d want 1/0", f.replaces, f.writes)
 				}
 				_, activeErr := s.ActiveReceipt()
-				uncertain := fault != nil && !errors.Is(fault, block.ErrReadOnly) && !errors.Is(fault, fat.ErrCapacity)
+				uncertain := fault != nil && !errors.Is(fault, block.ErrReadOnly) && !errors.Is(fault, fat.ErrCapacity) && !errors.Is(fault, fat.ErrNoSpace)
 				if uncertain != errors.Is(activeErr, ErrRetired) {
 					t.Fatalf("uncertain=%t activeErr=%v", uncertain, activeErr)
 				}

@@ -165,7 +165,7 @@ func (s *Store) WritePreferences(ctx context.Context, data []byte) error {
 	if observed := s.observe(); observed != nil {
 		return errors.Join(err, observed)
 	}
-	if err != nil && !errors.Is(err, block.ErrReadOnly) && !errors.Is(err, fat.ErrCapacity) && !errors.Is(err, fs.ErrNotExist) {
+	if err != nil && !errors.Is(err, block.ErrReadOnly) && !errors.Is(err, fat.ErrCapacity) && !errors.Is(err, fat.ErrNoSpace) && !errors.Is(err, fs.ErrNotExist) {
 		return s.retire(err)
 	}
 	return err
