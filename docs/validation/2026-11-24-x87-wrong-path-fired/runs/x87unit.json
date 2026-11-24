@@ -2,15 +2,11 @@
   "top": "fes_i386_x87",
   "netlist": false,
   "source": {
-    "fes_revision": "0c71d434be58be4f950b235c3809d3f4e9fbca4c",
-    "tracked_changes": [
-      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv",
-      "sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp",
-      "sources/misteross/scripts/test_fes_i386_lockstep.py"
-    ],
+    "fes_revision": "c4711cb122e5f7869fc605ab3eb94db9994e73e8",
+    "tracked_changes": [],
     "files": {
       "sources/misteross/cores/fes-common/rtl/i386/fes_i386_pkg.sv": "14d8798ec5de833867fab34a25728224049feea116a0b099997e13c828ea7a00",
-      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv": "8428fdc22dfa1741182a5fdb04407663bb34ccd906d325e40342f901f410f2c5",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv": "c9b17cbd482eff442e32bf33b3e109151924109cba053e48599a6d99db2623ca",
       "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87_mul.sv": "1c07ac7b90d76654495e21996d991647da67c144985ac61fdb332e37392190ce",
       "sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv": "08d51ddbfc2ac9457e84f374cedf695b1b5eb4d027b20870c23193839aff3405",
       "sources/misteross/cores/fes-common/rtl/i386/fes_x87_fast.sv": "48f5155ef4ce38f255928503d63b65d57d0625c69907df87bf34e1965625a230",
@@ -24,7 +20,7 @@
       "sources/misteross/scripts/x87_trans_ucode.py": "c32cf8fba7bf49c1f41fd810624c74174c35b6c4de816af500228fb48a21a871",
       "sources/misteross/scripts/yosys_netlist.py": "0bc1bcce48d530c5c49de8445091a74b125e2a9a0056cd56948ec1288e073bae"
     },
-    "files_sha256": "db560da5f7ddb9dcb5ba474ddd0b9d4c49eda86bb2c9cd86c03e02d5222fceab"
+    "files_sha256": "24b970abb9456b4bdb535130a5c2c4acb9362986753f031521f5b86944753e76"
   },
   "verilator": {
     "lock": "cores/fes-common/rtl/i386/toolchain.lock",

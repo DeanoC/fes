@@ -25,38 +25,43 @@ The lockstep never met it: its x87 cases are directed, and its random
 programs run with no 387. Real hardware has no such state, so there is no
 386/387 behaviour to follow here: the unit's own bookkeeping is wrong.
 
-## The case and the fix
+## The cases and the fix
 
-- **Case** `wrong-path-unbuilt` (lockstep x87 cases): FNINIT; `CMP AX, AX`;
-  `JZ` over a `D9 4F 00`; FNINIT; FLD; then the same over a waiting form.
-  On main (`0c71d434b`) it fails:
-  `FAIL x87:wrong-path-unbuilt @102d.timeout`
-  ([runs/case-before-fix.txt](runs/case-before-fix.txt)).
 - **Fix** (`fes_i386_x87.sv`): `fired` is set only for a form the unit
   builds (`!unbuilt`) and only for an instruction the unit has taken or takes
-  on that edge (`started || take`). The first version had only the second
-  term. Codex found that `hold` lets an unbuilt form issue while an older
-  operation still holds `started` (committed, running on to its apply), so
-  on the edge that operation applies, the set would override the apply's
-  clear and leave `fired` set with `started` clear again.
-- **Cases** `wrong-path-unbuilt-busy-*`: the same wrong-path `D9 /1`, after
-  a slow FSQRT and after a slow FDIV, at every distance from 0 to 80 NOPs,
-  in five programs that each start at `CODE` (Codex found the first version,
-  one program, ran into the handler at `1800h` from 32 NOPs on, so distances
-  33–80 never ran). The x87 runner now refuses any program that would reach
-  the handler's page. They pass with the fix; they do not show the
-  apply-edge race failing on the first version either, so they are kept as
-  coverage of the busy unit, and the `!unbuilt` term rests on the reading
-  above.
+  on that edge (`started || take`).
+- **Case** `wrong-path-unbuilt` (lockstep x87 cases): FNINIT; `CMP AX, AX`;
+  `JZ` over a `D9 4F 00`; FNINIT; FLD; then the same over a waiting form.
+- **Cases** `wrong-path-unbuilt-busy-*`: the same wrong-path `D9 /1` after a
+  slow FSQRT and after a slow FDIV, at every distance from 0 to 80 NOPs, in
+  five programs that each start at `CODE`. The x87 runner now refuses any
+  program that would reach the handler's page (Codex found the first single
+  program ran into the handler at `1800h` from 32 NOPs on).
 
-## Gates, on main `0c71d434b` + this change
+**Which version fails which case** (the default x87 cases, quick runner
+settings, main `0c71d434b` with this branch's cases):
+
+| RTL | Result |
+| --- | --- |
+| main, no fix | 127 of 131: `wrong-path-unbuilt` and `busy-48-60`, `busy-61-71`, `busy-72-80` time out ([runs/case-before-fix.txt](runs/case-before-fix.txt)) |
+| the first version (`started \|\| take` only; [runs/first-version-fix.patch](runs/first-version-fix.patch)) | 130 of 131: `busy-61-71` times out ([runs/case-first-version-fix.txt](runs/case-first-version-fix.txt)) |
+| this fix | 131 of 131 |
+
+The first version's failure is Codex's finding on it: `hold` lets an unbuilt
+form issue while an older operation still holds `started` (committed,
+running on to its apply), and on the edge that operation applies, the set
+overrides the apply's clear, leaving `fired` set with `started` clear again.
+
+## Gates, at `c4711cb12` (main `0c71d434b` + this change; no tracked changes)
 
 | Gate | Result |
 | --- | --- |
-| RTL lockstep, level 3, the default suite | see below ([runs/l3-full.json](runs/l3-full.json)) |
+| RTL lockstep, level 3, the default suite | pass; x87 cases 131 of 131 ([runs/l3-full.json](runs/l3-full.json)) |
 | RTL lockstep, level 4, both identities | pass: 386 56 agree / 92 stop as expected, 486SX 148 agree, 56,000 random programs keep step ([runs/l4-full.json](runs/l4-full.json)) |
 | x87 unit bench | 18,337 passed, 0 failed ([runs/x87unit.json](runs/x87unit.json)) |
-| DE10 pc386 machine netlist | **moves**: `65cbd412…` without the fix, `0acae19f…` with it (Yosys `d273c1cb`, one thread, one checkout; [runs/de10-netlist.txt](runs/de10-netlist.txt), harness `fixd12.sh`). The DE10 ties `x87_present` to 0, but the added `take` term is not swept |
+| DE10 pc386 machine netlist | **moves**: `65cbd412…` without the fix, `e037580e…` with it (Yosys `d273c1cb`, one thread, one checkout; [runs/de10-netlist.txt](runs/de10-netlist.txt), harness `fixd12.sh`). The DE10 ties `x87_present` to 0, but the added terms are not swept |
+| Netlist lockstep and DE10 pc386 seal | running: `build_pc386_product.py --with-lockstep --seed 1`, Quartus 17.0.2 Lite, from a clean worktree of `c4711cb12` |
+| Kit run | after the seal |
 
 ## Open before merge
 
