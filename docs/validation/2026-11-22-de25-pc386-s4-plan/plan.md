@@ -112,13 +112,22 @@ owner publishes it"; the registers and the RTL do not change.
   reprogramming, so the allocation is kept (leaked to the generation) until
   the overlay is removed rather than handed back while a port may still
   issue.
-- **ABI 4, additive.** `OWNER_WINDOW_ALLOC` returns a window fd. On it:
-  `WINDOW_INFO` (span, generation, cached status and fault; no address),
-  `WINDOW_GRANT` (offset, length, page aligned, inside the span) returning a
-  range fd that is `mmap`ped shared and revoked with `WINDOW_REVOKE` (PTE zap,
-  then SIGBUS), and `WINDOW_SYNC` for CPU cache maintenance on a range if the
-  mapping is cacheable. ABI 3's scanout structs stay byte-identical. The
-  runtime mirrors the header.
+- **Window ABI 1, beside an unchanged ABI 3** (as built in #2126,
+  `image/kernel/de25-dma/de25_dma.h`). `OWNER_ABI` still returns 3, because
+  the scanout's INFO and PUBLISH structs carry it as their version.
+  `OWNER_WINDOW_ABI` returns the window ABI (1); ENOTTY means an older
+  kernel and ENODEV a tree without the window block. `OWNER_WINDOW_ALLOC`
+  takes no argument and returns a CLOEXEC window fd once the kernel has
+  allocated, zeroed and published the grant and the block reports it
+  granted. On that fd: `WINDOW_INFO` (generation, contract version, span,
+  status, first fault, revoked/exposed/uncertain state and the build identity
+  observed at allocation; no address); `mmap`, shared, at any page offset
+  inside the span, so a runtime range grant is an `mmap` at an offset and
+  its revoke is `munmap`; and `WINDOW_REVOKE` (no argument), which zaps
+  every mapping and clears the grant only while every port is drained, as
+  the last close does. The mapping is the coherent DMA mapping, uncached on
+  this tree, so there is no cache-maintenance ioctl. The runtime mirrors
+  the header.
 - **MMIO.** The window block joins the guarded transport
   (`de25_dma_guard.c`) and the owner's `reg`.
 - **Tests.** KUnit cases for: size, alignment and 4 GiB refusal; grant order
@@ -128,7 +137,7 @@ owner publishes it"; the registers and the RTL do not change.
 **Image and kernel changes, for Deano's OK at flash time** (P2 approves
 building and testing):
 
-1. Kernel: the de25-dma owner window allocation and ABI 4 (built-in module).
+1. Kernel: the de25-dma owner window allocation and window ABI 1 (built-in module).
 2. Device tree: the `reserved-memory` pool (272 MiB) and `memory-region`, and
    the window block in the owner's `reg`.
 3. Image: the J8G image built with 1 and 2 and the matching runtime bundle.
@@ -152,7 +161,7 @@ building and testing):
   stacks on #2036.
 - **R2. The window backend.** `DiskWindow` already takes
   `MenuWindowOperations`. Add a DE25 window context over an injected
-  `De25WindowOperations` (the ABI-4 calls) that allocates per session after
+  `De25WindowOperations` (the window ABI 1 calls) that allocates per session after
   identity, gives `DiskWindow` its range grants, and retires at Stop. The
   DE25 FPGA manager answers `fes.memory.hps-ddr` from it (in place of
   `BootHpsDdrLayout`) and `ReleaseHpsDdrPorts` becomes "grant confirmed and
@@ -220,8 +229,10 @@ after it, DDR holds what the CPU wrote and no line of the range is cached.
     mapping shape the owner's revoke rules must still cover.
   - Allocating and zeroing 256 MiB on every launch costs launch time; 4d
     measures it under QEMU and 4g on the kit.
-- Whether a coherent (uncached) mapping is fast enough to write 128 MiB of
-  disk at launch; if not, a cacheable mapping with `WINDOW_SYNC`.
+- Whether the coherent (uncached) mapping is fast enough to write 128 MiB of
+  disk at launch. If not, a cacheable mapping needs a cache-maintenance
+  ioctl that window ABI 1 does not have, and a dma-coherent claim the
+  platform verifier refuses today.
 - F2SDRAM write credits stay one in #2036's profile; the kit run measures
   whether that starves the CPU.
 - The native (Linux-free) runtime (#1867/#1952) gets no window here.
