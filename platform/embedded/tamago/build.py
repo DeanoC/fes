@@ -247,8 +247,19 @@ def watchdog_option(program, selected, tenfoot, timeout_sec, clock_hz):
     return timeout_sec, clock_hz
 
 
-def network_runtime_options(program, profile, selected, tenfoot, dhcp, hostname, sntp_server, sntp_port):
-    """Validate the opt-in fpgaload DHCP/SNTP flags; dormant on every shipped profile.
+def network_runtime_options(
+    program,
+    profile,
+    selected,
+    tenfoot,
+    dhcp,
+    hostname,
+    sntp_server,
+    sntp_port,
+    allow_100m=False,
+    recover_link_flap=False,
+):
+    """Validate the opt-in fpgaload DHCP/SNTP/link flags; dormant on every shipped profile.
 
     fpgaload builds only from the byte-exact nano/sd-profile.json (network: null),
     and profile_constants refuses a network block beside sd_control, so every
@@ -263,20 +274,28 @@ def network_runtime_options(program, profile, selected, tenfoot, dhcp, hostname,
         sntp_server = ""
     if sntp_port is None:
         sntp_port = 0
+    if allow_100m is None:
+        allow_100m = False
+    if recover_link_flap is None:
+        recover_link_flap = False
     if type(dhcp) is not bool:
         raise ValueError('--network-dhcp must be a boolean')
+    if type(allow_100m) is not bool:
+        raise ValueError('--network-allow-100m must be a boolean')
+    if type(recover_link_flap) is not bool:
+        raise ValueError('--network-recover-link-flap must be a boolean')
     if not isinstance(hostname, str) or not isinstance(sntp_server, str):
         raise ValueError('network hostname and SNTP server must be strings')
     if type(sntp_port) is not int:
         raise ValueError('--network-sntp-port must be an integer')
     hostname = hostname.strip()
     sntp_server = sntp_server.strip()
-    if not dhcp and not hostname and not sntp_server and sntp_port == 0:
-        return False, "", "", 0
+    if not dhcp and not hostname and not sntp_server and sntp_port == 0 and not allow_100m and not recover_link_flap:
+        return False, "", "", 0, False, False
     if program != 'fpgaload' or selected is not True or tenfoot is not True:
-        raise ValueError('--network-dhcp/--network-sntp-* require Nano fpgaload with --selected-programs and --tenfoot-serial')
+        raise ValueError('--network-* opt-in flags require Nano fpgaload with --selected-programs and --tenfoot-serial')
     if not isinstance(profile, dict) or profile.get('network') is None:
-        raise ValueError('--network-dhcp/--network-sntp-* are dormant: they need a network-enabled firmware profile, '
+        raise ValueError('--network-* opt-in flags are dormant: they need a network-enabled firmware profile, '
                          'but fpgaload builds only from nano/sd-profile.json (network: null), whose closed-bridge '
                          'SD ownership excludes Ethernet')
     if hostname:
@@ -297,7 +316,7 @@ def network_runtime_options(program, profile, selected, tenfoot, dhcp, hostname,
         if addr.is_unspecified or addr.is_multicast:
             raise ValueError(f'--network-sntp-server cannot be unspecified or multicast: {addr}')
         sntp_server = str(addr)
-    return dhcp, hostname, sntp_server, sntp_port
+    return dhcp, hostname, sntp_server, sntp_port, allow_100m, recover_link_flap
 
 
 def writable_storage_option(program,path,profile,selected,tenfoot):
@@ -491,10 +510,11 @@ def build(args):
         args.program, selected_programs, tenfoot_serial,
         getattr(args, 'watchdog_timeout', 0), getattr(args, 'watchdog_clock_hz', 0),
     )
-    network_dhcp, network_dhcp_hostname, network_sntp_server, network_sntp_port = network_runtime_options(
+    network_dhcp, network_dhcp_hostname, network_sntp_server, network_sntp_port, network_allow_100m, network_recover_link_flap = network_runtime_options(
         args.program, profile, selected_programs, tenfoot_serial,
         getattr(args, 'network_dhcp', False), getattr(args, 'network_dhcp_hostname', ''),
         getattr(args, 'network_sntp_server', ''), getattr(args, 'network_sntp_port', 0),
+        getattr(args, 'network_allow_100m', False), getattr(args, 'network_recover_link_flap', False),
     )
     configuration_retained=getattr(args,'retain_configuration',False)
     if type(configuration_retained) is not bool or (configuration_retained and not (selected_programs and tenfoot_serial)):
@@ -776,6 +796,10 @@ def build(args):
         link_flags += f' -X main.expectedNetworkSNTPServer={network_sntp_server}'
         if network_sntp_port:
             link_flags += f' -X main.expectedNetworkSNTPPort={network_sntp_port}'
+    if network_allow_100m:
+        link_flags += ' -X main.expectedNetworkAllow100M=1'
+    if network_recover_link_flap:
+        link_flags += ' -X main.expectedNetworkRecoverLinkFlap=1'
     if initial_tape:link_flags+=' -X main.expectedInitialTape=1'
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
     if context is not None and context['programming_profile']==hps.COMPUTER_PROFILE:link_flags+=' -X main.expectedNativeComputer=1'
@@ -845,6 +869,8 @@ def build(args):
         raise ValueError('selected network SNTP server was not linked')
     if network_sntp_port and str(network_sntp_port).encode() not in data:
         raise ValueError('selected network SNTP port was not linked')
+    if (network_allow_100m or network_recover_link_flap) and b'1' not in data:
+        raise ValueError('selected network 100M/link-flap setting was not linked')
     if writable_storage_plan is not None and (writable_storage_option(args.program,args.writable_storage_plan,profile,args.selected_programs,args.tenfoot_serial)!=writable_storage_plan or writable_storage_encoded.encode() not in data):
         raise ValueError('writable storage plan changed or was not linked')
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
@@ -853,6 +879,7 @@ def build(args):
               "watchdog_timeout_seconds":watchdog_timeout,"watchdog_clock_hz":watchdog_clock_hz,
               "network_dhcp":network_dhcp,"network_dhcp_hostname":network_dhcp_hostname,
               "network_sntp_server":network_sntp_server,"network_sntp_port":network_sntp_port,
+              "network_allow_100m":network_allow_100m,"network_recover_link_flap":network_recover_link_flap,
               "writable_storage_plan":writable_storage_plan,
               "sd_scratch_inspect":sd_scratch_inspect,
               "arm64_features":arm64_features,"cpu_feature_overlay":cpu_feature_overlay,

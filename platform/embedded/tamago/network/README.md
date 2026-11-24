@@ -138,30 +138,37 @@ after descriptor initialization. The driver must consume it before exposing
 complete Stop/Start controls. `NewController` rejects an unconsumed Confirm hook;
 it cannot reopen software traffic between a controller grant and confirmation.
 
-## Nano fpgaload DHCP and SNTP opt-in (dormant)
+## Nano fpgaload DHCP, SNTP, 100M, and link-flap opt-in (dormant)
 
 `run.py` and `build.py` accept `--network-dhcp`, `--network-dhcp-hostname`,
-`--network-sntp-server` and `--network-sntp-port` for Nano `fpgaload` with
-`--selected-programs --tenfoot-serial`, and link them as `main.expectedNetwork*`.
-`cmd/fpgaload/shared_network.go` parses those strings with `ParseStartupSpec`.
-With DHCP selected it opens `OpenNetworkWithControlDHCP` through
+`--network-sntp-server`, `--network-sntp-port`, `--network-allow-100m`, and
+`--network-recover-link-flap` for Nano `fpgaload` with `--selected-programs
+--tenfoot-serial`, linking them as `main.expectedNetwork*`.
+`cmd/fpgaload/shared_network.go` parses them with `ParseStartupFlags` and
+passes opt-in `NetworkOptions` (`Allow100Full`, `RecoverLinkLoss`, and an
+`OnLinkChange` hook calling `LeaseRenewer.NotifyLinkUp()`) into
+`OpenNetworkWithControlOptions` / `OpenNetworkWithControlDHCPOptions`.
+With DHCP selected it opens `OpenNetworkWithControlDHCPOptions` through
 `ProgramService.StartNetworkWithTimeout` with a 15-second startup budget, then
-starts a `LeaseRenewer`. With an SNTP server it makes one query and passes the
-time to the mounted volume's `SetClock` when the volume has one; an SNTP failure
-only prints a warning.
+starts a `LeaseRenewer`. On link-up before T1, `NotifyLinkUp()` triggers one
+debounced broadcast DHCPREQUEST probe (`LinkUpDebounce`, `LinkUpProbeTimeout`):
+a `DHCPNAK` or address change halts the link immediately, whereas a silent
+timeout keeps the still-valid lease until T1/T2. With an SNTP server it makes
+one query and passes the time to the mounted volume's `SetClock` when the volume
+has one; an SNTP failure only prints a warning.
 
 This path is dormant: no build can enable it. `build.py` builds `fpgaload` only
 from the byte-exact `nano/sd-profile.json`, which has `network: null`, and
 `profile_constants` refuses a `network` block beside `sd_control` because
 closed-bridge SD ownership excludes other active devices. Every opt-in flag
 therefore fails the build, so no image links `main.expectedNetwork*` and none of
-the DHCP, renewal or SNTP code described above runs. An image linked by hand
-still fails closed: `prepareProgramNetwork` refuses DHCP or SNTP while
-`NetworkEnabled()` is false.
+the DHCP, renewal, 100M, link-flap recovery or SNTP code described above runs.
+An image linked by hand still fails closed: `prepareProgramNetwork` refuses any
+opt-in while `NetworkEnabled()` is false.
 
-Evidence for this wiring is host-only: unit tests of `ParseStartupSpec`, of the
-build option validation and of the separate startup and lifetime contexts that
-`StartNetworkWithTimeout` gives the opener. No Nano build with these flags
+Evidence for this wiring is host-only: unit tests of `ParseStartupFlags`,
+`LeaseRenewer.NotifyLinkUp`, the build option validation, and the separate
+startup and lifetime contexts that `StartNetworkWithTimeout` gives the opener. No Nano build with these flags
 exists, and no boot or kit run has executed the path. Enabling it needs a
 network-enabled `fpgaload` profile: SD ownership that admits Ethernet, plus the
 source-bound firmware MAC lease/drain supplier and control policy described

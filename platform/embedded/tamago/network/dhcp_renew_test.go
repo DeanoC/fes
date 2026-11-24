@@ -1130,3 +1130,164 @@ func TestLeaseRenewerInfiniteLeaseNeverRenews(t *testing.T) {
 		}
 	})
 }
+
+func TestLeaseRenewerNotifyLinkUpVerification(t *testing.T) {
+	clientMACStr := "52:54:00:12:34:56"
+	clientMAC, _ := parseUnicastMAC(clientMACStr)
+	serverIP := [4]byte{10, 0, 2, 2}
+	clientIP := [4]byte{10, 0, 2, 15}
+	mask := [4]byte{255, 255, 255, 0}
+
+	baseLease := DHCPLease{
+		Address:       "10.0.2.15/24",
+		Gateway:       "10.0.2.2",
+		Server:        "10.0.2.2",
+		LeaseDuration: time.Hour,
+	}
+
+	t.Run("NilAndNegativeConfig", func(t *testing.T) {
+		var nilRen *LeaseRenewer
+		nilRen.NotifyLinkUp() // must not panic
+		for _, bad := range []RenewConfig{
+			{LinkUpDebounce: -time.Millisecond},
+			{LinkUpProbeTimeout: -time.Millisecond},
+		} {
+			if _, err := NewLeaseRenewer(newFakeRenewPort(), clientMACStr, baseLease, bad); !errors.Is(err, ErrDHCPInvalidConfig) {
+				t.Fatalf("bad config %+v err=%v want ErrDHCPInvalidConfig", bad, err)
+			}
+		}
+	})
+
+	t.Run("ImmediateBroadcastVerifyRefreshesAndDebounces", func(t *testing.T) {
+		var sends atomic.Int32
+		renewedCh := make(chan DHCPLease, 4)
+		port := newFakeRenewPort()
+		port.onSend = func(frame []byte, p *fakeRenewPort) {
+			sends.Add(1)
+			var dstMAC [6]byte
+			copy(dstMAC[:], frame[0:6])
+			if dstMAC != broadcastMAC {
+				t.Errorf("link-up verify dstMAC=%x, want broadcast", dstMAC)
+			}
+			xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
+			go p.inject(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, clientIP, xid,
+				makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &serverIP, 7200), false))
+		}
+		ren, err := NewLeaseRenewer(port, clientMACStr, baseLease, RenewConfig{
+			RetryInterval:      5 * time.Millisecond,
+			LinkUpDebounce:     120 * time.Millisecond,
+			LinkUpProbeTimeout: 200 * time.Millisecond,
+			OnRenew: func(l DHCPLease) {
+				renewedCh <- l
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ren.Start(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		defer ren.Stop()
+
+		// Rapid burst collapses cleanly under debounce.
+		ren.NotifyLinkUp()
+		ren.NotifyLinkUp()
+		ren.NotifyLinkUp()
+		select {
+		case got := <-renewedCh:
+			if got.LeaseDuration != 2*time.Hour {
+				t.Fatalf("renewed lease=%+v", got)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for link-up lease refresh")
+		}
+		if sends.Load() != 1 || ren.Renewals() != 1 {
+			t.Fatalf("burst caused sends=%d renewals=%d, want 1/1", sends.Load(), ren.Renewals())
+		}
+
+		// After debounce expires, another NotifyLinkUp verifies again.
+		time.Sleep(150 * time.Millisecond)
+		ren.NotifyLinkUp()
+		select {
+		case <-renewedCh:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for post-debounce link-up refresh")
+		}
+		if ren.Renewals() != 2 {
+			t.Fatalf("renewals=%d want 2", ren.Renewals())
+		}
+	})
+
+	t.Run("TimeoutPreservesValidLease", func(t *testing.T) {
+		var sends atomic.Int32
+		errCh := make(chan error, 1)
+		port := newFakeRenewPort()
+		port.onSend = func([]byte, *fakeRenewPort) {
+			sends.Add(1) // Drop silently so probe times out cleanly.
+		}
+		ren, err := NewLeaseRenewer(port, clientMACStr, baseLease, RenewConfig{
+			RetryInterval:      10 * time.Millisecond,
+			LinkUpDebounce:     10 * time.Millisecond,
+			LinkUpProbeTimeout: 40 * time.Millisecond,
+			OnError:            func(e error) { errCh <- e },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ren.Start(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		defer ren.Stop()
+
+		ren.NotifyLinkUp()
+		deadline := time.Now().Add(time.Second)
+		for sends.Load() == 0 && time.Now().Before(deadline) {
+			time.Sleep(2 * time.Millisecond)
+		}
+		if sends.Load() == 0 {
+			t.Fatal("link-up probe did not transmit")
+		}
+		time.Sleep(80 * time.Millisecond)
+		select {
+		case e := <-errCh:
+			t.Fatalf("unexpected error on silent link-up probe: %v", e)
+		default:
+		}
+		if !ren.Running() || ren.Err() != nil {
+			t.Fatalf("renewer died after silent link-up probe: running=%t err=%v", ren.Running(), ren.Err())
+		}
+	})
+
+	t.Run("NAKHaltsImmediatelyBeforeT1", func(t *testing.T) {
+		errCh := make(chan error, 1)
+		port := newFakeRenewPort()
+		port.onSend = func(frame []byte, p *fakeRenewPort) {
+			xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
+			go p.inject(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, clientIP, xid,
+				makeDHCPOptions(dhcpMsgNak, nil, nil, nil, &serverIP, 0), false))
+		}
+		ren, err := NewLeaseRenewer(port, clientMACStr, baseLease, RenewConfig{
+			RetryInterval:      5 * time.Millisecond,
+			LinkUpDebounce:     10 * time.Millisecond,
+			LinkUpProbeTimeout: 200 * time.Millisecond,
+			OnError:            func(e error) { errCh <- e },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ren.Start(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		defer ren.Stop()
+
+		ren.NotifyLinkUp()
+		select {
+		case e := <-errCh:
+			if !errors.Is(e, ErrLeaseNAK) {
+				t.Fatalf("err=%v want ErrLeaseNAK", e)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for immediate NAK halt")
+		}
+	})
+}
