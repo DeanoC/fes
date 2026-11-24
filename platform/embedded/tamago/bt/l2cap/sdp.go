@@ -82,7 +82,7 @@ func (m *Manager) closeChannel(conn *aclConn, ch *l2capChannel) {
 	var req [4]byte
 	binary.LittleEndian.PutUint16(req[0:2], ch.remoteCID)
 	binary.LittleEndian.PutUint16(req[2:4], ch.localCID)
-	_ = m.sendSig(conn.handle, sigDisconnReq, conn.allocSigID(), req[:])
+	m.sendOrQueueSig(conn, sigDisconnReq, conn.allocSigID(), req[:])
 	*ch = l2capChannel{}
 }
 

@@ -1304,3 +1304,80 @@ func TestSetPairingModeFalseCancelsPendingCreateConnection(t *testing.T) {
 		t.Fatalf("expected CreateConnectionCancel on pairing expiry for %s, got %x", dev2, got)
 	}
 }
+
+func TestInfoResponseRetriesAfterACLQueueFull(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return time.Unix(1500, 0) })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	peer, _ := ParseBDAddr("AA:BB:CC:DD:EE:01")
+	connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, peer[:]...)
+	connOK = append(connOK, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Saturate ACL TX (1 in-flight + 16 queued in txRing) so sigInfoReq replies cannot fit.
+	bus.aclOutPipe.writeStalled = true
+	for range 17 {
+		if err := tr.SendACL(0x0041, hci.ACLBoundaryFirstAutoFlush, []byte{0x99}); err != nil {
+			t.Fatalf("prefill SendACL: %v", err)
+		}
+	}
+	bus.aclOutPipe.outLog = nil
+
+	infoReqExt := []byte{sigInfoReq, 7, 2, 0, 0x02, 0x00}
+	infoReqFixed := []byte{sigInfoReq, 8, 2, 0, 0x03, 0x00}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeACLPacket(0x0041, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, infoReqExt),
+		makeACLPacket(0x0041, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, infoReqFixed),
+	)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if mgr.conns[0].sigQCount != 2 {
+		t.Fatalf("expected 2 queued sigInfoRsp frames under queue full, got %d", mgr.conns[0].sigQCount)
+	}
+
+	// Unstall ACL OUT pipe, replenish credits, and drain queued signaling frames.
+	bus.aclOutPipe.writeStalled = false
+	for range 24 {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x08, 0x00})
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if mgr.conns[0].sigQCount != 0 {
+		t.Fatalf("expected sigQCount=0 after drain, got %d", mgr.conns[0].sigQCount)
+	}
+
+	var rspIDs []byte
+	var sawExt, sawFixed bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) < 12 || binary.LittleEndian.Uint16(pkt[6:8]) != CIDSignaling || pkt[8] != sigInfoRsp {
+			continue
+		}
+		id := pkt[9]
+		rspIDs = append(rspIDs, id)
+		body := pkt[12:]
+		if id == 7 && len(body) == 8 && binary.LittleEndian.Uint16(body[0:2]) == 0x0002 {
+			sawExt = true
+		}
+		if id == 8 && len(body) == 12 && binary.LittleEndian.Uint16(body[0:2]) == 0x0003 && body[4] == 0x02 {
+			sawFixed = true
+		}
+	}
+	if !sawExt || !sawFixed || !bytes.Equal(rspIDs, []byte{7, 8}) {
+		t.Fatalf("expected ordered retry sigInfoRsp [7,8] ext=%t fixed=%t, got ids=%v", sawExt, sawFixed, rspIDs)
+	}
+}

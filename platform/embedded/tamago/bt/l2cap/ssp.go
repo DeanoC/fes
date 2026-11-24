@@ -148,6 +148,7 @@ func (m *Manager) Service() error {
 		if conn.sdpSendPending {
 			m.pumpSDP(conn)
 		}
+		m.pumpConnSignaling(conn)
 		for j := range conn.chans {
 			ch := &conn.chans[j]
 			if ch.inUse && (ch.pendingConnRsp || ch.pendingCfg || ch.pendingCfgRsp) {

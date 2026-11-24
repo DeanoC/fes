@@ -48,6 +48,13 @@ type l2capChannel struct {
 	open             bool
 }
 
+type pendingSigFrame struct {
+	code byte
+	id   byte
+	n    uint8
+	body [12]byte
+}
+
 type aclConn struct {
 	active         bool
 	handle         uint16
@@ -67,6 +74,9 @@ type aclConn struct {
 	sdpContCount   uint8
 	sdpBuf         [256]byte
 	sdpBufLen      int
+	sigQ           [8]pendingSigFrame
+	sigQHead       int
+	sigQCount      int
 	namePending    bool
 	nameRetries    uint8
 	nameRetryAt    time.Time
@@ -220,6 +230,42 @@ func (m *Manager) sendSig(handle uint16, code, id byte, body []byte) error {
 	return m.sendL2CAPPDU(handle, CIDSignaling, sig[:4+len(body)])
 }
 
+func (m *Manager) sendOrQueueSig(conn *aclConn, code, id byte, body []byte) {
+	if conn == nil {
+		return
+	}
+	if conn.sigQCount == 0 {
+		if err := m.sendSig(conn.handle, code, id, body); err == nil {
+			return
+		}
+	}
+	if conn.sigQCount >= len(conn.sigQ) || len(body) > len(conn.sigQ[0].body) {
+		return
+	}
+	idx := (conn.sigQHead + conn.sigQCount) % len(conn.sigQ)
+	f := &conn.sigQ[idx]
+	f.code = code
+	f.id = id
+	f.n = uint8(len(body))
+	copy(f.body[:], body)
+	conn.sigQCount++
+}
+
+func (m *Manager) pumpConnSignaling(conn *aclConn) {
+	if conn == nil {
+		return
+	}
+	for conn.sigQCount > 0 {
+		f := &conn.sigQ[conn.sigQHead]
+		if err := m.sendSig(conn.handle, f.code, f.id, f.body[:f.n]); err != nil {
+			return
+		}
+		*f = pendingSigFrame{}
+		conn.sigQHead = (conn.sigQHead + 1) % len(conn.sigQ)
+		conn.sigQCount--
+	}
+}
+
 // OpenChannel initiates an outgoing L2CAP channel (PSMHIDControl or PSMHIDInterrupt)
 // to a connected controller.
 func (m *Manager) OpenChannel(handle, psm uint16) error {
@@ -340,13 +386,13 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 			if psm != PSMHIDControl && psm != PSMHIDInterrupt {
 				// Reject unsupported PSM (e.g. SDP/audio) cleanly with 0x0002.
 				binary.LittleEndian.PutUint16(rsp[4:6], 0x0002)
-				_ = m.sendSig(conn.handle, sigConnRsp, id, rsp[:])
+				m.sendOrQueueSig(conn, sigConnRsp, id, rsp[:])
 				continue
 			}
 			ch := conn.allocChannel(psm)
 			if ch == nil {
 				binary.LittleEndian.PutUint16(rsp[4:6], 0x0004) // No resources
-				_ = m.sendSig(conn.handle, sigConnRsp, id, rsp[:])
+				m.sendOrQueueSig(conn, sigConnRsp, id, rsp[:])
 				continue
 			}
 			ch.remoteCID = srcCID
@@ -411,7 +457,7 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 			var rsp [4]byte
 			binary.LittleEndian.PutUint16(rsp[0:2], dstCID)
 			binary.LittleEndian.PutUint16(rsp[2:4], srcCID)
-			_ = m.sendSig(conn.handle, sigDisconnRsp, id, rsp[:])
+			m.sendOrQueueSig(conn, sigDisconnRsp, id, rsp[:])
 
 		case sigDisconnRsp:
 			if len(body) < 4 {
@@ -433,18 +479,18 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 				binary.LittleEndian.PutUint16(rsp[0:2], infoType)
 				binary.LittleEndian.PutUint16(rsp[2:4], 0x0000) // Success
 				// Feature mask 0 (basic L2CAP only, lowest latency)
-				_ = m.sendSig(conn.handle, sigInfoRsp, id, rsp[:])
+				m.sendOrQueueSig(conn, sigInfoRsp, id, rsp[:])
 			case 0x0003: // Fixed Channels Supported
 				var rsp [12]byte
 				binary.LittleEndian.PutUint16(rsp[0:2], infoType)
 				binary.LittleEndian.PutUint16(rsp[2:4], 0x0000) // Success
 				rsp[4] = 0x02                                    // Bit 1 = L2CAP Signaling (CID 0x0001)
-				_ = m.sendSig(conn.handle, sigInfoRsp, id, rsp[:])
+				m.sendOrQueueSig(conn, sigInfoRsp, id, rsp[:])
 			default:
 				var rsp [4]byte
 				binary.LittleEndian.PutUint16(rsp[0:2], infoType)
 				binary.LittleEndian.PutUint16(rsp[2:4], 0x0001) // Not supported
-				_ = m.sendSig(conn.handle, sigInfoRsp, id, rsp[:])
+				m.sendOrQueueSig(conn, sigInfoRsp, id, rsp[:])
 			}
 
 		case sigCmdReject:
