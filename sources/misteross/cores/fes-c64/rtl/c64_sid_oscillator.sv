@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// MOS6581 digital oscillator adapted from VICE 3.10 reSID WaveformGenerator.
+// MOS6581 / MOS8580 digital oscillator adapted from VICE 3.10 reSID WaveformGenerator.
 // Copyright (C) 2010 Dag Lem <resid@nimrod.no>
 // GPL version 2 or later; complete license: c64_sid.COPYING.
 // See ../README.md for pinned source, regeneration and hardware limits.
 // Single waveforms/TEST, three-voice hard sync and triangle ring modulation.
-// Combinations use pinned MOS6581 samples, noise writeback and phase feedback.
+// Combined waveforms, noise writeback, phase feedback and OSC3 follow the selected die.
 module c64_sid_oscillator #(
     // The caller must guarantee a non-Phi edge between Phi edges.
     parameter bit PREPARE_PHASE = 1'b0,
@@ -20,7 +20,8 @@ module c64_sid_oscillator #(
     // Phi still advances the accumulator, noise shift and hard sync. The
     // caller must keep writes and the next Phi out of the stage window and
     // leave one idle edge after every finish before the next Phi.
-    parameter bit SEQUENCED = 1'b0
+    parameter bit SEQUENCED = 1'b0,
+    parameter bit SID_8580 = 1'b0
 ) (
     input wire clk, reset, phi, we, stage,
     output wire lookup_request,
@@ -37,6 +38,8 @@ module c64_sid_oscillator #(
     output reg [11:0] clocked_waveform,
     output wire [7:0] osc
 );
+    localparam integer RESET_BITS = SID_8580 ? 22 : 16;
+    localparam integer FADE_BITS = SID_8580 ? 23 : 18;
     typedef struct packed {
         logic [23:0] phase;
         logic msb_rising;
@@ -45,14 +48,15 @@ module c64_sid_oscillator #(
         logic [7:0] control;
         logic [22:0] lfsr;
         logic [1:0] shift_pipe;
-        logic [15:0] reset_count;
-        logic [17:0] fade_count;
+        logic [RESET_BITS-1:0] reset_count;
+        logic [FADE_BITS-1:0] fade_count;
         logic [11:0] pulse;
         logic [11:0] wave;
+        logic [11:0] tri_saw_pipeline, osc3;
     } state_t;
     state_t q,n;
     // reSID's deterministic power-up fixture; warm reset preserves phase.
-    initial begin q='0; q.phase=24'h555555; q.lfsr=23'h7ffffe; q.pulse=12'hfff; end
+    initial begin q='0; q.tri_saw_pipeline=12'h555; q.phase=24'h555555; q.lfsr=23'h7ffffe; q.pulse=12'hfff; end
     assign phase_now=q.phase;
     wire [23:0] next_phase;
     generate if (PREPARE_PHASE) begin : prepared_phase
@@ -84,11 +88,12 @@ module c64_sid_oscillator #(
     assign msb_rising=q.control[3] ? q.msb_rising : (!q.phase[23] && phase_advanced[23]);
     assign sync_enabled=q.control[1];
     assign waveform=q.wave;
-    assign osc=q.wave[11:4];
+    assign osc=SID_8580 ? q.osc3[11:4] : q.wave[11:4];
     function automatic [11:0] noise_bits(input [22:0] sr);
         noise_bits={sr[20],sr[18],sr[14],sr[11],sr[9],sr[5],sr[2],sr[0],4'b0};
     endfunction
     `include "c64_sid_combined_waves.vh"
+    `include "c64_sid_8580_waves.vh"
     // One Phi of oscillator/noise preparation, before sync and waveform output.
     function automatic state_t advance_clock(input state_t s,
         input [23:0] advanced, input rising);
@@ -101,7 +106,7 @@ module c64_sid_oscillator #(
                     if(t.reset_count==0) begin
                         t.lfsr=t.lfsr|23'd1;
                         t.lfsr=t.lfsr|(t.lfsr<<1);
-                        if(t.lfsr!=23'h7fffff) t.reset_count=16'd1000;
+                        if(t.lfsr!=23'h7fffff) t.reset_count=RESET_BITS'(SID_8580 ? 315000 : 1000);
                     end
                 end
                 t.pulse=12'hfff;
@@ -129,29 +134,44 @@ module c64_sid_oscillator #(
         end
     endfunction
     function automatic pre_writeback(input [3:0] before_wave, after_wave);
-        pre_writeback=before_wave>8 && before_wave!=12 &&
-            !((before_wave[1:0]==1 && after_wave[1:0]==2) ||
-              (before_wave[1:0]==2 && after_wave[1:0]==1));
+        if (SID_8580)
+            pre_writeback = before_wave > 8 && (before_wave != 12 || after_wave == 9 || after_wave == 14);
+        else
+            pre_writeback = before_wave > 8 && before_wave != 12 &&
+                !((before_wave[1:0]==1 && after_wave[1:0]==2) ||
+                  (before_wave[1:0]==2 && after_wave[1:0]==1));
     endfunction
     // Waveform selection from the combined-wave table values for this
     // state's phase (pulse_triangle already indexed with the ring XOR).
-    function automatic [11:0] select_wave(input state_t s, input ring_active,
+    function automatic [11:0] table_wave(input state_t s, input ring_active,
         input [11:0] triangle_saw, pulse_triangle, pulse_saw, pulse_triangle_saw);
         begin
             case(s.control[6:4])
-            1:select_wave={((s.phase[23] ^ ring_active) ? ~s.phase[22:12] : s.phase[22:12]),1'b0};
-            2:select_wave=s.phase[23:12];
-            3:select_wave=triangle_saw;
-            4:select_wave=s.pulse;
-            5:select_wave=pulse_triangle & s.pulse;
-            6:select_wave=pulse_saw & s.pulse;
-            7:select_wave=pulse_triangle_saw & s.pulse;
-            default:select_wave=12'hfff;
+            1:table_wave={((s.phase[23] ^ ring_active) ? ~s.phase[22:12] : s.phase[22:12]),1'b0};
+            2:table_wave=s.phase[23:12];
+            3:table_wave=triangle_saw;
+            4:table_wave=12'hfff;
+            5:table_wave=pulse_triangle;
+            6:table_wave=pulse_saw;
+            7:table_wave=pulse_triangle_saw;
+            default:table_wave=12'hfff;
             endcase
-            if(s.control[7]) select_wave=select_wave & noise_bits(s.lfsr);
-            if(s.control[7:6]==2'b11)
-                select_wave=select_wave<12'hf00 ? 12'h000 :
-                    select_wave & (select_wave<<1) & (select_wave<<2);
+        end
+    endfunction
+    function automatic [11:0] gated_wave(input state_t s, input [11:0] base);
+        gated_wave = base & (s.control[6] ? s.pulse : 12'hfff) &
+                     (s.control[7] ? noise_bits(s.lfsr) : 12'hfff);
+    endfunction
+    function automatic [11:0] output_wave(input state_t s, input [11:0] base);
+        begin
+            output_wave = gated_wave(s,base);
+            if(s.control[7:6]==2'b11) begin
+                if (SID_8580)
+                    output_wave = output_wave < 12'hfc0 ? output_wave & (output_wave << 1) : 12'hfc0;
+                else
+                    output_wave = output_wave < 12'hf00 ? 12'h000 :
+                        output_wave & (output_wave << 1) & (output_wave << 2);
+            end
         end
     endfunction
     // Single-edge selection with local table lookups (direct mode).
@@ -159,17 +179,17 @@ module c64_sid_oscillator #(
         reg ring_active;
         begin
             ring_active=s.control[2] && !source_high;
-            selected_wave=select_wave(s,ring_active,
-                combined_triangle_saw(s.phase[23:12]),
-                combined_pulse_triangle(s.phase[23:12] ^ (ring_active ? 12'h800 : 12'h000)),
-                combined_pulse_saw(s.phase[23:12]),
-                combined_pulse_triangle_saw(s.phase[23:12]));
+            selected_wave=table_wave(s,ring_active,
+                model_combined_triangle_saw(s.phase[23:12]),
+                model_combined_pulse_triangle(s.phase[23:12] ^ (ring_active ? 12'h800 : 12'h000)),
+                model_combined_pulse_saw(s.phase[23:12]),
+                model_combined_pulse_triangle_saw(s.phase[23:12]));
         end
     endfunction
     function automatic [23:0] feedback_phase(input [23:0] phase_value,
         input [3:0] selector, input [11:0] wave);
         feedback_phase=phase_value;
-        if(selector[1] && (selector[3] || selector[2] || selector[0]))
+        if(!SID_8580 && selector[1] && (selector[3] || selector[2] || selector[0]))
             feedback_phase[23]=phase_value[23] & wave[11];
     endfunction
     // Saw-selected feedback is independent of ring modulation. Expose this
@@ -181,17 +201,21 @@ module c64_sid_oscillator #(
         feedback_state=phi_base;
         feedback_state.phase=synced_phase;
         // Saw-selected feedback ignores ring modulation.
-        feedback_wave=selected_wave(feedback_state,1'b0);
+        feedback_wave=output_wave(feedback_state,selected_wave(feedback_state,1'b0));
     end
     assign phase_feedback=feedback_phase(synced_phase,q.control[7:4],feedback_wave);
     // The waveform stage of one Phi: output wave, saw-selected accumulator
     // feedback, noise write-back, floating-output decay and pulse compare.
-    function automatic state_t waveform_stage(input state_t s, input [11:0] wave, input fade);
+    function automatic state_t waveform_stage(input state_t s, input [11:0] base, input fade);
         state_t t;
         begin
             t=s;
             if(t.control[7:4]!=0) begin
-                t.wave=wave;
+                t.wave=output_wave(t,base);
+                if (SID_8580 && t.control[5:4] != 0) begin
+                    t.osc3 = gated_wave(t,t.tri_saw_pipeline);
+                    t.tri_saw_pipeline = base;
+                end else t.osc3 = t.wave;
                 t.phase=feedback_phase(t.phase,t.control[7:4],t.wave);
                 if(t.control[7:4]>8 && !t.control[3] && t.shift_pipe!=1)
                     t.lfsr=noise_writeback(t.lfsr,t.wave);
@@ -200,7 +224,8 @@ module c64_sid_oscillator #(
                 t.fade_count=t.fade_count-1'b1;
                 if(t.fade_count==0) begin
                     t.wave=t.wave&(t.wave>>1);
-                    if(t.wave!=0) t.fade_count=18'd1500;
+                    t.osc3=t.wave;
+                    if(t.wave!=0) t.fade_count=FADE_BITS'(SID_8580 ? 50000 : 1500);
                 end
             end
             t.pulse=t.phase[23:12]>=t.pw ? 12'hfff : 12'h000;
@@ -214,7 +239,7 @@ module c64_sid_oscillator #(
     reg [1:0] pending=2'b00; reg pending_write=0, ring_latched=0;
     reg write_request;
     wire finish_ring_active=ring_latched;
-    wire [11:0] finish_wave=select_wave(q,finish_ring_active,
+    wire [11:0] finish_wave=table_wave(q,finish_ring_active,
         lookup_tables[47:36],lookup_tables[35:24],lookup_tables[23:12],lookup_tables[11:0]);
     always @* begin
         n=q;
@@ -239,7 +264,7 @@ module c64_sid_oscillator #(
         4:begin
             n.control=din;
             if(!q.control[3] && din[3]) begin
-                n.phase=0; n.shift_pipe=0; n.reset_count=16'd35000; n.pulse=12'hfff;
+                n.phase=0; n.shift_pipe=0; n.reset_count=RESET_BITS'(SID_8580 ? 2519864 : 35000); n.pulse=12'hfff;
             end else if(q.control[3] && !din[3]) begin
                 if(pre_writeback(q.control[7:4],din[7:4]))
                     n.lfsr=noise_writeback(n.lfsr,n.wave);
@@ -248,12 +273,12 @@ module c64_sid_oscillator #(
             if(din[7:4]!=0) begin
                 if(SEQUENCED) write_request=1;
                 else n=waveform_stage(n,selected_wave(n,source_write_msb),1'b0);
-            end else if(q.control[7:4]!=0) n.fade_count=18'd182000;
+            end else if(q.control[7:4]!=0) n.fade_count=FADE_BITS'(SID_8580 ? 4400000 : 182000);
         end
         default:;
         endcase
         if(reset) begin
-            n='0; n.phase=q.phase; n.lfsr=23'h7ffffe; n.pulse=12'hfff;
+            n='0; n.phase=q.phase; n.tri_saw_pipeline=q.tri_saw_pipeline; n.lfsr=23'h7ffffe; n.pulse=12'hfff;
         end
     end
     always @(posedge clk) q<=n;

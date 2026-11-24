@@ -200,6 +200,7 @@ func (a *App) beginSessionDisplayLocked(target protocol.SessionDisplay, openTape
 		a.hold.Clear()
 	}
 	a.sessionDisplayEpoch++
+	a.nativePadFenceMappingLocked()
 	a.sessionDisplayBusy = true
 	a.sessionDisplayNonHandoff = !handoff && from.Focus == protocol.SessionFocusMachine && target.Focus == protocol.SessionFocusMachine
 	a.traceKeyRouteLocked("display-begin", 0)

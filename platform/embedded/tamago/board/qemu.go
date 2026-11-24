@@ -61,11 +61,19 @@ type qemuNetwork struct{ *network.Interface }
 
 func (n qemuNetwork) Stats() string { return fmt.Sprintf("%+v", n.Statistics()) }
 func OpenNetwork(ctx context.Context) (Network, error) {
+	return openNetworkWithConfig(ctx, network.Config{})
+}
+
+func OpenNetworkDHCP(ctx context.Context) (Network, error) {
+	return openNetworkWithConfig(ctx, network.Config{DHCP: true})
+}
+
+func openNetworkWithConfig(ctx context.Context, cfg network.Config) (Network, error) {
 	pool, err := qemuvirt.DMAPool()
 	if err != nil {
 		return nil, err
 	}
-	n, err := network.OpenWithPool(ctx, network.Config{}, pool)
+	n, err := network.OpenWithPool(ctx, cfg, pool)
 	if err != nil {
 		return nil, err
 	}

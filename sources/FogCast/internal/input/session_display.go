@@ -17,6 +17,13 @@ func (c *TargetController) BeginSessionDisplay(ctx context.Context, launcher boo
 	if c == nil || ctx == nil || c.ports == nil || c.keyboard == nil {
 		return nil, errors.New("session display input focus is unavailable")
 	}
+	done := c.beginLifecycleTransition()
+	transferred := false
+	defer func() {
+		if !transferred {
+			done()
+		}
+	}()
 	c.lifecycle.Lock()
 	if ctx.Err() != nil {
 		c.lifecycle.Unlock()
@@ -43,8 +50,10 @@ func (c *TargetController) BeginSessionDisplay(ctx context.Context, launcher boo
 		}
 	}
 	var once sync.Once
+	transferred = true
 	return func(focused bool) {
 		once.Do(func() {
+			defer done()
 			c.ports.finishDisplayFocus(focused)
 			c.lifecycle.Unlock()
 		})

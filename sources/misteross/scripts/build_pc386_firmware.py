@@ -118,6 +118,21 @@ def _git(source, *args):
     return subprocess.check_output(['git', '-C', str(source), *args], text=True).strip()
 
 
+def settle_mtimes(tree: Path) -> None:
+    """Give every tracked file in tree its commit's time.
+
+    A checkout writes files one after another, so whether dev86's shipped
+    cpp/token*.h looks older than the token*.tok it comes from depends on when
+    the clock ticks. When it does, make reruns gperf, which the build hosts and
+    the CI runners need not have. With one time on every tracked file, make
+    treats the shipped files as up to date.
+    """
+    when = int(_git(tree, 'log', '-1', '--format=%ct', 'HEAD'))
+    for name in _git(tree, 'ls-files', '-z').split('\0'):
+        if name:
+            os.utime(tree / name, (when, when), follow_symlinks=False)
+
+
 def read_lock() -> dict:
     return json.loads(LOCK.read_text())
 
@@ -227,6 +242,7 @@ def dev86(download: bool, jobs: int) -> Path:
         fetch_dev86(tree)
     if _git(tree, 'rev-parse', 'HEAD') != DEV86_REVISION:
         raise FirmwareError(f'{tree} is not at the pinned dev86 revision')
+    settle_mtimes(tree)
     log = tree / 'fes-firmware-build.log'
     log.write_text('')
     print('Building dev86 (bcc, as86)', flush=True)

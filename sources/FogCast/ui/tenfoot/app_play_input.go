@@ -150,7 +150,7 @@ func (a *App) playHIDRouteReadyLocked() bool {
 	// Kit-host library sessions use the local socket, not the optional host
 	// remote-input attachment. The same display gate selects that socket in
 	// queuePlayHIDLocked; require a real feed.
-	if a.kitHost && a.client != nil && a.needsSessionDisplayLocked() && a.localFeed != nil {
+	if a.kitHost && a.client != nil && a.localFeed != nil {
 		return true
 	}
 	if a.session.Input == nil {
@@ -212,6 +212,13 @@ func (a *App) consumePlayEscape(name string) bool {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.consumePlayEscapeLocked(name)
+}
+
+func (a *App) consumePlayEscapeLocked(name string) bool {
+	if !strings.EqualFold(strings.TrimSpace(name), "escape") {
+		return false
+	}
 	return a.session.State == "active" && !(a.session.CoreKeyboardHID && a.forwardsKeyboardHIDLocked()) &&
 		!a.roomDuringPlay && !a.sessionDisplayBusy && !a.sessionDisplayUncertain &&
 		!a.launcherDisplayFocusedLocked() && !a.tapePickerOpen && !a.firmwarePickerOpen &&
@@ -361,7 +368,7 @@ func (a *App) releaseTransitionPlayKey(source int, name string, usage uint8) boo
 		return true
 	}
 	delete(a.playKeyAdmitted, physical)
-	if !a.playHIDRouteReadyLocked() || a.playHIDFailClosedLocked() || a.client == nil {
+	if !a.playHIDRouteReadyLocked() || a.keyboardHIDFailClosedLocked() || a.client == nil {
 		if a.playKeyPendingRelease == nil {
 			a.playKeyPendingRelease = make(map[physicalPlayKey]playHIDKey)
 		}
@@ -371,7 +378,7 @@ func (a *App) releaseTransitionPlayKey(source int, name string, usage uint8) boo
 	}
 	event := remoteinput.Event{Player: key.player, Device: key.device, Kind: key.kind, Code: key.code, Action: remoteinput.ActionRelease}
 	a.rememberPlayHIDLocked(event)
-	a.queuePlayHIDLocked([]remoteinput.Event{event})
+	a.queuePhysicalKeyboardLocked(event)
 	a.traceKeyRouteLocked("transition-release", source)
 	return true
 }
@@ -379,13 +386,13 @@ func (a *App) releaseTransitionPlayKey(source int, name string, usage uint8) boo
 // Retry neutral releases only on the original active, machine-focused route.
 // Session replacement and explicit handoff clear these along with the holds.
 func (a *App) flushPendingPlayKeyReleasesLocked() {
-	if len(a.playKeyPendingRelease) == 0 || !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.playHIDFailClosedLocked() || a.client == nil {
+	if len(a.playKeyPendingRelease) == 0 || !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.keyboardHIDFailClosedLocked() || a.client == nil {
 		return
 	}
 	for physical, key := range a.playKeyPendingRelease {
 		event := remoteinput.Event{Player: key.player, Device: key.device, Kind: key.kind, Code: key.code, Action: remoteinput.ActionRelease}
 		a.rememberPlayHIDLocked(event)
-		a.queuePlayHIDLocked([]remoteinput.Event{event})
+		a.queuePhysicalKeyboardLocked(event)
 		delete(a.playKeyPendingRelease, physical)
 	}
 }
@@ -422,7 +429,7 @@ func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event re
 				// Apply the same admission gates as an ordinary press. Flush
 				// deferred releases first so an old neutral cannot follow a new
 				// contribution on the same route.
-				if !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.playHIDFailClosedLocked() || a.client == nil || a.playHIDPending >= maxPendingPlayHID {
+				if !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.keyboardHIDFailClosedLocked() || a.client == nil || a.playHIDPending >= maxPendingPlayHID {
 					return false
 				}
 				a.flushPendingPlayKeyReleasesLocked()
@@ -434,7 +441,7 @@ func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event re
 			}
 		}
 	}
-	if !a.sendPlayHIDLocked(event) {
+	if !a.sendPhysicalKeyboardLocked(event) {
 		if event.Action == remoteinput.ActionRelease {
 			if key, ok := a.playKeyAdmitted[physical]; ok {
 				delete(a.playKeyAdmitted, physical)
@@ -472,6 +479,13 @@ func (a *App) hasOtherPlayKeyContributorLocked(physical physicalPlayKey, key pla
 }
 
 func (a *App) sendPlayHIDLocked(event remoteinput.Event) bool {
+	if a.kitV2InputDisabled {
+		return false
+	}
+	if a.kitSDLKeyboardGuestBlockedLocked() &&
+		(event.Device == remoteinput.DeviceKeyboard || event.Kind == remoteinput.KindKey) {
+		return false
+	}
 	ready := a.forwardsPlayHIDLocked()
 	blocked := a.playHIDInputBlockedLocked()
 	if blocked {

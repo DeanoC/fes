@@ -11,11 +11,13 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/storage"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/inputmap"
+	"github.com/DeanoC/FogCast/ui/localfeed"
 	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/shared"
 	"github.com/DeanoC/FogCast/ui/theme"
@@ -164,9 +166,10 @@ type SessionSnapshot struct {
 	ControlsOpen      bool
 	MediaSelector     bool // The kit session plane is available for direct media controls.
 	// KeypadSelect keeps Select with a keypad machine; Guide opens controls.
-	KeypadSelect bool
-	KeyboardHID  bool // The running core receives physical Escape and Backspace.
-	HardwareRoom bool
+	KeypadSelect        bool
+	KeyboardHID         bool // The running core receives physical Escape and Backspace.
+	KeyboardUnavailable bool // This kit window cannot safely delegate a physical keyboard.
+	HardwareRoom        bool
 }
 
 // KitLeaseSnapshot is status-only kit ownership from GET /v1/kit/lease.
@@ -441,10 +444,17 @@ type App struct {
 	// may already have retained the grant. Shell exit reconciles it.
 	stopResponseLost bool
 	// stopWait is closed when the in-flight Soft-stop goroutine returns.
-	stopWait     chan struct{}
-	sessionGen   int
-	stopPhase    string
-	stopExpected hostclient.SessionResult
+	stopWait              chan struct{}
+	sessionGen            int
+	sessionFetchSequence  uint64
+	sessionFetchApplied   uint64
+	sessionFetchExhausted bool
+	healthFetchSequence   uint64
+	healthFetchApplied    uint64
+	healthFetchExhausted  bool
+	healthObservedAt      time.Time
+	stopPhase             string
+	stopExpected          hostclient.SessionResult
 	// stopReleasesLease is the kit Select+Start completed exit. A retry of
 	// that stop keeps releasing. Rooms B/Back leaves it false. Session
 	// change clears it so the next stop captures the new play on its own.
@@ -455,31 +465,32 @@ type App struct {
 	stopRetryIdleRelease bool
 	// stopCaptured is a Select+Start or Soft-stop queued while input was
 	// busy. stopExpected is the play from chord time, not from the flush.
-	stopCaptured       bool
-	stopMessage        string
-	gpuParked          bool
-	sessionKick        chan struct{}
-	health             hostclient.HealthResult
-	healthHave         bool
-	hostUnreachable    bool
-	inputBusy          bool
-	inputAction        string
-	inputMessage       string
-	stopQueued         bool
-	retryStopLock      bool
-	retryStopHint      string
-	retryStopCode      string
-	sessionEvents      []hostclient.SessionEvent
-	sessionEventAfter  uint64
-	flightID           string
-	lastFocusKey       string
-	lastNavKey         string
-	debugHUD           bool
-	kitLease           KitLeaseStatus
-	kitLeaseHave       bool
-	developmentRBFPath string
-	devLoadPhase       string
-	devLoadMessage     string
+	stopCaptured           bool
+	stopMessage            string
+	gpuParked              bool
+	sessionKick            chan struct{}
+	health                 hostclient.HealthResult
+	healthHave             bool
+	hostUnreachable        bool
+	inputBusy              bool
+	inputAction            string
+	inputMessage           string
+	stopQueued             bool
+	retryStopLock          bool
+	retryStopHint          string
+	retryStopCode          string
+	sessionEvents          []hostclient.SessionEvent
+	sessionEventAfter      uint64
+	flightID               string
+	lastFocusKey           string
+	lastNavKey             string
+	debugHUD               bool
+	kitLease               KitLeaseStatus
+	kitLeaseHave           bool
+	localKeyboardUncertain bool
+	developmentRBFPath     string
+	devLoadPhase           string
+	devLoadMessage         string
 
 	roomsIndex          *rooms.Index
 	roomsDir            string
@@ -640,30 +651,65 @@ type App struct {
 	previewFails       int
 	previewNext        time.Time
 
-	localCores               rooms.LocalCores
-	kitHost                  bool
-	kitHostPreparing         bool
-	hostLaunchPending        func()
-	hostPresentsPaused       bool
-	hostAwaitStatus          bool
-	sessionObservation       uint64
-	sessionObservedAt        time.Time
-	sessionReadyWrittenAt    time.Time
-	kitMenuStartedAt         time.Time
-	kitMenuSessionSeen       bool
-	kitMenuSessionState      string
-	kitMenuSessionHTTPStatus int
-	kitMenuSessionError      string
-	kitMenuHealthSeen        bool
-	kitMenuHealthError       string
-	kitMenuReadyLogf         func(string, ...any)
-	kitMenuReadyLogKey       string
-	kitMenuReadyLogAt        time.Time
-	localFeed                localPadSender
-	localInstallKnown        bool
-	localInstalled           map[string]struct{}
-	localInstallGen          uint64
-	localInstallCancel       context.CancelFunc
+	localCores         rooms.LocalCores
+	kitHost            bool
+	managedKitSoftware bool
+	kitV2InputDisabled bool
+	// SDL cannot obtain authoritative held-key state per physical keyboard.
+	// This gates only the kit-local delegated HID keyboard route.
+	kitLocalKeyboardUnavailable bool
+	// The v2 latch is set only by the eventual acknowledged authority path.
+	// It stays set through quarantine; zero-value App does not enable v2.
+	delegatedV2Active         bool
+	nativeKeyboardQuarantined bool
+	nativeKeyboardClosing     bool
+	nativeGuest               nativeGuestLifecycle
+	nativeGuestBinding        nativeGuestBinding
+	nativeGuestQueueEpoch     uint64
+	// True from native pad-only promotion until a correlated recovery proves
+	// that exact connection's local non-HID source has drained.
+	nativePadRetiring                 bool
+	nativePadRetirementEpoch          uint64
+	nativePadRetirementBinding        padOnlyAuthority
+	nativeMappedPad                   nativeMappedPadLedger
+	nativePadConnectionFence          *localfeed.PadWriteFence
+	nativePadMappingFence             *localfeed.PadWriteFence
+	nativePadDeviceFences             map[localhid.DeviceID]*localfeed.PadWriteFence
+	nativePadDeviceBlocked            map[localhid.DeviceID]bool
+	nativePadMappingFenced            bool
+	nativeGuestSnapshotAllowed        bool
+	nativeGuestBeginRequest           *localhid.Request
+	nativeKeyboardGeneration          uint64
+	nativeKeyboardGenerationExhausted bool
+	nativeKeyboardWake                chan struct{}
+	nativeUIOnlyInFlight              uint32
+	nativeUIRaw                       nativeKeyboardUIRawLedger
+	nativeUIActionNext                uint64
+	nativeUIActions                   map[uint64]nativeKeyboardUIAction
+	kitHostPreparing                  bool
+	hostLaunchPending                 func()
+	hostPresentsPaused                bool
+	hostAwaitStatus                   bool
+	sessionObservation                uint64
+	sessionObservedAt                 time.Time
+	sessionRuntimeInputRetained       bool      // session.RuntimeInput kept from an earlier read of the same play
+	sessionRuntimeInputReportedAt     time.Time // request start of the last session read that reported it
+	sessionReadyWrittenAt             time.Time
+	kitMenuStartedAt                  time.Time
+	kitMenuSessionSeen                bool
+	kitMenuSessionState               string
+	kitMenuSessionHTTPStatus          int
+	kitMenuSessionError               string
+	kitMenuHealthSeen                 bool
+	kitMenuHealthError                string
+	kitMenuReadyLogf                  func(string, ...any)
+	kitMenuReadyLogKey                string
+	kitMenuReadyLogAt                 time.Time
+	localFeed                         localPadSender
+	localInstallKnown                 bool
+	localInstalled                    map[string]struct{}
+	localInstallGen                   uint64
+	localInstallCancel                context.CancelFunc
 
 	// settingsSection is the open Settings section; "" is the section list.
 	settingsSection string
@@ -738,6 +784,7 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 		platformKick:       make(chan struct{}, 1),
 		collectionsKick:    make(chan struct{}, 1),
 		sessionKick:        make(chan struct{}, 1),
+		nativeKeyboardWake: make(chan struct{}, 1),
 		stopPhase:          "idle",
 		attractPrefEnabled: true,
 		attractIdle:        attractIdleDuration(defaultAttractIdleSeconds),
@@ -997,6 +1044,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.handleCommandLocked(cmd, now)
+}
+
+func (a *App) handleCommandLocked(cmd Command, now time.Time) {
 	if a.kitHost && (a.hostAwaitStatus || a.kitHostPreparing) {
 		return
 	}

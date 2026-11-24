@@ -84,6 +84,13 @@ func (a *App) Snapshot() Snapshot {
 	} else if line := strings.TrimSpace(a.inputMessage); line != "" {
 		status = line
 	}
+	if a.kitLocalKeyboardUnavailableLocked() {
+		if status != "" {
+			status = kitLocalKeyboardUnavailableStatus + " · " + status
+		} else {
+			status = kitLocalKeyboardUnavailableStatus
+		}
+	}
 	if a.platformErr != "" {
 		if status == "" {
 			status = "platform list failed"

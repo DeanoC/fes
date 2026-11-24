@@ -504,6 +504,9 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 }
 
 func hardwareRoomStatus(snap Snapshot) string {
+	if snap.Session.KeyboardUnavailable {
+		return kitLocalKeyboardUnavailableStatus
+	}
 	if snap.Room.Notice != "" {
 		return snap.Room.Notice
 	}

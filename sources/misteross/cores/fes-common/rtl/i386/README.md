@@ -1715,8 +1715,8 @@ Quartus spikes and the pc386 seal read the CPU with one Yosys (#1581 D2, S4,
 The #81 pin changes hash-table iteration and may renumber generated names;
 the full lockstep and frontend suites establish functional equivalence. The
 timing spikes default to it. The repository's
-shared lock stays at Yosys `3a5accbd`, which reads this RTL wrongly, so check
-and route the i386 RTL with this lock's Yosys. Each later Yosys fix is a
+shared lock now pins the same Yosys, but check and route the i386 RTL with
+this lock, which also pins the i386 nextpnr. Each later Yosys fix is a
 small bump of this lock, the removal of its one workaround, the `--netlist`
 check and a re-measure.
 

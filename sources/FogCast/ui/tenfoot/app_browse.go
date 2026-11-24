@@ -11,6 +11,7 @@ import (
 )
 
 func (a *App) openSearchLocked() {
+	a.nativePadFenceMappingLocked()
 	a.closeDetailLocked()
 	a.closeFiltersLocked()
 	a.searchOpen = true
@@ -71,6 +72,10 @@ func (a *App) TypeText(text string, now time.Time) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.typeTextLocked(text, now)
+}
+
+func (a *App) typeTextLocked(text string, now time.Time) {
 	a.noteActivityLocked(now)
 	if a.consumeAttractLocked(CmdNone, now) {
 		return
@@ -94,6 +99,10 @@ func (a *App) TypeText(text string, now time.Time) {
 func (a *App) SearchBackspace(now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.searchBackspaceLocked(now)
+}
+
+func (a *App) searchBackspaceLocked(now time.Time) {
 	a.noteActivityLocked(now)
 	if a.consumeAttractLocked(CmdBack, now) {
 		return
@@ -123,6 +132,10 @@ func (a *App) SearchBackspace(now time.Time) {
 func (a *App) ConfirmSearch(now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.confirmSearchLocked(now)
+}
+
+func (a *App) confirmSearchLocked(now time.Time) {
 	a.noteActivityLocked(now)
 	if a.consumeAttractLocked(CmdSelect, now) {
 		return

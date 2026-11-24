@@ -37,6 +37,7 @@
 
 #include <assert.h>
 #include <algorithm>
+#include <dirent.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,7 +84,12 @@ std::vector<std::string> live_computer_status_responses;
 void RecordLiveComputerStatus(const mister::Status& status)
 {
 	AssertComputerABIVersions(status.capabilities);
-	const std::string response = mister::daemon::EncodeResponse(2, true, status, "fixture");
+	// Keep the checked-in synthetic fixture deterministic while exercising the
+	// production serializer with the same shape as a real Runtime instance.
+	assert(status.runtime_instance.size() == 32);
+	mister::Status fixture_status = status;
+	fixture_status.runtime_instance = "123456789abcdef0123456789abcdef0";
+	const std::string response = mister::daemon::EncodeResponse(2, true, fixture_status, "fixture");
 	live_computer_status_responses.push_back(response);
 }
 
@@ -3800,7 +3806,7 @@ void TestPc386LibraryRecordAndWallClock()
 		}
 		return false;
 	};
-	assert(!fixture.runtime.SetKeyboardHid(id, fault_generation, mister::KeyboardHidRows{}).ok());
+	assert(!fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, id, fault_generation, mister::KeyboardHidRows{}).ok());
 	if (!WaitForState(fixture.runtime, mister::State::idle)) {
 		const auto failed = fixture.runtime.status();
 		std::fprintf(stderr, "pc386 input fault state=%u error=%s phase=%s\n",
@@ -4125,7 +4131,7 @@ void TestPc386DiskFaultSaveRealignsMailbox()
 				poisoned = endpoint.requests.size();
 				return true;
 			};
-			assert(!fixture.runtime.SetKeyboardHid(opened.package_id, generation, mister::KeyboardHidRows{}).ok());
+			assert(!fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, opened.package_id, generation, mister::KeyboardHidRows{}).ok());
 		}
 		if (!WaitForState(fixture.runtime, mister::State::idle)) {
 			const auto failed = fixture.runtime.status();
@@ -5325,7 +5331,7 @@ void TestWritableDiskInputFaultSavesBeforeIdleOrRetainsRAM()
             if(capture_fails&&request.opcode==FesComputerOpcodeMediaSnapshotControl&&request.argument==FesComputerMediaSnapshotFreeze&&!snapshot_failed){snapshot_failed=true;return true;}
             return false;
         };
-        assert(!fixture.runtime.SetKeyboardHid(opened.package_id,gen,mister::KeyboardHidRows{}).ok());
+        assert(!fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, opened.package_id,gen,mister::KeyboardHidRows{}).ok());
         assert(WaitForState(fixture.runtime,capture_fails?mister::State::reboot_required:mister::State::idle));
         assert(!fixture.native.input.HasActiveCallback());
         endpoint.fail_after_request={};assert(input_failed);
@@ -5392,7 +5398,7 @@ void TestComputerLiveMediaLifecycleThroughRuntime()
 		rows[0] = 0x0010;
 		rows[8] = 0x0002;
 		auto before = endpoint.requests.size();
-		assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, rows).ok());
+		assert(fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, opened.package_id, generation, rows).ok());
 		assert(endpoint.requests.size() == before + 11);
 		for (unsigned row = 0; row < 9; ++row) {
 			const auto& request = endpoint.requests[before + row];
@@ -5403,7 +5409,7 @@ void TestComputerLiveMediaLifecycleThroughRuntime()
 		assert(endpoint.requests[before + 10].opcode == FesComputerOpcodeKeyboardHid &&
 			endpoint.requests[before + 10].index == 0 && endpoint.requests[before + 10].argument == 0x10);
 		rows[0] = 0;
-		assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, rows).ok());
+		assert(fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, opened.package_id, generation, rows).ok());
 		assert(endpoint.requests.size() == before + 12);
 		assert(endpoint.requests[before + 11].opcode == FesComputerOpcodeKeyboardHid &&
 			endpoint.requests[before + 11].index == 0 && endpoint.requests[before + 11].argument == 0);
@@ -5506,7 +5512,7 @@ void TestPcxtFloppyLifecycleThroughRuntime()
 	mister::KeyboardHidRows keys{};
 	keys[0] = 0x0010; keys[8] = 0x0002; // Shift+A
 	const auto keyboard_start = endpoint.requests.size();
-	assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, keys).ok());
+	assert(fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, opened.package_id, generation, keys).ok());
 	assert(endpoint.requests.size() == keyboard_start + 11);
 	for (unsigned row = 0; row < 9; ++row) {
 		const auto& request = endpoint.requests[keyboard_start + row];
@@ -5517,7 +5523,7 @@ void TestPcxtFloppyLifecycleThroughRuntime()
 	assert(endpoint.requests[keyboard_start + 10].opcode == FesComputerOpcodeKeyboardHid &&
 		endpoint.requests[keyboard_start + 10].index == 0 && endpoint.requests[keyboard_start + 10].argument == 0x10);
 	keys[0] = 0; keys[8] = 0;
-	assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, keys).ok());
+	assert(fixture.runtime.SetKeyboardHid(fixture.runtime.status().runtime_instance, opened.package_id, generation, keys).ok());
 	assert(endpoint.requests.size() == keyboard_start + 13);
 	assert(endpoint.requests[keyboard_start + 11].opcode == FesComputerOpcodeKeyboardHid &&
 		endpoint.requests[keyboard_start + 11].index == 0 && endpoint.requests[keyboard_start + 11].argument == 0);
@@ -6239,6 +6245,28 @@ void TestDe25FirmwareMachineUploadsBeforeRelease(bool atari_st,FirmwareTrial tri
  bool active=false;
  for(const auto& interface:state.capabilities.active_interfaces)active=active||interface.id=="fes.fabric.firmware-upload";
  assert(active&&state.capabilities.media_units.size()==1&&state.menu_display.session);
+ if(atari_st) {
+  // A bound library disk reports its binding on DE25 as it does on the DE10:
+  // a persistent package whose disk carries no binding is not a valid status.
+  TempDirectory media,storage;
+  const std::string disk=ComputerDisk(737280),path=media.File("desk.st",disk);
+  Sha256 h;h.Update(disk.data(),disk.size());
+  MediaDataBinding binding;binding.game_id="de25-st-desk";binding.base_media_id=Sha256Hex(h.Final());binding.unit=0;
+  const auto inserted=runtime.InsertLibraryMedia(path,game_package.package_id,state.generation,0,737280,storage.path,binding);
+  if(!inserted.ok())fprintf(stderr,"DE25 library disk: %s (%s)\n",inserted.message.c_str(),inserted.phase.c_str());
+  assert(inserted.ok());
+  const auto unit=runtime.status().capabilities.media_units[0];
+  assert(unit.state==MediaUnitState::ready&&unit.persistence_mode=="persistent"&&
+   unit.game_id==binding.game_id&&unit.base_media_id==binding.base_media_id&&unit.revision=="absent");
+  assert(runtime.Stop().ok()&&runtime.status().state==State::idle);
+  const auto ns=storage.path+"/"+MediaDataNamespace(MediaDataIdentity{d.core.id,binding.game_id,binding.base_media_id,0});
+  if(DIR* dir=opendir(ns.c_str())) {
+   while(const dirent* entry=readdir(dir))
+    if(std::string(entry->d_name)!="."&&std::string(entry->d_name)!="..")assert(unlink((ns+"/"+entry->d_name).c_str())==0);
+   closedir(dir);assert(rmdir(ns.c_str())==0);
+  }
+  return;
+ }
  assert(runtime.Stop().ok()&&runtime.status().state==State::idle);
 }
 

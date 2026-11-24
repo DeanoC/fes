@@ -127,7 +127,7 @@ class BuildFesC64Tests(unittest.TestCase):
         program = yosys[2]
         for source in producer.RTL_SOURCES:
             self.assertIn(source, program)
-        self.assertIn("chparam -set NTSC 0 -set BUILD_ID 128'h" + "0" * 32 + " top", program)
+        self.assertIn("chparam -set NTSC 0 -set SID_8580 0 -set BUILD_ID 128'h" + "0" * 32 + " top", program)
         self.assertIn("synth_intel_alm -nolutram -nodsp -top top -run coarse:", program)
         self.assertIn("t:$mul a:src=cores/fes-common/rtl/fes_display_plane.v:* %i", program)
         self.assertEqual(route[route.index("--qsf") + 1], "build/fes-c64-oss/socket.qsf")
@@ -141,7 +141,7 @@ class BuildFesC64Tests(unittest.TestCase):
         output = ROOT / "build/fes-c64-ntsc-oss"
         tools = {"yosys": Path("/y"), "nextpnr-mistral": Path("/n")}
         yosys, route = producer.build_commands(ROOT, output, "0" * 32, tools, model="ntsc")
-        self.assertIn("chparam -set NTSC 1 -set BUILD_ID", yosys[2])
+        self.assertIn("chparam -set NTSC 1 -set SID_8580 0 -set BUILD_ID", yosys[2])
         self.assertIn("write_json build/fes-c64-ntsc-oss/synth.json", yosys[2])
         self.assertEqual(route[route.index("--json") + 1], "build/fes-c64-ntsc-oss/synth.json")
         with self.assertRaises(BuildError):
@@ -163,6 +163,27 @@ class BuildFesC64Tests(unittest.TestCase):
         self.assertEqual(manifest["core"]["id"], "fes.c64-ntsc")
         self.assertEqual(manifest["core"]["name"], "FES Commodore 64 (NTSC)")
         self.assertEqual(manifest["rom"], evidence["rom"])
+
+    def test_development_sid_selection_has_its_own_netlist_and_identity(self) -> None:
+        tools = {"yosys": Path("/y"), "nextpnr-mistral": Path("/n")}
+        identities = set()
+        outputs = set()
+        for region, ntsc in (("pal", 0), ("ntsc", 1)):
+            for sid in ("6581", "8580"):
+                machine = producer.model_for(region, sid)
+                record = producer.create_build_record(
+                    ROOT, "https://example.invalid/fes.git", "a" * 40, {"yosys": "fixture"},
+                    model=region, sid_model=sid, execution={"gpu_device": 0, "version": 1})
+                identity = producer.build_identity(record)
+                self.assertEqual(json.loads(record)["parameters"]["sid_model"], sid)
+                yosys, route = producer.build_commands(
+                    ROOT, ROOT / machine.output, identity, tools, model=region, sid_model=sid)
+                self.assertIn(f"-set NTSC {ntsc} -set SID_8580 {int(sid == '8580')}", yosys[2])
+                self.assertEqual(route[route.index("--json") + 1], f"{machine.output}/synth.json")
+                identities.add(identity)
+                outputs.add(machine.output)
+        self.assertEqual(len(identities), 4)
+        self.assertEqual(len(outputs), 4)
 
     def test_socket_qsf_names_every_region_once(self) -> None:
         base = (ROOT / producer.QSF).read_text()

@@ -94,13 +94,36 @@ The service retains partial returned controls and retires without FPGA cleanup
 after uncertain startup, including a propagated platform panic. This supplies
 the call path, not MAC/PHY/DMA qualification or a native upload listener.
 
-This prototype supports IPv4 TCP with static addressing and a 1500-byte MTU.
-It enables neither checksum/segmentation offloads nor merged receive buffers.
-The Lneto configuration limits active TCP ports to 16 and listener connections
-to 8. DHCP, DNS configuration, UDP, IPv6, link-change recovery, network
-throughput qualification and physical Ethernet acceptance remain separate work. Use
-numeric IPv4 addresses for the current private HTTP service. The board's
-deterministic entropy provider is unsuitable for authentication and TLS.
+This prototype supports IPv4 TCP with static addressing (default) or opt-in
+RFC 2131 DHCPv4 (`AcquireDHCP` / `OpenDeviceDHCP` / `Config{DHCP: true}`) and a
+1500-byte MTU. It enables neither checksum/segmentation offloads nor merged
+receive buffers. The Lneto configuration limits active TCP ports to 16 and
+listener connections to 8. Lease renewal, DNS resolution, general UDP, IPv6,
+link-change recovery, network throughput qualification and physical Ethernet
+acceptance remain separate work. Use numeric IPv4 addresses for the current
+private HTTP service. The board's deterministic entropy provider is unsuitable
+for authentication and TLS.
+
+Only QEMU wires DHCP: its `board.OpenNetworkDHCP` (used by `cmd/network` when
+`FES/BOOT.JSON` sets `"dhcp": true`) opens the VirtIO NIC with
+`Config{DHCP: true}`. The Nano board's `OpenNetworkDHCP` always refuses, and no
+Nano path calls `OpenDeviceDHCP`; its controlled opener passes the profile's
+static address to `OpenDevice`. A lease needs a subnet mask, a server
+identifier and a router (option 3) that is another usable host in the leased
+subnet. Replies without such a router are ignored, so a server that sends none
+yields no lease; the server identifier is not a fallback gateway.
+
+`run.py network --board qemu` boots `cmd/network` on QEMU user networking
+(SLIRP) and checks its HTTP catalog against a private FogCast host. `--dhcp`
+adds `"dhcp": true` to `FES/BOOT.JSON`; the runner then requires exactly one
+`FES_NETWORK_DHCP` line with a positive lease time and records it as
+`dhcp_lease` in `result.json`. Tamago CI (`scripts/tamago_ci.py`) runs both the
+static `network` program and the `network-dhcp` variant, which is
+`run.py network --dhcp`. It fails either run whose `result.json` does not
+record the addressing it requested; the DHCP run also needs a coherent IPv4
+lease. SLIRP's first lease (`10.0.2.15/24`, gateway `10.0.2.2`) equals the
+static default, so a DHCP run is identified by its lease line and `dhcp_lease`,
+not by its address.
 
 The pinned dependency is `github.com/usbarmory/go-net`
 `v0.0.0-20260924083839-356cbf14db9e`, the revision compatible with the

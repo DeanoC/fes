@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func (a *App) pollSession(ctx context.Context) {
@@ -35,25 +36,52 @@ func (a *App) pollSession(ctx context.Context) {
 func (a *App) fetchSession(ctx context.Context) {
 	a.mu.Lock()
 	gen := a.sessionGen
+	if a.sessionFetchExhausted || a.sessionFetchSequence == ^uint64(0) {
+		a.sessionFetchExhausted = true
+		a.nativePadRevokeConnectionLocked()
+		a.sessionObservedAt = time.Time{}
+		a.clearSessionReadyLocked()
+		a.requestNativeKeyboardQuarantineLocked(nativeFaultOverflow)
+		a.mu.Unlock()
+		return
+	}
+	a.sessionFetchSequence++
+	sequence := a.sessionFetchSequence
+	requestStarted := time.Now()
 	a.mu.Unlock()
 	result, err := a.client.Session(ctx)
 	if ctx.Err() != nil {
+		a.mu.Lock()
+		if gen == a.sessionGen && sequence > a.sessionFetchApplied {
+			a.sessionFetchApplied = sequence
+			a.sessionObservedAt = time.Time{}
+			a.nativePadRevokeConnectionLocked()
+			a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
+		}
+		a.mu.Unlock()
 		return
 	}
 	if err != nil {
 		a.mu.Lock()
+		if gen != a.sessionGen || sequence <= a.sessionFetchApplied {
+			a.mu.Unlock()
+			return
+		}
+		a.sessionFetchApplied = sequence
 		a.sessionObservedAt = time.Time{}
+		a.nativePadRevokeConnectionLocked()
 		a.clearSessionReadyLocked()
+		a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
 		a.mu.Unlock()
 		a.noteKitMenuSessionObservation(result, err)
 		return
 	}
 	a.mu.Lock()
-	if gen != a.sessionGen {
+	if gen != a.sessionGen || sequence <= a.sessionFetchApplied {
 		a.mu.Unlock()
-		a.noteKitMenuSessionObservation(result, nil)
 		return
 	}
+	a.sessionFetchApplied = sequence
 	if a.launch.Phase == "launching" || a.stopPhase == "stopping" || a.inputBusy || a.sessionDisplayBusy || a.developmentLoadingLocked() {
 		a.mu.Unlock()
 		a.noteKitMenuSessionObservation(result, nil)
@@ -65,7 +93,10 @@ func (a *App) fetchSession(ctx context.Context) {
 	}
 	a.applySessionLocked(result)
 	if result.ErrorCode == "" {
-		a.sessionObservedAt = time.Now()
+		a.sessionObservedAt = requestStarted
+		if result.RuntimeInput != nil {
+			a.sessionRuntimeInputReportedAt = requestStarted
+		}
 	}
 	a.mu.Unlock()
 	a.noteKitMenuSessionObservation(result, nil)
@@ -188,18 +219,53 @@ func (a *App) kickSessionPollLocked() {
 	}
 }
 
+func (a *App) acceptHealthObservationLocked(sequence uint64) bool {
+	if sequence < a.healthFetchApplied {
+		return false
+	}
+	a.healthFetchApplied = sequence
+	return true
+}
+
+func (a *App) invalidateCanceledHealthObservation(sequence uint64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if sequence < a.healthFetchApplied {
+		return
+	}
+	a.healthFetchApplied = sequence
+	a.healthObservedAt = time.Time{}
+	a.nativePadRevokeConnectionLocked()
+	a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
+}
+
 func (a *App) fetchHealth(ctx context.Context) {
+	a.mu.Lock()
+	if a.healthFetchExhausted || a.healthFetchSequence == ^uint64(0) {
+		a.healthFetchExhausted = true
+		a.healthObservedAt = time.Time{}
+		a.nativePadRevokeConnectionLocked()
+		a.requestNativeKeyboardQuarantineLocked(nativeFaultOverflow)
+		a.mu.Unlock()
+		return
+	}
+	a.healthFetchSequence++
+	sequence := a.healthFetchSequence
+	requestStarted := time.Now()
+	a.mu.Unlock()
 	var paired KitLeaseStatus
 	var pairedErr error
 	pairedHave := a.client != nil && a.client.paired
 	if pairedHave {
 		paired, pairedErr = a.client.PairedKitLease(ctx)
 		if ctx.Err() != nil {
+			a.invalidateCanceledHealthObservation(sequence)
 			return
 		}
 	}
 	result, err := a.client.Health(ctx)
 	if ctx.Err() != nil {
+		a.invalidateCanceledHealthObservation(sequence)
 		return
 	}
 	if err == nil {
@@ -217,13 +283,36 @@ func (a *App) fetchHealth(ctx context.Context) {
 			}
 		}
 		a.mu.Lock()
+		if !a.acceptHealthObservationLocked(sequence) {
+			a.mu.Unlock()
+			return
+		}
 		wasForeign := a.foreignKitLeaseLocked()
 		wasReady := a.healthHave && !a.hostUnreachable && a.kitMenuHealthError == "" && a.health.Ready && a.health.TargetReachable && a.health.TargetReady
+		if a.delegatedV2Active && (!a.healthHave || !result.Ready || !result.TargetReachable ||
+			result.Connection.State != a.health.Connection.State || result.Connection.Owner != a.health.Connection.Owner || result.Connection.LeaseOwned != a.health.Connection.LeaseOwned ||
+			a.health.Connection.TargetID == "" || a.health.Connection.BootID == "" || a.health.Connection.LeaseGeneration == "" ||
+			result.Connection.TargetID != a.health.Connection.TargetID || result.Connection.BootID != a.health.Connection.BootID ||
+			result.Connection.LeaseGeneration != a.health.Connection.LeaseGeneration || lease.Unavailable ||
+			lease.Generation != result.Connection.LeaseGeneration) {
+			a.nativePadRevokeConnectionLocked()
+			a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
+		}
+		if binding, ok := a.localKeyboardBindingLocked(); ok &&
+			(!result.Ready || !result.TargetReachable ||
+				result.Connection.State != a.health.Connection.State || result.Connection.Owner != a.health.Connection.Owner || result.Connection.LeaseOwned != a.health.Connection.LeaseOwned ||
+				result.Connection.TargetID != a.health.Connection.TargetID || result.Connection.BootID != a.health.Connection.BootID ||
+				result.Connection.LeaseGeneration != binding.LeaseGeneration || lease.Unavailable || lease.Generation != binding.LeaseGeneration) {
+			a.retireLocalKeyboardLocked()
+		}
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = result
+		a.healthObservedAt = requestStarted
 		a.kitLeaseHave = true
 		a.kitLease = lease
+		a.nativePadObserveLeaseLocked()
+		a.localKeyboardUncertain = false
 		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
 		if a.kitHost && !wasReady && result.Ready && result.TargetReachable && result.TargetReady {
 			a.refreshKitInventoryLocked(ctx)
@@ -232,10 +321,24 @@ func (a *App) fetchHealth(ctx context.Context) {
 		a.noteKitMenuHealthObservation(nil)
 		return
 	}
+	a.mu.Lock()
+	if !a.acceptHealthObservationLocked(sequence) {
+		a.mu.Unlock()
+		return
+	}
+	a.retireLocalKeyboardLocked()
+	a.healthObservedAt = time.Time{}
+	a.nativePadRevokeConnectionLocked()
+	a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
+	a.mu.Unlock()
 	if pairedHave && pairedErr == nil {
 		// Paired target status remains useful when the host's selected target
 		// cannot be observed. The authenticated projection belongs to this kit.
 		a.mu.Lock()
+		if !a.acceptHealthObservationLocked(sequence) {
+			a.mu.Unlock()
+			return
+		}
 		wasForeign := a.foreignKitLeaseLocked()
 		a.hostUnreachable = false
 		a.healthHave = true
@@ -252,12 +355,20 @@ func (a *App) fetchHealth(ctx context.Context) {
 		// Keep the scoped status failure visible even when the selected host's
 		// health endpoint is also unreachable.
 		a.mu.Lock()
+		if !a.acceptHealthObservationLocked(sequence) {
+			a.mu.Unlock()
+			return
+		}
 		a.kitLeaseHave = true
 		a.kitLease = KitLeaseStatus{Unavailable: true, Reason: "paired kit lease status unavailable"}
 		a.mu.Unlock()
 	}
 	if isHostTransportError(err) {
 		a.mu.Lock()
+		if !a.acceptHealthObservationLocked(sequence) {
+			a.mu.Unlock()
+			return
+		}
 		a.hostUnreachable = true
 		a.mu.Unlock()
 		a.noteKitMenuHealthObservation(err)
@@ -268,6 +379,10 @@ func (a *App) fetchHealth(ctx context.Context) {
 		return
 	}
 	a.mu.Lock()
+	if !a.acceptHealthObservationLocked(sequence) {
+		a.mu.Unlock()
+		return
+	}
 	if statusErr == nil && status.Unavailable {
 		a.hostUnreachable = false
 		a.healthHave = true
@@ -493,13 +608,28 @@ func inputFailureStatus(action string) string {
 func (a *App) applySessionLocked(result hostclient.SessionResult) {
 	a.sessionObservation++
 	a.sessionObservedAt = time.Time{}
-	if result.ErrorCode != "" || !samePlayHIDSession(a.session, result) {
+	// An omitted runtime identity keeps the same play: the agent withholds it
+	// during any coordinator transition and after a failed or slow runtime
+	// read. Input from a kept identity fails closed after the observation window.
+	result, retained := retainSessionRuntimeInput(a.session, result)
+	// An identity that this observation cannot carry ends its play.
+	same := samePlayHIDSession(a.session, result) && (a.session.RuntimeInput == nil || result.RuntimeInput != nil)
+	staleIdentity := retained && !runtimeInputReportFresh(a.sessionRuntimeInputReportedAt, time.Now())
+	if result.ErrorCode != "" || !same || staleIdentity {
+		a.nativePadRevokeConnectionLocked()
+	}
+	if a.delegatedV2Active && (result.ErrorCode != "" || result.RuntimeInput == nil || staleIdentity ||
+		(result.RuntimeInput != nil && result.RuntimeInput.Validate() != nil) || !protocol.ValidInputAgentInstance(result.InputAgentInstance) || !same) {
+		a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
+	}
+	if result.ErrorCode != "" || !same {
+		a.retireLocalKeyboardLocked()
 		a.clearSessionReadyLocked()
 	}
 	if result.ErrorCode != "" {
 		return
 	}
-	if !samePlayHIDSession(a.session, result) {
+	if !same {
 		a.sessionTitleRequest++
 		a.sessionTitlePending = false
 		a.sessionTitleNext = time.Time{}
@@ -510,6 +640,11 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 		a.invalidateSessionDisplayLocked()
 	}
 	a.session = result
+	a.sessionRuntimeInputRetained = retained
+	if !retained {
+		// fetchSession stamps an identity that its read reported.
+		a.sessionRuntimeInputReportedAt = time.Time{}
+	}
 	a.rememberFlightLocked(result.FlightID)
 	// Keep retainedIdleLease. Soft-stop of foreground B can promote A, and
 	// a later launch can go active, while B's idle grant is still retained.
@@ -630,34 +765,35 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 	chrome := sessionChromeState(a.session.State, a.session.Execution, a.stopPhase == "stopping", retry)
 	diagnostic := chrome == sessionChromeDevelopment || (devActive && (a.session.State == "active" || a.session.State == "launching"))
 	return SessionSnapshot{
-		State:             a.session.State,
-		Chrome:            chrome,
-		GameID:            a.session.GameID,
-		Title:             title,
-		System:            a.session.System,
-		Coleco:            a.colecoSessionLocked(),
-		Execution:         a.session.Execution,
-		Media:             a.session.Media,
-		InputState:        inputState,
-		InputHint:         remoteInputHint(a.session, a.inputBusy, a.inputAction, a.affinity.current.Kind),
-		InputBusy:         a.inputBusy || remoteInputTransitioning(inputState),
-		Progress:          progress,
-		Stopping:          a.stopPhase == "stopping",
-		RetryStop:         retry,
-		RetryHint:         strings.TrimSpace(a.retryStopHint),
-		RetryCode:         strings.TrimSpace(a.retryStopCode),
-		LaunchLocked:      a.sessionStopOfferedLocked() || a.launch.Phase == "launching" || a.developmentLoadingLocked(),
-		Events:            events,
-		DevelopmentActive: devActive,
-		DevelopmentState:  devState,
-		Diagnostic:        diagnostic,
-		LoadTape:          a.sessionLiveMediaOfferedLocked(),
-		ControlsNotice:    a.roomSessionNotice,
-		ControlsOpen:      a.roomDuringPlay,
-		MediaSelector:     a.needsSessionDisplayLocked() && (a.sessionLiveMediaOfferedLocked() || a.mediaControlsDirect),
-		KeypadSelect:      a.sessionKeypadLocked(),
-		KeyboardHID:       a.forwardsKeyboardHIDLocked(),
-		HardwareRoom:      a.playingHardwareRoomAvailableLocked(),
+		State:               a.session.State,
+		Chrome:              chrome,
+		GameID:              a.session.GameID,
+		Title:               title,
+		System:              a.session.System,
+		Coleco:              a.colecoSessionLocked(),
+		Execution:           a.session.Execution,
+		Media:               a.session.Media,
+		InputState:          inputState,
+		InputHint:           remoteInputHint(a.session, a.inputBusy, a.inputAction, a.affinity.current.Kind),
+		InputBusy:           a.inputBusy || remoteInputTransitioning(inputState),
+		Progress:            progress,
+		Stopping:            a.stopPhase == "stopping",
+		RetryStop:           retry,
+		RetryHint:           strings.TrimSpace(a.retryStopHint),
+		RetryCode:           strings.TrimSpace(a.retryStopCode),
+		LaunchLocked:        a.sessionStopOfferedLocked() || a.launch.Phase == "launching" || a.developmentLoadingLocked(),
+		Events:              events,
+		DevelopmentActive:   devActive,
+		DevelopmentState:    devState,
+		Diagnostic:          diagnostic,
+		LoadTape:            a.sessionLiveMediaOfferedLocked(),
+		ControlsNotice:      a.roomSessionNotice,
+		ControlsOpen:        a.roomDuringPlay,
+		MediaSelector:       a.needsSessionDisplayLocked() && (a.sessionLiveMediaOfferedLocked() || a.mediaControlsDirect),
+		KeypadSelect:        a.sessionKeypadLocked(),
+		KeyboardHID:         a.forwardsKeyboardHIDLocked(),
+		KeyboardUnavailable: a.kitLocalKeyboardUnavailableLocked(),
+		HardwareRoom:        a.playingHardwareRoomAvailableLocked(),
 	}
 }
 
@@ -715,7 +851,7 @@ func (a *App) fetchSessionEvents(ctx context.Context) {
 }
 
 func kitLeaseFromConnection(connection hostclient.TargetConnection) KitLeaseStatus {
-	status := KitLeaseStatus{State: connection.State, Owner: connection.Owner, Reason: connection.Message}
+	status := KitLeaseStatus{State: connection.State, Owner: connection.Owner, Reason: connection.Message, Generation: connection.LeaseGeneration}
 	switch connection.State {
 	case "busy":
 		status.State = "held"

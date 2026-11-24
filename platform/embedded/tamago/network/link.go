@@ -32,10 +32,14 @@ type Link struct {
 
 // Handles may be copied; all mutable ownership remains in this private object.
 type linkState struct {
-	failure atomic.Pointer[linkFailure]
-	io      sync.RWMutex
-	paused  atomic.Bool
-	claimed atomic.Bool
+	failure       atomic.Pointer[linkFailure]
+	io            sync.RWMutex
+	paused        atomic.Bool
+	claimed       atomic.Bool
+	renewerActive atomic.Bool
+	tapMu         sync.Mutex
+	nextTapID     uint64
+	taps          map[uint64]func([]byte)
 }
 
 func NewLink(stack *gnet.LnetoStack, device gnet.NetworkDevice, address, mac, gateway string) (*Link, error) {
@@ -77,6 +81,16 @@ func (l *Link) Err() error {
 	return nil
 }
 func (l *Link) fail(err error) { l.state.failure.CompareAndSwap(nil, &linkFailure{err: err}) }
+
+func (l *Link) claimRenewer() bool {
+	return l != nil && l.state != nil && l.state.renewerActive.CompareAndSwap(false, true)
+}
+
+func (l *Link) releaseRenewer() {
+	if l != nil && l.state != nil {
+		l.state.renewerActive.Store(false)
+	}
+}
 func (l *Link) transmit(buf []byte) {
 	if !l.enter() {
 		return
@@ -101,6 +115,72 @@ func (l *Link) transmit(buf []byte) {
 		l.fail(err)
 	}
 }
+
+// SendRawFrame transmits one raw Ethernet frame while obeying the link's
+// software pause gate and DMA failure contract.
+func (l *Link) SendRawFrame(frame []byte) error {
+	if l == nil || l.state == nil || l.device == nil {
+		return ErrControl
+	}
+	if len(frame) < 14 || len(frame) > 1518 {
+		return errors.New("network: invalid raw frame length")
+	}
+	if err := l.Available(); err != nil {
+		return err
+	}
+	if !l.enter() {
+		if err := l.Available(); err != nil {
+			return err
+		}
+		return ErrPaused
+	}
+	defer l.state.io.RUnlock()
+	if err := l.device.Transmit(frame); err != nil {
+		l.fail(err)
+		return err
+	}
+	return nil
+}
+
+// AddTap registers a non-blocking callback invoked with a copy of each inbound
+// Ethernet frame received by Link.Start. Call the returned function to remove
+// the tap (idempotent).
+func (l *Link) AddTap(fn func([]byte)) func() {
+	if l == nil || l.state == nil || fn == nil {
+		return func() {}
+	}
+	l.state.tapMu.Lock()
+	if l.state.taps == nil {
+		l.state.taps = make(map[uint64]func([]byte))
+	}
+	l.state.nextTapID++
+	id := l.state.nextTapID
+	l.state.taps[id] = fn
+	l.state.tapMu.Unlock()
+	return func() {
+		l.state.tapMu.Lock()
+		delete(l.state.taps, id)
+		l.state.tapMu.Unlock()
+	}
+}
+
+func (l *Link) dispatchTaps(frame []byte) {
+	l.state.tapMu.Lock()
+	if len(l.state.taps) == 0 {
+		l.state.tapMu.Unlock()
+		return
+	}
+	callbacks := make([]func([]byte), 0, len(l.state.taps))
+	for _, fn := range l.state.taps {
+		callbacks = append(callbacks, fn)
+	}
+	l.state.tapMu.Unlock()
+	cp := append([]byte(nil), frame...)
+	for _, fn := range callbacks {
+		fn(cp)
+	}
+}
+
 func (l *Link) Start(ctx context.Context) error {
 	defer func() {
 		if err := ctx.Err(); err != nil {
@@ -142,6 +222,7 @@ func (l *Link) Start(ctx context.Context) error {
 			runtime.Gosched()
 			continue
 		}
+		l.dispatchTaps(buf[:n])
 		// Invalid remote packets are rejected by the stack, not a device failure.
 		_ = l.stack.RecvInboundPacket(buf[:n])
 	}
