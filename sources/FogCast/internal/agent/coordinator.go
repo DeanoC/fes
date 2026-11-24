@@ -103,14 +103,19 @@ func WithSessionDisplayIPC(launcherSocket, targetID string) CoordinatorOption {
 	}
 }
 
+const defaultReadWaitTimeout = 2 * time.Second
+
 type Coordinator struct {
 	runtime                  Runtime
 	operationContext         context.Context
 	launchTimeout            time.Duration
 	coreLoadTimeout          time.Duration
 	stopTimeout              time.Duration
-	transition               chan struct{}
+	readWaitTimeout          time.Duration
 	mu                       sync.RWMutex
+	transitionActive         bool
+	readActive               bool
+	readDone                 chan struct{}
 	transitionEpoch          uint64
 	transitionEpochExhausted bool
 	status                   protocol.Status
@@ -140,7 +145,7 @@ func New(runtime Runtime, launchTimeout, stopTimeout time.Duration, options ...C
 		launchTimeout:    launchTimeout,
 		coreLoadTimeout:  launchTimeout,
 		stopTimeout:      stopTimeout,
-		transition:       make(chan struct{}, 1),
+		readWaitTimeout:  defaultReadWaitTimeout,
 		status:           protocol.Status{State: protocol.StateIdle},
 	}
 	for _, option := range options {
@@ -152,25 +157,112 @@ func New(runtime Runtime, launchTimeout, stopTimeout time.Duration, options ...C
 }
 
 func (c *Coordinator) begin() bool {
+	return c.beginContext(context.Background())
+}
+
+// beginContext reserves the exclusive transition slot immediately so no new
+// read-only runtime access can start, then waits briefly for any single
+// in-flight read to release the runtime before returning.
+func (c *Coordinator) beginContext(ctx context.Context) bool {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	select {
-	case c.transition <- struct{}{}:
-		if c.transitionEpoch == ^uint64(0) {
-			c.transitionEpochExhausted = true
-		} else {
-			c.transitionEpoch++
-		}
+	if c.transitionActive {
+		c.mu.Unlock()
+		return false
+	}
+	c.transitionActive = true
+	if c.transitionEpoch == ^uint64(0) {
+		c.transitionEpochExhausted = true
+	} else {
+		c.transitionEpoch++
+	}
+	wait := c.readDone
+	timeout := c.readWaitTimeout
+	c.mu.Unlock()
+	if wait == nil {
 		return true
-	default:
+	}
+	if timeout <= 0 {
+		timeout = defaultReadWaitTimeout
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-wait:
+		return true
+	case <-ctx.Done():
+		c.end()
+		return false
+	case <-timer.C:
+		c.end()
 		return false
 	}
 }
 
 func (c *Coordinator) end() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	<-c.transition
+	c.transitionActive = false
+	c.mu.Unlock()
+}
+
+// beginRead reserves the read-only runtime hold without taking the transition
+// slot. Reads yield immediately to any active or waiting transition, and
+// serialize against one another briefly so libmister-runtime's exclusive busy_
+// flag never rejects concurrent shelf polls.
+func (c *Coordinator) beginRead(ctx context.Context) bool {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var timer *time.Timer
+	for {
+		c.mu.Lock()
+		if c.transitionActive {
+			c.mu.Unlock()
+			if timer != nil {
+				timer.Stop()
+			}
+			return false
+		}
+		if !c.readActive {
+			c.readActive = true
+			c.readDone = make(chan struct{})
+			c.mu.Unlock()
+			if timer != nil {
+				timer.Stop()
+			}
+			return true
+		}
+		wait := c.readDone
+		timeout := c.readWaitTimeout
+		c.mu.Unlock()
+		if timer == nil {
+			if timeout <= 0 {
+				timeout = defaultReadWaitTimeout
+			}
+			timer = time.NewTimer(timeout)
+		}
+		select {
+		case <-wait:
+		case <-ctx.Done():
+			timer.Stop()
+			return false
+		case <-timer.C:
+			return false
+		}
+	}
+}
+
+func (c *Coordinator) endRead() {
+	c.mu.Lock()
+	done := c.readDone
+	c.readActive = false
+	c.readDone = nil
+	c.mu.Unlock()
+	if done != nil {
+		close(done)
+	}
 }
 
 func (c *Coordinator) set(status protocol.Status) {
@@ -197,7 +289,7 @@ type runtimeInputObserver interface {
 func (c *Coordinator) StatusWithRuntimeInput(ctx context.Context) protocol.Status {
 	c.mu.RLock()
 	status := cloneStatus(c.status)
-	epoch, transitioning := c.transitionEpoch, len(c.transition) != 0 || c.transitionEpochExhausted
+	epoch, transitioning := c.transitionEpoch, c.transitionActive || c.transitionEpochExhausted
 	c.mu.RUnlock()
 	status.RuntimeInput = nil
 	if ctx == nil || status.State != protocol.StateActive || transitioning {
@@ -212,7 +304,7 @@ func (c *Coordinator) StatusWithRuntimeInput(ctx context.Context) protocol.Statu
 	identity, err := observer.ObserveRuntimeInput(bounded)
 	c.mu.RLock()
 	current := cloneStatus(c.status)
-	transitioned := c.transitionEpochExhausted || c.transitionEpoch != epoch || len(c.transition) != 0
+	transitioned := c.transitionEpochExhausted || c.transitionEpoch != epoch || c.transitionActive
 	c.mu.RUnlock()
 	current.RuntimeInput = nil
 	if transitioned || !reflect.DeepEqual(status, current) {
@@ -287,7 +379,7 @@ func (c *Coordinator) Initialize(ctx context.Context) {
 
 func (c *Coordinator) LoadDevelopmentRBF(parent context.Context, size int64, content io.Reader) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceProgram, "ok", map[string]any{"operation": "development_rbf", "size": size})
-	if !c.begin() {
+	if !c.beginContext(parent) {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
 	defer c.end()
@@ -353,7 +445,7 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 
 func (c *Coordinator) loadBoundCore(parent context.Context, size int64, content io.Reader, libraryID string, machine *protocol.LibraryMachineBinding, composition ...bool) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceProgram, "ok", map[string]any{"operation": "core_package", "size": size})
-	if !c.begin() {
+	if !c.beginContext(parent) {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
 	defer c.end()
@@ -484,7 +576,7 @@ func (c *Coordinator) InspectCore(parent context.Context, size int64, content io
 
 func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceHandoff, "ok", map[string]any{"operation": "stop"})
-	if !c.begin() {
+	if !c.beginContext(parent) {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
 	defer c.end()
@@ -593,7 +685,7 @@ func runtimeStopReady(runtime Runtime) bool {
 
 func (c *Coordinator) RebootDevelopment(parent context.Context) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceRecovery, "warn", map[string]any{"operation": "development_reboot"})
-	if !c.begin() {
+	if !c.beginContext(parent) {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
 	defer c.end()
