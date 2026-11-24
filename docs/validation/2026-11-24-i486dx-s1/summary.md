@@ -227,3 +227,19 @@ see [quake.md](quake.md).
 - **No kit run, no D12 proof for the DE25 netlist, no seal.**
 - **The cuts' saving inside the machine** is not measured (G3, above).
 - **CPI with the 387 in use** (Quake) is not measured.
+
+## Note, 24 Nov 2026: #2187's final head
+
+#2187's final head `4d4e3d907` (Codex clean) is merged here (`fc986dbfa`). Since
+`884b5959c` it pins the table's SOURCES, tightens `COPY` and narrows each
+crossing basis to what its SDC collects. That moves the DE25 producer's
+`BUILD_ID`, so the fitted package (`da9f008e…`, of `a36169588`) is not
+this head's; G3's record stays of `a36169588` and is not refitted. A table
+check applies the new table to the four seeds' own reports:
+[`table_check.py`](table_check.py) runs the producer gate's review
+(`machine_findings.review` and its QSF assignment check, less the
+record-source binding, which is of the fitted revision) on each seed's
+`golden_top.tq.drc.signoff.rpt`, compiled SDC and QSF. **All four pass**
+([fits/attempt2/table-4d4e3d907.txt](fits/attempt2/table-4d4e3d907.txt)):
+`window-base` covers 9 rows on each seed, `window-fault-record` 0, and every
+other group as before.
