@@ -611,27 +611,49 @@ func TestSingleActiveRenewerEnforcement(t *testing.T) {
 		LeaseDuration: 40 * time.Millisecond,
 	}
 
-	// 1. Direct *Link ownership rejects a second renewer until the first stops.
+	// 1. Pre-start rejections (discarded idle handle, nil or cancelled context) never leak *Link ownership.
+	cancelledCtx, cancelNow := context.WithCancel(context.Background())
+	cancelNow()
+	idleDirect, err := NewLeaseRenewer(link, clientMACStr, initial, RenewConfig{RetryInterval: 5 * time.Millisecond})
+	if err != nil {
+		t.Fatalf("idleDirect: %v", err)
+	}
+	if err := idleDirect.Start(nil); !errors.Is(err, ErrDHCPInvalidConfig) {
+		t.Fatalf("Start(nil) err=%v, want ErrDHCPInvalidConfig", err)
+	}
+	if err := idleDirect.Start(cancelledCtx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Start(cancelled) err=%v, want context.Canceled", err)
+	}
+
+	// 2. Direct *Link ownership allows only one started renewer at a time; stopping a
+	//    rejected handle must not release the active renewer's ownership.
 	direct1, err := NewLeaseRenewer(link, clientMACStr, initial, RenewConfig{RetryInterval: 5 * time.Millisecond})
 	if err != nil {
 		t.Fatalf("direct1: %v", err)
 	}
-	if _, err := NewLeaseRenewer(link, clientMACStr, initial, RenewConfig{RetryInterval: 5 * time.Millisecond}); !errors.Is(err, ErrRenewerActive) {
-		t.Fatalf("concurrent direct NewLeaseRenewer err=%v, want ErrRenewerActive", err)
+	direct2, err := NewLeaseRenewer(link, clientMACStr, initial, RenewConfig{RetryInterval: 5 * time.Millisecond})
+	if err != nil {
+		t.Fatalf("direct2: %v", err)
 	}
-	// Stopping an unstarted renewer releases ownership and prevents later Start.
+	if err := direct1.Start(context.Background()); err != nil {
+		t.Fatalf("direct1.Start: %v", err)
+	}
+	if err := direct2.Start(context.Background()); !errors.Is(err, ErrRenewerActive) {
+		t.Fatalf("concurrent direct2.Start err=%v, want ErrRenewerActive", err)
+	}
+	direct2.Stop()
+	if err := idleDirect.Start(context.Background()); !errors.Is(err, ErrRenewerActive) {
+		t.Fatalf("idleDirect.Start while direct1 still active err=%v, want ErrRenewerActive", err)
+	}
 	direct1.Stop()
-	if err := direct1.Start(context.Background()); !errors.Is(err, ErrRenewerStopped) {
-		t.Fatalf("Start after Stop err=%v, want ErrRenewerStopped", err)
-	}
 
-	// 2. interfaceLease enforces one active renewer, synchronizes renewed lease/AcquiredAt,
-	//    and releases ownership cleanly on Stop() and on context cancellation.
+	// 3. interfaceLease enforces one active renewer, synchronizes renewed lease/AcquiredAt
+	//    even to pre-created handles started later, and releases cleanly on Stop() or ctx cancel.
 	var state interfaceLease
 	if _, ok := state.get(); ok {
 		t.Fatal("uninitialized interfaceLease reported hasLease=true")
 	}
-	if _, err := state.newRenewer(link, clientMACStr, RenewConfig{}, nil); !errors.Is(err, ErrDHCPInvalidConfig) {
+	if _, err := state.newRenewer(link, clientMACStr, RenewConfig{}, nil, nil); !errors.Is(err, ErrDHCPInvalidConfig) {
 		t.Fatalf("newRenewer without lease err=%v, want ErrDHCPInvalidConfig", err)
 	}
 
@@ -644,6 +666,15 @@ func TestSingleActiveRenewerEnforcement(t *testing.T) {
 			makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &serverIP, 1800), false))
 	}
 
+	// Pre-start rejection on interfaceLease must not leak ownership.
+	badStart, err := state.newRenewer(port, clientMACStr, RenewConfig{RetryInterval: 5 * time.Millisecond}, nil, nil)
+	if err != nil {
+		t.Fatalf("badStart: %v", err)
+	}
+	if err := badStart.Start(cancelledCtx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("badStart.Start(cancelled) err=%v, want context.Canceled", err)
+	}
+
 	ren1, err := state.newRenewer(port, clientMACStr, RenewConfig{
 		RetryInterval: 5 * time.Millisecond,
 		OnRenew: func(l DHCPLease) {
@@ -652,18 +683,21 @@ func TestSingleActiveRenewerEnforcement(t *testing.T) {
 			default:
 			}
 		},
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("state.newRenewer(1): %v", err)
 	}
-	if _, err := state.newRenewer(port, clientMACStr, RenewConfig{}, nil); !errors.Is(err, ErrRenewerActive) {
-		t.Fatalf("concurrent state.newRenewer(2) before Start err=%v, want ErrRenewerActive", err)
+	// Construct ren2 before ren1 starts; ren2 must be rejected while ren1 is active,
+	// and once ren1 stops, ren2 must refresh to ren1's synchronized 1800s lease on Start.
+	ren2, err := state.newRenewer(link, clientMACStr, RenewConfig{RetryInterval: 5 * time.Millisecond}, nil, nil)
+	if err != nil {
+		t.Fatalf("state.newRenewer(2): %v", err)
 	}
 	if err := ren1.Start(context.Background()); err != nil {
 		t.Fatalf("ren1.Start: %v", err)
 	}
-	if _, err := state.newRenewer(port, clientMACStr, RenewConfig{}, nil); !errors.Is(err, ErrRenewerActive) {
-		t.Fatalf("concurrent state.newRenewer(2) while running err=%v, want ErrRenewerActive", err)
+	if err := ren2.Start(context.Background()); !errors.Is(err, ErrRenewerActive) {
+		t.Fatalf("concurrent ren2.Start while ren1 active err=%v, want ErrRenewerActive", err)
 	}
 	select {
 	case <-renewedCh:
@@ -672,21 +706,16 @@ func TestSingleActiveRenewerEnforcement(t *testing.T) {
 	}
 	ren1.Stop()
 
-	// After ren1 stops, a replacement renewer succeeds and inherits the synchronized 1800s lease.
 	gotLease, ok := state.get()
 	if !ok || gotLease.LeaseDuration != 1800*time.Second {
 		t.Fatalf("state.get()=(%+v, %t), want 1800s lease", gotLease, ok)
 	}
 	ctx2, cancel2 := context.WithCancel(context.Background())
-	ren2, err := state.newRenewer(link, clientMACStr, RenewConfig{RetryInterval: 5 * time.Millisecond}, nil)
-	if err != nil {
-		t.Fatalf("state.newRenewer(2) after Stop: %v", err)
+	if err := ren2.Start(ctx2); err != nil {
+		t.Fatalf("ren2.Start after ren1.Stop: %v", err)
 	}
 	if ren2.Lease().LeaseDuration != 1800*time.Second {
-		t.Fatalf("ren2 inherited lease=%v, want 1800s", ren2.Lease().LeaseDuration)
-	}
-	if err := ren2.Start(ctx2); err != nil {
-		t.Fatalf("ren2.Start: %v", err)
+		t.Fatalf("ren2 lease after Start=%v, want refreshed 1800s", ren2.Lease().LeaseDuration)
 	}
 	// Cancelling ren2's context releases both interfaceLease and *Link ownership on loop exit.
 	cancel2()
@@ -694,9 +723,12 @@ func TestSingleActiveRenewerEnforcement(t *testing.T) {
 	for ren2.Running() && time.Now().Before(deadline) {
 		time.Sleep(2 * time.Millisecond)
 	}
-	ren3, err := state.newRenewer(link, clientMACStr, RenewConfig{RetryInterval: 5 * time.Millisecond}, nil)
+	ren3, err := state.newRenewer(link, clientMACStr, RenewConfig{RetryInterval: 5 * time.Millisecond}, nil, nil)
 	if err != nil {
 		t.Fatalf("state.newRenewer(3) after ctx cancel: %v", err)
+	}
+	if err := ren3.Start(context.Background()); err != nil {
+		t.Fatalf("ren3.Start after ren2 ctx cancel: %v", err)
 	}
 	ren3.Stop()
 }
@@ -765,7 +797,7 @@ func TestRenewalAnchorsLeaseAtRequestSendTime(t *testing.T) {
 					default:
 					}
 				},
-			}, nil)
+			}, nil, nil)
 			if err != nil {
 				t.Fatalf("newRenewer: %v", err)
 			}

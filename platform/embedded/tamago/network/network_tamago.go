@@ -173,11 +173,11 @@ func (i *Interface) Lease() (DHCPLease, bool) {
 
 // NewLeaseRenewer creates an opt-in RFC 2131 DHCPv4 T1/T2 LeaseRenewer wired
 // to this interface's active *Link (preserving its pause/DMA failure gate and
-// original lease acquisition timestamp). Only one LeaseRenewer may own the
-// interface at a time (concurrent calls fail with ErrRenewerActive until the
-// active renewer stops or exits). Successful renewals synchronize back to
-// Interface.Lease() and future NewLeaseRenewer calls. If the lease expires,
-// is NAK'd, or changes IP/gateway, the interface and link are halted immediately
+// original lease acquisition timestamp). Only one LeaseRenewer may be active on
+// the interface at a time (concurrent Start calls fail with ErrRenewerActive
+// until the active renewer stops or exits). Successful renewals synchronize back
+// to Interface.Lease() and future renewer starts. If the lease expires, is
+// NAK'd, or changes IP/gateway, the interface and link are halted immediately
 // per RFC 2131 §4.4.5 so traffic stops using the unleased address.
 // Returns ErrDHCPInvalidConfig if the interface was not opened via DHCP.
 func (i *Interface) NewLeaseRenewer(cfg RenewConfig) (*LeaseRenewer, error) {
@@ -187,7 +187,7 @@ func (i *Interface) NewLeaseRenewer(cfg RenewConfig) (*LeaseRenewer, error) {
 	if err := i.Err(); err != nil {
 		return nil, err
 	}
-	return i.leaseState.newRenewer(i.bridge, i.device.MAC(), cfg, func(err error) {
+	return i.leaseState.newRenewer(i.bridge, i.device.MAC(), cfg, i.Err, func(err error) {
 		i.bridge.fail(err)
 		if i.stop != nil {
 			i.stop(err)
