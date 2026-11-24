@@ -484,6 +484,9 @@ func (h *MultiHost) isSingleTTHubBusy(hubAddr uint32, excludeCh int) bool {
 }
 
 func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
+	if h.fault != nil {
+		return h.fault
+	}
 	s := &h.slots[ch]
 	in := s.ep.In()
 	epType := uint32(s.ep.TransferType) & 3
@@ -706,6 +709,9 @@ func (h *MultiHost) Service() error {
 		}
 		if s.armed {
 			h.stepChannel(ch, now)
+			if h.fault != nil {
+				return h.fault
+			}
 		}
 		if s.fault != nil || s.armed {
 			continue
@@ -970,6 +976,9 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 				}
 				if s.armed {
 					h.stepChannel(ch, now)
+					if h.fault != nil {
+						return 0, h.fault
+					}
 				}
 				if s.fault == nil && !s.armed && s.waitingSplit && s.completeSplit {
 					if err := h.armSlot(ch, true); err != nil {
@@ -1390,6 +1399,9 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 	for ch := 1; ch < h.channels; ch++ {
 		if h.slots[ch].allocated && h.slots[ch].armed {
 			h.stepChannel(ch, now)
+			if h.fault != nil {
+				return h.fault
+			}
 		}
 	}
 	if h.fault != nil {
@@ -1476,6 +1488,9 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 				}
 				if s.armed {
 					h.stepChannel(ch, t)
+					if h.fault != nil {
+						return h.fault
+					}
 				}
 				if s.fault != nil {
 					continue

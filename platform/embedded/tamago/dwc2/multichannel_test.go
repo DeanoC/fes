@@ -2741,3 +2741,58 @@ func TestMultiHostHubRecoveryRetriesFailedPortPower(t *testing.T) {
 		t.Fatalf("expected repowerRetries cleared after success, got %d", host.hubs[0].repowerRetries)
 	}
 }
+
+func TestMultiHostServiceStopsArmingAfterControllerFault(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	bt := newSimBTDongle()
+	sim.attachRoot(bt)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected attach event, got %+v ok=%v", ev, ok)
+	}
+	hciIf, _ := ev.Device.Config.FindInterface(0xe0, 0x01, 0x01)
+	ep1, _ := hciIf.FindEndpoint(usb.TransferInterrupt, true)
+	ep2, _ := hciIf.FindEndpoint(usb.TransferBulk, true)
+
+	p1, err := host.OpenPipe(ev.Device.Address, ep1)
+	if err != nil {
+		t.Fatalf("OpenPipe(ch1): %v", err)
+	}
+	p2, err := host.OpenPipe(ev.Device.Address, ep2)
+	if err != nil {
+		t.Fatalf("OpenPipe(ch2): %v", err)
+	}
+	mp1, mp2 := p1.(*multiPipe), p2.(*multiPipe)
+
+	// Make ch1 appear armed with a fatal STALL while wedged so stepChannel(ch1)
+	// fails haltChannel and latches h.fault. ch2 is unarmed and due; Service()
+	// MUST return h.fault immediately and NEVER arm ch2.
+	sim.mu.Lock()
+	sim.wedgeSet = true
+	sim.wedgeCh = mp1.ch
+	sim.regs[chReg(mp1.ch, hcchar)] = channelEnable
+	sim.regs[chReg(mp1.ch, hcint)] = 1 << 3 // STALL
+	sim.regs[chReg(mp2.ch, hcchar)] = 0
+	sim.mu.Unlock()
+	host.slots[mp1.ch].armed = true
+	host.slots[mp2.ch].armed = false
+	host.slots[mp2.ch].nextDue = sim.Now().Add(-time.Millisecond)
+
+	if err := host.Service(); err == nil {
+		t.Fatal("Service succeeded despite wedged halt controller fault on ch1")
+	}
+	if host.slots[mp2.ch].armed {
+		t.Fatal("Service armed ch2 after stepChannel(ch1) latched a controller fault")
+	}
+	sim.mu.Lock()
+	ch2HCCHAR := sim.regs[chReg(mp2.ch, hcchar)]
+	sim.mu.Unlock()
+	if ch2HCCHAR&channelEnable != 0 {
+		t.Fatalf("ch2 hardware channel was enabled after controller fault: hcchar=%#x", ch2HCCHAR)
+	}
+}
