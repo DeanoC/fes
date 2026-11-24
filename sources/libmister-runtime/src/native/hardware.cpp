@@ -1986,6 +1986,8 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		fpga_.ProgramStatic(admitted->opened_.payload,
 			admitted->static_composition_->persona(admitted->opened_),
 			admitted->static_composition_->info, Deadline(clock_, timeouts_.program_ms)) :
+		hps_window_ && RequiresHpsDdr(admitted->opened_.descriptor) ?
+		fpga_.ProgramWindowMachine(*bitstream, admitted->profile_, Deadline(clock_, timeouts_.program_ms)) :
 		fpga_.Program(*bitstream, admitted->profile_, Deadline(clock_, timeouts_.program_ms));
 	ObserveProgram("load_core", programmed);
 	if (!programmed.error.ok()) {

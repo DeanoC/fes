@@ -286,6 +286,13 @@ public:
 		assert(base.size()==selection.base_size && persona.size()==selection.persona_size);
 		return Program(base,mister::native::ProgrammingProfile::de25_linux_static_computer_v1,deadline);
 	}
+	mister::native::NativeResult ProgramWindowMachine(const mister::native::Artifact& artifact,
+		mister::native::ProgrammingProfile profile, std::uint64_t deadline) override
+	{
+		events_.push_back("fpga.window");++window_calls;
+		return Program(artifact,profile,deadline);
+	}
+	unsigned window_calls=0;
 	bool supports_static=false;
 	unsigned static_calls=0;
 	mister::CoreStaticComposition static_selection;
@@ -3340,7 +3347,9 @@ void TestDe25WindowIsGrantedPerSession()
 		}
 		if (!error.ok()) fprintf(stderr, "window load: %s\n", error.message.c_str());
 		assert(error.ok());
-		// Opened after identity, before execution; never the DE10 port path.
+		// Programmed with the window block declared, opened after identity,
+		// before execution; never the DE10 port path.
+		assert(fixture.native.fpga.window_calls == 1);
 		assert(fixture.native.fpga.hps_ddr_calls == 0);
 		assert(Find(driver_events, "driver.identify") < Find(driver_events, "window.allocate"));
 		assert(Find(driver_events, "window.allocate") < Find(driver_events, "driver.start"));

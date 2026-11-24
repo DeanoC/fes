@@ -61,6 +61,13 @@ public:
 	virtual NativeResult Program(const Artifact&,
 		ProgrammingProfile,
 		std::uint64_t absolute_deadline_ms) = 0;
+	// A DE25 computer whose memory is a window in HPS DDR: as Program, but
+	// the configuration also declares the bitstream's window block, which
+	// the kernel owner needs before it allocates a window.
+	virtual NativeResult ProgramWindowMachine(const Artifact&, ProgrammingProfile, std::uint64_t)
+	{
+		return {{ErrorCode::unsupported_programming_profile, "window machines are unavailable", "admission"}, false};
+	}
 	virtual bool SupportsStaticComposition() const { return false; }
 	// A cold two-image launch, never an in-place persona replacement.
 	virtual NativeResult ProgramStatic(const Artifact&, const Artifact&,
