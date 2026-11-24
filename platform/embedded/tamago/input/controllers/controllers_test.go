@@ -198,8 +198,12 @@ func TestSwitchProCalibrationAndFullReportAndSubcommands(t *testing.T) {
 	binary.LittleEndian.PutUint16(basic[6:8], 32768)
 	binary.LittleEndian.PutUint16(basic[8:10], 32768)
 	binary.LittleEndian.PutUint16(basic[10:12], 32768)
-	if !ParseSwitchProInput(basic[:], &cal, &st) || st.Buttons != (ButtonEast|ButtonDPadLeft) || st.LeftX != 0 {
+	if !ParseSwitchProInput(basic[:], &cal, &st) || st.Buttons != (ButtonEast|ButtonDPadLeft) || st.LeftX != 0 || st.LeftTrigger != 0 || st.RightTrigger != 0 {
 		t.Fatalf("unexpected Switch Pro 0x3F state: %+v", st)
+	}
+	basic[1] = 0x40 | 0x80 // ZL(L2) + ZR(R2)
+	if !ParseSwitchProInput(basic[:], &cal, &st) || st.Buttons != (ButtonL2|ButtonR2|ButtonDPadLeft) || st.LeftTrigger != 255 || st.RightTrigger != 255 {
+		t.Fatalf("expected Switch Pro 0x3F ZL/ZR triggers=255, got %+v", st)
 	}
 
 	// Subcommand builders

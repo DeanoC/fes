@@ -57,6 +57,7 @@ type l2capMockBus struct {
 	failName       bool
 	failCancelConn bool
 	failCancelInq  bool
+	manualAuth     bool
 	scanEnable     byte
 }
 
@@ -133,6 +134,20 @@ func (b *l2capMockBus) ControlTransfer(_ uint8, reqType, req byte, _, _ uint16, 
 		b.lastParams[op] = append([]byte(nil), data[3:]...)
 		if op == hci.OpcodeWriteScanEnable && len(data) >= 4 {
 			b.scanEnable = data[3]
+		}
+		if op == hci.OpcodeAuthenticationRequested && len(data) >= 5 {
+			b.evPipe.inQueue = append(b.evPipe.inQueue, []byte{hci.EventCommandStatus, 4, 0x00, 1, byte(op), byte(op >> 8)})
+			if !b.manualAuth {
+				b.evPipe.inQueue = append(b.evPipe.inQueue, []byte{hci.EventAuthenticationComplete, 3, 0x00, data[3], data[4]})
+			}
+			return len(data), nil
+		}
+		if op == hci.OpcodeSetConnectionEncryption && len(data) >= 6 {
+			b.evPipe.inQueue = append(b.evPipe.inQueue, []byte{hci.EventCommandStatus, 4, 0x00, 1, byte(op), byte(op >> 8)})
+			if !b.manualAuth {
+				b.evPipe.inQueue = append(b.evPipe.inQueue, []byte{hci.EventEncryptionChange, 4, 0x00, data[3], data[4], data[5]})
+			}
+			return len(data), nil
 		}
 		ev := []byte{hci.EventCommandComplete, 4, 1, byte(op), byte(op >> 8), 0}
 		if op == hci.OpcodeReadLocalVersion {
@@ -1484,6 +1499,7 @@ func TestPairingModeReplacesStaleLinkKeyAndRecoversOnAuthFailure(t *testing.T) {
 	if err := mgr.Service(); err != nil {
 		t.Fatal(err)
 	}
+	bus.manualAuth = true
 	connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x4b, 0x00}, dev2[:]...)
 	connOK = append(connOK, 0x01, 0x01)
 	authFail := []byte{hci.EventAuthenticationComplete, 3, 0x05, 0x4b, 0x00}
@@ -1834,5 +1850,169 @@ func TestSetPairingModeReopenReusesActiveInquiry(t *testing.T) {
 	}
 	if got := countInquiry(); got != 1 {
 		t.Fatalf("expected 1 total StartInquiry across reopen, got %d", got)
+	}
+}
+
+func TestHIDChannelsRequireAuthenticationAndEncryption(t *testing.T) {
+	bus := newL2CAPMockBus()
+	bus.manualAuth = true
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(2600, 0)
+	bonds := NewBondStore()
+	peer, _ := ParseBDAddr("12:34:56:78:9A:BC")
+	_ = bonds.Upsert(BondRecord{
+		Addr:    peer,
+		LinkKey: [16]byte{9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4},
+		Name:    "DualSense Wireless Controller",
+		Kind:    controllers.KindDualSense,
+	})
+	mgr, err := NewManager(tr, bonds, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var opened []uint16
+	var hidPayloads int
+	mgr.OnChannelOpen = func(_ uint16, _ BDAddr, _ string, _ controllers.Kind, psm uint16) {
+		opened = append(opened, psm)
+	}
+	mgr.OnHIDControl = func(_ uint16, _ []byte) {
+		hidPayloads++
+	}
+
+	// 1. Spoofed bonded peer connects with ACL unencrypted/unauthenticated and
+	// sends incoming sigConnReq(PSMHIDControl) + premature sigConfigReq before auth finishes.
+	conn1 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, peer[:]...)
+	conn1 = append(conn1, 0x01, 0x00)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, conn1)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bus.lastParams[hci.OpcodeAuthenticationRequested]; len(got) < 2 || binary.LittleEndian.Uint16(got[:2]) != 0x0041 {
+		t.Fatalf("expected AuthenticationRequested on handle 0x0041, got %x", got)
+	}
+	if err := mgr.OpenChannel(0x0041, PSMHIDControl); err == nil {
+		t.Fatal("expected OpenChannel(PSMHIDControl) to fail before auth+encryption")
+	}
+
+	bus.aclOutPipe.outLog = nil
+	sigConnCtrl := []byte{sigConnReq, 1, 4, 0, 0x11, 0x00, 0x55, 0x00}
+	sigCfgPremature := []byte{sigConfigReq, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeACLPacket(0x0041, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, sigConnCtrl),
+		makeACLPacket(0x0041, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, sigCfgPremature),
+	)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	var sawPending, sawCfgRspEarly bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) >= 20 && pkt[8] == sigConnRsp && binary.LittleEndian.Uint16(pkt[16:18]) == 0x0001 && binary.LittleEndian.Uint16(pkt[18:20]) == 0x0001 {
+			sawPending = true
+		}
+		if len(pkt) >= 12 && pkt[8] == sigConfigRsp {
+			sawCfgRspEarly = true
+		}
+	}
+	if !sawPending || sawCfgRspEarly {
+		t.Fatalf("expected Pending/AuthPending (0x0001/0x0001) and no premature ConfigRsp; pending=%t cfgRspEarly=%t out=%x", sawPending, sawCfgRspEarly, bus.aclOutPipe.outLog)
+	}
+
+	// Authentication failure rejects parked channel with Security Block (0x0003) and disconnects handle.
+	bus.aclOutPipe.outLog = nil
+	delete(bus.lastParams, hci.OpcodeDisconnect)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventAuthenticationComplete, 3, 0x05, 0x41, 0x00})
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	var sawSecBlock bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) >= 20 && pkt[8] == sigConnRsp && binary.LittleEndian.Uint16(pkt[16:18]) == 0x0003 {
+			sawSecBlock = true
+		}
+	}
+	if !sawSecBlock || len(opened) != 0 {
+		t.Fatalf("expected SecurityBlock (0x0003) and no open channels, block=%t opened=%v", sawSecBlock, opened)
+	}
+	if disc := bus.lastParams[hci.OpcodeDisconnect]; len(disc) < 3 || binary.LittleEndian.Uint16(disc[:2]) != 0x0041 || disc[2] != 0x05 {
+		t.Fatalf("expected Disconnect(0x0041, 0x05) on auth failure, got %x", disc)
+	}
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventDisconnectionComplete, 4, 0, 0x41, 0x00, 0x05})
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Legitimate peer reconnect: parks sigConnReq as Pending while Auth runs,
+	// stays blocked during SetConnectionEncryption, then promotes & opens after EncryptionChange(1).
+	conn2 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x42, 0x00}, peer[:]...)
+	conn2 = append(conn2, 0x01, 0x00)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, conn2)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeACLPacket(0x0042, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConnReq, 3, 4, 0, 0x11, 0x00, 0x56, 0x00}),
+	)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	delete(bus.lastParams, hci.OpcodeSetConnectionEncryption)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventAuthenticationComplete, 3, 0x00, 0x42, 0x00})
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bus.lastParams[hci.OpcodeSetConnectionEncryption]; len(got) < 3 || binary.LittleEndian.Uint16(got[:2]) != 0x0042 || got[2] != 0x01 {
+		t.Fatalf("expected SetConnectionEncryption(0x0042, 1) after AuthComplete, got %x", got)
+	}
+	if err := mgr.OpenChannel(0x0042, PSMHIDInterrupt); err == nil {
+		t.Fatal("expected OpenChannel(PSMHIDInterrupt) to fail before EncryptionChange")
+	}
+
+	bus.aclOutPipe.outLog = nil
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventEncryptionChange, 4, 0x00, 0x42, 0x00, 0x01})
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	var sawSuccess, sawCfgReq bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) >= 20 && pkt[8] == sigConnRsp && binary.LittleEndian.Uint16(pkt[16:18]) == 0x0000 {
+			sawSuccess = true
+		}
+		if len(pkt) >= 16 && pkt[8] == sigConfigReq {
+			sawCfgReq = true
+		}
+	}
+	if !sawSuccess || !sawCfgReq {
+		t.Fatalf("expected promoted sigConnRsp(Success) and sigConfigReq after EncryptionChange, success=%t cfg=%t", sawSuccess, sawCfgReq)
+	}
+	// Remote finishes L2CAP config (localCID=0x0040 allocated by parked conn).
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeACLPacket(0x0042, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConfigReq, 4, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeACLPacket(0x0042, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConfigRsp, 2, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if len(opened) != 1 || opened[0] != PSMHIDControl {
+		t.Fatalf("expected PSMHIDControl open after auth+enc, got %v", opened)
+	}
+
+	// 3. Mid-session encryption downgrade (enc=0) disconnects and immediately drops HID PDUs.
+	delete(bus.lastParams, hci.OpcodeDisconnect)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventEncryptionChange, 4, 0x00, 0x42, 0x00, 0x00})
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeACLPacket(0x0042, hci.ACLBoundaryFirstAutoFlush, 0x0040, []byte{0xa1, 0x01}),
+	)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if disc := bus.lastParams[hci.OpcodeDisconnect]; len(disc) < 3 || binary.LittleEndian.Uint16(disc[:2]) != 0x0042 || disc[2] != 0x05 {
+		t.Fatalf("expected Disconnect(0x0042, 0x05) on encryption downgrade, got %x", disc)
+	}
+	if hidPayloads != 0 {
+		t.Fatalf("expected HID PDU after encryption downgrade to be dropped, got %d", hidPayloads)
 	}
 }

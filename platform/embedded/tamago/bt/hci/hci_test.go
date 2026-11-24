@@ -737,3 +737,94 @@ func TestInitializeFailsWhenReadBufferSizeFailsOrInvalid(t *testing.T) {
 		})
 	}
 }
+
+func TestSendCommandPreservesProtocolEventsUnderBurst(t *testing.T) {
+	// 1. Inquiry scan flood interleaved with DisconnectionComplete and
+	// LinkKeyNotification before CommandComplete must keep both protocol events in FIFO order.
+	bus := newMockBTBus(0x0a12, 0x0001, 0)
+	bus.rtlVersion = 0x22bb
+	tr, err := Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+
+	inqEv := func(b byte) []byte {
+		ev := make([]byte, 2+15)
+		ev[0] = EventExtendedInquiryResult
+		ev[1] = 15
+		ev[2] = 1
+		ev[3] = b
+		return ev
+	}
+	discEv := []byte{EventDisconnectionComplete, 4, 0, 0x41, 0x00, 0x13}
+	lkEv := make([]byte, 2+23)
+	lkEv[0] = EventLinkKeyNotification
+	lkEv[1] = 23
+	lkEv[2] = 0xaa
+
+	for i := 0; i < 20; i++ {
+		bus.evPipe.pushIn(inqEv(byte(i)))
+	}
+	bus.evPipe.pushIn(discEv)
+	for i := 20; i < 40; i++ {
+		bus.evPipe.pushIn(inqEv(byte(i)))
+	}
+	bus.evPipe.pushIn(lkEv)
+
+	var resp [4]byte
+	if _, err := tr.SendCommand(OpcodeWriteScanEnable, []byte{ScanPageOnly}, resp[:]); err != nil {
+		t.Fatalf("SendCommand under inquiry flood: %v", err)
+	}
+
+	var gotProto []byte
+	for range 12 {
+		if err := tr.Service(func(ev []byte) {
+			if ev[0] == EventDisconnectionComplete || ev[0] == EventLinkKeyNotification {
+				gotProto = append(gotProto, ev[0])
+			}
+		}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !bytes.Equal(gotProto, []byte{EventDisconnectionComplete, EventLinkKeyNotification}) {
+		t.Fatalf("lost or reordered protocol events under inquiry flood: got %x", gotProto)
+	}
+
+	// 2. Overflow (> maxDeferredEvents) of pure DisconnectionComplete events must
+	// still preserve every handle in strict FIFO order without silent eviction.
+	const totalDisc = maxDeferredEvents + 8
+	for i := 0; i < totalDisc; i++ {
+		h := uint16(0x0040 + i)
+		bus.evPipe.pushIn([]byte{EventDisconnectionComplete, 4, 0, byte(h), byte(h >> 8), 0x13})
+	}
+	if _, err := tr.SendCommand(OpcodeWriteScanEnable, []byte{ScanPageOnly}, resp[:]); err != nil {
+		t.Fatalf("SendCommand under disconnect burst: %v", err)
+	}
+	var gotHandles []uint16
+	for len(gotHandles) < totalDisc {
+		prev := len(gotHandles)
+		if err := tr.Service(func(ev []byte) {
+			if ev[0] == EventDisconnectionComplete && len(ev) >= 5 {
+				gotHandles = append(gotHandles, binary.LittleEndian.Uint16(ev[3:5]))
+			}
+		}, nil); err != nil {
+			t.Fatal(err)
+		}
+		if len(gotHandles) == prev {
+			break
+		}
+	}
+	if len(gotHandles) != totalDisc {
+		t.Fatalf("expected %d deferred DisconnectionComplete events, got %d", totalDisc, len(gotHandles))
+	}
+	for i, h := range gotHandles {
+		want := uint16(0x0040 + i)
+		if h != want {
+			t.Fatalf("deferred handle[%d]=%#04x, want %#04x", i, h, want)
+		}
+	}
+}

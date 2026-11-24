@@ -162,8 +162,94 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 
 const (
 	maxNameRetries   uint8 = 5
+	maxSecRetries    uint8 = 3
 	nameRetryBackoff       = 250 * time.Millisecond
 )
+
+func (m *Manager) requestAuthentication(conn *aclConn) {
+	if conn == nil || !conn.active || conn.authenticated {
+		return
+	}
+	conn.authRequested = true
+	conn.secRetryPending = false
+	conn.secRetryAt = time.Time{}
+	if err := m.tr.AuthenticationRequested(conn.handle); err != nil {
+		conn.authRequested = false
+		if conn.secRetries < maxSecRetries {
+			conn.secRetries++
+			conn.secRetryPending = true
+			conn.secRetryAt = m.now().Add(nameRetryBackoff)
+		} else {
+			m.failConnSecurity(conn)
+		}
+	}
+}
+
+func (m *Manager) requestEncryption(conn *aclConn) {
+	if conn == nil || !conn.active || !conn.authenticated || conn.encrypted {
+		return
+	}
+	conn.encRequested = true
+	conn.secRetryPending = false
+	conn.secRetryAt = time.Time{}
+	if err := m.tr.SetConnectionEncryption(conn.handle, true); err != nil {
+		conn.encRequested = false
+		if conn.secRetries < maxSecRetries {
+			conn.secRetries++
+			conn.secRetryPending = true
+			conn.secRetryAt = m.now().Add(nameRetryBackoff)
+		} else {
+			m.failConnSecurity(conn)
+		}
+	}
+}
+
+func (m *Manager) onConnSecured(conn *aclConn) {
+	if conn == nil || !conn.active || !conn.secured() {
+		return
+	}
+	for i := range conn.chans {
+		ch := &conn.chans[i]
+		if ch.inUse && ch.awaitingAuth {
+			ch.awaitingAuth = false
+			ch.pendingAuthRsp = false
+			ch.pendingConnRsp = true
+			ch.pendingCfg = true
+			m.pumpChannelSignaling(conn, ch)
+		}
+	}
+	if conn.hostInitiated && conn.findByPSM(PSMHIDControl) == nil {
+		if err := m.OpenChannel(conn.handle, PSMHIDControl); err != nil {
+			conn.pendingOpenPSM = PSMHIDControl
+		}
+	}
+}
+
+func (m *Manager) failConnSecurity(conn *aclConn) {
+	if conn == nil || !conn.active {
+		return
+	}
+	for i := range conn.chans {
+		ch := &conn.chans[i]
+		if ch.inUse && ch.awaitingAuth {
+			var rsp [8]byte
+			binary.LittleEndian.PutUint16(rsp[2:4], ch.remoteCID)
+			binary.LittleEndian.PutUint16(rsp[4:6], 0x0003) // Connection refused - security block
+			m.sendOrQueueSig(conn, sigConnRsp, ch.pendingConnRspID, rsp[:])
+			*ch = l2capChannel{}
+		}
+	}
+	conn.authenticated = false
+	conn.encrypted = false
+	conn.authRequested = false
+	conn.encRequested = false
+	conn.secRetryPending = false
+	conn.secRetryAt = time.Time{}
+	conn.pendingOpenPSM = 0
+	conn.pendingOpenSDP = false
+	conn.sdpSendPending = false
+	_ = m.tr.Disconnect(conn.handle, 0x05)
+}
 
 func (m *Manager) requestRemoteName(conn *aclConn) {
 	if conn == nil {
@@ -229,10 +315,20 @@ func (m *Manager) Service() error {
 		if !conn.active {
 			continue
 		}
+		if conn.secRetryPending && !conn.secRetryAt.IsZero() && !m.now().Before(conn.secRetryAt) {
+			if !conn.authenticated {
+				m.requestAuthentication(conn)
+			} else if !conn.encrypted {
+				m.requestEncryption(conn)
+			} else {
+				conn.secRetryPending = false
+				conn.secRetryAt = time.Time{}
+			}
+		}
 		if conn.namePending && !conn.nameRetryAt.IsZero() && !m.now().Before(conn.nameRetryAt) {
 			m.requestRemoteName(conn)
 		}
-		if conn.pendingOpenPSM != 0 {
+		if conn.pendingOpenPSM != 0 && conn.secured() {
 			if err := m.OpenChannel(conn.handle, conn.pendingOpenPSM); err == nil {
 				conn.pendingOpenPSM = 0
 			}
@@ -248,7 +344,7 @@ func (m *Manager) Service() error {
 		m.pumpConnSignaling(conn)
 		for j := range conn.chans {
 			ch := &conn.chans[j]
-			if ch.inUse && (ch.pendingConnRsp || ch.pendingCfg || ch.pendingCfgRsp) {
+			if ch.inUse && (ch.pendingAuthRsp || ch.pendingConnRsp || ch.pendingCfg || ch.pendingCfgRsp) {
 				m.pumpChannelSignaling(conn, ch)
 			}
 		}
@@ -409,11 +505,9 @@ func (m *Manager) handleEvent(ev []byte) {
 		if conn.kind == controllers.KindUnknown || conn.name == "" {
 			m.requestRemoteName(conn)
 		}
-		if conn.hostInitiated {
-			if err := m.OpenChannel(handle, PSMHIDControl); err != nil {
-				conn.pendingOpenPSM = PSMHIDControl
-			}
-		}
+		// Require explicit link authentication + encryption before opening or
+		// accepting HID Control/Interrupt L2CAP channels.
+		m.requestAuthentication(conn)
 
 	case hci.EventDisconnectionComplete:
 		// [0]=status [1..2]=handle [3]=reason
@@ -625,14 +719,58 @@ func (m *Manager) handleEvent(ev []byte) {
 
 	case hci.EventAuthenticationComplete:
 		// [0]=status [1..2]=handle
-		if len(params) < 3 || params[0] == 0 {
+		if len(params) < 3 {
 			return
 		}
 		handle := binary.LittleEndian.Uint16(params[1:3]) & 0x0fff
-		if conn := m.findConnByHandle(handle); conn != nil && m.connecting && m.connectAddr == conn.addr {
-			m.connecting = false
-			m.connectAddr = BDAddr{}
+		conn := m.findConnByHandle(handle)
+		if params[0] != 0 {
+			if conn != nil {
+				if m.connecting && m.connectAddr == conn.addr {
+					m.connecting = false
+					m.connectAddr = BDAddr{}
+				}
+				m.failConnSecurity(conn)
+			}
+			m.resumeInquiryIfPairing()
+			return
 		}
-		m.resumeInquiryIfPairing()
+		if conn == nil {
+			return
+		}
+		conn.authRequested = false
+		conn.secRetries = 0
+		conn.secRetryPending = false
+		conn.secRetryAt = time.Time{}
+		conn.authenticated = true
+		if conn.encrypted {
+			m.onConnSecured(conn)
+			return
+		}
+		m.requestEncryption(conn)
+
+	case hci.EventEncryptionChange:
+		// [0]=status [1..2]=handle [3]=encryption_enabled
+		if len(params) < 4 {
+			return
+		}
+		handle := binary.LittleEndian.Uint16(params[1:3]) & 0x0fff
+		conn := m.findConnByHandle(handle)
+		if conn == nil {
+			return
+		}
+		if params[0] != 0 || params[3] == 0 {
+			m.failConnSecurity(conn)
+			m.resumeInquiryIfPairing()
+			return
+		}
+		conn.encRequested = false
+		conn.secRetries = 0
+		conn.secRetryPending = false
+		conn.secRetryAt = time.Time{}
+		conn.encrypted = true
+		if conn.authenticated {
+			m.onConnSecured(conn)
+		}
 	}
 }

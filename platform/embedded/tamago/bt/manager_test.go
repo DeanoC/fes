@@ -105,6 +105,22 @@ func (b *mgrBus) ControlTransfer(_ uint8, reqType, req byte, _, _ uint16, data [
 			b.failScanDisable = false
 			ev = []byte{hci.EventCommandComplete, 4, 1, byte(op), byte(op >> 8), 0x0c}
 		}
+	case hci.OpcodeAuthenticationRequested:
+		if len(data) >= 5 {
+			b.evPipe.inQueue = append(b.evPipe.inQueue,
+				[]byte{hci.EventCommandStatus, 4, 0x00, 1, byte(op), byte(op >> 8)},
+				[]byte{hci.EventAuthenticationComplete, 3, 0x00, data[3], data[4]},
+			)
+			return len(data), nil
+		}
+	case hci.OpcodeSetConnectionEncryption:
+		if len(data) >= 6 {
+			b.evPipe.inQueue = append(b.evPipe.inQueue,
+				[]byte{hci.EventCommandStatus, 4, 0x00, 1, byte(op), byte(op >> 8)},
+				[]byte{hci.EventEncryptionChange, 4, 0x00, data[3], data[4], data[5]},
+			)
+			return len(data), nil
+		}
 	}
 	b.evPipe.inQueue = append(b.evPipe.inQueue, ev)
 	return len(data), nil

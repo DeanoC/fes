@@ -38,6 +38,8 @@ type l2capChannel struct {
 	psm              uint16
 	localCID         uint16
 	remoteCID        uint16
+	awaitingAuth     bool
+	pendingAuthRsp   bool
 	pendingConnRsp   bool
 	pendingConnRspID byte
 	pendingCfg       bool
@@ -56,30 +58,37 @@ type pendingSigFrame struct {
 }
 
 type aclConn struct {
-	active         bool
-	handle         uint16
-	addr           BDAddr
-	name           string
-	kind           controllers.Kind
-	vendorID       uint16
-	productID      uint16
-	hostInitiated  bool
-	pendingOpenPSM uint16
-	sdpQueried     bool
-	pendingOpenSDP bool
-	sdpSendPending bool
-	sdpTxID        uint16
-	sdpCont        [16]byte
-	sdpContLen     uint8
-	sdpContCount   uint8
-	sdpBuf         [256]byte
-	sdpBufLen      int
-	sigQ           [8]pendingSigFrame
-	sigQHead       int
-	sigQCount      int
-	namePending    bool
-	nameRetries    uint8
-	nameRetryAt    time.Time
+	active          bool
+	handle          uint16
+	addr            BDAddr
+	name            string
+	kind            controllers.Kind
+	vendorID        uint16
+	productID       uint16
+	hostInitiated   bool
+	authenticated   bool
+	encrypted       bool
+	authRequested   bool
+	encRequested    bool
+	secRetryPending bool
+	secRetries      uint8
+	secRetryAt      time.Time
+	pendingOpenPSM  uint16
+	sdpQueried      bool
+	pendingOpenSDP  bool
+	sdpSendPending  bool
+	sdpTxID         uint16
+	sdpCont         [16]byte
+	sdpContLen      uint8
+	sdpContCount    uint8
+	sdpBuf          [256]byte
+	sdpBufLen       int
+	sigQ            [8]pendingSigFrame
+	sigQHead        int
+	sigQCount       int
+	namePending     bool
+	nameRetries     uint8
+	nameRetryAt     time.Time
 
 	chans   [maxChansPerConn]l2capChannel
 	nextCID uint16
@@ -91,6 +100,14 @@ type aclConn struct {
 	reasmWant int
 	reasmCID  uint16
 	reasmLive bool
+}
+
+func (c *aclConn) secured() bool {
+	return c.authenticated && c.encrypted
+}
+
+func (c *aclConn) securityInProgress() bool {
+	return !c.secured() && (c.authRequested || c.encRequested || c.secRetryPending)
 }
 
 func (c *aclConn) allocSigID() byte {
@@ -198,10 +215,16 @@ func (m *Manager) dispatchPDU(conn *aclConn, cid uint16, payload []byte) {
 	case PSMSDP:
 		m.handleSDPPDU(conn, ch, payload)
 	case PSMHIDControl:
+		if !conn.secured() {
+			return
+		}
 		if m.OnHIDControl != nil {
 			m.OnHIDControl(conn.handle, payload)
 		}
 	case PSMHIDInterrupt:
+		if !conn.secured() {
+			return
+		}
 		if m.OnHIDInterrupt != nil {
 			m.OnHIDInterrupt(conn.handle, payload)
 		}
@@ -273,6 +296,9 @@ func (m *Manager) OpenChannel(handle, psm uint16) error {
 	if conn == nil {
 		return fmt.Errorf("bt/l2cap: unknown handle %#04x", handle)
 	}
+	if (psm == PSMHIDControl || psm == PSMHIDInterrupt) && !conn.secured() {
+		return errors.New("bt/l2cap: HID channel requires authenticated and encrypted link")
+	}
 	if ch := conn.findByPSM(psm); ch != nil {
 		return nil // Already opening or open
 	}
@@ -305,6 +331,17 @@ func (m *Manager) SendChannel(handle, psm uint16, payload []byte) error {
 }
 
 func (m *Manager) pumpChannelSignaling(conn *aclConn, ch *l2capChannel) {
+	if ch.pendingAuthRsp {
+		var rsp [8]byte
+		binary.LittleEndian.PutUint16(rsp[0:2], ch.localCID)
+		binary.LittleEndian.PutUint16(rsp[2:4], ch.remoteCID)
+		binary.LittleEndian.PutUint16(rsp[4:6], 0x0001) // Connection pending
+		binary.LittleEndian.PutUint16(rsp[6:8], 0x0001) // Authentication pending
+		if err := m.sendSig(conn.handle, sigConnRsp, ch.pendingConnRspID, rsp[:]); err != nil {
+			return
+		}
+		ch.pendingAuthRsp = false
+	}
 	if ch.pendingConnRsp {
 		var rsp [8]byte
 		binary.LittleEndian.PutUint16(rsp[0:2], ch.localCID)
@@ -394,6 +431,25 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 				m.sendOrQueueSig(conn, sigConnRsp, id, rsp[:])
 				continue
 			}
+			if (psm == PSMHIDControl || psm == PSMHIDInterrupt) && !conn.secured() {
+				if !conn.securityInProgress() {
+					binary.LittleEndian.PutUint16(rsp[4:6], 0x0003) // Connection refused - security block
+					m.sendOrQueueSig(conn, sigConnRsp, id, rsp[:])
+					continue
+				}
+				ch := conn.allocChannel(psm)
+				if ch == nil {
+					binary.LittleEndian.PutUint16(rsp[4:6], 0x0004) // No resources
+					m.sendOrQueueSig(conn, sigConnRsp, id, rsp[:])
+					continue
+				}
+				ch.remoteCID = srcCID
+				ch.awaitingAuth = true
+				ch.pendingAuthRsp = true
+				ch.pendingConnRspID = id
+				m.pumpChannelSignaling(conn, ch)
+				continue
+			}
 			ch := conn.allocChannel(psm)
 			if ch == nil {
 				binary.LittleEndian.PutUint16(rsp[4:6], 0x0004) // No resources
@@ -434,6 +490,9 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 			if ch == nil {
 				continue
 			}
+			if (ch.psm == PSMHIDControl || ch.psm == PSMHIDInterrupt) && (!conn.secured() || ch.awaitingAuth) {
+				continue
+			}
 			ch.pendingCfgRsp = true
 			ch.pendingCfgRspID = id
 			m.pumpChannelSignaling(conn, ch)
@@ -446,6 +505,9 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 			result := binary.LittleEndian.Uint16(body[4:6])
 			ch := conn.findByLocalCID(srcCID)
 			if ch != nil && result == 0x0000 {
+				if (ch.psm == PSMHIDControl || ch.psm == PSMHIDInterrupt) && (!conn.secured() || ch.awaitingAuth) {
+					continue
+				}
 				ch.localCfgOK = true
 				m.checkChannelOpen(conn, ch)
 			}

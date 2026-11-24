@@ -106,6 +106,18 @@ func (b *hidpMockBus) ControlTransfer(_ uint8, reqType, req byte, _, _ uint16, d
 			ev = []byte{hci.EventCommandComplete, 10, 1, byte(op), byte(op >> 8), 0, 1, 2, 3, 4, 5, 6}
 		} else if op == hci.OpcodeWriteScanEnable && len(data) >= 4 {
 			b.scanEnable = data[3]
+		} else if op == hci.OpcodeAuthenticationRequested && len(data) >= 5 {
+			b.evPipe.inQueue = append(b.evPipe.inQueue,
+				[]byte{hci.EventCommandStatus, 4, 0x00, 1, byte(op), byte(op >> 8)},
+				[]byte{hci.EventAuthenticationComplete, 3, 0x00, data[3], data[4]},
+			)
+			return len(data), nil
+		} else if op == hci.OpcodeSetConnectionEncryption && len(data) >= 6 {
+			b.evPipe.inQueue = append(b.evPipe.inQueue,
+				[]byte{hci.EventCommandStatus, 4, 0x00, 1, byte(op), byte(op >> 8)},
+				[]byte{hci.EventEncryptionChange, 4, 0x00, data[3], data[4], data[5]},
+			)
+			return len(data), nil
 		}
 		b.evPipe.inQueue = append(b.evPipe.inQueue, ev)
 	}

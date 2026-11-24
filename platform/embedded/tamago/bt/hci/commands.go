@@ -18,6 +18,8 @@ const (
 	OpcodeRejectConnectionRequest   uint16 = 0x040a
 	OpcodeLinkKeyRequestReply       uint16 = 0x040b
 	OpcodeLinkKeyRequestNegReply    uint16 = 0x040c
+	OpcodeAuthenticationRequested   uint16 = 0x0411
+	OpcodeSetConnectionEncryption   uint16 = 0x0413
 	OpcodeRemoteNameRequest         uint16 = 0x0419
 	OpcodeIOCapabilityRequestReply  uint16 = 0x042b
 	OpcodeUserConfirmRequestReply   uint16 = 0x042c
@@ -50,6 +52,7 @@ const (
 	EventDisconnectionComplete      byte = 0x05
 	EventAuthenticationComplete     byte = 0x06
 	EventRemoteNameRequestComplete  byte = 0x07
+	EventEncryptionChange           byte = 0x08
 	EventCommandComplete            byte = 0x0e
 	EventCommandStatus              byte = 0x0f
 	EventNumCompletedPackets        byte = 0x13
@@ -158,6 +161,23 @@ func (t *Transport) Disconnect(handle uint16, reason byte) error {
 	binary.LittleEndian.PutUint16(params[0:2], handle&0x0fff)
 	params[2] = reason
 	return t.sendStatusCommand(OpcodeDisconnect, params[:])
+}
+
+// AuthenticationRequested initiates link-key / SSP authentication on an ACL handle.
+func (t *Transport) AuthenticationRequested(handle uint16) error {
+	var params [2]byte
+	binary.LittleEndian.PutUint16(params[0:2], handle&0x0fff)
+	return t.sendStatusCommand(OpcodeAuthenticationRequested, params[:])
+}
+
+// SetConnectionEncryption enables or disables link encryption on an authenticated ACL handle.
+func (t *Transport) SetConnectionEncryption(handle uint16, enable bool) error {
+	var params [3]byte
+	binary.LittleEndian.PutUint16(params[0:2], handle&0x0fff)
+	if enable {
+		params[2] = 0x01
+	}
+	return t.sendStatusCommand(OpcodeSetConnectionEncryption, params[:])
 }
 
 // StartInquiry begins a bounded Classic BT inquiry scan (length * 1.28 s).

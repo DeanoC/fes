@@ -271,6 +271,16 @@ func ParseSwitchProInput(report []byte, cal *SwitchStickCal, out *State) bool {
 		out.LeftY = int16(int32(binary.LittleEndian.Uint16(report[6:8])) - 32768)
 		out.RightX = int16(int32(binary.LittleEndian.Uint16(report[8:10])) - 32768)
 		out.RightY = int16(int32(binary.LittleEndian.Uint16(report[10:12])) - 32768)
+		if b&ButtonL2 != 0 {
+			out.LeftTrigger = 255
+		} else {
+			out.LeftTrigger = 0
+		}
+		if b&ButtonR2 != 0 {
+			out.RightTrigger = 255
+		} else {
+			out.RightTrigger = 0
+		}
 		return true
 	default:
 		return false

@@ -11,12 +11,14 @@ import (
 )
 
 const (
-	maxHCIEventBytes  = 260
-	maxHCICmdBytes    = 258
-	maxACLUSBPacket   = 512
-	maxACLRxBytes     = 1028
-	maxACLTxQueue     = 16
-	defaultCmdTimeout = 2 * time.Second
+	maxHCIEventBytes    = 260
+	maxHCICmdBytes      = 258
+	maxACLUSBPacket     = 512
+	maxACLRxBytes       = 1028
+	maxACLTxQueue       = 16
+	maxDeferredEvents   = 32
+	maxDeferredOverflow = 256
+	defaultCmdTimeout   = 2 * time.Second
 )
 
 type aclTxFrame struct {
@@ -75,10 +77,11 @@ type Transport struct {
 	outstanding [8]handleCredits
 
 	// Deferred events received while waiting synchronously for Command Complete.
-	deferred      [8][maxHCIEventBytes]byte
-	deferredLen   [8]int
-	deferredHead  int
-	deferredCount int
+	deferred         [maxDeferredEvents][maxHCIEventBytes]byte
+	deferredLen      [maxDeferredEvents]int
+	deferredHead     int
+	deferredCount    int
+	deferredOverflow [][]byte
 }
 
 // Open binds a discovered USB Bluetooth HCI device on bus and allocates its 3
@@ -160,18 +163,51 @@ func (t *Transport) Close() error {
 	return firstErr
 }
 
+func isDroppableScanEvent(code byte) bool {
+	return code == EventInquiryResult || code == EventInquiryResultWithRSSI || code == EventExtendedInquiryResult
+}
+
 func (t *Transport) queueDeferredEvent(ev []byte) {
 	if len(ev) == 0 || len(ev) > maxHCIEventBytes {
 		return
 	}
-	if t.deferredCount == len(t.deferred) {
-		t.deferredHead = (t.deferredHead + 1) % len(t.deferred)
-		t.deferredCount--
+	// Preserve strict FIFO ordering: once overflow holds older events, continue
+	// appending non-scan events to overflow rather than inserting ahead of it.
+	if len(t.deferredOverflow) == 0 && t.deferredCount < len(t.deferred) {
+		idx := (t.deferredHead + t.deferredCount) % len(t.deferred)
+		copy(t.deferred[idx][:], ev)
+		t.deferredLen[idx] = len(ev)
+		t.deferredCount++
+		return
 	}
-	idx := (t.deferredHead + t.deferredCount) % len(t.deferred)
-	copy(t.deferred[idx][:], ev)
-	t.deferredLen[idx] = len(ev)
-	t.deferredCount++
+	if isDroppableScanEvent(ev[0]) {
+		return
+	}
+	if len(t.deferredOverflow) == 0 && t.deferredCount == len(t.deferred) {
+		dropIdx := -1
+		for i := 0; i < t.deferredCount; i++ {
+			slot := (t.deferredHead + i) % len(t.deferred)
+			if isDroppableScanEvent(t.deferred[slot][0]) {
+				dropIdx = i
+				break
+			}
+		}
+		if dropIdx >= 0 {
+			for i := dropIdx; i < t.deferredCount-1; i++ {
+				dst := (t.deferredHead + i) % len(t.deferred)
+				src := (t.deferredHead + i + 1) % len(t.deferred)
+				t.deferredLen[dst] = copy(t.deferred[dst][:], t.deferred[src][:t.deferredLen[src]])
+			}
+			tail := (t.deferredHead + t.deferredCount - 1) % len(t.deferred)
+			copy(t.deferred[tail][:], ev)
+			t.deferredLen[tail] = len(ev)
+			return
+		}
+	}
+	if len(t.deferredOverflow) >= maxDeferredOverflow {
+		return
+	}
+	t.deferredOverflow = append(t.deferredOverflow, append([]byte(nil), ev...))
 }
 
 // SendCommand transmits one HCI command via USB EP0 Class Control OUT
@@ -636,6 +672,18 @@ func (t *Transport) Service(onEvent func(ev []byte), onACL func(handle uint16, p
 			n := copy(t.evDispatch[:], t.deferred[idx][:t.deferredLen[idx]])
 			t.deferredHead = (t.deferredHead + 1) % len(t.deferred)
 			t.deferredCount--
+			if onEvent != nil {
+				onEvent(t.evDispatch[:n])
+			}
+			continue
+		}
+		if len(t.deferredOverflow) > 0 {
+			n := copy(t.evDispatch[:], t.deferredOverflow[0])
+			t.deferredOverflow[0] = nil
+			t.deferredOverflow = t.deferredOverflow[1:]
+			if len(t.deferredOverflow) == 0 {
+				t.deferredOverflow = nil
+			}
 			if onEvent != nil {
 				onEvent(t.evDispatch[:n])
 			}
