@@ -40,8 +40,9 @@ type multiSimDevice struct {
 	failSetIfaceCount int
 	// Count of CLEAR_FEATURE(ENDPOINT_HALT) requests per endpoint address
 	clearHaltCount map[uint8]int
-	// Reject SET_PORT_FEATURE(PORT_POWER) with STALL (models always-powered hub)
-	stallPortPower bool
+	// Reject SET_PORT_FEATURE(PORT_POWER) with STALL (models always-powered hub or transient failure)
+	stallPortPower     bool
+	failPortPowerCount int
 }
 
 func newSimHub(ports int, multiTT bool) *multiSimDevice {
@@ -478,7 +479,10 @@ func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 				s.ctrl.dev.addr = newAddr
 				s.byAddr[newAddr] = s.ctrl.dev
 			}
-			if s.ctrl.reqType == 0x23 && s.ctrl.req == 3 && s.ctrl.value == 8 && s.ctrl.dev.stallPortPower {
+			if s.ctrl.reqType == 0x23 && s.ctrl.req == 3 && s.ctrl.value == 8 && (s.ctrl.dev.stallPortPower || s.ctrl.dev.failPortPowerCount > 0) {
+				if s.ctrl.dev.failPortPowerCount > 0 {
+					s.ctrl.dev.failPortPowerCount--
+				}
 				s.ctrl = nil
 				s.regs[chReg(0, hcchar)] &^= channelEnable
 				s.regs[chReg(0, hcint)] |= 1<<3 | 1<<1 // STALL
@@ -2678,5 +2682,62 @@ func TestMultiHostHubRecoveryWaitsPowerGoodDelay(t *testing.T) {
 	}
 	if maxStep < 120*time.Millisecond {
 		t.Fatalf("hub recovery did not wait bPwrOn2PwrGood (120ms) after PORT_POWER: maxServiceStep=%s", maxStep)
+	}
+}
+
+func TestMultiHostHubRecoveryRetriesFailedPortPower(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	pad := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	for {
+		if _, ok := host.NextEvent(); !ok {
+			break
+		}
+	}
+
+	// Trigger hub overcurrent to detach child.
+	sim.mu.Lock()
+	hub.hubStatus = (1 << 1) | (1 << 17)
+	sim.mu.Unlock()
+	for range 25 {
+		sim.advance(25 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+		if ev, ok := host.NextEvent(); ok && ev.Kind == usb.DeviceDetached {
+			break
+		}
+	}
+
+	// Fail the first recovery PORT_POWER transiently; the hub must schedule a
+	// bounded repower retry instead of dropping the downstream child.
+	sim.mu.Lock()
+	hub.failPortPowerCount = 1
+	hub.hubStatus = 1 << 17 // C_HUB_OVER_CURRENT set, HUB_OVER_CURRENT cleared
+	sim.mu.Unlock()
+
+	var reattached bool
+	for range 40 {
+		sim.advance(25 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+		if ev, ok := host.NextEvent(); ok && ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			reattached = true
+			break
+		}
+	}
+	if !reattached {
+		t.Fatal("downstream gamepad was not recovered after transient PORT_POWER failure")
+	}
+	if host.hubs[0].repowerRetries != 0 {
+		t.Fatalf("expected repowerRetries cleared after success, got %d", host.hubs[0].repowerRetries)
 	}
 }

@@ -138,6 +138,8 @@ type multiHub struct {
 	statusNeedsReset bool
 	statusPipe       *multiPipe
 	statusRetryAt    time.Time
+	repowerRetries   uint8
+	repowerRetryAt   time.Time
 	retryCount       [maxHubPorts + 1]uint8
 	retryAt          [maxHubPorts + 1]time.Time
 }

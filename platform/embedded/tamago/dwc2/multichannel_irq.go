@@ -195,7 +195,7 @@ func (h *MultiHost) armMultiIRQ(now time.Time) {
 			needSOF = true
 		} else {
 			for _, hub := range h.hubs {
-				if hub.statusPipe == nil {
+				if hub.statusPipe == nil || hub.repowerRetries > 0 {
 					needSOF = true
 					break
 				}
