@@ -1487,10 +1487,16 @@ Error NativeHardware::FlushAtaDiskSave()
 	std::vector<std::uint32_t> dirty;
 	Error error = driver->AtaDiskControl(generated::FesComputerDiskControlFreeze, deadline);
 	// A window that faulted is fatal to its contract: none of its chunks is
-	// stored over the last good save.
-	// The disk was loaded through the window, so it is open here.
-	if (error.ok() && hps_window_) error = hps_window_->Blocking();
-	if (error.ok() && hps_window_) error = hps_window_->Check();
+	// stored over the last good save. Freeze fences only the guest's disk
+	// writes, so the other ports run on: the window is checked before the
+	// chunks are read and again before they are published. The disk was
+	// loaded through the window, so it is open here.
+	const auto check_window = [&] {
+		Error checked = hps_window_ ? hps_window_->Blocking() : Error{};
+		if (checked.ok() && hps_window_) checked = hps_window_->Check();
+		return checked;
+	};
+	if (error.ok()) error = check_window();
 	if (error.ok()) error = driver->ReadAtaDirty(deadline, &dirty);
 	constexpr std::uint32_t kChunk = generated::FesComputerAtaDiskChunkBytes;
 	std::vector<AtaDeltaChunk> changed;
@@ -1503,6 +1509,7 @@ Error NativeHardware::FlushAtaDiskSave()
 			kChunk, [&](unsigned char* window) { return ata_delta_file_->WriteChunk(window, length, &sha256); });
 		if (error.ok()) changed.push_back({index, sha256});
 	}
+	if (error.ok()) error = check_window();
 	AtaDiskDelta current;
 	if (error.ok()) error = ata_delta_file_->Read(&current);
 	if (error.ok() && !changed.empty())

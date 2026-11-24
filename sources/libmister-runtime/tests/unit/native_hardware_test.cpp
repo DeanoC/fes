@@ -799,6 +799,7 @@ public:
 			return {};
 		}
 		++revokes;
+		if (on_disk_revoke) on_disk_revoke();
 		return {};
 	}
 	mister::Error Duplicate(int, int*) override { return {mister::ErrorCode::io_failed, "unused"}; }
@@ -807,7 +808,7 @@ public:
 	std::uint64_t guest_offset = 0;
 	std::vector<std::pair<std::uint64_t, std::uint64_t>> grants;
 	std::vector<GuestGrant> guest_grants;
-	std::function<void()> on_guest_revoke;
+	std::function<void()> on_guest_revoke, on_disk_revoke;
 	unsigned revokes = 0, closes = 0;
 };
 
@@ -4037,13 +4038,13 @@ void TestPc386LibraryRecordAndWallClock()
 	assert(rmdir(games.c_str()) == 0);
 }
 
-// A pc386 launch writes the base image with its game's delta into the
-// window and commits it with its CRC; Stop stores the dirty chunks and
-// publishes the merged manifest; the next launch restores them over the base.
 // A window that faulted while the machine ran is fatal to its contract: Stop
-// refuses to store any of its disk chunks over the last good save.
+// refuses to store any of its disk chunks over the last good save. Disk
+// Freeze fences only guest disk writes, so a fault can also latch while the
+// dirty chunks are being read.
 void TestPc386WindowFaultRefusesTheDiskSave()
 {
+ for (const bool during_read : {false, true}) {
 	using namespace mister::native;
 	using namespace mister::native::generated;
 	const std::uint32_t caps = FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
@@ -4087,8 +4088,13 @@ void TestPc386WindowFaultRefusesTheDiskSave()
 	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &disk).ok());
 	assert(Count(events, "window.allocate") == 1 && window.Ready());
 	endpoint.GuestSectorWrite(0, 0x11);
-	owner.grant.status |= FesDe25HpsWindowStatusFault;
-	owner.grant.fault = 1u | FesDe25HpsWindowFaultOutside;
+	const auto fault = [&] {
+		owner.grant.status |= FesDe25HpsWindowStatusFault;
+		owner.grant.fault = 1u | FesDe25HpsWindowFaultOutside;
+	};
+	const unsigned load_revokes = fixture.native.disk_operations.revokes;
+	if (during_read) fixture.native.disk_operations.on_disk_revoke = fault;
+	else fault();
 	const auto stopped = fixture.runtime.Stop();
 	assert(stopped.code == mister::ErrorCode::save_failed &&
 		stopped.message.find("port 0, outside") != std::string::npos);
@@ -4101,11 +4107,24 @@ void TestPc386WindowFaultRefusesTheDiskSave()
 	assert(file->Read(&saved).ok() && saved.revision == "absent" && saved.chunks.empty());
 	assert(Count(events, "window.release") == 0 && window.Blocking().code == mister::ErrorCode::unsupported_interface);
 	file.reset();
-	assert(rmdir((media.path + "/" + MediaDataNamespace(identity)).c_str()) == 0);
+	const std::string ns = media.path + "/" + MediaDataNamespace(identity);
+	if (DIR* chunks = opendir(ns.c_str())) {
+		// Chunks read before the late fault are unreferenced: nothing published them.
+		while (const dirent* entry = readdir(chunks))
+			if (entry->d_name[0] != '.') assert(unlink((ns + "/" + entry->d_name).c_str()) == 0);
+		closedir(chunks);
+	}
+	assert(rmdir(ns.c_str()) == 0);
 	const std::string games = data.path + "/games/";
 	assert(rmdir((games + GameDataNamespace("fes.pc386", "ultima-vi")).c_str()) == 0 && rmdir(games.c_str()) == 0);
+	// The late fault came after the chunk was read: it was read, not published.
+	assert((fixture.native.disk_operations.revokes > load_revokes) == during_read);
+ }
 }
 
+// A pc386 launch writes the base image with its game's delta into the
+// window and commits it with its CRC; Stop stores the dirty chunks and
+// publishes the merged manifest; the next launch restores them over the base.
 void TestPc386AtaDiskLaunchSaveAndRestore()
 {
 	using namespace mister::native;
