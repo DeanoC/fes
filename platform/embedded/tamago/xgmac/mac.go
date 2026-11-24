@@ -92,7 +92,11 @@ const (
 )
 
 // LinkStats reports non-fatal PHY carrier transitions observed when
-// Config.RecoverLinkLoss is enabled.
+// Config.RecoverLinkLoss is enabled, including any BindControl.Start finds
+// against the link before Stop. Flaps counts losses of an up link; Recoveries
+// counts the link-ups ending them, so it never exceeds Flaps. The first link-up
+// after Open found the carrier down is reported through OnLinkChange but is not
+// a recovery.
 type LinkStats struct {
 	Flaps      uint64
 	Recoveries uint64
@@ -126,7 +130,9 @@ type Config struct {
 	// post-flap speed change. Returning an error fails the device closed.
 	OnSpeedChange func(LinkSpeed) error
 	// OnLinkChange optionally notifies callers (outside the device mutex) when
-	// carrier state or negotiated link speed changes under RecoverLinkLoss.
+	// carrier state or negotiated link speed changes under RecoverLinkLoss. A
+	// BindControl pause is no change by itself: Start reports the re-probed link
+	// when it differs from the link before Stop.
 	OnLinkChange func(up bool, speed LinkSpeed)
 }
 type failure struct{ err error }
@@ -214,6 +220,24 @@ func (d *Device) notifyLink(ev linkEvent) {
 	if ev.changed && d.config.OnLinkChange != nil {
 		d.config.OnLinkChange(ev.up, ev.speed)
 	}
+}
+
+// reportLinkLocked publishes speed (LinkSpeedDown while the carrier is down) and
+// returns the OnLinkChange event for a change from prev, the link consumers last
+// observed. Losing an up link counts a flap; a link-up counts a recovery only
+// while a counted loss is outstanding (Flaps > Recoveries), so Recoveries never
+// exceeds Flaps. Caller must hold d.mu.
+func (d *Device) reportLinkLocked(prev, speed LinkSpeed) linkEvent {
+	d.linkSpeed.Store(uint32(speed))
+	if speed == prev {
+		return linkEvent{}
+	}
+	if speed == LinkSpeedDown {
+		d.linkFlaps.Add(1)
+	} else if prev == LinkSpeedDown && d.linkFlaps.Load() > d.linkRecoveries.Load() {
+		d.linkRecoveries.Add(1)
+	}
+	return linkEvent{changed: true, up: speed != LinkSpeedDown, speed: speed}
 }
 
 func txSpeedBits(speed LinkSpeed) uint32 {
@@ -488,13 +512,8 @@ func (d *Device) health(allowLinkRecovery bool) (linkEvent, error) {
 				return linkEvent{}, d.fail(err)
 			}
 			d.nextLink = d.io.Now().Add(linkPollDown)
-			if !d.linkDown {
-				d.linkDown = true
-				d.linkSpeed.Store(uint32(LinkSpeedDown))
-				d.linkFlaps.Add(1)
-				return linkEvent{changed: true, up: false, speed: LinkSpeedDown}, nil
-			}
-			return linkEvent{}, nil
+			d.linkDown = true
+			return d.reportLinkLocked(LinkSpeed(d.linkSpeed.Load()), LinkSpeedDown), nil
 		}
 		if !allowLinkRecovery && (d.linkDown || speed != d.configuredSpeed) {
 			// Defer link-up recovery and TX MAC speed reprogramming while a TX
@@ -507,16 +526,8 @@ func (d *Device) health(allowLinkRecovery bool) (linkEvent, error) {
 			}
 		}
 		d.nextLink = d.io.Now().Add(linkPollUp)
-		wasDown := d.linkDown
-		prevSpeed := LinkSpeed(d.linkSpeed.Load())
-		if wasDown {
-			d.linkDown = false
-			d.linkRecoveries.Add(1)
-		}
-		d.linkSpeed.Store(uint32(speed))
-		if wasDown || prevSpeed != speed {
-			return linkEvent{changed: true, up: true, speed: speed}, nil
-		}
+		d.linkDown = false
+		return d.reportLinkLocked(LinkSpeed(d.linkSpeed.Load()), speed), nil
 	}
 	return linkEvent{}, nil
 }

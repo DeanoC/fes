@@ -17,6 +17,10 @@ remain rejected) and `Config.RecoverLinkLoss` (treating transient PHY carrier
 loss or ongoing autonegotiation as a non-fatal link-down state that drops
 outbound frames and recovers automatically on link-up without poisoning DMA
 memory, while DMA, engine-stop, and MDIO/PHY hardware faults still fail closed).
+A `BindControl` pause is no link change: `LinkStatus` reads down while contained,
+and `Start` reports the re-probed link through `Config.OnLinkChange` and
+`LinkCounters` when it differs from the link before `Stop`. A recovery counts
+only the return of a lost link, so `Recoveries` never exceeds `Flaps`.
 Firmware still owns PHY reset,
 autonegotiation setup, RGMII routing/delays, 125 MHz reference, MAC CSR clocks,
 reset/firewalls and SMMU configuration. There is no PHY scan or guessed address.

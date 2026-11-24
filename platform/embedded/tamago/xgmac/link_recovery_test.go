@@ -369,3 +369,184 @@ func TestRecoverLinkLossOpenAndControlCycleWhileUnplugged(t *testing.T) {
 		t.Fatalf("txConfig SS=%#x, want %#x", got, txSpeed100MII)
 	}
 }
+
+type linkChange struct {
+	up    bool
+	speed LinkSpeed
+}
+
+// TestControlRestartReportsLinkChangeAcrossPause covers BindControl.Start
+// re-probing the PHY: a link that differs from the one consumers observed before
+// Stop is reported exactly once, outside d.mu, and later polls compare against
+// it; Recoveries never exceeds Flaps.
+func TestControlRestartReportsLinkChangeAcrossPause(t *testing.T) {
+	const carrier = uint16(1 << 2)
+	unplug := func(h *hardware) { h.phy[1] &^= carrier }
+	plug := func(h *hardware) { h.phy[1] |= carrier }
+	for _, tc := range []struct {
+		name     string
+		bootDown bool
+		// script drives the device; poll forces a link probe, cycle runs Stop,
+		// the paused change, then Start.
+		script      func(h *hardware, poll func(), cycle func(paused func()))
+		wantChanges []linkChange
+		wantStats   LinkStats
+		wantSS      uint32
+	}{
+		{
+			name: "down-before-stop-up-after-start",
+			script: func(h *hardware, poll func(), cycle func(func())) {
+				unplug(h)
+				poll()
+				plug(h)
+				// Stop's own probe sees the carrier return but must defer it.
+				h.now = h.now.Add(time.Second)
+				cycle(func() {})
+				poll()
+			},
+			wantChanges: []linkChange{{false, LinkSpeedDown}, {true, LinkSpeed1000Full}},
+			wantStats:   LinkStats{Flaps: 1, Recoveries: 1},
+			wantSS:      txSpeed1000GMII,
+		},
+		{
+			name: "up-before-stop-down-after-start",
+			script: func(h *hardware, poll func(), cycle func(func())) {
+				cycle(func() { unplug(h) })
+				poll()
+				plug(h)
+				poll()
+			},
+			wantChanges: []linkChange{{false, LinkSpeedDown}, {true, LinkSpeed1000Full}},
+			wantStats:   LinkStats{Flaps: 1, Recoveries: 1},
+			wantSS:      txSpeed1000GMII,
+		},
+		{
+			name: "speed-change-across-pause",
+			script: func(h *hardware, poll func(), cycle func(func())) {
+				cycle(func() { h.phy[10] = 0 })
+				poll()
+			},
+			wantChanges: []linkChange{{true, LinkSpeed100Full}},
+			wantSS:      txSpeed100MII,
+		},
+		{
+			name: "unchanged-across-pause",
+			script: func(h *hardware, poll func(), cycle func(func())) {
+				cycle(func() {})
+				poll()
+			},
+			wantSS: txSpeed1000GMII,
+		},
+		{
+			name:     "first-link-up-after-open-down-is-no-recovery",
+			bootDown: true,
+			script: func(h *hardware, poll func(), cycle func(func())) {
+				plug(h)
+				poll()
+			},
+			wantChanges: []linkChange{{true, LinkSpeed1000Full}},
+			wantSS:      txSpeed1000GMII,
+		},
+		{
+			name:     "open-down-up-after-start-then-flap",
+			bootDown: true,
+			script: func(h *hardware, poll func(), cycle func(func())) {
+				cycle(func() { plug(h) })
+				unplug(h)
+				poll()
+				plug(h)
+				poll()
+			},
+			wantChanges: []linkChange{{true, LinkSpeed1000Full}, {false, LinkSpeedDown}, {true, LinkSpeed1000Full}},
+			wantStats:   LinkStats{Flaps: 1, Recoveries: 1},
+			wantSS:      txSpeed1000GMII,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHardware()
+			h.phy[4] = 1 << 8
+			h.phy[5] = 1 << 8
+			if tc.bootDown {
+				unplug(h)
+			}
+			var dev *Device
+			var changes []linkChange
+			cfg := configuration()
+			cfg.Allow100Full = true
+			cfg.RecoverLinkLoss = true
+			cfg.OnLinkChange = func(up bool, speed LinkSpeed) {
+				if !dev.mu.TryLock() {
+					t.Error("OnLinkChange ran under the device mutex")
+				} else {
+					dev.mu.Unlock()
+				}
+				if gotUp, gotSpeed := dev.LinkStatus(); gotUp != up || gotSpeed != speed {
+					t.Errorf("OnLinkChange(%t,%d) while LinkStatus=(%t,%d)", up, speed, gotUp, gotSpeed)
+				}
+				changes = append(changes, linkChange{up, speed})
+			}
+			var err error
+			if dev, err = Open(h, h.mem, cfg); err != nil {
+				t.Fatalf("Open: %v", err)
+			}
+			ctl, err := dev.BindControl(network.DMAControl{
+				Stop: func(context.Context) error {
+					h.regs[txControl], h.regs[rxControl], h.regs[txConfig], h.regs[rxConfig] = 0, 0, 0, 0
+					return nil
+				},
+				Start: func(context.Context) error { return nil },
+			})
+			if err != nil {
+				t.Fatalf("BindControl: %v", err)
+			}
+			poll := func() {
+				t.Helper()
+				h.now = h.now.Add(time.Second)
+				if _, err := dev.Receive(make([]byte, maxFrame)); err != nil {
+					t.Fatalf("Receive: %v", err)
+				}
+			}
+			cycle := func(paused func()) {
+				t.Helper()
+				before := len(changes)
+				if err := ctl.Stop(context.Background()); err != nil {
+					t.Fatalf("Stop: %v", err)
+				}
+				if len(changes) != before {
+					t.Fatalf("Stop reported %+v; a pause is no link change", changes[before:])
+				}
+				if up, speed := dev.LinkStatus(); up || speed != LinkSpeedDown {
+					t.Fatalf("paused LinkStatus=(%t,%d), want (false,0)", up, speed)
+				}
+				paused()
+				if err := ctl.Start(context.Background()); err != nil {
+					t.Fatalf("Start: %v", err)
+				}
+			}
+			tc.script(h, poll, cycle)
+
+			if len(changes) != len(tc.wantChanges) {
+				t.Fatalf("OnLinkChange=%+v, want %+v", changes, tc.wantChanges)
+			}
+			for i, want := range tc.wantChanges {
+				if changes[i] != want {
+					t.Fatalf("OnLinkChange[%d]=%+v, want %+v (all %+v)", i, changes[i], want, changes)
+				}
+			}
+			if got := dev.LinkCounters(); got != tc.wantStats {
+				t.Fatalf("LinkCounters=%+v, want %+v", got, tc.wantStats)
+			}
+			if dev.Err() != nil {
+				t.Fatalf("device retired: %v", dev.Err())
+			}
+			if got := h.regs[txConfig] & txSpeedMask; got != tc.wantSS {
+				t.Fatalf("txConfig SS=%#x, want %#x", got, tc.wantSS)
+			}
+			// Every scenario ends with the link up: traffic flows at that speed.
+			sent := len(h.frames)
+			if err := dev.Transmit(bytes.Repeat([]byte{0x66}, 64)); err != nil || len(h.frames) != sent+1 {
+				t.Fatalf("Transmit after restart: err=%v sent=%d", err, len(h.frames)-sent)
+			}
+		})
+	}
+}
