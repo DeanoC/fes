@@ -147,9 +147,10 @@ func readFile(ctx context.Context, v *fat.Volume, name string, size int) ([]byte
 	return io.ReadAll(io.LimitReader(contextReader{ctx: ctx, source: f}, int64(size)+1))
 }
 
-// Run creates and updates one new file, contains/resumes the same device,
-// remounts and reads it, rechecks protected files and ends contained. It is a
-// clean-restart diagnostic, not power-loss recovery or package installation.
+// Run creates one new file, atomically replaces it via copy-on-write
+// ReplaceFile, contains/resumes the same device, remounts and reads it,
+// rechecks protected files and ends contained. It is a clean-restart
+// diagnostic, not package installation.
 func Run(ctx context.Context, media Media, p Plan, log io.Writer) error {
 	if err := p.Validate(); err != nil {
 		return err
@@ -213,7 +214,7 @@ func Run(ctx context.Context, media Media, p Plan, log io.Writer) error {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = volume.WriteFile(p.Path, updated); err != nil {
+	if err = volume.ReplaceFile(ctx, p.Path, updated); err != nil {
 		return err
 	}
 	if err = verify(volume, updated); err != nil {

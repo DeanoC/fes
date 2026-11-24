@@ -98,9 +98,12 @@ func (s *Store) ReadPreferences(ctx context.Context) (data []byte, err error) {
 	return data[:offset], nil
 }
 
-// WritePreferences touches only the fixed, preallocated settings file and
-// serializes against retention/containment. The trusted filesystem's WriteFile
-// must finish its device flush before success. It cannot create package files.
+// WritePreferences touches only the existing settings file and serializes
+// against retention/containment. When the trusted filesystem supports atomic
+// copy-on-write replacement (ReplaceFile), updates commit in a single
+// directory-entry write and can grow beyond prior preallocation; otherwise it
+// falls back to in-place WriteFile. Both paths must finish their device flush
+// before success, and neither creates missing files.
 func (s *Store) WritePreferences(ctx context.Context, data []byte) error {
 	if s == nil || ctx == nil {
 		return ErrState
@@ -120,13 +123,45 @@ func (s *Store) WritePreferences(ctx context.Context, data []byte) error {
 	if !s.last.Active || !s.last.Prepared {
 		return ErrState
 	}
-	writer, ok := s.files.(interface{ WriteFile(string, []byte) error })
-	if !ok {
-		return block.ErrReadOnly
+	var err error
+	if replacer, ok := s.files.(interface {
+		ReplaceFile(context.Context, string, []byte) error
+	}); ok {
+		// ReplaceFile creates absent targets, so verify PreferencesPath already
+		// exists as a regular file before writing.
+		f, openErr := s.files.Open(PreferencesPath)
+		if openErr != nil {
+			if observed := s.observe(); observed != nil {
+				return errors.Join(openErr, observed)
+			}
+			if !errors.Is(openErr, block.ErrReadOnly) && !errors.Is(openErr, fs.ErrNotExist) {
+				return s.retire(openErr)
+			}
+			return openErr
+		}
+		info, statErr := f.Stat()
+		closeErr := f.Close()
+		if prepErr := errors.Join(statErr, closeErr); prepErr != nil {
+			if observed := s.observe(); observed != nil {
+				return errors.Join(prepErr, observed)
+			}
+			return s.retire(prepErr)
+		}
+		if !info.Mode().IsRegular() {
+			return errors.New("package store: invalid bounded preferences file")
+		}
+		// Once issued, complete the bounded filesystem replace/flush even if
+		// the requester disconnects. A context timeout is not evidence of rollback.
+		err = replacer.ReplaceFile(context.Background(), PreferencesPath, data)
+	} else {
+		writer, ok := s.files.(interface{ WriteFile(string, []byte) error })
+		if !ok {
+			return block.ErrReadOnly
+		}
+		// Once issued, complete the bounded filesystem write/flush even if the
+		// requester disconnects. A context timeout is not evidence of rollback.
+		err = writer.WriteFile(PreferencesPath, data)
 	}
-	// Once issued, complete the bounded filesystem write/flush even if the
-	// requester disconnects. A context timeout is not evidence of rollback.
-	err := writer.WriteFile(PreferencesPath, data)
 	if observed := s.observe(); observed != nil {
 		return errors.Join(err, observed)
 	}

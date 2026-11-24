@@ -195,6 +195,89 @@ func TestPreferenceWriteSerializesShutdownAndDetectsChangedLease(t *testing.T) {
 	}
 }
 
+type preferenceReplaceFiles struct {
+	*trackedFS
+	replaces int
+	writes   int
+	replace  func(context.Context, string, []byte) error
+}
+
+func (f *preferenceReplaceFiles) ReplaceFile(ctx context.Context, path string, data []byte) error {
+	f.replaces++
+	return f.replace(ctx, path, data)
+}
+
+func (f *preferenceReplaceFiles) WriteFile(string, []byte) error {
+	f.writes++
+	return errors.New("unexpected WriteFile fallback when ReplaceFile is implemented")
+}
+
+func TestPreferencesWriteUsesReplaceFileWhenSupported(t *testing.T) {
+	t.Run("replaces_existing_file_and_checks_errors", func(t *testing.T) {
+		for _, fault := range []error{nil, block.ErrReadOnly, fat.ErrCapacity, errors.New("replace flush failed")} {
+			name := "success"
+			if fault != nil {
+				name = fault.Error()
+			}
+			t.Run(name, func(t *testing.T) {
+				l := lease()
+				f := &preferenceReplaceFiles{
+					trackedFS: &trackedFS{base: fstest.MapFS{PreferencesPath: &fstest.MapFile{Data: []byte(`{}`)}}, lease: l},
+					replace: func(ctx context.Context, path string, data []byte) error {
+						if ctx == nil || ctx.Err() != nil {
+							t.Fatal("expected non-nil uncanceled context passed to ReplaceFile")
+						}
+						if path != PreferencesPath || string(data) != `{"layout":"shelf"}` {
+							t.Fatalf("unexpected ReplaceFile call: %s %q", path, data)
+						}
+						return fault
+					},
+				}
+				s, err := New(f, l)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = s.WritePreferences(context.Background(), []byte(`{"layout":"shelf"}`))
+				if !errors.Is(err, fault) {
+					t.Fatalf("err=%v want %v", err, fault)
+				}
+				if f.replaces != 1 || f.writes != 0 {
+					t.Fatalf("replaces=%d writes=%d want 1/0", f.replaces, f.writes)
+				}
+				_, activeErr := s.ActiveReceipt()
+				uncertain := fault != nil && !errors.Is(fault, block.ErrReadOnly) && !errors.Is(fault, fat.ErrCapacity)
+				if uncertain != errors.Is(activeErr, ErrRetired) {
+					t.Fatalf("uncertain=%t activeErr=%v", uncertain, activeErr)
+				}
+			})
+		}
+	})
+
+	t.Run("missing_file_returns_ErrNotExist_without_creating_or_retiring", func(t *testing.T) {
+		l := lease()
+		f := &preferenceReplaceFiles{
+			trackedFS: &trackedFS{base: fstest.MapFS{}, lease: l},
+			replace: func(context.Context, string, []byte) error {
+				t.Fatal("ReplaceFile must not create a missing preferences file")
+				return nil
+			},
+		}
+		s, err := New(f, l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.WritePreferences(context.Background(), []byte(`{}`)); !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("err=%v want fs.ErrNotExist", err)
+		}
+		if f.replaces != 0 || f.writes != 0 {
+			t.Fatalf("replaces=%d writes=%d want 0/0", f.replaces, f.writes)
+		}
+		if _, err := s.ActiveReceipt(); err != nil {
+			t.Fatalf("missing preferences retired store: %v", err)
+		}
+	})
+}
+
 func TestPreferencesRealFATCleanRestart(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sd.img")
@@ -254,5 +337,29 @@ func TestPreferencesRealFATCleanRestart(t *testing.T) {
 	got, err = restarted.ReadPreferences(context.Background())
 	if err != nil || !bytes.Equal(got, data) {
 		t.Fatal(string(got), err)
+	}
+	// Copy-on-write ReplaceFile can also grow preferences past the initial 4096-byte preallocation.
+	grown := []byte(`{"layout":"shelf","reduced_motion":true,"padding":"` + string(bytes.Repeat([]byte("p"), 5120)) + `"}`)
+	if err = restarted.WritePreferences(context.Background(), grown); err != nil {
+		t.Fatal(err)
+	}
+	if err = restarted.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+	got, err = exec.Command("mtype", "-i", path, "::"+PreferencesPath).Output()
+	if err != nil || !bytes.Equal(got, grown) {
+		t.Fatal(len(got), err)
+	}
+	volume, err = fat.Mount(device)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remounted, err := New(volume, lease())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err = remounted.ReadPreferences(context.Background())
+	if err != nil || !bytes.Equal(got, grown) {
+		t.Fatal(len(got), err)
 	}
 }
