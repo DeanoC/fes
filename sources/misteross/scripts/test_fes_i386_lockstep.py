@@ -536,7 +536,7 @@ def run_x87(testbench: str, env: dict) -> dict:
 # the DE25 backend gate reaches. #1872 adds store-unmasked-pm, -um and -om,
 # the only programs that unmask an exception, and store-tiny-boundary. #1877
 # adds fdp-chunks.
-X87_DIRECTED_CASES = 14 + 7 + 3 + 4 + 1 + 1
+X87_DIRECTED_CASES = 14 + 7 + 3 + 4 + 1 + 2
 X87_RANDOM_CASES = 8 * 3 * 4
 X87_CASES = X87_DIRECTED_CASES + X87_RANDOM_CASES
 

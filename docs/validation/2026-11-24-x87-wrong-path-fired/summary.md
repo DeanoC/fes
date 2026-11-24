@@ -32,14 +32,24 @@ programs run with no 387. Real hardware has no such state, so there is no
   On main (`0c71d434b`) it fails:
   `FAIL x87:wrong-path-unbuilt @102d.timeout`
   ([runs/case-before-fix.txt](runs/case-before-fix.txt)).
-- **Fix** (`fes_i386_x87.sv`): `fired` is set only for an instruction the
-  unit has taken or takes on that edge (`started || take`).
+- **Fix** (`fes_i386_x87.sv`): `fired` is set only for a form the unit
+  builds (`!unbuilt`) and only for an instruction the unit has taken or takes
+  on that edge (`started || take`). The first version had only the second
+  term. Codex found that `hold` lets an unbuilt form issue while an older
+  operation still holds `started` (committed, running on to its apply), so
+  on the edge that operation applies, the set would override the apply's
+  clear and leave `fired` set with `started` clear again.
+- **Case** `wrong-path-unbuilt-busy`: the same wrong-path `D9 /1`, after a
+  slow FSQRT and after a slow FDIV, at every distance from 0 to 80 NOPs.
+  It passes with both versions of the fix, so it does not show the apply-
+  edge race failing; it is kept as coverage of the busy unit, and the
+  `!unbuilt` term rests on the reading above.
 
 ## Gates, on main `0c71d434b` + this change
 
 | Gate | Result |
 | --- | --- |
-| RTL lockstep, level 3, the default suite | pass; x87 cases 126 of 126 ([runs/l3-full.json](runs/l3-full.json)) |
+| RTL lockstep, level 3, the default suite | see below ([runs/l3-full.json](runs/l3-full.json)) |
 | RTL lockstep, level 4, both identities | pass: 386 56 agree / 92 stop as expected, 486SX 148 agree, 56,000 random programs keep step ([runs/l4-full.json](runs/l4-full.json)) |
 | x87 unit bench | 18,337 passed, 0 failed ([runs/x87unit.json](runs/x87unit.json)) |
 | DE10 pc386 machine netlist | **moves**: `65cbd412…` without the fix, `0acae19f…` with it (Yosys `d273c1cb`, one thread, one checkout; [runs/de10-netlist.txt](runs/de10-netlist.txt), harness `fixd12.sh`). The DE10 ties `x87_present` to 0, but the added `take` term is not swept |

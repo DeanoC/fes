@@ -11947,6 +11947,28 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xd9, 0, 0x104);                                 // FLD m32: a waiting form after it
             a.op({0xd8, 0xc1});                                    // FADD ST, ST(1)
         }},
+        // The same with an older operation still in the unit: a slow form
+        // (FSQRT, FDIV) has committed and runs on to its apply while the
+        // wrong path's unbuilt form issues, at every distance from 0 to 80
+        // NOPs, which spans the slow lane's latency.
+        {"wrong-path-unbuilt-busy", [](Asm &a) {
+            for (unsigned nops = 0; nops <= 80; ++nops) {
+                a.op({0xdb, 0xe3});                                // FNINIT
+                a.esc(0xd9, 0, 0x100);                             // FLD m32
+                a.op({0xd9, 0xfa});                                // FSQRT: slow, runs past its commit
+                for (unsigned n = 0; n < nops; ++n) a.op({0x90});
+                a.op({0x39, 0xc0});                                // CMP AX, AX
+                a.op({0x74, 0x03});                                // JZ over the next three bytes
+                a.op({0xd9, 0x4f, 0x00});                          // D9 /1 m, on the wrong path only
+                a.esc(0xd9, 0, 0x104);                             // FLD m32
+                a.op({0xd8, 0xf1});                                // FDIV ST, ST(1): slow
+                for (unsigned n = 0; n < nops; ++n) a.op({0x90});
+                a.op({0x39, 0xc0});
+                a.op({0x74, 0x03});
+                a.op({0xd9, 0x4f, 0x00});
+                a.op({0xdb, 0xe3});                                // FNINIT
+            }
+        }},
         {"wait", [](Asm &a) {
             a.op({0xdb, 0xe3});
             a.op({0x9b});                                          // WAIT
@@ -12269,7 +12291,8 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         Mismatches out;
         Outcome outcome;
         try {
-            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 400, true, summary, out,
+            // The wrong-path sweeps retire thousands of instructions.
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, std::string(c.label).rfind("wrong-path", 0) == 0 ? 20000 : 400, true, summary, out,
                                CODE + uint32_t(a.b.size()));
         } catch (const std::exception &error) {
             out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
