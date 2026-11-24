@@ -1,0 +1,345 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package hci
+
+import (
+	"bytes"
+	"encoding/binary"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
+)
+
+type mockPipe struct {
+	addr     uint8
+	ep       usb.EndpointDescriptor
+	inQueue  [][]byte
+	inRepeat []byte
+	outLog   [][]byte
+	noOutLog bool
+	outDone  bool
+	closed   bool
+}
+
+func (p *mockPipe) DeviceAddress() uint8               { return p.addr }
+func (p *mockPipe) Endpoint() usb.EndpointDescriptor   { return p.ep }
+func (p *mockPipe) SetIntervalOverride(time.Duration)  {}
+func (p *mockPipe) Close() error                       { p.closed = true; return nil }
+func (p *mockPipe) WriteDone() (bool, error)           { return p.outDone, nil }
+func (p *mockPipe) Write(data []byte) error {
+	if !p.noOutLog {
+		p.outLog = append(p.outLog, append([]byte(nil), data...))
+	}
+	p.outDone = true
+	return nil
+}
+func (p *mockPipe) PollInto(dst []byte) (int, error) {
+	if p.inRepeat != nil {
+		return copy(dst, p.inRepeat), nil
+	}
+	if len(p.inQueue) == 0 {
+		return 0, nil
+	}
+	pkt := p.inQueue[0]
+	p.inQueue = p.inQueue[1:]
+	return copy(dst, pkt), nil
+}
+
+type mockBTBus struct {
+	dev        usb.BusDevice
+	evPipe     *mockPipe
+	aclInPipe  *mockPipe
+	aclOutPipe *mockPipe
+	cmdLog     [][]byte
+	rtlChunks  int
+	rtlFinal   bool
+	rtlVersion uint16
+	romVersion byte
+	scanEnable byte
+	linkPolicy uint16
+}
+
+func newMockBTBus(vid, pid uint16, romVersion byte) *mockBTBus {
+	dev := usb.BusDevice{
+		Address: 2,
+		Speed:   usb.SpeedHigh,
+		Descriptor: usb.DeviceDescriptor{
+			VendorID:  vid,
+			ProductID: pid,
+			Class:     0xe0,
+			SubClass:  0x01,
+			Protocol:  0x01,
+		},
+		Config: usb.FullConfiguration{
+			Value: 1,
+			Interfaces: []usb.InterfaceDescriptor{
+				{
+					Number: 0, Class: 0xe0, SubClass: 0x01, Protocol: 0x01,
+					Endpoints: []usb.EndpointDescriptor{
+						{Address: 0x81, TransferType: usb.TransferInterrupt, MaxPacketSize: 16, Interval: 1},
+						{Address: 0x82, TransferType: usb.TransferBulk, MaxPacketSize: 512},
+						{Address: 0x02, TransferType: usb.TransferBulk, MaxPacketSize: 512},
+					},
+				},
+			},
+		},
+	}
+	return &mockBTBus{
+		dev:        dev,
+		romVersion: romVersion,
+		rtlVersion: rtlLMPSub8761B,
+	}
+}
+
+func (b *mockBTBus) Service() error                 { return nil }
+func (b *mockBTBus) NextEvent() (usb.HostEvent, bool) { return usb.HostEvent{}, false }
+func (b *mockBTBus) Devices() []usb.BusDevice       { return []usb.BusDevice{b.dev} }
+func (b *mockBTBus) Ready() <-chan struct{}         { return nil }
+func (b *mockBTBus) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, error) {
+	p := &mockPipe{addr: addr, ep: ep}
+	switch {
+	case ep.TransferType == usb.TransferInterrupt && ep.In():
+		b.evPipe = p
+	case ep.TransferType == usb.TransferBulk && ep.In():
+		b.aclInPipe = p
+	case ep.TransferType == usb.TransferBulk && !ep.In():
+		b.aclOutPipe = p
+	}
+	return p, nil
+}
+
+func (b *mockBTBus) pushCmdComplete(op uint16, ret ...byte) {
+	ev := make([]byte, 5+len(ret))
+	ev[0] = EventCommandComplete
+	ev[1] = byte(3 + len(ret))
+	ev[2] = 1
+	binary.LittleEndian.PutUint16(ev[3:5], op)
+	copy(ev[5:], ret)
+	b.evPipe.inQueue = append(b.evPipe.inQueue, ev)
+}
+
+func (b *mockBTBus) ControlTransfer(_ uint8, reqType, req byte, _, _ uint16, data []byte) (int, error) {
+	if reqType != 0x20 || req != 0x00 || len(data) < 3 {
+		return 0, nil
+	}
+	b.cmdLog = append(b.cmdLog, append([]byte(nil), data...))
+	op := binary.LittleEndian.Uint16(data[0:2])
+	params := data[3:]
+	switch op {
+	case OpcodeReadLocalVersion:
+		b.pushCmdComplete(op, 0, 0x0d, 0x00, 0x00, 0x0d, 0x5d, 0x00, byte(b.rtlVersion), byte(b.rtlVersion>>8))
+	case opcodeRTLReadROMVersion:
+		b.pushCmdComplete(op, 0, b.romVersion)
+	case opcodeRTLDownload:
+		b.rtlChunks++
+		if len(params) > 0 && params[0]&0x80 != 0 {
+			b.rtlFinal = true
+			b.rtlVersion = 0xd922 // patched LMP subversion
+		}
+		b.pushCmdComplete(op, 0, params[0])
+	case OpcodeReadBufferSize:
+		// 256-byte ACL packets, 4 controller buffer slots
+		b.pushCmdComplete(op, 0, 0x00, 0x01, 0x40, 0x04, 0x00, 0x08, 0x00)
+	case OpcodeReadBDAddr:
+		b.pushCmdComplete(op, 0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66)
+	case OpcodeWriteDefaultLinkPolicy:
+		if len(params) >= 2 {
+			b.linkPolicy = binary.LittleEndian.Uint16(params[:2])
+		}
+		b.pushCmdComplete(op, 0)
+	case OpcodeWriteScanEnable:
+		if len(params) >= 1 {
+			b.scanEnable = params[0]
+		}
+		b.pushCmdComplete(op, 0)
+	default:
+		b.pushCmdComplete(op, 0)
+	}
+	return len(data), nil
+}
+
+type mapFirmwareLoader map[string][]byte
+
+func (m mapFirmwareLoader) LoadFirmware(name string) ([]byte, error) {
+	b, ok := m[name]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return b, nil
+}
+
+func TestRealRepoRTL8761BUFirmwareUploadOn0BDAA728(t *testing.T) {
+	// Load the actual pinned Realtek RTL8761BU firmware from image/firmware/rtl_bt/.
+	fwPath := filepath.Join("..", "..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_fw.bin")
+	cfgPath := filepath.Join("..", "..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_config.bin")
+	fwBytes, err := os.ReadFile(fwPath)
+	if err != nil {
+		t.Fatalf("read repo rtl8761bu_fw.bin: %v", err)
+	}
+	cfgBytes, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("read repo rtl8761bu_config.bin: %v", err)
+	}
+
+	// Verify both rom_version=0 (chip_id=1) and rom_version=1 (chip_id=2) parse cleanly.
+	p0, err := BuildRTLPatchPayload(fwBytes, cfgBytes, 0)
+	if err != nil || len(p0) != 14048+6 {
+		t.Fatalf("rom_version=0 patch mismatch len=%d err=%v", len(p0), err)
+	}
+	p1, err := BuildRTLPatchPayload(fwBytes, cfgBytes, 1)
+	if err != nil || len(p1) != 30204+6 {
+		t.Fatalf("rom_version=1 patch mismatch len=%d err=%v", len(p1), err)
+	}
+
+	// Simulate Deano's exact 0bda:a728 Realtek BT 5.4 dongle!
+	bus := newMockBTBus(0x0bda, 0xa728, 1)
+	tr, err := Open(bus, bus.dev)
+	if err != nil {
+		t.Fatalf("Open(0bda:a728): %v", err)
+	}
+	defer tr.Close()
+	if tr.Spec().Quirks&(QuirkRTL8761BU|QuirkBrokenExtScan) != (QuirkRTL8761BU | QuirkBrokenExtScan) {
+		t.Fatalf("unexpected 0bda:a728 quirks: %+v", tr.Spec())
+	}
+
+	loader := mapFirmwareLoader{
+		"rtl8761bu_fw.bin":     fwBytes,
+		"rtl8761bu_config.bin": cfgBytes,
+	}
+	if err := tr.Initialize(loader); err != nil {
+		t.Fatalf("Initialize(0bda:a728): %v", err)
+	}
+	wantChunks := (len(p1) + rtlMaxChunkBytes - 1) / rtlMaxChunkBytes
+	if bus.rtlChunks != wantChunks || !bus.rtlFinal {
+		t.Fatalf("RTL firmware download chunks=%d want=%d final=%t", bus.rtlChunks, wantChunks, bus.rtlFinal)
+	}
+	if tr.LocalVersion().LMPSubversion != 0xd922 {
+		t.Fatalf("post-firmware LMP subversion=%#04x, want 0xd922", tr.LocalVersion().LMPSubversion)
+	}
+	if tr.BDAddr() != ([6]byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66}) {
+		t.Fatalf("unexpected BD_ADDR: %x", tr.BDAddr())
+	}
+	// Gaming latency invariants: Role Switch only (0x0001), Page Scan only (0x02).
+	if bus.linkPolicy != 0x0001 || bus.scanEnable != ScanPageOnly {
+		t.Fatalf("gaming policy mismatch linkPolicy=%#04x scanEnable=%#02x", bus.linkPolicy, bus.scanEnable)
+	}
+
+	// Gameplay radio mode disables scan windows completely (0x00) and restores Page Scan (0x02).
+	if err := tr.SetGameplayRadioMode(true); err != nil || bus.scanEnable != ScanDisabled {
+		t.Fatalf("SetGameplayRadioMode(true): err=%v scan=%#x", err, bus.scanEnable)
+	}
+	if err := tr.SetGameplayRadioMode(false); err != nil || bus.scanEnable != ScanPageOnly {
+		t.Fatalf("SetGameplayRadioMode(false): err=%v scan=%#x", err, bus.scanEnable)
+	}
+
+	// Exercise SSP / connection / inquiry command helpers cleanly.
+	peer := [6]byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
+	if err := tr.AcceptConnectionRequest(peer, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.RejectConnectionRequest(peer, 0x0f); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.CreateConnection(peer, 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Disconnect(0x0042, 0x13); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.StartInquiry(8, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.CancelInquiry(); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.RemoteNameRequest(peer); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.IOCapabilityRequestReply(peer); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.UserConfirmationRequestReply(peer, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.UserConfirmationRequestReply(peer, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.LinkKeyRequestReply(peer, [16]byte{1, 2, 3}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.LinkKeyRequestNegativeReply(peer); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestHCIAclFlowControlFragmentationAndZeroAllocs(t *testing.T) {
+	bus := newMockBTBus(0x0a12, 0x0001, 0) // CSR8510 (zero-blob)
+	bus.rtlVersion = 0x22bb
+	tr, err := Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Send 300-byte payload (> 256-byte ACL max len) -> fragments into 256 + 44 with PB=0x02 then PB=0x01.
+	big := make([]byte, 300)
+	for i := range big {
+		big[i] = byte(i)
+	}
+	if err := tr.SendACL(0x0042, ACLBoundaryFirstAutoFlush, big); err != nil {
+		t.Fatalf("SendACL: %v", err)
+	}
+	if err := tr.Service(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(bus.aclOutPipe.outLog) != 2 {
+		t.Fatalf("expected 2 ACL fragments, got %d", len(bus.aclOutPipe.outLog))
+	}
+	hdr0 := binary.LittleEndian.Uint16(bus.aclOutPipe.outLog[0][0:2])
+	hdr1 := binary.LittleEndian.Uint16(bus.aclOutPipe.outLog[1][0:2])
+	if hdr0 != (0x0042|uint16(ACLBoundaryFirstAutoFlush)<<12) || hdr1 != (0x0042|uint16(ACLBoundaryContinuing)<<12) {
+		t.Fatalf("unexpected fragment headers %#04x %#04x", hdr0, hdr1)
+	}
+	if !bytes.Equal(bus.aclOutPipe.outLog[0][4:], big[:256]) || !bytes.Equal(bus.aclOutPipe.outLog[1][4:], big[256:]) {
+		t.Fatal("fragmented ACL payload mismatch")
+	}
+	if tr.ACLCredits() != 2 {
+		t.Fatalf("expected 2 remaining credits, got %d", tr.ACLCredits())
+	}
+
+	// Return 2 credits via Number_Of_Completed_Packets event (0x13).
+	numComp := []byte{EventNumCompletedPackets, 5, 1, 0x42, 0x00, 0x02, 0x00}
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, numComp)
+	if err := tr.Service(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if tr.ACLCredits() != 4 {
+		t.Fatalf("credits not restored: %d", tr.ACLCredits())
+	}
+
+	// Zero-allocation check on steady-state ACL RX + ACL TX + credit replenishment.
+	bus.aclOutPipe.noOutLog = true
+	inACL := make([]byte, 4+82)
+	binary.LittleEndian.PutUint16(inACL[0:2], 0x0042|uint16(ACLBoundaryFirstAutoFlush)<<12)
+	binary.LittleEndian.PutUint16(inACL[2:4], 82)
+	bus.aclInPipe.inRepeat = inACL
+	var rxCount int
+	onACL := func(handle uint16, pb uint8, payload []byte) {
+		if handle == 0x0042 && pb == ACLBoundaryFirstAutoFlush && len(payload) == 82 {
+			rxCount++
+		}
+	}
+	allocs := testing.AllocsPerRun(100, func() {
+		if err := tr.Service(nil, onACL); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if allocs > 0 || rxCount == 0 {
+		t.Fatalf("HCI Service ACL RX allocated %.2f allocs/run (rxCount=%d), want 0", allocs, rxCount)
+	}
+}
