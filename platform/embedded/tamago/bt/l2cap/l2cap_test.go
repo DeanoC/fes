@@ -1463,3 +1463,66 @@ func TestPairingModeReplacesStaleLinkKeyAndRecoversOnAuthFailure(t *testing.T) {
 		t.Fatalf("expected StartInquiry to resume after AuthenticationComplete failure (count=%d)", inquiries)
 	}
 }
+
+func TestBatchedInquiryResultsDecodeFieldArrays(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		evCode byte
+	}{
+		{name: "inquiry_result", evCode: hci.EventInquiryResult},
+		{name: "inquiry_result_with_rssi", evCode: hci.EventInquiryResultWithRSSI},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			evCode := tc.evCode
+			bus := newL2CAPMockBus()
+			tr, err := hci.Open(bus, bus.dev)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := tr.Initialize(nil); err != nil {
+				t.Fatal(err)
+			}
+			now := time.Unix(1700, 0)
+			mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return now })
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+				t.Fatal(err)
+			}
+
+			phone, _ := ParseBDAddr("10:11:12:13:14:01")
+			pad, _ := ParseBDAddr("10:11:12:13:14:02")
+
+			// Num_Responses = 2 laid out in HCI column-major parallel arrays:
+			// [addr0, addr1], [psrm0, psrm1], [res...], [cod0, cod1], [clk0, clk1], [rssi...]
+			ev := make([]byte, 2+1+2*14)
+			ev[0] = evCode
+			ev[1] = 1 + 2*14
+			ev[2] = 2 // Num_Responses
+			copy(ev[3:9], phone[:])
+			copy(ev[9:15], pad[:])
+			ev[15] = 0 // psrm[0]
+			ev[16] = 1 // psrm[1]
+			codBase := 3 + 6*2 + 2 + 2*2
+			if evCode == hci.EventInquiryResultWithRSSI {
+				codBase = 3 + 6*2 + 2 + 2
+			}
+			// cod[0] = phone 0x5a020c, cod[1] = gamepad 0x002508
+			ev[codBase+0], ev[codBase+1], ev[codBase+2] = 0x0c, 0x02, 0x5a
+			ev[codBase+3], ev[codBase+4], ev[codBase+5] = 0x08, 0x25, 0x00
+			clkBase := codBase + 6
+			binary.LittleEndian.PutUint16(ev[clkBase:clkBase+2], 0x1111)
+			binary.LittleEndian.PutUint16(ev[clkBase+2:clkBase+4], 0x2233)
+
+			bus.evPipe.inQueue = append(bus.evPipe.inQueue, ev)
+			if err := mgr.Service(); err != nil {
+				t.Fatal(err)
+			}
+			got := bus.lastParams[hci.OpcodeCreateConnection]
+			if len(got) < 12 || !bytes.Equal(got[0:6], pad[:]) || got[8] != 1 || binary.LittleEndian.Uint16(got[10:12]) != 0x2233 {
+				t.Fatalf("expected CreateConnection for pad %s with psrm=1 clk=0x2233, got %x", pad, got)
+			}
+		})
+	}
+}

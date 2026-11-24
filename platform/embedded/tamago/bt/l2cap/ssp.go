@@ -426,33 +426,47 @@ func (m *Manager) handleEvent(ev []byte) {
 		_ = m.bonds.Upsert(rec)
 
 	case hci.EventInquiryResult:
-		// [0]=num [1..]: 14 bytes per entry (addr[6], psrm, reserved[2], cod[3], clk[2])
+		// Parallel field arrays (Num_Responses = n):
+		// addr[6*n], psrm[n], reserved[2*n], cod[3*n], clk[2*n]
 		if len(params) < 1 {
 			return
 		}
 		n := int(params[0])
-		for i := 0; i < n && 1+(i+1)*14 <= len(params); i++ {
-			off := 1 + i*14
+		if n <= 0 || len(params) < 1+n*14 {
+			return
+		}
+		for i := 0; i < n; i++ {
+			addrOff := 1 + i*6
+			psrmOff := 1 + 6*n + i
+			codOff := 1 + 9*n + i*3
+			clkOff := 1 + 12*n + i*2
 			var addr BDAddr
-			copy(addr[:], params[off:off+6])
-			cod := uint32(params[off+9]) | uint32(params[off+10])<<8 | uint32(params[off+11])<<16
-			clk := binary.LittleEndian.Uint16(params[off+12 : off+14])
-			m.maybeInitiatePair(addr, cod, params[off+6], clk)
+			copy(addr[:], params[addrOff:addrOff+6])
+			cod := uint32(params[codOff]) | uint32(params[codOff+1])<<8 | uint32(params[codOff+2])<<16
+			clk := binary.LittleEndian.Uint16(params[clkOff : clkOff+2])
+			m.maybeInitiatePair(addr, cod, params[psrmOff], clk)
 		}
 
 	case hci.EventInquiryResultWithRSSI:
-		// [0]=num [1..]: 14 bytes per entry (addr[6], psrm, reserved, cod[3], clk[2], rssi)
+		// Parallel field arrays (Num_Responses = n):
+		// addr[6*n], psrm[n], reserved[n], cod[3*n], clk[2*n], rssi[n]
 		if len(params) < 1 {
 			return
 		}
 		n := int(params[0])
-		for i := 0; i < n && 1+(i+1)*14 <= len(params); i++ {
-			off := 1 + i*14
+		if n <= 0 || len(params) < 1+n*14 {
+			return
+		}
+		for i := 0; i < n; i++ {
+			addrOff := 1 + i*6
+			psrmOff := 1 + 6*n + i
+			codOff := 1 + 8*n + i*3
+			clkOff := 1 + 11*n + i*2
 			var addr BDAddr
-			copy(addr[:], params[off:off+6])
-			cod := uint32(params[off+8]) | uint32(params[off+9])<<8 | uint32(params[off+10])<<16
-			clk := binary.LittleEndian.Uint16(params[off+11 : off+13])
-			m.maybeInitiatePair(addr, cod, params[off+6], clk)
+			copy(addr[:], params[addrOff:addrOff+6])
+			cod := uint32(params[codOff]) | uint32(params[codOff+1])<<8 | uint32(params[codOff+2])<<16
+			clk := binary.LittleEndian.Uint16(params[clkOff : clkOff+2])
+			m.maybeInitiatePair(addr, cod, params[psrmOff], clk)
 		}
 
 	case hci.EventExtendedInquiryResult:
