@@ -719,6 +719,9 @@ func (h *Host) PollKeyboardInto(dst []byte) (int, error) {
 	if err != nil || r == nil {
 		return 0, err
 	}
+	if len(r) == 0 || len(r) > len(dst) {
+		return 0, fmt.Errorf("dwc2: invalid keyboard report length %d for buffer %d", len(r), len(dst))
+	}
 	return copy(dst, r), nil
 }
 func (h *Host) pollInput() ([]byte, error) {

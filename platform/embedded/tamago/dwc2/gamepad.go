@@ -29,8 +29,8 @@ func (g *GamepadHost) PollGamepadInto(dst []byte) (int, error) {
 	if err != nil || r == nil {
 		return 0, err
 	}
-	if len(dst) < len(r) {
-		return 0, fmt.Errorf("dwc2: gamepad report buffer too small")
+	if len(r) == 0 || len(dst) < len(r) {
+		return 0, fmt.Errorf("dwc2: invalid gamepad report length %d for buffer %d", len(r), len(dst))
 	}
 	return copy(dst, r), nil
 }
