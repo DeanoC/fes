@@ -23,3 +23,25 @@ Head: `eab2fe8b5`. Later commits of this PR change only
 **Pass.** The toolchain and record identities differ from `2d4edf547`'s
 because #2187's base carries newer main (its pc386 lock); they are equal on
 both sides here.
+
+## Note, 24 Nov 2026: #2171's new head merged
+
+#2171's branch moved to `f6956ce50` (main merged in after #2036's
+squash-merge) and is merged here (`a2084d33f`). The merge changes no DE10
+netlist input against `ea61ccc10`: the diff is empty for
+`cores/fes-common/rtl`, `cores/fes-pc386`, `cores/fes-common/sim/i386`,
+`scripts/yosys_netlist.py`, `scripts/pc386_quartus.py`,
+`scripts/input_identity.py` and `boards/de25nano`. So the netlist comparison
+above carries over unchanged. `de10_design_id.py` at the new base and the new
+head:
+
+| | `f6956ce50` (new base) | `a2084d33f` (head) |
+| --- | --- | --- |
+| design | `426e518d…` | `426e518d…` |
+| evidence | `243554b4…` | `243554b4…` |
+| record | `d7dbba7d…` | `d7dbba7d…` |
+| toolchain | `07d3cc5b…` | `07d3cc5b…` |
+
+All four are equal. The record and toolchain identities differ from
+`ea61ccc10`'s (`79b7218a…`, `372fcd8d…`) only because of what main brought
+into the base.
