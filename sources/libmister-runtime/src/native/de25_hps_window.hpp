@@ -6,8 +6,11 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <mutex>
+#include <utility>
+#include <vector>
 
 namespace mister { namespace native {
 // A cached observation of one fes.fabric.de25-hps-window grant. The kernel
@@ -91,19 +94,67 @@ private:
  std::uint64_t generation_=0;
  std::array<std::uint32_t,4> expected_{};
 };
-// The owner operations of a runtime without the kernel owner's window ABI:
-// nothing is offered, so fes.memory.hps-ddr stays refused on the DE25.
-class De25NoWindowOwner final : public De25WindowOperations {
+// The kernel owner's window ABI 1 (de25_dma.h), one call each. The Linux
+// translation lives with the scanout's (native/linux/de25_menu.cpp); tests
+// script it. Errors keep the kernel's errno in their message.
+struct De25WindowKernelInfo {
+ std::uint64_t generation=0;
+ std::uint32_t version=0,reserved=0,contract=0,span=0,status=0,fault=0,state=0,flags=0;
+ std::array<std::uint32_t,4> build_id{};
+};
+class De25WindowKernel {
 public:
- bool Available() override { return false; }
- Error Allocate(int*) override;
- Error Info(int,De25WindowGrant*) override;
- Error Grant(int,std::uint64_t,std::uint64_t,int*) override;
- Error Map(int,std::size_t,void**) override;
- void Unmap(void*,std::size_t) override {}
- Error Revoke(int) override;
- Error Release(int) override;
- void Close(int) override {}
+ virtual ~De25WindowKernel() {}
+ // OWNER_WINDOW_ABI. An older kernel (ENOTTY) or a tree without the window
+ // block (ENODEV) is not an error: it offers nothing.
+ virtual Error WindowAbi(bool* offered,std::uint32_t* version)=0;
+ virtual Error Allocate(int* window)=0;
+ virtual Error Info(int window,De25WindowKernelInfo*)=0;
+ // WINDOW_REVOKE: zaps every mapping and clears the grant (only while
+ // every port is drained). Ends the window for good.
+ virtual Error Revoke(int window)=0;
+ virtual Error Duplicate(int fd,int* out)=0;
+ // Shared, read/write, at a page offset of the window.
+ virtual Error Map(int fd,std::uint64_t offset,std::size_t bytes,void** mapping)=0;
+ virtual void Unmap(void* mapping,std::size_t bytes)=0;
+ // Orders every CPU store before what follows, for the system (DSB SY).
+ virtual void Barrier()=0;
+ virtual void Close(int fd)=0;
+};
+// The kernel's state bits on WINDOW_INFO (FES_DE25_DMA_REVOKED and the rest).
+constexpr std::uint32_t kDe25WindowRevoked=1,kDe25WindowExposed=2,kDe25WindowUncertain=4;
+constexpr std::uint32_t kDe25WindowAbi=1;
+// De25WindowOperations over the kernel owner. The kernel has no range
+// descriptor: a range is a duplicate of the window descriptor that maps at
+// the range's offset, and its revoke unmaps it. The window mapping is the
+// owner's coherent DMA mapping, uncached on the DE25, so nothing is written
+// back: a full barrier before the range ends puts every CPU store in DDR,
+// and the next mapping reads DDR. Release is WINDOW_REVOKE. The owner's
+// window ABI is probed once, on first use.
+class De25KernelWindowOwner final : public De25WindowOperations {
+public:
+ explicit De25KernelWindowOwner(De25WindowKernel&);
+ ~De25KernelWindowOwner() override;
+ bool Available() override;
+ Error Allocate(int* window) override;
+ Error Info(int window,De25WindowGrant*) override;
+ Error Grant(int window,std::uint64_t offset,std::uint64_t bytes,int* range) override;
+ Error Map(int range,std::size_t bytes,void** mapping) override;
+ void Unmap(void* mapping,std::size_t bytes) override;
+ Error Revoke(int range) override;
+ Error Release(int window) override;
+ void Close(int fd) override;
+private:
+ struct Range {
+  std::uint64_t offset=0,bytes=0;
+  bool revoked=false;
+  std::vector<std::pair<void*,std::size_t>> mappings;
+ };
+ void UnmapAll(Range&);
+ De25WindowKernel& kernel_;
+ std::mutex mutex_;
+ bool probed_=false,available_=false;
+ std::map<int,Range> ranges_;
 };
 // The first fault word of the control block as text: "port 0+2, outside".
 std::string De25WindowFaultText(std::uint32_t fault);

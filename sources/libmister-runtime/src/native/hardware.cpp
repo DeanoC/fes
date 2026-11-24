@@ -895,8 +895,8 @@ Capabilities NativeHardware::capabilities() const
     // The standard shell's machines: every interface the per-core contract
     // table admits, once each. Firmware upload has no capability bit; a host
     // reads it here to know this runtime delivers a format-3 source at launch.
-    // A machine in an HPS DDR window needs a window backend this runtime
-    // does not have yet, so none of its interfaces is advertised.
+    // A machine in an HPS DDR window is advertised only where the kernel
+    // owner offers a window.
     for(const auto& core:kDe25StandardCores)
      for(const auto& interface:core.interfaces) {
       if(core.hps_window&&!HpsDdrAvailable())break;
@@ -1486,6 +1486,11 @@ Error NativeHardware::FlushAtaDiskSave()
 	const std::uint64_t deadline = Deadline(clock_, timeouts_.media_io_ms);
 	std::vector<std::uint32_t> dirty;
 	Error error = driver->AtaDiskControl(generated::FesComputerDiskControlFreeze, deadline);
+	// A window that faulted is fatal to its contract: none of its chunks is
+	// stored over the last good save.
+	// The disk was loaded through the window, so it is open here.
+	if (error.ok() && hps_window_) error = hps_window_->Blocking();
+	if (error.ok() && hps_window_) error = hps_window_->Check();
 	if (error.ok()) error = driver->ReadAtaDirty(deadline, &dirty);
 	constexpr std::uint32_t kChunk = generated::FesComputerAtaDiskChunkBytes;
 	std::vector<AtaDeltaChunk> changed;

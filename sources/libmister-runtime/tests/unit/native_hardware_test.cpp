@@ -4031,6 +4031,72 @@ void TestPc386LibraryRecordAndWallClock()
 // A pc386 launch writes the base image with its game's delta into the
 // window and commits it with its CRC; Stop stores the dirty chunks and
 // publishes the merged manifest; the next launch restores them over the base.
+// A window that faulted while the machine ran is fatal to its contract: Stop
+// refuses to store any of its disk chunks over the last good save.
+void TestPc386WindowFaultRefusesTheDiskSave()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	const std::uint32_t caps = FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMouseRelative |
+		FesComputerCapabilityMemoryHpsDdr | FesComputerCapabilityMediaAtaDisk |
+		FesComputerCapabilityPersistenceWords | FesComputerCapabilityPc386Machine |
+		FesComputerCapabilityRtcWallClock;
+	mister_test::ComputerEndpoint endpoint(caps, {}, "0123456789abcdef0123456789abcdef");
+	endpoint.abi_minor = 1;
+	endpoint.verify_reads = 0;
+	FixedClock clock(100);
+	FesGp transport(endpoint, clock);
+	FesGpCoreDriver driver(transport);
+	IntegratedFixture fixture(&driver);
+	fixture.native.clock.has_local = true;
+	fixture.native.clock.local.tm_year = 126;
+	fixture.native.clock.local.tm_mday = 1;
+	fixture.native.clock.local.tm_wday = 4;
+	fixture.native.fpga.boot_hps_ddr_layout = false;
+	fixture.native.disk_operations.region.assign(4u << 20, 0xee);
+	endpoint.window = &fixture.native.disk_operations.region;
+	TempDirectory package, data, media, images;
+	auto manifest = Pc386Manifest();
+	for (const auto* id : {"fes.memory.hps-ddr", "fes.media.ata-disk"})
+		manifest += std::string("\n[[interfaces]]\nid = \"") + id + "\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	std::vector<std::string> events;
+	WindowOwner owner(events, opened.descriptor.build.id);
+	De25HpsWindow window(owner);
+	fixture.native.hardware.SetHpsWindow(&window);
+	fixture.Start();
+	fixture.native.fpga.on_program = [&] { endpoint.Reset(); };
+	const std::uint32_t size = 2u << 20;
+	const std::string base(size, '\x5a');
+	Sha256 hash;
+	hash.Update(base.data(), base.size());
+	mister::AtaDiskImage disk{images.File("disk.img", base), size, Sha256Hex(hash.Final()), media.path, 4, 16, 63};
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &disk).ok());
+	assert(Count(events, "window.allocate") == 1 && window.Ready());
+	endpoint.GuestSectorWrite(0, 0x11);
+	owner.grant.status |= FesDe25HpsWindowStatusFault;
+	owner.grant.fault = 1u | FesDe25HpsWindowFaultOutside;
+	const auto stopped = fixture.runtime.Stop();
+	assert(stopped.code == mister::ErrorCode::save_failed &&
+		stopped.message.find("port 0, outside") != std::string::npos);
+	assert(fixture.runtime.status().state == mister::State::running_development);
+	// Nothing was stored, and the window stays held until reprogramming.
+	std::unique_ptr<AtaDeltaFile> file;
+	AtaDiskDelta saved;
+	const MediaDataIdentity identity{"fes.pc386", "ultima-vi", disk.base_media_id, 0};
+	assert(AtaDeltaFile::Open(media.path, identity, size, &file).ok());
+	assert(file->Read(&saved).ok() && saved.revision == "absent" && saved.chunks.empty());
+	assert(Count(events, "window.release") == 0 && window.Blocking().code == mister::ErrorCode::unsupported_interface);
+	file.reset();
+	assert(rmdir((media.path + "/" + MediaDataNamespace(identity)).c_str()) == 0);
+	const std::string games = data.path + "/games/";
+	assert(rmdir((games + GameDataNamespace("fes.pc386", "ultima-vi")).c_str()) == 0 && rmdir(games.c_str()) == 0);
+}
+
 void TestPc386AtaDiskLaunchSaveAndRestore()
 {
 	using namespace mister::native;
@@ -6529,6 +6595,7 @@ int main(int argc,char** argv)
 	TestProductionFactoryForwardsCoreDataWithoutHardwareMutation();
 	TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation();
 	TestPc386AtaDiskLaunchSaveAndRestore();
+	TestPc386WindowFaultRefusesTheDiskSave();
 	TestPc386DiskFaultSaveRealignsMailbox();
 	TestPongInputFaultDoesNotCapture();
 	TestPc386LibraryRecordAndWallClock();

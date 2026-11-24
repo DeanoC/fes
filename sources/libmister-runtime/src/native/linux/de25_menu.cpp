@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "native/linux/de25_menu.hpp"
+#include "native/de25_hps_window.hpp"
 #include "native/hardware.hpp"
 #include "native/de25_core_contract.hpp"
 #include "native/generated/fes_application.hpp"
@@ -15,6 +16,7 @@
 #include <unistd.h>
 #if defined(__linux__)
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include "native/linux/de25_dma.h"
 #endif
 namespace mister { namespace native {
@@ -62,18 +64,21 @@ static_assert(sizeof(fes_de25_dma_info)==104&&sizeof(fes_de25_dma_publish)==24,"
 static_assert(FES_DE25_DMA_DIAGNOSTICS_VERSION==kDiagnosticsVersion&&FES_DE25_DMA_DIAGNOSTICS_VALID==kDiagnosticsValid&&sizeof(fes_de25_dma_diagnostics)==48,"kernel diagnostics layout differs");
 static_assert(FES_DE25_DMA_RETIREMENT_VERSION==kRetirementVersion&&FES_DE25_DMA_RETIREMENT_VALID==kRetirementValid&&sizeof(fes_de25_dma_retirement)==96,"kernel retirement layout differs");
 Error Io(const char* s){return {ErrorCode::io_failed,std::string(s)+": "+std::strerror(errno),"menu"};}
+// The owner device, opened once per user: the scanout's calls and the
+// window's each hold their own descriptor of it.
+Error OpenOwner(int* owner) {
+ if(*owner>=0)return {};
+ const int fd=open("/dev/fes-de25-scanout",O_RDWR|O_CLOEXEC|O_NOFOLLOW);
+ if(fd<0)return Io("open DE25 owner");
+ struct stat st{};
+ if(fstat(fd,&st)<0||!S_ISCHR(st.st_mode)||st.st_uid||st.st_gid||(st.st_mode&07777)!=0600) {
+  close(fd);return Failed("DE25 owner is not the root-only character device");
+ }
+ *owner=fd;return {};
+}
 class KernelOperations final : public De25MenuOperations {
  int owner_=-1;
- Error Open() {
-  if(owner_>=0)return {};
-  const int fd=open("/dev/fes-de25-scanout",O_RDWR|O_CLOEXEC|O_NOFOLLOW);
-  if(fd<0)return Io("open DE25 owner");
-  struct stat st{};
-  if(fstat(fd,&st)<0||!S_ISCHR(st.st_mode)||st.st_uid||st.st_gid||(st.st_mode&07777)!=0600) {
-   close(fd);return Failed("DE25 owner is not the root-only character device");
-  }
-  owner_=fd;return {};
- }
+ Error Open() {return OpenOwner(&owner_);}
  static void Decode(const fes_de25_dma_info& raw,De25MenuGrant* out) {
 #define FIELD(n) out->n=raw.n
   FIELD(generation);FIELD(version);FIELD(allocation_bytes);FIELD(slot_bytes);FIELD(frame_bytes);
@@ -154,6 +159,59 @@ public:
  void Close(int fd) override {close(fd);}
  void WaitMs(std::uint32_t ms) override {timespec t{};t.tv_sec=ms/1000;t.tv_nsec=(ms%1000)*1000000;(void)nanosleep(&t,nullptr);}
 };
+static_assert(FES_DE25_DMA_WINDOW_VERSION==kDe25WindowAbi&&sizeof(fes_de25_dma_window_info)==56,"kernel window layout differs");
+static_assert(sizeof(De25WindowKernelInfo)==sizeof(fes_de25_dma_window_info),"window info copy layout");
+Error WindowIo(const char* s){return {ErrorCode::io_failed,std::string(s)+": "+std::strerror(errno),"input"};}
+class KernelWindow final : public De25WindowKernel {
+ int owner_=-1;
+public:
+ ~KernelWindow() override {if(owner_>=0)close(owner_);}
+ Error WindowAbi(bool* offered,std::uint32_t* version) override {
+  *offered=false;*version=0;
+  Error e=OpenOwner(&owner_);if(!e.ok())return e;
+  const int result=ioctl(owner_,FES_DE25_DMA_OWNER_WINDOW_ABI,0UL);
+  if(result<0) {
+   if(errno==ENOTTY||errno==ENODEV)return {};
+   return WindowIo("DE25 owner window ABI");
+  }
+  *offered=true;*version=std::uint32_t(result);return {};
+ }
+ Error Allocate(int* window) override {
+  Error e=OpenOwner(&owner_);if(!e.ok())return e;
+  *window=ioctl(owner_,FES_DE25_DMA_OWNER_WINDOW_ALLOC,0UL);
+  return *window<0?WindowIo("DE25 window allocation"):Error{};
+ }
+ Error Info(int window,De25WindowKernelInfo* out) override {
+  fes_de25_dma_window_info raw{};raw.version=out->version;raw.reserved=0;
+  if(ioctl(window,FES_DE25_DMA_WINDOW_INFO,&raw)<0)return WindowIo("DE25 window info");
+#define FIELD(n) out->n=raw.n
+  FIELD(generation);FIELD(version);FIELD(reserved);FIELD(contract);FIELD(span);
+  FIELD(status);FIELD(fault);FIELD(state);FIELD(flags);
+#undef FIELD
+  for(unsigned i=0;i<4;++i)out->build_id[i]=raw.build_id[i];
+  return {};
+ }
+ Error Revoke(int window) override {
+  return ioctl(window,FES_DE25_DMA_WINDOW_REVOKE,0UL)<0?WindowIo("DE25 window revoke"):Error{};
+ }
+ Error Duplicate(int fd,int* out) override {
+  *out=fcntl(fd,F_DUPFD_CLOEXEC,0);return *out<0?WindowIo("DE25 window range"):Error{};
+ }
+ Error Map(int fd,std::uint64_t offset,std::size_t bytes,void** mapping) override {
+  void* mapped=mmap(nullptr,bytes,PROT_READ|PROT_WRITE,MAP_SHARED,fd,off_t(offset));
+  if(mapped==MAP_FAILED)return WindowIo("map DE25 window range");
+  *mapping=mapped;return {};
+ }
+ void Unmap(void* mapping,std::size_t bytes) override {(void)munmap(mapping,bytes);}
+ void Barrier() override {
+#if defined(__aarch64__)
+  __asm__ __volatile__("dsb sy":::"memory");
+#else
+  __sync_synchronize();
+#endif
+ }
+ void Close(int fd) override {close(fd);}
+};
 #else
 class KernelOperations final : public De25MenuOperations {
 public:
@@ -168,8 +226,22 @@ public:
  void Close(int) override {}
  void WaitMs(std::uint32_t) override {}
 };
+Error NoWindowKernel(){return {ErrorCode::unsupported_interface,"DE25 HPS window requires Linux","input"};}
+class KernelWindow final : public De25WindowKernel {
+public:
+ Error WindowAbi(bool* offered,std::uint32_t* version) override {*offered=false;*version=0;return {};}
+ Error Allocate(int*) override {return NoWindowKernel();}
+ Error Info(int,De25WindowKernelInfo*) override {return NoWindowKernel();}
+ Error Revoke(int) override {return NoWindowKernel();}
+ Error Duplicate(int,int*) override {return NoWindowKernel();}
+ Error Map(int,std::uint64_t,std::size_t,void**) override {return NoWindowKernel();}
+ void Unmap(void*,std::size_t) override {}
+ void Barrier() override {}
+ void Close(int) override {}
+};
 #endif
 }
+std::unique_ptr<De25WindowKernel> LinuxDe25WindowKernel(){return std::unique_ptr<De25WindowKernel>(new KernelWindow);}
 LinuxDe25Menu::LinuxDe25Menu(Clock& c,std::uint32_t ms):clock_(c),owned_(new KernelOperations),operations_(owned_.get()),revoke_ms_(ms){}
 LinuxDe25Menu::LinuxDe25Menu(Clock& c,De25MenuOperations& o,std::uint32_t ms):clock_(c),operations_(&o),revoke_ms_(ms){}
 LinuxDe25Menu::LinuxDe25Menu(Clock& c,MenuDisplay& display,std::uint32_t ms):LinuxDe25Menu(c,ms){session_endpoint_=&display;}

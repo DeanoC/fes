@@ -281,6 +281,214 @@ void TestFailedRevokeOrReleasePoisons()
  }
 }
 
+// The kernel owner's window ABI 1, scripted as de25_dma_window.c behaves:
+// one window, mmap at a page offset of its storage, REVOKE ends it.
+class Kernel final : public mister::native::De25WindowKernel {
+public:
+ Calls calls;
+ mister::native::De25WindowKernelInfo info;
+ bool offered = true, fail_probe = false, revoked = false, fail_revoke = false;
+ std::uint32_t abi = 1;
+ int next = 40, open = 0, probes = 0;
+ std::map<std::uint64_t, std::vector<unsigned char>> storage;  // by mapping offset
+ std::map<void*, std::uint64_t> mapped;
+ Kernel()
+ {
+  info.generation = 7;
+  info.version = 1;
+  info.contract = FesDe25HpsWindowVersion;
+  info.span = FesDe25HpsWindowSpan;
+  info.status = FesDe25HpsWindowStatusGranted | FesDe25HpsWindowStatusDrained | FesDe25HpsWindowStatusHeld;
+  info.state = mister::native::kDe25WindowExposed;
+  info.build_id = kBuild;
+ }
+ mister::Error WindowAbi(bool* is_offered, std::uint32_t* version) override
+ {
+  ++probes;
+  calls.push_back("abi");
+  if (fail_probe) return {mister::ErrorCode::io_failed, "open DE25 owner: EIO"};
+  *is_offered = offered;
+  *version = offered ? abi : 0;
+  return {};
+ }
+ mister::Error Allocate(int* window) override
+ {
+  calls.push_back("allocate");
+  *window = next++;
+  ++open;
+  return {};
+ }
+ mister::Error Info(int window, mister::native::De25WindowKernelInfo* out) override
+ {
+  calls.push_back("info " + std::to_string(window));
+  assert(out->version == 1 && out->reserved == 0);
+  *out = info;
+  return {};
+ }
+ mister::Error Revoke(int window) override
+ {
+  calls.push_back("revoke " + std::to_string(window));
+  if (fail_revoke) return {mister::ErrorCode::io_failed, "DE25 window revoke: Device or resource busy"};
+  revoked = true;
+  mapped.clear();
+  info.state = mister::native::kDe25WindowRevoked;
+  return {};
+ }
+ mister::Error Duplicate(int fd, int* out) override
+ {
+  *out = next++;
+  ++open;
+  calls.push_back("dup " + std::to_string(fd) + " " + std::to_string(*out));
+  return {};
+ }
+ mister::Error Map(int fd, std::uint64_t offset, std::size_t bytes, void** mapping) override
+ {
+  calls.push_back("mmap " + std::to_string(fd) + " " + std::to_string(offset) + " " + std::to_string(bytes));
+  if (revoked) return {mister::ErrorCode::io_failed, "map DE25 window range: Permission denied"};
+  auto& buffer = storage[offset];
+  if (buffer.size() < bytes) buffer.resize(bytes, 0);
+  *mapping = buffer.data();
+  mapped[*mapping] = offset;
+  return {};
+ }
+ void Unmap(void* mapping, std::size_t bytes) override
+ {
+  calls.push_back("munmap " + std::to_string(mapped.count(mapping) ? mapped[mapping] : 999) + " " + std::to_string(bytes));
+  mapped.erase(mapping);
+ }
+ void Barrier() override { calls.push_back("barrier"); }
+ void Close(int fd) override
+ {
+  calls.push_back("close " + std::to_string(fd));
+  --open;
+ }
+};
+
+void TestKernelOwnerProbesTheWindowAbiOnce()
+{
+ {
+  Kernel kernel;
+  mister::native::De25KernelWindowOwner owner(kernel);
+  assert(owner.Available() && owner.Available() && kernel.probes == 1);
+ }
+ {
+  // An older kernel (ENOTTY) or a tree without the block (ENODEV) offers
+  // nothing, and no allocation is attempted.
+  Kernel kernel;
+  kernel.offered = false;
+  mister::native::De25KernelWindowOwner owner(kernel);
+  mister::native::De25HpsWindow window(owner);
+  assert(!window.OwnerAvailable());
+  assert(window.Open(kBuild).code == mister::ErrorCode::unsupported_interface && !window.Ready());
+  assert(kernel.calls == Calls({"abi"}));
+ }
+ {
+  Kernel kernel;
+  kernel.abi = 2;
+  mister::native::De25KernelWindowOwner owner(kernel);
+  assert(!owner.Available());
+ }
+ {
+  // A probe that failed is the device's error, not an answer: retried.
+  Kernel kernel;
+  kernel.fail_probe = true;
+  mister::native::De25KernelWindowOwner owner(kernel);
+  assert(!owner.Available());
+  kernel.fail_probe = false;
+  assert(owner.Available() && kernel.probes == 2);
+ }
+}
+
+void TestKernelOwnerReportsOnlyATrustedExposedWindow()
+{
+ using mister::native::kDe25WindowExposed;
+ using mister::native::kDe25WindowRevoked;
+ using mister::native::kDe25WindowUncertain;
+ Kernel kernel;
+ mister::native::De25KernelWindowOwner owner(kernel);
+ mister::native::De25WindowGrant grant;
+ assert(owner.Info(40, &grant).ok());
+ // The contract version is the block's, not the ioctl ABI's.
+ assert(grant.version == FesDe25HpsWindowVersion && grant.span == FesDe25HpsWindowSpan &&
+  grant.generation == 7 && grant.build_id == kBuild && grant.status == kernel.info.status);
+ const std::uint32_t refused[] = {0, kDe25WindowExposed | kDe25WindowRevoked,
+  kDe25WindowExposed | kDe25WindowUncertain, kDe25WindowRevoked, kDe25WindowExposed | 8};
+ for (const std::uint32_t state : refused) {
+  kernel.info.state = state;
+  assert(owner.Info(40, &grant).code == mister::ErrorCode::io_failed);
+ }
+ kernel.info.state = kDe25WindowExposed;
+ kernel.info.flags = 1;
+ assert(owner.Info(40, &grant).code == mister::ErrorCode::unsupported_interface);
+ kernel.info.flags = 0;
+ kernel.info.version = 2;
+ assert(owner.Info(40, &grant).code == mister::ErrorCode::unsupported_interface);
+}
+
+void TestKernelOwnerRangesMapAtTheirOffsetAndReleaseRevokesOnce()
+{
+ Kernel kernel;
+ {
+  mister::native::De25KernelWindowOwner owner(kernel);
+  mister::native::De25HpsWindow window(owner);
+  assert(window.Open(kBuild).ok() && window.Ready());
+  mister::native::DiskWindow disk(window);
+  const std::uint64_t offset = FesComputerAtaDiskWindowOffset + 3 * 4096;
+  assert(disk.Access(offset, 8192, [](unsigned char* bytes) {
+   bytes[0] = 0x5a; bytes[8191] = 0xa5; return mister::Error{};
+  }).ok());
+  // A range is a duplicate of the window mapped at its offset; it ends with
+  // its unmap and a full barrier, never the window's REVOKE.
+  const Calls range = {"dup 40 41", "mmap 41 " + std::to_string(offset) + " 8192",
+   "munmap " + std::to_string(offset) + " 8192", "barrier", "close 41"};
+  assert(Calls(kernel.calls.end() - 5, kernel.calls.end()) == range);
+  assert(!kernel.revoked && kernel.mapped.empty());
+  assert(kernel.storage[offset][0] == 0x5a && kernel.storage[offset][8191] == 0xa5);
+  // The bytes are in the window for the next range to read.
+  assert(disk.Access(offset, 4096, [](unsigned char* bytes) {
+   return bytes[0] == 0x5a ? mister::Error{} : mister::Error{mister::ErrorCode::io_failed, "lost"};
+  }).ok());
+  assert(window.Check().ok());
+  assert(window.Release().ok() && !window.Ready());
+  assert(kernel.calls[kernel.calls.size() - 2] == "revoke 40" && kernel.calls.back() == "close 40");
+  // A second session allocates afresh.
+  kernel.revoked = false;
+  kernel.info.state = mister::native::kDe25WindowExposed;
+  kernel.info.generation = 8;
+  assert(window.Open(kBuild).ok() && window.Release().ok());
+ }
+ assert(kernel.open == 0);
+}
+
+void TestKernelOwnerRangeRules()
+{
+ Kernel kernel;
+ mister::native::De25KernelWindowOwner owner(kernel);
+ int range = -1;
+ void* mapping = nullptr;
+ assert(owner.Grant(40, 1, 4096, &range).code == mister::ErrorCode::invalid_request && range == -1);
+ assert(owner.Grant(40, FesDe25HpsWindowSpan - 4096, 8192, &range).code == mister::ErrorCode::invalid_request);
+ assert(owner.Grant(40, 4096, 4096, &range).ok());
+ // A mapping stays inside its range.
+ assert(owner.Map(range, 8192, &mapping).code == mister::ErrorCode::invalid_request && !mapping);
+ assert(owner.Map(range, 4096, &mapping).ok() && mapping);
+ // The window is not released while a range is out.
+ assert(owner.Release(40).code == mister::ErrorCode::busy && !kernel.revoked);
+ // Revoke unmaps what the user left mapped; nothing maps after it.
+ assert(owner.Revoke(range).ok() && kernel.mapped.empty());
+ assert(owner.Map(range, 4096, &mapping).code == mister::ErrorCode::invalid_request);
+ assert(owner.Revoke(range).code == mister::ErrorCode::invalid_request);
+ owner.Close(range);
+ assert(owner.Revoke(range).code == mister::ErrorCode::invalid_request);
+ // Closing a range that was never revoked still unmaps it.
+ assert(owner.Grant(40, 0, 4096, &range).ok() && owner.Map(range, 4096, &mapping).ok());
+ owner.Close(range);
+ assert(kernel.mapped.empty() && kernel.open == 0);
+ // A revoke the kernel refuses (a port not drained) is the release's error.
+ kernel.fail_revoke = true;
+ assert(owner.Release(40).code == mister::ErrorCode::io_failed);
+}
+
 void TestOwnerWithoutWindowsOffersNothing()
 {
  Owner owner;
@@ -288,7 +496,9 @@ void TestOwnerWithoutWindowsOffersNothing()
  assert(window.OwnerAvailable());
  owner.available = false;
  assert(!window.OwnerAvailable());
- mister::native::De25NoWindowOwner none;
+ Kernel kernel;
+ kernel.offered = false;
+ mister::native::De25KernelWindowOwner none(kernel);
  mister::native::De25HpsWindow production(none);
  assert(!production.OwnerAvailable());
  assert(production.Open(kBuild).code == mister::ErrorCode::unsupported_interface && !production.Ready());
@@ -320,6 +530,10 @@ int main()
  TestFailedRevokeOrReleasePoisons();
  TestRangesAreNotSharedOrCleanedInPart();
  TestOwnerWithoutWindowsOffersNothing();
- puts("de25_hps_window_test: 9 passed");
+ TestKernelOwnerProbesTheWindowAbiOnce();
+ TestKernelOwnerReportsOnlyATrustedExposedWindow();
+ TestKernelOwnerRangesMapAtTheirOffsetAndReleaseRevokesOnce();
+ TestKernelOwnerRangeRules();
+ puts("de25_hps_window_test: 13 passed");
  return 0;
 }
