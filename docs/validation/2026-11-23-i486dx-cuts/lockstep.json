@@ -1,0 +1,62 @@
+{
+ "base": {
+  "source": "plan record (sims/base)",
+  "rc": 0,
+  "failures": [],
+  "new_failures": []
+ },
+ "l1i2": {
+  "rc": 0,
+  "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-l1i2/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
+  "failures": [],
+  "new_failures": []
+ },
+ "l1d2": {
+  "rc": 0,
+  "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-l1d2/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
+  "failures": [],
+  "new_failures": []
+ },
+ "l12": {
+  "rc": 0,
+  "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-l12/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
+  "failures": [],
+  "new_failures": []
+ },
+ "xshift": {
+  "rc": 0,
+  "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-xshift/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
+  "failures": [],
+  "new_failures": []
+ },
+ "xdisp": {
+  "rc": 0,
+  "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-xdisp/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
+  "failures": [],
+  "new_failures": []
+ },
+ "x87": {
+  "rc": 0,
+  "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-x87/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
+  "failures": [],
+  "new_failures": []
+ },
+ "cuts": {
+  "rc": 0,
+  "last_line": "i386 lockstep passed (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-cuts/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
+  "failures": [],
+  "new_failures": []
+ },
+ "qhalf": {
+  "rc": 1,
+  "last_line": "i386 lockstep FAILED (host simulation only; report: /data/projects/i486dx-plan/wt-r2-sim-qhalf/sources/misteross/build/sim/fes-i386-lockstep/report.json)",
+  "failures": [
+   "FAIL flag hold: 3 after_shift retirements 2 cycles apart",
+   "FAIL stack hold: 1 stack_stack retirements 2 cycles apart"
+  ],
+  "new_failures": [
+   "FAIL flag hold: 3 after_shift retirements 2 cycles apart",
+   "FAIL stack hold: 1 stack_stack retirements 2 cycles apart"
+  ]
+ }
+}
