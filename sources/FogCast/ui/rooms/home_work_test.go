@@ -132,7 +132,7 @@ func homeCallbackWorkCeiling(t *testing.T, withRecent bool) {
 		instructions uint64
 		ops          int
 	}{
-		"main":        {2870, 0},   // 2778
+		"main":        {3150, 0},   // 3002 with four C64 models
 		"load":        {1800, 0},   // 1549
 		"async":       {760, 0},    // 617
 		"update":      {700, 0},    // 470-547, by family answer order
@@ -141,8 +141,8 @@ func homeCallbackWorkCeiling(t *testing.T, withRecent bool) {
 		"draw:resize": {5060, 443}, // 934, 72
 		"on_input":    {800, 0},    // 649
 		"on_hover":    {790, 0},    // 639
-		"on_activate": {480, 0},    // 389
-		"on_resize":   {420, 0},    // 346
+		"on_activate": {650, 0},    // 570 with four C64 models
+		"on_resize":   {600, 0},    // 524 with four C64 models
 		"on_resume":   {880, 0},    // 797
 	}
 	// An unchanged frame keeps the presented picture: 47 instructions.
@@ -368,17 +368,17 @@ func BenchmarkHomeFocusChange(b *testing.B) {
 // Home records them again from this test's failure output.
 var homeTourFrames = []string{
 	"10285482ff1f2418", "b0eafd68538cee03", "2ae79d0aa615a35d", "2ae79d0aa615a35d",
-	"c265350e9c92e864", "8ef62f97eb2dfab9", "8df5e5b37a165506", "dc968cd51e036ec5",
+	"c265350e9c92e864", "8ef62f97eb2dfab9", "8df5e5b37a165506", "aedcfdb4530e703e",
 	"3988e36e2bbac26d", "6c33cf06318c7a75", "38f8ccc66a35a9de", "153e5cc6b70c3863",
 	"3c32399c22889742", "9f630bfb4fac5f57", "55149c1bae015613", "8e70f5a15fe57e07",
 	"72632a2a56e6a70a", "8e70f5a15fe57e07", "55149c1bae015613", "9f630bfb4fac5f57",
 	"3c32399c22889742", "153e5cc6b70c3863", "38f8ccc66a35a9de", "6c33cf06318c7a75",
-	"3988e36e2bbac26d", "dc968cd51e036ec5", "8df5e5b37a165506", "8ef62f97eb2dfab9",
+	"3988e36e2bbac26d", "aedcfdb4530e703e", "8df5e5b37a165506", "8ef62f97eb2dfab9",
 	"c265350e9c92e864", "2ae79d0aa615a35d", "b0eafd68538cee03", "4843f9e5628e611c",
 	"4843f9e5628e611c", "4843f9e5628e611c", "9096d8041f39f99d", "b0eafd68538cee03",
 	"c265350e9c92e864", "8ef62f97eb2dfab9", "8df5e5b37a165506", "4142ba012274c34d",
 	"8a5734fc5bce1e17", "c5c3a1e4975ed179", "4142ba012274c34d", "c265350e9c92e864",
-	"dc968cd51e036ec5", "96b5e80c73fb0ca5", "8ecb81d06867a996", "6b511d11c5b0ff86",
+	"aedcfdb4530e703e", "625815bb111ae187", "8ecb81d06867a996", "6b511d11c5b0ff86",
 	"8ecb81d06867a996", "392308fd9c1ac552", "a92cd4d9fabb6285", "a0bc045e70225548",
 	"2039d045bf824319", "20aa471274d9b993", "d37bbc0f8c73accf", "590832583f518879",
 	"4219931f7bc2e5fc", "b4086fe5712ee1dc", "2935edea693ba764",

@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -499,6 +500,42 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertEqual('bring-up-queued', by_id['fes.c64-ntsc']['tier'])
         self.assertEqual('current', SUPPORT_MATRIX.derive_tier(by_id['fes.atari-st']))
         self.assertEqual('current', by_id['fes.spectrum']['tier_override']['tier'])
+
+    def test_only_rows_the_dated_decision_named_may_cite_it(self):
+        # The decision's rows are the overrides in the snapshot it was made on.
+        snapshot = json.loads(subprocess.run(
+            ['git', '-C', str(ROOT), 'show',
+             f'{SUPPORT_MATRIX.AS_OF_COMMIT}:docs/support-matrix.json'],
+            check=True, capture_output=True, text=True).stdout)
+        decided = {row['id'] for row in snapshot['cores']
+                   if (row.get('tier_override') or {}).get('reason') == SUPPORT_MATRIX.OVERRIDE_REASON}
+        self.assertEqual(SUPPORT_MATRIX.OVERRIDE_IDS, decided)
+        # A later row queued under that decision, as fes.c64c once was, is
+        # rejected, and nothing else about the row is.
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        row = next(row for row in data['cores'] if row['id'] == 'fes.c64c')
+        row.update(tier='bring-up-queued', tier_role='play', check_level='none', tier_override={
+            'tier': 'bring-up-queued', 'reason': SUPPORT_MATRIX.OVERRIDE_REASON, 'note': 'Queued.'})
+        self.assertEqual(
+            [f'fes.c64c has a tier override, but {SUPPORT_MATRIX.OVERRIDE_REASON} did not decide its tier'],
+            SUPPORT_MATRIX.validate(ROOT, data))
+
+    def test_c64c_rows_are_bring_up_with_full_checks(self):
+        # Their packages exist, so they are not queued; their own role sets
+        # the tier, and the derived level keeps them in closure sweeps.
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        rendered = SUPPORT_MATRIX.render(data)
+        for core_id, display in (('fes.c64c', 'C64C (PAL)'), ('fes.c64c-ntsc', 'C64C (NTSC)')):
+            with self.subTest(core_id=core_id):
+                row = by_id[core_id]
+                self.assertEqual('bring-up', row['tier_role'])
+                self.assertEqual('bring-up', row['tier'])
+                self.assertNotIn('tier_override', row)
+                self.assertEqual('held-back', row['release'])
+                self.assertEqual('full', row['check_level'])
+                self.assertIn('No hardware acceptance is recorded', row['notes'])
+                self.assertIn(f'| {display} | Bring-up |', rendered)
 
     def test_missing_lock_is_reported_without_reusing_other_core_pins(self):
         data = SUPPORT_MATRIX.load_json(ROOT)

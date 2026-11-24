@@ -83,7 +83,8 @@ def timed_reset_release(inputs):
     policy = scanout.get("reset_timing")
     if canonical or standard:
         if (policy != TIMED_RESET_RELEASE or scanout["hps_initialization"] != "HPS FIRST" or
-                inputs.get("f2sdram_master_profile") != "scanout-only" or
+                inputs.get("f2sdram_master_profile") not in
+                    (("scanout-only",) if canonical else ("scanout-only", "scanout+window")) or
                 scanout.get("managed_fabric") != MANAGED_FABRIC):
             raise ValueError("managed display requires the selected same-clock reset timing profile")
     elif policy is not None or scanout.get("managed_fabric") is not None:
@@ -223,9 +224,11 @@ def build_identity(sources, hps_first, linux_dma):
 
 
 def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=False,
-            package_build_id=None):
+            package_build_id=None, window=False):
     if type(hps_first) is not bool:
         raise ValueError("HPS-first selection must be boolean")
+    if type(window) is not bool or (window and not linux_dma):
+        raise ValueError("a window in HPS DDR needs the Linux DMA profile")
     if type(linux_dma) is not bool or (linux_dma and not hps_first):
         raise ValueError("Linux DMA requires explicit HPS-first selection")
     if package_build_id is not None and (not revision or not linux_dma or
@@ -346,7 +349,8 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
     if linux_dma:
         dma = load(snapshot / BOARD / "scanout/linux_dma.py", "scanout_retained_linux_dma")
         prefix, dma_profile, parameter_changes = dma.configure(project, definition, hps,
-                                                               managed_fabric=package_build_id is not None)
+                                                               managed_fabric=package_build_id is not None,
+                                                               window=window)
         script = dma.isolate_script(script, before)
         if package_build_id is not None:
             if dma.MANAGED_FABRIC != MANAGED_FABRIC:
@@ -384,7 +388,7 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
     if dma_profile is not None:
         inputs["scanout"]["linux_dma"] = dma_profile
         inputs["allowed_hps_parameter_changes"] = parameter_changes
-        inputs["f2sdram_master_profile"] = "scanout-only"
+        inputs["f2sdram_master_profile"] = dma_profile["master_ownership"]
         inputs["combined_display"]["debug_paths"] = "JTAG F2SDRAM master/window removed; other JTAG/OCM/F2H paths preserved"
         if package_build_id is not None:
             inputs["combined_display"]["debug_paths"] = "JTAG Avalon masters, F2H translator and on-chip memory removed, unused native F2H and H2F disabled; HPS lightweight control and JTAG FPGA configuration preserved"
@@ -750,7 +754,9 @@ def managed_fabric_helper(directory):
 
 
 def verify_managed_fabric(directory, hps):
-    return managed_fabric_helper(directory).verify_managed_fabric(directory / "project", hps)
+    selected = json.loads((directory / "inputs.json").read_text())["scanout"].get("linux_dma") or {}
+    window = selected.get("master_ownership") == "scanout+window"
+    return managed_fabric_helper(directory).verify_managed_fabric(directory / "project", hps, window=window)
 
 
 def shared_reset_helper(directory):

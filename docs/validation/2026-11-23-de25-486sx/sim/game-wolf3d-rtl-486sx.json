@@ -1,0 +1,157 @@
+{
+  "command": [
+    "build/sim/fes-pc386-level4/machine/obj/Vpc386_machine",
+    "--bios",
+    "build/firmware/pc386/pc386-bios.bin",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "/home/deano/fes-drives/pc386/a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c.img",
+    "--limit-seconds",
+    "24.0",
+    "--type",
+    "cd \\wolf3d|wolf3d|",
+    "--keys-after-type",
+    "1",
+    "--wav",
+    "build/sim/fes-pc386-level4/game-wolf3d-rtl/wolf3d.wav",
+    "--opl2-log",
+    "build/sim/fes-pc386-level4/game-wolf3d-rtl/wolf3d-opl2.log",
+    "--frames",
+    "build/sim/fes-pc386-level4/game-wolf3d-rtl/frames",
+    "--keys",
+    "2.0:|",
+    "--keys",
+    "3.5:|",
+    "--keys",
+    "5.0:|",
+    "--keys",
+    "6.5:|",
+    "--keys",
+    "8.0:|",
+    "--keys",
+    "9.5:|",
+    "--keys",
+    "11.0:|",
+    "--keys",
+    "12.5:|",
+    "--keys",
+    "14.0:|",
+    "--keys",
+    "15.5:^ ",
+    "--keys",
+    "16.3:^ ",
+    "--keys",
+    "17.1:^ ",
+    "--keys",
+    "17.9:^ ",
+    "--keys",
+    "18.7:^ ",
+    "--keys",
+    "19.5:^ ",
+    "--keys",
+    "20.3:^ ",
+    "--keys",
+    "21.1:^ ",
+    "--cpu",
+    "rtl",
+    "--game-launch",
+    "1"
+  ],
+  "cpu_level": 4,
+  "cpu_resets": 0,
+  "end": {
+    "cycles": 2400000044,
+    "reason": "limit",
+    "seconds": 24.0,
+    "steps": 954443257
+  },
+  "exit": 1,
+  "failures": [],
+  "game": {
+    "bucket": "real",
+    "drive": "real",
+    "drive_sha256": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+    "name": "wolf3d",
+    "source": "exodos",
+    "source_sha256": "f451d8538266fb9f12a4fa8909a671b37d354de388a9b76d1c1033a6a541ed37",
+    "title": "Wolfenstein 3D (1992)"
+  },
+  "game_launch": {
+    "evidence": "screen",
+    "seconds": 6.4
+  },
+  "opl2": {
+    "exact": 1193181,
+    "nonzero": 781501,
+    "samples": 1193181,
+    "writes": 2327
+  },
+  "rtl": {
+    "counters": {
+      "oracle_steps": 0,
+      "parked_clocks": 93814975,
+      "pe_entries": 1,
+      "pe_retired": 6,
+      "port0_reads": 7431414,
+      "port0_writes": 286623256,
+      "protected_steps": 0,
+      "replays": 537835,
+      "retired": 954443257,
+      "smc_addresses": 5,
+      "smc_executed": 0,
+      "smc_restarts": 1535856,
+      "smc_stores": 1119863,
+      "store_page_mismatches": 0,
+      "tf_retired": 0,
+      "vga_loads": 807615
+    },
+    "gaps": [],
+    "notes": [],
+    "pmode": [],
+    "smc": [
+      {
+        "address": "00099efb",
+        "cycle": 22158720,
+        "event": "store",
+        "instruction": "00099eda",
+        "site": "8fe9:0000a04a"
+      },
+      {
+        "address": "000cc500",
+        "cycle": 424657126,
+        "event": "store",
+        "instruction": "000cc4de",
+        "site": "c993:00002bae"
+      },
+      {
+        "address": "000116b0",
+        "cycle": 451702394,
+        "event": "store",
+        "instruction": "0001168e",
+        "site": "0eae:00002bae"
+      },
+      {
+        "address": "00090f90",
+        "cycle": 452368136,
+        "event": "store",
+        "instruction": "00090f6e",
+        "site": "8e3c:00002bae"
+      },
+      {
+        "address": "000cdb00",
+        "cycle": 454855040,
+        "event": "store",
+        "instruction": "000cdade",
+        "site": "caf3:00002bae"
+      }
+    ],
+    "stops": []
+  },
+  "sb": {
+    "commands": 23,
+    "dma": 11414,
+    "irqs": 3,
+    "resets": 1
+  }
+}

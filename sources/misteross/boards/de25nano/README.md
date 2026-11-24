@@ -37,6 +37,14 @@ uploaded firmware, with its producer `producers/build_c64_package.py`. Its RAM,
 frame pages and D64 stay in block RAM as on the DE10, so it leaves the board
 SDRAM idle.
 
+The standard pc386 (`pc386/`) runs `fes_i386_cpu` with no 387 behind the same
+shell, with all of its memory in a window in HPS DDR. Its producer,
+`producers/build_pc386_package.py`, adds named signoff bases for the window
+bridge's reset synchronisers (`scanout/bridge_reset.py`) and the machine's
+findings (`scanout/machine_findings.py`). It packages a format-2 candidate
+([record](../../../../docs/validation/2026-11-20-de25-pc386-shell-s3/signoff.md))
+that has not run on hardware.
+
 The [standard PC/XT](pcxt/README.md) is the DE10 DOS machine on the same
 shell with the DE10's own clocks: the shared machine builder takes its 100 MHz
 PLL and SDRAM phases from the machine's spec. Its producer is

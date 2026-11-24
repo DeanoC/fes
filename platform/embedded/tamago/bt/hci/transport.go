@@ -1,0 +1,731 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package hci
+
+import (
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
+)
+
+const (
+	maxHCIEventBytes    = 260
+	maxHCICmdBytes      = 258
+	maxACLUSBPacket     = 512
+	maxACLRxBytes       = 1028
+	maxACLTxQueue       = 16
+	maxDeferredEvents   = 32
+	maxDeferredOverflow = 256
+	defaultCmdTimeout   = 2 * time.Second
+)
+
+type aclTxFrame struct {
+	data [maxACLUSBPacket]byte
+	n    int
+}
+
+type handleCredits struct {
+	used        bool
+	handle      uint16
+	outstanding int
+}
+
+// LocalVersion captures HCI_Read_Local_Version_Information (0x1001).
+type LocalVersion struct {
+	HCIVersion     uint8
+	HCIRevision    uint16
+	LMPVersion     uint8
+	Manufacturer   uint16
+	LMPSubversion  uint16
+}
+
+// Transport drives one USB Bluetooth HCI dongle over a usb.BusHost using EP0
+// Control OUT (commands), EP1 Interrupt IN (events), EP2 Bulk IN (ACL RX), and
+// EP2 Bulk OUT (ACL TX) with zero steady-state heap allocations.
+type Transport struct {
+	bus      usb.BusHost
+	addr     uint8
+	ifaceNum uint8
+	spec     DongleSpec
+
+	evPipe     usb.Pipe
+	aclInPipe  usb.Pipe
+	aclOutPipe usb.Pipe
+	cmdTimeout time.Duration
+	now        func() time.Time
+
+	version    LocalVersion
+	bdAddr     [6]byte
+	aclMaxLen  int
+	maxCredits int
+	credits    int
+
+	evBuf       [maxHCIEventBytes]byte
+	evLen       int
+	evDispatch  [maxHCIEventBytes]byte
+	aclRxBuf    [maxACLRxBytes]byte
+	aclRxLen    int
+	aclDispatch [maxACLRxBytes]byte
+	cmdBuf      [maxHCICmdBytes]byte
+
+	txRing      [maxACLTxQueue]aclTxFrame
+	txHead      int
+	txCount     int
+	txInFlight  bool
+	outstanding [8]handleCredits
+
+	// Deferred events received while waiting synchronously for Command Complete.
+	deferred         [maxDeferredEvents][maxHCIEventBytes]byte
+	deferredLen      [maxDeferredEvents]int
+	deferredHead     int
+	deferredCount    int
+	deferredOverflow [][]byte
+}
+
+// Open binds a discovered USB Bluetooth HCI device on bus and allocates its 3
+// dedicated pipes (Interrupt IN Events, Bulk IN ACL, Bulk OUT ACL).
+func Open(bus usb.BusHost, dev usb.BusDevice) (*Transport, error) {
+	if bus == nil {
+		return nil, errors.New("bt/hci: nil bus host")
+	}
+	iface, spec, ok := FindBluetoothInterface(dev)
+	if !ok {
+		return nil, fmt.Errorf("bt/hci: device %04x:%04x has no Bluetooth HCI interface",
+			dev.Descriptor.VendorID, dev.Descriptor.ProductID)
+	}
+	evEP, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+	aclInEP, _ := iface.FindEndpoint(usb.TransferBulk, true)
+	aclOutEP, _ := iface.FindEndpoint(usb.TransferBulk, false)
+
+	evPipe, err := bus.OpenPipe(dev.Address, evEP)
+	if err != nil {
+		return nil, err
+	}
+	aclInPipe, err := bus.OpenPipe(dev.Address, aclInEP)
+	if err != nil {
+		_ = evPipe.Close()
+		return nil, err
+	}
+	aclOutPipe, err := bus.OpenPipe(dev.Address, aclOutEP)
+	if err != nil {
+		_ = evPipe.Close()
+		_ = aclInPipe.Close()
+		return nil, err
+	}
+	tr := &Transport{
+		bus:        bus,
+		addr:       dev.Address,
+		ifaceNum:   iface.Number,
+		spec:       spec,
+		evPipe:     evPipe,
+		aclInPipe:  aclInPipe,
+		aclOutPipe: aclOutPipe,
+		cmdTimeout: defaultCmdTimeout,
+		now:        time.Now,
+	}
+	return tr, nil
+}
+
+func (t *Transport) maxACLPayloadLimit() int {
+	limit := maxACLUSBPacket - 4
+	if t.aclOutPipe != nil {
+		if mps := int(t.aclOutPipe.Endpoint().MaxPacketSize); mps > 4 && mps-4 < limit {
+			limit = mps - 4
+		}
+	}
+	return limit
+}
+
+// Spec returns the matched dongle metadata and quirks.
+func (t *Transport) Spec() DongleSpec { return t.spec }
+
+// BDAddr returns the dongle's 6-byte Bluetooth device address (little-endian).
+func (t *Transport) BDAddr() [6]byte { return t.bdAddr }
+
+// LocalVersion returns the dongle's HCI/LMP version discovered during Initialize.
+func (t *Transport) LocalVersion() LocalVersion { return t.version }
+
+// ACLCredits returns currently available controller ACL TX buffer slots.
+func (t *Transport) ACLCredits() int { return t.credits }
+
+// Close releases the 3 USB pipes held by this Bluetooth dongle.
+func (t *Transport) Close() error {
+	var firstErr error
+	for _, p := range []usb.Pipe{t.evPipe, t.aclInPipe, t.aclOutPipe} {
+		if p != nil {
+			if err := p.Close(); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
+}
+
+func isDroppableScanEvent(code byte) bool {
+	return code == EventInquiryResult || code == EventInquiryResultWithRSSI || code == EventExtendedInquiryResult
+}
+
+func (t *Transport) queueDeferredEvent(ev []byte) {
+	if len(ev) == 0 || len(ev) > maxHCIEventBytes {
+		return
+	}
+	// Preserve strict FIFO ordering: once overflow holds older events, continue
+	// appending non-scan events to overflow rather than inserting ahead of it.
+	if len(t.deferredOverflow) == 0 && t.deferredCount < len(t.deferred) {
+		idx := (t.deferredHead + t.deferredCount) % len(t.deferred)
+		copy(t.deferred[idx][:], ev)
+		t.deferredLen[idx] = len(ev)
+		t.deferredCount++
+		return
+	}
+	if isDroppableScanEvent(ev[0]) {
+		return
+	}
+	if len(t.deferredOverflow) == 0 && t.deferredCount == len(t.deferred) {
+		dropIdx := -1
+		for i := 0; i < t.deferredCount; i++ {
+			slot := (t.deferredHead + i) % len(t.deferred)
+			if isDroppableScanEvent(t.deferred[slot][0]) {
+				dropIdx = i
+				break
+			}
+		}
+		if dropIdx >= 0 {
+			for i := dropIdx; i < t.deferredCount-1; i++ {
+				dst := (t.deferredHead + i) % len(t.deferred)
+				src := (t.deferredHead + i + 1) % len(t.deferred)
+				t.deferredLen[dst] = copy(t.deferred[dst][:], t.deferred[src][:t.deferredLen[src]])
+			}
+			tail := (t.deferredHead + t.deferredCount - 1) % len(t.deferred)
+			copy(t.deferred[tail][:], ev)
+			t.deferredLen[tail] = len(ev)
+			return
+		}
+	}
+	if len(t.deferredOverflow) >= maxDeferredOverflow {
+		return
+	}
+	t.deferredOverflow = append(t.deferredOverflow, append([]byte(nil), ev...))
+}
+
+// SendCommand transmits one HCI command via USB EP0 Class Control OUT
+// (bmRequestType=0x20, bRequest=0x00) and waits synchronously for its matching
+// Command Complete (0x0E) or Command Status (0x0F) event. Any return parameters
+// (starting with the Status byte) are copied into resp.
+func (t *Transport) SendCommand(opcode uint16, params []byte, resp []byte) (int, error) {
+	if len(params) > 255 {
+		return 0, fmt.Errorf("bt/hci: command %#04x params too long (%d)", opcode, len(params))
+	}
+	binary.LittleEndian.PutUint16(t.cmdBuf[0:2], opcode)
+	t.cmdBuf[2] = byte(len(params))
+	copy(t.cmdBuf[3:3+len(params)], params)
+	if _, err := t.bus.ControlTransfer(t.addr, 0x20, 0x00, 0, uint16(t.ifaceNum), t.cmdBuf[:3+len(params)]); err != nil {
+		return 0, err
+	}
+
+	nowFn := t.now
+	if nowFn == nil {
+		nowFn = time.Now
+	}
+	timeout := t.cmdTimeout
+	if timeout <= 0 {
+		timeout = defaultCmdTimeout
+	}
+	deadline := nowFn().Add(timeout)
+	ready := t.bus.Ready()
+	var timer *time.Timer
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
+
+	// Pump USB host + Event pipe until matching Command Complete / Status arrives.
+	var evBuf [maxHCIEventBytes]byte
+	for {
+		if err := t.bus.Service(); err != nil {
+			return 0, err
+		}
+		n, err := t.pollEvent(evBuf[:])
+		if err != nil {
+			return 0, err
+		}
+		if n >= 2 {
+			ev := evBuf[:n]
+			switch ev[0] {
+			case EventCommandComplete:
+				if n >= 6 && binary.LittleEndian.Uint16(ev[3:5]) == opcode {
+					copied := copy(resp, ev[5:n])
+					return copied, nil
+				}
+			case EventCommandStatus:
+				if n >= 6 && binary.LittleEndian.Uint16(ev[4:6]) == opcode {
+					if len(resp) > 0 {
+						resp[0] = ev[2]
+						return 1, nil
+					}
+					return 0, nil
+				}
+			case EventNumCompletedPackets:
+				t.handleNumCompletedPackets(ev)
+				continue
+			}
+			// Preserve unrelated events (connect/disconnect/inquiry) for Service().
+			t.queueDeferredEvent(ev)
+			if !nowFn().Before(deadline) {
+				break
+			}
+			continue
+		}
+		rem := deadline.Sub(nowFn())
+		if rem <= 0 {
+			break
+		}
+		if ready != nil {
+			wait := min(rem, 2*time.Millisecond)
+			if timer == nil {
+				timer = time.NewTimer(wait)
+			} else {
+				timer.Reset(wait)
+			}
+			select {
+			case <-ready:
+			case <-timer.C:
+			}
+		} else {
+			time.Sleep(min(rem, 250*time.Microsecond))
+		}
+	}
+	return 0, fmt.Errorf("bt/hci: timeout waiting for command %#04x", opcode)
+}
+
+func (t *Transport) readLocalVersion() error {
+	var resp [16]byte
+	n, err := t.SendCommand(OpcodeReadLocalVersion, nil, resp[:])
+	if err != nil {
+		return err
+	}
+	if n < 9 || resp[0] != 0 {
+		return fmt.Errorf("bt/hci: Read_Local_Version status=%#x n=%d", resp[0], n)
+	}
+	t.version = LocalVersion{
+		HCIVersion:    resp[1],
+		HCIRevision:   binary.LittleEndian.Uint16(resp[2:4]),
+		LMPVersion:    resp[4],
+		Manufacturer:  binary.LittleEndian.Uint16(resp[5:7]),
+		LMPSubversion: binary.LittleEndian.Uint16(resp[7:9]),
+	}
+	return nil
+}
+
+// Initialize resets the dongle, downloads Realtek RTL8761B/BU firmware when
+// required and provided by fw, queries buffer limits and BD_ADDR, enables SSP,
+// disables Hold/Sniff/Park link policies for deterministic gaming latency, and
+// enters Page Scan only mode (0x02) for fast bonded controller reconnects.
+func (t *Transport) Initialize(fw FirmwareLoader) error {
+	if err := t.sendStatusCommand(OpcodeReset, nil); err != nil {
+		return fmt.Errorf("bt/hci: initial reset: %w", err)
+	}
+	if err := t.readLocalVersion(); err != nil {
+		return err
+	}
+
+	// Realtek RTL8761B/BU/BUV (including 0bda:a728): upload EPATCH + config when
+	// the controller reports unpatched Realtek LMP subversion 0x8761. Prefer
+	// card/user override via fw (FES/BTFW/) and fall back to the pinned built-in image.
+	if t.version.LMPSubversion == rtlLMPSub8761B {
+		fwName := t.spec.FirmwareFile
+		if fwName == "" {
+			fwName = "rtl8761bu_fw.bin"
+		}
+		cfgName := t.spec.ConfigFile
+		if cfgName == "" {
+			cfgName = "rtl8761bu_config.bin"
+		}
+		fwBytes, err := loadFirmwareWithBuiltin(fw, fwName, false)
+		if err != nil {
+			return fmt.Errorf("bt/hci: load %s: %w", fwName, err)
+		}
+		cfgBytes, err := loadFirmwareWithBuiltin(fw, cfgName, true)
+		if err != nil {
+			return fmt.Errorf("bt/hci: load %s: %w", cfgName, err)
+		}
+		if err := UploadRTLFirmware(t, fwBytes, cfgBytes); err != nil {
+			return err
+		}
+		if err := t.sendStatusCommand(OpcodeReset, nil); err != nil {
+			return fmt.Errorf("bt/hci: post-firmware reset: %w", err)
+		}
+		if err := t.readLocalVersion(); err != nil {
+			return err
+		}
+	}
+
+	// Query ACL MTU and controller packet credit count, capped to bulk OUT MPS.
+	var resp [16]byte
+	n, err := t.SendCommand(OpcodeReadBufferSize, nil, resp[:])
+	if err != nil {
+		return fmt.Errorf("bt/hci: Read_Buffer_Size: %w", err)
+	}
+	if n < 8 || resp[0] != 0 {
+		var status byte
+		if n > 0 {
+			status = resp[0]
+		}
+		return fmt.Errorf("bt/hci: Read_Buffer_Size status=%#x n=%d", status, n)
+	}
+	aclLen := int(binary.LittleEndian.Uint16(resp[1:3]))
+	aclNum := int(binary.LittleEndian.Uint16(resp[4:6]))
+	if aclLen < 16 || aclNum <= 0 {
+		return fmt.Errorf("bt/hci: Read_Buffer_Size invalid ACL limits len=%d packets=%d", aclLen, aclNum)
+	}
+	if maxPayload := t.maxACLPayloadLimit(); aclLen > maxPayload {
+		aclLen = maxPayload
+	}
+	t.aclMaxLen = aclLen
+	t.maxCredits = aclNum
+	t.credits = aclNum
+
+	// Read local Bluetooth MAC address.
+	if n, err := t.SendCommand(OpcodeReadBDAddr, nil, resp[:]); err == nil && n >= 7 && resp[0] == 0 {
+		copy(t.bdAddr[:], resp[1:7])
+	}
+
+	// Event mask: standard Classic BR/EDR + SSP + Inquiry + Link Key events.
+	eventMask := [8]byte{0xff, 0xff, 0xfb, 0xff, 0x07, 0xf8, 0xbf, 0x3d}
+	if err := t.sendStatusCommand(OpcodeSetEventMask, eventMask[:]); err != nil {
+		return err
+	}
+	// Enable Secure Simple Pairing (SSP).
+	if err := t.sendStatusCommand(OpcodeWriteSimplePairing, []byte{0x01}); err != nil {
+		return err
+	}
+	// Gaming latency link policy: Enable Role Switch (bit 0) ONLY; disable
+	// Hold (bit 1), Sniff (bit 2), and Park (bit 3) to prevent power-save spikes.
+	policy := [2]byte{0x01, 0x00}
+	if err := t.sendStatusCommand(OpcodeWriteDefaultLinkPolicy, policy[:]); err != nil {
+		return err
+	}
+	// Bounded page timeout (~5.12s = 0x2000 * 0.625 ms).
+	pageTO := [2]byte{0x00, 0x20}
+	if err := t.sendStatusCommand(OpcodeWritePageTimeout, pageTO[:]); err != nil {
+		return err
+	}
+	if err := t.WriteClassOfDevice(0x000104); err != nil {
+		return err
+	}
+	if err := t.WriteLocalName("FES DE25-Nano"); err != nil {
+		return err
+	}
+	// Page Scan only when idle/menu so bonded DualSense / Switch Pro reconnect fast.
+	return t.WriteScanEnable(ScanPageOnly)
+}
+
+// SendACL enqueues an ACL payload for connection handle, automatically
+// fragmenting payloads larger than the controller's ACL data length across
+// PB=0x02 (First) and PB=0x01 (Continuing) packets. Zero heap allocations.
+func (t *Transport) SendACL(handle uint16, pb uint8, payload []byte) error {
+	if len(payload) == 0 {
+		return nil
+	}
+	if t.aclMaxLen <= 0 || t.maxCredits <= 0 {
+		return errors.New("bt/hci: ACL buffer size not initialized")
+	}
+	maxPayload := t.maxACLPayloadLimit()
+	maxChunk := t.aclMaxLen
+	if maxChunk > maxPayload {
+		maxChunk = maxPayload
+	}
+	needed := (len(payload) + maxChunk - 1) / maxChunk
+	if t.txCount+needed > maxACLTxQueue {
+		return errors.New("bt/hci: ACL TX queue full")
+	}
+	curPB := pb
+	for off := 0; off < len(payload); off += maxChunk {
+		chunk := payload[off:min(off+maxChunk, len(payload))]
+		idx := (t.txHead + t.txCount) % maxACLTxQueue
+		f := &t.txRing[idx]
+		hdrHandle := (handle & 0x0fff) | (uint16(curPB&0x03) << 12)
+		binary.LittleEndian.PutUint16(f.data[0:2], hdrHandle)
+		binary.LittleEndian.PutUint16(f.data[2:4], uint16(len(chunk)))
+		copy(f.data[4:4+len(chunk)], chunk)
+		f.n = 4 + len(chunk)
+		t.txCount++
+		curPB = ACLBoundaryContinuing
+	}
+	return t.pumpACLTx()
+}
+
+func (t *Transport) addHandleCredit(handle uint16) {
+	h := handle & 0x0fff
+	free := -1
+	for i := range t.outstanding {
+		if t.outstanding[i].used {
+			if t.outstanding[i].handle == h {
+				t.outstanding[i].outstanding++
+				return
+			}
+		} else if free < 0 {
+			free = i
+		}
+	}
+	if free >= 0 {
+		t.outstanding[free] = handleCredits{used: true, handle: h, outstanding: 1}
+	}
+}
+
+func (t *Transport) releaseHandleCredits(handle uint16, completed int) {
+	h := handle & 0x0fff
+	for i := range t.outstanding {
+		e := &t.outstanding[i]
+		if e.used && e.handle == h {
+			e.outstanding -= completed
+			if e.outstanding <= 0 {
+				*e = handleCredits{}
+			}
+			return
+		}
+	}
+}
+
+func (t *Transport) reclaimHandleCredits(handle uint16) int {
+	h := handle & 0x0fff
+	for i := range t.outstanding {
+		e := &t.outstanding[i]
+		if e.used && e.handle == h {
+			n := e.outstanding
+			*e = handleCredits{}
+			return n
+		}
+	}
+	return 0
+}
+
+// CancelACL purges any queued ACL TX frames targeting handle AND reclaims any
+// submitted but unacknowledged ACL credits for that handle (Core Spec §4.3),
+// preserving FIFO order of remaining handles with zero heap allocations.
+func (t *Transport) CancelACL(handle uint16) {
+	target := handle & 0x0fff
+	kept := 0
+	for i := 0; i < t.txCount; i++ {
+		srcIdx := (t.txHead + i) % maxACLTxQueue
+		f := &t.txRing[srcIdx]
+		if f.n >= 2 && (binary.LittleEndian.Uint16(f.data[0:2])&0x0fff) == target {
+			continue
+		}
+		if kept != i {
+			dstIdx := (t.txHead + kept) % maxACLTxQueue
+			t.txRing[dstIdx] = *f
+		}
+		kept++
+	}
+	t.txCount = kept
+	if reclaimed := t.reclaimHandleCredits(target); reclaimed > 0 {
+		t.credits += reclaimed
+		if t.credits > t.maxCredits {
+			t.credits = t.maxCredits
+		}
+	}
+}
+
+func (t *Transport) pumpACLTx() error {
+	if t.txInFlight {
+		done, err := t.aclOutPipe.WriteDone()
+		if err != nil {
+			t.txInFlight = false
+			return err
+		}
+		if !done {
+			return nil
+		}
+		t.txInFlight = false
+	}
+	if t.txCount == 0 || t.credits <= 0 {
+		return nil
+	}
+	f := &t.txRing[t.txHead]
+	if err := t.aclOutPipe.Write(f.data[:f.n]); err != nil {
+		return err
+	}
+	t.txHead = (t.txHead + 1) % maxACLTxQueue
+	t.txCount--
+	t.credits--
+	if f.n >= 2 {
+		t.addHandleCredit(binary.LittleEndian.Uint16(f.data[0:2]))
+	}
+	t.txInFlight = true
+	return nil
+}
+
+func (t *Transport) handleNumCompletedPackets(ev []byte) {
+	if len(ev) < 3 {
+		return
+	}
+	numHandles := int(ev[2])
+	if len(ev) < 3+numHandles*4 {
+		return
+	}
+	for i := 0; i < numHandles; i++ {
+		// Each entry is a packed {uint16 handle, uint16 count} pair (Core Spec 7.7.19).
+		handle := binary.LittleEndian.Uint16(ev[3+i*4:]) & 0x0fff
+		completed := int(binary.LittleEndian.Uint16(ev[3+i*4+2:]))
+		t.releaseHandleCredits(handle, completed)
+		t.credits += completed
+		if t.credits > t.maxCredits {
+			t.credits = t.maxCredits
+		}
+	}
+}
+
+func consumeStreamFrame(buf []byte, curLen *int, want int, dst []byte) int {
+	n := copy(dst, buf[:want])
+	rem := *curLen - want
+	if rem > 0 {
+		copy(buf, buf[want:*curLen])
+	}
+	*curLen = rem
+	return n
+}
+
+func (t *Transport) popCompleteEvent(dst []byte) (int, bool) {
+	if t.evLen < 2 {
+		return 0, false
+	}
+	want := 2 + int(t.evBuf[1])
+	if t.evLen < want {
+		return 0, false
+	}
+	return consumeStreamFrame(t.evBuf[:], &t.evLen, want, dst), true
+}
+
+func (t *Transport) pollEvent(dst []byte) (int, error) {
+	if n, ok := t.popCompleteEvent(dst); ok {
+		return n, nil
+	}
+	for range 20 {
+		if t.evLen >= len(t.evBuf) {
+			t.evLen = 0
+		}
+		n, err := t.evPipe.PollInto(t.evBuf[t.evLen:])
+		if err != nil {
+			return 0, err
+		}
+		if n == 0 {
+			return 0, nil
+		}
+		t.evLen += n
+		if evLen, ok := t.popCompleteEvent(dst); ok {
+			return evLen, nil
+		}
+	}
+	return 0, nil
+}
+
+func (t *Transport) popCompleteACL(dst []byte) (int, bool) {
+	if t.aclRxLen < 4 {
+		return 0, false
+	}
+	want := 4 + int(binary.LittleEndian.Uint16(t.aclRxBuf[2:4]))
+	if want > len(t.aclRxBuf) {
+		t.aclRxLen = 0
+		return 0, false
+	}
+	if t.aclRxLen < want {
+		return 0, false
+	}
+	return consumeStreamFrame(t.aclRxBuf[:], &t.aclRxLen, want, dst), true
+}
+
+func (t *Transport) pollACL(dst []byte) (int, error) {
+	if n, ok := t.popCompleteACL(dst); ok {
+		return n, nil
+	}
+	for range 20 {
+		if t.aclRxLen >= len(t.aclRxBuf) {
+			t.aclRxLen = 0
+		}
+		n, err := t.aclInPipe.PollInto(t.aclRxBuf[t.aclRxLen:])
+		if err != nil {
+			return 0, err
+		}
+		if n == 0 {
+			return 0, nil
+		}
+		t.aclRxLen += n
+		if aclLen, ok := t.popCompleteACL(dst); ok {
+			return aclLen, nil
+		}
+	}
+	return 0, nil
+}
+
+// Service pumps deferred and live HCI Events, drains incoming ACL Data packets
+// into onACL with zero heap allocations, and submits queued ACL TX packets as
+// controller flow-control credits become available.
+func (t *Transport) Service(onEvent func(ev []byte), onACL func(handle uint16, pb uint8, payload []byte)) error {
+	// 1. Drain deferred and live HCI events (bounded so one burst cannot starve ACL RX).
+	for range 8 {
+		if t.deferredCount > 0 {
+			idx := t.deferredHead
+			n := copy(t.evDispatch[:], t.deferred[idx][:t.deferredLen[idx]])
+			t.deferredHead = (t.deferredHead + 1) % len(t.deferred)
+			t.deferredCount--
+			if onEvent != nil {
+				onEvent(t.evDispatch[:n])
+			}
+			continue
+		}
+		if len(t.deferredOverflow) > 0 {
+			n := copy(t.evDispatch[:], t.deferredOverflow[0])
+			t.deferredOverflow[0] = nil
+			t.deferredOverflow = t.deferredOverflow[1:]
+			if len(t.deferredOverflow) == 0 {
+				t.deferredOverflow = nil
+			}
+			if onEvent != nil {
+				onEvent(t.evDispatch[:n])
+			}
+			continue
+		}
+		n, err := t.pollEvent(t.evDispatch[:])
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			break
+		}
+		ev := t.evDispatch[:n]
+		if ev[0] == EventNumCompletedPackets {
+			t.handleNumCompletedPackets(ev)
+			continue
+		}
+		if onEvent != nil {
+			onEvent(ev)
+		}
+	}
+
+	// 3. Drain incoming ACL packets from EP2 Bulk IN (hot path for HIDP reports!).
+	for range 8 {
+		n, err := t.pollACL(t.aclDispatch[:])
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			break
+		}
+		if n >= 4 && onACL != nil {
+			hdr := binary.LittleEndian.Uint16(t.aclDispatch[0:2])
+			length := int(binary.LittleEndian.Uint16(t.aclDispatch[2:4]))
+			if 4+length <= n {
+				handle := hdr & 0x0fff
+				pb := uint8((hdr >> 12) & 0x03)
+				onACL(handle, pb, t.aclDispatch[4:4+length])
+			}
+		}
+	}
+
+	// 4. Advance credit-gated ACL TX queue.
+	return t.pumpACLTx()
+}

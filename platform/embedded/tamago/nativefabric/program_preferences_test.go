@@ -5,18 +5,21 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"testing/fstest"
 	"time"
 
 	"github.com/DeanoC/FogCast/ui/tenfoot"
+	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
 
-// The modeled filesystem implements the real store's synchronous write/flush
-// contract. Every access independently checks the SD lease's current receipt.
-func (f *programTestFiles) WriteFile(path string, data []byte) error {
+// The modeled filesystem implements the real store's copy-on-write
+// replace/flush contract. Every access independently checks the SD lease's
+// current receipt.
+func (f *programTestFiles) ReplaceFile(_ context.Context, path string, data []byte) error {
 	r, ok := f.lease.LastReceipt()
 	if !ok || !r.Active || !r.Prepared {
 		return errors.New("write while SD contained")
@@ -107,7 +110,9 @@ func TestProgramPreferencesCheckpointLaunchReturnAndShutdown(t *testing.T) {
 }
 
 func TestProgramPreferencesFailuresDoNotReplayOrProgramAfterUnknownWrite(t *testing.T) {
-	for _, fault := range []error{fat.ErrCapacity, errors.New("write flush lost")} {
+	// Write protection that lands after the first sector retired the FAT mount.
+	afterMutation := fmt.Errorf("%w: %w", fat.ErrMutation, block.ErrReadOnly)
+	for _, fault := range []error{fat.ErrCapacity, afterMutation, errors.New("write flush lost")} {
 		t.Run(fault.Error(), func(t *testing.T) {
 			f, prefs := preferenceMenuFixture(t, true)
 			f.r.f.files.preferenceWrite = func() error { return fault }

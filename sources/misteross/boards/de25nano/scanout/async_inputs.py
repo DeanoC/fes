@@ -14,7 +14,7 @@ import subprocess
 # The DE25 producers encode their records with this board's exporter, so read
 # them back with the same one. Both derive a format-2 identity identically.
 from boards.de25nano.package.export_core_package import build_identity
-from boards.de25nano.scanout import vendor_reference, video_outputs, output_reset
+from boards.de25nano.scanout import vendor_reference, video_outputs, output_reset, bridge_reset
 from scripts.fes_build_common import BuildError
 
 POLICY = 'de25-menu-reviewed-async-inputs-v1'
@@ -169,6 +169,7 @@ def bindings(directory):
                  'fes.spectrum-plus3': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
                  'fes.pentagon': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
                  'fes.atari-st': ('computer', 'boards/de25nano/producers/build_atari_st_package.py'),
+                 'fes.pc386': ('computer', 'boards/de25nano/producers/build_pc386_package.py'),
                  'fes.c64': ('computer', 'boards/de25nano/producers/build_c64_package.py'),
                  'fes.pcxt-dos': ('computer', 'boards/de25nano/producers/build_pcxt_package.py'),
                  }.get(fields['parameters']['core_id'])
@@ -226,6 +227,10 @@ def collect(directory, quartus_sta, *, vendor_archive=None):
     if output_reset.selected(directory):
         output_reset.collect(directory, copied / 'combined/hps/project',
                              output / 'output-reset', tool)
+    if bridge_reset.selected(directory):
+        require(output_reset.selected(directory), 'the window bridge review needs the output-reset review')
+        bridge_reset.collect(directory, copied / 'combined/hps/project',
+                             output / 'window-bridge-reset', tool)
     (output / 'receipt.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
     return output
 
@@ -246,4 +251,8 @@ def verify(directory, review):
         result['video_output_timing'] = video_outputs.verify(directory, Path(review) / 'video-outputs')
     if output_reset.selected(directory):
         result['output_reset_review'] = output_reset.verify(directory, Path(review) / 'output-reset')
+    if bridge_reset.selected(directory):
+        require('output_reset_review' in result, 'the window bridge review needs the output-reset review')
+        result['window_bridge_reset_review'] = bridge_reset.verify(
+            directory, Path(review) / 'window-bridge-reset', result['output_reset_review']['finding'])
     return result
