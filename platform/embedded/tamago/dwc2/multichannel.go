@@ -680,11 +680,20 @@ func (h *MultiHost) Service() error {
 	}
 
 	// 1. Drain RX FIFO entries directly into per-channel fixed buffers.
-	if err := h.drainRXIntoSlots(32); err != nil {
+	// Defer channel completion processing if gintRXFLVL remains asserted after
+	// the per-call bound so no channel retires HCINT.XFERCOMPL before its
+	// payload has been popped from the RX FIFO.
+	if err := h.drainRXIntoSlots(256); err != nil {
 		return err
 	}
 
 	now := h.io.Now()
+	if h.io.Read32(gint)&gintRXFLVL != 0 {
+		if !h.draining {
+			h.armMultiIRQ(now)
+		}
+		return nil
+	}
 
 	// 2. Advance every allocated channel 1..N-1.
 	for ch := 1; ch < h.channels; ch++ {
@@ -1131,15 +1140,18 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 						return 0, h.failController(err)
 					}
 					completeSplit = true
-					nextFrame = startFrame + 2
+					nextFrame = (startFrame + 2) & 0x3fff
 					continue splitLoop
 				}
-				if split && ints&(1<<6) != 0 && completeSplit {
+				if split && ints&(1<<6) != 0 {
 					if err := h.haltChannel(0); err != nil {
 						return 0, h.failController(err)
 					}
-					nextFrame = uint16(h.io.Read32(hfnum)) + 1
-					continue splitLoop
+					if completeSplit {
+						nextFrame = (uint16(h.io.Read32(hfnum)) + 1) & 0x3fff
+						continue splitLoop
+					}
+					break splitLoop // Retry SSPLIT on transient TT NYET
 				}
 				if ints&(1<<4) != 0 {
 					if err := h.haltChannel(0); err != nil {

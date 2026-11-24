@@ -157,10 +157,11 @@ type multiChannelSim struct {
 	wedgeSet        bool
 	failRootEnable  bool
 	rootResets      int
-	freezeFrame     bool
-	nyetCSplitCount int
-	npBusyReads     int
-	ch0ArmedWhenBusy bool
+	freezeFrame        bool
+	nyetCSplitCount    int
+	nyetCH0SSplitCount int
+	npBusyReads        int
+	ch0ArmedWhenBusy   bool
 }
 
 func newMultiChannelSim(fifoWords uint32, channels int) *multiChannelSim {
@@ -413,6 +414,15 @@ func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 	// Optional CSPLIT NYET injection for testing deferred nextFrame backoff.
 	if split && compSplit && ch != 0 && s.nyetCSplitCount > 0 {
 		s.nyetCSplitCount--
+		s.regs[chReg(ch, hcchar)] &^= channelEnable
+		s.regs[chReg(ch, hcint)] |= 1<<6 | 1<<1 // NYET + CHHLTD
+		s.regs[haint] |= 1 << uint(ch)
+		return
+	}
+
+	// Optional CH0 SSPLIT NYET injection for testing SSPLIT retry on transient TT busy.
+	if split && !compSplit && ch == 0 && s.nyetCH0SSplitCount > 0 {
+		s.nyetCH0SSplitCount--
 		s.regs[chReg(ch, hcchar)] &^= channelEnable
 		s.regs[chReg(ch, hcint)] |= 1<<6 | 1<<1 // NYET + CHHLTD
 		s.regs[haint] |= 1 << uint(ch)
@@ -2492,5 +2502,118 @@ func TestMultiHostOpenMultiReturnsFatalFaultDuringInitialEnumeration(t *testing.
 	}
 	if host == nil {
 		t.Fatal("OpenMulti did not retain partial host when returning fatal enumeration fault")
+	}
+}
+
+func TestMultiHostCH0RetriesOnSSPLITNYET(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	pad := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	var padAddr uint8
+	for {
+		ev, ok := host.NextEvent()
+		if !ok {
+			break
+		}
+		if ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			padAddr = ev.Device.Address
+		}
+	}
+	if padAddr == 0 {
+		t.Fatal("expected gamepad attached behind hub")
+	}
+
+	// Inject a transient NYET on CH0's SSPLIT; ControlTransfer must retry and succeed.
+	sim.mu.Lock()
+	sim.nyetCH0SSplitCount = 2
+	sim.mu.Unlock()
+
+	var desc [18]byte
+	n, err := host.ControlTransfer(padAddr, 0x80, 6, 0x0100, 0, desc[:])
+	if err != nil || n != 18 {
+		t.Fatalf("ControlTransfer failed after transient CH0 SSPLIT NYET: n=%d err=%v", n, err)
+	}
+	sim.mu.Lock()
+	rem := sim.nyetCH0SSplitCount
+	sim.mu.Unlock()
+	if rem != 0 {
+		t.Fatalf("expected all injected CH0 SSPLIT NYETs to be consumed, remaining=%d", rem)
+	}
+}
+
+func TestMultiHostServiceDefersCompletionsWhileRXFIFOStillNonEmpty(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected attach event, got %+v ok=%v", ev, ok)
+	}
+	iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+	ep, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+	pipe, err := host.OpenPipe(ev.Device.Address, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+	mp := pipe.(*multiPipe)
+
+	// Arm the channel so hardware queues pkt in RX FIFO and sets HCINT.XFERCOMPL,
+	// then prepend 260 non-data RX status markers ahead of pkt so the next
+	// Service() hits the 256-entry drain bound while gintRXFLVL stays asserted.
+	pkt := []byte{0x01, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88}
+	sim.mu.Lock()
+	pad.inQueues[ep.Number()] = append(pad.inQueues[ep.Number()], pkt)
+	sim.mu.Unlock()
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (arm): %v", err)
+	}
+	if !host.slots[mp.ch].armed {
+		t.Fatal("expected channel armed with completed packet in RX FIFO")
+	}
+
+	sim.mu.Lock()
+	markers := make([]uint32, 260)
+	for i := range markers {
+		markers[i] = 7<<17 | uint32(mp.ch) // CHHLTD status marker (no payload)
+	}
+	sim.rx = append(markers, sim.rx[sim.rxHead:]...)
+	sim.rxHead = 0
+	sim.mu.Unlock()
+
+	// This Service() drains 256 markers and sees gintRXFLVL still set, so it MUST
+	// defer channel completion instead of retiring HCINT.XFERCOMPL without payload!
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service #1 (drain markers): %v", err)
+	}
+	if !host.slots[mp.ch].armed || host.slots[mp.ch].toggle != 0 {
+		t.Fatalf("Service prematurely retired channel before RX FIFO drained: armed=%v toggle=%d", host.slots[mp.ch].armed, host.slots[mp.ch].toggle)
+	}
+	if host.slots[mp.ch].fault != nil {
+		t.Fatalf("unexpected channel fault: %v", host.slots[mp.ch].fault)
+	}
+
+	// Next Service() drains the remaining 4 markers + pkt and delivers pkt cleanly.
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service #2 (finish drain): %v", err)
+	}
+	var buf [64]byte
+	gotN, err := pipe.PollInto(buf[:])
+	if err != nil {
+		t.Fatalf("PollInto: %v", err)
+	}
+	if gotN != len(pkt) || !bytes.Equal(buf[:gotN], pkt) {
+		t.Fatalf("packet lost or corrupted when RX FIFO exceeded per-call drain bound: got %x want %x", buf[:gotN], pkt)
 	}
 }
