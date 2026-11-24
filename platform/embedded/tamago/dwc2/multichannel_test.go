@@ -1535,3 +1535,132 @@ func TestMultiHostStalePipeGenerationRejected(t *testing.T) {
 		t.Fatalf("livePipe did not receive packet after stalePipe.Close: got %x want %x", buf[:gotN], pkt)
 	}
 }
+
+func TestMultiHostPauseFinishesAckedSplit(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	pad := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	var padAddr uint8
+	var ep usb.EndpointDescriptor
+	for {
+		ev, ok := host.NextEvent()
+		if !ok {
+			break
+		}
+		if ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			padAddr = ev.Device.Address
+			iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+			ep, _ = iface.FindEndpoint(usb.TransferInterrupt, true)
+		}
+	}
+	pipe, err := host.OpenPipe(padAddr, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+	mp := pipe.(*multiPipe)
+
+	// Queue a report on the hub-attached FS gamepad, align the frame so SSPLIT
+	// starts immediately, and run one Service() so SSPLIT is ACKed on the wire
+	// while s.armed is still true (or promoted to CSPLIT) right before PausePolling.
+	pkt1 := []byte{0x01, 0xde, 0xad, 0xbe, 0xef, 0x01, 0x02, 0x03}
+	pad.inQueues[ep.Number()] = append(pad.inQueues[ep.Number()], pkt1)
+	sim.mu.Lock()
+	sim.frame = 0 // microframe 0 -> wire 1 <= 5, SSPLIT arms immediately
+	sim.mu.Unlock()
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (arm SSPLIT): %v", err)
+	}
+	if !host.slots[mp.ch].armed || host.slots[mp.ch].completeSplit {
+		t.Fatalf("expected channel armed on SSPLIT before pause: armed=%v completeSplit=%v", host.slots[mp.ch].armed, host.slots[mp.ch].completeSplit)
+	}
+
+	// PausePolling must finish the ACKed split's CSPLIT, preserve the packet,
+	// advance DATA toggle, and leave all channels halted.
+	if err := host.PausePolling(context.Background()); err != nil {
+		t.Fatalf("PausePolling: %v", err)
+	}
+	if host.slots[mp.ch].completeSplit || host.slots[mp.ch].waitingSplit {
+		t.Fatalf("expected split phase finished before pause completed: completeSplit=%v waitingSplit=%v", host.slots[mp.ch].completeSplit, host.slots[mp.ch].waitingSplit)
+	}
+	if got := host.slots[mp.ch].toggle; got != 2 {
+		t.Fatalf("expected DATA1 toggle after split pause completion, got %d", got)
+	}
+
+	var buf [64]byte
+	n, err := pipe.PollInto(buf[:])
+	if err != nil {
+		t.Fatalf("PollInto after split pause: %v", err)
+	}
+	if n != len(pkt1) || string(buf[:n]) != string(pkt1) {
+		t.Fatalf("split packet lost across PausePolling: got %x want %x", buf[:n], pkt1)
+	}
+
+	// Resume and verify the next split transfer completes cleanly on DATA1.
+	if err := host.ResumePolling(context.Background()); err != nil {
+		t.Fatalf("ResumePolling: %v", err)
+	}
+	pkt2 := []byte{0x02, 0xca, 0xfe, 0xba, 0xbe, 0x04, 0x05, 0x06}
+	pad.inQueues[ep.Number()] = append(pad.inQueues[ep.Number()], pkt2)
+	for range 40 {
+		sim.advance(2 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service after resume: %v", err)
+		}
+		n, err = pipe.PollInto(buf[:])
+		if err != nil {
+			t.Fatalf("PollInto after resume: %v", err)
+		}
+		if n > 0 {
+			break
+		}
+	}
+	if n != len(pkt2) || string(buf[:n]) != string(pkt2) {
+		t.Fatalf("post-resume split packet mismatch: got %x want %x", buf[:n], pkt2)
+	}
+}
+
+func TestMultiHostControlTransferValidatesNonCH0RX(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	bt := newSimBTDongle()
+	sim.attachRoot(bt)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected BT attach event, got %+v ok=%v", ev, ok)
+	}
+	hciIf, _ := ev.Device.Config.FindInterface(0xe0, 0x01, 0x01)
+	epEv, _ := hciIf.FindEndpoint(usb.TransferInterrupt, true)
+	pipe, err := host.OpenPipe(ev.Device.Address, epEv)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+	mp := pipe.(*multiPipe)
+
+	// Inject a stale/mismatched RX FIFO entry for mp.ch (which is NOT armed and
+	// has wrong DATA1 PID when slot expects DATA0) before a CH0 ControlTransfer.
+	sim.mu.Lock()
+	sim.enqueueRX(mp.ch, 2, []byte{0xde, 0xad, 0xbe, 0xef})
+	sim.mu.Unlock()
+
+	hciReset := []byte{0x03, 0x0c, 0x00}
+	if _, err := host.ControlTransfer(ev.Device.Address, 0x20, 0x00, 0, 0, hciReset); err != nil {
+		t.Fatalf("ControlTransfer: %v", err)
+	}
+	if host.slots[mp.ch].received {
+		t.Fatal("ch0Transfer accepted unvalidated non-CH0 RX packet into unarmed/wrong-PID slot")
+	}
+	if host.slots[mp.ch].fault == nil {
+		t.Fatal("expected ch0Transfer to fault slot on invalid non-CH0 RX packet")
+	}
+}

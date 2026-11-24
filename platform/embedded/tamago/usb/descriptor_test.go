@@ -114,3 +114,29 @@ func FuzzParseConfiguration(f *testing.F) {
 		}
 	})
 }
+
+func TestParseFullConfigurationRejectsHighBandwidthEndpoint(t *testing.T) {
+	// Interface with one high-bandwidth Interrupt-IN endpoint (wMaxPacketSize=0x0840:
+	// 64 bytes with bits 12:11 = 01 requesting 2 transactions/microframe) and one
+	// standard single-transaction Bulk-IN endpoint (wMaxPacketSize=0x0200 = 512 bytes).
+	cfgBytes := []byte{
+		9, 2, 32, 0, 1, 1, 0, 0x80, 50,
+		9, 4, 0, 0, 2, 0xff, 0, 0, 0,
+		7, 5, 0x81, 3, 0x40, 0x08, 1, // high-bandwidth Int-IN (2x64B/uframe) -> must be rejected
+		7, 5, 0x82, 2, 0x00, 0x02, 0, // standard Bulk-IN (512B) -> allowed
+	}
+	cfg, err := ParseFullConfiguration(cfgBytes)
+	if err != nil {
+		t.Fatalf("ParseFullConfiguration: %v", err)
+	}
+	if len(cfg.Interfaces) != 1 {
+		t.Fatalf("expected 1 interface, got %d", len(cfg.Interfaces))
+	}
+	if _, ok := cfg.Interfaces[0].FindEndpoint(TransferInterrupt, true); ok {
+		t.Fatal("high-bandwidth Interrupt-IN endpoint with bits 12:11 set was accepted instead of rejected")
+	}
+	ep, ok := cfg.Interfaces[0].FindEndpoint(TransferBulk, true)
+	if !ok || ep.Address != 0x82 || ep.MaxPacketSize != 512 {
+		t.Fatalf("expected standard Bulk-IN endpoint 0x82 (512B), got ok=%v ep=%+v", ok, ep)
+	}
+}

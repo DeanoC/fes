@@ -176,13 +176,16 @@ func ParseFullConfiguration(data []byte) (FullConfiguration, error) {
 			if cur >= 0 && length >= 7 {
 				addr := d[2]
 				if addr&0x70 == 0 && addr&0x0f != 0 {
-					mps := binary.LittleEndian.Uint16(d[4:6]) & 0x07ff
+					rawMPS := binary.LittleEndian.Uint16(d[4:6])
 					tt := TransferType(d[3] & 3)
-					if mps > 0 && mps <= 1024 {
+					// Reject high-bandwidth endpoints (bits 12:11 != 0) and reserved bits
+					// (bits 15:13 != 0) instead of masking off the transaction multiplier;
+					// the PIO scheduler supports single-transaction-per-microframe endpoints only.
+					if rawMPS&0xf800 == 0 && rawMPS > 0 && rawMPS <= 1024 {
 						cfg.Interfaces[cur].Endpoints = append(cfg.Interfaces[cur].Endpoints, EndpointDescriptor{
 							Address:       addr,
 							TransferType:  tt,
-							MaxPacketSize: mps,
+							MaxPacketSize: rawMPS,
 							Interval:      d[6],
 						})
 					}
