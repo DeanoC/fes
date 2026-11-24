@@ -5,18 +5,20 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
 
 const (
-	maxHCIEventBytes = 260
-	maxHCICmdBytes   = 258
-	maxACLUSBPacket  = 512
-	maxACLRxBytes    = 1028
-	maxACLTxQueue    = 16
-	defaultACLMaxLen = 256
-	defaultACLCredit = 4
+	maxHCIEventBytes  = 260
+	maxHCICmdBytes    = 258
+	maxACLUSBPacket   = 512
+	maxACLRxBytes     = 1028
+	maxACLTxQueue     = 16
+	defaultACLMaxLen  = 256
+	defaultACLCredit  = 4
+	defaultCmdTimeout = 2 * time.Second
 )
 
 type aclTxFrame struct {
@@ -45,6 +47,8 @@ type Transport struct {
 	evPipe     usb.Pipe
 	aclInPipe  usb.Pipe
 	aclOutPipe usb.Pipe
+	cmdTimeout time.Duration
+	now        func() time.Time
 
 	version    LocalVersion
 	bdAddr     [6]byte
@@ -110,6 +114,8 @@ func Open(bus usb.BusHost, dev usb.BusDevice) (*Transport, error) {
 		evPipe:     evPipe,
 		aclInPipe:  aclInPipe,
 		aclOutPipe: aclOutPipe,
+		cmdTimeout: defaultCmdTimeout,
+		now:        time.Now,
 		maxCredits: defaultACLCredit,
 		credits:    defaultACLCredit,
 	}
@@ -181,9 +187,26 @@ func (t *Transport) SendCommand(opcode uint16, params []byte, resp []byte) (int,
 		return 0, err
 	}
 
+	nowFn := t.now
+	if nowFn == nil {
+		nowFn = time.Now
+	}
+	timeout := t.cmdTimeout
+	if timeout <= 0 {
+		timeout = defaultCmdTimeout
+	}
+	deadline := nowFn().Add(timeout)
+	ready := t.bus.Ready()
+	var timer *time.Timer
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
+
 	// Pump USB host + Event pipe until matching Command Complete / Status arrives.
 	var evBuf [maxHCIEventBytes]byte
-	for polls := 0; polls < 4096; polls++ {
+	for {
 		if err := t.bus.Service(); err != nil {
 			return 0, err
 		}
@@ -191,30 +214,51 @@ func (t *Transport) SendCommand(opcode uint16, params []byte, resp []byte) (int,
 		if err != nil {
 			return 0, err
 		}
-		if n < 2 {
-			continue
-		}
-		ev := evBuf[:n]
-		switch ev[0] {
-		case EventCommandComplete:
-			if n >= 6 && binary.LittleEndian.Uint16(ev[3:5]) == opcode {
-				copied := copy(resp, ev[5:n])
-				return copied, nil
-			}
-		case EventCommandStatus:
-			if n >= 6 && binary.LittleEndian.Uint16(ev[4:6]) == opcode {
-				if len(resp) > 0 {
-					resp[0] = ev[2]
-					return 1, nil
+		if n >= 2 {
+			ev := evBuf[:n]
+			switch ev[0] {
+			case EventCommandComplete:
+				if n >= 6 && binary.LittleEndian.Uint16(ev[3:5]) == opcode {
+					copied := copy(resp, ev[5:n])
+					return copied, nil
 				}
-				return 0, nil
+			case EventCommandStatus:
+				if n >= 6 && binary.LittleEndian.Uint16(ev[4:6]) == opcode {
+					if len(resp) > 0 {
+						resp[0] = ev[2]
+						return 1, nil
+					}
+					return 0, nil
+				}
+			case EventNumCompletedPackets:
+				t.handleNumCompletedPackets(ev)
+				continue
 			}
-		case EventNumCompletedPackets:
-			t.handleNumCompletedPackets(ev)
+			// Preserve unrelated events (connect/disconnect/inquiry) for Service().
+			t.queueDeferredEvent(ev)
+			if !nowFn().Before(deadline) {
+				break
+			}
 			continue
 		}
-		// Preserve unrelated events (connect/disconnect/inquiry) for Service().
-		t.queueDeferredEvent(ev)
+		rem := deadline.Sub(nowFn())
+		if rem <= 0 {
+			break
+		}
+		if ready != nil {
+			wait := min(rem, 2*time.Millisecond)
+			if timer == nil {
+				timer = time.NewTimer(wait)
+			} else {
+				timer.Reset(wait)
+			}
+			select {
+			case <-ready:
+			case <-timer.C:
+			}
+		} else {
+			time.Sleep(min(rem, 250*time.Microsecond))
+		}
 	}
 	return 0, fmt.Errorf("bt/hci: timeout waiting for command %#04x", opcode)
 }

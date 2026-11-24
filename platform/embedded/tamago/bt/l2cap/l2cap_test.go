@@ -903,3 +903,47 @@ func TestManagerRetriesRemoteNameOnFailure(t *testing.T) {
 		t.Fatalf("expected DualSense after name retry, got %v", resolved)
 	}
 }
+
+func TestRejectsSSPAndLinkKeyOverwriteForBondedDeviceOutsidePairing(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	bonds := NewBondStore()
+	peer, _ := ParseBDAddr("BB:22:33:44:55:66")
+	origKey := [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	_ = bonds.Upsert(BondRecord{Addr: peer, LinkKey: origKey, Name: "DualSense Wireless Controller", Kind: controllers.KindDualSense})
+
+	mgr, err := NewManager(tr, bonds, func() time.Time { return time.Unix(1000, 0) })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// While pairing mode is closed, SSP confirmation and link-key overwrite MUST be
+	// rejected even if the peer presents a recorded bonded BD_ADDR.
+	userConf := append([]byte{hci.EventUserConfirmationRequest, 10}, peer[:]...)
+	userConf = append(userConf, 0, 0, 0, 0)
+	newKey := [16]byte{0xff, 0xee, 0xdd, 0xcc, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+	lkNotif := append([]byte{hci.EventLinkKeyNotification, 23}, peer[:]...)
+	lkNotif = append(lkNotif, newKey[:]...)
+	lkNotif = append(lkNotif, 0x04)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, userConf, lkNotif)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := bus.lastParams[hci.OpcodeUserConfirmNegReply]; len(got) < 6 || !bytes.Equal(got[:6], peer[:]) {
+		t.Fatalf("expected OpcodeUserConfirmNegReply for bonded peer outside pairing mode, got %x", got)
+	}
+	if _, accepted := bus.lastParams[hci.OpcodeUserConfirmRequestReply]; accepted {
+		t.Fatal("accepted SSP UserConfirmation for bonded peer outside pairing mode")
+	}
+	rec, ok := bonds.Lookup(peer)
+	if !ok || rec.LinkKey != origKey {
+		t.Fatalf("bonded link key overwritten outside pairing mode: ok=%t key=%x", ok, rec.LinkKey)
+	}
+}

@@ -344,9 +344,8 @@ func (m *Manager) handleEvent(ev []byte) {
 		}
 		var addr BDAddr
 		copy(addr[:], params[0:6])
-		_, bonded := m.bonds.Lookup(addr)
-		// Fail-closed: only accept Just Works SSP while pairing mode is open or bonded.
-		_ = m.tr.UserConfirmationRequestReply(addr, m.pairingActive || bonded)
+		// Fail-closed: only accept Just Works SSP while the explicit pairing window is open.
+		_ = m.tr.UserConfirmationRequestReply(addr, m.pairingActive && m.now().Before(m.pairingUntil))
 
 	case hci.EventLinkKeyRequest:
 		if len(params) < 6 {
@@ -362,7 +361,7 @@ func (m *Manager) handleEvent(ev []byte) {
 
 	case hci.EventLinkKeyNotification:
 		// [0..5]=BD_ADDR [6..21]=LinkKey [22]=KeyType
-		if len(params) < 23 {
+		if len(params) < 23 || !m.pairingActive || !m.now().Before(m.pairingUntil) {
 			return
 		}
 		var addr BDAddr

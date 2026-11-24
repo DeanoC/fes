@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 )
 
 type mockPipe struct {
+	mu       sync.Mutex
 	addr     uint8
 	ep       usb.EndpointDescriptor
 	inQueue  [][]byte
@@ -23,11 +25,17 @@ type mockPipe struct {
 	closed   bool
 }
 
-func (p *mockPipe) DeviceAddress() uint8               { return p.addr }
-func (p *mockPipe) Endpoint() usb.EndpointDescriptor   { return p.ep }
-func (p *mockPipe) SetIntervalOverride(time.Duration)  {}
-func (p *mockPipe) Close() error                       { p.closed = true; return nil }
-func (p *mockPipe) WriteDone() (bool, error)           { return p.outDone, nil }
+func (p *mockPipe) pushIn(pkt []byte) {
+	p.mu.Lock()
+	p.inQueue = append(p.inQueue, pkt)
+	p.mu.Unlock()
+}
+
+func (p *mockPipe) DeviceAddress() uint8             { return p.addr }
+func (p *mockPipe) Endpoint() usb.EndpointDescriptor { return p.ep }
+func (p *mockPipe) SetIntervalOverride(time.Duration) {}
+func (p *mockPipe) Close() error                     { p.closed = true; return nil }
+func (p *mockPipe) WriteDone() (bool, error)         { return p.outDone, nil }
 func (p *mockPipe) Write(data []byte) error {
 	if !p.noOutLog {
 		p.outLog = append(p.outLog, append([]byte(nil), data...))
@@ -36,6 +44,8 @@ func (p *mockPipe) Write(data []byte) error {
 	return nil
 }
 func (p *mockPipe) PollInto(dst []byte) (int, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if p.inRepeat != nil {
 		return copy(dst, p.inRepeat), nil
 	}
@@ -52,6 +62,8 @@ type mockBTBus struct {
 	evPipe     *mockPipe
 	aclInPipe  *mockPipe
 	aclOutPipe *mockPipe
+	ready      chan struct{}
+	suppressCC bool
 	cmdLog     [][]byte
 	rtlChunks  int
 	rtlFinal   bool
@@ -95,8 +107,8 @@ func newMockBTBus(vid, pid uint16, romVersion byte) *mockBTBus {
 
 func (b *mockBTBus) Service() error                 { return nil }
 func (b *mockBTBus) NextEvent() (usb.HostEvent, bool) { return usb.HostEvent{}, false }
-func (b *mockBTBus) Devices() []usb.BusDevice       { return []usb.BusDevice{b.dev} }
-func (b *mockBTBus) Ready() <-chan struct{}         { return nil }
+func (b *mockBTBus) Devices() []usb.BusDevice         { return []usb.BusDevice{b.dev} }
+func (b *mockBTBus) Ready() <-chan struct{}           { return b.ready }
 func (b *mockBTBus) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, error) {
 	p := &mockPipe{addr: addr, ep: ep}
 	switch {
@@ -111,13 +123,16 @@ func (b *mockBTBus) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, e
 }
 
 func (b *mockBTBus) pushCmdComplete(op uint16, ret ...byte) {
+	if b.suppressCC {
+		return
+	}
 	ev := make([]byte, 5+len(ret))
 	ev[0] = EventCommandComplete
 	ev[1] = byte(3 + len(ret))
 	ev[2] = 1
 	binary.LittleEndian.PutUint16(ev[3:5], op)
 	copy(ev[5:], ret)
-	b.evPipe.inQueue = append(b.evPipe.inQueue, ev)
+	b.evPipe.pushIn(ev)
 }
 
 func (b *mockBTBus) ControlTransfer(_ uint8, reqType, req byte, _, _ uint16, data []byte) (int, error) {
@@ -612,5 +627,42 @@ func TestCancelACLPurgesOnlyTargetHandleAndPreservesOrder(t *testing.T) {
 	}
 	if !bytes.Equal(bus.aclOutPipe.outLog[0][4:], []byte{0x21}) || !bytes.Equal(bus.aclOutPipe.outLog[1][4:], []byte{0x22}) {
 		t.Fatalf("unexpected remaining ACL payloads after CancelACL: %x", bus.aclOutPipe.outLog)
+	}
+}
+
+func TestSendCommandUsesElapsedTimeDeadlineAndReadyChannel(t *testing.T) {
+	bus := newMockBTBus(0x0a12, 0x0001, 0)
+	bus.rtlVersion = 0x22bb
+	bus.ready = make(chan struct{}, 1)
+	tr, err := Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+
+	// 1. Delayed response delivered asynchronously after 10 ms via Ready() wakeup.
+	bus.suppressCC = true
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		bus.evPipe.pushIn([]byte{EventCommandComplete, 4, 1, byte(OpcodeReset & 0xff), byte(OpcodeReset >> 8), 0})
+		select {
+		case bus.ready <- struct{}{}:
+		default:
+		}
+	}()
+	var resp [4]byte
+	n, err := tr.SendCommand(OpcodeReset, nil, resp[:])
+	if err != nil || n < 1 || resp[0] != 0 {
+		t.Fatalf("SendCommand delayed Ready() failed: n=%d resp=%x err=%v", n, resp, err)
+	}
+
+	// 2. When no response arrives, SendCommand bounds wait by elapsed cmdTimeout.
+	tr.cmdTimeout = 20 * time.Millisecond
+	start := time.Now()
+	if _, err := tr.SendCommand(OpcodeReset, nil, resp[:]); err == nil {
+		t.Fatal("expected timeout error when CommandComplete never arrives")
+	}
+	if elapsed := time.Since(start); elapsed < 15*time.Millisecond {
+		t.Fatalf("SendCommand returned too early (%v < 15ms); wait was not elapsed-time bound", elapsed)
 	}
 }
