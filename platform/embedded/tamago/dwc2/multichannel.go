@@ -1309,6 +1309,7 @@ func (h *MultiHost) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, e
 		return nil, fmt.Errorf("dwc2: all %d hardware channels in use", h.channels-1)
 	}
 	dev := h.devices[addr]
+	now := h.io.Now()
 	h.nextPipeGen++
 	gen := h.nextPipeGen
 	h.slots[ch] = multiChannel{
@@ -1320,11 +1321,14 @@ func (h *MultiHost) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, e
 		ep:        ep,
 		toggle:    0, // DATA0
 		interval:  endpointInterval(dev.info.Speed, ep),
-		nextDue:   h.io.Now(),
+		nextDue:   now,
 	}
 	p := &multiPipe{host: h, ch: ch, addr: addr, gen: gen, ep: ep}
 	if h.irqMode.Load() && h.irqActive.Load() {
-		h.io.Write32(haintmsk, h.activeChannelMask())
+		h.armMultiIRQ(now)
+		if ep.In() {
+			h.signalReady()
+		}
 	}
 	return p, nil
 }
@@ -1365,6 +1369,9 @@ func (p *multiPipe) PollInto(dst []byte) (int, error) {
 	copy(dst[:n], s.inBuf[:n])
 	s.inReady = false
 	s.inReadyLen = 0
+	if p.host.irqMode.Load() && p.host.irqActive.Load() && !p.host.paused && !s.armed {
+		p.host.signalReady()
+	}
 	return n, nil
 }
 
@@ -1399,6 +1406,9 @@ func (p *multiPipe) Write(data []byte) error {
 	now := p.host.io.Now()
 	if s.ep.TransferType != usb.TransferInterrupt || s.nextDue.Before(now) {
 		s.nextDue = now
+	}
+	if p.host.irqMode.Load() && p.host.irqActive.Load() && !p.host.paused && !s.armed {
+		p.host.signalReady()
 	}
 	return nil
 }
@@ -1714,5 +1724,8 @@ func (h *MultiHost) ResumePolling(ctx context.Context) error {
 		return fmt.Errorf("dwc2: polling is not paused")
 	}
 	h.paused = false
+	if h.irqMode.Load() {
+		h.signalReady()
+	}
 	return nil
 }

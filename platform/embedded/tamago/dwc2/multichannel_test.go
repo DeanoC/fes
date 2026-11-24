@@ -3223,3 +3223,90 @@ func TestMultiHostPipeRejectsOperationsAfterControllerFault(t *testing.T) {
 		t.Fatal("outPipe.WriteDone succeeded after controller retirement")
 	}
 }
+
+func TestMultiHostOpenPipeAndWriteWakeIRQMode(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected attach event, got %+v ok=%v", ev, ok)
+	}
+	iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+	epIn, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+	epOut, _ := iface.FindEndpoint(usb.TransferInterrupt, false)
+
+	ctrl, _ := newMockGIC(t)
+	if err := host.EnableIRQ(ctrl, testUSBIRQ); err != nil {
+		t.Fatalf("EnableIRQ: %v", err)
+	}
+	defer host.DisableIRQ()
+
+	// Run Service before any pipes are opened: GINTMSK should NOT have gintSOF set.
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (no pipes): %v", err)
+	}
+	sim.mu.Lock()
+	maskBefore := sim.regs[gintmask]
+	sim.mu.Unlock()
+	if maskBefore&gintSOF != 0 {
+		t.Fatalf("expected gintSOF clear before pipes opened, got gintmask=%#x", maskBefore)
+	}
+	drainReady := func() {
+		for {
+			select {
+			case <-host.Ready():
+			default:
+				return
+			}
+		}
+	}
+	drainReady()
+
+	// Opening an IN pipe in IRQ mode after Service() must arm SOF / HAINTMSK and
+	// immediately signal Ready() so the IRQ loop wakes up to arm it.
+	inPipe, err := host.OpenPipe(ev.Device.Address, epIn)
+	if err != nil {
+		t.Fatalf("OpenPipe(IN): %v", err)
+	}
+	defer inPipe.Close()
+
+	sim.mu.Lock()
+	maskAfter := sim.regs[gintmask]
+	haintAfter := sim.regs[haintmsk]
+	sim.mu.Unlock()
+	if maskAfter&gintSOF == 0 || haintAfter == 0 {
+		t.Fatalf("OpenPipe in IRQ mode did not re-evaluate IRQ masks: gintmask=%#x haintmsk=%#x", maskAfter, haintAfter)
+	}
+	select {
+	case <-host.Ready():
+	default:
+		t.Fatal("OpenPipe(IN) in IRQ mode did not signal Ready() wakeup")
+	}
+
+	// Open an OUT pipe, run Service(), drain Ready(), and verify Write() wakes Ready().
+	outPipe, err := host.OpenPipe(ev.Device.Address, epOut)
+	if err != nil {
+		t.Fatalf("OpenPipe(OUT): %v", err)
+	}
+	defer outPipe.Close()
+
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (after opening OUT pipe): %v", err)
+	}
+	drainReady()
+
+	if err := outPipe.Write([]byte{0x02, 0x01, 0x02, 0x03}); err != nil {
+		t.Fatalf("outPipe.Write: %v", err)
+	}
+	select {
+	case <-host.Ready():
+	default:
+		t.Fatal("Write() on unarmed OUT pipe in IRQ mode did not signal Ready() wakeup")
+	}
+}
