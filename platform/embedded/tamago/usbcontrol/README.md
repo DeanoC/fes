@@ -54,11 +54,12 @@ Tests use the actual C dispatcher/service/platform/board/cold policy through a
 register-model process. DWC2 tests separately exercise the real host driver with
 a modeled device and firmware replies. Neither is physical USB acceptance.
 `OpenGamepad` uses the same lease lifecycle through a separate typed source;
-it supplies `PollGamepad`, never `PollKeyboard`. Copies of either public source
-share the private lease, so closing a copy revokes the original too. The Nano
-BSP exposes `OpenGamepadWithControl`, returning a copied HID report descriptor
-and retaining partial sources/hosts on failure. Keyboard and gamepad share the
-single controller attempt guard; there is no protocol fallback.
+it supplies `PollGamepad`, never `PollKeyboard`. `OpenBus` binds a multi-device
+`usb.BusHost` (such as `dwc2.MultiHost`) to the same EL3 PIO lease lifecycle,
+guarded GICv3 IRQ wiring, `PausePolling`/`ResumePolling`, and verified `Close`.
+The Nano BSP exposes `OpenGamepadWithControl` and `OpenMultiWithControl`
+alongside `OpenKeyboardWithControl`, sharing the single controller attempt guard
+with no protocol fallback.
 
 The Nano BSP exposes `OpenKeyboardWithControl`; existing cold SD boot profiles
 keep USB disabled. The explicit `usbcheck` program selects the matched secure
