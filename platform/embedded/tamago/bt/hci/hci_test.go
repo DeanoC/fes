@@ -558,3 +558,59 @@ func TestBuiltInRTL8761BUFallbackAndStorageOverride(t *testing.T) {
 		})
 	}
 }
+
+func TestCancelACLPurgesOnlyTargetHandleAndPreservesOrder(t *testing.T) {
+	bus := newMockBTBus(0x0a12, 0x0001, 0)
+	bus.rtlVersion = 0x22bb
+	tr, err := Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Exhaust controller ACL credits so all subsequent frames queue in txRing.
+	bus.aclOutPipe.noOutLog = true
+	for range 4 {
+		if err := tr.SendACL(0x0041, ACLBoundaryFirstAutoFlush, []byte{1}); err != nil {
+			t.Fatal(err)
+		}
+		if err := tr.Service(nil, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bus.aclOutPipe.noOutLog = false
+	bus.aclOutPipe.outLog = nil
+
+	// Interleave frames for 0x0041 and 0x0042 while credits == 0.
+	if err := tr.SendACL(0x0041, ACLBoundaryFirstAutoFlush, []byte{0x11}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.SendACL(0x0042, ACLBoundaryFirstAutoFlush, []byte{0x21}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.SendACL(0x0041, ACLBoundaryFirstAutoFlush, []byte{0x12}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.SendACL(0x0042, ACLBoundaryFirstAutoFlush, []byte{0x22}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Purge only handle 0x0041; 0x0042 frames must remain in exact FIFO order.
+	tr.CancelACL(0x0041)
+
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{EventNumCompletedPackets, 5, 1, 0x42, 0x00, 0x04, 0x00})
+	for range 4 {
+		if err := tr.Service(nil, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(bus.aclOutPipe.outLog) != 2 {
+		t.Fatalf("expected 2 remaining 0x0042 frames, got %d (%x)", len(bus.aclOutPipe.outLog), bus.aclOutPipe.outLog)
+	}
+	if !bytes.Equal(bus.aclOutPipe.outLog[0][4:], []byte{0x21}) || !bytes.Equal(bus.aclOutPipe.outLog[1][4:], []byte{0x22}) {
+		t.Fatalf("unexpected remaining ACL payloads after CancelACL: %x", bus.aclOutPipe.outLog)
+	}
+}

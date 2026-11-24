@@ -763,3 +763,143 @@ func TestRejectsNonHIDIncomingConnectionDuringPairing(t *testing.T) {
 		t.Fatalf("expected unknown HID CoD to be accepted during pairing, got %x", got)
 	}
 }
+
+func TestDisconnectPurgesQueuedACLFrames(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return time.Unix(800, 0) })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p1, _ := ParseBDAddr("88:11:22:33:44:55")
+	p2, _ := ParseBDAddr("99:11:22:33:44:55")
+	c1 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, p1[:]...)
+	c1 = append(c1, 0x01, 0x01)
+	c2 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x42, 0x00}, p2[:]...)
+	c2 = append(c2, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, c1, c2)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Consume all 8 controller credits so subsequent ACL frames queue in txRing.
+	bus.aclOutPipe.noOutLog = true
+	for range 8 {
+		if err := tr.SendACL(0x0042, hci.ACLBoundaryFirstAutoFlush, []byte{0x01}); err != nil {
+			t.Fatal(err)
+		}
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bus.aclOutPipe.noOutLog = false
+	bus.aclOutPipe.outLog = nil
+
+	// Queue frames on both 0x0041 and 0x0042 while credits == 0.
+	if err := tr.SendACL(0x0041, hci.ACLBoundaryFirstAutoFlush, []byte{0xaa}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.SendACL(0x0042, hci.ACLBoundaryFirstAutoFlush, []byte{0xbb}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Disconnect 0x0041 before replenishing credits -> 0x0041 queued frame MUST be purged!
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventDisconnectionComplete, 4, 0, 0x41, 0x00, 0x13})
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x42, 0x00, 0x08, 0x00})
+	for range 4 {
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(bus.aclOutPipe.outLog) != 1 || (binary.LittleEndian.Uint16(bus.aclOutPipe.outLog[0][0:2])&0x0fff) != 0x0042 {
+		t.Fatalf("expected only handle 0x0042 frame to transmit after 0x0041 disconnect, outLog=%x", bus.aclOutPipe.outLog)
+	}
+	if tr.ACLCredits() != 7 {
+		t.Fatalf("credits=%d after 1 remaining TX (started 8), want 7", tr.ACLCredits())
+	}
+}
+
+func TestManagerRetriesRemoteNameOnFailure(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(900, 0)
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	peer, _ := ParseBDAddr("AA:22:33:44:55:66")
+	connEv := append([]byte{hci.EventConnectionComplete, 11, 0, 0x47, 0x00}, peer[:]...)
+	connEv = append(connEv, 0x01, 0x01)
+	nameFail := append([]byte{hci.EventRemoteNameRequestComplete, 7, 0x04}, peer[:]...) // Page Timeout
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connEv, nameFail)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	countNameReq := func() int {
+		n := 0
+		for _, op := range bus.cmds {
+			if op == hci.OpcodeRemoteNameRequest {
+				n++
+			}
+		}
+		return n
+	}
+	if countNameReq() != 1 {
+		t.Fatalf("expected 1 initial RemoteNameRequest, got %d", countNameReq())
+	}
+
+	// Not yet past 250 ms backoff: no premature retry.
+	now = now.Add(100 * time.Millisecond)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if countNameReq() != 1 {
+		t.Fatalf("premature RemoteNameRequest retry before backoff: count=%d", countNameReq())
+	}
+
+	// Advance past backoff: retries and resolves DualSense!
+	now = now.Add(200 * time.Millisecond)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if countNameReq() != 2 {
+		t.Fatalf("expected RemoteNameRequest retry after backoff, got %d", countNameReq())
+	}
+
+	var resolved controllers.Kind
+	mgr.OnNameResolved = func(_ uint16, _ BDAddr, _ string, kind controllers.Kind) {
+		resolved = kind
+	}
+	nameOK := make([]byte, 2+7+32)
+	nameOK[0] = hci.EventRemoteNameRequestComplete
+	nameOK[1] = 39
+	nameOK[2] = 0
+	copy(nameOK[3:9], peer[:])
+	copy(nameOK[9:], "DualSense Wireless Controller")
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, nameOK)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if resolved != controllers.KindDualSense {
+		t.Fatalf("expected DualSense after name retry, got %v", resolved)
+	}
+}

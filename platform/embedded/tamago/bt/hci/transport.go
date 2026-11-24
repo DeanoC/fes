@@ -372,6 +372,26 @@ func (t *Transport) SendACL(handle uint16, pb uint8, payload []byte) error {
 	return t.pumpACLTx()
 }
 
+// CancelACL purges any queued (not yet transmitted) ACL TX frames targeting
+// handle, preserving FIFO order of remaining handles with zero allocations.
+func (t *Transport) CancelACL(handle uint16) {
+	target := handle & 0x0fff
+	kept := 0
+	for i := 0; i < t.txCount; i++ {
+		srcIdx := (t.txHead + i) % maxACLTxQueue
+		f := &t.txRing[srcIdx]
+		if f.n >= 2 && (binary.LittleEndian.Uint16(f.data[0:2])&0x0fff) == target {
+			continue
+		}
+		if kept != i {
+			dstIdx := (t.txHead + kept) % maxACLTxQueue
+			t.txRing[dstIdx] = *f
+		}
+		kept++
+	}
+	t.txCount = kept
+}
+
 func (t *Transport) pumpACLTx() error {
 	if t.txInFlight {
 		done, err := t.aclOutPipe.WriteDone()

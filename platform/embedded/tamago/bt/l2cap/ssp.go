@@ -90,6 +90,27 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 	return m.tr.WriteScanEnable(hci.ScanPageOnly)
 }
 
+const (
+	maxNameRetries   uint8 = 5
+	nameRetryBackoff       = 250 * time.Millisecond
+)
+
+func (m *Manager) requestRemoteName(conn *aclConn) {
+	if conn == nil {
+		return
+	}
+	conn.namePending = true
+	conn.nameRetryAt = time.Time{}
+	if err := m.tr.RemoteNameRequest(conn.addr); err != nil {
+		if conn.nameRetries < maxNameRetries {
+			conn.nameRetries++
+			conn.nameRetryAt = m.now().Add(nameRetryBackoff)
+		} else {
+			conn.namePending = false
+		}
+	}
+}
+
 // Service pumps HCI events & ACL packets, enforces pairing mode expiry, and
 // advances L2CAP channels with zero steady-state allocations.
 func (m *Manager) Service() error {
@@ -103,6 +124,9 @@ func (m *Manager) Service() error {
 		conn := &m.conns[i]
 		if !conn.active {
 			continue
+		}
+		if conn.namePending && !conn.nameRetryAt.IsZero() && !m.now().Before(conn.nameRetryAt) {
+			m.requestRemoteName(conn)
 		}
 		if conn.pendingOpenPSM != 0 {
 			if err := m.OpenChannel(conn.handle, conn.pendingOpenPSM); err == nil {
@@ -235,7 +259,7 @@ func (m *Manager) handleEvent(ev []byte) {
 			conn.hostInitiated = true
 		}
 		if conn.kind == controllers.KindUnknown || conn.name == "" {
-			_ = m.tr.RemoteNameRequest(addr)
+			m.requestRemoteName(conn)
 		}
 		if conn.hostInitiated {
 			if err := m.OpenChannel(handle, PSMHIDControl); err != nil {
@@ -249,6 +273,7 @@ func (m *Manager) handleEvent(ev []byte) {
 			return
 		}
 		handle := binary.LittleEndian.Uint16(params[1:3]) & 0x0fff
+		m.tr.CancelACL(handle)
 		if conn := m.findConnByHandle(handle); conn != nil {
 			addr := conn.addr
 			*conn = aclConn{}
@@ -259,11 +284,26 @@ func (m *Manager) handleEvent(ev []byte) {
 
 	case hci.EventRemoteNameRequestComplete:
 		// [0]=status [1..6]=BD_ADDR [7..254]=UTF-8 name (null-terminated)
-		if len(params) < 8 || params[0] != 0 {
+		if len(params) < 7 {
 			return
 		}
 		var addr BDAddr
 		copy(addr[:], params[1:7])
+		if params[0] != 0 {
+			if conn := m.findConnByAddr(addr); conn != nil && conn.namePending {
+				if conn.nameRetries < maxNameRetries {
+					conn.nameRetries++
+					conn.nameRetryAt = m.now().Add(nameRetryBackoff)
+				} else {
+					conn.namePending = false
+					conn.nameRetryAt = time.Time{}
+				}
+			}
+			return
+		}
+		if len(params) < 8 {
+			return
+		}
 		rawName := params[7:]
 		if nul := bytes.IndexByte(rawName, 0); nul >= 0 {
 			rawName = rawName[:nul]
@@ -278,6 +318,9 @@ func (m *Manager) handleEvent(ev []byte) {
 			_ = m.bonds.Upsert(rec)
 		}
 		if conn := m.findConnByAddr(addr); conn != nil {
+			conn.namePending = false
+			conn.nameRetries = 0
+			conn.nameRetryAt = time.Time{}
 			conn.name = name
 			if kind != controllers.KindUnknown {
 				conn.kind = kind

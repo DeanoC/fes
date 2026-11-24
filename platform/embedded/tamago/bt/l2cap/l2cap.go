@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/bt/hci"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input/controllers"
@@ -55,6 +56,9 @@ type aclConn struct {
 	kind           controllers.Kind
 	hostInitiated  bool
 	pendingOpenPSM uint16
+	namePending    bool
+	nameRetries    uint8
+	nameRetryAt    time.Time
 
 	chans   [maxChansPerConn]l2capChannel
 	nextCID uint16
