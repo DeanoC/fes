@@ -142,6 +142,26 @@ func openIncomingHIDChannels(bus *hidpMockBus, handle uint16, ctrlRemoteCID, int
 	)
 }
 
+func makeSwitchProSubcmdReply(ack, subcmd byte, extra []byte) []byte {
+	pkt := make([]byte, 50)
+	pkt[0] = hidpDataInput
+	pkt[1] = controllers.SwitchProReportSubcmdReply
+	pkt[14] = ack
+	pkt[15] = subcmd
+	copy(pkt[16:], extra)
+	return pkt
+}
+
+func makeSwitchProSPICalReply(ack byte) []byte {
+	var extra [4 + 1 + controllers.SwitchProFactoryStickCalLen]byte
+	binary.LittleEndian.PutUint32(extra[0:4], controllers.SwitchProFactoryStickCalAddr)
+	extra[4] = controllers.SwitchProFactoryStickCalLen
+	for i := 5; i < len(extra); i += 3 {
+		extra[i], extra[i+1], extra[i+2] = 0x00, 0x08, 0x80 // center=2048, minOff=2048, maxOff=2048
+	}
+	return makeSwitchProSubcmdReply(ack, controllers.SwitchProSubcmdSPIRead, extra[:])
+}
+
 func TestDualSenseAndSwitchProConcurrentHIDPAndZeroAllocs(t *testing.T) {
 	bus := newHIDPMockBus()
 	tr, err := hci.Open(bus, bus.dev)
@@ -190,13 +210,32 @@ func TestDualSenseAndSwitchProConcurrentHIDPAndZeroAllocs(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// Replenish controller ACL TX credits so all queued init subcommands flush.
+	// Replenish controller ACL TX credits so all queued frames flush and drive
+	// Switch Pro initialization through matching 0x21 subcommand ACKs.
 	bus.evPipe.inQueue = append(bus.evPipe.inQueue,
 		[]byte{hci.EventNumCompletedPackets, 5, 1, 0x42, 0x00, 0x08, 0x00})
-	for range 10 {
+	for range 4 {
 		if err := sess.Service(); err != nil {
 			t.Fatal(err)
 		}
+	}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0042, 0x0041, makeSwitchProSPICalReply(0x90)))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0042, 0x0041, makeSwitchProSubcmdReply(0x80, controllers.SwitchProSubcmdSetMode, nil)))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0042, 0x0041, makeSwitchProSubcmdReply(0x80, controllers.SwitchProSubcmdSetPlayerLD, nil)))
+	for range 6 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if sess.slots[1].initStep != initStepDone || !sess.slots[1].cal.Valid {
+		t.Fatalf("expected Switch Pro init complete with valid calibration, step=%d calValid=%t",
+			sess.slots[1].initStep, sess.slots[1].cal.Valid)
 	}
 	if sess.ConnectedCount() != 2 || slotEvents != 2 {
 		t.Fatalf("expected 2 connected slots, count=%d events=%d", sess.ConnectedCount(), slotEvents)
@@ -470,7 +509,8 @@ func TestSwitchProInitRetriesAfterACLQueueFull(t *testing.T) {
 	bonds := l2cap.NewBondStore()
 	_ = bonds.Upsert(l2cap.BondRecord{Addr: swAddr, LinkKey: [16]byte{7}, Name: "Pro Controller", Kind: controllers.KindSwitchPro, Slot: 0})
 
-	sess, err := NewSession(tr, bonds, nil)
+	now := time.Unix(500, 0)
+	sess, err := NewSession(tr, bonds, func() time.Time { return now })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -499,10 +539,10 @@ func TestSwitchProInitRetriesAfterACLQueueFull(t *testing.T) {
 	}
 	bus.aclOutPipe.outLog = nil
 
-	// Stall ACL OUT pipe and pre-fill 15 of the 16 ring slots so ONLY step 0
-	// (SPIRead) fits during onChannelOpen and step 1 (SetMode) hits TX queue full.
+	// Stall ACL OUT pipe and pre-fill 17 frames (1 enters txInFlight, 16 fill
+	// txRing) so step 0 (SPIRead) hits ACL TX queue full during onChannelOpen.
 	bus.aclOutPipe.writeStalled = true
-	for range 16 {
+	for range 17 {
 		if err := tr.SendACL(0x0041, hci.ACLBoundaryFirstAutoFlush, []byte{0xde, 0xad}); err != nil {
 			t.Fatalf("prefill SendACL failed early: %v", err)
 		}
@@ -512,20 +552,40 @@ func TestSwitchProInitRetriesAfterACLQueueFull(t *testing.T) {
 	if err := sess.Service(); err != nil {
 		t.Fatal(err)
 	}
-	if sess.slots[0].initStep != 1 {
-		t.Fatalf("expected initStep=1 after step 1 queue overflow, got %d", sess.slots[0].initStep)
+	if sess.slots[0].initStep != 0 || sess.slots[0].initWaitingAck {
+		t.Fatalf("expected initStep=0 & initWaitingAck=false after step 0 queue overflow, got step=%d wait=%t",
+			sess.slots[0].initStep, sess.slots[0].initWaitingAck)
 	}
 
-	// Unstall ACL OUT pipe, replenish credits across drains, and pump Service().
+	// Unstall ACL OUT pipe and drain the queue so step 0 transmits with seq=0.
 	bus.aclOutPipe.writeStalled = false
-	for range 24 {
+	for range 20 {
 		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x10, 0x00})
 		if err := sess.Service(); err != nil {
 			t.Fatal(err)
 		}
 	}
+	if sess.slots[0].initStep != 0 || !sess.slots[0].initWaitingAck {
+		t.Fatalf("expected initStep=0 awaiting 0x10 ACK after queue drain, got step=%d wait=%t",
+			sess.slots[0].initStep, sess.slots[0].initWaitingAck)
+	}
+
+	// Deliver matching 0x21 ACKs for step 0 -> step 1 -> step 2.
+	for _, ack := range [][]byte{
+		makeSwitchProSPICalReply(0x90),
+		makeSwitchProSubcmdReply(0x80, controllers.SwitchProSubcmdSetMode, nil),
+		makeSwitchProSubcmdReply(0x80, controllers.SwitchProSubcmdSetPlayerLD, nil),
+	} {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x04, 0x00})
+		bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, 0x0041, ack))
+		for range 3 {
+			if err := sess.Service(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	if sess.slots[0].initStep != initStepDone {
-		t.Fatalf("Switch Pro init did not finish after queue drain: initStep=%d", sess.slots[0].initStep)
+		t.Fatalf("Switch Pro init did not finish after ACKs: initStep=%d", sess.slots[0].initStep)
 	}
 
 	var spiCount, modeCount, ledCount int
@@ -554,5 +614,145 @@ func TestSwitchProInitRetriesAfterACLQueueFull(t *testing.T) {
 	}
 	if !bytes.Equal(seqs, []byte{0, 1, 2}) {
 		t.Fatalf("unexpected Switch Pro retry subcommand sequence numbers: %v", seqs)
+	}
+}
+
+func TestSwitchProInitWaitsForAckAndRetriesOnDropOrNack(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	swAddr, _ := l2cap.ParseBDAddr("FF:11:22:33:44:55")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: swAddr, LinkKey: [16]byte{8}, Name: "Pro Controller", Kind: controllers.KindSwitchPro, Slot: 0})
+
+	now := time.Unix(600, 0)
+	sess, err := NewSession(tr, bonds, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conn := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, swAddr[:]...)
+	conn = append(conn, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, conn)
+	openIncomingHIDChannels(bus, 0x0041, 0x0050, 0x0051)
+	for range 8 {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x04, 0x00})
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	collectSubcmds := func() (subcmds, seqs []byte) {
+		for _, pkt := range bus.aclOutPipe.outLog {
+			if len(pkt) < 8+50 {
+				continue
+			}
+			cid := binary.LittleEndian.Uint16(pkt[6:8])
+			hid := pkt[8:]
+			if cid == 0x0051 && hid[0] == hidpDataOutput && hid[1] == 0x01 {
+				seqs = append(seqs, hid[2])
+				subcmds = append(subcmds, hid[11])
+			}
+		}
+		return subcmds, seqs
+	}
+
+	// 1. Only SPIRead (0x10) should be sent initially; SetMode must wait for 0x21 ACK.
+	subcmds, seqs := collectSubcmds()
+	if !bytes.Equal(subcmds, []byte{controllers.SwitchProSubcmdSPIRead}) || !bytes.Equal(seqs, []byte{0}) {
+		t.Fatalf("expected only SPIRead seq=0 before ACK, got subcmds=%x seqs=%v", subcmds, seqs)
+	}
+
+	// 2. NACK (ack=0x00) and mismatched subcommand ACK must NOT advance or spam immediately.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0041, 0x0041, makeSwitchProSPICalReply(0x00)),
+		makeHIDACL(0x0041, 0x0041, makeSwitchProSubcmdReply(0x80, controllers.SwitchProSubcmdSetMode, nil)),
+	)
+	for range 3 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if sess.slots[0].initStep != 0 || sess.slots[0].cal.Valid {
+		t.Fatalf("NACK or wrong subcommand advanced init: step=%d calValid=%t", sess.slots[0].initStep, sess.slots[0].cal.Valid)
+	}
+	subcmds, _ = collectSubcmds()
+	if len(subcmds) != 1 {
+		t.Fatalf("expected rate-limiting to prevent retry before interval, got subcmds=%x", subcmds)
+	}
+
+	// 3. Advancing clock by retry interval retries step 0 with incremented seq=1.
+	now = now.Add(switchProSubcmdRetryInterval)
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	subcmds, seqs = collectSubcmds()
+	if !bytes.Equal(subcmds, []byte{controllers.SwitchProSubcmdSPIRead, controllers.SwitchProSubcmdSPIRead}) || !bytes.Equal(seqs, []byte{0, 1}) {
+		t.Fatalf("expected SPIRead retry seq=1, got subcmds=%x seqs=%v", subcmds, seqs)
+	}
+
+	// 4. Valid 0x21 ACK for 0x10 calibrates sticks and advances immediately to step 1 (0x03).
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, 0x0041, makeSwitchProSPICalReply(0x90)))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !sess.slots[0].cal.Valid || sess.slots[0].initStep != 1 {
+		t.Fatalf("expected valid calibration and step=1, got calValid=%t step=%d", sess.slots[0].cal.Valid, sess.slots[0].initStep)
+	}
+	subcmds, seqs = collectSubcmds()
+	want := []byte{controllers.SwitchProSubcmdSPIRead, controllers.SwitchProSubcmdSPIRead, controllers.SwitchProSubcmdSetMode}
+	if !bytes.Equal(subcmds, want) || !bytes.Equal(seqs, []byte{0, 1, 2}) {
+		t.Fatalf("expected SetMode seq=2 after 0x10 ACK, got subcmds=%x seqs=%v", subcmds, seqs)
+	}
+
+	// 5. Simulate dropped reply on step 1: advance clock -> retries 0x03 (seq=3), then ACK -> sends 0x30 (seq=4).
+	now = now.Add(switchProSubcmdRetryInterval)
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x04, 0x00})
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, 0x0041, makeSwitchProSubcmdReply(0x80, controllers.SwitchProSubcmdSetMode, nil)))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	// 6. Valid 0x21 ACK for 0x30 completes init.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, 0x0041, makeSwitchProSubcmdReply(0x80, controllers.SwitchProSubcmdSetPlayerLD, nil)))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if sess.slots[0].initStep != initStepDone {
+		t.Fatalf("expected initStepDone after step 2 ACK, got %d", sess.slots[0].initStep)
+	}
+
+	// 7. Bounded max attempts: if a second controller ignores step 0 replies
+	// forever, after switchProMaxStepAttempts it gives up on step 0 and advances.
+	swAddr2, _ := l2cap.ParseBDAddr("FF:22:33:44:55:66")
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: swAddr2, LinkKey: [16]byte{9}, Name: "Pro Controller", Kind: controllers.KindSwitchPro, Slot: 1})
+	conn2 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x42, 0x00}, swAddr2[:]...)
+	conn2 = append(conn2, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, conn2)
+	openIncomingHIDChannels(bus, 0x0042, 0x0060, 0x0061)
+	for range 8 {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x42, 0x00, 0x08, 0x00})
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range switchProMaxStepAttempts {
+		now = now.Add(switchProSubcmdRetryInterval)
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x42, 0x00, 0x04, 0x00})
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if sess.slots[1].initStep != 1 {
+		t.Fatalf("expected unanswered step 0 to give up after %d attempts and advance to step 1, got step=%d",
+			switchProMaxStepAttempts, sess.slots[1].initStep)
 	}
 }

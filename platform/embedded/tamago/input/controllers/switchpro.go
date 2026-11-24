@@ -56,7 +56,7 @@ func ParseSwitchProSPICalibration(report []byte, cal *SwitchStickCal) bool {
 	if cal == nil || len(report) < 38 {
 		return false
 	}
-	if report[0] != SwitchProReportSubcmdReply || report[14] != SwitchProSubcmdSPIRead {
+	if report[0] != SwitchProReportSubcmdReply || report[13]&0x80 == 0 || report[14] != SwitchProSubcmdSPIRead {
 		return false
 	}
 	addr := binary.LittleEndian.Uint32(report[15:19])

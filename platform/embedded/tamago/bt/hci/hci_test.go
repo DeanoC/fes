@@ -62,9 +62,10 @@ type mockBTBus struct {
 	evPipe     *mockPipe
 	aclInPipe  *mockPipe
 	aclOutPipe *mockPipe
-	ready      chan struct{}
-	suppressCC bool
-	cmdLog     [][]byte
+	ready          chan struct{}
+	suppressCC     bool
+	readBufHandler func(op uint16)
+	cmdLog         [][]byte
 	rtlChunks  int
 	rtlFinal   bool
 	rtlVersion uint16
@@ -155,8 +156,12 @@ func (b *mockBTBus) ControlTransfer(_ uint8, reqType, req byte, _, _ uint16, dat
 		}
 		b.pushCmdComplete(op, 0, params[0])
 	case OpcodeReadBufferSize:
-		// 256-byte ACL packets, 4 controller buffer slots
-		b.pushCmdComplete(op, 0, 0x00, 0x01, 0x40, 0x04, 0x00, 0x08, 0x00)
+		if b.readBufHandler != nil {
+			b.readBufHandler(op)
+		} else {
+			// 256-byte ACL packets, 4 controller buffer slots
+			b.pushCmdComplete(op, 0, 0x00, 0x01, 0x40, 0x04, 0x00, 0x08, 0x00)
+		}
 	case OpcodeReadBDAddr:
 		b.pushCmdComplete(op, 0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66)
 	case OpcodeWriteDefaultLinkPolicy:
@@ -667,5 +672,68 @@ func TestSendCommandUsesElapsedTimeDeadlineAndReadyChannel(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed < 15*time.Millisecond {
 		t.Fatalf("SendCommand returned too early (%v < 15ms); wait was not elapsed-time bound", elapsed)
+	}
+}
+
+func TestInitializeFailsWhenReadBufferSizeFailsOrInvalid(t *testing.T) {
+	cases := []struct {
+		name    string
+		timeout time.Duration
+		handler func(b *mockBTBus, op uint16)
+	}{
+		{
+			name: "hci_status_error",
+			handler: func(b *mockBTBus, op uint16) {
+				b.pushCmdComplete(op, 0x01, 0x00, 0x01, 0x40, 0x04, 0x00, 0x08, 0x00)
+			},
+		},
+		{
+			name: "short_response",
+			handler: func(b *mockBTBus, op uint16) {
+				b.pushCmdComplete(op, 0x00, 0x00, 0x01)
+			},
+		},
+		{
+			name: "zero_acl_len",
+			handler: func(b *mockBTBus, op uint16) {
+				b.pushCmdComplete(op, 0x00, 0x00, 0x00, 0x40, 0x04, 0x00, 0x08, 0x00)
+			},
+		},
+		{
+			name: "zero_acl_packets",
+			handler: func(b *mockBTBus, op uint16) {
+				b.pushCmdComplete(op, 0x00, 0x00, 0x01, 0x40, 0x00, 0x00, 0x08, 0x00)
+			},
+		},
+		{
+			name:    "timeout",
+			timeout: 10 * time.Millisecond,
+			handler: func(*mockBTBus, uint16) {},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			bus := newMockBTBus(0x0a12, 0x0001, 0)
+			bus.rtlVersion = 0x22bb
+			bus.readBufHandler = func(op uint16) { tc.handler(bus, op) }
+			tr, err := Open(bus, bus.dev)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tr.Close()
+			if tc.timeout > 0 {
+				tr.cmdTimeout = tc.timeout
+			}
+			if err := tr.SendACL(0x0041, ACLBoundaryFirstAutoFlush, []byte{1}); err == nil {
+				t.Fatal("expected SendACL to fail before Initialize discovers ACL limits")
+			}
+			if err := tr.Initialize(nil); err == nil {
+				t.Fatalf("expected Initialize to fail on Read_Buffer_Size case %s", tc.name)
+			}
+			if err := tr.SendACL(0x0041, ACLBoundaryFirstAutoFlush, []byte{1}); err == nil {
+				t.Fatalf("expected SendACL to fail after failed Initialize (%s)", tc.name)
+			}
+		})
 	}
 }

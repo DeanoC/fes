@@ -16,8 +16,6 @@ const (
 	maxACLUSBPacket   = 512
 	maxACLRxBytes     = 1028
 	maxACLTxQueue     = 16
-	defaultACLMaxLen  = 256
-	defaultACLCredit  = 4
 	defaultCmdTimeout = 2 * time.Second
 )
 
@@ -123,10 +121,7 @@ func Open(bus usb.BusHost, dev usb.BusDevice) (*Transport, error) {
 		aclOutPipe: aclOutPipe,
 		cmdTimeout: defaultCmdTimeout,
 		now:        time.Now,
-		maxCredits: defaultACLCredit,
-		credits:    defaultACLCredit,
 	}
-	tr.aclMaxLen = min(defaultACLMaxLen, tr.maxACLPayloadLimit())
 	return tr, nil
 }
 
@@ -333,25 +328,29 @@ func (t *Transport) Initialize(fw FirmwareLoader) error {
 	}
 
 	// Query ACL MTU and controller packet credit count, capped to bulk OUT MPS.
-	maxPayload := t.maxACLPayloadLimit()
-	if t.aclMaxLen > maxPayload {
-		t.aclMaxLen = maxPayload
-	}
 	var resp [16]byte
-	if n, err := t.SendCommand(OpcodeReadBufferSize, nil, resp[:]); err == nil && n >= 8 && resp[0] == 0 {
-		aclLen := int(binary.LittleEndian.Uint16(resp[1:3]))
-		aclNum := int(binary.LittleEndian.Uint16(resp[4:6]))
-		if aclLen >= 16 {
-			if aclLen > maxPayload {
-				aclLen = maxPayload
-			}
-			t.aclMaxLen = aclLen
-		}
-		if aclNum > 0 {
-			t.maxCredits = aclNum
-			t.credits = aclNum
-		}
+	n, err := t.SendCommand(OpcodeReadBufferSize, nil, resp[:])
+	if err != nil {
+		return fmt.Errorf("bt/hci: Read_Buffer_Size: %w", err)
 	}
+	if n < 8 || resp[0] != 0 {
+		var status byte
+		if n > 0 {
+			status = resp[0]
+		}
+		return fmt.Errorf("bt/hci: Read_Buffer_Size status=%#x n=%d", status, n)
+	}
+	aclLen := int(binary.LittleEndian.Uint16(resp[1:3]))
+	aclNum := int(binary.LittleEndian.Uint16(resp[4:6]))
+	if aclLen < 16 || aclNum <= 0 {
+		return fmt.Errorf("bt/hci: Read_Buffer_Size invalid ACL limits len=%d packets=%d", aclLen, aclNum)
+	}
+	if maxPayload := t.maxACLPayloadLimit(); aclLen > maxPayload {
+		aclLen = maxPayload
+	}
+	t.aclMaxLen = aclLen
+	t.maxCredits = aclNum
+	t.credits = aclNum
 
 	// Read local Bluetooth MAC address.
 	if n, err := t.SendCommand(OpcodeReadBDAddr, nil, resp[:]); err == nil && n >= 7 && resp[0] == 0 {
@@ -395,11 +394,11 @@ func (t *Transport) SendACL(handle uint16, pb uint8, payload []byte) error {
 	if len(payload) == 0 {
 		return nil
 	}
+	if t.aclMaxLen <= 0 || t.maxCredits <= 0 {
+		return errors.New("bt/hci: ACL buffer size not initialized")
+	}
 	maxPayload := t.maxACLPayloadLimit()
 	maxChunk := t.aclMaxLen
-	if maxChunk <= 0 {
-		maxChunk = defaultACLMaxLen
-	}
 	if maxChunk > maxPayload {
 		maxChunk = maxPayload
 	}

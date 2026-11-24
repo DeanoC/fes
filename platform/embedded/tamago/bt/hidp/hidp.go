@@ -2,6 +2,7 @@
 package hidp
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
@@ -20,6 +21,9 @@ const (
 	hidpDataOutput       byte = 0xa2 // DATA (0xA0) | Output (0x02)
 
 	initStepDone uint8 = 0xff
+
+	switchProSubcmdRetryInterval = 250 * time.Millisecond
+	switchProMaxStepAttempts     = 5
 )
 
 var neutralKeyboardReport [8]byte
@@ -34,11 +38,14 @@ type PlayerSlot struct {
 	Kind      controllers.Kind
 	State     controllers.State
 
-	ctrlOpen  bool
-	intrOpen  bool
-	initStep  uint8
-	cal       controllers.SwitchStickCal
-	outputSeq uint8
+	ctrlOpen       bool
+	intrOpen       bool
+	initStep       uint8
+	initWaitingAck bool
+	initNextTry    time.Time
+	initAttempts   uint8
+	cal            controllers.SwitchStickCal
+	outputSeq      uint8
 }
 
 // Session runs Classic Bluetooth HIDP (PSM 0x0011 Control + PSM 0x0013
@@ -271,35 +278,49 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 		if !slot.intrOpen {
 			return
 		}
-		// Send each Switch Pro init subcommand stepwise; on queue saturation,
-		// resume from the failed step on subsequent Service() passes.
-		if slot.initStep == 0 {
-			s.txBuf[0] = hidpDataOutput
-			n := controllers.BuildSwitchProReadCalibration(s.txBuf[1:], slot.outputSeq)
-			if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n]); err != nil {
+		if slot.initWaitingAck {
+			if s.now().Before(slot.initNextTry) {
 				return
 			}
-			slot.outputSeq = (slot.outputSeq + 1) & 0x0f
-			slot.initStep = 1
-		}
-		if slot.initStep == 1 {
-			s.txBuf[0] = hidpDataOutput
-			n := controllers.BuildSwitchProSetFullMode(s.txBuf[1:], slot.outputSeq)
-			if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n]); err != nil {
-				return
+			if slot.initAttempts >= switchProMaxStepAttempts {
+				switch slot.initStep {
+				case 0:
+					slot.initStep = 1
+				case 1:
+					slot.initStep = 2
+				default:
+					slot.initStep = initStepDone
+				}
+				slot.initWaitingAck = false
+				slot.initAttempts = 0
+				slot.initNextTry = time.Time{}
+				if slot.initStep == initStepDone {
+					return
+				}
+			} else {
+				slot.initWaitingAck = false
 			}
-			slot.outputSeq = (slot.outputSeq + 1) & 0x0f
-			slot.initStep = 2
 		}
-		if slot.initStep == 2 {
-			s.txBuf[0] = hidpDataOutput
-			n := controllers.BuildSwitchProSetPlayerLEDs(s.txBuf[1:], slot.outputSeq, slot.Slot)
-			if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n]); err != nil {
-				return
-			}
-			slot.outputSeq = (slot.outputSeq + 1) & 0x0f
-			slot.initStep = initStepDone
+
+		s.txBuf[0] = hidpDataOutput
+		var n int
+		switch slot.initStep {
+		case 0:
+			n = controllers.BuildSwitchProReadCalibration(s.txBuf[1:], slot.outputSeq)
+		case 1:
+			n = controllers.BuildSwitchProSetFullMode(s.txBuf[1:], slot.outputSeq)
+		case 2:
+			n = controllers.BuildSwitchProSetPlayerLEDs(s.txBuf[1:], slot.outputSeq, slot.Slot)
+		default:
+			return
 		}
+		if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n]); err != nil {
+			return
+		}
+		slot.outputSeq = (slot.outputSeq + 1) & 0x0f
+		slot.initWaitingAck = true
+		slot.initAttempts++
+		slot.initNextTry = s.now().Add(switchProSubcmdRetryInterval)
 	}
 }
 
@@ -361,7 +382,7 @@ func (s *Session) onHIDInterrupt(handle uint16, payload []byte) {
 
 	case controllers.KindSwitchPro:
 		if report[0] == controllers.SwitchProReportSubcmdReply {
-			controllers.ParseSwitchProSPICalibration(report, &slot.cal)
+			s.handleSwitchProSubcmdReply(slot, report)
 		}
 		if controllers.ParseSwitchProInput(report, &slot.cal, &slot.State) {
 			slot.State.TimestampNS = s.now().UnixNano()
@@ -379,5 +400,48 @@ func (s *Session) onHIDInterrupt(handle uint16, payload []byte) {
 				s.OnKeyboardReport(report[1:9])
 			}
 		}
+	}
+}
+
+func (s *Session) handleSwitchProSubcmdReply(slot *PlayerSlot, report []byte) {
+	controllers.ParseSwitchProSPICalibration(report, &slot.cal)
+	if len(report) < 15 || slot.initStep == initStepDone || !slot.initWaitingAck {
+		return
+	}
+	ack := report[13]
+	subcmd := report[14]
+	if ack&0x80 == 0 {
+		// Controller explicitly NACKed; remain waiting so maybeInitController
+		// retries once switchProSubcmdRetryInterval elapses.
+		return
+	}
+	switch slot.initStep {
+	case 0:
+		if subcmd != controllers.SwitchProSubcmdSPIRead || len(report) < 38 {
+			return
+		}
+		addr := binary.LittleEndian.Uint32(report[15:19])
+		if addr != controllers.SwitchProFactoryStickCalAddr || report[19] < controllers.SwitchProFactoryStickCalLen {
+			return
+		}
+		slot.initStep = 1
+	case 1:
+		if subcmd != controllers.SwitchProSubcmdSetMode {
+			return
+		}
+		slot.initStep = 2
+	case 2:
+		if subcmd != controllers.SwitchProSubcmdSetPlayerLD {
+			return
+		}
+		slot.initStep = initStepDone
+	default:
+		return
+	}
+	slot.initWaitingAck = false
+	slot.initAttempts = 0
+	slot.initNextTry = time.Time{}
+	if slot.initStep != initStepDone {
+		s.maybeInitController(slot)
 	}
 }
