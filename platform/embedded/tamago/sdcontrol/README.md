@@ -41,13 +41,15 @@ FPGA reconfiguration.
   Card discovery must match both fields before writes are enabled; mismatch
   retires immediately without writing.
 - **Opt-in transport options:** `sdcontrol.Config` forwards
-  `TransferClockHz` (`25000000`), `BusWidth4Bit`, `MultiBlock`, and
+  `TransferClockHz` (`25000000`, or `50000000` for SD High-Speed via
+  `CMD6` Switch Function), `BusWidth4Bit`, `MultiBlock`, and
   `UseADMA2` + `DMAPool` to `sdhci.Device` (`UseADMA2` without `DMAPool`
   rejects before firmware or MMIO access). `de25nano.OpenStorageWithOptions`
   and `OpenWritableStorageWithOptions` expose `TransferClockHz`,
   `BusWidth4Bit`, and `MultiBlock` while keeping `UseADMA2` disabled at the
-  board layer pending EL3 SMMU stream authorization. `BusWidth()` and
-  `ADMA2Active()` report the negotiated transport lock-free.
+  board layer pending EL3 SMMU stream authorization. `BusWidth()`,
+  `ADMA2Active()`, `HighSpeed()`, and `TransferClockHz()` report the
+  negotiated transport lock-free.
 - **Diagnostics:** `storage --sd-scratch-inspect` inspects card geometry
   read-only; `sdwrite --sd-write-plan` (`RunScratch`) tests bounded 8-sector
   raw writes on an unpartitioned spare-card tail; `sdfile`

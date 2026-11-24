@@ -68,7 +68,7 @@ func OpenWritableStorageWithOptions(expected sdhci.Identity, opts StorageOptions
 }
 
 func openStorage(writeCard sdhci.Identity, opts StorageOptions) (*sdcontrol.Session, error) {
-	if opts.TransferClockHz != 0 && opts.TransferClockHz != 25000000 {
+	if opts.TransferClockHz != 0 && opts.TransferClockHz != 25000000 && opts.TransferClockHz != 50000000 {
 		return nil, fmt.Errorf("de25-nano: unsupported SD transfer clock")
 	}
 	if !profileSDControlEnabled || profileSDInputClockHz == 0 {

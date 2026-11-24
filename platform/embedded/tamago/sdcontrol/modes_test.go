@@ -19,15 +19,17 @@ const (
 	fastADMAAddrLow  = 0x258
 	fastADMAAddrHigh = 0x25c
 
-	fastCapADMA2    = uint32(1 << 19)
-	fastCap33V      = uint32(1 << 24)
-	fastCap64BitBus = uint32(1 << 28)
+	fastCapADMA2     = uint32(1 << 19)
+	fastCapHighSpeed = uint32(1 << 21)
+	fastCap33V       = uint32(1 << 24)
+	fastCap64BitBus  = uint32(1 << 28)
 
-	fastHost4Bit    = uint32(1 << 1)
-	fastHostADMA264 = uint32(3 << 3)
-	fastAttrValid   = uint32(1 << 0)
-	fastAttrEnd     = uint32(1 << 1)
-	fastAttrTran    = uint32(2 << 4)
+	fastHost4Bit      = uint32(1 << 1)
+	fastHostHighSpeed = uint32(1 << 2)
+	fastHostADMA264   = uint32(3 << 3)
+	fastAttrValid     = uint32(1 << 0)
+	fastAttrEnd       = uint32(1 << 1)
+	fastAttrTran      = uint32(2 << 4)
 )
 
 type testSDCoherency struct{}
@@ -183,14 +185,23 @@ func (c *fastCard) Write32(reg, val uint32) {
 		c.pioPos = 0
 		c.regs[status] |= 1 << 5
 	case 6:
-		if !c.acmd {
-			panic("unexpected CMD6 without CMD55")
+		if c.acmd {
+			c.acmd = false
+			if c.regs[argument] == 2 {
+				c.busWidth = 4
+			}
+			c.regs[response] = uint32(c.state)<<9 | 1<<8
+			break
 		}
-		c.acmd = false
-		if c.regs[argument] == 2 {
-			c.busWidth = 4
-		}
+		var st [64]byte
+		st[0] = 0x00
+		st[1] = 200
+		st[13] = 1 << 1
+		st[16] = 1
+		c.pioBuf = append([]byte(nil), st[:]...)
+		c.pioPos = 0
 		c.regs[response] = uint32(c.state)<<9 | 1<<8
+		c.regs[status] |= 1 << 5
 	case 17, 18:
 		c.acmd = false
 		if index == 18 {
@@ -451,5 +462,50 @@ func TestOwnedFastModesADMA2ReadWriteContainResumeAndRetire(t *testing.T) {
 	}
 	if err := s.ReadSectors(0, make([]byte, 512)); !errors.Is(err, ErrRetired) {
 		t.Fatalf("post-fault read err=%v want ErrRetired", err)
+	}
+}
+
+func TestOwnedFastModesHighSpeed50MHzContainResume(t *testing.T) {
+	fw, base := newRPC(t, "")
+	c := wrapFastCard(base, 8192, 0, nil, fastCapHighSpeed)
+	s, err := Open(fw, c, Config{
+		InputClockHz:         200_000_000,
+		TransferClockHz:      50_000_000,
+		BusWidth4Bit:         true,
+		MultiBlock:           true,
+		WriteCard:            expectedWriteCard(8192),
+		NoSocketWriteProtect: true,
+	})
+	if err != nil {
+		t.Fatalf("Open 50MHz High-Speed: %v", err)
+	}
+	if !s.HighSpeed() || s.TransferClockHz() != 50_000_000 || s.BusWidth() != 4 {
+		t.Fatalf("mode=(hs=%t hz=%d width=%d)", s.HighSpeed(), s.TransferClockHz(), s.BusWidth())
+	}
+	if c.regs[clock]&0x070fffff != 14<<16|2<<8|7 || c.regs[host]&(fastHost4Bit|fastHostHighSpeed) != fastHost4Bit|fastHostHighSpeed {
+		t.Fatalf("unexpected 50MHz regs: clock=%#x host=%#x", c.regs[clock], c.regs[host])
+	}
+	wbuf := bytes.Repeat([]byte{0x91}, 8*512)
+	if err := s.WriteSectors(12, wbuf); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Quiesce(); err != nil {
+		t.Fatalf("actual secure stop rejected 50MHz restore: %v", err)
+	}
+	if c.regs[clock]&0x070fffff != 14<<16|250<<8|3 {
+		t.Fatalf("ident clock not restored before stop: %#x", c.regs[clock])
+	}
+	if err := s.Resume(); err != nil {
+		t.Fatalf("Resume 50MHz High-Speed: %v", err)
+	}
+	if !s.HighSpeed() || s.TransferClockHz() != 50_000_000 || c.regs[clock]&0x070fffff != 14<<16|2<<8|7 {
+		t.Fatalf("resume lost 50MHz High-Speed: hs=%t hz=%d clock=%#x", s.HighSpeed(), s.TransferClockHz(), c.regs[clock])
+	}
+	got := make([]byte, len(wbuf))
+	if err := s.ReadSectors(12, got); err != nil || !bytes.Equal(got, wbuf) {
+		t.Fatalf("post-resume readback failed: err=%v", err)
+	}
+	if err := s.Quiesce(); err != nil {
+		t.Fatal(err)
 	}
 }
