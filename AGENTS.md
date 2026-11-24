@@ -20,15 +20,17 @@ This section is the shared rulebook for every agent (Codex, Cursor, Claude, Grok
 - `needs:design`: too big for a merge-fix. Add it together with `lane:deano` to hand a PR back.
 - An unlabelled ready PR counts as `lane:lander`.
 - Draft means only "not ready for review". It is not an ownership signal.
-- To hand off, swap the lane label and comment why and what is left.
+- To hand off a PR for merge, run a `@codex review` cycle until Codex reports okay (no major issues) or only nitpicky (P3) findings, then mark the PR ready (not draft), add `lane:lander`, and comment why and what is left.
+- To hand off between lanes otherwise, swap the lane label and comment why and what is left.
 - Take `lane:deano` work only when Deano assigned it to you.
 
 ### Merge gate
 Merge only when all of these hold:
+- The PR is ready (not draft) and in `lane:lander` (for Lander merges; Deano merges `lane:deano` PRs or tells Lander to).
 - The head SHA is exactly the one checked.
 - CI is green: `gh pr checks N --json name,bucket --jq 'if length==0 then error("no checks") else map(select(.bucket!="pass" and .bucket!="skipping")) | length end'` exits 0 and prints `0`. Any error, no checks, or a non-zero count means not green.
 - 0 unresolved review threads.
-- A clean SuperGrok or Codex review on the exact head. One exception: a clean review carries over to a new head that only adds a merge from the base branch, when the PR's own diff against its base is unchanged and CI is green on the new head.
+- A clean SuperGrok or Codex review on the exact head (okay / no major issues, or only nitpicky P3 findings). One exception: a clean review carries over to a new head that only adds a merge from the base branch, when the PR's own diff against its base is unchanged and CI is green on the new head.
 - HIL is PASS on the exact head, N/A, or explicitly waived by Deano. HIL N/A means no kit test applies: the PR changes no kit-run bitstream, firmware or runtime (docs, CI, host tooling only), the core has no kit (pc386/i386), or the PR is bare-metal TamaGo work under `platform/embedded/` (which cannot be tested on the Linux-focused Kit D25 `de25-j8g` yet). DE25 Linux hardware changes use Kit D25 (`de25-j8g`, serial TRWU8J8G) and require PASS on the exact head with the restore diff verified. A pass on a diagnostic build does not count.
 - The base branch is live, and no open PR uses this head branch as its base.
 - Stacks merge top-down. After each merge, the next PR's tree must equal the reviewed tree, or it needs a fresh review.
@@ -36,6 +38,7 @@ Merge only when all of these hold:
 Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and mistral itself, only after the full gate passes, with `gh pr merge N --squash --match-head-commit <sha>`, and sends Deano an FYI after each merge. Deano merges `lane:deano` PRs or tells Lander to. Other agents do not merge.
 
 ### Review
+- Before handing a PR off to `lane:lander` for merge, run a `@codex review` cycle (comment `@codex review` and address findings) until Codex reports okay (no major issues) or only nitpicky (P3) findings.
 - One full review, then re-reviews check only the fix.
 - P3s never block. File a follow-up issue instead.
 - Budget is 2 review rounds. After that the PR goes to one owner for a bigger fix, or to `needs:design` + `lane:deano`.
@@ -392,5 +395,7 @@ Long term this matrix becomes an automatic, alphamister-style search over the sa
 State scope, base and result commit (or uncommitted diff), tests and results,
 hardware evidence class, effects on module/shared contracts, and the next
 integration step. Commit, push and open PRs as needed without further approval.
-Merging requires review by Deano or another agent/model reviewer; agents never
-merge on their own authority.
+To be merged, complete a `@codex review` cycle until Codex reports okay (no
+major issues) or only nitpicky (P3) findings, then mark the PR ready (not draft)
+and put it in `lane:lander`. Merging requires review by Deano or another
+agent/model reviewer; agents never merge on their own authority.

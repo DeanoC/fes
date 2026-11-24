@@ -21,6 +21,7 @@ A core's locked nextpnr is only its last known good, not a required pin. If a ne
 - Small, self-explanatory PRs may skip the issue and the `Closes #N` line.
 - Before opening a PR, check for an open PR that already covers the change, and don't duplicate it.
 - Stay inside the repo and the scope the task names.
+- To be merged, complete a `@codex review` cycle until Codex reports okay (no major issues) or only nitpicky (P3) findings, then mark the PR ready (not draft) and put it in `lane:lander`.
 
 ## Shared kits and Powerboat (READ FIRST)
 
