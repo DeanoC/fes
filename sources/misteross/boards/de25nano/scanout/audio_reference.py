@@ -55,21 +55,24 @@ SOURCES = {
 }
 
 
-# A machine with its own PLL (Spectrum, Atari ST, C64, PC/XT): the same serializer
-# and PCM crossing behind fes_de25_machine_audio, clocked by the machine PLL's
-# second output in place of the stock audio PLL. This is a separate policy
-# with its own frozen sources; it borrows no fitted evidence from the ZX81.
+# A machine with its own PLL (Spectrum, Atari ST, C64, PC/XT, pc386): the same
+# serializer and PCM crossing behind fes_de25_machine_audio, clocked by the
+# machine PLL's second output in place of the stock audio PLL. This is a
+# separate policy with its own frozen sources; it borrows no fitted evidence
+# from the ZX81.
 # Each machine's PLL is frozen with it. The PC/XT's makes the DE10's 100 MHz
 # and three SDRAM phases beside the audio master (50 x 30 /122, 12.295082
 # MHz); its SDRAM outputs leave beside the reviewed audio wiring. Its DQ
 # capture phase (outclk4, +1.5 ns) is in the pinned file; moving it moves the
-# pin but not the audio master's request.
+# pin but not the audio master's request. pc386's makes the shared audio master
+# on another VCO divider (50 x 188/3 /255 = 50 x 188/15 /51).
 MACHINE_POLICY = fitted.MACHINE_POLICY
 SHARED_PLL = ('boards/de25nano/machine/machine_pll.ip', '52890ca22dea5743d009dc5a10035918b54565cd9886c0c201a8022019a8d4b4')
 PCXT_PLL = ('boards/de25nano/pcxt/machine_pll.ip', '926daec94bdc3e30886675f992a53d1f9b3a4a495dfb7bd516e6ae1ded2ce3ca')
+PC386_PLL = ('boards/de25nano/pc386/machine_pll.ip', 'd7fde9016686e6486b102dbc252c49f99397dff5f322fbae0abe04eefe02f5ba')
 MACHINE_PLLS = {'fes.spectrum': SHARED_PLL, 'fes.spectrum128': SHARED_PLL, 'fes.spectrum-plus3': SHARED_PLL,
                 'fes.pentagon': SHARED_PLL, 'fes.atari-st': SHARED_PLL, 'fes.c64': SHARED_PLL,
-                'fes.pcxt-dos': PCXT_PLL}
+                'fes.pcxt-dos': PCXT_PLL, 'fes.pc386': PC386_PLL}
 # The PLL outputs beside the audio wiring, as machine/board.py writes them.
 MACHINE_PLL_OUTPUTS = {'fes.pcxt-dos': ('.outclk_2(machine_sdram_clk_forward), '
                                         '.outclk_3(machine_sdram_clk_handoff), '

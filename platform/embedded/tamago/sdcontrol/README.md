@@ -112,6 +112,18 @@ allocation, shrinking updates and a fresh post-resume mount to this same owned
 writer. It requires its own compiled card/file plan and an absent unique target;
 raw scratch-write evidence does not qualify that file path physically.
 
+`de25nano.OpenStorageWithOptions` and `OpenWritableStorageWithOptions` now expose
+opt-in `StorageOptions` (`TransferClockHz`, `BusWidth4Bit`, and `MultiBlock`)
+to board callers while keeping `UseADMA2` disabled at the board layer until EL3
+BL31 SMMU stream authorization lands (wiring CLI flags through `sdfile`,
+`run.py`, `build.py`, and `native_trace.py` stays separate).
+
+`sdcontrol.Config` also forwards `sdhci.Config.BusWidth4Bit`, `MultiBlock`, and
+`UseADMA2` + `DMAPool` when explicitly set (zero values keep conservative
+1-bit, single-sector PIO; `UseADMA2` without `DMAPool` rejects before firmware
+or MMIO access). Read-only `(*Session).BusWidth()` and `(*Session).ADMA2Active()`
+report the negotiated transport safely without holding the control mutex.
+
 Run host checks with `go test -race -count=1 -timeout 90s ./sdcontrol ./sdhci
 ./fat ./fatcheck` from the TamaGo module. The SD Session tests compile the actual C
 firmware/dispatcher with the host C compiler; `-count=1` prevents Go's result

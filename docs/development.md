@@ -72,6 +72,13 @@ runnable main-queue ticket goes ahead of whenever a GPU frees. `gpu-status`
 also lists phase-lease jobs running in or waiting for a job slot. Producers use
 this mode automatically when their nextpnr binary supports `GPU_LEASE_FD`.
 
+Quartus runs use the separate **Quartus lease** (`sources/misteross/scripts/quartus_jobs.py`)
+for each host's Lite and Pro slot pools. Producers and fit scripts take it via
+`locate_quartus`; wrap shell scripts and manual runs in
+`python3 scripts/quartus_jobs.py run --edition lite|pro -- ...` or dispatch
+across Powerboat and `fes-build-3090` with `quartus_jobs.py remote`
+([Quartus hosts and the lease](design/quartus-hosts.md)).
+
 ## Isolate component work
 
 Create one FES worktree for a task, including tasks that span several modules:
@@ -147,10 +154,13 @@ The default FES integration profile is `native-integration-dev`. It selects only
 run as part of this image. The clean, development, verification and media paths
 reuse the same closed package set. Install `fes.pong`, `fes.zx81`, `fes.coleco`
 and other systems independently through the [core catalog](core-packages.md).
-Individual packages use their core's registered producer: Quartus Lite for
-the ZX81 family and PC/XT, HIP/nextpnr otherwise; other Quartus recipes are
-explicit oracles. The resolver does not yet choose between OSS and Quartus
-variants of one core; see [Quartus-built cores](design/quartus-cores.md). Host builds and [kit software
+Individual packages use their core's registered producer: on DE10, Quartus Lite
+for the ZX81 family, `fes.pcxt-dos` and `fes.pc386`, and HIP/nextpnr otherwise;
+on DE25, Quartus Pro 26.3 for its six registered recipes (`fes.menu`,
+`fes.zx81`, `fes.spectrum`, `fes.atari-st`, `fes.c64`, `fes.pcxt-dos`); other
+Quartus recipes are explicit oracles. The resolver does not yet choose between
+OSS and Quartus variants of one core; see
+[Quartus-built cores](design/quartus-cores.md). Host builds and [kit software
 updates](kit-software-releases.md) do not build FPGA packages. Build and verify
 do not deploy.
 
@@ -431,8 +441,10 @@ or reboot separately.
 
 Route DE25 package, runtime, board and image changes to Kit D25 (`de25-j8g`,
 serial `TRWU8J8G`) using the [DE25 kit HIL guide](de25-kit-hil.md). Route DE10
-paths to Kit A or B. DE25 remains Quartus Pro 26.3 only; prefer
-`fes-build-3090`. The exact-head HIL gate includes visible DE25 capture, input,
+paths to Kit A or B. DE25 remains Quartus Pro 26.3 only, running on either
+Powerboat or `fes-build-3090` under the shared
+[Quartus lease](design/quartus-hosts.md) (`quartus_jobs.py pick` / `remote`).
+The exact-head HIL gate includes visible DE25 capture, input,
 Stop to idle, and a verified restore diff.
 
 Report component work with this short handoff:
@@ -571,14 +583,15 @@ changes stay in the complete generation key and receipt. Every actual factory
 build first refreshes the selected prebuilt runtime with Buildroot, then runs
 the shared post-build replacement and full image/boot checks. Factory outputs
 remain immutable. See the [executed cache proof](validation/2026-11-02-de25-factory-incremental/README.md).
-The shared registry and package resolver now select the DE25 Quartus Pro MENU
-producer explicitly and carry the board through package inspection,
-publication and artifact export. The default 21 DE10 recipes and the DE10
-nightly selection remain unchanged. See the
+The shared registry and package resolver select DE25's six registered Quartus
+Pro 26.3 producers (`fes.menu`, `fes.zx81`, `fes.spectrum`, `fes.atari-st`,
+`fes.c64`, `fes.pcxt-dos`) explicitly and carry the board through package
+inspection, publication and artifact export. The 21 DE10 recipes and the DE10
+nightly selection remain separate. See the
 [executed selection checks](validation/2026-11-02-de25-board-recipes/README.md).
 The [DE25 source workflow](#de25-source-development) connects these producers
-to the ordinary build/development commands. MENU still needs its remaining
-timing, independent-rebuild and native acceptance checks.
+to the ordinary build/development commands. Full normal-kit acceptance remains
+open.
 
 ## DE25 source development
 

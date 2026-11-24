@@ -349,3 +349,37 @@ func TestInvalidConfigDoesNotContactFirmware(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSessionRetiredLockFreeObserver(t *testing.T) {
+	var nilSess *Session
+	if !nilSess.Retired() {
+		t.Fatal("nil session reported Retired()=false")
+	}
+	firmware, c := newRPC(t, "")
+	s, err := Open(firmware, c, Config{InputClockHz: 200000000})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if s.Retired() {
+		t.Fatal("healthy session reported Retired()=true")
+	}
+	if err := s.Quiesce(); err != nil {
+		t.Fatalf("Quiesce: %v", err)
+	}
+	if s.Retired() {
+		t.Fatal("quiesced session reported Retired()=true")
+	}
+	if err := s.Resume(); err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if s.Retired() {
+		t.Fatal("resumed session reported Retired()=true")
+	}
+	firmware.fault = 6
+	if err := s.Quiesce(); !errors.Is(err, ErrRetired) {
+		t.Fatalf("faulty Quiesce err=%v, want ErrRetired", err)
+	}
+	if !s.Retired() {
+		t.Fatal("retired session reported Retired()=false")
+	}
+}

@@ -26,29 +26,51 @@ var attempted bool
 // Retain an unresolved lease even when initialization returns an error.
 var storageSession *sdcontrol.Session
 
+// StorageOptions configures opt-in SDHCI throughput modes forwarded through
+// sdcontrol. Zero values preserve the conservative 1-bit, single-sector,
+// identification-clock PIO transport. ADMA2 stays disabled at this board
+// boundary until EL3 BL31 SMMU stream authorization lands.
+type StorageOptions struct {
+	TransferClockHz uint32
+	BusWidth4Bit    bool
+	MultiBlock      bool
+}
+
 func OpenStorage() (block.Device, error) {
-	return openStorage(sdhci.Identity{}, 0)
+	return OpenStorageWithOptions(StorageOptions{})
+}
+
+// OpenStorageWithOptions opens read-only Nano storage with explicit opt-in
+// SDHCI clock, 4-bit bus width, and multi-block modes.
+func OpenStorageWithOptions(opts StorageOptions) (block.Device, error) {
+	return openStorage(sdhci.Identity{}, opts)
 }
 
 // OpenWritableStorage is used only by separately bound SD write diagnostics.
 // It shares the one-attempt ownership boundary with ordinary read-only access.
 func OpenWritableStorage(expected sdhci.Identity) (*sdcontrol.Session, error) {
-	return OpenWritableStorageAtClock(expected, 0)
+	return OpenWritableStorageWithOptions(expected, StorageOptions{})
 }
 
 // OpenWritableStorageAtClock selects the trusted default-speed experiment.
 // Card discovery/PHY preparation and the firmware stop boundary stay slow.
 func OpenWritableStorageAtClock(expected sdhci.Identity, transferClockHz uint32) (*sdcontrol.Session, error) {
+	return OpenWritableStorageWithOptions(expected, StorageOptions{TransferClockHz: transferClockHz})
+}
+
+// OpenWritableStorageWithOptions opens bounded writable Nano storage with
+// explicit opt-in SDHCI clock, 4-bit bus width, and multi-block modes.
+func OpenWritableStorageWithOptions(expected sdhci.Identity, opts StorageOptions) (*sdcontrol.Session, error) {
 	if expected == (sdhci.Identity{}) {
 		return nil, fmt.Errorf("de25-nano: expected writable card required")
 	}
-	if transferClockHz != 0 && transferClockHz != 25000000 {
-		return nil, fmt.Errorf("de25-nano: unsupported SD transfer clock")
-	}
-	return openStorage(expected, transferClockHz)
+	return openStorage(expected, opts)
 }
 
-func openStorage(writeCard sdhci.Identity, transferClockHz uint32) (*sdcontrol.Session, error) {
+func openStorage(writeCard sdhci.Identity, opts StorageOptions) (*sdcontrol.Session, error) {
+	if opts.TransferClockHz != 0 && opts.TransferClockHz != 25000000 {
+		return nil, fmt.Errorf("de25-nano: unsupported SD transfer clock")
+	}
 	if !profileSDControlEnabled || profileSDInputClockHz == 0 {
 		return nil, fmt.Errorf("de25-nano: SD is disabled by the firmware handoff")
 	}
@@ -62,6 +84,13 @@ func openStorage(writeCard sdhci.Identity, transferClockHz uint32) (*sdcontrol.S
 	// DE25-Nano manual revB, Figure 3-28/Table 3-23: microSD CLK/CMD/DAT[3:0]
 	// pass through the level translator; no socket write-protect input exists.
 	// This board property does not enable writes without the expected identity.
-	storageSession, err = sdcontrol.Open(FabricCPUTransport{}, registers{}, sdcontrol.Config{InputClockHz: profileSDInputClockHz, TransferClockHz: transferClockHz, WriteCard: writeCard, NoSocketWriteProtect: true})
+	storageSession, err = sdcontrol.Open(FabricCPUTransport{}, registers{}, sdcontrol.Config{
+		InputClockHz:         profileSDInputClockHz,
+		TransferClockHz:      opts.TransferClockHz,
+		BusWidth4Bit:         opts.BusWidth4Bit,
+		MultiBlock:           opts.MultiBlock,
+		WriteCard:            writeCard,
+		NoSocketWriteProtect: true,
+	})
 	return storageSession, err
 }

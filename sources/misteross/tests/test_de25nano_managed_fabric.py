@@ -123,6 +123,17 @@ class ManagedFabricTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'initiator inventory'):
             D.verify_managed_fabric(self.project, H)
 
+    def test_window_masters_belong_only_to_the_window_profile(self):
+        self.project_removals()
+        # The window profile names its masters: a graph without them is refused.
+        with self.assertRaisesRegex(ValueError, 'initiator inventory'):
+            D.verify_managed_fabric(self.project, H, window=True)
+        # And a build without the window refuses the window's masters.
+        self.mutate_routes(lambda root: [ET.SubElement(root, 'connection',
+            {'kind': 'avalon', 'start': master, 'end': 'subsys_periph_unreviewed.s0'}) for master in D.WINDOW_MASTERS])
+        with self.assertRaisesRegex(ValueError, 'initiator inventory'):
+            D.verify_managed_fabric(self.project, H)
+
     def test_retained_on_chip_memory_or_full_bridge_route_is_refused(self):
         # The fixture is the real predecessor graph: restoring only the memory
         # or only the bridge route must fail, whichever check sees it first.
