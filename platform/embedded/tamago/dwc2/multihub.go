@@ -93,27 +93,42 @@ func (h *MultiHost) pollRootHotplug() {
 	gintVal := h.io.Read32(gint)
 	conn := port&1 != 0
 	connChanged := port&(1<<1) != 0
+	enabled := port&(1<<2) != 0
+	enableChanged := port&(1<<3) != 0
+	overcurr := port&(1<<4) != 0
+	overcurrChanged := port&(1<<5) != 0
 	disconnIRQ := gintVal&gintDisconn != 0
 
+	var w1c uint32
 	if connChanged {
-		// Clear W1C connect/enable change bits without disabling PRTENA.
-		h.portWrite(1<<1|1<<3, 0)
+		w1c |= 1 << 1
+	}
+	if enableChanged {
+		w1c |= 1 << 3
+	}
+	if overcurrChanged {
+		w1c |= 1 << 5
+	}
+	if w1c != 0 {
+		// Clear W1C connect/enable/overcurrent change bits without disabling PRTENA.
+		h.portWrite(w1c, 0)
 	}
 	if disconnIRQ {
 		h.io.Write32(gint, gintDisconn)
 	}
-	if !conn || disconnIRQ {
+	portLostEnable := h.rootConn && (!enabled || overcurr)
+	if !conn || disconnIRQ || portLostEnable {
 		h.rootRetryCount = 0
 		if h.rootConn {
 			h.detachAllDevices()
 		}
 	}
-	if !h.rootConn && conn {
+	if !h.rootConn && conn && !overcurr {
 		h.rootRetryCount = 0
 		h.enumerateRoot()
 		return
 	}
-	if h.rootConn && conn && h.rootRetryCount > 0 && !h.io.Now().Before(h.rootRetryAt) {
+	if h.rootConn && conn && !overcurr && h.rootRetryCount > 0 && !h.io.Now().Before(h.rootRetryAt) {
 		h.enumerateRoot()
 	}
 }
