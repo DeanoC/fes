@@ -232,12 +232,20 @@ class TamagoCIRunnerTests(unittest.TestCase):
 
 SLIRP_LEASE = {'address': '10.0.2.15/24', 'gateway': '10.0.2.2', 'server': '10.0.2.2',
                'lease_seconds': 86400, 'dns': ['10.0.2.3']}
+SLIRP_RENEW = {'address': '10.0.2.15/24', 'gateway': '10.0.2.2', 'server': '10.0.2.2',
+               'lease_seconds': 86400}
+SLIRP_DNS = {'host': 'fes-host.local', 'ip': '10.0.2.2', 'host_queries': 1}
+SLIRP_SNTP = {'server': '10.0.2.2', 'stratum': 1, 'unix': 1795500000, 'rtt_ms': 1, 'host_requests': 1}
 
 
 def network_record(dhcp, lease=None, **changes):
     record = {'status': 'passed', 'program': 'network', 'dhcp': dhcp}
     if lease is not None:
         record['dhcp_lease'] = lease
+        if dhcp:
+            record['dhcp_renew'] = SLIRP_RENEW
+            record['dns'] = SLIRP_DNS
+            record['sntp'] = SLIRP_SNTP
     record.update(changes)
     return record
 
@@ -323,6 +331,14 @@ class TamagoCINetworkTests(unittest.TestCase):
             ('network-dhcp', network_record(True, lease(lease_seconds=0)), 'dhcp_lease is inconsistent'),
             ('network-dhcp', network_record(True, lease(lease_seconds=True)), 'dhcp_lease is inconsistent'),
             ('network-dhcp', network_record(True, lease(lease_seconds='86400')), 'dhcp_lease is inconsistent'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, dhcp_renew=None), 'no well-formed dhcp_renew'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, dhcp_renew={**SLIRP_RENEW, 'address': '10.0.2.16/24'}), 'dhcp_renew is inconsistent'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, dns=None), 'no well-formed dns'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, dns={**SLIRP_DNS, 'host_queries': 0}), 'dns is inconsistent'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, sntp=None), 'no well-formed sntp'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, sntp={**SLIRP_SNTP, 'stratum': 0}), 'sntp is inconsistent'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, sntp={**SLIRP_SNTP, 'unix': 100}), 'sntp is inconsistent'),
+            ('network', network_record(False, dns=SLIRP_DNS), 'unexpected dns evidence'),
         )
         with tempfile.TemporaryDirectory() as tmp:
             result = Path(tmp) / 'result.json'
@@ -333,8 +349,10 @@ class TamagoCINetworkTests(unittest.TestCase):
                         tamago_ci.network_evidence(name, result)
 
             result.write_text(json.dumps(network_record(True, lease(dns=[]))))
-            self.assertEqual(tamago_ci.network_evidence('network-dhcp', result),
-                             {'dhcp': True, 'dhcp_lease': lease(dns=[])})
+            self.assertEqual(tamago_ci.network_evidence('network-dhcp', result), {
+                'dhcp': True, 'dhcp_lease': lease(dns=[]),
+                'dhcp_renew': SLIRP_RENEW, 'dns': SLIRP_DNS, 'sntp': SLIRP_SNTP,
+            })
             result.write_text(json.dumps(network_record(False)))
             self.assertEqual(tamago_ci.network_evidence('network', result), {'dhcp': False})
 
@@ -343,6 +361,48 @@ class TamagoCINetworkTests(unittest.TestCase):
                 tamago_ci.network_evidence('network-dhcp', result)
             with self.assertRaisesRegex(RuntimeError, '^network: cannot read'):
                 tamago_ci.network_evidence('network', Path(tmp) / 'absent.json')
+
+    def test_local_dns_and_sntp_loopback_servers(self):
+        import socket
+        import struct
+        sys.path.insert(0, str(ROOT / 'platform/embedded/tamago'))
+        try:
+            import host_support
+        finally:
+            sys.path.pop(0)
+
+        with host_support.LocalDNSServer({'fes-host.local': '10.0.2.2'}) as dns_srv:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.settimeout(2)
+            try:
+                q = struct.pack('>HHHHHH', 0x1234, 0x0100, 1, 0, 0, 0) + b'\x08fes-host\x05local\x00' + struct.pack('>HH', 1, 1)
+                sock.sendto(q, ('127.0.0.1', dns_srv.port))
+                resp, _ = sock.recvfrom(512)
+            finally:
+                sock.close()
+            qid, flags, qd, an, _, _ = struct.unpack('>HHHHHH', resp[:12])
+            self.assertEqual(qid, 0x1234)
+            self.assertEqual(flags & 0x800F, 0x8000)
+            self.assertEqual((qd, an), (1, 1))
+            self.assertEqual(resp[-4:], socket.inet_aton('10.0.2.2'))
+            self.assertEqual(dns_srv.queries, ['fes-host.local'])
+
+        with host_support.LocalSNTPServer() as sntp_srv:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.settimeout(2)
+            try:
+                req = bytearray(48)
+                req[0] = (4 << 3) | 3
+                req[40:48] = b'\x11\x22\x33\x44\x55\x66\x77\x88'
+                sock.sendto(bytes(req), ('127.0.0.1', sntp_srv.port))
+                resp, _ = sock.recvfrom(512)
+            finally:
+                sock.close()
+            self.assertEqual(len(resp), 48)
+            self.assertEqual(resp[0] & 0x07, 4)
+            self.assertEqual(resp[1], 1)
+            self.assertEqual(resp[24:32], b'\x11\x22\x33\x44\x55\x66\x77\x88')
+            self.assertEqual(sntp_srv.requests, 1)
 
 
 if __name__ == '__main__':

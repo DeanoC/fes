@@ -287,6 +287,9 @@ def network_evidence(name, result_path):
     if not want_dhcp:
         if lease is not None:
             raise RuntimeError(f'{name}: static network record carries a DHCP lease')
+        for extra in ('dhcp_renew', 'dns', 'sntp'):
+            if record.get(extra) is not None:
+                raise RuntimeError(f'{name}: static network record carries unexpected {extra} evidence')
         return {'dhcp': False}
     try:
         address = _ipv4(lease['address'], prefix=True)
@@ -301,7 +304,42 @@ def network_evidence(name, result_path):
         raise RuntimeError(f'{name}: {result_path} has no well-formed dhcp_lease: {error!r}') from None
     if gateway == address.ip or gateway not in address.network or type(seconds) is not int or seconds <= 0:
         raise RuntimeError(f'{name}: {result_path} dhcp_lease is inconsistent: {lease}')
-    return {'dhcp': True, 'dhcp_lease': lease}
+
+    renew = record.get('dhcp_renew')
+    try:
+        r_addr = _ipv4(renew['address'], prefix=True)
+        r_gw = _ipv4(renew['gateway'])
+        _ipv4(renew['server'])
+        r_sec = renew['lease_seconds']
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError(f'{name}: {result_path} has no well-formed dhcp_renew: {error!r}') from None
+    if r_addr != address or r_gw != gateway or type(r_sec) is not int or r_sec <= 0:
+        raise RuntimeError(f'{name}: {result_path} dhcp_renew is inconsistent: {renew}')
+
+    dns = record.get('dns')
+    try:
+        dns_host = dns['host']
+        _ipv4(dns['ip'])
+        dns_queries = dns['host_queries']
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError(f'{name}: {result_path} has no well-formed dns: {error!r}') from None
+    if not isinstance(dns_host, str) or not dns_host or type(dns_queries) is not int or dns_queries < 1:
+        raise RuntimeError(f'{name}: {result_path} dns is inconsistent: {dns}')
+
+    sntp = record.get('sntp')
+    try:
+        _ipv4(sntp['server'])
+        stratum = sntp['stratum']
+        unix_ts = sntp['unix']
+        sntp_reqs = sntp['host_requests']
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError(f'{name}: {result_path} has no well-formed sntp: {error!r}') from None
+    if (type(stratum) is not int or not (1 <= stratum <= 15)
+            or type(unix_ts) is not int or unix_ts < 1700000000
+            or type(sntp_reqs) is not int or sntp_reqs < 1):
+        raise RuntimeError(f'{name}: {result_path} sntp is inconsistent: {sntp}')
+
+    return {'dhcp': True, 'dhcp_lease': lease, 'dhcp_renew': renew, 'dns': dns, 'sntp': sntp}
 
 
 def _ipv4(value, *, prefix=False):

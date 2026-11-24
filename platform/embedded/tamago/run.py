@@ -6,6 +6,7 @@ synthetic .sfc catalog files, a regular-file FAT32 disk, virtio networking,
 ramfb display and an xHCI USB keyboard (or explicit UART diagnostic input). No physical device is opened.
 """
 import argparse
+import contextlib
 from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
@@ -23,7 +24,7 @@ import threading
 from urllib.parse import urlparse, unquote
 from urllib.request import urlopen
 
-from host_support import Guest, frames, network_catalog
+from host_support import Guest, LocalDNSServer, LocalSNTPServer, frames, network_catalog
 
 APP = Path(__file__).resolve().parent
 ROOT = APP.parents[2]
@@ -300,7 +301,7 @@ def main():
             checked("mkdir-fat", ["mmd", "-i", disk, "::FES"])
         return fresh
 
-    def prepare_disk(api_url):
+    def prepare_disk(api_url, extra_boot=None):
         fresh = format_disk()
         if fresh:
             initial = output / "preferences-initial.json"
@@ -315,6 +316,8 @@ def main():
         boot_cfg = {"api_url": api_url, "api_host": urlparse(record["host"]["base"]).netloc, "input": args.input}
         if args.dhcp:
             boot_cfg["dhcp"] = True
+        if extra_boot:
+            boot_cfg.update(extra_boot)
         boot.write_text(json.dumps(boot_cfg) + "\n")
         checked("write-boot", ["mcopy", "-o", "-i", disk, boot, "::FES/BOOT.JSON"])
         record["disk"] = {"path": str(disk), "created": fresh, "bytes": disk.stat().st_size,
@@ -522,32 +525,109 @@ def main():
             record['termination']='runner stopped QEMU after content-only HTTP download; no installation or FPGA activation'
         elif args.program == "network":
             lock_disk()
-            prepare_disk(prepare_host())
-            before = sha(disk)
-            record["dhcp"] = bool(args.dhcp)
-            with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display) as guest:
-                guest.wait(lambda text: network_catalog(text) is not None, args.timeout, "HTTP catalog probe")
-                ids = network_catalog(guest.text)
-                if sorted(ids) != record["host"]["catalog_ids"]:
-                    raise RuntimeError("network probe catalog differs from private host")
+            with contextlib.ExitStack() as stack:
+                extra_boot = None
+                dns_srv = sntp_srv = None
                 if args.dhcp:
-                    dhcp_rows = re.findall(
-                        r"^FES_NETWORK_DHCP address=(\S+) gateway=(\S+) server=(\S+) lease_s=(\d+) dns=(\S+)\r?$",
-                        guest.text,
-                        re.MULTILINE,
-                    )
-                    if len(dhcp_rows) != 1:
-                        raise RuntimeError("DHCP network probe is missing FES_NETWORK_DHCP lease evidence")
-                    addr, gw, srv, lease_s, dns = dhcp_rows[0]
-                    if int(lease_s) <= 0:
-                        raise RuntimeError(f"DHCP network probe reported non-positive lease duration: {lease_s}")
-                    record["dhcp_lease"] = {
-                        "address": addr,
-                        "gateway": gw,
-                        "server": srv,
-                        "lease_seconds": int(lease_s),
-                        "dns": [] if dns == "none" else dns.split(","),
+                    dns_srv = stack.enter_context(LocalDNSServer({"fes-host.local": "10.0.2.2"}))
+                    sntp_srv = stack.enter_context(LocalSNTPServer())
+                    extra_boot = {
+                        "dns_host": "fes-host.local",
+                        "dns_server": "10.0.2.2",
+                        "dns_port": dns_srv.port,
+                        "sntp_server": "10.0.2.2",
+                        "sntp_port": sntp_srv.port,
                     }
+                prepare_disk(prepare_host(), extra_boot=extra_boot)
+                before = sha(disk)
+                record["dhcp"] = bool(args.dhcp)
+                boot_started = time.time()
+                with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display) as guest:
+                    guest.wait(lambda text: network_catalog(text) is not None, args.timeout, "HTTP catalog probe")
+                    boot_finished = time.time()
+                    ids = network_catalog(guest.text)
+                    if sorted(ids) != record["host"]["catalog_ids"]:
+                        raise RuntimeError("network probe catalog differs from private host")
+                    if args.dhcp:
+                        dhcp_rows = re.findall(
+                            r"^FES_NETWORK_DHCP address=(\S+) gateway=(\S+) server=(\S+) lease_s=(\d+) dns=(\S+)\r?$",
+                            guest.text,
+                            re.MULTILINE,
+                        )
+                        if len(dhcp_rows) != 1:
+                            raise RuntimeError("DHCP network probe is missing FES_NETWORK_DHCP lease evidence")
+                        addr, gw, srv, lease_s, dns = dhcp_rows[0]
+                        if int(lease_s) <= 0:
+                            raise RuntimeError(f"DHCP network probe reported non-positive lease duration: {lease_s}")
+                        record["dhcp_lease"] = {
+                            "address": addr,
+                            "gateway": gw,
+                            "server": srv,
+                            "lease_seconds": int(lease_s),
+                            "dns": [] if dns == "none" else dns.split(","),
+                        }
+
+                        renew_rows = re.findall(
+                            r"^FES_NETWORK_DHCP_RENEW address=(\S+) gateway=(\S+) server=(\S+) lease_s=(\d+)\r?$",
+                            guest.text,
+                            re.MULTILINE,
+                        )
+                        if len(renew_rows) != 1:
+                            raise RuntimeError("DHCP network probe is missing FES_NETWORK_DHCP_RENEW evidence")
+                        r_addr, r_gw, r_srv, r_lease_s = renew_rows[0]
+                        if r_addr != addr or r_gw != gw or int(r_lease_s) <= 0:
+                            raise RuntimeError(f"DHCP renewal evidence inconsistent: {renew_rows[0]}")
+                        record["dhcp_renew"] = {
+                            "address": r_addr,
+                            "gateway": r_gw,
+                            "server": r_srv,
+                            "lease_seconds": int(r_lease_s),
+                        }
+
+                        dns_rows = re.findall(
+                            r"^FES_NETWORK_DNS host=(\S+) ip=(\S+)\r?$",
+                            guest.text,
+                            re.MULTILINE,
+                        )
+                        if len(dns_rows) != 1:
+                            raise RuntimeError("DHCP network probe is missing FES_NETWORK_DNS evidence")
+                        dns_host, dns_ip = dns_rows[0]
+                        if dns_host != "fes-host.local" or dns_ip != "10.0.2.2":
+                            raise RuntimeError(f"unexpected DNS resolution result: {dns_rows[0]}")
+                        dns_queries = dns_srv.queries
+                        if "fes-host.local" not in dns_queries:
+                            raise RuntimeError(f"local DNS server did not observe query for fes-host.local: {dns_queries}")
+                        record["dns"] = {
+                            "host": dns_host,
+                            "ip": dns_ip,
+                            "host_queries": len(dns_queries),
+                        }
+
+                        sntp_rows = re.findall(
+                            r"^FES_NETWORK_SNTP server=(\S+) stratum=(\d+) unix=(\d+) rtt_ms=(\d+)\r?$",
+                            guest.text,
+                            re.MULTILINE,
+                        )
+                        if len(sntp_rows) != 1:
+                            raise RuntimeError("DHCP network probe is missing FES_NETWORK_SNTP evidence")
+                        s_srv, s_stratum, s_unix, s_rtt_ms = sntp_rows[0]
+                        s_stratum_i, s_unix_i, s_rtt_i = int(s_stratum), int(s_unix), int(s_rtt_ms)
+                        if s_srv != "10.0.2.2" or s_stratum_i != 1:
+                            raise RuntimeError(f"unexpected SNTP server/stratum: {sntp_rows[0]}")
+                        if s_unix_i < int(boot_started) - 5 or s_unix_i > int(boot_finished) + 10:
+                            raise RuntimeError(
+                                f"SNTP unix time {s_unix_i} outside boot window [{int(boot_started) - 5}, {int(boot_finished) + 10}]"
+                            )
+                        sntp_reqs = sntp_srv.requests
+                        if sntp_reqs < 1:
+                            raise RuntimeError("local SNTP server observed zero guest requests")
+                        record["sntp"] = {
+                            "server": s_srv,
+                            "stratum": s_stratum_i,
+                            "unix": s_unix_i,
+                            "rtt_ms": s_rtt_i,
+                            "host_requests": sntp_reqs,
+                        }
             record["disk"] = {"path": str(disk), "before_sha256": before, "after_sha256": sha(disk)}
             if before != sha(disk):
                 raise RuntimeError("read-only network probe changed its disk")

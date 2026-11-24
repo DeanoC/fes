@@ -59,6 +59,7 @@ type DNSConfig struct {
 	LocalPrefix   string        // Client IPv4 CIDR prefix, e.g. "10.0.2.15/24"
 	Gateway       string        // Default IPv4 gateway in LocalPrefix (used for off-subnet DNS servers)
 	Servers       []string      // Ordered list of IPv4 DNS server addresses
+	ServerPort    uint16        // Optional UDP destination port (default 53)
 	NextHopMAC    string        // Optional pre-resolved next-hop MAC (skips ARP when set)
 	Timeout       time.Duration // Overall deadline when ctx has none (default 5s)
 	RetryInterval time.Duration // Retransmit interval per attempt (default 250ms)
@@ -263,6 +264,10 @@ func ResolveA(ctx context.Context, port RawFramePort, cfg DNSConfig, name string
 		return nil, fmt.Errorf("%w: negative duration", ErrDNSInvalidConfig)
 	}
 
+	serverPort := cfg.ServerPort
+	if serverPort == 0 {
+		serverPort = dnsPort
+	}
 	retryInterval := cfg.RetryInterval
 	if retryInterval == 0 {
 		retryInterval = defaultDNSRetryInterval
@@ -326,10 +331,10 @@ func ResolveA(ctx context.Context, port RawFramePort, cfg DNSConfig, name string
 		if err != nil {
 			return nil, err
 		}
-		txFrame := buildUDPv4Frame(localMAC, dstMAC, localPrefix.Addr().As4(), server.As4(), srcPort, dnsPort, queryID, queryPayload)
+		txFrame := buildUDPv4Frame(localMAC, dstMAC, localPrefix.Addr().As4(), server.As4(), srcPort, serverPort, queryID, queryPayload)
 
 		srvCtx, srvCancel := perServerContext(ctx, len(servers)-i)
-		addrs, err := exchangeDNS(srvCtx, port, txFrame, localMAC, localPrefix.Addr().As4(), server.As4(), srcPort, queryID, trimmed, retryInterval)
+		addrs, err := exchangeDNS(srvCtx, port, txFrame, localMAC, localPrefix.Addr().As4(), server.As4(), serverPort, srcPort, queryID, trimmed, retryInterval)
 		srvCancel()
 		if err == nil {
 			return addrs, nil
@@ -392,6 +397,9 @@ func resolveARP(ctx context.Context, port RawFramePort, localMAC [6]byte, localI
 		select {
 		case mac := <-replyCh:
 			timer.Stop()
+			if err := ctx.Err(); err != nil {
+				return [6]byte{}, err
+			}
 			return mac, nil
 		case <-ctx.Done():
 			timer.Stop()
@@ -411,6 +419,7 @@ func exchangeDNS(
 	localMAC [6]byte,
 	localIP [4]byte,
 	serverIP [4]byte,
+	serverPort uint16,
 	srcPort uint16,
 	queryID uint16,
 	queryName string,
@@ -422,7 +431,7 @@ func exchangeDNS(
 	}
 	replyCh := make(chan dnsOutcome, 1)
 	remove := port.AddTap(func(frame []byte) {
-		payload, ok := parseUDPv4Reply(frame, localMAC, serverIP, localIP, dnsPort, srcPort)
+		payload, ok := parseUDPv4Reply(frame, localMAC, serverIP, localIP, serverPort, srcPort)
 		if !ok {
 			return
 		}
@@ -454,6 +463,9 @@ func exchangeDNS(
 		select {
 		case out := <-replyCh:
 			timer.Stop()
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			return out.addrs, out.err
 		case <-ctx.Done():
 			timer.Stop()
