@@ -21,6 +21,15 @@ type spectrumROMBatcher interface {
 	WithSpectrumROMBatch(uint64, func(computer.IO) error) error
 }
 
+type heldMediaBatcher interface {
+	WithHeldMediaBatch(uint64, func(computer.IO) error) error
+}
+
+type initialTapeMediaCPU struct {
+	initialTapeROMCPU
+	heldMediaBatcher
+}
+
 type initialTapeROMCPU struct {
 	initialTapeCPU
 	spectrumROMBatcher
@@ -35,7 +44,11 @@ func selectProgramCPU(cpu nativefabric.CPUTransport, arena func() (*nativefabric
 	}
 	tapeCPU := initialTapeCPU{cpu, arena}
 	if rom, ok := cpu.(spectrumROMBatcher); ok {
-		return initialTapeROMCPU{tapeCPU, rom}, nil
+		wrapped := initialTapeROMCPU{tapeCPU, rom}
+		if media, ok := cpu.(heldMediaBatcher); ok {
+			return initialTapeMediaCPU{wrapped, media}, nil
+		}
+		return wrapped, nil
 	}
 	return tapeCPU, nil
 }

@@ -291,7 +291,7 @@ func TestMenuStorageReturnRejectsCopiedAndBusyHandlesWithoutIO(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls, reads := f.cpu.calls, files.opens
-	copied := *s
+	copied := shallowCopyMenuSession(s)
 	if err := copied.ResumeStorageAfterReturn(); err == nil || f.cpu.calls != calls || files.opens != reads || lease.returns != 0 {
 		t.Fatal("copied session resumed SD", err)
 	}
@@ -618,7 +618,7 @@ func TestMenuStoredRelaunchCannotBorrowAnOpenCopiedOrUnresumedSession(t *testing
 	if err := s.ResumeStorageAfterReturn(); err != nil {
 		t.Fatal(err)
 	}
-	copied := *s
+	copied := shallowCopyMenuSession(s)
 	calls = f.cpu.calls
 	if _, _, err := copied.NewStoredReconfigurationTransfer(plan, handoff, reserve); err == nil || reserved != 0 || f.cpu.calls != calls {
 		t.Fatal("copied session borrowed rearm")

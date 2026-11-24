@@ -895,9 +895,16 @@ class ToolchainCachePruneTests(unittest.TestCase):
 
     def prune(self, **options):
         output = io.StringIO()
+        defaults = {
+            "keep_days": 14,
+            "host": HOST,
+            "compiler": COMPILER,
+            "environment": {},
+        }
+        defaults.update(options)
         report = toolchain_cache.prune(
-            self.cache, self.root, ref="HEAD", host=HOST, compiler=COMPILER, output=output,
-            **{"keep_days": 14, **options},
+            self.cache, self.root, ref="HEAD", output=output,
+            **defaults,
         )
         return report, output.getvalue()
 
@@ -1014,7 +1021,7 @@ class ToolchainCachePruneTests(unittest.TestCase):
         self.assertIn(f"tools/yosys/{install.key}", report["kept"])
         with self.assertRaisesRegex(toolchain_cache.CacheError, "git"):
             toolchain_cache.prune(self.cache, self.root, keep_days=14, ref="no-such-ref",
-                                  host=HOST, compiler=COMPILER, output=io.StringIO())
+                                  host=HOST, compiler=COMPILER, environment={}, output=io.StringIO())
 
     def test_prune_preserves_committed_binary_pin_across_recipe_drift(self):
         older_recipe = self.base / "older-bootstrap.sh"
@@ -1071,6 +1078,486 @@ class ToolchainCachePruneTests(unittest.TestCase):
         self.assertEqual(report["removed"], [f"slots/{'1' * 64}"])
         self.assertFalse(old_slot.exists())
         self.assertTrue(new_slot.exists())
+
+    def test_prune_ages_out_obsolete_nextpnr_gpu_lane_variants(self):
+        """Pinned nextpnr retention discriminates GPU lane; non-GPU tools do not."""
+        hipcc = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-1", "version": "rocm 6.3", "returncode": 0}
+        nvcc = {"path": "/usr/local/cuda/bin/nvcc", "sha256": "cuda-1", "version": "cuda 12.6", "returncode": 0}
+        hip_compiler = {"commands": {**COMPILER["commands"], "hipcc": hipcc}}
+        cuda_compiler = {"commands": {**COMPILER["commands"], "nvcc": nvcc}}
+
+        off_req = self.request(gpu_router="OFF")
+        hip_req = self.request(gpu_router="HIP", compiler_identity=hip_compiler)
+        cuda_req = self.request(gpu_router="CUDA", compiler_identity=cuda_compiler)
+        yosys_install = _publish(off_req, "yosys")
+        off_install = _publish(off_req, "nextpnr", content="off")
+        hip_install = _publish(hip_req, "nextpnr", content="hip")
+        cuda_install = _publish(cuda_req, "nextpnr", content="cuda")
+
+        old = time.time() - 30 * 86400
+        for req, tool in (
+            (off_req, "yosys"),
+            (off_req, "nextpnr"),
+            (hip_req, "nextpnr"),
+            (cuda_req, "nextpnr"),
+        ):
+            os.utime(toolchain_cache.lock_path(req, tool), (old, old))
+
+        # COMPILER has no accelerator compiler, so OFF is the only lane this
+        # host can build: OFF stays pinned, HIP and CUDA age out.
+        report, output = self.prune()
+        self.assertIn(f"tools/yosys/{yosys_install.key}", report["kept"])
+        self.assertIn(f"tools/nextpnr/{off_install.key}", report["kept"])
+        self.assertIn(f"kept: tools/nextpnr/{off_install.key} (pinned at HEAD)", output)
+        self.assertIn(f"tools/nextpnr/{hip_install.key}", report["removed"])
+        self.assertIn(f"tools/nextpnr/{cuda_install.key}", report["removed"])
+
+        # A recently used obsolete lane still survives the keep_days window.
+        now = time.time()
+        os.utime(toolchain_cache.lock_path(hip_req, "nextpnr"), (now, now))
+        report, output = self.prune(now=now)
+        self.assertIn(f"tools/nextpnr/{hip_install.key}", report["kept"])
+        self.assertNotIn(f"kept: tools/nextpnr/{hip_install.key} (pinned at HEAD)", output)
+        self.assertIn(f"tools/nextpnr/{cuda_install.key}", report["removed"])
+
+        # A held obsolete lane is never removed even when older than keep_days.
+        os.utime(toolchain_cache.lock_path(hip_req, "nextpnr"), (old, old))
+        holder = os.open(toolchain_cache.lock_path(hip_req, "nextpnr"), os.O_RDONLY)
+        try:
+            fcntl.flock(holder, fcntl.LOCK_SH)
+            report, _ = self.prune(apply=True)
+            self.assertIn(f"tools/nextpnr/{hip_install.key}", report["busy"])
+            self.assertTrue(hip_install.directory.exists())
+        finally:
+            os.close(holder)
+        self.assertFalse(cuda_install.directory.exists())
+        self.assertTrue(off_install.directory.exists())
+        self.assertTrue(yosys_install.directory.exists())
+
+    def test_prune_ages_out_nextpnr_on_accelerator_architecture_or_env_drift(self):
+        """A ROCm/CUDA upgrade, architecture change, or backend root move is not pinned forever."""
+        hipcc_old = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-old", "version": "rocm 6.2", "returncode": 0}
+        hipcc_new = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-new", "version": "rocm 6.3", "returncode": 0}
+        nvcc_old = {"path": "/usr/local/cuda/bin/nvcc", "sha256": "nvcc-old", "version": "cuda 12.6", "returncode": 0}
+        nvcc_new = {"path": "/usr/local/cuda/bin/nvcc", "sha256": "nvcc-new", "version": "cuda 12.8", "returncode": 0}
+
+        hip_current = self.request(
+            gpu_router="HIP",
+            hip_architectures="gfx1100;gfx1201",
+            compiler_identity={"commands": {**COMPILER["commands"], "hipcc": hipcc_new}},
+            environment={"ROCM_PATH": "/opt/rocm-6.3"},
+        )
+        hip_old_accel = self.request(
+            gpu_router="HIP",
+            hip_architectures="gfx1100;gfx1201",
+            compiler_identity={"commands": {**COMPILER["commands"], "hipcc": hipcc_old}},
+            environment={"ROCM_PATH": "/opt/rocm-6.3"},
+        )
+        hip_old_arch = self.request(
+            gpu_router="HIP",
+            hip_architectures="gfx1100",
+            compiler_identity={"commands": {**COMPILER["commands"], "hipcc": hipcc_new}},
+            environment={"ROCM_PATH": "/opt/rocm-6.3"},
+        )
+        hip_old_env = self.request(
+            gpu_router="HIP",
+            hip_architectures="gfx1100;gfx1201",
+            compiler_identity={"commands": {**COMPILER["commands"], "hipcc": hipcc_new}},
+            environment={"ROCM_PATH": "/opt/rocm-6.2"},
+        )
+        cuda_current = self.request(
+            gpu_router="CUDA",
+            cuda_architectures="86",
+            compiler_identity={"commands": {**COMPILER["commands"], "nvcc": nvcc_new}},
+            environment={"CUDA_HOME": "/usr/local/cuda-12.8"},
+        )
+        cuda_old_accel = self.request(
+            gpu_router="CUDA",
+            cuda_architectures="86",
+            compiler_identity={"commands": {**COMPILER["commands"], "nvcc": nvcc_old}},
+            environment={"CUDA_HOME": "/usr/local/cuda-12.8"},
+        )
+        cuda_old_arch = self.request(
+            gpu_router="CUDA",
+            cuda_architectures="75;86",
+            compiler_identity={"commands": {**COMPILER["commands"], "nvcc": nvcc_new}},
+            environment={"CUDA_HOME": "/usr/local/cuda-12.8"},
+        )
+        cuda_old_env = self.request(
+            gpu_router="CUDA",
+            cuda_architectures="86",
+            compiler_identity={"commands": {**COMPILER["commands"], "nvcc": nvcc_new}},
+            environment={"CUDA_HOME": "/usr/local/cuda-12.6"},
+        )
+
+        old = time.time() - 30 * 86400
+        published = {}
+        for name, req in (
+            ("hip_current", hip_current),
+            ("hip_old_accel", hip_old_accel),
+            ("hip_old_arch", hip_old_arch),
+            ("hip_old_env", hip_old_env),
+            ("cuda_current", cuda_current),
+            ("cuda_old_accel", cuda_old_accel),
+            ("cuda_old_arch", cuda_old_arch),
+            ("cuda_old_env", cuda_old_env),
+        ):
+            published[name] = _publish(req, "nextpnr", content=name)
+            os.utime(toolchain_cache.lock_path(req, "nextpnr"), (old, old))
+
+        report, _ = self.prune(
+            gpu_routers=("HIP",),
+            hip_architectures="gfx1100;gfx1201",
+            compiler={"commands": {**COMPILER["commands"], "hipcc": hipcc_new}},
+            environment={"ROCM_PATH": "/opt/rocm-6.3"},
+        )
+        self.assertEqual(report["kept"], [f"tools/nextpnr/{published['hip_current'].key}"])
+        for obsolete in (
+            "hip_old_accel", "hip_old_arch", "hip_old_env",
+            "cuda_current", "cuda_old_accel", "cuda_old_arch", "cuda_old_env",
+        ):
+            self.assertIn(f"tools/nextpnr/{published[obsolete].key}", report["removed"])
+
+        report, _ = self.prune(
+            gpu_routers=("CUDA",),
+            cuda_architectures="86",
+            compiler={"commands": {**COMPILER["commands"], "nvcc": nvcc_new}},
+            environment={"CUDA_HOME": "/usr/local/cuda-12.8"},
+        )
+        self.assertEqual(report["kept"], [f"tools/nextpnr/{published['cuda_current'].key}"])
+        for obsolete in (
+            "cuda_old_accel", "cuda_old_arch", "cuda_old_env",
+            "hip_current", "hip_old_accel", "hip_old_arch", "hip_old_env",
+        ):
+            self.assertIn(f"tools/nextpnr/{published[obsolete].key}", report["removed"])
+
+    def test_prune_keeps_multiple_requested_gpu_lanes_with_scoped_environment(self):
+        """Multi-lane prune scopes backend environment and accelerator per lane."""
+        hipcc = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-1", "version": "rocm 6.3", "returncode": 0}
+        nvcc = {"path": "/usr/local/cuda/bin/nvcc", "sha256": "cuda-1", "version": "cuda 12.8", "returncode": 0}
+        both_compilers = {"commands": {**COMPILER["commands"], "hipcc": hipcc, "nvcc": nvcc}}
+
+        off_req = self.request(gpu_router="OFF")
+        hip_req = self.request(
+            gpu_router="HIP",
+            compiler_identity={"commands": {**COMPILER["commands"], "hipcc": hipcc}},
+            environment={"ROCM_PATH": "/opt/rocm-6.3"},
+        )
+        cuda_req = self.request(
+            gpu_router="CUDA",
+            compiler_identity={"commands": {**COMPILER["commands"], "nvcc": nvcc}},
+            environment={"CUDA_HOME": "/usr/local/cuda-12.8"},
+        )
+        stale_hip_req = self.request(
+            gpu_router="HIP",
+            compiler_identity={"commands": {**COMPILER["commands"], "hipcc": {**hipcc, "sha256": "hip-old"}}},
+            environment={"ROCM_PATH": "/opt/rocm-6.3"},
+        )
+
+        old = time.time() - 30 * 86400
+        off_install = _publish(off_req, "nextpnr", content="off")
+        hip_install = _publish(hip_req, "nextpnr", content="hip")
+        cuda_install = _publish(cuda_req, "nextpnr", content="cuda")
+        stale_hip = _publish(stale_hip_req, "nextpnr", content="stale-hip")
+        for req in (off_req, hip_req, cuda_req, stale_hip_req):
+            os.utime(toolchain_cache.lock_path(req, "nextpnr"), (old, old))
+
+        # Keeping HIP + OFF with ROCM_PATH and CUDA_HOME present scopes ROCM_PATH
+        # to HIP and keeps OFF's environment empty; CUDA and stale HIP age out.
+        report, _ = self.prune(
+            gpu_routers=("hip", "OFF", "HIP"),
+            compiler=both_compilers,
+            environment={"ROCM_PATH": "/opt/rocm-6.3", "CUDA_HOME": "/usr/local/cuda-12.8"},
+        )
+        self.assertEqual(
+            set(report["kept"]),
+            {f"tools/nextpnr/{off_install.key}", f"tools/nextpnr/{hip_install.key}"},
+        )
+        self.assertEqual(
+            set(report["removed"]),
+            {f"tools/nextpnr/{cuda_install.key}", f"tools/nextpnr/{stale_hip.key}"},
+        )
+
+        # Keeping all three lanes pins OFF, HIP and CUDA while still pruning stale HIP.
+        report, _ = self.prune(
+            gpu_routers=("OFF", "HIP", "CUDA"),
+            compiler=both_compilers,
+            environment={"ROCM_PATH": "/opt/rocm-6.3", "CUDA_HOME": "/usr/local/cuda-12.8"},
+        )
+        self.assertEqual(
+            set(report["kept"]),
+            {
+                f"tools/nextpnr/{off_install.key}",
+                f"tools/nextpnr/{hip_install.key}",
+                f"tools/nextpnr/{cuda_install.key}",
+            },
+        )
+        self.assertEqual(report["removed"], [f"tools/nextpnr/{stale_hip.key}"])
+
+    def test_prune_preserves_explicitly_empty_backend_variables_like_request_environment(self):
+        """An install built with an empty backend var (e.g. CUDA_HOME='') stays pinned."""
+        hipcc = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-1", "version": "rocm 6.3", "returncode": 0}
+        hip_compiler = {"commands": {**COMPILER["commands"], "hipcc": hipcc}}
+        env = {"ROCM_PATH": "/opt/rocm-6.3", "CUDA_HOME": ""}
+        toolchain_cache.validate_shared_environment(env, gpu_router="HIP")
+        request_env = toolchain_cache._request_environment(env, tool="nextpnr")
+        self.assertEqual(request_env, {"CUDA_HOME": "", "ROCM_PATH": "/opt/rocm-6.3"})
+
+        hip_req = self.request(
+            gpu_router="HIP",
+            compiler_identity=hip_compiler,
+            environment=request_env,
+        )
+        off_req = self.request(
+            gpu_router="OFF",
+            environment={"CUDA_HOME": ""},
+        )
+        hip_install = _publish(hip_req, "nextpnr", content="hip-empty-cuda")
+        off_install = _publish(off_req, "nextpnr", content="off-empty-cuda")
+        old = time.time() - 30 * 86400
+        for req in (hip_req, off_req):
+            os.utime(toolchain_cache.lock_path(req, "nextpnr"), (old, old))
+
+        report, output = self.prune(
+            gpu_routers=("HIP", "OFF"),
+            compiler=hip_compiler,
+            environment=env,
+        )
+        self.assertEqual(
+            set(report["kept"]),
+            {f"tools/nextpnr/{hip_install.key}", f"tools/nextpnr/{off_install.key}"},
+        )
+        self.assertIn(f"kept: tools/nextpnr/{hip_install.key} (pinned at HEAD)", output)
+        self.assertIn(f"kept: tools/nextpnr/{off_install.key} (pinned at HEAD)", output)
+        self.assertEqual(report["removed"], [])
+
+    def test_default_prune_keeps_pinned_hip_and_off_nextpnr_on_a_hip_host(self):
+        """With no lane named, a pinned HIP nextpnr is as safe as the OFF one.
+
+        Core producers and the toolchain-fes* targets build HIP, and
+        toolchain-fes-i386 builds OFF, each naming its lane only for its own
+        bootstrap run, so `make toolchain-prune` sees no lane in its
+        environment. Both installs main pins must survive an aged prune.
+        """
+        hipcc = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-1", "version": "rocm 6.3", "returncode": 0}
+        hip_compiler = {"commands": {**COMPILER["commands"], "hipcc": hipcc}}
+        hip_req = self.request(gpu_router="HIP", compiler_identity=hip_compiler)
+        off_req = self.request(gpu_router="OFF")
+        # The install an older ROCm built is not current and still ages out.
+        stale_hip_req = self.request(
+            gpu_router="HIP",
+            compiler_identity={"commands": {**COMPILER["commands"], "hipcc": {**hipcc, "sha256": "hip-0"}}},
+        )
+        hip_install = _publish(hip_req, "nextpnr", content="hip")
+        off_install = _publish(off_req, "nextpnr", content="off")
+        stale_hip = _publish(stale_hip_req, "nextpnr", content="stale-hip")
+        old = time.time() - 30 * 86400
+        for req in (hip_req, off_req, stale_hip_req):
+            os.utime(toolchain_cache.lock_path(req, "nextpnr"), (old, old))
+
+        report, output = self.prune(compiler=hip_compiler, environment={}, apply=True)
+        self.assertEqual(
+            set(report["kept"]),
+            {f"tools/nextpnr/{hip_install.key}", f"tools/nextpnr/{off_install.key}"},
+        )
+        self.assertIn(f"kept: tools/nextpnr/{hip_install.key} (pinned at HEAD)", output)
+        self.assertIn(f"kept: tools/nextpnr/{off_install.key} (pinned at HEAD)", output)
+        self.assertEqual(report["removed"], [f"tools/nextpnr/{stale_hip.key}"])
+        self.assertTrue(hip_install.directory.exists())
+        self.assertTrue(off_install.directory.exists())
+        self.assertFalse(stale_hip.directory.exists())
+
+    def test_default_prune_lanes_follow_the_accelerator_compilers_on_path(self):
+        """Without an inventory, the default lanes are OFF plus each accelerator found on PATH."""
+        hipcc = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-1", "version": "rocm 6.3", "returncode": 0}
+        nvcc = {"path": "/usr/local/cuda/bin/nvcc", "sha256": "cuda-1", "version": "cuda 12.8", "returncode": 0}
+        off_req = self.request(gpu_router="OFF")
+        hip_req = self.request(
+            gpu_router="HIP", compiler_identity={"commands": {**COMPILER["commands"], "hipcc": hipcc}}
+        )
+        cuda_req = self.request(
+            gpu_router="CUDA", compiler_identity={"commands": {**COMPILER["commands"], "nvcc": nvcc}}
+        )
+        installs = {
+            "OFF": _publish(off_req, "nextpnr", content="off"),
+            "HIP": _publish(hip_req, "nextpnr", content="hip"),
+            "CUDA": _publish(cuda_req, "nextpnr", content="cuda"),
+        }
+        old = time.time() - 30 * 86400
+        for req in (off_req, hip_req, cuda_req):
+            os.utime(toolchain_cache.lock_path(req, "nextpnr"), (old, old))
+
+        bin_dir = self.base / "bin"
+        bin_dir.mkdir()
+        identities = {"hipcc": hipcc, "nvcc": nvcc}
+        probed: list[str] = []
+
+        def put_on_path(command):
+            path = bin_dir / command
+            path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            path.chmod(0o755)
+
+        def fake_command_identity(command, args=("--version",), *, environment=None):
+            probed.append(command)
+            self.assertEqual(environment["PATH"], str(bin_dir))
+            return identities[command]
+
+        def default_prune():
+            probed.clear()
+            with (
+                mock.patch.object(toolchain_cache, "compiler_inventory", return_value=COMPILER),
+                mock.patch.object(toolchain_cache, "_command_identity", side_effect=fake_command_identity),
+            ):
+                report, output = self.prune(compiler=None, environment={"PATH": str(bin_dir)})
+            pinned = {
+                lane
+                for lane, install in installs.items()
+                if f"kept: tools/nextpnr/{install.key} (pinned at HEAD)" in output
+            }
+            self.assertEqual(len(report["kept"]) + len(report["removed"]), len(installs))
+            return pinned, sorted(probed)
+
+        # No accelerator compiler on PATH: OFF is the only lane this host builds.
+        self.assertEqual(default_prune(), ({"OFF"}, []))
+        put_on_path("hipcc")
+        self.assertEqual(default_prune(), ({"OFF", "HIP"}, ["hipcc"]))
+        put_on_path("nvcc")
+        self.assertEqual(default_prune(), ({"OFF", "HIP", "CUDA"}, ["hipcc", "nvcc"]))
+
+    def test_prune_default_lanes_ignore_the_build_lane_variable_and_reject_invalid_lanes(self):
+        hipcc = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-1", "version": "rocm 6.3", "returncode": 0}
+        hip_compiler = {"commands": {**COMPILER["commands"], "hipcc": hipcc}}
+        hip_req = self.request(
+            gpu_router="HIP",
+            hip_architectures="gfx1201",
+            compiler_identity=hip_compiler,
+            environment={"ROCM_PATH": "/opt/rocm-6.3"},
+        )
+        off_req = self.request(gpu_router="OFF")
+        hip_install = _publish(hip_req, "nextpnr", content="hip")
+        off_install = _publish(off_req, "nextpnr", content="off")
+        old = time.time() - 30 * 86400
+        for req in (hip_req, off_req):
+            os.utime(toolchain_cache.lock_path(req, "nextpnr"), (old, old))
+
+        # No explicit gpu_routers: the HIP architecture list comes from the
+        # environment, but FES_TOOLCHAIN_GPU_ROUTER (one build's lane) neither
+        # narrows the lanes this host can build nor adds one it cannot.
+        for exported in ("HIP", "OFF", "CUDA"):
+            report, _ = self.prune(
+                compiler=hip_compiler,
+                environment={
+                    "FES_TOOLCHAIN_GPU_ROUTER": exported,
+                    "FES_TOOLCHAIN_HIP_ARCHITECTURES": "gfx1201",
+                    "ROCM_PATH": "/opt/rocm-6.3",
+                },
+            )
+            self.assertEqual(
+                set(report["kept"]),
+                {f"tools/nextpnr/{hip_install.key}", f"tools/nextpnr/{off_install.key}"},
+                exported,
+            )
+            self.assertEqual(report["removed"], [], exported)
+
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "sequence of lane names"):
+            self.prune(gpu_routers="HIP")
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "at least one lane"):
+            self.prune(gpu_routers=())
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "unsupported GPU router"):
+            self.prune(gpu_routers=("VULKAN",))
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "unsupported GPU router"):
+            self.prune(gpu_routers=("",))
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "CUDA architectures"):
+            self.prune(gpu_routers=("CUDA",), cuda_architectures="native")
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "missing required accelerator command: hipcc"):
+            self.prune(gpu_routers=("HIP",), compiler=COMPILER)
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "missing required accelerator command: nvcc"):
+            self.prune(gpu_routers=("CUDA",), compiler=COMPILER)
+
+    def test_prune_probes_only_requested_accelerators_and_cli_forwards_lane_flags(self):
+        hipcc = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-1", "version": "rocm 6.3", "returncode": 0}
+        hip_req = self.request(
+            gpu_router="HIP",
+            compiler_identity={"commands": {**COMPILER["commands"], "hipcc": hipcc}},
+            environment={"ROCM_PATH": "/opt/rocm-6.3"},
+        )
+        off_req = self.request(gpu_router="OFF")
+        hip_install = _publish(hip_req, "nextpnr", content="hip")
+        off_install = _publish(off_req, "nextpnr", content="off")
+        old = time.time() - 30 * 86400
+        for req in (hip_req, off_req):
+            os.utime(toolchain_cache.lock_path(req, "nextpnr"), (old, old))
+
+        probed: list[tuple[str, tuple[str, ...], dict[str, str] | None]] = []
+
+        def fake_command_identity(command, args=("--version",), *, environment=None):
+            probed.append((command, args, None if environment is None else dict(environment)))
+            self.assertEqual(command, "hipcc")
+            return hipcc
+
+        with (
+            mock.patch.object(toolchain_cache, "compiler_inventory", return_value=COMPILER) as inv_mock,
+            mock.patch.object(toolchain_cache, "_command_identity", side_effect=fake_command_identity),
+        ):
+            report, _ = self.prune(
+                compiler=None,
+                gpu_routers=("HIP", "OFF"),
+                environment={"PATH": "/usr/bin", "ROCM_PATH": "/opt/rocm-6.3"},
+            )
+        inv_mock.assert_called_once_with("OFF", environment={"PATH": "/usr/bin", "ROCM_PATH": "/opt/rocm-6.3"})
+        self.assertEqual(len(probed), 1)
+        self.assertEqual(probed[0][0], "hipcc")
+        self.assertEqual(probed[0][2]["ROCM_PATH"], "/opt/rocm-6.3")
+        self.assertEqual(
+            set(report["kept"]),
+            {f"tools/nextpnr/{hip_install.key}", f"tools/nextpnr/{off_install.key}"},
+        )
+
+        # Verify CLI parsing forwards repeatable --gpu-router and architecture flags.
+        with mock.patch.object(toolchain_cache, "prune") as prune_mock:
+            rc = toolchain_cache._prune_main([
+                "--root", str(self.root),
+                "--cache", str(self.cache),
+                "--ref", "HEAD",
+                "--keep-days", "7",
+                "--gpu-router", "HIP",
+                "--gpu-router", "OFF",
+                "--hip-architectures", "gfx1201",
+                "--cuda-architectures", "75;86",
+                "--apply",
+            ])
+        self.assertEqual(rc, 0)
+        prune_mock.assert_called_once_with(
+            self.cache,
+            self.root,
+            keep_days=7.0,
+            ref="HEAD",
+            apply=True,
+            legacy_slots=False,
+            gpu_routers=["HIP", "OFF"],
+            hip_architectures="gfx1201",
+            cuda_architectures="75;86",
+        )
+
+        # Without lane flags (make toolchain-prune with no GPU_ROUTERS or
+        # GPU_ROUTER) the CLI names no lane, so prune keeps the host's lanes.
+        with mock.patch.object(toolchain_cache, "prune") as prune_mock:
+            rc = toolchain_cache._prune_main([
+                "--root", str(self.root),
+                "--cache", str(self.cache),
+            ])
+        self.assertEqual(rc, 0)
+        prune_mock.assert_called_once_with(
+            self.cache,
+            self.root,
+            keep_days=14.0,
+            ref="origin/main",
+            apply=False,
+            legacy_slots=False,
+            gpu_routers=None,
+            hip_architectures=None,
+            cuda_architectures=None,
+        )
 
     def test_prune_cli_is_a_dry_run_by_default(self):
         install = _publish(self.request(), "yosys")

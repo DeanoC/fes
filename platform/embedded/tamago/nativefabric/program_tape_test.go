@@ -35,7 +35,7 @@ type tapeCPU struct {
 	used, starts, commits, runs, mediaOpens int
 	mediaGeneration                         uint64
 	held, ready                             bool
-	spectrum                                bool
+	spectrum, disk                          bool
 	fault                                   string
 	now                                     *time.Time
 	cancel                                  context.CancelFunc
@@ -79,6 +79,9 @@ func (c *tapeCPU) writeMedia(op, index uint32, value uint16) error {
 		minimum, maximum := cg.FesComputerZx81TapeMinBytes, cg.FesDe25ComputerZx81TapeMaxBytes
 		if c.spectrum {
 			minimum, maximum = cg.FesComputerSpectrumTapeMinBytes, cg.FesComputerSpectrumTapeMaxBytes
+		}
+		if c.disk {
+			minimum, maximum = cg.FesComputerC64DiskBytes, cg.FesComputerC64DiskBytes
 		}
 		values := [6]uint16{uint16(minimum), uint16(minimum >> 16), uint16(maximum), uint16(maximum >> 16), uint16(cg.FesComputerMediaChunkMaxBytes), state}
 		if index >= 6 {

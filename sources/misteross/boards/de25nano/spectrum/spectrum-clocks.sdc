@@ -41,11 +41,11 @@ foreach {label source expected head second} {
 
 # Linux exposes display readiness at 0x18. The native variant uses the
 # address for a request/reply snapshot of the machine-clock fetch bus.
-set fetch_tag [get_registers "${base}|transport|fetch_request"]
+set fetch_tag [get_registers -nowarn "${base}|transport|fetch_request"]
 if {[get_collection_size $fetch_tag] == 0} {
     set launch [get_registers "${base}|video_ready_source"]
-    set head [get_pins -compatibility_mode -nocase "${base}|transport|video_ready_sync[0]|d"]
-    set next [get_registers "${base}|transport|video_ready_sync[1]"]
+    set head [get_pins -compatibility_mode -nocase "${base}|transport|video_ready_sync\[0\]|d"]
+    set next [get_registers "${base}|transport|video_ready_sync\[1\]"]
     if {[get_collection_size $launch] != 1 || [get_collection_size $head] != 1 ||
         [get_collection_size $next] != 1} {error "DE25 Spectrum readiness endpoints changed"}
     set_false_path -from $launch -to $head

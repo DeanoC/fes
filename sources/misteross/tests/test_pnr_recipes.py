@@ -26,25 +26,25 @@ ENV = {
 # Each registered core's own toolchain.lock. A per-core bump changes only its
 # core's entry here, plus that core's recipe and argv goldens.
 LOCK_SHA256 = {
-    "fes.menu": "2adfe0457b7d90debb76f52593c5101a88171a9c0b37ca3c2b2146c199ae0df0",
-    "fes.pong": "e9c28e573a5037cc7a3acef7637097691bf5bfac6f1a0cdca3bace84b9383edc",
+    "fes.menu": "9e49844c0a05e0b61f6559e12bf38df8d6c336aab422359eb8074b948614dbd0",
+    "fes.pong": "ad44202191b3dd43a833d78b3824382a7272202da769fcb11459693b624670be",
     "fes.zx81": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
     "fes.zx80": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
     "fes.ts1000": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
     "fes.ts1500": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
     "fes.coleco": "cb2c2809dd1b9687fbb1f50d3c6ea3a8e01ebf328b1ea29c8d567854c93d0fdb",
-    "fes.sms": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
-    "fes.sg1000": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
-    "fes.apple2": "bd19d80345cae5f8cc106a9128b2ff71e2ec3711de968341cedfec721ff7f675",
+    "fes.sms": "165cd340db7c2207352cda86e3ea441c264155ba92d73ae941661aa27cbb0f6a",
+    "fes.sg1000": "165cd340db7c2207352cda86e3ea441c264155ba92d73ae941661aa27cbb0f6a",
+    "fes.apple2": "87ee37f8602b069967bf789c2b8f0447461b3c632d1a45fd33d1ffed2f0322fc",
     "fes.c64": "bd19d80345cae5f8cc106a9128b2ff71e2ec3711de968341cedfec721ff7f675",
     "fes.c64-ntsc": "bd19d80345cae5f8cc106a9128b2ff71e2ec3711de968341cedfec721ff7f675",
-    "fes.spectrum": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
-    "fes.spectrum128": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
-    "fes.spectrum-plus3": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
-    "fes.pentagon": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
-    "fes.riscv": "2669044d4d481c94cf6ba7127614077480fd65ba730a784ac26f747764e472cf",
-    "fes.ramtest": "1ae44b7bcabce41501c623528724fdd46e7b91179492f9cc9e9dd7369f8e3221",
-    "fes.atari-st": "e4a11eac287674e473ab33ae356595245d564d32623be5b90472740d02aaecdb",
+    "fes.spectrum": "1f8c80da8c24be4dd30d61fa9769471b3e1e2d3cc7e7c237d440513e388a52df",
+    "fes.spectrum128": "1f8c80da8c24be4dd30d61fa9769471b3e1e2d3cc7e7c237d440513e388a52df",
+    "fes.spectrum-plus3": "1f8c80da8c24be4dd30d61fa9769471b3e1e2d3cc7e7c237d440513e388a52df",
+    "fes.pentagon": "1f8c80da8c24be4dd30d61fa9769471b3e1e2d3cc7e7c237d440513e388a52df",
+    "fes.riscv": "392b03cc8c0cc6d8eeb457938be7f88302d272eb99044216c5ec5e677044b2df",
+    "fes.ramtest": "38951e28df82545ab5f226e275c74a7f9bb985f8fb39d8da154d88df9432fb00",
+    "fes.atari-st": "9f357c3fba257028c7ab703a8177778bd2609e63b14fad6b5c8b358f912a2189",
 }
 # Source-derived hashes of the complete CLI option-name sets from nextpnr's
 # add_options() declarations. Schemas are indexed by the set itself, not pins.

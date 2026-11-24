@@ -147,9 +147,14 @@ class GateTests(unittest.TestCase):
         all_modes = {'video': True, 'media': True, 'full_race': True}
         for selected, cores, modes in [((), (), None), (('parent', 'fpga'), (), None),
                                        (('host', 'parent'), (), None),
+                                       (('parent', 'tamago'), (), None),
                                        (LANES, CORES, all_modes)]:
             with self.subTest(selected=selected):
                 require_success(results_for(selected, cores, modes))
+        skipped_tamago = results_for(('parent', 'tamago'))
+        skipped_tamago['tamago']['result'] = 'skipped'
+        with self.assertRaises(ValueError):
+            require_success(skipped_tamago)
 
     def test_selected_modes_must_be_valid_and_lane_consistent(self):
         baseline = results_for(LANES, CORES,

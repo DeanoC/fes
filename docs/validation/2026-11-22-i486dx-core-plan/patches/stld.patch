@@ -1,0 +1,13 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+index 10b75c65d..583087ee1 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+@@ -1846,7 +1846,7 @@ module fes_i386_cpu #(
+     assign d_lo = d_mseg_lo[11:0] + row[11:0] + last[11:0] + d_mdisp_lo[11:0];
+     assign st_e = d_lo - ag_slo + 12'(dc.uop.mem.bytes) - 12'd1;
+     assign st_span = dc.uop.mem.bytes + ag_sbytes - 4'd2;
+-    assign st_near = late != 2'd0 || !ag_slo_ok || d_xaddr || st_e[11:4] == 8'd0 && st_e[3:0] <= st_span;
++    assign st_near = 1'b1;  // ABLATION stld: every load behind a store in AG waits
+     always_ff @(posedge clk) if (!freeze) begin
+         ag_slo <= d_lo;
+         ag_slo_ok <= late == 2'd0 && !d_xaddr;

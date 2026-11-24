@@ -158,7 +158,7 @@ assigned. Import failures remain failures even when groups are filtered.
 
 Documentation in a mixed change does not restore every group. The explicit
 `DOCUMENTATION_MODULES` set retains link, image-assembly, consistency,
-coordination, core-build and bundle tests that check repository guides. Update
+core-build and bundle tests that check repository guides. Update
 that set when adding a documentation reader outside those modules. Temporary
 Markdown fixtures do not make a test a repository-documentation reader.
 Documentation-only CI continues through its existing always-run checks; this
