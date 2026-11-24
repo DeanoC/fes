@@ -660,7 +660,12 @@ passes through the actual Unix client, so a running display cannot conceal an
 unreadable capability reply. Decoder rejection keeps native readiness false.
 Active-package validation accepts the declared DE25 BRAM computer, standard
 `de25-linux-computer-v1` computer and MENU profiles
-with the exact DE25 target, ABI family and observed build/ABI identity. A native
+with the exact DE25 target, ABI family and observed build/ABI identity. The
+fes.computer minor is per machine (`corepackage.DE25ComputerABI`): 1.1 for the
+PC/XT, whose floppy is a 1.1 interface, and for the pc386, whose ATA disk,
+machine words and wall clock are; 1.0 for every other machine. A DE25 pc386
+session is then checked as the DE10 one is: its ATA disk unit, library disk
+binding and persistent media are board-neutral. A native
 computer status fixture exercises the actual Unix client after FPGA Start;
 unknown profiles, crossed targets and missing observed identity remain rejected.
 The live ZX81 tape limit is checked against that selected target. DE25's BRAM
