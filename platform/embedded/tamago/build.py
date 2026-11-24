@@ -247,6 +247,50 @@ def watchdog_option(program, selected, tenfoot, timeout_sec, clock_hz):
     return timeout_sec, clock_hz
 
 
+def network_runtime_options(program, profile, selected, tenfoot, dhcp, hostname, sntp_server, sntp_port):
+    if dhcp is None:
+        dhcp = False
+    if hostname is None:
+        hostname = ""
+    if sntp_server is None:
+        sntp_server = ""
+    if sntp_port is None:
+        sntp_port = 0
+    if type(dhcp) is not bool:
+        raise ValueError('--network-dhcp must be a boolean')
+    if not isinstance(hostname, str) or not isinstance(sntp_server, str):
+        raise ValueError('network hostname and SNTP server must be strings')
+    if type(sntp_port) is not int:
+        raise ValueError('--network-sntp-port must be an integer')
+    hostname = hostname.strip()
+    sntp_server = sntp_server.strip()
+    if not dhcp and not hostname and not sntp_server and sntp_port == 0:
+        return False, "", "", 0
+    if program != 'fpgaload' or selected is not True or tenfoot is not True:
+        raise ValueError('--network-dhcp/--network-sntp-* require Nano fpgaload with --selected-programs and --tenfoot-serial')
+    if not isinstance(profile, dict) or profile.get('network') is None:
+        raise ValueError('--network-dhcp/--network-sntp-* require a firmware profile with network enabled')
+    if hostname:
+        if not dhcp:
+            raise ValueError('--network-dhcp-hostname requires --network-dhcp')
+        if len(hostname) > 255 or any(ord(c) < 0x20 or ord(c) > 0x7e or c.isspace() or c in "'\"\\" for c in hostname):
+            raise ValueError('--network-dhcp-hostname must be printable non-whitespace ASCII <= 255 bytes')
+    if sntp_port != 0:
+        if not sntp_server:
+            raise ValueError('--network-sntp-port requires --network-sntp-server')
+        if not 1 <= sntp_port <= 65535:
+            raise ValueError('--network-sntp-port must be in [1, 65535]')
+    if sntp_server:
+        try:
+            addr = ipaddress.IPv4Address(sntp_server)
+        except ipaddress.AddressValueError as exc:
+            raise ValueError(f'--network-sntp-server must be an IPv4 address: {exc}') from None
+        if addr.is_unspecified or addr.is_multicast:
+            raise ValueError(f'--network-sntp-server cannot be unspecified or multicast: {addr}')
+        sntp_server = str(addr)
+    return dhcp, hostname, sntp_server, sntp_port
+
+
 def writable_storage_option(program,path,profile,selected,tenfoot):
     if path is None:return None
     if program!='fpgaload' or selected is not True or tenfoot is not True or profile['sd_control'] is None:
@@ -437,6 +481,11 @@ def build(args):
     watchdog_timeout, watchdog_clock_hz = watchdog_option(
         args.program, selected_programs, tenfoot_serial,
         getattr(args, 'watchdog_timeout', 0), getattr(args, 'watchdog_clock_hz', 0),
+    )
+    network_dhcp, network_dhcp_hostname, network_sntp_server, network_sntp_port = network_runtime_options(
+        args.program, profile, selected_programs, tenfoot_serial,
+        getattr(args, 'network_dhcp', False), getattr(args, 'network_dhcp_hostname', ''),
+        getattr(args, 'network_sntp_server', ''), getattr(args, 'network_sntp_port', 0),
     )
     configuration_retained=getattr(args,'retain_configuration',False)
     if type(configuration_retained) is not bool or (configuration_retained and not (selected_programs and tenfoot_serial)):
@@ -710,6 +759,14 @@ def build(args):
     if tenfoot_serial:link_flags+=' -X main.expectedTenfootSerial=1'
     if watchdog_timeout:
         link_flags += f' -X main.expectedWatchdogTimeout={watchdog_timeout} -X main.expectedWatchdogClockHz={watchdog_clock_hz}'
+    if network_dhcp:
+        link_flags += ' -X main.expectedNetworkDHCP=1'
+        if network_dhcp_hostname:
+            link_flags += f' -X main.expectedNetworkDHCPHostname={network_dhcp_hostname}'
+    if network_sntp_server:
+        link_flags += f' -X main.expectedNetworkSNTPServer={network_sntp_server}'
+        if network_sntp_port:
+            link_flags += f' -X main.expectedNetworkSNTPPort={network_sntp_port}'
     if initial_tape:link_flags+=' -X main.expectedInitialTape=1'
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
     if context is not None and context['programming_profile']==hps.COMPUTER_PROFILE:link_flags+=' -X main.expectedNativeComputer=1'
@@ -771,12 +828,22 @@ def build(args):
         raise ValueError('selected SD transfer clock was not linked')
     if watchdog_timeout and (str(watchdog_timeout).encode() not in data or str(watchdog_clock_hz).encode() not in data):
         raise ValueError('selected watchdog settings were not linked')
+    if network_dhcp and b'1' not in data:
+        raise ValueError('selected network DHCP setting was not linked')
+    if network_dhcp_hostname and network_dhcp_hostname.encode() not in data:
+        raise ValueError('selected network DHCP hostname was not linked')
+    if network_sntp_server and network_sntp_server.encode() not in data:
+        raise ValueError('selected network SNTP server was not linked')
+    if network_sntp_port and str(network_sntp_port).encode() not in data:
+        raise ValueError('selected network SNTP port was not linked')
     if writable_storage_plan is not None and (writable_storage_option(args.program,args.writable_storage_plan,profile,args.selected_programs,args.tenfoot_serial)!=writable_storage_plan or writable_storage_encoded.encode() not in data):
         raise ValueError('writable storage plan changed or was not linked')
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
               "sd_write_plan":sd_write_plan,"sd_write_plan_sha256":hashlib.sha256(base64.b64decode(sd_write_encoded)).hexdigest() if sd_write_encoded else None,
               "sd_transfer_clock_hz":sd_transfer_clock,
               "watchdog_timeout_seconds":watchdog_timeout,"watchdog_clock_hz":watchdog_clock_hz,
+              "network_dhcp":network_dhcp,"network_dhcp_hostname":network_dhcp_hostname,
+              "network_sntp_server":network_sntp_server,"network_sntp_port":network_sntp_port,
               "writable_storage_plan":writable_storage_plan,
               "sd_scratch_inspect":sd_scratch_inspect,
               "arm64_features":arm64_features,"cpu_feature_overlay":cpu_feature_overlay,
