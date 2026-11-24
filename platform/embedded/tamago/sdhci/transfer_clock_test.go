@@ -389,6 +389,7 @@ func TestHighSpeed50MHzFailurePathsRejectWithoutFallback(t *testing.T) {
 		{name: "sd-v1.0-scr", setup: func(c *highSpeedCard) { c.scr[0] = 0x00 }},
 		{name: "cmd6-check-unsupported", setup: func(c *highSpeedCard) { c.cmd6Func1OK = false }},
 		{name: "cmd6-zero-current", setup: func(c *highSpeedCard) { c.cmd6MaxCurr = 0 }},
+		{name: "cmd6-exceeds-current-limit", setup: func(c *highSpeedCard) { c.cmd6MaxCurr = 400 }},
 		{name: "cmd6-switch-rejected", setup: func(c *highSpeedCard) { c.cmd6SwitchOK = false }},
 		{name: "host-readback-mismatch", setup: func(c *highSpeedCard) { c.rejectHSHost = true }},
 	}
@@ -401,6 +402,14 @@ func TestHighSpeed50MHzFailurePathsRejectWithoutFallback(t *testing.T) {
 			}
 		})
 	}
+	// Explicit higher board current budget admits a 400 mA High-Speed card.
+	cHigh := newHighSpeedCard()
+	cHigh.cmd6MaxCurr = 400
+	dHigh, err := Open(cHigh, Config{InputClockHz: 200000000, TransferClockHz: 50000000, HighSpeedMaxCurrentMA: 400})
+	if err != nil || !dHigh.HighSpeed() {
+		t.Fatalf("explicit 400mA budget failed: d=%v err=%v", dHigh, err)
+	}
+	_ = dHigh.Quiesce()
 	c := newHighSpeedCard()
 	if d, err := Open(c, Config{InputClockHz: 25000000, TransferClockHz: 50000000}); err == nil || d != nil || c.accesses != 0 {
 		t.Fatalf("input<transfer touched hardware: d=%v err=%v accesses=%d", d, err, c.accesses)

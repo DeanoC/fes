@@ -35,8 +35,12 @@ var _ block.Device = (*Session)(nil)
 type Config struct {
 	InputClockHz uint32
 	// TransferClockHz is the trusted platform's opt-in post-discovery rate.
-	// Zero preserves identification speed; 25 MHz requires card/board support.
+	// Zero preserves identification speed; 25 MHz or 50 MHz (CMD6 High-Speed)
+	// require card/board support.
 	TransferClockHz uint32
+	// HighSpeedMaxCurrentMA caps accepted CMD6 High-Speed card current (mA);
+	// zero enforces the 200 mA SD v1.10+ 3.3V baseline.
+	HighSpeedMaxCurrentMA uint16
 	// BusWidth4Bit opts into 4-bit SD bus mode (ACMD51 SCR + ACMD6) after card
 	// selection. Default false preserves conservative 1-bit mode.
 	BusWidth4Bit bool
@@ -95,15 +99,16 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 	}
 	s.active.Store(true)
 	s.device, err = sdhci.Open(io, sdhci.Config{
-		InputClockHz:         config.InputClockHz,
-		TransferClockHz:      config.TransferClockHz,
-		BusWidth4Bit:         config.BusWidth4Bit,
-		MultiBlock:           config.MultiBlock,
-		UseADMA2:             config.UseADMA2,
-		DMAPool:              config.DMAPool,
-		PrepareClock:         firmware.Prepare,
-		AllowWrites:          writable,
-		NoSocketWriteProtect: config.NoSocketWriteProtect,
+		InputClockHz:          config.InputClockHz,
+		TransferClockHz:       config.TransferClockHz,
+		HighSpeedMaxCurrentMA: config.HighSpeedMaxCurrentMA,
+		BusWidth4Bit:          config.BusWidth4Bit,
+		MultiBlock:            config.MultiBlock,
+		UseADMA2:              config.UseADMA2,
+		DMAPool:               config.DMAPool,
+		PrepareClock:          firmware.Prepare,
+		AllowWrites:           writable,
+		NoSocketWriteProtect:  config.NoSocketWriteProtect,
 	})
 	if err != nil {
 		return s, s.fail(err)

@@ -24,21 +24,22 @@ import (
 // Register offsets follow Altera's MIT-0 socfpga_sdmmc_reg.h, commit
 // 66bdcc347564c5698a8997169bce83a31647d618 (Copyright 2026 Altera).
 const (
-	blockSize     = 0x204
-	argument      = 0x208
-	command       = 0x20c
-	response      = 0x210
-	dataPort      = 0x220
-	present       = 0x224
-	host          = 0x228
-	clock         = 0x22c
-	status        = 0x230
-	statusEnable  = 0x234
-	signalEnable  = 0x238
-	statusErrors  = uint32(0xffff8000)
-	busy          = uint32(0xb07)
-	clockModeMask = uint32(0x070fffff)
-	baseHost33V   = uint32(7<<9 | 1<<8)
+	blockSize                 = 0x204
+	argument                  = 0x208
+	command                   = 0x20c
+	response                  = 0x210
+	dataPort                  = 0x220
+	present                   = 0x224
+	host                      = 0x228
+	clock                     = 0x22c
+	status                    = 0x230
+	statusEnable              = 0x234
+	signalEnable              = 0x238
+	statusErrors              = uint32(0xffff8000)
+	busy                      = uint32(0xb07)
+	clockModeMask             = uint32(0x070fffff)
+	baseHost33V               = uint32(7<<9 | 1<<8)
+	defaultHighSpeedMaxCurrMA = uint16(200)
 )
 
 var (
@@ -129,6 +130,11 @@ type Config struct {
 	// Zero retains the existing <=400 kHz transport; the identification divider
 	// is restored at quiescence.
 	TransferClockHz uint32
+	// HighSpeedMaxCurrentMA sets the board's maximum 3.3V SD supply current
+	// budget in mA for CMD6 High-Speed admission (default 0 -> 200 mA, the
+	// baseline SD v1.10+ 3.3V limit per Physical Layer Spec §4.3.10.4). Cards
+	// reporting 0 or more than this budget are rejected before switching.
+	HighSpeedMaxCurrentMA uint16
 	// BusWidth4Bit opts into 4-bit SD bus mode after card selection (verified
 	// via ACMD51 SCR and switched via ACMD6). Default false retains 1-bit mode.
 	BusWidth4Bit bool
@@ -482,23 +488,30 @@ func (d *Device) switchHighSpeed() error {
 	if scr[0]&0x0f < 1 {
 		return fmt.Errorf("sdhci: card SCR (%x) does not support CMD6 High-Speed", scr)
 	}
-	// Mode 0 check: verify Access Mode Group 1 Function 1 (High Speed, 25 MB/s) is supported.
+	// Mode 0 check: verify Access Mode Group 1 Function 1 (High Speed, 25 MB/s)
+	// is supported and advertised current fits within board supply budget.
+	maxCurrentLimit := d.config.HighSpeedMaxCurrentMA
+	if maxCurrentLimit == 0 {
+		maxCurrentLimit = defaultHighSpeedMaxCurrMA
+	}
 	checkStatus, err := d.issueCMD6(0x00fffff1)
 	if err != nil {
 		return err
 	}
-	if binary.BigEndian.Uint16(checkStatus[0:2]) == 0 ||
+	checkCurr := binary.BigEndian.Uint16(checkStatus[0:2])
+	if checkCurr == 0 || checkCurr > maxCurrentLimit ||
 		binary.BigEndian.Uint16(checkStatus[12:14])&(1<<1) == 0 ||
 		checkStatus[16]&0x0f != 1 {
-		return errors.New("sdhci: card does not advertise High-Speed in CMD6 check")
+		return fmt.Errorf("sdhci: card CMD6 High-Speed check refused (current=%dmA limit=%dmA)", checkCurr, maxCurrentLimit)
 	}
 	// Mode 1 switch: commit Group 1 Function 1.
 	switchStatus, err := d.issueCMD6(0x80fffff1)
 	if err != nil {
 		return err
 	}
-	if binary.BigEndian.Uint16(switchStatus[0:2]) == 0 || switchStatus[16]&0x0f != 1 {
-		return errors.New("sdhci: card failed CMD6 High-Speed switch")
+	switchCurr := binary.BigEndian.Uint16(switchStatus[0:2])
+	if switchCurr == 0 || switchCurr > maxCurrentLimit || switchStatus[16]&0x0f != 1 {
+		return fmt.Errorf("sdhci: card failed CMD6 High-Speed switch (current=%dmA limit=%dmA)", switchCurr, maxCurrentLimit)
 	}
 	if err := d.ready(); err != nil {
 		return err
