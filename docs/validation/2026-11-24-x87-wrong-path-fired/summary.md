@@ -69,9 +69,13 @@ overrides the apply's clear, leaving `fired` set with `started` clear again.
 - `k2195a` was refused at admission ("package identity differs from request"): the `.fcore` was named by its own hash, not the package identity. Nothing ran; the kit was released at once.
 - `k2195b`: FreeDOS passed and DOOM's demo was drawn and playing, but the driver's own DOOM check read a dark frame between the capture's black side bars as a text screen and failed the goal ([kit/k2195b-result.json](kit/k2195b-result.json)). The stop failed as in `k2195c`; recovered the same way.
 - `k2195c`: the driver's check fixed (colour and motion for the 3D view; a still, colourless screen for the timedemo's end). Both goals pass; the stop fails, as above.
-- **Not established:** why the stop's input detach fails. `k2020c` (#2022, 20 Nov) stopped cleanly through the same driver path on an earlier kit bundle (`c9ae79e2`); Kit B's bundle is now `85dd3b4a`. A control run of main's package would tell a kit-software change from this package; it was not run.
+- **The control** (coordinator, 24 Nov; Lander had moved Kit B to bundle `01482986`, built from main `4b6aa4ca`, before it ran). Both arms ran back to back on that bundle, image `179affbb`, the same steps:
+  - `k2195m`: main `0c71d434b`'s DE10 seal `c237f562` (`BUILD_ID` `426e518d`, main's DE10 design; timing pass, setup +0.679 ns). FreeDOS and DOOM pass; **the stop fails the same way** ([kit/k2195m-result.json](kit/k2195m-result.json)).
+  - `k2195g`: this PR's seal `6dd0a612`. The same: both goals pass, the stop fails ([kit/k2195g-result.json](kit/k2195g-result.json)). (`k2195f`, between them, was refused its lease claim with HTTP 409 just after the recovery reboot; nothing ran.)
+  - Each was recovered as before ([kit/recover-2195.sh](kit/recover-2195.sh)) and logged FREE.
+- **So the stop failure is the kit software's, pre-existing, not this fix's.** Filed as #2200. Its suspect is #2098 (`27999e9df`), which is in both failing bundles (`16adc15c`, `4b6aa4ca`) and not in the clean `c9ae79e2` (`1a4bb8d4`). It is the only commit to the agent's `internal/httpapi/server.go`, which writes this 503, in `1a4bb8d4..main`.
 
 ## Open before merge
 
-- Whether the kit's stop failure (`MISTER_UNAVAILABLE` on input detach) is this package's or the kit software's.
+- Nothing of this PR's. The kit's session stop is #2200's.
 - Quake past the stall on the DX with this fix: #2194's G5.
