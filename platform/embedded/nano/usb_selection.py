@@ -1,5 +1,16 @@
 """Explicit native USB scope carried by source-bound build receipts."""
 
+# One device class per contained probe; only the shared lease may host the
+# multi-device USB/Bluetooth hub ('multi').
+PROTOCOLS=('boot-keyboard','gamepad')
+SHARED_PROTOCOLS=PROTOCOLS+('multi',)
+
+
+def protocols(shared):
+    """Input protocols a USB-selected image may carry for this lease scope."""
+    return SHARED_PROTOCOLS if shared is True else PROTOCOLS
+
+
 def mode(record, program_key='program'):
     shared=record.get('usb_shared',False)
     control=record.get('usb_control',False)
@@ -16,8 +27,7 @@ def mode(record, program_key='program'):
     if control!=selected:
         raise ValueError('USB lease selection differs from native program')
     protocol=record.get('usb_input')
-    allowed=('boot-keyboard','gamepad','multi') if shared else ('boot-keyboard','gamepad')
-    if selected and protocol not in allowed or not selected and protocol is not None:
+    if selected and protocol not in protocols(shared) or not selected and protocol is not None:
         raise ValueError('USB input protocol differs from explicit selection')
     return selected,shared
 

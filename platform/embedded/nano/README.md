@@ -66,6 +66,17 @@ flowchart LR
   `fesboot` after a 2-second UART abort window).
 - `hps_boot.py` pairs the sealed HPS-first `.sof` with the matched native SPL
   hex (`u-boot-spl-dtb.hex`) under the shared Quartus Pro lock (`quartus_pfg`).
+- **USB input selection:** a contained `usbcheck` probe carries
+  `boot-keyboard` or `gamepad`. The shared lease (`--shared-usb-input` with
+  selected serial Tenfoot) also carries `multi`, the hot-plug USB
+  keyboard/gamepad and Bluetooth hub. The receipt checks take this rule from
+  `usb_selection.protocols(shared)`: `entry` and `cold_profile.py` (entry
+  admission and the SPL/BL31 header) use it, so `prepare_uboot.py`,
+  `package.py`, and `hps_boot.py` accept a `multi` build. The header does not
+  depend on the protocol. `launcher_image.py` still requires `boot-keyboard`,
+  `--initial-tape` requires `boot-keyboard` or `gamepad`, and the serial
+  observers (`shared_input_trace.py` and its callers) do not parse `multi`
+  runs yet.
 
 ### 2. Opt-in R1 cold-boot QSPI JIC packaging
 Quartus Pro 26.3 maps `A5EB013BB23BR1` to JTAG ID `0x4362C0DD` (the generic

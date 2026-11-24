@@ -58,8 +58,8 @@ def entry(entry_build):
             not 0<image.stat().st_size<=32<<20 or receipt.get('firmware_profile_sha256')!=sha(profile)):
         raise ValueError('entry image is not bound to the source-derived cold Nano profile')
     usb=receipt.get('usb_control',False)
-    hps_context.usb_selection.mode(receipt,program_key='native_program')
-    if (usb and receipt.get('usb_input') not in ('boot-keyboard','gamepad') or
+    _,shared=hps_context.usb_selection.mode(receipt,program_key='native_program')
+    if (usb and receipt.get('usb_input') not in hps_context.usb_selection.protocols(shared) or
             not usb and receipt.get('usb_input') is not None):
         raise ValueError('USB boot input differs from native selection')
     entry_payload.checked(receipt,image.read_bytes(),(entry_build/'payload.elf').read_bytes())
@@ -300,11 +300,11 @@ def header(profile):
     if type(usb_probe) is not bool or usb_probe and not hps_context.usb_selection.contained_probe(
             dict(profile,program='usbcheck',usb_control=usb)):
         raise ValueError('USB probe requires its explicit contained boot selection')
-    if (usb and profile.get('usb_input') not in ('boot-keyboard','gamepad') or
-            not usb and profile.get('usb_input') is not None):
-        raise ValueError('USB boot input must be explicitly selected')
     shared=profile.get('usb_shared',False)
     if type(shared) is not bool:raise ValueError('shared USB boot selection must be boolean')
+    if (usb and profile.get('usb_input') not in hps_context.usb_selection.protocols(shared) or
+            not usb and profile.get('usb_input') is not None):
+        raise ValueError('USB boot input must be explicitly selected')
     if shared:
         hps_context.usb_selection.mode(dict(profile,program='fpgaload',usb_control=usb))
         if not profile['sd_pio'] or any(profile.get(key) is None for key in

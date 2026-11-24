@@ -51,8 +51,7 @@ def usb_control_option(receipt):
         if (len(options)!=1 or options[0][1]!='main.expectedUSBControl='+('owned-shared-usb-pio-v1' if shared else 'owned-usb-pio-v1') or
                 options[0][0]==0 or tokens[options[0][0]-1]!='-X' or command[-1]!='./cmd/'+receipt['program']):
             raise ValueError('USB lease differs from the exact selected native link command')
-        allowed=('boot-keyboard','gamepad','multi') if shared else ('boot-keyboard','gamepad')
-        if (protocol not in allowed or len(inputs)!=1 or
+        if (protocol not in selection.protocols(shared) or len(inputs)!=1 or
                 inputs[0][1]!='main.expectedUSBInput='+protocol or inputs[0][0]==0 or tokens[inputs[0][0]-1]!='-X'):
             raise ValueError('USB input differs from the exact selected native link command')
     elif options or inputs or protocol is not None:
