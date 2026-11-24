@@ -33,6 +33,8 @@ type multiSimDevice struct {
 	outLog map[uint8][][]byte
 	// Inject fatal STALL on a specific endpoint number
 	stallEP map[uint8]bool
+	// Transiently STALL the first N EP0 device-descriptor reads (tests hotplug retry)
+	failDescCount int
 }
 
 func newSimHub(ports int, multiTT bool) *multiSimDevice {
@@ -144,6 +146,7 @@ type multiChannelSim struct {
 	txEP     [16]uint8
 	txSplit  [16]bool
 	noOutLog bool
+	wedgeCh  int // if > 0, channel wedgeCh refuses to clear CHENA on halt
 }
 
 func newMultiChannelSim(fifoWords uint32, channels int) *multiChannelSim {
@@ -349,6 +352,10 @@ func (s *multiChannelSim) findDevice(addr uint8) *multiSimDevice {
 
 func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 	if val&channelDisable != 0 {
+		if s.wedgeCh > 0 && ch == s.wedgeCh {
+			s.regs[chReg(ch, hcchar)] |= channelEnable
+			return
+		}
 		s.regs[chReg(ch, hcchar)] &^= channelEnable | channelDisable
 		s.regs[chReg(ch, hcint)] |= 1 << 1
 		s.regs[haint] |= 1 << uint(ch)
@@ -434,6 +441,13 @@ func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 			s.enqueueRX(0, pid, nil)
 			s.regs[chReg(ch, hcchar)] &^= channelEnable
 			s.regs[chReg(ch, hcint)] |= 1 | 1<<1
+			return
+		}
+		if s.ctrl.reqType&0x80 != 0 && s.ctrl.req == 6 && s.ctrl.value>>8 == 1 && s.ctrl.dev.failDescCount > 0 {
+			s.ctrl.dev.failDescCount--
+			s.ctrl = nil
+			s.regs[chReg(0, hcchar)] &^= channelEnable
+			s.regs[chReg(0, hcint)] |= 1<<3 | 1<<1 // transient STALL
 			return
 		}
 		rem := len(s.ctrl.resp) - s.ctrl.offset
@@ -1102,5 +1116,126 @@ func TestMultiHostServiceAndPipesZeroAllocs(t *testing.T) {
 	})
 	if allocs > 0 {
 		t.Fatalf("MultiHost steady-state Service+PollInto+Write allocated %.2f allocs/run, want 0", allocs)
+	}
+}
+
+func TestMultiHostWedgedChannelFailsPauseAndClose(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	bt := newSimBTDongle()
+	sim.attachRoot(bt)
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev, _ := host.NextEvent()
+	hciIf, _ := ev.Device.Config.FindInterface(0xe0, 0x01, 0x01)
+	intEP, _ := hciIf.FindEndpoint(usb.TransferInterrupt, true)
+	pipe, err := host.OpenPipe(ev.Device.Address, intEP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := pipe.(*multiPipe).ch
+
+	// Simulate hardware leaving CHENA=1 stuck on ch.
+	sim.mu.Lock()
+	sim.wedgeCh = ch
+	sim.regs[chReg(ch, hcchar)] |= channelEnable
+	sim.mu.Unlock()
+
+	if err := host.PausePolling(context.Background()); err == nil {
+		t.Fatal("PausePolling succeeded while hardware left CHENA set")
+	}
+	if host.paused {
+		t.Fatal("host marked paused after channel halt failure")
+	}
+
+	// Verify Close also fails closed and refuses to clear/reuse a stuck channel slot.
+	sim2 := newMultiChannelSim(1024, 16)
+	bt2 := newSimBTDongle()
+	sim2.attachRoot(bt2)
+	host2, err := OpenMulti(sim2, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev2, _ := host2.NextEvent()
+	pipe2, err := host2.OpenPipe(ev2.Device.Address, intEP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch2 := pipe2.(*multiPipe).ch
+	sim2.mu.Lock()
+	sim2.wedgeCh = ch2
+	sim2.regs[chReg(ch2, hcchar)] |= channelEnable
+	sim2.mu.Unlock()
+	if err := pipe2.Close(); err == nil {
+		t.Fatal("pipe.Close succeeded while hardware left CHENA set")
+	}
+	if !host2.slots[ch2].allocated || host2.slots[ch2].fault == nil {
+		t.Fatal("stuck channel slot was cleared for reuse")
+	}
+}
+
+func TestMultiHostHotplugRetryAndMaxHubDepth(t *testing.T) {
+	// 1. Transient first-attempt descriptor STALL on a hot-plugged hub child must retry and succeed.
+	sim := newMultiChannelSim(1024, 16)
+	hub1 := newSimHub(4, true)
+	sim.attachRoot(hub1)
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pad := newSimGamepad()
+	pad.failDescCount = 1 // Fail first GET_DESCRIPTOR(Device) transiently
+	sim.attachHubPort(hub1, 1, pad)
+	var attached bool
+	for range 40 {
+		sim.advance(25 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+		if ev, ok := host.NextEvent(); ok && ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			attached = true
+			break
+		}
+	}
+	if !attached {
+		t.Fatal("hot-plugged gamepad was not retried after transient descriptor failure")
+	}
+
+	// 2. Preserve hub topology depth during dynamic hotplug: hot-plugging a hub beyond
+	// maxHubDepth (3 levels) must be rejected instead of bypassing the limit.
+	hub2 := newSimHub(2, true)
+	sim.attachHubPort(hub1, 2, hub2)
+	for range 25 {
+		sim.advance(20 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hub3 := newSimHub(2, true)
+	sim.attachHubPort(hub2, 1, hub3)
+	for range 25 {
+		sim.advance(20 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(host.hubs) != 2 {
+		// Depth 0 = hub1, Depth 1 = hub2 -> hub3 is at depth 2 (< maxHubDepth=3), check exact count:
+		if len(host.hubs) != 3 {
+			t.Fatalf("expected 3 hubs at depths 0,1,2, got %d", len(host.hubs))
+		}
+	}
+	hubsBefore := len(host.hubs)
+	hub4 := newSimHub(2, true)
+	sim.attachHubPort(hub3, 1, hub4) // Depth 3 == maxHubDepth -> MUST be rejected!
+	for range 25 {
+		sim.advance(20 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(host.hubs) != hubsBefore {
+		t.Fatalf("hub beyond maxHubDepth was admitted during dynamic hotplug: hubs=%d want=%d", len(host.hubs), hubsBefore)
 	}
 }

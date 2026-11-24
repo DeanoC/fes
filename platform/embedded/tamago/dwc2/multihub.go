@@ -51,7 +51,12 @@ func (h *MultiHost) detachDevice(addr uint8) {
 	// Halt and free every hardware channel belonging to addr.
 	for ch := 1; ch < h.channels; ch++ {
 		if h.slots[ch].allocated && h.slots[ch].ownerAddr == addr {
-			h.haltChannel(ch)
+			if err := h.haltChannel(ch); err != nil {
+				// Never clear or reuse a channel that hardware failed to halt.
+				h.slots[ch].fault = err
+				_ = h.failController(err)
+				continue
+			}
 			h.slots[ch] = multiChannel{}
 		}
 	}
@@ -262,6 +267,7 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 		addr:       addr,
 		speed:      dev.info.Speed,
 		route:      dev.route,
+		depth:      depth,
 		numPorts:   numPorts,
 		statusPipe: statusPipe,
 	}
@@ -277,24 +283,42 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 
 func (h *MultiHost) pollHubHotplug() {
 	var statusBuf [4]byte
+	now := h.io.Now()
 	// Iterate over a snapshot index since detaching a nested hub mutates h.hubs.
 	for i := 0; i < len(h.hubs); i++ {
 		hub := h.hubs[i]
-		if hub.statusPipe == nil {
-			continue
-		}
-		n, err := hub.statusPipe.PollInto(statusBuf[:])
-		if err != nil || n == 0 {
-			continue
-		}
-		// Bit p (1..numPorts) in the status bitmap indicates a change on port p.
-		for port := uint8(1); port <= hub.numPorts; port++ {
-			byteIdx := int(port) / 8
-			bit := uint(port % 8)
-			if byteIdx < n && statusBuf[byteIdx]&(1<<bit) != 0 {
-				h.handleHubPortChange(hub, port, 1)
+		if hub.statusPipe != nil {
+			n, err := hub.statusPipe.PollInto(statusBuf[:])
+			if err == nil && n > 0 {
+				// Bit p (1..numPorts) in the status bitmap indicates a change on port p.
+				for port := uint8(1); port <= hub.numPorts; port++ {
+					byteIdx := int(port) / 8
+					bit := uint(port % 8)
+					if byteIdx < n && statusBuf[byteIdx]&(1<<bit) != 0 {
+						hub.retryCount[port] = 0
+						h.handleHubPortChange(hub, port, hub.depth+1)
+					}
+				}
 			}
 		}
+		// Retry any port whose initial hotplug enumeration failed transiently.
+		for port := uint8(1); port <= hub.numPorts; port++ {
+			if hub.retryCount[port] > 0 && !now.Before(hub.retryAt[port]) {
+				h.handleHubPortChange(hub, port, hub.depth+1)
+			}
+		}
+	}
+}
+
+func (h *MultiHost) scheduleHubPortRetry(hub *multiHub, port uint8) {
+	if int(port) >= len(hub.retryCount) {
+		return
+	}
+	if hub.retryCount[port] < maxHubEnumRetries {
+		hub.retryCount[port]++
+		hub.retryAt[port] = h.io.Now().Add(hubEnumRetryDelay)
+	} else {
+		hub.retryCount[port] = 0
 	}
 }
 
@@ -323,6 +347,7 @@ func (h *MultiHost) handleHubPortChange(hub *multiHub, port uint8, depth int) {
 	connected := status&1 != 0
 	overcurrent := status&(1<<3) != 0
 	if !connected || overcurrent {
+		hub.retryCount[port] = 0
 		if existing != 0 {
 			h.detachDevice(existing)
 		}
@@ -330,6 +355,7 @@ func (h *MultiHost) handleHubPortChange(hub *multiHub, port uint8, depth int) {
 	}
 	// If already enumerated and still enabled with no connect bounce, keep alive.
 	if existing != 0 && status&(1<<16) == 0 && status&2 != 0 {
+		hub.retryCount[port] = 0
 		return
 	}
 	if existing != 0 {
@@ -338,24 +364,29 @@ func (h *MultiHost) handleHubPortChange(hub *multiHub, port uint8, depth int) {
 
 	// Reset downstream port and wait for enable.
 	if _, err := h.ControlTransfer(hub.addr, 0x23, 3, 4, uint16(port), nil); err != nil {
+		h.scheduleHubPortRetry(hub, port)
 		return
 	}
 	if err := h.delay(50 * time.Millisecond); err != nil {
+		h.scheduleHubPortRetry(hub, port)
 		return
 	}
 	deadline := h.io.Now().Add(time.Second)
 	for {
 		if n, err := h.ControlTransfer(hub.addr, 0xa3, 0, 0, uint16(port), raw[:]); err != nil || n != 4 {
+			h.scheduleHubPortRetry(hub, port)
 			return
 		}
 		status = binary.LittleEndian.Uint32(raw[:])
 		if status&1 == 0 || status&(1<<3) != 0 {
+			hub.retryCount[port] = 0
 			return
 		}
 		if status&(1<<4) == 0 && status&2 != 0 {
 			break
 		}
 		if !h.io.Now().Before(deadline) {
+			h.scheduleHubPortRetry(hub, port)
 			return
 		}
 		_ = h.delay(time.Millisecond)
@@ -379,5 +410,9 @@ func (h *MultiHost) handleHubPortChange(hub *multiHub, port uint8, depth int) {
 			route = splitRoute{hub: uint32(hub.addr), port: uint32(port)}
 		}
 	}
-	_ = h.enumerateDevice(childSpeed, hub.addr, port, route, depth)
+	if err := h.enumerateDevice(childSpeed, hub.addr, port, route, depth); err != nil {
+		h.scheduleHubPortRetry(hub, port)
+		return
+	}
+	hub.retryCount[port] = 0
 }

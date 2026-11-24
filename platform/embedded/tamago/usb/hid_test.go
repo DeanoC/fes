@@ -86,6 +86,21 @@ func TestBootKeyboardFeedIntoZeroAllocs(t *testing.T) {
 	}
 }
 
+func TestBootKeyboardFeedIntoUndersizedBufferPreservesState(t *testing.T) {
+	var keyboard BootKeyboard
+	press := []byte{0x02, 0, 4, 5, 0, 0, 0, 0} // 3 edges (Shift + A + B)
+	var tiny [2]KeyEvent
+	if n, err := keyboard.FeedInto(press, tiny[:]); err == nil || n != 0 {
+		t.Fatalf("undersized FeedInto succeeded: n=%d err=%v", n, err)
+	}
+	// State must be preserved so retrying with a large enough buffer delivers all 3 edges.
+	var full [28]KeyEvent
+	n, err := keyboard.FeedInto(press, full[:])
+	if err != nil || n != 3 {
+		t.Fatalf("retry FeedInto after undersized failure: n=%d err=%v", n, err)
+	}
+}
+
 func FuzzBootKeyboardReports(f *testing.F) {
 	f.Add([]byte{0, 0, 4, 0, 0, 0, 0, 0})
 	f.Add([]byte{0, 0, 1, 1, 1, 1, 1, 1})
