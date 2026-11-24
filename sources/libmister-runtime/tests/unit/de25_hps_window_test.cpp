@@ -116,6 +116,18 @@ void TestOpenRefusesEveryContractDifference()
  ExpectRefused([](Owner& o) { o.grant.build_id[3] ^= 1u; }, unsupported);
  ExpectRefused([](Owner& o) { o.grant.status &= ~FesDe25HpsWindowStatusGranted; }, unsupported);
  ExpectRefused([](Owner& o) { o.grant.status |= 0x10u; }, unsupported);
+ // Granted, but a port is live: refused at Open, while the machine must
+ // still be held.
+ ExpectRefused([](Owner& o) { o.grant.status &= ~FesDe25HpsWindowStatusHeld; }, unsupported);
+ ExpectRefused([](Owner& o) { o.grant.status &= ~FesDe25HpsWindowStatusDrained; }, unsupported);
+ {
+  // Once the machine runs, its ports leave hold: Check still accepts it.
+  Owner owner;
+  mister::native::De25HpsWindow window(owner);
+  assert(window.Open(kBuild).ok());
+  owner.grant.status = FesDe25HpsWindowStatusGranted;
+  assert(window.Check().ok() && window.Ready());
+ }
 }
 
 void TestOpenNeedsABuildAndAnOwner()

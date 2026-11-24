@@ -79,7 +79,9 @@ public:
  Error Duplicate(int,int*) override;
  void Close(int fd) override;
 private:
- Error Validate(const De25WindowGrant&) const;
+ // At Open the machine is still held: the grant must also report its ports
+ // held and drained. Later checks run while the machine executes.
+ Error Validate(const De25WindowGrant&,bool held) const;
  Error Poison(Error);
  De25WindowOperations& operations_;
  mutable std::mutex mutex_;

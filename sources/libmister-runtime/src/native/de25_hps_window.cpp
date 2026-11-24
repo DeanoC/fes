@@ -51,7 +51,7 @@ Error De25HpsWindow::Poison(Error error)
  return error;
 }
 
-Error De25HpsWindow::Validate(const De25WindowGrant& grant) const
+Error De25HpsWindow::Validate(const De25WindowGrant& grant, bool held) const
 {
  if (grant.version != FesDe25HpsWindowVersion)
   return Refused("the owner reports an unsupported contract version");
@@ -67,6 +67,12 @@ Error De25HpsWindow::Validate(const De25WindowGrant& grant) const
   return {ErrorCode::io_failed, "DE25 HPS window fault: " + De25WindowFaultText(grant.fault), "input"};
  if (!(grant.status & FesDe25HpsWindowStatusGranted))
   return Refused("the control block does not report the grant");
+ // Guest memory is cleared and the disk loaded through the window next, so
+ // no port may be live: a state change after the kernel's own check is
+ // caught here.
+ const std::uint32_t idle = FesDe25HpsWindowStatusHeld | FesDe25HpsWindowStatusDrained;
+ if (held && (grant.status & idle) != idle)
+  return Refused("the control block does not report its ports held and drained");
  return {};
 }
 
@@ -85,7 +91,7 @@ Error De25HpsWindow::Open(const std::array<std::uint32_t,4>& build_id)
  generation_ = 0;
  De25WindowGrant grant;
  error = operations_.Info(window, &grant);
- if (error.ok()) error = Validate(grant);
+ if (error.ok()) error = Validate(grant, true);
  if (!error.ok()) {
   // A faulted window can never be released; anything else is handed back.
   if (error.code == ErrorCode::io_failed && (grant.status & FesDe25HpsWindowStatusFault)) {
@@ -118,7 +124,7 @@ Error De25HpsWindow::Check()
  if (window_ < 0) return Refused("no window is open");
  De25WindowGrant grant;
  Error error = operations_.Info(window_, &grant);
- if (error.ok()) error = Validate(grant);
+ if (error.ok()) error = Validate(grant, false);
  return error.ok() ? error : Poison(error);
 }
 
