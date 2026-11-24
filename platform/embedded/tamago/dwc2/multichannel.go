@@ -88,9 +88,10 @@ type multiChannel struct {
 	doPing     bool
 	pinging    bool
 
-	deadline time.Time
-	nextDue  time.Time
-	fault    error
+	deadline     time.Time
+	haltDeadline time.Time
+	nextDue      time.Time
+	fault        error
 }
 
 func (c *multiChannel) effectiveInterval() time.Duration {
@@ -151,21 +152,21 @@ type multiHub struct {
 // HID/XInput/Bluetooth HCI pipes, Multi-TT hubs, and dynamic hotplug without
 // DMA buffers or global retirement on single-device errors.
 type MultiHost struct {
-	io        Registers
-	owned     bool
-	channels  int
-	fifoWords uint32
-	rxWords   uint32
-	npTxWords uint32
-	pTxWords  uint32
+	io             Registers
+	owned          bool
+	channels       int
+	fifoWords      uint32
+	rxWords        uint32
+	npTxWords      uint32
+	pTxWords       uint32
 	rootSpeed      usb.Speed
 	rootConn       bool
 	rootRetryCount uint8
 	rootRetryAt    time.Time
 	rootExhausted  bool
 	paused         bool
-	draining  bool
-	fault     error // controller-level fatal fault only (e.g. foreign DMA)
+	draining       bool
+	fault          error // controller-level fatal fault only (e.g. foreign DMA)
 
 	slots       [maxMultiChannels]multiChannel
 	devices     [maxMultiDevices + 1]*multiDevice // indexed by USB address 1..31
@@ -173,16 +174,16 @@ type MultiHost struct {
 	nextID      uint8
 	nextPipeGen uint64
 
-	events    [maxEventQueue]usb.HostEvent
-	evHead    int
-	evCount   int
+	events  [maxEventQueue]usb.HostEvent
+	evHead  int
+	evCount int
 
 	irqMu          sync.Mutex
 	irqGIC         *gic.Controller
 	irqID          uint32
 	irqMode        atomic.Bool
 	irqActive      atomic.Bool
-	irqSuspended   bool
+	irqSuspended   atomic.Bool
 	irqGuard       func() bool
 	irqReady       chan struct{}
 	irqCount       atomic.Uint64
@@ -597,7 +598,9 @@ func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
 
 	s.armed = true
 	s.halting = false
+	s.haltDeadline = time.Time{}
 	s.pinging = ping
+	s.completeSplit = split && completeSplit
 	s.waitingSplit = false
 	s.received = false
 	s.done = false
@@ -644,6 +647,10 @@ func (h *MultiHost) consumeSlotRX(ch, count int, dpid, kind uint32) error {
 					return h.failController(err)
 				}
 				s.armed = false
+				s.halting = false
+				s.haltDeadline = time.Time{}
+				s.completeSplit = false
+				s.waitingSplit = false
 			}
 			return nil
 		}
@@ -688,7 +695,7 @@ func (h *MultiHost) Service() error {
 	if h.paused {
 		return nil
 	}
-	if h.irqSuspended {
+	if h.irqSuspended.Load() {
 		if err := h.pioCheck(); err != nil {
 			return h.failController(err)
 		}
@@ -786,7 +793,11 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 			_ = h.failController(err)
 		}
 		s.armed = false
+		s.halting = false
+		s.haltDeadline = time.Time{}
 		s.pinging = false
+		s.completeSplit = false
+		s.waitingSplit = false
 		s.fault = fmt.Errorf("dwc2: ch %d addr=%d ep=%#x fatal hcint=%#x", ch, s.ownerAddr, s.ep.Address, ints)
 		if !s.ep.In() && s.outPending {
 			s.outPending = false
@@ -798,23 +809,53 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 		h.io.Write32(chReg(ch, hcint), dataToggle)
 		ints &^= dataToggle
 	}
-	if s.ep.In() && !split && ints&(1<<5) != 0 {
+	wantAck := (split && !s.completeSplit) || s.pinging
+	if !wantAck && ints&(1<<5) != 0 {
 		h.io.Write32(chReg(ch, hcint), 1<<5)
 		ints &^= 1 << 5
 	}
 	if ints&1 != 0 {
+		if s.ep.In() && !s.received {
+			if h.io.Read32(gint)&gintRXFLVL != 0 {
+				if err := h.drainRXIntoSlots(256); err != nil {
+					if h.fault == nil {
+						_ = h.failController(err)
+					}
+					return
+				}
+				if h.fault != nil || s.fault != nil || !s.armed {
+					return
+				}
+			}
+			if !s.received {
+				// Leave s.armed=true and HCINT intact until the IN payload is popped
+				// from the RX FIFO; enforce s.deadline if payload never arrives.
+				if !now.Before(s.deadline) {
+					if err := h.haltChannel(ch); err != nil {
+						_ = h.failController(err)
+						return
+					}
+					s.armed = false
+					s.halting = false
+					s.haltDeadline = time.Time{}
+					s.pinging = false
+					s.completeSplit = false
+					s.waitingSplit = false
+					s.nextDue = now.Add(s.effectiveInterval())
+				}
+				return
+			}
+		}
 		s.done = true
 	}
 	if ints&(1<<4) != 0 {
 		s.nak = true
 	}
-	if split || hsOut {
-		if ints&(1<<5) != 0 {
-			s.ack = true
-		}
-		if ints&(1<<6) != 0 {
-			s.nyet = true
-		}
+	if wantAck && ints&(1<<5) != 0 {
+		s.ack = true
+	}
+	if (split || hsOut) && ints&(1<<6) != 0 {
+		s.nyet = true
 	}
 	if !s.done && !s.nak && !s.ack && !s.nyet {
 		if !now.Before(s.deadline) {
@@ -823,7 +864,11 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 				return
 			}
 			s.armed = false
+			s.halting = false
+			s.haltDeadline = time.Time{}
 			s.pinging = false
+			s.completeSplit = false
+			s.waitingSplit = false
 			if s.ep.In() {
 				// Periodic/Bulk IN deadline expired (e.g. silent device); re-arm cleanly
 				// instead of fatally retiring the channel.
@@ -843,12 +888,28 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 			h.io.Write32(chReg(ch, hcchar), c|channelEnable|channelDisable)
 			h.io.Write32(chReg(ch, hcmask), hcintChHltd)
 			s.halting = true
+			s.haltDeadline = now.Add(50 * time.Millisecond)
+		} else if !now.Before(s.haltDeadline) {
+			s.armed = false
+			s.halting = false
+			s.haltDeadline = time.Time{}
+			s.pinging = false
+			s.completeSplit = false
+			s.waitingSplit = false
+			err := fmt.Errorf("dwc2: ch %d failed to halt", ch)
+			s.fault = err
+			if !s.ep.In() && s.outPending {
+				s.outPending = false
+				s.outErr = err
+			}
+			_ = h.failController(err)
 		}
 		return
 	}
 	h.io.Write32(chReg(ch, hcint), 0x7ff)
 	s.armed = false
 	s.halting = false
+	s.haltDeadline = time.Time{}
 
 	if s.pinging {
 		s.pinging = false
@@ -902,17 +963,19 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 	}
 
 	if s.done {
-		s.toggle ^= 2
 		if s.ep.In() {
-			if s.received {
-				s.inReady = true
-				s.inReadyLen = s.inLen
+			if !s.received {
+				return
 			}
+			s.toggle ^= 2
+			s.inReady = true
+			s.inReadyLen = s.inLen
 			s.nextDue = now.Add(s.effectiveInterval())
 			if irqTS := h.irqTimestampNS.Swap(0); irqTS > 0 {
 				h.latency.record(now.UnixNano() - irqTS)
 			}
 		} else {
+			s.toggle ^= 2
 			if hsOut {
 				s.doPing = false
 			}
@@ -1022,6 +1085,9 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 		for h.isSingleTTHubBusy(route.hub, 0) && h.io.Now().Before(ttDeadline) {
 			if err := h.drainRXIntoSlots(64); err != nil {
 				return 0, false, err
+			}
+			if h.io.Read32(gint)&gintRXFLVL != 0 {
+				continue
 			}
 			now := h.io.Now()
 			for ch := 1; ch < h.channels; ch++ {
@@ -1350,7 +1416,7 @@ type multiPipe struct {
 	closed bool
 }
 
-func (p *multiPipe) DeviceAddress() uint8          { return p.addr }
+func (p *multiPipe) DeviceAddress() uint8             { return p.addr }
 func (p *multiPipe) Endpoint() usb.EndpointDescriptor { return p.ep }
 
 func (p *multiPipe) PollInto(dst []byte) (int, error) {
@@ -1504,15 +1570,19 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 	defer func() { h.draining = false }()
 
 	// 1. Account for any already-completed transfers in RX FIFO / HCINT first.
+	// Defer stepChannel while gintRXFLVL remains asserted so no IN channel
+	// retires HCINT.XFERCOMPL before its payload is popped from the RX FIFO.
 	if err := h.drainRXIntoSlots(64); err != nil {
 		return err
 	}
 	now := h.io.Now()
-	for ch := 1; ch < h.channels; ch++ {
-		if h.slots[ch].allocated && h.slots[ch].armed {
-			h.stepChannel(ch, now)
-			if h.fault != nil {
-				return h.fault
+	if h.io.Read32(gint)&gintRXFLVL == 0 {
+		for ch := 1; ch < h.channels; ch++ {
+			if h.slots[ch].allocated && h.slots[ch].armed {
+				h.stepChannel(ch, now)
+				if h.fault != nil {
+					return h.fault
+				}
 			}
 		}
 	}
@@ -1535,8 +1605,13 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 		}
 		haltedInts[ch] = ints
 	}
-	if err := h.drainRXIntoSlots(256); err != nil {
-		return err
+	for i := 0; i < 16 && h.io.Read32(gint)&gintRXFLVL != 0; i++ {
+		if err := ctx.Err(); err != nil {
+			return h.failController(err)
+		}
+		if err := h.drainRXIntoSlots(256); err != nil {
+			return err
+		}
 	}
 	hasPendingCSplit := false
 	for ch := 1; ch < h.channels; ch++ {
@@ -1561,13 +1636,11 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 				s.outDone = true
 				s.waitingSplit = false
 				s.completeSplit = false
-			} else if haltedInts[ch]&1 != 0 || s.done || (s.ep.In() && s.received) {
+			} else if (s.ep.In() && s.received) || (!s.ep.In() && (haltedInts[ch]&1 != 0 || s.done)) {
 				s.toggle ^= 2
 				if s.ep.In() {
-					if s.received {
-						s.inReady = true
-						s.inReadyLen = s.inLen
-					}
+					s.inReady = true
+					s.inReadyLen = s.inLen
 					s.nextDue = now.Add(s.effectiveInterval())
 				} else {
 					if hsOut {
@@ -1604,6 +1677,7 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 			}
 			s.armed = false
 			s.halting = false
+			s.haltDeadline = time.Time{}
 		}
 		if s.fault == nil && s.waitingSplit && s.completeSplit {
 			hasPendingCSplit = true
@@ -1623,6 +1697,12 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 				return err
 			}
 			t := h.io.Now()
+			if h.io.Read32(gint)&gintRXFLVL != 0 {
+				if !t.Before(csplitDeadline) {
+					break
+				}
+				continue
+			}
 			pending := false
 			for ch := 1; ch < h.channels; ch++ {
 				s := &h.slots[ch]
@@ -1666,8 +1746,13 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 				postInts[ch] = ints
 			}
 		}
-		if err := h.drainRXIntoSlots(256); err != nil {
-			return err
+		for i := 0; i < 16 && h.io.Read32(gint)&gintRXFLVL != 0; i++ {
+			if err := ctx.Err(); err != nil {
+				return h.failController(err)
+			}
+			if err := h.drainRXIntoSlots(256); err != nil {
+				return err
+			}
 		}
 		t := h.io.Now()
 		for ch := 1; ch < h.channels; ch++ {
@@ -1676,13 +1761,11 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 				continue
 			}
 			if s.armed {
-				if postInts[ch]&1 != 0 || s.done || (s.ep.In() && s.received) {
+				if (s.ep.In() && s.received) || (!s.ep.In() && (postInts[ch]&1 != 0 || s.done)) {
 					s.toggle ^= 2
 					if s.ep.In() {
-						if s.received {
-							s.inReady = true
-							s.inReadyLen = s.inLen
-						}
+						s.inReady = true
+						s.inReadyLen = s.inLen
 						s.nextDue = t.Add(s.effectiveInterval())
 					} else {
 						s.outPending = false
@@ -1698,6 +1781,7 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 				}
 				s.armed = false
 				s.halting = false
+				s.haltDeadline = time.Time{}
 			} else if s.waitingSplit && !s.completeSplit {
 				// armSlot saw wire>>3 != startFrame>>3 (window closed); clear waitingSplit.
 				s.waitingSplit = false
