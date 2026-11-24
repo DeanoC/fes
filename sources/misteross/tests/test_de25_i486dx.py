@@ -32,6 +32,13 @@ class I486dxDeriveTest(unittest.TestCase):
         self.assertIn("d_out.ldfwd = 1'b0;", text)
         self.assertEqual(len(record['changes']), len(dx.CPU_EDITS))
 
+    def test_the_benches_form_keeps_the_upstream_name_and_every_other_edit(self):
+        source = (ROOT / dx.CPU_UPSTREAM).read_bytes()
+        bench, _ = dx.derive_cpu(source, rename=False)
+        synth, _ = dx.derive_cpu(source)
+        self.assertEqual(re.findall(r'^module (\w+)', bench.decode(), re.M), ['fes_i386_cpu'])
+        self.assertEqual(bench.replace(b'module fes_i386_cpu #(', b'module fes_i486dx_cpu #('), synth)
+
     def test_a_moved_anchor_fails(self):
         source = (ROOT / dx.CPU_UPSTREAM).read_bytes()
         with self.assertRaisesRegex(ValueError, 'anchor'):

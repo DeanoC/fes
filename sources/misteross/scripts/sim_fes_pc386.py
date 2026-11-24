@@ -568,26 +568,21 @@ def machine_testbench(args, linked: list[Path]) -> Path:
 
 
 def i486dx_machine_testbench(args, linked: list[Path], parameters: dict | None) -> Path:
-    """machine_tb with the DE25's i486DX as the RTL CPU (boards/de25nano/pc386/i486dx), in machine-i486dx/:
-    fes_i486dx_cpu, Verilated under the integer core's class name, and the profile's signals in its module."""
+    """machine_tb with the DE25's i486DX as the RTL CPU (boards/de25nano/pc386/i486dx), in machine-i486dx/,
+    in its benches' form (its top keeps fes_i386_cpu's name, so machine_tb and the profile read it as they
+    read the integer core)."""
     import importlib.util
     path = ROOT / 'boards/de25nano/pc386/i486dx/derive.py'
     spec = importlib.util.spec_from_file_location('de25_pc386_i486dx_derive', path)
     dx = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(dx)
     name = 'machine-i486dx'
-    derived = OUTPUT / name / 'derived'
-    rtl = dx.sim_sources(derived, ROOT)
-    vlt = derived / 'cpu_profile.vlt'
-    vlt.write_text((CORE / 'sim/cpu_profile.vlt').read_text().replace('-module "fes_i386_cpu"',
-                                                                       f'-module "{dx.TOP}"'))
-    verilate(args.verilator, name, dx.TOP, rtl + (vlt,), None, [], args.jobs, parameters,
-             flags=('--prefix', 'Vfes_i386_cpu'))
-    cpu = OUTPUT / name / f'obj-{dx.TOP}' / 'Vfes_i386_cpu__ALL.a'
+    rtl = dx.sim_sources(OUTPUT / name / 'derived', ROOT)
+    cpu = verilate(args.verilator, name, 'fes_i386_cpu', rtl + (CORE / 'sim/cpu_profile.vlt',), None, [],
+                   args.jobs, parameters)
     write_cpu_profile_layout(cpu.parent)
     return verilate_with_audio(args, name, CORE / 'sim/machine_tb.cpp', [*linked, cpu],
-                               top='pc386_machine', rtl=MACHINE_RTL, include=(cpu.parent,),
-                               flags=('-CFLAGS', '-DFES_I386_CPU_DX'))
+                               top='pc386_machine', rtl=MACHINE_RTL, include=(cpu.parent,))
 
 
 PIPE_STAGES = ('ag_s', 'm1_s', 'm2_s', 'ex_s', 'wb_s')
@@ -599,7 +594,7 @@ def write_cpu_profile_layout(obj: Path) -> Path:
     header = (obj / 'Vfes_i386_cpu___024root.h').read_text()
     tops = set()
     for stage in PIPE_STAGES:
-        found = re.search(rf'/\*(\d+):0\*/ fes_i(?:386|486dx)_cpu__DOT__{stage};', header)
+        found = re.search(rf'/\*(\d+):0\*/ fes_i386_cpu__DOT__{stage};', header)
         if not found:
             raise SimError(f'the Verilated CPU has no {stage} (cpu_profile.vlt)')
         tops.add(int(found.group(1)))
@@ -613,12 +608,11 @@ def write_cpu_profile_layout(obj: Path) -> Path:
 
 def verilate_with_audio(args, name: str, testbench: Path, linked: list[Path],
                         parameters: dict[str, int] | None = None, top: str = TOP,
-                        rtl: tuple[Path, ...] = AT_RTL, include: tuple[Path, ...] = (),
-                        flags: tuple[str, ...] = ()) -> Path:
+                        rtl: tuple[Path, ...] = AT_RTL, include: tuple[Path, ...] = ()) -> Path:
     """Build the audio model and link it beside the AT core in a testbench."""
     audio = verilate(args.verilator, name, 'pc386_audio', AUDIO_RTL, None, [], args.jobs)
     return verilate(args.verilator, name, top, rtl, testbench,
-                    [*linked, audio, NUKED / 'opl3.c'], args.jobs, parameters, (audio.parent, *include), flags)
+                    [*linked, audio, NUKED / 'opl3.c'], args.jobs, parameters, (audio.parent, *include))
 
 
 def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict, watch=None) -> dict:

@@ -34,10 +34,13 @@ stacked on #2171 (`deano/de25-486sx`, base `2d4edf547`):
   `486dx`) swaps the DX's files into its own source list. No shared RTL
   changes, and `scripts/yosys_netlist.py` and `scripts/pc386_quartus.py` are
   untouched.
-- **Benches:** `test_fes_i386_lockstep.py`, `test_fes_i486_lockstep.py` and
-  `sim_fes_pc386.py` take `--cpu-core i486dx`, which Verilates the DX's
-  sources under the integer core's class name; `lockstep_tb.cpp` and
-  `cpu_profile.h` name the CPU's hierarchy through one macro.
+- **Benches** (as amended, amendment 1): the DX runs on the shared benches
+  in its benches' form, `derive_cpu(rename=False)`: every edit but the top's
+  name, so the benches read its hierarchy as the integer core's.
+  `boards/de25nano/pc386/i486dx/lockstep.py level3|level4` runs the shared
+  lockstep runners with the DX's CPU sources, and `sim_fes_pc386.py
+  --cpu-core i486dx` builds `machine_tb` with them. No shared bench or
+  lockstep file changes.
 
 **The 387-on base** is the shared CPU, `fes_i386_cpu`, at this branch's head,
 on the same bench with the same settings, run in this slice. The DX and the
@@ -58,8 +61,8 @@ base differ only in the cuts.
 
 ### G2. Lockstep and the x87 suites
 
-Each run is made twice, on the base (`--cpu-core i386`) and on the DX
-(`--cpu-core i486dx`), from one checkout of the DX head, with the toolchain
+Each run is made twice, on the base (the shared runner) and on the DX (the
+same runner through `i486dx/lockstep.py`), from one checkout of the DX head, with the toolchain
 cache's locked Verilator:
 
 1. **Level 3 with the x87 suites:** `scripts/test_fes_i386_lockstep.py
@@ -196,3 +199,31 @@ unit's issue state and the last 64 retirements at a stall) and to
 `cpu_profile.vlt` (the unit's state made readable). Its first attempt failed
 to compile and was fixed and restarted. It measures no gate; its output had
 not been read when this file was committed.
+
+## Amendments
+
+1. **24 Nov 2026, before any G2–G5 run on the DX.** Seen by then: G1's first
+   run, at `cc136b1a6` (this method's commit). Its two netlist steps failed
+   before Yosys ran (`pc386-rom.hex` missing: the worktree had no firmware
+   build), so there is no netlist result. Its identities: at `2d4edf547` and
+   at `cc136b1a6` the design (`426e518d…`) and toolchain (`9e5d2b2e…`) are
+   equal; the evidence (`243554b4…` → `de6db338…`) and the record
+   (`4075e47b…` → `283a0708…`) differ. The record digest is the SHA-256 of
+   the whole record, every source input included (`input_identity.py`
+   `identities`), so any evidence change moves it. The cause was this
+   commit's edits to the lockstep runners, `lockstep_tb.cpp` and
+   `cpu_profile.h`.
+   - **The change:** those edits are removed. The benches take the DX in its
+     benches' form through `i486dx/lockstep.py` and `sim_fes_pc386.py
+     --cpu-core i486dx` (see "The design under test"), so no evidence file
+     changes.
+   - **G1 is unchanged** and applies to the head the record reports on. The
+     result at `cc136b1a6` is kept in the record beside it.
+   - **G1's netlist step** builds the firmware in the checkout first
+     (`scripts/build_pc386_firmware.py --download`), which the sealer
+     requires.
+   - **G2.3, TestFloat:** `test_fes_i386_x87_testfloat.py` has no
+     `--download`; it takes `--testfloat-gen`, a TestFloat build at its
+     pinned revision. It runs with such a build made for this slice; if none
+     can be made, its row reads "not run" with the reason. The other two
+     benches are as written.

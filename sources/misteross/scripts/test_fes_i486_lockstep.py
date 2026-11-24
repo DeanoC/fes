@@ -125,26 +125,21 @@ def self_check(testbench: Path, cases: list[fes_i486_cases.Case]) -> dict:
 
 
 def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs: int, i486: int,
-             yosys: Path | None, core: str = 'i386') -> Path:
+             yosys: Path | None) -> Path:
     """lockstep_tb with the level-4 oracle and the CPU at one identity, the RTL
-    (-GI486) or the seal's netlist (hierarchy -chparam), in its own directory;
-    core is the RTL CPU (test_fes_i386_lockstep.cpu_core)."""
-    if yosys and core != 'i386':
-        raise I486Error('--cpu-core i486dx runs on the RTL only')
-    output = OUTPUT / f"{'netlist' if yosys else 'rtl'}{'' if core == 'i386' else '-' + core}-I486{i486}"
+    (-GI486) or the seal's netlist (hierarchy -chparam), in its own directory."""
+    output = OUTPUT / f"{'netlist' if yosys else 'rtl'}-I486{i486}"
     output.mkdir(parents=True, exist_ok=True)
-    top, core_flags, core_cflags = level3.TOP, [], ''
     if yosys:
         design = [yosys_netlist.seal_netlist(yosys, output, ROOT, parameters={'I486': i486})]
         warnings = [*level3.frontend.NETLIST_WARNINGS]
     else:
-        design, top, core_flags, core_cflags = level3.cpu_core(core, output)
+        design = [level3.RTL / path for path in level3.CPU_RTL]
         warnings = []
-    command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', top,
-               *core_flags, '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
+    command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', level3.TOP,
+               '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
                *([] if yosys else [f'-GI486={i486}']),
-               '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{level3.DDR_MODEL}' + (' -DFES_I386_NETLIST' if yosys else '')
-                         + core_cflags,
+               '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{level3.DDR_MODEL}' + (' -DFES_I386_NETLIST' if yosys else ''),
                '-LDFLAGS', '-pthread', *map(str, design), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
     log = output / 'build.log'
     with log.open('w') as stream:
@@ -319,9 +314,6 @@ def main() -> int:
                         help='the CPU identities to run (default both)')
     i386_verilator.add_argument(parser)
     yosys_netlist.add_arguments(parser)
-    parser.add_argument('--cpu-core', choices=('i386', 'i486dx'), default='i386',
-                        help="the RTL CPU: the integer core (default) or the DE25's i486DX "
-                             '(boards/de25nano/pc386/i486dx), on the RTL only')
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     parser.add_argument('--random-programs', type=int, default=2000,
                         help='486SX random programs per seed against the level-4 oracle (default 2000)')
@@ -360,11 +352,9 @@ def main() -> int:
             report['verilator'] = verilator.record()
             yosys = yosys_netlist.locate(args)
             report['lockstep'] = {}
-            report['cpu_core'] = args.cpu_core
             for identity in (('386', '486sx') if args.identity == 'both' else (args.identity,)):
                 i486, path = IDENTITIES[identity]
-                testbench = verilate(verilator, linked, args.jobs, i486, yosys.path if yosys else None,
-                                     args.cpu_core)
+                testbench = verilate(verilator, linked, args.jobs, i486, yosys.path if yosys else None)
                 if identity == '486sx' and (args.random_programs or args.pm_programs or args.task_programs
                                             or args.debug_programs or args.undefined_programs):
                     random = random_suite(testbench, args)

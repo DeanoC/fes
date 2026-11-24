@@ -45,7 +45,7 @@ def derived_sources(output: Path) -> dict[Path, Path]:
         data, _ = step((rtl / name).read_bytes())
         (output / name).write_bytes(data)
         result[rtl / name] = output / name
-    for old, new in zip(sim.CPU_RTL, i486dx.sim_sources(output.parent / 'i486dx', ROOT)):
+    for old, new in zip(sim.CPU_RTL, i486dx.sim_sources(output.parent / 'i486dx', ROOT, rename=True)):
         if old != new:
             result[old] = new
     return result
