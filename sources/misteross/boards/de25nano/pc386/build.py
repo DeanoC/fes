@@ -39,7 +39,13 @@ I486 = 1
 MACHINE_HZ = 61437908
 CLOCK = Fraction(9_400_000_000, 153)
 PLL_IP = BOARD + "pc386/machine_pll.ip"
-PLL_OUTPUTS = ("61.437908", "12.287582")
+PLL_PARAMETERS = {"gui_number_of_clocks": "2", "gui_output_clock_frequency0": "61.437908",
+                  "gui_output_clock_frequency1": "12.287582"}
+SDRAM_CLOCKS = ()
+PLL_COMMENT = """// One PLL on CLOCK1_50 in place of the stock audio PLL, whose pin can feed no
+// second one: x 188/3, then /51 for the machine's 61.437908 MHz and /255 for
+// the 12.287582 MHz audio master clock, both -34 ppm and exactly 5:1.
+"""
 BOARD_SDRAM = False
 WINDOW = True
 # pc386_system's presenter and pixel-reset synchronizers (pc386_presenter.sv,

@@ -1,0 +1,14 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+index 10b75c65d..8513c3f8b 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+@@ -1935,8 +1935,7 @@ module fes_i386_cpu #(
+         // MOVZX r32, whose load data is zero above its size. A 16-bit load
+         // keeps its register's high half, and MOVSX and a load-op change the
+         // value in EX.
+-        d_out.ldfwd = u.cls == fes_i386_pkg::UOP_ALU && (u.op == 5'(fes_i386_pkg::ALU_MOV) || u.op == 5'(fes_i386_pkg::ALU_MOVZX))
+-                   && mkind == fes_i386_pkg::MEM_LOAD && !u.mem.in_a && u.size == fes_i386_pkg::SIZE_32 && !u.dst.hi8;
++        d_out.ldfwd = 1'b0;  // ABLATION lfwd
+         // A system access (mem.system) is checked against its table's limit,
+         // at its first read: a real-mode vector's offset against IDTR's
+         // limit less 3, a gate's against IDTR's less 7, a descriptor's low

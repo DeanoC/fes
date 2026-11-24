@@ -14,12 +14,14 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/hidkeys"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/inputmap"
+	"github.com/DeanoC/FogCast/ui/localfeed"
 	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/shared"
 	"github.com/DeanoC/FogCast/ui/theme"
@@ -168,9 +170,10 @@ type SessionSnapshot struct {
 	ControlsOpen      bool
 	MediaSelector     bool // The kit session plane is available for direct media controls.
 	// KeypadSelect keeps Select with a keypad machine; Guide opens controls.
-	KeypadSelect bool
-	KeyboardHID  bool // The running core receives physical Escape and Backspace.
-	HardwareRoom bool
+	KeypadSelect        bool
+	KeyboardHID         bool // The running core receives physical Escape and Backspace.
+	KeyboardUnavailable bool // This kit window cannot safely delegate a physical keyboard.
+	HardwareRoom        bool
 }
 
 // KitLeaseSnapshot is status-only kit ownership from GET /v1/kit/lease.
@@ -469,10 +472,17 @@ type App struct {
 	// may already have retained the grant. Shell exit reconciles it.
 	stopResponseLost bool
 	// stopWait is closed when the in-flight Soft-stop goroutine returns.
-	stopWait     chan struct{}
-	sessionGen   int
-	stopPhase    string
-	stopExpected hostclient.SessionResult
+	stopWait              chan struct{}
+	sessionGen            int
+	sessionFetchSequence  uint64
+	sessionFetchApplied   uint64
+	sessionFetchExhausted bool
+	healthFetchSequence   uint64
+	healthFetchApplied    uint64
+	healthFetchExhausted  bool
+	healthObservedAt      time.Time
+	stopPhase             string
+	stopExpected          hostclient.SessionResult
 	// stopReleasesLease is the kit Select+Start completed exit. A retry of
 	// that stop keeps releasing. Rooms B/Back leaves it false. Session
 	// change clears it so the next stop captures the new play on its own.
@@ -483,31 +493,32 @@ type App struct {
 	stopRetryIdleRelease bool
 	// stopCaptured is a Select+Start or Soft-stop queued while input was
 	// busy. stopExpected is the play from chord time, not from the flush.
-	stopCaptured       bool
-	stopMessage        string
-	gpuParked          bool
-	sessionKick        chan struct{}
-	health             hostclient.HealthResult
-	healthHave         bool
-	hostUnreachable    bool
-	inputBusy          bool
-	inputAction        string
-	inputMessage       string
-	stopQueued         bool
-	retryStopLock      bool
-	retryStopHint      string
-	retryStopCode      string
-	sessionEvents      []hostclient.SessionEvent
-	sessionEventAfter  uint64
-	flightID           string
-	lastFocusKey       string
-	lastNavKey         string
-	debugHUD           bool
-	kitLease           KitLeaseStatus
-	kitLeaseHave       bool
-	developmentRBFPath string
-	devLoadPhase       string
-	devLoadMessage     string
+	stopCaptured           bool
+	stopMessage            string
+	gpuParked              bool
+	sessionKick            chan struct{}
+	health                 hostclient.HealthResult
+	healthHave             bool
+	hostUnreachable        bool
+	inputBusy              bool
+	inputAction            string
+	inputMessage           string
+	stopQueued             bool
+	retryStopLock          bool
+	retryStopHint          string
+	retryStopCode          string
+	sessionEvents          []hostclient.SessionEvent
+	sessionEventAfter      uint64
+	flightID               string
+	lastFocusKey           string
+	lastNavKey             string
+	debugHUD               bool
+	kitLease               KitLeaseStatus
+	kitLeaseHave           bool
+	localKeyboardUncertain bool
+	developmentRBFPath     string
+	devLoadPhase           string
+	devLoadMessage         string
 
 	roomsIndex          *rooms.Index
 	roomsDir            string
@@ -668,30 +679,65 @@ type App struct {
 	previewFails       int
 	previewNext        time.Time
 
-	localCores               rooms.LocalCores
-	kitHost                  bool
-	kitHostPreparing         bool
-	hostLaunchPending        func()
-	hostPresentsPaused       bool
-	hostAwaitStatus          bool
-	sessionObservation       uint64
-	sessionObservedAt        time.Time
-	sessionReadyWrittenAt    time.Time
-	kitMenuStartedAt         time.Time
-	kitMenuSessionSeen       bool
-	kitMenuSessionState      string
-	kitMenuSessionHTTPStatus int
-	kitMenuSessionError      string
-	kitMenuHealthSeen        bool
-	kitMenuHealthError       string
-	kitMenuReadyLogf         func(string, ...any)
-	kitMenuReadyLogKey       string
-	kitMenuReadyLogAt        time.Time
-	localFeed                localPadSender
-	localInstallKnown        bool
-	localInstalled           map[string]struct{}
-	localInstallGen          uint64
-	localInstallCancel       context.CancelFunc
+	localCores         rooms.LocalCores
+	kitHost            bool
+	managedKitSoftware bool
+	kitV2InputDisabled bool
+	// SDL cannot obtain authoritative held-key state per physical keyboard.
+	// This gates only the kit-local delegated HID keyboard route.
+	kitLocalKeyboardUnavailable bool
+	// The v2 latch is set only by the eventual acknowledged authority path.
+	// It stays set through quarantine; zero-value App does not enable v2.
+	delegatedV2Active         bool
+	nativeKeyboardQuarantined bool
+	nativeKeyboardClosing     bool
+	nativeGuest               nativeGuestLifecycle
+	nativeGuestBinding        nativeGuestBinding
+	nativeGuestQueueEpoch     uint64
+	// True from native pad-only promotion until a correlated recovery proves
+	// that exact connection's local non-HID source has drained.
+	nativePadRetiring                 bool
+	nativePadRetirementEpoch          uint64
+	nativePadRetirementBinding        padOnlyAuthority
+	nativeMappedPad                   nativeMappedPadLedger
+	nativePadConnectionFence          *localfeed.PadWriteFence
+	nativePadMappingFence             *localfeed.PadWriteFence
+	nativePadDeviceFences             map[localhid.DeviceID]*localfeed.PadWriteFence
+	nativePadDeviceBlocked            map[localhid.DeviceID]bool
+	nativePadMappingFenced            bool
+	nativeGuestSnapshotAllowed        bool
+	nativeGuestBeginRequest           *localhid.Request
+	nativeKeyboardGeneration          uint64
+	nativeKeyboardGenerationExhausted bool
+	nativeKeyboardWake                chan struct{}
+	nativeUIOnlyInFlight              uint32
+	nativeUIRaw                       nativeKeyboardUIRawLedger
+	nativeUIActionNext                uint64
+	nativeUIActions                   map[uint64]nativeKeyboardUIAction
+	kitHostPreparing                  bool
+	hostLaunchPending                 func()
+	hostPresentsPaused                bool
+	hostAwaitStatus                   bool
+	sessionObservation                uint64
+	sessionObservedAt                 time.Time
+	sessionRuntimeInputRetained       bool      // session.RuntimeInput kept from an earlier read of the same play
+	sessionRuntimeInputReportedAt     time.Time // request start of the last session read that reported it
+	sessionReadyWrittenAt             time.Time
+	kitMenuStartedAt                  time.Time
+	kitMenuSessionSeen                bool
+	kitMenuSessionState               string
+	kitMenuSessionHTTPStatus          int
+	kitMenuSessionError               string
+	kitMenuHealthSeen                 bool
+	kitMenuHealthError                string
+	kitMenuReadyLogf                  func(string, ...any)
+	kitMenuReadyLogKey                string
+	kitMenuReadyLogAt                 time.Time
+	localFeed                         localPadSender
+	localInstallKnown                 bool
+	localInstalled                    map[string]struct{}
+	localInstallGen                   uint64
+	localInstallCancel                context.CancelFunc
 
 	// settingsSection is the open Settings section; "" is the section list.
 	settingsSection string
@@ -766,6 +812,7 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 		platformKick:       make(chan struct{}, 1),
 		collectionsKick:    make(chan struct{}, 1),
 		sessionKick:        make(chan struct{}, 1),
+		nativeKeyboardWake: make(chan struct{}, 1),
 		stopPhase:          "idle",
 		attractPrefEnabled: true,
 		attractIdle:        attractIdleDuration(defaultAttractIdleSeconds),
@@ -1025,6 +1072,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.handleCommandLocked(cmd, now)
+}
+
+func (a *App) handleCommandLocked(cmd Command, now time.Time) {
 	if a.kitHost && (a.hostAwaitStatus || a.kitHostPreparing) {
 		return
 	}
@@ -1294,6 +1345,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 }
 
 func (a *App) openSearchLocked() {
+	a.nativePadFenceMappingLocked()
 	a.closeDetailLocked()
 	a.closeFiltersLocked()
 	a.searchOpen = true
@@ -1354,6 +1406,10 @@ func (a *App) TypeText(text string, now time.Time) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.typeTextLocked(text, now)
+}
+
+func (a *App) typeTextLocked(text string, now time.Time) {
 	a.noteActivityLocked(now)
 	if a.consumeAttractLocked(CmdNone, now) {
 		return
@@ -1377,6 +1433,10 @@ func (a *App) TypeText(text string, now time.Time) {
 func (a *App) SearchBackspace(now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.searchBackspaceLocked(now)
+}
+
+func (a *App) searchBackspaceLocked(now time.Time) {
 	a.noteActivityLocked(now)
 	if a.consumeAttractLocked(CmdBack, now) {
 		return
@@ -1406,6 +1466,10 @@ func (a *App) SearchBackspace(now time.Time) {
 func (a *App) ConfirmSearch(now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.confirmSearchLocked(now)
+}
+
+func (a *App) confirmSearchLocked(now time.Time) {
 	a.noteActivityLocked(now)
 	if a.consumeAttractLocked(CmdSelect, now) {
 		return
@@ -1884,6 +1948,13 @@ func (a *App) Snapshot() Snapshot {
 		status = a.launch.Message
 	} else if line := strings.TrimSpace(a.inputMessage); line != "" {
 		status = line
+	}
+	if a.kitLocalKeyboardUnavailableLocked() {
+		if status != "" {
+			status = kitLocalKeyboardUnavailableStatus + " · " + status
+		} else {
+			status = kitLocalKeyboardUnavailableStatus
+		}
 	}
 	if a.platformErr != "" {
 		if status == "" {
@@ -2590,7 +2661,7 @@ func (a *App) playHIDRouteReadyLocked() bool {
 	// Kit-host library sessions use the local socket, not the optional host
 	// remote-input attachment. The same display gate selects that socket in
 	// queuePlayHIDLocked; require a real feed.
-	if a.kitHost && a.client != nil && a.needsSessionDisplayLocked() && a.localFeed != nil {
+	if a.kitHost && a.client != nil && a.localFeed != nil {
 		return true
 	}
 	if a.session.Input == nil {
@@ -2652,6 +2723,13 @@ func (a *App) consumePlayEscape(name string) bool {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.consumePlayEscapeLocked(name)
+}
+
+func (a *App) consumePlayEscapeLocked(name string) bool {
+	if !strings.EqualFold(strings.TrimSpace(name), "escape") {
+		return false
+	}
 	return a.session.State == "active" && !(a.session.CoreKeyboardHID && a.forwardsKeyboardHIDLocked()) &&
 		!a.roomDuringPlay && !a.sessionDisplayBusy && !a.sessionDisplayUncertain &&
 		!a.launcherDisplayFocusedLocked() && !a.tapePickerOpen && !a.firmwarePickerOpen &&
@@ -2801,7 +2879,7 @@ func (a *App) releaseTransitionPlayKey(source int, name string, usage uint8) boo
 		return true
 	}
 	delete(a.playKeyAdmitted, physical)
-	if !a.playHIDRouteReadyLocked() || a.playHIDFailClosedLocked() || a.client == nil {
+	if !a.playHIDRouteReadyLocked() || a.keyboardHIDFailClosedLocked() || a.client == nil {
 		if a.playKeyPendingRelease == nil {
 			a.playKeyPendingRelease = make(map[physicalPlayKey]playHIDKey)
 		}
@@ -2811,7 +2889,7 @@ func (a *App) releaseTransitionPlayKey(source int, name string, usage uint8) boo
 	}
 	event := remoteinput.Event{Player: key.player, Device: key.device, Kind: key.kind, Code: key.code, Action: remoteinput.ActionRelease}
 	a.rememberPlayHIDLocked(event)
-	a.queuePlayHIDLocked([]remoteinput.Event{event})
+	a.queuePhysicalKeyboardLocked(event)
 	a.traceKeyRouteLocked("transition-release", source)
 	return true
 }
@@ -2819,13 +2897,13 @@ func (a *App) releaseTransitionPlayKey(source int, name string, usage uint8) boo
 // Retry neutral releases only on the original active, machine-focused route.
 // Session replacement and explicit handoff clear these along with the holds.
 func (a *App) flushPendingPlayKeyReleasesLocked() {
-	if len(a.playKeyPendingRelease) == 0 || !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.playHIDFailClosedLocked() || a.client == nil {
+	if len(a.playKeyPendingRelease) == 0 || !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.keyboardHIDFailClosedLocked() || a.client == nil {
 		return
 	}
 	for physical, key := range a.playKeyPendingRelease {
 		event := remoteinput.Event{Player: key.player, Device: key.device, Kind: key.kind, Code: key.code, Action: remoteinput.ActionRelease}
 		a.rememberPlayHIDLocked(event)
-		a.queuePlayHIDLocked([]remoteinput.Event{event})
+		a.queuePhysicalKeyboardLocked(event)
 		delete(a.playKeyPendingRelease, physical)
 	}
 }
@@ -2862,7 +2940,7 @@ func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event re
 				// Apply the same admission gates as an ordinary press. Flush
 				// deferred releases first so an old neutral cannot follow a new
 				// contribution on the same route.
-				if !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.playHIDFailClosedLocked() || a.client == nil || a.playHIDPending >= maxPendingPlayHID {
+				if !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.keyboardHIDFailClosedLocked() || a.client == nil || a.playHIDPending >= maxPendingPlayHID {
 					return false
 				}
 				a.flushPendingPlayKeyReleasesLocked()
@@ -2874,7 +2952,7 @@ func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event re
 			}
 		}
 	}
-	if !a.sendPlayHIDLocked(event) {
+	if !a.sendPhysicalKeyboardLocked(event) {
 		if event.Action == remoteinput.ActionRelease {
 			if key, ok := a.playKeyAdmitted[physical]; ok {
 				delete(a.playKeyAdmitted, physical)
@@ -2912,6 +2990,13 @@ func (a *App) hasOtherPlayKeyContributorLocked(physical physicalPlayKey, key pla
 }
 
 func (a *App) sendPlayHIDLocked(event remoteinput.Event) bool {
+	if a.kitV2InputDisabled {
+		return false
+	}
+	if a.kitSDLKeyboardGuestBlockedLocked() &&
+		(event.Device == remoteinput.DeviceKeyboard || event.Kind == remoteinput.KindKey) {
+		return false
+	}
 	ready := a.forwardsPlayHIDLocked()
 	blocked := a.playHIDInputBlockedLocked()
 	if blocked {
@@ -2958,25 +3043,52 @@ func (a *App) pollSession(ctx context.Context) {
 func (a *App) fetchSession(ctx context.Context) {
 	a.mu.Lock()
 	gen := a.sessionGen
+	if a.sessionFetchExhausted || a.sessionFetchSequence == ^uint64(0) {
+		a.sessionFetchExhausted = true
+		a.nativePadRevokeConnectionLocked()
+		a.sessionObservedAt = time.Time{}
+		a.clearSessionReadyLocked()
+		a.requestNativeKeyboardQuarantineLocked(nativeFaultOverflow)
+		a.mu.Unlock()
+		return
+	}
+	a.sessionFetchSequence++
+	sequence := a.sessionFetchSequence
+	requestStarted := time.Now()
 	a.mu.Unlock()
 	result, err := a.client.Session(ctx)
 	if ctx.Err() != nil {
+		a.mu.Lock()
+		if gen == a.sessionGen && sequence > a.sessionFetchApplied {
+			a.sessionFetchApplied = sequence
+			a.sessionObservedAt = time.Time{}
+			a.nativePadRevokeConnectionLocked()
+			a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
+		}
+		a.mu.Unlock()
 		return
 	}
 	if err != nil {
 		a.mu.Lock()
+		if gen != a.sessionGen || sequence <= a.sessionFetchApplied {
+			a.mu.Unlock()
+			return
+		}
+		a.sessionFetchApplied = sequence
 		a.sessionObservedAt = time.Time{}
+		a.nativePadRevokeConnectionLocked()
 		a.clearSessionReadyLocked()
+		a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
 		a.mu.Unlock()
 		a.noteKitMenuSessionObservation(result, err)
 		return
 	}
 	a.mu.Lock()
-	if gen != a.sessionGen {
+	if gen != a.sessionGen || sequence <= a.sessionFetchApplied {
 		a.mu.Unlock()
-		a.noteKitMenuSessionObservation(result, nil)
 		return
 	}
+	a.sessionFetchApplied = sequence
 	if a.launch.Phase == "launching" || a.stopPhase == "stopping" || a.inputBusy || a.sessionDisplayBusy || a.developmentLoadingLocked() {
 		a.mu.Unlock()
 		a.noteKitMenuSessionObservation(result, nil)
@@ -2988,7 +3100,10 @@ func (a *App) fetchSession(ctx context.Context) {
 	}
 	a.applySessionLocked(result)
 	if result.ErrorCode == "" {
-		a.sessionObservedAt = time.Now()
+		a.sessionObservedAt = requestStarted
+		if result.RuntimeInput != nil {
+			a.sessionRuntimeInputReportedAt = requestStarted
+		}
 	}
 	a.mu.Unlock()
 	a.noteKitMenuSessionObservation(result, nil)
@@ -3111,18 +3226,53 @@ func (a *App) kickSessionPollLocked() {
 	}
 }
 
+func (a *App) acceptHealthObservationLocked(sequence uint64) bool {
+	if sequence < a.healthFetchApplied {
+		return false
+	}
+	a.healthFetchApplied = sequence
+	return true
+}
+
+func (a *App) invalidateCanceledHealthObservation(sequence uint64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if sequence < a.healthFetchApplied {
+		return
+	}
+	a.healthFetchApplied = sequence
+	a.healthObservedAt = time.Time{}
+	a.nativePadRevokeConnectionLocked()
+	a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
+}
+
 func (a *App) fetchHealth(ctx context.Context) {
+	a.mu.Lock()
+	if a.healthFetchExhausted || a.healthFetchSequence == ^uint64(0) {
+		a.healthFetchExhausted = true
+		a.healthObservedAt = time.Time{}
+		a.nativePadRevokeConnectionLocked()
+		a.requestNativeKeyboardQuarantineLocked(nativeFaultOverflow)
+		a.mu.Unlock()
+		return
+	}
+	a.healthFetchSequence++
+	sequence := a.healthFetchSequence
+	requestStarted := time.Now()
+	a.mu.Unlock()
 	var paired KitLeaseStatus
 	var pairedErr error
 	pairedHave := a.client != nil && a.client.paired
 	if pairedHave {
 		paired, pairedErr = a.client.PairedKitLease(ctx)
 		if ctx.Err() != nil {
+			a.invalidateCanceledHealthObservation(sequence)
 			return
 		}
 	}
 	result, err := a.client.Health(ctx)
 	if ctx.Err() != nil {
+		a.invalidateCanceledHealthObservation(sequence)
 		return
 	}
 	if err == nil {
@@ -3140,13 +3290,36 @@ func (a *App) fetchHealth(ctx context.Context) {
 			}
 		}
 		a.mu.Lock()
+		if !a.acceptHealthObservationLocked(sequence) {
+			a.mu.Unlock()
+			return
+		}
 		wasForeign := a.foreignKitLeaseLocked()
 		wasReady := a.healthHave && !a.hostUnreachable && a.kitMenuHealthError == "" && a.health.Ready && a.health.TargetReachable && a.health.TargetReady
+		if a.delegatedV2Active && (!a.healthHave || !result.Ready || !result.TargetReachable ||
+			result.Connection.State != a.health.Connection.State || result.Connection.Owner != a.health.Connection.Owner || result.Connection.LeaseOwned != a.health.Connection.LeaseOwned ||
+			a.health.Connection.TargetID == "" || a.health.Connection.BootID == "" || a.health.Connection.LeaseGeneration == "" ||
+			result.Connection.TargetID != a.health.Connection.TargetID || result.Connection.BootID != a.health.Connection.BootID ||
+			result.Connection.LeaseGeneration != a.health.Connection.LeaseGeneration || lease.Unavailable ||
+			lease.Generation != result.Connection.LeaseGeneration) {
+			a.nativePadRevokeConnectionLocked()
+			a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
+		}
+		if binding, ok := a.localKeyboardBindingLocked(); ok &&
+			(!result.Ready || !result.TargetReachable ||
+				result.Connection.State != a.health.Connection.State || result.Connection.Owner != a.health.Connection.Owner || result.Connection.LeaseOwned != a.health.Connection.LeaseOwned ||
+				result.Connection.TargetID != a.health.Connection.TargetID || result.Connection.BootID != a.health.Connection.BootID ||
+				result.Connection.LeaseGeneration != binding.LeaseGeneration || lease.Unavailable || lease.Generation != binding.LeaseGeneration) {
+			a.retireLocalKeyboardLocked()
+		}
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = result
+		a.healthObservedAt = requestStarted
 		a.kitLeaseHave = true
 		a.kitLease = lease
+		a.nativePadObserveLeaseLocked()
+		a.localKeyboardUncertain = false
 		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
 		if a.kitHost && !wasReady && result.Ready && result.TargetReachable && result.TargetReady {
 			a.refreshKitInventoryLocked(ctx)
@@ -3155,10 +3328,24 @@ func (a *App) fetchHealth(ctx context.Context) {
 		a.noteKitMenuHealthObservation(nil)
 		return
 	}
+	a.mu.Lock()
+	if !a.acceptHealthObservationLocked(sequence) {
+		a.mu.Unlock()
+		return
+	}
+	a.retireLocalKeyboardLocked()
+	a.healthObservedAt = time.Time{}
+	a.nativePadRevokeConnectionLocked()
+	a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
+	a.mu.Unlock()
 	if pairedHave && pairedErr == nil {
 		// Paired target status remains useful when the host's selected target
 		// cannot be observed. The authenticated projection belongs to this kit.
 		a.mu.Lock()
+		if !a.acceptHealthObservationLocked(sequence) {
+			a.mu.Unlock()
+			return
+		}
 		wasForeign := a.foreignKitLeaseLocked()
 		a.hostUnreachable = false
 		a.healthHave = true
@@ -3175,12 +3362,20 @@ func (a *App) fetchHealth(ctx context.Context) {
 		// Keep the scoped status failure visible even when the selected host's
 		// health endpoint is also unreachable.
 		a.mu.Lock()
+		if !a.acceptHealthObservationLocked(sequence) {
+			a.mu.Unlock()
+			return
+		}
 		a.kitLeaseHave = true
 		a.kitLease = KitLeaseStatus{Unavailable: true, Reason: "paired kit lease status unavailable"}
 		a.mu.Unlock()
 	}
 	if isHostTransportError(err) {
 		a.mu.Lock()
+		if !a.acceptHealthObservationLocked(sequence) {
+			a.mu.Unlock()
+			return
+		}
 		a.hostUnreachable = true
 		a.mu.Unlock()
 		a.noteKitMenuHealthObservation(err)
@@ -3191,6 +3386,10 @@ func (a *App) fetchHealth(ctx context.Context) {
 		return
 	}
 	a.mu.Lock()
+	if !a.acceptHealthObservationLocked(sequence) {
+		a.mu.Unlock()
+		return
+	}
 	if statusErr == nil && status.Unavailable {
 		a.hostUnreachable = false
 		a.healthHave = true
@@ -3416,13 +3615,28 @@ func inputFailureStatus(action string) string {
 func (a *App) applySessionLocked(result hostclient.SessionResult) {
 	a.sessionObservation++
 	a.sessionObservedAt = time.Time{}
-	if result.ErrorCode != "" || !samePlayHIDSession(a.session, result) {
+	// An omitted runtime identity keeps the same play: the agent withholds it
+	// during any coordinator transition and after a failed or slow runtime
+	// read. Input from a kept identity fails closed after the observation window.
+	result, retained := retainSessionRuntimeInput(a.session, result)
+	// An identity that this observation cannot carry ends its play.
+	same := samePlayHIDSession(a.session, result) && (a.session.RuntimeInput == nil || result.RuntimeInput != nil)
+	staleIdentity := retained && !runtimeInputReportFresh(a.sessionRuntimeInputReportedAt, time.Now())
+	if result.ErrorCode != "" || !same || staleIdentity {
+		a.nativePadRevokeConnectionLocked()
+	}
+	if a.delegatedV2Active && (result.ErrorCode != "" || result.RuntimeInput == nil || staleIdentity ||
+		(result.RuntimeInput != nil && result.RuntimeInput.Validate() != nil) || !protocol.ValidInputAgentInstance(result.InputAgentInstance) || !same) {
+		a.requestNativeKeyboardQuarantineLocked(nativeFaultAuthority)
+	}
+	if result.ErrorCode != "" || !same {
+		a.retireLocalKeyboardLocked()
 		a.clearSessionReadyLocked()
 	}
 	if result.ErrorCode != "" {
 		return
 	}
-	if !samePlayHIDSession(a.session, result) {
+	if !same {
 		a.sessionTitleRequest++
 		a.sessionTitlePending = false
 		a.sessionTitleNext = time.Time{}
@@ -3433,6 +3647,11 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 		a.invalidateSessionDisplayLocked()
 	}
 	a.session = result
+	a.sessionRuntimeInputRetained = retained
+	if !retained {
+		// fetchSession stamps an identity that its read reported.
+		a.sessionRuntimeInputReportedAt = time.Time{}
+	}
 	a.rememberFlightLocked(result.FlightID)
 	// Keep retainedIdleLease. Soft-stop of foreground B can promote A, and
 	// a later launch can go active, while B's idle grant is still retained.
@@ -3553,34 +3772,35 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 	chrome := sessionChromeState(a.session.State, a.session.Execution, a.stopPhase == "stopping", retry)
 	diagnostic := chrome == sessionChromeDevelopment || (devActive && (a.session.State == "active" || a.session.State == "launching"))
 	return SessionSnapshot{
-		State:             a.session.State,
-		Chrome:            chrome,
-		GameID:            a.session.GameID,
-		Title:             title,
-		System:            a.session.System,
-		Coleco:            a.colecoSessionLocked(),
-		Execution:         a.session.Execution,
-		Media:             a.session.Media,
-		InputState:        inputState,
-		InputHint:         remoteInputHint(a.session, a.inputBusy, a.inputAction, a.affinity.current.Kind),
-		InputBusy:         a.inputBusy || remoteInputTransitioning(inputState),
-		Progress:          progress,
-		Stopping:          a.stopPhase == "stopping",
-		RetryStop:         retry,
-		RetryHint:         strings.TrimSpace(a.retryStopHint),
-		RetryCode:         strings.TrimSpace(a.retryStopCode),
-		LaunchLocked:      a.sessionStopOfferedLocked() || a.launch.Phase == "launching" || a.developmentLoadingLocked(),
-		Events:            events,
-		DevelopmentActive: devActive,
-		DevelopmentState:  devState,
-		Diagnostic:        diagnostic,
-		LoadTape:          a.sessionLiveMediaOfferedLocked(),
-		ControlsNotice:    a.roomSessionNotice,
-		ControlsOpen:      a.roomDuringPlay,
-		MediaSelector:     a.needsSessionDisplayLocked() && (a.sessionLiveMediaOfferedLocked() || a.mediaControlsDirect),
-		KeypadSelect:      a.sessionKeypadLocked(),
-		KeyboardHID:       a.forwardsKeyboardHIDLocked(),
-		HardwareRoom:      a.playingHardwareRoomAvailableLocked(),
+		State:               a.session.State,
+		Chrome:              chrome,
+		GameID:              a.session.GameID,
+		Title:               title,
+		System:              a.session.System,
+		Coleco:              a.colecoSessionLocked(),
+		Execution:           a.session.Execution,
+		Media:               a.session.Media,
+		InputState:          inputState,
+		InputHint:           remoteInputHint(a.session, a.inputBusy, a.inputAction, a.affinity.current.Kind),
+		InputBusy:           a.inputBusy || remoteInputTransitioning(inputState),
+		Progress:            progress,
+		Stopping:            a.stopPhase == "stopping",
+		RetryStop:           retry,
+		RetryHint:           strings.TrimSpace(a.retryStopHint),
+		RetryCode:           strings.TrimSpace(a.retryStopCode),
+		LaunchLocked:        a.sessionStopOfferedLocked() || a.launch.Phase == "launching" || a.developmentLoadingLocked(),
+		Events:              events,
+		DevelopmentActive:   devActive,
+		DevelopmentState:    devState,
+		Diagnostic:          diagnostic,
+		LoadTape:            a.sessionLiveMediaOfferedLocked(),
+		ControlsNotice:      a.roomSessionNotice,
+		ControlsOpen:        a.roomDuringPlay,
+		MediaSelector:       a.needsSessionDisplayLocked() && (a.sessionLiveMediaOfferedLocked() || a.mediaControlsDirect),
+		KeypadSelect:        a.sessionKeypadLocked(),
+		KeyboardHID:         a.forwardsKeyboardHIDLocked(),
+		KeyboardUnavailable: a.kitLocalKeyboardUnavailableLocked(),
+		HardwareRoom:        a.playingHardwareRoomAvailableLocked(),
 	}
 }
 
@@ -3638,7 +3858,7 @@ func (a *App) fetchSessionEvents(ctx context.Context) {
 }
 
 func kitLeaseFromConnection(connection hostclient.TargetConnection) KitLeaseStatus {
-	status := KitLeaseStatus{State: connection.State, Owner: connection.Owner, Reason: connection.Message}
+	status := KitLeaseStatus{State: connection.State, Owner: connection.Owner, Reason: connection.Message, Generation: connection.LeaseGeneration}
 	switch connection.State {
 	case "busy":
 		status.State = "held"

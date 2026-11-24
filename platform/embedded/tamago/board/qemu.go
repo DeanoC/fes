@@ -6,6 +6,8 @@ package board
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/qemuvirt"
 	"github.com/DeanoC/fes/platform/embedded/tamago/display"
@@ -13,6 +15,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
+	"github.com/DeanoC/fes/platform/embedded/tamago/rtc"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 	"github.com/usbarmory/tamago/dma"
 )
@@ -26,6 +29,8 @@ func PSCI() *psci.Client                { return qemuvirt.PSCI() }
 func PowerOff() error                   { return qemuvirt.PowerOff() }
 func Reset() error                      { return qemuvirt.Reset() }
 func EntropySource() psci.EntropySource { return qemuvirt.EntropySource() }
+func RTC() (*rtc.PL031, error)          { return qemuvirt.RTC() }
+func WallTime() (time.Time, bool)       { return qemuvirt.WallTime() }
 func InitDevices() (*dma.Region, error) { return qemuvirt.InitDevices() }
 func OpenStorage() (block.Device, error) {
 	pool, err := qemuvirt.DMAPool()
@@ -56,11 +61,19 @@ type qemuNetwork struct{ *network.Interface }
 
 func (n qemuNetwork) Stats() string { return fmt.Sprintf("%+v", n.Statistics()) }
 func OpenNetwork(ctx context.Context) (Network, error) {
+	return openNetworkWithConfig(ctx, network.Config{})
+}
+
+func OpenNetworkDHCP(ctx context.Context) (Network, error) {
+	return openNetworkWithConfig(ctx, network.Config{DHCP: true})
+}
+
+func openNetworkWithConfig(ctx context.Context, cfg network.Config) (Network, error) {
 	pool, err := qemuvirt.DMAPool()
 	if err != nil {
 		return nil, err
 	}
-	n, err := network.OpenWithPool(ctx, network.Config{}, pool)
+	n, err := network.OpenWithPool(ctx, cfg, pool)
 	if err != nil {
 		return nil, err
 	}

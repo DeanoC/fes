@@ -26,7 +26,7 @@ func TestLocalMouseStrictSequence(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan struct{})
-	go func() { c.readLocal(ctx, a); close(done) }()
+	go func() { c.readLocal(ctx, a, false); close(done) }()
 	f := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeInput, Session: 1}, Seq: 1, Device: 2, Kind: 4, Action: 3, Value: 9}
 	for _, seq := range []uint32{1, 1, 0, 2} {
 		f.Seq = seq

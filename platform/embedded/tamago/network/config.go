@@ -10,15 +10,32 @@ import (
 	"net/netip"
 )
 
-// Config selects one QEMU interface. The address is a static IPv4 prefix;
-// The Nano selects its own MAC/PHY and uses the explicit OpenDevice path.
+// Config selects one QEMU interface. By default it uses a static IPv4 prefix;
+// setting DHCP acquires an IPv4 lease over RFC 2131 DHCPv4 before configuring
+// the stack. The Nano selects its own MAC/PHY and uses the explicit OpenDevice
+// path with its profile's static address. Nothing wires OpenDeviceDHCP to the
+// Nano XGMAC and the Nano board refuses DHCP, so only QEMU acquires leases.
 type Config struct {
 	Address     string
 	Gateway     string
+	DHCP        bool
+	DHCPConfig  DHCPConfig
 	MMIOAddress uint32 // zero discovers a modern VirtIO net device in QEMU virt
 }
 
 func (c Config) normalized() (Config, error) {
+	if c.MMIOAddress != 0 && (c.MMIOAddress < 0x0a000000 || c.MMIOAddress >= 0x0a004000 || c.MMIOAddress%0x200 != 0) {
+		return Config{}, fmt.Errorf("network: address is outside QEMU virt's VirtIO window")
+	}
+	if c.DHCP {
+		if c.Address != "" || c.Gateway != "" {
+			return Config{}, fmt.Errorf("network: DHCP cannot be combined with static address or gateway")
+		}
+		if err := validateDHCPConfig(c.DHCPConfig); err != nil {
+			return Config{}, err
+		}
+		return c, nil
+	}
 	if c.Address == "" {
 		c.Address = "10.0.2.15/24"
 	}
@@ -28,9 +45,6 @@ func (c Config) normalized() (Config, error) {
 	address, err := staticConfig(c.Address, c.Gateway)
 	if err != nil {
 		return Config{}, err
-	}
-	if c.MMIOAddress != 0 && (c.MMIOAddress < 0x0a000000 || c.MMIOAddress >= 0x0a004000 || c.MMIOAddress%0x200 != 0) {
-		return Config{}, fmt.Errorf("network: address is outside QEMU virt's VirtIO window")
 	}
 	c.Address, c.Gateway = address.Address, address.Gateway
 	return c, nil

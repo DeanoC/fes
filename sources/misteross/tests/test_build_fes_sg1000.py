@@ -444,7 +444,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertNotIn("/home/deano/", readme)
         self.assertIn("Quartus", readme)
         self.assertIn("FES_COLECO_OSS", readme)
-        self.assertIn("5391eeb1", readme)
+        self.assertIn("d273c1cb", readme)
         self.assertIn("package-only", readme.lower())
         self.assertIn("sim-fes-sg1000-rom-link", readme)
         self.assertIn("outside the first-party catalog", readme.lower())

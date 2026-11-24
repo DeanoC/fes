@@ -2,6 +2,7 @@ package input
 
 import (
 	"context"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"net"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ func newLocalMatrixFeed(t *testing.T, core string) (net.Conn, <-chan uint64) {
 	t.Helper()
 	posted := make(chan uint64, 64)
 	keys := NewKeyboardSink()
-	keys.SetPoster(func(_ context.Context, matrix uint64) error {
+	keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, matrix uint64) error {
 		posted <- matrix
 		return nil
 	})

@@ -3,6 +3,8 @@ package fogcast
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -30,7 +32,32 @@ func de25UploadPackageFixture(t *testing.T, core string, size int) []byte {
 		}
 		return raw
 	}
-	text := string(read(fmt.Sprintf("manifests/valid-nano-upload-%d.toml", size)))
+	// The PC/XT's 68 KiB image has no shared fixture: it is the 64 KiB one
+	// with the size, and the map's length and digest, rewritten.
+	source := size
+	if size == 69632 {
+		source = 65536
+	}
+	text := string(read(fmt.Sprintf("manifests/valid-nano-upload-%d.toml", source)))
+	mapping := read(fmt.Sprintf("maps/valid-nano-upload-%d.json", source))
+	if source != size {
+		before := fmt.Sprintf("\"source_size\":%d}\n", source)
+		if !bytes.HasSuffix(mapping, []byte(before)) {
+			t.Fatal("fixture map layout changed")
+		}
+		original := mapping
+		mapping = append(bytes.TrimSuffix(append([]byte(nil), mapping...), []byte(before)), fmt.Sprintf("\"source_size\":%d}\n", size)...)
+		for old, replacement := range map[string]string{
+			fmt.Sprintf("source_size = %d\n", source):               fmt.Sprintf("source_size = %d\n", size),
+			fmt.Sprintf("size = %d\n", len(original)):               fmt.Sprintf("size = %d\n", len(mapping)),
+			fmt.Sprintf("sha256 = \"%x\"", sha256.Sum256(original)): fmt.Sprintf("sha256 = \"%x\"", sha256.Sum256(mapping)),
+		} {
+			if strings.Count(text, old) != 1 {
+				t.Fatal("fixture manifest lacks", old)
+			}
+			text = strings.Replace(text, old, replacement, 1)
+		}
+	}
 	start, end := strings.Index(text, "[[interfaces]]"), strings.Index(text, "[build]")
 	if start < 0 || end < start {
 		t.Fatal("fixture manifest layout changed")
@@ -49,10 +76,16 @@ func de25UploadPackageFixture(t *testing.T, core string, size int) []byte {
 			"fes.media.atari-st-floppy-geometry"} {
 			add(id, 1, 0)
 		}
+	} else if core == pcxtCoreID {
+		add("fes.media.pcxt-floppy", 1, 0)
+		add("fes.media.pcxt-floppy-write", 1, 0)
 	} else {
 		add("fes.media.spectrum-tape", 2, 0)
 	}
 	text = text[:start] + interfaces + text[end:]
+	if abi := corepackage.DE25ComputerABI(core); abi.Minor != 0 {
+		text = strings.Replace(text, "id = \"fes.simple-game\"\nmajor = 1\nminor = 0\n", fmt.Sprintf("id = \"fes.simple-game\"\nmajor = 1\nminor = %d\n", abi.Minor), 1)
+	}
 	for old, replacement := range map[string]string{
 		`id = "fes.pong"`:                   fmt.Sprintf("id = %q", core),
 		`programming_profile = "fes-gp-v1"`: `programming_profile = "de25-linux-computer-v1"`,
@@ -63,8 +96,7 @@ func de25UploadPackageFixture(t *testing.T, core string, size int) []byte {
 		}
 		text = strings.Replace(text, old, replacement, 1)
 	}
-	return libraryROMPackageArchive(t, []byte(text), read("payloads/fes-fixture.rbf"),
-		read(fmt.Sprintf("maps/valid-nano-upload-%d.json", size)))
+	return libraryROMPackageArchive(t, []byte(text), read("payloads/fes-fixture.rbf"), mapping)
 }
 
 // A DE25 Spectrum or Atari ST needs its ROM like the DE10 packages do: the
@@ -175,5 +207,75 @@ func TestDE25FirmwareUploadTitleNeedsItsROMThenSendsTheSource(t *testing.T) {
 				t.Fatalf("loads=%d host links=%d receipt=%+v", client.coreCalls, linker.calls, link)
 			}
 		})
+	}
+}
+
+// The DE25 PC/XT uploads its BIOS. A title with no disk of its own starts
+// from the bundled FreeDOS disk, which rides in the firmware launch bound to
+// the title, as the format-2 PC/XT's does in its own transport.
+func TestDE25PcxtTitleStartsFromTheBundledDiskBesideItsFirmware(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	store, err := catalog.OpenContext(ctx, filepath.Join(root, "catalog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	packages, err := corepackage.NewStore(filepath.Join(root, "packages"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &defaultMediaPackageClient{packageLibraryClient: &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}}
+	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	s.corePackages = packages
+	s.SetMachineROMLinker(&forbiddenHostROMLinker{})
+	archive := de25UploadPackageFixture(t, pcxtCoreID, 69632)
+	installed, _, err := s.ImportCorePackage(ctx, int64(len(archive)), bytes.NewReader(archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !corepackage.FirmwareUpload(installed.Descriptor) || installed.Descriptor.ABI != corepackage.DE25ComputerABI(pcxtCoreID) {
+		t.Fatalf("fixture is not the DE25 PC/XT: %+v", installed.Descriptor.ABI)
+	}
+	entry, err := s.CreateCoreEntry(ctx, "DE25 PC/XT", installed.PackageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rom, _, err := store.ImportCoreMedia(ctx, bytes.Repeat([]byte{0x5a}, 69632))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, installed.Descriptor.ROM.ID, "", rom.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	boot := freeDOSLike(t)
+	bundle := t.TempDir()
+	addBundledDisk(t, bundle, pcxtCoreID, boot)
+	s.LoadBundledFirmware(ctx, bundle)
+	var body []byte
+	client.coreLoad = func(_ context.Context, _ int64, r io.Reader) (protocol.Status, error) {
+		body, _ = io.ReadAll(r)
+		return protocol.Status{}, errors.New("test kit loads nothing")
+	}
+	_, _ = s.Launch(ctx, entry.GameID, nil)
+	if body == nil {
+		t.Fatal("nothing was sent to the kit")
+	}
+	staged, err := corepackage.StageROMInputBytes(ctx, t.TempDir(), body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer staged.Cleanup()
+	if staged.FirmwarePath == "" || staged.InitialMedia == nil {
+		t.Fatalf("the firmware launch carried no start disk: %+v", staged.InitialMedia)
+	}
+	disk, err := os.ReadFile(staged.InitialMedia.Path)
+	if err != nil || !bytes.Equal(disk, boot) {
+		t.Fatalf("start disk is not the bundled one: %v", err)
+	}
+	want := corepackage.StagedInitialMedia{InterfaceID: protocol.PcxtFloppyInterface().ID, GameID: entry.GameID,
+		BaseMediaID: fmt.Sprintf("%x", sha256.Sum256(boot)), Unit: protocol.PcxtFloppyUnit, Path: staged.InitialMedia.Path, Size: protocol.PcxtFloppyBytes}
+	if *staged.InitialMedia != want {
+		t.Fatalf("start disk binding %+v, want %+v", *staged.InitialMedia, want)
 	}
 }

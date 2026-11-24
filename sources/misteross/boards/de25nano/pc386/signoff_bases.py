@@ -119,7 +119,11 @@ RAM = ('Area advisory: a small logical RAM placed alone in a physical M20K. Thes
 TENSION = ('Placement advisory: registers in the machine netlist with many endpoints spread across the '
            'CPU. The named ones are fes_i386_cpu control registers (stall, drain, wait, reset and fault '
            'flags) and the machine reset; the others are auto-named machine-netlist registers. Every clock '
-           'meets setup, hold, recovery and removal at every corner, which the gate requires separately.')
+           'meets setup, hold, recovery and removal at every corner, which the gate requires separately. '
+           'A fitter copy of a named register (~_Duplicate_N) is the same register: Deano accepted that '
+           'spelling on 23 Nov 2026 (#2036), when the fit at dfacd28e1 split cpu_biu_reset and reported '
+           'cpu_biu_reset~_Duplicate_2 (6,484 endpoints) where the fit at 3401bb193 reported the undivided '
+           'register (8,001 endpoints); the same copy is reviewed under LNT-30010 biu-reset.')
 BIU_RESET = ('fes_i386_cpu\'s BIU reset, a machine-clock register: it drives synchronous clears, and the '
              'synthesis netlist also uses it in clock enables (fetch prediction). It is not an '
              'asynchronous reset; its paths are timed in the machine clock.')
@@ -160,6 +164,6 @@ BASES = (
     advisory('FLP-10000', 'small-rams', 3, nodes(
         '(?:' + S + r'[^|]+|' + E + r'window\|port[0-2]\|command_[a-z]+_rtl_\d+|' + E + r'arbiter\|unpack[12]\|[^ ]+|'
         + re.escape('soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|') + r'[^ ]+)(?:\|[^ ]+)?'), RAM),
-    advisory('TMC-20602', 'cpu-control-tension', 0, S + r'(?:cpu_[a-z0-9_]+|reset|_\d+_)(?:\[\d+\])?(?:~DUPLICATE)?',
-             TENSION),
+    advisory('TMC-20602', 'cpu-control-tension', 0,
+             S + r'(?:cpu_[a-z0-9_]+|reset|_\d+_)(?:\[\d+\])?(?:~DUPLICATE)?(?:~_Duplicate_\d+)?', TENSION),
 )

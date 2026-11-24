@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
@@ -36,6 +37,7 @@ func run() error {
 	var config struct {
 		APIURL  string `json:"api_url"`
 		APIHost string `json:"api_host"`
+		DHCP    bool   `json:"dhcp"`
 	}
 	if err = json.Unmarshal(data, &config); err != nil {
 		return err
@@ -50,9 +52,26 @@ func run() error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	iface, err := board.OpenNetwork(ctx)
+	var iface board.Network
+	if config.DHCP {
+		iface, err = board.OpenNetworkDHCP(ctx)
+	} else {
+		iface, err = board.OpenNetwork(ctx)
+	}
 	if err != nil {
 		return err
+	}
+	if config.DHCP {
+		lease, ok := iface.Lease()
+		if !ok {
+			return fmt.Errorf("network probe requested DHCP but interface reported no lease")
+		}
+		dns := "none"
+		if len(lease.DNS) > 0 {
+			dns = strings.Join(lease.DNS, ",")
+		}
+		fmt.Printf("FES_NETWORK_DHCP address=%s gateway=%s server=%s lease_s=%d dns=%s\n",
+			lease.Address, lease.Gateway, lease.Server, int64(lease.LeaseDuration/time.Second), dns)
 	}
 	fmt.Printf("FES_NETWORK_READY board=%s address=%s\n", board.Name, iface.Address())
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, config.APIURL+"/api/v1/games", nil)

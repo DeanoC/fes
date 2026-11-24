@@ -43,13 +43,13 @@ def main():
     parser.add_argument('--vice-source',type=Path,required=True)
     parser.add_argument('--output',type=Path)
     parser.add_argument('--check',action='store_true',help='compare generated fixtures with the selected output without modifying it')
-    parser.add_argument('--component',choices=['all','sid','envelope','oscillator','oscillator-bus','coupling','oscillator-table'],default='all')
+    parser.add_argument('--component',choices=['all','sid','envelope','oscillator','oscillator-bus','coupling','oscillator-table','oscillator-table-8580'],default='all')
     args=parser.parse_args()
     if args.output and args.component=='all':parser.error('--output requires one --component')
     module=Path(__file__).resolve().parents[1]
     sim=module/'cores/fes-c64/sim'
     source=args.vice_source/'src/resid'
-    selected=['sid','envelope','oscillator','oscillator-bus','coupling','oscillator-table'] if args.component=='all' else [args.component]
+    selected=['sid','envelope','oscillator','oscillator-bus','coupling','oscillator-table','oscillator-table-8580'] if args.component=='all' else [args.component]
     hashes={}
     for component in selected:
         hashes.update(OSCILLATOR_SOURCE_HASHES if (component.startswith('oscillator') or component=='coupling') else SOURCE_HASHES)
@@ -64,25 +64,41 @@ def main():
         for key,value in CONFIG.items():config=config.replace('@'+key+'@',value)
         (temp/'siddefs.h').write_text(config)
         for component in selected:
-            if component == 'oscillator-table':
+            if component.startswith('oscillator-table'):
+                model = '8580' if component.endswith('8580') else '6581'
                 lines=['// SPDX-License-Identifier: GPL-2.0-or-later',
-                       '// MOS6581 combined-wave samples from VICE 3.10 reSID.',
+                       f'// MOS{model} combined-wave samples from VICE 3.10 reSID.',
                        '// Copyright (C) 2010 Dag Lem <resid@nimrod.no>. See c64_sid.COPYING.']
                 for name,function in [('wave6581__ST.h','combined_triangle_saw'),
                                       ('wave6581_P_T.h','combined_pulse_triangle'),
                                       ('wave6581_PS_.h','combined_pulse_saw'),
                                       ('wave6581_PST.h','combined_pulse_triangle_saw')]:
+                    name = name.replace('6581', model)
                     raw=(source/name).read_bytes()
                     text=re.sub(r'/\*.*?\*/', '', raw.decode(), flags=re.S)
                     values=[int(value,16) for value in re.findall(r'0x[0-9a-fA-F]+',text)]
                     if len(values)!=4096:parser.error(name+': requires 4096 entries')
-                    lines += ['// Generated exactly from '+name+' SHA256 '+hashlib.sha256(raw).hexdigest()+'.',
-                              'function automatic [11:0] '+function+'(input [11:0] index);', ' case(index)']
-                    lines += [f"  12'h{index:03x}:{function}=12'h{value:03x};"
-                              for index,value in enumerate(values) if value]
-                    lines += ["  default:"+function+"=12'h000;", ' endcase', 'endfunction']
+                    lines += ['// Generated exactly from '+name+' SHA256 '+hashlib.sha256(raw).hexdigest()+'.']
+                    if model == '6581':
+                        lines += ['function automatic [11:0] '+function+'(input [11:0] index);', ' case(index)']
+                        lines += [f"  12'h{index:03x}:{function}=12'h{value:03x};"
+                                  for index,value in enumerate(values) if value]
+                        lines += ["  default:"+function+"=12'h000;", ' endcase', 'endfunction']
+                    else:
+                        # The 8580 measurements are denser. Pack sixteen 12-bit samples
+                        # per line, with phase zero in the least significant slice.
+                        lines += [f'function automatic [11:0] model_{function}(input [11:0] index);',
+                                  ' reg [191:0] row;', ' begin', '  case(index[11:4])']
+                        for i in range(0, 4096, 16):
+                            row = sum(value << (12 * j) for j, value in enumerate(values[i:i+16]))
+                            if row:
+                                lines.append(f"   8'h{i//16:02x}: row = 192'h{row:048x};")
+                        lines += ["   default: row = 0;", "  endcase",
+                                  f'  model_{function} = SID_8580 ? row[12 * index[3:0] +: 12] : {function}(index);',
+                                  ' end', 'endfunction']
                 result='\n'.join(lines)+'\n'
-                output=args.output or module/'cores/fes-c64/rtl/c64_sid_combined_waves.vh'
+                name = 'c64_sid_8580_waves.vh' if model == '8580' else 'c64_sid_combined_waves.vh'
+                output=args.output or module/'cores/fes-c64/rtl'/name
                 if args.check:
                     if output.read_text()!=result:parser.error(f'{output}: generated table differs')
                     print(f'{output}: unchanged')

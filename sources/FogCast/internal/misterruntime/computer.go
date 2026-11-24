@@ -36,17 +36,18 @@ func computerResponseMatches(response Protocol2Response, packageID string, gener
 // active fes.computer package generation. The runtime clears all rows when its
 // prior state is unknown, then applies releases before makes; a mixed row can
 // therefore be written twice.
-func (client *Client) SetKeyboardHID(ctx context.Context, packageID string, generation uint64, rows KeyboardHIDRows) (Protocol2Response, error) {
-	if !protocol2Hex64.MatchString(packageID) || generation == 0 || !rows.Valid() {
+func (client *Client) SetKeyboardHID(ctx context.Context, instance, packageID string, generation uint64, rows KeyboardHIDRows) (Protocol2Response, error) {
+	if !protocol2Instance.MatchString(instance) || instance == "00000000000000000000000000000000" || !protocol2Hex64.MatchString(packageID) || generation == 0 || !rows.Valid() {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	line, err := client.callRaw(ctx, struct {
 		Protocol           int             `json:"protocol"`
 		Operation          string          `json:"operation"`
+		RuntimeInstance    string          `json:"runtime_instance"`
 		PackageID          string          `json:"package_id"`
 		ExpectedGeneration uint64          `json:"expected_generation"`
 		Rows               KeyboardHIDRows `json:"rows"`
-	}{2, "set_keyboard_hid", packageID, generation, rows})
+	}{2, "set_keyboard_hid", instance, packageID, generation, rows})
 	if err != nil {
 		return Protocol2Response{}, err
 	}
@@ -54,7 +55,7 @@ func (client *Client) SetKeyboardHID(ctx context.Context, packageID string, gene
 	if err != nil {
 		return Protocol2Response{}, err
 	}
-	if response.InspectedPackage != nil || response.CoreData != nil || (response.OK && !computerResponseMatches(response, packageID, generation)) {
+	if response.InspectedPackage != nil || response.CoreData != nil || (response.OK && (!computerResponseMatches(response, packageID, generation) || response.RuntimeInstance == nil || *response.RuntimeInstance != instance)) {
 		return Protocol2Response{}, errInvalidRuntimeResponse
 	}
 	return response, nil
@@ -112,7 +113,7 @@ func decodeComputerMediaResponse(line []byte, packageID string, generation uint6
 }
 
 type protocol2KeyboardHIDControl interface {
-	SetKeyboardHID(context.Context, string, uint64, KeyboardHIDRows) (Protocol2Response, error)
+	SetKeyboardHID(context.Context, string, string, uint64, KeyboardHIDRows) (Protocol2Response, error)
 }
 
 type protocol2ComputerMediaControl interface {
@@ -122,7 +123,7 @@ type protocol2ComputerMediaControl interface {
 }
 
 // SetKeyboardHID posts the complete key state for one package generation.
-func (r *Runtime) SetKeyboardHID(ctx context.Context, packageID string, generation uint64, rows KeyboardHIDRows) error {
+func (r *Runtime) SetKeyboardHID(ctx context.Context, instance, packageID string, generation uint64, rows KeyboardHIDRows) error {
 	control, ok := r.control.(protocol2KeyboardHIDControl)
 	if !ok {
 		return unsupportedOperationError()
@@ -133,12 +134,15 @@ func (r *Runtime) SetKeyboardHID(ctx context.Context, packageID string, generati
 	// Unlike the simple-computer mailbox, live media never holds reset or
 	// clears keys here, so posts do not wait behind a media transfer; the
 	// runtime serializes its own GP session and every post is a full state.
-	response, err := control.SetKeyboardHID(ctx, packageID, generation, rows)
+	response, err := control.SetKeyboardHID(ctx, instance, packageID, generation, rows)
 	if err != nil {
 		return err
 	}
 	if !response.OK {
 		return mapProtocol2Error(response.Error)
+	}
+	if response.RuntimeInstance == nil || *response.RuntimeInstance != instance || !computerResponseMatches(response, packageID, generation) {
+		return errInvalidRuntimeResponse
 	}
 	return nil
 }

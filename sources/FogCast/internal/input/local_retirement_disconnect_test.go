@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"testing"
 
 	"github.com/DeanoC/FogCast/internal/zx81keys"
@@ -23,7 +24,7 @@ func TestLocalMatrixRetirementDisconnectKeepsFailedNeutralPending(t *testing.T) 
 			// The local observation path must exhaust its bounded neutral budget.
 			// Disconnect cleanup uses the poster's own deadline, so its simulated
 			// unavailable runtime returns immediately instead of waiting forever.
-			rig.sink.keys.SetPoster(func(ctx context.Context, matrix uint64) error {
+			rig.sink.keys.SetPoster(func(ctx context.Context, _ localhid.MatrixPost, matrix uint64) error {
 				rig.posts++
 				if rig.stall {
 					if _, bounded := ctx.Deadline(); bounded {
@@ -79,7 +80,7 @@ func TestLocalKeyboardDisconnectRetriesFailedNeutralWithoutPadHold(t *testing.T)
 	if held == zx81keys.Neutral {
 		t.Fatal("physical keyboard did not establish a runtime hold")
 	}
-	rig.sink.keys.SetPoster(func(_ context.Context, matrix uint64) error {
+	rig.sink.keys.SetPoster(func(_ context.Context, _ localhid.MatrixPost, matrix uint64) error {
 		if rig.stall {
 			return errors.New("runtime write unavailable")
 		}

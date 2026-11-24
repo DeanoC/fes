@@ -21,8 +21,9 @@ module fes_de25_hps_window #(
     input  wire         hold,
     input  wire         grant_valid,
     input  wire [31:0]  grant_base,
-    // Sticky until fault_clear (machine clock, level): the ports that
-    // faulted, and why -- no valid grant, or outside the span.
+    // Sticky until fault_clear (machine clock, level): the first fault --
+    // the ports that faulted in its cycle, and why (no valid grant, or
+    // outside the span). Later faults leave it unchanged.
     input  wire         fault_clear,
     output wire [2:0]   fault_port,
     output wire         fault_no_grant, fault_outside,
@@ -168,8 +169,11 @@ module fes_de25_hps_window #(
     assign m2_read = g2_read && g2_ok;
     assign m2_write = g2_write && g2_ok;
 
-    // Sticky. The three ports share one clock on the DE25 board, so the
-    // record is kept in p0_clk; the shell ties p1_clk and p2_clk to it.
+    // Sticky, and the first fault only (fes.fabric.de25-hps-window 1.0): it
+    // latches while empty. Ports faulting in that same cycle share its
+    // grant state, so one reason holds for all of them. The three ports
+    // share one clock on the DE25 board, so the record is kept in p0_clk;
+    // the shell ties p1_clk and p2_clk to it.
     wire bad0 = (g0_read || g0_write) && !g0_ok;
     wire bad1 = (g1_read || g1_write) && !g1_ok;
     wire bad2 = (g2_read || g2_write) && !g2_ok;
@@ -178,10 +182,10 @@ module fes_de25_hps_window #(
     always @(posedge p0_clk)
         if (fault_clear) begin
             port_fault <= 3'b000; no_grant <= 1'b0; outside <= 1'b0;
-        end else begin
-            port_fault <= port_fault | {bad2, bad1, bad0};
-            if ((bad0 || bad1 || bad2) && !grant_valid) no_grant <= 1'b1;
-            if ((bad0 || bad1 || bad2) && grant_valid) outside <= 1'b1;
+        end else if (port_fault == 3'b000 && (bad0 || bad1 || bad2)) begin
+            port_fault <= {bad2, bad1, bad0};
+            no_grant <= !grant_valid;
+            outside <= grant_valid;
         end
     assign fault_port = port_fault;
     assign fault_no_grant = no_grant;
