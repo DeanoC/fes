@@ -40,9 +40,9 @@ Simulated seconds are from machine reset. "386" is the level-3 oracle,
 
 | Title (eXoDOS) | 386 | 486 | RTL, I486 = 1 | Verdict |
 | --- | --- | --- | --- | --- |
-| **Duke Nukem 3D 1.3D**, `DUKE3D.CFG` set to `ScreenMode = 0` (chained VGA) at 320×200 | DOS/4GW "exception 06h (invalid opcode) at 180:00222BE2" at 21.45 s: BSWAP EAX | Runs the 50 s window: BSWAP 32 times at 0180:00222BE2, ring 0; 3D Realms logo, title, then "LOADING…" into a level at 49 s. `ScreenMode = 2` (screen-buffered) runs the same way | From reset: the same logo, title and "LOADING…" at 40 s (frames; the run was stopped there, so no counters). A second run, the RTL taking over from the oracle at 18 s (`--rtl-from 18`) to 50 s, is running on chip-30x0-ai-dev for the counters. | **Needs a 486. Runs without VBE** |
+| **Duke Nukem 3D 1.3D**, `DUKE3D.CFG` set to `ScreenMode = 0` (chained VGA) at 320×200 | DOS/4GW "exception 06h (invalid opcode) at 180:00222BE2" at 21.45 s: BSWAP EAX | Runs the 50 s window: BSWAP 32 times at 0180:00222BE2, ring 0; 3D Realms logo, title, then "LOADING…" into a level at 49 s. `ScreenMode = 2` (screen-buffered) runs the same way | From reset, frames only: the same logo, title and "LOADING…" at 40 s. The run was stopped there, so it has no end report: any RTL stop would have run on the oracle (a DX4 with a 387) without showing in the frames. **Not yet established** that the RTL alone gets there; see [the RTL runs](#the-rtl-runs) | **Needs a 486. Runs without VBE** on the oracle; on the no-387 RTL not yet established |
 | Duke Nukem 3D 1.3D, as the `pmode` drive configures it (VESA 2.0, 1024×768) | the same exception 6 | exits at 21.85 s: "VESA driver for ( 1024 * 768 ) not found/supported" (i486 plan) | not run | the config, not the CPU, is what stops it |
-| **Shadow Warrior 1.2 shareware** | DOS/4GW exception 6 at 0180:00271C08 at 28.6 s: BSWAP | BSWAP 32 times at 0180:00271C08. With eXoDOS's SB16 setup: "Playback failed … 16-bit DMA channel", then stuck loading. With an SB 2.0 setup (`BlasterType = 3`, 8-bit mono, 11 kHz) the sound plays, then the game asks for a VESA mode and offers "Continue anyway in standard 320 x 200? (Y / N)". A run answering `Y` is running. | running (`--rtl-from 20`, answering `Y`) | **Needs a 486** (the 386 stop is BSWAP) |
+| **Shadow Warrior 1.2 shareware** | DOS/4GW exception 6 at 0180:00271C08 at 28.6 s: BSWAP | BSWAP 32 times at 0180:00271C08. With eXoDOS's SB16 setup: "Playback failed … 16-bit DMA channel", then stuck loading. With an SB 2.0 setup (`BlasterType = 3`, 8-bit mono, 11 kHz) the sound plays, then the game asks for a VESA mode and offers "Continue anyway in standard 320 x 200? (Y / N)". A run answering `Y` is running. | not yet established; see [the RTL runs](#the-rtl-runs) | **Needs a 486** (the 386 stop is BSWAP) |
 | Death Rally (1996) | not run | exits at 14.1 s: "Your VGA-adapter is not fully VESA (VBE 1.0) compliant". CPUID twice and an AC toggle (a 486 test), no 486 instruction | not run | **Needs VBE 1.0**, not a 486, in this window |
 | Powerslave (1996) | not run | exits at 11.0 s: "640 * 400 Vesa mode not supported" (eXoDOS's setup). CPUID and an AC toggle, no 486 instruction | not run | needs VBE as configured; its VGA modes were not tried |
 | Z (1996) | not run | "Critical File Missing: main.pac": the data is on the CD | not run | needs its CD; not judged |
@@ -52,6 +52,26 @@ Simulated seconds are from machine reset. "386" is the level-3 oracle,
 plays under eXoDOS's SB16 setup (the DSP took DMA and raised IRQs), but its
 music is silent: the OPL2 took 9 writes and no non-zero sample in 50 s.
 Shadow Warrior needs an SB 2.0 setup to get past loading.
+
+## The RTL runs
+
+**Rule, written before any result is read.** Each title runs from reset on
+the RTL at `I486 = 1` with no 387 (`--cpu rtl --cpu-level 4`, no
+`--x87-fitted`, no handover), on chip-30x0-ai-dev with Verilator 5.032:
+Duke Nukem 3D (chained VGA) to 30 s, past its 386 stop at 21.45 s; Shadow
+Warrior (SB 2.0, answering `Y` at its 320×200 prompt) to 36 s, past its 386
+stop at 28.6 s. A title passes if the suite's verdict is `PASS game`, its end
+reason is `limit` (not `prompt`: on a 386 both exit to the prompt), and the
+RTL report shows 0 oracle steps and no stops.
+
+**Handover runs are not this evidence.** Runs with `--rtl-from` start the RTL
+from the oracle's state, after the title's FPU detection has run on the
+oracle's 387. Duke executes x87 instructions of its own (the level-3 census
+saw `x87exc` at 0180:0026C2D5 and 0026C4F3), so a handover run cannot answer
+whether a no-387 486SX runs it. Such runs can show only that the RTL retires
+the BSWAP at its site.
+
+<!-- RTL-RESULTS -->
 
 ## What a title needs
 
@@ -84,10 +104,11 @@ check.
 ## Decisions for Deano
 
 1. **Duke Nukem 3D joins the DE25 486SX acceptance set at 320×200 VGA, with
-   a config sidecar, and no VBE.** It needs a 486 and runs without VBE, on
-   the oracle and (to 40 s) on the RTL. Recommended.
+   a config sidecar, and no VBE.** It needs a 486 and runs without VBE on the
+   486 oracle. On the RTL as a no-387 486SX it is not yet established (the
+   from-reset runs below). Recommended, conditional on that run.
 2. **Shadow Warrior shareware joins too**, with an SB 2.0 sidecar, once its
-   RTL run finishes past the 386's stop. Recommended; the full game (88 MB) fits
+   from-reset RTL run passes the rule below. Recommended; the full game (88 MB) fits
    a drive too.
 3. **VBE is a separate plan, not part of the 486 work.** It unlocks Death Rally
    and the higher-resolution modes of the Build games, not a 486 requirement.
