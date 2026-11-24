@@ -970,3 +970,34 @@ func (p *pausedOncePort) SendRawFrame(frame []byte) error {
 }
 func (p *pausedOncePort) AddTap(fn func([]byte)) func() { return p.base.AddTap(fn) }
 func (p *pausedOncePort) Err() error                    { return nil }
+
+func TestLateACKAfterDeadlineRejected(t *testing.T) {
+	clientMACStr := "52:54:00:12:34:56"
+	clientMAC, _ := parseUnicastMAC(clientMACStr)
+	serverIP := [4]byte{10, 0, 2, 2}
+	clientIP := [4]byte{10, 0, 2, 15}
+	mask := [4]byte{255, 255, 255, 0}
+
+	// Repeat several times so Go's pseudo-random select cannot mask a bug where
+	// both replyCh and ctx.Done() are ready simultaneously after the deadline.
+	for i := 0; i < 10; i++ {
+		port := newFakeRenewPort()
+		port.onSend = func(frame []byte, p *fakeRenewPort) {
+			xid := binary.BigEndian.Uint32(frame[ethHeaderLen+ipv4MinLen+udpHeaderLen+4 : ethHeaderLen+ipv4MinLen+udpHeaderLen+8])
+			time.Sleep(15 * time.Millisecond)
+			p.inject(makeServerReplyFrame(broadcastMAC, clientMAC, serverIP, clientIP, xid,
+				makeDHCPOptions(dhcpMsgAck, &mask, &serverIP, nil, &serverIP, 3600), false))
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+		_, err := RenewDHCPOnce(ctx, port, clientMACStr, DHCPLease{
+			Address:       "10.0.2.15/24",
+			Gateway:       "10.0.2.2",
+			Server:        "10.0.2.2",
+			LeaseDuration: time.Minute,
+		}, true, RenewConfig{RetryInterval: 5 * time.Millisecond})
+		cancel()
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("iter %d: late ACK after deadline err=%v, want context.DeadlineExceeded", i, err)
+		}
+	}
+}

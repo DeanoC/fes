@@ -124,13 +124,16 @@ func renewDHCPOnceWithTime(ctx context.Context, port DHCPFramePort, macStr strin
 
 	txFrame := buildDHCPRenewFrame(mac, dstMAC, prefix.Addr().As4(), dstIP, xid, hostname, useBroadcast)
 	expectedServer := serverIP.As4()
+	deadline, hasDeadline := ctx.Deadline()
 
 	type renewResult struct {
-		lease DHCPLease
-		err   error
+		lease      DHCPLease
+		receivedAt time.Time
+		err        error
 	}
 	replyCh := make(chan renewResult, 1)
 	remove := port.AddTap(func(frame []byte) {
+		receivedAt := time.Now()
 		reply, ok := parseDHCPFrame(frame, mac, xid)
 		if !ok {
 			return
@@ -141,7 +144,7 @@ func renewDHCPOnceWithTime(ctx context.Context, port DHCPFramePort, macStr strin
 				return
 			}
 			select {
-			case replyCh <- renewResult{err: ErrLeaseNAK}:
+			case replyCh <- renewResult{receivedAt: receivedAt, err: ErrLeaseNAK}:
 			default:
 			}
 		case dhcpMsgAck:
@@ -154,13 +157,13 @@ func renewDHCPOnceWithTime(ctx context.Context, port DHCPFramePort, macStr strin
 			}
 			if lease.Address != current.Address || lease.Gateway != current.Gateway {
 				select {
-				case replyCh <- renewResult{err: ErrLeaseChanged}:
+				case replyCh <- renewResult{receivedAt: receivedAt, err: ErrLeaseChanged}:
 				default:
 				}
 				return
 			}
 			select {
-			case replyCh <- renewResult{lease: lease}:
+			case replyCh <- renewResult{lease: lease, receivedAt: receivedAt}:
 			default:
 			}
 		}
@@ -209,6 +212,12 @@ func renewDHCPOnceWithTime(ctx context.Context, port DHCPFramePort, macStr strin
 		select {
 		case res := <-replyCh:
 			timer.Stop()
+			if err := ctx.Err(); err != nil {
+				return DHCPLease{}, time.Time{}, err
+			}
+			if res.err == nil && hasDeadline && (!res.receivedAt.Before(deadline) || !time.Now().Before(deadline)) {
+				return DHCPLease{}, time.Time{}, context.DeadlineExceeded
+			}
 			if requestSentAt.IsZero() {
 				requestSentAt = attemptAt
 			}
