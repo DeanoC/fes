@@ -139,7 +139,8 @@ reports, every rule, with no unmatched row:
 - every seed of base23b, dma223b, fifo23c, slat23b, audio-area, vga-area
   and 486SX.
 
-No reseal: this file is in pc386's closure only, and Deano's in-progress
+No reseal: this file is in pc386's closure only (it moves pc386's BUILD_ID
+and no other machine's), and Deano's in-progress
 exemption covers it. The DX slice merges this branch and refits.
 
 ## Every recorded copy spelling (fourth commit)
@@ -187,3 +188,122 @@ engine is unchanged. So only pc386's BUILD_ID moves, through the table's
 own digest, as with the earlier commits.
 
 The full table still passes all 40 recorded pc386 reports.
+
+## One copy spelling at a time (sixth commit)
+
+Codex (P2 on #2177 against 884b5959c) found that each half of `COPY` was
+optional on its own, so stacked mixtures matched, such as
+`cpu_biu_reset~DUPLICATE~_Duplicate1` and
+`reset~DUPLICATE~_Duplicate_2DUPLICATE`. No recorded report has one.
+Grepping every `timing.tsv`, `*.sta.rpt` and `*.signoff.rpt` under
+`/data/projects` and `~/fes-scratch` for `~DUPLICATE~_Duplicate` or
+`~_Duplicate…~DUPLICATE` finds nothing. Every hit is in this branch's own
+tests, two of which wrongly admitted `~DUPLICATE~_Duplicate_N`. `COPY` is
+now `(?:~DUPLICATE|~_Duplicate(?:_?\d+)?(?:DUPLICATE)?)?`: either one
+spelling or the other.
+
+The window-base source pattern took `~DUPLICATE` followed by any
+characters (`~DUPLICATE[^ ]*`). It now uses `COPY` too.
+
+Tests:
+- The tension, lint and window-base tests refuse stacked mixtures:
+  `~DUPLICATE~_Duplicate`, `~DUPLICATE~_Duplicate_1`,
+  `~DUPLICATE~_Duplicate_2DUPLICATE`, `~DUPLICATE~_DuplicateDUPLICATE`,
+  `~DUPLICATE~_Duplicate1` and `~DUPLICATE~_Duplicate_3`. The window-base
+  test also refuses `~DUPLICATE_x`.
+- The two test cases that had admitted a mixture now refuse it. The
+  tension advisory admits 19 names, and the lint groups are 6 and 3.
+- With the previous `COPY` and window pattern put back, 9 assertions fail.
+
+The full table still passes all 40 recorded pc386 reports.
+
+BUILD_ID: `signoff_bases.py` is a pc386 design input, so every commit on
+this branch moves pc386's BUILD_ID. The coordinating session reports that
+the fifth commit moved it from cee3d3b4 to 6574e507 on the S-lat branch.
+No other machine's BUILD_ID moves.
+
+## The window bases follow their SDC collections (seventh commit)
+
+Codex (P1 at 2a504d2ff) found that window-base admitted `base_lo` copies
+in every `COPY` spelling. `window_base`'s SDC line only collects
+`base_lo[*]` and `base_lo[*]~DUPLICATE*`, so a `~_Duplicate` launch would
+have been approved while it sat outside the bundle's bounds. The SDC is
+unchanged. Each basis now admits only launches its SDC collects, and of
+those only the spellings the recorded fits use:
+- window-base: `base_lo[k]` and `base_lo[k]~DUPLICATE`;
+- window-fault-record: `fault_launch[k]` alone, because its SDC collects
+  `fault_launch[*]` alone.
+
+Tests:
+- A `~_Duplicate` or `~_Duplicate_1` `base_lo` matches 0 bases. So does a
+  `~DUPLICATE` or `~_Duplicate1` `fault_launch`.
+- A new test reads each window basis's SDC line from the table. It
+  applies the Quartus name patterns (`*` is any run of characters,
+  brackets are literal). Every source and sink spelling the basis admits,
+  from a corpus of copy suffixes, must be one that line collects. It
+  checks 5 admitted spellings.
+- With the base back on `COPY`, or the fault record given
+  `~DUPLICATE`, the tie test fails.
+
+The presenter bases have no copy-suffix gap, because the engine's `bus()`
+admits no copy suffix. They do have a different, pre-existing gap: `bus()`
+admits any index, an unindexed name, or `[*]`. The SDC collects
+`name[*]`, a scalar `machine_presenter_f_new_epoch`, and for the toggles
+only `[0]` and the first stage's `d` pin. So a row into
+`machine_presenter_sequence_sync[1]`, or one from
+`machine_frame_sequence[3]`, would match a basis outside its SDC. Their
+exact row counts bound this. The eighth commit closes it.
+
+The full table still passes all 40 recorded pc386 reports. Ten of them
+carry the nine window-base rows.
+
+## Every crossing basis follows its SDC (eighth commit)
+
+The coordinating session asked, on 24 Nov 2026, for the presenter gap to
+be fixed here, because it breaks the same invariant. The SDC is unchanged.
+
+The engine's `bus()` is in every DE25 machine's closure, so the pc386
+table builds its own `regs()`, as it did for `lint`. Each name is written
+in the spelling its SDC line collects:
+- `name[*]` admits one bit `name[k]`, or the report's `name[*]` group
+  (the status counts report as that group);
+- any other name admits that register exactly.
+
+Changes:
+- The toggles admit `machine_frame_sequence[0]`, `loaded_flag` and
+  `request_toggle` only into their first stage, `…_sync[0]`. The pixel
+  reset admits `reset` into `machine_pixel_reset_sync[0]`.
+- A toggle's SDC also collects `source~DUPLICATE`, but no recorded fit
+  makes one, so it is not admitted.
+- The generalised test found one more gap. `presenter-toggles-to-pixel`
+  matched its two columns independently, so it admitted
+  `machine_frame_sequence[0]` into `machine_presenter_loaded_sync[0]`, a
+  pair no SDC entry bounds. It is now `presenter-sequence-toggle` and
+  `presenter-loaded-toggle`, with one row each.
+
+Tests:
+- The window tie test now covers every crossing basis that quotes SDC
+  lines: 11 of them. It parses `pc386-clocks.sdc`'s `foreach` entries,
+  because a basis may quote only part of one (`FETCH_SDC` quotes the
+  source list but not the sinks). Launches are an entry's source(s), plus
+  `source~DUPLICATE` where the block collects it. Captures are its sink(s)
+  or the head whose `d` pin it cuts. The pixel reset's explicit lines are
+  parsed too.
+- For each basis, every source and sink pair it admits from a corpus of
+  index and copy spellings must be the launch and capture of one quoted
+  entry.
+- With `regs()` widened back to `bus()`'s shape, the tie test fails, and
+  so do the new negatives.
+- The new toggle negatives, each matching 0 bases:
+  `machine_frame_sequence[3]`, `machine_presenter_sequence_sync[1]`, an
+  indexed `loaded_flag[0]`, and the sequence toggle into the loaded
+  toggle's synchroniser.
+
+The full table passes all 40 recorded pc386 reports, and no recorded row
+stopped matching. Every report's presenter groups are capture 20, fetch
+35, loaded 12, capture-buffer 2, and 1 each for the three toggles and the
+pixel reset.
+
+`machine_findings.bus` now has no caller, like `lint`. Deleting either
+would move every DE25 machine's BUILD_ID, so both wait for a change that
+rebuilds them. Only pc386's BUILD_ID moves here.

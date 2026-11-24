@@ -4,6 +4,7 @@ The DRC text below is synthetic, in the signoff report's table format; it
 exercises the matching rules and never stands in for a fitted report.
 """
 import json
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -103,10 +104,9 @@ class MachineFindingsTests(unittest.TestCase):
                              'machine_at_decoder_cycle_port[15]', 'audio_dsp_write', 'audio_dsp_write~_Duplicate_1',
                              # Every copy spelling the recorded fits use.
                              'cpu_md_busy~_Duplicate1', 'cpu_md_busy~_Duplicate0', 'reset~_Duplicate1DUPLICATE',
-                             'machine_at_decoder_state[1]~_Duplicate_2DUPLICATE', 'cpu_wb_fault[4]~_DuplicateDUPLICATE',
-                             '_36426_[140]~DUPLICATE~_Duplicate_1')]
+                             'machine_at_decoder_state[1]~_Duplicate_2DUPLICATE', 'cpu_wb_fault[4]~_DuplicateDUPLICATE')]
         [entry] = mf.review(report({'TMC-20602': (header, rows)}), '', self.bases('cpu-control-tension'))
-        self.assertEqual(entry['groups'][0]['rows'], 20)
+        self.assertEqual(entry['groups'][0]['rows'], 19)
         # A fitter copy is admitted only for a name the basis already names; neighbouring decoder,
         # audio and machine names are not.
         for name in ('machine_at_pic_mask[3]~_Duplicate_2', 'cpu_biu_reset~_Duplicate_', 'cpu_biu_reset_Duplicate_2',
@@ -116,7 +116,9 @@ class MachineFindingsTests(unittest.TestCase):
                      'cpu_md_busy~Duplicate', 'reset~DUPLICATE~DUPLICATE',
                      # Malformed copy suffixes.
                      'reset~DUPLICATE1', 'reset~_Duplicate1_', 'reset~_Duplicate1DUPLICATE2', 'reset~_Duplicate~DUPLICATE',
-                     'reset~_Duplicate1duplicate', 'reset~_duplicate1', 'reset~_Duplicate_1_2', 'reset~_DuplicateX'):
+                     'reset~_Duplicate1duplicate', 'reset~_duplicate1', 'reset~_Duplicate_1_2', 'reset~_DuplicateX',
+                     # Stacked mixtures of the two spellings: no recorded fit writes one.
+                     'reset~DUPLICATE~_Duplicate_1', 'reset~DUPLICATE~_Duplicate_2DUPLICATE', 'reset~DUPLICATE~_Duplicate', 'reset~DUPLICATE~_DuplicateDUPLICATE', 'cpu_biu_reset~DUPLICATE~_Duplicate1', '_36426_[140]~DUPLICATE~_Duplicate_1'):
             copy = rows + [[S + name, '(1, 1)', '9000', '(2, 2)', '20', '200000', '']]
             with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
                 mf.review(report({'TMC-20602': (header, copy)}), '', self.bases('cpu-control-tension'))
@@ -135,13 +137,14 @@ class MachineFindingsTests(unittest.TestCase):
         bases = self.bases('biu-reset', 'machine-reset')
         # slat23b seed 2's three rows, then the other copy spellings.
         drivers = ['cpu_biu_reset~_Duplicate_1', 'cpu_biu_reset~_Duplicate', 'reset', 'cpu_biu_reset',
-                   'cpu_biu_reset~DUPLICATE', 'reset~DUPLICATE~_Duplicate_3', 'cpu_biu_reset~_Duplicate1',
+                   'cpu_biu_reset~DUPLICATE', 'cpu_biu_reset~_Duplicate1',
                    'cpu_biu_reset~_Duplicate1DUPLICATE', 'reset~_Duplicate_2DUPLICATE', 'reset~_DuplicateDUPLICATE']
         [entry] = mf.review(report({'LNT-30010': (header, [row(d) for d in drivers])}), '', bases)
-        self.assertEqual([g['rows'] for g in entry['groups']], [6, 4])
+        self.assertEqual([g['rows'] for g in entry['groups']], [6, 3])
         for driver in ('machine_at_decoder_state[1]~DUPLICATE', 'cpu_biu_reset~_Duplicate_', 'cpu_md_busy~DUPLICATE',
                        'reset_n~DUPLICATE', 'cpu_biu_reset_q', 'reset~_Duplicate~DUPLICATE',
-                       'cpu_biu_reset~_Duplicate1_', 'reset~DUPLICATE2', 'cpu_biu_reset~_Duplicate1DUPLICATE~DUPLICATE'):
+                       'cpu_biu_reset~_Duplicate1_', 'reset~DUPLICATE2', 'cpu_biu_reset~_Duplicate1DUPLICATE~DUPLICATE',
+                       'reset~DUPLICATE~_Duplicate_1', 'reset~DUPLICATE~_Duplicate_2DUPLICATE', 'reset~DUPLICATE~_Duplicate', 'reset~DUPLICATE~_DuplicateDUPLICATE', 'cpu_biu_reset~DUPLICATE~_Duplicate1', 'reset~DUPLICATE~_Duplicate_3'):
             with self.subTest(driver), self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
                 mf.review(report({'LNT-30010': (header, [row(driver)])}), '', bases)
 
@@ -149,9 +152,18 @@ class MachineFindingsTests(unittest.TestCase):
         rows = [cdc('machine_frame_sequence[0]', 'machine_presenter_sequence_sync[0]'),
                 cdc('machine_presenter_loaded_flag', 'machine_presenter_loaded_sync[0]'),
                 cdc('machine_presenter_request_toggle', 'machine_presenter_request_sync[0]', PIXEL, MACHINE)]
-        bases = self.bases('presenter-toggles-to-pixel', 'presenter-toggle-to-machine')
+        bases = self.bases('presenter-sequence-toggle', 'presenter-loaded-toggle', 'presenter-toggle-to-machine')
         [entry] = mf.review(report({'CDC-50002': (CDC, rows)}), sdc_text(), bases)
-        self.assertEqual([g['rows'] for g in entry['groups']], [2, 1])
+        self.assertEqual([g['rows'] for g in entry['groups']], [1, 1, 1])
+        # Each toggle's SDC cuts bit 0 into the first stage only.
+        for label, row in (('a later sequence bit', cdc('machine_frame_sequence[3]', 'machine_presenter_sequence_sync[0]')),
+                           ('a later stage', cdc('machine_frame_sequence[0]', 'machine_presenter_sequence_sync[1]')),
+                           ('an indexed loaded flag', cdc('machine_presenter_loaded_flag[0]',
+                                                          'machine_presenter_loaded_sync[0]')),
+                           ('one toggle into another\'s synchroniser',
+                            cdc('machine_frame_sequence[0]', 'machine_presenter_loaded_sync[0]'))):
+            with self.subTest(label), self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
+                mf.review(report({'CDC-50002': (CDC, rows[:1] + [row] + rows[2:])}), sdc_text(), bases)
         rows[2] = cdc('machine_presenter_request_toggle', 'machine_presenter_request_sync[0]')
         with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
             mf.review(report({'CDC-50002': (CDC, rows)}), sdc_text(), bases)
@@ -212,6 +224,14 @@ class MachineFindingsTests(unittest.TestCase):
             'the base from the pixel clock': [w + 'base_lo[13]', w + 'base_machine[13]', PIXEL, MACHINE],
             'the fault record in reverse': [w + 'fault_launch[0]', w + 'machine_fault[0]', TABLE.SYS, MACHINE],
             'the fault record into the base': [w + 'fault_launch[0]', w + 'base_machine[0]', MACHINE, TABLE.SYS],
+            'a ~_Duplicate base_lo, outside the SDC bundle': [w + 'base_lo[13]~_Duplicate', w + 'base_machine[13]',
+                                                              TABLE.SYS, MACHINE],
+            'a ~_Duplicate_1 base_lo': [w + 'base_lo[13]~_Duplicate_1', w + 'base_machine[13]', TABLE.SYS, MACHINE],
+            'a ~DUPLICATE fault_launch, outside the SDC bundle': [w + 'fault_launch[0]~DUPLICATE', w + 'machine_fault[0]',
+                                                                  MACHINE, TABLE.SYS],
+            'a ~_Duplicate fault_launch': [w + 'fault_launch[0]~_Duplicate1', w + 'machine_fault[0]', MACHINE, TABLE.SYS],
+            'a stacked copy mixture': [w + 'base_lo[13]~DUPLICATE~_Duplicate1', w + 'base_machine[13]', TABLE.SYS, MACHINE],
+            'a malformed copy': [w + 'base_lo[13]~DUPLICATE_x', w + 'base_machine[13]', TABLE.SYS, MACHINE],
         }
         for label, row in unreviewed.items():
             with self.subTest(label), self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
@@ -219,6 +239,56 @@ class MachineFindingsTests(unittest.TestCase):
         for basis, line in (('window-base', TABLE.WINDOW_BASE_SDC[0]), ('window-fault-record', TABLE.WINDOW_FAULT_SDC[0])):
             with self.subTest(basis), self.assertRaisesRegex(mf.BuildError, basis + ' constraint not in the compiled SDC'):
                 mf.review(report({'CDC-50001': (CDC, presenter)}), sdc_text().replace(line + '\n', ''), TABLE.BASES)
+
+    def test_every_crossing_basis_admits_only_registers_its_sdc_collects(self):
+        # A row a crossing basis admits must be a launch and a capture of one SDC entry the basis quotes,
+        # so nothing the SDC leaves unbounded is approved. The entries come from pc386-clocks.sdc itself
+        # (a basis may quote only part of one): a foreach entry's launches are its source(s), plus
+        # source~DUPLICATE where the block collects it, and its captures are its sink(s) or the head
+        # whose d pin it cuts. Quartus name patterns: * is any run of characters, brackets are literal.
+        text = (ROOT / 'boards/de25nano/pc386/pc386-clocks.sdc').read_text()
+        entries = {}
+        for names, listing, body in re.findall(r'^foreach \{([^}]*)\} \{\n(.*?)\n\} \{\n(.*?)\n\}$', text, re.M | re.S):
+            names = names.split()
+            if not {'source', 'sources'} & set(names):
+                continue  # the audio edge list names no register pair
+            tokens = re.findall(r'\{([^}]*)\}|(\S+)', listing)
+            tokens = [braced or bare for braced, bare in tokens]
+            for i in range(0, len(tokens), len(names)):
+                entry = dict(zip(names, tokens[i:i + len(names)]))
+                launches = entry['sources'].split() if 'sources' in entry else [entry['source']]
+                if 'source' in entry and '${source}~DUPLICATE' in body:
+                    launches.append(entry['source'] + '~DUPLICATE')
+                captures = (entry.get('sinks') or entry.get('sink') or entry['head']).split()
+                entries.setdefault(entry['label'], []).append((launches, captures))
+        launch = re.search(r'set launches \[get_registers "\$\{base\}\|(system\|reset)"\]', text).group(1)
+        head = re.search(r'"\$\{base\}\|(system\|machine_pixel_reset_sync\[0\])\|d"', text).group(1)
+        entries['pixel_reset'] = [([launch], [head])]
+
+        def collects(globs, name):
+            return any(re.fullmatch(re.escape(g).replace(r'\*', '[^ ]*'), name) for g in globs)
+
+        prefix = 'soc_inst|subsys_periph|fes_scanout|fes_scanout|'
+        stems = {re.sub(r'[\[~].*', '', g) for found in entries.values() for launches, captures in found
+                 for g in launches + captures}
+        suffixes = ['', '[0]', '[1]', '[3]', '[*]', '~DUPLICATE', '[0]~DUPLICATE', '[3]~DUPLICATE', '~_Duplicate',
+                    '[3]~_Duplicate', '[3]~_Duplicate_1', '[3]~DUPLICATE~_Duplicate1', '_q', '[3]_q']
+        corpus = [stem + suffix for stem in sorted(stems) for suffix in suffixes]
+        bases = [b for b in TABLE.BASES if b['rule'].startswith('CDC-') and b['sdc']]
+        self.assertEqual(len(bases), 11)
+        for basis in bases:
+            quoted = [label for line in basis['sdc'] for label in re.findall(r'^\s*(\w+) \{', line)]
+            if basis['name'] == 'pixel-reset':
+                quoted = ['pixel_reset']
+            # Each quoted label names one entry (the GP blocks reuse theirs, but no basis quotes them).
+            self.assertTrue(quoted and all(len(entries.get(label, ())) == 1 for label in quoted), (basis['name'], quoted))
+            sources = [n for n in corpus if re.fullmatch(basis['match'][0], prefix + n)]
+            sinks = [n for n in corpus if re.fullmatch(basis['match'][1], prefix + n)]
+            self.assertTrue(sources and sinks, basis['name'])
+            for source in sources:
+                for sink in sinks:
+                    self.assertTrue(any(collects(entries[label][0][0], source) and collects(entries[label][0][1], sink)
+                                        for label in quoted), (basis['name'], source, sink))
 
     def test_a_rule_that_passed_has_no_entry(self):
         self.assertEqual(mf.review(report({'CDC-50001': (CDC, [])}), sdc_text(), TABLE.BASES), [])
