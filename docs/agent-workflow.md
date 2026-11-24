@@ -92,9 +92,11 @@ qualification and authorization, and report cleanup and release. A passing
 software test or build does not authorize deployment to another device.
 
 Commit, push, and open PRs as needed for the requested work without additional
-approval. Only merging a PR requires review by Deano or by another agent or
-model reviewer (for example a Codex review or a domain-reviewer agent). Agents
-never merge on their own authority. The imported source
+approval. To get a PR merged, run a `@codex review` cycle until Codex reports
+okay (no major issues) or only nitpicky (P3) findings, then mark the PR ready
+(not draft) and put it in `lane:lander`. Only merging a PR requires review by
+Deano or by another agent or model reviewer (for example a Codex review or a
+domain-reviewer agent). Agents never merge on their own authority. The imported source
 histories and original URLs are recorded in
 [config/source-imports.toml](../config/source-imports.toml). Those URLs are
 historical import provenance. Do not open day-to-day PRs against standalone

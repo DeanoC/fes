@@ -34,8 +34,8 @@ DE10-Nano v1 with four core families. Deano decided the five design questions on
 | Sinclair ZX81 | ZX81, ZX80, TS1000, TS1500 (`fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`) | v1 |
 | Sinclair Spectrum | 48K, 128K/+2, +2A/+3, Pentagon (`fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`) | v1 |
 | Atari ST | 520ST (`fes.atari-st`); STE not yet packaged | v1 |
-| Commodore 64 | C64 PAL (`fes.c64`); NTSC not yet packaged | v1 |
-| PC/XT, pc386 | Bring-up | v2 |
+| Commodore 64 | C64 PAL (`fes.c64`); NTSC (`fes.c64-ntsc`) is registered (#2104) and held back from v1 | v1 |
+| PC/XT, pc386 | Registered (`fes.pcxt-dos`, `fes.pc386`; DE10 tier 1) | v2 |
 | SMS, SG-1000, Coleco, Apple II, RISC-V, Pong | Legacy, not on current patterns | Held back |
 | RAM Tester | Utility | Settings > Diagnostics only |
 
@@ -67,48 +67,46 @@ Held-back cores are hidden from the release catalog, not deleted. Because Pong i
 
 ## Minimum v1 settings
 
-| Section | Contents | Exists today? |
+| Section | Contents | Current status (23 Nov 2026) |
 | --- | --- | --- |
-| Controllers | Connected pads with a Tested badge, player, press-to-bind remap, Swap A/B, reset, Bluetooth pairing | Backend yes; page no (#980 slice 4) |
-| Games folders | Folder per family, rescan, firmware folder for user ROMs | Partly: Drive screen and typed-path roots |
-| Firmware | Per family: built-in or user-supplied, licence text, status | No |
-| Display & sound | Resolution (720p default), safe area, volume | Partly (settings_video) |
-| Network | Wired status, Wi-Fi, optional host pairing | Partly, developer-facing |
-| Updates | System, FES software and core versions; update and roll back | Backend yes; UI no |
-| About & help | Versions, kit ID, quickstart link, Run setup again, diagnostics, factory reset | No |
+| Controllers | Connected pads with a Tested badge, player, press-to-bind remap, Swap A/B, reset, Bluetooth pairing | Backend yes; page open (#980 slice 4, #1348) |
+| Games folders | Folder per family, rescan, firmware folder for user ROMs | Partly: Drive screen and typed-path roots (#1346 open) |
+| Firmware | Per family: built-in or user-supplied, licence text, status | Implemented (#1344, #1349; see [bundled firmware](../bundled-firmware.md)) |
+| Display & sound | Resolution (720p default), safe area, volume | Display in Settings (#1349); volume open (#1415) |
+| Network | Wired status, Wi-Fi, optional host pairing | Status in Settings (#1349); Wi-Fi (#1416) and optional pairing (#1417) open |
+| Updates | System, FES software and core versions; update and roll back | Backend yes; UI open (#1350, #917) |
+| About & help | Versions, kit ID, quickstart link, Run setup again, diagnostics, factory reset | About/help & Run setup again landed (#1345, #1349); Diagnostics RAM tester/logs open (#1418) |
 
 Out of v1: a Library destination, per-core remap overrides, themes, multiple users and mesh settings.
 
 ## Milestone and issues
 
-The table records the 1 November plan; follow the linked issues and milestone for current status and ownership.
+Status refreshed on 23 November 2026 against GitHub milestone [v1: DE10 first release](https://github.com/DeanoC/fes/milestone/2) (8 closed, 17 open). Sizes: S = a few days, M = 1–2 weeks, L = 2–4 weeks. Follow the linked issues and milestone for live ownership.
 
-Milestone [v1: DE10 first release](https://github.com/DeanoC/fes/milestone/2). Sizes: S = a few days, M = 1–2 weeks, L = 2–4 weeks. Rows marked Existing got the milestone and a cross-link rather than a new issue. The duplicate check on 1 Nov found no existing release milestone or matching issues; #489 (ST qualification) and #387 (licence-notice audit) are related and cross-linked.
+| Item | Issue | Status | Title | One line | Size | Lane |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | #1341 | Closed | v1 scope: 4 families in the catalog, hide legacy cores | Release filter in catalog and Home; support matrix marks v1, v2 and held back | S | lane:deano |
+| 2 | #1342 | Closed | UX design: first boot, Home and Settings for v1 | Reference renders for screens 0–6 and the settings map, from the decisions above | M | lane:deano |
+| 3 | #1343 | Closed | Firmware licensing research | Confirm redistribution terms for EmuTOS, Amstrad's Sinclair ROM permission (ZX80/81, Spectrum 48K/128K/+3) and open C64 KERNAL/BASIC replacements; decide what ships | S | lane:deano |
+| 4 | #1344 | Closed | Bundle legal firmware and the first-use firmware info card | Package approved firmware with licences; one-time info card per family | M | lane:deano |
+| 5 | #1345 | Closed | First-run flow: welcome, summary, marker, Run setup again | Tenfoot welcome and summary rooms; skip and resume | M | lane:deano |
+| 6 | #1346 | Open | Per-family games-folder picker with suggestions | User-chosen folders, suggested matches, in-UI scan with progress and results | L | lane:deano |
+| 7 | #1347 | Closed | Home: family tiles plus Recent/Continue, no Library | Recent/Continue row, 4 family tiles with readiness, Library removed from navigation | M | lane:deano |
+| 8 | #980 | Open | Controllers page and first-run pad step (Existing #980) | Slice 4 plus a Tested badge and the first-run step | L | lane:deano |
+| 9 | #1348 | Open | Tested controller list | Pick and HIL a short list of wired and Bluetooth pads; publish as Tested | S | lane:deano |
+| 10 | #1349 | Closed | Settings surface v1 | Base settings surface; follow-up slices tracked in #1415–#1418 | M | lane:deano |
+| 11 | #1350 | Open | Updates UI and recovery (Existing #917 folds in) | One Updates page over image, software and cores; keep/pin an image for rollback | M | lane:deano |
+| 12 | #727 | Open | Consumer release image with clean first boot (Existing #727 folds in) | Checksummed image, no dev token, per-device config, recovery; trial-boot hang fixed | M | lane:deano |
+| 13 | #1351 | Open | Family icons and empty/error states | Original icons for 4 families; copy for every not-ready state at 720p and 1024×600 | M | lane:deano |
+| 14 | #1352 | Open | HIL: exact release packages, ZX81 family | ZX81/ZX80/TS1000/TS1500 on release bytes: video, audio, input, load, SAVE, Stop | S | lane:lander |
+| 15 | #1353 | Open | HIL: exact release packages, Spectrum family | All 4 packages: tape, disk (+3/Beta), snapshot, input, Stop | M | lane:lander |
+| 16 | #1354 | Open | HIL: exact release packages, Atari ST and C64 | Re-seal on current bytes (see #489); ST GEM, disk, save; C64 BASIC and disk load | M | lane:lander |
+| 17 | #1355 | Open | Release-candidate acceptance on the named image | Full GTM checklist on a freshly flashed DE10, clean profile, offline | M | lane:lander |
+| 18 | #1356 | Open | Public quickstart and release page | Flash, first boot, pads, folders, firmware notes, known issues | M | lane:deano |
 
-| Item | Issue | Title | One line | Size | Lane |
-| --- | --- | --- | --- | --- | --- |
-| 1 | #1341 | v1 scope: 4 families in the catalog, hide legacy cores | Release filter in catalog and Home; support matrix marks v1, v2 and held back | S | lane:deano |
-| 2 | #1342 | UX design: first boot, Home and Settings for v1 | Reference renders for screens 0–6 and the settings map, from the decisions above | M | lane:deano |
-| 3 | #1343 | Firmware licensing research | Confirm redistribution terms for EmuTOS, Amstrad's Sinclair ROM permission (ZX80/81, Spectrum 48K/128K/+3) and open C64 KERNAL/BASIC replacements; decide what ships | S | lane:deano |
-| 4 | #1344 | Bundle legal firmware and the first-use firmware info card | Package approved firmware with licences; one-time info card per family | M | lane:deano |
-| 5 | #1345 | First-run flow: welcome, summary, marker, Run setup again | Tenfoot welcome and summary rooms; skip and resume | M | lane:deano |
-| 6 | #1346 | Per-family games-folder picker with suggestions | User-chosen folders, suggested matches, in-UI scan with progress and results | L | lane:deano |
-| 7 | #1347 | Home: family tiles plus Recent/Continue, no Library | Recent/Continue row, 4 family tiles with readiness, Library removed from navigation | M | lane:deano |
-| 8 | #980 | Controllers page and first-run pad step (Existing #980) | Slice 4 plus a Tested badge and the first-run step | L | lane:deano |
-| 9 | #1348 | Tested controller list | Pick and HIL a short list of wired and Bluetooth pads; publish as Tested | S | lane:deano |
-| 10 | #1349 | Settings surface v1 | Display, network, firmware, About/help, factory reset, diagnostics | M | lane:deano |
-| 11 | #1350 | Updates UI and recovery (Existing #917 folds in) | One Updates page over image, software and cores; keep/pin an image for rollback | M | lane:deano |
-| 12 | #727 | Consumer release image with clean first boot (Existing #727 folds in) | Checksummed image, no dev token, per-device config, recovery; trial-boot hang fixed | M | lane:deano |
-| 13 | #1351 | Family icons and empty/error states | Original icons for 4 families; copy for every not-ready state at 720p and 1024×600 | M | lane:deano |
-| 14 | #1352 | HIL: exact release packages, ZX81 family | ZX81/ZX80/TS1000/TS1500 on release bytes: video, audio, input, load, SAVE, Stop | S | lane:lander |
-| 15 | #1353 | HIL: exact release packages, Spectrum family | All 4 packages: tape, disk (+3/Beta), snapshot, input, Stop | M | lane:lander |
-| 16 | #1354 | HIL: exact release packages, Atari ST and C64 | Re-seal on current bytes (see #489); ST GEM, disk, save; C64 BASIC and disk load | M | lane:lander |
-| 17 | #1355 | Release-candidate acceptance on the named image | Full GTM checklist on a freshly flashed DE10, clean profile, offline | M | lane:lander |
-| 18 | #1356 | Public quickstart and release page | Flash, first boot, pads, folders, firmware notes, known issues | M | lane:deano |
+Follow-up Settings issues added to milestone #2 after #1349 closed: #1415 (volume control), #1416 (Wi-Fi on the kit), #1417 (optional Pair with a computer) and #1418 (Diagnostics RAM tester and logs). #770 (UX tracker), #917 (image retention) and #727 remain open in the milestone; #489 and #387 are cross-linked.
 
-#770 (UX tracker) has the milestone and links to items 2, 5 and 7. Filed: 16 new issues, #1341–#1356 (all items except 8 and 12, which reuse #980 and #727; #917 folds into item 11 as a linked dependency, so item 11 is still new). #489 and #387 are cross-linked.
-
-**Order:** items 1–3 first, then 4–7, 9, 10 and 12 in parallel, then 8, 11 and 13, then HIL 14–16 on frozen packages, and 17–18 last.
+**Remaining order:** finish the open setup/UI/image items (#1346, #980, #1348, #1350/#917, #727, #1351, #1415–#1418), then run HIL (#1352–#1354) on frozen packages, and finish with #1355 and #1356.
 
 ## Sources
 

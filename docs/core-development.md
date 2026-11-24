@@ -4,16 +4,19 @@ Use this lane to prepare one described core for an **already-compatible**
 platform. It never assembles `linux.img`, changes the factory package set,
 or updates target software. Preparation selects the registered producer for
 the requested board; the default is DE10-Nano. DE25-Nano explicitly selects
-its Quartus Pro MENU or BRAM ZX81 recipe. General labelled product variants
-remain part of the rollout in [Quartus-built cores](design/quartus-cores.md).
+its registered Quartus Pro 26.3 recipes (`fes.menu`, `fes.zx81`,
+`fes.spectrum`, `fes.atari-st`, `fes.c64`, `fes.pcxt-dos`). General labelled
+product variants remain part of the rollout in
+[Quartus-built cores](design/quartus-cores.md).
 
 ## Ownership and source of truth
 
 `config/core-recipes.toml` maps board/core pairs to the selected misteross producer,
 authentication function and toolchain lock. It is versioned, strictly validated
 data, not a list of shell commands. OSS recipes use their declared nextpnr
-lane; pc386, PC/XT DOS and DE25 select registered Quartus producers. The pc386
-sealer accepts either authenticated HIP or CUDA toolchain slot and routes no GPU.
+lane; the DE10 ZX81 family, PC/XT DOS, pc386 and DE25 select registered Quartus
+producers. The pc386 sealer accepts either authenticated HIP or CUDA toolchain
+slot and routes no GPU.
 A failed producer remains failed. The existing image builder and the developer
 command consume the same board-scoped registry.
 Cached-package inspection and archive reconstruction use that independently
@@ -64,10 +67,11 @@ explicitly:
 make core-dev CORE_DEV_ARGS='prepare --board de25-nano --core fes.zx81 --output out/core-dev/de25-zx81-001'
 ```
 
-`fes.menu` also has a DE25 recipe. Unsupported board/core pairs fail before
-source staging or compilation. DE25 uses its authenticated Quartus Pro
-producer, vendor source archive and complete timing/signoff gate, including
-independent RBF reproduction before package export. An ineligible candidate
+Registered DE25 recipes currently cover `fes.menu`, `fes.zx81`, `fes.spectrum`,
+`fes.atari-st`, `fes.c64` and `fes.pcxt-dos`. Unsupported board/core pairs fail
+before source staging or compilation. DE25 uses its authenticated Quartus Pro
+26.3 producer, vendor source archive, canonical Qsys/QIP generation (#2090) and
+complete timing/signoff gate before package export. An ineligible candidate
 cannot produce a successful preparation receipt. The package's sealed target,
 programming profile, interfaces and source provenance remain authoritative;
 preparation grants no native kit acceptance. See the
