@@ -86,6 +86,14 @@ the shared runner on `fes_i386_cpu`, DX = `i486dx/lockstep.py`
 | Level 3 (`--random-programs 500 --random-seeds 8 --limit-per-file 20`): directed, unreal, PM, paging, no-387, x87 (125 with the identity on), BCD, transcendental, built forms (2,048 opcodes, 1,620 built, 0 mismatches), random/PM/task/debug/undefined programs | 0 failures | 0 failures |
 | Level 4 (`--identity 486sx`): 148 directed cases, 56,000 random programs | 148 agree, 56,000 keep step | 148 agree, 56,000 keep step |
 
+The committed reports name their revision (`source.fes_revision`,
+`3739c0d43`), at which `i486dx/lockstep.py` and `derive.py` had the bytes
+that produced them. Since Codex's review of `6d6b8ae94`, a DX report's source
+record also lists the runner and `derive.py` themselves (level 4 under
+`i486dx_source`). They are not pc386 evidence inputs: no record's closure
+holds them, and adding one to `input_identity.py` would move the DE10 record
+identity G1 holds equal.
+
 The two arms differ only in counters (clocks, replays, the latency-free gaps):
 227 values at level 3, 11 at level 4 ([`lockstep/l3-compare.txt`](lockstep/l3-compare.txt),
 [`lockstep/l4-compare.txt`](lockstep/l4-compare.txt)). The level-3 reports

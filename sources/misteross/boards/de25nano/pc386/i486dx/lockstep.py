@@ -13,6 +13,7 @@ shared runner's. The RTL only: the seal-netlist mode (--netlist) is refused.
 """
 from pathlib import Path
 import importlib.util
+import json
 import sys
 
 HERE = Path(__file__).resolve().parent
@@ -31,12 +32,25 @@ def main(argv):
     level3.OUTPUT = ROOT / 'build/sim/fes-i486dx-lockstep'
     # The runners join RTL with each name; an absolute path stays itself.
     level3.CPU_RTL = dx.sim_sources(level3.OUTPUT / 'derived', ROOT)
+    # The report's source record (its files and files_sha256) names this
+    # runner and the derivation too, so a DX report says which runner and
+    # derivation produced it; nothing shared binds them (they are DE25 only,
+    # outside the DE10's record closure).
+    shared = level3.tested_sources
+    level3.tested_sources = lambda: sorted({*shared(), Path(__file__).resolve(), HERE / 'derive.py'})
     sys.argv = [sys.argv[0], *argv[1:]]
     if argv[0] == 'level3':
         return level3.main()
     from scripts import test_fes_i486_lockstep as level4
     level4.OUTPUT = ROOT / 'build/sim/fes-i486dx-i486-lockstep'
-    return level4.main()
+    status = level4.main()
+    # The level-4 runner records no sources; add the same record to its report.
+    report = level4.OUTPUT / 'report.json'
+    if report.exists():
+        data = json.loads(report.read_text())
+        data['i486dx_source'] = level3.source_record()
+        report.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
+    return status
 
 
 if __name__ == '__main__':
