@@ -223,13 +223,17 @@ after it, DDR holds what the CPU wrote and no line of the range is cached.
 
 ## Open
 
-- **The kernel storage design** was settled in 4d as the DT pool and checked
-  under KUnit; on J8G the pool came up at its place and size with the owner
-  bound to it. What stays open until a window machine runs on the kit:
+- **The kernel storage design** was settled in 4d as the DT pool. KUnit
+  checks the window's allocation rules, not the pool: its cases allocate on
+  a synthetic test device backed by the QEMU kernel's global 320 MiB CMA,
+  and never bind the owner's `memory-region`. On J8G the pool came up at its
+  place and size with the owner bound to it. What stays open until a window
+  machine runs on the kit:
   - the scanout's 8 MiB now comes from the pool, and MENU drew through it
     on J8G; settled;
-  - KUnit allocates the 256 MiB window from the pool under QEMU; the kit has
-    not allocated one yet;
+  - a 256 MiB window allocated from the per-device pool
+    (`of_reserved_mem_device_init`, `DMA_ATTR_FORCE_CONTIGUOUS` under the
+    SMMU) has not been exercised anywhere yet;
   - the no-pool alternative (a non-contiguous allocation behind one IOVA
     range) was not taken;
   - allocating and zeroing 256 MiB on every launch costs launch time; 4g
