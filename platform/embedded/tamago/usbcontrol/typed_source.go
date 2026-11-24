@@ -3,8 +3,16 @@ package usbcontrol
 
 import (
 	"context"
+	"fmt"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 )
+
+func copyReportStrict(dst, r []byte) (int, error) {
+	if len(r) == 0 || len(r) > len(dst) {
+		return 0, fmt.Errorf("usbcontrol: invalid report length %d for buffer %d", len(r), len(dst))
+	}
+	return copy(dst, r), nil
+}
 
 // Both typed views share the same ownership state machine. Neither view can
 // poll the other protocol, and every view retains its failed partial driver.
@@ -23,7 +31,7 @@ func (d keyboardDriver) pollReportInto(dst []byte) (int, error) {
 	if err != nil || r == nil {
 		return 0, err
 	}
-	return copy(dst, r), nil
+	return copyReportStrict(dst, r)
 }
 
 type gamepadDriver struct{ input.USBGamepadReports }
@@ -37,7 +45,7 @@ func (d gamepadDriver) pollReportInto(dst []byte) (int, error) {
 	if err != nil || r == nil {
 		return 0, err
 	}
-	return copy(dst, r), nil
+	return copyReportStrict(dst, r)
 }
 
 type Source struct{ lease *reportLease }

@@ -69,22 +69,32 @@ func (k *BootKeyboard) FeedInto(report []byte, dst []KeyEvent) (int, error) {
 	for bit := uint8(0); bit < 8; bit++ {
 		next[0xe0+bit] = report[0]&(1<<bit) != 0
 	}
+	needed := 0
+	for usage, wasDown := range k.keys {
+		if wasDown && !next[usage] {
+			needed++
+		}
+	}
+	for usage, down := range next {
+		if down && !k.keys[usage] {
+			needed++
+		}
+	}
+	if needed > len(dst) {
+		return 0, fmt.Errorf("usb: edge buffer too small: need %d, have %d", needed, len(dst))
+	}
 	n := 0
 	// Releases precede presses; order inside each set is deterministic, since
 	// HID key-array order does not describe chronological event order.
 	for usage, wasDown := range k.keys {
 		if wasDown && !next[usage] {
-			if n < len(dst) {
-				dst[n] = KeyEvent{Usage: uint8(usage), Modifiers: report[0]}
-			}
+			dst[n] = KeyEvent{Usage: uint8(usage), Modifiers: report[0]}
 			n++
 		}
 	}
 	for usage, down := range next {
 		if down && !k.keys[usage] {
-			if n < len(dst) {
-				dst[n] = KeyEvent{Usage: uint8(usage), Pressed: true, Modifiers: report[0]}
-			}
+			dst[n] = KeyEvent{Usage: uint8(usage), Pressed: true, Modifiers: report[0]}
 			n++
 		}
 	}
