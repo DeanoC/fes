@@ -53,7 +53,7 @@ func (p preferenceStore) ReadPreferences() ([]byte, error) {
 }
 
 func (p preferenceStore) WritePreferences(data []byte) error {
-	if err := p.volume.WriteFile("FES/PREFS.JSON", data); err != nil {
+	if err := p.volume.ReplaceFile(context.Background(), "FES/PREFS.JSON", data); err != nil {
 		return err
 	}
 	fmt.Printf("FES_PREFERENCES_SAVED bytes=%d\n", len(data))
