@@ -12,11 +12,14 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 SHIPPED_FPGALOAD_PROFILE = ROOT / 'platform/embedded/nano/sd-profile.json'
 OPT_INS = [
-    (True, '', '', 0),
-    (True, 'fes-de25', '', 0),
-    (False, '', '10.0.2.2', 0),
-    (False, '', '10.0.2.2', 123),
-    (True, 'fes-de25', '10.0.2.2', 123),
+    (True, '', '', 0, False, False),
+    (True, 'fes-de25', '', 0, False, False),
+    (False, '', '10.0.2.2', 0, False, False),
+    (False, '', '10.0.2.2', 123, False, False),
+    (True, 'fes-de25', '10.0.2.2', 123, False, False),
+    (False, '', '', 0, True, False),
+    (False, '', '', 0, False, True),
+    (True, 'fes-de25', '10.0.2.2', 123, True, True),
 ]
 
 
@@ -48,21 +51,21 @@ class TamagoNetworkBuildOptionTests(unittest.TestCase):
         # Defaults stay disabled on any program/profile.
         self.assertEqual(
             build.network_runtime_options('probe', no_net_profile, False, False, False, '', '', 0),
-            (False, '', '', 0),
+            (False, '', '', 0, False, False),
         )
         self.assertEqual(
-            build.network_runtime_options('fpgaload', no_net_profile, True, True, None, None, None, None),
-            (False, '', '', 0),
+            build.network_runtime_options('fpgaload', no_net_profile, True, True, None, None, None, None, None, None),
+            (False, '', '', 0, False, False),
         )
 
         # Valid opt-in combinations.
         self.assertEqual(
-            build.network_runtime_options('fpgaload', net_profile, True, True, True, 'fes-de25', '10.0.2.2', 0),
-            (True, 'fes-de25', '10.0.2.2', 0),
+            build.network_runtime_options('fpgaload', net_profile, True, True, True, 'fes-de25', '10.0.2.2', 0, True, True),
+            (True, 'fes-de25', '10.0.2.2', 0, True, True),
         )
         self.assertEqual(
             build.network_runtime_options('fpgaload', net_profile, True, True, False, '', '192.168.1.10', 1234),
-            (False, '', '192.168.1.10', 1234),
+            (False, '', '192.168.1.10', 1234, False, False),
         )
 
         # Invalid gates/arguments fail closed.
@@ -72,6 +75,10 @@ class TamagoNetworkBuildOptionTests(unittest.TestCase):
             ('fpgaload', net_profile, True, False, True, '', '', 0),
             ('fpgaload', no_net_profile, True, True, True, '', '', 0),
             ('fpgaload', no_net_profile, True, True, False, '', '10.0.2.2', 0),
+            ('fpgaload', no_net_profile, True, True, False, '', '', 0, True, False),
+            ('fpgaload', no_net_profile, True, True, False, '', '', 0, False, True),
+            ('probe', net_profile, True, True, False, '', '', 0, True, False),
+            ('fpgaload', net_profile, False, True, False, '', '', 0, False, True),
             ('fpgaload', net_profile, True, True, False, 'fes-de25', '', 0),
             ('fpgaload', net_profile, True, True, True, 'bad host', '', 0),
             ('fpgaload', net_profile, True, True, True, 'a' * 256, '', 0),
@@ -84,6 +91,8 @@ class TamagoNetworkBuildOptionTests(unittest.TestCase):
             ('fpgaload', net_profile, True, True, False, '', '10.0.2.2', -1),
             ('fpgaload', net_profile, True, True, 'yes', '', '', 0),
             ('fpgaload', net_profile, True, True, False, '', '10.0.2.2', True),
+            ('fpgaload', net_profile, True, True, False, '', '', 0, 'yes', False),
+            ('fpgaload', net_profile, True, True, False, '', '', 0, False, 'yes'),
         ]
         for args in bad_cases:
             with self.subTest(args=args):
@@ -104,7 +113,7 @@ class TamagoNetworkBuildOptionTests(unittest.TestCase):
         self.assertIsNone(build.profile_constants(shipped)[5])
         self.assertEqual(
             build.network_runtime_options('fpgaload', shipped, True, True, False, '', '', 0),
-            (False, '', '', 0),
+            (False, '', '', 0, False, False),
         )
         for opt_in in OPT_INS:
             with self.subTest(route='shipped profile', opt_in=opt_in):
@@ -132,7 +141,7 @@ class TamagoNetworkBuildOptionTests(unittest.TestCase):
             profile_path.write_text(json.dumps(network_only))
             output = Path(tmp) / 'never-built'
             for opt_in in OPT_INS:
-                dhcp, hostname, sntp_server, sntp_port = opt_in
+                dhcp, hostname, sntp_server, sntp_port, allow_100m, recover_link_flap = opt_in
                 args = argparse.Namespace(
                     interactive=False, disk=None, qemu=None, display=None,
                     program='fpgaload', profile=profile_path, package_id=None,
@@ -140,6 +149,8 @@ class TamagoNetworkBuildOptionTests(unittest.TestCase):
                     selected_programs=True, tenfoot_serial=True,
                     network_dhcp=dhcp, network_dhcp_hostname=hostname,
                     network_sntp_server=sntp_server, network_sntp_port=sntp_port,
+                    network_allow_100m=allow_100m,
+                    network_recover_link_flap=recover_link_flap,
                     hps_first_project=Path(tmp), output=output)
                 with self.subTest(route='build pin', opt_in=opt_in):
                     with mock.patch.dict(os.environ, {'FES_EXPERIMENTAL_DE25_EMBEDDED': '1'}):

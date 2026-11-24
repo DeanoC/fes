@@ -40,6 +40,15 @@ var ownedNetworkController *network.Controller
 // firmware MAC/DMA contract; disabled profiles must never invoke it.
 func NetworkEnabled() bool { return profileNetworkEnabled }
 
+// NetworkOptions configures opt-in XGMAC link speed and link-flap recovery
+// behaviors forwarded from trusted board startup. Zero values preserve strict
+// 1000BASE-T full-duplex, fail-closed carrier enforcement.
+type NetworkOptions struct {
+	Allow100Full    bool
+	RecoverLinkLoss bool
+	OnLinkChange    func(up bool, speed xgmac.LinkSpeed)
+}
+
 // OpenNetworkWithControl requires the owner from the trusted boot admission,
 // not from package metadata or a previous MAC receipt. Return the controller to
 // ProgramService.AttachNetwork before frontend ownership. This hook supplies
@@ -47,7 +56,13 @@ func NetworkEnabled() bool { return profileNetworkEnabled }
 // ctx bounds controller startup; lifetime owns the background socket/IP workers.
 // Canceling startup after successful return must not terminate those workers.
 func OpenNetworkWithControl(ctx, lifetime context.Context, bootOwner uint64) (*network.Interface, *network.Controller, error) {
-	return openControlledNetwork(ctx, lifetime, bootOwner, func(factory func() (network.Device, error)) (*network.Interface, error) {
+	return OpenNetworkWithControlOptions(ctx, lifetime, bootOwner, NetworkOptions{})
+}
+
+// OpenNetworkWithControlOptions is the link-policy parameterized counterpart to
+// OpenNetworkWithControl for static IPv4 startup.
+func OpenNetworkWithControlOptions(ctx, lifetime context.Context, bootOwner uint64, opts NetworkOptions) (*network.Interface, *network.Controller, error) {
+	return openControlledNetwork(ctx, lifetime, bootOwner, opts, func(factory func() (network.Device, error)) (*network.Interface, error) {
 		return network.OpenDevice(lifetime, profileNetworkAddress, profileNetworkGateway, factory)
 	})
 }
@@ -57,10 +72,16 @@ func OpenNetworkWithControl(ctx, lifetime context.Context, bootOwner uint64) (*n
 // DMA ownership, and network.Controller lifecycle contract, bounding XGMAC open
 // and DHCPv4 lease acquisition to ctx while background stack workers run on lifetime.
 func OpenNetworkWithControlDHCP(ctx, lifetime context.Context, bootOwner uint64, dhcpCfg network.DHCPConfig) (*network.Interface, *network.Controller, error) {
+	return OpenNetworkWithControlDHCPOptions(ctx, lifetime, bootOwner, dhcpCfg, NetworkOptions{})
+}
+
+// OpenNetworkWithControlDHCPOptions combines opt-in RFC 2131 DHCPv4 startup
+// with explicit XGMAC 100BASE-TX / link-flap recovery options.
+func OpenNetworkWithControlDHCPOptions(ctx, lifetime context.Context, bootOwner uint64, dhcpCfg network.DHCPConfig, opts NetworkOptions) (*network.Interface, *network.Controller, error) {
 	if err := network.ValidateDHCPConfig(dhcpCfg); err != nil {
 		return nil, nil, err
 	}
-	return openControlledNetwork(ctx, lifetime, bootOwner, func(factory func() (network.Device, error)) (*network.Interface, error) {
+	return openControlledNetwork(ctx, lifetime, bootOwner, opts, func(factory func() (network.Device, error)) (*network.Interface, error) {
 		return network.OpenDeviceDHCPWithStartup(ctx, lifetime, factory, dhcpCfg)
 	})
 }
@@ -68,6 +89,7 @@ func OpenNetworkWithControlDHCP(ctx, lifetime context.Context, bootOwner uint64,
 func openControlledNetwork(
 	ctx, lifetime context.Context,
 	bootOwner uint64,
+	opts NetworkOptions,
 	openIface func(factory func() (network.Device, error)) (*network.Interface, error),
 ) (*network.Interface, *network.Controller, error) {
 	if !profileNetworkEnabled || ctx == nil || lifetime == nil || bootOwner == 0 {
@@ -101,12 +123,15 @@ func openControlledNetwork(
 			return nil, err
 		}
 		ownedNetworkDevice, control, err = xgmac.OpenControlled(ctx, FabricCPUTransport{}, bootOwner, macRegisters{}, mem, xgmac.Config{
-			MAC:           profileNetworkMAC,
-			PHYAddress:    profileNetworkPHY,
-			PHYID:         profileNetworkPHYID,
-			CSRClockHz:    profileNetworkClock,
-			RXBufferShift: profileNetworkRXShift,
-			IRQ:           irqID,
+			MAC:             profileNetworkMAC,
+			PHYAddress:      profileNetworkPHY,
+			PHYID:           profileNetworkPHYID,
+			CSRClockHz:      profileNetworkClock,
+			RXBufferShift:   profileNetworkRXShift,
+			IRQ:             irqID,
+			Allow100Full:    opts.Allow100Full,
+			RecoverLinkLoss: opts.RecoverLinkLoss,
+			OnLinkChange:    opts.OnLinkChange,
 		})
 		if err == nil {
 			err = ctx.Err()

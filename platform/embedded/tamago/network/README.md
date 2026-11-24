@@ -19,6 +19,7 @@ driver using the pinned `lneto` TCP/IP stack
 | IPv4 / TCP | `lneto` over MTU 1500 (`net.SocketFunc`) | 16 active TCP ports, 8 listener connections; no checksum/segmentation offloads or IPv6. |
 | Static IPv4 | Default (`10.0.2.15/24`, gw `10.0.2.2` on QEMU) | Set `Config.Address` and `Config.Gateway` to override. |
 | DHCPv4 & renewal | Opt-in RFC 2131 client (`AcquireDHCP`, `OpenDeviceDHCP`, `Config{DHCP: true}`) + T1/T2 `LeaseRenewer` | Requires subnet mask, server ID, and usable router (option 3) in the leased subnet. |
+| 100M / link-flap recovery | Opt-in `NetworkOptions` (`Allow100Full`, `RecoverLinkLoss`) + `LeaseRenewer.NotifyLinkUp()` INIT-REBOOT probe | Dormant on Nano `fpgaload`; host unit tests only. A `DHCPNAK`, or an ACK for another address or gateway, halts the link; a silent probe keeps the still-valid lease until T1/T2. |
 | DNSv4 | Pure-Go RFC 1035 A-record resolver (`ResolveA`) | Uses raw frame hooks on `Link`. |
 | SNTP | `QuerySNTP` wall-clock client | Optional UTC clock source for FAT32 (`SetClock`). |
 | TLS / auth | Not supported | Deterministic board entropy is unsuitable for TLS/authentication; use private LAN HTTP. |
@@ -46,19 +47,33 @@ driver using the pinned `lneto` TCP/IP stack
   `"dhcp": true` in `FES/BOOT.JSON` and verifies the `FES_NETWORK_DHCP` lease
   in `result.json`. Both static and `--dhcp` run in the `tamago` CI lane.
 - **DE25-Nano `fpgaload` (dormant / disabled):** `cmd/fpgaload/shared_network.go`
-  wires `OpenNetworkWithControlDHCP`, `LeaseRenewer`, and `QuerySNTP` behind
-  build-time linker flags (`--network-dhcp`, `--network-sntp-server`, etc.),
-  but **`build.py` rejects all of them** against the shipped
-  `nano/sd-profile.json` (`network: null`) because closed-bridge SD ownership
-  excludes Ethernet (`tests/test_tamago_build_network.py` enforces this
-  refusal). Even a hand-linked binary fails closed in `prepareProgramNetwork`
-  while `de25nano.NetworkEnabled()` is false. Enabling Nano Ethernet requires a
+  parses `--network-dhcp`, `--network-dhcp-hostname`, `--network-sntp-server`,
+  `--network-sntp-port`, `--network-allow-100m`, and `--network-recover-link-flap`
+  with `ParseStartupFlags` and passes opt-in `NetworkOptions` (`Allow100Full`,
+  `RecoverLinkLoss`, and an `OnLinkChange` hook calling
+  `LeaseRenewer.NotifyLinkUp()`) into `OpenNetworkWithControlOptions` /
+  `OpenNetworkWithControlDHCPOptions`. With DHCP selected it opens
+  `OpenNetworkWithControlDHCPOptions` through
+  `ProgramService.StartNetworkWithTimeout`, then starts a `LeaseRenewer`. On
+  link-up before T1, `NotifyLinkUp()` triggers one debounced RFC 2131
+  INIT-REBOOT DHCPREQUEST (`LinkUpDebounce`, `LinkUpProbeTimeout`): broadcast
+  from 0.0.0.0 with `ciaddr` 0, the lease address in option 50 and no server
+  identifier. RFC 2131 §4.3.2 asks a server to NAK that form when the address
+  is on the wrong network; it sets no such rule for a RENEWING/REBINDING
+  request with `ciaddr` set. A `DHCPNAK` from any server, or an ACK for
+  another address or gateway, halts the link immediately; a probe with no
+  answer keeps the still-valid lease until T1/T2. **`build.py` rejects all of
+  these flags** against the shipped `nano/sd-profile.json` (`network: null`)
+  because closed-bridge SD ownership excludes Ethernet
+  (`tests/test_tamago_build_network.py` enforces this refusal). Even a
+  hand-linked binary fails closed in `prepareProgramNetwork` while
+  `de25nano.NetworkEnabled()` is false. Enabling Nano Ethernet requires a
   network-enabled profile plus a qualified EL3 MAC lease/drain supplier.
 
 ## Verification
 
 ```sh
-# Host unit tests (DHCP, renewal, DNS, SNTP, pause/resume control)
+# Host unit tests (DHCP, renewal, DNS, SNTP, pause/resume control, NotifyLinkUp)
 GOWORK=off go -C platform/embedded/tamago test -race -count=1 ./network
 
 # QEMU VirtIO static + DHCP integration
