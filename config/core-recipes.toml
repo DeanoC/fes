@@ -996,7 +996,7 @@ quartus_role = "no oracle required"
 
 
 [recipes.pnr]
-seeds = [5, 4, 2, 1, 3, 6, 7, 8, 9, 10]
+seeds = [11, 5, 4, 2, 1, 3, 6, 7, 8, 9, 10]
 timing_weights = [2000]
 search_weights = [2000]
 critexp = 5
