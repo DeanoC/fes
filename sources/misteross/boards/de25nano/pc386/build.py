@@ -36,10 +36,10 @@ I486 = 1
 # The board: its own machine PLL on the shared VCO (50 x 188/3): /51 for the
 # machine's 61.437908 MHz and /255 for the 12.287582 MHz audio master clock,
 # both -34 ppm and exactly 5:1, as on the DE10. No board SDRAM; a window.
-MACHINE_HZ = 61437908
-CLOCK = Fraction(9_400_000_000, 153)
+MACHINE_HZ = 125333333
+CLOCK = Fraction(9_400_000_000, 75)
 PLL_IP = BOARD + "pc386/machine_pll.ip"
-PLL_PARAMETERS = {"gui_number_of_clocks": "2", "gui_output_clock_frequency0": "61.437908",
+PLL_PARAMETERS = {"gui_number_of_clocks": "2", "gui_output_clock_frequency0": "125.333333",
                   "gui_output_clock_frequency1": "12.287582"}
 SDRAM_CLOCKS = ()
 PLL_COMMENT = """// One PLL on CLOCK1_50 in place of the stock audio PLL, whose pin can feed no
@@ -101,7 +101,7 @@ def guest_rates():
     """
     parameters = {}
     for name, rate in sealer.GUEST_RATES.items():
-        ratio = Fraction(1, 1280) if name == "AUDIO" else rate / CLOCK
+        ratio = Fraction(25, 65280) if name == "AUDIO" else rate / CLOCK
         if ratio.numerator >= 2 ** 31 or ratio.denominator >= 2 ** 31:
             raise ValueError(f"{name} does not fit pc386_system's integer parameters")
         parameters[f"{name}_N"], parameters[f"{name}_D"] = ratio.numerator, ratio.denominator
