@@ -66,7 +66,7 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 				return d.retireControl(errors.New("xgmac: DMA window changed"))
 			}
 			var err error
-			linkEv, err = d.health(true)
+			linkEv, err = d.health(false)
 			if err != nil {
 				return err
 			}

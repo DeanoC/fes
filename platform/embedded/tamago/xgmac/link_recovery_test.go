@@ -235,11 +235,14 @@ func TestLinkFlapRecoveryAndSpeedDowngradeUpgrade(t *testing.T) {
 }
 
 func TestRecoverLinkLossStillFailsClosedOnHardwareAndMDIOFaults(t *testing.T) {
-	for _, mode := range []string{"mdio", "loopback", "bus", "stopped"} {
+	for _, mode := range []string{"mdio", "loopback", "bus", "stopped", "unsupported-100m", "unsupported-half"} {
 		t.Run(mode, func(t *testing.T) {
 			h := newHardware()
 			cfg := configuration()
 			cfg.RecoverLinkLoss = true
+			if mode == "unsupported-half" {
+				cfg.Allow100Full = true
+			}
 			d, err := Open(h, h.mem, cfg)
 			if err != nil {
 				t.Fatalf("Open: %v", err)
@@ -255,6 +258,18 @@ func TestRecoverLinkLossStillFailsClosedOnHardwareAndMDIOFaults(t *testing.T) {
 				h.regs[channelStatus] |= 1 << 12
 			case "stopped":
 				h.regs[rxControl] = 0
+			case "unsupported-100m":
+				// Completed autonegotiation at 100M without Allow100Full must fail closed.
+				h.phy[10] = 0
+				h.phy[4] = 1 << 8
+				h.phy[5] = 1 << 8
+				h.now = h.now.Add(time.Second)
+			case "unsupported-half":
+				// Completed autonegotiation at 100M half-duplex must fail closed even with Allow100Full.
+				h.phy[10] = 0
+				h.phy[4] = 1 << 7
+				h.phy[5] = 1 << 7
+				h.now = h.now.Add(time.Second)
 			}
 			if _, err := d.Receive(make([]byte, 1600)); err == nil {
 				t.Fatalf("mode %s did not fail closed under RecoverLinkLoss", mode)
@@ -267,6 +282,17 @@ func TestRecoverLinkLossStillFailsClosedOnHardwareAndMDIOFaults(t *testing.T) {
 			}
 		})
 	}
+
+	// Open with RecoverLinkLoss must also fail closed on completed unsupported negotiation.
+	hwBad := newHardware()
+	hwBad.phy[10] = 0
+	hwBad.phy[4] = 1 << 8
+	hwBad.phy[5] = 1 << 8
+	cfgBad := configuration()
+	cfgBad.RecoverLinkLoss = true
+	if _, err := Open(hwBad, hwBad.mem, cfgBad); err == nil {
+		t.Fatal("Open accepted completed 100M link without Allow100Full under RecoverLinkLoss")
+	}
 }
 
 func TestRecoverLinkLossOpenAndControlCycleWhileUnplugged(t *testing.T) {
@@ -278,6 +304,12 @@ func TestRecoverLinkLossOpenAndControlCycleWhileUnplugged(t *testing.T) {
 	cfg := configuration()
 	cfg.Allow100Full = true
 	cfg.RecoverLinkLoss = true
+	var stopCallbackUp bool
+	cfg.OnLinkChange = func(up bool, _ LinkSpeed) {
+		if up {
+			stopCallbackUp = true
+		}
+	}
 	d, err := Open(h, h.mem, cfg)
 	if err != nil {
 		t.Fatalf("Open while unplugged with RecoverLinkLoss: %v", err)
@@ -286,7 +318,8 @@ func TestRecoverLinkLossOpenAndControlCycleWhileUnplugged(t *testing.T) {
 		t.Fatalf("LinkStatus=(%t,%d), want (false,0)", up, sp)
 	}
 
-	// BindControl Stop -> Start succeeds even while Ethernet cable remains unplugged.
+	// BindControl Stop -> Start succeeds even while Ethernet cable remains unplugged,
+	// and a cable returning right before Stop must not emit a contradictory up=true callback.
 	ctl, err := d.BindControl(network.DMAControl{
 		Stop: func(context.Context) error {
 			h.regs[txControl] = 0
@@ -300,9 +333,15 @@ func TestRecoverLinkLossOpenAndControlCycleWhileUnplugged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BindControl: %v", err)
 	}
+	h.phy[1] |= 1 << 2
+	h.now = h.now.Add(500 * time.Millisecond)
 	if err := ctl.Stop(context.Background()); err != nil {
-		t.Fatalf("ctl.Stop while unplugged: %v", err)
+		t.Fatalf("ctl.Stop while cable returned: %v", err)
 	}
+	if stopCallbackUp {
+		t.Fatal("BindControl.Stop emitted up=true recovery notification while pausing device")
+	}
+	h.phy[1] &^= 1 << 2
 	if err := ctl.Start(context.Background()); err != nil {
 		t.Fatalf("ctl.Start while unplugged: %v", err)
 	}

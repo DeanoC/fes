@@ -289,7 +289,7 @@ func (d *Device) probeLink() (LinkSpeed, bool, error) {
 			return LinkSpeed1000Full, false, nil
 		}
 	} else if !d.config.Allow100Full {
-		return LinkSpeedDown, true, fmt.Errorf("xgmac: link/autonegotiation unavailable")
+		return LinkSpeedDown, false, fmt.Errorf("xgmac: link/autonegotiation unavailable")
 	}
 	if d.config.Allow100Full && !(hasExt && partner1000&(1<<15) != 0) {
 		anar, err := d.mdio(4)
@@ -303,9 +303,9 @@ func (d *Device) probeLink() (LinkSpeed, bool, error) {
 		if anar&(1<<8) != 0 && anlpar&(1<<8) != 0 {
 			return LinkSpeed100Full, false, nil
 		}
-		return LinkSpeedDown, true, fmt.Errorf("xgmac: require negotiated 1000BASE-T or 100BASE-TX full duplex")
+		return LinkSpeedDown, false, fmt.Errorf("xgmac: require negotiated 1000BASE-T or 100BASE-TX full duplex")
 	}
-	return LinkSpeedDown, true, fmt.Errorf("xgmac: require negotiated 1000BASE-T full duplex")
+	return LinkSpeedDown, false, fmt.Errorf("xgmac: require negotiated 1000BASE-T full duplex")
 }
 
 func (d *Device) applySpeedLocked(speed LinkSpeed) error {
@@ -465,7 +465,7 @@ func (d *Device) fail(err error) error {
 	}
 	return d.Err()
 }
-func (d *Device) health(allowSpeedUpdate bool) (linkEvent, error) {
+func (d *Device) health(allowLinkRecovery bool) (linkEvent, error) {
 	if err := d.Err(); err != nil {
 		return linkEvent{}, err
 	}
@@ -494,11 +494,12 @@ func (d *Device) health(allowSpeedUpdate bool) (linkEvent, error) {
 			}
 			return linkEvent{}, nil
 		}
+		if !allowLinkRecovery && (d.linkDown || speed != d.configuredSpeed) {
+			// Defer link-up recovery and TX MAC speed reprogramming while a TX
+			// descriptor is in flight or while BindControl.Stop is containing the MAC.
+			return linkEvent{}, nil
+		}
 		if speed != d.configuredSpeed {
-			if !allowSpeedUpdate {
-				// Defer TX MAC speed reprogramming until the in-flight TX descriptor finishes.
-				return linkEvent{}, nil
-			}
 			if err := d.applySpeedLocked(speed); err != nil {
 				return linkEvent{}, d.fail(err)
 			}
