@@ -110,10 +110,17 @@ func (s *Session) PairingActive() bool { return s.mgr.PairingActive() }
 // SetGameplayActive disables inquiry/page scan during active gameplay to avoid
 // 10–30 ms RF scan window spikes, and restores Page Scan in menu/idle.
 func (s *Session) SetGameplayActive(active bool) error {
+	var cancelErr error
 	if active && s.mgr.PairingActive() {
-		_ = s.mgr.SetPairingMode(false, 0)
+		cancelErr = s.mgr.SetPairingMode(false, 0)
 	}
-	return s.tr.SetGameplayRadioMode(active)
+	if err := s.tr.SetGameplayRadioMode(active); err != nil {
+		if cancelErr != nil {
+			return cancelErr
+		}
+		return err
+	}
+	return cancelErr
 }
 
 // Slot returns a snapshot of player slot index (0..3).

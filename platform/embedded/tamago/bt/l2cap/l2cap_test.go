@@ -52,10 +52,12 @@ type l2capMockBus struct {
 	aclOutPipe   *l2capMockPipe
 	cmds         []uint16
 	lastParams   map[uint16][]byte
-	failCreate   bool
-	failInquiry  bool
-	failName     bool
-	scanEnable   byte
+	failCreate     bool
+	failInquiry    bool
+	failName       bool
+	failCancelConn bool
+	failCancelInq  bool
+	scanEnable     byte
 }
 
 func newL2CAPMockBus() *l2capMockBus {
@@ -113,6 +115,18 @@ func (b *l2capMockBus) ControlTransfer(_ uint8, reqType, req byte, _, _ uint16, 
 		}
 		if op == hci.OpcodeRemoteNameRequest && b.failName {
 			b.evPipe.inQueue = append(b.evPipe.inQueue, []byte{hci.EventCommandStatus, 4, 0x0c, 1, byte(op), byte(op >> 8)})
+			return len(data), nil
+		}
+		if op == hci.OpcodeCreateConnectionCancel && b.failCancelConn {
+			b.failCancelConn = false
+			b.cmds = append(b.cmds, op)
+			b.evPipe.inQueue = append(b.evPipe.inQueue, []byte{hci.EventCommandComplete, 4, 1, byte(op), byte(op >> 8), 0x0c})
+			return len(data), nil
+		}
+		if op == hci.OpcodeInquiryCancel && b.failCancelInq {
+			b.failCancelInq = false
+			b.cmds = append(b.cmds, op)
+			b.evPipe.inQueue = append(b.evPipe.inQueue, []byte{hci.EventCommandComplete, 4, 1, byte(op), byte(op >> 8), 0x0c})
 			return len(data), nil
 		}
 		b.cmds = append(b.cmds, op)
@@ -1675,5 +1689,77 @@ func TestSyncRemoteNameFailureExhaustionFallsBackToSDP(t *testing.T) {
 	}
 	if !sawSDPReq {
 		t.Fatal("expected outgoing PSMSDP ConnReq after synchronous RemoteNameRequest retries exhausted")
+	}
+}
+
+func TestSetPairingModeClosePropagatesAndRetriesFailedCancellations(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(2000, 0)
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. InquiryCancel error on close must return an error, keep pairingActive=false,
+	// retain cancelInquiryPending=true, and retry in Service().
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	bus.failCancelInq = true
+	if err := mgr.SetPairingMode(false, 0); err == nil {
+		t.Fatal("expected SetPairingMode(false) to return CancelInquiry failure")
+	}
+	if mgr.PairingActive() || !mgr.cancelInquiryPending || !mgr.inquiryActive {
+		t.Fatalf("unexpected state after failed InquiryCancel: pairing=%t cancelInq=%t inqActive=%t",
+			mgr.PairingActive(), mgr.cancelInquiryPending, mgr.inquiryActive)
+	}
+	now = now.Add(nameRetryBackoff)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if mgr.cancelInquiryPending || mgr.inquiryActive {
+		t.Fatalf("expected Service retry to clear inquiry cancellation: cancelInq=%t inqActive=%t",
+			mgr.cancelInquiryPending, mgr.inquiryActive)
+	}
+
+	// 2. CreateConnectionCancel error on close must return an error, retain
+	// cancelConnPending=true with addr, and retry in Service().
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	dev1, _ := ParseBDAddr("AA:11:22:33:44:99")
+	eir := make([]byte, 2+15)
+	eir[0] = hci.EventExtendedInquiryResult
+	eir[1] = 15
+	eir[2] = 1
+	copy(eir[3:9], dev1[:])
+	eir[9] = 1
+	eir[11], eir[12], eir[13] = 0x08, 0x25, 0x00
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, eir)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	delete(bus.lastParams, hci.OpcodeCreateConnectionCancel)
+	bus.failCancelConn = true
+	if err := mgr.SetPairingMode(false, 0); err == nil {
+		t.Fatal("expected SetPairingMode(false) to return CreateConnectionCancel failure")
+	}
+	if !mgr.cancelConnPending || mgr.cancelConnAddr != dev1 {
+		t.Fatalf("expected cancelConnPending for %s, got pending=%t addr=%s", dev1, mgr.cancelConnPending, mgr.cancelConnAddr)
+	}
+	now = now.Add(nameRetryBackoff)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if mgr.cancelConnPending || !bytes.Equal(bus.lastParams[hci.OpcodeCreateConnectionCancel], dev1[:]) {
+		t.Fatalf("expected Service retry CreateConnectionCancel for %s: pending=%t last=%x",
+			dev1, mgr.cancelConnPending, bus.lastParams[hci.OpcodeCreateConnectionCancel])
 	}
 }

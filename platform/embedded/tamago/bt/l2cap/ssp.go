@@ -22,12 +22,17 @@ type Manager struct {
 	conns     [maxConnections]aclConn
 	txScratch [maxL2CAPPayload + 4]byte
 
-	pairingActive       bool
-	pairingUntil        time.Time
-	connecting          bool
-	connectAddr         BDAddr
-	inquiryRetryPending bool
-	inquiryRetryAt      time.Time
+	pairingActive        bool
+	pairingUntil         time.Time
+	connecting           bool
+	connectAddr          BDAddr
+	inquiryActive        bool
+	inquiryRetryPending  bool
+	inquiryRetryAt       time.Time
+	cancelInquiryPending bool
+	cancelConnPending    bool
+	cancelConnAddr       BDAddr
+	cancelRetryAt        time.Time
 
 	OnChannelOpen  func(handle uint16, addr BDAddr, name string, kind controllers.Kind, psm uint16)
 	OnDisconnect   func(handle uint16, addr BDAddr)
@@ -60,19 +65,35 @@ func (m *Manager) PairingActive() bool { return m.pairingActive }
 // mode, unknown devices and SSP User Confirmation requests are rejected fail-closed.
 func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 	pendingConnecting, pendingAddr := m.connecting, m.connectAddr
+	hasCancelTarget := pendingConnecting || m.cancelConnPending
+	cancelTarget := pendingAddr
+	if !pendingConnecting {
+		cancelTarget = m.cancelConnAddr
+	}
 	if enabled {
 		if duration <= 0 {
 			duration = 30 * time.Second
 		}
-		m.pairingActive = true
-		m.pairingUntil = m.now().Add(duration)
 		m.connecting = false
 		m.connectAddr = BDAddr{}
+		if hasCancelTarget {
+			if err := m.tr.CreateConnectionCancel(cancelTarget); err != nil {
+				m.pairingActive = false
+				m.pairingUntil = time.Time{}
+				m.inquiryRetryPending = false
+				m.inquiryRetryAt = time.Time{}
+				m.cancelConnPending = true
+				m.cancelConnAddr = cancelTarget
+				m.cancelRetryAt = m.now().Add(nameRetryBackoff)
+				return err
+			}
+			m.cancelConnPending = false
+			m.cancelConnAddr = BDAddr{}
+		}
+		m.pairingActive = true
+		m.pairingUntil = m.now().Add(duration)
 		m.inquiryRetryPending = false
 		m.inquiryRetryAt = time.Time{}
-		if pendingConnecting {
-			_ = m.tr.CreateConnectionCancel(pendingAddr)
-		}
 		if err := m.tr.WriteScanEnable(hci.ScanInquiryAndPage); err != nil {
 			m.pairingActive = false
 			m.pairingUntil = time.Time{}
@@ -86,10 +107,20 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 			m.connectAddr = BDAddr{}
 			m.inquiryRetryPending = false
 			m.inquiryRetryAt = time.Time{}
-			_ = m.tr.CancelInquiry()
+			if m.inquiryActive {
+				if cErr := m.tr.CancelInquiry(); cErr == nil {
+					m.inquiryActive = false
+					m.cancelInquiryPending = false
+				} else {
+					m.cancelInquiryPending = true
+					m.cancelRetryAt = m.now().Add(nameRetryBackoff)
+				}
+			}
 			_ = m.tr.WriteScanEnable(hci.ScanPageOnly)
 			return err
 		}
+		m.inquiryActive = true
+		m.cancelInquiryPending = false
 		return nil
 	}
 	m.pairingActive = false
@@ -98,11 +129,35 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 	m.connectAddr = BDAddr{}
 	m.inquiryRetryPending = false
 	m.inquiryRetryAt = time.Time{}
-	if pendingConnecting {
-		_ = m.tr.CreateConnectionCancel(pendingAddr)
+
+	var firstErr error
+	if hasCancelTarget {
+		if err := m.tr.CreateConnectionCancel(cancelTarget); err != nil {
+			m.cancelConnPending = true
+			m.cancelConnAddr = cancelTarget
+			m.cancelRetryAt = m.now().Add(nameRetryBackoff)
+			firstErr = err
+		} else {
+			m.cancelConnPending = false
+			m.cancelConnAddr = BDAddr{}
+		}
 	}
-	_ = m.tr.CancelInquiry()
-	return m.tr.WriteScanEnable(hci.ScanPageOnly)
+	if m.inquiryActive || m.cancelInquiryPending {
+		if err := m.tr.CancelInquiry(); err != nil {
+			m.cancelInquiryPending = true
+			m.cancelRetryAt = m.now().Add(nameRetryBackoff)
+			if firstErr == nil {
+				firstErr = err
+			}
+		} else {
+			m.inquiryActive = false
+			m.cancelInquiryPending = false
+		}
+	}
+	if err := m.tr.WriteScanEnable(hci.ScanPageOnly); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	return firstErr
 }
 
 const (
@@ -129,6 +184,31 @@ func (m *Manager) requestRemoteName(conn *aclConn) {
 	}
 }
 
+func (m *Manager) pumpCancellations() {
+	retrying := false
+	if m.cancelConnPending {
+		if err := m.tr.CreateConnectionCancel(m.cancelConnAddr); err == nil {
+			m.cancelConnPending = false
+			m.cancelConnAddr = BDAddr{}
+		} else {
+			retrying = true
+		}
+	}
+	if m.cancelInquiryPending {
+		if err := m.tr.CancelInquiry(); err == nil {
+			m.inquiryActive = false
+			m.cancelInquiryPending = false
+		} else {
+			retrying = true
+		}
+	}
+	if retrying {
+		m.cancelRetryAt = m.now().Add(nameRetryBackoff)
+	} else {
+		m.cancelRetryAt = time.Time{}
+	}
+}
+
 // Service pumps HCI events & ACL packets, enforces pairing mode expiry, and
 // advances L2CAP channels with zero steady-state allocations.
 func (m *Manager) Service() error {
@@ -137,6 +217,9 @@ func (m *Manager) Service() error {
 	}
 	if err := m.tr.Service(m.handleEvent, m.handleACL); err != nil {
 		return err
+	}
+	if (m.cancelConnPending || m.cancelInquiryPending) && (m.cancelRetryAt.IsZero() || !m.now().Before(m.cancelRetryAt)) {
+		m.pumpCancellations()
 	}
 	if m.inquiryRetryPending && (m.inquiryRetryAt.IsZero() || !m.now().Before(m.inquiryRetryAt)) {
 		m.resumeInquiryIfPairing()
@@ -226,6 +309,8 @@ func (m *Manager) resumeInquiryIfPairing() {
 		m.inquiryRetryAt = m.now().Add(nameRetryBackoff)
 		return
 	}
+	m.inquiryActive = true
+	m.cancelInquiryPending = false
 	m.inquiryRetryPending = false
 	m.inquiryRetryAt = time.Time{}
 }
@@ -241,7 +326,10 @@ func (m *Manager) maybeInitiatePair(addr BDAddr, cod uint32, pageScanRep byte, c
 	m.connectAddr = addr
 	m.inquiryRetryPending = false
 	m.inquiryRetryAt = time.Time{}
-	_ = m.tr.CancelInquiry()
+	if m.tr.CancelInquiry() == nil {
+		m.inquiryActive = false
+		m.cancelInquiryPending = false
+	}
 	if err := m.tr.CreateConnection(addr, pageScanRep, clockOff); err != nil {
 		m.connecting = false
 		m.connectAddr = BDAddr{}
@@ -285,11 +373,22 @@ func (m *Manager) handleEvent(ev []byte) {
 			m.connecting = false
 			m.connectAddr = BDAddr{}
 		}
+		canceled := m.cancelConnPending && m.cancelConnAddr == addr
+		if canceled {
+			m.cancelConnPending = false
+			m.cancelConnAddr = BDAddr{}
+		}
 		if params[0] != 0 {
 			m.resumeInquiryIfPairing()
 			return
 		}
 		handle := binary.LittleEndian.Uint16(params[1:3]) & 0x0fff
+		if canceled && !m.pairingActive {
+			if _, bonded := m.bonds.Lookup(addr); !bonded {
+				_ = m.tr.Disconnect(handle, 0x13)
+				return
+			}
+		}
 		conn := m.allocConn(handle, addr)
 		if conn == nil {
 			_ = m.tr.Disconnect(handle, 0x13)
@@ -507,6 +606,8 @@ func (m *Manager) handleEvent(ev []byte) {
 		m.maybeInitiatePair(addr, cod, params[7], clk)
 
 	case hci.EventInquiryComplete:
+		m.inquiryActive = false
+		m.cancelInquiryPending = false
 		m.resumeInquiryIfPairing()
 
 	case hci.EventSimplePairingComplete:
