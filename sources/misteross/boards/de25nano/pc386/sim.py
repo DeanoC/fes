@@ -31,17 +31,18 @@ I486 = int(re.search(r'^I486 = (\d)$', (HERE / 'build.py').read_text(), re.M).gr
 X87_PRESENT = int(re.search(r'^X87_PRESENT = (\d)$', (HERE / 'build.py').read_text(), re.M).group(1))
 i486dx = importlib.import_module('i486dx.derive')
 
-DE25_RTL = (HERE / 'fes_de25_hps_window.v', HERE / 'fes_de25_window_arbiter.v', HERE / 'fes_de25_window_unpack.v',
+DE25_RTL = (HERE / 'pc386_dma2_registers.sv', HERE / 'fes_de25_hps_window.v', HERE / 'fes_de25_window_arbiter.v', HERE / 'fes_de25_window_unpack.v',
             ROOT / 'cores/fes-common/rtl/fes_hps_ddr_guard.v', HERE / 'sim/pc386_de25_sim.sv')
 
 
 def derived_sources(output: Path) -> dict[Path, Path]:
-    """The two DE10 files derive.py changes, written for this build, and the i486DX's CPU sources in place of
+    """The three DE10 files derive.py changes, written for this build, and the i486DX's CPU sources in place of
     the integer core's."""
     output.mkdir(parents=True, exist_ok=True)
     rtl = ROOT / 'cores/fes-pc386/rtl'
     result = {}
-    for name, step in (('pc386_machine.sv', derive.retarget_machine), ('pc386_system.sv', derive.retarget_system)):
+    for name, step in (('pc386_machine.sv', derive.retarget_machine), ('pc386_system.sv', derive.retarget_system),
+                       ('pc386_at_core.sv', derive.retarget_at_core)):
         data, _ = step((rtl / name).read_bytes())
         (output / name).write_bytes(data)
         result[rtl / name] = output / name

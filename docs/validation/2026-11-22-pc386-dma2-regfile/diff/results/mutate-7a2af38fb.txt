@@ -1,0 +1,8 @@
+head 7a2af38fb 2026-11-23T18:04:25Z
+caught: status ignores the DREQ sense (seed 1 FAIL clock 181: address 8 read f0/10)
+caught: reads do not flip the byte flip-flop (seed 2 FAIL clock 7: address 0 read 00/50)
+caught: clear flip-flop ignored (seed 1 FAIL clock 42: address 5 read fc/00)
+caught: master clear keeps the request bits (seed 2 FAIL clock 36848: address 8 read 00/40)
+caught: temporary register reads FFh (seed 1 FAIL clock 16: address d read 00/ff)
+caught: count high byte lands in the address (seed 2 FAIL clock 15: address 5 read bb/00)
+exit=0

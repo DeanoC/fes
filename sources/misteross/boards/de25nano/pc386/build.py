@@ -65,7 +65,8 @@ ASSIGNMENTS = tuple(("SYNCHRONIZER_IDENTIFICATION", "FORCED_IF_ASYNCHRONOUS", "s
 PARENT_SHA256 = "10defc9a021d7119aac2bbc793ac0d6913e902b99f85cb29977c452996eeb249"
 LOCAL_FILES = ("build.py", "derive.py", "signoff_bases.py", "machine_pll.ip", "pc386-clocks.sdc", "fes_de25_pc386_standard.v",
                "fes_de25_pc386_standard_hw.tcl", "fes_de25_hps_window.v", "fes_de25_hps_window_control.v",
-               "fes_de25_window_arbiter.v", "fes_de25_window_unpack.v", "generated/fes_de25_hps_window.vh")
+               "fes_de25_window_arbiter.v", "fes_de25_window_unpack.v", "generated/fes_de25_hps_window.vh",
+               "pc386_dma2_registers.sv")
 SHARED_FILES = ("fes_computer_mailbox.v",)
 
 
@@ -178,9 +179,9 @@ def machine_netlist(sources, derived_files):
             swap[path] = str(work / Path(path).name)
         cpu = dx.cpu_sources(yosys_netlist.CPU_SOURCES, swap.pop(dx.CPU_UPSTREAM))
         swap.update({old: new for old, new in zip(yosys_netlist.CPU_SOURCES, cpu) if old != new})
-        if set(swap) - set(sealer.MACHINE_SOURCES):
-            raise ValueError("a derived file is not a machine source")
-        machine = tuple(swap.get(path, path) for path in sealer.MACHINE_SOURCES)
+        # A derived file that is not a DE10 source (pc386_dma2_registers.sv) is added to them.
+        added = tuple(new for old, new in swap.items() if old not in sealer.MACHINE_SOURCES)
+        machine = tuple(swap.get(path, path) for path in sealer.MACHINE_SOURCES) + added
         netlist = work / "pc386_system.v"
         program = yosys_netlist.program(yosys_netlist.SEAL, top=sealer.MACHINE_TOP, sources=machine,
                                         includes=sealer.INCLUDE_DIRS, parameters=machine_parameters(),
@@ -215,9 +216,12 @@ def component_files(sources):
             raise ValueError("an i486DX fork is not a captured source: " + fork)
     machine, derived["pc386_machine.sv"] = derive.retarget_machine(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_machine.sv"])
     system, derived["pc386_system.sv"] = derive.retarget_system(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_system.sv"])
+    at_core, derived["pc386_at_core.sv"] = derive.retarget_at_core(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_at_core.sv"])
     cpu, derived[i486dx.CPU_FILE] = i486dx.derive_cpu(sources[MISTEROSS + i486dx.CPU_UPSTREAM])
     files["pc386_system.v"], prepared = machine_netlist(sources, {
         "cores/fes-pc386/rtl/pc386_machine.sv": machine, "cores/fes-pc386/rtl/pc386_system.sv": system,
+        "cores/fes-pc386/rtl/pc386_at_core.sv": at_core,
+        "boards/de25nano/pc386/pc386_dma2_registers.sv": sources[BOARD + "pc386/pc386_dma2_registers.sv"],
         i486dx.CPU_UPSTREAM: cpu})
     derived["pc386_system.v"] = {"front_end": "yosys-seal-netlist", "guest_rates": guest_rates(),
                                  "netlist_sha256": board.sha(files["pc386_system.v"]), "I486": I486,
