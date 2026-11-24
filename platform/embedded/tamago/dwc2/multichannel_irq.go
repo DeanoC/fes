@@ -42,6 +42,9 @@ func (h *MultiHost) enableIRQ(g *gic.Controller, irqID uint32, guard func() bool
 	if err := h.pioCheck(); err != nil {
 		return err
 	}
+	if guard != nil && !guard() {
+		return fmt.Errorf("dwc2: IRQ ownership guard inactive")
+	}
 	h.irqMu.Lock()
 	if h.irqGIC != nil {
 		id := h.irqID
@@ -237,9 +240,11 @@ func (h *MultiHost) suspendIRQ() {
 	h.irqActive.Store(false)
 	h.irqSuspended = true
 	h.irqGIC.Disable(h.irqID)
-	h.io.Write32(gintmask, 0)
-	h.io.Write32(haintmsk, 0)
-	h.io.Write32(gahb, 0)
+	if (h.irqGuard == nil || h.irqGuard()) && h.io.Read32(gahb)&(1<<5) == 0 && h.io.Read32(hcfg)&(1<<23) == 0 {
+		h.io.Write32(gintmask, 0)
+		h.io.Write32(haintmsk, 0)
+		h.io.Write32(gahb, 0)
+	}
 }
 
 func (h *MultiHost) resumeIRQ() {
@@ -277,6 +282,7 @@ func (h *MultiHost) retireIRQ(allowMMIO bool) {
 
 func (h *MultiHost) retireIRQLocked(allowMMIO bool) bool {
 	hadIRQ := h.irqGIC != nil || h.irqMode.Load()
+	guard := h.irqGuard
 	h.irqActive.Store(false)
 	h.irqMode.Store(false)
 	h.irqSuspended = false
@@ -287,7 +293,7 @@ func (h *MultiHost) retireIRQLocked(allowMMIO bool) bool {
 		h.irqGIC = nil
 		h.irqID = 0
 	}
-	if hadIRQ && allowMMIO && h.io != nil && h.io.Read32(gahb)&(1<<5) == 0 {
+	if hadIRQ && allowMMIO && h.io != nil && (guard == nil || guard()) && h.io.Read32(gahb)&(1<<5) == 0 && h.io.Read32(hcfg)&(1<<23) == 0 {
 		h.io.Write32(gintmask, 0)
 		h.io.Write32(haintmsk, 0)
 		h.io.Write32(gahb, 0)

@@ -264,7 +264,7 @@ func (h *MultiHost) initController() error {
 	if h.io.Read32(gusb)&(1<<4|1<<6|1<<3) != 1<<4 {
 		return fmt.Errorf("dwc2: firmware ULPI configuration missing")
 	}
-	if h.io.Read32(gahb)&(1<<5) != 0 {
+	if h.io.Read32(gahb)&(1<<5) != 0 || h.io.Read32(hcfg)&(1<<23) != 0 {
 		return fmt.Errorf("dwc2: firmware DMA still enabled")
 	}
 	chCount := int(((cfg >> 14) & 15) + 1)

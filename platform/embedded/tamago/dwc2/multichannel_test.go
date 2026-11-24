@@ -3310,3 +3310,86 @@ func TestMultiHostOpenPipeAndWriteWakeIRQMode(t *testing.T) {
 		t.Fatal("Write() on unarmed OUT pipe in IRQ mode did not signal Ready() wakeup")
 	}
 }
+
+func TestMultiHostDisableIRQSkipsMMIOOnDescDMA(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ctrl, _ := newMockGIC(t)
+	if err := host.EnableIRQ(ctrl, testUSBIRQ); err != nil {
+		t.Fatalf("EnableIRQ: %v", err)
+	}
+
+	// Simulate another owner enabling HCFG.DESCDMA (bit 23) while keeping GAHBCFG.DMAEN=0;
+	// DisableIRQ MUST unregister from GIC without writing GINTMSK/HAINTMSK/GAHBCFG.
+	sim.mu.Lock()
+	sim.regs[hcfg] |= 1 << 23
+	sim.regs[gintmask] = 0x12345678
+	sim.regs[haintmsk] = 0x000000ff
+	sim.regs[gahb] = gahbGlobalIRQ
+	sim.mu.Unlock()
+
+	host.DisableIRQ()
+
+	sim.mu.Lock()
+	gotMask := sim.regs[gintmask]
+	gotHaint := sim.regs[haintmsk]
+	gotAHB := sim.regs[gahb]
+	sim.mu.Unlock()
+	if gotMask != 0x12345678 || gotHaint != 0x000000ff || gotAHB != gahbGlobalIRQ {
+		t.Fatalf("DisableIRQ performed MMIO despite HCFG.DESCDMA active: gintmask=%#x haintmsk=%#x gahb=%#x", gotMask, gotHaint, gotAHB)
+	}
+}
+
+func TestMultiHostDisableIRQRefusesDescriptorDMAMMIO(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ctrl, _ := newMockGIC(t)
+	if err := host.EnableIRQ(ctrl, testUSBIRQ); err != nil {
+		t.Fatalf("EnableIRQ: %v", err)
+	}
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service: %v", err)
+	}
+
+	sim.mu.Lock()
+	gintBefore := sim.regs[gintmask]
+	haintBefore := sim.regs[haintmsk]
+	gahbBefore := sim.regs[gahb]
+	// External owner enables HCFG.DESCDMA (bit 23) before DisableIRQ runs.
+	sim.regs[hcfg] |= 1 << 23
+	sim.mu.Unlock()
+
+	host.DisableIRQ()
+
+	if host.Ready() != nil {
+		t.Fatal("DisableIRQ did not unregister GIC IRQ handler when HCFG.DESCDMA was set")
+	}
+	sim.mu.Lock()
+	gintAfter := sim.regs[gintmask]
+	haintAfter := sim.regs[haintmsk]
+	gahbAfter := sim.regs[gahb]
+	sim.mu.Unlock()
+	if gintAfter != gintBefore || haintAfter != haintBefore || gahbAfter != gahbBefore {
+		t.Fatalf("DisableIRQ touched DWC2 registers with HCFG.DESCDMA active: gintmask %#x->%#x haintmsk %#x->%#x gahb %#x->%#x",
+			gintBefore, gintAfter, haintBefore, haintAfter, gahbBefore, gahbAfter)
+	}
+
+	// OpenMulti must also reject a controller where HCFG.DESCDMA is already set at init.
+	sim2 := newMultiChannelSim(1024, 16)
+	sim2.regs[hcfg] = 1 << 23
+	if _, err := OpenMulti(sim2, Config{PHYClockHz: 60000000}); err == nil {
+		t.Fatal("OpenMulti succeeded despite HCFG.DESCDMA already active at init")
+	}
+}
