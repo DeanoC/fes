@@ -3796,8 +3796,14 @@ neutralizes that exact uncertain source while preserving confirmed remote
 contributors; held local mappings remain suppressed until their physical
 contributors release. A proven pre-dispatch failure can instead retry the
 current desired state.
-For a fresh, unbound matrix sink, lifecycle cleanup may omit the matrix write
-only after a fresh explicit idle observation with a valid runtime instance.
+Source detach or disconnect skips an unbound, empty matrix sink when no
+`fes.keyboard` capability, matrix binding, or pending matrix neutral is active,
+so non-matrix HID cores without controller ports (such as `fes.pc386`) can
+detach without issuing an unbound matrix write. For a fresh, unbound matrix
+sink, lifecycle cleanup may omit the matrix write only after a fresh explicit
+observation with a valid runtime instance confirming either idle or an active
+packaged core without `fes.keyboard` (raw development RBFs and active matrix
+cores remain rejected).
 That proof applies to the current guarded cleanup only: it cannot authorize an
 unbound press or hide an unrelated cleanup failure.
 Synthetic pad keys, the physical local keyboard and the remote keyboard retain
