@@ -1,0 +1,22 @@
+{
+ "base": {
+  "rc": 0,
+  "summary": "fes_i386_x87 against the host x87: 18337 passed, 0 failed [packed decimal: 61 cases, FBLD 6845 issued 6842 converted, FBSTP 13371 issued 11618 converted]"
+ },
+ "xshift": {
+  "rc": 0,
+  "summary": "fes_i386_x87 against the host x87: 18337 passed, 0 failed [packed decimal: 61 cases, FBLD 6845 issued 6842 converted, FBSTP 13371 issued 11598 converted]"
+ },
+ "xdisp": {
+  "rc": 0,
+  "summary": "fes_i386_x87 against the host x87: 18337 passed, 0 failed [packed decimal: 61 cases, FBLD 6845 issued 6842 converted, FBSTP 13371 issued 11618 converted]"
+ },
+ "x87": {
+  "rc": 0,
+  "summary": "fes_i386_x87 against the host x87: 18337 passed, 0 failed [packed decimal: 61 cases, FBLD 6845 issued 6842 converted, FBSTP 13371 issued 11598 converted]"
+ },
+ "cuts": {
+  "rc": 0,
+  "summary": "fes_i386_x87 against the host x87: 18337 passed, 0 failed [packed decimal: 61 cases, FBLD 6845 issued 6842 converted, FBSTP 13371 issued 11598 converted]"
+ }
+}

@@ -1,0 +1,24 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1i.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1i.sv
+index 9e956a9e3..78c246aad 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1i.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1i.sv
+@@ -231,8 +231,8 @@ module fes_i386_l1i import fes_i386_pkg::*; (
+     assign miss = req && cached && hit[0] == 4'd0;
+     logic [1:0] free;
+     always_comb begin
+-        free = rr;
+-        for (int w = 3; w >= 0; w--) if (!vf2[w]) free = 2'(w);
++        free = {1'b0, rr[0]};  // ABLATION l1i2: ways 0-1 only (8 KiB)
++        for (int w = 1; w >= 0; w--) if (!vf2[w]) free = 2'(w);
+     end
+ 
+     // A fill's own line written while it fills spoils it.
+@@ -264,7 +264,7 @@ module fes_i386_l1i import fes_i386_pkg::*; (
+                         || si_valid && si_cross && si_set1 == 7'(k)
+                         || start && blk[7:1] == 7'(k) && free == 2'(w);
+             always_ff @(posedge clk) begin
+-                if (reset) valid[k][w] <= 1'b0;
++                if (reset || w >= 2) valid[k][w] <= 1'b0;  // ABLATION l1i2
+                 else if (set_valid && f_line[6:0] == 7'(k) && victim == 2'(w)) valid[k][w] <= 1'b1;
+                 else if (clear) valid[k][w] <= 1'b0;
+             end

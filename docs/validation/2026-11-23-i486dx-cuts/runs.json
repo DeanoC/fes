@@ -1,0 +1,58 @@
+{
+ "3dbench-base": [
+  "RTL-BEGIN 750000005 flips=4",
+  "END limit steps=370742839 cycles=1150000005 seconds=11.500"
+ ],
+ "3dbench-l1i2": [
+  "RTL-BEGIN 750000005 flips=4",
+  "END limit steps=370085229 cycles=1150000005 seconds=11.500"
+ ],
+ "doom-l1i2": [
+  "RTL-BEGIN 2493936063 flips=40",
+  "END rtl-window steps=643489734 cycles=2593936063 seconds=25.939"
+ ],
+ "3dbench-l1d2": [
+  "RTL-BEGIN 750000005 flips=4",
+  "END limit steps=368425408 cycles=1150000005 seconds=11.500"
+ ],
+ "doom-l1d2": [
+  "RTL-BEGIN 2493936063 flips=40",
+  "END rtl-window steps=642256617 cycles=2593936063 seconds=25.939"
+ ],
+ "3dbench-l12": [
+  "RTL-BEGIN 750000005 flips=4",
+  "END limit steps=367912129 cycles=1150000005 seconds=11.500"
+ ],
+ "doom-l12": [
+  "RTL-BEGIN 2493936063 flips=40",
+  "END rtl-window steps=641856990 cycles=2593936063 seconds=25.939"
+ ],
+ "3dbench-qhalf": [
+  "RTL-BEGIN 750000005 flips=4",
+  "END limit steps=324902927 cycles=1150000005 seconds=11.500"
+ ],
+ "doom-qhalf": [
+  "RTL-BEGIN 2493936063 flips=40",
+  "END rtl-window steps=621807081 cycles=2593936063 seconds=25.939"
+ ],
+ "3dbench-cuts": [
+  "RTL-BEGIN 750000005 flips=4",
+  "END limit steps=367912129 cycles=1150000005 seconds=11.500"
+ ],
+ "doom-cuts": [
+  "RTL-BEGIN 2493936063 flips=40",
+  "END rtl-window steps=641375615 cycles=2593936063 seconds=25.939"
+ ],
+ "quake-base": [
+  "PROMPT 460018143",
+  "RTL-BEGIN 460018150 flips=2",
+  "STOP stall 977741085 00a7:0005256c dbe3 DB.4"
+ ],
+ "quake-base-status": [
+  "cpuprof-suite",
+  "rc=0",
+  "quake",
+  "rc=124",
+  "SIM_DONE"
+ ]
+}

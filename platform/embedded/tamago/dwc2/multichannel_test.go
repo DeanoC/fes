@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -137,28 +138,28 @@ type simCtrlState struct {
 }
 
 type multiChannelSim struct {
-	mu       sync.Mutex
-	regs     map[uint32]uint32
-	tick     time.Time
-	frame    uint16
-	rx       []uint32
-	rxHead   int
-	rxWords  []uint32
-	rxWHead  int
-	rootDev  *multiSimDevice
-	byAddr   map[uint8]*multiSimDevice
-	resetDev *multiSimDevice // device currently addressed at 0 during enumeration
-	ctrl     *simCtrlState
-	txExpect [16]int
-	txBuf    [16][]byte
-	txDev    [16]*multiSimDevice
-	txEP     [16]uint8
-	txSplit  [16]bool
-	noOutLog bool
-	wedgeCh         int // if >= 0 (when wedgeSet), channel wedgeCh refuses to clear CHENA on halt
-	wedgeSet        bool
-	failRootEnable  bool
-	rootResets      int
+	mu                 sync.Mutex
+	regs               map[uint32]uint32
+	tick               time.Time
+	frame              uint16
+	rx                 []uint32
+	rxHead             int
+	rxWords            []uint32
+	rxWHead            int
+	rootDev            *multiSimDevice
+	byAddr             map[uint8]*multiSimDevice
+	resetDev           *multiSimDevice // device currently addressed at 0 during enumeration
+	ctrl               *simCtrlState
+	txExpect           [16]int
+	txBuf              [16][]byte
+	txDev              [16]*multiSimDevice
+	txEP               [16]uint8
+	txSplit            [16]bool
+	noOutLog           bool
+	wedgeCh            int // if >= 0 (when wedgeSet), channel wedgeCh refuses to clear CHENA on halt
+	wedgeSet           bool
+	failRootEnable     bool
+	rootResets         int
 	freezeFrame        bool
 	nyetCSplitCount    int
 	nyetCH0SSplitCount int
@@ -2098,9 +2099,9 @@ func TestMultiHostOpenPipeRejectsMPSExceedingFIFO(t *testing.T) {
 		t.Fatalf("expected BT attach event, got %+v ok=%v", ev, ok)
 	}
 	hciIf, _ := ev.Device.Config.FindInterface(0xe0, 0x01, 0x01)
-	epEv, _ := hciIf.FindEndpoint(usb.TransferInterrupt, true)    // 16B -> fits 128-word RX
-	epAclIn, _ := hciIf.FindEndpoint(usb.TransferBulk, true)      // 512B (128+2 > 128) -> must fail
-	epAclOut, _ := hciIf.FindEndpoint(usb.TransferBulk, false)    // 512B (128 > 64) -> must fail
+	epEv, _ := hciIf.FindEndpoint(usb.TransferInterrupt, true) // 16B -> fits 128-word RX
+	epAclIn, _ := hciIf.FindEndpoint(usb.TransferBulk, true)   // 512B (128+2 > 128) -> must fail
+	epAclOut, _ := hciIf.FindEndpoint(usb.TransferBulk, false) // 512B (128 > 64) -> must fail
 
 	if _, err := host.OpenPipe(ev.Device.Address, epAclOut); err == nil {
 		t.Fatal("OpenPipe accepted 512B Bulk-OUT endpoint on 64-word non-periodic TX FIFO")
@@ -3591,5 +3592,611 @@ func TestMultiHostEnableIRQGuardedChecksGuardBeforeMMIO(t *testing.T) {
 	ctrl, _ := newMockGIC(t)
 	if err := host.EnableIRQGuarded(ctrl, testUSBIRQ, func() bool { return false }); err == nil {
 		t.Fatal("EnableIRQGuarded succeeded despite inactive ownership guard")
+	}
+}
+
+// lateINInjectRegs wraps multiChannelSim and injects an IN packet + HCINT.XFERCOMPL
+// right when stepChannel reads HCINT[targetCh] (after top-of-Service/PausePolling
+// RX draining and gintRXFLVL==0 checks).
+type lateINInjectRegs struct {
+	sim            *multiChannelSim
+	targetCh       int
+	pid            uint32
+	payload        []byte
+	prependMarkers int
+	armed          bool
+	injected       bool
+}
+
+func (r *lateINInjectRegs) Read32(reg uint32) uint32 {
+	if r.armed && !r.injected && reg == chReg(r.targetCh, hcint) {
+		r.injected = true
+		r.sim.mu.Lock()
+		for i := 0; i < r.prependMarkers; i++ {
+			r.sim.rx = append(r.sim.rx, 7<<17|uint32(r.targetCh))
+		}
+		r.sim.enqueueRX(r.targetCh, r.pid, r.payload)
+		r.sim.regs[chReg(r.targetCh, hcchar)] &^= channelEnable
+		r.sim.regs[chReg(r.targetCh, hcint)] |= 1 | 1<<1 // XFERCOMPL | CHHLTD
+		r.sim.regs[haint] |= 1 << uint(r.targetCh)
+		r.sim.mu.Unlock()
+	}
+	return r.sim.Read32(reg)
+}
+
+func (r *lateINInjectRegs) Write32(reg, val uint32) { r.sim.Write32(reg, val) }
+func (r *lateINInjectRegs) Now() time.Time          { return r.sim.Now() }
+
+func TestMultiHostServiceHandlesLateINBeforeStepChannel(t *testing.T) {
+	cases := []struct {
+		name           string
+		prependMarkers int
+		expectDeferred bool
+	}{
+		{name: "LateINDrainedInStepChannel", prependMarkers: 0, expectDeferred: false},
+		{name: "LateINBehind260MarkersDefersRetirement", prependMarkers: 260, expectDeferred: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sim := newMultiChannelSim(1024, 16)
+			pad := newSimGamepad()
+			sim.attachRoot(pad)
+
+			host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+			if err != nil {
+				t.Fatalf("OpenMulti: %v", err)
+			}
+			ev, ok := host.NextEvent()
+			if !ok || ev.Kind != usb.DeviceAttached {
+				t.Fatalf("expected attach event, got %+v ok=%v", ev, ok)
+			}
+			iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+			ep, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+			pipe, err := host.OpenPipe(ev.Device.Address, ep)
+			if err != nil {
+				t.Fatalf("OpenPipe: %v", err)
+			}
+			mp := pipe.(*multiPipe)
+
+			// Arm the IN channel with no packet yet; simulate an in-flight transfer
+			// (CHENA=1, HCINT=0) so top-of-Service sees RX FIFO empty (gintRXFLVL==0).
+			if err := host.Service(); err != nil {
+				t.Fatalf("Service (arm): %v", err)
+			}
+			sim.mu.Lock()
+			sim.regs[chReg(mp.ch, hcchar)] |= channelEnable
+			sim.regs[chReg(mp.ch, hcint)] = 0
+			sim.mu.Unlock()
+
+			pkt1 := []byte{0x01, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70}
+			wrapper := &lateINInjectRegs{
+				sim:            sim,
+				targetCh:       mp.ch,
+				pid:            0, // DATA0
+				payload:        pkt1,
+				prependMarkers: tc.prependMarkers,
+				armed:          true,
+			}
+			host.io = wrapper
+
+			if err := host.Service(); err != nil {
+				t.Fatalf("Service (late IN): %v", err)
+			}
+			if !wrapper.injected {
+				t.Fatal("late IN injection did not trigger inside stepChannel")
+			}
+			if host.slots[mp.ch].fault != nil {
+				t.Fatalf("unexpected channel fault after late IN: %v", host.slots[mp.ch].fault)
+			}
+
+			if tc.expectDeferred {
+				// 260 markers exceed stepChannel's 256-entry drain bound, so stepChannel
+				// must keep s.armed=true, toggle unflipped, and HCINT.XFERCOMPL intact.
+				if !host.slots[mp.ch].armed || host.slots[mp.ch].toggle != 0 {
+					t.Fatalf("stepChannel retired IN XFERCOMPL before RX payload consumed: armed=%v toggle=%d",
+						host.slots[mp.ch].armed, host.slots[mp.ch].toggle)
+				}
+				sim.mu.Lock()
+				hcintVal := sim.regs[chReg(mp.ch, hcint)]
+				sim.mu.Unlock()
+				if hcintVal&1 == 0 {
+					t.Fatalf("expected HCINT.XFERCOMPL kept intact while deferred, got %#x", hcintVal)
+				}
+				// Next Service() drains remaining markers + payload and delivers pkt1.
+				if err := host.Service(); err != nil {
+					t.Fatalf("Service (complete deferred): %v", err)
+				}
+			}
+
+			var buf [64]byte
+			n, err := pipe.PollInto(buf[:])
+			if err != nil {
+				t.Fatalf("PollInto(pkt1): %v", err)
+			}
+			if n != len(pkt1) || !bytes.Equal(buf[:n], pkt1) {
+				t.Fatalf("pkt1 mismatch: got %x want %x", buf[:n], pkt1)
+			}
+			if got := host.slots[mp.ch].toggle; got != 2 {
+				t.Fatalf("expected DATA1 toggle after pkt1, got %d", got)
+			}
+
+			// Verify next packet on DATA1 succeeds with no invalid-RX fault.
+			host.io = sim
+			pkt2 := []byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01}
+			sim.mu.Lock()
+			pad.inQueues[ep.Number()] = append(pad.inQueues[ep.Number()], pkt2)
+			sim.mu.Unlock()
+			var gotN int
+			for range 6 {
+				sim.advance(5 * time.Millisecond)
+				if err := host.Service(); err != nil {
+					t.Fatalf("Service (pkt2): %v", err)
+				}
+				gotN, err = pipe.PollInto(buf[:])
+				if err != nil {
+					t.Fatalf("PollInto(pkt2): %v", err)
+				}
+				if gotN > 0 {
+					break
+				}
+			}
+			if gotN != len(pkt2) || !bytes.Equal(buf[:gotN], pkt2) {
+				t.Fatalf("pkt2 mismatch: got %x want %x", buf[:gotN], pkt2)
+			}
+		})
+	}
+}
+
+func TestMultiHostPausePollingDefersStepChannelWhileRXFLVLAsserted(t *testing.T) {
+	t.Run("MoreThan64MarkersInStep1", func(t *testing.T) {
+		sim := newMultiChannelSim(1024, 16)
+		pad := newSimGamepad()
+		sim.attachRoot(pad)
+
+		host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+		if err != nil {
+			t.Fatalf("OpenMulti: %v", err)
+		}
+		ev, _ := host.NextEvent()
+		iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+		ep, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+		pipe, err := host.OpenPipe(ev.Device.Address, ep)
+		if err != nil {
+			t.Fatalf("OpenPipe: %v", err)
+		}
+		mp := pipe.(*multiPipe)
+
+		pkt1 := []byte{0x01, 0xde, 0xad, 0xbe, 0xef, 0x11, 0x22, 0x33}
+		sim.mu.Lock()
+		pad.inQueues[ep.Number()] = append(pad.inQueues[ep.Number()], pkt1)
+		sim.mu.Unlock()
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service (arm): %v", err)
+		}
+
+		// Prepend 70 status markers ahead of pkt1 so PausePolling step 1's 64-entry
+		// drain leaves gintRXFLVL asserted.
+		sim.mu.Lock()
+		markers := make([]uint32, 70)
+		for i := range markers {
+			markers[i] = 7<<17 | uint32(mp.ch)
+		}
+		sim.rx = append(markers, sim.rx[sim.rxHead:]...)
+		sim.rxHead = 0
+		sim.mu.Unlock()
+
+		if err := host.PausePolling(context.Background()); err != nil {
+			t.Fatalf("PausePolling: %v", err)
+		}
+		if host.slots[mp.ch].fault != nil {
+			t.Fatalf("PausePolling faulted channel: %v", host.slots[mp.ch].fault)
+		}
+		var buf [64]byte
+		n, err := pipe.PollInto(buf[:])
+		if err != nil {
+			t.Fatalf("PollInto after pause: %v", err)
+		}
+		if n != len(pkt1) || !bytes.Equal(buf[:n], pkt1) {
+			t.Fatalf("pkt1 lost across PausePolling: got %x want %x", buf[:n], pkt1)
+		}
+		if got := host.slots[mp.ch].toggle; got != 2 {
+			t.Fatalf("expected DATA1 toggle after pause, got %d", got)
+		}
+	})
+
+	t.Run("LateINBeforeStep1StepChannel", func(t *testing.T) {
+		sim := newMultiChannelSim(1024, 16)
+		pad := newSimGamepad()
+		sim.attachRoot(pad)
+
+		host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+		if err != nil {
+			t.Fatalf("OpenMulti: %v", err)
+		}
+		ev, _ := host.NextEvent()
+		iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+		ep, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+		pipe, err := host.OpenPipe(ev.Device.Address, ep)
+		if err != nil {
+			t.Fatalf("OpenPipe: %v", err)
+		}
+		mp := pipe.(*multiPipe)
+
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service (arm): %v", err)
+		}
+		sim.mu.Lock()
+		sim.regs[chReg(mp.ch, hcchar)] |= channelEnable
+		sim.regs[chReg(mp.ch, hcint)] = 0
+		sim.mu.Unlock()
+
+		pkt1 := []byte{0x01, 0xca, 0xfe, 0xba, 0xbe, 0x44, 0x55, 0x66}
+		wrapper := &lateINInjectRegs{
+			sim:      sim,
+			targetCh: mp.ch,
+			pid:      0,
+			payload:  pkt1,
+			armed:    true,
+		}
+		host.io = wrapper
+
+		if err := host.PausePolling(context.Background()); err != nil {
+			t.Fatalf("PausePolling: %v", err)
+		}
+		if !wrapper.injected {
+			t.Fatal("late IN injection did not trigger during PausePolling step 1")
+		}
+		if host.slots[mp.ch].fault != nil {
+			t.Fatalf("PausePolling faulted channel: %v", host.slots[mp.ch].fault)
+		}
+		var buf [64]byte
+		n, err := pipe.PollInto(buf[:])
+		if err != nil {
+			t.Fatalf("PollInto after pause: %v", err)
+		}
+		if n != len(pkt1) || !bytes.Equal(buf[:n], pkt1) {
+			t.Fatalf("pkt1 lost across PausePolling: got %x want %x", buf[:n], pkt1)
+		}
+		if got := host.slots[mp.ch].toggle; got != 2 {
+			t.Fatalf("expected DATA1 toggle after pause, got %d", got)
+		}
+	})
+}
+
+func TestMultiHostHSBulkOUTDataACKDoesNotHaltOrRetransmit(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	bt := newSimBTDongle()
+	sim.attachRoot(bt)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected BT attach event, got %+v ok=%v", ev, ok)
+	}
+	hciIf, _ := ev.Device.Config.FindInterface(0xe0, 0x01, 0x01)
+	epAclOut, _ := hciIf.FindEndpoint(usb.TransferBulk, false)
+	outPipe, err := host.OpenPipe(ev.Device.Address, epAclOut)
+	if err != nil {
+		t.Fatalf("OpenPipe(ACL OUT): %v", err)
+	}
+	mp := outPipe.(*multiPipe)
+
+	pkt := []byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88}
+	if err := outPipe.Write(pkt); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	// Arm the HS Bulk-OUT DATA transfer (not PING).
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (arm): %v", err)
+	}
+	if !host.slots[mp.ch].armed || host.slots[mp.ch].pinging {
+		t.Fatalf("expected armed non-PING HS Bulk-OUT: armed=%v pinging=%v",
+			host.slots[mp.ch].armed, host.slots[mp.ch].pinging)
+	}
+
+	// Simulate hardware asserting HCINT.ACK (bit 5) while CHENA is still set and
+	// before XFERCOMPL (bit 0) latches.
+	sim.mu.Lock()
+	sim.regs[chReg(mp.ch, hcchar)] |= channelEnable
+	sim.regs[chReg(mp.ch, hcint)] = 1 << 5 // ACK only, no XFERCOMPL
+	sim.mu.Unlock()
+
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (HS Bulk-OUT DATA ACK): %v", err)
+	}
+	if !host.slots[mp.ch].armed || host.slots[mp.ch].halting {
+		t.Fatalf("HS Bulk-OUT DATA ACK halted or retired channel prematurely: armed=%v halting=%v",
+			host.slots[mp.ch].armed, host.slots[mp.ch].halting)
+	}
+	if host.slots[mp.ch].ack {
+		t.Fatal("HS Bulk-OUT DATA ACK set s.ack on non-PING transfer")
+	}
+	sim.mu.Lock()
+	ackInt := sim.regs[chReg(mp.ch, hcint)]
+	hccharVal := sim.regs[chReg(mp.ch, hcchar)]
+	txCountBefore := len(bt.outLog[epAclOut.Number()])
+	sim.mu.Unlock()
+	if ackInt&(1<<5) != 0 {
+		t.Fatalf("HCINT.ACK was not W1C cleared on non-PING HS Bulk-OUT: hcint=%#x", ackInt)
+	}
+	if hccharVal&channelDisable != 0 {
+		t.Fatalf("channelDisable written on HS Bulk-OUT DATA ACK: hcchar=%#x", hccharVal)
+	}
+	done, err := outPipe.WriteDone()
+	if err != nil || done {
+		t.Fatalf("WriteDone before XFERCOMPL: done=%v err=%v", done, err)
+	}
+	if txCountBefore != 1 {
+		t.Fatalf("unexpected TX count before XFERCOMPL: got %d want 1", txCountBefore)
+	}
+
+	// Now hardware finishes with XFERCOMPL | CHHLTD and CHENA=0.
+	sim.mu.Lock()
+	sim.regs[chReg(mp.ch, hcchar)] &^= channelEnable
+	sim.regs[chReg(mp.ch, hcint)] = 1 | 1<<1 // XFERCOMPL | CHHLTD
+	sim.mu.Unlock()
+
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (XFERCOMPL): %v", err)
+	}
+	done, err = outPipe.WriteDone()
+	if err != nil || !done {
+		t.Fatalf("WriteDone after XFERCOMPL: done=%v err=%v", done, err)
+	}
+	if got := host.slots[mp.ch].toggle; got != 2 {
+		t.Fatalf("expected DATA1 toggle after XFERCOMPL, got %d", got)
+	}
+	if len(bt.outLog[epAclOut.Number()]) != 1 || !bytes.Equal(bt.outLog[epAclOut.Number()][0], pkt) {
+		t.Fatalf("HS Bulk-OUT retransmitted or corrupted packet: %x", bt.outLog[epAclOut.Number()])
+	}
+}
+
+func TestMultiHostServiceConcurrentGuardedIRQRetireRace(t *testing.T) {
+	// Exercise concurrent Service() reading irqSuspended while retireIRQLocked
+	// writes irqSuspended=false under go test -race.
+	t.Run("GuardedISR", func(t *testing.T) {
+		for range 32 {
+			sim := newMultiChannelSim(1024, 16)
+			pad := newSimGamepad()
+			sim.attachRoot(pad)
+
+			host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+			if err != nil {
+				t.Fatalf("OpenMulti: %v", err)
+			}
+			ctrl, hw := newMockGIC(t)
+			var allowed atomic.Bool
+			allowed.Store(true)
+			if err := host.EnableIRQGuarded(ctrl, testUSBIRQ, func() bool { return allowed.Load() }); err != nil {
+				t.Fatalf("EnableIRQGuarded: %v", err)
+			}
+			// Keep Service() on the non-armMultiIRQ path so only the GIC ISR calls
+			// gic.Register(id, nil) while ctrl.Dispatch is active (gic.Controller is
+			// single-core bare-metal and does not lock its handler table).
+			host.draining = true
+
+			var wg sync.WaitGroup
+			start := make(chan struct{})
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				allowed.Store(false)
+				hw.fire(ctrl, testUSBIRQ)
+			}()
+
+			close(start)
+			for range 8 {
+				if err := host.Service(); err != nil {
+					break
+				}
+			}
+			wg.Wait()
+			if host.Ready() != nil {
+				t.Fatal("expected guarded GIC ISR to retire IRQ")
+			}
+		}
+	})
+
+	t.Run("RetireIRQ", func(t *testing.T) {
+		for range 32 {
+			sim := newMultiChannelSim(1024, 16)
+			pad := newSimGamepad()
+			sim.attachRoot(pad)
+
+			host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+			if err != nil {
+				t.Fatalf("OpenMulti: %v", err)
+			}
+			ctrl, _ := newMockGIC(t)
+			if err := host.EnableIRQGuarded(ctrl, testUSBIRQ, func() bool { return true }); err != nil {
+				t.Fatalf("EnableIRQGuarded: %v", err)
+			}
+
+			var wg sync.WaitGroup
+			start := make(chan struct{})
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				host.RetireIRQ()
+			}()
+
+			close(start)
+			for range 8 {
+				if err := host.Service(); err != nil {
+					break
+				}
+			}
+			wg.Wait()
+			if host.Ready() != nil {
+				t.Fatal("expected RetireIRQ to retire IRQ")
+			}
+		}
+	})
+}
+
+func TestMultiHostSplitCSPLITTimeoutResetsSplitState(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	pad := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	var padAddr uint8
+	var ep usb.EndpointDescriptor
+	for {
+		ev, ok := host.NextEvent()
+		if !ok {
+			break
+		}
+		if ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			padAddr = ev.Device.Address
+			iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+			ep, _ = iface.FindEndpoint(usb.TransferInterrupt, true)
+		}
+	}
+	pipe, err := host.OpenPipe(padAddr, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+	mp := pipe.(*multiPipe)
+
+	// Arm SSPLIT at frame 0 -> advances to CSPLIT armed at frame 2.
+	sim.mu.Lock()
+	sim.frame = 0
+	sim.freezeFrame = true
+	sim.mu.Unlock()
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (SSPLIT): %v", err)
+	}
+	sim.mu.Lock()
+	sim.frame = 2
+	sim.mu.Unlock()
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (arm CSPLIT): %v", err)
+	}
+	if !host.slots[mp.ch].armed || !host.slots[mp.ch].completeSplit {
+		t.Fatalf("expected CSPLIT armed: armed=%v completeSplit=%v",
+			host.slots[mp.ch].armed, host.slots[mp.ch].completeSplit)
+	}
+
+	// Simulate silent CSPLIT: CHENA=1, HCINT=0 until past the 500 ms deadline.
+	sim.mu.Lock()
+	sim.regs[chReg(mp.ch, hcchar)] |= channelEnable
+	sim.regs[chReg(mp.ch, hcint)] = 0
+	sim.mu.Unlock()
+	sim.advance(600 * time.Millisecond)
+
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (CSPLIT timeout): %v", err)
+	}
+	s := &host.slots[mp.ch]
+	if s.fault != nil {
+		t.Fatalf("unexpected channel fault on CSPLIT timeout: %v", s.fault)
+	}
+	if s.armed || s.completeSplit || s.waitingSplit || s.halting {
+		t.Fatalf("CSPLIT timeout left stale split/halt state: armed=%v completeSplit=%v waitingSplit=%v halting=%v",
+			s.armed, s.completeSplit, s.waitingSplit, s.halting)
+	}
+
+	// Queue a real packet and verify the next SSPLIT ACK transitions cleanly to
+	// CSPLIT and delivers the packet.
+	pkt := []byte{0x01, 0xde, 0xad, 0xca, 0xfe, 0x12, 0x34, 0x56}
+	sim.mu.Lock()
+	pad.inQueues[ep.Number()] = append(pad.inQueues[ep.Number()], pkt)
+	sim.frame = 0
+	sim.freezeFrame = false
+	sim.mu.Unlock()
+
+	var buf [64]byte
+	var gotN int
+	for range 20 {
+		sim.advance(5 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service (post-timeout recovery): %v", err)
+		}
+		gotN, err = pipe.PollInto(buf[:])
+		if err != nil {
+			t.Fatalf("PollInto: %v", err)
+		}
+		if gotN > 0 {
+			break
+		}
+	}
+	if gotN != len(pkt) || !bytes.Equal(buf[:gotN], pkt) {
+		t.Fatalf("post-timeout split transfer failed: got %x want %x", buf[:gotN], pkt)
+	}
+}
+
+func TestMultiHostStepChannelHaltingEnforcesDeadline(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, _ := host.NextEvent()
+	iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+	ep, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+	pipe, err := host.OpenPipe(ev.Device.Address, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+	mp := pipe.(*multiPipe)
+
+	// Arm channel, then leave CHENA=1 with HCINT.NAK set while wedged so
+	// stepChannel issues channelDisable and enters s.halting=true.
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (arm): %v", err)
+	}
+	sim.mu.Lock()
+	sim.wedgeSet = true
+	sim.wedgeCh = mp.ch
+	sim.regs[chReg(mp.ch, hcchar)] |= channelEnable
+	sim.regs[chReg(mp.ch, hcint)] = 1 << 4 // NAK -> triggers halt
+	sim.mu.Unlock()
+
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (enter halting): %v", err)
+	}
+	if !host.slots[mp.ch].halting || !host.slots[mp.ch].armed {
+		t.Fatalf("expected channel halting: halting=%v armed=%v",
+			host.slots[mp.ch].halting, host.slots[mp.ch].armed)
+	}
+
+	// Before the 50 ms halt deadline expires, Service still waits without faulting.
+	sim.advance(20 * time.Millisecond)
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (before halt deadline): %v", err)
+	}
+	if host.fault != nil || !host.slots[mp.ch].halting {
+		t.Fatalf("faulted prematurely before halt deadline: fault=%v halting=%v",
+			host.fault, host.slots[mp.ch].halting)
+	}
+
+	// Once past the 50 ms halt deadline with CHENA still wedged, Service must
+	// detect the wedged channel and fail closed.
+	sim.advance(40 * time.Millisecond)
+	if err := host.Service(); err == nil {
+		t.Fatal("Service did not detect wedged halting channel after halt deadline")
+	}
+	if host.fault == nil || host.slots[mp.ch].fault == nil {
+		t.Fatalf("expected controller and slot fault on halt timeout: host.fault=%v slot.fault=%v",
+			host.fault, host.slots[mp.ch].fault)
+	}
+	if host.slots[mp.ch].armed || host.slots[mp.ch].halting {
+		t.Fatalf("expected slot disarmed after halt timeout: armed=%v halting=%v",
+			host.slots[mp.ch].armed, host.slots[mp.ch].halting)
 	}
 }

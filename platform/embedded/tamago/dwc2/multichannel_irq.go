@@ -91,7 +91,7 @@ func (h *MultiHost) enableIRQ(g *gic.Controller, irqID uint32, guard func() bool
 	h.io.Write32(haintmsk, activeMask)
 	h.irqGIC = g
 	h.irqID = irqID
-	h.irqSuspended = false
+	h.irqSuspended.Store(false)
 	h.irqMode.Store(true)
 	h.irqActive.Store(true)
 	h.io.Write32(gintmask, mask)
@@ -178,7 +178,7 @@ func (h *MultiHost) pendingIRQLocked() (activeMask uint32, needSOF bool) {
 		// Keep SOF armed whenever a channel is waiting on a split microframe or
 		// has an unarmed IN/OUT transfer pending (either waiting for nextDue or
 		// deferred because the TX request queue / FIFO was temporarily full).
-		if s.waitingSplit || (!s.armed && s.ep.In() && !s.inReady) || (!s.armed && !s.ep.In() && s.outPending) {
+		if s.waitingSplit || s.halting || (!s.armed && s.ep.In() && !s.inReady) || (!s.armed && !s.ep.In() && s.outPending) {
 			needSOF = true
 		}
 	}
@@ -248,7 +248,7 @@ func (h *MultiHost) suspendIRQ() error {
 		return nil
 	}
 	h.irqActive.Store(false)
-	h.irqSuspended = true
+	h.irqSuspended.Store(true)
 	h.irqGIC.Disable(h.irqID)
 	if (h.irqGuard != nil && !h.irqGuard()) || h.io.Read32(gahb)&(1<<5) != 0 || h.io.Read32(hcfg)&(1<<23) != 0 {
 		hadIRQ := h.retireIRQLocked(false)
@@ -268,7 +268,7 @@ func (h *MultiHost) suspendIRQ() error {
 func (h *MultiHost) resumeIRQ() error {
 	h.irqMu.Lock()
 	if h.irqGIC == nil {
-		h.irqSuspended = false
+		h.irqSuspended.Store(false)
 		h.irqMu.Unlock()
 		return nil
 	}
@@ -283,7 +283,7 @@ func (h *MultiHost) resumeIRQ() error {
 	h.io.Write32(gintmask, 0)
 	h.io.Write32(haintmsk, h.activeChannelMask())
 	h.io.Write32(gahb, gahbGlobalIRQ)
-	h.irqSuspended = false
+	h.irqSuspended.Store(false)
 	h.irqActive.Store(true)
 	h.irqGIC.Enable(h.irqID)
 	h.irqMu.Unlock()
@@ -304,7 +304,7 @@ func (h *MultiHost) retireIRQLocked(allowMMIO bool) bool {
 	guard := h.irqGuard
 	h.irqActive.Store(false)
 	h.irqMode.Store(false)
-	h.irqSuspended = false
+	h.irqSuspended.Store(false)
 	h.irqGuard = nil
 	if h.irqGIC != nil {
 		h.irqGIC.Disable(h.irqID)
