@@ -14,18 +14,19 @@ import (
 )
 
 type l2capMockPipe struct {
-	ep       usb.EndpointDescriptor
-	inQueue  [][]byte
-	inRepeat []byte
-	outLog   [][]byte
-	noOutLog bool
+	ep           usb.EndpointDescriptor
+	inQueue      [][]byte
+	inRepeat     []byte
+	outLog       [][]byte
+	noOutLog     bool
+	writeStalled bool
 }
 
 func (p *l2capMockPipe) DeviceAddress() uint8             { return 2 }
 func (p *l2capMockPipe) Endpoint() usb.EndpointDescriptor { return p.ep }
 func (p *l2capMockPipe) SetIntervalOverride(time.Duration) {}
 func (p *l2capMockPipe) Close() error                     { return nil }
-func (p *l2capMockPipe) WriteDone() (bool, error)         { return true, nil }
+func (p *l2capMockPipe) WriteDone() (bool, error)         { return !p.writeStalled, nil }
 func (p *l2capMockPipe) Write(data []byte) error {
 	if !p.noOutLog {
 		p.outLog = append(p.outLog, append([]byte(nil), data...))
@@ -510,5 +511,116 @@ func TestSetPairingModeRollsBackOnInquiryFailure(t *testing.T) {
 	}
 	if got := bus.lastParams[hci.OpcodeRejectConnectionRequest]; len(got) < 6 || !bytes.Equal(got[:6], stranger[:]) {
 		t.Fatalf("expected stranger to be rejected fail-closed after failed SetPairingMode, got %x", got)
+	}
+}
+
+func TestManagerResumesInquiryOnSSPFailure(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(400, 0)
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	peer, _ := ParseBDAddr("33:44:55:66:77:88")
+	connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x44, 0x00}, peer[:]...)
+	connOK = append(connOK, 0x01, 0x01)
+	sspFail := append([]byte{hci.EventSimplePairingComplete, 7, 0x05}, peer[:]...) // Authentication Failure
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK, sspFail)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	inquiries := 0
+	for _, op := range bus.cmds {
+		if op == hci.OpcodeInquiry {
+			inquiries++
+		}
+	}
+	if inquiries != 2 {
+		t.Fatalf("expected StartInquiry to resume after EventSimplePairingComplete failure (count=%d)", inquiries)
+	}
+}
+
+func TestOpenChannelRollsBackAndRetriesOnACLQueueFull(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return time.Unix(500, 0) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	// Stall ACL OUT and fill all 16 queued ring entries (plus 1 in-flight).
+	bus.aclOutPipe.writeStalled = true
+	for range 17 {
+		if err := tr.SendACL(0x0041, hci.ACLBoundaryFirstAutoFlush, []byte{0xaa, 0xbb}); err != nil {
+			t.Fatalf("prefill SendACL failed early: %v", err)
+		}
+	}
+	bus.aclOutPipe.outLog = nil
+
+	// ConnectionComplete during pairing attempts OpenChannel(PSMHIDControl), which fails
+	// with ACL TX queue full: channel slot MUST roll back and queue retry via pendingOpenPSM.
+	peer, _ := ParseBDAddr("44:55:66:77:88:99")
+	connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x45, 0x00}, peer[:]...)
+	connOK = append(connOK, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	conn := mgr.findConnByHandle(0x0045)
+	if conn == nil {
+		t.Fatal("missing ACL conn 0x0045")
+	}
+	if conn.findByPSM(PSMHIDControl) != nil {
+		t.Fatal("failed OpenChannel left PSMHIDControl allocated instead of rolling back")
+	}
+	if conn.pendingOpenPSM != PSMHIDControl {
+		t.Fatalf("expected pendingOpenPSM=%#04x, got %#04x", PSMHIDControl, conn.pendingOpenPSM)
+	}
+
+	// Unstall ACL OUT, replenish credits across drains, and pump Service() -> must retry ConnReq!
+	bus.aclOutPipe.writeStalled = false
+	for range 24 {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x08, 0x00})
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if conn.pendingOpenPSM != 0 || conn.findByPSM(PSMHIDControl) == nil {
+		t.Fatalf("expected OpenChannel retry to succeed: pending=%#04x ch=%v", conn.pendingOpenPSM, conn.findByPSM(PSMHIDControl))
+	}
+	var sawConnReq bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		// 4B ACL hdr + 4B L2CAP hdr + 8B sigConnReq (PSM 0x0011)
+		if len(pkt) == 16 &&
+			(binary.LittleEndian.Uint16(pkt[0:2])&0x0fff) == 0x0045 &&
+			binary.LittleEndian.Uint16(pkt[6:8]) == CIDSignaling &&
+			pkt[8] == sigConnReq &&
+			binary.LittleEndian.Uint16(pkt[12:14]) == PSMHIDControl {
+			sawConnReq = true
+		}
+	}
+	if !sawConnReq {
+		t.Fatalf("expected retried L2CAP sigConnReq for PSMHIDControl, outLog=%x", bus.aclOutPipe.outLog)
 	}
 }

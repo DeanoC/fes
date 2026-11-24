@@ -172,12 +172,17 @@ func (m *Manager) detachDongle() {
 	}
 	spec := m.DongleSpec()
 	// Emit neutral/disconnected notifications for any active player slots so
-	// gameplay never sees stuck buttons after a dongle unplug.
+	// gameplay never sees stuck buttons or keys after a dongle unplug.
 	if m.sess != nil {
+		var neutralKeyboardReport [8]byte
 		for idx := uint8(0); idx < hidp.MaxPlayerSlots; idx++ {
 			if slot, ok := m.sess.Slot(idx); ok {
-				if m.OnGamepadState != nil {
-					m.OnGamepadState(idx, slot.Kind, controllers.State{})
+				if slot.Kind != controllers.KindUnknown {
+					if m.OnGamepadState != nil {
+						m.OnGamepadState(idx, slot.Kind, controllers.State{})
+					}
+				} else if m.OnKeyboardReport != nil {
+					m.OnKeyboardReport(neutralKeyboardReport[:])
 				}
 				if m.OnSlotChanged != nil {
 					m.OnSlotChanged(idx, false, slot.Kind, slot.Name)

@@ -253,3 +253,87 @@ func TestStoreAdaptersLoadSaveBondsAndFirmware(t *testing.T) {
 		t.Fatalf("LoadFirmware: len=%d err=%v", len(b), err)
 	}
 }
+
+func makeMgrHIDACL(handle, cid uint16, body []byte) []byte {
+	l2 := make([]byte, 4+len(body))
+	binary.LittleEndian.PutUint16(l2[0:2], uint16(len(body)))
+	binary.LittleEndian.PutUint16(l2[2:4], cid)
+	copy(l2[4:], body)
+	acl := make([]byte, 4+len(l2))
+	binary.LittleEndian.PutUint16(acl[0:2], (handle&0x0fff)|uint16(hci.ACLBoundaryFirstAutoFlush)<<12)
+	binary.LittleEndian.PutUint16(acl[2:4], uint16(len(l2)))
+	copy(acl[4:], l2)
+	return acl
+}
+
+func TestDetachDongleNeutralizesKeyboardAndGamepad(t *testing.T) {
+	fwPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_fw.bin")
+	cfgPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_config.bin")
+	fwBytes, err := os.ReadFile(fwPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfgBytes, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw := testFWLoader{"rtl8761bu_fw.bin": fwBytes, "rtl8761bu_config.bin": cfgBytes}
+
+	bus := &mgrBus{lmpSub: 0x8761}
+	kbdAddr, _ := l2cap.ParseBDAddr("CC:22:33:44:55:66")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: kbdAddr, LinkKey: [16]byte{5}, Name: "BT Keyboard", Slot: 0})
+
+	mgr := NewManager(bus, bonds, fw, func() time.Time { return time.Unix(400, 0) })
+	var kbdReports [][]byte
+	var slotEvents []bool
+	mgr.OnKeyboardReport = func(r []byte) { kbdReports = append(kbdReports, append([]byte(nil), r...)) }
+	mgr.OnSlotChanged = func(_ uint8, connected bool, _ controllers.Kind, _ string) {
+		slotEvents = append(slotEvents, connected)
+	}
+
+	dev := makeDongleDevice(2)
+	bus.events = append(bus.events, usb.HostEvent{Kind: usb.DeviceAttached, Device: dev})
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("attach failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	connEv := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, kbdAddr[:]...)
+	connEv = append(connEv, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connEv)
+	// Open HID Control (0x0011) and Interrupt (0x0013) channels for keyboard slot 0.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x51, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, 0x0041, []byte{0xa1, 0x01, 0, 0, 0x04, 0, 0, 0, 0, 0}),
+	)
+	for range 6 {
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(kbdReports) != 1 || kbdReports[0][2] != 0x04 {
+		t.Fatalf("expected active key report before detach, got %x", kbdReports)
+	}
+
+	// Detach USB dongle while key 0x04 is held -> MUST emit 8-byte zero report before disconnect.
+	bus.events = append(bus.events, usb.HostEvent{Kind: usb.DeviceDetached, Device: dev})
+	if err := mgr.Service(); err != nil || mgr.DongleConnected() {
+		t.Fatalf("detach failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+	if len(kbdReports) != 2 || len(kbdReports[1]) != 8 {
+		t.Fatalf("expected neutral keyboard report on dongle detach, got %x", kbdReports)
+	}
+	for i, b := range kbdReports[1] {
+		if b != 0 {
+			t.Fatalf("expected zero keyboard report byte %d on detach, got %#02x", i, b)
+		}
+	}
+	if len(slotEvents) != 2 || !slotEvents[0] || slotEvents[1] {
+		t.Fatalf("expected [true false] slot transitions, got %v", slotEvents)
+	}
+}

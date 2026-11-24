@@ -96,7 +96,18 @@ func (m *Manager) Service() error {
 	if m.pairingActive && !m.now().Before(m.pairingUntil) {
 		_ = m.SetPairingMode(false, 0)
 	}
-	return m.tr.Service(m.handleEvent, m.handleACL)
+	if err := m.tr.Service(m.handleEvent, m.handleACL); err != nil {
+		return err
+	}
+	for i := range m.conns {
+		conn := &m.conns[i]
+		if conn.active && conn.pendingOpenPSM != 0 {
+			if err := m.OpenChannel(conn.handle, conn.pendingOpenPSM); err == nil {
+				conn.pendingOpenPSM = 0
+			}
+		}
+	}
+	return nil
 }
 
 func (m *Manager) findConnByHandle(handle uint16) *aclConn {
@@ -217,7 +228,9 @@ func (m *Manager) handleEvent(ev []byte) {
 			_ = m.tr.RemoteNameRequest(addr)
 		}
 		if conn.hostInitiated {
-			_ = m.OpenChannel(handle, PSMHIDControl)
+			if err := m.OpenChannel(handle, PSMHIDControl); err != nil {
+				conn.pendingOpenPSM = PSMHIDControl
+			}
 		}
 
 	case hci.EventDisconnectionComplete:
@@ -368,6 +381,18 @@ func (m *Manager) handleEvent(ev []byte) {
 		}
 
 	case hci.EventSimplePairingComplete:
-		// Tracked via LinkKeyNotification & ConnectionComplete.
+		// [0]=status [1..6]=BD_ADDR
+		if len(params) < 7 || params[0] == 0 {
+			return
+		}
+		var addr BDAddr
+		copy(addr[:], params[1:7])
+		if m.connecting && m.connectAddr == addr {
+			m.connecting = false
+			m.connectAddr = BDAddr{}
+		}
+		if m.pairingActive && !m.connecting && m.now().Before(m.pairingUntil) {
+			_ = m.tr.StartInquiry(8, 0)
+		}
 	}
 }

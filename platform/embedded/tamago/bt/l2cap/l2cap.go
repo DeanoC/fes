@@ -43,12 +43,13 @@ type l2capChannel struct {
 }
 
 type aclConn struct {
-	active        bool
-	handle        uint16
-	addr          BDAddr
-	name          string
-	kind          controllers.Kind
-	hostInitiated bool
+	active         bool
+	handle         uint16
+	addr           BDAddr
+	name           string
+	kind           controllers.Kind
+	hostInitiated  bool
+	pendingOpenPSM uint16
 
 	chans   [maxChansPerConn]l2capChannel
 	nextCID uint16
@@ -214,7 +215,11 @@ func (m *Manager) OpenChannel(handle, psm uint16) error {
 	var body [4]byte
 	binary.LittleEndian.PutUint16(body[0:2], psm)
 	binary.LittleEndian.PutUint16(body[2:4], ch.localCID)
-	return m.sendSig(handle, sigConnReq, conn.allocSigID(), body[:])
+	if err := m.sendSig(handle, sigConnReq, conn.allocSigID(), body[:]); err != nil {
+		*ch = l2capChannel{}
+		return err
+	}
+	return nil
 }
 
 // SendChannel transmits an L2CAP payload on the open channel for psm
@@ -252,7 +257,9 @@ func (m *Manager) checkChannelOpen(conn *aclConn, ch *l2capChannel) {
 	}
 	// If host initiated PSMHIDControl during pairing, immediately open PSMHIDInterrupt.
 	if conn.hostInitiated && ch.psm == PSMHIDControl && conn.findByPSM(PSMHIDInterrupt) == nil {
-		_ = m.OpenChannel(conn.handle, PSMHIDInterrupt)
+		if err := m.OpenChannel(conn.handle, PSMHIDInterrupt); err != nil {
+			conn.pendingOpenPSM = PSMHIDInterrupt
+		}
 	}
 }
 
