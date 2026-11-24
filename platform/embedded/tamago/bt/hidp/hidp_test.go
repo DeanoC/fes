@@ -1146,6 +1146,34 @@ func TestHIDChannelCloseNeutralizesInputAndUpdatesReadiness(t *testing.T) {
 	if sess.ConnectedCount() != 1 || len(events) != 1 || events[0] != "connected" {
 		t.Fatalf("expected slot reconnect on live ACL: count=%d events=%v", sess.ConnectedCount(), events)
 	}
+
+	// 5. Closing ONLY Control (localCID=0x0042) while Interrupt (localCID=0x0043)
+	// remains open must neutralize/disconnect AND ignore subsequent interrupt reports.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, 0x0043, dsPkt))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if lastState.Neutral() {
+		t.Fatal("expected non-neutral state on reopened channels before control close")
+	}
+	events = nil
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x06, 11, 4, 0, 0x42, 0x00, 0x60, 0x00}),
+	)
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !lastState.Neutral() || sess.ConnectedCount() != 0 || len(events) != 2 || events[0] != "neutral" || events[1] != "disconnected" {
+		t.Fatalf("expected [neutral disconnected] on control-only close: neutral=%t count=%d events=%v", lastState.Neutral(), sess.ConnectedCount(), events)
+	}
+	events = nil
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, 0x0043, dsPkt))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 0 || !lastState.Neutral() {
+		t.Fatalf("expected interrupt reports ignored after control close, got events=%v state=%+v", events, lastState)
+	}
 }
 
 func TestKeyboardRequiresSetProtocolBootHandshake(t *testing.T) {

@@ -309,14 +309,11 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 	}
 	// Reconcile bond slot even if LinkKeyNotification completed after onChannelOpen.
 	s.syncBondSlot(slot.Addr, slot.Slot)
-	if slot.initStep == initStepDone {
+	if !slot.ready() || slot.initStep == initStepDone {
 		return
 	}
 	switch slot.Kind {
 	case controllers.KindDualSense, controllers.KindDualShock4:
-		if !slot.ctrlOpen || !slot.intrOpen {
-			return
-		}
 		if slot.initStep == 0 {
 			// 1. Send HIDP GET_REPORT Feature 0x05 over PSM 0x0011 to unlock full
 			// 78-byte high-rate Bluetooth input reports (0x31 / 0x11).
@@ -342,9 +339,6 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 		}
 
 	case controllers.KindSwitchPro:
-		if !slot.intrOpen {
-			return
-		}
 		if slot.initWaitingAck {
 			if s.now().Before(slot.initNextTry) {
 				return
@@ -392,9 +386,6 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 	case controllers.KindUnknown:
 		// Boot keyboard fallback: select Boot Protocol (0x70) on Control channel
 		// and wait for HANDSHAKE_SUCCESSFUL (0x00) before decoding boot reports.
-		if !slot.ctrlOpen || !slot.intrOpen {
-			return
-		}
 		if slot.initWaitingAck {
 			if s.now().Before(slot.initNextTry) {
 				return
@@ -456,7 +447,7 @@ func (s *Session) onHIDControl(handle uint16, payload []byte) {
 	// Handle SET_PROTOCOL(BOOT) handshake for boot keyboard fallback; gamepads use
 	// feature reports whose responses don't gate input decoding here.
 	slot := s.findSlotByHandle(handle)
-	if slot != nil && slot.Kind == controllers.KindUnknown && slot.initWaitingAck && len(payload) >= 1 && (payload[0]&0xf0) == hidpHandshake {
+	if slot != nil && slot.ready() && slot.Kind == controllers.KindUnknown && slot.initWaitingAck && len(payload) >= 1 && (payload[0]&0xf0) == hidpHandshake {
 		slot.initWaitingAck = false
 		slot.initNextTry = time.Time{}
 		if payload[0] == hidpHandshake {
@@ -473,7 +464,7 @@ func (s *Session) onHIDInterrupt(handle uint16, payload []byte) {
 		return
 	}
 	slot := s.findSlotByHandle(handle)
-	if slot == nil {
+	if slot == nil || !slot.ready() {
 		return
 	}
 	report := payload[1:]
