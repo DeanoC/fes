@@ -31,6 +31,8 @@ var userFirmwareFiles = map[string]string{
 	"fes.pentagon":       "a 48 KiB image: the 128K ROMs, then TR-DOS",
 	"fes.c64":            c64FirmwareFile,
 	"fes.c64-ntsc":       c64FirmwareFile,
+	"fes.c64c":           c64FirmwareFile,
+	"fes.c64c-ntsc":      c64FirmwareFile,
 	"fes.atari-st":       "a 192 KiB TOS image",
 }
 

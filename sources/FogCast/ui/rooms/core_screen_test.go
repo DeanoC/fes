@@ -129,6 +129,32 @@ func TestCoreScreenChoosesNTSCGameFromC64Family(t *testing.T) {
 	}
 }
 
+func TestCoreScreenChoosesC64CGameFromC64Family(t *testing.T) {
+	for _, tc := range []struct{ core, model string }{
+		{"fes.c64c", "C64C PAL"},
+		{"fes.c64c-ntsc", "C64C NTSC"},
+	} {
+		t.Run(tc.core, func(t *testing.T) {
+			pal := preparedComputer("pal", "PAL disk", "fes.c64")
+			c64c := preparedComputer("c64c", "C64C disk", tc.core)
+			pal.CoreEntryKind, c64c.CoreEntryKind = "title", "title"
+			r := loadCoreScreen(t, &fakeServices{games: []hostclient.Game{pal, c64c}}, "", pal.CoreID, Options{})
+			stepUntil(t, r, func(f Frame) bool { return coreScreenSettled(f) && frameHas(f, "PAL disk") })
+			r.Activate("model:" + tc.core)
+			f := stepUntil(t, r, func(f Frame) bool {
+				return coreScreenSettled(f) && frameHas(f, "Games for the "+tc.model) && frameHas(f, "C64C disk")
+			})
+			if frameHas(f, "PAL disk") || !frameHas(f, "Drive 8") {
+				t.Fatalf("C64C game list or drive: %s", frameText(f))
+			}
+			r.Activate("game:1")
+			if actions := r.TakeActions(); len(actions) != 1 || actions[0].Kind != ActionLaunch || actions[0].GameID != c64c.ID {
+				t.Fatalf("selected C64C title: %+v", actions)
+			}
+		})
+	}
+}
+
 func TestCoreScreenGameRowStartsItsExactEntry(t *testing.T) {
 	games := spectrumGames()
 	r := loadCoreScreen(t, &fakeServices{games: games}, "", "fes.spectrum", Options{})

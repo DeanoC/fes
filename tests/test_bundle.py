@@ -25,6 +25,23 @@ class BundleTest(unittest.TestCase):
         module.ARTIFACT_CACHE_ROOT = Path(cache.name)
         return module
 
+    def test_c64c_core_dev_selection_runs_real_producer_hooks(self):
+        from tests.committed_misteross_fixture import make_snapshot
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = make_snapshot(temporary)
+            subprocess.run(["git", "-C", str(source), "remote", "add", "origin",
+                            "https://github.com/DeanoC/fes.git"], check=True)
+            for core_id, region in (("fes.c64c", "pal"), ("fes.c64c-ntsc", "ntsc")):
+                with self.subTest(core_id=core_id):
+                    recipe = module.recipe_for(core_id)
+                    record = json.loads(module.canonical_package_record(
+                        source, recipe=recipe, selection_only=True))
+                    self.assertEqual(record["parameters"]["core_id"], core_id)
+                    self.assertEqual(record["parameters"]["model"], region)
+                    self.assertEqual(record["parameters"]["sid_model"], "8580")
+                    self.assertTrue(record["parameters"]["selection_only"])
+
     def test_de25_cached_package_uses_its_source_closed_board_reader(self):
         module = self.module()
         from tests.committed_misteross_fixture import make_snapshot

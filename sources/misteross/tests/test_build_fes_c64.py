@@ -164,7 +164,7 @@ class BuildFesC64Tests(unittest.TestCase):
         self.assertEqual(manifest["core"]["name"], "FES Commodore 64 (NTSC)")
         self.assertEqual(manifest["rom"], evidence["rom"])
 
-    def test_development_sid_selection_has_its_own_netlist_and_identity(self) -> None:
+    def test_c64c_sid_selection_has_its_own_netlist_and_identity(self) -> None:
         tools = {"yosys": Path("/y"), "nextpnr-mistral": Path("/n")}
         identities = set()
         outputs = set()
@@ -175,7 +175,17 @@ class BuildFesC64Tests(unittest.TestCase):
                     ROOT, "https://example.invalid/fes.git", "a" * 40, {"yosys": "fixture"},
                     model=region, sid_model=sid, execution={"gpu_device": 0, "version": 1})
                 identity = producer.build_identity(record)
-                self.assertEqual(json.loads(record)["parameters"]["sid_model"], sid)
+                parameters = json.loads(record)["parameters"]
+                self.assertEqual(parameters["sid_model"], sid)
+                expected_id = {("pal", "6581"): "fes.c64", ("ntsc", "6581"): "fes.c64-ntsc",
+                               ("pal", "8580"): "fes.c64c", ("ntsc", "8580"): "fes.c64c-ntsc"}[(region, sid)]
+                self.assertEqual(parameters["core_id"], expected_id)
+                evidence = {"rbf": {"size": 2_000_000, "sha256": "b" * 64}, "build_id": identity,
+                            "rom": {"id": "c64-firmware", "role": "firmware", "source_size": 36864,
+                                    "file": "rom-map.json", "size": 100, "sha256": "d" * 64}}
+                manifest = tomllib.loads(producer._manifest(
+                    record, evidence, "https://example.invalid/fes.git", "a" * 40, {"yosys": "fixture"}).decode())
+                self.assertEqual(manifest["core"]["id"], expected_id)
                 yosys, route = producer.build_commands(
                     ROOT, ROOT / machine.output, identity, tools, model=region, sid_model=sid)
                 self.assertIn(f"-set NTSC {ntsc} -set SID_8580 {int(sid == '8580')}", yosys[2])

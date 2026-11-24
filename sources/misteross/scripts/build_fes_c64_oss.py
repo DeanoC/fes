@@ -210,7 +210,9 @@ def model_for(model: str, sid_model: str = "6581") -> Model:
         return machine
     if sid_model != "8580":
         raise BuildError("SID model must be 6581 or 8580")
-    return machine._replace(name=f"{machine.name} / MOS8580",
+    core_id = "fes.c64c" if model == "pal" else "fes.c64c-ntsc"
+    name = "FES Commodore 64C (PAL)" if model == "pal" else "FES Commodore 64C (NTSC)"
+    return machine._replace(core_id=core_id, name=name,
                             output=machine.output.with_name(f"{machine.output.name}-8580"))
 
 
@@ -249,10 +251,12 @@ def _authenticate_c64_tools(root: Path, cache_root: Path | None = None,
     )
     # Shared lock authentication selects the first registered core. Canonical
     # package preparation calls this hook before supplying its model option.
-    # Bind both C64 recipes to the same binary before either record is made.
+    # Bind every C64 family recipe to the same binary before any record is made.
     try:
-        for machine in MODELS.values():
-            pnr_recipe.validate_nextpnr_tool(machine.core_id, tools["nextpnr-mistral"].path)
+        for region in MODELS:
+            for sid_model in ("6581", "8580"):
+                machine = model_for(region, sid_model)
+                pnr_recipe.validate_nextpnr_tool(machine.core_id, tools["nextpnr-mistral"].path)
     except pnr_recipe.RecipeError as exc:
         raise BuildError(f"nextpnr recipe option validation failed: {exc}") from exc
     return tools
@@ -273,10 +277,11 @@ def validate_memory_clocks(cells: dict) -> None:
                 raise BuildError(f"C64 memory {name} needs a live {port}")
 
 
-def _require_clean_source(root: Path, *, identity_version: int = 2, model: str = "pal") -> tuple[str, str]:
+def _require_clean_source(root: Path, *, identity_version: int = 2, model: str = "pal",
+                          sid_model: str = "6581") -> tuple[str, str]:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
-    model_for(model)
+    model_for(model, sid_model)
     return require_clean_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
 
 
@@ -738,7 +743,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         raise BuildError(f"FES Commodore 64 package store must be {root / 'build/packages'}")
     backend, architectures, _configuration = gpu_choice(gpu_router)
     pnr = pnr_recipe.recipe_for(machine.core_id)
-    repository, revision = _require_clean_source(root, identity_version=identity_version, model=model)
+    repository, revision = _require_clean_source(root, identity_version=identity_version, model=model, sid_model=sid_model)
     authenticated = _authenticate_c64_tools(
         root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in authenticated.items()}
@@ -803,7 +808,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
-        if _require_clean_source(root, identity_version=identity_version, model=model) != (repository, revision):
+        if _require_clean_source(root, identity_version=identity_version, model=model, sid_model=sid_model) != (repository, revision):
             raise BuildError("source identity changed during build")
         invocation.verify()
         if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
