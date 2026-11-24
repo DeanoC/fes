@@ -931,8 +931,15 @@ func (s *controllerPortsSink) releaseSourceChannels(ctx context.Context, source 
 	}
 	if s.binding == nil {
 		var result error
-		if s.keys != nil && (releaseHID || s.keyboard || s.matrixBinding != nil || s.pendingMatrixNeutral || s.localMatrixUnconfirmed) {
-			if source == sourceLocal {
+		needMatrixRelease := s.keyboard || s.matrixBinding != nil || s.pendingMatrixNeutral || s.localMatrixUnconfirmed
+		var keysCheckErr error
+		if s.keys != nil && !needMatrixRelease && releaseHID {
+			needMatrixRelease, keysCheckErr = s.keys.hasActiveStateContext(ctx)
+		}
+		if s.keys != nil && (needMatrixRelease || keysCheckErr != nil) {
+			if keysCheckErr != nil {
+				result = keysCheckErr
+			} else if source == sourceLocal {
 				// One full matrix post retires pad and physical-keyboard holds.
 				// Disconnect does not prove the core retired, so failure still
 				// needs the same observation-driven retry as a local timeout.
