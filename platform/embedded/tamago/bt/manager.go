@@ -12,6 +12,8 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
 
+const dongleRetryBackoff = 500 * time.Millisecond
+
 // Manager supervises one hotpluggable USB Bluetooth HCI dongle on a usb.BusHost
 // and drives Classic Bluetooth HIDP sessions for up to 4 concurrent Sony
 // DualSense, DualShock 4, Nintendo Switch Pro, and BT HID Keyboard devices.
@@ -25,6 +27,7 @@ type Manager struct {
 	tr             *hci.Transport
 	sess           *hidp.Session
 	gameplayActive bool
+	retryAfter     time.Time
 
 	OnGamepadState   func(slot uint8, kind controllers.Kind, state controllers.State)
 	OnKeyboardReport func(report []byte)
@@ -218,18 +221,39 @@ func (m *Manager) Service() error {
 		switch ev.Kind {
 		case usb.DeviceAttached:
 			m.attachDongle(ev.Device)
+			if m.sess != nil {
+				m.retryAfter = time.Time{}
+			} else {
+				m.retryAfter = m.now().Add(dongleRetryBackoff)
+			}
 		case usb.DeviceDetached:
 			if m.dongleAddr != 0 && ev.Device.Address == m.dongleAddr {
 				m.detachDongle()
+				m.retryAfter = time.Time{}
 			}
+		}
+	}
+	if m.sess == nil && (m.retryAfter.IsZero() || !m.now().Before(m.retryAfter)) {
+		for _, dev := range m.bus.Devices() {
+			if _, _, ok := hci.FindBluetoothInterface(dev); !ok {
+				continue
+			}
+			m.attachDongle(dev)
+			if m.sess != nil {
+				m.retryAfter = time.Time{}
+				break
+			}
+			m.retryAfter = m.now().Add(dongleRetryBackoff)
 		}
 	}
 	if m.sess == nil {
 		return nil
 	}
 	if err := m.sess.Service(); err != nil {
-		// Isolate per-dongle pipe errors by detaching cleanly without crashing the bus.
+		// Isolate per-dongle pipe errors by detaching cleanly without crashing the bus,
+		// and back off before re-attaching a still-enumerated adapter.
 		m.detachDongle()
+		m.retryAfter = m.now().Add(dongleRetryBackoff)
 	}
 	return nil
 }

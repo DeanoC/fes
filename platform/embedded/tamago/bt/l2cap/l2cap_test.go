@@ -718,3 +718,48 @@ func TestConfigRequestRetriesAfterACLQueueFull(t *testing.T) {
 		t.Fatalf("expected PSMHIDControl to open after retry, opened=%x ch=%+v", opened, ch)
 	}
 }
+
+func TestRejectsNonHIDIncomingConnectionDuringPairing(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return time.Unix(700, 0) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	// Non-HID peer (e.g. phone CoD 0x5a020c -> LE c, 0x02, 0x5a) MUST be rejected during pairing.
+	phone, _ := ParseBDAddr("66:55:44:33:22:11")
+	nonHIDReq := append([]byte{hci.EventConnectionRequest, 10}, phone[:]...)
+	nonHIDReq = append(nonHIDReq, 0x0c, 0x02, 0x5a, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, nonHIDReq)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bus.lastParams[hci.OpcodeRejectConnectionRequest]; len(got) < 6 || !bytes.Equal(got[:6], phone[:]) {
+		t.Fatalf("expected unknown non-HID CoD to be rejected during pairing, got %x", got)
+	}
+	if _, accepted := bus.lastParams[hci.OpcodeAcceptConnectionRequest]; accepted {
+		t.Fatal("non-HID peer was erroneously accepted during pairing")
+	}
+
+	// Unknown HID peripheral peer (CoD 0x002508 -> LE 0x08, 0x25, 0x00) MUST be accepted during pairing.
+	gamepad, _ := ParseBDAddr("77:66:55:44:33:22")
+	hidReq := append([]byte{hci.EventConnectionRequest, 10}, gamepad[:]...)
+	hidReq = append(hidReq, 0x08, 0x25, 0x00, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, hidReq)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bus.lastParams[hci.OpcodeAcceptConnectionRequest]; len(got) < 6 || !bytes.Equal(got[:6], gamepad[:]) {
+		t.Fatalf("expected unknown HID CoD to be accepted during pairing, got %x", got)
+	}
+}

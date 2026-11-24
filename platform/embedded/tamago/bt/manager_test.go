@@ -4,6 +4,7 @@ package bt
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -20,6 +21,7 @@ type mgrPipe struct {
 	ep       usb.EndpointDescriptor
 	inQueue  [][]byte
 	outCount int
+	pollErr  error
 	closed   bool
 }
 
@@ -30,6 +32,11 @@ func (p *mgrPipe) Close() error                     { p.closed = true; return ni
 func (p *mgrPipe) WriteDone() (bool, error)         { return true, nil }
 func (p *mgrPipe) Write([]byte) error               { p.outCount++; return nil }
 func (p *mgrPipe) PollInto(dst []byte) (int, error) {
+	if p.pollErr != nil {
+		err := p.pollErr
+		p.pollErr = nil
+		return 0, err
+	}
 	if len(p.inQueue) == 0 {
 		return 0, nil
 	}
@@ -40,6 +47,7 @@ func (p *mgrPipe) PollInto(dst []byte) (int, error) {
 
 type mgrBus struct {
 	events     []usb.HostEvent
+	devices    []usb.BusDevice
 	evPipe     *mgrPipe
 	aclInPipe  *mgrPipe
 	aclOutPipe *mgrPipe
@@ -48,7 +56,7 @@ type mgrBus struct {
 }
 
 func (b *mgrBus) Service() error             { return nil }
-func (b *mgrBus) Devices() []usb.BusDevice   { return nil }
+func (b *mgrBus) Devices() []usb.BusDevice   { return b.devices }
 func (b *mgrBus) Ready() <-chan struct{}     { return nil }
 func (b *mgrBus) NextEvent() (usb.HostEvent, bool) {
 	if len(b.events) == 0 {
@@ -335,5 +343,37 @@ func TestDetachDongleNeutralizesKeyboardAndGamepad(t *testing.T) {
 	}
 	if len(slotEvents) != 2 || !slotEvents[0] || slotEvents[1] {
 		t.Fatalf("expected [true false] slot transitions, got %v", slotEvents)
+	}
+}
+
+func TestManagerRetriesEnumeratedDongleAfterPipeError(t *testing.T) {
+	dev := makeDongleDevice(2)
+	bus := &mgrBus{lmpSub: 0x8761, devices: []usb.BusDevice{dev}}
+	now := time.Unix(600, 0)
+	mgr := NewManager(bus, l2cap.NewBondStore(), nil, func() time.Time { return now })
+
+	// 1. Enumerated at boot with no DeviceAttached event: attaches via Devices()
+	// using built-in pinned RTL8761BU firmware!
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("initial enumerated attach failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	// 2. Inject a transient pipe error without DeviceDetached -> isolates/detaches.
+	bus.evPipe.pollErr = errors.New("injected transient USB stall")
+	if err := mgr.Service(); err != nil || mgr.DongleConnected() {
+		t.Fatalf("pipe error did not detach dongle cleanly: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	// 3. Before backoff elapses, immediate Service() does not hammer retry.
+	now = now.Add(200 * time.Millisecond)
+	if err := mgr.Service(); err != nil || mgr.DongleConnected() {
+		t.Fatalf("unexpected retry before backoff elapsed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	// 4. Once backoff elapses, Service() re-attaches still-enumerated dongle without
+	// requiring a new DeviceAttached event!
+	now = now.Add(400 * time.Millisecond)
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("enumerated dongle did not re-attach after backoff: err=%v connected=%t", err, mgr.DongleConnected())
 	}
 }

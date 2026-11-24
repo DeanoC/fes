@@ -251,9 +251,9 @@ func (t *Transport) Initialize(fw FirmwareLoader) error {
 	}
 
 	// Realtek RTL8761B/BU/BUV (including 0bda:a728): upload EPATCH + config when
-	// matched by curated VID:PID or Realtek LMP subversion 0x8761.
-	needRTL := t.spec.Quirks&QuirkRTL8761BU != 0 || t.version.LMPSubversion == rtlLMPSub8761B
-	if needRTL && fw != nil {
+	// the controller reports unpatched Realtek LMP subversion 0x8761. Prefer
+	// card/user override via fw (FES/BTFW/) and fall back to the pinned built-in image.
+	if t.version.LMPSubversion == rtlLMPSub8761B {
 		fwName := t.spec.FirmwareFile
 		if fwName == "" {
 			fwName = "rtl8761bu_fw.bin"
@@ -262,11 +262,14 @@ func (t *Transport) Initialize(fw FirmwareLoader) error {
 		if cfgName == "" {
 			cfgName = "rtl8761bu_config.bin"
 		}
-		fwBytes, err := fw.LoadFirmware(fwName)
+		fwBytes, err := loadFirmwareWithBuiltin(fw, fwName, false)
 		if err != nil {
 			return fmt.Errorf("bt/hci: load %s: %w", fwName, err)
 		}
-		cfgBytes, _ := fw.LoadFirmware(cfgName) // Config is optional for some RTL chips
+		cfgBytes, err := loadFirmwareWithBuiltin(fw, cfgName, true)
+		if err != nil {
+			return fmt.Errorf("bt/hci: load %s: %w", cfgName, err)
+		}
 		if err := UploadRTLFirmware(t, fwBytes, cfgBytes); err != nil {
 			return err
 		}

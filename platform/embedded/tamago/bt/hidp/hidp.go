@@ -92,9 +92,6 @@ func (s *Session) Service() error {
 	return nil
 }
 
-// Bonds returns the underlying BondStore for FES/BTBONDS.JSON persistence.
-func (s *Session) Bonds() *l2cap.BondStore { return s.mgr.Bonds() }
-
 // SetPairingMode opens or closes the bounded SSP pairing window.
 func (s *Session) SetPairingMode(enabled bool, duration time.Duration) error {
 	return s.mgr.SetPairingMode(enabled, duration)

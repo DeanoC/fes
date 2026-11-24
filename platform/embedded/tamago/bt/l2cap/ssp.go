@@ -194,12 +194,13 @@ func (m *Manager) handleEvent(ev []byte) {
 		}
 		var addr BDAddr
 		copy(addr[:], params[0:6])
+		cod := uint32(params[6]) | uint32(params[7])<<8 | uint32(params[8])<<16
 		_, bonded := m.bonds.Lookup(addr)
-		if bonded || m.pairingActive {
+		if bonded || (m.pairingActive && isHIDPeripheralCoD(cod)) {
 			// Role 0x00: request Master/Central role for deterministic polling slots!
 			_ = m.tr.AcceptConnectionRequest(addr, 0x00)
 		} else {
-			// Fail-closed outside pairing mode for unknown devices.
+			// Fail-closed: reject unknown or non-HID devices even during pairing.
 			_ = m.tr.RejectConnectionRequest(addr, 0x0f)
 		}
 

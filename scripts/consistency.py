@@ -122,6 +122,12 @@ COMPONENT_FIXTURES = (
     # The kernel owns the UAPI; runtime keeps an exact self-contained consumer.
     ('FES', 'image/kernel/de25-dma/de25_dma.h',
      'libmister-runtime', 'src/native/linux/de25_dma.h'),
+    ('FES', 'image/firmware/rtl_bt/rtl8761bu_fw.bin',
+     'FES', 'platform/embedded/tamago/bt/hci/firmware/rtl8761bu_fw.bin'),
+    ('FES', 'image/firmware/rtl_bt/rtl8761bu_config.bin',
+     'FES', 'platform/embedded/tamago/bt/hci/firmware/rtl8761bu_config.bin'),
+    ('FES', 'image/firmware/rtl_bt/LICENCE.rtlwifi_firmware.txt',
+     'FES', 'platform/embedded/tamago/bt/hci/firmware/LICENCE.rtlwifi_firmware.txt'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-parts-responses.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-parts-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-rom-package-responses.jsonl',

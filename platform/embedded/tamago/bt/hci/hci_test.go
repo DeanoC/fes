@@ -530,3 +530,31 @@ func TestReassembleChunkedHCIEventsAndACLFrames(t *testing.T) {
 		t.Fatalf("reassembled ACL RX in one tick mismatch: got %d frames", len(gotACL))
 	}
 }
+
+func TestBuiltInRTL8761BUFallbackAndStorageOverride(t *testing.T) {
+	// 1. Fresh bare-metal card with no FES/BTFW/ files (ErrNotExist) or nil loader
+	// must still patch unpatched 0bda:a728 (LMP 0x8761) using built-in firmware.
+	for _, tc := range []struct {
+		name string
+		fw   FirmwareLoader
+	}{
+		{name: "nil-loader", fw: nil},
+		{name: "missing-fat-dir", fw: mapFirmwareLoader{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bus := newMockBTBus(0x0bda, 0xa728, 1)
+			tr, err := Open(bus, bus.dev)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tr.Close()
+			if err := tr.Initialize(tc.fw); err != nil {
+				t.Fatalf("Initialize(%s) failed: %v", tc.name, err)
+			}
+			if bus.rtlChunks == 0 || !bus.rtlFinal || tr.LocalVersion().LMPSubversion != 0xd922 {
+				t.Fatalf("built-in RTL8761BU firmware not uploaded: chunks=%d final=%t lmp=%#04x",
+					bus.rtlChunks, bus.rtlFinal, tr.LocalVersion().LMPSubversion)
+			}
+		})
+	}
+}
