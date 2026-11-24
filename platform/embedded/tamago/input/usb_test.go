@@ -21,6 +21,16 @@ func (r *reportQueue) PollKeyboard() ([]byte, error) {
 	r.reports = r.reports[1:]
 	return v, nil
 }
+func (r *reportQueue) PollKeyboardInto(dst []byte) (int, error) {
+	v, err := r.PollKeyboard()
+	if err != nil || v == nil {
+		return 0, err
+	}
+	if len(v) == 0 || len(v) > len(dst) {
+		return 0, errors.New("invalid report length")
+	}
+	return copy(dst, v), nil
+}
 func report(modifier, usage byte) []byte { return []byte{modifier, 0, usage, 0, 0, 0, 0, 0} }
 
 func TestUSBRealEdgesAndMapping(t *testing.T) {
