@@ -6,7 +6,10 @@ The machine is the DE10's pc386_system with its display plane derived out
 SEAL netlist, here at the DE25 machine clock's guest rates. Its memory is a
 window in HPS DDR (fes.fabric.de25-hps-window): fes_de25_hps_window's guards,
 rebase and bounds, then fes_de25_window_arbiter's one master. The identity
-is a 386 with no 387: pc386_system ties x87_present to 0, as on the DE10.
+is a 486SX (#1962: CPUID, no VME) with no 387: the elaboration sets
+pc386_system's I486 parameter to 1, which the DE10's 386 seal leaves at 0, and
+pc386_system ties x87_present to 0, as on the DE10. The parameter is a Yosys
+top parameter, so no shared source changes and the DE10 netlist does not move.
 """
 from fractions import Fraction
 from pathlib import Path
@@ -27,7 +30,9 @@ DIRECTORY = "pc386"
 CORE_ID = "fes.pc386"
 COMPONENT = "fes_de25_pc386_standard"
 SDC = BOARD + "pc386/pc386-clocks.sdc"
-MODELS = {"386": None}
+MODELS = {"486sx": None}
+# pc386_system's CPU identity parameter (fes_i386_cpu I486): the 486SX.
+I486 = 1
 # The board: its own machine PLL on the shared VCO (50 x 188/3): /51 for the
 # machine's 61.437908 MHz and /255 for the 12.287582 MHz audio master clock,
 # both -34 ppm and exactly 5:1, as on the DE10. No board SDRAM; a window.
@@ -104,6 +109,11 @@ def guest_rates():
     return parameters
 
 
+def machine_parameters():
+    """pc386_system's top parameters: the guest rates and the 486SX identity."""
+    return {**guest_rates(), "I486": I486}
+
+
 # The pc386 lock's Yosys, once authenticated. A producer authenticates it
 # before its controlled environment (which carries no toolchain cache) and the
 # elaboration uses exactly that tool; board.main authenticates it from the
@@ -128,9 +138,10 @@ def authenticate_front_end(*, cache_root=None, gpu_router=None):
 
 def record_parameters(root):
     """A producer record's machine parameters, from the source module at root: guest rates, the
-    linked firmware and the x87 identity."""
+    linked firmware and the CPU and x87 identity."""
     root = Path(root)
     return {"front_end": "yosys-seal-netlist", "guest_rates": json.dumps(guest_rates(), sort_keys=True),
+            "i486": I486,
             "firmware": json.dumps({**sealer.firmware_digests(root), "rom_hex": sealer.pinned_rom_digest(root)},
                                    sort_keys=True),
             "x87_present": False, "signoff_findings_review_policy": "de25-pc386-reviewed-signoff-findings-v1"}
@@ -165,7 +176,7 @@ def machine_netlist(sources, derived_files):
         machine = tuple(swap.get(path, path) for path in sealer.MACHINE_SOURCES)
         netlist = work / "pc386_system.v"
         program = yosys_netlist.program(yosys_netlist.SEAL, top=sealer.MACHINE_TOP, sources=machine,
-                                        includes=sealer.INCLUDE_DIRS, parameters=guest_rates(),
+                                        includes=sealer.INCLUDE_DIRS, parameters=machine_parameters(),
                                         netlist=netlist.as_posix())
         yosys_netlist.run(yosys.path, program, cwd=root, program_file=work / "machine.ys", log=work / "yosys.log")
         log = (work / "yosys.log").read_text(errors="replace")
@@ -193,7 +204,7 @@ def component_files(sources):
     system, derived["pc386_system.sv"] = derive.retarget_system(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_system.sv"])
     files["pc386_system.v"], prepared = machine_netlist(sources, {"pc386_machine.sv": machine, "pc386_system.sv": system})
     derived["pc386_system.v"] = {"front_end": "yosys-seal-netlist", "guest_rates": guest_rates(),
-                                 "netlist_sha256": board.sha(files["pc386_system.v"]), **prepared,
+                                 "netlist_sha256": board.sha(files["pc386_system.v"]), "I486": I486, **prepared,
                                  "x87": {"x87_present": "tied 0 in pc386_system"}}
     files["fes_de25_computer_transport.v"], derived["fes_de25_computer_transport.v"] = spectrum.transport(
         sources[BOARD + "zx81-hps/fes_de25_computer.v"])
