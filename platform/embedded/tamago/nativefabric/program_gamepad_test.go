@@ -54,10 +54,10 @@ func TestProgramGamepadMappedRowsAreAtomicAndCopiesShareReleaseFence(t *testing.
 		t.Fatal(err)
 	}
 	want := [9]uint16{1: 1 << 6, 4: 1 << 15, 5: 1 << 2, 8: 2}
-	if f.cpu.keyboardRows != want || f.cpu.keyboardWrites != 18 {
+	if f.cpu.keyboardRows != want || f.cpu.keyboardWrites != 13 {
 		t.Fatal(f.cpu.keyboardRows, f.cpu.keyboardWrites)
 	}
-	if err := g.Report(ctx, []byte{0}); err == nil || f.cpu.keyboardRows != want || f.cpu.keyboardWrites != 18 {
+	if err := g.Report(ctx, []byte{0}); err == nil || f.cpu.keyboardRows != want || f.cpu.keyboardWrites != 13 {
 		t.Fatal("bad report changed rows", err)
 	}
 	if err := copy.Report(ctx, padReport(128, 128, 4)); err != nil {
@@ -157,7 +157,7 @@ func TestProgramGamepadValidationBusyCancellationAndPartialWriteFailure(t *testi
 		t.Fatal(err)
 	}
 	f.cpu.failKeyboardAt = f.cpu.keyboardWrites + 2
-	if err := g.Report(ctx, padReport(128, 128, 1)); err == nil || f.s.Status().State != ProgramRebootRequired || f.lease.r.Active || !g.state.keys.state.closed {
+	if err := g.Report(ctx, padReport(128, 128, 3)); err == nil || f.s.Status().State != ProgramRebootRequired || f.lease.r.Active || !g.state.keys.state.closed {
 		t.Fatal("uncertain rows not retired", err)
 	}
 	calls = f.cpu.calls

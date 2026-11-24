@@ -33,6 +33,16 @@ type menuDeadlineReports struct {
 	initial   bool
 }
 
+func (s *menuDeadlineReports) PollKeyboardInto(dst []byte) (int, error) {
+	r, err := s.PollKeyboard()
+	if err != nil || r == nil {
+		return 0, err
+	}
+	if len(r) == 0 || len(r) > len(dst) {
+		return 0, errors.New("invalid keyboard report length")
+	}
+	return copy(dst, r), nil
+}
 func (s *menuDeadlineReports) PollKeyboard() ([]byte, error) {
 	s.polls++
 	if s.last != nil && s.now.Sub(*s.last) >= 500*time.Millisecond {

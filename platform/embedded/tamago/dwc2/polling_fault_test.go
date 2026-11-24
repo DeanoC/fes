@@ -88,7 +88,7 @@ func TestPollingDrainSnapshotCannotChangePendingTransferOrConsumeRX(t *testing.T
 	c.rx, c.words = []uint32{2<<17 | 8<<4}, []uint32{0x12345678, 0x9abcdef0}
 	c.regs[hcchar], c.regs[hctsiz] = 0xa05e8808, 0x80008
 	h := &Host{io: c, owned: true, interval: 10 * time.Millisecond, packetSequence: 53, healthStage: 2, healthPolls: 7,
-		pending: packet{active: true, in: true, pid: 0, limit: 8, data: []byte{4, 5}, deadline: c.tick.Add(time.Second),
+		pending: packet{active: true, in: true, pid: 0, limit: 8, inBuf: [64]byte{4, 5}, inLen: 2, deadline: c.tick.Add(time.Second),
 			requestAfter: c.tick.Add(time.Millisecond), polls: 12, toggleRX: 1, toggleIRQs: 2,
 			firstToggle: errors.New("first observed toggle"), lastContinue: continuationState{reason: "queue", samples: 1, queueReg: ptxstatus}}}
 	before, rx, words := h.pending, append([]uint32(nil), c.rx...), append([]uint32(nil), c.words...)

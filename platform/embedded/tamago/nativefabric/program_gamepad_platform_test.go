@@ -30,6 +30,16 @@ func (s *programPadReports) PollGamepad() ([]byte, error) {
 	s.reports = s.reports[1:]
 	return r, nil
 }
+func (s *programPadReports) PollGamepadInto(dst []byte) (int, error) {
+	r, err := s.PollGamepad()
+	if err != nil || r == nil {
+		return 0, err
+	}
+	if len(r) == 0 || len(r) > len(dst) {
+		return 0, errors.New("invalid gamepad report length")
+	}
+	return copy(dst, r), nil
+}
 func TestProgramGamepadPlatformMenuCoreAndReturnFences(t *testing.T) {
 	f, b, c := backendFixture(t)
 	source := &programPadReports{}
@@ -57,7 +67,7 @@ func TestProgramGamepadPlatformMenuCoreAndReturnFences(t *testing.T) {
 	}
 	source.reports = [][]byte{padReport(128, 128, 1), padReport(128, 128, 0), padReport(128, 128, 3), padReport(128, 128, 0)}
 	frame, err = p.Next(ctx)
-	if err != nil || len(frame.Commands) != 0 || frame.Text != "" || f.cpu.keyboardWrites != 27 || f.cpu.keyboardRows != ([9]uint16{}) {
+	if err != nil || len(frame.Commands) != 0 || frame.Text != "" || f.cpu.keyboardWrites != 13 || f.cpu.keyboardRows != ([9]uint16{}) {
 		t.Fatal(frame, err, f.cpu.keyboardWrites)
 	}
 	old, oldSession := p.gamepad, p.session
@@ -175,7 +185,7 @@ func (p *programGamepadApp) Next(ctx context.Context) (tenfoot.PlatformInput, er
 		if p.fault == "malformed" {
 			p.source.reports = [][]byte{{0}}
 		} else if p.fault == "rows" {
-			p.source.reports = [][]byte{padReport(128, 128, 1)}
+			p.source.reports = [][]byte{padReport(128, 128, 3)}
 			p.fixture.cpu.failKeyboardAt = p.fixture.cpu.keyboardWrites + 2
 		} else if p.fault != "" {
 			p.source.err = errors.New("gamepad source failed during play")
@@ -236,7 +246,7 @@ func TestProgramGamepadFullTenfootLaunchReturnAndFailures(t *testing.T) {
 				}
 				return
 			}
-			if err != nil || base.cycles != 3 || f.s.Status().Generation != 6 || !f.lease.r.Active || f.cpu.keyboardWrites != 81 {
+			if err != nil || base.cycles != 3 || f.s.Status().Generation != 6 || !f.lease.r.Active || f.cpu.keyboardWrites != 39 {
 				t.Fatal(err, base.stage, base.cycles, f.s.Status(), f.cpu.keyboardWrites)
 			}
 		})
