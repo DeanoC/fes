@@ -419,3 +419,114 @@ func TestSendACLCapsFragmentsToBulkOutMPS(t *testing.T) {
 		t.Fatal("MPS-capped ACL fragment payload mismatch")
 	}
 }
+
+func TestReassembleChunkedHCIEventsAndACLFrames(t *testing.T) {
+	bus := newMockBTBus(0x0bda, 0xa728, 1)
+	bus.rtlVersion = 0xd922 // already patched so Initialize only does cmd traffic
+	tr, err := Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Chunk a 17-byte EventInquiryResult (16B + 1B) AND a 257-byte
+	// EventRemoteNameRequestComplete (seventeen <=16B chunks) for Service().
+	inqEv := make([]byte, 17)
+	inqEv[0] = EventInquiryResult
+	inqEv[1] = 15
+	inqEv[2] = 1
+	for i := 3; i < len(inqEv); i++ {
+		inqEv[i] = byte(0xa0 + i)
+	}
+	nameEv := make([]byte, 257)
+	nameEv[0] = EventRemoteNameRequestComplete
+	nameEv[1] = 255
+	nameEv[2] = 0
+	copy(nameEv[3:9], []byte{1, 2, 3, 4, 5, 6})
+	copy(nameEv[9:], "DualSense Wireless Controller")
+
+	// Feed inqEv as 16B then 1B across two separate Service() ticks first.
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, inqEv[:16])
+	var events [][]byte
+	if err := tr.Service(func(ev []byte) { events = append(events, append([]byte(nil), ev...)) }, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("partial 16B HCI event should not dispatch early, got %x", events)
+	}
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, inqEv[16:])
+	if err := tr.Service(func(ev []byte) { events = append(events, append([]byte(nil), ev...)) }, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || !bytes.Equal(events[0], inqEv) {
+		t.Fatalf("reassembled InquiryResult mismatch: %x", events)
+	}
+
+	// Feed 257B RemoteNameRequestComplete split into 16B USB packets.
+	for off := 0; off < len(nameEv); off += 16 {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, nameEv[off:min(off+16, len(nameEv))])
+	}
+	events = nil
+	if err := tr.Service(func(ev []byte) { events = append(events, append([]byte(nil), ev...)) }, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || !bytes.Equal(events[0], nameEv) {
+		t.Fatalf("reassembled RemoteNameRequestComplete len=%d/%d", len(events[0]), len(nameEv))
+	}
+
+	// 2. Also verify SendCommand reassembles chunked asynchronous events and
+	// preserves them intact in the deferred queue alongside CommandComplete.
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, inqEv[:16], inqEv[16:])
+	if err := tr.WriteScanEnable(ScanPageOnly); err != nil {
+		t.Fatalf("WriteScanEnable during chunked event: %v", err)
+	}
+	events = nil
+	if err := tr.Service(func(ev []byte) { events = append(events, append([]byte(nil), ev...)) }, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || !bytes.Equal(events[0], inqEv) {
+		t.Fatalf("deferred chunked InquiryResult mismatch: %x", events)
+	}
+
+	// 3. Chunk an 87-byte DualSense ACL RX frame across 64B + 23B USB bulk-IN
+	// packets both across separate Service() ticks and back-to-back.
+	aclFrame := make([]byte, 87)
+	binary.LittleEndian.PutUint16(aclFrame[0:2], 0x0042|uint16(ACLBoundaryFirstAutoFlush)<<12)
+	binary.LittleEndian.PutUint16(aclFrame[2:4], 83)
+	for i := 4; i < len(aclFrame); i++ {
+		aclFrame[i] = byte(i)
+	}
+
+	var gotACL [][]byte
+	onACL := func(handle uint16, pb uint8, payload []byte) {
+		if handle == 0x0042 && pb == ACLBoundaryFirstAutoFlush {
+			gotACL = append(gotACL, append([]byte(nil), payload...))
+		}
+	}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, aclFrame[:64])
+	if err := tr.Service(nil, onACL); err != nil {
+		t.Fatal(err)
+	}
+	if len(gotACL) != 0 {
+		t.Fatalf("partial 64B ACL chunk should not dispatch early, got %d frames", len(gotACL))
+	}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, aclFrame[64:])
+	if err := tr.Service(nil, onACL); err != nil {
+		t.Fatal(err)
+	}
+	if len(gotACL) != 1 || !bytes.Equal(gotACL[0], aclFrame[4:]) {
+		t.Fatalf("reassembled ACL RX across ticks mismatch: got %d frames", len(gotACL))
+	}
+
+	gotACL = nil
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, aclFrame[:64], aclFrame[64:])
+	if err := tr.Service(nil, onACL); err != nil {
+		t.Fatal(err)
+	}
+	if len(gotACL) != 1 || !bytes.Equal(gotACL[0], aclFrame[4:]) {
+		t.Fatalf("reassembled ACL RX in one tick mismatch: got %d frames", len(gotACL))
+	}
+}

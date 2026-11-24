@@ -13,6 +13,7 @@ const (
 	maxHCIEventBytes = 260
 	maxHCICmdBytes   = 258
 	maxACLUSBPacket  = 512
+	maxACLRxBytes    = 1028
 	maxACLTxQueue    = 16
 	defaultACLMaxLen = 256
 	defaultACLCredit = 4
@@ -51,9 +52,13 @@ type Transport struct {
 	maxCredits int
 	credits    int
 
-	evBuf    [maxHCIEventBytes]byte
-	aclRxBuf [maxACLUSBPacket]byte
-	cmdBuf   [maxHCICmdBytes]byte
+	evBuf       [maxHCIEventBytes]byte
+	evLen       int
+	evDispatch  [maxHCIEventBytes]byte
+	aclRxBuf    [maxACLRxBytes]byte
+	aclRxLen    int
+	aclDispatch [maxACLRxBytes]byte
+	cmdBuf      [maxHCICmdBytes]byte
 
 	txRing     [maxACLTxQueue]aclTxFrame
 	txHead     int
@@ -177,18 +182,19 @@ func (t *Transport) SendCommand(opcode uint16, params []byte, resp []byte) (int,
 	}
 
 	// Pump USB host + Event pipe until matching Command Complete / Status arrives.
+	var evBuf [maxHCIEventBytes]byte
 	for polls := 0; polls < 4096; polls++ {
 		if err := t.bus.Service(); err != nil {
 			return 0, err
 		}
-		n, err := t.evPipe.PollInto(t.evBuf[:])
+		n, err := t.pollEvent(evBuf[:])
 		if err != nil {
 			return 0, err
 		}
 		if n < 2 {
 			continue
 		}
-		ev := t.evBuf[:n]
+		ev := evBuf[:n]
 		switch ev[0] {
 		case EventCommandComplete:
 			if n >= 6 && binary.LittleEndian.Uint16(ev[3:5]) == opcode {
@@ -407,6 +413,88 @@ func (t *Transport) handleNumCompletedPackets(ev []byte) {
 	}
 }
 
+func consumeStreamFrame(buf []byte, curLen *int, want int, dst []byte) int {
+	n := copy(dst, buf[:want])
+	rem := *curLen - want
+	if rem > 0 {
+		copy(buf, buf[want:*curLen])
+	}
+	*curLen = rem
+	return n
+}
+
+func (t *Transport) popCompleteEvent(dst []byte) (int, bool) {
+	if t.evLen < 2 {
+		return 0, false
+	}
+	want := 2 + int(t.evBuf[1])
+	if t.evLen < want {
+		return 0, false
+	}
+	return consumeStreamFrame(t.evBuf[:], &t.evLen, want, dst), true
+}
+
+func (t *Transport) pollEvent(dst []byte) (int, error) {
+	if n, ok := t.popCompleteEvent(dst); ok {
+		return n, nil
+	}
+	for range 20 {
+		if t.evLen >= len(t.evBuf) {
+			t.evLen = 0
+		}
+		n, err := t.evPipe.PollInto(t.evBuf[t.evLen:])
+		if err != nil {
+			return 0, err
+		}
+		if n == 0 {
+			return 0, nil
+		}
+		t.evLen += n
+		if evLen, ok := t.popCompleteEvent(dst); ok {
+			return evLen, nil
+		}
+	}
+	return 0, nil
+}
+
+func (t *Transport) popCompleteACL(dst []byte) (int, bool) {
+	if t.aclRxLen < 4 {
+		return 0, false
+	}
+	want := 4 + int(binary.LittleEndian.Uint16(t.aclRxBuf[2:4]))
+	if want > len(t.aclRxBuf) {
+		t.aclRxLen = 0
+		return 0, false
+	}
+	if t.aclRxLen < want {
+		return 0, false
+	}
+	return consumeStreamFrame(t.aclRxBuf[:], &t.aclRxLen, want, dst), true
+}
+
+func (t *Transport) pollACL(dst []byte) (int, error) {
+	if n, ok := t.popCompleteACL(dst); ok {
+		return n, nil
+	}
+	for range 20 {
+		if t.aclRxLen >= len(t.aclRxBuf) {
+			t.aclRxLen = 0
+		}
+		n, err := t.aclInPipe.PollInto(t.aclRxBuf[t.aclRxLen:])
+		if err != nil {
+			return 0, err
+		}
+		if n == 0 {
+			return 0, nil
+		}
+		t.aclRxLen += n
+		if aclLen, ok := t.popCompleteACL(dst); ok {
+			return aclLen, nil
+		}
+	}
+	return 0, nil
+}
+
 // Service pumps deferred and live HCI Events, drains incoming ACL Data packets
 // into onACL with zero heap allocations, and submits queued ACL TX packets as
 // controller flow-control credits become available.
@@ -415,22 +503,22 @@ func (t *Transport) Service(onEvent func(ev []byte), onACL func(handle uint16, p
 	for range 8 {
 		if t.deferredCount > 0 {
 			idx := t.deferredHead
-			n := t.deferredLen[idx]
+			n := copy(t.evDispatch[:], t.deferred[idx][:t.deferredLen[idx]])
 			t.deferredHead = (t.deferredHead + 1) % len(t.deferred)
 			t.deferredCount--
 			if onEvent != nil {
-				onEvent(t.deferred[idx][:n])
+				onEvent(t.evDispatch[:n])
 			}
 			continue
 		}
-		n, err := t.evPipe.PollInto(t.evBuf[:])
+		n, err := t.pollEvent(t.evDispatch[:])
 		if err != nil {
 			return err
 		}
 		if n == 0 {
 			break
 		}
-		ev := t.evBuf[:n]
+		ev := t.evDispatch[:n]
 		if ev[0] == EventNumCompletedPackets {
 			t.handleNumCompletedPackets(ev)
 			continue
@@ -442,7 +530,7 @@ func (t *Transport) Service(onEvent func(ev []byte), onACL func(handle uint16, p
 
 	// 3. Drain incoming ACL packets from EP2 Bulk IN (hot path for HIDP reports!).
 	for range 8 {
-		n, err := t.aclInPipe.PollInto(t.aclRxBuf[:])
+		n, err := t.pollACL(t.aclDispatch[:])
 		if err != nil {
 			return err
 		}
@@ -450,12 +538,12 @@ func (t *Transport) Service(onEvent func(ev []byte), onACL func(handle uint16, p
 			break
 		}
 		if n >= 4 && onACL != nil {
-			hdr := binary.LittleEndian.Uint16(t.aclRxBuf[0:2])
-			length := int(binary.LittleEndian.Uint16(t.aclRxBuf[2:4]))
+			hdr := binary.LittleEndian.Uint16(t.aclDispatch[0:2])
+			length := int(binary.LittleEndian.Uint16(t.aclDispatch[2:4]))
 			if 4+length <= n {
 				handle := hdr & 0x0fff
 				pb := uint8((hdr >> 12) & 0x03)
-				onACL(handle, pb, t.aclRxBuf[4:4+length])
+				onACL(handle, pb, t.aclDispatch[4:4+length])
 			}
 		}
 	}
