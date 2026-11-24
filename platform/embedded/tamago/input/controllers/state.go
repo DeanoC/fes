@@ -75,15 +75,22 @@ type State struct {
 	TimestampNS  int64
 }
 
-// Neutral reports whether no buttons, D-Pad directions, or stick deflections
-// beyond deadzone are active (used for menu/core ownership transition fences).
+// Neutral reports whether no buttons, D-Pad directions, triggers, or stick
+// deflections beyond deadzone are active (used for menu/core ownership
+// transition fences).
 func (s State) Neutral() bool {
 	if s.Buttons != 0 {
 		return false
 	}
-	const deadzone = 16384
-	return s.LeftX > -deadzone && s.LeftX < deadzone &&
-		s.LeftY > -deadzone && s.LeftY < deadzone
+	const (
+		stickDeadzone   = 16384
+		triggerDeadzone = 64
+	)
+	return s.LeftX > -stickDeadzone && s.LeftX < stickDeadzone &&
+		s.LeftY > -stickDeadzone && s.LeftY < stickDeadzone &&
+		s.RightX > -stickDeadzone && s.RightX < stickDeadzone &&
+		s.RightY > -stickDeadzone && s.RightY < stickDeadzone &&
+		s.LeftTrigger < triggerDeadzone && s.RightTrigger < triggerDeadzone
 }
 
 // ToUSBGamepadState converts State into the normalized usb.GamepadState used

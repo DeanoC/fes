@@ -240,3 +240,42 @@ func TestControllersParseZeroAllocs(t *testing.T) {
 		t.Fatalf("controller parse/build allocated %.2f allocs/run, want 0", allocs)
 	}
 }
+
+func TestStateNeutralChecksAllSticksAndTriggers(t *testing.T) {
+	if !(State{}).Neutral() {
+		t.Fatal("zero State must be Neutral")
+	}
+	withinDeadzone := State{
+		LeftX:        16383,
+		LeftY:        -16383,
+		RightX:       -16383,
+		RightY:       16383,
+		LeftTrigger:  63,
+		RightTrigger: 63,
+	}
+	if !withinDeadzone.Neutral() {
+		t.Fatalf("sub-deadzone State must be Neutral: %+v", withinDeadzone)
+	}
+
+	activeCases := []struct {
+		name string
+		st   State
+	}{
+		{"button", State{Buttons: ButtonSouth}},
+		{"leftX+", State{LeftX: 16384}},
+		{"leftX-", State{LeftX: -16384}},
+		{"leftY+", State{LeftY: 16384}},
+		{"leftY-", State{LeftY: -16384}},
+		{"rightX+", State{RightX: 16384}},
+		{"rightX-", State{RightX: -16384}},
+		{"rightY+", State{RightY: 16384}},
+		{"rightY-", State{RightY: -16384}},
+		{"leftTrigger", State{LeftTrigger: 64}},
+		{"rightTrigger", State{RightTrigger: 64}},
+	}
+	for _, tc := range activeCases {
+		if tc.st.Neutral() {
+			t.Fatalf("%s state %+v reported Neutral", tc.name, tc.st)
+		}
+	}
+}
