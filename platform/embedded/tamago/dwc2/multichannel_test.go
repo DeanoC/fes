@@ -40,9 +40,10 @@ type multiSimDevice struct {
 	failSetIfaceCount int
 	// Count of CLEAR_FEATURE(ENDPOINT_HALT) requests per endpoint address
 	clearHaltCount map[uint8]int
-	// Reject SET_PORT_FEATURE(PORT_POWER) with STALL (models always-powered hub or transient failure)
-	stallPortPower     bool
-	failPortPowerCount int
+	// Reject SET_PORT_FEATURE(PORT_POWER) or GET_PORT_STATUS transiently
+	stallPortPower      bool
+	failPortPowerCount  int
+	failPortStatusCount int
 }
 
 func newSimHub(ports int, multiTT bool) *multiSimDevice {
@@ -513,6 +514,13 @@ func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 				s.regs[chReg(ch, hcchar)] &^= channelEnable
 			}
 			s.regs[chReg(ch, hcint)] |= 1 | 1<<1
+			return
+		}
+		if s.ctrl.reqType == 0xa3 && s.ctrl.req == 0 && s.ctrl.dev.failPortStatusCount > 0 {
+			s.ctrl.dev.failPortStatusCount--
+			s.ctrl = nil
+			s.regs[chReg(0, hcchar)] &^= channelEnable
+			s.regs[chReg(0, hcint)] |= 1<<3 | 1<<1 // transient STALL
 			return
 		}
 		if s.ctrl.reqType&0x80 != 0 && s.ctrl.req == 6 && s.ctrl.value>>8 == 1 && s.ctrl.dev.failDescCount > 0 {
@@ -2794,5 +2802,152 @@ func TestMultiHostServiceStopsArmingAfterControllerFault(t *testing.T) {
 	sim.mu.Unlock()
 	if ch2HCCHAR&channelEnable != 0 {
 		t.Fatalf("ch2 hardware channel was enabled after controller fault: hcchar=%#x", ch2HCCHAR)
+	}
+}
+
+func TestMultiHostPausedRejectsPipeCloseAndOpen(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected attach event, got %+v ok=%v", ev, ok)
+	}
+	iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+	epIn, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+	epOut, _ := iface.FindEndpoint(usb.TransferInterrupt, false)
+
+	pipe, err := host.OpenPipe(ev.Device.Address, epIn)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+	mp := pipe.(*multiPipe)
+
+	if err := host.PausePolling(context.Background()); err != nil {
+		t.Fatalf("PausePolling: %v", err)
+	}
+	// While paused, raw Close and OpenPipe MUST fail without touching MMIO or
+	// freeing the slot.
+	if err := pipe.Close(); err == nil {
+		t.Fatal("pipe.Close succeeded while MultiHost polling was paused")
+	}
+	if !host.slots[mp.ch].allocated {
+		t.Fatal("pipe.Close freed channel slot while MultiHost was paused")
+	}
+	if _, err := host.OpenPipe(ev.Device.Address, epOut); err == nil {
+		t.Fatal("OpenPipe succeeded while MultiHost polling was paused")
+	}
+
+	// After ResumePolling, closing the pipe succeeds normally.
+	if err := host.ResumePolling(context.Background()); err != nil {
+		t.Fatalf("ResumePolling: %v", err)
+	}
+	if err := pipe.Close(); err != nil {
+		t.Fatalf("pipe.Close after resume: %v", err)
+	}
+}
+
+func TestMultiHostRetriesInitialHubPortGetStatusFailure(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	hub.failPortStatusCount = 1 // Fail initial GET_PORT_STATUS on port 1 transiently
+	pad := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	if _, ok := host.NextEvent(); ok {
+		t.Fatal("unexpected attach event before transient GET_PORT_STATUS retry")
+	}
+	var attached bool
+	for range 25 {
+		sim.advance(25 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+		if ev, ok := host.NextEvent(); ok && ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			attached = true
+			break
+		}
+	}
+	if !attached {
+		t.Fatal("initially connected hub child was not retried after transient GET_PORT_STATUS failure")
+	}
+}
+
+func TestMultiHostInterruptOUTPreservesInterval(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected attach event, got %+v ok=%v", ev, ok)
+	}
+	iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+	epOut, _ := iface.FindEndpoint(usb.TransferInterrupt, false)
+	outPipe, err := host.OpenPipe(ev.Device.Address, epOut)
+	if err != nil {
+		t.Fatalf("OpenPipe(OUT): %v", err)
+	}
+	mp := outPipe.(*multiPipe)
+
+	// Complete first Interrupt-OUT write.
+	if err := outPipe.Write([]byte{0x02, 0x01, 0x02, 0x03}); err != nil {
+		t.Fatalf("Write #1: %v", err)
+	}
+	for range 3 {
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+		if done, err := outPipe.WriteDone(); err != nil {
+			t.Fatal(err)
+		} else if done {
+			break
+		}
+	}
+
+	// Immediately submit a second Interrupt-OUT write; it must NOT arm before
+	// epOut.Interval (4 ms for FS gamepad) has elapsed!
+	if err := outPipe.Write([]byte{0x02, 0x04, 0x05, 0x06}); err != nil {
+		t.Fatalf("Write #2: %v", err)
+	}
+	if err := host.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if host.slots[mp.ch].armed || host.slots[mp.ch].outDone {
+		t.Fatalf("Interrupt-OUT armed immediately without honoring bInterval: armed=%v outDone=%v", host.slots[mp.ch].armed, host.slots[mp.ch].outDone)
+	}
+
+	// Advance past bInterval and verify Write #2 completes.
+	sim.advance(host.slots[mp.ch].effectiveInterval() + time.Millisecond)
+	var done2 bool
+	for range 3 {
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+		var err error
+		done2, err = outPipe.WriteDone()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if done2 {
+			break
+		}
+	}
+	if !done2 {
+		t.Fatal("Interrupt-OUT Write #2 did not complete after bInterval elapsed")
 	}
 }

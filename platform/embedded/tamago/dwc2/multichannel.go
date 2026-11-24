@@ -870,6 +870,9 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 		} else {
 			s.outPending = false
 			s.outDone = true
+			if s.ep.TransferType == usb.TransferInterrupt {
+				s.nextDue = now.Add(s.effectiveInterval())
+			}
 		}
 	}
 }
@@ -1190,6 +1193,9 @@ func (h *MultiHost) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, e
 	if h.fault != nil {
 		return nil, h.fault
 	}
+	if h.paused {
+		return nil, fmt.Errorf("dwc2: host paused")
+	}
 	if int(addr) == 0 || int(addr) >= len(h.devices) || h.devices[addr] == nil {
 		return nil, fmt.Errorf("dwc2: unknown device address %d", addr)
 	}
@@ -1311,7 +1317,10 @@ func (p *multiPipe) Write(data []byte) error {
 	s.outPending = true
 	s.outDone = false
 	s.outErr = nil
-	s.nextDue = p.host.io.Now()
+	now := p.host.io.Now()
+	if s.ep.TransferType != usb.TransferInterrupt || s.nextDue.Before(now) {
+		s.nextDue = now
+	}
 	return nil
 }
 
@@ -1345,6 +1354,9 @@ func (p *multiPipe) SetIntervalOverride(interval time.Duration) {
 func (p *multiPipe) Close() error {
 	if p.closed || p.host == nil {
 		return nil
+	}
+	if p.host.paused {
+		return fmt.Errorf("dwc2: host paused")
 	}
 	p.closed = true
 	if p.host.fault != nil {
@@ -1445,6 +1457,9 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 				} else {
 					s.outPending = false
 					s.outDone = true
+					if s.ep.TransferType == usb.TransferInterrupt {
+						s.nextDue = now.Add(s.effectiveInterval())
+					}
 				}
 				s.waitingSplit = false
 				s.completeSplit = false
@@ -1544,6 +1559,9 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 					} else {
 						s.outPending = false
 						s.outDone = true
+						if s.ep.TransferType == usb.TransferInterrupt {
+							s.nextDue = t.Add(s.effectiveInterval())
+						}
 					}
 					s.waitingSplit = false
 					s.completeSplit = false
