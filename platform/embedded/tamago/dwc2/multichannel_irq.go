@@ -183,8 +183,32 @@ func (h *MultiHost) armMultiIRQ(now time.Time) {
 			continue
 		}
 		activeMask |= 1 << uint(ch)
-		if s.waitingSplit || (!s.armed && s.ep.In() && !s.inReady && now.Before(s.nextDue)) || (!s.armed && !s.ep.In() && s.outPending && now.Before(s.nextDue)) {
+		// Keep SOF armed whenever a channel is waiting on a split microframe or
+		// has an unarmed IN/OUT transfer pending (either waiting for nextDue or
+		// deferred because the TX request queue / FIFO was temporarily full).
+		if s.waitingSplit || (!s.armed && s.ep.In() && !s.inReady) || (!s.armed && !s.ep.In() && s.outPending) {
 			needSOF = true
+		}
+	}
+	if !needSOF {
+		if h.rootRetryCount > 0 {
+			needSOF = true
+		} else {
+			for _, hub := range h.hubs {
+				if hub.statusPipe == nil {
+					needSOF = true
+					break
+				}
+				for p := uint8(1); p <= hub.numPorts; p++ {
+					if hub.retryCount[p] > 0 {
+						needSOF = true
+						break
+					}
+				}
+				if needSOF {
+					break
+				}
+			}
 		}
 	}
 	h.io.Write32(haintmsk, activeMask)

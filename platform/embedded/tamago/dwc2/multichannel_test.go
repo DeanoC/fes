@@ -1664,3 +1664,132 @@ func TestMultiHostControlTransferValidatesNonCH0RX(t *testing.T) {
 		t.Fatal("expected ch0Transfer to fault slot on invalid non-CH0 RX packet")
 	}
 }
+
+func TestMultiHostIRQKeepsSOFWhenQueueBusy(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected attach event, got %+v ok=%v", ev, ok)
+	}
+	iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+	ep, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+	pipe, err := host.OpenPipe(ev.Device.Address, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+	mp := pipe.(*multiPipe)
+
+	ctrl, _ := newMockGIC(t)
+	if err := host.EnableIRQ(ctrl, testUSBIRQ); err != nil {
+		t.Fatalf("EnableIRQ: %v", err)
+	}
+	defer host.DisableIRQ()
+
+	// Make the periodic TX request queue full (0 free slots) while the pipe is
+	// due (nextDue <= now): armSlot must leave the slot unarmed, and armMultiIRQ
+	// MUST keep gintSOF enabled so the next SOF retries arming!
+	sim.mu.Lock()
+	savedPTX := sim.regs[ptxstatus]
+	sim.regs[ptxstatus] = 0
+	sim.mu.Unlock()
+	sim.advance(10 * time.Millisecond)
+
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (queue full): %v", err)
+	}
+	if host.slots[mp.ch].armed {
+		t.Fatal("expected slot to remain unarmed while ptxstatus queue is full")
+	}
+	sim.mu.Lock()
+	mask := sim.regs[gintmask]
+	sim.mu.Unlock()
+	if mask&gintSOF == 0 {
+		t.Fatalf("armMultiIRQ failed to keep gintSOF enabled for due-but-unarmed channel: gintmask=%#x", mask)
+	}
+
+	// Restore queue capacity and verify the channel arms and delivers a packet.
+	pkt := []byte{0x01, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01}
+	sim.mu.Lock()
+	sim.regs[ptxstatus] = savedPTX
+	pad.inQueues[ep.Number()] = append(pad.inQueues[ep.Number()], pkt)
+	sim.mu.Unlock()
+
+	var buf [64]byte
+	var gotN int
+	for range 5 {
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service (after queue freed): %v", err)
+		}
+		gotN, err = pipe.PollInto(buf[:])
+		if err != nil {
+			t.Fatalf("PollInto: %v", err)
+		}
+		if gotN > 0 {
+			break
+		}
+	}
+	if gotN != len(pkt) || string(buf[:gotN]) != string(pkt) {
+		t.Fatalf("expected packet after queue freed: got %x want %x", buf[:gotN], pkt)
+	}
+}
+
+func TestMultiHostRootPortEnableLossRecovery(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected initial attach event, got %+v ok=%v", ev, ok)
+	}
+	origAddr := ev.Device.Address
+
+	// Simulate a babble event that disables the root port (PRTENA=0, PRTENCHNG=1)
+	// while keeping PRTCONNSTS=1 and PRTCONNDET=0.
+	sim.mu.Lock()
+	sim.regs[hprt] = (sim.regs[hprt] &^ (1 << 2)) | (1 << 3)
+	sim.mu.Unlock()
+
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (enable loss): %v", err)
+	}
+
+	// Verify PRTENCHNG was cleared, stale device was detached, and root port was
+	// reset and re-enumerated.
+	sim.mu.Lock()
+	hprtVal := sim.regs[hprt]
+	sim.mu.Unlock()
+	if hprtVal&(1<<3) != 0 {
+		t.Fatalf("PRTENCHNG was not cleared: hprt=%#x", hprtVal)
+	}
+	if hprtVal&(1<<2) == 0 {
+		t.Fatalf("root port was not re-enabled after enable-loss recovery: hprt=%#x", hprtVal)
+	}
+	var sawDetach, sawReattach bool
+	for {
+		ev, ok := host.NextEvent()
+		if !ok {
+			break
+		}
+		if ev.Kind == usb.DeviceDetached && ev.Device.Address == origAddr {
+			sawDetach = true
+		}
+		if ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			sawReattach = true
+		}
+	}
+	if !sawDetach || !sawReattach {
+		t.Fatalf("expected detach+reattach after PRTENA loss: sawDetach=%v sawReattach=%v", sawDetach, sawReattach)
+	}
+}
