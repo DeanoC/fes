@@ -8,7 +8,8 @@ tape loader (Tape Loader on the 128K and Pentagon, Loader on the +3). The 48K
 has no menu: it types LOAD "" (J, then SYMBOL SHIFT+P twice; Control is SYMBOL
 SHIFT) and, after the break, PRINT 22 as P22 in keyword mode. The claim, baseline probe, data-tree delta
 and release follow the #2128 C64 core-only wrapper: the kit must be logged
-FREE on the baseline named in ~/fes-hil/baselines/current-restore.json, with an
+FREE, on the baseline Lander's ~/lander-hilq/current.json names for that kit (its
+image and kit_sw_by_kit bundle; probed live right after the claim), with an
 idle agent and a free lease, and the image, bundle, lease and launcher state
 must read the same after the run. Nothing is installed, the image is not
 touched and the shared FogCast host is not used: specrun.py drives a private
@@ -73,7 +74,7 @@ script = [
     {'op': 'stop'}, {'op': 'quit'}]
 
 # --- claim -------------------------------------------------------------------
-base = json.loads((home / 'fes-hil/baselines/current-restore.json').read_text())
+base = json.loads((home / 'lander-hilq/current.json').read_text())
 status = home / 'kit-status' / f'kit{kit}-STATUS.md'; target = {'A': 'dev', 'B': 'kit2'}[kit]
 
 
@@ -97,9 +98,10 @@ for path in [home / 'fes-hil/locks' / f'lander-kit{kit}.lock', home / 'kit-statu
     f = path.open('a'); fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB); locks.append(f)
 if f'KIT {kit} FREE' not in last():
     sys.exit('Kit busy: ' + last()[:160])
-image, bundle = base['image_good'], base['kit_sw']
-if image not in last() or bundle not in last():
-    sys.exit('Verify ledger baseline manually: ' + last()[:200])
+# FREE lines from Lander's maintenance name no hashes; probe('pre') below checks the
+# live image, bundle, idle agent and free lease before anything changes, and
+# withdraws the claim if they differ.
+image, bundle = base['image_good'], (base.get('kit_sw_by_kit') or {}).get(kit, [base['kit_sw']])[0]
 append(f'IN USE — Claude fes#2101 (F3 D12) {core_id} reseal HIL, package {package_id} from {a.head[:12]}, core only '
        f'(private host, no install, no image change); restore image {image}, bundle {bundle}, idle/lease-free. Evidence {run}')
 t = next(t for t in tomllib.loads((home / '.config/fogcast/config.toml').read_text())['targets'] if t['name'] == target)
@@ -182,6 +184,10 @@ for name in sorted(paths):
         remote("rm -r -- '" + name + "'")
 for path in sorted(files() - old):
     if re.fullmatch('/media/fat/fogcast/core-data/[a-f0-9]{64}', path):
+        remote("rmdir -- '" + path + "'")
+# A first launch on a kit creates the parent too; rmdir refuses one that is not empty.
+for path in sorted(files() - old, reverse=True):
+    if path in ('/media/fat/fogcast/core-data/games', '/media/fat/fogcast/core-data/media'):
         remote("rmdir -- '" + path + "'")
 assert files() == old, 'Kit data delta must be investigated'
 append(f'FREE — Claude fes#2101 {core_id} HIL completed (driver rc {rc}, script {"complete" if ok else "halted"}); verified baseline '
