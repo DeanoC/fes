@@ -569,6 +569,19 @@ func TestOpenChannelRollsBackAndRetriesOnACLQueueFull(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	peer, _ := ParseBDAddr("44:55:66:77:88:99")
+	eir := make([]byte, 2+15)
+	eir[0] = hci.EventExtendedInquiryResult
+	eir[1] = 15
+	eir[2] = 1
+	copy(eir[3:9], peer[:])
+	eir[9] = 1
+	eir[11], eir[12], eir[13] = 0x08, 0x25, 0x00
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, eir)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+
 	// Stall ACL OUT and fill all 16 queued ring entries (plus 1 in-flight).
 	bus.aclOutPipe.writeStalled = true
 	for range 17 {
@@ -578,9 +591,8 @@ func TestOpenChannelRollsBackAndRetriesOnACLQueueFull(t *testing.T) {
 	}
 	bus.aclOutPipe.outLog = nil
 
-	// ConnectionComplete during pairing attempts OpenChannel(PSMHIDControl), which fails
-	// with ACL TX queue full: channel slot MUST roll back and queue retry via pendingOpenPSM.
-	peer, _ := ParseBDAddr("44:55:66:77:88:99")
+	// Outgoing ConnectionComplete during pairing attempts OpenChannel(PSMHIDControl), which
+	// fails with ACL TX queue full: channel slot MUST roll back and queue retry via pendingOpenPSM.
 	connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x45, 0x00}, peer[:]...)
 	connOK = append(connOK, 0x01, 0x01)
 	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK)
@@ -643,9 +655,16 @@ func TestConfigRequestRetriesAfterACLQueueFull(t *testing.T) {
 	}
 
 	peer, _ := ParseBDAddr("55:66:77:88:99:AA")
+	eir := make([]byte, 2+15)
+	eir[0] = hci.EventExtendedInquiryResult
+	eir[1] = 15
+	eir[2] = 1
+	copy(eir[3:9], peer[:])
+	eir[9] = 1
+	eir[11], eir[12], eir[13] = 0x08, 0x25, 0x00
 	connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x46, 0x00}, peer[:]...)
 	connOK = append(connOK, 0x01, 0x01)
-	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, eir, connOK)
 	if err := mgr.Service(); err != nil {
 		t.Fatal(err)
 	}
@@ -1524,5 +1543,80 @@ func TestBatchedInquiryResultsDecodeFieldArrays(t *testing.T) {
 				t.Fatalf("expected CreateConnection for pad %s with psrm=1 clk=0x2233, got %x", pad, got)
 			}
 		})
+	}
+}
+
+func TestIncomingPairingConnectionNotHostInitiatedAndRetriesFailedInquiry(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(1800, 0)
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Incoming connection while pairing window is open (with no prior EIR /
+	// CreateConnection) must NOT set hostInitiated or initiate outgoing HID ConnReq.
+	inPeer, _ := ParseBDAddr("77:88:99:AA:BB:CC")
+	connIn := append([]byte{hci.EventConnectionComplete, 11, 0, 0x4c, 0x00}, inPeer[:]...)
+	connIn = append(connIn, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connIn)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	conn := mgr.findConnByHandle(0x004c)
+	if conn == nil || conn.hostInitiated {
+		t.Fatalf("expected incoming pairing conn without hostInitiated, conn=%+v", conn)
+	}
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) >= 16 && (binary.LittleEndian.Uint16(pkt[0:2])&0x0fff) == 0x004c &&
+			binary.LittleEndian.Uint16(pkt[6:8]) == CIDSignaling && pkt[8] == sigConnReq &&
+			binary.LittleEndian.Uint16(pkt[12:14]) == PSMHIDControl {
+			t.Fatal("incoming pairing conn unexpectedly sent outgoing sigConnReq for PSMHIDControl")
+		}
+	}
+
+	// 2. Failed StartInquiry during resumeInquiryIfPairing records inquiryRetryPending
+	// and retries inside Service() once nameRetryBackoff elapses.
+	countInquiry := func() int {
+		n := 0
+		for _, op := range bus.cmds {
+			if op == hci.OpcodeInquiry {
+				n++
+			}
+		}
+		return n
+	}
+	beforeInq := countInquiry()
+	bus.failInquiry = true
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventInquiryComplete, 1, 0x00})
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !mgr.inquiryRetryPending {
+		t.Fatal("expected inquiryRetryPending=true after failed StartInquiry resume")
+	}
+	if got := countInquiry(); got != beforeInq {
+		t.Fatalf("expected inquiry count unchanged (%d) on failure, got %d", beforeInq, got)
+	}
+
+	now = now.Add(nameRetryBackoff)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if mgr.inquiryRetryPending {
+		t.Fatal("expected inquiryRetryPending cleared after successful retry")
+	}
+	if got := countInquiry(); got != beforeInq+1 {
+		t.Fatalf("expected StartInquiry retry count=%d, got %d", beforeInq+1, got)
 	}
 }

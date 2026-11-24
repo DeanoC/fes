@@ -389,6 +389,11 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 				m.sendOrQueueSig(conn, sigConnRsp, id, rsp[:])
 				continue
 			}
+			if conn.findByPSM(psm) != nil {
+				binary.LittleEndian.PutUint16(rsp[4:6], 0x0004) // No resources / duplicate PSM
+				m.sendOrQueueSig(conn, sigConnRsp, id, rsp[:])
+				continue
+			}
 			ch := conn.allocChannel(psm)
 			if ch == nil {
 				binary.LittleEndian.PutUint16(rsp[4:6], 0x0004) // No resources
