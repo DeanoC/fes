@@ -107,8 +107,10 @@ def write_cpu(output, root=ROOT, *, rename=True):
     data, record = derive_cpu((Path(root) / CPU_UPSTREAM).read_bytes(), rename=rename)
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
-    (output / CPU_FILE).write_bytes(data)
-    return output / CPU_FILE, record
+    # The file is named for its module, which the benches' lint requires (DECLFILENAME).
+    path = output / (CPU_FILE if rename else UPSTREAM_TOP + ".sv")
+    path.write_bytes(data)
+    return path, record
 
 
 def sim_sources(output, root=ROOT, *, rename=False):
