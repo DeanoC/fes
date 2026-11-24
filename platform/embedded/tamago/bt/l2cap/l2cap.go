@@ -115,7 +115,7 @@ func (m *Manager) handleACL(handle uint16, pb uint8, payload []byte) {
 		return
 	}
 	switch pb {
-	case hci.ACLBoundaryFirstAutoFlush:
+	case hci.ACLBoundaryFirstNonFlush, hci.ACLBoundaryFirstAutoFlush:
 		if len(payload) < 4 {
 			conn.reasmLive = false
 			return

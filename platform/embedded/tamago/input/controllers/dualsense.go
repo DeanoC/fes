@@ -285,19 +285,19 @@ var dualSensePlayerRGB = [4][3]byte{
 }
 
 // BuildDualSenseBTOutput writes a valid 78-byte DualSense Bluetooth output
-// report 0x31 (setting player 1..4 LEDs, lightbar color, and rumble motors)
-// with the required IEEE CRC-32 seeded with HIDP DATA|OUTPUT (0xA2).
-func BuildDualSenseBTOutput(dst []byte, playerSlot uint8, rumbleRight, rumbleLeft uint8) int {
+// report 0x31 (setting rolling 4-bit seq tag, player 1..4 LEDs, lightbar color,
+// and rumble motors) with the required IEEE CRC-32 seeded with 0xA2.
+func BuildDualSenseBTOutput(dst []byte, seq, playerSlot, rumbleRight, rumbleLeft uint8) int {
 	if len(dst) < DualSenseBTOutputLen {
 		return 0
 	}
 	clear(dst[:DualSenseBTOutputLen])
 	slot := playerSlot & 3
 	dst[0] = DualSenseBTReportFull
-	dst[1] = 0x02 // seq_tag (seq=0)
-	dst[2] = 0x10 // DS_OUTPUT_TAG
-	dst[3] = 0x03 // valid_flag0: compatible vibration + haptics select
-	dst[4] = 0x14 // valid_flag1: lightbar (0x04) + player LEDs (0x10)
+	dst[1] = (seq & 0x0f) << 4 // seq_tag: rolling 4-bit sequence in high nibble, tag 0x0 in low nibble
+	dst[2] = 0x10              // DS_OUTPUT_TAG
+	dst[3] = 0x03              // valid_flag0: compatible vibration + haptics select
+	dst[4] = 0x14              // valid_flag1: lightbar (0x04) + player LEDs (0x10)
 	dst[5] = rumbleRight
 	dst[6] = rumbleLeft
 	dst[46] = dualSensePlayerLEDs[slot]

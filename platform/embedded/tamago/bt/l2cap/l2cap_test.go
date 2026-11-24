@@ -344,6 +344,27 @@ func TestSSPFailClosedOutsidePairingAndReconnectL2CAPZeroAlloc(t *testing.T) {
 		t.Fatalf("fragmented L2CAP reassembly mismatch len=%d/%d", len(gotHID), len(fullHID))
 	}
 
+	// Verify PB=0 (non-automatically-flushable first fragment) works for both
+	// single-packet and multi-fragment L2CAP PDUs.
+	gotHID = nil
+	singleNonFlush := makeACLPacket(0x0042, hci.ACLBoundaryFirstNonFlush, 0x0041, fullHID)
+	binary.LittleEndian.PutUint16(frag1[0:2], 0x0042|uint16(hci.ACLBoundaryFirstNonFlush)<<12)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, singleNonFlush)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(gotHID, fullHID) {
+		t.Fatalf("single PB=0 L2CAP PDU mismatch len=%d/%d", len(gotHID), len(fullHID))
+	}
+	gotHID = nil
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, frag1, frag2)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(gotHID, fullHID) {
+		t.Fatalf("fragmented PB=0 L2CAP reassembly mismatch len=%d/%d", len(gotHID), len(fullHID))
+	}
+
 	// Verify SendChannel + single-packet HID Interrupt RX allocate 0 bytes!
 	bus.aclOutPipe.noOutLog = true
 	singleACL := makeACLPacket(0x0042, hci.ACLBoundaryFirstAutoFlush, 0x0041, fullHID)

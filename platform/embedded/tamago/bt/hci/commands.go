@@ -70,8 +70,9 @@ const (
 
 // ACL Packet Boundary (PB) flags in the 12..13 bit field of the ACL header.
 const (
-	ACLBoundaryFirstAutoFlush uint8 = 0x02 // First packet of higher-layer L2CAP PDU
+	ACLBoundaryFirstNonFlush  uint8 = 0x00 // First non-automatically-flushable fragment of L2CAP PDU
 	ACLBoundaryContinuing     uint8 = 0x01 // Continuation fragment
+	ACLBoundaryFirstAutoFlush uint8 = 0x02 // First auto-flushable packet of higher-layer L2CAP PDU
 )
 
 func (t *Transport) sendStatusCommand(opcode uint16, params []byte) error {

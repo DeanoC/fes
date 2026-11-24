@@ -112,10 +112,10 @@ func TestDualSenseBTFullAndBasicAndOutputCRC32(t *testing.T) {
 		t.Fatalf("unexpected DS4 0x11 state: %+v", st)
 	}
 
-	// Output report 0x31 with IEEE CRC-32 seeded by 0xA2
+	// Output report 0x31 with IEEE CRC-32 seeded by 0xA2 and rolling seq nibble.
 	var out [DualSenseBTOutputLen]byte
-	n := BuildDualSenseBTOutput(out[:], 0, 0x40, 0x20)
-	if n != DualSenseBTOutputLen || out[0] != 0x31 || out[1] != 0x02 || out[2] != 0x10 ||
+	n := BuildDualSenseBTOutput(out[:], 0, 0, 0x40, 0x20)
+	if n != DualSenseBTOutputLen || out[0] != 0x31 || out[1] != 0x00 || out[2] != 0x10 ||
 		out[3] != 0x03 || out[4] != 0x14 || out[5] != 0x40 || out[6] != 0x20 ||
 		out[46] != 0x04 || out[47] != 0x00 || out[48] != 0x20 || out[49] != 0x80 {
 		t.Fatalf("unexpected DualSense output header n=%d out[0:7]=%x leds=%x", n, out[:7], out[46:50])
@@ -124,6 +124,14 @@ func TestDualSenseBTFullAndBasicAndOutputCRC32(t *testing.T) {
 	gotCRC := binary.LittleEndian.Uint32(out[74:78])
 	if gotCRC != wantCRC {
 		t.Fatalf("DualSense CRC32 mismatch got=%#08x want=%#08x", gotCRC, wantCRC)
+	}
+	BuildDualSenseBTOutput(out[:], 1, 0, 0x10, 0x10)
+	if out[1] != 0x10 || binary.LittleEndian.Uint32(out[74:78]) != crc32.Update(crc32.Update(0, crc32.IEEETable, []byte{0xa2}), crc32.IEEETable, out[:74]) {
+		t.Fatalf("unexpected seq=1 DualSense output header/CRC: out[1]=%#02x", out[1])
+	}
+	BuildDualSenseBTOutput(out[:], 16, 0, 0x00, 0x00)
+	if out[1] != 0x00 || binary.LittleEndian.Uint32(out[74:78]) != crc32.Update(crc32.Update(0, crc32.IEEETable, []byte{0xa2}), crc32.IEEETable, out[:74]) {
+		t.Fatalf("unexpected wrapped seq=16 DualSense output header/CRC: out[1]=%#02x", out[1])
 	}
 }
 
@@ -213,7 +221,7 @@ func TestControllersParseZeroAllocs(t *testing.T) {
 		ParseSwitchProInput(swRep[:], &cal, &st)
 		_ = st.ToComputerMask()
 		_ = st.ToUSBGamepadState()
-		_ = BuildDualSenseBTOutput(out[:], 0, 0, 0)
+		_ = BuildDualSenseBTOutput(out[:], 0, 0, 0, 0)
 	})
 	if allocs > 0 {
 		t.Fatalf("controller parse/build allocated %.2f allocs/run, want 0", allocs)

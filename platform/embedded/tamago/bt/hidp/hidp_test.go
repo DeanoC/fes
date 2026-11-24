@@ -15,18 +15,19 @@ import (
 )
 
 type hidpMockPipe struct {
-	ep       usb.EndpointDescriptor
-	inQueue  [][]byte
-	inRepeat []byte
-	outLog   [][]byte
-	noOutLog bool
+	ep           usb.EndpointDescriptor
+	inQueue      [][]byte
+	inRepeat     []byte
+	outLog       [][]byte
+	noOutLog     bool
+	writeStalled bool
 }
 
 func (p *hidpMockPipe) DeviceAddress() uint8             { return 2 }
 func (p *hidpMockPipe) Endpoint() usb.EndpointDescriptor { return p.ep }
 func (p *hidpMockPipe) SetIntervalOverride(time.Duration) {}
 func (p *hidpMockPipe) Close() error                     { return nil }
-func (p *hidpMockPipe) WriteDone() (bool, error)         { return true, nil }
+func (p *hidpMockPipe) WriteDone() (bool, error)         { return !p.writeStalled, nil }
 func (p *hidpMockPipe) Write(data []byte) error {
 	if !p.noOutLog {
 		p.outLog = append(p.outLog, append([]byte(nil), data...))
@@ -220,7 +221,7 @@ func TestDualSenseAndSwitchProConcurrentHIDPAndZeroAllocs(t *testing.T) {
 		if handle == 0x0041 && cid == 0x0050 && len(hid) >= 2 && hid[0] == hidpGetReportFeature && hid[1] == 0x05 {
 			sawDSUnlock = true
 		}
-		if handle == 0x0041 && cid == 0x0051 && len(hid) == 79 && hid[0] == hidpDataOutput && hid[1] == 0x31 && hid[3] == 0x10 && hid[47] == 0x04 {
+		if handle == 0x0041 && cid == 0x0051 && len(hid) == 79 && hid[0] == hidpDataOutput && hid[1] == 0x31 && hid[2] == 0x00 && hid[3] == 0x10 && hid[47] == 0x04 {
 			sawDSLED = true
 		}
 		if handle == 0x0042 && cid == 0x0061 && len(hid) == 50 && hid[0] == hidpDataOutput && hid[1] == 0x01 {
@@ -243,8 +244,18 @@ func TestDualSenseAndSwitchProConcurrentHIDPAndZeroAllocs(t *testing.T) {
 	if err := sess.SetGameplayActive(true); err != nil || bus.scanEnable != hci.ScanDisabled {
 		t.Fatalf("SetGameplayActive(true): err=%v scan=%#x", err, bus.scanEnable)
 	}
+	bus.aclOutPipe.outLog = nil
 	if err := sess.SetRumble(0, 0x30, 0x10); err != nil {
 		t.Fatalf("SetRumble: %v", err)
+	}
+	var sawRumbleSeq1 bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) == 8+79 && pkt[8] == hidpDataOutput && pkt[9] == 0x31 && pkt[10] == 0x10 && pkt[11] == 0x10 && pkt[14] == 0x30 && pkt[15] == 0x10 {
+			sawRumbleSeq1 = true
+		}
+	}
+	if !sawRumbleSeq1 {
+		t.Fatalf("expected DualSense rumble output report with advancing seq=1 (0x10), outLog=%x", bus.aclOutPipe.outLog)
 	}
 
 	// Deliver concurrent DualSense 0x31 and Switch Pro 0x30 reports!
@@ -368,5 +379,180 @@ func TestSessionPersistsAssignedSlotOnConcurrentPairingCollision(t *testing.T) {
 	}
 	if s1, ok := sess.Slot(1); !ok || s1.Addr != pad2 {
 		t.Fatalf("expected pad2 in slot 1 on reconnect, got ok=%t slot=%+v", ok, s1)
+	}
+}
+
+func TestDisconnectNeutralizesGamepadStateBeforeClearingSlot(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	dsAddr, _ := l2cap.ParseBDAddr("DD:11:22:33:44:55")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: dsAddr, LinkKey: [16]byte{9}, Name: "DualSense Wireless Controller", Kind: controllers.KindDualSense, Slot: 0})
+
+	sess, err := NewSession(tr, bonds, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var events []string
+	var lastState controllers.State
+	sess.OnGamepadState = func(slot uint8, kind controllers.Kind, st controllers.State) {
+		if slot == 0 && kind == controllers.KindDualSense {
+			lastState = st
+			if st.Neutral() {
+				events = append(events, "neutral")
+			} else {
+				events = append(events, "active")
+			}
+		}
+	}
+	sess.OnSlotChanged = func(slot uint8, connected bool, _ controllers.Kind, _ string) {
+		if slot == 0 && !connected {
+			events = append(events, "disconnected")
+		}
+	}
+
+	conn := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, dsAddr[:]...)
+	conn = append(conn, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, conn)
+	openIncomingHIDChannels(bus, 0x0041, 0x0050, 0x0051)
+	for range 6 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	dsPkt := make([]byte, 79)
+	dsPkt[0] = hidpDataInput
+	dsPkt[1] = controllers.DualSenseBTReportFull
+	dsPkt[3], dsPkt[4], dsPkt[5], dsPkt[6] = 0x80, 0x80, 0x80, 0x80
+	dsPkt[10] = 0x20 // Cross (South)
+	dsSum := crc32.Update(0, crc32.IEEETable, []byte{0xa1})
+	dsSum = crc32.Update(dsSum, crc32.IEEETable, dsPkt[1:75])
+	binary.LittleEndian.PutUint32(dsPkt[75:79], dsSum)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, 0x0041, dsPkt))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if lastState.Neutral() {
+		t.Fatal("expected non-neutral active state before disconnect")
+	}
+
+	// Simulate an ordinary individual controller disconnect without a release report.
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventDisconnectionComplete, 4, 0, 0x41, 0x00, 0x13})
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !lastState.Neutral() {
+		t.Fatalf("expected neutral state after disconnect, got %+v", lastState)
+	}
+	if len(events) != 3 || events[0] != "active" || events[1] != "neutral" || events[2] != "disconnected" {
+		t.Fatalf("unexpected disconnect event sequence: %v", events)
+	}
+}
+
+func TestSwitchProInitRetriesAfterACLQueueFull(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	swAddr, _ := l2cap.ParseBDAddr("EE:11:22:33:44:55")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: swAddr, LinkKey: [16]byte{7}, Name: "Pro Controller", Kind: controllers.KindSwitchPro, Slot: 0})
+
+	sess, err := NewSession(tr, bonds, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conn := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, swAddr[:]...)
+	conn = append(conn, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, conn)
+	// Open Control channel and start Interrupt channel up to cfgReq, leaving cfgRsp for after queue saturation.
+	connCtrl := []byte{0x02, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}
+	cfgReqCtrl := []byte{0x04, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}
+	cfgRspCtrl := []byte{0x05, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}
+	connIntr := []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x51, 0x00}
+	cfgReqIntr := []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}
+	cfgRspIntr := []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0041, l2cap.CIDSignaling, connCtrl),
+		makeHIDACL(0x0041, l2cap.CIDSignaling, cfgReqCtrl),
+		makeHIDACL(0x0041, l2cap.CIDSignaling, cfgRspCtrl),
+		makeHIDACL(0x0041, l2cap.CIDSignaling, connIntr),
+		makeHIDACL(0x0041, l2cap.CIDSignaling, cfgReqIntr),
+	)
+	for range 6 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bus.aclOutPipe.outLog = nil
+
+	// Stall ACL OUT pipe and pre-fill 15 of the 16 ring slots so ONLY step 0
+	// (SPIRead) fits during onChannelOpen and step 1 (SetMode) hits TX queue full.
+	bus.aclOutPipe.writeStalled = true
+	for range 16 {
+		if err := tr.SendACL(0x0041, hci.ACLBoundaryFirstAutoFlush, []byte{0xde, 0xad}); err != nil {
+			t.Fatalf("prefill SendACL failed early: %v", err)
+		}
+	}
+
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, l2cap.CIDSignaling, cfgRspIntr))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if sess.slots[0].initStep != 1 {
+		t.Fatalf("expected initStep=1 after step 1 queue overflow, got %d", sess.slots[0].initStep)
+	}
+
+	// Unstall ACL OUT pipe, replenish credits across drains, and pump Service().
+	bus.aclOutPipe.writeStalled = false
+	for range 24 {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x10, 0x00})
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if sess.slots[0].initStep != initStepDone {
+		t.Fatalf("Switch Pro init did not finish after queue drain: initStep=%d", sess.slots[0].initStep)
+	}
+
+	var spiCount, modeCount, ledCount int
+	var seqs []byte
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) < 8+50 {
+			continue
+		}
+		cid := binary.LittleEndian.Uint16(pkt[6:8])
+		hid := pkt[8:]
+		if cid != 0x0051 || hid[0] != hidpDataOutput || hid[1] != 0x01 {
+			continue
+		}
+		seqs = append(seqs, hid[2])
+		switch hid[11] {
+		case controllers.SwitchProSubcmdSPIRead:
+			spiCount++
+		case controllers.SwitchProSubcmdSetMode:
+			modeCount++
+		case controllers.SwitchProSubcmdSetPlayerLD:
+			ledCount++
+		}
+	}
+	if spiCount != 1 || modeCount != 1 || ledCount != 1 {
+		t.Fatalf("unexpected Switch Pro init command counts spi=%d mode=%d led=%d", spiCount, modeCount, ledCount)
+	}
+	if !bytes.Equal(seqs, []byte{0, 1, 2}) {
+		t.Fatalf("unexpected Switch Pro retry subcommand sequence numbers: %v", seqs)
 	}
 }

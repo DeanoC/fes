@@ -18,7 +18,11 @@ const (
 	hidpGetReportFeature byte = 0x43 // GET_REPORT (0x40) | Feature (0x03)
 	hidpDataInput        byte = 0xa1 // DATA (0xA0) | Input (0x01)
 	hidpDataOutput       byte = 0xa2 // DATA (0xA0) | Output (0x02)
+
+	initStepDone uint8 = 0xff
 )
+
+var neutralKeyboardReport [8]byte
 
 // PlayerSlot tracks one active Classic Bluetooth controller connection.
 type PlayerSlot struct {
@@ -32,9 +36,9 @@ type PlayerSlot struct {
 
 	ctrlOpen  bool
 	intrOpen  bool
-	initDone  bool
+	initStep  uint8
 	cal       controllers.SwitchStickCal
-	subcmdSeq uint8
+	outputSeq uint8
 }
 
 // Session runs Classic Bluetooth HIDP (PSM 0x0011 Control + PSM 0x0013
@@ -76,7 +80,17 @@ func NewSession(tr *hci.Transport, bonds *l2cap.BondStore, now func() time.Time)
 }
 
 // Service pumps HCI + L2CAP + HIDP traffic with zero steady-state allocations.
-func (s *Session) Service() error { return s.mgr.Service() }
+func (s *Session) Service() error {
+	if err := s.mgr.Service(); err != nil {
+		return err
+	}
+	for i := range s.slots {
+		if s.slots[i].Connected && s.slots[i].initStep != initStepDone {
+			s.maybeInitController(&s.slots[i])
+		}
+	}
+	return nil
+}
 
 // Bonds returns the underlying BondStore for FES/BTBONDS.JSON persistence.
 func (s *Session) Bonds() *l2cap.BondStore { return s.mgr.Bonds() }
@@ -207,6 +221,15 @@ func (s *Session) onDisconnect(handle uint16, _ l2cap.BDAddr) {
 	}
 	idx, kind, name := slot.Slot, slot.Kind, slot.Name
 	*slot = PlayerSlot{}
+	// Clear any held buttons/axes before announcing slot removal so downstream
+	// consumers driven by OnGamepadState / OnKeyboardReport never see stuck input.
+	if kind != controllers.KindUnknown {
+		if s.OnGamepadState != nil {
+			s.OnGamepadState(idx, kind, controllers.State{})
+		}
+	} else if s.OnKeyboardReport != nil {
+		s.OnKeyboardReport(neutralKeyboardReport[:])
+	}
 	if s.OnSlotChanged != nil {
 		s.OnSlotChanged(idx, false, kind, name)
 	}
@@ -218,7 +241,7 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 	}
 	// Reconcile bond slot even if LinkKeyNotification completed after onChannelOpen.
 	s.syncBondSlot(slot.Addr, slot.Slot)
-	if slot.initDone || slot.Kind == controllers.KindUnknown {
+	if slot.initStep == initStepDone || slot.Kind == controllers.KindUnknown {
 		return
 	}
 	switch slot.Kind {
@@ -226,46 +249,74 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 		if !slot.ctrlOpen || !slot.intrOpen {
 			return
 		}
-		// 1. Send HIDP GET_REPORT Feature 0x05 (DualSense) / 0x02 (DS4) over
-		// PSM 0x0011 to unlock full 78-byte high-rate input reports (0x31 / 0x11).
-		getRep := [2]byte{hidpGetReportFeature, controllers.DualSenseUnlockFeatureReportID(slot.Kind)}
-		_ = s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDControl, getRep[:])
-		// 2. For DualSense, set Player 1..4 LEDs & lightbar on PSM 0x0013.
-		if slot.Kind == controllers.KindDualSense {
-			_ = s.sendDualSenseOutput(slot, 0, 0)
+		if slot.initStep == 0 {
+			// 1. Send HIDP GET_REPORT Feature 0x05 (DualSense) / 0x02 (DS4) over
+			// PSM 0x0011 to unlock full 78-byte high-rate input reports (0x31 / 0x11).
+			getRep := [2]byte{hidpGetReportFeature, controllers.DualSenseUnlockFeatureReportID(slot.Kind)}
+			if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDControl, getRep[:]); err != nil {
+				return
+			}
+			if slot.Kind == controllers.KindDualShock4 {
+				slot.initStep = initStepDone
+				return
+			}
+			slot.initStep = 1
 		}
-		slot.initDone = true
+		// 2. For DualSense, set Player 1..4 LEDs & lightbar on PSM 0x0013.
+		if slot.initStep == 1 {
+			if err := s.sendDualSenseOutput(slot, 0, 0); err != nil {
+				return
+			}
+			slot.initStep = initStepDone
+		}
 
 	case controllers.KindSwitchPro:
 		if !slot.intrOpen {
 			return
 		}
-		// Step 1: Request 18-byte SPI 0x603D factory stick calibration.
-		s.txBuf[0] = hidpDataOutput
-		n := controllers.BuildSwitchProReadCalibration(s.txBuf[1:], slot.subcmdSeq)
-		slot.subcmdSeq = (slot.subcmdSeq + 1) & 0x0f
-		_ = s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n])
-		// Step 2: Switch to Standard Full Input Report 0x30 (60-120 Hz).
-		s.txBuf[0] = hidpDataOutput
-		n = controllers.BuildSwitchProSetFullMode(s.txBuf[1:], slot.subcmdSeq)
-		slot.subcmdSeq = (slot.subcmdSeq + 1) & 0x0f
-		_ = s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n])
-		// Step 3: Set Player 1..4 LEDs.
-		s.txBuf[0] = hidpDataOutput
-		n = controllers.BuildSwitchProSetPlayerLEDs(s.txBuf[1:], slot.subcmdSeq, slot.Slot)
-		slot.subcmdSeq = (slot.subcmdSeq + 1) & 0x0f
-		_ = s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n])
-		slot.initDone = true
+		// Send each Switch Pro init subcommand stepwise; on queue saturation,
+		// resume from the failed step on subsequent Service() passes.
+		if slot.initStep == 0 {
+			s.txBuf[0] = hidpDataOutput
+			n := controllers.BuildSwitchProReadCalibration(s.txBuf[1:], slot.outputSeq)
+			if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n]); err != nil {
+				return
+			}
+			slot.outputSeq = (slot.outputSeq + 1) & 0x0f
+			slot.initStep = 1
+		}
+		if slot.initStep == 1 {
+			s.txBuf[0] = hidpDataOutput
+			n := controllers.BuildSwitchProSetFullMode(s.txBuf[1:], slot.outputSeq)
+			if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n]); err != nil {
+				return
+			}
+			slot.outputSeq = (slot.outputSeq + 1) & 0x0f
+			slot.initStep = 2
+		}
+		if slot.initStep == 2 {
+			s.txBuf[0] = hidpDataOutput
+			n := controllers.BuildSwitchProSetPlayerLEDs(s.txBuf[1:], slot.outputSeq, slot.Slot)
+			if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n]); err != nil {
+				return
+			}
+			slot.outputSeq = (slot.outputSeq + 1) & 0x0f
+			slot.initStep = initStepDone
+		}
 	}
 }
 
 func (s *Session) sendDualSenseOutput(slot *PlayerSlot, right, left uint8) error {
 	s.txBuf[0] = hidpDataOutput
-	n := controllers.BuildDualSenseBTOutput(s.txBuf[1:], slot.Slot, right, left)
+	n := controllers.BuildDualSenseBTOutput(s.txBuf[1:], slot.outputSeq, slot.Slot, right, left)
 	if n == 0 {
 		return errors.New("bt/hidp: DualSense output build failed")
 	}
-	return s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n])
+	if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n]); err != nil {
+		return err
+	}
+	slot.outputSeq = (slot.outputSeq + 1) & 0x0f
+	return nil
 }
 
 // SetRumble sends a rumble/LED update to an active DualSense slot (0..3).
