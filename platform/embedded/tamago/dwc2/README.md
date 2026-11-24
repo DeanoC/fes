@@ -50,6 +50,31 @@ the USB descriptor, boot-report and HID gamepad decoders.
   overrun, unexpected DMA enable or expired bounds permanently retire the host
   (retaining a read-only register snapshot and 8-command history for diagnosis).
 
+## Multi-device PIO bus host (`MultiHost`)
+
+`OpenMulti` implements the controller-independent `usb.BusHost` interface on
+the same DE25-Nano PIO hardware contract (no DMA):
+
+- **16-channel scheduler:** Discovers channel count (`HWCFG2`) and FIFO RAM
+  depth (`HWCFG3`) at open time; reserves CH0 for synchronous Control IN/OUT
+  transfers (`ControlTransfer`) and allocates CH1..15 to concurrent Interrupt
+  IN/OUT and Bulk IN/OUT pipes (`OpenPipe`, up to 512 B HS Bulk MPS) with inline
+  `[512]byte` RX/TX buffers and zero steady-state heap allocations.
+- **Dynamic FIFOs & Multi-TT hubs:** Scales RX/NPTX/PTX FIFO partitions from
+  `HWCFG3` (`512/256/256` words on Agilex 5 >= 1024-word RAM), enables Multi-TT
+  (`SET_INTERFACE alt=1`) on protocol-2 HS hubs, and widens split SSPLIT
+  scheduling across microframes `0..5`.
+- **Zero-device boot & dynamic hotplug:** `OpenMulti` succeeds even with no
+  device plugged into the root port, monitors root port connect/disconnect and
+  hub Interrupt-IN status-change bitmaps inside `Service()`, emits
+  `DeviceAttached` / `DeviceDetached` events, and isolates per-pipe STALL/CRC
+  faults without tearing down sibling devices or the host controller.
+- **GICv3 IRQ & pause/resume:** `EnableIRQ` / `EnableIRQGuarded` enables
+  `HAINTMSK` across all active channels plus `GINTMSK.SOF` when waiting for
+  periodic or split-transaction slots; `PausePolling` / `ResumePolling` cleanly
+  halts and drains all channels for FPGA reconfiguration and `usbcontrol.BusHost`
+  closure.
+
 ## Diagnostics and references
 
 - `run.py keyboard --board qemu` exercises the shared normalized keyboard path

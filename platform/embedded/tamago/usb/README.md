@@ -48,6 +48,12 @@ confirm/back button mapping and an axis deadzone. Its state snapshot is availabl
 for a future core-specific route. It does not fabricate keyboard reports, and
 neither this parser nor its model tests establish physical input acceptance.
 
+`bus.go` and `descriptor.go` also define the controller-independent multi-device
+bus abstraction (`BusHost`, `Pipe`, `DeviceInfo`, `HostEvent`) and full
+composite descriptor parsers (`ParseDeviceDescriptor`, `ParseFullConfiguration`)
+used by `dwc2.MultiHost` to support hubs, Bluetooth HCI dongles (Interrupt-IN +
+Bulk-IN/OUT + Control-OUT), and composite HID/XInput controllers.
+
 References used for implementation:
 
 - [Intel xHCI specification, revision 1.22](https://www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/extensible-host-controler-interface-usb-xhci.pdf): sections 4–6, register / context / TRB ownership and control transfers.
