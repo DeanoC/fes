@@ -23,6 +23,53 @@ func (FabricCPUTransport) WithHeldMediaBatch(base uint64, send func(computer.IO)
 	return withHeldDataBatch(base, g.FesComputerOpcodeMediaData, send)
 }
 
+// WithInputBatch brackets one keyboard/controller/mouse input flush in a single
+// device-mapping check and permits writes only to FES input opcodes.
+func (FabricCPUTransport) WithInputBatch(base uint64, send func(computer.IO) error) error {
+	if base != spectrumROMBase || send == nil {
+		return errors.New("DE25: input batch differs from the fixed mailbox")
+	}
+	return arm64map.WithDeviceMapping(profileRAMStart, profileRAMSize, spectrumROMBase,
+		uint64(g.FesDe25ComputerSpan), func() error {
+			port := inputBatchPort{active: true}
+			defer func() { port.active = false }()
+			return send(&port)
+		})
+}
+
+const maxInputBatchWrites = 12
+
+type inputBatchPort struct {
+	active bool
+	writes uint32
+}
+
+func (p *inputBatchPort) Read32(offset uint32) (uint32, error) {
+	if p.active {
+		switch offset {
+		case g.FesDe25ComputerStatusOffset, g.FesDe25ComputerGpoOffset,
+			g.FesDe25ComputerGpiOffset, g.FesDe25ComputerFaultOffset:
+			return load32(spectrumROMBase + uintptr(offset)), nil
+		}
+	}
+	return 0, errors.New("DE25: read outside the input mailbox batch")
+}
+
+func (p *inputBatchPort) Write32(offset, value uint32) error {
+	if !p.active || offset != g.FesDe25ComputerGpoOffset || p.writes >= maxInputBatchWrites {
+		return errors.New("DE25: write outside the input mailbox batch")
+	}
+	opcode := (value >> 24) & 0x7f
+	switch opcode {
+	case g.FesComputerOpcodeKeyboardHid, g.FesComputerOpcodeControllerButtons, g.FesComputerOpcodeMouseRelative:
+	default:
+		return errors.New("DE25: non-input opcode rejected in input batch")
+	}
+	p.writes++
+	store32(spectrumROMBase+uintptr(offset), value)
+	return nil
+}
+
 func withHeldDataBatch(base uint64, opcode uint32, send func(computer.IO) error) error {
 	if base != spectrumROMBase || send == nil {
 		return errors.New("DE25: held mailbox data batch differs from the fixed mailbox")

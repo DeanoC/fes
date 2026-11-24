@@ -422,7 +422,10 @@ func (s *keyboardHIDSink) applyFromGuarded(ctx context.Context, source inputSour
 // release from the previous core.
 func (s *keyboardHIDSink) tap(ctx context.Context, f protocol.InputFrame, afterPress func()) error {
 	usage, ok := hidkeys.Usage(remoteinput.Code(f.Code))
-	if !ok || f.ServerMonoNS == 0 || f.Value != protocol.InputTapHoldMS {
+	if !ok || f.ServerMonoNS == 0 || f.Value != protocol.InputTapHoldMS ||
+		(f.Header.Type == protocol.InputTypeTap && f.Reserved != 0) ||
+		(f.Header.Type == protocol.InputTypeTapChord && (f.Reserved == 0 || f.Reserved > 255 || usage >= 0xe0)) ||
+		(f.Header.Type != protocol.InputTypeTap && f.Header.Type != protocol.InputTypeTapChord) {
 		return errTapUnavailable
 	}
 	if ctx == nil {
@@ -438,6 +441,14 @@ func (s *keyboardHIDSink) tap(ctx context.Context, f protocol.InputFrame, afterP
 		cancelPress()
 		return errTapUnavailable
 	}
+	for bit := uint(0); bit < 8; bit++ {
+		modifier := uint8(0xe0 + bit)
+		if f.Reserved&(1<<bit) != 0 && (s.pressed[sourceRemote][modifier] || s.blocked[sourceRemote][modifier] || s.tapInFlight[modifier] != 0) {
+			s.mu.Unlock()
+			cancelPress()
+			return errTapUnavailable
+		}
+	}
 	binding := *s.binding
 	if s.tapHeld == nil {
 		s.tapHeld = make(map[uint8]bool)
@@ -452,6 +463,16 @@ func (s *keyboardHIDSink) tap(ctx context.Context, f protocol.InputFrame, afterP
 	tapID := s.tapSequence
 	s.tapHeld[usage] = true
 	s.tapInFlight[usage] = tapID
+	// Each modifier belongs to this tap token, rather than the remote
+	// source's physical holds. Reserve it until this operation finishes so
+	// overlapping taps cannot release one another's chord contributions.
+	for bit := uint(0); bit < 8; bit++ {
+		if f.Reserved&(1<<bit) != 0 {
+			modifier := uint8(0xe0 + bit)
+			s.tapHeld[modifier] = true
+			s.tapInFlight[modifier] = tapID
+		}
+	}
 	pressErr := s.postLocked(pressCtx)
 	s.mu.Unlock()
 	cancelPress()
@@ -486,6 +507,15 @@ func (s *keyboardHIDSink) tap(ctx context.Context, f protocol.InputFrame, afterP
 	heldByTap := s.tapHeld[usage]
 	delete(s.tapHeld, usage)
 	delete(s.tapInFlight, usage)
+	for bit := uint(0); bit < 8; bit++ {
+		if f.Reserved&(1<<bit) != 0 {
+			modifier := uint8(0xe0 + bit)
+			if s.tapInFlight[modifier] == tapID {
+				delete(s.tapHeld, modifier)
+				delete(s.tapInFlight, modifier)
+			}
+		}
+	}
 	if !heldByTap || s.focused || s.focusFence.Load() {
 		return errors.Join(pressErr, errTapUnavailable)
 	}

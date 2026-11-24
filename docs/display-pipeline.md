@@ -7,9 +7,9 @@ cabinet frame around the machine picture) fit into it.
 
 Historically each shell grew its own variant: fixed 720p generators,
 Direct/Scanlines video-part sockets on Coleco and Atari ST, and a ZX81-only
-opaque launcher plane. The ZX81, Spectrum models, and native Coleco shells now
-use the shared display plane described here. The pipeline below gives their
-stages one common order.
+opaque launcher plane. The ZX81 family, Spectrum models, C64, native Coleco
+and pc386 shells now use the shared display plane described here. The pipeline
+below gives their stages one common order.
 
 ## Stages
 
@@ -123,11 +123,14 @@ display fault.
 
 | Shell | Machine source | Part socket | Display plane |
 | --- | --- | --- | --- |
-| ZX81 | Shell 720p raster | No | Yes (`fes_display_plane`) |
+| ZX81 family (ZX81, ZX80, TS1000, TS1500) | Shell 720p raster | No | Yes (`fes_display_plane`) |
 | Spectrum models (48K, 128K, +2A/+3, Pentagon) | ULA frame banks, 3x3 in a shell 720p raster | No | Yes (`fes_display_plane`) |
+| C64 (PAL, NTSC) | Shell 720p raster | No | Yes (`fes_display_plane`) |
 | Coleco native | Native pixels | Yes | Yes (`fes_display_plane`, after the part) |
+| pc386 | VGA DDR capture + 720p presenter (`pc386_presenter`) | No | Yes (`fes_display_plane` on DDR port 2) |
 | Atari ST | Shell raster | Yes | Planned |
-| SMS, SG-1000, C64, Apple II | Shell 720p raster | No | Planned |
+| PC/XT (`fes.pcxt-dos`) | CGA 720p raster | No | Planned |
+| SMS, SG-1000, Apple II | Shell 720p raster | No | Planned |
 | Pong, RISC-V, RAM test | `fes_video_720p` | No | Planned |
 | Idle MENU | `fes_menu_video` (whole screen is the plane) | No | Not applicable |
 

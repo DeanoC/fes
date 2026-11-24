@@ -198,6 +198,8 @@ jobs:
           make check
       - name: Unused Go code
         run: python3 scripts/check_deadcode.py --paths-json-file "$RUNNER_TEMP/fes-ci-plan/changed-paths.json"
+      - name: Go vet
+        run: python3 scripts/check_govet.py --paths-json-file "$RUNNER_TEMP/fes-ci-plan/changed-paths.json"
   host:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).host
