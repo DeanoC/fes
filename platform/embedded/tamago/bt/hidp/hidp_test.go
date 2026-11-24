@@ -1010,3 +1010,131 @@ func TestDualShock4BluetoothInitUnlocksWith05And11Output(t *testing.T) {
 		t.Fatalf("expected decoded ButtonSouth on DS4 0x11 report, got %+v", gotDS4)
 	}
 }
+
+func TestHIDChannelCloseNeutralizesInputAndUpdatesReadiness(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	dsAddr, _ := l2cap.ParseBDAddr("EE:11:22:33:44:55")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: dsAddr, LinkKey: [16]byte{5}, Name: "DualSense Wireless Controller", Kind: controllers.KindDualSense, Slot: 0})
+
+	sess, err := NewSession(tr, bonds, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var events []string
+	var lastState controllers.State
+	sess.OnGamepadState = func(slot uint8, kind controllers.Kind, st controllers.State) {
+		if slot == 0 && kind == controllers.KindDualSense {
+			lastState = st
+			if st.Neutral() {
+				events = append(events, "neutral")
+			} else {
+				events = append(events, "active")
+			}
+		}
+	}
+	sess.OnSlotChanged = func(slot uint8, connected bool, _ controllers.Kind, _ string) {
+		if slot == 0 {
+			if connected {
+				events = append(events, "connected")
+			} else {
+				events = append(events, "disconnected")
+			}
+		}
+	}
+
+	conn := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, dsAddr[:]...)
+	conn = append(conn, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, conn)
+	openIncomingHIDChannels(bus, 0x0041, 0x0050, 0x0051)
+	for range 6 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if sess.ConnectedCount() != 1 {
+		t.Fatalf("expected ConnectedCount=1, got %d", sess.ConnectedCount())
+	}
+
+	dsPkt := make([]byte, 79)
+	dsPkt[0] = hidpDataInput
+	dsPkt[1] = controllers.DualSenseBTReportFull
+	dsPkt[3], dsPkt[4], dsPkt[5], dsPkt[6] = 0x80, 0x80, 0x80, 0x80
+	dsPkt[10] = 0x20 // Cross (South)
+	dsSum := crc32.Update(0, crc32.IEEETable, []byte{0xa1})
+	dsSum = crc32.Update(dsSum, crc32.IEEETable, dsPkt[1:75])
+	binary.LittleEndian.PutUint32(dsPkt[75:79], dsSum)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, 0x0041, dsPkt))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if lastState.Neutral() {
+		t.Fatal("expected non-neutral active state before channel close")
+	}
+
+	// 2. Peer closes PSMHIDInterrupt via L2CAP Disconnection Request without tearing down ACL.
+	events = nil
+	disconnIntr := []byte{0x06, 5, 4, 0, 0x41, 0x00, 0x51, 0x00}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, l2cap.CIDSignaling, disconnIntr))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !lastState.Neutral() {
+		t.Fatalf("expected neutral state after interrupt close, got %+v", lastState)
+	}
+	if len(events) != 2 || events[0] != "neutral" || events[1] != "disconnected" {
+		t.Fatalf("expected [neutral disconnected], got %v", events)
+	}
+	if sess.ConnectedCount() != 0 {
+		t.Fatalf("expected ConnectedCount=0 after interrupt close, got %d", sess.ConnectedCount())
+	}
+	if _, ok := sess.Slot(0); ok {
+		t.Fatal("expected Slot(0) unavailable after interrupt close")
+	}
+	if err := sess.SetRumble(0, 0x20, 0x20); err == nil {
+		t.Fatal("expected SetRumble on closed interrupt channel to fail")
+	}
+
+	// 3. Peer closes remaining PSMHIDControl: must not duplicate OnSlotChanged(disconnected).
+	events = nil
+	disconnCtrl := []byte{0x06, 6, 4, 0, 0x40, 0x00, 0x50, 0x00}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0041, l2cap.CIDSignaling, disconnCtrl))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range events {
+		if ev == "disconnected" {
+			t.Fatalf("unexpected duplicate disconnected event: %v", events)
+		}
+	}
+	if sess.ConnectedCount() != 0 {
+		t.Fatalf("expected ConnectedCount=0 after control close, got %d", sess.ConnectedCount())
+	}
+
+	// 4. Reopening Control + Interrupt on the live ACL restores ConnectedCount=1 and announces connected.
+	events = nil
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 7, 4, 0, 0x11, 0x00, 0x60, 0x00}),
+		makeHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 8, 4, 0, 0x42, 0x00, 0x00, 0x00}),
+		makeHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 5, 6, 0, 0x42, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 9, 4, 0, 0x13, 0x00, 0x61, 0x00}),
+		makeHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 10, 4, 0, 0x43, 0x00, 0x00, 0x00}),
+		makeHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 6, 6, 0, 0x43, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if sess.ConnectedCount() != 1 || len(events) != 1 || events[0] != "connected" {
+		t.Fatalf("expected slot reconnect on live ACL: count=%d events=%v", sess.ConnectedCount(), events)
+	}
+}

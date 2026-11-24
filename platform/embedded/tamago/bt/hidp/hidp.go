@@ -48,6 +48,10 @@ type PlayerSlot struct {
 	outputSeq      uint8
 }
 
+func (p *PlayerSlot) ready() bool {
+	return p.Connected && p.ctrlOpen && p.intrOpen
+}
+
 // Session runs Classic Bluetooth HIDP (PSM 0x0011 Control + PSM 0x0013
 // Interrupt) over an l2cap.Manager for up to 4 concurrent Sony DualSense,
 // DualShock 4, Nintendo Switch Pro, and BT HID Keyboard devices with zero
@@ -79,6 +83,7 @@ func NewSession(tr *hci.Transport, bonds *l2cap.BondStore, now func() time.Time)
 	}
 	s := &Session{tr: tr, mgr: mgr, now: now}
 	mgr.OnChannelOpen = s.onChannelOpen
+	mgr.OnChannelClose = s.onChannelClose
 	mgr.OnDisconnect = s.onDisconnect
 	mgr.OnNameResolved = s.onNameResolved
 	mgr.OnHIDControl = s.onHIDControl
@@ -125,7 +130,7 @@ func (s *Session) SetGameplayActive(active bool) error {
 
 // Slot returns a snapshot of player slot index (0..3).
 func (s *Session) Slot(index uint8) (PlayerSlot, bool) {
-	if index >= MaxPlayerSlots || !s.slots[index].Connected {
+	if index >= MaxPlayerSlots || !s.slots[index].ready() {
 		return PlayerSlot{}, false
 	}
 	return s.slots[index], true
@@ -135,7 +140,7 @@ func (s *Session) Slot(index uint8) (PlayerSlot, bool) {
 func (s *Session) ConnectedCount() int {
 	n := 0
 	for i := range s.slots {
-		if s.slots[i].Connected {
+		if s.slots[i].ready() {
 			n++
 		}
 	}
@@ -229,15 +234,7 @@ func (s *Session) onNameResolved(handle uint16, _ l2cap.BDAddr, name string, kin
 	}
 }
 
-func (s *Session) onDisconnect(handle uint16, _ l2cap.BDAddr) {
-	slot := s.findSlotByHandle(handle)
-	if slot == nil {
-		return
-	}
-	idx, kind, name := slot.Slot, slot.Kind, slot.Name
-	*slot = PlayerSlot{}
-	// Clear any held buttons/axes before announcing slot removal so downstream
-	// consumers driven by OnGamepadState / OnKeyboardReport never see stuck input.
+func (s *Session) neutralizeSlotInput(idx uint8, kind controllers.Kind) {
 	if kind != controllers.KindUnknown {
 		if s.OnGamepadState != nil {
 			s.OnGamepadState(idx, kind, controllers.State{})
@@ -245,7 +242,55 @@ func (s *Session) onDisconnect(handle uint16, _ l2cap.BDAddr) {
 	} else if s.OnKeyboardReport != nil {
 		s.OnKeyboardReport(neutralKeyboardReport[:])
 	}
-	if s.OnSlotChanged != nil {
+}
+
+func (s *Session) onChannelClose(handle uint16, _ l2cap.BDAddr, psm uint16) {
+	slot := s.findSlotByHandle(handle)
+	if slot == nil {
+		return
+	}
+	wasReady := slot.ready()
+	hadActiveState := !slot.State.Neutral()
+	idx, kind, name := slot.Slot, slot.Kind, slot.Name
+	switch psm {
+	case l2cap.PSMHIDControl:
+		slot.ctrlOpen = false
+	case l2cap.PSMHIDInterrupt:
+		slot.intrOpen = false
+	default:
+		return
+	}
+	slot.State = controllers.State{}
+	slot.initStep = 0
+	slot.initWaitingAck = false
+	slot.initNextTry = time.Time{}
+	slot.initAttempts = 0
+	if !slot.ctrlOpen && !slot.intrOpen {
+		*slot = PlayerSlot{}
+	}
+	// Clear any held buttons/axes before announcing channel loss so downstream
+	// consumers driven by OnGamepadState / OnKeyboardReport never see stuck input.
+	if wasReady || hadActiveState || kind == controllers.KindUnknown {
+		s.neutralizeSlotInput(idx, kind)
+	}
+	if wasReady && s.OnSlotChanged != nil {
+		s.OnSlotChanged(idx, false, kind, name)
+	}
+}
+
+func (s *Session) onDisconnect(handle uint16, _ l2cap.BDAddr) {
+	slot := s.findSlotByHandle(handle)
+	if slot == nil {
+		return
+	}
+	wasReady := slot.ready()
+	hadActiveState := !slot.State.Neutral()
+	idx, kind, name := slot.Slot, slot.Kind, slot.Name
+	*slot = PlayerSlot{}
+	if wasReady || hadActiveState || kind == controllers.KindUnknown {
+		s.neutralizeSlotInput(idx, kind)
+	}
+	if wasReady && s.OnSlotChanged != nil {
 		s.OnSlotChanged(idx, false, kind, name)
 	}
 }
@@ -362,13 +407,10 @@ func (s *Session) sendDualShock4Output(slot *PlayerSlot, right, left uint8) erro
 
 // SetRumble sends a rumble/LED update to an active DualSense or DualShock 4 slot (0..3).
 func (s *Session) SetRumble(slotIdx uint8, right, left uint8) error {
-	if slotIdx >= MaxPlayerSlots || !s.slots[slotIdx].Connected {
+	if slotIdx >= MaxPlayerSlots || !s.slots[slotIdx].ready() {
 		return fmt.Errorf("bt/hidp: slot %d not connected", slotIdx)
 	}
 	slot := &s.slots[slotIdx]
-	if !slot.intrOpen {
-		return nil
-	}
 	switch slot.Kind {
 	case controllers.KindDualSense:
 		return s.sendDualSenseOutput(slot, right, left)

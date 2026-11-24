@@ -8,6 +8,9 @@ import (
 	"io/fs"
 	"testing"
 	"testing/fstest"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/block"
+	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 )
 
 func TestBTBondsAndFirmwareBoundedReadWriteAndLease(t *testing.T) {
@@ -22,7 +25,7 @@ func TestBTBondsAndFirmwareBoundedReadWriteAndLease(t *testing.T) {
 	var writtenData []byte
 	pf := &preferenceFiles{
 		trackedFS: &trackedFS{base: fsys, lease: l},
-		write: func(path string, data []byte) error {
+		replace: func(path string, data []byte) error {
 			writtenPath = path
 			writtenData = append([]byte(nil), data...)
 			return nil
@@ -83,26 +86,11 @@ func (f *creatableBondsFS) Mkdir(_ context.Context, name string) error {
 	return nil
 }
 
-func (f *creatableBondsFS) CreateFile(_ context.Context, name string, data []byte) error {
+func (f *creatableBondsFS) ReplaceFile(_ context.Context, path string, data []byte) error {
 	if !f.dirs["FES"] {
 		return fs.ErrNotExist
 	}
-	if _, exists := f.files[name]; exists {
-		return fs.ErrExist
-	}
-	f.files[name] = &fstest.MapFile{Data: append([]byte(nil), data...)}
-	return nil
-}
-
-func (f *creatableBondsFS) WriteFile(path string, data []byte) error {
-	entry, exists := f.files[path]
-	if !exists {
-		return fs.ErrNotExist
-	}
-	if len(data) > len(entry.Data) {
-		return errors.New("capacity exceeded")
-	}
-	entry.Data = append([]byte(nil), data...)
+	f.files[path] = &fstest.MapFile{Data: append([]byte(nil), data...)}
 	return nil
 }
 
@@ -124,15 +112,15 @@ func TestWriteBTBondsProvisionsMissingFileOnFreshCard(t *testing.T) {
 		t.Fatalf("first WriteBTBonds on fresh card failed: %v", err)
 	}
 	created := mapFS[BTBondsPath]
-	if created == nil || len(created.Data) != MaxBTBondsBytes {
-		t.Fatalf("expected preallocated %d-byte %s, got len=%v", MaxBTBondsBytes, BTBondsPath, created)
+	if created == nil || string(created.Data) != first {
+		t.Fatalf("expected %s to hold %q, got %+v", BTBondsPath, first, created)
 	}
 	got, err := s.ReadBTBonds(context.Background())
-	if err != nil || !bytes.Equal(bytes.TrimSpace(got), []byte(first)) {
+	if err != nil || string(got) != first {
 		t.Fatalf("ReadBTBonds after provision: got=%q err=%v", got, err)
 	}
 
-	// Second larger write updates the preallocated file via WriteFile without capacity failure.
+	// Second larger write grows and replaces BTBondsPath cleanly via ReplaceFile.
 	second := `{"version":1,"bonds":[{"addr":"11:22:33:44:55:66","link_key":"00112233445566778899aabbccddeeff","slot":0},{"addr":"AA:BB:CC:DD:EE:FF","link_key":"ffeeddccbbaa99887766554433221100","slot":1}]}`
 	if err := s.WriteBTBonds(context.Background(), []byte(second)); err != nil {
 		t.Fatalf("second WriteBTBonds failed: %v", err)
@@ -140,5 +128,23 @@ func TestWriteBTBondsProvisionsMissingFileOnFreshCard(t *testing.T) {
 	got2, err := s.ReadBTBonds(context.Background())
 	if err != nil || string(got2) != second {
 		t.Fatalf("ReadBTBonds after update: got=%q err=%v", got2, err)
+	}
+}
+
+func TestWriteBTBondsMutationReadOnlyRetiresStore(t *testing.T) {
+	l := lease()
+	pf := &preferenceFiles{
+		trackedFS: &trackedFS{base: fstest.MapFS{}, lease: l},
+		replace: func(string, []byte) error {
+			return errors.Join(fat.ErrMutation, block.ErrReadOnly)
+		},
+	}
+	s, err := New(pf, l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = s.WriteBTBonds(context.Background(), []byte(`{"version":1,"bonds":[]}`))
+	if !errors.Is(err, fat.ErrMutation) || !errors.Is(err, ErrRetired) {
+		t.Fatalf("expected ErrMutation+ErrRetired, got %v", err)
 	}
 }

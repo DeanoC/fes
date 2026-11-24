@@ -518,13 +518,20 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 			}
 			dstCID := binary.LittleEndian.Uint16(body[0:2])
 			srcCID := binary.LittleEndian.Uint16(body[2:4])
+			var closedPSM uint16
 			if ch := conn.findByLocalCID(dstCID); ch != nil {
+				if ch.open && (ch.psm == PSMHIDControl || ch.psm == PSMHIDInterrupt) {
+					closedPSM = ch.psm
+				}
 				*ch = l2capChannel{}
 			}
 			var rsp [4]byte
 			binary.LittleEndian.PutUint16(rsp[0:2], dstCID)
 			binary.LittleEndian.PutUint16(rsp[2:4], srcCID)
 			m.sendOrQueueSig(conn, sigDisconnRsp, id, rsp[:])
+			if closedPSM != 0 && m.OnChannelClose != nil {
+				m.OnChannelClose(conn.handle, conn.addr, closedPSM)
+			}
 
 		case sigDisconnRsp:
 			if len(body) < 4 {
@@ -532,7 +539,14 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 			}
 			srcCID := binary.LittleEndian.Uint16(body[2:4])
 			if ch := conn.findByLocalCID(srcCID); ch != nil {
+				var closedPSM uint16
+				if ch.open && (ch.psm == PSMHIDControl || ch.psm == PSMHIDInterrupt) {
+					closedPSM = ch.psm
+				}
 				*ch = l2capChannel{}
+				if closedPSM != 0 && m.OnChannelClose != nil {
+					m.OnChannelClose(conn.handle, conn.addr, closedPSM)
+				}
 			}
 
 		case sigInfoReq:

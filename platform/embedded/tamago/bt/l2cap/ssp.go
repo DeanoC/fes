@@ -35,6 +35,7 @@ type Manager struct {
 	cancelRetryAt        time.Time
 
 	OnChannelOpen  func(handle uint16, addr BDAddr, name string, kind controllers.Kind, psm uint16)
+	OnChannelClose func(handle uint16, addr BDAddr, psm uint16)
 	OnDisconnect   func(handle uint16, addr BDAddr)
 	OnNameResolved func(handle uint16, addr BDAddr, name string, kind controllers.Kind)
 	OnHIDControl   func(handle uint16, payload []byte)
@@ -231,12 +232,23 @@ func (m *Manager) failConnSecurity(conn *aclConn) {
 	}
 	for i := range conn.chans {
 		ch := &conn.chans[i]
-		if ch.inUse && ch.awaitingAuth {
+		if !ch.inUse {
+			continue
+		}
+		if ch.awaitingAuth {
 			var rsp [8]byte
 			binary.LittleEndian.PutUint16(rsp[2:4], ch.remoteCID)
 			binary.LittleEndian.PutUint16(rsp[4:6], 0x0003) // Connection refused - security block
 			m.sendOrQueueSig(conn, sigConnRsp, ch.pendingConnRspID, rsp[:])
 			*ch = l2capChannel{}
+			continue
+		}
+		if ch.open && (ch.psm == PSMHIDControl || ch.psm == PSMHIDInterrupt) {
+			psm := ch.psm
+			*ch = l2capChannel{}
+			if m.OnChannelClose != nil {
+				m.OnChannelClose(conn.handle, conn.addr, psm)
+			}
 		}
 	}
 	conn.authenticated = false
