@@ -31,3 +31,14 @@ hardcoded xorshift PRNG. Sources are probed in preference order:
    If a hardware backend later returns an error or exhausts retries at runtime,
    the active source permanently latches to `cntpct-fallback` before emitting
    fallback bytes.
+
+## Coordinated Shutdown / Reboot (`Shutdown`)
+
+`psci.Shutdown(ctx, ctrl, action, cfg)` (alongside board wrappers
+`de25nano.Shutdown` and `qemuvirt.Shutdown`) runs an ordered slice of named
+`ShutdownStep` teardown hooks (such as stopping the watchdog, parking the FPGA
+fabric, and quiescing SD/USB/network), bounds each step with `StepTimeout`,
+recovers step panics so later hardware containment steps still execute, and then
+invokes `SystemReset()` (`ActionReset`) or `SystemOff()` (`ActionPowerOff`).
+Setting `RequireCleanTeardown: true` runs every step and returns
+`ErrTeardownFailed` without calling PSCI if any containment step fails.

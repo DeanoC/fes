@@ -4,7 +4,11 @@
 
 package de25nano
 
-import "github.com/DeanoC/fes/platform/embedded/tamago/psci"
+import (
+	"context"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
+)
 
 var psciClient = psci.New(psci.SMC())
 
@@ -16,6 +20,11 @@ func PowerOff() error { return psciClient.SystemOff() }
 
 // Reset requests a cold SoC reboot via PSCI_SYSTEM_RESET.
 func Reset() error { return psciClient.SystemReset() }
+
+// Shutdown runs coordinated teardown steps before invoking PSCI reset or power-off.
+func Shutdown(ctx context.Context, action psci.PowerAction, cfg psci.ShutdownConfig) error {
+	return psci.Shutdown(ctx, psciClient, action, cfg)
+}
 
 // EntropySource reports the active entropy backend discovered at boot.
 func EntropySource() psci.EntropySource { return psci.HardwareEntropySource() }
