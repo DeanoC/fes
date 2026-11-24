@@ -143,45 +143,44 @@ gate takes an entry only for a failed rule. TMC-20602 is 24 again, as on j to o.
 ## The producer's package
 
 `boards/de25nano/producers/build_pc386_package.py` ran on chip-30x0-ai-dev
-from a clean checkout of **`3401bb193`**, the branch after merging main at
-`f3140cb33` (21 November 2026, 14:45–15:59 UTC). It used the Quartus lease, CUDA
-as the GPU router slot, and Quartus Pro 26.3.0 Build 114. It fitted twice, for
-signoff and repeat, and the two payloads are byte-identical. Commits after
-`3401bb193` change only records and READMEs.
+from a clean checkout of **`bf50fc1dd`**, the branch after merging main at
+`c9f0bc2ee` (23 November 2026, 21:35–21:58 UTC). It used the
+Quartus lease, CUDA as the GPU router slot, and Quartus Pro 26.3. Since main's
+#2090 the producer fits once, for signoff; the repeat fit is gone for every
+DE25 producer.
 
 | | |
 |---|---|
-| BUILD_ID | `18b98e068f171aacd4e98cb0cf3fbede` |
-| package | `1de8e7a80c3376f65cb59c648c1edadaef4270f72a3562ecf46975c5988b4619` |
-| `core.rbf` sha256 | `8e9a68acfb5405b09dcb63edccd7bfc24f939ce312863a20784699e733c08f85` (3,940,352 bytes) |
-| `manifest.toml` sha256 | `ce3bc3514e515ca7b0f833d316bdcd85b58e385202b00f8ee7a049dd3ae98ab0` |
+| BUILD_ID | `f93f215e372f385d695d3dac9ae17b9c` |
+| package | `ac6db3a64aa5c72488f304b7914d14f0526cef1fd040189fa6791ae5fee70072` |
+| `core.rbf` sha256 | `b6bac5601ceec42684bbca0122d56d68e520b432ec05dddd2f3dbf35a6424a51` (3,932,160 bytes) |
+| `manifest.toml` sha256 | `f2d5aad2bf52bc14873af161a8fc69e08685c6aeda7b4d5325b5e6b8826f3e9e` |
 | classification | `de25-pc386-package-candidate`; hardware and normal-kit acceptance false |
-| ALMs | 42,013 of 46,800, both fits |
+| ALMs | 41,408 of 46,800 |
 
-Both fits had `package_timing_admission` true and 8 failed rules out of 85, with
+The fit had `package_timing_admission` true and 8 failed rules out of 85, with
 0 unreviewed and every reported analysis passing. Worst slack was setup
-+1.355 ns, hold +0.000 ns, recovery +7.547 ns, removal +0.037 ns, setup data
-delay +3.416 ns and minimum pulse width +0.220 ns. Rule counts: CDC-50001 67,
-CDC-50002 6, TMC-20012 5, TMC-20011 2, RDC-50003 3, TMC-20602 23, LNT-30010 3,
-CDC-50102 1. The two fits' timing summaries are identical (`fba29c37…`). Their
-design assistant reports differ in hash (`1303728f…` and `5cede8cf…`) but have
-the same rule counts.
++1.543 ns, hold +0.000 ns, recovery +7.561 ns, removal +0.006 ns, setup data
+delay +3.540 ns and minimum pulse width +0.220 ns. Rule counts: CDC-50001 67,
+CDC-50002 6, TMC-20012 5, TMC-20011 2, RDC-50003 3, TMC-20602 24, LNT-30010 2,
+CDC-50102 1. Every row matches exactly one basis: CDC-50001 presenter
+capture 20, fetch 35, loaded 12; CDC-50002 capture buffer 2, toggles to pixel
+2, toggle to machine 1, pixel reset 1; CDC-50102 status counts 1; LNT-30010
+BIU reset 1, machine reset 1; TMC-20602 cpu-control-tension 24. The fitter
+again split `cpu_biu_reset`, and one tension row names
+`cpu_biu_reset~_Duplicate_2`. Deano accepted that spelling for the tension basis on 23 November 2026:
+the fit at `dfacd28e1` reported `cpu_biu_reset~_Duplicate_2` (6,484 endpoints)
+where the fit at `3401bb193` reported the undivided register (8,001), and its
+pattern gained exactly `(?:~_Duplicate_\d+)?` (`pc386/signoff_bases.py`).
 
-The pc386 firmware (BIOS `23b9df91…`, VGA BIOS `8522568e…`, ROM `81562036…`)
-was built with a dev86 tree reused from an earlier checkout at the same pinned
-commit, because chip lacked `gperf`. Once `gperf` was installed, a fresh
-checkout of `3401bb193` with a new dev86 clone built the same three hashes.
+The pc386 firmware is the same as before: BIOS `23b9df91…`, VGA BIOS
+`8522568e…`, ROM `81562036…`.
 
-An earlier run at `358e85fee`, before the main merge, also passed both fits:
-BUILD_ID `abd1ec14…`, package `d85d981c…`, `core.rbf` `4b6a3116…`, 41,993 ALMs,
-worst setup +1.352 ns. Main's #2045 changed `pc386_system.sv`, so that package
-is not the head's.
-
-Main `5306f1830`, merged at `51882401f`, changes `fes_i386_x87.sv` and the
-shared DE25 producer and review files, so the `3401bb193` package is not that
-head's either. Nor is it `405a892c0`'s, which refuses a window grant whose
-span crosses 4 GiB. The package and D12 are rebuilt at the head slice 4 lands
-with.
+Earlier packages are not this head's: `3401bb193` (BUILD_ID `18b98e06…`,
+package `1de8e7a8…`, before main's `5306f1830` and the window's 4 GiB check)
+and `358e85fee` (before #2045). Between them and this head, the merges of
+main moved the shared DE25 producer, review and builder files, so each moved
+the BUILD_ID.
 
 No kit has run either package. Slice 3 lands with slice 4, which owns the image
 change and the Kit D25 run.
