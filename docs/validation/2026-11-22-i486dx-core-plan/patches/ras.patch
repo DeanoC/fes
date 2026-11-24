@@ -1,0 +1,38 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+index 10b75c65d..ad540bcdf 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+@@ -4350,14 +4350,14 @@ module fes_i386_cpu #(
+             btb_wr.valid <= 1'b1;
+             btb_wr.ways <= 2'b11;
+             btb_wr.index <= frp_n[1] ? frp_prev[11:4] : frp_lin[11:4];
+-        end else if (wb_commit && (wb_s.dbr && (wb_s.taken || wb_s.bm) || wb_s.nret || wb_s.nind) && pred_on && !reset) begin
++        end else if (wb_commit && (wb_s.dbr && (wb_s.taken || wb_s.bm) || wb_s.nind) && pred_on && !reset  /* ABLATION ras */) begin
+             btb_wr.valid <= 1'b1;
+             btb_wr.ways <= (wb_s.bm ? wb_s.bway : btb_rr) ? 2'b10 : 2'b01;
+             btb_wr.index <= wb_blast[11:4];
+             btb_wr.entry.valid <= 1'b1;
+             btb_wr.entry.uncond <= wb_s.uop.op == 5'(fes_i386_pkg::BR_JMP) || wb_s.nret || wb_s.nind;
+             btb_wr.entry.call <= wb_s.ncall;
+-            btb_wr.entry.ret <= wb_s.nret;
++            btb_wr.entry.ret <= 1'b0;  // ABLATION ras
+             btb_wr.entry.ctr <= !wb_s.taken ? (wb_s.bctr == 2'd0 ? 2'd0 : wb_s.bctr - 2'd1)
+                               : !wb_s.bm ? 2'd2 : wb_s.bctr == 2'd3 ? 2'd3 : wb_s.bctr + 2'd1;
+             btb_wr.entry.last <= wb_blast[3:0];
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_fetchbuf.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_fetchbuf.sv
+index 37ea26333..136743f41 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_fetchbuf.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_fetchbuf.sv
+@@ -152,10 +152,10 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
+ 
+     assign btb_taken = btb_entry.uncond || btb_entry.ctr[1];
+     assign pred_now = f2_advance && btb_hit && btb_taken && pred_en;
+-    assign btb_target = btb_entry.ret ? ras_top : btb_entry.target;
++    assign btb_target = btb_entry.target;  // ABLATION ras
+     assign f2_info = '{hit: btb_hit, way: btb_way, ctr: btb_entry.ctr, last: btb_entry.last,
+                        taken: pred_now, tblk: btb_target[31:4], toff: btb_target[3:0]};
+-    assign ras_pop = pred_now && btb_entry.ret;
++    assign ras_pop = 1'b0;  // ABLATION ras
+     assign ras_push = pred_go && push_call;
+     assign ras_push_lin = push_last + 32'd1;
+     assign held_block = {pred_block, fetch_block, f2_block, l1_block, l2_block, half_block[1], half_block[0]};

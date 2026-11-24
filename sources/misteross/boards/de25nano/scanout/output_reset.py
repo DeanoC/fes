@@ -94,7 +94,7 @@ def bindings(directory):
     params = json.loads((directory.parent / 'build-inputs.json').read_bytes())['parameters']
     board = directory / 'combined/hps/project/fes_mailbox/fes_de25_scanout_board.v'
     reference = (HERE / board.name).read_bytes()
-    if a.native_spectrum48(params):
+    if a.native_upload_shell(params):
         from boards.de25nano.spectrum import native_hps
         reference = native_hps.separate_scanout_reset(reference.decode()).encode()
     a.require(not board.is_symlink() and board.read_bytes() == reference,
@@ -139,4 +139,4 @@ def verify(directory, output):
     from boards.de25nano.scanout import bridge_reset
     params = json.loads((Path(directory).parent / 'build-inputs.json').read_bytes())['parameters']
     return dict(result, finding=findings(drc, bridge=bridge_reset.selected(directory),
-                                         native_spectrum=a.native_spectrum48(params)))
+                                         native_spectrum=a.native_upload_shell(params)))

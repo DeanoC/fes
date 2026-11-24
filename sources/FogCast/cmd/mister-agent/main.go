@@ -12,6 +12,7 @@ import (
 	"os/signal"
 
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -33,6 +34,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/kitpackages"
 	"github.com/DeanoC/FogCast/internal/localcores"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 
 	"github.com/DeanoC/FogCast/internal/misterruntime"
@@ -56,6 +58,8 @@ const (
 	maintenanceMarkerFile   = "/run/fogcast/kit-maintenance.json"
 	maintenanceLockFile     = "/run/fogcast/kit-maintenance.lock"
 	maintenanceContract     = "fes-kit-maintenance-v1"
+	localKeyboardV2Env      = "FOGCAST_LOCAL_KEYBOARD_V2"
+	softwareManagedEnv      = "FES_SOFTWARE_MANAGED"
 	// Release staging accepts multi-gigabyte raw images; this exceeds the
 	// operator's five-minute transport timeout by a bounded margin while the
 	// header timeout still limits slow request setup.
@@ -88,6 +92,7 @@ type runDependencies struct {
 	// Empty leaves it off. Tests stay empty; production main passes the flag.
 	localControlSocket    string
 	displayControl        bool
+	localKeyboardV2       bool
 	coreLoadTimeout       time.Duration
 	maintenanceFile       string
 	maintenanceLock       string
@@ -102,12 +107,17 @@ func runWithCoreLoadTimeout(ctx context.Context, configPath string, logger *slog
 	if err := validateCoreLoadTimeout(timeout); err != nil {
 		return err
 	}
+	localKeyboardV2, err := localKeyboardV2Enabled(os.LookupEnv)
+	if err != nil {
+		return err
+	}
 	dependencies, err := productionRunDependencies()
 	if err != nil {
 		return err
 	}
 	dependencies.localControlSocket = localControlSocket
 	dependencies.displayControl = localControlSocket != ""
+	dependencies.localKeyboardV2 = localKeyboardV2
 	dependencies.coreLoadTimeout = timeout
 	return runWithDependencies(ctx, configPath, logger, dependencies)
 }
@@ -195,7 +205,7 @@ func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, 
 		if hid, ok := controller.(interface {
 			SetKeyboardHIDPoster(input.KeyboardHIDPoster)
 		}); ok {
-			hid.SetKeyboardHIDPoster(func(ctx context.Context, packageID string, generation uint64, rows hidkeys.Rows) error {
+			hid.SetKeyboardHIDPoster(func(ctx context.Context, instance, packageID string, generation uint64, rows hidkeys.Rows) error {
 				if ctx == nil {
 					ctx = context.Background()
 				}
@@ -203,26 +213,33 @@ func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, 
 				// carry the shorter local write bound.
 				ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
-				return nativeRuntime.SetKeyboardHID(ctx, packageID, generation, misterruntime.KeyboardHIDRows(rows))
+				return nativeRuntime.SetKeyboardHID(ctx, instance, packageID, generation, misterruntime.KeyboardHIDRows(rows))
 			})
 		}
 		if keys, ok := controller.(interface {
-			SetKeyboardPoster(func(context.Context, uint64) error)
+			SetKeyboardPoster(input.MatrixPoster)
 		}); ok {
-			keys.SetKeyboardPoster(func(ctx context.Context, matrix uint64) error {
+			keys.SetKeyboardPoster(func(ctx context.Context, post localhid.MatrixPost, matrix uint64) error {
 				if ctx == nil {
 					ctx = context.Background()
 				}
 				ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
-				err := nativeRuntime.SetKeyboard(ctx, matrix)
-				var apiErr *protocol.APIError
-				if errors.As(err, &apiErr) && apiErr.Code == protocol.CodeUnsupportedOperation {
-					// Neutralize is a no-op when no simple-computer core is loaded.
-					return nil
-				}
-				return err
+				return nativeRuntime.SetKeyboard(ctx, post, matrix)
 			})
+		}
+		if keys, ok := controller.(interface{ SetKeyboardRetirer(input.MatrixRetirer) }); ok {
+			keys.SetKeyboardRetirer(nativeRuntime.RetireMatrixUncertainty)
+		}
+		if keys, ok := controller.(interface {
+			SetKeyboardMatrixAdmission(func(context.Context, string, string, uint64, func(context.Context) error) error)
+		}); ok {
+			keys.SetKeyboardMatrixAdmission(nativeRuntime.CheckMatrixAdmission)
+		}
+		if keys, ok := controller.(interface {
+			SetKeyboardMediaRetirement(func(context.Context) (localhid.MatrixMediaWitness, bool, error), func(context.Context, localhid.MatrixMediaRetirement) error, func(context.Context, localhid.MatrixMediaNeutral) error)
+		}); ok {
+			keys.SetKeyboardMediaRetirement(nativeRuntime.MatrixMediaUncertainty, nativeRuntime.RetireMatrixMediaUncertainty, nativeRuntime.NeutralMatrixMediaUncertainty)
 		}
 		return nil
 	}
@@ -273,22 +290,36 @@ func observeRuntimeInput(ctx context.Context, runtime *misterruntime.Runtime) (i
 			keyboardHID = true
 		}
 	}
-	active := status.OK && status.State == "running_development" && status.ActivePackage != nil && status.Generation != nil && *status.Generation != 0
-	observation := input.CoreObservation{Active: active, Keyboard: keyboard}
+	instance := ""
+	if status.RuntimeInstance != nil {
+		identity := protocol.RuntimeInputIdentity{Kind: protocol.RuntimeInputDevelopment, RuntimeInstance: *status.RuntimeInstance, Generation: 1}
+		if identity.Validate() == nil {
+			instance = *status.RuntimeInstance
+		}
+	}
+	active := status.OK && status.Error == nil && status.State == "running_development" && status.Execution == "development" && instance != "" && status.Generation != nil && *status.Generation != 0
+	idle := status.OK && status.Error == nil && status.State == "idle" && status.ActivePackage == nil && status.Generation == nil && instance != ""
+	observation := input.CoreObservation{Active: active, IdleConfirmed: idle, Keyboard: keyboard}
+	if active || idle {
+		observation.RuntimeInstance = instance
+	}
 	if active {
-		observation.CoreID = status.ActivePackage.Descriptor.Core.ID
+		if status.ActivePackage != nil {
+			observation.CoreID = status.ActivePackage.Descriptor.Core.ID
+			observation.PackageID = status.ActivePackage.PackageID
+		}
 		observation.Generation = *status.Generation
 	}
-	if active && keyboardHID && protocol.ComputerABI(status.ActivePackage.Descriptor.ABI.ID, status.ActivePackage.Descriptor.ABI.Major, status.ActivePackage.Descriptor.ABI.Minor) {
-		observation.KeyboardHID = &input.KeyboardHIDBinding{PackageID: status.ActivePackage.PackageID, Generation: *status.Generation}
+	if active && status.ActivePackage != nil && keyboardHID && protocol.ComputerABI(status.ActivePackage.Descriptor.ABI.ID, status.ActivePackage.Descriptor.ABI.Major, status.ActivePackage.Descriptor.ABI.Minor) {
+		observation.KeyboardHID = &input.KeyboardHIDBinding{RuntimeInstance: *status.RuntimeInstance, PackageID: status.ActivePackage.PackageID, Generation: *status.Generation}
 	}
-	if active && mouse && protocol.ComputerABI(status.ActivePackage.Descriptor.ABI.ID, status.ActivePackage.Descriptor.ABI.Major, status.ActivePackage.Descriptor.ABI.Minor) {
+	if active && status.ActivePackage != nil && mouse && protocol.ComputerABI(status.ActivePackage.Descriptor.ABI.ID, status.ActivePackage.Descriptor.ABI.Major, status.ActivePackage.Descriptor.ABI.Minor) {
 		observation.Mouse = &input.MouseBinding{PackageID: status.ActivePackage.PackageID, Generation: *status.Generation}
 	}
 	if !ports {
 		return observation, nil
 	}
-	if !active {
+	if !active || status.ActivePackage == nil {
 		return observation, errors.New("controller package is not active")
 	}
 	observation.Binding = &input.ControllerBinding{
@@ -401,14 +432,6 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			return errors.New("native input replacement barrier could not be configured")
 		}
 	}
-	if feed, ok := inputController.(*input.TargetController); ok && feed != nil {
-		go func() {
-			err := feed.ServeLocalInput(ctx, input.DefaultLocalInputSocket)
-			if err != nil && ctx.Err() == nil && !errors.Is(err, net.ErrClosed) {
-				logger.Error("kit-local input feed stopped", "error", err)
-			}
-		}()
-	}
 	// Signal cancellation closes admission and serving first. Keep already-owned
 	// mutations alive until the deferred lease Close drains them and stops the
 	// runtime; every operation keeps its existing deadline.
@@ -439,6 +462,9 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		defer inputController.Close()
 	}
 	if inputController != nil {
+		if err := configureLocalTargetIdentity(inputController, targetID, bootIDFile); err != nil {
+			logger.Warn("local keyboard recovery identity is unavailable", "error", err)
+		}
 		options = append(options, httpapi.WithInput(inputController))
 	}
 	cleanupPeripherals := func(cleanup context.Context) error {
@@ -529,10 +555,21 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			slog.Warn("kit ownership cleanup: runtime socket unavailable")
 		} else if cleanupErr != nil {
 			slog.Error("kit lease cleanup failed", "err", cleanupErr)
+		} else {
+			// Only successful peripheral cleanup and Stop-to-idle can certify
+			// retirement of this lease's local input source.
+			kitlease.ConfirmInputCleanup(cleanup)
 		}
 		return cleanupErr
 	}, leaseOptions...)
 	defer leases.Close()
+	if feed, ok := inputController.(*input.TargetController); ok && feed != nil {
+		if err := startLocalInputFeed(ctx, feed, leases, dependencies.localKeyboardV2, logger); err != nil {
+			return err
+		}
+	} else if dependencies.localKeyboardV2 {
+		return errors.New("local keyboard v2 input controller is unavailable")
+	}
 	options = append(options, httpapi.WithKitLease(leases), httpapi.WithDiagnostics(diagnostics))
 	softwareFence, err := startSoftwareAdmission(ctx, leases, coordinator, localUpdater)
 	if err != nil {
@@ -591,6 +628,54 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		return nil
 	}
 	return err
+}
+
+// Managed kit bundles always use the recovery protocol. The diagnostic
+// setting can opt unmanaged agents in, but cannot disable a managed kit.
+// A typo must not silently select a different input path.
+func localKeyboardV2Enabled(lookup func(string) (string, bool)) (bool, error) {
+	value, present := lookup(localKeyboardV2Env)
+	if present && value != "0" && value != "1" {
+		return false, fmt.Errorf("%s must be 0 or 1", localKeyboardV2Env)
+	}
+	managed, _ := lookup(softwareManagedEnv)
+	return managed == "1" || value == "1", nil
+}
+
+type localInputFeed interface {
+	SetLocalLeaseManager(*kitlease.Manager)
+	EnableLocalInputRecovery() error
+	ServeLocalInput(context.Context, string) error
+}
+
+// Enable the target fence synchronously, before any local reader can accept
+// traffic. An incomplete sender remains unavailable instead of using raw keys.
+func startLocalInputFeed(ctx context.Context, feed localInputFeed, leases *kitlease.Manager, recovery bool, logger *slog.Logger) error {
+	feed.SetLocalLeaseManager(leases)
+	if recovery {
+		if err := feed.EnableLocalInputRecovery(); err != nil {
+			return fmt.Errorf("enable local keyboard recovery: %w", err)
+		}
+	}
+	go func() {
+		err := feed.ServeLocalInput(ctx, input.DefaultLocalInputSocket)
+		if err != nil && ctx.Err() == nil && !errors.Is(err, net.ErrClosed) {
+			logger.Error("kit-local input feed stopped", "error", err)
+		}
+	}()
+	return nil
+}
+
+func configureLocalTargetIdentity(controller any, targetID, bootPath string) error {
+	local, ok := controller.(interface{ SetLocalTargetIdentity(string, string) error })
+	if !ok {
+		return nil
+	}
+	boot, err := os.ReadFile(bootPath)
+	if err != nil {
+		return err
+	}
+	return local.SetLocalTargetIdentity(targetID, strings.TrimSpace(string(boot)))
 }
 
 func startAdvertisement(parent context.Context, id string, port int, logger *slog.Logger, advertise func(context.Context, string, int) error) func() {

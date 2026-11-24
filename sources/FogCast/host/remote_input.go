@@ -106,11 +106,12 @@ type RemoteInputMetrics struct {
 }
 
 type RemoteInputStatus struct {
-	SessionID string             `json:"session_id,omitempty"`
-	Source    string             `json:"source,omitempty"`
-	State     RemoteInputState   `json:"state"`
-	Ready     bool               `json:"ready"`
-	Metrics   RemoteInputMetrics `json:"metrics"`
+	LocalKeyboard string             `json:"local_keyboard,omitempty"`
+	SessionID     string             `json:"session_id,omitempty"`
+	Source        string             `json:"source,omitempty"`
+	State         RemoteInputState   `json:"state"`
+	Ready         bool               `json:"ready"`
+	Metrics       RemoteInputMetrics `json:"metrics"`
 }
 
 type RemoteInputConfig struct {
@@ -660,11 +661,16 @@ func (r *RemoteInput) RecordRTT(duration time.Duration) {
 }
 
 func (r *RemoteInput) statusLocked() RemoteInputStatus {
+	var localKeyboard string
+	if h, ok := r.bridge.(interface{ LocalKeyboardAdmission() string }); ok {
+		localKeyboard = h.LocalKeyboardAdmission()
+	}
 	return RemoteInputStatus{
-		State:     r.state,
-		Ready:     r.ready,
-		SessionID: r.sessionIDLocked(),
-		Source:    r.source,
+		LocalKeyboard: localKeyboard,
+		State:         r.state,
+		Ready:         r.ready,
+		SessionID:     r.sessionIDLocked(),
+		Source:        r.source,
 		Metrics: RemoteInputMetrics{
 			FramesSent:               r.metrics.framesSent,
 			StateResyncs:             r.metrics.stateResyncs,

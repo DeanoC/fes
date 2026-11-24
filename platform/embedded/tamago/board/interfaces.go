@@ -9,6 +9,7 @@ import (
 	"image"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
+	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 )
 
 // Architectural ARMv8 Generic Timer PPI interrupt IDs shared by all boards.
@@ -22,6 +23,7 @@ type Network interface {
 	Err() error
 	Address() string
 	Stats() string
+	Lease() (network.DHCPLease, bool)
 	EnableIRQ(*gic.Controller) error
 	DisableIRQ(*gic.Controller)
 	IRQCount() uint64

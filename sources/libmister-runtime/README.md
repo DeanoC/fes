@@ -75,19 +75,26 @@ existing BRAM profile remains separate; there is no automatic fallback.
 Software admission does not establish a sealed standard package or hardware
 acceptance.
 
-The same profile admits five firmware machines from a per-core contract table
+The same profile admits seven firmware machines from a per-core contract table
 (`src/native/de25_core_contract.hpp`): `fes.spectrum` and `fes.spectrum128`
 (the shell plus `fes.media.spectrum-tape` 2.0), `fes.spectrum-plus3` and
 `fes.pentagon` (the same plus `fes.media.spectrum-disk` 1.0 and, optional as on DE10,
 the controller that names the disk format: `fes.media.spectrum-disk-plus3` 1.0 or
-`fes.media.spectrum-disk-trdos` 1.0), and `fes.atari-st` (the shell
-plus relative mouse and the floppy with its write and geometry interfaces).
+`fes.media.spectrum-disk-trdos` 1.0), `fes.atari-st` (the shell
+plus relative mouse and the floppy with its write and geometry interfaces),
+`fes.c64` (the shell plus the read-only `fes.media.c64-disk` 1.0) and
+`fes.pcxt-dos` (the shell plus `fes.media.pcxt-floppy` 1.0 and its writable
+`fes.media.pcxt-floppy-write` 1.0, on `fes.computer` 1.1; the other machines
+declare 1.0).
 Each adds `fes.fabric.firmware-upload` 1.0 and uses format 3: an Agilex
 bitstream is programmed unchanged and the sealed ROM requirement names the
 image its upload endpoint takes (`fes.spectrum`: 16384 or 32768 bytes,
 `fes.spectrum128`: 32768 bytes, `fes.spectrum-plus3`: 65536, `fes.pentagon`:
-49152, Atari ST: 196608). Any other interface set,
-size, format or version is refused before programming.
+49152, Atari ST: 196608, C64: 36864, PC/XT: 69632, the 64 KiB system ROM window
+then the 4 KiB CGA font). Any other interface set, `fes.computer` minor,
+size, format or version is refused before programming. The DE25 PC/XT's
+writable floppy restores its bound library disk before CPU release and saves
+it like the DE10 one; its active capabilities report the binding.
 `misteross/boards/de25nano/machine/driver_proof.py` runs this driver and its
 DE25 transport against the Verilated RTL of all three machines. Host software
 coverage only; DE25 hardware acceptance of these machines does not exist.
@@ -322,6 +329,9 @@ Raw RBF loading is an explicit, idle-only hardware diagnostic using
 `development-contained-v1`; it does not infer a game, ABI, media, or persistence.
 Startup loads the selected sealed MENU first; without a selection, DE10 loads
 the sealed splash through the contained programming profile and ADV7513 path.
+Each runtime authority reports a fresh instance identity; matrix and HID
+keyboard requests must carry that identity and their original package and
+generation. The agent and runtime therefore ship together in a matching bundle.
 If selected MENU startup fails, DE10 can fall back to splash idle. DE25 refuses
 the Cyclone V splash, so a failed MENU still requires recovery. Stop restores
 the selected MENU; bounded failure recovery uses the board's idle recipe.
@@ -464,11 +474,14 @@ send no Run command. The board owns HDMI initialization; this read-only gate
 adds no Linux I2C recipe. New RTL/driver bytes have software coverage only
 until their matching bitstream and board acceptance are complete.
 
-The PC/XT read-only floppy interface uses `fes.computer` 1.1 extended
-capability discovery and `fes.media.pcxt-floppy` 1.0 for exact 368,640-byte
-images on unit 0. Insertion and ejection preserve the running session; the
-runtime checks the live limits and complete transfer before reporting ready.
-This path has host software coverage; PC/XT hardware acceptance is pending.
+The PC/XT floppy uses `fes.computer` 1.1 extended capability discovery and
+`fes.media.pcxt-floppy` 1.0 for exact 368,640-byte images on unit 0. Insertion
+and ejection preserve the running session; the runtime checks the live limits
+and complete transfer before reporting ready. A package that also declares
+`fes.media.pcxt-floppy-write` 1.0 makes that floppy writable through an explicit
+library binding, on DE10 (format 2) and on DE25 (format 3 with firmware upload).
+The DE25 PC/XT has J8G HIL diagnostics booting FreeDOS from its bound disk
+(#2069); full PC/XT hardware acceptance is pending.
 
 The `native_hardware_test --session-display` selection runs the allocated MENU
 and retained/fresh-slot session lifecycle regressions without unrelated core

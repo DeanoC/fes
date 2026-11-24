@@ -23,6 +23,18 @@ BOARD_DIR = HERE.parent
 BOARD = "sources/misteross/boards/de25nano/"
 COMMON = "sources/misteross/cores/fes-common/"
 OFFSET = 0x10300
+# The shared machine PLL on CLOCK1_50 (the Spectrum and the Atari ST): the
+# machine clock and the audio master clock. A machine with clocks of its own
+# names each of these in its spec: MACHINE_HZ, PLL_IP, the PLL_PARAMETERS its IP
+# must keep, and the SDRAM_CLOCKS (conduit role, PLL output) it takes beside
+# the SDRAM pins; and PLL_COMMENT, which says how its PLL makes them.
+MACHINE_HZ = 52222222
+PLL_IP = BOARD + "machine/machine_pll.ip"
+PLL_PARAMETERS = {"gui_number_of_clocks": "2", "gui_output_clock_frequency0": "52.222222",
+                  "gui_output_clock_frequency1": "12.287582"}
+CLOCK_SPEC = ("MACHINE_HZ", "PLL_IP", "PLL_PARAMETERS", "SDRAM_CLOCKS", "PLL_COMMENT")
+# Where the machine's memory lives: the board SDRAM unless its spec says
+# BOARD_SDRAM = False, and a window in HPS DDR when it says WINDOW = True.
 ENDPOINT = "soc_inst|subsys_periph|fes_scanout|fes_scanout"
 # The shared scanout, HPS and reset verifiers recognise one standard-core
 # integration record, under the key the ZX81 gave it. Renaming it there moves
@@ -45,6 +57,24 @@ ROOT = ZX81.ROOT
 sha, identity, replace_once = ZX81.sha, ZX81.identity, ZX81.replace_once
 
 
+def clocks(spec):
+    """The machine's clock spec: its own, complete, or the shared PLL's."""
+    named = [hasattr(spec, name) for name in CLOCK_SPEC]
+    if not any(named):
+        return MACHINE_HZ, PLL_IP, PLL_PARAMETERS, ()
+    if not all(named):
+        raise ValueError(spec.NAME + " names part of a machine clock spec")
+    return spec.MACHINE_HZ, spec.PLL_IP, spec.PLL_PARAMETERS, tuple(spec.SDRAM_CLOCKS)
+
+
+def board_sdram(spec):
+    return getattr(spec, "BOARD_SDRAM", True)
+
+
+def has_window(spec):
+    return getattr(spec, "WINDOW", False)
+
+
 def selected_scanout(source):
     scanout = types.ModuleType("machine_selected_scanout")
     scanout.__file__ = str(BOARD_DIR / "scanout/build.py")
@@ -60,15 +90,17 @@ def module(sources, path, name):
     return result
 
 
-def capture(spec, revision=None):
+def capture(spec, revision=None, *, native=False):
     """The managed scanout closure plus the complete machine, media and audio closure."""
     def read(path):
         return (ROOT / path).read_bytes() if revision is None else subprocess.check_output(
             ["git", "show", revision + ":" + path], cwd=ROOT)
     sources = selected_scanout(read(BOARD + "scanout/build.py")).capture(revision)
     paths = set(spec.SOURCES)
+    if native:
+        paths |= getattr(spec, "NATIVE_SOURCES", set())
     paths |= {BOARD + "shared-rtl/" + name for name in SHELL_FILES + ("fes_menu_reader.v", "fes_de25_machine_audio.v")}
-    paths |= {BOARD + "machine/board.py", spec.PLL_IP,
+    paths |= {BOARD + "machine/board.py", clocks(spec)[1],
               BOARD + "shared-rtl/generated/fes_firmware_upload.vh",
               BOARD + "zx81-hps/fes_de25_computer.v", BOARD + "zx81-hps/generated/fes_de25_computer.vh",
               BOARD + "zx81-hps/build.py", BOARD + "zx81/build.py", COMMON + "rtl/fes_display_cdc.v"}
@@ -82,10 +114,10 @@ def capture(spec, revision=None):
     return sources
 
 
-def component_files(spec, sources):
+def component_files(spec, sources, *, native=False):
     """Every file of the Qsys component, and the record of each derivation."""
     display = module(sources, BOARD + "display/build.py", "machine_selected_display")
-    files, derived = spec.component_files(sources)
+    files, derived = spec.component_files(sources, native=True) if native else spec.component_files(sources)
     for name in SHELL_FILES:
         files[name] = sources[BOARD + "shared-rtl/" + name]
     files["fes_display_cdc.v"] = sources[COMMON + "rtl/fes_display_cdc.v"]
@@ -108,11 +140,10 @@ def shared_resets(spec, scanout, directory):
 
 
 def machine_pll(spec, display, data):
-    """The machine's PLL: its machine and audio outputs, as the spec names them."""
+    """The machine's PLL: output 0 the machine clock, output 1 the audio master."""
     parameters = display.pll_parameters(data)
-    expected = {"gui_reference_clock_frequency": "50.0", "gui_output_clock_frequency0": spec.PLL_OUTPUTS[0],
-                "gui_output_clock_frequency1": spec.PLL_OUTPUTS[1], "gui_number_of_clocks": "2", "gui_use_locked": "true",
-                "system_info_device_component": "A5EB013BB23BE4SCS"}
+    expected = {"gui_reference_clock_frequency": "50.0", "gui_use_locked": "true",
+                "system_info_device_component": "A5EB013BB23BE4SCS", **clocks(spec)[2]}
     if any(parameters.get(key) != value for key, value in expected.items()):
         raise ValueError("machine PLL contract changed")
     return parameters
@@ -127,10 +158,11 @@ TOP_SDRAM_WIRES = """wire [15:0] fes_dram_dq_o;
 wire [1:0] fes_dram_dqm;
 wire fes_dram_dq_oe;
 """
-TOP_PLL = """// One PLL on CLOCK1_50 in place of the stock audio PLL, whose pin can feed no
+SHARED_PLL_COMMENT = """// One PLL on CLOCK1_50 in place of the stock audio PLL, whose pin can feed no
 // second one: x 188/15, then /12 for the machine's 52.224 MHz and /51 for the
 // 12.288 MHz audio master clock, both -34 ppm and in the DE10 cores' ratio.
-machine_pll fes_machine_pll (
+"""
+TOP_PLL = SHARED_PLL_COMMENT + """machine_pll fes_machine_pll (
   .refclk(CLOCK1_50), .rst(!top_reset_n), .outclk_0(machine_clk), .outclk_1(machine_audio_clk),
   .locked(machine_pll_locked)
 );
@@ -155,13 +187,37 @@ TOP_SDRAM_PORTS = """
 .fes_scanout_sdram_ras_n(DRAM_RAS_n), .fes_scanout_sdram_cas_n(DRAM_CAS_n),
 .fes_scanout_sdram_we_n(DRAM_WE_n), .fes_scanout_sdram_dq_i(DRAM_DQ),
 .fes_scanout_sdram_dq_o(fes_dram_dq_o), .fes_scanout_sdram_dq_oe(fes_dram_dq_oe),"""
+TOP_AFTER = TOP_WIRES + TOP_SDRAM_WIRES + TOP_PLL + TOP_SDRAM_PADS + TOP_SOC + TOP_SDRAM_PORTS
 
 
 def top_after(spec):
-    """The board top's machine clock, audio and, for a machine with board SDRAM, its pads."""
-    sdram = spec.BOARD_SDRAM
-    return (TOP_WIRES + (TOP_SDRAM_WIRES if sdram else "") + TOP_PLL + (TOP_SDRAM_PADS if sdram else "") +
-            TOP_SOC + (TOP_SDRAM_PORTS if sdram else ""))
+    """The board top's machine PLL, audio and, for a machine with board SDRAM, its pads.
+
+    The shared PLL's top is TOP_AFTER exactly. A machine's own PLL replaces
+    its comment, and its SDRAM clocks leave further PLL outputs for the
+    component's SDRAM conduit. A machine without board SDRAM has neither
+    the pads nor the conduit.
+    """
+    sdram, own = board_sdram(spec), hasattr(spec, "MACHINE_HZ")
+    sdram_clocks = clocks(spec)[3]
+    if sdram and not own:
+        return TOP_AFTER
+    top = (TOP_WIRES + (TOP_SDRAM_WIRES if sdram else "") + TOP_PLL + (TOP_SDRAM_PADS if sdram else "") +
+           TOP_SOC + (TOP_SDRAM_PORTS if sdram else ""))
+    if own:
+        top = replace_once(top, SHARED_PLL_COMMENT, spec.PLL_COMMENT)
+    if sdram_clocks:
+        if not sdram:
+            raise ValueError(spec.NAME + " names SDRAM clocks without board SDRAM")
+        names = ", ".join("machine_sdram_" + role for role, _ in sdram_clocks)
+        top = replace_once(top, "wire machine_clk, machine_audio_clk, machine_pll_locked;\n",
+                           "wire machine_clk, machine_audio_clk, machine_pll_locked;\nwire " + names + ";\n")
+        outputs = " ".join(f".outclk_{output}(machine_sdram_{role})," for role, output in sdram_clocks)
+        top = replace_once(top, ".outclk_1(machine_audio_clk),\n",
+                           ".outclk_1(machine_audio_clk),\n  " + outputs + "\n")
+        top += "\n" + " ".join(f".fes_scanout_sdram_{role}(machine_sdram_{role}),"
+                               for role, _ in sdram_clocks)
+    return top
 
 
 def window_offset(sources):
@@ -214,11 +270,15 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
     model = model or next(iter(spec.MODELS))
     if model not in spec.MODELS:
         raise ValueError("unknown " + spec.NAME + " model")
-    if native_hps and (spec.CORE_ID != "fes.spectrum" or model != "native48" or package_build_id is not None):
+    native_c64 = (spec.CORE_ID, model) == ("fes.c64", "nativepal")
+    if native_hps and ((spec.CORE_ID, model) != ("fes.spectrum", "native48") and not native_c64 or package_build_id is not None):
         raise ValueError("native HPS is a Spectrum 48K project-only recipe")
-    sources = capture(spec, revision)
+    if native_c64 and not native_hps:
+        raise ValueError("native C64 requires the contained HPS shell composer")
+    sources = capture(spec, revision, native=native_c64)
+    machine_hz, pll_ip, _, sdram_clocks = clocks(spec)
     scanout = selected_scanout(sources[BOARD + "scanout/build.py"])
-    files, derived, _ = component_files(spec, sources)
+    files, derived, _ = component_files(spec, sources, native=native_c64)
     if package_build_id is not None and (not revision or not isinstance(package_build_id, str) or
             not re.fullmatch(r"[0-9a-f]{32}", package_build_id) or package_build_id == "0" * 32):
         raise ValueError("machine package identity requires committed source and a nonzero 128-bit ID")
@@ -230,7 +290,7 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
     selected_revision = revision or observed.get("base_revision", observed.get("fes_revision"))
     output, combined, hps, display = scanout.prepare(archive, output, selected_revision,
         hps_first=True, linux_dma=not native_hps, package_build_id=None if native_hps else build_id,
-        window=spec.WINDOW)
+        window=has_window(spec))
     if native_hps:
         # The projection uses the diagnostic scanout's retained vendor HPS,
         # JTAG and probe. Adopt the project-only identity produced by it.
@@ -259,18 +319,18 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
             "add_connection pb_cpu_0.m0 fes_scanout.computer\n"
             f"set_connection_parameter_value pb_cpu_0.m0/fes_scanout.computer baseAddress {OFFSET:#x}\n"
             "add_instance fes_machine_clk altera_clock_bridge 19.2.0\n"
-            f"set_instance_parameter_value fes_machine_clk EXPLICIT_CLOCK_RATE {spec.MACHINE_HZ}\n"
+            f"set_instance_parameter_value fes_machine_clk EXPLICIT_CLOCK_RATE {machine_hz}\n"
             "add_interface fes_scanout_machine_clk clock sink\n"
             "set_interface_property fes_scanout_machine_clk EXPORT_OF fes_machine_clk.in_clk\n"
             "add_connection fes_machine_clk.out_clk fes_scanout.machine_clk"),
     ):
         script = replace_once(script, before, after)
-    conduits = ("audio", "sdram") if spec.BOARD_SDRAM else ("audio",)
+    conduits = ("audio", "sdram") if board_sdram(spec) else ("audio",)
     anchor = "add_interface fes_scanout_mem avalon start\n"
     exports = "".join(f"add_interface fes_scanout_{name} conduit end\n"
                       f"set_interface_property fes_scanout_{name} EXPORT_OF fes_scanout.{name}\n"
                       for name in conduits)
-    if spec.WINDOW:
+    if has_window(spec):
         exports += window_script(window_offset(sources))
     script = replace_once(script, anchor, exports + anchor)
     anchor = ("add_interface fes_scanout_video conduit end\n"
@@ -278,10 +338,10 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
     exports = "".join(f"add_interface fes_scanout_{name} conduit end\n"
                       f"set_interface_property fes_scanout_{name} EXPORT_OF subsys_periph.fes_scanout_{name}\n"
                       for name in conduits)
-    if spec.WINDOW:
+    if has_window(spec):
         exports += WINDOW_TOP
     exports += ("add_instance fes_scanout_machine_clock altera_clock_bridge 19.2.0\n"
-                f"set_instance_parameter_value fes_scanout_machine_clock EXPLICIT_CLOCK_RATE {spec.MACHINE_HZ}\n"
+                f"set_instance_parameter_value fes_scanout_machine_clock EXPLICIT_CLOCK_RATE {machine_hz}\n"
                 "add_connection fes_scanout_machine_clock.out_clk subsys_periph.fes_scanout_machine_clk\n"
                 "add_interface fes_scanout_machine_clk clock sink\n"
                 "set_interface_property fes_scanout_machine_clk EXPORT_OF fes_scanout_machine_clock.in_clk\n")
@@ -291,7 +351,7 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
     for pin in ("HDMI_MCLK", "HDMI_SCLK", "HDMI_LRCLK", "HDMI_I2S"):
         top = replace_once(top, f".{pin}({pin})", f".{pin}()")
     top_path.write_text(replace_once(top, TOP_BEFORE, top_after(spec)))
-    machine_ip = sources[spec.PLL_IP]
+    machine_ip = sources[pll_ip]
     machine_parameters = machine_pll(spec, display, machine_ip)
     (local / "machine_pll.ip").write_bytes(machine_ip)
     audio = [BOARD + "shared-rtl/fes_de25_machine_audio.v"] + [
@@ -317,7 +377,7 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
         qsf += f'set_instance_assignment -name {option} {value} -to "{ENDPOINT}|{node}"\n'
     for pattern in ((r"set_location_assignment\s+PIN_V16\s+-to\s+CLOCK1_50\s*$",) +
                     ((r"set_location_assignment\s+PIN_\w+\s+-to\s+DRAM_CLK\s*$",
-                      r"set_location_assignment\s+PIN_\w+\s+-to\s+DRAM_DQ\[15\]\s*$") if spec.BOARD_SDRAM else ())):
+                      r"set_location_assignment\s+PIN_\w+\s+-to\s+DRAM_DQ\[15\]\s*$") if board_sdram(spec) else ())):
         if not re.search(pattern, qsf, re.M):
             raise ValueError("GHRD clock or SDRAM pin assignment is missing: " + pattern)
     qsf_path.write_text(qsf)
@@ -328,15 +388,17 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
         inputs.update(base_revision=selected_revision, source_classification="working-copy-diagnostic")
     inputs[RECORD] = {
         "core": spec.CORE_ID, "build_id": build_id, "model": model, "expansion_socket": False,
-        "computer_offset": OFFSET, "machine_clock_hz": spec.MACHINE_HZ,
+        "computer_offset": OFFSET, "machine_clock_hz": machine_hz,
         "scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
         "standard_sdc_sha256": sha((local / "machine-clocks.sdc").read_bytes()),
         "derivations": derived,
         "machine_pll": {"sha256": sha(machine_ip), "parameters": machine_parameters},
         "staged_source_sha256": ZX81.standard_staged_sources(project)}
-    if spec.WINDOW:
+    if has_window(spec):
         inputs[RECORD]["window"] = {"contract": "fes.fabric.de25-hps-window 1.0",
                                     "control_offset": window_offset(sources), "bridge": dict(WINDOW_BRIDGE)}
+    if sdram_clocks:
+        inputs[RECORD]["sdram_clocks"] = {role: output for role, output in sdram_clocks}
     inputs["scanout"]["build_identity_scheme"] = (
         "canonical-standard-computer-v2" if package_build_id else "standard-board-integration-source-profile")
     inputs["scanout"]["compiled_top_sha256"] = sha(top_path.read_bytes())
@@ -403,12 +465,13 @@ def verify(spec, output, scanout, hps, display):
     if endpoint is None or endpoint.get("kind") != spec.COMPONENT or endpoint.get("version") != "1.0":
         raise ValueError("generated machine component differs")
     build_identity = scanout.endpoint_build_identity(project, endpoint, hps, selected["build_id"])
-    if spec.BOARD_SDRAM:
+    if board_sdram(spec):
         sdram = hps.component_ports(endpoint, "sdram")
         expected = {name: ("Output", width) for name, width in
                     (("clk", 1), ("cke", 1), ("addr", 13), ("ba", 2), ("cs_n", 2), ("dqm", 2), ("ras_n", 1),
                      ("cas_n", 1), ("we_n", 1), ("dq_o", 16), ("dq_oe", 1))}
         expected["dq_i"] = ("Input", 16)
+        expected.update({role: ("Input", 1) for role, _ in clocks(spec)[3]})
         if sdram != expected:
             raise ValueError("generated machine SDRAM pin geometry differs")
     else:
@@ -419,9 +482,9 @@ def verify(spec, output, scanout, hps, display):
     for kind, start, end, value in (
         ("clock", "subsys_periph_periph_clk.out_clk", "subsys_periph_fes_scanout.clk_sys", 100000000),
         ("clock", "subsys_periph_fes_pixel_clk.out_clk", "subsys_periph_fes_scanout.clk", 74250000),
-        ("clock", "subsys_periph_fes_machine_clk.out_clk", "subsys_periph_fes_scanout.machine_clk", spec.MACHINE_HZ),
+        ("clock", "subsys_periph_fes_machine_clk.out_clk", "subsys_periph_fes_scanout.machine_clk", clocks(spec)[0]),
         ("avalon", "subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_scanout.computer", OFFSET),
-    ) + (window_routes(selected["window"]["control_offset"], spec.MACHINE_HZ) if spec.WINDOW else ()):
+    ) + (window_routes(selected["window"]["control_offset"], clocks(spec)[0]) if has_window(spec) else ()):
         connection = connections.get((kind, start, end))
         parameter = "clockRateSysInfo" if kind == "clock" else "baseAddress"
         if connection is None or int(connection.findtext("parameter[@name='" + parameter + "']/value"), 0) != value:
@@ -435,7 +498,7 @@ def verify(spec, output, scanout, hps, display):
     if (display.pll_parameters((project / "fes_mailbox/machine_pll.ip").read_bytes()) !=
             selected["machine_pll"]["parameters"]):
         raise ValueError("generation changed the machine PLL")
-    window = verify_window(project, modules, endpoint, connections, hps, scanout) if spec.WINDOW else None
+    window = verify_window(project, modules, endpoint, connections, hps, scanout) if has_window(spec) else None
     return {"build_identity": build_identity, "standard_sdc_sha256": selected["standard_sdc_sha256"],
             **({"window": window} if window is not None else {}),
             "computer_offset": OFFSET, "managed_fabric": scanout.verify_managed_fabric(directory, hps),

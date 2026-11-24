@@ -1,0 +1,20 @@
+{
+  "cpu_source_sha256": "e84a8b977d0e7bc756bed633148035716ebcdd4bb0ad5d01340a59ad0a90aefe",
+  "fitted_netlist": {
+    "duplicate_attribute_count": 0,
+    "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+    "fitted_sha256": "062b8d0d556a0b46ee82f9e33221b46550bab9322b6d4183f6e48438c875f277",
+    "ram_attribute": "renamed 32 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+    "ram_attribute_count": 32,
+    "source": "/data/projects/i486dx-plan/fits/speed-s1/netlist/fes_i386_cpu.netlist.v",
+    "source_sha256": "4c43b0fb7923879cf51d7034682d99b291a1634047cd141a87e87e1e239542e3"
+  },
+  "netlist_sha256": "4c43b0fb7923879cf51d7034682d99b291a1634047cd141a87e87e1e239542e3",
+  "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
+  "yosys": {
+    "gpu_router": "HIP",
+    "lock": "cores/fes-pc386/toolchain.lock",
+    "lock_sha256": "294c89450c6c719f649cd4f248d0d844dd431df1138d44d6a26e4a1219ac579c",
+    "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=5c31f6a236b20757834552c16f8c9f024cf25fd25d2a4be869ebc8da33c5edd6"
+  }
+}

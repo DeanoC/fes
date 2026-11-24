@@ -1,0 +1,41 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+index 10b75c65d..0f9714072 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv
+@@ -670,7 +670,7 @@ module fes_i386_cpu #(
+     logic [6:0][7:0]  fe_pp;
+     logic [6:0]       fe_pk;
+     fes_i386_pkg::ftag_t mem_tag;
+-    always_ff @(posedge clk) if (reset) pred_on <= !queue16;
++    always_ff @(posedge clk) if (reset) pred_on <= 1'b0;  // ABLATION pred
+     fes_i386_frontend frontend (
+         .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load(fe_mem_load),
+         .mem_data, .mem_valid, .mem_tag, .q_valid, .q, .d_ready, .pred_en(pred_on), .btb_wr, .ras_set_ptr, .ras_set_wr,
+@@ -750,7 +750,7 @@ module fes_i386_cpu #(
+                  && (q_mov || (q_add || q_inc || q_dec) && q_uop.src1.valid && q_uop.src1.space == fes_i386_pkg::RS_GPR
+                               && q_uop.src1.index == q_uop.dst.index)
+                  && (q_inc || q_dec || !q_uop.src2.valid || q_gpr2);
+-    assign dc_q.ealu = q_ealu;
++    assign dc_q.ealu = 1'b0;  // ABLATION ealu
+     assign dc_q.b_sys = q_b_sys;
+     assign dc_q.lea_disp = !q_ealu ? q_lea_disp : q_inc ? 32'd1 : q_dec ? 32'hffff_ffff
+                          : q_uop.src2.valid ? 32'd0 : q_uop.imm;
+@@ -1846,7 +1846,7 @@ module fes_i386_cpu #(
+     assign d_lo = d_mseg_lo[11:0] + row[11:0] + last[11:0] + d_mdisp_lo[11:0];
+     assign st_e = d_lo - ag_slo + 12'(dc.uop.mem.bytes) - 12'd1;
+     assign st_span = dc.uop.mem.bytes + ag_sbytes - 4'd2;
+-    assign st_near = late != 2'd0 || !ag_slo_ok || d_xaddr || st_e[11:4] == 8'd0 && st_e[3:0] <= st_span;
++    assign st_near = 1'b1;  // ABLATION stld: every load behind a store in AG waits
+     always_ff @(posedge clk) if (!freeze) begin
+         ag_slo <= d_lo;
+         ag_slo_ok <= late == 2'd0 && !d_xaddr;
+@@ -1935,8 +1935,7 @@ module fes_i386_cpu #(
+         // MOVZX r32, whose load data is zero above its size. A 16-bit load
+         // keeps its register's high half, and MOVSX and a load-op change the
+         // value in EX.
+-        d_out.ldfwd = u.cls == fes_i386_pkg::UOP_ALU && (u.op == 5'(fes_i386_pkg::ALU_MOV) || u.op == 5'(fes_i386_pkg::ALU_MOVZX))
+-                   && mkind == fes_i386_pkg::MEM_LOAD && !u.mem.in_a && u.size == fes_i386_pkg::SIZE_32 && !u.dst.hi8;
++        d_out.ldfwd = 1'b0;  // ABLATION lfwd
+         // A system access (mem.system) is checked against its table's limit,
+         // at its first read: a real-mode vector's offset against IDTR's
+         // limit less 3, a gate's against IDTR's less 7, a descriptor's low

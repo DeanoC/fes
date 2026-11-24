@@ -16,6 +16,7 @@ import (
 	"errors"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
+	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
@@ -291,6 +292,12 @@ func run() (result error) {
 	volume, err := fat.Mount(cachedDisk)
 	if err != nil {
 		return err
+	}
+	if _, ok := board.WallTime(); ok {
+		volume.SetClock(func() time.Time {
+			t, _ := board.WallTime()
+			return t
+		})
 	}
 	fmt.Printf("FES_STORAGE_READY sectors=%d\n", disk.SectorCount())
 	data, err := volume.ReadFile("FES/BOOT.JSON")

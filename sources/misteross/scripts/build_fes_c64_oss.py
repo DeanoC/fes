@@ -96,6 +96,8 @@ RTL_INCLUDES = (
     "cores/fes-c64/rtl/c64_sid_filter_pages.vh",
     "cores/fes-c64/rtl/c64_sid_vcr_data.vh",
     "cores/fes-c64/rtl/c64_sid_combined_waves.vh",
+    "cores/fes-c64/rtl/c64_sid_8580_waves.vh",
+    "cores/fes-c64/rtl/c64_sid_8580_tables.vh",
     "cores/fes-c64/rtl/c64_sid_svf_tables.vh",
     "cores/fes-c64/rtl/c64_bus.vh",
     "cores/fes-c64/rtl/c64_timing.vh",
@@ -116,6 +118,8 @@ RTL_SOURCES = (
     "cores/fes-c64/rtl/c64_sid_output_filter.sv",
     "cores/fes-c64/rtl/c64_sid_dac.sv",
     "cores/fes-c64/rtl/c64_sid_audio.sv",
+    "cores/fes-c64/rtl/c64_sid_8580_lookup.sv",
+    "cores/fes-c64/rtl/c64_sid_8580_audio.sv",
     "cores/fes-c64/rtl/c64_sid_svf.sv",
     "cores/fes-c64/rtl/top.v",
     "cores/fes-c64/rtl/c64_system_pll.v",
@@ -197,11 +201,17 @@ MODELS = {
 }
 
 
-def model_for(model: str) -> Model:
+def model_for(model: str, sid_model: str = "6581") -> Model:
     try:
-        return MODELS[model]
+        machine = MODELS[model]
     except KeyError:
         raise BuildError(f"C64 model must be one of {', '.join(MODELS)}") from None
+    if sid_model == "6581":
+        return machine
+    if sid_model != "8580":
+        raise BuildError("SID model must be 6581 or 8580")
+    return machine._replace(name=f"{machine.name} / MOS8580",
+                            output=machine.output.with_name(f"{machine.output.name}-8580"))
 
 
 def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
@@ -280,12 +290,13 @@ def create_build_record(
     identity_version: int = 2,
     execution: dict | None = None,
     model: str = "pal",
+    sid_model: str = "6581",
     gpu_backend: str = C64_GPU_BACKEND,
     gpu_architectures: str = C64_GPU_ARCHITECTURES,
 ) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
-    machine = model_for(model)
+    machine = model_for(model, sid_model)
     pnr = pnr_recipe.recipe_for(machine.core_id)
     fields = {
         "format": 1,
@@ -303,6 +314,7 @@ def create_build_record(
             "core_id": machine.core_id,
             "model": model,
             "ntsc": machine.ntsc,
+            "sid_model": sid_model,
             "router": pnr["router"],
             "gpu_backend": gpu_backend,
             "gpu_architectures": gpu_architectures,
@@ -345,8 +357,8 @@ def socket_qsf(base: str) -> str:
 
 def build_commands(root: Path, output: Path, build_id: str,
                    tools: Mapping[str, Path], seed: int | None = None, *,
-                   model: str = "pal") -> tuple[tuple[str, ...], tuple[str, ...]]:
-    machine = model_for(model)
+                   model: str = "pal", sid_model: str = "6581") -> tuple[tuple[str, ...], tuple[str, ...]]:
+    machine = model_for(model, sid_model)
     pnr = pnr_recipe.recipe_for(machine.core_id)
     relative = machine.output.as_posix()
     if seed is None:
@@ -361,7 +373,7 @@ def build_commands(root: Path, output: Path, build_id: str,
         f"read_verilog -lib {DDR_ATOM}; "
         "read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-common/generated "
         f"{' '.join(RTL_SOURCES)}; "
-        f"chparam -set NTSC {machine.ntsc} -set BUILD_ID 128'h{build_id} {TOP}; "
+        f"chparam -set NTSC {machine.ntsc} -set SID_8580 {int(sid_model == '8580')} -set BUILD_ID 128'h{build_id} {TOP}; "
         # Map only the plane products before coarse flattening. The C64
         # machine keeps the existing -nodsp implementation and resource budget.
         f"synth_intel_alm -nolutram -nodsp -top {TOP} -run begin:begin; "
@@ -681,7 +693,8 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
               tools: Mapping[str, str]) -> bytes:
     rbf = evidence["rbf"]
     record_fields = json.loads(record)
-    machine = model_for(record_fields["parameters"]["model"])
+    parameters = record_fields["parameters"]
+    machine = model_for(parameters["model"], parameters.get("sid_model", "6581"))
     toolchain = "; ".join(f"{name} {tools[name]}" for name in sorted(tools))
     required = [
         "fes.video.fixed-720p60", "fes.keyboard.hid", "fes.gamepad.ports",
@@ -717,8 +730,8 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None,
           identity_version: int = 2, gpu_device: int = 0, model: str = "pal", gpu_router: str = C64_GPU_ROUTER,
-          toolchain_root: Path | None = None) -> Path:
-    machine = model_for(model)
+          toolchain_root: Path | None = None, sid_model: str = "6581") -> Path:
+    machine = model_for(model, sid_model)
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
@@ -734,7 +747,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     extra_env = execution_extra(gpu_router)
     invocation = FunctionalInvocation(authenticated, gpu_device, extra_env=extra_env)
     record = create_build_record(root, repository, revision, identities,
-                                 identity_version=identity_version, execution=invocation.inputs, model=model,
+                                 identity_version=identity_version, execution=invocation.inputs, model=model, sid_model=sid_model,
                                  gpu_backend=backend, gpu_architectures=architectures)
     output = _prepare_output(root, relative=machine.output, build_outputs=BUILD_OUTPUTS)
     _write_atomic(output / "build-inputs.json", record)
@@ -742,7 +755,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     try:
         build_id = build_identity(record)
         yosys, _route = build_commands(root, output, build_id, {
-            name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, model=model)
+            name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, model=model, sid_model=sid_model)
         _run_tool(yosys, root, output / "yosys.log", env=invocation.env,
                   audit_source_root=root, output_relative=machine.output)
         if not (output / "synth.json").is_file():
@@ -796,7 +809,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
             raise BuildError("ROM database changed during build")
         if create_build_record(root, repository, revision, identities,
-                               identity_version=identity_version, execution=invocation.inputs, model=model,
+                               identity_version=identity_version, execution=invocation.inputs, model=model, sid_model=sid_model,
                                gpu_backend=backend, gpu_architectures=architectures) != record:
             raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store,
@@ -811,21 +824,22 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         invocation.close()
 
 
-def synth(root: Path = ROOT, *, cache_root: Path | None = None, model: str = "pal") -> dict:
+def synth(root: Path = ROOT, *, cache_root: Path | None = None, model: str = "pal",
+          sid_model: str = "6581") -> dict:
     """Run Yosys only. Does not require a clean tree and does not seal a package."""
-    machine = model_for(model)
+    machine = model_for(model, sid_model)
     root = Path(root).resolve()
     for relative in PINNED_INPUTS:
         _regular_input(root, relative)
     authenticated = _authenticate_c64_tools(root, cache_root=cache_root)
     output = _prepare_output(root, relative=machine.output, build_outputs=BUILD_OUTPUTS)
     yosys, _route = build_commands(root, output, "0" * 32, {
-        name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, model=model)
+        name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, model=model, sid_model=sid_model)
     _run_tool(yosys, root, output / "yosys.log", output_relative=machine.output)
     if not (output / "synth.json").is_file():
         raise BuildError("Yosys did not produce synthesis evidence")
     evidence = validate_synth_evidence(output, source_root=root)
-    evidence.update({"build_id": "0" * 32, "sealed": False,
+    evidence.update({"build_id": "0" * 32, "sealed": False, "model": model, "sid_model": sid_model,
                      "tools": {name: tool.identity for name, tool in authenticated.items()}})
     _write_atomic(output / "build-summary.json",
                   (json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode())
@@ -835,6 +849,8 @@ def synth(root: Path = ROOT, *, cache_root: Path | None = None, model: str = "pa
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", choices=tuple(MODELS), default="pal")
+    parser.add_argument("--sid-model", choices=("6581", "8580"), default="6581",
+                        help="select the SID revision independently of PAL/NTSC")
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
@@ -847,14 +863,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     try:
         if arguments.synth_only:
-            cells = synth(arguments.root, cache_root=arguments.cache_root, model=arguments.model)["synthesis_cells"]
+            cells = synth(arguments.root, cache_root=arguments.cache_root, model=arguments.model,
+                          sid_model=arguments.sid_model)["synthesis_cells"]
             print(f"synth-only MISTRAL_M10K={cells.get('MISTRAL_M10K', 0)} "
                   f"MISTRAL_M10K_TDP={cells.get('MISTRAL_M10K_TDP', 0)} "
                   f"MISTRAL_FF={cells.get('MISTRAL_FF', 0)}")
             return 0
         print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
                     identity_version=arguments.identity_version, gpu_device=arguments.gpu_device,
-                    gpu_router=arguments.gpu_router, toolchain_root=arguments.toolchain_root, model=arguments.model))
+                    gpu_router=arguments.gpu_router, toolchain_root=arguments.toolchain_root, model=arguments.model,
+                    sid_model=arguments.sid_model))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-c64-oss: {exc}", file=sys.stderr)
         return 1

@@ -3,6 +3,7 @@ package fogcast
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"io"
 	"io/fs"
@@ -2866,6 +2867,43 @@ func kitLeaseOf(client serviceClient) *targetclient.KitLease {
 		return nil
 	}
 	return leased.KitLease()
+}
+
+// KitLocalForeignLease reads the current local agent lease without acquiring it.
+// It is only an observation: the target still authorizes each local input edge.
+func (s *Service) KitLocalForeignLease(ctx context.Context, name string) (bool, error) {
+	if s == nil || !s.kitHost || name != KitHostTargetName {
+		return false, nil
+	}
+	s.targetMu.RLock()
+	target := targetByName(s.targets, name)
+	client, ok := s.targetClients[name].(*targetclient.Client)
+	s.targetMu.RUnlock()
+	if !ok || client == nil || !target.Enabled || target.TargetID == "" {
+		return false, errors.New("kit lease observation unavailable")
+	}
+	status, err := client.KitLeaseStatus(ctx)
+	if err != nil {
+		return false, err
+	}
+	s.targetMu.RLock()
+	current := targetByName(s.targets, name)
+	same := s.targetClients[name] == client && current.Enabled && current.TargetID == target.TargetID && current.Address == target.Address && current.Agent == target.Agent
+	s.targetMu.RUnlock()
+	if !same {
+		return false, errors.New("kit target changed during lease observation")
+	}
+	if status.State != "held" {
+		return false, nil
+	}
+	if len(status.Generation) != 64 || status.Owner == "" {
+		return false, errors.New("kit lease observation is incomplete")
+	}
+	if _, err := hex.DecodeString(status.Generation); err != nil {
+		return false, errors.New("kit lease generation is invalid")
+	}
+	owned, generation := client.MeshKitLease()
+	return !owned || generation != status.Generation, nil
 }
 
 // KitHostMode reports whether this service controls its own kit agent.
