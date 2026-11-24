@@ -94,7 +94,8 @@ func (k ProgramKeyboard) Report(ctx context.Context, report []byte) error {
 
 func (p *programKeyboard) report(ctx context.Context, report []byte) error {
 	next := p.decoder
-	events, err := next.Feed(report)
+	var edgeBuf [28]usb.KeyEvent
+	n, err := next.FeedInto(report, edgeBuf[:])
 	if err != nil {
 		return err
 	}
@@ -108,7 +109,7 @@ func (p *programKeyboard) report(ctx context.Context, report []byte) error {
 		return nil
 	}
 	rows := p.rows
-	for _, event := range events {
+	for _, event := range edgeBuf[:n] {
 		usage := event.Usage
 		row, bit := int(usage)/16, uint(usage%16)
 		if usage >= 0xe0 && usage <= 0xe7 {

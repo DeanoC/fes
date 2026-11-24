@@ -10,13 +10,21 @@ import (
 )
 
 // StartNetwork joins the trusted platform opener to this boot before frontend
-// ownership. bootOwner must come from independently accepted boot admission,
-// never a catalogue or cached application status. The opener retains partial
-// DMA resources, honors the first (startup) context and uses the second context
-// for the IP stack lifetime. Failure cannot trigger FPGA cleanup:
-// a failed or late opener leaves DMA ownership uncertain until reboot.
+// ownership using the default 5-second startup bound. bootOwner must come from
+// independently accepted boot admission, never a catalogue or cached
+// application status. The opener retains partial DMA resources, honors the
+// first (startup) context and uses the second context for the IP stack
+// lifetime. Failure cannot trigger FPGA cleanup: a failed or late opener leaves
+// DMA ownership uncertain until reboot.
 func (s *ProgramService) StartNetwork(ctx context.Context, bootOwner uint64, open func(context.Context, context.Context, uint64) (*network.Controller, error)) error {
-	if ctx == nil || bootOwner == 0 || open == nil {
+	return s.StartNetworkWithTimeout(ctx, 5*time.Second, bootOwner, open)
+}
+
+// StartNetworkWithTimeout behaves like StartNetwork but enforces the explicit
+// startupTimeout on the startup context passed to open (preserving ctx as the
+// unbounded stack lifetime context), e.g. allowing DHCPv4's 10s acquisition budget.
+func (s *ProgramService) StartNetworkWithTimeout(ctx context.Context, startupTimeout time.Duration, bootOwner uint64, open func(context.Context, context.Context, uint64) (*network.Controller, error)) error {
+	if ctx == nil || startupTimeout <= 0 || bootOwner == 0 || open == nil {
 		return ErrProgramSession
 	}
 	if err := ctx.Err(); err != nil {
@@ -30,7 +38,7 @@ func (s *ProgramService) StartNetwork(ctx context.Context, bootOwner uint64, ope
 	if view.State != ProgramReady || view.Generation != 0 || view.Owner != bootOwner || p.backendClaimed || p.network != nil || p.networkStartup != nil {
 		return ErrProgramSession
 	}
-	work, cancel := context.WithTimeout(ctx, 5*time.Second)
+	work, cancel := context.WithTimeout(ctx, startupTimeout)
 	defer cancel()
 	lifetime, stopWorkers := context.WithCancel(ctx)
 	p.networkCancel = stopWorkers

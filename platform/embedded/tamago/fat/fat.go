@@ -31,6 +31,11 @@ const maxFileBytes = 64 << 20
 const maxDirectoryBytes = 4 << 20
 const maxTransferSectors = 128 // 64 KiB per coalesced ReadSectors/WriteSectors call
 
+type entryLocation struct {
+	sector uint64
+	offset int
+}
+
 type Volume struct {
 	mu                  sync.Mutex
 	device              block.Device
@@ -42,6 +47,7 @@ type Volume struct {
 	fsInfo              uint64
 	allocationValid     bool
 	mutationErr         error
+	replacedGen         map[entryLocation]uint64
 	clock               func() time.Time
 }
 
@@ -478,6 +484,9 @@ func (v *Volume) Open(name string) (fs.File, error) {
 		f.directory, err = v.entries(e.cluster)
 		sort.Slice(f.directory, func(i, j int) bool { return f.directory[i].name < f.directory[j].name })
 	} else {
+		if v.replacedGen != nil {
+			f.openGen = v.replacedGen[entryLocation{sector: e.sector, offset: e.offset}]
+		}
 		if e.size > maxFileBytes {
 			err = ErrCapacity
 		} else {
@@ -574,6 +583,7 @@ type file struct {
 	entry     entry
 	chain     []uint32
 	directory []entry
+	openGen   uint64
 	position  int64
 	closed    bool
 }
@@ -592,16 +602,19 @@ func (f *file) Read(dst []byte) (int, error) {
 	if f.entry.attributes&16 != 0 {
 		return 0, fs.ErrInvalid
 	}
+	f.volume.mu.Lock()
+	defer f.volume.mu.Unlock()
+	if f.volume.mutationErr != nil {
+		return 0, f.volume.mutationErr
+	}
+	if f.volume.replacedGen != nil && f.volume.replacedGen[entryLocation{sector: f.entry.sector, offset: f.entry.offset}] != f.openGen {
+		return 0, ErrReplaced
+	}
 	if len(dst) == 0 {
 		return 0, nil
 	}
 	if f.position >= int64(f.entry.size) {
 		return 0, io.EOF
-	}
-	f.volume.mu.Lock()
-	defer f.volume.mu.Unlock()
-	if f.volume.mutationErr != nil {
-		return 0, f.volume.mutationErr
 	}
 	count := min(len(dst), int(int64(f.entry.size)-f.position))
 	done := 0

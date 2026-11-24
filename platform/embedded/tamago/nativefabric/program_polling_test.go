@@ -44,8 +44,8 @@ func TestProgramPollingActualTenfootCycles(t *testing.T) {
 	if err := tenfoot.RunPlatform(ctx, app, device, platform); err != nil {
 		t.Fatal(err)
 	}
-	if base.cycles != 3 || f.s.Status().Generation != 6 || !f.lease.r.Active || f.cpu.keyboardWrites != 81 || source.pauses != 6 || source.resumes != 6 || source.paused {
-		t.Fatal("incomplete paused-input cycle", base.cycles, f.s.Status(), source.pauses, source.resumes)
+	if base.cycles != 3 || f.s.Status().Generation != 6 || !f.lease.r.Active || f.cpu.keyboardWrites != 39 || source.pauses != 6 || source.resumes != 6 || source.paused {
+		t.Fatal("incomplete paused-input cycle", base.cycles, f.s.Status(), f.cpu.keyboardWrites, source.pauses, source.resumes)
 	}
 }
 
@@ -118,6 +118,12 @@ func (s *pausableKeyboard) PollKeyboard() ([]byte, error) {
 		return nil, errors.New("polled during transition")
 	}
 	return s.programKeyboardReports.PollKeyboard()
+}
+func (s *pausableKeyboard) PollKeyboardInto(dst []byte) (int, error) {
+	if s.paused {
+		return 0, errors.New("polled during transition")
+	}
+	return s.programKeyboardReports.PollKeyboardInto(dst)
 }
 func TestProgramPollingBoundariesCoverLaunchAndReturn(t *testing.T) {
 	f, b, c := backendFixture(t)

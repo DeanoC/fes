@@ -11,13 +11,16 @@ The locked idle core is the in-tree misteross seal
 `/usr/share/mister-runtime/idle.rbf`, which the runtime loads for Stop. Attract and rooms are not that
 bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
-The recipe registry supports the described `fes.pong`,
-`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum`,
-`fes.riscv`, `fes.ramtest` and `fes.atari-st` HIP/nextpnr
-producers, the ZX81 family (`fes.zx81`, `fes.zx80`, `fes.ts1000`,
-`fes.ts1500`) through its Quartus Lite producer, and `fes.pcxt-dos` through its
-Quartus DOS producer. The default target-image selector installs the closed package set
-containing only `fes.menu` display firmware. All playable systems are installed
+The recipe registry supports the described DE10 HIP/nextpnr producers
+(`fes.menu`, `fes.pong`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`,
+`fes.c64`, `fes.c64-ntsc`, `fes.spectrum`, `fes.spectrum128`,
+`fes.spectrum-plus3`, `fes.pentagon`, `fes.riscv`, `fes.ramtest` and
+`fes.atari-st`), the DE10 Quartus Lite producers for the ZX81 family
+(`fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`), `fes.pcxt-dos` and
+`fes.pc386`, and the DE25 Quartus Pro 26.3 producers (`fes.menu`, `fes.zx81`,
+`fes.spectrum`, `fes.atari-st`, `fes.c64`, `fes.pcxt-dos`). The default
+target-image selector installs the closed package set containing only
+`fes.menu` display firmware. All playable systems are installed
 independently. The first-party catalog excludes SMS and SG-1000; their recipes
 remain available for development. Coleco and Atari ST installations need
 their matching Direct/Scanlines video parts; firmware remains user-supplied.
@@ -53,9 +56,10 @@ The default `native-integration-dev` profile installs the locked idle RBF and
 The FES image route is package-only. The accepted product policy allows a
 labelled `quartus` variant alongside an `oss` (HIP/nextpnr) build; see
 [Quartus-built cores](design/quartus-cores.md). The recipe registry selects
-exactly one producer per core and board: Quartus Lite for the ZX81 family and
-PC/XT, OSS for every other core. It does not yet choose between OSS and
-Quartus variants of one core, and other Quartus recipes are bring-up or
+exactly one producer per core and board: on DE10, Quartus Lite for the ZX81
+family, `fes.pcxt-dos` and `fes.pc386`, and OSS for every other core; on DE25,
+Quartus Pro 26.3 for its registered recipes. It does not yet choose between OSS
+and Quartus variants of one core, and other Quartus recipes are bring-up or
 oracle checks. There is no `FES_OSS_ONLY` control in this tree. Each package can be
 installed on the host and given an explicit library entry; the package route
 does not infer ROM or media inputs or replace the existing catalog system.
@@ -76,8 +80,10 @@ keep blob, stream, or firmware mailboxes. The separate development MegaCart
 producer is imported explicitly because `config/core-recipes.toml` selects one
 producer per core ID and board.
 
-Recipe lookup defaults to `de10-nano`. Explicit `de25-nano` lookup currently
-selects only the Quartus Pro MENU producer; an absent DE25 core is refused.
+Recipe lookup defaults to `de10-nano`. Explicit `de25-nano` lookup selects
+the registered Quartus Pro 26.3 producers (`fes.menu`, `fes.zx81`,
+`fes.spectrum`, `fes.atari-st`, `fes.c64`, `fes.pcxt-dos`); an absent DE25
+core is refused.
 Core IDs, selection filenames and package environment names are unique within
 each board. Cached package inspection also checks the independently selected
 board against the package target. The shared resolver authenticates the DE25

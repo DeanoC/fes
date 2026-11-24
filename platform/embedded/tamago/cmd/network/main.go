@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
+	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 )
 
 func run() error {
@@ -35,9 +37,14 @@ func run() error {
 		return err
 	}
 	var config struct {
-		APIURL  string `json:"api_url"`
-		APIHost string `json:"api_host"`
-		DHCP    bool   `json:"dhcp"`
+		APIURL     string `json:"api_url"`
+		APIHost    string `json:"api_host"`
+		DHCP       bool   `json:"dhcp"`
+		DNSHost    string `json:"dns_host"`
+		DNSServer  string `json:"dns_server"`
+		DNSPort    uint16 `json:"dns_port"`
+		SNTPServer string `json:"sntp_server"`
+		SNTPPort   uint16 `json:"sntp_port"`
 	}
 	if err = json.Unmarshal(data, &config); err != nil {
 		return err
@@ -72,9 +79,49 @@ func run() error {
 		}
 		fmt.Printf("FES_NETWORK_DHCP address=%s gateway=%s server=%s lease_s=%d dns=%s\n",
 			lease.Address, lease.Gateway, lease.Server, int64(lease.LeaseDuration/time.Second), dns)
+
+		renewed, err := iface.RenewLeaseOnce(ctx, false, network.RenewConfig{RetryInterval: 250 * time.Millisecond})
+		if err != nil {
+			return fmt.Errorf("network probe DHCP renewal failed: %w", err)
+		}
+		if renewed.Address != lease.Address || renewed.Gateway != lease.Gateway || renewed.LeaseDuration <= 0 {
+			return fmt.Errorf("network probe DHCP renewal mismatch: got %+v, want address=%s gateway=%s",
+				renewed, lease.Address, lease.Gateway)
+		}
+		fmt.Printf("FES_NETWORK_DHCP_RENEW address=%s gateway=%s server=%s lease_s=%d\n",
+			renewed.Address, renewed.Gateway, renewed.Server, int64(renewed.LeaseDuration/time.Second))
+	}
+	if config.DNSHost != "" && config.DNSServer != "" {
+		addrs, err := iface.ResolveA(ctx, config.DNSHost, network.DNSConfig{
+			Servers:       []string{config.DNSServer},
+			ServerPort:    config.DNSPort,
+			RetryInterval: 250 * time.Millisecond,
+		})
+		if err != nil {
+			return fmt.Errorf("network probe DNS lookup for %q failed: %w", config.DNSHost, err)
+		}
+		resolved := addrs[0]
+		fmt.Printf("FES_NETWORK_DNS host=%s ip=%s\n", config.DNSHost, resolved.String())
+		if port := api.Port(); port != "" {
+			api.Host = net.JoinHostPort(resolved.String(), port)
+		} else {
+			api.Host = resolved.String()
+		}
+	}
+	if config.SNTPServer != "" {
+		sntpRes, err := iface.QuerySNTP(ctx, network.SNTPConfig{
+			Servers:       []string{config.SNTPServer},
+			ServerPort:    config.SNTPPort,
+			RetryInterval: 250 * time.Millisecond,
+		})
+		if err != nil {
+			return fmt.Errorf("network probe SNTP query failed: %w", err)
+		}
+		fmt.Printf("FES_NETWORK_SNTP server=%s stratum=%d unix=%d rtt_ms=%d\n",
+			sntpRes.Server, sntpRes.Stratum, sntpRes.Time.Unix(), sntpRes.RTT.Milliseconds())
 	}
 	fmt.Printf("FES_NETWORK_READY board=%s address=%s\n", board.Name, iface.Address())
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, config.APIURL+"/api/v1/games", nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, api.String()+"/api/v1/games", nil)
 	if err != nil {
 		return err
 	}
