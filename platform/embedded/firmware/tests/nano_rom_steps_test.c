@@ -35,7 +35,7 @@ static void inject_step_fault(void)
     sink.triggered=1;
     switch(sink.fault) {
     case 2:model.base.h.usb[8/4]|=1U<<5;break;
-    case 3:model.base.h.usb[24/4]=1;break;
+    case 3:model.base.h.usb[0x400/4]|=1U<<23;break;
     case 4:model.clocks[0]^=1;break;
     case 5:usb_platform.generation++;break;
     case 6:model.base.h.bridge=15;break;
