@@ -27,7 +27,7 @@ sim, and the level-4 lockstep passes on the RTL and the netlist.
 | Level-4 random programs, RTL | All 56,000 keep step. Equal to #2087's `level4-486sx-rtl.json` in all 943 random values (every trace hash, retirement and form count) |
 | Level-4, netlist (Yosys `d273c1cb`) | 486SX 148 of 148 cases and all 56,000 random programs; equal to #2087's netlist report in all 3,740 values except 14 netlist, Yosys-lock and oracle-build digests ([`lockstep/level4-netlist.json`](lockstep/level4-netlist.json)). #2087 ran on Yosys `e240a465`; the CPU sources are unchanged since |
 | DE25 system bench, I486 = 1 | PASS. `boards/de25nano/pc386/sim.py`: the derived `pc386_system` behind the board's window path boots FreeDOS to the prompt at 3.063 simulated seconds; every check of the system suite passes ([`sim/de25-system-486sx.json`](sim/de25-system-486sx.json)). The Verilated CPU's EFLAGS is 22 bits (`/*21:0*/ …cpu__DOT__eflags`), the I486 = 1 width |
-| Machine sim, RTL at I486 = 1 | FreeDOS boot: PASS. `sim_fes_pc386.py --suite boot --cpu rtl --cpu-level 4`: the prompt and `dir` at 3.5 simulated seconds, 145,543,067 retirements, 0 oracle steps, no stops, the VGA trace replays against Bochs's VGA with 0 mismatches ([`sim/machine-boot-rtl-486sx.json`](sim/machine-boot-rtl-486sx.json)). Game rows: running ([game rows](#game-rows)) |
+| Machine sim, RTL at I486 = 1 | FreeDOS boot: PASS. `sim_fes_pc386.py --suite boot --cpu rtl --cpu-level 4`: the prompt and `dir` at 3.5 simulated seconds, 145,543,067 retirements, 0 oracle steps, no stops, the VGA trace replays against Bochs's VGA with 0 mismatches ([`sim/machine-boot-rtl-486sx.json`](sim/machine-boot-rtl-486sx.json)). Game rows: Wolfenstein 3D and Ultima VI both PASS on the RTL with 0 oracle steps ([game rows](#game-rows)) |
 | DE25 fit, four seeds | Pass ([the fits](#the-fits)): every seed closes every analysis; median 41,563.4 ALMs; +116.3 over `dfacd28e1`, measured |
 
 ## The fits
@@ -102,7 +102,16 @@ are the RTL game suite rows that pass at 386 (`sim_fes_pc386.py --suite game
 includes its RTL checks (no stops, stalls or oracle steps). Each is reported
 beside the 386's last recorded result; that comparison is not a band.
 
-<!-- GAMES -->
+| Row | Result at I486 = 1 | The 386's last recorded result |
+| --- | --- | --- |
+| Wolfenstein 3D, 24 s | **PASS**: 954,443,257 retirements, 0 oracle steps, 0 protected-mode steps, no CPU resets, no failures ([`sim/game-wolf3d-rtl-486sx.json`](sim/game-wolf3d-rtl-486sx.json)) | pass (`2026-10-28-pc386-game-census`, on an older CPU) |
+| Ultima VI, 16 s | **PASS**: 438,450,248 retirements, 0 oracle steps, 0 protected-mode steps, no CPU resets, no failures ([`sim/game-ultima6-rtl-486sx.json`](sim/game-ultima6-rtl-486sx.json)) | pass, 0 oracle steps after the handover (`2026-11-21-pc386-share-kernel-1777`) |
+
+The reports are trimmed to the run's end, failures, RTL counters, audio
+summary and command; the screen and I/O logs stay out of the record. Both ran
+on Powerboat with Verilator 5.032, from the machine binary built at
+`7a7f0b7da` (before `start_from_reset`, which changes only a guest-triggered
+CPU reset; neither run had one).
 
 ## What changed
 
