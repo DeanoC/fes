@@ -8,18 +8,23 @@ import (
 	"sync/atomic"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
+	"github.com/DeanoC/fes/platform/embedded/tamago/dmaops"
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdhci"
 )
 
-// Session binds the actual PIO driver to one private firmware client.
+// Session binds the actual SDHCI driver to one private firmware client.
 // The caller must exclusively own both controller and secure-call transport.
 // Concurrent emulation-core/SD access is outside this closed-bridge contract.
 type Session struct {
-	control  sync.Mutex
-	firmware *Client
-	device   *sdhci.Device
-	active   bool
-	retired  atomic.Bool
+	control    sync.Mutex
+	ioMu       sync.RWMutex
+	firmware   *Client
+	device     *sdhci.Device
+	cache      *block.Cache
+	active     atomic.Bool
+	retired    atomic.Bool
+	busWidth   atomic.Int32
+	admaActive atomic.Bool
 }
 
 var _ block.Device = (*Session)(nil)
@@ -30,6 +35,19 @@ type Config struct {
 	// TransferClockHz is the trusted platform's opt-in post-discovery rate.
 	// Zero preserves identification speed; 25 MHz requires card/board support.
 	TransferClockHz uint32
+	// BusWidth4Bit opts into 4-bit SD bus mode (ACMD51 SCR + ACMD6) after card
+	// selection. Default false preserves conservative 1-bit mode.
+	BusWidth4Bit bool
+	// MultiBlock opts into CMD18/CMD25 multi-sector transfers (with Auto-CMD12
+	// up to 128 sectors / 64 KiB). Default false preserves single-sector I/O.
+	MultiBlock bool
+	// UseADMA2 opts into SDHCI ADMA2 DMA transfers backed by DMAPool (requiring
+	// controller ADMA2 capability and platform SMMU stream authorization).
+	// Default false preserves PIO transfers.
+	UseADMA2 bool
+	// DMAPool supplies the pinned ADMA2 descriptor table and 64 KiB staging
+	// buffer when UseADMA2 is true. Ignored when UseADMA2 is false.
+	DMAPool *dmaops.Pool
 	// WriteCard authorizes writes only to this independently expected CID and
 	// capacity. Zero selects read-only access. Physical write-protect and
 	// exclusive writable-media ownership still need platform qualification.
@@ -48,6 +66,9 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 		(config.TransferClockHz != 0 && config.TransferClockHz != 25000000) ||
 		(config.TransferClockHz != 0 && config.InputClockHz < config.TransferClockHz) {
 		return nil, fmt.Errorf("sdcontrol: invalid controller or input clock")
+	}
+	if config.UseADMA2 && config.DMAPool == nil {
+		return nil, fmt.Errorf("sdcontrol: UseADMA2 requires DMAPool")
 	}
 	writable := config.WriteCard != (sdhci.Identity{})
 	if writable {
@@ -70,23 +91,100 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 	if err = firmware.Resume(); err != nil {
 		return s, s.fail(err)
 	}
-	s.active = true
-	s.device, err = sdhci.Open(io, sdhci.Config{InputClockHz: config.InputClockHz, TransferClockHz: config.TransferClockHz, PrepareClock: firmware.Prepare, AllowWrites: writable, NoSocketWriteProtect: config.NoSocketWriteProtect})
+	s.active.Store(true)
+	s.device, err = sdhci.Open(io, sdhci.Config{
+		InputClockHz:         config.InputClockHz,
+		TransferClockHz:      config.TransferClockHz,
+		BusWidth4Bit:         config.BusWidth4Bit,
+		MultiBlock:           config.MultiBlock,
+		UseADMA2:             config.UseADMA2,
+		DMAPool:              config.DMAPool,
+		PrepareClock:         firmware.Prepare,
+		AllowWrites:          writable,
+		NoSocketWriteProtect: config.NoSocketWriteProtect,
+	})
 	if err != nil {
 		return s, s.fail(err)
 	}
 	if writable && s.device.Identity() != config.WriteCard {
 		return s, s.fail(fmt.Errorf("sdcontrol: writable card identity mismatch"))
 	}
+	s.busWidth.Store(int32(s.device.BusWidth()))
+	s.admaActive.Store(s.device.ADMA2Active())
 	return s, nil
 }
 func (s *Session) fail(err error) error {
 	s.retired.Store(true)
+	s.ioMu.Lock()
+	s.active.Store(false)
+	if s.cache != nil {
+		s.cache.Invalidate()
+	}
+	s.ioMu.Unlock()
 	if s.device != nil {
 		s.device.DisableIRQ()
 	}
 	s.firmware.retire()
 	return errors.Join(ErrRetired, err)
+}
+
+// EnableCache installs a bounded write-through sector cache on this session.
+// The cache is invalidated automatically on every Quiesce, Resume, and fatal
+// session retirement, and cached reads are refused whenever the lease is
+// quiesced or retired.
+func (s *Session) EnableCache(cfg block.CacheConfig) error {
+	if s == nil {
+		return ErrRetired
+	}
+	s.control.Lock()
+	defer s.control.Unlock()
+	if s.firmware == nil || s.device == nil || s.retired.Load() {
+		return ErrRetired
+	}
+	c, err := block.NewCache(s.device, cfg)
+	if err != nil {
+		return err
+	}
+	s.ioMu.Lock()
+	if s.retired.Load() {
+		s.ioMu.Unlock()
+		return ErrRetired
+	}
+	if s.cache != nil {
+		s.cache.Invalidate()
+	}
+	s.cache = c
+	s.ioMu.Unlock()
+	return nil
+}
+
+// DisableCache invalidates and detaches any active sector cache on this session.
+func (s *Session) DisableCache() {
+	if s == nil {
+		return
+	}
+	s.control.Lock()
+	defer s.control.Unlock()
+	s.ioMu.Lock()
+	if s.cache != nil {
+		s.cache.Invalidate()
+		s.cache = nil
+	}
+	s.ioMu.Unlock()
+}
+
+// CacheStats returns the active sector cache statistics and true when caching
+// is enabled, or zero statistics and false otherwise.
+func (s *Session) CacheStats() (block.CacheStats, bool) {
+	if s == nil {
+		return block.CacheStats{}, false
+	}
+	s.ioMu.RLock()
+	defer s.ioMu.RUnlock()
+	if s.cache == nil {
+		return block.CacheStats{}, false
+	}
+	return s.cache.Stats(), true
 }
 func (s *Session) LastReceipt() (Receipt, bool) {
 	if s == nil {
@@ -101,13 +199,49 @@ func (s *Session) Identity() sdhci.Identity {
 	}
 	return s.device.Identity()
 }
+
+// BusWidth returns the active SD data bus width (1 or 4), or 0 if uninitialized.
+func (s *Session) BusWidth() int {
+	if s == nil {
+		return 0
+	}
+	return int(s.busWidth.Load())
+}
+
+// ADMA2Active reports whether ADMA2 DMA transfers are enabled on this session.
+func (s *Session) ADMA2Active() bool {
+	return s != nil && s.admaActive.Load()
+}
+
+// Retired reports whether s is nil or has entered terminal ErrRetired containment.
+// Lock-free and safe for watchdog/liveness probes.
+func (s *Session) Retired() bool       { return s == nil || s.retired.Load() }
 func (s *Session) SectorCount() uint64 { return s.Identity().Sectors }
 func (s *Session) ReadSectors(lba uint64, dst []byte) error {
 	if s == nil || s.firmware == nil || s.device == nil || s.retired.Load() {
 		return ErrRetired
 	}
-	err := s.device.ReadSectors(lba, dst)
-	if err != nil && !errors.Is(err, sdhci.ErrQuiesced) && !errors.Is(err, block.ErrBounds) && !errors.Is(err, block.ErrAlignment) {
+	s.ioMu.RLock()
+	if s.retired.Load() {
+		s.ioMu.RUnlock()
+		return ErrRetired
+	}
+	if !s.active.Load() {
+		s.ioMu.RUnlock()
+		return sdhci.ErrQuiesced
+	}
+	var err error
+	if s.cache != nil {
+		err = s.cache.ReadSectors(lba, dst)
+	} else {
+		err = s.device.ReadSectors(lba, dst)
+	}
+	fatal := err != nil && !errors.Is(err, sdhci.ErrQuiesced) && !errors.Is(err, block.ErrBounds) && !errors.Is(err, block.ErrAlignment)
+	if fatal {
+		s.retired.Store(true)
+	}
+	s.ioMu.RUnlock()
+	if fatal {
 		return s.fail(err)
 	}
 	return err
@@ -116,9 +250,28 @@ func (s *Session) WriteSectors(lba uint64, src []byte) error {
 	if s == nil || s.firmware == nil || s.device == nil || s.retired.Load() {
 		return ErrRetired
 	}
-	err := s.device.WriteSectors(lba, src)
-	if err != nil && !errors.Is(err, sdhci.ErrQuiesced) && !errors.Is(err, block.ErrReadOnly) &&
-		!errors.Is(err, block.ErrBounds) && !errors.Is(err, block.ErrAlignment) {
+	s.ioMu.RLock()
+	if s.retired.Load() {
+		s.ioMu.RUnlock()
+		return ErrRetired
+	}
+	if !s.active.Load() {
+		s.ioMu.RUnlock()
+		return sdhci.ErrQuiesced
+	}
+	var err error
+	if s.cache != nil {
+		err = s.cache.WriteSectors(lba, src)
+	} else {
+		err = s.device.WriteSectors(lba, src)
+	}
+	fatal := err != nil && !errors.Is(err, sdhci.ErrQuiesced) && !errors.Is(err, block.ErrReadOnly) &&
+		!errors.Is(err, block.ErrBounds) && !errors.Is(err, block.ErrAlignment)
+	if fatal {
+		s.retired.Store(true)
+	}
+	s.ioMu.RUnlock()
+	if fatal {
 		return s.fail(err)
 	}
 	return err
@@ -127,8 +280,27 @@ func (s *Session) Flush() error {
 	if s == nil || s.firmware == nil || s.device == nil || s.retired.Load() {
 		return ErrRetired
 	}
-	err := s.device.Flush()
-	if err != nil && !errors.Is(err, sdhci.ErrQuiesced) {
+	s.ioMu.RLock()
+	if s.retired.Load() {
+		s.ioMu.RUnlock()
+		return ErrRetired
+	}
+	if !s.active.Load() {
+		s.ioMu.RUnlock()
+		return sdhci.ErrQuiesced
+	}
+	var err error
+	if s.cache != nil {
+		err = s.cache.Flush()
+	} else {
+		err = s.device.Flush()
+	}
+	fatal := err != nil && !errors.Is(err, sdhci.ErrQuiesced)
+	if fatal {
+		s.retired.Store(true)
+	}
+	s.ioMu.RUnlock()
+	if fatal {
 		return s.fail(err)
 	}
 	return err
@@ -142,19 +314,28 @@ func (s *Session) Quiesce() error {
 	}
 	s.control.Lock()
 	defer s.control.Unlock()
+	// Drain in-flight cached/uncached I/O under ioMu before checking retired/active
+	// so a concurrent fatal I/O cannot slip past the check into hardware teardown.
+	s.ioMu.Lock()
 	if s.firmware == nil || s.device == nil || s.retired.Load() {
+		s.ioMu.Unlock()
 		return ErrRetired
 	}
-	if !s.active {
+	if !s.active.Load() {
+		s.ioMu.Unlock()
 		return sdhci.ErrQuiesced
 	}
+	s.active.Store(false)
+	if s.cache != nil {
+		s.cache.Invalidate()
+	}
+	s.ioMu.Unlock()
 	if err := s.device.Quiesce(); err != nil {
 		return s.fail(err)
 	}
 	if err := s.firmware.Stop(); err != nil {
 		return s.fail(err)
 	}
-	s.active = false
 	return nil
 }
 
@@ -178,7 +359,7 @@ func (s *Session) resume(owner, generation uint64, returned bool) error {
 	if s.firmware == nil || s.device == nil || s.retired.Load() {
 		return ErrRetired
 	}
-	if s.active {
+	if s.active.Load() {
 		return ErrTransition
 	}
 	var err error
@@ -200,6 +381,17 @@ func (s *Session) resume(owner, generation uint64, returned bool) error {
 	if err := s.device.Resume(); err != nil {
 		return s.fail(err)
 	}
-	s.active = true
+	s.busWidth.Store(int32(s.device.BusWidth()))
+	s.admaActive.Store(s.device.ADMA2Active())
+	s.ioMu.Lock()
+	if s.retired.Load() {
+		s.ioMu.Unlock()
+		return ErrRetired
+	}
+	if s.cache != nil {
+		s.cache.Invalidate()
+	}
+	s.active.Store(true)
+	s.ioMu.Unlock()
 	return nil
 }

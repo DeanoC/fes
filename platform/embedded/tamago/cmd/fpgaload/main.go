@@ -39,6 +39,7 @@ var expectedWritableStoragePlan, expectedSDTransferClock string
 var programWritableStorageSelected bool
 var programService *nativefabric.ProgramService
 var retained *nativefabric.ConfigurationTransfer
+var programClockTarget interface{ SetClock(func() time.Time) }
 
 func decoded(s string, limit int) []byte {
 	if len(s) == 0 || len(s) > limit {
@@ -172,6 +173,9 @@ func main() {
 	if !ok {
 		panic(errors.New("FPGA load requires owned SD storage"))
 	}
+	if err := lease.EnableCache(block.CacheConfig{Capacity: 128}); err != nil {
+		panic(err)
+	}
 	var volume fs.FS
 	if writablePlan != nil {
 		check, done := context.WithTimeout(context.Background(), 100*time.Second)
@@ -182,6 +186,9 @@ func main() {
 	}
 	if err != nil {
 		panic(err)
+	}
+	if setter, ok := volume.(interface{ SetClock(func() time.Time) }); ok {
+		programClockTarget = setter
 	}
 	programWritableStorageSelected = writablePlan != nil
 	de25nano.StartupCheckpoint("fat_mount_end")

@@ -17,7 +17,7 @@ from scripts import c64_gcr
 SYS_CYCLES=1740800  # 2 * 1650 * 750 pixels at 74.25/52.224 MHz.
 
 
-def check_sid_stores(stores):
+def check_sid_stores(stores, cpu_hz=985248):
     # Independent expectations from the fixture's 6502 instruction stream.
     expected=[(0xd400,0x34),(0xd401,0x12),(0xd405,0),(0xd406,0xf0),
               (0xd404,0x21),(0xd418,15),(0xd418,15),(0xd500,0x66),
@@ -27,18 +27,19 @@ def check_sid_stores(stores):
     assert [r['delta_phi'] for r in stores[:12]]==[-1,6,6,6,6,6,4,22,5,1,6,12]
     assert all(r['delta_phi']==15 for r in stores[12:])
     # Eleven setup stores, then the 15-cycle loop beginning at Phi135.
-    last_phi=(SYS_CYCLES-26)*985248//52224000
+    last_phi=(SYS_CYCLES-27)*cpu_hz//52224000
     assert len(stores)==11+(last_phi-135)//15+1, 'accepted store count differs from the program'
+    expected_phi=55
     for index,row in enumerate(stores,1):
+        if index>1: expected_phi+=row['delta_phi']
+        assert row['phi_cycle']==expected_phi, 'store is not on the expected guest cycle'
         assert row['store_index']==index and row['register']==row['address']%32
         # Independent rational clock crossing: Phi p is at ceil(p*S/C)-1.
-        phi_edge=(row['phi_cycle']*52224000+985247)//985248-1
+        phi_edge=(row['phi_cycle']*52224000+cpu_hz-1)//cpu_hz-1
         assert row['sys_cycle']==phi_edge+27, 'store is not on the physical accepting edge'
 
 
-def main():
-    output=MODULE/'build/sim/fes-c64-checkpoint'
-    output.mkdir(parents=True,exist_ok=True)
+def write_sid_firmware(output):
     kernal=bytearray([0xea]*8192)
     # Original real-CPU fixture: disable badlines, configure a saw voice,
     # repeat a store, hide I/O, use a SID mirror, and issue both RMW writes.
@@ -57,10 +58,17 @@ def main():
     # Enable the motor/read channel and continuously change drive RAM.
     drive[:19]=bytes.fromhex('78 a2 ff 9a a9 6f 8d 02 1c a9 6c 8d 00 1c e6 00 4c 0e c0')
     drive[-6:]=bytes.fromhex('00 c0 00 c0 00 c0')
+    for name,data in [('firmware',bytes(8192)+kernal+bytes(4096)+drive),('drive',drive)]:
+        (output/f'{name}.hex').write_text(''.join(f'{b:02x}\n' for b in data))
+
+
+def main():
+    output=MODULE/'build/sim/fes-c64-checkpoint'
+    output.mkdir(parents=True,exist_ok=True)
+    write_sid_firmware(output)
     disk=bytes((i*37)&255 for i in range(174848))
     second=bytes(value^255 for value in disk)
-    for name,data in [('firmware',bytes(8192)+kernal+bytes(4096)+drive),('drive',drive),('disk',disk)]:
-        (output/f'{name}.hex').write_text(''.join(f'{b:02x}\n' for b in data))
+    (output/'disk.hex').write_text(''.join(f'{b:02x}\n' for b in disk))
     (output/'disk.g64').write_bytes(c64_gcr.g64(disk))
     (output/'second.g64').write_bytes(c64_gcr.g64(second))
     # Hold a key across the snapshot; its release must remain queued.

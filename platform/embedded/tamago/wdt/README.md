@@ -17,3 +17,13 @@ and `L4WD1` at `0x10d00300` / SPI 118 / GIC INTID 150).
     first expiry (`EnableIRQ` clears `WDT_EOI` and invokes a user callback) and
     asserts system reset on the second expiry if the interrupt is not cleared
     or the watchdog is not kicked.
+
+## Keepalive Supervisor
+
+`Supervisor` (`NewSupervisor` / `Start` / `Stop`) provides an opt-in periodic
+keepalive goroutine over any `Kicker` (such as `*DW`). Constructing a
+`Supervisor` does not arm hardware. `Start` clamps `KickInterval` to `actual/3`
+if hardware caps the achieved period, optionally runs a `Check` health probe
+before each kick (halting kicks on failure so hardware can reset a wedged
+system), and `Stop` waits for any in-flight `Check`/`Kick`/`OnError` call to
+finish before returning.

@@ -55,6 +55,7 @@ func stopHIDApp(t *testing.T, local bool) (*App, func() []remoteinput.Event) {
 		app.kitHost = true
 		app.session.Input = nil
 		app.session.CoreMouse = true
+		ownedLocalKeyboardForTest(app)
 		app.mu.Unlock()
 		return app, feed.snapshot
 	}
@@ -423,6 +424,7 @@ func TestStopEntryNeutralizesHeldHIDBeforeFailedStop(t *testing.T) {
 				snapshot = feed.snapshot
 				app.kitHost = true
 				app.session.Input = nil
+				ownedLocalKeyboardForTest(app)
 			} else {
 				app = NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
 				app.client.paired = true

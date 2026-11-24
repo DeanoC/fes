@@ -147,7 +147,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		serialPlatform.EnableInstallerViews()
 	}
 	inputMode := "uart"
-	if expectedUSBControl != "" {
+	if expectedUSBControl != "" && expectedTenfootUARTOnly != "1" {
 		cleanupUSBIRQ, err := enableProgramUSBIRQ(activeGIC)
 		if err != nil {
 			panic(err)
@@ -175,6 +175,11 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		}
 		display = "fpga-menu"
 	}
+	stopWatchdog, err := startProgramWatchdog(context.Background(), lease)
+	if err != nil {
+		panic(err)
+	}
+	defer stopWatchdog()
 	fmt.Printf("FES_NATIVE_TENFOOT_BEGIN display=%s input=%s preferences=%s\n", display, inputMode, startup.PreferencesMode)
 	nativeProgramPlatform = platform
 	if err := tenfoot.RunPlatform(context.Background(), app, device, nativeProgramPlatform); err != nil {

@@ -75,7 +75,11 @@ and content selection; the MiSTer is a small, directly controlled target.
 
   Home and first-run setup include the ZX81 and Spectrum families, Atari ST,
   Commodore 64, PC/XT and PC 386. Both PCs use the shared system workbench
-  for installed packages and saved disk selections. PC 386 has quality tier 1
+  for installed packages and saved disk selections. A writable PC/XT title
+  starts from its own 360 KiB disk or, without one, the FreeDOS boot disk the
+  host bundles; a format-2 package carries its BIOS in the bitstream, and the
+  DE25 format-3 package is a firmware upload that sends the start disk
+  alongside the firmware ROM. PC 386 has quality tier 1
   on DE10 with documented gameplay timing exceptions; launcher visibility
   does not change its release scope or establish acceptance on other boards.
   **Show all cores** adds the held-back families. Release-plan classifications

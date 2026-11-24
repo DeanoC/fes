@@ -73,6 +73,18 @@ func TestParseArgsKitHost(t *testing.T) {
 	}
 }
 
+func TestParseArgsNativeKeyboardV2IsExplicitOptIn(t *testing.T) {
+	getenv := func(string) string { return "" }
+	defaults, err := parseArgsWithEnv([]string{"-config", "/nonexistent-native-keyboard-config"}, getenv)
+	if err != nil || defaults.NativeKeyboardV2 {
+		t.Fatal("native keyboard v2 enabled by default")
+	}
+	opts, err := parseArgsWithEnv([]string{"-config", "/nonexistent-native-keyboard-config", "-kit-host", "-native-keyboard-v2"}, getenv)
+	if err != nil || !opts.KitHost || !opts.NativeKeyboardV2 {
+		t.Fatal("explicit native keyboard v2 option not parsed")
+	}
+}
+
 func TestParseArgsAPIHost(t *testing.T) {
 	t.Parallel()
 	opts, err := parseArgs([]string{"-api", "http://host.docker.internal:8787", "-api-host", "127.0.0.1:8787"})

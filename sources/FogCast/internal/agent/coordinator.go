@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"io"
+	"reflect"
 	"sync"
 	"time"
 
@@ -102,20 +103,27 @@ func WithSessionDisplayIPC(launcherSocket, targetID string) CoordinatorOption {
 	}
 }
 
+const defaultReadWaitTimeout = 2 * time.Second
+
 type Coordinator struct {
-	runtime                 Runtime
-	operationContext        context.Context
-	launchTimeout           time.Duration
-	coreLoadTimeout         time.Duration
-	stopTimeout             time.Duration
-	transition              chan struct{}
-	mu                      sync.RWMutex
-	status                  protocol.Status
-	updateBlocked           bool
-	events                  flightdiag.Sink
-	artifacts               *protocol.Artifacts
-	launcherDisplaySocket   string
-	launcherDisplayTargetID string
+	runtime                  Runtime
+	operationContext         context.Context
+	launchTimeout            time.Duration
+	coreLoadTimeout          time.Duration
+	stopTimeout              time.Duration
+	readWaitTimeout          time.Duration
+	mu                       sync.RWMutex
+	transitionActive         bool
+	readActive               bool
+	readDone                 chan struct{}
+	transitionEpoch          uint64
+	transitionEpochExhausted bool
+	status                   protocol.Status
+	updateBlocked            bool
+	events                   flightdiag.Sink
+	artifacts                *protocol.Artifacts
+	launcherDisplaySocket    string
+	launcherDisplayTargetID  string
 }
 
 func (c *Coordinator) record(kind, severity string, detail map[string]any) {
@@ -137,7 +145,7 @@ func New(runtime Runtime, launchTimeout, stopTimeout time.Duration, options ...C
 		launchTimeout:    launchTimeout,
 		coreLoadTimeout:  launchTimeout,
 		stopTimeout:      stopTimeout,
-		transition:       make(chan struct{}, 1),
+		readWaitTimeout:  defaultReadWaitTimeout,
 		status:           protocol.Status{State: protocol.StateIdle},
 	}
 	for _, option := range options {
@@ -149,16 +157,112 @@ func New(runtime Runtime, launchTimeout, stopTimeout time.Duration, options ...C
 }
 
 func (c *Coordinator) begin() bool {
-	select {
-	case c.transition <- struct{}{}:
+	return c.beginContext(context.Background())
+}
+
+// beginContext reserves the exclusive transition slot immediately so no new
+// read-only runtime access can start, then waits briefly for any single
+// in-flight read to release the runtime before returning.
+func (c *Coordinator) beginContext(ctx context.Context) bool {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	c.mu.Lock()
+	if c.transitionActive {
+		c.mu.Unlock()
+		return false
+	}
+	c.transitionActive = true
+	if c.transitionEpoch == ^uint64(0) {
+		c.transitionEpochExhausted = true
+	} else {
+		c.transitionEpoch++
+	}
+	wait := c.readDone
+	timeout := c.readWaitTimeout
+	c.mu.Unlock()
+	if wait == nil {
 		return true
-	default:
+	}
+	if timeout <= 0 {
+		timeout = defaultReadWaitTimeout
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-wait:
+		return true
+	case <-ctx.Done():
+		c.end()
+		return false
+	case <-timer.C:
+		c.end()
 		return false
 	}
 }
 
 func (c *Coordinator) end() {
-	<-c.transition
+	c.mu.Lock()
+	c.transitionActive = false
+	c.mu.Unlock()
+}
+
+// beginRead reserves the read-only runtime hold without taking the transition
+// slot. Reads yield immediately to any active or waiting transition, and
+// serialize against one another briefly so libmister-runtime's exclusive busy_
+// flag never rejects concurrent shelf polls.
+func (c *Coordinator) beginRead(ctx context.Context) bool {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var timer *time.Timer
+	for {
+		c.mu.Lock()
+		if c.transitionActive {
+			c.mu.Unlock()
+			if timer != nil {
+				timer.Stop()
+			}
+			return false
+		}
+		if !c.readActive {
+			c.readActive = true
+			c.readDone = make(chan struct{})
+			c.mu.Unlock()
+			if timer != nil {
+				timer.Stop()
+			}
+			return true
+		}
+		wait := c.readDone
+		timeout := c.readWaitTimeout
+		c.mu.Unlock()
+		if timer == nil {
+			if timeout <= 0 {
+				timeout = defaultReadWaitTimeout
+			}
+			timer = time.NewTimer(timeout)
+		}
+		select {
+		case <-wait:
+		case <-ctx.Done():
+			timer.Stop()
+			return false
+		case <-timer.C:
+			return false
+		}
+	}
+}
+
+func (c *Coordinator) endRead() {
+	c.mu.Lock()
+	done := c.readDone
+	c.readActive = false
+	c.readDone = nil
+	c.mu.Unlock()
+	if done != nil {
+		close(done)
+	}
 }
 
 func (c *Coordinator) set(status protocol.Status) {
@@ -171,6 +275,50 @@ func (c *Coordinator) Status() protocol.Status {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return cloneStatus(c.status)
+}
+
+type runtimeInputObserver interface {
+	ObserveRuntimeInput(context.Context) (*protocol.RuntimeInputIdentity, error)
+}
+
+// StatusWithRuntimeInput publishes the input identity only from a fresh,
+// bounded observation while no coordinator transition is in flight. It does
+// not reserve the transition slot or delay controls. An epoch detects even a
+// completed transition that starts and ends during the observation. It
+// never replaces cached session identity with an unrelated runtime result.
+func (c *Coordinator) StatusWithRuntimeInput(ctx context.Context) protocol.Status {
+	c.mu.RLock()
+	status := cloneStatus(c.status)
+	epoch, transitioning := c.transitionEpoch, c.transitionActive || c.transitionEpochExhausted
+	c.mu.RUnlock()
+	status.RuntimeInput = nil
+	if ctx == nil || status.State != protocol.StateActive || transitioning {
+		return status
+	}
+	observer, ok := c.runtime.(runtimeInputObserver)
+	if !ok || status.State != protocol.StateActive {
+		return status
+	}
+	bounded, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+	defer cancel()
+	identity, err := observer.ObserveRuntimeInput(bounded)
+	c.mu.RLock()
+	current := cloneStatus(c.status)
+	transitioned := c.transitionEpochExhausted || c.transitionEpoch != epoch || c.transitionActive
+	c.mu.RUnlock()
+	current.RuntimeInput = nil
+	if transitioned || !reflect.DeepEqual(status, current) {
+		return current
+	}
+	if err != nil || bounded.Err() != nil || identity == nil || identity.Validate() != nil {
+		return status
+	}
+	if (identity.Kind == protocol.RuntimeInputDescribed && status.CorePackage != nil && status.CorePackage.PackageID == identity.PackageID && status.CorePackage.Generation == identity.Generation) ||
+		(identity.Kind == protocol.RuntimeInputDevelopment && status.Development && status.CorePackage == nil) {
+		copy := *identity
+		status.RuntimeInput = &copy
+	}
+	return status
 }
 
 func (c *Coordinator) Health(version string) protocol.Health {
@@ -231,7 +379,7 @@ func (c *Coordinator) Initialize(ctx context.Context) {
 
 func (c *Coordinator) LoadDevelopmentRBF(parent context.Context, size int64, content io.Reader) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceProgram, "ok", map[string]any{"operation": "development_rbf", "size": size})
-	if !c.begin() {
+	if !c.beginContext(parent) {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
 	defer c.end()
@@ -297,7 +445,7 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 
 func (c *Coordinator) loadBoundCore(parent context.Context, size int64, content io.Reader, libraryID string, machine *protocol.LibraryMachineBinding, composition ...bool) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceProgram, "ok", map[string]any{"operation": "core_package", "size": size})
-	if !c.begin() {
+	if !c.beginContext(parent) {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
 	defer c.end()
@@ -402,6 +550,10 @@ func (c *Coordinator) loadBoundCore(parent context.Context, size int64, content 
 		BuildID: activation.Descriptor.Build.ID, ActiveInterfaces: interfaces,
 		Gamepad: activation.Gamepad, PersistenceMode: activation.PersistenceMode,
 	}
+	identity := protocol.RuntimeInputIdentity{Kind: protocol.RuntimeInputDescribed, RuntimeInstance: activation.RuntimeInstance, PackageID: activation.PackageID, Generation: activation.Generation}
+	if identity.Validate() == nil {
+		active.RuntimeInput = &identity
+	}
 	c.set(active)
 	return c.Status(), nil
 }
@@ -424,7 +576,7 @@ func (c *Coordinator) InspectCore(parent context.Context, size int64, content io
 
 func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceHandoff, "ok", map[string]any{"operation": "stop"})
-	if !c.begin() {
+	if !c.beginContext(parent) {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
 	defer c.end()
@@ -533,7 +685,7 @@ func runtimeStopReady(runtime Runtime) bool {
 
 func (c *Coordinator) RebootDevelopment(parent context.Context) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceRecovery, "warn", map[string]any{"operation": "development_reboot"})
-	if !c.begin() {
+	if !c.beginContext(parent) {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
 	defer c.end()
@@ -576,6 +728,10 @@ func (c *Coordinator) RebootDevelopment(parent context.Context) (protocol.Status
 
 func cloneStatus(status protocol.Status) protocol.Status {
 	copy := status
+	if status.RuntimeInput != nil {
+		identity := *status.RuntimeInput
+		copy.RuntimeInput = &identity
+	}
 	if status.GameID != nil {
 		value := *status.GameID
 		copy.GameID = &value
@@ -616,7 +772,9 @@ func cloneStatus(status protocol.Status) protocol.Status {
 		if status.CorePackage.MediaUnits != nil {
 			packageCopy.MediaUnits = append([]protocol.MediaUnitStatus(nil), status.CorePackage.MediaUnits...)
 		}
-		packageCopy.ActiveInterfaces = append([]protocol.RuntimeInterface(nil), status.CorePackage.ActiveInterfaces...)
+		if status.CorePackage.ActiveInterfaces != nil {
+			packageCopy.ActiveInterfaces = append(make([]protocol.RuntimeInterface, 0, len(status.CorePackage.ActiveInterfaces)), status.CorePackage.ActiveInterfaces...)
+		}
 		if status.CorePackage.MediaStream != nil {
 			streamCopy := *status.CorePackage.MediaStream
 			packageCopy.MediaStream = &streamCopy

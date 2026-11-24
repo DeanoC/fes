@@ -15,6 +15,16 @@ type padReports struct {
 }
 
 func (p *padReports) PollGamepad() ([]byte, error) { p.polls++; return []byte{128, 128, 1, 0}, p.err }
+func (p *padReports) PollGamepadInto(dst []byte) (int, error) {
+	p.polls++
+	if p.err != nil {
+		return 0, p.err
+	}
+	if len(dst) < 4 {
+		return 0, errors.New("buffer too small")
+	}
+	return copy(dst, []byte{128, 128, 1, 0}), nil
+}
 
 func TestGamepadActualCFirmwareOwnershipAndReplacement(t *testing.T) {
 	p := newRPC(t)

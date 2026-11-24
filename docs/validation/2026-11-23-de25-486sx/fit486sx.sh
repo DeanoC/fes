@@ -24,7 +24,11 @@ rm -rf $OUT
 $JOBS --label 486sx-s1 -- python3 boards/de25nano/producers/build_pc386_package.py \
   --vendor-archive $ZIP --cache-root $FES_TOOLCHAIN_CACHE_ROOT --gpu-router HIP \
   --output $OUT --package-output $P/packages-${REV:0:9} > $P/s1-${REV:0:9}.log 2>&1
-echo "s1 producer exit=$? $(date -u +%FT%TZ)" >> $L
+RC=$?
+echo "s1 producer exit=$RC $(date -u +%FT%TZ)" >> $L
+# The producer's gates (timing, signoff review, package admission) are method.md's pass rule:
+# a refused seed 1 stops the run; no further seed is fitted.
+[ $RC -eq 0 ] || { echo "s1 producer-refused" >> $L; echo DONE >> $L; exit 5; }
 SRC=$OUT/signoff/combined/hps/project
 [ -f $SRC/output_files/golden_top.fit.rpt ] || { echo no-seed1-fit >> $L; echo DONE >> $L; exit 4; }
 echo "s1 netlist $(sha256sum $SRC/fes_mailbox/pc386_system.v | cut -c1-64)" >> $L

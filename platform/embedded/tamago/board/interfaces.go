@@ -6,9 +6,12 @@
 package board
 
 import (
+	"context"
 	"image"
+	"net/netip"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
+	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 )
 
 // Architectural ARMv8 Generic Timer PPI interrupt IDs shared by all boards.
@@ -22,6 +25,11 @@ type Network interface {
 	Err() error
 	Address() string
 	Stats() string
+	Lease() (network.DHCPLease, bool)
+	NewLeaseRenewer(network.RenewConfig) (*network.LeaseRenewer, error)
+	RenewLeaseOnce(context.Context, bool, network.RenewConfig) (network.DHCPLease, error)
+	ResolveA(context.Context, string, network.DNSConfig) ([]netip.Addr, error)
+	QuerySNTP(context.Context, network.SNTPConfig) (network.SNTPResult, error)
 	EnableIRQ(*gic.Controller) error
 	DisableIRQ(*gic.Controller)
 	IRQCount() uint64

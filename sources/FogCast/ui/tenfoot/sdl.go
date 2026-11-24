@@ -222,6 +222,7 @@ import "C"
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"runtime"
 	"sort"
@@ -249,7 +250,7 @@ const (
 	evFocusLost    = C.FC_EV_FOCUS_LOST
 )
 
-func runWindow(ctx context.Context, opts Options) error {
+func runWindow(ctx context.Context, opts Options) (resultErr error) {
 	runtime.LockOSThread()
 	C.SDL_SetMainReady()
 	if !initSDLVideo() {
@@ -290,6 +291,11 @@ func runWindow(ctx context.Context, opts Options) error {
 	if err != nil {
 		return err
 	}
+	padRecovery, err := configureSDLPadRecovery(app, nativeKeyboardInputEnabled(opts))
+	if err != nil {
+		app.Stop()
+		return err
+	}
 	if opts.Smoke {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, opts.SmokeTimeout)
@@ -297,6 +303,15 @@ func runWindow(ctx context.Context, opts Options) error {
 	}
 	app.Start(ctx)
 	defer app.Stop()
+	if padRecovery != nil {
+		worker := &sdlPadRecovery{padOnlyRecovery: padRecovery}
+		worker.start()
+		defer func() {
+			stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			resultErr = errors.Join(resultErr, worker.stop(stopCtx))
+		}()
+	}
 
 	pads := map[C.SDL_JoystickID]*C.SDL_Gamepad{}
 	defer func() {

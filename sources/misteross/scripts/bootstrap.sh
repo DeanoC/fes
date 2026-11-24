@@ -43,6 +43,9 @@ CUDA_ARCHITECTURES="${FES_TOOLCHAIN_CUDA_ARCHITECTURES:-86}"
 CACHE_HELPER="$SCRIPT_DIR/toolchain_cache.py"
 CACHE_ENABLED=0
 CACHE_ROOT_REQUEST="${FES_TOOLCHAIN_CACHE_ROOT:-}"
+# The LRU size cap. prepare_shared_build_environment scrubs the variable, so
+# publish receives it as --max-gb and no build child ever sees it.
+CACHE_MAX_GB_REQUEST="${FES_TOOLCHAIN_CACHE_MAX_GB:-}"
 CACHE_LOCK_FD=""
 # Per-tool install plan from toolchain_cache.py. Unset first: an inherited
 # variable of the same name would otherwise block the associative declare.
@@ -87,7 +90,7 @@ fi
 
 # SRC_ROOT, BUILD_ROOT and INSTALL_ROOT stay writable: the shared cache points
 # them at each tool's own install directory in turn.
-readonly SCRIPT_DIR OPEN_MISTER_ROOT LOCKFILE PYTHON TOOLCHAIN_ROOT TOOLCHAIN_LOCK_PATH JOBS GPU_ROUTER HIP_ARCHITECTURES CUDA_ARCHITECTURES CACHE_HELPER CACHE_ENABLED CACHE_ROOT_REQUEST CACHE_TOOL_KEY CACHE_TOOL_DIRECTORY CACHE_TOOL_LOCK INHERITED_TOOLCHAIN_ROOT INHERITED_TOOLCHAIN_INSTALL INHERITED_TOOLCHAIN_BUILD INHERITED_ROCM_PATH INHERITED_HIPCC INHERITED_CUDA_HOME INHERITED_CUDACXX INHERITED_CUDA_PATH
+readonly SCRIPT_DIR OPEN_MISTER_ROOT LOCKFILE PYTHON TOOLCHAIN_ROOT TOOLCHAIN_LOCK_PATH JOBS GPU_ROUTER HIP_ARCHITECTURES CUDA_ARCHITECTURES CACHE_HELPER CACHE_ENABLED CACHE_ROOT_REQUEST CACHE_MAX_GB_REQUEST CACHE_TOOL_KEY CACHE_TOOL_DIRECTORY CACHE_TOOL_LOCK INHERITED_TOOLCHAIN_ROOT INHERITED_TOOLCHAIN_INSTALL INHERITED_TOOLCHAIN_BUILD INHERITED_ROCM_PATH INHERITED_HIPCC INHERITED_CUDA_HOME INHERITED_CUDACXX INHERITED_CUDA_PATH
 
 TOOLS=(yosys mistral nextpnr verilator openfpgaloader)
 declare -A REPO COMMIT ORDER
@@ -653,7 +656,7 @@ prepare_shared_build_environment() {
     while IFS= read -r name; do
         case "$name" in
             PATH|HOME|USER|LOGNAME|TMPDIR|SHELL|TERM|LANG|LC_ALL|TZ) ;;
-            SCRIPT_DIR|OPEN_MISTER_ROOT|LOCKFILE|PYTHON|TOOLCHAIN_ROOT|TOOLCHAIN_LOCK_PATH|SRC_ROOT|BUILD_ROOT|INSTALL_ROOT|JOBS|GPU_ROUTER|HIP_ARCHITECTURES|CUDA_ARCHITECTURES|CACHE_HELPER|CACHE_ENABLED|CACHE_ROOT_REQUEST|CACHE_LOCK_FD|INHERITED_TOOLCHAIN_ROOT|INHERITED_TOOLCHAIN_INSTALL|INHERITED_TOOLCHAIN_BUILD)
+            SCRIPT_DIR|OPEN_MISTER_ROOT|LOCKFILE|PYTHON|TOOLCHAIN_ROOT|TOOLCHAIN_LOCK_PATH|SRC_ROOT|BUILD_ROOT|INSTALL_ROOT|JOBS|GPU_ROUTER|HIP_ARCHITECTURES|CUDA_ARCHITECTURES|CACHE_HELPER|CACHE_ENABLED|CACHE_ROOT_REQUEST|CACHE_MAX_GB_REQUEST|CACHE_LOCK_FD|INHERITED_TOOLCHAIN_ROOT|INHERITED_TOOLCHAIN_INSTALL|INHERITED_TOOLCHAIN_BUILD)
                 # These are shell-only bootstrap state.  Keep their values for
                 # the functions above, but remove any inherited export bit.
                 export -n "$name"
@@ -687,7 +690,9 @@ run_cache_helper() {
 shared_cache_release() {
     if [[ -n "${CACHE_LOCK_FD:-}" ]]; then
         flock -u "$CACHE_LOCK_FD" 2>/dev/null || true
-        exec {CACHE_LOCK_FD}>&- 2>/dev/null || true
+        # exec makes every redirection it carries permanent, so the group
+        # scopes 2>/dev/null: later diagnostics and eviction logs still show.
+        { exec {CACHE_LOCK_FD}>&-; } 2>/dev/null || true
         CACHE_LOCK_FD=""
     fi
 }
@@ -766,7 +771,9 @@ shared_cache_tool() {
     build_tool "$tool"
     run_cache_helper --tool "$tool" --expect-key "$key" stage-evidence --build-root "$BUILD_ROOT" >/dev/null ||
         die "cannot stage shared $tool authentication evidence"
-    run_cache_helper --tool "$tool" --expect-key "$key" publish --lock-fd "$CACHE_LOCK_FD" >/dev/null ||
+    local -a publish_options=(--lock-fd "$CACHE_LOCK_FD")
+    [[ -z "$CACHE_MAX_GB_REQUEST" ]] || publish_options+=("--max-gb=$CACHE_MAX_GB_REQUEST")
+    run_cache_helper --tool "$tool" --expect-key "$key" publish "${publish_options[@]}" >/dev/null ||
         die "cannot publish shared $tool ready manifest"
     # ready.json keeps the evidence digests authentication checks; the
     # checkout and the build tree are not part of the install.

@@ -218,10 +218,13 @@ The entry points are `internal/hostapi`, `fogcast`, `internal/agent`,
 `internal/httpapi`, and `internal/misterruntime`. `internal/systems/table.go`
 retains library platform metadata; it does not describe raw-core launch recipes.
 
-Writable PC/XT library floppy launches send the exact immutable 360 KiB disk
-with the format-2 package. The target seals and validates both before asking
-the runtime to restore the bound revision and load the disk while the CPU is
-held. It accepts launch only after the runtime reports the requested ready,
+Writable PC/XT library floppy launches send the exact immutable 360 KiB start
+disk with the package: a format-2 package on its own, or a format-3 package
+(the DE25 PC/XT) as a firmware upload with the start disk alongside the linked
+firmware ROM in the same ROM input. The start disk is the entry's selected disk
+or, without one, the FreeDOS boot disk the host bundles. The target seals and validates both
+before asking the runtime to restore the bound revision and load the disk while
+the CPU is held. It accepts launch only after the runtime reports the requested ready,
 persistent game and base identity. Raw development inserts are volatile.
 
 The browser, kit launcher, and ordinary CLI send a game ID to the same
@@ -1291,7 +1294,13 @@ takes the same body, needs the kit lease, and removes the record so the next
 launch reads the imported disk again; the runtime refuses it while a core is
 running. A discard may borrow the caller's kit lease, but retains it after a
 `BUSY` response because another concurrent discard may still be using that
-shared grant. Inspect and export change nothing and need no lease.
+shared grant. Inspect and export change nothing and need no lease. They use the
+coordinator's read-only hold rather than the launch/stop transition slot: reads
+serialize briefly against one another to respect `libmister-runtime`'s `busy_`
+guard, yield immediately with `BUSY` whenever a transition is active or waiting,
+and transitions reserve admission first and wait up to 2 s (bounded by caller
+context) for any single in-flight read to finish so shelf polling does not
+reject a concurrent Stop or Launch with `BUSY`.
 
 The `fes.computer` 1.1 pc386 `fes.media.ata-disk` unit is a fixed 1..128 MiB
 unit with 65,536-byte chunks and always reports `saveable:false`. Its package
@@ -1673,11 +1682,27 @@ The input tap endpoint accepts `session_id` from the current input status and
 one HID keyboard press `event` only for an active session with a negotiated
 `fes.keyboard.hid` 1.0 interface. Native gamepad and legacy matrix sessions
 are rejected instead of silently dropping or remapping physical keys. It
-checks the selected kit's connection and lease and input attachment after
+also accepts an optional `modifiers` bitmask, where bits 0..7 denote HID
+usages `0xe0..0xe7`. A nonzero mask requires a non-modifier key. The target
+negotiates chord support separately, applies key and modifier contributions in
+one HID state, and removes only those contributions together. Unrelated
+kit-local holds are retained. The key and modifiers share the tap's ownership
+token; overlapping taps cannot claim the same modifier. A focus transition
+retires the tap along with other held inputs. A remote disconnect retires the
+remote contributions while preserving kit-local holds.
+Unsupported targets fail before chord dispatch.
+The host checks the selected kit's connection and lease and input attachment after
 waiting for the input lock. It rejects missing, incompatible, or unknown target
 observations. On an explicit tap, the host probes the bridge for target-timed
-tap support, then sends one generation-bound operation. The target observes
-the active core and applies the press and release 60 ms apart using its local
+tap support, then sends one generation-bound operation. The target waits at
+most 500 ms for a concurrent kit-local input operation to leave the lifecycle
+fence, then observes the active generation again; cancellation, a longer
+transition, a changed lease or generation, or a focus handoff during that wait
+rejects the tap without a press. An admitted bridge follows the target execution
+lease lifetime, so revocation cancels a pending tap even before ownership
+cleanup has drained the CONNECT request. Ordinary stream disconnects do not
+end that lease. The target
+applies the press and release 60 ms apart using its local
 clock; unrelated held keys from other sources remain held. The tap fails if
 the same key is held locally before the tap or becomes held before its release. A cancellation or
 uncertain press triggers a release attempt; an unconfirmed operation closes
@@ -1835,7 +1860,8 @@ Native SNES/MD
 encode USB keys as gamepad buttons (codes 100–112) so the target mux does not
 route them to `set_keyboard` and reconnect replay does not treat matrix codes
 as axes. Foreign kit leases and `recovery-required` connections fail closed
-and drop HID. On the kit,
+for generic HID. A kit-host launcher sends physical HID keyboard edges to an
+active machine through the generation-bound local route described below. On the kit,
 USB keyboards join the play-session input stream with gamepads; `fes.keyboard`
 packages are eligible without `fes.gamepad`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
 `software`, `fpga`, or `fpga-stub` for tests; the production sofa path stays SDL3.
@@ -3001,11 +3027,16 @@ session status and keeps menu presents
 parked while a running core owns the display, including after a restart.
 
 A gamepad or USB keyboard on the kit
-writes raw input frames to `/run/fogcast/local-input.sock` through
+writes input frames to `/run/fogcast/local-input.sock` through
 `ui/localfeed` while a runtime core is bound, and does not post those events to
 the host. A kit-host session with a local feed does not require a host
-remote-input attachment to forward its keyboard; display
-transitions, launcher controls and foreign leases still suppress input. A pad on
+remote-input attachment to forward its keyboard when it owns the execution lease.
+A private remote host explicitly admits the physical HID keyboard with the same
+execution token used to attach input. For an active externally owned game, the
+kit host observes the local agent's held lease without claiming it, publishes
+the observed session with its own input bridge detached, and does not attempt
+remote input reconciliation. Lease observation failure and recovery remain
+fail-closed. Display transitions and launcher controls still suppress input. A pad on
 another machine is delivered on the host-to-kit input stream
 for the session that owns the play. A missing stream is an error to that
 caller. The kit pad does not fall back onto the host route.
@@ -3578,17 +3609,21 @@ socket. Import, staging, adoption and runtime status checks retain exact
 shell and cart version binding; tuple identity domains are unchanged.
 
 `internal/misterruntime/computer.go` is the protocol-2 client for the other
-`fes.computer` operations. Each request is bound to the exact active package
-generation and each reply must report that same `fes.computer` generation:
+`fes.computer` operations. Keyboard requests carry the exact runtime instance,
+active package and generation observed at input admission; replies must report
+the same binding. Other operations retain their specified package and generation
+bindings:
 
 ```json
-{"protocol":2,"operation":"set_keyboard_hid","package_id":"…","expected_generation":N,"rows":[r0,r1,r2,r3,r4,r5,r6,r7,r8]}
+{"protocol":2,"operation":"set_keyboard_hid","runtime_instance":"…","package_id":"…","expected_generation":N,"rows":[r0,r1,r2,r3,r4,r5,r6,r7,r8]}
 {"protocol":2,"operation":"insert_media","path":"…/media.bin","expected_package_id":"…","expected_generation":N,"unit":0,"size":143360}
 {"protocol":2,"operation":"eject_media","expected_package_id":"…","expected_generation":N,"unit":0}
 ```
 
 Rows are nine 16-bit values; row 0 bits 0..3 and row 8 bits 8..15 must be
 zero. `set_controller` is unchanged and carries `keypad:0` for these packages.
+Status and keyboard writes use the matching runtime and agent bundle contract;
+an older runtime without the instance field cannot be mixed with this agent.
 Status may report `capabilities.media_units`
 (`[{"unit":0,"interface":{"id":"fes.media.apple2-floppy","major":1,"minor":0},"min_bytes":143360,"max_bytes":143360,"chunk_bytes":512,"state":"empty|loading|ready"}]`);
 the decoder accepts it only for an active `fes.computer` generation whose
@@ -3756,11 +3791,27 @@ For observed `fes.coleco`, `fes.sms` and `fes.sg1000` with active `fes.keyboard`
 1.0, the agent maps kit-local pad directions, left stick and A (plus Coleco B)
 onto that keyboard matrix. Each physical pad retains its own buttons and axes;
 their desired matrix keys combine by OR, including opposing stick directions.
-A matrix post that fails stays unconfirmed. The next local pad frame sends
-that pad's full desired matrix, so a release after an ambiguous press failure
-still reaches the runtime.
+A matrix post that fails stays unconfirmed. The next local pad frame first
+neutralizes that exact uncertain source while preserving confirmed remote
+contributors; held local mappings remain suppressed until their physical
+contributors release. A proven pre-dispatch failure can instead retry the
+current desired state.
+For a fresh, unbound matrix sink, lifecycle cleanup may omit the matrix write
+only after a fresh explicit idle observation with a valid runtime instance.
+That proof applies to the current guarded cleanup only: it cannot authorize an
+unbound press or hide an unrelated cleanup failure.
 Synthetic pad keys, the physical local keyboard and the remote keyboard retain
 separate contributions, so one release cannot clear another device's hold.
+Per-player pad controls survive a core transition for release bookkeeping,
+including aliases and mappings absent from the new core. If a reader disconnects
+with controls held, its affected matrix keys remain quarantined: a new raw
+reader has no source identity or physical snapshot that could prove their
+release. This quarantine lasts for the agent lifetime; an agent restart clears
+the bookkeeping but does not prove the physical controls were released or
+prevent a still-held control from being presented again. Unrelated mappings and
+disconnects with no held controls remain usable. A same-reader departure that
+still has ambiguous contributors quarantines only their mapped keys and retains
+unrelated player contributions.
 Local pad frames do not also enter the virtual gamepad. Other cores retain the
 single virtual gamepad and keyboard sink.
 Installed-core inventory uses a separate root-only HTTP socket at
@@ -3774,15 +3825,40 @@ core names `keyboard` when its package requires `fes.keyboard.hid`, or plain
 Master System, SG-1000 and earlier ColecoVision reuse that matrix as a
 joystick, so it is not a keyboard requirement.
 
-A pad or USB keyboard on the kit writes raw input frames to
+A pad or USB keyboard on the kit writes input frames to
 `/run/fogcast/local-input.sock`; keyboard frames carry the key's USB HID usage
 (`internal/hidkeys`, from evdev `KEY_*`). mister-agent
 shapes them with `playhid.StreamEvent` from the runtime's controller-port and keyboard
 capabilities, then applies the same keypad Start/Select aliases as the host stream.
 HID sessions keep the usages; `fes.keyboard` and native cores first map a usage to the
 ZX81 matrix or arrow code the kit sent before HID, so those cores see the same keys.
-The socket is not an HTTP route and does not consult the kit lease, so a pad on the
-kit drives the running core whichever host launched it. Frames are delivered only
+The managed kit bundle enables acknowledged local-keyboard recovery in both
+the agent and kit-host launcher. The target arms its recovery fence before
+serving input; the native launcher requires a fresh physical snapshot. An
+authority generation change triggers a new all-device snapshot even when no
+device has changed or reported a fault since the previous snapshot. An
+unmanaged target defaults off and can opt in with `FOGCAST_LOCAL_KEYBOARD_V2=1`;
+an invalid value fails agent startup. Optional SDL kit-host mode reports the
+physical keyboard unavailable, while paired-host SDL remains available.
+The feed is not an HTTP route. For kit-host HID keyboard events, each frame
+has a record carrying the observed lease generation, exact HID package/core
+generation and launcher queue epoch. The target agent accepts records only on its root-only socket and admits each edge
+against that execution generation, re-observes the HID binding under the
+lifecycle lock, and holds the admission until the write ends. The owning host
+requests keyboard admission against the attached input session and its exact
+runtime instance, package and core generation using the execution lease token.
+The instance is carried from the attachment offer; a later runtime cannot
+inherit an admission even if its package and generation match. The host retries
+that idempotent request within a bounded interval and reports `local_keyboard`
+as `ready` or `unavailable` in input status. Admission survives remote input
+disconnect or detach for the same execution lease and core; Stop, replacement
+and lease loss end it. Revocation
+cancels and drains admitted writes before neutralization; a queued event never
+advances to a replacement. Raw pad and mouse events share the connection and
+retain their state across keyboard binding changes. A keyboard reset retires
+only the local keyboard contribution; failed neutral posts are reported and
+retried on the original binding until confirmed, replaced or revoked. Focus
+and Stop fences still apply. Frames are delivered only
 while a runtime core is bound. A kit-local HID release is the exception: when a
 probe fails, a release for the generation that probe kept is still posted. If
 that post does not land, a later local frame retries it under the same lock,
@@ -4216,8 +4292,14 @@ including when no record has yet been written, and checks durable target data.
 
 `targetclient/core_data_client.go` sends bounded archives and expected package IDs to
 `internal/httpapi/core_data.go`; writes and library loads use the existing kit
-lease. Read-only data inspection does not claim hardware. The target coordinator
-serializes these calls against lifecycle operations. `internal/misterruntime/core_data.go`
+lease. Read-only data inspection (`InspectCoreData`, `InspectGameCoreData`,
+`InspectMediaRecord`, `ExportMediaRecord`) does not claim hardware or take the
+launch/stop transition slot: the target coordinator serializes reads against one
+another under a separate read hold without bumping `transitionEpoch` (so
+`StatusWithRuntimeInput` stays live), returns `BUSY` immediately to new reads
+once any transition is active or waiting, and lets transitions reserve admission
+first and wait up to 2 s (bounded by caller context) for any single in-flight
+read to release the runtime before proceeding. `internal/misterruntime/core_data.go`
 privately stages/admit-checks exact bytes, supplies the fixed trusted
 `/media/fat/fogcast/core-data` root, and calls protocol-2 `inspect_core_data`,
 `update_core_settings`, or `load_library_core`. No network caller supplies a
@@ -4507,9 +4589,11 @@ Controller-port releases received
 while the launcher has focus clear their retained source snapshot without
 being sent to the core, so released buttons cannot replay when focus returns.
 The agent-authorized launcher display callback accepts the kit-local host’s
-matching busy projection for another FogCast host’s active lease. Local HID
-remains fenced under that foreign lease; package, generation and target
-identity and transition fences still apply.
+matching busy projection for another FogCast host’s active lease. The launcher
+may send physical HID keyboard edges through the generation-bound local route
+while that same machine has focus; generic HID and unrelated kit operations
+remain fenced under the foreign lease. Package, generation, target identity and
+transition fences still apply.
 The agent holds the launcher publication guard through the runtime display
 transition and its prepare/finish exchange, so a replacement launcher cannot
 adopt the previous plane while that transition is still in flight.

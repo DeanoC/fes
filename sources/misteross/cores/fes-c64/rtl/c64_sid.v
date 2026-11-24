@@ -19,7 +19,8 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
     parameter bit FILTER_AUDIO = 1'b0,
     // Opt-in exact reSID MOS6581 DAC/filter translation (c64_sid_audio) in
     // place of the default state-variable filter (c64_sid_svf).
-    parameter bit RESID_FILTER = 1'b0) (
+    parameter bit RESID_FILTER = 1'b0,
+    parameter bit SID_8580 = 1'b0) (
     input  wire               clk,
     input  wire               phi,
     input  wire               reset,
@@ -47,12 +48,59 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
         stage_pipe <= reset ? 10'd0 : {stage_pipe[8:0], phi};
     // The edge on which every voice's output wave is final for this Phi.
     wire audio_phi = SEQUENCE_VOICES ? stage_pipe[9] : phi;
+    // MOS8580 latches writes for the following SID clock. Apply the
+    // previous write after its waveform/audio capture. On sequenced systems
+    // phi+10 is the last capture, leaving the shared lookup free for CONTROL.
+    wire write_strobe;
+    wire [4:0] write_addr;
+    wire [7:0] write_data;
+    if (SID_8580) begin : delayed_writes
+        reg valid = 0;
+        reg [4:0] latched_addr;
+        reg [7:0] latched_data;
+        always @(posedge clk) begin
+            if (reset) valid <= 0;
+            else begin
+                if (phi) valid <= 0;
+                if (cs && we) begin
+                    valid <= 1;
+                    latched_addr <= addr;
+                    latched_data <= din;
+                end
+            end
+        end
+        if (SEQUENCE_VOICES) begin : sequenced_write
+            reg dispatch = 0;
+            reg [4:0] dispatch_addr;
+            reg [7:0] dispatch_data;
+            always @(posedge clk) begin
+                if (reset) dispatch <= 0;
+                else if (phi) begin
+                    dispatch <= valid;
+                    dispatch_addr <= latched_addr;
+                    dispatch_data <= latched_data;
+                end
+            end
+            assign write_strobe = audio_phi && dispatch;
+            assign write_addr = dispatch_addr;
+            assign write_data = dispatch_data;
+        end else begin : direct_write
+            assign write_strobe = phi && valid;
+            assign write_addr = latched_addr;
+            assign write_data = latched_data;
+        end
+    end else begin : immediate_writes
+        assign write_strobe = cs && we;
+        assign write_addr = addr;
+        assign write_data = din;
+    end
+
     wire [2:0] lookup_request;
     wire [11:0] lookup_index [0:2];
     wire [2:0] lookup_ring_xor;
     wire [47:0] lookup_tables;
     generate if(SEQUENCE_VOICES) begin : shared_tables
-        c64_sid_wave_tables tables(.clk(clk),
+        c64_sid_wave_tables #(.SID_8580(SID_8580)) tables(.clk(clk),
             .phase_index(lookup_request[0] ? lookup_index[0] : lookup_request[1] ? lookup_index[1] : lookup_index[2]),
             .ring_xor(lookup_request[0] ? lookup_ring_xor[0] : lookup_request[1] ? lookup_ring_xor[1] : lookup_ring_xor[2]),
             .lookup_tables(lookup_tables));
@@ -75,16 +123,16 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
         wire ring_source_msb=SEQUENCE_VOICES ? phase_now[SOURCE][23] :
             phi ? (v==0 ? source_before_feedback : phase_feedback[SOURCE][23]) : phase_now[SOURCE][23];
         wire write_source_msb=(phi && !SEQUENCE_VOICES) ? phase_feedback[SOURCE][23] : phase_now[SOURCE][23];
-        wire [4:0] oscillator_addr=addr-BASE;
-        wire control_write=addr==BASE+5'd4;
-        wire ad_write=addr==BASE+5'd5;
-        wire sr_write=addr==BASE+5'd6;
-        c64_sid_oscillator #(.PREPARE_PHASE(PREPARE_PHASE),.SEQUENCED(SEQUENCE_VOICES)) oscillator (
+        wire [4:0] oscillator_addr=write_addr-BASE;
+        wire control_write=write_addr==BASE+5'd4;
+        wire ad_write=write_addr==BASE+5'd5;
+        wire sr_write=write_addr==BASE+5'd6;
+        c64_sid_oscillator #(.PREPARE_PHASE(PREPARE_PHASE),.SEQUENCED(SEQUENCE_VOICES),.SID_8580(SID_8580)) oscillator (
             .clk(clk),.reset(reset),.phi(phi),.stage(SEQUENCE_VOICES && stage_pipe[3*v]),
             .lookup_request(lookup_request[v]),.lookup_index(lookup_index[v]),
             .lookup_ring_xor(lookup_ring_xor[v]),.lookup_tables(lookup_tables),
-            .we(we && cs && oscillator_addr<=5'd4),
-            .addr(oscillator_addr[2:0]),.din(din),
+            .we(write_strobe && oscillator_addr<=5'd4),
+            .addr(oscillator_addr[2:0]),.din(write_data),
             .sync_clear(sync_clear[v]),.source_msb(ring_source_msb),.source_write_msb(write_source_msb),
             .phase_now(phase_now[v]),.phase_advanced(phase_advanced[v]),.phase_feedback(phase_feedback[v]),
             .msb_rising(msb_rising[v]),.sync_enabled(sync_enabled[v]),
@@ -92,9 +140,9 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
         );
         c64_sid_envelope #(.PREPARE_STATE(PREPARE_ENVELOPE)) envelope (
             .clk(clk), .reset(reset), .phi(phi),
-            .we(we && cs && (control_write || ad_write || sr_write)),
+            .we(write_strobe && (control_write || ad_write || sr_write)),
             .addr(control_write ? 2'd0 : ad_write ? 2'd1 : 2'd2),
-            .din(din), .level(env[v]), .env3(env_read[v])
+            .din(write_data), .level(env[v]), .env3(env_read[v])
         );
     end endgenerate
     assign dout=addr==5'h1c ? env_read[2] : addr==5'h1b ? oscillator_read[2] : 8'h00;
@@ -119,16 +167,22 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
                     captured_wave0<=clocked_wave[0];captured_wave1<=clocked_wave[1];captured_wave2<=clocked_wave[2];
                     captured_cutoff<=cutoff;captured_routing<=routing;captured_mode<=mode_volume;
                 end
-                if(we && cs) case(addr)
-                    5'h15:cutoff[2:0]<=din[2:0];
-                    5'h16:cutoff[10:3]<=din;
-                    5'h17:routing<=din;
-                    5'h18:mode_volume<=din;
+                if(write_strobe) case(write_addr)
+                    5'h15:cutoff[2:0]<=write_data[2:0];
+                    5'h16:cutoff[10:3]<=write_data;
+                    5'h17:routing<=write_data;
+                    5'h18:mode_volume<=write_data;
                     default:;
                 endcase
             end
         end
-        if(RESID_FILTER) begin : resid
+        if(SID_8580) begin : mos8580
+        c64_sid_8580_audio audio(.clk(clk),.reset(reset),.phi(phi),.voices_ready(pending),
+            .wave0(captured_wave0),.wave1(captured_wave1),.wave2(captured_wave2),
+            .env0(env[0]),.env1(env[1]),.env2(env[2]),
+            .fc(cutoff),.res_filt(routing),.mode_vol(mode_volume),
+            .done(done),.busy(busy),.sample(wide_sample));
+        end else if(RESID_FILTER) begin : resid
         c64_sid_audio audio(.clk(clk),.reset(reset),.start(pending),
             .wave0(captured_wave0),.wave1(captured_wave1),.wave2(captured_wave2),
             .env0(env[0]),.env1(env[1]),.env2(env[2]),
@@ -164,7 +218,7 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
             volume <= 4'd0;
             sample <= 16'sd0;
         end else begin
-            if(we && cs && addr==5'h18) volume<=din[3:0];
+            if(write_strobe && write_addr==5'h18) volume<=write_data[3:0];
             sample <= 16'(volume_mix >>> 6);
         end
     end

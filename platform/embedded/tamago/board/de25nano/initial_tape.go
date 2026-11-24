@@ -21,9 +21,32 @@ type spectrumROMBatcher interface {
 	WithSpectrumROMBatch(uint64, func(computer.IO) error) error
 }
 
+type heldMediaBatcher interface {
+	WithHeldMediaBatch(uint64, func(computer.IO) error) error
+}
+
+type inputBatcher interface {
+	WithInputBatch(uint64, func(computer.IO) error) error
+}
+
+type initialTapeFullCPU struct {
+	initialTapeMediaCPU
+	inputBatcher
+}
+
+type initialTapeMediaCPU struct {
+	initialTapeROMCPU
+	heldMediaBatcher
+}
+
 type initialTapeROMCPU struct {
 	initialTapeCPU
 	spectrumROMBatcher
+}
+
+type initialTapeInputCPU struct {
+	initialTapeCPU
+	inputBatcher
 }
 
 func selectProgramCPU(cpu nativefabric.CPUTransport, arena func() (*nativefabric.InitialTapeArena, error), selected, compiled bool) (nativefabric.CPUTransport, error) {
@@ -34,8 +57,20 @@ func selectProgramCPU(cpu nativefabric.CPUTransport, arena func() (*nativefabric
 		return cpu, nil
 	}
 	tapeCPU := initialTapeCPU{cpu, arena}
+	inp, hasInput := cpu.(inputBatcher)
 	if rom, ok := cpu.(spectrumROMBatcher); ok {
-		return initialTapeROMCPU{tapeCPU, rom}, nil
+		wrapped := initialTapeROMCPU{tapeCPU, rom}
+		if media, ok := cpu.(heldMediaBatcher); ok {
+			mediaCPU := initialTapeMediaCPU{wrapped, media}
+			if hasInput {
+				return initialTapeFullCPU{mediaCPU, inp}, nil
+			}
+			return mediaCPU, nil
+		}
+		return wrapped, nil
+	}
+	if hasInput {
+		return initialTapeInputCPU{tapeCPU, inp}, nil
 	}
 	return tapeCPU, nil
 }

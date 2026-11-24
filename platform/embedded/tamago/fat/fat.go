@@ -31,6 +31,11 @@ const maxFileBytes = 64 << 20
 const maxDirectoryBytes = 4 << 20
 const maxTransferSectors = 128 // 64 KiB per coalesced ReadSectors/WriteSectors call
 
+type entryLocation struct {
+	sector uint64
+	offset int
+}
+
 type Volume struct {
 	mu                  sync.Mutex
 	device              block.Device
@@ -42,6 +47,61 @@ type Volume struct {
 	fsInfo              uint64
 	allocationValid     bool
 	mutationErr         error
+	replacedGen         map[entryLocation]uint64
+	clock               func() time.Time
+}
+
+// SetClock configures an optional UTC wall-clock source used to stamp new
+// entries (CreateFile, Mkdir) and updates (WriteFile). Passing nil restores
+// the deterministic 1980-01-01 default.
+func (v *Volume) SetClock(now func() time.Time) {
+	v.mu.Lock()
+	v.clock = now
+	v.mu.Unlock()
+}
+
+func (v *Volume) currentTimeLocked() time.Time {
+	if v.clock == nil {
+		return time.Time{}
+	}
+	return v.clock()
+}
+
+func encodeFATTimestamp(t time.Time) (date, clockTime uint16, tenths byte) {
+	if t.IsZero() {
+		return 0x0021, 0, 0
+	}
+	t = t.UTC()
+	if t.Year() < 1980 {
+		return 0x0021, 0, 0
+	}
+	if t.Year() > 2107 {
+		return uint16((2107-1980)<<9 | 12<<5 | 31), uint16(23<<11 | 59<<5 | 29), 199
+	}
+	date = uint16((t.Year()-1980)<<9 | int(t.Month())<<5 | t.Day())
+	clockTime = uint16(t.Hour()<<11 | t.Minute()<<5 | t.Second()/2)
+	tenths = byte((t.Second()%2)*100 + t.Nanosecond()/10_000_000)
+	return date, clockTime, tenths
+}
+
+func decodeFATTimestamp(date, clockTime uint16) time.Time {
+	if date == 0 {
+		return time.Time{}
+	}
+	year := 1980 + int(date>>9)
+	month := time.Month((date >> 5) & 0x0f)
+	day := int(date & 0x1f)
+	hour := int(clockTime >> 11)
+	minute := int((clockTime >> 5) & 0x3f)
+	second := int(clockTime&0x1f) * 2
+	if month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 || second > 59 {
+		return time.Time{}
+	}
+	t := time.Date(year, month, day, hour, minute, second, 0, time.UTC)
+	if t.Year() != year || t.Month() != month || t.Day() != day {
+		return time.Time{}
+	}
+	return t
 }
 
 // Mount accepts a FAT32 superfloppy or one FAT32 MBR partition. Sector size is
@@ -249,6 +309,7 @@ type entry struct {
 	size       uint32
 	sector     uint64
 	offset     int
+	modTime    time.Time
 }
 
 func shortName(b []byte) string {
@@ -361,7 +422,8 @@ func (v *Volume) entriesContext(ctx context.Context, cluster uint32) ([]entry, e
 						return nil, fmt.Errorf("%w: directory name", ErrCorrupt)
 					}
 					first := uint32(binary.LittleEndian.Uint16(d[20:]))<<16 | uint32(binary.LittleEndian.Uint16(d[26:]))
-					result = append(result, entry{name: name, attributes: d[11], cluster: first, size: binary.LittleEndian.Uint32(d[28:]), sector: sector, offset: off})
+					modTime := decodeFATTimestamp(binary.LittleEndian.Uint16(d[24:]), binary.LittleEndian.Uint16(d[22:]))
+					result = append(result, entry{name: name, attributes: d[11], cluster: first, size: binary.LittleEndian.Uint32(d[28:]), sector: sector, offset: off, modTime: modTime})
 				}
 			}
 			s += run
@@ -422,6 +484,9 @@ func (v *Volume) Open(name string) (fs.File, error) {
 		f.directory, err = v.entries(e.cluster)
 		sort.Slice(f.directory, func(i, j int) bool { return f.directory[i].name < f.directory[j].name })
 	} else {
+		if v.replacedGen != nil {
+			f.openGen = v.replacedGen[entryLocation{sector: e.sector, offset: e.offset}]
+		}
 		if e.size > maxFileBytes {
 			err = ErrCapacity
 		} else {
@@ -501,6 +566,12 @@ func (v *Volume) WriteFile(name string, data []byte) error {
 		return err
 	}
 	binary.LittleEndian.PutUint32(b[e.offset+28:], uint32(len(data)))
+	if now := v.currentTimeLocked(); !now.IsZero() {
+		date, clockTime, _ := encodeFATTimestamp(now)
+		binary.LittleEndian.PutUint16(b[e.offset+18:], date)
+		binary.LittleEndian.PutUint16(b[e.offset+22:], clockTime)
+		binary.LittleEndian.PutUint16(b[e.offset+24:], date)
+	}
 	if err := v.device.WriteSectors(e.sector, b); err != nil {
 		return err
 	}
@@ -512,6 +583,7 @@ type file struct {
 	entry     entry
 	chain     []uint32
 	directory []entry
+	openGen   uint64
 	position  int64
 	closed    bool
 }
@@ -530,16 +602,19 @@ func (f *file) Read(dst []byte) (int, error) {
 	if f.entry.attributes&16 != 0 {
 		return 0, fs.ErrInvalid
 	}
+	f.volume.mu.Lock()
+	defer f.volume.mu.Unlock()
+	if f.volume.mutationErr != nil {
+		return 0, f.volume.mutationErr
+	}
+	if f.volume.replacedGen != nil && f.volume.replacedGen[entryLocation{sector: f.entry.sector, offset: f.entry.offset}] != f.openGen {
+		return 0, ErrReplaced
+	}
 	if len(dst) == 0 {
 		return 0, nil
 	}
 	if f.position >= int64(f.entry.size) {
 		return 0, io.EOF
-	}
-	f.volume.mu.Lock()
-	defer f.volume.mu.Unlock()
-	if f.volume.mutationErr != nil {
-		return 0, f.volume.mutationErr
 	}
 	count := min(len(dst), int(int64(f.entry.size)-f.position))
 	done := 0
@@ -612,7 +687,7 @@ func (i info) Mode() fs.FileMode {
 	}
 	return 0444
 }
-func (i info) ModTime() time.Time         { return time.Time{} }
+func (i info) ModTime() time.Time         { return i.modTime }
 func (i info) IsDir() bool                { return i.attributes&16 != 0 }
 func (i info) Sys() any                   { return nil }
 func (i info) Type() fs.FileMode          { return i.Mode().Type() }

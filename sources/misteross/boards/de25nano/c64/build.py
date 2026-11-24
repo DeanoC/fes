@@ -14,17 +14,10 @@ DIRECTORY = "c64"
 CORE_ID = "fes.c64"
 COMPONENT = "fes_de25_c64_standard"
 SDC = BOARD + "c64/c64-clocks.sdc"
-MODELS = {"pal": None}
+MODELS = {"pal": None, "nativepal": "FES_DE25_NATIVE_C64"}
 # The exact image the upload endpoint takes: BASIC, KERNAL, character and
 # 1541 ROMs in c64_rom's order.
-FIRMWARE_BYTES = {"pal": 36864}
-# The board: the shared machine PLL (52.222222 MHz, audio 12.287582 MHz), board
-# SDRAM, and no window in HPS DDR.
-MACHINE_HZ = 52222222
-PLL_IP = BOARD + "machine/machine_pll.ip"
-PLL_OUTPUTS = ("52.222222", "12.287582")
-BOARD_SDRAM = True
-WINDOW = False
+FIRMWARE_BYTES = {model: 36864 for model in MODELS}
 # Synthesis choices in unchanged DE10 sources that the signoff lint refuses.
 # The SID keeps state through a warm reset (the oscillators' phase, as reSID
 # does), so its reset is also a hold; mapped onto register clock enables, its
@@ -44,7 +37,7 @@ MACHINE_FILES = ("c64_vic.v", "c64_vic_graphics_pixels.sv", "c64_vic_sprite_pixe
                  "c64_sid.v", "c64_sid_envelope.sv", "c64_sid_oscillator.sv", "c64_sid_wave_tables.sv",
                  "c64_sid_svf.sv", "c64_cia.v", "c64_drive1541.sv", "c64_via.v", "c64_gcr_read.v",
                  "c64_d64_medium.sv", "c64_keyboard.v",
-                 "c64_bus.vh", "c64_sid_combined_waves.vh", "c64_sid_svf_tables.vh")
+                 "c64_bus.vh", "c64_timing.vh", "c64_sid_combined_waves.vh", "c64_sid_8580_waves.vh", "c64_sid_svf_tables.vh")
 CPU_FILES = ("cpu6502.v", "cpu6502_alu.v")
 SHARED_FILES = ("fes_c64_core.v", "fes_c64_firmware_rom.v")
 LOCAL_FILES = ("fes_de25_c64_standard.v", "fes_de25_c64_standard_hw.tcl", "c64-clocks.sdc",
@@ -54,6 +47,10 @@ SOURCES = ({BOARD + "c64/" + name for name in LOCAL_FILES} |
            {CORE + name for name in MACHINE_FILES + ("c64_machine.sv", "c64_ram.v", "c64_color_ram.v",
                                                     "c64_disk_store.v", "c64_frame_store.sv")} |
            {CPU + name for name in CPU_FILES})
+
+
+NATIVE_HEADER = "sources/misteross/prototypes/de25_board_control/generated/fes_de25_computer.vh"
+NATIVE_SOURCES = {BOARD + "spectrum/derive.py", NATIVE_HEADER}
 
 
 def load(path, name):
@@ -66,7 +63,7 @@ def load(path, name):
 board = load(HERE.parent / "machine/board.py", "de25_c64_machine_board")
 
 
-def component_files(sources):
+def component_files(sources, *, native=False):
     """The machine's own component files; the board adds the shared shell."""
     derive = board.module(sources, BOARD + "c64/derive.py", "c64_selected_derive")
     files, derived = {}, {}
@@ -79,7 +76,7 @@ def component_files(sources):
     for name in CPU_FILES:
         files[name] = sources[CPU + name]
     files["c64_machine_de25.sv"], derived["c64_machine_de25.sv"] = derive.retarget_machine(
-        sources[CORE + "c64_machine.sv"])
+        sources[CORE + "c64_machine.sv"], native=native)
     for name in derive.RAM_FILES:
         target = name.replace(".v", "_de25.v")
         files[target], derived[target] = derive.retarget_ram(name, sources[CORE + name])
@@ -89,11 +86,31 @@ def component_files(sources):
         sources[CORE + "c64_frame_store.sv"])
     files["fes_de25_computer_transport.v"], derived["fes_de25_computer_transport.v"] = derive.transport(
         sources[BOARD + "zx81-hps/fes_de25_computer.v"])
+    if native:
+        spectrum = board.module(sources, BOARD + "spectrum/derive.py", "c64_native_fetch_transport")
+        transport, record = spectrum.transport(sources[BOARD + "zx81-hps/fes_de25_computer.v"], native=True)
+        name = "fes_de25_computer_transport.v"
+        files[name] = transport.replace(b"FES_DE25_NATIVE_SPECTRUM48", b"FES_DE25_NATIVE_C64")
+        derived[name] = dict(record, derived_sha256=derive.sha(files[name]))
+        files["cpu6502.v"], derived["cpu6502.v"] = derive.retarget_cpu(sources[CPU + "cpu6502.v"])
+        header = "generated/fes_native_de25_computer.vh"
+        files[header] = sources[NATIVE_HEADER]
+        tcl = "fes_de25_c64_standard_hw.tcl"
+        files[tcl] += b"\nadd_fileset_file generated/fes_native_de25_computer.vh VERILOG_INCLUDE PATH generated/fes_native_de25_computer.vh\n"
     return files, derived
 
 
 def project_files(sources):
     return {}
+
+
+def native_controls(build_id, payload_sha256):
+    """Reuse the fixed native aperture inventory, with the C64 ROM size."""
+    import json
+    spectrum = load(HERE.parent / "spectrum/build.py", "c64_native_control_map")
+    fields = json.loads(spectrum.native_controls(build_id, payload_sha256))
+    fields.update(scope="de25-native-c64-controls-v1", firmware_bytes=FIRMWARE_BYTES["nativepal"])
+    return (json.dumps(fields, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
 
 if __name__ == "__main__":

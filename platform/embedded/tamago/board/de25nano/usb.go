@@ -9,6 +9,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map"
 	"github.com/DeanoC/fes/platform/embedded/tamago/dwc2"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
+	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usbcontrol"
 	"time"
 )
@@ -23,6 +24,31 @@ var usbAttempted bool
 var ownedUSBSource *usbcontrol.Source // Retain failed/closed resources until reboot.
 var ownedGamepadSource *usbcontrol.GamepadSource
 var ownedGamepadHost *dwc2.GamepadHost
+var ownedBusHost *usbcontrol.BusHost
+
+// OpenMultiWithControl opens the 16-channel multi-device DWC2 PIO bus host
+// under the EL3 USB PIO lease. It supports zero-device boot, Multi-TT USB 2.0
+// hubs, dynamic hotplug, and concurrent Interrupt/Bulk pipes (BT HCI + HID).
+func OpenMultiWithControl(ctx context.Context, client *usbcontrol.Client) (*usbcontrol.BusHost, error) {
+	if !profileUSBControlEnabled || client == nil {
+		return nil, fmt.Errorf("de25-nano: controlled USB profile and client required")
+	}
+	if usbAttempted {
+		return nil, fmt.Errorf("de25-nano: USB initialization already attempted")
+	}
+	usbAttempted = true
+	if _, err := arm64map.Verify(profileRAMStart, profileRAMSize, []arm64map.Range{{Base: 0x10b00000, Bytes: 0x20000, Kind: arm64map.Device}}); err != nil {
+		return nil, err
+	}
+	var err error
+	ownedBusHost, err = usbcontrol.OpenBus(ctx, client, func() (usb.BusHost, error) {
+		return dwc2.OpenMulti(usbRegisters{}, dwc2.Config{PHYClockHz: 60000000})
+	})
+	if err != nil {
+		return ownedBusHost, err
+	}
+	return ownedBusHost, nil
+}
 
 // OpenGamepadWithControl selects descriptor-driven HID input under the same
 // exclusive controller guard as the keyboard. It retains partial resources on

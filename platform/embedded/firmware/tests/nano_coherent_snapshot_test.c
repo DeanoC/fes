@@ -57,7 +57,7 @@ static int producer_sample(void *p,uint32_t *bits)
     case 13: model.base.master_boot.retained.context=0;break;
     case 14: provider.record.boot.owner++;break;
     case 15: model.base.h.usb[16/4]=0;break; /* interconnect not idle */
-    case 16: model.base.h.usb[24/4]=1;break; /* interrupt mask */
+    case 16: model.base.h.usb[0x400/4]|=1U<<23;break; /* descriptor DMA */
     case 49:case 50:case 51:case 52:case 53:case 54:case 55:case 56:
         late_cold_fault=fault;break;
     case 57: provider.record.core=2;break;
@@ -90,12 +90,12 @@ int main(int argc,char **argv)
     unsigned writes=model.base.h.usb_writes,stops=model.base.h.producer_stops;
     if ((fault>=32 && fault<=48) || fault>=67) {
         if (fault==32) model.base.h.usb[8/4]|=1U<<5;
-        if (fault==33) model.base.h.usb[24/4]=1;
+        if (fault==33) model.base.h.usb[0x400/4]|=1U<<23;
         if (fault==34) model.base.h.usb[16/4]=0;
         if (fault==35) model.base.h.per0|=FES_NANO_COLD_USB_RAM_RESET;
         if (fault==36) model.clocks[0]^=1;
         if (fault==37) model.pins[0]^=1;
-        if (fault==38) model.base.h.usb[8/4]|=1U;
+        if (fault==38) model.base.h.usb[12/4]=0;
         if (fault==39) fes_nano_owned_usb.ops.contained=0;
         if (fault==40) fes_nano_owned_usb.ops.contained=fake_containment;
         if (fault==41) usb_platform.io.prepare_master=0;

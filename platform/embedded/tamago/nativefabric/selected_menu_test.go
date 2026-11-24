@@ -320,7 +320,7 @@ func (c *selectedRoleCPU) Invoke(a [7]uint64) ([4]uint64, error) {
 		source := HPSBootObservation{Digest: c.digest, Bridges: c.state}
 		var out []byte
 		var err error
-		if c.role == programRoleSpectrum48 {
+		if c.role == programRoleUploadShell {
 			path := filepath.Join(c.t.TempDir(), "spectrum-load.bin")
 			if err := os.WriteFile(path, raw, 0600); err != nil {
 				c.t.Fatal(err)
@@ -359,19 +359,19 @@ type selectedMenuCPU struct {
 }
 
 func (c *selectedMenuCPU) Invoke(a [7]uint64) ([4]uint64, error) {
-	if a[0] != uint64(g.FesEmbeddedBridgeCall) || a[1] == uint64(g.FesEmbeddedBridgePrepareConfiguration) || a[1] == uint64(g.FesEmbeddedBridgeRearmConfiguration) || (c.kind == programRoleComputer || c.kind == programRoleSpectrum48) {
+	if a[0] != uint64(g.FesEmbeddedBridgeCall) || a[1] == uint64(g.FesEmbeddedBridgePrepareConfiguration) || a[1] == uint64(g.FesEmbeddedBridgeRearmConfiguration) || (c.kind == programRoleComputer || c.kind == programRoleUploadShell) {
 		return c.configuration.Invoke(a)
 	}
 	return c.menuCPU.Invoke(a)
 }
 func (c *selectedMenuCPU) ReadPhysical32(a uint64) (uint32, error) {
-	if c.kind == programRoleComputer || c.kind == programRoleSpectrum48 {
+	if c.kind == programRoleComputer || c.kind == programRoleUploadShell {
 		return c.configuration.ReadPhysical32(a)
 	}
 	return c.menuCPU.ReadPhysical32(a)
 }
 func (c *selectedMenuCPU) WritePhysical32(a uint64, v uint32) error {
-	if c.kind == programRoleComputer || c.kind == programRoleSpectrum48 {
+	if c.kind == programRoleComputer || c.kind == programRoleUploadShell {
 		return c.configuration.WritePhysical32(a, v)
 	}
 	return c.menuCPU.WritePhysical32(a, v)

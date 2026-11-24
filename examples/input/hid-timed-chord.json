@@ -1,0 +1,8 @@
+{
+  "format": 2,
+  "interface": {"id": "fes.keyboard.hid", "major": 1, "minor": 0},
+  "events": [
+    {"code": 4126, "modifiers": 0},
+    {"code": 4126, "modifiers": 2}
+  ]
+}

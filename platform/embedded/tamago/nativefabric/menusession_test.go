@@ -482,7 +482,7 @@ func TestMenuSessionRejectsForeignCompletionAndProtectsOneOwner(t *testing.T) {
 	}
 	f := newMenuFixture(t)
 	s := f.open(t, context.Background())
-	copy := *s
+	copy := shallowCopyMenuSession(s)
 	before := f.cpu.calls + f.cpu.reads + f.cpu.writes
 	if _, err := copy.Close(); !errors.Is(err, scanout.ErrReaderArgument) {
 		t.Fatal(err)
@@ -594,4 +594,38 @@ func TestMenuMemoryReservationRetainsFailuresAndConsumesAttempt(t *testing.T) {
 			}
 		})
 	}
+}
+
+func shallowCopyMenuSession(s *MenuSession) *MenuSession {
+	c := &MenuSession{
+		comparison:       s.comparison,
+		self:             s.self,
+		verifier:         s.verifier,
+		region:           s.region,
+		bytes:            s.bytes,
+		source:           s.source,
+		opened:           s.opened,
+		bridges:          s.bridges,
+		port:             s.port,
+		memory:           s.memory,
+		presenter:        s.presenter,
+		context:          s.context,
+		operationContext: s.operationContext,
+		serviceInput:     s.serviceInput,
+		known:            s.known,
+		closed:           s.closed,
+		fault:            s.fault,
+		closeErr:         s.closeErr,
+		frames:           s.frames,
+		last:             s.last,
+		controlSHA:       s.controlSHA,
+		accessSHA:        s.accessSHA,
+		returned:         s.returned,
+		storage:          s.storage,
+		storageAttempted: s.storageAttempted,
+		storageResumed:   s.storageResumed,
+		nextAttempted:    s.nextAttempted,
+	}
+	c.active.Store(s.active.Load())
+	return c
 }

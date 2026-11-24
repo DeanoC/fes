@@ -225,6 +225,81 @@ def sd_write_option(program, path, profile):
     return p
 
 
+def watchdog_option(program, selected, tenfoot, timeout_sec, clock_hz):
+    if timeout_sec is None:
+        timeout_sec = 0
+    if clock_hz is None:
+        clock_hz = 0
+    if type(timeout_sec) is not int or type(clock_hz) is not int:
+        raise ValueError('watchdog timeout and clock Hz must be integers')
+    if timeout_sec == 0 and clock_hz == 0:
+        return 0, 0
+    if program != 'fpgaload' or selected is not True or tenfoot is not True:
+        raise ValueError('--watchdog-timeout/--watchdog-clock-hz require Nano fpgaload with --selected-programs and --tenfoot-serial')
+    if timeout_sec == 0 or clock_hz == 0:
+        raise ValueError('both --watchdog-timeout and --watchdog-clock-hz are required together')
+    if not 1 <= timeout_sec <= 60:
+        raise ValueError('--watchdog-timeout must be integer seconds in [1, 60]')
+    if not 1_000_000 <= clock_hz <= 400_000_000:
+        raise ValueError('--watchdog-clock-hz must be Hz in [1000000, 400000000]')
+    if timeout_sec * clock_hz > (1 << 31):
+        raise ValueError(f'--watchdog-timeout {timeout_sec}s at {clock_hz} Hz exceeds DesignWare WDT 2^31-cycle maximum')
+    return timeout_sec, clock_hz
+
+
+def network_runtime_options(program, profile, selected, tenfoot, dhcp, hostname, sntp_server, sntp_port):
+    """Validate the opt-in fpgaload DHCP/SNTP flags; dormant on every shipped profile.
+
+    fpgaload builds only from the byte-exact nano/sd-profile.json (network: null),
+    and profile_constants refuses a network block beside sd_control, so every
+    opt-in is refused here or by that pin. tests/test_tamago_build_network.py
+    pins this; see network/README.md.
+    """
+    if dhcp is None:
+        dhcp = False
+    if hostname is None:
+        hostname = ""
+    if sntp_server is None:
+        sntp_server = ""
+    if sntp_port is None:
+        sntp_port = 0
+    if type(dhcp) is not bool:
+        raise ValueError('--network-dhcp must be a boolean')
+    if not isinstance(hostname, str) or not isinstance(sntp_server, str):
+        raise ValueError('network hostname and SNTP server must be strings')
+    if type(sntp_port) is not int:
+        raise ValueError('--network-sntp-port must be an integer')
+    hostname = hostname.strip()
+    sntp_server = sntp_server.strip()
+    if not dhcp and not hostname and not sntp_server and sntp_port == 0:
+        return False, "", "", 0
+    if program != 'fpgaload' or selected is not True or tenfoot is not True:
+        raise ValueError('--network-dhcp/--network-sntp-* require Nano fpgaload with --selected-programs and --tenfoot-serial')
+    if not isinstance(profile, dict) or profile.get('network') is None:
+        raise ValueError('--network-dhcp/--network-sntp-* are dormant: they need a network-enabled firmware profile, '
+                         'but fpgaload builds only from nano/sd-profile.json (network: null), whose closed-bridge '
+                         'SD ownership excludes Ethernet')
+    if hostname:
+        if not dhcp:
+            raise ValueError('--network-dhcp-hostname requires --network-dhcp')
+        if len(hostname) > 255 or any(ord(c) < 0x20 or ord(c) > 0x7e or c.isspace() or c in "'\"\\" for c in hostname):
+            raise ValueError('--network-dhcp-hostname must be printable non-whitespace ASCII <= 255 bytes')
+    if sntp_port != 0:
+        if not sntp_server:
+            raise ValueError('--network-sntp-port requires --network-sntp-server')
+        if not 1 <= sntp_port <= 65535:
+            raise ValueError('--network-sntp-port must be in [1, 65535]')
+    if sntp_server:
+        try:
+            addr = ipaddress.IPv4Address(sntp_server)
+        except ipaddress.AddressValueError as exc:
+            raise ValueError(f'--network-sntp-server must be an IPv4 address: {exc}') from None
+        if addr.is_unspecified or addr.is_multicast:
+            raise ValueError(f'--network-sntp-server cannot be unspecified or multicast: {addr}')
+        sntp_server = str(addr)
+    return dhcp, hostname, sntp_server, sntp_port
+
+
 def writable_storage_option(program,path,profile,selected,tenfoot):
     if path is None:return None
     if program!='fpgaload' or selected is not True or tenfoot is not True or profile['sd_control'] is None:
@@ -299,10 +374,10 @@ def scratch_inspect_option(program, requested, profile):
     return requested
 
 
-def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, output, *, spectrum48=False):
+def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, output, *, spectrum48=False, c64=False):
     """Snapshot selected content and derive its receipt through the shared linker."""
     rom_path = Path(rom_path).resolve(strict=True)
-    if not rom_path.is_file() or rom_path.stat().st_size != rom_bytes or rom_bytes not in ((16384,) if spectrum48 else (4096, 8192)):
+    if not rom_path.is_file() or rom_path.stat().st_size != rom_bytes or rom_bytes not in ((36864,) if c64 else (16384,) if spectrum48 else (4096, 8192)):
         raise ValueError('selected firmware ROM must match the sealed resource')
     with rom_path.open('rb') as stream:
         data = stream.read(rom_bytes+1)
@@ -312,7 +387,7 @@ def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, out
     (output/'FIRMWARE.BIN').write_bytes(data)
     env = dict(os.environ, GOTOOLCHAIN='local', GOWORK='off', GOENV='off', GOPROXY='off', GOSUMDB='off', GOMAXPROCS='2')
     command = [str(Path(host_go).resolve(strict=True)), 'run', '-mod=readonly', './cmd/nano-rom-selection',
-               *(['--spectrum48'] if spectrum48 else []), str(output/'package.fcore'), str(output/'FIRMWARE.BIN'), package_id]
+               *(['--c64'] if c64 else ['--spectrum48'] if spectrum48 else []), str(output/'package.fcore'), str(output/'FIRMWARE.BIN'), package_id]
     result = subprocess.run(command, cwd=APP, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
     (output/'rom-linker.log').write_bytes(result.stderr)
     if result.returncode:
@@ -327,6 +402,38 @@ def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, out
         raise ValueError('shared ROM linker returned a mismatched selection')
     (output/'rom-selection.json').write_text(json.dumps(record, sort_keys=True, indent=2)+'\n')
     return record
+
+
+def stage_c64(shell, proof, archive_path, rom, disk, host_go, stage, context, platform, configuration):
+    stage.mkdir()
+    archive = shell.read(archive_path, shell.MAX_ARCHIVE)
+    if shell.sha(archive) != proof['archive_sha256']:
+        raise ValueError('C64 archive changed after verification')
+    receipt = prepare_rom_selection(archive, rom, proof['package_id'],
+                                    shell.C64_ROM_BYTES, host_go, stage, c64=True)
+    record = shell.record_for(proof, context, platform, configuration, receipt, rom_bytes=shell.C64_ROM_BYTES)
+    export = stage / 'export' / 'FES'
+    export.mkdir(parents=True)
+    (export / 'C64.FCP').write_bytes(archive)
+    (export / 'C64.ROM').write_bytes((stage / 'FIRMWARE.BIN').read_bytes())
+    metadata = shell.encode(record)
+    (export / 'C64.JSN').write_bytes(metadata)
+    choice = dict(path='FES/C64.FCP', package_id=record['package_id'],
+                  metadata_path='FES/C64.JSN', metadata_sha256=shell.sha(metadata),
+                  sources=[dict(id=receipt['source_id'], role='firmware', path='FES/C64.ROM',
+                                sha256=receipt['source_sha256'])],
+                  rom_receipt_sha256=receipt['rom_receipt_sha256'])
+    if disk is not None:
+        data = shell.read(disk, 174848)
+        if len(data) != 174848:
+            raise ValueError('C64 requires a standard 174848-byte D64')
+        (export / 'C64.D64').write_bytes(data)
+        choice['tape'] = dict(path='FES/C64.D64', format='c64-d64', size=len(data), sha256=shell.sha(data))
+    (export / 'CORESEL.JSN').write_bytes(shell.encode(dict(
+        format=1, scope='nano-program-selection-v1', programs=[choice])))
+    (export / 'UI.JSON').write_bytes(shell.encode(dict(
+        format=1, scope='nano-tenfoot-catalog-v1',
+        entries=[dict(id='c64', title='Commodore 64 PAL', program=0)])))
 
 
 def build(args):
@@ -380,6 +487,15 @@ def build(args):
         raise ValueError('--selected-programs requires computer control, rearming, owned SD returns and --tenfoot-serial')
     if type(tenfoot_serial) is not bool or tenfoot_serial and not selected_programs:
         raise ValueError('--tenfoot-serial requires the selected native program service')
+    watchdog_timeout, watchdog_clock_hz = watchdog_option(
+        args.program, selected_programs, tenfoot_serial,
+        getattr(args, 'watchdog_timeout', 0), getattr(args, 'watchdog_clock_hz', 0),
+    )
+    network_dhcp, network_dhcp_hostname, network_sntp_server, network_sntp_port = network_runtime_options(
+        args.program, profile, selected_programs, tenfoot_serial,
+        getattr(args, 'network_dhcp', False), getattr(args, 'network_dhcp_hostname', ''),
+        getattr(args, 'network_sntp_server', ''), getattr(args, 'network_sntp_port', 0),
+    )
     configuration_retained=getattr(args,'retain_configuration',False)
     if type(configuration_retained) is not bool or (configuration_retained and not (selected_programs and tenfoot_serial)):
         raise ValueError('--retain-configuration requires selected serial Tenfoot programs')
@@ -460,6 +576,9 @@ def build(args):
     spectrum_paths = [getattr(args, 'spectrum48_'+name, None) for name in ('build', 'package', 'rom')]
     spectrum_tape = getattr(args, 'spectrum48_tape', None)
     shared_shell = getattr(args, 'shared_core_shell', False)
+    uart_only = getattr(args, 'tenfoot_uart_only', False)
+    if uart_only and not (usb_shared and shared_shell):
+        raise ValueError('--tenfoot-uart-only requires the matched shared-shell USB boot profile')
     if shared_shell and (args.program != 'fpgaload' or not menu_program_map or
                          not all((selected_programs, computer_reload, computer_storage_return, tenfoot_serial))):
         raise ValueError('shared core shell requires paired native Tenfoot')
@@ -471,6 +590,16 @@ def build(args):
         worker = Path(hps.spectrum48.__file__)
         spectrum_proof = json.loads(subprocess.check_output(
             [sys.executable, str(worker), str(producer), str(spectrum_archive)], timeout=180))
+    c64_paths = [getattr(args, 'c64_' + name, None) for name in ('build', 'package', 'rom')]
+    c64_disk = getattr(args, 'c64_d64', None)
+    c64_proof = None
+    if any(c64_paths) or c64_disk is not None:
+        if not all(c64_paths) or not shared_shell or spectrum_proof is not None or rom_host_go is None:
+            raise ValueError('C64 requires a sealed build, package, ROM and shared-shell Tenfoot')
+        producer, c64_archive, c64_rom = (path.resolve(strict=True) for path in c64_paths)
+        worker = Path(hps.spectrum48.__file__)
+        c64_proof = json.loads(subprocess.check_output(
+            [sys.executable, str(worker), '--c64', str(producer), str(c64_archive)], timeout=180))
     output = args.output.resolve()
     if output.exists() or not output.is_relative_to(ROOT / "out"):
         raise ValueError("output must be a fresh directory beneath this worktree's out/")
@@ -511,6 +640,9 @@ def build(args):
         (export/'UI.JSON').write_bytes(hps.encode(dict(
             format=1, scope='nano-tenfoot-catalog-v1',
             entries=[dict(id='spectrum48', title='ZX Spectrum 48K trial', program=0)])))
+    if c64_proof is not None:
+        stage_c64(hps.spectrum48, c64_proof, c64_archive, c64_rom, c64_disk, rom_host_go,
+                  output / 'c64', context, program_platform, configuration_map)
     (output / "handoff.json").write_bytes(raw)
     if context is not None:(output/'hps-context.json').write_bytes(hps.encode(context))
     if io_map is not None:(output/'hps-io.json').write_bytes(hps.encode(io_map))
@@ -618,6 +750,7 @@ def build(args):
     link_flags=f"-s -w -T {entry:#x} -R 0x1000"
     if usb_control:
         link_flags+=' -X main.expectedUSBControl='+('owned-shared-usb-pio-v1' if usb_shared else 'owned-usb-pio-v1')+' -X main.expectedUSBInput='+usb_input
+    if uart_only:link_flags+=' -X main.expectedTenfootUARTOnly=1'
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if sd_write_encoded:link_flags+=' -X main.expectedSDWritePlan='+sd_write_encoded
     if sd_transfer_clock:link_flags+=' -X main.expectedSDTransferClock='+str(sd_transfer_clock)
@@ -633,6 +766,16 @@ def build(args):
         link_flags+=' -X main.expectedMenuPresent=1'
         link_flags+=' -X main.expectedMenuReadMap='+base64.b64encode(hps.encode(menu_read_map)).decode()
     if tenfoot_serial:link_flags+=' -X main.expectedTenfootSerial=1'
+    if watchdog_timeout:
+        link_flags += f' -X main.expectedWatchdogTimeout={watchdog_timeout} -X main.expectedWatchdogClockHz={watchdog_clock_hz}'
+    if network_dhcp:
+        link_flags += ' -X main.expectedNetworkDHCP=1'
+        if network_dhcp_hostname:
+            link_flags += f' -X main.expectedNetworkDHCPHostname={network_dhcp_hostname}'
+    if network_sntp_server:
+        link_flags += f' -X main.expectedNetworkSNTPServer={network_sntp_server}'
+        if network_sntp_port:
+            link_flags += f' -X main.expectedNetworkSNTPPort={network_sntp_port}'
     if initial_tape:link_flags+=' -X main.expectedInitialTape=1'
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
     if context is not None and context['programming_profile']==hps.COMPUTER_PROFILE:link_flags+=' -X main.expectedNativeComputer=1'
@@ -692,11 +835,24 @@ def build(args):
         raise ValueError('SD write plan changed during compilation or was not linked')
     if sd_transfer_clock and str(sd_transfer_clock).encode() not in data:
         raise ValueError('selected SD transfer clock was not linked')
+    if watchdog_timeout and (str(watchdog_timeout).encode() not in data or str(watchdog_clock_hz).encode() not in data):
+        raise ValueError('selected watchdog settings were not linked')
+    if network_dhcp and b'1' not in data:
+        raise ValueError('selected network DHCP setting was not linked')
+    if network_dhcp_hostname and network_dhcp_hostname.encode() not in data:
+        raise ValueError('selected network DHCP hostname was not linked')
+    if network_sntp_server and network_sntp_server.encode() not in data:
+        raise ValueError('selected network SNTP server was not linked')
+    if network_sntp_port and str(network_sntp_port).encode() not in data:
+        raise ValueError('selected network SNTP port was not linked')
     if writable_storage_plan is not None and (writable_storage_option(args.program,args.writable_storage_plan,profile,args.selected_programs,args.tenfoot_serial)!=writable_storage_plan or writable_storage_encoded.encode() not in data):
         raise ValueError('writable storage plan changed or was not linked')
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
               "sd_write_plan":sd_write_plan,"sd_write_plan_sha256":hashlib.sha256(base64.b64decode(sd_write_encoded)).hexdigest() if sd_write_encoded else None,
               "sd_transfer_clock_hz":sd_transfer_clock,
+              "watchdog_timeout_seconds":watchdog_timeout,"watchdog_clock_hz":watchdog_clock_hz,
+              "network_dhcp":network_dhcp,"network_dhcp_hostname":network_dhcp_hostname,
+              "network_sntp_server":network_sntp_server,"network_sntp_port":network_sntp_port,
               "writable_storage_plan":writable_storage_plan,
               "sd_scratch_inspect":sd_scratch_inspect,
               "arm64_features":arm64_features,"cpu_feature_overlay":cpu_feature_overlay,
@@ -720,6 +876,7 @@ def build(args):
               **({"spectrum48_program": spectrum_program, "spectrum48_program_sha256": hps.digest(spectrum_program)}
                  if spectrum_program is not None and not shared_shell else {}),
               **({"shared_core_shell": True} if shared_shell else {}),
+              **({"tenfoot_uart_only": True} if uart_only else {}),
               "hps_menu_project":str(menu_project) if menu_project else None,
               "hps_menu_program":menu_program_map,"hps_menu_program_sha256":hps.digest(menu_program_map) if menu_program_map else None,
               "menu_assets":{name:{"sha256":hashlib.sha256(raw).hexdigest(),"size":len(raw)} for name,raw in menu_assets.items()},
