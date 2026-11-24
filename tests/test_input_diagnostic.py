@@ -19,6 +19,11 @@ def document():
                        for action in (1, 0)]}
 
 
+def tap_document():
+    return {"format": 2, "interface": {"id": "fes.keyboard.hid", "major": 1, "minor": 0},
+            "events": [{"code": 0x1004, "modifiers": 2}, {"code": 0x1005, "modifiers": 0}]}
+
+
 class LoaderTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -44,6 +49,21 @@ class LoaderTests(unittest.TestCase):
         for event, position in zip(value["events"], (32767, 0)):
             event.update(device=1, kind=2, action=2, code=200, value=position)
         self.load(value)
+
+    def test_explicit_taps_only_accept_bounded_hid_keys_and_modifier_mask(self):
+        self.assertEqual(self.load(tap_document()).format, 2)
+        example = Path(__file__).resolve().parents[1] / 'examples/input/hid-timed-chord.json'
+        committed = load_diagnostic(example, hashlib.sha256(example.read_bytes()).hexdigest())
+        self.assertEqual(committed.events, ({'code': 4126, 'modifiers': 0}, {'code': 4126, 'modifiers': 2}))
+        for mutation in (
+                lambda v: v["interface"].update(id="fes.keyboard"),
+                lambda v: v["events"][0].update(code=0x1003),
+                lambda v: v["events"][0].update(code=0x10e1),
+                lambda v: v["events"][0].update(modifiers=256),
+                lambda v: v["events"][0].update(modifiers=True),
+                lambda v: v["events"][0].update(extra=1)):
+            value = tap_document(); mutation(value)
+            with self.subTest(value=value), self.assertRaises(ValueError): self.load(value)
 
     def test_closed_schema_strict_numbers_and_supported_codes(self):
         mutations = [
@@ -172,7 +192,7 @@ class FakeRunner:
         self.timeouts.append(self.api.timeout)
         self.value["input"]["metrics"]["frames_sent"] += self.progress
         self.change()
-        return {"ok": True}
+        return {"ok": True, "host_duration_ms": 80.0}
 
 
 class ExecutionTests(unittest.TestCase):
@@ -189,6 +209,31 @@ class ExecutionTests(unittest.TestCase):
         self.assertTrue(all(0 < t <= 1 for t in runner.timeouts))
         self.assertEqual(set(result), {"sha256", "interface", "events_requested", "events_acknowledged",
                                       "frames_before", "frames_after", "frame_delta", "input_session_id"})
+
+    def test_taps_use_bound_session_once_and_do_not_convert_ordinary_holds(self):
+        diagnostic = self.load(tap_document()); runner = FakeRunner(diagnostic)
+        result = run_diagnostic(runner, "owned", diagnostic, 1)
+        self.assertEqual(result["events_acknowledged"], 2)
+        self.assertEqual([path for path, _ in runner.posts], ["/api/v1/session/input/tap"] * 2)
+        self.assertEqual([body["session_id"] for _, body in runner.posts], ["input-1"] * 2)
+        self.assertEqual([body["modifiers"] for _, body in runner.posts], [2, 0])
+        ordinary = self.load(); runner = FakeRunner(ordinary)
+        run_diagnostic(runner, "owned", ordinary, 1)
+        self.assertEqual([path for path, _ in runner.posts], ["/api/v1/session/input/event"] * 2)
+
+    def test_tap_reconnect_and_bad_receipt_stop_without_retry(self):
+        diagnostic = self.load(tap_document())
+        for response in ({"ok": True}, {"ok": True, "host_duration_ms": float("nan")}, {"ok": False, "host_duration_ms": 80}):
+            runner = FakeRunner(diagnostic)
+            def post(path, body):
+                runner.posts.append((path, body)); return response
+            runner.api.post_json = post
+            with self.subTest(response=response), self.assertRaises(ValueError): run_diagnostic(runner, "owned", diagnostic, 1)
+            self.assertEqual(len(runner.posts), 1)
+        runner = FakeRunner(diagnostic)
+        runner.change = lambda: runner.value["input"].update(session_id="replacement")
+        with self.assertRaises(ValueError): run_diagnostic(runner, "owned", diagnostic, 1)
+        self.assertEqual(len(runner.posts), 1)
 
     def test_initial_not_ready_capability_and_launcher_fail_without_events(self):
         diagnostic = self.load()

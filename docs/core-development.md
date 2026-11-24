@@ -195,7 +195,7 @@ package-acceptance runners. The isolated
 wrapper freezes one copy in its evidence directory and uses it in both lifecycle
 cycles. Missing options preserve the previous lifecycle-only behavior.
 
-Recipes are closed format-1 JSON documents with a versioned `interface` and an
+Format-1 recipes are closed JSON documents with a versioned `interface` and an
 explicit `events` array. Files are limited to 64 KiB and 64 events. Supported
 event forms, balanced press/release pairs and neutral final axis state are
 validated before any API mutation. No arbitrary sleeps or commands are allowed.
@@ -204,6 +204,15 @@ input bridge must be attached and ready before dispatch. HID recipes require
 exactly `fes.keyboard.hid` 1.0 and keyboard events carrying `0x1000 + usage`,
 where usage is `0x04..0x7f` or `0xe0..0xe7`. Reserved usages, matrix codes and
 gamepad events are refused in that recipe; no keyboard mapping is inferred.
+
+An explicit format-2 HID recipe instead lists target-timed taps as
+`{"code": 4126, "modifiers": 2}`. `code` is a non-modifier HID event code;
+`modifiers` is the USB HID modifier bitmask (bit 1 is left Shift). Set it to
+zero for an unmodified tap. The host binds every operation to the observed
+input session and requires the target chord capability for nonzero modifiers.
+The runner never infers taps from format-1 press/release sequences or converts
+physical keyboard holds. A tap receipt confirms sink completion, not guest
+consumption or a guest-visible timing bound.
 
 The runner checks session and input-bridge identity before each event and while
 observing counters. A changed owner, reconnect, regressed counter, timeout or

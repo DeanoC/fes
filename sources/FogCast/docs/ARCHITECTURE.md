@@ -1676,11 +1676,27 @@ The input tap endpoint accepts `session_id` from the current input status and
 one HID keyboard press `event` only for an active session with a negotiated
 `fes.keyboard.hid` 1.0 interface. Native gamepad and legacy matrix sessions
 are rejected instead of silently dropping or remapping physical keys. It
-checks the selected kit's connection and lease and input attachment after
+also accepts an optional `modifiers` bitmask, where bits 0..7 denote HID
+usages `0xe0..0xe7`. A nonzero mask requires a non-modifier key. The target
+negotiates chord support separately, applies key and modifier contributions in
+one HID state, and removes only those contributions together. Unrelated
+kit-local holds are retained. The key and modifiers share the tap's ownership
+token; overlapping taps cannot claim the same modifier. A focus transition
+retires the tap along with other held inputs. A remote disconnect retires the
+remote contributions while preserving kit-local holds.
+Unsupported targets fail before chord dispatch.
+The host checks the selected kit's connection and lease and input attachment after
 waiting for the input lock. It rejects missing, incompatible, or unknown target
 observations. On an explicit tap, the host probes the bridge for target-timed
-tap support, then sends one generation-bound operation. The target observes
-the active core and applies the press and release 60 ms apart using its local
+tap support, then sends one generation-bound operation. The target waits at
+most 500 ms for a concurrent kit-local input operation to leave the lifecycle
+fence, then observes the active generation again; cancellation, a longer
+transition, a changed lease or generation, or a focus handoff during that wait
+rejects the tap without a press. An admitted bridge follows the target execution
+lease lifetime, so revocation cancels a pending tap even before ownership
+cleanup has drained the CONNECT request. Ordinary stream disconnects do not
+end that lease. The target
+applies the press and release 60 ms apart using its local
 clock; unrelated held keys from other sources remain held. The tap fails if
 the same key is held locally before the tap or becomes held before its release. A cancellation or
 uncertain press triggers a release attempt; an unconfirmed operation closes

@@ -63,6 +63,15 @@ func (s *streamSink) Tap(ctx context.Context, frame protocol.InputFrame) error {
 	frame.Action = 0
 	return errors.Join(ctx.Err(), s.Apply(frame))
 }
+func (s *streamSink) TapChord(_ context.Context, frame protocol.InputFrame) error {
+	if frame.ServerMonoNS != 7 {
+		return errors.New("stale test generation")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events = append(s.events, frame)
+	return nil
+}
 func (s *streamSink) count() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -437,6 +446,32 @@ func TestSessionInputTapDeliversOrderedEdges(t *testing.T) {
 	defer rig.sink.mu.Unlock()
 	if len(rig.sink.events) != 2 || rig.sink.events[0].Code != 4116 || rig.sink.events[0].Action != 1 || rig.sink.events[1].Code != 4116 || rig.sink.events[1].Action != 0 {
 		t.Fatalf("unexpected tap frames: %+v", rig.sink.events)
+	}
+}
+
+func TestSessionInputTapChordCarriesModifierMask(t *testing.T) {
+	rig := newStreamRig(t)
+	service := &fakeService{status: tapHIDStatus(), connection: fogcast.TargetConnection{State: "active"}}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(rig.input))
+	session := sessionStreamID(t, serve(t, handler, http.MethodGet, "/api/v1/session"))
+	for _, tc := range []struct {
+		mask string
+		code int
+		want int
+	}{{"2", 0x1004, http.StatusOK}, {"256", 0x1004, http.StatusBadRequest}, {"null", 0x1004, http.StatusBadRequest}, {"true", 0x1004, http.StatusBadRequest}, {"2", 0x10e1, http.StatusBadRequest}} {
+		body := fmt.Sprintf(`{"session_id":%q,"event":{"Device":0,"Kind":0,"Action":1,"Code":%d,"Value":0},"modifiers":%s}`, session, tc.code, tc.mask)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/session/input/tap", strings.NewReader(body))
+		req.Host = "127.0.0.1"
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != tc.want {
+			t.Fatalf("mask %s code %x: %d %s", tc.mask, tc.code, rec.Code, rec.Body.String())
+		}
+	}
+	rig.sink.mu.Lock()
+	defer rig.sink.mu.Unlock()
+	if len(rig.sink.events) != 1 || rig.sink.events[0].Header.Type != protocol.InputTypeTapChord || rig.sink.events[0].Reserved != 2 {
+		t.Fatalf("unexpected frames %+v", rig.sink.events)
 	}
 }
 

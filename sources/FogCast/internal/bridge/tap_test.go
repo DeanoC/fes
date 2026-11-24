@@ -90,3 +90,28 @@ func TestTapProbeWithoutSinkCapabilityDoesNotDispatch(t *testing.T) {
 		t.Fatalf("unnegotiated tap dispatched: %+v", sink.events)
 	}
 }
+
+func TestChordProbeDoesNotSendInputToTapOnlySink(t *testing.T) {
+	sink := &timedTestSink{}
+	c, r := receiptFixture(t, sink)
+	f := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypePing, Flags: protocol.InputFlagTapChordProbe, Session: 9}, ClientMonoNS: 100}
+	if err := WriteFrame(c, f); err != nil {
+		t.Fatal(err)
+	}
+	got, err := protocol.DecodeInputFrame(r, MaxFrameBytes)
+	if err != nil || got.Header.Type != protocol.InputTypeReceipt || got.Header.Flags != 0 {
+		t.Fatalf("chord capability reply %+v: %v", got, err)
+	}
+	f = validTap()
+	f.Header.Type = protocol.InputTypeTapChord
+	f.Reserved = 2
+	if err := WriteFrame(c, f); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.ReadByte(); err == nil {
+		t.Fatal("unnegotiated chord did not close stream")
+	}
+	if sink.countTap() != 0 {
+		t.Fatal("chord dispatched without capability")
+	}
+}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -816,4 +817,112 @@ func barrierCoreArchive(t *testing.T) []byte {
 	}
 	output.Write(make([]byte, 1024))
 	return output.Bytes()
+}
+
+// A bridge belongs to the execution lease, not to the attach request or an
+// individual stream. This remains true when replacement reconstructs it.
+func TestTargetControllerLeaseLifetimeSurvivesReconnectAndPreserve(t *testing.T) {
+	for _, preserve := range []bool{false, true} {
+		t.Run(fmt.Sprintf("preserve=%t", preserve), func(t *testing.T) {
+			lifetime, revoke := context.WithCancel(context.Background())
+			defer revoke()
+			request, finishRequest := context.WithCancel(context.Background())
+			controller := newTargetControllerWithSink("127.0.0.1:0", &persistentTestSink{})
+			defer controller.Close()
+			spec := Spec{Session: 1, Token: []byte("0123456789abcdef"), Core: "MegaDrive"}
+			ctx := kitlease.WithAdmission(kitlease.WithLeaseLifetime(request, lifetime))
+			if err := controller.Attach(ctx, spec); err != nil {
+				t.Fatal(err)
+			}
+			finishRequest()
+			for i := 0; i < 2; i++ {
+				conn, err := controller.OpenStream(context.Background(), spec.Session)
+				if err != nil {
+					t.Fatalf("reconnect %d: %v", i, err)
+				}
+				conn.Close()
+			}
+			if preserve {
+				finish, err := controller.BeginCoreReplacement(context.Background())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := finish(context.Background(), true); err != nil {
+					t.Fatal(err)
+				}
+				conn, err := controller.OpenStream(context.Background(), spec.Session)
+				if err != nil {
+					t.Fatal(err)
+				}
+				conn.Close()
+			}
+			revoke()
+			deadline := time.Now().Add(time.Second)
+			for {
+				conn, err := controller.OpenStream(context.Background(), spec.Session)
+				if err != nil {
+					break
+				}
+				conn.Close()
+				if time.Now().After(deadline) {
+					t.Fatal("bridge survived lease revocation")
+				}
+				time.Sleep(time.Millisecond)
+			}
+		})
+	}
+}
+
+func TestTargetControllerRejectsAdmittedAttachWithoutLifetime(t *testing.T) {
+	c := newTargetControllerWithSink("127.0.0.1:0", &persistentTestSink{})
+	defer c.Close()
+	spec := Spec{Session: 1, Token: []byte("0123456789abcdef"), Core: "MegaDrive"}
+	if err := c.Attach(kitlease.WithAdmission(context.Background()), spec); err == nil {
+		t.Fatal("admitted attach without lifetime succeeded")
+	}
+	if err := c.Attach(context.Background(), spec); err != nil {
+		t.Fatalf("unguarded attach: %v", err)
+	}
+	for i := 0; i < 2; i++ {
+		conn, err := c.OpenStream(context.Background(), spec.Session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		conn.Close()
+	}
+}
+
+func TestTargetControllerCanceledLifetimeDuringStartup(t *testing.T) {
+	lifetime, revoke := context.WithCancel(context.Background())
+	defer revoke()
+	c := newTargetControllerWithSink("127.0.0.1:0", &persistentTestSink{})
+	defer c.Close()
+	entered, proceed := make(chan struct{}), make(chan struct{})
+	c.listen = func(network, address string) (net.Listener, error) {
+		listener, err := net.Listen(network, address)
+		close(entered)
+		<-proceed
+		return listener, err
+	}
+	result := make(chan error, 1)
+	go func() {
+		result <- c.Attach(kitlease.WithAdmission(kitlease.WithLeaseLifetime(context.Background(), lifetime)), Spec{Session: 1, Token: []byte("0123456789abcdef"), Core: "MegaDrive"})
+	}()
+	<-entered
+	revoke()
+	close(proceed)
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("attach error %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("attach did not finish")
+	}
+	c.mu.Lock()
+	active, pending := c.active, c.pending
+	c.mu.Unlock()
+	if active != nil || pending != nil {
+		t.Fatal("canceled startup published a lease")
+	}
 }
