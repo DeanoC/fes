@@ -152,7 +152,6 @@ type Device struct {
 	rx, tx                         uint32
 	nextLink                       time.Time
 	received, transmitted, dropped atomic.Uint64
-	linkUp                         atomic.Bool
 	linkSpeed                      atomic.Uint32
 	linkFlaps, linkRecoveries      atomic.Uint64
 	irqGIC                         *gic.Controller
@@ -199,7 +198,8 @@ func (d *Device) LinkStatus() (bool, LinkSpeed) {
 	if d == nil {
 		return false, LinkSpeedDown
 	}
-	return d.linkUp.Load(), LinkSpeed(d.linkSpeed.Load())
+	speed := LinkSpeed(d.linkSpeed.Load())
+	return speed != LinkSpeedDown, speed
 }
 
 // LinkCounters returns counts of transient carrier losses and recoveries.
@@ -275,23 +275,29 @@ func (d *Device) probeLink() (LinkSpeed, bool, error) {
 		return LinkSpeedDown, true, fmt.Errorf("xgmac: link/autonegotiation unavailable")
 	}
 	hasExt := status&(1<<8) != 0
-	var partner1000 uint16
 	if hasExt {
 		local1000, err := d.mdio(9)
 		if err != nil {
 			return LinkSpeedDown, false, err
 		}
-		partner1000, err = d.mdio(10)
+		partner1000, err := d.mdio(10)
 		if err != nil {
 			return LinkSpeedDown, false, err
 		}
-		if local1000&(1<<9) != 0 && partner1000&(1<<11) != 0 && partner1000&(1<<15) == 0 {
+		if partner1000&(1<<15) != 0 {
+			return LinkSpeedDown, false, fmt.Errorf("xgmac: 1000BASE-T master/slave configuration fault")
+		}
+		// IEEE 802.3 Annex 28B.3 priority: 1000BASE-T FD > 1000BASE-T HD > 100BASE-TX FD.
+		if local1000&(1<<9) != 0 && partner1000&(1<<11) != 0 {
 			return LinkSpeed1000Full, false, nil
+		}
+		if local1000&(1<<8) != 0 && partner1000&(1<<10) != 0 {
+			return LinkSpeedDown, false, fmt.Errorf("xgmac: half-duplex 1000BASE-T unsupported")
 		}
 	} else if !d.config.Allow100Full {
 		return LinkSpeedDown, false, fmt.Errorf("xgmac: link/autonegotiation unavailable")
 	}
-	if d.config.Allow100Full && !(hasExt && partner1000&(1<<15) != 0) {
+	if d.config.Allow100Full {
 		anar, err := d.mdio(4)
 		if err != nil {
 			return LinkSpeedDown, false, err
@@ -365,7 +371,6 @@ func (d *Device) initialize(mac net.HardwareAddr) error {
 		}
 		d.linkDown = true
 		d.configuredSpeed = LinkSpeedDown
-		d.linkUp.Store(false)
 		d.linkSpeed.Store(uint32(LinkSpeedDown))
 		d.nextLink = d.io.Now().Add(linkPollDown)
 	} else {
@@ -377,7 +382,6 @@ func (d *Device) initialize(mac net.HardwareAddr) error {
 		initialSpeed = speed
 		d.linkDown = false
 		d.configuredSpeed = speed
-		d.linkUp.Store(true)
 		d.linkSpeed.Store(uint32(speed))
 		d.nextLink = d.io.Now().Add(linkPollUp)
 	}
@@ -450,7 +454,6 @@ func (d *Device) poisonMemory(err error) {
 }
 func (d *Device) fail(err error) error {
 	if d.fault.CompareAndSwap(nil, &failure{err: err}) {
-		d.linkUp.Store(false)
 		d.linkSpeed.Store(uint32(LinkSpeedDown))
 		d.retireIRQLocked(d.started)
 		d.poisonMemory(err)
@@ -487,7 +490,6 @@ func (d *Device) health(allowLinkRecovery bool) (linkEvent, error) {
 			d.nextLink = d.io.Now().Add(linkPollDown)
 			if !d.linkDown {
 				d.linkDown = true
-				d.linkUp.Store(false)
 				d.linkSpeed.Store(uint32(LinkSpeedDown))
 				d.linkFlaps.Add(1)
 				return linkEvent{changed: true, up: false, speed: LinkSpeedDown}, nil
@@ -511,7 +513,6 @@ func (d *Device) health(allowLinkRecovery bool) (linkEvent, error) {
 			d.linkDown = false
 			d.linkRecoveries.Add(1)
 		}
-		d.linkUp.Store(true)
 		d.linkSpeed.Store(uint32(speed))
 		if wasDown || prevSpeed != speed {
 			return linkEvent{changed: true, up: true, speed: speed}, nil

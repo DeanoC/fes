@@ -82,6 +82,12 @@ func TestOpen100BaseTXFullDuplexOptIn(t *testing.T) {
 		{name: "100m-half", prep: func(hw *hardware) { hw.phy[10] = 0; hw.phy[4] = 1 << 7; hw.phy[5] = 1 << 7 }},
 		{name: "10m-full", prep: func(hw *hardware) { hw.phy[10] = 0; hw.phy[4] = 1 << 6; hw.phy[5] = 1 << 6 }},
 		{name: "1000m-ms-fault", prep: func(hw *hardware) { hw.phy[10] = 1<<15 | 1<<11; hw.phy[4] = 1 << 8; hw.phy[5] = 1 << 8 }},
+		{name: "1000m-half-overrides-100m-full", prep: func(hw *hardware) {
+			hw.phy[9] = 1 << 8
+			hw.phy[10] = 1 << 10
+			hw.phy[4] = 1 << 8
+			hw.phy[5] = 1 << 8
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			hw := newHardware()
