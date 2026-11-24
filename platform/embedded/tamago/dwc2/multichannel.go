@@ -143,6 +143,7 @@ type MultiHost struct {
 	rootConn       bool
 	rootRetryCount uint8
 	rootRetryAt    time.Time
+	rootExhausted  bool
 	paused         bool
 	draining  bool
 	fault     error // controller-level fatal fault only (e.g. foreign DMA)
@@ -1135,7 +1136,7 @@ func (p *multiPipe) PollInto(dst []byte) (int, error) {
 	}
 	n := s.inReadyLen
 	if n > len(dst) {
-		n = len(dst)
+		return 0, fmt.Errorf("dwc2: buffer too small (%d < %d)", len(dst), n)
 	}
 	copy(dst[:n], s.inBuf[:n])
 	s.inReady = false
