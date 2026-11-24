@@ -5,19 +5,39 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
 
+type busTestPipe struct {
+	addr      uint8
+	ep        usb.EndpointDescriptor
+	polls     int
+	writes    int
+	doneCalls int
+	intervals int
+	closes    int
+}
+
+func (p *busTestPipe) DeviceAddress() uint8             { return p.addr }
+func (p *busTestPipe) Endpoint() usb.EndpointDescriptor { return p.ep }
+func (p *busTestPipe) PollInto([]byte) (int, error)     { p.polls++; return 0, nil }
+func (p *busTestPipe) Write([]byte) error               { p.writes++; return nil }
+func (p *busTestPipe) WriteDone() (bool, error)         { p.doneCalls++; return true, nil }
+func (p *busTestPipe) SetIntervalOverride(time.Duration) { p.intervals++ }
+func (p *busTestPipe) Close() error                     { p.closes++; return nil }
+
 type busTestHost struct {
 	irqTestDriver
-	services  int
-	ctrlCalls int
-	openPipes int
+	services   int
+	ctrlCalls  int
+	openPipes  int
+	lastPipe   *busTestPipe
 	serviceErr error
-	devices   []usb.BusDevice
-	events    []usb.HostEvent
+	devices    []usb.BusDevice
+	events     []usb.HostEvent
 }
 
 func (b *busTestHost) Service() error {
@@ -37,9 +57,10 @@ func (b *busTestHost) ControlTransfer(uint8, byte, byte, uint16, uint16, []byte)
 	b.ctrlCalls++
 	return 0, nil
 }
-func (b *busTestHost) OpenPipe(uint8, usb.EndpointDescriptor) (usb.Pipe, error) {
+func (b *busTestHost) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, error) {
 	b.openPipes++
-	return nil, nil
+	b.lastPipe = &busTestPipe{addr: addr, ep: ep}
+	return b.lastPipe, nil
 }
 
 func TestBusHostActualCFirmwareLifecycleIRQAndPause(t *testing.T) {
@@ -107,11 +128,27 @@ func TestBusHostActualCFirmwareLifecycleIRQAndPause(t *testing.T) {
 	if _, err := bus.ControlTransfer(2, 0x20, 0, 0, 0, nil); err != nil || drv.ctrlCalls != 1 {
 		t.Fatalf("ControlTransfer: err=%v calls=%d", err, drv.ctrlCalls)
 	}
-	if _, err := bus.OpenPipe(2, usb.EndpointDescriptor{Address: 0x81, TransferType: usb.TransferInterrupt, MaxPacketSize: 16}); err != nil || drv.openPipes != 1 {
-		t.Fatalf("OpenPipe: err=%v opens=%d", err, drv.openPipes)
+	pipe, err := bus.OpenPipe(2, usb.EndpointDescriptor{Address: 0x81, TransferType: usb.TransferInterrupt, MaxPacketSize: 16})
+	if err != nil || drv.openPipes != 1 || pipe == nil || pipe.DeviceAddress() != 2 || pipe.Endpoint().Address != 0x81 {
+		t.Fatalf("OpenPipe: err=%v opens=%d pipe=%v", err, drv.openPipes, pipe)
+	}
+	rawPipe := drv.lastPipe
+	var rx [16]byte
+	if _, err := pipe.PollInto(rx[:]); err != nil || rawPipe.polls != 1 {
+		t.Fatalf("pipe.PollInto active: err=%v polls=%d", err, rawPipe.polls)
+	}
+	if err := pipe.Write(rx[:4]); err != nil || rawPipe.writes != 1 {
+		t.Fatalf("pipe.Write active: err=%v writes=%d", err, rawPipe.writes)
+	}
+	if ok, err := pipe.WriteDone(); !ok || err != nil || rawPipe.doneCalls != 1 {
+		t.Fatalf("pipe.WriteDone active: ok=%t err=%v calls=%d", ok, err, rawPipe.doneCalls)
+	}
+	pipe.SetIntervalOverride(time.Millisecond)
+	if rawPipe.intervals != 1 {
+		t.Fatalf("pipe.SetIntervalOverride active: intervals=%d", rawPipe.intervals)
 	}
 
-	// PausePolling blocks control/pipe mutations and makes Service a no-op.
+	// PausePolling blocks control/pipe operations (including retained pipe Close!) and makes Service a no-op.
 	if err := bus.PausePolling(ctx); err != nil || !drv.paused {
 		t.Fatalf("PausePolling: err=%v paused=%t", err, drv.paused)
 	}
@@ -121,6 +158,12 @@ func TestBusHostActualCFirmwareLifecycleIRQAndPause(t *testing.T) {
 	if _, err := bus.ControlTransfer(2, 0x20, 0, 0, 0, nil); !errors.Is(err, ErrTransition) {
 		t.Fatalf("ControlTransfer while paused=%v, want ErrTransition", err)
 	}
+	if err := pipe.Close(); !errors.Is(err, ErrTransition) || rawPipe.closes != 0 {
+		t.Fatalf("retained pipe.Close while paused touched hardware: err=%v closes=%d", err, rawPipe.closes)
+	}
+	if _, err := pipe.PollInto(rx[:]); !errors.Is(err, ErrTransition) || rawPipe.polls != 1 {
+		t.Fatalf("retained pipe.PollInto while paused touched hardware: err=%v polls=%d", err, rawPipe.polls)
+	}
 	if err := bus.ResumePolling(ctx); err != nil || drv.paused {
 		t.Fatalf("ResumePolling: err=%v paused=%t", err, drv.paused)
 	}
@@ -129,6 +172,9 @@ func TestBusHostActualCFirmwareLifecycleIRQAndPause(t *testing.T) {
 	copied := *bus
 	if err := copied.Close(ctx); err != nil {
 		t.Fatalf("Close: %v", err)
+	}
+	if err := pipe.Close(); !errors.Is(err, ErrRetired) || rawPipe.closes != 0 {
+		t.Fatalf("retained pipe.Close after BusHost.Close touched hardware: err=%v closes=%d", err, rawPipe.closes)
 	}
 	if !drv.paused || drv.enabled || drv.retires+drv.disables == 0 {
 		t.Fatalf("Close did not drain/disable driver: paused=%t enabled=%t disables=%d retires=%d",

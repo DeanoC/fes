@@ -89,6 +89,7 @@ type ProgramSerialPlatform struct {
 	fetchGeneration uint64
 	installerViews  bool
 	previousView    []byte
+	wakePending     bool
 }
 
 func NewProgramSerialPlatform(service *ProgramService, read func() (byte, bool), emit func(context.Context, []byte) error) (*ProgramSerialPlatform, error) {
@@ -114,6 +115,8 @@ func (p *ProgramSerialPlatform) Ready() <-chan struct{} { return p.ready }
 // alongside console RX.
 func (p *ProgramSerialPlatform) SetInputReady(ready <-chan struct{}) { p.inputReady = ready }
 
+func (p *ProgramSerialPlatform) wakeNext() { p.wakePending = true }
+
 func (p *ProgramSerialPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
 	if ctx == nil {
 		return tenfoot.PlatformInput{}, errors.New("native serial UI: context required")
@@ -122,6 +125,10 @@ func (p *ProgramSerialPlatform) Next(ctx context.Context) (tenfoot.PlatformInput
 		return tenfoot.PlatformInput{}, err
 	}
 	delay := 50*time.Millisecond - time.Since(p.last)
+	if p.wakePending {
+		p.wakePending = false
+		delay = 0
+	}
 	if delay > 0 {
 		timer := time.NewTimer(delay)
 		select {

@@ -195,6 +195,9 @@ func (p *ProgramInputPlatform) runGameplayFastPath(ctx context.Context) (tenfoot
 		case <-p.inputReady:
 			continue
 		case <-p.uartReady:
+			if w, ok := p.base.(interface{ wakeNext() }); ok {
+				w.wakeNext()
+			}
 			return tenfoot.PlatformInput{}, false, nil
 		case <-timer.C:
 			return tenfoot.PlatformInput{}, false, nil

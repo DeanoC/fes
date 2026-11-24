@@ -4,6 +4,7 @@ package usbcontrol
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
@@ -169,7 +170,8 @@ func (b *BusHost) ControlTransfer(addr uint8, reqType, req byte, value, index ui
 }
 
 // OpenPipe allocates a hardware pipe on an enumerated device while the lease is
-// active, confirmed and unpaused.
+// active, confirmed and unpaused. The returned Pipe is wrapped in the EL3 lease
+// so retained pipes cannot perform hardware MMIO while paused or after Close/Stop.
 func (b *BusHost) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, error) {
 	if b == nil || b.lease == nil {
 		return nil, ErrRetired
@@ -186,7 +188,79 @@ func (b *BusHost) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, err
 	if err := b.checkActiveLocked(); err != nil {
 		return nil, err
 	}
-	return b.host.OpenPipe(addr, ep)
+	p, err := b.host.OpenPipe(addr, ep)
+	if err != nil || p == nil {
+		return nil, err
+	}
+	return &leasedPipe{bus: b, pipe: p, addr: addr, ep: ep}, nil
+}
+
+type leasedPipe struct {
+	bus  *BusHost
+	pipe usb.Pipe
+	addr uint8
+	ep   usb.EndpointDescriptor
+}
+
+func (p *leasedPipe) DeviceAddress() uint8             { return p.addr }
+func (p *leasedPipe) Endpoint() usb.EndpointDescriptor { return p.ep }
+
+func (p *leasedPipe) withActiveLease(fn func() error) error {
+	if p == nil || p.bus == nil || p.bus.lease == nil || p.pipe == nil {
+		return ErrRetired
+	}
+	s := p.bus.lease
+	if !s.operation.TryLock() {
+		return ErrBusy
+	}
+	defer s.operation.Unlock()
+	if !s.client.operation.TryLock() {
+		return ErrBusy
+	}
+	defer s.client.operation.Unlock()
+	if err := p.bus.checkActiveLocked(); err != nil {
+		return err
+	}
+	return fn()
+}
+
+func (p *leasedPipe) PollInto(dst []byte) (int, error) {
+	var n int
+	err := p.withActiveLease(func() error {
+		var perr error
+		n, perr = p.pipe.PollInto(dst)
+		return perr
+	})
+	return n, err
+}
+
+func (p *leasedPipe) Write(data []byte) error {
+	return p.withActiveLease(func() error {
+		return p.pipe.Write(data)
+	})
+}
+
+func (p *leasedPipe) WriteDone() (bool, error) {
+	var done bool
+	err := p.withActiveLease(func() error {
+		var perr error
+		done, perr = p.pipe.WriteDone()
+		return perr
+	})
+	return done, err
+}
+
+func (p *leasedPipe) SetIntervalOverride(interval time.Duration) {
+	_ = p.withActiveLease(func() error {
+		p.pipe.SetIntervalOverride(interval)
+		return nil
+	})
+}
+
+func (p *leasedPipe) Close() error {
+	return p.withActiveLease(func() error {
+		return p.pipe.Close()
+	})
 }
 
 // EnableIRQ binds the underlying multi-channel host to a GICv3 SPI guarded by

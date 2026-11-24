@@ -146,7 +146,8 @@ type multiChannelSim struct {
 	txEP     [16]uint8
 	txSplit  [16]bool
 	noOutLog bool
-	wedgeCh  int // if > 0, channel wedgeCh refuses to clear CHENA on halt
+	wedgeCh  int // if >= 0 (when wedgeSet), channel wedgeCh refuses to clear CHENA on halt
+	wedgeSet bool
 }
 
 func newMultiChannelSim(fifoWords uint32, channels int) *multiChannelSim {
@@ -352,7 +353,7 @@ func (s *multiChannelSim) findDevice(addr uint8) *multiSimDevice {
 
 func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 	if val&channelDisable != 0 {
-		if s.wedgeCh > 0 && ch == s.wedgeCh {
+		if s.wedgeSet && ch == s.wedgeCh {
 			s.regs[chReg(ch, hcchar)] |= channelEnable
 			return
 		}
@@ -439,7 +440,9 @@ func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 			}
 			s.ctrl = nil
 			s.enqueueRX(0, pid, nil)
-			s.regs[chReg(ch, hcchar)] &^= channelEnable
+			if !(s.wedgeSet && s.wedgeCh == 0) {
+				s.regs[chReg(ch, hcchar)] &^= channelEnable
+			}
 			s.regs[chReg(ch, hcint)] |= 1 | 1<<1
 			return
 		}
@@ -1138,6 +1141,7 @@ func TestMultiHostWedgedChannelFailsPauseAndClose(t *testing.T) {
 
 	// Simulate hardware leaving CHENA=1 stuck on ch.
 	sim.mu.Lock()
+	sim.wedgeSet = true
 	sim.wedgeCh = ch
 	sim.regs[chReg(ch, hcchar)] |= channelEnable
 	sim.mu.Unlock()
@@ -1164,6 +1168,7 @@ func TestMultiHostWedgedChannelFailsPauseAndClose(t *testing.T) {
 	}
 	ch2 := pipe2.(*multiPipe).ch
 	sim2.mu.Lock()
+	sim2.wedgeSet = true
 	sim2.wedgeCh = ch2
 	sim2.regs[chReg(ch2, hcchar)] |= channelEnable
 	sim2.mu.Unlock()
@@ -1172,6 +1177,55 @@ func TestMultiHostWedgedChannelFailsPauseAndClose(t *testing.T) {
 	}
 	if !host2.slots[ch2].allocated || host2.slots[ch2].fault == nil {
 		t.Fatal("stuck channel slot was cleared for reuse")
+	}
+
+	// Verify CH0 control-completion halt failure latches controller fault instead of returning success.
+	sim3 := newMultiChannelSim(1024, 16)
+	bt3 := newSimBTDongle()
+	sim3.attachRoot(bt3)
+	host3, err := OpenMulti(sim3, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev3, _ := host3.NextEvent()
+	sim3.mu.Lock()
+	sim3.wedgeSet = true
+	sim3.wedgeCh = 0
+	sim3.mu.Unlock()
+	if _, err := host3.ControlTransfer(ev3.Device.Address, 0x20, 0x00, 0, 0, []byte{0x03, 0x0c, 0x00}); err == nil {
+		t.Fatal("ControlTransfer returned success while CH0 failed to halt")
+	}
+	if host3.fault == nil {
+		t.Fatal("CH0 halt failure did not latch controller fault")
+	}
+}
+
+func TestMultiHostRootDeviceRetryOnTransientEnumFailure(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	bt := newSimBTDongle()
+	bt.failDescCount = 1 // Transient STALL on first boot descriptor read
+	sim.attachRoot(bt)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	if _, ok := host.NextEvent(); ok {
+		t.Fatal("unexpected attach event before transient failure cleared")
+	}
+	var attached bool
+	for range 20 {
+		sim.advance(25 * time.Millisecond)
+		if err := host.Service(); err != nil {
+			t.Fatal(err)
+		}
+		if ev, ok := host.NextEvent(); ok && ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x0bda {
+			attached = true
+			break
+		}
+	}
+	if !attached {
+		t.Fatal("directly attached root device was not retried after transient descriptor failure")
 	}
 }
 
