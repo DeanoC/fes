@@ -248,6 +248,13 @@ def watchdog_option(program, selected, tenfoot, timeout_sec, clock_hz):
 
 
 def network_runtime_options(program, profile, selected, tenfoot, dhcp, hostname, sntp_server, sntp_port):
+    """Validate the opt-in fpgaload DHCP/SNTP flags; dormant on every shipped profile.
+
+    fpgaload builds only from the byte-exact nano/sd-profile.json (network: null),
+    and profile_constants refuses a network block beside sd_control, so every
+    opt-in is refused here or by that pin. tests/test_tamago_build_network.py
+    pins this; see network/README.md.
+    """
     if dhcp is None:
         dhcp = False
     if hostname is None:
@@ -269,7 +276,9 @@ def network_runtime_options(program, profile, selected, tenfoot, dhcp, hostname,
     if program != 'fpgaload' or selected is not True or tenfoot is not True:
         raise ValueError('--network-dhcp/--network-sntp-* require Nano fpgaload with --selected-programs and --tenfoot-serial')
     if not isinstance(profile, dict) or profile.get('network') is None:
-        raise ValueError('--network-dhcp/--network-sntp-* require a firmware profile with network enabled')
+        raise ValueError('--network-dhcp/--network-sntp-* are dormant: they need a network-enabled firmware profile, '
+                         'but fpgaload builds only from nano/sd-profile.json (network: null), whose closed-bridge '
+                         'SD ownership excludes Ethernet')
     if hostname:
         if not dhcp:
             raise ValueError('--network-dhcp-hostname requires --network-dhcp')

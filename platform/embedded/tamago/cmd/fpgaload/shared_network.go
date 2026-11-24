@@ -19,6 +19,12 @@ import (
 // Opt-in build-time linker flags (-X main.expectedNetworkDHCP=1, etc.).
 // When empty (the default), native Ethernet preserves static profile addressing
 // with no DHCP lease renewal or SNTP clock synchronization.
+//
+// Dormant: build.py refuses every flag that sets these, because fpgaload builds
+// only from nano/sd-profile.json (network: null) and closed-bridge SD ownership
+// excludes Ethernet. No image links them today, so the DHCP, renewal and SNTP
+// code below never runs; a hand-linked image still fails closed in
+// prepareProgramNetwork while NetworkEnabled() is false. See network/README.md.
 var (
 	expectedNetworkDHCP         string
 	expectedNetworkDHCPHostname string
