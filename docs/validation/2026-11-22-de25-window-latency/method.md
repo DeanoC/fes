@@ -61,9 +61,12 @@ time, with the fixed Yosys lock.
 
 ## The other DE25 cores (AGENTS.md D12)
 
-`machine/board.py` is in the closures of Spectrum 48, Spectrum 128 and ST, so
-their `BUILD_ID`s move. Each takes the D12 comparison, by the method of #2036's
-`d12.md`:
+`machine/board.py` is in the closure of every package of every machine on the
+shared machine builder, so their `BUILD_ID`s move: Spectrum, ST, C64 and PC/XT.
+[closure_ids.py](closure_ids.py) lists them from the producers. Spectrum 48,
+Spectrum 128 and ST, named when this method was committed, and C64 `pal`, C64
+`nativepal` and PC/XT `xt`, added after review ([below](#added-on-24-nov-2026-after-review)),
+each take the D12 comparison, by the method of #2036's `d12.md`:
 - **A:** the base producer with `--compile-only`.
 - **B:** this branch's full producer, with its gates.
 - **C:** this branch's tooling with A's `BUILD_ID` forced.
@@ -84,3 +87,25 @@ Spectrum, ST, MENU, ZX81 and C64 `BUILD_ID`s, and DE25 producers now take
 - the base side, A, is a commit that includes #2097;
 - the MENU and ZX81 closure check runs against the post-#2097 producers.
 Earlier comparisons are not counted.
+
+### Added on 24 Nov 2026, after review
+
+As first committed, this section named only Spectrum 48, Spectrum 128 and ST.
+Review of #2177 found that the C64 (`pal` and `nativepal`) and the PC/XT
+(`xt`) hold `machine/board.py` as well. #2036's own D12 measured C64 `pal` and
+PC/XT `xt` for its `board.py` edits. They take the comparison above, with the
+same rules.
+
+This addition is committed before any C64 or PC/XT run of this comparison is
+recorded. It adds one rule, for the PC/XT RBF only, from #2036's D12 and
+#2182. If the PC/XT's C `core.rbf` differs from A's, A runs again into its own
+output directory, with the first A kept aside, as #2036's `pcxt-arepeat.sh`
+did:
+- If the repeat equals A, C's difference stands, and the PC/XT fails D12.
+- If the repeat differs from A, the base does not reproduce its own RBF, and
+  the PC/XT's RBF comparison is not measurable. That is not a pass. Its
+  inputs comparison and B's gates still apply.
+
+Spectrum `plus3`, `pentagon` and `native48` hold `machine/board.py` too.
+Neither this method nor #2036's D12 covers them, and the review did not name
+them. Whether they take D12 here is Deano's call.
