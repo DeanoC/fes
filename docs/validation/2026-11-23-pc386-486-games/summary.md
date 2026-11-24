@@ -167,3 +167,28 @@ His answers are quoted; the follow-up issues hold the work.
   and [`tools/chip_sw486d.sh`](tools/chip_sw486d.sh) run on chip-30x0-ai-dev,
   whose Verilator was upgraded to 5.032 for them (23 Nov 2026), from #2171's
   `a9d6cb4f5`.
+  [`tools/chip_reset486.sh`](tools/chip_reset486.sh) ran the from-reset RTL
+  runs on chip-30x0-ai-dev (24 Nov 2026).
+
+**The runners as they ran, and as committed now.** The runs above used the
+versions at `e91821f5b`. Those versions had two faults that Codex found on
+this PR. The committed scripts are fixed; the runs were not repeated.
+- **Exit status.** Each ran its sims in background subshells ending in an
+  `echo`, then a bare `wait`, so the scripts returned 0 whatever the runs did.
+  In `census486_l4.sh` the logged `rc=` was also wrong: `$(basename …)` on the
+  same line reset `$?`, so every census `rc=` reads 0, even Warcraft II's,
+  whose report says `FAIL game`. The chip scripts' `rc=` lines are the sims'
+  own exits. No verdict here comes from a script's exit or a census `rc=`:
+  each comes from that run's own report (`PASS`/`FAIL`, end reason, RTL
+  counters, screen).
+- **Shared build.** Parallel runs share `machine/`'s build, and the scripts
+  staggered them by fixed sleeps rather than building first. The census run
+  does not record whether a later run started while the first was still
+  building. On chip, the from-reset Duke run relinked the testbench at
+  08:06:05 on 24 Nov, about when the Shadow Warrior run started (two
+  minutes after Duke). Both runs had the same build inputs (`--cpu rtl
+  --cpu-level 4`). Each verdict's report shows its own title's screens and
+  counters.
+  The fixed scripts run a one-second warm-up first, then wait on each run
+  and exit nonzero if any fails; `chip_reset486.sh` also requires
+  `PASS game` in each log.
