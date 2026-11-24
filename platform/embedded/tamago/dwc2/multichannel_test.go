@@ -3566,3 +3566,30 @@ func TestMultiHostEnableIRQWakesPreOpenedPipes(t *testing.T) {
 		t.Fatalf("pre-opened pipe packet mismatch: got %x want %x", buf[:gotN], pkt)
 	}
 }
+
+type panicOnMMIORegs struct {
+	Registers
+	t *testing.T
+}
+
+func (p panicOnMMIORegs) Read32(reg uint32) uint32 {
+	p.t.Fatalf("unexpected Read32(%#x) while IRQ ownership guard inactive", reg)
+	return 0
+}
+
+func (p panicOnMMIORegs) Write32(reg, val uint32) {
+	p.t.Fatalf("unexpected Write32(%#x, %#x) while IRQ ownership guard inactive", reg, val)
+}
+
+func TestMultiHostEnableIRQGuardedChecksGuardBeforeMMIO(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	host.io = panicOnMMIORegs{Registers: sim, t: t}
+	ctrl, _ := newMockGIC(t)
+	if err := host.EnableIRQGuarded(ctrl, testUSBIRQ, func() bool { return false }); err == nil {
+		t.Fatal("EnableIRQGuarded succeeded despite inactive ownership guard")
+	}
+}
