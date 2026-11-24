@@ -8,8 +8,16 @@ its separate VirtIO NIC. No Linux driver or userspace is linked into the image.
 The first profile supports one DMA channel, static IPv4, Ethernet MTU 1500,
 and a firmware-negotiated **1000BASE-T full-duplex** RGMII link. It performs
 bounded Clause-22 MDIO reads, verifies the exact PHY ID and negotiated gigabit
-capabilities, and polls link health. It deliberately rejects incomplete
-negotiation, half duplex and 10/100 links. Firmware still owns PHY reset,
+capabilities, and polls link health. By default it rejects incomplete
+negotiation, half duplex and 10/100 links and fails closed on link loss.
+Callers may explicitly opt into `Config.Allow100Full` (admitting negotiated
+**100BASE-TX full-duplex** via `XGMAC_CONFIG_SS_100_MII` alongside optional
+`Config.OnSpeedChange` platform clock adjustment; half duplex and 10 Mbps
+remain rejected) and `Config.RecoverLinkLoss` (treating transient PHY carrier
+loss or ongoing autonegotiation as a non-fatal link-down state that drops
+outbound frames and recovers automatically on link-up without poisoning DMA
+memory, while DMA, engine-stop, and MDIO/PHY hardware faults still fail closed).
+Firmware still owns PHY reset,
 autonegotiation setup, RGMII routing/delays, 125 MHz reference, MAC CSR clocks,
 reset/firewalls and SMMU configuration. There is no PHY scan or guessed address.
 

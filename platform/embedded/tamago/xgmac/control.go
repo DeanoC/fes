@@ -50,6 +50,8 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 			if err := ctx.Err(); err != nil {
 				return err
 			}
+			var linkEv linkEvent
+			defer func() { d.notifyLink(linkEv) }()
 			if !d.mu.TryLock() {
 				return d.retireControl(network.ErrBusy)
 			}
@@ -63,10 +65,14 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 			if !d.sameMemory() {
 				return d.retireControl(errors.New("xgmac: DMA window changed"))
 			}
-			if err := d.health(); err != nil {
+			var err error
+			linkEv, err = d.health(true)
+			if err != nil {
 				return err
 			}
 			d.paused = true
+			d.linkUp.Store(false)
+			d.linkSpeed.Store(uint32(LinkSpeedDown))
 			d.suspendIRQLocked()
 			if err := d.stopFIFO(ctx); err != nil {
 				return d.retireControl(err)
@@ -172,6 +178,8 @@ func (d *Device) sameMemory() bool {
 // effort register writes; new Receive/Transmit refuse through the cached error.
 func (d *Device) retireControl(err error) error {
 	if d.fault.CompareAndSwap(nil, &failure{err: err}) {
+		d.linkUp.Store(false)
+		d.linkSpeed.Store(uint32(LinkSpeedDown))
 		d.retireIRQLocked(false)
 		d.poisonMemory(err)
 	}

@@ -45,6 +45,11 @@ const (
 	txStopped        = uint32(1 << 1)
 	rxStopped        = uint32(1 << 8)
 	dmaFaults        = uint32(1<<9 | 1<<12 | 1<<13)
+	txSpeedMask      = uint32(7 << 29)
+	txSpeed1000GMII  = uint32(3 << 29) // DW XGMAC XGMAC_CONFIG_SS_1000_GMII
+	txSpeed100MII    = uint32(4 << 29) // DW XGMAC XGMAC_CONFIG_SS_100_MII
+	linkPollUp       = 500 * time.Millisecond
+	linkPollDown     = 250 * time.Millisecond
 	ringSize         = 4
 	bufferSize       = 1600
 	maxFrame         = 1514
@@ -76,6 +81,23 @@ type Memory interface {
 	Write(uint32, []byte)
 	Barrier()
 }
+
+// LinkSpeed reports the active negotiated full-duplex Ethernet link speed.
+type LinkSpeed uint32
+
+const (
+	LinkSpeedDown     LinkSpeed = 0
+	LinkSpeed100Full  LinkSpeed = 100
+	LinkSpeed1000Full LinkSpeed = 1000
+)
+
+// LinkStats reports non-fatal PHY carrier transitions observed when
+// Config.RecoverLinkLoss is enabled.
+type LinkStats struct {
+	Flaps      uint64
+	Recoveries uint64
+}
+
 type Config struct {
 	MAC        string
 	PHYAddress uint8
@@ -89,8 +111,30 @@ type Config struct {
 	// descriptors set IOC and EnableIRQ can bind GIC delivery; zero keeps
 	// polling-only mode.
 	IRQ uint32
+	// Allow100Full optionally admits firmware-negotiated 100BASE-TX full duplex
+	// in addition to 1000BASE-T full duplex, selecting XGMAC_CONFIG_SS_100_MII.
+	// Half duplex and 10 Mbps links remain rejected. Default false preserves
+	// strict 1000BASE-T-only admission.
+	Allow100Full bool
+	// RecoverLinkLoss optionally treats transient PHY carrier loss or ongoing
+	// autonegotiation as a recoverable link-down state instead of permanently
+	// retiring the device and poisoning DMA memory. Hardware/DMA/MDIO faults
+	// still fail closed. Default false preserves strict fail-closed link checks.
+	RecoverLinkLoss bool
+	// OnSpeedChange optionally adjusts platform clock/PHY glue (e.g. RGMII TX
+	// clock divider) before applying a negotiated speed on initialize or
+	// post-flap speed change. Returning an error fails the device closed.
+	OnSpeedChange func(LinkSpeed) error
+	// OnLinkChange optionally notifies callers (outside the device mutex) when
+	// carrier state or negotiated link speed changes under RecoverLinkLoss.
+	OnLinkChange func(up bool, speed LinkSpeed)
 }
 type failure struct{ err error }
+type linkEvent struct {
+	changed bool
+	up      bool
+	speed   LinkSpeed
+}
 type Device struct {
 	mu                             sync.Mutex
 	irqMu                          sync.Mutex
@@ -102,10 +146,15 @@ type Device struct {
 	fault                          atomic.Pointer[failure]
 	started                        bool
 	paused, controlBound           bool
+	linkDown                       bool
+	configuredSpeed                LinkSpeed
 	dmaBase, dmaBytes              uint64
 	rx, tx                         uint32
 	nextLink                       time.Time
 	received, transmitted, dropped atomic.Uint64
+	linkUp                         atomic.Bool
+	linkSpeed                      atomic.Uint32
+	linkFlaps, linkRecoveries      atomic.Uint64
 	irqGIC                         *gic.Controller
 	rxReady                        chan struct{}
 	irqActive                      atomic.Bool
@@ -144,6 +193,35 @@ func (d *Device) Err() error {
 func (d *Device) Statistics() network.Stats {
 	return network.Stats{Received: d.received.Load(), Transmitted: d.transmitted.Load(), Dropped: d.dropped.Load()}
 }
+
+// LinkStatus reports whether the PHY carrier is currently up and its negotiated speed.
+func (d *Device) LinkStatus() (bool, LinkSpeed) {
+	if d == nil {
+		return false, LinkSpeedDown
+	}
+	return d.linkUp.Load(), LinkSpeed(d.linkSpeed.Load())
+}
+
+// LinkCounters returns counts of transient carrier losses and recoveries.
+func (d *Device) LinkCounters() LinkStats {
+	if d == nil {
+		return LinkStats{}
+	}
+	return LinkStats{Flaps: d.linkFlaps.Load(), Recoveries: d.linkRecoveries.Load()}
+}
+
+func (d *Device) notifyLink(ev linkEvent) {
+	if ev.changed && d.config.OnLinkChange != nil {
+		d.config.OnLinkChange(ev.up, ev.speed)
+	}
+}
+
+func txSpeedBits(speed LinkSpeed) uint32 {
+	if speed == LinkSpeed100Full {
+		return txSpeed100MII
+	}
+	return txSpeed1000GMII
+}
 func (d *Device) wait(reg, mask, want uint32) error {
 	end := d.io.Now().Add(100 * time.Millisecond)
 	for n := 0; n < 1000000; n++ {
@@ -172,38 +250,79 @@ func (d *Device) mdio(reg uint32) (uint16, error) {
 	}
 	return uint16(d.io.Read32(mdioData)), nil
 }
-func (d *Device) link() error {
+func (d *Device) probeLink() (LinkSpeed, bool, error) {
 	control, err := d.mdio(0)
 	if err != nil {
-		return err
+		return LinkSpeedDown, false, err
 	}
-	if control&(1<<15|1<<14|1<<11|1<<10|1<<9) != 0 || control&(1<<12) == 0 {
-		return fmt.Errorf("xgmac: PHY must have completed firmware autonegotiation")
+	if control&(1<<15|1<<14|1<<11|1<<10) != 0 || control&(1<<12) == 0 {
+		return LinkSpeedDown, false, fmt.Errorf("xgmac: PHY must have completed firmware autonegotiation")
+	}
+	if control&(1<<9) != 0 {
+		return LinkSpeedDown, true, fmt.Errorf("xgmac: PHY must have completed firmware autonegotiation")
 	}
 	if _, err = d.mdio(1); err != nil {
-		return err
+		return LinkSpeedDown, false, err
 	} // BMSR link is latch-low
 	status, err := d.mdio(1)
 	if err != nil {
-		return err
+		return LinkSpeedDown, false, err
 	}
-	if status&(1<<5|1<<3|1<<2|1<<8) != (1<<5 | 1<<3 | 1<<2 | 1<<8) {
-		return fmt.Errorf("xgmac: link/autonegotiation unavailable")
+	if status&(1<<3) == 0 {
+		return LinkSpeedDown, false, fmt.Errorf("xgmac: link/autonegotiation unavailable")
 	}
-	local, err := d.mdio(9)
-	if err != nil {
-		return err
+	if status&(1<<5|1<<2) != (1<<5 | 1<<2) {
+		return LinkSpeedDown, true, fmt.Errorf("xgmac: link/autonegotiation unavailable")
 	}
-	partner, err := d.mdio(10)
-	if err != nil {
-		return err
+	hasExt := status&(1<<8) != 0
+	var partner1000 uint16
+	if hasExt {
+		local1000, err := d.mdio(9)
+		if err != nil {
+			return LinkSpeedDown, false, err
+		}
+		partner1000, err = d.mdio(10)
+		if err != nil {
+			return LinkSpeedDown, false, err
+		}
+		if local1000&(1<<9) != 0 && partner1000&(1<<11) != 0 && partner1000&(1<<15) == 0 {
+			return LinkSpeed1000Full, false, nil
+		}
+	} else if !d.config.Allow100Full {
+		return LinkSpeedDown, true, fmt.Errorf("xgmac: link/autonegotiation unavailable")
 	}
-	if local&(1<<9) == 0 || partner&(1<<11) == 0 || partner&(1<<15) != 0 {
-		return fmt.Errorf("xgmac: require negotiated 1000BASE-T full duplex")
+	if d.config.Allow100Full && !(hasExt && partner1000&(1<<15) != 0) {
+		anar, err := d.mdio(4)
+		if err != nil {
+			return LinkSpeedDown, false, err
+		}
+		anlpar, err := d.mdio(5)
+		if err != nil {
+			return LinkSpeedDown, false, err
+		}
+		if anar&(1<<8) != 0 && anlpar&(1<<8) != 0 {
+			return LinkSpeed100Full, false, nil
+		}
+		return LinkSpeedDown, true, fmt.Errorf("xgmac: require negotiated 1000BASE-T or 100BASE-TX full duplex")
 	}
-	d.nextLink = d.io.Now().Add(500 * time.Millisecond)
+	return LinkSpeedDown, true, fmt.Errorf("xgmac: require negotiated 1000BASE-T full duplex")
+}
+
+func (d *Device) applySpeedLocked(speed LinkSpeed) error {
+	if d.config.OnSpeedChange != nil {
+		if err := d.config.OnSpeedChange(speed); err != nil {
+			return err
+		}
+	}
+	cur := d.io.Read32(txConfig)
+	d.io.Write32(txConfig, cur&^1)
+	updated := (cur &^ (txSpeedMask | 1)) | txSpeedBits(speed)
+	d.io.Write32(txConfig, updated)
+	d.io.Write32(txConfig, updated|1)
+	d.configuredSpeed = speed
 	return nil
 }
+
 func (d *Device) initialize(mac net.HardwareAddr) error {
 	if d.io.Read32(version)&255 != 0x21 || d.io.Read32(features0)&(1<<5|1<<1) != (1<<5|1<<1) {
 		return fmt.Errorf("xgmac: unsupported core version/GMII/MDIO capabilities")
@@ -238,8 +357,29 @@ func (d *Device) initialize(mac net.HardwareAddr) error {
 	if uint32(idHigh)<<16|uint32(idLow) != d.config.PHYID {
 		return fmt.Errorf("xgmac: PHY identity mismatch")
 	}
-	if err = d.link(); err != nil {
-		return err
+	speed, transientDown, err := d.probeLink()
+	initialSpeed := LinkSpeed1000Full
+	if err != nil {
+		if !d.config.RecoverLinkLoss || !transientDown {
+			return err
+		}
+		d.linkDown = true
+		d.configuredSpeed = LinkSpeedDown
+		d.linkUp.Store(false)
+		d.linkSpeed.Store(uint32(LinkSpeedDown))
+		d.nextLink = d.io.Now().Add(linkPollDown)
+	} else {
+		if d.config.OnSpeedChange != nil {
+			if err := d.config.OnSpeedChange(speed); err != nil {
+				return err
+			}
+		}
+		initialSpeed = speed
+		d.linkDown = false
+		d.configuredSpeed = speed
+		d.linkUp.Store(true)
+		d.linkSpeed.Store(uint32(speed))
+		d.nextLink = d.io.Now().Add(linkPollUp)
 	}
 	fifo := d.io.Read32(features1)
 	txPower, rxPower := (fifo>>6)&31, fifo&31
@@ -261,7 +401,7 @@ func (d *Device) initialize(mac net.HardwareAddr) error {
 	d.io.Write32(0x140, 0) // full duplex
 	d.io.Write32(macHigh, uint32(mac[4])|uint32(mac[5])<<8)
 	d.io.Write32(macLow, uint32(mac[0])|uint32(mac[1])<<8|uint32(mac[2])<<16|uint32(mac[3])<<24)
-	d.io.Write32(txConfig, 3<<29)
+	d.io.Write32(txConfig, txSpeedBits(initialSpeed))
 	d.io.Write32(rxConfig, 1<<2|1<<1) // strip CRC/padding; no jumbo/checksum offload
 	d.io.Write32(0x3004, 1<<1)        // fixed 4-beat AXI bursts, one outstanding read/write
 	d.io.Write32(0x3100, 0)           // 16-byte descriptors, no header split/PBLx8
@@ -310,6 +450,8 @@ func (d *Device) poisonMemory(err error) {
 }
 func (d *Device) fail(err error) error {
 	if d.fault.CompareAndSwap(nil, &failure{err: err}) {
+		d.linkUp.Store(false)
+		d.linkSpeed.Store(uint32(LinkSpeedDown))
 		d.retireIRQLocked(d.started)
 		d.poisonMemory(err)
 		if d.started {
@@ -323,31 +465,72 @@ func (d *Device) fail(err error) error {
 	}
 	return d.Err()
 }
-func (d *Device) health() error {
+func (d *Device) health(allowSpeedUpdate bool) (linkEvent, error) {
 	if err := d.Err(); err != nil {
-		return err
+		return linkEvent{}, err
 	}
 	if d.paused {
-		return network.ErrPaused
+		return linkEvent{}, network.ErrPaused
 	}
 	if d.io.Read32(channelStatus)&(dmaFaults|txStopped|rxStopped) != 0 {
-		return d.fail(errors.New("xgmac: DMA error or unexpected process stop"))
+		return linkEvent{}, d.fail(errors.New("xgmac: DMA error or unexpected process stop"))
 	}
 	if d.io.Read32(txControl)&1 == 0 || d.io.Read32(rxControl)&1 == 0 || d.io.Read32(txConfig)&1 == 0 || d.io.Read32(rxConfig)&1 == 0 {
-		return d.fail(errors.New("xgmac: device stopped unexpectedly"))
+		return linkEvent{}, d.fail(errors.New("xgmac: device stopped unexpectedly"))
 	}
 	if !d.io.Now().Before(d.nextLink) {
-		if err := d.link(); err != nil {
-			return d.fail(err)
+		speed, transientDown, err := d.probeLink()
+		if err != nil {
+			if !d.config.RecoverLinkLoss || !transientDown {
+				return linkEvent{}, d.fail(err)
+			}
+			d.nextLink = d.io.Now().Add(linkPollDown)
+			if !d.linkDown {
+				d.linkDown = true
+				d.linkUp.Store(false)
+				d.linkSpeed.Store(uint32(LinkSpeedDown))
+				d.linkFlaps.Add(1)
+				return linkEvent{changed: true, up: false, speed: LinkSpeedDown}, nil
+			}
+			return linkEvent{}, nil
+		}
+		if speed != d.configuredSpeed {
+			if !allowSpeedUpdate {
+				// Defer TX MAC speed reprogramming until the in-flight TX descriptor finishes.
+				return linkEvent{}, nil
+			}
+			if err := d.applySpeedLocked(speed); err != nil {
+				return linkEvent{}, d.fail(err)
+			}
+		}
+		d.nextLink = d.io.Now().Add(linkPollUp)
+		wasDown := d.linkDown
+		prevSpeed := LinkSpeed(d.linkSpeed.Load())
+		if wasDown {
+			d.linkDown = false
+			d.linkRecoveries.Add(1)
+		}
+		d.linkUp.Store(true)
+		d.linkSpeed.Store(uint32(speed))
+		if wasDown || prevSpeed != speed {
+			return linkEvent{changed: true, up: true, speed: speed}, nil
 		}
 	}
-	return nil
+	return linkEvent{}, nil
 }
 func (d *Device) Receive(dst []byte) (int, error) {
+	var linkEv linkEvent
+	defer func() { d.notifyLink(linkEv) }()
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if err := d.health(); err != nil {
+	var err error
+	linkEv, err = d.health(true)
+	if err != nil {
 		return 0, err
+	}
+	if d.linkDown {
+		runtime.Gosched()
+		return 0, nil
 	}
 	desc := rxRing + d.rx*16
 	state := d.memory.Read32(desc + 12)
@@ -384,13 +567,21 @@ func (d *Device) Receive(dst []byte) (int, error) {
 	return length, nil
 }
 func (d *Device) Transmit(frame []byte) error {
+	var linkEv linkEvent
+	defer func() { d.notifyLink(linkEv) }()
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if err := d.health(); err != nil {
+	var err error
+	linkEv, err = d.health(true)
+	if err != nil {
 		return err
 	}
 	if len(frame) < 14 || len(frame) > maxFrame {
 		return fmt.Errorf("xgmac: unsupported Ethernet frame length")
+	}
+	if d.linkDown {
+		d.dropped.Add(1)
+		return nil
 	}
 	desc := txRing + d.tx*16
 	if d.memory.Read32(desc+12)&own != 0 {
@@ -408,7 +599,11 @@ func (d *Device) Transmit(frame []byte) error {
 	d.io.Write32(txTail, uint32(d.memory.Base())+txRing+next*16)
 	end := d.io.Now().Add(100 * time.Millisecond)
 	for n := 0; n < 1000000; n++ {
-		if err := d.health(); err != nil {
+		ev, err := d.health(false)
+		if ev.changed {
+			linkEv = ev
+		}
+		if err != nil {
 			return err
 		}
 		if state := d.memory.Read32(desc + 12); state&own == 0 {
