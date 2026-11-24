@@ -4,8 +4,11 @@ Slice 4 of #2029. Lane plan #2030 (merged); Deano's decisions of 20 November
 2026: P1 all pc386 memory in HPS DDR, P2 the image change approved for slice 4
 (building and testing; flashing a kit needs his own OK for that image and kit),
 P3 61.437908 MHz, P4 no recipe or support row before the kit pass. The shell
-and producer are #2036 (`deano/de25-pc386-shell-s3`). This plan builds nothing.
-References are to #2036's head `af58ebed2`.
+and producer are #2036, merged to main as `6a3b9e615`. This plan builds
+nothing. References are to #2036's head `af58ebed2`; the window contract
+(`fes_fabric_de25_hps_window.yaml`, `de25-hps-window.md`) is byte-identical on
+main. #2036's last window commits (the first-fault latch `449130942` and the
+arbiter's write-beat and 4 KiB fixes `837520f8f`) are RTL only.
 
 ## What the shell asks of the platform
 
@@ -181,17 +184,17 @@ the merge gate for #2036 and for slice 4's DE25 pieces.
 ## Slices and order
 
 AGENTS.md caps stacks at two deep and prefers one PR per coherent piece, with
-unfinished work on main behind a flag. #2036 is the bottom of the only stack;
-one PR may sit on it.
+unfinished work on main behind a flag. #2036 has merged, so every slice 4 PR
+now targets main.
 
 | | PR | Status | Needs | Base |
 | --- | --- | --- | --- | --- |
-| 4b+4c | The contract's "kernel publishes the grant", the generated C++ header, and `De25HpsWindow` over a scripted owner (#2110) | **#2115, draft** | nothing | #2036 |
-| 4a | Admission table: per-machine ABI minor, gamepad and HPS-window flags, the pc386 row (refused until a window backend exists) | **in #2115** | overlaps #2069's `abi_minor`: whichever merges second resolves | #2115 |
-| 4d | Kernel owner window (owner window ABI beside an unchanged ABI 3), the window's C header, the owner tree's second `reg` and a reusable pool pinned inside the F2SDRAM firewall region, KUnit, and the KUnit runner fix (#2122) (#2125) | **#2126, draft** | image change (build and test only) | main |
-| 4w | Runtime wiring: the Linux owner operations over #2126's ioctls, `ProductionHardware`'s DE25 `DiskWindow`, the `fes.memory.hps-ddr` and `fes.media.ata-disk` gates, `ReleaseHpsDdrPorts` | next | #2126's ABI (its header is mirrored) | #2115 |
+| 4b+4c | The contract's "kernel publishes the grant", the generated C++ header, and `De25HpsWindow` over a scripted owner (#2110) | **#2115, draft** | nothing | main |
+| 4a | Admission table: per-machine ABI minor, gamepad and HPS-window flags, the pc386 row (refused until a window backend exists) | **in #2115** | #2069 merged first; #2115 takes its `abi_minor` | main |
+| 4d | Kernel owner window (owner window ABI beside an unchanged ABI 3), the window's C header, the owner tree's second `reg` and a reusable pool pinned inside the F2SDRAM firewall region, KUnit, and the KUnit runner fix (#2122) (#2125) | **#2126, draft; Kit D25 pass at `615f5dad5`** | image change (build and test only) | main |
+| 4w | Runtime wiring: the Linux owner operations over #2126's ioctls, `ProductionHardware`'s DE25 `DiskWindow`, the `fes.memory.hps-ddr` and `fes.media.ata-disk` gates, `ReleaseHpsDdrPorts` | the UAPI-free part in #2115 (`SetHpsWindow`, the gates, release on quiesce); the Linux operations next | #2126's ABI (its header is mirrored) | main |
 | 4e | FogCast: the DE25 computer profile accepts fes.computer 1.1 (`protocol_v2.go` requires minor 0 today), pc386 admission, initial disk | not built | 4a, and #2101 for its DE10 pc386 media paths | main |
-| 4f | Status-ring read through the runtime | not built | 4w | #2115 |
+| 4f | Status-ring read through the runtime | not built | 4w | main |
 | 4g | Image build + Kit D25 run | not started | all above, Deano's flash OK | — |
 
 #2115, 4e and 4f need neither a kit nor an image change. #2126 (4d) is an
