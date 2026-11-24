@@ -26,6 +26,12 @@ type aclTxFrame struct {
 	n    int
 }
 
+type handleCredits struct {
+	used        bool
+	handle      uint16
+	outstanding int
+}
+
 // LocalVersion captures HCI_Read_Local_Version_Information (0x1001).
 type LocalVersion struct {
 	HCIVersion     uint8
@@ -64,10 +70,11 @@ type Transport struct {
 	aclDispatch [maxACLRxBytes]byte
 	cmdBuf      [maxHCICmdBytes]byte
 
-	txRing     [maxACLTxQueue]aclTxFrame
-	txHead     int
-	txCount    int
-	txInFlight bool
+	txRing      [maxACLTxQueue]aclTxFrame
+	txHead      int
+	txCount     int
+	txInFlight  bool
+	outstanding [8]handleCredits
 
 	// Deferred events received while waiting synchronously for Command Complete.
 	deferred      [8][maxHCIEventBytes]byte
@@ -416,8 +423,54 @@ func (t *Transport) SendACL(handle uint16, pb uint8, payload []byte) error {
 	return t.pumpACLTx()
 }
 
-// CancelACL purges any queued (not yet transmitted) ACL TX frames targeting
-// handle, preserving FIFO order of remaining handles with zero allocations.
+func (t *Transport) addHandleCredit(handle uint16) {
+	h := handle & 0x0fff
+	free := -1
+	for i := range t.outstanding {
+		if t.outstanding[i].used {
+			if t.outstanding[i].handle == h {
+				t.outstanding[i].outstanding++
+				return
+			}
+		} else if free < 0 {
+			free = i
+		}
+	}
+	if free >= 0 {
+		t.outstanding[free] = handleCredits{used: true, handle: h, outstanding: 1}
+	}
+}
+
+func (t *Transport) releaseHandleCredits(handle uint16, completed int) {
+	h := handle & 0x0fff
+	for i := range t.outstanding {
+		e := &t.outstanding[i]
+		if e.used && e.handle == h {
+			e.outstanding -= completed
+			if e.outstanding <= 0 {
+				*e = handleCredits{}
+			}
+			return
+		}
+	}
+}
+
+func (t *Transport) reclaimHandleCredits(handle uint16) int {
+	h := handle & 0x0fff
+	for i := range t.outstanding {
+		e := &t.outstanding[i]
+		if e.used && e.handle == h {
+			n := e.outstanding
+			*e = handleCredits{}
+			return n
+		}
+	}
+	return 0
+}
+
+// CancelACL purges any queued ACL TX frames targeting handle AND reclaims any
+// submitted but unacknowledged ACL credits for that handle (Core Spec §4.3),
+// preserving FIFO order of remaining handles with zero heap allocations.
 func (t *Transport) CancelACL(handle uint16) {
 	target := handle & 0x0fff
 	kept := 0
@@ -434,6 +487,12 @@ func (t *Transport) CancelACL(handle uint16) {
 		kept++
 	}
 	t.txCount = kept
+	if reclaimed := t.reclaimHandleCredits(target); reclaimed > 0 {
+		t.credits += reclaimed
+		if t.credits > t.maxCredits {
+			t.credits = t.maxCredits
+		}
+	}
 }
 
 func (t *Transport) pumpACLTx() error {
@@ -458,6 +517,9 @@ func (t *Transport) pumpACLTx() error {
 	t.txHead = (t.txHead + 1) % maxACLTxQueue
 	t.txCount--
 	t.credits--
+	if f.n >= 2 {
+		t.addHandleCredit(binary.LittleEndian.Uint16(f.data[0:2]))
+	}
 	t.txInFlight = true
 	return nil
 }
@@ -472,7 +534,9 @@ func (t *Transport) handleNumCompletedPackets(ev []byte) {
 	}
 	for i := 0; i < numHandles; i++ {
 		// Each entry is a packed {uint16 handle, uint16 count} pair (Core Spec 7.7.19).
+		handle := binary.LittleEndian.Uint16(ev[3+i*4:]) & 0x0fff
 		completed := int(binary.LittleEndian.Uint16(ev[3+i*4+2:]))
+		t.releaseHandleCredits(handle, completed)
 		t.credits += completed
 		if t.credits > t.maxCredits {
 			t.credits = t.maxCredits

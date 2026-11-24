@@ -613,10 +613,13 @@ func TestCancelACLPurgesOnlyTargetHandleAndPreservesOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Purge only handle 0x0041; 0x0042 frames must remain in exact FIFO order.
+	// Purge queued 0x0041 frames AND reclaim the 4 unacknowledged 0x0041 credits
+	// without needing EventNumCompletedPackets for the disconnected handle.
 	tr.CancelACL(0x0041)
+	if tr.ACLCredits() != 4 {
+		t.Fatalf("expected 4 reclaimed credits immediately after CancelACL(0x0041), got %d", tr.ACLCredits())
+	}
 
-	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{EventNumCompletedPackets, 5, 1, 0x42, 0x00, 0x04, 0x00})
 	for range 4 {
 		if err := tr.Service(nil, nil); err != nil {
 			t.Fatal(err)

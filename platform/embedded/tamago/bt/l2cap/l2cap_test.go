@@ -947,3 +947,65 @@ func TestRejectsSSPAndLinkKeyOverwriteForBondedDeviceOutsidePairing(t *testing.T
 		t.Fatalf("bonded link key overwritten outside pairing mode: ok=%t key=%x", ok, rec.LinkKey)
 	}
 }
+
+func TestDisconnectReclaimsSubmittedACLCreditsWithoutNumCompleted(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return time.Unix(1100, 0) })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p1, _ := ParseBDAddr("12:34:56:78:9A:01")
+	p2, _ := ParseBDAddr("12:34:56:78:9A:02")
+	c1 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, p1[:]...)
+	c1 = append(c1, 0x01, 0x01)
+	c2 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x42, 0x00}, p2[:]...)
+	c2 = append(c2, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, c1, c2)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Submit all 8 controller credits on handle 0x0041 without receiving any 0x13 completion.
+	bus.aclOutPipe.noOutLog = true
+	for range 8 {
+		if err := tr.SendACL(0x0041, hci.ACLBoundaryFirstAutoFlush, []byte{0x01}); err != nil {
+			t.Fatal(err)
+		}
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if tr.ACLCredits() != 0 {
+		t.Fatalf("expected 0 credits after 8 submissions, got %d", tr.ACLCredits())
+	}
+	bus.aclOutPipe.noOutLog = false
+	bus.aclOutPipe.outLog = nil
+
+	// Queue a frame on handle 0x0042 while credits == 0.
+	if err := tr.SendACL(0x0042, hci.ACLBoundaryFirstAutoFlush, []byte{0x5a}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Disconnect 0x0041 with NO EventNumCompletedPackets -> must reclaim 0x0041's 8
+	// credits and allow 0x0042's queued frame to transmit cleanly!
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventDisconnectionComplete, 4, 0, 0x41, 0x00, 0x13})
+	for range 3 {
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(bus.aclOutPipe.outLog) != 1 || (binary.LittleEndian.Uint16(bus.aclOutPipe.outLog[0][0:2])&0x0fff) != 0x0042 {
+		t.Fatalf("expected 0x0042 frame to transmit after reclaiming 0x0041 credits, outLog=%x", bus.aclOutPipe.outLog)
+	}
+	if tr.ACLCredits() != 7 {
+		t.Fatalf("expected 7 remaining credits after reclaiming 8 and sending 1, got %d", tr.ACLCredits())
+	}
+}
