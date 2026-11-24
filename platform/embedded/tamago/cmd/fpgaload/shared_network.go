@@ -74,8 +74,13 @@ func startProgramNetwork(g *gic.Controller) (func(), error) {
 	if !de25nano.NetworkEnabled() {
 		return func() {}, nil
 	}
+	startupTimeout := 5 * time.Second
+	if spec.DHCP {
+		// Give AcquireDHCP its full 10-second retry budget plus XGMAC open margin.
+		startupTimeout = 15 * time.Second
+	}
 	var iface *network.Interface
-	err = programService.StartNetwork(context.Background(), programNetworkBootOwner, func(ctx, lifetime context.Context, owner uint64) (*network.Controller, error) {
+	err = programService.StartNetworkWithTimeout(context.Background(), startupTimeout, programNetworkBootOwner, func(ctx, lifetime context.Context, owner uint64) (*network.Controller, error) {
 		var control *network.Controller
 		var err error
 		if spec.DHCP {
