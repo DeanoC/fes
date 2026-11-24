@@ -39,11 +39,15 @@ programs run with no 387. Real hardware has no such state, so there is no
   operation still holds `started` (committed, running on to its apply), so
   on the edge that operation applies, the set would override the apply's
   clear and leave `fired` set with `started` clear again.
-- **Case** `wrong-path-unbuilt-busy`: the same wrong-path `D9 /1`, after a
-  slow FSQRT and after a slow FDIV, at every distance from 0 to 80 NOPs.
-  It passes with both versions of the fix, so it does not show the apply-
-  edge race failing; it is kept as coverage of the busy unit, and the
-  `!unbuilt` term rests on the reading above.
+- **Cases** `wrong-path-unbuilt-busy-*`: the same wrong-path `D9 /1`, after
+  a slow FSQRT and after a slow FDIV, at every distance from 0 to 80 NOPs,
+  in five programs that each start at `CODE` (Codex found the first version,
+  one program, ran into the handler at `1800h` from 32 NOPs on, so distances
+  33–80 never ran). The x87 runner now refuses any program that would reach
+  the handler's page. They pass with the fix; they do not show the
+  apply-edge race failing on the first version either, so they are kept as
+  coverage of the busy unit, and the `!unbuilt` term rests on the reading
+  above.
 
 ## Gates, on main `0c71d434b` + this change
 

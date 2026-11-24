@@ -11947,28 +11947,6 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xd9, 0, 0x104);                                 // FLD m32: a waiting form after it
             a.op({0xd8, 0xc1});                                    // FADD ST, ST(1)
         }},
-        // The same with an older operation still in the unit: a slow form
-        // (FSQRT, FDIV) has committed and runs on to its apply while the
-        // wrong path's unbuilt form issues, at every distance from 0 to 80
-        // NOPs, which spans the slow lane's latency.
-        {"wrong-path-unbuilt-busy", [](Asm &a) {
-            for (unsigned nops = 0; nops <= 80; ++nops) {
-                a.op({0xdb, 0xe3});                                // FNINIT
-                a.esc(0xd9, 0, 0x100);                             // FLD m32
-                a.op({0xd9, 0xfa});                                // FSQRT: slow, runs past its commit
-                for (unsigned n = 0; n < nops; ++n) a.op({0x90});
-                a.op({0x39, 0xc0});                                // CMP AX, AX
-                a.op({0x74, 0x03});                                // JZ over the next three bytes
-                a.op({0xd9, 0x4f, 0x00});                          // D9 /1 m, on the wrong path only
-                a.esc(0xd9, 0, 0x104);                             // FLD m32
-                a.op({0xd8, 0xf1});                                // FDIV ST, ST(1): slow
-                for (unsigned n = 0; n < nops; ++n) a.op({0x90});
-                a.op({0x39, 0xc0});
-                a.op({0x74, 0x03});
-                a.op({0xd9, 0x4f, 0x00});
-                a.op({0xdb, 0xe3});                                // FNINIT
-            }
-        }},
         {"wait", [](Asm &a) {
             a.op({0xdb, 0xe3});
             a.op({0x9b});                                          // WAIT
@@ -12137,6 +12115,32 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         }},
     };
 
+    // The wrong-path unbuilt form with an older operation still in the unit:
+    // a slow form (FSQRT, FDIV) has committed and runs on to its apply while
+    // the wrong path's D9 /1 issues, at every distance from 0 to 80 NOPs,
+    // which spans the slow lane's latency. Five programs, each starting at
+    // CODE, so none runs into the handler at HANDLER (1800h).
+    for (const auto &[lo, hi] : std::array<std::pair<unsigned, unsigned>, 5>{{{0, 30}, {31, 47}, {48, 60}, {61, 71}, {72, 80}}}) {
+        cases.push_back({"wrong-path-unbuilt-busy-" + std::to_string(lo) + "-" + std::to_string(hi), [lo, hi](Asm &a) {
+            for (unsigned nops = lo; nops <= hi; ++nops) {
+                a.op({0xdb, 0xe3});                                // FNINIT
+                a.esc(0xd9, 0, 0x100);                             // FLD m32
+                a.op({0xd9, 0xfa});                                // FSQRT: slow, runs past its commit
+                for (unsigned n = 0; n < nops; ++n) a.op({0x90});
+                a.op({0x39, 0xc0});                                // CMP AX, AX
+                a.op({0x74, 0x03});                                // JZ over the next three bytes
+                a.op({0xd9, 0x4f, 0x00});                          // D9 /1 m, on the wrong path only
+                a.esc(0xd9, 0, 0x104);                             // FLD m32
+                a.op({0xd8, 0xf1});                                // FDIV ST, ST(1): slow
+                for (unsigned n = 0; n < nops; ++n) a.op({0x90});
+                a.op({0x39, 0xc0});
+                a.op({0x74, 0x03});
+                a.op({0xd9, 0x4f, 0x00});
+                a.op({0xdb, 0xe3});                                // FNINIT
+            }
+        }});
+    }
+
     // Seeded guest programs exercise mixed x87 streams in the CPU, rather
     // than only feeding the unit through its direct interface. Keep the
     // operands finite and the exponents modest so these cases test the
@@ -12227,6 +12231,12 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         x87_compare_from = CODE + uint32_t(a.b.size());    // the body, not the prologue
         c.body(a);
         a.op({0xf4});
+        // A program that reached the handler's page would halt there, short of its end.
+        if (CODE + a.b.size() > HANDLER) {
+            std::fprintf(stderr, "x87 case %s: %zu bytes run into the handler at %X\n", std::string(c.label).c_str(),
+                         a.b.size(), unsigned(HANDLER));
+            std::exit(2);
+        }
         std::vector<std::pair<uint32_t, uint8_t>> image;
         for (size_t i = 0; i < a.b.size(); ++i) image.emplace_back(CODE + uint32_t(i), a.b[i]);
         for (unsigned v = 0; v < 32; ++v) {
