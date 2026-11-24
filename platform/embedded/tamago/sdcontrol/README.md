@@ -118,11 +118,13 @@ to board callers while keeping `UseADMA2` disabled at the board layer until EL3
 BL31 SMMU stream authorization lands (wiring CLI flags through `sdfile`,
 `run.py`, `build.py`, and `native_trace.py` stays separate).
 
-`sdcontrol.Config` also forwards `sdhci.Config.BusWidth4Bit`, `MultiBlock`, and
+`sdcontrol.Config` also forwards `sdhci.Config.BusWidth4Bit`, `MultiBlock`,
+`TransferClockHz = 50000000` (SD High-Speed via `CMD6` Switch Function), and
 `UseADMA2` + `DMAPool` when explicitly set (zero values keep conservative
 1-bit, single-sector PIO; `UseADMA2` without `DMAPool` rejects before firmware
-or MMIO access). Read-only `(*Session).BusWidth()` and `(*Session).ADMA2Active()`
-report the negotiated transport safely without holding the control mutex.
+or MMIO access). Read-only `(*Session).BusWidth()`, `(*Session).ADMA2Active()`,
+`(*Session).HighSpeed()`, and `(*Session).TransferClockHz()` report the
+negotiated transport safely without holding the control mutex.
 
 Run host checks with `go test -race -count=1 -timeout 90s ./sdcontrol ./sdhci
 ./fat ./fatcheck` from the TamaGo module. The SD Session tests compile the actual C

@@ -16,15 +16,17 @@ import (
 // The caller must exclusively own both controller and secure-call transport.
 // Concurrent emulation-core/SD access is outside this closed-bridge contract.
 type Session struct {
-	control    sync.Mutex
-	ioMu       sync.RWMutex
-	firmware   *Client
-	device     *sdhci.Device
-	cache      *block.Cache
-	active     atomic.Bool
-	retired    atomic.Bool
-	busWidth   atomic.Int32
-	admaActive atomic.Bool
+	control         sync.Mutex
+	ioMu            sync.RWMutex
+	firmware        *Client
+	device          *sdhci.Device
+	cache           *block.Cache
+	active          atomic.Bool
+	retired         atomic.Bool
+	busWidth        atomic.Int32
+	admaActive      atomic.Bool
+	highSpeed       atomic.Bool
+	transferClockHz atomic.Uint32
 }
 
 var _ block.Device = (*Session)(nil)
@@ -63,7 +65,7 @@ type Config struct {
 // InputClockHz must match the qualified platform's actual controller input.
 func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 	if io == nil || config.InputClockHz < 400000 || config.InputClockHz > 200000000 ||
-		(config.TransferClockHz != 0 && config.TransferClockHz != 25000000) ||
+		(config.TransferClockHz != 0 && config.TransferClockHz != 25000000 && config.TransferClockHz != 50000000) ||
 		(config.TransferClockHz != 0 && config.InputClockHz < config.TransferClockHz) {
 		return nil, fmt.Errorf("sdcontrol: invalid controller or input clock")
 	}
@@ -111,6 +113,8 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 	}
 	s.busWidth.Store(int32(s.device.BusWidth()))
 	s.admaActive.Store(s.device.ADMA2Active())
+	s.highSpeed.Store(s.device.HighSpeed())
+	s.transferClockHz.Store(s.device.TransferClockHz())
 	return s, nil
 }
 func (s *Session) fail(err error) error {
@@ -211,6 +215,19 @@ func (s *Session) BusWidth() int {
 // ADMA2Active reports whether ADMA2 DMA transfers are enabled on this session.
 func (s *Session) ADMA2Active() bool {
 	return s != nil && s.admaActive.Load()
+}
+
+// HighSpeed reports whether SD High-Speed (50 MHz via CMD6) is active.
+func (s *Session) HighSpeed() bool {
+	return s != nil && s.highSpeed.Load()
+}
+
+// TransferClockHz returns the active SD clock rate in Hz, or 0 if uninitialized.
+func (s *Session) TransferClockHz() uint32 {
+	if s == nil {
+		return 0
+	}
+	return s.transferClockHz.Load()
 }
 
 // Retired reports whether s is nil or has entered terminal ErrRetired containment.
@@ -383,6 +400,8 @@ func (s *Session) resume(owner, generation uint64, returned bool) error {
 	}
 	s.busWidth.Store(int32(s.device.BusWidth()))
 	s.admaActive.Store(s.device.ADMA2Active())
+	s.highSpeed.Store(s.device.HighSpeed())
+	s.transferClockHz.Store(s.device.TransferClockHz())
 	s.ioMu.Lock()
 	if s.retired.Load() {
 		s.ioMu.Unlock()

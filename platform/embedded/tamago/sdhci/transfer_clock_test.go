@@ -138,7 +138,7 @@ func TestSelectedClockFailurePathsNeverFallBackOrReturnSuccess(t *testing.T) {
 			t.Fatal("invalid input mutated controller", input)
 		}
 	}
-	for _, rate := range []uint32{1, 400000, 50000000} {
+	for _, rate := range []uint32{1, 400000, 75000000} {
 		c := newClockCard()
 		if _, err := Open(c, Config{InputClockHz: 200000000, TransferClockHz: rate}); err == nil || c.accesses != 0 {
 			t.Fatal("unsupported mode mutated controller", rate)
@@ -209,5 +209,200 @@ func TestSelectedClockReadModeMutationIsTerminalAndDefaultIsUnchanged(t *testing
 	y, e2 := Open(b, Config{InputClockHz: 200000000})
 	if e1 != nil || e2 != nil || x.dataClockHz != 400000 || y.dataClockHz != 400000 || !reflect.DeepEqual(a.commands, b.commands) {
 		t.Fatal("default transport changed", e1, e2)
+	}
+}
+
+type highSpeedCard struct {
+	*clockCard
+	scr          [8]byte
+	busWidth     int
+	acmd         bool
+	pioBuf       []byte
+	pioPos       int
+	cmd6Func1OK  bool
+	cmd6SwitchOK bool
+	cmd6MaxCurr  uint16
+	rejectHSHost bool
+	acmd51Count  int
+	cmd6Count    int
+}
+
+func newHighSpeedCard() *highSpeedCard {
+	base := newClockCard()
+	base.regs[capabilities] = cap33V | capHighSpeed
+	return &highSpeedCard{
+		clockCard:    base,
+		scr:          [8]byte{0x02, 0x35}, // SD_SPEC=2 (>=1.10) + SD_BUS_WIDTHS=5 (1-bit + 4-bit)
+		busWidth:     1,
+		cmd6Func1OK:  true,
+		cmd6SwitchOK: true,
+		cmd6MaxCurr:  200,
+	}
+}
+
+func (c *highSpeedCard) Read32(reg uint32) uint32 {
+	if reg == dataPort && len(c.pioBuf) > 0 {
+		c.accesses++
+		v := uint32(0)
+		if c.pioPos+4 <= len(c.pioBuf) {
+			v = uint32(c.pioBuf[c.pioPos]) | uint32(c.pioBuf[c.pioPos+1])<<8 |
+				uint32(c.pioBuf[c.pioPos+2])<<16 | uint32(c.pioBuf[c.pioPos+3])<<24
+		}
+		c.pioPos += 4
+		if c.pioPos == len(c.pioBuf) {
+			c.regs[status] |= 2
+			c.pioBuf = nil
+			c.pioPos = 0
+		} else if c.pioPos%512 == 0 {
+			c.regs[status] |= 1 << 5
+		}
+		return v
+	}
+	return c.clockCard.Read32(reg)
+}
+
+func (c *highSpeedCard) Write32(reg, value uint32) {
+	if reg == host && c.rejectHSHost && value&hostHighSpeed != 0 {
+		c.regs[host] = value &^ hostHighSpeed
+		return
+	}
+	if reg == command {
+		index := value >> 24
+		if index == 51 {
+			if !c.acmd {
+				panic("CMD51 without CMD55")
+			}
+			c.acmd = false
+			c.acmd51Count++
+			c.issued = append(c.issued, struct{ command, clock uint32 }{index, c.regs[clock]})
+			c.commands = append(c.commands, value)
+			c.pioBuf = append([]byte(nil), c.scr[:]...)
+			c.pioPos = 0
+			c.regs[status] |= 1<<5 | 1
+			return
+		}
+		if index == 6 {
+			if c.acmd {
+				c.acmd = false
+				if c.regs[argument] == 2 {
+					c.busWidth = 4
+				}
+				c.issued = append(c.issued, struct{ command, clock uint32 }{index, c.regs[clock]})
+				c.commands = append(c.commands, value)
+				c.regs[response] = 4<<9 | 1<<8
+				c.regs[status] |= 1
+				return
+			}
+			c.cmd6Count++
+			c.issued = append(c.issued, struct{ command, clock uint32 }{index, c.regs[clock]})
+			c.commands = append(c.commands, value)
+			var st [64]byte
+			arg := c.regs[argument]
+			st[0] = byte(c.cmd6MaxCurr >> 8)
+			st[1] = byte(c.cmd6MaxCurr)
+			if c.cmd6Func1OK {
+				st[13] = 1 << 1 // Group 1 Function 1 supported
+			} else {
+				st[13] = 1 << 0
+			}
+			if arg>>31 == 0 {
+				if c.cmd6Func1OK {
+					st[16] = 1
+				} else {
+					st[16] = 0x0f
+				}
+			} else {
+				if c.cmd6SwitchOK {
+					st[16] = 1
+				} else {
+					st[16] = 0x0f
+				}
+			}
+			c.pioBuf = append([]byte(nil), st[:]...)
+			c.pioPos = 0
+			c.regs[response] = 4<<9 | 1<<8
+			c.regs[status] |= 1<<5 | 1
+			return
+		}
+		if index == 55 {
+			c.acmd = true
+		} else {
+			c.acmd = false
+		}
+	}
+	c.clockCard.Write32(reg, value)
+}
+
+func TestHighSpeed50MHzSwitchContainAndResume(t *testing.T) {
+	c := newHighSpeedCard()
+	d, err := Open(c, Config{
+		InputClockHz:    200000000,
+		TransferClockHz: 50000000,
+		BusWidth4Bit:    true,
+		MultiBlock:      true,
+	})
+	if err != nil {
+		t.Fatalf("Open HighSpeed 50MHz: %v", err)
+	}
+	if !d.HighSpeed() || d.TransferClockHz() != 50000000 || d.BusWidth() != 4 {
+		t.Fatalf("mode=(hs=%t hz=%d width=%d), want (true, 50000000, 4)", d.HighSpeed(), d.TransferClockHz(), d.BusWidth())
+	}
+	if got := c.regs[clock] & clockModeMask; got != 14<<16|2<<8|7 {
+		t.Fatalf("clock=%#x want %#x", got, uint32(14<<16|2<<8|7))
+	}
+	if c.regs[host]&(host4BitWidth|hostHighSpeed) != host4BitWidth|hostHighSpeed {
+		t.Fatalf("host=%#x missing 4-bit or High-Speed bit", c.regs[host])
+	}
+	if c.acmd51Count != 1 || c.cmd6Count != 2 {
+		t.Fatalf("expected 1 ACMD51 (cached across 4-bit + HS) and 2 CMD6 (check+switch), got %d/%d", c.acmd51Count, c.cmd6Count)
+	}
+
+	if err := d.ReadSectors(0, make([]byte, 512)); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+	if c.regs[clock]&clockModeMask != 14<<16|250<<8|3 {
+		t.Fatalf("quiesce did not restore ident clock: %#x", c.regs[clock])
+	}
+	if err := d.Resume(); err != nil {
+		t.Fatal(err)
+	}
+	if !d.HighSpeed() || d.TransferClockHz() != 50000000 || c.regs[clock]&clockModeMask != 14<<16|2<<8|7 {
+		t.Fatalf("resume did not restore 50MHz High-Speed: hs=%t hz=%d clock=%#x", d.HighSpeed(), d.TransferClockHz(), c.regs[clock])
+	}
+	if err := d.ReadSectors(1, make([]byte, 512)); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestHighSpeed50MHzFailurePathsRejectWithoutFallback(t *testing.T) {
+	cases := []struct {
+		name  string
+		setup func(*highSpeedCard)
+	}{
+		{name: "no-host-cap", setup: func(c *highSpeedCard) { c.regs[capabilities] = cap33V }},
+		{name: "sd-v1.0-scr", setup: func(c *highSpeedCard) { c.scr[0] = 0x00 }},
+		{name: "cmd6-check-unsupported", setup: func(c *highSpeedCard) { c.cmd6Func1OK = false }},
+		{name: "cmd6-zero-current", setup: func(c *highSpeedCard) { c.cmd6MaxCurr = 0 }},
+		{name: "cmd6-switch-rejected", setup: func(c *highSpeedCard) { c.cmd6SwitchOK = false }},
+		{name: "host-readback-mismatch", setup: func(c *highSpeedCard) { c.rejectHSHost = true }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newHighSpeedCard()
+			tc.setup(c)
+			if d, err := Open(c, Config{InputClockHz: 200000000, TransferClockHz: 50000000}); err == nil || d != nil {
+				t.Fatalf("%s unexpectedly succeeded: d=%v err=%v", tc.name, d, err)
+			}
+		})
+	}
+	c := newHighSpeedCard()
+	if d, err := Open(c, Config{InputClockHz: 25000000, TransferClockHz: 50000000}); err == nil || d != nil || c.accesses != 0 {
+		t.Fatalf("input<transfer touched hardware: d=%v err=%v accesses=%d", d, err, c.accesses)
 	}
 }

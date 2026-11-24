@@ -120,6 +120,12 @@ Callers may explicitly opt into higher-throughput modes via `Config` and `Enable
 - **`Config.BusWidth4Bit`:** Queries the card SCR (`CMD55` + `ACMD51`), verifies
   4-bit support (`SCR[51:48]` bit 2), switches via `ACMD6(2)`, sets Host Control 1
   bit 1, and enforces readback across clock transitions and `Resume`.
+- **`Config.TransferClockHz = 50000000`:** Opts into SD High-Speed (50 MHz) via
+  `ACMD51` SCR version check (`SD_SPEC >= 1`), `CMD6` mode-0 check and mode-1
+  Switch Function (`0x00fffff1` / `0x80fffff1`), Host Control 1 High-Speed bit 2,
+  and 50 MHz divider selection (`HighSpeed()`, `TransferClockHz()`), restoring
+  the identification divider on `Quiesce` and re-establishing High-Speed on
+  `Resume`.
 - **`Config.MultiBlock`:** Uses `CMD18` / `CMD25` with Block Count and Auto-CMD12
   (up to 128 sectors / 64 KiB per transfer) in either PIO or ADMA2 mode.
 - **`Config.UseADMA2` + `Config.DMAPool`:** Allocates a pinned descriptor table

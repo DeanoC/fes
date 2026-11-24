@@ -119,7 +119,7 @@ func TestOwnedTransferClockReadWriteContainResumeUsesActualFirmware(t *testing.T
 }
 
 func TestOwnedTransferClockInvalidSelectionNeverContactsFirmware(t *testing.T) {
-	for _, cfg := range []Config{{InputClockHz: 200000000, TransferClockHz: 1}, {InputClockHz: 200000000, TransferClockHz: 50000000}, {InputClockHz: 400000, TransferClockHz: 25000000}} {
+	for _, cfg := range []Config{{InputClockHz: 200000000, TransferClockHz: 1}, {InputClockHz: 200000000, TransferClockHz: 75000000}, {InputClockHz: 25000000, TransferClockHz: 50000000}, {InputClockHz: 400000, TransferClockHz: 25000000}} {
 		c := newCard()
 		cpu := callFunc(func([7]uint64) ([4]uint64, error) {
 			t.Fatal("invalid rate contacted firmware")
