@@ -182,5 +182,15 @@ and `358e85fee` (before #2045). Between them and this head, the merges of
 main moved the shared DE25 producer, review and builder files, so each moved
 the BUILD_ID.
 
+**After this package.** A later commit makes the window's fault record keep
+the first fault only, as fes.fabric.de25-hps-window 1.0 promises
+(`fes_de25_hps_window.v`; `window_fault_tb.cpp` checks port 0's no-grant fault
+survives port 1's later outside-span fault). That moves pc386's BUILD_ID, so
+the package above is not the head's. The file is in pc386's closure only: the
+other machines' D12 IDs do not move. Under the pc386 in-progress exemption
+(Deano, 1 November 2026: a pc386 PR's RTL fixes after its seal need no reseal
+before merge while pc386 is in progress), neither the package nor D12 is
+rerun for it; the package is rebuilt at the head slice 4 lands with.
+
 No kit has run either package. Slice 3 lands with slice 4, which owns the image
 change and the Kit D25 run.
