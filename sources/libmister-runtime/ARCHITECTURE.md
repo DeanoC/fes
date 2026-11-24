@@ -25,6 +25,12 @@ checks the same ordering and is absent from production archives.
 
 One production wrapper owns the selected board's adapters and one NativeHardware.
 DE25 constructs no Cyclone V manager, fixed DDR window, GP client or Linux I2C.
+A window machine's guest memory is instead a kernel-owner window
+(`De25HpsWindow` over `De25KernelWindowOwner`): the owner allocates and
+publishes the grant, ranges are shared maps of the window fd at an offset that
+end with a barrier and their unmap, and the window ends with `WINDOW_REVOKE`.
+The machine's configuration carries the owner's window profile child, and a
+fault refuses its disk save.
 Its two selected drivers are the BRAM computer and allocated MENU. The FPGA
 owns its transmitter, and the video backend observes the selected driver's
 readiness. Missing/failed preparation uses the existing unavailable adapter and
