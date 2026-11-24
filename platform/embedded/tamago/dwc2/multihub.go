@@ -275,7 +275,9 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 	}
 
 	// Enable Multi-TT (SET_INTERFACE alt=1) when high-speed hub advertises
-	// protocol 2 (Multi-TT) and an alternate setting 1 exists.
+	// protocol 2 (Multi-TT) and an alternate setting 1 exists. High-speed hubs
+	// without Multi-TT (protocol 1) run with per-hub TT split serialization.
+	multiTTSelected := false
 	if dev.info.Speed == usb.SpeedHigh && dev.info.Descriptor.Protocol == 2 {
 		for _, iface := range dev.info.Config.Interfaces {
 			if iface.Class == 9 && iface.AlternateSetting == 1 {
@@ -283,6 +285,7 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 					h.detachDevice(addr)
 					return fmt.Errorf("dwc2: select Multi-TT alt setting failed: %w", err)
 				}
+				multiTTSelected = true
 				break
 			}
 		}
@@ -316,6 +319,7 @@ func (h *MultiHost) initHub(dev *multiDevice, depth int) error {
 		route:    dev.route,
 		depth:    depth,
 		numPorts: numPorts,
+		singleTT: dev.info.Speed == usb.SpeedHigh && !multiTTSelected,
 	}
 	h.openHubStatusPipe(hub)
 	h.hubs = append(h.hubs, hub)
