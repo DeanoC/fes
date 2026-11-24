@@ -110,7 +110,9 @@ class Run(acc.Run):
             if data:
                 found.append({'path': f'{directory}/record.bin', 'size': len(data),
                               'magic': data[:8].decode('ascii', 'replace'), 'copies': data.count(self.text),
-                              'sha256': hashlib.sha256(data).hexdigest()})
+                              'sha256': hashlib.sha256(data).hexdigest(),
+                              # Diagnostic: does the saved image still hold B:'s own boot sector and file?
+                              'base_boot_sector': data.find(b'MTOO4048'), 'base_entry': data.find(b'FESF3B  TXT')})
         self.result['floppy_records'] = found
         ok = any(r['copies'] >= 2 and r['magic'] == 'FES386F1' and r['size'] == B_BYTES + RECORD_EXTRA for r in found)
         return {'dos': ok, 'notepad': ok, 'files': {'WFWDOS.TXT': None, 'WFWNOTE.TXT': None}}

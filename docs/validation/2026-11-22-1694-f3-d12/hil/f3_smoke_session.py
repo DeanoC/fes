@@ -164,7 +164,15 @@ for path in [home / 'fes-hil/locks' / f'lander-kit{kit}.lock', home / 'kit-statu
     f = path.open('a'); fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB); locks.append(f)
 if f'KIT {kit} FREE' not in last():
     sys.exit('Kit busy: ' + last()[:160])
-if image not in last() or bundle not in last():
+# The newest FREE entry may be a maintenance note that names no baseline; the
+# FREE run before it must, with no IN USE between. probe('pre') then checks the
+# live image, bundle, idle agent and free lease.
+free_run = []
+for entry in reversed([s for s in status.read_text().splitlines() if s.startswith('## ') and f'KIT {kit} ' in s]):
+    if f'KIT {kit} FREE' not in entry:
+        break
+    free_run.append(entry)
+if not any(image in entry and bundle in entry for entry in free_run):
     sys.exit('Verify ledger baseline manually: ' + last()[:200])
 append(f'IN USE: Claude fes#2101 (F3 #1694) floppy kit smoke: installs and activates PR kit-software bundle {pr_id} '
        f'(tar {pr_tar_sha[:16]}, built from {head.name} d68224547 on base image {image[:8]}), runs the sealed fes.pc386 '
