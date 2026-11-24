@@ -159,7 +159,10 @@ func (m *Manager) attachDongle(dev usb.BusDevice) {
 		}
 	}
 	if m.gameplayActive {
-		_ = sess.SetGameplayActive(true)
+		if err := sess.SetGameplayActive(true); err != nil {
+			_ = tr.Close()
+			return
+		}
 	}
 	m.dongleAddr = dev.Address
 	m.tr = tr

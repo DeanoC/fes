@@ -50,9 +50,10 @@ type mgrBus struct {
 	devices    []usb.BusDevice
 	evPipe     *mgrPipe
 	aclInPipe  *mgrPipe
-	aclOutPipe *mgrPipe
-	rtlChunks  int
-	lmpSub     uint16
+	aclOutPipe      *mgrPipe
+	rtlChunks       int
+	lmpSub          uint16
+	failScanDisable bool
 }
 
 func (b *mgrBus) Service() error             { return nil }
@@ -99,6 +100,11 @@ func (b *mgrBus) ControlTransfer(_ uint8, reqType, req byte, _, _ uint16, data [
 		ev = []byte{hci.EventCommandComplete, 11, 1, byte(op), byte(op >> 8), 0, 0x00, 0x01, 0x40, 0x10, 0x00, 0x04, 0x00}
 	case hci.OpcodeReadBDAddr:
 		ev = []byte{hci.EventCommandComplete, 10, 1, byte(op), byte(op >> 8), 0, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
+	case hci.OpcodeWriteScanEnable:
+		if b.failScanDisable && len(data) >= 4 && data[3] == hci.ScanDisabled {
+			b.failScanDisable = false
+			ev = []byte{hci.EventCommandComplete, 4, 1, byte(op), byte(op >> 8), 0x0c}
+		}
 	}
 	b.evPipe.inQueue = append(b.evPipe.inQueue, ev)
 	return len(data), nil
@@ -375,5 +381,44 @@ func TestManagerRetriesEnumeratedDongleAfterPipeError(t *testing.T) {
 	now = now.Add(400 * time.Millisecond)
 	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
 		t.Fatalf("enumerated dongle did not re-attach after backoff: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+}
+
+func TestManagerRejectsAndRetriesAttachWhenGameplayRadioFails(t *testing.T) {
+	dev := makeDongleDevice(2)
+	bus := &mgrBus{lmpSub: 0x8761, failScanDisable: true, devices: []usb.BusDevice{dev}}
+	now := time.Unix(700, 0)
+	mgr := NewManager(bus, l2cap.NewBondStore(), nil, func() time.Time { return now })
+
+	var dongleEvents []bool
+	mgr.OnDongleChanged = func(connected bool, _ hci.DongleSpec) {
+		dongleEvents = append(dongleEvents, connected)
+	}
+	if err := mgr.SetGameplayActive(true); err != nil {
+		t.Fatal(err)
+	}
+
+	// First attach attempt fails disabling scan -> must close transport, keep
+	// session nil, and not announce a connected dongle while scan remains enabled.
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if mgr.DongleConnected() {
+		t.Fatal("expected DongleConnected=false when SetGameplayActive(true) fails on attach")
+	}
+	if bus.evPipe == nil || !bus.evPipe.closed {
+		t.Fatal("expected failed transport pipes to be closed cleanly")
+	}
+	if len(dongleEvents) != 0 {
+		t.Fatalf("expected no OnDongleChanged notifications on rejected attach, got %v", dongleEvents)
+	}
+
+	// After retry backoff elapses and scan-disable succeeds, retry attaches cleanly.
+	now = now.Add(600 * time.Millisecond)
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("expected dongle to attach cleanly on retry: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+	if len(dongleEvents) != 1 || !dongleEvents[0] {
+		t.Fatalf("expected [true] OnDongleChanged after retry attach, got %v", dongleEvents)
 	}
 }
