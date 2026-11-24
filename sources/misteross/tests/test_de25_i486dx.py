@@ -1,9 +1,16 @@
-"""The DE25's i486DX derivation and forks (boards/de25nano/pc386/i486dx)."""
+"""The DE25's i486DX derivation and forks (boards/de25nano/pc386/i486dx), and the DE25 system bench's DX."""
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 import importlib.util
+import inspect
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
+import xml.etree.ElementTree as ElementTree
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -19,6 +26,35 @@ def load(path, name):
 
 dx = load('boards/de25nano/pc386/i486dx/derive.py', 'test_i486dx_derive')
 board = load('boards/de25nano/pc386/derive.py', 'test_pc386_derive')
+CONST = re.compile(r"\d+'s?([bodh])([0-9a-fA-F_]+)")
+
+
+def load_bench():
+    """boards/de25nano/pc386/sim.py. It puts its own directory on sys.path and imports derive and i486dx from
+    it by those bare names; both are undone once it is loaded, so no later test sees them."""
+    path, modules = list(sys.path), set(sys.modules)
+    try:
+        return load('boards/de25nano/pc386/sim.py', 'test_de25_pc386_sim')
+    finally:
+        sys.path[:] = path
+        for name in set(sys.modules) - modules:
+            if name.split('.')[0] in ('derive', 'i486dx'):
+                del sys.modules[name]
+
+
+def elaborated(xml):
+    """Verilator's --xml-only output: for each module, by its original name, the numeric parameter values of
+    each of its elaborated copies."""
+    modules = {}
+    for module in ElementTree.parse(xml).getroot().iter('module'):
+        values = {}
+        for var in module.findall("var[@param='true']"):
+            const = var.find('const')
+            match = CONST.fullmatch(const.get('name', '')) if const is not None else None
+            if match:
+                values[var.get('name')] = int(match[2].replace('_', ''), {'b': 2, 'o': 8, 'd': 10, 'h': 16}[match[1]])
+        modules.setdefault(module.get('origName'), []).append(values)
+    return modules
 
 
 class I486dxDeriveTest(unittest.TestCase):
@@ -65,6 +101,57 @@ class I486dxDeriveTest(unittest.TestCase):
         data, _ = board.retarget_system((ROOT / 'cores/fes-pc386/rtl/pc386_system.sv').read_bytes())
         self.assertIn(b'    fes_i486dx_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n', data)
         self.assertNotIn(b'fes_i386_cpu #(', data)
+
+
+@unittest.skipUnless(shutil.which('verilator'), 'Verilator is required to elaborate the DE25 system bench')
+class De25SystemBenchTest(unittest.TestCase):
+    """boards/de25nano/pc386/sim.py, the DE25 system bench, elaborates the machine the DE25 producer
+    (pc386/build.py) builds: the bench's own sim.verilate arguments, elaborated only, with no firmware build
+    and no C++ build."""
+
+    def bench_call(self, work):
+        """The bench module and its sim.verilate arguments by name, its derived sources written under work."""
+        bench = load_bench()
+        calls = []
+        with mock.patch.object(bench.sim, 'OUTPUT', work), \
+                mock.patch.object(bench.sim.firmware, 'images', return_value=None), \
+                mock.patch.object(bench.sim.firmware, 'write_rom_hex', return_value=work / 'pc386-rom.hex'), \
+                mock.patch.object(bench.sim, 'verilate', autospec=True,
+                                  side_effect=lambda *args, **kwargs: calls.append((args, kwargs))):
+            bench.system_testbench(SimpleNamespace(download=False, jobs=1, verilator='verilator'))
+        self.assertEqual(len(calls), 1)
+        call = inspect.signature(bench.sim.verilate).bind(*calls[0][0], **calls[0][1])
+        call.apply_defaults()
+        return bench, call.arguments
+
+    def test_the_bench_elaborates_the_producers_identity_and_cpu(self):
+        producer = load('boards/de25nano/pc386/build.py', 'test_de25_pc386_build')
+        # pc386_system's parameters the producer sets beyond its guest rates: the CPU identity and the 387.
+        identity = {name: value for name, value in producer.machine_parameters().items()
+                    if name not in producer.guest_rates()}
+        self.assertLessEqual({'I486', 'X87_PRESENT'}, set(identity))
+        with tempfile.TemporaryDirectory() as work:
+            work = Path(work)
+            bench, call = self.bench_call(work)
+            xml = work / 'bench.xml'
+            # The bench's top, flags, sources, -G parameters and defines, elaborated only: -Wno-fatal leaves
+            # lint to the bench's build, and a -G parameter the top does not declare is still an error.
+            command = ['verilator', '--xml-only', '--xml-output', str(xml), '-Wno-fatal', '--top-module', call['top'],
+                       *call['flags'],
+                       *(f'-I{bench.sim.COMMON / path}' for path in ('vendor/kf8259', 'vendor/kf8253', 'generated')),
+                       *(f'-G{name}={value}' for name, value in call['parameters'].items()),
+                       *(f'-D{name}' for name in call['defines']), *map(str, call['rtl'])]
+            result = subprocess.run(command, cwd=bench.ROOT, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-2000:])
+            modules = elaborated(xml)
+        self.assertEqual(len(modules['pc386_system']), 1)
+        for name, value in identity.items():
+            with self.subTest(name):
+                self.assertEqual(modules['pc386_system'][0].get(name), value)
+        # The DX's CPU and its two-way L1s, and none of the integer core's.
+        forks = {Path(fork).stem for fork, _ in dx.FORKS.values()}
+        self.assertLessEqual({dx.TOP, *forks}, set(modules))
+        self.assertFalse({dx.UPSTREAM_TOP, *(Path(upstream).stem for upstream in dx.FORKS)} & set(modules))
 
 
 if __name__ == '__main__':
