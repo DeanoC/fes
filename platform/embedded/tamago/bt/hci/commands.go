@@ -48,6 +48,7 @@ const (
 	EventConnectionComplete         byte = 0x03
 	EventConnectionRequest          byte = 0x04
 	EventDisconnectionComplete      byte = 0x05
+	EventAuthenticationComplete     byte = 0x06
 	EventRemoteNameRequestComplete  byte = 0x07
 	EventCommandComplete            byte = 0x0e
 	EventCommandStatus              byte = 0x0f

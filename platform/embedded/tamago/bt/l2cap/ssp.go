@@ -383,11 +383,16 @@ func (m *Manager) handleEvent(ev []byte) {
 		}
 		var addr BDAddr
 		copy(addr[:], params[0:6])
-		if rec, ok := m.bonds.Lookup(addr); ok {
-			_ = m.tr.LinkKeyRequestReply(addr, rec.LinkKey)
-		} else {
-			_ = m.tr.LinkKeyRequestNegativeReply(addr)
+		// During an explicit unexpired pairing window, negatively reply even for
+		// previously bonded peers so controllers that erased their key enter SSP
+		// and replace the stale bond.
+		if !(m.pairingActive && m.now().Before(m.pairingUntil)) {
+			if rec, ok := m.bonds.Lookup(addr); ok {
+				_ = m.tr.LinkKeyRequestReply(addr, rec.LinkKey)
+				return
+			}
 		}
+		_ = m.tr.LinkKeyRequestNegativeReply(addr)
 
 	case hci.EventLinkKeyNotification:
 		// [0..5]=BD_ADDR [6..21]=LinkKey [22]=KeyType
@@ -472,6 +477,18 @@ func (m *Manager) handleEvent(ev []byte) {
 		var addr BDAddr
 		copy(addr[:], params[1:7])
 		if m.connecting && m.connectAddr == addr {
+			m.connecting = false
+			m.connectAddr = BDAddr{}
+		}
+		m.resumeInquiryIfPairing()
+
+	case hci.EventAuthenticationComplete:
+		// [0]=status [1..2]=handle
+		if len(params) < 3 || params[0] == 0 {
+			return
+		}
+		handle := binary.LittleEndian.Uint16(params[1:3]) & 0x0fff
+		if conn := m.findConnByHandle(handle); conn != nil && m.connecting && m.connectAddr == conn.addr {
 			m.connecting = false
 			m.connectAddr = BDAddr{}
 		}

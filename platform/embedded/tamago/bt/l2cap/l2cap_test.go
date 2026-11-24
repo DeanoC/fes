@@ -1381,3 +1381,85 @@ func TestInfoResponseRetriesAfterACLQueueFull(t *testing.T) {
 		t.Fatalf("expected ordered retry sigInfoRsp [7,8] ext=%t fixed=%t, got ids=%v", sawExt, sawFixed, rspIDs)
 	}
 }
+
+func TestPairingModeReplacesStaleLinkKeyAndRecoversOnAuthFailure(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(1600, 0)
+	bonds := NewBondStore()
+	peer, _ := ParseBDAddr("BB:CC:DD:EE:FF:01")
+	oldKey := [16]byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+	newKey := [16]byte{2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}
+	_ = bonds.Upsert(BondRecord{Addr: peer, LinkKey: oldKey, Name: "DualSense Wireless Controller", Kind: controllers.KindDualSense})
+
+	mgr, err := NewManager(tr, bonds, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Outside pairing mode, LinkKeyRequest supplies stored link key for fast reconnect.
+	lkReq := append([]byte{hci.EventLinkKeyRequest, 6}, peer[:]...)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, lkReq)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bus.lastParams[hci.OpcodeLinkKeyRequestReply]; len(got) < 22 || !bytes.Equal(got[:6], peer[:]) || !bytes.Equal(got[6:22], oldKey[:]) {
+		t.Fatalf("expected LinkKeyRequestReply with oldKey outside pairing, got %x", got)
+	}
+
+	// 2. Inside explicit pairing window, LinkKeyRequest negatively replies so a
+	// controller with a cleared/reset key runs SSP and overwrites the stale bond.
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	delete(bus.lastParams, hci.OpcodeLinkKeyRequestNegReply)
+	lkNotif := append([]byte{hci.EventLinkKeyNotification, 23}, peer[:]...)
+	lkNotif = append(lkNotif, newKey[:]...)
+	lkNotif = append(lkNotif, 0x04)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, lkReq, lkNotif)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bus.lastParams[hci.OpcodeLinkKeyRequestNegReply]; len(got) < 6 || !bytes.Equal(got[:6], peer[:]) {
+		t.Fatalf("expected LinkKeyRequestNegativeReply during pairing window, got %x", got)
+	}
+	if rec, ok := bonds.Lookup(peer); !ok || rec.LinkKey != newKey {
+		t.Fatalf("expected stale bond replaced with newKey, ok=%t key=%x", ok, rec.LinkKey)
+	}
+
+	// 3. Authentication failure (status != 0) recovers canceled inquiry during pairing.
+	dev2, _ := ParseBDAddr("BB:CC:DD:EE:FF:02")
+	eir := make([]byte, 2+15)
+	eir[0] = hci.EventExtendedInquiryResult
+	eir[1] = 15
+	eir[2] = 1
+	copy(eir[3:9], dev2[:])
+	eir[9] = 1
+	eir[11], eir[12], eir[13] = 0x08, 0x25, 0x00
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, eir)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x4b, 0x00}, dev2[:]...)
+	connOK = append(connOK, 0x01, 0x01)
+	authFail := []byte{hci.EventAuthenticationComplete, 3, 0x05, 0x4b, 0x00}
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK, authFail)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	inquiries := 0
+	for _, op := range bus.cmds {
+		if op == hci.OpcodeInquiry {
+			inquiries++
+		}
+	}
+	if inquiries != 2 {
+		t.Fatalf("expected StartInquiry to resume after AuthenticationComplete failure (count=%d)", inquiries)
+	}
+}
