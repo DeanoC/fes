@@ -139,6 +139,9 @@ type MultiHost struct {
 	owned     bool
 	channels  int
 	fifoWords uint32
+	rxWords   uint32
+	npTxWords uint32
+	pTxWords  uint32
 	rootSpeed      usb.Speed
 	rootConn       bool
 	rootRetryCount uint8
@@ -288,6 +291,9 @@ func (h *MultiHost) initController() error {
 	h.io.Write32(hcfg, 0) // HS/FS/LS host, descriptor DMA disabled
 
 	rxW, npW, pW := partitionFIFOs(totalWords)
+	h.rxWords = rxW
+	h.npTxWords = npW
+	h.pTxWords = pW
 	h.io.Write32(rxsize, rxW)
 	h.io.Write32(nptxsize, npW<<16|rxW)
 	h.io.Write32(ptxsize, pW<<16|(rxW+npW))
@@ -315,7 +321,7 @@ func (h *MultiHost) failController(err error) error {
 		h.retireIRQ(false)
 		return err
 	}
-	if h.io.Read32(gahb)&(1<<5) != 0 {
+	if h.io.Read32(gahb)&(1<<5) != 0 || h.io.Read32(hcfg)&(1<<23) != 0 {
 		h.retireIRQ(false)
 		return h.fault
 	}
@@ -1077,6 +1083,20 @@ func (h *MultiHost) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, e
 	if ep.MaxPacketSize == 0 || ep.MaxPacketSize > maxMultiMPS {
 		return nil, fmt.Errorf("dwc2: unsupported endpoint MPS %d", ep.MaxPacketSize)
 	}
+	reqWords := uint32((int(ep.MaxPacketSize) + 3) / 4)
+	if ep.In() {
+		if reqWords+2 > h.rxWords {
+			return nil, fmt.Errorf("dwc2: IN endpoint MPS %d exceeds RX FIFO capacity %d words", ep.MaxPacketSize, h.rxWords)
+		}
+	} else if ep.TransferType == usb.TransferInterrupt {
+		if reqWords > h.pTxWords {
+			return nil, fmt.Errorf("dwc2: Interrupt-OUT endpoint MPS %d exceeds periodic TX FIFO capacity %d words", ep.MaxPacketSize, h.pTxWords)
+		}
+	} else {
+		if reqWords > h.npTxWords {
+			return nil, fmt.Errorf("dwc2: Bulk-OUT endpoint MPS %d exceeds non-periodic TX FIFO capacity %d words", ep.MaxPacketSize, h.npTxWords)
+		}
+	}
 	ch := -1
 	for i := 1; i < h.channels; i++ {
 		if !h.slots[i].allocated {
@@ -1205,8 +1225,15 @@ func (p *multiPipe) Close() error {
 		return nil
 	}
 	p.closed = true
+	if p.host.fault != nil {
+		return p.host.fault
+	}
 	s := &p.host.slots[p.ch]
 	if s.allocated && s.ownerAddr == p.addr && s.gen == p.gen {
+		if err := p.host.pioCheck(); err != nil {
+			s.fault = err
+			return p.host.failController(err)
+		}
 		if err := p.host.haltChannel(p.ch); err != nil {
 			// Retain slot as allocated/faulted so an active hardware channel is never reused.
 			s.fault = err
@@ -1235,6 +1262,9 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 	}
 	if h.paused {
 		return fmt.Errorf("dwc2: polling already paused")
+	}
+	if err := h.pioCheck(); err != nil {
+		return h.failController(err)
 	}
 	h.draining = true
 	defer func() { h.draining = false }()
