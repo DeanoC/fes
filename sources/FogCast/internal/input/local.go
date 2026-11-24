@@ -2,17 +2,25 @@ package input
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"syscall"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/hidkeys"
+	"github.com/DeanoC/FogCast/internal/kitlease"
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 // DefaultLocalInputSocket is the kit-local feed. It is a root-only unix
@@ -21,6 +29,88 @@ import (
 const DefaultLocalInputSocket = "/run/fogcast/local-input.sock"
 
 var errNoCore = errors.New("runtime core is not bound")
+
+// Each bound record identifies the exact lease, core and launcher queue
+// lifetime for one physical HID keyboard event or a keyboard-only reset.
+type localDelegation struct {
+	RuntimeInstance string `json:"-"`
+	Operation       string `json:"operation"`
+	LeaseGeneration string `json:"lease_generation"`
+	PackageID       string `json:"package_id"`
+	CoreGeneration  uint64 `json:"core_generation"`
+	Epoch           uint64 `json:"epoch"`
+}
+
+var localIdentity = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+func readLocalDelegation(reader *bufio.Reader) (*localDelegation, error) {
+	first, err := reader.Peek(1)
+	if err != nil {
+		return nil, err
+	}
+	if first[0] != '{' {
+		return nil, nil // The existing local-owner feed uses binary frames.
+	}
+	line, err := reader.ReadSlice('\n')
+	if err != nil || len(line) > 512 {
+		return nil, errors.New("invalid local input delegation")
+	}
+	var binding localDelegation
+	decoder := json.NewDecoder(bytes.NewReader(line))
+	if tok, err := decoder.Token(); err != nil || tok != json.Delim('{') {
+		return nil, errors.New("invalid local input delegation")
+	}
+	seen := map[string]bool{}
+	for decoder.More() {
+		tok, err := decoder.Token()
+		key, ok := tok.(string)
+		if err != nil || !ok || seen[key] {
+			return nil, errors.New("invalid local input delegation")
+		}
+		seen[key] = true
+		switch key {
+		case "operation":
+			err = decoder.Decode(&binding.Operation)
+		case "lease_generation":
+			err = decoder.Decode(&binding.LeaseGeneration)
+		case "package_id":
+			err = decoder.Decode(&binding.PackageID)
+		case "core_generation":
+			err = decoder.Decode(&binding.CoreGeneration)
+		case "epoch":
+			err = decoder.Decode(&binding.Epoch)
+		default:
+			return nil, errors.New("invalid local input delegation")
+		}
+		if err != nil {
+			return nil, errors.New("invalid local input delegation")
+		}
+	}
+	if tok, err := decoder.Token(); err != nil || tok != json.Delim('}') {
+		return nil, errors.New("invalid local input delegation")
+	}
+	if _, err := decoder.Token(); err != io.EOF || len(seen) != 5 || (binding.Operation != "key" && binding.Operation != "reset") || !localIdentity.MatchString(binding.LeaseGeneration) ||
+		!localIdentity.MatchString(binding.PackageID) || binding.CoreGeneration == 0 {
+		return nil, errors.New("invalid local input delegation")
+	}
+	return &binding, nil
+}
+
+func delegatedKeyboardFrame(frame protocol.InputFrame) bool {
+	_, hid := hidkeys.Usage(remoteinput.Code(frame.Code))
+	return frame.Device == uint8(remoteinput.DeviceKeyboard) && frame.Kind == uint8(remoteinput.KindKey) &&
+		(frame.Action == uint8(remoteinput.ActionPress) || frame.Action == uint8(remoteinput.ActionRelease)) && hid
+}
+
+func sameLocalDelegation(a, b localDelegation) bool {
+	return a.LeaseGeneration == b.LeaseGeneration && a.RuntimeInstance == b.RuntimeInstance && a.PackageID == b.PackageID &&
+		a.CoreGeneration == b.CoreGeneration && a.Epoch == b.Epoch
+}
+
+func olderLocalDelegation(a, b localDelegation) bool {
+	return a.LeaseGeneration == b.LeaseGeneration && a.RuntimeInstance == b.RuntimeInstance && a.PackageID == b.PackageID &&
+		a.CoreGeneration == b.CoreGeneration && b.Epoch < a.Epoch
+}
 
 // localCoreObserveTimeout bounds the runtime status read taken while
 // deliverLocal holds the input lifecycle lock. ServeLocalInput's context
@@ -88,11 +178,22 @@ func (c *TargetController) ServeLocalInput(ctx context.Context, path string) err
 	if ctx == nil {
 		return errors.New("local input context is required")
 	}
+	c.localMu.Lock()
+	if c.localClosed || c.localStarting || c.localLn != nil {
+		c.localMu.Unlock()
+		return errors.New("local input listener is already active or closed")
+	}
+	c.localStarting = true
+	c.localMu.Unlock()
 	listener, err := listenLocalInput(path)
 	if err != nil {
+		c.localMu.Lock()
+		c.localStarting = false
+		c.localMu.Unlock()
 		return err
 	}
 	c.localMu.Lock()
+	c.localStarting = false
 	if c.localClosed {
 		c.localMu.Unlock()
 		_ = listener.Close()
@@ -107,6 +208,24 @@ func (c *TargetController) ServeLocalInput(ctx context.Context, path string) err
 		c.closeLocal()
 	}()
 	defer c.closeLocal()
+	return c.serveLocalConnections(ctx, listener)
+}
+
+// serveLocalConnections owns one reader at a time; tests can supply an
+// in-memory listener without opening a local socket or input device.
+func (c *TargetController) serveLocalConnections(ctx context.Context, listener net.Listener) error {
+	c.localMu.Lock()
+	c.localRecoveryFrozen = true
+	recoveryRequired := c.localRecoveryEnabled.Load()
+	if recoveryRequired {
+		c.localV2Guard.Store(true)
+	}
+	c.localMu.Unlock()
+	if recoveryRequired {
+		probe, cancel := context.WithTimeout(ctx, localRecoveryBudget)
+		_, _ = c.ObserveLocalStartupRecovery(probe)
+		cancel()
+	}
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -115,7 +234,7 @@ func (c *TargetController) ServeLocalInput(ctx context.Context, path string) err
 			}
 			continue
 		}
-		c.readLocal(ctx, conn)
+		c.readLocal(ctx, conn, recoveryRequired)
 	}
 }
 
@@ -146,7 +265,7 @@ func (c *TargetController) closeLocal() {
 	}
 }
 
-func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
+func (c *TargetController) readLocal(ctx context.Context, conn net.Conn, recoveryRequired bool) {
 	c.localMu.Lock()
 	if c.localClosed {
 		c.localMu.Unlock()
@@ -155,6 +274,10 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 	}
 	c.localConn = conn
 	c.localMu.Unlock()
+	var active *localDelegation
+	var v2 *localhid.SourceSession
+	recovered := false
+	var lastControlRequest uint64
 	defer func() {
 		c.localMu.Lock()
 		if c.localConn == conn {
@@ -162,26 +285,149 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 		}
 		c.localMu.Unlock()
 		_ = conn.Close()
+		if v2 != nil && v2.Active() {
+			c.retireV2Source(ctx, v2)
+		}
+		if active != nil {
+			c.retireDelegatedLocal(ctx, *active)
+		}
 		if c.ports != nil {
-			_ = c.ports.releaseSource(sourceLocal)
+			if c.localV2Guard.Load() {
+				c.retireLocalNonHID(ctx)
+			} else {
+				_ = c.ports.releaseSource(sourceLocal)
+			}
 		}
 	}()
 	reader := bufio.NewReaderSize(conn, bridge.MaxFrameBytes)
 	tracker := protocol.SequenceTracker{}
+	firstRecord := true
 	for {
 		if ctx.Err() != nil {
 			return
 		}
 		_ = conn.SetReadDeadline(time.Now().Add(time.Second))
-		frame, err := protocol.DecodeInputFrame(reader, bridge.MaxFrameBytes)
+		line, control, err := readLocalControlLine(reader)
 		if err != nil {
-			if ctx.Err() != nil {
-				return
-			}
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() && ctx.Err() == nil && !firstRecord {
 				continue
 			}
 			return
+		}
+		firstRecord = false
+		var delegation *localDelegation
+		if control {
+			var header struct {
+				Version *uint8 `json:"version"`
+			}
+			if json.Unmarshal(line, &header) != nil {
+				return
+			}
+			if header.Version != nil {
+				// Keep the entire v2 receiver unavailable until startup recovery
+				// and the native sender are deliberately enabled together.
+				// In particular, rejected v2 traffic must not latch the raw
+				// keyboard fence on an otherwise legacy listener.
+				if !recoveryRequired {
+					return
+				}
+				if *header.Version != 2 {
+					c.localV2Guard.Store(true)
+					return
+				}
+				req, err := localhid.ReadRequest(bufio.NewReader(bytes.NewReader(line)))
+				if err != nil {
+					c.localV2Guard.Store(true)
+					return
+				}
+				if recoveryRequired {
+					if req.Request <= lastControlRequest {
+						continue
+					}
+					lastControlRequest = req.Request
+					if req.Op == "recover" {
+						busy := active != nil || (v2 != nil && v2.Active())
+						reply, err := c.localRecoveryReply(ctx, req, busy)
+						if err != nil || writeV2Reply(conn, reply) != nil {
+							return
+						}
+						recovered = reply.Status == "reader-drained" || reply.Status == "startup-retired"
+						continue
+					}
+					if !recovered {
+						if req.Op == "begin" {
+							if err := writeV2Reply(conn, localhid.Reply{Version: 2, Op: "begin", Request: req.Request, Status: "quarantined"}); err != nil {
+								return
+							}
+						}
+						continue
+					}
+				}
+				// A newcomer must not retire an existing legacy source. It can
+				// retry after that writer explicitly retires or disconnects.
+				if active != nil && v2 == nil {
+					if req.Op == "begin" {
+						if err := writeV2Reply(conn, localhid.Reply{Version: 2, Op: "begin", Request: req.Request, Status: "quarantined"}); err != nil {
+							return
+						}
+					}
+					continue
+				}
+				c.localV2Guard.Store(true)
+				if v2 == nil {
+					v2 = localhid.NewSourceSession(delegatedV2Backend{controller: c})
+				}
+				call, cancel := context.WithTimeout(ctx, 3*time.Second)
+				reply, err := v2.Handle(call, req)
+				cancel()
+				if err != nil {
+					// A stale token cannot retire the currently owned source.
+					// A rejected BEGIN without a source is explicitly unavailable.
+					if req.Op == "begin" && !v2.Active() {
+						if err := writeV2Reply(conn, localhid.Reply{Version: 2, Op: "begin", Request: req.Request, Status: "quarantined"}); err != nil {
+							return
+						}
+					}
+					continue
+				}
+				if err := writeV2Reply(conn, reply); err != nil {
+					return
+				}
+				continue
+			}
+			delegation, err = readLocalDelegation(bufio.NewReader(bytes.NewReader(line)))
+			if err != nil {
+				return
+			}
+		}
+		if delegation != nil {
+			if c.localLeases == nil {
+				return
+			}
+			if delegation.Operation == "reset" {
+				if active != nil && sameLocalDelegation(*active, *delegation) {
+					c.retireDelegatedLocal(ctx, *active)
+					active = nil
+				}
+				continue
+			}
+		}
+		frame, err := protocol.DecodeInputFrame(reader, bridge.MaxFrameBytes)
+		if err != nil {
+			// A partial record cannot be resumed safely after a timeout.
+			return
+		}
+		if delegation != nil && (frame.Header.Type != protocol.InputTypeInput || !delegatedKeyboardFrame(frame)) {
+			return
+		}
+		if delegation != nil && active != nil && !sameLocalDelegation(*active, *delegation) {
+			// A stale, malformed, or unauthorized newcomer cannot neutralize
+			// the active keyboard source. Recheck again at delivery below.
+			if olderLocalDelegation(*active, *delegation) || c.validateLocalDelegation(ctx, *delegation) != nil {
+				continue
+			}
+			c.retireDelegatedLocal(ctx, *active)
+			active = nil
 		}
 		if frame.Header.Type == protocol.InputTypePing {
 			frame.Header.Type = protocol.InputTypePong
@@ -198,6 +444,14 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 		if frame.Header.Type != protocol.InputTypeInput {
 			continue
 		}
+		if recoveryRequired && !recovered {
+			c.localDrops.Add(1)
+			continue
+		}
+		if c.localV2Guard.Load() && !delegatedV2RawAllowed(frame) {
+			c.localDrops.Add(1)
+			continue
+		}
 		if frame.Device == 2 {
 			if accepted, _ := tracker.ObserveTransient(frame.Seq); !accepted {
 				continue
@@ -205,9 +459,207 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 		} else {
 			tracker.Observe(frame.Seq)
 		}
-		_ = c.deliverLocal(ctx, frame)
+		if delegation != nil {
+			active = delegation
+			if err := c.deliverDelegatedLocal(ctx, frame, *delegation); err != nil {
+				c.retireDelegatedLocal(ctx, *active)
+				active = nil
+			}
+		} else {
+			// Raw pad/mouse events can share this socket, but a raw key must
+			// never take over an active generation-bound keyboard source.
+			if active != nil && keyboardFrame(frame) {
+				continue
+			}
+			departure := remoteinput.IsLocalPlayerDeparture(frameEvent(frame))
+			var leaseCtx context.Context
+			var leaseDone func()
+			if departure && c.localLeases != nil {
+				status := c.localLeases.Status()
+				leaseCtx, leaseDone, _ = c.localLeases.BeginLocalInput(status.Generation)
+			}
+			err := c.deliverLocal(ctx, frame)
+			if leaseDone != nil {
+				leaseDone()
+			}
+			if err != nil && departure {
+				// This is neutral-only retry for the same player marker. Keep
+				// the sole reader until it confirms or shutdown interrupts it.
+				if !c.retryLocalDeparture(ctx, frame, leaseCtx) {
+					return
+				}
+			}
+		}
 		c.warnLocalDrops()
 	}
+}
+
+func (c *TargetController) retryLocalDeparture(ctx context.Context, frame protocol.InputFrame, leaseCtx context.Context) bool {
+	tick := time.NewTicker(500 * time.Millisecond)
+	defer tick.Stop()
+	for ctx.Err() == nil && !c.localIsClosed() {
+		if kitlease.InputCleanupConfirmed(leaseCtx) {
+			attempt, cancel := context.WithTimeout(ctx, localCoreWriteTimeout)
+			retired := c.ports.retireConfirmedDeparture(attempt, frame.Player)
+			cancel()
+			if retired {
+				return false // close the old reader after its exact lease cleanup
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-tick.C:
+		}
+		if c.deliverLocal(ctx, frame) == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *TargetController) validateLocalDelegation(ctx context.Context, binding localDelegation) error {
+	if c == nil || c.localLeases == nil {
+		return errNoCore
+	}
+	leaseCtx, done, err := c.localLeases.BeginLocalInput(binding.LeaseGeneration)
+	if err != nil {
+		return err
+	}
+	defer done()
+	operation, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stop := context.AfterFunc(leaseCtx, cancel)
+	defer stop()
+	if !c.lifecycle.TryLock() {
+		return errNoCore
+	}
+	defer c.lifecycle.Unlock()
+	if !c.localKeyboardAdmitted(binding) {
+		return errNoCore
+	}
+	c.mu.Lock()
+	observe := c.observe
+	c.mu.Unlock()
+	if observe == nil || c.ports == nil {
+		return errNoCore
+	}
+	probe, cancelProbe := context.WithTimeout(operation, localCoreObserveTimeout)
+	obs, err := observe(probe)
+	cancelProbe()
+	if err != nil || !obs.Active || obs.KeyboardHID == nil || obs.KeyboardHID.PackageID != binding.PackageID || obs.KeyboardHID.Generation != binding.CoreGeneration {
+		return errNoCore
+	}
+	return operation.Err()
+}
+
+// retireDelegatedLocal keeps the single local-feed slot occupied until this
+// lease's HID contribution is confirmed neutral, its core is replaced, or
+// the lease ends. Each post is bounded; an unavailable runtime is reported
+// and retried without stopping or taking over the remote owner's session.
+func (c *TargetController) retireDelegatedLocal(ctx context.Context, binding localDelegation) {
+	if c == nil || c.localLeases == nil || c.ports == nil || c.ports.hid == nil {
+		return
+	}
+	leaseCtx, done, err := c.localLeases.BeginLocalInput(binding.LeaseGeneration)
+	if err != nil {
+		return // Revocation/replacement owns cleanup.
+	}
+	defer done()
+	operation, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stop := context.AfterFunc(leaseCtx, cancel)
+	defer stop()
+	expected := &KeyboardHIDBinding{PackageID: binding.PackageID, Generation: binding.CoreGeneration}
+	tick := time.NewTicker(500 * time.Millisecond)
+	defer tick.Stop()
+	nextWarning := time.Time{}
+	for operation.Err() == nil {
+		if c.lifecycle.TryLock() {
+			attempt, cancelAttempt := context.WithTimeout(operation, localCoreWriteTimeout)
+			c.mu.Lock()
+			observe := c.observe
+			c.mu.Unlock()
+			if observe == nil {
+				err = errNoCore
+			} else {
+				var obs CoreObservation
+				obs, err = observe(attempt)
+				if err == nil {
+					if !obs.Active || obs.KeyboardHID == nil || *obs.KeyboardHID != *expected {
+						// The old generation retired. Never post its release into
+						// the successor; replacement owns its neutralization.
+						cancelAttempt()
+						c.lifecycle.Unlock()
+						return
+					}
+					err = c.ports.hid.releaseSourceContext(attempt, sourceLocal, expected)
+				}
+			}
+			cancelAttempt()
+			c.lifecycle.Unlock()
+			if err == nil {
+				return
+			}
+		}
+		if time.Now().After(nextWarning) {
+			slog.Warn("kit-local delegated keyboard neutral is unconfirmed; retrying")
+			nextWarning = time.Now().Add(30 * time.Second)
+		}
+		select {
+		case <-operation.Done():
+			return
+		case <-tick.C:
+		}
+	}
+}
+
+// deliverDelegatedLocal keeps the generation admission until the bounded
+// runtime write completes. Revocation waits for this reference before cleanup.
+func (c *TargetController) deliverDelegatedLocal(ctx context.Context, frame protocol.InputFrame, binding localDelegation) (result error) {
+	defer func() {
+		if result != nil && c != nil {
+			c.localDrops.Add(1)
+		}
+	}()
+	if c == nil || c.localLeases == nil {
+		return errNoCore
+	}
+	leaseCtx, done, err := c.localLeases.BeginLocalInput(binding.LeaseGeneration)
+	if err != nil {
+		return err
+	}
+	defer done()
+	operation, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stop := context.AfterFunc(leaseCtx, cancel)
+	defer stop()
+	if !c.lifecycle.TryLock() {
+		return errNoCore
+	}
+	defer c.lifecycle.Unlock()
+	if !c.localKeyboardAdmitted(binding) {
+		return errNoCore
+	}
+	c.mu.Lock()
+	observe := c.observe
+	c.mu.Unlock()
+	if observe == nil || c.ports == nil {
+		return errNoCore
+	}
+	probe, cancelProbe := context.WithTimeout(operation, localCoreObserveTimeout)
+	obs, err := observe(probe)
+	cancelProbe()
+	if err != nil || !obs.Active || obs.KeyboardHID == nil ||
+		obs.KeyboardHID.PackageID != binding.PackageID || obs.KeyboardHID.Generation != binding.CoreGeneration {
+		return errNoCore
+	}
+	if err := c.setLocalObservation(operation, obs); err != nil {
+		return err
+	}
+	write, cancelWrite := context.WithTimeout(operation, localCoreWriteTimeout)
+	defer cancelWrite()
+	return c.ports.applyContext(write, sourceLocal, frame)
 }
 
 // deliverLocal binds and writes one kit-local frame. Host attach and core
@@ -228,11 +680,34 @@ func (c *TargetController) deliverLocal(ctx context.Context, frame protocol.Inpu
 			c.localDrops.Add(1)
 		}
 	}()
-	if !c.lifecycle.TryLock() {
+	epoch := c.transitionEpoch.Load()
+	if c.transitionPending.Load() != 0 || !c.lifecycle.TryLock() {
 		c.localDrops.Add(1)
+		if remoteinput.IsLocalPlayerDeparture(frameEvent(frame)) {
+			return errNoCore
+		}
 		return nil
 	}
 	defer c.lifecycle.Unlock()
+	guard := func(ctx context.Context) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if c.transitionPending.Load() != 0 || c.transitionEpoch.Load() != epoch {
+			return errNoCore
+		}
+		c.mu.Lock()
+		closed := c.closed
+		c.mu.Unlock()
+		if closed {
+			return errNoCore
+		}
+		return nil
+	}
+	if err := guard(ctx); err != nil {
+		return err
+	}
+	ctx = withMatrixGuard(ctx, guard)
 	if err := c.ensureLocalCore(ctx); err != nil {
 		// The socket has already taken this frame. A press still waits for a
 		// confirmed generation. A release for the HID generation an

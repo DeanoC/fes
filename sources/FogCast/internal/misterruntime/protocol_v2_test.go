@@ -37,15 +37,41 @@ func fixtureLines(t *testing.T, name string) []string {
 	return lines
 }
 
+// currentDE25Fixture derives a current-envelope test response from a retained
+// historical capture. The recorded file itself predates runtime_instance and
+// remains unchanged; this is not a new DE25 hardware or producer capture.
+func currentDE25Fixture(t *testing.T, line string) string {
+	t.Helper()
+	const key = `"active_package":`
+	if strings.Contains(line, `"runtime_instance":`) || !strings.Contains(line, key) {
+		t.Fatal("unexpected historical DE25 fixture envelope")
+	}
+	return strings.Replace(line, key, `"runtime_instance":"1234567890abcdef1234567890abcdef",`+key, 1)
+}
+
+func TestHistoricalDE25FixturesRequireRuntimeInstance(t *testing.T) {
+	for _, name := range []string{"protocol-v2-de25-idle.jsonl", "protocol-v2-de25-recovered-menu-inspection.jsonl", "protocol-v2-de25-computer.jsonl", "protocol-v2-de25-standard-computer.jsonl"} {
+		t.Run(name, func(t *testing.T) {
+			line := fixtureLines(t, name)[0]
+			if _, err := decodeProtocol2Response([]byte(line)); !errors.Is(err, errInvalidRuntimeResponse) {
+				t.Fatalf("historical envelope accepted without runtime identity: %v", err)
+			}
+			if _, err := decodeProtocol2Response([]byte(currentDE25Fixture(t, line))); err != nil {
+				t.Fatalf("derived current envelope rejected: %v", err)
+			}
+		})
+	}
+}
+
 func TestProtocol2DE25ProducerIdleStatus(t *testing.T) {
 	// Captured from NativeHardware's DE25 MENU fixture with the production C++
-	// serializer, using FES_TEST_DE25_PROTOCOL_STATUS_RECORD. This exercises
-	// the agent's independent decoder rather than constructing Go capabilities.
+	// serializer, using FES_TEST_DE25_PROTOCOL_STATUS_RECORD. The test derives
+	// the newer envelope while retaining the captured capabilities unchanged.
 	lines := fixtureLines(t, "protocol-v2-de25-idle.jsonl")
 	if len(lines) != 1 {
 		t.Fatalf("producer responses=%d, want one idle response", len(lines))
 	}
-	server := newSequenceSocketFixture(t, []string{lines[0] + "\n"})
+	server := newSequenceSocketFixture(t, []string{currentDE25Fixture(t, lines[0]) + "\n"})
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	response, err := NewClient(server.path).Protocol2Status(ctx)
@@ -68,7 +94,7 @@ func TestProtocol2DE25InspectionRetainsPreviousMenuFault(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatal("expected one native inspection reply")
 	}
-	fixture := newSequenceSocketFixture(t, []string{lines[0] + "\n"})
+	fixture := newSequenceSocketFixture(t, []string{currentDE25Fixture(t, lines[0]) + "\n"})
 	response, err := NewClient(fixture.path).InspectCore(context.Background(), "/tmp/package",
 		"3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776")
 	if err != nil || !response.OK || response.InspectedPackage == nil || !response.InspectedPackage.Compatible {
@@ -83,13 +109,13 @@ func TestProtocol2DE25InspectionRetainsPreviousMenuFault(t *testing.T) {
 }
 
 func TestProtocol2DE25ProducerComputerStatus(t *testing.T) {
-	// Actual production daemon response after native catalog loading. The CPU
-	// had started; rejecting its declared profile stranded agent cleanup.
+	// Derived from a production daemon response after native catalog loading.
+	// Rejecting its declared profile stranded agent cleanup.
 	lines := fixtureLines(t, "protocol-v2-de25-computer.jsonl")
 	if len(lines) != 1 {
 		t.Fatalf("producer responses=%d, want one active response", len(lines))
 	}
-	server := newSequenceSocketFixture(t, []string{lines[0] + "\n"})
+	server := newSequenceSocketFixture(t, []string{currentDE25Fixture(t, lines[0]) + "\n"})
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	response, err := NewClient(server.path).Protocol2Status(ctx)
@@ -109,10 +135,10 @@ func TestProtocol2DE25ProducerComputerStatus(t *testing.T) {
 }
 
 func TestProtocol2DE25StandardComputerProfileAndTapeLimit(t *testing.T) {
-	// Actual C++ production-profile serializer from the injected allocation and
-	// atomic-register lifecycle fixture after standard Start, before opening UI.
-	// This is a software fixture, not a physical standard-core boot.
-	line := fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0]
+	// Derived from the C++ production-profile serializer with injected allocation
+	// and atomic-register lifecycle after standard Start. This is a software
+	// fixture, not a physical standard-core boot.
+	line := currentDE25Fixture(t, fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0])
 	server := newSequenceSocketFixture(t, []string{line + "\n"})
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -137,7 +163,7 @@ func TestProtocol2DE25StandardComputerProfileAndTapeLimit(t *testing.T) {
 }
 
 func TestProtocol2DE25ActiveStatusRefusesChangedIdentity(t *testing.T) {
-	line := fixtureLines(t, "protocol-v2-de25-computer.jsonl")[0]
+	line := currentDE25Fixture(t, fixtureLines(t, "protocol-v2-de25-computer.jsonl")[0])
 	for name, raw := range map[string]string{
 		"foreign profile":        strings.ReplaceAll(line, "de25-hps-first-v1", "unknown-profile"),
 		"crossed board":          strings.ReplaceAll(line, "de25_nano", "de10_nano"),

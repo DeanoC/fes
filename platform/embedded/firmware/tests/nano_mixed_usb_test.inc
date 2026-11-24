@@ -96,7 +96,7 @@ static int shared_usb_fault(uint64_t owner,unsigned mode)
     assert(bridge==5 && fes_nano_owned_usb.reservation && !fes_nano_owned_sd.active);
     unsigned before=engine_calls+fpga_reads+probe_reads+sd_mmio+mixed_rom_writes;
     if(mode==21)shared_usb_regs[8/4]|=0x20; /* DMA owner */
-    if(mode==22)shared_usb_regs[24/4]=1; /* IRQ owner */
+    if(mode==22)shared_usb_regs[0x400/4]|=1U<<23; /* Descriptor DMA owner */
     if(mode==23)shared_usb_regs[16/4]=0; /* AHB master not idle */
     if(mode==24)invalid_sd_clock=1; /* Captured shared bus clock changed */
     if(mode==25)per0|=FES_NANO_COLD_USB_RAM_RESET; /* Partial reset-pair loss */

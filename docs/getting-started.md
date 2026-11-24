@@ -9,13 +9,13 @@ Which cores exist, and what ABI they declare, is [core status](core-status.md).
 
 Parent builds currently run on Linux amd64. Install Git, GNU Make, Python 3.11+
 and Go; image builds also require a running Docker-compatible container engine.
-Go selects the version required by the chosen FogCast `go.mod`. The current FES
-FPGA package route uses the authenticated HIP/nextpnr producers. Quartus Lite
-17.0.2 is an explicit bring-up/oracle check for a system whose nextpnr route is
-not implemented. Quartus-built variants are allowed by policy, but current
-recipes do not select them yet; see
-[Quartus-built cores](design/quartus-cores.md). Quartus is not required by the
-default package-only path.
+Go selects the version required by the chosen FogCast `go.mod`. The default
+DE10-Nano bootstrap image uses authenticated HIP/nextpnr producers (`fes.menu`),
+so Quartus is not required for the default package-only image. Registered
+playable recipes select Quartus Lite 17.0.2 for the DE10 ZX81 family, PC/XT
+(`fes.pcxt-dos`) and `fes.pc386`, and Quartus Pro 26.3 for DE25-Nano recipes;
+general same-board dual-variant selection and `FES_OSS_ONLY` remain pending
+([Quartus-built cores](design/quartus-cores.md)).
 
 The first-party modules are tracked in FES, so a checkout of the reviewed import
 revision needs access to this repository rather than four separate component
@@ -68,8 +68,9 @@ local module tests can exercise uncommitted work.
 
 For the default package-only image, the first producer run authenticates or
 reuses the selected HIP/nextpnr toolchain automatically. A package runs its
-core's registered producer: Quartus Lite for the ZX81 family and PC/XT
-([Quartus-built cores](design/quartus-cores.md)), HIP/nextpnr otherwise.
+core's registered producer: Quartus Lite for the DE10 ZX81 family, PC/XT
+(`fes.pcxt-dos`) and `fes.pc386` ([Quartus-built cores](design/quartus-cores.md)),
+Quartus Pro 26.3 for DE25 recipes, and HIP/nextpnr otherwise.
 Other Quartus recipes are oracle checks. The integrated path does not yet
 choose between OSS and Quartus variants of one core. Quartus is never an
 automatic fallback and never creates a legacy image bundle.
@@ -97,7 +98,9 @@ make verify-media
 image, it runs one clean pass by default. Set `IMAGE_PASSES=2` for build and
 verify to compare two independent passes. `make rebuild` forces the host,
 selected package production and the selected number of image passes; use it when that expensive
-work is intended. The only parent profile is `native-integration-dev`.
+work is intended. The default DE10 parent profile is `native-integration-dev`;
+DE25-Nano is selected explicitly with `BOARD=de25-nano`
+([DE25 source development](development.md#de25-source-development)).
 
 `make verify` requires both host and clean-image receipts, so run `make host`
 as well if you previously built only `make image`. The host receipt names
@@ -228,7 +231,7 @@ and input behavior require separate hardware checks of the exact image.
 | Generated consumer or copied source-pin drift | Update the authoritative definition, run `make generate`, review all consumer edits, then `make check-generated` |
 | Generated runtime lock is stale | Regenerate through the FES build path; artifact policy belongs to `image/build/native-inputs.toml` |
 | Private GitHub pin fetch failed / requires `GITHUB_TOKEN` | Splash/idle are in-tree and do not need a misteross token. For other private GitHub pins, export `GITHUB_TOKEN` or `GH_TOKEN` with `contents:read`, then retry. |
-| Missing Quartus | A ZX81-family (`fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`) or PC/XT package needs Quartus Lite 17.0.2: set `QUARTUS_ROOTDIR` to the install the core's `quartus.lock` pins (the ZX81 family also needs `make -C sources/misteross toolchain-fes-zx81` for its ROM database). Other packages use HIP/nextpnr, and their Quartus recipes are documented oracle checks. |
+| Missing Quartus | DE10 ZX81-family (`fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`), PC/XT (`fes.pcxt-dos`) and `fes.pc386` packages need Quartus Lite 17.0.2; DE25 packages need Quartus Pro 26.3. Set `QUARTUS_ROOTDIR` to the install the core's `quartus.lock` pins (the DE10 ZX81 family also needs `make -C sources/misteross toolchain-fes-zx81` for its ROM database) and run under the [Quartus lease](design/quartus-hosts.md). Other DE10 packages use HIP/nextpnr, and their Quartus recipes are documented oracle checks. |
 | Build already running | Coordinate with its operator; one parent build owns this checkout at a time |
 | Verify reports stale outputs | Run the matching `make build`; a development receipt cannot replace a clean image receipt |
 | Checkout uses old recursive-component CI instructions | Confirm which FES revision and workflow is running; imported modules are tracked files, while old commits retain their historical checkout requirements |
@@ -236,7 +239,7 @@ and input behavior require separate hardware checks of the exact image.
 Next: [change a component](development.md#isolate-component-work) or
 [assign a bounded agent task](agent-workflow.md).
 
-# Image pass policy
+## Image pass policy
 
 `make image IMAGE_ARTIFACTS=/absolute/artifacts` uses one pass by default, including
 CI. Image hashes, structure and QEMU packaging are still checked. `make release

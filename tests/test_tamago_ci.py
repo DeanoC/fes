@@ -182,6 +182,7 @@ class TamagoCIRunnerTests(unittest.TestCase):
                 if name == 'qemu-network':
                     (out / 'qemu-network').mkdir(parents=True, exist_ok=True)
                     (out / 'qemu-network/fat32.img').write_bytes(b'img')
+                    (out / 'qemu-network/result.json').write_text(json.dumps(network_record(False)))
                 return {'step': name, 'status': 'passed', 'elapsed_seconds': 0.1}
 
             with mock.patch.object(tamago_ci, 'run_step', side_effect=fake_run_step):
@@ -220,6 +221,188 @@ class TamagoCIRunnerTests(unittest.TestCase):
             self.assertEqual([s[0] for s in seen], ['qemu-storage'])
             self.assertIn('--disk', seen[0][1])
             self.assertIn(str(fixture), seen[0][1])
+
+    def test_default_qemu_programs_run_static_and_dhcp_network(self):
+        self.assertIn('network', tamago_ci.DEFAULT_QEMU_PROGRAMS)
+        self.assertIn('network-dhcp', tamago_ci.DEFAULT_QEMU_PROGRAMS)
+        self.assertEqual(tamago_ci.QEMU_PROGRAM_VARIANTS['network-dhcp'], ('network', ('--dhcp',)))
+        self.assertNotIn('network', tamago_ci.QEMU_PROGRAM_VARIANTS)
+        self.assertEqual(tamago_ci.NETWORK_DHCP, {'network': False, 'network-dhcp': True})
+
+
+SLIRP_LEASE = {'address': '10.0.2.15/24', 'gateway': '10.0.2.2', 'server': '10.0.2.2',
+               'lease_seconds': 86400, 'dns': ['10.0.2.3']}
+SLIRP_RENEW = {'address': '10.0.2.15/24', 'gateway': '10.0.2.2', 'server': '10.0.2.2',
+               'lease_seconds': 86400}
+SLIRP_DNS = {'host': 'fes-host.local', 'ip': '10.0.2.2', 'host_queries': 1}
+SLIRP_SNTP = {'server': '10.0.2.2', 'stratum': 1, 'unix': 1795500000, 'rtt_ms': 1, 'host_requests': 1}
+
+
+def network_record(dhcp, lease=None, **changes):
+    record = {'status': 'passed', 'program': 'network', 'dhcp': dhcp}
+    if lease is not None:
+        record['dhcp_lease'] = lease
+        if dhcp:
+            record['dhcp_renew'] = SLIRP_RENEW
+            record['dns'] = SLIRP_DNS
+            record['sntp'] = SLIRP_SNTP
+    record.update(changes)
+    return record
+
+
+class TamagoCINetworkTests(unittest.TestCase):
+    def run_network(self, out, programs, write_record):
+        seen = []
+
+        def fake_run_step(name, cmd, *, cwd, env=None, timeout=600):
+            cmd = [str(x) for x in cmd]
+            seen.append((name, cmd))
+            prog_out = Path(cmd[cmd.index('--output') + 1])
+            prog_out.mkdir(parents=True)
+            (prog_out / 'result.json').write_text(json.dumps(write_record(cmd)))
+            return {'step': name, 'status': 'passed', 'elapsed_seconds': 0.1}
+
+        with mock.patch.object(tamago_ci, 'run_step', side_effect=fake_run_step):
+            steps = tamago_ci.run_qemu_programs(
+                ROOT, Path('/bin/tamago-go'), out / 'mod',
+                Path('/usr/bin/qemu-system-aarch64'), Path('/bin/fogcast-host'),
+                out, programs, 120,
+            )
+        return seen, steps
+
+    def test_network_dhcp_runs_run_py_network_with_dhcp_and_records_the_lease(self):
+        def runner(cmd):
+            dhcp = '--dhcp' in cmd
+            return network_record(dhcp, SLIRP_LEASE if dhcp else None)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            seen, steps = self.run_network(out, ('network', 'network-dhcp'), runner)
+
+        run_py = str(ROOT / 'platform/embedded/tamago/run.py')
+        self.assertEqual([name for name, _ in seen], ['qemu-network', 'qemu-network-dhcp'])
+        static_cmd, dhcp_cmd = seen[0][1], seen[1][1]
+        self.assertEqual(static_cmd[1:3], [run_py, 'network'])
+        self.assertNotIn('--dhcp', static_cmd)
+        self.assertEqual(dhcp_cmd[1:4], [run_py, 'network', '--dhcp'])
+        self.assertEqual(dhcp_cmd.count('--dhcp'), 1)
+        self.assertEqual(static_cmd[static_cmd.index('--output') + 1], str(out / 'qemu-network'))
+        self.assertEqual(dhcp_cmd[dhcp_cmd.index('--output') + 1], str(out / 'qemu-network-dhcp'))
+        for cmd in (static_cmd, dhcp_cmd):
+            self.assertEqual(cmd[cmd.index('--board') + 1], 'qemu')
+            self.assertEqual(cmd[cmd.index('--host') + 1], '/bin/fogcast-host')
+        self.assertEqual(steps[0]['step'], 'qemu-network')
+        self.assertIs(steps[0]['dhcp'], False)
+        self.assertNotIn('dhcp_lease', steps[0])
+        self.assertEqual(steps[1]['step'], 'qemu-network-dhcp')
+        self.assertIs(steps[1]['dhcp'], True)
+        self.assertEqual(steps[1]['dhcp_lease'], SLIRP_LEASE)
+
+    def test_network_dhcp_rejects_a_passed_static_record_and_dumps_its_logs(self):
+        # A runner that ignored --dhcp would still exit 0 with a static record.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            with mock.patch.object(tamago_ci, 'dump_failure_logs') as dump:
+                with self.assertRaisesRegex(RuntimeError, r'network-dhcp: .*dhcp=False, expected True'):
+                    self.run_network(out, ('network-dhcp',), lambda cmd: network_record(False))
+            dump.assert_called_once_with(out / 'qemu-network-dhcp')
+
+    def test_network_evidence_requires_the_requested_addressing_and_a_coherent_lease(self):
+        def lease(**changes):
+            return {**SLIRP_LEASE, **changes}
+
+        missing = {key: value for key, value in SLIRP_LEASE.items() if key != 'server'}
+        cases = (
+            ('network', network_record(True, SLIRP_LEASE), 'dhcp=True, expected False'),
+            ('network', network_record(False, SLIRP_LEASE), 'static network record carries a DHCP lease'),
+            ('network', network_record(None), 'dhcp=None, expected False'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, status='failed'), 'not a passed network record'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, program='tenfoot'), 'not a passed network record'),
+            ('network-dhcp', network_record(True), 'no well-formed dhcp_lease'),
+            ('network-dhcp', network_record(True, missing), "no well-formed dhcp_lease: KeyError\\('server'\\)"),
+            ('network-dhcp', network_record(True, lease(address='10.0.2.15')), 'not an IPv4 prefix'),
+            ('network-dhcp', network_record(True, lease(address=167772687)), 'not an IPv4 prefix'),
+            ('network-dhcp', network_record(True, lease(gateway='10.0.2.2/24')), 'no well-formed dhcp_lease'),
+            ('network-dhcp', network_record(True, lease(server='none')), 'no well-formed dhcp_lease'),
+            ('network-dhcp', network_record(True, lease(dns='10.0.2.3')), 'dns is not a list'),
+            ('network-dhcp', network_record(True, lease(dns=['10.0.2.3', 'x'])), 'no well-formed dhcp_lease'),
+            ('network-dhcp', network_record(True, lease(gateway='10.0.3.2')), 'dhcp_lease is inconsistent'),
+            ('network-dhcp', network_record(True, lease(gateway='10.0.2.15')), 'dhcp_lease is inconsistent'),
+            ('network-dhcp', network_record(True, lease(lease_seconds=0)), 'dhcp_lease is inconsistent'),
+            ('network-dhcp', network_record(True, lease(lease_seconds=True)), 'dhcp_lease is inconsistent'),
+            ('network-dhcp', network_record(True, lease(lease_seconds='86400')), 'dhcp_lease is inconsistent'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, dhcp_renew=None), 'no well-formed dhcp_renew'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, dhcp_renew={**SLIRP_RENEW, 'address': '10.0.2.16/24'}), 'dhcp_renew is inconsistent'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, dns=None), 'no well-formed dns'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, dns={**SLIRP_DNS, 'host_queries': 0}), 'dns is inconsistent'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, sntp=None), 'no well-formed sntp'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, sntp={**SLIRP_SNTP, 'stratum': 0}), 'sntp is inconsistent'),
+            ('network-dhcp', network_record(True, SLIRP_LEASE, sntp={**SLIRP_SNTP, 'unix': 100}), 'sntp is inconsistent'),
+            ('network', network_record(False, dns=SLIRP_DNS), 'unexpected dns evidence'),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            result = Path(tmp) / 'result.json'
+            for name, record, message in cases:
+                with self.subTest(name=name, record=record):
+                    result.write_text(json.dumps(record))
+                    with self.assertRaisesRegex(RuntimeError, f'^{name}: .*{message}'):
+                        tamago_ci.network_evidence(name, result)
+
+            result.write_text(json.dumps(network_record(True, lease(dns=[]))))
+            self.assertEqual(tamago_ci.network_evidence('network-dhcp', result), {
+                'dhcp': True, 'dhcp_lease': lease(dns=[]),
+                'dhcp_renew': SLIRP_RENEW, 'dns': SLIRP_DNS, 'sntp': SLIRP_SNTP,
+            })
+            result.write_text(json.dumps(network_record(False)))
+            self.assertEqual(tamago_ci.network_evidence('network', result), {'dhcp': False})
+
+            result.write_text('{"status": "passed"')
+            with self.assertRaisesRegex(RuntimeError, '^network-dhcp: cannot read'):
+                tamago_ci.network_evidence('network-dhcp', result)
+            with self.assertRaisesRegex(RuntimeError, '^network: cannot read'):
+                tamago_ci.network_evidence('network', Path(tmp) / 'absent.json')
+
+    def test_local_dns_and_sntp_loopback_servers(self):
+        import socket
+        import struct
+        sys.path.insert(0, str(ROOT / 'platform/embedded/tamago'))
+        try:
+            import host_support
+        finally:
+            sys.path.pop(0)
+
+        with host_support.LocalDNSServer({'fes-host.local': '10.0.2.2'}) as dns_srv:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.settimeout(2)
+            try:
+                q = struct.pack('>HHHHHH', 0x1234, 0x0100, 1, 0, 0, 0) + b'\x08fes-host\x05local\x00' + struct.pack('>HH', 1, 1)
+                sock.sendto(q, ('127.0.0.1', dns_srv.port))
+                resp, _ = sock.recvfrom(512)
+            finally:
+                sock.close()
+            qid, flags, qd, an, _, _ = struct.unpack('>HHHHHH', resp[:12])
+            self.assertEqual(qid, 0x1234)
+            self.assertEqual(flags & 0x800F, 0x8000)
+            self.assertEqual((qd, an), (1, 1))
+            self.assertEqual(resp[-4:], socket.inet_aton('10.0.2.2'))
+            self.assertEqual(dns_srv.queries, ['fes-host.local'])
+
+        with host_support.LocalSNTPServer() as sntp_srv:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.settimeout(2)
+            try:
+                req = bytearray(48)
+                req[0] = (4 << 3) | 3
+                req[40:48] = b'\x11\x22\x33\x44\x55\x66\x77\x88'
+                sock.sendto(bytes(req), ('127.0.0.1', sntp_srv.port))
+                resp, _ = sock.recvfrom(512)
+            finally:
+                sock.close()
+            self.assertEqual(len(resp), 48)
+            self.assertEqual(resp[0] & 0x07, 4)
+            self.assertEqual(resp[1], 1)
+            self.assertEqual(resp[24:32], b'\x11\x22\x33\x44\x55\x66\x77\x88')
+            self.assertEqual(sntp_srv.requests, 1)
 
 
 if __name__ == '__main__':

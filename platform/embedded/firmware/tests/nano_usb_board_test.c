@@ -123,8 +123,8 @@ static int containment_read(void *context,uintptr_t address,uint32_t *value)
         if (fault==1) t->clocks[0]^=1;
         if (fault==2) t->pins[0]^=1;
         if (fault==3) t->base.h.regs[8/4]|=1U<<5;
-        if (fault==4) t->base.h.regs[8/4]|=1U;
-        if (fault==5) t->base.h.regs[24/4]=1;
+        if (fault==4) t->base.h.regs[0x400/4]|=1U<<23;
+        if (fault==5) {t->base.h.regs[8/4]|=0x21U;t->base.h.regs[24/4]=0x22000018U;}
         if (fault==6) t->base.h.regs[12/4]=0;
         if (fault==7) t->base.h.regs[16/4]=0;
         if (fault==8) t->base.usb.generation++;
@@ -153,6 +153,14 @@ static void master_containment(void)
 {
     struct board_test t;prepared(&t);host_started(&t);
     assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+    /* EL1 GICv3 IRQ delivery (GLBLINTRMSK + GINTMSK) with DMA=0 and DESCDMA=0
+     * must preserve both master containment and live observe, while Stop still
+     * requires IRQs to be masked before controller reset. */
+    t.base.h.regs[8/4]=1U;t.base.h.regs[24/4]=0x22000018U;
+    assert(!fes_nano_usb_platform_idle(&t.base.usb,17,2));
+    assert(!fes_nano_usb_platform_observe(&t.base.usb,17,2));
+    assert(t.base.cold.valid && !t.board.failed && !t.base.usb.failed);
+    t.base.h.regs[8/4]=0;t.base.h.regs[24/4]=0;
     unsigned requests=t.requests,writes=t.base.h.writes,live=t.board.live_checks;
     t.phy[0]^=1;t.viewport=1U<<26; /* Readiness fails; no PHY access is needed for no-DMA containment. */
     assert(!fes_nano_usb_platform_idle(&t.base.usb,17,2));

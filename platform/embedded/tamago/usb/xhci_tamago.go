@@ -464,6 +464,35 @@ func (h *XHCI) PollKeyboard() ([]byte, error) {
 	return nil, nil
 }
 
+// PollKeyboardInto is the zero-allocation companion to PollKeyboard.
+func (h *XHCI) PollKeyboardInto(dst []byte) (int, error) {
+	if len(dst) < len(h.report) {
+		return 0, fmt.Errorf("xHCI: keyboard report buffer too small: need %d, have %d", len(h.report), len(dst))
+	}
+	for n := 0; n < 16; n++ {
+		event, ok, err := h.event()
+		if err != nil {
+			return 0, err
+		}
+		if !ok {
+			return 0, nil
+		}
+		if event.kind() == 34 {
+			continue
+		}
+		if event.kind() != 32 || event.parameter&^15 != h.pending || uint8(event.control>>24) != h.slot {
+			return 0, h.fail(fmt.Errorf("xHCI: unexpected keyboard completion"))
+		}
+		if event.code() != 1 || event.status&0xffffff != 0 {
+			return 0, h.fail(fmt.Errorf("xHCI: invalid keyboard transfer code=%d remainder=%d", event.code(), event.status&0xffffff))
+		}
+		copied := copy(dst, h.report)
+		h.armKeyboard()
+		return copied, nil
+	}
+	return 0, nil
+}
+
 type transferRing struct {
 	address uint64
 	data    []byte

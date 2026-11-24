@@ -1,0 +1,36 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv
+index 0e775e2de..b7645f22a 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv
+@@ -63,7 +63,9 @@ module fes_x87_core #(
+     logic [5:0] shift_a, shift_b;
+     // This is the external request timing boundary. Let Quartus retime the
+     // arithmetic stages, but keep normalization behind the captured request.
+-    (* preserve, dont_retime *) request_t dispatch;
++    request_t dispatch;  // ABLATION xdisp: no dispatch register
++    assign dispatch = request;
++    assign dispatch_valid = accept;
+     raw_t fast_raw, slow_raw;
+     logic fast_valid, slow_valid, slow_ready;
+     logic accept, is_slow, dispatch_valid, encoded_valid, normalized_valid;
+@@ -102,7 +104,6 @@ module fes_x87_core #(
+     always_ff @(posedge clk) begin
+         // Isolate virtual/CPU request wiring from unpacking and classification.
+         // Only valid is reset; operands need no enable or reset fanout.
+-        dispatch <= request;
+         // Normalize once for both lanes: encode the shift, then apply it.
+         encoded <= dispatch;
+         shift_a <= normalization_shift(dispatch.a[63:0]);
+@@ -117,12 +118,10 @@ module fes_x87_core #(
+         normalized.ub.exponent <= (encoded.b[78:64] == 0 ? 18'sd1 :
+             $signed({3'd0,encoded.b[78:64]})) - $signed({12'd0,shift_b});
+         if (reset || flush) begin
+-            dispatch_valid <= 0;
+             encoded_valid <= 0;
+             normalized_valid <= 0;
+             slow_reserved <= 0;
+         end else begin
+-            dispatch_valid <= accept;
+             encoded_valid <= dispatch_valid;
+             normalized_valid <= encoded_valid;
+             if (slow_valid && !fast_valid) slow_reserved <= 0;

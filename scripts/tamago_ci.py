@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run TamaGo host tests, dual-board bare-metal builds, and QEMU regressions."""
 import argparse
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -13,8 +14,15 @@ ROOT = Path(__file__).resolve().parents[1]
 TAMAGO_DIR = ROOT / 'platform/embedded/tamago'
 DEFAULT_QEMU_PROGRAMS = (
     'probe', 'mapcheck', 'fabric', 'keyboard', 'display',
-    'packages', 'admission', 'network', 'tenfoot', 'storage', 'play',
+    'packages', 'admission', 'network', 'network-dhcp', 'tenfoot', 'storage', 'play',
 )
+# CI variant -> (run.py program, extra run.py arguments). Each variant keeps its
+# own qemu-<variant> output, so static and DHCP records never share a directory.
+QEMU_PROGRAM_VARIANTS = {
+    'network-dhcp': ('network', ('--dhcp',)),
+}
+# Whether each network variant's result.json must record DHCP addressing.
+NETWORK_DHCP = {'network': False, 'network-dhcp': True}
 EXCLUDED_BUILD_ERR = 'build constraints exclude all Go files'
 QEMU_LINK_FLAGS = '-T 0x40020000 -R 0x1000'
 NANO_LINK_FLAGS = '-s -w -T 0x84020000 -R 0x1000'
@@ -225,10 +233,11 @@ def run_qemu_programs(root, compiler, module_cache, qemu, host, output, programs
     )
     steps = []
     storage_disk = None
-    for program in programs:
-        prog_out = Path(output) / f'qemu-{program}'
+    for name in programs:
+        program, extra = QEMU_PROGRAM_VARIANTS.get(name, (name, ()))
+        prog_out = Path(output) / f'qemu-{name}'
         cmd = [
-            sys.executable, str(tamago_dir / 'run.py'), program,
+            sys.executable, str(tamago_dir / 'run.py'), program, *extra,
             '--board', 'qemu',
             '--compiler', str(compiler),
             '--module-cache', str(module_cache),
@@ -242,8 +251,11 @@ def run_qemu_programs(root, compiler, module_cache, qemu, host, output, programs
                 storage_disk = _prepare_storage_fixture_disk(Path(output) / 'storage-fixture.img', cwd=root)
             cmd.extend(['--disk', str(storage_disk)])
         try:
-            steps.append(run_step(f'qemu-{program}', cmd, cwd=root, env=exp_env,
-                                  timeout=max(300, int(timeout) * 3)))
+            step = run_step(f'qemu-{name}', cmd, cwd=root, env=exp_env,
+                            timeout=max(300, int(timeout) * 3))
+            if name in NETWORK_DHCP:
+                step.update(network_evidence(name, prog_out / 'result.json'))
+            steps.append(step)
         except RuntimeError:
             dump_failure_logs(prog_out)
             raise
@@ -252,6 +264,89 @@ def run_qemu_programs(root, compiler, module_cache, qemu, host, output, programs
             if candidate.is_file():
                 storage_disk = candidate
     return steps
+
+
+def network_evidence(name, result_path):
+    """Return the addressing a passed run.py network record proves.
+
+    The static variant must record dhcp=false and no lease. network-dhcp must
+    record dhcp=true and the guest's FES_NETWORK_DHCP lease: an IPv4 host
+    prefix, another host in it as gateway, a server identifier and a positive
+    lease time.
+    """
+    want_dhcp = NETWORK_DHCP[name]
+    try:
+        record = json.loads(Path(result_path).read_text())
+    except (OSError, ValueError) as error:
+        raise RuntimeError(f'{name}: cannot read {result_path}: {error}') from None
+    if not isinstance(record, dict) or record.get('status') != 'passed' or record.get('program') != 'network':
+        raise RuntimeError(f'{name}: {result_path} is not a passed network record')
+    if record.get('dhcp') is not want_dhcp:
+        raise RuntimeError(f'{name}: {result_path} records dhcp={record.get("dhcp")!r}, expected {want_dhcp}')
+    lease = record.get('dhcp_lease')
+    if not want_dhcp:
+        if lease is not None:
+            raise RuntimeError(f'{name}: static network record carries a DHCP lease')
+        for extra in ('dhcp_renew', 'dns', 'sntp'):
+            if record.get(extra) is not None:
+                raise RuntimeError(f'{name}: static network record carries unexpected {extra} evidence')
+        return {'dhcp': False}
+    try:
+        address = _ipv4(lease['address'], prefix=True)
+        gateway = _ipv4(lease['gateway'])
+        _ipv4(lease['server'])
+        if not isinstance(lease['dns'], list):
+            raise ValueError(f'dns is not a list: {lease["dns"]!r}')
+        for server in lease['dns']:
+            _ipv4(server)
+        seconds = lease['lease_seconds']
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError(f'{name}: {result_path} has no well-formed dhcp_lease: {error!r}') from None
+    if gateway == address.ip or gateway not in address.network or type(seconds) is not int or seconds <= 0:
+        raise RuntimeError(f'{name}: {result_path} dhcp_lease is inconsistent: {lease}')
+
+    renew = record.get('dhcp_renew')
+    try:
+        r_addr = _ipv4(renew['address'], prefix=True)
+        r_gw = _ipv4(renew['gateway'])
+        _ipv4(renew['server'])
+        r_sec = renew['lease_seconds']
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError(f'{name}: {result_path} has no well-formed dhcp_renew: {error!r}') from None
+    if r_addr != address or r_gw != gateway or type(r_sec) is not int or r_sec <= 0:
+        raise RuntimeError(f'{name}: {result_path} dhcp_renew is inconsistent: {renew}')
+
+    dns = record.get('dns')
+    try:
+        dns_host = dns['host']
+        _ipv4(dns['ip'])
+        dns_queries = dns['host_queries']
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError(f'{name}: {result_path} has no well-formed dns: {error!r}') from None
+    if not isinstance(dns_host, str) or not dns_host or type(dns_queries) is not int or dns_queries < 1:
+        raise RuntimeError(f'{name}: {result_path} dns is inconsistent: {dns}')
+
+    sntp = record.get('sntp')
+    try:
+        _ipv4(sntp['server'])
+        stratum = sntp['stratum']
+        unix_ts = sntp['unix']
+        sntp_reqs = sntp['host_requests']
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError(f'{name}: {result_path} has no well-formed sntp: {error!r}') from None
+    if (type(stratum) is not int or not (1 <= stratum <= 15)
+            or type(unix_ts) is not int or unix_ts < 1700000000
+            or type(sntp_reqs) is not int or sntp_reqs < 1):
+        raise RuntimeError(f'{name}: {result_path} sntp is inconsistent: {sntp}')
+
+    return {'dhcp': True, 'dhcp_lease': lease, 'dhcp_renew': renew, 'dns': dns, 'sntp': sntp}
+
+
+def _ipv4(value, *, prefix=False):
+    """Parse an IPv4 address, or a host prefix such as 10.0.2.15/24, from a string."""
+    if not isinstance(value, str) or (prefix and '/' not in value):
+        raise ValueError(f'not an IPv4 {"prefix" if prefix else "address"}: {value!r}')
+    return ipaddress.IPv4Interface(value) if prefix else ipaddress.IPv4Address(value)
 
 
 def parse_args(argv=None):

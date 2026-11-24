@@ -30,7 +30,8 @@ def _set_pin(lock: Path, tool: str, field: str, value: str) -> None:
     lock.write_text(text, encoding="utf-8")
 
 
-def _publish(request: toolchain_cache.ToolchainRequest, tool: str, *, content: str = "fake") -> toolchain_cache.InstallManifest:
+def _publish(request: toolchain_cache.ToolchainRequest, tool: str, *, content: str = "fake",
+             max_gb: str | None = None) -> toolchain_cache.InstallManifest:
     """Publish a fake install of *tool* through the real cache API."""
 
     directory = toolchain_cache.install_directory(request, tool)
@@ -45,7 +46,7 @@ def _publish(request: toolchain_cache.ToolchainRequest, tool: str, *, content: s
         database.mkdir(parents=True)
         (database / "fixture").write_text("database\n", encoding="utf-8")
     with toolchain_cache.acquire_build_lock(request, tool):
-        return toolchain_cache.publish_install(request, tool, identity=f"{content} {tool}")
+        return toolchain_cache.publish_install(request, tool, identity=f"{content} {tool}", max_gb=max_gb)
 
 
 class ToolchainCacheContractTests(unittest.TestCase):
@@ -1513,13 +1514,14 @@ class ToolchainCachePruneTests(unittest.TestCase):
             {f"tools/nextpnr/{hip_install.key}", f"tools/nextpnr/{off_install.key}"},
         )
 
-        # Verify CLI parsing forwards repeatable --gpu-router and architecture flags.
+        # Verify CLI parsing forwards repeatable --gpu-router, --max-gb, and architecture flags.
         with mock.patch.object(toolchain_cache, "prune") as prune_mock:
             rc = toolchain_cache._prune_main([
                 "--root", str(self.root),
                 "--cache", str(self.cache),
                 "--ref", "HEAD",
                 "--keep-days", "7",
+                "--max-gb", "64.5",
                 "--gpu-router", "HIP",
                 "--gpu-router", "OFF",
                 "--hip-architectures", "gfx1201",
@@ -1534,6 +1536,7 @@ class ToolchainCachePruneTests(unittest.TestCase):
             ref="HEAD",
             apply=True,
             legacy_slots=False,
+            max_gb=64.5,
             gpu_routers=["HIP", "OFF"],
             hip_architectures="gfx1201",
             cuda_architectures="75;86",
@@ -1554,9 +1557,341 @@ class ToolchainCachePruneTests(unittest.TestCase):
             ref="origin/main",
             apply=False,
             legacy_slots=False,
+            max_gb=None,
             gpu_routers=None,
             hip_architectures=None,
             cuda_architectures=None,
+        )
+
+    def _publish_sized(self, request, tool: str, *, payload_bytes: int, tag: str):
+        return _publish(request, tool, content=f"{tag}-" + ("x" * payload_bytes))
+
+    def test_prune_max_gb_evicts_lru_unpinned_installs_preserving_pinned_and_held(self):
+        """LRU size cap evicts oldest unpinned installs first and never evicts pinned or held ones."""
+        payload = 128 * 1024
+        pinned_req = self.request()
+        pinned = self._publish_sized(pinned_req, "yosys", payload_bytes=payload, tag="pinned")
+
+        unpinned = []
+        for idx, commit_char in enumerate(("1", "2", "3")):
+            lock = self.base / f"unpinned-{idx}.lock"
+            shutil.copy2(self.root / "toolchain.lock", lock)
+            _set_pin(lock, "yosys", "commit", commit_char * 40)
+            req = self.request(lock)
+            inst = self._publish_sized(req, "yosys", payload_bytes=payload, tag=f"u{idx}")
+            unpinned.append((req, inst))
+
+        now = time.time()
+        # All three are well within keep_days=14, ordered oldest (0) -> middle (1) -> newest (2).
+        for idx, (req, _inst) in enumerate(unpinned):
+            ts = now - (5 - idx) * 86400
+            os.utime(toolchain_cache.lock_path(req, "yosys"), (ts, ts))
+
+        pinned_bytes = toolchain_cache._tree_bytes(pinned.directory)
+        newest_bytes = toolchain_cache._tree_bytes(unpinned[2][1].directory)
+        self.assertGreater(pinned_bytes, 0)
+        self.assertGreater(newest_bytes, 0)
+        # Cap allows pinned + newest, forcing eviction of oldest (0) and middle (1).
+        cap_gb = (pinned_bytes + newest_bytes + 4096) / 2**30
+
+        # Dry run previews LRU eviction order without deleting anything.
+        report, output = self.prune(max_gb=cap_gb, now=now)
+        self.assertEqual(
+            report["removed"],
+            [f"tools/yosys/{unpinned[0][1].key}", f"tools/yosys/{unpinned[1][1].key}"],
+        )
+        self.assertEqual(
+            set(report["kept"]),
+            {f"tools/yosys/{pinned.key}", f"tools/yosys/{unpinned[2][1].key}"},
+        )
+        self.assertIn("dry run", output)
+        self.assertTrue(unpinned[0][1].directory.exists())
+
+        # Holding the oldest install skips it as busy and evicts middle + newest to meet the cap.
+        holder = os.open(toolchain_cache.lock_path(unpinned[0][0], "yosys"), os.O_RDONLY)
+        try:
+            fcntl.flock(holder, fcntl.LOCK_SH)
+            report, output = self.prune(max_gb=cap_gb, now=now)
+            self.assertEqual(report["busy"], [f"tools/yosys/{unpinned[0][1].key}"])
+            self.assertEqual(
+                report["removed"],
+                [f"tools/yosys/{unpinned[1][1].key}", f"tools/yosys/{unpinned[2][1].key}"],
+            )
+            self.assertEqual(report["kept"], [f"tools/yosys/{pinned.key}"])
+            # Cap below pinned alone warns cleanly and never evicts pinned or held installs.
+            tiny_report, tiny_out = self.prune(max_gb=0.0, now=now)
+            self.assertEqual(tiny_report["kept"], [f"tools/yosys/{pinned.key}"])
+            self.assertEqual(tiny_report["busy"], [f"tools/yosys/{unpinned[0][1].key}"])
+            self.assertIn("pinned or in-use installs are never evicted", tiny_out)
+        finally:
+            os.close(holder)
+
+        # Apply via FES_TOOLCHAIN_CACHE_MAX_GB env removes oldest and middle, keeping pinned and newest.
+        report, output = self.prune(
+            apply=True,
+            now=now,
+            environment={"FES_TOOLCHAIN_CACHE_MAX_GB": repr(cap_gb)},
+        )
+        self.assertEqual(
+            report["removed"],
+            [f"tools/yosys/{unpinned[0][1].key}", f"tools/yosys/{unpinned[1][1].key}"],
+        )
+        self.assertFalse(unpinned[0][1].directory.exists())
+        self.assertFalse(unpinned[1][1].directory.exists())
+        self.assertTrue(pinned.directory.exists())
+        self.assertTrue(unpinned[2][1].directory.exists())
+        self.assertIn("freed", output)
+
+        # Invalid cap values are rejected in both prune() and validate_shared_environment().
+        for bad in ("-1", "nan", "inf", "abc"):
+            with self.assertRaisesRegex(toolchain_cache.CacheError, "max-gb|FES_TOOLCHAIN_CACHE_MAX_GB"):
+                self.prune(environment={"FES_TOOLCHAIN_CACHE_MAX_GB": bad})
+            with self.assertRaisesRegex(toolchain_cache.CacheError, "max-gb|FES_TOOLCHAIN_CACHE_MAX_GB"):
+                toolchain_cache.validate_shared_environment({"FES_TOOLCHAIN_CACHE_MAX_GB": bad})
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "max-gb"):
+            self.prune(max_gb=-0.5)
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "max-gb"):
+            self.prune(max_gb=True)
+        # Valid FES_TOOLCHAIN_CACHE_MAX_GB passes environment validation and stays out of build identity.
+        toolchain_cache.validate_shared_environment({"FES_TOOLCHAIN_CACHE_MAX_GB": "80"})
+        self.assertEqual(
+            toolchain_cache._request_environment({"FES_TOOLCHAIN_CACHE_MAX_GB": "80"}, tool="nextpnr"),
+            {},
+        )
+
+    def test_publish_install_stamps_lock_mtime_and_enforces_max_gb_env(self):
+        """Publishing updates lock mtime and enforces FES_TOOLCHAIN_CACHE_MAX_GB without breaking publish."""
+        payload = 128 * 1024
+        pinned_req = self.request()
+        pinned = self._publish_sized(pinned_req, "yosys", payload_bytes=payload, tag="pinned")
+
+        old_lock = self.base / "old.lock"
+        shutil.copy2(self.root / "toolchain.lock", old_lock)
+        _set_pin(old_lock, "yosys", "commit", "1" * 40)
+        old_req = self.request(old_lock)
+        old_install = self._publish_sized(old_req, "yosys", payload_bytes=payload, tag="old")
+        old_ts = time.time() - 3 * 86400
+        os.utime(toolchain_cache.lock_path(old_req, "yosys"), (old_ts, old_ts))
+
+        new_lock = self.base / "new.lock"
+        shutil.copy2(self.root / "toolchain.lock", new_lock)
+        _set_pin(new_lock, "yosys", "commit", "2" * 40)
+        new_req = self.request(new_lock)
+
+        # Pre-create stale lock mtime and huge transient src/ + build/ trees like bootstrap.sh does.
+        new_lock_file = toolchain_cache.ensure_lock_file(new_req, "yosys")
+        os.utime(new_lock_file, (old_ts, old_ts))
+        new_dir = toolchain_cache.install_directory(new_req, "yosys")
+        (new_dir / "install" / "bin").mkdir(parents=True)
+        (new_dir / "evidence").mkdir()
+        (new_dir / "src").mkdir()
+        (new_dir / "build").mkdir()
+        (new_dir / "install" / "bin" / "yosys").write_text("new-" + ("y" * payload), encoding="utf-8")
+        (new_dir / "evidence" / "record").write_text("evidence\n", encoding="utf-8")
+        # Huge transient build tree that bootstrap.sh deletes right after publish.
+        (new_dir / "build" / "huge.o").write_bytes(b"z" * (4 * payload))
+
+        pinned_bytes = toolchain_cache._tree_bytes(pinned.directory)
+        new_install_bytes = toolchain_cache._tree_bytes(new_dir, skip_top_dirs=frozenset({"src", "build"}))
+        # Cap fits pinned + new install (excluding transient src/build), so old_install is evicted
+        # while pinned and the just-published unpinned install both survive.
+        cap_gb = (pinned_bytes + new_install_bytes + 4096) / 2**30
+
+        # Invalid FES_TOOLCHAIN_CACHE_MAX_GB fails before writing ready.json.
+        with (
+            mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_MAX_GB": "bogus"}),
+            toolchain_cache.acquire_build_lock(new_req, "yosys"),
+            self.assertRaisesRegex(toolchain_cache.CacheError, "FES_TOOLCHAIN_CACHE_MAX_GB"),
+        ):
+            toolchain_cache.publish_install(new_req, "yosys", identity="new yosys")
+        self.assertFalse((new_dir / "ready.json").exists())
+
+        before_publish = time.time() - 1.0
+        stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_MAX_GB": repr(cap_gb)}),
+            mock.patch.object(toolchain_cache.sys, "stderr", stderr),
+            toolchain_cache.acquire_build_lock(new_req, "yosys"),
+        ):
+            published = toolchain_cache.publish_install(new_req, "yosys", identity="new yosys")
+        self.assertGreaterEqual(new_lock_file.stat().st_mtime, before_publish)
+        self.assertTrue(published.directory.exists())
+        self.assertTrue(pinned.directory.exists())
+        self.assertFalse(old_install.directory.exists())
+        self.assertIn(f"removed: tools/yosys/{old_install.key}", stderr.getvalue())
+
+        # A non-git checkout logs a warning to stderr and still completes publication cleanly.
+        non_git_root = self.base / "non-git"
+        (non_git_root / "scripts").mkdir(parents=True)
+        shutil.copy2(SOURCE / "scripts" / "lockfile.py", non_git_root / "scripts" / "lockfile.py")
+        shutil.copy2(SOURCE / "scripts" / "bootstrap.sh", non_git_root / "scripts" / "bootstrap.sh")
+        shutil.copy2(SOURCE / "toolchain.lock", non_git_root / "toolchain.lock")
+        non_git_req = self.request(non_git_root / "toolchain.lock", root=non_git_root)
+        warn_stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_MAX_GB": "1"}),
+            mock.patch.object(toolchain_cache.sys, "stderr", warn_stderr),
+        ):
+            published_ng = _publish(non_git_req, "verilator", content="non-git")
+        self.assertTrue((published_ng.directory / "ready.json").is_file())
+        self.assertIn("skipping post-publish LRU eviction", warn_stderr.getvalue())
+
+        # Unexpected OSError in best-effort post-publish eviction never fails a completed publish.
+        err_lock = self.base / "err.lock"
+        shutil.copy2(self.root / "toolchain.lock", err_lock)
+        _set_pin(err_lock, "verilator", "commit", "3" * 40)
+        err_req = self.request(err_lock)
+        err_stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_MAX_GB": "1"}),
+            mock.patch.object(toolchain_cache.sys, "stderr", err_stderr),
+            mock.patch.object(toolchain_cache, "prune", side_effect=OSError("transient io error")),
+        ):
+            published_err = _publish(err_req, "verilator", content="oserr")
+        self.assertTrue((published_err.directory / "ready.json").is_file())
+        self.assertIn("skipping post-publish LRU eviction: transient io error", err_stderr.getvalue())
+
+    def test_prune_handles_concurrent_eviction_race_without_failing(self):
+        """An install removed by a concurrent prune before rename is treated as already freed."""
+        payload = 128 * 1024
+        pinned = self._publish_sized(self.request(), "yosys", payload_bytes=payload, tag="pinned")
+        unpinned = []
+        for idx, commit_char in enumerate(("4", "5")):
+            lock = self.base / f"race-{idx}.lock"
+            shutil.copy2(self.root / "toolchain.lock", lock)
+            _set_pin(lock, "yosys", "commit", commit_char * 40)
+            req = self.request(lock)
+            inst = self._publish_sized(req, "yosys", payload_bytes=payload, tag=f"r{idx}")
+            unpinned.append((req, inst))
+        now = time.time()
+        os.utime(toolchain_cache.lock_path(unpinned[0][0], "yosys"), (now - 4 * 86400, now - 4 * 86400))
+        os.utime(toolchain_cache.lock_path(unpinned[1][0], "yosys"), (now - 1 * 86400, now - 1 * 86400))
+
+        pinned_bytes = toolchain_cache._tree_bytes(pinned.directory)
+        newer_bytes = toolchain_cache._tree_bytes(unpinned[1][1].directory)
+        cap_gb = (pinned_bytes + newer_bytes + 4096) / 2**30
+
+        real_rename = os.rename
+        raced_dir = unpinned[0][1].directory
+
+        def racing_rename(src, dst):
+            if Path(src) == raced_dir:
+                toolchain_cache._remove_tree(raced_dir)
+                raise FileNotFoundError(src)
+            return real_rename(src, dst)
+
+        with mock.patch.object(toolchain_cache.os, "rename", side_effect=racing_rename):
+            report, _ = self.prune(apply=True, max_gb=cap_gb, now=now)
+        self.assertFalse(raced_dir.exists())
+        self.assertEqual(report["removed"], [])
+        self.assertIn(f"tools/yosys/{unpinned[1][1].key}", report["kept"])
+        self.assertTrue(unpinned[1][1].directory.exists())
+
+    def test_post_publish_eviction_keeps_this_builds_and_heads_installs(self):
+        """A tight cap never evicts what this build's lock or the locks at HEAD select.
+
+        Bootstrap releases each install's lock once it is published or hit and
+        the producer resolves them only after the last tool, so on a branch
+        whose locks pin installs origin/main does not, a lock held by nobody
+        cannot be what keeps them.
+        """
+        git = ["git", "-C", str(self.repository), "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+        subprocess.run([*git, "update-ref", "refs/remotes/origin/main", "HEAD"], check=True)
+        # Built for origin/main; the branch moves every lock off this Verilator.
+        main_only = _publish(self.request(), "verilator")
+        core_lock = self.root / "cores" / "fes-core" / "toolchain.lock"
+        for lock in (self.root / "toolchain.lock", core_lock):
+            _set_pin(lock, "verilator", "commit", "e" * 40)
+        _set_pin(core_lock, "openfpgaloader", "commit", "1" * 40)
+        subprocess.run([*git, "commit", "-q", "-a", "-m", "branch"], check=True)
+        # Another lock at HEAD, built earlier: nobody holds it now.
+        head_only = _publish(self.request(core_lock), "openfpgaloader")
+        # An install no lock selects, used long ago: what the cap does evict.
+        stale_lock = self.base / "stale.lock"
+        shutil.copy2(self.root / "toolchain.lock", stale_lock)
+        _set_pin(stale_lock, "yosys", "commit", "d" * 40)
+        stale = self.request(stale_lock)
+        stale_install = _publish(stale, "yosys")
+        old = time.time() - 30 * 86400
+        os.utime(toolchain_cache.lock_path(stale, "yosys"), (old, old))
+        # This build's own lock is an uncommitted edit: no ref pins its Yosys.
+        _set_pin(self.root / "toolchain.lock", "yosys", "commit", "9" * 40)
+        build = self.request()
+
+        stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_MAX_GB": "0"}),
+            mock.patch.object(toolchain_cache.sys, "stderr", stderr),
+        ):
+            # Bootstrap's order: each publish releases its lock before the next.
+            installs = {tool: _publish(build, tool) for tool in toolchain_cache.TOOLS}
+        log = stderr.getvalue()
+        self.assertFalse(stale_install.directory.exists(), log)
+        self.assertIn(f"removed: tools/yosys/{stale_install.key}", log)
+        for install in installs.values():
+            self.assertTrue((install.directory / "ready.json").is_file(), log)
+        toolchain_cache.verify_ready(build)
+        self.assertEqual({tool: install.key for tool, install in installs.items()}, toolchain_cache.tool_keys(build))
+        self.assertIn(f"kept: tools/yosys/{installs['yosys'].key} (selected by this build's lock)", log)
+        self.assertTrue(head_only.directory.exists(), log)
+        self.assertIn(f"kept: tools/openfpgaloader/{head_only.key} (pinned at HEAD)", log)
+        self.assertTrue(main_only.directory.exists(), log)
+        self.assertIn(f"kept: tools/verilator/{main_only.key} (pinned at origin/main)", log)
+
+    def test_publish_install_takes_the_cap_bootstrap_forwards(self):
+        """Bootstrap scrubs FES_TOOLCHAIN_CACHE_MAX_GB and forwards its text to publish."""
+        stale_lock = self.base / "stale.lock"
+        shutil.copy2(self.root / "toolchain.lock", stale_lock)
+        _set_pin(stale_lock, "yosys", "commit", "d" * 40)
+        stale = self.request(stale_lock)
+        stale_install = _publish(stale, "yosys")
+        old = time.time() - 30 * 86400
+        os.utime(toolchain_cache.lock_path(stale, "yosys"), (old, old))
+        build = self.request()
+
+        # Blank text means no cap, as a blank variable does, and wins over the variable.
+        stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_MAX_GB": "0"}),
+            mock.patch.object(toolchain_cache.sys, "stderr", stderr),
+        ):
+            _publish(build, "yosys", max_gb=" ")
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertTrue(stale_install.directory.exists())
+        # The scrubbed build environment has no cap of its own.
+        stderr = io.StringIO()
+        with mock.patch.dict(os.environ), mock.patch.object(toolchain_cache.sys, "stderr", stderr):
+            os.environ.pop("FES_TOOLCHAIN_CACHE_MAX_GB", None)
+            _publish(build, "verilator", max_gb=" 0 ")
+        self.assertIn(f"removed: tools/yosys/{stale_install.key}", stderr.getvalue())
+        self.assertFalse(stale_install.directory.exists())
+        toolchain_cache.verify_install(build, "yosys")
+        with self.assertRaisesRegex(toolchain_cache.CacheError, "invalid max-gb value: 'many'"):
+            toolchain_cache._parse_max_gb("many", {})
+
+    def test_compiler_for_post_publish_eviction_preserves_other_host_gpu_lanes(self):
+        """An OFF-lane publish on a GPU host still keeps pinned HIP nextpnr protected."""
+        hipcc = {"path": "/opt/rocm/bin/hipcc", "sha256": "hip-1", "version": "rocm 6.3", "returncode": 0}
+        real_off_compiler = {"commands": dict(COMPILER["commands"]), "dependencies": {}}
+
+        def fake_command_path(command, environment=None):
+            return "/opt/rocm/bin/hipcc" if command == "hipcc" else None
+
+        def fake_command_identity(command, args=("--version",), *, environment=None):
+            self.assertEqual(command, "hipcc")
+            return hipcc
+
+        with (
+            mock.patch.object(toolchain_cache, "_command_path", side_effect=fake_command_path),
+            mock.patch.object(toolchain_cache, "_command_identity", side_effect=fake_command_identity),
+        ):
+            enriched = toolchain_cache._compiler_for_post_publish_eviction(
+                real_off_compiler, {"PATH": "/opt/rocm/bin:/usr/bin"}
+            )
+        self.assertEqual(enriched["commands"]["hipcc"], hipcc)
+        self.assertEqual(
+            toolchain_cache._host_gpu_routers(environment={}, compiler=enriched),
+            ("OFF", "HIP"),
         )
 
     def test_prune_cli_is_a_dry_run_by_default(self):

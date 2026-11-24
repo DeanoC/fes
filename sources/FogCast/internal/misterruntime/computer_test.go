@@ -48,6 +48,8 @@ func computerResponse(t *testing.T) Protocol2Response {
 	if err := json.Unmarshal([]byte(fixtureLines(t, "protocol-v2.jsonl")[5]), &r); err != nil {
 		t.Fatal(err)
 	}
+	instance := strings.Repeat("1", 32)
+	r.RuntimeInstance = &instance
 	active := r.ActivePackage
 	active.Descriptor.Core.ID = "fes.apple2"
 	active.Descriptor.ABI.ID = "fes.computer"
@@ -267,25 +269,25 @@ func TestSetKeyboardHIDRequestAndResponse(t *testing.T) {
 	id := r.ActivePackage.PackageID
 	fixture := newSequenceSocketFixture(t, []string{responseLine(t, r) + "\n"})
 	rows := KeyboardHIDRows{0x0010, 0, 0, 0x0100, 0, 0, 0, 0, 0x0002}
-	if _, err := NewClient(fixture.path).SetKeyboardHID(context.Background(), id, 7, rows); err != nil {
+	if _, err := NewClient(fixture.path).SetKeyboardHID(context.Background(), *r.RuntimeInstance, id, 7, rows); err != nil {
 		t.Fatal(err)
 	}
 	requests := fixture.wait(t)
-	want := `{"protocol":2,"operation":"set_keyboard_hid","package_id":"` + id + `","expected_generation":7,"rows":[16,0,0,256,0,0,0,0,2]}`
+	want := `{"protocol":2,"operation":"set_keyboard_hid","runtime_instance":"` + *r.RuntimeInstance + `","package_id":"` + id + `","expected_generation":7,"rows":[16,0,0,256,0,0,0,0,2]}`
 	if len(requests) != 1 || requests[0] != want {
 		t.Fatalf("request %q", requests)
 	}
 	client := NewClient("/not/opened")
 	for _, bad := range []KeyboardHIDRows{{1}, {8}, {0, 0, 0, 0, 0, 0, 0, 0, 0x0100}} {
-		if _, err := client.SetKeyboardHID(context.Background(), id, 7, bad); err != errInvalidRuntimeRequest {
+		if _, err := client.SetKeyboardHID(context.Background(), *r.RuntimeInstance, id, 7, bad); err != errInvalidRuntimeRequest {
 			t.Fatalf("invalid rows %v: %v", bad, err)
 		}
 	}
-	if _, err := client.SetKeyboardHID(context.Background(), id, 0, rows); err != errInvalidRuntimeRequest {
+	if _, err := client.SetKeyboardHID(context.Background(), *r.RuntimeInstance, id, 0, rows); err != errInvalidRuntimeRequest {
 		t.Fatal("zero generation accepted")
 	}
 	stale := newSequenceSocketFixture(t, []string{responseLine(t, r) + "\n"})
-	if _, err := NewClient(stale.path).SetKeyboardHID(context.Background(), id, 8, rows); err != errInvalidRuntimeResponse {
+	if _, err := NewClient(stale.path).SetKeyboardHID(context.Background(), *r.RuntimeInstance, id, 8, rows); err != errInvalidRuntimeResponse {
 		t.Fatalf("other generation reply: %v", err)
 	}
 }
@@ -494,7 +496,30 @@ type keyboardHIDControl struct {
 	resp Protocol2Response
 }
 
-func (c *keyboardHIDControl) SetKeyboardHID(_ context.Context, id string, generation uint64, rows KeyboardHIDRows) (Protocol2Response, error) {
+type runtimeInputStatusControl struct {
+	Control
+	status Protocol2Response
+}
+
+func (c runtimeInputStatusControl) Protocol2Status(context.Context) (Protocol2Response, error) {
+	return c.status, nil
+}
+
+func TestObserveRuntimeInputRequiresOneValidCurrentStatus(t *testing.T) {
+	status := computerResponse(t)
+	runtime := NewRuntime(runtimeInputStatusControl{status: status}, "", 0, 0)
+	identity, err := runtime.ObserveRuntimeInput(context.Background())
+	if err != nil || identity == nil || identity.RuntimeInstance != *status.RuntimeInstance || identity.PackageID != status.ActivePackage.PackageID || identity.Generation != *status.Generation {
+		t.Fatalf("identity=%+v err=%v", identity, err)
+	}
+	status.RuntimeInstance = nil
+	runtime = NewRuntime(runtimeInputStatusControl{status: status}, "", 0, 0)
+	if _, err := runtime.ObserveRuntimeInput(context.Background()); err == nil {
+		t.Fatal("missing instance accepted")
+	}
+}
+
+func (c *keyboardHIDControl) SetKeyboardHID(_ context.Context, instance, id string, generation uint64, rows KeyboardHIDRows) (Protocol2Response, error) {
 	c.rows = append(c.rows, rows)
 	return c.resp, nil
 }
@@ -502,14 +527,22 @@ func (c *keyboardHIDControl) SetKeyboardHID(_ context.Context, id string, genera
 func TestRuntimeKeyboardHIDMapsRejection(t *testing.T) {
 	control := &keyboardHIDControl{resp: computerResponse(t)}
 	runtime := NewRuntime(control, "", 0, 0)
-	if err := runtime.SetKeyboardHID(context.Background(), control.resp.ActivePackage.PackageID, 7, KeyboardHIDRows{0x0010}); err != nil || len(control.rows) != 1 {
+	if err := runtime.SetKeyboardHID(context.Background(), *control.resp.RuntimeInstance, control.resp.ActivePackage.PackageID, 7, KeyboardHIDRows{0x0010}); err != nil || len(control.rows) != 1 {
 		t.Fatalf("post %v %d", err, len(control.rows))
 	}
 	control.resp.OK = false
 	control.resp.Error = &Protocol2Error{Code: "busy", Message: "busy", Phase: "input"}
 	var apiErr *protocol.APIError
-	if err := runtime.SetKeyboardHID(context.Background(), control.resp.ActivePackage.PackageID, 7, KeyboardHIDRows{}); !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBusy {
+	if err := runtime.SetKeyboardHID(context.Background(), *control.resp.RuntimeInstance, control.resp.ActivePackage.PackageID, 7, KeyboardHIDRows{}); !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBusy {
 		t.Fatalf("rejection %v", err)
+	}
+}
+
+func TestRuntimeKeyboardHIDRejectsAnotherRuntimeInstance(t *testing.T) {
+	control := &keyboardHIDControl{resp: computerResponse(t)}
+	runtime := NewRuntime(control, "", 0, 0)
+	if err := runtime.SetKeyboardHID(context.Background(), strings.Repeat("2", 32), control.resp.ActivePackage.PackageID, 7, KeyboardHIDRows{}); !errors.Is(err, errInvalidRuntimeResponse) {
+		t.Fatalf("stale instance accepted: %v", err)
 	}
 }
 
@@ -522,7 +555,7 @@ func TestComputer11RepliesAreAccepted(t *testing.T) {
 	ready.Capabilities.MediaUnits[0].State = "ready"
 	fixture := newSequenceSocketFixture(t, []string{responseLine(t, r) + "\n", responseLine(t, ready) + "\n", responseLine(t, r) + "\n", responseLine(t, r) + "\n"})
 	client := NewClient(fixture.path)
-	if _, err := client.SetKeyboardHID(context.Background(), id, 7, KeyboardHIDRows{0x0010}); err != nil {
+	if _, err := client.SetKeyboardHID(context.Background(), *r.RuntimeInstance, id, 7, KeyboardHIDRows{0x0010}); err != nil {
 		t.Fatalf("1.1 keyboard reply rejected: %v", err)
 	}
 	if _, err := client.InsertMedia(context.Background(), "/tmp/fogcast-media-unit-1/media.bin", id, 7, 0, 143360); err != nil {

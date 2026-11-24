@@ -39,10 +39,10 @@ func (c *Coordinator) LoadLibraryMachineCore(ctx context.Context, size int64, bo
 
 // InspectGameCoreData reads a pc386 library game's machine record.
 func (c *Coordinator) InspectGameCoreData(ctx context.Context, size int64, body io.Reader, id, gameID string) (protocol.CoreDataInspection, *protocol.APIError) {
-	if !c.begin() {
+	if !c.beginRead(ctx) {
 		return protocol.CoreDataInspection{}, &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
 	}
-	defer c.end()
+	defer c.endRead()
 	runtime, ok := c.runtime.(machineCoreRuntime)
 	if !ok {
 		return protocol.CoreDataInspection{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
@@ -62,7 +62,7 @@ func (c *Coordinator) DiskImage(ctx context.Context, sha string) (protocol.DiskI
 // StageDiskImage writes a hard-disk image; it runs as a target transition so
 // it never overlaps a launch reading the staged images.
 func (c *Coordinator) StageDiskImage(ctx context.Context, sha string, size int64, body io.Reader) (protocol.DiskImageStatus, *protocol.APIError) {
-	if !c.begin() {
+	if !c.beginContext(ctx) {
 		return protocol.DiskImageStatus{}, &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
 	}
 	defer c.end()
@@ -79,10 +79,17 @@ func (c *Coordinator) UpdateCoreSettings(ctx context.Context, size int64, body i
 	return c.coreData(ctx, size, body, u.ExpectedPackageID, &u)
 }
 func (c *Coordinator) coreData(ctx context.Context, size int64, body io.Reader, id string, u *protocol.CoreSettingsUpdate) (protocol.CoreDataInspection, *protocol.APIError) {
-	if !c.begin() {
-		return protocol.CoreDataInspection{}, &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
+	if u == nil {
+		if !c.beginRead(ctx) {
+			return protocol.CoreDataInspection{}, &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
+		}
+		defer c.endRead()
+	} else {
+		if !c.beginContext(ctx) {
+			return protocol.CoreDataInspection{}, &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
+		}
+		defer c.end()
 	}
-	defer c.end()
 	runtime, ok := c.runtime.(coreDataRuntime)
 	if !ok {
 		return protocol.CoreDataInspection{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
@@ -114,10 +121,10 @@ type mediaRecordRuntime interface {
 // ExportMediaRecord returns one library disk's saved image without changing
 // it. A running core's last saved image can be read.
 func (c *Coordinator) ExportMediaRecord(ctx context.Context, d protocol.MediaRecordDiscard) ([]byte, *protocol.APIError) {
-	if !c.begin() {
+	if !c.beginRead(ctx) {
 		return nil, &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
 	}
-	defer c.end()
+	defer c.endRead()
 	runtime, ok := c.runtime.(mediaRecordRuntime)
 	if !ok {
 		return nil, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
@@ -125,13 +132,14 @@ func (c *Coordinator) ExportMediaRecord(ctx context.Context, d protocol.MediaRec
 	return runtime.ExportMediaRecord(ctx, d)
 }
 
-// InspectMediaRecord reports what is saved for one library disk. It runs as
-// a target transition so it never reads across a launch or a save.
+// InspectMediaRecord reports what is saved for one library disk without taking
+// the launch/stop transition slot. Transitions wait briefly for an active read
+// to finish so shelf polling never rejects a Stop or Launch with BUSY.
 func (c *Coordinator) InspectMediaRecord(ctx context.Context, id protocol.MediaRecordIdentity) (protocol.MediaRecord, *protocol.APIError) {
-	if !c.begin() {
+	if !c.beginRead(ctx) {
 		return protocol.MediaRecord{}, &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
 	}
-	defer c.end()
+	defer c.endRead()
 	runtime, ok := c.runtime.(mediaRecordRuntime)
 	if !ok {
 		return protocol.MediaRecord{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
@@ -142,7 +150,7 @@ func (c *Coordinator) InspectMediaRecord(ctx context.Context, id protocol.MediaR
 // DiscardMediaRecord removes one library disk's saved record. A transition
 // keeps a launch from binding the record while it is removed.
 func (c *Coordinator) DiscardMediaRecord(ctx context.Context, d protocol.MediaRecordDiscard) (protocol.MediaRecord, *protocol.APIError) {
-	if !c.begin() {
+	if !c.beginContext(ctx) {
 		return protocol.MediaRecord{}, &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
 	}
 	defer c.end()

@@ -150,7 +150,8 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 		EmitFifoConsume("load_initialized_composed_core", result.ok());
 		break;
 	case Operation::set_keyboard:
-		result = runtime_.SetComputerKeyboard(request.keyboard_matrix);
+		result = runtime_.SetComputerKeyboard(request.runtime_instance, request.package_id, request.expected_generation,
+			request.keyboard_matrix);
 		break;
 	case Operation::set_controller:
 		result = runtime_.SetController(request.package_id, request.expected_generation,
@@ -177,7 +178,7 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 			request.mouse_dx, request.mouse_dy, request.mouse_buttons);
 		break;
 	case Operation::set_keyboard_hid:
-		result = runtime_.SetKeyboardHid(request.package_id, request.expected_generation,
+		result = runtime_.SetKeyboardHid(request.runtime_instance, request.package_id, request.expected_generation,
 			request.keyboard_rows);
 		break;
 	case Operation::insert_media:

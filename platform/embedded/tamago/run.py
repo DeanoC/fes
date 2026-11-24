@@ -6,6 +6,7 @@ synthetic .sfc catalog files, a regular-file FAT32 disk, virtio networking,
 ramfb display and an xHCI USB keyboard (or explicit UART diagnostic input). No physical device is opened.
 """
 import argparse
+import contextlib
 from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
@@ -23,7 +24,7 @@ import threading
 from urllib.parse import urlparse, unquote
 from urllib.request import urlopen
 
-from host_support import Guest, frames, network_catalog
+from host_support import Guest, LocalDNSServer, LocalSNTPServer, frames, network_catalog
 
 APP = Path(__file__).resolve().parent
 ROOT = APP.parents[2]
@@ -105,6 +106,14 @@ def main():
                         help="opt-in DesignWare APB watchdog timeout in seconds [1, 60] (Nano fpgaload --tenfoot-serial only; requires --watchdog-clock-hz)")
     parser.add_argument("--watchdog-clock-hz", type=int, default=0,
                         help="explicit Agilex 5 L4 watchdog clock frequency in Hz [1000000, 400000000] (requires --watchdog-timeout)")
+    parser.add_argument("--network-dhcp", action="store_true",
+                        help="opt in to DHCPv4 + T1/T2 lease renewal on network-enabled Nano fpgaload --tenfoot-serial")
+    parser.add_argument("--network-dhcp-hostname", default="",
+                        help="optional DHCPv4 option 12 hostname (requires --network-dhcp)")
+    parser.add_argument("--network-sntp-server", default="",
+                        help="optional IPv4 SNTPv4 server to sync UTC clock on network-enabled Nano fpgaload --tenfoot-serial")
+    parser.add_argument("--network-sntp-port", type=int, default=0,
+                        help="optional UDP port for --network-sntp-server (default 123)")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--module-cache", type=Path,
                         default=ROOT / "out/embedded-base-tools/tamago/mod")
@@ -114,6 +123,8 @@ def main():
                         help="persistent regular FAT32 image beneath out/; created if absent")
     parser.add_argument("--input", choices=("usb", "uart"), default="usb",
                         help="explicit keyboard backend (tenfoot only)")
+    parser.add_argument("--dhcp", action="store_true",
+                        help="acquire guest IPv4 via DHCPv4 instead of static addressing (QEMU network only)")
     parser.add_argument("--interactive", action="store_true",
                         help="keep tenfoot running; USB keys use the QEMU window, Ctrl-] in terminal exits")
     parser.add_argument("--display", default=None,
@@ -130,6 +141,8 @@ def main():
             parser.error('programfetch requires QEMU, --export-root and --program-id')
     elif args.export_root is not None or args.program_id is not None:
         parser.error('--export-root and --program-id require programfetch')
+    if args.dhcp and (args.board != "qemu" or args.program != "network"):
+        parser.error("--dhcp requires QEMU network")
     if args.board == "de25-nano":
         from build import build
         try:
@@ -144,7 +157,7 @@ def main():
         parser.error('--arm64-features requires --board de25-nano')
     if args.sd_write_plan is not None or args.writable_storage_plan is not None or args.program in ('sdwrite','sdfile') or args.sd_scratch_inspect or args.sd_transfer_clock:
         parser.error('SD write diagnostics require --board de25-nano')
-    if args.menu_project is not None or args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.menu_present or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial or args.retain_configuration or args.initial_tape or args.watchdog_timeout or args.watchdog_clock_hz:
+    if args.menu_project is not None or args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.menu_present or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial or args.retain_configuration or args.initial_tape or args.watchdog_timeout or args.watchdog_clock_hz or args.network_dhcp or args.network_dhcp_hostname or args.network_sntp_server or args.network_sntp_port:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")
     if args.program in ("fpga", "sdpackages", "hpsio", "usbcheck", "fpgaload"):
         parser.error("this diagnostic requires the Nano firmware service; QEMU does not emulate it")
@@ -296,7 +309,7 @@ def main():
             checked("mkdir-fat", ["mmd", "-i", disk, "::FES"])
         return fresh
 
-    def prepare_disk(api_url):
+    def prepare_disk(api_url, extra_boot=None):
         fresh = format_disk()
         if fresh:
             initial = output / "preferences-initial.json"
@@ -308,7 +321,12 @@ def main():
             os.utime(initial, (315619200, 315619200))
             checked("write-prefs", ["mcopy", "-m", "-i", disk, initial, "::FES/PREFS.JSON"], utc=True)
         boot = output / "boot.json"
-        boot.write_text(json.dumps({"api_url": api_url, "api_host": urlparse(record["host"]["base"]).netloc, "input": args.input}) + "\n")
+        boot_cfg = {"api_url": api_url, "api_host": urlparse(record["host"]["base"]).netloc, "input": args.input}
+        if args.dhcp:
+            boot_cfg["dhcp"] = True
+        if extra_boot:
+            boot_cfg.update(extra_boot)
+        boot.write_text(json.dumps(boot_cfg) + "\n")
         checked("write-boot", ["mcopy", "-o", "-i", disk, boot, "::FES/BOOT.JSON"])
         record["disk"] = {"path": str(disk), "created": fresh, "bytes": disk.stat().st_size,
                           "before_sha256": sha(disk), "boot_config_sha256": sha(boot)}
@@ -515,13 +533,109 @@ def main():
             record['termination']='runner stopped QEMU after content-only HTTP download; no installation or FPGA activation'
         elif args.program == "network":
             lock_disk()
-            prepare_disk(prepare_host())
-            before = sha(disk)
-            with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display) as guest:
-                guest.wait(lambda text: network_catalog(text) is not None, args.timeout, "HTTP catalog probe")
-                ids = network_catalog(guest.text)
-                if sorted(ids) != record["host"]["catalog_ids"]:
-                    raise RuntimeError("network probe catalog differs from private host")
+            with contextlib.ExitStack() as stack:
+                extra_boot = None
+                dns_srv = sntp_srv = None
+                if args.dhcp:
+                    dns_srv = stack.enter_context(LocalDNSServer({"fes-host.local": "10.0.2.2"}))
+                    sntp_srv = stack.enter_context(LocalSNTPServer())
+                    extra_boot = {
+                        "dns_host": "fes-host.local",
+                        "dns_server": "10.0.2.2",
+                        "dns_port": dns_srv.port,
+                        "sntp_server": "10.0.2.2",
+                        "sntp_port": sntp_srv.port,
+                    }
+                prepare_disk(prepare_host(), extra_boot=extra_boot)
+                before = sha(disk)
+                record["dhcp"] = bool(args.dhcp)
+                boot_started = time.time()
+                with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display) as guest:
+                    guest.wait(lambda text: network_catalog(text) is not None, args.timeout, "HTTP catalog probe")
+                    boot_finished = time.time()
+                    ids = network_catalog(guest.text)
+                    if sorted(ids) != record["host"]["catalog_ids"]:
+                        raise RuntimeError("network probe catalog differs from private host")
+                    if args.dhcp:
+                        dhcp_rows = re.findall(
+                            r"^FES_NETWORK_DHCP address=(\S+) gateway=(\S+) server=(\S+) lease_s=(\d+) dns=(\S+)\r?$",
+                            guest.text,
+                            re.MULTILINE,
+                        )
+                        if len(dhcp_rows) != 1:
+                            raise RuntimeError("DHCP network probe is missing FES_NETWORK_DHCP lease evidence")
+                        addr, gw, srv, lease_s, dns = dhcp_rows[0]
+                        if int(lease_s) <= 0:
+                            raise RuntimeError(f"DHCP network probe reported non-positive lease duration: {lease_s}")
+                        record["dhcp_lease"] = {
+                            "address": addr,
+                            "gateway": gw,
+                            "server": srv,
+                            "lease_seconds": int(lease_s),
+                            "dns": [] if dns == "none" else dns.split(","),
+                        }
+
+                        renew_rows = re.findall(
+                            r"^FES_NETWORK_DHCP_RENEW address=(\S+) gateway=(\S+) server=(\S+) lease_s=(\d+)\r?$",
+                            guest.text,
+                            re.MULTILINE,
+                        )
+                        if len(renew_rows) != 1:
+                            raise RuntimeError("DHCP network probe is missing FES_NETWORK_DHCP_RENEW evidence")
+                        r_addr, r_gw, r_srv, r_lease_s = renew_rows[0]
+                        if r_addr != addr or r_gw != gw or int(r_lease_s) <= 0:
+                            raise RuntimeError(f"DHCP renewal evidence inconsistent: {renew_rows[0]}")
+                        record["dhcp_renew"] = {
+                            "address": r_addr,
+                            "gateway": r_gw,
+                            "server": r_srv,
+                            "lease_seconds": int(r_lease_s),
+                        }
+
+                        dns_rows = re.findall(
+                            r"^FES_NETWORK_DNS host=(\S+) ip=(\S+)\r?$",
+                            guest.text,
+                            re.MULTILINE,
+                        )
+                        if len(dns_rows) != 1:
+                            raise RuntimeError("DHCP network probe is missing FES_NETWORK_DNS evidence")
+                        dns_host, dns_ip = dns_rows[0]
+                        if dns_host != "fes-host.local" or dns_ip != "10.0.2.2":
+                            raise RuntimeError(f"unexpected DNS resolution result: {dns_rows[0]}")
+                        dns_queries = dns_srv.queries
+                        if "fes-host.local" not in dns_queries:
+                            raise RuntimeError(f"local DNS server did not observe query for fes-host.local: {dns_queries}")
+                        record["dns"] = {
+                            "host": dns_host,
+                            "ip": dns_ip,
+                            "host_queries": len(dns_queries),
+                        }
+
+                        sntp_rows = re.findall(
+                            r"^FES_NETWORK_SNTP server=(\S+) stratum=(\d+) unix=(\d+) rtt_ms=(\d+)\r?$",
+                            guest.text,
+                            re.MULTILINE,
+                        )
+                        if len(sntp_rows) != 1:
+                            raise RuntimeError("DHCP network probe is missing FES_NETWORK_SNTP evidence")
+                        s_srv, s_stratum, s_unix, s_rtt_ms = sntp_rows[0]
+                        s_stratum_i, s_unix_i, s_rtt_i = int(s_stratum), int(s_unix), int(s_rtt_ms)
+                        if s_srv != "10.0.2.2" or s_stratum_i != 1:
+                            raise RuntimeError(f"unexpected SNTP server/stratum: {sntp_rows[0]}")
+                        if s_unix_i < int(boot_started) - 5 or s_unix_i > int(boot_finished) + 10:
+                            raise RuntimeError(
+                                f"SNTP unix time {s_unix_i} outside boot window [{int(boot_started) - 5}, {int(boot_finished) + 10}]"
+                            )
+                        sntp_reqs = sntp_srv.requests
+                        if sntp_reqs < 1:
+                            raise RuntimeError("local SNTP server observed zero guest requests")
+                        record["sntp"] = {
+                            "server": s_srv,
+                            "stratum": s_stratum_i,
+                            "unix": s_unix_i,
+                            "rtt_ms": s_rtt_i,
+                            "host_requests": sntp_reqs,
+                        }
             record["disk"] = {"path": str(disk), "before_sha256": before, "after_sha256": sha(disk)}
             if before != sha(disk):
                 raise RuntimeError("read-only network probe changed its disk")

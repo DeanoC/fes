@@ -91,6 +91,7 @@ type computerIO struct {
 	lastTiming computer.AccessTiming
 	romBatch   spectrumROMBatchPlatform
 	mediaBatch heldMediaBatchPlatform
+	inputBatch inputBatchPlatform
 }
 
 // The board can batch the fixed, already-held held mailbox aperture.
@@ -100,6 +101,17 @@ type spectrumROMBatchPlatform interface {
 
 type heldMediaBatchPlatform interface {
 	WithHeldMediaBatch(uint64, func(computer.IO) error) error
+}
+
+type inputBatchPlatform interface {
+	WithInputBatch(uint64, func(computer.IO) error) error
+}
+
+func (c *computerIO) WithInputBatch(send func(computer.IO) error) error {
+	if c.inputBatch == nil {
+		return send(c)
+	}
+	return c.withDataBatch(send, c.inputBatch.WithInputBatch)
 }
 
 func (c *computerIO) WithMediaChunkBatch(send func(computer.IO) error) error {
@@ -338,6 +350,7 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 		return nil, errors.New("native fabric: computer control opening changed unexpected ownership or paths")
 	}
 	s := &ComputerSession{v: v, source: source, mapSHA: sha256.Sum256(raw), port: &computerIO{cpu: cpu, bridges: b, want: want, base: m.CPUBase}}
+	s.port.inputBatch, _ = cpu.(inputBatchPlatform)
 	wantID := computer.Identity{Minor: m.Minor, Capabilities: m.Capabilities}
 	build, err := hex.DecodeString(m.BuildID)
 	if err != nil || len(build) != 16 {

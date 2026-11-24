@@ -7,27 +7,21 @@ a dated record. A dated record is not the schedule.
 
 | You want to… | Read |
 | --- | --- |
+| See the single roadmap, target architecture, quality tiers and phases | [Forward plan](plans/forward-plan.md) |
+| See v1 DE10 release scope, first-boot setup, licensing and GTM | [v1 first-boot and setup](plans/v1-first-release-first-boot-setup.md), [GTM plan](plans/de10-first-release-gtm.md), [v1 firmware licensing](plans/v1-firmware-licensing.md) |
 | Design or implement the FES user experience | [FES UX design](ux/README.md), [native references and Library target](ux/references/README.md), [concepts](ux/concepts/README.md), [acceptance](ux/acceptance.md) |
 | See which cores exist, their ABI, interfaces and standing | [Core status](core-status.md) |
 | See which boards and toolchains each core supports, and its support tier | [Core support matrix](support-matrix.md) |
-| Read the accepted Quartus-built core policy and its implementation status (#1163) | [Quartus-built cores](design/quartus-cores.md) |
+| Read the accepted Quartus policy, front-end lanes, identity policies and host leases | [Quartus-built cores](design/quartus-cores.md), [RTL front-end lanes](design/rtl-frontend-lanes.md), [Quartus hosts and leases](design/quartus-hosts.md) |
 | See whether cores match current FPGA choices, and the retirement order | [Core alignment](core-alignment.md) |
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
 | Change code: worktree, builds, handoff | [Development](development.md), then [agent workflow](agent-workflow.md) |
 | Coordinate PR lanes, review and milestone delivery | [Agent workflow](agent-workflow.md#github-delivery-workflow), [AGENTS.md](../AGENTS.md#pr-workflow-lanes-merge-gate-review-stacks-hil-ops) |
-| Decide whether a PR needs a full image for hardware testing | [HIL plan](hil-plan.md) |
+| Decide whether a PR needs a full image or DE25/DE10 kit HIL | [HIL plan](hil-plan.md), [DE25 kit HIL](de25-kit-hil.md), [kit sharing](kit-sharing.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
-| Develop DE25-Nano without Linux | [Embedded base and native tenfoot](../platform/embedded/README.md), [initial feasibility study](design/de25-embedded-os.md) |
-| Build, provision or verify a flashable disk | [Bootable media](bootable-media.md) |
-| Track DE25 parity with the normal managed Linux kit | [Linux platform acceptance](design/de25-linux-platform.md) |
-| Build the headless DE25-Nano AArch64 Linux diagnostic | [DE25-Nano Linux](de25-linux.md) |
-| Prepare the DE25 HPS/DDR diagnostic and MENU allocation contract | [DE25 DDR](../sources/mister-packages/docs/de25-ddr.md) |
-| Build combined DE25 HPS/HDMI or test Linux DMA ownership under QEMU | [Combined diagnostic](../sources/misteross/boards/de25nano/combined/README.md), [DMA ownership](../image/kernel/de25-dma/README.md) |
-| Build DE25 allocated-buffer scanout and test displayed-frame ownership | [Scanout diagnostic](../sources/misteross/boards/de25nano/scanout/README.md), [Shared contract](../sources/mister-packages/docs/de25-scanout.md) |
-| Build an FPGA-only ZX81 BASIC diagnostic for DE25 | [DE25 ZX81](../sources/misteross/boards/de25nano/zx81/README.md) |
-| Build DE25 ZX81 with HPS keyboard and tape control | [HPS-controlled ZX81](../sources/misteross/boards/de25nano/zx81-hps/README.md) |
-| Publish a versioned appliance image | [Appliance releases](appliance-releases.md) |
-| Share the kit | [Kit sharing](kit-sharing.md) |
+| Develop DE25-Nano Linux platform, board shells and kernel DMA ownership | [DE25 Linux platform](design/de25-linux-platform.md), [DE25-Nano Linux](de25-linux.md), [DE25 board shells](../sources/misteross/boards/de25nano/README.md), [DMA ownership](../image/kernel/de25-dma/README.md) |
+| Develop DE25-Nano without Linux (opt-in TamaGo bare-metal stack) | [Embedded base and native tenfoot](../platform/embedded/README.md), [TamaGo runtime and QEMU suites](../platform/embedded/tamago/README.md), [initial feasibility study](design/de25-embedded-os.md) |
+| Build, provision or verify a flashable disk or appliance release | [Bootable media](bootable-media.md), [appliance releases](appliance-releases.md) |
 | Work in misteross | [misteross README](../sources/misteross/README.md): OSS place-and-route experiments, or a described core |
 
 The default image contains the locked idle RBF and `fes.menu` display firmware.
@@ -51,16 +45,19 @@ Use these when the start-here page names the job and you need the steps.
 | Audit or refresh core-package cache keys | [Core-key narrowing](core-key-narrowing.md) |
 | Run an isolated package lifecycle check | [Package acceptance](package-acceptance.md) |
 | Independent host, kit software and core updates | [Modular updates](modular-updates.md) |
+| Build, install and activate persistent kit-software bundles | [Kit software releases](kit-software-releases.md), [kit software acceptance](kit-software-acceptance.md) |
+| Stage and serve bundled firmware (Spectrum ROMs, EmuTOS, FreeDOS disk) | [Bundled firmware](bundled-firmware.md) |
 | Core settings, progress and writable ST disks | [Core persistence](core-persistence.md) |
 | Blob versus blob-stream capacity | [Media capacity](core-media-evolution.md) |
 | Use or test the SoC DDR3 from a core | [HPS DDR](hps-ddr.md) |
+| Prepare DE25 DDR, scanout and bring-up diagnostics | [DE25 DDR](../sources/mister-packages/docs/de25-ddr.md), [DE25 scanout](../sources/mister-packages/docs/de25-scanout.md), [combined diagnostic](../sources/misteross/boards/de25nano/combined/README.md), [scanout diagnostic](../sources/misteross/boards/de25nano/scanout/README.md), [DE25 ZX81](../sources/misteross/boards/de25nano/zx81/README.md), [HPS-controlled ZX81](../sources/misteross/boards/de25nano/zx81-hps/README.md) |
 | Show launcher overlays or a surround over a running core | [Display pipeline](display-pipeline.md) |
 | ZX81 package, expansion cart, tape design | [FES ZX81](fes-zx81.md), [expansion bus](zx81-expansion-bus.md), [tape media](zx81-tape-media.md) |
 | Freeze-scaffold cartridge experiments | [FPGA expansion](fpga-expansion.md) |
-| Who assembles `linux.img` | [Image assembly](image-assembly.md) |
+| Who assembles `linux.img` and prebuilt image inputs | [Image assembly](image-assembly.md), [image artifacts](image-artifacts.md) |
 | Which outputs are versioned | [Artifact identities](artifacts.md) |
 | Read source, CI, build and hardware evidence | [Status](status.md) |
-| Run only the tests a change affects | [Focused tests](test-changed.md) |
+| Run only the tests a change affects (including the TamaGo CI lane) | [Focused tests](test-changed.md) |
 | Rooms / Stop-idle design that is not built yet | [Idle MENU → rooms](idle-menu-rooms.md), [phase 2](idle-menu-rooms-phase2.md). Present tense on that page, outside “What is true now”, still describes the old MENU idle (`menu.rbf`, `mister_v1`). Current idle install paths are [image assembly](image-assembly.md) and `image/build/native-inputs.toml`. |
 | The kit as its own host: sources, sessions, what the mesh drafts still mean | [Mesh under kit-as-host](mesh-kit-host.md) (22 Oct 2026 decisions, #863) |
 | Earlier mesh drafts, historical on the kit side | [Mesh LAN](mesh-lan.md), [node protocol](mesh-node-protocol.md), [phase 1](mesh-phase1.md), [phase 2](mesh-phase2.md), [phase 3](mesh-phase3.md), [v-next plan](mesh-vnext.md) |
@@ -68,65 +65,19 @@ Use these when the start-here page names the job and you need the steps.
 
 ## Not current instructions
 
-[validation/](validation/) records what a named artifact did on a named day.
-The [2026-10-31 DE25 consolidated ZX81 HPS-first record](validation/2026-10-31-de25-zx81-hps-first/README.md) binds the final Quartus 26.3 rebuild and its still-failing internal setup timing.
-The [DE25 MENU lifecycle software record](validation/2026-11-01-de25-menu-lifecycle/README.md) binds kernel file/VMA, native/AArch64 and UI mapping tests; production MENU remains closed.
-The [C64 functional diagnostic](validation/2026-10-06-c64-functional-closure.md)
-records both cartridge probes, input, SID, read-only D64 LOAD and CIA checks;
-it does not promote C64 into a factory image or add disk writes.
-[superpowers/](superpowers/) holds only the five historical September 2026
-plans and specs still linked from dated validation records or their transitive
-references; the other 62 `docs/superpowers/` files were archived in Git
-history. Do not treat either as the way to build or accept the tree you have
-open. The root
-`.superpowers/sdd/` task working reports were removed from the active tree;
-they remain in Git at `bb5f1bfc14026b55113202fbc88b730241da9ee1`. List them
-with `git ls-tree -r --name-only bb5f1bfc -- .superpowers/sdd/` and read one
-with `git show bb5f1bfc:<path>`.
-
-The [native video parts Kit 2 record](validation/2026-10-03-native-video-parts-kit2.md)
-binds its sealed shell, linked Direct/Scanlines parts and capture evidence.
-The [native factory host record](validation/2026-10-03-native-video-factory-build.md)
-binds the later native/SGM compositions and reproducible local release. The
-[factory Kit 2 record](validation/2026-10-03-native-video-factory-kit2.md)
-records exact-image acceptance of normal library Direct/Scanlines launches,
-optional SGM, saved preferences and captured video/audio for the named open ROMs.
-Current build and selection behavior remains documented by the component
-guides and [core status](core-status.md).
-
-The [Atari ST native image record](validation/2026-10-07-atari-st-native-image.md) binds the verified nine-package/four-part image, diskless GEM, cold-host saved-disk restore, full payload comparisons and final populated-menu restoration.
-The [extended floppy geometry record](validation/2026-10-07-atari-st-floppy-geometry.md) binds all twelve supported shapes, original BIG/Cuddly loader captures, complete physical snapshots and cold restore, the separate nextpnr routing blocker, and final menu restoration. It is a derived-image diagnostic rather than factory or demo acceptance.
-The [BIG loader diagnosis](validation/2026-10-08-atari-st-big-loader.md) records the corrected empty-memory acknowledgement, a CPU regression that rejects the old decoder, and the same-ROM/same-disk Hatari failure. It is host-only evidence, with BIG display/audio acceptance still outstanding.
-
-
-The [Atari ST interaction record](validation/2026-10-04-atari-st-interaction.md)
-binds mouse and writable-disk software checks, the original GEMDOS guest
-diagnostic, sealed video parts, and the unresolved physical byte-write failure.
-
-The [pc386 M2 record](validation/2026-10-26-pc386-m2-vga/summary.md) binds the
-RTL VGA, capture, 720p presenter and display plane on DDR port 2 in host
-simulation (VGA BIOS text, mode 13h and mode Y at 720p, the VGA trace replay
-against Bochs's VGA) and the first machine-only synthesis figures. Like the
-[M1 record](validation/2026-10-26-pc386-m1-freedos-boot/summary.md), it is
-host-only evidence: no routed result, package or kit.
-The [pc386 AT core M10K record](validation/2026-10-27-pc386-at-core-m10k/summary.md)
-replaces the AT core's synthesis figures (its memories in M10K, inside its
-budget) with a FreeDOS boot identical to the flip-flop machine's, clock for
-clock.
-
-The [pc386 M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md)
-checks the OPL2 sample for sample against Nuked-OPL3, the Sound Blaster DSP's
-DMA and IRQ sequences, and start-up audio from the sound exercise and games
-on the oracle machine. It is host-only simulation evidence.
-The [pc386 M4 Quartus record](validation/2026-10-29-pc386-m4-quartus/summary.md)
-seals the M4 diagnostic package with Quartus 17.0.2 at its 61.44 MHz system
-clock, with every analysis met, after one ATA read-path change; the latest
-seal, with #1226's review fixes, passed every M4 diagnostic program and 201
-machine resets on Kit B.
-
-Ownership that has already landed is [component boundaries](component-boundaries.md)
-and the [project map](project-map.md). [Structure](fes-structure.md) only
-points at those. It is not a second roadmap.
-
-- [Kit software releases](kit-software-releases.md): persistent userspace bundles, queued activation and scoped recovery.
-- [Bundled firmware](bundled-firmware.md): the Spectrum ROMs and EmuTOS that ship beside the cores, their pins and licences, and the first-use firmware card.
+- **[validation/](validation/)** records what a named artifact did on a named
+  day. Dated validation records accept only the exact artifact they name;
+  current core standing and active evidence links live in
+  [core status](core-status.md), [core support matrix](support-matrix.md) and
+  [DE25 Linux platform](design/de25-linux-platform.md).
+- **[superpowers/](superpowers/)** holds only the five historical September 2026
+  plans and specs still linked from dated validation records or their transitive
+  references; the other 62 `docs/superpowers/` files were archived in Git
+  history (#2124, #2129). Do not treat them as instructions for the tree you
+  have open. The root `.superpowers/sdd/` task working reports were removed from
+  the active tree and remain in Git at
+  `bb5f1bfc14026b55113202fbc88b730241da9ee1` (list with
+  `git ls-tree -r --name-only bb5f1bfc -- .superpowers/sdd/`).
+- **[Structure](fes-structure.md)** is a short pointer to
+  [component boundaries](component-boundaries.md) and the
+  [project map](project-map.md), not a second roadmap.

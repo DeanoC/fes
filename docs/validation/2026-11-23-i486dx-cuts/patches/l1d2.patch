@@ -1,0 +1,24 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1d.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1d.sv
+index e406fe7f1..6a7d319a8 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1d.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1d.sv
+@@ -371,8 +371,8 @@ module fes_i386_l1d import fes_i386_pkg::*; (
+ 
+     logic [1:0] free;
+     always_comb begin
+-        free = rr;
+-        for (int w = 3; w >= 0; w--) if (!vm2[w]) free = 2'(w);
++        free = {1'b0, rr[0]};  // ABLATION l1d2: ways 0-1 only (8 KiB)
++        for (int w = 1; w >= 0; w--) if (!vm2[w]) free = 2'(w);
+     end
+ 
+     // The slow path starts: at once (start_c), or for an uncached load once
+@@ -650,7 +650,7 @@ module fes_i386_l1d import fes_i386_pkg::*; (
+                         || pw_valid && pw_addr[11:5] == 7'(k)
+                         || start_c && cached0 && !q_cross && q_line0[6:0] == 7'(k) && free == 2'(w);
+             always_ff @(posedge clk) begin
+-                if (reset) valid_bits[k][w] <= 1'b0;
++                if (reset || w >= 2) valid_bits[k][w] <= 1'b0;  // ABLATION l1d2
+                 else if (set_valid && q_line0[6:0] == 7'(k) && victim == 2'(w)) valid_bits[k][w] <= 1'b1;
+                 else if (clear) valid_bits[k][w] <= 1'b0;
+             end
