@@ -98,9 +98,29 @@ func (s *Store) ReadPreferences(ctx context.Context) (data []byte, err error) {
 	return data[:offset], nil
 }
 
-// WritePreferences touches only the fixed, preallocated settings file and
-// serializes against retention/containment. The trusted filesystem's WriteFile
-// must finish its device flush before success. It cannot create package files.
+// preferenceRefusal reports whether err is one of refusals and left the mount
+// healthy. fat.ErrMutation never qualifies, whatever its joined cause: FAT
+// retires its mount when IO fails after a mutation started, so an sdhci socket
+// write-protect refusal between sectors arrives as ErrMutation joined with
+// block.ErrReadOnly.
+func preferenceRefusal(err error, refusals ...error) bool {
+	if errors.Is(err, fat.ErrMutation) {
+		return false
+	}
+	for _, refusal := range refusals {
+		if errors.Is(err, refusal) {
+			return true
+		}
+	}
+	return false
+}
+
+// WritePreferences replaces only the existing settings file and serializes
+// against retention/containment. The trusted filesystem's copy-on-write
+// ReplaceFile commits the update in a single directory-entry write, may grow
+// the file beyond its prior allocation and must finish its device flush before
+// success. A filesystem without ReplaceFile is read-only. A missing settings
+// file is refused, never created.
 func (s *Store) WritePreferences(ctx context.Context, data []byte) error {
 	if s == nil || ctx == nil {
 		return ErrState
@@ -120,17 +140,42 @@ func (s *Store) WritePreferences(ctx context.Context, data []byte) error {
 	if !s.last.Active || !s.last.Prepared {
 		return ErrState
 	}
-	writer, ok := s.files.(interface{ WriteFile(string, []byte) error })
+	replacer, ok := s.files.(interface {
+		ReplaceFile(context.Context, string, []byte) error
+	})
 	if !ok {
 		return block.ErrReadOnly
 	}
-	// Once issued, complete the bounded filesystem write/flush even if the
+	// ReplaceFile creates absent targets, so verify PreferencesPath already
+	// exists as a regular file before writing.
+	f, err := s.files.Open(PreferencesPath)
+	if err != nil {
+		if observed := s.observe(); observed != nil {
+			return errors.Join(err, observed)
+		}
+		if !preferenceRefusal(err, block.ErrReadOnly, fs.ErrNotExist) {
+			return s.retire(err)
+		}
+		return err
+	}
+	info, statErr := f.Stat()
+	closeErr := f.Close()
+	if err = errors.Join(statErr, closeErr); err != nil {
+		if observed := s.observe(); observed != nil {
+			return errors.Join(err, observed)
+		}
+		return s.retire(err)
+	}
+	if !info.Mode().IsRegular() {
+		return errors.New("package store: invalid bounded preferences file")
+	}
+	// Once issued, complete the bounded filesystem replace/flush even if the
 	// requester disconnects. A context timeout is not evidence of rollback.
-	err := writer.WriteFile(PreferencesPath, data)
+	err = replacer.ReplaceFile(context.Background(), PreferencesPath, data)
 	if observed := s.observe(); observed != nil {
 		return errors.Join(err, observed)
 	}
-	if err != nil && !errors.Is(err, block.ErrReadOnly) && !errors.Is(err, fat.ErrCapacity) && !errors.Is(err, fs.ErrNotExist) {
+	if err != nil && !preferenceRefusal(err, block.ErrReadOnly, fat.ErrCapacity, fat.ErrNoSpace, fs.ErrNotExist) {
 		return s.retire(err)
 	}
 	return err
