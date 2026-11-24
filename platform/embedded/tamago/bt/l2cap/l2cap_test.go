@@ -54,6 +54,7 @@ type l2capMockBus struct {
 	lastParams   map[uint16][]byte
 	failCreate   bool
 	failInquiry  bool
+	failName     bool
 	scanEnable   byte
 }
 
@@ -107,6 +108,10 @@ func (b *l2capMockBus) ControlTransfer(_ uint8, reqType, req byte, _, _ uint16, 
 		if op == hci.OpcodeInquiry && b.failInquiry {
 			b.failInquiry = false
 			// Simulate controller returning Command Disallowed (0x0c) in CommandStatus.
+			b.evPipe.inQueue = append(b.evPipe.inQueue, []byte{hci.EventCommandStatus, 4, 0x0c, 1, byte(op), byte(op >> 8)})
+			return len(data), nil
+		}
+		if op == hci.OpcodeRemoteNameRequest && b.failName {
 			b.evPipe.inQueue = append(b.evPipe.inQueue, []byte{hci.EventCommandStatus, 4, 0x0c, 1, byte(op), byte(op >> 8)})
 			return len(data), nil
 		}
@@ -1618,5 +1623,57 @@ func TestIncomingPairingConnectionNotHostInitiatedAndRetriesFailedInquiry(t *tes
 	}
 	if got := countInquiry(); got != beforeInq+1 {
 		t.Fatalf("expected StartInquiry retry count=%d, got %d", beforeInq+1, got)
+	}
+}
+
+func TestSyncRemoteNameFailureExhaustionFallsBackToSDP(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(1900, 0)
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bus.failName = true
+	peer, _ := ParseBDAddr("88:99:AA:BB:CC:DD")
+	connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x4d, 0x00}, peer[:]...)
+	connOK = append(connOK, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	for range maxNameRetries + 1 {
+		now = now.Add(nameRetryBackoff)
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	conn := mgr.findConnByHandle(0x004d)
+	if conn == nil {
+		t.Fatal("missing ACL conn 0x004d")
+	}
+	if conn.namePending || !conn.sdpQueried {
+		t.Fatalf("expected sync name exhaustion to stop name retries and start SDP: namePending=%t sdpQueried=%t",
+			conn.namePending, conn.sdpQueried)
+	}
+	var sawSDPReq bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) >= 16 && (binary.LittleEndian.Uint16(pkt[0:2])&0x0fff) == 0x004d &&
+			binary.LittleEndian.Uint16(pkt[6:8]) == CIDSignaling && pkt[8] == sigConnReq &&
+			binary.LittleEndian.Uint16(pkt[12:14]) == PSMSDP {
+			sawSDPReq = true
+		}
+	}
+	if !sawSDPReq {
+		t.Fatal("expected outgoing PSMSDP ConnReq after synchronous RemoteNameRequest retries exhausted")
 	}
 }

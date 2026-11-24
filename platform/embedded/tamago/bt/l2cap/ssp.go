@@ -122,6 +122,9 @@ func (m *Manager) requestRemoteName(conn *aclConn) {
 			conn.nameRetryAt = m.now().Add(nameRetryBackoff)
 		} else {
 			conn.namePending = false
+			if conn.kind == controllers.KindUnknown {
+				m.startSDPQuery(conn)
+			}
 		}
 	}
 }
