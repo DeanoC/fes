@@ -64,21 +64,23 @@ type sessionProgress struct {
 }
 
 type sessionResult struct {
-	ID           string                      `json:"id"`
-	Target       string                      `json:"target,omitempty"`
-	TargetID     string                      `json:"target_id,omitempty"`
-	Connection   *fogcast.TargetConnection   `json:"connection,omitempty"`
-	State        protocol.State              `json:"state"`
-	GameID       *string                     `json:"game_id,omitempty"`
-	System       *protocol.System            `json:"system,omitempty"`
-	Execution    string                      `json:"execution,omitempty"`
-	Media        string                      `json:"media,omitempty"`
-	MediaName    string                      `json:"media_name,omitempty"`
-	MediaEjected bool                        `json:"media_ejected,omitempty"`
-	Progress     *sessionProgress            `json:"progress,omitempty"`
-	Input        *host.RemoteInputStatus     `json:"input,omitempty"`
-	CorePackage  *protocol.CorePackageStatus `json:"core_package,omitempty"`
-	FlightID     string                      `json:"flight_id,omitempty"`
+	ID                 string                         `json:"id"`
+	Target             string                         `json:"target,omitempty"`
+	TargetID           string                         `json:"target_id,omitempty"`
+	Connection         *fogcast.TargetConnection      `json:"connection,omitempty"`
+	State              protocol.State                 `json:"state"`
+	GameID             *string                        `json:"game_id,omitempty"`
+	System             *protocol.System               `json:"system,omitempty"`
+	Execution          string                         `json:"execution,omitempty"`
+	Media              string                         `json:"media,omitempty"`
+	MediaName          string                         `json:"media_name,omitempty"`
+	MediaEjected       bool                           `json:"media_ejected,omitempty"`
+	Progress           *sessionProgress               `json:"progress,omitempty"`
+	Input              *host.RemoteInputStatus        `json:"input,omitempty"`
+	CorePackage        *protocol.CorePackageStatus    `json:"core_package,omitempty"`
+	RuntimeInput       *protocol.RuntimeInputIdentity `json:"runtime_input,omitempty"`
+	InputAgentInstance string                         `json:"input_agent_instance,omitempty"`
+	FlightID           string                         `json:"flight_id,omitempty"`
 }
 
 // sessionEvent is one public host session event. Protocol 1 fields are
@@ -329,8 +331,32 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 		s.mu.Unlock()
 		return result, err
 	}
-	if err := s.reconcileInput(ctx, st); err != nil {
-		return s.publicSession(st, nil), err
+	// A kit host may observe a game owned by another host. Skip only its
+	// remote-input reconciliation after a fresh foreign-held lease observation.
+	// The target still authorizes every local keyboard edge.
+	foreignRead := false
+	if st.State == protocol.StateActive && st.Recovery == "" && st.LastError == nil && s.target == fogcast.KitHostTargetName {
+		if kit, ok := s.service.(interface{ KitHostMode() bool }); ok && kit.KitHostMode() {
+			if observer, ok := s.service.(interface {
+				KitLocalForeignLease(context.Context, string) (bool, error)
+			}); ok {
+				var observeErr error
+				foreignRead, observeErr = observer.KitLocalForeignLease(ctx, s.target)
+				if observeErr != nil {
+					return s.publicSession(st, nil), observeErr
+				}
+			}
+		}
+	}
+	if !foreignRead {
+		if err := s.reconcileInput(ctx, st); err != nil {
+			return s.publicSession(st, nil), err
+		}
+	}
+	projectInput := func(result *sessionResult) {
+		if foreignRead {
+			result.Input = &host.RemoteInputStatus{State: host.RemoteInputDetached}
+		}
 	}
 
 	s.mu.Lock()
@@ -339,8 +365,11 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 	if mediaHandle != nil && mediaState == "active" && mediaHandleDone(mediaHandle) {
 		mediaErr := s.stopMediaBounded(execution)
 		result := s.publicSession(st, nil)
-		result.Execution = execution
-		result.Media = s.currentMediaState()
+		if !foreignRead {
+			result.Execution = execution
+			result.Media = s.currentMediaState()
+		}
+		projectInput(&result)
 		if mediaErr != nil {
 			s.record("session.media.exit_failed", result, nil)
 			return result, nil
@@ -366,8 +395,9 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 	}
 
 	result := s.publicSession(st, nil)
+	projectInput(&result)
 	s.mu.Lock()
-	if s.execution == "" {
+	if s.execution == "" && !foreignRead {
 		if execution, packageOwned := reconstructedSessionExecution(st); execution != "" {
 			s.execution = execution
 			s.packageOwned = packageOwned
@@ -384,10 +414,10 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 	// coordinator last owned it. Do not relabel that replacement with the
 	// previous package's execution type.
 	ownedPackageChanged := st.State == protocol.StateActive && s.executionPackage.packageID != "" && !s.matchesExecutionPackageLocked(st)
-	if s.execution != "" && !ownedPackageChanged {
+	if s.execution != "" && !ownedPackageChanged && !foreignRead {
 		result.Execution = s.execution
 	}
-	if s.mediaState != "" {
+	if s.mediaState != "" && !foreignRead {
 		result.Media = s.mediaState
 	}
 	s.mu.Unlock()
@@ -1888,6 +1918,16 @@ func publicSession(st protocol.Status, progress *sessionProgress) sessionResult 
 	}
 	result := sessionResult{State: st.State, GameID: gameID, System: system, Progress: progress,
 		CorePackage: cloneCorePackageStatus(st.CorePackage)}
+	if st.State == protocol.StateActive && st.RuntimeInput != nil && st.RuntimeInput.Validate() == nil {
+		identity := *st.RuntimeInput
+		if (identity.Kind == protocol.RuntimeInputDescribed && st.CorePackage != nil && st.CorePackage.PackageID == identity.PackageID && st.CorePackage.Generation == identity.Generation) ||
+			(identity.Kind == protocol.RuntimeInputDevelopment && st.Development && st.CorePackage == nil) {
+			result.RuntimeInput = &identity
+		}
+	}
+	if st.State == protocol.StateActive && protocol.ValidInputAgentInstance(st.InputAgentInstance) {
+		result.InputAgentInstance = st.InputAgentInstance
+	}
 	if st.State == protocol.StateActive && st.Development {
 		result.Execution = fogcast.ExecutionFPGADevelopment
 	} else if system != nil {
