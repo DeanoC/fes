@@ -17,6 +17,7 @@ import (
 
 const (
 	haint          = 0x414
+	hctsizDoPng    = uint32(1 << 31)
 	gintPRTINT     = uint32(1 << 24)
 	multiIRQMask   = gintRXFLVL | gintHCH | gintPRTINT | gintDisconn
 	multiIRQMaskSF = multiIRQMask | gintSOF
@@ -84,6 +85,8 @@ type multiChannel struct {
 	outPending bool
 	outDone    bool
 	outErr     error
+	doPing     bool
+	pinging    bool
 
 	deadline time.Time
 	nextDue  time.Time
@@ -494,6 +497,9 @@ func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
 	if mps == 0 || mps > maxMultiMPS {
 		return fmt.Errorf("dwc2: invalid MPS %d on ch %d", mps, ch)
 	}
+	split := s.route.hub != 0
+	ping := !in && !split && s.speed == usb.SpeedHigh && s.ep.TransferType == usb.TransferBulk && s.doPing
+
 	// Check TX request queue & FIFO space.
 	qReg := uint32(nptxstatus)
 	if epType == uint32(usb.TransferInterrupt) {
@@ -501,14 +507,13 @@ func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
 	}
 	q := h.io.Read32(qReg)
 	outBytes := 0
-	if !in && !completeSplit {
+	if !in && !completeSplit && !ping {
 		outBytes = s.outLen
 	}
-	if (q>>16)&255 == 0 || (!in && !completeSplit && int(q&65535) < (outBytes+3)/4) {
+	if (q>>16)&255 == 0 || (!in && !completeSplit && !ping && int(q&65535) < (outBytes+3)/4) {
 		return nil // Queue busy; retry next Service().
 	}
 
-	split := s.route.hub != 0
 	selected := h.io.Read32(hfnum)
 	frame := uint16(selected)
 	if split {
@@ -567,7 +572,11 @@ func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
 	if in {
 		size = uint32(mps)
 	}
-	h.io.Write32(chReg(ch, hctsiz), size|1<<19|s.toggle<<29)
+	tsiz := size | 1<<19 | s.toggle<<29
+	if ping {
+		tsiz = hctsizDoPng | 1<<19 | s.toggle<<29
+	}
+	h.io.Write32(chReg(ch, hctsiz), tsiz)
 
 	flags := uint32(mps) | uint32(s.ep.Number())<<11 | epType<<18 | 1<<20 | uint32(s.ownerAddr)<<22
 	if in {
@@ -585,6 +594,7 @@ func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
 
 	s.armed = true
 	s.halting = false
+	s.pinging = ping
 	s.waitingSplit = false
 	s.received = false
 	s.done = false
@@ -595,7 +605,7 @@ func (h *MultiHost) armSlot(ch int, completeSplit bool) error {
 	s.deadline = h.io.Now().Add(500 * time.Millisecond)
 
 	h.io.Write32(chReg(ch, hcchar), flags|channelEnable)
-	if !in && !completeSplit && outBytes > 0 {
+	if !in && !completeSplit && !ping && outBytes > 0 {
 		fifoAddr := chFIFO(ch)
 		for i := 0; i < outBytes; i += 4 {
 			var word [4]byte
@@ -754,19 +764,21 @@ func (h *MultiHost) Service() error {
 func (h *MultiHost) stepChannel(ch int, now time.Time) {
 	s := &h.slots[ch]
 	split := s.route.hub != 0
+	hsOut := !s.ep.In() && !split && s.speed == usb.SpeedHigh && s.ep.TransferType == usb.TransferBulk
 	ints := h.io.Read32(chReg(ch, hcint))
 	fatal := fatalChannel
 	if s.ep.In() && !split {
 		fatal &^= dataToggle
 	}
-	if split {
-		fatal &^= 1 << 6 // NYET is part of split handshake
+	if split || hsOut {
+		fatal &^= 1 << 6 // NYET is part of split handshake and HS Bulk-OUT PING flow control
 	}
 	if ints&fatal != 0 {
 		if err := h.haltChannel(ch); err != nil {
 			_ = h.failController(err)
 		}
 		s.armed = false
+		s.pinging = false
 		s.fault = fmt.Errorf("dwc2: ch %d addr=%d ep=%#x fatal hcint=%#x", ch, s.ownerAddr, s.ep.Address, ints)
 		if !s.ep.In() && s.outPending {
 			s.outPending = false
@@ -788,7 +800,7 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 	if ints&(1<<4) != 0 {
 		s.nak = true
 	}
-	if split {
+	if split || hsOut {
 		if ints&(1<<5) != 0 {
 			s.ack = true
 		}
@@ -803,6 +815,7 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 				return
 			}
 			s.armed = false
+			s.pinging = false
 			if s.ep.In() {
 				// Periodic/Bulk IN deadline expired (e.g. silent device); re-arm cleanly
 				// instead of fatally retiring the channel.
@@ -829,6 +842,20 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 	s.armed = false
 	s.halting = false
 
+	if s.pinging {
+		s.pinging = false
+		if s.ack {
+			// Device buffer is ready; clear PING state so Service immediately arms DATA OUT.
+			s.doPing = false
+			s.nextDue = now
+		} else {
+			// Device still busy (NAK); keep PING state and yield one microframe.
+			s.doPing = true
+			s.nextDue = now.Add(125 * time.Microsecond)
+		}
+		return
+	}
+
 	if split && s.ack && !s.completeSplit {
 		s.completeSplit = true
 		s.nextFrame = (s.startFrame + 2) & 0x3fff
@@ -845,6 +872,16 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 		return
 	}
 	s.completeSplit = false
+
+	if hsOut && s.nyet {
+		// USB 2.0 §8.5.1.1: HS Bulk-OUT NYET accepts the current DATA packet
+		// and requires a PING before sending the next DATA packet.
+		s.doPing = true
+		s.toggle ^= 2
+		s.outPending = false
+		s.outDone = true
+		return
+	}
 
 	if s.nak {
 		if s.ep.TransferType == usb.TransferBulk {
@@ -868,6 +905,9 @@ func (h *MultiHost) stepChannel(ch int, now time.Time) {
 				h.latency.record(now.UnixNano() - irqTS)
 			}
 		} else {
+			if hsOut {
+				s.doPing = false
+			}
 			s.outPending = false
 			s.outDone = true
 			if s.ep.TransferType == usb.TransferInterrupt {
@@ -923,7 +963,7 @@ func (h *MultiHost) controlTransferTarget(addr uint8, speed usb.Speed, ep0 uint1
 
 	deadline := h.io.Now().Add(2 * time.Second)
 	// SETUP stage (PID = SETUP = 3)
-	if _, err := h.ch0Transfer(addr, speed, ep0, route, false, 3, setup[:], 0, deadline); err != nil {
+	if _, _, err := h.ch0Transfer(addr, speed, ep0, route, false, 3, setup[:], 0, false, deadline); err != nil {
 		return 0, err
 	}
 	// DATA stage (starts DATA1 = 2, alternates DATA0/DATA1)
@@ -933,7 +973,7 @@ func (h *MultiHost) controlTransferTarget(addr uint8, speed usb.Speed, ep0 uint1
 		if inDir {
 			for doneBytes < length {
 				want := min(int(ep0), length-doneBytes)
-				n, err := h.ch0Transfer(addr, speed, ep0, route, true, pid, nil, want, deadline)
+				n, _, err := h.ch0Transfer(addr, speed, ep0, route, true, pid, nil, want, false, deadline)
 				if err != nil {
 					return doneBytes, err
 				}
@@ -945,11 +985,14 @@ func (h *MultiHost) controlTransferTarget(addr uint8, speed usb.Speed, ep0 uint1
 				}
 			}
 		} else {
+			outDoPing := false
 			for doneBytes < length {
 				chunk := min(int(ep0), length-doneBytes)
-				if _, err := h.ch0Transfer(addr, speed, ep0, route, false, pid, data[doneBytes:doneBytes+chunk], 0, deadline); err != nil {
+				_, nyet, err := h.ch0Transfer(addr, speed, ep0, route, false, pid, data[doneBytes:doneBytes+chunk], 0, outDoPing, deadline)
+				if err != nil {
 					return doneBytes, err
 				}
+				outDoPing = nyet
 				doneBytes += chunk
 				pid ^= 2
 			}
@@ -957,19 +1000,20 @@ func (h *MultiHost) controlTransferTarget(addr uint8, speed usb.Speed, ep0 uint1
 	}
 	// STATUS stage (opposite direction of DATA, or IN when length==0; always DATA1=2)
 	statusIn := !inDir || length == 0
-	if _, err := h.ch0Transfer(addr, speed, ep0, route, statusIn, 2, nil, 0, deadline); err != nil {
+	if _, _, err := h.ch0Transfer(addr, speed, ep0, route, statusIn, 2, nil, 0, false, deadline); err != nil {
 		return doneBytes, err
 	}
 	return doneBytes, nil
 }
 
-func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route splitRoute, in bool, pid uint32, out []byte, limit int, deadline time.Time) (int, error) {
+func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route splitRoute, in bool, pid uint32, out []byte, limit int, doPing bool, deadline time.Time) (int, bool, error) {
 	split := route.hub != 0
+	hsOut := !in && !split && speed == usb.SpeedHigh && pid != 3
 	if split && h.isSingleTTHubBusy(route.hub, 0) {
 		ttDeadline := h.io.Now().Add(4 * time.Millisecond)
 		for h.isSingleTTHubBusy(route.hub, 0) && h.io.Now().Before(ttDeadline) {
 			if err := h.drainRXIntoSlots(64); err != nil {
-				return 0, err
+				return 0, false, err
 			}
 			now := h.io.Now()
 			for ch := 1; ch < h.channels; ch++ {
@@ -980,7 +1024,7 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 				if s.armed {
 					h.stepChannel(ch, now)
 					if h.fault != nil {
-						return 0, h.fault
+						return 0, false, h.fault
 					}
 				}
 				if s.fault == nil && !s.armed && s.waitingSplit && s.completeSplit {
@@ -990,23 +1034,23 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 				}
 			}
 			if h.fault != nil {
-				return 0, h.fault
+				return 0, false, h.fault
 			}
 		}
 		if h.isSingleTTHubBusy(route.hub, 0) {
-			return 0, fmt.Errorf("dwc2: single-TT hub %d busy; refusing CH0 split addr=%d", route.hub, addr)
+			return 0, false, fmt.Errorf("dwc2: single-TT hub %d busy; refusing CH0 split addr=%d", route.hub, addr)
 		}
 	}
 	for retries := 0; retries < 1000; retries++ {
 		if !h.io.Now().Before(deadline) {
-			return 0, fmt.Errorf("dwc2: CH0 control timeout addr=%d", addr)
+			return 0, false, fmt.Errorf("dwc2: CH0 control timeout addr=%d", addr)
 		}
 		if err := h.pioCheck(); err != nil {
-			return 0, h.failController(err)
+			return 0, false, h.failController(err)
 		}
 		if h.io.Read32(chReg(0, hcchar))&channelEnable != 0 {
 			if err := h.haltChannel(0); err != nil {
-				return 0, h.failController(err)
+				return 0, false, h.failController(err)
 			}
 		}
 		completeSplit := false
@@ -1014,13 +1058,14 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 	splitLoop:
 		for {
 			if !h.io.Now().Before(deadline) {
-				return 0, fmt.Errorf("dwc2: CH0 split timeout addr=%d", addr)
+				return 0, false, fmt.Errorf("dwc2: CH0 split timeout addr=%d", addr)
 			}
+			ping := hsOut && doPing
 			// Wait for both a non-periodic request queue entry and enough TX FIFO
 			// words before programming CH0 so concurrent Bulk-OUT traffic cannot
 			// overrun or stall the shared non-periodic FIFO.
 			outWords := 0
-			if !in && !completeSplit {
+			if !in && !completeSplit && !ping {
 				outWords = (len(out) + 3) / 4
 			}
 			if q := h.io.Read32(nptxstatus); (q>>16)&255 == 0 || int(q&65535) < outWords {
@@ -1059,10 +1104,14 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 			size := uint32(len(out))
 			if in {
 				size = uint32(ep0)
-			} else if completeSplit {
+			} else if completeSplit || ping {
 				size = 0
 			}
-			h.io.Write32(chReg(0, hctsiz), size|1<<19|pid<<29)
+			tsiz := size | 1<<19 | pid<<29
+			if ping {
+				tsiz = hctsizDoPng | 1<<19 | pid<<29
+			}
+			h.io.Write32(chReg(0, hctsiz), tsiz)
 			flags := uint32(ep0) | 1<<20 | uint32(addr)<<22
 			if in {
 				flags |= 1 << 15
@@ -1071,7 +1120,7 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 				flags |= 1 << 17
 			}
 			h.io.Write32(chReg(0, hcchar), flags|channelEnable)
-			if !in && !completeSplit && len(out) > 0 {
+			if !in && !completeSplit && !ping && len(out) > 0 {
 				for i := 0; i < len(out); i += 4 {
 					var word [4]byte
 					copy(word[:], out[i:min(i+4, len(out))])
@@ -1084,9 +1133,9 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 			for polls := 0; polls < 1000000; polls++ {
 				if !h.io.Now().Before(deadline) {
 					if err := h.haltChannel(0); err != nil {
-						return 0, h.failController(err)
+						return 0, false, h.failController(err)
 					}
-					return 0, fmt.Errorf("dwc2: CH0 transfer timeout addr=%d", addr)
+					return 0, false, fmt.Errorf("dwc2: CH0 transfer timeout addr=%d", addr)
 				}
 				// Drain RX FIFO entries; route non-CH0 entries through the same
 				// ownership/armed/direction/size/PID validator used by Service().
@@ -1105,9 +1154,9 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 								_ = h.io.Read32(fifo)
 							}
 							if err := h.haltChannel(0); err != nil {
-								return 0, h.failController(err)
+								return 0, false, h.failController(err)
 							}
-							return 0, fmt.Errorf("dwc2: CH0 RX overflow %d > %d", cnt, limit)
+							return 0, false, fmt.Errorf("dwc2: CH0 RX overflow %d > %d", cnt, limit)
 						}
 						received = true
 						gotLen = cnt
@@ -1118,20 +1167,20 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 						}
 					} else {
 						if err := h.consumeSlotRX(rch, cnt, dpid, kind); err != nil {
-							return 0, err
+							return 0, false, err
 						}
 					}
 				}
 				ints := h.io.Read32(chReg(0, hcint))
 				fatal := fatalChannel
-				if split {
+				if split || hsOut {
 					fatal &^= 1 << 6
 				}
 				if ints&fatal != 0 {
 					if err := h.haltChannel(0); err != nil {
-						return 0, h.failController(err)
+						return 0, false, h.failController(err)
 					}
-					return 0, fmt.Errorf("dwc2: CH0 fatal hcint=%#x addr=%d", ints, addr)
+					return 0, false, fmt.Errorf("dwc2: CH0 fatal hcint=%#x addr=%d", ints, addr)
 				}
 				if in && !split && ints&(1<<4) != 0 {
 					h.io.Write32(chReg(0, hcint), 1<<4)
@@ -1141,18 +1190,39 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 					h.io.Write32(chReg(0, hcint), 1<<5)
 					ints &^= 1 << 5
 				}
+				if ping {
+					if ints&(1<<5) != 0 {
+						if err := h.haltChannel(0); err != nil {
+							return 0, false, h.failController(err)
+						}
+						doPing = false
+						continue splitLoop // PING ACKed; send DATA OUT immediately
+					}
+					if ints&(1<<4) != 0 {
+						if err := h.haltChannel(0); err != nil {
+							return 0, false, h.failController(err)
+						}
+						break splitLoop // PING NAKed; retry PING
+					}
+				}
+				if hsOut && !ping && ints&(1<<6) != 0 {
+					if err := h.haltChannel(0); err != nil {
+						return 0, false, h.failController(err)
+					}
+					return gotLen, true, nil // HS Control-OUT accepted with NYET
+				}
 				if ints&1 != 0 {
 					if err := h.haltChannel(0); err != nil {
-						return 0, h.failController(err)
+						return 0, false, h.failController(err)
 					}
 					if in && limit > 0 && !received {
-						return 0, fmt.Errorf("dwc2: CH0 completed without RX")
+						return 0, false, fmt.Errorf("dwc2: CH0 completed without RX")
 					}
-					return gotLen, nil
+					return gotLen, false, nil
 				}
 				if split && ints&(1<<5) != 0 && !completeSplit {
 					if err := h.haltChannel(0); err != nil {
-						return 0, h.failController(err)
+						return 0, false, h.failController(err)
 					}
 					completeSplit = true
 					nextFrame = (startFrame + 2) & 0x3fff
@@ -1160,7 +1230,7 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 				}
 				if split && ints&(1<<6) != 0 {
 					if err := h.haltChannel(0); err != nil {
-						return 0, h.failController(err)
+						return 0, false, h.failController(err)
 					}
 					if completeSplit {
 						nextFrame = (uint16(h.io.Read32(hfnum)) + 1) & 0x3fff
@@ -1170,7 +1240,7 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 				}
 				if ints&(1<<4) != 0 {
 					if err := h.haltChannel(0); err != nil {
-						return 0, h.failController(err)
+						return 0, false, h.failController(err)
 					}
 					break splitLoop // Retry on NAK
 				}
@@ -1179,12 +1249,12 @@ func (h *MultiHost) ch0Transfer(addr uint8, speed usb.Speed, ep0 uint16, route s
 				}
 			}
 			if err := h.haltChannel(0); err != nil {
-				return 0, h.failController(err)
+				return 0, false, h.failController(err)
 			}
-			return 0, fmt.Errorf("dwc2: CH0 poll budget exhausted addr=%d", addr)
+			return 0, false, fmt.Errorf("dwc2: CH0 poll budget exhausted addr=%d", addr)
 		}
 	}
-	return 0, fmt.Errorf("dwc2: CH0 NAK budget exhausted addr=%d", addr)
+	return 0, false, fmt.Errorf("dwc2: CH0 NAK budget exhausted addr=%d", addr)
 }
 
 // OpenPipe allocates a dedicated hardware host channel (1..channels-1) for ep
@@ -1195,6 +1265,9 @@ func (h *MultiHost) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, e
 	}
 	if h.paused {
 		return nil, fmt.Errorf("dwc2: host paused")
+	}
+	if err := h.pioCheck(); err != nil {
+		return nil, h.failController(err)
 	}
 	if int(addr) == 0 || int(addr) >= len(h.devices) || h.devices[addr] == nil {
 		return nil, fmt.Errorf("dwc2: unknown device address %d", addr)
@@ -1272,6 +1345,9 @@ func (p *multiPipe) PollInto(dst []byte) (int, error) {
 	if p.closed || p.host == nil {
 		return 0, errors.New("dwc2: pipe closed")
 	}
+	if p.host.fault != nil {
+		return 0, p.host.fault
+	}
 	s := &p.host.slots[p.ch]
 	if !s.allocated || s.ownerAddr != p.addr || s.gen != p.gen {
 		return 0, errors.New("dwc2: device detached")
@@ -1295,6 +1371,9 @@ func (p *multiPipe) PollInto(dst []byte) (int, error) {
 func (p *multiPipe) Write(data []byte) error {
 	if p.closed || p.host == nil {
 		return errors.New("dwc2: pipe closed")
+	}
+	if p.host.fault != nil {
+		return p.host.fault
 	}
 	if p.ep.In() {
 		return errors.New("dwc2: cannot write to IN pipe")
@@ -1327,6 +1406,9 @@ func (p *multiPipe) Write(data []byte) error {
 func (p *multiPipe) WriteDone() (bool, error) {
 	if p.closed || p.host == nil {
 		return false, errors.New("dwc2: pipe closed")
+	}
+	if p.host.fault != nil {
+		return false, p.host.fault
 	}
 	s := &p.host.slots[p.ch]
 	if !s.allocated || s.ownerAddr != p.addr || s.gen != p.gen {
@@ -1446,7 +1528,22 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 		}
 		if s.armed {
 			split := s.route.hub != 0
-			if haltedInts[ch]&1 != 0 || s.done || (s.ep.In() && s.received) {
+			hsOut := !s.ep.In() && !split && s.speed == usb.SpeedHigh && s.ep.TransferType == usb.TransferBulk
+			if s.pinging {
+				s.pinging = false
+				if haltedInts[ch]&(1<<5) != 0 || s.ack {
+					s.doPing = false
+				}
+				s.waitingSplit = false
+				s.completeSplit = false
+			} else if hsOut && (haltedInts[ch]&(1<<6) != 0 || s.nyet) {
+				s.doPing = true
+				s.toggle ^= 2
+				s.outPending = false
+				s.outDone = true
+				s.waitingSplit = false
+				s.completeSplit = false
+			} else if haltedInts[ch]&1 != 0 || s.done || (s.ep.In() && s.received) {
 				s.toggle ^= 2
 				if s.ep.In() {
 					if s.received {
@@ -1455,6 +1552,9 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 					}
 					s.nextDue = now.Add(s.effectiveInterval())
 				} else {
+					if hsOut {
+						s.doPing = false
+					}
 					s.outPending = false
 					s.outDone = true
 					if s.ep.TransferType == usb.TransferInterrupt {
@@ -1470,6 +1570,16 @@ func (h *MultiHost) PausePolling(ctx context.Context) error {
 				s.completeSplit = true
 				s.waitingSplit = true
 				s.nextFrame = (s.startFrame + 2) & 0x3fff
+			} else if split && s.completeSplit && (haltedInts[ch]&(1<<6) != 0 || s.nyet) {
+				// CSPLIT returned NYET concurrently with halt: defer CSPLIT to the
+				// next microframe so Step 3 finishes it before pause completes.
+				s.nyet = false
+				cur := uint16(h.io.Read32(hfnum)) & 0x3fff
+				if s.ep.TransferType == usb.TransferInterrupt {
+					cur = (cur + 1) & 0x3fff
+				}
+				s.nextFrame = (cur + 1) & 0x3fff
+				s.waitingSplit = true
 			} else {
 				s.waitingSplit = false
 				s.completeSplit = false

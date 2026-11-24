@@ -162,6 +162,10 @@ type multiChannelSim struct {
 	freezeFrame        bool
 	nyetCSplitCount    int
 	nyetCH0SSplitCount int
+	nyetBulkOutCount   int
+	nyetCtrlOutCount   int
+	nakPingCount       int
+	pingCount          int
 	npBusyReads        int
 	ch0ArmedWhenBusy   bool
 }
@@ -413,6 +417,20 @@ func (s *multiChannelSim) handleHCCHAR(ch int, val uint32) {
 		return
 	}
 
+	// USB 2.0 High-Speed PING token (HCTSIZ.DoPng = bit 31).
+	if tsiz&hctsizDoPng != 0 {
+		s.pingCount++
+		s.regs[chReg(ch, hcchar)] &^= channelEnable
+		if s.nakPingCount > 0 {
+			s.nakPingCount--
+			s.regs[chReg(ch, hcint)] |= 1<<4 | 1<<1 // NAK + CHHLTD
+		} else {
+			s.regs[chReg(ch, hcint)] |= 1<<5 | 1<<1 // ACK + CHHLTD
+		}
+		s.regs[haint] |= 1 << uint(ch)
+		return
+	}
+
 	// Optional CSPLIT NYET injection for testing deferred nextFrame backoff.
 	if split && compSplit && ch != 0 && s.nyetCSplitCount > 0 {
 		s.nyetCSplitCount--
@@ -655,6 +673,9 @@ func (s *multiChannelSim) finishTX(ch int) {
 		s.regs[chReg(0, hcchar)] &^= channelEnable
 		if split {
 			s.regs[chReg(0, hcint)] |= 1<<5 | 1<<1 // ACK for SSPLIT
+		} else if pid != 3 && s.nyetCtrlOutCount > 0 {
+			s.nyetCtrlOutCount--
+			s.regs[chReg(0, hcint)] |= 1<<6 | 1<<1 // HS Control-OUT NYET
 		} else {
 			s.regs[chReg(0, hcint)] |= 1 | 1<<1
 		}
@@ -674,6 +695,9 @@ func (s *multiChannelSim) finishTX(ch int) {
 	s.regs[chReg(ch, hcchar)] &^= channelEnable
 	if split {
 		s.regs[chReg(ch, hcint)] |= 1<<5 | 1<<1 // SSPLIT ACK -> CSPLIT completes
+	} else if s.nyetBulkOutCount > 0 {
+		s.nyetBulkOutCount--
+		s.regs[chReg(ch, hcint)] |= 1<<6 | 1<<1 // HS Bulk-OUT NYET
 	} else {
 		s.regs[chReg(ch, hcint)] |= 1 | 1<<1
 	}
@@ -2949,5 +2973,253 @@ func TestMultiHostInterruptOUTPreservesInterval(t *testing.T) {
 	}
 	if !done2 {
 		t.Fatal("Interrupt-OUT Write #2 did not complete after bInterval elapsed")
+	}
+}
+
+func TestMultiHostHSBulkOUTAndControlOUTHandleNYETWithPing(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	bt := newSimBTDongle() // High-Speed USB 2.0 BT dongle
+	sim.attachRoot(bt)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, ok := host.NextEvent()
+	if !ok || ev.Kind != usb.DeviceAttached {
+		t.Fatalf("expected BT attach event, got %+v ok=%v", ev, ok)
+	}
+	hciIf, _ := ev.Device.Config.FindInterface(0xe0, 0x01, 0x01)
+	epAclOut, _ := hciIf.FindEndpoint(usb.TransferBulk, false)
+	outPipe, err := host.OpenPipe(ev.Device.Address, epAclOut)
+	if err != nil {
+		t.Fatalf("OpenPipe(ACL OUT): %v", err)
+	}
+	mp := outPipe.(*multiPipe)
+
+	// 1. Bulk-OUT packet #1 receives HS NYET (accepted, triggers doPing=true).
+	sim.mu.Lock()
+	sim.nyetBulkOutCount = 1
+	sim.nakPingCount = 1 // First PING returns NAK, second PING returns ACK
+	sim.mu.Unlock()
+
+	pkt1 := []byte{0x01, 0x02, 0x03, 0x04}
+	if err := outPipe.Write(pkt1); err != nil {
+		t.Fatalf("Write #1: %v", err)
+	}
+	var done1 bool
+	for range 5 {
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service #1: %v", err)
+		}
+		done1, err = outPipe.WriteDone()
+		if err != nil {
+			t.Fatalf("WriteDone #1 (NYET should not fault HS Bulk-OUT): %v", err)
+		}
+		if done1 {
+			break
+		}
+	}
+	if !done1 || !host.slots[mp.ch].doPing {
+		t.Fatalf("expected Write #1 done with doPing=true: done=%v doPing=%v", done1, host.slots[mp.ch].doPing)
+	}
+
+	// 2. Bulk-OUT packet #2 must PING first (NAK -> retry -> ACK), then send DATA.
+	pkt2 := []byte{0x05, 0x06, 0x07, 0x08}
+	if err := outPipe.Write(pkt2); err != nil {
+		t.Fatalf("Write #2: %v", err)
+	}
+	var done2 bool
+	for range 12 {
+		sim.advance(200 * time.Microsecond)
+		if err := host.Service(); err != nil {
+			t.Fatalf("Service #2: %v", err)
+		}
+		done2, err = outPipe.WriteDone()
+		if err != nil {
+			t.Fatalf("WriteDone #2: %v", err)
+		}
+		if done2 {
+			break
+		}
+	}
+	if !done2 || host.slots[mp.ch].doPing {
+		t.Fatalf("expected Write #2 done with doPing cleared: done=%v doPing=%v", done2, host.slots[mp.ch].doPing)
+	}
+	sim.mu.Lock()
+	pingsAfterBulk := sim.pingCount
+	sim.mu.Unlock()
+	if pingsAfterBulk < 2 {
+		t.Fatalf("expected >=2 PING tokens (NAK + ACK), got %d", pingsAfterBulk)
+	}
+	if len(bt.outLog[2]) != 2 || !bytes.Equal(bt.outLog[2][0], pkt1) || !bytes.Equal(bt.outLog[2][1], pkt2) {
+		t.Fatalf("unexpected Bulk-OUT log: %x", bt.outLog[2])
+	}
+
+	// 3. Multi-packet HS Control-OUT where chunk 1 returns NYET must PING before chunk 2.
+	ctrlPayload := make([]byte, 128)
+	for i := range ctrlPayload {
+		ctrlPayload[i] = byte(i)
+	}
+	sim.mu.Lock()
+	sim.nyetCtrlOutCount = 1
+	sim.mu.Unlock()
+	n, err := host.ControlTransfer(ev.Device.Address, 0x20, 0x00, 0, 0, ctrlPayload)
+	if err != nil || n != len(ctrlPayload) {
+		t.Fatalf("HS Control-OUT with NYET failed: n=%d err=%v", n, err)
+	}
+	sim.mu.Lock()
+	pingsAfterCtrl := sim.pingCount
+	sim.mu.Unlock()
+	if pingsAfterCtrl <= pingsAfterBulk {
+		t.Fatalf("expected CH0 to issue PING after HS Control-OUT NYET: before=%d after=%d", pingsAfterBulk, pingsAfterCtrl)
+	}
+}
+
+func TestMultiHostPausePreservesCSPLITNYET(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	hub := newSimHub(4, true)
+	pad := newSimGamepad()
+	sim.attachRoot(hub)
+	sim.attachHubPort(hub, 1, pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	var padAddr uint8
+	var ep usb.EndpointDescriptor
+	for {
+		ev, ok := host.NextEvent()
+		if !ok {
+			break
+		}
+		if ev.Kind == usb.DeviceAttached && ev.Device.Descriptor.VendorID == 0x054c {
+			padAddr = ev.Device.Address
+			iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+			ep, _ = iface.FindEndpoint(usb.TransferInterrupt, true)
+		}
+	}
+	pipe, err := host.OpenPipe(padAddr, ep)
+	if err != nil {
+		t.Fatalf("OpenPipe: %v", err)
+	}
+	mp := pipe.(*multiPipe)
+
+	// Arm SSPLIT -> advance to CSPLIT which hits NYET while CHENA is still set
+	// so PausePolling Step 2 observes the CSPLIT NYET during haltChannelCapture!
+	pkt := []byte{0x01, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x42}
+	sim.mu.Lock()
+	pad.inQueues[ep.Number()] = append(pad.inQueues[ep.Number()], pkt)
+	sim.frame = 0
+	sim.freezeFrame = true
+	sim.nyetCSplitCount = 1
+	sim.mu.Unlock()
+
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (SSPLIT): %v", err)
+	}
+	sim.mu.Lock()
+	sim.frame = 2
+	sim.mu.Unlock()
+	if err := host.Service(); err != nil {
+		t.Fatalf("Service (arm CSPLIT -> NYET): %v", err)
+	}
+	// Keep CHENA=1 with HCINT=NYET so Step 1 leaves it halting and Step 2's
+	// haltChannelCapture observes the concurrent CSPLIT NYET!
+	sim.mu.Lock()
+	sim.regs[chReg(mp.ch, hcchar)] |= channelEnable
+	sim.freezeFrame = false
+	sim.mu.Unlock()
+
+	if err := host.PausePolling(context.Background()); err != nil {
+		t.Fatalf("PausePolling: %v", err)
+	}
+	var buf [64]byte
+	n, err := pipe.PollInto(buf[:])
+	if err != nil {
+		t.Fatalf("PollInto after CSPLIT NYET pause: %v", err)
+	}
+	if n != len(pkt) || !bytes.Equal(buf[:n], pkt) {
+		t.Fatalf("PausePolling dropped CSPLIT after concurrent NYET: got %x want %x", buf[:n], pkt)
+	}
+}
+
+func TestMultiHostOpenPipeChecksPIOBeforeHAINTMSK(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, _ := host.NextEvent()
+	iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+	epIn, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+
+	ctrl, _ := newMockGIC(t)
+	if err := host.EnableIRQ(ctrl, testUSBIRQ); err != nil {
+		t.Fatalf("EnableIRQ: %v", err)
+	}
+	defer host.DisableIRQ()
+
+	// Inject foreign DMA before OpenPipe; OpenPipe must fail without writing HAINTMSK.
+	sim.mu.Lock()
+	haintBefore := sim.regs[haintmsk]
+	sim.regs[gahb] |= 1 << 5
+	sim.mu.Unlock()
+
+	if _, err := host.OpenPipe(ev.Device.Address, epIn); err == nil {
+		t.Fatal("OpenPipe succeeded despite foreign DMA enabled")
+	}
+	sim.mu.Lock()
+	haintAfter := sim.regs[haintmsk]
+	sim.mu.Unlock()
+	if haintAfter != haintBefore {
+		t.Fatalf("OpenPipe wrote HAINTMSK after foreign DMA: before=%#x after=%#x", haintBefore, haintAfter)
+	}
+}
+
+func TestMultiHostPipeRejectsOperationsAfterControllerFault(t *testing.T) {
+	sim := newMultiChannelSim(1024, 16)
+	pad := newSimGamepad()
+	sim.attachRoot(pad)
+
+	host, err := OpenMulti(sim, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatalf("OpenMulti: %v", err)
+	}
+	ev, _ := host.NextEvent()
+	iface, _ := ev.Device.Config.FindInterface(3, -1, -1)
+	epIn, _ := iface.FindEndpoint(usb.TransferInterrupt, true)
+	epOut, _ := iface.FindEndpoint(usb.TransferInterrupt, false)
+
+	inPipe, err := host.OpenPipe(ev.Device.Address, epIn)
+	if err != nil {
+		t.Fatalf("OpenPipe(IN): %v", err)
+	}
+	outPipe, err := host.OpenPipe(ev.Device.Address, epOut)
+	if err != nil {
+		t.Fatalf("OpenPipe(OUT): %v", err)
+	}
+
+	// Trigger a controller-level foreign DMA fault via Service().
+	sim.mu.Lock()
+	sim.regs[gahb] |= 1 << 5
+	sim.mu.Unlock()
+	if err := host.Service(); err == nil {
+		t.Fatal("Service did not report foreign DMA fault")
+	}
+
+	var buf [64]byte
+	if _, err := inPipe.PollInto(buf[:]); err == nil {
+		t.Fatal("inPipe.PollInto succeeded after controller retirement")
+	}
+	if err := outPipe.Write([]byte{0x02, 0x01}); err == nil {
+		t.Fatal("outPipe.Write succeeded after controller retirement")
+	}
+	if _, err := outPipe.WriteDone(); err == nil {
+		t.Fatal("outPipe.WriteDone succeeded after controller retirement")
 	}
 }
