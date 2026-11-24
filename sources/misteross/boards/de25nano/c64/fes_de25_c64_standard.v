@@ -52,6 +52,10 @@ module fes_de25_c64_standard #(
     output wire ui_active, display_faulted, display_quiesced
 );
     wire [31:0] gpo, gpi, machine_gpo, machine_gpi;
+`ifdef FES_DE25_NATIVE_C64
+    wire [31:0] fetch_count;
+    wire [15:0] fetch_address;
+`endif
     wire transport_ready, transport_fault;
     // Transport health is one registered level into the machine clock. A
     // fault or reset there holds the machine two machine clocks later.
@@ -87,6 +91,9 @@ module fes_de25_c64_standard #(
         .writeresponsevalid(computer_writeresponsevalid), .response(computer_response),
         .waitrequest(computer_waitrequest), .gpo(gpo), .gpi(gpi),
         .transport_ready(transport_ready), .faulted(transport_fault)
+`ifdef FES_DE25_NATIVE_C64
+        , .machine_clk(machine_clk), .fetch_count(fetch_count), .fetch_address(fetch_address)
+`endif
     );
     fes_gp_crossing gp_crossing (
         .transport_clk(clk_sys), .machine_clk(machine_clk), .gpo(gpo), .gpi(gpi),
@@ -96,6 +103,9 @@ module fes_de25_c64_standard #(
     fes_c64_core #(.BUILD_ID(BUILD_ID)) core (
         .clk_sys(machine_clk), .pixel_clk(pixel_clk), .reset_hold(core_reset_hold),
         .gpo(machine_gpo), .gpi(machine_gpi), .exec_reset(exec_reset), .machine_video(machine_video),
+`ifdef FES_DE25_NATIVE_C64
+        .fetch_count(fetch_count), .fetch_address(fetch_address),
+`endif
         .audio_sample(audio_sample), .display_request(display_request),
         .display_opcode(display_opcode), .display_index(display_index), .display_argument(display_argument),
         .display_response_valid(response_valid), .display_response_error(response_error),
@@ -114,6 +124,9 @@ module fes_de25_c64_standard #(
     assign dram_dq_oe = 1'b0;
     // The 384x272 PAL picture is scaled into a centred 960x720 viewport.
     fes_de25_session_display #(.BUILD_ID(BUILD_ID),
+`ifdef FES_DE25_NATIVE_C64
+        .FIXED_GRANT_BASE(32'h95000000),
+`endif
         .PICTURE_LEFT(16'd160), .PICTURE_TOP(16'd0),
         .PICTURE_WIDTH(16'd960), .PICTURE_HEIGHT(16'd720)) display (
         .clk_sys(machine_clk), .pixel_clk(pixel_clk), .reset_n(pixel_reset_n), .exec_reset(exec_reset),

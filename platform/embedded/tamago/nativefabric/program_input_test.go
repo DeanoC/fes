@@ -12,6 +12,7 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
+	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 )
 
 type programInputBase struct{ presents int }
@@ -97,7 +98,7 @@ func TestProgramInputKeyboardReturnNeutralizationFailure(t *testing.T) {
 	if _, err := c.Launch(ctx, "native-0"); err != nil {
 		t.Fatal(err)
 	}
-	source.reports = [][]byte{make([]byte, 8), {0, 0, 4, 0, 0, 0, 0, 0}}
+	source.reports = [][]byte{make([]byte, 8), {1, 0, 4, 0, 0, 0, 0, 0}}
 	if _, err := p.Next(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +136,7 @@ func TestProgramInputRoutesMenuAndCoreAcrossReturn(t *testing.T) {
 	}
 	source.reports = [][]byte{{0, 0, 40, 0, 0, 0, 0, 0}, make([]byte, 8), {0, 0, 22, 0, 0, 0, 0, 0}, make([]byte, 8)}
 	frame, err = p.Next(ctx)
-	if err != nil || len(frame.Commands) != 0 || frame.Text != "" || f.cpu.keyboardWrites != 27 || f.cpu.keyboardRows != ([9]uint16{}) {
+	if err != nil || len(frame.Commands) != 0 || frame.Text != "" || f.cpu.keyboardWrites != 11 || f.cpu.keyboardRows != ([9]uint16{}) {
 		t.Fatal("core keys became shortcuts or lost releases", frame, err, f.cpu.keyboardWrites)
 	}
 	old := p.keyboard
@@ -346,7 +347,7 @@ func TestProgramInputFullTenfootUSBLaunchAndReturn(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%v stage=%d cycles=%d", err, base.stage, base.cycles)
 			}
-			if base.cycles != 3 || f.s.Status().Generation != 6 || !f.lease.r.Active || f.cpu.keyboardWrites != 81 {
+			if base.cycles != 3 || f.s.Status().Generation != 6 || !f.lease.r.Active || f.cpu.keyboardWrites != 39 {
 				t.Fatalf("cycles=%d writes=%d state=%+v", base.cycles, f.cpu.keyboardWrites, f.s.Status())
 			}
 
@@ -357,6 +358,16 @@ func TestProgramInputFullTenfootUSBLaunchAndReturn(t *testing.T) {
 type programReportFunc func() ([]byte, error)
 
 func (f programReportFunc) PollKeyboard() ([]byte, error) { return f() }
+func (f programReportFunc) PollKeyboardInto(dst []byte) (int, error) {
+	r, err := f()
+	if err != nil || r == nil {
+		return 0, err
+	}
+	if len(r) == 0 || len(r) > len(dst) {
+		return 0, errors.New("invalid keyboard report length")
+	}
+	return copy(dst, r), nil
+}
 func TestProgramInputCanceledReportUsesFreshOwnedCleanup(t *testing.T) {
 	f, b, c := backendFixture(t)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -386,5 +397,96 @@ func TestProgramInputCanceledReportUsesFreshOwnedCleanup(t *testing.T) {
 	calls := f.cpu.calls
 	if _, err := p.Next(context.Background()); err == nil || polls != 2 || f.cpu.calls != calls {
 		t.Fatal("canceled source retried")
+	}
+}
+
+type readyKeyboardSource struct {
+	ready   chan struct{}
+	reports [][]byte
+}
+
+func (s *readyKeyboardSource) PollKeyboard() ([]byte, error) {
+	if len(s.reports) == 0 {
+		return nil, nil
+	}
+	r := s.reports[0]
+	s.reports = s.reports[1:]
+	return r, nil
+}
+func (s *readyKeyboardSource) PollKeyboardInto(dst []byte) (int, error) {
+	r, err := s.PollKeyboard()
+	if err != nil || r == nil {
+		return 0, err
+	}
+	if len(r) == 0 || len(r) > len(dst) {
+		return 0, errors.New("invalid keyboard report length")
+	}
+	return copy(dst, r), nil
+}
+func (s *readyKeyboardSource) Ready() <-chan struct{} { return s.ready }
+
+type readyGamepadSource struct {
+	ready   chan struct{}
+	reports [][]byte
+}
+
+func (s *readyGamepadSource) PollGamepad() ([]byte, error) {
+	if len(s.reports) == 0 {
+		return nil, nil
+	}
+	r := s.reports[0]
+	s.reports = s.reports[1:]
+	return r, nil
+}
+func (s *readyGamepadSource) PollGamepadInto(dst []byte) (int, error) {
+	r, err := s.PollGamepad()
+	if err != nil || r == nil {
+		return 0, err
+	}
+	if len(r) == 0 || len(r) > len(dst) {
+		return 0, errors.New("invalid gamepad report length")
+	}
+	return copy(dst, r), nil
+}
+func (s *readyGamepadSource) Ready() <-chan struct{} { return s.ready }
+
+func TestProgramInputWakesSerialPlatformOnUSBReady(t *testing.T) {
+	for _, kind := range []string{"keyboard", "gamepad"} {
+		t.Run(kind, func(t *testing.T) {
+			f, b, _ := backendFixture(t)
+			serialBase, err := NewProgramSerialPlatform(f.s, func() (byte, bool) { return 0, false }, func(context.Context, []byte) error { return nil })
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Keep UART Ready channel separate to verify both channels coexist.
+			serialBase.SetReady(make(chan struct{}, 1))
+			usbReady := make(chan struct{}, 1)
+			var p *ProgramInputPlatform
+			if kind == "keyboard" {
+				src := &readyKeyboardSource{ready: usbReady}
+				p, err = NewProgramInputPlatform(serialBase, b, src)
+			} else {
+				src := &readyGamepadSource{ready: usbReady}
+				p, err = NewProgramGamepadPlatform(serialBase, b, src, gamepadDescriptor(t), input.GamepadButtons{Confirm: 1, Back: 2}, gamepadKeys())
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := context.Background()
+			// First Next sets p.last = now.
+			if _, err := p.Next(ctx); err != nil {
+				t.Fatal(err)
+			}
+			// Signal USB Ready immediately so the second Next wakes without
+			// waiting for the full 50 ms frame delay.
+			usbReady <- struct{}{}
+			start := time.Now()
+			if _, err := p.Next(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if elapsed := time.Since(start); elapsed >= 35*time.Millisecond {
+				t.Fatalf("Next waited %v instead of waking on USB Ready", elapsed)
+			}
+		})
 	}
 }

@@ -27,13 +27,13 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import quartus_fes_pcxt as board
-from scripts.input_identity import with_identities
+from scripts.input_identity import DESIGN_V2, with_identities
 from scripts.export_core_package import (build_identity, encode_build_record,
     export_package, source_input_closure)
 from scripts.core_package import encode_manifest
 from scripts.fes_build_common import BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest, execution_environment
-from scripts.quartus_tools import load_quartus_lock, locate_quartus
+from scripts.quartus_tools import load_quartus_lock, locate_quartus, tree_digest
 from scripts import toolchain_cache
 from scripts.sim_fes_pcxt import cga_font
 
@@ -136,18 +136,6 @@ def authenticate_tools(root, *, cache_root=None):
         raise BuildError('Yosys version differs from the PC/XT lock')
     return {'yosys': Tool(yosys, yversion + ' sha256:' + sha(yosys)),
             'quartus': Tool(quartus.resolve(), version + ' sha256:' + sha(quartus))}
-
-
-def tree_digest(root):
-    digest, count = hashlib.sha256(), 0
-    for path in sorted(Path(root).rglob('*')):
-        if path.is_file():
-            digest.update(str(path.relative_to(root)).encode() + b'\0')
-            digest.update(bytes.fromhex(sha(path)))
-            count += 1
-    if not count:
-        raise BuildError('empty tool installation')
-    return {'sha256': digest.hexdigest(), 'files': count}
 
 
 def runtime_dependencies(executables, env, quartus_native):
@@ -289,7 +277,10 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
               'dependencies': {}, 'tools': dict(tool_identities), 'parameters': parameters}
     if execution.get("selection_only"):
         fields["parameters"]["selection_only"] = True
-    return encode_build_record(with_identities(fields, root=root))
+    # design-v2 (#1984) gives the PC/XT Verilator lint configuration and
+    # testbenches the evidence role, so they stay bound to the record without
+    # moving BUILD_ID.
+    return encode_build_record(with_identities(fields, root=root, policy=DESIGN_V2))
 
 
 def require_timing(summary, seeds, *, identity=None):

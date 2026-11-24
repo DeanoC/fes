@@ -1,0 +1,8 @@
+{
+  "what": "dx (dafabb6db + dx.patch) re-elaborated by the rebuilt Yosys binary through fit_i386_device.cpu_netlist, YOSYS_MAX_THREADS=1",
+  "first_binary": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256 ...be1ada61eb51abe5a59e35ba (fits dx-s1 .. lfwd-s1)",
+  "rebuilt_binary": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=5c31f6a236b20757834552c16f8c9f024cf25fd25d2a4be869ebc8da33c5edd6 (fits speed-s1, pg-s1)",
+  "dx_netlist_first_binary": "586ed476eefb6e41e408080d1d798523b95e484b2baa2174307cf5b9123ecd0b",
+  "dx_netlist_rebuilt_binary": "586ed476eefb6e41e408080d1d798523b95e484b2baa2174307cf5b9123ecd0b",
+  "verdict": "byte-identical: the rebuilt binary writes the same netlist for dx"
+}

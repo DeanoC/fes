@@ -20,7 +20,6 @@ class RearmModel(Model):
         for name in ('configuration_retained','selected_programs','tenfoot_serial','computer_reload',
                      'computer_storage_return'):
             self.profile[name]=True
-        self.profile['window_storage_return']=False
         self.profile['source_sha256']=mode.rearm.expected_cpu_binding()['sources']
         self.profile['sdm_reader_route']=copy.deepcopy(self.route)
         self.cold=warm_profile()

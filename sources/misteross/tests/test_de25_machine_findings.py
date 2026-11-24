@@ -96,9 +96,15 @@ class MachineFindingsTests(unittest.TestCase):
                   'Average Distance of Endpoints to Centroid', 'Total Distance of Endpoints to Centroid (Tension)',
                   'Waived']
         rows = [[S + name, '(1, 1)', '9000', '(2, 2)', '20', '200000', '']
-                for name in ('cpu_md_busy', 'cpu_wb_fault[4]', '_36426_[140]~DUPLICATE', 'reset')]
+                for name in ('cpu_md_busy', 'cpu_wb_fault[4]', '_36426_[140]~DUPLICATE', 'reset',
+                             'cpu_biu_reset~_Duplicate_2')]
         [entry] = mf.review(report({'TMC-20602': (header, rows)}), '', self.bases('cpu-control-tension'))
-        self.assertEqual(entry['groups'][0]['rows'], 4)
+        self.assertEqual(entry['groups'][0]['rows'], 5)
+        # A fitter copy is admitted only for a name the basis already names.
+        for name in ('machine_at_pic_mask[3]~_Duplicate_2', 'cpu_biu_reset~_Duplicate_', 'cpu_biu_reset_Duplicate_2'):
+            copy = rows + [[S + name, '(1, 1)', '9000', '(2, 2)', '20', '200000', '']]
+            with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
+                mf.review(report({'TMC-20602': (header, copy)}), '', self.bases('cpu-control-tension'))
         outside = rows + [['fes_video_inst|output_release[0]', '(1, 1)', '9000', '(2, 2)', '20', '200000', '']]
         with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
             mf.review(report({'TMC-20602': (header, outside)}), '', self.bases('cpu-control-tension'))

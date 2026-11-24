@@ -16,7 +16,6 @@ def warm_profile():
     for name in ('selected_programs', 'tenfoot_serial', 'computer_reload',
                  'computer_storage_return'):
         p[name] = True
-    p['window_storage_return']=False  # Paired MENU return derives from its compiled companion.
     native = dict(p, native_program='fpgaload',
                   native_build_sources=mode.rearm.expected_cpu_binding()['sources'])
     p['sdm_cpu_rearm'] = mode.rearm.native_binding(native)

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -36,12 +37,65 @@ func (c *menuStorageCPU) Invoke(a [7]uint64) ([4]uint64, error) {
 	return c.menuCPU.Invoke(a)
 }
 
+type menuStorageLease struct {
+	cpu     *menuCPU
+	r       sdcontrol.Receipt
+	returns int
+	fault   string
+}
+
+func (l *menuStorageLease) LastReceipt() (sdcontrol.Receipt, bool) { return l.r, true }
+func (l *menuStorageLease) Quiesce() error {
+	if !l.r.Active || l.r.Generation != l.cpu.state.Generation {
+		return errors.New("changed SD owner")
+	}
+	l.r.Active, l.r.Prepared = false, false
+	l.r.Generation++
+	l.cpu.state.Generation++
+	return nil
+}
+func (l *menuStorageLease) Resume() error {
+	return errors.New("cold resume cannot cross the display return")
+}
+func (l *menuStorageLease) ResumeAfterReturn(owner, generation uint64) error {
+	l.returns++
+	if l.r.Active || l.cpu.state.Owner != owner || l.cpu.state.Generation != generation || l.cpu.state.ResetMask != 15 ||
+		!l.cpu.state.MastersContained || l.cpu.closes != l.returns || l.cpu.lastDrainCookie == 0 {
+		return errors.New("missing complete owned display return")
+	}
+	if l.fault == "grant" {
+		l.r = sdcontrol.Receipt{Owner: owner, Generation: generation + 1, Active: true}
+		l.cpu.state.Generation = l.r.Generation
+		return errors.New("uncertain SD grant; keep ownership")
+	}
+	l.r = sdcontrol.Receipt{Owner: owner, Generation: generation + 2, Active: true, Prepared: true}
+	if l.fault == "receipt" {
+		l.r.Generation++
+	}
+	l.cpu.state.Generation = l.r.Generation
+	return nil
+}
+
+type menuStorageFiles struct {
+	fs.FS
+	lease *menuStorageLease
+	opens int
+}
+
+func (f *menuStorageFiles) Open(path string) (fs.File, error) {
+	f.opens++
+	if !f.lease.r.Active {
+		return nil, errors.New("filesystem read while contained")
+	}
+	return f.FS.Open(path)
+}
+
 // Join actual retained packages, transfers and menu sessions with modeled platform I/O.
-func storedMenu(t *testing.T) (*menuFixture, *packagestore.Store, *packagestore.Handoff, *windowStorageLease, *windowStorageFiles, packagestore.Request) {
+func storedMenu(t *testing.T) (*menuFixture, *packagestore.Store, *packagestore.Handoff, *menuStorageLease, *menuStorageFiles, packagestore.Request) {
 	return storedMenuArena(t, false)
 }
 
-func storedMenuArena(t *testing.T, retained bool) (*menuFixture, *packagestore.Store, *packagestore.Handoff, *windowStorageLease, *windowStorageFiles, packagestore.Request) {
+func storedMenuArena(t *testing.T, retained bool) (*menuFixture, *packagestore.Store, *packagestore.Handoff, *menuStorageLease, *menuStorageFiles, packagestore.Request) {
 	t.Helper()
 	f := newMenuFixture(t)
 	identity := f.v.context
@@ -118,8 +172,8 @@ toolchain = "synthetic software fixture"
 		t.Fatal(err)
 	}
 	f.cpu.state.Generation = 3
-	lease := &windowStorageLease{cpu: &f.cpu.windowCPU, r: sdcontrol.Receipt{Owner: 17, Generation: 3, Active: true, Prepared: true}}
-	files := &windowStorageFiles{FS: fstest.MapFS{"FES/PKGTEST.BIN": &fstest.MapFile{Data: body}}, lease: lease}
+	lease := &menuStorageLease{cpu: f.cpu, r: sdcontrol.Receipt{Owner: 17, Generation: 3, Active: true, Prepared: true}}
+	files := &menuStorageFiles{FS: fstest.MapFS{"FES/PKGTEST.BIN": &fstest.MapFile{Data: body}}, lease: lease}
 	store, err := packagestore.New(files, lease)
 	if err != nil {
 		t.Fatal(err)
@@ -237,7 +291,7 @@ func TestMenuStorageReturnRejectsCopiedAndBusyHandlesWithoutIO(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls, reads := f.cpu.calls, files.opens
-	copied := *s
+	copied := shallowCopyMenuSession(s)
 	if err := copied.ResumeStorageAfterReturn(); err == nil || f.cpu.calls != calls || files.opens != reads || lease.returns != 0 {
 		t.Fatal("copied session resumed SD", err)
 	}
@@ -564,7 +618,7 @@ func TestMenuStoredRelaunchCannotBorrowAnOpenCopiedOrUnresumedSession(t *testing
 	if err := s.ResumeStorageAfterReturn(); err != nil {
 		t.Fatal(err)
 	}
-	copied := *s
+	copied := shallowCopyMenuSession(s)
 	calls = f.cpu.calls
 	if _, _, err := copied.NewStoredReconfigurationTransfer(plan, handoff, reserve); err == nil || reserved != 0 || f.cpu.calls != calls {
 		t.Fatal("copied session borrowed rearm")

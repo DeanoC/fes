@@ -7,8 +7,9 @@ a separate [XGMAC/firmware contract](../xgmac/README.md). It uses the
 MMIO driver. The default `Open` path selects QEMU `virt`; `OpenDevice` supplies the shared
 IP/socket service to the Nano provider without QEMU address defaults.
 
-After `qemuvirt.InitDevices()`, call `network.Open(ctx, network.Config{})`
-once, before opening application sockets. The default address is
+After `qemuvirt.InitDevices()`, call `network.OpenWithPool(ctx, network.Config{}, pool)`
+(using `qemuvirt.DMAPool()`, or `network.Open(ctx, network.Config{})` for a
+standalone uncached reservation) once, before opening application sockets. The default address is
 `10.0.2.15/24`, with gateway `10.0.2.2`, matching QEMU user networking. Supply
 `Config.Address` and `Config.Gateway` to change them. `MMIOAddress == 0` scans
 the 32 QEMU VirtIO slots and rejects ambiguous multiple-NIC configurations.
@@ -93,13 +94,38 @@ The service retains partial returned controls and retires without FPGA cleanup
 after uncertain startup, including a propagated platform panic. This supplies
 the call path, not MAC/PHY/DMA qualification or a native upload listener.
 
-This prototype supports IPv4 TCP with static addressing and a 1500-byte MTU.
-It enables neither checksum/segmentation offloads nor merged receive buffers.
-The Lneto configuration limits active TCP ports to 16 and listener connections
-to 8. DHCP, DNS configuration, UDP, IPv6, link-change recovery, network
-throughput qualification and physical Ethernet acceptance remain separate work. Use
-numeric IPv4 addresses for the current private HTTP service. The board's
-deterministic entropy provider is unsuitable for authentication and TLS.
+This prototype supports IPv4 TCP with static addressing (default) or opt-in
+RFC 2131 DHCPv4 (`AcquireDHCP` / `OpenDeviceDHCP` / `Config{DHCP: true}`) and a
+1500-byte MTU. It enables neither checksum/segmentation offloads nor merged
+receive buffers. The Lneto configuration limits active TCP ports to 16 and
+listener connections to 8. Lease renewal, DNS resolution, general UDP, IPv6,
+link-change recovery, network throughput qualification and physical Ethernet
+acceptance remain separate work. Use numeric IPv4 addresses for the current
+private HTTP service. The board's deterministic entropy provider is unsuitable
+for authentication and TLS.
+
+Only QEMU runs DHCP: its `board.OpenNetworkDHCP` (used by `cmd/network` when
+`FES/BOOT.JSON` sets `"dhcp": true`) opens the VirtIO NIC with
+`Config{DHCP: true}`. The Nano board's `OpenNetworkDHCP` always refuses.
+`cmd/fpgaload` can select the controlled `OpenNetworkWithControlDHCP` opener only
+through the dormant build opt-in described at the end of this file; otherwise
+its controlled opener passes the profile's static address to `OpenDevice`.
+A lease needs a subnet mask, a server identifier and a router (option 3) that
+is another usable host in the leased subnet. Replies without such a router are
+ignored, so a server that sends none yields no lease; the server identifier is
+not a fallback gateway.
+
+`run.py network --board qemu` boots `cmd/network` on QEMU user networking
+(SLIRP) and checks its HTTP catalog against a private FogCast host. `--dhcp`
+adds `"dhcp": true` to `FES/BOOT.JSON`; the runner then requires exactly one
+`FES_NETWORK_DHCP` line with a positive lease time and records it as
+`dhcp_lease` in `result.json`. Tamago CI (`scripts/tamago_ci.py`) runs both the
+static `network` program and the `network-dhcp` variant, which is
+`run.py network --dhcp`. It fails either run whose `result.json` does not
+record the addressing it requested; the DHCP run also needs a coherent IPv4
+lease. SLIRP's first lease (`10.0.2.15/24`, gateway `10.0.2.2`) equals the
+static default, so a DHCP run is identified by its lease line and `dhcp_lease`,
+not by its address.
 
 The pinned dependency is `github.com/usbarmory/go-net`
 `v0.0.0-20260924083839-356cbf14db9e`, the revision compatible with the
@@ -111,3 +137,34 @@ A staged platform may provide an additional Confirm hook for the driver to run
 after descriptor initialization. The driver must consume it before exposing
 complete Stop/Start controls. `NewController` rejects an unconsumed Confirm hook;
 it cannot reopen software traffic between a controller grant and confirmation.
+
+## Nano fpgaload DHCP and SNTP opt-in (dormant)
+
+`run.py` and `build.py` accept `--network-dhcp`, `--network-dhcp-hostname`,
+`--network-sntp-server` and `--network-sntp-port` for Nano `fpgaload` with
+`--selected-programs --tenfoot-serial`, and link them as `main.expectedNetwork*`.
+`cmd/fpgaload/shared_network.go` parses those strings with `ParseStartupSpec`.
+With DHCP selected it opens `OpenNetworkWithControlDHCP` through
+`ProgramService.StartNetworkWithTimeout` with a 15-second startup budget, then
+starts a `LeaseRenewer`. With an SNTP server it makes one query and passes the
+time to the mounted volume's `SetClock` when the volume has one; an SNTP failure
+only prints a warning.
+
+This path is dormant: no build can enable it. `build.py` builds `fpgaload` only
+from the byte-exact `nano/sd-profile.json`, which has `network: null`, and
+`profile_constants` refuses a `network` block beside `sd_control` because
+closed-bridge SD ownership excludes other active devices. Every opt-in flag
+therefore fails the build, so no image links `main.expectedNetwork*` and none of
+the DHCP, renewal or SNTP code described above runs. An image linked by hand
+still fails closed: `prepareProgramNetwork` refuses DHCP or SNTP while
+`NetworkEnabled()` is false.
+
+Evidence for this wiring is host-only: unit tests of `ParseStartupSpec`, of the
+build option validation and of the separate startup and lifetime contexts that
+`StartNetworkWithTimeout` gives the opener. No Nano build with these flags
+exists, and no boot or kit run has executed the path. Enabling it needs a
+network-enabled `fpgaload` profile: SD ownership that admits Ethernet, plus the
+source-bound firmware MAC lease/drain supplier and control policy described
+above. `tests/test_tamago_build_network.py` checks the refusal against the
+shipped profile and fails if such a profile becomes buildable; revise this
+section when it does.

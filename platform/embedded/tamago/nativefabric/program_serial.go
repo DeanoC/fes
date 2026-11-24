@@ -78,6 +78,8 @@ func decodeProgramCatalogMode(raw []byte, choices []packagestore.Request, allowE
 type ProgramSerialPlatform struct {
 	service         *ProgramService
 	read            func() (byte, bool)
+	ready           <-chan struct{}
+	inputReady      <-chan struct{}
 	emit            func(context.Context, []byte) error
 	decoder         input.Decoder
 	last            time.Time
@@ -87,6 +89,7 @@ type ProgramSerialPlatform struct {
 	fetchGeneration uint64
 	installerViews  bool
 	previousView    []byte
+	wakePending     bool
 }
 
 func NewProgramSerialPlatform(service *ProgramService, read func() (byte, bool), emit func(context.Context, []byte) error) (*ProgramSerialPlatform, error) {
@@ -99,6 +102,21 @@ func NewProgramSerialPlatform(service *ProgramService, read func() (byte, bool),
 // EnableInstallerViews selects read-only navigation diagnostics before the App
 // starts. It grants no storage, installation or firmware capability.
 func (p *ProgramSerialPlatform) EnableInstallerViews() { p.installerViews = true }
+
+// SetReady installs an optional interrupt wakeup channel so Next wakes
+// immediately on console RX instead of waiting for the 50 ms frame delay.
+func (p *ProgramSerialPlatform) SetReady(ready <-chan struct{}) { p.ready = ready }
+
+// Ready returns the installed console RX wakeup channel, if any.
+func (p *ProgramSerialPlatform) Ready() <-chan struct{} { return p.ready }
+
+// SetInputReady installs an optional secondary interrupt wakeup channel (for
+// example DWC2 USB host IRQ) so Next wakes immediately on local input events
+// alongside console RX.
+func (p *ProgramSerialPlatform) SetInputReady(ready <-chan struct{}) { p.inputReady = ready }
+
+func (p *ProgramSerialPlatform) wakeNext() { p.wakePending = true }
+
 func (p *ProgramSerialPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
 	if ctx == nil {
 		return tenfoot.PlatformInput{}, errors.New("native serial UI: context required")
@@ -107,11 +125,21 @@ func (p *ProgramSerialPlatform) Next(ctx context.Context) (tenfoot.PlatformInput
 		return tenfoot.PlatformInput{}, err
 	}
 	delay := 50*time.Millisecond - time.Since(p.last)
+	if p.wakePending {
+		p.wakePending = false
+		delay = 0
+	}
 	if delay > 0 {
+		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return tenfoot.PlatformInput{}, ctx.Err()
-		case <-time.After(delay):
+		case <-p.ready:
+			timer.Stop()
+		case <-p.inputReady:
+			timer.Stop()
+		case <-timer.C:
 		}
 	}
 	now := time.Now()

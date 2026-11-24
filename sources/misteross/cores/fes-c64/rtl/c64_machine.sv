@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // FES Commodore 64 motherboard in the 52.224 MHz system domain.
 // The 6510 is the shared NMOS 6502 plus the processor port. Phi2 is a
-// fractional 0.985248 MHz PAL enable. Video is scanned in the HDMI domain.
+// fractional PAL or NTSC enable. Video is scanned in the HDMI domain.
 `include "c64_bus.vh"
 
-`include "c64_pal_timing.vh"
+`include "c64_timing.vh"
 
 module c64_machine #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
-    parameter integer CPU_CLOCK_HZ = `C64_PAL_CPU_HZ
+    parameter integer CPU_CLOCK_HZ = NTSC ? `C64_NTSC_CPU_HZ : `C64_PAL_CPU_HZ,
+    parameter bit NTSC = 0,
+    parameter bit SID_8580 = 0
 ) (
 `ifdef FES_C64_EXTERNAL_MEDIUM_SIM
     // Explicit simulation oracle; normal builds use the internal RTL medium.
@@ -297,17 +299,18 @@ module c64_machine #(
         .rows(keyboard_rows), .columns_low(pa1_low), .rows_low(key_rows)
     );
     wire [7:0] pb1_low = (cia1_ddrb & ~cia1_pb) | (~cia1_ddrb & key_rows) | {3'b000, joy1};
-    // The PAL power-supply TOD input is 50 Hz, independent of raster timing
+    // The power-supply TOD input is 50 Hz (PAL) or 60 Hz (NTSC), independent of raster timing
     // and CPU RDY stalls. Accumulating on the free-running Phi enable retains
     // fractional periods at non-integral CPU clock rates.
-    localparam integer TOD_PHASE_BITS = $clog2(CPU_CLOCK_HZ + `C64_PAL_TOD_HZ);
+    localparam integer TOD_HZ = NTSC ? `C64_NTSC_TOD_HZ : `C64_PAL_TOD_HZ;
+    localparam integer TOD_PHASE_BITS = $clog2(CPU_CLOCK_HZ + TOD_HZ);
     reg [TOD_PHASE_BITS-1:0] tod_phase;
     // The accumulator only moves on Phi. When an idle SYS edge always follows
     // Phi, the compare is registered between enables and the tick stays the
     // same pulse without the compare in the CIA alarm/interrupt paths.
     // Adjacent enables have no such edge: a wrap would leave the registered
     // compare high and the next Phi would emit a second tick.
-    wire tod_compare = tod_phase >= CPU_CLOCK_HZ - `C64_PAL_TOD_HZ;
+    wire tod_compare = tod_phase >= CPU_CLOCK_HZ - TOD_HZ;
     wire tod_tick;
     generate if (SYSTEM_CLOCK_HZ > 2 * CPU_CLOCK_HZ) begin : registered_tod
         reg tod_due = 1'b0;
@@ -320,8 +323,8 @@ module c64_machine #(
     always @(posedge clk_sys) begin
         if (system_reset) tod_phase <= 0;
         else if (cpu_ce)
-            tod_phase <= tod_tick ? TOD_PHASE_BITS'(tod_phase + `C64_PAL_TOD_HZ - CPU_CLOCK_HZ)
-                                 : TOD_PHASE_BITS'(tod_phase + `C64_PAL_TOD_HZ);
+            tod_phase <= tod_tick ? TOD_PHASE_BITS'(tod_phase + TOD_HZ - CPU_CLOCK_HZ)
+                                 : TOD_PHASE_BITS'(tod_phase + TOD_HZ);
     end
 
     c64_cia cia1 (
@@ -396,7 +399,7 @@ module c64_machine #(
     wire vic_irq;
     wire signed [15:0] sid_sample;
     wire [7:0] sid_dout;
-    c64_vic vic (
+    c64_vic #(.NTSC(NTSC)) vic (
         .clk_sys(clk_sys), .phi(cpu_ce), .pixel_clk(video_clk), .reset(system_reset),
         .cs(sel_vic), .we(bus_strobe && bus_we && sel_vic),
         .reading(!bus_we), .read_sample(bus_sample), .addr(bus_addr[5:0]),
@@ -419,14 +422,16 @@ module c64_machine #(
     // at Phi+10 and starts at Phi+11: the reSID chain completes 39 edges
     // later and the default filter sooner, so require at least 52 edges
     // between Phi edges so that result and idle state precede the next
-    // transaction. Native PAL cadence is 53/54 SYS edges. Faster modes keep
-    // direct audio.
+    // transaction. Native PAL cadence is 53/54 SYS edges. The NTSC 51/52-edge
+    // cadence also accommodates the default SVF, which finishes 28 edges
+    // after start (Phi+39). Keep the fallback for faster diagnostic clocks.
     c64_sid #(
         .PREPARE_PHASE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2),
         .PREPARE_ENVELOPE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2),
         .SEQUENCE_VOICES(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 31),
-        .FILTER_AUDIO(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 52),
-        .RESID_FILTER(1'b0)
+        .FILTER_AUDIO(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= (NTSC ? 51 : 52)),
+        .RESID_FILTER(1'b0),
+        .SID_8580(SID_8580)
     ) sid (
         .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_sid),
         .we(bus_strobe && bus_we && sel_sid), .addr(bus_addr[4:0]), .din(bus_wdata),

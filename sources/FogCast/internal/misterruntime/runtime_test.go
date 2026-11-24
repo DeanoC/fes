@@ -568,9 +568,9 @@ func TestNativeDevelopmentReconcilesLostResponseThroughStatusOnly(t *testing.T) 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	server := newLostResponseSocketServer(t, cancel,
-		`{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"generation":null,"inspected_package":null}`,
-		`{"protocol":2,"ok":true,"state":"starting","execution":"development","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"generation":null,"inspected_package":null}`,
-		`{"protocol":2,"ok":true,"state":"running_development","execution":"development","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"generation":1,"inspected_package":null}`,
+		`{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"runtime_instance":"123456789abcdef0123456789abcdef0","generation":null,"inspected_package":null}`,
+		`{"protocol":2,"ok":true,"state":"starting","execution":"development","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"runtime_instance":"123456789abcdef0123456789abcdef0","generation":null,"inspected_package":null}`,
+		`{"protocol":2,"ok":true,"state":"running_development","execution":"development","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"runtime_instance":"123456789abcdef0123456789abcdef0","generation":1,"inspected_package":null}`,
 	)
 	stagedPath := filepath.Join(t.TempDir(), "core.rbf")
 	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, 100*time.Millisecond,
@@ -590,8 +590,8 @@ func TestNativeDevelopmentLostResponseRetainedErrorIdleIsFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	server := newLostResponseSocketServer(t, cancel,
-		`{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"generation":null,"inspected_package":null}`,
-		`{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"io_failed","message":"private primary error","phase":"admission"},"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"generation":null,"inspected_package":null}`,
+		`{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"runtime_instance":"123456789abcdef0123456789abcdef0","generation":null,"inspected_package":null}`,
+		`{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"io_failed","message":"private primary error","phase":"admission"},"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"runtime_instance":"123456789abcdef0123456789abcdef0","generation":null,"inspected_package":null}`,
 	)
 	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, 50*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
@@ -960,13 +960,15 @@ func TestNativeOwnedDevelopmentStopsWhenProcessOwnerIsCanceled(t *testing.T) {
 }
 
 func TestNativeReconcileReconstructsDevelopmentWithoutReplay(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 	server := newLostResponseSocketServer(t, func() {},
-		`{"protocol":2,"ok":true,"state":"running_development","execution":"development","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"generation":1,"inspected_package":null}`,
+		`{"protocol":2,"ok":true,"state":"running_development","execution":"development","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"runtime_instance":"123456789abcdef0123456789abcdef0","generation":1,"inspected_package":null}`,
 	)
 	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, time.Second,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 
-	status := runtime.Reconcile(context.Background())
+	status := runtime.Reconcile(ctx)
 	operations := server.stop(t)
 	if status.State != protocol.StateActive || !status.Development || status.GameID != nil || status.System != nil || status.ExpectedCore != nil || status.ObservedCore != nil || status.LastError != nil {
 		t.Fatalf("reconciled status = %#v", status)
@@ -977,12 +979,14 @@ func TestNativeReconcileReconstructsDevelopmentWithoutReplay(t *testing.T) {
 }
 
 func TestNativeReconcileTreatsRuntimeRestartIdleAsIdleWithoutReplay(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 	server := newLostResponseSocketServer(t, func() {},
-		`{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"generation":null,"inspected_package":null}`,
+		`{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"runtime_instance":"123456789abcdef0123456789abcdef0","generation":null,"inspected_package":null}`,
 	)
 	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, time.Second,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
-	status := runtime.Reconcile(context.Background())
+	status := runtime.Reconcile(ctx)
 	operations := server.stop(t)
 	if status.State != protocol.StateIdle || status.Development || strings.Join(operations, ",") != "status" {
 		t.Fatalf("runtime-restart status = %#v, operations = %v", status, operations)
@@ -1139,7 +1143,7 @@ func TestRecoverIdleSurfacesIdleProgramFailure(t *testing.T) {
 
 func TestRecoverIdleMapsMissingOperationToUnsupported(t *testing.T) {
 	t.Parallel()
-	const caps = `"capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"generation":null,"inspected_package":null`
+	const caps = `"capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"runtime_instance":"123456789abcdef0123456789abcdef0","generation":null,"inspected_package":null`
 	for _, test := range []struct {
 		name string
 		body string

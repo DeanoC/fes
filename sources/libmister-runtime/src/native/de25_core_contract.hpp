@@ -76,7 +76,7 @@ struct De25StandardCore {
 	// The static profile adds the optional expansion bus to this machine.
 	const char* static_bus;
 	// The fes.computer minor the package declares: 1 for a 1.1 interface.
-	std::uint16_t abi_minor = 0;
+	std::uint16_t abi_minor;
 	// Whether the machine declares the shell's gamepad ports.
 	bool gamepad = true;
 	// Whether its memory is a window in HPS DDR (fes.fabric.de25-hps-window).
@@ -95,23 +95,23 @@ constexpr std::array<De25StandardInterface, 7> kDe25StandardShell = {{
 	{"fes.fabric.video.display-plane", 1, 0},
 	{"fes.fabric.de25-scanout", 1, 3},
 }};
-constexpr std::array<De25StandardCore, 8> kDe25StandardCores = {{
+constexpr std::array<De25StandardCore, 9> kDe25StandardCores = {{
 	{"fes.zx81",
 		{{{generated::FesComputerInterfaceMediaZx81TapeID, 1, 0},
 		  {generated::FesComputerInterfaceMediaZx81TapeWriteID, 1, 0}}},
-		{{0, 0}}, "fes.expansion.zx81-bus"},
+		{{0, 0}}, "fes.expansion.zx81-bus", 0},
 	{"fes.spectrum",
 		{{{generated::FesComputerInterfaceMediaSpectrumTapeID,
 			generated::FesComputerInterfaceMediaSpectrumTapeMajor,
 			generated::FesComputerInterfaceMediaSpectrumTapeMinor},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
-		{{16384, 32768}}, nullptr},
+		{{16384, 32768}}, nullptr, 0},
 	{"fes.spectrum128",
 		{{{generated::FesComputerInterfaceMediaSpectrumTapeID,
 			generated::FesComputerInterfaceMediaSpectrumTapeMajor,
 			generated::FesComputerInterfaceMediaSpectrumTapeMinor},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
-		{{32768, 0}}, nullptr},
+		{{32768, 0}}, nullptr, 0},
 	{"fes.spectrum-plus3",
 		{{{generated::FesComputerInterfaceMediaSpectrumTapeID,
 			generated::FesComputerInterfaceMediaSpectrumTapeMajor,
@@ -121,7 +121,7 @@ constexpr std::array<De25StandardCore, 8> kDe25StandardCores = {{
 			generated::FesComputerInterfaceMediaSpectrumDiskMinor},
 		  {"fes.media.spectrum-disk-plus3", 1, 0, false},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
-		{{65536, 0}}, nullptr},
+		{{65536, 0}}, nullptr, 0},
 	{"fes.pentagon",
 		{{{generated::FesComputerInterfaceMediaSpectrumTapeID,
 			generated::FesComputerInterfaceMediaSpectrumTapeMajor,
@@ -131,20 +131,27 @@ constexpr std::array<De25StandardCore, 8> kDe25StandardCores = {{
 			generated::FesComputerInterfaceMediaSpectrumDiskMinor},
 		  {"fes.media.spectrum-disk-trdos", 1, 0, false},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
-		{{49152, 0}}, nullptr},
+		{{49152, 0}}, nullptr, 0},
 	{"fes.atari-st",
 		{{{generated::FesComputerInterfaceMouseRelativeID, 1, 0},
 		  {generated::FesComputerInterfaceMediaAtariStFloppyID, 1, 0},
 		  {generated::FesComputerInterfaceMediaAtariStFloppyWriteID, 1, 0},
 		  {generated::FesComputerInterfaceMediaAtariStFloppyGeometryID, 1, 0},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
-		{{196608, 0}}, nullptr},
+		{{196608, 0}}, nullptr, 0},
 	// The PAL C64: BASIC, KERNAL, character and 1541 ROMs as one image; its
 	// read-only D64 holds nothing to save.
 	{"fes.c64",
 		{{{generated::FesComputerInterfaceMediaC64DiskID, 1, 0},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
-		{{36864, 0}}, nullptr},
+		{{36864, 0}}, nullptr, 0},
+	// The DE10 package's PC/XT: its floppy is a fes.computer 1.1 interface. Its
+	// image is the 64 KiB system ROM window and then the 4 KiB CGA font.
+	{"fes.pcxt-dos",
+		{{{generated::FesComputerInterfaceMediaPcxtFloppyID, 1, 0},
+		  {generated::FesComputerInterfaceMediaPcxtFloppyWriteID, 1, 0},
+		  {kFirmwareUploadInterfaceID, 1, 0}}},
+		{{69632, 0}}, nullptr, 1},
 	// The DE10 package's pc386 (fes.computer 1.1): a mouse and no gamepad,
 	// all memory in a window in HPS DDR, its BIOS linked in the netlist.
 	{"fes.pc386",

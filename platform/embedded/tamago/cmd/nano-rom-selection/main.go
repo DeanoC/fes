@@ -18,14 +18,21 @@ import (
 )
 
 const spectrum48Profile = "de25-native-spectrum48-v1"
+const c64Profile = "de25-native-c64-v1"
 
 func run(ctx context.Context, args []string, out io.Writer) error {
-	spectrum48 := len(args) > 0 && args[0] == "--spectrum48"
-	if spectrum48 {
+	var profile, core string
+	var size int64
+	if len(args) > 0 && args[0] == "--spectrum48" {
+		profile, core, size = spectrum48Profile, "fes.spectrum", 16384
+	} else if len(args) > 0 && args[0] == "--c64" {
+		profile, core, size = c64Profile, "fes.c64", 36864
+	}
+	if profile != "" {
 		args = args[1:]
 	}
 	if len(args) != 3 {
-		return errors.New("usage: nano-rom-selection [--spectrum48] PACKAGE_ARCHIVE FIRMWARE_ROM EXPECTED_PACKAGE_ID")
+		return errors.New("usage: nano-rom-selection [--spectrum48|--c64] PACKAGE_ARCHIVE FIRMWARE_ROM EXPECTED_PACKAGE_ID")
 	}
 	f, err := os.Open(args[0])
 	if err != nil {
@@ -47,11 +54,11 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		d.Target.Device != "A5EB013BB23BE4SCS" || d.ROM == nil || d.ROM.Role != "firmware" {
 		return errors.New("expected Nano format-3 firmware package required")
 	}
-	if spectrum48 {
-		if d.Target.ProgrammingProfile != spectrum48Profile || d.Core.ID != "fes.spectrum" ||
+	if profile != "" {
+		if d.Target.ProgrammingProfile != profile || d.Core.ID != core ||
 			d.ABI != (corepackage.Contract{ID: "fes.computer", Major: 1}) ||
-			d.ROM.SourceSize != 16384 || !corepackage.FirmwareUpload(d) {
-			return errors.New("expected native Spectrum 48K mailbox firmware package required")
+			d.ROM.SourceSize != size || !corepackage.FirmwareUpload(d) {
+			return errors.New("expected selected native mailbox firmware package")
 		}
 	} else if d.ROM.SourceSize != 4096 && d.ROM.SourceSize != 8192 {
 		return errors.New("expected Nano held-ROM package required")
@@ -73,10 +80,10 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if spectrum48 {
+	if profile != "" {
 		receipt := linked.Receipt().ROMLink
 		if receipt == nil || !receipt.ValidFor(d) || receipt.ProgrammedSHA256 != d.Payload.SHA256 {
-			return errors.New("Spectrum firmware linking changed the programmed payload")
+			return errors.New("mailbox firmware linking changed the programmed payload")
 		}
 	}
 	sum := sha256.Sum256(data)

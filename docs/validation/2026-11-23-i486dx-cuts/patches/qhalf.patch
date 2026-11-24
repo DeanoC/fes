@@ -1,0 +1,17 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_qalign.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_qalign.sv
+index 632734523..26db698d4 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_qalign.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_qalign.sv
+@@ -108,8 +108,10 @@ module fes_i386_qalign import fes_i386_pkg::*; (
+     // A prefix run that reaches a 16th byte before its opcode cannot fit in
+     // 15 bytes; issue it so D raises #GP(0) instead of consuming forever.
+     assign too_long_run = run_here && acc_count >= 4'd13;
+-    assign issue = !redirect && ok[start] && (!run_here || too_long_run) && out_free;
+-    assign consume = !redirect && ok[start] && run_here && !too_long_run;
++    logic thr;  // ABLATION qhalf: at most one Q advance per two clocks (CPI bound only)
++    always_ff @(posedge clk) thr <= reset || redirect ? 1'b1 : !(issue || consume);
++    assign issue = !redirect && thr && ok[start] && (!run_here || too_long_run) && out_free;
++    assign consume = !redirect && thr && ok[start] && run_here && !too_long_run;
+     assign advance = issue || consume;
+     // A taken jump: jt at the start, which a prefix being consumed never takes.
+     logic jt_here, jx_here, jm_here, taken, back;

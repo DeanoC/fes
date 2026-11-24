@@ -8,20 +8,45 @@ its separate VirtIO NIC. No Linux driver or userspace is linked into the image.
 The first profile supports one DMA channel, static IPv4, Ethernet MTU 1500,
 and a firmware-negotiated **1000BASE-T full-duplex** RGMII link. It performs
 bounded Clause-22 MDIO reads, verifies the exact PHY ID and negotiated gigabit
-capabilities, and polls link health. It deliberately rejects incomplete
-negotiation, half duplex and 10/100 links. Firmware still owns PHY reset,
+capabilities, and polls link health. By default it rejects incomplete
+negotiation, half duplex and 10/100 links and fails closed on link loss.
+Callers may explicitly opt into `Config.Allow100Full` (admitting negotiated
+**100BASE-TX full-duplex** via `XGMAC_CONFIG_SS_100_MII` alongside optional
+`Config.OnSpeedChange` platform clock adjustment; half duplex and 10 Mbps
+remain rejected) and `Config.RecoverLinkLoss` (treating transient PHY carrier
+loss or ongoing autonegotiation as a non-fatal link-down state that drops
+outbound frames and recovers automatically on link-up without poisoning DMA
+memory, while DMA, engine-stop, and MDIO/PHY hardware faults still fail closed).
+A `BindControl` pause is no link change: `LinkStatus` reads down from `Stop` until
+`Start` re-probes the PHY, and `Start` reports the re-probed link through
+`Config.OnLinkChange` and `LinkCounters` when it differs from the link before
+`Stop`. A recovery counts only the return of a lost link, so `Recoveries` never
+exceeds `Flaps`.
+Firmware still owns PHY reset,
 autonegotiation setup, RGMII routing/delays, 125 MHz reference, MAC CSR clocks,
 reset/firewalls and SMMU configuration. There is no PHY scan or guessed address.
 
 Four 16-byte TX and RX descriptors and private 1600-byte buffers live in an
-explicit, permanently reserved Normal noncacheable DMA window outside Go RAM.
-The driver copies TX bytes into that window, publishes descriptors with ARM
-barriers, and reuses a TX slot only after completion. RX bytes reach the caller
-only after ownership returns and bounds/errors are checked; valid retired slots
-are reposted. No hardware DMA points at a Go heap object. Interrupts, jumbo
-frames, checksum/segmentation offloads, promiscuous receive and pause negotiation
-are disabled. RX CRC/length errors drop; unexpected descriptor contexts/fragments,
-fatal DMA status, stopped engines, link loss and TX timeouts retire the device.
+explicit, permanently reserved Normal noncacheable DMA window outside Go RAM
+(wrapped via `NewPoolMemory` over an uncached [`dmaops.Pool`](../dmaops/README.md)
+on DE25-Nano). The driver copies TX bytes into that window, publishes descriptors
+with ARM barriers, and reuses a TX slot only after completion. RX bytes reach the
+caller only after ownership returns and bounds/errors are checked; valid retired
+slots are reposted. No hardware DMA points at a Go heap object. Jumbo frames,
+checksum/segmentation offloads, promiscuous receive and pause negotiation are
+disabled. RX CRC/length errors drop; unexpected descriptor contexts/fragments,
+fatal DMA status, stopped engines, link loss and TX timeouts retire the device
+and poison the underlying `dmaops.Buffer`.
+
+When `Config.IRQ` names a GICv3 SPI (for example `de25nano.IRQEMAC0/1/2` via
+`de25nano.EMACIRQ`), posted RX descriptors set `RDES3.IOC` and `EnableIRQ(g)`
+routes DMA Channel 0 `NIE|RIE` interrupts to wake `network.Link.Start` via
+`RXReady()` instead of spinning. The level-triggered handler immediately masks
+`channelInterrupt = 0` and clears only `RI|NIS`, and `Receive` re-arms `NIE|RIE`
+with a descriptor re-check once the ring drains. `BindControl.Stop` suspends the
+GIC SPI before `platform.Stop` (guaranteeing zero MMIO from the handler while
+contained) and `BindControl.Start` restores it after reinitialization. Default
+`Config.IRQ == 0` retains polling-only behavior.
 
 Failure stops new MAC/DMA activity as a best effort, but clearing start bits is
 **not** a DMA fence. The entire window remains pinned until reboot, even when

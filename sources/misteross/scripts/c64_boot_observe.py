@@ -12,6 +12,9 @@ import tempfile
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--ntsc', action='store_true', help='use the standard 6567R8 NTSC boot simulator')
+    parser.add_argument('--sid-model', choices=('6581', '8580'), default='6581',
+                        help='SID revision in the boot simulator (default: 6581)')
     parser.add_argument('--medium-oracle', action='store_true', help='use the independent C++ rotating-medium oracle instead of production RTL medium')
     parser.add_argument('--drive-rom', type=Path, required=True)
     parser.add_argument('--late-video', action='store_true', help='capture only the final HDMI frames; guest clocks continue normally')
@@ -109,6 +112,11 @@ def main():
                         'sha256': hashlib.sha256(blob).hexdigest()}
     module = Path(__file__).resolve().parents[1]
     build_name = 'fes-c64-boot-oracle' if args.medium_oracle else 'fes-c64-boot'
+    if args.ntsc:
+        build_name += '-ntsc'
+    if args.sid_model == '8580':
+        build_name += '-8580'
+    cpu_clock_hz = 1022730 if args.ntsc else 985248
     binary = module / f'build/sim/{build_name}/Vc64_boot_sim_top'
     if not binary.is_file():
         parser.error(f'run make sim-{build_name}-build first')
@@ -235,7 +243,8 @@ def main():
         (output / 'keyboard.txt').write_text(''.join(f'{cycle} {usage} {down}\n'
             for cycle, usage, down in key_events))
     command = [str(binary), f'+C64_FIRMWARE_HEX={output / "firmware.hex"}',
-               f'+C64_DISK_HEX={output / "disk.hex"}', f'+C64_SYS_CYCLES={args.cycles}']
+               f'+C64_DISK_HEX={output / "disk.hex"}', f'+C64_SYS_CYCLES={args.cycles}',
+               f'+C64_EXPECT_CPU_HZ={cpu_clock_hz}', f'+C64_EXPECT_SID={args.sid_model}']
     if args.medium_oracle:
         command.append(f'+C64_G64_PATH={output / "disk.g64"}')
     if args.prg_fixture:
@@ -341,7 +350,7 @@ def main():
                'checkout_diff_sha256_at_start': hashlib.sha256(source_diff).hexdigest(),
                'firmware_topology':'36KiB shared firmware image; independent one-clock drive ROM port','medium_implementation':'independent C++ RotatingDisk oracle' if args.medium_oracle else 'RTL c64_d64_medium plus c64_disk_store; host uploads D64 bytes only', 'evidence': 'host-only PRG-fixture observation; not native LOAD' if args.prg_fixture else 'host-only observation', 'initialization':'prg-fixture' if args.prg_fixture else 'cold-boot', 'simulated_seconds': args.cycles / 52224000,
                'system_clock_hz': 52224000, 'pixel_clock_hz': 74250000,
-               'cpu_clock_hz': 985248, 'inputs': inputs, 'outputs': outputs,
+               'cpu_clock_hz': cpu_clock_hz, 'sid_model': args.sid_model, 'inputs': inputs, 'outputs': outputs,
                'simulator_sha256': simulator_sha256,
                'typed_command': args.type_command, 'followup_command': args.then_command,
                'followup_cycle': args.then_at_cycles if args.then_command else None, 'key_event_count': key_event_count, 'key_events':all_key_events, 'appended_key_events':added_key_events,

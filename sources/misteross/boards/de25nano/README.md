@@ -45,6 +45,12 @@ findings (`scanout/machine_findings.py`). It packages a format-2 candidate
 ([record](../../../../docs/validation/2026-11-20-de25-pc386-shell-s3/signoff.md))
 that has not run on hardware.
 
+The [standard PC/XT](pcxt/README.md) is the DE10 DOS machine on the same
+shell with the DE10's own clocks: the shared machine builder takes its 100 MHz
+PLL and SDRAM phases from the machine's spec. Its producer is
+`producers/build_pcxt_package.py`; GLaBIOS's window and the CGA font are
+uploaded at launch.
+
 DE25-only menu and ZX81 adaptations live under `shared-rtl/`; the DE10 core
 sources remain byte-identical to `origin/main`. The three HDMI board shells
 register D/DE/HS/VS at the pixel clock and constrain the ADV7513's documented

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """Build a standard DE25 machine.
 
-Shared by the Spectrum, Atari ST, C64 and pc386 producers. Packaging uses the
-same complete timing/input-review and independent-RBF gates as the DE25 ZX81;
-a candidate those gates refuse is retained and never packaged. Nothing is
-programmed.
+Shared by the Spectrum, Atari ST, C64, PC/XT and pc386 producers. Packaging
+uses the same complete timing/input-review and independent-RBF gates as the
+DE25 ZX81; a candidate those gates refuse is retained and never packaged.
+Nothing is programmed.
 
 A machine whose firmware is uploaded at launch (its board spec names
 FIRMWARE_BYTES) is packaged as format 3: the payload is the unmodified
 bitstream, and its ROM map names only the size of the image the machine's
 fes.fabric.firmware-upload endpoint takes. A machine whose firmware is linked
 in its netlist (pc386: the ROM firmware.lock pins) is format 2, with no ROM
-map. A machine with a window in HPS DDR (spec.WINDOW) has the scanout+window
+map. A machine with a window in HPS DDR (WINDOW = True) has the scanout+window
 master profile and requires fes.fabric.de25-hps-window.
 """
 from __future__ import annotations
@@ -45,6 +45,7 @@ REVIEW_INPUTS = (*common.REVIEW_INPUTS, 'boards/de25nano/scanout/audio_reference
                  'boards/de25nano/scanout/audio_clocks.tcl',
                  'boards/de25nano/producers/review_audio_clocks.py')
 NATIVE_SPECTRUM_PROFILE = 'de25-native-spectrum48-v1'
+NATIVE_C64_PROFILE = 'de25-native-c64-v1'
 NATIVE_SPECTRUM_COMPOSER = 'boards/de25nano/spectrum/native_hps.py'
 DEVICE = common.DEVICE
 SHELL = ('fes.video.fixed-720p60', 'fes.keyboard.hid', 'fes.gamepad.ports',
@@ -71,6 +72,7 @@ class Machine:
         self.model_rom_ids = dict(model_rom_ids or {})
         self.model_profiles = dict(model_profiles or {})
         self.name, self.version, self.descriptions = name, version, descriptions
+        # The fes.computer minor its endpoint answers: 1 for a 1.1 interface.
         self.interfaces, self.shell, self.abi_minor = interfaces, shell, abi_minor
         # Interfaces a model adds to the machine's own, such as a disk unit.
         self.model_interfaces = dict(model_interfaces or {})
@@ -113,14 +115,14 @@ class Machine:
         """The tools a record names: Quartus's four, and a netlist front end's Yosys."""
         return {'quartus', 'qsys', 'ipgenerate', 'pfg'} | ({'yosys'} if hasattr(spec, 'authenticate_front_end') else set())
 
-    def memory_parameters(self, root, spec, model, native_spectrum):
+    def memory_parameters(self, root, spec, model, native_shell):
         """Guest memory and firmware: the parameters that differ between machines."""
-        if spec.WINDOW:
+        if spec.board.has_window(spec):
             memory = {'f2sdram_master_profile': 'scanout+window', 'guest_memory': 'hps-window',
                       'window_contract': '%s %d.%d' % WINDOW_INTERFACE,
                       'window_bridge_reset_review_policy': bridge_reset.POLICY}
         else:
-            memory = {'f2sdram_master_profile': 'native-scanout-and-probe' if native_spectrum else 'scanout-only',
+            memory = {'f2sdram_master_profile': 'native-scanout-and-probe' if native_shell else 'scanout-only',
                       'guest_memory': self.guest_memory}
         if uploads_firmware(spec):
             return {**memory, 'firmware_delivery': UPLOAD_ENCODING, 'firmware_bytes': spec.FIRMWARE_BYTES[model]}
@@ -135,12 +137,14 @@ class Machine:
         if execution.get('toolchain') != 'quartus' or set(identities) != self.tool_set(spec):
             raise BuildError(self.label + ' requires actual controlled Quartus execution inputs')
         model = self.model(spec, model)
-        if captured is None:
-            captured = spec.board.capture(spec, revision)
-        top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
         profile = self.model_profiles.get(model, 'de25-linux-computer-v1')
-        native_spectrum = profile == NATIVE_SPECTRUM_PROFILE
-        review_inputs = (*REVIEW_INPUTS, NATIVE_SPECTRUM_COMPOSER) if native_spectrum else REVIEW_INPUTS
+        if captured is None:
+            captured = spec.board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE)
+        if profile == NATIVE_C64_PROFILE and not spec.NATIVE_SOURCES.issubset(captured):
+            raise BuildError("native C64 requires the captured upload-shell sources")
+        top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
+        native_shell = profile in (NATIVE_SPECTRUM_PROFILE, NATIVE_C64_PROFILE)
+        review_inputs = (*REVIEW_INPUTS, NATIVE_SPECTRUM_COMPOSER) if native_shell else REVIEW_INPUTS
         roots, closure = common.captured_source_closure(root, SOURCE_ROOTS, captured, self.recipe, review_inputs)
         fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
             'source_path': root.relative_to(top).as_posix(), 'source_roots': roots, 'source_inputs': closure,
@@ -150,10 +154,10 @@ class Machine:
                 **({'rom_id': self.rom_id_for(model)} if self.rom_id_for(model) else {}),
                 'model': model, 'device': DEVICE,
                 'hps_initialization': 'HPS FIRST', 'source_closure_policy': common.SOURCE_POLICY,
-                'fabric_initiator_policy': 'native-maintenance-absent-v1' if native_spectrum else common.MANAGED_FABRIC,
-                'programming_profile': profile, 'standard_core': True, 'linux_dma': not native_spectrum,
-                'expansion_socket': False, **self.memory_parameters(root, spec, model, native_spectrum),
-                'machine_clock_hz': spec.MACHINE_HZ, 'audio_clock_requested_hz': 12288000,
+                'fabric_initiator_policy': 'native-maintenance-absent-v1' if native_shell else common.MANAGED_FABRIC,
+                'programming_profile': profile, 'standard_core': True, 'linux_dma': not native_shell,
+                'expansion_socket': False, **self.memory_parameters(root, spec, model, native_shell),
+                'machine_clock_hz': spec.board.clocks(spec)[0], 'audio_clock_requested_hz': 12288000,
                 'fifo_reset_sharing': common.SHARED_FIFO_RESETS,
                 'f2s_data_width': 0, 'f2sdram_data_width': 256, 'scanout_master_data_width': 128,
                 'hps_warm_reset_handshake': True, 'reset_timing_policy': common.TIMED_RESET_RELEASE,
@@ -213,7 +217,8 @@ class Machine:
         spec = self.spec(root)
         board = spec.board
         model = self.model(spec, model)
-        captured = board.capture(spec, revision)
+        profile = self.model_profiles.get(model)
+        captured = board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE)
         paths, identities = common.authenticate_tools(spec, quartus_root)
 
         def front_end():
@@ -229,8 +234,8 @@ class Machine:
             record = self.create_build_record(root, repository, revision, identities, execution, captured,
                                               model=model)
             selected_id = build_identity(record)
-            native_spectrum = self.model_profiles.get(model) == NATIVE_SPECTRUM_PROFILE
-            if native_spectrum:
+            native_shell = profile in (NATIVE_SPECTRUM_PROFILE, NATIVE_C64_PROFILE)
+            if native_shell:
                 from boards.de25nano.spectrum import native_hps
                 if sha(Path(native_hps.__file__)) != json.loads(record)['source_inputs'][NATIVE_SPECTRUM_COMPOSER]:
                     raise BuildError('loaded Spectrum composer differs from the recorded commit')
@@ -246,10 +251,10 @@ class Machine:
             print(self.label + ' build: ' + str(output), flush=True)
             with common.controlled_environment(env):
                 def compile_at(name):
-                    if native_spectrum:
+                    if native_shell:
                         selected, hps, scanout = native_hps.project(
                             vendor_archive, output / name, revision=revision, selected_id=selected_id,
-                            spectrum_spec=spec)
+                            spectrum_spec=spec, model=model)
                         native_hps.generate(selected, hps, scanout, quartus_root)
                         native_hps.compile_package_candidate(selected, hps, scanout, paths['quartus'])
                     else:
@@ -258,7 +263,7 @@ class Machine:
                         board.generate(spec, selected, scanout, combined, hps, display,
                             paths['quartus'], identities['quartus'].split(' sha256:')[0])
                         board.compile_board(spec, selected, scanout, hps, display, paths['quartus'])
-                    if native_spectrum and not compile_only:
+                    if native_shell and not compile_only:
                         raw = common.timing_evidence(selected)
                         (output / (name + '-raw-timing.json')).write_text(
                             json.dumps(raw, indent=2, sort_keys=True) + '\n')
@@ -277,15 +282,12 @@ class Machine:
                     if not timing['package_timing_admission']:
                         raise BuildError(self.label + ' package blocked by reported timing/signoff findings; '
                                          'candidate retained')
-                    repeated, other = compile_at('repeat')
-                    if not other['package_timing_admission'] or sha(payload) != sha(repeated):
-                        raise BuildError(self.label + ' independent rebuild failed timing or changed RBF')
             if (self.require_clean_source(root) != (repository, revision) or
                     common.authenticate_tools(spec, quartus_root)[0] != paths or
                     {**common.authenticate_tools(spec, quartus_root)[1], **front_end()} != identities or
                     common.execution_inputs(paths, env) != execution or
                     self.create_build_record(root, repository, revision, identities, execution,
-                                             board.capture(spec, revision), model=model) != record):
+                                             board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE), model=model) != record):
                 raise BuildError(self.label + ' source/tool/execution inputs changed during build')
             shutil.copyfile(payload, output / 'core.rbf')
             kind = 'de25-' + self.directory

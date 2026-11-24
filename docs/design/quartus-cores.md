@@ -3,15 +3,18 @@
 Status: accepted policy (issue #1163, Deano, 27 October 2026), including the
 15% threshold under [What "significantly" means](#what-significantly-means).
 Registered recipes support a single OSS or Quartus producer for each core ID
-and board. PC/XT selects its sole Quartus DOS producer, and the DE10 ZX81
-family selects its Quartus Lite package producer under Deano's 15 November 2026
-decision to use Quartus wherever nextpnr timing closure is hard (DeanoC/fes#1873);
-its nextpnr table stays advisory in `config/advisory-pnr-recipes.toml`. Explicit DE25 MENU
-selection uses Quartus Pro through the same package resolver. General
-same-board dual-variant catalog selection and `FES_OSS_ONLY` are not
-implemented. The remaining [rollout](#rollout) describes that broader policy.
-`AGENTS.md` (Toolchains) makes Quartus primary for DE25, pc386, PC/XT and the ZX81 family; the
-"oracle" wording below predates that ([RTL front-end lanes](rtl-frontend-lanes.md), S6a).
+and board. On DE10-Nano, PC/XT (`fes.pcxt-dos`) and `fes.pc386` select their
+Quartus Lite (Yosys front-end) producers, and the ZX81 family selects its
+Quartus Lite package producer under Deano's 15 November 2026 decision to use
+Quartus wherever nextpnr timing closure is hard (DeanoC/fes#1873); its nextpnr
+table stays advisory in `config/advisory-pnr-recipes.toml`. On DE25-Nano,
+explicit selection uses Quartus Pro 26.3 for six registered recipes (`fes.menu`,
+`fes.zx81`, `fes.spectrum`, `fes.atari-st`, `fes.c64`, `fes.pcxt-dos`) through
+the same package resolver. General same-board dual-variant catalog selection
+and `FES_OSS_ONLY` are not implemented. The remaining [rollout](#rollout)
+describes that broader policy. `AGENTS.md` (Toolchains) makes Quartus primary
+for DE25, pc386, PC/XT and the ZX81 family; the "oracle" wording below predates
+that ([RTL front-end lanes](rtl-frontend-lanes.md), S6a).
 
 ## Decision
 
@@ -52,11 +55,11 @@ updated together with the acceptance of the design:
 
 | Where | Was | Now |
 | --- | --- | --- |
-| `docs/core-alignment.md`, standard 1 | The active producers use HIP/nextpnr; Quartus is an oracle where named. | The accepted policy permits labelled Quartus product variants. The current registry selects Quartus for the PC/XT DOS row and the four DE10 ZX81-family rows (`fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, Quartus Lite, nextpnr advisory) and OSS for every other core; this status is explicit. |
-| `docs/core-status.md` | The product path uses HIP/nextpnr; Quartus is an oracle, not a product path. | Quartus variants are allowed by policy; the registered recipes and package selection use Quartus for the PC/XT DOS row and the four ZX81-family rows, and HIP/nextpnr for every other core. |
+| `docs/core-alignment.md`, standard 1 | The active producers use HIP/nextpnr; Quartus is an oracle where named. | The accepted policy permits labelled Quartus product variants. On DE10, the registry selects Quartus Lite for the PC/XT DOS row, `fes.pc386`, and the four ZX81-family rows (`fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, nextpnr advisory), and OSS for every other core; on DE25, it selects Quartus Pro 26.3 for its six registered recipes. |
+| `docs/core-status.md` | The product path uses HIP/nextpnr; Quartus is an oracle, not a product path. | Quartus variants are allowed by policy; on DE10, registered recipes select Quartus Lite for PC/XT DOS, `fes.pc386` and the four ZX81-family rows, and HIP/nextpnr for every other core; on DE25, registered recipes select Quartus Pro 26.3. |
 | `docs/core-alignment.md`, Rule | Quartus is described as an oracle or a separate mechanism. | A Quartus build can be a labelled toolchain variant of the same logical core; it is never an automatic fallback. |
-| `README.md`, the HIP/nextpnr sentences | Quartus is a build-time oracle. | OSS is the default; the ZX81 family and PC/XT select their registered Quartus producers, and choosing between OSS and Quartus variants of one core is still pending. |
-| `docs/core-packages.md`, `docs/core-development.md`, `docs/bootable-media.md`, `docs/component-boundaries.md`, `docs/development.md`, `docs/getting-started.md` | Some wording could imply that variant selection or `FES_OSS_ONLY` already exists. | State the accepted policy, that the resolver runs each core's one registered producer (Quartus for the ZX81 family and PC/XT, HIP/nextpnr otherwise), and the pending variant-selection steps. Never silently fall back. |
+| `README.md`, the HIP/nextpnr sentences | Quartus is a build-time oracle. | OSS is the default on DE10; the ZX81 family, PC/XT and `fes.pc386` select their registered Quartus Lite producers, DE25 selects Quartus Pro 26.3, and choosing between OSS and Quartus variants of one core is still pending. |
+| `docs/core-packages.md`, `docs/core-development.md`, `docs/bootable-media.md`, `docs/component-boundaries.md`, `docs/development.md`, `docs/getting-started.md` | Some wording could imply that variant selection or `FES_OSS_ONLY` already exists. | State the accepted policy, that the resolver runs each core's one registered producer (DE10 Quartus Lite for the ZX81 family, PC/XT and `fes.pc386`; DE25 Quartus Pro 26.3; HIP/nextpnr otherwise), and the pending variant-selection steps. Never silently fall back. |
 | `config/core-recipes.toml` `quartus_role` | Free text such as "bring-up/check oracle". | Stays for cores that remain oracle-only. A core with a Quartus product variant gets a declared toolchain entry (see below). |
 
 What does not change: **a failed OSS route never falls back to Quartus.** A
@@ -316,7 +319,7 @@ closes timing moves the lock forward, and the seal and timing checks still apply
 
 CI cannot assume a Quartus-ready host.
 
-- `scripts/ci_verilator.sh` installs the pinned Verilator 5.032 compiler used
+- `scripts/ci_verilator.sh` installs the pinned Verilator 5.054 compiler used
   by simulation checks; it does not run simulation or lint.
 - Quartus jobs run only on a pinned host authorized for their edition and
   device. Quartus Lite 17.0.2 needs no license; Pro runner authorization and
@@ -447,8 +450,9 @@ Each step is one scope, one PR.
 
 ## Open questions
 
-1. **Version and lock pinning** for Quartus: per-core or shared lock, and what
-   identifies an install (version, build number, installer digest).
+1. **Version and lock pinning** (resolved by #1581 S6a/S6b; see [Pinning](#pinning)):
+   per-core `quartus.lock` (and `boards/de25nano/quartus.lock` for DE25) pins
+   edition, exact `--version`, device family and `quartus_sh` SHA-256.
 2. **CI without the required edition/device entitlement:** skip and require an
    authorized Quartus run, or accept cached sealed packages only.
 3. **DE25-Nano:** Quartus Pro front end and whether the Yosys-elaborated

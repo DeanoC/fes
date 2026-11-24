@@ -68,7 +68,7 @@ func TestUSBContextRejectsMalformedUnsupportedAndLostReplies(t *testing.T) {
 	if err := json.Unmarshal(raw, &original); err != nil {
 		t.Fatal(err)
 	}
-	for field, value := range map[string]any{"abi": "other", "abi_major": 2, "abi_minor": 1, "control_abi": 0x10203042, "core_id": "fes.other", "programming_profile": HPSFirstWindowDiagnosticProfile} {
+	for field, value := range map[string]any{"abi": "other", "abi_major": 2, "abi_minor": 1, "control_abi": 0x10203042, "core_id": "fes.other", "programming_profile": "de25-embedded-hps-first-window-diagnostic-v1"} {
 		changed := make(map[string]any)
 		for k, v := range original {
 			changed[k] = v

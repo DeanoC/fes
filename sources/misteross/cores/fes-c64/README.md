@@ -32,8 +32,18 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
 
 ## Machine
 
+The DE10 library offers two C64 packages. Existing C64 titles use `fes.c64`
+(PAL 6569). Select `fes.c64-ntsc` for the standard NTSC 6567R8. Its producer
+sets `NTSC=1` on the board top. Both models use the MOS6581, 6526 CIAs,
+independently clocked 1541 and the same 36 KiB firmware layout. Each title
+binds firmware and disks to its selected package. A development build can select
+the MOS8580 independently of the video region (see “MOS8580 development builds” below).
+The reference schedules are the VICE [C64 clocks](https://github.com/VICE-Team/svn-mirror/blob/08b38de806e309b7f0a2a27043c896cf7c259061/vice/src/c64/c64.h)
+and [VIC-II cycle tables](https://github.com/VICE-Team/svn-mirror/blob/08b38de806e309b7f0a2a27043c896cf7c259061/vice/src/viciisc/vicii-chip-model.c).
+
 - 6510 is the shared NMOS 6502 plus the processor port at `$00`/`$01`. Phi2 is
-  a fractional 0.985248 MHz PAL enable of the 52.224 MHz system clock.
+  a fractional enable of the 52.224 MHz system clock, 0.985248 MHz for PAL or
+  1.022730 MHz for NTSC.
 - 64 KiB RAM. Standard banking, plus 8 KiB, 16 KiB and Ultimax cartridge maps
   from `/EXROM` and `/GAME`.
 - 36 KiB linked firmware: BASIC at bytes 0..8191, KERNAL at 8192..16383,
@@ -43,10 +53,10 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   registered CPU/VIC ports. All writes are disabled. CPU reads take two
   system clocks; VIC and independent drive reads take one.
 - VIC-II monochrome/multicolor text and bitmap modes, plus extended-color
-  text addressing. Matrix/color reads occur on native PAL badlines and glyph
+  text addressing. Matrix/color reads occur on native badlines and glyph
   reads on each native display line. VC, VCBASE, RC and the matrix line follow
   native cycles, so late DMA, FLI, FLD and linecrunch affect the fetched data.
-  Sprite pointer and three-byte reads occupy their PAL bus slots. Sprite DMA,
+  Sprite pointer and three-byte reads occupy their region-specific bus slots. Sprite DMA,
   display, MC/MCBASE and expansion-flop state include cycle-15 crunch behavior.
   Matrix and sprite BA warn the CPU three cycles before bus ownership. CPU reads stall;
   pending writes complete. Native raster, CIA, SID and drive clocks keep running.
@@ -61,7 +71,8 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   socket responses are each registered one further system edge; every
   consumer samples them at edge 26 or later, so the bus-level timing is
   unchanged and those paths stay out of the device read mux.
-  Three indexed-color buffers retain complete 384×272 PAL frames, including borders for HDMI.
+  Three indexed-color buffers retain complete 384×272 PAL or 384×247 NTSC
+  frames, including borders for HDMI.
   Each buffer uses 51 explicit 2048×5 M10Ks, with a mailbox handoff across the
   system and HDMI clocks. Only complete frames reach the reader; an unconsumed
   publication keeps both the reader's buffer and queued frame protected.
@@ -73,10 +84,14 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   D022-D024 and sprite-color write latencies remain unqualified.
   Nine-bit raster compare uses `$D011` bit 7 and `$D012`; `$D019` latches
   events and acknowledges written ones, while `$D01A` masks the CPU IRQ.
-  The PAL beam has 63 Phi2 cycles per line and 312 lines per frame.
-  [Native PAL timing](rtl/c64_pal_timing.vh) defines the machine clocks,
+  The PAL beam has 63 Phi2 cycles per line and 312 lines per frame. The
+  6567R8 has 65 cycles per line and 263 lines per frame. Across its frame
+  wrap, guest reads of `$D011`/`$D012` still report raster 262 on cycle 1
+  and report zero on cycle 2.
+  [Native machine timing](rtl/c64_timing.vh) defines the machine clocks,
   raster geometry, border and capture windows, and DMA slots. VIC cycles
-  are one-based: sprite 2 finishes on cycle 63 and sprite 3 starts on cycle 1.
+  are one-based. On PAL, sprite 2 finishes on cycle 63 and sprite 3 starts
+  on cycle 1. On NTSC, sprite 3 starts on cycle 65 and finishes on cycle 1.
   Events occur once per line; writes can match the current line, and automatic
   line-zero comparison waits one Phi2 after frame wrap.
   Eight sprite shift pipelines compose mono/multicolor pixels, independent X/Y
@@ -123,8 +138,8 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   so CNT edge modes do not count and the gated timer A mode can count.
   The old MOS 6526 count-enable, force-load, one-shot and interrupt pipelines
   preserve delayed starts, pending counts after STOP and separate ICR flags,
-  bit 7 and interrupt-pin timing. Both CIAs receive a shared PAL 50 Hz
-  power-supply input for TOD, independent of CPU stalls and raster timing.
+  bit 7 and interrupt-pin timing. Both CIAs receive a shared
+  power-supply input (50 Hz PAL, 60 Hz NTSC) for TOD, independent of CPU stalls and raster timing.
   CRA bit 7 selects five/six-pulse division; the BCD clock supports AM/PM,
   hour-read latching, tenth-read release, hour-write stop, tenth-write restart
   and CRB-selected alarm writes with ICR bit 2. Serial shift, FLAG input and
@@ -135,9 +150,15 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   frames without resetting the CPU or changing media. Closing or faulting the
   plane returns the running machine picture. The package requires the display,
   DDR and display-plane interfaces; software alone cannot add them to older RBFs.
-- HDMI 720p60. The 384×272 PAL view is scaled into a centered 960×720
-  viewport using rational nearest-neighbor sampling; side pillars are black.
-  The fixed RGB lookup uses Philip Timmermann's
+- HDMI 720p60. Both video standards scale into the centered 960×720 viewport
+  with nearest-neighbor sampling and black side pillars. The 6567R8 captures
+  384×247 native dots, using rasters 28–262 followed by 0–11 in the same frame.
+  Publication at line 12 keeps the lower border attached to its original frame.
+  This matches the [VICE normal NTSC border geometry](https://github.com/VICE-Team/svn-mirror/blob/main/vice/src/viciisc/vicii-timing.h).
+  NTSC RGB uses the [Pepto Sony decoder palette](https://github.com/VICE-Team/svn-mirror/blob/main/vice/data/C64/pepto-ntsc-sony.vpl).
+  `make sim-fes-c64-ntsc-display` checks all sixteen colors and every active
+  HDMI pixel against tagged native frames across the raster wrap.
+  The fixed PAL RGB lookup uses Philip Timmermann's
   [Colodore PAL calculation](https://www.pepto.de/projects/colorvic/) (February
   2017), common VIC-II luma revision, brightness/contrast/saturation 50/100/50
   and PAL 2.8 to display 2.2 gamma. The graphics-mode simulation checks all 16
@@ -343,8 +364,12 @@ The fractional PAL enable is predicted one system tick ahead into a register,
 with the same pulse sequence and startup phase. This removes the phase adder
 from the CPU's RDY timing path. `make sim-fes-c64-clock` compares the actual
 motherboard enable against an independent fractional reference on every tick
-for a full PAL second, including alternate parameter cases with adjacent
-pulses. Rates at or above half the system clock retain the original direct enable.
+for one simulated second, including alternate parameter cases with adjacent
+pulses. The NTSC case checks every Phi and TOD pulse, the guest bus phase,
+filtered SID completions and the independent 1 MHz drive clock. Rates at or
+above half the system clock retain the original direct enable.
+`make sim-fes-c64-ntsc-timing` checks raster IRQ, matrix and sprite DMA, BA
+and beam X against the 6567R8 schedule.
 
 `make sim-fes-c64-sprite-pal` checks 100,800 dots against offline output
 from unchanged VICE 3.10 `draw_sprites8`, using its PAL cycle table and
@@ -423,8 +448,11 @@ an exact 16 KiB 1541 ROM and a 174,848-byte D64. The script retains input hashes
 HDMI frame, a screen-code dump and the last 64 CPU bus cycles. The default
 observation covers three simulated machine seconds; `--cycles` sets a longer
 startup budget or a shorter trace (0.02 to 1800 seconds). The actual
-52.224/74.25 MHz system/pixel ratio is used; CPU cadence remains the current
-0.985248 MHz PAL. By default no keyboard command is sent. `--type-command` schedules native
+system and pixel clocks run at 52.224 and 74.25 MHz. The default guest
+CPU clock is 0.985248 MHz (PAL). For standard NTSC use
+`make sim-fes-c64-boot-ntsc-build` and pass `--ntsc` to the observer. The
+RTL medium and oracle builds have separate binaries for each model.
+By default no keyboard command is sent. `--type-command` schedules native
 C64 text through HID key states after three seconds, holding each key for 50 ms
 then releasing it for 50 ms. Include a carriage return and a sufficient `--cycles`
 budget to execute a LOAD command. No keyboard-buffer or CPU-memory injection is
@@ -909,6 +937,49 @@ all later samples, including warm-reset retention, are compared. Other bus
 registers retain this core's zero-read contract, not SID floating-bus behavior.
 Other chip models/bias, paddles, bus decay, physical audio and current-package
 timing/hardware acceptance stay open.
+
+### MOS8580 development builds
+
+The DE10 board parameter `SID_8580=1` selects the MOS8580. The direct producer
+accepts `--sid-model 8580` with either `--model pal` or `--model ntsc`.
+It records the SID in the functional build identity and uses a separate output
+directory. Both library recipes select the 6581. The 8580 option changes only
+the SID in the existing regional machine.
+
+For example, from `sources/misteross`:
+
+```sh
+python3 scripts/build_fes_c64_oss.py --model pal --sid-model 8580 --cache-root "$CACHE_ROOT"
+make sim-fes-c64-boot-ntsc-8580-build
+```
+
+The second command builds the NTSC whole-machine simulator for
+`scripts/c64_boot_observe.py --ntsc --sid-model 8580`. Omit `-ntsc` in the target
+and `--ntsc` in the observer for PAL. The observer checks the elaborated SID and
+clock before running and includes the revision in its receipt.
+
+`make sim-fes-c64-sid-8580` replays the same SID register writes as VICE 3.10
+reSID with its default nonlinear 8580 filter (`NEW_8580_FILTER=1`), external
+filter enabled, and no external digi boost. It compares signed PCM every Phi,
+OSC3 on combined waves, and the gain of each filter mode relative to bypass.
+The playback sequence writes digitized sample nibbles to `$D418` with released
+voices and again over a sustained saw. The RTL interpolates transfer curves
+and uses the mean voice quantization dither. On the 240,813-sample fixture the
+largest PCM difference was 16 signed counts and the largest of 12 gain
+differences was 0.178 dB. These are measurements of the exercised sequences.
+
+Normal runs use a checked-in reference. VICE's dither uses the host C library's
+`rand()` sequence. The stored reference was generated on Linux with glibc.
+To regenerate the curves and check the reference on that platform:
+
+```sh
+python3 scripts/generate_c64_sid_8580_tables.py --vice-source /path/to/vice-3.10 --check
+python3 scripts/generate_c64_sid_audio_vectors.py --mos8580 --vice-source /path/to/vice-3.10 --check
+```
+
+`make sim-fes-c64-sid-6581-regions` runs the existing 6502 SID-write program
+on both default motherboards. It checks timed SID stores and the signed 48 kHz
+PCM against separate main-branch baselines for PAL and NTSC.
 
 ### Development PRG launch
 

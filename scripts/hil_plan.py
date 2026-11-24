@@ -20,8 +20,9 @@ RULES = [
     *[(path, 'none', None) for path in (
         'scripts/affected.py', 'scripts/test_changed.py', 'scripts/ci_gate.py',
         'scripts/ci_simulations.py', 'scripts/ci_verilator.sh',
+        'scripts/ci_tamago.sh', 'scripts/tamago_ci.py',
         'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
-        'scripts/check_deadcode.py', 'scripts/check_diff.py', 'scripts/changed_paths.py',
+        'scripts/check_deadcode.py', 'scripts/check_govet.py', 'scripts/check_diff.py', 'scripts/changed_paths.py',
         'scripts/check_doc_links.py', 'scripts/coordination.py', 'scripts/de25_runtime.py',
         'scripts/de25_dma_descriptor.py',
         'scripts/hil_plan.py', 'scripts/hil_go_inventory.py', 'scripts/hil_go_imports.go',
@@ -132,7 +133,6 @@ RULES = [
     ('sources/FogCast/cmd/fes-kit-bundle/**', 'overlay', 'host:fes-kit-bundle'),
     ('sources/FogCast/cmd/target-image-lock/**', 'overlay', 'host:target-image-lock'),
     # Built on request but not installed by the kit image or software bundle.
-    ('sources/FogCast/cmd/mister-bridge/**', 'none', None),
     ('sources/FogCast/cmd/fes-parts/**', 'none', None),
     # The Spectrum simulations' restore-stream and disk-image writers; no
     # image, bundle or package ships them, and the host converts snapshots and
@@ -612,7 +612,7 @@ GO_ROLES = {'kit', 'kit-and-host', 'host', 'image', 'host-tool', 'builder',
 REQUIRED_GO_ROLES = {
     'fes-kit-data': 'image', 'fes-update': 'host-tool', 'fes-software': 'host-tool',
     'fes-kit-bundle': 'builder', 'target-image-lock': 'builder',
-    'mister-bridge': 'standalone', 'fes-parts': 'standalone',
+    'fes-parts': 'standalone',
     'mister-agent': 'kit', 'fogcast-api': 'kit-and-host',
     'fogcast-tenfoot': 'kit-and-host', 'fogcast': 'host',
     'fes-spectrum-disk': 'simulation', 'fes-spectrum-restore': 'simulation',

@@ -3,12 +3,14 @@ package misterruntime
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/localhid"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -101,14 +103,24 @@ func (r *Runtime) LoadDevelopmentMediaOwned(ctx, owner context.Context, size int
 	}
 	// Keyboard posters bypass coordinator admission. Keep them off the busy
 	// runtime until transfer and restoration of held keys have completed.
-	r.computerMu.Lock()
+	if err := r.lockComputer(ctx); err != nil {
+		return &protocol.APIError{Code: protocol.CodeTransferFailed, Message: "media upload cancelled before dispatch", Phase: "admission", Cause: err}
+	}
 	defer r.computerMu.Unlock()
 	before, err := control.Protocol2Status(ctx)
 	if err != nil {
 		return unavailableError()
 	}
-	if !mediaResponseMatches(before, b) {
+	if !mediaResponseMatches(before, b) || before.RuntimeInstance == nil {
 		return protocol.DevelopmentMediaIdentityError()
+	}
+	instance := *before.RuntimeInstance
+	if r.keyboardUncertain != nil || r.keyboardMediaUncertain != nil {
+		return &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "keyboard state is unconfirmed; media transfer cannot start", Phase: "input"}
+	}
+	mediaWitness := localhid.MatrixMediaWitness{RuntimeInstance: instance, PackageID: b.PackageID, Generation: b.Generation}
+	if _, err := rand.Read(mediaWitness.Operation[:]); err != nil || mediaWitness.Operation == ([16]byte{}) {
+		return &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "keyboard state cannot be tracked; media transfer cannot start", Phase: "input"}
 	}
 	if b.Stream && (!before.Capabilities.MediaStream.Valid() || size < int64(before.Capabilities.MediaStream.MinBytes) || size > int64(before.Capabilities.MediaStream.MaxBytes)) {
 		return protocol.DevelopmentMediaRequestError()
@@ -149,7 +161,7 @@ func (r *Runtime) LoadDevelopmentMediaOwned(ctx, owner context.Context, size int
 	if err != nil {
 		return unavailableError()
 	}
-	if !mediaResponseMatches(before, b) {
+	if !mediaResponseMatches(before, b) || before.RuntimeInstance == nil || *before.RuntimeInstance != instance {
 		return protocol.DevelopmentMediaIdentityError()
 	}
 	if b.Stream && (!before.Capabilities.MediaStream.Valid() || size < int64(before.Capabilities.MediaStream.MinBytes) || size > int64(before.Capabilities.MediaStream.MaxBytes)) {
@@ -178,16 +190,16 @@ func (r *Runtime) LoadDevelopmentMediaOwned(ctx, owner context.Context, size int
 	if !response.OK || response.Error != nil {
 		return mapProtocol2Error(response.Error)
 	}
-	if !mediaResponseMatches(response, b) {
+	if !mediaResponseMatches(response, b) || response.RuntimeInstance == nil || *response.RuntimeInstance != instance {
 		return unavailableError()
 	}
 	for _, contract := range response.Capabilities.ActiveInterfaces {
 		if contract.ID == "fes.keyboard" && contract.Major == 1 && contract.Minor == 0 {
 			matrix := uint64(0xffffffffff)
-			if r.keyboardPackageID == b.PackageID && r.keyboardGeneration == b.Generation {
+			if r.keyboardInstance == instance && r.keyboardPackageID == b.PackageID && r.keyboardGeneration == b.Generation {
 				matrix = r.keyboardMatrix
 			}
-			if err := r.setKeyboardLocked(ctx, matrix); err != nil {
+			if err := r.setKeyboardLocked(ctx, instance, b.PackageID, b.Generation, matrix, nil, &mediaWitness); err != nil {
 				return &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "media loaded but keyboard restoration failed", Phase: "input"}
 			}
 			break

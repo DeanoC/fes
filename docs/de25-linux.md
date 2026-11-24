@@ -15,8 +15,9 @@ The standard managed DE25 development kit is Kit D25 (`de25-j8g`, serial
 `TRWU8J8G`); its operator flow is documented in [the DE25 kit HIL guide](de25-kit-hil.md).
 DE25 package, runtime and image changes require exact-head D25 HIL and a
 verified restore, in addition to their normal Quartus Pro 26.3 timing and seal
-gates. Prefer `fes-build-3090` for Quartus builds. DE10 kits cannot satisfy a
-DE25 HIL check.
+gates. Quartus Pro 26.3 runs on either Powerboat or `fes-build-3090` under the
+shared [Quartus lease](design/quartus-hosts.md) (`quartus_jobs.py pick` /
+`remote`). DE10 kits cannot satisfy a DE25 HIL check.
 
 ## Build and inspect
 

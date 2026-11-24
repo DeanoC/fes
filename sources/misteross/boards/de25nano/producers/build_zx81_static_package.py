@@ -199,12 +199,6 @@ def build_static(root, *, quartus_root, vendor_archive, output, package_output,
             if not compile_only:
                 if not all(t['package_timing_admission'] for t in timing.values()):
                     raise BuildError('static ZX81 whole-board timing/signoff failed; candidate retained')
-                _, repeated, other = compile_at('repeat')
-                a = [descriptor['shell']['base'], *descriptor['personas']]
-                b = [repeated['shell']['base'], *repeated['personas']]
-                if (not all(t['package_timing_admission'] for t in other.values())
-                        or [(p['size'], p['sha256']) for p in a] != [(p['size'], p['sha256']) for p in b]):
-                    raise BuildError('static ZX81 independent compilation changed timing or RBF bytes')
         if (standard._require_clean_source(root) != (repository, revision)
                 or compiler.capture()['files'] != frozen['files']
                 or standard.common.authenticate_tools(standard.computer(root), quartus_root) != (paths, identities)

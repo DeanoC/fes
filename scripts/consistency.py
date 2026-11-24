@@ -23,6 +23,7 @@ GENERATED = (
     ('emit-cpp', 'packages/fabric/fes_fabric_de25_hps_window.yaml', 'libmister-runtime', 'src/native/generated/fes_de25_hps_window.hpp'),
     ('emit-c', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
     ('emit-c', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),
+    ('emit-c', 'packages/fabric/fes_fabric_de25_hps_window.yaml', 'FES', 'image/kernel/de25-dma/generated/fes_de25_hps_window.h'),
     ('emit-go', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'FES', 'platform/embedded/tamago/computer/generated/fes_de25_scanout.go'),
     ('emit-cpp', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'libmister-runtime', 'src/native/generated/fes_de25_scanout.hpp'),
     ('emit-c', 'packages/fabric/fes_fabric_embedded_tape.yaml', 'FES', 'platform/embedded/firmware/generated/fes_embedded_tape.h'),

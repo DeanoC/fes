@@ -24,8 +24,6 @@ tape-loader work. Read this before adding a sofa tape picker, a mid-session
   [`docs/fes-zx81.md`](fes-zx81.md)
 - ZX81 expansion bus (launch-time carts; not tape):
   [`docs/zx81-expansion-bus.md`](zx81-expansion-bus.md)
-- ZX81 described-core design (`.p` cap; no analog tape):
-  [`docs/superpowers/specs/2026-09-10-fes-zx81-design.md`](superpowers/specs/2026-09-10-fes-zx81-design.md)
 - FogCast architecture (ROM splice last; library `.p` at launch):
   [`sources/FogCast/docs/ARCHITECTURE.md`](../sources/FogCast/docs/ARCHITECTURE.md)
 - Blob / stream capacity and transport:
@@ -96,8 +94,7 @@ is retired for day-to-day.
 ### Mailbox tape path (surveyed RTL / ABI)
 
 - ABI `fes.media.blob` 1.0: opcodes begin / data / commit (`0x04`–`0x06`);
-  length **1..16384** bytes ([`fes_simple_computer.yaml`](../sources/mister-packages/packages/abi/fes_simple_computer.yaml);
-  design: [`2026-09-10-fes-zx81-design.md`](superpowers/specs/2026-09-10-fes-zx81-design.md)).
+  length **1..16384** bytes ([`fes_simple_computer.yaml`](../sources/mister-packages/packages/abi/fes_simple_computer.yaml)).
 - misteross `fes_computer_gp.v`: 16 KiB media M10K; commit sets `media_ready`
   and size; hold-reset **aborts an open** media transfer (`media_open <= 0`)
   and clears keyboard; it does not by itself clear a committed blob’s

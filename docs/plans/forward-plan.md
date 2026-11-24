@@ -1,10 +1,11 @@
 # FES forward plan: boards, cores, builds and a release-ready product
 
-**Status:** proposal for Deano, written 13 November 2026 against `ff603ec64`.
-Deano's decisions of 13 November 2026 are recorded in the last section; the
-rest is proposal and nothing is implemented. It describes where FES should go from
-the tree as it stands, not how the tree got here. Where it disagrees with an
-older plan, this page is meant to replace that plan once accepted.
+**Status:** accepted direction and active roadmap, originally proposed
+13 November 2026 against `ff603ec64` and refreshed 23 November 2026 against
+`814606c2`. Deano's decisions of 13 November 2026 and subsequent 15–22 November
+rulings are recorded in [Decisions](#decisions). It describes where FES is
+going, not how the tree got here; earlier split roadmap documents have been
+retired into this page and [modular updates](../modular-updates.md).
 
 ## The short version
 
@@ -37,23 +38,24 @@ Five decisions carry most of the plan:
 
 ## Where the cost is today
 
-These are measurements from the current tree, used below to choose priorities.
+These measurements were taken on 13 November 2026 to choose priorities, with
+current status notes where later work landed.
 
 | Area | Finding |
 | --- | --- |
 | Board definition | Board identity lives in about eight places under four spellings (`de10-nano`, `de10_nano`, `de25nano`, `NativePlatform`). No single descriptor drives them. |
 | Core/board coupling | 18 core RTL files instantiate `cyclonev_hps_interface_*` directly. 17 per-core `constraints*.qsf` files repeat pin assignments (one identical set appears 8 times). `boards/de10nano/` holds 3 files. |
-| Second board | `boards/de25nano/` is 250 files: about 6.8k lines of Verilog and 18.8k lines of Python, including forked copies of `fes_display_plane.v`, the menu top and `zx81_machine.sv`. Only MENU and ZX81 build there. The matrix's other DE25 cells are policy, not artifacts. |
+| Second board | `boards/de25nano/` started with forked copies of shared RTL and only MENU and ZX81 building. Since 13 Nov, DE25 added a shared machine builder (`boards/de25nano/machine/`, `core_shell/`), registered Quartus Pro recipes for six cores (`fes.menu`, `fes.zx81`, `fes.spectrum`, `fes.atari-st`, `fes.c64`, `fes.pcxt-dos`), and landed the kernel owner HPS DDR window (#2126) for pc386/486 work in flight. Forked `shared-rtl/` and the unified DE10/DE25 core port remain open. |
 | Board conditionals | About 860 conditional lines mention a board; 169 sit in files that are not board-specific (runtime `fes_gp.cpp`, `hardware.cpp`, `scripts/build.py`, `kit_software.py`, the Makefile). |
-| Toolchains | About 7 distinct nextpnr pins across per-core locks, Quartus Lite 17.0.2 for x86 and oracles, Quartus Pro 26.3 for Agilex 5. Quartus is located on named hosts, not containerised, and absent from CI. |
+| Toolchains | About 7 distinct nextpnr pins across per-core locks, shared Yosys moved to `d273c1cb` (#2161) with documented exclusions, Verilator pinned to 5.054 (#2145), Quartus Lite 17.0.2 for x86/ZX81 and oracles, Quartus Pro 26.3 for Agilex 5. Shared Quartus host leases and remote dispatch (`quartus_jobs.py`) now span Powerboat and `fes-build-3090`; Quartus remains absent from GitHub CI. |
 | Build time | Route per seed: RISC-V 28–105 s, ZX81 159–258 s, Atari ST 7–32 min against a 30 min timeout. pc386 Quartus 8 min idle, 3 h under contention. DE25 Pro 8–23 min. GPU contention inflates routes 1.5–2×. |
 | Caching | The artifact cache is content-addressed and well designed, but local to one machine. No remote or shared cache. |
-| CI | PR CI is median 22 min and runs no synthesis, place-and-route or seal. Those run off-repo on Powerboat timers. |
+| CI | PR CI is median 22 min and runs no synthesis, place-and-route or seal (those run off-repo on Powerboat timers). A dedicated TamaGo CI lane now runs bare-metal builds, host race/`go vet` checks and QEMU suites (#2150, #2153, #2165). |
 | Per-core test surface | About 199 `sim-fes-*` and 34 `build-fes-*` Make targets, 17 `pcxt_*` and 5 `atari_st_*` parent scripts, hand-registered in `ci_simulations.py` and `affected.py`. |
 | Evidence weight | `scripts/` has about 14.8k lines of acceptance/evidence code against 11.3k of build code. `docs/validation/` is 404 dated records, 4,840 files, 142 MB in Git. |
-| Product | Tenfoot on the kit is the one UI and the kit is its own host. v1 scope is defined (ZX81, Spectrum, C64, Atari ST on DE10) with 17 open milestone issues. No update UI, Wi-Fi, volume, controller page or save states. Menu frames are CPU-rastered and copied, and miss their budget on DE10 (#318, #1743, #1770). |
-| Release | No tag, no release, no signing, and **no licence file on a public repository**. The capture archives that held the ZX81 and ZX80 ROMs are removed from the tip; the bytes remain in Git history, and the tip still holds the 512-byte ZX81 character set (see [v1: finish and ship](#v1-finish-and-ship-de10-nano-four-families)). |
-| Planning | No single roadmap. "Tier 1" is not defined anywhere in the repo. Two task-label systems are documented. 67 September plan/spec files are still carried. |
+| Product | Tenfoot on the kit is the one UI and the kit is its own host. v1 scope is defined (ZX81, Spectrum, C64, Atari ST on DE10): 8 milestone issues closed (#1341–#1345, #1347, #1349: v1 scope, UX design, firmware licensing/bundling, first-run flow, Home family tiles, Settings surface v1) and 17 remain open (including #1415–#1418). No update UI, Wi-Fi, volume, controller page or save states. Menu frames are CPU-rastered and copied, and miss their budget on DE10 (#318, #1743, #1770). |
+| Release | No tag, no release, no signing, and **no licence file on a public repository**. The capture archives that held the ZX81 and ZX80 ROMs and the 512-byte ZX81 character set were removed from the tip on 13 Nov; the bytes remain in Git history (see [v1: finish and ship](#v1-finish-and-ship-de10-nano-four-families)). |
+| Planning | **Resolved since 13 Nov:** this page is the single roadmap (#2159), Tier 1 is defined below, the legacy `task:*` workflow is retired (#2151), and archived `docs/superpowers/` plans were removed (#2120, #2121, #2124, #2129). |
 
 ## Target architecture
 
@@ -253,13 +255,17 @@ contract with a conformance test.
   package, with board-specific steps living in the board package.
 - The **experimental custom OS** becomes a third implementation, behind the
   same conformance test. It can then be developed and swapped in per board
-  without the product caring. Its first form is the Linux-free DE25 base in
-  [#1791](https://github.com/DeanoC/fes/pull/1791), behind
-  `FES_EXPERIMENTAL_DE25_EMBEDDED=1`. It is a long way from product use, so
-  this plan treats it only as a future option behind that interface, and it
-  is not on the v1 path. One consequence to plan for: it carries its own FPGA
-  register constants and programming profiles, separate from the Linux DE25
-  ones. Both should come to be generated from the one board descriptor.
+  without the product caring. Its first form is the Linux-free TamaGo DE25 base
+  under `platform/embedded/` (originally [#1791](https://github.com/DeanoC/fes/pull/1791),
+  behind `FES_EXPERIMENTAL_DE25_EMBEDDED=1`), which has since added GICv3
+  interrupts and WFI idle, DMA pools, SDHCI/DWC2/XGMAC/FPGA IRQs, FAT32
+  coalescing and sector caching, PL031 RTC, PSCI/TRNG, DesignWare WDT,
+  DHCPv4/DNSv4, opt-in native Spectrum 48K and C64 D64 support, and a dedicated
+  TamaGo CI lane. Hardware qualification stays open under #1867, so this plan
+  still treats it as a future option behind that interface and off the v1 path.
+  One consequence to plan for: it carries its own FPGA register constants and
+  programming profiles, separate from the Linux DE25 ones. Both should come to
+  be generated from the one board descriptor.
 
 ## Managing cores and compile time
 
@@ -287,9 +293,9 @@ board therefore edits no core manifest. A cell that needs hand tuning gets an
 override file in the board package (`boards/<board>/cells/<core>.toml`); most
 cells should not need one. From those manifests generate: the Make targets,
 `ci_simulations.py`, the `affected.py` path→core map, the recipe table and the
-catalog entry. Adding a core becomes adding a directory. The single argv
-builder from [cores as apps](../cores-as-apps-plan.md) step 2 is the same idea
-for place-and-route and stays.
+catalog entry. Adding a core becomes adding a directory. The single
+place-and-route argv builder from `#843` (`[recipes.pnr]` in
+`config/core-recipes.toml`) is the same idea and stays.
 
 ### A standard conformance test
 
@@ -349,9 +355,19 @@ core's timing miss blocks only that core's cell.
   Metal workers take timing and route replays, whose results are valid on
   every backend, until the validators accept Metal for seals. CPU workers
   take experiments only.
-- **Nightly per-core toolchain bump.** Finish cores-as-apps steps 3–7. A core
-  moves its lock when the newer toolchain closes it; the lock is its last
-  known good, not a pin to defend.
+- **Nightly per-core toolchain bump.** A core moves its lock when the newer
+  toolchain closes it; the lock is its last known good, not a pin to defend.
+  Remaining steps (the default image is already slimmed to MENU and the idle
+  RBF, with playable cores installed separately):
+  1. Path→core change detection so CI re-places only touched cores (and all
+     dependents on shared RTL/shell edits).
+  2. Report-only nightly runner on Powerboat under `gpu-run --owner nightly`,
+     building a shared tip slot and updating one rolling issue per failing core.
+  3. Per-core `bump(<core>): toolchain → <shas>` PRs carrying the lock change,
+     per-clock fmax delta table and routed artifacts (merged manually at first).
+  4. Auto-merge for passing bumps (with Deano's OK), gated on green CI, all
+     clocks met with no >3% fmax drop (1.5% on marginal cores), unbroken seal
+     checks and the applicable kit HIL or package inspection.
 
 ### Shell releases
 
@@ -381,11 +397,12 @@ not a recipe. Timing and seal checks are never relaxed.
 
 Keep the accepted policy in [Quartus-built cores](../design/quartus-cores.md)
 and make it mechanical. Each cell has one primary lane: nextpnr on Cyclone V
-except where a core is recorded as Quartus-primary (x86 today), and Quartus
-Pro on Agilex 5. A second lane on the same cell ships as a labelled variant
-only when it meets that policy's 15% rule; the farm evaluates the rule from
-the two sealed builds and records the result. Otherwise the second lane is
-an oracle and is not packaged. Most cells therefore seal once.
+except where a core is recorded as Quartus-primary (x86 and the DE10 ZX81
+family today; Deano 15 Nov 2026, #1873), and Quartus Pro on Agilex 5. A second
+lane on the same cell ships as a labelled variant only when it meets that
+policy's 15% rule; the farm evaluates the rule from the two sealed builds and
+records the result. Otherwise the second lane is an oracle and is not packaged.
+Most cells therefore seal once.
 
 ## Tiers
 
@@ -447,10 +464,15 @@ frontend should be started.
 The scope in [v1 first-boot and setup](v1-first-release-first-boot-setup.md)
 is right. Do not widen it. What stands between the tree and a release:
 
-- The open milestone issues: folders (#1346), controllers (#1348, #980),
-  updates UI (#1350), icons and empty states (#1351), release-package HIL
-  (#1352–#1354), release-candidate acceptance (#1355), quickstart (#1356),
-  volume (#1415), trial-boot hang (#727), image retention (#917).
+- The open milestone issues (17 open, 8 closed as of 23 November 2026):
+  folders (#1346), controllers (#1348, #980), updates UI (#1350), icons and
+  empty states (#1351), release-package HIL (#1352–#1354), release-candidate
+  acceptance (#1355), quickstart (#1356), volume (#1415), Wi-Fi (#1416),
+  optional computer pairing (#1417), diagnostics (#1418), UX tracker (#770),
+  trial-boot hang (#727) and image retention (#917). Closed since 1 Nov:
+  v1 scope (#1341), UX design (#1342), firmware licensing/bundling (#1343,
+  #1344), first-run flow (#1345), Home family tiles (#1347) and Settings
+  surface v1 (#1349).
 - **Legal blockers, which are cheap and must come first:** choose and add a
   licence; finish the notice audit (#387); settle the EmuTOS licence label;
   and deal with the ZX81 and ZX80 ROM bytes committed to this repository.
@@ -533,10 +555,11 @@ much they reuse (MSX, Amstrad CPC, BBC Micro, Amiga and Mega Drive on the
 ## Process
 
 - **One roadmap.** This page, plus GitHub milestones that mirror its phases.
-  Delete `docs/superpowers/` (67 September files), fold the still-true parts of
-  `cores-as-apps-plan.md` and `development-speed.md` into this page or the
-  guides, and remove the `task:*` label workflow from `agent-workflow.md` now
-  that `lane:*` is the live one.
+  Unpinned `docs/superpowers/` plans, the retired `task:*` coordination
+  workflow, and the earlier split plan docs (`cores-as-apps-plan.md`,
+  `recipe-option-audit.md`, `development-speed.md`) have been removed; keep
+  ongoing OS, software, core and room-installer separation tracked here and in
+  [modular updates](../modular-updates.md).
 - **Evidence proportional to risk.** Two levels only: *development* (fast,
   cached, one pass, no kit unless behaviour depends on it) and *release
   certification* (exact artifacts, reproducibility, kit acceptance). Keep
@@ -582,7 +605,7 @@ from:
 | A1. Ship v1 | v1 milestone, legal cleanup, zero-copy menu frames, release-candidate acceptance | Tagged, signed public DE10 release of four families that passes the offline journey |
 | B1. Prove the split | Board descriptor and generator. Core port v1. DE10 and DE25 shells. MENU and ZX81 from identical source on both boards. Runtime backends with no shared-file branches. | After the v1 tag: flag removed and old paths gone; forked `shared-rtl` deleted; board-conditional count in shared files near zero; all four cells (MENU and ZX81, each on DE10 and DE25) sealed and kit-accepted |
 | B2. Build farm | Remote cache, package store, farm queue, `core.toml` generation, synthesis-only PR check, nightly bumps, generated matrix | A core PR rebuilds only its cells; an image build compiles no cores; matrix page is generated |
-| 3. Convert and widen | Move every tier 1 machine onto the port at its next reseal. One image builder. Online catalog and in-play layer. PC/XT enters release scope; pc386 reaches tier 1. | All tier 1 machines build for both boards from one source; v1.x release with catalog |
+| 3. Convert and widen | Move every tier 1 machine onto the port at its next reseal. One image builder. Online catalog and in-play layer. PC/XT and pc386 enter release scope (pc386 already reached DE10 tier 1; see [Tiers](#tiers)). | All tier 1 machines build for both boards from one source; v1.x release with catalog |
 | 4. DE25 to tier 1 | Update and recovery on DE25 hardware, full tier 1 set accepted there | A DE25 release from the same tag as DE10 |
 | 5. Prove additivity | Add a third board, or the custom OS on an existing board, as the test | Third board: one board package, no machine changes, measured in days of work, not weeks. Custom OS: it passes the OS contract conformance test and runs the unchanged agent, runtime, tenfoot and sealed packages on an existing board, with no board package or machine changes. Either path closes the phase |
 
@@ -601,7 +624,7 @@ edits inside a machine, the port is wrong and gets fixed there.
 
 ## Decisions
 
-Decided by Deano on 13 November 2026.
+Decided by Deano on 13 November 2026:
 
 1. **Tiers.** The tier ladder and the tier 1 set are as written above, applied
    per (core, board) cell.
@@ -628,6 +651,27 @@ Decided by Deano on 13 November 2026.
    store sits behind one fetch/publish interface that does not assume where
    it lives.
 
+Subsequent decisions recorded 15–22 November 2026:
+
+7. **Quartus where nextpnr closure is hard (15 Nov, #1873).** The DE10 ZX81
+   family (ZX81, ZX80, TS1000, TS1500) moved to Quartus Lite as primary, with
+   nextpnr advisory (`config/advisory-pnr-recipes.toml`).
+8. **Reduced closure-sweep checks for non-shipped cores (15 Nov, #1863).**
+   `check_level: reduced` applies to held-back/utility cores on closure sweeps
+   that do not touch their RTL, programs, lock or placement recipe (enforced in
+   `AGENTS.md` and `docs/support-matrix.md`).
+9. **`design-v2` identity policy (18 Nov #1984; 22 Nov #2097).** `evidence` and
+   `firmware-generator` inputs leave the design ID while staying in the record
+   identity, adopted for `fes.pc386` and `fes.pcxt-dos`.
+10. **DE10 `fes.pc386` tier 1 (20–21 Nov).** Promoted on DE10 with documented
+    exceptions (`#1494` pin-timing disposition, `#2013` speaker-pitch waiver,
+    and `#1368` practical gameplay speed acceptance).
+11. **Shared Quartus host leases (21 Nov).** Quartus Pro 26.3 may run on either
+    Powerboat or `fes-build-3090`, and every licensed Quartus run holds a host
+    lease (`docs/design/quartus-hosts.md`).
+12. **Bundled PC/XT FreeDOS boot disk (21 Nov, #1960).** Shipped alongside the
+    bundled Spectrum ROMs and EmuTOS (`docs/bundled-firmware.md`).
+
 Still open: which licence file text and headers to apply once #387 reports,
-the signing approach for v1, how to replace the ZX81 character-set bytes,
-and the plan for moving to the fresh repository described under v1.
+the signing approach for v1, and the plan for moving to the fresh repository
+described under v1.

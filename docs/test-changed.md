@@ -31,6 +31,7 @@ Make parallelism; values from 1 through 32 are accepted.
 | Runtime | Parent checks, runtime software suite and host protocol consumers (native test-only sources omit host) |
 | Shared contracts | All software lanes and their dependent consumers |
 | Parent-owned roots (`scripts/`, `tests/`, `image/`, `platform/`, `profiles/`, `containers/`) | Parent regressions and generated-consumer consistency; no component lanes or core simulations |
+| Bare-metal TamaGo (`platform/embedded/**`, `scripts/ci_tamago.sh`, `scripts/tamago_ci.py`) | Dedicated `tamago` CI lane (#2150, #2152, #2153, #2165): host `go vet` and `-race` tests, dual-board bare-metal cross-builds (QEMU `virt` and DE25-Nano), and QEMU regression suites (`probe`, `mapcheck`, `fabric`, `keyboard`, `display`, `packages`, `admission`, `network`, `tenfoot`, `storage`, `play`) |
 | Known FPGA producer/package software | Parent checks and producer/package/functional-identity/search-policy tests; no RTL simulation |
 | FPGA core source | Parent checks, FPGA software tests and simulations for that family and its dependent consumers |
 | Unknown or root inputs | All software lanes |
@@ -158,7 +159,7 @@ assigned. Import failures remain failures even when groups are filtered.
 
 Documentation in a mixed change does not restore every group. The explicit
 `DOCUMENTATION_MODULES` set retains link, image-assembly, consistency,
-coordination, core-build and bundle tests that check repository guides. Update
+core-build and bundle tests that check repository guides. Update
 that set when adding a documentation reader outside those modules. Temporary
 Markdown fixtures do not make a test a repository-documentation reader.
 Documentation-only CI continues through its existing always-run checks; this
