@@ -47,6 +47,18 @@ int main(int argc,char **argv){
     b.phi();b.check(b.t.ca2_output && b.t.cb2_output,"pulse duration one Phi2");
     b.write(12,0xcc);b.check(!b.t.ca2_output && !b.t.cb2_output,"manual low outputs");
     b.write(12,0xee);b.check(b.t.ca2_output && b.t.cb2_output,"manual high outputs");
+    // The 1541 CA2 line can feed the VIA's output back to its own input.
+    // An edge must raise IFR/IRQ only while CA2 is configured as an input.
+    b.write(14,0x7f);b.write(14,0x81);b.write(13,0x7f);
+    for (unsigned mode=4;mode<=7;mode++) {
+        b.write(12,mode<<1);b.write(13,1);
+        b.t.ca2=0;b.tick();b.t.ca2=1;b.tick();
+        b.check(!(b.peek(13)&1) && !b.t.irq,"CA2 output-mode transition raised IRQ");
+    }
+    b.write(12,0);b.t.ca2=0;b.tick();
+    b.check((b.peek(13)&1) && b.t.irq,"CA2 input falling edge raises IRQ");
+    b.write(13,1);b.write(12,4);b.t.ca2=1;b.tick();
+    b.check((b.peek(13)&1) && b.t.irq,"CA2 input rising edge raises IRQ");
     b.write(13,0x7f);b.write(14,0x7f);b.write(11,0x80);
     b.write(4,3);b.write(5,0);b.check(!(b.t.pb_output&0x80),"T1 starts PB7 low");
     b.phi(4);b.check(!(b.peek(13)&0x40),"T1 does not fire early");
