@@ -57,7 +57,12 @@
     }
   },
   "x87": {
-    "status": "pending"
+    "status": "pass",
+    "unit_passed": 18337,
+    "trans_passed": 23795,
+    "testfloat_vectors": 3356352,
+    "testfloat_configs": 84,
+    "testfloat_gen_sha256": "3ea46b5c4a4027840cbfcd0fb5b6f25ccb26cba3e444a490298dbd723fbcec09"
   },
   "files_sha256": {
     "games/inputs.json": "baa6345e1ebca9699e05425ce426031f524825349289ccfed2a49b8c6c3e0740",
@@ -67,6 +72,9 @@
     "lockstep/l3-base.json": "906abb306109c19f58ea59d0594a7b2778ecc51c6cc78bf11a54cabafc8b6bd9",
     "lockstep/l3-dx.json": "0a493b9007ed0ced94ac6780e3821bfcb64c291ff8144450d281e300a2d6dd64",
     "lockstep/l4-base.json": "64f9f88f42a5435f6b758eecb94e2183f3b53d9ba593f0549bd610dda3d15e5f",
-    "lockstep/l4-dx.json": "a668285e1bf6b038d7cd0b5e17439ca3ef4f246b2e7f13246c1d52ea29dfa361"
+    "lockstep/l4-dx.json": "a668285e1bf6b038d7cd0b5e17439ca3ef4f246b2e7f13246c1d52ea29dfa361",
+    "lockstep/x87unit.json": "1c7c247143fb5d0a075409ee3e770ff69f3af7cd2f6d4545475b346abe3ecf44",
+    "lockstep/trans.json": "d36f9f2f961e3898b00f12ecaee91daf135b5cbdff4d0f14a597c79f2e16a014",
+    "lockstep/testfloat.json": "7e24ced5019541126018568de2c17b7963617014e722b8eeabfdf916af377d19"
   }
 }

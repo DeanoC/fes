@@ -48,18 +48,27 @@ def lockstep_pair(root, level, revision):
 
 
 def x87_suites(root, revision):
-    paths = [root / 'lockstep' / f'{name}.json' for name in ('x87unit', 'trans', 'testfloat')]
-    if not all(path.is_file() for path in paths):
-        return {'status': 'pending'}, []
-    unit, trans, testfloat = (json.loads(path.read_text()) for path in paths)
-    reports = (unit, trans, testfloat['unit_report'])
+    paths = {name: root / 'lockstep' / f'{name}.json' for name in ('x87unit', 'trans', 'testfloat')}
+    paths = {name: path for name, path in paths.items() if path.is_file()}
+    results = {name: json.loads(path.read_text()) for name, path in paths.items()}
+    testfloat = results.get('testfloat')
+    reports = [testfloat['unit_report'] if name == 'testfloat' else result
+               for name, result in results.items()]
     if any(report['source']['fes_revision'] != revision for report in reports):
         raise ValueError('x87 report revision differs from the run source')
-    passed = testfloat['unit_returncode'] == 0 and all(report['failed'] == 0 for report in reports)
-    return {'status': 'pass' if passed else 'fail', 'unit_passed': unit['passed'],
-            'trans_passed': trans['passed'], 'testfloat_vectors': testfloat['vectors'],
-            'testfloat_configs': len(testfloat['configs']),
-            'testfloat_gen_sha256': testfloat['testfloat_gen_sha256']}, paths
+    failed = any(report['failed'] for report in reports) or (testfloat and testfloat['unit_returncode'] != 0)
+    if failed:
+        status = 'fail'
+    else:
+        status = 'pass' if len(reports) == 3 else 'pending'
+    evidence = {'status': status}
+    for field, name in (('unit_passed', 'x87unit'), ('trans_passed', 'trans')):
+        if name in results:
+            evidence[field] = results[name]['passed']
+    if testfloat:
+        evidence.update(testfloat_vectors=testfloat['vectors'], testfloat_configs=len(testfloat['configs']),
+                        testfloat_gen_sha256=testfloat['testfloat_gen_sha256'])
+    return evidence, list(paths.values())
 
 
 def summarize(root):
