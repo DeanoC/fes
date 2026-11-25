@@ -476,21 +476,25 @@
      "hold": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      },
      "recovery": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      },
      "removal": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      },
      "setup": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      }
     },
@@ -1015,21 +1019,25 @@
      "hold": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      },
      "recovery": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      },
      "removal": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      },
      "setup": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      }
     },
@@ -1555,21 +1563,25 @@
      "hold": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      },
      "recovery": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      },
      "removal": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      },
      "setup": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      }
     },
@@ -2099,21 +2111,25 @@
      "hold": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      },
      "recovery": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      },
      "removal": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      },
      "setup": {
       "count": 0,
       "groups": {},
+      "resolved_owner_pairs": {},
       "worst": []
      }
     },
