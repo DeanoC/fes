@@ -1,0 +1,21 @@
+# DE25 tests at 6a718ca24dcfd2d6bb06f8a95ae2083d49344fbe, 2026-11-25T12:10:35Z: python3 -m unittest tests.test_de25_async_inputs tests.test_de25_audio_reference tests.test_de25_bounded_compile tests.test_de25_bridge_reset tests.test_de25_capture_constraints tests.test_de25_export_core_package tests.test_de25_hdmi_control tests.test_de25_machine_constraints tests.test_de25_machine_findings tests.test_de25_managed_bram tests.test_de25_menu tests.test_de25_output_reset tests.test_de25_pc386_dma2_derive tests.test_de25_pc386_window tests.test_de25_production_identity tests.test_de25_quartus_license tests.test_de25_ramtest tests.test_de25_reset_domains tests.test_de25_rom tests.test_de25_sealed_identity tests.test_de25_shared_resets tests.test_de25_static_reference tests.test_de25_timing_sources tests.test_de25_vendor_reference tests.test_de25_video_capture tests.test_de25_video_outputs tests.test_de25_x87_build tests.test_de25_x87  tests.test_build_de25_machine_package; plus boards/de25nano/{spectrum,pcxt,c64,atari-st}/test_build
+----------------------------------------------------------------------
+Ran 162 tests in 121.938s
+
+OK (skipped=4)
+## spectrum
+Ran 6 tests in 0.065s
+
+OK
+## pcxt
+Ran 6 tests in 0.101s
+
+OK
+## c64
+Ran 8 tests in 0.082s
+
+OK
+## atari-st
+Ran 8 tests in 0.072s
+
+OK

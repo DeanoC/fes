@@ -1,0 +1,10 @@
+{
+  "build_id": "c7a3545e688afd77b59182e893af52a7",
+  "classification": "de25-pc386-package-candidate",
+  "hardware_acceptance": false,
+  "model": "486sx",
+  "normal_kit_acceptance": false,
+  "package_timing_admission": true,
+  "rbf_sha256": "0c50cf3b28cfbe41db04544f167a35eb83d66122682ec3a99b85700cb7e8e93d",
+  "revision": "d484760a78ab02d84950a83649ba33a4c39ad9dd"
+}
