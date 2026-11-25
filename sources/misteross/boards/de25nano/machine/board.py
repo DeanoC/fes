@@ -444,9 +444,13 @@ def window_routes(offset, machine_hz):
             ("clock", "subsys_periph_periph_clk.out_clk", "subsys_periph_fes_win_cdc.m0_clk", 100000000))
 
 
-def verify_window_reset(project, modules, connections, hps):
+def verify_window_reset(project, modules, connections):
     for module in ("subsys_hps", "subsys_hps.agilex_hps"):
-        if hps.component_ports(modules[module], "h2f_reset") != {"reset": ("Output", 1)}:
+        interfaces = modules[module].findall("interface[@name='h2f_reset'][@kind='reset_source']")
+        if len(interfaces) != 1 or [
+            (port.findtext("role"), port.findtext("direction"), port.findtext("width"))
+            for port in interfaces[0].findall("port")
+        ] != [("reset", "Output", "1")]:
             raise ValueError("generated HPS reset output differs: " + module)
     generated = (project / "qsys_top/synth/qsys_top.v").read_text()
     if len(re.findall(r"\.h2f_reset_reset\s*\(h2f_reset_reset\)", generated)) != 1:
@@ -500,7 +504,7 @@ def verify_window(project, modules, endpoint, connections, hps, scanout):
     # As generation.json keeps it, so the check before compiling compares like with like.
     return {"master_ports": {role: list(port) for role, port in master.items()},
             "bridge": {"parameters": checked, "logical_view": source},
-            "reset": verify_window_reset(project, modules, connections, hps)}
+            "reset": verify_window_reset(project, modules, connections)}
 
 
 def verify(spec, output, scanout, hps, display):
