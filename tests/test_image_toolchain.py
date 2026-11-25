@@ -64,6 +64,8 @@ class ToolchainCacheTest(unittest.TestCase):
                 lock.write_text(old)
         self.assertEqual(cache.key(self.image), original)
         self.assertNotEqual(cache.key(self.image, cache.EPOCH + 1), original)
+        with mock.patch.object(cache, "SDK_HOSTNAME", "different-sdk-builder"):
+            self.assertNotEqual(cache.key(self.image), original)
 
     def test_validated_hit_and_corruption(self):
         host = self.image / "host"
@@ -234,6 +236,12 @@ class ToolchainCacheTest(unittest.TestCase):
                        "BR2_ARM_EABIHF=y", "BR2_REPRODUCIBLE=y"):
             self.assertIn(option, internal.read_text())
             self.assertIn(option, external.read_text())
+        self.assertIn(cache.DETERMINISTIC_ARCHIVES, internal.read_text().splitlines())
+        self.assertNotIn(cache.DETERMINISTIC_ARCHIVES, external.read_text().splitlines())
+        cache.validate_config("internal", internal)
+        internal.write_text(internal.read_text().replace(cache.DETERMINISTIC_ARCHIVES, ""))
+        with self.assertRaisesRegex(ValueError, "BINUTILS_EXTRA_CONFIG_OPTIONS"):
+            cache.validate_config("internal", internal)
         self.assertIn(f'BR2_TOOLCHAIN_EXTERNAL_PATH="{cache.EXTERNAL_PATH}"', external.read_text())
         self.assertIn("BR2_TOOLCHAIN_EXTERNAL_GCC_9=y", external.read_text())
         self.assertIn("BR2_TOOLCHAIN_EXTERNAL_HEADERS_5_10=y", external.read_text())

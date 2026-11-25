@@ -92,10 +92,14 @@ target-image container, exports its relocatable SDK with `make sdk`, and stores
 a deterministic `host.tar` under
 `image/build/cache/target-image/toolchains/<key>/`. The key hashes the pinned
 Buildroot commit, the shared toolchain fragment bytes, the target-image
-container package-lock SHA-256, `SOURCE_DATE_EPOCH`, and the builder context:
+container package-lock SHA-256, `SOURCE_DATE_EPOCH`, the fixed SDK builder
+hostname, and the builder context:
 the lock's `[container]` image, platform and digest, plus the
 `containers/target-image/Dockerfile` and `create-builder-user.sh` bytes. The cache receipt
-records the archive SHA-256; both are checked before reuse. A missing or changed
+records the archive SHA-256; both are checked before reuse. The fragment
+enables deterministic binutils archive headers, and both SDK entrypoints use
+the key-bound hostname so generated libtool does not embed a container ID.
+A missing or changed
 archive triggers a cold toolchain build. `TOOLCHAIN_REBUILD=1 make build` forces
 that rebuild and also bypasses the parent image receipt reuse.
 

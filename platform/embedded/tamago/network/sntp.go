@@ -158,6 +158,64 @@ func randomNonce64() uint64 {
 	return v
 }
 
+type parsedSNTPConfig struct {
+	localMAC        [6]byte
+	localPrefix     netip.Prefix
+	gateway         netip.Addr
+	servers         []netip.Addr
+	fixedNextHop    [6]byte
+	hasFixedNextHop bool
+}
+
+func parseSNTPConfig(cfg SNTPConfig) (parsedSNTPConfig, error) {
+	localMAC, err := parseUnicastMAC(cfg.LocalMAC)
+	if err != nil {
+		return parsedSNTPConfig{}, fmt.Errorf("%w: %v", ErrSNTPInvalidConfig, err)
+	}
+	localPrefix, err := netip.ParsePrefix(cfg.LocalPrefix)
+	if err != nil || !localPrefix.Addr().Is4() || localPrefix.Bits() < 1 || localPrefix.Bits() > 30 || !usableHost(localPrefix, localPrefix.Addr()) {
+		return parsedSNTPConfig{}, fmt.Errorf("%w: invalid local IPv4 prefix", ErrSNTPInvalidConfig)
+	}
+	var gateway netip.Addr
+	if cfg.Gateway != "" {
+		if _, err := staticConfig(cfg.LocalPrefix, cfg.Gateway); err != nil {
+			return parsedSNTPConfig{}, fmt.Errorf("%w: %v", ErrSNTPInvalidConfig, err)
+		}
+		gateway = netip.MustParseAddr(cfg.Gateway)
+	}
+	if len(cfg.Servers) == 0 {
+		return parsedSNTPConfig{}, fmt.Errorf("%w: no SNTP servers configured", ErrSNTPInvalidConfig)
+	}
+	servers := make([]netip.Addr, 0, len(cfg.Servers))
+	for _, s := range cfg.Servers {
+		a, err := netip.ParseAddr(strings.TrimSpace(s))
+		if err != nil || !a.Is4() || a.IsUnspecified() || a.IsMulticast() {
+			return parsedSNTPConfig{}, fmt.Errorf("%w: invalid SNTP server %q", ErrSNTPInvalidConfig, s)
+		}
+		servers = append(servers, a)
+	}
+	var fixedNextHop [6]byte
+	hasFixedNextHop := false
+	if cfg.NextHopMAC != "" {
+		fixedNextHop, err = parseUnicastMAC(cfg.NextHopMAC)
+		if err != nil {
+			return parsedSNTPConfig{}, fmt.Errorf("%w: invalid NextHopMAC: %v", ErrSNTPInvalidConfig, err)
+		}
+		hasFixedNextHop = true
+	}
+	if cfg.Timeout < 0 || cfg.RetryInterval < 0 {
+		return parsedSNTPConfig{}, fmt.Errorf("%w: negative duration", ErrSNTPInvalidConfig)
+	}
+	return parsedSNTPConfig{
+		localMAC:        localMAC,
+		localPrefix:     localPrefix,
+		gateway:         gateway,
+		servers:         servers,
+		fixedNextHop:    fixedNextHop,
+		hasFixedNextHop: hasFixedNextHop,
+	}, nil
+}
+
 // QuerySNTP queries the configured RFC 4330 SNTPv4 servers over port and returns
 // a validated UTC wall-clock sample adjusted for round-trip network delay without
 // relying on the local clock's wall-clock epoch.
@@ -168,44 +226,16 @@ func QuerySNTP(ctx context.Context, port RawFramePort, cfg SNTPConfig) (SNTPResu
 	if err := ctx.Err(); err != nil {
 		return SNTPResult{}, err
 	}
-	localMAC, err := parseUnicastMAC(cfg.LocalMAC)
+	parsed, err := parseSNTPConfig(cfg)
 	if err != nil {
-		return SNTPResult{}, fmt.Errorf("%w: %v", ErrSNTPInvalidConfig, err)
+		return SNTPResult{}, err
 	}
-	localPrefix, err := netip.ParsePrefix(cfg.LocalPrefix)
-	if err != nil || !localPrefix.Addr().Is4() || localPrefix.Bits() < 1 || localPrefix.Bits() > 30 || !usableHost(localPrefix, localPrefix.Addr()) {
-		return SNTPResult{}, fmt.Errorf("%w: invalid local IPv4 prefix", ErrSNTPInvalidConfig)
-	}
-	var gateway netip.Addr
-	if cfg.Gateway != "" {
-		if _, err := staticConfig(cfg.LocalPrefix, cfg.Gateway); err != nil {
-			return SNTPResult{}, fmt.Errorf("%w: %v", ErrSNTPInvalidConfig, err)
-		}
-		gateway = netip.MustParseAddr(cfg.Gateway)
-	}
-	if len(cfg.Servers) == 0 {
-		return SNTPResult{}, fmt.Errorf("%w: no SNTP servers configured", ErrSNTPInvalidConfig)
-	}
-	servers := make([]netip.Addr, 0, len(cfg.Servers))
-	for _, s := range cfg.Servers {
-		a, err := netip.ParseAddr(strings.TrimSpace(s))
-		if err != nil || !a.Is4() || a.IsUnspecified() || a.IsMulticast() {
-			return SNTPResult{}, fmt.Errorf("%w: invalid SNTP server %q", ErrSNTPInvalidConfig, s)
-		}
-		servers = append(servers, a)
-	}
-	var fixedNextHop [6]byte
-	hasFixedNextHop := false
-	if cfg.NextHopMAC != "" {
-		fixedNextHop, err = parseUnicastMAC(cfg.NextHopMAC)
-		if err != nil {
-			return SNTPResult{}, fmt.Errorf("%w: invalid NextHopMAC: %v", ErrSNTPInvalidConfig, err)
-		}
-		hasFixedNextHop = true
-	}
-	if cfg.Timeout < 0 || cfg.RetryInterval < 0 {
-		return SNTPResult{}, fmt.Errorf("%w: negative duration", ErrSNTPInvalidConfig)
-	}
+	localMAC := parsed.localMAC
+	localPrefix := parsed.localPrefix
+	gateway := parsed.gateway
+	servers := parsed.servers
+	fixedNextHop := parsed.fixedNextHop
+	hasFixedNextHop := parsed.hasFixedNextHop
 
 	serverPort := cfg.ServerPort
 	if serverPort == 0 {

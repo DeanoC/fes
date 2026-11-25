@@ -33,19 +33,11 @@ SDC = BOARD + "pc386/pc386-clocks.sdc"
 MODELS = {"486sx": None}
 # pc386_system's CPU identity parameter (fes_i386_cpu I486): the 486SX.
 I486 = 1
-# The board: its own machine PLL on the shared VCO (50 x 188/3): /51 for the
-# machine's 61.437908 MHz and /255 for the 12.287582 MHz audio master clock,
-# both -34 ppm and exactly 5:1, as on the DE10. No board SDRAM; a window.
-MACHINE_HZ = 61437908
-CLOCK = Fraction(9_400_000_000, 153)
-PLL_IP = BOARD + "pc386/machine_pll.ip"
-PLL_PARAMETERS = {"gui_number_of_clocks": "2", "gui_output_clock_frequency0": "61.437908",
-                  "gui_output_clock_frequency1": "12.287582"}
-SDRAM_CLOCKS = ()
-PLL_COMMENT = """// One PLL on CLOCK1_50 in place of the stock audio PLL, whose pin can feed no
-// second one: x 188/3, then /51 for the machine's 61.437908 MHz and /255 for
-// the 12.287582 MHz audio master clock, both -34 ppm and exactly 5:1.
-"""
+# The board: its own machine PLL on CLOCK1_50. Each model has its own machine
+# clock (pc386/model_clocks.py: C0 on the one VCO, the model's PLL IP and the
+# reviewed Qsys parent digest its clock generates); model_clock() gives it to
+# the board (machine/board.py reads a spec's model_clock for the model it
+# builds). No board SDRAM; a window.
 BOARD_SDRAM = False
 WINDOW = True
 # pc386_system's presenter and pixel-reset synchronizers (pc386_presenter.sv,
@@ -64,8 +56,9 @@ ASSIGNMENTS = tuple(("SYNCHRONIZER_IDENTIFICATION", "FORCED_IF_ASYNCHRONOUS", "s
 # others are renumbered by one; the window's machine-clock interconnect has its
 # own (rst_controller_005). The shared FIFO reset derivation checks its bridge
 # clock and reset wiring before rewriting it.
-PARENT_SHA256 = "10defc9a021d7119aac2bbc793ac0d6913e902b99f85cb29977c452996eeb249"
-LOCAL_FILES = ("build.py", "derive.py", "signoff_bases.py", "machine_pll.ip", "pc386-clocks.sdc", "fes_de25_pc386_standard.v",
+# The parent's reviewed digest is per model (model_clocks.py): at every clock
+# the parent is this file with only that interconnect's module name changed.
+LOCAL_FILES = ("build.py", "derive.py", "signoff_bases.py", "model_clocks.py", "pc386-clocks.sdc", "fes_de25_pc386_standard.v",
                "fes_de25_pc386_standard_hw.tcl", "fes_de25_hps_window.v", "fes_de25_hps_window_control.v",
                "fes_de25_window_arbiter.v", "fes_de25_window_unpack.v", "generated/fes_de25_hps_window.vh",
                "pc386_dma2_registers.sv")
@@ -85,6 +78,34 @@ from scripts import pc386_quartus as sealer  # noqa: E402
 from scripts import yosys_netlist  # noqa: E402
 from scripts import fit_i386_device as fit  # noqa: E402
 
+CLOCKS = load(HERE / "model_clocks.py", "de25_pc386_model_clocks")
+VCO = Fraction(CLOCKS.VCO_NUMERATOR, CLOCKS.VCO_DENOMINATOR)
+
+
+def model_clock(model=None):
+    """One model's machine clock, as machine/board.py's clocks() and the parent check take it: its
+    rate (hz, and the exact clock), PLL IP and parameters, SDRAM clocks (none), the board top's PLL
+    comment and the reviewed parent digest; and the guest-rate AUDIO ratio its clock gives."""
+    model = model or next(iter(MODELS))
+    if model not in MODELS or model not in CLOCKS.MODEL_CLOCKS:
+        raise ValueError("pc386 has no model " + str(model))
+    entry = CLOCKS.MODEL_CLOCKS[model]
+    c0 = entry["c0"]
+    clock = VCO / c0
+    mhz = f"{float(clock / 1_000_000):.6f}"
+    return {"model": model, "c0": c0, "clock": clock, "hz": round(clock), "mhz": mhz,
+            "pll_ip": BOARD + "pc386/" + entry["pll_ip"],
+            "pll_parameters": {"gui_number_of_clocks": "2", "gui_output_clock_frequency0": mhz,
+                               "gui_output_clock_frequency1": f"{float(VCO / CLOCKS.AUDIO_C / 1_000_000):.6f}"},
+            "sdram_clocks": (),
+            "pll_comment": ("// One PLL on CLOCK1_50 in place of the stock audio PLL, whose pin can feed no\n"
+                            f"// second one: x 188/3, then /{c0} for the {model}'s {mhz} MHz machine clock and\n"
+                            f"// /{CLOCKS.AUDIO_C} for the 12.287582 MHz audio master clock (-34 ppm).\n"),
+            "parent_sha256": entry["parent_sha256"],
+            # The mixer's frame request against the I2S's rate: the audio master / 256 over the
+            # machine clock, (VCO / 255 / 256) / (VCO / C0).
+            "audio": Fraction(c0, CLOCKS.AUDIO_C * 256)}
+
 SOURCES = ({BOARD + "pc386/" + name for name in LOCAL_FILES} |
            {BOARD + "spectrum/derive.py", BOARD + "zx81-hps/fes_de25_computer.v",
             "sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v"} |
@@ -93,26 +114,28 @@ SOURCES = ({BOARD + "pc386/" + name for name in LOCAL_FILES} |
                                           "scripts/pc386_quartus.py", "scripts/fit_i386_device.py")})
 
 
-def guest_rates():
+def guest_rates(model=None):
     """pc386_system's N/D pairs at the DE25 machine clock, exact rationals of it.
 
-    AUDIO is the one fixed ratio: the I2S runs at the audio clock / 256, which
-    is the machine clock / 1280, so the mixer's frame request is 1/1280 of it
-    rather than 48 kHz of the true clock, which would drift against the I2S.
+    AUDIO is the one fixed ratio: the I2S runs at the audio clock / 256, so
+    the mixer's frame request is that rate over the machine clock (C0 / 65280,
+    1/1280 at C0 = 51) rather than 48 kHz of the true clock, which would drift
+    against the I2S.
     """
+    clock = model_clock(model)
     parameters = {}
     for name, rate in sealer.GUEST_RATES.items():
-        ratio = Fraction(1, 1280) if name == "AUDIO" else rate / CLOCK
+        ratio = clock["audio"] if name == "AUDIO" else rate / clock["clock"]
         if ratio.numerator >= 2 ** 31 or ratio.denominator >= 2 ** 31:
             raise ValueError(f"{name} does not fit pc386_system's integer parameters")
         parameters[f"{name}_N"], parameters[f"{name}_D"] = ratio.numerator, ratio.denominator
-    parameters["ATA_RESET_CLOCKS"] = math.ceil(sealer.ATA_RESET_SECONDS * CLOCK)
+    parameters["ATA_RESET_CLOCKS"] = math.ceil(sealer.ATA_RESET_SECONDS * clock["clock"])
     return parameters
 
 
-def machine_parameters():
+def machine_parameters(model=None):
     """pc386_system's top parameters: the guest rates and the 486SX identity."""
-    return {**guest_rates(), "I486": I486}
+    return {**guest_rates(model), "I486": I486}
 
 
 # The pc386 lock's Yosys, once authenticated. A producer authenticates it
@@ -137,18 +160,18 @@ def authenticate_front_end(*, cache_root=None, gpu_router=None):
     return tool
 
 
-def record_parameters(root):
+def record_parameters(root, model=None):
     """A producer record's machine parameters, from the source module at root: guest rates, the
     linked firmware and the CPU and x87 identity."""
     root = Path(root)
-    return {"front_end": "yosys-seal-netlist", "guest_rates": json.dumps(guest_rates(), sort_keys=True),
+    return {"front_end": "yosys-seal-netlist", "guest_rates": json.dumps(guest_rates(model), sort_keys=True),
             "i486": I486,
             "firmware": json.dumps({**sealer.firmware_digests(root), "rom_hex": sealer.pinned_rom_digest(root)},
                                    sort_keys=True),
             "x87_present": False, "signoff_findings_review_policy": "de25-pc386-reviewed-signoff-findings-v1"}
 
 
-def machine_netlist(sources, derived_files):
+def machine_netlist(sources, derived_files, model=None):
     """The derived pc386_system as the pc386 lock's Yosys elaborates it (SEAL).
 
     It runs in the checkout, whose captured sources it requires to be exactly
@@ -180,7 +203,7 @@ def machine_netlist(sources, derived_files):
         machine = tuple(swap.get(path, path) for path in sealer.MACHINE_SOURCES) + added
         netlist = work / "pc386_system.v"
         program = yosys_netlist.program(yosys_netlist.SEAL, top=sealer.MACHINE_TOP, sources=machine,
-                                        includes=sealer.INCLUDE_DIRS, parameters=machine_parameters(),
+                                        includes=sealer.INCLUDE_DIRS, parameters=machine_parameters(model),
                                         netlist=netlist.as_posix())
         yosys_netlist.run(yosys.path, program, cwd=root, program_file=work / "machine.ys", log=work / "yosys.log")
         log = (work / "yosys.log").read_text(errors="replace")
@@ -195,7 +218,7 @@ def machine_netlist(sources, derived_files):
     return text.encode(), {"m10k_to_m20k": renamed, "duplicate_attributes_dropped": duplicates}
 
 
-def component_files(sources):
+def component_files(sources, model=None):
     """The machine's own component files; the board adds the shared shell."""
     derive = board.module(sources, BOARD + "pc386/derive.py", "pc386_selected_derive")
     spectrum = board.module(sources, BOARD + "spectrum/derive.py", "pc386_selected_transport")
@@ -211,8 +234,8 @@ def component_files(sources):
     at_core, derived["pc386_at_core.sv"] = derive.retarget_at_core(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_at_core.sv"])
     files["pc386_system.v"], prepared = machine_netlist(sources, {
         "pc386_machine.sv": machine, "pc386_system.sv": system, "pc386_at_core.sv": at_core,
-        "pc386_dma2_registers.sv": sources[BOARD + "pc386/pc386_dma2_registers.sv"]})
-    derived["pc386_system.v"] = {"front_end": "yosys-seal-netlist", "guest_rates": guest_rates(),
+        "pc386_dma2_registers.sv": sources[BOARD + "pc386/pc386_dma2_registers.sv"]}, model)
+    derived["pc386_system.v"] = {"front_end": "yosys-seal-netlist", "guest_rates": guest_rates(model),
                                  "netlist_sha256": board.sha(files["pc386_system.v"]), "I486": I486, **prepared,
                                  "x87": {"x87_present": "tied 0 in pc386_system"}}
     files["fes_de25_computer_transport.v"], derived["fes_de25_computer_transport.v"] = spectrum.transport(

@@ -1,0 +1,13 @@
+# merge base 8d9a632009175ba3997099de62a8dbc20d88565b, 2026-11-25T12:55:50Z, Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2): python3 -m unittest -v tests.test_pcxt_keyboard_bat tests.test_de25nano_machines.MachineSimulationTests.test_pcxt_on_the_standard_shell
+test_real_ppi_reset_handshake_and_cancellation (tests.test_pcxt_keyboard_bat.KeyboardBatTest.test_real_ppi_reset_handshake_and_cancellation) ... FAIL
+test_pcxt_on_the_standard_shell (tests.test_de25nano_machines.MachineSimulationTests.test_pcxt_on_the_standard_shell) ... FAIL
+AssertionError: 1 != 0 : %Error: /data/projects/fes-486sx-9216/d12/wt-main/sources/misteross/cores/fes-pcxt/sim/chipset.vlt:27:1: Unknown error code: 'PROCASSINIT'
+   27 | lint_off -rule PROCASSINIT -file "*/rtl/pcxt_machine.sv" -match "*'reset_fast'*"
+%Error: /data/projects/fes-486sx-9216/d12/wt-main/sources/misteross/cores/fes-pcxt/sim/chipset.vlt:28:1: Unknown error code: 'PROCASSINIT'
+   28 | lint_off -rule PROCASSINIT -file "*/rtl/pcxt_machine.sv" -match "*'reset_phase'*"
+%Error: /data/projects/fes-486sx-9216/d12/wt-main/sources/misteross/cores/fes-pcxt/sim/chipset.vlt:29:1: Unknown error code: 'PROCASSINIT'
+   29 | lint_off -rule PROCASSINIT -file "*/rtl/pcxt_media.sv" -match "*'previous_state'*"
+%Error: /data/projects/fes-486sx-9216/d12/wt-main/sources/misteross/cores/fes-pcxt/sim/chipset.vlt:30:1: Unknown error code: 'PROCASSINIT'
+   30 | lint_off -rule PROCASSINIT -file "*/rtl/pcxt_media_arbiter.sv" -match "*'held_read_address'*"
+%Error: /data/projects/fes-486sx-9216/d12/wt-main/sources/misteross/cores/fes-pcxt/sim/chipset.vlt:31:1: Unknown error code: 'PROCASSINIT'
+   31 | lint_off -rule PROCASSINIT -file "*/rtl/pcxt_media_arbiter.sv" -match "*'prefer_snapshot'*"
