@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -298,6 +299,102 @@ func (c *Cache) removeArtworkDigest(digest string) error {
 		return err
 	}
 	return nil
+}
+
+func (c *Cache) closeForInitializationFailure() error {
+	return c.closeInternal(true)
+}
+
+func (c *Cache) Close() error {
+	return c.closeInternal(false)
+}
+
+func (c *Cache) closeInternal(removeCreated bool) error {
+	c.operationMu.Lock()
+	defer c.operationMu.Unlock()
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	if c.closed {
+		return c.closeErr
+	}
+	c.closed = true
+	dbErr := c.db.Close()
+	c.sqliteVFS.markRetiring()
+	vfsErr := unregisterRootedSQLiteVFS(c.sqliteVFS)
+	if dbErr != nil || vfsErr != nil || rootedSQLiteVFSRegistered(c.sqliteVFS) {
+		var database *sql.DB
+		if dbErr != nil {
+			database = c.db
+		}
+		record := newSQLiteRetirementWithSQL(c.owner, c.artworkRoot, c.rootLease, c.sqliteVFS, nil, database, removeCreated, removeCreated)
+		c.retirement = record
+		c.closeErr = newOpError(ErrStorage, nil)
+		enqueueSQLiteRetirement(record)
+		return c.closeErr
+	}
+	resourceErr := c.releaseResources(removeCreated)
+	if cleanupErr := errors.Join(dbErr, vfsErr, resourceErr); cleanupErr != nil {
+		c.closeErr = newOpError(ErrStorage, nil)
+		return newOpError(ErrStorage, nil)
+	}
+	return nil
+}
+
+func (c *Cache) releaseResources(removeCreated bool) error {
+	c.resourceOnce.Do(func() {
+		var errs []error
+		if c.artworkRoot != nil {
+			if removeCreated {
+				errs = append(errs, c.artworkRoot.removeCreated())
+			}
+			errs = append(errs, c.artworkRoot.close())
+		}
+		if c.owner != nil {
+			errs = append(errs, c.owner.abort(removeCreated))
+		} else if c.sqliteRoot != nil {
+			errs = append(errs, c.sqliteRoot.Close())
+		}
+		if c.rootLease != nil {
+			c.rootLease.release()
+		}
+		c.resourceErr = errors.Join(errs...)
+	})
+	return c.resourceErr
+}
+
+func (c *Cache) retirementRecord() *sqliteRetirement {
+	c.closeMu.RLock()
+	defer c.closeMu.RUnlock()
+	return c.retirement
+}
+
+func (c *Cache) begin() (func(), error) {
+	c.closeMu.RLock()
+	if c.closed {
+		c.closeMu.RUnlock()
+		return nil, newOpError(ErrCanceled, context.Canceled)
+	}
+	return c.closeMu.RUnlock, nil
+}
+
+func (c *Cache) lockOperation(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	for {
+		if c.operationMu.TryLock() {
+			return nil
+		}
+		timer := time.NewTimer(10 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return mapContextError(ctx.Err())
+		case <-timer.C:
+		}
+	}
 }
 
 func validOutcome(outcome Outcome) bool {
