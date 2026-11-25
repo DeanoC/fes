@@ -347,13 +347,20 @@ func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 	s.lastResult = res
 	s.syncCount++
 	s.lastErr = nil
-	if s.cfg.Sink != nil {
-		s.cfg.Sink.Sync(sampleUTC)
-	}
-	if s.cfg.OnSync != nil {
-		s.enqueueCallbackLocked(func() { s.cfg.OnSync(res) })
-	}
+	sink := s.cfg.Sink
+	hasOnSync := s.cfg.OnSync != nil
 	s.mu.Unlock()
+
+	if sink != nil {
+		// Invoked outside s.mu (still serialized by syncSem and tracked by wg)
+		// so custom sinks can inspect Status() without deadlocking.
+		sink.Sync(sampleUTC)
+	}
+	if hasOnSync {
+		s.mu.Lock()
+		s.enqueueCallbackLocked(func() { s.cfg.OnSync(res) })
+		s.mu.Unlock()
+	}
 
 	return res, nil
 }

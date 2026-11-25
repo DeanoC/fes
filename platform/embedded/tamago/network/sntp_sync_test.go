@@ -410,4 +410,30 @@ func TestSNTPSyncerPlausibilityDefaultMaxStepSerializationAndBoundedCallbacks(t 
 	case <-time.After(2 * time.Second):
 		t.Fatal("callback worker did not exit after Stop + unblocking")
 	}
+
+	// 4. Custom WallClockSink.Sync can call Status() without deadlocking on s.mu.
+	var sinkSyncer *SNTPSyncer
+	var sinkSawStatus SNTPSyncStatus
+	customSink := funcSink(func(w time.Time) {
+		sinkSawStatus = sinkSyncer.Status()
+	})
+	sinkSyncer, err = NewSNTPSyncer(nil, SNTPSyncConfig{
+		Sink: customSink,
+		Query: func(context.Context, SNTPConfig) (SNTPResult, error) {
+			return SNTPResult{Time: validEpoch, Stratum: 1}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sinkSyncer.SyncOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !sinkSawStatus.Synced || sinkSawStatus.SyncCount != 1 {
+		t.Fatalf("custom sink did not observe updated Status(): %+v", sinkSawStatus)
+	}
 }
+
+type funcSink func(time.Time)
+
+func (f funcSink) Sync(t time.Time) { f(t) }
