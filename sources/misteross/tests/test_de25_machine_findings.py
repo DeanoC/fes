@@ -8,8 +8,11 @@ import re
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
+from boards.de25nano.producers import build_machine_package as shared
 from boards.de25nano.producers import build_menu_package as common
+from boards.de25nano.producers import build_pc386_package as pc386
 from boards.de25nano.scanout import machine_findings as mf
 
 TABLE = mf.bases()
@@ -55,6 +58,86 @@ class PerRuleCoverageTests(unittest.TestCase):
         self.assertEqual(common.unreviewed_rules([{'id': 'CDC-50001'}, {'id': 'CDC-50002'}], rows), 0)
         with self.assertRaisesRegex(common.BuildError, 'one distinct failed rule'):
             common.unreviewed_rules([{'id': 'PAS-00001'}], rows)  # a rule that passed
+
+
+class RegisteredTensionTests(unittest.TestCase):
+    def test_registered_builds_gate_retiming_by_recorded_model(self):
+        retimed = '_17339_~1_R6_X56_Y33_N0_I13_dff'
+        cases = (
+            ('486sx', '486sx', 'cpu_md_busy', None),
+            ('486dx', '486dx', retimed, None),
+            ('486sx', '486sx', retimed, 'matches 0 bases'),
+            ('486dx', 'unknown', retimed, 'registered fit has unknown model'),
+            ('486dx', '486sx', retimed, 'differs from prepared model'),
+            ('486dx', None, retimed, 'lacks a recorded or prepared model'),
+        )
+        for compile_only in (False, True):
+            for requested, recorded, name, error in cases:
+                with self.subTest(compile_only=compile_only, recorded=recorded, node=name):
+                    self.check_registered_fit(compile_only, requested, recorded, name, error)
+
+    def check_registered_fit(self, compile_only, requested, recorded, name, error):
+        machine = pc386.MACHINE
+        spec = machine.spec(ROOT)
+        row = [S + name, '(56, 33)', '16759', '(38, 27)', '24', '407264', '']
+        drc = report({'TMC-20602': (TENSION, [row])})
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            output = root / 'attempt'
+            selected = output / 'signoff'
+            report_path = selected / 'combined/hps/project/output_files/golden_top.tq.drc.signoff.rpt'
+            payload = selected / 'combined/hps/linux-boot.core.rbf'
+            parameters = {'model': recorded} if recorded is not None else {}
+            record = json.dumps({'parameters': parameters}).encode()
+
+            def prepare_fixture(*_, **__):
+                inputs = selected / 'combined/hps/inputs.json'
+                inputs.parent.mkdir(parents=True)
+                inputs.write_text(json.dumps({spec.board.RECORD: {'model': requested}}))
+                return selected, None, None, None, None
+
+            def fit_fixture(*_):
+                report_path.parent.mkdir(parents=True)
+                report_path.write_text(drc)
+                payload.write_bytes(b'fixture payload')
+                return payload
+
+            def timing_fixture(*_, **__):
+                mf.review(report_path.read_text(), '', TABLE.BASES)
+                return {'package_timing_admission': not compile_only}
+
+            with (
+                mock.patch.multiple(machine, require_clean_source=mock.Mock(return_value=('fixture', 'revision')),
+                                    create_build_record=mock.Mock(return_value=record),
+                                    manifest=mock.Mock(return_value=b'fixture manifest')),
+                mock.patch.object(machine, 'spec', return_value=spec),
+                mock.patch.object(spec, 'authenticate_front_end', return_value=mock.Mock(identity='fixture')),
+                mock.patch.multiple(spec.board.delegate, capture=mock.Mock(return_value={}), generate=mock.Mock(),
+                                    prepare=mock.Mock(side_effect=prepare_fixture)),
+                mock.patch.object(spec.board.delegate, 'compile_board', side_effect=fit_fixture) as fit,
+                mock.patch.multiple(common, authenticate_tools=mock.Mock(return_value=(
+                    {'quartus': root / 'quartus_sh'}, {'quartus': 'fixture'})),
+                    execution_environment=mock.Mock(return_value={}), execution_inputs=mock.Mock(return_value={})),
+                mock.patch.object(common, 'timing_evidence', side_effect=timing_fixture) as timing,
+                mock.patch.object(shared.async_inputs, 'collect', return_value=None),
+                mock.patch.object(shared.audio_reference, 'collect', return_value=None),
+                mock.patch.object(shared, 'build_identity', return_value='fixture'),
+                mock.patch.object(shared, 'export_package', return_value=root / 'fixture.fcore') as export,
+            ):
+                arguments = dict(root=root, quartus_root='', vendor_archive=root / 'fixture.zip',
+                                 model=requested, output=output, compile_only=compile_only)
+                if error:
+                    with self.assertRaisesRegex(mf.BuildError, error):
+                        machine.build(**arguments)
+                    self.assertEqual(fit.call_count, int(recorded == requested))
+                    timing.assert_not_called()
+                    export.assert_not_called()
+                    self.assertFalse((output / 'build-summary.json').exists())
+                else:
+                    self.assertEqual(machine.build(**arguments), output if compile_only else root / 'fixture.fcore')
+                    fit.assert_called_once()
+                    timing.assert_called_once()
+                    self.assertEqual(export.call_count, int(not compile_only))
 
 
 class MachineFindingsTests(unittest.TestCase):
@@ -139,6 +222,33 @@ class MachineFindingsTests(unittest.TestCase):
             '_14602_~2_BLOCK_INPUT_MUX_PASSTHROUGH_X58_Y23_N0_I39_dff',
             '_17339_~0_BLOCK_INPUT_MUX_PASSTHROUGH_X64_Y27_N0_I3_dff',
             'reduce_nor_1931~BLOCK_INPUT_MUX_PASSTHROUGH_X46_Y19_N0_I31_dff',
+            # Seed 2 adds these fitter spellings for the same logical roles.
+            'cpu_m1_tx~3xsyn_BLOCK_INPUT_MUX_PASSTHROUGH_X48_Y33_N0_I76_dff',
+            'cpu_m1_tx~3xsyn_5_BLOCK_INPUT_MUX_PASSTHROUGH_X48_Y33_N0_I77_dff',
+            'cpu_m1_tx~3xsyn_6_BLOCK_INPUT_MUX_PASSTHROUGH_X48_Y33_N0_I74_dff',
+            'cpu_m1_tx~3xsyn_7_BLOCK_INPUT_MUX_PASSTHROUGH_X48_Y33_N0_I79_dff',
+            'cpu_m1_tx~3xsyn_7_BLOCK_INPUT_MUX_PASSTHROUGH_X48_Y33_N0_I73_dff',
+            'cpu_m1_out_reg[1178]~DUPLICATE_BLOCK_INPUT_MUX_PASSTHROUGH_X49_Y25_N0_I5_dff',
+            '_17339_~1_R6_X56_Y33_N0_I13_dff',
+            'machine_at_select_fdc~0_R6_X84_Y17_N0_I13_dff',
+            # Seed 3 adds one M1 qualifier variant and three latched I/O port bits.
+            '_05547_~1_C4_X50_Y28_N0_I9_dff',
+            'machine_at_decoder_cycle_port[6]~R6_X83_Y16_N0_I9_dff',
+            'machine_at_decoder_cycle_port[7]~R6_X82_Y16_N0_I7_dff',
+            'machine_at_decoder_cycle_port[5]~R12_X82_Y16_N0_I0_dff',
+            # Seed 4 traces more port bits, plus the ISA strobe and CPU writeback.
+            '_17339_~1_R4_X60_Y28_N0_I15_dff',
+            'machine_at_decoder_cycle_port[10]~R6_X84_Y16_N0_I11_dff',
+            'machine_at_decoder_cycle_port[4]~R6_X87_Y16_N0_I3_dff',
+            'machine_at_decoder_cycle_port[9]~R6_X85_Y14_N0_I9_dff',
+            'machine_at_decoder_cycle_port[8]~R6_X85_Y14_N0_I7_dff',
+            'machine_at_decoder_cycle_port[11]~R6_X84_Y14_N0_I11_dff',
+            'cpu_wb_fault[1]~BLOCK_INPUT_MUX_PASSTHROUGH_X53_Y20_N0_I4_dff',
+            'cpu_wb_s_reg[1178]~C4_X40_Y16_N0_I30_dff',
+            'machine_at_decoder_cycle_port[5]~R6_X89_Y14_N0_I19_dff',
+            'machine_at_decoder_cycle_port[7]~R4_X90_Y14_N0_I15_dff',
+            'machine_at_cycle_strobe~1_R4_X86_Y14_N0_I13_dff',
+            'machine_at_decoder_cycle_port[6]~R4_X84_Y16_N0_I13_dff',
         )
         rows = [[S + name, '(58, 23)', '9000', '(38, 28)', '20', '200000', '']
                 for name in (*names, 'cpu_md_busy')]
@@ -153,6 +263,18 @@ class MachineFindingsTests(unittest.TestCase):
             S + 'cpu_m1_probe_good~4_BLOCK_INPUT_MUX_PASSTHROUGH_X46_Y19_N0_I30_dff',
             S + 'cpu_m1_tx~1_BLOCK_INPUT_MUX_PASSTHROUGH_X58_Y23_N0_I13_dff_extra',
             S.replace('system|', 'window_control|') + 'cpu_m2_load~ENA_dff',
+            S + 'cpu_m1_tx~3xsyn_8_BLOCK_INPUT_MUX_PASSTHROUGH_X48_Y33_N0_I79_dff',
+            S + 'cpu_m1_out_reg[1177]~DUPLICATE_BLOCK_INPUT_MUX_PASSTHROUGH_X49_Y25_N0_I5_dff',
+            S + '_17339_~0_R6_X56_Y33_N0_I13_dff',
+            S + 'machine_at_select_fdc~1_R6_X84_Y17_N0_I13_dff',
+            S + '_05548_~1_C4_X50_Y28_N0_I9_dff',
+            S + 'machine_at_decoder_cycle_port[3]~R6_X83_Y16_N0_I9_dff',
+            S + 'machine_at_decoder_cycle_port[12]~R6_X83_Y16_N0_I9_dff',
+            S + 'machine_at_decoder_cycle_port[6]~R12_X82_Y16_N0_I0_dff',
+            S + 'machine_at_decoder_cycle_port[8]~R4_X84_Y16_N0_I13_dff',
+            S + 'machine_at_cycle_strobe~2_R4_X86_Y14_N0_I13_dff',
+            S + 'cpu_wb_fault[2]~BLOCK_INPUT_MUX_PASSTHROUGH_X53_Y20_N0_I4_dff',
+            S + 'cpu_wb_s_reg[1177]~C4_X40_Y16_N0_I30_dff',
         )
         bases = self.bases('cpu-control-tension', 'retimed-machine-control-tension')
         for name in names:

@@ -14,7 +14,8 @@ reported M = 188, N = 3, C0 = 34 and C1 = 255.
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | 1 | 45,138.5 | +0.597 ns | 0.000 ns | +7.148 ns | +0.034 ns | 3.252 ns | Refused |
 | 2 | 45,176.2 | +0.574 ns | 0.000 ns | +7.265 ns | +0.029 ns | 2.996 ns | Refused |
-| 3 | 45,109.5 | +0.660 ns | 0.000 ns | +6.378 ns | +0.109 ns | Pending | Refused |
+| 3 | 45,109.5 | +0.660 ns | 0.000 ns | +6.378 ns | +0.109 ns | 2.863 ns | Refused |
+| 4 | 45,126.1 | +1.044 ns | 0.000 ns | +6.845 ns | +0.056 ns | 2.754 ns | Refused |
 
 The worst setup path is from `mult_36~mac~AY_REG` to `add_763~211` on the
 machine clock in the slow fix4 0°C model. The synthesis report traces
@@ -30,7 +31,10 @@ fails admission regardless of the raw slack. The retained fitted summary
 SHA-256 is `ee0de14e58a8a64815b266bf64c2b6042ad58b29adc95d928deefeaab02e19a1`.
 The fitted machine netlist SHA-256 is
 `5e49a28b2b28b7fc7b04432e104ea4a774eedac49b6c1ec9d6787ada2ae5a1ef`.
-The remaining original seeds still run against the same candidate.
+All four original seeds retained these same machine netlist bytes.
+The original rung is refused because all four failed producer admission.
+Its retained `c34/summary.json` SHA-256 is
+`e9d5104725d0a66fdddbb6c4586031b5a66f618dbdd64735bcabd468dc9f5eb2`.
 
 Seed 2 also reports nonnegative timing summary rows. Its producer stopped
 on the first unrecognized `TMC-20602` row for `cpu_m1_alias~26`. The full
@@ -49,8 +53,17 @@ setup is +0.660 ns from `cpu_x87_core_fast_s4[177]` to a duplicate of
 `_36681_[49]`. The original basis covers 34 of 60 rows. The seed-1
 extension covers 20 and the seed-2 variants cover two. The remaining four
 map to an M1 translation qualifier and bits 5–7 of the latched AT port.
-Its dedicated routed proof remains pending. The seed-3 timing summary
-SHA-256 is `794f61bb6bb04fc09f119f8c3f827ab7d0db25e3bd628db54c5e491d4f996b2e`.
+The seed-3 timing summary SHA-256 is
+`794f61bb6bb04fc09f119f8c3f827ab7d0db25e3bd628db54c5e491d4f996b2e`.
+
+Seed 4 also reports 165 timing summary rows with nonnegative slack. Its
+worst setup path is from a DSP tile retiming register (`mult_42~mac`)
+to the x87 writeback mantissa (`cpu_x87_wm[5]`) at slow fix4a 0°C.
+The producer refused `TMC-20602` at `cpu_dmem_read~0`. The original
+basis covers 27 of 47 rows. The earlier retiming review covers eight,
+and twelve additional rows trace to memory/writeback control, the AT port
+latch and AT cycle strobe. The seed-4 timing summary SHA-256 is
+`34d24da4e2ee4ed5b30b46d254e286912e8bd387cca41c8a589c0f19fdeb7119`.
 
 ### Retimed endpoint review
 
@@ -93,11 +106,34 @@ matches seed 1 exactly.
 | `tension-paths.tsv` | `7cf75abe876a7d5b4c7ea873df19f013ee64660593d6ab38518344790a7a0af6` |
 | `tension-summary-synchronous.json` | `6283c8a77ee207fba27a0a0c6df669c969f50c79fcdcadd5421f45a18521b3e6` |
 
+Seed 3's LOADED maximum is 2.863 ns against 3.851 ns available. All
+728 endpoint checks passed for the 26 non-original advisory rows. The
+worst traced setup was +2.063 ns and the worst hold was +0.053 ns.
+
+| Seed 3 file | SHA-256 |
+| --- | --- |
+| `loaded.tsv` | `56482bcca02d799e3c17298cccb045693d49076aa7251b370cce739e798d0406` |
+| `tension-paths.tsv` | `9d02685378029ca5267ba6964514666c9b90091d7b5346534ced71193e775e43` |
+| `tension-summary.json` | `28ca31f7216e77cc76a962141a6254863d9f546e9d0d473d0cec02eecbc99056` |
+
+Seed 4's LOADED maximum is 2.754 ns against 3.851 ns available. All
+560 endpoint checks passed for the 20 non-original advisory rows. The
+worst traced setup was +1.626 ns and the worst hold was +0.098 ns.
+
+| Seed 4 file | SHA-256 |
+| --- | --- |
+| `loaded.tsv` | `ff8402618bf0a3161579faf545d34f209ae2dc02ff454887b2bad7e9fd57cca4` |
+| `tension-paths.tsv` | `0e7ee567512a0694a1ade85053412ec5416beda4dd72974ab6191acb851047c7` |
+| `tension-summary.json` | `3fcffdeb7ede343f03a8451c634a387fd97c85858e4a1b6a202d0922a6c97c90` |
+
 The pc386 basis now covers these traced retiming forms for `TMC-20602`.
 The seed-1 report matches 42 rows under the original basis and 36 under
 the new one, with each row matched once. The rung collector requires a
 passing fitted clock and corner audit for every row matched by the new
-basis. The retained seed-1 build remains refused. The updated candidate
+basis. The registered producer checks that the prepared project and build
+record name the same model. A 486SX fit still has to match the original
+`TMC-20602` basis before package admission. The retained seed-1 build
+remains refused. The updated candidate
 needs four fresh fits through the producer. The seed-1 repair job queued
 on the alternate host was canceled before it acquired a slot after seed
 2 exposed other fitter variants. Finish the original sweep and resolve

@@ -167,11 +167,16 @@ TENSION = ('Placement advisory: registers in the machine netlist with many endpo
            'and latched port (the AT core\'s port decoder), and audio_dsp_write is the register on pc386_audio.sv\'s '
            'Sound Blaster DSP (pc386_sb) write input; all are machine-clock registers. Deano admitted them on 24 Nov 2026 (#2187), when '
            'the i486DX slice-1 fit (seed 1) reported them and their ~DUPLICATE copies.')
+CPU_CONTROL_TENSION = advisory(
+    'TMC-20602', 'cpu-control-tension', 0,
+    S + r'(?:cpu_[a-z0-9_]+|reset|_\d+_|machine_at_decoder_(?:state|phase|cycle_port)|audio_dsp_write)(?:\[\d+\])?' + COPY,
+    TENSION,
+)
 
-# The C0=34 seed-1 TimeQuest trace resolves these newly generated placements to
-# retimed integer M1, memory control and FDC decode logic. Restrict compiler-
-# generated stems to the ones traced because an arbitrary Yosys number does
-# not establish its logical role. Placement coordinates may vary by seed.
+# The C0=34 seed 1 through 4 TimeQuest traces resolve these fitted registers to
+# retimed M1, memory and writeback control, and AT I/O decode logic. Bind
+# the compiler-generated stems and new suffixes to their traced roles.
+# Placement coordinates may vary by seed.
 RETIMED_LOCATION = r'X\d+_Y\d+_N\d+_I\d+_dff'
 RETIMED_INPUT_MUX = 'BLOCK_INPUT_MUX_PASSTHROUGH_' + RETIMED_LOCATION
 RETIMED_TENSION_NODES = S + '(?:' + '|'.join((
@@ -184,12 +189,24 @@ RETIMED_TENSION_NODES = S + '(?:' + '|'.join((
     r'cpu_m2_load~(?:ENA|SCLR)_dff',
     r'cpu_l1d_stall~SCLR_dff',
     r'machine_at_select_fdc~\d+_R12_' + RETIMED_LOCATION,
+    r'cpu_m1_tx~3xsyn(?:_[567])?_' + RETIMED_INPUT_MUX,
+    r'cpu_m1_out_reg\[1178\]~DUPLICATE_' + RETIMED_INPUT_MUX,
+    r'_17339_~1_R[46]_' + RETIMED_LOCATION,
+    r'machine_at_select_fdc~0_R6_' + RETIMED_LOCATION,
+    r'_05547_~1_C4_' + RETIMED_LOCATION,
+    r'machine_at_decoder_cycle_port\[(?:[4-9]|1[01])\]~R6_' + RETIMED_LOCATION,
+    r'machine_at_decoder_cycle_port\[5\]~R12_' + RETIMED_LOCATION,
+    r'machine_at_decoder_cycle_port\[[67]\]~R4_' + RETIMED_LOCATION,
+    r'machine_at_cycle_strobe~1_R4_' + RETIMED_LOCATION,
+    r'cpu_wb_fault\[1\]~' + RETIMED_INPUT_MUX,
+    r'cpu_wb_s_reg\[1178\]~C4_' + RETIMED_LOCATION,
 )) + ')'
 RETIMED_TENSION = ('Placement advisory for the reviewed machine-clock retiming of CPU transaction, '
-                   'memory control and FDC decode logic (#2263). The C0=34 trace resolves the '
-                   'fitted names and confirms the unique machine clock, positive setup and hold '
-                   'in both directions, and no asynchronous edges or synchronizer stages at all '
-                   'four corners. The ordinary timing and CDC analyses still apply.')
+                   'memory and writeback control, and AT I/O decode logic (#2263). The C0=34 TimeQuest traces match '
+                   'each register exactly once and find one machine clock. At all four corners, '
+                   'the worst incoming and outgoing setup and hold paths have nonnegative slack '
+                   'and use the machine clock at both ends. The traced registers have no asynchronous '
+                   'edges or synchronizer stages. The ordinary timing and CDC analyses still apply.')
 # The window control block's held bundles (fes_de25_hps_window_control.v),
 # between the board's peripheral clock (clk_sys, 100 MHz) and the machine
 # clock. Their rows depend on the design and not on the seed: every seed of
@@ -285,7 +302,6 @@ BASES = (
     advisory('FLP-10000', 'small-rams', 3, nodes(
         '(?:' + S + r'[^|]+|' + E + r'window\|port[0-2]\|command_[a-z]+_rtl_\d+|' + E + r'arbiter\|unpack[12]\|[^ ]+|'
         + re.escape('soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|') + r'[^ ]+)(?:\|[^ ]+)?'), RAM),
-    advisory('TMC-20602', 'cpu-control-tension', 0,
-             S + r'(?:cpu_[a-z0-9_]+|reset|_\d+_|machine_at_decoder_(?:state|phase|cycle_port)|audio_dsp_write)(?:\[\d+\])?' + COPY, TENSION),
+    CPU_CONTROL_TENSION,
     advisory('TMC-20602', 'retimed-machine-control-tension', 0, RETIMED_TENSION_NODES, RETIMED_TENSION),
 )

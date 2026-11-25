@@ -81,7 +81,42 @@ def load(path, name):
     return module
 
 
-board = load(HERE.parent / "machine/board.py", "de25_pc386_machine_board")
+class RegisteredBoard:
+    """Add pc386's model-specific check to the registered compile stage."""
+
+    def __init__(self, delegate):
+        self.delegate = delegate
+
+    def __getattr__(self, name):
+        return getattr(self.delegate, name)
+
+    def compile_board(self, spec, output, scanout, hps, display, tool):
+        from boards.de25nano.scanout import machine_findings
+
+        directory = output / "combined/hps"
+        record = output.parent / "build-inputs.json"
+        try:
+            model = json.loads(record.read_bytes())["parameters"]["model"]
+            prepared_model = json.loads((directory / "inputs.json").read_bytes())[self.delegate.RECORD]["model"]
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise machine_findings.BuildError("DE25 pc386 registered fit lacks a recorded or prepared model") from error
+        if not isinstance(model, str) or model not in MODELS:
+            raise machine_findings.BuildError(f"DE25 pc386 registered fit has unknown model {model!r}")
+        if model != prepared_model:
+            raise machine_findings.BuildError(
+                f"DE25 pc386 recorded model {model!r} differs from prepared model {prepared_model!r}")
+
+        artifact = self.delegate.compile_board(spec, output, scanout, hps, display, tool)
+        if model != DX_MODEL:
+            # The shared review also sees the DX retiming basis. Enforce the
+            # original basis alone for SX before registered timing admission.
+            basis = load(HERE / "signoff_bases.py", "de25_pc386_signoff_bases").CPU_CONTROL_TENSION
+            report = directory / "project/output_files/golden_top.tq.drc.signoff.rpt"
+            machine_findings.review(report.read_text(), "", (basis,))
+        return artifact
+
+
+board = RegisteredBoard(load(HERE.parent / "machine/board.py", "de25_pc386_machine_board"))
 dx = load(HERE / "i486dx/derive.py", "de25_pc386_i486dx_derive")
 sys.path.insert(0, str(board.ROOT / MISTEROSS))
 from scripts import pc386_quartus as sealer  # noqa: E402
@@ -302,4 +337,4 @@ def project_files(sources):
 
 
 if __name__ == "__main__":
-    board.main(sys.modules[__name__])
+    board.delegate.main(sys.modules[__name__])
