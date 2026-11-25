@@ -415,7 +415,7 @@ class MachineProducerTests(unittest.TestCase):
         self.assertEqual(json.loads(unset)['parameters']['seed'], 1)
         self.assertEqual(json.loads(three)['parameters']['seed'], 3)
         self.assertNotEqual(build_identity(unset), build_identity(three))
-        for bad in (0, -1, True, '2'):
+        for bad in (0, -1, True, '2', 2 ** 31):
             with self.subTest(seed=bad), self.assertRaises(shared.BuildError):
                 record(seed=bad)
         spec = pc386.MACHINE.spec(ROOT)

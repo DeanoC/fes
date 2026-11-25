@@ -146,7 +146,8 @@ class Machine:
             raise BuildError("native C64 requires the captured upload-shell sources")
         top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
         native_shell = profile in (NATIVE_SPECTRUM_PROFILE, NATIVE_C64_PROFILE)
-        if type(seed) is not int or seed < 1 or (native_shell and seed != 1):
+        # The bound the board's QSF writer takes (board.seeded_qsf), so no record names a seed it refuses.
+        if type(seed) is not int or not 1 <= seed <= 2 ** 31 - 1 or (native_shell and seed != 1):
             raise BuildError(self.label + ' records a positive fitter seed; a native shell builds seed 1 only')
         review_inputs = (*REVIEW_INPUTS, NATIVE_SPECTRUM_COMPOSER) if native_shell else REVIEW_INPUTS
         roots, closure = common.captured_source_closure(root, SOURCE_ROOTS, captured, self.recipe, review_inputs)
