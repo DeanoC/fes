@@ -47,3 +47,18 @@ For `quartus_jobs.py remote`, use the pushed candidate, replace `run` with
 `remote`, and pass `'{run}'` and `'{cache}'` for the result and cache roots.
 Capture the host and run directory for each seed and keep the evidence on
 its build host until the per-rung comparison is recorded.
+
+## Software checks
+
+`make test-changed TEST_CHANGED_ARGS='--base da4acd2ac'` at `2902c12fe`
+passed the parent suite and found three FPGA test failures. The pc386
+producer fixture still expected the original 61.437908 MHz DX clock.
+It now checks the clock and audio ratio of the selected DX model. The
+three focused pc386 producer tests and all 16 DX tests passed after that
+correction.
+
+The other two failures reproduced at the merge base. The DE25 PC/XT
+standard-shell test and PC/XT PPI reset test use waivers the system
+Verilator 5.032 cannot read. The PPI reset test passes on 5.054. The
+DE25 video compile has an additional reproducible 5.054 failure tracked
+in [#2275](https://github.com/DeanoC/fes/issues/2275).
