@@ -88,6 +88,16 @@ def project_inputs(product):
     return result
 
 
+def exported_package(store, record):
+    # Discover exports by archive. The exporter may write both primary and
+    # record-keyed copies of the build-input receipt beside one archive.
+    exported = [archive.with_suffix('') for archive in store.glob('*.fcore')
+                if read_json(archive.with_suffix('.build-inputs.json')) == record]
+    if len(exported) != 1:
+        raise ValueError('expected one exported package for the candidate build record')
+    return exported[0]
+
+
 def compare_products(a, b):
     record_a = read_json(a / 'build-inputs.json')
     record_b = read_json(b / 'build-inputs.json')
@@ -109,14 +119,19 @@ def compare_products(a, b):
     digest = hashlib.sha256(rbf_a).hexdigest()
     if rbf_a != rbf_b or summary_a['rbf_sha256'] != digest or summary_b['rbf_sha256'] != digest:
         raise ValueError(f'RBF differs: main {digest}, candidate {hashlib.sha256(rbf_b).hexdigest()}')
-    manifest = tomllib.loads((b / 'manifest.toml').read_text())
+    # A producer can write its local manifest before the exporter refuses it.
+    # Require the published package's build record and payload instead.
+    package = exported_package(b.parents[1] / 'packages', record_b)
+    if (package / 'core.rbf').read_bytes() != rbf_b:
+        raise ValueError('exported package payload differs')
+    manifest = tomllib.loads((package / 'manifest.toml').read_text())
     if (manifest['payload']['sha256'] != digest or manifest['build']['id'] != design[:32]
             or manifest['build']['revision'] != record_b['revision']):
         raise ValueError('candidate manifest differs from the admitted payload or build record')
     print(f'  main {record_a["revision"]}, candidate {record_b["revision"]}')
     print(f'  same BUILD_ID {design[:32]} and {len(inputs_a)} project inputs after path normalization')
     print(f'  same toolchain identity {toolchain}')
-    print(f'  cmp-equal RBF {digest}, candidate admitted and manifest matches')
+    print(f'  cmp-equal RBF {digest}, candidate admitted and sealed as {package.name}')
 
 
 def compare(root_a, root_b):
