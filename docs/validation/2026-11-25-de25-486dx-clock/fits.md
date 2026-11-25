@@ -294,6 +294,25 @@ advisory subject in the unconstrained path tables.
 [TimeQuest path queries](https://docs.altera.com/r/docs/683432/26.3/quartus-prime-pro-edition-user-guide-scripting/get_timing_paths-quartus-sta?contentId=TFyfmhCSrpOWMKC0o_7ZTg)
 and [unconstrained path reporting](https://docs.altera.com/r/docs/683432/26.3/quartus-prime-pro-edition-user-guide-scripting/report_ucp-quartus-sta?contentId=qCZEnfJdI2kgidW0dOO2KA).
 
+## C0 = 34 sweep with the structural proof
+
+The candidate is `b6310cd4cb7f9eb9f7c5cb4e1462ebb9708024cc`. Seed 1
+passes the registered producer, ordinary package seal and independent
+rung collector. It used the original machine netlist bytes, reached
+44,883.4 ALMs and retained the intended PLL counters. The worst all-corner
+setup, hold, recovery and removal were +0.403, 0.000, +6.896 and +0.043 ns.
+LOADED measured 2.285 ns against 3.851 ns available. The live proof for
+12 placement registers passed 336 numerical and 96 structural checks,
+and the detailed unconstrained report excludes those subjects. The other
+three seeds are required to qualify the rung.
+
+| Seed 1 artifact | SHA-256 |
+| --- | --- |
+| `summary.json` | `f846826647aaebf00e8d2c6a00082f4f1ed5e5d09a64cc5248fd7bf0cd0bc7ec` |
+| `retimed-tension/receipt.json` | `96fd5ac8d87b2d47145a26a851d02422d7802a88a7206f38a7712d2d20c066d5` |
+| `core.rbf` | `af47e9d61c07e6b55d803a4fa20783b5e5bb54e37144880563dffc008c963158` |
+| Sealed `.fcore` | `d2b3bce9aacc4cdcfe593dad7734cd9a876a6c98f2799fb60be6e89935478d5d` |
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed
