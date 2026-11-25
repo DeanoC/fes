@@ -3,7 +3,7 @@ package corenames
 import "testing"
 
 func TestNamesUseExactFirstPartyIdentity(t *testing.T) {
-	if len(models) != 22 {
+	if len(models) != 23 {
 		t.Fatalf("registered models: %d", len(models))
 	}
 	for id, m := range models {
