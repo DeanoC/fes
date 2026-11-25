@@ -16,5 +16,7 @@ monotonic-anchored UTC wall clock (`Clock`).
   the monotonic nanosecond counter (`NewClock`, `Now`, `Sync`), avoiding
   repeated MMIO reads while providing sub-second wall-clock progression.
 - **Board policy:** QEMU `virt` wires PL031 at `0x09010000` (SPI 2 / INTID 34).
-  DE25-Nano has no on-chip PL031 RTC and reports `board.WallTime() == (_, false)`
-  and `board.RTC() == (nil, rtc.ErrNotFound)`.
+  DE25-Nano has no on-chip PL031 RTC (`board.RTC()` returns `(nil, rtc.ErrNotFound)`)
+  and exposes an initially unsynced monotonic-anchored `rtc.Clock`
+  (`NewUnsyncedClock`) populated once network SNTP (`board.SyncWallTime`)
+  establishes a UTC epoch.
