@@ -816,3 +816,233 @@ func TestHubBluetoothSnapshotAndForgetDevice(t *testing.T) {
 		t.Fatalf("unexpected snapshot after forget+save: %+v", snap)
 	}
 }
+
+func TestHubMultiPlayerPortAssignmentAndStableDetach(t *testing.T) {
+	bus := newFakeBus()
+	hub, err := NewHub(bus, Config{
+		Bonds: l2cap.NewBondStore(),
+		Now:   func() time.Time { return time.Unix(600, 0) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Close()
+
+	// P1 = wired XInput controller (addr 2).
+	xinput := makeXInputDev(2)
+	bus.attach(xinput)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	p1Pipe := bus.pipes[key32(2, 0x81)]
+	xNeutral := make([]byte, 20)
+	xNeutral[1] = 0x14
+	p1Pipe.inQueue = append(p1Pipe.inQueue, xNeutral)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = hub.NextGamepadUpdate()
+
+	// P2 = Classic BT controller in slot 0 (must occupy P2 without shifting P1).
+	hub.bt.OnSlotChanged(0, true, controllers.KindDualSense, "DualSense P2")
+	hub.bt.OnGamepadState(0, controllers.KindDualSense, controllers.State{})
+	// BT keyboard in slot 1 must not consume any controller player port.
+	hub.bt.OnSlotChanged(1, true, controllers.KindUnknown, "BT Keyboard")
+	hub.bt.OnSlotKeyboardReport(1, []byte{0, 0, 0x04, 0, 0, 0, 0, 0})
+
+	// P1 presses Up + South/A (bits 0 and 4); P2 presses Right + Start (bits 3 and 7).
+	xPress := append([]byte(nil), xNeutral...)
+	xPress[2] = 0x01 // XInput DPad Up
+	xPress[3] = 0x10 // XInput A (South)
+	p1Pipe.inQueue = append(p1Pipe.inQueue, xPress)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	upd1, ok1 := hub.NextGamepadUpdate()
+	if !ok1 || upd1.Ports != ([MaxPlayerPorts]uint8{1<<0 | 1<<4, 0, 0, 0}) {
+		t.Fatalf("expected P1 mask=0x11 P2=0, got ok=%t ports=%#v", ok1, upd1.Ports)
+	}
+
+	hub.bt.OnGamepadState(0, controllers.KindDualSense, controllers.State{
+		Buttons: controllers.ButtonDPadRight | controllers.ButtonStart,
+	})
+	upd2, ok2 := hub.NextGamepadUpdate()
+	if !ok2 || upd2.Ports != ([MaxPlayerPorts]uint8{1<<0 | 1<<4, 1<<3 | 1<<7, 0, 0}) {
+		t.Fatalf("expected independent P1=0x11 P2=0x88, got ok=%t ports=%#v", ok2, upd2.Ports)
+	}
+	if hub.GamepadNeutral() {
+		t.Fatal("expected GamepadNeutral=false while P1/P2 active")
+	}
+
+	// Detach P1 wired controller: P1 clears to 0 while P2 stays on P2 (never renumbered to P1).
+	bus.detach(xinput)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	upd3, ok3 := hub.NextGamepadUpdate()
+	if !ok3 || upd3.Ports != ([MaxPlayerPorts]uint8{0, 1<<3 | 1<<7, 0, 0}) {
+		t.Fatalf("expected P1 cleared and P2 preserved on P1 detach, got ok=%t ports=%#v", ok3, upd3.Ports)
+	}
+
+	// Re-attaching a new wired Sony DualSense takes freed P1 while P2 stays intact.
+	sony := makeSonyUSBDev(3, 0x0ce6)
+	bus.attach(sony)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	dsPipe := bus.pipes[key32(3, 0x84)]
+	dsPkt := make([]byte, 64)
+	dsPkt[0] = 0x01
+	dsPkt[1], dsPkt[2], dsPkt[3], dsPkt[4] = 0x80, 0x80, 0x80, 0x80
+	dsPkt[8] = 0x04 | 0x40 // HID hat=Down(4) + East/Circle(0x40)
+	dsPipe.inQueue = append(dsPipe.inQueue, dsPkt)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	upd4, ok4 := hub.NextGamepadUpdate()
+	if !ok4 || upd4.Ports != ([MaxPlayerPorts]uint8{1<<1 | 1<<5, 1<<3 | 1<<7, 0, 0}) {
+		t.Fatalf("expected re-attached controller on P1=0x22 with P2=0x88, got ok=%t ports=%#v", ok4, upd4.Ports)
+	}
+}
+
+func TestHubOverflowPromotionAndUnassignedBluetoothSnapshot(t *testing.T) {
+	bus := newFakeBus()
+	dongle := makeBTDongleDev(2)
+	bus.attach(dongle)
+
+	addr1, _ := l2cap.ParseBDAddr("AA:BB:CC:DD:EE:11")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: addr1, LinkKey: [16]byte{1}, Name: "Overflow DualSense", Kind: controllers.KindDualSense, Slot: 0})
+	bonds.ClearDirty()
+
+	hub, err := NewHub(bus, Config{
+		Bonds: bonds,
+		Now:   func() time.Time { return time.Unix(700, 0) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Close()
+
+	// Occupy all 4 player ports with wired XInput controllers (addr 3..6).
+	wiredDevs := [MaxPlayerPorts]usb.BusDevice{
+		makeXInputDev(3), makeXInputDev(4), makeXInputDev(5), makeXInputDev(6),
+	}
+	for _, dev := range wiredDevs {
+		bus.attach(dev)
+	}
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	xNeutral := make([]byte, 20)
+	xNeutral[1] = 0x14
+	for _, dev := range wiredDevs {
+		bus.pipes[key32(dev.Address, 0x81)].inQueue = append(bus.pipes[key32(dev.Address, 0x81)].inQueue, xNeutral)
+	}
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	for {
+		if _, ok := hub.NextGamepadUpdate(); !ok {
+			break
+		}
+	}
+
+	// Connect BT controller addr1 into BT slot 0 via L2CAP while P1..P4 are full.
+	connEv := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, addr1[:]...)
+	connEv = append(connEv, 0x01, 0x01)
+	bus.btEvPipe.inQueue = append(bus.btEvPipe.inQueue, connEv)
+	makeACL := func(cid uint16, body []byte) []byte {
+		l2 := make([]byte, 4+len(body))
+		binary.LittleEndian.PutUint16(l2[0:2], uint16(len(body)))
+		binary.LittleEndian.PutUint16(l2[2:4], cid)
+		copy(l2[4:], body)
+		acl := make([]byte, 4+len(l2))
+		binary.LittleEndian.PutUint16(acl[0:2], 0x0041|uint16(hci.ACLBoundaryFirstAutoFlush)<<12)
+		binary.LittleEndian.PutUint16(acl[2:4], uint16(len(l2)))
+		copy(acl[4:], l2)
+		return acl
+	}
+	bus.btACLInPipe.inQueue = append(bus.btACLInPipe.inQueue,
+		makeACL(l2cap.CIDSignaling, []byte{0x02, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}),
+		makeACL(l2cap.CIDSignaling, []byte{0x04, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeACL(l2cap.CIDSignaling, []byte{0x05, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeACL(l2cap.CIDSignaling, []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x51, 0x00}),
+		makeACL(l2cap.CIDSignaling, []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
+		makeACL(l2cap.CIDSignaling, []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Overflow BT controller must appear connected with Slot == 0 (never a duplicate 1..4 slot).
+	snap := hub.BluetoothSnapshot()
+	if snap.ConnectedCount != 1 || len(snap.Devices) != 1 || !snap.Devices[0].Connected || snap.Devices[0].Slot != 0 {
+		t.Fatalf("expected connected unassigned BT device with Slot=0 while P1..P4 full, got %+v", snap)
+	}
+	hub.bt.OnGamepadState(0, controllers.KindDualSense, controllers.State{Buttons: controllers.ButtonDPadRight})
+	if upd, ok := hub.NextGamepadUpdate(); !ok || upd.Ports != ([MaxPlayerPorts]uint8{}) {
+		t.Fatalf("expected unassigned BT controller not to drive P1..P4, got ok=%t ports=%#v", ok, upd.Ports)
+	}
+
+	// Detach wired P2 -> waiting BT controller must immediately take P2, advance btGeneration, and update snapshot Slot=2.
+	genBefore := hub.BluetoothGeneration()
+	bus.detach(wiredDevs[1])
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	updPromo, okPromo := hub.NextGamepadUpdate()
+	if !okPromo || updPromo.Ports != ([MaxPlayerPorts]uint8{0, 1 << 3, 0, 0}) {
+		t.Fatalf("expected waiting BT controller promoted into freed P2 with held mask 0x08, got ok=%t ports=%#v", okPromo, updPromo.Ports)
+	}
+	if hub.BluetoothGeneration() <= genBefore {
+		t.Fatal("expected BluetoothGeneration bump when BT controller promoted to P2")
+	}
+	if snap = hub.BluetoothSnapshot(); !snap.Devices[0].Connected || snap.Devices[0].Slot != 2 {
+		t.Fatalf("expected promoted BT controller Slot=2 in snapshot, got %+v", snap)
+	}
+
+	// Reverse overflow: occupy all 4 player ports with BT controllers, attach a 5th wired controller while full,
+	// then disconnect P1 BT -> already-connected wired controller must immediately promote to P1 without reattach.
+	for _, dev := range []usb.BusDevice{wiredDevs[0], wiredDevs[2], wiredDevs[3]} {
+		bus.detach(dev)
+	}
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	hub.bt.OnSlotChanged(1, true, controllers.KindDualSense, "BT P1")
+	hub.bt.OnSlotChanged(2, true, controllers.KindDualSense, "BT P3")
+	hub.bt.OnSlotChanged(3, true, controllers.KindDualSense, "BT P4")
+	hub.bt.OnGamepadState(0, controllers.KindDualSense, controllers.State{})
+	for {
+		if _, ok := hub.NextGamepadUpdate(); !ok {
+			break
+		}
+	}
+
+	wired5 := makeXInputDev(7)
+	bus.attach(wired5)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	xUp := append([]byte(nil), xNeutral...)
+	xUp[2] = 0x01 // DPad Up -> bit0
+	bus.pipes[key32(7, 0x81)].inQueue = append(bus.pipes[key32(7, 0x81)].inQueue, xUp)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	// Disconnect BT slot 1 (owns P1) -> wired5 promotes directly into P1 with its current held mask (0x01).
+	hub.bt.OnSlotChanged(1, false, controllers.KindDualSense, "BT P1")
+	var lastUpd GamepadUpdate
+	for {
+		u, ok := hub.NextGamepadUpdate()
+		if !ok {
+			break
+		}
+		lastUpd = u
+	}
+	if lastUpd.Ports != ([MaxPlayerPorts]uint8{1 << 0, 0, 0, 0}) {
+		t.Fatalf("expected connected waiting wired controller promoted to P1 (0x01), got ports=%#v", lastUpd.Ports)
+	}
+}
