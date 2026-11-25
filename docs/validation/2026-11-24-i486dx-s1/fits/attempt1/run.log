@@ -1,0 +1,5 @@
+start 2026-11-24T08:19:40Z rev 5112461a9
+uptime  10:19:40 up 29 days,  9:31, 10 users,  load average: 15.36, 29.34, 28.09
+s1 producer exit=1 2026-11-24T09:12:59Z
+s1 producer-refused
+DONE

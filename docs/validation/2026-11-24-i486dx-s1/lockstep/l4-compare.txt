@@ -1,0 +1,15 @@
+base failures 0 dx failures 0
+new in dx 0
+differing values 11
+   random/sets/debug/totals/cycles | 35541342 | 35539822
+   random/sets/debug/totals/replays | 34748 | 34426
+   random/sets/pmode/totals/cycles | 10625077 | 10626490
+   random/sets/pmode/totals/replays | 9571 | 9570
+   random/sets/random/totals/cycles | 103827153 | 103878173
+   random/sets/random/totals/replays | 138827 | 138604
+   random/sets/random/totals/smc_restarts | 12229 | 12230
+   random/sets/steady/totals/cycles | 11999085 | 12002022
+   random/sets/steady/totals/replays | 18816 | 18811
+   random/sets/tasks/totals/cycles | 5429855 | 5430328
+   random/sets/undefined/totals/cycles | 5076639 | 5078076
+PASS

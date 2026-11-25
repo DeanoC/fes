@@ -398,11 +398,24 @@ class MachineProducerTests(unittest.TestCase):
         # No model named is the first model; an unknown model has no clock.
         self.assertEqual(board.clocks(spec)[0], 92156863)
         with self.assertRaisesRegex(ValueError, 'no model'):
-            spec.model_clock('486dx')
+            spec.model_clock('486dx2')
         # A machine-wide clock spec beside model_clock is refused, not silently preferred.
         spec.MACHINE_HZ = 1
         with self.assertRaisesRegex(ValueError, 'both a per-model and a machine-wide'):
             board.clocks(spec)
+
+    def test_pc386_486dx_record_names_its_cpu_x87_and_clock(self):
+        """#2194's 486dx: its own record, at 61.437908 MHz (C0 51), with the i486DX CPU and the 387."""
+        tools = {**self.tools, 'yosys': 'explicit fixture yosys'}
+        records = {model: json.loads(pc386.create_build_record(self.root, REPOSITORY, self.revision, tools, self.execution,
+                                                               self.captured[pc386], model=model))['parameters']
+                   for model in ('486sx', '486dx')}
+        dx = records['486dx']
+        self.assertEqual((dx['model'], dx['machine_clock_hz'], dx['cpu'], dx['x87_present'], dx['i486']),
+                         ('486dx', 61437908, 'fes_i486dx_cpu', True, 1))
+        self.assertEqual(json.loads(dx['guest_rates'])['AUDIO_D'], 1280)
+        sx = records['486sx']
+        self.assertEqual((sx['model'], sx['x87_present'], 'cpu' in sx), ('486sx', False, False))
 
     def test_fitter_seed_reaches_the_record_and_the_qsf_and_seed_one_changes_nothing(self):
         """--seed: the record carries it and the QSF's one SEED assignment takes it. Seed 1, the

@@ -1,0 +1,17 @@
+PASS machine mouse input is accepted once after readiness
+DEBUG 402 BIOS BUILD DATE: 11/03/26
+POST 00 11744
+POST 21 2471326
+POST 31 2571522
+POST 41 2971722
+POST 71 3074326
+POST 77 3174352
+DEBUG 500 VGABios ID: vgabios.c 2026-08-07
+DEBUG 402 ata0-0: PCHS=80/16/63 translation=none LCHS=80/16/63
+DEBUG 402 IDE time out
+DEBUG 402 Booting from 0000:7c00
+PROMPT 460018143
+RTL-BEGIN 460018150 flips=2
+QDIAG busy=0 nw=1 nw_waiting=1 started=0 fired=1 latched=0 seq=0 hold=1 iss=1 iss_first=1 iss_wait=0 cr0=fffffff9 eflags=00003246
+STOP stall 977741085 00a7:0005256c dbe3 DB.4
+PMODE 977741235 977741427 48 0018:00003ca0 0018:00002bd2
