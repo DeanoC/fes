@@ -65,7 +65,7 @@ func TestSNTPSyncerSyncOnceBackoffAndRTC(t *testing.T) {
 	}
 
 	deadline := time.Now().Add(2 * time.Second)
-	for syncEvents.Load() < 2 && time.Now().Before(deadline) {
+	for (syncEvents.Load() < 2 || errEvents.Load() < 1) && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	syncer.Stop()
@@ -142,5 +142,87 @@ func TestSNTPSyncerMaxStepGuardAndValidation(t *testing.T) {
 	}
 	if st := syncer.Status(); st.SyncCount != 2 || !st.LastSync.Equal(sample) || st.LastErr != nil {
 		t.Fatalf("unexpected post-recovery status: %+v", st)
+	}
+}
+
+func TestSNTPSyncerCallbackStopDoesNotDeadlockAndSyncOnceBarrier(t *testing.T) {
+	// 1. OnSync calling Stop() synchronously must not deadlock.
+	stoppedCh := make(chan struct{})
+	var syncer *SNTPSyncer
+	var err error
+	syncer, err = NewSNTPSyncer(nil, SNTPSyncConfig{
+		PollInterval:  10 * time.Millisecond,
+		RetryInterval: 5 * time.Millisecond,
+		Query: func(context.Context, SNTPConfig) (SNTPResult, error) {
+			return SNTPResult{Time: time.Unix(1795000000, 0).UTC(), Stratum: 1}, nil
+		},
+		OnSync: func(SNTPResult) {
+			syncer.Stop()
+			close(stoppedCh)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syncer.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-stoppedCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnSync calling Stop deadlocked")
+	}
+
+	// 2. Direct public SyncOnce participates in Stop() barrier and never updates Sink after Stop returns.
+	inQuery := make(chan struct{})
+	releaseQuery := make(chan struct{})
+	var sinkCalls atomic.Int32
+	clk := rtc.NewUnsyncedClock(nil)
+	s2, err := NewSNTPSyncer(nil, SNTPSyncConfig{
+		Sink: clk,
+		Query: func(ctx context.Context, _ SNTPConfig) (SNTPResult, error) {
+			close(inQuery)
+			<-releaseQuery
+			sinkCalls.Add(1)
+			return SNTPResult{Time: time.Unix(1795000100, 0).UTC(), Stratum: 1}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := s2.SyncOnce(context.Background())
+		errCh <- err
+	}()
+	<-inQuery
+
+	stopDone := make(chan struct{})
+	go func() {
+		s2.Stop()
+		close(stopDone)
+	}()
+
+	select {
+	case <-stopDone:
+		t.Fatal("Stop returned while public SyncOnce was still in flight")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	close(releaseQuery)
+	select {
+	case <-stopDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop did not return after in-flight SyncOnce completed")
+	}
+	if gotErr := <-errCh; !errors.Is(gotErr, ErrSNTPSyncerStopped) {
+		t.Fatalf("in-flight SyncOnce err=%v, want ErrSNTPSyncerStopped", gotErr)
+	}
+	if _, ok := clk.WallTime(); ok {
+		t.Fatal("Sink was updated after Stop was initiated")
+	}
+	if _, err := s2.SyncOnce(context.Background()); !errors.Is(err, ErrSNTPSyncerStopped) {
+		t.Fatalf("SyncOnce after Stop err=%v, want ErrSNTPSyncerStopped", err)
 	}
 }

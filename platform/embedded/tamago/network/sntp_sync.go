@@ -154,7 +154,8 @@ func NewSNTPSyncer(port RawFramePort, cfg SNTPSyncConfig) (*SNTPSyncer, error) {
 }
 
 // SyncOnce performs a single SNTPv4 query, enforces MaxStep if already synced,
-// updates Sink (if non-nil), and records Status metrics.
+// updates Sink (if non-nil), and records Status metrics. Calls participate in
+// Stop's lifecycle barrier; invoking Stop from OnSync or OnError never deadlocks.
 func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -162,7 +163,28 @@ func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 	if err := ctx.Err(); err != nil {
 		return SNTPResult{}, err
 	}
-	res, err := s.queryFn(ctx, s.cfg.SNTP)
+	s.mu.Lock()
+	if s.stopped {
+		s.mu.Unlock()
+		return SNTPResult{}, ErrSNTPSyncerStopped
+	}
+	s.wg.Add(1)
+	s.mu.Unlock()
+	defer s.wg.Done()
+
+	opCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	doneWatch := make(chan struct{})
+	defer close(doneWatch)
+	go func() {
+		select {
+		case <-s.stopCh:
+			cancel()
+		case <-doneWatch:
+		}
+	}()
+
+	res, err := s.queryFn(opCtx, s.cfg.SNTP)
 	if err != nil {
 		if !errors.Is(err, ErrPaused) {
 			s.mu.Lock()
@@ -170,7 +192,7 @@ func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 			s.lastErr = err
 			s.mu.Unlock()
 			if s.cfg.OnError != nil {
-				s.cfg.OnError(err)
+				go s.cfg.OnError(err)
 			}
 		} else {
 			s.mu.Lock()
@@ -182,6 +204,10 @@ func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 
 	nowMono := s.nowFn()
 	s.mu.Lock()
+	if s.stopped {
+		s.mu.Unlock()
+		return SNTPResult{}, ErrSNTPSyncerStopped
+	}
 	if s.synced && s.cfg.MaxStep > 0 {
 		elapsed := nowMono.Sub(s.lastSyncMono)
 		if elapsed < 0 {
@@ -198,7 +224,7 @@ func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 			s.lastErr = stepErr
 			s.mu.Unlock()
 			if s.cfg.OnError != nil {
-				s.cfg.OnError(stepErr)
+				go s.cfg.OnError(stepErr)
 			}
 			return SNTPResult{}, stepErr
 		}
@@ -209,13 +235,13 @@ func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 	s.lastResult = res
 	s.syncCount++
 	s.lastErr = nil
-	s.mu.Unlock()
-
 	if s.cfg.Sink != nil {
 		s.cfg.Sink.Sync(res.Time)
 	}
+	s.mu.Unlock()
+
 	if s.cfg.OnSync != nil {
-		s.cfg.OnSync(res)
+		go s.cfg.OnSync(res)
 	}
 	return res, nil
 }
@@ -288,8 +314,10 @@ func (s *SNTPSyncer) run(ctx context.Context) {
 	}
 }
 
-// Stop halts the background SNTP discipline loop and waits for any in-flight
-// SyncOnce call and callbacks to return. Safe to call multiple times or without Start.
+// Stop halts the background SNTP discipline loop and waits for all in-flight
+// queries and Sink.Sync updates (from both Start and direct SyncOnce calls) to
+// complete before returning. Safe to call multiple times, without Start, or from
+// OnSync/OnError callbacks.
 func (s *SNTPSyncer) Stop() {
 	s.mu.Lock()
 	if !s.stopped {
