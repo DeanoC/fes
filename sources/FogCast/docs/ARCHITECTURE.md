@@ -1527,7 +1527,8 @@ for the ZX81, Spectrum, Atari ST and Commodore 64 families. It shows one
 family: a Model row for its variants, the computer with its readiness and
 fixed facts on the left, and its drive and games on the right. For C64 the
 default model is PAL (`fes.c64`). Show all cores also exposes the DE10 6567R8 NTSC (`fes.c64-ntsc`),
-6567R56A early NTSC (`fes.c64-early-ntsc`), and PAL and NTSC C64C
+6567R56A early NTSC (`fes.c64-early-ntsc`), Drean PAL-N (`fes.c64-pal-n`),
+and PAL and NTSC C64C
 (`fes.c64c`, `fes.c64c-ntsc`) models. Each model launches its own library
 entries and binds the user's 36 KiB firmware to its selected package. All use
 the same D64 drive interface. The screen reads the

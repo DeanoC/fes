@@ -36,6 +36,8 @@ module c64_vic #(parameter integer NTSC = 0) (
     output reg  [8:0]  raster,
     output wire        irq
 );
+    // PAL-N shares the 65-cycle bus schedule with NTSC but has PAL video geometry.
+    localparam bit PAL_VIDEO = NTSC == 0 || NTSC == 3;
     reg [7:0] regs [0:46];
     localparam CYCLE_BITS = `C64_CYCLE_BITS(NTSC);
     localparam [8:0] LAST_LINE = `C64_LINES_PER_FRAME(NTSC) - 1;
@@ -123,20 +125,20 @@ module c64_vic #(parameter integer NTSC = 0) (
             case (index)
                 4'h0: palette = 24'h000000;
                 4'h1: palette = 24'hFFFFFF;
-                4'h2: palette = NTSC ? 24'h7C352B : 24'h813338;
-                4'h3: palette = NTSC ? 24'h5AA6B1 : 24'h75CEC8;
-                4'h4: palette = NTSC ? 24'h694185 : 24'h8E3C97;
-                4'h5: palette = NTSC ? 24'h5D8643 : 24'h56AC4D;
-                4'h6: palette = NTSC ? 24'h212E78 : 24'h2E2C9B;
-                4'h7: palette = NTSC ? 24'hCFBE6F : 24'hEDF171;
-                4'h8: palette = NTSC ? 24'h894A26 : 24'h8E5029;
-                4'h9: palette = NTSC ? 24'h5B3300 : 24'h553800;
-                4'hA: palette = NTSC ? 24'hAF6459 : 24'hC46C71;
-                4'hB: palette = NTSC ? 24'h434343 : 24'h4A4A4A;
-                4'hC: palette = NTSC ? 24'h6B6B6B : 24'h7B7B7B;
-                4'hD: palette = NTSC ? 24'hA0CB84 : 24'hA9FF9F;
-                4'hE: palette = NTSC ? 24'h5665B3 : 24'h706DEB;
-                default: palette = NTSC ? 24'h959595 : 24'hB2B2B2;
+                4'h2: palette = !PAL_VIDEO ? 24'h7C352B : 24'h813338;
+                4'h3: palette = !PAL_VIDEO ? 24'h5AA6B1 : 24'h75CEC8;
+                4'h4: palette = !PAL_VIDEO ? 24'h694185 : 24'h8E3C97;
+                4'h5: palette = !PAL_VIDEO ? 24'h5D8643 : 24'h56AC4D;
+                4'h6: palette = !PAL_VIDEO ? 24'h212E78 : 24'h2E2C9B;
+                4'h7: palette = !PAL_VIDEO ? 24'hCFBE6F : 24'hEDF171;
+                4'h8: palette = !PAL_VIDEO ? 24'h894A26 : 24'h8E5029;
+                4'h9: palette = !PAL_VIDEO ? 24'h5B3300 : 24'h553800;
+                4'hA: palette = !PAL_VIDEO ? 24'hAF6459 : 24'hC46C71;
+                4'hB: palette = !PAL_VIDEO ? 24'h434343 : 24'h4A4A4A;
+                4'hC: palette = !PAL_VIDEO ? 24'h6B6B6B : 24'h7B7B7B;
+                4'hD: palette = !PAL_VIDEO ? 24'hA0CB84 : 24'hA9FF9F;
+                4'hE: palette = !PAL_VIDEO ? 24'h5665B3 : 24'h706DEB;
+                default: palette = !PAL_VIDEO ? 24'h959595 : 24'hB2B2B2;
             endcase
         end
     endfunction
@@ -207,7 +209,7 @@ module c64_vic #(parameter integer NTSC = 0) (
         endcase
     end
     // The NTSC lower border spans raster wrap. R56A includes line 12; R8 ends at 11.
-    localparam integer CAPTURE_WRAP_LINES = NTSC == 2 ? 13 : (NTSC ? 12 : 0);
+    localparam integer CAPTURE_WRAP_LINES = NTSC == 2 ? 13 : (!PAL_VIDEO ? 12 : 0);
     wire native_frame_start = first_phase && raster == CAPTURE_WRAP_LINES && native_cycle == 1;
     wire lower_edge = raster == (d011[3] ? `C64_BORDER_BOTTOM_25 : `C64_BORDER_BOTTOM_24);
     wire upper_edge = raster == (d011[3] ? `C64_BORDER_TOP_25 : `C64_BORDER_TOP_24) && d011[4];
@@ -306,7 +308,7 @@ module c64_vic #(parameter integer NTSC = 0) (
     // group. The 6567R8 has 65 cycles and 64 distinct groups: both cycles
     // 62 and 63 select X=384..391 before the counter advances again.
     localparam [8:0] LINE_START_X = NTSC == 2 ? 9'd412 : (NTSC ? 9'd408 : 9'd400);
-    wire [CYCLE_BITS-1:0] beam_cycle = NTSC == 1 && native_cycle >= 63 ?
+    wire [CYCLE_BITS-1:0] beam_cycle = (NTSC == 1 || NTSC == 3) && native_cycle >= 63 ?
         native_cycle - 1'b1 : native_cycle;
     wire [8:0] prepare_x = native_cycle >= `C64_X_ZERO_CYCLE ?
         9'((beam_cycle - `C64_X_ZERO_CYCLE)*8) + {6'd0,prepare_dot} :
@@ -318,8 +320,8 @@ module c64_vic #(parameter integer NTSC = 0) (
         if(reset)begin
             sprite_dot_x_q<=0;
             // Cycle 1 fetches sprite 3's pointer on PAL and row on NTSC.
-            sprite_pointer_q <= NTSC == 1 ? 0 : 8'h08;
-            sprite_row_q <= NTSC == 1 ? 8'h08 : 0;
+            sprite_pointer_q <= (NTSC == 1 || NTSC == 3) ? 0 : 8'h08;
+            sprite_row_q <= (NTSC == 1 || NTSC == 3) ? 8'h08 : 0;
             sprite_pending_update_q<=0;
         end else if(pixel_prepare)begin
             sprite_dot_x_q<=prepare_x;
@@ -342,10 +344,10 @@ module c64_vic #(parameter integer NTSC = 0) (
     // VICE's normal border window for the 6567R8 is 384 x 247. Raster
     // lines 28..262 followed by 0..11 form one contiguous picture.
     // See vice/src/viciisc/vicii-timing.h, VICII_NTSC_NORMAL_*.
-    localparam integer CAPTURE_FIRST_LINE = NTSC ? 28 : `C64_PAL_CAPTURE_FIRST_LINE;
-    wire wrapped_line = NTSC && raster < CAPTURE_WRAP_LINES;
+    localparam integer CAPTURE_FIRST_LINE = !PAL_VIDEO ? 28 : `C64_PAL_CAPTURE_FIRST_LINE;
+    wire wrapped_line = !PAL_VIDEO && raster < CAPTURE_WRAP_LINES;
     wire visible_line = wrapped_line || (raster >= CAPTURE_FIRST_LINE &&
-        (NTSC || raster <= `C64_PAL_CAPTURE_LAST_LINE));
+        (!PAL_VIDEO || raster <= `C64_PAL_CAPTURE_LAST_LINE));
     wire visible_native = visible_line && native_cycle >= `C64_CAPTURE_FIRST_CYCLE &&
         native_cycle <= `C64_CAPTURE_LAST_CYCLE;
     wire [8:0] native_y = wrapped_line ? 9'(raster + `C64_LINES_PER_FRAME(NTSC) - CAPTURE_FIRST_LINE) :
@@ -399,8 +401,8 @@ module c64_vic #(parameter integer NTSC = 0) (
     reg [2:0] xphase=0;
     // Source rows per 720p active line, reduced to the smallest integers.
     // Both NTSC revisions capture 247 source rows; PAL remains at 17.
-    localparam integer Y_NUM = NTSC ? 247 : 17;
-    localparam integer Y_DEN = NTSC ? 720 : 45;
+    localparam integer Y_NUM = !PAL_VIDEO ? 247 : 17;
+    localparam integer Y_DEN = !PAL_VIDEO ? 720 : 45;
     localparam integer Y_BITS = $clog2(Y_DEN);
     reg [Y_BITS-1:0] yphase=0;
     reg [8:0] display_x=0,display_y=0;

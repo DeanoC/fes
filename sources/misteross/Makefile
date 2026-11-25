@@ -1325,6 +1325,15 @@ sim-fes-c64-ntsc-display:
 		$(C64_VIC_TIMING_RTL) "$(CURDIR)/cores/fes-c64/sim/ntsc_display_tb.cpp"
 	@build/sim/fes-c64-ntsc-display/Vc64_vic
 
+.PHONY: sim-fes-c64-paln-display
+sim-fes-c64-paln-display:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-paln-display
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_vic -GNTSC=3 $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-paln-display" \
+		$(C64_VIC_TIMING_RTL) "$(CURDIR)/cores/fes-c64/sim/paln_display_tb.cpp"
+	@build/sim/fes-c64-paln-display/Vc64_vic
+
 .PHONY: sim-fes-c64-ntsc-timing
 sim-fes-c64-ntsc-timing:
 	$(require_local_sim)
@@ -1334,6 +1343,16 @@ sim-fes-c64-ntsc-timing:
 		cores/fes-c64/sim/ntsc_timing_sim_top.sv $(C64_VIC_TIMING_RTL) "$(CURDIR)/cores/fes-c64/sim/ntsc_timing_tb.cpp" \
 		-CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-c64-ntsc-timing/Vntsc_timing_sim_top
+
+.PHONY: sim-fes-c64-paln-timing
+sim-fes-c64-paln-timing:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-paln-timing
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module paln_timing_sim_top $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-paln-timing" \
+		cores/fes-c64/sim/paln_timing_sim_top.sv $(C64_VIC_TIMING_RTL) "$(CURDIR)/cores/fes-c64/sim/paln_timing_tb.cpp" \
+		-CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-c64-paln-timing/Vpaln_timing_sim_top
 
 .PHONY: sim-fes-c64-early-ntsc-timing
 sim-fes-c64-early-ntsc-timing:
@@ -3017,7 +3036,7 @@ sim-fes-c64-session:
 # The ZX81 diagnostic needs no ROM; the BASIC benches run when FES_ZX81_ROM is set.
 sim-fes-zx81-smoke: sim-fes-zx81-diagnostic sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-variants
 
-sim-fes-c64-smoke: c64-diagnostic sim-fes-c64-early-ntsc-timing sim-fes-c64-ntsc-timing sim-fes-c64-sid-8580
+sim-fes-c64-smoke: c64-diagnostic sim-fes-c64-paln-timing sim-fes-c64-paln-display sim-fes-c64-early-ntsc-timing sim-fes-c64-ntsc-timing sim-fes-c64-sid-8580
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \

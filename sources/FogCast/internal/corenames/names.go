@@ -23,6 +23,7 @@ var models = map[string]model{
 	"fes.ts1500":         {"Timex Sinclair 1500", []string{"TS1500", "Timex Sinclair TS1500"}},
 	"fes.c64":            {"Commodore 64", []string{"C64"}},
 	"fes.c64-early-ntsc": {"Commodore 64 (early NTSC)", []string{"C64 early NTSC"}},
+	"fes.c64-pal-n":      {"Drean Commodore 64 (PAL-N)", []string{"C64 PAL-N", "Drean C64"}},
 	"fes.c64-ntsc":       {"Commodore 64 (NTSC)", []string{"C64 NTSC"}},
 	"fes.c64c":           {"Commodore 64C (PAL)", []string{"C64C PAL", "C64C"}},
 	"fes.c64c-ntsc":      {"Commodore 64C (NTSC)", []string{"C64C NTSC"}},

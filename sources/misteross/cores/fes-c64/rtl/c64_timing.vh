@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Native 6569 PAL, 6567R8 NTSC and 6567R56A early NTSC timing. VIC bus cycles are numbered from 1.
+// Native 6569 PAL, 6567R8 NTSC and 6567R56A early NTSC and 6572 PAL-N timing. VIC bus cycles are numbered from 1.
 `ifndef C64_TIMING_VH
 `define C64_TIMING_VH
 
@@ -7,9 +7,11 @@
 `define C64_PAL_TOD_HZ 50
 `define C64_NTSC_CPU_HZ 1_022_730
 `define C64_NTSC_TOD_HZ 60
-// Timing selector: 0 = PAL, 1 = NTSC R8, 2 = early NTSC R56A.
+`define C64_PALN_CPU_HZ 1_023_440
+`define C64_PALN_TOD_HZ 50
+// Timing selector: 0 = PAL, 1 = NTSC R8, 2 = early NTSC R56A, 3 = PAL-N 6572.
 `define C64_CYCLES_PER_LINE(ntsc) ((ntsc) == 2 ? 64 : ((ntsc) ? 65 : 63))
-`define C64_LINES_PER_FRAME(ntsc) ((ntsc) == 2 ? 262 : ((ntsc) ? 263 : 312))
+`define C64_LINES_PER_FRAME(ntsc) ((ntsc) == 2 ? 262 : ((ntsc) == 1 ? 263 : 312))
 `define C64_CYCLE_BITS(ntsc) $clog2(`C64_CYCLES_PER_LINE(ntsc) + 1)
 
 // Cycle 14 starts at beam X=0. The capture includes both borders.
