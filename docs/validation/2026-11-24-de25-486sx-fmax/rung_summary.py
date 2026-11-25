@@ -137,7 +137,9 @@ def classify(paths, owners):
             f = paths / f'negative-{check}-{corner}.rpt'
             neg = rows(f) if f.exists() else []
             groups = collections.Counter(f"{kind(r)} {r['launch']} -> {r['latch']} {short(r)['owners']}" for r in neg)
+            rgroups = collections.Counter(f"{resolved(r['from'], owners)}->{resolved(r['to'], owners)}" for r in neg)
             negative[check] = {'count': len(neg), 'groups': dict(groups.most_common()),
+                               'resolved_owner_pairs': dict(rgroups.most_common()),
                                'worst': [short(r) for r in sorted(neg, key=lambda r: r['slack'])[:10]]}
         result[corner] = {
             'machine_paths_reported': len(machine),

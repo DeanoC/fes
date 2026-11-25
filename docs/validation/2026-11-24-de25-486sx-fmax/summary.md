@@ -1,91 +1,118 @@
-# DE25 pc386 486SX: how fast it clocks, 24 November 2026
+# DE25 pc386 486SX: how fast it clocks, 24–25 November 2026
 
 Deano, 24 Nov 2026: "lets have a session see what 486sx on de25 can clock to".
 Refs [#2135](https://github.com/DeanoC/fes/issues/2135) (the DX plan; its
 decision 4 asks for a PLL check of a 2× integer core). This is a measurement
 study: no RTL changes, and the registered producer still ships 61.437908 MHz.
-The method, [method.md](method.md), was committed and pushed (`c1ca3e31c`)
-before any fit, and amended once (`e0f871976`) before any rung was fitted.
+Three ladders, each method committed and pushed before any of its fits:
+[method.md](method.md) (`c1ca3e31c`, amended once at `e0f871976` before any
+rung was fitted), [method2.md](method2.md) (`f4de199f6`) and
+[method3.md](method3.md) (`7ef458293`). Ladders 2 and 3 exist because the
+ladder before each topped out with no failing step.
 
 ## Answers
 
-1. **The full DE25 486SX machine closes every analysis on all four seeds at
-   111.904762 MHz** (C0 = 28), the ladder's top rung, with the real board
-   shell: window, arbiter, bridge, scanout, audio and the HPS. Every rung's
-   seed 1 passed (74.60, 84.68, 92.16, 97.92, 104.44, 111.90 MHz), and seeds
-   2–4 at 111.90 MHz pass too. 111.90 MHz is the top rung, so it is **a floor
-   on the ceiling, not the ceiling**; the method adds no rung above it. The
-   timing analyser's same-clock Fmax estimate for the machine clock at that
-   rung is 125.28 MHz (seed 1). The
-   four seeds at 111.90 MHz: worst setup +0.954, +1.120, +0.893 and
-   +0.846 ns, all on machine-clock paths; hold never below 0.000; ALMs
-   41,689.1, 41,728.7, 41,667.6 and 41,664.0 (median 41,678.4, against the
-   control's 41,686.9 at 61.44 MHz). The Fmax estimates of those four fits are
-   123.61–127.94 MHz.
-2. **No rung failed, so no failing limit was measured.** What is tightest at
-   every rung, in order: the **CPU's own paths** (CPU→CPU, worst +0.958 ns at
-   111.90 MHz, seed 1), then the **shell's window port head → arbiter
-   `writes_owed`** (+1.034 ns), then the machine's devices (the ATA pointer →
-   AT decoder read data, +1.439 ns). The limit is the CPU, with the shell's
-   window→arbiter path close behind it. The fixed-bound crossings (the
-   10 ns `set_max_delay` held bundles, +1.27 to +1.60 ns at every rung,
-   including the worst setup in #2171) do not move with the machine clock.
+1. **Timing: the full DE25 486SX machine, real board shell included,
+   closes every timing analysis on four seeds at 130.555556 MHz (C0 = 24)**,
+   and at 111.904762 MHz (C0 = 28) on four more. Every rung's seed 1 from
+   74.60 to 142.42 MHz passed. At 142.42 MHz (C0 = 22) seeds 1, 3 and 4
+   passed and seed 2 missed by 0.060 ns, so under the ladder rule the
+   four-seed claim stays at 130.56 MHz. **The first failing step is
+   156.67 MHz (C0 = 20): all four seeds miss setup** (−0.118, −0.168,
+   −0.035, −0.243 ns), and 174.07 and 195.83 MHz miss further (seed 1:
+   −0.762, −1.297 ns). The analyser's machine-clock Fmax estimate rises with
+   the target up to 142 MHz and then stops: 150.9–156.2 MHz at every fit
+   from 156.67 MHz up.
+   **None of these is admitted by the producer**, which refuses every clock
+   but 61.44 MHz before the fitter ([below](#the-producer-cannot-build-any-clock-but-6144-mhz)).
+   **With the shipped constraints and signoff bases as written, 97.92 MHz
+   (C0 = 32) is the highest rung**: from 104.44 MHz up, the design
+   assistant reports ten held bundles as CDC-50003 "Unconstrained" and the
+   reviewed `LOADED` basis's arithmetic no longer holds
+   ([below](#what-breaks-above-100-mhz-signoff-not-timing)). 97.92 MHz has
+   one seed.
+2. **What limits it.** **At the first failing step, 156.67 MHz, the
+   limit is both the CPU's decode stage and the shell's window, in about
+   equal measure** (resolved owners of the negative setup endpoints per
+   seed, Slow fix4 0C: CPU 29, 47, 37, 87; shell 24, 31, 2, 102; nothing in
+   the machine's devices). The CPU paths run through the decode stage:
+   `cpu_dc` (Yosys's `_35174_`), `cpu_d_out` (`_35180_`), `cpu_dc_valid &&
+   cpu_dc_more`, `cpu_desc_t0`. The shell paths are the HPS window's port
+   heads into the arbiter (`window|port0|head` → `arbiter|w_address`,
+   `port2|head` → `arbiter|writes_owed`), and at 174.07 MHz also into the
+   `fes_win_cdc` command FIFO and the ports' command RAMs. The design
+   assistant's failing-setup rules (TMC-20205, explicit power-up states that
+   restrict retiming; TMC-20214, adder chains) say the fitter's retimer is
+   what carried 125–142 MHz and is what runs out. Below the failing step, the tightest paths
+   are, at every rung and seed: the **CPU's own paths** (CPU→CPU after
+   resolving Yosys-merged registers; the decode stage, `cpu_decode_by` →
+   `cpu_dc`, the L1I fill/valid and `cpu_d_eip`), then the **shell's window
+   `port2|head` → `arbiter|writes_owed`**, then the machine's devices (the
+   ATA pointer → AT decoder read data). So the limit is the CPU, with the
+   window arbiter close behind. The fixed-bound crossings (the 10 ns
+   `set_max_delay` held bundles, +1.0 to +1.6 ns at every rung, and the
+   worst setup in #2171) do not move with the machine clock in STA; what
+   moves is the signoff view of them (answer 1).
 3. **A 2× CPU clock is not the next step.** The CPU alone closes 120.513 MHz
    on four seeds and 125.333 MHz on two of four; the CPU with the whole
-   machine around it closes 125.333 MHz on four seeds (virtual-pin
-   envelopes). So a CPU clock of 2 × 61.44 would be at the CPU's own limit
-   and buy about 8–12% over the single 111.90 MHz clock the board already
-   closes, at the cost of a clock-crossing CPU interface. The paths that
-   would cross (CPU↔machine and CPU↔shell, about 250–400 endpoints in each
-   rung's report) are not the problem: their slack projected to a 7.979 ns
-   fast period is positive at every rung from 74.60 MHz up. What it needs is
-   RTL, not timing: the CPU's bus and I/O handshakes with `pc386_machine`
-   assume one clock, and a 2:1 design needs either a clock-enable on the
-   machine side or a registered 2:1 boundary there. Not built.
+   machine closes 125.333 MHz on four (virtual-pin envelopes). 122.88 MHz,
+   2 × 61.44, was not fitted; it lies between those two and is not on this
+   PLL's VCO. The single machine clock already closes 130.56 MHz in the
+   board, so a separate CPU clock would buy nothing in timing, and would add
+   a crossing. The paths that would cross (CPU↔machine and CPU↔shell, at
+   least 255–400 endpoints in each rung's report) are not the problem: their
+   slack projected to a 7.979 ns fast period is positive at every rung from
+   74.60 MHz up. What a 2× design needs is RTL, not timing: the CPU's bus
+   and I/O handshakes with `pc386_machine` assume one clock, so it needs a
+   clock enable on the machine side or a registered 2:1 boundary. Not built.
 4. **Legal clocks.** The machine PLL keeps its VCO (50 MHz × 188 / 3 =
-   3,133.333 MHz) and the audio master (VCO / 255 = 12.287582 MHz, C1 = 255
-   at every rung, from the fit reports), so the machine runs at **VCO / C0
-   for any integer C0**. AUDIO's N/D becomes C0 / 65280 (1/1280 only at
-   C0 = 51). Every guest rate stays an exact rational under 2^31. The
-   machine↔audio crossing is bounded by absolute constraints: its setup row
-   sits at +8.7 to +8.8 ns at every rung, integer ratio or not. Nothing else
-   fixes the ratio. Near each step (MHz): 61.44 (C0 51), 62.67 (50), 63.95
-   (49); 72.87 (43), **74.60 (42)**, 76.42 (41); 82.46 (38), **84.68 (37)**,
-   87.04 (36); 89.52 (35), **92.16 (34)**, 94.95 (33); **97.92 (32)**,
-   101.08 (31); **104.44 (30)**, 108.05 (29); **111.90 (28)**, 116.05 (27),
-   120.51 (26), 125.33 (25). A 2:1 pair needs an even C0: 62.67/125.33
-   (50/25) or 60.26/120.51 (52/26); 2 × 61.437908 is not on this VCO.
+   3,133.333 MHz) and the audio master (VCO / 255 = 12.287582 MHz; C1 = 255
+   in every fit report), so the machine runs at **VCO / C0 for an integer
+   C0**. AUDIO's N/D becomes C0 / 65280 (1/1280 only at C0 = 51), and every
+   guest rate stays an exact rational under 2^31. The machine↔audio crossing
+   is bounded by absolute constraints: its setup row sits at +8.7 to +8.8 ns
+   at every rung, integer ratio or not. Nothing else fixes the ratio. Only
+   the fitted C0 values are measured; the others are derived. Near each step
+   (MHz): 61.44 (C0 51), 62.67 (50), 63.95 (49); 72.87 (43), **74.60 (42)**,
+   76.42 (41); 82.46 (38), **84.68 (37)**, 87.04 (36); 89.52 (35),
+   **92.16 (34)**, 94.95 (33); **97.92 (32)**, 101.08 (31); **104.44 (30)**,
+   108.05 (29); **111.90 (28)**, **116.05 (27)**, **120.51 (26)**,
+   **125.33 (25)**, **130.56 (24)**, 136.23 (23), **142.42 (22)**,
+   149.21 (21), **156.67 (20)**, **174.07 (18)**, **195.83 (16)**. A 2:1
+   pair needs an even C0: 62.67/125.33 (50/25) or 60.26/120.51 (52/26);
+   2 × 61.437908 is not on this VCO.
 
-**Recommendation: raise the single machine clock; no separate CPU clock and
-no RTL fix yet.** The board closes 111.904762 MHz
-(C0 = 28) on four seeds with the CPU as the limit, and a separate CPU clock
-would buy little over that for a new crossing. The next speed step is a PR
-that moves the DE25 pc386 machine clock to a chosen C0, Deano's choice of
-how much margin: 111.90 MHz is measured on four seeds here (worst +0.846 ns);
-104.44 MHz (C0 = 30) has one seed (+1.279 ns). That PR needs, beyond the
-four lines `make_rung.py` edits:
+## Recommendation
 
-- AUDIO's ratio written as C0 / 65280 rather than the literal 1/1280, and the
-  PLL comment;
-- the shared FIFO reset's reviewed `PARENT_SHA256` reviewed again at the new
-  clock (the producer refuses until then; see below);
-- the producer's own gates at the new clock: package timing admission and the
-  reviewed signoff findings, which this study did not run;
-- the DE25 system bench and Kit D25 HIL, including the window's DDR
-  bandwidth and the governor at a machine clock 1.8× faster.
+**Raise the single machine clock. No separate CPU clock, and no CPU RTL fix
+yet.** Two steps, Deano's choice:
 
-To find the ceiling rather than a floor, the same method one ladder higher
-(116.05, 120.51, 125.33 MHz) is the measurement; the board's Fmax estimates
-(123.6–127.9 MHz at 111.90) and the machine envelope (125.33 MHz on four
-seeds) put it somewhere there. Past that, the CPU's own decode and L1I paths
-(`cpu_decode_by` → the decode stage `cpu_dc`, `cpu_l1i_blk` →
-`cpu_l1i_valid`) and the window's `port2|head` → `arbiter|writes_owed` are
-the paths to shorten first.
+- **97.92 MHz (C0 = 32), the shipped constraints as they are.** Timing has
+  +1.512 ns on seed 1 (one seed fitted), every signoff rule count equals the
+  control's apart from the seed-to-seed tension count, and every reviewed
+  basis's arithmetic still holds (`LOADED` by 0.7 ns). The PR moving the
+  clock needs AUDIO's ratio written as C0 / 65280, the shared-FIFO-reset
+  parent digest reviewed again at the new clock, four seeds through the
+  producer with its own gates, the DE25 system bench and Kit D25 HIL.
+- **Above 100 MHz, up to the measured 130.56 MHz**, the same PR also needs
+  the machine-clock held-bundle bounds in `pc386-clocks.sdc` tied to the
+  machine period rather than a flat 10 ns (and the bases that quote them
+  re-argued), and `LOADED` re-argued from the real minimum row-fetch time
+  rather than five machine clocks. That is constraint and review work, not
+  RTL.
+
+Past 130.56 MHz, the next limit is in RTL: the CPU's decode stage and the window's
+port-head → arbiter path both need a pipeline cut (and the registers whose
+explicit power-up states stop the retimer, TMC-20205, looked at; which module
+they are in is not tabulated here) before anything above about 142 MHz
+closes. Neither is worth doing before a raised clock has run on
+the kit.
 
 ## The producer cannot build any clock but 61.44 MHz
 
 At every rung the registered producer, `build_pc386_package.py`, stopped
-before the fitter:
+before the fitter with the same line ([logs/](logs), `producer-s1-*.log`, one
+per rung, each `exit 1`):
 
 ```text
 de25-pc386: shared FIFO reset: unreviewed generated input: peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v
@@ -96,39 +123,105 @@ against a reviewed digest; for pc386 the parent's is `PARENT_SHA256` in
 `boards/de25nano/pc386/build.py`. Qsys names the window's machine-clock
 interconnect module with a hash of its parameters, which include
 `EXPLICIT_CLOCK_RATE` (`…mm_interconnect_1920_xi5gepi` at 61.44 MHz,
-`…_ruphjby` at 74.60 MHz). The module's body is otherwise byte-identical, and
-over every `.v`, `.sv`, `.sdc` and `.vh` of the generated project, the
-C0 = 42 project and the control differ only in that name, the PLL IP, the
-netlist, the `BUILD_ID` constant and the files the shared-reset derivation
-rewrites. Shipping a new clock therefore needs that digest reviewed again at
-the new clock. Nothing was changed to get past it here. Amendment 1 of the
-method fitted every rung through the control's generated project with only
-the rung's PLL IP and netlist swapped in ([`compile_rung.sh`](compile_rung.sh);
-each seed's `diff -rq` against the control is the PLL files, the two netlist
-copies and, for seeds 2–4, `golden_top.qsf`). So for the rungs **the
-producer's post-fit gates did not run**: no package timing admission and no
+`…_ruphjby` at 74.60, `…_ywxqcpy` at 111.90). Measured
+([`pinned_inputs.py`](pinned_inputs.py) at C0 = 42 and 28): every pinned
+generated input but the parent has its pin; the parent differs. Between the
+C0 = 42 and C0 = 28 generated projects (both before derivation), over every
+`.v`, `.sv`, `.sdc` and `.vh`, the only differences are the netlist, the
+`BUILD_ID` in the scanout component's wrapper, and the interconnect module and
+parent, which are byte-identical once the interconnect's name is normalised.
+So a new clock needs that digest reviewed again; nothing was changed here to
+get past it. Under amendment 1 every rung was fitted through the control's
+generated project with only the rung's PLL IP and netlist swapped in
+([`compile_rung.sh`](compile_rung.sh); each seed's `diff -rq` against the
+control is in [logs/](logs), `swap-*.diff`: the PLL files, the two netlist
+copies, and for seeds 2–4 `golden_top.qsf`). **The producer's post-fit gates
+did not run at any rung**: no package timing admission and no
 reviewed-signoff-findings verdict is claimed above 61.44 MHz.
+
+## What breaks above 100 MHz: signoff, not timing
+
+**Design assistant rules** ([`drc_table.py`](drc_table.py) over every kept
+project's `golden_top.tq.drc.signoff.rpt`; bold = differs from the control):
+
+| Rule | Severity | control | c42 | c37 | c34 | c32 | c30 | c28s1 | c28s2 | c28s3 | c28s4 | c27 | c26 | c25 | c24s1 | c24s2 | c24s3 | c24s4 | c22s1 | c22s2 | c22s3 | c22s4 | c20s1 | c20s2 | c20s3 | c20s4 | c18 | c16 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| CDC-50001 1-Bit Asynchronous Transfer Not Synchronized | High | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 | 67 |
+| CDC-50002 1-Bit Asynchronous Transfer with Insufficient Constraints | High | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 | 6 |
+| CDC-50003 CE-Type CDC Transfer with Insufficient Constraints | High | 0 | 0 | 0 | 0 | 0 | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** | **10** |
+| CDC-50102 Synchronizer after CDC Topology with Control Signal | Low | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 |
+| LNT-30010 Nets Driving both Reset and Clock Enable Signals | Low | 2 | 2 | 2 | 2 | 2 | **3** | **3** | **3** | **3** | 2 | **3** | 2 | **3** | **3** | **3** | 2 | **3** | 2 | 2 | **3** | 2 | **3** | **3** | **3** | 2 | 2 | 2 |
+| LNT-30023 Reset Nets with Polarity Conflict | Medium | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **1** | **1** | 0 | **1** | 0 | **1** | 0 | **1** | 0 | 0 |
+| RDC-50003 Multiple Asynchronous Reset Synchronizers in the Same Clock Domain | Medium | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 |
+| TMC-20011 Missing Input Delay Constraint | High | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 |
+| TMC-20012 Missing Output Delay Constraint | High | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 5 |
+| TMC-20200 Paths Failing Setup Analysis with Impossible Requirements | Medium | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **2** | **3** |
+| TMC-20204 Endpoints of Paths Failing Setup Analysis with Retiming Restrictions | Medium | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **3** | 0 | **22** | 0 | **2** | **6** |
+| TMC-20205 Endpoints of Paths Failing Setup Analysis with Explicit Power-Up States that Restrict Retiming | Medium | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **26** | **23** | **2** | **43** | **60** | **21** |
+| TMC-20206 DSP Blocks with Unregistered Outputs that are the Source of Paths Failing Setup Analysis | Medium | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **1** | **2** | 0 | **2** | **2** | **2** |
+| TMC-20207 DSP Blocks with Unregistered Inputs that are the Destination of Paths Failing Setup Analysis | Medium | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **1** | **2** | 0 | **2** | **2** | **2** |
+| TMC-20208 RAM Blocks with Unregistered Outputs that are the Source of Paths Failing Setup Analysis | Medium | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **3** | 0 | 0 | 0 | **1** | 0 |
+| TMC-20209 Paths Failing Setup Analysis with High Routing Delay due to Congestion | Medium | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **58** | 0 | 0 | **9** | 0 |
+| TMC-20214 Buses with Incoming Paths Failing Setup Analysis with Multiple Sequential Adder Chains | Medium | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **1** | 0 | 0 | **4** | **14** | **3** | **8** | **6** | **8** |
+| TMC-20602 Registers with High Timing Path Endpoint Tension | Low | 23 | **24** | 23 | **24** | **22** | **21** | **21** | **24** | **24** | **24** | **21** | 23 | 23 | **26** | **24** | **40** | 23 | **30** | **58** | **21** | **36** | **33** | **36** | **31** | **35** | **30** | **24** |
+
+- **CDC-50003 (High), 0 → 10 between 97.92 and 104.44 MHz, at every seed
+  from there up.** The ten are the held bundles with an end in the machine
+  clock: the display crossing's command and reply payloads, the GP request
+  and reply words, the pixel counters' copy, the window grant base and the
+  window fault record. Each is bounded by `set_max_delay 10.000` (with
+  skew, net and data delay) in `pc386-clocks.sdc`, and the design assistant
+  now reports their skew, net or data delay as "Unconstrained". The boundary
+  is where the machine period (9.574 ns at 104.44 MHz, 10.213 ns at 97.92)
+  falls below the 10 ns bound. The SDC's own comment justifies 10 ns as "at
+  most one fast system period": above 100 MHz the machine is the fastest
+  clock.
+- **LNT-30010 (Low), 2 → 3 on most seeds from 104.44 MHz.** The extra net is
+  a fitter copy of `cpu_biu_reset` (`~_Duplicate_1`), the kind #2187's basis
+  already admits.
+- **LNT-30023 (Medium, reset nets with polarity conflict), 0 → 1** on five
+  of the eight seeds at 142.42 and 156.67 MHz, none below. Not examined.
+- **TMC-20200 to TMC-20214 (Medium)** appear only on the failing fits: they
+  describe the failing setup paths (retiming restrictions, explicit power-up
+  states, adder chains, congestion).
+- **TMC-20602 (Low)** varies with the seed at every rung (21–58).
+
+**Reviewed bases that name the machine period** (`signoff_bases.py`;
+computed, not measured):
+
+| Basis | Its argument | Holds while | Margin at 97.92 | at 104.44 | at 130.56 |
+| --- | --- | --- | ---: | ---: | ---: |
+| `LOADED` | the loaded-row report is still ≥ 5 machine clocks; the pixel side needs ≤ 50.4 ns, leaving the rest for the flag's unbounded route (31.0 ns at 61.44) | 5T ≥ 50.4 ns: ≤ 99.2 MHz | +0.7 ns | −2.5 ns | −12.1 ns |
+| `FETCH`, `WINDOW_BASE` | the 10 ns bundle bound is under two machine clocks | 2T > 10 ns: < 200 MHz | +10.4 ns | +9.1 ns | +5.3 ns |
 
 ## The fits
 
 Powerboat, Quartus Pro 26.3, each under a Pro slot of the Quartus lease.
-Control: the producer at the method commit, admitted (package
-`e8d37ea9…`, netlist `01185e2f…`). Rungs: [`fitrung.sh`](fitrung.sh) generated
-each rung's project from its pushed scratch branch, and
-[`compile_rung.sh`](compile_rung.sh) compiled it. Every seed's figures are in
-[`fits/`](fits) (`rung_summary.py` output: every row of the timing summary by
-analysis, clock and corner; ALMs; the PLL as fitted; the path classification);
-[`results.py`](results.py) prints these tables from them.
+Control: the producer at the method commit, admitted (package `e8d37ea9…`,
+netlist `01185e2f…`). Rungs: [`fitrung.sh`](fitrung.sh) generated each rung's
+project from its pushed scratch branch, and [`compile_rung.sh`](compile_rung.sh)
+compiled it. Every seed's figures are in [`fits/`](fits) (`rung_summary.py`
+output: every row of the timing summary by analysis, clock and corner; ALMs;
+the PLL as fitted; the path classification); [`results.py`](results.py)
+prints these tables from them. The run logs are in [logs/](logs).
 
-| Rung | C0 | Commit | `make_rung.py` diff SHA-256 | Netlist SHA-256 |
-| --- | ---: | --- | --- | --- |
-| control | 51 | `c1ca3e31c` (method) | — | `01185e2f…` |
-| 1 | 42 | `b63615a7a` | `af2a509a…` | `71873859…` |
-| 2 | 37 | `0e1158447` | `fff81c32…` | `0da90f6e…` |
-| 3 | 34 | `71b2f18bf` | `bbcd7e1f…` | `3ef0858c…` |
-| 4 | 32 | `5e5c8f39b` | `49be2d5e…` | `ffb9ffb4…` |
-| 5 | 30 | `7df48e2ac` | `e02559f6…` | `5090f243…` |
-| 6 | 28 | `8e9e7268c` | `14596498…` | `0be022e0…` |
+| C0 | MHz | Commit | `make_rung.py` diff SHA-256 | Netlist SHA-256 |
+| ---: | ---: | --- | --- | --- |
+| 51 | 61.438 | `c1ca3e31c` (method) | — | `01185e2f…` |
+| 42 | 74.603 | `b63615a7a` | `af2a509a…` | `71873859…` |
+| 37 | 84.685 | `0e1158447` | `fff81c32…` | `0da90f6e…` |
+| 34 | 92.157 | `71b2f18bf` | `bbcd7e1f…` | `3ef0858c…` |
+| 32 | 97.917 | `5e5c8f39b` | `49be2d5e…` | `ffb9ffb4…` |
+| 30 | 104.444 | `7df48e2ac` | `e02559f6…` | `5090f243…` |
+| 28 | 111.905 | `8e9e7268c` | `14596498…` | `0be022e0…` |
+| 27 | 116.049 | `287a460e4` | `1b229d23…` | `0e484dfa…` |
+| 26 | 120.513 | `041ecaed5` | `8c2a49ce…` | `c7698aad…` |
+| 25 | 125.333 | `33e5f3cec` | `852a3d64…` | `42053bb9…` |
+| 24 | 130.556 | `eee970148` | `ef7a6fd3…` | `e5652d60…` |
+| 22 | 142.424 | `d5307ceba` | `ed055651…` | `1a3554b8…` |
+| 20 | 156.667 | `f1457fc76` | `986f1ce0…` | `b39ec7f1…` |
+| 18 | 174.074 | `45450fe59` | `366a1ade…` | `a135fe77…` |
+| 16 | 195.833 | `8c3361dd7` | `6424f960…` | `7bef9797…` |
 
 The rung branches are `deano/de25-486sx-fmax-cNN`; they are scratch and never
 merge.
@@ -145,6 +238,23 @@ merge.
 | c28 | 111.905 | 2 | 41,728.7 | +1.120 | +1.120 | +0.002 | +1.120 | +0.000 | +6.576 | +0.013 | +0.220 | +6.540 | +3.561 | +3.561 | 127.94 MHz | pass |
 | c28 | 111.905 | 3 | 41,667.6 | +0.893 | +0.893 | +0.003 | +0.893 | +0.000 | +6.324 | +0.028 | +0.220 | +6.719 | +3.523 | +3.523 | 124.33 MHz | pass |
 | c28 | 111.905 | 4 | 41,664.0 | +0.846 | +0.846 | +0.000 | +0.846 | +0.000 | +6.505 | +0.001 | +0.220 | +6.702 | +3.620 | +3.620 | 123.61 MHz | pass |
+| c27 | 116.049 | 1 | 41,732.2 | +0.815 | +0.815 | +0.001 | +0.815 | +0.000 | +6.218 | +0.003 | +0.220 | +6.325 | +3.369 | +3.369 | 128.17 MHz | pass |
+| c26 | 120.513 | 1 | 41,757.2 | +0.636 | +0.636 | +0.000 | +0.636 | +0.000 | +5.597 | +0.020 | +0.220 | +6.230 | +3.496 | +3.496 | 130.53 MHz | pass |
+| c25 | 125.333 | 1 | 41,699.1 | +0.284 | +0.284 | +0.000 | +0.284 | +0.000 | +5.433 | +0.054 | +0.220 | +5.794 | +3.379 | +3.379 | 129.97 MHz | pass |
+| c24 | 130.556 | 1 | 41,703.8 | +0.316 | +0.316 | +0.000 | +0.316 | +0.000 | +5.068 | +0.096 | +0.220 | +5.651 | +2.843 | +2.843 | 136.18 MHz | pass |
+| c24 | 130.556 | 2 | 41,721.3 | +0.222 | +0.222 | +0.000 | +0.222 | +0.000 | +5.252 | +0.035 | +0.220 | +5.673 | +3.520 | +3.520 | 134.46 MHz | pass |
+| c24 | 130.556 | 3 | 41,766.6 | +0.014 | +0.014 | +0.000 | +0.014 | +0.000 | +5.191 | +0.018 | +0.220 | +5.543 | +3.668 | +3.668 | 130.8 MHz | pass |
+| c24 | 130.556 | 4 | 41,811.9 | +0.355 | +0.355 | +0.001 | +0.355 | +0.000 | +5.106 | +0.079 | +0.220 | +5.635 | +3.410 | +3.410 | 136.91 MHz | pass |
+| c22 | 142.424 | 1 | 41,894.4 | +0.112 | +0.112 | +0.000 | +0.112 | +0.000 | +4.525 | +0.050 | +0.220 | +5.246 | +3.544 | +3.544 | 144.74 MHz | pass |
+| c22 | 142.424 | 2 | 41,841.7 | -0.060 | -0.060 | +0.000 | -0.060 | +0.000 | +3.986 | +0.100 | +0.220 | +5.049 | +3.388 | +3.388 | 141.22 MHz | **FAIL** |
+| c22 | 142.424 | 3 | 41,824.9 | +0.009 | +0.009 | +0.001 | +0.009 | +0.000 | +4.609 | +0.041 | +0.220 | +5.057 | +3.438 | +3.438 | 142.61 MHz | pass |
+| c22 | 142.424 | 4 | 41,843.2 | +0.005 | +0.005 | +0.000 | +0.005 | +0.000 | +4.697 | +0.120 | +0.220 | +5.044 | +3.593 | +3.593 | 142.53 MHz | pass |
+| c20 | 156.667 | 1 | 42,217.8 | -0.118 | -0.118 | +0.000 | -0.118 | +0.000 | +3.719 | +0.035 | +0.220 | +4.627 | +3.645 | +3.607 | 153.85 MHz | **FAIL** |
+| c20 | 156.667 | 2 | 42,239.1 | -0.168 | -0.168 | +0.000 | -0.168 | +0.000 | +3.835 | +0.059 | +0.220 | +4.603 | +3.545 | +3.545 | 152.67 MHz | **FAIL** |
+| c20 | 156.667 | 3 | 42,185.0 | -0.035 | -0.035 | +0.000 | -0.035 | +0.000 | +4.053 | +0.028 | +0.220 | +4.651 | +3.451 | +3.451 | 155.84 MHz | **FAIL** |
+| c20 | 156.667 | 4 | 42,138.0 | -0.243 | -0.243 | +0.000 | -0.243 | +0.000 | +3.731 | +0.054 | +0.220 | +4.654 | +3.350 | +3.350 | 150.94 MHz | **FAIL** |
+| c18 | 174.074 | 1 | 42,602.5 | -0.762 | -0.762 | +0.000 | -0.762 | +0.000 | +3.510 | +0.007 | +0.220 | +4.108 | +3.504 | +3.504 | 153.7 MHz | **FAIL** |
+| c16 | 195.833 | 1 | 42,534.9 | -1.297 | -1.297 | +0.003 | -1.297 | +0.001 | +2.659 | +0.032 | +0.220 | +3.527 | +3.610 | +3.643 | 156.18 MHz | **FAIL** |
 
 | Rung | Seed | Owner pair (resolved): worst machine-to-machine setup slack, Slow fix4 0C (endpoints reported) |
 | --- | ---: | --- |
@@ -158,15 +268,32 @@ merge.
 | c28 | 2 | cpu->cpu +1.120 (13578); shell->shell +1.273 (800); machine->machine +1.666 (4059); cpu->anonymous +2.132 (13); anonymous->anonymous +2.148 (575) |
 | c28 | 3 | cpu->cpu +0.893 (13973); shell->shell +1.104 (855); machine->machine +1.798 (3686); cpu->machine +1.933 (158); cpu->anonymous +2.048 (4) |
 | c28 | 4 | cpu->cpu +0.846 (14135); shell->shell +1.326 (713); cpu->machine +1.838 (140); machine->machine +1.865 (3578); anonymous->anonymous +2.226 (198) |
+| c27 | 1 | cpu->cpu +0.815 (14748); shell->shell +0.963 (716); machine->machine +1.312 (3465); anonymous->anonymous +2.018 (194); machine->anonymous +2.180 (304) |
+| c26 | 1 | cpu->cpu +0.636 (13790); shell->shell +0.719 (734); cpu->machine +1.319 (258); machine->machine +1.369 (3567); anonymous->anonymous +1.663 (303) |
+| c25 | 1 | cpu->cpu +0.284 (13922); shell->shell +0.662 (716); machine->machine +0.992 (3772); anonymous->anonymous +1.342 (535); cpu->machine +1.574 (151) |
+| c24 | 1 | cpu->cpu +0.316 (13825); shell->shell +0.372 (805); machine->machine +0.695 (3695); anonymous->anonymous +0.992 (200); cpu->machine +1.382 (163) |
+| c24 | 2 | cpu->cpu +0.232 (14600); shell->shell +0.563 (709); machine->machine +0.693 (3357); anonymous->anonymous +1.048 (454); anonymous->cpu +1.380 (69) |
+| c24 | 3 | anonymous->anonymous +0.020 (481); anonymous->cpu +0.079 (5110); anonymous->machine +0.378 (345); cpu->anonymous +0.443 (868); cpu->cpu +0.493 (9544) |
+| c24 | 4 | cpu->cpu +0.355 (14636); shell->shell +0.550 (770); machine->machine +0.587 (3259); anonymous->anonymous +1.023 (241); cpu->machine +1.498 (194) |
+| c22 | 1 | cpu->cpu +0.112 (12819); shell->shell +0.201 (715); cpu->anonymous +0.328 (2074); anonymous->anonymous +0.387 (320); machine->anonymous +0.573 (399) |
+| c22 | 2 | anonymous->cpu -0.060 (204); cpu->cpu -0.021 (13281); cpu->anonymous +0.167 (1629); shell->shell +0.211 (718); anonymous->anonymous +0.422 (426) |
+| c22 | 3 | cpu->cpu +0.009 (12812); machine->anonymous +0.084 (537); shell->shell +0.198 (717); cpu->anonymous +0.278 (1308); anonymous->anonymous +0.388 (457) |
+| c22 | 4 | cpu->cpu +0.005 (12416); shell->shell +0.254 (718); anonymous->anonymous +0.410 (688); cpu->anonymous +0.518 (1459); anonymous->cpu +0.659 (381) |
+| c20 | 1 | shell->shell -0.118 (811); cpu->cpu -0.099 (13628); anonymous->cpu -0.082 (479); cpu->anonymous -0.082 (971); anonymous->anonymous -0.057 (482) |
+| c20 | 2 | cpu->cpu -0.168 (14059); cpu->anonymous -0.135 (943); shell->shell -0.129 (814); anonymous->anonymous -0.059 (301); machine->machine +0.186 (2573) |
+| c20 | 3 | cpu->cpu -0.035 (10758); shell->shell -0.022 (794); anonymous->cpu -0.004 (1874); anonymous->anonymous -0.003 (1741); cpu->anonymous +0.176 (1285) |
+| c20 | 4 | cpu->cpu -0.243 (10747); shell->shell -0.206 (939); anonymous->anonymous -0.157 (745); cpu->anonymous +0.111 (1741); machine->anonymous +0.124 (501) |
+| c18 | 1 | shell->shell -0.762 (829); cpu->cpu -0.754 (13759); anonymous->cpu -0.718 (151); anonymous->anonymous -0.696 (346); cpu->anonymous -0.559 (898) |
+| c16 | 1 | cpu->cpu -1.297 (11884); shell->shell -1.280 (775); anonymous->anonymous -1.259 (541); cpu->anonymous -1.161 (968); anonymous->cpu -1.131 (1781) |
 
 "Machine→machine setup" is the worst period-scaled path (launch and latch the
 machine clock) from `paths.tcl` over every corner. The machine clock's summary
-rows also hold the fixed-bound crossings it latches, so at 61.44–92.16 MHz
-the summary's machine setup row is a 10 ns bundle, not a machine path. Hold
-is 0.000 on the machine clock at the fast corner at every rung, never
-negative. The worst removal is always `adv7513_config` (the HDMI
-transmitter's I2C configuration clock, +0.001 to +0.086 ns), which no rung
-changes.
+rows also hold the fixed-bound crossings it latches, so at the lower rungs the
+summary's machine setup row is a 10 ns bundle, not a machine path. The worst
+hold over every clock is 0.000 or +0.001 ns at every seed; the machine clock's own hold
+row is 0.000 to +0.003 ns, never negative. The worst removal is always
+`adv7513_config` (the HDMI transmitter's I2C configuration clock, +0.001 to
++0.096 ns), which no rung changes.
 
 **Ownership.** Path ends are owned by the CPU (`system|cpu_*`), the machine
 (`system|machine_*`, `pixel_*`, `frame_*`), the shell (outside `system|`) or
@@ -174,9 +301,31 @@ are anonymous (`system|_N_`). Many anonymous registers are registers Yosys
 merged, followed in the netlist by `assign {cpu_dc[…], …} = _35174_;`
 (`_35174_` is the CPU's decode stage). `rung_summary.py`'s `resolver` gives
 such a register to the CPU or the machine when every name it drives belongs
-to one of them. That resolution was added after the method and is labelled
+to one of them. That resolution was added after method.md and is labelled
 "resolved" wherever it is used; the unresolved counts are in each JSON's
 `machine_pairs`.
+
+## The first failing step: 156.67 MHz
+
+Four seeds, every one failing setup on the machine clock only (no hold,
+recovery or removal failure at any corner, and nothing at the 100C or fast
+corners at this rung). Negative setup endpoints, Slow fix4 0C, by resolved
+owner pair:
+
+| Seed | Worst setup | Negative endpoints | CPU→CPU | CPU↔anonymous | Shell→shell | Worst path |
+| ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | −0.118 | 54 | 11 | 18 | 24 | `window\|port0\|head` → `arbiter\|w_address[31]` |
+| 2 | −0.168 | 80 | 45 | 2 | 31 | `cpu_desc_t0` → `cpu_dc[…]` (`_35174_[153]`) |
+| 3 | −0.035 | 40 | 15 | 22 | 2 | `cpu_dc[…]` → `cpu_dc[…]` (`_35174_[141]` → `[254]`) |
+| 4 | −0.243 | 191 | 87 | 0 | 102 | `cpu_dc[…]` (`_35174_[106]`) → `_35179_` |
+
+(CPU↔anonymous counts the endpoints with one end in the CPU and the other
+an anonymous register the resolver could not attribute; anonymous→anonymous
+adds 1–2 per seed.) The
+ALMs grow with the target from about 41,700 to 42,100–42,600, as the
+retimer and duplication add registers; every seed still fits the device
+(46,800) with room.
+
 
 ## Q3 in numbers
 
@@ -191,7 +340,8 @@ slot) from the method commit with [`envelope-i486.patch`](envelope-i486.patch)
 applied (`fes_i386_cpu.netlist.v` `dc4eb486…`, `pc386_system.v` `cc36f031…`,
 both with a 22-bit `eflags`), and fitted on chip with `--netlist`, because
 chip has no install of that Yosys. The CPU alone carries 2,352 ALMs of virtual
-pins, which is why it is no smaller than the machine. Each fit's `fit.json`,
+pins, which is why it is no smaller than the machine, and probably why it
+closes lower than the machine and the board do. Each fit's `fit.json`,
 `inputs.json`, `netlist.json` and `timing.json` are in
 [`fits/envelope/`](fits/envelope).
 
@@ -199,34 +349,45 @@ From the board fits (resolved owners, Slow fix4 0C, seed 1), the machine-clock
 paths with exactly one end in the CPU, and their slack if the relationship
 were cut from the machine period to 7.979 ns with everything else equal:
 
-| Rung | MHz | CPU-boundary endpoints reported | Worst boundary slack at 7.979 ns | Boundary endpoints negative | Worst CPU-internal slack at 7.979 ns | CPU-internal endpoints negative |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| control | 61.438 | 388 | −0.260 | 39 | −4.007 | 4181 |
-| c42 | 74.603 | 392 | +0.236 | 0 | −2.469 | 2877 |
-| c37 | 84.685 | 255 | +0.469 | 0 | −1.598 | 2413 |
-| c34 | 92.157 | 360 | +0.874 | 0 | −0.858 | 1869 |
-| c32 | 97.917 | 386 | +0.635 | 0 | −0.721 | 943 |
-| c30 | 104.444 | 393 | +1.200 | 0 | −0.316 | 55 |
-| c28 | 111.905 | 398 | +1.287 | 0 | +0.001 | 0 |
+| C0 | MHz | CPU-boundary endpoints reported | Worst boundary slack at 7.979 ns | Boundary endpoints negative | Worst CPU-internal slack at 7.979 ns | CPU-internal endpoints negative |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 51 | 61.438 | 388 | -0.260 | 39 | -4.007 | 4181 |
+| 42 | 74.603 | 392 | +0.236 | 0 | -2.469 | 2877 |
+| 37 | 84.685 | 255 | +0.469 | 0 | -1.598 | 2413 |
+| 34 | 92.157 | 360 | +0.874 | 0 | -0.858 | 1869 |
+| 32 | 97.917 | 386 | +0.635 | 0 | -0.721 | 943 |
+| 30 | 104.444 | 393 | +1.200 | 0 | -0.316 | 55 |
+| 28 | 111.905 | 398 | +1.287 | 0 | +0.001 | 0 |
+| 27 | 116.049 | 340 | +1.613 | 0 | +0.177 | 0 |
+| 26 | 120.513 | 478 | +1.001 | 0 | +0.318 | 0 |
 
 The worst boundary path at every rung is the CPU's bus interface head
 (`cpu_biu_head`, `cpu_biu_e_line`) into the EMS board's memory read data
 (`machine_ems_mem_rdata`, `machine_ems_p2_write`). The counts are of the
-20,000 worst machine-clock endpoints `paths.tcl` reports, so "negative" is a
-lower bound when the window is full. The projection keeps each path's
-placement at its rung: a fitter asked for the fast clock would place
-differently. What it shows is that the crossing is not where a 2× clock would
-fail first: the CPU's internal paths are, which the CPU-alone envelope
-(two of four seeds at 125.33 MHz) agrees with.
+20,000 worst machine-clock endpoints `paths.tcl` reports, so the endpoint
+counts and "negative" are lower bounds when the window is full. The
+projection keeps each path's placement at its rung: a fitter asked for the
+fast clock would place differently.
+
+## Where things are
+
+- Raw projects, reports and path files: Powerboat
+  `/data/projects/fes-486sx-fmax/` (`wt-<rev>` worktrees with each rung's
+  generated project, `k<rev>-s<seed>/project` for every compiled seed, the
+  `paths/` reports in each). Envelope fits: chip-30x0-ai-dev
+  `/data/projects/fes-quartus/runs/c1ca3e31cbee-*-fmax-env*`.
+- The commits the record cites live on this branch and on the scratch rung
+  branches `deano/de25-486sx-fmax-c{42,37,34,32,30,28,27,26,25,24,22,20,18,16}`.
 
 ## What this does not establish
 
 - **Admission above 61.44 MHz.** No package was built at any rung; the
   producer's timing admission and signoff findings review did not run.
-- **The ceiling.** 111.90 MHz is the top rung that was fitted.
+- **Four seeds at 97.92 MHz**, the highest rung under the shipped
+  constraints: it has seed 1 only.
 - **Function at a raised clock.** No simulation or kit run at any rung. The
-  guest rates are exact at every rung by construction, but the window's
-  DDR bandwidth per machine clock, the governor's headroom and the scanout's
+  guest rates are exact at every rung by construction, but the window's DDR
+  bandwidth per machine clock, the governor's headroom and the scanout's
   frame pacing at a faster machine are not examined here.
 - **A clock-crossing CPU.** Not built (question 3 asked for timing evidence
   only).

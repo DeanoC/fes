@@ -1,0 +1,20 @@
+Only in CONTROL/fes_mailbox/machine_pll/altera_iopll_2110/synth: machine_pll_altera_iopll_2110_bv3pn6y_all_ip_params.tcl
+Only in CONTROL/fes_mailbox/machine_pll/altera_iopll_2110/synth: machine_pll_altera_iopll_2110_bv3pn6y_parameters.tcl
+Only in CONTROL/fes_mailbox/machine_pll/altera_iopll_2110/synth: machine_pll_altera_iopll_2110_bv3pn6y_pin_map.tcl
+Only in CONTROL/fes_mailbox/machine_pll/altera_iopll_2110/synth: machine_pll_altera_iopll_2110_bv3pn6y.sdc
+Only in CONTROL/fes_mailbox/machine_pll/altera_iopll_2110/synth: machine_pll_altera_iopll_2110_bv3pn6y.v
+Only in ./fes_mailbox/machine_pll/altera_iopll_2110/synth: machine_pll_altera_iopll_2110_ipg5tby_all_ip_params.tcl
+Only in ./fes_mailbox/machine_pll/altera_iopll_2110/synth: machine_pll_altera_iopll_2110_ipg5tby_parameters.tcl
+Only in ./fes_mailbox/machine_pll/altera_iopll_2110/synth: machine_pll_altera_iopll_2110_ipg5tby_pin_map.tcl
+Only in ./fes_mailbox/machine_pll/altera_iopll_2110/synth: machine_pll_altera_iopll_2110_ipg5tby.sdc
+Only in ./fes_mailbox/machine_pll/altera_iopll_2110/synth: machine_pll_altera_iopll_2110_ipg5tby.v
+Files CONTROL/fes_mailbox/machine_pll/machine_pll_generation.rpt and ./fes_mailbox/machine_pll/machine_pll_generation.rpt differ
+Files CONTROL/fes_mailbox/machine_pll/machine_pll.html and ./fes_mailbox/machine_pll/machine_pll.html differ
+Files CONTROL/fes_mailbox/machine_pll/machine_pll.qgsynthc and ./fes_mailbox/machine_pll/machine_pll.qgsynthc differ
+Files CONTROL/fes_mailbox/machine_pll/machine_pll.qip and ./fes_mailbox/machine_pll/machine_pll.qip differ
+Files CONTROL/fes_mailbox/machine_pll/machine_pll.sopcinfo and ./fes_mailbox/machine_pll/machine_pll.sopcinfo differ
+Files CONTROL/fes_mailbox/machine_pll/machine_pll.xml and ./fes_mailbox/machine_pll/machine_pll.xml differ
+Files CONTROL/fes_mailbox/machine_pll/synth/machine_pll.v and ./fes_mailbox/machine_pll/synth/machine_pll.v differ
+Files CONTROL/fes_mailbox/machine_pll.ip and ./fes_mailbox/machine_pll.ip differ
+Files CONTROL/fes_mailbox/pc386_system.v and ./fes_mailbox/pc386_system.v differ
+Files CONTROL/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/fes_de25_pc386_standard_10/synth/pc386_system.v and ./peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/fes_de25_pc386_standard_10/synth/pc386_system.v differ

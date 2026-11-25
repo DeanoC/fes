@@ -17,7 +17,7 @@ from pathlib import Path
 MACHINE = 'fes_machine_pll|machine_pll_outclk0'
 ANALYSES = ('Setup', 'Hold', 'Recovery', 'Removal', 'Minimum Pulse Width', 'Max Skew', 'Net Delay',
             'Setup Data Delay')
-ORDER = {'control': 51, 'c42': 42, 'c37': 37, 'c34': 34, 'c32': 32, 'c30': 30, 'c28': 28}
+ORDER = {'control': 51, **{f'c{c}': c for c in (42, 37, 34, 32, 30, 28, 27, 26, 25, 24, 22, 20, 18, 16)}}
 
 
 def key(label):
