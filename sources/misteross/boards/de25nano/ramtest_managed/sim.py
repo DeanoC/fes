@@ -31,8 +31,15 @@ def run():
     waivers = ('UNUSEDSIGNAL', 'UNUSEDPARAM', 'UNOPTFLAT', 'CASEINCOMPLETE', 'CASEOVERLAP', 'WIDTHTRUNC',
                'WIDTHEXPAND', 'SYNCASYNCNET', 'PINCONNECTEMPTY', 'DECLFILENAME', 'IMPLICITSTATIC',
                'VARHIDDEN', 'CASEX', 'BLKSEQ', 'MULTITOP')
+    # The scan and mailbox intentionally retain power-up state across reset to
+    # fail closed on a lost transport epoch. Newer Verilator calls that
+    # PROCASSINIT; only pass its targeted waiver when the installed tool knows it.
+    procassinit = subprocess.run(['verilator', '-Wno-PROCASSINIT', '--version'],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
     base = ['verilator', '--cc', '--exe', '--build', '-j', '2', '-Wall',
-            *['-Wno-' + warning for warning in waivers], '-I' + str(staged), '-I' + str(staged / 'generated')]
+            *['-Wno-' + warning for warning in waivers],
+            *(['-Wno-PROCASSINIT'] if procassinit else []),
+            '-I' + str(staged), '-I' + str(staged / 'generated')]
     cases = (
         ('scan', 'fes_de25_managed_ram_scan', ['-GTEST_BYTES=32', '-GMAX_BURST=1', '-GTIMEOUT=16', '-GLATENCY_SAMPLES=1'],
          ['fes_de25_managed_ram_scan.v', 'fes_de25_ram_scan.v'], 'scan_control_tb.cpp'),
