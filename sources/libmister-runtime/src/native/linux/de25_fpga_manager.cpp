@@ -496,10 +496,20 @@ public:
         recovery_attempted = true;
         const bool restore_search_override = SearchExact(search, firmware);
         const auto blob = De25ProgrammingOverlay(De25OverlayProfile::allocated_scanout);
+        const auto window_blob = De25ProgrammingOverlay(De25OverlayProfile::allocated_scanout_window);
         Fd dir(openat(overlays, kOverlay, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
         Fd dtbo(dir.n < 0 ? -1 : openat(dir.n, "dtbo", O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
         std::vector<unsigned char> previous;
-        if (!Read(dtbo.n, &previous, blob.size()) || previous != blob ||
+        // A lost window machine is refused, with nothing touched. Its disk is
+        // in HPS DDR behind a window whose ports may still run: the owner's
+        // REAP answers EAGAIN until they drain, a replacement without
+        // holding the machine first is what hangs the next boot (#2245), and
+        // the guest's unsaved writes are lost. A reboot with the machine
+        // stopped, or a power cycle, retires it.
+        const bool read = Read(dtbo.n, &previous, std::max(blob.size(), window_blob.size()));
+        if (read && previous == window_blob)
+            return {Failure("a lost HPS-window machine cannot be replaced in place: its window may still be mastering memory and its disk is unsaved; power cycle the kit"), false};
+        if (!read || previous != blob ||
             !Exact(config + "/device-tree/overlays/" + kOverlay + "/status", "applied") ||
             !Exact(state, "operating"))
             return {Failure("retained configuration is not the exact applied allocated profile"), false};
