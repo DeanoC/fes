@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "2030a1105736e90a1a78f5dd1dc1c3112db71339",
+  "source_revision": "c2ecc6738b105a7ce0ef2ae88abc6f315f4f0438",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -14,7 +14,7 @@
     "sources/misteross/boards/de25nano/link-proof/fpga/persona_a.hex": "a9660675ab0514cf6e5b7b3247b6a0877d391f60c90cc4602f4da06ab41bdfa3",
     "sources/misteross/boards/de25nano/link-proof/fpga/persona_b.hex": "39142fe44734c61cf7916cfb9af6bd6ae4ef33b3a68416a9b2eec2344004577d",
     "sources/misteross/boards/de25nano/link-proof/generated/fes_de25_pr_control.vh": "04763cefbcde93ce16a4cb331aca510166e003d3fd2d3f8eaaf57111d62ebdcd",
-    "sources/misteross/boards/de25nano/hps/build.py": "452ed948cf7a5ac5edf4f79f6a6185f865c67e50ba257be5440e02117db3426e",
+    "sources/misteross/boards/de25nano/hps/build.py": "25adb36049996e375d0d9fa1e75d38ee8fad4dc88b10cdde97de7cbd2b1a81c1",
     "sources/misteross/boards/de25nano/hps/vendor.lock.toml": "cd72e8f75190725071d14830348b574542894aa97027650a546badac55c2c2fb",
     "sources/misteross/boards/de25nano/hps/integrate.tcl": "101c2c6600c2e5912e0d051bdaf3db72eedc07779f1cfada661d3f6f2f203bc0",
     "sources/misteross/boards/de25nano/hps/fes_de25_mailbox.v": "c7cb18157ad5476b0c2824e56a88855dd29f81f6470f8820405434acd301945e",
@@ -27,8 +27,8 @@
     "sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe_hw.tcl": "a370ef58e230603c738c3c30be69527d4c78b509509415154c239aa33b547bd7",
     "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.vh": "5e79081cdf4daca60057540a3c3ce4eb12ad6f88eceb475a828779588ac717c3",
     "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp": "ab191c5b6bfbb455abf21a3b80f2925fbfa97f69e2ab2290781e748bdf205105",
-    "sources/misteross/boards/de25nano/build.py": "095893ffd144d23a6235f2bd8339c1abcd0de32d7ede2ce633fac0c2584d96cc",
-    "sources/misteross/boards/de25nano/display/build.py": "8a2d62b39cd63771a46857500209ab71b813df23338569630c42fd0c719e4214",
+    "sources/misteross/boards/de25nano/build.py": "ed986a1d1410a72ef2fc444a83dad76516aaa8b67e265327281dd7cdfd434e54",
+    "sources/misteross/boards/de25nano/display/build.py": "5ac0f42d98ea792dc733ac9313b688ca5d7252816d71f05f229f04854e36cd34",
     "sources/misteross/boards/de25nano/display/vendor.lock.toml": "49cdc74e6e7b051c4cad17faf2ce91902dbc74e54a29b0ad4ff7846298ff95f3",
     "sources/misteross/boards/de25nano/link-proof/zx81-computer/profile.py": "9ab3e6c666b318834427b0fbb4b30ba8932da3533a89cc978ddd65ce3e77e69f",
     "sources/misteross/boards/de25nano/link-proof/zx81-computer/timing.tcl": "d7244ea3adefa8e14ff69082ab9fabcf640ad0f0f0b7c7f0d19ec8f3defb2bcb",
@@ -47,7 +47,7 @@
     "sources/misteross/boards/de25nano/shared-rtl/zx81_machine.sv": "a4e54da2c769f9730bd2b5ca12a3fcc1c4b03133ccc48a551b0dc1a76f2a37f5",
     "sources/misteross/boards/de25nano/shared-rtl/zx81_machine_clock.v": "d222d14bc64a9f7dd9cf1e3bad33be7708a70e0bfc94a9a6bf713d4d5ebbd501",
     "sources/misteross/boards/de25nano/shared-rtl/zx81_top.v": "e13695878042b6fafc86db37de4a4cfddae2f6c624889b8e4fb8d8d7f0ad52a5",
-    "sources/misteross/boards/de25nano/zx81/build.py": "f88226b6ad891e0262db4221d9778e0e3739d57b9903230402c3d5a69ec3e23d",
+    "sources/misteross/boards/de25nano/zx81/build.py": "941e1b3b119b9a9376ce5231ea6f99822f37dec9685af9a48b27e1854298980e",
     "sources/misteross/boards/de25nano/zx81/firmware.py": "d4f1859dfed1372f3926eb9d14e9e5ba477cc50a900293fdd68ab618c72507c0",
     "sources/misteross/boards/de25nano/zx81-hps/board.v": "4cfdcfd6e6d17fc38a34c9a413922cf8796b7fa643fc746094982f2dd441962e",
     "sources/misteross/boards/de25nano/zx81-hps/build.py": "0a3ad7bee409e656c6206115e12c4ec81e4a45d9274151308fac13e44681bb97",
@@ -335,8 +335,8 @@
     "builder_image": "fes-build-base:12.11-pinned",
     "sdk_volume": "fes-de25-stack-proof-sdk-7912076c-claude-20261124",
     "sdk_before": "e82814dae98497c53ce9488ee7ca92491020acfc8b1f2fa53853e4548b2261e0  /build/sdk/bin/aarch64-buildroot-linux-gnu-g++\n29f631250421bf3c2fbe113fadf1cc1b89e8714c3530a43db06b507ada50145f  /build/sdk/bin/aarch64-buildroot-linux-gnu-g++.br_real\n",
-    "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
-    "qemu_version": "qemu-aarch64 version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)\nCopyright (c) 2003-2022 Fabrice Bellard and the QEMU Project developers\n",
+    "qemu_sha256": "73cc2584f119f9e74c85c0a8549dbb6fd104ae3897a06a7500797f9e5b4d0943",
+    "qemu_version": "qemu-aarch64 version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)\nCopyright (c) 2003-2025 Fabrice Bellard and the QEMU Project developers\n",
     "native_tools_sha256": {
       "/usr/bin/verilator": "672a1ccf3468902f66387049f001b04f254bbcece7d5e816e3861715889bf252",
       "/usr/bin/x86_64-linux-gnu-g++-14": "6b3696e4dcb85e1c949c732a02befa50e3983ecf94ce7e8e58d9d503b954b79d"
@@ -345,7 +345,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "a3c8d49d179e6a13dedc740fd2e181c2ba884ef9111d35d8e955820960bd35ea",
-    "Vfes_de25_combined_sim": "189041bf100131e1ec9cf936fcb390c97882dabe8b4f84deeb48086e3f6923d2",
+    "Vfes_de25_combined_sim": "b55c6bcee08fef8d017496972e519730e6119c77453f08e8e495c9d104e5adde",
     "client-aarch64": "cf763f001d257e257c8f2fcf56e74e76e296728abfdc624888a2a087236e34d4"
   },
   "physical_PR": "selection-mux-model-only",
