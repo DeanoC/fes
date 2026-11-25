@@ -206,7 +206,7 @@ func TestParseBackend(t *testing.T) {
 		{"fb0", BackendLinuxFB},
 		{"menu-display", BackendMenuDisplay},
 		{"menudisplay", BackendMenuDisplay},
-		{"MENU", BackendMenuDisplay},
+		{"MENUDISPLAY", BackendMenuDisplay},
 	}
 	for _, tc := range cases {
 		got, err := ParseBackend(tc.in)
@@ -217,6 +217,9 @@ func TestParseBackend(t *testing.T) {
 	_, err := ParseBackend("opengl")
 	if err == nil || !strings.Contains(err.Error(), "menu-display") {
 		t.Fatalf("expected unknown backend error, got %v", err)
+	}
+	if _, err := ParseBackend("menu"); err == nil {
+		t.Fatal("ambiguous menu alias must not select menu-display")
 	}
 	if _, err := OpenCPU("menu-display", 8, 8); err == nil || !strings.Contains(err.Error(), "not a CPU device") {
 		t.Fatalf("menu-display CPU device err = %v", err)

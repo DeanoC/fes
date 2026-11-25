@@ -1,0 +1,6 @@
+x87 cases (the identity on): 127 pass, 4 fail, 418 retirements with the 387's state compared
+FAIL x87:wrong-path-unbuilt @102d.timeout 0 0 wrong-path-unbuilt.halt 1 0
+FAIL x87:wrong-path-unbuilt-busy-48-60 @13be.timeout 0 0 wrong-path-unbuilt-busy-48-60.halt 1 0 wrong-path-unbuilt-busy-48-60.x87.status 0 1 wrong-path-unbuilt-busy-48-60.x87.tag 0 1 wrong-path-unbuilt-busy-48-60.x87.opcode 0 1 wrong-path-unbuilt-busy-48-60.x87.fip 0 1 wrong-path-unbuilt-busy-48-60.x87.fdp 0 1 wrong-path-unbuilt-busy-48-60.x87.fds 0 1
+FAIL x87:wrong-path-unbuilt-busy-61-71 @13d0.timeout 0 0 wrong-path-unbuilt-busy-61-71.halt 1 0 wrong-path-unbuilt-busy-61-71.x87.status 0 1 wrong-path-unbuilt-busy-61-71.x87.tag 0 1 wrong-path-unbuilt-busy-61-71.x87.opcode 0 1 wrong-path-unbuilt-busy-61-71.x87.fip 0 1 wrong-path-unbuilt-busy-61-71.x87.fdp 0 1 wrong-path-unbuilt-busy-61-71.x87.fds 0 1
+FAIL x87:wrong-path-unbuilt-busy-72-80 @10d0.timeout 0 0 wrong-path-unbuilt-busy-72-80.halt 1 0 wrong-path-unbuilt-busy-72-80.x87.status 0 1 wrong-path-unbuilt-busy-72-80.x87.tag 0 1 wrong-path-unbuilt-busy-72-80.x87.opcode 0 1 wrong-path-unbuilt-busy-72-80.x87.fip 0 1 wrong-path-unbuilt-busy-72-80.x87.fdp 0 1 wrong-path-unbuilt-busy-72-80.x87.fds 0 1
+i386 lockstep FAILED (host simulation only; report: /data/projects/i486dx-s1/wt-fix/sources/misteross/build/sim/fes-i386-lockstep/report.json)

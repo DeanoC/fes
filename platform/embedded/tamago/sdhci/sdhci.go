@@ -24,21 +24,22 @@ import (
 // Register offsets follow Altera's MIT-0 socfpga_sdmmc_reg.h, commit
 // 66bdcc347564c5698a8997169bce83a31647d618 (Copyright 2026 Altera).
 const (
-	blockSize     = 0x204
-	argument      = 0x208
-	command       = 0x20c
-	response      = 0x210
-	dataPort      = 0x220
-	present       = 0x224
-	host          = 0x228
-	clock         = 0x22c
-	status        = 0x230
-	statusEnable  = 0x234
-	signalEnable  = 0x238
-	statusErrors  = uint32(0xffff8000)
-	busy          = uint32(0xb07)
-	clockModeMask = uint32(0x070fffff)
-	baseHost33V   = uint32(7<<9 | 1<<8)
+	blockSize                 = 0x204
+	argument                  = 0x208
+	command                   = 0x20c
+	response                  = 0x210
+	dataPort                  = 0x220
+	present                   = 0x224
+	host                      = 0x228
+	clock                     = 0x22c
+	status                    = 0x230
+	statusEnable              = 0x234
+	signalEnable              = 0x238
+	statusErrors              = uint32(0xffff8000)
+	busy                      = uint32(0xb07)
+	clockModeMask             = uint32(0x070fffff)
+	baseHost33V               = uint32(7<<9 | 1<<8)
+	defaultHighSpeedMaxCurrMA = uint16(200)
 )
 
 var (
@@ -70,6 +71,9 @@ type Device struct {
 	dataClock          uint32
 	dataClockHz        uint32
 	defaultSpeed       bool
+	highSpeed          bool
+	hasSCR             bool
+	scr                [8]byte
 	cardWriteProtected bool
 	expectedHost       uint32
 	busWidth4          bool
@@ -103,6 +107,12 @@ func (d *Device) BusWidth() int {
 // ADMA2Active reports whether ADMA2 DMA transfers are enabled on this device.
 func (d *Device) ADMA2Active() bool { return d.adma != nil }
 
+// HighSpeed reports whether SD High-Speed (50 MHz via CMD6) is active.
+func (d *Device) HighSpeed() bool { return d.highSpeed }
+
+// TransferClockHz returns the active SD clock rate in Hz.
+func (d *Device) TransferClockHz() uint32 { return d.dataClockHz }
+
 // Config describes the actual input clock established by firmware, not the
 // requested SD bus rate. The initial transport stays at <=400 kHz, one bit, PIO.
 type Config struct {
@@ -115,10 +125,16 @@ type Config struct {
 	// The default samples SDHCI WPSL. Card CSD protection and R1 errors remain
 	// enforced with either wiring; AllowWrites is still required independently.
 	NoSocketWriteProtect bool
-	// TransferClockHz explicitly selects 25 MHz maximum after identification.
+	// TransferClockHz explicitly selects 25 MHz Default Speed or 50 MHz
+	// High-Speed (via CMD6 Switch Function) after identification.
 	// Zero retains the existing <=400 kHz transport; the identification divider
 	// is restored at quiescence.
 	TransferClockHz uint32
+	// HighSpeedMaxCurrentMA sets the board's maximum 3.3V SD supply current
+	// budget in mA for CMD6 High-Speed admission (default 0 -> 200 mA, the
+	// baseline SD v1.10+ 3.3V limit per Physical Layer Spec §4.3.10.4). Cards
+	// reporting 0 or more than this budget are rejected before switching.
+	HighSpeedMaxCurrentMA uint16
 	// BusWidth4Bit opts into 4-bit SD bus mode after card selection (verified
 	// via ACMD51 SCR and switched via ACMD6). Default false retains 1-bit mode.
 	BusWidth4Bit bool
@@ -145,7 +161,7 @@ type Config struct {
 // readiness before the driver enables card clocks.
 func validateConfig(config Config) error {
 	if config.InputClockHz < 400000 || config.InputClockHz > 200000000 ||
-		(config.TransferClockHz != 0 && config.TransferClockHz != 25000000) ||
+		(config.TransferClockHz != 0 && config.TransferClockHz != 25000000 && config.TransferClockHz != 50000000) ||
 		(config.TransferClockHz != 0 && config.InputClockHz < config.TransferClockHz) {
 		return fmt.Errorf("sdhci: invalid firmware input or selected transfer clock")
 	}
@@ -377,31 +393,44 @@ func (d *Device) configureADMA() error {
 	return nil
 }
 
-func (d *Device) selectBusWidth() error {
-	if !d.config.BusWidth4Bit {
-		return nil
+func (d *Device) readSCR() ([8]byte, error) {
+	if d.hasSCR {
+		return d.scr, nil
 	}
-	// Query 64-bit SCR via CMD55 + ACMD51 (8-byte PIO read) to confirm card 4-bit support.
+	// Query 64-bit SCR via CMD55 + ACMD51 (8-byte PIO read).
 	if err := d.issue(55, uint32(d.rca)<<16, responseR1, noData); err != nil {
-		return err
+		return [8]byte{}, err
 	}
 	if d.io.Read32(response)&(1<<5) == 0 {
-		return errors.New("sdhci: card refused APP_CMD for ACMD51")
+		return [8]byte{}, errors.New("sdhci: card refused APP_CMD for ACMD51")
 	}
 	if err := d.issueTransfer(51, 0, responseR1, readData, 1, 8, false); err != nil {
-		return err
+		return [8]byte{}, err
 	}
 	if err := d.wait(status, 1<<5, 1<<5, true); err != nil {
-		return err
+		return [8]byte{}, err
 	}
 	var scr [8]byte
 	binary.LittleEndian.PutUint32(scr[0:4], d.io.Read32(dataPort))
 	binary.LittleEndian.PutUint32(scr[4:8], d.io.Read32(dataPort))
 	d.io.Write32(status, 1<<5)
 	if err := d.wait(status, 2, 2, true); err != nil {
-		return err
+		return [8]byte{}, err
 	}
 	d.io.Write32(status, 2)
+	d.scr = scr
+	d.hasSCR = true
+	return scr, nil
+}
+
+func (d *Device) selectBusWidth() error {
+	if !d.config.BusWidth4Bit {
+		return nil
+	}
+	scr, err := d.readSCR()
+	if err != nil {
+		return err
+	}
 	// SCR[51:48] is SD_BUS_WIDTHS (wire byte 1 low nibble); bit 2 (0x04) = 4-bit.
 	if scr[1]&0x04 == 0 {
 		return fmt.Errorf("sdhci: card SCR (%x) does not advertise 4-bit bus width", scr)
@@ -425,11 +454,96 @@ func (d *Device) selectBusWidth() error {
 	return d.ready()
 }
 
+func (d *Device) issueCMD6(arg uint32) ([64]byte, error) {
+	var st [64]byte
+	if err := d.issueTransfer(6, arg, responseR1, readData, 1, 64, false); err != nil {
+		return st, err
+	}
+	if err := d.wait(status, 1<<5, 1<<5, true); err != nil {
+		return st, err
+	}
+	for i := 0; i < 64; i += 4 {
+		binary.LittleEndian.PutUint32(st[i:i+4], d.io.Read32(dataPort))
+	}
+	d.io.Write32(status, 1<<5)
+	if err := d.wait(status, 2, 2, true); err != nil {
+		return st, err
+	}
+	d.io.Write32(status, 2)
+	return st, nil
+}
+
+func (d *Device) switchHighSpeed() error {
+	if d.io.Read32(capabilities)&capHighSpeed == 0 {
+		return errors.New("sdhci: controller does not advertise High-Speed support")
+	}
+	if !d.defaultSpeed {
+		return errors.New("sdhci: card does not declare default-speed base timing")
+	}
+	scr, err := d.readSCR()
+	if err != nil {
+		return err
+	}
+	// SD Physical Layer v1.10+ (SD_SPEC >= 1) is required for CMD6 Switch Function.
+	if scr[0]&0x0f < 1 {
+		return fmt.Errorf("sdhci: card SCR (%x) does not support CMD6 High-Speed", scr)
+	}
+	// Mode 0 check: verify Access Mode Group 1 Function 1 (High Speed, 25 MB/s)
+	// is supported and advertised current fits within board supply budget.
+	maxCurrentLimit := d.config.HighSpeedMaxCurrentMA
+	if maxCurrentLimit == 0 {
+		maxCurrentLimit = defaultHighSpeedMaxCurrMA
+	}
+	checkStatus, err := d.issueCMD6(0x00fffff1)
+	if err != nil {
+		return err
+	}
+	checkCurr := binary.BigEndian.Uint16(checkStatus[0:2])
+	if checkCurr == 0 || checkCurr > maxCurrentLimit ||
+		binary.BigEndian.Uint16(checkStatus[12:14])&(1<<1) == 0 ||
+		checkStatus[16]&0x0f != 1 {
+		return fmt.Errorf("sdhci: card CMD6 High-Speed check refused (current=%dmA limit=%dmA)", checkCurr, maxCurrentLimit)
+	}
+	// Mode 1 switch: commit Group 1 Function 1.
+	switchStatus, err := d.issueCMD6(0x80fffff1)
+	if err != nil {
+		return err
+	}
+	switchCurr := binary.BigEndian.Uint16(switchStatus[0:2])
+	if switchCurr == 0 || switchCurr > maxCurrentLimit || switchStatus[16]&0x0f != 1 {
+		return fmt.Errorf("sdhci: card failed CMD6 High-Speed switch (current=%dmA limit=%dmA)", switchCurr, maxCurrentLimit)
+	}
+	// SD Physical Layer §4.3.10 requires at least 8 card clocks after the Mode 1
+	// CMD6 status block before configuring switched host timing or issuing another command.
+	switchDelay := time.Millisecond
+	if d.dataClockHz > 0 {
+		eightClocks := (8*time.Second + time.Duration(d.dataClockHz) - 1) / time.Duration(d.dataClockHz)
+		if eightClocks > switchDelay {
+			switchDelay = eightClocks
+		}
+	}
+	if err := d.pause(switchDelay); err != nil {
+		return err
+	}
+	desired := d.expectedHost | hostHighSpeed
+	d.io.Write32(host, desired)
+	if d.io.Read32(host) != desired {
+		return errors.New("sdhci: High-Speed host control readback differs")
+	}
+	d.expectedHost = desired
+	d.highSpeed = true
+	return nil
+}
+
 func (d *Device) selectTransferClock() error {
 	if d.config.TransferClockHz == 0 {
 		return nil
 	}
-	if !d.defaultSpeed {
+	if d.config.TransferClockHz == 50000000 {
+		if err := d.switchHighSpeed(); err != nil {
+			return err
+		}
+	} else if !d.defaultSpeed {
 		return errors.New("sdhci: card does not declare default-speed 25 MHz")
 	}
 	divisor := uint64(0)
@@ -1175,7 +1289,7 @@ func (d *Device) Resume() error {
 		return fail(err)
 	}
 	if next.dataClockHz != d.dataClockHz || next.dataClock != d.dataClock ||
-		next.expectedHost != d.expectedHost || next.busWidth4 != d.busWidth4 {
+		next.expectedHost != d.expectedHost || next.busWidth4 != d.busWidth4 || next.highSpeed != d.highSpeed {
 		return fail(errors.New("sdhci: transfer mode changed across resume"))
 	}
 	d.adma = next.adma

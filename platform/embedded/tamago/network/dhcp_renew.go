@@ -21,6 +21,9 @@ const (
 	// Short pause-aware retry used when SendRawFrame reports ErrPaused (e.g. during
 	// FPGA reconfiguration) so no request was actually transmitted on the wire.
 	defaultRenewPausedRetry = 250 * time.Millisecond
+	// Default cooldown and probe bound for link-up DHCP lease verification.
+	defaultLinkUpDebounce     = 5 * time.Second
+	defaultLinkUpProbeTimeout = 10 * time.Second
 	// RFC 2131 §3.3 reserves lease time 0xffffffff seconds (option 51) for an
 	// infinite lease, which never expires and is never renewed. leaseTimers
 	// treats any duration at or above it as infinite.
@@ -28,7 +31,8 @@ const (
 )
 
 var (
-	// ErrLeaseNAK is returned when a DHCP server rejects renewal/rebind with DHCPNAK.
+	// ErrLeaseNAK is returned when a DHCP server rejects renewal, rebind or a
+	// link-up INIT-REBOOT verification with DHCPNAK.
 	ErrLeaseNAK = errors.New("network: DHCP renewal rejected with NAK")
 	// ErrLeaseChanged is returned when renewal yields a different IP prefix or gateway
 	// than the currently configured IP stack address.
@@ -60,23 +64,54 @@ var _ DHCPFramePort = (*Link)(nil)
 
 // RenewConfig configures RFC 2131 DHCPv4 T1/T2 lease renewal.
 type RenewConfig struct {
-	Hostname      string          // Optional option 12 hostname (default "fes-native")
-	ServerMAC     string          // Optional unicast DHCP server MAC for T1 renew (empty -> broadcast)
-	RetryInterval time.Duration   // Minimum retransmit floor for RFC 2131 §4.4.5 remaining-time pacing (default 60s)
-	AcquiredAt    time.Time       // Time the initial lease was granted (zero -> time.Now() at NewLeaseRenewer)
-	XID           uint32          // Optional fixed transaction ID for deterministic tests (0 -> random)
-	OnRenew       func(DHCPLease) // Optional callback invoked after each successful renewal; must not call Stop synchronously.
-	OnError       func(error)     // Optional callback invoked when renewal terminates with error; must not call Stop synchronously.
+	Hostname           string          // Optional option 12 hostname (default "fes-native")
+	ServerMAC          string          // Optional unicast DHCP server MAC for T1 renew (empty -> broadcast)
+	RetryInterval      time.Duration   // Minimum retransmit floor for RFC 2131 §4.4.5 remaining-time pacing (default 60s)
+	AcquiredAt         time.Time       // Time the initial lease was granted (zero -> time.Now() at NewLeaseRenewer)
+	XID                uint32          // Optional fixed transaction ID for deterministic tests (0 -> random)
+	LinkUpDebounce     time.Duration   // Minimum cooldown between NotifyLinkUp()-triggered verifications (default 5s)
+	LinkUpProbeTimeout time.Duration   // Maximum duration of a NotifyLinkUp() INIT-REBOOT verification (default 10s)
+	OnRenew            func(DHCPLease) // Optional callback invoked after each successful renewal; must not call Stop synchronously.
+	OnError            func(error)     // Optional callback invoked when renewal terminates with error; must not call Stop synchronously.
 }
 
 // RenewDHCPOnce executes one RFC 2131 RENEWING (rebind=false) or REBINDING
 // (rebind=true) DHCPREQUEST -> DHCPACK/DHCPNAK exchange over port.
 func RenewDHCPOnce(ctx context.Context, port DHCPFramePort, macStr string, current DHCPLease, rebind bool, cfg RenewConfig) (DHCPLease, error) {
-	lease, _, err := renewDHCPOnceWithTime(ctx, port, macStr, current, rebind, cfg)
+	lease, _, err := renewDHCPOnceWithTime(ctx, port, macStr, current, renewRequestState(rebind), cfg)
 	return lease, err
 }
 
-func renewDHCPOnceWithTime(ctx context.Context, port DHCPFramePort, macStr string, current DHCPLease, rebind bool, cfg RenewConfig) (DHCPLease, time.Time, error) {
+// dhcpRequestState is the RFC 2131 §4.3.2 client state a DHCPREQUEST for an
+// already-held lease is sent from. It fixes the request's wire form and whose
+// replies count.
+type dhcpRequestState uint8
+
+const (
+	// requestRenewing (T1): ciaddr and the IPv4 source carry the lease address
+	// and there is no option 50. Unicast to the leasing server when ServerMAC is
+	// known, otherwise broadcast; only that server's replies count.
+	requestRenewing dhcpRequestState = iota
+	// requestRebinding (T2): the RENEWING form, always broadcast; any server
+	// may answer.
+	requestRebinding
+	// requestInitReboot (link-up verification): ciaddr and the IPv4 source are
+	// zero and option 50 carries the lease address, with no server identifier;
+	// always broadcast, and any server may answer. RFC 2131 §4.3.2 asks a server
+	// to NAK this form when the address is on the wrong network. It sets no such
+	// rule for the RENEWING/REBINDING form, whose ciaddr a server on another
+	// network has no lease for and need not answer.
+	requestInitReboot
+)
+
+func renewRequestState(rebind bool) dhcpRequestState {
+	if rebind {
+		return requestRebinding
+	}
+	return requestRenewing
+}
+
+func renewDHCPOnceWithTime(ctx context.Context, port DHCPFramePort, macStr string, current DHCPLease, state dhcpRequestState, cfg RenewConfig) (DHCPLease, time.Time, error) {
 	if ctx == nil || port == nil {
 		return DHCPLease{}, time.Time{}, fmt.Errorf("%w: nil context or port", ErrDHCPInvalidConfig)
 	}
@@ -101,7 +136,7 @@ func renewDHCPOnceWithTime(ctx context.Context, port DHCPFramePort, macStr strin
 
 	var dstMAC [6]byte
 	var dstIP [4]byte
-	useBroadcast := rebind || cfg.ServerMAC == ""
+	useBroadcast := state != requestRenewing || cfg.ServerMAC == ""
 	if useBroadcast {
 		dstMAC = broadcastMAC
 		dstIP = [4]byte{255, 255, 255, 255}
@@ -126,7 +161,7 @@ func renewDHCPOnceWithTime(ctx context.Context, port DHCPFramePort, macStr strin
 		xid = randomXID()
 	}
 
-	txFrame := buildDHCPRenewFrame(mac, dstMAC, prefix.Addr().As4(), dstIP, xid, hostname, useBroadcast)
+	txFrame := buildDHCPRenewFrame(state, mac, dstMAC, prefix.Addr().As4(), dstIP, xid, hostname, useBroadcast)
 	expectedServer := serverIP.As4()
 	deadline, hasDeadline := ctx.Deadline()
 
@@ -144,7 +179,7 @@ func renewDHCPOnceWithTime(ctx context.Context, port DHCPFramePort, macStr strin
 		}
 		switch reply.msgType {
 		case dhcpMsgNak:
-			if !rebind && reply.hasServer && reply.serverID != expectedServer {
+			if state == requestRenewing && reply.hasServer && reply.serverID != expectedServer {
 				return
 			}
 			select {
@@ -152,7 +187,7 @@ func renewDHCPOnceWithTime(ctx context.Context, port DHCPFramePort, macStr strin
 			default:
 			}
 		case dhcpMsgAck:
-			if !rebind && reply.hasServer && reply.serverID != expectedServer {
+			if state == requestRenewing && reply.hasServer && reply.serverID != expectedServer {
 				return
 			}
 			lease, ok := mergeRenewedLease(current, reply)
@@ -293,6 +328,7 @@ type LeaseRenewer struct {
 	lease    DHCPLease
 	lastErr  error
 	stopCh   chan struct{}
+	linkUpCh chan struct{}
 	wg       sync.WaitGroup
 	running  atomic.Bool
 	renewals atomic.Uint64
@@ -345,7 +381,30 @@ func NewLeaseRenewer(port DHCPFramePort, mac string, initial DHCPLease, cfg Rene
 		onRelease:  onRelease,
 		lease:      cloneLease(initial),
 		stopCh:     make(chan struct{}),
+		linkUpCh:   make(chan struct{}, 1),
 	}, nil
+}
+
+// NotifyLinkUp signals that the underlying Ethernet carrier returned (for
+// example from xgmac.Config.OnLinkChange). For a finite DHCP lease awaiting T1,
+// the renewer then broadcasts one RFC 2131 INIT-REBOOT DHCPREQUEST (ciaddr 0,
+// the lease address in option 50, no server identifier), debounced by
+// LinkUpDebounce and bounded by LinkUpProbeTimeout. A DHCPACK refreshes the
+// lease; a DHCPNAK from any server, or an ACK for another address or gateway,
+// halts the link. RFC 2131 §4.3.2 asks a server to NAK this form when the
+// address is on the wrong network, so a kit moved to another subnet halts once
+// a server there answers. A server may stay silent instead (RFC 2131 §3.2: one
+// whose information is not guaranteed to be accurate SHOULD NOT respond); with
+// no answer within LinkUpProbeTimeout the still-valid lease stays in place
+// until T1/T2. Safe to call from any goroutine or callback.
+func (r *LeaseRenewer) NotifyLinkUp() {
+	if r == nil || r.linkUpCh == nil {
+		return
+	}
+	select {
+	case r.linkUpCh <- struct{}{}:
+	default:
+	}
 }
 
 // Start launches the background T1/T2 renewal goroutine. Fails closed if already
@@ -550,7 +609,7 @@ func (s *interfaceLease) renewOnce(ctx context.Context, port DHCPFramePort, mac 
 		s.mu.Unlock()
 	}()
 
-	next, sentAt, err := renewDHCPOnceWithTime(ctx, port, mac, current, rebind, cfg)
+	next, sentAt, err := renewDHCPOnceWithTime(ctx, port, mac, current, renewRequestState(rebind), cfg)
 	if err != nil {
 		if errors.Is(err, ErrLeaseNAK) || errors.Is(err, ErrLeaseChanged) {
 			if onTerminal != nil {
@@ -654,6 +713,15 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 
 	acquiredAt := r.acquiredAt
 	loopCfg := r.cfg
+	debounce := loopCfg.LinkUpDebounce
+	if debounce == 0 {
+		debounce = defaultLinkUpDebounce
+	}
+	probeTimeout := loopCfg.LinkUpProbeTimeout
+	if probeTimeout == 0 {
+		probeTimeout = defaultLinkUpProbeTimeout
+	}
+	var lastLinkProbe time.Time
 	for {
 		current := r.Lease()
 		t1, t2, renew := leaseTimers(current)
@@ -665,10 +733,6 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 		t1At := acquiredAt.Add(t1)
 		t2At := acquiredAt.Add(t2)
 		expireAt := acquiredAt.Add(current.LeaseDuration)
-
-		if !waitUntil(runCtx, t1At) {
-			return
-		}
 
 		applyRenewal := func(nextLease DHCPLease, sentAt time.Time) {
 			if nextLease.Server != current.Server {
@@ -687,9 +751,71 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 			}
 		}
 
+		renewedOnLinkUp := false
+		for {
+			status, ok := waitUntilOrLinkUp(runCtx, t1At, r.linkUpCh)
+			if !ok {
+				return
+			}
+			if status == waitReachedTarget {
+				break
+			}
+			if !lastLinkProbe.IsZero() {
+				if since := time.Since(lastLinkProbe); since < debounce {
+					rem := debounce - since
+					target := time.Now().Add(rem)
+					if t1At.Before(target) {
+						target = t1At
+					}
+					if !waitUntil(runCtx, target) {
+						return
+					}
+					if !time.Now().Before(t1At) {
+						break
+					}
+				}
+			}
+			drainSignal(r.linkUpCh)
+			lastLinkProbe = time.Now()
+			probeDeadline := lastLinkProbe.Add(probeTimeout)
+			if t2At.Before(probeDeadline) {
+				probeDeadline = t2At
+			}
+			probeCtx, probeCancel := context.WithDeadline(runCtx, probeDeadline)
+			// INIT-REBOOT, not REBINDING: RFC 2131 §4.3.2 asks a server on the
+			// network the kit now sits on to NAK this form when the lease address
+			// is on the wrong network, and sets no such rule for REBINDING.
+			nextLease, sentAt, err := renewDHCPOnceWithTime(probeCtx, r.port, r.mac, current, requestInitReboot, loopCfg)
+			probeCancel()
+			if err == nil {
+				applyRenewal(nextLease, sentAt)
+				renewedOnLinkUp = true
+				break
+			}
+			if runCtx.Err() != nil {
+				return
+			}
+			if errors.Is(err, context.DeadlineExceeded) && r.port.Err() == nil {
+				// No ACK or NAK on link return: RFC 2131 §4.4.2 lets the client keep
+				// using the unexpired lease, so a silent probe keeps it alive.
+				if !time.Now().Before(t1At) {
+					break
+				}
+				continue
+			}
+			if portErr := r.port.Err(); portErr != nil && errors.Is(err, context.DeadlineExceeded) {
+				err = portErr
+			}
+			r.fail(err)
+			return
+		}
+		if renewedOnLinkUp {
+			continue
+		}
+
 		// Phase 1: T1 RENEWING (unicast if ServerMAC known) until T2.
 		t1Ctx, t1Cancel := context.WithDeadline(runCtx, t2At)
-		nextLease, sentAt, err := renewDHCPOnceWithTime(t1Ctx, r.port, r.mac, current, false, loopCfg)
+		nextLease, sentAt, err := renewDHCPOnceWithTime(t1Ctx, r.port, r.mac, current, requestRenewing, loopCfg)
 		t1Cancel()
 		if err == nil {
 			applyRenewal(nextLease, sentAt)
@@ -708,7 +834,7 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 
 		// Phase 2: T2 REBINDING (broadcast) until lease expiry.
 		t2Ctx, t2Cancel := context.WithDeadline(runCtx, expireAt)
-		nextLease, sentAt, err = renewDHCPOnceWithTime(t2Ctx, r.port, r.mac, current, true, loopCfg)
+		nextLease, sentAt, err = renewDHCPOnceWithTime(t2Ctx, r.port, r.mac, current, requestRebinding, loopCfg)
 		t2Cancel()
 		if err == nil {
 			applyRenewal(nextLease, sentAt)
@@ -723,6 +849,40 @@ func (r *LeaseRenewer) loop(parent context.Context) {
 			r.fail(err)
 		}
 		return
+	}
+}
+
+type waitOutcome uint8
+
+const (
+	waitReachedTarget waitOutcome = iota
+	waitLinkUp
+)
+
+func drainSignal(ch <-chan struct{}) {
+	for {
+		select {
+		case <-ch:
+		default:
+			return
+		}
+	}
+}
+
+func waitUntilOrLinkUp(ctx context.Context, target time.Time, linkUp <-chan struct{}) (waitOutcome, bool) {
+	d := time.Until(target)
+	if d <= 0 {
+		return waitReachedTarget, ctx.Err() == nil
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return waitReachedTarget, false
+	case <-timer.C:
+		return waitReachedTarget, true
+	case <-linkUp:
+		return waitLinkUp, true
 	}
 }
 
@@ -744,6 +904,12 @@ func waitUntil(ctx context.Context, target time.Time) bool {
 func validateRenewConfig(cfg RenewConfig) error {
 	if cfg.RetryInterval < 0 {
 		return fmt.Errorf("%w: negative RetryInterval", ErrDHCPInvalidConfig)
+	}
+	if cfg.LinkUpDebounce < 0 {
+		return fmt.Errorf("%w: negative LinkUpDebounce", ErrDHCPInvalidConfig)
+	}
+	if cfg.LinkUpProbeTimeout < 0 {
+		return fmt.Errorf("%w: negative LinkUpProbeTimeout", ErrDHCPInvalidConfig)
 	}
 	if len(cfg.Hostname) > 255 {
 		return fmt.Errorf("%w: hostname exceeds 255 bytes", ErrDHCPInvalidConfig)
@@ -839,10 +1005,23 @@ func cloneLease(l DHCPLease) DHCPLease {
 	return l
 }
 
-func buildDHCPRenewFrame(srcMAC, dstMAC [6]byte, clientIP, dstIP [4]byte, xid uint32, hostname string, broadcast bool) []byte {
+// buildDHCPRenewFrame builds a DHCPREQUEST for leaseIP in the given RFC 2131
+// §4.3.2 state. RENEWING and REBINDING carry leaseIP in ciaddr and the IPv4
+// source. INIT-REBOOT leaves both zero (ciaddr MUST be zero; RFC 2131 §4.1 has
+// a client without a confirmed address send from 0.0.0.0) and carries leaseIP
+// in option 50. No state sends a server identifier (option 54).
+func buildDHCPRenewFrame(state dhcpRequestState, srcMAC, dstMAC [6]byte, leaseIP, dstIP [4]byte, xid uint32, hostname string, broadcast bool) []byte {
+	var clientIP [4]byte // ciaddr and IPv4 source; zero for INIT-REBOOT
+	if state != requestInitReboot {
+		clientIP = leaseIP
+	}
 	var opts bytes.Buffer
 	opts.Write(dhcpMagicCookie[:])
 	opts.Write([]byte{dhcpOptMsgType, 1, dhcpMsgRequest})
+	if state == requestInitReboot {
+		opts.Write([]byte{dhcpOptRequestedIP, 4})
+		opts.Write(leaseIP[:])
+	}
 	if hostname != "" {
 		opts.Write([]byte{dhcpOptHostname, byte(len(hostname))})
 		opts.WriteString(hostname)
@@ -885,7 +1064,7 @@ func buildDHCPRenewFrame(srcMAC, dstMAC [6]byte, clientIP, dstIP [4]byte, xid ui
 	if broadcast {
 		binary.BigEndian.PutUint16(bootp[10:12], dhcpFlagBroadcast)
 	}
-	copy(bootp[12:16], clientIP[:]) // RFC 2131 RENEWING/REBINDING ciaddr
+	copy(bootp[12:16], clientIP[:]) // RFC 2131 §4.3.2 ciaddr: lease address, or zero for INIT-REBOOT
 	copy(bootp[28:34], srcMAC[:])
 	copy(bootp[bootpFixedLen:], opts.Bytes())
 

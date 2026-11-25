@@ -1899,6 +1899,7 @@ representatives without catalog scans, and frame construction follows the paint
 gate. Bounded wheel refreshes compare the complete frame content and reuse
 the rendered revision when it is identical; motion bypasses reuse and forces
 a final settled paint. Input polling, App updates, scripted rooms and snapshots continue at 30 Hz.
+The runtime menu backend is selected as `menu-display` or `menudisplay`.
 Rendered-frame revisions skip framebuffer comparison in `MenuDisplay`; ordinary
 callers retain byte-identical change detection. An unchanged submission that has
 not failed or been dropped is skipped. Once a second after a successful present, that skip
@@ -1940,6 +1941,16 @@ status probes share immutable bytes. The runtime frame protocol is unchanged.
 profiles. On exit, CPU sampling stops before heap GC and serialization.
 Benchmark recipes and measurement limits are in
 [native CPU rendering](native-tenfoot-launcher/CPU.md).
+
+The Linux direct-display kit-host launcher provides the kit-local diagnostic
+`fogcast-tenfoot library-reload`. It triggers the same asynchronous library
+reload while a session is busy and exits successfully only after that exact
+generation has completed successfully. A failed, superseded, stopped or
+timed-out reload reports an error. The command talks to the running launcher
+over a Linux abstract Unix socket, so no stale socket file survives a crash;
+the listener is absent for smoke and non-kit hosts. Completion describes the
+library load, not display presentation: HIL should wait for the command and
+capture the footer separately while the session is still busy.
 
 The framebuffer shell reads native-width evdev records for US keyboard text
 and gamepad buttons plus range-normalized stick/hat axes, merges held commands across devices,
@@ -3414,7 +3425,9 @@ the host needs the packages, not the per-core selections.
 
 The host and `mister-agent` open the durable store as two processes, coordinated
 by its flock. The agent recovers interrupted installations and verifies packages
-when opening; the host skips recovery and verifies durable inventory and
+when opening. It validates each canonical archive, then independently reads and
+compares every installed member byte against that validated archive; identical
+ROM maps need no second structural parse. The host skips recovery and verifies durable inventory and
 selections on access before serving either durable or factory packages. The
 first access verifies selected packages under the lock; a list also verifies
 the other durable packages. Later reads reuse valid stat-fingerprint caches.
@@ -3796,8 +3809,14 @@ neutralizes that exact uncertain source while preserving confirmed remote
 contributors; held local mappings remain suppressed until their physical
 contributors release. A proven pre-dispatch failure can instead retry the
 current desired state.
-For a fresh, unbound matrix sink, lifecycle cleanup may omit the matrix write
-only after a fresh explicit idle observation with a valid runtime instance.
+Source detach or disconnect skips an unbound, empty matrix sink when no
+`fes.keyboard` capability, matrix binding, or pending matrix neutral is active,
+so non-matrix HID cores without controller ports (such as `fes.pc386`) can
+detach without issuing an unbound matrix write. For a fresh, unbound matrix
+sink, lifecycle cleanup may omit the matrix write only after a fresh explicit
+observation with a valid runtime instance confirming either idle or an active
+packaged core without `fes.keyboard` (raw development RBFs and active matrix
+cores remain rejected).
 That proof applies to the current guarded cleanup only: it cannot authorize an
 unbound press or hide an unrelated cleanup failure.
 Synthetic pad keys, the physical local keyboard and the remote keyboard retain
@@ -4406,7 +4425,9 @@ supplied separately by a media upload. Expansion composition retains the whole
 sealed shell package, including the map, and its package identity.
 
 ROM-map inspection streams closed objects and fixed 40-destination words rather
-than retaining JSON copies of the whole map and every block. It bounds maps to
+than retaining JSON copies of the whole map and every block. After the JSON
+decoder checks a word's syntax, its 40 unsigned or null destinations are read
+in one forward pass. It bounds maps to
 32 MiB, blocks and words per block to 256, and unconsumed decoder input to 4 KiB
 so oversized JSON values cannot grow the decoder buffer. Private staging reads
 the declared upload into one bounded allocation, clones its small manifest and

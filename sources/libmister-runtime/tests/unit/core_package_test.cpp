@@ -1251,6 +1251,52 @@ std::string MapDigest(const std::string& bytes)
  return mister::native::Sha256Hex(hash.Final());
 }
 
+// pc386 on the standard shell: fes.computer 1.1, a mouse and no gamepad, its
+// memory a window in HPS DDR. The package contract admits it; loading it still
+// needs an HPS DDR layout the DE25 runtime does not report yet.
+void TestDe25StandardProfileAdmitsPc386Contract()
+{
+ using namespace mister;using namespace mister::native;
+ ContainedCoreDriver shared,contained,bram;
+ CoreDriverRegistry registry(&shared,contained,&bram,NativePlatform::de25_nano);
+ const auto d=mister_test::De25Pc386Descriptor();
+ assert(d.interfaces.size()==13);
+ assert(CheckDe25StandardComputerContract(d).ok());
+ assert(CheckCoreCompatibility(d,NativePlatform::de25_nano).ok());
+ assert(CheckCoreCompatibility(d).code==ErrorCode::unsupported_target);
+ ProgrammingProfile profile;CoreDriver* driver=nullptr;
+ assert(registry.Resolve(d,&profile,&driver).ok()&&
+  profile==ProgrammingProfile::de25_linux_computer_v1&&driver==&shared);
+ const std::size_t window=11;
+ assert(d.interfaces[window].id=="fes.fabric.de25-hps-window");
+ for(unsigned failure=0;failure<12;++failure) {
+  auto bad=d;
+  if(failure==0)bad.abi.minor=0;                                         // the 1.0 ABI lacks its interfaces
+  if(failure==1)bad.interfaces.push_back({"fes.gamepad.ports",1,0,true});  // not in its shell
+  if(failure==2)bad.interfaces.erase(bad.interfaces.begin()+window);     // no window
+  if(failure==3)bad.interfaces[window].minor=1;
+  if(failure==4)bad.interfaces[window].required=false;
+  if(failure==5)bad.interfaces.erase(bad.interfaces.begin()+7);          // no ATA disk
+  if(failure==6)bad.interfaces.push_back({"fes.media.pc-floppy",1,0,true});
+  if(failure==7)bad.interfaces[12].minor=2;                              // scanout 1.2
+  if(failure==8)bad.format=3;
+  if(failure==9)bad.core.id="fes.atari-st";                              // another machine's set
+  if(failure==10)bad.interfaces[8]=bad.interfaces[0];                    // a repeat for a missing one
+  if(failure==11)bad.target.programming_profile="de25-linux-static-computer-v1";
+  const Error error=CheckCoreCompatibility(bad,NativePlatform::de25_nano);
+  if(error.ok())fprintf(stderr,"pc386 failure %u admitted\n",failure);
+  assert(!error.ok()&&!CheckDe25StandardComputerContract(bad).ok());
+ }
+ // The window belongs to pc386: no other machine may declare it or drop its gamepad.
+ auto st=mister_test::De25AtariStDescriptor();
+ auto windowed=st;windowed.interfaces.push_back({"fes.fabric.de25-hps-window",1,0,true});
+ assert(!CheckDe25StandardComputerContract(windowed).ok());
+ auto padless=st;
+ for(auto i=padless.interfaces.begin();i!=padless.interfaces.end();++i)
+  if(i->id=="fes.gamepad.ports"){padless.interfaces.erase(i);break;}
+ assert(!CheckDe25StandardComputerContract(padless).ok());
+}
+
 // The sealed map of a firmware-upload package: the shared fixtures, and maps
 // whose bytes are sealed correctly but say something else.
 void TestFirmwareUploadMapIsCheckedAgainstTheSealedPackage()
@@ -1429,7 +1475,8 @@ int main()
 	TestExplicitDe25ProfileAndDriverBinding();
  TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory();
  TestDe25StaticProfileRequiresOptionalVersionTwoSocket();
- TestDe25StandardProfileAdmitsSpectrumModelsAtariStC64AndPcxt();
+	TestDe25StandardProfileAdmitsSpectrumModelsAtariStC64AndPcxt();
+	TestDe25StandardProfileAdmitsPc386Contract();
  TestFirmwareUploadMapIsCheckedAgainstTheSealedPackage();
 	TestNanoHeldROMInspectionDoesNotGrantCompatibility();
 	TestComputerCompatibilityComposesRecognizedInterfaces();

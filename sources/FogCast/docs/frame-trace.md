@@ -15,6 +15,7 @@ Each JSON line has `kind`:
   - `Tick`, with the room Step that ran on this iteration: async callbacks, `update`, `draw` and the whole Step. These stay zero when the room did not step
   - `Snapshot`
   - render
+  - `grid_width`/`grid_height`: the application grid dimensions used for the frame
   - `view`: `attract`, `now-playing`, `room:<id>`, or `library`, matching the frame that was drawn
   - `queued`/`seq`, when it produced a new menu frame
 - **`input`:** a command (`cmd`) as `HandleCommand` received it.

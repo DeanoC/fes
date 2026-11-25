@@ -32,6 +32,20 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "library-reload" {
+		if len(args) != 1 {
+			fmt.Fprintln(stderr, "usage: fogcast-tenfoot library-reload")
+			return 2
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		if err := tenfoot.RequestLibraryReload(ctx); err != nil {
+			fmt.Fprintf(stderr, "library reload: %v\n", err)
+			return 1
+		}
+		fmt.Fprintln(stdout, "library reload complete")
+		return 0
+	}
 	if len(args) > 0 && (args[0] == "room-install" || args[0] == "room-rollback" || args[0] == "room-export") {
 		return roomCommand(args, stdout, stderr)
 	}

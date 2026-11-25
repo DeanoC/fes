@@ -7,7 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
+	"github.com/DeanoC/fes/platform/embedded/tamago/input/usbhub"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usbcontrol"
 )
@@ -104,3 +107,48 @@ func (s *sharedProgramGamepad) ResumePolling(ctx context.Context) error {
 func (s *sharedProgramGamepad) Ready() <-chan struct{} {
 	return s.source.Ready()
 }
+
+type sharedProgramMulti struct {
+	hub     *usbhub.Hub
+	metrics *programUSBMetrics
+}
+
+func (s *sharedProgramMulti) Service() error {
+	err := s.hub.Service()
+	if err == nil {
+		s.metrics.polls++
+	}
+	return err
+}
+func (s *sharedProgramMulti) NextKeyboardReport() ([8]byte, bool) {
+	rep, ok := s.hub.NextKeyboardReport()
+	if ok {
+		s.metrics.reports++
+	}
+	return rep, ok
+}
+func (s *sharedProgramMulti) NextGamepadUpdate() (usbhub.GamepadUpdate, bool) {
+	upd, ok := s.hub.NextGamepadUpdate()
+	if ok {
+		s.metrics.reports++
+	}
+	return upd, ok
+}
+func (s *sharedProgramMulti) KeyboardNeutral() bool { return s.hub.KeyboardNeutral() }
+func (s *sharedProgramMulti) GamepadNeutral() bool  { return s.hub.GamepadNeutral() }
+func (s *sharedProgramMulti) SetGameplayActive(active bool) error {
+	return s.hub.SetGameplayActive(active)
+}
+func (s *sharedProgramMulti) StartPairing(d time.Duration) error { return s.hub.StartPairing(d) }
+func (s *sharedProgramMulti) StopPairing() error                 { return s.hub.StopPairing() }
+func (s *sharedProgramMulti) PairingActive() bool                { return s.hub.PairingActive() }
+func (s *sharedProgramMulti) SaveBondsIfDirty(ctx context.Context) (bool, error) {
+	return s.hub.SaveBondsIfDirty(ctx)
+}
+func (s *sharedProgramMulti) PausePolling(ctx context.Context) error {
+	return s.metrics.boundary(ctx, s.hub, true)
+}
+func (s *sharedProgramMulti) ResumePolling(ctx context.Context) error {
+	return s.metrics.boundary(ctx, s.hub, false)
+}
+func (s *sharedProgramMulti) Ready() <-chan struct{} { return s.hub.Ready() }

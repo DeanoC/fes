@@ -1,0 +1,47 @@
+{
+ "kit": "B",
+ "package": "6dd0a612f285b5b93be3708597079a4f4041fe8cb76204d4bcad66293e8a70e8.fcore",
+ "drive": "pmode",
+ "drive_sha256": "b4be6e29297168abb31ca536829cbd8a42e9fb05093d16793932ea51d72814b3",
+ "library_game": "x2195-dos-v41mpckko192",
+ "nonce": "V41MPCKKO192",
+ "goals": {
+  "freedos": {
+   "pass": true,
+   "seconds_to_detect": 0.5,
+   "frame": "frames/freedos-prompt.png"
+  },
+  "doom": {
+   "pass": false,
+   "graphics": false,
+   "lit": 0.205,
+   "changed": 0.125,
+   "seconds_to_prompt": 0.6,
+   "frames": [
+    "frames/doom-demo-1.png",
+    "frames/doom-demo-2.png",
+    "frames/doom-timedemo-done.png"
+   ]
+  }
+ },
+ "events": [],
+ "claim": "## 2026-11-24T17:14:59+02:00 KIT B IN USE: Claude (fes#2135 i486DX slice-1 session for Deano) \u2014 fes#2195 x87 wrong-path fix, DE10 seal 6dd0a612 (BUILD_ID 3b7c0696) of c4711cb12 (k2195a was refused at ",
+ "kit_created": [
+  "/media/fat/fogcast/core-data/games/32ffaff55583f6fa65a8923a392f2d871dc8a357aeab729e1c08a0c65549f96f",
+  "/media/fat/fogcast/core-data/media/a54f41c6fb53f85ef21597cdc0a8400dca7446b8aec18b73fc93888a5a3f227a",
+  "/media/fat/fogcast/disk-images/b4be6e29297168abb31ca536829cbd8a42e9fb05093d16793932ea51d72814b3.img"
+ ],
+ "after": {
+  "agent": "active",
+  "lease": "held",
+  "rebooted": false,
+  "left": [
+   "/media/fat/fogcast/core-data/games/32ffaff55583f6fa65a8923a392f2d871dc8a357aeab729e1c08a0c65549f96f",
+   "/media/fat/fogcast/core-data/media/a54f41c6fb53f85ef21597cdc0a8400dca7446b8aec18b73fc93888a5a3f227a",
+   "/media/fat/fogcast/disk-images/b4be6e29297168abb31ca536829cbd8a42e9fb05093d16793932ea51d72814b3.img"
+  ],
+  "recovery_required": true
+ },
+ "failure": "AcceptanceError: goal doom failed",
+ "pass": false
+}
