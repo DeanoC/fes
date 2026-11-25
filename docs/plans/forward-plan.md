@@ -316,13 +316,13 @@ kit. Per-core scripts
 (`pcxt_*`, `atari_st_*`) shrink to the data that is really specific: the
 inputs, the expected frames and the game list.
 
-### Four feedback loops, kept separate
+### Four feedback loops under the current merge policy
 
 | Loop | Runs | Target time | Proves |
 | --- | --- | --- | --- |
 | Edit | Lint and smoke simulation of the changed machine | under 2 min local | Logic still works |
 | PR | Affected simulations, plus **synthesis-only for every board that can host the core** | under 15 min | Portable RTL, no vendor leakage, area within budget |
-| Seal | Place-and-route and seal on the farm, for each cell whose build closure the PR changes, before that PR merges | minutes to an hour, asynchronous | Timing on real fabric |
+| Seal | Place-and-route and seal on the farm, on the combined nightly candidate for shared RTL and at the existing merge gate for other seal-requiring changes | minutes to an hour, asynchronous | Timing on real fabric |
 | Release | Kit acceptance of the exact published packages | scheduled | The artifact works |
 
 Synthesis-only in PR CI is the cheap check that is missing today. It catches
@@ -332,11 +332,40 @@ runners, and run Pro on the self-hosted builders.
 
 The seal loop is keyed on each cell's **build closure**, not on RTL alone:
 machine and shell RTL, constraints, recipe and overrides, producer, toolchain
-lock and generated shell inputs. Any change inside a cell's closure gets the
-normal reseal and kit bar before merge, and the existing no-RTL reseal
-exception in [AGENTS.md](../../AGENTS.md#hard-rules) applies unchanged. A PR
-that changes no cell's closure does not wait for place-and-route, and one
-core's timing miss blocks only that core's cell.
+lock and generated shell inputs. Shared RTL follows the nightly rule below. Other changes follow the
+[existing D12 rules](../../AGENTS.md#hard-rules).
+
+### Shared RTL merge and nightly qualification
+
+Physical qualification runs on a frozen nightly main candidate.
+Today a shared CPU fix can change the design of every consuming machine. A
+second PR touching that CPU can pay for the same consumers again, even when
+only the combined design will ship. A cache helps identical inputs; successive
+RTL revisions legitimately produce different inputs. Batching removes the
+demand to qualify intermediate designs.
+
+The [D12 merge rule](../../AGENTS.md#shared-rtl-under-d12) admits shared RTL
+after affected simulations and synthesis. The measured no-RTL exception
+continues to govern closure-only changes.
+
+| Decision point | Required evidence and effect |
+| --- | --- |
+| Admit a source PR | Review the exact head. Compute affected recipes transitively from compiled inputs, including shared CPUs, includes, generated RTL and board shells. Run shared-block regressions plus affected consumer simulations and synthesis on each affected product front end. Widen coverage when inputs are unknown. A passing PR may merge as source with physical qualification pending. |
+| Freeze a nightly candidate | Select one integration commit and list all changes since the last qualified selection for each cell. Run fast checks again on the combined tree. Queue the union of affected core/board/product-lane cells. Multiple requests for the identical build inputs share one job; a later commit goes into the next batch. |
+| Qualify and promote | Run the existing timing, seal, and applicable exact-artifact kit checks on the frozen candidate and record all input and output identities. Promote passing packages independently where compatible. Promote coupled shell, runtime or firmware changes together. OS and Tenfoot releases may continue using the previous qualified selection while it passes their compatibility checks. |
+| Recover a failed batch | Hold the affected selection at its previous qualified artifacts, expose the failing cells and contributing PRs, and assign an owner. Bisect the frozen range using simulation or synthesis first, then route the failing cell when necessary. An urgent fix can cut an early batch through the same gates. |
+
+For example, two PRs editing the shared Z80 can each receive consumer feedback
+while the nightly qualifies each affected final machine variant once. This
+still allows all required timing seeds, reproduction runs where applicable and
+kit tests within that qualification. Qualification of the combined artifact
+provides no physical verdict on either intermediate PR head.
+
+Pilot one shared RTL family across two overlapping PRs. Record distinct
+affected cells, actual producer invocations, route and kit hours, PR wait time,
+and time from merge to a qualified selection. Compare against the per-PR
+schedule on the same changes. Also rehearse a failed candidate and verify that
+the previous selection remains installable.
 
 ### Build farm and published packages
 
@@ -368,6 +397,45 @@ core's timing miss blocks only that core's cell.
   4. Auto-merge for passing bumps (with Deano's OK), gated on green CI, all
      clocks met with no >3% fmax drop (1.5% on marginal cores), unbroken seal
      checks and the applicable kit HIL or package inspection.
+
+### Release cadence for software and cores
+
+Use the existing [prebuilt image inputs](../image-artifacts.md) and
+[kit software bundles](../kit-software-releases.md) as the first consumers
+of the published store. Roll out the following in order:
+
+1. Publish a retained bootstrap selection per Linux board and a separate catalog
+   selection per release scope. Record exact package IDs, companion digests,
+   producer records and applicable acceptance receipts. Retain every referenced
+   object for release reconstruction and rollback. Resolve the selection once
+   for a release so that a concurrent nightly cannot change its contents.
+2. For a software change, fetch the selected objects on a clean worker. Build
+   desktop Tenfoot for its host platform, kit Tenfoot in its Linux software
+   bundle, or native Tenfoot in its opt-in TamaGo lane. Run the affected API,
+   MENU and package admission checks for the target. Compare manifest requirements
+   with the target's supported interfaces and drivers. A missing required
+   capability blocks that combination. An older package can keep its original
+   provenance and serve a newer compatible runtime. Record hardware results
+   against the exact combination tested.
+3. Each night, queue changed registered cells and their dependents on the
+   appropriate OSS, Quartus Lite or Quartus Pro workers. Publish passing candidates
+   beside the retained selection. Promote by reviewed digest change once the
+   cell meets its existing checks. Report a failed route against that candidate.
+   Keep a compatible published selection available to software releases.
+4. Run a scheduled full integration sweep against each release's named cells
+   and board/OS lane. Start weekly and measure queue time and worker hours.
+   Apply the matrix check levels and D12 during producer changes. Exercise
+   shared RTL through consumers and keep experimental DE25 TamaGo evidence
+   separate from DE25 Linux qualification. A breaking shell or runtime change
+   needs a coordinated selection for every affected shipping cell.
+
+First demonstration: on a fresh DE10 Linux worker without FPGA tools, build
+a changed kit Tenfoot bundle and assemble a bootstrap image with retained MENU.
+Use the previous v1 catalog selection for the offline product journey.
+Check that no FPGA producer ran, that an incompatible MENU is rejected, and
+that the previous selection can be restored. Record software build time and
+FPGA queue time separately. Repeat on the DE25 Linux development lane with
+its own artifacts and acceptance scope.
 
 ### Shell releases
 
