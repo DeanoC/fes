@@ -1214,6 +1214,9 @@ Error ParseRequest(const std::string& line, Request* request)
 						return Invalid("invalid core-data game identity");
 					parsed.game_id = game->string_value;
 				}
+				if (parsed.has_initial_media && !parsed.game_id.empty() &&
+					parsed.initial_media.binding.game_id != parsed.game_id)
+					return Invalid("initial_media game_id must match request game_id");
 				parsed.data_root=*root_path;
 				parsed.operation = Operation::load_rom_library_core;
 			}
@@ -1427,6 +1430,9 @@ Error ParseRequest(const std::string& line, Request* request)
 					return Invalid("invalid core-data game identity");
 				parsed.game_id = game->string_value;
 			}
+			if (parsed.has_initial_media &&
+				(parsed.game_id.empty() || parsed.initial_media.binding.game_id != parsed.game_id))
+				return Invalid("initial_media game_id must match request game_id");
 			const std::string *path = nullptr, *id = nullptr, *data_root = nullptr;
 			if (!StringMember(root, "package_path", &path, &error) ||
 				!StringMember(root, "package_id", &id, &error) ||

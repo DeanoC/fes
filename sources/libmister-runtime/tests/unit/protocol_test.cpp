@@ -427,6 +427,13 @@ void TestPc386CoreDataProtocol()
 		"\",\"programmed_sha256\":\"" + std::string(64, 'd') + "\",\"source_size\":73728,\"programmed_size\":1}}";
 	assert(Parse(rom_lib, &request).ok() && request.operation == Operation::load_rom_library_core &&
 		request.game_id == "beast-1984" && request.firmware_path == "/tmp/bios.bin");
+	const std::string rom_lib_media = "{\"path\":\"/disk.img\",\"size\":368640,\"unit\":0,\"data_root\":\"/tmp/media\","
+		"\"game_id\":\"beast-1984\",\"base_media_id\":\"" + std::string(64, 'e') + "\"}";
+	assert(Parse(rom_lib.substr(0, rom_lib.size() - 1) + ",\"initial_media\":" + rom_lib_media + "}", &request).ok() &&
+		request.has_initial_media && request.initial_media.binding.game_id == "beast-1984");
+	auto bad_rom_lib_media = rom_lib_media;
+	bad_rom_lib_media.replace(bad_rom_lib_media.find("beast-1984"), 10, "other-game");
+	assert(!Parse(rom_lib.substr(0, rom_lib.size() - 1) + ",\"initial_media\":" + bad_rom_lib_media + "}", &request).ok());
 
 	const auto lines = ReadLines("tests/fixtures/protocol-v2-pc386-responses.jsonl");
 	assert(lines.size() == 4);
@@ -872,6 +879,12 @@ void TestPcxtInitialLoadProtocol()
 		"\",\"data_root\":\"/core-data\",\"game_id\":\"dos-game\",\"initial_media\":{\"path\":\"/disk.img\",\"size\":368640,\"unit\":0,\"data_root\":\"/media-data\",\"game_id\":\"dos-game\",\"base_media_id\":\"" + digest + "\"}}";
 	assert(Parse(lib_input, &request).ok() && request.operation == Operation::load_library_core &&
 		request.game_id == "dos-game" && request.has_initial_media && request.initial_media.size == 368640);
+	const std::string lib_mismatch = "{\"protocol\":2,\"operation\":\"load_library_core\",\"package_path\":\"/package\",\"package_id\":\"" + digest +
+		"\",\"data_root\":\"/core-data\",\"game_id\":\"game-a\",\"initial_media\":{\"path\":\"/disk.img\",\"size\":368640,\"unit\":0,\"data_root\":\"/media-data\",\"game_id\":\"game-b\",\"base_media_id\":\"" + digest + "\"}}";
+	assert(!Parse(lib_mismatch, &request).ok());
+	const std::string lib_missing_game = "{\"protocol\":2,\"operation\":\"load_library_core\",\"package_path\":\"/package\",\"package_id\":\"" + digest +
+		"\",\"data_root\":\"/core-data\",\"initial_media\":{\"path\":\"/disk.img\",\"size\":368640,\"unit\":0,\"data_root\":\"/media-data\",\"game_id\":\"dos-game\",\"base_media_id\":\"" + digest + "\"}}";
+	assert(!Parse(lib_missing_game, &request).ok());
 	for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
 		{"368640", "368639"}, {"\"unit\":0", "\"unit\":1"}, {"/disk.img", "disk.img"},
 		{"dos-game", "dos--game"}, {"load_core", "inspect_core"}}) {
