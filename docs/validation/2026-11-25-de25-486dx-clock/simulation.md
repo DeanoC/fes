@@ -1,0 +1,43 @@
+# 486DX functional replay
+
+The [#2194 method](../2026-11-24-i486dx-s1/method.md) defines G2, G4 and G5.
+Run the two scripts against separate clean worktrees of the same candidate.
+Use fresh output directories on each run.
+
+```bash
+bash sim_lockstep.sh "$lockstep_checkout" "$lockstep_output" "$toolchain_cache" "$testfloat_gen"
+python3 sim_games.py --source "$game_checkout" --output "$game_output" \
+  --cache-root "$toolchain_cache" --drives "$census_image_directory"
+```
+
+G2 compares directed and random lockstep results at levels 3 and 4 and
+runs the unit, transcendental and TestFloat benches for the shared x87
+unit. Lockstep measures architectural behavior in clock cycles. The
+candidate revision binds the selected RTL and its DE25 clock record.
+
+G4 compares the shared CPU and the derived DX at the same clock with
+#2194's level-3 oracle and fixtures. The DOOM comparison uses the second
+half of the one-second RTL window after flip 40. The 3DBench window
+uses 8.0 to 11.5 seconds, with snapshots of the screen for checking the
+fly-through. Each comparison requires matching handover cycle, site,
+registers and control bits. The DOOM ratio has the original DX-33 bound
+of 2,062 times the ratio at most 4,682 realtics.
+
+G5 enables the 387 on the DX bench and transfers execution at the DOS
+prompt. Verify the captured frames reach the demo, and retain the RTL
+counters and stop status from the 20-second window. The replay uses the
+same level-3 oracle and 387 wiring as #2194.
+
+The game runner authenticates the locked Verilator, verifies the census
+disk hashes and records the firmware and linked Bochs inputs. It sets
+the machine and audio device rates from the candidate. The generated
+copies of the simulation bench and audio link use the candidate's PLL
+clock, audio ratio and corresponding system-to-pixel scheduling. The
+CPU runs with the governor disabled as in #2194. The game bench uses
+#2194's DDR latency model. Quartus and the physical board provide
+separate timing and hardware evidence.
+
+The runner writes `analysis.json` with the handovers, windows, CPI
+ratios and Quake's execution verdict. Use `--analyze-existing` with
+the same source checkout and output directory to regenerate it from
+the logs and profiles. The captured frames are evaluated separately.
