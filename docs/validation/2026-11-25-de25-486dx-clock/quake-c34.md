@@ -18,5 +18,22 @@ The [replay-input comparison](sim-c34-e255d4e3-match.json) binds this
 result to the exercised inputs of the repaired C34 candidate
 `e255d4e3a09fd29ad2cfeed465bf49a15e1c17ce`.
 
-The run continues through the remainder of the 20-second RTL window.
-Its final exit and counters are separate from the demo milestone.
+## Full RTL window
+
+The same game process completed the full 20-second RTL window on
+26 November at 00:22:26 Sofia time. It exited 0 at 24.600 simulated
+seconds and cycle 2,267,064,843. The RTL retired 537,748,026 instructions,
+including 358,817,314 in protected mode, with zero oracle fallback steps.
+The log reports zero VGA scanout, presenter and plane underflows and no
+CPU stop or reset. The final frame shows the running demo.
+
+The [complete receipt](sim-c34.json) verifies 105 artifacts, including
+the unchanged first-frame snapshot. The [d18 replay comparison](sim-c34-d18a5a45-match.json)
+still matches after the full window, including the game disk copies. It
+applies the completed run to the exercised inputs of
+`d18a5a45b91236abc4efac7607c84e97735eab07`.
+
+The original launch wrapper classified 3DBench's scheduled `END limit`
+exit as a failure. The complete receipt uses the corrected analyzer on the
+retained raw logs. The original Quake process result records its own
+successful exit.
