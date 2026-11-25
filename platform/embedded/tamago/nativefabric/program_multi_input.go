@@ -85,6 +85,7 @@ type ProgramMultiInputPlatform struct {
 	gameplaySynced  bool
 	gameplayActive  bool
 	returnRequested bool
+	traceKeyboard   func(context.Context, ProgramServiceStatus, []byte, bool)
 	fault           error
 	pending         []input.Event
 
@@ -125,6 +126,7 @@ func NewProgramMultiInputPlatform(base tenfoot.Platform, backend *ProgramBackend
 		source:  source,
 		cfg:     cfg,
 	}
+	p.traceKeyboard = lifecycleKeyboardObserver(base)
 	p.inputReady = attachInputReady(base, source)
 	if uart, ok := base.(interface{ Ready() <-chan struct{} }); ok {
 		p.uartReady = uart.Ready()
@@ -463,6 +465,9 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		if !ok {
 			kbDrained = true
 			break
+		}
+		if p.traceKeyboard != nil {
+			p.traceKeyboard(ctx, v, rep[:], p.kbArmed)
 		}
 		if v.State == ProgramRunning {
 			next := p.coreKB

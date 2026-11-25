@@ -35,6 +35,7 @@ var nativeProgramPlatform tenfoot.Platform
 const tenfootSerialLinked = true
 
 var expectedC64DiskSwap string
+var expectedLifecycleTrace string
 
 func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store, lease *sdcontrol.Session) {
 	uartIRQ := false
@@ -152,6 +153,9 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	})
 	if err != nil {
 		panic(err)
+	}
+	if expectedLifecycleTrace == "1" {
+		serialPlatform.EnableLifecycleTrace()
 	}
 	if uartIRQ {
 		serialPlatform.SetReady(serial.Ready())
