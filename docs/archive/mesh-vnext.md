@@ -1,6 +1,6 @@
 # Mesh v-next: onboarding/pairing, two-kit placement, hardening slices, HIL2 acceptance
 
-**Partly superseded (22 October 2026):** Q16 is revised below. Pairing hardening (P1–P3, P4b), two-kit placement (§3) and the launcher credentials (§4 P4a) are cancelled under [#863](https://github.com/DeanoC/fes/issues/863); see [mesh under kit-as-host](mesh-kit-host.md).
+**Partly superseded (22 October 2026):** Q16 is revised below. Pairing hardening (P1–P3, P4b), two-kit placement (§3) and the launcher credentials (§4 P4a) are cancelled under [#863](https://github.com/DeanoC/fes/issues/863); see [mesh under kit-as-host](../mesh-kit-host.md).
 
 **Status:** draft. Not a wire freeze, not an implementation claim, and
 not a default flip for `[mesh] ensure` or `[mesh] placement`. The M1
@@ -28,11 +28,11 @@ baseline bundle named in the status file. A core-only HIL that leaves
 the bundle unchanged does not install one. Log the result and release
 the kit. Reimaging a kit, changing a kit image or boot config,
 killing other agents' processes, and closing PRs need Deano's OK via
-Bob. The full rules are in [kit sharing](kit-sharing.md).
+Bob. The full rules are in [kit sharing](../kit-sharing.md).
 Audience: FogCast host and agent, FES image, rooms UX. See
 [phase 1](mesh-phase1.md), [phase 2](mesh-phase2.md),
-[kit sharing](kit-sharing.md), [bootable media](bootable-media.md), and
-[getting started](getting-started.md).
+[kit sharing](../kit-sharing.md), [bootable media](../bootable-media.md), and
+[getting started](../getting-started.md).
 
 ---
 
@@ -99,7 +99,7 @@ target has none (`PatchLibrarySettings`). `make media` reads
 `_host_provisioning`, `generate_agent_config`,
 `resolve_launcher_config`). One image is one selected target. A second
 kit needs another selected target, or another host file, at media time.
-See [bootable media](bootable-media.md).
+See [bootable media](../bootable-media.md).
 
 If `agent.toml` has no `target_id`, `mister-agent` mints one at
 `/media/fat/fogcast/target-id` (`loadOrCreateTargetID`). That file is
@@ -433,7 +433,7 @@ baseline bundle named in the status file. A core-only HIL that leaves
 the bundle unchanged does not install one. Log the result and release
 the kit. Reimaging a kit, changing a kit image or boot config,
 killing other agents' processes, and closing PRs need Deano's OK via
-Bob ([kit sharing](kit-sharing.md)). HIL2 leaves `ensure` unset, so it
+Bob ([kit sharing](../kit-sharing.md)). HIL2 leaves `ensure` unset, so it
 does not count.
 #174 is not a gate: pass the `LaunchOn` context into
 `activateMeshExecutor` (callers use `context.Background()`; the nearby
@@ -452,7 +452,7 @@ status file. A core-only HIL that leaves the bundle unchanged does not
 install one. Log the result and release the kit. Reimaging a kit,
 changing a kit image or boot config, killing other agents' processes,
 and closing PRs need Deano's OK via Bob
-([kit sharing](kit-sharing.md)).
+([kit sharing](../kit-sharing.md)).
 
 | # | Slice | Scope | Depends on | Tests / acceptance |
 | --- | --- | --- | --- | --- |
@@ -608,7 +608,7 @@ baseline bundle named in the status file. A core-only HIL that leaves
 the bundle unchanged does not install one. Log the result and release
 the kit. Reimaging a kit, changing a kit image or boot config,
 killing other agents' processes, and closing PRs need Deano's OK via
-Bob ([kit sharing](kit-sharing.md)). Scratch host config, mode `0600`,
+Bob ([kit sharing](../kit-sharing.md)). Scratch host config, mode `0600`,
 outside the repo. Remove `kit2` only from that file. Do not print tokens.
 
 1. Pair kit B with the new flow.
@@ -683,7 +683,7 @@ No questions are open.
 ### Sequence
 
 Relative weeks, not dates. Agents run kit HIL on kit A or B without
-Deano present, under [kit sharing](kit-sharing.md). IMG-2/IMG-3
+Deano present, under [kit sharing](../kit-sharing.md). IMG-2/IMG-3
 and the first-boot script land before P-pair. #278 does not block HIL2.
 
 | When | What | Does not include |
@@ -692,5 +692,5 @@ and the first-boot script land before P-pair. #278 does not block HIL2.
 | Week 0–1 | L1 #259 (in progress) and R1 #281; Foggy review of this copy. | A default flip. |
 | Done | P4a multi-kit launcher listener (#287); kit B bearer migration (§4) pending. | Pairing. |
 | Weeks 1–3 | P1 → P2 → P3/P4b (in parallel); IMG-2/IMG-3 alongside P1. | `placement` default on. |
-| Week 3–4 | P-pair HIL on kit A or B without Deano present. Claim `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md` on Powerboat. If the HIL changes kit software, install the PR bundle on the running image and then activate and verify the status-file baseline bundle; a core-only HIL with no bundle change does not install one. Log the result and release the kit ([kit sharing](kit-sharing.md)). Reimage, image or boot-config changes, killing other agents' processes, and closing PRs need Deano's OK via Bob. C1-pad is excluded until someone can move kit B's pad in an attended session. | Ensure default. |
+| Week 3–4 | P-pair HIL on kit A or B without Deano present. Claim `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md` on Powerboat. If the HIL changes kit software, install the PR bundle on the running image and then activate and verify the status-file baseline bundle; a core-only HIL with no bundle change does not install one. Log the result and release the kit ([kit sharing](../kit-sharing.md)). Reimage, image or boot-config changes, killing other agents' processes, and closing PRs need Deano's OK via Bob. C1-pad is excluded until someone can move kit B's pad in an attended session. | Ensure default. |
 | Then | L2–L6 in order; gates review; flip a default only in a follow-up showing every gate green, plus an ensure HIL. | A silent switch. |

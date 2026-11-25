@@ -5,9 +5,9 @@ remote-play sender and target cast path have been removed (#988). References
 below to those implementations, their `software_backends` advertisements or
 casting acceptance describe historical or proposed work. FPGA kit sessions and
 read-only remote FogCast library sources remain supported; see
-[mesh under kit-as-host](mesh-kit-host.md) for current behavior.
+[mesh under kit-as-host](../mesh-kit-host.md) for current behavior.
 
-**Superseded (22 October 2026):** the kit is its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)). The kit-side placement, pairing and paired-listener material on this page is historical; the current design is [mesh under kit-as-host](mesh-kit-host.md), which also lists what from here stays in use.
+**Superseded (22 October 2026):** the kit is its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)). The kit-side placement, pairing and paired-listener material on this page is historical; the current design is [mesh under kit-as-host](../mesh-kit-host.md), which also lists what from here stays in use.
 
 **Status:** merged as #131. Phase 1 closed on main `3d34b6e0`. Phase 2
 execution is [`mesh-phase2.md`](mesh-phase2.md). Bob coordinates; Deano
@@ -28,18 +28,18 @@ freezes bytes. Read [`docs/mesh-lan.md`](mesh-lan.md) first.
 - Product, rooms, placement, phases 0–5:
   [`docs/mesh-lan.md`](mesh-lan.md)
 - Current host, agent, and runtime jobs:
-  [`docs/component-boundaries.md`](component-boundaries.md)
+  [`docs/component-boundaries.md`](../component-boundaries.md)
 - Current kit lease:
-  [`docs/kit-sharing.md`](kit-sharing.md)
+  [`docs/kit-sharing.md`](../kit-sharing.md)
 - Idle and `reboot_required` (do not redesign here):
-  [`docs/idle-menu-rooms.md`](idle-menu-rooms.md),
-  [`docs/soft-restart-path-b.md`](soft-restart-path-b.md)
+  [`docs/idle-menu-rooms.md`](../idle-menu-rooms.md),
+  [`docs/soft-restart-path-b.md`](../soft-restart-path-b.md)
 - Working session and DNS-SD identity:
-  [`sources/FogCast/docs/ARCHITECTURE.md`](../sources/FogCast/docs/ARCHITECTURE.md)
+  [`sources/FogCast/docs/ARCHITECTURE.md`](../../sources/FogCast/docs/ARCHITECTURE.md)
 - Launch slots, Ready, `core_package` versus browse-only:
-  [`sources/FogCast/docs/launch-composition.md`](../sources/FogCast/docs/launch-composition.md)
+  [`sources/FogCast/docs/launch-composition.md`](../../sources/FogCast/docs/launch-composition.md)
 - Rooms Unavailable / Ready:
-  [`sources/FogCast/docs/rooms-experience.md`](../sources/FogCast/docs/rooms-experience.md)
+  [`sources/FogCast/docs/rooms-experience.md`](../../sources/FogCast/docs/rooms-experience.md)
 
 ---
 
@@ -62,7 +62,7 @@ Control today is the FogCast host session API to a configured target
 agent, then `/run/mister-runtime.sock` protocol 2. The agent is the kit
 lease authority. A lease lasts 90 seconds; clients renew every 20
 seconds; expiry and explicit takeover are in
-[`docs/kit-sharing.md`](kit-sharing.md). The runtime decides physical
+[`docs/kit-sharing.md`](../kit-sharing.md). The runtime decides physical
 transitions, including idle recovery and `reboot_required`.
 
 Identity today is a persistent `target_id` per configured kit. The current
@@ -675,7 +675,7 @@ announces its bag with a TTL. A heartbeat refreshes the TTL. Silence
 past the TTL means placement may treat the node as absent for a new
 choice. That silence is not a lease release. A playing session follows
 its lease. Only lease expiry frees play, and only after the cleanup
-[`kit-sharing.md`](kit-sharing.md) already runs. Advertisement TTL is
+[`kit-sharing.md`](../kit-sharing.md) already runs. Advertisement TTL is
 not a second clock that frees the kit, including relative to the
 roughly 90 second lease.
 
@@ -727,7 +727,7 @@ Launchable versus browse-only, carried forward on purpose:
   browse-only.
 - Composition flags still gate Ready. Missing `firmware_ready` (or ROM,
   or a required expansion) is Unavailable with a next action, as in
-  [`launch-composition.md`](../sources/FogCast/docs/launch-composition.md).
+  [`launch-composition.md`](../../sources/FogCast/docs/launch-composition.md).
 - Missing flags do not grant eligibility.
 
 **Ready by phase. Recommended default, updated from Caster review
@@ -767,7 +767,7 @@ Launchable versus browse-only, carried forward on purpose:
 Otherwise the row is Unavailable with one of the classes below, or it
 stays browse-only. Checking, Missing, and Needs a choice keep their
 rooms meanings
-([`rooms-experience.md`](../sources/FogCast/docs/rooms-experience.md)).
+([`rooms-experience.md`](../../sources/FogCast/docs/rooms-experience.md)).
 
 Paths do not appear in this shape.
 
@@ -820,7 +820,7 @@ not renew.
   record does not load a bitstream. When the Shell is remote,
   `LoadIdle()` is the Execute node's runtime path. A second Shell does
   not call it.
-- Sofa policy, matching [`kit-sharing.md`](kit-sharing.md) and
+- Sofa policy, matching [`kit-sharing.md`](../kit-sharing.md) and
   [`mesh-lan.md`](mesh-lan.md) Decision 4. An empty-body idle
   `POST /api/v1/session/stop` releases the kit lease. Tenfoot rooms
   Soft-stop sends `retain_lease: true` and keeps it. Replacement Stop
@@ -844,7 +844,7 @@ not renew.
   the Lease held failure class and it is not a steal.
 
 `reboot_required` stays kit-local. The mesh does not add a remote
-reboot. Path B in [`soft-restart-path-b.md`](soft-restart-path-b.md)
+reboot. Path B in [`soft-restart-path-b.md`](../soft-restart-path-b.md)
 stays on hold. The class is sofa-visible; the recovery action is not a
 new mesh command.
 
@@ -870,7 +870,7 @@ success outcome in the same list so every shell uses one vocabulary.
 | **Lease held** | Another owner holds this executor's session. | Say it is in use. Do not steal. Generation takeover is not this class. |
 | **Executor busy** | The executor is not idle, a transition is in progress, or the agent is busy. Distinct from Lease held. | Wait. Do not describe it as another person playing, and do not take the lease. |
 | **Ensure in progress** | A required slot is mid-pull or only partially present. | Checking. Never Ready. Never program the FPGA on partial content. |
-| **reboot_required** | Idle recovery failed, or the runtime already published `reboot_required`. | Sofa-visible. The mesh does not invent a remote reboot. Path B stays on hold and kit-local ([`soft-restart-path-b.md`](soft-restart-path-b.md)). |
+| **reboot_required** | Idle recovery failed, or the runtime already published `reboot_required`. | Sofa-visible. The mesh does not invent a remote reboot. Path B stays on hold and kit-local ([`soft-restart-path-b.md`](../soft-restart-path-b.md)). |
 | **Agent unreachable** | Transport to the agent is dead, or the renewer crashed and the lease has not expired. | Expiry path. The sofa leaves the half-active session. Other shells see the lease free only after expiry and cleanup. Confirm does not retry as if the kit were idle. |
 | **I/O route unavailable** | The chosen DisplaySink or InputSource cannot be bound. Phase 4 for remote routes. Before that, the same class covers a chosen node that cannot present or accept input locally. HDMI or ADV health is this session/health path, not the DisplaySink advertisement. A V4L2 or ShadowCast-class preview does not satisfy the sink. | Name which binding failed. |
 | **Soft-stop completed** | Sofa Soft-stop finished. The executor is in defined idle. | Observing shells clear "playing." The lease stays with the owner through the room stay. `LoadIdle()` stays on the Execute node / runtime path. |
@@ -1001,14 +1001,14 @@ the host that owns the shell, as they do now.
 | --- | --- |
 | [`docs/mesh-lan.md`](mesh-lan.md) | Product intent, placement policy, phases |
 | [`docs/mesh-phase2.md`](mesh-phase2.md) | Phase 2 execution and the unsigned hash strawman |
-| [`docs/README.md`](README.md) | Index |
-| [`docs/component-boundaries.md`](component-boundaries.md) | Agent coordinates; runtime touches hardware |
-| [`docs/kit-sharing.md`](kit-sharing.md) | Current claim / renew / expiry / takeover |
-| [`docs/idle-menu-rooms.md`](idle-menu-rooms.md) | Kit-as-host binary; idle contracts |
-| [`docs/soft-restart-path-b.md`](soft-restart-path-b.md) | `reboot_required` stays kit-local |
-| [`sources/FogCast/docs/ARCHITECTURE.md`](../sources/FogCast/docs/ARCHITECTURE.md) | Session API, `target_id`, DNS-SD |
-| [`sources/FogCast/docs/launch-composition.md`](../sources/FogCast/docs/launch-composition.md) | Slots and Ready |
-| [`sources/FogCast/docs/rooms-experience.md`](../sources/FogCast/docs/rooms-experience.md) | Availability states |
-| [`sources/FogCast/docs/rooms.md`](../sources/FogCast/docs/rooms.md) | Room authoring; mesh does not change the Lua model |
+| [`docs/README.md`](../README.md) | Index |
+| [`docs/component-boundaries.md`](../component-boundaries.md) | Agent coordinates; runtime touches hardware |
+| [`docs/kit-sharing.md`](../kit-sharing.md) | Current claim / renew / expiry / takeover |
+| [`docs/idle-menu-rooms.md`](../idle-menu-rooms.md) | Kit-as-host binary; idle contracts |
+| [`docs/soft-restart-path-b.md`](../soft-restart-path-b.md) | `reboot_required` stays kit-local |
+| [`sources/FogCast/docs/ARCHITECTURE.md`](../../sources/FogCast/docs/ARCHITECTURE.md) | Session API, `target_id`, DNS-SD |
+| [`sources/FogCast/docs/launch-composition.md`](../../sources/FogCast/docs/launch-composition.md) | Slots and Ready |
+| [`sources/FogCast/docs/rooms-experience.md`](../../sources/FogCast/docs/rooms-experience.md) | Availability states |
+| [`sources/FogCast/docs/rooms.md`](../../sources/FogCast/docs/rooms.md) | Room authoring; mesh does not change the Lua model |
 
 FES parent merges stay Deano’s.

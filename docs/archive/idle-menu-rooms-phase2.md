@@ -2,7 +2,7 @@
 
 **Status:** slices 1–5 are done. Slice 5 is host-only present/skip and does
 not claim kit HDMI. Remaining slice 6 (leased HIL). Does not reopen the
-[design lock](idle-menu-rooms.md). Deano owns FES parent merge.
+[design lock](../idle-menu-rooms.md). Deano owns FES parent merge.
 
 **Audience:** Bob / Herd / Caster executing Phase 2. Read the lock first.
 This brief names owners, PR slices, and engineering questions only.
@@ -35,7 +35,7 @@ composition stay unchanged.
 ## What is true now (after slice 4)
 
 Image policy
-[`image/build/native-inputs.toml`](../image/build/native-inputs.toml)
+[`image/build/native-inputs.toml`](../../image/build/native-inputs.toml)
 names two artifact classes. Both pin the in-tree misteross splash
 (`sources/misteross/sealed/fes-splash.rbf`, seal tip `a2af7fdd…`,
 sha256 `f165fdb8…`) until a second idle bitstream exists:
@@ -52,26 +52,26 @@ not wget standalone `DeanoC/misteross`. Other private GitHub pins still
 use `GITHUB_TOKEN` / `GH_TOKEN` plus the contents API. Work splash/idle
 recipe changes in FES `sources/misteross`; the old standalone repo is
 retired for day-to-day work.
-([`image/scripts/fetch-native-runtime-inputs.sh`](../image/scripts/fetch-native-runtime-inputs.sh),
-[`image/scripts/verify-native-runtime-inputs.sh`](../image/scripts/verify-native-runtime-inputs.sh)).
+([`image/scripts/fetch-native-runtime-inputs.sh`](../../image/scripts/fetch-native-runtime-inputs.sh),
+[`image/scripts/verify-native-runtime-inputs.sh`](../../image/scripts/verify-native-runtime-inputs.sh)).
 Equal splash/idle bytes reuse a sibling cache copy. Rootfs install
 remains idle-only
-([`image/buildroot/board/fogcast-target/native-post-build.sh`](../image/buildroot/board/fogcast-target/native-post-build.sh)).
+([`image/buildroot/board/fogcast-target/native-post-build.sh`](../../image/buildroot/board/fogcast-target/native-post-build.sh)).
 
 Media copies **splash** bytes to FAT `/menu.rbf` and **idle** bytes into
 the rootfs check. FAT may diverge from rootfs idle; same-bytes still
 assembles. U-Boot env is `core=menu.rbf`
-([`boot-media.lock.toml`](../boot-media.lock.toml),
-[`scripts/media_inputs.py`](../scripts/media_inputs.py)
+([`boot-media.lock.toml`](../../boot-media.lock.toml),
+[`scripts/media_inputs.py`](../../scripts/media_inputs.py)
 `EXPECTED_ENVIRONMENT`). Receipt `splash.fat_destination` is `/menu.rbf`;
 `idle.rootfs_destination` is `/usr/share/mister-runtime/idle.rbf`. Each
 records its own `sha256`.
-[`docs/bootable-media.md`](bootable-media.md) compares those independent
+[`docs/bootable-media.md`](../bootable-media.md) compares those independent
 hashes.
 
-[`NativeHardware::LoadIdle`](../sources/libmister-runtime/src/native/hardware.cpp)
+[`NativeHardware::LoadIdle`](../../sources/libmister-runtime/src/native/hardware.cpp)
 opens `/usr/share/mister-runtime/idle.rbf` (production
-[`src/linux/production_hardware.cpp`](../sources/libmister-runtime/src/linux/production_hardware.cpp)
+[`src/linux/production_hardware.cpp`](../../sources/libmister-runtime/src/linux/production_hardware.cpp)
 `MISTER_RUNTIME_IDLE_RBF`) with `SplashIdle()`:
 `development-contained-v1`, no Probe, no `0x002f` HPS framebuffer,
 ADV7513 / FixedVideoBringup-style HDMI. The misteross idle contract
@@ -79,11 +79,11 @@ ADV7513 / FixedVideoBringup-style HDMI. The misteross idle contract
 `probe = false`; production does not invent a splash core-ID or emit
 hardcoded `"MENU"` at startup. `TransitionalMenuIdle()` remains for
 historical Menu tests. Sequence prose:
-[`ARCHITECTURE.md`](../sources/libmister-runtime/ARCHITECTURE.md)
+[`ARCHITECTURE.md`](../../sources/libmister-runtime/ARCHITECTURE.md)
 native idle admission.
 
 Kit HDMI after Stop is `fogcast-tenfoot -gfx menu-display`, started by
-[`S40fes-kit-software`](../image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S40fes-kit-software).
+[`S40fes-kit-software`](../../image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S40fes-kit-software).
 The `fogcast-kit` grid that slice 5 changed has since been removed (#728).
 Tenfoot pauses menu-display presents while a core runs; FPGA splash pixels
 stay on HDMI until the menu is available again. Slice 6 is the leased HDMI proof.
@@ -96,7 +96,7 @@ board firmware, not a `fes.*` package.
 ## Workstreams (strawman owners)
 
 Owners are component strawmen. Edit here if file ownership differs.
-Agree files before parallel edits ([agent workflow](agent-workflow.md)).
+Agree files before parallel edits ([agent workflow](../agent-workflow.md)).
 
 | Workstream | Strawman owner | What Phase 2 changes | What it must not do |
 | --- | --- | --- | --- |
@@ -104,7 +104,7 @@ Agree files before parallel edits ([agent workflow](agent-workflow.md)).
 | **B. Image / media split** | FES `image/` + `scripts/media*.py` + `boot-media.lock.toml` | U-Boot `core=` (FAT splash) and runtime idle (rootfs `LoadIdle` artifact) **may diverge**. Fetch, verify, post-build, media receipt, appliance media (`scripts/appliance_media*.py`) name both classes. | Do not keep a hidden “they are the same bytes” check once splash exists. Do not reintroduce Main / `/dev/MiSTer_cmd`. |
 | **C. `LoadIdle` contract** | libmister-runtime | Identity, programming profile, and video/fb bring-up become an explicit **defined idle**, not hardcoded MENU chrome. Startup, Stop, and failed-launch cleanup share that path. | Do not load attract-as-ABI (phase 4). Do not infer splash identity from a filename. |
 | **D. Kit HDMI after Stop** | FogCast `fogcast-kit` / `ui/kitlauncher` | When MENU chrome is gone: HDMI shows splash / defined idle. Catalog grid is **not** the Phase 2 product. linuxfb overlay only if the idle bitstream still enables HPS fb. | Do not ship rooms on kit HDMI. Do not grow an offline catalog. Do not claim FC2D (`ui/gfx/fpga_protocol.md` remains a software stub). |
-| **E. Acceptance / HIL** | FES parent; one kit operator via [kit sharing](kit-sharing.md) | Prove splash + defined Stop idle on an exact assembled image. Play launch+Stop still returns that idle. | Do not call it rooms-on-HDMI, attract ABI, or exact-artifact acceptance for a later image. Media receipt stays `hardware: not-run`. |
+| **E. Acceptance / HIL** | FES parent; one kit operator via [kit sharing](../kit-sharing.md) | Prove splash + defined Stop idle on an exact assembled image. Play launch+Stop still returns that idle. | Do not call it rooms-on-HDMI, attract ABI, or exact-artifact acceptance for a later image. Media receipt stays `hardware: not-run`. |
 
 ---
 
@@ -202,7 +202,7 @@ labelled temporary.
 ### 6. Leased HIL: splash + defined Stop idle
 
 **Owner:** FES parent; one operator; existing target lease
-([kit sharing](kit-sharing.md), FogCast `docs/DEVELOPMENT.md` kit).
+([kit sharing](../kit-sharing.md), FogCast `docs/DEVELOPMENT.md` kit).
 
 **Do:** Cold image from slice 4. Cold boot: HDMI shows splash (logo +
 motion), not MENU chrome, through Linux/`LoadIdle`. Launch a closed
@@ -231,7 +231,7 @@ Prefer a strawman in the implementing PR. Do not fork a second lock.
 2. **Does `mister_v1` stay for splash `LoadIdle`?** U-Boot programming
    has no `ProgrammingProfile`. Linux `LoadIdle` today always uses
    `mister_v1` (MiSTer GPO/reset in
-   [`fpga_manager.cpp`](../sources/libmister-runtime/src/native/linux/fpga_manager.cpp)).
+   [`fpga_manager.cpp`](../../sources/libmister-runtime/src/native/linux/fpga_manager.cpp)).
    A thin splash may not speak user-io. Strawman: keep `mister_v1` only
    if splash needs that reset recipe; otherwise a contained profile plus
    ADV7513 bring-up (`FixedVideoBringup` is the play-package HDMI path,
@@ -276,15 +276,15 @@ Prefer a strawman in the implementing PR. Do not fork a second lock.
 
 | Doc | Why |
 | --- | --- |
-| [Design lock](idle-menu-rooms.md) | Product decisions; Phase 2 row; artifact classes |
-| [Component boundaries](component-boundaries.md) | Host vs runtime vs image vs misteross |
-| [Image assembly](image-assembly.md) | FES `image/` owns idle install |
-| [Bootable media](bootable-media.md) | FAT `/menu.rbf` vs rootfs idle; no Main; HIL gates |
-| [Kit sharing](kit-sharing.md) | Exclusive lease; no unleased programming |
-| [Agent workflow](agent-workflow.md) | File ownership, worktrees, handoff shape |
-| [Core packages](core-packages.md) | Play packages; locked splash/idle is sealed misteross `fes-splash.rbf` |
-| Runtime [`ARCHITECTURE.md`](../sources/libmister-runtime/ARCHITECTURE.md) | Current `LoadIdle` MENU + HPS fb sequence |
-| FogCast [`fpga_protocol.md`](../sources/FogCast/ui/gfx/fpga_protocol.md) | FC2D software stream; not this phase |
+| [Design lock](../idle-menu-rooms.md) | Product decisions; Phase 2 row; artifact classes |
+| [Component boundaries](../component-boundaries.md) | Host vs runtime vs image vs misteross |
+| [Image assembly](../image-assembly.md) | FES `image/` owns idle install |
+| [Bootable media](../bootable-media.md) | FAT `/menu.rbf` vs rootfs idle; no Main; HIL gates |
+| [Kit sharing](../kit-sharing.md) | Exclusive lease; no unleased programming |
+| [Agent workflow](../agent-workflow.md) | File ownership, worktrees, handoff shape |
+| [Core packages](../core-packages.md) | Play packages; locked splash/idle is sealed misteross `fes-splash.rbf` |
+| Runtime [`ARCHITECTURE.md`](../../sources/libmister-runtime/ARCHITECTURE.md) | Current `LoadIdle` MENU + HPS fb sequence |
+| FogCast [`fpga_protocol.md`](../../sources/FogCast/ui/gfx/fpga_protocol.md) | FC2D software stream; not this phase |
 
 Phase 3+ stay in the lock. Do not start attract ABI or rooms-on-HDMI
 work from this brief.

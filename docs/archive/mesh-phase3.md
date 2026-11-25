@@ -1,6 +1,6 @@
 # Mesh LAN — Phase 3 execution brief
 
-**Superseded (22 October 2026):** the kit is its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)). The kit-side placement, pairing and paired-listener material on this page is historical; the current design is [mesh under kit-as-host](mesh-kit-host.md), which also lists what from here stays in use.
+**Superseded (22 October 2026):** the kit is its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)). The kit-side placement, pairing and paired-listener material on this page is historical; the current design is [mesh under kit-as-host](../mesh-kit-host.md), which also lists what from here stays in use.
 
 **Status:** Slices 1–6 are on main (#212, #213, #214, #216, #219,
 #221). Before Slice 8, no production code installed a placement ask:
@@ -15,7 +15,7 @@ baseline bundle named in the status file. A core-only HIL that leaves
 the bundle unchanged does not install one. Log the result and release
 the kit. Reimaging a kit, changing a kit image or boot config,
 killing other agents' processes, and closing PRs need Deano's OK via
-Bob ([kit sharing](kit-sharing.md)). On 2026-09-27 Deano locked
+Bob ([kit sharing](../kit-sharing.md)). On 2026-09-27 Deano locked
 Decision 7, the placement order, and set the tie-breaks: when several
 kits or several `native_emu` nodes remain, the first candidate wins
 for now. Slice 7 applies them and lands with Slice 8. This brief is
@@ -82,15 +82,15 @@ silence is not a lease release.
 | [Mesh node protocol](mesh-node-protocol.md) | Phase 3 names Execute, Display, and Input on the session. Lease conflict rejects. Bindings stay local to the chosen nodes. Ensure completes before execute. |
 | [Phase 1 brief](mesh-phase1.md) | Soft-stop retains. Capability ads. Host inventory. In-use copy. |
 | [Phase 2 brief](mesh-phase2.md) | Content-id, ensure on the bound executor, Phase 2 Ready. sha256 stays an unsigned strawman. `[mesh] ensure` defaults off. |
-| [Kit sharing](kit-sharing.md) | The only FPGA lease |
-| [Launch composition](../sources/FogCast/docs/launch-composition.md) | Core, firmware, primary media, expansion slots |
+| [Kit sharing](../kit-sharing.md) | The only FPGA lease |
+| [Launch composition](../../sources/FogCast/docs/launch-composition.md) | Core, firmware, primary media, expansion slots |
 
 ---
 
 ## Owners
 
 Owners are component strawmen. Agree files before parallel edits
-([agent workflow](agent-workflow.md)).
+([agent workflow](../agent-workflow.md)).
 
 | Workstream | Strawman owner | What Phase 3 changes | What it must not do |
 | --- | --- | --- | --- |
@@ -110,7 +110,7 @@ baseline bundle named in the status file. A core-only HIL that leaves
 the bundle unchanged does not install one. Log the result and release
 the kit. Reimaging a kit, changing a kit image or boot config,
 killing other agents' processes, and closing PRs need Deano's OK via
-Bob ([kit sharing](kit-sharing.md)). Slice 7 applies the
+Bob ([kit sharing](../kit-sharing.md)). Slice 7 applies the
 `native_emu` tie-break Deano set on 2026-09-27.
 
 ---
@@ -284,7 +284,7 @@ baseline bundle named in the status file. A core-only HIL that leaves
 the bundle unchanged does not install one. Log the result and release
 the kit. Reimaging a kit, changing a kit image or boot config,
 killing other agents' processes, and closing PRs need Deano's OK via
-Bob. Follow [kit sharing](kit-sharing.md) and the designated kit in the
+Bob. Follow [kit sharing](../kit-sharing.md) and the designated kit in the
 selected FogCast `docs/DEVELOPMENT.md`. Release the lease when the
 check ends. The HIL needs Slice 8: before it, nothing in production
 asked for placement. Set `[mesh] placement = true` on the host under
@@ -341,7 +341,7 @@ after use, activate and verify the baseline bundle named in the status
 file. A core-only HIL that leaves the bundle unchanged does not install
 one. Log the result and release the kit. Reimaging a kit, changing a
 kit image or boot config, killing other agents' processes, and closing
-PRs need Deano's OK via Bob ([kit sharing](kit-sharing.md)).
+PRs need Deano's OK via Bob ([kit sharing](../kit-sharing.md)).
 
 **Does not:** rank native nodes by display facts. Add a native execute
 claim. Apply a native selection of another node. Prefer the selected
