@@ -22,7 +22,11 @@ import (
 // leaves the file intact; a power cut afterward leaves the file absent without
 // exposing freed clusters via a live directory entry. Directories and read-only
 // files return fs.ErrPermission; missing targets return fs.ErrNotExist.
-func (v *Volume) RemoveFile(ctx context.Context, name string) (err error) {
+func (v *Volume) RemoveFile(ctx context.Context, name string) error {
+	return v.removeEntry(ctx, "remove", name, false)
+}
+
+func (v *Volume) removeEntry(ctx context.Context, op, name string, wantDir bool) (err error) {
 	if ctx == nil || !fs.ValidPath(name) || name == "." {
 		return fs.ErrInvalid
 	}
@@ -40,16 +44,39 @@ func (v *Volume) RemoveFile(ctx context.Context, name string) (err error) {
 	}
 	e, err := v.lookupContext(ctx, name)
 	if err != nil {
-		return &fs.PathError{Op: "remove", Path: name, Err: err}
+		return &fs.PathError{Op: op, Path: name, Err: err}
 	}
-	if e.attributes&0x11 != 0 {
-		return &fs.PathError{Op: "remove", Path: name, Err: fs.ErrPermission}
+	isDir := e.attributes&0x10 != 0
+	if wantDir {
+		if !isDir {
+			return &fs.PathError{Op: op, Path: name, Err: fs.ErrInvalid}
+		}
+		if e.attributes&0x01 != 0 {
+			return &fs.PathError{Op: op, Path: name, Err: fs.ErrPermission}
+		}
+		items, err := v.entriesContext(ctx, e.cluster)
+		if err != nil {
+			return &fs.PathError{Op: op, Path: name, Err: err}
+		}
+		if len(items) > 0 {
+			return &fs.PathError{Op: op, Path: name, Err: ErrNotEmpty}
+		}
+	} else if e.attributes&0x11 != 0 {
+		return &fs.PathError{Op: op, Path: name, Err: fs.ErrPermission}
 	}
 
-	oldChain, err := v.chainContext(ctx, e.cluster, maxFileBytes)
+	chainLimit := maxFileBytes
+	if isDir {
+		chainLimit = maxDirectoryBytes
+	}
+	oldChain, err := v.chainContext(ctx, e.cluster, chainLimit)
 	if err != nil {
 		return err
 	}
+	if isDir && len(oldChain) == 0 {
+		return fmt.Errorf("%w: empty directory chain", ErrCorrupt)
+	}
+
 	freeChanges := make([]fatChange, 0, len(oldChain))
 	if len(oldChain) > 0 {
 		lastCluster := oldChain[len(oldChain)-1]
@@ -103,55 +130,10 @@ func (v *Volume) RemoveFile(ctx context.Context, name string) (err error) {
 		binary.LittleEndian.PutUint32(info[492:], 0xffffffff)
 	}
 
-	if e.offset < 0 || e.offset+32 > block.SectorSize {
-		return ErrCorrupt
-	}
-	sectorBufs := make(map[uint64][]byte)
-	readDirSector := func(sec uint64) ([]byte, error) {
-		if buf, ok := sectorBufs[sec]; ok {
-			return buf, nil
-		}
-		buf := make([]byte, block.SectorSize)
-		if err := v.device.ReadSectors(sec, buf); err != nil {
-			return nil, err
-		}
-		sectorBufs[sec] = buf
-		return buf, nil
-	}
-
-	shortBuf, err := readDirSector(e.sector)
+	shortBuf, extraSectors, sectorBufs, err := v.prepareDeleteSectors(e)
 	if err != nil {
 		return err
 	}
-	sd := shortBuf[e.offset : e.offset+32]
-	gotCluster := uint32(binary.LittleEndian.Uint16(sd[20:]))<<16 | uint32(binary.LittleEndian.Uint16(sd[26:]))
-	gotSize := binary.LittleEndian.Uint32(sd[28:])
-	if sd[0] == 0 || sd[0] == 0xe5 || sd[11] != e.attributes || gotCluster != e.cluster || gotSize != e.size {
-		return fmt.Errorf("%w: directory entry changed before remove", ErrCorrupt)
-	}
-	sd[0] = 0xe5
-
-	extraSectors := make([]uint64, 0, 2)
-	for _, loc := range e.lfnSlots {
-		if loc.offset < 0 || loc.offset+32 > block.SectorSize {
-			return ErrCorrupt
-		}
-		if loc.sector != e.sector {
-			if _, seen := sectorBufs[loc.sector]; !seen {
-				extraSectors = append(extraSectors, loc.sector)
-			}
-		}
-		lfnBuf, err := readDirSector(loc.sector)
-		if err != nil {
-			return err
-		}
-		ld := lfnBuf[loc.offset : loc.offset+32]
-		if ld[0] == 0 || ld[0] == 0xe5 || ld[11] != 0x0f || ld[13] != e.shortSum {
-			return fmt.Errorf("%w: LFN entry changed before remove", ErrCorrupt)
-		}
-		ld[0] = 0xe5
-	}
-	sort.Slice(extraSectors, func(i, j int) bool { return extraSectors[i] > extraSectors[j] })
 
 	started := false
 	defer func() {
@@ -242,4 +224,59 @@ func (v *Volume) RemoveFile(ctx context.Context, name string) (err error) {
 		return flush()
 	}
 	return nil
+}
+
+// prepareDeleteSectors validates e's short and LFN slots on disk and stages
+// 0xE5 markers across their sectors without writing to the device.
+func (v *Volume) prepareDeleteSectors(e entry) (shortBuf []byte, extraSectors []uint64, sectorBufs map[uint64][]byte, err error) {
+	if e.offset < 0 || e.offset+32 > block.SectorSize {
+		return nil, nil, nil, ErrCorrupt
+	}
+	sectorBufs = make(map[uint64][]byte)
+	readDirSector := func(sec uint64) ([]byte, error) {
+		if buf, ok := sectorBufs[sec]; ok {
+			return buf, nil
+		}
+		buf := make([]byte, block.SectorSize)
+		if err := v.device.ReadSectors(sec, buf); err != nil {
+			return nil, err
+		}
+		sectorBufs[sec] = buf
+		return buf, nil
+	}
+
+	shortBuf, err = readDirSector(e.sector)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	sd := shortBuf[e.offset : e.offset+32]
+	gotCluster := uint32(binary.LittleEndian.Uint16(sd[20:]))<<16 | uint32(binary.LittleEndian.Uint16(sd[26:]))
+	gotSize := binary.LittleEndian.Uint32(sd[28:])
+	if sd[0] == 0 || sd[0] == 0xe5 || sd[11] != e.attributes || gotCluster != e.cluster || gotSize != e.size {
+		return nil, nil, nil, fmt.Errorf("%w: directory entry changed before remove", ErrCorrupt)
+	}
+	sd[0] = 0xe5
+
+	extraSectors = make([]uint64, 0, 2)
+	for _, loc := range e.lfnSlots {
+		if loc.offset < 0 || loc.offset+32 > block.SectorSize {
+			return nil, nil, nil, ErrCorrupt
+		}
+		if loc.sector != e.sector {
+			if _, seen := sectorBufs[loc.sector]; !seen {
+				extraSectors = append(extraSectors, loc.sector)
+			}
+		}
+		lfnBuf, err := readDirSector(loc.sector)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		ld := lfnBuf[loc.offset : loc.offset+32]
+		if ld[0] == 0 || ld[0] == 0xe5 || ld[11] != 0x0f || ld[13] != e.shortSum {
+			return nil, nil, nil, fmt.Errorf("%w: LFN entry changed before remove", ErrCorrupt)
+		}
+		ld[0] = 0xe5
+	}
+	sort.Slice(extraSectors, func(i, j int) bool { return extraSectors[i] > extraSectors[j] })
+	return shortBuf, extraSectors, sectorBufs, nil
 }
