@@ -20,8 +20,9 @@
       "pmode": "b4be6e29297168abb31ca536829cbd8a42e9fb05093d16793932ea51d72814b3",
       "bench": "e69a4cb6462a79c47f55adef11d41c652481017dd541ae980cf27beed5e4823c"
     },
-    "g4_cpi_pass": null,
+    "g4_cpi_pass": true,
     "cpi_ratio": {
+      "doom": 1.0527856180082862,
       "3dbench": 1.0154644510108228
     },
     "quake_execution": null,
@@ -81,7 +82,7 @@
     "lockstep/x87unit.json": "1c7c247143fb5d0a075409ee3e770ff69f3af7cd2f6d4545475b346abe3ecf44",
     "lockstep/trans.json": "d36f9f2f961e3898b00f12ecaee91daf135b5cbdff4d0f14a597c79f2e16a014",
     "lockstep/testfloat.json": "7e24ced5019541126018568de2c17b7963617014e722b8eeabfdf916af377d19",
-    "games/analysis-3c5474d8ac44e6a0c3f98eac9bcaf74ed0014da4da2d23b2002683cdc77eaac9.json": "3c5474d8ac44e6a0c3f98eac9bcaf74ed0014da4da2d23b2002683cdc77eaac9",
+    "games/analysis-3eab2d909bebdbed3d6fcd3956de6972dd2190ba5a4882cb319ccac318049a1a.json": "3eab2d909bebdbed3d6fcd3956de6972dd2190ba5a4882cb319ccac318049a1a",
     "games/base-3dbench/command.json": "4e9931bef0c9ca8d31c479257cb82967e6329007e049fb5c78546151dd5825ad",
     "games/base-3dbench/result.json": "cbfc990da177b30a7c2cc47390328dba54b6f18ff7821bca266fffedd2d8ac65",
     "games/base-3dbench/run.log": "ad0d059f4ae12e1659ec2a73216d51efe1b2ec201f9563984eeef0ba9164cd73",
@@ -108,6 +109,10 @@
     "games/base-3dbench/frames/t0010.50.ppm": "84b7da61ce53d9fa8f8b5b3d5a9f75d37fc476ac43eca06bef56a11be172acf3",
     "games/base-3dbench/frames/t0011.00.ppm": "befb11e6158dd3b0e7e141c30c160938f2c4ea27e397448d8c388cb6c6f55c38",
     "games/base-3dbench/frames/t0011.50.ppm": "df70c7c011d11db68ade7bee89728f21c2d620665bbcddc1db19e8548fdaef9b",
+    "games/base-doom/command.json": "49d04266b43d8a6e197f7e6f147defe4e7fd48a326281dabe2c236330e4b1c0a",
+    "games/base-doom/result.json": "8ba772e511c0effbc6904cc50da4c4b3075553145155e4f15085b18a3e941934",
+    "games/base-doom/run.log": "3e6558382db5880ea6c5cd23670d5d3e9e5d7ae34cad965d1a8b68e2b17f7443",
+    "games/base-doom/cpu.prof": "086112f3da42f05146a4d248dc82e98e09fd27e5c9a97ce7ca1dde7cbb121bce",
     "games/dx-3dbench/command.json": "b1567c370137ea211e564d9647551fb82c1af4c9e14669851edc370cdad50757",
     "games/dx-3dbench/result.json": "81d4540b85f6fd3e9ee34471981a5b56b945e01ea66ed8fe0454099b416591bb",
     "games/dx-3dbench/run.log": "ca3568fe1adf89db04981ec45089f094bd82f4f676e8b80de31736d363783f5f",
@@ -133,6 +138,10 @@
     "games/dx-3dbench/frames/t0010.00.ppm": "fa1dbf31aff80ad258fd8ce6b7c573531077c069e2d1d31f6824819d91089dcb",
     "games/dx-3dbench/frames/t0010.50.ppm": "266cbe882d7e1d1ae175437e03fc34cba6216d00bd3b3ca3f9160c14e7b70ac9",
     "games/dx-3dbench/frames/t0011.00.ppm": "ce668af4ba29f903a1d4e91095f38b3690c147a270d284f3131edc88c3ff1055",
-    "games/dx-3dbench/frames/t0011.50.ppm": "7fc7d505e3476cb876a9602dafbc0fdf3c7f75db11d6719709720d2ad34b89e2"
+    "games/dx-3dbench/frames/t0011.50.ppm": "7fc7d505e3476cb876a9602dafbc0fdf3c7f75db11d6719709720d2ad34b89e2",
+    "games/dx-doom/command.json": "80f53a14157156f5002a0d6f83b8166dcc5febaae4eaad80bbdf98b2e4039e79",
+    "games/dx-doom/result.json": "16db9c3e345e5e6d9bb831973e41baefa2bb59a6a93802d2945f2e95de8d892f",
+    "games/dx-doom/run.log": "abf59d969539ebabdaf87a7effcde50f52e8233fd90175d3e49d6d09e0d70c9c",
+    "games/dx-doom/cpu.prof": "89be18cd371fea8b2e447db7b2abf40ff97f958f23b3c6ba99dd2b9eb6f147d3"
   }
 }
