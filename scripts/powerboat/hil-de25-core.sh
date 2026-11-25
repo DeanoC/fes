@@ -302,10 +302,12 @@ RESTORE_TOOL="$FES_SOURCE/scripts/de25_restore.py"
 [ -f "$RESTORE_TOOL" ] || RESTORE_TOOL="$ROOT/wt/scripts/de25_restore.py"
 # A failed restore cannot prove the FPGA returned to MENU. Preserve the
 # claim and evidence for the documented operator recovery procedure.
-python3 "$RESTORE_TOOL" --baseline "$BASE" --before "$D/out/baseline-before.json" \
-  --after "$D/out/baseline-after.json" > "$D/out/restore-verification.json" ||
+if python3 "$RESTORE_TOOL" --baseline "$BASE" --before "$D/out/baseline-before.json" \
+  --after "$D/out/baseline-after.json" > "$D/out/restore-verification.json"; then
+  RESTORE=1
+else
   fail "DE25 restore verification failed; ledger remains claimed for operator recovery"
-RESTORE=1
+fi
 if [ "$RESTORE" = 1 ]; then
   PKG_NAMES=$(for P in "${PKGS[@]}"; do basename "$P"; done | paste -sd, -)
   PKG_DIGESTS=$(IFS=,; echo "${PKG_SHAS[*]}")
