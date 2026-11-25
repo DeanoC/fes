@@ -119,6 +119,12 @@ func (s *lockedMultiShortcutSource) NextGamepadUpdate() (usbhub.GamepadUpdate, b
 	return s.inner.NextGamepadUpdate()
 }
 
+func (s *lockedMultiShortcutSource) NextMouseUpdate() (usbhub.MouseUpdate, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.inner.NextMouseUpdate()
+}
+
 func (s *lockedMultiShortcutSource) KeyboardNeutral() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -129,6 +135,12 @@ func (s *lockedMultiShortcutSource) GamepadNeutral() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.inner.GamepadNeutral()
+}
+
+func (s *lockedMultiShortcutSource) MouseNeutral() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.inner.MouseNeutral()
 }
 
 func (s *lockedMultiShortcutSource) SetGameplayActive(active bool) error {
