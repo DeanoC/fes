@@ -437,3 +437,40 @@ F3C` and types `F3 C DRIVE DF4EA17A`, then lists `LIVE.TXT`
 
 Not covered on the kit: the failed-Eject recovery (a kit cannot be made to
 refuse an Eject) and launch floppies under 1 MiB. Unit tests cover both.
+
+## Merge forward to `afac39328`
+
+Main was merged at `d928f71dd` (base `afac39328`). Two conflicts:
+- `fogcast/service.go`: main split it into `service_*.go`. The PR's two hunks,
+  launch-floppy staging and the missing-launch-floppy rejection, moved unchanged
+  into `service_launch.go`.
+- The DE25 proof fixture, regenerated at `6abf23a73` (14 cases, builder
+  `fes-build-base:12.11-pinned`).
+
+The FogCast suite and `native_hardware_test` pass on the merged tree.
+
+`closure_touched.py 27999e9df afac39328` hits every producer. Most hits are
+`scripts/bootstrap.sh` and `scripts/toolchain_cache.py`, and
+`input_identity.input_role` gives both the `toolchain` role, so no design
+`BUILD_ID` moves for them. Two design inputs changed:
+- **`scripts/build_fes_c64_oss.py`** (the 8580 C64C models). The C64 was
+  re-measured at `afac39328` against `6abf23a73`:
+  - Condition 1, two passes (`cond1-m3/`): `ec6f98015f79940d` on all four.
+  - Conditions 2 and 3 on Powerboat with HIP (`cond23/powerboat-m3-s1/`). Main's
+    RBF `694a6176…` is reproduced under its `BUILD_ID`. The head's own build
+    passes: `BUILD_ID` `f433ee8d…`, system 54.57 MHz against 52.22, package
+    `5ddaef54…`.
+- **i386 RTL (`fes_i386_x87.sv`) and two pc386 test benches, all main's.** The
+  pc386 tree now has design `BUILD_ID` `f05a1803…`, so `head_matches_seal.py`
+  reports a different design from the `73a1d6f74` seal. These are not the PR's
+  changes, and the PR's shared mailbox RTL is unchanged since that seal.
+  Deano's standing exemption for pc386 while it is in progress (1 Nov) applies:
+  no reseal before merge, and the next pc386 PR that merges main reseals the
+  tree.
+
+The other cores carry their evidence: no design input of theirs changed.
+
+Kit run k11 (Kit B, `hil/live-kit/k11/`) uses bundle `8aa12d58…`, built from
+`6abf23a73` itself, so it no longer needs the scratch #2204 build. Every goal
+passes, the live swap included. C's record is intact, nothing is left on the
+kit, and the kit was restored and logged FREE.
