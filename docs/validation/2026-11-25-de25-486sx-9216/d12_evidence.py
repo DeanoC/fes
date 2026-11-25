@@ -5,7 +5,8 @@ D12DIR holds A-<pkg> (main, --compile-only) and C-<pkg> (branch tooling, A's BUI
 BRANCHBUILD holds B-<pkg> (the branch's full producer). For each package:
 - RBF: the full SHA-256 of A's and C's core.rbf, and whether they are equal. MENU's C stops at its
   review after compiling and copies no core.rbf; its compiled RBF, signoff/combined/hps/linux-boot.core.rbf
-  (the file the producer copies to core.rbf), is compared instead and labelled so;
+  (the file the producer copies to core.rbf), is compared instead and labelled so. Any other
+  package without a C core.rbf fails;
 - B: its BUILD_ID, RBF SHA-256 and package_timing_admission;
 - inputs: every source-like project file (d12_cmp.py's set) of A and B, compared after replacing each
   side's root path and its own BUILD_ID (hex, 128-bit binary, decimal) with one token. Prints every file
@@ -45,14 +46,14 @@ def main(d12, branch):
         ida = json.loads((a / 'build-summary.json').read_text())['build_id']
         bsum = json.loads((b / 'build-summary.json').read_text())
         ra, rc, where = sha(a / 'core.rbf'), sha(c / 'core.rbf'), 'core.rbf'
-        if rc is None:
+        if rc is None and pkg == 'menu':  # the one documented review-stage exception
             rc, where = sha(c / 'signoff/combined/hps/linux-boot.core.rbf'), 'signoff/combined/hps/linux-boot.core.rbf'
         print(f'== {pkg}')
         print(f'  A root {a}  BUILD_ID {ida}  core.rbf {ra}')
         print(f'  C root {c}  {where} {rc}  ' + ('EQUAL to A' if rc == ra else 'no RBF' if rc is None else 'DIFFERS from A'))
         print(f"  B root {b}  BUILD_ID {bsum['build_id']}  core.rbf {bsum['rbf_sha256']}  "
               f"admitted {bsum['package_timing_admission']}")
-        bad |= rc is not None and rc != ra
+        bad |= rc != ra  # a missing C RBF fails, except MENU's compiled one above
         pa, pb = a / 'signoff/combined/hps/project', b / 'signoff/combined/hps/project'
         fa, fb = files(pa), files(pb)
         only = sorted(set(fa) ^ set(fb))
