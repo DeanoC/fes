@@ -352,9 +352,17 @@ func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 	s.mu.Unlock()
 
 	if sink != nil {
-		// Invoked outside s.mu (still serialized by syncSem and tracked by wg)
-		// so custom sinks can inspect Status() without deadlocking.
-		sink.Sync(sampleUTC)
+		// Invoked outside s.mu in a syncSem-serialized helper so a custom
+		// sink can call Status() or Stop() synchronously without deadlocking.
+		sinkDone := make(chan struct{})
+		go func() {
+			defer close(sinkDone)
+			sink.Sync(sampleUTC)
+		}()
+		select {
+		case <-sinkDone:
+		case <-s.stopCh:
+		}
 	}
 	if hasOnSync {
 		s.mu.Lock()
@@ -433,10 +441,11 @@ func (s *SNTPSyncer) run(ctx context.Context) {
 	}
 }
 
-// Stop halts the background SNTP discipline loop and waits for all in-flight
-// queries and Sink.Sync updates (from both Start and direct SyncOnce calls) to
-// complete before returning. Safe to call multiple times, without Start, or from
-// OnSync/OnError callbacks.
+// Stop halts the background SNTP discipline loop and cancels/waits for all
+// in-flight queries (from both Start and direct SyncOnce calls) so no new
+// Sink.Sync or callback dispatches begin after Stop returns. Safe to call
+// multiple times, without Start, or synchronously from WallClockSink.Sync,
+// OnSync, or OnError callbacks.
 func (s *SNTPSyncer) Stop() {
 	s.mu.Lock()
 	if !s.stopped {
