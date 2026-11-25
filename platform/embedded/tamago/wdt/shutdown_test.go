@@ -13,25 +13,34 @@ import (
 )
 
 type fakePowerCtrl struct {
-	mu     sync.Mutex
-	resets int
-	offs   int
-	err    error
+	mu          sync.Mutex
+	resets      int
+	offs        int
+	err         error
+	onCall      func()
+	seenRunning bool
+	supCheck    *Supervisor
 }
 
-func (p *fakePowerCtrl) SystemReset() error {
+func (p *fakePowerCtrl) record(offs bool) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.resets++
+	if p.supCheck != nil {
+		p.seenRunning = p.supCheck.Running()
+	}
+	if p.onCall != nil {
+		p.onCall()
+	}
+	if offs {
+		p.offs++
+	} else {
+		p.resets++
+	}
 	return p.err
 }
 
-func (p *fakePowerCtrl) SystemOff() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.offs++
-	return p.err
-}
+func (p *fakePowerCtrl) SystemReset() error { return p.record(false) }
+func (p *fakePowerCtrl) SystemOff() error   { return p.record(true) }
 
 func TestDWTimeoutAndSetTimeout(t *testing.T) {
 	hw := newFakeDW()
@@ -161,10 +170,13 @@ func TestSupervisorKickNowExtendAndPlainKicker(t *testing.T) {
 	}
 }
 
-func TestShutdownPrepareAndWrapShutdownStepsWithPSCI(t *testing.T) {
+func TestShutdownPrepareWrapControllerAndAbortKeepalive(t *testing.T) {
 	ctx := context.Background()
 
-	// 1. Nil and unarmed supervisors stay no-ops across ShutdownPrepareStep + WrapShutdownSteps.
+	// 1. Nil and unarmed supervisors stay no-ops across ShutdownPrepareStep + WrapShutdownSteps + WrapPowerController.
+	if WrapPowerController(nil, nil) != nil {
+		t.Fatal("WrapPowerController(nil, nil) != nil")
+	}
 	ctrl := &fakePowerCtrl{}
 	unarmedHW := newFakeDW()
 	unarmedDW, err := Open(unarmedHW, 100_000_000)
@@ -175,18 +187,72 @@ func TestShutdownPrepareAndWrapShutdownStepsWithPSCI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	steps := WrapShutdownSteps(nil, []psci.ShutdownStep{
+	steps := WrapShutdownSteps(unarmedSup, []psci.ShutdownStep{
 		ShutdownPrepareStep(unarmedSup, 2*time.Second),
 		{Name: "flush", Fn: func(context.Context) error { return nil }},
 	})
-	if err := psci.Shutdown(ctx, ctrl, psci.ActionPowerOff, psci.ShutdownConfig{Steps: steps}); err != nil {
+	if err := psci.Shutdown(ctx, WrapPowerController(unarmedSup, ctrl), psci.ActionPowerOff, psci.ShutdownConfig{Steps: steps}); err != nil {
 		t.Fatalf("unarmed psci.Shutdown: %v", err)
 	}
 	if unarmedDW.Enabled() || ctrl.offs != 1 {
 		t.Fatalf("unarmed shutdown enabled=%t offs=%d", unarmedDW.Enabled(), ctrl.offs)
 	}
 
-	// 2. Armed *DW Supervisor stops keepalive, extends timeout, kicks around teardown steps, then resets.
+	// 2. Armed *DW Supervisor stays alive across aborted shutdown (RequireCleanTeardown / ctx cancel)
+	//    so the sticky watchdog keeps getting serviced!
+	hwAbort := newFakeDW()
+	dwAbort, err := Open(hwAbort, 100_000_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	abortSup, err := NewSupervisor(dwAbort, SupervisorConfig{Timeout: 40 * time.Millisecond, KickInterval: 5 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := abortSup.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer abortSup.Stop()
+
+	abortCtrl := &fakePowerCtrl{supCheck: abortSup}
+	abortSteps := WrapShutdownSteps(abortSup, []psci.ShutdownStep{
+		ShutdownPrepareStep(abortSup, 2*time.Second),
+		{Name: "failing-flush", Fn: func(context.Context) error { return errors.New("busy") }},
+	})
+	if err := psci.Shutdown(ctx, WrapPowerController(abortSup, abortCtrl), psci.ActionPowerOff, psci.ShutdownConfig{
+		Steps:                abortSteps,
+		RequireCleanTeardown: true,
+	}); !errors.Is(err, psci.ErrTeardownFailed) {
+		t.Fatalf("aborted shutdown err = %v, want ErrTeardownFailed", err)
+	}
+	if !abortSup.Running() || abortCtrl.offs != 0 {
+		t.Fatalf("aborted shutdown stopped supervisor (running=%t) or called PSCI (offs=%d)", abortSup.Running(), abortCtrl.offs)
+	}
+	// Verify periodic keepalive continues incrementing Kicks() automatically after abort!
+	kAfterAbort := abortSup.Kicks()
+	deadline := time.Now().Add(time.Second)
+	for abortSup.Kicks() <= kAfterAbort {
+		if time.Now().After(deadline) {
+			t.Fatalf("supervisor stopped kicking after aborted shutdown (kicks stuck at %d)", abortSup.Kicks())
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	// Also verify context cancellation after ShutdownPrepareStep keeps supervisor running.
+	abortCtx, abortCancel := context.WithCancel(ctx)
+	cancelSteps := []psci.ShutdownStep{
+		ShutdownPrepareStep(abortSup, 0),
+		{Name: "cancel-self", Fn: func(context.Context) error { abortCancel(); return nil }},
+		{Name: "unreachable", Fn: func(context.Context) error { return nil }},
+	}
+	if err := psci.Shutdown(abortCtx, WrapPowerController(abortSup, abortCtrl), psci.ActionReset, psci.ShutdownConfig{Steps: cancelSteps}); !errors.Is(err, psci.ErrShutdownAborted) {
+		t.Fatalf("canceled shutdown err = %v, want ErrShutdownAborted", err)
+	}
+	if !abortSup.Running() || abortCtrl.resets != 0 {
+		t.Fatalf("canceled shutdown stopped supervisor (running=%t) or reset", abortSup.Running())
+	}
+
+	// 3. Committed shutdown extends timeout, kicks around steps, and WrapPowerController stops supervisor only at terminal PSCI call.
 	hw := newFakeDW()
 	dw, err := Open(hw, 100_000_000)
 	if err != nil {
@@ -200,7 +266,7 @@ func TestShutdownPrepareAndWrapShutdownStepsWithPSCI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var observedRunning bool
+	var observedRunningDuringStep bool
 	var kicksAtStep uint64
 	teardownSteps := []psci.ShutdownStep{
 		ShutdownPrepareStep(sup, 5*time.Second),
@@ -209,19 +275,22 @@ func TestShutdownPrepareAndWrapShutdownStepsWithPSCI(t *testing.T) {
 		{
 			Name: "quiesce-sd",
 			Fn: func(context.Context) error {
-				observedRunning = sup.Running()
+				observedRunningDuringStep = sup.Running()
 				kicksAtStep = sup.Kicks()
 				return nil
 			},
 		},
 	})...)
 
-	ctrl2 := &fakePowerCtrl{}
-	if err := psci.Shutdown(ctx, ctrl2, psci.ActionReset, psci.ShutdownConfig{Steps: teardownSteps}); err != nil {
+	ctrl2 := &fakePowerCtrl{supCheck: sup}
+	if err := psci.Shutdown(ctx, WrapPowerController(sup, ctrl2), psci.ActionReset, psci.ShutdownConfig{Steps: teardownSteps}); err != nil {
 		t.Fatalf("armed psci.Shutdown: %v", err)
 	}
-	if observedRunning {
-		t.Fatal("Supervisor still running during teardown step after ShutdownPrepareStep")
+	if !observedRunningDuringStep {
+		t.Fatal("Supervisor stopped prematurely before terminal PSCI transition")
+	}
+	if ctrl2.seenRunning || sup.Running() {
+		t.Fatalf("WrapPowerController did not stop supervisor before SystemReset: seenRunning=%t running=%t", ctrl2.seenRunning, sup.Running())
 	}
 	if dw.Timeout() < 5*time.Second {
 		t.Fatalf("WDT timeout not extended before teardown: %v", dw.Timeout())
@@ -230,7 +299,7 @@ func TestShutdownPrepareAndWrapShutdownStepsWithPSCI(t *testing.T) {
 		t.Fatalf("post-step kick or PSCI reset missing: kicks=%d->%d resets=%d", kicksAtStep, sup.Kicks(), ctrl2.resets)
 	}
 
-	// 3. Plain Kicker satisfies minTimeout <= Period(), rejects unattainable minTimeout > Period(), and rejects negative minTimeout.
+	// 4. Plain Kicker satisfies minTimeout <= Period(), rejects unattainable minTimeout > Period(), and rejects negative minTimeout.
 	stub := &stubKicker{}
 	supPlain, err := NewSupervisor(stub, SupervisorConfig{Timeout: 100 * time.Millisecond})
 	if err != nil {
@@ -239,6 +308,7 @@ func TestShutdownPrepareAndWrapShutdownStepsWithPSCI(t *testing.T) {
 	if _, err := supPlain.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
+	defer supPlain.Stop()
 	if err := ShutdownPrepareStep(supPlain, 50*time.Millisecond).Fn(ctx); err != nil {
 		t.Fatalf("plain Kicker ShutdownPrepareStep(50ms): %v", err)
 	}
@@ -249,7 +319,7 @@ func TestShutdownPrepareAndWrapShutdownStepsWithPSCI(t *testing.T) {
 		t.Fatalf("negative minTimeout = %v, want ErrInvalidConfig", err)
 	}
 
-	// 4. Unattainable *DW shutdown timeout (exceeding MaxTop ~21.47s at 100 MHz) fails closed.
+	// 5. Unattainable *DW shutdown timeout (exceeding MaxTop ~21.47s at 100 MHz) fails closed.
 	hwMax := newFakeDW()
 	dwMax, err := Open(hwMax, 100_000_000)
 	if err != nil {
@@ -262,16 +332,14 @@ func TestShutdownPrepareAndWrapShutdownStepsWithPSCI(t *testing.T) {
 	if _, err := supMax.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
+	defer supMax.Stop()
 	if err := ShutdownPrepareStep(supMax, 30*time.Second).Fn(ctx); !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("unattainable 30s ShutdownPrepareStep = %v, want ErrInvalidConfig", err)
 	}
-	if supMax.Running() {
-		t.Fatal("ShutdownPrepareStep did not stop supervisor even after unattainable timeout")
-	}
 
-	// 5. Invalid steps preserved unwrapped so psci.Shutdown returns ErrInvalidShutdown.
+	// 6. Invalid steps preserved unwrapped so psci.Shutdown returns ErrInvalidShutdown.
 	bad := WrapShutdownSteps(sup, []psci.ShutdownStep{{Name: "", Fn: nil}})
-	if err := psci.Shutdown(ctx, ctrl2, psci.ActionReset, psci.ShutdownConfig{Steps: bad}); !errors.Is(err, psci.ErrInvalidShutdown) {
+	if err := psci.Shutdown(ctx, WrapPowerController(sup, ctrl2), psci.ActionReset, psci.ShutdownConfig{Steps: bad}); !errors.Is(err, psci.ErrInvalidShutdown) {
 		t.Fatalf("invalid wrapped step = %v, want ErrInvalidShutdown", err)
 	}
 }
@@ -339,7 +407,7 @@ func TestExtendSerializationAndKickBeforeStop(t *testing.T) {
 		t.Fatalf("hardware cur=%v != Period=%v != 10s", cur, sup.Period())
 	}
 
-	// 2. ShutdownPrepareStep extends/kicks hardware BEFORE draining a slow in-flight Check.
+	// 2. ShutdownPrepareStep extends/kicks hardware WITHOUT blocking on a slow in-flight Check.
 	hw := newFakeDW()
 	dw, err := Open(hw, 100_000_000)
 	if err != nil {
@@ -368,22 +436,16 @@ func TestExtendSerializationAndKickBeforeStop(t *testing.T) {
 	}
 	<-inCheck
 
-	prepDone := make(chan error, 1)
-	go func() {
-		prepDone <- ShutdownPrepareStep(slowSup, 2*time.Second).Fn(context.Background())
-	}()
-
-	// Even before releaseCheck unblocks Stop(), hardware must already have been extended!
-	deadline := time.Now().Add(time.Second)
-	for dw.Timeout() < 2*time.Second {
-		if time.Now().After(deadline) {
-			close(releaseCheck)
-			t.Fatalf("watchdog was not extended before Stop() drained slow Check (timeout=%v)", dw.Timeout())
-		}
-		time.Sleep(time.Millisecond)
+	if err := ShutdownPrepareStep(slowSup, 2*time.Second).Fn(context.Background()); err != nil {
+		close(releaseCheck)
+		slowSup.Stop()
+		t.Fatalf("ShutdownPrepareStep blocked or failed: %v", err)
+	}
+	if dw.Timeout() < 2*time.Second {
+		close(releaseCheck)
+		slowSup.Stop()
+		t.Fatalf("watchdog was not extended before in-flight Check completed (timeout=%v)", dw.Timeout())
 	}
 	close(releaseCheck)
-	if err := <-prepDone; err != nil {
-		t.Fatalf("ShutdownPrepareStep: %v", err)
-	}
+	slowSup.Stop()
 }

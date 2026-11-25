@@ -11,11 +11,13 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
 )
 
-// ShutdownPrepareStep returns a bounded psci.ShutdownStep that extends/kicks
-// an armed watchdog BEFORE draining the background supervisor (so an in-flight
-// Check/OnError callback cannot let hardware expire while waiting for Stop),
-// stops periodic keepalive checks, and fails closed if minTimeout cannot be
-// satisfied by hardware. An unarmed or nil supervisor stays untouched.
+// ShutdownPrepareStep returns a bounded psci.ShutdownStep that extends or kicks
+// an armed watchdog without stopping the keepalive supervisor, failing closed
+// if minTimeout cannot be satisfied by hardware. Keeping the supervisor active
+// ensures the sticky hardware watchdog stays serviced if psci.Shutdown later
+// aborts (context cancellation or RequireCleanTeardown); pair with
+// WrapPowerController to halt keepalive only when the terminal PSCI call runs.
+// An unarmed or nil supervisor stays untouched.
 func ShutdownPrepareStep(sup *Supervisor, minTimeout time.Duration) psci.ShutdownStep {
 	return psci.ShutdownStep{
 		Name: "wdt-prepare-shutdown",
@@ -23,33 +25,64 @@ func ShutdownPrepareStep(sup *Supervisor, minTimeout time.Duration) psci.Shutdow
 			if minTimeout < 0 {
 				return fmt.Errorf("%w: shutdown minTimeout must be >= 0", ErrInvalidConfig)
 			}
-			if sup == nil {
+			if sup == nil || !sup.Started() {
 				return nil
 			}
-			if !sup.Started() {
-				sup.Stop()
-				return nil
-			}
-			var prepErr error
 			if minTimeout > 0 {
 				actual, err := sup.Extend(minTimeout)
 				if errors.Is(err, ErrUnsupported) {
-					prepErr = sup.KickNow()
-					if prepErr == nil && sup.Period() < minTimeout {
-						prepErr = fmt.Errorf("%w: watchdog period %v below requested shutdown minTimeout %v", ErrUnsupported, sup.Period(), minTimeout)
+					if kickErr := sup.KickNow(); kickErr != nil {
+						return kickErr
 					}
-				} else if err != nil {
-					prepErr = err
-				} else if actual < minTimeout {
-					prepErr = fmt.Errorf("%w: achieved shutdown timeout %v below requested %v", ErrInvalidConfig, actual, minTimeout)
+					if sup.Period() < minTimeout {
+						return fmt.Errorf("%w: watchdog period %v below requested shutdown minTimeout %v", ErrUnsupported, sup.Period(), minTimeout)
+					}
+					return nil
 				}
-			} else {
-				prepErr = sup.KickNow()
+				if err != nil {
+					return err
+				}
+				if actual < minTimeout {
+					return fmt.Errorf("%w: achieved shutdown timeout %v below requested %v", ErrInvalidConfig, actual, minTimeout)
+				}
+				return nil
 			}
-			sup.Stop()
-			return prepErr
+			return sup.KickNow()
 		},
 	}
+}
+
+type shutdownPowerController struct {
+	sup  *Supervisor
+	ctrl psci.PowerController
+}
+
+// WrapPowerController wraps ctrl so an armed Supervisor kicks the hardware
+// watchdog once more and stops its background goroutine only once psci.Shutdown
+// commits to issuing SystemReset or SystemOff (never stopping on aborted
+// shutdowns). Passing nil ctrl returns nil.
+func WrapPowerController(sup *Supervisor, ctrl psci.PowerController) psci.PowerController {
+	if ctrl == nil || sup == nil {
+		return ctrl
+	}
+	return &shutdownPowerController{sup: sup, ctrl: ctrl}
+}
+
+func (w *shutdownPowerController) stopSupervisor() {
+	if w.sup.Started() {
+		_ = w.sup.KickNow()
+		w.sup.Stop()
+	}
+}
+
+func (w *shutdownPowerController) SystemReset() error {
+	w.stopSupervisor()
+	return w.ctrl.SystemReset()
+}
+
+func (w *shutdownPowerController) SystemOff() error {
+	w.stopSupervisor()
+	return w.ctrl.SystemOff()
 }
 
 // WrapShutdownSteps wraps each valid step in steps so an armed Supervisor kicks
