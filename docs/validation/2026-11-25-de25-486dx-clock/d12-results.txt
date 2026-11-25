@@ -1,0 +1,380 @@
+DE25 D12 fitted package comparisons
+A da4acd2ac3213e467dcd98f0bbf26a2158b70a3e
+B 5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e
+
+menu
+  raw golden_top.qsf SHA-256 main ec8906e4d804fa527d9eb3d90ec4b6353c55bbe74853f4f5d5e9fafc4012154b
+  raw golden_top.qsf SHA-256 candidate ec8906e4d804fa527d9eb3d90ec4b6353c55bbe74853f4f5d5e9fafc4012154b
+  raw RTL inventory SHA-256 main 6d856f0aeb25462bb9dc231e6e58fd774b8394ea44813c5c0ed44bc79b30b431 (554 files)
+  raw RTL inventory SHA-256 candidate 6d856f0aeb25462bb9dc231e6e58fd774b8394ea44813c5c0ed44bc79b30b431 (554 files)
+  compiler QSF and all staged and generated RTL are cmp-equal
+  main da4acd2ac3213e467dcd98f0bbf26a2158b70a3e, candidate 5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e
+  same BUILD_ID 4abd7dbaeb8ef595db8ea4bdc3ae12e8 and 637 project inputs after path normalization
+  project inputs with path differences only ['integrate-mailbox.tcl']
+  same toolchain identity db8fba9cc51b0e4009b2087868c69963e7e4f985a4e223f4aa8c5599360be6f7
+  cmp-equal execution record SHA-256 35fb17e2d04699996313b2fa51e55009176e5cac3a926eabfda1103c4a3ff8c9
+  candidate admitted and sealed as 299f50f7da77779532a864d6bad660ba6c8689a24102cc39b7cfa55231de0c4c
+  cmp-equal RBF 3930188ccf638c46c5c2bf1fde64b688fa8c311d88a43e8bd8a663af135e6741
+PASS D12 for menu
+
+zx81
+  raw golden_top.qsf SHA-256 main 9de57791674c7acaa89db5b21af8990fbe19a6e64285e1c1eceb49b049972dce
+  raw golden_top.qsf SHA-256 candidate 9de57791674c7acaa89db5b21af8990fbe19a6e64285e1c1eceb49b049972dce
+  raw RTL inventory SHA-256 main 9f7364ba3f6eec2ddce25745d0938c0e41a44bdecd342726df515ad086d32e8d (610 files)
+  raw RTL inventory SHA-256 candidate 9f7364ba3f6eec2ddce25745d0938c0e41a44bdecd342726df515ad086d32e8d (610 files)
+  compiler QSF and all staged and generated RTL are cmp-equal
+  main da4acd2ac3213e467dcd98f0bbf26a2158b70a3e, candidate 5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e
+  same BUILD_ID 89eaee788ea1c0191a3ec755d916d7dc and 703 project inputs after path normalization
+  project inputs with path differences only ['integrate-mailbox.tcl']
+  same toolchain identity 466e58ce1edfc6daca4ec3c135be37f1372fee158d2a059107c65025e9dac484
+  cmp-equal execution record SHA-256 c7b66260cf1fc746bef45be8493f14ceec9682b72cb4f3f6960249c9b4a953f8
+  candidate admitted and sealed as 280d4e0a39a4cac6b116fd29fc6b453108b93d94cf06dd393298b3f6d0d91ed4
+  cmp-equal RBF 8955fc9702a250dfeff48af132bbd731364f66100bd73342ed1c8e0ce91f90e4
+PASS D12 for zx81
+
+spectrum48
+  raw golden_top.qsf SHA-256 main 284821758e61afea9fa50ac1a84888809f19edddb604d78d8912ded7d9c20330
+  raw golden_top.qsf SHA-256 candidate 284821758e61afea9fa50ac1a84888809f19edddb604d78d8912ded7d9c20330
+  raw RTL inventory SHA-256 main b2b12972add139ded78be76907e274a0ddac812784ed59d30710a010cc95b9d7 (646 files)
+  raw RTL inventory SHA-256 candidate b2b12972add139ded78be76907e274a0ddac812784ed59d30710a010cc95b9d7 (646 files)
+  compiler QSF and all staged and generated RTL are cmp-equal
+  main da4acd2ac3213e467dcd98f0bbf26a2158b70a3e, candidate 5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e
+  same BUILD_ID 923ca69398c5bd92dcad5894c1f07f77 and 737 project inputs after path normalization
+  project inputs with path differences only ['integrate-mailbox.tcl']
+  same toolchain identity db8fba9cc51b0e4009b2087868c69963e7e4f985a4e223f4aa8c5599360be6f7
+  cmp-equal execution record SHA-256 35fb17e2d04699996313b2fa51e55009176e5cac3a926eabfda1103c4a3ff8c9
+  candidate admitted and sealed as 260b5fbce77ee209f69d78b069869cdd664fd8bbdc4e795d16bb47564cdb3ba8
+  cmp-equal RBF c894ffd2b84d09b1c3a83bb8bef2ea8d77b75ad1a03e955f16eab0dbfb969b04
+PASS D12 for spectrum48
+
+spectrum128
+  raw golden_top.qsf SHA-256 main 32a55f772ccb76bee4b24d616f604185c5e1dd5d6f2c4ef368013e462c911091
+  raw golden_top.qsf SHA-256 candidate 32a55f772ccb76bee4b24d616f604185c5e1dd5d6f2c4ef368013e462c911091
+  raw RTL inventory SHA-256 main b5891679259516e09f28dce6daf105f213363be6b8899cc996feb4e77ae036b5 (646 files)
+  raw RTL inventory SHA-256 candidate b5891679259516e09f28dce6daf105f213363be6b8899cc996feb4e77ae036b5 (646 files)
+  compiler QSF and all staged and generated RTL are cmp-equal
+  main da4acd2ac3213e467dcd98f0bbf26a2158b70a3e, candidate 5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e
+  same BUILD_ID e4285c3964afa748503e8ef5f6d9e43d and 737 project inputs after path normalization
+  project inputs with path differences only ['integrate-mailbox.tcl']
+  same toolchain identity db8fba9cc51b0e4009b2087868c69963e7e4f985a4e223f4aa8c5599360be6f7
+  cmp-equal execution record SHA-256 35fb17e2d04699996313b2fa51e55009176e5cac3a926eabfda1103c4a3ff8c9
+  candidate admitted and sealed as ff52d5b5fcb93103827d1a2b7eee0510a2d8a3ec653f9df079c4b733bed3111a
+  cmp-equal RBF 64a157f17596a0e4f6e9e469e6d8ea43903cd64a1485749ad81c27b9f4147487
+PASS D12 for spectrum128
+
+st
+  raw golden_top.qsf SHA-256 main bad2e5b1ea44b6bfac305748e7100f57aef103ca1cf69ec47e8825ba7ebb6037
+  raw golden_top.qsf SHA-256 candidate bad2e5b1ea44b6bfac305748e7100f57aef103ca1cf69ec47e8825ba7ebb6037
+  raw RTL inventory SHA-256 main c7f25f7bf3179eb195265954aa71a0701d3a5171c1528126dd2bfb289b69cce3 (656 files)
+  raw RTL inventory SHA-256 candidate c7f25f7bf3179eb195265954aa71a0701d3a5171c1528126dd2bfb289b69cce3 (656 files)
+  compiler QSF and all staged and generated RTL are cmp-equal
+  main da4acd2ac3213e467dcd98f0bbf26a2158b70a3e, candidate 5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e
+  same BUILD_ID f9e4ce987e6f1624ed7494d6804a7f01 and 753 project inputs after path normalization
+  project inputs with path differences only ['integrate-mailbox.tcl']
+  same toolchain identity 466e58ce1edfc6daca4ec3c135be37f1372fee158d2a059107c65025e9dac484
+  cmp-equal execution record SHA-256 c7b66260cf1fc746bef45be8493f14ceec9682b72cb4f3f6960249c9b4a953f8
+  candidate admitted and sealed as d61668b852011d5aefd084d43ac766ee0bd31b9158478d9981c98b801dabbd18
+  cmp-equal RBF ca6b7dcabeef84f095ec373e5af14c25b7a5b82920b8a3d6edd4eac025680939
+PASS D12 for st
+
+c64
+  raw golden_top.qsf SHA-256 main 11eb677a8c018bde0547803c24f81d7f3ea00e12f5efd288a66f070801950b5c
+  raw golden_top.qsf SHA-256 candidate 11eb677a8c018bde0547803c24f81d7f3ea00e12f5efd288a66f070801950b5c
+  raw RTL inventory SHA-256 main 551a8ea17ea78af0c224c7a891b4d952b01044f36515a9eb427911da3703c9eb (662 files)
+  raw RTL inventory SHA-256 candidate 551a8ea17ea78af0c224c7a891b4d952b01044f36515a9eb427911da3703c9eb (662 files)
+  compiler QSF and all staged and generated RTL are cmp-equal
+  main da4acd2ac3213e467dcd98f0bbf26a2158b70a3e, candidate 5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e
+  same BUILD_ID 42ce9900d5f4c2c65f28e141cd707595 and 753 project inputs after path normalization
+  project inputs with path differences only ['integrate-mailbox.tcl']
+  same toolchain identity db8fba9cc51b0e4009b2087868c69963e7e4f985a4e223f4aa8c5599360be6f7
+  cmp-equal execution record SHA-256 35fb17e2d04699996313b2fa51e55009176e5cac3a926eabfda1103c4a3ff8c9
+  candidate admitted and sealed as 8d124da62d6f025b15c63115657ada1b119320229e3f1c7510f9d6c83a0aee47
+  cmp-equal RBF 2ad272508cca8c600a7475d5477a2fdfb10655ff71445926ef7e5a33862d21ad
+PASS D12 for c64
+
+PC/XT original pair, separate checkout/output paths
+
+common actual design/toolchain 94e1b295dc2890cbc0766d042992b35305c94cf2b969d58b7f02d2f901a9efca db8fba9cc51b0e4009b2087868c69963e7e4f985a4e223f4aa8c5599360be6f7
+  raw golden_top.qsf SHA-256 main e2533622d894746b7c8a4de691a93ea0fecb625417f122e0760e6a89d654c93a
+  raw golden_top.qsf SHA-256 candidate e2533622d894746b7c8a4de691a93ea0fecb625417f122e0760e6a89d654c93a
+  raw RTL inventory SHA-256 main 92baa8548cc3ff95d9613d0317bcd1c64a37661ffb4bb794103597dd6276b076 (722 files)
+  raw RTL inventory SHA-256 candidate 92baa8548cc3ff95d9613d0317bcd1c64a37661ffb4bb794103597dd6276b076 (722 files)
+  compiler QSF and all staged and generated RTL are cmp-equal
+  raw .qip inventory SHA-256 main ae7c40430ef60117c7b61ee1d04cadbf5ee3f4ab49be1afcfe5ccbe9c0018240 (44 files)
+  raw .qip inventory SHA-256 candidate ae7c40430ef60117c7b61ee1d04cadbf5ee3f4ab49be1afcfe5ccbe9c0018240 (44 files)
+  raw .qip differences []
+  raw .sopcinfo inventory SHA-256 main 5cc702c72de2c3c007739a8b93509dd976ba3661c3dce47b83613db1cd87f058 (44 files)
+  raw .sopcinfo inventory SHA-256 candidate 6c57ea3756ae29f44acdad67ca1f9d8a2e574c7dcc14d8f50e7bfd44015b7b3c (44 files)
+  44 raw .sopcinfo differences confined to generation timestamps
+  other raw .sopcinfo differences []
+  A SHA-256 76a97e9844415d11fcf04763d08e97485956eb4f8146e00688782bf0184e1b77
+  A Logic utilization (in ALMs) : 12,630 / 46,800 ( 27 % )
+  A Total dedicated logic registers : 16388
+  B SHA-256 d3a427596aea5cc37a236d7c5e696720af5cd3265fcbd2bcb7c6b7c47311eb50
+  B Logic utilization (in ALMs) : 12,620 / 46,800 ( 27 % )
+  B Total dedicated logic registers : 16429
+  B admitted and sealed as 576e5e0bed5b158893ec94aab7511c681fee83a70a1dc4360b4453cb3666038b
+  FAIL original pair RBF bytes differ
+
+Original product file manifest digests
+6bba9bb6992ece5b0658c7180496478dd9b949a37042b43ca5da2e03495fb8dd  /data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/original-A.sha256
+40b0275b3197d89a92d5908bdf29c648814275fbf050570fe529dedbd75e0679  /data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/original-B.sha256
+
+PC/XT original control versus same-path B
+
+pcxt
+  raw golden_top.qsf SHA-256 main e2533622d894746b7c8a4de691a93ea0fecb625417f122e0760e6a89d654c93a
+  raw golden_top.qsf SHA-256 candidate e2533622d894746b7c8a4de691a93ea0fecb625417f122e0760e6a89d654c93a
+  raw RTL inventory SHA-256 main 92baa8548cc3ff95d9613d0317bcd1c64a37661ffb4bb794103597dd6276b076 (722 files)
+  raw RTL inventory SHA-256 candidate 92baa8548cc3ff95d9613d0317bcd1c64a37661ffb4bb794103597dd6276b076 (722 files)
+  compiler QSF and all staged and generated RTL are cmp-equal
+  raw .qip inventory SHA-256 main ae7c40430ef60117c7b61ee1d04cadbf5ee3f4ab49be1afcfe5ccbe9c0018240 (44 files)
+  raw .qip inventory SHA-256 candidate ae7c40430ef60117c7b61ee1d04cadbf5ee3f4ab49be1afcfe5ccbe9c0018240 (44 files)
+  raw .qip differences []
+  raw .sopcinfo inventory SHA-256 main 5cc702c72de2c3c007739a8b93509dd976ba3661c3dce47b83613db1cd87f058 (44 files)
+  raw .sopcinfo inventory SHA-256 candidate 7443f408917dd2e597494aa0f574620b2c5f83bfb2ffe93f78bba146e6dc205b (44 files)
+  44 raw .sopcinfo differences confined to generation timestamps
+  other raw .sopcinfo differences []
+  main da4acd2ac3213e467dcd98f0bbf26a2158b70a3e, candidate 5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e
+  same BUILD_ID 94e1b295dc2890cbc0766d042992b353 and 825 raw cmp-equal project inputs
+  same toolchain identity db8fba9cc51b0e4009b2087868c69963e7e4f985a4e223f4aa8c5599360be6f7
+  candidate admitted and sealed as 576e5e0bed5b158893ec94aab7511c681fee83a70a1dc4360b4453cb3666038b
+  FAIL RBF differs: main 76a97e9844415d11fcf04763d08e97485956eb4f8146e00688782bf0184e1b77, candidate d3a427596aea5cc37a236d7c5e696720af5cd3265fcbd2bcb7c6b7c47311eb50
+
+PC/XT original and repeated candidate validation
+
+PC/XT original B and same-path B repeat at 5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e
+d3a427596aea5cc37a236d7c5e696720af5cd3265fcbd2bcb7c6b7c47311eb50  /data/projects/de25-486dx-clock-2263/d12/source-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/sources/misteross/build/d12/pcxt/core.rbf
+d3a427596aea5cc37a236d7c5e696720af5cd3265fcbd2bcb7c6b7c47311eb50  /data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/build/d12/pcxt/core.rbf
+80003eae6c40e122eed4e1f34deedf26748e8436bede9df62321afd05e8e14b0  /data/projects/de25-486dx-clock-2263/d12/source-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/sources/misteross/build/d12/pcxt/build-inputs.json
+80003eae6c40e122eed4e1f34deedf26748e8436bede9df62321afd05e8e14b0  /data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/build/d12/pcxt/build-inputs.json
+c0a20400dd9ff97a205e16bc475d3bfb4853c6b27652fdec8a2f2f0eea39a618  /data/projects/de25-486dx-clock-2263/d12/source-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/sources/misteross/build/d12/pcxt/build-summary.json
+c0a20400dd9ff97a205e16bc475d3bfb4853c6b27652fdec8a2f2f0eea39a618  /data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/build/d12/pcxt/build-summary.json
+35fb17e2d04699996313b2fa51e55009176e5cac3a926eabfda1103c4a3ff8c9  /data/projects/de25-486dx-clock-2263/d12/source-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/sources/misteross/build/d12/pcxt/execution.json
+35fb17e2d04699996313b2fa51e55009176e5cac3a926eabfda1103c4a3ff8c9  /data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/build/d12/pcxt/execution.json
+b437da8077779dc6dc7314a5cdcb2041a4974051b82a9dd1be0802e96ef5bd4d  /data/projects/de25-486dx-clock-2263/d12/source-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/sources/misteross/build/packages/576e5e0bed5b158893ec94aab7511c681fee83a70a1dc4360b4453cb3666038b.fcore
+b437da8077779dc6dc7314a5cdcb2041a4974051b82a9dd1be0802e96ef5bd4d  /data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/build/packages/576e5e0bed5b158893ec94aab7511c681fee83a70a1dc4360b4453cb3666038b.fcore
+80003eae6c40e122eed4e1f34deedf26748e8436bede9df62321afd05e8e14b0  /data/projects/de25-486dx-clock-2263/d12/source-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/sources/misteross/build/packages/576e5e0bed5b158893ec94aab7511c681fee83a70a1dc4360b4453cb3666038b.build-inputs.json
+80003eae6c40e122eed4e1f34deedf26748e8436bede9df62321afd05e8e14b0  /data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/build/packages/576e5e0bed5b158893ec94aab7511c681fee83a70a1dc4360b4453cb3666038b.build-inputs.json
+/data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/build/d12/pcxt/signoff/combined/hps/project/output_files/golden_top.fit.summary:Logic utilization (in ALMs) : 12,620 / 46,800 ( 27 % )
+/data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/build/d12/pcxt/signoff/combined/hps/project/output_files/golden_top.fit.summary:Total dedicated logic registers : 16429
+/data/projects/de25-486dx-clock-2263/d12/source-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/sources/misteross/build/d12/pcxt/signoff/combined/hps/project/output_files/golden_top.fit.summary:Logic utilization (in ALMs) : 12,620 / 46,800 ( 27 % )
+/data/projects/de25-486dx-clock-2263/d12/source-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/sources/misteross/build/d12/pcxt/signoff/combined/hps/project/output_files/golden_top.fit.summary:Total dedicated logic registers : 16429
+PASS original B and same-path B RBF, build record, execution record, summary and published archive bytes
+
+PC/XT ordinary main and same-path candidate comparisons
+
+Repeat phase A at da4acd2ac3213e467dcd98f0bbf26a2158b70a3e from /data/projects/de25-486dx-clock-2263/d12/source-A-da4acd2ac3213e467dcd98f0bbf26a2158b70a3e to /data/projects/de25-486dx-clock-2263/d12/source-A-da4acd2ac3213e467dcd98f0bbf26a2158b70a3e/sources/misteross/build/d12/pcxt
+Original A and B file digests match their saved manifests in /data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-A-da4acd2ac3213e467dcd98f0bbf26a2158b70a3e
+
+fc7c543b0487e34ca5d667a0900bac70904011e2f3cf06016b8e51a1e58731ff  /data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-A-da4acd2ac3213e467dcd98f0bbf26a2158b70a3e/repeat.sha256
+
+pcxt
+  raw golden_top.qsf SHA-256 main e2533622d894746b7c8a4de691a93ea0fecb625417f122e0760e6a89d654c93a
+  raw golden_top.qsf SHA-256 candidate e2533622d894746b7c8a4de691a93ea0fecb625417f122e0760e6a89d654c93a
+  raw RTL inventory SHA-256 main 92baa8548cc3ff95d9613d0317bcd1c64a37661ffb4bb794103597dd6276b076 (722 files)
+  raw RTL inventory SHA-256 candidate 92baa8548cc3ff95d9613d0317bcd1c64a37661ffb4bb794103597dd6276b076 (722 files)
+  compiler QSF and all staged and generated RTL are cmp-equal
+  raw .qip inventory SHA-256 main ae7c40430ef60117c7b61ee1d04cadbf5ee3f4ab49be1afcfe5ccbe9c0018240 (44 files)
+  raw .qip inventory SHA-256 candidate ae7c40430ef60117c7b61ee1d04cadbf5ee3f4ab49be1afcfe5ccbe9c0018240 (44 files)
+  raw .qip differences []
+  raw .sopcinfo inventory SHA-256 main 5cc702c72de2c3c007739a8b93509dd976ba3661c3dce47b83613db1cd87f058 (44 files)
+  raw .sopcinfo inventory SHA-256 candidate 051150126de6cbe1534583da2ba2d1a4ef2b06b386416651f259532d455832f2 (44 files)
+  44 raw .sopcinfo differences confined to generation timestamps
+  other raw .sopcinfo differences []
+  main da4acd2ac3213e467dcd98f0bbf26a2158b70a3e, candidate da4acd2ac3213e467dcd98f0bbf26a2158b70a3e
+  same BUILD_ID 94e1b295dc2890cbc0766d042992b353 and 825 raw cmp-equal project inputs
+  same toolchain identity db8fba9cc51b0e4009b2087868c69963e7e4f985a4e223f4aa8c5599360be6f7
+  cmp-equal execution record SHA-256 35fb17e2d04699996313b2fa51e55009176e5cac3a926eabfda1103c4a3ff8c9
+  candidate admitted and sealed as f6e56c450b996ba68e7ff48b127e97b32f4daa5ca13a11da3f058b506d68a238
+  FAIL RBF differs: main 76a97e9844415d11fcf04763d08e97485956eb4f8146e00688782bf0184e1b77, candidate 17a43704d85b9c128c859c6730eddf5b822211b935cf258b5e0345f0173dc230
+
+pcxt
+  raw golden_top.qsf SHA-256 main e2533622d894746b7c8a4de691a93ea0fecb625417f122e0760e6a89d654c93a
+  raw golden_top.qsf SHA-256 candidate e2533622d894746b7c8a4de691a93ea0fecb625417f122e0760e6a89d654c93a
+  raw RTL inventory SHA-256 main 92baa8548cc3ff95d9613d0317bcd1c64a37661ffb4bb794103597dd6276b076 (722 files)
+  raw RTL inventory SHA-256 candidate 92baa8548cc3ff95d9613d0317bcd1c64a37661ffb4bb794103597dd6276b076 (722 files)
+  compiler QSF and all staged and generated RTL are cmp-equal
+  raw .qip inventory SHA-256 main ae7c40430ef60117c7b61ee1d04cadbf5ee3f4ab49be1afcfe5ccbe9c0018240 (44 files)
+  raw .qip inventory SHA-256 candidate ae7c40430ef60117c7b61ee1d04cadbf5ee3f4ab49be1afcfe5ccbe9c0018240 (44 files)
+  raw .qip differences []
+  raw .sopcinfo inventory SHA-256 main 051150126de6cbe1534583da2ba2d1a4ef2b06b386416651f259532d455832f2 (44 files)
+  raw .sopcinfo inventory SHA-256 candidate 7443f408917dd2e597494aa0f574620b2c5f83bfb2ffe93f78bba146e6dc205b (44 files)
+  44 raw .sopcinfo differences confined to generation timestamps
+  other raw .sopcinfo differences []
+  main da4acd2ac3213e467dcd98f0bbf26a2158b70a3e, candidate 5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e
+  same BUILD_ID 94e1b295dc2890cbc0766d042992b353 and 825 raw cmp-equal project inputs
+  same toolchain identity db8fba9cc51b0e4009b2087868c69963e7e4f985a4e223f4aa8c5599360be6f7
+  cmp-equal execution record SHA-256 35fb17e2d04699996313b2fa51e55009176e5cac3a926eabfda1103c4a3ff8c9
+  main admitted and sealed as f6e56c450b996ba68e7ff48b127e97b32f4daa5ca13a11da3f058b506d68a238
+  candidate admitted and sealed as 576e5e0bed5b158893ec94aab7511c681fee83a70a1dc4360b4453cb3666038b
+  FAIL RBF differs: main 17a43704d85b9c128c859c6730eddf5b822211b935cf258b5e0345f0173dc230, candidate d3a427596aea5cc37a236d7c5e696720af5cd3265fcbd2bcb7c6b7c47311eb50
+
+PC/XT actual Fitter counts and timing admission
+
+/data/projects/de25-486dx-clock-2263/d12/source-A-da4acd2ac3213e467dcd98f0bbf26a2158b70a3e/sources/misteross/build/d12/pcxt
+{"all_reported_timing_pass":true,"package_timing_admission":false,"unreviewed_failed_rules":3}
+Logic utilization (in ALMs) : 12,630 / 46,800 ( 27 % )
+Total dedicated logic registers : 16388
+/data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-A-da4acd2ac3213e467dcd98f0bbf26a2158b70a3e/build/d12/pcxt
+{"all_reported_timing_pass":true,"package_timing_admission":true,"unreviewed_failed_rules":0}
+Logic utilization (in ALMs) : 12,630 / 46,800 ( 27 % )
+Total dedicated logic registers : 16356
+/data/projects/de25-486dx-clock-2263/d12/source-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/sources/misteross/build/d12/pcxt
+{"all_reported_timing_pass":true,"package_timing_admission":true,"unreviewed_failed_rules":0}
+Logic utilization (in ALMs) : 12,620 / 46,800 ( 27 % )
+Total dedicated logic registers : 16429
+/data/projects/de25-486dx-clock-2263/d12/pcxt-repeat-B-5b147c2d0934c20f7e4d6d7aa867bc1c4c67e17e/build/d12/pcxt
+{"all_reported_timing_pass":true,"package_timing_admission":true,"unreviewed_failed_rules":0}
+Logic utilization (in ALMs) : 12,620 / 46,800 ( 27 % )
+Total dedicated logic registers : 16429
+
+PC/XT main compile-only and ordinary compiler inputs and reports
+
+Non-output project files examined 1156 and 1156
+Raw non-output differences by file extension {'.html': 44, '.pyc': 2, '.rpt': 8, '.sopcinfo': 44, '.xml': 44}
+Raw .mem files 12 and 12, identical: True
+Project .ini counts [0, 0]
+Project .qws counts [0, 0]
+Execution record SHA-256 35fb17e2d04699996313b2fa51e55009176e5cac3a926eabfda1103c4a3ff8c9 35fb17e2d04699996313b2fa51e55009176e5cac3a926eabfda1103c4a3ff8c9
+golden_top.pin raw SHA-256 f49e8645e93d93d1c600ba0f91f9dfbb3a46514653a466b5cc4ed4a2548ca09c f49e8645e93d93d1c600ba0f91f9dfbb3a46514653a466b5cc4ed4a2548ca09c
+golden_top.sof raw SHA-256 845b77d15decee16f2eb035eba527ee216fcdd66557301b21a168b65be322107 246ac18b463e1c29c3e726b167cf5242aa7de3bc46df58e4dd0eb4b0bedd4490
+Raw ordered synthesis source table SHA-256 55e081943b790f7c65f14fb64727b34f1f415346373e17af3f14a9064df21734 55d3cf829e9741de14215a88b5c3bea8abb974b6e892c707d892b364543387d2
+Ordered source rows 649 and 649
+Rows with populated MD5s 597 and 597, blank 52 and 52
+Rows with blank MD5 by left source type {'Auto-Found File': 8, 'Auto-Found Memory Initialization File': 1, 'Auto-Found Unspecified File': 1, 'Auto-Generated Megafunction': 34, 'Encrypted Auto-Generated Megafunction': 3, 'Megafunction': 1, 'User-Specified Unspecified File': 4}
+Quartus-reported file MD5s match in order: True
+Report rows match after substituting generated sandbox PIDs: True
+alt_sld_fab_0_alt_sld_fab_0_10_fkimwiy.v raw SHA-256 c35ff1f264a89b9dd7b213471d4cff34eb13fa971e33ade76f89634e06ee83b2 c35ff1f264a89b9dd7b213471d4cff34eb13fa971e33ade76f89634e06ee83b2
+alt_sld_fab_0_alt_sld_fab_1920_siscwaa.v raw SHA-256 21b8fc414bb0b79ff48ad4aadf3a0a9c8aaf7b50bd2c75bed76a2232b264690c 21b8fc414bb0b79ff48ad4aadf3a0a9c8aaf7b50bd2c75bed76a2232b264690c
+alt_sld_fab_0_altera_sld_splitter_1920_tbvre7y.sv raw SHA-256 7016e4a531c32960edc33655ae387fbd6bc2f0b1e6b0545cd10e844cc47e304e 7016e4a531c32960edc33655ae387fbd6bc2f0b1e6b0545cd10e844cc47e304e
+golden_top0.rtl.mif raw SHA-256 cff04bd1e87644ee362bcd54b4282fb28c7605261fbbcb237cadcf1f7699f85d cff04bd1e87644ee362bcd54b4282fb28c7605261fbbcb237cadcf1f7699f85d
+Retained clearbox .tdf files 39 and 39, raw bytes match: True
+Clearbox .tdf inventory SHA-256 ae37c6baa7b46e4ad45920d3b569ef6f4fd1ecb3ff54fc5452735899187f931b
+Clearbox .tdf inventory SHA-256 ae37c6baa7b46e4ad45920d3b569ef6f4fd1ecb3ff54fc5452735899187f931b
+General Register Statistics for Partition "root_partition" raw SHA-256 e5198959cd0c0c1485de10a0d3304041615ad10c11e47c278263c1ce5bb337f5 e5198959cd0c0c1485de10a0d3304041615ad10c11e47c278263c1ce5bb337f5
+Synthesis Resource Usage Summary for Partition "root_partition" raw SHA-256 f23e34d10c2dcd51eeb9ddd9cbe4e05c58851d1abb50f306e4178aca44113408 f23e34d10c2dcd51eeb9ddd9cbe4e05c58851d1abb50f306e4178aca44113408
+Fitter Settings raw SHA-256 cd020f4f7d94597a0ea58ea62afef57cc25da37cfcb47d55fbf2b43331e3b342 cd020f4f7d94597a0ea58ea62afef57cc25da37cfcb47d55fbf2b43331e3b342
+Parallel Compilation raw SHA-256 dd49eee8e20ccdad708b020d2fc2699ec8ce6cde0cf61b6960ed28e501191e77 dd49eee8e20ccdad708b020d2fc2699ec8ce6cde0cf61b6960ed28e501191e77
+Fitter Device Options raw SHA-256 36f0d6b6734350e1e38aaa9c2e366ad8ae31864f573498d4cfe43a8675102188 36f0d6b6734350e1e38aaa9c2e366ad8ae31864f573498d4cfe43a8675102188
+left Fitter Initial Placement Seed 1
+left Number detected on machine 24
+left Maximum allowed 2
+right Fitter Initial Placement Seed 1
+right Number detected on machine 24
+right Maximum allowed 2
+plan Input Pins raw SHA-256 527b491b28672f8716cdb96a9c6c5ed94d28c3ae20fb42281521ce958bf742a3 527b491b28672f8716cdb96a9c6c5ed94d28c3ae20fb42281521ce958bf742a3
+plan Output Pins raw SHA-256 84769607fde357ee50907aaf73e1d8d720879a4b7d5f4f7238f2b4443efd1d5c 84769607fde357ee50907aaf73e1d8d720879a4b7d5f4f7238f2b4443efd1d5c
+plan PLL Usage Summary raw SHA-256 8e55392ee4ecb0630b1b4f392247a74f424e3fe73c5954522dfb7ddaea23ce07 8e55392ee4ecb0630b1b4f392247a74f424e3fe73c5954522dfb7ddaea23ce07
+plan Fixed Point DSP Register Packing Summary raw SHA-256 75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070 75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070
+plan RAM Register Packing Summary raw SHA-256 931d3b10f819bd2a68fd00da75d0b282375d8498ec634755431f8b5edbecbc3b 931d3b10f819bd2a68fd00da75d0b282375d8498ec634755431f8b5edbecbc3b
+place Fitter Resource Usage Summary raw SHA-256 d3313fa2c2b9b307db46a13955fce88e2b2d3a049c612120d33d0bc485a8997e 971d742536a061f328dbecd9f7913bc63a08b8a08034cfcfcd633a9976b06cf2
+place Fitter Resource Utilization by Entity raw SHA-256 b548160d2e0d6e3d10c2ee942b46d8c6b8d562ab889dc774d90431264c42f035 1d3eb5967d5130fc843f72c79b3be0b13587580f090ec6638fe1e7d491a677f9
+place Fitter Partition Statistics raw SHA-256 456365717a8da53b3a789d49dced19c2375d3978b82c98f6079ca8af127d46a9 356057425ed7d086374ae2f5ca4da02b1fdfddc37182182c3fbcf101a1c451d9
+retime Retiming Limit Summary raw SHA-256 7e5d954bc1f33b5494242c2021b8afc52872b055e046933d92f5065d47fa2b95 43933985add16d0fca5b13c77af8e5a170f2d3d2d54f149d2410eb16948c0fe1
+route Routing Usage Summary raw SHA-256 10e5761dd808fb2fa194f902a14879edb7509c73b20735dce3225370bfdf7662 50a958159ac1bf90a213361d239dbc8f9e3c709f252f308d19df25cb8228ae9f
+synthesized/1/sdc.cdb raw SHA-256 85a33116694a6742b4617702501d021aef26350b40514be054ca8d7cb6901b7e 85a33116694a6742b4617702501d021aef26350b40514be054ca8d7cb6901b7e
+synthesized/1/names.hdb raw SHA-256 12269611d34fa2b7abcfb1a649ad00ff70f241f45a082d9106164e0241da57f4 a2a4142e52ea0b740b20d47b9502e59b5c32bc613ecd431a474225ef099ff885
+synthesized/1/netlist.atom.cdb raw SHA-256 19cecb3baeeaa115f80d989cd4a27ef1ae94d7f8e23b1c4334be98473af1a6c4 c8627ff9002c7ba2fcac8f95e9b7e34e982c3b96c5223df7fc94cf957a9c3680
+partitioned/1/sdc.cdb raw SHA-256 85a33116694a6742b4617702501d021aef26350b40514be054ca8d7cb6901b7e 85a33116694a6742b4617702501d021aef26350b40514be054ca8d7cb6901b7e
+partitioned/1/names.hdb raw SHA-256 7f2e7cd62fc0f45a3a3f3f448ea751a8a3ee2d9c86e0e2e514130de149cd4dff 5b5501947795f12e06e676c1229a4b7e994082f9ff2f13d16d36b9d5097f71a2
+partitioned/1/sgate_netlist.sgate.cdb raw SHA-256 faec91e5bd3a9fcd602da851abc378467c15eac9710759e342b5758645025ce5 379fe73cfef474b1fe2f7d5a5890108659086572b6cca691b9ea0a91a8a2e085
+
+PC/XT ordinary main and same-path candidate compiler inputs and reports
+
+Non-output project files examined 1156 and 1156
+Raw non-output differences by file extension {'.html': 44, '.pyc': 2, '.rpt': 8, '.sopcinfo': 44, '.xml': 44}
+Raw .mem files 12 and 12, identical: True
+Project .ini counts [0, 0]
+Project .qws counts [0, 0]
+Execution record SHA-256 35fb17e2d04699996313b2fa51e55009176e5cac3a926eabfda1103c4a3ff8c9 35fb17e2d04699996313b2fa51e55009176e5cac3a926eabfda1103c4a3ff8c9
+golden_top.pin raw SHA-256 f49e8645e93d93d1c600ba0f91f9dfbb3a46514653a466b5cc4ed4a2548ca09c f49e8645e93d93d1c600ba0f91f9dfbb3a46514653a466b5cc4ed4a2548ca09c
+golden_top.sof raw SHA-256 246ac18b463e1c29c3e726b167cf5242aa7de3bc46df58e4dd0eb4b0bedd4490 890a1716c16091f66d522dd217a67fb6165220330ca04ff6b1ad9518679be1bb
+Raw ordered synthesis source table SHA-256 55d3cf829e9741de14215a88b5c3bea8abb974b6e892c707d892b364543387d2 af65a139876f9510cd114deb75c861115895807fe8c512df77401f12303bf534
+Ordered source rows 649 and 649
+Rows with populated MD5s 597 and 597, blank 52 and 52
+Rows with blank MD5 by left source type {'Auto-Found File': 8, 'Auto-Found Memory Initialization File': 1, 'Auto-Found Unspecified File': 1, 'Auto-Generated Megafunction': 34, 'Encrypted Auto-Generated Megafunction': 3, 'Megafunction': 1, 'User-Specified Unspecified File': 4}
+Quartus-reported file MD5s match in order: True
+Report rows match after substituting generated sandbox PIDs: True
+alt_sld_fab_0_alt_sld_fab_0_10_fkimwiy.v raw SHA-256 c35ff1f264a89b9dd7b213471d4cff34eb13fa971e33ade76f89634e06ee83b2 c35ff1f264a89b9dd7b213471d4cff34eb13fa971e33ade76f89634e06ee83b2
+alt_sld_fab_0_alt_sld_fab_1920_siscwaa.v raw SHA-256 21b8fc414bb0b79ff48ad4aadf3a0a9c8aaf7b50bd2c75bed76a2232b264690c 21b8fc414bb0b79ff48ad4aadf3a0a9c8aaf7b50bd2c75bed76a2232b264690c
+alt_sld_fab_0_altera_sld_splitter_1920_tbvre7y.sv raw SHA-256 7016e4a531c32960edc33655ae387fbd6bc2f0b1e6b0545cd10e844cc47e304e 7016e4a531c32960edc33655ae387fbd6bc2f0b1e6b0545cd10e844cc47e304e
+golden_top0.rtl.mif raw SHA-256 cff04bd1e87644ee362bcd54b4282fb28c7605261fbbcb237cadcf1f7699f85d cff04bd1e87644ee362bcd54b4282fb28c7605261fbbcb237cadcf1f7699f85d
+Retained clearbox .tdf files 39 and 39, raw bytes match: True
+Clearbox .tdf inventory SHA-256 ae37c6baa7b46e4ad45920d3b569ef6f4fd1ecb3ff54fc5452735899187f931b
+Clearbox .tdf inventory SHA-256 ae37c6baa7b46e4ad45920d3b569ef6f4fd1ecb3ff54fc5452735899187f931b
+General Register Statistics for Partition "root_partition" raw SHA-256 e5198959cd0c0c1485de10a0d3304041615ad10c11e47c278263c1ce5bb337f5 e5198959cd0c0c1485de10a0d3304041615ad10c11e47c278263c1ce5bb337f5
+Synthesis Resource Usage Summary for Partition "root_partition" raw SHA-256 f23e34d10c2dcd51eeb9ddd9cbe4e05c58851d1abb50f306e4178aca44113408 f23e34d10c2dcd51eeb9ddd9cbe4e05c58851d1abb50f306e4178aca44113408
+Fitter Settings raw SHA-256 cd020f4f7d94597a0ea58ea62afef57cc25da37cfcb47d55fbf2b43331e3b342 cd020f4f7d94597a0ea58ea62afef57cc25da37cfcb47d55fbf2b43331e3b342
+Parallel Compilation raw SHA-256 dd49eee8e20ccdad708b020d2fc2699ec8ce6cde0cf61b6960ed28e501191e77 dd49eee8e20ccdad708b020d2fc2699ec8ce6cde0cf61b6960ed28e501191e77
+Fitter Device Options raw SHA-256 36f0d6b6734350e1e38aaa9c2e366ad8ae31864f573498d4cfe43a8675102188 36f0d6b6734350e1e38aaa9c2e366ad8ae31864f573498d4cfe43a8675102188
+left Fitter Initial Placement Seed 1
+left Number detected on machine 24
+left Maximum allowed 2
+right Fitter Initial Placement Seed 1
+right Number detected on machine 24
+right Maximum allowed 2
+plan Input Pins raw SHA-256 527b491b28672f8716cdb96a9c6c5ed94d28c3ae20fb42281521ce958bf742a3 527b491b28672f8716cdb96a9c6c5ed94d28c3ae20fb42281521ce958bf742a3
+plan Output Pins raw SHA-256 84769607fde357ee50907aaf73e1d8d720879a4b7d5f4f7238f2b4443efd1d5c 84769607fde357ee50907aaf73e1d8d720879a4b7d5f4f7238f2b4443efd1d5c
+plan PLL Usage Summary raw SHA-256 8e55392ee4ecb0630b1b4f392247a74f424e3fe73c5954522dfb7ddaea23ce07 8e55392ee4ecb0630b1b4f392247a74f424e3fe73c5954522dfb7ddaea23ce07
+plan Fixed Point DSP Register Packing Summary raw SHA-256 75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070 75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070
+plan RAM Register Packing Summary raw SHA-256 931d3b10f819bd2a68fd00da75d0b282375d8498ec634755431f8b5edbecbc3b 931d3b10f819bd2a68fd00da75d0b282375d8498ec634755431f8b5edbecbc3b
+place Fitter Resource Usage Summary raw SHA-256 971d742536a061f328dbecd9f7913bc63a08b8a08034cfcfcd633a9976b06cf2 b70fa5b52f7c440e32ac05d8fb19643830c15a8e9f807632149b4359abf20599
+place Fitter Resource Utilization by Entity raw SHA-256 1d3eb5967d5130fc843f72c79b3be0b13587580f090ec6638fe1e7d491a677f9 cd0fe983c70fcfbe7dc9f445595184c8038b3b0f20d6eee40c7ccde612ca5da0
+place Fitter Partition Statistics raw SHA-256 356057425ed7d086374ae2f5ca4da02b1fdfddc37182182c3fbcf101a1c451d9 25084b8588f6b138ddac192cb5f528e139955284245b45ad93b363c8df538da3
+retime Retiming Limit Summary raw SHA-256 43933985add16d0fca5b13c77af8e5a170f2d3d2d54f149d2410eb16948c0fe1 73d55da25f45295967fa324c97e7fa03bc1a8d246678a2cff7d45bf087c512a5
+route Routing Usage Summary raw SHA-256 50a958159ac1bf90a213361d239dbc8f9e3c709f252f308d19df25cb8228ae9f 99f3b67c71cd18bc43439d415f88f3678c76deda8e3b37863dfc500cf3a6142d
+synthesized/1/sdc.cdb raw SHA-256 85a33116694a6742b4617702501d021aef26350b40514be054ca8d7cb6901b7e 85a33116694a6742b4617702501d021aef26350b40514be054ca8d7cb6901b7e
+synthesized/1/names.hdb raw SHA-256 a2a4142e52ea0b740b20d47b9502e59b5c32bc613ecd431a474225ef099ff885 55d7387fea384fb66da3cb623f0241d4dcb8f056ff05db0fc2bb5b2e9bdcbcb4
+synthesized/1/netlist.atom.cdb raw SHA-256 c8627ff9002c7ba2fcac8f95e9b7e34e982c3b96c5223df7fc94cf957a9c3680 e8560010d408ced25cd529a0eeaf1af2459c674310b3580d460eefb91f68836a
+partitioned/1/sdc.cdb raw SHA-256 85a33116694a6742b4617702501d021aef26350b40514be054ca8d7cb6901b7e 85a33116694a6742b4617702501d021aef26350b40514be054ca8d7cb6901b7e
+partitioned/1/names.hdb raw SHA-256 5b5501947795f12e06e676c1229a4b7e994082f9ff2f13d16d36b9d5097f71a2 4f3d113c6a67608ccaad46eedbc97bf0204270f45a6f11b1865e9cbb3accf48f
+partitioned/1/sgate_netlist.sgate.cdb raw SHA-256 379fe73cfef474b1fe2f7d5a5890108659086572b6cca691b9ea0a91a8a2e085 67a7c16e2246e1c1b51b0222c8c100b5925effbc615a42b5b3044f3a700febd3
+
+Live Fitter process limits from ordinary main (historical PID limits are unavailable)
+
+2026-11-25T23:05:12Z
+      05:23 2205654 2176041 quartus_fit --ipc_flow=17 --ipc_mode --read_settings_files=on --write_settings_files=off golden_top -c golden_top
+Threads:	6
+Cpus_allowed_list:	0-23
+Mems_allowed_list:	0
+0::/user.slice/user-1000.slice/session-50385.scope
+Max cpu time              unlimited            unlimited            seconds   
+Max processes             254905               254905               processes 
+Max open files            1024                 524288               files     
+Allowed CPU lists for Fitter threads
+      6 Cpus_allowed_list:	0-23
+Processor override env keys
+group /user.slice/user-1000.slice/session-50385.scope
+cpu.max max 100000
+pids.max max
+group /user.slice/user-1000.slice
+cpu.max max 100000
+pids.max 168237
+group /user.slice
+cpu.max max 100000
+cpuset.cpus.effective 0-23
+pids.max max
+0-23
+
+Additional original control and same-path B compiler report receipt retained at
+/data/projects/de25-486dx-clock-2263/d12/pcxt-original-A-and-repeat-B-compiler-reports.txt
+
+Captured inputs, parameters and identities at b6310cd4cb7f9eb9f7c5cb4e1462ebb9708024cc match main and fitted phase B
+
+menu: 76 identical captured inputs, design 4abd7dbaeb8ef595db8ea4bdc3ae12e8767bfe870b2d0738a9238a1574369068, toolchain selection 41ca1dab58e680172ba45f5cd11719f784fad3b5281246c3c77190c532a14d65
+zx81: 146 identical captured inputs, design 89eaee788ea1c0191a3ec755d916d7dca1ed60263097143e44b83bfa310418de, toolchain selection 41ca1dab58e680172ba45f5cd11719f784fad3b5281246c3c77190c532a14d65
+spectrum48: 138 identical captured inputs, design 923ca69398c5bd92dcad5894c1f07f7742f7570e74eed836e4409c1cbac7dea9, toolchain selection 41ca1dab58e680172ba45f5cd11719f784fad3b5281246c3c77190c532a14d65
+spectrum128: 138 identical captured inputs, design e4285c3964afa748503e8ef5f6d9e43dba2a35f288ebbbc671c04133f1800573, toolchain selection 41ca1dab58e680172ba45f5cd11719f784fad3b5281246c3c77190c532a14d65
+st: 144 identical captured inputs, design f9e4ce987e6f1624ed7494d6804a7f012f68fcf34675465578a4a4bbb1cf4363, toolchain selection 41ca1dab58e680172ba45f5cd11719f784fad3b5281246c3c77190c532a14d65
+c64: 146 identical captured inputs, design 42ce9900d5f4c2c65f28e141cd70759534945a1281f4f4793247e505c39588f3, toolchain selection 41ca1dab58e680172ba45f5cd11719f784fad3b5281246c3c77190c532a14d65
+pcxt: 175 identical captured inputs, design 94e1b295dc2890cbc0766d042992b35305c94cf2b969d58b7f02d2f901a9efca, toolchain selection 41ca1dab58e680172ba45f5cd11719f784fad3b5281246c3c77190c532a14d65
+
+486SX selection at main and b6310cd4cb7f9eb9f7c5cb4e1462ebb9708024cc
+
+da4acd2ac3213e467dcd98f0bbf26a2158b70a3e 92156863 51c88a633d904e9994507df481c83cb8
+{'boards/de25nano/pc386/machine_pll_486sx.ip': '04448872b6e9992a9ee70c6a4e11b1678a433d1743908aca38eb960c9580173e'}
+b6310cd4cb7f9eb9f7c5cb4e1462ebb9708024cc 92156863 df74680c92fc8987c9ffed68edbc81c3
+{'boards/de25nano/pc386/machine_pll_486sx.ip': '04448872b6e9992a9ee70c6a4e11b1678a433d1743908aca38eb960c9580173e'}
+All selected build parameters match: True
+Changed captured inputs: ['boards/de25nano/pc386/build.py', 'boards/de25nano/pc386/model_clocks.py', 'boards/de25nano/pc386/retimed_structure.tcl', 'boards/de25nano/pc386/retimed_tension.py', 'boards/de25nano/pc386/retimed_tension.tcl', 'boards/de25nano/pc386/signoff_bases.py']
