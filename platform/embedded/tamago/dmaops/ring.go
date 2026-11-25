@@ -36,21 +36,45 @@ type Slot struct {
 	seq uint64
 }
 
+// RingStats summarizes the current occupancy, cumulative lifecycle counters,
+// peak utilization, and fault state of a Ring.
+type RingStats struct {
+	Count          uint32
+	DescSize       uint64
+	Available      uint32
+	Acquired       uint32
+	InFlight       uint32
+	MaxAcquired    uint32
+	MaxInFlight    uint32
+	TotalAcquired  uint64
+	TotalReleased  uint64
+	TotalPublished uint64
+	TotalRetired   uint64
+	FullRejects    uint64
+	Closed         bool
+	Poisoned       bool
+}
+
 // Ring manages FIFO acquisition, publication, completion sync, and fail-closed
 // poisoning over a fixed DMA descriptor table and optional per-slot buffers.
 type Ring struct {
-	mu        sync.Mutex
-	pool      *Pool
-	count     uint32
-	mask      uint64
-	descSize  uint64
-	descs     *Buffer
-	bufs      []*Buffer
-	allocSeq  uint64
-	pubSeq    uint64
-	compSeq   uint64
-	closed    bool
-	poisonErr error
+	mu            sync.Mutex
+	pool          *Pool
+	count         uint32
+	mask          uint64
+	descSize      uint64
+	descs         *Buffer
+	bufs          []*Buffer
+	allocSeq      uint64
+	pubSeq        uint64
+	compSeq       uint64
+	maxAcquired   uint32
+	maxInFlight   uint32
+	totalAcquired uint64
+	totalReleased uint64
+	fullRejects   uint64
+	closed        bool
+	poisonErr     error
 }
 
 // NewRing allocates a contiguous descriptor table and optional per-slot data
@@ -135,6 +159,46 @@ func (r *Ring) Acquired() uint32 {
 	return uint32(r.allocSeq - r.compSeq)
 }
 
+// Available returns the number of free slots that can currently be acquired, or
+// 0 if the ring is closed or poisoned.
+func (r *Ring) Available() uint32 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed || r.poisonErr != nil || r.pool.Err() != nil {
+		return 0
+	}
+	return r.count - uint32(r.allocSeq-r.compSeq)
+}
+
+// Stats returns a consistent snapshot of the ring's occupancy, cumulative
+// counters, high-water marks, and fault state.
+func (r *Ring) Stats() RingStats {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	poisoned := r.poisonErr != nil || r.pool.Err() != nil
+	acquired := uint32(r.allocSeq - r.compSeq)
+	available := r.count - acquired
+	if r.closed || poisoned {
+		available = 0
+	}
+	return RingStats{
+		Count:          r.count,
+		DescSize:       r.descSize,
+		Available:      available,
+		Acquired:       acquired,
+		InFlight:       uint32(r.pubSeq - r.compSeq),
+		MaxAcquired:    r.maxAcquired,
+		MaxInFlight:    r.maxInFlight,
+		TotalAcquired:  r.totalAcquired,
+		TotalReleased:  r.totalReleased,
+		TotalPublished: r.pubSeq,
+		TotalRetired:   r.compSeq,
+		FullRejects:    r.fullRejects,
+		Closed:         r.closed,
+		Poisoned:       poisoned,
+	}
+}
+
 // Err returns the ring's poison error, if any.
 func (r *Ring) Err() error {
 	r.mu.Lock()
@@ -186,6 +250,7 @@ func (r *Ring) Acquire() (Slot, error) {
 		return Slot{}, err
 	}
 	if r.allocSeq-r.compSeq >= uint64(r.count) {
+		r.fullRejects++
 		return Slot{}, ErrRingFull
 	}
 	slot, err := r.makeSlotLocked(r.allocSeq)
@@ -193,6 +258,10 @@ func (r *Ring) Acquire() (Slot, error) {
 		return Slot{}, err
 	}
 	r.allocSeq++
+	r.totalAcquired++
+	if cur := uint32(r.allocSeq - r.compSeq); cur > r.maxAcquired {
+		r.maxAcquired = cur
+	}
 	return slot, nil
 }
 
@@ -207,6 +276,7 @@ func (r *Ring) ReleaseAcquired(slot Slot) error {
 		return ErrInvalidSlot
 	}
 	r.allocSeq--
+	r.totalReleased++
 	return nil
 }
 
@@ -234,6 +304,9 @@ func (r *Ring) Publish(slot Slot, dir Direction) error {
 		return err
 	}
 	r.pubSeq++
+	if cur := uint32(r.pubSeq - r.compSeq); cur > r.maxInFlight {
+		r.maxInFlight = cur
+	}
 	return nil
 }
 

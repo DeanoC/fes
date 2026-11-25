@@ -23,7 +23,8 @@ DE25-Nano (Agilex 5).
   reads/writes rather than recycling memory with uncertain hardware ownership.
 - **Descriptor rings (`Ring`):** FIFO `Acquire` → `Publish` →
   `SyncDescriptorForCPU` → `Retire` over a contiguous descriptor table and
-  optional per-slot data buffers (or descriptor-only tables such as SDHCI ADMA2).
+  optional per-slot data buffers (or descriptor-only tables such as SDHCI ADMA2),
+  with `Available()` and cumulative/high-water telemetry via `Stats()` (`RingStats`).
   `NewRing` requires `DescSize` to be a multiple of `CacheLineSize()` on `Cached`
   pools so adjacent descriptors never share a cache line; concurrent hardware
   rings with smaller descriptors (such as 16-byte XGMAC/VirtIO descriptors) must
