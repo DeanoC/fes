@@ -4073,7 +4073,21 @@ void TestDe25WindowOpensAfterTheSessionDisplayBinds()
  OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
  std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
  mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
- MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ MenuDisplayDriver real_display(gp,clock);
+ struct ObservingDisplay final : MenuDisplay {
+  MenuDisplay& underlying;std::vector<std::string>& events;
+  ObservingDisplay(MenuDisplay& d,std::vector<std::string>& e):underlying(d),events(e) {}
+  mister::Error ReadInfo(std::uint64_t d,mister::MenuDisplayInfo* o) override {return underlying.ReadInfo(d,o);}
+  mister::Error Configure(std::uint64_t d) override {return underlying.Configure(d);}
+  mister::Error Enable(std::uint64_t d) override {return underlying.Enable(d);}
+  mister::Error Submit(std::uint8_t s,std::uint32_t q,std::uint64_t d) override {return underlying.Submit(s,q,d);}
+  mister::Error Quiesce(std::uint64_t d,const mister::CoreDescriptor* id,mister::MenuDisplayInfo* o) override {
+   events.push_back("menu.quiesce");return underlying.Quiesce(d,id,o);
+  }
+  mister::Error RunBlit(std::uint32_t f,std::uint32_t c,std::uint8_t s,std::uint64_t d) override {return underlying.RunBlit(f,c,s,d);}
+  mister::Error ReadBlit(std::uint64_t d,MenuBlitState* o) override {return underlying.ReadBlit(d,o);}
+ } display(real_display,events);
+ MenuOperations operations;MenuWindow memory(operations);
  struct BindingMemory final : MenuMemory {
   MenuMemory& underlying;std::vector<std::string>& events;
   BindingMemory(MenuMemory& m,std::vector<std::string>& e):underlying(m),events(e) {}
@@ -4114,6 +4128,34 @@ void TestDe25WindowOpensAfterTheSessionDisplayBinds()
  const std::size_t revokes=Count(events,"menu.revoke");
  assert(hardware.SetSessionDisplay(false,false).code==mister::ErrorCode::busy);
  assert(Count(events,"menu.revoke")==revokes&&window.Ready());
+ // Opening the plane and hitting a presentation failure marks the plane
+ // unavailable without revoking or quiescing the scanout while the window
+ // is still open, so Stop can quiesce the machine and release the window
+ // before the menu's revoke.
+ for(unsigned row=0;row<8;++row){script.Reply();}
+ script.Reply();script.Info(3,0);
+ assert(hardware.SetSessionDisplay(true,true).ok()&&hardware.menu_display().available);
+ script.Present(0,0,kMenuUnderflowPresentCap+1);
+ mister::MenuDisplayInfo info;
+ assert(!PresentBackSlot(hardware,&info).ok());
+ assert(!hardware.menu_display().available);
+ assert(hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
+ assert(Count(events,"menu.revoke")==revokes&&Count(events,"menu.quiesce")==0&&window.Ready());
+ // Replacing or stopping the machine quiesces it, releases the window,
+ // and then calls menu.revoke cleanly without a sticky revoke error.
+ TempDirectory plain;OpenedCorePackage other;
+ PopulateHpsDdrApplication(&plain,false,&other);
+ std::unique_ptr<mister::AdmittedCorePackage> plain_admitted;
+ assert(hardware.AdmitCorePackage(plain.path,other.package_id,&plain_admitted).ok());
+ script.Reply();script.Reply(25);script.Reply();
+ script.toggle=false;script.Identity(2);script.Reply();
+ const std::size_t before_stop=events.size();
+ assert(hardware.LoadCore(std::move(plain_admitted),18).error.ok()&&!window.Ready());
+ assert(Count(events,"menu.revoke")==revokes+1);
+ const auto stop_begin=events.begin()+before_stop;
+ const auto release_pos=std::find(stop_begin,events.end(),"window.release");
+ const auto revoke_pos=std::find(stop_begin,events.end(),"menu.revoke");
+ assert(release_pos!=events.end()&&revoke_pos!=events.end()&&release_pos<revoke_pos);
 }
 
 // A window that faulted while the machine ran is fatal to its contract: Stop

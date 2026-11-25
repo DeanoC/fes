@@ -2661,8 +2661,18 @@ Error NativeHardware::FailMenuPresent(const Error& error)
  if(menu_status_.session) {
   // Record the publication failure before retirement can add a second error.
   log_.Write({"session_display","","","present",error});
-  const Error revoked=RevokeMenuWindow();
   menu_underflow_streak_=0;menu_status_.available=false;
+  // Both RevokeMenuWindow and menu_display_->Quiesce call the owner's REAP
+  // on DE25, which retires a live HPS window first and answers EAGAIN while
+  // its guest ports run, latching revoke_failed and stranding Stop. Keep the
+  // scanout allocation pinned and the plane unavailable until Stop quiesces
+  // the machine and releases the window before the menu's revoke.
+  if(hps_window_&&hps_window_->Ready()) {
+   menu_status_.error=error;
+   SetSessionDisplayInputFocus(true);
+   return menu_status_.error;
+  }
+  const Error revoked=RevokeMenuWindow();
   menu_status_.error=revoked.ok()?error:revoked;
   // The only physical recovery is disabling this plane. Never execute hold,
   // program another core, or spend the idle-menu reactivation budget here.
