@@ -816,3 +816,91 @@ func TestHubBluetoothSnapshotAndForgetDevice(t *testing.T) {
 		t.Fatalf("unexpected snapshot after forget+save: %+v", snap)
 	}
 }
+
+func TestHubMultiPlayerPortAssignmentAndStableDetach(t *testing.T) {
+	bus := newFakeBus()
+	hub, err := NewHub(bus, Config{
+		Bonds: l2cap.NewBondStore(),
+		Now:   func() time.Time { return time.Unix(600, 0) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Close()
+
+	// P1 = wired XInput controller (addr 2).
+	xinput := makeXInputDev(2)
+	bus.attach(xinput)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	p1Pipe := bus.pipes[key32(2, 0x81)]
+	xNeutral := make([]byte, 20)
+	xNeutral[1] = 0x14
+	p1Pipe.inQueue = append(p1Pipe.inQueue, xNeutral)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = hub.NextGamepadUpdate()
+
+	// P2 = Classic BT controller in slot 0 (must occupy P2 without shifting P1).
+	hub.bt.OnSlotChanged(0, true, controllers.KindDualSense, "DualSense P2")
+	hub.bt.OnGamepadState(0, controllers.KindDualSense, controllers.State{})
+	// BT keyboard in slot 1 must not consume any controller player port.
+	hub.bt.OnSlotChanged(1, true, controllers.KindUnknown, "BT Keyboard")
+	hub.bt.OnSlotKeyboardReport(1, []byte{0, 0, 0x04, 0, 0, 0, 0, 0})
+
+	// P1 presses Up + South/A (bits 0 and 4); P2 presses Right + Start (bits 3 and 7).
+	xPress := append([]byte(nil), xNeutral...)
+	xPress[2] = 0x01 // XInput DPad Up
+	xPress[3] = 0x10 // XInput A (South)
+	p1Pipe.inQueue = append(p1Pipe.inQueue, xPress)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	upd1, ok1 := hub.NextGamepadUpdate()
+	if !ok1 || upd1.Ports != ([MaxPlayerPorts]uint8{1<<0 | 1<<4, 0, 0, 0}) {
+		t.Fatalf("expected P1 mask=0x11 P2=0, got ok=%t ports=%#v", ok1, upd1.Ports)
+	}
+
+	hub.bt.OnGamepadState(0, controllers.KindDualSense, controllers.State{
+		Buttons: controllers.ButtonDPadRight | controllers.ButtonStart,
+	})
+	upd2, ok2 := hub.NextGamepadUpdate()
+	if !ok2 || upd2.Ports != ([MaxPlayerPorts]uint8{1<<0 | 1<<4, 1<<3 | 1<<7, 0, 0}) {
+		t.Fatalf("expected independent P1=0x11 P2=0x88, got ok=%t ports=%#v", ok2, upd2.Ports)
+	}
+	if hub.GamepadNeutral() {
+		t.Fatal("expected GamepadNeutral=false while P1/P2 active")
+	}
+
+	// Detach P1 wired controller: P1 clears to 0 while P2 stays on P2 (never renumbered to P1).
+	bus.detach(xinput)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	upd3, ok3 := hub.NextGamepadUpdate()
+	if !ok3 || upd3.Ports != ([MaxPlayerPorts]uint8{0, 1<<3 | 1<<7, 0, 0}) {
+		t.Fatalf("expected P1 cleared and P2 preserved on P1 detach, got ok=%t ports=%#v", ok3, upd3.Ports)
+	}
+
+	// Re-attaching a new wired Sony DualSense takes freed P1 while P2 stays intact.
+	sony := makeSonyUSBDev(3, 0x0ce6)
+	bus.attach(sony)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	dsPipe := bus.pipes[key32(3, 0x84)]
+	dsPkt := make([]byte, 64)
+	dsPkt[0] = 0x01
+	dsPkt[1], dsPkt[2], dsPkt[3], dsPkt[4] = 0x80, 0x80, 0x80, 0x80
+	dsPkt[8] = 0x04 | 0x40 // HID hat=Down(4) + East/Circle(0x40)
+	dsPipe.inQueue = append(dsPipe.inQueue, dsPkt)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	upd4, ok4 := hub.NextGamepadUpdate()
+	if !ok4 || upd4.Ports != ([MaxPlayerPorts]uint8{1<<1 | 1<<5, 1<<3 | 1<<7, 0, 0}) {
+		t.Fatalf("expected re-attached controller on P1=0x22 with P2=0x88, got ok=%t ports=%#v", ok4, upd4.Ports)
+	}
+}

@@ -27,6 +27,9 @@ func TestKeyboardDirtyRowsAndInputBatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
+	if got := c.Capabilities(); got != id.Capabilities {
+		t.Fatalf("Capabilities()=%#x, want %#x", got, id.Capabilities)
+	}
 	ctx := context.Background()
 
 	// First call syncs all 9 rows inside a single batch.
@@ -82,6 +85,9 @@ func TestControllerButtonsAndMouseRelative(t *testing.T) {
 	c, err := Open(context.Background(), f, limits(), id)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
+	}
+	if got := c.Capabilities(); got != id.Capabilities {
+		t.Fatalf("Capabilities()=%#x, want %#x", got, id.Capabilities)
 	}
 	ctx := context.Background()
 
