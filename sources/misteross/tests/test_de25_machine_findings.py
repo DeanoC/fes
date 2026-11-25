@@ -3,13 +3,17 @@
 The DRC text below is synthetic, in the signoff report's table format; it
 exercises the matching rules and never stands in for a fitted report.
 """
+from contextlib import nullcontext
+import csv
 import json
 import re
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
 
+from boards.de25nano.pc386 import retimed_tension
 from boards.de25nano.producers import build_machine_package as shared
 from boards.de25nano.producers import build_menu_package as common
 from boards.de25nano.producers import build_pc386_package as pc386
@@ -22,12 +26,13 @@ MACHINE, PIXEL = mf.MACHINE, mf.PIXEL
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def report(rules):
+def report(rules, *, severity='High'):
     """rules: {rule: (header, rows)}; the summary counts each rule's rows."""
-    summary = ''.join(f'; {rule} - Title ; High ; {len(rows)} ; 0 ; tags ;\n' for rule, (_, rows) in rules.items())
+    summary = ''.join(f'; {rule} - Title ; {severity} ; {len(rows)} ; 0 ; tags ;\n'
+                      for rule, (_, rows) in rules.items())
     detail = ''
     for rule, (header, rows) in rules.items():
-        detail += (f'Status:\t\tFAIL\tSeverity:\tHigh\tNumber of violations: \t{len(rows)}\n'
+        detail += (f'Status:\t\tFAIL\tSeverity:\t{severity}\tNumber of violations: \t{len(rows)}\n'
                    f'+---\n; {rule} - Title ;\n+---\n; ' + ' ; '.join(header) + ' ;\n+---\n' +
                    ''.join('; ' + ' ; '.join(row) + ' ;\n' for row in rows))
     return summary + detail
@@ -64,23 +69,26 @@ class RegisteredTensionTests(unittest.TestCase):
     def test_registered_builds_gate_retiming_by_recorded_model(self):
         retimed = '_17339_~1_R6_X56_Y33_N0_I13_dff'
         cases = (
-            ('486sx', '486sx', 'cpu_md_busy', None),
-            ('486dx', '486dx', retimed, None),
-            ('486sx', '486sx', retimed, 'matches 0 bases'),
-            ('486dx', 'unknown', retimed, 'registered fit has unknown model'),
-            ('486dx', '486sx', retimed, 'differs from prepared model'),
-            ('486dx', None, retimed, 'lacks a recorded or prepared model'),
+            ('486sx', '486sx', 'cpu_md_busy', False, None),
+            ('486dx', '486dx', 'cpu_md_busy', False, None),
+            ('486dx', '486dx', retimed, True, None),
+            ('486dx', '486dx', retimed, True, 'fixture trace failed'),
+            ('486dx', '486dx', retimed.replace('_17339_', '_17340_'), False, 'matches 0 bases'),
+            ('486sx', '486sx', retimed, False, 'matches 0 bases'),
+            ('486dx', 'unknown', retimed, False, 'registered fit has unknown model'),
+            ('486dx', '486sx', retimed, False, 'differs from prepared model'),
+            ('486dx', None, retimed, False, 'lacks a recorded or prepared model'),
         )
         for compile_only in (False, True):
-            for requested, recorded, name, error in cases:
+            for requested, recorded, name, trace, error in cases:
                 with self.subTest(compile_only=compile_only, recorded=recorded, node=name):
-                    self.check_registered_fit(compile_only, requested, recorded, name, error)
+                    self.check_registered_fit(compile_only, requested, recorded, name, trace, error)
 
-    def check_registered_fit(self, compile_only, requested, recorded, name, error):
+    def check_registered_fit(self, compile_only, requested, recorded, name, trace, error):
         machine = pc386.MACHINE
         spec = machine.spec(ROOT)
         row = [S + name, '(56, 33)', '16759', '(38, 27)', '24', '407264', '']
-        drc = report({'TMC-20602': (TENSION, [row])})
+        drc = report({'TMC-20602': (TENSION, [row])}, severity='Low')
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
             output = root / 'attempt'
@@ -106,14 +114,26 @@ class RegisteredTensionTests(unittest.TestCase):
                 mf.review(report_path.read_text(), '', TABLE.BASES)
                 return {'package_timing_admission': not compile_only}
 
+            proof_error = mf.BuildError(error) if trace and error else None
+            proof = mock.Mock(side_effect=proof_error)
+            actual_load = spec.load
+
+            def load_fixture(path, module_name):
+                module = actual_load(path, module_name)
+                if path.name == 'retimed_tension.py':
+                    module.collect = proof
+                return module
+
             with (
                 mock.patch.multiple(machine, require_clean_source=mock.Mock(return_value=('fixture', 'revision')),
                                     create_build_record=mock.Mock(return_value=record),
                                     manifest=mock.Mock(return_value=b'fixture manifest')),
                 mock.patch.object(machine, 'spec', return_value=spec),
                 mock.patch.object(spec, 'authenticate_front_end', return_value=mock.Mock(identity='fixture')),
+                mock.patch.object(spec, 'load', side_effect=load_fixture),
                 mock.patch.multiple(spec.board.delegate, capture=mock.Mock(return_value={}), generate=mock.Mock(),
-                                    prepare=mock.Mock(side_effect=prepare_fixture)),
+                                    prepare=mock.Mock(side_effect=prepare_fixture),
+                                    quartus_lease=mock.Mock(side_effect=nullcontext)),
                 mock.patch.object(spec.board.delegate, 'compile_board', side_effect=fit_fixture) as fit,
                 mock.patch.multiple(common, authenticate_tools=mock.Mock(return_value=(
                     {'quartus': root / 'quartus_sh'}, {'quartus': 'fixture'})),
@@ -138,6 +158,97 @@ class RegisteredTensionTests(unittest.TestCase):
                     fit.assert_called_once()
                     timing.assert_called_once()
                     self.assertEqual(export.call_count, int(not compile_only))
+                if trace:
+                    proof.assert_called_once_with(selected, root / 'quartus_sta', (S + name,))
+                else:
+                    proof.assert_not_called()
+
+
+class RetimedTensionProofTests(unittest.TestCase):
+    NODE = S + 'machine_at_select_fdc~0_BLOCK_INPUT_MUX_PASSTHROUGH_X88_Y14_N0_I62_dff'
+
+    def trace_rows(self):
+        for corner in sorted(retimed_tension.CORNERS):
+            for kind, direction in sorted(retimed_tension.CHECKS):
+                row = dict.fromkeys(retimed_tension.COLUMNS, '')
+                row.update(corner=corner, node=self.NODE, check=kind, direction=direction,
+                           exact_matches='1', owner_clocks=MACHINE, async_edges='0', sync_stage='0', status='ok')
+                if kind in ('setup', 'hold'):
+                    row.update(from_clock=MACHINE, to_clock=MACHINE, slack_ns='0.000')
+                    row.update({'from': S + 'reset', 'to': S + 'reset', direction: self.NODE})
+                elif kind in ('recovery', 'removal'):
+                    row['status'] = 'n/a'
+                yield row
+
+    def write_trace(self, path, rows):
+        with path.open('w', newline='') as stream:
+            writer = csv.DictWriter(stream, fieldnames=retimed_tension.COLUMNS, delimiter='\t')
+            writer.writeheader()
+            writer.writerows(rows)
+
+    def test_proof_refuses_missing_duplicate_or_disqualified_paths(self):
+        with tempfile.TemporaryDirectory() as work:
+            target_file = Path(work) / 'targets.txt'
+            paths = Path(work) / 'paths.tsv'
+            target_file.write_text(self.NODE + '\n')
+            rows = list(self.trace_rows())
+            self.write_trace(paths, rows)
+            self.assertTrue(retimed_tension.check(target_file, paths)['pass'])
+            setup = next(index for index, row in enumerate(rows) if row['check'] == 'setup')
+            cases = {'missing': rows[:-1], 'duplicate': rows + rows[:1]}
+            for column, value in (('to_clock', PIXEL), ('owner_clocks', PIXEL), ('sync_stage', '1'),
+                                  ('async_edges', '1'), ('exact_matches', '2'), ('slack_ns', 'nan'),
+                                  ('slack_ns', '-0.001')):
+                bad = {**rows[setup], column: value}
+                cases[(column, value)] = rows[:setup] + [bad] + rows[setup + 1:]
+            for damage, result in cases.items():
+                with self.subTest(damage=damage):
+                    self.write_trace(paths, result)
+                    self.assertFalse(retimed_tension.check(target_file, paths)['pass'])
+
+    def test_collector_uses_a_private_fitted_copy_and_binds_its_receipt(self):
+        sha = retimed_tension.async_inputs.sha
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            selected = root / 'signoff'
+            report_path = selected / retimed_tension.DRC
+            qdb = retimed_tension.PROJECT / 'qdb/report.rdb'
+            original = selected / qdb
+            original.parent.mkdir(parents=True)
+            original.write_bytes(b'fitted database')
+            report_path.parent.mkdir()
+            row = [self.NODE, '(88, 14)', '4820', '(37, 28)', '40', '193686', '']
+            report_path.write_text(report({'TMC-20602': (TENSION, [row])}, severity='Low'))
+            sources = {path.relative_to(ROOT).as_posix(): sha(path)
+                       for path in (Path(retimed_tension.__file__), retimed_tension.TCL)}
+            (root / 'build-inputs.json').write_text(json.dumps({'source_inputs': sources}))
+            tool = root / 'quartus_sta'
+            tool.write_bytes(b'fixture tool')
+
+            def bindings(directory):
+                return {'database': sha(directory / qdb), 'record': sha(directory.parent / 'build-inputs.json')}
+
+            def run_fixture(command, *, cwd, **options):
+                self.assertEqual(Path(command[0]), tool)
+                self.assertEqual(options['timeout'], retimed_tension.TIMEOUT_SECONDS)
+                self.assertNotEqual(cwd, selected / retimed_tension.PROJECT)
+                self.assertTrue(cwd.is_relative_to(selected / 'retimed-tension'))
+                self.assertEqual((cwd / 'qdb/report.rdb').read_bytes(), original.read_bytes())
+                (cwd / 'qdb/report.rdb').write_bytes(b'mutated private report cache')
+                self.write_trace(Path(command[-1]), self.trace_rows())
+                return subprocess.CompletedProcess(command, 0)
+
+            with (mock.patch.object(retimed_tension.async_inputs, 'bindings', side_effect=bindings) as bound,
+                  mock.patch.object(retimed_tension.subprocess, 'run', side_effect=run_fixture)):
+                output = retimed_tension.collect(selected, tool, (self.NODE,))
+            self.assertEqual(original.read_bytes(), b'fitted database')
+            self.assertEqual(bound.call_args_list[0], bound.call_args_list[-1])
+            receipt = json.loads((output / 'receipt.json').read_text())
+            self.assertEqual(receipt['bindings'], bindings(selected))
+            self.assertEqual(receipt['sources_sha256'], sources)
+            self.assertEqual(receipt['reports_sha256'], {name: sha(output / name) for name in (
+                'targets.txt', 'paths.tsv', 'summary.json')})
+            self.assertTrue(json.loads((output / 'summary.json').read_text())['pass'])
 
 
 class MachineFindingsTests(unittest.TestCase):
@@ -249,6 +360,9 @@ class MachineFindingsTests(unittest.TestCase):
             'machine_at_decoder_cycle_port[7]~R4_X90_Y14_N0_I15_dff',
             'machine_at_cycle_strobe~1_R4_X86_Y14_N0_I13_dff',
             'machine_at_decoder_cycle_port[6]~R4_X84_Y16_N0_I13_dff',
+            # The changed BUILD_ID moves these existing I/O roles to input muxes.
+            'machine_at_select_fdc~0_BLOCK_INPUT_MUX_PASSTHROUGH_X88_Y14_N0_I62_dff',
+            'machine_at_cycle_strobe~0_BLOCK_INPUT_MUX_PASSTHROUGH_X83_Y15_N0_I78_dff',
         )
         rows = [[S + name, '(58, 23)', '9000', '(38, 28)', '20', '200000', '']
                 for name in (*names, 'cpu_md_busy')]
@@ -275,6 +389,7 @@ class MachineFindingsTests(unittest.TestCase):
             S + 'machine_at_cycle_strobe~2_R4_X86_Y14_N0_I13_dff',
             S + 'cpu_wb_fault[2]~BLOCK_INPUT_MUX_PASSTHROUGH_X53_Y20_N0_I4_dff',
             S + 'cpu_wb_s_reg[1177]~C4_X40_Y16_N0_I30_dff',
+            S + 'machine_at_cycle_access~0_BLOCK_INPUT_MUX_PASSTHROUGH_X83_Y15_N0_I78_dff',
         )
         bases = self.bases('cpu-control-tension', 'retimed-machine-control-tension')
         for name in names:

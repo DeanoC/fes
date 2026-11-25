@@ -71,6 +71,7 @@ LOCAL_FILES = ("build.py", "derive.py", "signoff_bases.py", "model_clocks.py", "
                "fes_de25_pc386_standard_hw.tcl", "fes_de25_hps_window.v", "fes_de25_hps_window_control.v",
                "fes_de25_window_arbiter.v", "fes_de25_window_unpack.v", "generated/fes_de25_hps_window.vh",
                "pc386_dma2_registers.sv")
+REVIEW_FILES = ("retimed_tension.py", "retimed_tension.tcl")
 SHARED_FILES = ("fes_computer_mailbox.v",)
 
 
@@ -106,14 +107,18 @@ class RegisteredBoard:
             raise machine_findings.BuildError(
                 f"DE25 pc386 recorded model {model!r} differs from prepared model {prepared_model!r}")
 
-        artifact = self.delegate.compile_board(spec, output, scanout, hps, display, tool)
-        if model != DX_MODEL:
-            # The shared review also sees the DX retiming basis. Enforce the
-            # original basis alone for SX before registered timing admission.
-            basis = load(HERE / "signoff_bases.py", "de25_pc386_signoff_bases").CPU_CONTROL_TENSION
-            report = directory / "project/output_files/golden_top.tq.drc.signoff.rpt"
-            machine_findings.review(report.read_text(), "", (basis,))
-        return artifact
+        with self.delegate.quartus_lease():
+            artifact = self.delegate.compile_board(spec, output, scanout, hps, display, tool)
+            basis = load(HERE / "signoff_bases.py", "de25_pc386_signoff_bases")
+            drc = (directory / "project/output_files/golden_top.tq.drc.signoff.rpt").read_text()
+            if model == DX_MODEL:
+                proof = load(HERE / "retimed_tension.py", "de25_pc386_retimed_tension")
+                subjects = proof.reviewed_targets(drc, basis.CPU_CONTROL_TENSION, basis.RETIMED_CONTROL_TENSION)
+                if subjects:
+                    proof.collect(output, tool.with_name("quartus_sta"), subjects)
+            else:
+                machine_findings.review(drc, "", (basis.CPU_CONTROL_TENSION,))
+            return artifact
 
 
 board = RegisteredBoard(load(HERE.parent / "machine/board.py", "de25_pc386_machine_board"))
@@ -152,7 +157,7 @@ def model_clock(model=None):
             "audio": Fraction(c0, CLOCKS.AUDIO_C * 256)}
 
 DX_FILES = ("derive.py", "fes_i486dx_l1i.sv", "fes_i486dx_l1d.sv")
-SOURCES = ({BOARD + "pc386/" + name for name in LOCAL_FILES} |
+SOURCES = ({BOARD + "pc386/" + name for name in (*LOCAL_FILES, *REVIEW_FILES)} |
            {BOARD + "pc386/i486dx/" + name for name in DX_FILES} |
            {BOARD + "spectrum/derive.py", BOARD + "zx81-hps/fes_de25_computer.v",
             "sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v"} |

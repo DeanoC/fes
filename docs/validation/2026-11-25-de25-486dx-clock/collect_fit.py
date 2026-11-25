@@ -22,6 +22,8 @@ CORNERS = {
 }
 VCO_HZ = Fraction(50_000_000 * 188, 3)
 CORNER_LINE = re.compile(r'CORNER \{([^}]+)\} (setup|hold|recovery|removal|mpw) (\d+) (-?\d+\.\d+)')
+RETIMED_REVIEW = 'boards/de25nano/pc386/retimed_tension.py'
+RETIMED_POLICY = 'de25-pc386-retimed-tension-v1'
 
 
 def corner_slacks(path):
@@ -56,6 +58,39 @@ def loaded_routes(path):
     if routes.keys() != CORNERS.keys():
         raise ValueError('incomplete LOADED corner coverage')
     return routes
+
+
+def retimed_evidence(output, logs, build, build_digest, retimed_rows):
+    if RETIMED_REVIEW in build['source_inputs']:
+        proof_directory = output / 'signoff/retimed-tension'
+        receipt_path = proof_directory / 'receipt.json'
+        receipt = json.loads(receipt_path.read_text())
+        if receipt['policy'] != RETIMED_POLICY:
+            raise ValueError('retimed endpoint receipt used a different review policy')
+        if receipt['bindings']['build_record_sha256'] != build_digest:
+            raise ValueError('retimed endpoint receipt selected a different build record')
+        review_sources = (RETIMED_REVIEW, RETIMED_REVIEW.replace('.py', '.tcl'))
+        if receipt['sources_sha256'] != {name: build['source_inputs'][name] for name in review_sources}:
+            raise ValueError('retimed endpoint receipt used different captured review tools')
+        for name in ('targets.txt', 'paths.tsv', 'summary.json'):
+            digest = hashlib.sha256((proof_directory / name).read_bytes()).hexdigest()
+            if receipt['reports_sha256'][name] != digest:
+                raise ValueError(f'retimed endpoint receipt digest differs for {name}')
+        receipt_digest = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+        targets = proof_directory / 'targets.txt'
+        proof = json.loads((proof_directory / 'summary.json').read_text())
+    else:
+        # Preserve the independent evidence recorded before production proved
+        # these endpoints as part of the same build.
+        receipt_digest = None
+        targets = logs / 'tension-reviewed.txt'
+        proof = json.loads((logs / 'tension-summary.json').read_text())
+        if (logs / 'tension-proof.exit').read_text().strip() != '0':
+            raise ValueError('the retained standalone retimed endpoint check failed')
+    count = len(targets.read_text().splitlines())
+    if count != retimed_rows or proof['pass'] is not True:
+        raise ValueError('retimed endpoint review lacks passing fitted clock and corner evidence')
+    return {'rows': count, 'minimum_slacks': proof['minimum_slacks'], 'receipt_sha256': receipt_digest}
 
 
 def seed_result(output, logs, seed, divider):
@@ -96,12 +131,8 @@ def seed_result(output, logs, seed, divider):
                            if finding['id'] == 'TMC-20602' for group in finding.get('groups', ())
                            if group['name'] == 'retimed-machine-control-tension')
         if retimed_rows:
-            proof = json.loads((logs / 'tension-summary.json').read_text())
-            count = len((logs / 'tension-reviewed.txt').read_text().splitlines())
-            record['retimed_tension_proof'] = {'rows': count, 'minimum_slacks': proof['minimum_slacks']}
-            if (count != retimed_rows or proof['pass'] is not True
-                    or (logs / 'tension-proof.exit').read_text().strip() != '0'):
-                failures.append('retimed endpoint review lacks passing fitted clock and corner evidence')
+            record['retimed_tension_proof'] = retimed_evidence(
+                output, logs, build, record['build_inputs_sha256'], retimed_rows)
         slacks = corner_slacks(logs / 'corners.log')
         record['corner_slacks_ns'] = slacks
         if any(slack < 0 for analyses in slacks.values() for slack in analyses.values()):

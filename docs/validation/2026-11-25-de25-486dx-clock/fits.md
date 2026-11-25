@@ -142,11 +142,42 @@ its findings before starting the four repair fits.
 [Altera TMC-20602 rule](https://resources.altera.com/quartushelp/20.1/da_rules/tmc_20602.htm)
 and [TimeQuest clock query](https://docs.altera.com/r/docs/683432/26.3/quartus-prime-pro-edition-user-guide-scripting/get_clocks-quartus-sdc).
 
+## First C0 = 34 repair sweep
+
+Revision `e255d4e3a09fd29ad2cfeed465bf49a15e1c17ce` ran at the original
+Powerboat checkout path. Its first seed elaborated the same machine
+netlist bytes and fitted at 44,943.3 ALMs. The worst setup, hold,
+recovery, and removal were +0.543, +0.002, +7.199, and +0.041 ns.
+The LOADED route measured 3.011 ns against 3.851 ns available.
+
+The producer refused `TMC-20602` on two further spellings of the
+previously reviewed `machine_at_select_fdc` and `machine_at_cycle_strobe`
+registers. The two names belong to the FDC port decode and AT I/O-cycle
+qualifier. The trace passed all 308 checks for the 11 non-original rows,
+with worst setup of +2.177 ns and hold of +0.211 ns. The retained producer
+verdict is refused. The next revision checks the actual fitted clocks and
+paths for the revised basis during the registered DX build, before package
+admission.
+
+| Seed 1 file | SHA-256 |
+| --- | --- |
+| `loaded.tsv` | `f8a03ead56ff9f647e9d3c55ebf13aba7036303d011aab1905fe44db77b6217d` |
+| `tension-paths.tsv` | `ccb511b309650a3a7dc0ae4873281a9c82c2833cfe57a710f4f12bc945a55a1f` |
+| `tension-summary.json` | `47f5e452e5d9e97a3ac6ea17c2560d93b8458345d5044523c0c6822c4157c5e3` |
+
+The alternate builder's authenticated Yosys has the same locked commit
+but a different binary digest. A preflight in the same absolute checkout
+path generated different Verilog beyond the Yosys banner and source
+attributes. The current fit sweep uses Powerboat's original Yosys binary
+and checkout path.
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed
 and collects the reports inside the same capped lease. Set `QUARTUS_ROOTDIR`
 to the pinned Pro installation and choose the toolchain slot for the host.
+Supplemental TimeQuest reports use a private copy to preserve the compiled
+database and producer receipt.
 
 ```sh
 python3 scripts/quartus_jobs.py run --edition pro --cap-minutes 300 \

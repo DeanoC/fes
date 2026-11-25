@@ -173,7 +173,7 @@ CPU_CONTROL_TENSION = advisory(
     TENSION,
 )
 
-# The C0=34 seed 1 through 4 TimeQuest traces resolve these fitted registers to
+# The C0=34 TimeQuest traces resolve these fitted registers to
 # retimed M1, memory and writeback control, and AT I/O decode logic. Bind
 # the compiler-generated stems and new suffixes to their traced roles.
 # Placement coordinates may vary by seed.
@@ -200,6 +200,7 @@ RETIMED_TENSION_NODES = S + '(?:' + '|'.join((
     r'machine_at_cycle_strobe~1_R4_' + RETIMED_LOCATION,
     r'cpu_wb_fault\[1\]~' + RETIMED_INPUT_MUX,
     r'cpu_wb_s_reg\[1178\]~C4_' + RETIMED_LOCATION,
+    r'machine_at_(?:select_fdc|cycle_strobe)~\d+_' + RETIMED_INPUT_MUX,
 )) + ')'
 RETIMED_TENSION = ('Placement advisory for the reviewed machine-clock retiming of CPU transaction, '
                    'memory and writeback control, and AT I/O decode logic (#2263). The C0=34 TimeQuest traces match '
@@ -207,6 +208,8 @@ RETIMED_TENSION = ('Placement advisory for the reviewed machine-clock retiming o
                    'the worst incoming and outgoing setup and hold paths have nonnegative slack '
                    'and use the machine clock at both ends. The traced registers have no asynchronous '
                    'edges or synchronizer stages. The ordinary timing and CDC analyses still apply.')
+RETIMED_CONTROL_TENSION = advisory('TMC-20602', 'retimed-machine-control-tension', 0,
+                                   RETIMED_TENSION_NODES, RETIMED_TENSION)
 # The window control block's held bundles (fes_de25_hps_window_control.v),
 # between the board's peripheral clock (clk_sys, 100 MHz) and the machine
 # clock. Their rows depend on the design and not on the seed: every seed of
@@ -303,5 +306,5 @@ BASES = (
         '(?:' + S + r'[^|]+|' + E + r'window\|port[0-2]\|command_[a-z]+_rtl_\d+|' + E + r'arbiter\|unpack[12]\|[^ ]+|'
         + re.escape('soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|') + r'[^ ]+)(?:\|[^ ]+)?'), RAM),
     CPU_CONTROL_TENSION,
-    advisory('TMC-20602', 'retimed-machine-control-tension', 0, RETIMED_TENSION_NODES, RETIMED_TENSION),
+    RETIMED_CONTROL_TENSION,
 )

@@ -1,5 +1,5 @@
-# Read a retained routed project under the normal Pro lease.
-# quartus_sta -t trace_tension.tcl golden_top UNMATCHED_NODES.txt OUTPUT.tsv
+# Trace the fitted pc386 retiming advisory under the normal Pro lease.
+# quartus_sta -t retimed_tension.tcl golden_top TARGETS.txt OUTPUT.tsv
 proc name_or_empty {option object} {
     if {$object eq ""} {return ""}
     if {$option eq "clock"} {return [get_clock_info -name $object]}
