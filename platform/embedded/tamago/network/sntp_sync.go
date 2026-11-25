@@ -3,12 +3,16 @@
 package network
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net/netip"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -89,13 +93,17 @@ type SNTPSyncer struct {
 	maxValidTime     time.Time
 
 	syncSem chan struct{}
-	cbOnce  sync.Once
 	cbCh    chan func()
 	cbDone  chan struct{}
+	sinkWg  sync.WaitGroup
+	cbWg    sync.WaitGroup
+	sinkGID atomic.Uint64
+	cbGID   atomic.Uint64
 
 	mu               sync.Mutex
 	started          bool
 	stopped          bool
+	cbStarted        bool
 	stopCh           chan struct{}
 	wg               sync.WaitGroup
 	synced           bool
@@ -202,6 +210,26 @@ func NewSNTPSyncer(port RawFramePort, cfg SNTPSyncConfig) (*SNTPSyncer, error) {
 	}, nil
 }
 
+func currentGoroutineID() uint64 {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	line := buf[:n]
+	const prefix = "goroutine "
+	if !bytes.HasPrefix(line, []byte(prefix)) {
+		return 0
+	}
+	line = line[len(prefix):]
+	end := bytes.IndexByte(line, ' ')
+	if end <= 0 {
+		return 0
+	}
+	id, err := strconv.ParseUint(string(line[:end]), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return id
+}
+
 func (s *SNTPSyncer) isStopped() bool {
 	s.mu.Lock()
 	stopped := s.stopped
@@ -213,7 +241,11 @@ func (s *SNTPSyncer) enqueueCallbackLocked(fn func()) {
 	if s.stopped || fn == nil {
 		return
 	}
-	s.cbOnce.Do(func() { go s.runCallbacks() })
+	if !s.cbStarted {
+		s.cbStarted = true
+		s.cbWg.Add(1)
+		go s.runCallbacks()
+	}
 	select {
 	case s.cbCh <- fn:
 	default:
@@ -222,7 +254,12 @@ func (s *SNTPSyncer) enqueueCallbackLocked(fn func()) {
 }
 
 func (s *SNTPSyncer) runCallbacks() {
-	defer close(s.cbDone)
+	s.cbGID.Store(currentGoroutineID())
+	defer func() {
+		s.cbGID.Store(0)
+		close(s.cbDone)
+		s.cbWg.Done()
+	}()
 	for {
 		select {
 		case <-s.stopCh:
@@ -348,21 +385,24 @@ func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 	s.syncCount++
 	s.lastErr = nil
 	sink := s.cfg.Sink
+	if sink != nil {
+		s.sinkWg.Add(1)
+	}
 	hasOnSync := s.cfg.OnSync != nil
 	s.mu.Unlock()
 
 	if sink != nil {
-		// Invoked outside s.mu in a syncSem-serialized helper so a custom
-		// sink can call Status() or Stop() synchronously without deadlocking.
-		sinkDone := make(chan struct{})
-		go func() {
-			defer close(sinkDone)
+		// Executed synchronously on SyncOnce's goroutine outside s.mu with
+		// syncSem + sinkWg held so external Stop() waits for active sinks while
+		// re-entrant Stop() from Sink.Sync escapes without self-deadlocking.
+		func() {
+			s.sinkGID.Store(currentGoroutineID())
+			defer func() {
+				s.sinkGID.Store(0)
+				s.sinkWg.Done()
+			}()
 			sink.Sync(sampleUTC)
 		}()
-		select {
-		case <-sinkDone:
-		case <-s.stopCh:
-		}
 	}
 	if hasOnSync {
 		s.mu.Lock()
@@ -441,11 +481,11 @@ func (s *SNTPSyncer) run(ctx context.Context) {
 	}
 }
 
-// Stop halts the background SNTP discipline loop and cancels/waits for all
-// in-flight queries (from both Start and direct SyncOnce calls) so no new
-// Sink.Sync or callback dispatches begin after Stop returns. Safe to call
-// multiple times, without Start, or synchronously from WallClockSink.Sync,
-// OnSync, or OnError callbacks.
+// Stop halts the background SNTP discipline loop and waits for all in-flight
+// queries, active WallClockSink.Sync calls, and queued callback worker work to
+// finish before returning. Safe to call multiple times, without Start, or
+// synchronously from WallClockSink.Sync, OnSync, or OnError callbacks without
+// deadlocking.
 func (s *SNTPSyncer) Stop() {
 	s.mu.Lock()
 	if !s.stopped {
@@ -453,7 +493,16 @@ func (s *SNTPSyncer) Stop() {
 		close(s.stopCh)
 	}
 	s.mu.Unlock()
+
+	gid := currentGoroutineID()
+	if gid != 0 && gid == s.sinkGID.Load() {
+		return
+	}
 	s.wg.Wait()
+	s.sinkWg.Wait()
+	if gid == 0 || gid != s.cbGID.Load() {
+		s.cbWg.Wait()
+	}
 }
 
 // Status returns a snapshot of the syncer's synchronization state and counters.

@@ -403,8 +403,22 @@ func TestSNTPSyncerPlausibilityDefaultMaxStepSerializationAndBoundedCallbacks(t 
 	if st := sBounded.Status(); st.DroppedCallbacks == 0 {
 		t.Fatalf("expected DroppedCallbacks > 0 when callback is blocked, got %+v", st)
 	}
-	sBounded.Stop()
+	boundedStopDone := make(chan struct{})
+	go func() {
+		sBounded.Stop()
+		close(boundedStopDone)
+	}()
+	select {
+	case <-boundedStopDone:
+		t.Fatal("external Stop returned while OnSync callback was still active")
+	case <-time.After(20 * time.Millisecond):
+	}
 	close(cbRelease)
+	select {
+	case <-boundedStopDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("external Stop did not return after unblocking OnSync callback")
+	}
 	select {
 	case <-sBounded.cbDone:
 	case <-time.After(2 * time.Second):
@@ -439,6 +453,55 @@ func TestSNTPSyncerPlausibilityDefaultMaxStepSerializationAndBoundedCallbacks(t 
 	}
 	if !sinkSawStatus.Synced || sinkSawStatus.SyncCount != 1 {
 		t.Fatalf("custom sink did not observe updated Status(): %+v", sinkSawStatus)
+	}
+
+	// 5. External Stop() during a slow WallClockSink.Sync waits until the active sink completes.
+	sinkEntered := make(chan struct{})
+	releaseSink := make(chan struct{})
+	var sinkCompleted atomic.Bool
+	var slowSyncer *SNTPSyncer
+	slowSyncer, err = NewSNTPSyncer(nil, SNTPSyncConfig{
+		Sink: funcSink(func(w time.Time) {
+			close(sinkEntered)
+			<-releaseSink
+			sinkCompleted.Store(true)
+		}),
+		Query: func(context.Context, SNTPConfig) (SNTPResult, error) {
+			return SNTPResult{Time: validEpoch, Stratum: 1}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	slowDone := make(chan error, 1)
+	go func() {
+		_, err := slowSyncer.SyncOnce(context.Background())
+		slowDone <- err
+	}()
+	<-sinkEntered
+
+	extStopDone := make(chan struct{})
+	go func() {
+		slowSyncer.Stop()
+		close(extStopDone)
+	}()
+	select {
+	case <-extStopDone:
+		t.Fatal("external Stop returned while WallClockSink.Sync was still active")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	close(releaseSink)
+	select {
+	case <-extStopDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("external Stop did not return after active sink finished")
+	}
+	if !sinkCompleted.Load() {
+		t.Fatal("external Stop returned before Sink.Sync finished")
+	}
+	if err := <-slowDone; err != nil {
+		t.Fatalf("slow SyncOnce err=%v", err)
 	}
 }
 
