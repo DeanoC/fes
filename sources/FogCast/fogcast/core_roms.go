@@ -400,8 +400,9 @@ func (s coreLoadSource) matchesLoadedIdentity(status *protocol.CorePackageStatus
 				u.Persistence == nil || u.Persistence.Mode != "persistent" || u.Persistence.GameID != s.machine.GameID || u.Persistence.BaseMediaID != disk.SHA256 {
 				return false
 			}
-		} else if ok && u.Interface == protocol.PcxtFloppyInterface() && status.CoreID == "fes.pcxt-dos" {
-			if status.PersistenceMode != "persistent" || (s.initialMedia == nil && (u.State != protocol.MediaUnitEmpty || u.Persistence != nil)) {
+		} else if status.CoreID == "fes.pcxt-dos" || (s.entry != nil && s.entry.CoreID == "fes.pcxt-dos") {
+			if status.CoreID != "fes.pcxt-dos" || !ok || u.Interface != protocol.PcxtFloppyInterface() || status.PersistenceMode != "persistent" ||
+				(s.initialMedia == nil && (u.State != protocol.MediaUnitEmpty || u.Persistence != nil)) {
 				return false
 			}
 		} else if ok && (u.Interface != protocol.AtaDiskInterface() || u.State != protocol.MediaUnitEmpty || u.Persistence != nil) {

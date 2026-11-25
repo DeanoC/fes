@@ -148,3 +148,165 @@ func TestDelegatedV2FailedCleanupStillNeutralizesGamepad(t *testing.T) {
 		t.Fatalf("gamepad not neutralized: %v", buttons)
 	}
 }
+
+func TestDelegatedV2ManagerRevocationRetiresUncertainBindingAfterCoreStopsToIdle(t *testing.T) {
+	f := newV2BackendFixture(t)
+	// Include an unbound matrix sink alongside HID, matching non-matrix cores like fes.pcxt-dos.
+	keys := NewKeyboardSink()
+	keys.SetPoster(func(context.Context, localhid.MatrixPost, uint64) error {
+		return errors.New("unbound matrix poster unavailable")
+	})
+	f.c.ports.keys = keys
+	f.c.keyboard = keys
+
+	var currentObs CoreObservation
+	f.c.ObserveCore(func(context.Context) (CoreObservation, error) { return currentObs, nil })
+	setActive := func(instance, pkg string, gen uint64) {
+		currentObs = CoreObservation{
+			Active:          true,
+			CoreID:          "fes.pcxt-dos",
+			RuntimeInstance: instance,
+			PackageID:       pkg,
+			Generation:      gen,
+			KeyboardHID:     &KeyboardHIDBinding{RuntimeInstance: instance, PackageID: pkg, Generation: gen},
+		}
+	}
+
+	manager := kitlease.New(time.Minute, func(ctx context.Context) error { return f.c.ReleaseAll(ctx) })
+	defer manager.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := manager.Settled(ctx); err != nil {
+		t.Fatal(err)
+	}
+	grant, err := manager.Claim(kitlease.ClaimRequest{RequestID: strings.Repeat("c", 32), Owner: "private", Purpose: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.req.LeaseGeneration = grant.Status.Generation
+	f.c.SetLocalLeaseManager(manager)
+	setActive(f.req.RuntimeInstance, f.req.PackageID, f.req.CoreGeneration)
+	identity := KeyboardHIDBinding{RuntimeInstance: f.req.RuntimeInstance, PackageID: f.req.PackageID, Generation: f.req.CoreGeneration}
+	f.c.ports.hid.bind(&identity)
+	f.c.localKeyboardGrant = &localKeyboardGrant{executionGeneration: f.req.LeaseGeneration, binding: identity}
+
+	b := delegatedV2Backend{f.c}
+	w, err := b.Open(ctx, f.req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hid := f.c.ports.hid
+	hid.setPoster(func(context.Context, string, string, uint64, hidkeys.Rows) error {
+		return errors.New("runtime busy during stop flush")
+	})
+	if err := b.Edge(ctx, w, &localhid.Delta{Usage: 4, Down: true}); err == nil {
+		t.Fatal("edge succeeded during failed post")
+	}
+
+	// Simulate Stop() having completed to idle: poster for the retired generation still fails.
+	currentObs = CoreObservation{IdleConfirmed: true, RuntimeInstance: f.req.RuntimeInstance}
+	if _, err := manager.Release(grant.Token); err != nil {
+		t.Fatal(err)
+	}
+	status, err := manager.Settled(ctx)
+	if err != nil || status.State != "free" {
+		t.Fatalf("expected free lease after idle retirement, got status=%+v err=%v", status, err)
+	}
+	hid.mu.Lock()
+	defer hid.mu.Unlock()
+	if hid.localV2Uncertain != nil || hid.binding != nil {
+		t.Fatalf("uncertain or stale HID binding remained after idle retirement: uncertain=%+v binding=%+v", hid.localV2Uncertain, hid.binding)
+	}
+}
+
+func TestRetireLocalV2ObservedPolicies(t *testing.T) {
+	instance := strings.Repeat("a", 32)
+	pkg := strings.Repeat("b", 64)
+	gen := uint64(7)
+	otherInstance := strings.Repeat("c", 32)
+	otherPkg := strings.Repeat("d", 64)
+
+	newUncertainSink := func() *keyboardHIDSink {
+		binding := KeyboardHIDBinding{RuntimeInstance: instance, PackageID: pkg, Generation: gen}
+		s := &keyboardHIDSink{}
+		s.bind(&binding)
+		s.localV2Uncertain = &binding
+		return s
+	}
+
+	t.Run("fails closed when same generation still active or observation invalid", func(t *testing.T) {
+		for _, tc := range []struct {
+			name string
+			obs  CoreObservation
+			err  error
+		}{
+			{"same-active", CoreObservation{Active: true, RuntimeInstance: instance, PackageID: pkg, Generation: gen}, nil},
+			{"unconfirmed", CoreObservation{RuntimeInstance: instance}, nil},
+			{"missing-instance", CoreObservation{IdleConfirmed: true}, nil},
+			{"idle-with-generation", CoreObservation{IdleConfirmed: true, RuntimeInstance: instance, Generation: gen}, nil},
+			{"observe-error", CoreObservation{}, errors.New("unavailable")},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				s := newUncertainSink()
+				retired, err := s.retireLocalV2Observed(
+					context.Background(),
+					func(context.Context) (CoreObservation, error) { return tc.obs, tc.err },
+					func(context.Context) error { return nil },
+				)
+				if err == nil || retired {
+					t.Fatalf("retireLocalV2Observed(%s) = (%v, %v), want error", tc.name, retired, err)
+				}
+				if s.localV2Uncertain == nil || s.binding == nil {
+					t.Fatalf("uncertain binding cleared on %s", tc.name)
+				}
+			})
+		}
+	})
+
+	t.Run("fails closed when validation flips during observe", func(t *testing.T) {
+		s := newUncertainSink()
+		calls := 0
+		retired, err := s.retireLocalV2Observed(
+			context.Background(),
+			func(context.Context) (CoreObservation, error) {
+				return CoreObservation{IdleConfirmed: true, RuntimeInstance: instance}, nil
+			},
+			func(context.Context) error {
+				calls++
+				if calls > 1 {
+					return errNoCore
+				}
+				return nil
+			},
+		)
+		if err == nil || retired || s.localV2Uncertain == nil {
+			t.Fatalf("validation change did not reject retirement: retired=%v err=%v uncertain=%+v", retired, err, s.localV2Uncertain)
+		}
+	})
+
+	t.Run("retires when replacement core observed active", func(t *testing.T) {
+		for _, tc := range []struct {
+			name string
+			obs  CoreObservation
+		}{
+			{"new-instance", CoreObservation{Active: true, RuntimeInstance: otherInstance, PackageID: pkg, Generation: gen}},
+			{"new-package", CoreObservation{Active: true, RuntimeInstance: instance, PackageID: otherPkg, Generation: gen}},
+			{"new-generation", CoreObservation{Active: true, RuntimeInstance: instance, PackageID: pkg, Generation: gen + 1}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				s := newUncertainSink()
+				retired, err := s.retireLocalV2Observed(
+					context.Background(),
+					func(context.Context) (CoreObservation, error) { return tc.obs, nil },
+					func(context.Context) error { return nil },
+				)
+				if err != nil || !retired {
+					t.Fatalf("retireLocalV2Observed(%s) = (%v, %v), want retired", tc.name, retired, err)
+				}
+				if s.localV2Uncertain != nil || s.binding != nil {
+					t.Fatalf("uncertain or binding remained after %s retirement", tc.name)
+				}
+			})
+		}
+	})
+}

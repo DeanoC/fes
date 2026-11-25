@@ -386,7 +386,14 @@ func (c *TargetController) releasePersistentLocked(ctx context.Context, persiste
 	c.mu.Lock()
 	observe, query, retire, neutral := c.observe, c.mediaUncertainty, c.mediaRetirer, c.mediaNeutral
 	keyboard := c.keyboard
+	ports := c.ports
 	c.mu.Unlock()
+	var hid *keyboardHIDSink
+	if persistentPorts, ok := persistent.(*controllerPortsSink); ok {
+		hid = persistentPorts.hid
+	} else if ports != nil {
+		hid = ports.hid
+	}
 	epoch := c.transitionEpoch.Load()
 	validate := func(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
@@ -419,6 +426,15 @@ func (c *TargetController) releasePersistentLocked(ctx context.Context, persiste
 			return errors.Join(releaseErr, err)
 		}
 		releaseErr = release(ctx)
+	}
+	if releaseErr != nil && hid != nil {
+		retired, err := hid.retireLocalV2Observed(ctx, observe, validate)
+		if err != nil {
+			return errors.Join(releaseErr, err)
+		}
+		if retired {
+			releaseErr = release(ctx)
+		}
 	}
 	if releaseErr != nil && keyboard != nil {
 		if err := keyboard.retireUnboundIdle(ctx, observe, validate); err != nil {

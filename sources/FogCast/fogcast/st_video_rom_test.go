@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
@@ -352,5 +353,26 @@ func TestPcxtMachineLaunchIdentityAcceptsFloppyAndRejectsMismatches(t *testing.T
 	}
 	if diskless.matchesLoadedIdentity(makeStatus("fes.pc386", "persistent", emptyUnit)) {
 		t.Fatal("pc386 machine launch accepted PC/XT floppy interface on unit 0")
+	}
+
+	missingUnit := makeStatus("fes.pcxt-dos", "persistent", emptyUnit)
+	missingUnit.MediaUnits = nil
+	if diskless.matchesLoadedIdentity(missingUnit) {
+		t.Fatal("diskless PC/XT launch accepted missing unit 0")
+	}
+
+	emptyATA := protocol.MediaUnitStatus{
+		Unit:      protocol.AtaDiskUnit,
+		Interface: protocol.AtaDiskInterface(),
+		State:     protocol.MediaUnitEmpty,
+	}
+	if diskless.matchesLoadedIdentity(makeStatus("fes.pcxt-dos", "persistent", emptyATA)) {
+		t.Fatal("diskless PC/XT launch accepted empty ATA disk on unit 0")
+	}
+
+	disklessWithEntry := diskless
+	disklessWithEntry.entry = &catalog.CoreEntry{CoreID: "fes.pcxt-dos"}
+	if disklessWithEntry.matchesLoadedIdentity(makeStatus("fes.pc386", "persistent", emptyATA)) {
+		t.Fatal("PC/XT core entry accepted fes.pc386 status with empty ATA disk")
 	}
 }
