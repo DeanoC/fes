@@ -32,8 +32,8 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
 
 ## Machine
 
-The DE10 library offers four C64 family packages. `fes.c64` (PAL 6569) and
-`fes.c64-ntsc` (NTSC 6567R8) use the MOS6581. `fes.c64c` and
+The DE10 library offers five C64 family packages. `fes.c64` (PAL 6569) and
+`fes.c64-ntsc` (NTSC 6567R8), and `fes.c64-early-ntsc` (NTSC 6567R56A) use the MOS6581. `fes.c64c` and
 `fes.c64c-ntsc` use the MOS8580 with their respective regional timing. All
 share the 6526 CIAs, independently clocked 1541 and the same 36 KiB firmware
 layout. Each title binds firmware and disks to its selected package.
@@ -368,7 +368,7 @@ pulses. The NTSC case checks every Phi and TOD pulse, the guest bus phase,
 filtered SID completions and the independent 1 MHz drive clock. Rates at or
 above half the system clock retain the original direct enable.
 `make sim-fes-c64-ntsc-timing` checks raster IRQ, matrix and sprite DMA, BA
-and beam X against the 6567R8 schedule.
+and beam X against the 6567R8 schedule. `make sim-fes-c64-early-ntsc-timing` checks the 6567R56A schedule, including its 262-line, 64-cycle raster and sprite fetches across line wrap. Early NTSC hardware acceptance remains open.
 
 `make sim-fes-c64-sprite-pal` checks 100,800 dots against offline output
 from unchanged VICE 3.10 `draw_sprites8`, using its PAL cycle table and

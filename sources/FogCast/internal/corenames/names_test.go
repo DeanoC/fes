@@ -3,7 +3,7 @@ package corenames
 import "testing"
 
 func TestNamesUseExactFirstPartyIdentity(t *testing.T) {
-	if len(models) != 22 {
+	if len(models) != 23 {
 		t.Fatalf("registered models: %d", len(models))
 	}
 	for id, m := range models {
@@ -23,6 +23,7 @@ func TestNamesUseExactFirstPartyIdentity(t *testing.T) {
 
 func TestEntryTitleRecognizesOnlyGeneratedMachineDefaults(t *testing.T) {
 	for _, tc := range []struct{ core, input, want string }{
+		{"fes.c64-early-ntsc", "FES Commodore 64 (early NTSC) 0.5.0 · 01234567", "Commodore 64 (early NTSC)"},
 		{"fes.c64-ntsc", "FES Commodore 64 (NTSC) 0.5.0 · 01234567", "Commodore 64 (NTSC)"},
 		{"fes.c64c", "FES Commodore 64C (PAL) 0.5.0 · 01234567", "Commodore 64C (PAL)"},
 		{"fes.c64c-ntsc", "FES Commodore 64C (NTSC) 0.5.0 · 01234567", "Commodore 64C (NTSC)"},
