@@ -4,13 +4,18 @@ package nativefabric
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
+	"github.com/DeanoC/fes/platform/embedded/tamago/input/controllers"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input/usbhub"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
@@ -30,9 +35,17 @@ type fakeMultiSource struct {
 	serviceErr    error
 	gameplayCalls []bool
 	pairingActive bool
+	pairingRem    time.Duration
+	dongleConn    bool
+	dongleName    string
+	btDevices     []usbhub.BluetoothDevice
+	btGen         uint64
 	startPairErr  error
+	forgetErr     error
+	forgotten     []string
 	saveCalls     int
 	bondsDirty    bool
+	bondsFailed   bool
 	saveErr       error
 	pauseCalls    int
 	resumeCalls   int
@@ -42,6 +55,7 @@ type fakeMultiSource struct {
 func newFakeMultiSource() *fakeMultiSource {
 	return &fakeMultiSource{
 		padLive: usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
+		btGen:   1,
 		ready:   make(chan struct{}, 4),
 	}
 }
@@ -100,30 +114,76 @@ func (s *fakeMultiSource) SetGameplayActive(active bool) error {
 	s.gameplayCalls = append(s.gameplayCalls, active)
 	if active {
 		s.pairingActive = false
+		s.pairingRem = 0
+		s.btGen++
 	}
 	return nil
 }
-func (s *fakeMultiSource) StartPairing(time.Duration) error {
+func (s *fakeMultiSource) StartPairing(d time.Duration) error {
 	if s.startPairErr != nil {
 		return s.startPairErr
 	}
 	s.pairingActive = true
+	s.pairingRem = d
+	s.btGen++
 	return nil
 }
 func (s *fakeMultiSource) StopPairing() error {
 	s.pairingActive = false
+	s.pairingRem = 0
+	s.btGen++
 	return nil
 }
-func (s *fakeMultiSource) PairingActive() bool { return s.pairingActive }
+func (s *fakeMultiSource) PairingActive() bool             { return s.pairingActive }
+func (s *fakeMultiSource) PairingRemaining() time.Duration { return s.pairingRem }
+func (s *fakeMultiSource) BluetoothGeneration() uint64     { return s.btGen }
+func (s *fakeMultiSource) BluetoothSnapshot() usbhub.BluetoothSnapshot {
+	connected := 0
+	for _, dev := range s.btDevices {
+		if dev.Connected {
+			connected++
+		}
+	}
+	return usbhub.BluetoothSnapshot{
+		DongleConnected:  s.dongleConn,
+		DongleName:       s.dongleName,
+		PairingActive:    s.pairingActive,
+		PairingRemaining: s.pairingRem,
+		ConnectedCount:   connected,
+		Devices:          append([]usbhub.BluetoothDevice(nil), s.btDevices...),
+		BondsPending:     s.bondsDirty,
+		BondsSaveFailed:  s.bondsFailed,
+	}
+}
+func (s *fakeMultiSource) ForgetBluetoothDevice(address string) error {
+	s.forgotten = append(s.forgotten, address)
+	if s.forgetErr != nil {
+		return s.forgetErr
+	}
+	kept := s.btDevices[:0]
+	for _, dev := range s.btDevices {
+		if !strings.EqualFold(dev.Address, address) {
+			kept = append(kept, dev)
+		}
+	}
+	s.btDevices = kept
+	s.bondsDirty = true
+	s.btGen++
+	return nil
+}
 func (s *fakeMultiSource) SaveBondsIfDirty(context.Context) (bool, error) {
 	s.saveCalls++
 	if !s.bondsDirty {
 		return false, nil
 	}
 	if s.saveErr != nil {
+		s.bondsFailed = true
+		s.btGen++
 		return false, s.saveErr
 	}
 	s.bondsDirty = false
+	s.bondsFailed = false
+	s.btGen++
 	return true, nil
 }
 func (s *fakeMultiSource) PausePolling(context.Context) error {
@@ -576,4 +636,165 @@ func TestProgramMultiInputPlatformRealHubHeldAtBootIsNotAPress(t *testing.T) {
 	bus.keys(0x51)
 	bus.report(multiTestPad, padConfirmReport)
 	multiNext(t, p, "fresh presses", tenfoot.CmdDown, tenfoot.CmdSelect)
+}
+
+func TestProgramMultiInputPlatformTenfootBluetoothSettings(t *testing.T) {
+	_, b, c := backendFixture(t)
+	src := newFakeMultiSource()
+	src.dongleConn = true
+	src.dongleName = "Realtek RTL8761BU"
+	src.btDevices = []usbhub.BluetoothDevice{
+		{Address: "AA:BB:CC:DD:EE:01", Name: "DualSense Wireless Controller", Kind: controllers.KindDualSense, Connected: true, Slot: 1},
+		{Address: "AA:BB:CC:DD:EE:02", Name: "Pro Controller", Kind: controllers.KindSwitchPro},
+	}
+
+	p, err := NewProgramMultiInputPlatform(&programInputBase{}, b, src, multiTestConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+	app := tenfoot.NewApp(tenfoot.NewClient(srv.URL, srv.Client()), 1280, 720, 4)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	if err := app.SetBluetooth(p); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	step := func() {
+		t.Helper()
+		frame, err := p.Next(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, cmd := range frame.Commands {
+			app.HandleCommand(cmd, frame.At)
+		}
+	}
+
+	// Arm gamepad on initial idle enumerate.
+	step()
+
+	// Press Home/Guide in ProgramReady -> opens Settings via CmdSettings with zero keyboard input.
+	src.pads(
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}, HomePressed: true},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
+	)
+	step()
+	snap := app.Snapshot()
+	if !snap.Settings.Open {
+		t.Fatal("expected HomePressed in ProgramReady to open Settings")
+	}
+
+	// Find and open Bluetooth section using gamepad navigation.
+	btIdx := -1
+	for i, row := range snap.Settings.Rows {
+		if row.ID == "section-bluetooth" {
+			btIdx = i
+			break
+		}
+	}
+	if btIdx < 0 {
+		t.Fatalf("missing section-bluetooth in %+v", snap.Settings.Rows)
+	}
+	for range btIdx {
+		src.pads(
+			usbhub.GamepadUpdate{State: usb.GamepadState{Hat: 4}},
+			usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
+		)
+		step()
+	}
+	src.pads(
+		usbhub.GamepadUpdate{State: usb.GamepadState{Buttons: 1, Hat: -1}},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
+	)
+	step()
+	snap = app.Snapshot()
+	if snap.Settings.Title != "Bluetooth" || len(snap.Settings.Rows) != 4 {
+		t.Fatalf("expected Bluetooth section with 4 rows, got %#v", snap.Settings)
+	}
+
+	// Move to bt-pair (index 1) and start 30s pairing with Confirm button.
+	src.pads(
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: 4}},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Buttons: 1, Hat: -1}},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
+	)
+	step()
+	if !src.PairingActive() || !p.BluetoothStatus().PairingActive {
+		t.Fatal("expected pairing active after selecting bt-pair")
+	}
+	if got := app.Snapshot().Settings.Rows[1].Value; !strings.Contains(got, "Pairing (30s)") {
+		t.Fatalf("expected Pairing (30s) in row value, got %q", got)
+	}
+
+	// Stop pairing with another Confirm.
+	src.pads(
+		usbhub.GamepadUpdate{State: usb.GamepadState{Buttons: 1, Hat: -1}},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
+	)
+	step()
+	if src.PairingActive() || p.BluetoothStatus().PairingActive {
+		t.Fatal("expected pairing stopped")
+	}
+
+	// Navigate to Pro Controller (index 3), double-Confirm to forget it, and confirm bonds save cleanly.
+	src.pads(
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: 4}},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: 4}},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Buttons: 1, Hat: -1}},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Buttons: 1, Hat: -1}},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
+	)
+	step()
+	// Run one more Next so SaveBondsIfDirty persists the forgotten bond.
+	step()
+	if len(src.forgotten) != 1 || src.forgotten[0] != "AA:BB:CC:DD:EE:02" {
+		t.Fatalf("expected Pro Controller forgotten, got %v", src.forgotten)
+	}
+	if src.bondsDirty {
+		t.Fatal("expected forgotten bond persisted by next Next")
+	}
+	if len(app.Snapshot().Settings.Rows) != 3 {
+		t.Fatalf("expected 3 rows after forget, got %+v", app.Snapshot().Settings.Rows)
+	}
+
+	// Close Settings so menu sees clean state, then launch core and ensure:
+	// 1) ForgetBluetoothDevice is refused while ProgramRunning
+	// 2) Returning via Home while still held past return does NOT trigger CmdSettings.
+	app.HandleCommand(tenfoot.CmdSettings, time.Now())
+	play, err := c.Launch(ctx, "native-0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.ForgetBluetoothDevice("AA:BB:CC:DD:EE:01"); err == nil {
+		t.Fatal("expected ForgetBluetoothDevice refused while ProgramRunning")
+	}
+	src.pads(usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}, HomePressed: true})
+	frame, err := p.Next(ctx)
+	if err != nil || len(frame.Commands) != 1 || frame.Commands[0] != tenfoot.CmdStop {
+		t.Fatalf("expected HomePressed in ProgramRunning to trigger CmdStop, frame=%+v err=%v", frame, err)
+	}
+	if _, err := c.StopExpectedStamped(ctx, play, hostclient.ClientStamp{}); err != nil {
+		t.Fatal(err)
+	}
+	// Hold Home across the transition into ProgramReady -> must stay blocked until released.
+	src.pads(usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}, HomePressed: true})
+	frame, err = p.Next(ctx)
+	if err != nil || len(frame.Commands) != 0 {
+		t.Fatalf("expected held Home across return to emit no CmdSettings, frame=%+v err=%v", frame, err)
+	}
+	// Release then fresh press opens Settings.
+	src.pads(
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}, HomePressed: false},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}, HomePressed: true},
+	)
+	frame, err = p.Next(ctx)
+	if err != nil || len(frame.Commands) != 1 || frame.Commands[0] != tenfoot.CmdSettings {
+		t.Fatalf("expected fresh Home press after release to emit CmdSettings, frame=%+v err=%v", frame, err)
+	}
 }

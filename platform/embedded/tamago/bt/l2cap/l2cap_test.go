@@ -22,11 +22,11 @@ type l2capMockPipe struct {
 	writeStalled bool
 }
 
-func (p *l2capMockPipe) DeviceAddress() uint8             { return 2 }
-func (p *l2capMockPipe) Endpoint() usb.EndpointDescriptor { return p.ep }
+func (p *l2capMockPipe) DeviceAddress() uint8              { return 2 }
+func (p *l2capMockPipe) Endpoint() usb.EndpointDescriptor  { return p.ep }
 func (p *l2capMockPipe) SetIntervalOverride(time.Duration) {}
-func (p *l2capMockPipe) Close() error                     { return nil }
-func (p *l2capMockPipe) WriteDone() (bool, error)         { return !p.writeStalled, nil }
+func (p *l2capMockPipe) Close() error                      { return nil }
+func (p *l2capMockPipe) WriteDone() (bool, error)          { return !p.writeStalled, nil }
 func (p *l2capMockPipe) Write(data []byte) error {
 	if !p.noOutLog {
 		p.outLog = append(p.outLog, append([]byte(nil), data...))
@@ -46,12 +46,12 @@ func (p *l2capMockPipe) PollInto(dst []byte) (int, error) {
 }
 
 type l2capMockBus struct {
-	dev          usb.BusDevice
-	evPipe       *l2capMockPipe
-	aclInPipe    *l2capMockPipe
-	aclOutPipe   *l2capMockPipe
-	cmds         []uint16
-	lastParams   map[uint16][]byte
+	dev            usb.BusDevice
+	evPipe         *l2capMockPipe
+	aclInPipe      *l2capMockPipe
+	aclOutPipe     *l2capMockPipe
+	cmds           []uint16
+	lastParams     map[uint16][]byte
 	failCreate     bool
 	failInquiry    bool
 	failName       bool
@@ -1557,13 +1557,13 @@ func TestBatchedInquiryResultsDecodeInterleavedRecords(t *testing.T) {
 
 			rec0 := ev[3 : 3+14]
 			copy(rec0[0:6], phone[:])
-			rec0[6] = 0 // psrm[0]
+			rec0[6] = 0                                                              // psrm[0]
 			rec0[tc.codOff], rec0[tc.codOff+1], rec0[tc.codOff+2] = 0x0c, 0x02, 0x5a // phone CoD
 			binary.LittleEndian.PutUint16(rec0[tc.clkOff:tc.clkOff+2], 0x1111)
 
 			rec1 := ev[3+14 : 3+28]
 			copy(rec1[0:6], pad[:])
-			rec1[6] = 1 // psrm[1]
+			rec1[6] = 1                                                              // psrm[1]
 			rec1[tc.codOff], rec1[tc.codOff+1], rec1[tc.codOff+2] = 0x08, 0x25, 0x00 // gamepad CoD
 			binary.LittleEndian.PutUint16(rec1[tc.clkOff:tc.clkOff+2], 0x2233)
 
@@ -2174,5 +2174,77 @@ func TestSetPairingModeFalseAbortsUnbondedPairingACL(t *testing.T) {
 	}
 	if mgr.findConnByHandle(0x0042) != nil {
 		t.Fatal("expected no allocated aclConn for late unbonded pairing completion")
+	}
+}
+
+func TestPairingRemainingAndDisconnectAddr(t *testing.T) {
+	bus := newL2CAPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(2900, 0)
+	mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rem := mgr.PairingRemaining(); rem != 0 {
+		t.Fatalf("expected 0 remaining while inactive, got %v", rem)
+	}
+	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(12 * time.Second)
+	if rem := mgr.PairingRemaining(); rem != 18*time.Second {
+		t.Fatalf("expected 18s remaining, got %v", rem)
+	}
+	now = now.Add(20 * time.Second)
+	if rem := mgr.PairingRemaining(); rem != 0 {
+		t.Fatalf("expected 0 remaining past expiry, got %v", rem)
+	}
+	if err := mgr.Service(); err != nil || mgr.PairingActive() {
+		t.Fatalf("expected expired pairing closed by Service, err=%v active=%t", err, mgr.PairingActive())
+	}
+
+	// Open bonded HID Control + Interrupt channels and disconnect by BDAddr.
+	peer, _ := ParseBDAddr("11:22:33:44:55:AA")
+	other, _ := ParseBDAddr("11:22:33:44:55:BB")
+	if matched, err := mgr.DisconnectAddr(other); matched || err != nil {
+		t.Fatalf("expected non-matching addr (false, nil), got (%t, %v)", matched, err)
+	}
+	_ = mgr.bonds.Upsert(BondRecord{Addr: peer, LinkKey: [16]byte{1}, Name: "DualSense Wireless Controller", Kind: controllers.KindDualSense})
+	var closedPSMs []uint16
+	mgr.OnChannelClose = func(_ uint16, _ BDAddr, psm uint16) {
+		closedPSMs = append(closedPSMs, psm)
+	}
+	connEv := append([]byte{hci.EventConnectionComplete, 11, 0, 0x45, 0x00}, peer[:]...)
+	connEv = append(connEv, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connEv)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeACLPacket(0x0045, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConnReq, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}),
+		makeACLPacket(0x0045, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConfigReq, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeACLPacket(0x0045, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConfigRsp, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeACLPacket(0x0045, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConnReq, 3, 4, 0, 0x13, 0x00, 0x51, 0x00}),
+		makeACLPacket(0x0045, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConfigReq, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
+		makeACLPacket(0x0045, hci.ACLBoundaryFirstAutoFlush, CIDSignaling, []byte{sigConfigRsp, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	delete(bus.lastParams, hci.OpcodeDisconnect)
+	matched, err := mgr.DisconnectAddr(peer)
+	if !matched || err != nil {
+		t.Fatalf("DisconnectAddr failed: matched=%t err=%v", matched, err)
+	}
+	if disc := bus.lastParams[hci.OpcodeDisconnect]; len(disc) < 3 || binary.LittleEndian.Uint16(disc[:2]) != 0x0045 || disc[2] != 0x13 {
+		t.Fatalf("expected Disconnect(0x0045, 0x13), got %x", disc)
+	}
+	if len(closedPSMs) != 2 {
+		t.Fatalf("expected both HID channels closed immediately, got %v", closedPSMs)
 	}
 }

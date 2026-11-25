@@ -139,6 +139,14 @@ return or final menu shutdown; both a displayed menu and a running core keep SD
 contained. Model and FAT restart tests cover that lifecycle; physical writes
 remain unqualified.
 
+`App.SetBluetooth` attaches an optional local `BluetoothController` before
+startup, surfacing a Settings › Bluetooth section only on platforms that provide
+one (for example the bare-metal DE25-Nano multi-input USB/Bluetooth hub).
+Rendering reads a nonblocking cached `BluetoothStatus` snapshot; selecting
+`Pair controller` toggles a bounded 30-second SSP pairing window, and paired
+controllers use a two-press Forget confirmation with bond-save state surfaced in
+the Settings footer.
+
 `corepackage.RetainArchive` validates an exact-length reader using the existing
 canonical archive, manifest, payload and ROM-map rules. It retains private
 bytes and exposes copied inspection metadata and a copying payload reader.

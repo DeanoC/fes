@@ -28,6 +28,14 @@ func (a *App) settingsSnapshotLocked() SettingsSnapshot {
 			hint = "Settings waiting to save · " + hint
 		}
 	}
+	if a.settingsSection == settingsSectionBluetooth && a.bluetooth != nil {
+		st := a.bluetoothStatusLocked()
+		if st.BondsSaveFailed {
+			hint = "Bluetooth bonds not saved · " + hint
+		} else if st.BondsPending {
+			hint = "Bluetooth bonds waiting to save · " + hint
+		}
+	}
 	return SettingsSnapshot{
 		Open:         true,
 		Title:        a.settingsTitleLocked(),
@@ -58,6 +66,8 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 		return a.settingsFirmwareRowsLocked()
 	case settingsSectionDisplay:
 		return a.settingsDisplayRowsLocked()
+	case settingsSectionBluetooth:
+		return a.settingsBluetoothRowsLocked()
 	case settingsSectionNetwork:
 		return a.settingsNetworkRowsLocked()
 	case settingsSectionUpdates:
@@ -77,6 +87,9 @@ func (a *App) settingsSectionsLocked() []string {
 	ids := []string{settingsSectionFolders, settingsSectionFirmware, settingsSectionDisplay}
 	if len(a.pads) > 0 {
 		ids = append(ids, settingsSectionControllers)
+	}
+	if a.bluetooth != nil {
+		ids = append(ids, settingsSectionBluetooth)
 	}
 	if len(a.settingsNetworkRowsLocked()) > 0 {
 		ids = append(ids, settingsSectionNetwork)
@@ -114,6 +127,8 @@ func (a *App) settingsSectionSummaryLocked(id string) string {
 			return a.pads[ids[0]].Name
 		}
 		return fmt.Sprintf("%d pads", len(ids))
+	case settingsSectionBluetooth:
+		return a.settingsBluetoothSummaryLocked()
 	case settingsSectionNetwork:
 		if a.kitDisplay {
 			return "Wired  ·  " + a.settingsWired
@@ -463,12 +478,27 @@ func (a *App) settingsRowHintLocked(kind InputKind) string {
 	if _, ok := parseSettingsFirmwareRowID(id); ok {
 		return settingsActionHint(kind, "details", "", leave)
 	}
+	if _, ok := parseSettingsBluetoothDeviceRowID(id); ok {
+		if a.settingsConfirm == id {
+			return settingsActionHint(kind, "forget controller", "Up/Down cancel", leave)
+		}
+		return settingsActionHint(kind, "forget", "", leave)
+	}
 	switch id {
 	case "home":
 		return settingsActionHint(kind, "go home", "Left/Right start screen", leave)
 	case "reduced-motion", "surround", "all-cores":
 		return settingsActionHint(kind, "toggle", "Left/Right", leave)
-	case "resolution", "versions", "kit-id", "wired":
+	case "resolution", "versions", "kit-id", "wired", "bt-adapter", "bt-none":
+		return backWord(kind) + " " + leave
+	case "bt-pair":
+		st := a.bluetoothStatusLocked()
+		if st.PairingActive {
+			return settingsActionHint(kind, "stop pairing", "", leave)
+		}
+		if st.DongleConnected {
+			return settingsActionHint(kind, "pair controller", "", leave)
+		}
 		return backWord(kind) + " " + leave
 	case "setup-again":
 		return settingsActionHint(kind, "start setup", "", leave)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
+	"github.com/DeanoC/fes/platform/embedded/tamago/input/controllers"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input/usbhub"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
@@ -32,13 +33,20 @@ type ProgramMultiSource interface {
 	StartPairing(time.Duration) error
 	StopPairing() error
 	PairingActive() bool
+	PairingRemaining() time.Duration
+	BluetoothSnapshot() usbhub.BluetoothSnapshot
+	BluetoothGeneration() uint64
+	ForgetBluetoothDevice(string) error
 	SaveBondsIfDirty(context.Context) (bool, error)
 	PausePolling(context.Context) error
 	ResumePolling(context.Context) error
 	Ready() <-chan struct{}
 }
 
-var _ ProgramMultiSource = (*usbhub.Hub)(nil)
+var (
+	_ ProgramMultiSource          = (*usbhub.Hub)(nil)
+	_ tenfoot.BluetoothController = (*ProgramMultiInputPlatform)(nil)
+)
 
 // ProgramMultiConfig configures Tenfoot and core mapping plus pairing/bond hooks
 // for ProgramMultiInputPlatform.
@@ -79,6 +87,11 @@ type ProgramMultiInputPlatform struct {
 	returnRequested bool
 	fault           error
 	pending         []input.Event
+
+	btMu         sync.RWMutex
+	btStatus     tenfoot.BluetoothStatus
+	lastBTGen    uint64
+	lastBTRemSec int
 }
 
 // NewProgramMultiInputPlatform attaches a unified multi-device USB + Bluetooth
@@ -116,7 +129,73 @@ func NewProgramMultiInputPlatform(base tenfoot.Platform, backend *ProgramBackend
 	if uart, ok := base.(interface{ Ready() <-chan struct{} }); ok {
 		p.uartReady = uart.Ready()
 	}
+	p.refreshBluetoothStatus(true)
 	return p, nil
+}
+
+func btRemainingSeconds(d time.Duration) int {
+	if d <= 0 {
+		return 0
+	}
+	return int((d + time.Second - 1) / time.Second)
+}
+
+func convertBluetoothSnapshot(s usbhub.BluetoothSnapshot) tenfoot.BluetoothStatus {
+	out := tenfoot.BluetoothStatus{
+		DongleConnected:  s.DongleConnected,
+		DongleName:       s.DongleName,
+		PairingActive:    s.PairingActive,
+		PairingRemaining: s.PairingRemaining,
+		ConnectedCount:   s.ConnectedCount,
+		BondsPending:     s.BondsPending,
+		BondsSaveFailed:  s.BondsSaveFailed,
+	}
+	if len(s.Devices) > 0 {
+		out.Devices = make([]tenfoot.BluetoothDevice, len(s.Devices))
+		for i, dev := range s.Devices {
+			var kind string
+			if dev.Kind != controllers.KindUnknown {
+				kind = dev.Kind.String()
+			}
+			out.Devices[i] = tenfoot.BluetoothDevice{
+				Address:   dev.Address,
+				Name:      dev.Name,
+				Kind:      kind,
+				Connected: dev.Connected,
+				Slot:      int(dev.Slot),
+			}
+		}
+	}
+	return out
+}
+
+func (p *ProgramMultiInputPlatform) refreshBluetoothStatus(force bool) {
+	gen := p.source.BluetoothGeneration()
+	remSec := btRemainingSeconds(p.source.PairingRemaining())
+	if !force && gen == p.lastBTGen && remSec == p.lastBTRemSec {
+		return
+	}
+	snap := convertBluetoothSnapshot(p.source.BluetoothSnapshot())
+	p.btMu.Lock()
+	p.btStatus = snap
+	p.btMu.Unlock()
+	p.lastBTGen = gen
+	p.lastBTRemSec = remSec
+}
+
+// BluetoothStatus returns the nonblocking cached Bluetooth adapter, pairing,
+// connected slot, and bond status for Tenfoot Settings rendering.
+func (p *ProgramMultiInputPlatform) BluetoothStatus() tenfoot.BluetoothStatus {
+	if p == nil {
+		return tenfoot.BluetoothStatus{}
+	}
+	p.btMu.RLock()
+	st := p.btStatus
+	if len(st.Devices) > 0 {
+		st.Devices = append([]tenfoot.BluetoothDevice(nil), st.Devices...)
+	}
+	p.btMu.RUnlock()
+	return st
 }
 
 // StartBluetoothPairing opens a bounded SSP pairing window when in ProgramReady.
@@ -141,7 +220,12 @@ func (p *ProgramMultiInputPlatform) StartBluetoothPairing(duration time.Duration
 	if duration <= 0 {
 		duration = p.cfg.PairingDuration
 	}
-	return p.source.StartPairing(duration)
+	err := p.source.StartPairing(duration)
+	p.refreshBluetoothStatus(true)
+	if p.cfg.OnPairingEvent != nil {
+		p.cfg.OnPairingEvent(err == nil && p.source.PairingActive(), err)
+	}
+	return err
 }
 
 // StopBluetoothPairing closes an active SSP pairing window.
@@ -157,7 +241,37 @@ func (p *ProgramMultiInputPlatform) StopBluetoothPairing() error {
 		return ErrProgramBusy
 	}
 	defer p.backend.operation.Unlock()
-	return p.source.StopPairing()
+	err := p.source.StopPairing()
+	p.refreshBluetoothStatus(true)
+	if p.cfg.OnPairingEvent != nil {
+		p.cfg.OnPairingEvent(false, err)
+	}
+	return err
+}
+
+// ForgetBluetoothDevice deletes the stored bond for address and disconnects any
+// active session while in ProgramReady.
+func (p *ProgramMultiInputPlatform) ForgetBluetoothDevice(address string) error {
+	if p == nil || p.backend == nil || p.backend.service == nil || p.source == nil {
+		return ErrProgramSession
+	}
+	if !p.operation.TryLock() {
+		return ErrProgramBusy
+	}
+	defer p.operation.Unlock()
+	if p.fault != nil {
+		return p.fault
+	}
+	if !p.backend.operation.TryLock() {
+		return ErrProgramBusy
+	}
+	defer p.backend.operation.Unlock()
+	if p.backend.service.Status().State != ProgramReady {
+		return errors.New("native input: forgetting Bluetooth devices is only allowed in menu")
+	}
+	err := p.source.ForgetBluetoothDevice(address)
+	p.refreshBluetoothStatus(true)
+	return err
 }
 
 func (p *ProgramMultiInputPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
@@ -305,6 +419,9 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		if err := p.source.SetGameplayActive(wantGameplay); err == nil {
 			p.gameplaySynced = true
 			p.gameplayActive = wantGameplay
+			if wantGameplay {
+				p.refreshBluetoothStatus(false)
+			}
 		}
 	}
 	if v.State == ProgramRunning {
@@ -457,8 +574,13 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		// ProgramReady menu gamepad handling.
 		if !p.padArmed {
 			p.padArmed = input.GamepadNeutral(upd.State) && !upd.HomePressed
+			p.prevHome = upd.HomePressed
 			continue
 		}
+		if upd.HomePressed && !p.prevHome {
+			events = append(events, input.Event{Key: "o"})
+		}
+		p.prevHome = upd.HomePressed
 		nextPressed := [6]bool{}
 		dirs := input.GamepadDirections(upd.State)
 		copy(nextPressed[:4], dirs[:])
@@ -486,6 +608,7 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		if saved, err := p.source.SaveBondsIfDirty(ctx); (saved || err != nil) && p.cfg.OnBondsSaved != nil {
 			p.cfg.OnBondsSaved(err)
 		}
+		p.refreshBluetoothStatus(false)
 	}
 
 	if buffer {

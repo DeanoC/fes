@@ -488,3 +488,80 @@ func TestManagerExternalBusDispatchIgnoresNonBTBackoff(t *testing.T) {
 		t.Fatal("BT dongle detach did not clear connected state")
 	}
 }
+
+func TestManagerPairingRemainingAndForgetDevice(t *testing.T) {
+	fwPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_fw.bin")
+	cfgPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_config.bin")
+	fwBytes, err := os.ReadFile(fwPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfgBytes, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw := testFWLoader{"rtl8761bu_fw.bin": fwBytes, "rtl8761bu_config.bin": cfgBytes}
+
+	bus := &mgrBus{lmpSub: 0x8761}
+	addr1, _ := l2cap.ParseBDAddr("CC:22:33:44:55:66")
+	addr2, _ := l2cap.ParseBDAddr("CC:22:33:44:55:77")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: addr1, LinkKey: [16]byte{5}, Name: "BT Keyboard", Slot: 0})
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: addr2, LinkKey: [16]byte{6}, Name: "Offline Pad", Kind: controllers.KindDualSense, Slot: 1})
+
+	now := time.Unix(900, 0)
+	mgr := NewManager(bus, bonds, fw, func() time.Time { return now })
+
+	// Offline bond removal works even before a dongle is attached.
+	if found, err := mgr.ForgetDevice(addr2); !found || err != nil {
+		t.Fatalf("offline ForgetDevice failed: found=%t err=%v", found, err)
+	}
+	if _, ok := bonds.Lookup(addr2); ok {
+		t.Fatal("offline bond survived ForgetDevice")
+	}
+	if found, err := mgr.ForgetDevice(addr2); found || err != nil {
+		t.Fatalf("duplicate ForgetDevice = (%t, %v), want (false, nil)", found, err)
+	}
+
+	dev := makeDongleDevice(2)
+	bus.events = append(bus.events, usb.HostEvent{Kind: usb.DeviceAttached, Device: dev})
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("attach failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+	if err := mgr.StartPairing(30 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(7 * time.Second)
+	if rem := mgr.PairingRemaining(); rem != 23*time.Second {
+		t.Fatalf("PairingRemaining = %v, want 23s", rem)
+	}
+	if err := mgr.StopPairing(); err != nil {
+		t.Fatal(err)
+	}
+
+	connEv := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, addr1[:]...)
+	connEv = append(connEv, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connEv)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x51, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if mgr.ConnectedPlayers() != 1 {
+		t.Fatalf("expected 1 connected player, got %d", mgr.ConnectedPlayers())
+	}
+	if found, err := mgr.ForgetDevice(addr1); !found || err != nil {
+		t.Fatalf("ForgetDevice connected failed: found=%t err=%v", found, err)
+	}
+	if _, ok := bonds.Lookup(addr1); ok || mgr.ConnectedPlayers() != 0 {
+		t.Fatalf("connected device not forgotten cleanly: ok=%t count=%d", ok, mgr.ConnectedPlayers())
+	}
+}

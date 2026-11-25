@@ -64,6 +64,19 @@ func (m *Manager) Bonds() *BondStore { return m.bonds }
 // PairingActive reports whether SSP pairing window is currently open.
 func (m *Manager) PairingActive() bool { return m.pairingActive }
 
+// PairingRemaining returns the remaining duration of an active SSP pairing
+// window, or 0 if inactive or expired.
+func (m *Manager) PairingRemaining() time.Duration {
+	if m == nil || !m.pairingActive {
+		return 0
+	}
+	rem := m.pairingUntil.Sub(m.now())
+	if rem <= 0 {
+		return 0
+	}
+	return rem
+}
+
 // SetPairingMode opens or closes a bounded SSP pairing window. Outside pairing
 // mode, unknown devices and SSP User Confirmation requests are rejected fail-closed.
 func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
@@ -269,9 +282,9 @@ func (m *Manager) onConnSecured(conn *aclConn) {
 	}
 }
 
-func (m *Manager) failConnSecurity(conn *aclConn) {
+func (m *Manager) disconnectConn(conn *aclConn, reason byte) error {
 	if conn == nil || !conn.active {
-		return
+		return nil
 	}
 	for i := range conn.chans {
 		ch := &conn.chans[i]
@@ -304,7 +317,52 @@ func (m *Manager) failConnSecurity(conn *aclConn) {
 	conn.pendingOpenPSM = 0
 	conn.pendingOpenSDP = false
 	conn.sdpSendPending = false
-	_ = m.tr.Disconnect(conn.handle, 0x05)
+	err := m.tr.Disconnect(conn.handle, reason)
+	if err != nil {
+		conn.disconnectPending = true
+		conn.disconnectReason = reason
+		conn.disconnectRetryAt = m.now().Add(nameRetryBackoff)
+		return err
+	}
+	conn.disconnectPending = false
+	conn.disconnectRetryAt = time.Time{}
+	return nil
+}
+
+func (m *Manager) failConnSecurity(conn *aclConn) {
+	_ = m.disconnectConn(conn, 0x05)
+}
+
+// DisconnectAddr cancels a pending outgoing connection or disconnects any active
+// ACL link to addr with Remote User Terminated Connection (0x13), closing its
+// HID channels immediately so downstream input neutralizes at once.
+func (m *Manager) DisconnectAddr(addr BDAddr) (bool, error) {
+	if m == nil {
+		return false, nil
+	}
+	var matched bool
+	var firstErr error
+	if m.connecting && m.connectAddr == addr {
+		matched = true
+		m.connecting = false
+		m.connectAddr = BDAddr{}
+		if err := m.tr.CreateConnectionCancel(addr); err != nil {
+			m.cancelConnPending = true
+			m.cancelConnAddr = addr
+			m.cancelRetryAt = m.now().Add(nameRetryBackoff)
+			firstErr = err
+		} else if m.cancelConnPending && m.cancelConnAddr == addr {
+			m.cancelConnPending = false
+			m.cancelConnAddr = BDAddr{}
+		}
+	}
+	if conn := m.findConnByAddr(addr); conn != nil {
+		matched = true
+		if err := m.disconnectConn(conn, 0x13); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return matched, firstErr
 }
 
 func (m *Manager) requestRemoteName(conn *aclConn) {
@@ -370,6 +428,14 @@ func (m *Manager) Service() error {
 		conn := &m.conns[i]
 		if !conn.active {
 			continue
+		}
+		if conn.disconnectPending && (conn.disconnectRetryAt.IsZero() || !m.now().Before(conn.disconnectRetryAt)) {
+			if err := m.tr.Disconnect(conn.handle, conn.disconnectReason); err == nil {
+				conn.disconnectPending = false
+				conn.disconnectRetryAt = time.Time{}
+			} else {
+				conn.disconnectRetryAt = m.now().Add(nameRetryBackoff)
+			}
 		}
 		if conn.secRetryPending && !conn.secRetryAt.IsZero() && !m.now().Before(conn.secRetryAt) {
 			if !conn.authenticated {
