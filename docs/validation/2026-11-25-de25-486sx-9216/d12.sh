@@ -2,10 +2,10 @@
 # d12.sh MAINREV BRANCHREV PHASES: method.md amendment 1's G7, as #2036's d12-run6.sh ran it, on Powerboat.
 # For MENU, ZX81, Spectrum 48/128, ST, C64 pal and PC/XT xt: A (main, --compile-only), B (this branch, full
 # producer and gates), C (this branch's tooling with main's BUILD_ID forced, #2036's d12_repro.py). PHASES
-# is any of A, B, C (e.g. "A C" or "B"). Each producer runs under a Pro slot of the Quartus lease
+# is any of A, B, C (e.g. "A C" or "B"); ONLY, if given, limits it to those packages (e.g. "c64 pcxt"). Each producer runs under a Pro slot of the Quartus lease
 # (quartus_jobs.py run, 300-minute cap); producers that lease inside count the outer slot as theirs.
 set -u
-MAIN=$1; BR=$2; PHASES=$3; P=/data/projects/fes-486sx-9216/d12; REPO=/home/deano/fes; L=$P/d12-${PHASES// /}.log
+MAIN=$1; BR=$2; PHASES=$3; ONLY=${4:-}; P=/data/projects/fes-486sx-9216/d12; REPO=/home/deano/fes; L=$P/d12-${PHASES// /}.log
 Q=/data/altera_pro/26.3/quartus; Z=/data/fes-de25-1297-9b36e4729/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip
 export LM_LICENSE_FILE=$HOME/.altera.quartus/quartus2_lic.dat QUARTUS_ROOTDIR=$Q
 export FES_TOOLCHAIN_CACHE_ROOT=/home/deano/fes/out/cache/misteross-toolchains FES_GPU_ROUTER=HIP
@@ -28,6 +28,7 @@ c64 boards.de25nano.producers.build_c64_package pal
 pcxt boards.de25nano.producers.build_pcxt_package xt"
 for phase in $PHASES; do
   echo "$JOBS" | while read pkg mod model; do
+    [ -n "$ONLY" ] && ! echo " $ONLY " | grep -q " $pkg " && continue
     m=""; [ "$model" != "-" ] && m="--model $model"
     case $phase in
       A) w=$wm; out=$P/A-$pkg; args="--output $out --compile-only"; cmd="python3 -m $mod $COMMON $m $args" ;;
