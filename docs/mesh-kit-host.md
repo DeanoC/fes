@@ -34,7 +34,7 @@ flowchart LR
   Source["Read-only LAN Library Source\n(Powerboat / NAS / Desktop)"]
   Desktop["Remote Desktop Client"]
 
-  API -->|"Index & fetch content\n(GET /api/v1/library/*)"| Source
+  API -->|"Index: GET /api/v1/library/core-entries\nFetch: /api/v1/mesh/content/source, /object"| Source
   Desktop -->|"Authenticated\nallowlisted ops"| Launcher
 ```
 
