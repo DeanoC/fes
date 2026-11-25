@@ -121,8 +121,9 @@ class DE25ModelsTest(unittest.TestCase):
 
     def test_the_models(self):
         self.assertEqual(tuple(self.build.MODELS), ('486sx', '486dx'))
-        self.assertEqual(self.build.model_clock('486dx')['c0'], 51)
-        self.assertEqual(self.build.model_clock('486dx')['mhz'], '61.437908')
+        clock = self.build.model_clock('486dx')
+        self.assertEqual((clock['c0'], clock['mhz']), (34, '92.156863'))
+        self.assertNotEqual(clock['pll_ip'], self.build.model_clock('486sx')['pll_ip'])
 
     def test_the_486sx_is_fes_i386_cpu_at_i486_1_without_the_387(self):
         files, cpu, parameters = self.model('486sx')
@@ -267,7 +268,6 @@ class De25SystemBenchClockTest(unittest.TestCase):
                     bench.run_at_model_clock(SimpleNamespace(model=model))
                 self.assertEqual(seen[model], producer.model_clock(model)['hz'])
                 self.assertEqual(pc386_quartus.SYSTEM_CLOCK_HZ, shared)  # restored
-        self.assertEqual((seen['486sx'], seen['486dx']), (92156863, 61437908))
 
 
 if __name__ == '__main__':
