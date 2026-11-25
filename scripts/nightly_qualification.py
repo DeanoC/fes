@@ -210,8 +210,6 @@ def qualify(store, sha, recipe, accept, key, previous):
             result = core_dev.prepare(recipe.core_id, root, board=recipe.board)
             if result["sources"]["misteross"] != sha or result["core_id"] != recipe.core_id:
                 raise ValueError("producer selected a different core or revision")
-            if recipe.core_id == "fes.menu":
-                materialize_menu(root, result)
             # core_dev also stages an intermediate copy of linked video parts.
             intermediate = root / "resolved-video-parts"
             if intermediate.exists():
@@ -250,6 +248,14 @@ def qualify(store, sha, recipe, accept, key, previous):
     with tempfile.TemporaryDirectory(dir=store / "objects") as tmp:
         root = Path(tmp) / "result"
         shutil.copytree(candidate, root, symlinks=True)
+        copied = {}
+        candidate_arguments(root / "prepared.json", copied)
+        if copied != provenance:
+            raise ValueError("qualified copy differs from the tested candidate")
+        if digest((root / "simulations.json").read_bytes()) != request["simulations_sha256"]:
+            raise ValueError("simulation receipt changed during acceptance")
+        if recipe.core_id == "fes.menu":
+            materialize_menu(root, result)
         (root / "qualification.json").write_bytes(encoded(dict(request=request, receipt=receipt)))
         identity = tree_identity(root, flush=True)
         target = store / "objects" / identity
