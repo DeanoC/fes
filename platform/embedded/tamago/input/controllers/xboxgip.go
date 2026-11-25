@@ -17,6 +17,10 @@ const (
 
 	// XboxGIPPowerLen is the 5-byte power-on packet length.
 	XboxGIPPowerLen = 5
+	// XboxGIPLedOnLen is the 7-byte GIP LED-on initialization packet length.
+	XboxGIPLedOnLen = 7
+	// XboxGIPAuthLen is the 6-byte GIP auth-complete initialization packet length.
+	XboxGIPAuthLen = 6
 	// XboxGIPAckLen is the 13-byte GIP ACK packet length.
 	XboxGIPAckLen = 13
 	// XboxGIPRumbleLen is the 13-byte GIP rumble packet length.
@@ -137,6 +141,37 @@ func BuildXboxGIPPowerOn(dst []byte, seq uint8) int {
 	dst[3] = 0x01
 	dst[4] = 0x00
 	return XboxGIPPowerLen
+}
+
+// BuildXboxGIPLedOn writes the 7-byte GIP LED-on initialization packet required
+// by third-party (e.g. PDP) Xbox One controllers before emitting input reports.
+func BuildXboxGIPLedOn(dst []byte, seq uint8) int {
+	if len(dst) < XboxGIPLedOnLen {
+		return 0
+	}
+	dst[0] = 0x0a
+	dst[1] = 0x20
+	dst[2] = seq
+	dst[3] = 0x03
+	dst[4] = 0x00
+	dst[5] = 0x01
+	dst[6] = 0x14
+	return XboxGIPLedOnLen
+}
+
+// BuildXboxGIPAuthComplete writes the 6-byte GIP authentication/handshake
+// completion packet expected after power-on and LED-on.
+func BuildXboxGIPAuthComplete(dst []byte, seq uint8) int {
+	if len(dst) < XboxGIPAuthLen {
+		return 0
+	}
+	dst[0] = 0x06
+	dst[1] = 0x20
+	dst[2] = seq
+	dst[3] = 0x02
+	dst[4] = 0x01
+	dst[5] = 0x00
+	return XboxGIPAuthLen
 }
 
 // BuildXboxGIPAck writes a 13-byte GIP acknowledgement packet for Guide/status events.

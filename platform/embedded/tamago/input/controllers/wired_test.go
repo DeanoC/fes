@@ -95,6 +95,12 @@ func TestParseXboxGIPInputGuidePreservationAndBuilders(t *testing.T) {
 	if BuildXboxGIPPowerOn(out[:], 1) != XboxGIPPowerLen || out[0] != 0x05 || out[2] != 1 {
 		t.Fatalf("unexpected GIP power-on: %x", out[:XboxGIPPowerLen])
 	}
+	if BuildXboxGIPLedOn(out[:], 2) != XboxGIPLedOnLen || out[0] != 0x0a || out[2] != 2 || out[5] != 0x01 || out[6] != 0x14 {
+		t.Fatalf("unexpected GIP LED-on: %x", out[:XboxGIPLedOnLen])
+	}
+	if BuildXboxGIPAuthComplete(out[:], 3) != XboxGIPAuthLen || out[0] != 0x06 || out[2] != 3 || out[4] != 0x01 {
+		t.Fatalf("unexpected GIP auth-complete: %x", out[:XboxGIPAuthLen])
+	}
 	if BuildXboxGIPAck(out[:], 7, XboxGIPCommandGuide, 2) != XboxGIPAckLen || out[0] != 0x01 || out[2] != 7 || out[5] != 0x07 || out[7] != 2 {
 		t.Fatalf("unexpected GIP ack: %x", out[:])
 	}
@@ -171,6 +177,8 @@ func TestWiredControllersZeroAllocs(t *testing.T) {
 		BuildXInputLED(out[:], 0)
 		BuildXInputRumble(out[:], 10, 20)
 		BuildXboxGIPPowerOn(out[:], 1)
+		BuildXboxGIPLedOn(out[:], 2)
+		BuildXboxGIPAuthComplete(out[:], 3)
 		BuildXboxGIPAck(out[:], 1, 0x07, 2)
 		BuildXboxGIPRumble(out[:], 2, 10, 20)
 		BuildDualSenseUSBOutput(out[:], 0, 10, 20)

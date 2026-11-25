@@ -16,20 +16,21 @@ import (
 )
 
 type fakePipe struct {
-	addr       uint8
-	ep         usb.EndpointDescriptor
-	inQueue    [][]byte
-	outPackets [][]byte
-	pollErr    error
-	writeErr   error
-	closed     bool
+	addr          uint8
+	ep            usb.EndpointDescriptor
+	inQueue       [][]byte
+	outPackets    [][]byte
+	pollErr       error
+	writeErr      error
+	holdWriteDone bool
+	closed        bool
 }
 
 func (p *fakePipe) DeviceAddress() uint8              { return p.addr }
 func (p *fakePipe) Endpoint() usb.EndpointDescriptor  { return p.ep }
 func (p *fakePipe) SetIntervalOverride(time.Duration) {}
 func (p *fakePipe) Close() error                      { p.closed = true; return nil }
-func (p *fakePipe) WriteDone() (bool, error)          { return true, nil }
+func (p *fakePipe) WriteDone() (bool, error)          { return !p.holdWriteDone, nil }
 func (p *fakePipe) Write(data []byte) error {
 	if p.writeErr != nil {
 		return p.writeErr

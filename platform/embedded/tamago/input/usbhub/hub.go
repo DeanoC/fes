@@ -105,6 +105,12 @@ type wiredKeyboardSlot struct {
 	report   [8]byte
 }
 
+type gipAckRequest struct {
+	seq        uint8
+	cmdID      uint8
+	payloadLen uint8
+}
+
 type wiredGamepadSlot struct {
 	active bool
 	// reported is set by the first decoded report since attach. Until then
@@ -125,6 +131,9 @@ type wiredGamepadSlot struct {
 	initAttempts uint8
 	txSeq        uint8
 	outPending   bool
+	gipAckQueue  [4]gipAckRequest
+	gipAckHead   uint8
+	gipAckCount  uint8
 }
 
 // Hub supervises wired USB boot keyboards, wired USB HID gamepads, and one
@@ -745,6 +754,16 @@ func (h *Hub) writeSlotPacket(slotIdx int, pkt []byte) bool {
 	return false
 }
 
+func (h *Hub) enqueueGIPAck(slot *wiredGamepadSlot, seq, cmdID, payloadLen uint8) {
+	if int(slot.gipAckCount) == len(slot.gipAckQueue) {
+		slot.gipAckHead = (slot.gipAckHead + 1) % uint8(len(slot.gipAckQueue))
+		slot.gipAckCount--
+	}
+	tail := (slot.gipAckHead + slot.gipAckCount) % uint8(len(slot.gipAckQueue))
+	slot.gipAckQueue[tail] = gipAckRequest{seq: seq, cmdID: cmdID, payloadLen: payloadLen}
+	slot.gipAckCount++
+}
+
 func (h *Hub) serviceWiredInit(slotIdx int) (paused bool) {
 	slot := &h.wiredGamepads[slotIdx]
 	if !slot.active || slot.outPipe == nil {
@@ -764,6 +783,14 @@ func (h *Hub) serviceWiredInit(slotIdx int) (paused bool) {
 		}
 		slot.outPending = false
 	}
+	if slot.gipAckCount > 0 {
+		ack := slot.gipAckQueue[slot.gipAckHead]
+		slot.gipAckHead = (slot.gipAckHead + 1) % uint8(len(slot.gipAckQueue))
+		slot.gipAckCount--
+		n := controllers.BuildXboxGIPAck(h.txBuf[:], ack.seq, ack.cmdID, ack.payloadLen)
+		_ = h.writeSlotPacket(slotIdx, h.txBuf[:n])
+		return false
+	}
 	now := h.cfg.Now()
 	if !slot.initNextTry.IsZero() && now.Before(slot.initNextTry) {
 		return false
@@ -777,11 +804,24 @@ func (h *Hub) serviceWiredInit(slotIdx int) (paused bool) {
 			}
 		}
 	case controllers.KindXboxGIP:
-		if slot.initStep == 0 {
+		switch slot.initStep {
+		case 0:
 			n := controllers.BuildXboxGIPPowerOn(h.txBuf[:], slot.txSeq)
 			slot.txSeq++
 			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
 				slot.initStep = 1
+			}
+		case 1:
+			n := controllers.BuildXboxGIPLedOn(h.txBuf[:], slot.txSeq)
+			slot.txSeq++
+			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+				slot.initStep = 2
+			}
+		case 2:
+			n := controllers.BuildXboxGIPAuthComplete(h.txBuf[:], slot.txSeq)
+			slot.txSeq++
+			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+				slot.initStep = 3
 			}
 		}
 	case controllers.KindDualSense:
@@ -871,11 +911,15 @@ func (h *Hub) feedWiredGamepadPacket(slotIdx int, pkt []byte) {
 		var ackSeq uint8
 		var needsAck bool
 		updated, ackSeq, needsAck = controllers.ParseXboxGIPInput(pkt, &slot.ctrlState)
-		if updated && needsAck && slot.outPipe != nil && !slot.outPending {
-			n := controllers.BuildXboxGIPAck(h.txBuf[:], ackSeq, pkt[0], pkt[3])
-			_ = h.writeSlotPacket(slotIdx, h.txBuf[:n])
-			if !slot.active {
-				return
+		if updated && needsAck && slot.outPipe != nil {
+			if slot.outPending {
+				h.enqueueGIPAck(slot, ackSeq, pkt[0], pkt[3])
+			} else {
+				n := controllers.BuildXboxGIPAck(h.txBuf[:], ackSeq, pkt[0], pkt[3])
+				_ = h.writeSlotPacket(slotIdx, h.txBuf[:n])
+				if !slot.active {
+					return
+				}
 			}
 		}
 	case controllers.KindDualSense:
@@ -929,6 +973,9 @@ func (h *Hub) SetWiredRumble(slotIdx uint8, leftHeavy, rightLight uint8) error {
 			return errors.New("usbhub: wired output pipe busy")
 		}
 		slot.outPending = false
+	}
+	if slot.gipAckCount > 0 {
+		return errors.New("usbhub: wired output pipe busy")
 	}
 	var n int
 	switch slot.kind {

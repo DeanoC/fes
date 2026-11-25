@@ -185,17 +185,35 @@ func TestHubWiredXInputAndXboxGIP(t *testing.T) {
 		t.Fatal("XInput IN/OUT pipes were not closed on detach")
 	}
 
-	// 2. Attach Xbox One/Series GIP controller.
+	// 2. Attach Xbox One/Series GIP controller and advance full 3-step init
+	// (PowerOn -> LedOn -> AuthComplete) including PDP pads.
 	gip := makeXboxGIPDev(3)
 	bus.attach(gip)
 	if err := hub.Service(); err != nil {
 		t.Fatal(err)
 	}
 	gipOut := bus.pipes[key32(3, 0x01)]
-	if len(gipOut.outPackets) != 1 || gipOut.outPackets[0][0] != controllers.XboxGIPCommandPower {
-		t.Fatalf("expected Xbox GIP PowerOn init packet, got %x", gipOut.outPackets)
+	for range 2 {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
 	}
-	// Receive Guide press 0x07 (flags=0x10 ACK required) + subsequent 0x20 input report.
+	if len(gipOut.outPackets) != 3 ||
+		gipOut.outPackets[0][0] != controllers.XboxGIPCommandPower ||
+		gipOut.outPackets[1][0] != 0x0a ||
+		gipOut.outPackets[2][0] != 0x06 {
+		t.Fatalf("expected Xbox GIP PowerOn -> LedOn -> AuthComplete sequence, got %x", gipOut.outPackets)
+	}
+
+	// Receive Guide press 0x07 (flags=0x10 ACK required) while OUT pipe is still
+	// busy with rumble (holdWriteDone=true) -> ACK must be queued and sent once ready.
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	gipOut.holdWriteDone = true
+	if err := hub.SetWiredRumble(0, 255, 128); err != nil {
+		t.Fatalf("SetWiredRumble(xboxgip) failed: %v", err)
+	}
 	gipGuide := []byte{controllers.XboxGIPCommandGuide, 0x10, 0x09, 0x02, 0x01, 0x00}
 	var gipIn [20]byte
 	gipIn[0], gipIn[3], gipIn[4] = controllers.XboxGIPCommandInput, 14, 0x10 // South(A)
@@ -203,18 +221,20 @@ func TestHubWiredXInputAndXboxGIP(t *testing.T) {
 	if err := hub.Service(); err != nil {
 		t.Fatal(err)
 	}
-	if len(gipOut.outPackets) < 2 || gipOut.outPackets[1][0] != controllers.XboxGIPCommandAck || gipOut.outPackets[1][2] != 0x09 {
-		t.Fatalf("expected automatic GIP ACK seq=0x09, got %x", gipOut.outPackets)
+	if len(gipOut.outPackets) != 4 || gipOut.outPackets[3][0] != controllers.XboxGIPCommandRumble {
+		t.Fatalf("expected only rumble packet while OUT pending, got %x", gipOut.outPackets)
+	}
+	// Release OUT pipe completion -> next Service flushes queued GIP Guide ACK!
+	gipOut.holdWriteDone = false
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if len(gipOut.outPackets) != 5 || gipOut.outPackets[4][0] != controllers.XboxGIPCommandAck || gipOut.outPackets[4][2] != 0x09 {
+		t.Fatalf("expected queued GIP ACK seq=0x09 flushed after WriteDone, got %x", gipOut.outPackets)
 	}
 	upd, cnt = drainGamepadUpdates(hub)
 	if cnt == 0 || !upd.HomePressed || upd.State.Buttons&uint32(controllers.ButtonSouth) == 0 {
 		t.Fatalf("expected GIP HomePressed preserved across 0x20 input, cnt=%d upd=%+v", cnt, upd)
-	}
-	if err := hub.SetWiredRumble(0, 255, 128); err != nil {
-		t.Fatalf("SetWiredRumble(xboxgip) failed: %v", err)
-	}
-	if len(gipOut.outPackets) < 3 || gipOut.outPackets[2][0] != controllers.XboxGIPCommandRumble {
-		t.Fatalf("expected GIP rumble packet, got %x", gipOut.outPackets)
 	}
 	if len(events) < 2 || events[0].Name != "xinput" {
 		t.Fatalf("expected xinput device event name, got %+v", events)
