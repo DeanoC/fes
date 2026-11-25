@@ -29,20 +29,26 @@ func lifecycleKeyboardObserver(base tenfoot.Platform) func(context.Context, Prog
 }
 
 type lifecycleKeyboardTrace struct {
-	control, alt, escape, quit bool
+	state                                       ProgramServiceState
+	generation                                  uint64
+	armed, control, alt, escape, quit, rollover bool
 }
 
 func (p *ProgramSerialPlatform) traceLifecycleKeyboard(ctx context.Context, status ProgramServiceStatus, report []byte, armed bool) {
-	const maxTransitions = 48
+	const maxTransitions = 256
 	if len(report) != 8 || p.traceReports >= maxTransitions {
 		return
 	}
 	keys := report[2:]
 	next := lifecycleKeyboardTrace{
-		control: report[0]&0x11 != 0,
-		alt:     report[0]&0x44 != 0,
-		escape:  slices.Contains(keys, 0x29),
-		quit:    status.State == ProgramReady && slices.Contains(keys, 0x14),
+		state:      status.State,
+		generation: status.Generation,
+		armed:      armed,
+		control:    report[0]&0x11 != 0,
+		alt:        report[0]&0x44 != 0,
+		escape:     slices.Contains(keys, 0x29),
+		quit:       status.State == ProgramReady && slices.Contains(keys, 0x14),
+		rollover:   slices.Contains(keys, 0x01),
 	}
 	if next == p.keyboardTrace {
 		return
@@ -50,6 +56,6 @@ func (p *ProgramSerialPlatform) traceLifecycleKeyboard(ctx context.Context, stat
 	p.keyboardTrace = next
 	p.traceReports++
 	_ = p.emit(ctx, fmt.Appendf(nil,
-		"FES_NATIVE_KEYBOARD_SHORTCUT state=%s owner=%x generation=%d armed=%t control=%t alt=%t escape=%t quit=%t\n",
-		status.State, status.Owner, status.Generation, armed, next.control, next.alt, next.escape, next.quit))
+		"FES_NATIVE_KEYBOARD_SHORTCUT state=%s owner=%x generation=%d armed=%t control=%t alt=%t escape=%t quit=%t rollover=%t\n",
+		status.State, status.Owner, status.Generation, next.armed, next.control, next.alt, next.escape, next.quit, next.rollover))
 }
