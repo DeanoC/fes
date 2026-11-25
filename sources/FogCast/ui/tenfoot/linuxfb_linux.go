@@ -1868,7 +1868,7 @@ func (k *kitFrameTrace) tick(started, polled, ticked, snapped, rendered time.Tim
 		PollUS: polled.Sub(started).Microseconds(), TickUS: ticked.Sub(polled).Microseconds(),
 		LuaAsyncUS: async.Microseconds(), LuaUpdateUS: update.Microseconds(), LuaDrawUS: draw.Microseconds(), LuaStepUS: step.Microseconds(),
 		SnapshotUS: snapped.Sub(ticked).Microseconds(), RenderUS: rendered.Sub(snapped).Microseconds(),
-		View: traceView(snap),
+		GridWidth: snap.Grid.Width, GridHeight: snap.Grid.Height, View: traceView(snap),
 	}
 	if seqAfter != seqBefore {
 		r.Queued, r.Seq = true, seqAfter

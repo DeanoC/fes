@@ -653,31 +653,14 @@ func presentMenuWait(t *testing.T, client *testMenuClient) {
 	}
 }
 
-// waitMenuIdle waits until the worker has finished every queued frame, then
-// checks the client Present count. flight == nil and an empty queue are not
-// enough on their own: Present bumps nextSeq before the send, and the worker
-// can dequeue that frame before it publishes flight. Status runs only after
-// flight is published, once per queued non-probe Present, so the status
-// count has to catch nextSeq before idle is accepted. A probe calls Status
-// without bumping nextSeq; probeQueued stays set until that check finishes,
-// so an in-flight probe is not idle.
+// waitMenuIdle waits for the queued, dequeued and in-flight work to finish
+// before checking the client count, including frames rejected before Present.
 func waitMenuIdle(t *testing.T, d *MenuDisplay, client *testMenuClient, wantCalls int) {
 	t.Helper()
-	// Polls until idle; the generous deadline only bounds a hang under -race.
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		d.mu.Lock()
-		idle := d.flight == nil && len(d.frames) == 0 && !d.probeQueued
-		seq := d.nextSeq
-		d.mu.Unlock()
-		if idle && client.statusCount() >= int(seq) {
-			break
-		}
-		if time.Now().After(deadline) {
-			calls, _, _, _ := client.snapshot()
-			t.Fatalf("menu worker did not become idle (calls=%d, want %d)", calls, wantCalls)
-		}
-		time.Sleep(time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := d.WaitPending(ctx); err != nil {
+		t.Fatalf("menu worker did not become idle: %v", err)
 	}
 	if calls, _, _, _ := client.snapshot(); calls != wantCalls {
 		t.Fatalf("calls=%d, want %d", calls, wantCalls)
