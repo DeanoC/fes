@@ -5,7 +5,7 @@
 
 `include "c64_timing.vh"
 
-module c64_vic #(parameter bit NTSC = 0) (
+module c64_vic #(parameter integer NTSC = 0) (
     input  wire        clk_sys,
     input  wire        phi,
     input  wire [5:0] cycle_clock,
@@ -305,8 +305,8 @@ module c64_vic #(parameter bit NTSC = 0) (
     // x64sc uses bits 8:3 of the Phi1 X coordinate as the sprite trigger
     // group. The 6567R8 has 65 cycles and 64 distinct groups: both cycles
     // 62 and 63 select X=384..391 before the counter advances again.
-    localparam [8:0] LINE_START_X = NTSC ? 9'd408 : 9'd400;
-    wire [CYCLE_BITS-1:0] beam_cycle = NTSC && native_cycle >= 63 ?
+    localparam [8:0] LINE_START_X = NTSC == 2 ? 9'd412 : (NTSC ? 9'd408 : 9'd400);
+    wire [CYCLE_BITS-1:0] beam_cycle = NTSC == 1 && native_cycle >= 63 ?
         native_cycle - 1'b1 : native_cycle;
     wire [8:0] prepare_x = native_cycle >= `C64_X_ZERO_CYCLE ?
         9'((beam_cycle - `C64_X_ZERO_CYCLE)*8) + {6'd0,prepare_dot} :
@@ -318,8 +318,8 @@ module c64_vic #(parameter bit NTSC = 0) (
         if(reset)begin
             sprite_dot_x_q<=0;
             // Cycle 1 fetches sprite 3's pointer on PAL and row on NTSC.
-            sprite_pointer_q <= NTSC ? 0 : 8'h08;
-            sprite_row_q <= NTSC ? 8'h08 : 0;
+            sprite_pointer_q <= NTSC == 1 ? 0 : 8'h08;
+            sprite_row_q <= NTSC == 1 ? 8'h08 : 0;
             sprite_pending_update_q<=0;
         end else if(pixel_prepare)begin
             sprite_dot_x_q<=prepare_x;
@@ -398,7 +398,7 @@ module c64_vic #(parameter bit NTSC = 0) (
     reg [9:0] vpos=0,vpos_q=0;
     reg [2:0] xphase=0;
     // Source rows per 720p active line, reduced to the smallest integers.
-    localparam integer Y_NUM = NTSC ? 247 : 17;
+    localparam integer Y_NUM = NTSC == 2 ? 246 : (NTSC ? 247 : 17);
     localparam integer Y_DEN = NTSC ? 720 : 45;
     localparam integer Y_BITS = $clog2(Y_DEN);
     reg [Y_BITS-1:0] yphase=0;
