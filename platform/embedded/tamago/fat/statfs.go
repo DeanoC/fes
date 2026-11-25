@@ -199,6 +199,7 @@ func (v *Volume) MkdirAll(ctx context.Context, name string) error {
 	}
 
 	parts := strings.Split(name, "/")
+	parentCluster := v.root
 	firstMissing := len(parts)
 	for i := range parts {
 		prefix := strings.Join(parts[:i+1], "/")
@@ -207,6 +208,7 @@ func (v *Volume) MkdirAll(ctx context.Context, name string) error {
 			if e.attributes&0x10 == 0 {
 				return fmt.Errorf("fat: %q exists and is not a directory: %w", prefix, fs.ErrExist)
 			}
+			parentCluster = e.cluster
 			continue
 		}
 		if errors.Is(err, fs.ErrNotExist) {
@@ -231,7 +233,27 @@ func (v *Volume) MkdirAll(ctx context.Context, name string) error {
 	if !v.allocationValid {
 		return fmt.Errorf("%w: unsupported allocation metadata", ErrCorrupt)
 	}
-	if _, err := v.freeClusters(ctx, missingCount); err != nil {
+	p, err := v.appendDirectory(ctx, parentCluster)
+	if err != nil {
+		return err
+	}
+	clusterBytes := int(v.sectorsPerCluster) * block.SectorSize
+	firstRecordBytes := ((len(allUnits[0])+12)/13 + 1) * 32
+	firstEnd := p.offset + firstRecordBytes + 32
+	if firstEnd > maxDirectoryBytes {
+		return ErrNoSpace
+	}
+	neededClusters := missingCount + (max(0, firstEnd-len(p.data))+clusterBytes-1)/clusterBytes
+	for i := 1; i < missingCount; i++ {
+		// Newly created parent directories start with 1 cluster containing "." and ".." (64 bytes).
+		recordBytes := ((len(allUnits[i])+12)/13 + 1) * 32
+		end := 64 + recordBytes + 32
+		if end > maxDirectoryBytes {
+			return ErrNoSpace
+		}
+		neededClusters += (max(0, end-clusterBytes) + clusterBytes - 1) / clusterBytes
+	}
+	if _, err := v.freeClusters(ctx, neededClusters); err != nil {
 		return err
 	}
 

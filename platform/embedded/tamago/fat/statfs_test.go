@@ -242,4 +242,44 @@ func TestMkdirAllNestedIdempotentAndErrors(t *testing.T) {
 	if stFull.FreeClusters != 2 || !strings.EqualFold(stFull.Label, "") {
 		t.Fatalf("expected 2 free clusters untouched, got %+v", stFull)
 	}
+
+	// Directory growth preflight: 512 B cluster + long child (>169 chars) under a new parent needs
+	// 1 cluster (parent) + 1 cluster (child) + 1 extra cluster (parent growth) = 3 clusters total.
+	dGrow, vGrow := newRecordingDisk(t, 1) // 512 B clusters
+	for c := uint32(5); c < uint32(vGrow.clusterCount+2); c++ {
+		setFATEntry(dGrow.sparseFATDisk, c, 0x0fffffff)
+	}
+	longLeaf := "ShortParent/" + strings.Repeat("a", 200)
+	if err := vGrow.MkdirAll(ctx, longLeaf); !errors.Is(err, ErrNoSpace) {
+		t.Fatalf("MkdirAll needing parent extension = %v, want ErrNoSpace", err)
+	}
+	if _, err := vGrow.Open("ShortParent"); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("ShortParent left behind when space insufficient for child extension: %v", err)
+	}
+	stGrow, err := vGrow.StatFS(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stGrow.FreeClusters != 2 {
+		t.Fatalf("expected 2 free clusters preserved after ErrNoSpace, got %+v", stGrow)
+	}
+
+	// Existing full parent directory needing extra cluster extension: fill root cluster except 1 slot,
+	// leave 2 free clusters (enough only for 1 dir + 1 parent growth = 2, NOT 2 levels = 3 clusters).
+	dFullParent, vFullParent := newRecordingDisk(t, 1)
+	for i := 0; i < 15; i++ {
+		if err := vFullParent.CreateFile(ctx, strings.Repeat(string(rune('A'+i)), 1), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Root now uses clusters 2 (15*32 = 480 bytes used, only 32 bytes left -> adding a slot + 32B EOC forces dirExtra=1).
+	for c := uint32(5); c < uint32(vFullParent.clusterCount+2); c++ {
+		setFATEntry(dFullParent.sparseFATDisk, c, 0x0fffffff)
+	}
+	if err := vFullParent.MkdirAll(ctx, "ParentNeedGrow/Child"); !errors.Is(err, ErrNoSpace) {
+		t.Fatalf("MkdirAll on full existing parent = %v, want ErrNoSpace", err)
+	}
+	if _, err := vFullParent.Open("ParentNeedGrow"); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("ParentNeedGrow created despite insufficient space for Child: %v", err)
+	}
 }
