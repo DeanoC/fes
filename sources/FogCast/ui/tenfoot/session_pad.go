@@ -183,5 +183,23 @@ func (a *App) tickSessionPadLocked(now time.Time) {
 	a.playPadChordFired = true
 	// Select+Start ends the library session. It is not the rooms Soft-stop:
 	// idle cleanup must release this kit's grant and stop renewal.
-	a.startReleaseStopLocked()
+	if !a.kitHost || a.kitHostOwnsActiveSessionLocked() {
+		a.startReleaseStopLocked()
+	}
+}
+
+// kitHostOwnsActiveSessionLocked requires a positive lease observation before
+// the kit chord can stop a session. Local pad input remains available while a
+// different FogCast host owns the active core.
+func (a *App) kitHostOwnsActiveSessionLocked() bool {
+	if !a.kitHost || !a.healthHave || a.hostUnreachable || !a.health.Ready || !a.health.TargetReachable ||
+		!a.kitLeaseHave || a.kitLease.Unavailable || a.kitLease.ErrorCode != "" {
+		return false
+	}
+	connection := a.health.Connection
+	return connection.State == "active" && connection.LeaseOwned &&
+		a.kitLease.State == "active" &&
+		connection.TargetID != "" && connection.TargetID == a.session.TargetID &&
+		fullLocalIdentity(connection.LeaseGeneration) && connection.LeaseGeneration == a.kitLease.Generation &&
+		(a.kitID == "" || a.kitID == connection.TargetID)
 }

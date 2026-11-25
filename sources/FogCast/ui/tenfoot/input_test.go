@@ -1,12 +1,14 @@
 package tenfoot
 
 import (
-	"github.com/DeanoC/FogCast/hostclient"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -234,6 +236,97 @@ func TestKitHostMenuChordDoesNotQuitForeignSession(t *testing.T) {
 	if app.session.State != "active" || app.health.Connection.Owner != "another-host" || app.stopPhase == "stopping" {
 		t.Fatalf("foreign session changed: state=%s owner=%s stop=%s", app.session.State, app.health.Connection.Owner, app.stopPhase)
 	}
+}
+
+func TestKitHostForeignSessionPadChordDoesNotStopOrBlockPlay(t *testing.T) {
+	stopPosts := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/session/stop" {
+			stopPosts <- struct{}{}
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	app, feed := kitDisplayApp(t, server)
+
+	app.mu.Lock()
+	app.kitHost = true
+	app.healthHave = true
+	app.health.Ready, app.health.TargetReachable = true, true
+	app.health.Connection = hostclient.TargetConnection{
+		State: "active", Owner: "fogcast@another-host", TargetID: app.session.TargetID,
+		LeaseOwned: false,
+	}
+	app.kitLeaseHave = true
+	app.kitLease = KitLeaseStatus{State: "held", Owner: "fogcast@another-host"}
+	if app.playHIDFailClosedLocked() {
+		app.mu.Unlock()
+		t.Fatal("fixture unexpectedly failed closed for a FogCast-owned play")
+	}
+	app.mu.Unlock()
+
+	now := time.Unix(200, 0)
+	if !app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), now) ||
+		!app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), now.Add(time.Millisecond)) {
+		t.Fatal("kit did not consume the Select+Start chord")
+	}
+	app.Tick(now.Add(sessionStopChordHold + time.Millisecond))
+
+	app.mu.Lock()
+	phase, fired := app.stopPhase, app.playPadChordFired
+	app.mu.Unlock()
+	if phase != "idle" || !fired {
+		t.Fatalf("foreign-session chord state: stop=%q chord_fired=%v", phase, fired)
+	}
+	if !app.HandleLocalPad(padButton(remoteinput.ButtonA, true), now.Add(sessionStopChordHold+2*time.Millisecond)) {
+		t.Fatal("local play input was not consumed")
+	}
+	var sawA bool
+	for _, event := range feed.snapshot() {
+		if event.Code == remoteinput.ButtonA && event.Action == remoteinput.ActionPress {
+			sawA = true
+		}
+	}
+	if !sawA {
+		t.Fatal("local play input did not reach the foreign-owned core")
+	}
+	select {
+	case <-stopPosts:
+		t.Fatal("foreign-session chord posted Stop")
+	default:
+	}
+}
+
+func TestKitHostOwnedSessionPadChordStops(t *testing.T) {
+	stopPosts := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/session/stop" {
+			http.NotFound(w, r)
+			return
+		}
+		stopPosts <- struct{}{}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"state":"idle"}`))
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.mu.Lock()
+	app.kitHost = true
+	ownedLocalKeyboardForTest(app)
+	app.mu.Unlock()
+
+	now := time.Unix(300, 0)
+	if !app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), now) ||
+		!app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), now.Add(time.Millisecond)) {
+		t.Fatal("kit did not consume the Select+Start chord")
+	}
+	app.Tick(now.Add(sessionStopChordHold + time.Millisecond))
+	select {
+	case <-stopPosts:
+	case <-time.After(3 * time.Second):
+		t.Fatal("owned-session chord did not post Stop")
+	}
+	waitFor(t, app, "owned-session chord stop", func(s Snapshot) bool { return s.Session.State == "idle" })
 }
 
 func TestApplyPressedRearmsRemainingDirection(t *testing.T) {
