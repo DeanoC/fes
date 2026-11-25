@@ -89,6 +89,13 @@ func TestFesComputerContract(t *testing.T) {
 		"FesComputerPc386SbIrqDefault": 7, "FesComputerPc386SbDma": 1,
 		"FesComputerWallClockWordCount": 4, "FesComputerWallClockMinYear": 1980,
 		"FesComputerWallClockMaxYear": 2099,
+		"FesComputerPcxtMachineTag": 4, "FesComputerPcxtMachineWordCount": 4,
+		"FesComputerPcxtVideoCardIndex": 0, "FesComputerPcxtMonoTintIndex": 1,
+		"FesComputerPcxtReserved0Index": 2, "FesComputerPcxtReserved1Index": 3,
+		"FesComputerPcxtVideoCardCga": 0, "FesComputerPcxtVideoCardMda": 1,
+		"FesComputerPcxtVideoCardHercules": 2, "FesComputerPcxtVideoCardMax": 2,
+		"FesComputerPcxtMonoTintWhite": 0, "FesComputerPcxtMonoTintGreen": 1,
+		"FesComputerPcxtMonoTintAmber": 2, "FesComputerPcxtMonoTintMax": 2,
 	} {
 		got, ok := abi.Constant(name)
 		if !ok || got != want {
@@ -112,6 +119,7 @@ func TestFesComputerContract(t *testing.T) {
 		{"fes.media.ata-disk", 16, 1}, {"fes.persistence.words", 17, 1},
 		{"fes.rtc.wall-clock", 18, 1}, {"fes.pc386.machine", 19, 1},
 		{"fes.media.pcxt-floppy", 20, 1}, {"fes.media.pcxt-floppy-write", 21, 1},
+		{"fes.pcxt.machine", 22, 1},
 	}
 	if len(abi.Interfaces) != len(want) {
 		t.Fatalf("interfaces = %+v", abi.Interfaces)

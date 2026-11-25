@@ -28,15 +28,16 @@ func (s PaddleSpeed) Valid() bool { return s <= PaddleFast }
 // record is keyed by its library game and carries the machine settings; its
 // Pong fields read zero.
 type CoreData struct {
-	PackageID   string           `json:"package_id"`
-	CoreID      string           `json:"core_id"`
-	Layout      *RuntimeContract `json:"layout"`
-	Mode        string           `json:"mode"`
-	Revision    string           `json:"revision"`
-	PaddleSpeed PaddleSpeed      `json:"paddle_speed"`
-	BestRally   uint16           `json:"best_rally"`
-	GameID      string           `json:"game_id,omitempty"`
-	Machine     *MachineSettings `json:"machine,omitempty"`
+	PackageID   string               `json:"package_id"`
+	CoreID      string               `json:"core_id"`
+	Layout      *RuntimeContract     `json:"layout"`
+	Mode        string               `json:"mode"`
+	Revision    string               `json:"revision"`
+	PaddleSpeed PaddleSpeed          `json:"paddle_speed"`
+	BestRally   uint16               `json:"best_rally"`
+	GameID      string               `json:"game_id,omitempty"`
+	Machine     *MachineSettings     `json:"machine,omitempty"`
+	PcxtMachine *PcxtMachineSettings `json:"pcxt_machine,omitempty"`
 }
 
 // CoreDataInspection binds data to the exact archive admitted on the target.
@@ -46,13 +47,14 @@ type CoreDataInspection struct {
 }
 
 // CoreSettingsUpdate changes the next launch's settings: Pong's paddle speed,
-// or, with Machine set, a pc386 library game's machine settings.
+// or, with Machine or PcxtMachine set, a library game's machine settings.
 type CoreSettingsUpdate struct {
-	ExpectedPackageID string           `json:"expected_package_id"`
-	ExpectedRevision  string           `json:"expected_revision"`
-	PaddleSpeed       PaddleSpeed      `json:"paddle_speed"`
-	GameID            string           `json:"game_id,omitempty"`
-	Machine           *MachineSettings `json:"machine,omitempty"`
+	ExpectedPackageID string               `json:"expected_package_id"`
+	ExpectedRevision  string               `json:"expected_revision"`
+	PaddleSpeed       PaddleSpeed          `json:"paddle_speed"`
+	GameID            string               `json:"game_id,omitempty"`
+	Machine           *MachineSettings     `json:"machine,omitempty"`
+	PcxtMachine       *PcxtMachineSettings `json:"pcxt_machine,omitempty"`
 }
 
 // Applied reports whether a result committed exactly this update.
@@ -61,9 +63,12 @@ func (u CoreSettingsUpdate) Applied(d CoreData) bool {
 		return false
 	}
 	if u.Machine != nil {
-		return d.Machine != nil && *d.Machine == *u.Machine && d.GameID == u.GameID
+		return d.PcxtMachine == nil && d.Machine != nil && *d.Machine == *u.Machine && d.GameID == u.GameID
 	}
-	return d.Machine == nil && d.PaddleSpeed == u.PaddleSpeed
+	if u.PcxtMachine != nil {
+		return d.Machine == nil && d.PcxtMachine != nil && *d.PcxtMachine == *u.PcxtMachine && d.GameID == u.GameID
+	}
+	return d.Machine == nil && d.PcxtMachine == nil && d.PaddleSpeed == u.PaddleSpeed
 }
 
 var coreDataDigest = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -76,14 +81,27 @@ func (u CoreSettingsUpdate) Valid() bool {
 	if !coreDataDigest.MatchString(u.ExpectedPackageID) || !ValidCoreDataRevision(u.ExpectedRevision) {
 		return false
 	}
+	if u.Machine != nil && u.PcxtMachine != nil {
+		return false
+	}
 	if u.Machine != nil {
 		return ValidMediaGameID(u.GameID) && u.Machine.Valid() && u.PaddleSpeed == 0
+	}
+	if u.PcxtMachine != nil {
+		return ValidMediaGameID(u.GameID) && u.PcxtMachine.Valid() && u.PaddleSpeed == 0
 	}
 	return u.GameID == "" && u.PaddleSpeed.Valid()
 }
 func (d CoreData) Valid() bool {
 	if !coreDataDigest.MatchString(d.PackageID) || !coreDataID.MatchString(d.CoreID) || !ValidCoreDataRevision(d.Revision) || !d.PaddleSpeed.Valid() {
 		return false
+	}
+	if d.Machine != nil && d.PcxtMachine != nil {
+		return false
+	}
+	if d.PcxtMachine != nil {
+		return d.PcxtMachine.Valid() && ValidMediaGameID(d.GameID) && d.Mode == "persistent" &&
+			d.Layout != nil && *d.Layout == PcxtMachineInterface() && d.PaddleSpeed == 0 && d.BestRally == 0
 	}
 	if d.Machine != nil || d.GameID != "" {
 		return d.Machine != nil && d.Machine.Valid() && ValidMediaGameID(d.GameID) && d.Mode == "persistent" &&

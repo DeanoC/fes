@@ -39,7 +39,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CORE = Path('cores/fes-pcxt')
 QUARTUS_LOCK = CORE / 'quartus.lock'
 DOS_RTL = ('cores/fes-pcxt/rtl/pcxt_xt_keyboard_bat.sv',
-           'cores/fes-pcxt/rtl/pcxt_hid_keyboard.sv')
+           'cores/fes-pcxt/rtl/pcxt_hid_keyboard.sv',
+           'cores/fes-pcxt/rtl/pcxt_machine_settings.sv')
 RTL = SYSTEM_SOURCES + DOS_RTL + (
                         'cores/fes-common/rtl/fes_computer_mailbox.v',
                         'cores/fes-common/rtl/fes_audio_pll.v',
@@ -87,7 +88,8 @@ def input_paths(root: Path) -> list[Path]:
     paths.update((QUARTUS_LOCK, ADAPTERS, AUDIT, MAILBOX, AUDIO_SDC, PINS, AUDIO_PINS, PACKAGE_PINS, Path('scripts/sim_fes_pcxt.py'),
                   Path('scripts/quartus_fes_pcxt.py'), Path('scripts/quartus_tools.py'), Path('scripts/yosys_netlist.py'),
                   Path('scripts/pcxt_quartus_mailbox.py'), Path('scripts/pcxt_quartus_audio.py'),
-                  Path('tests/test_pcxt_video_mailbox.py'), Path('tests/test_pcxt_audio_cdc.py')))
+                  Path('tests/test_pcxt_video_mailbox.py'), Path('tests/test_pcxt_video_dynamic_mailbox.py'),
+                  Path('tests/test_pcxt_audio_cdc.py')))
     paths.update(p.relative_to(root) for p in (root / 'cores/fes-common/generated').glob('*.vh'))
     return sorted(paths)
 
@@ -170,7 +172,8 @@ def without_seed(qsf: str) -> str:
 def canonical_project_qsf(source: Path, threads: int, *, dos_profile=False) -> str:
     """The recorded form of the package project's QSF."""
     return without_seed(project_qsf(source, 1, threads, package_profile=True,
-                                    video_mailbox_contract=True, audio_contract=dos_profile))
+                                    video_mailbox_contract=True, audio_contract=dos_profile,
+                                    dynamic_video=dos_profile))
 
 
 def prepare_elaboration_inputs(source: Path, work: Path, *, dos_profile=False) -> dict:
@@ -198,9 +201,12 @@ def prepare_elaboration_inputs(source: Path, work: Path, *, dos_profile=False) -
     generator.boot_roms(work, firmware, prefix='pcxt_glabios')
     font = generator.cga_font(source)
     (work / 'pcxt_cga_font.hex').write_text(''.join(f'{byte:02x}\n' for byte in font))
+    mda = generator.mda_font(source)
+    (work / 'pcxt_mda_font.hex').write_text(''.join(f'{byte:02x}\n' for byte in mda))
     return {
         'glabios_rom_sha256': metadata['bios']['sha256'],
         'cga_font_sha256': hashlib.sha256(font).hexdigest(),
+        'mda_font_sha256': hashlib.sha256(mda).hexdigest(),
         'loaded_into_sdram_before_cpu_release': True,
         'guest_disk_reads_use_sdram_media_path': True,
     }
@@ -274,7 +280,7 @@ def validate_renaming(work: Path, *, package_profile=False, dos_profile=False, c
 
 
 def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False,
-                video_mailbox_contract=False, audio_contract=False) -> str:
+                video_mailbox_contract=False, audio_contract=False, dynamic_video=False) -> str:
     lines = [
         'set_global_assignment -name FAMILY "Cyclone V"',
         f'set_global_assignment -name DEVICE {DEVICE}',
@@ -299,9 +305,10 @@ def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False,
         # The locked Quartus does not infer its fitter-protection policy from Yosys's
         # portable async_reg marker. Identify only the six proven mailbox
         # stages so router logic duplication cannot replicate a synchronizer.
+        prefix = 'dos_video_video_adapter_' if dynamic_video else 'system_video_adapter_'
         lines.extend(
             f'set_instance_assignment -name SYNCHRONIZER_IDENTIFICATION FORCED '
-            f'-to system_video_adapter_{role}_{stage}'
+            f'-to {prefix}{role}_{stage}'
             for role in ('ack', 'sent', 'hold')
             for stage in ('meta', 'sync'))
     if audio_contract:
@@ -496,7 +503,8 @@ def timing_summary(work: Path, mailbox_contract: bool = False, audio_profile: bo
     if mailbox_contract:
         with (work / 'audit/mailbox-interstage.tsv').open() as stream:
             interstage = list(csv.DictReader(stream, delimiter='\t'))
-        expected = {(c, k, 'system_video_adapter_' + r + '_meta', 'system_video_adapter_' + r + '_sync')
+        prefix = 'dos_video_video_adapter_' if audio_profile else 'system_video_adapter_'
+        expected = {(c, k, prefix + r + '_meta', prefix + r + '_sync')
                     for c in corners for k in ('setup', 'hold') for r in ('ack', 'sent', 'hold')}
         observed = [(r['corner'], r['kind'], r['from'], r['to']) for r in interstage]
         if len(observed) != 24 or set(observed) != expected:
@@ -603,7 +611,9 @@ def main(argv=None) -> int:
             if not abc.is_file():
                 raise ValueError('mailbox contract requires the selected Yosys installation\'s yosys-abc')
             record['mailbox_proof_abc'] = {'path': str(abc), 'sha256': sha(abc)}
-            run([sys.executable, str(source / 'tests/test_pcxt_video_mailbox.py'), '-v'],
+            proof_test = ('tests/test_pcxt_video_dynamic_mailbox.py'
+                          if args.dos_profile else 'tests/test_pcxt_video_mailbox.py')
+            run([sys.executable, str(source / proof_test), '-v'],
                 source, 'mailbox-proofs.log', record,
                 dict(os.environ, YOSYS=str(yosys), YOSYS_ABC=str(abc)))
             proof = (source / 'mailbox-proofs.log').read_text()
@@ -642,7 +652,7 @@ def main(argv=None) -> int:
             record['mailbox_binding'] = validate_mailbox(
                 json.loads((work / 'before-names.json').read_text())['modules']['top'],
                 json.loads((work / 'elaborated.json').read_text())['modules']['top'],
-                half_rate_board=not args.package_profile)
+                half_rate_board=not args.package_profile, dynamic_video=args.dos_profile)
         if args.dos_profile:
             record['audio_binding'] = validate_audio(
                 json.loads((work / 'before-names.json').read_text())['modules']['top'],
@@ -662,7 +672,8 @@ def main(argv=None) -> int:
             (fit / 'top.qpf').write_text(project_qpf(quartus_lock))
             (fit / 'top.qsf').write_text(project_qsf(
                 source, seed, args.threads, package_profile=args.package_profile,
-                video_mailbox_contract=args.video_mailbox_contract, audio_contract=args.dos_profile))
+                video_mailbox_contract=args.video_mailbox_contract, audio_contract=args.dos_profile,
+                dynamic_video=args.dos_profile))
             if canonical_qsf is not None and without_seed((fit / 'top.qsf').read_text()) != canonical_qsf:
                 raise ValueError(f'the QSF compiled at seed {seed} differs from the recorded canonical QSF')
             (fit / 'clocks.sdc').write_text(SDC)

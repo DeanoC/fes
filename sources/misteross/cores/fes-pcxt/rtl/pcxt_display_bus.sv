@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Eight registered slots: CGA index 1, MDA index 2, optional floppy index 3.
-module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, FLOPPY = 0, FLOPPY_WRITE = 0,
+module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, FLOPPY = 0, FLOPPY_WRITE = 0, HERCULES = 0,
     parameter integer CLOCK_HZ = 100000000) (
     input wire clk, reset, cycle_valid,
+    input wire [1:0] video_card,
+    output wire hercules_graphics_mode,
     input wire media_present, cold_reset, media_frozen,
     output wire media_write_busy, media_write_valid,
     output wire [9:0] media_write_lba,
@@ -43,13 +45,27 @@ module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, FLOPPY = 0, FLOPPY
             .card_response(card_response), .response(responses[n*32 +: 32])
         );
         if (n == 1) begin: cga
+            wire cga_enable = !HERCULES || video_card == 2'd0 || video_card == 2'd3;
+            wire [31:0] cga_card_response;
             pcxt_cga_card #(.CLOCK_HZ(CLOCK_HZ)) card (
-                .clk(clk), .reset(reset), .request(card_request), .response(card_response),
+                .clk(clk), .reset(reset), .request(cga_enable ? card_request : 48'd0), .response(cga_card_response),
                 .font_address(cga_font_address), .font_data(cga_font_data),
                 .light_pen_trigger(light_pen_trigger), .light_pen_switch(light_pen_switch),
                 .pixel_ce(pixel_ce[0]), .de(de[0]), .hs(hs[0]), .vs(vs[0]),
                 .sof(sof[0]), .eol(eol[0]), .rgbi(rgbi[3:0]),
                 .unsupported_interlace(unsupported_interlace[0])
+            );
+            assign card_response = cga_enable ? cga_card_response : 32'd0;
+        end else if (n == 2 && HERCULES) begin: hercules
+            pcxt_hercules_card #(.CLOCK_HZ(CLOCK_HZ)) card (
+                .clk(clk), .reset(reset), .enable(video_card != 2'd0),
+                .hercules_enable(video_card == 2'd2),
+                .request(card_request), .response(card_response),
+                .font_address(mda_font_address), .font_data(mda_font_data),
+                .pixel_ce(pixel_ce[1]), .de(de[1]), .hs(hs[1]), .vs(vs[1]),
+                .sof(sof[1]), .eol(eol[1]), .rgbi(rgbi[7:4]),
+                .graphics_mode(hercules_graphics_mode),
+                .unsupported_interlace(unsupported_interlace[1])
             );
         end else if (n == 2) begin: mda
             pcxt_mda_card #(.CLOCK_HZ(CLOCK_HZ)) card (
@@ -60,6 +76,8 @@ module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, FLOPPY = 0, FLOPPY
                 .sof(sof[1]), .eol(eol[1]), .rgbi(rgbi[7:4]),
                 .unsupported_interlace(unsupported_interlace[1])
             );
+            assign hercules_graphics_mode = 1'b0;
+            wire unused_video_card = ^video_card;
         end else if (n == 3 && FLOPPY) begin: floppy
             pcxt_fdc_card_rw card (
                 .clk(clk), .reset(reset), .cold_reset(cold_reset), .guest_ce(guest_ce),

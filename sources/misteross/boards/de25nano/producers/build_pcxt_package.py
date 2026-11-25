@@ -22,9 +22,10 @@ MACHINE = Machine(
     recipe=RECIPE, directory='pcxt', core_id='fes.pcxt-dos', rom_id='pcxt-firmware',
     name='FES PC/XT FreeDOS', version='0.1.0',
     descriptions={
-        'xt': 'Standard DE25 PC/XT with uploaded GLaBIOS and CGA font, board SDRAM, '
-              'a writable 360 KiB floppy and the XT keyboard'},
-    interfaces=(('fes.media.pcxt-floppy', 1, 0), ('fes.media.pcxt-floppy-write', 1, 0)),
+        'xt': 'Standard DE25 PC/XT with uploaded GLaBIOS, CGA/MDA fonts, board SDRAM, '
+              'a writable 360 KiB floppy, CGA/MDA/Hercules video selection, and the XT keyboard'},
+    interfaces=(('fes.media.pcxt-floppy', 1, 0), ('fes.media.pcxt-floppy-write', 1, 0),
+                ('fes.persistence.words', 1, 0), ('fes.pcxt.machine', 1, 0)),
     abi_minor=1)
 
 

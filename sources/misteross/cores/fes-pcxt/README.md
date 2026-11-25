@@ -1320,3 +1320,49 @@ None of these variants synthesizes the testbench RAM or diagnostic system ROM.
 The cell counts describe these fixtures only.
 These commands perform no placement,
 routing, package sealing or deployment.
+
+### MDA and Hercules Graphics Card (HGC) video development (Slice 1)
+
+Beyond IBM CGA (`video_card=0`), `pcxt_hercules_card` (`expansions/pcxt_hercules_card.sv`)
+adds runtime-selectable strict IBM MDA (`video_card=1`, 4 KiB wrap at `B000:0000`,
+`3BFh` ignored, `3BAh[7:4]=1111`) and Hercules HGC (`video_card=2`, 64 KiB VRAM with
+Diag/Half/Full `3BFh` gating, Page 0 `B0000–B7FFF` / Page 1 `B8000–BFFFF`, 720×348
+4-way interleave graphics, `3BAh[7]=!vsync` and `ID=000`, plus clean return to 720×350
+MDA text). Both use the extracted public-domain CP437 8×14 MDA glyph ROM in
+`firmware/mda-font-8x14.bin` with 9th-dot box-drawing continuation (`C0h–DFh`),
+underline scanline 13 (`01h`/`09h`), bright (`08h`), reverse (`70h`), and hidden (`00h`)
+text attributes. When `HERCULES=0` (currently the default on DE10/DE25 tops), `pcxt_machine`
+and `pcxt_display_bus` elaborate identically to fixed CGA+MDA.
+
+`pcxt_video_dynamic` (`rtl/pcxt_video_dynamic.sv`) provides a dynamic 3×64 KiB shared
+framebuffer scaling runtime-switched 640×200 CGA, 720×350 MDA, and 720×348 Hercules
+frames into the centered 960×720 720p viewport, with White, Green (`P39`), and Amber
+(`P3`) monochrome phosphor tints.
+
+Open host simulations and the reusable DOS/game runner:
+
+- `python3 scripts/sim_fes_pcxt.py --suite hercules` and `--suite video-dynamic`: unit,
+  protocol, CDC mailbox, doubled-rate (`2×`), and dual-adapter non-collision checks.
+- `make sim-fes-pcxt-video` (`python3 scripts/sim_fes_pcxt_video_dos.py`): boots GLaBIOS +
+  FreeDOS with `MDATEST.COM` (MDA 8×14 attributes + 9th-dot continuation) and `HGCTEST.COM`
+  (`3BAh` VSync bit 7, Page 0 4-bank 720×348 interleave, Page 1 flip, clean text restore)
+  and verifies 720p HDMI captures, saving PNGs under `build/sim/fes-pcxt/video-dos/artifacts/`.
+- `python3 scripts/pcxt_run_dos.py --video {cga,mda,hercules} --tint {white,green,amber} ...`:
+  boots local GoG / eXoDOS / homebrew DOS software on a staged 360 KiB FreeDOS floppy
+  (`--floppy`, `--add-file`, `--add-dir`, `--command`, `--keys`) and writes lossless PNG
+  screenshots plus `run-summary.json`.
+
+Verified 8088 / 360 KiB / CGA-MDA-Hercules game-testing matrix (external GoG / eXoDOS
+software can be run locally via `pcxt_run_dos.py` without redistributing game binaries):
+
+| Video Mode | Representative Era Titles (8088 / ≤ 640 KiB, 360 KiB-friendly) | Notes |
+| --- | --- | --- |
+| CGA (320×200 / 640×200) | Alley Cat (`ALLEYCAT.EXE`), Digger (`DIGGER.COM`) | Digger baseline already verified in CI (`sim-fes-pcxt-dos`). |
+| MDA (720×350 text) | Zork I / Infocom text adventures, Rogue (`ROGUE.EXE`), Beast (`BEAST.COM`) | Uses 8×14 CP437 box/shade glyphs, underline, bright, reverse attributes. |
+| Hercules (720×348 gfx) | Prince of Persia (`PRINCE.EXE HERC`), SimCity (`SIMCITY.EXE /H`), Sopwith (`SOPWITH1` / HGC), Alley Cat (HGC) | Exercises `3BFh=01h/03h`, `3BAh[7]` VSync polling, Page 0/1 flips, 4-bank interleave. |
+
+Follow-on slices:
+- **Slice 1b**: wire `fes.pcxt.machine` runtime controls (video card + monochrome tint) through
+  the mailbox, FogCast agent/UI, and sealed DE10/DE25 builds (`HERCULES=1`).
+- **Slice 2**: add Tandy 1000 video modes (`320×200×16`, `640×200×4`, `160×200×16`, `3DFh`
+  page register), SN76496 3-voice+noise PSG audio, and an open `INT 10h` option ROM.

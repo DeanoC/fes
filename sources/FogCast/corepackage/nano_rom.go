@@ -69,7 +69,7 @@ func firmwareUploadMachine(d Descriptor) error {
 		"fes.atari-st":       {196608},
 		"fes.c64":            {36864},
 		// The 64 KiB system ROM window, then the 4 KiB CGA font.
-		"fes.pcxt-dos": {69632},
+		"fes.pcxt-dos": {73728},
 	}[d.Core.ID]
 	if !FirmwareUpload(d) || d.Target.ProgrammingProfile != "de25-linux-computer-v1" ||
 		d.ABI != DE25ComputerABI(d.Core.ID) || !slices.Contains(sizes, d.ROM.SourceSize) {

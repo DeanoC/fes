@@ -47,6 +47,9 @@ func (c *machineLoadControl) InspectMachineCoreData(_ context.Context, _, id, _,
 func (c *machineLoadControl) UpdateMachineSettings(context.Context, string, string, string, string, string, protocol.MachineSettings) (Protocol2Response, error) {
 	return Protocol2Response{}, io.ErrUnexpectedEOF
 }
+func (c *machineLoadControl) UpdatePcxtMachineSettings(context.Context, string, string, string, string, string, protocol.PcxtMachineSettings) (Protocol2Response, error) {
+	return Protocol2Response{}, io.ErrUnexpectedEOF
+}
 func (c *machineLoadControl) InspectCoreData(context.Context, string, string, string) (Protocol2Response, error) {
 	return Protocol2Response{}, io.ErrUnexpectedEOF
 }
@@ -59,7 +62,7 @@ func (c *machineLoadControl) LoadLibraryCore(context.Context, string, string, st
 func (c *machineLoadControl) LoadCore(context.Context, string, string) (Protocol2Response, error) {
 	return Protocol2Response{}, io.ErrUnexpectedEOF
 }
-func (c *machineLoadControl) LoadLibraryMachineCore(_ context.Context, _, _, _, _ string, disk *ataDiskRequest) (Protocol2Response, error) {
+func (c *machineLoadControl) LoadLibraryMachineCore(_ context.Context, _, _, _, _ string, disk *ataDiskRequest, _ *InitialMediaRequest) (Protocol2Response, error) {
 	c.loads++
 	c.loadDisk = disk
 	refusal := c.refusal

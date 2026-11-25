@@ -7,6 +7,7 @@
 #include "native/artifacts.hpp"
 
 #include "native/pc386_machine.hpp"
+#include "native/pcxt_machine.hpp"
 #include "native/core_package.hpp"
 #include "native/de25_core_contract.hpp"
 #include "native/generated/de10_nano.hpp"
@@ -152,6 +153,7 @@ constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 constexpr std::uint16_t kComputerHighCapabilityMask = static_cast<std::uint16_t>(
 	(FesComputerCapabilityMediaAtaDisk | FesComputerCapabilityPersistenceWords |
 	 FesComputerCapabilityRtcWallClock | FesComputerCapabilityPc386Machine |
+	 FesComputerCapabilityPcxtMachine |
 	 FesComputerCapabilityMediaPcxtFloppy | FesComputerCapabilityMediaPcxtFloppyWrite) >> 16);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
@@ -639,6 +641,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesComputerCapabilityPersistenceWords;
 			else if (interface.id == FesComputerInterfacePc386MachineID)
 				capabilities |= FesComputerCapabilityPc386Machine;
+			else if (interface.id == FesComputerInterfacePcxtMachineID)
+				capabilities |= FesComputerCapabilityPcxtMachine;
 			else if (interface.id == FesComputerInterfaceRtcWallClockID)
 				capabilities |= FesComputerCapabilityRtcWallClock;
 			continue;
@@ -901,6 +905,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
    (De25StaticEnabled() && context.descriptor->target.programming_profile=="de25-linux-static-computer-v1"));
 	wall_clock_ = false;
 	pc386_machine_ = false;
+	pcxt_machine_ = false;
 	ata_disk_ = false;
 	keyboard_hid_ = false;
 	mouse_relative_ = false;
@@ -925,6 +930,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			if (interface.id == FesComputerInterfaceGamepadPortsID) controller_ports_ = true;
 			if (interface.id == FesComputerInterfaceRtcWallClockID) wall_clock_ = true;
 			if (interface.id == FesComputerInterfacePc386MachineID) pc386_machine_ = true;
+			if (interface.id == FesComputerInterfacePcxtMachineID) pcxt_machine_ = true;
 			if (interface.id == FesComputerInterfaceMediaAtaDiskID) ata_disk_ = true;
 			if (interface.id == kFirmwareUploadInterfaceID) firmware_upload_ = true;
 			if (interface.id == FesComputerInterfaceMediaApple2FloppyID ||
@@ -1012,6 +1018,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			tape_write_ = false;
 			wall_clock_ = false;
 			pc386_machine_ = false;
+			pcxt_machine_ = false;
 			ata_disk_ = false;
 			firmware_upload_ = false;
 			media_units_.clear();
@@ -1048,14 +1055,22 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 					stream_verified_ = true;
 		}
 	}
+	if (error.ok() && pc386_machine_ && pcxt_machine_)
+		error = {ErrorCode::unsupported_interface,
+			"persistence requires exactly one registered layout", "compatibility"};
 	if (error.ok()) {
-		// Pong's progress on fes.simple-game opcodes 4..7, or the pc386
+		// Pong's progress on fes.simple-game opcodes 4..7, or the pc386/pcxt
 		// machine record on fes.computer opcodes 24..27.
 		data_ = home_computer_ ?
-			DataLayout{FesComputerOpcodeDataControl, FesComputerOpcodeDataRead,
-				FesComputerOpcodeDataWrite, FesComputerOpcodeDataInfo,
-				FesComputerPc386MachineWordCount, FesComputerPc386MachineTag,
-				FesComputerInterfacePc386MachineID} :
+			(pcxt_machine_ ?
+				DataLayout{FesComputerOpcodeDataControl, FesComputerOpcodeDataRead,
+					FesComputerOpcodeDataWrite, FesComputerOpcodeDataInfo,
+					FesComputerPcxtMachineWordCount, FesComputerPcxtMachineTag,
+					FesComputerInterfacePcxtMachineID} :
+				DataLayout{FesComputerOpcodeDataControl, FesComputerOpcodeDataRead,
+					FesComputerOpcodeDataWrite, FesComputerOpcodeDataInfo,
+					FesComputerPc386MachineWordCount, FesComputerPc386MachineTag,
+					FesComputerInterfacePc386MachineID}) :
 			DataLayout{FesGpOpcodeDataControl, FesGpOpcodeDataRead, FesGpOpcodeDataWrite,
 				FesGpOpcodeDataInfo, FesGpPongProgressWordCount, FesGpPongProgressTag,
 				FesGpInterfacePongProgressID};
@@ -2256,7 +2271,7 @@ Error FesGpCoreDriver::RestoreData(
 bool FesGpCoreDriver::ValidData(const std::vector<std::uint16_t>& words) const
 {
 	if (words.size() != data_.word_count) return false;
-	return home_computer_ ? ValidPc386Machine(words) :
+	return home_computer_ ? (pcxt_machine_ ? ValidPcxtMachine(words) : ValidPc386Machine(words)) :
 		words[FesGpPongPaddleSpeedIndex] <= FesGpPongPaddleSpeedFast;
 }
 

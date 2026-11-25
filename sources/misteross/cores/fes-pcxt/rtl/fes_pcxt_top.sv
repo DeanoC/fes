@@ -101,6 +101,7 @@ module top #(
     wire [1:0] media_unit_state;
     wire [18:0] disk_load_address;
     wire [7:0] disk_load_data;
+    wire [1:0] video_card, mono_tint;
     generate if (ENABLE_FES_COMPUTER) begin: fes_computer_runtime
         wire [31:0] fpga_to_hps, hps_to_fpga;
         cyclonev_hps_interface_mpu_general_purpose hps_gp (
@@ -110,15 +111,43 @@ module top #(
             wire [15:0] source_data;
             wire [1:0] source_enable;
             wire source_ready;
-            fes_computer_mailbox_pcxt #(.ENABLE_KEYBOARD(HARDWARE_DOS), .ENABLE_AUDIO(HARDWARE_DOS),
-                                       .ENABLE_WRITE(LIVE_MEDIA_WRITE)) gp_mailbox (
+            wire storage_request, storage_response_valid, storage_response_error, execution_accepted;
+            wire [6:0] storage_opcode;
+            wire [7:0] storage_index;
+            wire [15:0] storage_argument, storage_response_data;
+            fes_computer_mailbox_pcxt_machine #(
+                .ENABLE_KEYBOARD(HARDWARE_DOS), .ENABLE_AUDIO(HARDWARE_DOS),
+                .ENABLE_WRITE(LIVE_MEDIA_WRITE), .ENABLE_MACHINE(HARDWARE_DOS)
+            ) gp_mailbox (
                 .clk(clk_memory), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
                 .exec_reset(exec_reset), .keyboard_rows(keyboard_rows), .media_reset(board_reset_live),
                 .media_write_addr(source_addr), .media_write_data(source_data),
                 .media_write_enable(source_enable), .media_write_ready(source_ready),
                 .media_changed(media_changed), .media_frozen(media_frozen), .media_read_req(snapshot_read_valid),
                 .media_read_addr(snapshot_read_address), .media_read_ready(snapshot_read_ready),
-                .media_read_data(snapshot_read_data), .media_write_busy(media_write_busy), .unit0_state(media_unit_state), .unit0_size());
+                .media_read_data(snapshot_read_data), .media_write_busy(media_write_busy),
+                .unit0_state(media_unit_state), .unit0_size(),
+                .storage_request(storage_request), .storage_opcode(storage_opcode),
+                .storage_index(storage_index), .storage_argument(storage_argument),
+                .storage_response_valid(storage_response_valid),
+                .storage_response_error(storage_response_error),
+                .storage_response_data(storage_response_data),
+                .execution_accepted(execution_accepted));
+            if (HARDWARE_DOS) begin: machine_config
+                pcxt_machine_settings settings (
+                    .clk(clk_memory), .exec_reset(exec_reset), .execution_accepted(execution_accepted),
+                    .request(storage_request), .opcode(storage_opcode), .index(storage_index),
+                    .argument(storage_argument), .response_valid(storage_response_valid),
+                    .response_error(storage_response_error), .response_data(storage_response_data),
+                    .video_card(video_card), .mono_tint(mono_tint));
+            end else begin: no_machine_config
+                assign storage_response_valid = 1'b0;
+                assign storage_response_error = 1'b0;
+                assign storage_response_data = 16'd0;
+                assign video_card = MDA ? 2'd1 : 2'd0;
+                assign mono_tint = 2'd0;
+                wire unused_storage = ^{storage_request, storage_opcode, storage_index, storage_argument, execution_accepted};
+            end
             pcxt_media media (
                 .clk(clk_memory), .cold_reset(board_reset_live), .unit_state(media_unit_state),
                 .source_addr(source_addr), .source_data(source_data), .source_enable(source_enable),
@@ -126,6 +155,8 @@ module top #(
                 .disk_loaded(disk_loaded), .disk_valid(disk_load_valid), .disk_address(disk_load_address),
                 .disk_data(disk_load_data), .disk_ready(disk_load_ready), .disk_done(disk_load_done));
         end else begin: diagnostic_mailbox
+            assign video_card = MDA ? 2'd1 : 2'd0;
+            assign mono_tint = 2'd0;
             assign keyboard_rows = 144'b0;
             fes_computer_mailbox gp_mailbox (
                 .clk(clk), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
@@ -138,6 +169,8 @@ module top #(
                 .unit0_state(media_unit_state), .unit0_size());
         end
     end else begin: standalone_diagnostic
+        assign video_card = MDA ? 2'd1 : 2'd0;
+        assign mono_tint = 2'd0;
         assign exec_reset = 1'b0;
         assign keyboard_rows = 144'b0;
         assign media_unit_state = 2'd1;
@@ -197,18 +230,28 @@ module top #(
     end endgenerate
     generate if (HARDWARE_DOS) begin: dos_font
         reg [7:0] glyphs [0:4095];
+        reg [7:0] mda_glyphs [0:4095];
         initial $readmemh("pcxt_cga_font.hex", glyphs);
+        initial $readmemh("pcxt_mda_font.hex", mda_glyphs);
         assign cga_font_data = glyphs[cga_font_address];
-        assign mda_font_data = glyphs[mda_font_address];
+        assign mda_font_data = mda_glyphs[mda_font_address];
     end else begin: diagnostic_font
         assign cga_font_data = 8'h81;
         assign mda_font_data = 8'h81;
     end endgenerate
+    wire hercules_graphics_mode;
+    wire [1:0] display_pixel_ce, display_de, display_sof, display_eol;
+    wire [7:0] display_rgbi;
+    wire [31:0] fixed_video_request;
+    wire [27:0] fixed_video_response;
     pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD),
                   .SDRAM_CAPTURE_PIPELINE(SDRAM_CAPTURE_PIPELINE),
                   .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD), .FLOPPY(HARDWARE_DOS || LIVE_MEDIA),
-                  .FLOPPY_WRITE(LIVE_MEDIA_WRITE),
+                  .FLOPPY_WRITE(LIVE_MEDIA_WRITE), .HERCULES(HARDWARE_DOS),
                   .DIAGNOSTIC_PROBE(!(HARDWARE_DOS || LIVE_MEDIA))) system (
+        .video_card(video_card), .hercules_graphics_mode(hercules_graphics_mode),
+        .display_pixel_ce(display_pixel_ce), .display_de(display_de),
+        .display_sof(display_sof), .display_eol(display_eol), .display_rgbi(display_rgbi),
         .media_frozen(media_frozen), .media_write_busy(media_write_busy), .media_changed(media_changed),
         .snapshot_read_valid(snapshot_read_valid), .snapshot_read_address(snapshot_read_address),
         .snapshot_read_ready(snapshot_read_ready), .snapshot_read_data(snapshot_read_data),
@@ -225,12 +268,29 @@ module top #(
         .firmware_done(firmware_done), .firmware_address(firmware_address), .firmware_data(firmware_data),
         .firmware_loaded(firmware_loaded), .initialized(), .machine_reset(machine_reset), .fault(), .halted(),
         .dma_owner(), .refresh_done(), .audio_valid(speaker_audio_valid), .audio_sample(speaker_audio_sample),
-        .video_request(video_request), .video_response(video_response),
+        .video_request(fixed_video_request), .video_response(fixed_video_response),
         .sdram_clk(controller_sdram_clk), .sdram_cke(SDRAM_CKE), .sdram_ncs(controller_cs),
         .sdram_nras(SDRAM_nRAS), .sdram_ncas(SDRAM_nCAS), .sdram_nwe(SDRAM_nWE),
         .sdram_ba(SDRAM_BA), .sdram_a(SDRAM_A), .sdram_dqml(SDRAM_DQML), .sdram_dqmh(SDRAM_DQMH),
         .dq_out(dq_out), .dq_oe(dq_oe), .dq_rise(dq_sample), .dq_fall(dq_sample)
     );
+    generate if (HARDWARE_DOS) begin: dos_video
+        wire select_mono = (video_card == 2'd1 || video_card == 2'd2);
+        wire [1:0] source_mode = !select_mono ? 2'd0 : (hercules_graphics_mode ? 2'd2 : 2'd1);
+        pcxt_video_dynamic_output #(.SCANLINES(SCANLINES)) video (
+            .clk_sys(clk_memory), .clk_pixel(clk_pixel), .reset_sys(board_reset_live), .reset_pixel(pixel_reset[1]),
+            .hold(machine_reset), .pixel_ce(display_pixel_ce[select_mono]),
+            .source_de(display_de[select_mono]), .source_sof(display_sof[select_mono]),
+            .source_eol(display_eol[select_mono]), .rgbi(select_mono ? display_rgbi[7:4] : display_rgbi[3:0]),
+            .source_mode(source_mode), .mono_tint(mono_tint),
+            .video_request(video_request), .video_response(video_response)
+        );
+        wire unused_fixed_video = ^{fixed_video_request, fixed_video_response};
+    end else begin: fixed_video
+        assign video_request = fixed_video_request;
+        assign video_response = fixed_video_response;
+        wire unused_dos_display = ^{hercules_graphics_mode, display_pixel_ce, display_de, display_sof, display_eol, display_rgbi, mono_tint};
+    end endgenerate
     /* verilator lint_on PINCONNECTEMPTY */
     generate if (HARDWARE_DOS) begin: speaker_output
         wire audio_clk, audio_locked;

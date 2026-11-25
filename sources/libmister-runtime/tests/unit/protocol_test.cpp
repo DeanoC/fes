@@ -411,6 +411,23 @@ void TestPc386CoreDataProtocol()
 	assert(!Parse(load + disk.substr(disk.find(",\"ata_disk\"")) + "}}", &request).ok());
 	assert(!Parse("{\"protocol\":2,\"operation\":\"inspect_core_data\"," + fields + disk + "}}", &request).ok());
 
+	const std::string pcxt_update = "{\"protocol\":2,\"operation\":\"update_core_settings\"," + fields +
+		",\"game_id\":\"beast-1984\",\"expected_revision\":\"absent\",\"pcxt_machine\":";
+	assert(Parse(pcxt_update + "{\"video_card\":2,\"mono_tint\":2}}", &request).ok());
+	assert(request.operation == Operation::update_core_settings && request.settings.pcxt && !request.settings.pc386 &&
+		request.game_id == "beast-1984" && request.settings.pcxt_machine.video_card == 2 &&
+		request.settings.pcxt_machine.mono_tint == 2);
+	assert(!Parse(pcxt_update + "{\"video_card\":3,\"mono_tint\":0}}", &request).ok());
+	assert(!Parse(pcxt_update + "{\"video_card\":1}}", &request).ok());
+	assert(!Parse(pcxt_update + "{\"video_card\":1,\"mono_tint\":1},\"machine\":" + machine + "}", &request).ok());
+
+	const std::string rom_lib = "{\"protocol\":2,\"operation\":\"load_rom_library_core\"," + fields +
+		",\"game_id\":\"beast-1984\",\"firmware_path\":\"/tmp/bios.bin\",\"rom_link\":{\"rom_id\":\"pcxt-bios\","
+		"\"map_sha256\":\"" + std::string(64, 'b') + "\",\"source_sha256\":\"" + std::string(64, 'c') +
+		"\",\"programmed_sha256\":\"" + std::string(64, 'd') + "\",\"source_size\":73728,\"programmed_size\":1}}";
+	assert(Parse(rom_lib, &request).ok() && request.operation == Operation::load_rom_library_core &&
+		request.game_id == "beast-1984" && request.firmware_path == "/tmp/bios.bin");
+
 	const auto lines = ReadLines("tests/fixtures/protocol-v2-pc386-responses.jsonl");
 	assert(lines.size() == 4);
 	assert(lines[2].find("\"saveable\":false") != std::string::npos);
@@ -437,6 +454,12 @@ void TestPc386CoreDataProtocol()
 	assert(mister::daemon::EncodeResponse(2, true, status, "fixture", nullptr, &data) == lines[1]);
 	assert(mister::daemon::EncodeResponse(2, true, Pc386RunningStatus(), "fixture") == lines[2]);
 	assert(mister::daemon::EncodeResponse(2, true, Pc386EmptyDiskStatus(), "fixture") == lines[3]);
+	data.core_id = "fes.pcxt-dos";
+	data.game_id = "beast-1984";
+	data.layout = {"fes.pcxt.machine", 1, 0};
+	data.words = {2, 1, 0, 0};
+	const std::string pcxt_encoded = mister::daemon::EncodeResponse(2, true, status, "fixture", nullptr, &data);
+	assert(pcxt_encoded.find(R"("game_id":"beast-1984","pcxt_machine":{"video_card":2,"mono_tint":1})") != std::string::npos);
 }
 
 // The record's CMOS clock: BCD or binary, 12- or 24-hour by register B, the
@@ -845,6 +868,10 @@ void TestPcxtInitialLoadProtocol()
 		"\",\"initial_media\":{\"path\":\"/disk.img\",\"size\":368640,\"unit\":0,\"data_root\":\"/media-data\",\"game_id\":\"dos-game\",\"base_media_id\":\"" + digest + "\"}}";
 	Request request;
 	assert(Parse(input, &request).ok() && request.has_initial_media && request.initial_media.size == 368640);
+	const std::string lib_input = "{\"protocol\":2,\"operation\":\"load_library_core\",\"package_path\":\"/package\",\"package_id\":\"" + digest +
+		"\",\"data_root\":\"/core-data\",\"game_id\":\"dos-game\",\"initial_media\":{\"path\":\"/disk.img\",\"size\":368640,\"unit\":0,\"data_root\":\"/media-data\",\"game_id\":\"dos-game\",\"base_media_id\":\"" + digest + "\"}}";
+	assert(Parse(lib_input, &request).ok() && request.operation == Operation::load_library_core &&
+		request.game_id == "dos-game" && request.has_initial_media && request.initial_media.size == 368640);
 	for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
 		{"368640", "368639"}, {"\"unit\":0", "\"unit\":1"}, {"/disk.img", "disk.img"},
 		{"dos-game", "dos--game"}, {"load_core", "inspect_core"}}) {

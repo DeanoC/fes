@@ -16,8 +16,8 @@ COMPONENT = "fes_de25_pcxt_standard"
 SDC = BOARD + "pcxt/pcxt-clocks.sdc"
 MODELS = {"xt": None}
 # The exact image the upload endpoint takes: the 64 KiB system ROM window
-# (F0000-FFFFF) and the 4 KiB character ROM.
-FIRMWARE_BYTES = {"xt": 69632}
+# (F0000-FFFFF), the 4 KiB CGA font, and the 4 KiB MDA font.
+FIRMWARE_BYTES = {"xt": 73728}
 # The DE10 machine's clocks: one 100 MHz for the CPU, motherboard and SDRAM,
 # with the forwarded SDRAM clock +1.25 ns, the CAS-3 read-word handoff and
 # the DQ capture clock beside it (fes_pcxt_top's memory PLL), and the audio
@@ -53,9 +53,9 @@ PLL_COMMENT = """// One PLL on CLOCK1_50 in place of the stock audio PLL, whose 
 # synthesis made the same reset net their clock enable, which the signoff lint
 # refuses (LNT-30010). As for the DE25 C64's SID, the bus unit's holds are
 # built in logic instead.
-ASSIGNMENTS = tuple(("SYNCHRONIZER_IDENTIFICATION", "FORCED_IF_ASYNCHRONOUS", "core|system|video|adapter|" + name)
+ASSIGNMENTS = tuple(("SYNCHRONIZER_IDENTIFICATION", "FORCED_IF_ASYNCHRONOUS", "core|video|adapter|" + name)
                     for name in ("ack_meta", "ack_sync", "sent_meta", "sent_sync", "hold_meta", "hold_sync")) + (
-    ("SYNCHRONIZER_IDENTIFICATION", "OFF", "core|system|video|adapter|pixel_code[*]"),
+    ("SYNCHRONIZER_IDENTIFICATION", "OFF", "core|video|adapter|pixel_code[*]"),
     ("AUTO_CLOCK_ENABLE_RECOGNITION", "OFF", "core|system|machine|cpu|cpu|u_biu_core"),)
 # Qsys writes the peripheral subsystem for the component. Reviewed against
 # the Atari ST's (a08edf0b...): the SDRAM conduit's three clock inputs are
@@ -65,14 +65,14 @@ PARENT_SHA256 = "b9565f14391f812239e70a07163c4aa887e2db06573e3adacf942b82d9c9039
 MACHINE_FILES = (
     "rtl/pcxt_isa_bridge.sv", "rtl/pcxt_isa_boundary.sv", "rtl/pcxt_isa_endpoint.sv",
     "expansions/pcxt_isa_probe.sv", "expansions/pcxt_6845.sv", "expansions/pcxt_display_card.sv",
-    "expansions/pcxt_cga_card.sv", "expansions/pcxt_mda_card.sv", "expansions/pcxt_fdc_card.sv",
+    "expansions/pcxt_cga_card.sv", "expansions/pcxt_mda_card.sv", "expansions/pcxt_hercules_card.sv", "expansions/pcxt_fdc_card.sv",
     "rtl/pcxt_display_bus.sv", "vendor/kf8255/KF8255.sv", "vendor/kf8255/KF8255_Control_Logic.sv",
     "vendor/kf8255/KF8255_Group.sv", "vendor/kf8255/KF8255_Port.sv", "vendor/kf8255/KF8255_Port_C.sv",
     "rtl/pcxt_xtio.sv", "rtl/pcxt_xt_keyboard.sv", "rtl/pcxt_speaker.sv", "rtl/pcxt_motherboard.sv",
     "rtl/pcxt_logic_operand1_mux.sv", "vendor/mcl86/mcl86_adder.sv", "vendor/mcl86/mcl86_eu_core.sv",
     "vendor/mcl86/mcl86_biu_max.sv", "vendor/mcl86/mcl86_ucode.sv", "vendor/mcl86/i8088.sv",
     "rtl/pcxt_cpu_bus.sv", "rtl/pcxt_cpu.sv", "rtl/pcxt_memory.sv",
-    "rtl/pcxt_video_output.sv", "rtl/pcxt_machine.sv", "rtl/pcxt_disk_loader.sv",
+    "rtl/pcxt_video_output.sv", "rtl/pcxt_machine.sv", "rtl/pcxt_machine_settings.sv", "rtl/pcxt_disk_loader.sv",
     "rtl/pcxt_sector_writer.sv", "rtl/pcxt_media_arbiter.sv", "rtl/pcxt_system.sv",
     "rtl/pcxt_media_writer.sv", "rtl/pcxt_media.sv", "rtl/pcxt_boot_media_gate.sv",
     "rtl/pcxt_hid_keyboard.sv", "rtl/pcxt_xt_keyboard_bat.sv")
@@ -92,7 +92,8 @@ LOCAL_FILES = ("fes_de25_pcxt_standard.v", "fes_de25_pcxt_standard_hw.tcl", "pcx
 SOURCES = ({BOARD + "pcxt/" + name for name in LOCAL_FILES} |
            {BOARD + "shared-rtl/" + name for name in SHARED_FILES} |
            {CORE + name for name in MACHINE_FILES} | {COMMON + name for name in COMMON_FILES} |
-           set(HEADERS) | {UCODE, CORE + "rtl/pcxt_video.sv", COMMON + "generated/fes_pcxt_isa.vh",
+           set(HEADERS) | {UCODE, CORE + "rtl/pcxt_video.sv", CORE + "rtl/pcxt_video_dynamic.sv",
+            COMMON + "generated/fes_pcxt_isa.vh",
             COMMON + "generated/fes_video_part.vh", COMMON + "rtl/coleco_video_dpram.v",
             RAMTEST + "sdram_addon_port.v", RAMTEST + "sdram_cas3_capture.v",
             BOARD + "atari-st/derive.py"})
@@ -129,6 +130,8 @@ def component_files(sources):
     files.update(derive.control_rom(sources[UCODE]))
     files["pcxt_video_de25.sv"], derived["pcxt_video_de25.sv"] = derive.retarget_video(
         sources[CORE + "rtl/pcxt_video.sv"])
+    files["pcxt_video_dynamic_de25.sv"], derived["pcxt_video_dynamic_de25.sv"] = derive.retarget_video_dynamic(
+        sources[CORE + "rtl/pcxt_video_dynamic.sv"])
     files["coleco_video_dpram_de25.v"], derived["coleco_video_dpram_de25.v"] = derive.retarget_video_ram(
         sources[COMMON + "rtl/coleco_video_dpram.v"])
     files["sdram_addon_port_de25.v"], derived["sdram_addon_port_de25.v"] = st.retarget_sdram(

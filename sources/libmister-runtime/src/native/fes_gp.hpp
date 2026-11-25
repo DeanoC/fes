@@ -241,6 +241,7 @@ private:
 	bool tape_write_ = false;
 	bool wall_clock_ = false;
 	bool pc386_machine_ = false;
+	bool pcxt_machine_ = false;
 	bool ata_disk_ = false;
 	bool firmware_upload_ = false;
 	// This session saw the endpoint report a ready image.

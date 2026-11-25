@@ -16,6 +16,7 @@
 #include "native/diagnostic.hpp"
 #include "native/fes_gp.hpp"
 #include "native/pc386_machine.hpp"
+#include "native/pcxt_machine.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
@@ -388,7 +389,9 @@ Error NativeHardware::FlushSave()
 			error = active_driver_->CaptureData(
 				active_context_, Deadline(clock_, timeouts_.core_io_ms), &core_snapshot_);
 		const std::size_t words = durable_data_.game_id.empty() ?
-			generated::FesGpPongProgressWordCount : generated::FesComputerPc386MachineWordCount;
+			generated::FesGpPongProgressWordCount :
+			durable_data_.layout.id == generated::FesComputerInterfacePcxtMachineID ?
+			generated::FesComputerPcxtMachineWordCount : generated::FesComputerPc386MachineWordCount;
 		if (error.ok() && core_snapshot_.size() != words)
 			error = {ErrorCode::save_failed, "incomplete core-data snapshot", "core_data"};
 		if (error.ok()) {
@@ -712,7 +715,7 @@ Error NativeHardware::PrepareCoreDataInternal(AdmittedCorePackage* package,
 	if (core_data_file_ && durable_data_.core_id == id && layout.id.empty())
 		return {ErrorCode::incompatible_data, "active namespace requires persistence", "core_data"};
 	std::unique_ptr<CoreDataFile> file;
-	error = per_game ? CoreDataFile::OpenGame(root, id, game_id, &file) :
+	error = per_game ? CoreDataFile::OpenGame(root, id, game_id, &file, layout.id) :
 		CoreDataFile::Open(root, id, &file);
 	CoreData data;
 	if (error.ok())
@@ -788,7 +791,9 @@ Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::str
 	const std::string& root, const std::string& game_id, const std::string& revision,
 	const CoreSettingsUpdate& update, CoreData* output)
 {
-	if (!update.pc386 && update.paddle_speed > generated::FesGpPongPaddleSpeedFast)
+	if (update.pc386 && update.pcxt)
+		return {ErrorCode::invalid_request, "settings update cannot target two machine layouts", "request"};
+	if (!update.pc386 && !update.pcxt && update.paddle_speed > generated::FesGpPongPaddleSpeedFast)
 		return {ErrorCode::invalid_request, "invalid paddle speed", "request"};
 	std::unique_ptr<AdmittedCorePackage> package;
 	Error error = AdmitCorePackage(path, id, &package);
@@ -813,9 +818,16 @@ Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::str
 	if (!admitted->data_file_)
 		return {
 			ErrorCode::unsupported_interface, "package has no persistent settings", "core_data"};
-	if (update.pc386 != !data.game_id.empty())
+	const bool machine = update.pc386 || update.pcxt;
+	if (machine != !data.game_id.empty() ||
+		(update.pc386 && data.layout.id != generated::FesComputerInterfacePc386MachineID) ||
+		(update.pcxt && data.layout.id != generated::FesComputerInterfacePcxtMachineID))
 		return {ErrorCode::invalid_request, "settings do not match the package's layout", "request"};
-	if (update.pc386) {
+	if (update.pcxt) {
+		data.words = {update.pcxt_machine.video_card, update.pcxt_machine.mono_tint, 0, 0};
+		if (!ValidPcxtMachine(data.words))
+			return {ErrorCode::invalid_request, "invalid pcxt machine settings", "request"};
+	} else if (update.pc386) {
 		// Settings for the next launch; the machine's CMOS words stay.
 		const Pc386MachineSettings& m = update.machine;
 		const std::uint16_t settings[] = {m.preset, m.frequency, m.code_profile, m.turbo,
@@ -1047,6 +1059,7 @@ Capabilities NativeHardware::capabilities() const
 		computer_11.minor = generated::FesComputerABIMinor;
 		computer_11.interfaces.push_back({generated::FesComputerInterfacePersistenceWordsID, 1, 0});
 		computer_11.interfaces.push_back({generated::FesComputerInterfacePc386MachineID, 1, 0});
+		computer_11.interfaces.push_back({generated::FesComputerInterfacePcxtMachineID, 1, 0});
 		computer_11.interfaces.push_back({generated::FesComputerInterfaceRtcWallClockID, 1, 0});
 		computer_11.interfaces.push_back({generated::FesComputerInterfaceMediaPcxtFloppyID,
 			generated::FesComputerInterfaceMediaPcxtFloppyMajor,

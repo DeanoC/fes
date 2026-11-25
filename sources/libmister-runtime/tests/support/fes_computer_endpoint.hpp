@@ -51,6 +51,8 @@ public:
 			value.maximum = unit.second.second;
 			units_[unit.first] = value;
 		}
+		machine_words = (capabilities_ & mister::native::generated::FesComputerCapabilityPcxtMachine) ?
+			std::vector<std::uint16_t>(4, 0) : DefaultMachine();
 		for (std::size_t offset = 0; offset < build_id.size(); offset += 4) {
 			const unsigned first = static_cast<unsigned>(std::stoul(build_id.substr(offset, 2), nullptr, 16));
 			const unsigned second = static_cast<unsigned>(std::stoul(build_id.substr(offset + 2, 2), nullptr, 16));
@@ -95,9 +97,11 @@ public:
 			return {0, 0};
 		}
 		if (op >= FesComputerOpcodeDataControl && op <= FesComputerOpcodeDataInfo) {
-			// The transport and its one layout are advertised together.
-			const std::uint32_t data = FesComputerCapabilityPersistenceWords | FesComputerCapabilityPc386Machine;
-			if ((capabilities_ & data) != data) return {opcode_error, 0};
+			// The transport and one layout are advertised together.
+			const std::uint32_t mask = capabilities_ & FesComputerCapabilityPersistenceWords ?
+				(capabilities_ & (FesComputerCapabilityPc386Machine | FesComputerCapabilityPcxtMachine)) : 0;
+			if (!mask || mask == (FesComputerCapabilityPc386Machine | FesComputerCapabilityPcxtMachine))
+				return {opcode_error, 0};
 			return Data(op, index, arg);
 		}
 		if (op == FesComputerOpcodeWallClock) {
@@ -374,7 +378,8 @@ public:
 	// FPGA programming: held, neutral input, empty units, toggle and ACK zero.
 	void Reset()
 	{
-		machine_words = DefaultMachine();
+		machine_words = (capabilities_ & mister::native::generated::FesComputerCapabilityPcxtMachine) ?
+			std::vector<std::uint16_t>(4, 0) : DefaultMachine();
 		disk_state = 1; disk_frozen = disk_saved = disk_error = writer_busy = false; disk_epoch = 0;
 		dirty_chunks.clear(); disk_staged.clear(); disk_geometry.clear(); verify_left = 0;
 		data_snapshot.clear();
@@ -559,6 +564,9 @@ private:
 	{
 		using namespace mister::native::generated;
 		enum { index_error = 2, argument_error = 3, state_error = 4 };
+		const bool pcxt = (capabilities_ & FesComputerCapabilityPcxtMachine) != 0;
+		const unsigned word_count = pcxt ? 4u : 72u;
+		const std::uint16_t tag = pcxt ? 4 : 3;
 		if (op == FesComputerOpcodeDataControl) {
 			if (index) return {index_error, 0};
 			if (arg == FesComputerDataFreeze) {
@@ -573,10 +581,13 @@ private:
 				return {0, 0};
 			}
 			if (arg == FesComputerDataCommit) {
-				if (!held || !staging_open || data_staging.size() != 72) return {state_error, 0};
+				if (!held || !staging_open || data_staging.size() != word_count) return {state_error, 0};
 				std::vector<std::uint16_t> words;
 				for (const auto& word : data_staging) words.push_back(word.second);
-				if (!MachineValid(words)) return {argument_error, 0};
+				const bool valid = pcxt ?
+					(words[0] <= 2 && words[1] <= 2 && words[2] == 0 && words[3] == 0) :
+					MachineValid(words);
+				if (!valid) return {argument_error, 0};
 				machine_words = words;
 				data_staging.clear();
 				staging_open = false;
@@ -590,20 +601,20 @@ private:
 			return {argument_error, 0};
 		}
 		if (op == FesComputerOpcodeDataRead) {
-			if (index >= 72) return {index_error, 0};
+			if (index >= word_count) return {index_error, 0};
 			if (arg) return {argument_error, 0};
 			if (data_snapshot.empty()) return {state_error, 0};
 			return {0, data_snapshot[index]};
 		}
 		if (op == FesComputerOpcodeDataWrite) {
-			if (index >= 72) return {index_error, 0};
+			if (index >= word_count) return {index_error, 0};
 			if (!held || !staging_open) return {state_error, 0};
 			data_staging[index] = static_cast<std::uint16_t>(arg);
 			return {0, 0};
 		}
 		if (index > 3) return {index_error, 0};
 		if (arg) return {argument_error, 0};
-		const std::uint16_t info[4] = {72, 3, 1, 0};
+		const std::uint16_t info[4] = {static_cast<std::uint16_t>(word_count), tag, 1, 0};
 		return {0, info[index]};
 	}
 

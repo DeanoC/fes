@@ -549,7 +549,7 @@ func (s *Service) writeCoreEntryLocked(ctx context.Context, gameID, title, expec
 	}
 	// A pc386 record is per library game: a new entry has none to read yet,
 	// and its launch reads the layout from the kit.
-	if !protocol.DeclaresPc386Machine(check.Descriptor) || gameID != "" {
+	if !protocol.DeclaresPerGameMachine(check.Descriptor) || gameID != "" {
 		data, err := s.inspectInstalledCoreData(ctx, id, gameID, nil)
 		if err != nil {
 			return catalog.CoreEntry{}, err
@@ -778,11 +778,15 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 			if err = errors.Join(diskErr, closeErr); err != nil {
 				return coreLoadSource{}, err
 			}
-			transport, err := corepackage.WritePcxtInitialInput(corepackage.PcxtInitialInput{Package: data, Media: *initial})
-			if err != nil {
+			if transport, err := corepackage.WritePcxtInitialInput(corepackage.PcxtInitialInput{Package: data, Media: *initial}); err != nil {
 				return coreLoadSource{}, canonicalError(protocol.CodeInvalidArchive, nil)
+			} else {
+				var machine *protocol.LibraryMachineBinding
+				if protocol.DeclaresPcxtMachine(inspection.Descriptor) {
+					machine = &protocol.LibraryMachineBinding{GameID: entry.GameID}
+				}
+				return coreLoadSource{activationBudget: 300 * time.Second, size: int64(len(transport)), body: bytes.NewReader(transport), entry: &entry, initialMedia: initial, machine: machine}, nil
 			}
-			return coreLoadSource{activationBudget: 300 * time.Second, size: int64(len(transport)), body: bytes.NewReader(transport), entry: &entry, initialMedia: initial}, nil
 		}
 		if inspection.Descriptor.Format == 5 {
 			return s.staticCoreLaunchSource(ctx, entry, inspection, data)
@@ -828,7 +832,11 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 			}
 			return coreLoadSource{size: int64(transport.Len()), body: bytes.NewReader(transport.Bytes()), entry: &entry, composition: &bundle.Composition}, nil
 		}
-		return coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry}, nil
+		var machine *protocol.LibraryMachineBinding
+		if protocol.DeclaresPcxtMachine(inspection.Descriptor) {
+			machine = &protocol.LibraryMachineBinding{GameID: entry.GameID}
+		}
+		return coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry, machine: machine}, nil
 	})
 	status = retainImageSHA(status, imageSHA)
 	response := protocol.CachedLaunchResponse{Status: status}

@@ -92,7 +92,7 @@ func (r *Runtime) supportsInitialROMCore(staged corepackage.Staged) bool {
 	_, ok := r.control.(protocol2InitialROMControl)
 	return ok
 }
-func (r *Runtime) loadInitialROMCore(ctx context.Context, staged corepackage.Staged) (Protocol2Response, error) {
+func (r *Runtime) loadInitialROMCore(ctx context.Context, staged corepackage.Staged, gameID string) (Protocol2Response, error) {
 	media := staged.InitialMedia
 	initial := &InitialMediaRequest{Path: media.Path, Size: uint32(media.Size), Unit: media.Unit, DataRoot: MediaDataRoot, GameID: media.GameID, BaseMediaID: media.BaseMediaID, InterfaceID: media.InterfaceID}
 	var response Protocol2Response
@@ -106,7 +106,7 @@ func (r *Runtime) loadInitialROMCore(ctx context.Context, staged corepackage.Sta
 		operation = "load_rom_composed_core"
 		response, err = r.control.(protocol2InitialROMSlotControl).LoadROMSlotComposedCoreWithInitialMedia(ctx, staged.Directory, staged.PackageID, slotExpansionPaths(staged), staged.PayloadPath, *staged.SlotComposition, staged.ProgrammedPath, *staged.ROMLink, initial)
 	case staged.FirmwarePath != "":
-		response, err = r.control.(protocol2FirmwareControl).LoadFirmwareCore(ctx, staged.Directory, staged.PackageID, CoreDataRoot, staged.FirmwarePath, *staged.ROMLink, initial)
+		response, err = r.control.(protocol2FirmwareControl).LoadFirmwareCore(ctx, staged.Directory, staged.PackageID, CoreDataRoot, staged.FirmwarePath, *staged.ROMLink, initial, gameID)
 	default:
 		dataRoot := ""
 		if staged.Composition == nil {

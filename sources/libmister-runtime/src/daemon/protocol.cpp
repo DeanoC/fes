@@ -16,6 +16,7 @@
 #include "native/ata_disk.hpp"
 #include "native/media_data.hpp"
 #include "native/pc386_machine.hpp"
+#include "native/pcxt_machine.hpp"
 
 namespace mister {
 namespace daemon {
@@ -928,6 +929,13 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 			output.Append(std::to_string(core_data->paddle_speed));
 			output.Append(",\"best_rally\":");
 			output.Append(std::to_string(core_data->best_rally));
+		} else if (core_data->layout.id == native::generated::FesComputerInterfacePcxtMachineID) {
+			// A per-game PC/XT record: its game and next-launch settings.
+			const PcxtMachineSettings m = native::PcxtSettings(core_data->words);
+			output.Append(",\"game_id\":");
+			AppendQuoted(&output, core_data->game_id);
+			output.Append(",\"pcxt_machine\":{\"video_card\":" + std::to_string(m.video_card) +
+				",\"mono_tint\":" + std::to_string(m.mono_tint) + "}");
 		} else {
 			// A per-game pc386 record: its game and next-launch settings.
 			const Pc386MachineSettings m = native::Pc386Settings(core_data->words);
@@ -1125,11 +1133,11 @@ Error ParseRequest(const std::string& line, Request* request)
 				return Invalid("firmware_path requires a single-ROM plain or library load");
 			const char* const programmed_key = upload ? "firmware_path" : "programmed_path";
 			const char* plain[] = {"protocol","operation","package_path","package_id",programmed_key,two_sources ? "rom_links" : "rom_link", "initial_media"};
-			const char* with_root[] = {"protocol","operation","package_path","package_id","data_root",programmed_key,two_sources ? "rom_links" : "rom_link", "initial_media"};
+			const char* with_root[] = {"protocol","operation","package_path","package_id","data_root",programmed_key,two_sources ? "rom_links" : "rom_link", "initial_media", "game_id"};
 			const char* with_cart[] = {"protocol","operation","package_path","package_id",parts ? "parts" : slots ? "expansions" : "expansion_path","payload_path","composition","programmed_path",two_sources ? "rom_links" : "rom_link", "initial_media"};
 			const char* const* fields = plain;
 			unsigned count = 7;
-			if (library) { fields = with_root; count = 8; }
+			if (library) { fields = with_root; count = 9; }
 			if (composed) { fields = with_cart; count = 10; }
 			if (!HasOnly(root, fields, count, &error)) return error;
 			if (const auto* initial = Find(root, "initial_media")) {
@@ -1142,11 +1150,15 @@ Error ParseRequest(const std::string& line, Request* request)
 					!StringMember(*initial, "data_root", &data_root, &error) ||
 					!StringMember(*initial, "game_id", &game, &error) ||
 					!StringMember(*initial, "base_media_id", &base, &error)) return error;
+				const auto* initial_size = Find(*initial, "size");
+				const bool pcxt_size = initial_size && initial_size->type == json::Type::integer &&
+					initial_size->integer_value == native::generated::FesComputerPcxtFloppyBytes;
+				const bool st_size = BoundedInteger(initial_size, native::generated::FesComputerAtariStFloppyGeometryMinBytes,
+					native::generated::FesComputerAtariStFloppyGeometryMaxBytes) &&
+					native::InferAtariStGeometry(static_cast<std::uint32_t>(initial_size->integer_value));
 				if (!Path(*path) || !Path(*data_root) || !PackageID(*base) || game->empty() || game->size() > 256 ||
 					!BoundedInteger(Find(*initial, "unit"), 0, 0) ||
-					!BoundedInteger(Find(*initial, "size"), native::generated::FesComputerAtariStFloppyGeometryMinBytes,
-						native::generated::FesComputerAtariStFloppyGeometryMaxBytes) ||
-                    !native::InferAtariStGeometry(static_cast<std::uint32_t>(Find(*initial, "size")->integer_value)))
+					(!pcxt_size && !st_size))
 					return Invalid("invalid initial disk paths, identity or geometry");
 				bool hyphen = true;
 				for (char c : *game) {
@@ -1158,7 +1170,7 @@ Error ParseRequest(const std::string& line, Request* request)
 				parsed.has_initial_media = true;
 				parsed.initial_media.path = *path;
 				parsed.initial_media.data_root = *data_root;
-				parsed.initial_media.size = static_cast<std::uint32_t>(Find(*initial, "size")->integer_value);
+				parsed.initial_media.size = static_cast<std::uint32_t>(initial_size->integer_value);
 				parsed.initial_media.binding = {*game, *base, 0};
 			}
 			const std::string *path=nullptr,*id=nullptr,*programmed=nullptr;
@@ -1197,6 +1209,11 @@ Error ParseRequest(const std::string& line, Request* request)
 				const std::string* root_path=nullptr;
 				if (!StringMember(root,"data_root",&root_path,&error) || !Path(*root_path))
 					return Invalid("invalid initialized core data root");
+				if (const auto* game = Find(root, "game_id")) {
+					if (game->type != json::Type::string || !native::ValidLibraryGameID(game->string_value))
+						return Invalid("invalid core-data game identity");
+					parsed.game_id = game->string_value;
+				}
 				parsed.data_root=*root_path;
 				parsed.operation = Operation::load_rom_library_core;
 			}
@@ -1340,15 +1357,42 @@ Error ParseRequest(const std::string& line, Request* request)
 				   operation->string_value == "inspect_core_data" ||
 				   operation->string_value == "update_core_settings") {
 			const bool update = operation->string_value == "update_core_settings";
-			// game_id keys a fes.computer package's per-game record; a pc386
-			// update carries machine settings instead of Pong's paddle speed.
+			// game_id keys a fes.computer package's per-game record; a pc386 or
+			// pcxt update carries machine settings instead of Pong's paddle speed.
 			const bool machine = Find(root, "machine") != nullptr;
+			const bool pcxt_machine = Find(root, "pcxt_machine") != nullptr;
+			if (update && machine && pcxt_machine)
+				return Invalid("settings update cannot include both machine and pcxt_machine");
 			const bool load = operation->string_value == "load_library_core";
+			if (load && Find(root, "ata_disk") && Find(root, "initial_media"))
+				return Invalid("library load cannot combine ata_disk and initial_media");
 			const char* const fields[] = {"protocol", "operation", "package_path", "package_id",
-				"data_root", "game_id", update ? "expected_revision" : "ata_disk",
-				machine ? "machine" : "paddle_speed"};
+				"data_root", "game_id",
+				update ? "expected_revision" : (Find(root, "initial_media") ? "initial_media" : "ata_disk"),
+				pcxt_machine ? "pcxt_machine" : (machine ? "machine" : "paddle_speed")};
 			if (!HasOnly(root, fields, update ? 8 : load ? 7 : 6, &error))
 				return error;
+			if (const auto* initial = Find(root, "initial_media")) {
+				if (initial->type != json::Type::object)
+					return Invalid("initial_media requires a core load and object");
+				const char* keys[] = {"path", "size", "unit", "data_root", "game_id", "base_media_id"};
+				if (!HasOnly(*initial, keys, 6, &error)) return error;
+				const std::string *path = nullptr, *media_root = nullptr, *game = nullptr, *base = nullptr;
+				if (!StringMember(*initial, "path", &path, &error) ||
+					!StringMember(*initial, "data_root", &media_root, &error) ||
+					!StringMember(*initial, "game_id", &game, &error) ||
+					!StringMember(*initial, "base_media_id", &base, &error)) return error;
+				if (!Path(*path) || !Path(*media_root) || !PackageID(*base) || !native::ValidLibraryGameID(*game) ||
+					!BoundedInteger(Find(*initial, "unit"), 0, 0) ||
+					!BoundedInteger(Find(*initial, "size"), native::generated::FesComputerPcxtFloppyBytes,
+						native::generated::FesComputerPcxtFloppyBytes))
+					return Invalid("invalid initial PC/XT disk");
+				parsed.has_initial_media = true;
+				parsed.initial_media.path = *path;
+				parsed.initial_media.data_root = *media_root;
+				parsed.initial_media.size = native::generated::FesComputerPcxtFloppyBytes;
+				parsed.initial_media.binding = {*game, *base, 0};
+			}
 			if (const auto* disk = Find(root, "ata_disk")) {
 				// The staged base image of a fes.media.ata-disk package and its
 				// game's chunk-delta root; it binds to the request's game_id.
@@ -1419,6 +1463,19 @@ Error ParseRequest(const std::string& line, Request* request)
 						*destinations[i] = static_cast<std::uint16_t>(value->integer_value);
 					}
 					parsed.settings.pc386 = true;
+				} else if (pcxt_machine) {
+					const auto* settings = Find(root, "pcxt_machine");
+					const char* const keys[] = {"video_card", "mono_tint"};
+					if (settings->type != json::Type::object || !HasOnly(*settings, keys, 2, &error))
+						return Invalid("invalid pcxt machine settings");
+					const auto* card = Find(*settings, "video_card");
+					const auto* tint = Find(*settings, "mono_tint");
+					if (!BoundedInteger(card, 0, native::generated::FesComputerPcxtVideoCardMax) ||
+						!BoundedInteger(tint, 0, native::generated::FesComputerPcxtMonoTintMax))
+						return Invalid("invalid pcxt machine settings");
+					parsed.settings.pcxt_machine.video_card = static_cast<std::uint16_t>(card->integer_value);
+					parsed.settings.pcxt_machine.mono_tint = static_cast<std::uint16_t>(tint->integer_value);
+					parsed.settings.pcxt = true;
 				} else {
 					const auto* speed = Find(root, "paddle_speed");
 					if (!BoundedInteger(speed, 0, 2))

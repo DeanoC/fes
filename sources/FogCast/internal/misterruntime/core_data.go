@@ -12,6 +12,20 @@ import (
 const CoreDataRoot = "/media/fat/fogcast/core-data"
 
 func validateCoreDataShape(raw json.RawMessage) error {
+	if pcxt, err := exactRawObject(raw, []string{"package_id", "core_id", "layout", "mode", "revision", "game_id", "pcxt_machine"}, nil); err == nil {
+		// A fes.pcxt.machine record: the library game and its settings.
+		if err := requireRawKinds(pcxt, map[string]rawKind{"package_id": rawString, "core_id": rawString, "layout": rawObject, "mode": rawString, "revision": rawString, "game_id": rawString, "pcxt_machine": rawObject}); err != nil {
+			return err
+		}
+		settings, err := exactRawObject(pcxt["pcxt_machine"], []string{"video_card", "mono_tint"}, nil)
+		if err != nil {
+			return err
+		}
+		if err := requireRawKinds(settings, map[string]rawKind{"video_card": rawUnsigned, "mono_tint": rawUnsigned}); err != nil {
+			return err
+		}
+		return validateSupportedInterfaceShape(pcxt["layout"])
+	}
 	if machine, err := exactRawObject(raw, []string{"package_id", "core_id", "layout", "mode", "revision", "game_id", "machine"}, nil); err == nil {
 		// A fes.pc386.machine record: the library game and its settings.
 		if err := requireRawKinds(machine, map[string]rawKind{"package_id": rawString, "core_id": rawString, "layout": rawObject, "mode": rawString, "revision": rawString, "game_id": rawString, "machine": rawObject}); err != nil {
@@ -47,10 +61,11 @@ type coreDataRequest struct {
 	DataRoot         string                `json:"data_root"`
 	ExpectedRevision string                `json:"expected_revision,omitempty"`
 	PaddleSpeed      *protocol.PaddleSpeed `json:"paddle_speed,omitempty"`
-	// A pc386 record is keyed by its library game; its update carries the
-	// machine settings in place of paddle_speed.
-	GameID  string                    `json:"game_id,omitempty"`
-	Machine *protocol.MachineSettings `json:"machine,omitempty"`
+	// A per-game record is keyed by its library game; its update carries the
+	// machine or pcxt_machine settings in place of paddle_speed.
+	GameID      string                        `json:"game_id,omitempty"`
+	Machine     *protocol.MachineSettings     `json:"machine,omitempty"`
+	PcxtMachine *protocol.PcxtMachineSettings `json:"pcxt_machine,omitempty"`
 }
 
 func (client *Client) InspectCoreData(ctx context.Context, path, id, root string) (Protocol2Response, error) {
@@ -130,14 +145,27 @@ func (r *Runtime) coreDataOperation(ctx context.Context, size int64, body io.Rea
 	if staged.PackageID != id {
 		return result, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "package identity differs from request", Phase: "admission"}
 	}
-	// A pc386 record is per library game; Pong's is per core.
-	machine := protocol.DeclaresPc386Machine(staged.Descriptor)
-	if machine != (gameID != "") || (update != nil && machine != (update.Machine != nil)) {
+	// A machine record is per library game; Pong's is per core.
+	pc386 := protocol.DeclaresPc386Machine(staged.Descriptor)
+	pcxt := protocol.DeclaresPcxtMachine(staged.Descriptor)
+	machine := pc386 || pcxt
+	if machine != (gameID != "") ||
+		(update != nil && (pc386 != (update.Machine != nil) || pcxt != (update.PcxtMachine != nil))) {
 		return result, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "core data request does not match the package's record", Phase: "request"}
 	}
 	var response Protocol2Response
 	switch {
-	case machine:
+	case pcxt:
+		games, ok := r.control.(protocol2MachineDataControl)
+		if !ok {
+			return result, unsupportedOperationError()
+		}
+		if update == nil {
+			response, err = games.InspectMachineCoreData(ctx, staged.Directory, id, CoreDataRoot, gameID)
+		} else {
+			response, err = games.UpdatePcxtMachineSettings(ctx, staged.Directory, id, CoreDataRoot, gameID, update.ExpectedRevision, *update.PcxtMachine)
+		}
+	case pc386:
 		games, ok := r.control.(protocol2MachineDataControl)
 		if !ok {
 			return result, unsupportedOperationError()

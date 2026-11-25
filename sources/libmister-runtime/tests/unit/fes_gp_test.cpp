@@ -3265,7 +3265,7 @@ std::vector<Computer11Scenario> ReadComputer11Scenarios()
 	for (auto at = source.find("{\"abi_minor\":"); at != std::string::npos;
 		at = source.find("{\"abi_minor\":", at + 1))
 		starts.push_back(at);
-	assert(starts.size() == 5);
+	assert(starts.size() == 6);
 	starts.push_back(source.size());
 	const std::regex row("\\{\"argument\":([0-9]+),\"data\":([0-9]+),\"error\":([0-9]+),"
 		"\"gpi\":([0-9]+),\"gpo\":\\[([0-9]+),([0-9]+)\\],\"index\":([0-9]+),"
@@ -3311,8 +3311,9 @@ std::vector<Computer11Scenario> ReadComputer11Scenarios()
 	}
 	assert(result[0].name == "minor-0-endpoint" && result[0].abi_minor == 0);
 	assert(result[1].name == "pc386-persistence-and-wall-clock" && result[1].abi_minor == 1);
-	assert(result[2].name == "pc386-ata-disk");
-	assert(result[3].name == "persistence-without-layout" && result[4].name == "layout-without-persistence");
+	assert(result[2].name == "pcxt-persistence" && result[2].abi_minor == 1);
+	assert(result[3].name == "pc386-ata-disk");
+	assert(result[4].name == "persistence-without-layout" && result[5].name == "layout-without-persistence");
 	return result;
 }
 
@@ -3472,6 +3473,34 @@ void TestPc386IdentityPersistenceAndWallClock()
 	assert(captured == expected);
 	assert(f.driver.ResumeData(f.context, kComputerDeadline).ok());
 	assert(f.endpoint.data_snapshot.empty());
+}
+
+void TestPcxtMachineIdentityAndPersistence()
+{
+	auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceAudioPcmS16Stereo48kID,
+		FesComputerInterfacePersistenceWordsID, FesComputerInterfacePcxtMachineID});
+	descriptor.core.id = "fes.pcxt-dos";
+	descriptor.abi.minor = 1;
+	descriptor.interfaces.pop_back();
+	const std::uint32_t live = FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityPersistenceWords |
+		FesComputerCapabilityPcxtMachine;
+	ComputerFixture f(live, {}, descriptor);
+	f.endpoint.abi_minor = 1;
+	assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+	assert(f.driver.observed_capabilities() == live);
+	assert(!f.driver.Pc386MachineCapable());
+	std::vector<std::uint16_t> invalid = {3, 0, 0, 0};
+	assert(!f.driver.RestoreData(f.context, invalid, kComputerDeadline).ok());
+	std::vector<std::uint16_t> record = {2, 2, 0, 0};
+	assert(f.driver.RestoreData(f.context, record, kComputerDeadline).ok());
+	assert(f.endpoint.machine_words == record);
+	assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+	std::vector<std::uint16_t> captured;
+	assert(f.driver.CaptureData(f.context, kComputerDeadline, &captured).ok());
+	assert(captured == record);
+	assert(f.driver.ResumeData(f.context, kComputerDeadline).ok());
 }
 
 void TestPc386AtaDiskCommitPollAndDirtyMap()
@@ -3812,6 +3841,7 @@ int main()
 	TestComputerKeyboardOrderedSnapshots();
 	TestComputer11ReplaysSharedFixtureThroughEndpoint();
 	TestPc386IdentityPersistenceAndWallClock();
+	TestPcxtMachineIdentityAndPersistence();
 	TestPc386AtaDiskCommitPollAndDirtyMap();
 	TestComputerIdentityCapabilitiesAndDiscovery();
 	TestZx81SaveStaysDirtyUntilAcknowledged();

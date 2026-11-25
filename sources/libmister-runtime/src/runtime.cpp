@@ -21,6 +21,7 @@
 #if defined(__linux__)
 #include <sys/random.h>
 #elif defined(__APPLE__)
+#include <sys/random.h>
 #include <unistd.h>
 #endif
 
@@ -731,7 +732,8 @@ public:
 	{
 		if (!output || !ValidAbsolutePath(directory) || !ValidAbsolutePath(data_root) ||
 			!ValidPackageId(package_id) ||
-			(update && ((!update->pc386 && update->paddle_speed > 2) ||
+			(update && ((update->pc386 && update->pcxt) ||
+				(!update->pc386 && !update->pcxt && update->paddle_speed > 2) ||
 				(revision != "absent" && !ValidPackageId(revision)))))
 			return Invalid("invalid core-data request");
 		{
@@ -1732,12 +1734,13 @@ Error Runtime::LoadComposedCore(const std::string& directory, const std::string&
 	return impl_->LoadCore(directory, id, "", &request);
 }
 Error Runtime::LoadLibraryCore(const std::string& directory, const std::string& id,
-	const std::string& root, const std::string& game_id, const AtaDiskImage* disk)
+	const std::string& root, const std::string& game_id, const AtaDiskImage* disk,
+	const InitialComputerMedia* initial_media)
 {
 	if (!ValidAbsolutePath(root) || (disk && (game_id.empty() || !ValidAbsolutePath(disk->path) ||
 		!ValidAbsolutePath(disk->data_root))))
 		return Invalid("invalid core-data root or ATA disk");
-	return impl_->LoadCore(directory, id, root, nullptr, "", "", nullptr, nullptr, nullptr, game_id, disk);
+	return impl_->LoadCore(directory, id, root, nullptr, "", "", nullptr, nullptr, initial_media, game_id, disk);
 }
 Error Runtime::LoadLibraryPartsCore(const std::string& directory, const std::string& id,
 	const std::string& root, const CoreCompositionRequest& request)
@@ -1761,11 +1764,11 @@ Error Runtime::LoadROMComposedCore(const std::string& directory, const std::stri
 
 Error Runtime::LoadFirmwareCore(const std::string& directory, const std::string& id,
 	const std::string& root, const std::string& path, const CoreROMLink& link,
-	const InitialComputerMedia* initial_media)
+	const InitialComputerMedia* initial_media, const std::string& game_id)
 {
 	if (!ValidAbsolutePath(path) || (!root.empty() && !ValidAbsolutePath(root)))
 		return Invalid("firmware upload requires a firmware source path");
-	return impl_->LoadCore(directory, id, root, nullptr, "", "", &link, nullptr, initial_media, "", nullptr, path);
+	return impl_->LoadCore(directory, id, root, nullptr, "", "", &link, nullptr, initial_media, game_id, nullptr, path);
 }
 Error Runtime::LoadROMsCore(const std::string& directory, const std::string& id,
 	const std::string& path, const CoreROMLinks& links)

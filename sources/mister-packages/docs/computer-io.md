@@ -584,6 +584,23 @@ launch while held, before the record restore: guest RAM at window
 from a cold machine's memory, not the previous run's. The machine never clears
 memory itself, so a guest reset keeps it, as an AT's does.
 
+### fes.pcxt.machine 1.0
+
+Layout tag 4, 4 words, paired with `fes.persistence.words` 1.0 on capability
+bit 22 (`fes.computer` 1.1), stored per library game as a 136-byte `FESGAME1`
+record. Words:
+
+| Word | Content | Values | Default |
+| --- | --- | --- | --- |
+| 0 | Video card | 0 `cga`, 1 `mda`, 2 `hercules` | 0 |
+| 1 | Monochrome phosphor tint | 0 `white`, 1 `green`, 2 `amber` | 0 |
+| 2..3 | Reserved | 0 | 0 |
+
+Commit (`DataControl` 2) rejects any out-of-range video card (`> 2`), tint
+(`> 2`), or nonzero reserved word with invalid argument (`3`), preserving prior
+live words and staging. Settings take effect on execution release (`Execution`
+1) while held. An absent game record starts `{0, 0, 0, 0}` (`cga`, `white`).
+
 ## Wall clock
 
 `fes.rtc.wall-clock` 1.0 (bit 18) sets the machine's clock from the kit's

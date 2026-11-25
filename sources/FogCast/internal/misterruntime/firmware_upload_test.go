@@ -118,7 +118,7 @@ func TestFirmwareUploadClientSendsTheSourcePath(t *testing.T) {
 	id := active.ActivePackage.PackageID
 	for _, root := range []string{"", "/tmp/data"} {
 		fixture := newSequenceSocketFixture(t, []string{line + "\n", line + "\n"})
-		response, err := NewClient(fixture.path).LoadFirmwareCore(context.Background(), "/tmp/package", id, root, "/tmp/firmware.rom", link, nil)
+		response, err := NewClient(fixture.path).LoadFirmwareCore(context.Background(), "/tmp/package", id, root, "/tmp/firmware.rom", link, nil, "")
 		if err != nil || response.ActivePackage == nil || *response.ActivePackage.ROMLink != link {
 			t.Fatalf("round trip: %+v %v", response, err)
 		}
@@ -145,7 +145,7 @@ func TestFirmwareUploadClientSendsTheSourcePath(t *testing.T) {
 	// Another source in the reply is not this launch.
 	wrong := strings.Replace(line, link.SourceSHA256, strings.Repeat("f", 64), 1)
 	fixture := newSequenceSocketFixture(t, []string{line + "\n", wrong + "\n"})
-	if _, err = NewClient(fixture.path).LoadFirmwareCore(context.Background(), "/tmp/package", id, "", "/tmp/firmware.rom", link, nil); err == nil {
+	if _, err = NewClient(fixture.path).LoadFirmwareCore(context.Background(), "/tmp/package", id, "", "/tmp/firmware.rom", link, nil, ""); err == nil {
 		t.Fatal("accepted a reply naming another ROM")
 	}
 	fixture.wait(t)
@@ -165,7 +165,7 @@ func TestFirmwareUploadClientRefusesBeforeMutation(t *testing.T) {
 		"linker":              fixtureLines(t, "protocol-v2-rom-package-responses.jsonl")[1],
 	} {
 		fixture := newSequenceSocketFixture(t, []string{status + "\n"})
-		if _, err := NewClient(fixture.path).LoadFirmwareCore(context.Background(), "/tmp/package", id, "", "/tmp/firmware.rom", link, nil); err == nil {
+		if _, err := NewClient(fixture.path).LoadFirmwareCore(context.Background(), "/tmp/package", id, "", "/tmp/firmware.rom", link, nil, ""); err == nil {
 			t.Fatal("firmware load sent to a runtime without the interface:", name)
 		}
 		if requests := fixture.wait(t); len(requests) != 1 || requests[0] != `{"protocol":2,"operation":"status"}` {
@@ -184,15 +184,15 @@ func TestFirmwareUploadClientRefusesBeforeMutation(t *testing.T) {
 	cartridge.Role = "cartridge"
 	for name, call := range map[string]func(*Client) error{
 		"relative source path": func(c *Client) error {
-			_, err := c.LoadFirmwareCore(context.Background(), "/tmp/package", id, "", "firmware.rom", link, nil)
+			_, err := c.LoadFirmwareCore(context.Background(), "/tmp/package", id, "", "firmware.rom", link, nil, "")
 			return err
 		},
 		"no source path": func(c *Client) error {
-			_, err := c.LoadFirmwareCore(context.Background(), "/tmp/package", id, "", "", link, nil)
+			_, err := c.LoadFirmwareCore(context.Background(), "/tmp/package", id, "", "", link, nil, "")
 			return err
 		},
 		"cartridge role": func(c *Client) error {
-			_, err := c.LoadFirmwareCore(context.Background(), "/tmp/package", id, "", "/tmp/firmware.rom", cartridge, nil)
+			_, err := c.LoadFirmwareCore(context.Background(), "/tmp/package", id, "", "/tmp/firmware.rom", cartridge, nil, "")
 			return err
 		},
 	} {
@@ -245,7 +245,7 @@ func de25PCXTResponse(t *testing.T, abiMinor int) (string, corepackage.ROMLinkId
 	descriptor["interfaces"] = declared
 	payload := descriptor["payload"].(map[string]any)
 	link := corepackage.ROMLinkIdentity{ROMID: "pcxt-firmware", Role: "firmware", MapSHA256: strings.Repeat("a", 64),
-		SourceSHA256: strings.Repeat("b", 64), SourceSize: 69632,
+		SourceSHA256: strings.Repeat("b", 64), SourceSize: 73728,
 		ProgrammedSHA256: payload["sha256"].(string), ProgrammedSize: int64(payload["size"].(float64))}
 	descriptor["rom"] = map[string]any{"id": link.ROMID, "role": link.Role, "source_size": link.SourceSize,
 		"file": "rom-map.json", "size": 177, "sha256": link.MapSHA256}
@@ -272,7 +272,7 @@ func TestFirmwareUploadPCXTRunsItsComputerMinor(t *testing.T) {
 		t.Fatal("PC/XT floppy unit differs from its exact 360 KiB contract")
 	}
 	fixture := newSequenceSocketFixture(t, []string{line + "\n", line + "\n"})
-	response, err := NewClient(fixture.path).LoadFirmwareCore(context.Background(), "/tmp/package", active.ActivePackage.PackageID, "", "/tmp/firmware.rom", link, nil)
+	response, err := NewClient(fixture.path).LoadFirmwareCore(context.Background(), "/tmp/package", active.ActivePackage.PackageID, "", "/tmp/firmware.rom", link, nil, "")
 	if err != nil || response.ActivePackage == nil || *response.ActivePackage.ROMLink != link {
 		t.Fatalf("PC/XT firmware launch reply refused: %+v %v", response, err)
 	}

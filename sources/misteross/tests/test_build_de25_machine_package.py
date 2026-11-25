@@ -39,7 +39,8 @@ CASES = (
     (atari_st, '520st', 196608, 'fes.atari-st', 'atari-st-firmware', {'fes.mouse.relative', 'fes.media.atari-st-floppy',
                                  'fes.media.atari-st-floppy-write', 'fes.media.atari-st-floppy-geometry'}),
     (c64, 'pal', 36864, 'fes.c64', 'c64-firmware', {'fes.media.c64-disk'}),
-    (pcxt, 'xt', 69632, 'fes.pcxt-dos', 'pcxt-firmware', {'fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write'}),
+    (pcxt, 'xt', 73728, 'fes.pcxt-dos', 'pcxt-firmware',
+     {'fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write', 'fes.persistence.words', 'fes.pcxt.machine'}),
 )
 PRODUCERS = (spectrum, atari_st, c64, pcxt)
 # The shared machine PLL's clock, or the machine's own; and the fes.computer

@@ -69,6 +69,21 @@ class Derivations(unittest.TestCase):
         with self.assertRaises(ValueError):
             derive.retarget_video(result)
 
+    def test_dynamic_video_mailbox_crosses_through_free_synchronizers_and_a_held_copy(self):
+        source = (ROOT / "cores/fes-pcxt/rtl/pcxt_video_dynamic.sv").read_bytes()
+        result, record = derive.retarget_video_dynamic(source)
+        self.assertEqual(len(record["changes"]), len(derive.VIDEO_DYNAMIC_EDITS))
+        for name in (b"ack_meta <= ", b"sent_meta <= ", b"hold_meta <= ", b"hold_launch <= "):
+            self.assertEqual(result.count(name), 1, name)
+        for name in (b"ack_meta <= 1'b0", b"sent_meta <= 1'b0", b"hold_meta <= 1'b0", b"hold_meta <= hold;"):
+            self.assertNotIn(name, result)
+        self.assertEqual(result.count(b"published_code <= {"), 2)
+        self.assertIn(b"if (sent_sync != sent_held) begin pixel_code <= published_code;", result)
+        self.assertIn(b"pixel_code ^ {~pixel_loaded, 4'b0, pixel_loaded}", result)
+        self.assertIn(b"front <= published_pixel[1:0];", result)
+        with self.assertRaises(ValueError):
+            derive.retarget_video_dynamic(result)
+
     def test_component_lists_every_staged_file(self):
         build = load(HERE / "build.py", "de25_pcxt_build")
         files, derived, _ = build.board.component_files(build, build.board.capture(build))
@@ -84,6 +99,7 @@ class Derivations(unittest.TestCase):
                 self.assertNotIn(b"altsyncram", data, name)
                 self.assertNotIn(b"cyclonev_", data, name)
         self.assertEqual(set(derived), {"coleco_video_dpram_de25.v", "sdram_addon_port_de25.v", "pcxt_video_de25.sv",
+                                        "pcxt_video_dynamic_de25.sv",
                                         "fes_de25_computer_transport.v", "fes_menu_reader_de25.v"})
         # The DE10 machine sources are staged unchanged.
         for name in build.MACHINE_FILES:

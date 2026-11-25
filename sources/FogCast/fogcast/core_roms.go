@@ -302,6 +302,9 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 	}
 	// The envelope streams from the package and ROM bytes in place.
 	source := coreLoadSource{size: transport.Size(), body: transport.Reader(), entry: &entry, romID: selected.ROMID, romMediaID: selected.MediaID, slotComposition: transport.SlotComposition, partsComposition: transport.PartsComposition}
+	if protocol.DeclaresPcxtMachine(descriptor) {
+		source.machine = &protocol.LibraryMachineBinding{GameID: entry.GameID}
+	}
 	source.initialMedia = initial
 	if descriptor.Format == 3 && (descriptor.Core.ID == "fes.atari-st" || initial != nil && descriptor.Core.ID == pcxtCoreID) {
 		source.activationBudget = 300 * time.Second

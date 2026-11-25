@@ -35,3 +35,10 @@ double-dot font in the IBM CGA character ROM (5788005); only 05h, 06h, 0Fh and
 cover the author's TTF/FON remakes and enhancements, while the author
 disclaims rights to the original raster data. That licence is not applied to
 this VGABIOS raster table.
+
+`mda-font-8x14.bin` is the MDA/Hercules character ROM: 256 CP437 characters of
+14 rows, 3,584 bytes, SHA-256
+`657ca6588b6bf729f0ed71a3d3c781a465bd30cdfb11eb5fc7e27594c0717ea1`. It is the
+`vgafont14` table of the same LGPL VGABios 0.9d `vgafonts.h`
+(`12d978bd86fe88ee6b8620b0f1e91c7fb81bc2e6`), credited to Joseph Gil's
+fntcol16 collection as public domain.

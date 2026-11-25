@@ -138,3 +138,73 @@ def retarget_video(source):
         result = result.replace(before, after)
         changes.append({"before": before.decode(), "after": after.decode()})
     return result, {"source_sha256": sha(source), "derived_sha256": sha(result), "changes": changes}
+
+
+VIDEO_DYNAMIC_EDITS = (
+    (b"    (* async_reg = \"true\" *) reg ack_meta, ack_sync, sent_meta, sent_sync;\n",
+     b"    (* async_reg = \"true\" *) reg ack_meta = 1'b0, ack_sync = 1'b0, sent_meta = 1'b0, sent_sync = 1'b0;\n"
+     b"    (* preserve, dont_merge *) reg hold_launch = 1'b0;\n    reg sent_held = 1'b0, pixel_loaded = 1'b0;\n"
+     b"    (* preserve, dont_merge *) reg [5:0] published_code = 6'd0;\n"
+     b"    (* preserve, dont_merge *) reg [5:0] pixel_code = 6'd0;\n"
+     b"    wire [5:0] published_pixel = pixel_code ^ {~pixel_loaded, 4'b0, pixel_loaded};\n"
+     b"    always @(posedge clk_sys) begin\n"
+     b"        ack_meta <= received; ack_sync <= ack_meta; hold_launch <= hold;\n    end\n"),
+    (b"            ack_meta <= 1'b0; ack_sync <= 1'b0;\n"
+     b"            source_x <= 11'd0; source_y <= 10'd0;\n",
+     b"            source_x <= 11'd0; source_y <= 10'd0;\n"),
+    (b"            ack_meta <= received; ack_sync <= ack_meta;\n", b""),
+    (b"                published_bank <= write_bank;\n"
+     b"                published_mode <= queued_mode;\n"
+     b"                published_tint <= queued_tint;\n",
+     b"                published_bank <= write_bank;\n"
+     b"                published_mode <= queued_mode;\n"
+     b"                published_tint <= queued_tint;\n"
+     b"                published_code <= {queued_tint, queued_mode, write_bank} ^ 6'd1;\n"),
+    (b"                            published_bank <= write_bank;\n"
+     b"                            published_mode <= cur_mode;\n"
+     b"                            published_tint <= cur_tint;\n",
+     b"                            published_bank <= write_bank;\n"
+     b"                            published_mode <= cur_mode;\n"
+     b"                            published_tint <= cur_tint;\n"
+     b"                            published_code <= {cur_tint, cur_mode, write_bank} ^ 6'd1;\n"),
+    (b"    (* async_reg = \"true\" *) reg hold_meta, hold_sync;\n",
+     b"    (* async_reg = \"true\" *) reg hold_meta = 1'b0, hold_sync = 1'b0;\n"),
+    (b"    wire adopt = output_sof && sent_sync != received;\n"
+     b"    wire [1:0] read_bank = adopt ? published_bank : front;\n",
+     b"    always @(posedge clk_pixel) begin\n"
+     b"        sent_meta <= sent; sent_sync <= sent_meta; sent_held <= sent_sync;\n"
+     b"        hold_meta <= hold_launch; hold_sync <= hold_meta;\n"
+     b"        if (sent_sync != sent_held) begin pixel_code <= published_code; pixel_loaded <= 1'b1; end\n"
+     b"    end\n"
+     b"    wire adopt = output_sof && sent_held != received;\n"
+     b"    wire [1:0] read_bank = adopt ? published_pixel[1:0] : front;\n"),
+    (b"            sent_meta <= 1'b0; sent_sync <= 1'b0; hold_meta <= 1'b0; hold_sync <= 1'b0;\n", b""),
+    (b"            sent_meta <= sent; sent_sync <= sent_meta;\n"
+     b"            hold_meta <= hold; hold_sync <= hold_meta;\n"
+     b"            if (adopt) begin\n"
+     b"                front <= published_bank;\n"
+     b"                front_mode <= published_mode;\n"
+     b"                front_tint <= published_tint;\n"
+     b"                front_valid <= 1'b1;\n"
+     b"                received <= sent_sync;\n"
+     b"            end\n",
+     b"            if (adopt) begin\n"
+     b"                front <= published_pixel[1:0];\n"
+     b"                front_mode <= published_pixel[3:2];\n"
+     b"                front_tint <= published_pixel[5:4];\n"
+     b"                front_valid <= 1'b1;\n"
+     b"                received <= sent_held;\n"
+     b"            end\n"),
+)
+
+
+def retarget_video_dynamic(source):
+    """pcxt_video_dynamic's mailbox crossings in the shape the design assistant accepts."""
+    result, changes = source, []
+    for before, after in VIDEO_DYNAMIC_EDITS:
+        if result.count(before) != 1:
+            raise ValueError("PC/XT dynamic video crossing adaptation contract changed: " +
+                             before.decode().strip().splitlines()[0])
+        result = result.replace(before, after)
+        changes.append({"before": before.decode(), "after": after.decode()})
+    return result, {"source_sha256": sha(source), "derived_sha256": sha(result), "changes": changes}

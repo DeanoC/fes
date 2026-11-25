@@ -4195,6 +4195,49 @@ void TestPongInputFaultDoesNotCapture()
 	assert(rmdir((data.path + "/" + mister::native::CoreDataNamespace("fes.pong")).c_str()) == 0);
 }
 
+void TestPcxtLibraryRecordAndSettings()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	const std::uint32_t caps = FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityPersistenceWords |
+		FesComputerCapabilityPcxtMachine | FesComputerCapabilityMediaPcxtFloppy;
+	mister_test::ComputerEndpoint endpoint(caps, {{0, {FesComputerPcxtFloppyBytes, FesComputerPcxtFloppyBytes}}},
+		"0123456789abcdef0123456789abcdef");
+	endpoint.abi_minor = 1;
+	FixedClock clock(100);
+	FesGp transport(endpoint, clock);
+	FesGpCoreDriver driver(transport);
+	IntegratedFixture fixture(&driver);
+	fixture.Start();
+	fixture.native.fpga.on_program = [&] { endpoint.Reset(); };
+	TempDirectory package, data;
+	std::string manifest = Pc386Manifest();
+	ReplaceAll(&manifest, "id = \"fes.pc386\"", "id = \"fes.pcxt-dos\"");
+	ReplaceAll(&manifest, "id = \"fes.pc386.machine\"", "id = \"fes.pcxt.machine\"");
+	ReplaceAll(&manifest, "id = \"fes.rtc.wall-clock\"", "id = \"fes.media.pcxt-floppy\"");
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	const std::string id = opened.package_id;
+	mister::CoreData inspected;
+	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "beast-1984", &inspected).ok());
+	assert(inspected.revision == "absent" && inspected.layout.id == FesComputerInterfacePcxtMachineID &&
+		inspected.words == PcxtMachineDefaults());
+	mister::CoreSettingsUpdate update;
+	update.pcxt = true;
+	update.pcxt_machine.video_card = FesComputerPcxtVideoCardHercules;
+	update.pcxt_machine.mono_tint = FesComputerPcxtMonoTintAmber;
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "beast-1984", "absent",
+		update, &inspected).ok());
+	assert(inspected.words == std::vector<std::uint16_t>({2, 2, 0, 0}));
+	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "beast-1984").ok());
+	assert(!endpoint.held && fixture.runtime.status().core_data.layout.id == FesComputerInterfacePcxtMachineID);
+	assert(endpoint.machine_words == inspected.words);
+	assert(fixture.runtime.Stop().ok());
+}
+
 void TestPersistentReplacementRefreshAndSaveFailureResume()
 {
 	std::vector<std::string> events;
@@ -6373,6 +6416,7 @@ int main(int argc,char** argv)
 	TestPc386DiskFaultSaveRealignsMailbox();
 	TestPongInputFaultDoesNotCapture();
 	TestPc386LibraryRecordAndWallClock();
+	TestPcxtLibraryRecordAndSettings();
 	TestPersistentReplacementRefreshAndSaveFailureResume();
 	TestPersistenceUnsafeResumeRetainsRecoveryOwnership();
 	TestPersistenceContractAdmissionAndVolatileIsolation();
