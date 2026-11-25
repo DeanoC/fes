@@ -16,8 +16,8 @@ change after that is docs only.
 | G3, four seeds through the producer | **Pass.** Seeds 1–4, each the registered producer `build_pc386_package.py --model 486sx --seed N` end to end at `d484760a7`. Every seed fit, every row of every timing summary is ≥ 0 at every corner, and every seed's producer admitted its own package. |
 | G4, the record | **Pass.** Each record carries `model` `486sx`, `seed` N, `machine_clock_hz` 92156863 and AUDIO 1/1920. Each PLL report shows M 188, N 3, C0 34 and C1 255. All four seeds compiled one netlist (`d433345a…`). |
 | G5, `LOADED`'s route | **Pass.** The worst corner (Slow fix4 0C), as data delay plus clock skew: 2.30, 2.44, 2.68 and 2.88 ns, all under 3.9 ns. |
-| G6, tests | **Pass.** 161 DE25 tests, with the new two-model clock test, the audio-reference counterexample test and the `--seed` test. |
-| G7, D12 for every other DE25 package | **Pass** for all seven; table below. MENU's C stops at its own review, as in #2036. |
+| G6, tests | **DE25 tests: pass**: 162 tests, among them the new two-model clock, audio-reference counterexample and `--seed` tests, plus the four per-machine builder suites ([logs/de25-tests.log](logs/de25-tests.log)). **`make test-changed`: 2 failures of 2,900 on Powerboat** ([logs/test-changed.log](logs/test-changed.log)): `test_pcxt_on_the_standard_shell` and `test_real_ppi_reset_handshake_and_cancellation`. Both stop at Verilator: the PC/XT lint configuration names rule `PROCASSINIT`, which this host's Verilator 5.032 does not know (it needs 5.054). Both fail the same way on main at the merge base `8d9a63200`, run on that checkout. They are pre-existing on this host, not caused by this PR, and not a pass of G6's `make test-changed` here. |
+| G7, D12 for every other DE25 package | **Pass** for all seven ([d12-evidence.txt](d12-evidence.txt), from [d12_evidence.py](d12_evidence.py)); table below. |
 
 ## The four seeds (G3–G5)
 
@@ -52,7 +52,7 @@ Earlier runs, kept as diagnostics only:
 
 | Package | A BUILD_ID | A `core.rbf` | C `core.rbf` (A's ID) | B BUILD_ID, RBF, admitted |
 | --- | --- | --- | --- | --- |
-| MENU | `f1244390…` | `0d505c4e…` | stops at its review (below) | `e6ce2f4b…`, `8f08ec5a…`, yes |
+| MENU | `f1244390…` | `0d505c4e…` | `0d505c4e…`, identical (its compiled RBF; below) | `e6ce2f4b…`, `8f08ec5a…`, yes |
 | ZX81 | `f60705d4…` | `93252eab…` | `93252eab…`, identical | `c36c7bde…`, `00aaf84c…`, yes |
 | Spectrum 48 | `8e006078…` | `1c733c80…` | `1c733c80…`, identical | `d75cc6c3…`, `b1a70a5f…`, yes |
 | Spectrum 128 | `beb9fd96…` | `08051471…` | `08051471…`, identical | `ebd12dfb…`, `37802ca6…`, yes |
@@ -60,18 +60,29 @@ Earlier runs, kept as diagnostics only:
 | C64 `pal` | `57034e7b…` | `6b243042…` | `6b243042…`, identical | `e18dbf54…`, `a22b0da9…`, yes |
 | PC/XT `xt` | `2e78db2a…` | `ab443aec…` | `ab443aec…`, identical | `b5a7591c…`, `ce0b05af…`, yes |
 
-- **Project inputs, A against B** ([`d12_cmp.py`](d12_cmp.py), output
-  `logs/d12-cmp-*.txt`). Every package has the same file set on both
-  sides. Six files differ after path normalisation:
-  - five carry the BUILD_ID: the scanout component's `.ip`, `_bb.v`,
-    `_inst.vhd` and `synth/…_scanout.v`, and `peripheral_subsys.qsys`;
-  - `integrate-mailbox.tcl` differs only in its A-/B- output directory name.
+- **The evidence.** [`d12_evidence.py`](d12_evidence.py) writes
+  [`d12-evidence.txt`](d12-evidence.txt), with every root it read and every
+  digest in full:
+  - A's and C's full RBF SHA-256, and whether they are equal;
+  - B's BUILD_ID, RBF and admission;
+  - the project inputs (`d12_cmp.py`'s file set), A against B. Each side's
+    root path and its own BUILD_ID (hex, 128-bit binary and decimal) are
+    replaced by one token, and every file that still differs is listed.
+- **Project inputs, A against B.** Every package has the same file set on
+  both sides. Six files differ before normalisation, by root path or
+  BUILD_ID only:
+  - the scanout component's `.ip`, `_bb.v`, `_inst.vhd` and
+    `synth/…_scanout.v`;
+  - `peripheral_subsys.qsys`;
+  - `integrate-mailbox.tcl`.
 
-  With the BUILD_ID normalised in hex, binary and decimal, nothing else
-  differs.
-- **MENU's C** writes its RBF and then exits 1 at its asynchronous-input
-  review: "source/BUILD_ID mismatch". The forced ID is that mismatch, as in
-  #2036, so MENU has no RBF comparison.
+  After normalisation, "differ otherwise: none" holds for all seven packages.
+  `d12_cmp.py`'s own output, paths only, is in `logs/d12-cmp-*.txt`.
+- **MENU's C** compiles and then exits 1 at its asynchronous-input review:
+  "source/BUILD_ID mismatch". The forced ID is that mismatch, as in #2036.
+  Its producer therefore copies no `core.rbf`. The RBF it compiled
+  (`signoff/combined/hps/linux-boot.core.rbf`, the file the producer copies
+  to `core.rbf`) equals A's, `0d505c4e…`, byte for byte.
 - **PC/XT** reproduces here. #2182's "not measurable" therefore does not
   apply to this round.
 - Earlier D12 runs at `561bf8d73` (A for five packages, B for seven, C for
