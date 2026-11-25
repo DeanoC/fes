@@ -37,6 +37,10 @@ report has 73 rows. The original basis covers 44, the seed-1 retiming
 basis covers 21, and eight fitter variants still need review. Its first
 LOADED report command failed the Quartus lease audit before starting
 TimeQuest. The leased evidence runner schedules the replacement report.
+The worst setup row runs from a retimed copy of the x87 operand distance
+into a fitted shifter register, with +0.574 ns at slow fix4a 0°C. The
+seed-2 timing summary SHA-256 is
+`a1c1628ae8d94bbc6f97f94f7b6a5d713c188a796861e9ce15a5d723f3d22416`.
 
 ### Retimed endpoint review
 
@@ -70,7 +74,10 @@ The seed-1 report matches 42 rows under the original basis and 36 under
 the new one, with each row matched once. The rung collector requires a
 passing fitted clock and corner audit for every row matched by the new
 basis. The retained seed-1 build remains refused. The updated candidate
-needs four fresh fits through the producer.
+needs four fresh fits through the producer. The seed-1 repair job queued
+on the alternate host was canceled before it acquired a slot after seed
+2 exposed other fitter variants. Finish the original sweep and resolve
+its findings before starting the four repair fits.
 
 [Altera TMC-20602 rule](https://resources.altera.com/quartushelp/20.1/da_rules/tmc_20602.htm)
 and [TimeQuest clock query](https://docs.altera.com/r/docs/683432/26.3/quartus-prime-pro-edition-user-guide-scripting/get_clocks-quartus-sdc).
