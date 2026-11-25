@@ -12,7 +12,10 @@ module computer_storage_top #(
     parameter bit ENABLE_ATA_DISK = 0,
     parameter bit ENABLE_PERSISTENCE = 0,
     parameter bit ENABLE_PC386_MACHINE = 0,
-    parameter bit ENABLE_WALL_CLOCK = 0
+    parameter bit ENABLE_WALL_CLOCK = 0,
+    parameter bit ENABLE_PCXT_FLOPPY = 0,
+    parameter bit ENABLE_PCXT_FLOPPY_WRITE = 0,
+    parameter bit ENABLE_PCXT_MACHINE = 0
 ) (
     input  wire         clk,
     input  wire [31:0]  gpo,
@@ -62,7 +65,9 @@ module computer_storage_top #(
         .ENABLE_KEYBOARD(ENABLE_KEYBOARD), .ENABLE_MOUSE(ENABLE_MOUSE), .ENABLE_AUDIO(ENABLE_AUDIO),
         .ENABLE_SESSION_DISPLAY(ENABLE_SESSION_DISPLAY), .ENABLE_APPLE2_FLOPPY(ENABLE_APPLE2_FLOPPY),
         .ENABLE_ATA_DISK(ENABLE_ATA_DISK), .ENABLE_PERSISTENCE(ENABLE_PERSISTENCE),
-        .ENABLE_PC386_MACHINE(ENABLE_PC386_MACHINE), .ENABLE_WALL_CLOCK(ENABLE_WALL_CLOCK)
+        .ENABLE_PC386_MACHINE(ENABLE_PC386_MACHINE), .ENABLE_WALL_CLOCK(ENABLE_WALL_CLOCK),
+        .ENABLE_PCXT_FLOPPY(ENABLE_PCXT_FLOPPY), .ENABLE_PCXT_FLOPPY_WRITE(ENABLE_PCXT_FLOPPY_WRITE),
+        .ENABLE_PCXT_MACHINE(ENABLE_PCXT_MACHINE)
     ) gp_mailbox (
         .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi), .exec_reset(exec_reset),
         .keyboard_rows(), .controller_buttons(),
@@ -80,26 +85,63 @@ module computer_storage_top #(
         .storage_response_error(storage_response_error), .storage_response_data(storage_response_data),
         .execution_accepted(execution_accepted)
     );
+    /* verilator lint_off PINCONNECTEMPTY */
+    generate if (ENABLE_PCXT_MACHINE) begin : pcxt_storage
+        wire [1:0] pcxt_video_card, pcxt_mono_tint;
+        assign disk_state = 3'd1;
+        assign disk_sectors = 32'd0;
+        assign disk_cylinders = 16'd0;
+        assign disk_heads = 5'd0;
+        assign disk_spt = 6'd0;
+        assign disk_crc = 32'd0;
+        assign disk_frozen = 1'b0;
+        assign disk_clear = 1'b0;
+        assign disk_dirty_index = 7'd0;
+        assign machine_settings = {96'd0, 14'd0, pcxt_mono_tint, 14'd0, pcxt_video_card};
+        assign cmos_load_word = 16'd0;
+        assign cmos_clock_index = 3'd0;
+        assign wall_apply = 1'b0;
+        assign wall_year = 16'd0;
+        assign wall_month = 8'd0;
+        assign wall_day = 8'd0;
+        assign wall_hour = 8'd0;
+        assign wall_minute = 8'd0;
+        assign wall_second = 8'd0;
+        assign wall_weekday = 8'd0;
+        /* verilator lint_off UNUSEDSIGNAL */
+        wire unused_pc386_inputs = &{1'b0, disk_verify_done, disk_verify_match, disk_fenced,
+            disk_busy, disk_written, disk_clearing, disk_dirty_word, cmos_write, cmos_byte_index,
+            cmos_byte, cmos_load, cmos_load_pair, cmos_clock_pair};
+        /* verilator lint_on UNUSEDSIGNAL */
+        pcxt_machine_settings pcxt_settings (
+            .clk(clk), .exec_reset(exec_reset), .execution_accepted(execution_accepted),
+            .request(storage_request), .opcode(storage_opcode), .index(storage_index),
+            .argument(storage_argument), .response_valid(storage_response_valid),
+            .response_error(storage_response_error), .response_data(storage_response_data),
+            .video_card(pcxt_video_card), .mono_tint(pcxt_mono_tint)
+        );
+    end else begin : pc386_storage
+        fes_computer_storage #(
+            .ENABLE_ATA_DISK(ENABLE_ATA_DISK), .ENABLE_DATA(ENABLE_PERSISTENCE && ENABLE_PC386_MACHINE),
+            .ENABLE_WALL_CLOCK(ENABLE_WALL_CLOCK)
+        ) storage (
+            .clk(clk), .request(storage_request), .opcode(storage_opcode), .index(storage_index),
+            .argument(storage_argument), .response_valid(storage_response_valid),
+            .response_error(storage_response_error), .response_data(storage_response_data),
+            .exec_reset(exec_reset), .execution_accepted(execution_accepted),
+            .disk_state(disk_state), .disk_sectors(disk_sectors), .disk_cylinders(disk_cylinders),
+            .disk_heads(disk_heads), .disk_spt(disk_spt), .disk_crc(disk_crc),
+            .disk_verify_done(disk_verify_done), .disk_verify_match(disk_verify_match),
+            .disk_frozen(disk_frozen), .disk_fenced(disk_fenced), .disk_busy(disk_busy),
+            .disk_written(disk_written), .disk_clear(disk_clear), .disk_clearing(disk_clearing),
+            .disk_dirty_index(disk_dirty_index), .disk_dirty_word(disk_dirty_word),
+            .machine_settings(machine_settings), .cmos_write(cmos_write), .cmos_byte_index(cmos_byte_index),
+            .cmos_byte(cmos_byte), .cmos_load(cmos_load), .cmos_load_pair(cmos_load_pair),
+            .cmos_load_word(cmos_load_word), .cmos_clock_index(cmos_clock_index), .cmos_clock_pair(cmos_clock_pair),
+            .wall_apply(wall_apply), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
+            .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second),
+            .wall_weekday(wall_weekday)
+        );
+    end endgenerate
     /* verilator lint_on PINCONNECTEMPTY */
-    fes_computer_storage #(
-        .ENABLE_ATA_DISK(ENABLE_ATA_DISK), .ENABLE_DATA(ENABLE_PERSISTENCE && ENABLE_PC386_MACHINE),
-        .ENABLE_WALL_CLOCK(ENABLE_WALL_CLOCK)
-    ) storage (
-        .clk(clk), .request(storage_request), .opcode(storage_opcode), .index(storage_index),
-        .argument(storage_argument), .response_valid(storage_response_valid),
-        .response_error(storage_response_error), .response_data(storage_response_data),
-        .exec_reset(exec_reset), .execution_accepted(execution_accepted),
-        .disk_state(disk_state), .disk_sectors(disk_sectors), .disk_cylinders(disk_cylinders),
-        .disk_heads(disk_heads), .disk_spt(disk_spt), .disk_crc(disk_crc),
-        .disk_verify_done(disk_verify_done), .disk_verify_match(disk_verify_match),
-        .disk_frozen(disk_frozen), .disk_fenced(disk_fenced), .disk_busy(disk_busy),
-        .disk_written(disk_written), .disk_clear(disk_clear), .disk_clearing(disk_clearing),
-        .disk_dirty_index(disk_dirty_index), .disk_dirty_word(disk_dirty_word),
-        .machine_settings(machine_settings), .cmos_write(cmos_write), .cmos_byte_index(cmos_byte_index),
-        .cmos_byte(cmos_byte), .cmos_load(cmos_load), .cmos_load_pair(cmos_load_pair),
-        .cmos_load_word(cmos_load_word), .cmos_clock_index(cmos_clock_index), .cmos_clock_pair(cmos_clock_pair),
-        .wall_apply(wall_apply), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
-        .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second),
-        .wall_weekday(wall_weekday)
-    );
 endmodule

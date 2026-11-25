@@ -337,22 +337,29 @@ int main(int argc, char** argv) {
         require(geometry.size() == 4 && dut.disk_sectors == geometry[0] && dut.disk_cylinders == geometry[1] &&
                 dut.disk_heads == geometry[2] && dut.disk_spt == geometry[3], "geometry");
     const std::vector<unsigned> words = list(final_state, "persistent_words");
-    require(words.size() == 72, "persistent word count");
-    for (unsigned w = 0; w < 8; ++w) {
-        unsigned got = (dut.machine_settings[w / 2] >> (16 * (w % 2))) & 0xffff;
-        require(got == words[w], "setting word " + std::to_string(w));
+    if (words.size() == 4) {
+        for (unsigned w = 0; w < 4; ++w) {
+            unsigned got = (dut.machine_settings[w / 2] >> (16 * (w % 2))) & 0xffff;
+            require(got == words[w], "pcxt setting word " + std::to_string(w));
+        }
+    } else {
+        require(words.size() == 72, "persistent word count");
+        for (unsigned w = 0; w < 8; ++w) {
+            unsigned got = (dut.machine_settings[w / 2] >> (16 * (w % 2))) & 0xffff;
+            require(got == words[w], "setting word " + std::to_string(w));
+        }
+        // Words 8..14 are the machine's clock registers; the rest the endpoint's RAM.
+        for (unsigned pair = 0; pair < 7; ++pair)
+            require((clock_registers[2 * pair] | clock_registers[2 * pair + 1] << 8) == int(words[8 + pair]),
+                    "clock word " + std::to_string(8 + pair));
+        for (unsigned pair = 7; pair < 64; ++pair) {
+            dut.cmos_load = 1;
+            dut.cmos_load_pair = pair;
+            tick();
+            require(dut.cmos_load_word == words[8 + pair], "CMOS word " + std::to_string(8 + pair));
+        }
+        dut.cmos_load = 0;
     }
-    // Words 8..14 are the machine's clock registers; the rest the endpoint's RAM.
-    for (unsigned pair = 0; pair < 7; ++pair)
-        require((clock_registers[2 * pair] | clock_registers[2 * pair + 1] << 8) == int(words[8 + pair]),
-                "clock word " + std::to_string(8 + pair));
-    for (unsigned pair = 7; pair < 64; ++pair) {
-        dut.cmos_load = 1;
-        dut.cmos_load_pair = pair;
-        tick();
-        require(dut.cmos_load_word == words[8 + pair], "CMOS word " + std::to_string(8 + pair));
-    }
-    dut.cmos_load = 0;
     const std::vector<unsigned> clock = list(final_state, "wall_clock");
     if (!clock.empty())
         require(clock.size() == 7 && dut.wall_year == clock[0] && dut.wall_month == clock[1] &&

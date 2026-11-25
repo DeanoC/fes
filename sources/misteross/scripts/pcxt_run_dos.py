@@ -85,7 +85,9 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     floppy_out = out_dir / 'floppy.img'
     floppy_out.write_bytes(staged_image)
 
-    with (ROOT / 'build/sim/fes-pcxt/.video-dos.lock').open('w') as lock:
+    lock_dir = ROOT / 'build/sim/fes-pcxt'
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    with (lock_dir / '.video-dos.lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         binary = video_dos.prepare_video_dos_sim(
             build,
@@ -94,19 +96,19 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             download=args.download,
         )
 
-    cmd = [
-        str(binary),
-        str(build / 'firmware.bin'),
-        str(floppy_out),
-        str(VIDEO_CHOICES[args.video]),
-        str(TINT_CHOICES[args.tint]),
-        'run',
-        str(out_dir),
-        str(args.max_seconds),
-    ]
-    if args.keys:
-        cmd.append(args.keys)
-    subprocess.run(cmd, cwd=build, check=True)
+        cmd = [
+            str(binary),
+            str(build / 'firmware.bin'),
+            str(floppy_out),
+            str(VIDEO_CHOICES[args.video]),
+            str(TINT_CHOICES[args.tint]),
+            'run',
+            str(out_dir),
+            str(args.max_seconds),
+        ]
+        if args.keys:
+            cmd.append(args.keys)
+        subprocess.run(cmd, cwd=build, check=True)
 
     summary_path = out_dir / 'run-summary.json'
     summary = json.loads(summary_path.read_text())

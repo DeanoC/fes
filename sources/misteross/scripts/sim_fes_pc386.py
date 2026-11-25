@@ -1754,10 +1754,13 @@ def run_vga(args, linked: list[Path]) -> dict:
 # with the session display.
 STORAGE_EXCHANGES = COMMON / 'generated/computer-exchanges-1.1.json'
 STORAGE_RTL = (COMMON / 'rtl/fes_computer_mailbox.v', COMMON / 'rtl/fes_computer_storage.v',
+               ROOT / 'cores/fes-pcxt/rtl/pcxt_machine_settings.sv',
                COMMON / 'sim/computer_storage_top.sv')
 STORAGE_PARAMETERS = {1: 'ENABLE_KEYBOARD', 3: 'ENABLE_AUDIO', 4: 'ENABLE_APPLE2_FLOPPY', 8: 'ENABLE_MOUSE',
                       13: 'ENABLE_SESSION_DISPLAY', 16: 'ENABLE_ATA_DISK', 17: 'ENABLE_PERSISTENCE',
-                      18: 'ENABLE_WALL_CLOCK', 19: 'ENABLE_PC386_MACHINE'}
+                      18: 'ENABLE_WALL_CLOCK', 19: 'ENABLE_PC386_MACHINE',
+                      20: 'ENABLE_PCXT_FLOPPY', 21: 'ENABLE_PCXT_FLOPPY_WRITE',
+                      22: 'ENABLE_PCXT_MACHINE'}
 
 
 def run_storage(args) -> dict:

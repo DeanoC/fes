@@ -130,17 +130,17 @@ void SharedPcxtMachineRecords()
 		CoreData data;
 		if (std::regex_search(text, r, revision)) {
 			++valid;
-			assert(DecodeGameData(bytes, "fes.pcxt-dos", "beast-1984", &data).ok());
+			assert(DecodeGameData(bytes, "fes.pcxt-dos", "h-tron", &data).ok());
 			assert(data.layout.id == "fes.pcxt.machine" && data.revision == r[1] && data.words.size() == 4);
 			std::vector<unsigned char> encoded;
 			assert(EncodeCoreData(data, &encoded).ok());
 			assert(encoded == bytes);
 		} else {
 			++invalid;
-			assert(!DecodeGameData(bytes, "fes.pcxt-dos", "beast-1984", &data).ok());
+			assert(!DecodeGameData(bytes, "fes.pcxt-dos", "h-tron", &data).ok());
 		}
 	}
-	assert(valid == 2 && invalid >= 3);
+	assert(valid == 3 && invalid >= 3);
 }
 void MachineNamespace()
 {

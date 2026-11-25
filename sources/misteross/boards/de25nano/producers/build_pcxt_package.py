@@ -2,8 +2,9 @@
 """Build the standard DE25 PC/XT DOS machine; retain candidates and never program hardware.
 
 The machine and its gates are in build_machine_package.py. GLaBIOS and the
-CGA font are not part of the package: they are uploaded at launch as one
-image, the 64 KiB system ROM window and then the 4 KiB character ROM.
+CGA/MDA fonts are not part of the package: they are uploaded at launch as one
+73,728-byte image: the 64 KiB system ROM window, the 4 KiB CGA font, and
+the 4 KiB MDA font.
 """
 from __future__ import annotations
 from pathlib import Path
