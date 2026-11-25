@@ -4,8 +4,8 @@
 usage: f3_smoke_session.py KIT RUN BUNDLE_DIR PACKAGE.fcore FLOPPY_A FLOPPY_B NONCE
 
 The claim, baseline probe, data-tree delta and release follow spec_session.py.
-The kit must be logged FREE on the baseline named in
-~/fes-hil/baselines/current-restore.json, idle with a free lease.
+The kit must be logged FREE, on the baseline ~/lander-hilq/current.json names
+for that kit, idle with a free lease.
 
 1. Capture the kit's FogCast catalog (WAL-aware, promote_kits.copy_live_catalog),
    then install and activate the PR kit-software bundle on the running
@@ -27,12 +27,17 @@ assert kit in ('A', 'B')
 home = pathlib.Path.home()
 here = pathlib.Path(__file__).resolve().parent
 head = pathlib.Path('/data/fes-f3-d12/head')
+head_rev = subprocess.run(['git', '-C', str(head), 'rev-parse', 'HEAD'], capture_output=True, text=True, check=True).stdout.strip()
+# Live insert/eject: c12.img beside A:'s image goes into B: through FogCast's
+# target client (f3live, built from the head's FogCast) while launch 2 runs.
+floppy_c = pathlib.Path(floppy_a).parent / 'c12.img'
+live_args = ['--floppy-c', str(floppy_c), '--live', '/data/fes-f3-d12/smoke/bin/f3live'] if floppy_c.is_file() else []
 work = pathlib.Path('/data/fes-f3-d12/smoke'); run = work / 'runs' / run_name
 run.mkdir(parents=True, mode=0o700); out = run / 'snapshots'; out.mkdir()
-base = json.loads((home / 'fes-hil/baselines/current-restore.json').read_text())
-image, bundle = base['image_good'], base['kit_sw']
-base_tar = home / 'fes-hil/baselines/post-main-1a4bb8d4/bundle/bundle.tar'
-base_tar_sha = base['bundle_tar_sha256']
+# Lander's live baseline: the image and this kit's bundle (one bundle per kit).
+base = json.loads((home / 'lander-hilq/current.json').read_text())
+image = base['image_good']
+bundle = (base.get('kit_sw_by_kit') or {}).get(kit, [base['kit_sw']])[0]
 status = home / 'kit-status' / f'kit{kit}-STATUS.md'; target = {'A': 'dev', 'B': 'kit2'}[kit]
 t = next(t for t in tomllib.loads((home / '.config/fogcast/config.toml').read_text())['targets'] if t['name'] == target)
 kssh = home / 'lander-hilq/kits/kssh'
@@ -164,18 +169,11 @@ for path in [home / 'fes-hil/locks' / f'lander-kit{kit}.lock', home / 'kit-statu
     f = path.open('a'); fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB); locks.append(f)
 if f'KIT {kit} FREE' not in last():
     sys.exit('Kit busy: ' + last()[:160])
-# The newest FREE entry may be a maintenance note that names no baseline; the
-# FREE run before it must, with no IN USE between. probe('pre') then checks the
-# live image, bundle, idle agent and free lease.
-free_run = []
-for entry in reversed([s for s in status.read_text().splitlines() if s.startswith('## ') and f'KIT {kit} ' in s]):
-    if f'KIT {kit} FREE' not in entry:
-        break
-    free_run.append(entry)
-if not any(image in entry and bundle in entry for entry in free_run):
-    sys.exit('Verify ledger baseline manually: ' + last()[:200])
+# Lander's maintenance FREE lines name no hashes; probe('pre') checks the live
+# image, bundle, idle agent and free lease before anything changes, and the
+# claim is withdrawn if they differ.
 append(f'IN USE: Claude fes#2101 (F3 #1694) floppy kit smoke: installs and activates PR kit-software bundle {pr_id} '
-       f'(tar {pr_tar_sha[:16]}, built from {head.name} d68224547 on base image {image[:8]}), runs the sealed fes.pc386 '
+       f'(tar {pr_tar_sha[:16]}, built from {head.name} {head_rev[:9]} on base image {image[:8]}), runs the sealed fes.pc386 '
        f'package {pathlib.Path(package).stem} with two self-made FAT12 floppies through the agent (no image change, no '
        f'reboot, no host change), then activates baseline bundle {bundle} again; restore image {image}, bundle {bundle}, '
        f'idle/lease-free. Evidence {run}')
@@ -196,7 +194,7 @@ try:
     r = subprocess.run([sys.executable, str(here / 'hil_f3_floppy.py'), str(head / 'sources/misteross'),
                         '--kit', kit, '--owner', 'Claude', '--package', package, '--out', str(run / 'drive'),
                         '--kit-ssh', str(ka), '--drive', 'real', '--floppy-a', floppy_a, '--floppy-b', floppy_b,
-                        '--nonce', nonce], stdout=(run / 'driver.out').open('w'), stderr=subprocess.STDOUT, timeout=2400)
+                        '--nonce', nonce, *live_args], stdout=(run / 'driver.out').open('w'), stderr=subprocess.STDOUT, timeout=2400)
     rc_drive = r.returncode
 except Exception as e:  # noqa: BLE001  every path below reaches the restore decision
     problem = f'{type(e).__name__}: {str(e)[:200]}'

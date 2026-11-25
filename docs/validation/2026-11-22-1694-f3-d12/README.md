@@ -396,3 +396,44 @@ The runtime never reaches them, and a fix would need a pc386 reseal:
 The review also noted test gaps: no machine-level sim commits a floppy while
 the machine runs, and `computer_storage_tb` never makes the deferred replies
 wait.
+
+## Live floppy insert and eject on a kit (25 Nov)
+
+The review fixes change the live insert and eject path, which the floppy smoke
+above did not use. `hil_f3_floppy.py` now has launch 2 live-eject B:, then
+live-insert a fresh 1.2M disk (`F3C`, from `make_floppies.py`) into B: as
+writable. DOS lists and types it and copies A:'s file to `B:\LIVE.TXT`, and B:
+is live-ejected again. Each insert and eject runs `hil/f3live`, a Go helper
+that calls FogCast's own `targetclient` `InsertLibraryMedia` and `EjectMedia`.
+So the host's status check, the one that refused the result before the fix,
+judges every reply. The driver holds the kit lease, and the client has no
+public way to use one it did not claim. So `f3live` is built with
+`adopt_lease_shim.go.txt` copied into `targetclient` for the build only. The
+shim hands the client that token and nothing else. The goal needs every reply
+`persistent`, B: empty then ready with a binding then empty, and a saved C
+record holding `FESF3C.TXT`, `LIVE.TXT` and A:'s text.
+
+The kit bundle is `0dd6ff58…`, built from `518d313d2`: the head `6598fa7c9`
+with #2204 cherry-picked, in a scratch tree that was not pushed. The head
+carries #2098 (through the main merge) but not its fix #2204. Without #2204,
+every stop fails with 503 `remote input is unavailable` (#2200). Merging main
+instead would have touched every core's build inputs (`bootstrap.sh`,
+`toolchain_cache.py`, the C64 producer). All runs are on Kit B, with Lander's
+baseline image `179affbb…` and bundle `7e3495b2…` restored, verified and
+logged FREE after each (`hil/live-kit/`):
+
+| Run | Bundle | Result |
+|---|---|---|
+| k7 | `bdb3bf11…` (`6598fa7c9`) | FAIL: launch 1's stop, 503 (#2200) |
+| k8 | `0dd6ff58…` | stops fixed, first three goals pass; live steps failed in `f3live` (no lease; a shadowed `err` hid the insert's error) |
+| k9 | `0dd6ff58…` | every goal passes, live swap included; the driver's verdict is FAIL because its cleanup `rm -r` of a run folder exited 255 (ssh's own code). The wrapper removed it seconds later and verified the kit |
+| k10 | `0dd6ff58…` | PASS: every goal, C record, nothing left on the kit |
+
+In k10 the three live replies are `persistent`. Unit 2 goes empty, then ready
+with a binding, then empty. After the insert, DOS reports `Volume in drive B is
+F3C` and types `F3 C DRIVE DF4EA17A`, then lists `LIVE.TXT`
+(`k10/frames/live-b.png`, `live-write.png`). C's record is 1,228,970 bytes,
+`FES386F1`, with both files and A:'s text.
+
+Not covered on the kit: the failed-Eject recovery (a kit cannot be made to
+refuse an Eject) and launch floppies under 1 MiB. Unit tests cover both.

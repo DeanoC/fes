@@ -19,7 +19,7 @@ fes.pc386-floppy.image of B:'s size holding A:'s text at least twice, which
 it can only do if launch 2 started from launch 1's saved B:. The screen goals
 are grabs, judged by reading them.
 """
-import hashlib, sys, time
+import hashlib, json, os, subprocess, sys, time
 from pathlib import Path
 
 REPO = Path(sys.argv.pop(1)).resolve()
@@ -44,6 +44,8 @@ class Run(acc.Run):
         self.floppies = [(1, args.floppy_a, sha(args.floppy_a)), (2, args.floppy_b, sha(args.floppy_b))]
         self.result['floppies'] = {str(u): d for u, _, d in self.floppies}
         self.text = f'F3 A DRIVE {args.nonce}'.encode()
+        self.floppy_c, self.live_bin = args.floppy_c, args.live
+        self.result['live'] = []
 
     def load(self, game, image, record):
         self.stage(image, record['sha256'])
@@ -92,6 +94,39 @@ class Run(acc.Run):
         self.typed('cls\ndir b:\ntype b:\\written.txt\n', 'persist-b')
         # AGAIN.TXT exists only if launch 2 started from launch 1's saved B:.
         self.typed('cls\ncopy b:\\written.txt b:\\again.txt\ndir b:\n', 'again-b', settle=8)
+        if self.live_bin:
+            self.live_swap()
+
+    def live(self, *op):
+        """One live insert or eject through FogCast's target client (f3live)."""
+        url = self.client.url
+        env = {**os.environ, 'F3_ADDR': f'{url.scheme}://{url.netloc}', 'F3_TOKEN': self.client.bearer,
+               'F3_LEASE': self.session.token}
+        r = subprocess.run([str(self.live_bin), *op], env=env, capture_output=True, text=True, timeout=600)
+        entry = {'op': list(op[:2]), 'rc': r.returncode, 'error': r.stderr.strip()[-300:]}
+        if r.returncode == 0:
+            entry['status'] = json.loads(r.stdout.strip().splitlines()[-1])
+        self.result['live'].append(entry)
+        self.log('live', entry)
+        return entry
+
+    def live_swap(self):
+        # B: out (saved), C: in writable, DOS reads it and writes LIVE.TXT, out again (saved).
+        def unit_b(entry):
+            units = (entry.get('status') or {}).get('units') or []
+            return next((u for u in units if u['unit'] == 2), {})
+        out1 = self.live('eject', '2')
+        time.sleep(3)
+        into = self.live('insert', '2', str(self.floppy_c), self.game)
+        time.sleep(3)
+        self.typed('cls\ndir b:\ntype b:\\fesf3c.txt\n', 'live-b', settle=6)
+        self.typed('cls\ncopy a:\\fesf3a.txt b:\\live.txt\ndir b:\n', 'live-write', settle=8)
+        out2 = self.live('eject', '2')
+        ok = all(e['rc'] == 0 and e['status']['persistence_mode'] == 'persistent' for e in (out1, into, out2)) and \
+            unit_b(out1).get('state') == 'empty' and unit_b(into).get('state') == 'ready' and \
+            unit_b(into).get('persistence') is not None and unit_b(out2).get('state') == 'empty'
+        self.result['live_ok'] = ok
+        self.goal('live', ok, ops=self.result['live'], frames=['frames/live-b.png', 'frames/live-write.png'])
 
     def mouse(self): pass
     def dos_window(self): pass
@@ -112,9 +147,16 @@ class Run(acc.Run):
                               'magic': data[:8].decode('ascii', 'replace'), 'copies': data.count(self.text),
                               'sha256': hashlib.sha256(data).hexdigest(),
                               # Diagnostic: does the saved image still hold B:'s own boot sector and file?
-                              'base_boot_sector': data.find(b'MTOO4048'), 'base_entry': data.find(b'FESF3B  TXT')})
+                              'base_boot_sector': data.find(b'MTOO4048'), 'base_entry': data.find(b'FESF3B  TXT'),
+                              'c_entry': data.find(b'FESF3C  TXT'), 'live_entry': data.find(b'LIVE    TXT')})
         self.result['floppy_records'] = found
         ok = any(r['copies'] >= 2 and r['magic'] == 'FES386F1' and r['size'] == B_BYTES + RECORD_EXTRA for r in found)
+        if self.live_bin:
+            # C's record: its own file, the live write and A:'s text in it.
+            c_ok = any(r['magic'] == 'FES386F1' and r['size'] == B_BYTES + RECORD_EXTRA and r['c_entry'] >= 0 and
+                       r['live_entry'] >= 0 and r['copies'] >= 1 for r in found)
+            self.result['c_record_ok'] = c_ok
+            ok = ok and c_ok
         return {'dos': ok, 'notepad': ok, 'files': {'WFWDOS.TXT': None, 'WFWNOTE.TXT': None}}
 
     def goal(self, name, passed, **evidence):
@@ -174,6 +216,8 @@ if __name__ == '__main__':
     extra.add_argument('--floppy-a', type=Path, required=True)
     extra.add_argument('--floppy-b', type=Path, required=True)
     extra.add_argument('--nonce', required=True)
+    extra.add_argument('--floppy-c', type=Path)
+    extra.add_argument('--live', type=Path)
     mine, rest = extra.parse_known_args(sys.argv[1:])
     assert mine.floppy_a.stat().st_size == 1474560 and mine.floppy_b.stat().st_size == B_BYTES
 
@@ -188,6 +232,7 @@ if __name__ == '__main__':
     class Bound(Run):
         def __init__(self, args):
             args.floppy_a, args.floppy_b, args.nonce = mine.floppy_a, mine.floppy_b, mine.nonce
+            args.floppy_c, args.live = mine.floppy_c, mine.live
             super().__init__(args)
     acc.Run = Bound
     orig = acc.Run.main
@@ -196,7 +241,7 @@ if __name__ == '__main__':
         rc = orig(self)
         for name in ('dos-window', 'notepad'):
             self.result['goals'].pop(name, None)
-        want = {'freedos', 'launch1', 'relaunch', 'b-record'}
+        want = {'freedos', 'launch1', 'relaunch', 'b-record'} | ({'live'} if self.live_bin else set())
         self.result['pass'] = self.result.get('failure') is None and set(self.result['goals']) == want and \
             all(g['pass'] for g in self.result['goals'].values())
         self.save()
