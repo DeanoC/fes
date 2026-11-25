@@ -13,6 +13,7 @@ reported M = 188, N = 3, C0 = 34 and C1 = 255.
 | Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | Producer |
 | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | 1 | 45,138.5 | +0.597 ns | 0.000 ns | +7.148 ns | +0.034 ns | Refused |
+| 2 | 45,176.2 | +0.574 ns | 0.000 ns | +7.265 ns | +0.029 ns | Refused |
 
 The worst setup path is from `mult_36~mac~AY_REG` to `add_763~211` on the
 machine clock in the slow fix4 0°C model. The synthesis report traces
@@ -30,6 +31,13 @@ The fitted machine netlist SHA-256 is
 `5e49a28b2b28b7fc7b04432e104ea4a774eedac49b6c1ec9d6787ada2ae5a1ef`.
 The remaining original seeds still run against the same candidate.
 
+Seed 2 also reports nonnegative timing summary rows. Its producer stopped
+on the first unrecognized `TMC-20602` row for `cpu_m1_alias~26`. The full
+report has 73 rows. The original basis covers 44, the seed-1 retiming
+basis covers 21, and eight fitter variants still need review. Its first
+LOADED report command failed the Quartus lease audit before starting
+TimeQuest. The leased evidence runner schedules the replacement report.
+
 ### Retimed endpoint review
 
 The retained project passed the all-corner timing recheck and the LOADED
@@ -44,6 +52,18 @@ hold +0.068 ns across the traced paths. The `reduce_nor_1931` register
 sits between a `cpu_m1_s` alias and `cpu_l1i_page_new[2]`. The other
 generated names match observed CPU controls, apart from the FDC decode
 register traced to `pc386_at_core.sv`.
+
+I edited the report wrapper after it started. The last supplemental path
+collection failed after it wrote the all-corner, LOADED and tension
+results. The tension checker exited zero and the retained trace passed
+again with both machine-clock checks. These are the retained SHA-256
+digests from seed 1.
+
+| File | SHA-256 |
+| --- | --- |
+| `loaded.tsv` | `1a06ac7568f1009d52b1a9dd58826c8c459ecfee01297e369f8fc5bfcec4e3e5` |
+| `tension-paths.tsv` | `051782fd61d9cf041f1e0e3fe2311979bf923f916dc052bf9779ac1575a759cc` |
+| `tension-summary-same-clock.json` | `4accea27c7e94f21046719c716de1be07706f8feddfc790b686d28b2a3044070` |
 
 The pc386 basis now covers these traced retiming forms for `TMC-20602`.
 The seed-1 report matches 42 rows under the original basis and 36 under
