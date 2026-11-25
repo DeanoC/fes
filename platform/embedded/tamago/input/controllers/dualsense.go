@@ -23,6 +23,11 @@ const (
 	// DualSenseBTOutputLen is the exact payload length for Sony BT full reports
 	// 0x31 and 0x11 (excluding the 1-byte HIDP 0xA1/0xA2 header).
 	DualSenseBTOutputLen = 78
+
+	// DualSenseUSBOutputLen is the wired USB DualSense output report 0x02 length.
+	DualSenseUSBOutputLen = 48
+	// DualShock4USBOutputLen is the wired USB DualShock 4 output report 0x05 length.
+	DualShock4USBOutputLen = 32
 )
 
 var (
@@ -69,55 +74,7 @@ func ParseDualSenseBT(report []byte, out *State) bool {
 		if !validSonyBTFullReport(report) {
 			return false
 		}
-		var b Button
-		b |= hatNibbleToDPad(report[9] & 0x0f)
-		if report[9]&0x10 != 0 {
-			b |= ButtonWest // Square
-		}
-		if report[9]&0x20 != 0 {
-			b |= ButtonSouth // Cross
-		}
-		if report[9]&0x40 != 0 {
-			b |= ButtonEast // Circle
-		}
-		if report[9]&0x80 != 0 {
-			b |= ButtonNorth // Triangle
-		}
-		if report[10]&0x01 != 0 {
-			b |= ButtonL1
-		}
-		if report[10]&0x02 != 0 {
-			b |= ButtonR1
-		}
-		if report[10]&0x04 != 0 {
-			b |= ButtonL2
-		}
-		if report[10]&0x08 != 0 {
-			b |= ButtonR2
-		}
-		if report[10]&0x10 != 0 {
-			b |= ButtonSelect // Create
-		}
-		if report[10]&0x20 != 0 {
-			b |= ButtonStart // Options
-		}
-		if report[10]&0x40 != 0 {
-			b |= ButtonL3
-		}
-		if report[10]&0x80 != 0 {
-			b |= ButtonR3
-		}
-		if report[11]&0x01 != 0 {
-			b |= ButtonHome // PS
-		}
-		if report[11]&0x02 != 0 {
-			b |= ButtonTouchpad
-		}
-		if report[11]&0x04 != 0 {
-			b |= ButtonCapture // Mute
-		}
-
-		out.Buttons = b
+		out.Buttons = decodeSonyButtons(report[9], report[10], report[11], true)
 		out.LeftX = u8AxisToS16(report[2])
 		out.LeftY = u8AxisToS16(report[3])
 		out.RightX = u8AxisToS16(report[4])
@@ -137,51 +94,7 @@ func ParseDualSenseBT(report []byte, out *State) bool {
 	case DualSenseBTReportBasic:
 		// Basic 10-byte BT report 0x01 (before GET_REPORT 0x05 unlock):
 		// [0]=0x01 [1]=LX [2]=LY [3]=RX [4]=RY [5]=hat|face [6]=shoulders|start [7]=ps|touch [8]=L2 [9]=R2
-		var b Button
-		b |= hatNibbleToDPad(report[5] & 0x0f)
-		if report[5]&0x10 != 0 {
-			b |= ButtonWest
-		}
-		if report[5]&0x20 != 0 {
-			b |= ButtonSouth
-		}
-		if report[5]&0x40 != 0 {
-			b |= ButtonEast
-		}
-		if report[5]&0x80 != 0 {
-			b |= ButtonNorth
-		}
-		if report[6]&0x01 != 0 {
-			b |= ButtonL1
-		}
-		if report[6]&0x02 != 0 {
-			b |= ButtonR1
-		}
-		if report[6]&0x04 != 0 {
-			b |= ButtonL2
-		}
-		if report[6]&0x08 != 0 {
-			b |= ButtonR2
-		}
-		if report[6]&0x10 != 0 {
-			b |= ButtonSelect
-		}
-		if report[6]&0x20 != 0 {
-			b |= ButtonStart
-		}
-		if report[6]&0x40 != 0 {
-			b |= ButtonL3
-		}
-		if report[6]&0x80 != 0 {
-			b |= ButtonR3
-		}
-		if report[7]&0x01 != 0 {
-			b |= ButtonHome
-		}
-		if report[7]&0x02 != 0 {
-			b |= ButtonTouchpad
-		}
-		out.Buttons = b
+		out.Buttons = decodeSonyButtons(report[5], report[6], report[7], false)
 		out.LeftX = u8AxisToS16(report[1])
 		out.LeftY = u8AxisToS16(report[2])
 		out.RightX = u8AxisToS16(report[3])
@@ -209,51 +122,7 @@ func ParseDualShock4BT(report []byte, out *State) bool {
 	// Full 78-byte DS4 BT report 0x11:
 	// [0]=0x11 [1]=0xC0 [2]=0x00 [3]=LX [4]=LY [5]=RX [6]=RY
 	// [7]=hat|face [8]=shoulders|share|options|l3|r3 [9]=ps|touch [10]=L2 [11]=R2
-	var b Button
-	b |= hatNibbleToDPad(report[7] & 0x0f)
-	if report[7]&0x10 != 0 {
-		b |= ButtonWest
-	}
-	if report[7]&0x20 != 0 {
-		b |= ButtonSouth
-	}
-	if report[7]&0x40 != 0 {
-		b |= ButtonEast
-	}
-	if report[7]&0x80 != 0 {
-		b |= ButtonNorth
-	}
-	if report[8]&0x01 != 0 {
-		b |= ButtonL1
-	}
-	if report[8]&0x02 != 0 {
-		b |= ButtonR1
-	}
-	if report[8]&0x04 != 0 {
-		b |= ButtonL2
-	}
-	if report[8]&0x08 != 0 {
-		b |= ButtonR2
-	}
-	if report[8]&0x10 != 0 {
-		b |= ButtonSelect
-	}
-	if report[8]&0x20 != 0 {
-		b |= ButtonStart
-	}
-	if report[8]&0x40 != 0 {
-		b |= ButtonL3
-	}
-	if report[8]&0x80 != 0 {
-		b |= ButtonR3
-	}
-	if report[9]&0x01 != 0 {
-		b |= ButtonHome
-	}
-	if report[9]&0x02 != 0 {
-		b |= ButtonTouchpad
-	}
-	out.Buttons = b
+	out.Buttons = decodeSonyButtons(report[7], report[8], report[9], false)
 	out.LeftX = u8AxisToS16(report[3])
 	out.LeftY = u8AxisToS16(report[4])
 	out.RightX = u8AxisToS16(report[5])
@@ -333,4 +202,153 @@ func BuildDualShock4BTOutput(dst []byte, playerSlot, rumbleRight, rumbleLeft uin
 	// CRC-32 over [0xA2] || dst[0:74] stored little-endian in dst[74:78].
 	binary.LittleEndian.PutUint32(dst[74:78], sonyBTCRC32(dualSenseOutputCRCSeed[:], dst[:74]))
 	return DualSenseBTOutputLen
+}
+
+func decodeSonyButtons(hatFace, shoulders, psMisc uint8, hasMute bool) Button {
+	var b Button
+	b |= hatNibbleToDPad(hatFace & 0x0f)
+	if hatFace&0x10 != 0 {
+		b |= ButtonWest
+	}
+	if hatFace&0x20 != 0 {
+		b |= ButtonSouth
+	}
+	if hatFace&0x40 != 0 {
+		b |= ButtonEast
+	}
+	if hatFace&0x80 != 0 {
+		b |= ButtonNorth
+	}
+	if shoulders&0x01 != 0 {
+		b |= ButtonL1
+	}
+	if shoulders&0x02 != 0 {
+		b |= ButtonR1
+	}
+	if shoulders&0x04 != 0 {
+		b |= ButtonL2
+	}
+	if shoulders&0x08 != 0 {
+		b |= ButtonR2
+	}
+	if shoulders&0x10 != 0 {
+		b |= ButtonSelect
+	}
+	if shoulders&0x20 != 0 {
+		b |= ButtonStart
+	}
+	if shoulders&0x40 != 0 {
+		b |= ButtonL3
+	}
+	if shoulders&0x80 != 0 {
+		b |= ButtonR3
+	}
+	if psMisc&0x01 != 0 {
+		b |= ButtonHome
+	}
+	if psMisc&0x02 != 0 {
+		b |= ButtonTouchpad
+	}
+	if hasMute && psMisc&0x04 != 0 {
+		b |= ButtonCapture
+	}
+	return b
+}
+
+// ParseDualSenseUSB decodes a wired USB DualSense HID input report (report ID 0x01)
+// into out with zero heap allocations.
+func ParseDualSenseUSB(report []byte, out *State) bool {
+	if out == nil || len(report) < 12 || report[0] != 0x01 {
+		return false
+	}
+	var batt uint8
+	var charging bool
+	if len(report) > 53 {
+		lvl := report[53] & 0x0f
+		if lvl > 10 {
+			lvl = 10
+		}
+		batt = lvl * 10
+		charging = report[53]&0x10 != 0
+	}
+	*out = State{
+		Buttons:      decodeSonyButtons(report[8], report[9], report[10], true),
+		LeftX:        u8AxisToS16(report[1]),
+		LeftY:        u8AxisToS16(report[2]),
+		RightX:       u8AxisToS16(report[3]),
+		RightY:       u8AxisToS16(report[4]),
+		LeftTrigger:  report[5],
+		RightTrigger: report[6],
+		Battery:      batt,
+		Charging:     charging,
+	}
+	return true
+}
+
+// ParseDualShock4USB decodes a wired USB DualShock 4 HID input report (report ID 0x01)
+// into out with zero heap allocations.
+func ParseDualShock4USB(report []byte, out *State) bool {
+	if out == nil || len(report) < 10 || report[0] != 0x01 {
+		return false
+	}
+	var batt uint8
+	var charging bool
+	if len(report) > 30 {
+		lvl := report[30] & 0x0f
+		if lvl > 10 {
+			lvl = 10
+		}
+		batt = lvl * 10
+		charging = report[30]&0x10 != 0
+	}
+	*out = State{
+		Buttons:      decodeSonyButtons(report[5], report[6], report[7], false),
+		LeftX:        u8AxisToS16(report[1]),
+		LeftY:        u8AxisToS16(report[2]),
+		RightX:       u8AxisToS16(report[3]),
+		RightY:       u8AxisToS16(report[4]),
+		LeftTrigger:  report[8],
+		RightTrigger: report[9],
+		Battery:      batt,
+		Charging:     charging,
+	}
+	return true
+}
+
+// BuildDualSenseUSBOutput writes a 48-byte wired USB DualSense output report 0x02
+// setting rumble, lightbar RGB, and player LEDs.
+func BuildDualSenseUSBOutput(dst []byte, playerSlot, rumbleRight, rumbleLeft uint8) int {
+	if len(dst) < DualSenseUSBOutputLen {
+		return 0
+	}
+	clear(dst[:DualSenseUSBOutputLen])
+	slot := playerSlot & 3
+	dst[0] = 0x02
+	dst[1] = 0x03 // valid_flag0: compatible vibration + haptics select
+	dst[2] = 0x14 // valid_flag1: lightbar (0x04) + player LEDs (0x10)
+	dst[3] = rumbleRight
+	dst[4] = rumbleLeft
+	dst[44] = dualSensePlayerLEDs[slot]
+	dst[45] = dualSensePlayerRGB[slot][0]
+	dst[46] = dualSensePlayerRGB[slot][1]
+	dst[47] = dualSensePlayerRGB[slot][2]
+	return DualSenseUSBOutputLen
+}
+
+// BuildDualShock4USBOutput writes a 32-byte wired USB DualShock 4 output report 0x05
+// setting rumble and lightbar RGB.
+func BuildDualShock4USBOutput(dst []byte, playerSlot, rumbleRight, rumbleLeft uint8) int {
+	if len(dst) < DualShock4USBOutputLen {
+		return 0
+	}
+	clear(dst[:DualShock4USBOutputLen])
+	slot := playerSlot & 3
+	dst[0] = 0x05
+	dst[1] = 0x07 // valid_flags: rumble + lightbar RGB + blink off
+	dst[4] = rumbleRight
+	dst[5] = rumbleLeft
+	dst[6] = dualSensePlayerRGB[slot][0]
+	dst[7] = dualSensePlayerRGB[slot][1]
+	dst[8] = dualSensePlayerRGB[slot][2]
+	return DualShock4USBOutputLen
 }

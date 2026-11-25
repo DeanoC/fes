@@ -79,6 +79,9 @@ func (d *Device) BindControl(platform network.DMAControl) (network.DMAControl, e
 			if err := d.stopFIFO(ctx); err != nil {
 				return d.retireControl(err)
 			}
+			if d.config.ResetMMCOnRead {
+				d.accumulateMMCLocked()
+			}
 			if err := ctx.Err(); err != nil {
 				return d.retireControl(err)
 			}

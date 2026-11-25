@@ -185,9 +185,14 @@ python3 scripts/de25_restore.py --baseline ~/fes-hil/baselines/current-restore-d
   --serial-recovery "$EVIDENCE/serial-recovery-receipt.json"
 ```
 
-The verifier permits
-the boot ID change only with that serial receipt; image, bundle, target ID,
-runtime idle, free lease and stable protected state must still match.
+The verifier permits the boot ID change only with that serial receipt, which
+must bind the observed before and after boot IDs to the same target. If the
+recorded baseline boot ID was already stale, the verifier reconstructs its
+native-state bytes by substituting that recorded boot ID into the captured
+before and after states. Both reconstructed hashes must match the recorded
+full baseline hash. Each capture must contain exactly one matching boot ID and
+its own correct native-state hash; changing any other byte fails verification.
+Image, bundle, target ID, runtime idle and free lease must still match.
 
 If J8G does not return after the serial reboot, recover it from the retained
 LAN managed image through the appliance recovery/update path for J8G only, with

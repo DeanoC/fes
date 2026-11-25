@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import unittest
 from pathlib import Path
 
@@ -58,23 +59,85 @@ class De25RestoreTests(unittest.TestCase):
             restore.verify({'schema': 1}, self.state, self.state)
 
     def test_recorded_serial_reboot_allows_only_new_boot_identity(self):
-        before = self.state.copy()
-        before['native_readonly'] = 'boot_id=boot-id\nroot=ro\n'
-        after = self.state.copy()
-        after['boot_id'] = 'new-boot-id'
-        after['native_readonly'] = 'boot_id=new-boot-id\nroot=ro\n'
-        after['native_sha256'] = 'new-native-hash'
-        receipt = {
-            'schema': 1, 'serial': 'TRWU8J8G',
-            'device': '/dev/serial/by-id/usb-TERASIC_DE25-Nano_TRWU8J8G-if02-port0',
-            'command': 'serial-sysrq-break-b', 'linux_boot_seen': True,
-            'before_boot_id': 'boot-id', 'after_boot_id': 'new-boot-id',
-            'target_id': 'target-id',
-        }
+        before, after, receipt = self.reboot_states('boot-id')
         result = restore.verify(self.baseline, before, after, receipt)
         self.assertTrue(result['passed'], result['checks'])
         self.assertTrue(result['checks']['serial_recovery_receipt'])
         self.assertTrue(result['checks']['native_state_unchanged'])
+
+    @staticmethod
+    def set_native(state, text):
+        state['native_readonly'] = text
+        state['native_sha256'] = hashlib.sha256(text.encode()).hexdigest()
+
+    def reboot_states(self, before_id):
+        before = self.state.copy()
+        before['boot_id'] = before_id
+        self.set_native(before, f'boot_id={before_id}\n\nkernel=6.1\nroot=ro\n')
+        after = self.state.copy()
+        after['boot_id'] = 'new-boot-id'
+        self.set_native(after, 'boot_id=new-boot-id\n\nkernel=6.1\nroot=ro\n')
+        baseline_native = 'boot_id=boot-id\n\nkernel=6.1\nroot=ro\n'
+        self.baseline['baseline_state_sha256'] = hashlib.sha256(baseline_native.encode()).hexdigest()
+        receipt = {
+            'schema': 1, 'serial': 'TRWU8J8G',
+            'device': '/dev/serial/by-id/usb-TERASIC_DE25-Nano_TRWU8J8G-if02-port0',
+            'command': 'serial-sysrq-break-b', 'linux_boot_seen': True,
+            'before_boot_id': before_id, 'after_boot_id': 'new-boot-id',
+            'target_id': 'target-id',
+        }
+        return before, after, receipt
+
+    def test_serial_reboot_after_stale_baseline_boot_is_verified(self):
+        before, after, receipt = self.reboot_states('already-rebooted')
+        result = restore.verify(self.baseline, before, after, receipt)
+        self.assertTrue(result['passed'], result['checks'])
+        self.assertFalse(restore.verify(self.baseline, before, before)['passed'])
+
+    def test_recovery_does_not_hide_existing_or_new_native_drift(self):
+        before, after, receipt = self.reboot_states('already-rebooted')
+        self.set_native(before, before['native_readonly'].replace('root=ro', 'root=rw'))
+        self.set_native(after, after['native_readonly'].replace('root=ro', 'root=rw'))
+        result = restore.verify(self.baseline, before, after, receipt)
+        self.assertFalse(result['passed'])
+        self.assertFalse(result['checks']['native_state_matches_baseline'])
+        self.assertTrue(result['checks']['native_state_unchanged'])
+        before, after, receipt = self.reboot_states('already-rebooted')
+        self.set_native(after, after['native_readonly'].replace('root=ro', 'root=rw'))
+        self.assertFalse(restore.verify(self.baseline, before, after, receipt)['passed'])
+
+    def test_recovery_receipt_must_bind_before_after_and_board(self):
+        before, after, receipt = self.reboot_states('already-rebooted')
+        for field, wrong in (
+            ('schema', 2), ('serial', 'other'), ('device', '/dev/ttyUSB0'),
+            ('command', 'other'), ('linux_boot_seen', False),
+            ('before_boot_id', 'boot-id'), ('after_boot_id', 'wrong'),
+            ('target_id', 'other'),
+        ):
+            with self.subTest(field=field):
+                invalid = {**receipt, field: wrong}
+                result = restore.verify(self.baseline, before, after, invalid)
+                self.assertFalse(result['passed'])
+                self.assertFalse(result['checks']['serial_recovery_receipt'])
+        self.assertFalse(restore.verify(self.baseline, before, after, {})['passed'])
+
+    def test_recovery_requires_one_matching_boot_field_and_correct_snapshot_hash(self):
+        for bad in (
+            'root=ro\n',
+            'boot_id=wrong\nroot=ro\n',
+            'boot_id=already-rebooted\nboot_id=already-rebooted\nroot=ro\n',
+            'boot_id=already-rebooted extra\nroot=ro\n',
+        ):
+            with self.subTest(native=bad):
+                before, after, receipt = self.reboot_states('already-rebooted')
+                self.set_native(before, bad)
+                self.assertFalse(restore.verify(self.baseline, before, after, receipt)['passed'])
+        before, after, receipt = self.reboot_states('already-rebooted')
+        before['native_sha256'] = 'forged'
+        self.assertFalse(restore.verify(self.baseline, before, after, receipt)['passed'])
+        before, after, receipt = self.reboot_states('already-rebooted')
+        after['native_sha256'] = 'forged'
+        self.assertFalse(restore.verify(self.baseline, before, after, receipt)['passed'])
 
     def test_serial_reboot_without_boot_observation_fails(self):
         receipt = {

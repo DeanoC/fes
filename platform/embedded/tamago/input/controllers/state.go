@@ -16,6 +16,8 @@ const (
 	KindDualSense
 	KindDualShock4
 	KindSwitchPro
+	KindXInput
+	KindXboxGIP
 	KindGenericHID
 )
 
@@ -27,6 +29,10 @@ func (k Kind) String() string {
 		return "dualshock4"
 	case KindSwitchPro:
 		return "switchpro"
+	case KindXInput:
+		return "xinput"
+	case KindXboxGIP:
+		return "xboxgip"
 	case KindGenericHID:
 		return "hid"
 	default:
@@ -46,8 +52,8 @@ const (
 	ButtonR1
 	ButtonL2
 	ButtonR2
-	ButtonSelect   // Create / Share / Minus / View
-	ButtonStart    // Options / Plus / Menu
+	ButtonSelect // Create / Share / Minus / View
+	ButtonStart  // Options / Plus / Menu
 	ButtonL3
 	ButtonR3
 	ButtonHome     // PS / Home / Guide
@@ -204,6 +210,13 @@ func IdentifyByName(name string) Kind {
 func u8AxisToS16(v uint8) int16 {
 	// Map 0..255 with center 128 -> -32768..32512.
 	return int16(int32(v)-128) << 8
+}
+
+func negateS16(v int16) int16 {
+	if v == -32768 {
+		return 32767
+	}
+	return -v
 }
 
 func hatNibbleToDPad(hat uint8) Button {
