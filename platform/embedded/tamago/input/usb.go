@@ -65,7 +65,7 @@ func (k *USBKeyboard) Decode(report []byte) ([]Event, error) {
 	}
 	var events []Event
 	for _, change := range changes {
-		if event, ok := usbPress(change); ok {
+		if event, ok := USBKeyPress(change); ok {
 			events = append(events, event)
 		}
 	}
@@ -73,16 +73,18 @@ func (k *USBKeyboard) Decode(report []byte) ([]Event, error) {
 }
 
 var (
-	usbLetterKeys     = [26]string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"}
-	usbLetterUpper    = [26]string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"}
-	usbDigitKeys      = [10]string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"}
-	usbDigitShifted   = [10]string{"!", "@", "#", "$", "%", "^", "&", "*", "(", ")"}
-	usbKeyNames       = [256]string{40: "return", 41: "escape", 42: "backspace", 43: "tab", 44: "space", 45: "minus", 46: "equals", 47: "leftbracket", 48: "rightbracket", 49: "backslash", 51: "semicolon", 52: "apostrophe", 53: "grave", 54: "comma", 55: "period", 56: "slash", 74: "home", 77: "end", 79: "right", 80: "left", 81: "down", 82: "up"}
-	usbPlainText      = [256]string{44: " ", 45: "-", 46: "=", 47: "[", 48: "]", 49: "\\", 51: ";", 52: "'", 53: "`", 54: ",", 55: ".", 56: "/"}
-	usbShiftedText    = [256]string{44: " ", 45: "_", 46: "+", 47: "{", 48: "}", 49: "|", 51: ":", 52: "\"", 53: "~", 54: "<", 55: ">", 56: "?"}
+	usbLetterKeys   = [26]string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"}
+	usbLetterUpper  = [26]string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"}
+	usbDigitKeys    = [10]string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"}
+	usbDigitShifted = [10]string{"!", "@", "#", "$", "%", "^", "&", "*", "(", ")"}
+	usbKeyNames     = [256]string{40: "return", 41: "escape", 42: "backspace", 43: "tab", 44: "space", 45: "minus", 46: "equals", 47: "leftbracket", 48: "rightbracket", 49: "backslash", 51: "semicolon", 52: "apostrophe", 53: "grave", 54: "comma", 55: "period", 56: "slash", 74: "home", 77: "end", 79: "right", 80: "left", 81: "down", 82: "up"}
+	usbPlainText    = [256]string{44: " ", 45: "-", 46: "=", 47: "[", 48: "]", 49: "\\", 51: ";", 52: "'", 53: "`", 54: ",", 55: ".", 56: "/"}
+	usbShiftedText  = [256]string{44: " ", 45: "_", 46: "+", 47: "{", 48: "}", 49: "|", 51: ":", 52: "\"", 53: "~", 54: "<", 55: ">", 56: "?"}
 )
 
-func usbPress(change usb.KeyEvent) (Event, bool) {
+// USBKeyPress translates one pressed HID boot-keyboard usage + modifier mask
+// into a normalized Tenfoot Event (using the US keyboard layout).
+func USBKeyPress(change usb.KeyEvent) (Event, bool) {
 	if !change.Pressed {
 		return Event{}, false
 	}

@@ -89,7 +89,7 @@ def main():
     parser.add_argument("--spectrum48-tape", type=Path, help="optional tape file for the Spectrum SD catalogue")
     parser.add_argument("--menu-project", type=Path, help="separately sealed menu companion for selected Nano computer programs")
     parser.add_argument("--usb-input", choices=("boot-keyboard", "gamepad"), help="explicit input protocol for the Nano usbcheck diagnostic")
-    parser.add_argument("--shared-usb-input", choices=("boot-keyboard", "gamepad"), help="retain owned USB with selected serial Tenfoot/core/SD transitions")
+    parser.add_argument("--shared-usb-input", choices=("boot-keyboard", "gamepad", "multi"), help="retain owned USB with selected serial Tenfoot/core/SD transitions")
     parser.add_argument("--tenfoot-uart-only", action="store_true", help="use UART input with the matched native Tenfoot profile while leaving USB unclaimed")
     parser.add_argument("--ddr-read", action="store_true", help="opt in to the fixed read-only FPGA DDR diagnostic (Nano fpgaload only)")
     parser.add_argument("--menu-present", action="store_true", help="present three Tenfoot frames through the sealed two-slot menu and independently close through firmware (Nano fpgaload only)")
@@ -114,6 +114,10 @@ def main():
                         help="optional IPv4 SNTPv4 server to sync UTC clock on network-enabled Nano fpgaload --tenfoot-serial")
     parser.add_argument("--network-sntp-port", type=int, default=0,
                         help="optional UDP port for --network-sntp-server (default 123)")
+    parser.add_argument("--network-allow-100m", action="store_true",
+                        help="opt in to XGMAC 100BASE-TX full duplex alongside 1000BASE-T on network-enabled Nano fpgaload --tenfoot-serial")
+    parser.add_argument("--network-recover-link-flap", action="store_true",
+                        help="opt in to non-fatal PHY carrier flap recovery + link-up DHCP verification on network-enabled Nano fpgaload --tenfoot-serial")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--module-cache", type=Path,
                         default=ROOT / "out/embedded-base-tools/tamago/mod")
@@ -157,7 +161,7 @@ def main():
         parser.error('--arm64-features requires --board de25-nano')
     if args.sd_write_plan is not None or args.writable_storage_plan is not None or args.program in ('sdwrite','sdfile') or args.sd_scratch_inspect or args.sd_transfer_clock:
         parser.error('SD write diagnostics require --board de25-nano')
-    if args.menu_project is not None or args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.menu_present or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial or args.retain_configuration or args.initial_tape or args.watchdog_timeout or args.watchdog_clock_hz or args.network_dhcp or args.network_dhcp_hostname or args.network_sntp_server or args.network_sntp_port:
+    if args.menu_project is not None or args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.menu_present or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial or args.retain_configuration or args.initial_tape or args.watchdog_timeout or args.watchdog_clock_hz or args.network_dhcp or args.network_dhcp_hostname or args.network_sntp_server or args.network_sntp_port or args.network_allow_100m or args.network_recover_link_flap:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")
     if args.program in ("fpga", "sdpackages", "hpsio", "usbcheck", "fpgaload"):
         parser.error("this diagnostic requires the Nano firmware service; QEMU does not emulate it")

@@ -1941,6 +1941,16 @@ profiles. On exit, CPU sampling stops before heap GC and serialization.
 Benchmark recipes and measurement limits are in
 [native CPU rendering](native-tenfoot-launcher/CPU.md).
 
+The Linux direct-display kit-host launcher provides the kit-local diagnostic
+`fogcast-tenfoot library-reload`. It triggers the same asynchronous library
+reload while a session is busy and exits successfully only after that exact
+generation has completed successfully. A failed, superseded, stopped or
+timed-out reload reports an error. The command talks to the running launcher
+over a Linux abstract Unix socket, so no stale socket file survives a crash;
+the listener is absent for smoke and non-kit hosts. Completion describes the
+library load, not display presentation: HIL should wait for the command and
+capture the footer separately while the session is still busy.
+
 The framebuffer shell reads native-width evdev records for US keyboard text
 and gamepad buttons plus range-normalized stick/hat axes, merges held commands across devices,
 and applies each pad's saved profile and the shared hold gate. `nativeInputs.poll` takes those
@@ -3414,7 +3424,9 @@ the host needs the packages, not the per-core selections.
 
 The host and `mister-agent` open the durable store as two processes, coordinated
 by its flock. The agent recovers interrupted installations and verifies packages
-when opening; the host skips recovery and verifies durable inventory and
+when opening. It validates each canonical archive, then independently reads and
+compares every installed member byte against that validated archive; identical
+ROM maps need no second structural parse. The host skips recovery and verifies durable inventory and
 selections on access before serving either durable or factory packages. The
 first access verifies selected packages under the lock; a list also verifies
 the other durable packages. Later reads reuse valid stat-fingerprint caches.

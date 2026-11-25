@@ -8,6 +8,10 @@ it flushes file data before updating and flushing the directory size.
 if absent) via copy-on-write cluster allocation and a single-sector directory
 entry commit before freeing the previous clusters, ensuring a power cut before
 the directory commit leaves the previous file intact rather than half-written.
+`RemoveFile(ctx, name)` deletes an existing regular file by committing the `0xE5`
+deleted marker on the 8.3 short entry first, invalidating open handles with
+`ErrReplaced`, wiping any preceding LFN slots, and only then reclaiming the file's
+clusters across mirrored FAT tables.
 
 `CreateFile(ctx, name, data)` and `Mkdir(ctx, name)` explicitly allocate new
 entries under an existing parent. They reject existing names and short aliases,
@@ -31,7 +35,7 @@ existing-file reads and further writes refuse without retry or rollback.
 Existing data, allocated clusters and DMA ownership are not reclaimed by that
 error. Power loss can leave orphan allocation or incomplete metadata requiring
 external repair. A known read-only refusal before mutation leaves the mount
-usable. Rename, removal, overwrite-by-creation, formatting and repair are absent.
+usable. Rename, directory removal, overwrite-by-creation, formatting and repair are absent.
 
 These APIs supply neither a storage lease nor package/FPGA admission. The caller
 must own and serialize storage access. Nano builds still select read-only SD;

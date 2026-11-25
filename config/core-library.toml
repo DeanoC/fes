@@ -56,6 +56,18 @@ system = "c64"
 standing = "experimental"
 
 [[cores]]
+core_id = "fes.c64c"
+label = "Commodore 64C (PAL)"
+system = "c64"
+standing = "experimental"
+
+[[cores]]
+core_id = "fes.c64c-ntsc"
+label = "Commodore 64C (NTSC)"
+system = "c64"
+standing = "experimental"
+
+[[cores]]
 core_id = "fes.spectrum"
 label = "ZX Spectrum 48K"
 system = "spectrum"

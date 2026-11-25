@@ -243,6 +243,102 @@ func InspectPackage(path string) (Inspection, error) {
 		Descriptor: descriptor}, nil
 }
 
+// MatchDirectoryToArchive checks every installed member against the same
+// bytes in a canonical archive. The caller must first validate that archive;
+// equality to unvalidated bytes does not make a package safe. This avoids
+// parsing an identical ROM map twice while still reading every installed byte.
+func MatchDirectoryToArchive(ctx context.Context, path string, archive []byte) error {
+	if ctx == nil {
+		return errors.New("core package: missing comparison context")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	manifest, payload, companion, err := readArchiveMembers(archive, false)
+	if err != nil {
+		return err
+	}
+	info, err := os.Lstat(path)
+	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return errors.New("core package: installed path must be a non-symlink directory")
+	}
+	root, err := os.OpenRoot(path)
+	if err != nil {
+		return fmt.Errorf("core package: open directory: %w", err)
+	}
+	defer root.Close()
+	opened, err := root.Stat(".")
+	if err != nil || !os.SameFile(info, opened) {
+		return errors.New("core package: directory changed while opening")
+	}
+	withCompanion := companion != nil
+	if err := exactDirectoryEntries(root, withCompanion, manifest); err != nil {
+		return err
+	}
+	members := []struct {
+		name string
+		want []byte
+	}{{"manifest.toml", manifest}, {"core.rbf", payload}}
+	if withCompanion {
+		members = append(members, struct {
+			name string
+			want []byte
+		}{companionName(manifest), companion})
+	}
+	buf := make([]byte, 32<<10)
+	for _, member := range members {
+		if err := compareRootMember(ctx, root, member.name, member.want, buf); err != nil {
+			return err
+		}
+	}
+	if err := exactDirectoryEntries(root, withCompanion, manifest); err != nil {
+		return err
+	}
+	after, err := root.Stat(".")
+	if err != nil || !os.SameFile(opened, after) {
+		return errors.New("core package: directory changed while comparing")
+	}
+	return ctx.Err()
+}
+
+func compareRootMember(ctx context.Context, root *os.Root, name string, want, buf []byte) error {
+	before, err := root.Lstat(name)
+	if err != nil || before.Mode()&os.ModeSymlink != 0 || !before.Mode().IsRegular() || before.Size() != int64(len(want)) {
+		return fmt.Errorf("core package: %s must be a matching regular non-symlink file", name)
+	}
+	file, err := root.Open(name)
+	if err != nil {
+		return fmt.Errorf("core package: open %s: %w", name, err)
+	}
+	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil || !os.SameFile(before, opened) || opened.Size() != int64(len(want)) {
+		return fmt.Errorf("core package: %s changed while opening", name)
+	}
+	for len(want) > 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		n := min(len(buf), len(want))
+		if _, err := io.ReadFull(file, buf[:n]); err != nil || !bytes.Equal(buf[:n], want[:n]) {
+			return fmt.Errorf("core package: %s differs from validated archive", name)
+		}
+		want = want[n:]
+	}
+	var extra [1]byte
+	if n, err := file.Read(extra[:]); n != 0 || (err != nil && !errors.Is(err, io.EOF)) {
+		return fmt.Errorf("core package: %s changed while comparing", name)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("core package: close %s: %w", name, err)
+	}
+	after, err := root.Lstat(name)
+	if err != nil || !os.SameFile(opened, after) || after.Size() != opened.Size() {
+		return fmt.Errorf("core package: %s changed while comparing", name)
+	}
+	return nil
+}
+
 // InspectListing validates an installed package directory for inventory.
 // The manifest is the only member kept in memory. core.rbf is hashed as a
 // stream. rom-map.json is hashed and structurally validated as a stream,

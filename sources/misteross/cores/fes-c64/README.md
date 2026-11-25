@@ -32,12 +32,11 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
 
 ## Machine
 
-The DE10 library offers two C64 packages. Existing C64 titles use `fes.c64`
-(PAL 6569). Select `fes.c64-ntsc` for the standard NTSC 6567R8. Its producer
-sets `NTSC=1` on the board top. Both models use the MOS6581, 6526 CIAs,
-independently clocked 1541 and the same 36 KiB firmware layout. Each title
-binds firmware and disks to its selected package. A development build can select
-the MOS8580 independently of the video region (see “MOS8580 development builds” below).
+The DE10 library offers four C64 family packages. `fes.c64` (PAL 6569) and
+`fes.c64-ntsc` (NTSC 6567R8) use the MOS6581. `fes.c64c` and
+`fes.c64c-ntsc` use the MOS8580 with their respective regional timing. All
+share the 6526 CIAs, independently clocked 1541 and the same 36 KiB firmware
+layout. Each title binds firmware and disks to its selected package.
 The reference schedules are the VICE [C64 clocks](https://github.com/VICE-Team/svn-mirror/blob/08b38de806e309b7f0a2a27043c896cf7c259061/vice/src/c64/c64.h)
 and [VIC-II cycle tables](https://github.com/VICE-Team/svn-mirror/blob/08b38de806e309b7f0a2a27043c896cf7c259061/vice/src/viciisc/vicii-chip-model.c).
 
@@ -938,13 +937,13 @@ registers retain this core's zero-read contract, not SID floating-bus behavior.
 Other chip models/bias, paddles, bus decay, physical audio and current-package
 timing/hardware acceptance stay open.
 
-### MOS8580 development builds
+### MOS8580 builds
 
 The DE10 board parameter `SID_8580=1` selects the MOS8580. The direct producer
 accepts `--sid-model 8580` with either `--model pal` or `--model ntsc`.
 It records the SID in the functional build identity and uses a separate output
-directory. Both library recipes select the 6581. The 8580 option changes only
-the SID in the existing regional machine.
+directory. It selects the corresponding C64C package identity. The 8580 option
+changes the SID in the existing regional machine.
 
 For example, from `sources/misteross`:
 
