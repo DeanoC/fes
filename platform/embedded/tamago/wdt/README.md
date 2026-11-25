@@ -35,7 +35,6 @@ finish before returning.
   ever arming an inactive timer or shrinking its active period).
 - **`ShutdownPrepareStep(sup, minTimeout)` / `WrapShutdownSteps(sup, steps)` / `WrapPowerController(sup, ctrl)`:**
   Integrate sticky watchdog servicing with `psci.Shutdown`—extending the
-  watchdog window before teardown while keeping supervisor keepalive alive if
-  shutdown aborts (`ctx` cancel or `RequireCleanTeardown`), kicking around slow
-  flush/quiesce steps, and stopping the supervisor only when `SystemReset` or
-  `SystemOff` actually runs.
+  watchdog window before teardown, kicking around slow flush/quiesce steps and
+  immediately before `SystemReset`/`SystemOff`, and keeping supervisor keepalive
+  active whenever shutdown aborts or a PSCI call returns an error.

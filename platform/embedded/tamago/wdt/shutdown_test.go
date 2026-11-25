@@ -252,7 +252,8 @@ func TestShutdownPrepareWrapControllerAndAbortKeepalive(t *testing.T) {
 		t.Fatalf("canceled shutdown stopped supervisor (running=%t) or reset", abortSup.Running())
 	}
 
-	// 3. Committed shutdown extends timeout, kicks around steps, and WrapPowerController stops supervisor only at terminal PSCI call.
+	// 3. Committed shutdown extends timeout, kicks around steps, and WrapPowerController kicks immediately
+	//    before PSCI while keeping supervisor alive if PSCI ever returns an error.
 	hw := newFakeDW()
 	dw, err := Open(hw, 100_000_000)
 	if err != nil {
@@ -265,6 +266,7 @@ func TestShutdownPrepareWrapControllerAndAbortKeepalive(t *testing.T) {
 	if _, err := sup.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
+	defer sup.Stop()
 
 	var observedRunningDuringStep bool
 	var kicksAtStep uint64
@@ -286,17 +288,31 @@ func TestShutdownPrepareWrapControllerAndAbortKeepalive(t *testing.T) {
 	if err := psci.Shutdown(ctx, WrapPowerController(sup, ctrl2), psci.ActionReset, psci.ShutdownConfig{Steps: teardownSteps}); err != nil {
 		t.Fatalf("armed psci.Shutdown: %v", err)
 	}
-	if !observedRunningDuringStep {
-		t.Fatal("Supervisor stopped prematurely before terminal PSCI transition")
-	}
-	if ctrl2.seenRunning || sup.Running() {
-		t.Fatalf("WrapPowerController did not stop supervisor before SystemReset: seenRunning=%t running=%t", ctrl2.seenRunning, sup.Running())
+	if !observedRunningDuringStep || !ctrl2.seenRunning || !sup.Running() {
+		t.Fatalf("Supervisor unexpectedly stopped (step=%t psci=%t after=%t)", observedRunningDuringStep, ctrl2.seenRunning, sup.Running())
 	}
 	if dw.Timeout() < 5*time.Second {
 		t.Fatalf("WDT timeout not extended before teardown: %v", dw.Timeout())
 	}
 	if sup.Kicks() <= kicksAtStep || ctrl2.resets != 1 {
-		t.Fatalf("post-step kick or PSCI reset missing: kicks=%d->%d resets=%d", kicksAtStep, sup.Kicks(), ctrl2.resets)
+		t.Fatalf("post-step/pre-PSCI kick or PSCI reset missing: kicks=%d->%d resets=%d", kicksAtStep, sup.Kicks(), ctrl2.resets)
+	}
+
+	// Failed terminal PSCI call keeps supervisor running so keepalive continues.
+	psciErrCtrl := &fakePowerCtrl{err: errors.New("psci denied"), supCheck: sup}
+	if err := psci.Shutdown(ctx, WrapPowerController(sup, psciErrCtrl), psci.ActionPowerOff, psci.ShutdownConfig{}); err == nil {
+		t.Fatal("expected error from failing PSCI controller")
+	}
+	if !sup.Running() || psciErrCtrl.offs != 1 {
+		t.Fatalf("supervisor stopped on failed PSCI return: running=%t offs=%d", sup.Running(), psciErrCtrl.offs)
+	}
+	kAfterFail := sup.Kicks()
+	failDeadline := time.Now().Add(time.Second)
+	for sup.Kicks() <= kAfterFail {
+		if time.Now().After(failDeadline) {
+			t.Fatalf("supervisor stopped kicking after failed PSCI call (kicks stuck at %d)", sup.Kicks())
+		}
+		time.Sleep(time.Millisecond)
 	}
 
 	// 4. Plain Kicker satisfies minTimeout <= Period(), rejects unattainable minTimeout > Period(), and rejects negative minTimeout.

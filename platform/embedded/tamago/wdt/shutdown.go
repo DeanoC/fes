@@ -14,10 +14,9 @@ import (
 // ShutdownPrepareStep returns a bounded psci.ShutdownStep that extends or kicks
 // an armed watchdog without stopping the keepalive supervisor, failing closed
 // if minTimeout cannot be satisfied by hardware. Keeping the supervisor active
-// ensures the sticky hardware watchdog stays serviced if psci.Shutdown later
-// aborts (context cancellation or RequireCleanTeardown); pair with
-// WrapPowerController to halt keepalive only when the terminal PSCI call runs.
-// An unarmed or nil supervisor stays untouched.
+// ensures the sticky hardware watchdog stays serviced if psci.Shutdown aborts
+// or if the terminal PSCI call returns an error. An unarmed or nil supervisor
+// stays untouched.
 func ShutdownPrepareStep(sup *Supervisor, minTimeout time.Duration) psci.ShutdownStep {
 	return psci.ShutdownStep{
 		Name: "wdt-prepare-shutdown",
@@ -58,9 +57,9 @@ type shutdownPowerController struct {
 }
 
 // WrapPowerController wraps ctrl so an armed Supervisor kicks the hardware
-// watchdog once more and stops its background goroutine only once psci.Shutdown
-// commits to issuing SystemReset or SystemOff (never stopping on aborted
-// shutdowns). Passing nil ctrl returns nil.
+// watchdog immediately before SystemReset or SystemOff runs while keeping
+// background keepalive active in case PSCI fails and returns instead of resetting
+// or powering off. Passing nil ctrl returns nil.
 func WrapPowerController(sup *Supervisor, ctrl psci.PowerController) psci.PowerController {
 	if ctrl == nil || sup == nil {
 		return ctrl
@@ -68,20 +67,19 @@ func WrapPowerController(sup *Supervisor, ctrl psci.PowerController) psci.PowerC
 	return &shutdownPowerController{sup: sup, ctrl: ctrl}
 }
 
-func (w *shutdownPowerController) stopSupervisor() {
+func (w *shutdownPowerController) kickIfStarted() {
 	if w.sup.Started() {
 		_ = w.sup.KickNow()
-		w.sup.Stop()
 	}
 }
 
 func (w *shutdownPowerController) SystemReset() error {
-	w.stopSupervisor()
+	w.kickIfStarted()
 	return w.ctrl.SystemReset()
 }
 
 func (w *shutdownPowerController) SystemOff() error {
-	w.stopSupervisor()
+	w.kickIfStarted()
 	return w.ctrl.SystemOff()
 }
 
