@@ -120,9 +120,12 @@ class Derivations(unittest.TestCase):
         for group, copy in (("io", "oReset"), ("input", "oResetInput"), ("sound", "oResetSound"),
                             ("raster", "oResetRaster")):
             self.assertIn("machine_reset_%s || system.machine.cpu.cpu.%s;" % (group, copy), core)
+        self.assertEqual(core.count("always @(posedge clk_sys or posedge cold_reset) begin"), 1)
         for name in ("system_cold_reset", "video_cold_reset", "memory_cold_reset", "media_cold_reset"):
-            self.assertEqual(core.count(f"(* preserve, dont_merge *) reg {name} = 1'b1;"), 1, name)
-            self.assertEqual(core.count(f"{name} <= cold_reset;"), 1, name)
+            self.assertEqual(core.count(f"(* preserve, dont_merge *) reg {name}_n = 1'b0;"), 1, name)
+            self.assertEqual(core.count(f"{name}_n <= 1'b0;"), 1, name)
+            self.assertEqual(core.count(f"{name}_n <= 1'b1;"), 1, name)
+            self.assertEqual(core.count(f"wire {name} = !{name}_n;"), 1, name)
         self.assertEqual(core.count(".cold_reset(cold_reset)"), 0)
         self.assertEqual(core.count(".reset_sys(cold_reset)"), 0)
         self.assertEqual(core.count(".cold_reset(system_cold_reset)"), 1)

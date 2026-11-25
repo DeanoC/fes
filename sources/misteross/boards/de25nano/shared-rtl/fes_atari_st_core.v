@@ -99,18 +99,30 @@ module fes_atari_st_core #(
     wire initialized;
     // One registered copy per consumer keeps cold_reset off machine_release[1]
     // (one async-reset synchronizer reaching every subsystem triggers TMC-20602).
-    // Each copy starts asserted and follows cold_reset on clk_sys, matching
-    // fes_atari_st_top.v.
-    (* preserve, dont_merge *) reg system_cold_reset = 1'b1;
-    (* preserve, dont_merge *) reg video_cold_reset = 1'b1;
-    (* preserve, dont_merge *) reg memory_cold_reset = 1'b1;
-    (* preserve, dont_merge *) reg media_cold_reset = 1'b1;
-    always @(posedge clk_sys) begin
-        system_cold_reset <= cold_reset;
-        video_cold_reset <= cold_reset;
-        memory_cold_reset <= cold_reset;
-        media_cold_reset <= cold_reset;
+    // Each copy asserts asynchronously with cold_reset (while the machine PLL
+    // is held in reset and clk_sys is stopped) and releases synchronously on
+    // clk_sys one clock after machine_release[1], matching fes_atari_st_top.v.
+    (* preserve, dont_merge *) reg system_cold_reset_n = 1'b0;
+    (* preserve, dont_merge *) reg video_cold_reset_n = 1'b0;
+    (* preserve, dont_merge *) reg memory_cold_reset_n = 1'b0;
+    (* preserve, dont_merge *) reg media_cold_reset_n = 1'b0;
+    always @(posedge clk_sys or posedge cold_reset) begin
+        if (cold_reset) begin
+            system_cold_reset_n <= 1'b0;
+            video_cold_reset_n <= 1'b0;
+            memory_cold_reset_n <= 1'b0;
+            media_cold_reset_n <= 1'b0;
+        end else begin
+            system_cold_reset_n <= 1'b1;
+            video_cold_reset_n <= 1'b1;
+            memory_cold_reset_n <= 1'b1;
+            media_cold_reset_n <= 1'b1;
+        end
     end
+    wire system_cold_reset = !system_cold_reset_n;
+    wire video_cold_reset = !video_cold_reset_n;
+    wire memory_cold_reset = !memory_cold_reset_n;
+    wire media_cold_reset = !media_cold_reset_n;
     // One reset in six registers: the bus, the processor, the I/O decode,
     // the keyboard and serial chips, the sound chip, and the memory and video
     // raster. One register reaching all of them is too spread to place
