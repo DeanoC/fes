@@ -288,7 +288,9 @@ prints these tables from them. The run logs are in [logs/](logs).
 | 18 | 174.074 | `45450fe59` | `366a1ade…` | `a135fe77…` |
 | 16 | 195.833 | `8c3361dd7` | `6424f960…` | `7bef9797…` |
 
-The rung branches are `deano/de25-486sx-fmax-cNN`; they are scratch and never
+Each rung commit is held by the annotated tag `evidence/2224-cNN` (the
+scratch branches `deano/de25-486sx-fmax-cNN` that the methods name were
+deleted after tagging, 25 Nov 2026, with Deano's OK). The commits never
 merge.
 
 | Rung | MHz | Seed | ALMs | Machine→machine setup | Machine clock setup row | Machine clock hold row | Setup | Hold | Recovery | Removal | Minimum Pulse Width | Max Skew | Net Delay | Setup Data Delay | Fmax est. | Pass |
@@ -453,16 +455,19 @@ fast clock would place differently.
 
 ## Where things are
 
-- Raw projects, reports and path files: Powerboat
-  `/data/projects/fes-486sx-fmax/` (`wt-<rev>` worktrees with each rung's
-  generated project, `k<rev>-s<seed>/project` for every compiled seed, the
-  `paths/` reports in each; `env-wt` is the envelope worktree with
-  `envelope-i486.patch` applied). Envelope fits: chip-30x0-ai-dev
+- The raw Quartus projects, reports and `paths/` files were on Powerboat
+  under `/data/projects/fes-486sx-fmax/` and were deleted on 25 Nov 2026
+  with Deano's OK, after this record was complete. Everything the record
+  states is read from the committed `fits/`, `logs/` and `*.txt` files;
+  re-measuring needs a refit from the tagged commits. Envelope fits: chip-30x0-ai-dev
   `/data/projects/fes-quartus/runs/c1ca3e31cbee-20261124T210244Z-fmax-env-32a840`
   (125.333 MHz) and `…-20261124T220801Z-fmax-env-cpu8298-8457da`
   (120.513 MHz).
-- The commits the record cites live on this branch and on the scratch rung
-  branches `deano/de25-486sx-fmax-c{42,37,34,32,30,28,27,26,25,24,22,20,18,16}`.
+- The commits the record cites are held by annotated tags on origin:
+  `evidence/2224-record` (this branch's head `173734cbb`, which contains
+  every method and record commit) and `evidence/2224-c{42,37,34,32,30,28,27,26,25,24,22,20,18,16}`,
+  one per rung commit. `d1616104c` is #2171's fitted commit, cited only for
+  its earlier fits; it is that PR's evidence, not this one's.
 
 ## What this does not establish
 

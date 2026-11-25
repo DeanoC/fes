@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """rung_table.py REPO FITS_DIR: the record's rung and CPU-boundary tables, as markdown.
 
-REPO is a checkout holding the rung branches (deano/de25-486sx-fmax-cNN). For each rung: its
+REPO is a checkout holding the rung tags (evidence/2224-cNN). For each rung: its
 commit, the SHA-256 of `git diff <method commit> <rung>` (what make_rung.py changed) and, from
 FITS_DIR's seed-1 JSON, the netlist the fit compiled. The boundary table is each seed 1's
 CPU-boundary projection (rung_summary.py: paths with exactly one resolved-CPU end, slack with the
@@ -39,7 +39,7 @@ def main(repo, fits):
         if c == 51:
             commit, digest = f'`{METHOD[:9]}` (method)', '—'
         else:
-            rev = git(repo, 'rev-parse', f'deano/de25-486sx-fmax-c{c}').decode().strip()
+            rev = git(repo, 'rev-parse', f'evidence/2224-c{c}^{{commit}}').decode().strip()
             diff = git(repo, 'diff', METHOD, rev)
             commit, digest = f'`{rev[:9]}`', f'`{hashlib.sha256(diff).hexdigest()[:8]}…`'
         print(f"| {c} | {float(VCO / c / 1_000_000):.3f} | {commit} | {digest} | `{seed1[c]['netlist_sha256'][:8]}…` |")
