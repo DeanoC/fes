@@ -159,7 +159,7 @@ func TestDelegatedV2ManagerRevocationRetiresUncertainBindingAfterCoreStopsToIdle
 	f.c.ports.keys = keys
 	f.c.keyboard = keys
 
-	var currentObs CoreObservation
+	currentObs := CoreObservation{IdleConfirmed: true, RuntimeInstance: f.req.RuntimeInstance}
 	f.c.ObserveCore(func(context.Context) (CoreObservation, error) { return currentObs, nil })
 	setActive := func(instance, pkg string, gen uint64) {
 		currentObs = CoreObservation{
@@ -176,8 +176,8 @@ func TestDelegatedV2ManagerRevocationRetiresUncertainBindingAfterCoreStopsToIdle
 	defer manager.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, err := manager.Settled(ctx); err != nil {
-		t.Fatal(err)
+	if status, err := manager.Settled(ctx); err != nil || status.State != "free" {
+		t.Fatalf("startup lease reconciliation failed: status=%+v err=%v", status, err)
 	}
 	grant, err := manager.Claim(kitlease.ClaimRequest{RequestID: strings.Repeat("c", 32), Owner: "private", Purpose: "test"})
 	if err != nil {
