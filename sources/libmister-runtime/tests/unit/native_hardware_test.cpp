@@ -4390,6 +4390,10 @@ void TestPcxtLibraryRecordAndSettings()
 	assert(!endpoint.held && fixture.runtime.status().core_data.layout.id == FesComputerInterfacePcxtMachineID);
 	assert(endpoint.machine_words == inspected.words);
 	assert(fixture.runtime.Stop().ok());
+	const std::string games = data.path + "/games/";
+	const std::string record_dir = games + GameDataNamespace("fes.pcxt-dos", "beast-1984");
+	assert(unlink((record_dir + "/record.bin").c_str()) == 0 && rmdir(record_dir.c_str()) == 0);
+	assert(rmdir(games.c_str()) == 0);
 }
 
 void TestPersistentReplacementRefreshAndSaveFailureResume()
