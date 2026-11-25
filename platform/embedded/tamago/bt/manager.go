@@ -29,10 +29,11 @@ type Manager struct {
 	gameplayActive bool
 	retryAfter     time.Time
 
-	OnGamepadState   func(slot uint8, kind controllers.Kind, state controllers.State)
-	OnKeyboardReport func(report []byte)
-	OnSlotChanged    func(slot uint8, connected bool, kind controllers.Kind, name string)
-	OnDongleChanged  func(connected bool, spec hci.DongleSpec)
+	OnGamepadState       func(slot uint8, kind controllers.Kind, state controllers.State)
+	OnKeyboardReport     func(report []byte)
+	OnSlotKeyboardReport func(slot uint8, report []byte)
+	OnSlotChanged        func(slot uint8, connected bool, kind controllers.Kind, name string)
+	OnDongleChanged      func(connected bool, spec hci.DongleSpec)
 }
 
 // NewManager constructs a Bluetooth input manager bound to bus. Any USB
@@ -153,6 +154,11 @@ func (m *Manager) attachDongle(dev usb.BusDevice) {
 			m.OnKeyboardReport(report)
 		}
 	}
+	sess.OnSlotKeyboardReport = func(slot uint8, report []byte) {
+		if m.OnSlotKeyboardReport != nil {
+			m.OnSlotKeyboardReport(slot, report)
+		}
+	}
 	sess.OnSlotChanged = func(slot uint8, connected bool, kind controllers.Kind, name string) {
 		if m.OnSlotChanged != nil {
 			m.OnSlotChanged(slot, connected, kind, name)
@@ -187,8 +193,13 @@ func (m *Manager) detachDongle() {
 					if m.OnGamepadState != nil {
 						m.OnGamepadState(idx, slot.Kind, controllers.State{})
 					}
-				} else if m.OnKeyboardReport != nil {
-					m.OnKeyboardReport(neutralKeyboardReport[:])
+				} else {
+					if m.OnSlotKeyboardReport != nil {
+						m.OnSlotKeyboardReport(idx, neutralKeyboardReport[:])
+					}
+					if m.OnKeyboardReport != nil {
+						m.OnKeyboardReport(neutralKeyboardReport[:])
+					}
 				}
 				if m.OnSlotChanged != nil {
 					m.OnSlotChanged(idx, false, slot.Kind, slot.Name)
@@ -207,34 +218,38 @@ func (m *Manager) detachDongle() {
 	}
 }
 
-// Service advances the underlying USB bus, attaches/detaches hotplugged USB BT
-// dongles, and pumps active HIDP controller traffic.
-func (m *Manager) Service() error {
+// HandleBusEvent applies one externally dispatched USB bus topology event
+// without polling NextEvent or Service on the underlying BusHost.
+func (m *Manager) HandleBusEvent(ev usb.HostEvent) {
+	if m == nil {
+		return
+	}
+	switch ev.Kind {
+	case usb.DeviceAttached:
+		if _, _, ok := hci.FindBluetoothInterface(ev.Device); !ok {
+			return
+		}
+		m.attachDongle(ev.Device)
+		if m.sess != nil {
+			m.retryAfter = time.Time{}
+		} else {
+			m.retryAfter = m.now().Add(dongleRetryBackoff)
+		}
+	case usb.DeviceDetached:
+		if m.dongleAddr != 0 && ev.Device.Address == m.dongleAddr {
+			m.detachDongle()
+			m.retryAfter = time.Time{}
+		}
+	}
+}
+
+// ServiceSession discovers unattached dongles from bus.Devices() (when backoff
+// permits) and pumps the active HIDP session without calling bus.Service() or
+// bus.NextEvent(). Coordinators sharing one usb.BusHost call bus.Service(),
+// drain NextEvent() into HandleBusEvent, and then call ServiceSession.
+func (m *Manager) ServiceSession() error {
 	if m == nil || m.bus == nil {
 		return errors.New("bt: nil bus host")
-	}
-	if err := m.bus.Service(); err != nil {
-		return err
-	}
-	for {
-		ev, ok := m.bus.NextEvent()
-		if !ok {
-			break
-		}
-		switch ev.Kind {
-		case usb.DeviceAttached:
-			m.attachDongle(ev.Device)
-			if m.sess != nil {
-				m.retryAfter = time.Time{}
-			} else {
-				m.retryAfter = m.now().Add(dongleRetryBackoff)
-			}
-		case usb.DeviceDetached:
-			if m.dongleAddr != 0 && ev.Device.Address == m.dongleAddr {
-				m.detachDongle()
-				m.retryAfter = time.Time{}
-			}
-		}
 	}
 	if m.sess == nil && (m.retryAfter.IsZero() || !m.now().Before(m.retryAfter)) {
 		for _, dev := range m.bus.Devices() {
@@ -259,4 +274,23 @@ func (m *Manager) Service() error {
 		m.retryAfter = m.now().Add(dongleRetryBackoff)
 	}
 	return nil
+}
+
+// Service advances the underlying USB bus, attaches/detaches hotplugged USB BT
+// dongles, and pumps active HIDP controller traffic.
+func (m *Manager) Service() error {
+	if m == nil || m.bus == nil {
+		return errors.New("bt: nil bus host")
+	}
+	if err := m.bus.Service(); err != nil {
+		return err
+	}
+	for {
+		ev, ok := m.bus.NextEvent()
+		if !ok {
+			break
+		}
+		m.HandleBusEvent(ev)
+	}
+	return m.ServiceSession()
 }

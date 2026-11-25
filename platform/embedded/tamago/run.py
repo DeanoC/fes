@@ -89,7 +89,7 @@ def main():
     parser.add_argument("--spectrum48-tape", type=Path, help="optional tape file for the Spectrum SD catalogue")
     parser.add_argument("--menu-project", type=Path, help="separately sealed menu companion for selected Nano computer programs")
     parser.add_argument("--usb-input", choices=("boot-keyboard", "gamepad"), help="explicit input protocol for the Nano usbcheck diagnostic")
-    parser.add_argument("--shared-usb-input", choices=("boot-keyboard", "gamepad"), help="retain owned USB with selected serial Tenfoot/core/SD transitions")
+    parser.add_argument("--shared-usb-input", choices=("boot-keyboard", "gamepad", "multi"), help="retain owned USB with selected serial Tenfoot/core/SD transitions")
     parser.add_argument("--tenfoot-uart-only", action="store_true", help="use UART input with the matched native Tenfoot profile while leaving USB unclaimed")
     parser.add_argument("--ddr-read", action="store_true", help="opt in to the fixed read-only FPGA DDR diagnostic (Nano fpgaload only)")
     parser.add_argument("--menu-present", action="store_true", help="present three Tenfoot frames through the sealed two-slot menu and independently close through firmware (Nano fpgaload only)")

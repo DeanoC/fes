@@ -98,13 +98,13 @@ func TestUSBPressZeroAllocs(t *testing.T) {
 	}
 	allocs := testing.AllocsPerRun(50, func() {
 		for _, s := range samples {
-			ev, ok := usbPress(s)
+			ev, ok := USBKeyPress(s)
 			if !ok || ev.Key == "" {
-				t.Fatalf("usbPress(%+v) failed", s)
+				t.Fatalf("USBKeyPress(%+v) failed", s)
 			}
 		}
 	})
 	if allocs != 0 {
-		t.Fatalf("usbPress allocated %.2f objects/batch, want 0", allocs)
+		t.Fatalf("USBKeyPress allocated %.2f objects/batch, want 0", allocs)
 	}
 }
