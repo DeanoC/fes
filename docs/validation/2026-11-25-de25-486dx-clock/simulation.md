@@ -41,3 +41,11 @@ The runner writes `analysis.json` with the handovers, windows, CPI
 ratios and Quake's execution verdict. Use `--analyze-existing` with
 the same source checkout and output directory to regenerate it from
 the logs and profiles. The captured frames are evaluated separately.
+
+The [C0 = 34 receipt](sim-c34.json) records the completed gates and
+their evidence digests. On Powerboat, verify the retained candidate
+worktrees, bench binaries and listed artifacts with:
+
+```bash
+python3 sim_evidence.py /data/projects/de25-486dx-clock-2263/simulation/c34 --verify sim-c34.json
+```

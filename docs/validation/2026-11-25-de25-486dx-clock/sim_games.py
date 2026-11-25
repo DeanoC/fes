@@ -135,21 +135,30 @@ def handover(report):
 
 
 def analyze(output, analyzer):
-    results = {(arm, work): analyze_workload(work, arm, output, analyzer) for arm, work in RUNS}
+    results = {(arm, work): analyze_workload(work, arm, output, analyzer) for arm, work in RUNS
+               if (output / f'{arm}-{work}/result.json').is_file()}
     comparisons = {}
     for workload in ('doom', '3dbench'):
+        if not all((arm, workload) in results for arm in ('base', 'dx')):
+            continue
         base, dx = (results[arm, workload] for arm in ('base', 'dx'))
         comparable = base['pass'] and dx['pass'] and handover(base) == handover(dx) and len(handover(dx)) == 2
         ratio = dx['window']['cpi'] / base['window']['cpi'] if comparable else None
         comparisons[workload] = {'comparable': comparable, 'base': base, 'dx': dx, 'cpi_ratio': ratio}
-    doom = comparisons['doom']
-    doom['dx33_realtics'] = 2062 * doom['cpi_ratio'] if doom['comparable'] else None
-    g4 = doom['comparable'] and comparisons['3dbench']['comparable'] and doom['dx33_realtics'] <= 4682
-    report = {'g4_pass': g4, 'cpi': comparisons, 'quake_execution': results['dx', 'quake'],
+    doom = comparisons.get('doom')
+    if doom is not None:
+        doom['dx33_realtics'] = 2062 * doom['cpi_ratio'] if doom['comparable'] else None
+    g4 = None
+    if doom is not None and '3dbench' in comparisons:
+        g4 = doom['comparable'] and comparisons['3dbench']['comparable'] and doom['dx33_realtics'] <= 4682
+    quake = results.get(('dx', 'quake'))
+    report = {'g4_pass': g4, 'cpi': comparisons, 'quake_execution': quake,
               'quake_frame_gate': 'inspect captured demo frames'}
     save(output / 'analysis.json', report)
     print(json.dumps(report, indent=2))
-    return 0 if g4 and results['dx', 'quake']['pass'] else 1
+    if g4 is None or quake is None:
+        return 2
+    return 0 if g4 and quake['pass'] else 1
 
 
 def main():

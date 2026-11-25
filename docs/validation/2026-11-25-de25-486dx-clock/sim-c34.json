@@ -1,0 +1,58 @@
+{
+  "revision": "3df878912962ede8557166d56c93ff8896869943",
+  "model": "486dx",
+  "c0": 34,
+  "clock_hz": "4700000000/51",
+  "verilator": {
+    "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+    "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+    "version": "Verilator 5.054 2026-11-01 rev v5.054",
+    "install": "88aecb8d8e6335737d014a1331f45d51ad8448b6eb5fa05285e1e99113198e50"
+  },
+  "class": "host RTL simulation",
+  "games": {
+    "artifact_sha256": {
+      "base": "49b96515e7370b981fb9270f225411f5586a260adb37e0ac72d2c602700d4490",
+      "dx": "7a1c461b800b635fdef418101bf95637dc128b8967a0513473e7dcf1736aa55a"
+    },
+    "stimulus_sha256": {
+      "pmode": "b4be6e29297168abb31ca536829cbd8a42e9fb05093d16793932ea51d72814b3",
+      "bench": "e69a4cb6462a79c47f55adef11d41c652481017dd541ae980cf27beed5e4823c"
+    },
+    "status": "pending"
+  },
+  "l3": {
+    "status": "pass",
+    "comparison": [
+      "base failures 0 dx failures 0",
+      "new in dx 0"
+    ],
+    "base": {
+      "corpus_tests": 18820,
+      "random_programs": 4000,
+      "x87_cases": 131,
+      "x87_built_forms": "BUILT 1620 mismatches 0"
+    },
+    "dx": {
+      "corpus_tests": 18820,
+      "random_programs": 4000,
+      "x87_cases": 131,
+      "x87_built_forms": "BUILT 1620 mismatches 0"
+    }
+  },
+  "l4": {
+    "status": "pending"
+  },
+  "x87": {
+    "status": "pending"
+  },
+  "files_sha256": {
+    "games/inputs.json": "baa6345e1ebca9699e05425ce426031f524825349289ccfed2a49b8c6c3e0740",
+    "games/harness.py": "637b002b2a2fbc46c1378c344bdf4e937fc0f8962cc91651d9f82c4ba7a54620",
+    "games/machine_tb.cpp": "681620d84a9ca60d64a29c84cf788e55149741a400076e18eb555593efff3d9e",
+    "games/audio_link.h": "64ba510f2bf6878e4d4900981438cdbb36ef0870f0de6aeda3d874882185e49f",
+    "lockstep/l3-base.json": "906abb306109c19f58ea59d0594a7b2778ecc51c6cc78bf11a54cabafc8b6bd9",
+    "lockstep/l3-dx.json": "0a493b9007ed0ced94ac6780e3821bfcb64c291ff8144450d281e300a2d6dd64"
+  }
+}
