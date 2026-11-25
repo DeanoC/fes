@@ -24,9 +24,11 @@ with Path(sys.argv[2]).open() as stream:
         if key in seen:
             issues.append(dict(reason='duplicate evidence row', row=row))
         seen.add(key)
+        valid_register = tuple(row[name] for name in ('exact_matches', 'owner_clocks', 'async_edges', 'sync_stage')) == (
+            '1', expected_clock, '0', '0')
+        if not valid_register:
+            issues.append(dict(reason='unproved synchronous machine-clock register ownership', row=row))
         if row['status'] == 'ok':
-            if (row['exact_matches'], row['owner_clocks'], row['sync_stage']) != ('1', expected_clock, '0'):
-                issues.append(dict(reason='unproved machine-clock register ownership', row=row))
             if check == 'ownership':
                 continue
             endpoint = 'from' if direction == 'from' else 'to'
@@ -37,8 +39,7 @@ with Path(sys.argv[2]).open() as stream:
             if check in ('setup', 'hold') and (row['from_clock'], row['to_clock']) != (expected_clock, expected_clock):
                 issues.append(dict(reason='setup or hold path crosses a clock domain', row=row))
             minima[check].append((slack, corner, node))
-        elif not (row['status'] == 'n/a' and check in ('recovery', 'removal') and row['async_edges'] == '0'
-                  and row['exact_matches'] == '1' and row['owner_clocks'] == expected_clock):
+        elif not (row['status'] == 'n/a' and check in ('recovery', 'removal')):
             issues.append(dict(reason='missing or unresolved evidence', row=row))
 
 data = {'pass': expected == seen and not issues, 'expected_checks': len(expected), 'observed_checks': len(seen),

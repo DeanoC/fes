@@ -10,10 +10,11 @@ The candidate is `3df878912962ede8557166d56c93ff8896869943` at 92.156863 MHz.
 Seed 1 ran with Quartus Pro 26.3.0 build 114 on Powerboat. Its fitted PLL
 reported M = 188, N = 3, C0 = 34 and C1 = 255.
 
-| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | Producer |
-| ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| 1 | 45,138.5 | +0.597 ns | 0.000 ns | +7.148 ns | +0.034 ns | Refused |
-| 2 | 45,176.2 | +0.574 ns | 0.000 ns | +7.265 ns | +0.029 ns | Refused |
+| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Producer |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 45,138.5 | +0.597 ns | 0.000 ns | +7.148 ns | +0.034 ns | 3.252 ns | Refused |
+| 2 | 45,176.2 | +0.574 ns | 0.000 ns | +7.265 ns | +0.029 ns | 2.996 ns | Refused |
+| 3 | 45,109.5 | +0.660 ns | 0.000 ns | +6.378 ns | +0.109 ns | Pending | Refused |
 
 The worst setup path is from `mult_36~mac~AY_REG` to `add_763~211` on the
 machine clock in the slow fix4 0°C model. The synthesis report traces
@@ -34,13 +35,22 @@ The remaining original seeds still run against the same candidate.
 Seed 2 also reports nonnegative timing summary rows. Its producer stopped
 on the first unrecognized `TMC-20602` row for `cpu_m1_alias~26`. The full
 report has 73 rows. The original basis covers 44, the seed-1 retiming
-basis covers 21, and eight fitter variants still need review. Its first
+basis covers 21, and eight fitter variants needed review. Its first
 LOADED report command failed the Quartus lease audit before starting
-TimeQuest. The leased evidence runner schedules the replacement report.
+TimeQuest. The replacement leased report passed at all four corners.
 The worst setup row runs from a retimed copy of the x87 operand distance
 into a fitted shifter register, with +0.574 ns at slow fix4a 0°C. The
 seed-2 timing summary SHA-256 is
 `a1c1628ae8d94bbc6f97f94f7b6a5d713c188a796861e9ce15a5d723f3d22416`.
+
+Seed 3 reports 165 timing summary rows with nonnegative slack. Its worst
+setup is +0.660 ns from `cpu_x87_core_fast_s4[177]` to a duplicate of
+`cpu_x87_wrd` at slow fix4 0°C. The producer refused `TMC-20602` at
+`_36681_[49]`. The original basis covers 34 of 60 rows. The seed-1
+extension covers 20 and the seed-2 variants cover two. The remaining four
+map to an M1 translation qualifier and bits 5–7 of the latched AT port.
+Its dedicated routed proof remains pending. The seed-3 timing summary
+SHA-256 is `794f61bb6bb04fc09f119f8c3f827ab7d0db25e3bd628db54c5e491d4f996b2e`.
 
 ### Retimed endpoint review
 
@@ -68,6 +78,20 @@ digests from seed 1.
 | `loaded.tsv` | `1a06ac7568f1009d52b1a9dd58826c8c459ecfee01297e369f8fc5bfcec4e3e5` |
 | `tension-paths.tsv` | `051782fd61d9cf041f1e0e3fe2311979bf923f916dc052bf9779ac1575a759cc` |
 | `tension-summary-same-clock.json` | `4accea27c7e94f21046719c716de1be07706f8feddfc790b686d28b2a3044070` |
+
+Seed 2's LOADED maximum is 2.996 ns against 3.851 ns available. The
+29 non-original advisory endpoints each resolve to a unique machine
+register. All 812 trace checks passed, with worst incoming or outgoing
+setup of +1.353 ns and hold of 0.000 ns. The eight new forms cover the
+M1 transaction request, the M1 valid bit, an L1D stall qualifier and the
+AT floppy-drive port decoder. The generated machine netlist SHA-256
+matches seed 1 exactly.
+
+| Seed 2 file | SHA-256 |
+| --- | --- |
+| `loaded.tsv` | `26307ec4767003e1f67ab415ad0d09845d94a0469b6e73cb0fb3183a2406cfb5` |
+| `tension-paths.tsv` | `7cf75abe876a7d5b4c7ea873df19f013ee64660593d6ab38518344790a7a0af6` |
+| `tension-summary-synchronous.json` | `6283c8a77ee207fba27a0a0c6df669c969f50c79fcdcadd5421f45a18521b3e6` |
 
 The pc386 basis now covers these traced retiming forms for `TMC-20602`.
 The seed-1 report matches 42 rows under the original basis and 36 under
