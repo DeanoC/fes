@@ -63,3 +63,13 @@ The matching inputs include 160 tracked files, the regenerated DX and
 timed bench sources, all guest-rate ratios and the retained game disks
 and command arguments. The successful G2 and G4 results apply to that
 signoff-only candidate.
+
+The [repaired C34 comparison](sim-c34-e255d4e3-match.json) checks
+`e255d4e3a09fd29ad2cfeed465bf49a15e1c17ce`. It records the changed
+`pc386/build.py` bytes. Removing only the reviewed Quartus compile
+adapter and normalizing its board assignment and command-line entry
+point gives the original module syntax tree. The replay setup calls
+`model_clock` and `guest_rates` and does not call `compile_board`.
+The regenerated inputs, clock and workload stimulus match the retained
+run, including the game disks and parameters. G2 and G4 remain applicable
+to this revision through the exercised inputs.
