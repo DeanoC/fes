@@ -86,15 +86,6 @@ type MenuPresentTrace struct {
 	Blitted bool
 }
 
-// MenuListCompareTrace records an actual blitter command-list comparison on
-// the render goroutine. Duration excludes drawing and queue submission.
-type MenuListCompareTrace struct {
-	Started  time.Time
-	Duration time.Duration
-	Commands int
-	Equal    bool
-}
-
 // QueuedSeq is the sequence of the last frame queued for presentation, so a
 // caller can tell whether a render produced a new frame.
 func (d *MenuDisplay) QueuedSeq() uint64 {
@@ -138,17 +129,6 @@ func (d *MenuDisplay) SetTraceSink(sink func(MenuPresentTrace)) {
 	}
 	d.mu.Lock()
 	d.traceSink = sink
-	d.mu.Unlock()
-}
-
-// SetListCompareTraceSink receives actual list comparisons after the display
-// lock is released. The render goroutine calls it, so it must not block.
-func (d *MenuDisplay) SetListCompareTraceSink(sink func(MenuListCompareTrace)) {
-	if d == nil {
-		return
-	}
-	d.mu.Lock()
-	d.listCompareTraceSink = sink
 	d.mu.Unlock()
 }
 
@@ -203,7 +183,6 @@ const (
 type MenuDisplay struct {
 	*Software
 	traceSink                   func(MenuPresentTrace)
-	listCompareTraceSink        func(MenuListCompareTrace)
 	client                      MenuPresenter
 	frames                      chan queuedMenuFrame
 	ctx                         context.Context
@@ -424,15 +403,7 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 	}
 	list, isList := d.finishFrame()
 	d.mu.Lock()
-	var comparison MenuListCompareTrace
-	compared := false
-	defer func() {
-		sink := d.listCompareTraceSink
-		d.mu.Unlock()
-		if sink != nil && compared {
-			sink(comparison)
-		}
-	}()
+	defer d.mu.Unlock()
 	if d.closed || d.paused {
 		return
 	}
@@ -455,14 +426,7 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 				unchanged = revision == previous.revision
 			} else if isList || previous.isList {
 				if isList && previous.isList {
-					if d.listCompareTraceSink != nil {
-						started := time.Now()
-						unchanged = slices.Equal(list, previous.list)
-						comparison = MenuListCompareTrace{Started: started, Duration: time.Since(started), Commands: len(list), Equal: unchanged}
-						compared = true
-					} else {
-						unchanged = slices.Equal(list, previous.list)
-					}
+					unchanged = slices.Equal(list, previous.list)
 				}
 			} else {
 				unchanged = bytes.Equal(pix, previous.pixels)

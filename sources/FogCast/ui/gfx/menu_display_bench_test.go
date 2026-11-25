@@ -37,50 +37,6 @@ func BenchmarkMenuDisplayChangeDetect(b *testing.B) {
 	}
 }
 
-// Compare the same settled blitter list with and without the diagnostic hook.
-// This is a host benchmark; kit cost must be measured on the deployed artifact.
-func BenchmarkMenuDisplayListComparisonTrace(b *testing.B) {
-	for _, enabled := range []bool{false, true} {
-		name := "disabled"
-		if enabled {
-			name = "enabled"
-		}
-		b.Run(name, func(b *testing.B) {
-			client := newBlitTestClient(true)
-			d, err := NewMenuDisplayWithPresenter(client)
-			if err != nil {
-				b.Fatal(err)
-			}
-			b.Cleanup(d.Close)
-			d.SetChangeDriven(true)
-			frozen := time.Unix(1_700_000_000, 0)
-			d.now = func() time.Time { return frozen }
-			paint := func() {
-				d.Clear(RGB(12, 34, 56))
-				d.FillRect(Rect{X: 10, Y: 10, W: 10, H: 10}, RGB(255, 0, 0))
-				d.Present()
-			}
-			for i := 0; i < 2; i++ {
-				paint()
-				deadline := time.Now().Add(time.Second)
-				for d.FramePending() {
-					if time.Now().After(deadline) {
-						b.Fatal("seed frame did not finish")
-					}
-				}
-			}
-			if enabled {
-				d.SetListCompareTraceSink(func(MenuListCompareTrace) {})
-			}
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				paint()
-			}
-		})
-	}
-}
-
 func BenchmarkMenuDisplayChangeDetectChanged(b *testing.B) {
 	block := make(chan struct{})
 	client := &testMenuClient{generation: 1, ready: make(chan struct{}, 1), presentBlock: block}

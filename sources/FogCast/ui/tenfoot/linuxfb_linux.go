@@ -140,7 +140,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 	var hold presentHold
 	defer app.abortStartupFrame()
 	startupDeadline := time.Now().Add(5 * time.Second)
-	trace, stopTrace := startFrameTrace(ctx, app, dev, label)
+	trace, stopTrace := startFrameTrace(ctx, app, dev, painter, label)
 	defer stopTrace()
 	for {
 		select {
@@ -234,16 +234,16 @@ type kitFrameTrace struct {
 // detaches the sink, drops the signal handler, and waits for an in-progress
 // dump to finish. The caller must call it when the display loop returns,
 // including when the loop ends without canceling ctx.
-func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string) (*kitFrameTrace, func()) {
+func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, painter *gfx.FrameCache, label string) (*kitFrameTrace, func()) {
 	trace := newFrameTrace()
 	app.mu.Lock()
 	app.frameTrace = trace
 	kitHost := app.kitHost
 	app.mu.Unlock()
+	painter.SetListCompareTraceSink(trace.listCompare)
 	processStart, _ := keyTraceProcessStart()
 	if display, ok := dev.(*gfx.MenuDisplay); ok {
 		display.SetTraceSink(trace.present)
-		display.SetListCompareTraceSink(trace.listCompare)
 	}
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGUSR1)
@@ -291,8 +291,8 @@ func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string
 			<-stopped
 			if display, ok := dev.(*gfx.MenuDisplay); ok {
 				display.SetTraceSink(nil)
-				display.SetListCompareTraceSink(nil)
 			}
+			painter.SetListCompareTraceSink(nil)
 			app.mu.Lock()
 			app.diagnosticSurroundUntil = time.Time{}
 			app.diagnosticSurroundSession = hostclient.SessionResult{}

@@ -19,7 +19,7 @@ Each JSON line has `kind`:
   - `view`: `attract`, `now-playing`, `room:<id>`, or `library`, matching the frame that was drawn
   - `queued`/`seq`, when it produced a new menu frame
 - **`input`:** a command (`cmd`) as `HandleCommand` received it.
-- **`list-compare`:** an actual comparison of two menu-blitter command lists on the render thread. `t_us` is its start, `compare_ns` is the comparison duration in nanoseconds, `compare_commands` is the current list length, and `compare_result` is `equal` or `changed`. A zero duration or empty list can omit its numeric field. The record excludes drawing and queue work, CPU framebuffer comparisons, revision checks and calls that return before a comparison. It is written even when an equal list is not submitted.
+- **`list-compare`:** an actual comparison of two complete-scene draw-command lists by `FrameCache` on the render thread. `t_us` is its start, `compare_ns` is the comparison duration in nanoseconds, `compare_commands` is the current list length, and `compare_result` is `equal` or `changed`. A zero duration or empty list can omit its numeric field. The record excludes drawing and queue work, CPU framebuffer comparisons, menu-device revision checks and frames that skip the comparison because the cache is invalid, dirty, incremental or already direct. It is written even when an equal list is not submitted.
 - **`present`:** one frame the menu-display worker handled:
   - the render-thread hand-over of the frame (`frame_copy_us`): a framebuffer swap, so near zero; older traces copied the whole frame here. A frame that does not start with Clear copies the previous frame back while it draws, inside render time
   - queue wait

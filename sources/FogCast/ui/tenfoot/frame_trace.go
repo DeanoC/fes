@@ -183,7 +183,7 @@ func (f *frameTrace) input(cmd Command, now time.Time) {
 	f.add(frameTraceRecord{T: now.UnixMicro(), Kind: "input", Cmd: cmd.String()})
 }
 
-func (f *frameTrace) listCompare(p gfx.MenuListCompareTrace) {
+func (f *frameTrace) listCompare(p gfx.FrameListCompareTrace) {
 	result := "changed"
 	if p.Equal {
 		result = "equal"
