@@ -169,7 +169,7 @@ type Device struct {
 	rxReady                        chan struct{}
 	irqActive                      atomic.Bool
 	irqCount                       atomic.Uint64
-	hashBits                       int
+	hashBits                       atomic.Int32
 	multicastWords                 int
 	multicastHash                  [8]uint32
 	multicastFilter                uint32
@@ -433,7 +433,7 @@ func (d *Device) initialize(mac net.HardwareAddr) error {
 	d.io.Write32(0x0a0, 2)     // queue 0 DCB; other RX queues disabled
 	d.io.Write32(0x0a4, 1<<15) // multicast/broadcast queue 0
 	d.io.Write32(0x0a8, 0)
-	d.hashBits = decodeHashTableBits(fifo)
+	d.hashBits.Store(int32(decodeHashTableBits(fifo)))
 	if d.multicastWords > 0 {
 		if err := d.programMulticastLocked(d.multicastWords, d.multicastHash, d.multicastFilter); err != nil {
 			return err

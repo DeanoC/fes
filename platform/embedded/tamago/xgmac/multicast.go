@@ -68,7 +68,7 @@ func (d *Device) MulticastHashBits() int {
 	if d == nil {
 		return 0
 	}
-	return d.hashBits
+	return int(d.hashBits.Load())
 }
 
 // SetMulticastMACs programs the Synopsys XGMAC 2.10 hash table registers and
@@ -94,17 +94,18 @@ func (d *Device) SetMulticastMACs(addrs []net.HardwareAddr) error {
 	if d.paused {
 		return network.ErrPaused
 	}
-	if len(addrs) > 0 && d.hashBits == 0 {
+	hashBits := int(d.hashBits.Load())
+	if len(addrs) > 0 && hashBits == 0 {
 		return ErrMulticastUnsupported
 	}
 
-	words := d.hashBits / 32
+	words := hashBits / 32
 	var hash [8]uint32
 	var filter uint32
 	if len(addrs) > 0 {
 		filter = filterHMC
 		for _, a := range addrs {
-			idx, err := MulticastHashIndex(a, d.hashBits)
+			idx, err := MulticastHashIndex(a, hashBits)
 			if err != nil {
 				return err
 			}

@@ -4,11 +4,11 @@ package xgmac
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"hash/crc32"
 	"math/bits"
 	"net"
+	"sync"
 	"testing"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
@@ -52,9 +52,8 @@ func TestMulticastHashIndexAndValidation(t *testing.T) {
 
 type filterMMCModel struct {
 	*hardware
-	mismatchHash    bool
-	resetMMCOnRead  bool
-	readClearFields []uint32
+	mismatchHash   bool
+	resetMMCOnRead bool
 }
 
 func (m *filterMMCModel) Read32(reg uint32) uint32 {
@@ -177,9 +176,30 @@ func TestSetMulticastMACsLifecycleAndFailClosed(t *testing.T) {
 	if err := d.SetMulticastMACs(groups); !errors.Is(err, network.ErrPaused) {
 		t.Fatalf("paused SetMulticastMACs err=%v, want ErrPaused", err)
 	}
+	// Concurrent MulticastHashBits queries during Start must be race-free.
+	stopReaders := make(chan struct{})
+	var readerWG sync.WaitGroup
+	readerWG.Add(1)
+	go func() {
+		defer readerWG.Done()
+		for {
+			select {
+			case <-stopReaders:
+				return
+			default:
+				if got := d.MulticastHashBits(); got != 128 {
+					t.Errorf("concurrent MulticastHashBits=%d want 128", got)
+				}
+			}
+		}
+	}()
 	if err := ctrl.Start(context.Background()); err != nil {
+		close(stopReaders)
+		readerWG.Wait()
 		t.Fatal(err)
 	}
+	close(stopReaders)
+	readerWG.Wait()
 	if h.regs[packetFilter] != filterHMC {
 		t.Fatalf("Start did not restore filterHMC: %#x", h.regs[packetFilter])
 	}
@@ -205,8 +225,6 @@ func TestSetMulticastMACsLifecycleAndFailClosed(t *testing.T) {
 	if d.Err() == nil {
 		t.Fatal("hash readback mismatch did not retire device")
 	}
-	// Ensure frame encoding reference test uses binary safely.
-	_ = binary.LittleEndian
 }
 
 func TestHardwareMMCCountersSnapshotAndResetOnReadAccumulation(t *testing.T) {
