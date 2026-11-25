@@ -17,6 +17,11 @@ tables. `RemoveDir` rejects non-empty directories with `ErrNotEmpty`.
 the volume without copying data clusters, commits the new directory entry (and
 updates moved directory `..` links) before unlinking the old entry with `0xE5`,
 and invalidates open handles with `ErrReplaced`.
+`MkdirAll(ctx, name)` validates the full path, verifies free clusters up front,
+and creates missing intermediate directories using the same fail-closed `Mkdir`
+rules. `StatFS(ctx)` scans the active FAT, FSInfo sector, and root label to
+report total/free/used/bad clusters, dirty-bit state, and FSInfo hints without
+mutating media.
 
 `CreateFile(ctx, name, data)` and `Mkdir(ctx, name)` explicitly allocate new
 entries under an existing parent. They reject existing names and short aliases,
