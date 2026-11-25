@@ -34,6 +34,20 @@ if [[ ! -s "$logs/loaded.tsv" || ! -s "$logs/report.exit" ]] || [[ $(<"$logs/rep
         golden_top "$logs/loaded.tsv" > "$logs/loaded.log" 2>&1
     printf '0\n' > "$logs/report.exit"
 fi
+if [[ -s "$logs/tension-unmatched.txt" ]]; then
+    record=$(dirname "$script")
+    tension_exit=0
+    sha256sum output_files/golden_top.{fit.rpt,sta.rpt,sta.summary,tq.drc.signoff.rpt} \
+        fes_mailbox/pc386_system.v "$logs/tension-unmatched.txt" > "$logs/tension-inputs.sha256"
+    timeout --kill-after=10s 8m "$quartus_sta" -t "$record/trace_tension.tcl" golden_top \
+        "$logs/tension-unmatched.txt" "$logs/tension-paths.tsv" > "$logs/tension-run.log" 2>&1 || tension_exit=$?
+    sha256sum --check --quiet "$logs/tension-inputs.sha256"
+    if (( tension_exit == 0 )); then
+        python3 "$record/check_tension.py" "$logs/tension-unmatched.txt" "$logs/tension-paths.tsv" \
+            > "$logs/tension-summary.json" || tension_exit=$?
+    fi
+    printf '%s\n' "$tension_exit" > "$logs/tension-proof.exit"
+fi
 if [[ $(<"$logs/producer.exit") != 0 ]] || \
     awk '/^[[:space:]]*Slack[[:space:]]*: -[0-9]/ {failed=1} END {exit !failed}' output_files/golden_top.sta.summary; then
     "$quartus_sta" -t "$history/2026-11-24-de25-486sx-fmax/paths.tcl" \

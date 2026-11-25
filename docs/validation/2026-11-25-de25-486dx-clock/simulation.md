@@ -49,3 +49,9 @@ worktrees, bench binaries and listed artifacts with:
 ```bash
 python3 sim_evidence.py /data/projects/de25-486dx-clock-2263/simulation/c34 --verify sim-c34.json
 ```
+
+For a signoff-only candidate, run `python3 sim_compare.py "$run_root"
+"$candidate_checkout"`. It checks the recorded lockstep and compiler
+inputs, regenerates the DX and game bench sources, and compares the
+exact clock and guest rates. A matching result binds the retained
+simulation evidence to the candidate's exercised inputs.
