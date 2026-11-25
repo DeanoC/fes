@@ -15,16 +15,24 @@ import (
 const (
 	defaultSNTPPollInterval  = 15 * time.Minute
 	defaultSNTPRetryInterval = 30 * time.Second
+	defaultSNTPMaxStep       = 5 * time.Minute
+	defaultSNTPCallbackQueue = 8
 )
 
 var (
+	defaultSNTPMinValidTime = time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	defaultSNTPMaxValidTime = time.Date(2100, time.January, 1, 0, 0, 0, 0, time.UTC)
+
 	// ErrSNTPSyncerStarted is returned when SNTPSyncer.Start is called more than once.
 	ErrSNTPSyncerStarted = errors.New("network: SNTP syncer already started")
 	// ErrSNTPSyncerStopped is returned when SNTPSyncer.Start is called after Stop.
 	ErrSNTPSyncerStopped = errors.New("network: SNTP syncer stopped")
-	// ErrSNTPStepTooLarge is returned when an SNTP sample deviates from the
-	// already-synchronized local UTC expectation by more than MaxStep.
+	// ErrSNTPStepTooLarge is returned when a post-initial SNTP sample deviates
+	// from the synchronized local UTC expectation by more than MaxStep.
 	ErrSNTPStepTooLarge = errors.New("network: SNTP sample step exceeds MaxStep")
+	// ErrSNTPImplausibleTime is returned when an SNTP sample falls outside the
+	// configured [MinValidTime, MaxValidTime] plausibility window.
+	ErrSNTPImplausibleTime = errors.New("network: SNTP sample outside plausible UTC range")
 )
 
 // WallClockSink receives validated UTC epochs from SNTPSyncer (satisfied by *rtc.Clock).
@@ -42,26 +50,32 @@ type SNTPSyncConfig struct {
 	PollInterval     time.Duration    // Interval between successful syncs (default 15m)
 	RetryInterval    time.Duration    // Initial backoff after failed sync (default 30s)
 	MaxRetryInterval time.Duration    // Maximum exponential retry backoff (default max(PollInterval, RetryInterval))
-	MaxStep          time.Duration    // Optional maximum clock step allowed after initial sync (0 disables)
+	MaxStep          time.Duration    // Max clock step allowed after initial sync (0 defaults to 5m unless DisableMaxStep)
+	DisableMaxStep   bool             // Disables post-initial-sync MaxStep gating
+	MinValidTime     time.Time        // Earliest accepted UTC sample (zero defaults to 2025-01-01 UTC)
+	MaxValidTime     time.Time        // Latest accepted UTC sample (zero defaults to 2100-01-01 UTC)
 	Query            SNTPQueryFunc    // Optional query override; nil uses QuerySNTP over port
 	Now              func() time.Time // Optional monotonic reference for MaxStep drift checks
-	OnSync           func(SNTPResult) // Optional callback invoked outside mutex after Sink.Sync
-	OnError          func(error)      // Optional callback invoked outside mutex on non-paused failure
+	OnSync           func(SNTPResult) // Optional callback dispatched sequentially after Sink.Sync
+	OnError          func(error)      // Optional callback dispatched sequentially on non-paused failure
 }
 
 // SNTPSyncStatus summarizes SNTPSyncer synchronization state and counters.
 type SNTPSyncStatus struct {
-	Synced     bool
-	LastSync   time.Time
-	LastResult SNTPResult
-	SyncCount  uint64
-	ErrorCount uint64
-	LastErr    error
+	Synced           bool
+	LastSync         time.Time
+	LastResult       SNTPResult
+	SyncCount        uint64
+	ErrorCount       uint64
+	DroppedCallbacks uint64
+	LastErr          error
 }
 
 // SNTPSyncer periodically queries RFC 4330 SNTPv4 servers and disciplines a
 // monotonic-anchored wall clock via WallClockSink.Sync without modifying
-// runtime monotonic time.
+// runtime monotonic time. Concurrent SyncOnce calls are serialized so delayed
+// older responses cannot overwrite newer epochs, and callbacks run on a single
+// bounded worker goroutine.
 type SNTPSyncer struct {
 	port             RawFramePort
 	cfg              SNTPSyncConfig
@@ -70,19 +84,28 @@ type SNTPSyncer struct {
 	pollInterval     time.Duration
 	retryInterval    time.Duration
 	maxRetryInterval time.Duration
+	maxStep          time.Duration
+	minValidTime     time.Time
+	maxValidTime     time.Time
 
-	mu           sync.Mutex
-	started      bool
-	stopped      bool
-	stopCh       chan struct{}
-	wg           sync.WaitGroup
-	synced       bool
-	lastSync     time.Time
-	lastSyncMono time.Time
-	lastResult   SNTPResult
-	syncCount    uint64
-	errorCount   uint64
-	lastErr      error
+	syncSem chan struct{}
+	cbOnce  sync.Once
+	cbCh    chan func()
+	cbDone  chan struct{}
+
+	mu               sync.Mutex
+	started          bool
+	stopped          bool
+	stopCh           chan struct{}
+	wg               sync.WaitGroup
+	synced           bool
+	lastSync         time.Time
+	lastSyncMono     time.Time
+	lastResult       SNTPResult
+	syncCount        uint64
+	errorCount       uint64
+	droppedCallbacks uint64
+	lastErr          error
 }
 
 // NewSNTPSyncer validates cfg and creates an idle SNTPSyncer over port (or cfg.Query).
@@ -92,6 +115,17 @@ func NewSNTPSyncer(port RawFramePort, cfg SNTPSyncConfig) (*SNTPSyncer, error) {
 	}
 	if cfg.PollInterval < 0 || cfg.RetryInterval < 0 || cfg.MaxRetryInterval < 0 || cfg.MaxStep < 0 {
 		return nil, fmt.Errorf("%w: negative duration in sync config", ErrSNTPInvalidConfig)
+	}
+	minValid := cfg.MinValidTime.UTC()
+	if minValid.IsZero() {
+		minValid = defaultSNTPMinValidTime
+	}
+	maxValid := cfg.MaxValidTime.UTC()
+	if maxValid.IsZero() {
+		maxValid = defaultSNTPMaxValidTime
+	}
+	if !minValid.Before(maxValid) {
+		return nil, fmt.Errorf("%w: invalid plausibility time window", ErrSNTPInvalidConfig)
 	}
 	if cfg.Query == nil {
 		if _, err := parseUnicastMAC(cfg.SNTP.LocalMAC); err != nil {
@@ -131,6 +165,13 @@ func NewSNTPSyncer(port RawFramePort, cfg SNTPSyncConfig) (*SNTPSyncer, error) {
 	if maxRetry < retry {
 		maxRetry = retry
 	}
+	maxStep := cfg.MaxStep
+	if !cfg.DisableMaxStep && maxStep == 0 {
+		maxStep = defaultSNTPMaxStep
+	}
+	if cfg.DisableMaxStep {
+		maxStep = 0
+	}
 	queryFn := cfg.Query
 	if queryFn == nil {
 		queryFn = func(ctx context.Context, qcfg SNTPConfig) (SNTPResult, error) {
@@ -141,6 +182,8 @@ func NewSNTPSyncer(port RawFramePort, cfg SNTPSyncConfig) (*SNTPSyncer, error) {
 	if nowFn == nil {
 		nowFn = time.Now
 	}
+	sem := make(chan struct{}, 1)
+	sem <- struct{}{}
 	return &SNTPSyncer{
 		port:             port,
 		cfg:              cfg,
@@ -149,13 +192,54 @@ func NewSNTPSyncer(port RawFramePort, cfg SNTPSyncConfig) (*SNTPSyncer, error) {
 		pollInterval:     poll,
 		retryInterval:    retry,
 		maxRetryInterval: maxRetry,
+		maxStep:          maxStep,
+		minValidTime:     minValid,
+		maxValidTime:     maxValid,
+		syncSem:          sem,
+		cbCh:             make(chan func(), defaultSNTPCallbackQueue),
+		cbDone:           make(chan struct{}),
 		stopCh:           make(chan struct{}),
 	}, nil
 }
 
-// SyncOnce performs a single SNTPv4 query, enforces MaxStep if already synced,
-// updates Sink (if non-nil), and records Status metrics. Calls participate in
-// Stop's lifecycle barrier; invoking Stop from OnSync or OnError never deadlocks.
+func (s *SNTPSyncer) isStopped() bool {
+	s.mu.Lock()
+	stopped := s.stopped
+	s.mu.Unlock()
+	return stopped
+}
+
+func (s *SNTPSyncer) enqueueCallbackLocked(fn func()) {
+	if s.stopped || fn == nil {
+		return
+	}
+	s.cbOnce.Do(func() { go s.runCallbacks() })
+	select {
+	case s.cbCh <- fn:
+	default:
+		s.droppedCallbacks++
+	}
+}
+
+func (s *SNTPSyncer) runCallbacks() {
+	defer close(s.cbDone)
+	for {
+		select {
+		case <-s.stopCh:
+			return
+		case fn := <-s.cbCh:
+			if s.isStopped() {
+				return
+			}
+			fn()
+		}
+	}
+}
+
+// SyncOnce performs a single serialized SNTPv4 query, validates sample
+// plausibility (and post-initial-sync MaxStep), updates Sink (if non-nil), and
+// records Status metrics. Calls participate in Stop's lifecycle barrier;
+// invoking Stop from OnSync or OnError never deadlocks.
 func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -184,21 +268,37 @@ func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 		}
 	}()
 
+	select {
+	case <-s.syncSem:
+		defer func() { s.syncSem <- struct{}{} }()
+	case <-opCtx.Done():
+		if s.isStopped() {
+			return SNTPResult{}, ErrSNTPSyncerStopped
+		}
+		return SNTPResult{}, opCtx.Err()
+	}
+
+	if s.isStopped() {
+		return SNTPResult{}, ErrSNTPSyncerStopped
+	}
+
 	res, err := s.queryFn(opCtx, s.cfg.SNTP)
 	if err != nil {
+		s.mu.Lock()
+		if s.stopped {
+			s.mu.Unlock()
+			return SNTPResult{}, ErrSNTPSyncerStopped
+		}
 		if !errors.Is(err, ErrPaused) {
-			s.mu.Lock()
 			s.errorCount++
 			s.lastErr = err
-			s.mu.Unlock()
 			if s.cfg.OnError != nil {
-				go s.cfg.OnError(err)
+				s.enqueueCallbackLocked(func() { s.cfg.OnError(err) })
 			}
 		} else {
-			s.mu.Lock()
 			s.lastErr = err
-			s.mu.Unlock()
 		}
+		s.mu.Unlock()
 		return SNTPResult{}, err
 	}
 
@@ -208,41 +308,53 @@ func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 		s.mu.Unlock()
 		return SNTPResult{}, ErrSNTPSyncerStopped
 	}
-	if s.synced && s.cfg.MaxStep > 0 {
+	sampleUTC := res.Time.UTC()
+	if res.Time.IsZero() || sampleUTC.Before(s.minValidTime) || sampleUTC.After(s.maxValidTime) {
+		plausErr := fmt.Errorf("%w: %v outside [%s, %s]", ErrSNTPImplausibleTime, res.Time, s.minValidTime.Format(time.RFC3339), s.maxValidTime.Format(time.RFC3339))
+		s.errorCount++
+		s.lastErr = plausErr
+		if s.cfg.OnError != nil {
+			s.enqueueCallbackLocked(func() { s.cfg.OnError(plausErr) })
+		}
+		s.mu.Unlock()
+		return SNTPResult{}, plausErr
+	}
+	if s.synced && s.maxStep > 0 {
 		elapsed := nowMono.Sub(s.lastSyncMono)
 		if elapsed < 0 {
 			elapsed = 0
 		}
 		expected := s.lastSync.Add(elapsed)
-		step := res.Time.Sub(expected)
+		step := sampleUTC.Sub(expected)
 		if step < 0 {
 			step = -step
 		}
-		if step > s.cfg.MaxStep {
-			stepErr := fmt.Errorf("%w: offset=%v max=%v", ErrSNTPStepTooLarge, step, s.cfg.MaxStep)
+		if step > s.maxStep {
+			stepErr := fmt.Errorf("%w: offset=%v max=%v", ErrSNTPStepTooLarge, step, s.maxStep)
 			s.errorCount++
 			s.lastErr = stepErr
-			s.mu.Unlock()
 			if s.cfg.OnError != nil {
-				go s.cfg.OnError(stepErr)
+				s.enqueueCallbackLocked(func() { s.cfg.OnError(stepErr) })
 			}
+			s.mu.Unlock()
 			return SNTPResult{}, stepErr
 		}
 	}
+	res.Time = sampleUTC
 	s.synced = true
-	s.lastSync = res.Time
+	s.lastSync = sampleUTC
 	s.lastSyncMono = nowMono
 	s.lastResult = res
 	s.syncCount++
 	s.lastErr = nil
 	if s.cfg.Sink != nil {
-		s.cfg.Sink.Sync(res.Time)
+		s.cfg.Sink.Sync(sampleUTC)
+	}
+	if s.cfg.OnSync != nil {
+		s.enqueueCallbackLocked(func() { s.cfg.OnSync(res) })
 	}
 	s.mu.Unlock()
 
-	if s.cfg.OnSync != nil {
-		go s.cfg.OnSync(res)
-	}
 	return res, nil
 }
 
@@ -333,11 +445,12 @@ func (s *SNTPSyncer) Status() SNTPSyncStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return SNTPSyncStatus{
-		Synced:     s.synced,
-		LastSync:   s.lastSync,
-		LastResult: s.lastResult,
-		SyncCount:  s.syncCount,
-		ErrorCount: s.errorCount,
-		LastErr:    s.lastErr,
+		Synced:           s.synced,
+		LastSync:         s.lastSync,
+		LastResult:       s.lastResult,
+		SyncCount:        s.syncCount,
+		ErrorCount:       s.errorCount,
+		DroppedCallbacks: s.droppedCallbacks,
+		LastErr:          s.lastErr,
 	}
 }

@@ -226,3 +226,188 @@ func TestSNTPSyncerCallbackStopDoesNotDeadlockAndSyncOnceBarrier(t *testing.T) {
 		t.Fatalf("SyncOnce after Stop err=%v, want ErrSNTPSyncerStopped", err)
 	}
 }
+
+func TestSNTPSyncerPlausibilityDefaultMaxStepSerializationAndBoundedCallbacks(t *testing.T) {
+	// 1. Initial sample plausibility validation (with default 5m MaxStep still admitting valid 2026 epoch).
+	var mu sync.Mutex
+	badSamples := []time.Time{
+		{},
+		time.Date(1970, time.January, 1, 0, 0, 1, 0, time.UTC),
+		time.Date(2200, time.January, 1, 0, 0, 0, 0, time.UTC),
+	}
+	idx := 0
+	monoNow := time.Unix(100, 0)
+	clk := rtc.NewUnsyncedClock(nil)
+	syncer, err := NewSNTPSyncer(nil, SNTPSyncConfig{
+		Sink: clk,
+		Now: func() time.Time {
+			mu.Lock()
+			defer mu.Unlock()
+			return monoNow
+		},
+		Query: func(context.Context, SNTPConfig) (SNTPResult, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			tSample := badSamples[idx]
+			return SNTPResult{Time: tSample, Stratum: 1}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range badSamples {
+		mu.Lock()
+		idx = i
+		mu.Unlock()
+		if _, err := syncer.SyncOnce(context.Background()); !errors.Is(err, ErrSNTPImplausibleTime) {
+			t.Fatalf("implausible sample %d err=%v, want ErrSNTPImplausibleTime", i, err)
+		}
+		if clk.Synced() || syncer.Status().Synced {
+			t.Fatalf("implausible sample %d marked clock synced", i)
+		}
+	}
+
+	// Valid 2026 initial sample succeeds even when default 5m MaxStep is active on an unsynced clock.
+	validEpoch := time.Date(2026, time.November, 25, 11, 0, 0, 0, time.UTC)
+	mu.Lock()
+	badSamples[0] = validEpoch
+	idx = 0
+	mu.Unlock()
+	if _, err := syncer.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("valid initial sample failed: %v", err)
+	}
+	if !clk.Synced() {
+		t.Fatal("valid initial sample did not sync clock")
+	}
+
+	// Default MaxStep (5m) rejects a subsequent 10m jump; DisableMaxStep permits it.
+	mu.Lock()
+	monoNow = monoNow.Add(10 * time.Second)
+	badSamples[0] = validEpoch.Add(10 * time.Minute)
+	mu.Unlock()
+	if _, err := syncer.SyncOnce(context.Background()); !errors.Is(err, ErrSNTPStepTooLarge) {
+		t.Fatalf("10m jump with default 5m MaxStep err=%v, want ErrSNTPStepTooLarge", err)
+	}
+
+	noLimitSyncer, err := NewSNTPSyncer(nil, SNTPSyncConfig{
+		DisableMaxStep: true,
+		Query: func(context.Context, SNTPConfig) (SNTPResult, error) {
+			return SNTPResult{Time: validEpoch.Add(time.Hour), Stratum: 1}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := noLimitSyncer.SyncOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := noLimitSyncer.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("DisableMaxStep should allow large step: %v", err)
+	}
+
+	// Invalid plausibility window must reject in constructor.
+	if _, err := NewSNTPSyncer(nil, SNTPSyncConfig{
+		MinValidTime: time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC),
+		MaxValidTime: time.Date(2029, 1, 1, 0, 0, 0, 0, time.UTC),
+		Query:        func(context.Context, SNTPConfig) (SNTPResult, error) { return SNTPResult{}, nil },
+	}); !errors.Is(err, ErrSNTPInvalidConfig) {
+		t.Fatalf("inverted MinValidTime/MaxValidTime err=%v, want ErrSNTPInvalidConfig", err)
+	}
+
+	// 2. Concurrent SyncOnce serialization prevents delayed older response from overwriting newer sample.
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	var callSeq atomic.Int32
+	serialClk := rtc.NewUnsyncedClock(nil)
+	sSerial, err := NewSNTPSyncer(nil, SNTPSyncConfig{
+		Sink:           serialClk,
+		DisableMaxStep: true,
+		Query: func(ctx context.Context, _ SNTPConfig) (SNTPResult, error) {
+			n := callSeq.Add(1)
+			if n == 1 {
+				close(firstStarted)
+				<-releaseFirst
+				return SNTPResult{Time: validEpoch, Stratum: 1}, nil
+			}
+			return SNTPResult{Time: validEpoch.Add(30 * time.Second), Stratum: 1}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := sSerial.SyncOnce(context.Background())
+		firstDone <- err
+	}()
+	<-firstStarted
+
+	// Canceled caller waiting on syncSem exits immediately without waiting for call 1.
+	cancelCtx, cancelWait := context.WithCancel(context.Background())
+	cancelWait()
+	if _, err := sSerial.SyncOnce(cancelCtx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled queued SyncOnce err=%v, want context.Canceled", err)
+	}
+
+	secondDone := make(chan error, 1)
+	go func() {
+		_, err := sSerial.SyncOnce(context.Background())
+		secondDone <- err
+	}()
+	// Confirm second caller stays serialized behind call 1.
+	time.Sleep(20 * time.Millisecond)
+	if st := sSerial.Status(); st.SyncCount != 0 {
+		t.Fatalf("second SyncOnce bypassed serialization lock: %+v", st)
+	}
+	close(releaseFirst)
+	if err := <-firstDone; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-secondDone; err != nil {
+		t.Fatal(err)
+	}
+	if st := sSerial.Status(); !st.LastSync.Equal(validEpoch.Add(30 * time.Second)) {
+		t.Fatalf("LastSync=%v want later sample %v", st.LastSync, validEpoch.Add(30*time.Second))
+	}
+
+	// 3. Blocked callback stays bounded (1 worker, drops excess instead of leaking goroutines).
+	cbEntered := make(chan struct{})
+	cbRelease := make(chan struct{})
+	sBounded, err := NewSNTPSyncer(nil, SNTPSyncConfig{
+		DisableMaxStep: true,
+		Query: func(context.Context, SNTPConfig) (SNTPResult, error) {
+			return SNTPResult{Time: validEpoch, Stratum: 1}, nil
+		},
+		OnSync: func(SNTPResult) {
+			select {
+			case <-cbEntered:
+			default:
+				close(cbEntered)
+			}
+			<-cbRelease
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sBounded.SyncOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	<-cbEntered
+	for i := 0; i < 20; i++ {
+		if _, err := sBounded.SyncOnce(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if st := sBounded.Status(); st.DroppedCallbacks == 0 {
+		t.Fatalf("expected DroppedCallbacks > 0 when callback is blocked, got %+v", st)
+	}
+	sBounded.Stop()
+	close(cbRelease)
+	select {
+	case <-sBounded.cbDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("callback worker did not exit after Stop + unblocking")
+	}
+}

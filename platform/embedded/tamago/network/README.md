@@ -64,11 +64,13 @@ driver using the pinned `lneto` TCP/IP stack
   another address or gateway, halts the link immediately; a probe with no
   answer keeps the still-valid lease until T1/T2.
 - **RFC 4330 SNTPv4 periodic discipline (`sntp_sync.go`):** `SNTPSyncer`
-  (`NewSNTPSyncer`, `(*Interface).NewSNTPSyncer`) polls configured SNTP servers
-  on a `PollInterval` schedule with exponential retry backoff, pause tolerance
-  (`ErrPaused`), optional `MaxStep` jump guard after initial sync, and
-  `WallClockSink.Sync` delivery (satisfied by `*rtc.Clock` and DE25-Nano's
-  `board.WallClock()`).
+  (`NewSNTPSyncer`, `(*Interface).NewSNTPSyncer`) serializes `SyncOnce` calls,
+  checks `[MinValidTime, MaxValidTime]` plausibility on every sample (including
+  cold initial syncs on unsynced DE25-Nano), enforces a default 5-minute
+  post-initial-sync `MaxStep` guard (`ErrSNTPStepTooLarge`), polls on
+  `PollInterval` with exponential backoff and `ErrPaused` tolerance, delivers
+  UTC epochs to `WallClockSink.Sync` (`board.WallClock()`), and dispatches
+  callbacks through a single bounded worker.
 - **`build.py` rejects all of these flags** against the shipped `nano/sd-profile.json` (`network: null`)
   because closed-bridge SD ownership excludes Ethernet
   (`tests/test_tamago_build_network.py` enforces this refusal). Even a
