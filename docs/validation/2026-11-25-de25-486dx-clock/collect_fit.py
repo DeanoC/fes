@@ -23,7 +23,19 @@ CORNERS = {
 VCO_HZ = Fraction(50_000_000 * 188, 3)
 CORNER_LINE = re.compile(r'CORNER \{([^}]+)\} (setup|hold|recovery|removal|mpw) (\d+) (-?\d+\.\d+)')
 RETIMED_REVIEW = 'boards/de25nano/pc386/retimed_tension.py'
-RETIMED_POLICY = 'de25-pc386-retimed-tension-v1'
+RETIMED_STRUCTURE = 'boards/de25nano/pc386/retimed_structure.tcl'
+RETIMED_FIT_ARTIFACTS = {
+    'inputs.json', 'generation.json', 'linux-boot.core.rbf', 'project/golden_top.qsf',
+    'project/output_files/golden_top.tq.drc.signoff.rpt', 'project/output_files/golden_top.sta.summary',
+}
+
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        for block in iter(lambda: stream.read(1 << 20), b''):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def corner_slacks(path):
@@ -65,20 +77,52 @@ def retimed_evidence(output, logs, build, build_digest, retimed_rows):
         proof_directory = output / 'signoff/retimed-tension'
         receipt_path = proof_directory / 'receipt.json'
         receipt = json.loads(receipt_path.read_text())
-        if receipt['policy'] != RETIMED_POLICY:
+        structural_review = RETIMED_STRUCTURE in build['source_inputs']
+        policy = 'de25-pc386-retimed-tension-v2' if structural_review else 'de25-pc386-retimed-tension-v1'
+        if receipt['policy'] != policy:
             raise ValueError('retimed endpoint receipt used a different review policy')
         if receipt['bindings']['build_record_sha256'] != build_digest:
             raise ValueError('retimed endpoint receipt selected a different build record')
         review_sources = (RETIMED_REVIEW, RETIMED_REVIEW.replace('.py', '.tcl'))
+        reports = ('targets.txt', 'paths.tsv', 'summary.json')
+        if structural_review:
+            review_sources += (RETIMED_STRUCTURE,)
+            reports += ('structure.tsv', 'unconstrained.rpt')
         if receipt['sources_sha256'] != {name: build['source_inputs'][name] for name in review_sources}:
             raise ValueError('retimed endpoint receipt used different captured review tools')
-        for name in ('targets.txt', 'paths.tsv', 'summary.json'):
-            digest = hashlib.sha256((proof_directory / name).read_bytes()).hexdigest()
+        if receipt['reports_sha256'].keys() != set(reports):
+            raise ValueError('retimed endpoint receipt has an unexpected report set')
+        for name in reports:
+            digest = file_sha256(proof_directory / name)
             if receipt['reports_sha256'][name] != digest:
                 raise ValueError(f'retimed endpoint receipt digest differs for {name}')
-        receipt_digest = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+        hps = (output / 'signoff/combined/hps').resolve()
+        if structural_review:
+            tool = receipt['tool']
+            version_path = hps / 'quartus-version.txt'
+            if (tool['fit_version_sha256'] != file_sha256(version_path)
+                    or tool['version'] != version_path.read_text().strip()
+                    or tool['log_sha256'] != file_sha256(proof_directory / 'quartus-sta.log')):
+                raise ValueError('retimed endpoint receipt selected a different fit version or TimeQuest log')
+        artifacts = receipt['bindings']['artifacts']
+        if artifacts.keys() != RETIMED_FIT_ARTIFACTS:
+            raise ValueError('retimed endpoint receipt has an unexpected fitted artifact set')
+        for name, expected in artifacts.items():
+            path = (hps / name).resolve()
+            if not path.is_relative_to(hps) or file_sha256(path) != expected:
+                raise ValueError(f'retimed endpoint receipt differs from fitted artifact {name}')
+        database = hps / 'project/qdb'
+        entries = list(database.rglob('*'))
+        if database.is_symlink() or any(path.is_symlink() for path in entries):
+            raise ValueError('retimed endpoint receipt refers to a linked fitted database')
+        compiled = {path.relative_to(database).as_posix(): file_sha256(path) for path in entries if path.is_file()}
+        if not compiled or compiled != receipt['bindings']['compiled_database']:
+            raise ValueError('retimed endpoint receipt selected a different or incomplete fitted database')
+        receipt_digest = file_sha256(receipt_path)
         targets = proof_directory / 'targets.txt'
         proof = json.loads((proof_directory / 'summary.json').read_text())
+        if structural_review and any(proof[name]['pass'] is not True for name in ('structure', 'unconstrained')):
+            raise ValueError('retimed endpoint receipt lacks passing structural and unconstrained-path checks')
     else:
         # Preserve the independent evidence recorded before production proved
         # these endpoints as part of the same build.

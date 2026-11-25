@@ -173,57 +173,20 @@ CPU_CONTROL_TENSION = advisory(
     TENSION,
 )
 
-# The C0=34 TimeQuest traces resolve these fitted registers to
-# retimed M1, memory and writeback control, and AT I/O decode logic. Bind
-# the compiler-generated stems and new suffixes to their traced roles.
-# Placement coordinates may vary by seed.
-RETIMED_LOCATION = r'X\d+_Y\d+_N\d+_I\d+_dff'
-RETIMED_INPUT_MUX = 'BLOCK_INPUT_MUX_PASSTHROUGH_' + RETIMED_LOCATION
-RETIMED_TENSION_NODES = S + '(?:' + '|'.join((
-    r'(?:cpu_m1_(?:tx|alias|probe_bad|okA|out\[20\])|cpu_dmem_read|cpu_dfwd_hold|cpu_l1d_flush)~\d+_' + RETIMED_INPUT_MUX,
-    r'(?:cpu_l1d_(?:m1_at0|hit_m1)\[\d+\]|cpu_dmem_fault)~\d+xsyn_' + RETIMED_INPUT_MUX,
-    r'(?:cpu_m1_out_reg\[\d+\]|reduce_nor_1931)~' + RETIMED_INPUT_MUX,
-    r'cpu_cr0_pg~DUPLICATE_' + RETIMED_INPUT_MUX,
-    r'_36681_\[(?:48|49|711|712|714|715)\]~(?:DUPLICATE_)?' + RETIMED_INPUT_MUX,
-    r'_(?:05547|14602|17339)_~\d+_' + RETIMED_INPUT_MUX,
-    r'cpu_m2_load~(?:ENA|SCLR)_dff',
-    r'cpu_l1d_stall~SCLR_dff',
-    r'machine_at_select_fdc~\d+_R12_' + RETIMED_LOCATION,
-    r'cpu_m1_tx~3xsyn(?:_\d+)?_' + RETIMED_INPUT_MUX,
-    r'cpu_m1_alias~\d+xsyn_' + RETIMED_INPUT_MUX,
-    r'cpu_m1_out_reg\[1178\]~DUPLICATE_' + RETIMED_INPUT_MUX,
-    r'cpu_m1_out_reg\[1178\]~DUPLICATE(?:ENA|SCLR)_dff',
-    r'_17339_~1_R[46]_' + RETIMED_LOCATION,
-    r'machine_at_select_fdc~0_R[46]_' + RETIMED_LOCATION,
-    r'_05547_~1_C4_' + RETIMED_LOCATION,
-    r'machine_at_decoder_cycle_port\[(?:[4-9]|1[01])\]~R6_' + RETIMED_LOCATION,
-    r'machine_at_decoder_cycle_port\[5\]~R12_' + RETIMED_LOCATION,
-    r'machine_at_decoder_cycle_port\[[67]\]~R4_' + RETIMED_LOCATION,
-    r'machine_at_decoder_cycle_port\[7\]~C4_' + RETIMED_LOCATION,
-    r'machine_at_decoder_cycle_port\[[589]\]~' + RETIMED_INPUT_MUX,
-    r'machine_at_decoder_phase\[3\]~DUPLICATE_' + RETIMED_INPUT_MUX,
-    r'machine_at_decoder_(?:state\[0\]~|state\[1\]~DUPLICATE_|next_vga~3xsyn_)' + RETIMED_INPUT_MUX,
-    r'machine_at_cycle_strobe~1_R4_' + RETIMED_LOCATION,
-    r'cpu_wb_fault\[1\]~' + RETIMED_INPUT_MUX,
-    r'cpu_wb_fault\[2\]~C4_' + RETIMED_LOCATION,
-    r'cpu_wb_s_reg\[1178\]~C4_' + RETIMED_LOCATION,
-    r'machine_at_(?:select_fdc|cycle_strobe)~\d+_' + RETIMED_INPUT_MUX,
-    # Routed inputs tie these operators to M1 address/size and memory kind.
-    r'add_146~1_' + RETIMED_INPUT_MUX,
-    r'reduce_or_2303~' + RETIMED_INPUT_MUX,
-    # Routed paths tie these four add_307 variants to the BIU count and store wait.
-    r'add_307~(?:2|7|12|17)_' + RETIMED_INPUT_MUX,
-    r'_06220_~0_' + RETIMED_INPUT_MUX,
-    # These compiler aliases occur in the fitted AT decoder state and VGA paths.
-    r'i11525~0_' + RETIMED_INPUT_MUX,
-    r'i11562~(?:0|xsyn)_' + RETIMED_INPUT_MUX,
-)) + ')'
-RETIMED_TENSION = ('Placement advisory for the reviewed machine-clock retiming of CPU transaction, '
-                   'memory and writeback control, and AT I/O decode logic (#2263). The C0=34 TimeQuest traces match '
-                   'each register exactly once and find one machine clock. At all four corners, '
-                   'the worst incoming and outgoing setup and hold paths have nonnegative slack '
-                   'and use the machine clock at both ends. The traced registers have no asynchronous '
-                   'edges or synchronizer stages. The ordinary timing and CDC analyses still apply.')
+# A fitted location identifies a TimeQuest register to prove, even when the
+# fitter changes the generated stem across seeds. The non-location forms
+# are fitter enable/clear derivatives of CPU and anonymous registers.
+RETIMED_LOCATION = r'(?:BLOCK_INPUT_MUX_PASSTHROUGH|C4|R4|R6|R12)_X[0-9]+_Y[0-9]+_N[0-9]+_I[0-9]+_dff'
+RETIMED_STEM = r'(?:[A-Za-z][A-Za-z0-9_]*|_[0-9]+_)(?:\[[0-9]+\])?~(?:(?:[0-9]+(?:xsyn(?:_[0-9]+)?)?|xsyn|DUPLICATE)_)?'
+RETIMED_ENABLE_CLEAR = r'(?:cpu_[a-z0-9_]+|_[0-9]+_)(?:\[[0-9]+\])?~(?:DUPLICATE)?(?:ENA|SCLR)_dff'
+RETIMED_TENSION_NODES = S + '(?:' + RETIMED_STEM + RETIMED_LOCATION + '|' + RETIMED_ENABLE_CLEAR + ')'
+RETIMED_TENSION = ('DX fitter-placement advisory (#2263). Every reported register needs exact unique '
+                   'TimeQuest ownership on the machine clock and only machine-clock data keepers '
+                   'in both directions. All four fitted corners must have nonnegative worst incoming '
+                   'and outgoing setup and hold slack, no inter-clock or cut setup or hold paths, '
+                   'and no asynchronous connectivity apart from each register\'s own Q arc. '
+                   'The detailed unconstrained-path report must exclude every subject. '
+                   'The ordinary timing and CDC analyses still apply.')
 RETIMED_CONTROL_TENSION = advisory('TMC-20602', 'retimed-machine-control-tension', 0,
                                    RETIMED_TENSION_NODES, RETIMED_TENSION)
 # The window control block's held bundles (fes_de25_hps_window_control.v),

@@ -71,7 +71,7 @@ LOCAL_FILES = ("build.py", "derive.py", "signoff_bases.py", "model_clocks.py", "
                "fes_de25_pc386_standard_hw.tcl", "fes_de25_hps_window.v", "fes_de25_hps_window_control.v",
                "fes_de25_window_arbiter.v", "fes_de25_window_unpack.v", "generated/fes_de25_hps_window.vh",
                "pc386_dma2_registers.sv")
-REVIEW_FILES = ("retimed_tension.py", "retimed_tension.tcl")
+REVIEW_FILES = ("retimed_tension.py", "retimed_tension.tcl", "retimed_structure.tcl")
 SHARED_FILES = ("fes_computer_mailbox.v",)
 
 

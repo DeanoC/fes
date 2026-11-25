@@ -73,8 +73,11 @@ class RegisteredTensionTests(unittest.TestCase):
             ('486dx', '486dx', 'cpu_md_busy', False, None),
             ('486dx', '486dx', retimed, True, None),
             ('486dx', '486dx', retimed, True, 'fixture trace failed'),
-            ('486dx', '486dx', retimed.replace('_17339_', '_17340_'), False, 'matches 0 bases'),
+            ('486dx', '486dx', retimed.replace('_17339_', '_17340_'), True, None),
+            ('486dx', '486dx', retimed.replace('_R6_', '_R7_'), False, 'matches 0 bases'),
             ('486sx', '486sx', retimed, False, 'matches 0 bases'),
+            ('486dx', '486dx', 'cpu_biu_drain~DUPLICATESCLR_dff', True, None),
+            ('486sx', '486sx', 'cpu_biu_drain~DUPLICATESCLR_dff', False, 'matches 0 bases'),
             ('486dx', 'unknown', retimed, False, 'registered fit has unknown model'),
             ('486dx', '486sx', retimed, False, 'differs from prepared model'),
             ('486dx', None, retimed, False, 'lacks a recorded or prepared model'),
@@ -166,6 +169,7 @@ class RegisteredTensionTests(unittest.TestCase):
 
 class RetimedTensionProofTests(unittest.TestCase):
     NODE = S + 'machine_at_select_fdc~0_BLOCK_INPUT_MUX_PASSTHROUGH_X88_Y14_N0_I62_dff'
+    VERSION = 'Version 26.3.0 Build 114 10/14/2026 SC Pro Edition'
 
     def trace_rows(self):
         for corner in sorted(retimed_tension.CORNERS):
@@ -180,11 +184,43 @@ class RetimedTensionProofTests(unittest.TestCase):
                     row['status'] = 'n/a'
                 yield row
 
-    def write_trace(self, path, rows):
+    def write_trace(self, path, rows, columns=retimed_tension.COLUMNS):
         with path.open('w', newline='') as stream:
-            writer = csv.DictWriter(stream, fieldnames=retimed_tension.COLUMNS, delimiter='\t')
+            writer = csv.DictWriter(stream, fieldnames=columns, delimiter='\t')
             writer.writeheader()
             writer.writerows(rows)
+
+    def structure_rows(self):
+        for corner in sorted(retimed_tension.CORNERS):
+            for direction in ('from', 'to'):
+                row = dict.fromkeys(retimed_tension.STRUCTURE_COLUMNS, '')
+                row.update(dict.fromkeys(retimed_tension.STRUCTURE_ZEROS, '0'))
+                row.update(corner=corner, node=self.NODE, direction=direction, exact_matches='1', owner_clocks=MACHINE,
+                           keepers='21', machine='21', status='clear', async_outputs='1', async_output_own_q='1',
+                           async_output_ids='edge1', async_output_details=(
+                               '{edge1 asynchronous 0 reg1 reg ' + self.NODE + ' pin1 pin ' + self.NODE + '|q}'))
+                yield row
+
+    def ucp(self, peer=S + 'unrelated'):
+        def table(title, header=None, *rows):
+            text = '+---+\n; ' + ' ; '.join(title) + ' ;\n+---+\n'
+            if header:
+                text += '; ' + ' ; '.join(header) + ' ;\n+---+\n'
+                text += ''.join('; ' + ' ; '.join(row) + ' ;\n' for row in rows) + '+---+\n'
+            return text + '\n'
+
+        properties = retimed_tension.UCP_PROPERTIES
+        output = table(('Unconstrained Paths',))
+        output += table(('Unconstrained Paths Summary',), ('Property', 'Setup', 'Hold'),
+                        *((name, '0', '0') for name in properties[:4]),
+                        *((name, '1', '1') for name in properties[4:]))
+        output += table(('Clock Status Summary',), ('Target', 'Clock', 'Type', 'Status'),
+                        ('pll_output', MACHINE, 'Generated', 'Constrained'))
+        for phase in ('Setup', 'Hold'):
+            output += table((phase + ' Analysis',))
+            output += table((properties[4],), ('Output Port', 'Comment'), ('HDMI_MCLK', 'No output delay'))
+            output += table((properties[5],), ('From', 'To', 'From Clocks'), (peer, 'HDMI_MCLK', MACHINE))
+        return output
 
     def test_proof_refuses_missing_duplicate_or_disqualified_paths(self):
         with tempfile.TemporaryDirectory() as work:
@@ -206,6 +242,51 @@ class RetimedTensionProofTests(unittest.TestCase):
                     self.write_trace(paths, result)
                     self.assertFalse(retimed_tension.check(target_file, paths)['pass'])
 
+    def test_structure_refuses_incomplete_or_foreign_topology_and_cuts(self):
+        rows = list(self.structure_rows())
+        cases = {'missing': rows[:-1], 'duplicate': rows + rows[:1]}
+        for column, value in (('owner_clocks', PIXEL), ('sync_stage', '1'), ('is_latch', '1'), ('async_inputs', '1'),
+                              ('clock_outputs', '1'), ('exact_matches', '2'), ('foreign', '1'), ('unclocked', '1'),
+                              ('port', '1'), ('unresolved', '1'), ('non_register', '1'), ('machine', '20'),
+                              ('setup_inter_clock', '1'), ('setup_false_path', '1'), ('hold_inter_clock', '1'),
+                              ('hold_false_path', '1'), ('async_output_other', '1'), ('async_output_unknown', '1'),
+                              ('async_output_details', rows[0]['async_output_details'].replace('|q}', '|other}')),
+                              ('async_output_details', rows[0]['async_output_details'].replace('asynchronous 0', 'asynchronous 1'))):
+            cases[column, value] = [{**rows[0], column: value}, *rows[1:]]
+        with tempfile.TemporaryDirectory() as work:
+            structure = Path(work) / 'structure.tsv'
+            self.write_trace(structure, rows, columns=retimed_tension.STRUCTURE_COLUMNS)
+            self.assertTrue(retimed_tension.check_structure([self.NODE], structure)['pass'])
+            for damage, bad in cases.items():
+                with self.subTest(damage=damage):
+                    self.write_trace(structure, bad, columns=retimed_tension.STRUCTURE_COLUMNS)
+                    self.assertFalse(retimed_tension.check_structure([self.NODE], structure)['pass'])
+
+    def test_unconstrained_report_refuses_target_or_missing_details(self):
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            target_file, paths, structure, ucp = (root / name for name in ('targets', 'paths', 'structure', 'ucp'))
+            target_file.write_text(self.NODE + '\n')
+            self.write_trace(paths, self.trace_rows())
+            self.write_trace(structure, self.structure_rows(), columns=retimed_tension.STRUCTURE_COLUMNS)
+            with self.assertRaisesRegex(mf.BuildError, 'requires both structure'):
+                retimed_tension.check(target_file, paths, structure_path=structure)
+            with self.assertRaisesRegex(mf.BuildError, 'missing/linked retimed'):
+                retimed_tension.check(target_file, paths, structure_path=structure, unconstrained_path=ucp)
+            for peer, passed in ((self.NODE + '_neighbor', True), (self.NODE, False), (self.NODE + '|q', False)):
+                with self.subTest(peer=peer):
+                    ucp.write_text(self.ucp(peer))
+                    summary = retimed_tension.check(target_file, paths, structure_path=structure, unconstrained_path=ucp)
+                    self.assertEqual(summary['pass'], passed)
+                    self.assertEqual(summary['unconstrained']['matching_subjects'], [] if passed else [self.NODE])
+            good = self.ucp()
+            for damaged in (good.split('; Hold Analysis')[0], good.replace('; ' + S + 'unrelated ; HDMI_MCLK ; ' + MACHINE + ' ;\n', ''),
+                            good.replace(' ; Constrained ;', ' ; Partially constrained ;'),
+                            good.rsplit('+---+', 1)[0], good + 'Table was truncated at 10 items.\n'):
+                ucp.write_text(damaged)
+                with self.assertRaisesRegex(mf.BuildError, 'unconstrained-path'):
+                    retimed_tension.check(target_file, paths, structure_path=structure, unconstrained_path=ucp)
+
     def test_collector_uses_a_private_fitted_copy_and_binds_its_receipt(self):
         sha = retimed_tension.async_inputs.sha
         with tempfile.TemporaryDirectory() as work:
@@ -217,11 +298,13 @@ class RetimedTensionProofTests(unittest.TestCase):
             original.parent.mkdir(parents=True)
             original.write_bytes(b'fitted database')
             report_path.parent.mkdir()
+            fit_version_path = selected / retimed_tension.FIT_VERSION
+            fit_version_path.write_text(self.VERSION + '\n')
             row = [self.NODE, '(88, 14)', '4820', '(37, 28)', '40', '193686', '']
             report_path.write_text(report({'TMC-20602': (TENSION, [row])}, severity='Low'))
             sources = {path.relative_to(ROOT).as_posix(): sha(path)
-                       for path in (Path(retimed_tension.__file__), retimed_tension.TCL)}
-            (root / 'build-inputs.json').write_text(json.dumps({'source_inputs': sources}))
+                       for path in (Path(retimed_tension.__file__), retimed_tension.TCL, retimed_tension.STRUCTURE_TCL)}
+            (root / 'build-inputs.json').write_text(json.dumps({'source_inputs': sources, 'parameters': {'model': '486dx'}}))
             tool = root / 'quartus_sta'
             tool.write_bytes(b'fixture tool')
 
@@ -235,7 +318,10 @@ class RetimedTensionProofTests(unittest.TestCase):
                 self.assertTrue(cwd.is_relative_to(selected / 'retimed-tension'))
                 self.assertEqual((cwd / 'qdb/report.rdb').read_bytes(), original.read_bytes())
                 (cwd / 'qdb/report.rdb').write_bytes(b'mutated private report cache')
-                self.write_trace(Path(command[-1]), self.trace_rows())
+                options['stdout'].write(('    Info: ' + self.VERSION + '\n').encode())
+                self.write_trace(Path(command[-3]), self.trace_rows())
+                self.write_trace(Path(command[-2]), self.structure_rows(), columns=retimed_tension.STRUCTURE_COLUMNS)
+                Path(command[-1]).write_text(self.ucp())
                 return subprocess.CompletedProcess(command, 0)
 
             with (mock.patch.object(retimed_tension, 'held_quartus_lease', return_value='/fixture/pro.lock'),
@@ -247,8 +333,10 @@ class RetimedTensionProofTests(unittest.TestCase):
             receipt = json.loads((output / 'receipt.json').read_text())
             self.assertEqual(receipt['bindings'], bindings(selected))
             self.assertEqual(receipt['sources_sha256'], sources)
-            self.assertEqual(receipt['reports_sha256'], {name: sha(output / name) for name in (
-                'targets.txt', 'paths.tsv', 'summary.json')})
+            self.assertEqual(receipt['tool']['version'], self.VERSION)
+            self.assertEqual(receipt['tool']['fit_version_sha256'], sha(fit_version_path))
+            self.assertEqual(receipt['tool']['log_sha256'], sha(output / 'quartus-sta.log'))
+            self.assertEqual(receipt['reports_sha256'], {name: sha(output / name) for name in retimed_tension.REPORTS})
             self.assertTrue(json.loads((output / 'summary.json').read_text())['pass'])
 
     def test_collector_refuses_to_write_without_a_pro_lease(self):
@@ -401,6 +489,17 @@ class MachineFindingsTests(unittest.TestCase):
             'machine_at_decoder_cycle_port[9]~BLOCK_INPUT_MUX_PASSTHROUGH_X84_Y15_N0_I56_dff',
             'cpu_wb_fault[2]~C4_X52_Y18_N0_I38_dff',
             'machine_at_decoder_cycle_port[5]~BLOCK_INPUT_MUX_PASSTHROUGH_X83_Y15_N0_I1_dff',
+            'i48682~0_C4_X54_Y18_N0_I38_dff',
+            '_17339_~1_C4_X57_Y26_N0_I7_dff',
+            'add_309~3_BLOCK_INPUT_MUX_PASSTHROUGH_X69_Y37_N0_I25_dff',
+            'cpu_biu_drain~DUPLICATESCLR_dff',
+            'cpu_wb_deliver~ENA_dff',
+            'cpu_wb_deliver~SCLR_dff',
+            '_36683_[140]~ENA_dff',
+            '_36683_[182]~ENA_dff',
+            '_36689_[205]~ENA_dff',
+            'cpu_wb_fault[4]~ENA_dff',
+            '_36683_[141]~ENA_dff',
         )
         rows = [[S + name, '(58, 23)', '9000', '(38, 28)', '20', '200000', '']
                 for name in (*names, 'cpu_md_busy')]
@@ -409,43 +508,27 @@ class MachineFindingsTests(unittest.TestCase):
         self.assertEqual({group['name']: group['rows'] for group in entry['groups']},
                          {'cpu-control-tension': 1, 'retimed-machine-control-tension': len(names)})
 
-    def test_retimed_tension_refuses_unreviewed_names_and_malformed_suffixes(self):
+    def test_retimed_tension_rejects_names_without_verified_placement_shapes(self):
         names = (
-            S + '_36680_[49]~BLOCK_INPUT_MUX_PASSTHROUGH_X58_Y23_N0_I20_dff',
-            S + 'cpu_m1_probe_good~4_BLOCK_INPUT_MUX_PASSTHROUGH_X46_Y19_N0_I30_dff',
+            S + 'machine_presenter_loaded_flag',
+            S + 'plain_port[12]',
             S + 'cpu_m1_tx~1_BLOCK_INPUT_MUX_PASSTHROUGH_X58_Y23_N0_I13_dff_extra',
             S.replace('system|', 'window_control|') + 'cpu_m2_load~ENA_dff',
+            S.replace('system|', 'window_control|') + 'i48682~0_C4_X54_Y18_N0_I38_dff',
+            S + 'nested|i48682~0_C4_X54_Y18_N0_I38_dff',
+            S + 'i48682~0_C4_X54_Y18_N0_I38_dff|q',
+            S + 'i48682~0_C6_X54_Y18_N0_I38_dff',
             S + 'cpu_m1_tx~3xsyn_8x_BLOCK_INPUT_MUX_PASSTHROUGH_X48_Y33_N0_I79_dff',
-            S + 'cpu_m1_out_reg[1177]~DUPLICATE_BLOCK_INPUT_MUX_PASSTHROUGH_X49_Y25_N0_I5_dff',
-            S + '_17339_~0_R6_X56_Y33_N0_I13_dff',
-            S + 'machine_at_select_fdc~1_R6_X84_Y17_N0_I13_dff',
-            S + '_05548_~1_C4_X50_Y28_N0_I9_dff',
-            S + 'machine_at_decoder_cycle_port[3]~R6_X83_Y16_N0_I9_dff',
-            S + 'machine_at_decoder_cycle_port[12]~R6_X83_Y16_N0_I9_dff',
-            S + 'machine_at_decoder_cycle_port[6]~R12_X82_Y16_N0_I0_dff',
-            S + 'machine_at_decoder_cycle_port[8]~R4_X84_Y16_N0_I13_dff',
-            S + 'machine_at_cycle_strobe~2_R4_X86_Y14_N0_I13_dff',
-            S + 'cpu_wb_fault[2]~BLOCK_INPUT_MUX_PASSTHROUGH_X53_Y20_N0_I4_dff',
-            S + 'cpu_wb_s_reg[1177]~C4_X40_Y16_N0_I30_dff',
-            S + 'machine_at_cycle_access~0_BLOCK_INPUT_MUX_PASSTHROUGH_X83_Y15_N0_I78_dff',
-            S + 'cpu_m1_out[21]~1_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I66_dff',
+            S + '_17339_~1_R7_X56_Y33_N0_I13_dff',
+            S + '_05548_~1_C4_X-1_Y28_N0_I9_dff',
+            S + 'machine_at_decoder_cycle_port[*]~R6_X83_Y16_N0_I9_dff',
             S + 'cpu_m1_alias~43xsync_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I79_dff',
-            S + 'add_147~1_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I68_dff',
-            S + 'add_146~2_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I68_dff',
-            S + 'reduce_or_2304~BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I69_dff',
-            S + 'reduce_or_2303~0_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I69_dff',
             S + 'cpu_m1_out_reg[1178]~DUPLICATE_ENA_dff',
-            S + 'machine_at_decoder_phase[4]~DUPLICATE_BLOCK_INPUT_MUX_PASSTHROUGH_X84_Y15_N0_I13_dff',
-            S + 'machine_at_select_fdc~1_R4_X92_Y17_N0_I13_dff',
-            S + 'machine_at_decoder_cycle_port[10]~BLOCK_INPUT_MUX_PASSTHROUGH_X99_Y17_N0_I37_dff',
-            S + 'add_308~2_BLOCK_INPUT_MUX_PASSTHROUGH_X69_Y37_N0_I25_dff',
-            S + 'add_307~3_BLOCK_INPUT_MUX_PASSTHROUGH_X69_Y37_N0_I25_dff',
-            S + '_06221_~0_BLOCK_INPUT_MUX_PASSTHROUGH_X69_Y37_N0_I30_dff',
-            S + 'i11563~0_BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I53_dff',
-            S + 'i11562~3xsyn_BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I48_dff',
-            S + 'machine_at_decoder_state[1]~BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I55_dff',
-            S + 'machine_at_decoder_next_vga~4xsyn_BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I50_dff',
-            S + 'cpu_wb_fault[3]~C4_X52_Y18_N0_I38_dff',
+            S + 'cpu_m2_load~ACLR_dff',
+            S + 'cpu_m2_load~1SCLR_dff',
+            S + 'machine_presenter_loaded_flag~SCLR_dff',
+            S + 'cpu_wb_deliver~DUPLICATEENA_dff_extra',
+            S + '_36689_[*]~SCLR_dff',
         )
         bases = self.bases('cpu-control-tension', 'retimed-machine-control-tension')
         for name in names:

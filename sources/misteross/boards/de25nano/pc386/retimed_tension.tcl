@@ -1,15 +1,23 @@
 # Trace the fitted pc386 retiming advisory under the normal Pro lease.
-# quartus_sta -t retimed_tension.tcl golden_top TARGETS.txt OUTPUT.tsv
+# quartus_sta -t retimed_tension.tcl golden_top TARGETS.txt PATHS.tsv ?STRUCTURE.tsv UNCONSTRAINED.rpt?
 proc name_or_empty {option object} {
     if {$object eq ""} {return ""}
     if {$option eq "clock"} {return [get_clock_info -name $object]}
     return [get_node_info -name $object]
 }
 
-set revision [lindex $argv 0]
+if {[llength $argv] ni {3 5}} {
+    error "usage: retimed_tension.tcl revision targets.txt paths.tsv ?structure.tsv unconstrained.rpt?"
+}
+lassign $argv revision target_path paths_path structure_path ucp_path
+set structure {}
+if {$structure_path ne ""} {
+    source [file join [file dirname [info script]] retimed_structure.tcl]
+    set structure [open_structure_trace $structure_path]
+}
 set expected_clock {fes_machine_pll|machine_pll_outclk0}
 set project_prefix {soc_inst|subsys_periph|fes_scanout|fes_scanout|system|}
-set list_file [open [lindex $argv 1] r]
+set list_file [open $target_path r]
 set targets {}
 foreach line [split [string trim [read $list_file]] "\n"] {
     set target [string trim $line]
@@ -21,7 +29,7 @@ foreach line [split [string trim [read $list_file]] "\n"] {
 close $list_file
 if {[llength $targets] == 0} {error "no TMC endpoints requested"}
 
-set output [open [lindex $argv 2] w]
+set output [open $paths_path w]
 project_open $revision -revision $revision
 create_timing_netlist
 read_sdc
@@ -106,8 +114,16 @@ foreach_in_collection corner $corners {
         }
         flush $output
     }
+    if {$structure ne ""} {
+        incr problems [trace_structure_corner $structure $label $targets $matched $expected_clock]
+    }
 }
 close $output
+if {$structure ne ""} {
+    close $structure
+    # Quartus emits this detailed report once as a common report for all corners.
+    report_ucp -file $ucp_path
+}
 delete_timing_netlist
 project_close
 if {$problems != 0} {error "$problems missing or unexpected ownership/path checks"}

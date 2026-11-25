@@ -219,6 +219,81 @@ path generated different Verilog beyond the Yosys banner and source
 attributes. The current fit sweep uses Powerboat's original Yosys binary
 and checkout path.
 
+## C0 = 34 fit with registered proof
+
+Seed 1 at `d18a5a45b91236abc4efac7607c84e97735eab07` used 44,867.8 ALMs
+and reported worst setup +0.673 ns, hold nonnegative, recovery +7.503 ns
+and removal +0.027 ns. The LOADED route measured 2.485 ns. The producer
+refused `TMC-20602` before running its package proof. The fitted report
+introduced `i48682~0_C4` and a C4 spelling of `_17339_~1`, the earlier
+L1D stall qualifier. The independent endpoint trace passed all 868
+checks, with worst setup +1.817 ns and worst hold +0.062 ns.
+
+| Seed 1 file | SHA-256 |
+| --- | --- |
+| `loaded.tsv` | `a9f017a717eaadca835447c59028e7fda0b8a1a53c781e8d2e89e77dcb663a13` |
+| `tension-paths.tsv` | `d7c2789cde5030600c983bf6e321849ff6683094ed39bc8fe1bbff2b5a8fd6f1` |
+| `tension-summary.json` | `f2933d200ee4bc390c8dd4581994fd91d919e76de6f656b03452b21c688e1078` |
+
+Seed 3 at the same revision used 44,974.5 ALMs. It reported worst setup
++0.857 ns, hold 0.000 ns, recovery +6.968 ns and removal +0.124 ns. Its
+LOADED maximum was 2.602 ns. The producer refused a generated
+`reduce_nor_2117` passthrough. The independent trace passed 1,568 checks
+for 56 subjects, with worst setup +1.391 ns and hold +0.005 ns.
+The registered-proof pilot ran seeds 1 and 3. Both remain refused.
+
+| Seed 3 file | SHA-256 |
+| --- | --- |
+| `loaded.tsv` | `d2b00d94a3c136dda8c41cc34384c2166bf441e363c46fe8b042a121fb6b9d53` |
+| `tension-paths.tsv` | `fe482b0803e91d5bdf9e002dd7b165b6f9747bb93130c74ef237505a432eb169` |
+| `tension-summary.json` | `a65143b9d0c51a7578e74ae4e4246fb14f835766548625abff98bfca52ed32cd` |
+
+### Fitted placement and clock-domain proof
+
+The fitter has emitted new advisory names on otherwise byte-identical
+machine netlists. To test the same-clock reasoning directly, the alternate
+builder opened a verified copy of seed 1's QDB with the same Quartus STA
+binary. The probe enumerated each register's data keepers and checked
+both directions for inter-clock and false paths in setup and hold at
+all four operating conditions. It also saved the detailed unconstrained
+path report. Each timed register's intrinsic edge to its own Q pin was
+checked by source, destination and node types.
+
+All 248 checks for the 31 advisory subjects passed. None of those
+subjects appears in the detailed unconstrained path report. The separate
+LOADED flag control exposed the same foreign-clock keeper and the cut
+to `machine_presenter_loaded_sync[0]` in both setup and hold at each
+corner. The structural basis applies to the exact pc386 system hierarchy
+and observed fitter placement forms in the registered DX producer. It
+requires this proof alongside the numerical timing proof. Each refused
+build remains recorded at its original revision.
+
+| Structural evidence | SHA-256 |
+| --- | --- |
+| `trace_structural_v3.tcl` | `216a6401735d139956458b7cf6c28e4a62d7ec8d81dd75da13c3cc52d9fea385` |
+| `d18-s1-targets-with-control.txt` | `9ee7b5fff1ef329bcd0553a613810cfcb1e7499373d7d5a02facdf13ac7de6f6` |
+| `d18-s1-structural-v3.tsv` | `3dfcbd9b80931387e7f813741dff9ba0f29ae2a1f1a49e18669ccca76c88c180` |
+| `d18-s1-structural-v3-ucp.rpt` | `5dd5c91628f409865cc2bd0abe0e25b81a483e1667687f6df60a5e6571d6a4f3` |
+
+The combined registered TimeQuest script also passed on the seed 1
+copy, with 868 numerical and 248 structural checks. On the seed 3 copy,
+it checked seven enable and clear derivatives without location suffixes.
+All 196 numerical and 56 structural checks passed. Worst traced setup
+and hold were +2.398 and +0.053 ns. Neither combined report listed an
+advisory subject in the unconstrained path tables.
+
+| Combined evidence | SHA-256 |
+| --- | --- |
+| Seed 1 structural rows | `98b66456ff3a6a3efdcc849de4b8db90bacb219403efdab48b45d6d8749a646d` |
+| Seed 1 check summary | `b29d193d3d54c7fe3f0d30cf7296f6ab607ba538c837934b2645d341cd32ef53` |
+| Seed 3 enable and clear numerical rows | `b0163899cb9dab6318bed890d0be7ab87887dbef14da73a6768304b5b0e2b6c5` |
+| Seed 3 enable and clear structural rows | `9f106ca50bbb95106ce846f142bda2ea587f11ea3a86d4e38de39b58f4fd0a84` |
+| Seed 3 enable and clear unconstrained report | `4412744f4d373f86e8b33ca6e53433348c1157af2481cdc73dc936cbd42d97f1` |
+| Seed 3 enable and clear check summary | `69dd14e7aa118da7f3be4456471e4222cfbb69f3f35517060b617e72d46e500d` |
+
+[TimeQuest path queries](https://docs.altera.com/r/docs/683432/26.3/quartus-prime-pro-edition-user-guide-scripting/get_timing_paths-quartus-sta?contentId=TFyfmhCSrpOWMKC0o_7ZTg)
+and [unconstrained path reporting](https://docs.altera.com/r/docs/683432/26.3/quartus-prime-pro-edition-user-guide-scripting/report_ucp-quartus-sta?contentId=qCZEnfJdI2kgidW0dOO2KA).
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed
