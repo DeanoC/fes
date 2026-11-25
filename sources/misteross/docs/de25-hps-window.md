@@ -61,8 +61,18 @@ The block sits at `PeripheralOffset` on the lightweight bridge,
 A fault is fatal in 1.0. The faulting command stays presented, so its port
 never drains and `CommandClear` (which needs every port drained) can't be
 accepted: after a fault the window cannot be cleared or re-granted until the
-FPGA is reprogrammed.
+window logic is reset.
 
 This contract assigns no Linux device, firewall, boot or runtime admission.
 The kernel owner's allocation and the runtime's use of it are slice 4 of
 #2029.
+
+## HPS reset
+
+On HPS-window machine builds the GHRD's active-high `h2f_reset` output
+asserts the common fabric reset. This resets the grant registers, the machine
+and both sides of the F2SDRAM clock crossing. The retained machine needs a
+fresh grant from the new Linux owner before it can issue window traffic.
+The reset manager owns fencing and draining on the HPS side. Validate its
+behavior across HPS cold, warm and watchdog resets with the exact boot chain
+and bitstream before qualifying live-window reboot.
