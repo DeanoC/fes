@@ -20,18 +20,28 @@ BOARD_BUILD = MISTEROSS + 'boards/de25nano/pc386/build.py'
 SIGNOFF_TABLE = MISTEROSS + 'boards/de25nano/pc386/signoff_bases.py'
 RECORD = 'docs/validation/2026-11-25-de25-486dx-clock/'
 # The reviewed RegisteredBoard versions only store the delegate on import
-# and forward the ROOT lookup. The proof variant loads two additional files
+# and forward the ROOT lookup. The proof variant runs the endpoint review
 # inside the registered Quartus compile path.
 REGISTERED_BOARD_AST = {
     '9495bbef66d52666a0d86062c270f2e2f42bc18fe21c14c566bdd409b52306c5': 'e255d4e3-adapter',
     '5cf925e4f0b94b0771843874fb36f51d54ea7c7e9fe80416ec29ec2b5e4741e2': 'f9844c1b-proof',
     'ba4054b71bd84e93739d18ae355395357449ae23730f572b9992369f801a0cb8': 'd18a5a45-lease',
 }
-RETIMED_REVIEW_PYTHON_SHA256 = {
-    'f9844c1b-proof': '9640b71466b7fb9f5a6f90f9f044289dd8ac771dd010bd74aefbad5b73ba474f',
-    'd18a5a45-lease': '8a32226adadf63015a0401412fcb005a14b01fb9169303568c6693a1e1a81dc0',
+REVIEW_FILE_SHA256 = {
+    'f9844c1b-proof': {
+        'retimed_tension.py': '9640b71466b7fb9f5a6f90f9f044289dd8ac771dd010bd74aefbad5b73ba474f',
+        'retimed_tension.tcl': '387d6f62cce34e76fd72bb45b0ff840a00dfe08ab2a1f0f2ec433685c32a38ac',
+    },
+    'd18a5a45-lease': {
+        'retimed_tension.py': '8a32226adadf63015a0401412fcb005a14b01fb9169303568c6693a1e1a81dc0',
+        'retimed_tension.tcl': '387d6f62cce34e76fd72bb45b0ff840a00dfe08ab2a1f0f2ec433685c32a38ac',
+    },
+    'b6310cd4-structure': {
+        'retimed_tension.py': 'be5621fddf33d8024b4daeff25ad3c925a671e624b5e6afc65a6d7226012c908',
+        'retimed_tension.tcl': '39dc573010e723a9af4ecd3cd5f20d682c5aca37b2a42c0d3d6ac0d47b5387ac',
+        'retimed_structure.tcl': '32a552327af4fbb4974b5d97fbcf59c5fe5c3e8e8464389d200b14697d19cced',
+    },
 }
-RETIMED_REVIEW_TCL_SHA256 = '387d6f62cce34e76fd72bb45b0ff840a00dfe08ab2a1f0f2ec433685c32a38ac'
 SOURCE_FILES = (
     'boards/de25nano/pc386/build.py',
     'boards/de25nano/pc386/model_clocks.py',
@@ -131,18 +141,25 @@ def board_projection(original, candidate):
         return None
     wrapper, version = wrappers[0]
     load = 'load(HERE.parent / "machine/board.py", "de25_pc386_machine_board")'
-    if version in RETIMED_REVIEW_PYTHON_SHA256:
+    if version in REVIEW_FILE_SHA256:
         expanded = 'SOURCES = ({BOARD + "pc386/" + name for name in (*LOCAL_FILES, *REVIEW_FILES)}'
         prior = 'SOURCES = ({BOARD + "pc386/" + name for name in LOCAL_FILES}'
         if text.count(expanded) != 1:
             return None
         after = [ast.dump(node) for node in ast.parse(text.replace(expanded, prior)).body]
-        review = ast.dump(ast.parse('REVIEW_FILES = ("retimed_tension.py", "retimed_tension.tcl")').body[0])
-        if after.count(review) != 1:
+        variants = (version, 'b6310cd4-structure') if version == 'd18a5a45-lease' else (version,)
+        reviews = []
+        for variant in variants:
+            names = tuple(REVIEW_FILE_SHA256[variant])
+            review = ast.dump(ast.parse(f'REVIEW_FILES = {names!r}').body[0])
+            if after.count(review) == 1:
+                reviews.append((variant, review))
+        if len(reviews) != 1:
             return None
+        version, review = reviews[0]
         after.remove(review)
     after.remove(wrapper)
-    if version == 'd18a5a45-lease':
+    if version in ('d18a5a45-lease', 'b6310cd4-structure'):
         imports = ('from scripts import pc386_quartus as sealer\n'
                    'from scripts import yosys_netlist\n'
                    'from scripts import fit_i386_device as fit\n')
@@ -185,10 +202,8 @@ def compare(run, candidate):
     # pc386 board build records the signoff table, and only the Quartus
     # producer's reviewed-finding pass invokes it.
     review_only = {SIGNOFF_TABLE, BOARD_BUILD} if projection else {SIGNOFF_TABLE}
-    proof_expected = {
-        MISTEROSS + 'boards/de25nano/pc386/retimed_tension.py': RETIMED_REVIEW_PYTHON_SHA256[projection],
-        MISTEROSS + 'boards/de25nano/pc386/retimed_tension.tcl': RETIMED_REVIEW_TCL_SHA256,
-    } if projection in RETIMED_REVIEW_PYTHON_SHA256 else {}
+    proof_expected = {MISTEROSS + 'boards/de25nano/pc386/' + name: digest
+                      for name, digest in REVIEW_FILE_SHA256.get(projection, {}).items()}
     proof_hashes = {path: sha(candidate / path) if (candidate / path).is_file() else None
                     for path in proof_expected}
     proof_hashes_equal = proof_hashes == proof_expected

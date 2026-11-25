@@ -33,6 +33,11 @@ still matches after the full window, including the game disk copies. It
 applies the completed run to the exercised inputs of
 `d18a5a45b91236abc4efac7607c84e97735eab07`.
 
+The [structural proof comparison](sim-c34-b6310cd4-match.json) verifies
+the same inputs for `b6310cd4cb7f9eb9f7c5cb4e1462ebb9708024cc`, including
+the derived CPU, bench, Quake command and disk image. The completed run
+applies to this fitter candidate through the exercised inputs.
+
 The original launch wrapper classified 3DBench's scheduled `END limit`
 exit as a failure. The complete receipt uses the corrected analyzer on the
 retained raw logs. The original Quake process result records its own

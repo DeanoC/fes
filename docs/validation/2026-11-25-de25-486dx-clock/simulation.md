@@ -93,3 +93,14 @@ same 18 setup source paths, with only the projected `build.py` bytes
 changed. Both setups load `quartus_tools`. Replay setup calls neither
 `quartus_lease` nor the retiming proof. The regenerated sources, rates
 and game stimulus match the retained C34 run.
+
+The [structural proof comparison](sim-c34-b6310cd4-match.json) checks
+`b6310cd4cb7f9eb9f7c5cb4e1462ebb9708024cc` in a clean `wt-b631-proof`
+checkout. Since `d18a5a45`, the board module adds `retimed_structure.tcl`
+to the producer's source capture. The checked syntax-tree projection
+recognizes that exact three-file list and binds the proof files by digest.
+The 160 retained input paths and 18 executed setup paths have the same
+exercised inputs. The generated CPU and game benches, exact clock and
+guest rates, game commands and disk images all match. The verified G2,
+G4 and G5 results apply through these inputs, including the completed
+Quake RTL window.
