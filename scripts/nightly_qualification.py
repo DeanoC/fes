@@ -118,16 +118,19 @@ def gate(store, executable, request, **locations):
     """Spool exact requests; synchronous farm drivers can answer inline."""
     binding = digest(encoded(request))
     write(store / "requests" / binding, encoded(dict(request=request, locations=locations)))
-    if executable:
+    answer = store / "verdicts" / binding
+    if answer.is_file():
+        receipt = read(answer)
+    elif executable:
         result = subprocess.run([executable], input=encoded(request), stdout=subprocess.PIPE,
-                                timeout=4 * 3600, check=True,
+                                timeout=4 * 3600, check=False,
                                 env=dict(os.environ, FES_NIGHTLY_STORE=str(store), **locations))
+        if result.returncode == 4:
+            raise AwaitingEvidence("awaiting release-matched kit evidence for " + binding)
+        result.check_returncode()
         receipt = json.loads(result.stdout)
     else:
-        answer = store / "verdicts" / binding
-        if not answer.is_file():
-            raise AwaitingEvidence("awaiting farm verdict for " + binding)
-        receipt = read(answer)
+        raise AwaitingEvidence("awaiting farm verdict for " + binding)
     if receipt.get("request_sha256") != binding:
         raise ValueError("farm verdict names a different request")
     verify_evidence(store, receipt)

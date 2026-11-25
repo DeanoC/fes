@@ -123,3 +123,34 @@ For a farm retry, check out the same tested main SHA and run the workflow's
 older invocation cannot rewind a newer checkpoint. Pending cells, including
 cells outside today's release scope, are visible in `state.json`. Retain the
 objects, verdict evidence and sets used by supported releases and rollback.
+
+### Powerboat and chip deployment
+
+The chip build runner keeps the persistent store at
+`~/.local/share/fes-qualification/store`. Its protected config selects
+`bin/nightly-kit-client.py` for `accept` and `bin/nightly-release-admit.py`
+for `admit`, using absolute paths under that same parent directory. The client
+submits a request digest to Powerboat over SSH. Powerboat fetches the named
+request and sealed inputs from chip, checks the frozen main and Actions run,
+then calls the existing HILQ driver. Both hosts require batch-mode SSH to
+their configured peer. Powerboat also needs read access to the repository's
+Actions runs through `gh`.
+
+Install the two client-side executables from `scripts/powerboat/` on chip.
+Install `nightly-kit-worker.py`, `nightly-de10-smoke.py` and
+`nightly-menu-smoke.py` together in Powerboat's
+`~/.local/share/fes-qualification/bin/`. HILQ owns the kit claims and restore.
+DE10 tries B then A. DE25 uses the serial-bound D25 watcher. A digest-specific
+run directory retains the raw kit evidence and verified sealed package for
+retries. Two failed attempts hold the candidate for investigation.
+
+For the configured DE10 MENU and ZX81 development release, place the checked
+bootstrap under `software/<artifacts.json sha256>` alongside the store.
+The admission worker validates MENU with the release runtime, builds the
+FogCast catalog and checks whether the playable kit smoke used all six
+selected software binaries, the running runtime and Tenfoot, and the same
+MENU firmware. Exit 4 leaves a release awaiting matched evidence and lets
+the coordinator consider earlier complete sets. The release owner may also
+submit an exact request-bound verdict using `record` after a separate
+release-matched kit run. The bootstrap-only release uses its existing
+Linux MENU admission path.

@@ -100,6 +100,18 @@ class NightlyTest(unittest.TestCase):
         self.assertEqual(self.run_batch(), 0)
         return nightly.read(self.store / "state.json")["releases"]["kit"]["current"]
 
+    def test_release_worker_can_await_matching_kit_and_import_verdict(self):
+        self.run_batch()
+        request = dict(release=self.release, packages=[])
+        runner = nightly.subprocess.run
+        runner.side_effect = lambda argv, **kwargs: subprocess.CompletedProcess(argv, 4)
+        with self.assertRaises(nightly.AwaitingEvidence):
+            nightly.gate(self.store, "/worker", request)
+        self.answer(nightly.digest(nightly.encoded(request)))
+        runner.reset_mock()
+        self.assertEqual(nightly.gate(self.store, "/worker", request)["verdict"], "PASS")
+        runner.assert_not_called()
+
     def test_batch_failure_retry_and_compatible_fallback(self):
         previous = self.seed()
         self.sha = "2" * 40
