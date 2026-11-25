@@ -997,9 +997,9 @@ quartus_role = "no oracle required"
 
 
 [recipes.pnr]
-seeds = [5, 4, 2, 1, 3, 6, 7, 8, 9, 10]
-timing_weights = [2000]
-search_weights = [2000]
+seeds = [5, 12, 11, 4, 2, 1, 3, 6, 7, 8, 9, 10]
+timing_weights = [300]
+search_weights = [300]
 critexp = 5
 freq = "74.25"
 # The C64 producer adds the two cartridge socket reservations to its pinned base QSF.
@@ -1021,6 +1021,15 @@ env = { PATH = "<TOOLCHAIN_BIN>:/usr/bin:/bin", HOME = "<PRIVATE_HOME>", LANG = 
 
 optional_env = { CUDA_DEVICE_ORDER = "PCI_BUS_ID" }
 [recipes.pnr.flags]
+arrival_pin_assignment = true
+isolated_lut_placement = false
+critical_cohort_budget = 0
+critical_cohort_report = "unset"
+mistral_dsp_signed_lanes = false
+set = []
+gpu_required = false
+critical_cohort_model_out = "unset"
+router2_profile = "unset"
 randomize_seed = false
 placer = "heap"
 cstrweight = "unset"

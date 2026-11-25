@@ -105,7 +105,7 @@ GOLDENS = {
     "fes.c64": ("6373cfbc3a68996ad89efbba3af45fcf0d477466e1b4a45eca5b8c38ebd5ff37", "86b9d7ef13b01b2ff5c1f2cc2e979d117e8e1470aeaf88ce85483163048b6134"),
     "fes.c64-ntsc": ("a9ecd6a9e91c0c4ee76aa358657581c29dfe2d06aae10736e222332eea32e7d9", "ba3d705b0329512685c30c2936e3573643f6ae12ca8fa304503553435ebd4a61"),
     "fes.c64-early-ntsc": ("13bb016196e27c3de37c89f629516ebcce59809b7109de4b1a5c08bded90dc93", "d41cf02a9002726d69965998cfeb00d7d163a528a3dbb533e6cd18dc97658b70"),
-    "fes.c64-pal-n": ("82d2a03f3bf6fb3002f85f5d3cceb3b1a6292b726f4f717a9a767a0eb36a3615", "6029372ee25b10ecd2b8effe9947279107a46a5e3ad3ba906b5ec4ea3ca3463f"),
+    "fes.c64-pal-n": ("cef38b29a207bab4609c448de0003c099793b373c7304d149c493531dbc13edf", "951143d3766efc5fc64cd047f22e2257913b681a097955d8dc4d91e85edc4980"),
     "fes.c64c": ("9018016f8b5d4280c4924277838cc03b24fca66ca45826460106c87c8cb4da14", "e68703d71dad0f79be4986ab4f7275589fe807f7750a649f3f324511bbf92fa3"),
     "fes.c64c-ntsc": ("8753f73ce7d9f82b00fbc0f1cf567608eb1969655c745b96472f8e7d0f040bce", "bb127cdc0c186d0bf27771be87423f54d716d7e99fa769b02c793463fe0c68aa"),
     "fes.spectrum": ("09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
@@ -134,7 +134,7 @@ ARGV_MATRIX_GOLDENS = {
     "fes.c64": "ed1c7847679e3d9d18654e7e32892c2e585cc1317dd058a865668bb8860223f1",
     "fes.c64-ntsc": "e7b8abf9a37418220b7d883029aa76189ba605e7418ac0b2580f8379ad92f255",
     "fes.c64-early-ntsc": "1620c0f67c962f9d5fc2fabc28a71da0224f34796a5370185e5b1d0aa69e9126",
-    "fes.c64-pal-n": "8e47aa40d60e215021096a612dc69efc46cd155e4d388001af1e366e91c0db33",
+    "fes.c64-pal-n": "378ef276804a3c048dabf7ab0b5018f8902bca9628e2329bc448dc90164ccee6",
     "fes.c64c": "22f5c658b5f1cf5d1d055da69614ffea9f094cd66853e1642a1a390b4818e739",
     "fes.c64c-ntsc": "72dc7da2638d75e02a8fc08d461a751d8ff5843269e0461eb57bfb1806e72a69",
     "fes.spectrum": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
@@ -179,7 +179,7 @@ def _legacy_argv(core_id, recipe, *, slot=SLOT, synth=SYNTH, output=OUTPUT,
                         "--detailed-timing-report"))
         if recipe["gpu_device"] == "lease":
             command.extend(("--gpu-device", "0"))
-    if core_id in ZX81_FAMILY or core_id == "fes.c64c-ntsc":
+    if core_id in ZX81_FAMILY or core_id in {"fes.c64c-ntsc", "fes.c64-pal-n"}:
         command.append("--arrival-pin-assignment")
     return command
 
@@ -261,7 +261,7 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(pnr_recipe.nextpnr_pin(core_id), pin)
                 if core_id == "fes.coleco":
                     option_count = 107
-                elif core_id in {"fes.pong", "fes.riscv", "fes.atari-st", "fes.c64c-ntsc"} | ZX81_FAMILY:
+                elif core_id in {"fes.pong", "fes.riscv", "fes.atari-st", "fes.c64c-ntsc", "fes.c64-pal-n"} | ZX81_FAMILY:
                     option_count = 105
                 else:
                     option_count = 96
@@ -539,7 +539,7 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(pnr_recipe.recipe_digest(core_id), recipe_sha)
                 flags_sha = hashlib.sha256(json.dumps(
                     recipe["flags"], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-                expected_flags_sha = (ZX81_FLAGS_SHA256 if core_id in ZX81_FAMILY or core_id == "fes.c64c-ntsc" else
+                expected_flags_sha = (ZX81_FLAGS_SHA256 if core_id in ZX81_FAMILY or core_id in {"fes.c64c-ntsc", "fes.c64-pal-n"} else
                                       FLAGS_SHA256[len(recipe["flags"])])
                 self.assertEqual(flags_sha, expected_flags_sha)
                 weights = tuple(dict.fromkeys((*recipe["timing_weights"], *recipe["search_weights"])))
