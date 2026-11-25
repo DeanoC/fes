@@ -99,9 +99,16 @@ def replay(workload, arm, binary, images, drive, output):
     command = [str(binary), '--bios', str(images['bios']), '--vgabios', str(images['vgabios']),
                '--disk', str(disk), *arguments_for(workload, directory)]
     save(directory / 'command.json', command)
+    timeout_hours = 12 if workload == 'quake' else 8
     with (directory / 'run.log').open('w') as log:
-        result = subprocess.run(command, cwd=directory, stdout=log, stderr=subprocess.STDOUT, timeout=8 * 3600)
-    save(directory / 'result.json', {'return_code': result.returncode})
+        try:
+            result = subprocess.run(command, cwd=directory, stdout=log, stderr=subprocess.STDOUT,
+                                    timeout=timeout_hours * 3600)
+        except subprocess.TimeoutExpired:
+            outcome = {'return_code': 124, 'timeout_hours': timeout_hours}
+        else:
+            outcome = {'return_code': result.returncode}
+    save(directory / 'result.json', outcome)
 
 
 def analyze_workload(workload, arm, output, analyzer):
