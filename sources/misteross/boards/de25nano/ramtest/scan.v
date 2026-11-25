@@ -5,7 +5,8 @@ module fes_de25_ram_scan #(
     parameter integer DATA_W = 128,
     parameter integer MAX_BURST = 16,
     parameter integer TIMEOUT = 1000000,
-    parameter integer LATENCY_SAMPLES = 1024
+    parameter integer LATENCY_SAMPLES = 1024,
+    parameter integer CHECK_ADDRESS_HIGH = 0
 ) (
     input wire clk, reset_n, start, stop, clear, calibrated,
     input wire [31:0] base, length,
@@ -82,7 +83,11 @@ module fes_de25_ram_scan #(
                     3: value[i*8 +: 8] = (64'd1 << lane[8:3]) >> ((i % 8)*8);
                     4: value[i*8 +: 8] = ordinary;
                     5: value[i*8 +: 8] = inverted;
-                    default: value[i*8 +: 8] = expected && i != ((a >> SHIFT) & (STEP-1)) ? inverted : ordinary;
+                    6: value[i*8 +: 8] = expected && i != ((a >> SHIFT) & (STEP-1)) ? inverted : ordinary;
+                    // Together with pattern 4 (low address XOR high address),
+                    // this distinguishes every halfword address bit. It is
+                    // enabled only by the managed 16-bit board-SDRAM tester.
+                    default: value[i*8 +: 8] = (a >> 16) >> (i*8);
                 endcase
             end
         end
@@ -240,7 +245,7 @@ module fes_de25_ram_scan #(
                             state <= LAT_COMMAND;
                         end
                     end else if (pass_end) begin
-                        if (pattern == 6) begin
+                        if ((pattern == 6 && (!CHECK_ADDRESS_HIGH || DATA_W != 16)) || pattern == 7) begin
                             beats <= 32 / STEP; cursor <= active_base; state <= LAT_COMMAND;
                         end else begin pattern <= pattern+1; cursor <= active_base; state <= WRITE_SETUP; end
                     end else begin

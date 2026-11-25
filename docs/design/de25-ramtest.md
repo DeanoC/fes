@@ -40,3 +40,18 @@ board voltage/pin qualification, calibration, boot-handoff pairing, DRAM
 reliability or Linux admission. Any later runtime/package integration must
 add its actual consumer and corresponding deployment/HIL requirement; the
 current dedicated definition remains classified as a standalone diagnostic.
+
+## Managed board-SDRAM test
+
+The separate `fes.ramtest` DE25 producer uses the managed computer shell and
+its existing kernel-owned display allocation. It runs the diagnostic scan
+engine over the 128 MiB board SDRAM, then renders the scoped result and
+marks both LPDDR banks untested. Host capture analysis requires a RUNNING frame followed by two stable PASS
+frames on the same active package and runtime generation; it does not infer
+LPDDR or analogue acceptance. Execution Hold waits
+for accepted SDRAM traffic to drain before the mailbox acknowledges it.
+A missing response does not prove drain. No new HPS DDR tester master, DMA
+grant, ABI, reset waiver or raw JTAG route is introduced. See the [managed
+test](../../sources/misteross/boards/de25nano/ramtest_managed/README.md).
+The producer still requires full timing and seal evidence and exact-artifact
+hardware testing. Full #2250 three-bank integration remains open.

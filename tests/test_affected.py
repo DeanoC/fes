@@ -691,7 +691,7 @@ class AffectedTests(unittest.TestCase):
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')
                 sources.append(root / 'scripts/sim_fes_display_plane.py')
             recipe += ''.join(path.read_text() for path in sources if path.exists())
-            references = set(re.findall(r'(?:cores/|boards/de25nano/x87/)[A-Za-z0-9_./-]+', recipe))
+            references = set(re.findall(r'(?:cores/|boards/de25nano/(?:x87|ramtest_managed)/)[A-Za-z0-9_./-]+', recipe))
             self.assertTrue(references, core)
             for path in references:
                 with self.subTest(core=core, path=path):

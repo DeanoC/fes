@@ -241,6 +241,11 @@ sim-fes-ramtest:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_ramtest.py
 
+.PHONY: sim-fes-de25-ramtest
+sim-fes-de25-ramtest:
+	$(require_local_sim)
+	$(PYTHON) boards/de25nano/ramtest_managed/sim.py
+
 build-fes-ramtest-100:
 	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 

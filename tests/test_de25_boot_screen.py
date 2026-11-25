@@ -107,6 +107,59 @@ class GemDesktopTests(unittest.TestCase):
         self.assertEqual(luma((0, 0, 0)), 0)
 
 
+class RamtestScreenTests(unittest.TestCase):
+    @staticmethod
+    def result_frame(status=(0, 224, 0), missing=None):
+        raw = bytearray(WIDTH * HEIGHT * 3)
+        for index, (y, color) in enumerate(zip((28, 36, 76, 116, 156),
+                ((208, 32, 208), (32, 208, 208), status, (96, 96, 96), (96, 96, 96)))):
+            if index == missing:
+                continue
+            cx = round((160 + 3*276) * WIDTH / 1280)
+            cy = round(3*y * HEIGHT / 720)
+            for yy in range(cy-3, cy+4):
+                for xx in range(cx-3, cx+4):
+                    offset = (yy * WIDTH + xx)*3
+                    raw[offset:offset+3] = bytes(color)
+        return bytes(raw)
+
+    def test_only_pass_is_accepted_and_reports_scope(self):
+        ok, detail = boot.ramtest_screen(self.result_frame())
+        self.assertTrue(ok, detail)
+        self.assertIn("FPGA LPDDR and HPS LPDDR not tested", detail)
+        for color in ((32, 32, 224), (224, 160, 0), (224, 0, 0), (224, 224, 224), (0, 0, 0)):
+            with self.subTest(color=color):
+                self.assertFalse(boot.ramtest_screen(self.result_frame(color))[0])
+
+    def test_stale_pass_and_discontinuous_results_are_refused(self):
+        advance = boot.ramtest_transition
+        run = "SDRAM 128 MiB running; FPGA LPDDR and HPS LPDDR not tested"
+        ok = "SDRAM 128 MiB pass; FPGA LPDDR and HPS LPDDR not tested"
+        state = advance(False, 0, True, ok)
+        self.assertEqual(advance(*state, True, ok), (False, 0))
+        state = advance(False, 0, False, run)
+        state = advance(*state, True, ok)
+        self.assertEqual(state, (True, 1))
+        self.assertEqual(advance(*state, True, ok), (True, 2))
+        self.assertEqual(advance(*state, False, "unknown"), (True, 0))
+
+    def test_package_and_generation_must_remain_bound(self):
+        status = {"state": "active", "game_id": "game", "core_package":
+                  {"package_id": "pkg", "generation": 9, "build_id": "build"}}
+        self.assertTrue(boot.ramtest_session_bound(status, status, "game", "pkg"))
+        for field, value in (("generation", 10), ("generation", 0),
+                             ("build_id", "other"), ("package_id", "other")):
+            end = {**status, "core_package": {**status["core_package"], field: value}}
+            self.assertFalse(boot.ramtest_session_bound(status, end, "game", "pkg"))
+        self.assertFalse(boot.ramtest_session_bound(status, {**status, "state": "idle"}, "game", "pkg"))
+
+    def test_missing_identity_or_untested_bank_is_not_a_pass(self):
+        for missing in (0, 1, 3, 4):
+            with self.subTest(missing=missing):
+                self.assertFalse(boot.ramtest_screen(self.result_frame(missing=missing))[0])
+        self.assertFalse(boot.ramtest_screen(bytes(WIDTH * HEIGHT * 3))[0])
+
+
 class CommandLineTests(unittest.TestCase):
     def run_main(self, *args):
         out = StringIO()

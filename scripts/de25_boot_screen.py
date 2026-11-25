@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Manually recognise a core's boot screen in a DE25 HIL capture.
 
-This standalone capture-analysis utility is not currently called by the
-Powerboat D25 smoke runner. It can check whether supplied frames show the
-screen a core should boot to. OCR cannot read the Atari ST desktop: its menu
+The Powerboat D25 smoke runner calls this utility for known cores. It checks
+whether supplied frames show the screen a core should boot to. OCR cannot read the Atari ST desktop: its menu
 text is large and pixelated and the desktop is a dithered fill.
 
 The Atari ST check recognises a GEM desktop by its layout, not by a stored
@@ -125,7 +124,56 @@ def gem_desktop(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> tuple[b
                   f"rule at row {rule}, menu strip {light:.2f} light {ink:.2f} ink")
 
 
-CHECKS = {"fes.atari-st": gem_desktop}
+def ramtest_screen(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> tuple[bool, str]:
+    """Check the exact managed SDRAM result and both untested-bank markers.
+
+    Coordinates are in its 320x240 playfield, centred and scaled 3x in 720p.
+    A median over each flat marker tolerates capture scaling and colour drift.
+    A blank, stale, running, stopped or failed frame is never a pass.
+    """
+    px = _pixels(raw, width, height)
+
+    def marker(x, y):
+        cx = round((160 + 3*x) * width / 1280)
+        cy = round(3*y * height / 720)
+        samples = [px[yy][xx] for yy in range(cy-2, cy+3) for xx in range(cx-2, cx+3)]
+        return tuple(sorted(p[c] for p in samples)[len(samples)//2] for c in range(3))
+
+    def close(actual, expected, tolerance=60):
+        return all(abs(a-b) <= tolerance for a, b in zip(actual, expected))
+
+    samples = [marker(276, y) for y in (28, 36, 76, 116, 156)]
+    identity = ((208, 32, 208), (32, 208, 208))
+    if not all(close(samples[i], identity[i]) for i in range(2)):
+        return False, f"diagnostic identity marker missing: {samples[:2]}"
+    if not close(samples[3], (96, 96, 96)) or not close(samples[4], (96, 96, 96)):
+        return False, f"LPDDR untested markers missing: {samples[3:]}"
+    states = {"waiting": (32, 32, 224), "running": (224, 160, 0),
+              "pass": (0, 224, 0), "fail": (224, 0, 0), "stopped": (224, 224, 224)}
+    matches = [name for name, color in states.items() if close(samples[2], color)]
+    if len(matches) != 1:
+        return False, f"ambiguous SDRAM result: {samples[2]}"
+    return matches[0] == "pass", f"SDRAM 128 MiB {matches[0]}; FPGA LPDDR and HPS LPDDR not tested"
+
+
+def ramtest_transition(running_seen, stable, ok, detail):
+    """Require a RUNNING observation before two consecutive passing frames."""
+    if detail.startswith("SDRAM 128 MiB running;"):
+        return True, 0
+    return running_seen, stable + 1 if running_seen and ok else 0
+
+
+def ramtest_session_bound(before, after, game, package):
+    """Verify both observations name the same active core generation."""
+    def identity(status):
+        core = status.get("core_package") or {}
+        return (status.get("game_id"), core.get("package_id"), core.get("generation"), core.get("build_id"))
+    first, last = identity(before), identity(after)
+    return (before.get("state") == after.get("state") == "active" and first == last and
+            first[0] == game and first[1] == package and bool(first[2]) and bool(first[3]))
+
+
+CHECKS = {"fes.atari-st": gem_desktop, "fes.ramtest": ramtest_screen}
 
 
 def main(argv=None) -> int:

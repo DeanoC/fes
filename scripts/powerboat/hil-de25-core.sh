@@ -105,12 +105,72 @@ old_idle = """    rc, lc = kit("curl -s -m5 --unix-socket /run/fogcast/local-con
 new_idle = "    idle = req('/api/v1/session', 'session-after-stop')\n    check('idle_after_stop', idle.get('state') == 'idle', str(idle.get('state')))"
 if old_idle not in s: raise SystemExit('HIL smoke idle probe declaration changed')
 s=s.replace(old_idle,new_idle,1)
+# Include installation, launch and initial captures in the RAM test budget.
+old_install = '    inst = cli("core-install", "core-install", str(PKG)); pid = inst.get("package_id"); R["package_id"] = pid'
+if old_install not in s: raise SystemExit('HIL smoke install declaration changed')
+s=s.replace(old_install, '    ramtest_deadline = time.monotonic() + 900\n' + old_install, 1)
 old_frames = '    s1 = grab("10-core", 1); s2 = grab("11-core", 10)'
 new_frames = old_frames + """
     tool = os.environ.get("C_BOOT_SCREEN_TOOL", "")
-    if tool and os.path.isfile(tool):
+    core_id = os.environ.get("C_CORE_ID", "")
+    if core_id == "fes.ramtest":
+        # Bind the RUNNING -> PASS transition to one observed package and
+        # runtime generation. A repeated stale PASS cannot satisfy this gate.
+        deadline = ramtest_deadline
+        identity = (ss.get("game_id"), cp.get("package_id"), cp.get("generation"), cp.get("build_id"))
+        stable, count, running_seen = 0, 0, False
+        observations = []
+        def observe_ramtest(frame):
+            bs = subprocess.run([sys.executable, tool, "--core", core_id, str(frame)],
+                                capture_output=True, text=True, timeout=180)
+            detail = ""
+            try:
+                parsed = json.loads(bs.stdout)
+                detail = parsed.get("frames", {}).get(str(frame), {}).get("detail", "")
+            except (ValueError, TypeError):
+                pass
+            observations.append({"frame": str(frame), "ok": bs.returncode == 0,
+                                 "detail": detail, "error": bs.stderr.strip()})
+            return bs.returncode, detail
+        if tool and os.path.isfile(tool):
+            import runpy
+            ramtest_helpers = runpy.run_path(tool)
+            advance = ramtest_helpers["ramtest_transition"]
+            session_bound = ramtest_helpers["ramtest_session_bound"]
+            for name in ("10-core", "11-core"):
+                frame = FR / (name + ".png")
+                if not frame.is_file() or time.monotonic() >= deadline:
+                    stable = 0
+                    continue
+                rc, detail = observe_ramtest(frame)
+                running_seen, stable = advance(running_seen, stable, rc == 0, detail)
+            while time.monotonic() < deadline and stable < 2:
+                name = f"ramtest-{count:03d}"
+                count += 1
+                captured = grab(name, 10)
+                frame = FR / (name + ".png")
+                if time.monotonic() >= deadline:
+                    break
+                if not captured or not frame.is_file():
+                    observations.append({"frame": str(frame), "ok": False, "error": "capture failed"})
+                    stable = 0
+                    continue
+                rc, detail = observe_ramtest(frame)
+                running_seen, stable = advance(running_seen, stable, rc == 0 and time.monotonic() < deadline, detail)
+        end = req("/api/v1/session", "ramtest-session-after")
+        end_cp = end.get("core_package") or {}
+        end_identity = (end.get("game_id"), end_cp.get("package_id"), end_cp.get("generation"), end_cp.get("build_id"))
+        bound = bool(tool and os.path.isfile(tool) and session_bound(ss, end, game, pid) and
+                     time.monotonic() < deadline)
+        (OUT / "ramtest-screen.json").write_text(json.dumps({"observations": observations,
+            "identity": identity, "final_identity": end_identity, "running_seen": running_seen,
+            "stable_pass": stable >= 2, "bound": bound}, indent=2))
+        check("ramtest_sdram", bound and running_seen and stable >= 2,
+              "fresh 128-MiB SDRAM RUNNING to two PASS frames; both LPDDR banks untested" if bound and running_seen and stable >= 2
+              else "no bound RUNNING to stable PASS transition before deadline")
+    elif tool and os.path.isfile(tool):
         frames = [str(FR / (n + ".png")) for n in ("10-core", "11-core") if (FR / (n + ".png")).is_file()]
-        bs = subprocess.run([sys.executable, tool, "--core", os.environ.get("C_CORE_ID", ""), *frames], capture_output=True, text=True, timeout=180)
+        bs = subprocess.run([sys.executable, tool, "--core", core_id, *frames], capture_output=True, text=True, timeout=180)
         (OUT / "boot-screen.json").write_text(bs.stdout + bs.stderr)
         if bs.returncode != 3:
             check("boot_screen", bs.returncode == 0 and len(frames) == 2, bs.stdout.strip()[:400])"""

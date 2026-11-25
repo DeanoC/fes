@@ -102,6 +102,13 @@ RULES = [
     ('sources/misteross/boards/de25nano/**/*_harness.v', 'none', None),
     ('sources/misteross/boards/de25nano/**/sim.py', 'none', None),
     ('sources/misteross/boards/de25nano/**/*_sim.py', 'none', None),
+    # The managed SDRAM smoke embeds the scanner and controller from the
+    # standalone lane; those files now have deployed DE25 consumers.
+    ('sources/misteross/boards/de25nano/ramtest/managed/**', 'overlay', 'core:de25-ramtest'),
+    ('sources/misteross/boards/de25nano/ramtest/scan.v', 'overlay', 'core:de25-ramtest'),
+    ('sources/misteross/boards/de25nano/ramtest/sdram.v', 'overlay', 'core:de25-ALL'),
+    ('sources/misteross/boards/de25nano/ramtest_managed/**', 'overlay', 'core:de25-ramtest'),
+    ('sources/misteross/boards/de25nano/producers/build_ramtest_package.py', 'overlay', 'core:de25-ramtest'),
     ('sources/misteross/boards/de25nano/zx81-hps/**', 'overlay', 'core:de25-zx81'),
     # This helper is also imported by the canonical computer producer.
     ('sources/misteross/boards/de25nano/zx81/build.py', 'overlay', 'core:de25-zx81'),

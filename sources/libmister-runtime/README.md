@@ -75,6 +75,10 @@ existing BRAM profile remains separate; there is no automatic fallback.
 Software admission does not establish a sealed standard package or hardware
 acceptance.
 
+The same profile also admits the ROM-less DE25 `fes.ramtest` board-SDRAM
+test with the standard shell interfaces. This admission does not imply a
+sealed package, LPDDR coverage or hardware acceptance.
+
 The same profile admits seven firmware machines from a per-core contract table
 (`src/native/de25_core_contract.hpp`): `fes.spectrum` and `fes.spectrum128`
 (the shell plus `fes.media.spectrum-tape` 2.0), `fes.spectrum-plus3` and
