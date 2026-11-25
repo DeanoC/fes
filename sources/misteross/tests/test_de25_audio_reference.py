@@ -76,13 +76,19 @@ class AudioReferenceTests(unittest.TestCase):
           .HDMI_LRCLK(HDMI_LRCLK), .HDMI_I2S(HDMI_I2S) );'''
         for core in ('fes.spectrum128', 'fes.pcxt-dos', 'fes.pc386'):
             with self.subTest(core=core):
-                self.record['parameters'].update(core_id=core, audio_clock_reference_policy=audio.MACHINE_POLICY)
-                sources = {**audio.MACHINE_SOURCES, audio.MACHINE_PLLS[core][0]: audio.MACHINE_PLLS[core][1]}
+                self.record['parameters'].update(core_id=core, audio_clock_reference_policy=audio.MACHINE_POLICY,
+                                                 model='486sx' if core == 'fes.pc386' else 'fixture')
+                pll = audio.machine_pll(self.record['parameters'])
+                sources = {**audio.MACHINE_SOURCES, pll[0]: pll[1]}
                 self.record['source_inputs'] = dict(sources)
+                if core in audio.PER_MODEL_PLLS:
+                    pins = audio.PER_MODEL_PLLS[core]
+                    self.record['source_inputs'][pins] = hashlib.sha256((ROOT / pins).read_bytes()).hexdigest()
                 for name, expected in sources.items():
                     source = ROOT / name
                     self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), expected)
-                    (self.local / source.name).write_bytes(source.read_bytes())
+                    # The board writes every machine's PLL IP as fes_mailbox/machine_pll.ip.
+                    (self.local / (audio.COMPILED_PLL if name == pll[0] else source.name)).write_bytes(source.read_bytes())
                 self.top = wiring % audio.MACHINE_PLL_OUTPUTS.get(core, '')
                 (self.project / 'golden_top.v').write_text(self.top)
                 self.write_record()
@@ -101,6 +107,11 @@ class AudioReferenceTests(unittest.TestCase):
                     with self.assertRaises(audio.BuildError):
                         audio.eligible_machine(self.fit, self.record)
         self.record['parameters']['core_id'] = 'fes.spectrum128-other'
+        self.write_record()
+        with self.assertRaises(audio.BuildError):
+            audio.eligible_machine(self.fit, self.record)
+        # A pc386 model the per-model pins do not name has no reviewed PLL.
+        self.record['parameters'].update(core_id='fes.pc386', model='486xx')
         self.write_record()
         with self.assertRaises(audio.BuildError):
             audio.eligible_machine(self.fit, self.record)

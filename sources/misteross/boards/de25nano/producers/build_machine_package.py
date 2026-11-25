@@ -126,7 +126,9 @@ class Machine:
                       'guest_memory': self.guest_memory}
         if uploads_firmware(spec):
             return {**memory, 'firmware_delivery': UPLOAD_ENCODING, 'firmware_bytes': spec.FIRMWARE_BYTES[model]}
-        return {**memory, **spec.record_parameters(root)}
+        # A machine whose models have their own clocks records the model's guest rates.
+        record = spec.record_parameters(root, model) if spec.board.per_model_clocks(spec) else spec.record_parameters(root)
+        return {**memory, **record}
 
     def create_build_record(self, root, repository, revision, identities, execution, captured=None, *,
                             model=None, identity_version=2):
@@ -139,7 +141,7 @@ class Machine:
         model = self.model(spec, model)
         profile = self.model_profiles.get(model, 'de25-linux-computer-v1')
         if captured is None:
-            captured = spec.board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE)
+            captured = spec.board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE, model=model)
         if profile == NATIVE_C64_PROFILE and not spec.NATIVE_SOURCES.issubset(captured):
             raise BuildError("native C64 requires the captured upload-shell sources")
         top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
@@ -157,7 +159,7 @@ class Machine:
                 'fabric_initiator_policy': 'native-maintenance-absent-v1' if native_shell else common.MANAGED_FABRIC,
                 'programming_profile': profile, 'standard_core': True, 'linux_dma': not native_shell,
                 'expansion_socket': False, **self.memory_parameters(root, spec, model, native_shell),
-                'machine_clock_hz': spec.board.clocks(spec)[0], 'audio_clock_requested_hz': 12288000,
+                'machine_clock_hz': spec.board.clocks(spec, model)[0], 'audio_clock_requested_hz': 12288000,
                 'fifo_reset_sharing': common.SHARED_FIFO_RESETS,
                 'f2s_data_width': 0, 'f2sdram_data_width': 256, 'scanout_master_data_width': 128,
                 'hps_warm_reset_handshake': True, 'reset_timing_policy': common.TIMED_RESET_RELEASE,
@@ -218,7 +220,7 @@ class Machine:
         board = spec.board
         model = self.model(spec, model)
         profile = self.model_profiles.get(model)
-        captured = board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE)
+        captured = board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE, model=model)
         paths, identities = common.authenticate_tools(spec, quartus_root)
 
         def front_end():
@@ -287,7 +289,8 @@ class Machine:
                     {**common.authenticate_tools(spec, quartus_root)[1], **front_end()} != identities or
                     common.execution_inputs(paths, env) != execution or
                     self.create_build_record(root, repository, revision, identities, execution,
-                                             board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE), model=model) != record):
+                                             board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE, model=model),
+                                             model=model) != record):
                 raise BuildError(self.label + ' source/tool/execution inputs changed during build')
             shutil.copyfile(payload, output / 'core.rbf')
             kind = 'de25-' + self.directory

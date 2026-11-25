@@ -353,46 +353,56 @@ class MachineProducerTests(unittest.TestCase):
 
     def test_pc386_models_carry_their_own_machine_clocks(self):
         """Two pc386 models with different clocks, from one spec and one producer: each record, each
-        board clock spec and each set of guest rates is its own model's, whichever was selected last."""
+        board clock spec, PLL comment, parent digest and set of guest rates is its own model's."""
         import copy
 
-        class TwoClocks(pc386.Pc386Machine):
-            # A second model at the 61.437908 MHz clock (C0 = 51), with the 486SX's IP and parent
-            # standing in: the record and clock spec are what this test checks, not a fit.
+        class TwoClocks(type(pc386.MACHINE)):
+            # A second model at the 61.437908 MHz clock (C0 = 51), standing in for #2194's 486dx, with
+            # the 486SX's IP and another parent digest: the record and clock spec are what this test
+            # checks, not a fit.
             def spec(self, root):
                 module = super().spec(root)
                 module.MODELS = {**module.MODELS, 'clocktwin': None}
-                module.MODEL_CLOCKS = {**module.MODEL_CLOCKS, 'clocktwin': {**module.MODEL_CLOCKS['486sx'], 'c0': 51}}
+                module.CLOCKS.MODEL_CLOCKS = {**module.CLOCKS.MODEL_CLOCKS, 'clocktwin': {
+                    **module.CLOCKS.MODEL_CLOCKS['486sx'], 'c0': 51, 'parent_sha256': 'f' * 64}}
                 return module
 
         machine = copy.copy(pc386.MACHINE)
         machine.__class__ = TwoClocks
         machine.descriptions = {**pc386.MACHINE.descriptions, 'clocktwin': 'fixture'}
         tools = {**self.tools, 'yosys': 'explicit fixture yosys'}
-        expected = {'486sx': (92156863, '92.156863', 1920), 'clocktwin': (61437908, '61.437908', 1280)}
-        records = {}
+        expected = {'486sx': (92156863, '92.156863', 1920, '/34 '), 'clocktwin': (61437908, '61.437908', 1280, '/51 ')}
+        spec = machine.spec(ROOT)
+        board = spec.board
+        self.assertTrue(board.per_model_clocks(spec))
+        identities = {}
         for model in ('clocktwin', '486sx', 'clocktwin'):
             with self.subTest(model=model):
+                hz, mhz, audio, divider = expected[model]
                 record = machine.create_build_record(self.root, REPOSITORY, self.revision, tools, self.execution,
                                                      self.captured[pc386], model=model)
                 parameters = json.loads(record)['parameters']
-                hz, mhz, audio = expected[model]
                 self.assertEqual((parameters['model'], parameters['machine_clock_hz']), (model, hz))
                 rates = json.loads(parameters['guest_rates'])
                 self.assertEqual((rates['AUDIO_N'], rates['AUDIO_D']), (1, audio))
-                spec = machine.spec(ROOT)
-                self.assertEqual(machine.model(spec, model), model)
-                self.assertEqual(spec.board.clocks(spec)[0], hz)
-                self.assertEqual(spec.board.clocks(spec)[2]['gui_output_clock_frequency0'], mhz)
-                self.assertEqual(spec.guest_rates(), rates)
-                records.setdefault(model, set()).add(build_identity(record))
+                self.assertEqual(spec.guest_rates(model), rates)
+                self.assertEqual(board.clocks(spec, model)[0], hz)
+                self.assertEqual(board.clocks(spec, model)[2]['gui_output_clock_frequency0'], mhz)
+                self.assertIn(divider, board.top_after(spec, model))
+                self.assertEqual(spec.model_clock(model)['parent_sha256'],
+                                 spec.CLOCKS.MODEL_CLOCKS[model]['parent_sha256'])
+                identities.setdefault(model, set()).add(build_identity(record))
         # One identity per model, and the two models' identities differ.
-        self.assertEqual({model: len(ids) for model, ids in records.items()}, {'486sx': 1, 'clocktwin': 1})
-        self.assertNotEqual(records['486sx'], records['clocktwin'])
-        spec = machine.spec(ROOT)
+        self.assertEqual({model: len(ids) for model, ids in identities.items()}, {'486sx': 1, 'clocktwin': 1})
+        self.assertNotEqual(identities['486sx'], identities['clocktwin'])
+        # No model named is the first model; an unknown model has no clock.
+        self.assertEqual(board.clocks(spec)[0], 92156863)
         with self.assertRaisesRegex(ValueError, 'no model'):
-            spec.select_model('486dx')
-
+            spec.model_clock('486dx')
+        # A machine-wide clock spec beside model_clock is refused, not silently preferred.
+        spec.MACHINE_HZ = 1
+        with self.assertRaisesRegex(ValueError, 'both a per-model and a machine-wide'):
+            board.clocks(spec)
 
 if __name__ == '__main__':
     unittest.main()

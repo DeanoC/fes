@@ -128,3 +128,65 @@ and says what had been seen by then. No gate changes after a result exists.
 - Each run starts from a clean detached worktree of the pushed head, under
   `/data/projects/fes-486sx-9216`.
 - No GPU routes anything.
+
+## Amendments
+
+1. **25 November 2026, before any fit. Scope, from the coordinating session
+   (agreed with the DX session so the two PRs don't edit the same file).**
+   Seen by then: no fit or Quartus run of this PR. The design changed after
+   two findings:
+   - `scanout/audio_reference.py` pins pc386's PLL IP by path and SHA-256 and
+     looks the compiled IP up by that file's name, so any pc386 clock change
+     must edit that shared file.
+   - The coordinator asked this PR to own the `model` plumbing in
+     `machine/board.py`, so that #2194 adds its DX in pc386's files alone.
+
+   The change is now:
+   - **`machine/board.py`.** `clocks`, `capture`, `component_files`,
+     `top_after`, `machine_pll` and `shared_resets` take an optional `model`.
+     `verify` and `generate` read the model from the prepared `inputs.json`.
+     A spec opts in by defining `model_clock(model)`, which gives that
+     model's rate, PLL IP and parameters, SDRAM clocks, board-top PLL comment
+     and reviewed parent digest. A spec with no `model_clock` takes exactly
+     the path it took before. A spec that defines both `model_clock` and the
+     machine-wide names is refused.
+   - **`producers/build_machine_package.py`** passes the model to `capture`,
+     to `clocks` (the record's `machine_clock_hz`) and, for a per-model spec,
+     to `record_parameters`.
+   - **`scanout/audio_reference.py`** takes a per-model machine's PLL pin
+     from that machine's own file, by the record's model, and checks that
+     the record captured that file. It finds the compiled IP where the board
+     writes it (`fes_mailbox/machine_pll.ip`).
+   - **pc386** keeps its clock data in `pc386/model_clocks.py`: C0, PLL IP,
+     IP digest and parent digest per model. That is the file #2194 adds the
+     DX to. `build.py`'s `guest_rates`, `machine_parameters`,
+     `component_files`, `record_parameters` and `machine_netlist` take the
+     model. The 486SX elaboration is main's in every other respect: same
+     sources, derivation, recipe and `I486`.
+
+   "No shared DE25 file changes" above no longer holds. These three shared
+   files are in every other DE25 package's source closure, so every other
+   `BUILD_ID` moves. That adds:
+
+   - **G7, D12 for every other DE25 package on the shared builder**, as
+     #2036's `docs/validation/2026-11-20-de25-pc386-shell-s3/d12.md` did it.
+     The packages are MENU, ZX81, Spectrum 48 and 128, ST, C64 `pal` and
+     PC/XT `xt`. For each, there are three runs from clean checkouts, one job
+     at a time under the lease:
+     - **A:** main at this PR's merge base, `--compile-only`.
+     - **B:** this PR's head, with the full producer and its gates.
+     - **C:** this PR's tooling with main's `BUILD_ID` forced, using #2036's
+       `d12_repro.py`.
+
+     Each package must show all of:
+     - its Quartus project inputs, A against B, byte-identical apart from
+       `BUILD_ID` and paths (#2036's `d12_cmp.py`);
+     - C's `core.rbf` byte-identical to A's;
+     - B's producer passing its own timing and signoff gates.
+
+     MENU's C stops at its own review, as in #2036, and is reported so.
+     PC/XT's C is "not measurable" (#2182) unless main's own PC/XT build
+     reproduces by then. If any package's generated inputs cannot be kept
+     byte-identical, the work stops and that is reported.
+
+   No other gate changes.

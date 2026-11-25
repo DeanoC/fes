@@ -20,22 +20,9 @@ from boards.de25nano.producers.build_menu_package import execution_environment, 
 from scripts.pc386_quartus import INTERFACES
 
 RECIPE = 'boards/de25nano/producers/build_pc386_package.py'
-
-
-class Pc386Machine(Machine):
-    """Each pc386 model has its own machine clock (pc386/build.py MODEL_CLOCKS). Every record and
-    build path resolves the model here before it reads a clock, the record's machine_clock_hz and
-    guest rates included, so the spec it was given is switched to that model's clock first."""
-
-    def model(self, spec, model):
-        model = super().model(spec, model)
-        spec.select_model(model)
-        return model
-
-
 # The DE10 package's ABI (fes.computer 1.1) and interfaces, all 1.0; the board
 # adds the window and the scanout fabric.
-MACHINE = Pc386Machine(
+MACHINE = Machine(
     recipe=RECIPE, directory='pc386', core_id='fes.pc386', rom_id=None,
     name='FES pc386', version='0.1.0',
     descriptions={'486sx': 'Standard DE25 pc386: fes_i386_cpu as a 486SX (I486 = 1) with no 387, the Bochs '
