@@ -95,6 +95,7 @@ type programService struct {
 	rearm          bool
 	backendClaimed bool
 	execution      ProgramFetchObservation
+	launchTrace    func(ProgramServiceStatus, string, error)
 	menu           *programServiceMenu
 	preferences    *ProgramPreferences
 	network        *network.Controller
@@ -216,7 +217,16 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	if err := p.pauseNetwork(ctx); err != nil {
 		return ProgramSession{}, err
 	}
-	defer p.finishNetwork(&result)
+	trace := p.launchTrace
+	defer func() {
+		p.finishNetwork(&result)
+		if trace != nil {
+			trace(s.Status(), "complete", result)
+		}
+	}()
+	if trace != nil {
+		trace(view, "loading", nil)
+	}
 	view.State, view.Error = ProgramLoading, ""
 	p.publish(view)
 	if p.menu != nil {
@@ -224,12 +234,21 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 			return ProgramSession{}, p.fail(err)
 		}
 	}
+	if trace := p.launchTrace; trace != nil {
+		trace(view, "menu-closed", nil)
+	}
 	request.Sources = append([]packagestore.Source(nil), request.Sources...)
 	request.Parts = append([]packagestore.Part(nil), request.Parts...)
 	err = p.checkpointPreferences(ctx)
+	if trace := p.launchTrace; trace != nil {
+		trace(view, "preferences-complete", err)
+	}
 	var selection *packagestore.Selection
 	if err == nil {
 		selection, err = p.store.Retain(ctx, request)
+	}
+	if trace := p.launchTrace; trace != nil {
+		trace(view, "retention-complete", err)
 	}
 	var plan *StoredConfigurationPlan
 	if err == nil {
@@ -254,6 +273,9 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 		p.publish(view)
 		return ProgramSession{}, err
 	}
+	if trace := p.launchTrace; trace != nil {
+		trace(view, "preflight-complete", nil)
+	}
 	p.plan = plan // Pin the plan before containment or a possibly partial reservation.
 	view.Generation++
 	view.Identity = plan.Identity()
@@ -263,12 +285,18 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	if err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
+	if trace := p.launchTrace; trace != nil {
+		trace(view, "storage-contained", nil)
+	}
 	p.transfer, err = p.newTransfer(plan, handoff)
 	if err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
 	if err = p.configure(ctx); err != nil {
 		return ProgramSession{}, p.fail(err)
+	}
+	if trace := p.launchTrace; trace != nil {
+		trace(view, "configuration-complete", nil)
 	}
 	const controlTimeout = 5 * time.Second
 	controlDeadline := p.limits.Now().Add(controlTimeout)
