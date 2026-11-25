@@ -404,5 +404,31 @@ class MachineProducerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'both a per-model and a machine-wide'):
             board.clocks(spec)
 
+    def test_fitter_seed_reaches_the_record_and_the_qsf_and_seed_one_changes_nothing(self):
+        """--seed: the record carries it and the QSF's one SEED assignment takes it. Seed 1, the
+        default, leaves the record and the QSF byte-identical to a build that names no seed."""
+        tools = {**self.tools, 'yosys': 'explicit fixture yosys'}
+        record = lambda **kw: pc386.create_build_record(self.root, REPOSITORY, self.revision, tools, self.execution,
+                                                       self.captured[pc386], model='486sx', **kw)
+        unset, one, three = record(), record(seed=1), record(seed=3)
+        self.assertEqual(unset, one)
+        self.assertEqual(json.loads(unset)['parameters']['seed'], 1)
+        self.assertEqual(json.loads(three)['parameters']['seed'], 3)
+        self.assertNotEqual(build_identity(unset), build_identity(three))
+        for bad in (0, -1, True, '2'):
+            with self.subTest(seed=bad), self.assertRaises(shared.BuildError):
+                record(seed=bad)
+        spec = pc386.MACHINE.spec(ROOT)
+        qsf = 'set_global_assignment -name FAMILY "Agilex 5"\nset_global_assignment -name SEED 1\nx\n'
+        self.assertIs(spec.board.seeded_qsf(qsf, 1), qsf)
+        self.assertEqual(spec.board.seeded_qsf(qsf, 4), qsf.replace('SEED 1\n', 'SEED 4\n'))
+        with self.assertRaises(ValueError):
+            spec.board.seeded_qsf(qsf.replace('SEED 1', 'SEED 2'), 3)  # not the scanout's seed-1 line
+        with self.assertRaises(ValueError):
+            spec.board.seeded_qsf(qsf, 0)
+        # The CLI default is seed 1.
+        import inspect
+        self.assertEqual(inspect.signature(shared.Machine.build).parameters['seed'].default, 1)
+
 if __name__ == '__main__':
     unittest.main()

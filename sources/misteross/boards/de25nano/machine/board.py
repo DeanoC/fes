@@ -282,7 +282,17 @@ WINDOW_TOP = ("add_connection subsys_periph.fes_win_mem subsys_hps.f2sdram_adapt
               "set_connection_parameter_value subsys_periph.fes_win_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n")
 
 
-def prepare(spec, archive, output, revision=None, model=None, *, package_build_id=None, native_hps=False):
+def seeded_qsf(qsf, seed):
+    """The fitter seed in a project's QSF. Seed 1 is the scanout's own assignment and leaves the QSF
+    byte-identical; another seed replaces that one assignment."""
+    if type(seed) is not int or not 1 <= seed <= 2 ** 31 - 1:
+        raise ValueError("the fitter seed is a positive integer")
+    if seed == 1:
+        return qsf
+    return replace_once(qsf, "set_global_assignment -name SEED 1\n", f"set_global_assignment -name SEED {seed}\n")
+
+
+def prepare(spec, archive, output, revision=None, model=None, *, package_build_id=None, native_hps=False, seed=1):
     """Select the standard machine in the managed GHRD; never deploy it.
 
     A producer passes the build identity of its record, which the machine then
@@ -296,6 +306,8 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
         raise ValueError("native HPS is a Spectrum 48K project-only recipe")
     if native_c64 and not native_hps:
         raise ValueError("native C64 requires the contained HPS shell composer")
+    if type(seed) is not int or not 1 <= seed <= 2 ** 31 - 1:
+        raise ValueError("the fitter seed is a positive integer")
     sources = capture(spec, revision, native=native_c64, model=model)
     machine_hz, pll_ip, _, sdram_clocks = clocks(spec, model)
     scanout = selected_scanout(sources[BOARD + "scanout/build.py"])
@@ -385,6 +397,7 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
         "set_global_assignment -name SDC_FILE fes_mailbox/clocks.sdc\n",
         "set_global_assignment -name IP_FILE fes_mailbox/machine_pll.ip\n"
         "set_global_assignment -name SDC_FILE fes_mailbox/machine-clocks.sdc\n")
+    qsf = seeded_qsf(qsf, seed)
     qsf += "\n"
     if re.search(r"(?m)^\s*set_global_assignment\s+-name\s+VERILOG_MACRO\s+", qsf):
         raise ValueError("upstream already selects Verilog macros; review before adding the model")

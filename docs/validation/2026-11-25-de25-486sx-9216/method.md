@@ -190,3 +190,38 @@ and says what had been seen by then. No gate changes after a result exists.
      byte-identical, the work stops and that is reported.
 
    No other gate changes.
+
+2. **25 November 2026, after seed 1 and the first seeds 2–4 run, before
+   the rerun below.**
+   - **Seen by then:**
+     - Seed 1, through the registered producer, was admitted.
+     - Seeds 2–4 compiled as SEED copies (one netlist, the same as seed 1's).
+     - Their `LOADED` routes measured 2.51, 2.46 and 2.42 ns.
+     - Their G3 admission through `admit_seed.py` failed before any check,
+       because the layout lacked the producer's `combined/hps` build files.
+       A rerun of that admission, with seed 1's `combined/hps` files copied
+       in, was started.
+   - **That admission is not measurable as run, and is recorded so.** The
+     copied files are seed 1's (its record says `"seed": 1`), and the copy
+     is not what G3 committed. Its output is kept as a diagnostic only.
+   - **The rerun.** Deano chose (relayed, 25 Nov 2026): "Add --seed, rerun
+     (Recommended)".
+     - `build_machine_package.py` gains `--seed N`. It is recorded as the
+       build record's `seed`, and `board.prepare` writes it into the QSF's
+       one `SEED` assignment (`board.seeded_qsf`).
+     - Seed 1, the default, changes no byte of the record or the QSF. A
+       native-shell build refuses any seed but 1.
+     - **G3's seeds 2–4 are run again, each as the registered producer end
+       to end:** `build_pc386_package.py --model 486sx --seed N`, on the
+       head that carries `--seed`. Each must admit its own package on the
+       producer's own gates, and pass G4 and G5 as seed 1 did.
+     - Seed 1's producer run, at `561bf8d73`, stands. It was built with the
+       default seed, and its design inputs equal this head's for seed 1:
+       the edits touch only the seed's path and tests. That equality is
+       shown by the head's record for seed 1 equalling `561bf8d73`'s, apart
+       from the closure digests of the edited shared files.
+   - **G7 runs once, over the final head.**
+     - The D12 runs already done (A for five packages, B for seven, at
+       `561bf8d73`) are kept as diagnostics.
+     - A depends on main only, so its results stand.
+     - B and C run again at the final head.
