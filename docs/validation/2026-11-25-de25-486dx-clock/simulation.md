@@ -84,3 +84,12 @@ Replay setup again calls `model_clock` and `guest_rates`, without calling
 recorded by digest. The regenerated CPU and bench, clocks, device rates,
 commands and game media match. G2, G4 and the rendered G5 demo milestone
 apply through those exercised inputs.
+
+The [explicit Pro lease comparison](sim-c34-d18a5a45-match.json)
+checks `d18a5a45b91236abc4efac7607c84e97735eab07` in the separate
+`wt-d18-proof` checkout. Its projection normalizes the exact import
+block and the reviewed registration changes. Runtime tracing found the
+same 18 setup source paths, with only the projected `build.py` bytes
+changed. Both setups load `quartus_tools`. Replay setup calls neither
+`quartus_lease` nor the retiming proof. The regenerated sources, rates
+and game stimulus match the retained C34 run.
