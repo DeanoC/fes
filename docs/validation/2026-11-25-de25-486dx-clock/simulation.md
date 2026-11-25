@@ -55,3 +55,11 @@ For a signoff-only candidate, run `python3 sim_compare.py "$run_root"
 inputs, regenerates the DX and game bench sources, and compares the
 exact clock and guest rates. A matching result binds the retained
 simulation evidence to the candidate's exercised inputs.
+
+The [C34 signoff review comparison](sim-c34-repair-match.json) found
+the same exercised inputs at `8dd207f19cae2dbe3669c2d65c36bd73531187a8`
+as the retained C34 run at `3df878912962ede8557166d56c93ff8896869943`.
+The matching inputs include 160 tracked files, the regenerated DX and
+timed bench sources, all guest-rate ratios and the retained game disks
+and command arguments. The successful G2 and G4 results apply to that
+signoff-only candidate.
