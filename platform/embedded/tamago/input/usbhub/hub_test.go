@@ -16,19 +16,28 @@ import (
 )
 
 type fakePipe struct {
-	addr    uint8
-	ep      usb.EndpointDescriptor
-	inQueue [][]byte
-	pollErr error
-	closed  bool
+	addr          uint8
+	ep            usb.EndpointDescriptor
+	inQueue       [][]byte
+	outPackets    [][]byte
+	pollErr       error
+	writeErr      error
+	holdWriteDone bool
+	closed        bool
 }
 
 func (p *fakePipe) DeviceAddress() uint8              { return p.addr }
 func (p *fakePipe) Endpoint() usb.EndpointDescriptor  { return p.ep }
 func (p *fakePipe) SetIntervalOverride(time.Duration) {}
 func (p *fakePipe) Close() error                      { p.closed = true; return nil }
-func (p *fakePipe) WriteDone() (bool, error)          { return true, nil }
-func (p *fakePipe) Write([]byte) error                { return nil }
+func (p *fakePipe) WriteDone() (bool, error)          { return !p.holdWriteDone, nil }
+func (p *fakePipe) Write(data []byte) error {
+	if p.writeErr != nil {
+		return p.writeErr
+	}
+	p.outPackets = append(p.outPackets, append([]byte(nil), data...))
+	return nil
+}
 func (p *fakePipe) PollInto(dst []byte) (int, error) {
 	if p.pollErr != nil {
 		return 0, p.pollErr
@@ -684,5 +693,126 @@ func TestHubSteadyStateServiceZeroAllocs(t *testing.T) {
 	})
 	if allocs != 0 {
 		t.Fatalf("expected 0 allocations per idle Service(), got %.1f", allocs)
+	}
+}
+
+func TestHubBluetoothSnapshotAndForgetDevice(t *testing.T) {
+	now := time.Unix(500, 0)
+	bus := newFakeBus()
+	dongle := makeBTDongleDev(2)
+	bus.attach(dongle)
+
+	addr1, _ := l2cap.ParseBDAddr("AA:BB:CC:DD:EE:01")
+	addr2, _ := l2cap.ParseBDAddr("AA:BB:CC:DD:EE:02")
+	addr3, _ := l2cap.ParseBDAddr("AA:BB:CC:DD:EE:03")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: addr1, LinkKey: [16]byte{1}, Name: "DualSense Wireless Controller", Kind: controllers.KindDualSense, Slot: 0})
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: addr2, LinkKey: [16]byte{2}, Name: "Pro Controller", Kind: controllers.KindSwitchPro, Slot: 1})
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: addr3, LinkKey: [16]byte{3}, Kind: controllers.KindUnknown, Slot: 2})
+	bonds.ClearDirty()
+
+	persistCalls := 0
+	var failPersist error
+	hub, err := NewHub(bus, Config{
+		Bonds: bonds,
+		Now:   func() time.Time { return now },
+		PersistBonds: func(context.Context, []byte) error {
+			persistCalls++
+			return failPersist
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	gen0 := hub.BluetoothGeneration()
+
+	// Connect addr1 in slot 0 via L2CAP signaling.
+	connEv := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, addr1[:]...)
+	connEv = append(connEv, 0x01, 0x01)
+	bus.btEvPipe.inQueue = append(bus.btEvPipe.inQueue, connEv)
+	makeACL := func(cid uint16, body []byte) []byte {
+		l2 := make([]byte, 4+len(body))
+		binary.LittleEndian.PutUint16(l2[0:2], uint16(len(body)))
+		binary.LittleEndian.PutUint16(l2[2:4], cid)
+		copy(l2[4:], body)
+		acl := make([]byte, 4+len(l2))
+		binary.LittleEndian.PutUint16(acl[0:2], 0x0041|uint16(hci.ACLBoundaryFirstAutoFlush)<<12)
+		binary.LittleEndian.PutUint16(acl[2:4], uint16(len(l2)))
+		copy(acl[4:], l2)
+		return acl
+	}
+	bus.btACLInPipe.inQueue = append(bus.btACLInPipe.inQueue,
+		makeACL(l2cap.CIDSignaling, []byte{0x02, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}),
+		makeACL(l2cap.CIDSignaling, []byte{0x04, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeACL(l2cap.CIDSignaling, []byte{0x05, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeACL(l2cap.CIDSignaling, []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x51, 0x00}),
+		makeACL(l2cap.CIDSignaling, []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
+		makeACL(l2cap.CIDSignaling, []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if hub.BluetoothGeneration() <= gen0 {
+		t.Fatal("expected BluetoothGeneration to advance on slot connect")
+	}
+
+	if err := hub.StartPairing(30 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(8 * time.Second)
+	if rem := hub.PairingRemaining(); rem != 22*time.Second {
+		t.Fatalf("PairingRemaining = %v, want 22s", rem)
+	}
+	snap := hub.BluetoothSnapshot()
+	if !snap.DongleConnected || snap.DongleName == "" || !snap.PairingActive || snap.PairingRemaining != 22*time.Second || snap.ConnectedCount != 1 {
+		t.Fatalf("unexpected snapshot header: %+v", snap)
+	}
+	if len(snap.Devices) != 3 {
+		t.Fatalf("expected 3 devices, got %+v", snap.Devices)
+	}
+	// Connected device first (Slot 1), then disconnected sorted alphabetically.
+	if !snap.Devices[0].Connected || snap.Devices[0].Slot != 1 || snap.Devices[0].Address != addr1.String() {
+		t.Fatalf("expected connected addr1 at slot 1 first, got %+v", snap.Devices[0])
+	}
+	if snap.Devices[1].Connected || snap.Devices[1].Name != "Bluetooth device" || snap.Devices[2].Name != "Pro Controller" {
+		t.Fatalf("unexpected disconnected device sort/fallback: %+v", snap.Devices[1:])
+	}
+
+	// Reject invalid or unknown addresses.
+	if err := hub.ForgetBluetoothDevice("invalid"); err == nil {
+		t.Fatal("expected invalid BD_ADDR error")
+	}
+	if err := hub.ForgetBluetoothDevice("00:00:00:00:00:00"); err == nil {
+		t.Fatal("expected unknown device error")
+	}
+
+	// Simulate a failed bond save, then confirm ForgetBluetoothDevice clears backoff/failure and marks dirty.
+	failPersist = errors.New("sd busy")
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: addr2, LinkKey: [16]byte{9}, Name: "Pro Controller", Kind: controllers.KindSwitchPro, Slot: 1})
+	_, _ = hub.SaveBondsIfDirty(context.Background())
+	if snap := hub.BluetoothSnapshot(); !snap.BondsPending || !snap.BondsSaveFailed {
+		t.Fatalf("expected BondsPending && BondsSaveFailed, got %+v", snap)
+	}
+
+	genBeforeForget := hub.BluetoothGeneration()
+	if err := hub.ForgetBluetoothDevice(addr1.String()); err != nil {
+		t.Fatalf("ForgetBluetoothDevice failed: %v", err)
+	}
+	if hub.BluetoothGeneration() <= genBeforeForget {
+		t.Fatal("expected generation bump on ForgetBluetoothDevice")
+	}
+	failPersist = nil
+	saved, err := hub.SaveBondsIfDirty(context.Background())
+	if !saved || err != nil || persistCalls != 2 {
+		t.Fatalf("expected immediate SaveBondsIfDirty retry after ForgetBluetoothDevice: saved=%t err=%v calls=%d", saved, err, persistCalls)
+	}
+	snap = hub.BluetoothSnapshot()
+	if snap.ConnectedCount != 0 || len(snap.Devices) != 2 || snap.BondsPending || snap.BondsSaveFailed {
+		t.Fatalf("unexpected snapshot after forget+save: %+v", snap)
 	}
 }

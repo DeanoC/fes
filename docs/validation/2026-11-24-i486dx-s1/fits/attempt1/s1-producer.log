@@ -1,0 +1,10 @@
+Quartus lease: holding /tmp/lander-quartus-powerboat-pro.lock (pro, i486dx-s1)
+DE25 FES pc386 build: /data/projects/i486dx-s1/fits/wt-5112461a9/sources/misteross/build/de25-pc386-i486dx-s1
++ /data/altera_pro/26.3/qsys/bin/qsys-script --quartus-project=golden_top --search-path=custom_ip/**/*,fes_mailbox,$ --script=integrate-mailbox.tcl
++ /data/altera_pro/26.3/quartus/bin/quartus_ipgenerate --clear_ip_generation_dirs golden_top
++ /data/altera_pro/26.3/quartus/bin/quartus_ipgenerate --generate_project_ip_files --synthesis=verilog golden_top
++ /data/altera_pro/26.3/quartus/bin/quartus_sh --flow compile golden_top
++ /data/altera_pro/26.3/quartus/bin/quartus_pfg -c /data/projects/i486dx-s1/fits/wt-5112461a9/sources/misteross/build/de25-pc386-i486dx-s1/signoff/combined/hps/project/output_files/golden_top.sof /data/projects/i486dx-s1/fits/wt-5112461a9/sources/misteross/build/de25-pc386-i486dx-s1/signoff/combined/hps/linux-complete.sof -o hps_path=/data/projects/i486dx-s1/fits/wt-5112461a9/sources/misteross/build/de25-pc386-i486dx-s1/signoff/combined/hps/project/software/u-boot/spl/u-boot-spl-dtb.hex
++ /data/altera_pro/26.3/quartus/bin/quartus_pfg -c /data/projects/i486dx-s1/fits/wt-5112461a9/sources/misteross/build/de25-pc386-i486dx-s1/signoff/combined/hps/linux-complete.sof /data/projects/i486dx-s1/fits/wt-5112461a9/sources/misteross/build/de25-pc386-i486dx-s1/signoff/combined/hps/linux-boot.jic -o device=MT25QU128 -o flash_loader=A5EB013BB23BE4SCS -o mode=ASX4 -o hps=on
+de25-pc386: DE25 pc386 reviewed signoff findings: CDC-50001 row matches 0 bases: soc_inst|subsys_periph|fes_scanout|fes_scanout|window_control|base_lo[13] ; soc_inst|subsys_periph|fes_scanout|fes_scanout|window_control|base_machine[13] ; pll_inst|iopll_0_outclk0 ; fes_machine_pll|machine_pll_outclk0 ; Asynchronous transfer ; 
+quartus_jobs: peak RSS 15.38 GiB (every process of the job, sampled every 5 s), exit 1

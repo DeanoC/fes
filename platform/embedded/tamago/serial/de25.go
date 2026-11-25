@@ -25,12 +25,15 @@ func consoleIRQ() (uint32, error) {
 	}
 }
 
-func readRaw() (byte, bool) { return read(profileConsoleUARTBase) }
-func enableHWIRQ()          { dwEnableRXIRQ(profileConsoleUARTBase) }
-func disableHWIRQ()         { dwDisableRXIRQ(profileConsoleUARTBase) }
-func clearHWIRQ()           { dwClearRXIRQ(profileConsoleUARTBase) }
+func readRawStatus() (byte, bool, LineError) {
+	data, lsr := readReg(profileConsoleUARTBase)
+	return data, lsr&1 != 0, DecodeDWAPBLSR(uint32(lsr))
+}
+func enableHWIRQ()  { dwEnableRXIRQ(profileConsoleUARTBase) }
+func disableHWIRQ() { dwDisableRXIRQ(profileConsoleUARTBase) }
+func clearHWIRQ()   { dwClearRXIRQ(profileConsoleUARTBase) }
 
-func read(base uint64) (byte, bool)
+func readReg(base uint64) (byte, byte)
 func dwEnableRXIRQ(base uint64)
 func dwDisableRXIRQ(base uint64)
 func dwClearRXIRQ(base uint64)

@@ -1,0 +1,5237 @@
+{
+  "all_reported_timing_pass": true,
+  "async_input_review": {
+    "fitted_inputs": {
+      "HDMI_I2C_SDA": {
+        "clock_mhz": 50,
+        "consumers": [
+          "fes_video_inst|hdmi_config|u0|ACK1",
+          "fes_video_inst|hdmi_config|u0|ACK1~DUPLICATE",
+          "fes_video_inst|hdmi_config|u0|ACK2",
+          "fes_video_inst|hdmi_config|u0|ACK2~DUPLICATE",
+          "fes_video_inst|hdmi_config|u0|ACK3",
+          "fes_video_inst|hdmi_config|u0|ACK3~DUPLICATE"
+        ],
+        "default_toggle_million_per_second": "6.25",
+        "included_in_design_mtbf": true,
+        "locations": [
+          "FF_X75_Y16_N19",
+          "FF_X75_Y16_N55"
+        ],
+        "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+        "registers": [
+          "fes_video_inst|hdmi_sda_sync[0]",
+          "fes_video_inst|hdmi_sda_sync[1]"
+        ],
+        "timing": {
+          "hold": {
+            "slack_ns": "0.126",
+            "worst_case_model": "Fast fix4 0C Model"
+          },
+          "setup": {
+            "slack_ns": "19.557",
+            "worst_case_model": "Slow fix4a 0C Model"
+          }
+        }
+      },
+      "HDMI_TX_INT": {
+        "clock_mhz": 50,
+        "consumers": [
+          "fes_video_inst|hdmi_config|LUT_INDEX[0]",
+          "fes_video_inst|hdmi_config|LUT_INDEX[0]~DUPLICATE",
+          "fes_video_inst|hdmi_config|LUT_INDEX[1]",
+          "fes_video_inst|hdmi_config|LUT_INDEX[2]",
+          "fes_video_inst|hdmi_config|LUT_INDEX[2]~DUPLICATE",
+          "fes_video_inst|hdmi_config|LUT_INDEX[3]",
+          "fes_video_inst|hdmi_config|LUT_INDEX[3]~DUPLICATE",
+          "fes_video_inst|hdmi_config|LUT_INDEX[4]",
+          "fes_video_inst|hdmi_config|LUT_INDEX[4]~DUPLICATE",
+          "fes_video_inst|hdmi_config|LUT_INDEX[5]"
+        ],
+        "default_toggle_million_per_second": "6.25",
+        "included_in_design_mtbf": true,
+        "locations": [
+          "FF_X75_Y16_N58",
+          "FF_X75_Y16_N31"
+        ],
+        "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+        "registers": [
+          "fes_video_inst|hdmi_int_sync[0]",
+          "fes_video_inst|hdmi_int_sync[1]"
+        ],
+        "timing": {
+          "hold": {
+            "slack_ns": "0.129",
+            "worst_case_model": "Fast fix4 0C Model"
+          },
+          "setup": {
+            "slack_ns": "19.520",
+            "worst_case_model": "Slow fix4a 0C Model"
+          }
+        }
+      }
+    },
+    "output_reset_review": {
+      "finding": {
+        "basis": "de25-reviewed-terminal-hdmi-output-reset-v1",
+        "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+        "heads": [
+          "fes_video_inst|output_release[0]",
+          "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]"
+        ],
+        "id": "RDC-50003",
+        "sources": [
+          "fes_video_inst|config_reset|sync_regs[1]",
+          "fes_video_inst|first_lock_seen",
+          "fes_video_inst|visible_allow"
+        ],
+        "violations": 1
+      },
+      "loads": [
+        "fes_video_inst|HDMI_TX_DE",
+        "fes_video_inst|HDMI_TX_D[0]",
+        "fes_video_inst|HDMI_TX_D[10]",
+        "fes_video_inst|HDMI_TX_D[11]",
+        "fes_video_inst|HDMI_TX_D[12]",
+        "fes_video_inst|HDMI_TX_D[13]",
+        "fes_video_inst|HDMI_TX_D[14]",
+        "fes_video_inst|HDMI_TX_D[15]",
+        "fes_video_inst|HDMI_TX_D[16]",
+        "fes_video_inst|HDMI_TX_D[17]",
+        "fes_video_inst|HDMI_TX_D[18]",
+        "fes_video_inst|HDMI_TX_D[19]",
+        "fes_video_inst|HDMI_TX_D[1]",
+        "fes_video_inst|HDMI_TX_D[20]",
+        "fes_video_inst|HDMI_TX_D[21]",
+        "fes_video_inst|HDMI_TX_D[22]",
+        "fes_video_inst|HDMI_TX_D[23]",
+        "fes_video_inst|HDMI_TX_D[2]",
+        "fes_video_inst|HDMI_TX_D[3]",
+        "fes_video_inst|HDMI_TX_D[4]",
+        "fes_video_inst|HDMI_TX_D[5]",
+        "fes_video_inst|HDMI_TX_D[6]",
+        "fes_video_inst|HDMI_TX_D[7]",
+        "fes_video_inst|HDMI_TX_D[8]",
+        "fes_video_inst|HDMI_TX_D[9]",
+        "fes_video_inst|hdmi_active"
+      ],
+      "path_count": 208,
+      "paths": [
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.506",
+          "target": "fes_video_inst|HDMI_TX_D[7]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.506",
+          "target": "fes_video_inst|HDMI_TX_D[5]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.506",
+          "target": "fes_video_inst|HDMI_TX_D[1]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.507",
+          "target": "fes_video_inst|HDMI_TX_D[4]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.509",
+          "target": "fes_video_inst|HDMI_TX_D[20]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.509",
+          "target": "fes_video_inst|HDMI_TX_D[17]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.511",
+          "target": "fes_video_inst|HDMI_TX_D[19]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.511",
+          "target": "fes_video_inst|HDMI_TX_D[14]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.511",
+          "target": "fes_video_inst|HDMI_TX_D[12]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.511",
+          "target": "fes_video_inst|HDMI_TX_D[11]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.513",
+          "target": "fes_video_inst|HDMI_TX_D[23]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.513",
+          "target": "fes_video_inst|HDMI_TX_D[22]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.514",
+          "target": "fes_video_inst|HDMI_TX_D[18]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.514",
+          "target": "fes_video_inst|HDMI_TX_D[16]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.517",
+          "target": "fes_video_inst|HDMI_TX_D[3]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.517",
+          "target": "fes_video_inst|HDMI_TX_D[2]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.518",
+          "target": "fes_video_inst|HDMI_TX_D[8]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.524",
+          "target": "fes_video_inst|HDMI_TX_D[21]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.525",
+          "target": "fes_video_inst|HDMI_TX_D[9]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.527",
+          "target": "fes_video_inst|HDMI_TX_D[0]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.529",
+          "target": "fes_video_inst|HDMI_TX_D[6]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.531",
+          "target": "fes_video_inst|HDMI_TX_D[15]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.531",
+          "target": "fes_video_inst|HDMI_TX_D[10]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.540",
+          "target": "fes_video_inst|HDMI_TX_D[13]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.628",
+          "target": "fes_video_inst|HDMI_TX_DE",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "12.733",
+          "target": "fes_video_inst|hdmi_active",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.430",
+          "target": "fes_video_inst|hdmi_active",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.478",
+          "target": "fes_video_inst|HDMI_TX_DE",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.492",
+          "target": "fes_video_inst|HDMI_TX_D[6]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.495",
+          "target": "fes_video_inst|HDMI_TX_D[21]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.495",
+          "target": "fes_video_inst|HDMI_TX_D[9]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.497",
+          "target": "fes_video_inst|HDMI_TX_D[13]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.500",
+          "target": "fes_video_inst|HDMI_TX_D[3]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.502",
+          "target": "fes_video_inst|HDMI_TX_D[23]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.502",
+          "target": "fes_video_inst|HDMI_TX_D[22]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.502",
+          "target": "fes_video_inst|HDMI_TX_D[18]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.502",
+          "target": "fes_video_inst|HDMI_TX_D[16]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.502",
+          "target": "fes_video_inst|HDMI_TX_D[15]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.502",
+          "target": "fes_video_inst|HDMI_TX_D[10]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.503",
+          "target": "fes_video_inst|HDMI_TX_D[19]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.503",
+          "target": "fes_video_inst|HDMI_TX_D[14]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.503",
+          "target": "fes_video_inst|HDMI_TX_D[12]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.503",
+          "target": "fes_video_inst|HDMI_TX_D[11]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.505",
+          "target": "fes_video_inst|HDMI_TX_D[20]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.505",
+          "target": "fes_video_inst|HDMI_TX_D[17]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.505",
+          "target": "fes_video_inst|HDMI_TX_D[0]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.506",
+          "target": "fes_video_inst|HDMI_TX_D[7]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.506",
+          "target": "fes_video_inst|HDMI_TX_D[5]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.506",
+          "target": "fes_video_inst|HDMI_TX_D[4]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.506",
+          "target": "fes_video_inst|HDMI_TX_D[1]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.510",
+          "target": "fes_video_inst|HDMI_TX_D[8]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "slack_ns": "0.511",
+          "target": "fes_video_inst|HDMI_TX_D[2]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.393",
+          "target": "fes_video_inst|HDMI_TX_D[7]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.393",
+          "target": "fes_video_inst|HDMI_TX_D[5]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.393",
+          "target": "fes_video_inst|HDMI_TX_D[1]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.394",
+          "target": "fes_video_inst|HDMI_TX_D[17]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.394",
+          "target": "fes_video_inst|HDMI_TX_D[4]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.395",
+          "target": "fes_video_inst|HDMI_TX_D[20]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.395",
+          "target": "fes_video_inst|HDMI_TX_D[12]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.395",
+          "target": "fes_video_inst|HDMI_TX_D[11]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.396",
+          "target": "fes_video_inst|HDMI_TX_D[19]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.396",
+          "target": "fes_video_inst|HDMI_TX_D[14]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.397",
+          "target": "fes_video_inst|HDMI_TX_D[23]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.397",
+          "target": "fes_video_inst|HDMI_TX_D[22]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.397",
+          "target": "fes_video_inst|HDMI_TX_D[18]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.397",
+          "target": "fes_video_inst|HDMI_TX_D[16]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.398",
+          "target": "fes_video_inst|HDMI_TX_D[3]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.402",
+          "target": "fes_video_inst|HDMI_TX_D[21]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.402",
+          "target": "fes_video_inst|HDMI_TX_D[9]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.404",
+          "target": "fes_video_inst|HDMI_TX_D[6]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.407",
+          "target": "fes_video_inst|HDMI_TX_D[2]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.408",
+          "target": "fes_video_inst|HDMI_TX_D[8]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.412",
+          "target": "fes_video_inst|HDMI_TX_D[0]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.414",
+          "target": "fes_video_inst|HDMI_TX_D[15]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.414",
+          "target": "fes_video_inst|HDMI_TX_D[10]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.417",
+          "target": "fes_video_inst|HDMI_TX_D[13]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.507",
+          "target": "fes_video_inst|HDMI_TX_DE",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "12.626",
+          "target": "fes_video_inst|hdmi_active",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.488",
+          "target": "fes_video_inst|hdmi_active",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.550",
+          "target": "fes_video_inst|HDMI_TX_DE",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.562",
+          "target": "fes_video_inst|HDMI_TX_D[6]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.563",
+          "target": "fes_video_inst|HDMI_TX_D[21]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.563",
+          "target": "fes_video_inst|HDMI_TX_D[9]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.565",
+          "target": "fes_video_inst|HDMI_TX_D[3]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.566",
+          "target": "fes_video_inst|HDMI_TX_D[23]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.566",
+          "target": "fes_video_inst|HDMI_TX_D[22]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.566",
+          "target": "fes_video_inst|HDMI_TX_D[18]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.566",
+          "target": "fes_video_inst|HDMI_TX_D[16]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.567",
+          "target": "fes_video_inst|HDMI_TX_D[20]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.567",
+          "target": "fes_video_inst|HDMI_TX_D[19]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.567",
+          "target": "fes_video_inst|HDMI_TX_D[17]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.567",
+          "target": "fes_video_inst|HDMI_TX_D[14]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.567",
+          "target": "fes_video_inst|HDMI_TX_D[12]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.567",
+          "target": "fes_video_inst|HDMI_TX_D[11]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.568",
+          "target": "fes_video_inst|HDMI_TX_D[7]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.568",
+          "target": "fes_video_inst|HDMI_TX_D[5]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.568",
+          "target": "fes_video_inst|HDMI_TX_D[4]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.568",
+          "target": "fes_video_inst|HDMI_TX_D[1]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.573",
+          "target": "fes_video_inst|HDMI_TX_D[13]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.575",
+          "target": "fes_video_inst|HDMI_TX_D[15]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.575",
+          "target": "fes_video_inst|HDMI_TX_D[10]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.576",
+          "target": "fes_video_inst|HDMI_TX_D[0]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.579",
+          "target": "fes_video_inst|HDMI_TX_D[8]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "slack_ns": "0.579",
+          "target": "fes_video_inst|HDMI_TX_D[2]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.396",
+          "target": "fes_video_inst|HDMI_TX_D[7]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.396",
+          "target": "fes_video_inst|HDMI_TX_D[5]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.396",
+          "target": "fes_video_inst|HDMI_TX_D[1]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.397",
+          "target": "fes_video_inst|HDMI_TX_D[4]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.398",
+          "target": "fes_video_inst|HDMI_TX_D[20]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.398",
+          "target": "fes_video_inst|HDMI_TX_D[17]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.399",
+          "target": "fes_video_inst|HDMI_TX_D[19]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.399",
+          "target": "fes_video_inst|HDMI_TX_D[14]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.399",
+          "target": "fes_video_inst|HDMI_TX_D[12]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.399",
+          "target": "fes_video_inst|HDMI_TX_D[11]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.401",
+          "target": "fes_video_inst|HDMI_TX_D[23]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.401",
+          "target": "fes_video_inst|HDMI_TX_D[22]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.401",
+          "target": "fes_video_inst|HDMI_TX_D[18]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.401",
+          "target": "fes_video_inst|HDMI_TX_D[16]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.403",
+          "target": "fes_video_inst|HDMI_TX_D[3]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.408",
+          "target": "fes_video_inst|HDMI_TX_D[21]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.408",
+          "target": "fes_video_inst|HDMI_TX_D[9]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.409",
+          "target": "fes_video_inst|HDMI_TX_D[2]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.410",
+          "target": "fes_video_inst|HDMI_TX_D[8]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.412",
+          "target": "fes_video_inst|HDMI_TX_D[6]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.416",
+          "target": "fes_video_inst|HDMI_TX_D[0]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.419",
+          "target": "fes_video_inst|HDMI_TX_D[15]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.419",
+          "target": "fes_video_inst|HDMI_TX_D[10]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.424",
+          "target": "fes_video_inst|HDMI_TX_D[13]",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.513",
+          "target": "fes_video_inst|HDMI_TX_DE",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "12.632",
+          "target": "fes_video_inst|hdmi_active",
+          "type": "recovery"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.485",
+          "target": "fes_video_inst|hdmi_active",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.545",
+          "target": "fes_video_inst|HDMI_TX_DE",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.557",
+          "target": "fes_video_inst|HDMI_TX_D[6]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.559",
+          "target": "fes_video_inst|HDMI_TX_D[21]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.559",
+          "target": "fes_video_inst|HDMI_TX_D[9]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.562",
+          "target": "fes_video_inst|HDMI_TX_D[3]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.563",
+          "target": "fes_video_inst|HDMI_TX_D[23]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.563",
+          "target": "fes_video_inst|HDMI_TX_D[22]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.563",
+          "target": "fes_video_inst|HDMI_TX_D[18]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.563",
+          "target": "fes_video_inst|HDMI_TX_D[16]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.564",
+          "target": "fes_video_inst|HDMI_TX_D[19]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.564",
+          "target": "fes_video_inst|HDMI_TX_D[14]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.564",
+          "target": "fes_video_inst|HDMI_TX_D[12]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.564",
+          "target": "fes_video_inst|HDMI_TX_D[11]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.565",
+          "target": "fes_video_inst|HDMI_TX_D[20]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.565",
+          "target": "fes_video_inst|HDMI_TX_D[17]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.565",
+          "target": "fes_video_inst|HDMI_TX_D[4]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.566",
+          "target": "fes_video_inst|HDMI_TX_D[7]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.566",
+          "target": "fes_video_inst|HDMI_TX_D[5]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.566",
+          "target": "fes_video_inst|HDMI_TX_D[1]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.568",
+          "target": "fes_video_inst|HDMI_TX_D[13]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.572",
+          "target": "fes_video_inst|HDMI_TX_D[15]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.572",
+          "target": "fes_video_inst|HDMI_TX_D[10]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.573",
+          "target": "fes_video_inst|HDMI_TX_D[0]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.577",
+          "target": "fes_video_inst|HDMI_TX_D[8]",
+          "type": "removal"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "slack_ns": "0.577",
+          "target": "fes_video_inst|HDMI_TX_D[2]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.854",
+          "target": "fes_video_inst|HDMI_TX_D[5]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.854",
+          "target": "fes_video_inst|HDMI_TX_D[1]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.855",
+          "target": "fes_video_inst|HDMI_TX_D[7]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.855",
+          "target": "fes_video_inst|HDMI_TX_D[4]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.856",
+          "target": "fes_video_inst|HDMI_TX_D[20]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.856",
+          "target": "fes_video_inst|HDMI_TX_D[17]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.857",
+          "target": "fes_video_inst|HDMI_TX_D[19]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.857",
+          "target": "fes_video_inst|HDMI_TX_D[14]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.857",
+          "target": "fes_video_inst|HDMI_TX_D[12]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.857",
+          "target": "fes_video_inst|HDMI_TX_D[11]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.857",
+          "target": "fes_video_inst|HDMI_TX_D[2]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.858",
+          "target": "fes_video_inst|HDMI_TX_D[8]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.859",
+          "target": "fes_video_inst|HDMI_TX_D[23]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.859",
+          "target": "fes_video_inst|HDMI_TX_D[22]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.859",
+          "target": "fes_video_inst|HDMI_TX_D[18]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.859",
+          "target": "fes_video_inst|HDMI_TX_D[16]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.861",
+          "target": "fes_video_inst|HDMI_TX_D[3]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.864",
+          "target": "fes_video_inst|HDMI_TX_D[0]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.866",
+          "target": "fes_video_inst|HDMI_TX_D[21]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.866",
+          "target": "fes_video_inst|HDMI_TX_D[15]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.866",
+          "target": "fes_video_inst|HDMI_TX_D[10]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.866",
+          "target": "fes_video_inst|HDMI_TX_D[9]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.869",
+          "target": "fes_video_inst|HDMI_TX_D[6]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.872",
+          "target": "fes_video_inst|HDMI_TX_D[13]",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "12.925",
+          "target": "fes_video_inst|HDMI_TX_DE",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "13.001",
+          "target": "fes_video_inst|hdmi_active",
+          "type": "recovery"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.250",
+          "target": "fes_video_inst|hdmi_active",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.288",
+          "target": "fes_video_inst|HDMI_TX_DE",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.290",
+          "target": "fes_video_inst|HDMI_TX_D[6]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.292",
+          "target": "fes_video_inst|HDMI_TX_D[21]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.292",
+          "target": "fes_video_inst|HDMI_TX_D[13]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.292",
+          "target": "fes_video_inst|HDMI_TX_D[9]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.296",
+          "target": "fes_video_inst|HDMI_TX_D[15]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.296",
+          "target": "fes_video_inst|HDMI_TX_D[10]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.296",
+          "target": "fes_video_inst|HDMI_TX_D[3]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.297",
+          "target": "fes_video_inst|HDMI_TX_D[23]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.297",
+          "target": "fes_video_inst|HDMI_TX_D[22]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.297",
+          "target": "fes_video_inst|HDMI_TX_D[18]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.297",
+          "target": "fes_video_inst|HDMI_TX_D[16]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.298",
+          "target": "fes_video_inst|HDMI_TX_D[19]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.298",
+          "target": "fes_video_inst|HDMI_TX_D[14]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.298",
+          "target": "fes_video_inst|HDMI_TX_D[12]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.298",
+          "target": "fes_video_inst|HDMI_TX_D[11]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.298",
+          "target": "fes_video_inst|HDMI_TX_D[0]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.299",
+          "target": "fes_video_inst|HDMI_TX_D[20]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.299",
+          "target": "fes_video_inst|HDMI_TX_D[17]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.300",
+          "target": "fes_video_inst|HDMI_TX_D[7]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.300",
+          "target": "fes_video_inst|HDMI_TX_D[4]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.301",
+          "target": "fes_video_inst|HDMI_TX_D[5]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.301",
+          "target": "fes_video_inst|HDMI_TX_D[1]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.302",
+          "target": "fes_video_inst|HDMI_TX_D[8]",
+          "type": "removal"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "slack_ns": "0.303",
+          "target": "fes_video_inst|HDMI_TX_D[2]",
+          "type": "removal"
+        }
+      ],
+      "policy": "de25-reviewed-terminal-hdmi-output-reset-v1"
+    },
+    "policy": "de25-menu-reviewed-async-inputs-v1",
+    "receipt_sha256": "f28247d44a700e74f06c77d83404c1e53e899b70c41ab104217aaa7933735a9d",
+    "vendor_hdmi_reference": {
+      "acceptance_basis": "User-selected stock Terasic Linux/resources board setup; pins/PLL/values retained; functional clear-first order checked",
+      "archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+      "compiled_files_sha256": {
+        "fes_combined/sys_pll.ip": "115dfc74af00f4f6ed769073b7611de878b696bda4c0ea74a2486bdaa8f1f2e0",
+        "fes_mailbox/fes_de25_scanout_board.v": "3e13d0caac4242c1eb967c0138c8efa1b4c77a5ff9886ae20606ad48c6e0f93f",
+        "fes_mailbox/fes_de25_scanout_hdmi_config.v": "f07be6160e2602c52b359382d1496cc63dc7d50e944eaff22df92c330e95e37c",
+        "fes_mailbox/fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a",
+        "golden_top.qsf": "745eb8271ffeb345d057540c40b3f410f5294ca439dac46f6fc952726933ea9b",
+        "output_files/golden_top.pin": "f49e8645e93d93d1c600ba0f91f9dfbb3a46514653a466b5cc4ed4a2548ca09c"
+      },
+      "derived_hdmi_sha256": {
+        "fes_de25_scanout_hdmi_config.v": "f07be6160e2602c52b359382d1496cc63dc7d50e944eaff22df92c330e95e37c",
+        "fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a"
+      },
+      "hardware_acceptance": false,
+      "independent_pcb_timing_qualified": false,
+      "pins": {
+        "CLOCK0_50": {
+          "pin": "DJ35",
+          "standard": "1.1-V"
+        },
+        "HDMI_I2C_SCL": {
+          "pin": "BT1",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_I2C_SDA": {
+          "pin": "BW2",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_I2S": {
+          "pin": "CB2",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_LRCLK": {
+          "pin": "BR6",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_MCLK": {
+          "pin": "CF1",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_SCLK": {
+          "pin": "BW1",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_CLK": {
+          "pin": "DJ24",
+          "standard": "1.1-V"
+        },
+        "HDMI_TX_DE": {
+          "pin": "CJ2",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[0]": {
+          "pin": "AV19",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[10]": {
+          "pin": "BE19",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[11]": {
+          "pin": "BH14",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[12]": {
+          "pin": "BV6",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[13]": {
+          "pin": "BJ23",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[14]": {
+          "pin": "BV4",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[15]": {
+          "pin": "BU23",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[16]": {
+          "pin": "BH16",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[17]": {
+          "pin": "DA1",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[18]": {
+          "pin": "BH19",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[19]": {
+          "pin": "CP2",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[1]": {
+          "pin": "AT11",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[20]": {
+          "pin": "CM1",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[21]": {
+          "pin": "DA2",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[22]": {
+          "pin": "CP1",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[23]": {
+          "pin": "CU2",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[2]": {
+          "pin": "BE11",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[3]": {
+          "pin": "AV14",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[4]": {
+          "pin": "AT19",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[5]": {
+          "pin": "AT14",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[6]": {
+          "pin": "AV16",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[7]": {
+          "pin": "AV11",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[8]": {
+          "pin": "BH11",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_D[9]": {
+          "pin": "BE14",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_HS": {
+          "pin": "BR11",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_INT": {
+          "pin": "CF2",
+          "standard": "3.3-V LVCMOS"
+        },
+        "HDMI_TX_VS": {
+          "pin": "BR14",
+          "standard": "3.3-V LVCMOS"
+        },
+        "LED[7]": {
+          "pin": "DP30",
+          "standard": "1.1-V"
+        }
+      },
+      "pll_parameters": {
+        "gui_active_clk": "false",
+        "gui_c_cnt_in_src0": "c_m_cnt_in_src_ph_mux_clk",
+        "gui_c_cnt_in_src1": "c_m_cnt_in_src_ph_mux_clk",
+        "gui_c_cnt_in_src2": "c_m_cnt_in_src_ph_mux_clk",
+        "gui_c_cnt_in_src3": "c_m_cnt_in_src_ph_mux_clk",
+        "gui_c_cnt_in_src4": "c_m_cnt_in_src_ph_mux_clk",
+        "gui_c_cnt_in_src5": "c_m_cnt_in_src_ph_mux_clk",
+        "gui_c_cnt_in_src6": "c_m_cnt_in_src_ph_mux_clk",
+        "gui_c_cnt_in_src7": "c_m_cnt_in_src_ph_mux_clk",
+        "gui_c_cnt_in_src8": "c_m_cnt_in_src_ph_mux_clk",
+        "gui_cal_code_hex_file": "iossm.hex",
+        "gui_cal_converge": "false",
+        "gui_cal_error": "cal_clean",
+        "gui_cascade_counter0": "false",
+        "gui_cascade_counter1": "false",
+        "gui_cascade_counter10": "false",
+        "gui_cascade_counter11": "false",
+        "gui_cascade_counter12": "false",
+        "gui_cascade_counter13": "false",
+        "gui_cascade_counter14": "false",
+        "gui_cascade_counter15": "false",
+        "gui_cascade_counter16": "false",
+        "gui_cascade_counter17": "false",
+        "gui_cascade_counter2": "false",
+        "gui_cascade_counter3": "false",
+        "gui_cascade_counter4": "false",
+        "gui_cascade_counter5": "false",
+        "gui_cascade_counter6": "false",
+        "gui_cascade_counter7": "false",
+        "gui_cascade_counter8": "false",
+        "gui_cascade_counter9": "false",
+        "gui_cascade_outclk_index": "5",
+        "gui_clk_bad": "false",
+        "gui_clock_name_global": "false",
+        "gui_clock_name_instantiation": "false",
+        "gui_clock_name_string0": "outclk0",
+        "gui_clock_name_string1": "outclk1",
+        "gui_clock_name_string10": "outclk10",
+        "gui_clock_name_string11": "outclk11",
+        "gui_clock_name_string12": "outclk12",
+        "gui_clock_name_string13": "outclk13",
+        "gui_clock_name_string14": "outclk14",
+        "gui_clock_name_string15": "outclk15",
+        "gui_clock_name_string16": "outclk16",
+        "gui_clock_name_string17": "outclk17",
+        "gui_clock_name_string2": "outclk2",
+        "gui_clock_name_string3": "outclk3",
+        "gui_clock_name_string4": "outclk4",
+        "gui_clock_name_string5": "outclk5",
+        "gui_clock_name_string6": "outclk6",
+        "gui_clock_name_string7": "outclk7",
+        "gui_clock_name_string8": "outclk8",
+        "gui_clock_name_string9": "outclk9",
+        "gui_clock_to_compensate": "0",
+        "gui_debug_mode": "false",
+        "gui_divide_factor_c0": "6",
+        "gui_divide_factor_c1": "6",
+        "gui_divide_factor_c10": "6",
+        "gui_divide_factor_c11": "6",
+        "gui_divide_factor_c12": "6",
+        "gui_divide_factor_c13": "6",
+        "gui_divide_factor_c14": "6",
+        "gui_divide_factor_c15": "6",
+        "gui_divide_factor_c16": "6",
+        "gui_divide_factor_c17": "6",
+        "gui_divide_factor_c2": "6",
+        "gui_divide_factor_c3": "6",
+        "gui_divide_factor_c4": "6",
+        "gui_divide_factor_c5": "6",
+        "gui_divide_factor_c6": "6",
+        "gui_divide_factor_c7": "6",
+        "gui_divide_factor_c8": "6",
+        "gui_divide_factor_c9": "6",
+        "gui_divide_factor_n": "1",
+        "gui_dps_cntr": "C0",
+        "gui_dps_dir": "Positive",
+        "gui_dps_num": "1",
+        "gui_dsm_out_sel": "1st_order",
+        "gui_duty_cycle0": "50.0",
+        "gui_duty_cycle1": "50.0",
+        "gui_duty_cycle10": "50.0",
+        "gui_duty_cycle11": "50.0",
+        "gui_duty_cycle12": "50.0",
+        "gui_duty_cycle13": "50.0",
+        "gui_duty_cycle14": "50.0",
+        "gui_duty_cycle15": "50.0",
+        "gui_duty_cycle16": "50.0",
+        "gui_duty_cycle17": "50.0",
+        "gui_duty_cycle2": "50.0",
+        "gui_duty_cycle3": "50.0",
+        "gui_duty_cycle4": "50.0",
+        "gui_duty_cycle5": "50.0",
+        "gui_duty_cycle6": "50.0",
+        "gui_duty_cycle7": "50.0",
+        "gui_duty_cycle8": "50.0",
+        "gui_duty_cycle9": "50.0",
+        "gui_en_adv_params": "false",
+        "gui_en_dps_ports": "false",
+        "gui_en_extclkout_ports": "false",
+        "gui_en_hvio_reconf": "false",
+        "gui_en_iossm_reconf": "false",
+        "gui_en_lvds_ports": "Disabled",
+        "gui_en_periphery_ports": "false",
+        "gui_en_phout_ports": "false",
+        "gui_en_reconf": "false",
+        "gui_enable_cascade_in": "false",
+        "gui_enable_cascade_out": "false",
+        "gui_enable_mif_dps": "false",
+        "gui_enable_output_counter_cascading": "false",
+        "gui_enable_permit_cal": "false",
+        "gui_enable_upstream_out_clk": "false",
+        "gui_existing_mif_file_path": "~/pll.mif",
+        "gui_extclkout_0_source": "C0",
+        "gui_extclkout_1_source": "C0",
+        "gui_extclkout_source": "C0",
+        "gui_feedback_clock": "Global Clock",
+        "gui_fix_vco_frequency": "false",
+        "gui_fixed_vco_frequency": "600.0",
+        "gui_fixed_vco_frequency_ps": "1667.0",
+        "gui_frac_multiply_factor": "1",
+        "gui_fractional_cout": "32",
+        "gui_include_iossm": "false",
+        "gui_location_type": "I/O Bank",
+        "gui_lock_setting": "Low Lock Time",
+        "gui_mif_config_name": "unnamed",
+        "gui_mif_gen_options": "Generate New MIF File",
+        "gui_multiply_factor": "6",
+        "gui_new_mif_file_path": "~/pll.mif",
+        "gui_number_of_clocks": "1",
+        "gui_operation_mode": "direct",
+        "gui_output_clock_frequency0": "74.25",
+        "gui_output_clock_frequency1": "12.288",
+        "gui_output_clock_frequency10": "100.0",
+        "gui_output_clock_frequency11": "100.0",
+        "gui_output_clock_frequency12": "100.0",
+        "gui_output_clock_frequency13": "100.0",
+        "gui_output_clock_frequency14": "100.0",
+        "gui_output_clock_frequency15": "100.0",
+        "gui_output_clock_frequency16": "100.0",
+        "gui_output_clock_frequency17": "100.0",
+        "gui_output_clock_frequency2": "100.0",
+        "gui_output_clock_frequency3": "100.0",
+        "gui_output_clock_frequency4": "100.0",
+        "gui_output_clock_frequency5": "100.0",
+        "gui_output_clock_frequency6": "100.0",
+        "gui_output_clock_frequency7": "100.0",
+        "gui_output_clock_frequency8": "100.0",
+        "gui_output_clock_frequency9": "100.0",
+        "gui_output_clock_frequency_ps0": "13468.013",
+        "gui_output_clock_frequency_ps1": "81380.208",
+        "gui_output_clock_frequency_ps10": "10000.0",
+        "gui_output_clock_frequency_ps11": "10000.0",
+        "gui_output_clock_frequency_ps12": "10000.0",
+        "gui_output_clock_frequency_ps13": "10000.0",
+        "gui_output_clock_frequency_ps14": "10000.0",
+        "gui_output_clock_frequency_ps15": "10000.0",
+        "gui_output_clock_frequency_ps16": "10000.0",
+        "gui_output_clock_frequency_ps17": "10000.0",
+        "gui_output_clock_frequency_ps2": "10000.0",
+        "gui_output_clock_frequency_ps3": "10000.0",
+        "gui_output_clock_frequency_ps4": "10000.0",
+        "gui_output_clock_frequency_ps5": "10000.0",
+        "gui_output_clock_frequency_ps6": "10000.0",
+        "gui_output_clock_frequency_ps7": "10000.0",
+        "gui_output_clock_frequency_ps8": "10000.0",
+        "gui_output_clock_frequency_ps9": "10000.0",
+        "gui_parameter_table_hex_file": "seq_params_sim.hex",
+        "gui_phase_shift0": "0.0",
+        "gui_phase_shift1": "0.0",
+        "gui_phase_shift10": "0.0",
+        "gui_phase_shift11": "0.0",
+        "gui_phase_shift12": "0.0",
+        "gui_phase_shift13": "0.0",
+        "gui_phase_shift14": "0.0",
+        "gui_phase_shift15": "0.0",
+        "gui_phase_shift16": "0.0",
+        "gui_phase_shift17": "0.0",
+        "gui_phase_shift2": "0.0",
+        "gui_phase_shift3": "0.0",
+        "gui_phase_shift4": "0.0",
+        "gui_phase_shift5": "0.0",
+        "gui_phase_shift6": "0.0",
+        "gui_phase_shift7": "0.0",
+        "gui_phase_shift8": "0.0",
+        "gui_phase_shift9": "0.0",
+        "gui_phase_shift_deg0": "0.0",
+        "gui_phase_shift_deg1": "0.0",
+        "gui_phase_shift_deg10": "0.0",
+        "gui_phase_shift_deg11": "0.0",
+        "gui_phase_shift_deg12": "0.0",
+        "gui_phase_shift_deg13": "0.0",
+        "gui_phase_shift_deg14": "0.0",
+        "gui_phase_shift_deg15": "0.0",
+        "gui_phase_shift_deg16": "0.0",
+        "gui_phase_shift_deg17": "0.0",
+        "gui_phase_shift_deg2": "0.0",
+        "gui_phase_shift_deg3": "0.0",
+        "gui_phase_shift_deg4": "0.0",
+        "gui_phase_shift_deg5": "0.0",
+        "gui_phase_shift_deg6": "0.0",
+        "gui_phase_shift_deg7": "0.0",
+        "gui_phase_shift_deg8": "0.0",
+        "gui_phase_shift_deg9": "0.0",
+        "gui_phout_division": "1",
+        "gui_pll_auto_reset": "false",
+        "gui_pll_bandwidth_preset": "Low",
+        "gui_pll_cal_done": "false",
+        "gui_pll_cascading_mode": "adjpllin",
+        "gui_pll_freqcal_en": "true",
+        "gui_pll_freqcal_req_flag": "true",
+        "gui_pll_m_cnt_in_src": "c_m_cnt_in_src_ph_mux_clk",
+        "gui_pll_mode": "Integer-N PLL",
+        "gui_pll_tclk_mux_en": "false",
+        "gui_pll_tclk_sel": "pll_tclk_m_src",
+        "gui_pll_type": "S10_Physical",
+        "gui_pll_vco_freq_band_0": "pll_freq_clk0_band18",
+        "gui_pll_vco_freq_band_1": "pll_freq_clk1_band18",
+        "gui_prot_mode": "UNUSED",
+        "gui_ps_units0": "ps",
+        "gui_ps_units1": "ps",
+        "gui_ps_units10": "ps",
+        "gui_ps_units11": "ps",
+        "gui_ps_units12": "ps",
+        "gui_ps_units13": "ps",
+        "gui_ps_units14": "ps",
+        "gui_ps_units15": "ps",
+        "gui_ps_units16": "ps",
+        "gui_ps_units17": "ps",
+        "gui_ps_units2": "ps",
+        "gui_ps_units3": "ps",
+        "gui_ps_units4": "ps",
+        "gui_ps_units5": "ps",
+        "gui_ps_units6": "ps",
+        "gui_ps_units7": "ps",
+        "gui_ps_units8": "ps",
+        "gui_ps_units9": "ps",
+        "gui_refclk1_frequency": "100.0",
+        "gui_refclk_might_change": "false",
+        "gui_refclk_switch": "false",
+        "gui_reference_clock_frequency": "50.0",
+        "gui_reference_clock_frequency_ps": "20000.0",
+        "gui_simulation_type": "true",
+        "gui_skip_sdc_generation": "false",
+        "gui_switchover_delay": "0",
+        "gui_switchover_mode": "Automatic Switchover",
+        "gui_use_NDFB_modes": "false",
+        "gui_use_coreclk": "false",
+        "gui_use_locked": "true",
+        "gui_use_logical": "false",
+        "gui_user_base_address": "0",
+        "gui_usr_device_speed_grade": "1",
+        "gui_vco_frequency": "600.0",
+        "hp_qsys_scripting_mode": "false",
+        "system_info_device_component": "A5EB013BB23BE4SCS",
+        "system_info_device_family": "Agilex 5",
+        "system_info_device_iobank_rev": "",
+        "system_info_device_speed_grade": "4",
+        "system_part_trait_iobank_rev": "IO96B_REVB1",
+        "system_part_trait_speed_grade": "4"
+      },
+      "policy": "de25-terasic-hdmi-reference-v1",
+      "reference": "Terasic rev-B resource package HDMI_ASx4 and SCS Golden_top",
+      "transmitter_lut": [
+        "96f6",
+        "9803",
+        "0100",
+        "0218",
+        "0300",
+        "0b2e",
+        "0cbc",
+        "1472",
+        "1520",
+        "1630",
+        "1846",
+        "4080",
+        "4110",
+        "49a8",
+        "5510",
+        "5608",
+        "7307",
+        "761f",
+        "9803",
+        "9902",
+        "9ae0",
+        "9c30",
+        "9d61",
+        "a2a4",
+        "a3a4",
+        "a504",
+        "ab40",
+        "af16",
+        "ba60",
+        "d1ff",
+        "de10",
+        "e460",
+        "fa7d"
+      ],
+      "transmitter_order": "reviewed clear-first permutation; all stock values retained"
+    },
+    "video_output_timing": {
+      "external_board_flight_time_ns": 0,
+      "independent_pcb_timing_qualified": false,
+      "models": [
+        "Fast fix4 0C Model",
+        "Slow fix4 0C Model",
+        "Slow fix4 100C Model",
+        "Slow fix4a 0C Model"
+      ],
+      "path_count": 216,
+      "paths": [
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_DE",
+          "slack_ns": "8.200",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_DE",
+          "slack_ns": "1.788",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_HS",
+          "slack_ns": "8.179",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_HS",
+          "slack_ns": "1.521",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_VS",
+          "slack_ns": "8.148",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_VS",
+          "slack_ns": "1.735",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[0]",
+          "slack_ns": "8.351",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[0]",
+          "slack_ns": "1.557",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[1]",
+          "slack_ns": "8.326",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[1]",
+          "slack_ns": "1.687",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[2]",
+          "slack_ns": "8.289",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[2]",
+          "slack_ns": "1.545",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[3]",
+          "slack_ns": "8.495",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[3]",
+          "slack_ns": "1.521",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[4]",
+          "slack_ns": "8.304",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[4]",
+          "slack_ns": "1.682",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[5]",
+          "slack_ns": "8.329",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[5]",
+          "slack_ns": "1.549",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[6]",
+          "slack_ns": "8.467",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[6]",
+          "slack_ns": "1.552",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[7]",
+          "slack_ns": "8.277",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[7]",
+          "slack_ns": "1.564",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[8]",
+          "slack_ns": "8.280",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[8]",
+          "slack_ns": "1.601",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[9]",
+          "slack_ns": "8.266",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[9]",
+          "slack_ns": "1.463",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[10]",
+          "slack_ns": "8.411",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[10]",
+          "slack_ns": "1.455",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[11]",
+          "slack_ns": "8.403",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[11]",
+          "slack_ns": "1.506",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[12]",
+          "slack_ns": "8.119",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[12]",
+          "slack_ns": "1.614",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[13]",
+          "slack_ns": "8.250",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[13]",
+          "slack_ns": "1.644",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[14]",
+          "slack_ns": "8.236",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[14]",
+          "slack_ns": "1.532",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[15]",
+          "slack_ns": "7.835",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[15]",
+          "slack_ns": "1.936",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[16]",
+          "slack_ns": "8.075",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[16]",
+          "slack_ns": "1.732",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[17]",
+          "slack_ns": "8.280",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[17]",
+          "slack_ns": "1.639",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[18]",
+          "slack_ns": "8.294",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[18]",
+          "slack_ns": "1.548",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[19]",
+          "slack_ns": "8.432",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[19]",
+          "slack_ns": "1.566",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[20]",
+          "slack_ns": "8.196",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[20]",
+          "slack_ns": "1.613",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[21]",
+          "slack_ns": "8.282",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[21]",
+          "slack_ns": "1.605",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[22]",
+          "slack_ns": "8.307",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[22]",
+          "slack_ns": "1.554",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[23]",
+          "slack_ns": "8.246",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 100C Model",
+          "port": "HDMI_TX_D[23]",
+          "slack_ns": "1.685",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_DE",
+          "slack_ns": "8.551",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_DE",
+          "slack_ns": "1.310",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_HS",
+          "slack_ns": "8.389",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_HS",
+          "slack_ns": "1.202",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_VS",
+          "slack_ns": "8.320",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_VS",
+          "slack_ns": "1.261",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[0]",
+          "slack_ns": "8.728",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[0]",
+          "slack_ns": "1.124",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[1]",
+          "slack_ns": "8.626",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[1]",
+          "slack_ns": "1.266",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[2]",
+          "slack_ns": "8.543",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[2]",
+          "slack_ns": "1.156",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[3]",
+          "slack_ns": "8.814",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[3]",
+          "slack_ns": "1.092",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[4]",
+          "slack_ns": "8.608",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[4]",
+          "slack_ns": "1.253",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[5]",
+          "slack_ns": "8.650",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[5]",
+          "slack_ns": "1.124",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[6]",
+          "slack_ns": "8.771",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[6]",
+          "slack_ns": "1.137",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[7]",
+          "slack_ns": "8.579",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[7]",
+          "slack_ns": "1.139",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[8]",
+          "slack_ns": "8.568",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[8]",
+          "slack_ns": "1.175",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[9]",
+          "slack_ns": "8.462",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[9]",
+          "slack_ns": "1.095",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[10]",
+          "slack_ns": "8.739",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[10]",
+          "slack_ns": "1.076",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[11]",
+          "slack_ns": "8.733",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[11]",
+          "slack_ns": "1.119",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[12]",
+          "slack_ns": "8.427",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[12]",
+          "slack_ns": "1.137",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[13]",
+          "slack_ns": "8.522",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[13]",
+          "slack_ns": "1.196",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[14]",
+          "slack_ns": "8.572",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[14]",
+          "slack_ns": "1.074",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[15]",
+          "slack_ns": "8.044",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[15]",
+          "slack_ns": "1.525",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[16]",
+          "slack_ns": "8.238",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[16]",
+          "slack_ns": "1.328",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[17]",
+          "slack_ns": "8.704",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[17]",
+          "slack_ns": "1.185",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[18]",
+          "slack_ns": "8.586",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[18]",
+          "slack_ns": "1.131",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[19]",
+          "slack_ns": "8.806",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[19]",
+          "slack_ns": "1.050",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[20]",
+          "slack_ns": "8.618",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[20]",
+          "slack_ns": "1.089",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[21]",
+          "slack_ns": "8.683",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[21]",
+          "slack_ns": "1.157",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[22]",
+          "slack_ns": "8.647",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[22]",
+          "slack_ns": "1.088",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[23]",
+          "slack_ns": "8.549",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4 0C Model",
+          "port": "HDMI_TX_D[23]",
+          "slack_ns": "1.288",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_DE",
+          "slack_ns": "8.529",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_DE",
+          "slack_ns": "1.445",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_HS",
+          "slack_ns": "8.489",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_HS",
+          "slack_ns": "1.322",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_VS",
+          "slack_ns": "8.372",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_VS",
+          "slack_ns": "1.394",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[0]",
+          "slack_ns": "8.752",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[0]",
+          "slack_ns": "1.255",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[1]",
+          "slack_ns": "8.645",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[1]",
+          "slack_ns": "1.383",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[2]",
+          "slack_ns": "8.621",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[2]",
+          "slack_ns": "1.279",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[3]",
+          "slack_ns": "8.816",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[3]",
+          "slack_ns": "1.212",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[4]",
+          "slack_ns": "8.603",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[4]",
+          "slack_ns": "1.386",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[5]",
+          "slack_ns": "8.659",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[5]",
+          "slack_ns": "1.273",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[6]",
+          "slack_ns": "8.768",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[6]",
+          "slack_ns": "1.256",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[7]",
+          "slack_ns": "8.617",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[7]",
+          "slack_ns": "1.257",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[8]",
+          "slack_ns": "8.596",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[8]",
+          "slack_ns": "1.289",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[9]",
+          "slack_ns": "8.559",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[9]",
+          "slack_ns": "1.226",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[10]",
+          "slack_ns": "8.766",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[10]",
+          "slack_ns": "1.188",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[11]",
+          "slack_ns": "8.763",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[11]",
+          "slack_ns": "1.227",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[12]",
+          "slack_ns": "8.478",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[12]",
+          "slack_ns": "1.277",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[13]",
+          "slack_ns": "8.572",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[13]",
+          "slack_ns": "1.325",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[14]",
+          "slack_ns": "8.602",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[14]",
+          "slack_ns": "1.220",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[15]",
+          "slack_ns": "8.039",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[15]",
+          "slack_ns": "1.676",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[16]",
+          "slack_ns": "8.301",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[16]",
+          "slack_ns": "1.461",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[17]",
+          "slack_ns": "8.684",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[17]",
+          "slack_ns": "1.329",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[18]",
+          "slack_ns": "8.632",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[18]",
+          "slack_ns": "1.253",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[19]",
+          "slack_ns": "8.788",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[19]",
+          "slack_ns": "1.216",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[20]",
+          "slack_ns": "8.581",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[20]",
+          "slack_ns": "1.290",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[21]",
+          "slack_ns": "8.669",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[21]",
+          "slack_ns": "1.294",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[22]",
+          "slack_ns": "8.664",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[22]",
+          "slack_ns": "1.237",
+          "type": "hold"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[23]",
+          "slack_ns": "8.553",
+          "type": "setup"
+        },
+        {
+          "model": "Slow fix4a 0C Model",
+          "port": "HDMI_TX_D[23]",
+          "slack_ns": "1.416",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_DE",
+          "slack_ns": "9.640",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_DE",
+          "slack_ns": "0.673",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_HS",
+          "slack_ns": "9.650",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_HS",
+          "slack_ns": "0.420",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_VS",
+          "slack_ns": "9.590",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_VS",
+          "slack_ns": "0.580",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[0]",
+          "slack_ns": "9.749",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[0]",
+          "slack_ns": "0.521",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[1]",
+          "slack_ns": "9.744",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[1]",
+          "slack_ns": "0.572",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[2]",
+          "slack_ns": "9.704",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[2]",
+          "slack_ns": "0.416",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[3]",
+          "slack_ns": "9.877",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[3]",
+          "slack_ns": "0.456",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[4]",
+          "slack_ns": "9.741",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[4]",
+          "slack_ns": "0.576",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[5]",
+          "slack_ns": "9.779",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[5]",
+          "slack_ns": "0.466",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[6]",
+          "slack_ns": "9.878",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[6]",
+          "slack_ns": "0.483",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[7]",
+          "slack_ns": "9.734",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[7]",
+          "slack_ns": "0.471",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[8]",
+          "slack_ns": "9.727",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[8]",
+          "slack_ns": "0.497",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[9]",
+          "slack_ns": "9.692",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[9]",
+          "slack_ns": "0.379",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[10]",
+          "slack_ns": "9.851",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[10]",
+          "slack_ns": "0.441",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[11]",
+          "slack_ns": "9.800",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[11]",
+          "slack_ns": "0.448",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[12]",
+          "slack_ns": "9.565",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[12]",
+          "slack_ns": "0.542",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[13]",
+          "slack_ns": "9.662",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[13]",
+          "slack_ns": "0.512",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[14]",
+          "slack_ns": "9.671",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[14]",
+          "slack_ns": "0.428",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[15]",
+          "slack_ns": "9.450",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[15]",
+          "slack_ns": "0.720",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[16]",
+          "slack_ns": "9.570",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[16]",
+          "slack_ns": "0.543",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[17]",
+          "slack_ns": "9.721",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[17]",
+          "slack_ns": "0.553",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[18]",
+          "slack_ns": "9.713",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[18]",
+          "slack_ns": "0.436",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[19]",
+          "slack_ns": "9.772",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[19]",
+          "slack_ns": "0.506",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[20]",
+          "slack_ns": "9.590",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[20]",
+          "slack_ns": "0.515",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[21]",
+          "slack_ns": "9.712",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[21]",
+          "slack_ns": "0.534",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[22]",
+          "slack_ns": "9.696",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[22]",
+          "slack_ns": "0.435",
+          "type": "hold"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[23]",
+          "slack_ns": "9.711",
+          "type": "setup"
+        },
+        {
+          "model": "Fast fix4 0C Model",
+          "port": "HDMI_TX_D[23]",
+          "slack_ns": "0.567",
+          "type": "hold"
+        }
+      ],
+      "policy": "de25-hdmi-video-output-timing-v1",
+      "ports": [
+        "HDMI_TX_DE",
+        "HDMI_TX_D[0]",
+        "HDMI_TX_D[10]",
+        "HDMI_TX_D[11]",
+        "HDMI_TX_D[12]",
+        "HDMI_TX_D[13]",
+        "HDMI_TX_D[14]",
+        "HDMI_TX_D[15]",
+        "HDMI_TX_D[16]",
+        "HDMI_TX_D[17]",
+        "HDMI_TX_D[18]",
+        "HDMI_TX_D[19]",
+        "HDMI_TX_D[1]",
+        "HDMI_TX_D[20]",
+        "HDMI_TX_D[21]",
+        "HDMI_TX_D[22]",
+        "HDMI_TX_D[23]",
+        "HDMI_TX_D[2]",
+        "HDMI_TX_D[3]",
+        "HDMI_TX_D[4]",
+        "HDMI_TX_D[5]",
+        "HDMI_TX_D[6]",
+        "HDMI_TX_D[7]",
+        "HDMI_TX_D[8]",
+        "HDMI_TX_D[9]",
+        "HDMI_TX_HS",
+        "HDMI_TX_VS"
+      ]
+    },
+    "window_bridge_reset_review": {
+      "finding": {
+        "basis": [
+          "de25-reviewed-terminal-hdmi-output-reset-v1",
+          "de25-reviewed-window-bridge-fifo-reset-v1"
+        ],
+        "id": "RDC-50003",
+        "output_reset": {
+          "basis": "de25-reviewed-terminal-hdmi-output-reset-v1",
+          "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+          "heads": [
+            "fes_video_inst|output_release[0]",
+            "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]"
+          ],
+          "id": "RDC-50003",
+          "sources": [
+            "fes_video_inst|config_reset|sync_regs[1]",
+            "fes_video_inst|first_lock_seen",
+            "fes_video_inst|visible_allow"
+          ],
+          "violations": 1
+        },
+        "violations": 3,
+        "window_bridge": [
+          {
+            "clock": "pll_inst|iopll_0_outclk0",
+            "heads": [
+              "fes_top_reset_inst|sync_regs[0]",
+              "soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+              "soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]"
+            ],
+            "sources": [
+              "auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|agilexconfigreset|user_reset|sdm_gpo_out_user_reset~internal_ctrl_clock.reg",
+              "pll_inst|iopll_0|tennm_ph2_iopll~pll_ctrl_reg",
+              "soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out",
+              "soc_inst|subsys_periph|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out"
+            ]
+          },
+          {
+            "clock": "fes_machine_pll|machine_pll_outclk0",
+            "heads": [
+              "soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+              "soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+              "soc_inst|subsys_periph|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]"
+            ],
+            "sources": [
+              "soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out",
+              "soc_inst|subsys_periph|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out"
+            ]
+          }
+        ]
+      },
+      "instances": {
+        "soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync": {
+          "clock": "pll_inst|iopll_0_outclk0",
+          "loads": 192
+        },
+        "soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync": {
+          "clock": "fes_machine_pll|machine_pll_outclk0",
+          "loads": 11
+        },
+        "soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync": {
+          "clock": "fes_machine_pll|machine_pll_outclk0",
+          "loads": 152
+        },
+        "soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync": {
+          "clock": "pll_inst|iopll_0_outclk0",
+          "loads": 33
+        }
+      },
+      "path_count": 3104,
+      "policy": "de25-reviewed-window-bridge-fifo-reset-v1",
+      "source_resets": [
+        "soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out",
+        "soc_inst|subsys_periph|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out"
+      ],
+      "worst_slack_ns": {
+        "recovery": "8.162",
+        "removal": "0.246"
+      }
+    }
+  },
+  "audio_clock_reference_review": {
+    "approved_reference_sha256": "1c39cd2d692bad5ff20d5a387638f5df9478c6ab5ea737ad1c0f1b344f89e115",
+    "conditional_pin_budgets": [
+      {
+        "corner": "Fast fix4 0C Model",
+        "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.626",
+        "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.758"
+      },
+      {
+        "corner": "Slow fix4 0C Model",
+        "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.293",
+        "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.328"
+      },
+      {
+        "corner": "Slow fix4 100C Model",
+        "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.323",
+        "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.396"
+      },
+      {
+        "corner": "Slow fix4a 0C Model",
+        "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.339",
+        "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.421"
+      }
+    ],
+    "fitted_corner_count": 4,
+    "fitted_path_count": 32,
+    "hardware_acceptance": false,
+    "independent_pcb_timing_qualified": false,
+    "policy": "de25-machine-pll-audio-clocks-v1",
+    "ports": [
+      "HDMI_I2C_SCL",
+      "HDMI_I2C_SDA",
+      "HDMI_LRCLK",
+      "HDMI_SCLK",
+      "LED[7]"
+    ],
+    "receipt_sha256": "51a1034a0ff5d316cee43e022fffed926139fa89d0398babfb4825259d39b5df"
+  },
+  "failed_rules": 8,
+  "package_timing_admission": true,
+  "reports_sha256": {
+    "golden_top.sta.summary": "235653f756a45f5772e32946d81d1ca7dbfebeb1ecef0b59bad72b5e951a737e",
+    "golden_top.tq.drc.signoff.rpt": "7a2807d31a17e58bbfe09271eedfbc52b9dc5eee0a4dbfa70e0fe3f468f19083"
+  },
+  "reviewed_findings": [
+    {
+      "basis": [
+        "de25-reviewed-terminal-hdmi-output-reset-v1",
+        "de25-reviewed-window-bridge-fifo-reset-v1"
+      ],
+      "id": "RDC-50003",
+      "output_reset": {
+        "basis": "de25-reviewed-terminal-hdmi-output-reset-v1",
+        "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+        "heads": [
+          "fes_video_inst|output_release[0]",
+          "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]"
+        ],
+        "id": "RDC-50003",
+        "sources": [
+          "fes_video_inst|config_reset|sync_regs[1]",
+          "fes_video_inst|first_lock_seen",
+          "fes_video_inst|visible_allow"
+        ],
+        "violations": 1
+      },
+      "violations": 3,
+      "window_bridge": [
+        {
+          "clock": "pll_inst|iopll_0_outclk0",
+          "heads": [
+            "fes_top_reset_inst|sync_regs[0]",
+            "soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+            "soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]"
+          ],
+          "sources": [
+            "auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|agilexconfigreset|user_reset|sdm_gpo_out_user_reset~internal_ctrl_clock.reg",
+            "pll_inst|iopll_0|tennm_ph2_iopll~pll_ctrl_reg",
+            "soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out",
+            "soc_inst|subsys_periph|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out"
+          ]
+        },
+        {
+          "clock": "fes_machine_pll|machine_pll_outclk0",
+          "heads": [
+            "soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+            "soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+            "soc_inst|subsys_periph|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]"
+          ],
+          "sources": [
+            "soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out",
+            "soc_inst|subsys_periph|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TMC-20011",
+      "ports": [
+        "HDMI_I2C_SDA",
+        "HDMI_TX_INT"
+      ],
+      "violations": 2
+    },
+    {
+      "basis": "de25-machine-pll-audio-clocks-v1",
+      "id": "TMC-20012",
+      "ports": [
+        "HDMI_I2C_SCL",
+        "HDMI_I2C_SDA",
+        "HDMI_LRCLK",
+        "HDMI_SCLK",
+        "LED[7]"
+      ],
+      "violations": 5
+    },
+    {
+      "basis": "de25-pc386-reviewed-signoff-findings-v1",
+      "columns": [
+        "From",
+        "To",
+        "From Clock",
+        "To Clock",
+        "Reason",
+        "Waived"
+      ],
+      "groups": [
+        {
+          "constraint": [
+            "    capture {system|frame_buffer[*] system|frame_width[*] system|frame_height[*]}",
+            "            {system|machine_presenter_latest_buffer[*] system|machine_presenter_latest_width[*] system|machine_presenter_latest_height[*]}",
+            "    frame_sequence {system|machine_frame_sequence[0]} {system|machine_presenter_sequence_sync[0]}",
+            "    set_net_delay -max 10.000 -from $launches -to $captures",
+            "    set_data_delay 10.000 -from $launches -to $captures",
+            "    set_max_skew 10.000 -from $launches -to $captures",
+            "    set_max_delay 10.000 -from $launches -to $captures",
+            "    set_min_delay 0.000 -from $launches -to $captures"
+          ],
+          "name": "presenter-capture",
+          "qualifier": "Machine to pixel: the newest capture {buffer, width, height}. pc386_vga_scanout.sv assigns frame_buffer, frame_width and frame_height on the edge that increments frame_sequence and changes them only at the next completed capture, a VGA frame later. Bit 0 of the sequence is a toggle (machine_frame_sequence[0]) into a three-stage pixel-clock synchroniser (machine_presenter_sequence_sync); pc386_presenter.sv copies the bundle only when stages 2 and 1 differ, so the bundle has been still since the toggle left and stays still for a VGA frame after the copy. The bundle paths are bounded to 10 ns, with skew, net and data delay bounds, less than the two pixel-clock synchroniser stages (26.9 ns at 74.25 MHz) before the copy.",
+          "rows": 20
+        },
+        {
+          "constraint": [
+            "    fetch {system|machine_presenter_epoch[*] system|machine_presenter_width[*] system|machine_presenter_height[*] system|machine_presenter_request_limit[*] system|machine_presenter_shown_buffer[*]}",
+            "    fetch_request {system|machine_presenter_request_toggle} {system|machine_presenter_request_sync[0]}",
+            "    set_net_delay -max 10.000 -from $launches -to $captures",
+            "    set_data_delay 10.000 -from $launches -to $captures",
+            "    set_max_skew 10.000 -from $launches -to $captures",
+            "    set_max_delay 10.000 -from $launches -to $captures",
+            "    set_min_delay 0.000 -from $launches -to $captures"
+          ],
+          "name": "presenter-fetch",
+          "qualifier": "Pixel to machine: the fetch window {epoch, width, height, request limit, shown buffer}. pc386_presenter.sv assigns the window on the pixel edge that flips machine_presenter_request_toggle (frame setup, or a row setup that moves the limit), or earlier, and holds it until the next flip, at least one raster line (1,650 pixel clocks) later. The toggle crosses a three-stage machine-clock synchroniser (machine_presenter_request_sync); the machine side copies the window only when stages 2 and 1 differ. The bundle paths are bounded to 10 ns, less than two machine clocks (21.7 ns at 92.156863 MHz, the fastest model's clock; MODEL_CLOCKS in build.py).",
+          "rows": 35
+        },
+        {
+          "constraint": [
+            "    loaded {system|machine_presenter_loaded_in[*] system|machine_presenter_loaded_epoch_in[*]}",
+            "           {system|machine_presenter_loaded[*] system|machine_presenter_loaded_epoch[*]}",
+            "    fetch_loaded {system|machine_presenter_loaded_flag} {system|machine_presenter_loaded_sync[0]}",
+            "    set_net_delay -max 10.000 -from $launches -to $captures",
+            "    set_data_delay 10.000 -from $launches -to $captures",
+            "    set_max_skew 10.000 -from $launches -to $captures",
+            "    set_max_delay 10.000 -from $launches -to $captures",
+            "    set_min_delay 0.000 -from $launches -to $captures"
+          ],
+          "name": "presenter-loaded",
+          "qualifier": "Machine to pixel: the loaded-row report {row, epoch}. pc386_presenter.sv assigns loaded_out and loaded_epoch_out on the machine edge that flips machine_presenter_loaded_flag, when a row fetch completes, and changes them only when the next one completes. That takes at least five machine clocks (54.3 ns at 92.156863 MHz, the fastest model's clock): the next row starts (f_busy), issues its read (ddr_read), the read is taken, its one beat at the least returns (f_received), and the row completes. The flag crosses a three-stage pixel-clock synchroniser (machine_presenter_loaded_sync), and the pixel side copies the report when stages 2 and 1 differ: at most three pixel clocks (40.4 ns) after the flag reaches stage 0, plus the bundle paths' 10 ns bound, 50.4 ns in all. The remaining 3.9 ns is what the flag's own route into stage 0 may take; that route is cut by the false path, not bounded, and the 92.156863 MHz fits measured it (data delay plus clock skew) under 3.9 ns at every corner (docs/validation/2026-11-25-de25-486sx-9216, gate G5).",
+          "rows": 12
+        },
+        {
+          "constraint": [
+            "    window_base {window_control|base_lo[*] window_control|base_lo[*]~DUPLICATE*} {window_control|base_machine[*]} 20 64 20 32",
+            "    window_granted {window_control|granted} {window_control|granted_sync[0]} 1",
+            "    set first_d [get_pins -compatibility_mode -nocase \"${base}|${head}|d\"]",
+            "    set_false_path -from $launches -to $first_d",
+            "    set_net_delay -max 10.000 -from $launches -to $captures",
+            "    set_data_delay 10.000 -from $launches -to $captures",
+            "    set_max_skew 10.000 -from $launches -to $captures",
+            "    set_max_delay 10.000 -from $launches -to $captures",
+            "    set_min_delay 0.000 -from $launches -to $captures"
+          ],
+          "name": "window-base",
+          "qualifier": "Peripheral to machine: the grant base. fes_de25_hps_window_control.v writes base_lo only while granted is clear (a write while granted answers SLVERR), and sets granted from a separate command write, so base_lo is still from at least one clk_sys clock (10 ns) before granted launches until granted is cleared. granted is a level into a two-stage machine-clock synchroniser (granted_sync, its launch into stage 0 a named false path); the machine side copies base_lo into base_machine only on the clock where granted_sync[1] is first seen set (granted_sync[1] && !grant_seen), at least two machine clocks (21.7 ns at 92.156863 MHz) after granted reaches stage 0. The bundle paths are bounded to 10 ns, with skew, net and data delay bounds, so the copy samples a settled base. A fitter copy of a base_lo bit (~DUPLICATE) is the same register, as the SDC collection says. clk_sys's reset clears base_lo and granted together; that is the one way base_lo moves while granted is set.",
+          "rows": 0
+        },
+        {
+          "constraint": [
+            "    window_fault_record {window_control|fault_launch[*]} {window_control|machine_fault[*]} 5 5 5 5",
+            "    window_fault_request {window_control|fault_request} {window_control|fault_request_sync[0]} 1",
+            "    window_fault_ack {window_control|fault_ack} {window_control|fault_ack_sync[0]} 1",
+            "    set first_d [get_pins -compatibility_mode -nocase \"${base}|${head}|d\"]",
+            "    set_false_path -from $launches -to $first_d",
+            "    set_net_delay -max 10.000 -from $launches -to $captures",
+            "    set_data_delay 10.000 -from $launches -to $captures",
+            "    set_max_skew 10.000 -from $launches -to $captures",
+            "    set_max_delay 10.000 -from $launches -to $captures",
+            "    set_min_delay 0.000 -from $launches -to $captures"
+          ],
+          "name": "window-fault-record",
+          "qualifier": "Machine to peripheral: the fault record (port bits and reason). fes_de25_hps_window_control.v launches it from fault_launch, which copies the held record every machine clock, on the same machine edge that launches its request toggle (fault_request); the held record changes only after clk_sys's acknowledge (fault_ack) has crossed back through fault_ack_sync. The request enters a two-stage clk_sys synchroniser (fault_request_sync, its launch into stage 0 a named false path), and clk_sys copies fault_launch into machine_fault only on the clock where fault_request_sync[1] differs from fault_request_seen, at least two clk_sys clocks (20 ns) after the request reaches stage 0. The bundle paths are bounded to 10 ns.",
+          "rows": 0
+        }
+      ],
+      "id": "CDC-50001",
+      "sdc_sha256": "ab26b67a50ac380e3a06e2f3267f3657a2c1c7434799d012fc0c2aa27a57c670",
+      "sources_sha256": {
+        "boards/de25nano/pc386/fes_de25_hps_window_control.v": "8c313031e408b643ecead148263e3dde06304e8a5603894e99af08d4edcbbcbe",
+        "boards/de25nano/pc386/signoff_bases.py": "709fcfbb89b1f59d4915d61d8860ea8e7252a34d2faa4d53c6580f99d5580445",
+        "cores/fes-pc386/rtl/pc386_audio.sv": "3e3d1f4f7e872b9c8e99356099ed110f7040928c32c5ba91a981276cc2a4993a",
+        "cores/fes-pc386/rtl/pc386_io.sv": "4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece",
+        "cores/fes-pc386/rtl/pc386_machine.sv": "c1aa79dbefc5c1632601b6097765249c68ed01f0d172ef7d6087e1f71893dabc",
+        "cores/fes-pc386/rtl/pc386_presenter.sv": "aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3",
+        "cores/fes-pc386/rtl/pc386_snapshot.sv": "795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4",
+        "cores/fes-pc386/rtl/pc386_vga_scanout.sv": "03d194d816290a6f6977cc84dfe5c64be374f1ca4eb3a297b1562495b0186fec"
+      },
+      "violations": 67
+    },
+    {
+      "basis": "de25-pc386-reviewed-signoff-findings-v1",
+      "columns": [
+        "From",
+        "To",
+        "From Clock",
+        "To Clock",
+        "Reason",
+        "Waived"
+      ],
+      "groups": [
+        {
+          "constraint": [
+            "    capture {system|frame_buffer[*] system|frame_width[*] system|frame_height[*]}",
+            "            {system|machine_presenter_latest_buffer[*] system|machine_presenter_latest_width[*] system|machine_presenter_latest_height[*]}",
+            "    frame_sequence {system|machine_frame_sequence[0]} {system|machine_presenter_sequence_sync[0]}",
+            "    set_net_delay -max 10.000 -from $launches -to $captures",
+            "    set_data_delay 10.000 -from $launches -to $captures",
+            "    set_max_skew 10.000 -from $launches -to $captures",
+            "    set_max_delay 10.000 -from $launches -to $captures",
+            "    set_min_delay 0.000 -from $launches -to $captures"
+          ],
+          "name": "presenter-capture-buffer",
+          "qualifier": "Machine to pixel: the newest capture {buffer, width, height}. pc386_vga_scanout.sv assigns frame_buffer, frame_width and frame_height on the edge that increments frame_sequence and changes them only at the next completed capture, a VGA frame later. Bit 0 of the sequence is a toggle (machine_frame_sequence[0]) into a three-stage pixel-clock synchroniser (machine_presenter_sequence_sync); pc386_presenter.sv copies the bundle only when stages 2 and 1 differ, so the bundle has been still since the toggle left and stays still for a VGA frame after the copy. The bundle paths are bounded to 10 ns, with skew, net and data delay bounds, less than the two pixel-clock synchroniser stages (26.9 ns at 74.25 MHz) before the copy.",
+          "rows": 2
+        },
+        {
+          "constraint": [
+            "    frame_sequence {system|machine_frame_sequence[0]} {system|machine_presenter_sequence_sync[0]}",
+            "    fetch_request {system|machine_presenter_request_toggle} {system|machine_presenter_request_sync[0]}",
+            "    fetch_loaded {system|machine_presenter_loaded_flag} {system|machine_presenter_loaded_sync[0]}",
+            "    set first_d [get_pins -compatibility_mode -nocase \"${base}|${head}|d\"]",
+            "    set_false_path -from $launches -to $first_d"
+          ],
+          "name": "presenter-sequence-toggle",
+          "qualifier": "The presenter's three handshake toggles, each into its own three-stage synchroniser in pc386_presenter.sv: the capture sequence (machine_frame_sequence[0] into machine_presenter_sequence_sync) and the loaded-row flag (machine_presenter_loaded_flag into machine_presenter_loaded_sync), machine to pixel; the fetch request (machine_presenter_request_toggle into machine_presenter_request_sync), pixel to machine. Each stage 0 drives only stage 1. The launch into each stage 0 is a named false path, and the board assigns SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS to the three chains (pc386/build.py ASSIGNMENTS), so the design assistant finds them as synchronisers. Observed in STA on the fit: each crossing path into stage 0 is cut, and the one timed path into each stage 0 is its synchronous reset in the receiving clock (pixel_reset or the machine reset). The design assistant still reports the three chains; pixel_counts' toggles, whose stage 0 has no reset, it does not.",
+          "rows": 1
+        },
+        {
+          "constraint": [
+            "    frame_sequence {system|machine_frame_sequence[0]} {system|machine_presenter_sequence_sync[0]}",
+            "    fetch_request {system|machine_presenter_request_toggle} {system|machine_presenter_request_sync[0]}",
+            "    fetch_loaded {system|machine_presenter_loaded_flag} {system|machine_presenter_loaded_sync[0]}",
+            "    set first_d [get_pins -compatibility_mode -nocase \"${base}|${head}|d\"]",
+            "    set_false_path -from $launches -to $first_d"
+          ],
+          "name": "presenter-loaded-toggle",
+          "qualifier": "The presenter's three handshake toggles, each into its own three-stage synchroniser in pc386_presenter.sv: the capture sequence (machine_frame_sequence[0] into machine_presenter_sequence_sync) and the loaded-row flag (machine_presenter_loaded_flag into machine_presenter_loaded_sync), machine to pixel; the fetch request (machine_presenter_request_toggle into machine_presenter_request_sync), pixel to machine. Each stage 0 drives only stage 1. The launch into each stage 0 is a named false path, and the board assigns SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS to the three chains (pc386/build.py ASSIGNMENTS), so the design assistant finds them as synchronisers. Observed in STA on the fit: each crossing path into stage 0 is cut, and the one timed path into each stage 0 is its synchronous reset in the receiving clock (pixel_reset or the machine reset). The design assistant still reports the three chains; pixel_counts' toggles, whose stage 0 has no reset, it does not.",
+          "rows": 1
+        },
+        {
+          "constraint": [
+            "    frame_sequence {system|machine_frame_sequence[0]} {system|machine_presenter_sequence_sync[0]}",
+            "    fetch_request {system|machine_presenter_request_toggle} {system|machine_presenter_request_sync[0]}",
+            "    fetch_loaded {system|machine_presenter_loaded_flag} {system|machine_presenter_loaded_sync[0]}",
+            "    set first_d [get_pins -compatibility_mode -nocase \"${base}|${head}|d\"]",
+            "    set_false_path -from $launches -to $first_d"
+          ],
+          "name": "presenter-toggle-to-machine",
+          "qualifier": "The presenter's three handshake toggles, each into its own three-stage synchroniser in pc386_presenter.sv: the capture sequence (machine_frame_sequence[0] into machine_presenter_sequence_sync) and the loaded-row flag (machine_presenter_loaded_flag into machine_presenter_loaded_sync), machine to pixel; the fetch request (machine_presenter_request_toggle into machine_presenter_request_sync), pixel to machine. Each stage 0 drives only stage 1. The launch into each stage 0 is a named false path, and the board assigns SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS to the three chains (pc386/build.py ASSIGNMENTS), so the design assistant finds them as synchronisers. Observed in STA on the fit: each crossing path into stage 0 is cut, and the one timed path into each stage 0 is its synchronous reset in the receiving clock (pixel_reset or the machine reset). The design assistant still reports the three chains; pixel_counts' toggles, whose stage 0 has no reset, it does not.",
+          "rows": 1
+        },
+        {
+          "constraint": [
+            "set launches [get_registers \"${base}|system|reset\"]",
+            "set first_d [get_pins -compatibility_mode -nocase \"${base}|system|machine_pixel_reset_sync[0]|d\"]",
+            "set_false_path -from $launches -to $first_d"
+          ],
+          "name": "pixel-reset",
+          "qualifier": "Machine to pixel: pc386_machine.sv synchronises (reset || !pixel_locked) into the pixel clock with a two-stage synchroniser (machine_pixel_reset_sync, power-up asserted). The launch from the machine reset register into stage 0 is a named false path; the synchronised reset's loads are timed in the pixel clock. Observed in STA on the fit: the crossing path is cut, and the one timed path into stage 0 is the pixel PLL lock's, from its pixel-clock reset synchroniser (rst_controller_001). The design assistant still reports the chain.",
+          "rows": 1
+        }
+      ],
+      "id": "CDC-50002",
+      "sdc_sha256": "ab26b67a50ac380e3a06e2f3267f3657a2c1c7434799d012fc0c2aa27a57c670",
+      "sources_sha256": {
+        "boards/de25nano/pc386/fes_de25_hps_window_control.v": "8c313031e408b643ecead148263e3dde06304e8a5603894e99af08d4edcbbcbe",
+        "boards/de25nano/pc386/signoff_bases.py": "709fcfbb89b1f59d4915d61d8860ea8e7252a34d2faa4d53c6580f99d5580445",
+        "cores/fes-pc386/rtl/pc386_audio.sv": "3e3d1f4f7e872b9c8e99356099ed110f7040928c32c5ba91a981276cc2a4993a",
+        "cores/fes-pc386/rtl/pc386_io.sv": "4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece",
+        "cores/fes-pc386/rtl/pc386_machine.sv": "c1aa79dbefc5c1632601b6097765249c68ed01f0d172ef7d6087e1f71893dabc",
+        "cores/fes-pc386/rtl/pc386_presenter.sv": "aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3",
+        "cores/fes-pc386/rtl/pc386_snapshot.sv": "795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4",
+        "cores/fes-pc386/rtl/pc386_vga_scanout.sv": "03d194d816290a6f6977cc84dfe5c64be374f1ca4eb3a297b1562495b0186fec"
+      },
+      "violations": 6
+    },
+    {
+      "basis": "de25-pc386-reviewed-signoff-findings-v1",
+      "columns": [
+        "Source Nodes",
+        "Synchronization Nodes",
+        "From Clock",
+        "To Clock",
+        "Chain Length",
+        "CDC Type",
+        "Transfer Width",
+        "Waived"
+      ],
+      "groups": [
+        {
+          "constraint": [
+            "    counts {system|pixel_counts_copy[*]} {system|pixel_counts_snapshot[*]}",
+            "    counts_ask {system|pixel_counts_ask} {system|pixel_counts_ask_sync[0]}",
+            "    counts_answer {system|pixel_counts_answer} {system|pixel_counts_answer_sync[0]}",
+            "    set_net_delay -max 10.000 -from $launches -to $captures",
+            "    set_data_delay 10.000 -from $launches -to $captures",
+            "    set_max_skew 10.000 -from $launches -to $captures",
+            "    set_max_delay 10.000 -from $launches -to $captures",
+            "    set_min_delay 0.000 -from $launches -to $captures"
+          ],
+          "name": "status-counts",
+          "qualifier": "Pixel to machine: the 96-bit status counters through pc386_snapshot.sv. The machine asks with a toggle (pixel_counts_ask, two-stage pixel synchroniser); the pixel side copies the value into pixel_counts_copy and flips pixel_counts_answer, which crosses a two-stage machine-clock synchroniser (pixel_counts_answer_sync); the machine takes the copy only once that answer has crossed, and the copy does not change until the next ask. The design assistant reports the copy as a CE-type bus followed by a synchroniser. The bundle paths are bounded to 10 ns.",
+          "rows": 1
+        }
+      ],
+      "id": "CDC-50102",
+      "sdc_sha256": "ab26b67a50ac380e3a06e2f3267f3657a2c1c7434799d012fc0c2aa27a57c670",
+      "sources_sha256": {
+        "boards/de25nano/pc386/fes_de25_hps_window_control.v": "8c313031e408b643ecead148263e3dde06304e8a5603894e99af08d4edcbbcbe",
+        "boards/de25nano/pc386/signoff_bases.py": "709fcfbb89b1f59d4915d61d8860ea8e7252a34d2faa4d53c6580f99d5580445",
+        "cores/fes-pc386/rtl/pc386_audio.sv": "3e3d1f4f7e872b9c8e99356099ed110f7040928c32c5ba91a981276cc2a4993a",
+        "cores/fes-pc386/rtl/pc386_io.sv": "4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece",
+        "cores/fes-pc386/rtl/pc386_machine.sv": "c1aa79dbefc5c1632601b6097765249c68ed01f0d172ef7d6087e1f71893dabc",
+        "cores/fes-pc386/rtl/pc386_presenter.sv": "aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3",
+        "cores/fes-pc386/rtl/pc386_snapshot.sv": "795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4",
+        "cores/fes-pc386/rtl/pc386_vga_scanout.sv": "03d194d816290a6f6977cc84dfe5c64be374f1ca4eb3a297b1562495b0186fec"
+      },
+      "violations": 1
+    },
+    {
+      "basis": "de25-pc386-reviewed-signoff-findings-v1",
+      "columns": [
+        "Driver",
+        "Asynchronous Reset Signal",
+        "Synchronous Reset Signal",
+        "Clock Enable Signal",
+        "Number of Asynchronous Reset Signals",
+        "Number of Synchronous Reset Signals",
+        "Number of Clock Enable Signals",
+        "Waived"
+      ],
+      "groups": [
+        {
+          "constraint": [],
+          "name": "biu-reset",
+          "qualifier": "fes_i386_cpu's BIU reset, a machine-clock register: it drives synchronous clears, and the synthesis netlist also uses it in clock enables (fetch prediction). It is not an asynchronous reset; its paths are timed in the machine clock.",
+          "rows": 1
+        },
+        {
+          "constraint": [],
+          "name": "machine-reset",
+          "qualifier": "pc386_system's machine reset, a machine-clock register fed by the board's reset synchroniser: it drives asynchronous clears (8259 masks), synchronous clears and, through the netlist, RTC clock enables. Its recovery and removal are timed in the machine clock.",
+          "rows": 1
+        }
+      ],
+      "id": "LNT-30010",
+      "sdc_sha256": "ab26b67a50ac380e3a06e2f3267f3657a2c1c7434799d012fc0c2aa27a57c670",
+      "sources_sha256": {
+        "boards/de25nano/pc386/fes_de25_hps_window_control.v": "8c313031e408b643ecead148263e3dde06304e8a5603894e99af08d4edcbbcbe",
+        "boards/de25nano/pc386/signoff_bases.py": "709fcfbb89b1f59d4915d61d8860ea8e7252a34d2faa4d53c6580f99d5580445",
+        "cores/fes-pc386/rtl/pc386_audio.sv": "3e3d1f4f7e872b9c8e99356099ed110f7040928c32c5ba91a981276cc2a4993a",
+        "cores/fes-pc386/rtl/pc386_io.sv": "4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece",
+        "cores/fes-pc386/rtl/pc386_machine.sv": "c1aa79dbefc5c1632601b6097765249c68ed01f0d172ef7d6087e1f71893dabc",
+        "cores/fes-pc386/rtl/pc386_presenter.sv": "aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3",
+        "cores/fes-pc386/rtl/pc386_snapshot.sv": "795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4",
+        "cores/fes-pc386/rtl/pc386_vga_scanout.sv": "03d194d816290a6f6977cc84dfe5c64be374f1ca4eb3a297b1562495b0186fec"
+      },
+      "violations": 2
+    },
+    {
+      "basis": "de25-pc386-reviewed-signoff-findings-v1",
+      "columns": [
+        "Register Name",
+        "Register Location",
+        "Number of Endpoints",
+        "Endpoint Centroid",
+        "Average Distance of Endpoints to Centroid",
+        "Total Distance of Endpoints to Centroid (Tension)",
+        "Waived"
+      ],
+      "groups": [
+        {
+          "constraint": [],
+          "name": "cpu-control-tension",
+          "qualifier": "Placement advisory: registers in the machine netlist with many endpoints spread across the CPU. The named ones are fes_i386_cpu control registers (stall, drain, wait, reset and fault flags) and the machine reset; the others are auto-named machine-netlist registers. Every clock meets setup, hold, recovery and removal at every corner, which the gate requires separately. A fitter copy of a named register (~_Duplicate_N) is the same register: Deano accepted that spelling on 23 Nov 2026 (#2036), when the fit at dfacd28e1 split cpu_biu_reset and reported cpu_biu_reset~_Duplicate_2 (6,484 endpoints) where the fit at 3401bb193 reported the undivided register (8,001 endpoints); the same copy is reviewed under LNT-30010 biu-reset. machine_at_decoder_state, _phase and _cycle_port are pc386_io.sv's I/O cycle state, phase counter and latched port (the AT core's port decoder), and audio_dsp_write is the register on pc386_audio.sv's Sound Blaster DSP (pc386_sb) write input; all are machine-clock registers. Deano admitted them on 24 Nov 2026 (#2187), when the i486DX slice-1 fit (seed 1) reported them and their ~DUPLICATE copies.",
+          "rows": 24
+        }
+      ],
+      "id": "TMC-20602",
+      "sdc_sha256": "ab26b67a50ac380e3a06e2f3267f3657a2c1c7434799d012fc0c2aa27a57c670",
+      "sources_sha256": {
+        "boards/de25nano/pc386/fes_de25_hps_window_control.v": "8c313031e408b643ecead148263e3dde06304e8a5603894e99af08d4edcbbcbe",
+        "boards/de25nano/pc386/signoff_bases.py": "709fcfbb89b1f59d4915d61d8860ea8e7252a34d2faa4d53c6580f99d5580445",
+        "cores/fes-pc386/rtl/pc386_audio.sv": "3e3d1f4f7e872b9c8e99356099ed110f7040928c32c5ba91a981276cc2a4993a",
+        "cores/fes-pc386/rtl/pc386_io.sv": "4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece",
+        "cores/fes-pc386/rtl/pc386_machine.sv": "c1aa79dbefc5c1632601b6097765249c68ed01f0d172ef7d6087e1f71893dabc",
+        "cores/fes-pc386/rtl/pc386_presenter.sv": "aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3",
+        "cores/fes-pc386/rtl/pc386_snapshot.sv": "795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4",
+        "cores/fes-pc386/rtl/pc386_vga_scanout.sv": "03d194d816290a6f6977cc84dfe5c64be374f1ca4eb3a297b1562495b0186fec"
+      },
+      "violations": 24
+    }
+  ],
+  "rules": [
+    {
+      "id": "CDC-50001",
+      "severity": "High",
+      "violations": 67,
+      "waived": 0
+    },
+    {
+      "id": "CDC-50002",
+      "severity": "High",
+      "violations": 6,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20012",
+      "severity": "High",
+      "violations": 5,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20011",
+      "severity": "High",
+      "violations": 2,
+      "waived": 0
+    },
+    {
+      "id": "RDC-50003",
+      "severity": "Medium",
+      "violations": 3,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20602",
+      "severity": "Low",
+      "violations": 24,
+      "waived": 0
+    },
+    {
+      "id": "LNT-30010",
+      "severity": "Low",
+      "violations": 2,
+      "waived": 0
+    },
+    {
+      "id": "CDC-50102",
+      "severity": "Low",
+      "violations": 1,
+      "waived": 0
+    },
+    {
+      "id": "CDC-50003",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CDC-50004",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CDC-50005",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CDC-50006",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CDC-50007",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CDC-50011",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CDC-50012",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CLK-30026",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CLK-30027",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CLK-30028",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CLK-30029",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CLK-30030",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CLK-30033",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CLK-30034",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CLK-30035",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CLK-30042",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "RES-50001",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "RES-50002",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "RES-50003",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "RES-50004",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20013",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20014",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20015",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20016",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20017",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20019",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20022",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20023",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20027",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-30041",
+      "severity": "High",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CDC-50103",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CLK-30031",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CLK-30032",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "FLP-10000",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "FLP-10501",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "LNT-30023",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20018",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20021",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20024",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20025",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20026",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20200",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20201",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20204",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20205",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20206",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20207",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20208",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20209",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20210",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20212",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20213",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20214",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20215",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20216",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20217",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20219",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20220",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20221",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20312",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20313",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20712",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20713",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20812",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20813",
+      "severity": "Medium",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CDC-50008",
+      "severity": "Low",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "CDC-50101",
+      "severity": "Low",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "FLP-40006",
+      "severity": "Low",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "RES-50010",
+      "severity": "Low",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "RES-50101",
+      "severity": "Low",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20020",
+      "severity": "Low",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20550",
+      "severity": "Low",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20551",
+      "severity": "Low",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20552",
+      "severity": "Low",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20601",
+      "severity": "Low",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20603",
+      "severity": "Low",
+      "violations": 0,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20604",
+      "severity": "Low",
+      "violations": 0,
+      "waived": 0
+    }
+  ],
+  "signoff_rules": 85,
+  "timing_checks": [
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "1.538",
+      "tns_ns": "0.000",
+      "type": "Setup"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_outclk0",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "1.798",
+      "tns_ns": "0.000",
+      "type": "Setup"
+    },
+    {
+      "clock": "pll_inst|iopll_0_outclk0",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "4.465",
+      "tns_ns": "0.000",
+      "type": "Setup"
+    },
+    {
+      "clock": "HDMI_TX_CLK",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "7.835",
+      "tns_ns": "0.000",
+      "type": "Setup"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_outclk1",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "8.751",
+      "tns_ns": "0.000",
+      "type": "Setup"
+    },
+    {
+      "clock": "adv7513_config",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "16.964",
+      "tns_ns": "0.000",
+      "type": "Setup"
+    },
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "17.326",
+      "tns_ns": "0.000",
+      "type": "Setup"
+    },
+    {
+      "clock": "de25_i2s_bit_clock_output",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "77.943",
+      "tns_ns": "0.000",
+      "type": "Setup"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_outclk0",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "0.000",
+      "tns_ns": "0.000",
+      "type": "Hold"
+    },
+    {
+      "clock": "pll_inst|iopll_0_outclk0",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "0.000",
+      "tns_ns": "0.000",
+      "type": "Hold"
+    },
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "0.006",
+      "tns_ns": "0.000",
+      "type": "Hold"
+    },
+    {
+      "clock": "adv7513_config",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "0.027",
+      "tns_ns": "0.000",
+      "type": "Hold"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_outclk1",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "0.074",
+      "tns_ns": "0.000",
+      "type": "Hold"
+    },
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "0.099",
+      "tns_ns": "0.000",
+      "type": "Hold"
+    },
+    {
+      "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "0.376",
+      "tns_ns": "0.000",
+      "type": "Hold"
+    },
+    {
+      "clock": "HDMI_TX_CLK",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "0.379",
+      "tns_ns": "0.000",
+      "type": "Hold"
+    },
+    {
+      "clock": "pll_inst|iopll_0_outclk0",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.730",
+      "tns_ns": "0.000",
+      "type": "Recovery"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_outclk0",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "8.366",
+      "tns_ns": "0.000",
+      "type": "Recovery"
+    },
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "11.033",
+      "tns_ns": "0.000",
+      "type": "Recovery"
+    },
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "16.744",
+      "tns_ns": "0.000",
+      "type": "Recovery"
+    },
+    {
+      "clock": "adv7513_config",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "18.054",
+      "tns_ns": "0.000",
+      "type": "Recovery"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_outclk1",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "80.220",
+      "tns_ns": "0.000",
+      "type": "Recovery"
+    },
+    {
+      "clock": "adv7513_config",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "0.040",
+      "tns_ns": "0.000",
+      "type": "Removal"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_outclk1",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "0.188",
+      "tns_ns": "0.000",
+      "type": "Removal"
+    },
+    {
+      "clock": "pll_inst|iopll_0_outclk0",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "0.211",
+      "tns_ns": "0.000",
+      "type": "Removal"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_outclk0",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "0.246",
+      "tns_ns": "0.000",
+      "type": "Removal"
+    },
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "0.250",
+      "tns_ns": "0.000",
+      "type": "Removal"
+    },
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "0.330",
+      "tns_ns": "0.000",
+      "type": "Removal"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_outclk0",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "3.617",
+      "tns_ns": "0.000",
+      "type": "Setup Data Delay"
+    },
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "4.594",
+      "tns_ns": "0.000",
+      "type": "Setup Data Delay"
+    },
+    {
+      "clock": "pll_inst|iopll_0_outclk0",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "6.575",
+      "tns_ns": "0.000",
+      "type": "Setup Data Delay"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_outclk1",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "9.219",
+      "tns_ns": "0.000",
+      "type": "Setup Data Delay"
+    },
+    {
+      "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "0.220",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "0.272",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "0.419",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "EMIF_REF_CLOCK",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "2.220",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "pll_inst|iopll_0_outclk0",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "4.408",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_outclk0",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "4.844",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "4.905",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "4.905",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "4.905",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "4.905",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "4.905",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "4.905",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "HDMI_TX_CLK",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "5.861",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "5.861",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "8.313",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "8.584",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll|tennm_ph2_iopll|ref_clk0",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "8.761",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_refclk",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "9.231",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "pll_inst|iopll_0_refclk",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "9.231",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "9.595",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_n_cnt_clk",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "29.571",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "fes_machine_pll|machine_pll_outclk1",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "39.472",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "49.563",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "de25_i2s_bit_clock",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "161.892",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "de25_i2s_bit_clock_output",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "161.892",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "de25_i2s_word_clock",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "10415.774",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "de25_i2s_word_clock_output",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "10415.774",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "adv7513_config",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "50018.792",
+      "tns_ns": "0.000",
+      "type": "Minimum Pulse Width"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "7.570",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "7.572",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "7.650",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "7.659",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "7.686",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "7.697",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "7.752",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "7.757",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "7.772",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "8.016",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "8.141",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "8.146",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "8.166",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "8.186",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "8.423",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "8.498",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "8.880",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "9.007",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "9.603",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "10.284",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "10.409",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "10.448",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 100C Model",
+      "slack_ns": "10.504",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "7.059",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "7.164",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "7.167",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "7.472",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "7.519",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "7.525",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "7.616",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "7.642",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "7.645",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "7.648",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "7.711",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "7.724",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "7.810",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "8.112",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "8.140",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "8.387",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "8.632",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "8.693",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "9.544",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "10.249",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "10.357",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "10.407",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4 0C Model",
+      "slack_ns": "10.475",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.060",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.163",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.164",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.468",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.518",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.526",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.617",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.641",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.646",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.648",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.710",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.722",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "7.809",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "8.110",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "8.138",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "8.386",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "8.632",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "8.693",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "9.540",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "10.249",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "10.358",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "10.408",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Slow fix4a 0C Model",
+      "slack_ns": "10.476",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "7.699",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "7.709",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "7.761",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "7.774",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "7.785",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "7.828",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "8.348",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "8.398",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "8.480",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "8.500",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "8.503",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "8.631",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "8.748",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "8.763",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "8.782",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "8.973",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "9.178",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "9.285",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "9.735",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "10.419",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "10.508",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "10.529",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_max_skew",
+      "corner": "Fast fix4 0C Model",
+      "slack_ns": "10.566",
+      "type": "Max Skew"
+    },
+    {
+      "clock": "set_net_delay",
+      "slack_ns": "3.617",
+      "type": "Net Delay"
+    },
+    {
+      "clock": "set_net_delay",
+      "slack_ns": "3.694",
+      "type": "Net Delay"
+    },
+    {
+      "clock": "set_net_delay",
+      "slack_ns": "3.771",
+      "type": "Net Delay"
+    },
+    {
+      "clock": "set_net_delay",
+      "slack_ns": "4.594",
+      "type": "Net Delay"
+    },
+    {
+      "clock": "set_net_delay",
+      "slack_ns": "4.660",
+      "type": "Net Delay"
+    },
+    {
+      "clock": "set_net_delay",
+      "slack_ns": "4.691",
+      "type": "Net Delay"
+    },
+    {
+      "clock": "set_net_delay",
+      "slack_ns": "5.333",
+      "type": "Net Delay"
+    },
+    {
+      "clock": "set_net_delay",
+      "slack_ns": "5.602",
+      "type": "Net Delay"
+    },
+    {
+      "clock": "set_net_delay",
+      "slack_ns": "6.575",
+      "type": "Net Delay"
+    },
+    {
+      "clock": "set_net_delay",
+      "slack_ns": "6.587",
+      "type": "Net Delay"
+    },
+    {
+      "clock": "set_net_delay",
+      "slack_ns": "7.533",
+      "type": "Net Delay"
+    },
+    {
+      "clock": "set_net_delay",
+      "slack_ns": "7.543",
+      "type": "Net Delay"
+    },
+    {
+      "clock": "set_net_delay",
+      "slack_ns": "9.219",
+      "type": "Net Delay"
+    }
+  ],
+  "unreviewed_failed_rules": 0
+}

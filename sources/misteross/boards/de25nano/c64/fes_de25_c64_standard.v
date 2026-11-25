@@ -5,12 +5,12 @@
 // The computer slave and its transport stay on the board's peripheral clock
 // (clk_sys), as on the ZX81; the machine, mailbox and audio source run on
 // machine_clk, the machine's 52.224 MHz, which has no phase relation to it.
-// The GP words, transport health and the reset release cross here. The C64
-// keeps its RAM, firmware and disk in block RAM as on the DE10, so the board
-// SDRAM is held deselected with its clock disabled.
+// The GP words, transport health and the reset release cross here. The
+// D64 image uses the board SDRAM on the machine clock.
 // No Cyclone V primitive belongs here.
 module fes_de25_c64_standard #(
-    parameter [127:0] BUILD_ID = 128'd0
+    parameter [127:0] BUILD_ID = 128'd0,
+    parameter integer SDRAM_POWERUP_CYCLES = 10445
 ) (
     // Board-owned releases are qualified independently in their clock domains.
     input wire clk_sys, machine_clk, pixel_clk, reset_n, pixel_reset_n,
@@ -64,6 +64,13 @@ module fes_de25_c64_standard #(
     (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] transport_ready_sync = 2'b00;
     always @(posedge machine_clk) transport_ready_sync <= {transport_ready_sync[0], transport_ready_source};
     wire core_reset_hold = !transport_ready_sync[1];
+    // The board reset asserts the SDRAM controller's reset at once and
+    // releases it on the machine clock.
+    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] machine_release = 2'b00;
+    always @(posedge machine_clk or negedge reset_n)
+        if (!reset_n) machine_release <= 2'b00;
+        else machine_release <= {machine_release[0], 1'b1};
+    wire machine_reset_n = machine_release[1];
     // Launch one monotonic system-domain fault bit into the pixel synchronizer.
     (* preserve, dont_merge *) reg display_clock_fault = 1'b0;
     always @(posedge clk_sys)
@@ -100,6 +107,11 @@ module fes_de25_c64_standard #(
         .machine_gpo(machine_gpo), .machine_gpi(machine_gpi)
     );
 
+    wire [31:0] sdram_address;
+    wire sdram_read, sdram_write, sdram_waitrequest, sdram_readdatavalid, sdram_writeresponsevalid;
+    wire sdram_initialized;
+    wire [15:0] sdram_writedata, sdram_readdata;
+    wire [1:0] sdram_byteenable;
     fes_c64_core #(.BUILD_ID(BUILD_ID)) core (
         .clk_sys(machine_clk), .pixel_clk(pixel_clk), .reset_hold(core_reset_hold),
         .gpo(machine_gpo), .gpi(machine_gpi), .exec_reset(exec_reset), .machine_video(machine_video),
@@ -109,19 +121,28 @@ module fes_de25_c64_standard #(
         .audio_sample(audio_sample), .display_request(display_request),
         .display_opcode(display_opcode), .display_index(display_index), .display_argument(display_argument),
         .display_response_valid(response_valid), .display_response_error(response_error),
-        .display_response_data(response_data), .display_quiesced(display_quiesced)
+        .display_response_data(response_data), .display_quiesced(display_quiesced),
+        .sdram_reset(!sdram_initialized),
+        .sdram_address(sdram_address), .sdram_read(sdram_read), .sdram_write(sdram_write),
+        .sdram_writedata(sdram_writedata), .sdram_byteenable(sdram_byteenable),
+        .sdram_waitrequest(sdram_waitrequest), .sdram_readdata(sdram_readdata),
+        .sdram_readdatavalid(sdram_readdatavalid),
+        .sdram_writeresponsevalid(sdram_writeresponsevalid)
     );
-    // The board SDRAM is unused: clock disabled, both chips deselected and
-    // no command, the data pins released.
-    assign dram_clk = 1'b0;
-    assign dram_cke = 1'b0;
-    assign dram_addr = 13'd0;
-    assign dram_ba = 2'd0;
-    assign dram_cs_n = 2'b11;
-    assign dram_dqm = 2'b11;
-    assign {dram_ras_n, dram_cas_n, dram_we_n} = 3'b111;
-    assign dram_dq_o = 16'd0;
-    assign dram_dq_oe = 1'b0;
+    // The qualified ramtest controller, on the machine clock. Its refresh
+    // interval is a cycle count, so it only shortens here.
+    fes_de25_sdram #(.POWERUP_CYCLES(SDRAM_POWERUP_CYCLES)) sdram (
+        .clk(machine_clk), .reset_n(machine_reset_n),
+        .address(sdram_address), .burstcount(5'd1), .read(sdram_read), .write(sdram_write),
+        .writedata(sdram_writedata), .byteenable(sdram_byteenable),
+        .waitrequest(sdram_waitrequest), .readdata(sdram_readdata),
+        .readdatavalid(sdram_readdatavalid), .writeresponsevalid(sdram_writeresponsevalid),
+        .response(), .initialized(sdram_initialized),
+        .dram_clk(dram_clk), .dram_cke(dram_cke), .dram_addr(dram_addr), .dram_ba(dram_ba),
+        .dram_cs_n(dram_cs_n), .dram_dqm(dram_dqm), .dram_ras_n(dram_ras_n),
+        .dram_cas_n(dram_cas_n), .dram_we_n(dram_we_n),
+        .dq_i(dram_dq_i), .dq_o(dram_dq_o), .dq_oe(dram_dq_oe)
+    );
     // The 384x272 PAL picture is scaled into a centred 960x720 viewport.
     fes_de25_session_display #(.BUILD_ID(BUILD_ID),
 `ifdef FES_DE25_NATIVE_C64

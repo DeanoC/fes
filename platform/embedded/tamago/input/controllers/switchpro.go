@@ -326,3 +326,25 @@ func BuildSwitchProSetPlayerLEDs(dst []byte, seq uint8, playerSlot uint8) int {
 	args := [1]byte{byte(1 << (playerSlot & 3))}
 	return BuildSwitchProSubcommand(dst, seq, SwitchProSubcmdSetPlayerLD, args[:])
 }
+
+// BuildSwitchProUSBHandshake writes the 2-byte USB handshake packet [0x80, 0x02]
+// required before a wired Switch Pro Controller emits HID reports.
+func BuildSwitchProUSBHandshake(dst []byte) int {
+	if len(dst) < 2 {
+		return 0
+	}
+	dst[0] = 0x80
+	dst[1] = 0x02
+	return 2
+}
+
+// BuildSwitchProUSBEnableHID writes the 2-byte USB command [0x80, 0x04] enabling
+// continuous USB HID reports after the 0x81 0x02 handshake reply.
+func BuildSwitchProUSBEnableHID(dst []byte) int {
+	if len(dst) < 2 {
+		return 0
+	}
+	dst[0] = 0x80
+	dst[1] = 0x04
+	return 2
+}

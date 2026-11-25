@@ -139,6 +139,15 @@ return or final menu shutdown; both a displayed menu and a running core keep SD
 contained. Model and FAT restart tests cover that lifecycle; physical writes
 remain unqualified.
 
+`App.SetBluetooth` attaches an optional local `BluetoothController` before
+startup, surfacing a Settings › Bluetooth section only on platforms that provide
+one (for example the bare-metal DE25-Nano multi-input USB/Bluetooth hub).
+Rendering reads a nonblocking cached `BluetoothStatus` snapshot; selecting
+`Pair controller` requires confirmation before opening a bounded 30-second SSP
+pairing window. The bare-metal adapter connects only to Peripheral-class
+joystick and gamepad candidates; paired controllers use a two-press Forget
+confirmation with bond-save state surfaced in the Settings footer.
+
 `corepackage.RetainArchive` validates an exact-length reader using the existing
 canonical archive, manifest, payload and ROM-map rules. It retains private
 bytes and exposes copied inspection metadata and a copying payload reader.
@@ -1899,6 +1908,7 @@ representatives without catalog scans, and frame construction follows the paint
 gate. Bounded wheel refreshes compare the complete frame content and reuse
 the rendered revision when it is identical; motion bypasses reuse and forces
 a final settled paint. Input polling, App updates, scripted rooms and snapshots continue at 30 Hz.
+The runtime menu backend is selected as `menu-display` or `menudisplay`.
 Rendered-frame revisions skip framebuffer comparison in `MenuDisplay`; ordinary
 callers retain byte-identical change detection. An unchanged submission that has
 not failed or been dropped is skipped. Once a second after a successful present, that skip
@@ -4424,7 +4434,9 @@ supplied separately by a media upload. Expansion composition retains the whole
 sealed shell package, including the map, and its package identity.
 
 ROM-map inspection streams closed objects and fixed 40-destination words rather
-than retaining JSON copies of the whole map and every block. It bounds maps to
+than retaining JSON copies of the whole map and every block. After the JSON
+decoder checks a word's syntax, its 40 unsigned or null destinations are read
+in one forward pass. It bounds maps to
 32 MiB, blocks and words per block to 256, and unconsumed decoder input to 4 KiB
 so oversized JSON values cannot grow the decoder buffer. Private staging reads
 the declared upload into one bounded allocation, clones its small manifest and
