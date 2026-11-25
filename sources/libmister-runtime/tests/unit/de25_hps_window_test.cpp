@@ -357,6 +357,18 @@ public:
   mapped.erase(mapping);
  }
  void Barrier() override { calls.push_back("barrier"); }
+ bool scanout = false;
+ mister::Error ScanoutAllocated(bool* allocated) override
+ {
+  calls.push_back("owner info");
+  *allocated = scanout;
+  return {};
+ }
+ mister::Error Reap() override
+ {
+  calls.push_back("reap");
+  return {};
+ }
  void Close(int fd) override
  {
   calls.push_back("close " + std::to_string(fd));
@@ -450,12 +462,20 @@ void TestKernelOwnerRangesMapAtTheirOffsetAndReleaseRevokesOnce()
   }).ok());
   assert(window.Check().ok());
   assert(window.Release().ok() && !window.Ready());
-  assert(kernel.calls[kernel.calls.size() - 2] == "revoke 40" && kernel.calls.back() == "close 40");
+  // No scanout allocation is left for the menu's retirement to reap, so the
+  // release reaps the revoked window itself: the owner allocates again.
+  assert(Calls(kernel.calls.end() - 4, kernel.calls.end()) ==
+   Calls({"revoke 40", "owner info", "reap", "close 40"}));
   // A second session allocates afresh.
   kernel.revoked = false;
   kernel.info.state = mister::native::kDe25WindowExposed;
   kernel.info.generation = 8;
+  // With a session display allocated, the menu's retirement reaps both.
+  kernel.scanout = true;
   assert(window.Open(kBuild).ok() && window.Release().ok());
+  const std::size_t n = kernel.calls.size();
+  assert(kernel.calls[n - 3].rfind("revoke ", 0) == 0 && kernel.calls[n - 2] == "owner info" &&
+   kernel.calls[n - 1].rfind("close ", 0) == 0);
  }
  assert(kernel.open == 0);
 }

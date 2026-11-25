@@ -2038,19 +2038,18 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		// live fpga2sdram inputs also match, and before execution is released.
 		// On the DE25 the kernel owner grants this build its window instead,
 		// while the machine is still held.
-		if (hps_window_) {
-			std::array<std::uint32_t,4> words{};
-			error = De25BuildWords(admitted->opened_.descriptor.build.id, &words);
-			if (error.ok()) error = hps_window_->Open(words);
-		} else {
+		// On the DE25 the kernel owner grants this build its window instead,
+		// below, once the session display holds its allocation: the owner
+		// allocates the scanout only while it holds nothing else.
+		if (!hps_window_) {
 			error = fpga_.ReleaseHpsDdrPorts(Deadline(clock_, timeouts_.core_io_ms));
-		}
-		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
-			identified.observed_core, "hps_ddr", error});
-		if (!error.ok()) {
-			const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
-			return {stopped.ok() ? HpsDdrError(std::move(error)) :
-				WithPhase(stopped, "input"), true, identified.observed_core};
+			log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+				identified.observed_core, "hps_ddr", error});
+			if (!error.ok()) {
+				const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
+				return {stopped.ok() ? HpsDdrError(std::move(error)) :
+					WithPhase(stopped, "input"), true, identified.observed_core};
+			}
 		}
 	}
  if(menu||session_display) {
@@ -2060,6 +2059,20 @@ HardwareResult NativeHardware::LoadCoreInternal(
   if(error.ok())error=menu_display_->Configure(Deadline(clock_,timeouts_.core_io_ms));
   if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
  }
+	if (hps_window_ && RequiresHpsDdr(admitted->opened_.descriptor)) {
+		// The machine is still held: its guest memory is cleared and its disk
+		// loaded through the window next.
+		std::array<std::uint32_t,4> words{};
+		error = De25BuildWords(admitted->opened_.descriptor.build.id, &words);
+		if (error.ok()) error = hps_window_->Open(words);
+		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+			identified.observed_core, "hps_ddr", error});
+		if (!error.ok()) {
+			const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
+			return {stopped.ok() ? HpsDdrError(std::move(error)) :
+				WithPhase(stopped, "input"), true, identified.observed_core};
+		}
+	}
 	auto* const computer = fes_gp ? dynamic_cast<FesGpCoreDriver*>(admitted->driver_) : nullptr;
 	if (computer && computer->Pc386MachineCapable() && RequiresHpsDdr(admitted->opened_.descriptor)) {
 		const std::uint64_t started = clock_.NowMs();

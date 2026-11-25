@@ -119,6 +119,11 @@ public:
  virtual void Unmap(void* mapping,std::size_t bytes)=0;
  // Orders every CPU store before what follows, for the system (DSB SY).
  virtual void Barrier()=0;
+ // OWNER_INFO: whether the owner holds a scanout allocation (ENODATA: none).
+ virtual Error ScanoutAllocated(bool* allocated)=0;
+ // OWNER_REAP: retires what the owner still pins, window first. Only the
+ // menu's own retirement may reap while a scanout allocation exists.
+ virtual Error Reap()=0;
  virtual void Close(int fd)=0;
 };
 // The kernel's state bits on WINDOW_INFO (FES_DE25_DMA_REVOKED and the rest).
@@ -129,8 +134,10 @@ constexpr std::uint32_t kDe25WindowAbi=1;
 // the range's offset, and its revoke unmaps it. The window mapping is the
 // owner's coherent DMA mapping, uncached on the DE25, so nothing is written
 // back: a full barrier before the range ends puts every CPU store in DDR,
-// and the next mapping reads DDR. Release is WINDOW_REVOKE. The owner's
-// window ABI is probed once, on first use.
+// and the next mapping reads DDR. Release is WINDOW_REVOKE. The owner keeps
+// a revoked window pinned until OWNER_REAP, and allocates nothing while it
+// does: where no scanout allocation is left for the menu's retirement to
+// reap, Release reaps. The owner's window ABI is probed once, on first use.
 class De25KernelWindowOwner final : public De25WindowOperations {
 public:
  explicit De25KernelWindowOwner(De25WindowKernel&);

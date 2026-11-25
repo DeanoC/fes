@@ -315,7 +315,11 @@ Error De25KernelWindowOwner::Release(int window)
   if (!ranges_.empty())
    return {ErrorCode::busy, "DE25 HPS window ranges are still granted", "stop"};
  }
- return kernel_.Revoke(window);
+ Error error = kernel_.Revoke(window);
+ bool scanout = true;
+ if (error.ok()) error = kernel_.ScanoutAllocated(&scanout);
+ if (error.ok() && !scanout) error = kernel_.Reap();
+ return error;
 }
 
 void De25KernelWindowOwner::Close(int fd)

@@ -4038,6 +4038,58 @@ void TestPc386LibraryRecordAndWallClock()
 	assert(rmdir(games.c_str()) == 0);
 }
 
+// The kernel owner allocates a session display's scanout only while it holds
+// nothing else, so a window machine opens its window after the session
+// display has bound (found on Kit D25: the window first left the bind busy).
+void TestDe25WindowOpensAfterTheSessionDisplayBinds()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;
+ auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest,"fes.simple-game","fes.simple-computer");ReplaceAll(&manifest,"fes.gamepad","fes.keyboard");
+ for(const char* id:{"fes.media.blob","fes.memory.hps-ddr","fes.video.session-display","fes.fabric.video.display-plane"})
+  manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+ OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ struct BindingMemory final : MenuMemory {
+  MenuMemory& underlying;std::vector<std::string>& events;
+  BindingMemory(MenuMemory& m,std::vector<std::string>& e):underlying(m),events(e) {}
+  mister::Error BindSession(const mister::CoreDescriptor&,std::uint64_t) override {events.push_back("menu.bind");return {};}
+  mister::Error Activate(bool c,bool b) override {return underlying.Activate(c,b);}
+  mister::Error Revoke() override {return underlying.Revoke();}
+  mister::Error Share(int* fd) const override {return underlying.Share(fd);}
+  mister::Error Clean(std::uint8_t slot,const std::vector<mister::MenuRect>& r) const override {return underlying.Clean(slot,r);}
+  mister::Error CleanBlit(std::uint32_t f,std::uint32_t n,const std::vector<mister::MenuSpan>& r) const override {return underlying.CleanBlit(f,n,r);}
+ } binding(memory,events);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&binding);
+ WindowOwner owner(events,opened.descriptor.build.id);
+ De25HpsWindow window(owner);
+ hardware.SetHpsWindow(&window);
+ fpga.boot_hps_ddr_layout=false;
+ std::unique_ptr<mister::AdmittedCorePackage> admitted;
+ assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
+ MenuGpScript script{&mmio};script.session=true;auto words=FesGpIdentityWords();
+ words[FesGpIdentityAbiTagIndex]=FesSimpleComputerAbiTag;
+ words[FesGpIdentityCapabilitiesIndex]=775;
+ for(auto word:words)script.Reply(word);
+ script.Info(8,0);script.Reply();
+ for(unsigned row=0;row<8;++row){script.Reply();}
+ script.Reply();
+ script.Info(9,0);
+ auto loaded=hardware.LoadCore(std::move(admitted),17);
+ if(!loaded.error.ok())fprintf(stderr,"window after bind: %s\n",loaded.error.message.c_str());
+ assert(loaded.error.ok()&&window.Ready()&&fpga.hps_ddr_calls==0);
+ assert(Find(events,"menu.bind")<Find(events,"window.allocate"));
+}
+
 // A window that faulted while the machine ran is fatal to its contract: Stop
 // refuses to store any of its disk chunks over the last good save. Disk
 // Freeze fences only guest disk writes, so a fault can also latch while the
@@ -6624,6 +6676,7 @@ int main(int argc,char** argv)
 	TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation();
 	TestPc386AtaDiskLaunchSaveAndRestore();
 	TestPc386WindowFaultRefusesTheDiskSave();
+	TestDe25WindowOpensAfterTheSessionDisplayBinds();
 	TestPc386DiskFaultSaveRealignsMailbox();
 	TestPongInputFaultDoesNotCapture();
 	TestPc386LibraryRecordAndWallClock();

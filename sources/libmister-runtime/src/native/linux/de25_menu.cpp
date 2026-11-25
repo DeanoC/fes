@@ -210,6 +210,19 @@ public:
   __sync_synchronize();
 #endif
  }
+ Error ScanoutAllocated(bool* allocated) override {
+  Error e=OpenOwner(&owner_);if(!e.ok())return e;
+  fes_de25_dma_info raw{};
+  if(ioctl(owner_,FES_DE25_DMA_OWNER_INFO,&raw)<0) {
+   if(errno==ENODATA){*allocated=false;return {};}
+   return WindowIo("DE25 owner allocation observation");
+  }
+  *allocated=true;return {};
+ }
+ Error Reap() override {
+  Error e=OpenOwner(&owner_);if(!e.ok())return e;
+  return ioctl(owner_,FES_DE25_DMA_OWNER_REAP,0UL)<0?WindowIo("DE25 owner reap of the window"):Error{};
+ }
  void Close(int fd) override {close(fd);}
 };
 #else
@@ -237,6 +250,8 @@ public:
  Error Map(int,std::uint64_t,std::size_t,void**) override {return NoWindowKernel();}
  void Unmap(void*,std::size_t) override {}
  void Barrier() override {}
+ Error ScanoutAllocated(bool*) override {return NoWindowKernel();}
+ Error Reap() override {return NoWindowKernel();}
  void Close(int) override {}
 };
 #endif
