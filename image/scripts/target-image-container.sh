@@ -66,6 +66,14 @@ case "$mode" in
     ;;
 esac
 
+# The two SDK entrypoints build the same key. Keep their container hostname
+# stable because generated libtool embeds the hostname into the SDK bytes.
+sdk_build=0
+if [ "${1:-}" = /work/scripts/build-target-image.sh ]; then
+  case "${2:-}" in
+    --inside-fetch-toolchain|--inside-toolchain|--inside-kit-sdk) sdk_build=1 ;;
+  esac
+fi
 
 if [ -n "${FES_VIDEO_PARTS_DIR:-}" ] || [ -n "${FES_PACKAGE_IDS:-}" ] ||
   [ -n "${FES_MENU_PACKAGE_DIR:-}" ] || [ -n "${FES_MENU_PACKAGE_SELECTION:-}" ] ||
@@ -138,6 +146,10 @@ if [ -n "${FOGCAST_DIR:-}" ]; then
   fi
 fi
 docker_run() {
+  if [ "$sdk_build" = 1 ]; then
+    sdk_hostname=$(python3 "$repo_root/scripts/toolchain_cache.py" sdk-hostname)
+    set -- --hostname "$sdk_hostname" "$@"
+  fi
   if [ -n "${FES_PREBUILT_RUNTIME_SHA256:-}" ]; then
     set -- --env "FES_PREBUILT_RUNTIME_SHA256=$FES_PREBUILT_RUNTIME_SHA256" "$@"
   fi
