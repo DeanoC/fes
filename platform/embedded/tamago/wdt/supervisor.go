@@ -65,6 +65,7 @@ type Supervisor struct {
 	cfg SupervisorConfig
 
 	mu       sync.Mutex
+	extendMu sync.Mutex
 	started  bool
 	stopped  bool
 	running  atomic.Bool
@@ -208,6 +209,8 @@ func (s *Supervisor) KickNow() error {
 
 // Extend widens the running watchdog timeout to at least max(minTimeout, Period())
 // and reloads the counter when the underlying device implements TimeoutSetter.
+// Calls are serialized so concurrent extensions never install a shorter period
+// after a longer one.
 func (s *Supervisor) Extend(minTimeout time.Duration) (time.Duration, error) {
 	if s == nil {
 		return 0, ErrNilAccess
@@ -215,6 +218,9 @@ func (s *Supervisor) Extend(minTimeout time.Duration) (time.Duration, error) {
 	if minTimeout <= 0 {
 		return 0, fmt.Errorf("%w: timeout must be > 0", ErrInvalidConfig)
 	}
+	s.extendMu.Lock()
+	defer s.extendMu.Unlock()
+
 	s.mu.Lock()
 	if !s.started {
 		s.mu.Unlock()

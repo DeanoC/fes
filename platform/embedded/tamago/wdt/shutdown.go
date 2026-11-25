@@ -11,11 +11,11 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
 )
 
-// ShutdownPrepareStep returns a bounded psci.ShutdownStep that stops periodic
-// supervisor keepalive checks before hardware teardown and, when the watchdog
-// was armed via Start, widens its timeout to at least minTimeout (if > 0 and
-// supported via TimeoutSetter) and kicks the counter cleanly. An unarmed or
-// nil supervisor stays untouched.
+// ShutdownPrepareStep returns a bounded psci.ShutdownStep that extends/kicks
+// an armed watchdog BEFORE draining the background supervisor (so an in-flight
+// Check/OnError callback cannot let hardware expire while waiting for Stop),
+// stops periodic keepalive checks, and fails closed if minTimeout cannot be
+// satisfied by hardware. An unarmed or nil supervisor stays untouched.
 func ShutdownPrepareStep(sup *Supervisor, minTimeout time.Duration) psci.ShutdownStep {
 	return psci.ShutdownStep{
 		Name: "wdt-prepare-shutdown",
@@ -26,18 +26,28 @@ func ShutdownPrepareStep(sup *Supervisor, minTimeout time.Duration) psci.Shutdow
 			if sup == nil {
 				return nil
 			}
-			sup.Stop()
 			if !sup.Started() {
+				sup.Stop()
 				return nil
 			}
+			var prepErr error
 			if minTimeout > 0 {
-				_, err := sup.Extend(minTimeout)
+				actual, err := sup.Extend(minTimeout)
 				if errors.Is(err, ErrUnsupported) {
-					return sup.KickNow()
+					prepErr = sup.KickNow()
+					if prepErr == nil && sup.Period() < minTimeout {
+						prepErr = fmt.Errorf("%w: watchdog period %v below requested shutdown minTimeout %v", ErrUnsupported, sup.Period(), minTimeout)
+					}
+				} else if err != nil {
+					prepErr = err
+				} else if actual < minTimeout {
+					prepErr = fmt.Errorf("%w: achieved shutdown timeout %v below requested %v", ErrInvalidConfig, actual, minTimeout)
 				}
-				return err
+			} else {
+				prepErr = sup.KickNow()
 			}
-			return sup.KickNow()
+			sup.Stop()
+			return prepErr
 		},
 	}
 }
