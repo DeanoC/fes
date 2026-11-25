@@ -124,4 +124,17 @@ func TestTenfootMenuDisplayIsChangeDrivenAnd720p(t *testing.T) {
 	if calls, gen, n := client.snapshot(); calls != 1 || gen != 3 || n != menudisplay.FrameBytes {
 		t.Fatalf("calls=%d gen=%d bytes=%d", calls, gen, n)
 	}
+	dev.Clear(gfx.RGB(4, 5, 6))
+	dev.Present()
+	deadline = time.Now().Add(testwait.Timeout)
+	for {
+		calls, _, _ := client.snapshot()
+		if calls == 2 && !dev.FramePending() {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("changed frame calls=%d pending=%v", calls, dev.FramePending())
+		}
+		time.Sleep(time.Millisecond)
+	}
 }

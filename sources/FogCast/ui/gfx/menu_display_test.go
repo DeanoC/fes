@@ -386,13 +386,9 @@ func TestMenuDisplayRejectsUnderflowAboveCap(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("status was not read")
 	}
-	select {
-	case <-client.ready:
-		t.Fatal("underflow above the cap was presented")
-	case <-time.After(50 * time.Millisecond):
-	}
-	if client.calls != 0 || d.LastError() == nil || d.LastError().Error() != "menu scanout underflow" {
-		t.Fatalf("calls=%d err=%v", client.calls, d.LastError())
+	waitMenuIdle(t, d, client, 0)
+	if calls, _, _, _ := client.snapshot(); calls != 0 || d.LastError() == nil || d.LastError().Error() != "menu scanout underflow" {
+		t.Fatalf("calls=%d err=%v", calls, d.LastError())
 	}
 }
 
@@ -421,11 +417,7 @@ func TestMenuDisplayDropsQueuedFrameAfterGenerationChange(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("new generation not checked")
 	}
-	select {
-	case <-client.ready:
-		t.Fatal("stale frame crossed generation")
-	case <-time.After(50 * time.Millisecond):
-	}
+	waitMenuIdle(t, d, client, 1)
 	d.Clear(RGB(7, 8, 9))
 	d.Present()
 	select {
