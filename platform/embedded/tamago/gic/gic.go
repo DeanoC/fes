@@ -126,7 +126,7 @@ type Controller struct {
 	idleHW      IdleAccess
 	idleWakeups atomic.Uint64
 
-	handlers        [MaxINTID]func()
+	handlers        [MaxINTID]atomic.Pointer[handlerSlot]
 	counts          [MaxINTID]atomic.Uint64
 	unhandledStreak [MaxINTID]atomic.Uint32
 	dispatched      atomic.Uint64
@@ -134,9 +134,17 @@ type Controller struct {
 	unhandled       atomic.Uint64
 	spurious        atomic.Uint64
 	stormMasked     atomic.Uint64
-	stormLimit      atomic.Uint32
-	stormDisabled   atomic.Bool
+	stormConfig     atomic.Uint64
 }
+
+type handlerSlot struct {
+	fn func()
+}
+
+const (
+	stormConfigUnset    = uint64(0)
+	stormConfigDisabled = uint64(1)
+)
 
 // NewWithAccess constructs a Controller backed by an explicit Access provider.
 func NewWithAccess(gicd, gicr uint64, hw Access) *Controller {
@@ -348,10 +356,12 @@ func (g *Controller) Register(id uint32, fn func()) {
 	if id >= MaxINTID {
 		return
 	}
+	var slot *handlerSlot
 	if fn != nil {
 		g.unhandledStreak[id].Store(0)
+		slot = &handlerSlot{fn: fn}
 	}
-	g.handlers[id] = fn
+	g.handlers[id].Store(slot)
 }
 
 // SetUnhandledStormLimit sets how many consecutive unhandled deliveries of an
@@ -359,22 +369,23 @@ func (g *Controller) Register(id uint32, fn func()) {
 // disables automatic masking. The default when unset is DefaultUnhandledStormLimit.
 func (g *Controller) SetUnhandledStormLimit(limit uint32) {
 	if limit == 0 {
-		g.stormDisabled.Store(true)
-		g.stormLimit.Store(0)
+		g.stormConfig.Store(stormConfigDisabled)
 		return
 	}
-	g.stormLimit.Store(limit)
-	g.stormDisabled.Store(false)
+	// Zero means unset/default, one means explicitly disabled, and configured
+	// positive limits are stored as limit+1 so the full uint32 range is usable.
+	g.stormConfig.Store(uint64(limit) + 1)
 }
 
 func (g *Controller) effectiveStormLimit() uint32 {
-	if g.stormDisabled.Load() {
+	state := g.stormConfig.Load()
+	switch state {
+	case stormConfigUnset:
+		return DefaultUnhandledStormLimit
+	case stormConfigDisabled:
 		return 0
 	}
-	if v := g.stormLimit.Load(); v != 0 {
-		return v
-	}
-	return DefaultUnhandledStormLimit
+	return uint32(state - 1)
 }
 
 // Stats returns a lock-free snapshot of interrupt dispatch telemetry.
@@ -429,7 +440,9 @@ func (g *Controller) Dispatch() int {
 		var fn func()
 		if id < MaxINTID {
 			g.counts[id].Add(1)
-			fn = g.handlers[id]
+			if slot := g.handlers[id].Load(); slot != nil {
+				fn = slot.fn
+			}
 		}
 		if fn != nil {
 			g.unhandledStreak[id].Store(0)

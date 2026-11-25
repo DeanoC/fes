@@ -4,7 +4,9 @@ package gic
 
 import (
 	"errors"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -453,4 +455,119 @@ func TestUnhandledStormProtectionAndConcurrentStats(t *testing.T) {
 	}()
 	g.Dispatch()
 	wg.Wait()
+}
+
+func TestConcurrentStormLimitDisableDoesNotUseDefault(t *testing.T) {
+	const configuredLimit = uint32(3)
+	var g Controller
+	if got := g.effectiveStormLimit(); got != DefaultUnhandledStormLimit {
+		t.Fatalf("zero-value limit = %d, want default %d", got, DefaultUnhandledStormLimit)
+	}
+	g.SetUnhandledStormLimit(configuredLimit)
+
+	oldProcs := runtime.GOMAXPROCS(4)
+	defer runtime.GOMAXPROCS(oldProcs)
+
+	const (
+		readers    = 8
+		writers    = 2
+		iterations = 250_000
+	)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	var unexpected atomic.Uint32
+	for i := 0; i < readers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			for j := 0; j < iterations; j++ {
+				got := g.effectiveStormLimit()
+				if got != 0 && got != configuredLimit {
+					unexpected.CompareAndSwap(0, got)
+				}
+			}
+		}()
+	}
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			for j := 0; j < iterations; j++ {
+				g.SetUnhandledStormLimit(configuredLimit)
+				g.SetUnhandledStormLimit(0)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	if got := unexpected.Load(); got != 0 {
+		t.Fatalf("concurrent storm limit update exposed unexpected limit %d; want only 0 or %d", got, configuredLimit)
+	}
+}
+
+func TestConcurrentRegisterAndDispatch(t *testing.T) {
+	var g Controller
+	hw := &fakeAccess{}
+	g.hw = hw
+	g.SetUnhandledStormLimit(0)
+
+	var handledA, handledB atomic.Uint64
+	fnA := func() { handledA.Add(1) }
+	fnB := func() { handledB.Add(1) }
+	dispatchOne := func() {
+		hw.ackQueue = []uint32{0, SpuriousID}
+		if n := g.Dispatch(); n != 1 {
+			t.Fatalf("Dispatch handled %d, want 1", n)
+		}
+	}
+
+	g.Register(0, fnA)
+	dispatchOne()
+	g.Register(0, nil)
+	dispatchOne()
+	g.Register(0, fnB)
+	dispatchOne()
+	if handledA.Load() != 1 || handledB.Load() != 1 {
+		t.Fatalf("Register/clear behavior: handler A=%d handler B=%d, want 1 each", handledA.Load(), handledB.Load())
+	}
+
+	const dispatches = 50_000
+	hw.ackQueue = make([]uint32, 0, dispatches*2)
+	for i := 0; i < dispatches; i++ {
+		hw.ackQueue = append(hw.ackQueue, 0, SpuriousID)
+	}
+
+	oldProcs := runtime.GOMAXPROCS(2)
+	defer runtime.GOMAXPROCS(oldProcs)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		<-start
+		for i := 0; i < dispatches; i++ {
+			g.Dispatch()
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		for i := 0; i < dispatches*2; i++ {
+			switch i % 3 {
+			case 0:
+				g.Register(0, fnA)
+			case 1:
+				g.Register(0, nil)
+			case 2:
+				g.Register(0, fnB)
+			}
+		}
+	}()
+	close(start)
+	wg.Wait()
+	if len(hw.ackQueue) != 0 {
+		t.Fatalf("Dispatch left %d queued acknowledgements", len(hw.ackQueue))
+	}
 }
