@@ -260,14 +260,22 @@ func (s *SNTPSyncer) runCallbacks() {
 		close(s.cbDone)
 		s.cbWg.Done()
 	}()
+	drain := func() {
+		for {
+			select {
+			case fn := <-s.cbCh:
+				fn()
+			default:
+				return
+			}
+		}
+	}
 	for {
 		select {
 		case <-s.stopCh:
+			drain()
 			return
 		case fn := <-s.cbCh:
-			if s.isStopped() {
-				return
-			}
 			fn()
 		}
 	}

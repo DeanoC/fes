@@ -503,6 +503,31 @@ func TestSNTPSyncerPlausibilityDefaultMaxStepSerializationAndBoundedCallbacks(t 
 	if err := <-slowDone; err != nil {
 		t.Fatalf("slow SyncOnce err=%v", err)
 	}
+
+	// 6. Queued OnSync callbacks are drained before external Stop returns.
+	var queuedCalls atomic.Int32
+	sDrain, err := NewSNTPSyncer(nil, SNTPSyncConfig{
+		DisableMaxStep: true,
+		Query: func(context.Context, SNTPConfig) (SNTPResult, error) {
+			return SNTPResult{Time: validEpoch, Stratum: 1}, nil
+		},
+		OnSync: func(SNTPResult) {
+			time.Sleep(5 * time.Millisecond)
+			queuedCalls.Add(1)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 4; i++ {
+		if _, err := sDrain.SyncOnce(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sDrain.Stop()
+	if got := queuedCalls.Load(); got != 4 {
+		t.Fatalf("Stop dropped queued callbacks: ran %d of 4", got)
+	}
 }
 
 type funcSink func(time.Time)
