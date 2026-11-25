@@ -1,0 +1,12 @@
+A id d7f1399aa4f0642402e02c26782461b3
+BUILD_ID 0x26d9c57a08a6dfedfc27c78cb080cd49
+spectrum48: 737 files A, 737 B; only-one-side 0; differing after <OUT>/<SRC>/<ID> normalisation 0
+exit=0
+A id 2e50f441ece9f3457a64aa021127ff8f
+BUILD_ID 0x0e71219bf8556766ec86927e1a14e697
+spectrum128: 737 files A, 737 B; only-one-side 0; differing after <OUT>/<SRC>/<ID> normalisation 0
+exit=0
+A id fa558302a4567afee659938a5477d120
+BUILD_ID 0x4ceca619a8064ebfcfaa9e2aec3ed8d7
+st: 747 files A, 747 B; only-one-side 0; differing after <OUT>/<SRC>/<ID> normalisation 0
+exit=0

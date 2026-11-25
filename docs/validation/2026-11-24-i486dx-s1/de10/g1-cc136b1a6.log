@@ -1,0 +1,32 @@
+rev 2d4edf547dc40518b7feafb84630fa3f48344991
+Traceback (most recent call last):
+  File "/data/projects/i486dx-s1/wt-g1/docs/validation/2026-11-23-de25-486sx/de10_netlist.py", line 19, in <module>
+    sealer.check_rom(ROOT)
+    ~~~~~~~~~~~~~~~~^^^^^^
+  File "/data/projects/i486dx-s1/wt-g1/sources/misteross/scripts/pc386_quartus.py", line 402, in check_rom
+    raise board.BuildError(f"{ROM_HEX} is missing; run scripts/build_pc386_firmware.py before the seal")
+scripts.fes_build_common.BuildError: build/firmware/pc386/pc386-rom.hex is missing; run scripts/build_pc386_firmware.py before the seal
+netlist rc=1
+2d4edf547dc40518b7feafb84630fa3f48344991  design-v2  BUILD_ID 426e518dcd8092e1f87dd72386f428a7
+  design 426e518dcd8092e1f87dd72386f428a7f1eb9b6bb2e1b65c9937e7d57a0bacb5
+  evidence 243554b44cdc087965f4b7f6e0e19659f1775b45a42fa2d448263371ac2e6b11
+  record 4075e47b88e43c599927e734187f5548414cbe76747f3d732b638682d782f2a6
+  toolchain 9e5d2b2e8517a3021c1a808d546aa965c33e4e78ba7c4156eaaec21ea049a911
+id rc=0
+rev cc136b1a6a6d707dfe775b24c664bc18f3dc6356
+Traceback (most recent call last):
+  File "/data/projects/i486dx-s1/wt-g1/docs/validation/2026-11-23-de25-486sx/de10_netlist.py", line 19, in <module>
+    sealer.check_rom(ROOT)
+    ~~~~~~~~~~~~~~~~^^^^^^
+  File "/data/projects/i486dx-s1/wt-g1/sources/misteross/scripts/pc386_quartus.py", line 402, in check_rom
+    raise board.BuildError(f"{ROM_HEX} is missing; run scripts/build_pc386_firmware.py before the seal")
+scripts.fes_build_common.BuildError: build/firmware/pc386/pc386-rom.hex is missing; run scripts/build_pc386_firmware.py before the seal
+netlist rc=1
+cc136b1a6a6d707dfe775b24c664bc18f3dc6356  design-v2  BUILD_ID 426e518dcd8092e1f87dd72386f428a7
+  design 426e518dcd8092e1f87dd72386f428a7f1eb9b6bb2e1b65c9937e7d57a0bacb5
+  evidence de6db338a1008c6b9d3c2e9197189b8520ff8aba32bdcebee71f96a1fb6747bc
+  record 283a07083b674009ac28388986ec4a197e37f742e09725cbd536d39df39eba8a
+  toolchain 9e5d2b2e8517a3021c1a808d546aa965c33e4e78ba7c4156eaaec21ea049a911
+id rc=0
+CMP DIFFER
+DONE

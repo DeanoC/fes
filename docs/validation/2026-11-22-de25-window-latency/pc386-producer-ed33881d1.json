@@ -1,0 +1,106 @@
+{
+ "revision": "ed33881d11686c403d68c4090315ecc6a8c7d94e",
+ "build_id": "6574e507eea86204aa331a99214ae7b6",
+ "summary": {
+  "classification": "de25-pc386-package-candidate",
+  "hardware_acceptance": false,
+  "model": "386",
+  "normal_kit_acceptance": false,
+  "package_timing_admission": true,
+  "rbf_sha256": "7030805534b4b1fc6519758a147622ca5464a550eaac42c225ca2bcf61883057",
+  "revision": "ed33881d11686c403d68c4090315ecc6a8c7d94e"
+ },
+ "core_rbf_sha256": "7030805534b4b1fc6519758a147622ca5464a550eaac42c225ca2bcf61883057",
+ "package_dirs": [
+  "91a889a7125e5475c2a00cd87581720593dda1ab32e1d1fd811f87f90cf6cce1",
+  "91a889a7125e5475c2a00cd87581720593dda1ab32e1d1fd811f87f90cf6cce1.71798c5cce52e14499c638a55d77a34308d41a759fdb754d288646029000a43a.build-inputs.json",
+  "91a889a7125e5475c2a00cd87581720593dda1ab32e1d1fd811f87f90cf6cce1.build-inputs.json",
+  "91a889a7125e5475c2a00cd87581720593dda1ab32e1d1fd811f87f90cf6cce1.fcore"
+ ],
+ "alms_needed_or_used": "40,410",
+ "all_reported_timing_pass": true,
+ "package_timing_admission": true,
+ "signoff_rules": 85,
+ "failed_rules": 8,
+ "unreviewed_failed_rules": 0,
+ "failed": [
+  {
+   "id": "CDC-50001",
+   "severity": "High",
+   "violations": 76,
+   "waived": 0
+  },
+  {
+   "id": "CDC-50002",
+   "severity": "High",
+   "violations": 6,
+   "waived": 0
+  },
+  {
+   "id": "TMC-20012",
+   "severity": "High",
+   "violations": 5,
+   "waived": 0
+  },
+  {
+   "id": "TMC-20011",
+   "severity": "High",
+   "violations": 2,
+   "waived": 0
+  },
+  {
+   "id": "RDC-50003",
+   "severity": "Medium",
+   "violations": 3,
+   "waived": 0
+  },
+  {
+   "id": "TMC-20602",
+   "severity": "Low",
+   "violations": 23,
+   "waived": 0
+  },
+  {
+   "id": "LNT-30010",
+   "severity": "Low",
+   "violations": 2,
+   "waived": 0
+  },
+  {
+   "id": "CDC-50102",
+   "severity": "Low",
+   "violations": 1,
+   "waived": 0
+  }
+ ],
+ "reports_sha256": {
+  "golden_top.sta.summary": "d9729b0e17f3cc0358426ae42cbb86a739ebb81297203f4d7f66f3396e23c394",
+  "golden_top.tq.drc.signoff.rpt": "88c650ec0586bd14ca831b8792de7ae0099165ac959eed26d66c96b406435649"
+ },
+ "worst_slack_ns": {
+  "Setup": {
+   "slack": 1.555,
+   "type": "Setup 'fes_video_inst|video_clock|iopll_0_outclk0'"
+  },
+  "Hold": {
+   "slack": 0.0,
+   "type": "Hold 'fes_machine_pll|machine_pll_outclk0'"
+  },
+  "Recovery": {
+   "slack": 7.63,
+   "type": "Recovery 'pll_inst|iopll_0_outclk0'"
+  },
+  "Removal": {
+   "slack": 0.021,
+   "type": "Removal 'adv7513_config'"
+  },
+  "Minimum Pulse Width": {
+   "slack": 0.22,
+   "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0'"
+  }
+ },
+ "fcore": {
+  "name": "91a889a7125e5475c2a00cd87581720593dda1ab32e1d1fd811f87f90cf6cce1.fcore",
+  "sha256": "f815bd20b4392ece65f20b0626e9474abf5b087281f449038f30ef5252464d9d"
+ }
+}

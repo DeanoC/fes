@@ -1,0 +1,6 @@
+start 2026-11-23T22:19:53Z base bf50fc1dd0256a996675cc791370f6eed9cd1889 arm 859f8937c138e60d55222e3a2bd6277af2a243aa
+base spectrum48 exit=0 2026-11-23T22:33:50Z
+base spectrum128 exit=0 2026-11-23T22:48:41Z
+arm spectrum48 exit=0 2026-11-23T23:01:30Z
+arm spectrum128 exit=0 2026-11-23T23:14:37Z
+DONE

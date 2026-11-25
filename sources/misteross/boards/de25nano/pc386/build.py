@@ -5,11 +5,18 @@ The machine is the DE10's pc386_system with its display plane derived out
 (derive.py), compiled as the DE10 seal compiles it: the pc386 lock's Yosys
 SEAL netlist, here at the DE25 machine clock's guest rates. Its memory is a
 window in HPS DDR (fes.fabric.de25-hps-window): fes_de25_hps_window's guards,
-rebase and bounds, then fes_de25_window_arbiter's one master. The identity
-is a 486SX (#1962: CPUID, no VME) with no 387: the elaboration sets
-pc386_system's I486 parameter to 1, which the DE10's 386 seal leaves at 0, and
-pc386_system ties x87_present to 0, as on the DE10. The parameter is a Yosys
-top parameter, so no shared source changes and the DE10 netlist does not move.
+rebase and bounds, then fes_de25_window_arbiter's one master. Two models
+(Deano, 25 Nov 2026: "Both, per-model clocks"), each its own elaboration and
+machine clock (model_clocks.py):
+- 486sx: fes_i386_cpu as a 486SX (#1962: CPUID, no VME) with no 387: the
+  elaboration sets pc386_system's I486 parameter to 1, which the DE10's 386
+  seal leaves at 0, and pc386_system ties x87_present to 0, as on the DE10.
+- 486dx: the DE25's i486DX (#2135; i486dx/derive.py): fes_i486dx_cpu, the
+  integer core's DE25-only derivation with both L1s at 8 KiB 2-way and no
+  load forwarding, with the 486 identity and the 387 on (X87_PRESENT = 1).
+The parameters are Yosys top parameters and the DX's files are outside the
+DE10's CPU closure, so no shared source changes and the DE10 netlist does not
+move.
 """
 from fractions import Fraction
 from pathlib import Path
@@ -30,9 +37,11 @@ DIRECTORY = "pc386"
 CORE_ID = "fes.pc386"
 COMPONENT = "fes_de25_pc386_standard"
 SDC = BOARD + "pc386/pc386-clocks.sdc"
-MODELS = {"486sx": None}
-# pc386_system's CPU identity parameter (fes_i386_cpu I486): the 486SX.
+MODELS = {"486sx": None, "486dx": None}
+# pc386_system's CPU identity parameter (fes_i386_cpu I486): the 486, both models.
 I486 = 1
+# The 486DX model: pc386_system's CPU is i486dx/'s, with the 387 on.
+DX_MODEL = "486dx"
 # The board: its own machine PLL on CLOCK1_50. Each model has its own machine
 # clock (pc386/model_clocks.py: C0 on the one VCO, the model's PLL IP and the
 # reviewed Qsys parent digest its clock generates); model_clock() gives it to
@@ -73,6 +82,7 @@ def load(path, name):
 
 
 board = load(HERE.parent / "machine/board.py", "de25_pc386_machine_board")
+dx = load(HERE / "i486dx/derive.py", "de25_pc386_i486dx_derive")
 sys.path.insert(0, str(board.ROOT / MISTEROSS))
 from scripts import pc386_quartus as sealer  # noqa: E402
 from scripts import yosys_netlist  # noqa: E402
@@ -106,7 +116,9 @@ def model_clock(model=None):
             # machine clock, (VCO / 255 / 256) / (VCO / C0).
             "audio": Fraction(c0, CLOCKS.AUDIO_C * 256)}
 
+DX_FILES = ("derive.py", "fes_i486dx_l1i.sv", "fes_i486dx_l1d.sv")
 SOURCES = ({BOARD + "pc386/" + name for name in LOCAL_FILES} |
+           {BOARD + "pc386/i486dx/" + name for name in DX_FILES} |
            {BOARD + "spectrum/derive.py", BOARD + "zx81-hps/fes_de25_computer.v",
             "sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v"} |
            {MISTEROSS + path for path in sealer.MACHINE_SOURCES + sealer.INCLUDES} |
@@ -133,9 +145,19 @@ def guest_rates(model=None):
     return parameters
 
 
+def selected(model=None):
+    """The model a call builds: the first (486sx) when none is named. An unknown model is refused, so a
+    model is never built as another."""
+    model = model or next(iter(MODELS))
+    if model not in MODELS:
+        raise ValueError("pc386 has no model " + str(model))
+    return model
+
+
 def machine_parameters(model=None):
-    """pc386_system's top parameters: the guest rates and the 486SX identity."""
-    return {**guest_rates(model), "I486": I486}
+    """pc386_system's top parameters: the guest rates, the 486 identity, and for the 486DX the 387."""
+    model = selected(model)
+    return {**guest_rates(model), "I486": I486, **({"X87_PRESENT": 1} if model == DX_MODEL else {})}
 
 
 # The pc386 lock's Yosys, once authenticated. A producer authenticates it
@@ -162,16 +184,19 @@ def authenticate_front_end(*, cache_root=None, gpu_router=None):
 
 def record_parameters(root, model=None):
     """A producer record's machine parameters, from the source module at root: guest rates, the
-    linked firmware and the CPU and x87 identity."""
-    root = Path(root)
-    return {"front_end": "yosys-seal-netlist", "guest_rates": json.dumps(guest_rates(model), sort_keys=True),
-            "i486": I486,
-            "firmware": json.dumps({**sealer.firmware_digests(root), "rom_hex": sealer.pinned_rom_digest(root)},
-                                   sort_keys=True),
-            "x87_present": False, "signoff_findings_review_policy": "de25-pc386-reviewed-signoff-findings-v1"}
+    linked firmware and the CPU and x87 identity. The 486DX's also names its CPU."""
+    root, model = Path(root), selected(model)
+    parameters = {"front_end": "yosys-seal-netlist", "guest_rates": json.dumps(guest_rates(model), sort_keys=True),
+                  "i486": I486,
+                  "firmware": json.dumps({**sealer.firmware_digests(root), "rom_hex": sealer.pinned_rom_digest(root)},
+                                         sort_keys=True),
+                  "x87_present": False, "signoff_findings_review_policy": "de25-pc386-reviewed-signoff-findings-v1"}
+    if model == DX_MODEL:
+        parameters.update(cpu=dx.TOP, x87_present=True)
+    return parameters
 
 
-def machine_netlist(sources, derived_files, model=None):
+def machine_netlist(sources, derived_files, model=None, cpu=None):
     """The derived pc386_system as the pc386 lock's Yosys elaborates it (SEAL).
 
     It runs in the checkout, whose captured sources it requires to be exactly
@@ -181,6 +206,8 @@ def machine_netlist(sources, derived_files, model=None):
     for path, data in sources.items():
         if path.startswith(MISTEROSS) and (board.ROOT / path).read_bytes() != data:
             raise ValueError("the checkout is not the captured source: " + path)
+    if (cpu is not None) != (selected(model) == DX_MODEL):
+        raise ValueError("the 486DX, and only it, elaborates the i486DX's CPU")
     sealer.check_rom(root)
     yosys = FRONT_END or authenticate_front_end()
     # Yosys's auto-generated names follow every path it is given (the derived
@@ -200,6 +227,12 @@ def machine_netlist(sources, derived_files, model=None):
         # A derived file that is not a DE10 source (pc386_dma2_registers.sv) is added to them.
         added = tuple(str(work / name) for name in derived_files
                       if "cores/fes-pc386/rtl/" + name not in sealer.MACHINE_SOURCES)
+        if cpu is not None:
+            # The 486DX: its derived CPU (written under fes_i386_cpu.sv's name) and the forks in place of
+            # the integer core's files.
+            (work / Path(dx.CPU_UPSTREAM).name).write_bytes(cpu)
+            replaced = dx.cpu_sources(yosys_netlist.CPU_SOURCES, str(work / Path(dx.CPU_UPSTREAM).name))
+            swap.update({old: new for old, new in zip(yosys_netlist.CPU_SOURCES, replaced) if old != new})
         machine = tuple(swap.get(path, path) for path in sealer.MACHINE_SOURCES) + added
         netlist = work / "pc386_system.v"
         program = yosys_netlist.program(yosys_netlist.SEAL, top=sealer.MACHINE_TOP, sources=machine,
@@ -218,24 +251,47 @@ def machine_netlist(sources, derived_files, model=None):
     return text.encode(), {"m10k_to_m20k": renamed, "duplicate_attributes_dropped": duplicates}
 
 
-def component_files(sources, model=None):
-    """The machine's own component files; the board adds the shared shell."""
+def elaboration(sources, model=None):
+    """A model's derived machine files (keyed by name, as machine_netlist takes them), the 486DX's derived
+    CPU (None for the 486SX) and their records, without running Yosys."""
+    model = selected(model)
     derive = board.module(sources, BOARD + "pc386/derive.py", "pc386_selected_derive")
+    derived = {}
+    machine, derived["pc386_machine.sv"] = derive.retarget_machine(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_machine.sv"])
+    system, derived["pc386_system.sv"] = derive.retarget_system(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_system.sv"])
+    at_core, derived["pc386_at_core.sv"] = derive.retarget_at_core(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_at_core.sv"])
+    cpu = None
+    if model == DX_MODEL:
+        i486dx = board.module(sources, BOARD + "pc386/i486dx/derive.py", "pc386_selected_i486dx")
+        for upstream, (fork, pinned) in i486dx.FORKS.items():
+            if board.sha(sources[MISTEROSS + upstream]) != pinned:
+                raise ValueError("an i486DX fork is behind its upstream: " + upstream)
+            if MISTEROSS + fork not in sources:
+                raise ValueError("an i486DX fork is not a captured source: " + fork)
+        system, derived["pc386_system_486dx_cpu"] = derive.retarget_system_cpu(system)
+        cpu, derived[i486dx.CPU_FILE] = i486dx.derive_cpu(sources[MISTEROSS + i486dx.CPU_UPSTREAM])
+    files = {"pc386_machine.sv": machine, "pc386_system.sv": system, "pc386_at_core.sv": at_core,
+             "pc386_dma2_registers.sv": sources[BOARD + "pc386/pc386_dma2_registers.sv"]}
+    return files, cpu, derived
+
+
+def component_files(sources, model=None):
+    """The machine's own component files for a model; the board adds the shared shell."""
+    model = selected(model)
     spectrum = board.module(sources, BOARD + "spectrum/derive.py", "pc386_selected_transport")
-    files, derived = {}, {}
+    files = {}
     for name in LOCAL_FILES:
         if name.endswith((".v", ".tcl", ".vh")):
             files[name] = sources[BOARD + "pc386/" + name]
     files["fes_hps_ddr_guard.v"] = sources["sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v"]
-    machine, derived["pc386_machine.sv"] = derive.retarget_machine(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_machine.sv"])
-    system, derived["pc386_system.sv"] = derive.retarget_system(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_system.sv"])
-    at_core, derived["pc386_at_core.sv"] = derive.retarget_at_core(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_at_core.sv"])
-    files["pc386_system.v"], prepared = machine_netlist(sources, {
-        "pc386_machine.sv": machine, "pc386_system.sv": system, "pc386_at_core.sv": at_core,
-        "pc386_dma2_registers.sv": sources[BOARD + "pc386/pc386_dma2_registers.sv"]}, model)
+    machine_files, cpu, derived = elaboration(sources, model)
+    files["pc386_system.v"], prepared = machine_netlist(sources, machine_files, model, cpu)
     derived["pc386_system.v"] = {"front_end": "yosys-seal-netlist", "guest_rates": guest_rates(model),
                                  "netlist_sha256": board.sha(files["pc386_system.v"]), "I486": I486, **prepared,
                                  "x87": {"x87_present": "tied 0 in pc386_system"}}
+    if model == DX_MODEL:
+        derived["pc386_system.v"].update(model=model, X87_PRESENT=1, cpu=dx.TOP, x87={"x87_present": "X87_PRESENT = 1"},
+                                         forks={upstream: fork for upstream, (fork, _) in dx.FORKS.items()})
     files["fes_de25_computer_transport.v"], derived["fes_de25_computer_transport.v"] = spectrum.transport(
         sources[BOARD + "zx81-hps/fes_de25_computer.v"])
     return files, derived
