@@ -9,6 +9,7 @@ import (
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/input/controllers"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
+	"github.com/DeanoC/fes/platform/embedded/tamago/usbcontrol"
 )
 
 func makeXInputDev(addr uint8) usb.BusDevice {
@@ -224,13 +225,39 @@ func TestHubWiredXInputAndXboxGIP(t *testing.T) {
 	if len(gipOut.outPackets) != 4 || gipOut.outPackets[3][0] != controllers.XboxGIPCommandRumble {
 		t.Fatalf("expected only rumble packet while OUT pending, got %x", gipOut.outPackets)
 	}
-	// Release OUT pipe completion -> next Service flushes queued GIP Guide ACK!
+	// Release OUT pipe completion, but inject transient ErrBusy -> queued ACK
+	// must stay queued and flush only once Write succeeds.
 	gipOut.holdWriteDone = false
+	gipOut.writeErr = usbcontrol.ErrBusy
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if len(gipOut.outPackets) != 4 {
+		t.Fatalf("expected queued ACK retained while ErrBusy, got %x", gipOut.outPackets)
+	}
+	gipOut.writeErr = nil
 	if err := hub.Service(); err != nil {
 		t.Fatal(err)
 	}
 	if len(gipOut.outPackets) != 5 || gipOut.outPackets[4][0] != controllers.XboxGIPCommandAck || gipOut.outPackets[4][2] != 0x09 {
 		t.Fatalf("expected queued GIP ACK seq=0x09 flushed after WriteDone, got %x", gipOut.outPackets)
+	}
+
+	// Immediate Guide ACK hitting transient ErrBusy also enqueues and flushes cleanly.
+	gipOut.writeErr = usbcontrol.ErrBusy
+	bus.pipes[key32(3, 0x81)].inQueue = append(bus.pipes[key32(3, 0x81)].inQueue, []byte{controllers.XboxGIPCommandGuide, 0x10, 0x0a, 0x02, 0x01, 0x00})
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if len(gipOut.outPackets) != 5 {
+		t.Fatalf("expected immediate ACK retained on ErrBusy, got %x", gipOut.outPackets)
+	}
+	gipOut.writeErr = nil
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if len(gipOut.outPackets) != 6 || gipOut.outPackets[5][0] != controllers.XboxGIPCommandAck || gipOut.outPackets[5][2] != 0x0a {
+		t.Fatalf("expected immediate busy-enqueued ACK seq=0x0a flushed, got %x", gipOut.outPackets)
 	}
 	upd, cnt = drainGamepadUpdates(hub)
 	if cnt == 0 || !upd.HomePressed || upd.State.Buttons&uint32(controllers.ButtonSouth) == 0 {

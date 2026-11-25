@@ -785,10 +785,11 @@ func (h *Hub) serviceWiredInit(slotIdx int) (paused bool) {
 	}
 	if slot.gipAckCount > 0 {
 		ack := slot.gipAckQueue[slot.gipAckHead]
-		slot.gipAckHead = (slot.gipAckHead + 1) % uint8(len(slot.gipAckQueue))
-		slot.gipAckCount--
 		n := controllers.BuildXboxGIPAck(h.txBuf[:], ack.seq, ack.cmdID, ack.payloadLen)
-		_ = h.writeSlotPacket(slotIdx, h.txBuf[:n])
+		if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+			slot.gipAckHead = (slot.gipAckHead + 1) % uint8(len(slot.gipAckQueue))
+			slot.gipAckCount--
+		}
 		return false
 	}
 	now := h.cfg.Now()
@@ -912,13 +913,15 @@ func (h *Hub) feedWiredGamepadPacket(slotIdx int, pkt []byte) {
 		var needsAck bool
 		updated, ackSeq, needsAck = controllers.ParseXboxGIPInput(pkt, &slot.ctrlState)
 		if updated && needsAck && slot.outPipe != nil {
-			if slot.outPending {
+			if slot.outPending || slot.gipAckCount > 0 {
 				h.enqueueGIPAck(slot, ackSeq, pkt[0], pkt[3])
 			} else {
 				n := controllers.BuildXboxGIPAck(h.txBuf[:], ackSeq, pkt[0], pkt[3])
-				_ = h.writeSlotPacket(slotIdx, h.txBuf[:n])
-				if !slot.active {
-					return
+				if !h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+					if !slot.active {
+						return
+					}
+					h.enqueueGIPAck(slot, ackSeq, pkt[0], pkt[3])
 				}
 			}
 		}
