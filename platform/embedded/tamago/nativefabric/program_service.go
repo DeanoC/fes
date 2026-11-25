@@ -94,6 +94,7 @@ type programService struct {
 	closed         bool
 	rearm          bool
 	backendClaimed bool
+	capabilities   uint32
 	execution      ProgramFetchObservation
 	launchTrace    func(ProgramServiceStatus, string, error)
 	menu           *programServiceMenu
@@ -143,9 +144,27 @@ func (s *ProgramService) Status() ProgramServiceStatus {
 	return p.view
 }
 
+// Capabilities returns the advertised fes.computer capability bitmap for the
+// active running session, or 0 if session is inactive or stale.
+func (s *ProgramService) Capabilities(session ProgramSession) uint32 {
+	if s == nil || s.state == nil || session.Generation() == 0 {
+		return 0
+	}
+	p := s.state
+	p.viewMu.Lock()
+	defer p.viewMu.Unlock()
+	if p.view.State != ProgramRunning || session.service != p || session.generation != p.view.Generation {
+		return 0
+	}
+	return p.capabilities
+}
+
 func (p *programService) publish(view ProgramServiceStatus) {
 	p.viewMu.Lock()
 	p.view = view
+	if view.State != ProgramRunning {
+		p.capabilities = 0
+	}
 	p.viewMu.Unlock()
 }
 
@@ -197,6 +216,7 @@ func (p *programService) fail(err error) error {
 	}
 	p.viewMu.Lock()
 	p.view.State, p.view.Error = ProgramRebootRequired, err.Error()
+	p.capabilities = 0
 	p.viewMu.Unlock()
 	return errors.Join(ErrProgramRetired, err)
 }
@@ -322,6 +342,7 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	}
 	p.viewMu.Lock()
 	p.execution, p.view = execution, view
+	p.capabilities = p.computer.Computer().Capabilities()
 	p.viewMu.Unlock()
 	return ProgramSession{p, view.Generation}, nil
 }
