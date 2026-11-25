@@ -2,7 +2,8 @@
 """FreeDOS to the prompt on the DE25 pc386 machine, through the board's window.
 
 system_tb (cores/fes-pc386/sim) on pc386_de25_sim: the derived pc386_system
-(derive.py: no display plane), the i486DX as the producer builds it (I486,
+(derive.py: no display plane), the model --model names as the producer
+builds its CPU: the 486SX (I486, the default) or the i486DX (I486,
 X87_PRESENT and i486dx/derive.py's CPU),
 behind fes_de25_hps_window's guards, rebase and bounds and
 fes_de25_window_arbiter, built with FES_PC386_DE25. The suite, its
@@ -26,29 +27,32 @@ sys.path.insert(0, str(HERE))
 from scripts import sim_fes_pc386 as sim  # noqa: E402
 import derive  # noqa: E402
 
-# pc386/build.py's I486 and X87_PRESENT, read from its source so the bench needs none of the producer's imports.
+# pc386/build.py's I486, read from its source so the bench needs none of the producer's imports.
 I486 = int(re.search(r'^I486 = (\d)$', (HERE / 'build.py').read_text(), re.M).group(1))
-X87_PRESENT = int(re.search(r'^X87_PRESENT = (\d)$', (HERE / 'build.py').read_text(), re.M).group(1))
 i486dx = importlib.import_module('i486dx.derive')
+MODELS = ('486sx', '486dx')
 
 DE25_RTL = (HERE / 'pc386_dma2_registers.sv', HERE / 'fes_de25_hps_window.v', HERE / 'fes_de25_window_arbiter.v', HERE / 'fes_de25_window_unpack.v',
             ROOT / 'cores/fes-common/rtl/fes_hps_ddr_guard.v', HERE / 'sim/pc386_de25_sim.sv')
 
 
-def derived_sources(output: Path) -> dict[Path, Path]:
-    """The three DE10 files derive.py changes, written for this build, and the i486DX's CPU sources in place of
-    the integer core's."""
+def derived_sources(output: Path, model: str = MODELS[0]) -> dict[Path, Path]:
+    """The three DE10 files derive.py changes, written for this build; for the 486DX, its pc386_system's CPU
+    retargeted and the i486DX's CPU sources in place of the integer core's."""
     output.mkdir(parents=True, exist_ok=True)
     rtl = ROOT / 'cores/fes-pc386/rtl'
     result = {}
     for name, step in (('pc386_machine.sv', derive.retarget_machine), ('pc386_system.sv', derive.retarget_system),
                        ('pc386_at_core.sv', derive.retarget_at_core)):
         data, _ = step((rtl / name).read_bytes())
+        if model == '486dx' and name == 'pc386_system.sv':
+            data, _ = derive.retarget_system_cpu(data)
         (output / name).write_bytes(data)
         result[rtl / name] = output / name
-    for old, new in zip(sim.CPU_RTL, i486dx.sim_sources(output.parent / 'i486dx', ROOT, rename=True)):
-        if old != new:
-            result[old] = new
+    if model == '486dx':
+        for old, new in zip(sim.CPU_RTL, i486dx.sim_sources(output.parent / 'i486dx', ROOT, rename=True)):
+            if old != new:
+                result[old] = new
     return result
 
 
@@ -59,9 +63,9 @@ def system_testbench(args) -> Path:
     rom = sim.firmware.write_rom_hex(images)
     # The producer's CPU identity (build.py I486), set explicitly rather than by the bench's default.
     parameters = {**producer.guest_rates(producer.SYSTEM_CLOCK_HZ), 'ROM_HEX': f'"{rom}"', 'I486': f"1'b{I486}",
-                  'X87_PRESENT': X87_PRESENT}
+                  **({'X87_PRESENT': 1} if args.model == '486dx' else {})}
     # Under rtl/, so the bench's .vlt waivers for those files apply as they do on the DE10.
-    swap = derived_sources(sim.OUTPUT / 'derived' / 'rtl')
+    swap = derived_sources(sim.OUTPUT / 'derived' / 'rtl', args.model)
     missing = set(swap) - set(sim.SYSTEM_RTL)
     if missing:
         raise sim.SimError(f'derived files are not in the system RTL: {sorted(map(str, missing))}')
@@ -75,6 +79,7 @@ def system_testbench(args) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--model', choices=MODELS, default=MODELS[0], help='the producer model to build (default 486sx)')
     parser.add_argument('--download', action='store_true')
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
@@ -82,7 +87,7 @@ def main() -> int:
     args = parser.parse_args()
     args.limit_seconds = args.limit_seconds or sim.default_limit_seconds('system')
     args.rebuild_image, args.preset, args.frequency, args.turbo = False, 0, 0, 0
-    sim.OUTPUT = ROOT / 'build/sim/de25-pc386'
+    sim.OUTPUT = ROOT / ('build/sim/de25-pc386' if args.model == MODELS[0] else 'build/sim/de25-pc386-' + args.model)
     sim.system_testbench = system_testbench
     try:
         report = sim.run_system(args)

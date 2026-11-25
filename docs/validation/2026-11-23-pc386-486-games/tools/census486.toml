@@ -1,0 +1,100 @@
+[sources.exodos]
+kind = "zip"
+env = "FES_PC386_GAMES"
+default = "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS"
+
+[sources.dosbench]
+kind = "tree"
+env = "FES_PC386_DOSBENCH"
+default = "~/fes-drives/pc386/sources/dosbench"
+
+[buckets]
+real = "real mode in conventional memory"
+xms = "XMS through HIMEM, unreal mode or an own 386 memory manager"
+dos4gw = "DOS/4GW at CPL 0"
+cpl0 = "other CPL-0 DOS extenders (DOS/32A, PMODE/W, Phar Lap)"
+dpmi3 = "ring-3 DPMI hosts (CWSDPMI, Borland RTM and 32RTM)"
+ems = "uses or needs EMS (EMM386 or another expanded-memory manager)"
+386 = "needs a 386 in real mode"
+fpu = "needs an x87"
+sound = "Sound Blaster Pro or other sound setups"
+program = "non-game programs"
+
+# Scratch manifest (not committed): 486 candidate census, 23 Nov 2026.
+
+[drives.c486a]
+cylinders = 260
+description = "486 candidates A"
+
+[[drives.c486a.titles]]
+id = "war2"
+title = "Warcraft II - Tides of Darkness (1995)"
+bucket = "dos4gw"
+path = "Warcraft II - Tides of Darkness (1995).zip"
+sha256 = "63b98aec845bfdcf1351b6309a9284355a70ddef5efd704d4f8cab3ca1786dcd"
+launch = "cd \\war2|war2|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 30.0
+copy = [
+  { from = "WarcrafD", to = "WAR2", skip = ["cd", "KALI", "SC55", "CDA", "SB16"] },
+  { from = "WarcrafD/SB16", to = "WAR2" },
+  { from = "WarcrafD/DRIVERS/SB16", to = "WAR2\\DRIVERS" },
+]
+
+[[drives.c486a.titles]]
+id = "swshar"
+title = "Shadow Warrior shareware (1997)"
+bucket = "dos4gw"
+path = "Shadow Warrior (1997).zip"
+sha256 = "ce489d6d43e6b0bb48d692ecbde645734985fe531cf2affb3a904be209b23947"
+launch = "cd \\swshar|sw|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 30.0
+copy = [
+  { from = "ShadowWa/SW_SHAR", to = "SWSHAR", skip = ["sb16", "sc55"] },
+  { from = "ShadowWa/SW_SHAR/sb16", to = "SWSHAR" },
+]
+
+[[drives.c486a.titles]]
+id = "z"
+title = "Z (1996)"
+bucket = "dos4gw"
+path = "Z (1996).zip"
+sha256 = "5ac581b7a69bcabc163c5b3d58cf1ca13707e28baf28a991ac813a5bd4d0cc5f"
+launch = "cd \\z|z|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 30.0
+copy = [
+  { from = "Z1996/Z", to = "Z", skip = ["SB16", "SC55", "MT32"] },
+  { from = "Z1996/Z/SB16", to = "Z" },
+]
+
+[drives.c486b]
+cylinders = 260
+description = "486 candidates B"
+
+[[drives.c486b.titles]]
+id = "rally"
+title = "Death Rally (1996)"
+bucket = "dos4gw"
+path = "Death Rally (1996).zip"
+sha256 = "ea5e97004bdd644d1c012effea1c1058edd9ed7f57f92fa5c59877cdddbf7f8c"
+launch = "cd \\rally|rally|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 30.0
+copy = [
+  { from = "DeathRal/RALLY", to = "RALLY" },
+]
+
+[[drives.c486b.titles]]
+id = "pslave"
+title = "Powerslave (1996)"
+bucket = "dos4gw"
+path = "Powerslave (1996).zip"
+sha256 = "8d41f4c865e32d7229e90ecfb68aea766cf49596e99331316ab2caec15858bcc"
+launch = "cd \\pwrslave|ps|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 30.0
+copy = [
+  { from = "PowSlav/PWRSLAVE", to = "PWRSLAVE" },
+]

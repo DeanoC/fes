@@ -61,10 +61,91 @@ class I486dxDeriveTest(unittest.TestCase):
     def test_the_de10_cpu_closure_names_no_dx_file(self):
         self.assertFalse([path for path in yosys_netlist.CPU_SOURCES if 'i486dx' in path])
 
-    def test_the_de25_system_instantiates_the_dx(self):
-        data, _ = board.retarget_system((ROOT / 'cores/fes-pc386/rtl/pc386_system.sv').read_bytes())
+    def test_only_the_dx_system_instantiates_the_dx(self):
+        sx, _ = board.retarget_system((ROOT / 'cores/fes-pc386/rtl/pc386_system.sv').read_bytes())
+        self.assertIn(b'    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n', sx)
+        data, _ = board.retarget_system_cpu(sx)
         self.assertIn(b'    fes_i486dx_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n', data)
         self.assertNotIn(b'fes_i386_cpu #(', data)
+        self.assertEqual(data.replace(b'fes_i486dx_cpu #(', b'fes_i386_cpu #('), sx)
+
+
+
+class DE25ModelsTest(unittest.TestCase):
+    """Each DE25 pc386 model builds its own elaboration, and --model 486dx builds the DX or refuses."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.build = load('boards/de25nano/pc386/build.py', 'test_pc386_build')
+        cls.sources = cls.build.board.capture(cls.build, model='486dx')
+
+    def model(self, model):
+        files, cpu, _ = self.build.elaboration(self.sources, model)
+        return files, cpu, self.build.machine_parameters(model)
+
+    def test_the_models(self):
+        self.assertEqual(tuple(self.build.MODELS), ('486sx', '486dx'))
+        self.assertEqual(self.build.model_clock('486dx')['c0'], 51)
+        self.assertEqual(self.build.model_clock('486dx')['mhz'], '61.437908')
+
+    def test_the_486sx_is_fes_i386_cpu_at_i486_1_without_the_387(self):
+        files, cpu, parameters = self.model('486sx')
+        self.assertIn(b'    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n', files['pc386_system.sv'])
+        self.assertNotIn(b'fes_i486dx_cpu', files['pc386_system.sv'])
+        self.assertIsNone(cpu)
+        self.assertEqual(parameters['I486'], 1)
+        self.assertNotIn('X87_PRESENT', parameters)
+
+    def test_the_486dx_is_fes_i486dx_cpu_with_the_387(self):
+        files, cpu, parameters = self.model('486dx')
+        self.assertIn(b'    fes_i486dx_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n', files['pc386_system.sv'])
+        self.assertEqual(re.findall(rb'^module (\w+)', cpu, re.M), [b'fes_i486dx_cpu'])
+        self.assertEqual((parameters['I486'], parameters['X87_PRESENT']), (1, 1))
+
+    def test_the_models_differ_only_in_the_cpu_and_the_clock(self):
+        sx, _, psx = self.model('486sx')
+        dxf, _, pdx = self.model('486dx')
+        self.assertEqual(set(sx), set(dxf))
+        for name in sx:
+            if name != 'pc386_system.sv':
+                self.assertEqual(sx[name], dxf[name], name)
+        self.assertEqual(set(pdx) - set(psx), {'X87_PRESENT'})
+
+    def test_each_model_records_its_identity(self):
+        sx, ddx = self.build.record_parameters(ROOT, '486sx'), self.build.record_parameters(ROOT, '486dx')
+        self.assertEqual((sx['x87_present'], 'cpu' in sx), (False, False))
+        self.assertEqual((ddx['x87_present'], ddx['cpu']), (True, 'fes_i486dx_cpu'))
+
+    def calls(self, model):
+        """What the board's own path (machine/board.py component_files) hands the elaboration for a model."""
+        seen = []
+        real = self.build.machine_netlist
+        self.build.machine_netlist = lambda sources, files, model=None, cpu=None: (
+            seen.append((model, files['pc386_system.sv'], cpu)) or (b'', {}))
+        try:
+            self.build.board.component_files(self.build, self.sources, model=model)
+        finally:
+            self.build.machine_netlist = real
+        return seen
+
+    def test_the_board_builds_the_dx_for_486dx(self):
+        [(model, system, cpu)] = self.calls('486dx')
+        self.assertEqual(model, '486dx')
+        self.assertIn(b'fes_i486dx_cpu #(', system)
+        self.assertIsNotNone(cpu)
+        [(model, system, cpu)] = self.calls('486sx')
+        self.assertEqual(model, '486sx')
+        self.assertIn(b'fes_i386_cpu #(', system)
+        self.assertIsNone(cpu)
+
+    def test_a_dx_is_never_elaborated_as_the_sx_nor_an_unknown_model_as_either(self):
+        with self.assertRaisesRegex(ValueError, 'only it'):
+            self.build.machine_netlist(self.sources, {}, '486dx', None)
+        with self.assertRaisesRegex(ValueError, 'only it'):
+            self.build.machine_netlist(self.sources, {}, '486sx', b'module x; endmodule')
+        for call in (self.build.machine_parameters, self.build.model_clock, lambda m: self.build.elaboration(self.sources, m)):
+            with self.assertRaises(ValueError):
+                call('486dx2')
 
 
 if __name__ == '__main__':

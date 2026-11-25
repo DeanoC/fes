@@ -1,8 +1,9 @@
 # DE25 pc386 as a 486SX: fit method (committed before the fits)
 
 Deano, 23 Nov 2026: "start the 486sx explore on that PR now, get it working".
-"That PR" is #2036, the DE25 pc386 shell with no 387. This branch is stacked on
-#2036's head `dfacd28e1`.
+"That PR" is #2036, the DE25 pc386 shell with no 387. When this method was
+committed, this branch was stacked on #2036's head `dfacd28e1` (see the note
+at the end).
 
 ## The change
 
@@ -61,3 +62,11 @@ DE10 netlist and `BUILD_ID` do not move (`de10-netlist.md`).
   same measured-or-within-the-spread rule is applied against its median too,
   and that is the controlled figure. Its seed 1 is the board build, not the
   producer; the two differ in the `BUILD_ID` the machine reports.
+
+## Note added after the fits (24 Nov 2026)
+
+No rule above changed. #2036 has merged into main (`6a3b9e615`), and this
+branch merged #2036's last commit (`589163761`) and then main (`f6956ce50`).
+The head no longer selects the fitted design, so the fits these rules judged
+cover `d1616104c`'s design only. [summary.md](summary.md#after-the-merges)
+lists what differs and records the exemption.

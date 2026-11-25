@@ -302,8 +302,8 @@ class MachineProducerTests(unittest.TestCase):
         from scripts import pc386_quartus as sealer
         tools = {**self.tools, 'yosys': 'explicit fixture yosys'}
         with self.assertRaisesRegex(shared.BuildError, 'controlled Quartus execution inputs'):
-            self.record(pc386, '486dx')  # the record names the front end's Yosys
-        record = self.record(pc386, '486dx', tools)
+            self.record(pc386, '486sx')  # the record names the front end's Yosys
+        record = self.record(pc386, '486sx', tools)
         parameters = verify_record_source_at_revision(self.root, record)['parameters']
         self.assertEqual(parameters['core_id'], 'fes.pc386')
         self.assertNotIn('rom_id', parameters)
@@ -311,15 +311,16 @@ class MachineProducerTests(unittest.TestCase):
         self.assertEqual((parameters['f2sdram_master_profile'], parameters['guest_memory'],
                           parameters['window_contract']),
                          ('scanout+window', 'hps-window', 'fes.fabric.de25-hps-window 1.0'))
-        self.assertEqual(parameters['machine_clock_hz'], 61437908)
+        # The 486SX's own machine clock (pc386/build.py MODEL_CLOCKS): C0 = 34 on the 3,133.333 MHz VCO.
+        self.assertEqual(parameters['machine_clock_hz'], 92156863)
         spec = pc386.MACHINE.spec(ROOT)
+        self.assertEqual(json.loads(parameters['guest_rates'])['AUDIO_D'], 1920)
         self.assertEqual(json.loads(parameters['guest_rates']), spec.guest_rates())
         self.assertEqual(json.loads(parameters['firmware']),
                          {**sealer.firmware_digests(ROOT), 'rom_hex': sealer.pinned_rom_digest(ROOT)})
-        # The DE25 machine is the i486DX (pc386/build.py): the 486 identity, the 387 on and the
-        # DE25-only CPU, each in the record.
-        self.assertIs(parameters['x87_present'], True)
-        self.assertEqual((parameters['model'], parameters['i486'], parameters['cpu']), ('486dx', 1, 'fes_i486dx_cpu'))
+        self.assertIs(parameters['x87_present'], False)
+        # The DE25 machine is the 486SX identity (pc386/build.py I486), set in the record.
+        self.assertEqual((parameters['model'], parameters['i486']), ('486sx', 1))
         self.assertEqual(json.loads(record)['tools']['yosys'], 'explicit fixture yosys')
         # The reviewed signoff bases and the handshake sources they cite are in the record.
         from boards.de25nano.scanout import machine_findings
@@ -350,6 +351,97 @@ class MachineProducerTests(unittest.TestCase):
         self.assertNotIn('rom', package.fields)
         self.assertIsNone(package.rom_map_bytes)
 
+    def test_pc386_models_carry_their_own_machine_clocks(self):
+        """Two pc386 models with different clocks, from one spec and one producer: each record, each
+        board clock spec, PLL comment, parent digest and set of guest rates is its own model's."""
+        import copy
+
+        class TwoClocks(type(pc386.MACHINE)):
+            # A second model at the 61.437908 MHz clock (C0 = 51), standing in for #2194's 486dx, with
+            # the 486SX's IP and another parent digest: the record and clock spec are what this test
+            # checks, not a fit.
+            def spec(self, root):
+                module = super().spec(root)
+                module.MODELS = {**module.MODELS, 'clocktwin': None}
+                module.CLOCKS.MODEL_CLOCKS = {**module.CLOCKS.MODEL_CLOCKS, 'clocktwin': {
+                    **module.CLOCKS.MODEL_CLOCKS['486sx'], 'c0': 51, 'parent_sha256': 'f' * 64}}
+                return module
+
+        machine = copy.copy(pc386.MACHINE)
+        machine.__class__ = TwoClocks
+        machine.descriptions = {**pc386.MACHINE.descriptions, 'clocktwin': 'fixture'}
+        tools = {**self.tools, 'yosys': 'explicit fixture yosys'}
+        expected = {'486sx': (92156863, '92.156863', 1920, '/34 '), 'clocktwin': (61437908, '61.437908', 1280, '/51 ')}
+        spec = machine.spec(ROOT)
+        board = spec.board
+        self.assertTrue(board.per_model_clocks(spec))
+        identities = {}
+        for model in ('clocktwin', '486sx', 'clocktwin'):
+            with self.subTest(model=model):
+                hz, mhz, audio, divider = expected[model]
+                record = machine.create_build_record(self.root, REPOSITORY, self.revision, tools, self.execution,
+                                                     self.captured[pc386], model=model)
+                parameters = json.loads(record)['parameters']
+                self.assertEqual((parameters['model'], parameters['machine_clock_hz']), (model, hz))
+                rates = json.loads(parameters['guest_rates'])
+                self.assertEqual((rates['AUDIO_N'], rates['AUDIO_D']), (1, audio))
+                self.assertEqual(spec.guest_rates(model), rates)
+                self.assertEqual(board.clocks(spec, model)[0], hz)
+                self.assertEqual(board.clocks(spec, model)[2]['gui_output_clock_frequency0'], mhz)
+                self.assertIn(divider, board.top_after(spec, model))
+                self.assertEqual(spec.model_clock(model)['parent_sha256'],
+                                 spec.CLOCKS.MODEL_CLOCKS[model]['parent_sha256'])
+                identities.setdefault(model, set()).add(build_identity(record))
+        # One identity per model, and the two models' identities differ.
+        self.assertEqual({model: len(ids) for model, ids in identities.items()}, {'486sx': 1, 'clocktwin': 1})
+        self.assertNotEqual(identities['486sx'], identities['clocktwin'])
+        # No model named is the first model; an unknown model has no clock.
+        self.assertEqual(board.clocks(spec)[0], 92156863)
+        with self.assertRaisesRegex(ValueError, 'no model'):
+            spec.model_clock('486dx2')
+        # A machine-wide clock spec beside model_clock is refused, not silently preferred.
+        spec.MACHINE_HZ = 1
+        with self.assertRaisesRegex(ValueError, 'both a per-model and a machine-wide'):
+            board.clocks(spec)
+
+    def test_pc386_486dx_record_names_its_cpu_x87_and_clock(self):
+        """#2194's 486dx: its own record, at 61.437908 MHz (C0 51), with the i486DX CPU and the 387."""
+        tools = {**self.tools, 'yosys': 'explicit fixture yosys'}
+        records = {model: json.loads(pc386.create_build_record(self.root, REPOSITORY, self.revision, tools, self.execution,
+                                                               self.captured[pc386], model=model))['parameters']
+                   for model in ('486sx', '486dx')}
+        dx = records['486dx']
+        self.assertEqual((dx['model'], dx['machine_clock_hz'], dx['cpu'], dx['x87_present'], dx['i486']),
+                         ('486dx', 61437908, 'fes_i486dx_cpu', True, 1))
+        self.assertEqual(json.loads(dx['guest_rates'])['AUDIO_D'], 1280)
+        sx = records['486sx']
+        self.assertEqual((sx['model'], sx['x87_present'], 'cpu' in sx), ('486sx', False, False))
+
+    def test_fitter_seed_reaches_the_record_and_the_qsf_and_seed_one_changes_nothing(self):
+        """--seed: the record carries it and the QSF's one SEED assignment takes it. Seed 1, the
+        default, leaves the record and the QSF byte-identical to a build that names no seed."""
+        tools = {**self.tools, 'yosys': 'explicit fixture yosys'}
+        record = lambda **kw: pc386.create_build_record(self.root, REPOSITORY, self.revision, tools, self.execution,
+                                                       self.captured[pc386], model='486sx', **kw)
+        unset, one, three = record(), record(seed=1), record(seed=3)
+        self.assertEqual(unset, one)
+        self.assertEqual(json.loads(unset)['parameters']['seed'], 1)
+        self.assertEqual(json.loads(three)['parameters']['seed'], 3)
+        self.assertNotEqual(build_identity(unset), build_identity(three))
+        for bad in (0, -1, True, '2', 2 ** 31):
+            with self.subTest(seed=bad), self.assertRaises(shared.BuildError):
+                record(seed=bad)
+        spec = pc386.MACHINE.spec(ROOT)
+        qsf = 'set_global_assignment -name FAMILY "Agilex 5"\nset_global_assignment -name SEED 1\nx\n'
+        self.assertIs(spec.board.seeded_qsf(qsf, 1), qsf)
+        self.assertEqual(spec.board.seeded_qsf(qsf, 4), qsf.replace('SEED 1\n', 'SEED 4\n'))
+        with self.assertRaises(ValueError):
+            spec.board.seeded_qsf(qsf.replace('SEED 1', 'SEED 2'), 3)  # not the scanout's seed-1 line
+        with self.assertRaises(ValueError):
+            spec.board.seeded_qsf(qsf, 0)
+        # The CLI default is seed 1.
+        import inspect
+        self.assertEqual(inspect.signature(shared.Machine.build).parameters['seed'].default, 1)
 
 if __name__ == '__main__':
     unittest.main()

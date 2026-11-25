@@ -25,7 +25,9 @@ RECIPE = 'boards/de25nano/producers/build_pc386_package.py'
 MACHINE = Machine(
     recipe=RECIPE, directory='pc386', core_id='fes.pc386', rom_id=None,
     name='FES pc386', version='0.1.0',
-    descriptions={'486dx': 'Standard DE25 pc386: the i486DX (fes_i486dx_cpu: the 486 identity, the 387 on, '
+    descriptions={'486sx': 'Standard DE25 pc386: fes_i386_cpu as a 486SX (I486 = 1) with no 387, the Bochs '
+                           'BIOS and LGPL VGABios, all memory in a window in HPS DDR. Development only.',
+                  '486dx': 'Standard DE25 pc386: the i486DX (fes_i486dx_cpu: the 486 identity, the 387 on, '
                            '8 KiB 2-way L1s, no load forwarding), the Bochs BIOS and LGPL VGABios, all memory '
                            'in a window in HPS DDR. Development only.'},
     interfaces=tuple((name, 1, 0) for name in INTERFACES), shell=(), abi_minor=1)

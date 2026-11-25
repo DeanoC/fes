@@ -17,9 +17,11 @@ const (
 	admaAddrLow    = 0x258
 	admaAddrHigh   = 0x25c
 	cap33V         = uint32(1 << 24)
+	capHighSpeed   = uint32(1 << 21)
 	capADMA2       = uint32(1 << 19)
 	cap64BitBus    = uint32(1 << 28)
 	host4BitWidth  = uint32(1 << 1)
+	hostHighSpeed  = uint32(1 << 2)
 	hostADMA2_32   = uint32(2 << 3)
 	hostADMA2_64   = uint32(3 << 3)
 	admaAttrValid  = uint32(1 << 0)

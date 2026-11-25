@@ -159,9 +159,32 @@ func (s *KeyboardSink) retireObserved(ctx context.Context, observe func(context.
 	return nil
 }
 
+// hasActiveStateContext reports whether this matrix sink currently holds a
+// binding, uncertain write, or any pressed key that still requires release.
+func (s *KeyboardSink) hasActiveStateContext(ctx context.Context) (bool, error) {
+	if s == nil {
+		return false, nil
+	}
+	if err := lockInputMutex(ctx, &s.mu); err != nil {
+		return false, err
+	}
+	defer s.mu.Unlock()
+	if s.binding != nil || s.uncertain != nil {
+		return true, nil
+	}
+	for _, pressed := range s.pressed {
+		if len(pressed) != 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // retireUnboundIdle avoids inventing a matrix binding for a fresh sink. A
-// missing binding is not evidence of neutral hardware: only a fresh explicit
-// idle observation under the lifecycle guard can retire that empty state.
+// missing binding is not evidence of neutral hardware: an unbound, empty
+// matrix sink may retire only after a fresh explicit observation with a valid
+// runtime instance proving either idle or an active packaged core without
+// fes.keyboard (raw development RBFs and active matrix cores remain rejected).
 func (s *KeyboardSink) retireUnboundIdle(ctx context.Context, observe func(context.Context) (CoreObservation, error), validate func(context.Context) error) error {
 	if err := lockInputMutex(ctx, &s.mu); err != nil {
 		return err
@@ -187,7 +210,9 @@ func (s *KeyboardSink) retireUnboundIdle(ctx context.Context, observe func(conte
 	if err != nil {
 		return err
 	}
-	if !obs.IdleConfirmed || obs.Active || obs.PackageID != "" || obs.Generation != 0 || !validObservedMatrixInstance(obs.RuntimeInstance) {
+	idle := obs.IdleConfirmed && !obs.Active && obs.PackageID == "" && obs.Generation == 0 && validObservedMatrixInstance(obs.RuntimeInstance)
+	nonMatrixPackaged := obs.Active && !obs.IdleConfirmed && !obs.Keyboard && obs.PackageID != "" && obs.Generation != 0 && validObservedMatrixInstance(obs.RuntimeInstance)
+	if !idle && !nonMatrixPackaged {
 		return errMatrixUnconfirmed
 	}
 	if err := validate(ctx); err != nil {

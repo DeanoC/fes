@@ -8,13 +8,14 @@ plane comes out of pc386_machine: video is the presenter's 720p word, the
 plane's port-2 requester is idle, and pc386_system carries the mailbox's
 display opcodes out to the board in place of into the machine.
 
-pc386_system's CPU is the DE25's i486DX, fes_i486dx_cpu (i486dx/derive.py).
-
 Controller 2 of the AT core's DMA is its register file only
 (pc386_dma2_registers.sv): it reads back as fes_dma8237 does, but runs no
 cycle, so a software request on channels 4-7 does not count down or set TC.
 Nothing in the machine raises a controller-2 DREQ. The DE10 keeps the full
 controller.
+
+For the 486DX model, retarget_system_cpu then points pc386_system's CPU at the
+DE25's i486DX, fes_i486dx_cpu (i486dx/derive.py); the 486SX keeps fes_i386_cpu.
 
 Each derivation fails if its anchor moves. A removed block is pinned by its
 SHA-256, so a change inside it fails too.
@@ -78,13 +79,8 @@ SYSTEM_SNAPSHOT_AFTER = (b"    pc386_snapshot #(.W(64)) pixel_counts (\n"
                          b"        .clk(clk), .snapshot({frames_shown_sys, present_underflows_sys})\n"
                          b"    );\n"
                          b"    assign plane_underflows_sys = 32'd0;\n")
-# The CPU is the DE25's i486DX (i486dx/derive.py), fes_i386_cpu's DE25-only
-# derivation, which keeps its parameters and ports.
-SYSTEM_CPU_BEFORE = b"    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n"
-SYSTEM_CPU_AFTER = b"    fes_i486dx_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n"
 SYSTEM = ((SYSTEM_WIRES_BEFORE, b"", 1), (SYSTEM_PORTS_BEFORE, SYSTEM_PORTS_AFTER, 1),
-          (SYSTEM_MACHINE_BEFORE, SYSTEM_MACHINE_AFTER, 1), (SYSTEM_SNAPSHOT_BEFORE, SYSTEM_SNAPSHOT_AFTER, 1),
-          (SYSTEM_CPU_BEFORE, SYSTEM_CPU_AFTER, 1))
+          (SYSTEM_MACHINE_BEFORE, SYSTEM_MACHINE_AFTER, 1), (SYSTEM_SNAPSHOT_BEFORE, SYSTEM_SNAPSHOT_AFTER, 1))
 
 AT_DMA2_BEFORE = (
     b"    fes_dma8237 #(.ADDRESS_BITS(24), .AT_PAGES(1), .REFRESH(0), .WORD_ADDRESS(1)) dma2 (\n"
@@ -135,7 +131,7 @@ def retarget_machine(source):
 
 
 def retarget_system(source):
-    """pc386_system with the mailbox's display opcodes carried out to the board, and the i486DX CPU."""
+    """pc386_system with the mailbox's display opcodes carried out to the board."""
     result = source
     for before, after, count in SYSTEM:
         if result.count(before) != count:
@@ -154,3 +150,18 @@ def retarget_at_core(source):
         result = result.replace(before, after)
     return result, _record(source, result, [{"before": b.decode(), "after": a.decode(), "count": n}
                                             for b, a, n in AT_CORE])
+
+
+# The 486DX model's CPU is the DE25's i486DX (i486dx/derive.py), fes_i386_cpu's DE25-only
+# derivation, which keeps its parameters and ports.
+SYSTEM_CPU_BEFORE = b"    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n"
+SYSTEM_CPU_AFTER = b"    fes_i486dx_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n"
+
+
+def retarget_system_cpu(source):
+    """The 486DX model's pc386_system: retarget_system's, with its CPU the DE25's i486DX."""
+    if source.count(SYSTEM_CPU_BEFORE) != 1:
+        raise ValueError("pc386 system CPU instance changed")
+    result = source.replace(SYSTEM_CPU_BEFORE, SYSTEM_CPU_AFTER)
+    return result, _record(source, result, [{"before": SYSTEM_CPU_BEFORE.decode(), "after": SYSTEM_CPU_AFTER.decode(),
+                                             "count": 1}])

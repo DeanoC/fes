@@ -58,6 +58,7 @@ LIB_SOURCES := \
 	src/native/core_driver.cpp \
 	src/native/fes_gp.cpp \
 	src/native/de25_computer.cpp \
+	src/native/de25_hps_window.cpp \
 	src/native/de25_core_driver.cpp \
 	src/native/de25_pr_control.cpp \
 	src/native/menu_display.cpp \
@@ -93,6 +94,7 @@ TEST_BINS := \
  $(BUILD_DIR)/tests/unit/menu_frame_transport_test \
 	$(BUILD_DIR)/tests/unit/menu_window_test \
 	$(BUILD_DIR)/tests/unit/de25_menu_test \
+	$(BUILD_DIR)/tests/unit/de25_hps_window_test \
 	$(BUILD_DIR)/tests/unit/menu_display_test \
 	$(BUILD_DIR)/tests/unit/runtime_test \
 	$(BUILD_DIR)/tests/unit/diagnostic_test \
@@ -328,7 +330,7 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/native/core_driver.cpp  src/native/input.cpp \
 		src/native/fes_gp.cpp src/native/menu_display.cpp src/native/diagnostic.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
-		src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
+		src/native/hardware.cpp  src/native/de25_hps_window.cpp src/runtime.cpp src/native/linux/menu_window.cpp \
 		src/linux/production_hardware.cpp src/native/de25_core_driver.cpp src/native/de25_computer.cpp src/native/de25_pr_control.cpp src/native/linux/de25_fpga_manager.cpp src/native/linux/de25_menu.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
 		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
@@ -343,7 +345,7 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/native/core_driver.cpp  src/native/input.cpp \
 		src/native/fes_gp.cpp src/native/menu_display.cpp src/native/diagnostic.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
-		src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
+		src/native/hardware.cpp  src/native/de25_hps_window.cpp src/runtime.cpp src/native/linux/menu_window.cpp \
 		src/linux/production_hardware.cpp src/native/de25_core_driver.cpp src/native/de25_computer.cpp src/native/de25_pr_control.cpp src/native/linux/de25_fpga_manager.cpp src/native/linux/de25_menu.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
 		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
@@ -447,8 +449,8 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	}; \
 	member_count="$$(printf '%s\n' "$$actual_members" | sed '/^$$/d' | wc -l | tr -d ' ')"; \
-	[[ "$$member_count" == 29 ]] || { \
-		echo "canonical archive must contain exactly 29 production members" >&2; \
+	[[ "$$member_count" == 30 ]] || { \
+		echo "canonical archive must contain exactly 30 production members" >&2; \
 		exit 1; \
 	}; \
 	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' | sed 's|^.*/||' | LC_ALL=C sort)"; \
@@ -462,7 +464,7 @@ archive-audit: $(ARCHIVE)
 		echo "archive members differ from production objects" >&2; \
 		exit 1; \
 	}; \
-	for required in runtime.o artifacts.o core_composition.o core_data.o media_data.o core_package.o core_driver.o fes_gp.o de25_computer.o de25_core_driver.o de25_fpga_manager.o de25_menu.o de25_pr_control.o json.o \
+	for required in runtime.o artifacts.o core_composition.o core_data.o media_data.o core_package.o core_driver.o fes_gp.o de25_computer.o de25_hps_window.o de25_core_driver.o de25_fpga_manager.o de25_menu.o de25_pr_control.o json.o \
 		diagnostic.o sha256.o input.o hardware.o \
 		fpga_manager.o mmio.o production_hardware.o video_recipe.o \
 		video.o i2c.o linux_input.o; do \
@@ -479,7 +481,7 @@ archive-audit: $(ARCHIVE)
 		else source="$${relative_object%.o}.cpp"; fi; \
 		[[ -f "$$source" ]] || { echo "object has no production source: $$relative_object" >&2; exit 1; }; \
 		case "$$source" in \
-			src/runtime.cpp|src/daemon/json.cpp|src/native/artifacts.cpp|src/native/core_package.cpp|src/native/core_composition.cpp|src/native/core_data.cpp|src/native/media_data.cpp|src/native/ata_disk.cpp|src/native/core_driver.cpp|src/native/fes_gp.cpp|src/native/de25_computer.cpp|src/native/de25_core_driver.cpp|src/native/de25_pr_control.cpp|src/native/menu_display.cpp|src/native/linux/menu_window.cpp|src/native/linux/de25_menu.cpp|src/native/diagnostic.cpp|src/native/sha256.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/de25_fpga_manager.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/window_driver.cpp|src/linux/production_hardware.cpp) ;; \
+			src/runtime.cpp|src/daemon/json.cpp|src/native/artifacts.cpp|src/native/core_package.cpp|src/native/core_composition.cpp|src/native/core_data.cpp|src/native/media_data.cpp|src/native/ata_disk.cpp|src/native/core_driver.cpp|src/native/fes_gp.cpp|src/native/de25_computer.cpp|src/native/de25_hps_window.cpp|src/native/de25_core_driver.cpp|src/native/de25_pr_control.cpp|src/native/menu_display.cpp|src/native/linux/menu_window.cpp|src/native/linux/de25_menu.cpp|src/native/diagnostic.cpp|src/native/sha256.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/de25_fpga_manager.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/window_driver.cpp|src/linux/production_hardware.cpp) ;; \
 			*) echo "archive contains non-production source: $$source" >&2; exit 1 ;; \
 		esac; \
 		compiled_sources+="$$source"$$'\n'; \
@@ -559,6 +561,10 @@ $(BUILD_DIR)/tests/unit/menu_display_test: tests/unit/menu_display_test.cpp src/
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
 
 $(BUILD_DIR)/tests/unit/de25_menu_test: tests/unit/de25_menu_test.cpp src/native/linux/de25_menu.cpp src/native/de25_core_driver.cpp src/native/de25_computer.cpp src/native/artifacts.cpp src/native/diagnostic.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
+
+$(BUILD_DIR)/tests/unit/de25_hps_window_test: tests/unit/de25_hps_window_test.cpp src/native/de25_hps_window.cpp src/native/linux/menu_window.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
 

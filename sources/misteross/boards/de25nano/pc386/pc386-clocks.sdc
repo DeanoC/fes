@@ -1,6 +1,6 @@
 # Standard pc386 uses the same qualified board/reset/fabric shell as MENU and
 # the standard ZX81. Select only its memory-fault hierarchy in that shared
-# constraint. One PLL on CLOCK1_50 makes the machine clock (61.437908 MHz) and
+# constraint. One PLL on CLOCK1_50 makes the machine clock (its model's, build.py MODEL_CLOCKS) and
 # the audio master clock (12.287582 MHz); the PLL IP declares both. The design treats the machine clock as unrelated to the
 # peripheral and pixel clocks, and the PCM crossing as unrelated to the audio
 # clock it shares a PLL with: every path between them is one of the crossings
