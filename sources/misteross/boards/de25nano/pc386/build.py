@@ -33,19 +33,23 @@ SDC = BOARD + "pc386/pc386-clocks.sdc"
 MODELS = {"486sx": None}
 # pc386_system's CPU identity parameter (fes_i386_cpu I486): the 486SX.
 I486 = 1
-# The board: its own machine PLL on the shared VCO (50 x 188/3): /51 for the
-# machine's 61.437908 MHz and /255 for the 12.287582 MHz audio master clock,
-# both -34 ppm and exactly 5:1, as on the DE10. No board SDRAM; a window.
-MACHINE_HZ = 61437908
-CLOCK = Fraction(9_400_000_000, 153)
-PLL_IP = BOARD + "pc386/machine_pll.ip"
-PLL_PARAMETERS = {"gui_number_of_clocks": "2", "gui_output_clock_frequency0": "61.437908",
-                  "gui_output_clock_frequency1": "12.287582"}
+# The board: its own machine PLL on CLOCK1_50, one VCO for every model
+# (50 MHz x 188/3 = 3,133.333 MHz), whose output 1 is /255, the 12.287582 MHz
+# audio master clock (-34 ppm). Output 0, the machine clock, is VCO / C0, and
+# each model names its C0 (#2224 measured which close): MODEL_CLOCKS gives a
+# model's C0, its PLL IP (output 0 at VCO / C0, six decimals, nothing else
+# different) and the reviewed digest of the Qsys parent its clock generates
+# (Qsys names the window's machine-clock interconnect by a hash that includes
+# the clock rate; see PARENT_SHA256 below). select_model() makes one model's
+# clock the board's clock spec. No board SDRAM; a window.
+VCO = Fraction(50_000_000 * 188, 3)
+AUDIO_C = 255
+MODEL_CLOCKS = {
+    # 486SX: C0 = 34, 92.156863 MHz (#2224's step under the shipped constraints).
+    "486sx": {"c0": 34, "pll_ip": "machine_pll_486sx.ip",
+              "parent_sha256": "10defc9a021d7119aac2bbc793ac0d6913e902b99f85cb29977c452996eeb249"},
+}
 SDRAM_CLOCKS = ()
-PLL_COMMENT = """// One PLL on CLOCK1_50 in place of the stock audio PLL, whose pin can feed no
-// second one: x 188/3, then /51 for the machine's 61.437908 MHz and /255 for
-// the 12.287582 MHz audio master clock, both -34 ppm and exactly 5:1.
-"""
 BOARD_SDRAM = False
 WINDOW = True
 # pc386_system's presenter and pixel-reset synchronizers (pc386_presenter.sv,
@@ -64,12 +68,49 @@ ASSIGNMENTS = tuple(("SYNCHRONIZER_IDENTIFICATION", "FORCED_IF_ASYNCHRONOUS", "s
 # others are renumbered by one; the window's machine-clock interconnect has its
 # own (rst_controller_005). The shared FIFO reset derivation checks its bridge
 # clock and reset wiring before rewriting it.
-PARENT_SHA256 = "10defc9a021d7119aac2bbc793ac0d6913e902b99f85cb29977c452996eeb249"
-LOCAL_FILES = ("build.py", "derive.py", "signoff_bases.py", "machine_pll.ip", "pc386-clocks.sdc", "fes_de25_pc386_standard.v",
+# The parent's reviewed digest is per model (MODEL_CLOCKS): at every clock the
+# parent is this file with only that interconnect's module name changed.
+LOCAL_FILES = ("build.py", "derive.py", "signoff_bases.py", "pc386-clocks.sdc", "fes_de25_pc386_standard.v",
                "fes_de25_pc386_standard_hw.tcl", "fes_de25_hps_window.v", "fes_de25_hps_window_control.v",
                "fes_de25_window_arbiter.v", "fes_de25_window_unpack.v", "generated/fes_de25_hps_window.vh",
                "pc386_dma2_registers.sv")
 SHARED_FILES = ("fes_computer_mailbox.v",)
+
+
+def model_clock(model):
+    """One model's machine clock: C0, its rate, the PLL IP and parameters, and its parent digest."""
+    if model not in MODELS or model not in MODEL_CLOCKS:
+        raise ValueError("pc386 has no model " + str(model))
+    entry = MODEL_CLOCKS[model]
+    c0 = entry["c0"]
+    clock = VCO / c0
+    mhz = f"{float(clock / 1_000_000):.6f}"
+    return {"model": model, "c0": c0, "clock": clock, "hz": round(clock), "mhz": mhz,
+            "pll_ip": BOARD + "pc386/" + entry["pll_ip"],
+            "pll_parameters": {"gui_number_of_clocks": "2", "gui_output_clock_frequency0": mhz,
+                               "gui_output_clock_frequency1": f"{float(VCO / AUDIO_C / 1_000_000):.6f}"},
+            # The mixer's frame request against the I2S's rate: the audio master / 256 over the
+            # machine clock, (VCO / 255 / 256) / (VCO / C0).
+            "audio": Fraction(c0, AUDIO_C * 256),
+            "parent_sha256": entry["parent_sha256"]}
+
+
+def select_model(model):
+    """Make one model's clock the board's clock spec (board.clocks reads these names) and this
+    module's guest rates. A producer selects the model before it reads a clock (build_pc386_package);
+    the board CLI selects --model's."""
+    global MODEL, MACHINE_HZ, CLOCK, PLL_IP, PLL_PARAMETERS, PLL_COMMENT, PARENT_SHA256, AUDIO_RATIO
+    selected = model_clock(model)
+    MODEL, CLOCK, AUDIO_RATIO = model, selected["clock"], selected["audio"]
+    MACHINE_HZ, PLL_IP, PLL_PARAMETERS = selected["hz"], selected["pll_ip"], selected["pll_parameters"]
+    PARENT_SHA256 = selected["parent_sha256"]
+    PLL_COMMENT = ("// One PLL on CLOCK1_50 in place of the stock audio PLL, whose pin can feed no\n"
+                   f"// second one: x 188/3, then /{selected['c0']} for the {model}'s {selected['mhz']} MHz "
+                   f"machine clock and /{AUDIO_C} for\n// the 12.287582 MHz audio master clock (-34 ppm).\n")
+    return selected
+
+
+select_model(next(iter(MODELS)))
 
 
 def load(path, name):
@@ -96,13 +137,14 @@ SOURCES = ({BOARD + "pc386/" + name for name in LOCAL_FILES} |
 def guest_rates():
     """pc386_system's N/D pairs at the DE25 machine clock, exact rationals of it.
 
-    AUDIO is the one fixed ratio: the I2S runs at the audio clock / 256, which
-    is the machine clock / 1280, so the mixer's frame request is 1/1280 of it
-    rather than 48 kHz of the true clock, which would drift against the I2S.
+    AUDIO is the one fixed ratio: the I2S runs at the audio clock / 256, so
+    the mixer's frame request is that rate over the machine clock (C0 / 65280,
+    1/1280 at C0 = 51) rather than 48 kHz of the true clock, which would drift
+    against the I2S.
     """
     parameters = {}
     for name, rate in sealer.GUEST_RATES.items():
-        ratio = Fraction(1, 1280) if name == "AUDIO" else rate / CLOCK
+        ratio = AUDIO_RATIO if name == "AUDIO" else rate / CLOCK
         if ratio.numerator >= 2 ** 31 or ratio.denominator >= 2 ** 31:
             raise ValueError(f"{name} does not fit pc386_system's integer parameters")
         parameters[f"{name}_N"], parameters[f"{name}_D"] = ratio.numerator, ratio.denominator
@@ -223,4 +265,8 @@ def project_files(sources):
 
 
 if __name__ == "__main__":
+    import argparse
+    selected_model = argparse.ArgumentParser(add_help=False)
+    selected_model.add_argument("--model", choices=tuple(MODELS), default=next(iter(MODELS)))
+    select_model(selected_model.parse_known_args()[0].model)
     board.main(sys.modules[__name__])

@@ -311,8 +311,10 @@ class MachineProducerTests(unittest.TestCase):
         self.assertEqual((parameters['f2sdram_master_profile'], parameters['guest_memory'],
                           parameters['window_contract']),
                          ('scanout+window', 'hps-window', 'fes.fabric.de25-hps-window 1.0'))
-        self.assertEqual(parameters['machine_clock_hz'], 61437908)
+        # The 486SX's own machine clock (pc386/build.py MODEL_CLOCKS): C0 = 34 on the 3,133.333 MHz VCO.
+        self.assertEqual(parameters['machine_clock_hz'], 92156863)
         spec = pc386.MACHINE.spec(ROOT)
+        self.assertEqual(json.loads(parameters['guest_rates'])['AUDIO_D'], 1920)
         self.assertEqual(json.loads(parameters['guest_rates']), spec.guest_rates())
         self.assertEqual(json.loads(parameters['firmware']),
                          {**sealer.firmware_digests(ROOT), 'rom_hex': sealer.pinned_rom_digest(ROOT)})
@@ -348,6 +350,48 @@ class MachineProducerTests(unittest.TestCase):
         self.assertEqual(package.fields['format'], 2)
         self.assertNotIn('rom', package.fields)
         self.assertIsNone(package.rom_map_bytes)
+
+    def test_pc386_models_carry_their_own_machine_clocks(self):
+        """Two pc386 models with different clocks, from one spec and one producer: each record, each
+        board clock spec and each set of guest rates is its own model's, whichever was selected last."""
+        import copy
+
+        class TwoClocks(pc386.Pc386Machine):
+            # A second model at the 61.437908 MHz clock (C0 = 51), with the 486SX's IP and parent
+            # standing in: the record and clock spec are what this test checks, not a fit.
+            def spec(self, root):
+                module = super().spec(root)
+                module.MODELS = {**module.MODELS, 'clocktwin': None}
+                module.MODEL_CLOCKS = {**module.MODEL_CLOCKS, 'clocktwin': {**module.MODEL_CLOCKS['486sx'], 'c0': 51}}
+                return module
+
+        machine = copy.copy(pc386.MACHINE)
+        machine.__class__ = TwoClocks
+        machine.descriptions = {**pc386.MACHINE.descriptions, 'clocktwin': 'fixture'}
+        tools = {**self.tools, 'yosys': 'explicit fixture yosys'}
+        expected = {'486sx': (92156863, '92.156863', 1920), 'clocktwin': (61437908, '61.437908', 1280)}
+        records = {}
+        for model in ('clocktwin', '486sx', 'clocktwin'):
+            with self.subTest(model=model):
+                record = machine.create_build_record(self.root, REPOSITORY, self.revision, tools, self.execution,
+                                                     self.captured[pc386], model=model)
+                parameters = json.loads(record)['parameters']
+                hz, mhz, audio = expected[model]
+                self.assertEqual((parameters['model'], parameters['machine_clock_hz']), (model, hz))
+                rates = json.loads(parameters['guest_rates'])
+                self.assertEqual((rates['AUDIO_N'], rates['AUDIO_D']), (1, audio))
+                spec = machine.spec(ROOT)
+                self.assertEqual(machine.model(spec, model), model)
+                self.assertEqual(spec.board.clocks(spec)[0], hz)
+                self.assertEqual(spec.board.clocks(spec)[2]['gui_output_clock_frequency0'], mhz)
+                self.assertEqual(spec.guest_rates(), rates)
+                records.setdefault(model, set()).add(build_identity(record))
+        # One identity per model, and the two models' identities differ.
+        self.assertEqual({model: len(ids) for model, ids in records.items()}, {'486sx': 1, 'clocktwin': 1})
+        self.assertNotEqual(records['486sx'], records['clocktwin'])
+        spec = machine.spec(ROOT)
+        with self.assertRaisesRegex(ValueError, 'no model'):
+            spec.select_model('486dx')
 
 
 if __name__ == '__main__':
