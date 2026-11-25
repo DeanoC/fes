@@ -1,170 +1,93 @@
-# Native Go networking
+# Native Go networking (`network/`)
 
-This adapter connects ordinary Go `net` and `net/http` APIs to an explicit
-board Ethernet device. QEMU uses a modern VirtIO network device; Nano now has
-a separate [XGMAC/firmware contract](../xgmac/README.md). It uses the
-[go-net](https://github.com/usbarmory/go-net) Lneto stack and a small polling
-MMIO driver. The default `Open` path selects QEMU `virt`; `OpenDevice` supplies the shared
-IP/socket service to the Nano provider without QEMU address defaults.
+`network` bridges Go's `net` and `net/http` APIs to a bare-metal Ethernet
+driver using the pinned `lneto` TCP/IP stack
+(`github.com/usbarmory/go-net v0.0.0-20260924083839-356cbf14db9e`).
 
-After `qemuvirt.InitDevices()`, call `network.OpenWithPool(ctx, network.Config{}, pool)`
-(using `qemuvirt.DMAPool()`, or `network.Open(ctx, network.Config{})` for a
-standalone uncached reservation) once, before opening application sockets. The default address is
-`10.0.2.15/24`, with gateway `10.0.2.2`, matching QEMU user networking. Supply
-`Config.Address` and `Config.Gateway` to change them. `MMIOAddress == 0` scans
-the 32 QEMU VirtIO slots and rejects ambiguous multiple-NIC configurations.
-The shared adapter installs `net.SocketFunc`; application clients must use actual
-HTTP transport. `Open` neither replaces nor wraps an HTTP transport.
+- **Called by:** `cmd/network`, `cmd/tenfoot`, `cmd/programfetch`,
+  [board/qemuvirt](../board/README.md), and [board/de25nano](../board/README.md)
+  (`cmd/fpgaload/shared_network.go`).
+- **Delegates to:** QEMU VirtIO-net (`Open` / `OpenWithPool`) or DE25-Nano
+  [xgmac](../xgmac/README.md) (`OpenDevice` / `OpenDeviceDHCP`) over uncached
+  [dmaops.Pool](../dmaops/README.md) buffers, plus optional
+  [gic](../gic/README.md) RX IRQ wakeup (`RXReady()`).
 
-Run the image with 512 MiB of RAM and one CPU. Enable modern VirtIO devices:
+## Capabilities and limits
 
-```text
--machine virt,gic-version=3 -cpu cortex-a53 -m 512M -smp 1
--global virtio-mmio.force-legacy=false
--netdev user,id=net0,hostfwd=tcp:127.0.0.1:18882-:8081
--device virtio-net-device,netdev=net0,mac=52:54:00:12:34:56
+| Feature | Implementation | Notes |
+| --- | --- | --- |
+| IPv4 / TCP | `lneto` over MTU 1500 (`net.SocketFunc`) | 16 active TCP ports, 8 listener connections; no checksum/segmentation offloads or IPv6. |
+| Static IPv4 | Default (`10.0.2.15/24`, gw `10.0.2.2` on QEMU) | Set `Config.Address` and `Config.Gateway` to override. |
+| DHCPv4 & renewal | Opt-in RFC 2131 client (`AcquireDHCP`, `OpenDeviceDHCP`, `Config{DHCP: true}`) + T1/T2 `LeaseRenewer` | Requires subnet mask, server ID, and usable router (option 3) in the leased subnet. |
+| 100M / link-flap recovery | Opt-in `NetworkOptions` (`Allow100Full`, `RecoverLinkLoss`) + `LeaseRenewer.NotifyLinkUp()` INIT-REBOOT probe | Dormant on Nano `fpgaload`; host unit tests only. A `DHCPNAK`, or an ACK for another address or gateway, halts the link; a silent probe keeps the still-valid lease until T1/T2. |
+| DNSv4 | Pure-Go RFC 1035 A-record resolver (`ResolveA`) | Uses raw frame hooks on `Link`. |
+| SNTP | `QuerySNTP` wall-clock client | Optional UTC clock source for FAT32 (`SetClock`). |
+| TLS / auth | Not supported | Deterministic board entropy is unsuitable for TLS/authentication; use private LAN HTTP. |
+
+## Ownership and DMA pause/resume (`BindControl`)
+
+- **Boot-lifetime DMA:** The NIC allocates descriptors and buffers from the
+  board's uncached DMA arena (never Go heap). `Err()` and `Done()` report fatal
+  NIC/TX errors; failed TX poisons the NIC and keeps buffers pinned until
+  reboot.
+- **Coordinated pause across FPGA loads:**
+  `Interface.BindControl(DMAControl{Stop, Start})` wraps traffic in a software
+  gate (`Controller.PauseNetwork` / `ResumeNetwork`, 5 s bound per phase).
+  `PauseNetwork` blocks new calls, drains in-flight `Receive`/`Transmit`, and
+  invokes the platform stop/drain callback; `ResumeNetwork` reopens traffic
+  only after the paired platform restart and consumed `Confirm` hook.
+  `ProgramService.AttachNetwork` / `StartNetwork` hooks this controller into
+  every FPGA configuration, return, install, and Park transition.
+
+## QEMU vs DE25-Nano status
+
+- **QEMU `virt` (active in CI):** Runs VirtIO-net over QEMU user networking
+  (SLIRP, `-global virtio-mmio.force-legacy=false`). `run.py network --board qemu`
+  tests static IPv4, DNS, DHCP renewal, and SNTP; adding `--dhcp` sets
+  `"dhcp": true` in `FES/BOOT.JSON` and verifies the `FES_NETWORK_DHCP` lease
+  in `result.json`. Both static and `--dhcp` run in the `tamago` CI lane.
+- **DE25-Nano `fpgaload` (dormant / disabled):** `cmd/fpgaload/shared_network.go`
+  parses `--network-dhcp`, `--network-dhcp-hostname`, `--network-sntp-server`,
+  `--network-sntp-port`, `--network-allow-100m`, and `--network-recover-link-flap`
+  with `ParseStartupFlags` and passes opt-in `NetworkOptions` (`Allow100Full`,
+  `RecoverLinkLoss`, and an `OnLinkChange` hook calling
+  `LeaseRenewer.NotifyLinkUp()`) into `OpenNetworkWithControlOptions` /
+  `OpenNetworkWithControlDHCPOptions`. With DHCP selected it opens
+  `OpenNetworkWithControlDHCPOptions` through
+  `ProgramService.StartNetworkWithTimeout`, then starts a `LeaseRenewer`. On
+  link-up before T1, `NotifyLinkUp()` triggers one debounced RFC 2131
+  INIT-REBOOT DHCPREQUEST (`LinkUpDebounce`, `LinkUpProbeTimeout`): broadcast
+  from 0.0.0.0 with `ciaddr` 0, the lease address in option 50 and no server
+  identifier. RFC 2131 §4.3.2 asks a server to NAK that form when the address
+  is on the wrong network; it sets no such rule for a RENEWING/REBINDING
+  request with `ciaddr` set. A `DHCPNAK` from any server, or an ACK for
+  another address or gateway, halts the link immediately; a probe with no
+  answer keeps the still-valid lease until T1/T2.
+- **RFC 4330 SNTPv4 periodic discipline (`sntp_sync.go`):** `SNTPSyncer`
+  (`NewSNTPSyncer`, `(*Interface).NewSNTPSyncer`) serializes `SyncOnce` calls,
+  checks `[MinValidTime, MaxValidTime]` plausibility on every sample, enforces a
+  default 5-minute `MaxStep` guard (`ErrSNTPStepTooLarge`) against both prior
+  syncs and pre-synchronized `WallClockSink` clocks (QEMU PL031) while allowing
+  initial syncs when `WallClockSink.WallTime()` reports unsynced (DE25-Nano
+  cold boot), polls on `PollInterval` with exponential backoff and `ErrPaused`
+  tolerance, delivers UTC epochs to `WallClockSink.Sync` (`board.WallClock()`),
+  and dispatches callbacks through a single bounded worker.
+- **`build.py` rejects all of these flags** against the shipped `nano/sd-profile.json` (`network: null`)
+  because closed-bridge SD ownership excludes Ethernet
+  (`tests/test_tamago_build_network.py` enforces this refusal). Even a
+  hand-linked binary fails closed in `prepareProgramNetwork` while
+  `de25nano.NetworkEnabled()` is false. Enabling Nano Ethernet requires a
+  network-enabled profile plus a qualified EL3 MAC lease/drain supplier.
+
+## Verification
+
+```sh
+# Host unit tests (DHCP, renewal, DNS, SNTP, pause/resume control, NotifyLinkUp)
+GOWORK=off go -C platform/embedded/tamago test -race -count=1 ./network
+
+# QEMU VirtIO static + DHCP integration
+FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/tamago/run.py network \
+  --board qemu --dhcp \
+  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
+  --qemu /path/to/qemu-system-aarch64 --output out/native-network-dhcp
 ```
-
-A service bound to host loopback port 18881 is available from the guest at
-`http://10.0.2.2:18881`. The optional forwarding example makes a guest HTTP
-listener on port 8081 reachable at host `http://127.0.0.1:18882`.
-
-## Ownership and limits
-
-The board owns the global DMA arena. `Open` requires that arena to be initialized
-outside Go's heap and mapped as Normal noncacheable memory. The NIC never
-initializes it, frees a live descriptor, or borrows Go heap pointers for DMA.
-RX buffers remain posted to the device until completion. TX copies into an
-owned buffer and waits for completion before reuse. ARM barriers publish
-both descriptor contents and queue indices. Interrupts are suppressed and
-acknowledged during polling; no GIC handler or asynchronous preemption is
-required. Empty polling and TX waits yield to other goroutines.
-
-The adapter is a startup service lasting for the whole boot. `Err()` reports
-cancellation or the first fatal NIC error, and `Done()` closes when service
-becomes unavailable. A stopped device or failed TX stops RX polling and makes
-new sockets fail. Existing socket operations still need application deadlines.
-This does not shut down the stack, detach the global socket provider, or
-reclaim DMA. A failed TX poisons the NIC because descriptor ownership is
-uncertain; buffers stay reserved. Startup failure is likewise not retried.
-Recovery currently means rebooting the image. The shared `Link` installs its
-TX callback before starting Lneto workers and stops callback work on cancellation
-or a device failure. Cancellation is not a DMA fence.
-
-`Interface.BindControl(DMAControl{Stop: ..., Start: ...})` can bind one explicit
-trusted platform supplier to the same link. `Controller.PauseNetwork` closes
-the traffic gate, waits for all in-flight driver Receive/Transmit calls, then
-asks that supplier to stop the device and independently prove DMA/transactions
-drained. `ResumeNetwork` reopens traffic only after the paired platform restart.
-Both phases are bounded to five seconds and callbacks must honor cancellation.
-Repeated pause while already closed makes no hardware call. Failed or cancelled
-control stays gated and cannot be replaced or replayed, including through copied
-handles. Existing TCP sockets and the global provider remain attached; pending
-operations keep their application deadlines, and new socket calls reject while
-paused. This does not promise sockets survive a long FPGA configuration.
-
-The gate alone supplies no DMA fence. There is no default supplier, no buffer
-free or descriptor reallocation, and no automatic recovery. The current Nano
-profile has no qualified NIC lease/drain supplier and still disables Ethernet.
-The native `ProgramService.AttachNetwork` now claims the active controller once
-before frontend ownership and guards configuration, return, install, Park,
-presentation-failure cleanup and shutdown. Initial menu construction occurs
-before network startup. Unknown drain/restart retires without more firmware IO.
-Enabling the Nano still requires a source-bound firmware MAC lease/drain supplier
-and a qualified policy for ordinary frame/computer control while it is active.
-The model test exchanges actual HTTP through XGMAC descriptors and the IP stack
-across three short pause/resume cycles; its model-only callbacks are not firmware
-or physical DMA proof.
-
-Nano controlled startup now binds the real driver through the private firmware
-MAC client before this adapter installs sockets or starts packet workers. Its
-explicit `OpenNetworkWithControl` board hook requires the owner from accepted
-boot admission and returns the paired lifecycle controller. The generic Nano
-opener lacks that owner and refuses startup. No current profile selects or
-qualifies this path; QEMU startup is unchanged.
-
-The paired native launcher now wires that controlled opener through
-`ProgramService.StartNetwork` before frontend ownership. Its boot owner is
-captured under the original accepted cold context before USB/SD startup; a
-catalogue cannot replace it. Disabled compiled profiles perform no startup call.
-The board opener receives separate startup and stack-lifetime contexts: the
-bounded startup is used for XGMAC/firmware work, while `OpenDevice` workers use
-the longer lifetime. Canceling successful startup does not cancel the stack.
-The service retains partial returned controls and retires without FPGA cleanup
-after uncertain startup, including a propagated platform panic. This supplies
-the call path, not MAC/PHY/DMA qualification or a native upload listener.
-
-This prototype supports IPv4 TCP with static addressing (default) or opt-in
-RFC 2131 DHCPv4 (`AcquireDHCP` / `OpenDeviceDHCP` / `Config{DHCP: true}`) and a
-1500-byte MTU. It enables neither checksum/segmentation offloads nor merged
-receive buffers. The Lneto configuration limits active TCP ports to 16 and
-listener connections to 8. Lease renewal, DNS resolution, general UDP, IPv6,
-link-change recovery, network throughput qualification and physical Ethernet
-acceptance remain separate work. Use numeric IPv4 addresses for the current
-private HTTP service. The board's deterministic entropy provider is unsuitable
-for authentication and TLS.
-
-Only QEMU runs DHCP: its `board.OpenNetworkDHCP` (used by `cmd/network` when
-`FES/BOOT.JSON` sets `"dhcp": true`) opens the VirtIO NIC with
-`Config{DHCP: true}`. The Nano board's `OpenNetworkDHCP` always refuses.
-`cmd/fpgaload` can select the controlled `OpenNetworkWithControlDHCP` opener only
-through the dormant build opt-in described at the end of this file; otherwise
-its controlled opener passes the profile's static address to `OpenDevice`.
-A lease needs a subnet mask, a server identifier and a router (option 3) that
-is another usable host in the leased subnet. Replies without such a router are
-ignored, so a server that sends none yields no lease; the server identifier is
-not a fallback gateway.
-
-`run.py network --board qemu` boots `cmd/network` on QEMU user networking
-(SLIRP) and checks its HTTP catalog against a private FogCast host. `--dhcp`
-adds `"dhcp": true` to `FES/BOOT.JSON`; the runner then requires exactly one
-`FES_NETWORK_DHCP` line with a positive lease time and records it as
-`dhcp_lease` in `result.json`. Tamago CI (`scripts/tamago_ci.py`) runs both the
-static `network` program and the `network-dhcp` variant, which is
-`run.py network --dhcp`. It fails either run whose `result.json` does not
-record the addressing it requested; the DHCP run also needs a coherent IPv4
-lease. SLIRP's first lease (`10.0.2.15/24`, gateway `10.0.2.2`) equals the
-static default, so a DHCP run is identified by its lease line and `dhcp_lease`,
-not by its address.
-
-The pinned dependency is `github.com/usbarmory/go-net`
-`v0.0.0-20260924083839-356cbf14db9e`, the revision compatible with the
-TamaGo 1.26.5 compiler. Both TCP peers in the smoke test exchange packets
-through QEMU VirtIO and user networking; a successful test is emulator
-integration evidence, not physical Ethernet acceptance.
-
-A staged platform may provide an additional Confirm hook for the driver to run
-after descriptor initialization. The driver must consume it before exposing
-complete Stop/Start controls. `NewController` rejects an unconsumed Confirm hook;
-it cannot reopen software traffic between a controller grant and confirmation.
-
-## Nano fpgaload DHCP and SNTP opt-in (dormant)
-
-`run.py` and `build.py` accept `--network-dhcp`, `--network-dhcp-hostname`,
-`--network-sntp-server` and `--network-sntp-port` for Nano `fpgaload` with
-`--selected-programs --tenfoot-serial`, and link them as `main.expectedNetwork*`.
-`cmd/fpgaload/shared_network.go` parses those strings with `ParseStartupSpec`.
-With DHCP selected it opens `OpenNetworkWithControlDHCP` through
-`ProgramService.StartNetworkWithTimeout` with a 15-second startup budget, then
-starts a `LeaseRenewer`. With an SNTP server it makes one query and passes the
-time to the mounted volume's `SetClock` when the volume has one; an SNTP failure
-only prints a warning.
-
-This path is dormant: no build can enable it. `build.py` builds `fpgaload` only
-from the byte-exact `nano/sd-profile.json`, which has `network: null`, and
-`profile_constants` refuses a `network` block beside `sd_control` because
-closed-bridge SD ownership excludes other active devices. Every opt-in flag
-therefore fails the build, so no image links `main.expectedNetwork*` and none of
-the DHCP, renewal or SNTP code described above runs. An image linked by hand
-still fails closed: `prepareProgramNetwork` refuses DHCP or SNTP while
-`NetworkEnabled()` is false.
-
-Evidence for this wiring is host-only: unit tests of `ParseStartupSpec`, of the
-build option validation and of the separate startup and lifetime contexts that
-`StartNetworkWithTimeout` gives the opener. No Nano build with these flags
-exists, and no boot or kit run has executed the path. Enabling it needs a
-network-enabled `fpgaload` profile: SD ownership that admits Ethernet, plus the
-source-bound firmware MAC lease/drain supplier and control policy described
-above. `tests/test_tamago_build_network.py` checks the refusal against the
-shipped profile and fails if such a profile becomes buildable; revise this
-section when it does.

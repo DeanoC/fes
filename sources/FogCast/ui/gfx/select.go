@@ -33,7 +33,7 @@ func ParseBackend(name string) (string, error) {
 		return BackendFPGAStub, nil
 	case "linuxfb", "fb", "fb0":
 		return BackendLinuxFB, nil
-	case "menu-display", "menudisplay", "menu":
+	case "menu-display", "menudisplay":
 		return BackendMenuDisplay, nil
 	default:
 		return "", fmt.Errorf("unknown gfx backend %q (want sdl, software, fpga, fpga-stub, linuxfb, or menu-display)", name)

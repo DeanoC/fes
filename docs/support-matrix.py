@@ -62,6 +62,8 @@ HIGHLIGHTS = {
     'fes.spectrum-plus3': 'tape, disk, keys, HDMI',
     'fes.pentagon': 'tape, disk, keys, HDMI',
     'fes.c64-ntsc': 'disk, keys, HDMI',
+    'fes.c64c': 'disk, keys, HDMI',
+    'fes.c64c-ntsc': 'disk, keys, HDMI',
     'fes.atari-st': 'disk, keys, mouse, HDMI',
     'fes.atari-ste': '—',
     'fes.riscv': 'pad, HDMI',
@@ -90,6 +92,8 @@ DETAILS = {
     'fes.apple2': ('sources/misteross/cores/fes-apple2/README.md', 'README'),
     'fes.c64': ('sources/misteross/cores/fes-c64/README.md', 'README'),
     'fes.c64-ntsc': ('sources/misteross/cores/fes-c64/README.md', 'README'),
+    'fes.c64c': ('sources/misteross/cores/fes-c64/README.md', 'README'),
+    'fes.c64c-ntsc': ('sources/misteross/cores/fes-c64/README.md', 'README'),
     'fes.spectrum': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
     'fes.spectrum128': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
     'fes.spectrum-plus3': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
@@ -161,6 +165,13 @@ RECENT_CUTOFF = '2026-10-16'
 MEDIA_GENS = frozenset({'live', 'linked-rom', 'old', 'none', 'sim', 'diagnostic'})
 TIER_ROLES = frozenset({'firmware', 'shared', 'demo', 'reference', 'bring-up', 'play'})
 OVERRIDE_REASON = 'Deano 2026-10-29'
+# The rows that decision set a tier for: the overrides in the AS_OF_COMMIT
+# matrix. A row added later takes its tier from its role and signals; it cannot
+# cite a decision that did not name it.
+OVERRIDE_IDS = frozenset({
+    'fes.coleco', 'fes.c64-ntsc', 'fes.spectrum', 'fes.spectrum128',
+    'fes.spectrum-plus3', 'fes.pentagon', 'fes.atari-st', 'fes.atari-ste',
+})
 VARIANT_KINDS = frozenset({'model', 'rom'})
 ROLE_TIER = {
     'firmware': 'firmware',
@@ -789,6 +800,8 @@ def validate(root: Path, data: dict) -> list[str]:
         if override:
             if override.get('reason') != OVERRIDE_REASON:
                 errors.append(f"{row['id']} tier override reason is not {OVERRIDE_REASON}")
+            if row['id'] not in OVERRIDE_IDS:
+                errors.append(f"{row['id']} has a tier override, but {OVERRIDE_REASON} did not decide its tier")
             if override.get('tier') not in tier_ids:
                 errors.append(f"{row['id']} tier override {override.get('tier')} is not a displayed tier")
             if not str(override.get('note') or '').strip():

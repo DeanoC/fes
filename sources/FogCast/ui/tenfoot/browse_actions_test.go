@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -195,6 +196,71 @@ func TestHomeHeroActionsFollowSpatialDirectionsWithoutMovingSelection(t *testing
 				t.Fatalf("Open started a launch: %s", app.Snapshot().Launch.Phase)
 			}
 		})
+	}
+}
+
+// Home family tiles now open their core screen; recently played games remain
+// direct-play items. Exercise the latter through the real Home room and the
+// sparse inputs, rather than assuming that the family test covers it.
+func TestHomeRecentDetailsAndDirectPlayWithSparseInputs(t *testing.T) {
+	inputs := []struct {
+		name                     string
+		kind                     InputKind
+		up, right, confirm, back Command
+	}{
+		{"keyboard", InputKeyboard, CommandFromKey("up"), CommandFromKey("right"), CommandFromKey("return"), CommandFromKey("escape")},
+		{"gamepad", InputGamepad, CommandFromButton(ButtonDPadUp), CommandFromButton(ButtonDPadRight), CommandFromButton(ButtonSouth), CommandFromButton(ButtonEast)},
+	}
+	for _, size := range [][2]int{{1280, 720}, {1024, 600}} {
+		for _, input := range inputs {
+			t.Run(fmt.Sprintf("%s-%dx%d", input.name, size[0], size[1]), func(t *testing.T) {
+				host := newRoomHost(t)
+				first := homeTitleEntry("lunar", "Lunar Courier", "fes.spectrum")
+				chosen := homeTitleEntry("bits", "Bit Garden", "fes.zx81")
+				host.recents = append(host.recents, first, chosen)
+				host.games = append(host.games, first, chosen)
+				app := startHomeLoungeOn(t, host, t.TempDir(), &fakeLocalCores{cores: homeFixtureCores()}, size[0], size[1], false)
+				app.NoteInput(input.kind, 1)
+				waitFor(t, app, "first ready recent", func(s Snapshot) bool {
+					return homeFamilySettled(s) && s.Room.Destination.GameID == first.ID && s.Room.Destination.Confirm() == rooms.ConfirmLaunch &&
+						roomHit(s, "recent:2").ID != "" && roomHit(s, "family:6").ID != ""
+				})
+				app.HandleCommand(input.right, time.Now())
+				before := waitFor(t, app, "second ready recent", func(s Snapshot) bool {
+					return s.Room.Destination.GameID == chosen.ID && s.Room.Destination.Confirm() == rooms.ConfirmLaunch
+				})
+				app.HandleCommand(input.up, time.Now())
+				app.HandleCommand(input.right, time.Now())
+				focused := app.Snapshot()
+				if !focused.BrowseActions.Focused || focused.BrowseActions.Index != 1 || focused.BrowseActions.Primary != "Play" || focused.Room.Destination.GameID != chosen.ID {
+					t.Fatalf("Details focus changed selected recent: actions=%+v destination=%+v", focused.BrowseActions, focused.Room.Destination)
+				}
+				writeHomeScreenshot(t, focused, "recent-details-focus-"+input.name)
+				app.HandleCommand(input.confirm, time.Now())
+				detail := app.Snapshot()
+				if !detail.Detail.Open || detail.FocusDetail.Title != chosen.Title || host.launchCount() != 0 {
+					t.Fatalf("Details launched or opened the wrong title: detail=%+v title=%q launches=%d", detail.Detail, detail.FocusDetail.Title, host.launchCount())
+				}
+				writeHomeScreenshot(t, detail, "recent-details-open-"+input.name)
+				app.HandleCommand(input.back, time.Now())
+				after := app.Snapshot()
+				if after.Detail.Open || after.Room.ID != before.Room.ID || after.Room.Destination.GameID != chosen.ID || after.BrowseActions.Focused {
+					t.Fatalf("Back did not restore selected recent: room=%+v actions=%+v", after.Room, after.BrowseActions)
+				}
+				writeHomeScreenshot(t, after, "recent-details-back-"+input.name)
+				app.HandleCommand(input.confirm, time.Now())
+				waitFor(t, app, "recent launch", func(s Snapshot) bool { return host.launchCount() == 1 })
+				host.mu.Lock()
+				launches := append([]string(nil), host.launches...)
+				host.mu.Unlock()
+				var req struct {
+					GameID string `json:"game_id"`
+				}
+				if len(launches) != 1 || json.Unmarshal([]byte(launches[0]), &req) != nil || req.GameID != chosen.ID {
+					t.Fatalf("direct Confirm launched %v, want one %q", launches, chosen.ID)
+				}
+			})
+		}
 	}
 }
 

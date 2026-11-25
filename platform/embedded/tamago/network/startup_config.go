@@ -12,26 +12,52 @@ import (
 // StartupSpec holds validated build-time network/clock startup options for the
 // DE25-Nano fpgaload binary (supplied via -X linker flags).
 type StartupSpec struct {
-	DHCP         bool
-	DHCPHostname string
-	SNTPServer   string
-	SNTPPort     uint16
+	DHCP            bool
+	DHCPHostname    string
+	SNTPServer      string
+	SNTPPort        uint16
+	Allow100Full    bool
+	RecoverLinkLoss bool
+}
+
+// StartupFlags groups the raw build-time linker strings parsed into StartupSpec.
+type StartupFlags struct {
+	DHCP            string
+	DHCPHostname    string
+	SNTPServer      string
+	SNTPPort        string
+	Allow100Full    string
+	RecoverLinkLoss string
 }
 
 // ParseStartupSpec validates build-time linker strings for opt-in DHCPv4 and
 // SNTPv4 clock synchronization. When all arguments are empty or zero-disabled,
 // it returns the zero StartupSpec and nil error.
 func ParseStartupSpec(dhcpFlag, hostname, sntpServer, sntpPort string) (StartupSpec, error) {
+	return ParseStartupFlags(StartupFlags{
+		DHCP:         dhcpFlag,
+		DHCPHostname: hostname,
+		SNTPServer:   sntpServer,
+		SNTPPort:     sntpPort,
+	})
+}
+
+// ParseStartupFlags validates the full set of opt-in build-time network/clock
+// and XGMAC link-recovery linker strings for DE25-Nano fpgaload.
+func ParseStartupFlags(flags StartupFlags) (StartupSpec, error) {
 	var spec StartupSpec
-	switch strings.TrimSpace(dhcpFlag) {
-	case "", "0":
-	case "1":
-		spec.DHCP = true
-	default:
-		return StartupSpec{}, fmt.Errorf("%w: invalid DHCP flag %q", ErrDHCPInvalidConfig, dhcpFlag)
+	var err error
+	if spec.DHCP, err = parseBoolStartupFlag("DHCP", flags.DHCP); err != nil {
+		return StartupSpec{}, err
+	}
+	if spec.Allow100Full, err = parseBoolStartupFlag("Allow100Full", flags.Allow100Full); err != nil {
+		return StartupSpec{}, err
+	}
+	if spec.RecoverLinkLoss, err = parseBoolStartupFlag("RecoverLinkLoss", flags.RecoverLinkLoss); err != nil {
+		return StartupSpec{}, err
 	}
 
-	hostname = strings.TrimSpace(hostname)
+	hostname := strings.TrimSpace(flags.DHCPHostname)
 	if hostname != "" {
 		if !spec.DHCP {
 			return StartupSpec{}, fmt.Errorf("%w: DHCP hostname requires DHCP enabled", ErrDHCPInvalidConfig)
@@ -42,7 +68,7 @@ func ParseStartupSpec(dhcpFlag, hostname, sntpServer, sntpPort string) (StartupS
 		spec.DHCPHostname = hostname
 	}
 
-	sntpServer = strings.TrimSpace(sntpServer)
+	sntpServer := strings.TrimSpace(flags.SNTPServer)
 	if sntpServer != "" {
 		addr, err := netip.ParseAddr(sntpServer)
 		if err != nil || !addr.Is4() || addr.IsUnspecified() || addr.IsMulticast() {
@@ -51,7 +77,7 @@ func ParseStartupSpec(dhcpFlag, hostname, sntpServer, sntpPort string) (StartupS
 		spec.SNTPServer = addr.String()
 	}
 
-	sntpPort = strings.TrimSpace(sntpPort)
+	sntpPort := strings.TrimSpace(flags.SNTPPort)
 	if sntpPort != "" {
 		if spec.SNTPServer == "" {
 			return StartupSpec{}, fmt.Errorf("%w: SNTP port requires SNTP server", ErrSNTPInvalidConfig)
@@ -64,4 +90,15 @@ func ParseStartupSpec(dhcpFlag, hostname, sntpServer, sntpPort string) (StartupS
 	}
 
 	return spec, nil
+}
+
+func parseBoolStartupFlag(name, raw string) (bool, error) {
+	switch strings.TrimSpace(raw) {
+	case "", "0":
+		return false, nil
+	case "1":
+		return true, nil
+	default:
+		return false, fmt.Errorf("%w: invalid %s flag %q", ErrDHCPInvalidConfig, name, raw)
+	}
 }

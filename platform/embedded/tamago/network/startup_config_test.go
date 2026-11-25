@@ -78,3 +78,36 @@ func TestParseStartupSpec(t *testing.T) {
 		})
 	}
 }
+
+func TestParseStartupFlagsLinkOptions(t *testing.T) {
+	spec, err := ParseStartupFlags(StartupFlags{
+		Allow100Full:    "1",
+		RecoverLinkLoss: "1",
+	})
+	if err != nil {
+		t.Fatalf("valid link flags: %v", err)
+	}
+	if !spec.Allow100Full || !spec.RecoverLinkLoss || spec.DHCP {
+		t.Fatalf("unexpected spec=%+v", spec)
+	}
+	spec, err = ParseStartupFlags(StartupFlags{
+		Allow100Full:    "0",
+		RecoverLinkLoss: "0",
+	})
+	if err != nil || spec != (StartupSpec{}) {
+		t.Fatalf("zero link flags=(%+v, %v)", spec, err)
+	}
+	for _, tc := range []struct {
+		name  string
+		flags StartupFlags
+	}{
+		{name: "bad-allow-100m", flags: StartupFlags{Allow100Full: "yes"}},
+		{name: "bad-recover-link-flap", flags: StartupFlags{RecoverLinkLoss: "true"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := ParseStartupFlags(tc.flags); !errors.Is(err, ErrDHCPInvalidConfig) {
+				t.Fatalf("%s err=%v, want ErrDHCPInvalidConfig", tc.name, err)
+			}
+		})
+	}
+}

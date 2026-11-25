@@ -34,6 +34,8 @@ type frameTraceRecord struct {
 	LuaStepUS   int64  `json:"lua_step_us,omitempty"`
 	SnapshotUS  int64  `json:"snapshot_us,omitempty"`
 	RenderUS    int64  `json:"render_us,omitempty"`
+	GridWidth   int    `json:"grid_width,omitempty"`
+	GridHeight  int    `json:"grid_height,omitempty"`
 	Queued      bool   `json:"queued,omitempty"`
 	View        string `json:"view,omitempty"`
 

@@ -1,0 +1,7 @@
+# s1-8e9e7268c.log: the producer's last lines (heartbeats dropped)
+DE25 FES pc386 build: /data/projects/fes-486sx-fmax/wt-8e9e7268c/sources/misteross/build/de25-pc386-fmax-s1
++ /data/altera_pro/26.3/qsys/bin/qsys-script --quartus-project=golden_top --search-path=custom_ip/**/*,fes_mailbox,$ --script=integrate-mailbox.tcl
++ /data/altera_pro/26.3/quartus/bin/quartus_ipgenerate --clear_ip_generation_dirs golden_top
++ /data/altera_pro/26.3/quartus/bin/quartus_ipgenerate --generate_project_ip_files --synthesis=verilog golden_top
+de25-pc386: shared FIFO reset: unreviewed generated input: peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v
+quartus_jobs: peak RSS 14.59 GiB (every process of the job, sampled every 5 s), exit 1

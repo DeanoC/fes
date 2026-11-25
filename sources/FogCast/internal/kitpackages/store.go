@@ -424,12 +424,13 @@ func (s *Store) read(ctx context.Context, r *os.Root, id string) (corepackage.In
 	}
 	beforeKey, beforeErr := packageStatKey(r, id)
 	fullVerificationReads.Add(1)
-	exploded, err := corepackage.InspectPackage(filepath.Join(s.root, name))
-	if err != nil {
+	// The archive was fully validated above. Compare each installed byte to
+	// that archive rather than parsing identical ROM maps a second time.
+	if err := corepackage.MatchDirectoryToArchive(ctx, filepath.Join(s.root, name), data); err != nil {
 		return corepackage.Inspection{}, nil, err
 	}
 	after, err := r.Lstat(name)
-	if err != nil || !os.SameFile(info, after) || !reflect.DeepEqual(inspection, exploded) {
+	if err != nil || !os.SameFile(info, after) {
 		return corepackage.Inspection{}, nil, errors.New("kit packages: installed member identity changed")
 	}
 	if err := s.validateRoot(r); err != nil {

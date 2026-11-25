@@ -183,9 +183,14 @@ func (word *romMapWord) UnmarshalJSON(data []byte) error {
 	}
 	rest := data[1:]
 	for i := range word {
-		rest = bytes.TrimLeft(rest, " \t\r\n")
-		end := bytes.IndexAny(rest, " \t\r\n,]")
-		if end < 0 {
+		for len(rest) > 0 && romMapSpace(rest[0]) {
+			rest = rest[1:]
+		}
+		end := 0
+		for end < len(rest) && rest[end] != ',' && rest[end] != ']' && !romMapSpace(rest[end]) {
+			end++
+		}
+		if end == len(rest) {
 			return fmt.Errorf("ROM word must have 40 destinations")
 		}
 		value, err := romMapDestination(rest[:end])
@@ -193,7 +198,10 @@ func (word *romMapWord) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		word[i] = value
-		rest = bytes.TrimLeft(rest[end:], " \t\r\n")
+		rest = rest[end:]
+		for len(rest) > 0 && romMapSpace(rest[0]) {
+			rest = rest[1:]
+		}
 		want := byte(',')
 		if i == len(word)-1 {
 			want = ']'
@@ -207,6 +215,10 @@ func (word *romMapWord) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("ROM word must have 40 destinations")
 	}
 	return nil
+}
+
+func romMapSpace(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\r' || c == '\n'
 }
 
 func romMapDestination(token []byte) (uint32, error) {

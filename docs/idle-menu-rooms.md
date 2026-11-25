@@ -11,8 +11,8 @@ before replacing `LoadIdle()`, the locked idle RBF, or kit HDMI chrome.
 
 **Related:**
 
-- Phase 2 execution (owners, slices, engineering questions only):
-  [`docs/idle-menu-rooms-phase2.md`](idle-menu-rooms-phase2.md)
+- Phase 2 execution (historical brief, archived):
+  [`docs/archive/idle-menu-rooms-phase2.md`](archive/idle-menu-rooms-phase2.md)
 - Current idle artifact policy:
   [`image/build/native-inputs.toml`](../image/build/native-inputs.toml)
 - Runtime idle sequence:
@@ -28,9 +28,9 @@ before replacing `LoadIdle()`, the locked idle RBF, or kit HDMI chrome.
   [`sources/FogCast/docs/launch-composition.md`](../sources/FogCast/docs/launch-composition.md)
 - Kit-as-host is the product since 22 October 2026 (#863), with the same
   host binary: [`docs/mesh-kit-host.md`](mesh-kit-host.md). The older mesh
-  drafts [`docs/mesh-lan.md`](mesh-lan.md) and
-  [`docs/mesh-node-protocol.md`](mesh-node-protocol.md) are historical for
-  the kit side.
+  drafts [`docs/archive/mesh-lan.md`](archive/mesh-lan.md) and
+  [`docs/archive/mesh-node-protocol.md`](archive/mesh-node-protocol.md) are
+  archived as historical for the kit side.
 - Native image: no Main process; splash installed as `idle.rbf`:
   [`docs/bootable-media.md`](bootable-media.md),
   [`image/buildroot/board/fogcast-target/native-post-build.sh`](../image/buildroot/board/fogcast-target/native-post-build.sh)
@@ -199,7 +199,7 @@ product.
 | Phase | Delivers | Does not deliver |
 | --- | --- | --- |
 | **1 — this document** | Locked split: splash vs attract ABI vs play vs (later) room RBF vs (later) accelerator. Visible contract. Process model. | Code, new RBF, ABI bytes, kit time |
-| **2 — shrink idle** | Distinct U-Boot splash RBF. Stop/`LoadIdle()` no longer brings up stock MENU chrome. Defined Stop idle (splash or an explicit non-Menu idle) so HDMI is honest while Linux/tenfoot start. Execution: [`idle-menu-rooms-phase2.md`](idle-menu-rooms-phase2.md). | Attract ABI, rooms on kit HDMI, accelerator, FC2D hardware |
+| **2 — shrink idle** | Distinct U-Boot splash RBF. Stop/`LoadIdle()` no longer brings up stock MENU chrome. Defined Stop idle (splash or an explicit non-Menu idle) so HDMI is honest while Linux/tenfoot start. Execution (archived): [`archive/idle-menu-rooms-phase2.md`](archive/idle-menu-rooms-phase2.md). | Attract ABI, rooms on kit HDMI, accelerator, FC2D hardware |
 | **3 — single launcher** | Rooms through one tenfoot renderer on sofa and on kit-as-host. The `fogcast-kit` grid catalog is removed (#728). Stop restores the room on the surface that launched, including kit HDMI. | A second offline catalog; room custom RBF; claiming linuxfb is gone |
 | **4 — default attract ABI** | Factory default attract package on a described ABI. Runtime loads it as idle/attract through the package path. Room override hooks exist so a room can select a different attract package later. | Room-authored custom RBF as a general bitstream; graphics accelerator |
 | **5 — later** | Graphics-accelerator ABI owns the framebuffer; `/dev/fb0` debug-only; room custom RBF allowed as an explicit rooms feature | A compositor stack; treating FC2D software replay as done hardware |
@@ -248,8 +248,8 @@ implementation follow-ups inside the classes above.
 
 | Doc | Why |
 | --- | --- |
-| [`docs/README.md`](README.md) | Index (Proposals) |
-| [`docs/idle-menu-rooms-phase2.md`](idle-menu-rooms-phase2.md) | Phase 2 execution brief (does not reopen this lock) |
+| [`docs/README.md`](README.md) | Index |
+| [`docs/archive/idle-menu-rooms-phase2.md`](archive/idle-menu-rooms-phase2.md) | Archived Phase 2 execution brief |
 | [`docs/component-boundaries.md`](component-boundaries.md) | Host vs runtime vs image vs FPGA builder |
 | [`docs/image-assembly.md`](image-assembly.md) | FES `image/` owns idle install; FogCast supplies the kit binaries |
 | [`docs/core-packages.md`](core-packages.md) | Described play packages; locked idle RBF is current assembly |
@@ -260,6 +260,6 @@ implementation follow-ups inside the classes above.
 | [`sources/libmister-runtime/ARCHITECTURE.md`](../sources/libmister-runtime/ARCHITECTURE.md) | `LoadIdle()` MENU + HPS fb sequence |
 | [`sources/FogCast/ui/gfx/fpga_protocol.md`](../sources/FogCast/ui/gfx/fpga_protocol.md) | FC2D software stream; not implemented accelerator |
 | [`docs/mesh-kit-host.md`](mesh-kit-host.md) | Kit-as-host decision record; the kit runs this lock's same host binary |
-| [`docs/mesh-lan.md`](mesh-lan.md) | Earlier mesh draft; its kit-side placement and pairing are historical |
+| [`docs/archive/mesh-lan.md`](archive/mesh-lan.md) | Archived mesh draft; its kit-side placement and pairing are historical |
 
 FES parent merges stay Deano’s.
