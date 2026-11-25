@@ -1699,6 +1699,11 @@ sim-fes-c64-frame:
 		--Mdir "$(CURDIR)/build/sim/fes-c64-frame" cores/fes-c64/rtl/c64_frame_store.sv \
 		"$(CURDIR)/cores/fes-c64/sim/frame_tb.cpp"
 	@build/sim/fes-c64-frame/Vc64_frame_store
+	@mkdir -p build/sim/fes-c64-frame-m10k
+	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_frame_store $(filter-out -DFES_SIMULATION,$(C64_VERILATOR_FLAGS)) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-frame-m10k" cores/fes-c64/rtl/c64_frame_store.sv cores/fes-c64/sim/frame_m10k.sv \
+		"$(CURDIR)/cores/fes-c64/sim/frame_tb.cpp"
+	@build/sim/fes-c64-frame-m10k/Vc64_frame_store
 
 # The full c64 suite in four independent groups, so CI runs them as parallel
 # matrix rows; sim-fes-c64 still runs everything.

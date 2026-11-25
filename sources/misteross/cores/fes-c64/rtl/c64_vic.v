@@ -396,8 +396,8 @@ module c64_vic #(parameter integer NTSC = 0) (
     end
 
     // Active-first CTA 720p60 coordinates, shared with the session plane.
-    reg [10:0] hpos=0,hpos_q=0;
-    reg [9:0] vpos=0,vpos_q=0;
+    reg [10:0] hpos=0,hpos_d=0,hpos_q=0;
+    reg [9:0] vpos=0,vpos_d=0,vpos_q=0;
     reg [2:0] xphase=0;
     // Source rows per 720p active line, reduced to the smallest integers.
     // Both NTSC revisions capture 247 source rows; PAL remains at 17.
@@ -415,7 +415,7 @@ module c64_vic #(parameter integer NTSC = 0) (
         .read_address(read_address),.read_data(frame_color),.write_page(),.read_page(),.pending()
     );
     always @(posedge pixel_clk)begin
-        hpos_q<=hpos;vpos_q<=vpos;
+        hpos_d<=hpos;vpos_d<=vpos;hpos_q<=hpos_d;vpos_q<=vpos_d;
         if(hpos==1649)begin hpos<=0;vpos<=vpos==749?0:vpos+1'b1;end
         else hpos<=hpos+1'b1;
         // Both models have 384 source pixels across the 960x720 viewport.
