@@ -55,7 +55,10 @@ module fes_de25_ram_scan #(
     assign read = reset_n && !reset_fault && (state == READ_COMMAND || state == LAT_COMMAND);
     assign write = reset_n && !reset_fault && state == WRITE_DATA;
 
-    always @(posedge clk) if (reset_n) first_seen <= 1;
+    // Use the synchronously observed healthy state, rather than reset_n as a
+    // clock enable. The first possible scan start and this sticky observation
+    // occur on the same edge, so any subsequent reset is still latched.
+    always @(posedge clk) first_seen <= first_seen || healthy;
     always @(posedge clk or negedge reset_n)
         if (!reset_n) healthy <= 0;
         else if (!first_seen) healthy <= 1;

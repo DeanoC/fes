@@ -71,7 +71,7 @@ struct Rig {
   }else if(read_wait)--read_wait;
   d.eval();d.clk=1;d.eval();++tick;
  }
- Rig(){d.reset_n=0;d.start=0;d.stop=0;d.clear=0;d.calibrated=1;cycle();d.reset_n=1;cycle();cycle();}
+ Rig(unsigned release_cycles=2){d.reset_n=0;d.start=0;d.stop=0;d.clear=0;d.calibrated=1;cycle();d.reset_n=1;for(unsigned i=0;i<release_cycles;++i)cycle();}
  void start(uint32_t base=0x3fffe000,uint32_t size=8192){d.base=base;d.length=size;d.start=1;cycle();d.start=0;}
  void finish(unsigned limit=200000){for(unsigned n=0;n<limit&&d.busy;n++)cycle();check(!d.busy,"scan did not finish");}
 };
@@ -88,6 +88,8 @@ int main(int argc,char **argv){Verilated::commandArgs(argc,argv);try{
  {Rig r;r.d.calibrated=0;r.start();check(!r.d.busy&&r.d.faults&&r.writes==0,"uncalibrated memory accessed");}
  for(auto size:{0u,16u,96u}){Rig r;r.start(0,size);check(!r.d.busy&&r.d.faults,"invalid length accepted");}
  {Rig r;r.start(0xffffffe0,64);check(!r.d.busy&&r.d.faults,"32-bit range overflow accepted");}
+ {Rig r(0);r.cycle();r.d.reset_n=0;r.cycle();r.d.reset_n=1;for(unsigned i=0;i<4;i++)r.cycle();check(!r.d.faults&&!r.d.busy,"early startup reset invented a fault");}
+ {Rig r(0);r.cycle();r.start();check(r.d.busy,"earliest scan start was not accepted");r.d.reset_n=0;r.cycle();r.d.reset_n=1;for(unsigned i=0;i<10;i++)r.cycle();check((r.d.faults&32)&&!r.d.done&&!r.d.read&&!r.d.write,"reset after earliest scan start restored authority");}
  {Rig r;r.start();r.cycle();r.d.reset_n=0;r.cycle();r.d.reset_n=1;for(unsigned i=0;i<10;i++)r.cycle();check((r.d.faults&32)&&!r.d.done&&!r.d.read&&!r.d.write,"reset restored authority");}
  if(CHECK_ADDR_HIGH) {
   Rig a,b;a.start(0,8192);b.start((1u<<25)|(1u<<9),8192);a.finish();b.finish();
