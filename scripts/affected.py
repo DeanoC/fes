@@ -440,6 +440,8 @@ def fpga_cores(path):
             # pc386 uses the plane's RTL with its own DDR model.
             pc386 = ('pc386',) if parts[2] == 'rtl' else ()
             return ('menu', 'zx81', 'spectrum', 'c64', 'coleco', *pc386), 'idle and running-session display consumers'
+        if parts[1:4] == ('fes-pcxt', 'rtl', 'pcxt_machine_settings.sv'):
+            return ('pcxt', 'pc386'), 'PC/XT machine settings RTL and shared storage exchange suite'
         if parts[1] in CORE_DIRECTORIES:
             return CORE_DIRECTORIES[parts[1]], 'core family and dependent consumers'
         if parts[1:3] == ('fes-common', 'rtl'):

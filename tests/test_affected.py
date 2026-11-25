@@ -501,6 +501,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-pong/rtl/pixel_pll.v': {'pong', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/riscv/fes_rv32_cpu.sv': {'riscv'},
             'cores/fes-pcxt/rtl/pcxt_isa_bridge.sv': {'pcxt'},
+            'cores/fes-pcxt/rtl/pcxt_machine_settings.sv': {'pcxt', 'pc386'},
             'cores/fes-common/generated/fes_pcxt_isa.vh': {'pcxt'},
             'scripts/sim_fes_pcxt.py': {'pcxt'},
             'scripts/pcxt_bios.py': {'pcxt'},
