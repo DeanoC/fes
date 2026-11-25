@@ -95,6 +95,9 @@ func TestParseXboxGIPInputGuidePreservationAndBuilders(t *testing.T) {
 	if BuildXboxGIPPowerOn(out[:], 1) != XboxGIPPowerLen || out[0] != 0x05 || out[2] != 1 {
 		t.Fatalf("unexpected GIP power-on: %x", out[:XboxGIPPowerLen])
 	}
+	if BuildXboxGIPSInit(out[:], 1) != XboxGIPPowerLen || out[0] != 0x05 || out[3] != 0x0f || out[4] != 0x06 {
+		t.Fatalf("unexpected GIP S-init: %x", out[:XboxGIPPowerLen])
+	}
 	if BuildXboxGIPLedOn(out[:], 2) != XboxGIPLedOnLen || out[0] != 0x0a || out[2] != 2 || out[5] != 0x01 || out[6] != 0x14 {
 		t.Fatalf("unexpected GIP LED-on: %x", out[:XboxGIPLedOnLen])
 	}
@@ -177,6 +180,7 @@ func TestWiredControllersZeroAllocs(t *testing.T) {
 		BuildXInputLED(out[:], 0)
 		BuildXInputRumble(out[:], 10, 20)
 		BuildXboxGIPPowerOn(out[:], 1)
+		BuildXboxGIPSInit(out[:], 1)
 		BuildXboxGIPLedOn(out[:], 2)
 		BuildXboxGIPAuthComplete(out[:], 3)
 		BuildXboxGIPAck(out[:], 1, 0x07, 2)

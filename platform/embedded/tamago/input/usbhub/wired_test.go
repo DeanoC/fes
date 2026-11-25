@@ -41,21 +41,39 @@ func makeXInputDev(addr uint8) usb.BusDevice {
 }
 
 func makeXboxGIPDev(addr uint8) usb.BusDevice {
+	return makeXboxGIPModelDev(addr, 0x045e, 0x0b12)
+}
+
+func makeXboxGIPModelDev(addr uint8, vid, pid uint16) usb.BusDevice {
 	return usb.BusDevice{
 		Address: addr,
 		Speed:   usb.SpeedHigh,
 		Descriptor: usb.DeviceDescriptor{
-			VendorID: 0x045e, ProductID: 0x0b12,
+			VendorID: vid, ProductID: pid,
 		},
 		Config: usb.FullConfiguration{
 			Value: 1,
-			Interfaces: []usb.InterfaceDescriptor{{
-				Number: 0, Class: 0xff, SubClass: 0x47, Protocol: 0xd0,
-				Endpoints: []usb.EndpointDescriptor{
-					{Address: 0x81, TransferType: usb.TransferInterrupt, MaxPacketSize: 64, Interval: 4},
-					{Address: 0x01, TransferType: usb.TransferInterrupt, MaxPacketSize: 64, Interval: 4},
+			Interfaces: []usb.InterfaceDescriptor{
+				{
+					Number: 0, Class: 0xff, SubClass: 0x47, Protocol: 0xd0,
+					Endpoints: []usb.EndpointDescriptor{
+						{Address: 0x81, TransferType: usb.TransferInterrupt, MaxPacketSize: 64, Interval: 4},
+						{Address: 0x01, TransferType: usb.TransferInterrupt, MaxPacketSize: 64, Interval: 4},
+					},
 				},
-			}},
+				{
+					Number: 1, Class: 0xff, SubClass: 0x47, Protocol: 0xd0, // Audio interface must be ignored
+					Endpoints: []usb.EndpointDescriptor{
+						{Address: 0x82, TransferType: usb.TransferIsochronous, MaxPacketSize: 256, Interval: 1},
+					},
+				},
+				{
+					Number: 2, Class: 0xff, SubClass: 0x47, Protocol: 0xd0, // Accessory interface must be ignored
+					Endpoints: []usb.EndpointDescriptor{
+						{Address: 0x83, TransferType: usb.TransferInterrupt, MaxPacketSize: 64, Interval: 4},
+					},
+				},
+			},
 		},
 	}
 }
@@ -193,6 +211,9 @@ func TestHubWiredXInputAndXboxGIP(t *testing.T) {
 	if err := hub.Service(); err != nil {
 		t.Fatal(err)
 	}
+	if _, skipped := bus.pipes[key32(3, 0x83)]; skipped || hub.wiredGamepads[1].active {
+		t.Fatalf("GIP audio/accessory IF1/IF2 must not be claimed as extra gamepads")
+	}
 	gipOut := bus.pipes[key32(3, 0x01)]
 	for range 2 {
 		if err := hub.Service(); err != nil {
@@ -265,6 +286,26 @@ func TestHubWiredXInputAndXboxGIP(t *testing.T) {
 	}
 	if len(events) < 2 || events[0].Name != "xinput" {
 		t.Fatalf("expected xinput device event name, got %+v", events)
+	}
+
+	// 3. Attach Xbox One S (045e:02ea) -> sends model-specific S-init (0x0f 0x06) before PowerOn->LedOn->Auth.
+	bus.detach(gip)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	oneS := makeXboxGIPModelDev(4, 0x045e, 0x02ea)
+	bus.attach(oneS)
+	for range 4 {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	oneSOut := bus.pipes[key32(4, 0x01)]
+	if len(oneSOut.outPackets) != 4 ||
+		oneSOut.outPackets[0][0] != 0x05 || oneSOut.outPackets[0][3] != 0x0f || oneSOut.outPackets[0][4] != 0x06 ||
+		oneSOut.outPackets[1][0] != 0x05 || oneSOut.outPackets[1][3] != 0x01 ||
+		oneSOut.outPackets[2][0] != 0x0a || oneSOut.outPackets[3][0] != 0x06 {
+		t.Fatalf("expected Xbox One S init sequence [0f06 -> PowerOn -> LedOn -> Auth], got %x", oneSOut.outPackets)
 	}
 }
 

@@ -118,6 +118,8 @@ type wiredGamepadSlot struct {
 	reported     bool
 	addr         uint8
 	iface        uint8
+	vendorID     uint16
+	productID    uint16
 	kind         controllers.Kind
 	pipe         usb.Pipe
 	outPipe      usb.Pipe
@@ -554,11 +556,11 @@ func (h *Hub) attachDevice(dev usb.BusDevice) {
 			continue
 		}
 		if iface.Class == 0xff && iface.SubClass == 0x5d && iface.Protocol == 0x01 {
-			h.attachWiredNativeController(dev.Address, iface, controllers.KindXInput)
+			h.attachWiredNativeController(dev, iface, controllers.KindXInput)
 			continue
 		}
-		if iface.Class == 0xff && iface.SubClass == 0x47 && iface.Protocol == 0xd0 {
-			h.attachWiredNativeController(dev.Address, iface, controllers.KindXboxGIP)
+		if iface.Number == 0 && iface.Class == 0xff && iface.SubClass == 0x47 && iface.Protocol == 0xd0 {
+			h.attachWiredNativeController(dev, iface, controllers.KindXboxGIP)
 			continue
 		}
 		if iface.Class != 3 {
@@ -572,7 +574,7 @@ func (h *Hub) attachDevice(dev usb.BusDevice) {
 			continue // Boot mouse is out of scope for Tenfoot/core input.
 		}
 		if kind := controllers.IdentifyByVIDPID(dev.Descriptor.VendorID, dev.Descriptor.ProductID); kind != controllers.KindUnknown {
-			h.attachWiredNativeController(dev.Address, iface, kind)
+			h.attachWiredNativeController(dev, iface, kind)
 			continue
 		}
 		h.attachWiredGamepad(dev.Address, iface)
@@ -698,39 +700,50 @@ func (h *Hub) attachWiredGamepad(addr uint8, iface usb.InterfaceDescriptor) {
 	})
 }
 
-func (h *Hub) attachWiredNativeController(addr uint8, iface usb.InterfaceDescriptor, kind controllers.Kind) {
+func xboxGIPNeedsSInit(vid, pid uint16) bool {
+	return vid == 0x045e && (pid == 0x02ea || pid == 0x0b00)
+}
+
+func (h *Hub) attachWiredNativeController(dev usb.BusDevice, iface usb.InterfaceDescriptor, kind controllers.Kind) {
 	inEP, ok := iface.FindEndpoint(usb.TransferInterrupt, true)
 	if !ok || inEP.MaxPacketSize == 0 || inEP.MaxPacketSize > usb.MaxHIDReportBytes {
 		return
 	}
-	free, ok := h.findFreeWiredGamepadSlot(addr, iface.Number)
+	free, ok := h.findFreeWiredGamepadSlot(dev.Address, iface.Number)
 	if !ok {
 		return
 	}
-	inPipe, err := h.bus.OpenPipe(addr, inEP)
+	inPipe, err := h.bus.OpenPipe(dev.Address, inEP)
 	if err != nil {
 		return
 	}
 	var outPipe usb.Pipe
 	if outEP, ok := iface.FindEndpoint(usb.TransferInterrupt, false); ok && outEP.MaxPacketSize > 0 && outEP.MaxPacketSize <= usb.MaxHIDReportBytes {
-		outPipe, err = h.bus.OpenPipe(addr, outEP)
+		outPipe, err = h.bus.OpenPipe(dev.Address, outEP)
 		if err != nil {
 			_ = inPipe.Close()
 			return
 		}
 	}
+	initStep := uint8(0)
+	if kind == controllers.KindXboxGIP && !xboxGIPNeedsSInit(dev.Descriptor.VendorID, dev.Descriptor.ProductID) {
+		initStep = 1
+	}
 	h.wiredGamepads[free] = wiredGamepadSlot{
-		active:  true,
-		addr:    addr,
-		iface:   iface.Number,
-		kind:    kind,
-		pipe:    inPipe,
-		outPipe: outPipe,
-		state:   usb.GamepadState{Hat: -1},
+		active:    true,
+		addr:      dev.Address,
+		iface:     iface.Number,
+		vendorID:  dev.Descriptor.VendorID,
+		productID: dev.Descriptor.ProductID,
+		kind:      kind,
+		pipe:      inPipe,
+		outPipe:   outPipe,
+		initStep:  initStep,
+		state:     usb.GamepadState{Hat: -1},
 	}
 	h.emit(DeviceEvent{
 		Kind:      EventGamepadAttached,
-		Address:   addr,
+		Address:   dev.Address,
 		Interface: iface.Number,
 		Slot:      uint8(free),
 		Name:      kind.String(),
@@ -807,22 +820,28 @@ func (h *Hub) serviceWiredInit(slotIdx int) (paused bool) {
 	case controllers.KindXboxGIP:
 		switch slot.initStep {
 		case 0:
-			n := controllers.BuildXboxGIPPowerOn(h.txBuf[:], slot.txSeq)
+			n := controllers.BuildXboxGIPSInit(h.txBuf[:], slot.txSeq)
 			slot.txSeq++
 			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
 				slot.initStep = 1
 			}
 		case 1:
-			n := controllers.BuildXboxGIPLedOn(h.txBuf[:], slot.txSeq)
+			n := controllers.BuildXboxGIPPowerOn(h.txBuf[:], slot.txSeq)
 			slot.txSeq++
 			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
 				slot.initStep = 2
 			}
 		case 2:
-			n := controllers.BuildXboxGIPAuthComplete(h.txBuf[:], slot.txSeq)
+			n := controllers.BuildXboxGIPLedOn(h.txBuf[:], slot.txSeq)
 			slot.txSeq++
 			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
 				slot.initStep = 3
+			}
+		case 3:
+			n := controllers.BuildXboxGIPAuthComplete(h.txBuf[:], slot.txSeq)
+			slot.txSeq++
+			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+				slot.initStep = 4
 			}
 		}
 	case controllers.KindDualSense:

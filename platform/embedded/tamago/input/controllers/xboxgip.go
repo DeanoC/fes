@@ -143,6 +143,21 @@ func BuildXboxGIPPowerOn(dst []byte, seq uint8) int {
 	return XboxGIPPowerLen
 }
 
+// BuildXboxGIPSInit writes the 5-byte GIP initialization packet required by
+// Xbox One S (0x045e:0x02ea) and Elite Series 2 (0x045e:0x0b00) controllers
+// that were previously used over Bluetooth.
+func BuildXboxGIPSInit(dst []byte, seq uint8) int {
+	if len(dst) < XboxGIPPowerLen {
+		return 0
+	}
+	dst[0] = XboxGIPCommandPower
+	dst[1] = 0x20
+	dst[2] = seq
+	dst[3] = 0x0f
+	dst[4] = 0x06
+	return XboxGIPPowerLen
+}
+
 // BuildXboxGIPLedOn writes the 7-byte GIP LED-on initialization packet required
 // by third-party (e.g. PDP) Xbox One controllers before emitting input reports.
 func BuildXboxGIPLedOn(dst []byte, seq uint8) int {
