@@ -19,6 +19,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
+	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input/controllers"
@@ -30,32 +31,35 @@ import (
 // during the next Service, which (like the hub) queues only merged-state
 // changes; PausePolling drops queued changes but keeps the live merged state.
 type fakeMultiSource struct {
-	kbArrivals    [][8]byte
-	padArrivals   []usbhub.GamepadUpdate
-	kbQueue       [][8]byte
-	padQueue      []usbhub.GamepadUpdate
-	kbLive        [8]byte
-	padLive       usbhub.GamepadUpdate
-	enumerated    bool
-	kbUnreported  bool
-	serviceErr    error
-	gameplayCalls []bool
-	pairingActive bool
-	pairingRem    time.Duration
-	dongleConn    bool
-	dongleName    string
-	btDevices     []usbhub.BluetoothDevice
-	btGen         uint64
-	startPairErr  error
-	forgetErr     error
-	forgotten     []string
-	saveCalls     int
-	bondsDirty    bool
-	bondsFailed   bool
-	saveErr       error
-	pauseCalls    int
-	resumeCalls   int
-	ready         chan struct{}
+	kbArrivals       [][8]byte
+	padArrivals      []usbhub.GamepadUpdate
+	mouseArrivals    []usbhub.MouseUpdate
+	kbQueue          [][8]byte
+	padQueue         []usbhub.GamepadUpdate
+	mouseQueue       []usbhub.MouseUpdate
+	kbLive           [8]byte
+	padLive          usbhub.GamepadUpdate
+	mouseButtonsLive uint8
+	enumerated       bool
+	kbUnreported     bool
+	serviceErr       error
+	gameplayCalls    []bool
+	pairingActive    bool
+	pairingRem       time.Duration
+	dongleConn       bool
+	dongleName       string
+	btDevices        []usbhub.BluetoothDevice
+	btGen            uint64
+	startPairErr     error
+	forgetErr        error
+	forgotten        []string
+	saveCalls        int
+	bondsDirty       bool
+	bondsFailed      bool
+	saveErr          error
+	pauseCalls       int
+	resumeCalls      int
+	ready            chan struct{}
 }
 
 func newFakeMultiSource() *fakeMultiSource {
@@ -69,6 +73,9 @@ func newFakeMultiSource() *fakeMultiSource {
 func (s *fakeMultiSource) keys(reports ...[8]byte) { s.kbArrivals = append(s.kbArrivals, reports...) }
 func (s *fakeMultiSource) pads(updates ...usbhub.GamepadUpdate) {
 	s.padArrivals = append(s.padArrivals, updates...)
+}
+func (s *fakeMultiSource) mice(updates ...usbhub.MouseUpdate) {
+	s.mouseArrivals = append(s.mouseArrivals, updates...)
 }
 
 func (s *fakeMultiSource) Service() error {
@@ -91,7 +98,14 @@ func (s *fakeMultiSource) Service() error {
 			s.padQueue = append(s.padQueue, upd)
 		}
 	}
-	s.kbArrivals, s.padArrivals = nil, nil
+	for _, upd := range s.mouseArrivals {
+		buttons := upd.Buttons & 0x03
+		if upd.DX != 0 || upd.DY != 0 || buttons != s.mouseButtonsLive {
+			s.mouseButtonsLive = buttons
+			s.mouseQueue = append(s.mouseQueue, usbhub.MouseUpdate{DX: upd.DX, DY: upd.DY, Buttons: buttons})
+		}
+	}
+	s.kbArrivals, s.padArrivals, s.mouseArrivals = nil, nil, nil
 	return nil
 }
 func (s *fakeMultiSource) NextKeyboardReport() ([8]byte, bool) {
@@ -110,11 +124,22 @@ func (s *fakeMultiSource) NextGamepadUpdate() (usbhub.GamepadUpdate, bool) {
 	s.padQueue = s.padQueue[1:]
 	return upd, true
 }
+func (s *fakeMultiSource) NextMouseUpdate() (usbhub.MouseUpdate, bool) {
+	if len(s.mouseQueue) == 0 {
+		return usbhub.MouseUpdate{}, false
+	}
+	upd := s.mouseQueue[0]
+	s.mouseQueue = s.mouseQueue[1:]
+	return upd, true
+}
 func (s *fakeMultiSource) KeyboardNeutral() bool {
 	return s.enumerated && !s.kbUnreported && s.kbLive == [8]byte{}
 }
 func (s *fakeMultiSource) GamepadNeutral() bool {
 	return s.enumerated && input.GamepadNeutral(s.padLive.State) && !s.padLive.HomePressed && s.padLive.Ports == ([usbhub.MaxPlayerPorts]uint8{})
+}
+func (s *fakeMultiSource) MouseNeutral() bool {
+	return s.enumerated && s.mouseButtonsLive == 0
 }
 func (s *fakeMultiSource) SetGameplayActive(active bool) error {
 	s.gameplayCalls = append(s.gameplayCalls, active)
@@ -194,7 +219,7 @@ func (s *fakeMultiSource) SaveBondsIfDirty(context.Context) (bool, error) {
 }
 func (s *fakeMultiSource) PausePolling(context.Context) error {
 	s.pauseCalls++
-	s.kbQueue, s.padQueue = nil, nil
+	s.kbQueue, s.padQueue, s.mouseQueue = nil, nil, nil
 	return nil
 }
 func (s *fakeMultiSource) ResumePolling(context.Context) error { s.resumeCalls++; return nil }
@@ -1013,5 +1038,128 @@ func TestProgramMultiInputPlatformNativeControllerPorts(t *testing.T) {
 	}
 	if zxFix.cpu.keyboardRows[1] != 1<<6 {
 		t.Fatalf("expected CoreKeys keyboard matrix fallback, got %v", zxFix.cpu.keyboardRows)
+	}
+}
+
+func TestProgramMultiInputPlatformNativeMouseRelative(t *testing.T) {
+	f, b, c := backendFixture(t)
+	src := newFakeMultiSource()
+	p, err := NewProgramMultiInputPlatform(&programInputBase{}, b, src, multiTestConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	step := func() tenfoot.PlatformInput {
+		t.Helper()
+		frame, err := p.Next(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return frame
+	}
+
+	// Menu-phase mouse motion is discarded without touching hardware; held Left button stays across launch.
+	src.mice(usbhub.MouseUpdate{DX: 10, DY: -4, Buttons: 0x01})
+	step()
+	if f.cpu.mouseWrites != 0 {
+		t.Fatalf("menu mouse activity touched hardware: writes=%d", f.cpu.mouseWrites)
+	}
+
+	play, err := c.Launch(ctx, "native-0")
+	if err != nil || play.ErrorCode != "" {
+		t.Fatalf("Launch failed: play=%+v err=%v", play, err)
+	}
+
+	// Re-open the live Computer handle advertising MouseRelative so Computer.MouseRelative validation accepts it.
+	wantCaps := cg.FesComputerCapabilityVideoFixed720p60 | cg.FesComputerCapabilityKeyboardHid | cg.FesComputerCapabilityMouseRelative
+	f.cpu.words[7] = uint16(wantCaps)
+	var build [16]byte
+	for i := range 8 {
+		binary.LittleEndian.PutUint16(build[2*i:], f.cpu.words[8+i])
+	}
+	reopened, err := computer.Open(ctx, f.s.state.computer.port, computerLimits(), computer.Identity{
+		Minor:        0,
+		Capabilities: wantCaps,
+		Build:        build,
+	})
+	if err != nil {
+		t.Fatalf("reopen Computer with MouseRelative: %v", err)
+	}
+	f.s.state.computer.control = reopened
+	f.s.state.viewMu.Lock()
+	f.s.state.capabilities = wantCaps
+	f.s.state.viewMu.Unlock()
+
+	// First poll in ProgramRunning binds keyboard and writes initial zero MouseRelative neutralization.
+	step()
+	if f.cpu.mouseWrites != 1 || len(f.cpu.mouseEvents) != 1 || f.cpu.mouseEvents[0] != (mouseRecord{dx: 0, dy: 0, buttons: 0}) {
+		t.Fatalf("expected 1 initial MouseRelative(0,0,0), got writes=%d events=%+v", f.cpu.mouseWrites, f.cpu.mouseEvents)
+	}
+
+	// Held Left button across launch keeps mouseArmed closed until released.
+	src.mice(usbhub.MouseUpdate{DX: 5, DY: 5, Buttons: 0x01})
+	step()
+	if f.cpu.mouseWrites != 1 {
+		t.Fatalf("held mouse button bypassed launch fence: writes=%d", f.cpu.mouseWrites)
+	}
+
+	// Release arms mouseArmed, then forward signed deltas and buttons.
+	src.mice(
+		usbhub.MouseUpdate{DX: 0, DY: 0, Buttons: 0},
+		usbhub.MouseUpdate{DX: -12, DY: 8, Buttons: 0x01},
+		usbhub.MouseUpdate{DX: 3, DY: -1, Buttons: 0x03},
+	)
+	step()
+	wantEvents := []mouseRecord{
+		{0, 0, 0},
+		{-12, 8, 0x01},
+		{3, -1, 0x03},
+	}
+	if !slices.Equal(f.cpu.mouseEvents, wantEvents) {
+		t.Fatalf("mouseEvents=%+v, want %+v", f.cpu.mouseEvents, wantEvents)
+	}
+
+	// Mid-session boundary bump preserves nativeMouse and re-neutralizes buttons to 0.
+	b.operation.Lock()
+	b.inputBoundary++
+	b.operation.Unlock()
+	src.mice(usbhub.MouseUpdate{DX: 0, DY: 0, Buttons: 0})
+	step()
+	if !p.nativeMouse || f.cpu.mouseWrites != 4 || f.cpu.mouseEvents[3] != (mouseRecord{0, 0, 0}) {
+		t.Fatalf("expected mid-session boundary to preserve nativeMouse and neutralize buttons, native=%t writes=%d events=%+v", p.nativeMouse, f.cpu.mouseWrites, f.cpu.mouseEvents)
+	}
+
+	// Press Right button, then trigger HomePressed -> neutralizeCore clears mouse buttons to 0.
+	src.mice(usbhub.MouseUpdate{DX: 4, DY: 2, Buttons: 0x02})
+	step()
+	src.pads(usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}, HomePressed: true})
+	frame := step()
+	if len(frame.Commands) != 1 || frame.Commands[0] != tenfoot.CmdStop {
+		t.Fatalf("expected CmdStop on HomePressed, got %+v", frame)
+	}
+	last := f.cpu.mouseEvents[len(f.cpu.mouseEvents)-1]
+	if last != (mouseRecord{0, 0, 0}) {
+		t.Fatalf("expected MouseRelative(0,0,0) on Home return, got %+v", last)
+	}
+	if _, err := c.StopExpectedStamped(ctx, play, hostclient.ClientStamp{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Non-MouseRelative core ignores mouse updates with 0 MouseRelative writes.
+	nonFix, nonB, nonC := backendFixture(t)
+	nonSrc := newFakeMultiSource()
+	nonP, err := NewProgramMultiInputPlatform(&programInputBase{}, nonB, nonSrc, multiTestConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := nonC.Launch(ctx, "native-0"); err != nil {
+		t.Fatal(err)
+	}
+	nonSrc.mice(usbhub.MouseUpdate{DX: 10, DY: 10, Buttons: 0x01})
+	if _, err := nonP.Next(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if nonFix.cpu.mouseWrites != 0 {
+		t.Fatalf("expected 0 MouseRelative writes on non-MouseRelative core, got %d", nonFix.cpu.mouseWrites)
 	}
 }

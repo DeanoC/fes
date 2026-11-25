@@ -64,6 +64,7 @@ type fakeBus struct {
 	pauseCalls   int
 	resumeCalls  int
 	lmpSub       uint16
+	ctrlReqs     [][3]uint16 // {uint16(addr)<<8|uint16(req), value, index}
 }
 
 func newFakeBus() *fakeBus {
@@ -131,6 +132,7 @@ func (b *fakeBus) ControlTransfer(addr uint8, reqType, req byte, value, index ui
 		return copy(data, desc), nil
 	}
 	if reqType == 0x21 && (req == 0x0b || req == 0x0a) {
+		b.ctrlReqs = append(b.ctrlReqs, [3]uint16{uint16(addr)<<8 | uint16(req), value, index})
 		return 0, nil
 	}
 	if reqType == 0x20 && req == 0 && len(data) >= 3 && b.btEvPipe != nil {
@@ -236,6 +238,20 @@ func makeGamepadDev(addr uint8) usb.BusDevice {
 			Interfaces: []usb.InterfaceDescriptor{{
 				Number: 0, Class: 3, SubClass: 0, Protocol: 0, HIDReportBytes: uint16(len(sampleGamepadDescriptor())),
 				Endpoints: []usb.EndpointDescriptor{{Address: 0x81, TransferType: usb.TransferInterrupt, MaxPacketSize: 8, Interval: 4}},
+			}},
+		},
+	}
+}
+
+func makeMouseDev(addr uint8) usb.BusDevice {
+	return usb.BusDevice{
+		Address: addr,
+		Speed:   usb.SpeedLow,
+		Config: usb.FullConfiguration{
+			Value: 1,
+			Interfaces: []usb.InterfaceDescriptor{{
+				Number: 0, Class: 3, SubClass: 1, Protocol: 2,
+				Endpoints: []usb.EndpointDescriptor{{Address: 0x81, TransferType: usb.TransferInterrupt, MaxPacketSize: 4, Interval: 8}},
 			}},
 		},
 	}
@@ -1044,5 +1060,125 @@ func TestHubOverflowPromotionAndUnassignedBluetoothSnapshot(t *testing.T) {
 	}
 	if lastUpd.Ports != ([MaxPlayerPorts]uint8{1 << 0, 0, 0, 0}) {
 		t.Fatalf("expected connected waiting wired controller promoted to P1 (0x01), got ports=%#v", lastUpd.Ports)
+	}
+}
+
+func TestHubWiredBootMouseAttachMotionMergeAndDetachRelease(t *testing.T) {
+	bus := newFakeBus()
+	var events []DeviceEvent
+	hub, err := NewHub(bus, Config{
+		Bonds: l2cap.NewBondStore(),
+		Now:   func() time.Time { return time.Unix(800, 0) },
+		OnDeviceEvent: func(ev DeviceEvent) {
+			events = append(events, ev)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Close()
+
+	mouse1 := makeMouseDev(2)
+	mouse2 := makeMouseDev(3)
+	bus.attach(mouse1)
+	bus.attach(mouse2)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !hub.MouseNeutral() {
+		t.Fatal("expected MouseNeutral on attach before any pressed buttons")
+	}
+
+	// Verify SET_PROTOCOL(0) and SET_IDLE(0) were sent to both boot mice.
+	sawSetProto1, sawSetIdle1 := false, false
+	sawSetProto2, sawSetIdle2 := false, false
+	for _, r := range bus.ctrlReqs {
+		switch r {
+		case [3]uint16{uint16(2)<<8 | 0x0b, 0, 0}:
+			sawSetProto1 = true
+		case [3]uint16{uint16(2)<<8 | 0x0a, 0, 0}:
+			sawSetIdle1 = true
+		case [3]uint16{uint16(3)<<8 | 0x0b, 0, 0}:
+			sawSetProto2 = true
+		case [3]uint16{uint16(3)<<8 | 0x0a, 0, 0}:
+			sawSetIdle2 = true
+		}
+	}
+	if !sawSetProto1 || !sawSetIdle1 || !sawSetProto2 || !sawSetIdle2 {
+		t.Fatalf("missing SET_PROTOCOL(0)/SET_IDLE(0) on boot mice: %#v", bus.ctrlReqs)
+	}
+	if len(events) != 2 || events[0].Kind != EventMouseAttached || events[1].Kind != EventMouseAttached {
+		t.Fatalf("expected 2 EventMouseAttached events, got %+v", events)
+	}
+
+	// Signed relative motion + strip extra button bits (middle/side bits 2..7 -> 0).
+	p1 := bus.pipes[key32(2, 0x81)]
+	p2 := bus.pipes[key32(3, 0x81)]
+	p1.inQueue = append(p1.inQueue, []byte{0x05, 0xfb, 0x0c, 0x00}) // bit0(L) + bit2(middle ignored), dx=-5, dy=+12
+	p2.inQueue = append(p2.inQueue, []byte{0x02, 0x03, 0xfe, 0x00}) // bit1(R), dx=+3, dy=-2
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if hub.MouseNeutral() {
+		t.Fatal("expected MouseNeutral=false while buttons held")
+	}
+	u1, ok1 := hub.NextMouseUpdate()
+	u2, ok2 := hub.NextMouseUpdate()
+	if !ok1 || u1 != (MouseUpdate{DX: -5, DY: 12, Buttons: 0x01}) {
+		t.Fatalf("unexpected u1: ok=%t upd=%+v", ok1, u1)
+	}
+	if !ok2 || u2 != (MouseUpdate{DX: 3, DY: -2, Buttons: 0x03}) {
+		t.Fatalf("expected merged buttons=0x03 on u2: ok=%t upd=%+v", ok2, u2)
+	}
+
+	// Detaching mouse1 while Left button held releases only mouse1's button and keeps Right held.
+	bus.detach(mouse1)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	u3, ok3 := hub.NextMouseUpdate()
+	if !ok3 || u3 != (MouseUpdate{DX: 0, DY: 0, Buttons: 0x02}) {
+		t.Fatalf("expected detach release of bit0 keeping bit1, got ok=%t upd=%+v", ok3, u3)
+	}
+	if hub.MouseNeutral() {
+		t.Fatal("expected MouseNeutral=false while mouse2 Right still held")
+	}
+
+	// PausePolling drops queued mouse motion while preserving mergedMouseButtons.
+	p2.inQueue = append(p2.inQueue, []byte{0x02, 0x07, 0x08})
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if err := hub.PausePolling(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := hub.NextMouseUpdate(); ok {
+		t.Fatal("PausePolling left queued mouse update")
+	}
+	if err := hub.ResumePolling(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if hub.MouseNeutral() {
+		t.Fatal("PausePolling cleared live held mouse button state")
+	}
+
+	// Release mouse2 button -> neutral.
+	p2.inQueue = append(p2.inQueue, []byte{0x00, 0x00, 0x00})
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	u4, ok4 := hub.NextMouseUpdate()
+	if !ok4 || u4 != (MouseUpdate{DX: 0, DY: 0, Buttons: 0}) || !hub.MouseNeutral() {
+		t.Fatalf("expected release to neutral: ok=%t upd=%+v neutral=%t", ok4, u4, hub.MouseNeutral())
+	}
+
+	// Steady-state polling with an active mouse remains zero-allocation.
+	allocs := testing.AllocsPerRun(50, func() {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("expected 0 allocations per idle Service() with mouse, got %.1f", allocs)
 	}
 }
