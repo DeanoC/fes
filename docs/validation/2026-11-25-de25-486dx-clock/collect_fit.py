@@ -2,9 +2,11 @@
 """Summarize the four registered DX builds and their retained LOADED route reports."""
 
 import argparse
+import hashlib
 import json
 import math
 import re
+import socket
 import sys
 from fractions import Fraction
 from pathlib import Path
@@ -57,13 +59,17 @@ def loaded_routes(path):
 
 
 def seed_result(output, logs, seed, divider):
-    record = {'seed': seed, 'passes': False, 'failures': []}
+    record = {'seed': seed, 'c0': divider, 'host': socket.gethostname(), 'passes': False, 'failures': []}
     failures = record['failures']
     try:
         exit_code = int((logs / 'producer.exit').read_text())
         record['producer_exit'] = exit_code
-        build = json.loads((output / 'build-inputs.json').read_text())
+        build_inputs = (output / 'build-inputs.json').read_bytes()
+        build = json.loads(build_inputs)
         record['revision'] = build['revision']
+        record['build_inputs_sha256'] = hashlib.sha256(build_inputs).hexdigest()
+        if (logs / 'revision').read_text().strip() != record['revision']:
+            failures.append('producer source revision differs from the run record')
         fit = summary(output / 'signoff/combined/hps/project')
         clock = VCO_HZ / divider
         parameters = build['parameters']
@@ -112,18 +118,36 @@ def seed_result(output, logs, seed, divider):
     return record
 
 
+def rung_result(divider, seeds):
+    revisions = {seed.get('revision') for seed in seeds}
+    return {'c0': divider, 'seeds': seeds, 'passes': (
+        len(seeds) == 4 and {seed.get('seed') for seed in seeds} == {1, 2, 3, 4}
+        and all(seed.get('c0') == divider and seed.get('passes') is True for seed in seeds)
+        and len(revisions) == 1 and None not in revisions
+    )}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('divider', type=int)
-    parser.add_argument('build_directory', type=Path)
-    parser.add_argument('log_directory', type=Path)
+    parser.add_argument('build_directory', type=Path, nargs='?')
+    parser.add_argument('log_directory', type=Path, nargs='?')
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument('--seed', type=int, choices=range(1, 5), help='emit one seed measurement from the builder')
+    modes.add_argument('--seed-reports', type=Path, nargs=4, help='combine four builder measurements')
     args = parser.parse_args()
-    seeds = [seed_result(args.build_directory / f's{seed}', args.log_directory / f's{seed}', seed, args.divider)
-             for seed in range(1, 5)]
-    revisions = {result.get('revision') for result in seeds}
-    passed = len(revisions) == 1 and all(result['passes'] for result in seeds)
-    print(json.dumps({'c0': args.divider, 'passes': passed, 'seeds': seeds}, indent=2, sort_keys=True))
-    return 0 if passed else 1
+    if args.seed_reports:
+        if args.build_directory or args.log_directory:
+            parser.error('seed reports already contain the builder measurements')
+        result = rung_result(args.divider, [json.loads(path.read_text()) for path in args.seed_reports])
+    else:
+        if not args.build_directory or not args.log_directory:
+            parser.error('expected build and log directories')
+        seeds = [seed_result(args.build_directory / f's{seed}', args.log_directory / f's{seed}', seed, args.divider)
+                 for seed in ((args.seed,) if args.seed else range(1, 5))]
+        result = seeds[0] if args.seed else rung_result(args.divider, seeds)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result['passes'] else 1
 
 
 if __name__ == '__main__':

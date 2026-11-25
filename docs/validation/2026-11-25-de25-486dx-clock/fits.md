@@ -93,6 +93,11 @@ For `quartus_jobs.py remote`, use the pushed candidate, replace `run` with
 Capture the host and run directory for each seed and keep the evidence on
 its build host until the per-rung comparison is recorded.
 
+Run `collect_fit.py DIVIDER BUILD_DIRECTORY LOG_DIRECTORY --seed SEED`
+on each builder. Keep its JSON even when the seed fails. Combine all four
+reports with `collect_fit.py DIVIDER --seed-reports SEED1 SEED2 SEED3 SEED4`.
+The collector requires four distinct seeds at the same committed revision.
+
 ## Software checks
 
 `make test-changed TEST_CHANGED_ARGS='--base da4acd2ac'` at `2902c12fe`
