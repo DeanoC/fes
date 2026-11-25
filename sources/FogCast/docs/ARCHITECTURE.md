@@ -3916,15 +3916,19 @@ would otherwise immediately restart during somebody else's play. Desktop
 launchers keep their existing Start-to-quit behavior. Select+Start held for
 one second posts an explicit `POST /api/v1/session/stop`
 for this host's active or failed session: `retain_lease` false with the captured
-play. Package plays send that generation. Package-free plays send the session
+play. On a kit host the stop chord and roomless Guide, F12, and Ctrl+Home
+shortcuts require matching owned-lease and session observations from the preceding
+five seconds; a foreign, missing, future-dated or stale observation is consumed
+without posting Stop or interrupting local play. Package plays send that generation. Package-free plays send the session
 id, launch flight, game, and target, and are not posted unbound. A queued chord
 keeps the play from chord time. Idle cleanup releases that play's grant and
 renewal of that grant stops; grants retained on other targets stay until shell
 exit or Release kit. A release that fails after idle retries the idle-grant
 release rather than the captured play. Rooms B/Back stays the retain
 request. Kit-host launches and stops use the host session API; the local-control
-socket exposes core inventory but no launch or stop route. A foreign-owned core
-accepts local play controls, but this launcher cannot stop it. Stop and kit
+socket exposes core inventory but no launch or stop route. A busy foreign lease
+keeps the existing local pad and play-HID fence, and this launcher cannot stop
+it; delegated physical-keyboard input follows its separate authority checks. Stop and kit
 menu actions stay on the kit. If the
 socket is not listening, play input reports
 the failure, waits one second before dialing again, and does not post the pad
