@@ -599,4 +599,106 @@ func TestSNTPSyncerPlausibilityDefaultMaxStepSerializationAndBoundedCallbacks(t 
 
 type funcSink func(time.Time)
 
-func (f funcSink) Sync(t time.Time) { f(t) }
+func (f funcSink) WallTime() (time.Time, bool) { return time.Time{}, false }
+func (f funcSink) Sync(t time.Time)            { f(t) }
+
+type customWallSink struct {
+	wallFn func() (time.Time, bool)
+	syncFn func(time.Time)
+}
+
+func (s customWallSink) WallTime() (time.Time, bool) { return s.wallFn() }
+func (s customWallSink) Sync(t time.Time)            { s.syncFn(t) }
+
+func TestSNTPSyncerEnforcesMaxStepOnPreSyncedSinkAndReentrantWallTime(t *testing.T) {
+	var mono atomic.Int64
+	mono.Store(1_000_000_000)
+	preEpoch := time.Date(2026, time.November, 25, 12, 0, 0, 0, time.UTC)
+
+	// 1. Pre-synchronized sink (QEMU PL031 pattern): first sample > 5m off rejects without touching clock.
+	preClk := rtc.NewClock(preEpoch, mono.Load)
+	sample := preEpoch.Add(10 * time.Minute)
+	var mu sync.Mutex
+	sPre, err := NewSNTPSyncer(nil, SNTPSyncConfig{
+		Sink: preClk,
+		Query: func(context.Context, SNTPConfig) (SNTPResult, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			return SNTPResult{Time: sample, Stratum: 1}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sPre.SyncOnce(context.Background()); !errors.Is(err, ErrSNTPStepTooLarge) {
+		t.Fatalf("first sample 10m step on pre-synced sink err=%v, want ErrSNTPStepTooLarge", err)
+	}
+	if st := sPre.Status(); st.Synced || st.SyncCount != 0 || st.ErrorCount != 1 {
+		t.Fatalf("rejected pre-synced first step mutated status: %+v", st)
+	}
+	if got, ok := preClk.WallTime(); !ok || !got.Equal(preEpoch) {
+		t.Fatalf("rejected first step mutated pre-synced clock: got=%v ok=%t want=%v", got, ok, preEpoch)
+	}
+
+	// Valid small step (2m) on first sync against pre-synced sink is admitted.
+	mu.Lock()
+	sample = preEpoch.Add(2 * time.Minute)
+	mu.Unlock()
+	if _, err := sPre.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("2m first step on pre-synced sink failed: %v", err)
+	}
+	if got, ok := preClk.WallTime(); !ok || !got.Equal(preEpoch.Add(2*time.Minute)) {
+		t.Fatalf("accepted first step clock=%v ok=%t", got, ok)
+	}
+
+	// DisableMaxStep allows > 5m first step even when Sink is pre-synchronized.
+	preClkBypass := rtc.NewClock(preEpoch, mono.Load)
+	sBypass, err := NewSNTPSyncer(nil, SNTPSyncConfig{
+		Sink:           preClkBypass,
+		DisableMaxStep: true,
+		Query: func(context.Context, SNTPConfig) (SNTPResult, error) {
+			return SNTPResult{Time: preEpoch.Add(time.Hour), Stratum: 1}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sBypass.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("DisableMaxStep first step on pre-synced sink failed: %v", err)
+	}
+	if got, ok := preClkBypass.WallTime(); !ok || !got.Equal(preEpoch.Add(time.Hour)) {
+		t.Fatalf("DisableMaxStep clock=%v ok=%t", got, ok)
+	}
+
+	// 2. Custom WallClockSink.WallTime calling Status() and Stop() does not deadlock and aborts SyncOnce.
+	var reentrantSyncer *SNTPSyncer
+	var sawStatus SNTPSyncStatus
+	var syncCalled atomic.Bool
+	reentrantSyncer, err = NewSNTPSyncer(nil, SNTPSyncConfig{
+		Sink: customWallSink{
+			wallFn: func() (time.Time, bool) {
+				sawStatus = reentrantSyncer.Status()
+				reentrantSyncer.Stop()
+				return preEpoch, true
+			},
+			syncFn: func(time.Time) {
+				syncCalled.Store(true)
+			},
+		},
+		Query: func(context.Context, SNTPConfig) (SNTPResult, error) {
+			return SNTPResult{Time: preEpoch.Add(time.Minute), Stratum: 1}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reentrantSyncer.SyncOnce(context.Background()); !errors.Is(err, ErrSNTPSyncerStopped) {
+		t.Fatalf("re-entrant Stop inside WallTime err=%v, want ErrSNTPSyncerStopped", err)
+	}
+	if syncCalled.Load() {
+		t.Fatal("Sink.Sync was called after Stop inside WallTime")
+	}
+	if sawStatus.Synced || sawStatus.SyncCount != 0 {
+		t.Fatalf("unexpected sawStatus inside WallTime: %+v", sawStatus)
+	}
+}

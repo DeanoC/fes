@@ -29,16 +29,20 @@ var (
 	ErrSNTPSyncerStarted = errors.New("network: SNTP syncer already started")
 	// ErrSNTPSyncerStopped is returned when SNTPSyncer.Start is called after Stop.
 	ErrSNTPSyncerStopped = errors.New("network: SNTP syncer stopped")
-	// ErrSNTPStepTooLarge is returned when a post-initial SNTP sample deviates
-	// from the synchronized local UTC expectation by more than MaxStep.
+	// ErrSNTPStepTooLarge is returned when an SNTP sample deviates from an
+	// already-synchronized clock expectation (either a prior sync or a
+	// pre-synchronized WallClockSink) by more than MaxStep.
 	ErrSNTPStepTooLarge = errors.New("network: SNTP sample step exceeds MaxStep")
 	// ErrSNTPImplausibleTime is returned when an SNTP sample falls outside the
 	// configured [MinValidTime, MaxValidTime] plausibility window.
 	ErrSNTPImplausibleTime = errors.New("network: SNTP sample outside plausible UTC range")
 )
 
-// WallClockSink receives validated UTC epochs from SNTPSyncer (satisfied by *rtc.Clock).
+// WallClockSink exposes and receives validated UTC epochs from SNTPSyncer
+// (satisfied by *rtc.Clock). WallTime must report (_, false) until the sink
+// holds a valid synchronized UTC epoch.
 type WallClockSink interface {
+	WallTime() (time.Time, bool)
 	Sync(time.Time)
 }
 
@@ -52,8 +56,8 @@ type SNTPSyncConfig struct {
 	PollInterval     time.Duration    // Interval between successful syncs (default 15m)
 	RetryInterval    time.Duration    // Initial backoff after failed sync (default 30s)
 	MaxRetryInterval time.Duration    // Maximum exponential retry backoff (default max(PollInterval, RetryInterval))
-	MaxStep          time.Duration    // Max clock step allowed after initial sync (0 defaults to 5m unless DisableMaxStep)
-	DisableMaxStep   bool             // Disables post-initial-sync MaxStep gating
+	MaxStep          time.Duration    // Max clock step allowed once syncer or Sink is synced (0 defaults to 5m unless DisableMaxStep)
+	DisableMaxStep   bool             // Disables MaxStep gating against synchronized clocks
 	MinValidTime     time.Time        // Earliest accepted UTC sample (zero defaults to 2025-01-01 UTC)
 	MaxValidTime     time.Time        // Latest accepted UTC sample (zero defaults to 2100-01-01 UTC)
 	Query            SNTPQueryFunc    // Optional query override; nil uses QuerySNTP over port
@@ -341,11 +345,38 @@ func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 		return SNTPResult{}, err
 	}
 
-	nowMono := s.nowFn()
+	var (
+		nowMono    time.Time
+		sinkWall   time.Time
+		sinkSynced bool
+	)
 	s.mu.Lock()
 	if s.stopped {
 		s.mu.Unlock()
 		return SNTPResult{}, ErrSNTPSyncerStopped
+	}
+	if !s.synced && s.maxStep > 0 && s.cfg.Sink != nil {
+		sink := s.cfg.Sink
+		s.sinkWg.Add(1)
+		s.mu.Unlock()
+		// Query sink state outside s.mu with sinkWg held so custom sinks may
+		// inspect Status() or call Stop() safely without deadlocking.
+		func() {
+			s.sinkGID.Store(currentGoroutineID())
+			defer func() {
+				s.sinkGID.Store(0)
+				s.sinkWg.Done()
+			}()
+			sinkWall, sinkSynced = sink.WallTime()
+		}()
+		nowMono = s.nowFn()
+		s.mu.Lock()
+		if s.stopped {
+			s.mu.Unlock()
+			return SNTPResult{}, ErrSNTPSyncerStopped
+		}
+	} else {
+		nowMono = s.nowFn()
 	}
 	sampleUTC := res.Time.UTC()
 	if res.Time.IsZero() || sampleUTC.Before(s.minValidTime) || sampleUTC.After(s.maxValidTime) {
@@ -358,12 +389,17 @@ func (s *SNTPSyncer) SyncOnce(ctx context.Context) (SNTPResult, error) {
 		s.mu.Unlock()
 		return SNTPResult{}, plausErr
 	}
-	if s.synced && s.maxStep > 0 {
-		elapsed := nowMono.Sub(s.lastSyncMono)
-		if elapsed < 0 {
-			elapsed = 0
+	if s.maxStep > 0 && (s.synced || sinkSynced) {
+		var expected time.Time
+		if s.synced {
+			elapsed := nowMono.Sub(s.lastSyncMono)
+			if elapsed < 0 {
+				elapsed = 0
+			}
+			expected = s.lastSync.Add(elapsed)
+		} else {
+			expected = sinkWall.UTC()
 		}
-		expected := s.lastSync.Add(elapsed)
 		step := sampleUTC.Sub(expected)
 		if step < 0 {
 			step = -step
