@@ -193,7 +193,8 @@ module fes_de25_pc386_standard #(
         .write(window_write), .byteenable(window_byteenable), .writedata(window_writedata),
         .readdata(window_readdata), .readdatavalid(window_readdatavalid),
         .writeresponsevalid(window_writeresponsevalid), .response(window_response),
-        .waitrequest(window_waitrequest), .machine_clk(machine_clk), .grant_valid(grant_valid),
+        .waitrequest(window_waitrequest), .machine_clk(machine_clk), .machine_reset_n(machine_reset_n),
+        .grant_valid(grant_valid),
         .grant_base(grant_base), .fault_clear(fault_clear),
         .machine_drained(window_idle && p0_drained && p1_drained && p2_drained), .machine_held(ddr_hold),
         .fault_port(fault_port), .fault_no_grant(fault_no_grant), .fault_outside(fault_outside)

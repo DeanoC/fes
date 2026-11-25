@@ -45,7 +45,7 @@ module fes_de25_hps_window_control (
     output reg  [1:0]  response = 2'b00,
     output wire        waitrequest,
     // Machine clock side.
-    input  wire        machine_clk,
+    input  wire        machine_clk, machine_reset_n,
     output wire        grant_valid,
     output wire [31:0] grant_base,
     output wire        fault_clear,
@@ -162,11 +162,20 @@ module fes_de25_hps_window_control (
     (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] clear_sync = 2'b00;
     reg clear_seen = 1'b0, grant_seen = 1'b0;
     reg [31:0] base_machine = 32'd0;
+    // Reset the receiving grant too, including when the machine clock stops.
+    // The retained base is unusable until a new synchronized grant arrives.
+    always @(posedge machine_clk or negedge machine_reset_n) begin
+        if (!machine_reset_n) begin
+            granted_sync <= 2'b00;
+            grant_seen <= 1'b0;
+        end else begin
+            granted_sync <= {granted_sync[0], granted};
+            grant_seen <= granted_sync[1];
+        end
+    end
     always @(posedge machine_clk) begin
-        granted_sync <= {granted_sync[0], granted};
         clear_sync <= {clear_sync[0], clear_toggle};
         clear_seen <= clear_sync[1];
-        grant_seen <= granted_sync[1];
         if (granted_sync[1] && !grant_seen) base_machine <= base_lo;
     end
     assign grant_valid = grant_seen;

@@ -49,7 +49,7 @@ SOURCES = {
     'cores/fes-pc386/rtl/pc386_io.sv': '4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece',
     'cores/fes-pc386/rtl/pc386_audio.sv': '3e3d1f4f7e872b9c8e99356099ed110f7040928c32c5ba91a981276cc2a4993a',
     'boards/de25nano/pc386/fes_de25_hps_window_control.v':
-        '8c313031e408b643ecead148263e3dde06304e8a5603894e99af08d4edcbbcbe',
+        'b027df337eabf5c5d7da7803057abe0997e0f1e6cb102d4f10e3bb21266695d1',
 }
 
 
@@ -194,7 +194,8 @@ WINDOW_BASE = ('Peripheral to machine: the grant base. fes_de25_hps_window_contr
                'granted reaches stage 0. The bundle paths are bounded to 10 ns, with skew, net and data delay '
                'bounds, so the copy samples a settled base. A fitter copy of a base_lo bit (~DUPLICATE) is '
                'the same register, as the SDC collection says. clk_sys\'s reset clears base_lo and granted '
-               'together; that is the one way base_lo moves while granted is set.')
+               'together. The machine-domain reset clears granted_sync and grant_seen even with its clock stopped, '
+               'so the old base cannot authorize traffic after a fabric reset.')
 WINDOW_FAULT = ('Machine to peripheral: the fault record (port bits and reason). fes_de25_hps_window_control.v '
                 'launches it from fault_launch, which copies the held record every machine clock, on the same '
                 'machine edge that launches its request toggle (fault_request); the held record changes only '
