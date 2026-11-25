@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "aafe1cca68f9a04000eda5e4452ec3a69b5d7906",
+  "source_revision": "040be4976f5b5ac7971b4c30bceb9b1d504c09cf",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -344,7 +344,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "a3c8d49d179e6a13dedc740fd2e181c2ba884ef9111d35d8e955820960bd35ea",
-    "Vfes_de25_combined_sim": "ffdd8acd3dd54a05e63d4e982c6594df16f9138cfb14a7ce8cdec3eff73bc016",
+    "Vfes_de25_combined_sim": "4108fb5587e71505d968b409ac69b581c616406380351496daa2e97d6fa6d655",
     "client-aarch64": "cf763f001d257e257c8f2fcf56e74e76e296728abfdc624888a2a087236e34d4"
   },
   "physical_PR": "selection-mux-model-only",
