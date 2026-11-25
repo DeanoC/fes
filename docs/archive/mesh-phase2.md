@@ -1,6 +1,6 @@
 # Mesh LAN — Phase 2 execution brief
 
-**Superseded (22 October 2026):** the kit is its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)). The kit-side placement, pairing and paired-listener material on this page is historical; the current design is [mesh under kit-as-host](mesh-kit-host.md), which also lists what from here stays in use.
+**Superseded (22 October 2026):** the kit is its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)). The kit-side placement, pairing and paired-listener material on this page is historical; the current design is [mesh under kit-as-host](../mesh-kit-host.md), which also lists what from here stays in use.
 
 **Status:** Phase 2 started. Slices 1 through 8 are on main. Slice 9
 turns the ensure seam on in production when `[mesh] ensure = true`.
@@ -65,15 +65,15 @@ is not a lease release.
 | [Mesh LAN](mesh-lan.md) | Content plane, content-id distinct from title id, Phase 2 Ready |
 | [Mesh node protocol](mesh-node-protocol.md) | Slot identities, failure classes, mid-pull stays Checking |
 | [Phase 1 brief](mesh-phase1.md) | Soft-stop, capability ads, host inventory, in-use copy |
-| [Launch composition](../sources/FogCast/docs/launch-composition.md) | Core, firmware, primary media, expansion slots |
-| [Kit sharing](kit-sharing.md) | The only FPGA lease |
+| [Launch composition](../../sources/FogCast/docs/launch-composition.md) | Core, firmware, primary media, expansion slots |
+| [Kit sharing](../kit-sharing.md) | The only FPGA lease |
 
 ---
 
 ## Owners
 
 Owners are component strawmen. Agree files before parallel edits
-([agent workflow](agent-workflow.md)).
+([agent workflow](../agent-workflow.md)).
 
 | Workstream | Strawman owner | What Phase 2 changes | What it must not do |
 | --- | --- | --- | --- |

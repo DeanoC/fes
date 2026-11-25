@@ -1,6 +1,6 @@
 # Mesh LAN — Phase 1 execution brief
 
-**Context (22 October 2026):** Phase 1 as delivered stays in use (Soft-stop, advertisement, inventory). The kit is now its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)); [mesh under kit-as-host](mesh-kit-host.md) says what changed around these mechanisms.
+**Context (22 October 2026):** Phase 1 as delivered stays in use (Soft-stop, advertisement, inventory). The kit is now its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)); [mesh under kit-as-host](../mesh-kit-host.md) says what changed around these mechanisms.
 
 **Status:** Phase 1 closed and delivered. Bob coordinates mesh and
 starts phases. Deano owns FES parent merges. Phase 2 execution is
@@ -41,16 +41,16 @@ existing kit lease. Advertisement silence is not a lease release.
 | --- | --- |
 | [Mesh LAN](mesh-lan.md) | Product intent, phases, Decision 4 lease policy |
 | [Mesh node protocol](mesh-node-protocol.md) | Capability, lease, content-id, and failure classes |
-| [Kit sharing](kit-sharing.md) | Claim, renew, expiry, takeover; development `stop` retains |
-| [Rooms experience](../sources/FogCast/docs/rooms-experience.md) | Scenario 1: Play, then B, same room |
-| [Soft-restart Path B](soft-restart-path-b.md) | `reboot_required` stays kit-local and on hold |
+| [Kit sharing](../kit-sharing.md) | Claim, renew, expiry, takeover; development `stop` retains |
+| [Rooms experience](../../sources/FogCast/docs/rooms-experience.md) | Scenario 1: Play, then B, same room |
+| [Soft-restart Path B](../soft-restart-path-b.md) | `reboot_required` stays kit-local and on hold |
 
 ---
 
 ## Owners
 
 Owners are component strawmen. Agree files before parallel edits
-([agent workflow](agent-workflow.md)).
+([agent workflow](../agent-workflow.md)).
 
 | Workstream | Strawman owner | What Phase 1 changes | What it must not do |
 | --- | --- | --- | --- |

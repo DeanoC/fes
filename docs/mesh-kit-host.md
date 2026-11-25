@@ -5,11 +5,38 @@ merged in #1490; the first remote cassette source path is implemented below.
 [#863](https://github.com/DeanoC/fes/issues/863) tracks acceptance and the
 remaining migration and cleanup. This page supersedes the kit-side
 placement, pairing and
-paired-listener designs in [`mesh-lan.md`](mesh-lan.md),
-[`mesh-node-protocol.md`](mesh-node-protocol.md),
-[`mesh-phase2.md`](mesh-phase2.md), [`mesh-phase3.md`](mesh-phase3.md) and
-[`mesh-vnext.md`](mesh-vnext.md) §3–§4. Deano owns FES parent merges. Items
-marked *proposed* are not yet decided.
+paired-listener designs in [`archive/mesh-lan.md`](archive/mesh-lan.md),
+[`archive/mesh-node-protocol.md`](archive/mesh-node-protocol.md),
+[`archive/mesh-phase2.md`](archive/mesh-phase2.md),
+[`archive/mesh-phase3.md`](archive/mesh-phase3.md) and
+[`archive/mesh-vnext.md`](archive/mesh-vnext.md) §3–§4. Deano owns FES parent
+merges. Items marked *proposed* are not yet decided.
+
+## Topology
+
+```mermaid
+flowchart LR
+  subgraph Kit["FES Kit (owns itself)"]
+    TF["fogcast-kit tenfoot\n(unpaired loopback client)"]
+    API["fogcast-kit host\n(loopback 127.0.0.1:8787\n+ local catalog on FESDATA3)"]
+    Launcher["Authenticated Launcher Listener\n(LAN allowlist: per-kit bearer\n+ X-FogCast-Target-ID)"]
+    Agent["mister-agent\n(127.0.0.1:8182 + session lease)"]
+    RT["mister-runtime\n(local protocol 2)"]
+    FPGA["FPGA Core / MENU"]
+
+    TF <-->|"Loopback HTTP"| API
+    Launcher --> API
+    API <-->|"Loopback HTTP"| Agent
+    Agent <-->|"Local socket"| RT
+    RT --> FPGA
+  end
+
+  Source["Read-only LAN Library Source\n(Powerboat / NAS / Desktop)"]
+  Desktop["Remote Desktop Client"]
+
+  API -->|"Index & fetch content\n(GET /api/v1/library/*)"| Source
+  Desktop -->|"Authenticated\nallowlisted ops"| Launcher
+```
 
 ## What changes
 

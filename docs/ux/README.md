@@ -97,7 +97,7 @@ ownership of the underlying rules:
 | Input actions and physical controller bindings | [Controller bindings](../../sources/FogCast/docs/rooms-controller-bindings.md) |
 | Package, firmware, media and expansion readiness | [Launch composition](../../sources/FogCast/docs/launch-composition.md) |
 | ZX81 configuration, running state and media behavior | [Hardware rooms](../hardware-rooms.md) |
-| Destination defaults and mesh capabilities | [Mesh under kit-as-host](../mesh-kit-host.md); the placement policy in [Mesh LAN](../mesh-lan.md) is historical for the kit |
+| Destination defaults and mesh capabilities | [Mesh under kit-as-host](../mesh-kit-host.md); the placement policy in [Mesh LAN](../archive/mesh-lan.md) is historical for the kit |
 | Persistence and capability-specific progress | [Core persistence](../core-persistence.md) |
 | Build and hardware evidence | [Development](../development.md), [core status](../core-status.md), [kit sharing](../kit-sharing.md) |
 

@@ -58,13 +58,15 @@ Use these when the start-here page names the job and you need the steps.
 | Which outputs are versioned | [Artifact identities](artifacts.md) |
 | Read source, CI, build and hardware evidence | [Status](status.md) |
 | Run only the tests a change affects (including the TamaGo CI lane) | [Focused tests](test-changed.md) |
-| Rooms / Stop-idle design that is not built yet | [Idle MENU → rooms](idle-menu-rooms.md), [phase 2](idle-menu-rooms-phase2.md). Present tense on that page, outside “What is true now”, still describes the old MENU idle (`menu.rbf`, `mister_v1`). Current idle install paths are [image assembly](image-assembly.md) and `image/build/native-inputs.toml`. |
-| The kit as its own host: sources, sessions, what the mesh drafts still mean | [Mesh under kit-as-host](mesh-kit-host.md) (22 Oct 2026 decisions, #863) |
-| Earlier mesh drafts, historical on the kit side | [Mesh LAN](mesh-lan.md), [node protocol](mesh-node-protocol.md), [phase 1](mesh-phase1.md), [phase 2](mesh-phase2.md), [phase 3](mesh-phase3.md), [v-next plan](mesh-vnext.md) |
+| Rooms / Stop-idle target design lock | [Idle MENU → rooms](idle-menu-rooms.md) (Phase 2 execution brief archived in [archive/](archive/README.md)). Current idle install paths are [image assembly](image-assembly.md) and `image/build/native-inputs.toml`. |
+| The kit as its own host: topology, remote sources & LAN security | [Mesh under kit-as-host](mesh-kit-host.md) (22 Oct 2026 decisions, #863) |
 | See when a soft restart asks for a board reboot | [Soft-restart Path B](soft-restart-path-b.md). The kit check in that note is on hold. |
 
 ## Not current instructions
 
+- **[archive/](archive/README.md)** holds superseded September–October 2026
+  mesh LAN drafts, execution briefs, and the idle-rooms Phase 2 brief kept for
+  design provenance only.
 - **[validation/](validation/)** records what a named artifact did on a named
   day. Dated validation records accept only the exact artifact they name;
   current core standing and active evidence links live in
