@@ -34,6 +34,8 @@ var nativeProgramPlatform tenfoot.Platform
 
 const tenfootSerialLinked = true
 
+var expectedC64DiskSwap string
+
 func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store, lease *sdcontrol.Session) {
 	uartIRQ := false
 	var activeGIC *gic.Controller
@@ -74,6 +76,10 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	paired := expectedCompiledMenuProgram != ""
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	startup, err := nativefabric.ReadProgramStartup(ctx, store, programWritableStorageSelected, paired)
+	var disks *nativefabric.ProgramC64DiskSet
+	if err == nil && expectedC64DiskSwap == "1" {
+		disks, err = nativefabric.ReadProgramC64DiskSet(ctx, store, startup.Entries)
+	}
 	cancel()
 	if err != nil {
 		panic(err)
@@ -109,6 +115,11 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	nativeProgramBackend, err = nativefabric.NewProgramBackend(programService, startup.Entries)
 	if err != nil {
 		panic(err)
+	}
+	if disks != nil {
+		if err := nativeProgramBackend.AttachC64DiskSet(disks); err != nil {
+			panic(err)
+		}
 	}
 	if len(startup.Staged) != 0 {
 		if err = nativeProgramBackend.AttachStagedPrograms(context.Background(), startup.Staged); err != nil {
@@ -236,10 +247,17 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 
 	display := "serial-state-only"
 	if paired {
-		platform, err = nativefabric.NewProgramMenuPlatform(programService, platform, device.Framebuffer)
-		if err != nil {
-			panic(err)
+		menu, menuErr := nativefabric.NewProgramMenuPlatform(programService, platform, device.Framebuffer)
+		if menuErr != nil {
+			panic(menuErr)
 		}
+		if disks != nil {
+			menu.EnableC64Picker(func(state nativefabric.ProgramServiceStatus, visible bool, activity computer.FetchActivity) {
+				fmt.Printf("FES_NATIVE_C64_PICKER owner=%d generation=%d visible=%t fetches=%d disk_sha256=%s\n",
+					state.Owner, state.Generation, visible, activity.Cycles, state.DiskSHA256)
+			})
+		}
+		platform = menu
 		display = "fpga-menu"
 	}
 	stopWatchdog, err := startProgramWatchdog(context.Background(), lease)

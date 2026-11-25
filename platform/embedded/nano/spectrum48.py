@@ -93,7 +93,11 @@ def inspect(build, archive, *, c64=False):
                    'subsys_periph.fes_scanout_guard.avs': (0x10200, 256),
                    'subsys_periph.fes_ddr_probe.avs': (0x10100, 128)}:
         raise ValueError('Spectrum fitted bridge regions changed')
-    return dict(package_id=package.package_id, build_id=identity, core_size=len(payload),
+    picker_source = fields['source_inputs'].get('boards/de25nano/c64/fes_de25_c64_picker.v') if c64 else None
+    if picker_source and sha(read(hps / 'project/fes_mailbox/fes_de25_c64_picker.v', 1 << 20)) != picker_source:
+        raise ValueError('fitted C64 picker differs from its sealed source')
+    return dict(c64_picker=picker_source,
+                package_id=package.package_id, build_id=identity, core_size=len(payload),
                 core_sha256=sha(payload), core_sha384=hashlib.sha384(payload).hexdigest(),
                 chunk_sha384=[hashlib.sha384(payload[i:i+CHUNK]).hexdigest() for i in range(0, len(payload), CHUNK)],
                 handoff_sha256=sha(handoff), hps_parameters_sha256=sha(encode(hw['hps_parameters'])),

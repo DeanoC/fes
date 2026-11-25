@@ -38,6 +38,8 @@ type ProgramInputPlatform struct {
 	boundary           uint64
 	menuArmed          bool
 	returnRequested    bool
+	pickerFocused      bool
+	pickerAllUp        bool
 	fault              error
 	pending            []input.Event
 }
@@ -336,11 +338,11 @@ func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.E
 					}
 				}
 			} else {
-				var stop bool
-				stop, err = p.coreKeyboard(ctx, report)
-				if err == nil && stop {
-					p.returnRequested = true
-					changes = []input.Event{{Key: "s"}}
+				var key string
+				key, err = p.coreKeyboard(ctx, report, b.describesC64Disk(v))
+				if err == nil && key != "" {
+					p.returnRequested = key == "s"
+					changes = []input.Event{{Key: key}}
 				}
 			}
 		} else {
@@ -385,31 +387,69 @@ func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.E
 	return events, nil
 }
 
-// Ctrl+Alt+Escape is a deliberate return to the launcher, separate from core
-// typing and future in-play menus. Only a fresh Escape press after this play's
-// all-up fence may request it. Validate with the same decoder before any write;
-// the reserved chord itself is never forwarded to the emulated keyboard.
-// Caller holds both input-platform and backend operation locks.
-func (p *ProgramInputPlatform) coreKeyboard(ctx context.Context, report []byte) (bool, error) {
+// setC64PickerFocus is called by the HDMI presenter after each App frame.
+// A key held on dismiss must release before gameplay receives another press.
+func (p *ProgramInputPlatform) setC64PickerFocus(focused bool) {
+	p.operation.Lock()
+	defer p.operation.Unlock()
+	if p.pickerFocused && !focused && p.keyboard.state != nil {
+		p.keyboard.state.armed = p.pickerAllUp
+	}
+	p.pickerFocused = focused
+}
+
+// Caller holds both input-platform and backend operation locks. A chord
+// needs a fresh press after the running play's neutral-report fence.
+func (p *ProgramInputPlatform) coreKeyboard(ctx context.Context, report []byte, c64Picker bool) (string, error) {
 	k := p.keyboard.state
 	next := k.decoder
 	var edgeBuf [28]usb.KeyEvent
 	n, err := next.FeedInto(report, edgeBuf[:])
 	if err != nil {
-		return false, err
+		return "", err
+	}
+	if c64Picker && p.pickerFocused {
+		p.pickerAllUp = report[0] == 0
+		for _, key := range report[2:] {
+			p.pickerAllUp = p.pickerAllUp && key == 0
+		}
+		k.decoder = next
 	}
 	if k.armed {
 		for _, edge := range edgeBuf[:n] {
-			if edge.Pressed && edge.Usage == 0x29 && edge.Modifiers&0x11 != 0 && edge.Modifiers&0x44 != 0 {
+			if !edge.Pressed {
+				continue
+			}
+			modified := edge.Modifiers&0x11 != 0 && edge.Modifiers&0x44 != 0
+			if modified && (edge.Usage == 0x29 || c64Picker && edge.Usage == 0x10 && !p.pickerFocused) {
 				if err := k.writeRows(ctx, [9]uint16{}); err != nil {
-					return false, err
+					return "", err
 				}
 				k.decoder = next
-				return true, nil
+				if edge.Usage == 0x29 {
+					return "s", nil
+				}
+				p.pickerFocused, p.pickerAllUp = true, false
+				return "i", nil
+			}
+			if c64Picker && p.pickerFocused {
+				switch edge.Usage {
+				case 0x28:
+					return "return", nil
+				case 0x29:
+					return "escape", nil
+				case 0x51:
+					return "down", nil
+				case 0x52:
+					return "up", nil
+				}
 			}
 		}
 	}
-	return false, k.report(ctx, report)
+	if c64Picker && p.pickerFocused {
+		return "", nil
+	}
+	return "", k.report(ctx, report)
 }
 
 // park cannot affect a replacement session even if a stop races with a source

@@ -148,3 +148,43 @@ func TestBoardTapeHookRequiresReservedArena(t *testing.T) {
 		t.Fatal("unreserved source accepted")
 	}
 }
+
+type tapeC64Fixture struct {
+	tapeCPUFixture
+	calls []string
+}
+
+func (*tapeC64Fixture) WithSpectrumROMBatch(uint64, func(computer.IO) error) error { return nil }
+func (*tapeC64Fixture) WithHeldMediaBatch(uint64, func(computer.IO) error) error   { return nil }
+func (*tapeC64Fixture) WithInputBatch(uint64, func(computer.IO) error) error       { return nil }
+
+func (c *tapeC64Fixture) WithLiveMediaBatch(uint64, func(computer.IO) error) error {
+	c.calls = append(c.calls, "media")
+	return nil
+}
+
+func (c *tapeC64Fixture) WithC64PickerBatch(uint64, func(computer.IO) error) error {
+	c.calls = append(c.calls, "picker")
+	return nil
+}
+
+func TestInitialTapeKeepsBothC64LiveApertures(t *testing.T) {
+	base := &tapeC64Fixture{}
+	cpu, err := selectProgramCPU(base, func() (*nativefabric.InitialTapeArena, error) { return nil, errors.New("unused") }, true, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, ok := cpu.(c64LiveBatcher)
+	if !ok {
+		t.Fatal("initial tape wrapper hid the C64 live apertures")
+	}
+	if err := live.WithC64PickerBatch(0x20010300, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := live.WithLiveMediaBatch(0x20010300, nil); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(base.calls) != "[picker media]" {
+		t.Fatal(base.calls)
+	}
+}

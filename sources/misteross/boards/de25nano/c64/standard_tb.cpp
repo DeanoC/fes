@@ -282,6 +282,70 @@ struct SecureStop {
 };
 #endif
 
+void upload_disk(Board& board, const std::vector<uint8_t>& disk) {
+    const uint32_t disk_crc = crc32(disk);
+    board.ok(6, 0, kDiskBytes & 0xffff, "begin total");
+    board.ok(6, 1, kDiskBytes >> 16, "begin total high");
+    board.ok(6, 2, disk_crc & 0xffff, "crc lo");
+    board.ok(6, 3, disk_crc >> 16, "crc hi");
+    // A 7-byte first chunk leaves every later pair at an odd address, where
+    // its low byte goes to the odd lane and its high byte to the even lane.
+    for (size_t offset = 0, length = 7; offset < disk.size(); offset += length,
+         length = std::min<size_t>(512, disk.size() - offset)) {
+        board.ok(7, 0, offset & 0xffff, "chunk offset");
+        board.ok(7, 1, offset >> 16, "chunk offset high");
+        board.ok(7, 2, length, "chunk length");
+        // An odd chunk's last word carries one byte and a zero high byte.
+        for (size_t i = 0; i < length; i += 2) {
+            const unsigned high = i + 1 < length ? disk[offset + i + 1] : 0;
+            board.ok(8, i / 2, disk[offset + i] | (high << 8), "data");
+        }
+    }
+    board.ok(9, 0, 0, "commit");
+    require(board.ok(5, 5, 0, "ready") == 3, "disk did not become ready");
+}
+
+#ifdef C64_NATIVE
+void verify_picker_live_swap(Board& board, const std::vector<uint8_t>& original) {
+    constexpr uint32_t picker_command = 0x7c;
+    constexpr uint32_t overlay_color = 0x3c5991;
+    require(board.scanout(0x74, false) == 0x43504931, "native picker aperture missing");
+    const auto before = board.read(0x18);
+    board.scanout(picker_command, true, 1);
+    for (unsigned i = 0; i < 192; ++i)
+        board.scanout(0x78, true, 0xa0a0a0a0);
+    board.scanout(picker_command, true, 2);
+    bool visible = false;
+    for (uint32_t cycles = 0; cycles < 2000000 && !visible; ++cycles) {
+        board.run_clocks(1);
+        visible = (board.dut.video & 0x1ffffff) == (0x1000000 | overlay_color);
+    }
+    require(visible && board.scanout(picker_command, false) == 0x10001,
+            "picker did not appear on active HDMI");
+    require(board.read(0x18) > before && !board.dut.exec_reset && board.display_pending == 0,
+            "picker held C64 or used FPGA DDR");
+
+    auto alternate = original;
+    alternate[4] ^= 0x44;
+    uint32_t last_fetch = board.read(0x18);
+    const std::vector<uint8_t>* images[] = {&alternate, &original};
+    for (const auto* media : images) {
+        upload_disk(board, *media);
+        const auto current_fetch = board.read(0x18);
+        require(current_fetch > last_fetch && !board.dut.exec_reset, "live D64 upload held C64");
+        require(board.sdram.byte(4) == (*media)[4],
+                "live D64 bytes did not reach the 1541 disk store");
+        last_fetch = current_fetch;
+    }
+    board.scanout(picker_command, true, 3);
+    for (unsigned checks = 0; checks < 25 && (board.scanout(picker_command, false) & 2); ++checks)
+        board.run_clocks(50000);
+    require(board.scanout(picker_command, false) == 0x20000 && board.read(0x18) > last_fetch,
+            "picker did not disappear with C64 still running");
+    std::cout << "de25 c64 native: live HDMI selector and both D64 commits passed" << std::endl;
+}
+#endif
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -360,26 +424,7 @@ int main(int argc, char** argv) {
     require(board.ok(5, 0, 0, "min lo") == (kDiskBytes & 0xffff), "disk minimum");
     require(board.ok(5, 1, 0, "min hi") == (kDiskBytes >> 16), "disk minimum high");
     require(board.ok(5, 5, 0, "state") == 1, "disk starts empty");
-    const uint32_t disk_crc = crc32(disk);
-    board.ok(6, 0, kDiskBytes & 0xffff, "begin total");
-    board.ok(6, 1, kDiskBytes >> 16, "begin total high");
-    board.ok(6, 2, disk_crc & 0xffff, "crc lo");
-    board.ok(6, 3, disk_crc >> 16, "crc hi");
-    // A 7-byte first chunk leaves every later pair at an odd address, where
-    // its low byte goes to the odd lane and its high byte to the even lane.
-    for (size_t offset = 0, length = 7; offset < disk.size(); offset += length,
-         length = std::min<size_t>(512, disk.size() - offset)) {
-        board.ok(7, 0, offset & 0xffff, "chunk offset");
-        board.ok(7, 1, offset >> 16, "chunk offset high");
-        board.ok(7, 2, length, "chunk length");
-        // An odd chunk's last word carries one byte and a zero high byte.
-        for (size_t i = 0; i < length; i += 2) {
-            const unsigned high = i + 1 < length ? disk[offset + i + 1] : 0;
-            board.ok(8, i / 2, disk[offset + i] | (high << 8), "data");
-        }
-    }
-    board.ok(9, 0, 0, "commit");
-    require(board.ok(5, 5, 0, "ready") == 3, "disk did not become ready");
+    upload_disk(board, disk);
     for (size_t i = 0; i < disk.size(); ++i)
         require(board.sdram.byte(i) == disk[i], "disk SDRAM byte " + std::to_string(i) + " differs");
 
@@ -411,6 +456,7 @@ int main(int argc, char** argv) {
         const auto fetch = core.fes_de25_c64_standard__DOT__transport__DOT__fetch_payload;
         require(running > before && running == (fetch >> 16) && board.read(0x1c) == (fetch & 0xffff),
                 label + ": native opcode activity snapshot disagrees");
+        if (launch == 1) verify_picker_live_swap(board, disk);
 #endif
         require(sound, label + ": no SID sample reached the audio output");
         board.ok(2, 0, 0, "hold");
