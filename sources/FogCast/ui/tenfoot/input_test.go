@@ -180,6 +180,62 @@ func TestRepeaterFiresAfterDelay(t *testing.T) {
 	}
 }
 
+func TestKitHostControllerStartDoesNotQuit(t *testing.T) {
+	for _, state := range []string{"idle", "launching", "active", "stopping", "failed"} {
+		t.Run(state, func(t *testing.T) {
+			app := catalogApp(20)
+			app.mu.Lock()
+			app.kitHost = true
+			app.session.State = state
+			app.mu.Unlock()
+			held := map[Command]bool{}
+			now := time.Unix(100, 0)
+			start := CommandFromButton(ButtonStart)
+			if applyPressed(app, map[Command]bool{start: true}, held, now) {
+				t.Fatal("Start exited the supervised kit launcher")
+			}
+			if !held[start] {
+				t.Fatal("suppressed Start was not tracked until release")
+			}
+			if applyPressed(app, map[Command]bool{start: true}, held, now.Add(time.Second)) {
+				t.Fatal("held Start exited the launcher")
+			}
+			if applyPressed(app, map[Command]bool{}, held, now.Add(2*time.Second)) || held[start] {
+				t.Fatal("Start release did not clear the suppressed command")
+			}
+		})
+	}
+	app := catalogApp(20)
+	if !applyPressed(app, map[Command]bool{CommandFromButton(ButtonStart): true}, map[Command]bool{}, time.Now()) {
+		t.Fatal("desktop Start no longer quits")
+	}
+}
+
+func TestKitHostMenuChordDoesNotQuitForeignSession(t *testing.T) {
+	app := catalogApp(2)
+	app.mu.Lock()
+	app.kitHost = true
+	app.session.State = "active"
+	app.healthHave = true
+	app.health.Connection.State = "busy"
+	app.health.Connection.Owner = "another-host"
+	app.mu.Unlock()
+	now := time.Unix(100, 0)
+	selectCmd, startCmd := CommandFromButton(ButtonBack), CommandFromButton(ButtonStart)
+	held := map[Command]bool{}
+	if applyPressed(app, map[Command]bool{selectCmd: true}, held, now) ||
+		applyPressed(app, map[Command]bool{selectCmd: true, startCmd: true}, held, now.Add(time.Millisecond)) ||
+		applyPressed(app, map[Command]bool{selectCmd: true, startCmd: true}, held, now.Add(time.Second)) ||
+		applyPressed(app, map[Command]bool{}, held, now.Add(2*time.Second)) {
+		t.Fatal("Select+Start exited while another host owned the session")
+	}
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.session.State != "active" || app.health.Connection.Owner != "another-host" || app.stopPhase == "stopping" {
+		t.Fatalf("foreign session changed: state=%s owner=%s stop=%s", app.session.State, app.health.Connection.Owner, app.stopPhase)
+	}
+}
+
 func TestApplyPressedRearmsRemainingDirection(t *testing.T) {
 	t.Parallel()
 	now := time.Unix(0, 0)

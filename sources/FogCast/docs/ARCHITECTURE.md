@@ -3318,17 +3318,10 @@ at most 200ms for an in-progress warm. If the warm is still running it returns
 HTTP 503 `{"error":"warming"}` and does not start a second scan or read package
 bytes for that request. The kit-local client surfaces that as `warming` without
 waiting out its 3s timeout. Tenfoot keeps the checking state and retries until
-a list succeeds; the installed-cores room does the same. `POST
-/v1/local/cores/{package_id}/launch` resolves the package through that same
-list. A launch that arrives while the warm is still running returns the same
-HTTP 503 `{"error":"warming"}`, claims no lease, and does not program a core.
-The kit-local client returns `warming` as soon as that response arrives, as it
-does for a list, so the caller can retry. It does not treat the response as an
-unavailable agent and does not reconcile it as a lost launch. Home's queued
-Play polls the read-only list before posting Launch, so Stop during catalog
-warm ends the queue before any core load. If the catalog starts warming again
-between the successful list and Launch, it waits for another successful list
-before retrying. A successful list is the finished catalog, not a partial one.
+a list succeeds; the installed-cores room does the same. A successful list is
+the finished catalog, not a partial one. The local-control socket is inventory
+only; the kit host prepares the selected entry and launches it through the
+normal host session path, which retains its own lease and readiness checks.
 The list handler waits on the request context, so a client disconnect ends
 that wait and leaves the warm running. One catalog scan runs at a time. A
 fingerprint change while that scan is in progress waits for it to finish, then
@@ -3917,7 +3910,11 @@ Closing the local socket releases the local source
 only. Tenfoot writes physical pad and USB keyboard events to this socket
 through `ui/localfeed` while a kit-local core it launched is running. That feed does not use the host
 session's input.ready, launcher.json reachability, or which host holds the
-lease. Select+Start held for one second posts an explicit `POST /api/v1/session/stop`
+lease. The controller Start button never exits a kit-host launcher, including
+while session ownership is unavailable or changing; a supervised launcher
+would otherwise immediately restart during somebody else's play. Desktop
+launchers keep their existing Start-to-quit behavior. Select+Start held for
+one second posts an explicit `POST /api/v1/session/stop`
 for this host's active or failed session: `retain_lease` false with the captured
 play. Package plays send that generation. Package-free plays send the session
 id, launch flight, game, and target, and are not posted unbound. A queued chord
@@ -3925,10 +3922,10 @@ keeps the play from chord time. Idle cleanup releases that play's grant and
 renewal of that grant stops; grants retained on other targets stay until shell
 exit or Release kit. A release that fails after idle retries the idle-grant
 release rather than the captured play. Rooms B/Back stays the retain
-request. For a kit-local run it goes to local
-control `POST /v1/local/stop` instead, with the exact launch generation. A
-foreign-owned core accepts local play controls, but this launcher cannot stop
-it. Stop and kit menu actions stay on the kit. If the
+request. Kit-host launches and stops use the host session API; the local-control
+socket exposes core inventory but no launch or stop route. A foreign-owned core
+accepts local play controls, but this launcher cannot stop it. Stop and kit
+menu actions stay on the kit. If the
 socket is not listening, play input reports
 the failure, waits one second before dialing again, and does not post the pad
 to the host. Remote pads go from the host to the kit on that session's input
