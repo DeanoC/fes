@@ -266,6 +266,7 @@ private:
 	bool core_data_flushed_ = false;
     Error FlushMediaSave();
     void ForgetMediaData();
+	void ReportAtaDisk(std::vector<MediaUnitCapability>*) const;
 	void ReportDurableMedia(std::vector<MediaUnitCapability>* units) const;
     std::unique_ptr<MediaDataFile> media_data_file_;
     MediaDiskRecord durable_media_;

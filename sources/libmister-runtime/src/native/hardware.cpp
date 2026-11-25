@@ -925,8 +925,11 @@ Capabilities NativeHardware::capabilities() const
    result.abis.insert(result.abis.begin(), std::move(application));
   }
   if (active_driver_) result.media_units = active_driver_->media_units();
-  // A DE25 machine's bound library disk reports its binding as on the DE10.
-  if (active_driver_ && active_driver_ == fes_gp_driver_) ReportDurableMedia(&result.media_units);
+  // A DE25 machine's ATA disk and bound library disk report as on the DE10.
+  if (active_driver_ && active_driver_ == fes_gp_driver_) {
+   ReportAtaDisk(&result.media_units);
+   ReportDurableMedia(&result.media_units);
+  }
   if (De25StaticEnabled() && fes_gp_driver_ && menu_display_ && menu_window_ &&
       fpga_.SupportsStaticComposition())
    result.programming_profiles.push_back("de25-linux-static-computer-v1");
@@ -1105,21 +1108,7 @@ Capabilities NativeHardware::capabilities() const
 		if (active_driver_ == fes_gp_driver_) {
 			MediaStreamInfo info;
 			const auto* driver = dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_);
-            if (driver != nullptr && driver->home_computer() && driver->AtaDiskCapable()) {
-                MediaUnitCapability unit;
-                unit.unit = generated::FesComputerAtaDiskUnit;
-                unit.interface = {generated::FesComputerInterfaceMediaAtaDiskID, 1, 0};
-                unit.min_bytes = generated::FesComputerAtaDiskMinBytes;
-                unit.max_bytes = generated::FesComputerAtaDiskMaxBytes;
-                unit.chunk_bytes = generated::FesComputerAtaDiskChunkBytes;
-                unit.state = ata_ready_ ? MediaUnitState::ready : MediaUnitState::empty;
-                unit.saveable = false;
-                if (ata_delta_file_) {
-                    unit.persistence_mode = "persistent"; unit.game_id = ata_identity_.game_id;
-                    unit.base_media_id = ata_identity_.base_media_id; unit.revision = ata_delta_.revision;
-                }
-                result.media_units.insert(result.media_units.begin(), unit);
-            }
+            ReportAtaDisk(&result.media_units);
             ReportDurableMedia(&result.media_units);
 			if (driver != nullptr && driver->StreamInfo(&info).ok()) {
 				result.media_stream.interface = {generated::FesSimpleComputerInterfaceMediaBlobStreamID,
@@ -1531,6 +1520,27 @@ void NativeHardware::ForgetAtaDisk()
 	ata_size_ = 0;
 	ata_ready_ = false;
 	ata_flushed_ = false;
+}
+
+// A home computer's ATA disk unit (unit 1 of fes.computer 1.1), first in the
+// list, on both boards.
+void NativeHardware::ReportAtaDisk(std::vector<MediaUnitCapability>* units) const
+{
+	const auto* driver = active_driver_ == fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	if (driver == nullptr || !driver->home_computer() || !driver->AtaDiskCapable()) return;
+	MediaUnitCapability unit;
+	unit.unit = generated::FesComputerAtaDiskUnit;
+	unit.interface = {generated::FesComputerInterfaceMediaAtaDiskID, 1, 0};
+	unit.min_bytes = generated::FesComputerAtaDiskMinBytes;
+	unit.max_bytes = generated::FesComputerAtaDiskMaxBytes;
+	unit.chunk_bytes = generated::FesComputerAtaDiskChunkBytes;
+	unit.state = ata_ready_ ? MediaUnitState::ready : MediaUnitState::empty;
+	unit.saveable = false;
+	if (ata_delta_file_) {
+		unit.persistence_mode = "persistent"; unit.game_id = ata_identity_.game_id;
+		unit.base_media_id = ata_identity_.base_media_id; unit.revision = ata_delta_.revision;
+	}
+	units->insert(units->begin(), unit);
 }
 
 // The durable library disk's binding, on the unit that holds it.
