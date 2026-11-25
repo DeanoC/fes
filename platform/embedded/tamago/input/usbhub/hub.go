@@ -99,7 +99,7 @@ type BluetoothDevice struct {
 	Name      string
 	Kind      controllers.Kind
 	Connected bool
-	Slot      uint8 // 1..4 when connected, 0 when disconnected
+	Slot      uint8 // 1..4 when assigned a player port, 0 when disconnected or unassigned
 }
 
 // BluetoothSnapshot summarizes the active USB Bluetooth adapter, pairing
@@ -444,9 +444,10 @@ func (h *Hub) BluetoothSnapshot() BluetoothSnapshot {
 			dev.Kind = ps.Kind
 		}
 		dev.Connected = true
-		dev.Slot = ps.Slot + 1
 		if port, ok := h.playerPortFor(playerPortBT, slotIdx); ok {
 			dev.Slot = port + 1
+		} else {
+			dev.Slot = 0
 		}
 		byAddr[ps.Addr] = dev
 	}
@@ -470,6 +471,12 @@ func (h *Hub) BluetoothSnapshot() BluetoothSnapshot {
 				return 1
 			}
 			if a.Connected && a.Slot != b.Slot {
+				if a.Slot == 0 {
+					return 1
+				}
+				if b.Slot == 0 {
+					return -1
+				}
 				if a.Slot < b.Slot {
 					return -1
 				}
@@ -631,12 +638,6 @@ func (h *Hub) Close() {
 	if h == nil {
 		return
 	}
-	for i := range h.wiredKeyboards {
-		h.closeWiredKeyboard(i)
-	}
-	for i := range h.wiredGamepads {
-		h.closeWiredGamepad(i)
-	}
 	for i := range h.btKeyboards {
 		h.btKeyboards[i] = [8]byte{}
 	}
@@ -647,6 +648,12 @@ func (h *Hub) Close() {
 		h.btHome[i] = false
 	}
 	h.playerPorts = [MaxPlayerPorts]playerPortOwner{}
+	for i := range h.wiredKeyboards {
+		h.closeWiredKeyboard(i)
+	}
+	for i := range h.wiredGamepads {
+		h.closeWiredGamepad(i)
+	}
 	h.recomputeKeyboard()
 	h.recomputeGamepad()
 }
@@ -1394,10 +1401,35 @@ func (h *Hub) assignPlayerPort(source playerPortSource, slot uint8) int {
 }
 
 func (h *Hub) releasePlayerPort(source playerPortSource, slot uint8) {
+	released := false
 	for p, owner := range h.playerPorts {
 		if owner.source == source && owner.slot == slot {
 			h.playerPorts[p] = playerPortOwner{}
+			released = true
 		}
+	}
+	if released {
+		h.promoteWaitingPlayerPorts()
+	}
+}
+
+func (h *Hub) promoteWaitingPlayerPorts() {
+	for i := range h.wiredGamepads {
+		if h.wiredGamepads[i].active && h.assignPlayerPort(playerPortWired, uint8(i)) < 0 {
+			return
+		}
+	}
+	for i := range h.btSlotActive {
+		if !h.btSlotActive[i] {
+			continue
+		}
+		if _, already := h.playerPortFor(playerPortBT, uint8(i)); already {
+			continue
+		}
+		if h.assignPlayerPort(playerPortBT, uint8(i)) < 0 {
+			return
+		}
+		h.btGeneration++
 	}
 }
 
