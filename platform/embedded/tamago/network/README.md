@@ -62,8 +62,17 @@ driver using the pinned `lneto` TCP/IP stack
   is on the wrong network; it sets no such rule for a RENEWING/REBINDING
   request with `ciaddr` set. A `DHCPNAK` from any server, or an ACK for
   another address or gateway, halts the link immediately; a probe with no
-  answer keeps the still-valid lease until T1/T2. **`build.py` rejects all of
-  these flags** against the shipped `nano/sd-profile.json` (`network: null`)
+  answer keeps the still-valid lease until T1/T2.
+- **RFC 4330 SNTPv4 periodic discipline (`sntp_sync.go`):** `SNTPSyncer`
+  (`NewSNTPSyncer`, `(*Interface).NewSNTPSyncer`) serializes `SyncOnce` calls,
+  checks `[MinValidTime, MaxValidTime]` plausibility on every sample, enforces a
+  default 5-minute `MaxStep` guard (`ErrSNTPStepTooLarge`) against both prior
+  syncs and pre-synchronized `WallClockSink` clocks (QEMU PL031) while allowing
+  initial syncs when `WallClockSink.WallTime()` reports unsynced (DE25-Nano
+  cold boot), polls on `PollInterval` with exponential backoff and `ErrPaused`
+  tolerance, delivers UTC epochs to `WallClockSink.Sync` (`board.WallClock()`),
+  and dispatches callbacks through a single bounded worker.
+- **`build.py` rejects all of these flags** against the shipped `nano/sd-profile.json` (`network: null`)
   because closed-bridge SD ownership excludes Ethernet
   (`tests/test_tamago_build_network.py` enforces this refusal). Even a
   hand-linked binary fails closed in `prepareProgramNetwork` while
