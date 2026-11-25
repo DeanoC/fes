@@ -27,3 +27,13 @@ if hardware caps the achieved period, optionally runs a `Check` health probe
 before each kick (halting kicks on failure so hardware can reset a wedged
 system), and `Stop` waits for any in-flight `Check`/`Kick`/`OnError` call to
 finish before returning.
+
+## Shutdown Integration
+
+- **`(*DW).Timeout` / `SetTimeout` / `(*Supervisor).Extend` / `KickNow`:** Allow
+  updating `WDT_TORR` and reloading `WDT_CRR` on an already-armed watchdog (without
+  ever arming an inactive timer or shrinking its active period).
+- **`ShutdownPrepareStep(sup, minTimeout)` / `WrapShutdownSteps(sup, steps)`:**
+  Integrate sticky watchdog servicing with `psci.Shutdown`—stopping the
+  background health-check goroutine, widening the watchdog window before teardown,
+  and kicking the counter around slow flush/quiesce steps.
