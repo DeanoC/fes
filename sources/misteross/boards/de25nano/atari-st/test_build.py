@@ -120,6 +120,15 @@ class Derivations(unittest.TestCase):
         for group, copy in (("io", "oReset"), ("input", "oResetInput"), ("sound", "oResetSound"),
                             ("raster", "oResetRaster")):
             self.assertIn("machine_reset_%s || system.machine.cpu.cpu.%s;" % (group, copy), core)
+        for name in ("system_cold_reset", "video_cold_reset", "memory_cold_reset", "media_cold_reset"):
+            self.assertEqual(core.count(f"(* preserve, dont_merge *) reg {name} = 1'b1;"), 1, name)
+            self.assertEqual(core.count(f"{name} <= cold_reset;"), 1, name)
+        self.assertEqual(core.count(".cold_reset(cold_reset)"), 0)
+        self.assertEqual(core.count(".reset_sys(cold_reset)"), 0)
+        self.assertEqual(core.count(".cold_reset(system_cold_reset)"), 1)
+        self.assertEqual(core.count(".reset_sys(video_cold_reset)"), 1)
+        self.assertEqual(core.count(".cold_reset(memory_cold_reset)"), 1)
+        self.assertEqual(core.count(".cold_reset(media_cold_reset)"), 3)
 
     def test_memory_gains_only_the_rom_region(self):
         source = (ROOT / "cores/fes-atari-st/rtl/st_memory.sv").read_bytes()
