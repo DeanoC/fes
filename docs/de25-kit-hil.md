@@ -98,9 +98,10 @@ python3 scripts/de25_boot_screen.py --core fes.atari-st \
 
 The DE25 RAM Tester uses a separate bounded capture loop: a RUNNING frame followed by two consecutive PASS frames must identify the
 128 MiB board-SDRAM test, show both LPDDR banks untested and remain bound to
-one active package and runtime generation. The 900-second budget begins before
+one active host session, flight, target, package and runtime incarnation. The 900-second budget begins before
 package installation and includes launch and capture; the outer runner has a
-separate 1,800-second cap including recovery and restoration. A missing, stopped, failing or timed-out result fails the
+separate 1,800-second cap for the smoke subprocess; software restoration
+follows under the enclosing runner. A missing, stopped, failing or timed-out result fails the
 RAM test; a session launch alone does not pass it.
 
 The check recognises a GEM desktop from its layout, so EmuTOS and TOS both

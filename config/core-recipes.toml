@@ -1975,7 +1975,7 @@ lock_path = "boards/de25nano/quartus.lock"
 selection_filename = "fes-ramtest.package-selection.toml"
 package_dir_env = "FES_RAMTEST_PACKAGE_DIR"
 package_selection_env = "FES_RAMTEST_PACKAGE_SELECTION"
-quartus_role = "primary DE25 board SDRAM smoke tester"
+quartus_role = "primary DE25 board SDRAM tester"
 
 [recipes.quartus]
 version = "26.3.0"

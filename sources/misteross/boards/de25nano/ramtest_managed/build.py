@@ -12,7 +12,7 @@ DIRECTORY = "ramtest_managed"
 CORE_ID = "fes.ramtest"
 COMPONENT = "fes_de25_ramtest_standard"
 SDC = BOARD + "ramtest/managed/ramtest-clocks.sdc"
-MODELS = {"sdram-smoke": None}
+MODELS = {"sdram": None}
 # Same clock, ports, bridges and reset graph as the Spectrum component.
 PARENT_SHA256 = "a08edf0b098e0ddb583a98963efa6bcce1735fc41a0a28c4a9019e2eb27f1ca8"
 ASSIGNMENTS = ()

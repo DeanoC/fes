@@ -143,15 +143,28 @@ class RamtestScreenTests(unittest.TestCase):
         self.assertEqual(advance(*state, True, ok), (True, 2))
         self.assertEqual(advance(*state, False, "unknown"), (True, 0))
 
-    def test_package_and_generation_must_remain_bound(self):
-        status = {"state": "active", "game_id": "game", "core_package":
-                  {"package_id": "pkg", "generation": 9, "build_id": "build"}}
-        self.assertTrue(boot.ramtest_session_bound(status, status, "game", "pkg"))
+    def test_package_session_and_runtime_incarnation_must_remain_bound(self):
+        status = {"id": "session", "flight_id": "flight", "target": "de25", "target_id": "kit-id",
+                  "state": "active", "game_id": "game", "core_package":
+                  {"package_id": "pkg", "generation": 9, "build_id": "build"},
+                  "runtime_input": {"kind": "described", "runtime_instance": "1"*32,
+                                    "package_id": "pkg", "generation": 9},
+                  "connection": {"target_id": "kit-id", "boot_id": "boot"}}
+        self.assertTrue(boot.ramtest_session_bound(status, status, "game", "pkg", "de25", "kit-id"))
+        self.assertFalse(boot.ramtest_session_bound(status, status, "game", "pkg", "de25", "different-kit"))
+        for field in ("id", "flight_id", "target", "target_id", "game_id"):
+            with self.subTest(field=field):
+                self.assertFalse(boot.ramtest_session_bound(status, {**status, field: "changed"}, "game", "pkg", "de25", "kit-id"))
         for field, value in (("generation", 10), ("generation", 0),
                              ("build_id", "other"), ("package_id", "other")):
             end = {**status, "core_package": {**status["core_package"], field: value}}
-            self.assertFalse(boot.ramtest_session_bound(status, end, "game", "pkg"))
-        self.assertFalse(boot.ramtest_session_bound(status, {**status, "state": "idle"}, "game", "pkg"))
+            self.assertFalse(boot.ramtest_session_bound(status, end, "game", "pkg", "de25", "kit-id"))
+        for field, value in (("runtime_instance", "2"*32), ("runtime_instance", ""),
+                             ("generation", 10), ("package_id", "other"), ("kind", "development")):
+            end = {**status, "runtime_input": {**status["runtime_input"], field: value}}
+            self.assertFalse(boot.ramtest_session_bound(status, end, "game", "pkg", "de25", "kit-id"))
+        self.assertFalse(boot.ramtest_session_bound(status, {**status, "runtime_input": None}, "game", "pkg", "de25", "kit-id"))
+        self.assertFalse(boot.ramtest_session_bound(status, {**status, "state": "idle"}, "game", "pkg", "de25", "kit-id"))
 
     def test_missing_identity_or_untested_bank_is_not_a_pass(self):
         for missing in (0, 1, 3, 4):

@@ -36,7 +36,7 @@ class ManagedRamtestBuildTests(unittest.TestCase):
         from boards.de25nano.producers.build_ramtest_package import MACHINE
         record = {'repository': 'https://example.invalid/repo', 'revision': '1'*40,
                   'recipe_sha256': '2'*64, 'tools': {'quartus': 'test'},
-                  'parameters': {'core_id': 'fes.ramtest', 'model': 'sdram-smoke',
+                  'parameters': {'core_id': 'fes.ramtest', 'model': 'sdram',
                                  'guest_memory': 'board-sdram',
                                  'programming_profile': 'de25-linux-computer-v1'},
                   'identities': {'design': {'id': '3'*32}}}

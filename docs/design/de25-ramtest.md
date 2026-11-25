@@ -47,7 +47,7 @@ The separate `fes.ramtest` DE25 producer uses the managed computer shell and
 its existing kernel-owned display allocation. It runs the diagnostic scan
 engine over the 128 MiB board SDRAM, then renders the scoped result and
 marks both LPDDR banks untested. Host capture analysis requires a RUNNING frame followed by two stable PASS
-frames on the same active package and runtime generation; it does not infer
+frames on the same active host session, flight, target and runtime incarnation; it does not infer
 LPDDR or analogue acceptance. Execution Hold waits
 for accepted SDRAM traffic to drain before the mailbox acknowledges it.
 A missing response does not prove drain. No new HPS DDR tester master, DMA

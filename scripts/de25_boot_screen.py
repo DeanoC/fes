@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -163,14 +164,31 @@ def ramtest_transition(running_seen, stable, ok, detail):
     return running_seen, stable + 1 if running_seen and ok else 0
 
 
-def ramtest_session_bound(before, after, game, package):
-    """Verify both observations name the same active core generation."""
-    def identity(status):
-        core = status.get("core_package") or {}
-        return (status.get("game_id"), core.get("package_id"), core.get("generation"), core.get("build_id"))
-    first, last = identity(before), identity(after)
-    return (before.get("state") == after.get("state") == "active" and first == last and
-            first[0] == game and first[1] == package and bool(first[2]) and bool(first[3]))
+def ramtest_session_identity(status):
+    """Return one fully observed launch and runtime identity, or None."""
+    core = status.get("core_package") or {}
+    runtime = status.get("runtime_input") or {}
+    connection = status.get("connection") or {}
+    required = (status.get("id"), status.get("flight_id"), status.get("target"),
+                status.get("target_id"), status.get("game_id"), core.get("package_id"), core.get("build_id"))
+    generation = core.get("generation")
+    instance = runtime.get("runtime_instance")
+    if (status.get("state") != "active" or not all(isinstance(v, str) and v.strip() for v in required) or
+            type(generation) is not int or generation <= 0 or runtime.get("kind") != "described" or
+            not isinstance(instance, str) or not re.fullmatch(r"[0-9a-f]{32}", instance) or
+            instance == "0" * 32 or runtime.get("package_id") != core.get("package_id") or
+            runtime.get("generation") != generation or
+            (connection.get("target_id") and connection.get("target_id") != status.get("target_id"))):
+        return None
+    return (*required, generation, instance, status.get("input_agent_instance") or "",
+            connection.get("boot_id") or "")
+
+
+def ramtest_session_bound(before, after, game, package, target, target_id):
+    """Require the same active host flight, target and runtime incarnation."""
+    first, last = ramtest_session_identity(before), ramtest_session_identity(after)
+    return bool(first and first == last and first[4] == game and first[5] == package and
+                first[2] == target and first[3] == target_id and target and target_id)
 
 
 CHECKS = {"fes.atari-st": gem_desktop, "fes.ramtest": ramtest_screen}

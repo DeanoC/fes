@@ -206,6 +206,17 @@ int main(int argc, char** argv) {
   }
   require(pass && !b.memory.empty(), "SDRAM scan did not pass after writes");
   b.ok(2,0,0,"hold after drain");
+  b.ok(2,0,1,"release following PASS");
+  b.run_clocks(100);
+  require(b.root.fes_de25_ramtest_standard__DOT__status_video__DOT__status == 1,
+          "rendered status did not leave prior PASS for the fresh scan");
+  bool fresh_pass=false;
+  for (unsigned i=0; i<6000000; ++i) {
+   b.run_clocks(1);
+   if (b.root.fes_de25_ramtest_standard__DOT__scanner__DOT__result_flags & 4) { fresh_pass=true; break; }
+  }
+  require(fresh_pass, "fresh scan after PASS did not finish");
+  b.ok(2,0,0,"hold after fresh pass");
  }
  {
   Board b; b.corrupt_reads=true; b.ok(2,0,1,"release corrupt model");

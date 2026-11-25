@@ -117,8 +117,8 @@ new_frames = old_frames + """
         # Bind the RUNNING -> PASS transition to one observed package and
         # runtime generation. A repeated stale PASS cannot satisfy this gate.
         deadline = ramtest_deadline
-        identity = (ss.get("game_id"), cp.get("package_id"), cp.get("generation"), cp.get("build_id"))
-        stable, count, running_seen = 0, 0, False
+        identity, end_identity = None, None
+        stable, count, running_seen, continuity = 0, 0, False, False
         observations = []
         def observe_ramtest(frame):
             bs = subprocess.run([sys.executable, tool, "--core", core_id, str(frame)],
@@ -137,17 +137,31 @@ new_frames = old_frames + """
             ramtest_helpers = runpy.run_path(tool)
             advance = ramtest_helpers["ramtest_transition"]
             session_bound = ramtest_helpers["ramtest_session_bound"]
+            session_identity = ramtest_helpers["ramtest_session_identity"]
+            identity = session_identity(ss)
+            initial_after = req("/api/v1/session", "ramtest-session-initial-after")
+            continuity = session_bound(ss, initial_after, game, pid, TARGET, os.environ.get("C_TARGET_ID", ""))
             for name in ("10-core", "11-core"):
+                if not continuity:
+                    break
                 frame = FR / (name + ".png")
                 if not frame.is_file() or time.monotonic() >= deadline:
                     stable = 0
                     continue
                 rc, detail = observe_ramtest(frame)
                 running_seen, stable = advance(running_seen, stable, rc == 0, detail)
-            while time.monotonic() < deadline and stable < 2:
+            while continuity and time.monotonic() < deadline and stable < 2:
                 name = f"ramtest-{count:03d}"
                 count += 1
+                before_frame = req("/api/v1/session", name + "-session-before")
+                continuity = session_bound(ss, before_frame, game, pid, TARGET, os.environ.get("C_TARGET_ID", ""))
+                if not continuity:
+                    break
                 captured = grab(name, 10)
+                after_frame = req("/api/v1/session", name + "-session-after")
+                continuity = session_bound(ss, after_frame, game, pid, TARGET, os.environ.get("C_TARGET_ID", ""))
+                if not continuity:
+                    break
                 frame = FR / (name + ".png")
                 if time.monotonic() >= deadline:
                     break
@@ -158,9 +172,9 @@ new_frames = old_frames + """
                 rc, detail = observe_ramtest(frame)
                 running_seen, stable = advance(running_seen, stable, rc == 0 and time.monotonic() < deadline, detail)
         end = req("/api/v1/session", "ramtest-session-after")
-        end_cp = end.get("core_package") or {}
-        end_identity = (end.get("game_id"), end_cp.get("package_id"), end_cp.get("generation"), end_cp.get("build_id"))
-        bound = bool(tool and os.path.isfile(tool) and session_bound(ss, end, game, pid) and
+        if tool and os.path.isfile(tool):
+            end_identity = session_identity(end)
+        bound = bool(tool and os.path.isfile(tool) and continuity and session_bound(ss, end, game, pid, TARGET, os.environ.get("C_TARGET_ID", "")) and
                      time.monotonic() < deadline)
         (OUT / "ramtest-screen.json").write_text(json.dumps({"observations": observations,
             "identity": identity, "final_identity": end_identity, "running_seen": running_seen,
@@ -296,7 +310,7 @@ for i in "${!PKGS[@]}"; do
       timeout 1800 python3 "$Q/hil-de25-menu.py" >"$SMOKE_LOG" 2>&1
     SMOKE_RC=$?
   else
-    C_CORE_ID="$CORE_ID" C_BOOT_SCREEN_TOOL="$FES_SOURCE/scripts/de25_boot_screen.py" C_KIT=D25 C_PR="$PR" C_TARGET=de25 C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$OUT" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
+    C_CORE_ID="$CORE_ID" C_BOOT_SCREEN_TOOL="$FES_SOURCE/scripts/de25_boot_screen.py" C_KIT=D25 C_PR="$PR" C_TARGET=de25 C_TARGET_ID="$TARGET_ID" C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$OUT" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
       timeout 1800 python3 "$Q/hil-de25-core.py" >"$SMOKE_LOG" 2>&1
     SMOKE_RC=$?
   fi

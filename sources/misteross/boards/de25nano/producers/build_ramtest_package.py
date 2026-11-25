@@ -13,7 +13,7 @@ RECIPE = 'boards/de25nano/producers/build_ramtest_package.py'
 MACHINE = Machine(
     recipe=RECIPE, directory='ramtest_managed', core_id='fes.ramtest', rom_id=None,
     name='RAM Tester', version='1.0.0', interfaces=(),
-    descriptions={'sdram-smoke': 'DE25 128 MiB board SDRAM test; both LPDDR banks are not tested'})
+    descriptions={'sdram': 'DE25 128 MiB board SDRAM test; both LPDDR banks are not tested'})
 
 
 def _require_clean_source(root, *, identity_version=2, pinned_inputs=(RECIPE, ABI)):
