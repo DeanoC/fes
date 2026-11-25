@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -154,14 +155,21 @@ func TestDelegatedV2ManagerRevocationRetiresUncertainBindingAfterCoreStopsToIdle
 	// Include an unbound matrix sink alongside HID, matching non-matrix cores like fes.pcxt-dos.
 	keys := NewKeyboardSink()
 	keys.SetPoster(func(context.Context, localhid.MatrixPost, uint64) error {
-		return errors.New("unbound matrix poster unavailable")
+		return errors.Join(localhid.ErrMatrixNotDispatched, errors.New("unbound matrix poster unavailable"))
 	})
 	f.c.ports.keys = keys
 	f.c.keyboard = keys
 
+	var obsMu sync.Mutex
 	currentObs := CoreObservation{IdleConfirmed: true, RuntimeInstance: f.req.RuntimeInstance}
-	f.c.ObserveCore(func(context.Context) (CoreObservation, error) { return currentObs, nil })
+	f.c.ObserveCore(func(context.Context) (CoreObservation, error) {
+		obsMu.Lock()
+		defer obsMu.Unlock()
+		return currentObs, nil
+	})
 	setActive := func(instance, pkg string, gen uint64) {
+		obsMu.Lock()
+		defer obsMu.Unlock()
 		currentObs = CoreObservation{
 			Active:          true,
 			CoreID:          "fes.pcxt-dos",
@@ -204,7 +212,9 @@ func TestDelegatedV2ManagerRevocationRetiresUncertainBindingAfterCoreStopsToIdle
 	}
 
 	// Simulate Stop() having completed to idle: poster for the retired generation still fails.
+	obsMu.Lock()
 	currentObs = CoreObservation{IdleConfirmed: true, RuntimeInstance: f.req.RuntimeInstance}
+	obsMu.Unlock()
 	if _, err := manager.Release(grant.Token); err != nil {
 		t.Fatal(err)
 	}
