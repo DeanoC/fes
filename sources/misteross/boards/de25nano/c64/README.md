@@ -23,10 +23,13 @@ the CPU, one for the VIC's character fetch and one for the 1541. The VIC has
 its own copy of the character ROM, written with the CPU's, so every region is
 one write port and one read port.
 
-Everything else stays where the DE10 keeps it. The 64 KiB RAM, colour RAM,
-three frame pages and the 174,848-byte D64 disk store are block RAM, so the
-board SDRAM is unused: the component holds its clock low, both chips
-deselected and the data pins released. Both cartridge sockets are vacant
+The 64 KiB guest RAM, colour RAM, firmware, 1541 GCR track cache and three
+VIC-II frame pages use block RAM. The 174,848-byte D64 image occupies byte
+addresses 0 through 174,847 in board SDRAM rank 0. The board SDRAM controller
+runs on the machine clock. D64 writes acknowledge through the existing media
+backpressure path after the SDRAM write response. HOLD resets the drive and
+its track builder while SDRAM keeps refreshing the committed image.
+Both cartridge sockets are vacant
 (an all-zero response), as the DE10 shell's are without a linked card.
 
 `../shared-rtl/fes_c64_core.v` is the portable core: firmware front end,
@@ -48,16 +51,13 @@ build:
   machine clock, one clock after the DE10's term. `fes_c64_core` registers
   the machine's reset input the same way.
 - `c64_ram.v`, `c64_color_ram.v`: the block RAM hint names `M20K`.
-- `c64_disk_store.v`: the DE10 store is one byte array with two write ports,
-  one shared with the 1541's read, which Quartus cannot map to block RAM. It
-  becomes two byte lanes (even and odd addresses), each with one write and
-  one read port. A mailbox byte pair always lands in both lanes, and the
-  1541's read keeps its one clock. The DE10 read returned the byte being
-  written while a pair was written; here it always returns the 1541's
-  address.
-- `c64_frame_store.sv`: the 153 placed `MISTRAL_M10K` primitives become three
-  inferred pages, one write statement each, with the DE10 latencies (written
-  in the machine clock, read with one pixel edge). Its crossings take the
+- `c64_machine.sv` and `c64_d64_medium.sv`: the machine uses the shared
+  `fes_media_sdram` byte-fetch port instead of the block-RAM disk store. The
+  GCR builder waits for each byte and builds the same local track cache.
+- `c64_frame_store.sv`: three inferred pages each pack two successive
+  four-bit pixels into one byte. The writer stores each pair on the second
+  pixel and the pixel clock registers the read nibble along with its byte.
+  Page handoff and the one-pixel-edge read latency stay the same. Its crossings take the
   shape the Spectrum and Atari ST pass signoff with. The reader's reset was
   the machine's combinational reset sampled directly in the pixel clock; here
   it is registered once in the machine clock and enters the pixel clock
@@ -92,12 +92,12 @@ component's Avalon computer slave on three unrelated clocks. It checks
 identity and capabilities (`0x204f`), that execution cannot be released
 without firmware, a wrong size and a wrong CRC, every stored firmware byte in
 each region, every byte of the D64 committed through the mailbox (a 7-byte
-first chunk puts later pairs at odd addresses) into the disk store's lanes, joystick and keyboard input, the diagnostic running to its PASS
+first chunk puts later pairs at odd addresses) into a logical SDRAM model,
+joystick and keyboard input, the diagnostic running to its PASS
 stage (CPU, CIA timers and interrupts, SID audio and the native 1541 reading
-the committed disk), that the SDRAM stays idle and that a hold keeps the
-firmware. It then runs the DE10 frame-store bench against the derived store:
+the committed disk), and that a hold keeps the firmware and disk. It then runs the DE10 frame-store bench against the derived store:
 page handoff at three producer rates, reader coherence and every stored
-address. The HPS, scanout memory master, PLLs and HDMI are not modeled.
+address. The HPS, scanout memory master, PLLs, SDRAM pad timing and HDMI are not modeled.
 
 `project` permits inspection of local edits. `generate` and `build` require
 clean committed source and an output directory that does not exist.
@@ -116,8 +116,7 @@ clean committed source and an output directory that does not exist.
 The opt-in `nativepal` package uses the same BL31 upload-shell role as native
 Spectrum. Its 6510 opcode-decode counter and address use the shared
 computer-aperture snapshot at `0x18` and `0x1c`. The C64 scanout reader uses
-the existing fixed DDR grant and its identity and drain protocol. Guest RAM
-and the 1541 disk store stay in block RAM.
+the existing fixed DDR grant and its identity and drain protocol. Guest RAM stays in block RAM and the 1541 disk image uses board SDRAM.
 
 Run the native component regression with `python3 sim.py --native` from this
 directory. It checks two diagnostic execution cycles, ROM and D64 retention
