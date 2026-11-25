@@ -189,7 +189,8 @@ private:
  DiskWindow* disk_window_;
  De25HpsWindow* hps_window_ = nullptr;
  bool HpsDdrAvailable() const;
- Error ReleaseHpsWindow(const char* operation, const std::string& system, const std::string& core);
+ Error ReleaseHpsWindow(const char* operation, const std::string& system, const std::string& core,
+  bool machine_quiesced=false);
  MenuDisplayStatus menu_status_;
  Error menu_revoke_error_;
  std::string menu_directory_,menu_package_id_;

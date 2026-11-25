@@ -171,12 +171,17 @@ void TestFaultIsFatalAndNamed()
   owner.grant.status |= FesDe25HpsWindowStatusFault;
   owner.grant.fault = FesDe25HpsWindowFaultNoGrant | 1u;
   assert(window.Check().message == "DE25 HPS window fault: port 0, no grant");
-  assert(!window.Ready());
+  assert(window.IsOpen() && !window.Ready());
   int range = -1;
   assert(window.Grant(0, 4096, &range).code == mister::ErrorCode::unsupported_interface && range == -1);
   owner.calls.clear();
   assert(window.Release().code == mister::ErrorCode::unsupported_interface);
+  assert(window.Open(kBuild).code == mister::ErrorCode::unsupported_interface);
   assert(owner.calls.empty());
+  // A check fault remains poisoned until the caller has quiesced the machine.
+  assert(window.Blocking().code == mister::ErrorCode::unsupported_interface);
+  assert(window.ReleaseAfterQuiesce().ok());
+  assert(!window.IsOpen() && !window.Ready() && (owner.calls == Calls{"release 20", "close 20"}));
  }
  {
   // A different generation is a grant this session did not open.
@@ -257,6 +262,7 @@ void TestFailedRevokeOrReleasePoisons()
   assert(!window.Ready());
   owner.calls.clear();
   assert(window.Release().code == mister::ErrorCode::unsupported_interface);
+  assert(window.ReleaseAfterQuiesce().code == mister::ErrorCode::unsupported_interface);
   assert(owner.calls.empty());
  }
  {
@@ -266,6 +272,9 @@ void TestFailedRevokeOrReleasePoisons()
   owner.fail_release = true;
   assert(window.Release().code == mister::ErrorCode::busy);
   assert(!window.Ready());
+  const auto calls = owner.calls.size();
+  assert(window.ReleaseAfterQuiesce().code == mister::ErrorCode::unsupported_interface);
+  assert(owner.calls.size() == calls);
   assert(window.Open(kBuild).code == mister::ErrorCode::unsupported_interface);
  }
  {

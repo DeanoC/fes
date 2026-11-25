@@ -3334,8 +3334,9 @@ struct RevokeRecordingMemory final : mister::native::MenuMemory {
 
 void TestDe25WindowIsGrantedPerSession()
 {
-	enum class Trial { offered, not_offered, release_fails, replaced, quiesce_fails, quiesce_and_release_fail };
-	for (const Trial trial : {Trial::offered, Trial::not_offered, Trial::release_fails, Trial::replaced,
+	using namespace mister::native::generated;
+	enum class Trial { offered, not_offered, release_fails, replaced, poisoned_replaced, quiesce_fails, quiesce_and_release_fail };
+	for (const Trial trial : {Trial::offered, Trial::not_offered, Trial::release_fails, Trial::replaced, Trial::poisoned_replaced,
 			Trial::quiesce_fails, Trial::quiesce_and_release_fail}) {
 		std::vector<std::string> driver_events;
 		RecordingDriver gp(driver_events);
@@ -3369,7 +3370,14 @@ void TestDe25WindowIsGrantedPerSession()
 		assert(Find(driver_events, "window.allocate") < Find(driver_events, "driver.start"));
 		assert(window.Ready());
 		const int programs = fixture.native.fpga.calls;
-		if (trial == Trial::replaced) {
+		if (trial == Trial::poisoned_replaced) {
+			owner.grant.status |= FesDe25HpsWindowStatusFault;
+			owner.grant.fault = FesDe25HpsWindowFaultOutside | 1u;
+			assert(window.Check().code == mister::ErrorCode::io_failed);
+			assert(window.IsOpen() && !window.Ready());
+			assert(window.Blocking().code == mister::ErrorCode::unsupported_interface);
+		}
+		if (trial == Trial::replaced || trial == Trial::poisoned_replaced) {
 			// Replacing the core quiesces it, then releases, then programs.
 			TempDirectory plain;
 			mister::native::OpenedCorePackage other;
@@ -3388,7 +3396,7 @@ void TestDe25WindowIsGrantedPerSession()
 			const std::size_t release_at = Find(driver_events, "window.release");
 			for (std::size_t at = before; at < release_at; ++at) assert(driver_events[at] != "menu.revoke");
 			assert(std::find(driver_events.begin() + release_at, driver_events.end(), "menu.revoke") != driver_events.end());
-			assert(programs_at_release == programs + 1 && !window.Ready());
+			assert(programs_at_release == programs + 1 && !window.IsOpen() && !window.Ready());
 			continue;
 		}
 		if (trial == Trial::quiesce_fails || trial == Trial::quiesce_and_release_fail) {
@@ -4122,16 +4130,20 @@ void TestDe25WindowOpensAfterTheSessionDisplayBinds()
  if(!loaded.error.ok())fprintf(stderr,"window after bind: %s\n",loaded.error.message.c_str());
  assert(loaded.error.ok()&&window.Ready()&&fpga.hps_ddr_calls==0);
  assert(Find(events,"menu.bind")<Find(events,"window.allocate"));
+ owner.grant.status|=FesDe25HpsWindowStatusFault;
+ owner.grant.fault=FesDe25HpsWindowFaultOutside|1u;
+ assert(window.Check().code==mister::ErrorCode::io_failed);
+ assert(window.IsOpen()&&!window.Ready());
  // Closing the plane would reap the scanout, and the owner's REAP retires
  // the live window first (EAGAIN while its ports run): the machine keeps
  // its session display, and nothing is revoked, until it stops.
  const std::size_t revokes=Count(events,"menu.revoke");
  assert(hardware.SetSessionDisplay(false,false).code==mister::ErrorCode::busy);
- assert(Count(events,"menu.revoke")==revokes&&window.Ready());
+ assert(Count(events,"menu.revoke")==revokes&&Count(events,"menu.quiesce")==0&&window.IsOpen()&&!window.Ready());
  // Opening the plane and hitting a presentation failure marks the plane
- // unavailable without revoking or quiescing the scanout while the window
- // is still open, so Stop can quiesce the machine and release the window
- // before the menu's revoke.
+ // unavailable without revoking or quiescing the scanout while the poisoned
+ // window descriptor is still open, so replacement can quiesce the machine
+ // and retire the window before the menu's revoke.
  for(unsigned row=0;row<8;++row){script.Reply();}
  script.Reply();script.Info(3,0);
  assert(hardware.SetSessionDisplay(true,true).ok()&&hardware.menu_display().available);
@@ -4140,7 +4152,8 @@ void TestDe25WindowOpensAfterTheSessionDisplayBinds()
  assert(!PresentBackSlot(hardware,&info).ok());
  assert(!hardware.menu_display().available);
  assert(hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
- assert(Count(events,"menu.revoke")==revokes&&Count(events,"menu.quiesce")==0&&window.Ready());
+ assert(hardware.menu_display().launcher_focus&&Count(events,"menu.revoke")==revokes&&
+  Count(events,"menu.quiesce")==0&&window.IsOpen()&&!window.Ready());
  // Replacing or stopping the machine quiesces it, releases the window,
  // and then calls menu.revoke cleanly without a sticky revoke error.
  TempDirectory plain;OpenedCorePackage other;
@@ -4150,7 +4163,7 @@ void TestDe25WindowOpensAfterTheSessionDisplayBinds()
  script.Reply();script.Reply(25);script.Reply();
  script.toggle=false;script.Identity(2);script.Reply();
  const std::size_t before_stop=events.size();
- assert(hardware.LoadCore(std::move(plain_admitted),18).error.ok()&&!window.Ready());
+ assert(hardware.LoadCore(std::move(plain_admitted),18).error.ok()&&!window.IsOpen()&&!window.Ready());
  assert(Count(events,"menu.revoke")==revokes+1);
  const auto stop_begin=events.begin()+before_stop;
  const auto release_pos=std::find(stop_begin,events.end(),"window.release");

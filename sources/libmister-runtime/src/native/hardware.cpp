@@ -330,12 +330,16 @@ void NativeHardware::SetHpsWindow(De25HpsWindow* window)
 // cannot be released keeps the configuration and stays poisoned, so every
 // later replacement is refused too.
 Error NativeHardware::ReleaseHpsWindow(const char* operation, const std::string& system,
-	const std::string& core)
+	const std::string& core, bool machine_quiesced)
 {
 	if (!hps_window_) return {};
-	Error error = hps_window_->Blocking();
-	if (error.ok() && hps_window_->Ready()) error = hps_window_->Release();
-	else if (error.ok()) return {};
+	Error error;
+	if (machine_quiesced) error = hps_window_->ReleaseAfterQuiesce();
+	else {
+		error = hps_window_->Blocking();
+		if (error.ok() && hps_window_->Ready()) error = hps_window_->Release();
+		else if (error.ok()) return {};
+	}
 	log_.Write({operation, system, core, "hps_window_release", error});
 	return error;
 }
@@ -579,21 +583,31 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 	// runs, so the machine is quiesced and its window released before REAP.
 	bool machine_quiesced = false;
 	CoreDriverResult early;
-	if (hps_window_ && hps_window_->Ready() && active_driver_ != nullptr) {
-		early = active_driver_->Quiesce(active_context_, Deadline(clock_, timeouts_.core_io_ms));
-		log_.Write({operation, system, core, "driver_quiesce", early.error});
-		if (early.error.ok()) {
-			early.error = ReleaseHpsWindow(operation, system, core);
-			if (!early.error.ok()) early.mutation_attempted = true;
+	if (hps_window_ && hps_window_->IsOpen()) {
+		if (active_driver_ != nullptr) {
+			early = active_driver_->Quiesce(active_context_, Deadline(clock_, timeouts_.core_io_ms));
+			log_.Write({operation, system, core, "driver_quiesce", early.error});
+			if (early.error.ok()) {
+				early.error = ReleaseHpsWindow(operation, system, core, true);
+				if (!early.error.ok()) early.mutation_attempted = true;
+			}
+			if (!early.error.ok()) {
+				ObserveHandoff(operation, early.error);
+				if (menu_status_.available) {menu_unsafe_ = true; menu_status_.available = false;
+					menu_directory_.clear(); menu_package_id_.clear();}
+				if (early.mutation_attempted) ForgetActiveCore();
+				return {WithPhase(early.error, "quiesce"), early.mutation_attempted, early.observed_core};
+			}
+			machine_quiesced = true;
+		} else {
+			// With no driver left, the owner itself must prove the window drained.
+			// Retire it before the menu can reap the allocation.
+			const Error released = ReleaseHpsWindow(operation, system, core);
+			if (!released.ok()) {
+				ObserveHandoff(operation, released);
+				return {WithPhase(released, "quiesce"), false, ""};
+			}
 		}
-		if (!early.error.ok()) {
-			ObserveHandoff(operation, early.error);
-			if (menu_status_.available) {menu_unsafe_ = true; menu_status_.available = false;
-				menu_directory_.clear(); menu_package_id_.clear();}
-			if (early.mutation_attempted) ForgetActiveCore();
-			return {WithPhase(early.error, "quiesce"), early.mutation_attempted, early.observed_core};
-		}
-		machine_quiesced = true;
 	}
 	// No process writes the menu window once quiesce or programming begins.
 	const Error revoked = RevokeMenuWindow();
@@ -620,7 +634,7 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 			Deadline(clock_, timeouts_.core_io_ms));
 		log_.Write({operation, system, core, "driver_quiesce", driver.error});
 		if (driver.error.ok()) {
-			driver.error = ReleaseHpsWindow(operation, system, core);
+			driver.error = ReleaseHpsWindow(operation, system, core, true);
 			if (!driver.error.ok()) driver.mutation_attempted = true;
 		}
 	}
@@ -2348,7 +2362,7 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
  // HPS window first and answers EAGAIN while its guest ports run. A running
  // window machine therefore keeps its session display until it stops, which
  // quiesces the machine and releases the window before the menu's revoke.
- if(hps_window_&&hps_window_->Ready())
+	if(hps_window_&&hps_window_->IsOpen())
   return {ErrorCode::busy,"a running HPS-window machine keeps its session display until it stops","menu"};
  const Error revoked=RevokeMenuWindow();
  MenuDisplayInfo info;
@@ -2428,7 +2442,7 @@ HardwareResult NativeHardware::LoadSplashIdle()
 		quiesce_mutation = quiesce_mutation || driver.mutation_attempted;
 		log_.Write({"start", "", "", "driver_quiesce", driver.error});
 		if (driver.error.ok()) {
-			const Error window = ReleaseHpsWindow("start", "", "");
+			const Error window = ReleaseHpsWindow("start", "", "", true);
 			if (!window.ok()) return {WithPhase(window, "quiesce"), true, driver.observed_core};
 		}
   if(!driver.error.ok()) {
@@ -2667,7 +2681,7 @@ Error NativeHardware::FailMenuPresent(const Error& error)
   // its guest ports run, latching revoke_failed and stranding Stop. Keep the
   // scanout allocation pinned and the plane unavailable until Stop quiesces
   // the machine and releases the window before the menu's revoke.
-  if(hps_window_&&hps_window_->Ready()) {
+	  if(hps_window_&&hps_window_->IsOpen()) {
    menu_status_.error=error;
    SetSessionDisplayInputFocus(true);
    return menu_status_.error;

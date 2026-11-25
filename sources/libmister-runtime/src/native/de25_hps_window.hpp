@@ -65,12 +65,18 @@ public:
  Error Open(const std::array<std::uint32_t,4>& build_id);
  // The owner offers windows; says nothing about one being open.
  bool OwnerAvailable();
+ // A poisoned window is not usable, but its descriptor remains live until it
+ // is safely retired.
+ bool IsOpen() const;
  bool Ready() const;
  // Reads the kernel's cached report; a latched fault is returned as an
  // error naming the ports and the reason, and poisons the window.
  Error Check();
  // Every range must have been revoked and closed first.
  Error Release();
+ // Retire after the caller has successfully quiesced the machine. This may
+ // release a window poisoned by Check; the owner still proves its ports drain.
+ Error ReleaseAfterQuiesce();
  // Refuses while a window that faulted or failed its release is held: it
  // stays poisoned, and nothing may be programmed over it. Touches no owner.
  Error Blocking() const;
@@ -90,7 +96,7 @@ private:
  mutable std::mutex mutex_;
  int window_=-1;
  unsigned ranges_=0;
- bool poisoned_=false;
+ bool poisoned_=false,check_poisoned_=false;
  std::uint64_t generation_=0;
  std::array<std::uint32_t,4> expected_{};
 };

@@ -48,6 +48,7 @@ De25HpsWindow::~De25HpsWindow()
 Error De25HpsWindow::Poison(Error error)
 {
  poisoned_ = true;
+ check_poisoned_ = false;
  return error;
 }
 
@@ -112,6 +113,12 @@ bool De25HpsWindow::OwnerAvailable()
  return operations_.Available();
 }
 
+bool De25HpsWindow::IsOpen() const
+{
+ std::lock_guard<std::mutex> lock(mutex_);
+ return window_ >= 0;
+}
+
 bool De25HpsWindow::Ready() const
 {
  std::lock_guard<std::mutex> lock(mutex_);
@@ -122,10 +129,14 @@ Error De25HpsWindow::Check()
 {
  std::lock_guard<std::mutex> lock(mutex_);
  if (window_ < 0) return Refused("no window is open");
+ if (poisoned_) return Refused("a faulted or unrevoked window cannot be checked before reprogramming");
  De25WindowGrant grant;
  Error error = operations_.Info(window_, &grant);
  if (error.ok()) error = Validate(grant, false);
- return error.ok() ? error : Poison(error);
+ if (error.ok()) return error;
+ poisoned_ = true;
+ check_poisoned_ = true;
+ return error;
 }
 
 Error De25HpsWindow::Release()
@@ -139,6 +150,26 @@ Error De25HpsWindow::Release()
  operations_.Close(window_);
  window_ = -1;
  generation_ = 0;
+ return {};
+}
+
+Error De25HpsWindow::ReleaseAfterQuiesce()
+{
+ std::lock_guard<std::mutex> lock(mutex_);
+ if (window_ < 0) return poisoned_ ? Refused("an earlier window was not released") : Error{};
+ if (ranges_) return {ErrorCode::busy, "DE25 HPS window ranges are still granted", "stop"};
+ // Only a failed cached check can be retired this way. A failed revoke or
+ // release remains uncertain and must never be retried just because the
+ // machine was later quiesced.
+ if (poisoned_ && !check_poisoned_)
+  return Refused("a faulted or unrevoked window cannot be released before reprogramming");
+ check_poisoned_ = false;
+ const Error error = operations_.Release(window_);
+ if (!error.ok()) return Poison(error);
+ operations_.Close(window_);
+ window_ = -1;
+ generation_ = 0;
+ poisoned_ = false;
  return {};
 }
 
