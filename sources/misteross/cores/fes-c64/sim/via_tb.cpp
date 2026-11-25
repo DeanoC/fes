@@ -47,7 +47,7 @@ int main(int argc,char **argv){
     b.phi();b.check(b.t.ca2_output && b.t.cb2_output,"pulse duration one Phi2");
     b.write(12,0xcc);b.check(!b.t.ca2_output && !b.t.cb2_output,"manual low outputs");
     b.write(12,0xee);b.check(b.t.ca2_output && b.t.cb2_output,"manual high outputs");
-    // The 1541 CA2 line can feed the VIA's output back to its own input.
+    // A VIA output can feed back to its CA2 input; the FES drive ties CA2 high.
     // An edge must raise IFR/IRQ only while CA2 is configured as an input.
     b.write(14,0x7f);b.write(14,0x81);b.write(13,0x7f);
     for (unsigned mode=4;mode<=7;mode++) {
