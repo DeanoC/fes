@@ -574,6 +574,27 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 {
 	if (!game_video_.SupportsPlatform(platform_))
 		return {{ErrorCode::unsupported_target, "core video backend differs from selected platform", "platform"}, false, ""};
+	// A live HPS window goes first: the owner's REAP (the menu's revoke) revokes
+	// the window before the scanout and answers EAGAIN while a guest port still
+	// runs, so the machine is quiesced and its window released before REAP.
+	bool machine_quiesced = false;
+	CoreDriverResult early;
+	if (hps_window_ && hps_window_->Ready() && active_driver_ != nullptr) {
+		early = active_driver_->Quiesce(active_context_, Deadline(clock_, timeouts_.core_io_ms));
+		log_.Write({operation, system, core, "driver_quiesce", early.error});
+		if (early.error.ok()) {
+			early.error = ReleaseHpsWindow(operation, system, core);
+			if (!early.error.ok()) early.mutation_attempted = true;
+		}
+		if (!early.error.ok()) {
+			ObserveHandoff(operation, early.error);
+			if (menu_status_.available) {menu_unsafe_ = true; menu_status_.available = false;
+				menu_directory_.clear(); menu_package_id_.clear();}
+			if (early.mutation_attempted) ForgetActiveCore();
+			return {WithPhase(early.error, "quiesce"), early.mutation_attempted, early.observed_core};
+		}
+		machine_quiesced = true;
+	}
 	// No process writes the menu window once quiesce or programming begins.
 	const Error revoked = RevokeMenuWindow();
 	if (!revoked.ok()) {
@@ -593,12 +614,15 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 		ObserveHandoff(operation, blocked);
 		return {WithPhase(blocked, "quiesce"), video.mutation_attempted, ""};
 	}
-	CoreDriverResult driver = active_driver_->Quiesce(active_context_,
-		Deadline(clock_, timeouts_.core_io_ms));
-	log_.Write({operation, system, core, "driver_quiesce", driver.error});
-	if (driver.error.ok()) {
-		driver.error = ReleaseHpsWindow(operation, system, core);
-		if (!driver.error.ok()) driver.mutation_attempted = true;
+	CoreDriverResult driver = early;
+	if (!machine_quiesced) {
+		driver = active_driver_->Quiesce(active_context_,
+			Deadline(clock_, timeouts_.core_io_ms));
+		log_.Write({operation, system, core, "driver_quiesce", driver.error});
+		if (driver.error.ok()) {
+			driver.error = ReleaseHpsWindow(operation, system, core);
+			if (!driver.error.ok()) driver.mutation_attempted = true;
+		}
 	}
 	ObserveHandoff(operation, driver.error);
  if(!driver.error.ok()&&menu_status_.available){menu_unsafe_=true;menu_status_.available=false;menu_directory_.clear();menu_package_id_.clear();}

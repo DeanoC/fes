@@ -940,8 +940,9 @@ bool WaitForState(mister::Runtime& runtime, mister::State state)
 
 struct IntegratedFixture {
 	explicit IntegratedFixture(mister::native::CoreDriver* gp_driver = nullptr,
-		mister::native::IdleRecipe idle_recipe = mister::native::SplashIdle())
-		: native(gp_driver, std::move(idle_recipe)),
+		mister::native::IdleRecipe idle_recipe = mister::native::SplashIdle(),
+		mister::native::MenuMemory* menu_memory = nullptr)
+		: native(gp_driver, std::move(idle_recipe), menu_memory),
 		  runtime(native.hardware, native.log) {}
 	void Start()
 	{
@@ -3320,6 +3321,17 @@ private:
 	std::vector<std::string>& events_;
 };
 
+// Records the menu window's revoke, the owner's REAP, among the driver's events.
+struct RevokeRecordingMemory final : mister::native::MenuMemory {
+	explicit RevokeRecordingMemory(std::vector<std::string>& e) : events(e) {}
+	mister::Error Activate(bool, bool) override { return {}; }
+	mister::Error Revoke() override { events.push_back("menu.revoke"); return {}; }
+	mister::Error Share(int*) const override { return {}; }
+	mister::Error Clean(std::uint8_t, const std::vector<mister::MenuRect>&) const override { return {}; }
+	mister::Error CleanBlit(std::uint32_t, std::uint32_t, const std::vector<mister::MenuSpan>&) const override { return {}; }
+	std::vector<std::string>& events;
+};
+
 void TestDe25WindowIsGrantedPerSession()
 {
 	enum class Trial { offered, not_offered, release_fails, replaced, quiesce_fails, quiesce_and_release_fail };
@@ -3327,7 +3339,8 @@ void TestDe25WindowIsGrantedPerSession()
 			Trial::quiesce_fails, Trial::quiesce_and_release_fail}) {
 		std::vector<std::string> driver_events;
 		RecordingDriver gp(driver_events);
-		IntegratedFixture fixture(&gp);
+		RevokeRecordingMemory menu(driver_events);
+		IntegratedFixture fixture(&gp, mister::native::SplashIdle(), &menu);
 		// No boot layout: only the window can admit the interface.
 		fixture.native.fpga.boot_hps_ddr_layout = false;
 		TempDirectory package;
@@ -3366,8 +3379,15 @@ void TestDe25WindowIsGrantedPerSession()
 				if (programs_at_release < 0 && Count(driver_events, "window.release") == 1)
 					programs_at_release = fixture.native.fpga.calls;
 			};
+			const std::size_t before = driver_events.size();
 			assert(fixture.runtime.LoadCore(plain.path, other.package_id).ok());
 			assert(Find(driver_events, "driver.quiesce") < Find(driver_events, "window.release"));
+			// The owner's REAP revokes the window first and answers EAGAIN while a
+			// guest port runs: the machine is quiesced and the window released
+			// before the replacement's menu revoke.
+			const std::size_t release_at = Find(driver_events, "window.release");
+			for (std::size_t at = before; at < release_at; ++at) assert(driver_events[at] != "menu.revoke");
+			assert(std::find(driver_events.begin() + release_at, driver_events.end(), "menu.revoke") != driver_events.end());
 			assert(programs_at_release == programs + 1 && !window.Ready());
 			continue;
 		}
