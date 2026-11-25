@@ -1,0 +1,9 @@
+== spectrum48 A=96e7eeaa1f92fdaefecee3092b1c3697 B=673079cb90dea5c021be11351179a005
+spectrum48: 737 files A, 737 B; only-one-side 0; differing after <OUT>/<SRC>/<ID> normalisation 0
+C=A 46117a17aca80fb2663423e51e908154998a4e054b25168cd55f81c5ca8ca41d
+== spectrum128 A=90eec0d3a0d0ef9d01961ffcb6a4f71e B=4f48df174474174c06bfcfeecefcf972
+spectrum128: 737 files A, 737 B; only-one-side 0; differing after <OUT>/<SRC>/<ID> normalisation 0
+C=A 15d5e809f16c8e89186404a516938c4332ade83762ea68e61a9aeefdbb356e51
+== st A=3de231b18d92eb8535073508b898aad4 B=696fda9c66e9df05c22220278a129d04
+st: 747 files A, 747 B; only-one-side 0; differing after <OUT>/<SRC>/<ID> normalisation 0
+C=A 640808bf5d098f6d10000fa7629a212fa9e1a5bd1f951edaaa4504fc322db301

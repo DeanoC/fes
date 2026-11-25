@@ -61,9 +61,11 @@ def system_testbench(args) -> Path:
     from scripts import pc386_quartus as producer
     images = sim.firmware.images(args.download, args.jobs)
     rom = sim.firmware.write_rom_hex(images)
-    # The producer's CPU identity (build.py I486), set explicitly rather than by the bench's default.
+    # The model's CPU identity and 387 (build.py I486; X87_PRESENT 1 for the 486DX, 0 for the 486SX), both set
+    # explicitly rather than by the top's defaults; pc386_de25_sim passes both to pc386_system
+    # (tests/test_de25_i486dx.py elaborates them).
     parameters = {**producer.guest_rates(producer.SYSTEM_CLOCK_HZ), 'ROM_HEX': f'"{rom}"', 'I486': f"1'b{I486}",
-                  **({'X87_PRESENT': 1} if args.model == '486dx' else {})}
+                  'X87_PRESENT': 1 if args.model == '486dx' else 0}
     # Under rtl/, so the bench's .vlt waivers for those files apply as they do on the DE10.
     swap = derived_sources(sim.OUTPUT / 'derived' / 'rtl', args.model)
     missing = set(swap) - set(sim.SYSTEM_RTL)

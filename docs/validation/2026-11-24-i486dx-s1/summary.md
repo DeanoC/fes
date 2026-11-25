@@ -227,6 +227,15 @@ steps, no stop ([quake.md](quake.md)).
   cases; they run at level 3.
 - **The 387's record word and FogCast setting** (x87 slice 7) are not here.
 - **No kit run, no D12 proof for the DE25 netlist, no seal.**
+- **No DE25 system bench run of the DX.** `boards/de25nano/pc386/sim.py`,
+  the FreeDOS bench #2171 and #2178 gate on, did not build at `03e514777`:
+  it set `X87_PRESENT` on `pc386_de25_sim`, which did not declare it
+  (Verilator: "Parameters from the command line were not found in the
+  design: X87_PRESENT"). The top now passes it to `pc386_system`, and
+  `tests/test_de25_i486dx.py` elaborates the bench's top with the bench's
+  own sources and parameters: `pc386_system`'s `I486` and `X87_PRESENT` are
+  the producer's, and its CPU is `fes_i486dx_cpu` with the two-way L1s.
+  FreeDOS has not been booted on it.
 - **The cuts' saving inside the machine** is not measured (G3, above).
 - **CPI with the 387 in use** (Quake) is not measured.
 
