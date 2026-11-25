@@ -308,9 +308,26 @@ logged it FREE, verified.
 | `splus3-m1` `fes.spectrum-plus3` | B | +3 menu; Loader loads and runs it; `Drive not ready, 10:2` (the ROM's report from an empty A:, as main's own package gave) |
 | `spent-m1` `fes.pentagon` | A | 128 menu; as the 128 |
 
-The C64's netlist is byte-identical at the new pair. Its routed evidence
-(conditions 2 and 3 above) was taken at `856ef5c64`, before main's C64 RTL
-change, and has not been re-routed.
+The C64's earlier routed evidence was taken at `856ef5c64`, before main's C64
+RTL change, so it was re-routed at the same pair (`cond23/powerboat-m279-s4/`):
+
+| Artefact | Condition 2 (base RBF = forced RBF) | Condition 3 (own build) |
+|---|---|---|
+| `fes.c64` | `1c83be1d…` = `1c83be1d…`, reproduced (second forced run) | pass, `BUILD_ID` `e6b0d8e6…`, system 52.29 MHz, package `afa94d35…` |
+
+The first forced run failed: "no placement met timing (best seed=10
+weight=2000 worst_ratio=0.9742)". Main's build had won with seed 6 at the same
+weight. `probes/c64_synth_id.py` runs the producer's own Yosys step with main's
+real `BUILD_ID` `41e074bb…`. Twice per side, base and head both give
+`125bf819…` (`probes/c64-build-id/`), which is also the `synth.json` main's
+build wrote. So the forced build routed the same netlist main's did. The
+search scores a crashed or timed-out seed as 0, and that run took 2 h against
+main's 85 min. A seed-6 route that did not finish is the likely cause. Its
+per-seed logs were lost when the next build cleared the directory, so this is
+not shown. The second forced run kept them (`c64.forced2-search/`). It stopped
+at seed 6, as main's did, and its RBF equals main's byte for byte.
+Condition 3 clears its constraint by 0.13%, against 54.0 MHz at the earlier
+head. Expect a later identity move to fail it on some seeds.
 
 ## Floppy kit smoke
 

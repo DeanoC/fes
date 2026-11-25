@@ -1,0 +1,408 @@
+Info: Initialising bels...
+Info: Initialising routing graph...
+Info:     imported 2740019 wires and 25465239 pips
+Info: constraining clock net 'FPGA_CLK1_50' to 50.00 MHz
+Info: FES reserved rect 'slot1' 24 1 28 18 (4338 bels)
+Info: FES reserved rect 'slot2' 24 21 28 38 (4338 bels)
+Info: Constraining IO 'system_clock.refclk_MISTRAL_IB_O' to pin PIN_V11 (bel MISTRAL_IO.32.0.0)
+Info: Constraining IO 'hdmi_sda_pad' to pin PIN_AA4 (bel MISTRAL_IO.4.0.2)
+Info: Constraining IO 'hdmi_scl_pad' to pin PIN_U10 (bel MISTRAL_IO.6.0.0)
+Info: Constraining IO 'HDMI_TX_VS_MISTRAL_OB_PAD' to pin PIN_V13 (bel MISTRAL_IO.60.0.1)
+Info: Constraining IO 'HDMI_TX_HS_MISTRAL_OB_PAD' to pin PIN_T8 (bel MISTRAL_IO.4.0.1)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_9' to pin PIN_AF8 (bel MISTRAL_IO.28.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_8' to pin PIN_AH5 (bel MISTRAL_IO.40.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_7' to pin PIN_AE7 (bel MISTRAL_IO.28.0.2)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_6' to pin PIN_AF5 (bel MISTRAL_IO.32.0.2)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_5' to pin PIN_AD10 (bel MISTRAL_IO.26.0.0)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_4' to pin PIN_AF9 (bel MISTRAL_IO.30.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_3' to pin PIN_W8 (bel MISTRAL_IO.2.0.0)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_23' to pin PIN_Y8 (bel MISTRAL_IO.2.0.1)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_22' to pin PIN_AF10 (bel MISTRAL_IO.34.0.1)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_21' to pin PIN_AG6 (bel MISTRAL_IO.34.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_20' to pin PIN_AH4 (bel MISTRAL_IO.38.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_2' to pin PIN_AE11 (bel MISTRAL_IO.30.0.1)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_19' to pin PIN_AD11 (bel MISTRAL_IO.30.0.0)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_18' to pin PIN_AE8 (bel MISTRAL_IO.30.0.2)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_17' to pin PIN_AE12 (bel MISTRAL_IO.38.0.0)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_16' to pin PIN_AE4 (bel MISTRAL_IO.26.0.2)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_15' to pin PIN_AH2 (bel MISTRAL_IO.36.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_14' to pin PIN_AD12 (bel MISTRAL_IO.38.0.1)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_13' to pin PIN_AE9 (bel MISTRAL_IO.26.0.1)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_12' to pin PIN_Y4 (bel MISTRAL_IO.2.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_11' to pin PIN_AF6 (bel MISTRAL_IO.32.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_10' to pin PIN_AH6 (bel MISTRAL_IO.40.0.2)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_1' to pin PIN_Y5 (bel MISTRAL_IO.2.0.2)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD' to pin PIN_AB4 (bel MISTRAL_IO.4.0.3)
+Info: Constraining IO 'HDMI_TX_DE_MISTRAL_OB_PAD' to pin PIN_AD19 (bel MISTRAL_IO.66.0.1)
+Info: Constraining IO 'HDMI_TX_CLK_MISTRAL_OB_PAD' to pin PIN_AG5 (bel MISTRAL_IO.38.0.2)
+Info: Constraining IO 'HDMI_SCLK_MISTRAL_OB_PAD' to pin PIN_T12 (bel MISTRAL_IO.36.0.1)
+Info: Constraining IO 'HDMI_MCLK_MISTRAL_OB_PAD' to pin PIN_U11 (bel MISTRAL_IO.28.0.1)
+Info: Constraining IO 'HDMI_LRCLK_MISTRAL_OB_PAD' to pin PIN_T11 (bel MISTRAL_IO.28.0.0)
+Info: Constraining IO 'HDMI_I2S_MISTRAL_OB_PAD' to pin PIN_T13 (bel MISTRAL_IO.36.0.0)
+Info: PLL 'video_clock.pll': fractional-N requested 74250000.000000 Hz (output 0), achieved 74249999.832439542 Hz, error -0.00225670649 ppm.
+Info: PLL 'video_clock.pll': 50.000000 MHz -> VCO 445.499999 MHz, fractional-N, M=8 N=1 K=3908420153, counters C6, bel altera_pll.0.14.0
+Info: PLL 'system_clock.pll': fractional-N requested 52224000.000000 Hz (output 0), achieved 52224000.000569507 Hz, error 1.09050546e-05 ppm.
+Info: PLL 'system_clock.pll': fractional-N requested 12288000.000000 Hz (output 1), achieved 12288000.000134002 Hz, error 1.09050546e-05 ppm.
+Info: PLL 'system_clock.pll': 50.000000 MHz -> VCO 417.792000 MHz, fractional-N, M=8 N=1 K=1528321163, counters C6,7, bel altera_pll.0.31.0
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.7.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.6.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.5.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.4.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.3.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.2.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.1.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.0.0.0.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[9].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[8].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[7].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[6].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[5].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[50].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[4].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[49].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[48].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[47].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[46].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[45].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[44].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[43].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[42].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[41].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[40].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[3].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[39].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[38].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[37].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[36].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[35].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[34].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[33].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[32].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[31].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[30].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[2].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[29].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[28].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[27].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[26].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[25].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[24].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[23].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[22].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[21].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[20].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[1].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[19].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[18].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[17].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[16].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[15].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[14].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[13].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[12].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[11].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[10].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[0].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[9].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[8].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[7].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[6].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[5].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[50].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[4].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[49].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[48].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[47].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[46].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[45].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[44].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[43].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[42].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[41].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[40].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[3].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[39].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[38].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[37].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[36].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[35].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[34].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[33].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[32].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[31].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[30].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[2].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[29].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[28].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[27].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[26].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[25].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[24].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[23].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[22].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[21].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[20].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[1].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[19].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[18].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[17].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[16].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[15].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[14].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[13].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[12].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[11].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[10].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[0].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[9].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[8].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[7].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[6].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[5].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[50].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[4].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[49].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[48].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[47].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[46].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[45].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[44].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[43].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[42].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[41].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[40].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[3].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[39].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[38].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[37].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[36].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[35].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[34].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[33].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[32].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[31].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[30].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[2].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[29].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[28].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[27].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[26].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[25].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[24].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[23].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[22].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[21].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[20].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[1].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[19].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[18].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[17].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[16].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[15].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[14].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[13].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[12].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[11].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[10].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[0].ram.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane9.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane8.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane7.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane6.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane5.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane4.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane35.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane34.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane33.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane32.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane31.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane30.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane3.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane29.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane28.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane27.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane26.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane25.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane24.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane23.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane22.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane21.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane20.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane2.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane15.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane14.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane13.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane12.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane11.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane10.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane1.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane0.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.drive.ram.1.0.0.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.drive.ram.0.0.0.
+
+Info: Device utilisation:
+Info: 	        MISTRAL_COMB:   19429/  83820    23%
+Info: 	          MISTRAL_FF:    7671/ 167640     4%
+Info: 	      MISTRAL_MUL9X9:       3/    336     0%
+Info: 	    MISTRAL_MUL18X18:       0/    112     0%
+Info: 	    MISTRAL_MUL27X27:       0/    112     0%
+Info: 	    MISTRAL_MUL18X19:       0/    112     0%
+Info: 	MISTRAL_MUL18X19_COMBINED:       0/    112     0%
+Info: 	          MISTRAL_IO:      35/    472     7%
+Info: 	          altera_pll:       2/      6    33%
+Info: 	      MISTRAL_CLKENA:       3/      8    37%
+Info: 	  MISTRAL_CLKENA_PLL:       0/      8     0%
+Info: 	 cyclonev_oscillator:       0/      1     0%
+Info: 	cyclonev_hps_interface_mpu_general_purpose:       1/      1   100%
+Info: 	cyclonev_hps_interface_peripheral_i2c:       1/      4    25%
+Info: 	cyclonev_hps_interface_fpga2sdram:       1/      1   100%
+Info: 	        MISTRAL_M10K:     439/    553    79%
+Info: 	cyclonev_chipidblock:       0/      1     0%
+Info: 	   cyclonev_crcblock:       0/      1     0%
+Info: 	 cyclonev_opregblock:       0/      1     0%
+Info: 	       cyclonev_jtag:       0/      1     0%
+
+Info: Placed 223 cells based on constraints.
+Info: Creating initial analytic placement for 25029 cells, random placement wirelen = 3098506.
+Info:     at initial placer iter 0, wirelen = 19100
+Info:     at initial placer iter 1, wirelen = 20135
+Info:     at initial placer iter 2, wirelen = 18442
+Info:     at initial placer iter 3, wirelen = 18406
+Info: Running main analytical placer, max placement attempts per cell = 95116528.
+Info:     at iteration #1, type ALL: wirelen solved = 18461, spread = 628130, legal = 710867; time = 2.76s
+Info:         congestion: 2784 locations over target 100.0, peak demand 408.0
+Info:     at iteration #2, type ALL: wirelen solved = 23828, spread = 551677, legal = 627690; time = 2.10s
+Info:         congestion: 2936 locations over target 100.0, peak demand 301.1
+Info:     at iteration #3, type ALL: wirelen solved = 30731, spread = 562584, legal = 634258; time = 1.99s
+Info:         congestion: 2907 locations over target 100.0, peak demand 341.6
+Info:     at iteration #4, type ALL: wirelen solved = 45226, spread = 459819, legal = 524727; time = 1.72s
+Info:         congestion: 2460 locations over target 100.0, peak demand 353.0
+Info:     at iteration #5, type ALL: wirelen solved = 35868, spread = 551294, legal = 611748; time = 1.82s
+Info:         congestion: 2656 locations over target 100.0, peak demand 287.9
+Info:     at iteration #6, type ALL: wirelen solved = 40319, spread = 507869, legal = 564651; time = 1.95s
+Info:         congestion: 2548 locations over target 100.0, peak demand 258.3
+Info:     at iteration #7, type ALL: wirelen solved = 44210, spread = 519512, legal = 584611; time = 2.07s
+Info:         congestion: 2734 locations over target 100.0, peak demand 270.4
+Info:     at iteration #8, type ALL: wirelen solved = 45654, spread = 510905, legal = 569122; time = 1.88s
+Info:         congestion: 2580 locations over target 100.0, peak demand 284.2
+Info:     at iteration #9, type ALL: wirelen solved = 46051, spread = 514020, legal = 567488; time = 1.78s
+Info:         congestion: 2565 locations over target 100.0, peak demand 282.1
+Info: HeAP Placer Time: 25.92s
+Info:   of which solving equations: 15.98s
+Info:   of which spreading cells: 0.66s
+Info:   of which strict legalisation: 7.24s
+
+Info: Running simulated annealing placer for refinement.
+Info:   at iteration #1: temp = 0.000000, timing cost = 3039, wirelen = 524727
+Info:   at iteration #5: temp = 0.000000, timing cost = 4819, wirelen = 370837
+Info:   at iteration #10: temp = 0.000000, timing cost = 4630, wirelen = 344086
+Info:   at iteration #15: temp = 0.000000, timing cost = 4382, wirelen = 329851
+Info:   at iteration #20: temp = 0.000000, timing cost = 3750, wirelen = 321358
+Info:   at iteration #25: temp = 0.000000, timing cost = 3635, wirelen = 317426
+Info:   at iteration #30: temp = 0.000000, timing cost = 4081, wirelen = 315976
+Info:   at iteration #35: temp = 0.000000, timing cost = 3913, wirelen = 315352
+Info:   at iteration #40: temp = 0.000000, timing cost = 3918, wirelen = 315022
+Info:   at iteration #45: temp = 0.000000, timing cost = 3940, wirelen = 314715
+Info:   at iteration #50: temp = 0.000000, timing cost = 3963, wirelen = 314545
+Info:   at iteration #54: temp = 0.000000, timing cost = 3656, wirelen = 314366 
+Info: SA placement time 72.35s
+
+Info: Max frequency for clock    'display.control.clk': 63.08 MHz (FAIL at 74.25 MHz)
+Info: Max frequency for clock 'system_clock.clocks[0]': 40.75 MHz (FAIL at 52.22 MHz)
+Info: Max frequency for clock 'system_clock.clocks[1]': 156.96 MHz (PASS at 12.29 MHz)
+
+Info: Max delay <async>                        -> posedge display.control.clk   : 5.53 ns
+Info: Max delay <async>                        -> posedge system_clock.clocks[1]: 4.93 ns
+Info: Max delay posedge display.control.clk    -> posedge system_clock.clocks[0]: 10.40 ns
+Info: Max delay posedge system_clock.clocks[0] -> posedge display.control.clk   : 7.21 ns
+Info: Max delay posedge system_clock.clocks[0] -> posedge system_clock.clocks[1]: 1.74 ns
+Info: Max delay posedge system_clock.clocks[1] -> posedge system_clock.clocks[0]: 1.22 ns
+
+Info: Slack histogram:
+Info:  legend: * represents 134 endpoint(s)
+Info:          + represents [1,134) endpoint(s)
+Info: [ -5391,  -1094) |*+
+Info: [ -1094,   3203) |**********+
+Info: [  3203,   7500) |*************************************************+
+Info: [  7500,  11797) |**********************************************************+
+Info: [ 11797,  16094) |************************************************************ 
+Info: [ 16094,  20391) |**************************+
+Info: [ 20391,  24688) | 
+Info: [ 24688,  28985) | 
+Info: [ 28985,  33282) | 
+Info: [ 33282,  37579) | 
+Info: [ 37579,  41876) | 
+Info: [ 41876,  46173) | 
+Info: [ 46173,  50470) | 
+Info: [ 50470,  54767) | 
+Info: [ 54767,  59064) | 
+Info: [ 59064,  63361) | 
+Info: [ 63361,  67658) | 
+Info: [ 67658,  71955) | 
+Info: [ 71955,  76252) |+
+Info: [ 76252,  80549) |*+
+Info: Checksum: 0xf5b127b4
+Info: Preparing LABs for routing...
+Info: Routing globals...
+Info:     routed net 'system_clock.clocks[0]' using global resources
+Info:     routed net 'display.control.clk' using global resources
+Info:     routed net 'system_clock.clocks[1]' using global resources
+Info: Running the GPU router...
+Info: GPU lease: waited 0.02s, granted physical id 0
+FES-GPU-GRANT 0
+Info: Setting up routing resources...
+Info:     flattened 2740019 wires and 27175333 pips in 0.33s
+Info:     GPU router using device 0: AMD Radeon RX 7900 XTX
+Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.10s (estimate 0.075 ns/x, 0.200 ns/y)
+Info: Running main router loop...
+Info:     iter=1 wires=405846 overused=26186 overuse=31099 tmgfail=0 nets=33192 batches=267 archfail=NA
+Info:     shared 3 sinks already reached by an earlier arc of the same net
+Info:     iter=2 wires=421535 overused=9524 overuse=11611 tmgfail=0 nets=16563 batches=138 archfail=NA
+Info:     shared 4 sinks already reached by an earlier arc of the same net
+Info:     iter=3 wires=426717 overused=6464 overuse=8250 tmgfail=0 nets=7655 batches=69 archfail=NA
+Info:     shared 1 sinks already reached by an earlier arc of the same net
+Info:     iter=4 wires=428274 overused=5328 overuse=7585 tmgfail=0 nets=4362 batches=44 archfail=NA
+Info:     iter=5 wires=429570 overused=4114 overuse=5822 tmgfail=0 nets=2996 batches=34 archfail=NA
+Info:     iter=6 wires=430098 overused=3787 overuse=5826 tmgfail=0 nets=2487 batches=30 archfail=NA
+Info:     iter=7 wires=430599 overused=3415 overuse=5400 tmgfail=0 nets=2095 batches=27 archfail=NA
+Info:     iter=8 wires=431201 overused=3300 overuse=5438 tmgfail=0 nets=1813 batches=25 archfail=NA
+Info:     iter=9 wires=431656 overused=2827 overuse=5435 tmgfail=0 nets=1591 batches=23 archfail=NA
+Info:     iter=10 wires=432028 overused=2556 overuse=5239 tmgfail=0 nets=1428 batches=22 archfail=NA
+Info:     shared 3 sinks already reached by an earlier arc of the same net
+Info:     iter=11 wires=432293 overused=2421 overuse=5347 tmgfail=0 nets=1333 batches=22 archfail=NA
+Info:     shared 2 sinks already reached by an earlier arc of the same net
+Info:     iter=12 wires=432121 overused=2123 overuse=4717 tmgfail=0 nets=1218 batches=21 archfail=NA
+Info:     iter=13 wires=433113 overused=2265 overuse=5599 tmgfail=0 nets=1124 batches=20 archfail=NA
+Info:     iter=14 wires=432858 overused=2010 overuse=4834 tmgfail=0 nets=1059 batches=20 archfail=NA
+Info:     iter=15 wires=433537 overused=2221 overuse=5435 tmgfail=0 nets=1029 batches=19 archfail=NA
+Info:     iter=16 wires=434003 overused=2025 overuse=5570 tmgfail=0 nets=961 batches=19 archfail=NA
+Info:     iter=17 wires=434351 overused=2082 overuse=5417 tmgfail=0 nets=943 batches=19 archfail=NA
+Info:     iter=18 wires=434251 overused=2042 overuse=5165 tmgfail=0 nets=895 batches=18 archfail=NA
+Info:     iter=19 wires=434847 overused=1945 overuse=5450 tmgfail=0 nets=851 batches=18 archfail=NA
+Info:     iter=20 wires=434696 overused=1821 overuse=5107 tmgfail=0 nets=825 batches=18 archfail=NA
+Info:     iter=21 wires=434990 overused=1869 overuse=4974 tmgfail=0 nets=788 batches=17 archfail=NA
+Info:     iter=22 wires=435105 overused=1735 overuse=5110 tmgfail=0 nets=771 batches=17 archfail=NA
+Info:     iter=23 wires=435567 overused=1781 overuse=5411 tmgfail=0 nets=750 batches=17 archfail=NA
+Info:     iter=24 wires=435607 overused=1740 overuse=5361 tmgfail=0 nets=739 batches=17 archfail=NA
+Info:     iter=25 wires=436176 overused=1777 overuse=5407 tmgfail=0 nets=710 batches=17 archfail=NA
+Info:     iter=26 wires=435936 overused=1759 overuse=5318 tmgfail=0 nets=700 batches=17 archfail=NA
+Info:     iter=27 wires=435757 overused=1560 overuse=4867 tmgfail=0 nets=697 batches=17 archfail=NA
+Info:     iter=28 wires=436774 overused=1887 overuse=5028 tmgfail=0 nets=661 batches=16 archfail=NA
+Info:     iter=29 wires=435988 overused=1665 overuse=4688 tmgfail=0 nets=656 batches=16 archfail=NA
+Info:     iter=30 wires=436578 overused=1723 overuse=4873 tmgfail=0 nets=647 batches=16 archfail=NA
+Info:     iter=31 wires=437067 overused=1732 overuse=5348 tmgfail=0 nets=631 batches=16 archfail=NA
+Info:     iter=32 wires=437188 overused=1575 overuse=5197 tmgfail=0 nets=633 batches=16 archfail=NA
+Info:     iter=33 wires=436859 overused=1645 overuse=5237 tmgfail=0 nets=631 batches=16 archfail=NA
+Info:     iter=34 wires=437747 overused=1718 overuse=5040 tmgfail=0 nets=611 batches=16 archfail=NA
+Info:     iter=35 wires=437353 overused=1441 overuse=4943 tmgfail=0 nets=590 batches=16 archfail=NA
+Info:     iter=36 wires=437223 overused=1595 overuse=4598 tmgfail=0 nets=581 batches=16 archfail=NA
+Info:     iter=37 wires=438181 overused=1569 overuse=5596 tmgfail=0 nets=563 batches=16 archfail=NA
+Info:     iter=38 wires=437702 overused=1453 overuse=4519 tmgfail=0 nets=538 batches=16 archfail=NA
+Info:     iter=39 wires=437424 overused=1369 overuse=4766 tmgfail=0 nets=550 batches=16 archfail=NA
+Info:     iter=40 wires=438548 overused=1518 overuse=4945 tmgfail=0 nets=513 batches=15 archfail=NA
+Info:     iter=41 wires=438294 overused=1503 overuse=4658 tmgfail=0 nets=509 batches=15 archfail=NA
+Info:     iter=42 wires=437979 overused=1486 overuse=4581 tmgfail=0 nets=516 batches=15 archfail=NA
+Info:     iter=43 wires=437755 overused=1384 overuse=4286 tmgfail=0 nets=505 batches=15 archfail=NA
+Info:     iter=44 wires=438137 overused=1368 overuse=4478 tmgfail=0 nets=491 batches=15 archfail=NA
+nextpnr route timed out after 600 seconds of its own run time (0.0 s of GPU lease wait excluded)
+search_placer_qor: tool failed with exit 124
