@@ -334,14 +334,25 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     mda_out.mkdir(parents=True, exist_ok=True)
     hgc_out.mkdir(parents=True, exist_ok=True)
 
-    subprocess.run(
-        [str(binary), str(build / 'firmware.bin'), str(mda_img), '1', str(tint), 'test-mda', str(mda_out), '45'],
-        cwd=build, check=True,
-    )
-    subprocess.run(
-        [str(binary), str(build / 'firmware.bin'), str(hgc_img), '2', str(tint), 'test-hgc', str(hgc_out), '60'],
-        cwd=build, check=True,
-    )
+    mda_cmd = [str(binary), str(build / 'firmware.bin'), str(mda_img), '1', str(tint), 'test-mda', str(mda_out), '45']
+    hgc_cmd = [str(binary), str(build / 'firmware.bin'), str(hgc_img), '2', str(tint), 'test-hgc', str(hgc_out), '60']
+    procs = [
+        (mda_cmd, subprocess.Popen(mda_cmd, cwd=build)),
+        (hgc_cmd, subprocess.Popen(hgc_cmd, cwd=build)),
+    ]
+    try:
+        for cmd, proc in procs:
+            rc = proc.wait()
+            if rc != 0:
+                raise subprocess.CalledProcessError(rc, cmd)
+    finally:
+        for _, proc in procs:
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
 
     mda_font = sim.mda_font()
     _, _, mda_rgb = fat12.ppm_to_png(mda_out / 'mda-pass.ppm', mda_out / 'mda-pass.png')
