@@ -1840,8 +1840,10 @@ embedded Go Regular and Go Bold, `DrawMask` for text coverage, and
 `DebugText` for the 8×8 HUD / FC2D opcode). Text is laid out as coverage
 masks, one byte a pixel (`gfx.LayoutText`): each glyph is rasterized once per
 face and copied into a mask per string, and a mask draws in any colour with
-alpha `A·m/255`. Room text, labels and `DrawText` share that path. Window, events, gamepad, mouse, and text input remain
-SDL in `ui/tenfoot/sdl.go`. USB keyboard is first-class browse/nav on that
+alpha `A·m/255`. Room text, labels and `DrawText` share that path. Window creation lives
+in `ui/tenfoot/sdl.go`, while events, gamepad, mouse, key mapping, and smoke helpers
+are split across `ui/tenfoot/sdl_events.go`, `ui/tenfoot/sdl_keys.go`, and
+`ui/tenfoot/sdl_smoke.go` (sharing `ui/tenfoot/sdl_cgo.h`). USB keyboard is first-class browse/nav on that
 path (`CommandFromKey` in `ui/tenfoot/keyboard.go`): arrows, Enter, Esc, and
 Tab drive shelf, detail, and search without a gamepad. USB mouse/pointer is
 first-class on the same path (`PointerMove` / `PointerClick` in
