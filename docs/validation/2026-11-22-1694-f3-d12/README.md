@@ -474,3 +474,13 @@ Kit run k11 (Kit B, `hil/live-kit/k11/`) uses bundle `8aa12d58…`, built from
 `6abf23a73` itself, so it no longer needs the scratch #2204 build. Every goal
 passes, the live swap included. C's record is intact, nothing is left on the
 kit, and the kit was restored and logged FREE.
+
+## Merge forward to `102fe0fed`
+
+Main was merged again at `bd82d27cc`. Its one conflict was
+`internal/misterruntime/runtime.go`, which main split into `runtime_*.go`. The
+PR's launch-floppy admission and staging moved unchanged into
+`runtime_core_load.go`. `closure_touched.py afac39328 102fe0fed` reports no
+closure hits, so every measured `BUILD_ID` still ships. The DE25 proof inputs
+did not change, and the FogCast suite passes. The kit software changed
+(FogCast, runtime), but k11's bundle predates this merge.
