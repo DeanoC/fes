@@ -64,13 +64,12 @@ def seed_result(output, logs, seed, divider):
         record['producer_exit'] = exit_code
         build = json.loads((output / 'build-inputs.json').read_text())
         record['revision'] = build['revision']
-        timing = json.loads((output / 'signoff-timing.json').read_text())
         fit = summary(output / 'signoff/combined/hps/project')
         clock = VCO_HZ / divider
         parameters = build['parameters']
         pixel_time = Fraction(3 * 1_000_000_000, parameters['pixel_clock_hz'])
         loaded_budget = min(3.9, float(5 * 1_000_000_000 / clock - pixel_time - 10))
-        record.update(fit=fit, unreviewed_failed_rules=timing['unreviewed_failed_rules'], loaded_budget_ns=loaded_budget)
+        record.update(fit=fit, loaded_budget_ns=loaded_budget)
         if (parameters['model'], parameters['seed'], parameters['machine_clock_hz'], fit['seed']) != (
             '486dx', seed, round(clock), seed
         ):
@@ -80,14 +79,17 @@ def seed_result(output, logs, seed, divider):
             failures.append('wrong fitted PLL counters')
         if not fit['passes']:
             failures.append('negative timing slack or fitter area over budget')
+        timing_path = output / 'signoff-timing.json'
+        timing = json.loads(timing_path.read_text()) if timing_path.is_file() else {}
+        record['unreviewed_failed_rules'] = timing.get('unreviewed_failed_rules')
+        if not timing.get('package_timing_admission') or exit_code != 0:
+            failures.append('registered producer did not admit the package')
+        else:
+            record['package'] = json.loads((output / 'build-summary.json').read_text())
         slacks = corner_slacks(logs / 'corners.log')
         record['corner_slacks_ns'] = slacks
         if any(slack < 0 for analyses in slacks.values() for slack in analyses.values()):
             failures.append('negative per-corner slack')
-        if not timing['package_timing_admission'] or exit_code != 0:
-            failures.append('registered producer did not admit the package')
-        else:
-            record['package'] = json.loads((output / 'build-summary.json').read_text())
         if (logs / 'report.exit').read_text().strip() != '0':
             failures.append('LOADED route report failed')
         routes = loaded_routes(logs / 'loaded.tsv')
