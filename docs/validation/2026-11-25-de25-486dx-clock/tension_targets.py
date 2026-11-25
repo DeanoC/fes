@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""List the fitted endpoints covered by the local retimed tension review."""
+"""List the fitted endpoints that require the separate retimed tension trace."""
 from pathlib import Path
 import re
 import sys
@@ -12,13 +12,16 @@ REVIEW = 'retimed-machine-control-tension'
 
 
 def targets(drc):
-    basis = next((basis for basis in bases().BASES if basis['name'] == REVIEW), None)
     summary = re.search(r'^; TMC-20602 - [^;]+; Low\s*;\s*(\d+)\s*;', drc, re.M)
-    if basis is None or summary is None or int(summary[1]) == 0:
+    if summary is None or int(summary[1]) == 0:
         return ()
+    original = tuple(basis for basis in bases().BASES if basis['rule'] == RULE and basis['name'] != REVIEW)
     _, rows = table(drc, RULE)
+    # A producer pass means these remaining rows hit the retimed basis.
+    # After a refusal, trace the same rows along with any still unrecognized.
     return tuple(row[0] for row in rows
-                 if all(re.fullmatch(pattern, row[column]) for column, pattern in basis['match'].items()))
+                 if not any(all(re.fullmatch(pattern, row[column]) for column, pattern in basis['match'].items())
+                            for basis in original))
 
 
 if __name__ == '__main__':
