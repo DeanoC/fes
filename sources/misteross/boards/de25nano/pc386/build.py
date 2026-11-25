@@ -284,6 +284,7 @@ def component_files(sources, model=None):
         if name.endswith((".v", ".tcl", ".vh")):
             files[name] = sources[BOARD + "pc386/" + name]
     machine_files, cpu, derived = elaboration(sources, model)
+    derive = board.module(sources, BOARD + "pc386/derive.py", "pc386_selected_derive")
     guard = "fes_hps_ddr_guard.v"
     files[guard], derived[guard] = derive.retarget_window_guard(
         sources[MISTEROSS + "cores/fes-common/rtl/" + guard])
