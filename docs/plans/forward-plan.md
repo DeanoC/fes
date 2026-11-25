@@ -337,7 +337,7 @@ lock and generated shell inputs. Shared RTL follows the nightly rule below. Othe
 
 ### Shared RTL merge and nightly qualification
 
-Physical qualification runs on a frozen nightly main candidate.
+The [nightly qualification job](../nightly-qualification.md) batches physical qualification on a frozen main candidate.
 Today a shared CPU fix can change the design of every consuming machine. A
 second PR touching that CPU can pay for the same consumers again, even when
 only the combined design will ship. A cache helps identical inputs; successive

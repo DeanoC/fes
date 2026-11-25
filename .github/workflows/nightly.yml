@@ -119,11 +119,47 @@ jobs:
           if [ -n "$PRIVATE" ]; then
             case "$PRIVATE" in "$RUNNER_TEMP"/pcxt-com-*) rm -rf -- "$PRIVATE" ;; *) exit 1 ;; esac
           fi
+  qualification:
+    needs: [regression, pcxt-com]
+    if: >-
+      !cancelled() && github.repository == 'DeanoC/fes' && github.ref == 'refs/heads/main' &&
+      needs.regression.outputs.simulated_sha == github.sha && needs.pcxt-com.result == 'success'
+    environment: pcxt-nightly-main
+    runs-on: [self-hosted, linux, x64, "${{ vars.FES_QUALIFICATION_RUNNER || 'fes-build' }}"]
+    timeout-minutes: 1440
+    concurrency:
+      group: fes-nightly-core-qualification
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: qualification
+      - name: Qualify frozen main and publish release selections
+        working-directory: qualification
+        env:
+          SIMULATED_SHA: ${{ needs.regression.outputs.simulated_sha }}
+          PCXT_COM: ${{ needs.pcxt-com.result }}
+          STORE: ${{ vars.FES_QUALIFICATION_STORE }}
+          CONFIG: ${{ vars.FES_QUALIFICATION_CONFIG }}
+          FES_CACHE_ROOT: ${{ vars.FES_QUALIFICATION_CACHE }}
+        run: |
+          set -eu
+          : "${STORE:?configure FES_QUALIFICATION_STORE}" "${CONFIG:?configure FES_QUALIFICATION_CONFIG}"
+          : "${FES_CACHE_ROOT:?configure the durable FES_QUALIFICATION_CACHE}"
+          receipt=$(mktemp "$RUNNER_TEMP/fes-full-sims-XXXXXXXX.json")
+          trap 'rm -f -- "$receipt"' EXIT
+          jq -n --arg main "$GITHUB_SHA" --arg sims "$SIMULATED_SHA" --arg com "$PCXT_COM" \
+            --arg url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+            '{main:$main,full_simulations_and_producers_sha:$sims,pcxt_com:$com,run_url:$url}' > "$receipt"
+          python3 scripts/nightly_qualification.py --store "$STORE" run --config "$CONFIG" --sha "$GITHUB_SHA" --simulations "$receipt"
   report:
     # Lander owns nightly triage: open or update one tracking issue on failure.
     # A cancelled run is not a regression, so it files nothing.
-    needs: [regression, pcxt-com]
-    if: ${{ always() && (needs.regression.result == 'failure' || needs.pcxt-com.result == 'failure') }}
+    needs: [regression, pcxt-com, qualification]
+    if: ${{ always() && (needs.regression.result == 'failure' || needs.pcxt-com.result == 'failure' || needs.qualification.result == 'failure') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -137,7 +173,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           SHA: ${{ github.sha }}
-          RESULT: regression=${{ needs.regression.result }} pcxt-com=${{ needs.pcxt-com.result }}
+          RESULT: regression=${{ needs.regression.result }} pcxt-com=${{ needs.pcxt-com.result }} qualification=${{ needs.qualification.result }}
         run: |
           title='Nightly regression failing on main'
           since=$(gh api "repos/$GH_REPO/commits?sha=$SHA&since=$(date -u -d '-1 day' +%Y-%m-%dT%H:%M:%SZ)" \
