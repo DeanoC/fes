@@ -4648,6 +4648,8 @@ optional third argument to select the format-3 domain. The inspector validates
 map digest, size, exact JSON structure, integer coordinates, duplicate keys and
 destinations, complete source coverage, and payload/source-size bindings. It
 performs no FPGA frame decoding; the launch linker checks blank destinations.
+The shared Go map reader validates each JSON word's syntax, then reads its 40
+unsigned or null destinations in one forward pass before checking geometry.
 The authoritative contract and fixture corpus live in mister-packages
 `schema/core-bundle-v3.json`, `schema/rom-map-v1.json`, and
 `testdata/core-bundle-v3`. ROM uploads cannot provide a map.

@@ -4424,7 +4424,9 @@ supplied separately by a media upload. Expansion composition retains the whole
 sealed shell package, including the map, and its package identity.
 
 ROM-map inspection streams closed objects and fixed 40-destination words rather
-than retaining JSON copies of the whole map and every block. It bounds maps to
+than retaining JSON copies of the whole map and every block. After the JSON
+decoder checks a word's syntax, its 40 unsigned or null destinations are read
+in one forward pass. It bounds maps to
 32 MiB, blocks and words per block to 256, and unconsumed decoder input to 4 KiB
 so oversized JSON values cannot grow the decoder buffer. Private staging reads
 the declared upload into one bounded allocation, clones its small manifest and
