@@ -206,8 +206,8 @@ module c64_vic #(parameter integer NTSC = 0) (
             default:pixel_strobe=0;
         endcase
     end
-    // The NTSC visible lower border spans raster wrap; publish after line 11.
-    localparam integer CAPTURE_WRAP_LINES = NTSC ? 12 : 0;
+    // The NTSC lower border spans raster wrap. R56A includes line 12; R8 ends at 11.
+    localparam integer CAPTURE_WRAP_LINES = NTSC == 2 ? 13 : (NTSC ? 12 : 0);
     wire native_frame_start = first_phase && raster == CAPTURE_WRAP_LINES && native_cycle == 1;
     wire lower_edge = raster == (d011[3] ? `C64_BORDER_BOTTOM_25 : `C64_BORDER_BOTTOM_24);
     wire upper_edge = raster == (d011[3] ? `C64_BORDER_TOP_25 : `C64_BORDER_TOP_24) && d011[4];
@@ -398,7 +398,8 @@ module c64_vic #(parameter integer NTSC = 0) (
     reg [9:0] vpos=0,vpos_q=0;
     reg [2:0] xphase=0;
     // Source rows per 720p active line, reduced to the smallest integers.
-    localparam integer Y_NUM = NTSC == 2 ? 246 : (NTSC ? 247 : 17);
+    // Both NTSC revisions capture 247 source rows; PAL remains at 17.
+    localparam integer Y_NUM = NTSC ? 247 : 17;
     localparam integer Y_DEN = NTSC ? 720 : 45;
     localparam integer Y_BITS = $clog2(Y_DEN);
     reg [Y_BITS-1:0] yphase=0;

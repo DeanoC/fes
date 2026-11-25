@@ -8,7 +8,9 @@ module early_ntsc_timing_sim_top (
     output wire [6:0] cycle,
     output wire [2:0] dot,
     output wire dot_tick, ba_n, irq, sprite_fetch, matrix_fetch,
-    output wire [15:0] address
+    output wire [15:0] address,
+    output wire [4:0] capture_wrap_lines,
+    output wire [8:0] source_rows
 );
     // $07f8..$07ff point to distinct, aligned sprite rows at $3000..$31c0.
     reg [7:0] memory_data;
@@ -29,4 +31,6 @@ module early_ntsc_timing_sim_top (
     assign dot = vic.subpixel;
     assign dot_tick = vic.pixel_strobe;
     assign sprite_x = vic.sprite_dot_x_q;
+    assign capture_wrap_lines = vic.CAPTURE_WRAP_LINES;
+    assign source_rows = vic.Y_NUM;
 endmodule

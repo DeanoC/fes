@@ -21,6 +21,8 @@ int main(int argc, char **argv) {
     t.reset = 1;
     auto edge = [&]() { t.clk = 0; t.eval(); t.clk = 1; t.eval(); };
     edge();
+    check(t.capture_wrap_lines == 13, "frame capture wrap", 0, 1, 63);
+    check(t.source_rows == 247, "frame capture row count", 0, 1, 63);
     auto read_raster = [&]() {
         t.addr = 0x11; t.eval();
         const unsigned high = (t.dout & 0x80) << 1;
@@ -125,7 +127,7 @@ int main(int argc, char **argv) {
     check(read_raster() == 261 && !t.irq, "armed last-line compare", 0, 1, 63);
     write(0x11, 0x9b);
     check(t.irq, "compare write must match raster 261 on cycle 1", 0, 1, 63);
-    std::puts("6567R56A PASS: 262 x 64 raster, guest readback and compare writes across frame wrap, "
+    std::puts("6567R56A PASS: 262 x 64 raster, 247-row capture with wrap at line 12, guest readback and compare writes across frame wrap, "
               "delayed line-zero IRQ, 40 matrix reads, "
               "32 sprite transfers with BA across wrap, distinct X groups on cycles 62/63");
 }
