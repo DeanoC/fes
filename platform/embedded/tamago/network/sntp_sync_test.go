@@ -91,6 +91,30 @@ func TestSNTPSyncerMaxStepGuardAndValidation(t *testing.T) {
 	if _, err := NewSNTPSyncer(nil, SNTPSyncConfig{PollInterval: -time.Second, Query: func(context.Context, SNTPConfig) (SNTPResult, error) { return SNTPResult{}, nil }}); !errors.Is(err, ErrSNTPInvalidConfig) {
 		t.Fatalf("negative PollInterval err=%v, want ErrSNTPInvalidConfig", err)
 	}
+	validPortSNTP := SNTPConfig{
+		LocalMAC:    "52:54:00:12:34:56",
+		LocalPrefix: "10.0.2.15/24",
+		Servers:     []string{"10.0.2.2"},
+	}
+	port := newFakeRenewPort()
+	if _, err := NewSNTPSyncer(port, SNTPSyncConfig{SNTP: validPortSNTP}); err != nil {
+		t.Fatalf("valid port SNTP config rejected: %v", err)
+	}
+	for _, tc := range []struct {
+		name   string
+		mutate func(*SNTPConfig)
+	}{
+		{name: "negative-timeout", mutate: func(c *SNTPConfig) { c.Timeout = -time.Millisecond }},
+		{name: "negative-retry", mutate: func(c *SNTPConfig) { c.RetryInterval = -time.Millisecond }},
+		{name: "bad-nexthop-mac", mutate: func(c *SNTPConfig) { c.NextHopMAC = "ff:ff:ff:ff:ff:ff" }},
+		{name: "offsubnet-no-gw", mutate: func(c *SNTPConfig) { c.Servers = []string{"8.8.8.8"} }},
+	} {
+		bad := validPortSNTP
+		tc.mutate(&bad)
+		if _, err := NewSNTPSyncer(port, SNTPSyncConfig{SNTP: bad}); !errors.Is(err, ErrSNTPInvalidConfig) {
+			t.Fatalf("%s err=%v, want ErrSNTPInvalidConfig", tc.name, err)
+		}
+	}
 
 	var mu sync.Mutex
 	monoNow := time.Unix(100, 0)

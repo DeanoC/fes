@@ -7,10 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/netip"
 	"runtime"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -136,25 +134,20 @@ func NewSNTPSyncer(port RawFramePort, cfg SNTPSyncConfig) (*SNTPSyncer, error) {
 		return nil, fmt.Errorf("%w: invalid plausibility time window", ErrSNTPInvalidConfig)
 	}
 	if cfg.Query == nil {
-		if _, err := parseUnicastMAC(cfg.SNTP.LocalMAC); err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrSNTPInvalidConfig, err)
+		parsed, err := parseSNTPConfig(cfg.SNTP)
+		if err != nil {
+			return nil, err
 		}
-		localPrefix, err := netip.ParsePrefix(cfg.SNTP.LocalPrefix)
-		if err != nil || !localPrefix.Addr().Is4() || localPrefix.Bits() < 1 || localPrefix.Bits() > 30 || !usableHost(localPrefix, localPrefix.Addr()) {
-			return nil, fmt.Errorf("%w: invalid local IPv4 prefix", ErrSNTPInvalidConfig)
-		}
-		if cfg.SNTP.Gateway != "" {
-			if _, err := staticConfig(cfg.SNTP.LocalPrefix, cfg.SNTP.Gateway); err != nil {
-				return nil, fmt.Errorf("%w: %v", ErrSNTPInvalidConfig, err)
+		if !parsed.gateway.IsValid() {
+			reachable := false
+			for _, srv := range parsed.servers {
+				if parsed.localPrefix.Contains(srv) {
+					reachable = true
+					break
+				}
 			}
-		}
-		if len(cfg.SNTP.Servers) == 0 {
-			return nil, fmt.Errorf("%w: no SNTP servers configured", ErrSNTPInvalidConfig)
-		}
-		for _, s := range cfg.SNTP.Servers {
-			a, err := netip.ParseAddr(strings.TrimSpace(s))
-			if err != nil || !a.Is4() || a.IsUnspecified() || a.IsMulticast() {
-				return nil, fmt.Errorf("%w: invalid SNTP server %q", ErrSNTPInvalidConfig, s)
+			if !reachable {
+				return nil, fmt.Errorf("%w: off-subnet SNTP server requires gateway", ErrSNTPInvalidConfig)
 			}
 		}
 	}
