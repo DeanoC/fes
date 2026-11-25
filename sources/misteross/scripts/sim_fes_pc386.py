@@ -1404,6 +1404,9 @@ def parse_system(text: str) -> dict:
             cycle, *fields = rest.split()
             report['disk'] = {'cycle': int(cycle), **{key: int(value) for key, value in
                                                      (field.split('=') for field in fields)}}
+        elif kind == 'FRAME':
+            # system_tb's last complete 720p raster of the machine's video.
+            report['frame'] = {k: int(v) for k, v in (f.split('=') for f in rest.split())}
         elif kind == 'POST':
             code, cycle = rest.split()
             report['post'].append({'code': code, 'cycle': int(cycle)})

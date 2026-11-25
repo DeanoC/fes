@@ -80,6 +80,11 @@ def main() -> int:
     except (sim.SimError, OSError) as error:
         print(f'FAIL de25 system: {error}', file=sys.stderr)
         return 1
+    # The machine's own video, through the window: a complete 720p raster at
+    # the prompt with text on it (Kit D25 showed black, #2214).
+    frame = report.get('frame') or {}
+    if not frame.get('rasters') or frame.get('nonblack', 0) < 10000:
+        report['failures'].append(f'no lit 720p raster of the machine video at the prompt: {frame}')
     (sim.OUTPUT / 'system').mkdir(parents=True, exist_ok=True)
     (sim.OUTPUT / 'system' / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     for row in report['screen']:
@@ -87,6 +92,7 @@ def main() -> int:
     print('STATUS', report['status'])
     for check in report['record_checks']:
         print('CHECK', 'PASS' if check['pass'] else 'FAIL', check['check'])
+    print('FRAME', report.get('frame'))
     print('END', report['end'])
     for failure in report['failures']:
         print('FAILURE', failure)
