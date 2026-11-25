@@ -38,6 +38,12 @@ QEMU uses its separate VirtIO-net driver.
   level-triggered handler masks `channelInterrupt = 0` immediately and
   `Receive` re-arms once the ring drains. `BindControl.Stop` suspends the SPI
   before platform containment so zero MMIO occurs while paused.
+- **Multicast hash filtering & MMC counters:** `SetMulticastMACs` programs the
+  Synopsys XGMAC 2.10 `MAC_Hash_Table_Reg0..7` and `MAC_Packet_Filter.HMC`
+  with readback verification (re-applied across `BindControl.Stop/Start`).
+  `HardwareStats()` reads MMC RX/TX and error counters (with opt-in
+  `Config.ResetMMCOnRead` accumulating clear-on-read deltas across polls and
+  `Stop`/`Start` resets).
 
 ## Pause, stop, and restart control (`BindControl` / `OpenControlled`)
 
