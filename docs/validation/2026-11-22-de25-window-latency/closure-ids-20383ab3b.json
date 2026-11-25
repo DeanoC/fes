@@ -1,0 +1,121 @@
+{
+  "base": "837520f8ffbc2809d6b150a20de4bb3723a41cd1",
+  "c64nativepal": {
+    "board_py_in_closure": true,
+    "build_id": "0db3384293846e56d06fbd48edbbe3b4",
+    "closure_files": 148,
+    "closure_files_changed_since_base": [
+      "boards/de25nano/machine/board.py"
+    ],
+    "closure_sha256": "7852af49f3ad483ca55c61ab96d4322e76525011c4e5dbe3c4ca4f76d6e1585b",
+    "model": "nativepal",
+    "producer": "build_c64_package"
+  },
+  "c64pal": {
+    "board_py_in_closure": true,
+    "build_id": "c1a887796d7edaf79723571458dc739b",
+    "closure_files": 145,
+    "closure_files_changed_since_base": [
+      "boards/de25nano/machine/board.py"
+    ],
+    "closure_sha256": "b82be6969757bc8126d1d7d6d83738c36f9736fb6141994849ab2ae373608ed1",
+    "model": "pal",
+    "producer": "build_c64_package"
+  },
+  "menu": {
+    "board_py_in_closure": false,
+    "build_id": "c81a6c8e3fb7766cd21fa8bf0d8b2171",
+    "closure_files": 76,
+    "closure_files_changed_since_base": [],
+    "closure_sha256": "f74c05e5940d25f484f696b5650e22ac9825a2218d5135c647ccee7de241dafc",
+    "model": null,
+    "producer": "build_menu_package"
+  },
+  "pcxt": {
+    "board_py_in_closure": true,
+    "build_id": "9085d96346601d74f0d1ad7dd698e094",
+    "closure_files": 175,
+    "closure_files_changed_since_base": [
+      "boards/de25nano/machine/board.py"
+    ],
+    "closure_sha256": "7cc01d3cf9c0b4e990cbcdda6b597e28f5e049a3c7790848e94d9dcbb36d397b",
+    "model": "xt",
+    "producer": "build_pcxt_package"
+  },
+  "revision": "20383ab3bdc94a0720d114008b1c4c7580ec1218",
+  "spectrum128": {
+    "board_py_in_closure": true,
+    "build_id": "4f48df174474174c06bfcfeecefcf972",
+    "closure_files": 138,
+    "closure_files_changed_since_base": [
+      "boards/de25nano/machine/board.py"
+    ],
+    "closure_sha256": "76cba25bebfc189e5f9bbb426718fba7429310bf2eccbee15c05635a90c9fc59",
+    "model": "128",
+    "producer": "build_spectrum_package"
+  },
+  "spectrum48": {
+    "board_py_in_closure": true,
+    "build_id": "673079cb90dea5c021be11351179a005",
+    "closure_files": 138,
+    "closure_files_changed_since_base": [
+      "boards/de25nano/machine/board.py"
+    ],
+    "closure_sha256": "76cba25bebfc189e5f9bbb426718fba7429310bf2eccbee15c05635a90c9fc59",
+    "model": "48",
+    "producer": "build_spectrum_package"
+  },
+  "spectrumnative48": {
+    "board_py_in_closure": true,
+    "build_id": "12cdeb6555809ed872c2fce030d98451",
+    "closure_files": 139,
+    "closure_files_changed_since_base": [
+      "boards/de25nano/machine/board.py"
+    ],
+    "closure_sha256": "566358bb1e484fb78e22a14a10ab21e22affd50c94d6768ab26ef2ccf8839c3e",
+    "model": "native48",
+    "producer": "build_spectrum_package"
+  },
+  "spectrumpentagon": {
+    "board_py_in_closure": true,
+    "build_id": "13c9808aaad6cae71035b62384e2173c",
+    "closure_files": 138,
+    "closure_files_changed_since_base": [
+      "boards/de25nano/machine/board.py"
+    ],
+    "closure_sha256": "76cba25bebfc189e5f9bbb426718fba7429310bf2eccbee15c05635a90c9fc59",
+    "model": "pentagon",
+    "producer": "build_spectrum_package"
+  },
+  "spectrumplus3": {
+    "board_py_in_closure": true,
+    "build_id": "d10c7a33f893ed11586604ec32505d99",
+    "closure_files": 138,
+    "closure_files_changed_since_base": [
+      "boards/de25nano/machine/board.py"
+    ],
+    "closure_sha256": "76cba25bebfc189e5f9bbb426718fba7429310bf2eccbee15c05635a90c9fc59",
+    "model": "plus3",
+    "producer": "build_spectrum_package"
+  },
+  "st": {
+    "board_py_in_closure": true,
+    "build_id": "696fda9c66e9df05c22220278a129d04",
+    "closure_files": 144,
+    "closure_files_changed_since_base": [
+      "boards/de25nano/machine/board.py"
+    ],
+    "closure_sha256": "f7cc69b0777e28aa2b69b0d0356e9067a20c6f90d40b901c898731d55cde2046",
+    "model": "520st",
+    "producer": "build_atari_st_package"
+  },
+  "zx81": {
+    "board_py_in_closure": false,
+    "build_id": "aa85996bb6ca6a2c118cdab639fa66a0",
+    "closure_files": 146,
+    "closure_files_changed_since_base": [],
+    "closure_sha256": "08eca5e583507736e71e1d7aa130c5eb6652424df52b830989ae30392ab02a8c",
+    "model": null,
+    "producer": "build_zx81_package"
+  }
+}

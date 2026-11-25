@@ -3,15 +3,16 @@
 // atomic transport, the firmware front end, the mailbox and the machine.
 // Execution cannot be released before a firmware image with a matching CRC is
 // committed; the open diagnostic firmware is then uploaded, the synthetic D64
-// is committed through the mailbox (pairs at even and odd addresses) into the machine's disk
-// store, and the diagnostic runs to its PASS stage: CPU, CIA timers and
+// is committed through the mailbox (pairs at even and odd addresses) into board SDRAM,
+// and the diagnostic runs to its PASS stage: CPU, CIA timers and
 // interrupts, SID, joystick and keyboard from the mailbox, and the native
 // 1541 loading from the committed disk. The scanout slave and its memory
-// master stay idle, and the SDRAM pins stay released.
+// master stay idle in the managed variant.
 // argv: firmware image, D64 image.
 #include "Vfes_de25_c64_standard.h"
 #include "Vfes_de25_c64_standard___024root.h"
 #include "verilated.h"
+#include "../sim/sdram_model.h"
 
 #include <cstdint>
 #include <fstream>
@@ -66,6 +67,7 @@ struct Board {
     Vfes_de25_c64_standard___024root& root;
     uint64_t next_sys = 0, next_pixel = 0, next_bus = 0;
     bool toggle = false;
+    SdramModel sdram;
 #ifdef C64_NATIVE
     unsigned display_pending = 0;
     bool display_reply = false;
@@ -92,10 +94,6 @@ struct Board {
         dut.reset_n = 1;
         dut.pixel_reset_n = 1;
         run_clocks(8);
-    }
-    void check_sdram_idle() {
-        require(!dut.dram_cke && dut.dram_cs_n == 3 && !dut.dram_dq_oe && !dut.dram_clk,
-                "the board SDRAM is not held idle");
     }
     // Advance to the next edge of the three unrelated clocks: 0 pixel or a
     // falling edge, 1 a machine rise, 2 a peripheral (computer slave) rise.
@@ -127,6 +125,7 @@ struct Board {
         next_sys += kSysHalfPs;
         dut.machine_clk = !dut.machine_clk;
         dut.eval();
+        if (!dut.machine_clk) sdram.falling(dut, require);
         return dut.machine_clk ? 1 : 0;
     }
     void run_clocks(uint64_t clocks) {
@@ -300,7 +299,6 @@ int main(int argc, char** argv) {
 #endif
     Board board;
     auto& core = board.root;
-    board.check_sdram_idle();
     require(board.ok(1, 0, 0, "magic") == 0x4546, "identity magic");
     require(board.ok(1, 4, 0, "tag") == 4, "ABI tag");
     require(board.ok(1, 6, 0, "minor") == 0, "ABI minor");
@@ -382,13 +380,8 @@ int main(int argc, char** argv) {
     }
     board.ok(9, 0, 0, "commit");
     require(board.ok(5, 5, 0, "ready") == 3, "disk did not become ready");
-    // The disk store's lanes hold the even and odd addresses.
-    for (size_t i = 0; i < disk.size(); ++i) {
-        const uint8_t stored = (i & 1)
-            ? core.fes_de25_c64_standard__DOT__core__DOT__machine__DOT__disk__DOT__odd[i / 2]
-            : core.fes_de25_c64_standard__DOT__core__DOT__machine__DOT__disk__DOT__even[i / 2];
-        require(stored == disk[i], "disk byte " + std::to_string(i) + " differs");
-    }
+    for (size_t i = 0; i < disk.size(); ++i)
+        require(board.sdram.byte(i) == disk[i], "disk SDRAM byte " + std::to_string(i) + " differs");
 
     for (int launch = 1; launch <= 2; ++launch) {
         // The diagnostic waits for port 2 fire and the A key (row 0 bit 4).
@@ -426,7 +419,6 @@ int main(int argc, char** argv) {
                 label + ": hold did not reset the diagnostic");
         require(board.ok(kInfo, 2, 0, "state") == 2, label + ": hold dropped the firmware");
         require(board.ok(5, 5, 0, "disk state") == 3, label + ": hold dropped the disk");
-        board.check_sdram_idle();
 #ifdef C64_NATIVE
         const auto held = board.read(0x18);
         board.run_clocks(256);

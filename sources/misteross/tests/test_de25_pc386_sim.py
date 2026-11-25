@@ -7,7 +7,7 @@ MISTEROSS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(MISTEROSS))
 from boards.de25nano.pc386 import sim as de25_sim  # noqa: E402
 
-LIVE = {'rasters': 185, 'prompt_rasters': 170, 'final_rasters': 182, 'nonblack': 67351}
+LIVE = {'rasters': 186, 'prompt_rasters': 170, 'final_rasters': 182, 'nonblack': 67351}
 
 
 class FinalRasterGateTests(unittest.TestCase):
@@ -18,6 +18,14 @@ class FinalRasterGateTests(unittest.TestCase):
         # Rasters completed after the prompt, none in the final window: the
         # retained raster is stale.
         self.assertFalse(de25_sim.lit_raster_completed_after_prompt(dict(LIVE, rasters=182)))
+
+    def test_a_late_freeze_after_one_raster_fails(self):
+        # One lit raster after the final snapshot, then the video stops: the
+        # retained raster is lit and newer than the snapshot, but the window
+        # did not complete its expected rasters.
+        self.assertFalse(de25_sim.lit_raster_completed_after_prompt(dict(LIVE, rasters=183)))
+        self.assertFalse(de25_sim.lit_raster_completed_after_prompt(dict(LIVE, rasters=184)))
+        self.assertTrue(de25_sim.lit_raster_completed_after_prompt(dict(LIVE, rasters=185)))
 
     def test_a_black_final_raster_fails(self):
         self.assertFalse(de25_sim.lit_raster_completed_after_prompt(dict(LIVE, nonblack=0)))

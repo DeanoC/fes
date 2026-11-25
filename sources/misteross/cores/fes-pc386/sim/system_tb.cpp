@@ -217,10 +217,10 @@ public:
             }
             if (reason == "prompt" && do_input_exercise) exercise_input();
             if (reason == "prompt") {
-                // The picture must still be live at the end: three more 720p
+                // The picture must still be live at the end: four more 720p
                 // frame times after the exercise, whose rasters the gate counts.
                 final_rasters = static_cast<long long>(rasters);
-                const uint64_t until = cycles + uint64_t(clock_hz * 3.0 / 60.0) + 1;
+                const uint64_t until = cycles + uint64_t(clock_hz * 4.0 / 60.0) + 1;
                 while (cycles < until) clock();
             }
             for (int row = 0; row < 25; ++row) std::printf("SCREEN %d |%s|\n", row, screen_row(row).c_str());

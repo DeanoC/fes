@@ -22,6 +22,12 @@ func TestRingBasicAndWraparound(t *testing.T) {
 	if r.Len() != ringSize {
 		t.Fatalf("Len = %d, want %d", r.Len(), ringSize)
 	}
+	if r.Cap() != ringSize {
+		t.Fatalf("Cap = %d, want %d", r.Cap(), ringSize)
+	}
+	if b, ok := r.Peek(); !ok || b != 0 {
+		t.Fatalf("Peek = (%d, %v), want (0, true)", b, ok)
+	}
 	if r.Push(0xff) || r.Push(0xfe) {
 		t.Fatal("Push succeeded on full ring")
 	}

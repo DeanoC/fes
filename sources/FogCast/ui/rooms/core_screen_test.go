@@ -131,6 +131,7 @@ func TestCoreScreenChoosesNTSCGameFromC64Family(t *testing.T) {
 
 func TestCoreScreenChoosesC64CGameFromC64Family(t *testing.T) {
 	for _, tc := range []struct{ core, model string }{
+		{"fes.c64-early-ntsc", "C64 early NTSC"},
 		{"fes.c64c", "C64C PAL"},
 		{"fes.c64c-ntsc", "C64C NTSC"},
 	} {

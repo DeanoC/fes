@@ -2,8 +2,9 @@
 
 // Package fat mounts an existing FAT32 volume over fixed-sector storage.
 // Reading is general within the bounded boot-volume limits. WriteFile updates
-// preallocated files; CreateFile and Mkdir allocate new entries. Rename, removal
-// and formatting are not implemented. Successful writes include device Flush.
+// preallocated files; CreateFile, Mkdir, MkdirAll, ReplaceFile, RemoveFile,
+// RemoveDir and Rename mutate entries and cluster chains. StatFS reports volume
+// capacity and free space. Successful writes include device Flush.
 // It establishes clean-reboot persistence, not power-loss atomicity.
 package fat
 
@@ -45,6 +46,7 @@ type Volume struct {
 	root                uint32
 	fatCopies           []uint64
 	fsInfo              uint64
+	bpbLabel            string
 	allocationValid     bool
 	mutationErr         error
 	replacedGen         map[entryLocation]uint64
@@ -189,6 +191,12 @@ func parseBoot(device block.Device, base, limit uint64, b []byte) (*Volume, erro
 			v.allocationValid = false
 		} else {
 			v.fsInfo = base + info
+		}
+	}
+	if b[66] == 0x29 {
+		label := strings.TrimRight(string(b[71:82]), " \x00")
+		if label != "" && label != "NO NAME" {
+			v.bpbLabel = label
 		}
 	}
 	return v, nil

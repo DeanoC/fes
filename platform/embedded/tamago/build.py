@@ -5,6 +5,7 @@ import base64
 import importlib.util
 import ipaddress
 import re
+import shutil
 import json
 import os
 from pathlib import Path
@@ -423,6 +424,45 @@ def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, out
     return record
 
 
+def write_program_catalog(encode, directory, entries):
+    """Write matching selection and UI records for staged program choices."""
+    programs = [choice for _, _, choice in entries]
+    ui = [dict(id=core_id, title=title, program=index)
+          for index, (core_id, title, _) in enumerate(entries)]
+    if not 1 <= len(programs) <= 16 or len({entry['id'] for entry in ui}) != len(ui):
+        raise ValueError('bounded, unique program catalogue entries required')
+    records = {
+        'CORESEL.JSN': encode(dict(format=1, scope='nano-program-selection-v1', programs=programs)),
+        'UI.JSON': encode(dict(format=1, scope='nano-tenfoot-catalog-v1', entries=ui)),
+    }
+    if any(len(raw) > 8192 for raw in records.values()):
+        raise ValueError('program catalogue exceeds the native record limit')
+    for name, raw in records.items():
+        with (directory / name).open('xb') as output:
+            output.write(raw)
+
+
+def stage_shared_catalog(encode, directory, entries):
+    """Combine verified SDK assets without aliasing any selected FAT file."""
+    files = {}
+    for _, _, choice, source in entries:
+        paths = [choice['path'], choice['metadata_path']]
+        paths.extend(rom['path'] for rom in choice.get('sources', ()))
+        if 'tape' in choice:
+            paths.append(choice['tape']['path'])
+        for path in paths:
+            name = path.removeprefix('FES/')
+            if not path.startswith('FES/') or not re.fullmatch(r'[A-Z0-9]{1,8}\.[A-Z0-9]{1,3}', name) or name in {
+                    'CORESEL.JSN', 'UI.JSON', 'MENU.FCP', 'MENU.JSN', 'MENUSEL.JSN',
+                    'UPLOAD.BIN', 'RECOVERY.JSON', 'PREFS.JSON', 'INSTALL.JSN'} or name in files:
+                raise ValueError('shared catalogue contains an invalid or aliased file: '+path)
+            files[name] = source[name]
+    directory.mkdir(parents=True)
+    for name, path in files.items():
+        shutil.copyfile(path, directory / name)
+    write_program_catalog(encode, directory, [entry[:3] for entry in entries])
+
+
 def stage_c64(shell, proof, archive_path, rom, disk, host_go, stage, context, platform, configuration):
     stage.mkdir()
     archive = shell.read(archive_path, shell.MAX_ARCHIVE)
@@ -448,11 +488,9 @@ def stage_c64(shell, proof, archive_path, rom, disk, host_go, stage, context, pl
             raise ValueError('C64 requires a standard 174848-byte D64')
         (export / 'C64.D64').write_bytes(data)
         choice['tape'] = dict(path='FES/C64.D64', format='c64-d64', size=len(data), sha256=shell.sha(data))
-    (export / 'CORESEL.JSN').write_bytes(shell.encode(dict(
-        format=1, scope='nano-program-selection-v1', programs=[choice])))
-    (export / 'UI.JSON').write_bytes(shell.encode(dict(
-        format=1, scope='nano-tenfoot-catalog-v1',
-        entries=[dict(id='c64', title='Commodore 64 PAL', program=0)])))
+    entry = ('c64', 'Commodore 64 PAL', choice)
+    write_program_catalog(shell.encode, export, [entry])
+    return (*entry, {path.name: path for path in export.iterdir()})
 
 
 def build(args):
@@ -506,6 +544,9 @@ def build(args):
         raise ValueError('--selected-programs requires computer control, rearming, owned SD returns and --tenfoot-serial')
     if type(tenfoot_serial) is not bool or tenfoot_serial and not selected_programs:
         raise ValueError('--tenfoot-serial requires the selected native program service')
+    lifecycle_trace = getattr(args, 'lifecycle_trace', False)
+    if lifecycle_trace and not (args.program == 'fpgaload' and tenfoot_serial):
+        raise ValueError('--lifecycle-trace requires Nano fpgaload with --tenfoot-serial')
     watchdog_timeout, watchdog_clock_hz = watchdog_option(
         args.program, selected_programs, tenfoot_serial,
         getattr(args, 'watchdog_timeout', 0), getattr(args, 'watchdog_clock_hz', 0),
@@ -613,8 +654,11 @@ def build(args):
     c64_paths = [getattr(args, 'c64_' + name, None) for name in ('build', 'package', 'rom')]
     c64_disk = getattr(args, 'c64_d64', None)
     c64_proof = None
+    zx81_tape = getattr(args, 'zx81_tape', None)
+    if zx81_tape is not None and not (shared_shell and initial_tape):
+        raise ValueError('--zx81-tape requires the shared shell and initial tape service')
     if any(c64_paths) or c64_disk is not None:
-        if not all(c64_paths) or not shared_shell or spectrum_proof is not None or rom_host_go is None:
+        if not all(c64_paths) or not shared_shell or rom_host_go is None:
             raise ValueError('C64 requires a sealed build, package, ROM and shared-shell Tenfoot')
         producer, c64_archive, c64_rom = (path.resolve(strict=True) for path in c64_paths)
         worker = Path(hps.spectrum48.__file__)
@@ -628,8 +672,8 @@ def build(args):
         rom_selection=prepare_rom_selection(package_archive,firmware_rom,context['package_id'],rom_map['bytes'],rom_host_go,output)
         program_metadata=hps.selected_program(hps_project,rom_selection['rom_receipt_sha256'])
         (output/'hps-rom.json').write_bytes(hps.encode(rom_map))
+    companion_entries = []
     if spectrum_proof is not None:
-        import shutil
         stage = output/'spectrum48'
         stage.mkdir()
         archive = hps.spectrum48.read(spectrum_archive, hps.spectrum48.MAX_ARCHIVE)
@@ -655,14 +699,13 @@ def build(args):
             (export/'SPEC48.PZX').write_bytes(tape)
             choice['tape'] = dict(path='FES/SPEC48.PZX', format='spectrum-tape',
                                   size=len(tape), sha256=hps.spectrum48.sha(tape))
-        (export/'CORESEL.JSN').write_bytes(hps.encode(dict(
-            format=1, scope='nano-program-selection-v1', programs=[choice])))
-        (export/'UI.JSON').write_bytes(hps.encode(dict(
-            format=1, scope='nano-tenfoot-catalog-v1',
-            entries=[dict(id='spectrum48', title='ZX Spectrum 48K trial', program=0)])))
+        spectrum_entry = ('spectrum48', 'ZX Spectrum 48K trial', choice)
+        write_program_catalog(hps.encode, export, [spectrum_entry])
+        companion_entries.append((*spectrum_entry, {path.name: path for path in export.iterdir()}))
     if c64_proof is not None:
-        stage_c64(hps.spectrum48, c64_proof, c64_archive, c64_rom, c64_disk, rom_host_go,
-                  output / 'c64', context, program_platform, configuration_map)
+        companion_entries.append(stage_c64(hps.spectrum48, c64_proof, c64_archive, c64_rom, c64_disk,
+                                           rom_host_go, output / 'c64', context, program_platform,
+                                           configuration_map))
     (output / "handoff.json").write_bytes(raw)
     if context is not None:(output/'hps-context.json').write_bytes(hps.encode(context))
     if io_map is not None:(output/'hps-io.json').write_bytes(hps.encode(io_map))
@@ -686,6 +729,21 @@ def build(args):
                                     'sha256':rom_selection['source_sha256']}],rom_receipt_sha256=rom_selection['rom_receipt_sha256'])
         choices={'format':1,'scope':'nano-program-selection-v1','programs':[request]*(2 if computer_reload else 1)}
         (output/'CORESEL.JSN').write_bytes(hps.encode(choices))
+        if shared_shell and (companion_entries or zx81_tape is not None):
+            if rom_selection is None:
+                raise ValueError('shared catalogue requires the primary held-ROM export')
+            primary = dict(request)
+            files = {'PKGTEST.BIN': output/'package.fcore', 'PROGRAM.JSN': output/'PROGRAM.JSN',
+                     'FIRMWARE.BIN': output/'FIRMWARE.BIN'}
+            if zx81_tape is not None:
+                # The native DE25 mailbox reserves nine bytes of its 16 KiB tape window.
+                tape = hps.spectrum48.read(zx81_tape.resolve(strict=True), 0x3ff7)
+                tape_file = output/'GAME.P'
+                tape_file.write_bytes(tape)
+                files['GAME.P'] = tape_file
+                primary['tape'] = dict(path='FES/GAME.P', size=len(tape), sha256=hps.spectrum48.sha(tape))
+            stage_shared_catalog(hps.encode, output/'export'/'FES',
+                                 [('zx81', 'ZX81 trial', primary, files), *companion_entries])
     uart_base = 0x10c02000 + uart_index * 0x100
     generated = output / "profile.go"
     generated.write_text("//go:build tamago && arm64 && de25nano\n\npackage de25nano\nconst (\n" +
@@ -786,6 +844,7 @@ def build(args):
         link_flags+=' -X main.expectedMenuPresent=1'
         link_flags+=' -X main.expectedMenuReadMap='+base64.b64encode(hps.encode(menu_read_map)).decode()
     if tenfoot_serial:link_flags+=' -X main.expectedTenfootSerial=1'
+    if lifecycle_trace:link_flags+=' -X main.expectedLifecycleTrace=1'
     if watchdog_timeout:
         link_flags += f' -X main.expectedWatchdogTimeout={watchdog_timeout} -X main.expectedWatchdogClockHz={watchdog_clock_hz}'
     if network_dhcp:
@@ -876,6 +935,7 @@ def build(args):
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
               "sd_write_plan":sd_write_plan,"sd_write_plan_sha256":hashlib.sha256(base64.b64decode(sd_write_encoded)).hexdigest() if sd_write_encoded else None,
               "sd_transfer_clock_hz":sd_transfer_clock,
+              "lifecycle_trace":lifecycle_trace,
               "watchdog_timeout_seconds":watchdog_timeout,"watchdog_clock_hz":watchdog_clock_hz,
               "network_dhcp":network_dhcp,"network_dhcp_hostname":network_dhcp_hostname,
               "network_sntp_server":network_sntp_server,"network_sntp_port":network_sntp_port,

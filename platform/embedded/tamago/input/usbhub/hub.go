@@ -8,6 +8,8 @@ package usbhub
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/bt"
@@ -83,6 +85,28 @@ type DeviceEvent struct {
 	Interface uint8
 	Slot      uint8
 	Name      string
+}
+
+// BluetoothDevice describes one paired or connected Classic Bluetooth device.
+type BluetoothDevice struct {
+	Address   string
+	Name      string
+	Kind      controllers.Kind
+	Connected bool
+	Slot      uint8 // 1..4 when connected, 0 when disconnected
+}
+
+// BluetoothSnapshot summarizes the active USB Bluetooth adapter, pairing
+// state, bonded/connected controllers, and bond persistence state.
+type BluetoothSnapshot struct {
+	DongleConnected  bool
+	DongleName       string
+	PairingActive    bool
+	PairingRemaining time.Duration
+	ConnectedCount   int
+	Devices          []BluetoothDevice
+	BondsPending     bool
+	BondsSaveFailed  bool
 }
 
 // Config configures optional Bluetooth bond/firmware persistence and logging.
@@ -172,6 +196,8 @@ type Hub struct {
 
 	bondRetryAt    time.Time
 	bondRetryDelay time.Duration
+	bondSaveFailed bool
+	btGeneration   uint64
 }
 
 // NewHub constructs a Hub over bus. Call Close when shutting down wired pipes;
@@ -190,6 +216,7 @@ func NewHub(bus usb.BusHost, cfg Config) (*Hub, error) {
 		bus:           bus,
 		cfg:           cfg,
 		mergedGamepad: usb.GamepadState{Hat: -1},
+		btGeneration:  1,
 	}
 	for i := range h.wiredGamepads {
 		h.wiredGamepads[i].state = usb.GamepadState{Hat: -1}
@@ -238,6 +265,7 @@ func NewHub(bus usb.BusHost, cfg Config) (*Hub, error) {
 		if connected {
 			evKind = EventBTPlayerAttached
 		}
+		h.btGeneration++
 		h.emit(DeviceEvent{Kind: evKind, Slot: slot, Name: name})
 	}
 	h.bt.OnDongleChanged = func(connected bool, spec hci.DongleSpec) {
@@ -245,6 +273,7 @@ func NewHub(bus usb.BusHost, cfg Config) (*Hub, error) {
 		if connected {
 			evKind = EventBTDongleAttached
 		}
+		h.btGeneration++
 		h.emit(DeviceEvent{Kind: evKind, Name: spec.Name})
 	}
 	return h, nil
@@ -310,7 +339,9 @@ func (h *Hub) StartPairing(duration time.Duration) error {
 	if h == nil || h.bt == nil {
 		return errors.New("usbhub: Bluetooth unavailable")
 	}
-	return h.bt.StartPairing(duration)
+	err := h.bt.StartPairing(duration)
+	h.btGeneration++
+	return err
 }
 
 // StopPairing closes any open Bluetooth pairing window.
@@ -318,12 +349,136 @@ func (h *Hub) StopPairing() error {
 	if h == nil || h.bt == nil {
 		return nil
 	}
-	return h.bt.StopPairing()
+	err := h.bt.StopPairing()
+	h.btGeneration++
+	return err
 }
 
 // PairingActive reports whether a Bluetooth pairing window is open.
 func (h *Hub) PairingActive() bool {
 	return h != nil && h.bt != nil && h.bt.PairingActive()
+}
+
+// PairingRemaining returns the remaining time in the active Bluetooth pairing window.
+func (h *Hub) PairingRemaining() time.Duration {
+	if h == nil || h.bt == nil {
+		return 0
+	}
+	return h.bt.PairingRemaining()
+}
+
+// BluetoothGeneration returns a monotonically increasing counter bumped whenever
+// Bluetooth dongle, pairing, connected slot, or bond persistence state changes.
+func (h *Hub) BluetoothGeneration() uint64 {
+	if h == nil {
+		return 0
+	}
+	return h.btGeneration
+}
+
+// BluetoothSnapshot returns a merged view of adapter state, active pairing window,
+// bonded devices, connected player slots, and pending/failed bond saves.
+func (h *Hub) BluetoothSnapshot() BluetoothSnapshot {
+	if h == nil || h.bt == nil {
+		return BluetoothSnapshot{}
+	}
+	snap := BluetoothSnapshot{
+		DongleConnected:  h.bt.DongleConnected(),
+		DongleName:       h.bt.DongleSpec().Name,
+		PairingActive:    h.bt.PairingActive(),
+		PairingRemaining: h.bt.PairingRemaining(),
+		ConnectedCount:   h.bt.ConnectedPlayers(),
+		BondsPending:     h.cfg.Bonds != nil && h.cfg.Bonds.Dirty() && h.cfg.PersistBonds != nil,
+		BondsSaveFailed:  h.bondSaveFailed,
+	}
+	byAddr := make(map[l2cap.BDAddr]BluetoothDevice)
+	if h.cfg.Bonds != nil {
+		for _, rec := range h.cfg.Bonds.List() {
+			byAddr[rec.Addr] = BluetoothDevice{
+				Address: rec.Addr.String(),
+				Name:    rec.Name,
+				Kind:    rec.Kind,
+			}
+		}
+	}
+	for slotIdx := uint8(0); slotIdx < hidp.MaxPlayerSlots; slotIdx++ {
+		ps, ok := h.bt.Player(slotIdx)
+		if !ok {
+			continue
+		}
+		dev := byAddr[ps.Addr]
+		dev.Address = ps.Addr.String()
+		if ps.Name != "" {
+			dev.Name = ps.Name
+		}
+		if ps.Kind != controllers.KindUnknown {
+			dev.Kind = ps.Kind
+		}
+		dev.Connected = true
+		dev.Slot = ps.Slot + 1
+		byAddr[ps.Addr] = dev
+	}
+	if len(byAddr) > 0 {
+		snap.Devices = make([]BluetoothDevice, 0, len(byAddr))
+		for _, dev := range byAddr {
+			if strings.TrimSpace(dev.Name) == "" {
+				if dev.Kind != controllers.KindUnknown {
+					dev.Name = dev.Kind.String()
+				} else {
+					dev.Name = "Bluetooth device"
+				}
+			}
+			snap.Devices = append(snap.Devices, dev)
+		}
+		slices.SortFunc(snap.Devices, func(a, b BluetoothDevice) int {
+			if a.Connected != b.Connected {
+				if a.Connected {
+					return -1
+				}
+				return 1
+			}
+			if a.Connected && a.Slot != b.Slot {
+				if a.Slot < b.Slot {
+					return -1
+				}
+				return 1
+			}
+			if cmp := strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)); cmp != 0 {
+				return cmp
+			}
+			return strings.Compare(a.Address, b.Address)
+		})
+	}
+	return snap
+}
+
+// ForgetBluetoothDevice closes any active pairing window, deletes the stored
+// bond for address, and disconnects any active connection to it.
+func (h *Hub) ForgetBluetoothDevice(address string) error {
+	if h == nil || h.bt == nil {
+		return errors.New("usbhub: Bluetooth unavailable")
+	}
+	addr, err := l2cap.ParseBDAddr(address)
+	if err != nil {
+		return err
+	}
+	wasPairing := h.bt.PairingActive()
+	found, err := h.bt.ForgetDevice(addr)
+	if found {
+		h.bondRetryAt = time.Time{}
+		h.bondRetryDelay = 0
+		h.bondSaveFailed = false
+		h.btGeneration++
+	} else if h.bt.PairingActive() != wasPairing {
+		h.btGeneration++
+	}
+	if err != nil {
+		return err
+	}
+	if !found {
+		return errors.New("usbhub: Bluetooth device not found")
+	}
+	return nil
 }
 
 // SaveBondsIfDirty persists updated Bluetooth bonds when configured and
@@ -345,10 +500,16 @@ func (h *Hub) SaveBondsIfDirty(ctx context.Context) (bool, error) {
 	if err != nil {
 		h.bondRetryDelay = min(max(2*h.bondRetryDelay, bondRetryInitial), bondRetryMax)
 		h.bondRetryAt = now.Add(h.bondRetryDelay)
+		if !h.bondSaveFailed {
+			h.bondSaveFailed = true
+			h.btGeneration++
+		}
 		return false, err
 	}
 	h.cfg.Bonds.ClearDirty()
 	h.bondRetryAt, h.bondRetryDelay = time.Time{}, 0
+	h.bondSaveFailed = false
+	h.btGeneration++
 	return true, nil
 }
 
@@ -550,7 +711,13 @@ func (h *Hub) Service() error {
 			}
 		}
 	}
-	return h.bt.ServiceSession()
+	wasPairing := h.bt.PairingActive()
+	wasDirty := h.cfg.Bonds != nil && h.cfg.Bonds.Dirty()
+	err := h.bt.ServiceSession()
+	if h.bt.PairingActive() != wasPairing || (h.cfg.Bonds != nil && h.cfg.Bonds.Dirty() != wasDirty) {
+		h.btGeneration++
+	}
+	return err
 }
 
 func (h *Hub) attachDevice(dev usb.BusDevice) {

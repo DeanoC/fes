@@ -1,0 +1,50 @@
+== menu
+  A root /data/projects/fes-486sx-9216/d12/A-menu  BUILD_ID f1244390479157c1d048b9e2d11328d4  core.rbf 0d505c4ef19dc4d612ca33566e9e5405f79a8f911ea7b43040b4f20a03ec2c19
+  C root /data/projects/fes-486sx-9216/d12/C-menu  signoff/combined/hps/linux-boot.core.rbf 0d505c4ef19dc4d612ca33566e9e5405f79a8f911ea7b43040b4f20a03ec2c19  EQUAL to A
+  B root /data/projects/fes-486sx-9216/d12/wt-branch/sources/misteross/build/d12/B-menu  BUILD_ID e6ce2f4ba59f7fc9c6bbcd1c280e04a9  core.rbf 8f08ec5a6e0ed29312c7ee3123db2df399dce551f610b917395c7256a332aea1  admitted True
+  inputs: 637 A, 637 B, only one side none
+  differ by root path or BUILD_ID only (6): integrate-mailbox.tcl, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout.ip, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_bb.v, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_inst.vhd, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/synth/peripheral_subsys_fes_scanout.v, peripheral_subsys/peripheral_subsys.qsys
+  differ otherwise: none
+== zx81
+  A root /data/projects/fes-486sx-9216/d12/A-zx81  BUILD_ID f60705d4720b2ea3251693543efec551  core.rbf 93252eab459047ccd3ea8c695c2dfa2ae1f49591e8368a82be5ad5cc644deb32
+  C root /data/projects/fes-486sx-9216/d12/C-zx81  core.rbf 93252eab459047ccd3ea8c695c2dfa2ae1f49591e8368a82be5ad5cc644deb32  EQUAL to A
+  B root /data/projects/fes-486sx-9216/d12/wt-branch/sources/misteross/build/d12/B-zx81  BUILD_ID c36c7bdef0b09c35ffd203955ca06eb0  core.rbf 00aaf84cde0de840f637f67a1ad6b4df56f0debe7d92b436ae0c720ebc016e30  admitted True
+  inputs: 703 A, 703 B, only one side none
+  differ by root path or BUILD_ID only (6): integrate-mailbox.tcl, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout.ip, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_bb.v, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_inst.vhd, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/synth/peripheral_subsys_fes_scanout.v, peripheral_subsys/peripheral_subsys.qsys
+  differ otherwise: none
+== spectrum48
+  A root /data/projects/fes-486sx-9216/d12/A-spectrum48  BUILD_ID 8e006078b793b5896576a75de30320b7  core.rbf 1c733c80e4d55994fdbdad344d345067e5e7ccb63dc2c6af372e3bfb371da098
+  C root /data/projects/fes-486sx-9216/d12/C-spectrum48  core.rbf 1c733c80e4d55994fdbdad344d345067e5e7ccb63dc2c6af372e3bfb371da098  EQUAL to A
+  B root /data/projects/fes-486sx-9216/d12/wt-branch/sources/misteross/build/d12/B-spectrum48  BUILD_ID d75cc6c35a83b1480c4c25fa67ea7c94  core.rbf b1a70a5f4411d3b6b7b0ac881411328aca4830875f1cfe8e36ec84c2fd27530c  admitted True
+  inputs: 737 A, 737 B, only one side none
+  differ by root path or BUILD_ID only (6): integrate-mailbox.tcl, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout.ip, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_bb.v, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_inst.vhd, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/synth/peripheral_subsys_fes_scanout.v, peripheral_subsys/peripheral_subsys.qsys
+  differ otherwise: none
+== spectrum128
+  A root /data/projects/fes-486sx-9216/d12/A-spectrum128  BUILD_ID beb9fd96a490c14d7e1d8fb2e9fbb3d6  core.rbf 08051471a18155de3850beb12aeef915a58a0a04e6cef2b7b5ec569047518130
+  C root /data/projects/fes-486sx-9216/d12/C-spectrum128  core.rbf 08051471a18155de3850beb12aeef915a58a0a04e6cef2b7b5ec569047518130  EQUAL to A
+  B root /data/projects/fes-486sx-9216/d12/wt-branch/sources/misteross/build/d12/B-spectrum128  BUILD_ID ebd12dfb9aef80c0380dc612cc058fc4  core.rbf 37802ca66c380a1d5b9eb6e58d65c316d02e84a5163d551c755555d7cb1f5365  admitted True
+  inputs: 737 A, 737 B, only one side none
+  differ by root path or BUILD_ID only (6): integrate-mailbox.tcl, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout.ip, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_bb.v, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_inst.vhd, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/synth/peripheral_subsys_fes_scanout.v, peripheral_subsys/peripheral_subsys.qsys
+  differ otherwise: none
+== st
+  A root /data/projects/fes-486sx-9216/d12/A-st  BUILD_ID 4fef79327c8f706593fd61c5c2aa4a97  core.rbf cffa3a9bdfc4902197ba71a66f63633839b9daafa02e23b3c2d89e07ca2463f7
+  C root /data/projects/fes-486sx-9216/d12/C-st  core.rbf cffa3a9bdfc4902197ba71a66f63633839b9daafa02e23b3c2d89e07ca2463f7  EQUAL to A
+  B root /data/projects/fes-486sx-9216/d12/wt-branch/sources/misteross/build/d12/B-st  BUILD_ID d5cb3a7ad71781c893288bb6dd6fc5e5  core.rbf 3dcfc0d58ac76d3735f26e384804b478df0fe4c8ea777a557df2952d7af6a77c  admitted True
+  inputs: 747 A, 747 B, only one side none
+  differ by root path or BUILD_ID only (6): integrate-mailbox.tcl, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout.ip, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_bb.v, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_inst.vhd, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/synth/peripheral_subsys_fes_scanout.v, peripheral_subsys/peripheral_subsys.qsys
+  differ otherwise: none
+== c64
+  A root /data/projects/fes-486sx-9216/d12/A-c64  BUILD_ID 57034e7bb97895436d927898abe71d30  core.rbf 6b2430424d7a53ed647233419d96dd35776b58928be1db59c4d76a9cd1324649
+  C root /data/projects/fes-486sx-9216/d12/C-c64  core.rbf 6b2430424d7a53ed647233419d96dd35776b58928be1db59c4d76a9cd1324649  EQUAL to A
+  B root /data/projects/fes-486sx-9216/d12/wt-branch/sources/misteross/build/d12/B-c64  BUILD_ID e18dbf5433ed78d727f569677e596c57  core.rbf a22b0da9185942b17a4baf9a607958b119d28801940d9fd5e6b9d6cff11f3083  admitted True
+  inputs: 751 A, 751 B, only one side none
+  differ by root path or BUILD_ID only (6): integrate-mailbox.tcl, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout.ip, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_bb.v, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_inst.vhd, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/synth/peripheral_subsys_fes_scanout.v, peripheral_subsys/peripheral_subsys.qsys
+  differ otherwise: none
+== pcxt
+  A root /data/projects/fes-486sx-9216/d12/A-pcxt  BUILD_ID 2e78db2af55e7df6bbdda156bf75cb2f  core.rbf ab443aec9054753430aca79beed4ce992616f8d5b959dbc507eb2e1d82439831
+  C root /data/projects/fes-486sx-9216/d12/C-pcxt  core.rbf ab443aec9054753430aca79beed4ce992616f8d5b959dbc507eb2e1d82439831  EQUAL to A
+  B root /data/projects/fes-486sx-9216/d12/wt-branch/sources/misteross/build/d12/B-pcxt  BUILD_ID b5a7591cd5e6d64b6d2e140735bf6e7e  core.rbf ce0b05af92fd061e7135614531384314103d6c0c472aeb04ed35ab86749f8231  admitted True
+  inputs: 813 A, 813 B, only one side none
+  differ by root path or BUILD_ID only (6): integrate-mailbox.tcl, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout.ip, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_bb.v, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_inst.vhd, peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/synth/peripheral_subsys_fes_scanout.v, peripheral_subsys/peripheral_subsys.qsys
+  differ otherwise: none
+ALL PASS
