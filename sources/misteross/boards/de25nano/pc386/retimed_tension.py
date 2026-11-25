@@ -17,6 +17,7 @@ if __name__ == '__main__':
     sys.path.insert(0, str(HERE.parents[2]))
 
 from boards.de25nano.scanout import async_inputs, machine_findings as mf  # noqa: E402
+from scripts.quartus_tools import held_quartus_lease  # noqa: E402
 
 RULE = 'TMC-20602'
 REVIEW = 'retimed-machine-control-tension'
@@ -113,6 +114,7 @@ def check(targets_path, paths_path):
 
 def collect(selected, quartus_sta, subjects):
     """Bind a successful trace to the compiled database and exact package candidate."""
+    mf.require(held_quartus_lease('pro') is not None, 'retimed tension TimeQuest requires a Quartus Pro lease')
     selected = Path(selected).resolve()
     tool = Path(quartus_sta).resolve(strict=True)
     output = selected / 'retimed-tension'

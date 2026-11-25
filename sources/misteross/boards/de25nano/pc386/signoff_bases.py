@@ -180,7 +180,7 @@ CPU_CONTROL_TENSION = advisory(
 RETIMED_LOCATION = r'X\d+_Y\d+_N\d+_I\d+_dff'
 RETIMED_INPUT_MUX = 'BLOCK_INPUT_MUX_PASSTHROUGH_' + RETIMED_LOCATION
 RETIMED_TENSION_NODES = S + '(?:' + '|'.join((
-    r'(?:cpu_m1_(?:tx|alias|probe_bad)|cpu_dmem_read|cpu_dfwd_hold|cpu_l1d_flush)~\d+_' + RETIMED_INPUT_MUX,
+    r'(?:cpu_m1_(?:tx|alias|probe_bad|okA|out\[20\])|cpu_dmem_read|cpu_dfwd_hold|cpu_l1d_flush)~\d+_' + RETIMED_INPUT_MUX,
     r'(?:cpu_l1d_(?:m1_at0|hit_m1)\[\d+\]|cpu_dmem_fault)~\d+xsyn_' + RETIMED_INPUT_MUX,
     r'(?:cpu_m1_out_reg\[\d+\]|reduce_nor_1931)~' + RETIMED_INPUT_MUX,
     r'cpu_cr0_pg~DUPLICATE_' + RETIMED_INPUT_MUX,
@@ -189,18 +189,34 @@ RETIMED_TENSION_NODES = S + '(?:' + '|'.join((
     r'cpu_m2_load~(?:ENA|SCLR)_dff',
     r'cpu_l1d_stall~SCLR_dff',
     r'machine_at_select_fdc~\d+_R12_' + RETIMED_LOCATION,
-    r'cpu_m1_tx~3xsyn(?:_[567])?_' + RETIMED_INPUT_MUX,
+    r'cpu_m1_tx~3xsyn(?:_\d+)?_' + RETIMED_INPUT_MUX,
+    r'cpu_m1_alias~\d+xsyn_' + RETIMED_INPUT_MUX,
     r'cpu_m1_out_reg\[1178\]~DUPLICATE_' + RETIMED_INPUT_MUX,
+    r'cpu_m1_out_reg\[1178\]~DUPLICATE(?:ENA|SCLR)_dff',
     r'_17339_~1_R[46]_' + RETIMED_LOCATION,
-    r'machine_at_select_fdc~0_R6_' + RETIMED_LOCATION,
+    r'machine_at_select_fdc~0_R[46]_' + RETIMED_LOCATION,
     r'_05547_~1_C4_' + RETIMED_LOCATION,
     r'machine_at_decoder_cycle_port\[(?:[4-9]|1[01])\]~R6_' + RETIMED_LOCATION,
     r'machine_at_decoder_cycle_port\[5\]~R12_' + RETIMED_LOCATION,
     r'machine_at_decoder_cycle_port\[[67]\]~R4_' + RETIMED_LOCATION,
+    r'machine_at_decoder_cycle_port\[7\]~C4_' + RETIMED_LOCATION,
+    r'machine_at_decoder_cycle_port\[[589]\]~' + RETIMED_INPUT_MUX,
+    r'machine_at_decoder_phase\[3\]~DUPLICATE_' + RETIMED_INPUT_MUX,
+    r'machine_at_decoder_(?:state\[0\]~|state\[1\]~DUPLICATE_|next_vga~3xsyn_)' + RETIMED_INPUT_MUX,
     r'machine_at_cycle_strobe~1_R4_' + RETIMED_LOCATION,
     r'cpu_wb_fault\[1\]~' + RETIMED_INPUT_MUX,
+    r'cpu_wb_fault\[2\]~C4_' + RETIMED_LOCATION,
     r'cpu_wb_s_reg\[1178\]~C4_' + RETIMED_LOCATION,
     r'machine_at_(?:select_fdc|cycle_strobe)~\d+_' + RETIMED_INPUT_MUX,
+    # Routed inputs tie these operators to M1 address/size and memory kind.
+    r'add_146~1_' + RETIMED_INPUT_MUX,
+    r'reduce_or_2303~' + RETIMED_INPUT_MUX,
+    # Routed paths tie these four add_307 variants to the BIU count and store wait.
+    r'add_307~(?:2|7|12|17)_' + RETIMED_INPUT_MUX,
+    r'_06220_~0_' + RETIMED_INPUT_MUX,
+    # These compiler aliases occur in the fitted AT decoder state and VGA paths.
+    r'i11525~0_' + RETIMED_INPUT_MUX,
+    r'i11562~(?:0|xsyn)_' + RETIMED_INPUT_MUX,
 )) + ')'
 RETIMED_TENSION = ('Placement advisory for the reviewed machine-clock retiming of CPU transaction, '
                    'memory and writeback control, and AT I/O decode logic (#2263). The C0=34 TimeQuest traces match '

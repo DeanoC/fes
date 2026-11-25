@@ -165,6 +165,54 @@ admission.
 | `tension-paths.tsv` | `ccb511b309650a3a7dc0ae4873281a9c82c2833cfe57a710f4f12bc945a55a1f` |
 | `tension-summary.json` | `47f5e452e5d9e97a3ac6ea17c2560d93b8458345d5044523c0c6822c4157c5e3` |
 
+Seed 2 fitted at 44,994.1 ALMs with worst setup +0.523 ns, hold 0.000 ns,
+recovery +6.419 ns and removal +0.019 ns. The LOADED route was 3.460 ns.
+The producer refused `TMC-20602` on `cpu_m1_out[20]`. Nine unrecognized
+rows included additional M1 paging and access qualifiers, M1 valid and
+two AT decode registers. The fitted launch and capture paths place
+`add_146` and `reduce_or_2303` in the M1 end-address and access-type
+expressions, respectively. These two names are Quartus-generated.
+All 868 checks passed for the 31 retimed rows, with worst traced setup
+of +1.720 ns and hold of +0.067 ns.
+
+| Seed 2 file | SHA-256 |
+| --- | --- |
+| `loaded.tsv` | `ffa8fdbc317d4b75d8d04475b7cfb0bec3ae83b2f5f18f94c60a66c61b16e128` |
+| `tension-paths.tsv` | `09a4f63ca5cc53b4f6d51ddfb38f976f78fe1a4eecd03efcb8760c7abe359d4f` |
+| `tension-summary.json` | `1cf10b114aacca43ad9b591eaf53914f528f4df1fca2e82e0389c02ce255784c` |
+
+Seed 3 fitted at 44,820.1 ALMs with worst setup +0.491 ns, hold 0.000 ns,
+recovery +6.583 ns and removal +0.094 ns. The LOADED route was 2.584 ns.
+The original producer refused `TMC-20602` at the new `cpu_m1_tx` clone.
+The fitted trace resolved all 26 retimed rows and passed 728 checks.
+Worst traced setup was +2.228 ns and worst hold was +0.063 ns.
+The additional compiler names are scoped to the traced store-wait adder
+paths and AT decoder slice. The fitted paths identify those cones. The
+generated netlist has no individual RTL alias for the AT fitter names.
+
+| Seed 3 file | SHA-256 |
+| --- | --- |
+| `loaded.tsv` | `ac124f0d70d96ed0db3306285df658d4509fa33749fa07b82f8b32686049f2b7` |
+| `tension-paths.tsv` | `2d5033ede0cfa952db9e93f48c190c5336bbfdee31d049ee5446de4f04a9b604` |
+| `tension-summary.json` | `ad59c8fefd338322f92ff31ead0505a2053ada638ff4fff23251a25d6d87118f` |
+
+Seed 4 fitted at 45,160.1 ALMs with worst setup +0.866 ns, hold 0.000 ns,
+recovery +7.324 ns and removal +0.030 ns. The LOADED route was 2.770 ns.
+The producer refused `TMC-20602` on an additional clone of `cpu_m1_tx`.
+The other two new forms came from the FDC selector and latched AT port
+bit 8. All 364 routed checks passed for the 13 retimed rows. Worst traced
+setup was +1.870 ns and worst hold was +0.157 ns.
+
+| Seed 4 file | SHA-256 |
+| --- | --- |
+| `loaded.tsv` | `af6e0873b06943c2dea899f83140d8f33889a7e15671aa21489628f6df252068` |
+| `tension-paths.tsv` | `9f0c2b7da885816d6366bc6feb033f32b2ad856567e7cf7dc5141962826e2c1e` |
+| `tension-summary.json` | `23fcffdae8f6881f08680a303a212ca4d98d4baf9eb7c562511fb5b19c9af7f6` |
+
+All four builds of this revision are refused by the producer. The
+retained `c34-reviewed/summary.json` SHA-256 is
+`258817539e09ec306f150a8ffba6ec09cabce63dd364b1d6a7da4ba2220a663e`.
+
 The alternate builder's authenticated Yosys has the same locked commit
 but a different binary digest. A preflight in the same absolute checkout
 path generated different Verilog beyond the Yosys banner and source

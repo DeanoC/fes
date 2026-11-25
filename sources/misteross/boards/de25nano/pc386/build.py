@@ -107,7 +107,7 @@ class RegisteredBoard:
             raise machine_findings.BuildError(
                 f"DE25 pc386 recorded model {model!r} differs from prepared model {prepared_model!r}")
 
-        with self.delegate.quartus_lease():
+        with quartus_lease("pro", label="DE25 pc386 registered fit"):
             artifact = self.delegate.compile_board(spec, output, scanout, hps, display, tool)
             basis = load(HERE / "signoff_bases.py", "de25_pc386_signoff_bases")
             drc = (directory / "project/output_files/golden_top.tq.drc.signoff.rpt").read_text()
@@ -121,13 +121,14 @@ class RegisteredBoard:
             return artifact
 
 
-board = RegisteredBoard(load(HERE.parent / "machine/board.py", "de25_pc386_machine_board"))
-dx = load(HERE / "i486dx/derive.py", "de25_pc386_i486dx_derive")
-sys.path.insert(0, str(board.ROOT / MISTEROSS))
+sys.path.insert(0, str(HERE.parents[2]))
 from scripts import pc386_quartus as sealer  # noqa: E402
 from scripts import yosys_netlist  # noqa: E402
 from scripts import fit_i386_device as fit  # noqa: E402
+from scripts.quartus_tools import quartus_lease  # noqa: E402
 
+board = RegisteredBoard(load(HERE.parent / "machine/board.py", "de25_pc386_machine_board"))
+dx = load(HERE / "i486dx/derive.py", "de25_pc386_i486dx_derive")
 CLOCKS = load(HERE / "model_clocks.py", "de25_pc386_model_clocks")
 VCO = Fraction(CLOCKS.VCO_NUMERATOR, CLOCKS.VCO_DENOMINATOR)
 

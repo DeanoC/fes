@@ -132,8 +132,8 @@ class RegisteredTensionTests(unittest.TestCase):
                 mock.patch.object(spec, 'authenticate_front_end', return_value=mock.Mock(identity='fixture')),
                 mock.patch.object(spec, 'load', side_effect=load_fixture),
                 mock.patch.multiple(spec.board.delegate, capture=mock.Mock(return_value={}), generate=mock.Mock(),
-                                    prepare=mock.Mock(side_effect=prepare_fixture),
-                                    quartus_lease=mock.Mock(side_effect=nullcontext)),
+                                    prepare=mock.Mock(side_effect=prepare_fixture)),
+                mock.patch.object(spec, 'quartus_lease', return_value=nullcontext()),
                 mock.patch.object(spec.board.delegate, 'compile_board', side_effect=fit_fixture) as fit,
                 mock.patch.multiple(common, authenticate_tools=mock.Mock(return_value=(
                     {'quartus': root / 'quartus_sh'}, {'quartus': 'fixture'})),
@@ -238,7 +238,8 @@ class RetimedTensionProofTests(unittest.TestCase):
                 self.write_trace(Path(command[-1]), self.trace_rows())
                 return subprocess.CompletedProcess(command, 0)
 
-            with (mock.patch.object(retimed_tension.async_inputs, 'bindings', side_effect=bindings) as bound,
+            with (mock.patch.object(retimed_tension, 'held_quartus_lease', return_value='/fixture/pro.lock'),
+                  mock.patch.object(retimed_tension.async_inputs, 'bindings', side_effect=bindings) as bound,
                   mock.patch.object(retimed_tension.subprocess, 'run', side_effect=run_fixture)):
                 output = retimed_tension.collect(selected, tool, (self.NODE,))
             self.assertEqual(original.read_bytes(), b'fitted database')
@@ -249,6 +250,15 @@ class RetimedTensionProofTests(unittest.TestCase):
             self.assertEqual(receipt['reports_sha256'], {name: sha(output / name) for name in (
                 'targets.txt', 'paths.tsv', 'summary.json')})
             self.assertTrue(json.loads((output / 'summary.json').read_text())['pass'])
+
+    def test_collector_refuses_to_write_without_a_pro_lease(self):
+        with tempfile.TemporaryDirectory() as work:
+            selected = Path(work)
+            with (mock.patch.object(retimed_tension, 'held_quartus_lease', return_value=None) as held,
+                  self.assertRaisesRegex(mf.BuildError, 'requires a Quartus Pro lease')):
+                retimed_tension.collect(selected, selected / 'quartus_sta', (self.NODE,))
+            held.assert_called_once_with('pro')
+            self.assertEqual(list(selected.iterdir()), [])
 
 
 class MachineFindingsTests(unittest.TestCase):
@@ -363,6 +373,34 @@ class MachineFindingsTests(unittest.TestCase):
             # The changed BUILD_ID moves these existing I/O roles to input muxes.
             'machine_at_select_fdc~0_BLOCK_INPUT_MUX_PASSTHROUGH_X88_Y14_N0_I62_dff',
             'machine_at_cycle_strobe~0_BLOCK_INPUT_MUX_PASSTHROUGH_X83_Y15_N0_I78_dff',
+            'cpu_m1_out[20]~1_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I66_dff',
+            'cpu_m1_alias~43xsyn_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I79_dff',
+            'add_146~1_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I68_dff',
+            'reduce_or_2303~BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I69_dff',
+            'cpu_m1_okA~0_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I71_dff',
+            'cpu_m1_out_reg[1178]~DUPLICATEENA_dff',
+            'cpu_m1_out_reg[1178]~DUPLICATESCLR_dff',
+            'machine_at_decoder_cycle_port[7]~C4_X82_Y13_N0_I13_dff',
+            'machine_at_decoder_phase[3]~DUPLICATE_BLOCK_INPUT_MUX_PASSTHROUGH_X84_Y15_N0_I13_dff',
+            'cpu_m1_tx~3xsyn_8_BLOCK_INPUT_MUX_PASSTHROUGH_X47_Y27_N0_I23_dff',
+            'machine_at_select_fdc~0_R4_X92_Y17_N0_I13_dff',
+            'machine_at_decoder_cycle_port[8]~BLOCK_INPUT_MUX_PASSTHROUGH_X99_Y17_N0_I37_dff',
+            'add_307~2_BLOCK_INPUT_MUX_PASSTHROUGH_X69_Y37_N0_I25_dff',
+            'add_307~7_BLOCK_INPUT_MUX_PASSTHROUGH_X69_Y37_N0_I27_dff',
+            'add_307~12_BLOCK_INPUT_MUX_PASSTHROUGH_X69_Y37_N0_I29_dff',
+            'add_307~17_BLOCK_INPUT_MUX_PASSTHROUGH_X69_Y37_N0_I28_dff',
+            '_06220_~0_BLOCK_INPUT_MUX_PASSTHROUGH_X69_Y37_N0_I30_dff',
+            'i11525~0_BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I52_dff',
+            'i11562~0_BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I53_dff',
+            'machine_at_decoder_state[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I54_dff',
+            'i11562~xsyn_BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I49_dff',
+            'machine_at_decoder_next_vga~3xsyn_BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I51_dff',
+            'i11562~xsyn_BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I48_dff',
+            'machine_at_decoder_next_vga~3xsyn_BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I50_dff',
+            'machine_at_decoder_state[1]~DUPLICATE_BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I55_dff',
+            'machine_at_decoder_cycle_port[9]~BLOCK_INPUT_MUX_PASSTHROUGH_X84_Y15_N0_I56_dff',
+            'cpu_wb_fault[2]~C4_X52_Y18_N0_I38_dff',
+            'machine_at_decoder_cycle_port[5]~BLOCK_INPUT_MUX_PASSTHROUGH_X83_Y15_N0_I1_dff',
         )
         rows = [[S + name, '(58, 23)', '9000', '(38, 28)', '20', '200000', '']
                 for name in (*names, 'cpu_md_busy')]
@@ -377,7 +415,7 @@ class MachineFindingsTests(unittest.TestCase):
             S + 'cpu_m1_probe_good~4_BLOCK_INPUT_MUX_PASSTHROUGH_X46_Y19_N0_I30_dff',
             S + 'cpu_m1_tx~1_BLOCK_INPUT_MUX_PASSTHROUGH_X58_Y23_N0_I13_dff_extra',
             S.replace('system|', 'window_control|') + 'cpu_m2_load~ENA_dff',
-            S + 'cpu_m1_tx~3xsyn_8_BLOCK_INPUT_MUX_PASSTHROUGH_X48_Y33_N0_I79_dff',
+            S + 'cpu_m1_tx~3xsyn_8x_BLOCK_INPUT_MUX_PASSTHROUGH_X48_Y33_N0_I79_dff',
             S + 'cpu_m1_out_reg[1177]~DUPLICATE_BLOCK_INPUT_MUX_PASSTHROUGH_X49_Y25_N0_I5_dff',
             S + '_17339_~0_R6_X56_Y33_N0_I13_dff',
             S + 'machine_at_select_fdc~1_R6_X84_Y17_N0_I13_dff',
@@ -390,6 +428,24 @@ class MachineFindingsTests(unittest.TestCase):
             S + 'cpu_wb_fault[2]~BLOCK_INPUT_MUX_PASSTHROUGH_X53_Y20_N0_I4_dff',
             S + 'cpu_wb_s_reg[1177]~C4_X40_Y16_N0_I30_dff',
             S + 'machine_at_cycle_access~0_BLOCK_INPUT_MUX_PASSTHROUGH_X83_Y15_N0_I78_dff',
+            S + 'cpu_m1_out[21]~1_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I66_dff',
+            S + 'cpu_m1_alias~43xsync_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I79_dff',
+            S + 'add_147~1_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I68_dff',
+            S + 'add_146~2_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I68_dff',
+            S + 'reduce_or_2304~BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I69_dff',
+            S + 'reduce_or_2303~0_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I69_dff',
+            S + 'cpu_m1_out_reg[1178]~DUPLICATE_ENA_dff',
+            S + 'machine_at_decoder_phase[4]~DUPLICATE_BLOCK_INPUT_MUX_PASSTHROUGH_X84_Y15_N0_I13_dff',
+            S + 'machine_at_select_fdc~1_R4_X92_Y17_N0_I13_dff',
+            S + 'machine_at_decoder_cycle_port[10]~BLOCK_INPUT_MUX_PASSTHROUGH_X99_Y17_N0_I37_dff',
+            S + 'add_308~2_BLOCK_INPUT_MUX_PASSTHROUGH_X69_Y37_N0_I25_dff',
+            S + 'add_307~3_BLOCK_INPUT_MUX_PASSTHROUGH_X69_Y37_N0_I25_dff',
+            S + '_06221_~0_BLOCK_INPUT_MUX_PASSTHROUGH_X69_Y37_N0_I30_dff',
+            S + 'i11563~0_BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I53_dff',
+            S + 'i11562~3xsyn_BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I48_dff',
+            S + 'machine_at_decoder_state[1]~BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I55_dff',
+            S + 'machine_at_decoder_next_vga~4xsyn_BLOCK_INPUT_MUX_PASSTHROUGH_X81_Y14_N0_I50_dff',
+            S + 'cpu_wb_fault[3]~C4_X52_Y18_N0_I38_dff',
         )
         bases = self.bases('cpu-control-tension', 'retimed-machine-control-tension')
         for name in names:
