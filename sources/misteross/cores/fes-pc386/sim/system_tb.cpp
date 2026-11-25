@@ -216,6 +216,13 @@ public:
                 if (cycles > limit) reason = "limit";
             }
             if (reason == "prompt" && do_input_exercise) exercise_input();
+            if (reason == "prompt") {
+                // The picture must still be live at the end: three more 720p
+                // frame times after the exercise, whose rasters the gate counts.
+                final_rasters = static_cast<long long>(rasters);
+                const uint64_t until = cycles + uint64_t(clock_hz * 3.0 / 60.0) + 1;
+                while (cycles < until) clock();
+            }
             for (int row = 0; row < 25; ++row) std::printf("SCREEN %d |%s|\n", row, screen_row(row).c_str());
             print_status();
             if (reason == "prompt") stop();
@@ -240,7 +247,7 @@ private:
     unsigned raster_x = 0, raster_y = 0;
     bool raster_started = false, raster_last_de = false, raster_last_vs = false;
     uint64_t rasters = 0, video_de_edges = 0, video_vs_edges = 0;
-    long long prompt_rasters = -1;
+    long long prompt_rasters = -1, final_rasters = -1;
     void raster_edge(uint32_t word) {
         bool de = word & (1u << 24), vs = word & (1u << 26);
         if (vs && !raster_last_vs) {
@@ -259,14 +266,17 @@ private:
     void report_raster() {
         uint64_t lit = 0;
         for (uint32_t px : last_raster) lit += px != 0;
-        std::printf("FRAME rasters=%llu prompt_rasters=%lld vs_edges=%llu de_edges=%llu nonblack=%llu\n",
-                    (unsigned long long)rasters, prompt_rasters, (unsigned long long)video_vs_edges,
+        std::printf("FRAME rasters=%llu prompt_rasters=%lld final_rasters=%lld vs_edges=%llu de_edges=%llu nonblack=%llu\n",
+                    (unsigned long long)rasters, prompt_rasters, final_rasters, (unsigned long long)video_vs_edges,
                     (unsigned long long)video_de_edges, (unsigned long long)lit);
         const char *out = std::getenv("FES_PC386_FRAME_OUT");
         if (!out || last_raster.empty()) return;
         std::ofstream f(out, std::ios::binary);
+        if (!f) throw std::runtime_error(std::string("cannot open the frame output ") + out);
         f << "P6\n1280 720\n255\n";
         for (uint32_t px : last_raster) { char rgb[3] = {char(px >> 16), char(px >> 8), char(px)}; f.write(rgb, 3); }
+        f.close();
+        if (!f) throw std::runtime_error(std::string("cannot write the frame output ") + out);
     }
     Vpc386_system top;
     pc386::Window window;

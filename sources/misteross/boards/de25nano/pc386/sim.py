@@ -65,9 +65,11 @@ def system_testbench(args) -> Path:
 
 
 def lit_raster_completed_after_prompt(frame: dict) -> bool:
-    """Require a fresh complete lit raster after the bench sees the prompt."""
+    """Require the picture live at the end: after the prompt and the input
+    exercise, the bench's final window completed new rasters, the last lit."""
     prompt_rasters = frame.get('prompt_rasters', -1)
-    return (prompt_rasters >= 0 and frame.get('rasters', 0) > prompt_rasters
+    final_rasters = frame.get('final_rasters', -1)
+    return (0 <= prompt_rasters <= final_rasters and frame.get('rasters', 0) > final_rasters
             and frame.get('nonblack', 0) >= 10000)
 
 
@@ -91,7 +93,7 @@ def main() -> int:
     # the bench sees the prompt (Kit D25 showed black, #2214).
     frame = report.get('frame') or {}
     if not lit_raster_completed_after_prompt(frame):
-        report['failures'].append(f'no lit 720p raster of the machine video completed after the prompt: {frame}')
+        report['failures'].append(f'no lit 720p raster of the machine video completed in the final window: {frame}')
     (sim.OUTPUT / 'system').mkdir(parents=True, exist_ok=True)
     (sim.OUTPUT / 'system' / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     for row in report['screen']:

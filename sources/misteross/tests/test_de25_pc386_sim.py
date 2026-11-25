@@ -7,24 +7,24 @@ MISTEROSS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(MISTEROSS))
 from boards.de25nano.pc386 import sim as de25_sim  # noqa: E402
 
+LIVE = {'rasters': 185, 'prompt_rasters': 170, 'final_rasters': 182, 'nonblack': 67351}
+
 
 class FinalRasterGateTests(unittest.TestCase):
-    def test_requires_a_completed_raster_after_prompt(self):
-        frame = {'rasters': 182, 'prompt_rasters': 182, 'vs_edges': 184,
-                 'de_edges': 132480, 'nonblack': 67351}
-        self.assertFalse(de25_sim.lit_raster_completed_after_prompt(frame))
+    def test_a_live_picture_passes(self):
+        self.assertTrue(de25_sim.lit_raster_completed_after_prompt(dict(LIVE)))
 
-        frame['rasters'] += 1
-        self.assertTrue(de25_sim.lit_raster_completed_after_prompt(frame))
+    def test_video_that_stopped_during_the_exercise_fails(self):
+        # Rasters completed after the prompt, none in the final window: the
+        # retained raster is stale.
+        self.assertFalse(de25_sim.lit_raster_completed_after_prompt(dict(LIVE, rasters=182)))
 
-    def test_rejects_a_black_completed_raster_with_valid_timing(self):
-        frame = {'rasters': 183, 'prompt_rasters': 182, 'vs_edges': 184,
-                 'de_edges': 132480, 'nonblack': 0}
-        self.assertFalse(de25_sim.lit_raster_completed_after_prompt(frame))
+    def test_a_black_final_raster_fails(self):
+        self.assertFalse(de25_sim.lit_raster_completed_after_prompt(dict(LIVE, nonblack=0)))
 
-    def test_rejects_when_prompt_was_not_seen(self):
-        frame = {'rasters': 183, 'prompt_rasters': -1, 'nonblack': 67351}
-        self.assertFalse(de25_sim.lit_raster_completed_after_prompt(frame))
+    def test_without_the_prompt_or_the_final_window_fails(self):
+        self.assertFalse(de25_sim.lit_raster_completed_after_prompt(dict(LIVE, prompt_rasters=-1)))
+        self.assertFalse(de25_sim.lit_raster_completed_after_prompt(dict(LIVE, final_rasters=-1)))
 
 
 if __name__ == '__main__':
