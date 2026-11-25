@@ -75,10 +75,15 @@ func (m *Manager) PairingRemaining() time.Duration {
 	return m.sess.PairingRemaining()
 }
 
-// ForgetDevice deletes any stored bond for addr and disconnects any active link.
+// ForgetDevice closes any open pairing window, deletes any stored bond for
+// addr, and disconnects any active link so the forgotten peer cannot re-pair.
 func (m *Manager) ForgetDevice(addr l2cap.BDAddr) (bool, error) {
 	if m == nil {
 		return false, errors.New("bt: nil manager")
+	}
+	var stopErr error
+	if m.sess != nil && m.sess.PairingActive() {
+		stopErr = m.sess.SetPairingMode(false, 0)
 	}
 	removed := m.bonds.Remove(addr)
 	var disconnected bool
@@ -88,6 +93,9 @@ func (m *Manager) ForgetDevice(addr l2cap.BDAddr) (bool, error) {
 		if err != nil {
 			return removed || disconnected, err
 		}
+	}
+	if stopErr != nil {
+		return removed || disconnected, stopErr
 	}
 	return removed || disconnected, nil
 }

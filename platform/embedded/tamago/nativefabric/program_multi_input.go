@@ -269,8 +269,12 @@ func (p *ProgramMultiInputPlatform) ForgetBluetoothDevice(address string) error 
 	if p.backend.service.Status().State != ProgramReady {
 		return errors.New("native input: forgetting Bluetooth devices is only allowed in menu")
 	}
+	wasPairing := p.source.PairingActive()
 	err := p.source.ForgetBluetoothDevice(address)
 	p.refreshBluetoothStatus(true)
+	if wasPairing && !p.source.PairingActive() && p.cfg.OnPairingEvent != nil {
+		p.cfg.OnPairingEvent(false, nil)
+	}
 	return err
 }
 

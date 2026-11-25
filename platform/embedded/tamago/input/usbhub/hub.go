@@ -452,8 +452,8 @@ func (h *Hub) BluetoothSnapshot() BluetoothSnapshot {
 	return snap
 }
 
-// ForgetBluetoothDevice deletes the stored bond for address and disconnects
-// any active connection to it.
+// ForgetBluetoothDevice closes any active pairing window, deletes the stored
+// bond for address, and disconnects any active connection to it.
 func (h *Hub) ForgetBluetoothDevice(address string) error {
 	if h == nil || h.bt == nil {
 		return errors.New("usbhub: Bluetooth unavailable")
@@ -462,11 +462,14 @@ func (h *Hub) ForgetBluetoothDevice(address string) error {
 	if err != nil {
 		return err
 	}
+	wasPairing := h.bt.PairingActive()
 	found, err := h.bt.ForgetDevice(addr)
 	if found {
 		h.bondRetryAt = time.Time{}
 		h.bondRetryDelay = 0
 		h.bondSaveFailed = false
+		h.btGeneration++
+	} else if h.bt.PairingActive() != wasPairing {
 		h.btGeneration++
 	}
 	if err != nil {

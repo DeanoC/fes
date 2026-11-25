@@ -565,3 +565,71 @@ func TestManagerPairingRemainingAndForgetDevice(t *testing.T) {
 		t.Fatalf("connected device not forgotten cleanly: ok=%t count=%d", ok, mgr.ConnectedPlayers())
 	}
 }
+
+func TestManagerForgetDeviceStopsActivePairing(t *testing.T) {
+	fwPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_fw.bin")
+	cfgPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_config.bin")
+	fwBytes, err := os.ReadFile(fwPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfgBytes, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw := testFWLoader{"rtl8761bu_fw.bin": fwBytes, "rtl8761bu_config.bin": cfgBytes}
+
+	bus := &mgrBus{lmpSub: 0x8761}
+	addr1, _ := l2cap.ParseBDAddr("CC:22:33:44:55:88")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: addr1, LinkKey: [16]byte{5}, Name: "BT Keyboard", Slot: 0})
+
+	now := time.Unix(1000, 0)
+	mgr := NewManager(bus, bonds, fw, func() time.Time { return now })
+	bus.events = append(bus.events, usb.HostEvent{Kind: usb.DeviceAttached, Device: makeDongleDevice(2)})
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("attach failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	connEv := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, addr1[:]...)
+	connEv = append(connEv, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connEv)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x51, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := mgr.StartPairing(30 * time.Second); err != nil || !mgr.PairingActive() {
+		t.Fatalf("StartPairing failed: err=%v active=%t", err, mgr.PairingActive())
+	}
+
+	if found, err := mgr.ForgetDevice(addr1); !found || err != nil {
+		t.Fatalf("ForgetDevice failed: found=%t err=%v", found, err)
+	}
+	if mgr.PairingActive() || mgr.PairingRemaining() != 0 {
+		t.Fatalf("expected pairing stopped on ForgetDevice: active=%t rem=%v", mgr.PairingActive(), mgr.PairingRemaining())
+	}
+	if _, ok := bonds.Lookup(addr1); ok || mgr.ConnectedPlayers() != 0 {
+		t.Fatalf("expected device forgotten and disconnected: ok=%t count=%d", ok, mgr.ConnectedPlayers())
+	}
+
+	// Late LinkKeyNotification from the disconnecting/reconnecting peer must not recreate the bond.
+	linkEv := append([]byte{hci.EventLinkKeyNotification, 23}, addr1[:]...)
+	linkEv = append(linkEv, make([]byte, 16)...)
+	linkEv = append(linkEv, 0x04)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, linkEv)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := bonds.Lookup(addr1); ok {
+		t.Fatal("bond recreated after ForgetDevice stopped pairing")
+	}
+}
