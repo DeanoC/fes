@@ -134,9 +134,9 @@ def compare_products(a, b):
     print(f'  cmp-equal RBF {digest}, candidate admitted and sealed as {package.name}')
 
 
-def compare(root_a, root_b):
+def compare(root_a, root_b, packages):
     failures = []
-    for package in PACKAGES:
+    for package in packages:
         print(package)
         try:
             compare_products(root_a / package, root_b / package)
@@ -145,7 +145,7 @@ def compare(root_a, root_b):
             failures.append(package)
     if failures:
         raise SystemExit(f'D12 incomplete for {", ".join(failures)}')
-    print('PASS D12 on all seven packages')
+    print(f'PASS D12 for {", ".join(packages)}')
 
 
 def main():
@@ -153,9 +153,17 @@ def main():
     parser.add_argument('action', choices=('select', 'compare-selection', 'compare'))
     parser.add_argument('left', type=Path)
     parser.add_argument('right', type=Path)
+    parser.add_argument('--package', choices=PACKAGES, help='compare one fitted package on its build host')
     args = parser.parse_args()
-    actions = {'select': select, 'compare-selection': compare_selection, 'compare': compare}
-    actions[args.action](args.left.resolve(), args.right.resolve())
+    a, b = args.left.resolve(), args.right.resolve()
+    if args.action == 'compare':
+        compare(a, b, [args.package] if args.package else PACKAGES)
+    elif args.package:
+        parser.error('--package requires compare')
+    elif args.action == 'select':
+        select(a, b)
+    else:
+        compare_selection(a, b)
 
 
 if __name__ == '__main__':
