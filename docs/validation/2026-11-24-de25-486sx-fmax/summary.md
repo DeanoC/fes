@@ -133,14 +133,27 @@ against a reviewed digest; for pc386 the parent's is `PARENT_SHA256` in
 `boards/de25nano/pc386/build.py`. Qsys names the window's machine-clock
 interconnect module with a hash of its parameters, which include
 `EXPLICIT_CLOCK_RATE` (`…mm_interconnect_1920_xi5gepi` at 61.44 MHz,
-`…_ruphjby` at 74.60, `…_ywxqcpy` at 111.90). Measured
-([`pinned_inputs.py`](pinned_inputs.py) at C0 = 42 and 28): every pinned
-generated input but the parent has its pin; the parent differs. Between the
-C0 = 42 and C0 = 28 generated projects (both before derivation), over every
-`.v`, `.sv`, `.sdc` and `.vh`, the only differences are the netlist, the
-`BUILD_ID` in the scanout component's wrapper, and the interconnect module and
-parent, which are byte-identical once the interconnect's name is normalised.
-So a new clock needs that digest reviewed again; nothing was changed here to
+`…_ruphjby` at 74.60, `…_ywxqcpy` at 111.90). Measured at every rung, on
+each rung's own generated project before derivation:
+
+- [`pinned_inputs.py`](pinned_inputs.py), output
+  [`pinned-inputs.txt`](pinned-inputs.txt): at all 14 rungs every pinned
+  generated input but the parent has its reviewed pin; the parent differs.
+- [`qsys_equivalence.py`](qsys_equivalence.py), output
+  [`qsys-equivalence.txt`](qsys-equivalence.txt): every other rung's
+  generated project against C0 = 42's, over every `.v`, `.sv`, `.sdc` and
+  `.vh` (593 files) outside the PLL's own directory, with the one
+  interconnect name the pair does not share normalised. At all 13 the only
+  differences are the two netlist copies and the scanout wrapper's
+  `BUILD_ID` line; 0 unexpected.
+- The control's generated project was rewritten by the derivation, so it is
+  compared through the pins: its pinned inputs are the pins (the producer
+  admitted it), and its interconnect module equals C0 = 42's apart from the
+  name (checked by `diff` after normalising the name).
+
+So every rung's fit used the same shell as its own generation would have,
+apart from the `BUILD_ID` constant and that one module name. A new clock needs
+the parent digest reviewed again; nothing was changed here to
 get past it. Under amendment 1 every rung was fitted through the control's
 generated project with only the rung's PLL IP and netlist swapped in
 ([`compile_rung.sh`](compile_rung.sh); each seed's `diff -rq` against the
