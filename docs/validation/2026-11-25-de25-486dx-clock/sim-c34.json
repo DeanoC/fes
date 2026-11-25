@@ -42,7 +42,19 @@
     }
   },
   "l4": {
-    "status": "pending"
+    "status": "pass",
+    "comparison": [
+      "base failures 0 dx failures 0",
+      "new in dx 0"
+    ],
+    "base": {
+      "directed_agree": 148,
+      "random_programs": 56000
+    },
+    "dx": {
+      "directed_agree": 148,
+      "random_programs": 56000
+    }
   },
   "x87": {
     "status": "pending"
@@ -53,6 +65,8 @@
     "games/machine_tb.cpp": "681620d84a9ca60d64a29c84cf788e55149741a400076e18eb555593efff3d9e",
     "games/audio_link.h": "64ba510f2bf6878e4d4900981438cdbb36ef0870f0de6aeda3d874882185e49f",
     "lockstep/l3-base.json": "906abb306109c19f58ea59d0594a7b2778ecc51c6cc78bf11a54cabafc8b6bd9",
-    "lockstep/l3-dx.json": "0a493b9007ed0ced94ac6780e3821bfcb64c291ff8144450d281e300a2d6dd64"
+    "lockstep/l3-dx.json": "0a493b9007ed0ced94ac6780e3821bfcb64c291ff8144450d281e300a2d6dd64",
+    "lockstep/l4-base.json": "64f9f88f42a5435f6b758eecb94e2183f3b53d9ba593f0549bd610dda3d15e5f",
+    "lockstep/l4-dx.json": "a668285e1bf6b038d7cd0b5e17439ca3ef4f246b2e7f13246c1d52ea29dfa361"
   }
 }
