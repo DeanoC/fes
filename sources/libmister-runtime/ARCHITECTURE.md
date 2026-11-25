@@ -31,6 +31,10 @@ publishes the grant, ranges are shared maps of the window fd at an offset that
 end with a barrier and their unmap, and the window ends with `WINDOW_REVOKE`.
 The machine's configuration carries the owner's window profile child, and a
 fault refuses its disk save.
+A running window machine keeps its session display until it stops: the owner's
+REAP retires a scanout allocation and retires the live window first, so closing
+the plane is refused as busy, and Stop quiesces the machine and releases the
+window before the menu's revoke.
 Restart recovery adopts only the plain allocated profile: a window machine lost
 with its daemon is refused in place with its own error, before the guard, the
 owner or any removal, because its window may still be mastering memory and its

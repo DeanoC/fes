@@ -2344,6 +2344,12 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
   menu_underflow_streak_=0;menu_status_.available=true;menu_status_.error={};
   return {};
  }
+ // The owner retires a scanout allocation with REAP, which retires a live
+ // HPS window first and answers EAGAIN while its guest ports run. A running
+ // window machine therefore keeps its session display until it stops, which
+ // quiesces the machine and releases the window before the menu's revoke.
+ if(hps_window_&&hps_window_->Ready())
+  return {ErrorCode::busy,"a running HPS-window machine keeps its session display until it stops","menu"};
  const Error revoked=RevokeMenuWindow();
  MenuDisplayInfo info;
  const Error error=menu_display_->Quiesce(deadline,&active_package_->info().descriptor,&info);

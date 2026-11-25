@@ -4079,7 +4079,7 @@ void TestDe25WindowOpensAfterTheSessionDisplayBinds()
   BindingMemory(MenuMemory& m,std::vector<std::string>& e):underlying(m),events(e) {}
   mister::Error BindSession(const mister::CoreDescriptor&,std::uint64_t) override {events.push_back("menu.bind");return {};}
   mister::Error Activate(bool c,bool b) override {return underlying.Activate(c,b);}
-  mister::Error Revoke() override {return underlying.Revoke();}
+  mister::Error Revoke() override {events.push_back("menu.revoke");return underlying.Revoke();}
   mister::Error Share(int* fd) const override {return underlying.Share(fd);}
   mister::Error Clean(std::uint8_t slot,const std::vector<mister::MenuRect>& r) const override {return underlying.Clean(slot,r);}
   mister::Error CleanBlit(std::uint32_t f,std::uint32_t n,const std::vector<mister::MenuSpan>& r) const override {return underlying.CleanBlit(f,n,r);}
@@ -4108,6 +4108,12 @@ void TestDe25WindowOpensAfterTheSessionDisplayBinds()
  if(!loaded.error.ok())fprintf(stderr,"window after bind: %s\n",loaded.error.message.c_str());
  assert(loaded.error.ok()&&window.Ready()&&fpga.hps_ddr_calls==0);
  assert(Find(events,"menu.bind")<Find(events,"window.allocate"));
+ // Closing the plane would reap the scanout, and the owner's REAP retires
+ // the live window first (EAGAIN while its ports run): the machine keeps
+ // its session display, and nothing is revoked, until it stops.
+ const std::size_t revokes=Count(events,"menu.revoke");
+ assert(hardware.SetSessionDisplay(false,false).code==mister::ErrorCode::busy);
+ assert(Count(events,"menu.revoke")==revokes&&window.Ready());
 }
 
 // A window that faulted while the machine ran is fatal to its contract: Stop
