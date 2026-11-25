@@ -25,25 +25,28 @@ ladder before each topped out with no failing step.
    from 156.67 MHz up.
    **None of these is admitted by the producer**, which refuses every clock
    but 61.44 MHz before the fitter ([below](#the-producer-cannot-build-any-clock-but-6144-mhz)).
-   **With the shipped constraints and signoff bases as written, 97.92 MHz
-   (C0 = 32) is the highest rung**: from 104.44 MHz up, the design
-   assistant reports ten held bundles as CDC-50003 "Unconstrained" and the
-   reviewed `LOADED` basis's arithmetic no longer holds
-   ([below](#what-breaks-above-100-mhz-signoff-not-timing)). 97.92 MHz has
-   one seed.
+   **With the shipped constraints and signoff bases as written, 92.16 MHz
+   (C0 = 34) is the highest rung** ([below](#what-breaks-above-90-mhz-signoff-not-timing)):
+   the design assistant's findings equal the control's up to 97.92 MHz and
+   gain ten CDC-50003 "Unconstrained" held bundles from 104.44 MHz; the
+   reviewed `LOADED` basis's budget for its flag's own route is 0.7 ns at
+   97.92 MHz, and that route measures 0.94 ns (2.45 ns with clock skew) in
+   the 97.92 MHz fit. 92.16 MHz has one seed.
 2. **What limits it.** **At the first failing step, 156.67 MHz, the
-   limit is both the CPU's decode stage and the shell's window, in about
-   equal measure** (resolved owners of the negative setup endpoints per
-   seed, Slow fix4 0C: CPU 29, 47, 37, 87; shell 24, 31, 2, 102; nothing in
-   the machine's devices). The CPU paths run through the decode stage:
+   limit is both the CPU's decode stage and the shell's window, in roughly
+   measure, the CPU worse on three seeds of four** (resolved owners of the
+   negative setup endpoints per seed, Slow fix4 0C: CPU 29, 47, 37, 87;
+   shell 24, 31, 2, 102; nothing in the machine's devices). The CPU paths run through the decode stage:
    `cpu_dc` (Yosys's `_35174_`), `cpu_d_out` (`_35180_`), `cpu_dc_valid &&
    cpu_dc_more`, `cpu_desc_t0`. The shell paths are the HPS window's port
    heads into the arbiter (`window|port0|head` → `arbiter|w_address`,
    `port2|head` → `arbiter|writes_owed`), and at 174.07 MHz also into the
    `fes_win_cdc` command FIFO and the ports' command RAMs. The design
-   assistant's failing-setup rules (TMC-20205, explicit power-up states that
-   restrict retiming; TMC-20214, adder chains) say the fitter's retimer is
-   what carried 125–142 MHz and is what runs out. Below the failing step, the tightest paths
+   assistant's failing-setup rules appear on the failing fits only
+   (TMC-20205, explicit power-up states that restrict retiming; TMC-20214,
+   adder chains), and retimed register names first show in the worst paths
+   at 142.42 MHz; how much the retimer contributed below that is not
+   measured here. Below the failing step, the tightest paths
    are, at every rung and seed: the **CPU's own paths** (CPU→CPU after
    resolving Yosys-merged registers; the decode stage, `cpu_decode_by` →
    `cpu_dc`, the L1I fill/valid and `cpu_d_eip`), then the **shell's window
@@ -58,8 +61,13 @@ ladder before each topped out with no failing step.
    machine closes 125.333 MHz on four (virtual-pin envelopes). 122.88 MHz,
    2 × 61.44, was not fitted; it lies between those two and is not on this
    PLL's VCO. The single machine clock already closes 130.56 MHz in the
-   board, so a separate CPU clock would buy nothing in timing, and would add
-   a crossing. The paths that would cross (CPU↔machine and CPU↔shell, at
+   board, so on timing a CPU clock at 2 × 61.44 MHz would close, but it
+   would buy nothing over a single raised clock. The trade is elsewhere:
+   everything that breaks in signoff above 90 MHz (answer 1) is a
+   machine-clock crossing in the shell or the machine, which a 2× CPU with
+   the machine left near 61 MHz would not touch. So the choice is
+   constraint and basis rework (one raised clock) against RTL at the CPU
+   boundary (a second clock). The paths that would cross (CPU↔machine and CPU↔shell, at
    least 255–400 endpoints in each rung's report) are not the problem: their
    slack projected to a 7.979 ns fast period is positive at every rung from
    74.60 MHz up. What a 2× design needs is RTL, not timing: the CPU's bus
@@ -87,10 +95,12 @@ ladder before each topped out with no failing step.
 **Raise the single machine clock. No separate CPU clock, and no CPU RTL fix
 yet.** Two steps, Deano's choice:
 
-- **97.92 MHz (C0 = 32), the shipped constraints as they are.** Timing has
-  +1.512 ns on seed 1 (one seed fitted), every signoff rule count equals the
-  control's apart from the seed-to-seed tension count, and every reviewed
-  basis's arithmetic still holds (`LOADED` by 0.7 ns). The PR moving the
+- **92.16 MHz (C0 = 34), the shipped constraints as they are.** Timing has
+  +2.011 ns on seed 1 (one seed fitted), the design assistant's findings
+  equal the control's ([`signoff-findings-diff.txt`](signoff-findings-diff.txt)),
+  and `LOADED`'s route budget (3.9 ns) covers the measured route (2.54 ns
+  with skew). 97.92 MHz needs only `LOADED` re-argued from a longer minimum
+  row-fetch time than five machine clocks. The PR moving the
   clock needs AUDIO's ratio written as C0 / 65280, the shared-FIFO-reset
   parent digest reviewed again at the new clock, four seeds through the
   producer with its own gates, the DE25 system bench and Kit D25 HIL.
@@ -139,7 +149,7 @@ copies, and for seeds 2–4 `golden_top.qsf`). **The producer's post-fit gates
 did not run at any rung**: no package timing admission and no
 reviewed-signoff-findings verdict is claimed above 61.44 MHz.
 
-## What breaks above 100 MHz: signoff, not timing
+## What breaks above 90 MHz: signoff, not timing
 
 **Design assistant rules** ([`drc_table.py`](drc_table.py) over every kept
 project's `golden_top.tq.drc.signoff.rpt`; bold = differs from the control):
@@ -186,15 +196,57 @@ project's `golden_top.tq.drc.signoff.rpt`; bold = differs from the control):
   states, adder chains, congestion).
 - **TMC-20602 (Low)** varies with the seed at every rung (21–58).
 
-**Reviewed bases that name the machine period** (`signoff_bases.py`;
-computed, not measured):
+The findings themselves, not just the counts, equal the control's at every
+rung through 97.92 MHz ([`drc_findings.py`](drc_findings.py), output in
+[`signoff-findings-diff.txt`](signoff-findings-diff.txt); LNT-30010 rows are
+keyed by their driving net and TMC-20602 tension is left out, because the
+fitter picks their example endpoints and counts). At 104.44 MHz the only new
+rows are the ten CDC-50003 bundles.
 
-| Basis | Its argument | Holds while | Margin at 97.92 | at 104.44 | at 130.56 |
-| --- | --- | --- | ---: | ---: | ---: |
-| `LOADED` | the loaded-row report is still ≥ 5 machine clocks; the pixel side needs ≤ 50.4 ns, leaving the rest for the flag's unbounded route (31.0 ns at 61.44) | 5T ≥ 50.4 ns: ≤ 99.2 MHz | +0.7 ns | −2.5 ns | −12.1 ns |
-| `FETCH`, `WINDOW_BASE` | the 10 ns bundle bound is under two machine clocks | 2T > 10 ns: < 200 MHz | +10.4 ns | +9.1 ns | +5.3 ns |
+**Reviewed bases that name the machine period** (`signoff_bases.py`). The
+`LOADED` argument: the loaded-row report is still for at least five machine
+clocks, the pixel side needs at most 50.4 ns of that, and the rest is what
+the flag's own route into its first synchroniser stage may take (31.0 ns at
+61.44 MHz); that route is cut by a false path, so nothing bounds it.
+[`loaded_route.tcl`](loaded_route.tcl) measured it (`get_timing_paths
+-false_path`, every corner, under the lease) in the kept fits; the worst
+corner is Slow fix4 0C:
+
+| Rung | MHz | Budget 5T − 50.4 ns | Route data delay | Clock skew | Delay + skew | Holds |
+| ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| control | 61.44 | 31.0 | 0.966 | −1.511 | 2.477 | yes |
+| c42 | 74.60 | 16.6 | 1.051 | −1.500 | 2.551 | yes |
+| c37 | 84.68 | 8.6 | 0.871 | −1.494 | 2.365 | yes |
+| c34 | 92.16 | 3.9 | 1.029 | −1.510 | 2.539 | yes |
+| c32 | 97.92 | 0.7 | 0.940 | −1.507 | 2.447 | **no** |
+| c30 | 104.44 | −2.5 | 1.126 | −1.504 | 2.630 | **no** |
+
+`FETCH` and `WINDOW_BASE` need the 10 ns bundle bound under two machine
+clocks: 2T > 10 ns holds below 200 MHz, every rung here.
 
 ## The fits
+
+**Critical path at each step** (seed 1, worst machine-to-machine setup
+over every corner; fitter-copy suffixes dropped; `_N_` names are Yosys-merged
+registers, mostly the CPU's decode stage):
+
+| C0 | MHz | Seed 1 worst machine→machine setup | From | To |
+| ---: | ---: | ---: | --- | --- |
+| 51 | 61.438 | +4.290 | `system\|cpu_dfwd_ready[19]` | `system\|cpu_d_eip[1]` |
+| 42 | 74.603 | +2.956 | `system\|_35174_[51]` | `system\|cpu_r_dst[5]` |
+| 37 | 84.685 | +2.231 | `system\|_35174_[149]` | `system\|cpu_x87_iss_part[0]` |
+| 34 | 92.157 | +2.011 | `system\|cpu_l1i_blk[3]` | `system\|cpu_l1i_valid[232]` |
+| 32 | 97.917 | +1.512 | `system\|_35172_[252]` | `system\|cpu_d_eip[2]` |
+| 30 | 104.444 | +1.279 | `system\|_37000_[289]` | `system\|cpu_x87_iss_part[0]` |
+| 28 | 111.905 | +0.954 | `system\|cpu_decode_by[0]` | `system\|_35174_[110]` |
+| 27 | 116.049 | +0.815 | `system\|_37000_[288]` | `system\|cpu_s_tgt[15]` |
+| 26 | 120.513 | +0.636 | `system\|_36999_[0]` | `system\|_35180_[20]` |
+| 25 | 125.333 | +0.284 | `system\|_37001_[290]` | `system\|cpu_d_eip[21]` |
+| 24 | 130.556 | +0.316 | `system\|_35172_[76]` | `system\|_35178_[24]` |
+| 22 | 142.424 | +0.112 | `system\|cpu_dc_load` | `system\|_35180_[84]` |
+| 20 | 156.667 | -0.118 | `window\|port0\|head` | `arbiter\|w_address[31]` |
+| 18 | 174.074 | -0.762 | `window\|port2\|head` | `window\|port1\|command_burstcount[0][0]` |
+| 16 | 195.833 | -1.297 | `system\|cpu_r_dst[1]` | `system\|_35172_[80]` |
 
 Powerboat, Quartus Pro 26.3, each under a Pro slot of the Quartus lease.
 Control: the producer at the method commit, admitted (package `e8d37ea9…`,
@@ -369,13 +421,33 @@ counts and "negative" are lower bounds when the window is full. The
 projection keeps each path's placement at its rung: a fitter asked for the
 fast clock would place differently.
 
+## Deviations from the methods
+
+- Envelope netlists were elaborated on Powerboat (the pc386 lock's Yosys is
+  not installed on chip) and fitted on chip with `--netlist`. Two earlier
+  envelope launches (`…-fmax-env-cpu-b1d375`, `…-fmax-env-449cb1`) failed in
+  setup before any fit (no `nvcc` on the remote's PATH; then the missing
+  Yosys); a third was refused by the lease guard for inline shell code. None
+  produced a fit.
+- Under method.md's amendment 1, seed 1 at every rung is the compile path,
+  not the producer (above).
+- `rung_summary.py`'s owner resolution, the negative-path owner groups, and
+  `drc_findings.py`, `loaded_route.tcl`, `pinned_inputs.py` and `check.py`
+  were written after method.md; each reads results and changes no rule.
+  [`check.txt`](check.txt) is `check.py`'s output: every fit's PLL is M 188,
+  N 3, C1 255 and its rung's C0; every rung's seeds compiled one netlist;
+  every machine↔audio setup path is a fixed bound, slack +8.63 to +9.44 ns.
+
 ## Where things are
 
 - Raw projects, reports and path files: Powerboat
   `/data/projects/fes-486sx-fmax/` (`wt-<rev>` worktrees with each rung's
   generated project, `k<rev>-s<seed>/project` for every compiled seed, the
-  `paths/` reports in each). Envelope fits: chip-30x0-ai-dev
-  `/data/projects/fes-quartus/runs/c1ca3e31cbee-*-fmax-env*`.
+  `paths/` reports in each; `env-wt` is the envelope worktree with
+  `envelope-i486.patch` applied). Envelope fits: chip-30x0-ai-dev
+  `/data/projects/fes-quartus/runs/c1ca3e31cbee-20261124T210244Z-fmax-env-32a840`
+  (125.333 MHz) and `…-20261124T220801Z-fmax-env-cpu8298-8457da`
+  (120.513 MHz).
 - The commits the record cites live on this branch and on the scratch rung
   branches `deano/de25-486sx-fmax-c{42,37,34,32,30,28,27,26,25,24,22,20,18,16}`.
 
@@ -383,7 +455,7 @@ fast clock would place differently.
 
 - **Admission above 61.44 MHz.** No package was built at any rung; the
   producer's timing admission and signoff findings review did not run.
-- **Four seeds at 97.92 MHz**, the highest rung under the shipped
+- **Four seeds at 92.16 MHz**, the highest rung under the shipped
   constraints: it has seed 1 only.
 - **Function at a raised clock.** No simulation or kit run at any rung. The
   guest rates are exact at every rung by construction, but the window's DDR
