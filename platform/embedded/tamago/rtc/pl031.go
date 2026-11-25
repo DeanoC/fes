@@ -16,7 +16,10 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 )
 
 // ARM PrimeCell PL031 RTC register offsets.
@@ -54,6 +57,8 @@ const (
 var (
 	// ErrNilAccess is returned when OpenPL031 receives a nil Registers handle.
 	ErrNilAccess = errors.New("rtc: nil register access")
+	// ErrInvalidConfig is returned when IRQ registration receives an invalid GIC or SPI ID.
+	ErrInvalidConfig = errors.New("rtc: invalid PL031 configuration")
 	// ErrNotFound is returned when the PrimeCell or PL031 peripheral ID does not match.
 	ErrNotFound = errors.New("rtc: PL031 PrimeCell ID mismatch")
 	// ErrOutOfRange is returned when a wall-clock time falls outside uint32 Unix seconds.
@@ -74,6 +79,15 @@ type PL031 struct {
 	partNumber uint16
 	designer   uint8
 	revision   uint8
+
+	irqCfgMu  sync.Mutex
+	irqMu     sync.Mutex
+	irqWG     sync.WaitGroup
+	irqActive atomic.Bool
+	irqCount  atomic.Uint64
+	irqGIC    *gic.Controller
+	irqID     uint32
+	onAlarm   func()
 }
 
 // OpenPL031 probes the PrimeCell and Peripheral ID registers at io, ensures the
@@ -188,6 +202,99 @@ func (r *PL031) AlarmPending() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.io.Read32(RegMIS)&irqBit != 0
+}
+
+// EnableIRQ binds the level-sensitive PL031 alarm SPI on g. When the alarm
+// interrupt fires, the handler writes RTCICR to clear the level-sensitive line
+// while keeping RTCIMSC intact, increments IRQCount, and calls onAlarm (if
+// non-nil). onAlarm must be non-blocking and must not call EnableIRQ or
+// DisableIRQ; calling SetAlarm, ClearAlarm, Now, Seconds, or Set is safe.
+func (r *PL031) EnableIRQ(g *gic.Controller, irqID uint32, onAlarm func()) error {
+	if g == nil || irqID < gic.FirstSPI || irqID >= g.Lines() {
+		return ErrInvalidConfig
+	}
+	r.irqCfgMu.Lock()
+	defer r.irqCfgMu.Unlock()
+
+	r.disableIRQLocked(g)
+
+	r.irqMu.Lock()
+	r.irqGIC = g
+	r.irqID = irqID
+	r.onAlarm = onAlarm
+
+	g.Disable(irqID)
+	g.ClearPending(irqID)
+	g.SetEdge(irqID, false) // PL031 RTCINTR is active-high level-sensitive.
+	r.irqActive.Store(true)
+	g.Register(irqID, r.handleIRQ)
+	g.Enable(irqID)
+	r.irqMu.Unlock()
+	return nil
+}
+
+// DisableIRQ masks and unregisters the PL031 alarm SPI on g and waits for any
+// in-flight alarm callback to finish before returning.
+func (r *PL031) DisableIRQ(g *gic.Controller) {
+	r.irqCfgMu.Lock()
+	defer r.irqCfgMu.Unlock()
+	r.disableIRQLocked(g)
+}
+
+func (r *PL031) disableIRQLocked(g *gic.Controller) {
+	r.irqMu.Lock()
+	if !r.irqActive.Load() {
+		r.irqMu.Unlock()
+		return
+	}
+	r.irqActive.Store(false)
+	target := r.irqGIC
+	if target == nil {
+		target = g
+	}
+	if target != nil {
+		target.Disable(r.irqID)
+		target.ClearPending(r.irqID)
+		target.Register(r.irqID, nil)
+	}
+	r.irqGIC = nil
+	r.onAlarm = nil
+	r.irqMu.Unlock()
+
+	r.irqWG.Wait()
+}
+
+// IRQCount reports the number of PL031 alarm interrupts handled.
+func (r *PL031) IRQCount() uint64 { return r.irqCount.Load() }
+
+func (r *PL031) handleIRQ() {
+	r.irqMu.Lock()
+	if !r.irqActive.Load() {
+		r.irqMu.Unlock()
+		return
+	}
+	cb := r.onAlarm
+
+	r.mu.Lock()
+	pending := r.io.Read32(RegMIS)&irqBit != 0
+	if pending {
+		// Clear RTCRIS/RTCMIS before invoking cb so level-sensitive GIC re-entry cannot storm.
+		r.io.Write32(RegICR, irqBit)
+	}
+	r.mu.Unlock()
+	if pending && cb != nil {
+		r.irqWG.Add(1)
+	}
+	r.irqMu.Unlock()
+
+	if !pending {
+		return
+	}
+	r.irqCount.Add(1)
+	if cb != nil {
+		defer r.irqWG.Done()
+		cb()
+	}
 }
 
 func unixSecondsUint32(t time.Time) (uint32, error) {
