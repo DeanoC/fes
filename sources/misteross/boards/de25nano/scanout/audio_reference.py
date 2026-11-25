@@ -72,7 +72,7 @@ PCXT_PLL = ('boards/de25nano/pcxt/machine_pll.ip', '926daec94bdc3e30886675f992a5
 PC386_PLL = ('boards/de25nano/pc386/machine_pll.ip', 'd7fde9016686e6486b102dbc252c49f99397dff5f322fbae0abe04eefe02f5ba')
 MACHINE_PLLS = {'fes.spectrum': SHARED_PLL, 'fes.spectrum128': SHARED_PLL, 'fes.spectrum-plus3': SHARED_PLL,
                 'fes.pentagon': SHARED_PLL, 'fes.atari-st': SHARED_PLL, 'fes.c64': SHARED_PLL,
-                'fes.pcxt-dos': PCXT_PLL, 'fes.pc386': PC386_PLL}
+                'fes.pcxt-dos': PCXT_PLL, 'fes.pc386': PC386_PLL, 'fes.ramtest': SHARED_PLL}
 # The PLL outputs beside the audio wiring, as machine/board.py writes them.
 MACHINE_PLL_OUTPUTS = {'fes.pcxt-dos': ('.outclk_2(machine_sdram_clk_forward), '
                                         '.outclk_3(machine_sdram_clk_handoff), '

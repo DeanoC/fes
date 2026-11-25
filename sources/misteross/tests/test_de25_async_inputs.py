@@ -38,6 +38,20 @@ class AsyncInputBindingTests(unittest.TestCase):
 
         self.assertEqual(result['build_record_sha256'], hashlib.sha256(record).hexdigest())
 
+    def test_ramtest_accepts_only_its_own_review_recipe(self):
+        record = {'format': 1, 'recipe': 'boards/de25nano/producers/build_ramtest_package.py',
+                  'revision': 'a' * 40, 'parameters': {'core_id': 'fes.ramtest'}}
+        raw = json.dumps(record).encode()
+        identity = hashlib.sha256(raw).hexdigest()[:32]
+        (self.root / 'build-inputs.json').write_bytes(raw)
+        (self.hps / 'inputs.json').write_text(json.dumps({
+            'fes_revision': 'a' * 40, 'computer': {'build_id': identity}}))
+        self.assertEqual(async_inputs.bindings(self.fit)['build_record_sha256'], hashlib.sha256(raw).hexdigest())
+        record['recipe'] = 'boards/de25nano/producers/build_spectrum_package.py'
+        (self.root / 'build-inputs.json').write_text(json.dumps(record))
+        with self.assertRaisesRegex(async_inputs.BuildError, 'unsupported canonical input-review core/recipe'):
+            async_inputs.bindings(self.fit)
+
     def test_unknown_core_cannot_reuse_the_spectrum_recipe(self):
         record = json.dumps({'format': 1, 'recipe':
             'boards/de25nano/producers/build_spectrum_package.py', 'revision': 'a' * 40,
