@@ -147,3 +147,30 @@ def retarget_at_core(source):
         result = result.replace(before, after)
     return result, _record(source, result, [{"before": b.decode(), "after": a.decode(), "count": n}
                                             for b, a, n in AT_CORE])
+
+
+def retarget_window_guard(source):
+    """Discard an old bus epoch when the DE25 response path is reset."""
+    pinned = "583572b89a4b4a645981e57e7af3c7ae7e29fe7386814452a1dab150523d8ebf"
+    if sha(source) != pinned:
+        raise ValueError("review the DE25 reset against the changed DDR guard")
+    changes = (
+        (b"    input  wire                hold,", b"    input  wire                reset, hold,"),
+        (b"assign waitrequest = skid", b"assign waitrequest = reset | skid"),
+        (b"wire filler = finishing", b"wire filler = ~reset & finishing"),
+        (b"        readdatavalid <= returned & ~hold & ~draining;\n",
+         b"        readdatavalid <= returned & ~hold & ~draining;\n"
+         b"        // The bridge also resets, so this epoch will never receive its responses.\n"
+         b"        if (reset) begin\n"
+         b"            head <= 1'b0; tail <= 1'b0; present <= 1'b0; skid <= 1'b0;\n"
+         b"            beats_owed <= 8'd0; owed_zero <= 1'b1; owed_one <= 1'b0;\n"
+         b"            reads_owed <= 12'd0; finishing <= 1'b0; draining <= 1'b0;\n"
+         b"            returned <= 1'b0; readdatavalid <= 1'b0;\n"
+         b"        end\n"),
+    )
+    result = source
+    for before, after in changes:
+        if result.count(before) != 1:
+            raise ValueError("DE25 DDR guard reset anchor changed")
+        result = result.replace(before, after)
+    return result, _record(source, result, [{"before": b.decode(), "after": a.decode()} for b, a in changes])

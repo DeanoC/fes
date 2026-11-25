@@ -125,7 +125,7 @@ module pc386_de25_sim #(
     wire idle, fault_no_grant, fault_outside;
     wire [2:0] fault_port;
     fes_de25_hps_window window (
-        .hold(ddr_hold), .grant_valid(1'b1), .grant_base(`FES_APPLICATION_HPS_DDR_WINDOW_BASE),
+        .reset_n(1'b1), .hold(ddr_hold), .grant_valid(1'b1), .grant_base(`FES_APPLICATION_HPS_DDR_WINDOW_BASE),
         .fault_clear(1'b0), .fault_port(fault_port), .fault_no_grant(fault_no_grant), .fault_outside(fault_outside),
         .p0_clk(clk), .p0_reset(q0_reset), .p0_drained(q0_drained), .p0_address(q0_address),
         .p0_burstcount(q0_burstcount), .p0_waitrequest(q0_waitrequest), .p0_readdata(q0_readdata),

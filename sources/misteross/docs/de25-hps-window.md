@@ -71,8 +71,11 @@ The kernel owner's allocation and the runtime's use of it are slice 4 of
 
 On HPS-window machine builds the GHRD's active-high `h2f_reset` output
 asserts the common fabric reset. This resets the grant registers, the machine
-and both sides of the F2SDRAM clock crossing. The retained machine needs a
-fresh grant from the new Linux owner before it can issue window traffic.
+and both sides of the F2SDRAM clock crossing. The port guards discard old
+commands and outstanding replies, and both sides of the fault handshake
+clear their state. A normal hold still drains outstanding operations. The
+retained machine needs a fresh grant from the new Linux owner before it can
+issue window traffic.
 The reset manager owns fencing and draining on the HPS side. Validate its
 behavior across HPS cold, warm and watchdog resets with the exact boot chain
 and bitstream before qualifying live-window reboot.

@@ -146,7 +146,7 @@ module fes_de25_pc386_standard #(
     );
     /* verilator lint_on PINCONNECTEMPTY */
     fes_de25_hps_window window (
-        .hold(ddr_hold || !machine_reset_n), .grant_valid(grant_valid), .grant_base(grant_base),
+        .reset_n(machine_reset_n), .hold(ddr_hold), .grant_valid(grant_valid), .grant_base(grant_base),
         .fault_clear(fault_clear), .fault_port(fault_port), .fault_no_grant(fault_no_grant),
         .fault_outside(fault_outside),
         .p0_clk(machine_clk), .p0_reset(p0_reset), .p0_drained(p0_drained),

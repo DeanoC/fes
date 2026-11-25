@@ -74,10 +74,17 @@ int main(int argc, char **argv) {
     expect(write(0x0c, 1) == 0, "grant a live window before HPS reset");
     settle();
     expect(t->grant_valid, "live grant before reset");
+    t->fault_port = 1; t->fault_no_grant = 1;
+    settle();
+    expect(read(0x08) & 8, "live fault before reset");
+    t->fault_port = 4; t->fault_no_grant = 0; t->fault_outside = 1;
+    tick(); // Start the next fault transfer before resetting both sides.
     t->reset_n = 0;
     t->machine_reset_n = 0;
     t->eval();
     expect(!t->grant_valid, "reset removes the live grant without a machine clock");
+    expect(fault_copy() == 0, "reset clears the receiving fault record");
+    t->fault_port = 0; t->fault_outside = 0; // The window's machine-domain reset clears its record.
     t->reset_n = 1;
     settle();
     expect((read(0x08) & 1) == 0 && read(0x10) == 0 && read(0x1c) == 0,
@@ -85,6 +92,8 @@ int main(int argc, char **argv) {
     t->machine_reset_n = 1;
     settle();
     expect(!t->grant_valid, "clock restart cannot restore the old grant");
+    expect(read(0x08) == 6 && read(0x24) == 0,
+           "both fault handshake sides restart clean before another grant");
     expect(write(0x0c, 1) == 2, "grant requires fresh owner parameters after reset");
     write(0x18, 0x10000000);
     write(0x1c, 8);

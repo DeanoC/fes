@@ -27,8 +27,9 @@ import derive  # noqa: E402
 # pc386/build.py's I486, read from its source so the bench needs none of the producer's imports.
 I486 = int(re.search(r'^I486 = (\d)$', (HERE / 'build.py').read_text(), re.M).group(1))
 
+COMMON_GUARD = ROOT / 'cores/fes-common/rtl/fes_hps_ddr_guard.v'
 DE25_RTL = (HERE / 'pc386_dma2_registers.sv', HERE / 'fes_de25_hps_window.v', HERE / 'fes_de25_window_arbiter.v', HERE / 'fes_de25_window_unpack.v',
-            ROOT / 'cores/fes-common/rtl/fes_hps_ddr_guard.v', HERE / 'sim/pc386_de25_sim.sv')
+            HERE / 'sim/pc386_de25_sim.sv')
 
 
 def derived_sources(output: Path) -> dict[Path, Path]:
@@ -56,7 +57,10 @@ def system_testbench(args) -> Path:
     missing = set(swap) - set(sim.SYSTEM_RTL)
     if missing:
         raise sim.SimError(f'derived files are not in the system RTL: {sorted(map(str, missing))}')
-    rtl = tuple(swap.get(path, path) for path in sim.SYSTEM_RTL) + DE25_RTL
+    guard = COMMON_GUARD
+    derived_guard = sim.OUTPUT / 'derived' / 'rtl' / guard.name
+    derived_guard.write_bytes(derive.retarget_window_guard(guard.read_bytes())[0])
+    rtl = tuple(swap.get(path, path) for path in sim.SYSTEM_RTL) + DE25_RTL + (derived_guard,)
     sim.verilate(args.verilator, 'system', 'pc386_de25_sim', rtl, sim.CORE / 'sim/system_tb.cpp', [], args.jobs,
                  parameters, include=(HERE / 'generated',),
                  flags=('-Wno-TIMESCALEMOD', '--prefix', 'Vpc386_system', '-CFLAGS', '-DFES_PC386_DE25'),

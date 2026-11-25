@@ -203,7 +203,9 @@ def component_files(sources):
     for name in LOCAL_FILES:
         if name.endswith((".v", ".tcl", ".vh")):
             files[name] = sources[BOARD + "pc386/" + name]
-    files["fes_hps_ddr_guard.v"] = sources["sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v"]
+    guard = "fes_hps_ddr_guard.v"
+    files[guard], derived[guard] = derive.retarget_window_guard(
+        sources[MISTEROSS + "cores/fes-common/rtl/" + guard])
     machine, derived["pc386_machine.sv"] = derive.retarget_machine(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_machine.sv"])
     system, derived["pc386_system.sv"] = derive.retarget_system(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_system.sv"])
     at_core, derived["pc386_at_core.sv"] = derive.retarget_at_core(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_at_core.sv"])

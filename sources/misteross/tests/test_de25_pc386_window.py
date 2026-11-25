@@ -7,6 +7,8 @@ import subprocess
 import tempfile
 import unittest
 
+from boards.de25nano.pc386.derive import retarget_window_guard
+
 ROOT = Path(__file__).resolve().parents[1]
 PC386 = ROOT / 'boards/de25nano/pc386'
 COMMON = ROOT / 'cores/fes-common'
@@ -14,8 +16,13 @@ COMMON = ROOT / 'cores/fes-common'
 
 @unittest.skipUnless(shutil.which('verilator'), 'Verilator is required for the window benches')
 class De25Pc386WindowBenchTests(unittest.TestCase):
-    def run_bench(self, top, rtl, bench, extra=(), seeds=('1',)):
+    def run_bench(self, top, rtl, bench, extra=(), seeds=('1',), *, guard=False):
         with tempfile.TemporaryDirectory() as work:
+            if guard:
+                source = COMMON / 'rtl/fes_hps_ddr_guard.v'
+                derived = Path(work) / source.name
+                derived.write_bytes(retarget_window_guard(source.read_bytes())[0])
+                extra = (*extra, derived)
             subprocess.run(['verilator', '--cc', '--exe', '--build', '-O2', '-Wno-fatal', '--top-module', top,
                             f'-I{PC386}', f'-I{COMMON / "generated"}', '--Mdir', work, str(PC386 / rtl),
                             *map(str, extra), str(PC386 / bench)],
@@ -37,12 +44,12 @@ class De25Pc386WindowBenchTests(unittest.TestCase):
 
     def test_holds_cut_bursts_through_the_guards(self):
         self.run_bench('window_hold_tb', 'window_hold_tb.v', 'window_hold_tb.cpp',
-                       (PC386 / 'fes_de25_hps_window.v', PC386 / 'fes_de25_window_arbiter.v',
-                        COMMON / 'rtl/fes_hps_ddr_guard.v'), seeds=('1', '2', '3'))
+                       (PC386 / 'fes_de25_hps_window.v', PC386 / 'fes_de25_window_arbiter.v'),
+                       seeds=('1', '2', '3'), guard=True)
 
     def test_fault_record_keeps_the_first_fault(self):
         self.run_bench('fes_de25_hps_window', 'fes_de25_hps_window.v', 'window_fault_tb.cpp',
-                       (COMMON / 'rtl/fes_hps_ddr_guard.v',))
+                       guard=True)
 
 
 if __name__ == '__main__':

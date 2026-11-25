@@ -62,13 +62,21 @@ module fes_de25_hps_window_control (
     (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] held_sync = 2'b00;
     // Launch registers in machine_clk, so each crossing starts at a flop.
     (* preserve, dont_merge *) reg drained_source = 1'b0, held_source = 1'b0;
-    always @(posedge machine_clk) begin
-        drained_source <= machine_drained;
-        held_source <= machine_held;
+    always @(posedge machine_clk or negedge machine_reset_n) begin
+        if (!machine_reset_n) begin
+            drained_source <= 1'b0; held_source <= 1'b0;
+        end else begin
+            drained_source <= machine_drained;
+            held_source <= machine_held;
+        end
     end
-    always @(posedge clk_sys) begin
-        drained_sync <= {drained_sync[0], drained_source};
-        held_sync <= {held_sync[0], held_source};
+    always @(posedge clk_sys or negedge reset_n) begin
+        if (!reset_n) begin
+            drained_sync <= 2'b00; held_sync <= 2'b00;
+        end else begin
+            drained_sync <= {drained_sync[0], drained_source};
+            held_sync <= {held_sync[0], held_source};
+        end
     end
     wire drained = drained_sync[1];
     wire held = held_sync[1];
@@ -84,20 +92,33 @@ module fes_de25_hps_window_control (
     // Copy only, enabled from the synchronizer chain alone: register to register from fault_launch.
     reg [4:0] machine_fault = 5'd0;
     wire [4:0] fault_live = {fault_outside, fault_no_grant, fault_port};
-    always @(posedge machine_clk) begin
-        fault_ack_sync <= {fault_ack_sync[0], fault_ack};
-        if (fault_ack_sync[1] == request_pre && fault_live != fault_hold) begin
-            fault_hold <= fault_live;
-            request_pre <= !request_pre;
+    // Both sides start a fresh handshake when the window's bus epoch ends.
+    always @(posedge machine_clk or negedge machine_reset_n) begin
+        if (!machine_reset_n) begin
+            fault_ack_sync <= 2'b00;
+            fault_hold <= 5'd0; fault_launch <= 5'd0;
+            request_pre <= 1'b0; fault_request <= 1'b0;
+        end else begin
+            fault_ack_sync <= {fault_ack_sync[0], fault_ack};
+            if (fault_ack_sync[1] == request_pre && fault_live != fault_hold) begin
+                fault_hold <= fault_live;
+                request_pre <= !request_pre;
+            end
+            fault_launch <= fault_hold;
+            fault_request <= request_pre;
         end
-        fault_launch <= fault_hold;
-        fault_request <= request_pre;
     end
-    always @(posedge clk_sys) begin
-        fault_request_sync <= {fault_request_sync[0], fault_request};
-        fault_request_seen <= fault_request_sync[1];
-        fault_ack <= fault_request_seen;
-        if (fault_request_sync[1] != fault_request_seen) machine_fault <= fault_launch;
+    always @(posedge clk_sys or negedge reset_n) begin
+        if (!reset_n) begin
+            fault_request_sync <= 2'b00;
+            fault_request_seen <= 1'b0; fault_ack <= 1'b0;
+            machine_fault <= 5'd0;
+        end else begin
+            fault_request_sync <= {fault_request_sync[0], fault_request};
+            fault_request_seen <= fault_request_sync[1];
+            fault_ack <= fault_request_seen;
+            if (fault_request_sync[1] != fault_request_seen) machine_fault <= fault_launch;
+        end
     end
 
     // ---- Registers
@@ -168,16 +189,16 @@ module fes_de25_hps_window_control (
         if (!machine_reset_n) begin
             granted_sync <= 2'b00;
             grant_seen <= 1'b0;
+            clear_sync <= 2'b00; clear_seen <= 1'b0;
         end else begin
             granted_sync <= {granted_sync[0], granted};
             grant_seen <= granted_sync[1];
+            clear_sync <= {clear_sync[0], clear_toggle};
+            clear_seen <= clear_sync[1];
         end
     end
-    always @(posedge machine_clk) begin
-        clear_sync <= {clear_sync[0], clear_toggle};
-        clear_seen <= clear_sync[1];
+    always @(posedge machine_clk)
         if (granted_sync[1] && !grant_seen) base_machine <= base_lo;
-    end
     assign grant_valid = grant_seen;
     assign grant_base = base_machine;
     assign fault_clear = clear_sync[1] != clear_seen;
