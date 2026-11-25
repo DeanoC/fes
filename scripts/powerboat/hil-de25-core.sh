@@ -300,39 +300,12 @@ fi
 python3 "$D/snapshot.py" "http://$API" D25 "$D/out/baseline-after.json" || fail "after snapshot failed"
 RESTORE_TOOL="$FES_SOURCE/scripts/de25_restore.py"
 [ -f "$RESTORE_TOOL" ] || RESTORE_TOOL="$ROOT/wt/scripts/de25_restore.py"
-if python3 "$RESTORE_TOOL" --baseline "$BASE" --before "$D/out/baseline-before.json" --after "$D/out/baseline-after.json" > "$D/out/restore-verification.json"; then RESTORE=1; else fail "de25_restore.py failed; ledger remains claimed"; fi
-if [ "$RESTORE" != 1 ]; then
-  SERIAL_TOOL="$FES_SOURCE/scripts/de25_serial_recovery.py"
-  [ -f "$SERIAL_TOOL" ] || SERIAL_TOOL="$ROOT/wt/scripts/de25_serial_recovery.py"
-  if [ -f "$SERIAL_TOOL" ]; then
-    echo "network restore failed; attempting serial-checked J8G reboot" | tee -a "$D/logs/driver.log"
-    cp -f "$D/out/baseline-after.json" "$D/out/baseline-after-before-serial.json" 2>/dev/null || true
-    rm -f "$D/out/baseline-after.json"
-    if python3 "$SERIAL_TOOL" --reboot --serial TRWU8J8G --output "$D/out/serial-reboot.json"; then
-      # Wait for the same authenticated J8G endpoint to return, then capture
-      # a fresh state. Never select another board or serial port as fallback.
-      for attempt in $(seq 1 60); do
-        if python3 "$D/snapshot.py" "http://$API" D25 "$D/out/baseline-after-recovered.tmp.json" >/dev/null 2>&1; then
-          mv "$D/out/baseline-after-recovered.tmp.json" "$D/out/baseline-after.json"
-          break
-        fi
-        rm -f "$D/out/baseline-after-recovered.tmp.json"
-        sleep 5
-      done
-      if [ -s "$D/out/baseline-after.json" ]; then
-        python3 "$SERIAL_TOOL" --receipt-from "$D/out/serial-reboot.json" --serial TRWU8J8G \
-          --before-boot-id "$(jq -r '.boot_id' "$D/out/baseline-before.json")" \
-          --after-boot-id "$(jq -r '.boot_id' "$D/out/baseline-after.json")" \
-          --target-id "$(jq -r '.target_id' "$D/out/baseline-before.json")" \
-          --output "$D/out/serial-recovery-receipt.json" > "$D/out/serial-recovery-receipt-summary.json" &&
-        python3 "$RESTORE_TOOL" --baseline "$BASE" --before "$D/out/baseline-before.json" \
-          --after "$D/out/baseline-after.json" --serial-recovery "$D/out/serial-recovery-receipt.json" \
-          > "$D/out/restore-verification.json" && RESTORE=1
-      fi
-    fi
-  fi
-  [ "$RESTORE" = 1 ] || fail "network restore and serial-checked recovery failed; ledger remains claimed"
-fi
+# A failed restore cannot prove the FPGA returned to MENU. Preserve the
+# claim and evidence for the documented operator recovery procedure.
+python3 "$RESTORE_TOOL" --baseline "$BASE" --before "$D/out/baseline-before.json" \
+  --after "$D/out/baseline-after.json" > "$D/out/restore-verification.json" ||
+  fail "DE25 restore verification failed; ledger remains claimed for operator recovery"
+RESTORE=1
 if [ "$RESTORE" = 1 ]; then
   PKG_NAMES=$(for P in "${PKGS[@]}"; do basename "$P"; done | paste -sd, -)
   PKG_DIGESTS=$(IFS=,; echo "${PKG_SHAS[*]}")

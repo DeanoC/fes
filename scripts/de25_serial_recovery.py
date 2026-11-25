@@ -90,6 +90,8 @@ def main(argv=None):
     mode.add_argument('--reboot', action='store_true', help='send serial SysRq BREAK+b reboot')
     mode.add_argument('--receipt-from', type=Path,
                       help='write a restore receipt from a completed serial reboot observation')
+    parser.add_argument('--menu-confirmed', action='store_true',
+                        help='confirm the claimed kit has returned to MENU after Stop')
     parser.add_argument('--serial', required=True, choices=(J8G_SERIAL,))
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--observe-seconds', type=float, default=8)
@@ -100,6 +102,10 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.observe_seconds <= 0 or args.boot_seconds <= 0:
         parser.error('observation intervals must be positive')
+    if args.reboot and not args.menu_confirmed:
+        parser.error('serial reboot requires verified MENU (--menu-confirmed); use --probe if state is unknown')
+    if args.menu_confirmed and not args.reboot:
+        parser.error('--menu-confirmed requires --reboot')
     fd = None
     try:
         if args.receipt_from:

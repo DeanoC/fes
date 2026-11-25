@@ -163,11 +163,17 @@ resolved port. It records Linux boot output and whether a login prompt exists;
 the production image removes the serial getty, so recovery uses the enabled
 kernel SysRq console path rather than an assumed login.
 
-When network restore fails, keep the D25 claim and both locks. Capture the last
-authenticated target and boot identity, then use
-`python3 scripts/de25_serial_recovery.py --reboot --serial TRWU8J8G --output
-<evidence>/serial-reboot.json`. This sends a serial BREAK followed by SysRq
-`b` and records the boot output. Wait for the same J8G target ID to return on
+When network restore fails, keep the D25 claim and both locks. Before using a
+serial reboot, verify that Stop completed and J8G returned to MENU. An HPS
+reset can leave an older HPS-window bitstream running and stall the next boot
+([#2245](https://github.com/DeanoC/fes/issues/2245)). If Stop fails or the
+fabric state is unknown, use the receive-only probe and arrange the authorized
+J8G power cycle.
+
+With MENU verified, capture the last authenticated target and boot identity,
+then run `python3 scripts/de25_serial_recovery.py --reboot --menu-confirmed
+--serial TRWU8J8G --output <evidence>/serial-reboot.json`. This sends a serial
+BREAK followed by SysRq `b` and records the boot output. Wait for the same J8G target ID to return on
 the network, capture fresh post-reboot state, and create a recovery receipt
 with the before/after boot IDs and observed Linux boot marker:
 
