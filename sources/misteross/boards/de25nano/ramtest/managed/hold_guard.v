@@ -13,7 +13,7 @@ module fes_de25_ramtest_hold_guard (
 );
     wire request = ((gpo & `FES_COMPUTER_REQUEST_MASK) != 0) !=
                    ((mailbox_gpi & `FES_COMPUTER_ACK_MASK) != 0);
-    wire valid_hold = gpo[30:24] == 7'(`FES_COMPUTER_OPCODE_EXECUTION) &&
+    wire valid_hold = gpo[30:24] == `FES_COMPUTER_OPCODE_EXECUTION &&
                       gpo[23:0] == 24'd0;
     assign hold_requested = request && valid_hold;
     always @(posedge clk)
