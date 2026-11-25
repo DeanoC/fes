@@ -145,11 +145,9 @@ module pcxt_video_dynamic (
 
     wire adopt = output_sof && sent_sync != received;
     wire [1:0] read_bank = adopt ? published_bank : front;
-    wire [1:0] active_mode = front_mode;
-    wire [1:0] active_tint = front_tint;
-    wire active_mono = active_mode != 2'd0;
+    wire active_mono = front_mode != 2'd0;
     wire [10:0] active_width = active_mono ? 11'd720 : 11'd640;
-    wire [9:0] active_height = (active_mode == 2'd2) ? 10'd348 : active_mono ? 10'd350 : 10'd200;
+    wire [9:0] active_height = (front_mode == 2'd2) ? 10'd348 : active_mono ? 10'd350 : 10'd200;
     wire valid_bank = front_valid || adopt;
 
     reg [10:0] x_error, y_error;
@@ -245,7 +243,7 @@ module pcxt_video_dynamic (
             read_address_q <= read_address;
             image_q <= image && valid_bank;
             mono_q <= active_mono;
-            tint_q <= active_tint;
+            tint_q <= front_tint;
             subpixel_q <= image_index[1:0];
             de_q <= visible;
             hs_q <= horizontal >= 11'd1390 && horizontal < 11'd1430;
