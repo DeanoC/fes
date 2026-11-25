@@ -736,7 +736,8 @@ def build(args):
             files = {'PKGTEST.BIN': output/'package.fcore', 'PROGRAM.JSN': output/'PROGRAM.JSN',
                      'FIRMWARE.BIN': output/'FIRMWARE.BIN'}
             if zx81_tape is not None:
-                tape = hps.spectrum48.read(zx81_tape.resolve(strict=True), 16 << 10)
+                # The native DE25 mailbox reserves nine bytes of its 16 KiB tape window.
+                tape = hps.spectrum48.read(zx81_tape.resolve(strict=True), 0x3ff7)
                 tape_file = output/'GAME.P'
                 tape_file.write_bytes(tape)
                 files['GAME.P'] = tape_file
