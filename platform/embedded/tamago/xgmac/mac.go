@@ -134,6 +134,11 @@ type Config struct {
 	// BindControl pause is no change by itself: Start reports the re-probed link
 	// when it differs from the link before Stop.
 	OnLinkChange func(up bool, speed LinkSpeed)
+	// ResetMMCOnRead enables clear-on-read MMC hardware counters during
+	// initialization (masking MMC rollover IRQs and enabling ROR). When true,
+	// HardwareStats accumulates cleared deltas across polls and Stop/Start.
+	// Default false leaves MMC control registers untouched.
+	ResetMMCOnRead bool
 }
 type failure struct{ err error }
 type linkEvent struct {
@@ -164,6 +169,11 @@ type Device struct {
 	rxReady                        chan struct{}
 	irqActive                      atomic.Bool
 	irqCount                       atomic.Uint64
+	hashBits                       int
+	multicastWords                 int
+	multicastHash                  [8]uint32
+	multicastFilter                uint32
+	hwStats                        HardwareStats
 }
 
 func Open(io Registers, memory Memory, config Config) (*Device, error) {
@@ -423,7 +433,17 @@ func (d *Device) initialize(mac net.HardwareAddr) error {
 	d.io.Write32(0x0a0, 2)     // queue 0 DCB; other RX queues disabled
 	d.io.Write32(0x0a4, 1<<15) // multicast/broadcast queue 0
 	d.io.Write32(0x0a8, 0)
-	d.io.Write32(packetFilter, 0) // station unicast + broadcast; no promiscuous mode
+	d.hashBits = decodeHashTableBits(fifo)
+	if d.multicastWords > 0 {
+		if err := d.programMulticastLocked(d.multicastWords, d.multicastHash, d.multicastFilter); err != nil {
+			return err
+		}
+	} else {
+		d.io.Write32(packetFilter, 0) // station unicast + broadcast; no promiscuous mode
+	}
+	if d.config.ResetMMCOnRead {
+		d.initMMCLocked()
+	}
 	d.io.Write32(0x070, 0)
 	d.io.Write32(0x090, 0) // no unqualified pause negotiation
 	d.io.Write32(0x140, 0) // full duplex
