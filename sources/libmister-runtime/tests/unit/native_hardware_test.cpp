@@ -4353,8 +4353,9 @@ void TestPcxtLibraryRecordAndSettings()
 	using namespace mister::native;
 	using namespace mister::native::generated;
 	const std::uint32_t caps = FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
-		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityPersistenceWords |
-		FesComputerCapabilityPcxtMachine | FesComputerCapabilityMediaPcxtFloppy;
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMouseRelative |
+		FesComputerCapabilityPersistenceWords | FesComputerCapabilityPcxtMachine |
+		FesComputerCapabilityMediaPcxtFloppy;
 	mister_test::ComputerEndpoint endpoint(caps, {{0, {FesComputerPcxtFloppyBytes, FesComputerPcxtFloppyBytes}}},
 		"0123456789abcdef0123456789abcdef");
 	endpoint.abi_minor = 1;
