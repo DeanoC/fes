@@ -61,6 +61,7 @@ REVIEW_INPUTS = ('boards/de25nano/scanout/async_inputs.py',
                  'boards/de25nano/scanout/output_reset.tcl',
                  'boards/de25nano/scanout/vendor_reference.py',
                  'boards/de25nano/scanout/machine_findings.py',
+                 'boards/de25nano/scanout/atari_st_findings.py',
                  'boards/de25nano/scanout/bridge_reset.py',
                  'boards/de25nano/scanout/bridge_reset.tcl')
 DEVICE = 'A5EB013BB23BE4SCS'
@@ -382,7 +383,8 @@ def timing_evidence(directory, *, async_review=None, audio_review=None, revision
                              async_inputs.vendor_reference.output_findings(drc, timed_video=timed_video),
                     'basis': audio_proof['policy'] if audio_proof is not None else
                              async_inputs.vendor_reference.POLICY})
-    from boards.de25nano.scanout import machine_findings
+    from boards.de25nano.scanout import atari_st_findings, machine_findings
+    reviewed.extend(atari_st_findings.findings(directory, drc, rows))
     if machine_findings.selected(directory):
         reviewed.extend(machine_findings.findings(directory, drc))
     unreviewed = unreviewed_rules(reviewed, rows)
