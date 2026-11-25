@@ -78,3 +78,50 @@ func TestNativeLifecycleTrace(t *testing.T) {
 		t.Fatalf("Quit evidence differs:\n%s", trace)
 	}
 }
+
+func TestMultiInputLifecycleKeyboardTrace(t *testing.T) {
+	f, backend, client := backendFixture(t)
+	ctx := t.Context()
+	var output strings.Builder
+	serial, err := NewProgramSerialPlatform(f.s, func() (byte, bool) { return 0, false },
+		func(_ context.Context, payload []byte) error {
+			_, err := output.Write(payload)
+			return err
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	serial.EnableLifecycleTrace()
+	src := newFakeMultiSource()
+	platform, err := NewProgramMultiInputPlatform(serial, backend, src, multiTestConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	multiNext(t, platform, "enumerate the released keyboard")
+	play, err := client.Launch(ctx, "native-0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	output.Reset()
+	src.keys([8]byte{0, 0, 0x04}, [8]byte{}, [8]byte{0x05, 0, 0x29})
+	multiNext(t, platform, "multi-input keyboard return", tenfoot.CmdStop)
+	trace := output.String()
+	if strings.Count(trace, "FES_NATIVE_KEYBOARD_SHORTCUT") != 1 ||
+		!strings.Contains(trace, "armed=true control=true alt=true escape=true quit=false") ||
+		!strings.Contains(trace, "source=usb-multi action=stop") {
+		t.Fatalf("multi-input return trace differs:\n%s", trace)
+	}
+
+	if _, err := client.StopExpectedStamped(ctx, play, hostclient.ClientStamp{}); err != nil {
+		t.Fatal(err)
+	}
+	output.Reset()
+	src.keys([8]byte{}, [8]byte{0, 0, 0x14})
+	multiNext(t, platform, "multi-input keyboard Quit", tenfoot.CmdQuit)
+	trace = output.String()
+	if !strings.Contains(trace, "armed=true control=false alt=false escape=false quit=true") ||
+		!strings.Contains(trace, "source=usb-multi action=quit") {
+		t.Fatalf("multi-input Quit trace differs:\n%s", trace)
+	}
+}

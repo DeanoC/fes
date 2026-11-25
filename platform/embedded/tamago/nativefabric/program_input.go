@@ -62,9 +62,7 @@ func NewProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, sou
 		return nil, err
 	}
 	p.source, p.menu = source, menu
-	if serial, ok := base.(*ProgramSerialPlatform); ok && serial.lifecycleTrace {
-		p.traceKeyboard = serial.traceLifecycleKeyboard
-	}
+	p.traceKeyboard = lifecycleKeyboardObserver(base)
 	p.inputReady = attachInputReady(base, source)
 	return p, nil
 }

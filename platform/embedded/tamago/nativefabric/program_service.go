@@ -217,10 +217,15 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	if err := p.pauseNetwork(ctx); err != nil {
 		return ProgramSession{}, err
 	}
-	defer p.finishNetwork(&result)
-	if trace := p.launchTrace; trace != nil {
+	trace := p.launchTrace
+	defer func() {
+		p.finishNetwork(&result)
+		if trace != nil {
+			trace(s.Status(), "complete", result)
+		}
+	}()
+	if trace != nil {
 		trace(view, "loading", nil)
-		defer func() { trace(s.Status(), "complete", result) }()
 	}
 	view.State, view.Error = ProgramLoading, ""
 	p.publish(view)

@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"slices"
+
+	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 // EnableLifecycleTrace is called before the native App starts. Diagnostic output
@@ -17,6 +19,13 @@ func (p *ProgramSerialPlatform) EnableLifecycleTrace() {
 			"FES_NATIVE_LAUNCH_STAGE stage=%s state=%s owner=%x generation=%d failed=%t\n",
 			stage, status.State, status.Owner, status.Generation, err != nil))
 	}
+}
+
+func lifecycleKeyboardObserver(base tenfoot.Platform) func(context.Context, ProgramServiceStatus, []byte, bool) {
+	if serial, ok := base.(*ProgramSerialPlatform); ok && serial.lifecycleTrace {
+		return serial.traceLifecycleKeyboard
+	}
+	return nil
 }
 
 type lifecycleKeyboardTrace struct {
