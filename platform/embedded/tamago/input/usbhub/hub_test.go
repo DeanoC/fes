@@ -1085,35 +1085,51 @@ func TestHubWiredBootMouseAttachMotionMergeAndDetachRelease(t *testing.T) {
 	if err := hub.Service(); err != nil {
 		t.Fatal(err)
 	}
-	if !hub.MouseNeutral() {
-		t.Fatal("expected MouseNeutral on attach before any pressed buttons")
+	if hub.MouseNeutral() {
+		t.Fatal("newly attached boot mice without an initial report must not arm MouseNeutral")
 	}
 
-	// Verify SET_PROTOCOL(0) and SET_IDLE(0) were sent to both boot mice.
+	// Verify SET_PROTOCOL(0) and SET_IDLE(100ms) were sent to both boot mice.
 	sawSetProto1, sawSetIdle1 := false, false
 	sawSetProto2, sawSetIdle2 := false, false
 	for _, r := range bus.ctrlReqs {
 		switch r {
 		case [3]uint16{uint16(2)<<8 | 0x0b, 0, 0}:
 			sawSetProto1 = true
-		case [3]uint16{uint16(2)<<8 | 0x0a, 0, 0}:
+		case [3]uint16{uint16(2)<<8 | 0x0a, 25 << 8, 0}:
 			sawSetIdle1 = true
 		case [3]uint16{uint16(3)<<8 | 0x0b, 0, 0}:
 			sawSetProto2 = true
-		case [3]uint16{uint16(3)<<8 | 0x0a, 0, 0}:
+		case [3]uint16{uint16(3)<<8 | 0x0a, 25 << 8, 0}:
 			sawSetIdle2 = true
 		}
 	}
 	if !sawSetProto1 || !sawSetIdle1 || !sawSetProto2 || !sawSetIdle2 {
-		t.Fatalf("missing SET_PROTOCOL(0)/SET_IDLE(0) on boot mice: %#v", bus.ctrlReqs)
+		t.Fatalf("missing SET_PROTOCOL(0)/SET_IDLE on boot mice: %#v", bus.ctrlReqs)
 	}
 	if len(events) != 2 || events[0].Kind != EventMouseAttached || events[1].Kind != EventMouseAttached {
 		t.Fatalf("expected 2 EventMouseAttached events, got %+v", events)
 	}
 
-	// Signed relative motion + strip extra button bits (middle/side bits 2..7 -> 0).
+	// Deliver initial idle reports from both mice -> MouseNeutral arms cleanly.
 	p1 := bus.pipes[key32(2, 0x81)]
 	p2 := bus.pipes[key32(3, 0x81)]
+	p1.inQueue = append(p1.inQueue, []byte{0x00, 0x00, 0x00})
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if hub.MouseNeutral() {
+		t.Fatal("MouseNeutral armed before mouse2 reported")
+	}
+	p2.inQueue = append(p2.inQueue, []byte{0x00, 0x00, 0x00})
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !hub.MouseNeutral() {
+		t.Fatal("expected MouseNeutral=true once both attached mice reported all-up")
+	}
+
+	// Signed relative motion + strip extra button bits (middle/side bits 2..7 -> 0).
 	p1.inQueue = append(p1.inQueue, []byte{0x05, 0xfb, 0x0c, 0x00}) // bit0(L) + bit2(middle ignored), dx=-5, dy=+12
 	p2.inQueue = append(p2.inQueue, []byte{0x02, 0x03, 0xfe, 0x00}) // bit1(R), dx=+3, dy=-2
 	if err := hub.Service(); err != nil {

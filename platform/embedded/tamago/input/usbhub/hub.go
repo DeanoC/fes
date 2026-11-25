@@ -198,11 +198,14 @@ type wiredGamepadSlot struct {
 }
 
 type wiredMouseSlot struct {
-	active  bool
-	addr    uint8
-	iface   uint8
-	pipe    usb.Pipe
-	buttons uint8
+	active bool
+	// reported is set by the first valid boot-mouse report since attach.
+	// Until then the slot's buttons are unknown, so MouseNeutral stays false.
+	reported bool
+	addr     uint8
+	iface    uint8
+	pipe     usb.Pipe
+	buttons  uint8
 }
 
 // Hub supervises wired USB boot keyboards, wired USB boot mice, wired USB HID
@@ -630,13 +633,21 @@ func (h *Hub) NextKeyboardReport() ([8]byte, bool) {
 	return report, true
 }
 
-// MouseNeutral reports whether the bus has been enumerated and all wired boot
-// mouse Left/Right buttons are released.
+// MouseNeutral reports whether the bus has been enumerated, every active wired
+// boot mouse has delivered an initial report, and all Left/Right buttons are released.
 func (h *Hub) MouseNeutral() bool {
 	if h == nil {
 		return true
 	}
-	return h.initialized && h.mergedMouseButtons == 0
+	if !h.initialized || h.mergedMouseButtons != 0 {
+		return false
+	}
+	for i := range h.wiredMice {
+		if h.wiredMice[i].active && !h.wiredMice[i].reported {
+			return false
+		}
+	}
+	return true
 }
 
 // NextMouseUpdate pops the next queued relative boot-mouse update, if any.
@@ -808,6 +819,7 @@ func (h *Hub) Service() error {
 				break
 			}
 			if n >= 3 {
+				h.wiredMice[i].reported = true
 				buttons := h.pollBuf[0] & 0x03
 				dx, dy := int8(h.pollBuf[1]), int8(h.pollBuf[2])
 				h.wiredMice[i].buttons = buttons
@@ -1391,7 +1403,9 @@ func (h *Hub) attachWiredMouse(addr uint8, iface usb.InterfaceDescriptor) {
 	if _, err := h.bus.ControlTransfer(addr, 0x21, 0x0b, 0, uint16(iface.Number), nil); err != nil {
 		return
 	}
-	_, _ = h.bus.ControlTransfer(addr, 0x21, 0x0a, 0, uint16(iface.Number), nil)
+	// Request 100 ms HID idle snapshots where supported so idle mice confirm
+	// initial button state cleanly without blocking the neutral fence.
+	_, _ = h.bus.ControlTransfer(addr, 0x21, 0x0a, 25<<8, uint16(iface.Number), nil)
 	pipe, err := h.bus.OpenPipe(addr, ep)
 	if err != nil {
 		return
