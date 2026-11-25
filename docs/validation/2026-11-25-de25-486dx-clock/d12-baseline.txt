@@ -1,0 +1,38 @@
+Phase A compile-only controls, FES main da4acd2ac3213e467dcd98f0bbf26a2158b70a3e
+All seven ordinary compile invocations exited zero. Phase B contains the package admissions.
+
+menu  powerboat  /data/projects/de25-486dx-clock-2263/d12/source-A-da4acd2ac3213e467dcd98f0bbf26a2158b70a3e/sources/misteross/build/d12/menu
+  BUILD_ID 4abd7dbaeb8ef595db8ea4bdc3ae12e8  RBF SHA-256 3930188ccf638c46c5c2bf1fde64b688fa8c311d88a43e8bd8a663af135e6741
+  raw golden_top.qsf SHA-256 ec8906e4d804fa527d9eb3d90ec4b6353c55bbe74853f4f5d5e9fafc4012154b
+  raw RTL inventory SHA-256 6d856f0aeb25462bb9dc231e6e58fd774b8394ea44813c5c0ed44bc79b30b431 (554 files)
+  no negative reported timing checks; absolute checkout/build prefixes only in integrate-mailbox.tcl
+spectrum48  powerboat  /data/projects/de25-486dx-clock-2263/d12/source-A-da4acd2ac3213e467dcd98f0bbf26a2158b70a3e/sources/misteross/build/d12/spectrum48
+  BUILD_ID 923ca69398c5bd92dcad5894c1f07f77  RBF SHA-256 c894ffd2b84d09b1c3a83bb8bef2ea8d77b75ad1a03e955f16eab0dbfb969b04
+  raw golden_top.qsf SHA-256 284821758e61afea9fa50ac1a84888809f19edddb604d78d8912ded7d9c20330
+  raw RTL inventory SHA-256 b2b12972add139ded78be76907e274a0ddac812784ed59d30710a010cc95b9d7 (646 files)
+  no negative reported timing checks; absolute checkout/build prefixes only in integrate-mailbox.tcl
+spectrum128  powerboat  /data/projects/de25-486dx-clock-2263/d12/source-A-da4acd2ac3213e467dcd98f0bbf26a2158b70a3e/sources/misteross/build/d12/spectrum128
+  BUILD_ID e4285c3964afa748503e8ef5f6d9e43d  RBF SHA-256 64a157f17596a0e4f6e9e469e6d8ea43903cd64a1485749ad81c27b9f4147487
+  raw golden_top.qsf SHA-256 32a55f772ccb76bee4b24d616f604185c5e1dd5d6f2c4ef368013e462c911091
+  raw RTL inventory SHA-256 b5891679259516e09f28dce6daf105f213363be6b8899cc996feb4e77ae036b5 (646 files)
+  no negative reported timing checks; absolute checkout/build prefixes only in integrate-mailbox.tcl
+c64  powerboat  /data/projects/de25-486dx-clock-2263/d12/source-A-da4acd2ac3213e467dcd98f0bbf26a2158b70a3e/sources/misteross/build/d12/c64
+  BUILD_ID 42ce9900d5f4c2c65f28e141cd707595  RBF SHA-256 2ad272508cca8c600a7475d5477a2fdfb10655ff71445926ef7e5a33862d21ad
+  raw golden_top.qsf SHA-256 11eb677a8c018bde0547803c24f81d7f3ea00e12f5efd288a66f070801950b5c
+  raw RTL inventory SHA-256 551a8ea17ea78af0c224c7a891b4d952b01044f36515a9eb427911da3703c9eb (662 files)
+  no negative reported timing checks; absolute checkout/build prefixes only in integrate-mailbox.tcl
+pcxt  powerboat  /data/projects/de25-486dx-clock-2263/d12/source-A-da4acd2ac3213e467dcd98f0bbf26a2158b70a3e/sources/misteross/build/d12/pcxt
+  BUILD_ID 94e1b295dc2890cbc0766d042992b353  RBF SHA-256 76a97e9844415d11fcf04763d08e97485956eb4f8146e00688782bf0184e1b77
+  raw golden_top.qsf SHA-256 e2533622d894746b7c8a4de691a93ea0fecb625417f122e0760e6a89d654c93a
+  raw RTL inventory SHA-256 92baa8548cc3ff95d9613d0317bcd1c64a37661ffb4bb794103597dd6276b076 (722 files)
+  no negative reported timing checks; absolute checkout/build prefixes only in integrate-mailbox.tcl
+zx81  chip-30x0-ai-dev  /data/projects/fes-quartus/runs/da4acd2ac321-20261125T175641Z-486dx-2263-d12-A-zx81-53e793/src/sources/misteross/build/d12/zx81
+  BUILD_ID 89eaee788ea1c0191a3ec755d916d7dc  RBF SHA-256 8955fc9702a250dfeff48af132bbd731364f66100bd73342ed1c8e0ce91f90e4
+  raw golden_top.qsf SHA-256 9de57791674c7acaa89db5b21af8990fbe19a6e64285e1c1eceb49b049972dce
+  raw RTL inventory SHA-256 9f7364ba3f6eec2ddce25745d0938c0e41a44bdecd342726df515ad086d32e8d (610 files)
+  no negative reported timing checks; absolute checkout/build prefixes only in integrate-mailbox.tcl
+st  chip-30x0-ai-dev  /data/projects/fes-quartus/runs/da4acd2ac321-20261125T180706Z-486dx-2263-d12-A-st-58b82f/src/sources/misteross/build/d12/st
+  BUILD_ID f9e4ce987e6f1624ed7494d6804a7f01  RBF SHA-256 ca6b7dcabeef84f095ec373e5af14c25b7a5b82920b8a3d6edd4eac025680939
+  raw golden_top.qsf SHA-256 bad2e5b1ea44b6bfac305748e7100f57aef103ca1cf69ec47e8825ba7ebb6037
+  raw RTL inventory SHA-256 c7f25f7bf3179eb195265954aa71a0701d3a5171c1528126dd2bfb289b69cce3 (656 files)
+  no negative reported timing checks; absolute checkout/build prefixes only in integrate-mailbox.tcl

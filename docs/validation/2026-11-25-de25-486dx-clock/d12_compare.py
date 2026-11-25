@@ -20,7 +20,9 @@ PACKAGES = {
     'pcxt': ('pcxt', 'xt'),
 }
 PROJECT = Path('signoff/combined/hps/project')
-EXTENSIONS = {'.qsf', '.qpf', '.sdc', '.v', '.sv', '.vh', '.svh', '.tcl', '.ip', '.qsys', '.hex', '.mif', '.json', '.vhd'}
+QUARTUS_QSF = Path('golden_top.qsf')
+RTL_EXTENSIONS = {'.v', '.sv', '.vh', '.svh', '.vhd'}
+EXTENSIONS = RTL_EXTENSIONS | {'.qsf', '.qpf', '.sdc', '.tcl', '.ip', '.qsys', '.hex', '.mif', '.json'}
 REPORT_DIRS = {'output_files', 'qdb', 'tmp-clearbox', 'dni', '.qsys_edit', 'software'}
 
 
@@ -81,11 +83,41 @@ def project_inputs(product):
     for path in project.rglob('*'):
         relative = path.relative_to(project)
         if path.suffix in EXTENSIONS and not REPORT_DIRS.intersection(relative.parts) and path.is_file():
-            data = path.read_bytes().replace(str(product).encode(), b'<build-output>')
-            result[relative] = data.replace(str(product.parents[2]).encode(), b'<source-module>')
+            result[relative] = path.read_bytes()
     if not result:
         raise ValueError(f'no project inputs in {project}')
     return result
+
+
+def rtl_inventory(inputs):
+    files = {path.as_posix(): hashlib.sha256(data).hexdigest() for path, data in inputs.items()
+             if path.suffix in RTL_EXTENSIONS}
+    if not files:
+        raise ValueError('no compiler project RTL files')
+    rows = ''.join(f'{files[path]}  {path}\n' for path in sorted(files))
+    return files, hashlib.sha256(rows.encode()).hexdigest()
+
+
+def same_native_inputs(inputs_a, inputs_b):
+    qsf_a, qsf_b = inputs_a[QUARTUS_QSF], inputs_b[QUARTUS_QSF]
+    print(f'  raw {QUARTUS_QSF} SHA-256 main {hashlib.sha256(qsf_a).hexdigest()}')
+    print(f'  raw {QUARTUS_QSF} SHA-256 candidate {hashlib.sha256(qsf_b).hexdigest()}')
+    rtl_a, digest_a = rtl_inventory(inputs_a)
+    rtl_b, digest_b = rtl_inventory(inputs_b)
+    print(f'  raw RTL inventory SHA-256 main {digest_a} ({len(rtl_a)} files)')
+    print(f'  raw RTL inventory SHA-256 candidate {digest_b} ({len(rtl_b)} files)')
+    if qsf_a != qsf_b:
+        raise ValueError(f'raw compiler QSF {QUARTUS_QSF} differs')
+    differing = sorted(path for path in rtl_a.keys() | rtl_b.keys()
+                       if inputs_a.get(Path(path)) != inputs_b.get(Path(path)))
+    if differing:
+        raise ValueError(f'raw project RTL differs in {differing}')
+    print('  compiler QSF and all staged and generated RTL are cmp-equal')
+
+
+def normalise_paths(data, product):
+    data = data.replace(str(product).encode(), b'<build-output>')
+    return data.replace(str(product.parents[2]).encode(), b'<source-module>')
 
 
 def exported_package(store, record):
@@ -111,8 +143,13 @@ def compare_products(a, b):
     if summary_b['package_timing_admission'] is not True:
         raise ValueError('candidate did not pass ordinary package timing admission')
     inputs_a, inputs_b = project_inputs(a), project_inputs(b)
-    differing = sorted(path.as_posix() for path in inputs_a.keys() | inputs_b.keys()
-                       if inputs_a.get(path) != inputs_b.get(path))
+    same_native_inputs(inputs_a, inputs_b)
+    different_paths = inputs_a.keys() ^ inputs_b.keys()
+    same_paths = inputs_a.keys() & inputs_b.keys()
+    raw_differences = {path for path in same_paths if inputs_a[path] != inputs_b[path]}
+    differences = {path for path in raw_differences
+                   if normalise_paths(inputs_a[path], a) != normalise_paths(inputs_b[path], b)}
+    differing = sorted(path.as_posix() for path in different_paths | differences)
     if differing:
         raise ValueError(f'project inputs differ in {differing}')
     rbf_a, rbf_b = (a / 'core.rbf').read_bytes(), (b / 'core.rbf').read_bytes()
@@ -130,6 +167,7 @@ def compare_products(a, b):
         raise ValueError('candidate manifest differs from the admitted payload or build record')
     print(f'  main {record_a["revision"]}, candidate {record_b["revision"]}')
     print(f'  same BUILD_ID {design[:32]} and {len(inputs_a)} project inputs after path normalization')
+    print(f'  project inputs with path differences only {sorted(path.as_posix() for path in raw_differences)}')
     print(f'  same toolchain identity {toolchain}')
     print(f'  cmp-equal RBF {digest}, candidate admitted and sealed as {package.name}')
 
