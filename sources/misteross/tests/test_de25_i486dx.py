@@ -239,6 +239,9 @@ class De25SystemBenchTest(unittest.TestCase):
                 system, modules = self.elaborate(model)
                 for name, value in identity.items():
                     self.assertEqual(system.get(name), value, name)
+                # Its guest rates are the model's own, as the producer synthesizes them, not the DE10's.
+                for name, value in producer.guest_rates(model).items():
+                    self.assertEqual(system.get(name), value, name)
                 if model == producer.DX_MODEL:
                     self.assertEqual(identity['X87_PRESENT'], 1)
                     # The DX's CPU and its two-way L1s, and none of the integer core's.

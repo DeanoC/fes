@@ -15,6 +15,7 @@ testbench is this board's. Host-only: no kit, package or routed result.
 from pathlib import Path
 import argparse
 import importlib
+import importlib.util
 import json
 import os
 import re
@@ -57,14 +58,19 @@ def derived_sources(output: Path, model: str = MODELS[0]) -> dict[Path, Path]:
 
 
 def system_testbench(args) -> Path:
-    """system_tb on pc386_de25_sim, at the sealed rates, as sim.system_testbench builds pc386_system."""
-    from scripts import pc386_quartus as producer
+    """system_tb on pc386_de25_sim, at the model's own DE25 rates, as sim.system_testbench builds pc386_system."""
+    # The producer's own module, loaded here and not at import: it brings the board and the toolchain with it.
+    spec = importlib.util.spec_from_file_location('de25_pc386_build', HERE / 'build.py')
+    build = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build)
     images = sim.firmware.images(args.download, args.jobs)
     rom = sim.firmware.write_rom_hex(images)
-    # The model's CPU identity and 387 (build.py I486; X87_PRESENT 1 for the 486DX, 0 for the 486SX), both set
-    # explicitly rather than by the top's defaults; pc386_de25_sim passes both to pc386_system
-    # (tests/test_de25_i486dx.py elaborates them).
-    parameters = {**producer.guest_rates(producer.SYSTEM_CLOCK_HZ), 'ROM_HEX': f'"{rom}"', 'I486': f"1'b{I486}",
+    # The model's parameters as the producer elaborates them (build.py machine_parameters: its guest rates at
+    # its own machine clock, the CPU identity, and for the 486DX the 387), except that the top declares I486
+    # as a bit; pc386_de25_sim passes them to pc386_system (tests/test_de25_i486dx.py elaborates them).
+    # The 486SX's X87_PRESENT is pc386_system's own 0, which the producer leaves unset; the bench's top
+    # defaults to 1, so the bench sets it for both models.
+    parameters = {**build.machine_parameters(args.model), 'ROM_HEX': f'"{rom}"', 'I486': f"1'b{I486}",
                   'X87_PRESENT': 1 if args.model == '486dx' else 0}
     # Under rtl/, so the bench's .vlt waivers for those files apply as they do on the DE10.
     swap = derived_sources(sim.OUTPUT / 'derived' / 'rtl', args.model)
