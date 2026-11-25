@@ -109,12 +109,22 @@ type wiredGamepadSlot struct {
 	active bool
 	// reported is set by the first decoded report since attach. Until then
 	// the slot's state is unknown, so GamepadNeutral stays false.
-	reported bool
-	addr     uint8
-	iface    uint8
-	pipe     usb.Pipe
-	decoder  *usb.Gamepad
-	state    usb.GamepadState
+	reported     bool
+	addr         uint8
+	iface        uint8
+	kind         controllers.Kind
+	pipe         usb.Pipe
+	outPipe      usb.Pipe
+	decoder      *usb.Gamepad
+	state        usb.GamepadState
+	ctrlState    controllers.State
+	home         bool
+	switchCal    controllers.SwitchStickCal
+	initStep     uint8
+	initNextTry  time.Time
+	initAttempts uint8
+	txSeq        uint8
+	outPending   bool
 }
 
 // Hub supervises wired USB boot keyboards, wired USB HID gamepads, and one
@@ -146,6 +156,7 @@ type Hub struct {
 
 	pollBuf     [usb.MaxHIDReportBytes]byte
 	descBuf     [usb.MaxConfigurationBytes]byte
+	txBuf       [usb.MaxHIDReportBytes]byte
 	initialized bool
 
 	bondRetryAt    time.Time
@@ -498,6 +509,12 @@ func (h *Hub) Service() error {
 		if !h.wiredGamepads[i].active {
 			continue
 		}
+		if h.serviceWiredInit(i) {
+			return nil
+		}
+		if !h.wiredGamepads[i].active {
+			continue
+		}
 		for p := 0; p < maxPollsPerSlot; p++ {
 			n, err := h.wiredGamepads[i].pipe.PollInto(h.pollBuf[:])
 			if err != nil {
@@ -510,13 +527,9 @@ func (h *Hub) Service() error {
 			if n == 0 {
 				break
 			}
-			state, changed, feedErr := h.wiredGamepads[i].decoder.Feed(h.pollBuf[:n])
-			if feedErr == nil {
-				h.wiredGamepads[i].reported = true
-			}
-			if feedErr == nil && changed {
-				h.wiredGamepads[i].state = state
-				h.recomputeGamepad()
+			h.feedWiredGamepadPacket(i, h.pollBuf[:n])
+			if !h.wiredGamepads[i].active {
+				break
 			}
 		}
 	}
@@ -528,7 +541,18 @@ func (h *Hub) attachDevice(dev usb.BusDevice) {
 		return
 	}
 	for _, iface := range dev.Config.Interfaces {
-		if iface.AlternateSetting != 0 || iface.Class != 3 {
+		if iface.AlternateSetting != 0 {
+			continue
+		}
+		if iface.Class == 0xff && iface.SubClass == 0x5d && iface.Protocol == 0x01 {
+			h.attachWiredNativeController(dev.Address, iface, controllers.KindXInput)
+			continue
+		}
+		if iface.Class == 0xff && iface.SubClass == 0x47 && iface.Protocol == 0xd0 {
+			h.attachWiredNativeController(dev.Address, iface, controllers.KindXboxGIP)
+			continue
+		}
+		if iface.Class != 3 {
 			continue
 		}
 		if iface.SubClass == 1 && iface.Protocol == 1 {
@@ -537,6 +561,10 @@ func (h *Hub) attachDevice(dev usb.BusDevice) {
 		}
 		if iface.SubClass == 1 && iface.Protocol == 2 {
 			continue // Boot mouse is out of scope for Tenfoot/core input.
+		}
+		if kind := controllers.IdentifyByVIDPID(dev.Descriptor.VendorID, dev.Descriptor.ProductID); kind != controllers.KindUnknown {
+			h.attachWiredNativeController(dev.Address, iface, kind)
+			continue
 		}
 		h.attachWiredGamepad(dev.Address, iface)
 	}
@@ -601,6 +629,24 @@ func (h *Hub) attachWiredKeyboard(addr uint8, iface usb.InterfaceDescriptor) {
 	})
 }
 
+func (h *Hub) findFreeWiredGamepadSlot(addr, iface uint8) (int, bool) {
+	free := -1
+	for i := range h.wiredGamepads {
+		slot := &h.wiredGamepads[i]
+		if slot.active {
+			if slot.addr == addr && slot.iface == iface {
+				return -1, false
+			}
+		} else if free < 0 {
+			free = i
+		}
+	}
+	if free < 0 {
+		return -1, false
+	}
+	return free, true
+}
+
 func (h *Hub) attachWiredGamepad(addr uint8, iface usb.InterfaceDescriptor) {
 	if iface.HIDReportBytes == 0 || iface.HIDReportBytes > usb.MaxConfigurationBytes {
 		return
@@ -609,18 +655,8 @@ func (h *Hub) attachWiredGamepad(addr uint8, iface usb.InterfaceDescriptor) {
 	if !ok || ep.MaxPacketSize == 0 || ep.MaxPacketSize > usb.MaxHIDReportBytes {
 		return
 	}
-	free := -1
-	for i := range h.wiredGamepads {
-		slot := &h.wiredGamepads[i]
-		if slot.active {
-			if slot.addr == addr && slot.iface == iface.Number {
-				return
-			}
-		} else if free < 0 {
-			free = i
-		}
-	}
-	if free < 0 {
+	free, ok := h.findFreeWiredGamepadSlot(addr, iface.Number)
+	if !ok {
 		return
 	}
 	n, err := h.bus.ControlTransfer(addr, 0x81, 0x06, 0x2200, uint16(iface.Number), h.descBuf[:iface.HIDReportBytes])
@@ -639,6 +675,7 @@ func (h *Hub) attachWiredGamepad(addr uint8, iface usb.InterfaceDescriptor) {
 		active:  true,
 		addr:    addr,
 		iface:   iface.Number,
+		kind:    controllers.KindGenericHID,
 		pipe:    pipe,
 		decoder: decoder,
 		state:   usb.GamepadState{Hat: -1},
@@ -648,7 +685,273 @@ func (h *Hub) attachWiredGamepad(addr uint8, iface usb.InterfaceDescriptor) {
 		Address:   addr,
 		Interface: iface.Number,
 		Slot:      uint8(free),
+		Name:      controllers.KindGenericHID.String(),
 	})
+}
+
+func (h *Hub) attachWiredNativeController(addr uint8, iface usb.InterfaceDescriptor, kind controllers.Kind) {
+	inEP, ok := iface.FindEndpoint(usb.TransferInterrupt, true)
+	if !ok || inEP.MaxPacketSize == 0 || inEP.MaxPacketSize > usb.MaxHIDReportBytes {
+		return
+	}
+	free, ok := h.findFreeWiredGamepadSlot(addr, iface.Number)
+	if !ok {
+		return
+	}
+	inPipe, err := h.bus.OpenPipe(addr, inEP)
+	if err != nil {
+		return
+	}
+	var outPipe usb.Pipe
+	if outEP, ok := iface.FindEndpoint(usb.TransferInterrupt, false); ok && outEP.MaxPacketSize > 0 && outEP.MaxPacketSize <= usb.MaxHIDReportBytes {
+		outPipe, err = h.bus.OpenPipe(addr, outEP)
+		if err != nil {
+			_ = inPipe.Close()
+			return
+		}
+	}
+	h.wiredGamepads[free] = wiredGamepadSlot{
+		active:  true,
+		addr:    addr,
+		iface:   iface.Number,
+		kind:    kind,
+		pipe:    inPipe,
+		outPipe: outPipe,
+		state:   usb.GamepadState{Hat: -1},
+	}
+	h.emit(DeviceEvent{
+		Kind:      EventGamepadAttached,
+		Address:   addr,
+		Interface: iface.Number,
+		Slot:      uint8(free),
+		Name:      kind.String(),
+	})
+}
+
+func (h *Hub) writeSlotPacket(slotIdx int, pkt []byte) bool {
+	slot := &h.wiredGamepads[slotIdx]
+	if !slot.active || slot.outPipe == nil || slot.outPending || len(pkt) == 0 {
+		return false
+	}
+	err := slot.outPipe.Write(pkt)
+	if err == nil {
+		slot.outPending = true
+		return true
+	}
+	if errors.Is(err, usbcontrol.ErrTransition) || errors.Is(err, usbcontrol.ErrBusy) {
+		return false
+	}
+	h.closeWiredGamepad(slotIdx)
+	return false
+}
+
+func (h *Hub) serviceWiredInit(slotIdx int) (paused bool) {
+	slot := &h.wiredGamepads[slotIdx]
+	if !slot.active || slot.outPipe == nil {
+		return false
+	}
+	if slot.outPending {
+		done, err := slot.outPipe.WriteDone()
+		if err != nil {
+			if errors.Is(err, usbcontrol.ErrTransition) || errors.Is(err, usbcontrol.ErrBusy) {
+				return true
+			}
+			h.closeWiredGamepad(slotIdx)
+			return false
+		}
+		if !done {
+			return false
+		}
+		slot.outPending = false
+	}
+	now := h.cfg.Now()
+	if !slot.initNextTry.IsZero() && now.Before(slot.initNextTry) {
+		return false
+	}
+	switch slot.kind {
+	case controllers.KindXInput:
+		if slot.initStep == 0 {
+			n := controllers.BuildXInputLED(h.txBuf[:], uint8(slotIdx))
+			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+				slot.initStep = 1
+			}
+		}
+	case controllers.KindXboxGIP:
+		if slot.initStep == 0 {
+			n := controllers.BuildXboxGIPPowerOn(h.txBuf[:], slot.txSeq)
+			slot.txSeq++
+			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+				slot.initStep = 1
+			}
+		}
+	case controllers.KindDualSense:
+		if slot.initStep == 0 {
+			n := controllers.BuildDualSenseUSBOutput(h.txBuf[:], uint8(slotIdx), 0, 0)
+			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+				slot.initStep = 1
+			}
+		}
+	case controllers.KindDualShock4:
+		if slot.initStep == 0 {
+			n := controllers.BuildDualShock4USBOutput(h.txBuf[:], uint8(slotIdx), 0, 0)
+			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+				slot.initStep = 1
+			}
+		}
+	case controllers.KindSwitchPro:
+		switch slot.initStep {
+		case 0:
+			if slot.initAttempts >= 10 {
+				slot.initStep = 1
+				slot.initAttempts = 0
+				slot.initNextTry = time.Time{}
+				return false
+			}
+			n := controllers.BuildSwitchProUSBHandshake(h.txBuf[:])
+			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+				slot.initAttempts++
+				slot.initNextTry = now.Add(100 * time.Millisecond)
+			}
+		case 1:
+			n := controllers.BuildSwitchProUSBEnableHID(h.txBuf[:])
+			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+				slot.initStep = 2
+				slot.initAttempts = 0
+				slot.initNextTry = time.Time{}
+			}
+		case 2:
+			if slot.switchCal.Valid || slot.initAttempts >= 5 {
+				slot.initStep = 3
+				slot.initAttempts = 0
+				slot.initNextTry = time.Time{}
+				return false
+			}
+			n := controllers.BuildSwitchProReadCalibration(h.txBuf[:], slot.txSeq&0x0f)
+			slot.txSeq++
+			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+				slot.initAttempts++
+				slot.initNextTry = now.Add(100 * time.Millisecond)
+			}
+		case 3:
+			n := controllers.BuildSwitchProSetFullMode(h.txBuf[:], slot.txSeq&0x0f)
+			slot.txSeq++
+			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+				slot.initStep = 4
+			}
+		case 4:
+			n := controllers.BuildSwitchProSetPlayerLEDs(h.txBuf[:], slot.txSeq&0x0f, uint8(slotIdx))
+			slot.txSeq++
+			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+				slot.initStep = 5
+			}
+		}
+	}
+	return false
+}
+
+func (h *Hub) feedWiredGamepadPacket(slotIdx int, pkt []byte) {
+	slot := &h.wiredGamepads[slotIdx]
+	if slot.kind == controllers.KindGenericHID {
+		state, changed, feedErr := slot.decoder.Feed(pkt)
+		if feedErr == nil {
+			slot.reported = true
+			if changed {
+				slot.state = state
+				h.recomputeGamepad()
+			}
+		}
+		return
+	}
+
+	var updated bool
+	switch slot.kind {
+	case controllers.KindXInput:
+		updated = controllers.ParseXInput(pkt, &slot.ctrlState)
+	case controllers.KindXboxGIP:
+		var ackSeq uint8
+		var needsAck bool
+		updated, ackSeq, needsAck = controllers.ParseXboxGIPInput(pkt, &slot.ctrlState)
+		if updated && needsAck && slot.outPipe != nil && !slot.outPending {
+			n := controllers.BuildXboxGIPAck(h.txBuf[:], ackSeq, pkt[0], pkt[3])
+			_ = h.writeSlotPacket(slotIdx, h.txBuf[:n])
+			if !slot.active {
+				return
+			}
+		}
+	case controllers.KindDualSense:
+		updated = controllers.ParseDualSenseUSB(pkt, &slot.ctrlState)
+	case controllers.KindDualShock4:
+		updated = controllers.ParseDualShock4USB(pkt, &slot.ctrlState)
+	case controllers.KindSwitchPro:
+		if len(pkt) >= 2 && pkt[0] == 0x81 && pkt[1] == 0x02 {
+			if slot.initStep == 0 {
+				slot.initStep = 1
+				slot.initAttempts = 0
+				slot.initNextTry = time.Time{}
+			}
+			return
+		}
+		if controllers.ParseSwitchProSPICalibration(pkt, &slot.switchCal) && slot.initStep == 2 {
+			slot.initStep = 3
+			slot.initAttempts = 0
+			slot.initNextTry = time.Time{}
+		}
+		updated = controllers.ParseSwitchProInput(pkt, &slot.switchCal, &slot.ctrlState)
+	}
+	if !updated {
+		return
+	}
+	slot.reported = true
+	nextState := slot.ctrlState.ToUSBGamepadState()
+	nextHome := slot.ctrlState.Buttons&controllers.ButtonHome != 0
+	if nextState != slot.state || nextHome != slot.home {
+		slot.state = nextState
+		slot.home = nextHome
+		h.recomputeGamepad()
+	}
+}
+
+// SetWiredRumble sends a rumble/LED packet to a wired native controller slot (0..3).
+func (h *Hub) SetWiredRumble(slotIdx uint8, leftHeavy, rightLight uint8) error {
+	if h == nil || slotIdx >= maxWiredGamepads {
+		return errors.New("usbhub: invalid wired gamepad slot")
+	}
+	slot := &h.wiredGamepads[slotIdx]
+	if !slot.active || slot.outPipe == nil {
+		return errors.New("usbhub: wired controller output unavailable")
+	}
+	if slot.outPending {
+		done, err := slot.outPipe.WriteDone()
+		if err != nil {
+			return err
+		}
+		if !done {
+			return errors.New("usbhub: wired output pipe busy")
+		}
+		slot.outPending = false
+	}
+	var n int
+	switch slot.kind {
+	case controllers.KindXInput:
+		n = controllers.BuildXInputRumble(h.txBuf[:], leftHeavy, rightLight)
+	case controllers.KindXboxGIP:
+		n = controllers.BuildXboxGIPRumble(h.txBuf[:], slot.txSeq, leftHeavy, rightLight)
+		slot.txSeq++
+	case controllers.KindDualSense:
+		n = controllers.BuildDualSenseUSBOutput(h.txBuf[:], slotIdx, rightLight, leftHeavy)
+	case controllers.KindDualShock4:
+		n = controllers.BuildDualShock4USBOutput(h.txBuf[:], slotIdx, rightLight, leftHeavy)
+	default:
+		return errors.New("usbhub: rumble unsupported on this wired device")
+	}
+	if n == 0 {
+		return errors.New("usbhub: failed to build rumble packet")
+	}
+	if err := slot.outPipe.Write(h.txBuf[:n]); err != nil {
+		return err
+	}
+	slot.outPending = true
+	return nil
 }
 
 func (h *Hub) closeWiredKeyboard(idx int) {
@@ -675,9 +978,12 @@ func (h *Hub) closeWiredGamepad(idx int) {
 	if !slot.active {
 		return
 	}
-	addr, iface := slot.addr, slot.iface
+	addr, iface, kind := slot.addr, slot.iface, slot.kind
 	if slot.pipe != nil {
 		_ = slot.pipe.Close()
+	}
+	if slot.outPipe != nil {
+		_ = slot.outPipe.Close()
 	}
 	*slot = wiredGamepadSlot{state: usb.GamepadState{Hat: -1}}
 	h.recomputeGamepad()
@@ -686,6 +992,7 @@ func (h *Hub) closeWiredGamepad(idx int) {
 		Address:   addr,
 		Interface: iface,
 		Slot:      uint8(idx),
+		Name:      kind.String(),
 	})
 }
 
@@ -753,6 +1060,9 @@ func (h *Hub) recomputeGamepad() {
 	for i := range h.wiredGamepads {
 		if h.wiredGamepads[i].active {
 			mergeState(h.wiredGamepads[i].state)
+			if h.wiredGamepads[i].home {
+				home = true
+			}
 		}
 	}
 	for i := range h.btGamepads {
