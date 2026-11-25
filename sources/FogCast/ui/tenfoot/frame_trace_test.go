@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/menudisplay"
@@ -39,6 +40,30 @@ func TestKeyRoutingTraceIsOptInBoundedAndDoesNotRecordKeys(t *testing.T) {
 			t.Fatalf("trace records %s", forbidden)
 		}
 	}
+}
+
+func TestFrameTraceRecordsListComparisonOutcome(t *testing.T) {
+	f := newFrameTrace()
+	started := time.Unix(123, 456000)
+	f.listCompare(gfx.MenuListCompareTrace{Started: started, Duration: 17 * time.Nanosecond, Commands: 42, Equal: true})
+	f.listCompare(gfx.MenuListCompareTrace{Started: started, Duration: 25 * time.Nanosecond, Commands: 7})
+	records := f.records()
+	if len(records) != 2 || records[0].Kind != "list-compare" || records[0].T != started.UnixMicro() ||
+		records[0].CompareNS != 17 || records[0].CompareCommands != 42 || records[0].CompareResult != "equal" ||
+		records[1].CompareNS != 25 || records[1].CompareCommands != 7 || records[1].CompareResult != "changed" {
+		t.Fatalf("comparison trace = %+v", records)
+	}
+}
+
+func BenchmarkFrameTraceListComparison(b *testing.B) {
+	f := newFrameTrace()
+	c := gfx.MenuListCompareTrace{Started: time.Unix(100, 0), Duration: time.Microsecond, Commands: 42, Equal: true}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		f.listCompare(c)
+	}
+	b.ReportMetric(float64(unsafe.Sizeof(frameTraceRecord{}))*frameTraceCap, "ring-B")
 }
 
 func TestFrameTraceRingWrapsAndDumpsJSONLines(t *testing.T) {

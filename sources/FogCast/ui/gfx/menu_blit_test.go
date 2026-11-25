@@ -509,6 +509,50 @@ func TestMenuDisplayResubmitsAnUnchangedListFrame(t *testing.T) {
 	}
 }
 
+func TestMenuDisplayTracesOnlyActualListComparisons(t *testing.T) {
+	client := newBlitTestClient(true)
+	d, err := NewMenuDisplayWithPresenter(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	d.SetChangeDriven(true)
+	var comparisons []MenuListCompareTrace
+	d.SetListCompareTraceSink(func(trace MenuListCompareTrace) {
+		// Calling back into the display must not deadlock on its mutex.
+		_ = d.QueuedSeq()
+		comparisons = append(comparisons, trace)
+	})
+	paint := func(c Color) {
+		d.Clear(RGB(4, 5, 6))
+		d.FillRect(Rect{X: 10, Y: 10, W: 10, H: 10}, c)
+		d.Present()
+		waitIdle(t, d)
+	}
+	red := RGB(255, 0, 0)
+	// The initial CPU frame and transition to a list compare no two lists.
+	paint(red)
+	paint(red)
+	if len(comparisons) != 0 {
+		t.Fatalf("non-list comparisons traced: %+v", comparisons)
+	}
+	paint(red)
+	paint(RGB(0, 255, 0))
+	if len(comparisons) != 2 || !comparisons[0].Equal || comparisons[1].Equal {
+		t.Fatalf("list comparison outcomes: %+v", comparisons)
+	}
+	for _, c := range comparisons {
+		if c.Started.IsZero() || c.Duration < 0 || c.Commands != 2 {
+			t.Fatalf("invalid comparison trace: %+v", c)
+		}
+	}
+	d.SetListCompareTraceSink(nil)
+	paint(RGB(0, 255, 0))
+	if len(comparisons) != 2 {
+		t.Fatal("disabled comparison sink received an event")
+	}
+}
+
 func TestFrameCacheBackdropOnListFrames(t *testing.T) {
 	client := newBlitTestClient(true)
 	r := rand.New(rand.NewPCG(11, 4))

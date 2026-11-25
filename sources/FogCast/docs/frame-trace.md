@@ -19,6 +19,7 @@ Each JSON line has `kind`:
   - `view`: `attract`, `now-playing`, `room:<id>`, or `library`, matching the frame that was drawn
   - `queued`/`seq`, when it produced a new menu frame
 - **`input`:** a command (`cmd`) as `HandleCommand` received it.
+- **`list-compare`:** an actual comparison of two menu-blitter command lists on the render thread. `t_us` is its start, `compare_ns` is the comparison duration in nanoseconds, `compare_commands` is the current list length, and `compare_result` is `equal` or `changed`. A zero duration or empty list can omit its numeric field. The record excludes drawing and queue work, CPU framebuffer comparisons, revision checks and calls that return before a comparison. It is written even when an equal list is not submitted.
 - **`present`:** one frame the menu-display worker handled:
   - the render-thread hand-over of the frame (`frame_copy_us`): a framebuffer swap, so near zero; older traces copied the whole frame here. A frame that does not start with Clear copies the previous frame back while it draws, inside render time
   - queue wait
@@ -39,11 +40,18 @@ When the existing shortcut fallback retries a frame, `retry_from_error` and
 ordinary error, timing and presented fields continue to describe the final
 attempt; the retry detail does not acknowledge the failed attempt.
 
-The ring holds 16,384 records, which is several minutes at the 30 Hz loop. Each
+The ring holds 16,384 records; a steady 30 Hz list-comparison trace adds one
+record beside each rendered tick and therefore holds about four minutes. Each
 dump writes a new `fogcast-frame-trace-<pid>-<n>-<utc>.jsonl` to
 `$FOGCAST_FRAME_TRACE_DIR` (default the temp directory, `/tmp` on a kit) and
 prints that path on stderr. Earlier dumps stay on disk. The ring is kept, so
 consecutive files overlap in time.
+
+On a 64-bit host the comparison fields add 32 bytes per ring entry (512 KiB
+in total). In a local amd64 benchmark, the timing hook added roughly
+90–145 ns per settled two-command comparison and recording into the ring
+took 41–70 ns, with no additional allocations. These host measurements do not
+establish the overhead on the ARM kit.
 
 On an unsupervised development launcher, `SIGUSR1` requests a dump. Send it
 only to a tenfoot that includes the handler; older binaries may terminate.

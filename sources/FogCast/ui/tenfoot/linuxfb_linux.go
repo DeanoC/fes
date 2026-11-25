@@ -243,6 +243,7 @@ func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string
 	processStart, _ := keyTraceProcessStart()
 	if display, ok := dev.(*gfx.MenuDisplay); ok {
 		display.SetTraceSink(trace.present)
+		display.SetListCompareTraceSink(trace.listCompare)
 	}
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGUSR1)
@@ -290,6 +291,7 @@ func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string
 			<-stopped
 			if display, ok := dev.(*gfx.MenuDisplay); ok {
 				display.SetTraceSink(nil)
+				display.SetListCompareTraceSink(nil)
 			}
 			app.mu.Lock()
 			app.diagnosticSurroundUntil = time.Time{}

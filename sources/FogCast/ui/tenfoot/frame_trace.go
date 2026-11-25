@@ -39,6 +39,11 @@ type frameTraceRecord struct {
 	Queued      bool   `json:"queued,omitempty"`
 	View        string `json:"view,omitempty"`
 
+	// list-compare: the actual command-list comparison, not the whole render.
+	CompareNS       int64  `json:"compare_ns,omitempty"`
+	CompareCommands int    `json:"compare_commands,omitempty"`
+	CompareResult   string `json:"compare_result,omitempty"`
+
 	// input
 	Cmd string `json:"cmd,omitempty"`
 
@@ -176,6 +181,14 @@ func (f *frameTrace) keyRouting(now time.Time, route string, source int, epoch u
 
 func (f *frameTrace) input(cmd Command, now time.Time) {
 	f.add(frameTraceRecord{T: now.UnixMicro(), Kind: "input", Cmd: cmd.String()})
+}
+
+func (f *frameTrace) listCompare(p gfx.MenuListCompareTrace) {
+	result := "changed"
+	if p.Equal {
+		result = "equal"
+	}
+	f.add(frameTraceRecord{T: p.Started.UnixMicro(), Kind: "list-compare", CompareNS: p.Duration.Nanoseconds(), CompareCommands: p.Commands, CompareResult: result})
 }
 
 // present is the gfx.MenuDisplay trace sink.
