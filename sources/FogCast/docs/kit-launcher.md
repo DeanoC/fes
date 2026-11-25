@@ -136,7 +136,7 @@ kit.
 
 ## Physical controls
 
-Tenfoot's native input (`ui/tenfoot/linuxfb_linux.go`, `-input auto`) opens
+Tenfoot's native input (`ui/tenfoot/linuxfb_devices_linux.go`, `-input auto`) opens
 evdev devices that `ui/controller` admits: `controller.Eligible` for gamepads
 and `controller.EligibleMouse` for mice. The virtual FogCast device
 (`BUS_VIRTUAL` / `FogCast Virtual Gamepad`), other virtual-bus nodes and
