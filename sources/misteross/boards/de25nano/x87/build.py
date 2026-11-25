@@ -106,7 +106,7 @@ def prepare(output: Path | None = None) -> Path:
                    ("TOP_LEVEL_ENTITY", "fes_x87_pipe"),
                    ("PROJECT_OUTPUT_DIRECTORY", "output_files"),
                    ("LAST_QUARTUS_VERSION", f'"{metadata["qsf_version"]}"'),
-                   ("NUM_PARALLEL_PROCESSORS", "2"), ("SEED", "1"),
+                   ("NUM_PARALLEL_PROCESSORS", "8"), ("SEED", "1"),
                    ("SDC_FILE", "clocks.sdc"))
     # Retain a real primary clock input for clock-tree fitting. Every data and
     # control port is virtual; the resulting fit has no DE25 pinout contract.

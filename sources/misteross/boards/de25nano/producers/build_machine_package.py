@@ -161,7 +161,7 @@ class Machine:
                 'fifo_reset_sharing': common.SHARED_FIFO_RESETS,
                 'f2s_data_width': 0, 'f2sdram_data_width': 256, 'scanout_master_data_width': 128,
                 'hps_warm_reset_handshake': True, 'reset_timing_policy': common.TIMED_RESET_RELEASE,
-                'signoff_policy': async_inputs.POLICY, 'seed': 1, 'threads': 2,
+                'signoff_policy': async_inputs.POLICY, 'seed': 1, 'threads': 8,
                 'hdmi_output_policy': async_inputs.vendor_reference.POLICY,
                 'hdmi_video_timing_policy': async_inputs.video_outputs.POLICY,
                 'hdmi_output_reset_review_policy': async_inputs.output_reset.POLICY,

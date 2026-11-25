@@ -98,6 +98,7 @@ class MachineProducerTests(unittest.TestCase):
             with self.subTest(core=producer.MACHINE.core_id, model=model):
                 record = self.record(producer, model)
                 parameters = verify_record_source_at_revision(self.root, record)['parameters']
+                self.assertEqual(parameters['threads'], 8)
                 self.assertEqual(parameters['core_id'], core_id)
                 self.assertEqual(parameters['rom_id'], rom_id)
                 self.assertEqual((parameters['model'], parameters['firmware_bytes']), (model, size))
