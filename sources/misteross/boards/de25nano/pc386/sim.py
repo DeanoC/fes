@@ -64,6 +64,13 @@ def system_testbench(args) -> Path:
     return sim.OUTPUT / 'system' / 'obj' / 'Vpc386_system'
 
 
+def lit_raster_completed_after_prompt(frame: dict) -> bool:
+    """Require a fresh complete lit raster after the bench sees the prompt."""
+    prompt_rasters = frame.get('prompt_rasters', -1)
+    return (prompt_rasters >= 0 and frame.get('rasters', 0) > prompt_rasters
+            and frame.get('nonblack', 0) >= 10000)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--download', action='store_true')
@@ -80,11 +87,11 @@ def main() -> int:
     except (sim.SimError, OSError) as error:
         print(f'FAIL de25 system: {error}', file=sys.stderr)
         return 1
-    # The machine's own video, through the window: a complete 720p raster at
-    # the prompt with text on it (Kit D25 showed black, #2214).
+    # The machine's own video, through the window: a complete lit raster after
+    # the bench sees the prompt (Kit D25 showed black, #2214).
     frame = report.get('frame') or {}
-    if not frame.get('rasters') or frame.get('nonblack', 0) < 10000:
-        report['failures'].append(f'no lit 720p raster of the machine video at the prompt: {frame}')
+    if not lit_raster_completed_after_prompt(frame):
+        report['failures'].append(f'no lit 720p raster of the machine video completed after the prompt: {frame}')
     (sim.OUTPUT / 'system').mkdir(parents=True, exist_ok=True)
     (sim.OUTPUT / 'system' / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     for row in report['screen']:

@@ -240,6 +240,7 @@ private:
     unsigned raster_x = 0, raster_y = 0;
     bool raster_started = false, raster_last_de = false, raster_last_vs = false;
     uint64_t rasters = 0, video_de_edges = 0, video_vs_edges = 0;
+    long long prompt_rasters = -1;
     void raster_edge(uint32_t word) {
         bool de = word & (1u << 24), vs = word & (1u << 26);
         if (vs && !raster_last_vs) {
@@ -258,8 +259,9 @@ private:
     void report_raster() {
         uint64_t lit = 0;
         for (uint32_t px : last_raster) lit += px != 0;
-        std::printf("FRAME rasters=%llu vs_edges=%llu de_edges=%llu nonblack=%llu\n", (unsigned long long)rasters,
-                    (unsigned long long)video_vs_edges, (unsigned long long)video_de_edges, (unsigned long long)lit);
+        std::printf("FRAME rasters=%llu prompt_rasters=%lld vs_edges=%llu de_edges=%llu nonblack=%llu\n",
+                    (unsigned long long)rasters, prompt_rasters, (unsigned long long)video_vs_edges,
+                    (unsigned long long)video_de_edges, (unsigned long long)lit);
         const char *out = std::getenv("FES_PC386_FRAME_OUT");
         if (!out || last_raster.empty()) return;
         std::ofstream f(out, std::ios::binary);
@@ -864,7 +866,7 @@ private:
         if (!booted && cycles - last_screen >= clock_hz / 20) {
             last_screen = cycles;
             bool shown = last_row() == prompt;
-            if (shown && prompt_seen) reason = "prompt";
+            if (shown && prompt_seen) { reason = "prompt"; prompt_rasters = static_cast<long long>(rasters); }
             else if (shown) std::printf("PROMPT %llu\n", (unsigned long long)cycles);
             prompt_seen = shown;
         }
