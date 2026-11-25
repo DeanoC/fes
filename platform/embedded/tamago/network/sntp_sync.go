@@ -253,6 +253,17 @@ func (s *SNTPSyncer) enqueueCallbackLocked(fn func()) {
 	}
 }
 
+func (s *SNTPSyncer) drainCallbacks() {
+	for {
+		select {
+		case fn := <-s.cbCh:
+			fn()
+		default:
+			return
+		}
+	}
+}
+
 func (s *SNTPSyncer) runCallbacks() {
 	s.cbGID.Store(currentGoroutineID())
 	defer func() {
@@ -260,20 +271,10 @@ func (s *SNTPSyncer) runCallbacks() {
 		close(s.cbDone)
 		s.cbWg.Done()
 	}()
-	drain := func() {
-		for {
-			select {
-			case fn := <-s.cbCh:
-				fn()
-			default:
-				return
-			}
-		}
-	}
 	for {
 		select {
 		case <-s.stopCh:
-			drain()
+			s.drainCallbacks()
 			return
 		case fn := <-s.cbCh:
 			fn()
@@ -491,10 +492,15 @@ func (s *SNTPSyncer) run(ctx context.Context) {
 
 // Stop halts the background SNTP discipline loop and waits for all in-flight
 // queries, active WallClockSink.Sync calls, and queued callback worker work to
-// finish before returning. Safe to call multiple times, without Start, or
-// synchronously from WallClockSink.Sync, OnSync, or OnError callbacks without
-// deadlocking.
+// finish before returning. When called synchronously from an OnSync/OnError
+// callback, Stop waits for queries/sinks and drains all already-queued
+// callbacks before returning; when called synchronously from WallClockSink.Sync,
+// Stop signals shutdown without waiting on itself to avoid deadlock. Safe to
+// call multiple times or without Start.
 func (s *SNTPSyncer) Stop() {
+	if s == nil {
+		return
+	}
 	s.mu.Lock()
 	if !s.stopped {
 		s.stopped = true
@@ -510,7 +516,9 @@ func (s *SNTPSyncer) Stop() {
 	s.sinkWg.Wait()
 	if gid == 0 || gid != s.cbGID.Load() {
 		s.cbWg.Wait()
+		return
 	}
+	s.drainCallbacks()
 }
 
 // Status returns a snapshot of the syncer's synchronization state and counters.

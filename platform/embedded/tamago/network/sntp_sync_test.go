@@ -528,6 +528,49 @@ func TestSNTPSyncerPlausibilityDefaultMaxStepSerializationAndBoundedCallbacks(t 
 	if got := queuedCalls.Load(); got != 4 {
 		t.Fatalf("Stop dropped queued callbacks: ran %d of 4", got)
 	}
+
+	// 7. Callback-local Stop drains later already-queued callbacks before Stop returns.
+	var cb1Entered = make(chan struct{})
+	var cb2Queued = make(chan struct{})
+	var cbCount atomic.Int32
+	var seenCountInsideStop int32
+	var cbStopReturned = make(chan struct{})
+	var sSelfDrain *SNTPSyncer
+	sSelfDrain, err = NewSNTPSyncer(nil, SNTPSyncConfig{
+		DisableMaxStep: true,
+		Query: func(context.Context, SNTPConfig) (SNTPResult, error) {
+			return SNTPResult{Time: validEpoch, Stratum: 1}, nil
+		},
+		OnSync: func(SNTPResult) {
+			n := cbCount.Add(1)
+			if n == 1 {
+				close(cb1Entered)
+				<-cb2Queued
+				sSelfDrain.Stop()
+				seenCountInsideStop = cbCount.Load()
+				close(cbStopReturned)
+			}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sSelfDrain.SyncOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	<-cb1Entered
+	if _, err := sSelfDrain.SyncOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	close(cb2Queued)
+	select {
+	case <-cbStopReturned:
+	case <-time.After(2 * time.Second):
+		t.Fatal("callback-local Stop deadlocked")
+	}
+	if seenCountInsideStop != 2 {
+		t.Fatalf("callback-local Stop returned before draining cb2: count=%d want 2", seenCountInsideStop)
+	}
 }
 
 type funcSink func(time.Time)
