@@ -4,7 +4,11 @@
 
 package qemuvirt
 
-import "github.com/DeanoC/fes/platform/embedded/tamago/psci"
+import (
+	"context"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/psci"
+)
 
 // PSCI returns the ARM PSCI / SMCCC TRNG client for QEMU virt. When booted
 // with virtualization=on through entry.S (which sets HCR_EL2.HCD=1 to disable
@@ -21,6 +25,11 @@ func PowerOff() error { return PSCI().SystemOff() }
 
 // Reset requests a VM reboot via PSCI_SYSTEM_RESET.
 func Reset() error { return PSCI().SystemReset() }
+
+// Shutdown runs coordinated teardown steps before invoking PSCI reset or power-off.
+func Shutdown(ctx context.Context, action psci.PowerAction, cfg psci.ShutdownConfig) error {
+	return psci.Shutdown(ctx, PSCI(), action, cfg)
+}
 
 // EntropySource reports the active entropy backend discovered at boot.
 func EntropySource() psci.EntropySource { return psci.HardwareEntropySource() }

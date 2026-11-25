@@ -1,105 +1,60 @@
-# Native USB ownership client
+# Native USB ownership client (`usbcontrol/`)
 
-`New` requires a CPU caller and an independently obtained trusted boot owner.
-It accepts only ClosedOnly firmware. `NewSharedPIO` explicitly requires SharedPio
-backed by the compiled cold/master binding. Both initially require held data.
-A fresh query must describe generation zero and a contained controller. It
-cannot adopt a previous active or returned lease. `Open` reserves the prepared
-lease, invokes one synchronous driver factory, then confirms live firmware
-readiness before exposing reports.
+`usbcontrol` wraps DE25-Nano USB0 driver access behind the EL3
+[embedded-usb lease contract](../../../../sources/mister-packages/docs/embedded-usb.md)
+(`0xc2000303`), ensuring firmware releases USB0 resets, validates PIO-only
+ownership, and verifies clean channel drain on close.
 
-Retain the client, source and partial driver until reboot, including constructor
-errors. Factories return partially initialized resources on failure, start no
-background polling and do not re-enter the client. A known prepared lease gets
-one bounded stop on startup failure. A lost or malformed reply retires the
-client without a speculative stop or retry.
+- **Called by:** [board/de25nano](../board/README.md), `cmd/fpgaload`
+  (`shared_usb.go`), [nativefabric](../nativefabric/README.md)
+  (`ProgramInputPlatform` / `ProgramGamepadPlatform`), and `cmd/usbcheck`.
+- **Delegates to:** [dwc2](../dwc2/README.md) (single-device keyboard/gamepad
+  or 16-channel `MultiHost` via `usb.BusHost`) and EL3 `nano_usb_service.c` via
+  SMC `0xc2000303`.
 
-An attempted `Open` failure now wraps its original cause in `StartupFailure`.
-Its stage distinguishes acquisition, driver startup and confirmation. The
-read-only `StopAttempted` and copied `StopReceipt` preserve the outcome of the
-existing cleanup before local retirement. Only a complete successful Stop
-response supplies that historical inactive receipt; missing, malformed, lost or
-failed replies remain unverified. `errors.Is` still finds the original cause
-and terminal retirement. Inspecting the record performs no firmware call and
-does not revive the source/client, release partial resources or authorize a
-retry. A verified Stop is controller containment evidence under the firmware
-contract, not a diagnosis of the missing device or electrical VBUS proof.
-Ordinary no-device boot and hotplug still require a separate input lifecycle;
-this record does not make startup failure optional in the native application.
+## Lease modes and startup
 
-Polling and closing serialize with lease mutations. Cached receipts authorize
-only the source's own generation; they are not fresh hardware observations.
-Stale sources cannot poll or stop replacements. Driver errors latch, drop partial
-reports and prohibit further driver access; closure still attempts one known
-stop. `Close` revokes polling and, for a driver exposing polling control, drains
-its pending report/channel work before invoking firmware Stop. An already
-paused driver is not drained twice. The same lease and operation locks cover
-both steps, so another poll cannot arm a packet between drain and Stop.
-Firmware still independently validates PIO ownership, channel retirement,
-AHB idle and reset readback. A drain error remains latched even if the one known
-firmware cleanup succeeds; it never supplies a usable input source. Previously
-failed drivers are not entered again. Cancellation before a firmware mutation
-keeps the existing known-lease cleanup rule, including the drained state.
+| Constructor | Firmware scope | Use case |
+| --- | --- | --- |
+| `New(cpu, owner)` | `ClosedOnly` | Standalone USB diagnostics (`cmd/usbcheck`) while FPGA bridges stay closed. |
+| `NewSharedPIO(cpu, owner, ...)` | `SharedPio` | Paired native Tenfoot (`cmd/fpgaload`) keeping USB PIO active across SD and MENU ↔ core transitions while data bridges are held. |
 
-The final native Quit previously resumed input after core return and went
-directly to firmware Stop. Register/device tests now require the actual DWC2
-host's pending packet, RX FIFO and channel to be retired before that call, for
-both keyboard and gamepad. The exact previous source fails those unpaused-close
-checks. Actual C shared-firmware tests separately exercise cancellation, stale
-ownership, drain failure, foreign DMA and one-stop/no-replay behavior. These
-checks do not identify the cause of the physical USB error or qualify reset
-recovery of an already panicked runtime.
+1. **Acquire → driver factory → confirm:** Both constructors require a fresh
+   EL3 query showing generation 0 and a contained controller (never adopting an
+   existing lease). `Open*` reserves the prepared lease, runs one synchronous
+   driver factory, and confirms live firmware readiness before exposing input.
+2. **Startup failures (`StartupFailure`):** Errors during acquisition, driver
+   startup, or confirmation wrap the original cause in `StartupFailure`
+   (recording `Stage`, `StopAttempted`, and `StopReceipt`). A known prepared
+   lease receives one bounded EL3 `Stop`; a lost/malformed reply retires
+   without a speculative stop or retry. Partial drivers stay retained until
+   reboot.
 
-Tests use the actual C dispatcher/service/platform/board/cold policy through a
-register-model process. DWC2 tests separately exercise the real host driver with
-a modeled device and firmware replies. Neither is physical USB acceptance.
-`OpenGamepad` uses the same lease lifecycle through a separate typed source;
-it supplies `PollGamepad`, never `PollKeyboard`. `OpenBus` binds a multi-device
-`usb.BusHost` (such as `dwc2.MultiHost`) to the same EL3 PIO lease lifecycle,
-guarded GICv3 IRQ wiring, `PausePolling`/`ResumePolling`, and verified `Close`.
-The Nano BSP exposes `OpenGamepadWithControl` and `OpenMultiWithControl`
-alongside `OpenKeyboardWithControl`, sharing the single controller attempt guard
-with no protocol fallback.
+## Typed sources, pause/resume, and verified close
 
-The Nano BSP exposes `OpenKeyboardWithControl`; existing cold SD boot profiles
-keep USB disabled. The explicit `usbcheck` program selects the matched secure
-provider while entering with USB held, and obtains its owner through the actual
-boot-context/pin verifier. It polls a direct boot keyboard for five seconds and
-closes the lease. `--usb-input gamepad` explicitly selects descriptor-driven HID
-input instead. The linker assignment, SDK/entry receipts and cold chain bind that
-selection; the observer must receive the same checked protocol. It captures the
-descriptor and normalized state without guessing this device's menu buttons.
-An unsupported schema retains its descriptor but cannot produce Ready/Pass.
-Physical gamepad input and mixed storage/core permission remain open.
+- **Three typed openers** (sharing the single-attempt board guard with no
+  protocol fallback):
+  - `Open` / `de25nano.OpenKeyboardWithControl` → `*Source` (`PollKeyboard`)
+  - `OpenGamepad` / `de25nano.OpenGamepadWithControl` → `*GamepadSource`
+    (`PollGamepad`)
+  - `OpenBus` / `de25nano.OpenMultiWithControl` → multi-device `usb.BusHost`
+    (binds `dwc2.MultiHost` with guarded GICv3 IRQ wiring and hotplug)
+- **Polling pause across core loads (`input.PollingControl`):**
+  `PausePolling` and `ResumePolling` serialize with polling/closure under the
+  same confirmed owner/generation and drain pending DWC2 packets without an EL3
+  mutation, preventing packets from timing out across long SDM reconfigurations
+  or MENU closures.
+- **Verified `Close`:** Revokes polling, drains pending driver packets/channels
+  under the operation lock (unless already paused), and issues one bounded EL3
+  `Stop` (where firmware independently verifies PIO ownership, channel
+  retirement, AHB idle, and reset readback). Stopping USB preserves an already
+  active SD lease.
 
-The standalone `usbcheck` selector can inspect USB while a current held-ROM
-FPGA shell remains contained. It selects no FPGA control/configuration, ROM,
-computer, SD, menu or reader resources. The entry receipt binds the actual USB
-program/link assignments, and the cold profile derives an explicit `usb_probe`
-selection. Missing or mixed resource selections reject; ordinary core loading
-continues to require the complete ROM/computer contract. This prepares USB-only
-diagnostics with current sealed shells; it supplies no physical acceptance.
+## Verification
 
-The shared-mode RPC fixture runs the actual owned dispatcher, USB/SD services,
-boot/master and bridge code against one register model. It covers retained USB
-reports through SD activity and control/DDR transitions, dynamic DataHeld,
-explicit scope selection, malformed modes, independent USB/SD reservations and
-fault retirement. It does not select a composed board image or establish
-physical coexistence. Firmware changes to USB ownership require a closed,
-qualified core return; stopping USB can preserve an already active SD lease.
+Host tests compile and run the real C EL3 USB dispatcher/service alongside
+`usbcontrol` and `dwc2`:
 
-Both owned typed sources expose `input.PollingControl`. Pause/resume serialize
-with polling and closure and require the same confirmed owner/generation.
-They delegate to a capable report driver without a firmware mutation; paused
-polls return no report or hardware access. An unsupported driver is rejected.
-An attempted driver transition failure retires local polling while retaining
-the active reservation for the existing checked `Close` path. No resume can
-repair a failed, closed or replaced source. The native backend uses this to
-drain pending DWC2 transactions before long core loads and returns.
-
-Final paired Tenfoot Quit drains through the owning backend before synchronous
-MENU firmware closure, then uses this same checked Close/Stop path. A pending
-packet cannot be left to age across that closure. The regression retains the
-former ordering as a failure case: an unserviced packet still times out on its
-first poll, invalidates the client and retains resources. Neither the packet
-clock nor failed-source ownership has been relaxed.
+```sh
+GOWORK=off go -C platform/embedded/tamago test -race -count=1 ./usbcontrol ./dwc2
+```

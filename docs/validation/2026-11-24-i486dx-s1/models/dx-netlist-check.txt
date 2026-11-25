@@ -1,0 +1,13 @@
+0d740f8dac4bd2441de39388acde55768ac3da9315035fe43a82a94d8c0fe3af  dx-netlist-a36169588-t1.v
+0d740f8dac4bd2441de39388acde55768ac3da9315035fe43a82a94d8c0fe3af  dx-netlist-0fe7e0107.v
+0d740f8dac4bd2441de39388acde55768ac3da9315035fe43a82a94d8c0fe3af  dx-netlist-63a497ff1-x87reverted.v
+2b2031661bf20d16122a4c171c100d90307641a10c98aeae5bcbd0fb6d316ddf  dx-netlist-a36169588-env.v
+2b2031661bf20d16122a4c171c100d90307641a10c98aeae5bcbd0fb6d316ddf  dx-netlist-0fe7e0107-env.v
+e0b01e055ffa5474d88df64ec12b84ddd92707d974bdc00435c3ca79a0a31643  fits/wt-a36169588/sources/misteross/build/de25-pc386-i486dx-s1/signoff/combined/hps/project/fes_mailbox/pc386_system.v
+
+# Each run: in /data/projects/i486dx-s1/fits/wt-a36169588/sources/misteross (G3's checkout path), with
+# elab_model_bin.py MODEL YOSYS OUT (elab_model_bin2.py "old" for a36169588's one-model component_files),
+# YOSYS = tools/yosys/844077ba.../install/bin/yosys (sha256 0594dfdb, G3's), YOSYS_MAX_THREADS=1;
+# the "-env" runs instead under env -i PATH=<yosys dir>:/usr/bin:/bin HOME LANG=C LC_ALL=C TZ=UTC (the
+# producer's execution environment). 63a497ff1-x87reverted: 63a497ff1 checked out with only
+# fes_i386_x87.sv at a36169588's bytes. The last line is G3's fitted netlist (attempt 2).

@@ -27,7 +27,9 @@ func initRTC() {
 		if rtcErr == nil {
 			rtcClock = rtc.NewClock(rtcDev.Now(), timerNanos)
 			rtcDev.BindClock(rtcClock)
+			return
 		}
+		rtcClock = rtc.NewUnsyncedClock(timerNanos)
 	})
 }
 
@@ -37,13 +39,24 @@ func RTC() (*rtc.PL031, error) {
 	return rtcDev, rtcErr
 }
 
+// WallClock returns QEMU virt's monotonic-anchored UTC wall clock.
+func WallClock() *rtc.Clock {
+	initRTC()
+	return rtcClock
+}
+
 // WallTime returns the current UTC wall-clock time anchored to the PL031 RTC
-// epoch and advanced monotonically by CNTPCT_EL0. runtime/goos.Nanotime stays
-// strictly monotonic.
+// epoch (or synchronized via SyncWallTime) and advanced monotonically by
+// CNTPCT_EL0. runtime/goos.Nanotime stays strictly monotonic.
 func WallTime() (time.Time, bool) {
 	initRTC()
 	if rtcClock == nil {
 		return time.Time{}, false
 	}
-	return rtcClock.Now(), true
+	return rtcClock.WallTime()
+}
+
+// SyncWallTime updates QEMU virt's monotonic-anchored UTC wall clock.
+func SyncWallTime(wall time.Time) {
+	WallClock().Sync(wall)
 }

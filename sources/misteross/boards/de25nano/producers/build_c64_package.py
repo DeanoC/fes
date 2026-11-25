@@ -21,7 +21,7 @@ MACHINE = Machine(
     name='Commodore 64', version='1.0.0',
     descriptions={
         'pal': 'Standard DE25 PAL Commodore 64 with uploaded 36 KiB firmware, '
-               'a native 1541 and a D64 in block RAM',
+               'a native 1541 and a D64 in board SDRAM',
         'nativepal': 'Opt-in native PAL Commodore 64 with the DE25 upload and scanout shell'},
     model_profiles={'nativepal': NATIVE_C64_PROFILE},
     interfaces=(('fes.media.c64-disk', 1, 0),),

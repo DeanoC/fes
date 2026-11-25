@@ -1,0 +1,1727 @@
+{
+  "testfloat_gen": "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+  "testfloat_gen_sha256": "3ea46b5c4a4027840cbfcd0fb5b6f25ccb26cba3e444a490298dbd723fbcec09",
+  "testfloat_level": 1,
+  "generator_seed": 1,
+  "vectors": 3356352,
+  "configs": [
+    {
+      "operation": "add",
+      "precision": 32,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/000-add-p32-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rnear_even",
+        "extF80_add"
+      ]
+    },
+    {
+      "operation": "sub",
+      "precision": 32,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/001-sub-p32-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rnear_even",
+        "extF80_sub"
+      ]
+    },
+    {
+      "operation": "mul",
+      "precision": 32,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/002-mul-p32-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rnear_even",
+        "extF80_mul"
+      ]
+    },
+    {
+      "operation": "eq",
+      "precision": 32,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/003-eq-p32-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rnear_even",
+        "extF80_eq"
+      ]
+    },
+    {
+      "operation": "le",
+      "precision": 32,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/004-le-p32-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rnear_even",
+        "extF80_le"
+      ]
+    },
+    {
+      "operation": "lt",
+      "precision": 32,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/005-lt-p32-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rnear_even",
+        "extF80_lt"
+      ]
+    },
+    {
+      "operation": "roundToInt",
+      "precision": 32,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 912,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/006-roundToInt-p32-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rnear_even",
+        "-exact",
+        "extF80_roundToInt"
+      ]
+    },
+    {
+      "operation": "add",
+      "precision": 32,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/007-add-p32-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmin",
+        "extF80_add"
+      ]
+    },
+    {
+      "operation": "sub",
+      "precision": 32,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/008-sub-p32-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmin",
+        "extF80_sub"
+      ]
+    },
+    {
+      "operation": "mul",
+      "precision": 32,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/009-mul-p32-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmin",
+        "extF80_mul"
+      ]
+    },
+    {
+      "operation": "eq",
+      "precision": 32,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/010-eq-p32-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmin",
+        "extF80_eq"
+      ]
+    },
+    {
+      "operation": "le",
+      "precision": 32,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/011-le-p32-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmin",
+        "extF80_le"
+      ]
+    },
+    {
+      "operation": "lt",
+      "precision": 32,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/012-lt-p32-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmin",
+        "extF80_lt"
+      ]
+    },
+    {
+      "operation": "roundToInt",
+      "precision": 32,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 912,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/013-roundToInt-p32-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmin",
+        "-exact",
+        "extF80_roundToInt"
+      ]
+    },
+    {
+      "operation": "add",
+      "precision": 32,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/014-add-p32-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmax",
+        "extF80_add"
+      ]
+    },
+    {
+      "operation": "sub",
+      "precision": 32,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/015-sub-p32-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmax",
+        "extF80_sub"
+      ]
+    },
+    {
+      "operation": "mul",
+      "precision": 32,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/016-mul-p32-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmax",
+        "extF80_mul"
+      ]
+    },
+    {
+      "operation": "eq",
+      "precision": 32,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/017-eq-p32-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmax",
+        "extF80_eq"
+      ]
+    },
+    {
+      "operation": "le",
+      "precision": 32,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/018-le-p32-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmax",
+        "extF80_le"
+      ]
+    },
+    {
+      "operation": "lt",
+      "precision": 32,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/019-lt-p32-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmax",
+        "extF80_lt"
+      ]
+    },
+    {
+      "operation": "roundToInt",
+      "precision": 32,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 912,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/020-roundToInt-p32-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rmax",
+        "-exact",
+        "extF80_roundToInt"
+      ]
+    },
+    {
+      "operation": "add",
+      "precision": 32,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/021-add-p32-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rminMag",
+        "extF80_add"
+      ]
+    },
+    {
+      "operation": "sub",
+      "precision": 32,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/022-sub-p32-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rminMag",
+        "extF80_sub"
+      ]
+    },
+    {
+      "operation": "mul",
+      "precision": 32,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/023-mul-p32-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rminMag",
+        "extF80_mul"
+      ]
+    },
+    {
+      "operation": "eq",
+      "precision": 32,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/024-eq-p32-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rminMag",
+        "extF80_eq"
+      ]
+    },
+    {
+      "operation": "le",
+      "precision": 32,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/025-le-p32-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rminMag",
+        "extF80_le"
+      ]
+    },
+    {
+      "operation": "lt",
+      "precision": 32,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/026-lt-p32-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rminMag",
+        "extF80_lt"
+      ]
+    },
+    {
+      "operation": "roundToInt",
+      "precision": 32,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 912,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/027-roundToInt-p32-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision32",
+        "-rminMag",
+        "-exact",
+        "extF80_roundToInt"
+      ]
+    },
+    {
+      "operation": "add",
+      "precision": 64,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/028-add-p64-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rnear_even",
+        "extF80_add"
+      ]
+    },
+    {
+      "operation": "sub",
+      "precision": 64,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/029-sub-p64-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rnear_even",
+        "extF80_sub"
+      ]
+    },
+    {
+      "operation": "mul",
+      "precision": 64,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/030-mul-p64-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rnear_even",
+        "extF80_mul"
+      ]
+    },
+    {
+      "operation": "eq",
+      "precision": 64,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/031-eq-p64-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rnear_even",
+        "extF80_eq"
+      ]
+    },
+    {
+      "operation": "le",
+      "precision": 64,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/032-le-p64-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rnear_even",
+        "extF80_le"
+      ]
+    },
+    {
+      "operation": "lt",
+      "precision": 64,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/033-lt-p64-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rnear_even",
+        "extF80_lt"
+      ]
+    },
+    {
+      "operation": "roundToInt",
+      "precision": 64,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 912,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/034-roundToInt-p64-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rnear_even",
+        "-exact",
+        "extF80_roundToInt"
+      ]
+    },
+    {
+      "operation": "add",
+      "precision": 64,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/035-add-p64-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmin",
+        "extF80_add"
+      ]
+    },
+    {
+      "operation": "sub",
+      "precision": 64,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/036-sub-p64-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmin",
+        "extF80_sub"
+      ]
+    },
+    {
+      "operation": "mul",
+      "precision": 64,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/037-mul-p64-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmin",
+        "extF80_mul"
+      ]
+    },
+    {
+      "operation": "eq",
+      "precision": 64,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/038-eq-p64-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmin",
+        "extF80_eq"
+      ]
+    },
+    {
+      "operation": "le",
+      "precision": 64,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/039-le-p64-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmin",
+        "extF80_le"
+      ]
+    },
+    {
+      "operation": "lt",
+      "precision": 64,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/040-lt-p64-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmin",
+        "extF80_lt"
+      ]
+    },
+    {
+      "operation": "roundToInt",
+      "precision": 64,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 912,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/041-roundToInt-p64-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmin",
+        "-exact",
+        "extF80_roundToInt"
+      ]
+    },
+    {
+      "operation": "add",
+      "precision": 64,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/042-add-p64-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmax",
+        "extF80_add"
+      ]
+    },
+    {
+      "operation": "sub",
+      "precision": 64,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/043-sub-p64-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmax",
+        "extF80_sub"
+      ]
+    },
+    {
+      "operation": "mul",
+      "precision": 64,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/044-mul-p64-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmax",
+        "extF80_mul"
+      ]
+    },
+    {
+      "operation": "eq",
+      "precision": 64,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/045-eq-p64-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmax",
+        "extF80_eq"
+      ]
+    },
+    {
+      "operation": "le",
+      "precision": 64,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/046-le-p64-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmax",
+        "extF80_le"
+      ]
+    },
+    {
+      "operation": "lt",
+      "precision": 64,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/047-lt-p64-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmax",
+        "extF80_lt"
+      ]
+    },
+    {
+      "operation": "roundToInt",
+      "precision": 64,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 912,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/048-roundToInt-p64-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rmax",
+        "-exact",
+        "extF80_roundToInt"
+      ]
+    },
+    {
+      "operation": "add",
+      "precision": 64,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/049-add-p64-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rminMag",
+        "extF80_add"
+      ]
+    },
+    {
+      "operation": "sub",
+      "precision": 64,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/050-sub-p64-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rminMag",
+        "extF80_sub"
+      ]
+    },
+    {
+      "operation": "mul",
+      "precision": 64,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/051-mul-p64-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rminMag",
+        "extF80_mul"
+      ]
+    },
+    {
+      "operation": "eq",
+      "precision": 64,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/052-eq-p64-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rminMag",
+        "extF80_eq"
+      ]
+    },
+    {
+      "operation": "le",
+      "precision": 64,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/053-le-p64-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rminMag",
+        "extF80_le"
+      ]
+    },
+    {
+      "operation": "lt",
+      "precision": 64,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/054-lt-p64-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rminMag",
+        "extF80_lt"
+      ]
+    },
+    {
+      "operation": "roundToInt",
+      "precision": 64,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 912,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/055-roundToInt-p64-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision64",
+        "-rminMag",
+        "-exact",
+        "extF80_roundToInt"
+      ]
+    },
+    {
+      "operation": "add",
+      "precision": 80,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/056-add-p80-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rnear_even",
+        "extF80_add"
+      ]
+    },
+    {
+      "operation": "sub",
+      "precision": 80,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/057-sub-p80-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rnear_even",
+        "extF80_sub"
+      ]
+    },
+    {
+      "operation": "mul",
+      "precision": 80,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/058-mul-p80-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rnear_even",
+        "extF80_mul"
+      ]
+    },
+    {
+      "operation": "eq",
+      "precision": 80,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/059-eq-p80-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rnear_even",
+        "extF80_eq"
+      ]
+    },
+    {
+      "operation": "le",
+      "precision": 80,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/060-le-p80-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rnear_even",
+        "extF80_le"
+      ]
+    },
+    {
+      "operation": "lt",
+      "precision": 80,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/061-lt-p80-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rnear_even",
+        "extF80_lt"
+      ]
+    },
+    {
+      "operation": "roundToInt",
+      "precision": 80,
+      "rc": 0,
+      "rounding": "near_even",
+      "vectors": 912,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/062-roundToInt-p80-rc0.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rnear_even",
+        "-exact",
+        "extF80_roundToInt"
+      ]
+    },
+    {
+      "operation": "add",
+      "precision": 80,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/063-add-p80-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmin",
+        "extF80_add"
+      ]
+    },
+    {
+      "operation": "sub",
+      "precision": 80,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/064-sub-p80-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmin",
+        "extF80_sub"
+      ]
+    },
+    {
+      "operation": "mul",
+      "precision": 80,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/065-mul-p80-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmin",
+        "extF80_mul"
+      ]
+    },
+    {
+      "operation": "eq",
+      "precision": 80,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/066-eq-p80-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmin",
+        "extF80_eq"
+      ]
+    },
+    {
+      "operation": "le",
+      "precision": 80,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/067-le-p80-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmin",
+        "extF80_le"
+      ]
+    },
+    {
+      "operation": "lt",
+      "precision": 80,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/068-lt-p80-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmin",
+        "extF80_lt"
+      ]
+    },
+    {
+      "operation": "roundToInt",
+      "precision": 80,
+      "rc": 1,
+      "rounding": "min",
+      "vectors": 912,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/069-roundToInt-p80-rc1.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmin",
+        "-exact",
+        "extF80_roundToInt"
+      ]
+    },
+    {
+      "operation": "add",
+      "precision": 80,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/070-add-p80-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmax",
+        "extF80_add"
+      ]
+    },
+    {
+      "operation": "sub",
+      "precision": 80,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/071-sub-p80-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmax",
+        "extF80_sub"
+      ]
+    },
+    {
+      "operation": "mul",
+      "precision": 80,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/072-mul-p80-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmax",
+        "extF80_mul"
+      ]
+    },
+    {
+      "operation": "eq",
+      "precision": 80,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/073-eq-p80-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmax",
+        "extF80_eq"
+      ]
+    },
+    {
+      "operation": "le",
+      "precision": 80,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/074-le-p80-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmax",
+        "extF80_le"
+      ]
+    },
+    {
+      "operation": "lt",
+      "precision": 80,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/075-lt-p80-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmax",
+        "extF80_lt"
+      ]
+    },
+    {
+      "operation": "roundToInt",
+      "precision": 80,
+      "rc": 2,
+      "rounding": "max",
+      "vectors": 912,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/076-roundToInt-p80-rc2.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rmax",
+        "-exact",
+        "extF80_roundToInt"
+      ]
+    },
+    {
+      "operation": "add",
+      "precision": 80,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/077-add-p80-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rminMag",
+        "extF80_add"
+      ]
+    },
+    {
+      "operation": "sub",
+      "precision": 80,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/078-sub-p80-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rminMag",
+        "extF80_sub"
+      ]
+    },
+    {
+      "operation": "mul",
+      "precision": 80,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/079-mul-p80-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rminMag",
+        "extF80_mul"
+      ]
+    },
+    {
+      "operation": "eq",
+      "precision": 80,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/080-eq-p80-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rminMag",
+        "extF80_eq"
+      ]
+    },
+    {
+      "operation": "le",
+      "precision": 80,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/081-le-p80-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rminMag",
+        "extF80_le"
+      ]
+    },
+    {
+      "operation": "lt",
+      "precision": 80,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 46464,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/082-lt-p80-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rminMag",
+        "extF80_lt"
+      ]
+    },
+    {
+      "operation": "roundToInt",
+      "precision": 80,
+      "rc": 3,
+      "rounding": "minMag",
+      "vectors": 912,
+      "path": "/data/projects/i486dx-s1/wt-g2b/sources/misteross/build/sim/fes-i386-x87-testfloat/vectors/083-roundToInt-p80-rc3.txt",
+      "command": [
+        "/tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen",
+        "-level",
+        "1",
+        "-seed",
+        "1",
+        "-precision80",
+        "-rminMag",
+        "-exact",
+        "extF80_roundToInt"
+      ]
+    }
+  ],
+  "netlist": false,
+  "unit_returncode": 0,
+  "unit_report": {
+    "top": "fes_i386_x87",
+    "netlist": false,
+    "source": {
+      "fes_revision": "3739c0d431104bf335db62107234df86ee8d48bf",
+      "tracked_changes": [],
+      "files": {
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_pkg.sv": "14d8798ec5de833867fab34a25728224049feea116a0b099997e13c828ea7a00",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv": "36d4b905ad0a3a44aab02e85c39da3bf3a311794f482ebd241c2af6907d52c27",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87_mul.sv": "1c07ac7b90d76654495e21996d991647da67c144985ac61fdb332e37392190ce",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv": "08d51ddbfc2ac9457e84f374cedf695b1b5eb4d027b20870c23193839aff3405",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_x87_fast.sv": "48f5155ef4ce38f255928503d63b65d57d0625c69907df87bf34e1965625a230",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_x87_pkg.sv": "86334f83339b10b47598044b74b510bac5829d52f7cbd4eb379570d2f90dd64d",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_x87_slow.sv": "45f43d52b5a92c24e99c47a613b1a8c588bd449391d2df9461441aa02ea4e369",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans.sv": "17f1db1d501c7875b27dbed3fbd3e248b78a768fb234b98c1c659e30d53bd3b7",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans_pkg.sv": "2e2eecc2574703e5092c2a8e71c5cc031dd850cbca0a2874852a10f5526b699d",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans_rom.sv": "444af655e6a577ea1a73243f757f40c182fd1339f78f5b972c83b7af98fe47b0",
+        "sources/misteross/cores/fes-common/sim/i386/x87_unit_tb.cpp": "07268da81a0961b5b8d66b066d28b94a0a66fe56b063f3e0142f327a5e900b87",
+        "sources/misteross/scripts/test_fes_i386_x87_unit.py": "1f16877d04da01e03dbafc9b3eb18e43bde0eaceb09545b78549987ca64c4fe2",
+        "sources/misteross/scripts/x87_trans_ucode.py": "c32cf8fba7bf49c1f41fd810624c74174c35b6c4de816af500228fb48a21a871",
+        "sources/misteross/scripts/yosys_netlist.py": "0bc1bcce48d530c5c49de8445091a74b125e2a9a0056cd56948ec1288e073bae"
+      },
+      "files_sha256": "642aede937757845fe3220216753aaf4f12365e8dcfa73ebebab6b03f27d87e2"
+    },
+    "verilator": {
+      "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+      "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+      "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+      "version": "Verilator 5.054 2026-11-01 rev v5.054",
+      "install": "b7d20bdd7b4e07a89842dbe53881063422cf0c93da1cdf47b455a209085d8e74"
+    },
+    "passed": 18421,
+    "failed": 0,
+    "failures": [],
+    "cases": 18421,
+    "bcd_cases": 61,
+    "bcd_forms": {
+      "fbld": {
+        "issued": 6845,
+        "converted": 6842
+      },
+      "fbstp": {
+        "issued": 13371,
+        "converted": 11618
+      }
+    },
+    "transcendentals": {
+      "bound_host": 4,
+      "qemu_brackets": null,
+      "bound_is": "proposed, not agreed: see the record's bound.md",
+      "model_vectors_compared_exactly": 7994,
+      "reset_and_squash_offsets_inside_engine": 184,
+      "cases": 17353,
+      "instructions": {
+        "FSIN": {
+          "cases": 1703,
+          "engine_runs": 2661,
+          "values": 1687,
+          "identical": 1663,
+          "worst": 1,
+          "c1_differs": 18,
+          "manual": 6,
+          "distance": {
+            "0": 1663,
+            "1": 24
+          }
+        },
+        "FCOS": {
+          "cases": 1703,
+          "engine_runs": 2661,
+          "values": 1687,
+          "identical": 1664,
+          "worst": 1,
+          "c1_differs": 13,
+          "manual": 6,
+          "distance": {
+            "0": 1664,
+            "1": 23
+          }
+        },
+        "FSINCOS": {
+          "cases": 1703,
+          "engine_runs": 2659,
+          "values": 3349,
+          "identical": 2660,
+          "worst": 1,
+          "c1_differs": 590,
+          "manual": 4,
+          "distance": {
+            "0": 2660,
+            "1": 689
+          }
+        },
+        "FPTAN": {
+          "cases": 1703,
+          "engine_runs": 2659,
+          "values": 3349,
+          "identical": 2755,
+          "worst": 2,
+          "c1_differs": 221,
+          "manual": 4,
+          "distance": {
+            "0": 2755,
+            "1": 593,
+            "2": 1
+          }
+        },
+        "F2XM1": {
+          "cases": 1703,
+          "engine_runs": 2676,
+          "values": 1687,
+          "identical": 1363,
+          "worst": 1,
+          "c1_differs": 156,
+          "manual": 0,
+          "distance": {
+            "0": 1363,
+            "1": 324
+          }
+        },
+        "FYL2X": {
+          "cases": 2945,
+          "engine_runs": 2967,
+          "values": 2929,
+          "identical": 2593,
+          "worst": 1,
+          "c1_differs": 251,
+          "manual": 0,
+          "distance": {
+            "0": 2593,
+            "1": 336
+          }
+        },
+        "FYL2XP1": {
+          "cases": 2945,
+          "engine_runs": 2968,
+          "values": 2634,
+          "identical": 2341,
+          "worst": 1,
+          "c1_differs": 198,
+          "manual": 295,
+          "distance": {
+            "0": 2341,
+            "1": 293
+          }
+        },
+        "FPATAN": {
+          "cases": 2945,
+          "engine_runs": 3195,
+          "values": 2929,
+          "identical": 2621,
+          "worst": 1,
+          "c1_differs": 257,
+          "manual": 0,
+          "distance": {
+            "0": 2621,
+            "1": 308
+          }
+        }
+      }
+    },
+    "latency_clocks": {
+      "fadd.pc24": 13,
+      "fsub.pc24": 13,
+      "fmul.pc24": 13,
+      "fdiv.pc24": 39,
+      "fsqrt.pc24": 39,
+      "fscale.pc24": 23,
+      "frndint.pc24": 45,
+      "fprem.pc24": 86,
+      "fadd.pc53": 13,
+      "fsub.pc53": 13,
+      "fmul.pc53": 13,
+      "fdiv.pc53": 68,
+      "fsqrt.pc53": 68,
+      "fscale.pc53": 23,
+      "frndint.pc53": 45,
+      "fprem.pc53": 86,
+      "fadd.pc64": 13,
+      "fsub.pc64": 13,
+      "fmul.pc64": 13,
+      "fdiv.pc64": 79,
+      "fsqrt.pc64": 79,
+      "fscale.pc64": 23,
+      "frndint.pc64": 45,
+      "fprem.pc64": 86
+    },
+    "testfloat": {
+      "vectors": 3356352,
+      "configs": 84
+    }
+  }
+}

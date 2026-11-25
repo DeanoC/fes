@@ -1,0 +1,118 @@
+{
+ "spectrum48": {
+  "all_reported_timing_pass": true,
+  "package_timing_admission": false,
+  "signoff_rules": 85,
+  "failed_rules": 4,
+  "unreviewed_failed_rules": 1,
+  "reports_sha256": {
+   "golden_top.sta.summary": "bd24c69dcd02f75da2bfc9726a3980bf414452b8c97f5cd31ba76f076bdf877c",
+   "golden_top.tq.drc.signoff.rpt": "06a8c02210bff61396b79541e1a359cc8c359fcea55ca4e4529bce1fb338477d"
+  },
+  "failed": [
+   {
+    "id": "TMC-20012",
+    "severity": "High",
+    "violations": 5,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "TMC-20011",
+    "severity": "High",
+    "violations": 2,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "RDC-50003",
+    "severity": "Medium",
+    "violations": 1,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "TMC-20026",
+    "severity": "Medium",
+    "violations": 1,
+    "waived": 0,
+    "reviewed": false
+   }
+  ]
+ },
+ "spectrum128": {
+  "all_reported_timing_pass": true,
+  "package_timing_admission": false,
+  "signoff_rules": 85,
+  "failed_rules": 4,
+  "unreviewed_failed_rules": 1,
+  "reports_sha256": {
+   "golden_top.sta.summary": "586eecb960f898b5e48432431652b096195969cb6ca4456ecfea3cb652f8da71",
+   "golden_top.tq.drc.signoff.rpt": "6c8a94f3cda04e152a739839835092b627645a26f574cd01c27d640928a84a07"
+  },
+  "failed": [
+   {
+    "id": "TMC-20012",
+    "severity": "High",
+    "violations": 5,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "TMC-20011",
+    "severity": "High",
+    "violations": 2,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "RDC-50003",
+    "severity": "Medium",
+    "violations": 1,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "TMC-20026",
+    "severity": "Medium",
+    "violations": 1,
+    "waived": 0,
+    "reviewed": false
+   }
+  ]
+ },
+ "st": {
+  "all_reported_timing_pass": true,
+  "package_timing_admission": true,
+  "signoff_rules": 85,
+  "failed_rules": 3,
+  "unreviewed_failed_rules": 0,
+  "reports_sha256": {
+   "golden_top.sta.summary": "bcc23a5c772869f9e38b230d3c109f496a3116e421ac8fc5a306bea9b370c0a1",
+   "golden_top.tq.drc.signoff.rpt": "d1d81b86e2974801efd95237126c02eb964785938935de4fc3e128d757e61590"
+  },
+  "failed": [
+   {
+    "id": "TMC-20012",
+    "severity": "High",
+    "violations": 5,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "TMC-20011",
+    "severity": "High",
+    "violations": 2,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "RDC-50003",
+    "severity": "Medium",
+    "violations": 1,
+    "waived": 0,
+    "reviewed": true
+   }
+  ]
+ }
+}

@@ -1,0 +1,298 @@
+# The first i486DX on the DE25 (slice 1), 24 November 2026
+
+Tracker [#2135](https://github.com/DeanoC/fes/issues/2135); plan
+`docs/validation/2026-11-22-i486dx-core-plan/summary.md` (#2146); round 2's
+cut measurements, #2149 (record head `7ff764c37`). Deano, 24 Nov 2026
+(relayed): "agreed, start the first DX slice with cuts".
+
+The method, [method.md](method.md), was committed (`cc136b1a6`) before any
+fit or simulation of the DX, with four dated amendments, each written before
+the runs it governs.
+
+## Result
+
+The DE25 pc386 builds as an i486DX: the 486 identity (`I486 = 1`), the 387
+on (`X87_PRESENT = 1`), both L1s at 8 KiB 2-way, and no load forwarding. With
+the two shell cuts (#2177 S-lat, #2178 A-dma2) and #2187's signoff bases
+merged, **it fits the device and closes timing on all four seeds at
+61.437908 MHz**, median **44,913.3 ALMs** (96.0% of 46,800). It keeps step
+with the oracle in every suite the integer core passes. Its CPI costs are
+DOOM ×1.058 and 3DBench ×1.016, as round 2 measured. The DE10 pc386
+netlist and identities do not move.
+
+**Quake** stalled on round 2's bench because of a real bug in the shared
+x87 unit, not the bench edit: a wrong-path ESC form the unit does not build
+left the unit's "first uop issued" flag set, which holds every later ESC and
+FNINIT for ever. The fix and its lockstep case go in their own PR against
+main, #2195 ([G5](#g5-quake-on-the-rtl)).
+
+| Gate | Result |
+| --- | --- |
+| G1, DE10 identity | **Pass** at `eab2fe8b5` against the four bases merged: netlist `cmp` equal, every identity equal ([G1](#g1-de10-identity)) |
+| G2, lockstep and the x87 suites | **Pass**: no failure in either arm, at level 3 (with every x87 suite) and level 4 |
+| G3, DE25 fit, device + four seeds | **Pass**, second attempt (`a36169588`). The first attempt (`5112461a9`) **failed** at the producer's signoff gate (no basis for the window-base CDC row); fixed by #2187, a separate reviewed PR |
+| G4, CPI | **Pass**: DOOM r = 1.058, so 2,062 × r = 2,182 realtics ≤ 4,682 (DX-33). DX2-66 (2,912) is kept by the bound too (reported, not gated) |
+| G5, Quake on the RTL | **Pass.** The stall was a real x87 bug, fixed in #2195 with cases that fail before the fix. With the fix, Quake runs on the DX's RTL past the stall, through its demo, to 24.6 s with no CPU stop ([quake.md](quake.md)) |
+
+## What was built
+
+- **`boards/de25nano/pc386/i486dx/`** (decision 1):
+  - `fes_i486dx_l1i.sv`, `fes_i486dx_l1d.sv`: forks of `fes_i386_l1i.sv` and
+    `fes_i386_l1d.sv` at `499c3c3ea`, with the way count halved (128 sets of
+    32-byte lines, 2 ways). Round 2's ablations held ways 2–3 invalid; these
+    remove them. `derive.py` pins each upstream's bytes, so an upstream change
+    fails `tests/test_de25_i486dx.py` until the fork is synced.
+  - `derive.py`: derives `fes_i486dx_cpu` from `fes_i386_cpu.sv` by anchored
+    edits (the module name, the two L1 instances, `d_out.ldfwd = 0`). Its
+    benches' form keeps the upstream module name, so the shared benches read
+    the DX's hierarchy unchanged.
+  - `lockstep.py`: the shared lockstep runners with the DX's sources.
+- **The DE25 producer** (`pc386/build.py`, model `486dx`) elaborates
+  `pc386_system` with `I486 = 1` and `X87_PRESENT = 1` and swaps in the DX's
+  CPU sources; `pc386/derive.py` retargets the CPU instance. The record
+  carries `cpu`, `i486` and `x87_present`.
+- **Benches:** `sim_fes_pc386.py --cpu-core i486dx`; `machine_tb` now wires
+  the RTL CPU's x87 unit as `pc386_system` does (`x87_present`, F0h/F1h in,
+  ERROR# on IRQ 13), replacing round 2's scratch line.
+- No shared RTL, no `yosys_netlist.py`, no `pc386_quartus.py` change.
+
+## G1, DE10 identity
+
+[`de10/`](de10/), harness `de10/i486dxs1_g1.sh`: the DE10 seal's machine
+netlist (`de10_netlist.py`) and `de10_design_id.py`, from one checkout path,
+Yosys `d273c1cb`, `YOSYS_MAX_THREADS=1`.
+
+| Base → head | Netlist | Design | Evidence | Record | Toolchain |
+| --- | --- | --- | --- | --- | --- |
+| `2d4edf547` → `cc136b1a6` (the method's commit) | not run (no firmware build) | equal | **moved** | **moved** | equal |
+| `2d4edf547` → `63aa526c8` (amendment 1) | `cmp` equal, `65cbd412…` | equal | equal | equal | equal |
+| the four bases merged (`87562da40`, tree `291a6c31…`) → `eab2fe8b5` | `cmp` equal, `65cbd412…` | equal | equal | equal | equal ([g1-final.md](de10/g1-final.md)) |
+
+At `cc136b1a6` the lockstep runner and bench edits were pc386 design-v2
+evidence, and the record digest covers every source input, so both moved.
+Amendment 1 removed those edits. Since the merges brought in newer main, the
+final comparison is against the same four branch heads merged without this
+PR's commits (#2171 `2d4edf547`, #2178 `7147b7d05`, #2177 `642e22f50`, #2187
+`884b5959c`; the one DE25-only conflict, `pc386/sim.py`, taken from #2178).
+
+## G2, lockstep and the x87 suites
+
+At `3739c0d43`, one checkout, the locked Verilator (`b7d20bdd…`), base =
+the shared runner on `fes_i386_cpu`, DX = `i486dx/lockstep.py`
+([`lockstep/`](lockstep/)). [`g2_compare.py`](g2_compare.py) applies the rule.
+
+| Run | Base | DX |
+| --- | --- | --- |
+| Level 3 (`--random-programs 500 --random-seeds 8 --limit-per-file 20`): directed, unreal, PM, paging, no-387, x87 (125 with the identity on), BCD, transcendental, built forms (2,048 opcodes, 1,620 built, 0 mismatches), random/PM/task/debug/undefined programs | 0 failures | 0 failures |
+| Level 4 (`--identity 486sx`): 148 directed cases, 56,000 random programs | 148 agree, 56,000 keep step | 148 agree, 56,000 keep step |
+
+The committed reports name their revision (`source.fes_revision`,
+`3739c0d43`), at which `i486dx/lockstep.py` and `derive.py` had the bytes
+that produced them. Since Codex's review of `6d6b8ae94`, a DX report's source
+record also lists the runner and `derive.py` themselves (level 4 under
+`i486dx_source`). They are not pc386 evidence inputs: no record's closure
+holds them, and adding one to `input_identity.py` would move the DE10 record
+identity G1 holds equal.
+
+The two arms differ only in counters (clocks, replays, the latency-free gaps):
+227 values at level 3, 11 at level 4 ([`lockstep/l3-compare.txt`](lockstep/l3-compare.txt),
+[`lockstep/l4-compare.txt`](lockstep/l4-compare.txt)). The level-3 reports
+name the DX's files; the level-4 report does not list files, so
+[`lockstep/l4-built-cpu.txt`](lockstep/l4-built-cpu.txt) shows the DX build's
+Verilated CPU has no L1D way 3 and the base's does.
+
+The x87 unit benches Verilate the unit alone, whose files the DX shares byte
+for byte ([`lockstep/x87-files.sha256`](lockstep/x87-files.sha256)): unit
+bench 18,337 vectors, 0 failed; the transcendental engine 23,795, 0 failed;
+TestFloat extF80 (TestFloat `a9c849f1`) 3,356,352 vectors in 84 configurations,
+0 failed.
+
+## G3, DE25 fit
+
+[`fitdx.sh`](fitdx.sh) on Powerboat, Quartus Pro 26.3, every compile under a
+Pro slot of the Quartus lease. Seed 1 is the registered producer; seeds 2–4
+are SEED copies of its project.
+
+**First attempt, `5112461a9`: fail.** The seed-1 producer refused at the
+reviewed-signoff gate: "CDC-50001 row matches 0 bases" for
+`fes_scanout|window_control|base_lo[13]` → `base_machine[13]`. No basis
+covered the window-base held bundle. The run stopped, as the rule says
+([`fits/attempt1/`](fits/attempt1/)); seed 1's own fit, for information
+only: 44,997.9 ALMs, every analysis closing. Deano chose "Basis PR, then
+refit": #2187 added the bases (reviewed on its own) and was merged
+(amendment 4).
+
+**Second attempt, `a36169588`: pass** ([`fits/attempt2/`](fits/attempt2/)).
+Seed 1's producer admits the package: `BUILD_ID`
+`da9f008e03ae73f7ef9cd6cc64551c48`, RBF `750514e2…`,
+`package_timing_admission` true. All four seeds fitted netlist
+`e0b01e055ffa5474d88df64ec12b84ddd92707d974bdc00435c3ca79a0a31643`.
+
+| Seed | ALMs needed | Machine (`system`) | RAM | DSP | Setup | Hold | Recovery | Removal | Min pulse |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 44,952.7 | 37,678.1 | 159 | 42 | +1.399 | 0.000 | +6.816 | +0.019 | +0.220 |
+| 2 | 45,004.9 | 37,761.1 | 159 | 42 | +0.489 | 0.000 | +6.891 | +0.007 | +0.220 |
+| 3 | 44,829.0 | 37,580.4 | 159 | 42 | +0.733 | 0.000 | +6.974 | 0.000 | +0.220 |
+| 4 | 44,873.9 | 37,594.1 | 159 | 42 | +0.437 | +0.003 | +6.806 | +0.066 | +0.220 |
+| **Median** | **44,913.3** | **37,636.1** | | | | | | | |
+| Spread | 175.9 | 180.7 | | | | | | | |
+
+The worst setup is on the machine clock (`fes_machine_pll|machine_pll_outclk0`,
+Slow 0C) on seeds 2–4 and on the pixel clock on seed 1; the worst removal is
+`adv7513_config` at Fast 0C. [`fits/attempt2/fits.json`](fits/attempt2/fits.json)
+names the clock and corner of every figure. The max-skew, net-delay and
+setup-data-delay checks all close (≥ +3.418).
+
+**Worst slack per corner** ([`corners.tcl`](corners.tcl),
+[`fits/attempt2/corners.txt`](fits/attempt2/corners.txt)), seeds 1 / 2 / 3 / 4:
+
+| Corner | Setup | Hold | Recovery | Removal | Min pulse |
+| --- | --- | --- | --- | --- | --- |
+| Slow fix4 100C | 2.109 / 2.061 / 2.114 / 1.988 | 0.009 / 0.021 / 0.013 / 0.013 | 7.190 / 7.267 / 7.312 / 7.208 | 0.050 / 0.062 / 0.055 / 0.105 | 0.220 all |
+| Slow fix4 0C | 1.399 / 0.489 / 0.733 / 0.437 | 0.010 / 0.011 / 0.008 / 0.012 | 6.816 / 6.891 / 6.974 / 6.809 | 0.252 / 0.303 / 0.299 / 0.279 | 0.223 all |
+| Slow fix4a 0C | 1.408 / 0.502 / 0.736 / 0.437 | 0.011 / 0.011 / 0.008 / 0.013 | 6.828 / 6.906 / 6.984 / 6.806 | 0.214 / 0.260 / 0.259 / 0.242 | 0.225 all |
+| Fast fix4 0C | 4.294 / 4.387 / 4.379 / 4.247 | 0.000 / 0.000 / 0.000 / 0.003 | 8.189 / 8.251 / 8.268 / 8.225 | 0.019 / 0.007 / 0.000 / 0.066 | 0.292 all |
+
+**Against the rules.** Device: every seed is under 46,800 (the largest,
+45,004.9, by 1,795.1). Timing: every slack ≥ 0 at every corner. Producer:
+admitted. **Pass.** The margins are thin: setup +0.437 ns at the slow corner
+and removal 0.000 ns at the fast one.
+
+**Reported, not judged:**
+- **The 92% line (43,056):** the median is 1,857.3 over. Decision 7 made the
+  device, not the 92% line, the DX's line.
+- **Against #2171's 486SX median, 41,563.4:** +3,349.9. That difference is
+  not a cost of the DX alone: it nets the 387 (on), the cuts, both shell
+  cuts and #2187's base, which carries newer main.
+- **The first-order expectation** (amendment 2) was about 46,110; the fit is
+  1,197 under it.
+- **Round 2's `cuts`** (#2149, `7ff764c37`): 1,657 ALMs in the CPU-only
+  envelope, for `l12` + `xshift` + `xdisp` + `lfwd`. This build carries `l12`
+  + `lfwd` only (Deano's choice): #2149's `l12` 1,176 + round 1's `lfwd` 360 ≈
+  1,536 first-order. This record does not measure the cuts' saving in the
+  machine; that would need a 387-on machine fit without them.
+
+## G4, CPI
+
+Round 2's windows on `machine_tb --suite cpu-profile`, base and
+`--cpu-core i486dx`, level 3, at `63aa526c8` ([`cpi/`](cpi/)). Each pair
+handed over at the same cycle (DOOM 2,493,936,063; 3DBench 750,000,005).
+
+| Window | Base CPI | DX CPI | r | Round 2's `cuts` |
+| --- | ---: | ---: | ---: | ---: |
+| DOOM h2 | 1.668 | 1.765 | **1.058** | ×1.058 |
+| 3DBench 8.0–11.5 s | 2.154 | 2.189 | **1.016** | ×1.016 |
+
+The bench charges port 0's first data 18 clocks against the kit's 11, so both
+losses are upper bounds. Most of DOOM's comes from L1D and port 0 (16.1% of
+h2's clocks on the base, 19.0% on the DX) and AGI (6.5% → 7.2%).
+
+## G5, Quake on the RTL
+
+**The cause.** Two diagnostic runs of round 2's bring-up on the base CPU
+(`2d4edf547`, scratch bench edits that print the x87 unit's state; disclosed
+in the method):
+- At the stall, `00a7:0005256c` `DB E3` (FNINIT), CR0.TS set: `fired = 1`,
+  `started = 0`, `nw = 1`. FNINIT was in the unit's no-wait slot, but
+  `hold` = `fired` held it.
+- `fired` was set at cycle 460,018,215, 65 cycles after the handover, in the
+  BIOS (`F000:535D`): a **wrong-path** ESC (op `14F`, `D9 /1` with a memory
+  operand, reserved, a form the unit does not build) issued its first uop.
+  The unit never took it (`take = 0`), so the branch flush, which clears
+  `fired` only with `started`, left it set.
+- So it is not the bench edit, and not FNINIT itself: any wrong-path unbuilt
+  form wedges every later ESC and FNINIT, on the integer core too, once the
+  387 is on. The lockstep never met it: its x87 cases are directed, and its
+  random programs run with no 387.
+
+**The case and the fix** are their own PR against main,
+[#2195](https://github.com/DeanoC/fes/pull/2195) (`deano/x87-wrongpath-fired`).
+The fix moves the DE10 netlist, so it is not in this PR:
+- Lockstep x87 case `wrong-path-unbuilt`: FNINIT, `CMP AX, AX`, `JZ` over a
+  `D9 4F 00`, FNINIT, FLD. On main it fails: `FAIL x87:wrong-path-unbuilt
+  @102d.timeout`.
+- `fes_i386_x87.sv`: `fired` is set only for an instruction the unit has
+  taken (`started || take`). With it the case passes, 126 of 126.
+
+**Quake on the DX with the fix** (a scratch merge of `494479998` and the
+fix's first version): it passes the stall and plays its demo. It runs on the
+RTL to the end of its 20-second window: 579,354,541 retirements, 0 oracle
+steps, no stop ([quake.md](quake.md)).
+
+## What this does not establish
+
+- **The CPUID and reset signature are the 486SX's.** The DX identity is i486
+  slice 4.
+- **No x87 instruction runs at `I486 = 1` in lockstep:** level 4 has no x87
+  cases; they run at level 3.
+- **The 387's record word and FogCast setting** (x87 slice 7) are not here.
+- **No kit run, no D12 proof for the DE25 netlist, no seal.**
+- **No DE25 system bench run of the DX.** `boards/de25nano/pc386/sim.py`,
+  the FreeDOS bench #2171 and #2178 gate on, did not build at `03e514777`:
+  it set `X87_PRESENT` on `pc386_de25_sim`, which did not declare it
+  (Verilator: "Parameters from the command line were not found in the
+  design: X87_PRESENT"). The top now passes it to `pc386_system`, and
+  `tests/test_de25_i486dx.py` elaborates the bench's top with the bench's
+  own sources and parameters: `pc386_system`'s `I486` and `X87_PRESENT` are
+  the producer's, and its CPU is `fes_i486dx_cpu` with the two-way L1s.
+  FreeDOS has not been booted on it.
+- **The cuts' saving inside the machine** is not measured (G3, above).
+- **CPI with the 387 in use** (Quake) is not measured.
+
+## Note, 24 Nov 2026: #2187's final head
+
+#2187's final head `4d4e3d907` (Codex clean) is merged here (`fc986dbfa`). Since
+`884b5959c` it pins the table's SOURCES, tightens `COPY` and narrows each
+crossing basis to what its SDC collects. That moves the DE25 producer's
+`BUILD_ID`, so the fitted package (`da9f008e…`, of `a36169588`) is not
+this head's; G3's record stays of `a36169588` and is not refitted. A table
+check applies the new table to the four seeds' own reports:
+[`table_check.py`](table_check.py) runs the producer gate's review
+(`machine_findings.review` and its QSF assignment check, less the
+record-source binding, which is of the fitted revision) on each seed's
+`golden_top.tq.drc.signoff.rpt`, compiled SDC and QSF. **All four pass**
+([fits/attempt2/table-4d4e3d907.txt](fits/attempt2/table-4d4e3d907.txt)):
+`window-base` covers 9 rows on each seed, `window-fault-record` 0, and every
+other group as before.
+
+## Note, 25 Nov 2026: two models, per-model clocks
+
+Deano, 25 Nov 2026 (relayed): "Both, per-model clocks". The DE25 pc386
+producer builds two models. #2228 (main `5d5fd1d00`) made each model's
+machine clock its own (`pc386/model_clocks.py`) and moved the 486SX to
+92.16 MHz. This PR now keeps `486sx` exactly as main has it and adds `486dx`
+beside it:
+- **Its clock:** one `MODEL_CLOCKS` entry, C0 51 (61.437908 MHz, the clock
+  G3 fitted and closed at). Its PLL IP, `machine_pll_486dx.ip`, is the
+  machine PLL every DE25 pc386 used before per-model clocks: digest
+  `d7fde901…`, the one `scanout/audio_reference.py` reviewed for 61.44 MHz.
+  Its parent is the reviewed 61.44 MHz parent, `10defc9a…`.
+- **Its elaboration:** `fes_i486dx_cpu` with `X87_PRESENT = 1`
+  (`build.elaboration`, `derive.retarget_system_cpu`).
+- **No silent fallback:** `machine_netlist` refuses a 486DX without its
+  derived CPU, and a 486SX with one. An unknown model is refused.
+  `--model 486dx` therefore builds the DX or nothing.
+  `tests/test_de25_i486dx.py` drives this through `board.component_files`.
+- **No shared file changes** in this step.
+
+**The DX netlist.** G3 is not refitted. Among the DX netlist's inputs, only
+`cores/fes-common/rtl/i386/fes_i386_x87.sv` differs between G3's fitted head
+`a36169588` and this head: that is #2195's x87 fix, now on main. It goes in
+under the pc386 in-progress exemption (a post-seal RTL fix needs no reseal
+while pc386 is in progress). The comparison: with that one file at
+`a36169588`'s bytes, the prepared head `63a497ff1` elaborates the DX to
+`0d740f8d…`. That is byte-identical (`cmp`) to `a36169588`'s own
+elaboration. Both ran under the same conditions: G3's checkout path, G3's
+Yosys binary (`0594dfdb…`, slot `844077ba`) and `YOSYS_MAX_THREADS=1`. So the
+model split and the per-model clocks leave the DX netlist unchanged, and
+#2195's fix is its only change since G3. The digests and commands are in
+[models/dx-netlist-check.txt](models/dx-netlist-check.txt).
+
+**Not reproduced:** G3's fitted netlist bytes themselves (`e0b01e05…`). Two
+standalone elaborations of `a36169588`, at one thread and in the producer's
+stripped environment, both differ from it, in auto-generated name numbering
+only, while matching the refactored code exactly. The cause is unidentified;
+it lies in the producer's own run context. Also, the pc386 slot now resolves
+to a rebuilt Yosys of the same commit (`6873a7e6…`, slot `fce262d6`). That
+rebuild followed #2179's `bootstrap.sh` change, which moves the recipe key.
+The two binaries differ only in the install path Yosys embeds.

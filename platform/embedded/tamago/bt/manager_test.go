@@ -1,0 +1,638 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package bt
+
+import (
+	"context"
+	"encoding/binary"
+	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/bt/hci"
+	"github.com/DeanoC/fes/platform/embedded/tamago/bt/l2cap"
+	"github.com/DeanoC/fes/platform/embedded/tamago/input/controllers"
+	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
+)
+
+type mgrPipe struct {
+	ep       usb.EndpointDescriptor
+	inQueue  [][]byte
+	outCount int
+	pollErr  error
+	closed   bool
+}
+
+func (p *mgrPipe) DeviceAddress() uint8              { return 2 }
+func (p *mgrPipe) Endpoint() usb.EndpointDescriptor  { return p.ep }
+func (p *mgrPipe) SetIntervalOverride(time.Duration) {}
+func (p *mgrPipe) Close() error                      { p.closed = true; return nil }
+func (p *mgrPipe) WriteDone() (bool, error)          { return true, nil }
+func (p *mgrPipe) Write([]byte) error                { p.outCount++; return nil }
+func (p *mgrPipe) PollInto(dst []byte) (int, error) {
+	if p.pollErr != nil {
+		err := p.pollErr
+		p.pollErr = nil
+		return 0, err
+	}
+	if len(p.inQueue) == 0 {
+		return 0, nil
+	}
+	pkt := p.inQueue[0]
+	p.inQueue = p.inQueue[1:]
+	return copy(dst, pkt), nil
+}
+
+type mgrBus struct {
+	events          []usb.HostEvent
+	devices         []usb.BusDevice
+	evPipe          *mgrPipe
+	aclInPipe       *mgrPipe
+	aclOutPipe      *mgrPipe
+	rtlChunks       int
+	lmpSub          uint16
+	failScanDisable bool
+}
+
+func (b *mgrBus) Service() error           { return nil }
+func (b *mgrBus) Devices() []usb.BusDevice { return b.devices }
+func (b *mgrBus) Ready() <-chan struct{}   { return nil }
+func (b *mgrBus) NextEvent() (usb.HostEvent, bool) {
+	if len(b.events) == 0 {
+		return usb.HostEvent{}, false
+	}
+	ev := b.events[0]
+	b.events = b.events[1:]
+	return ev, true
+}
+func (b *mgrBus) OpenPipe(_ uint8, ep usb.EndpointDescriptor) (usb.Pipe, error) {
+	p := &mgrPipe{ep: ep}
+	switch {
+	case ep.TransferType == usb.TransferInterrupt && ep.In():
+		b.evPipe = p
+	case ep.TransferType == usb.TransferBulk && ep.In():
+		b.aclInPipe = p
+	case ep.TransferType == usb.TransferBulk && !ep.In():
+		b.aclOutPipe = p
+	}
+	return p, nil
+}
+func (b *mgrBus) ControlTransfer(_ uint8, reqType, req byte, _, _ uint16, data []byte) (int, error) {
+	if reqType != 0x20 || req != 0 || len(data) < 3 {
+		return len(data), nil
+	}
+	op := binary.LittleEndian.Uint16(data[0:2])
+	ev := []byte{hci.EventCommandComplete, 4, 1, byte(op), byte(op >> 8), 0}
+	switch op {
+	case hci.OpcodeReadLocalVersion:
+		ev = []byte{hci.EventCommandComplete, 12, 1, byte(op), byte(op >> 8), 0, 0x0d, 0, 0, 0x0d, 0x5d, 0, byte(b.lmpSub), byte(b.lmpSub >> 8)}
+	case 0xfc6d: // RTL Read ROM Version
+		ev = []byte{hci.EventCommandComplete, 5, 1, byte(op), byte(op >> 8), 0, 0x01}
+	case 0xfc20: // RTL Download
+		b.rtlChunks++
+		if len(data) >= 4 && data[3]&0x80 != 0 {
+			b.lmpSub = 0xd922
+		}
+		ev = []byte{hci.EventCommandComplete, 5, 1, byte(op), byte(op >> 8), 0, data[3]}
+	case hci.OpcodeReadBufferSize:
+		ev = []byte{hci.EventCommandComplete, 11, 1, byte(op), byte(op >> 8), 0, 0x00, 0x01, 0x40, 0x10, 0x00, 0x04, 0x00}
+	case hci.OpcodeReadBDAddr:
+		ev = []byte{hci.EventCommandComplete, 10, 1, byte(op), byte(op >> 8), 0, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
+	case hci.OpcodeWriteScanEnable:
+		if b.failScanDisable && len(data) >= 4 && data[3] == hci.ScanDisabled {
+			b.failScanDisable = false
+			ev = []byte{hci.EventCommandComplete, 4, 1, byte(op), byte(op >> 8), 0x0c}
+		}
+	case hci.OpcodeAuthenticationRequested:
+		if len(data) >= 5 {
+			b.evPipe.inQueue = append(b.evPipe.inQueue,
+				[]byte{hci.EventCommandStatus, 4, 0x00, 1, byte(op), byte(op >> 8)},
+				[]byte{hci.EventAuthenticationComplete, 3, 0x00, data[3], data[4]},
+			)
+			return len(data), nil
+		}
+	case hci.OpcodeSetConnectionEncryption:
+		if len(data) >= 6 {
+			b.evPipe.inQueue = append(b.evPipe.inQueue,
+				[]byte{hci.EventCommandStatus, 4, 0x00, 1, byte(op), byte(op >> 8)},
+				[]byte{hci.EventEncryptionChange, 4, 0x00, data[3], data[4], data[5]},
+			)
+			return len(data), nil
+		}
+	}
+	b.evPipe.inQueue = append(b.evPipe.inQueue, ev)
+	return len(data), nil
+}
+
+type testFWLoader map[string][]byte
+
+func (l testFWLoader) LoadFirmware(name string) ([]byte, error) {
+	b, ok := l[name]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return b, nil
+}
+
+func makeDongleDevice(addr uint8) usb.BusDevice {
+	return usb.BusDevice{
+		Address: addr,
+		Speed:   usb.SpeedHigh,
+		Descriptor: usb.DeviceDescriptor{
+			VendorID: 0x0bda, ProductID: 0xa728, Class: 0xe0, SubClass: 0x01, Protocol: 0x01,
+		},
+		Config: usb.FullConfiguration{
+			Value: 1,
+			Interfaces: []usb.InterfaceDescriptor{
+				{
+					Number: 0, Class: 0xe0, SubClass: 0x01, Protocol: 0x01,
+					Endpoints: []usb.EndpointDescriptor{
+						{Address: 0x81, TransferType: usb.TransferInterrupt, MaxPacketSize: 16, Interval: 1},
+						{Address: 0x82, TransferType: usb.TransferBulk, MaxPacketSize: 512},
+						{Address: 0x02, TransferType: usb.TransferBulk, MaxPacketSize: 512},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestManagerHotplug0BDAA728GameplayPairingGuardAndDetachNeutralize(t *testing.T) {
+	fwPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_fw.bin")
+	cfgPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_config.bin")
+	fwBytes, err := os.ReadFile(fwPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfgBytes, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw := testFWLoader{"rtl8761bu_fw.bin": fwBytes, "rtl8761bu_config.bin": cfgBytes}
+
+	bus := &mgrBus{lmpSub: 0x8761}
+	bonds := l2cap.NewBondStore()
+	now := time.Unix(300, 0)
+	mgr := NewManager(bus, bonds, fw, func() time.Time { return now })
+
+	var dongleStates []bool
+	mgr.OnDongleChanged = func(connected bool, _ hci.DongleSpec) {
+		dongleStates = append(dongleStates, connected)
+	}
+
+	// Boot with no dongle attached -> Service succeeds cleanly.
+	if err := mgr.Service(); err != nil || mgr.DongleConnected() {
+		t.Fatalf("empty boot: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	// Hot-attach Deano's 0bda:a728 Realtek BT 5.4 dongle!
+	dev := makeDongleDevice(2)
+	bus.events = append(bus.events, usb.HostEvent{Kind: usb.DeviceAttached, Device: dev})
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("attach 0bda:a728 failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+	if bus.rtlChunks == 0 || mgr.DongleSpec().ProductID != 0xa728 {
+		t.Fatalf("expected RTL8761BU upload on 0bda:a728: chunks=%d spec=%+v", bus.rtlChunks, mgr.DongleSpec())
+	}
+
+	// Pairing succeeds in menu, is refused during gameplay.
+	if err := mgr.StartPairing(30 * time.Second); err != nil || !mgr.PairingActive() {
+		t.Fatalf("StartPairing in menu: err=%v active=%t", err, mgr.PairingActive())
+	}
+	if err := mgr.SetGameplayActive(true); err != nil || mgr.PairingActive() {
+		t.Fatalf("SetGameplayActive(true) did not close pairing: err=%v active=%t", err, mgr.PairingActive())
+	}
+	if err := mgr.StartPairing(30 * time.Second); err == nil {
+		t.Fatal("StartPairing allowed while gameplay active")
+	}
+	if err := mgr.SetGameplayActive(false); err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.StopPairing(); err != nil {
+		t.Fatal(err)
+	}
+	if mgr.ConnectedPlayers() != 0 || mgr.Bonds() != bonds {
+		t.Fatal("unexpected player count or bond store")
+	}
+	if _, ok := mgr.Player(0); ok {
+		t.Fatal("unexpected player 0")
+	}
+	if err := mgr.SetRumble(0, 0, 0); err == nil {
+		t.Fatal("SetRumble succeeded on disconnected slot")
+	}
+
+	// Hot-detach dongle cleanly closes pipes and transitions DongleConnected -> false.
+	bus.events = append(bus.events, usb.HostEvent{Kind: usb.DeviceDetached, Device: dev})
+	if err := mgr.Service(); err != nil || mgr.DongleConnected() {
+		t.Fatalf("detach 0bda:a728 failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+	if !bus.evPipe.closed || !bus.aclInPipe.closed || !bus.aclOutPipe.closed {
+		t.Fatal("dongle detach leaked USB pipes")
+	}
+	if len(dongleStates) != 2 || !dongleStates[0] || dongleStates[1] {
+		t.Fatalf("unexpected dongle state transitions: %v", dongleStates)
+	}
+}
+
+type memBondStorage struct {
+	bonds []byte
+	fw    map[string][]byte
+}
+
+func (m *memBondStorage) ReadBTBonds(context.Context) ([]byte, error) {
+	if len(m.bonds) == 0 {
+		return nil, fs.ErrNotExist
+	}
+	return m.bonds, nil
+}
+func (m *memBondStorage) WriteBTBonds(_ context.Context, data []byte) error {
+	m.bonds = append([]byte(nil), data...)
+	return nil
+}
+func (m *memBondStorage) ReadBTFirmware(_ context.Context, name string) ([]byte, error) {
+	b, ok := m.fw[name]
+	if !ok {
+		return nil, fs.ErrNotExist
+	}
+	return b, nil
+}
+
+func TestStoreAdaptersLoadSaveBondsAndFirmware(t *testing.T) {
+	ctx := context.Background()
+	st := &memBondStorage{fw: map[string][]byte{"rtl8761bu_config.bin": {0x55, 0xab, 0x23, 0x87, 0, 0}}}
+	bonds, err := LoadBonds(ctx, st)
+	if err != nil || len(bonds.List()) != 0 {
+		t.Fatalf("empty LoadBonds: err=%v list=%v", err, bonds.List())
+	}
+	addr, _ := l2cap.ParseBDAddr("DE:AD:BE:EF:00:01")
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: addr, LinkKey: [16]byte{7}, Name: "Pro Controller", Kind: controllers.KindSwitchPro})
+	if err := SaveBondsIfDirty(ctx, st, bonds); err != nil || bonds.Dirty() {
+		t.Fatalf("SaveBondsIfDirty: err=%v dirty=%t", err, bonds.Dirty())
+	}
+	reloaded, err := LoadBonds(ctx, st)
+	if err != nil {
+		t.Fatalf("LoadBonds reloaded: %v", err)
+	}
+	if rec, ok := reloaded.Lookup(addr); !ok || rec.Kind != controllers.KindSwitchPro {
+		t.Fatalf("reloaded bond mismatch: ok=%t rec=%+v", ok, rec)
+	}
+	loader := NewStoreFirmwareLoader(ctx, st)
+	if b, err := loader.LoadFirmware("rtl8761bu_config.bin"); err != nil || len(b) != 6 {
+		t.Fatalf("LoadFirmware: len=%d err=%v", len(b), err)
+	}
+}
+
+func makeMgrHIDACL(handle, cid uint16, body []byte) []byte {
+	l2 := make([]byte, 4+len(body))
+	binary.LittleEndian.PutUint16(l2[0:2], uint16(len(body)))
+	binary.LittleEndian.PutUint16(l2[2:4], cid)
+	copy(l2[4:], body)
+	acl := make([]byte, 4+len(l2))
+	binary.LittleEndian.PutUint16(acl[0:2], (handle&0x0fff)|uint16(hci.ACLBoundaryFirstAutoFlush)<<12)
+	binary.LittleEndian.PutUint16(acl[2:4], uint16(len(l2)))
+	copy(acl[4:], l2)
+	return acl
+}
+
+func TestDetachDongleNeutralizesKeyboardAndGamepad(t *testing.T) {
+	fwPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_fw.bin")
+	cfgPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_config.bin")
+	fwBytes, err := os.ReadFile(fwPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfgBytes, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw := testFWLoader{"rtl8761bu_fw.bin": fwBytes, "rtl8761bu_config.bin": cfgBytes}
+
+	bus := &mgrBus{lmpSub: 0x8761}
+	kbdAddr, _ := l2cap.ParseBDAddr("CC:22:33:44:55:66")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: kbdAddr, LinkKey: [16]byte{5}, Name: "BT Keyboard", Slot: 0})
+
+	mgr := NewManager(bus, bonds, fw, func() time.Time { return time.Unix(400, 0) })
+	var kbdReports [][]byte
+	var slotEvents []bool
+	mgr.OnKeyboardReport = func(r []byte) { kbdReports = append(kbdReports, append([]byte(nil), r...)) }
+	mgr.OnSlotChanged = func(_ uint8, connected bool, _ controllers.Kind, _ string) {
+		slotEvents = append(slotEvents, connected)
+	}
+
+	dev := makeDongleDevice(2)
+	bus.events = append(bus.events, usb.HostEvent{Kind: usb.DeviceAttached, Device: dev})
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("attach failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	connEv := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, kbdAddr[:]...)
+	connEv = append(connEv, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connEv)
+	// Open HID Control (0x0011) and Interrupt (0x0013) channels for keyboard slot 0.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x51, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Acknowledge SET_PROTOCOL(BOOT) on Control CID 0x0040 before sending boot report.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeMgrHIDACL(0x0041, 0x0040, []byte{0x00}),
+		makeMgrHIDACL(0x0041, 0x0041, []byte{0xa1, 0x01, 0, 0, 0x04, 0, 0, 0, 0, 0}),
+	)
+	for range 4 {
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(kbdReports) != 1 || kbdReports[0][2] != 0x04 {
+		t.Fatalf("expected active key report before detach, got %x", kbdReports)
+	}
+
+	// Detach USB dongle while key 0x04 is held -> MUST emit 8-byte zero report before disconnect.
+	bus.events = append(bus.events, usb.HostEvent{Kind: usb.DeviceDetached, Device: dev})
+	if err := mgr.Service(); err != nil || mgr.DongleConnected() {
+		t.Fatalf("detach failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+	if len(kbdReports) != 2 || len(kbdReports[1]) != 8 {
+		t.Fatalf("expected neutral keyboard report on dongle detach, got %x", kbdReports)
+	}
+	for i, b := range kbdReports[1] {
+		if b != 0 {
+			t.Fatalf("expected zero keyboard report byte %d on detach, got %#02x", i, b)
+		}
+	}
+	if len(slotEvents) != 2 || !slotEvents[0] || slotEvents[1] {
+		t.Fatalf("expected [true false] slot transitions, got %v", slotEvents)
+	}
+}
+
+func TestManagerRetriesEnumeratedDongleAfterPipeError(t *testing.T) {
+	dev := makeDongleDevice(2)
+	bus := &mgrBus{lmpSub: 0x8761, devices: []usb.BusDevice{dev}}
+	now := time.Unix(600, 0)
+	mgr := NewManager(bus, l2cap.NewBondStore(), nil, func() time.Time { return now })
+
+	// 1. Enumerated at boot with no DeviceAttached event: attaches via Devices()
+	// using built-in pinned RTL8761BU firmware!
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("initial enumerated attach failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	// 2. Inject a transient pipe error without DeviceDetached -> isolates/detaches.
+	bus.evPipe.pollErr = errors.New("injected transient USB stall")
+	if err := mgr.Service(); err != nil || mgr.DongleConnected() {
+		t.Fatalf("pipe error did not detach dongle cleanly: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	// 3. Before backoff elapses, immediate Service() does not hammer retry.
+	now = now.Add(200 * time.Millisecond)
+	if err := mgr.Service(); err != nil || mgr.DongleConnected() {
+		t.Fatalf("unexpected retry before backoff elapsed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	// 4. Once backoff elapses, Service() re-attaches still-enumerated dongle without
+	// requiring a new DeviceAttached event!
+	now = now.Add(400 * time.Millisecond)
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("enumerated dongle did not re-attach after backoff: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+}
+
+func TestManagerRejectsAndRetriesAttachWhenGameplayRadioFails(t *testing.T) {
+	dev := makeDongleDevice(2)
+	bus := &mgrBus{lmpSub: 0x8761, failScanDisable: true, devices: []usb.BusDevice{dev}}
+	now := time.Unix(700, 0)
+	mgr := NewManager(bus, l2cap.NewBondStore(), nil, func() time.Time { return now })
+
+	var dongleEvents []bool
+	mgr.OnDongleChanged = func(connected bool, _ hci.DongleSpec) {
+		dongleEvents = append(dongleEvents, connected)
+	}
+	if err := mgr.SetGameplayActive(true); err != nil {
+		t.Fatal(err)
+	}
+
+	// First attach attempt fails disabling scan -> must close transport, keep
+	// session nil, and not announce a connected dongle while scan remains enabled.
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if mgr.DongleConnected() {
+		t.Fatal("expected DongleConnected=false when SetGameplayActive(true) fails on attach")
+	}
+	if bus.evPipe == nil || !bus.evPipe.closed {
+		t.Fatal("expected failed transport pipes to be closed cleanly")
+	}
+	if len(dongleEvents) != 0 {
+		t.Fatalf("expected no OnDongleChanged notifications on rejected attach, got %v", dongleEvents)
+	}
+
+	// After retry backoff elapses and scan-disable succeeds, retry attaches cleanly.
+	now = now.Add(600 * time.Millisecond)
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("expected dongle to attach cleanly on retry: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+	if len(dongleEvents) != 1 || !dongleEvents[0] {
+		t.Fatalf("expected [true] OnDongleChanged after retry attach, got %v", dongleEvents)
+	}
+}
+
+func TestManagerExternalBusDispatchIgnoresNonBTBackoff(t *testing.T) {
+	bus := &mgrBus{lmpSub: 0x8761}
+	now := time.Unix(800, 0)
+	mgr := NewManager(bus, l2cap.NewBondStore(), nil, func() time.Time { return now })
+
+	// External coordinator delivers a non-BT USB keyboard attach followed
+	// immediately by a BT dongle attach on the same tick. The non-BT attach
+	// must NOT trigger dongleRetryBackoff or block the BT dongle attach.
+	kbd := usb.BusDevice{
+		Address: 3,
+		Speed:   usb.SpeedFull,
+		Config: usb.FullConfiguration{
+			Value: 1,
+			Interfaces: []usb.InterfaceDescriptor{{
+				Number: 0, Class: 3, SubClass: 1, Protocol: 1,
+				Endpoints: []usb.EndpointDescriptor{{Address: 0x81, TransferType: usb.TransferInterrupt, MaxPacketSize: 8}},
+			}},
+		},
+	}
+	mgr.HandleBusEvent(usb.HostEvent{Kind: usb.DeviceAttached, Device: kbd})
+	if !mgr.retryAfter.IsZero() {
+		t.Fatalf("non-BT device triggered retryAfter=%v", mgr.retryAfter)
+	}
+	dev := makeDongleDevice(4)
+	mgr.HandleBusEvent(usb.HostEvent{Kind: usb.DeviceAttached, Device: dev})
+	if err := mgr.ServiceSession(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("BT dongle attach after non-BT device failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	// Non-BT detach must not disturb active BT dongle.
+	mgr.HandleBusEvent(usb.HostEvent{Kind: usb.DeviceDetached, Device: kbd})
+	if !mgr.DongleConnected() {
+		t.Fatal("non-BT detach disconnected active BT dongle")
+	}
+
+	mgr.HandleBusEvent(usb.HostEvent{Kind: usb.DeviceDetached, Device: dev})
+	if mgr.DongleConnected() {
+		t.Fatal("BT dongle detach did not clear connected state")
+	}
+}
+
+func TestManagerPairingRemainingAndForgetDevice(t *testing.T) {
+	fwPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_fw.bin")
+	cfgPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_config.bin")
+	fwBytes, err := os.ReadFile(fwPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfgBytes, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw := testFWLoader{"rtl8761bu_fw.bin": fwBytes, "rtl8761bu_config.bin": cfgBytes}
+
+	bus := &mgrBus{lmpSub: 0x8761}
+	addr1, _ := l2cap.ParseBDAddr("CC:22:33:44:55:66")
+	addr2, _ := l2cap.ParseBDAddr("CC:22:33:44:55:77")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: addr1, LinkKey: [16]byte{5}, Name: "BT Keyboard", Slot: 0})
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: addr2, LinkKey: [16]byte{6}, Name: "Offline Pad", Kind: controllers.KindDualSense, Slot: 1})
+
+	now := time.Unix(900, 0)
+	mgr := NewManager(bus, bonds, fw, func() time.Time { return now })
+
+	// Offline bond removal works even before a dongle is attached.
+	if found, err := mgr.ForgetDevice(addr2); !found || err != nil {
+		t.Fatalf("offline ForgetDevice failed: found=%t err=%v", found, err)
+	}
+	if _, ok := bonds.Lookup(addr2); ok {
+		t.Fatal("offline bond survived ForgetDevice")
+	}
+	if found, err := mgr.ForgetDevice(addr2); found || err != nil {
+		t.Fatalf("duplicate ForgetDevice = (%t, %v), want (false, nil)", found, err)
+	}
+
+	dev := makeDongleDevice(2)
+	bus.events = append(bus.events, usb.HostEvent{Kind: usb.DeviceAttached, Device: dev})
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("attach failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+	if err := mgr.StartPairing(30 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(7 * time.Second)
+	if rem := mgr.PairingRemaining(); rem != 23*time.Second {
+		t.Fatalf("PairingRemaining = %v, want 23s", rem)
+	}
+	if err := mgr.StopPairing(); err != nil {
+		t.Fatal(err)
+	}
+
+	connEv := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, addr1[:]...)
+	connEv = append(connEv, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connEv)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x51, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if mgr.ConnectedPlayers() != 1 {
+		t.Fatalf("expected 1 connected player, got %d", mgr.ConnectedPlayers())
+	}
+	if found, err := mgr.ForgetDevice(addr1); !found || err != nil {
+		t.Fatalf("ForgetDevice connected failed: found=%t err=%v", found, err)
+	}
+	if _, ok := bonds.Lookup(addr1); ok || mgr.ConnectedPlayers() != 0 {
+		t.Fatalf("connected device not forgotten cleanly: ok=%t count=%d", ok, mgr.ConnectedPlayers())
+	}
+}
+
+func TestManagerForgetDeviceStopsActivePairing(t *testing.T) {
+	fwPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_fw.bin")
+	cfgPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_config.bin")
+	fwBytes, err := os.ReadFile(fwPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfgBytes, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw := testFWLoader{"rtl8761bu_fw.bin": fwBytes, "rtl8761bu_config.bin": cfgBytes}
+
+	bus := &mgrBus{lmpSub: 0x8761}
+	addr1, _ := l2cap.ParseBDAddr("CC:22:33:44:55:88")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: addr1, LinkKey: [16]byte{5}, Name: "BT Keyboard", Slot: 0})
+
+	now := time.Unix(1000, 0)
+	mgr := NewManager(bus, bonds, fw, func() time.Time { return now })
+	bus.events = append(bus.events, usb.HostEvent{Kind: usb.DeviceAttached, Device: makeDongleDevice(2)})
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("attach failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	connEv := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, addr1[:]...)
+	connEv = append(connEv, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connEv)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x51, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := mgr.StartPairing(30 * time.Second); err != nil || !mgr.PairingActive() {
+		t.Fatalf("StartPairing failed: err=%v active=%t", err, mgr.PairingActive())
+	}
+
+	if found, err := mgr.ForgetDevice(addr1); !found || err != nil {
+		t.Fatalf("ForgetDevice failed: found=%t err=%v", found, err)
+	}
+	if mgr.PairingActive() || mgr.PairingRemaining() != 0 {
+		t.Fatalf("expected pairing stopped on ForgetDevice: active=%t rem=%v", mgr.PairingActive(), mgr.PairingRemaining())
+	}
+	if _, ok := bonds.Lookup(addr1); ok || mgr.ConnectedPlayers() != 0 {
+		t.Fatalf("expected device forgotten and disconnected: ok=%t count=%d", ok, mgr.ConnectedPlayers())
+	}
+	if err := mgr.StartPairing(30 * time.Second); err != nil || !mgr.PairingActive() {
+		t.Fatalf("restart pairing after ForgetDevice failed: err=%v active=%t", err, mgr.PairingActive())
+	}
+
+	// A notification from the forgotten connection must not be admitted by the new window.
+	linkEv := append([]byte{hci.EventLinkKeyNotification, 23}, addr1[:]...)
+	linkEv = append(linkEv, make([]byte, 16)...)
+	linkEv = append(linkEv, 0x04)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, linkEv)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := bonds.Lookup(addr1); ok {
+		t.Fatal("late LinkKeyNotification recreated a forgotten bond in the new pairing window")
+	}
+}

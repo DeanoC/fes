@@ -352,6 +352,8 @@ type App struct {
 	shotCtx                context.Context
 	shotCancel             context.CancelFunc
 	loadGen                int
+	loadFinishedGen        int
+	loadFinishedOK         bool
 	keepFocusID            string
 	keepFocusIndex         int
 	navDirty               bool
@@ -719,6 +721,8 @@ type App struct {
 	settingsWired string
 	// settingsFirmware is the host's bundled firmware for Settings › Firmware.
 	settingsFirmware settingsFirmware
+	// bluetooth is the optional local Bluetooth stack for Settings › Bluetooth.
+	bluetooth BluetoothController
 	// kitDisplay is the kit's own menu display; kitID is its target ID.
 	kitDisplay bool
 	kitID      string

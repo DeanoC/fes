@@ -1,0 +1,7 @@
+build-base rc=0
+build-dx rc=0
+dx-3d rc=1
+dx-doom rc=0
+base-3d rc=1
+base-doom rc=0
+SIM_DONE

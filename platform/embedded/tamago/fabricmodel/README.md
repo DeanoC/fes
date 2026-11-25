@@ -1,95 +1,57 @@
-# Embedded fabric lifecycle model
+# Embedded fabric lifecycle model (`fabricmodel/`)
 
-This is an executable specification for the runtime-owned boundary of the
-Linux-free experiment. It runs as ordinary Go tests and as `cmd/fabric` on
-native AArch64 QEMU. It does not program an FPGA, validate a production FES
-package, implement FES GP, or grant real DMA memory. Its `model.*` images are
-software endpoint inputs, never a physical programming path. The separate
-[runtime admission gate](../runtimeadmission/admission.go) can now supply a
-verified package's retained payload to this model. Its full package/core/ABI/build
-binding is compared during simulated identity verification and published only
-after release. Echoing that binding in software is not live GP identity proof.
+`fabricmodel.Controller` is the off-board executable state-machine model of the
+runtime FPGA lifecycle boundary. It runs in host Go tests and as `cmd/fabric`
+on QEMU `virt` beneath [modelbackend](../modelbackend/README.md) and
+`configcheck` ([sdm.ConfigModel](../sdm/README.md#configuration-protocol-model)).
+On DE25-Nano hardware, [nativefabric](../nativefabric/README.md) and EL3 BL31
+([firmware/](../../firmware/README.md)) implement the real containment path;
+see [../../ARCHITECTURE.md](../../ARCHITECTURE.md).
 
-The existing production [runtime](../../../../sources/libmister-runtime/ARCHITECTURE.md)
-remains authoritative. A board implementation must preserve its admission,
-persistence, input, display and recovery contracts. This model exercises a
-bounded subset before that implementation exists.
+- **Called by:** [modelbackend](../modelbackend/README.md), `configcheck`,
+  `cmd/fabric`, and host `-race` tests.
+- **Delegates to:** caller-supplied monotonic clock, explicit backend
+  `Completion` tokens, and optional [runtimeadmission](../runtimeadmission/README.md)
+  retained payloads.
 
-## Commands and ownership
+## State machine and transition order
 
-The controller has one cooperative owner. `Next` issues at most one command;
-subsequent polls produce no command until its token receives `Complete`.
-Tokens bind transition and sequence. Repeated or late completions are rejected.
-The caller supplies monotonic time and a deadline, so waiting requires neither
-a thread nor a blocking loop.
+The controller has one cooperative owner: `Next` issues at most one command at
+a time, and subsequent polls emit nothing until its sequence-bound token
+receives `Complete`.
 
-Model image admission verifies the expected digest and copies bytes before
-retiring the existing owner. A renderer preparation has an opaque, single-use
-display-generation token. A pending transition blocks new preparations and
-waits for the existing one to finish. `FinishFrame` needs explicit quiescence
-from its trusted backend; timeout alone cannot release memory ownership.
-`Drain` separately identifies the old reader's display generation, including
-after the plane was revoked. Completion needs both explicit quiescence and
-that exact generation. A generic success reply or stale acknowledgement cannot
-advance to containment or programming; the command and images remain held.
-
-The ordinary replacement order is:
-
-```text
-admit immutable image -> retire input -> save existing owner
-  -> finish outstanding frame -> drain display -> prove containment
-  -> program retained model bytes -> verify digest and live identity
-  -> release -> publish fresh core/display generations
+```mermaid
+flowchart LR
+  Admit["Admit immutable\nimage"] --> RetireIn["Retire\ninput"]
+  RetireIn --> Save["Save current\nowner"]
+  Save --> Frame["Finish active\nframe"]
+  Frame --> Drain["Drain display\n(exact gen)"]
+  Drain --> Contain["Prove\ncontainment"]
+  Contain --> Prog["Program\nbytes"]
+  Prog --> Ident["Verify digest &\nlive identity"]
+  Ident --> Rel["Release &\npublish new gen"]
 ```
 
-Idle boot starts at containment. Idle has a display generation but no gameplay
-core generation. A session-frame fault revokes the display while retaining the
-running core. It cannot reopen the plane until the same frame has a confirmed
-drain; reopening uses a fresh display generation.
+- **Display drain:** `FinishFrame` and `Drain` require explicit quiescence
+  bound to the exact display generation (even after plane revocation); timeout
+  alone never releases memory ownership.
+- **Failure handling:** Known Save failure keeps the old core with input
+  retired; known programming/identity failure gets one bounded idle recovery;
+  uncertain Save/Program or failed drain retains references and enters
+  `reboot_required` (no silent retry).
 
-A known completed save failure retains the old image/core generation with input
-retired. An unknown save/program outcome or failed drain retains references and
-requires reboot. A known completed programming/identity failure gets at most one
-idle recovery with its own bounded budget. A failed recovery enters
-`reboot_required`; `Stop` does not retry it. Explicit `RecoverIdle` is permitted
-only when no unresolved frame or command can still own memory.
+## Verification
 
-`Completion` is trusted backend evidence, not a claim generated by the UI.
-`CompleteModel` supplies observations for the software endpoint only and must
-never be used as physical completion proof. The model contains no independent
-network server, owner registry, on-disk save format or production recovery path.
-
-## Validation and remaining work
-
-Thirteen invariant checks run in both the host suite and the native image:
-boot ordering, immutable admission, save-before-replace, single issue/completion,
-identity-before-release, unknown save retention, known save failure, failed drain,
-explicit/generation-bound drain, revoked-reader identity, abandoned frame,
-session-frame fault and bounded/explicit recovery.
-The same native diagnostic also runs six [contained configuration checks](../sdm/README.md#configuration-protocol-model).
-They exercise a hypothetical held-bridge TF-A endpoint through this controller,
-including accepted-BUSY buffer ownership and full launch/return. The reference
-TF-A v2.12 programming behaviour remains unsupported, with no physical binding.
-Six further native checks drive the [injected firmware/FPGA endpoint](../nativefabric/README.md)
-through this controller with software platform hooks. Host integration also
-exercises the actual patched firmware functions and Verilated endpoint.
-
-From the FES root:
+Runs 13 lifecycle invariant checks, 6
+[SDM protocol model checks](../sdm/README.md#configuration-protocol-model),
+and 6 injected `nativefabric` endpoint checks in both host `-race` tests and
+the QEMU `fabric` CI suite:
 
 ```sh
-python3 platform/embedded/tamago/run.py fabric \
+FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/tamago/run.py fabric \
   --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
-  --qemu out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64 \
+  --qemu /path/to/qemu-system-aarch64 \
   --output out/native-fabric-model
+
+GOWORK=off go -C platform/embedded/tamago test -race ./fabricmodel
 ```
-
-The checks advance a controlled clock; executing them on QEMU does not turn
-their deadlines into physical timing evidence. A separate host regression
-checks retention of the exact issued buffer after an uncertain program result.
-
-The model's grants bracket tenfoot's RAMFB copies in the explicit Play backend;
-the separate `fabric` diagnostic needs no scanout device. Neither establishes
-that a hardware backend can drain an AXI master, retain DDR through SDM
-configuration, perform input neutralization, publish saves, or verify an Agilex
-identity. Those require the actual runtime and board/firmware implementation.
-Tenfoot model Play/Back is available; physical FPGA Play remains unavailable.

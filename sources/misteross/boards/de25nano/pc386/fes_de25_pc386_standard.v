@@ -5,7 +5,7 @@
 // masters' crossings into F2SDRAM.
 // The computer slave and its transport stay on the board's peripheral clock
 // (clk_sys), as on the Spectrum; pc386_system, its window ports, the mailbox
-// and the audio source run on machine_clk, the 61.437908 MHz machine clock.
+// and the audio source run on machine_clk, the machine clock (its model's, build.py MODEL_CLOCKS).
 // The GP words, transport health and the reset release cross here.
 // No Cyclone V primitive belongs here.
 module fes_de25_pc386_standard #(

@@ -8,6 +8,20 @@ it flushes file data before updating and flushing the directory size.
 if absent) via copy-on-write cluster allocation and a single-sector directory
 entry commit before freeing the previous clusters, ensuring a power cut before
 the directory commit leaves the previous file intact rather than half-written.
+`RemoveFile(ctx, name)` and `RemoveDir(ctx, name)` delete an existing regular
+file or empty directory by committing the `0xE5` deleted marker on the 8.3 short
+entry first, invalidating open handles with `ErrReplaced`, wiping any preceding
+LFN slots, and only then reclaiming the target's clusters across mirrored FAT
+tables. `RemoveDir` rejects non-empty directories with `ErrNotEmpty`.
+`Rename(ctx, oldName, newName)` renames or moves files and directories across
+the volume without copying data clusters, commits the new directory entry (and
+updates moved directory `..` links) before unlinking the old entry with `0xE5`,
+and invalidates open handles with `ErrReplaced`.
+`MkdirAll(ctx, name)` validates the full path, verifies free clusters up front,
+and creates missing intermediate directories using the same fail-closed `Mkdir`
+rules. `StatFS(ctx)` scans the active FAT, FSInfo sector, and root label to
+report total/free/used/bad clusters, dirty-bit state, and FSInfo hints without
+mutating media.
 
 `CreateFile(ctx, name, data)` and `Mkdir(ctx, name)` explicitly allocate new
 entries under an existing parent. They reject existing names and short aliases,
@@ -31,7 +45,8 @@ existing-file reads and further writes refuse without retry or rollback.
 Existing data, allocated clusters and DMA ownership are not reclaimed by that
 error. Power loss can leave orphan allocation or incomplete metadata requiring
 external repair. A known read-only refusal before mutation leaves the mount
-usable. Rename, removal, overwrite-by-creation, formatting and repair are absent.
+usable. Overwrite-by-creation, overwrite-on-rename, formatting and repair are
+absent.
 
 These APIs supply neither a storage lease nor package/FPGA admission. The caller
 must own and serialize storage access. Nano builds still select read-only SD;

@@ -10,8 +10,10 @@ in HPS DDR). The constants are generated from
 The kernel owner allocates one contiguous span of `WindowSpan` bytes
 (256 MiB), aligned to `GrantAlignment`, below 2^`DmaAddressBits`. The span
 is fixed rather than sized per launch: pc386's ATA region starts at window
-offset `0x08000000` and may run to `0x0fffffff`. The runtime publishes the
-grant through the control block while the machine is held:
+offset `0x08000000` and may run to `0x0fffffff`. The kernel owner, not the
+runtime, publishes the grant through the control block while the machine is
+held, because no CPU or DMA address reaches userspace (as for
+`fes.fabric.de25-scanout`). It writes:
 
 - base, through `GrantLo` and `GrantHi`;
 - span;

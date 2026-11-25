@@ -21,11 +21,11 @@ foreach file {fes_de25_computer_transport.v fes_gp_crossing.v
 # casts and typed parameters under a .v name too.
 foreach file {fes_c64_core.v fes_firmware_upload.v fes_c64_firmware_rom.v
     fes_computer_mailbox.v fes_de25_session_display.v fes_display_plane.v fes_menu_control.v
-    c64_machine_de25.sv c64_ram_de25.v c64_color_ram_de25.v c64_disk_store_de25.v c64_frame_store_de25.sv
+    c64_machine_de25.sv c64_ram_de25.v c64_color_ram_de25.v fes_de25_sdram.v fes_media_sdram.v c64_frame_store_de25.sv
     c64_vic.v c64_vic_graphics_pixels.sv c64_vic_sprite_pixels.sv c64_vic_collisions.sv
     c64_vic_fetch.sv c64_vic_sprite_fetch.sv c64_sid.v c64_sid_envelope.sv c64_sid_oscillator.sv
     c64_sid_wave_tables.sv c64_sid_svf.sv c64_cia.v c64_drive1541.sv c64_via.v c64_gcr_read.v
-    c64_d64_medium.sv c64_keyboard.v cpu6502.v cpu6502_alu.v} {
+    c64_d64_medium_de25.sv c64_keyboard.v cpu6502.v cpu6502_alu.v} {
     add_fileset_file $file SYSTEM_VERILOG PATH $file
 }
 foreach file {fes_de25_computer.vh fes_de25_scanout.vh} {

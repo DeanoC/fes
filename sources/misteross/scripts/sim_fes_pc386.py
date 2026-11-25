@@ -557,10 +557,31 @@ def timing_failures(report: dict) -> list[str]:
 def machine_testbench(args, linked: list[Path]) -> Path:
     # cpu_profile.vlt exposes the signals --cpu-profile reads (cpu_profile.h).
     # At --cpu-level 4 the RTL is the 486SX identity (I486 = 1), as the level-4 oracle backs it.
+    parameters = {'I486': "1'b1"} if args.cpu_level == 4 else None
+    if getattr(args, 'cpu_core', 'i386') == 'i486dx':
+        return i486dx_machine_testbench(args, linked, parameters)
     cpu = verilate(args.verilator, 'machine', 'fes_i386_cpu', CPU_RTL + (CORE / 'sim/cpu_profile.vlt',), None, [],
-                   args.jobs, {'I486': "1'b1"} if args.cpu_level == 4 else None)
+                   args.jobs, parameters)
     write_cpu_profile_layout(cpu.parent)
     return verilate_with_audio(args, 'machine', CORE / 'sim/machine_tb.cpp', [*linked, cpu],
+                               top='pc386_machine', rtl=MACHINE_RTL, include=(cpu.parent,))
+
+
+def i486dx_machine_testbench(args, linked: list[Path], parameters: dict | None) -> Path:
+    """machine_tb with the DE25's i486DX as the RTL CPU (boards/de25nano/pc386/i486dx), in machine-i486dx/,
+    in its benches' form (its top keeps fes_i386_cpu's name, so machine_tb and the profile read it as they
+    read the integer core)."""
+    import importlib.util
+    path = ROOT / 'boards/de25nano/pc386/i486dx/derive.py'
+    spec = importlib.util.spec_from_file_location('de25_pc386_i486dx_derive', path)
+    dx = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(dx)
+    name = 'machine-i486dx'
+    rtl = dx.sim_sources(OUTPUT / name / 'derived', ROOT)
+    cpu = verilate(args.verilator, name, 'fes_i386_cpu', rtl + (CORE / 'sim/cpu_profile.vlt',), None, [],
+                   args.jobs, parameters)
+    write_cpu_profile_layout(cpu.parent)
+    return verilate_with_audio(args, name, CORE / 'sim/machine_tb.cpp', [*linked, cpu],
                                top='pc386_machine', rtl=MACHINE_RTL, include=(cpu.parent,))
 
 
@@ -2249,6 +2270,9 @@ def main() -> int:
     parser.add_argument('--cpu', choices=('oracle', 'rtl'), default='oracle',
                         help='boot and game: the CPU, the Bochs oracle or fes_i386_cpu (which the oracle backs on '
                              'its stops)')
+    parser.add_argument('--cpu-core', choices=('i386', 'i486dx'), default='i386',
+                        help="machine_tb's RTL CPU: the integer core (fes_i386_cpu), or the DE25's i486DX "
+                             '(boards/de25nano/pc386/i486dx), built in machine-i486dx/')
     parser.add_argument('--cpu-level', type=int, default=3, choices=(3, 4),
                         help='boot, game and wfw: the oracle\'s Bochs CPU level. 4 is the 486 oracle '
                              '(scripts/fes_i486_oracle.py), built and run under build/sim/fes-pc386-level4; with '

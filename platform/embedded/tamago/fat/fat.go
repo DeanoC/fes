@@ -2,8 +2,9 @@
 
 // Package fat mounts an existing FAT32 volume over fixed-sector storage.
 // Reading is general within the bounded boot-volume limits. WriteFile updates
-// preallocated files; CreateFile and Mkdir allocate new entries. Rename, removal
-// and formatting are not implemented. Successful writes include device Flush.
+// preallocated files; CreateFile, Mkdir, MkdirAll, ReplaceFile, RemoveFile,
+// RemoveDir and Rename mutate entries and cluster chains. StatFS reports volume
+// capacity and free space. Successful writes include device Flush.
 // It establishes clean-reboot persistence, not power-loss atomicity.
 package fat
 
@@ -45,6 +46,7 @@ type Volume struct {
 	root                uint32
 	fatCopies           []uint64
 	fsInfo              uint64
+	bpbLabel            string
 	allocationValid     bool
 	mutationErr         error
 	replacedGen         map[entryLocation]uint64
@@ -191,6 +193,12 @@ func parseBoot(device block.Device, base, limit uint64, b []byte) (*Volume, erro
 			v.fsInfo = base + info
 		}
 	}
+	if b[66] == 0x29 {
+		label := strings.TrimRight(string(b[71:82]), " \x00")
+		if label != "" && label != "NO NAME" {
+			v.bpbLabel = label
+		}
+	}
 	return v, nil
 }
 
@@ -310,6 +318,8 @@ type entry struct {
 	sector     uint64
 	offset     int
 	modTime    time.Time
+	lfnSlots   []entryLocation
+	shortSum   byte
 }
 
 func shortName(b []byte) string {
@@ -352,6 +362,7 @@ func (v *Volume) entriesContext(ctx context.Context, cluster uint32) ([]entry, e
 	}
 	var result []entry
 	var lfn []uint16
+	var lfnSlots []entryLocation
 	var checksum byte
 	expected := 0
 	spc := int(v.sectorsPerCluster)
@@ -378,6 +389,7 @@ func (v *Volume) entriesContext(ctx context.Context, cluster uint32) ([]entry, e
 					}
 					if d[0] == 0xe5 {
 						lfn = nil
+						lfnSlots = nil
 						expected = 0
 						continue
 					}
@@ -386,15 +398,18 @@ func (v *Volume) entriesContext(ctx context.Context, cluster uint32) ([]entry, e
 						if d[0]&0x40 != 0 {
 							if seq == 0 || seq > 20 {
 								lfn = nil
+								lfnSlots = nil
 								expected = 0
 								continue
 							}
 							lfn = make([]uint16, seq*13)
+							lfnSlots = make([]entryLocation, 0, seq)
 							expected = seq
 							checksum = d[13]
 						}
 						if seq == 0 || seq != expected || len(lfn) < seq*13 || d[13] != checksum || d[12] != 0 || binary.LittleEndian.Uint16(d[26:]) != 0 {
 							lfn = nil
+							lfnSlots = nil
 							expected = 0
 							continue
 						}
@@ -402,18 +417,24 @@ func (v *Volume) entriesContext(ctx context.Context, cluster uint32) ([]entry, e
 						for i, p := range positions {
 							lfn[(seq-1)*13+i] = binary.LittleEndian.Uint16(d[p:])
 						}
+						lfnSlots = append(lfnSlots, entryLocation{sector: sector, offset: off})
 						expected--
 						continue
 					}
 					name := shortName(d)
+					var matchedSlots []entryLocation
+					var matchedSum byte
 					if lfn != nil && expected == 0 && checksum == shortChecksum(d) {
 						n := 0
 						for n < len(lfn) && lfn[n] != 0 && lfn[n] != 0xffff {
 							n++
 						}
 						name = string(utf16.Decode(lfn[:n]))
+						matchedSlots = lfnSlots
+						matchedSum = checksum
 					}
 					lfn = nil
+					lfnSlots = nil
 					expected = 0
 					if d[11]&8 != 0 || name == "." || name == ".." {
 						continue
@@ -423,7 +444,7 @@ func (v *Volume) entriesContext(ctx context.Context, cluster uint32) ([]entry, e
 					}
 					first := uint32(binary.LittleEndian.Uint16(d[20:]))<<16 | uint32(binary.LittleEndian.Uint16(d[26:]))
 					modTime := decodeFATTimestamp(binary.LittleEndian.Uint16(d[24:]), binary.LittleEndian.Uint16(d[22:]))
-					result = append(result, entry{name: name, attributes: d[11], cluster: first, size: binary.LittleEndian.Uint32(d[28:]), sector: sector, offset: off, modTime: modTime})
+					result = append(result, entry{name: name, attributes: d[11], cluster: first, size: binary.LittleEndian.Uint32(d[28:]), sector: sector, offset: off, modTime: modTime, lfnSlots: matchedSlots, shortSum: matchedSum})
 				}
 			}
 			s += run

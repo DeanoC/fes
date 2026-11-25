@@ -7,18 +7,18 @@
 //   0x00 UARTDR, 0x18 UARTFR (bit 4 = RXFE), 0x2c UARTLCR_H (bit 4 = FEN),
 //   0x38 UARTIMSC (bit 4 = RXIM, bit 6 = RTIM), 0x44 UARTICR.
 
-TEXT ·readRaw(SB),NOSPLIT|NOFRAME,$0-2
+TEXT ·readDR(SB),NOSPLIT|NOFRAME,$0-5
 	MOVD $0x09000000, R0
 	MOVWU 0x18(R0), R1
 	TBNZ $4, R1, empty
 	MOVWU (R0), R1
-	MOVB R1, ret+0(FP)
+	MOVW R1, ret+0(FP)
 	MOVD $1, R1
-	MOVB R1, ret1+1(FP)
+	MOVB R1, ret1+4(FP)
 	RET
 empty:
-	MOVB ZR, ret+0(FP)
-	MOVB ZR, ret1+1(FP)
+	MOVW ZR, ret+0(FP)
+	MOVB ZR, ret1+4(FP)
 	RET
 
 TEXT ·enableHWIRQ(SB),NOSPLIT|NOFRAME,$0

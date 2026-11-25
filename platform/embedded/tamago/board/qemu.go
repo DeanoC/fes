@@ -30,7 +30,9 @@ func PowerOff() error                   { return qemuvirt.PowerOff() }
 func Reset() error                      { return qemuvirt.Reset() }
 func EntropySource() psci.EntropySource { return qemuvirt.EntropySource() }
 func RTC() (*rtc.PL031, error)          { return qemuvirt.RTC() }
+func WallClock() *rtc.Clock             { return qemuvirt.WallClock() }
 func WallTime() (time.Time, bool)       { return qemuvirt.WallTime() }
+func SyncWallTime(wall time.Time)       { qemuvirt.SyncWallTime(wall) }
 func InitDevices() (*dma.Region, error) { return qemuvirt.InitDevices() }
 func OpenStorage() (block.Device, error) {
 	pool, err := qemuvirt.DMAPool()

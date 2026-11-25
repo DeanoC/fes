@@ -20,7 +20,7 @@ a dated record. A dated record is not the schedule.
 | Decide whether a PR needs a full image or DE25/DE10 kit HIL | [HIL plan](hil-plan.md), [DE25 kit HIL](de25-kit-hil.md), [kit sharing](kit-sharing.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
 | Develop DE25-Nano Linux platform, board shells and kernel DMA ownership | [DE25 Linux platform](design/de25-linux-platform.md), [DE25-Nano Linux](de25-linux.md), [DE25 board shells](../sources/misteross/boards/de25nano/README.md), [DMA ownership](../image/kernel/de25-dma/README.md) |
-| Develop DE25-Nano without Linux (opt-in TamaGo bare-metal stack) | [Embedded base and native tenfoot](../platform/embedded/README.md), [TamaGo runtime and QEMU suites](../platform/embedded/tamago/README.md), [initial feasibility study](design/de25-embedded-os.md) |
+| Develop DE25-Nano without Linux (opt-in TamaGo bare-metal stack) | [Embedded base](../platform/embedded/README.md), [architecture & flow diagrams](../platform/embedded/ARCHITECTURE.md), [TamaGo runtime and QEMU suites](../platform/embedded/tamago/README.md) |
 | Build, provision or verify a flashable disk or appliance release | [Bootable media](bootable-media.md), [appliance releases](appliance-releases.md) |
 | Work in misteross | [misteross README](../sources/misteross/README.md): OSS place-and-route experiments, or a described core |
 
@@ -58,13 +58,15 @@ Use these when the start-here page names the job and you need the steps.
 | Which outputs are versioned | [Artifact identities](artifacts.md) |
 | Read source, CI, build and hardware evidence | [Status](status.md) |
 | Run only the tests a change affects (including the TamaGo CI lane) | [Focused tests](test-changed.md) |
-| Rooms / Stop-idle design that is not built yet | [Idle MENU → rooms](idle-menu-rooms.md), [phase 2](idle-menu-rooms-phase2.md). Present tense on that page, outside “What is true now”, still describes the old MENU idle (`menu.rbf`, `mister_v1`). Current idle install paths are [image assembly](image-assembly.md) and `image/build/native-inputs.toml`. |
-| The kit as its own host: sources, sessions, what the mesh drafts still mean | [Mesh under kit-as-host](mesh-kit-host.md) (22 Oct 2026 decisions, #863) |
-| Earlier mesh drafts, historical on the kit side | [Mesh LAN](mesh-lan.md), [node protocol](mesh-node-protocol.md), [phase 1](mesh-phase1.md), [phase 2](mesh-phase2.md), [phase 3](mesh-phase3.md), [v-next plan](mesh-vnext.md) |
+| Rooms / Stop-idle target design lock | [Idle MENU → rooms](idle-menu-rooms.md) (Phase 2 execution brief archived in [archive/](archive/README.md)). Current idle install paths are [image assembly](image-assembly.md) and `image/build/native-inputs.toml`. |
+| The kit as its own host: topology, remote sources & LAN security | [Mesh under kit-as-host](mesh-kit-host.md) (22 Oct 2026 decisions, #863) |
 | See when a soft restart asks for a board reboot | [Soft-restart Path B](soft-restart-path-b.md). The kit check in that note is on hold. |
 
 ## Not current instructions
 
+- **[archive/](archive/README.md)** holds superseded September–October 2026
+  mesh LAN drafts, execution briefs, and the idle-rooms Phase 2 brief kept for
+  design provenance only.
 - **[validation/](validation/)** records what a named artifact did on a named
   day. Dated validation records accept only the exact artifact they name;
   current core standing and active evidence links live in

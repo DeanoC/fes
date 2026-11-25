@@ -20,17 +20,16 @@ derive = load("derive")
 
 
 class Derivations(unittest.TestCase):
-    def test_machine_gains_only_the_firmware_port(self):
+    def test_machine_uses_uploaded_firmware_and_external_disk(self):
         source = (C64 / "c64_machine.sv").read_bytes()
         result, record = derive.retarget_machine(source)
         self.assertNotIn(b"c64_rom ", result)
         self.assertEqual(result.count(b"fes_c64_firmware_rom rom ("), 1)
         self.assertEqual(result.count(b"firmware_write_enable"), 2)
         self.assertEqual(record["source_sha256"], derive.sha(source))
-        # Every other line of the DE10 machine is compiled as it is.
-        kept = set(source.splitlines())
-        added = [line for line in result.splitlines() if line not in kept]
-        self.assertEqual(len(added), 12 + 4 + len(derive.RESET_GROUPS) * 2 + len(derive.RESET_USES))
+        self.assertNotIn(b"c64_disk_store", result)
+        self.assertIn(derive.FETCH_PORTS, result)
+        self.assertIn(b".disk_fetch(disk_fetch), .disk_fetch_ready(disk_fetch_ready)", result)
         # Every subsystem takes its own registered reset; none takes the term.
         self.assertNotIn(b".reset(system_reset)", result)
         for group in derive.RESET_GROUPS:
@@ -58,31 +57,24 @@ class Derivations(unittest.TestCase):
                 result = result.replace(after, before)
             self.assertEqual(result, source)
 
-    def test_disk_store_is_two_single_write_lanes(self):
-        source = (C64 / "c64_disk_store.v").read_bytes()
-        result, record = derive.retarget_disk_store(source)
-        self.assertNotIn(b"image", result.split(b"module c64_disk_store", 1)[1].split(b");", 1)[1])
-        self.assertEqual(result.count(b'(* ramstyle = "M20K" *) reg [7:0] '), 2)
-        # Each lane has one write statement and one read.
-        for lane in (b"even", b"odd"):
-            self.assertEqual(result.count(b"if (" + lane + b"_write) " + lane + b"["), 1)
-            self.assertEqual(result.count(lane + b"_q <= " + lane + b"[read_addr[17:1]];"), 1)
-        # The module's ports are the DE10's.
-        self.assertEqual(result.split(b");", 1)[0], source.split(b");", 1)[0])
+    def test_gcr_builder_consumes_only_available_disk_bytes(self):
+        source = (C64 / "c64_d64_medium.sv").read_bytes()
+        result, record = derive.retarget_medium(source)
+        for state in (b"ID_GET0", b"ID_GET1", b"READ_GET"):
+            self.assertIn(state + b":if(disk_fetch_ready)begin", result)
         self.assertEqual(record["source_sha256"], derive.sha(source))
         with self.assertRaises(ValueError):
-            derive.retarget_disk_store(source.replace(b"read_data <= image[address_a];",
-                                                      b"read_data <= image[read_addr];"))
+            derive.retarget_medium(source.replace(b"READ_GET:begin", b"READ_GET: begin"))
 
     def test_frame_store_is_inferred_and_its_reader_reset_synchronized(self):
         source = (C64 / "c64_frame_store.sv").read_bytes()
         result, record = derive.retarget_frame_store(source)
         self.assertNotIn(b"MISTRAL", result)
         self.assertNotIn(b"FES_SIMULATION", result)
-        self.assertEqual(result.count(b'(* ramstyle = "M20K" *) reg [3:0] page'), 3)
+        self.assertEqual(result.count(b'(* ramstyle = "M20K" *) reg [7:0] page'), 3)
         # Each page has its own write statement in the system clock.
         for page in range(3):
-            self.assertEqual(result.count(b"write_page == 2'd%d) page%d[write_address] <= write_data;" %
+            self.assertEqual(result.count(b"write_page == 2'd%d && write_address[0])\n            page%d[write_address[16:1]] <= {write_data, even_pixel};" %
                                           (page, page)), 1)
         # The reader resets from a registered level through two pixel stages,
         # and nothing in the pixel clock reads the raw machine reset.
@@ -139,7 +131,7 @@ class Derivations(unittest.TestCase):
                 for included in includes:
                     self.assertIn(Path(included.decode()).name, staged, name)
         self.assertEqual(set(derived), {"c64_machine_de25.sv", "c64_ram_de25.v", "c64_color_ram_de25.v",
-            "c64_disk_store_de25.v", "c64_frame_store_de25.sv", "fes_de25_computer_transport.v",
+            "c64_d64_medium_de25.sv", "c64_frame_store_de25.sv", "fes_de25_computer_transport.v",
             "fes_menu_reader_de25.v"})
         self.assertEqual(build.FIRMWARE_BYTES, {"pal": 36864, "nativepal": 36864})
 
