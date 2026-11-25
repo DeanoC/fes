@@ -14,9 +14,6 @@ SDCS = (
     BOARD / "c64/c64-clocks.sdc",
     BOARD / "pcxt/pcxt-clocks.sdc",
 )
-# The C64 keeps its memory in block RAM: no SDRAM controller, so no
-# machine-clock release chain to constrain. The PC/XT's SDRAM has one.
-RELEASES = {"spectrum": 1, "atari-st": 1, "c64": 0, "pcxt": 1}
 # Word 0x18 of the shared transport is display readiness on Linux and the
 # native upload shell's fetch-bus snapshot; the SDC picks by the fetch toggle.
 # The Linux models omit fetch_request, so the probe must pass -nowarn to avoid
@@ -94,14 +91,12 @@ class MachineConstraintTclTests(unittest.TestCase):
                 machine_release = re.findall(
                     r"^set machine_release \[get_pins .+$", content, re.MULTILINE
                 )
-                self.assertEqual(len(machine_release), RELEASES[sdc.parent.name])
+                self.assertEqual(len(machine_release), 1)
                 release_check = """
 set expected_pin_query {soc_inst|subsys_periph|machine|machine_release[*]|aclr soc_inst|subsys_periph|machine|machine_release[*]|clrn}
 if {$pin_queries ne [list $expected_pin_query]} {
     error "machine reset endpoint pattern changed: $pin_queries"
 }
-""" if machine_release else """
-if {$pin_queries ne {}} {error "unexpected pin queries: $pin_queries"}
 """
 
                 script = """

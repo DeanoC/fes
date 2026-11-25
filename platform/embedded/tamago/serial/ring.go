@@ -42,6 +42,20 @@ func (r *Ring) Pop() (byte, bool) {
 	return b, true
 }
 
+// Peek returns the oldest buffered byte without advancing the consumer tail.
+func (r *Ring) Peek() (byte, bool) {
+	tail := r.tail.Load()
+	if r.head.Load() == tail {
+		return 0, false
+	}
+	return r.buf[tail&ringMask], true
+}
+
+// Cap returns the fixed capacity of the ring buffer in bytes.
+func (r *Ring) Cap() int {
+	return ringSize
+}
+
 // Len returns the number of unread bytes currently buffered.
 func (r *Ring) Len() int {
 	return int(r.head.Load() - r.tail.Load())

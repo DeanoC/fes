@@ -69,68 +69,56 @@ RAM_FILES = {
     "c64_color_ram.v": ((b'(* ramstyle = "M10K" *)', b'(* ramstyle = "M20K" *)', 1),),
 }
 
-# The DE10 disk store is one byte array with two write ports, one of them
-# shared with the 1541's read; Quartus cannot map that read-during-write
-# arrangement to block RAM. Here the image is two byte lanes, even and odd
-# addresses, each with one write port and one read port. A mailbox byte pair
-# is two consecutive addresses, so its bytes always land in different lanes.
-# The 1541's read keeps its one clock: both lanes read the address's row and
-# the registered low address bit selects the lane. The DE10 port A returned
-# the byte being written while a pair was written; here a read always returns
-# read_addr, and the 1541 reads no image while the unit is loading.
-DISK_BEGIN = b'    (* ram_style = "m10k_tdp" *) reg [7:0] image [0:BYTES-1];\n'
-DISK_END = b"endmodule\n"
-DISK_AFTER = b"""    // Two byte lanes (DE25 derivation); see derive.py.
-    localparam integer ROWS = BYTES / 2;
-    (* ramstyle = "M20K" *) reg [7:0] even [0:ROWS-1];
-    (* ramstyle = "M20K" *) reg [7:0] odd [0:ROWS-1];
-    wire [17:0] high_addr = write_addr + 18'd1;
-    // The byte bound for each lane this clock, low byte first.
-    wire even_low = !write_addr[0];
-    wire even_write = even_low ? write_enable[0] : write_enable[1];
-    wire odd_write = even_low ? write_enable[1] : write_enable[0];
-    wire [16:0] even_row = even_low ? write_addr[17:1] : high_addr[17:1];
-    wire [16:0] odd_row = even_low ? high_addr[17:1] : write_addr[17:1];
-    wire [7:0] even_data = even_low ? write_data[7:0] : write_data[15:8];
-    wire [7:0] odd_data = even_low ? write_data[15:8] : write_data[7:0];
-    reg [7:0] even_q, odd_q;
-    reg read_odd;
-    always @(posedge clk) begin
-        if (even_write) even[even_row] <= even_data;
-        even_q <= even[read_addr[17:1]];
-    end
-    always @(posedge clk) begin
-        if (odd_write) odd[odd_row] <= odd_data;
-        odd_q <= odd[read_addr[17:1]];
-    end
-    always @(posedge clk) read_odd <= read_addr[0];
-    always @* read_data = read_odd ? odd_q : even_q;
-endmodule
+# Replace the fixed one-clock D64 image reads with held requests. The GCR
+# track cache and rotation remain local to the 1541.
+MEDIA_PORTS = b"""    input  wire [17:0] media_write_addr,
+    input  wire [15:0] media_write_data,
+    input  wire [1:0]  media_write_enable,
+"""
+FETCH_PORTS = b"""    output wire [17:0] disk_addr,
+    output wire        disk_fetch,
+    input  wire        disk_fetch_ready,
+    input  wire [7:0]  disk_byte,
+"""
+DISK_INSTANCE = b"""    c64_disk_store disk (
+        .clk(clk_sys), .write_addr(media_write_addr), .write_data(media_write_data),
+        .write_enable(media_write_enable), .read_addr(disk_addr), .read_data(disk_byte)
+    );
 """
 
-# The DE10 frame store is 153 placed 2048x5 M10K primitives; its simulation
-# branch is the same three pages as plain memories. Here each page is one
-# inferred memory with its own write statement, for Quartus to shape: the
-# same words at the same addresses, written in the system clock and read with
-# one pixel edge, as the DE10 primitives are.
+# The VIC writes an even-sized raster in address order. Pack adjacent
+# four-bit pixels into a byte so a page uses 26 M20Ks instead of 51.
 STORE_BEGIN = b"`ifdef FES_SIMULATION\n"
 STORE_END = b"`endif\n"
-STORE_AFTER = b"""    // One inferred memory per page (DE25 derivation); see derive.py.
-    (* ramstyle = "M20K" *) reg [3:0] page0 [0:104447];
-    (* ramstyle = "M20K" *) reg [3:0] page1 [0:104447];
-    (* ramstyle = "M20K" *) reg [3:0] page2 [0:104447];
-    reg [3:0] q0, q1, q2;
-    wire page_write = !reset && write_enable;
+STORE_AFTER = b"""    wire page_write = !reset && write_enable;
+    reg [3:0] even_pixel;
+    reg read_odd;
     always @(posedge clk_sys)
-        if (page_write && write_page == 2'd0) page0[write_address] <= write_data;
+        if (page_write && !write_address[0]) even_pixel <= write_data;
+    always @(posedge pixel_clk) read_odd <= read_address[0];
+    (* ramstyle = "M20K" *) reg [7:0] page0 [0:52223];
+    reg [7:0] pair0;
+    wire [3:0] q0 = read_odd ? pair0[7:4] : pair0[3:0];
     always @(posedge clk_sys)
-        if (page_write && write_page == 2'd1) page1[write_address] <= write_data;
+        if (page_write && write_page == 2'd0 && write_address[0])
+            page0[write_address[16:1]] <= {write_data, even_pixel};
+    always @(posedge pixel_clk) pair0 <= page0[read_address[16:1]];
+    (* ramstyle = "M20K" *) reg [7:0] page1 [0:52223];
+    reg [7:0] pair1;
+    wire [3:0] q1 = read_odd ? pair1[7:4] : pair1[3:0];
     always @(posedge clk_sys)
-        if (page_write && write_page == 2'd2) page2[write_address] <= write_data;
-    always @(posedge pixel_clk) begin
-        q0 <= page0[read_address]; q1 <= page1[read_address]; q2 <= page2[read_address];
-    end
+        if (page_write && write_page == 2'd1 && write_address[0])
+            page1[write_address[16:1]] <= {write_data, even_pixel};
+    always @(posedge pixel_clk) pair1 <= page1[read_address[16:1]];
+    (* ramstyle = "M20K" *) reg [7:0] page2 [0:52223];
+    reg [7:0] pair2;
+    wire [3:0] q2 = read_odd ? pair2[7:4] : pair2[3:0];
+    always @(posedge clk_sys)
+        if (page_write && write_page == 2'd2 && write_address[0])
+            page2[write_address[16:1]] <= {write_data, even_pixel};
+    always @(posedge pixel_clk) pair2 <= page2[read_address[16:1]];
 """
+
 # The frame store's crossings take the shape the Spectrum and Atari ST pass
 # signoff with. On the DE10:
 # - the reader samples the machine reset, a combination of machine registers,
@@ -221,6 +209,11 @@ def retarget_machine(source, *, native=False):
     return _derive(source, ((ROM_BEFORE, ROM_AFTER, 1), (PORTS_BEFORE, PORTS_AFTER, 1), *fetch,
                             (READ_BUS_ANCHOR, READ_BUS_ANCHOR + READ_BUS_DECLARATION, 1),
                             (READ_BUS_BEFORE, READ_BUS_AFTER, 1), (RESET_BEFORE, RESET_AFTER, 1),
+                            (MEDIA_PORTS, FETCH_PORTS, 1), (DISK_INSTANCE, b"", 1),
+                            (b"    wire [17:0] disk_addr;\n    wire [7:0] disk_byte;\n", b"", 1),
+                            (b".disk_addr(disk_addr), .disk_data(disk_byte),",
+                             b".disk_addr(disk_addr), .disk_data(disk_byte),\n"
+                             b"        .disk_fetch(disk_fetch), .disk_fetch_ready(disk_fetch_ready),", 1),
                             *((before, after, 1) for before, after in RESET_USES)), "C64 machine ROM")
 
 
@@ -229,21 +222,18 @@ def retarget_ram(name, source):
     return _derive(source, RAM_FILES[name], "C64 " + name)
 
 
-def retarget_disk_store(source):
-    """Two single-write byte lanes in place of the shared-port byte array."""
-    if source.count(DISK_BEGIN) != 1 or source.count(DISK_END) != 1:
-        raise ValueError("C64 disk store adaptation contract changed")
-    start = source.index(DISK_BEGIN)
-    stop = source.index(DISK_END) + len(DISK_END)
-    removed = source[start:stop]
-    if (b"localparam integer BYTES = 174848;" not in source[:start] or
-            removed.count(b"image[address_a] <= write_data[7:0];") != 1 or
-            removed.count(b"image[address_b] <= write_data[15:8];") != 1 or
-            removed.count(b"read_data <= image[address_a];") != 1):
-        raise ValueError("C64 disk store adaptation contract changed")
-    result = source[:start] + DISK_AFTER + source[stop:]
-    return result, {"source_sha256": sha(source), "derived_sha256": sha(result),
-                    "removed_sha256": sha(removed), "storage": DISK_AFTER.decode()}
+def retarget_medium(source):
+    """Wait for a valid SDRAM byte before consuming it in the GCR builder."""
+    ports = b" input wire [7:0] disk_data,"
+    request = b" reg [3:0] state;"
+    return _derive(source, (
+        (ports, ports + b"\n output disk_fetch,\n input disk_fetch_ready,", 1),
+        (request, request + b"\n assign disk_fetch = !reset && disk_ready &&\n"
+         b"     (state == ID_GET0 || state == ID_GET1 || state == READ_GET);", 1),
+        (b"ID_GET0:begin", b"ID_GET0:if(disk_fetch_ready)begin", 1),
+        (b"ID_GET1:begin", b"ID_GET1:if(disk_fetch_ready)begin", 1),
+        (b"READ_GET:begin", b"READ_GET:if(disk_fetch_ready)begin", 1),
+    ), "C64 D64 fetch")
 
 
 def retarget_frame_store(source):

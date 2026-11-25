@@ -299,8 +299,17 @@ def window_script(offset):
             "set_interface_property fes_win_mem EXPORT_OF fes_win_cdc.m0\n")
 
 
+# A window machine's qsys_top interconnects add no optional pipeline stages
+# (the GHRD's system default and most of its connections are 4; its debug
+# translator's, which the managed fabric removes, are 1). verify_window_latency
+# checks the result: every connection left is 0. With the window, the F2SDRAM
+# interconnect has two masters, and its pipeline stages were about 950 ALMs
+# of registers; without them, commands and responses cross in fewer clocks.
+# Only a window machine takes this: every other DE25 core keeps the GHRD's.
+WINDOW_MAX_ADDITIONAL_LATENCY = 0
 WINDOW_TOP = ("add_connection subsys_periph.fes_win_mem subsys_hps.f2sdram_adapter_axi4_sub\n"
-              "set_connection_parameter_value subsys_periph.fes_win_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n")
+              "set_connection_parameter_value subsys_periph.fes_win_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n"
+              f"set_domain_assignment {{$system}} qsys_mm.maxAdditionalLatency {WINDOW_MAX_ADDITIONAL_LATENCY}\n")
 
 
 def seeded_qsf(qsf, seed):
@@ -453,7 +462,8 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
         "staged_source_sha256": ZX81.standard_staged_sources(project)}
     if has_window(spec):
         inputs[RECORD]["window"] = {"contract": "fes.fabric.de25-hps-window 1.0",
-                                    "control_offset": window_offset(sources), "bridge": dict(WINDOW_BRIDGE)}
+                                    "control_offset": window_offset(sources), "bridge": dict(WINDOW_BRIDGE),
+                                    "max_additional_latency": WINDOW_MAX_ADDITIONAL_LATENCY}
     if sdram_clocks:
         inputs[RECORD]["sdram_clocks"] = {role: output for role, output in sdram_clocks}
     inputs["scanout"]["build_identity_scheme"] = (
@@ -535,10 +545,34 @@ def verify_window(project, modules, endpoint, connections, hps, scanout):
                        ("subsys_periph_fes_scanout_system_reset.out_reset", "subsys_periph_fes_win_cdc.m0_reset")):
         if ("reset", start, end) not in connections:
             raise ValueError("generated window bridge reset differs: " + end)
+    latency = verify_window_latency(project)
     # As generation.json keeps it, so the check before compiling compares like with like.
     return {"master_ports": {role: list(port) for role, port in master.items()},
             "bridge": {"parameters": checked, "logical_view": source},
+            "interconnect_latency": latency,
             "reset": verify_window_reset(project, modules, connections)}
+
+
+def latency_values(project):
+    return re.findall(r'altera:parameter_name="qsys_mm\.maxAdditionalLatency" altera:parameter_value="([^"]*)"',
+                      (project / "qsys_top.qsys").read_text())
+
+
+def verify_window_latency(project):
+    """Every qsys_top connection carries WINDOW_MAX_ADDITIONAL_LATENCY, and the generated
+    interconnect that carries the window's F2SDRAM commands has no pipeline stage."""
+    values = latency_values(project)
+    if not values or set(values) != {str(WINDOW_MAX_ADDITIONAL_LATENCY)}:
+        raise ValueError("qsys_top interconnect latency differs: " + repr(sorted(set(values))))
+    generated = sorted((project / "qsys_top").glob("altera_mm_interconnect_*/synth/*.v"))
+    f2sdram = [path for path in generated if "subsys_periph_fes_win_mem" in path.read_text(errors="replace")]
+    if len(f2sdram) != 1:
+        raise ValueError("generated F2SDRAM interconnect not found exactly once")
+    stages = len(re.findall(r"altera_avalon_st_pipeline_stage_\w+", f2sdram[0].read_text(errors="replace")))
+    if stages:
+        raise ValueError(f"generated F2SDRAM interconnect has {stages} pipeline stage references")
+    return {"max_additional_latency": WINDOW_MAX_ADDITIONAL_LATENCY, "connections": len(values),
+            "f2sdram_interconnect": f2sdram[0].name, "pipeline_stages": 0}
 
 
 def verify(spec, output, scanout, hps, display):

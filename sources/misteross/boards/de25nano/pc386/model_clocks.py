@@ -31,4 +31,11 @@ MODEL_CLOCKS = {
     "486sx": {"c0": 34, "pll_ip": "machine_pll_486sx.ip",
               "pll_ip_sha256": "04448872b6e9992a9ee70c6a4e11b1678a433d1743908aca38eb960c9580173e",
               "parent_sha256": "fefb39d68d09b2fad37d35be5d2686d557b9f5c8c97d2eb41bbd80400a31f7e7"},
+    # 486DX: C0 = 51, 61.437908 MHz, the clock the DX was fitted and closed at (#2194,
+    # docs/validation/2026-11-24-i486dx-s1). Its PLL IP is the machine PLL every DE25 pc386 used before
+    # per-model clocks (machine_pll.ip at d7fde901..., the digest scanout/audio_reference.py reviewed), and
+    # its parent the reviewed 61.44 MHz parent (10defc9a...).
+    "486dx": {"c0": 51, "pll_ip": "machine_pll_486dx.ip",
+              "pll_ip_sha256": "d7fde9016686e6486b102dbc252c49f99397dff5f322fbae0abe04eefe02f5ba",
+              "parent_sha256": "10defc9a021d7119aac2bbc793ac0d6913e902b99f85cb29977c452996eeb249"},
 }

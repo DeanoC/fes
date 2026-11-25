@@ -14,6 +14,9 @@ cycle, so a software request on channels 4-7 does not count down or set TC.
 Nothing in the machine raises a controller-2 DREQ. The DE10 keeps the full
 controller.
 
+For the 486DX model, retarget_system_cpu then points pc386_system's CPU at the
+DE25's i486DX, fes_i486dx_cpu (i486dx/derive.py); the 486SX keeps fes_i386_cpu.
+
 Each derivation fails if its anchor moves. A removed block is pinned by its
 SHA-256, so a change inside it fails too.
 """
@@ -174,3 +177,18 @@ def retarget_window_guard(source):
             raise ValueError("DE25 DDR guard reset anchor changed")
         result = result.replace(before, after)
     return result, _record(source, result, [{"before": b.decode(), "after": a.decode()} for b, a in changes])
+
+
+# The 486DX model's CPU is the DE25's i486DX (i486dx/derive.py), fes_i386_cpu's DE25-only
+# derivation, which keeps its parameters and ports.
+SYSTEM_CPU_BEFORE = b"    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n"
+SYSTEM_CPU_AFTER = b"    fes_i486dx_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n"
+
+
+def retarget_system_cpu(source):
+    """The 486DX model's pc386_system: retarget_system's, with its CPU the DE25's i486DX."""
+    if source.count(SYSTEM_CPU_BEFORE) != 1:
+        raise ValueError("pc386 system CPU instance changed")
+    result = source.replace(SYSTEM_CPU_BEFORE, SYSTEM_CPU_AFTER)
+    return result, _record(source, result, [{"before": SYSTEM_CPU_BEFORE.decode(), "after": SYSTEM_CPU_AFTER.decode(),
+                                             "count": 1}])
