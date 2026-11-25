@@ -92,6 +92,8 @@ RUNS = (('base', 'doom'), ('dx', 'doom'), ('base', '3dbench'), ('dx', '3dbench')
 def replay(workload, arm, binary, images, drive, output):
     directory = output / f'{arm}-{workload}'
     directory.mkdir()
+    if workload != 'doom':
+        (directory / 'frames').mkdir()
     disk = directory / 'disk.img'
     shutil.copyfile(drive, disk)
     command = [str(binary), '--bios', str(images['bios']), '--vgabios', str(images['vgabios']),
@@ -114,6 +116,10 @@ def analyze_workload(workload, arm, output, analyzer):
                       and any(re.match(r'RTL retired=[1-9]\d* oracle_steps=0\b', line) for line in lines)
                       and not any(line.startswith(('STOP ', 'SHUTDOWN ')) for line in lines)
                       and report['return_code'] == expected_code)
+    if workload != 'doom':
+        frames = directory / 'frames'
+        report['frames'] = sorted(path.name for path in frames.glob('t*.ppm') if path.stat().st_size)
+        report['pass'] &= bool(report['frames']) and (frames / 'final.ppm').is_file()
     if workload != 'quake' and report['pass']:
         snapshots = analyzer.load((directory / 'cpu.prof').read_text().splitlines())
         bounds = (8.0, 11.5) if workload == '3dbench' else sorted(snapshots)[1:3]
