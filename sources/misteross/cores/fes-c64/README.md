@@ -84,9 +84,10 @@ and [VIC-II cycle tables](https://github.com/VICE-Team/svn-mirror/blob/08b38de80
   Nine-bit raster compare uses `$D011` bit 7 and `$D012`; `$D019` latches
   events and acknowledges written ones, while `$D01A` masks the CPU IRQ.
   The PAL beam has 63 Phi2 cycles per line and 312 lines per frame. The
-  6567R8 has 65 cycles per line and 263 lines per frame. The 6572 PAL-N has 65 cycles per line and 312 lines per frame. Across its frame
-  wrap, guest reads of `$D011`/`$D012` still report raster 262 on cycle 1
-  and report zero on cycle 2.
+  6567R8 has 65 cycles per line and 263 lines per frame. The 6572 PAL-N has
+  65 cycles per line and 312 lines per frame. Across frame wrap, guest reads
+  of `$D011`/`$D012` report raster 262 for 6567R8 or 311 for 6572 on cycle 1,
+  then zero on cycle 2.
   [Native machine timing](rtl/c64_timing.vh) defines the machine clocks,
   raster geometry, border and capture windows, and DMA slots. VIC cycles
   are one-based. On PAL, sprite 2 finishes on cycle 63 and sprite 3 starts
