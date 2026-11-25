@@ -588,7 +588,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 			}
 		}
 		staged, err = corepackage.StagePartsBytes(admission, r.corePackageRoot, body)
-	} else if pcxtInitial && !composed && libraryID != "" && machine == nil {
+	} else if pcxtInitial && !composed && libraryID != "" {
 		staged, err = corepackage.StagePcxtInitialInputSpooled(admission, r.corePackageRoot, spool)
 	} else if romLinked {
 		if romLinkedV2 {
@@ -725,6 +725,9 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	}
 	if machine != nil && machine.Disk != nil && !protocol.DeclaresAtaDisk(staged.Descriptor) {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "package declares no hard disk", Phase: "admission"}
+	}
+	if machine != nil && staged.InitialMedia != nil && (machine.Disk != nil || staged.InitialMedia.GameID != machine.GameID) {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "initial media does not match the library game binding", Phase: "admission"}
 	}
 	disk, diskErr := r.resolveStagedDisk(machine)
 	if diskErr != nil {

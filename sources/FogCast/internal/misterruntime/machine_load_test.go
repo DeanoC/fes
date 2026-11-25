@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,10 +22,13 @@ import (
 // a scripted refusal.
 type machineLoadControl struct {
 	pc386FixtureControl
-	t        *testing.T
-	refusal  Protocol2Error
-	loads    int
-	loadDisk *ataDiskRequest
+	t           *testing.T
+	refusal     Protocol2Error
+	pcxt        bool
+	loads       int
+	loadGame    string
+	loadDisk    *ataDiskRequest
+	loadInitial *InitialMediaRequest
 }
 
 func (c *machineLoadControl) InspectCore(_ context.Context, path, id string) (Protocol2Response, error) {
@@ -32,11 +36,22 @@ func (c *machineLoadControl) InspectCore(_ context.Context, path, id string) (Pr
 	if err != nil {
 		return Protocol2Response{}, err
 	}
-	layout := &protocol.RuntimeContract{ID: protocol.Pc386MachineInterface().ID, Major: 1}
+	layoutID := protocol.Pc386MachineInterface().ID
+	if c.pcxt {
+		layoutID = protocol.PcxtMachineInterface().ID
+	}
+	layout := &protocol.RuntimeContract{ID: layoutID, Major: 1}
 	return Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test",
 		InspectedPackage: &Protocol2Inspection{PackageID: id, Descriptor: inspection.Descriptor, Compatible: true, PersistenceLayout: layout}}, nil
 }
 func (c *machineLoadControl) InspectMachineCoreData(_ context.Context, _, id, _, gameID string) (Protocol2Response, error) {
+	if c.pcxt {
+		layout := protocol.PcxtMachineInterface()
+		settings := protocol.PcxtMachineSettings{}
+		return Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test",
+			CoreData: &protocol.CoreData{PackageID: id, CoreID: "fes.pcxt-dos", Mode: "persistent", Revision: "absent",
+				GameID: gameID, Layout: &layout, PcxtMachine: &settings}}, nil
+	}
 	response, err := decodeProtocol2Response([]byte(fixtureLines(c.t, "protocol-v2-pc386-responses.jsonl")[0]))
 	if err != nil {
 		return Protocol2Response{}, err
@@ -62,9 +77,14 @@ func (c *machineLoadControl) LoadLibraryCore(context.Context, string, string, st
 func (c *machineLoadControl) LoadCore(context.Context, string, string) (Protocol2Response, error) {
 	return Protocol2Response{}, io.ErrUnexpectedEOF
 }
-func (c *machineLoadControl) LoadLibraryMachineCore(_ context.Context, _, _, _, _ string, disk *ataDiskRequest, _ *InitialMediaRequest) (Protocol2Response, error) {
+func (c *machineLoadControl) LoadCoreWithInitialMedia(context.Context, string, string, *InitialMediaRequest) (Protocol2Response, error) {
+	return Protocol2Response{}, io.ErrUnexpectedEOF
+}
+func (c *machineLoadControl) LoadLibraryMachineCore(_ context.Context, _, _, _, gameID string, disk *ataDiskRequest, initial *InitialMediaRequest) (Protocol2Response, error) {
 	c.loads++
+	c.loadGame = gameID
 	c.loadDisk = disk
+	c.loadInitial = initial
 	refusal := c.refusal
 	return Protocol2Response{Protocol: 2, OK: false, State: "idle", Execution: "none", Version: "test", Error: &refusal}, nil
 }
@@ -229,5 +249,92 @@ func TestMachineRecordAlonePersists(t *testing.T) {
 			}
 			assertTargetClientAcceptsStatus(t, status)
 		})
+	}
+}
+
+func TestPcxtMachineInitialMediaLoad(t *testing.T) {
+	ctx := context.Background()
+	payload, err := os.ReadFile(filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2", "payloads", "fes-fixture.rbf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payloadDigest := sha256.Sum256(payload)
+	var blocks string
+	for _, id := range []string{
+		"fes.video.fixed-720p60", "fes.memory.hps-ddr",
+		protocol.PcxtFloppyInterface().ID, protocol.PcxtFloppyWriteInterface().ID,
+		protocol.PersistenceWordsInterface().ID, protocol.PcxtMachineInterface().ID,
+	} {
+		blocks += fmt.Sprintf("[[interfaces]]\nid = %q\nmajor = 1\nminor = 0\nrequired = true\n\n", id)
+	}
+	manifest := []byte(fmt.Sprintf(`format = 2
+
+[core]
+id = "fes.pcxt-dos"
+name = "FES PC/XT FreeDOS"
+description = "Synthetic test-only core bundle fixture; never deploy."
+version = "0.1.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = %d
+sha256 = "%x"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 1
+
+%s[build]
+id = "0123456789abcdef0123456789abcdef"
+repository = "https://example.invalid/fes-pcxt"
+revision = "1111111111111111111111111111111111111111"
+recipe_sha256 = "2222222222222222222222222222222222222222222222222222222222222222"
+toolchain = "synthetic fixture generator 1.0 (test-only)"
+`, len(payload), payloadDigest, blocks))
+	archive := pc386TarArchive(manifest, payload)
+	pkgRoot := t.TempDir()
+	staged, err := corepackage.Stage(ctx, pkgRoot, int64(len(archive)), bytes.NewReader(archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkgID := staged.PackageID
+	_ = staged.Cleanup()
+
+	floppy := bytes.Repeat([]byte{0x55}, 368640)
+	floppyDigest := sha256.Sum256(floppy)
+	baseMediaID := hex.EncodeToString(floppyDigest[:])
+	envelope, err := corepackage.WritePcxtInitialInput(corepackage.PcxtInitialInput{
+		Package: archive,
+		Media:   corepackage.InitialMedia{GameID: "dos-game", BaseMediaID: baseMediaID, Bytes: floppy},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	idle, err := decodeProtocol2Response([]byte(fixtureLines(t, "protocol-v2-pc386-responses.jsonl")[0]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	idle.CoreData = nil
+	refusal := Protocol2Error{Code: "io_failed", Message: "scripted stop", Phase: "input"}
+	control := &machineLoadControl{pc386FixtureControl: pc386FixtureControl{response: idle}, t: t, refusal: refusal, pcxt: true}
+	r := NewRuntime(control, "", time.Millisecond, time.Second, WithCorePackageRoot(pkgRoot))
+
+	_, _, apiErr := r.LoadLibraryMachineCoreOwned(ctx, ctx, ctx, int64(len(envelope)), bytes.NewReader(envelope), pkgID, protocol.LibraryMachineBinding{GameID: "dos-game"})
+	if control.loads != 1 || control.loadGame != "dos-game" || control.loadDisk != nil ||
+		control.loadInitial == nil || control.loadInitial.GameID != "dos-game" || control.loadInitial.BaseMediaID != baseMediaID ||
+		control.loadInitial.Size != 368640 {
+		t.Fatalf("unexpected load dispatch: err=%+v loads=%d game=%q disk=%+v initial=%+v", apiErr, control.loads, control.loadGame, control.loadDisk, control.loadInitial)
+	}
+
+	_, attempted, apiErr := r.LoadLibraryMachineCoreOwned(ctx, ctx, ctx, int64(len(envelope)), bytes.NewReader(envelope), pkgID, protocol.LibraryMachineBinding{GameID: "other-game"})
+	if control.loads != 1 || attempted || apiErr == nil || apiErr.Code != protocol.CodeInvalidArchive {
+		t.Fatalf("mismatched game binding should fail before load: loads=%d attempted=%v err=%+v", control.loads, attempted, apiErr)
 	}
 }

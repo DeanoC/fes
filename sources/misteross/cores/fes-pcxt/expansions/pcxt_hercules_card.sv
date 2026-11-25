@@ -118,23 +118,7 @@ module pcxt_hercules_card #(
     reg [4:0] blink_frames;
     assign font_address = {video_word[7:0], ra[3:0]};
 
-    // Preserve the status-read video-dot bit on port 3BAh bit 3.
-    wire [15:0] live_gfx_word = {video_word[7:0], video_word[15:8]};
-    wire status_glyph = dot < 4'd8 ? font_data[3'd7 - dot[2:0]] :
-                        video_word[7:5] == 3'b110 && font_data[0];
-    wire status_ink = (status_glyph || (video_word[10:8] == 3'd1 &&
-                      video_word[14:12] == 3'd0 && ra == 5'd13)) &&
-                      !(mode[5] && video_word[15] && blink_frames[4]);
-    wire status_text_nonzero = cursor ||
-        ((video_word[14:12] == 3'd7 && video_word[10:8] == 3'd0) ? !status_ink :
-         ((video_word[14:12] != 3'd0 || video_word[10:8] != 3'd0) && status_ink));
-    wire status_nonzero = mode[3] && crtc_de &&
-        (gfx_mode ? live_gfx_word[4'd15 - dot] : status_text_nonzero);
     reg status_video;
-    always @(posedge clk) begin : status_stage
-        if (clear) status_video <= 1'b0;
-        else if (dot_ce) status_video <= status_nonzero;
-    end
 
     always @* begin
         io_data = 8'hff;
@@ -197,12 +181,12 @@ module pcxt_hercules_card #(
     always @(posedge clk) begin : display_output_stage
         if (clear) begin
             pixel_ce <= 1'b0; de <= 1'b0; hs <= 1'b0; vs <= 1'b0;
-            sof <= 1'b0; eol <= 1'b0; rgbi <= 4'b0;
+            sof <= 1'b0; eol <= 1'b0; rgbi <= 4'b0; status_video <= 1'b0;
         end else begin
             pixel_ce <= render_valid;
             sof <= 1'b0; eol <= 1'b0;
             if (render_valid) begin
-                rgbi <= pixel; de <= render_de; hs <= render_hs; vs <= render_vs;
+                rgbi <= pixel; status_video <= pixel != 4'b0; de <= render_de; hs <= render_hs; vs <= render_vs;
                 sof <= render_sof; eol <= render_eol;
             end
         end

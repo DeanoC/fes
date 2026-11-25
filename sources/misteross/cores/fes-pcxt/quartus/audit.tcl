@@ -121,9 +121,13 @@ foreach corner [get_available_operating_conditions] {
   }
  }
  if {$mailbox_contract} {
+  set mb_prefix system_video_adapter
+  if {[get_collection_size [get_registers -nowarn {dos_video_video_adapter_received}]] > 0} {
+   set mb_prefix dos_video_video_adapter
+  }
   foreach role {ack sent hold} {
    foreach kind {setup hold} {
-    set paths [get_timing_paths -$kind -from system_video_adapter_${role}_meta -to system_video_adapter_${role}_sync -npaths 16 -nworst 1]
+    set paths [get_timing_paths -$kind -from ${mb_prefix}_${role}_meta -to ${mb_prefix}_${role}_sync -npaths 16 -nworst 1]
     if {[get_collection_size $paths] != 1} {error "Missing or duplicated mailbox interstage path: $role $kind"}
     emit_paths $paths $corner $kind $interstage
    }
