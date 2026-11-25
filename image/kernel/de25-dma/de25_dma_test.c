@@ -2754,9 +2754,9 @@ static phys_addr_t window_storage(struct kunit *test)
 	return page_to_phys(storage->page);
 }
 
-static struct owner_fixture *window_fixture(struct kunit *test, struct window_block **block)
+static struct owner_fixture *window_fixture_on(struct kunit *test, struct window_block **block,
+		phys_addr_t storage)
 {
-	phys_addr_t storage = window_storage(test);
 	struct owner_fixture *f = storage ? owner_fixture_create(test, true) : NULL;
 	struct window_block *b = kunit_kzalloc(test, sizeof(*b), GFP_KERNEL);
 
@@ -2768,6 +2768,11 @@ static struct owner_fixture *window_fixture(struct kunit *test, struct window_bl
 		return NULL;
 	*block = b;
 	return f;
+}
+
+static struct owner_fixture *window_fixture(struct kunit *test, struct window_block **block)
+{
+	return window_fixture_on(test, block, window_storage(test));
 }
 
 static int window_info_of(struct file *file, struct fes_de25_dma_window_info *info)
@@ -2861,11 +2866,14 @@ close:
 
 static void window_refuses_a_block_it_cannot_grant(struct kunit *test)
 {
+	/* One pool for every variant, as the tree reserves one. */
+	phys_addr_t storage = window_storage(test);
 	unsigned int variant;
 
+	KUNIT_ASSERT_NE(test, storage, 0);
 	for (variant = 0; variant < 6; variant++) {
 		struct window_block *b;
-		struct owner_fixture *f = window_fixture(test, &b);
+		struct owner_fixture *f = window_fixture_on(test, &b, storage);
 		struct file *window;
 
 		KUNIT_ASSERT_NOT_NULL(test, f);
