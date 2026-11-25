@@ -3017,7 +3017,7 @@ sim-fes-c64-session:
 # The ZX81 diagnostic needs no ROM; the BASIC benches run when FES_ZX81_ROM is set.
 sim-fes-zx81-smoke: sim-fes-zx81-diagnostic sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-variants
 
-sim-fes-c64-smoke: c64-diagnostic sim-fes-c64-ntsc-timing sim-fes-c64-sid-8580
+sim-fes-c64-smoke: c64-diagnostic sim-fes-c64-early-ntsc-timing sim-fes-c64-ntsc-timing sim-fes-c64-sid-8580
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) $(VERILATOR_WAIVERS) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
