@@ -1,0 +1,37 @@
+PASS machine mouse input is accepted once after readiness
+DEBUG 402 BIOS BUILD DATE: 11/03/26
+POST 00 11744
+POST 21 2471326
+POST 31 2571522
+POST 41 2971722
+POST 71 3074326
+POST 77 3174352
+DEBUG 500 VGABios ID: vgabios.c 2026-08-07
+DEBUG 402 ata0-0: PCHS=80/16/63 translation=none LCHS=80/16/63
+DEBUG 402 IDE time out
+DEBUG 402 Booting from 0000:7c00
+PROMPT 460018143
+RTL-BEGIN 460018150 flips=2
+SMC store 510133757 0eae:00002bae 0001168e 000116b0
+RTL retired=579354541 oracle_steps=0 protected_steps=0 parked_clocks=43376718 tf_retired=0 pe_retired=387146229 pe_entries=1187 vga_loads=25499 replays=679110 port0_reads=33692946 port0_writes=170206580 smc_stores=88 smc_addresses=1 smc_executed=0 smc_restarts=1490777 store_page_mismatches=0
+IO isa16 2 38 2033920
+IO isa8 1 74 137837
+IO vga-in 1 6 9
+IO vga-out 1 4 16255
+IO vga-out 2 7 4479
+INTA 146 608
+OPL2 samples=1223020 exact=1223020 nonzero=0 writes=0
+AUDIO samples=1180808
+SB resets=0 commands=0 dma=0 irqs=0
+VGA frames 11740
+VGA scanout_underflows 0
+VGA capture_drops 0
+VGA present_underflows 0
+VGA plane_underflows 0
+VGA frames_shown 0
+VGA port1_commands 85793052
+VGA port2_commands 11480270
+SNAP final 320 400 /data/projects/i486dx-s1/quake/frames/final.ppm
+MOUSE sent=0 scheduled=0
+EMS pages=128 reads=1 writes=0
+END rtl-window steps=691395485 cycles=2460018150 seconds=24.600

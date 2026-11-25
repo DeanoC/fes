@@ -23,11 +23,11 @@ type hidpMockPipe struct {
 	writeStalled bool
 }
 
-func (p *hidpMockPipe) DeviceAddress() uint8             { return 2 }
-func (p *hidpMockPipe) Endpoint() usb.EndpointDescriptor { return p.ep }
+func (p *hidpMockPipe) DeviceAddress() uint8              { return 2 }
+func (p *hidpMockPipe) Endpoint() usb.EndpointDescriptor  { return p.ep }
 func (p *hidpMockPipe) SetIntervalOverride(time.Duration) {}
-func (p *hidpMockPipe) Close() error                     { return nil }
-func (p *hidpMockPipe) WriteDone() (bool, error)         { return !p.writeStalled, nil }
+func (p *hidpMockPipe) Close() error                      { return nil }
+func (p *hidpMockPipe) WriteDone() (bool, error)          { return !p.writeStalled, nil }
 func (p *hidpMockPipe) Write(data []byte) error {
 	if !p.noOutLog {
 		p.outLog = append(p.outLog, append([]byte(nil), data...))
@@ -1272,5 +1272,72 @@ func TestKeyboardRequiresSetProtocolBootHandshake(t *testing.T) {
 		if len(pkt) == 9 && binary.LittleEndian.Uint16(pkt[6:8]) == 0x0060 && pkt[8] == hidpSetProtocolBoot {
 			t.Fatal("unexpected SET_PROTOCOL(BOOT) retry after explicit non-zero handshake error")
 		}
+	}
+}
+
+func TestSessionPairingRemainingAndDisconnectAddr(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+	addr, _ := l2cap.ParseBDAddr("CA:11:22:33:44:99")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: addr, LinkKey: [16]byte{9}, Name: "BT Keyboard", Slot: 0})
+
+	now := time.Unix(3200, 0)
+	sess, err := NewSession(tr, bonds, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sess.SetPairingMode(true, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(5 * time.Second)
+	if rem := sess.PairingRemaining(); rem != 25*time.Second {
+		t.Fatalf("PairingRemaining = %v, want 25s", rem)
+	}
+
+	var slotEvents []bool
+	var gotReports [][]byte
+	sess.OnSlotChanged = func(_ uint8, connected bool, _ controllers.Kind, _ string) {
+		slotEvents = append(slotEvents, connected)
+	}
+	sess.OnKeyboardReport = func(r []byte) {
+		gotReports = append(gotReports, append([]byte(nil), r...))
+	}
+
+	c1 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, addr[:]...)
+	c1 = append(c1, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, c1)
+	openIncomingHIDChannels(bus, 0x0041, 0x0050, 0x0051)
+	for range 4 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0041, 0x0040, []byte{0x00}),
+		makeHIDACL(0x0041, 0x0041, []byte{hidpDataInput, 0, 0, 0x04, 0, 0, 0, 0, 0}),
+	)
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if sess.ConnectedCount() != 1 {
+		t.Fatalf("expected 1 connected device before DisconnectAddr, got %d", sess.ConnectedCount())
+	}
+
+	matched, err := sess.DisconnectAddr(addr)
+	if !matched || err != nil {
+		t.Fatalf("DisconnectAddr failed: matched=%t err=%v", matched, err)
+	}
+	if sess.ConnectedCount() != 0 || len(slotEvents) != 2 || slotEvents[1] {
+		t.Fatalf("expected slot disconnected on DisconnectAddr: count=%d events=%v", sess.ConnectedCount(), slotEvents)
+	}
+	if len(gotReports) < 2 || !bytes.Equal(gotReports[len(gotReports)-1], make([]byte, 8)) {
+		t.Fatalf("expected neutral keyboard report on DisconnectAddr, got %x", gotReports)
 	}
 }

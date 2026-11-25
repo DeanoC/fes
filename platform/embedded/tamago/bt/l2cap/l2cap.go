@@ -16,22 +16,22 @@ const (
 	PSMHIDControl   uint16 = 0x0011
 	PSMHIDInterrupt uint16 = 0x0013
 
-	sigCmdReject    byte = 0x01
-	sigConnReq      byte = 0x02
-	sigConnRsp      byte = 0x03
-	sigConfigReq    byte = 0x04
-	sigConfigRsp    byte = 0x05
-	sigDisconnReq   byte = 0x06
-	sigDisconnRsp   byte = 0x07
-	sigInfoReq      byte = 0x0a
-	sigInfoRsp      byte = 0x0b
+	sigCmdReject  byte = 0x01
+	sigConnReq    byte = 0x02
+	sigConnRsp    byte = 0x03
+	sigConfigReq  byte = 0x04
+	sigConfigRsp  byte = 0x05
+	sigDisconnReq byte = 0x06
+	sigDisconnRsp byte = 0x07
+	sigInfoReq    byte = 0x0a
+	sigInfoRsp    byte = 0x0b
 
-	defaultMTU       uint16 = 672
-	minL2CAPMTU      uint16 = 48
-	maxL2CAPPayload         = 680
-	maxConnections          = 4
-	maxChansPerConn         = 4
-	firstDynamicCID  uint16 = 0x0040
+	defaultMTU      uint16 = 672
+	minL2CAPMTU     uint16 = 48
+	maxL2CAPPayload        = 680
+	maxConnections         = 4
+	maxChansPerConn        = 4
+	firstDynamicCID uint16 = 0x0040
 )
 
 type l2capChannel struct {
@@ -60,39 +60,43 @@ type pendingSigFrame struct {
 }
 
 type aclConn struct {
-	active          bool
-	handle          uint16
-	addr            BDAddr
-	name            string
-	kind            controllers.Kind
-	vendorID        uint16
-	productID       uint16
-	hostInitiated   bool
-	pairingConn     bool
-	secFailed       bool
-	authenticated   bool
-	encrypted       bool
-	authRequested   bool
-	encRequested    bool
-	secRetryPending bool
-	secRetries      uint8
-	secRetryAt      time.Time
-	pendingOpenPSM  uint16
-	sdpQueried      bool
-	pendingOpenSDP  bool
-	sdpSendPending  bool
-	sdpTxID         uint16
-	sdpCont         [16]byte
-	sdpContLen      uint8
-	sdpContCount    uint8
-	sdpBuf          [256]byte
-	sdpBufLen       int
-	sigQ            [8]pendingSigFrame
-	sigQHead        int
-	sigQCount       int
-	namePending     bool
-	nameRetries     uint8
-	nameRetryAt     time.Time
+	active            bool
+	handle            uint16
+	addr              BDAddr
+	name              string
+	kind              controllers.Kind
+	vendorID          uint16
+	productID         uint16
+	hostInitiated     bool
+	pairingConn       bool
+	pairingGeneration uint64
+	secFailed         bool
+	authenticated     bool
+	encrypted         bool
+	authRequested     bool
+	encRequested      bool
+	secRetryPending   bool
+	secRetries        uint8
+	secRetryAt        time.Time
+	disconnectPending bool
+	disconnectReason  byte
+	disconnectRetryAt time.Time
+	pendingOpenPSM    uint16
+	sdpQueried        bool
+	pendingOpenSDP    bool
+	sdpSendPending    bool
+	sdpTxID           uint16
+	sdpCont           [16]byte
+	sdpContLen        uint8
+	sdpContCount      uint8
+	sdpBuf            [256]byte
+	sdpBufLen         int
+	sigQ              [8]pendingSigFrame
+	sigQHead          int
+	sigQCount         int
+	namePending       bool
+	nameRetries       uint8
+	nameRetryAt       time.Time
 
 	chans   [maxChansPerConn]l2capChannel
 	nextCID uint16
@@ -630,7 +634,7 @@ func (m *Manager) handleSignaling(conn *aclConn, payload []byte) {
 				var rsp [12]byte
 				binary.LittleEndian.PutUint16(rsp[0:2], infoType)
 				binary.LittleEndian.PutUint16(rsp[2:4], 0x0000) // Success
-				rsp[4] = 0x02                                    // Bit 1 = L2CAP Signaling (CID 0x0001)
+				rsp[4] = 0x02                                   // Bit 1 = L2CAP Signaling (CID 0x0001)
 				m.sendOrQueueSig(conn, sigInfoRsp, id, rsp[:])
 			default:
 				var rsp [4]byte

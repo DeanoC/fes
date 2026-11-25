@@ -66,6 +66,7 @@ type Device struct {
 	quiesced           bool
 	config             Config
 	cid                [15]byte
+	csd                [15]byte
 	stopRequested      atomic.Bool
 	identClock         uint32
 	dataClock          uint32
@@ -74,6 +75,7 @@ type Device struct {
 	highSpeed          bool
 	hasSCR             bool
 	scr                [8]byte
+	cmd23              bool
 	cardWriteProtected bool
 	expectedHost       uint32
 	busWidth4          bool
@@ -142,6 +144,10 @@ type Config struct {
 	// and Auto-CMD12, up to 128 sectors per command). Default false retains
 	// single-sector CMD17/CMD24.
 	MultiBlock bool
+	// UseCMD23 opts into issuing CMD23 (SET_BLOCK_COUNT) before multi-sector
+	// CMD18/CMD25 transfers instead of relying on Auto-CMD12. Requires
+	// MultiBlock and card SCR[33] support.
+	UseCMD23 bool
 	// UseADMA2 opts into SDHCI ADMA2 DMA transfers backed by DMAPool (requiring
 	// controller ADMA2 capability and platform SMMU stream authorization).
 	// Default false retains PIO transfers.
@@ -168,6 +174,9 @@ func validateConfig(config Config) error {
 	if config.UseADMA2 && config.DMAPool == nil {
 		return fmt.Errorf("sdhci: UseADMA2 requires DMAPool")
 	}
+	if config.UseCMD23 && !config.MultiBlock {
+		return fmt.Errorf("sdhci: UseCMD23 requires MultiBlock")
+	}
 	return nil
 }
 
@@ -186,6 +195,11 @@ func Open(io Registers, config Config) (*Device, error) {
 		return nil, err
 	}
 	if err := d.selectBusWidth(); err != nil {
+		_ = d.adma.close()
+		d.adma = nil
+		return nil, err
+	}
+	if err := d.selectCMD23(); err != nil {
 		_ = d.adma.close()
 		d.adma = nil
 		return nil, err
@@ -348,7 +362,12 @@ func (d *Device) initialize(config Config) error {
 		return err
 	}
 	// SDHCI R2 registers hold CSD[127:8] shifted down by 8 bits.
-	if (d.io.Read32(response+12)>>22)&3 != 1 {
+	csdTop := d.io.Read32(response + 12)
+	d.csd[0], d.csd[1], d.csd[2] = byte(csdTop>>16), byte(csdTop>>8), byte(csdTop)
+	binary.BigEndian.PutUint32(d.csd[3:7], d.io.Read32(response+8))
+	binary.BigEndian.PutUint32(d.csd[7:11], d.io.Read32(response+4))
+	binary.BigEndian.PutUint32(d.csd[11:15], d.io.Read32(response))
+	if (csdTop>>22)&3 != 1 {
 		return fmt.Errorf("sdhci: unsupported CSD structure")
 	}
 	csize := (d.io.Read32(response+4) >> 8) & 0x3fffff
@@ -452,6 +471,22 @@ func (d *Device) selectBusWidth() error {
 	d.expectedHost = desired
 	d.busWidth4 = true
 	return d.ready()
+}
+
+func (d *Device) selectCMD23() error {
+	if !d.config.UseCMD23 {
+		return nil
+	}
+	scr, err := d.readSCR()
+	if err != nil {
+		return err
+	}
+	// SCR[33] (wire byte 3 bit 1) advertises CMD23 (SET_BLOCK_COUNT) support.
+	if scr[3]&0x02 == 0 {
+		return fmt.Errorf("sdhci: card SCR (%x) does not advertise CMD23 support", scr)
+	}
+	d.cmd23 = true
+	return nil
 }
 
 func (d *Device) issueCMD6(arg uint32) ([64]byte, error) {
@@ -728,7 +763,10 @@ func (d *Device) issueTransfer(index uint32, arg uint32, kind responseType, data
 			transfer |= 1 << 4
 		}
 		if blocks > 1 {
-			transfer |= (1 << 5) | (1 << 2) | (1 << 1) // Multi-block + Auto-CMD12 + Block Count Enable
+			transfer |= (1 << 5) | (1 << 1) // Multi-block + Block Count Enable
+			if !d.cmd23 {
+				transfer |= 1 << 2 // Auto-CMD12 when CMD23 pre-defined count is not used
+			}
 		}
 		if useDMA {
 			transfer |= 1 << 0 // DMA Enable
@@ -857,7 +895,13 @@ func (d *Device) readMultiPIOLocked(lba uint64, dst []byte) error {
 		}
 		chunkBytes := blocks * block.SectorSize
 		staged := make([]byte, chunkBytes)
-		err := d.issueTransfer(cmd, uint32(lba), responseR1, readData, uint32(blocks), block.SectorSize, false)
+		var err error
+		if blocks > 1 && d.cmd23 {
+			err = d.issue(23, uint32(blocks), responseR1, noData)
+		}
+		if err == nil {
+			err = d.issueTransfer(cmd, uint32(lba), responseR1, readData, uint32(blocks), block.SectorSize, false)
+		}
 		for b := 0; err == nil && b < blocks; b++ {
 			err = d.wait(status, 1<<5, 1<<5, true)
 			if err != nil {
@@ -907,6 +951,11 @@ func (d *Device) readADMA2Locked(lba uint64, dst []byte) error {
 		}
 		if err := d.adma.buildDescriptors(chunkBytes); err != nil {
 			return d.containTransferError(err, true)
+		}
+		if blocks > 1 && d.cmd23 {
+			if err := d.issue(23, uint32(blocks), responseR1, noData); err != nil {
+				return d.containTransferError(err, true)
+			}
 		}
 		descPhys := d.adma.descBuf.PhysAddr()
 		d.io.Write32(admaAddrLow, uint32(descPhys))
@@ -1039,7 +1088,13 @@ func (d *Device) writeMultiPIOLocked(lba uint64, src []byte) error {
 		if blocks > 1 {
 			cmd = 25
 		}
-		err := d.issueTransfer(cmd, uint32(lba), responseR1, writeData, uint32(blocks), block.SectorSize, false)
+		var err error
+		if blocks > 1 && d.cmd23 {
+			err = d.issue(23, uint32(blocks), responseR1, noData)
+		}
+		if err == nil {
+			err = d.issueTransfer(cmd, uint32(lba), responseR1, writeData, uint32(blocks), block.SectorSize, false)
+		}
 		for b := 0; err == nil && b < blocks; b++ {
 			err = d.wait(status, 1<<4, 1<<4, true)
 			if err == nil {
@@ -1101,6 +1156,11 @@ func (d *Device) writeADMA2Locked(lba uint64, src []byte) error {
 		}
 		if err := d.adma.buildDescriptors(chunkBytes); err != nil {
 			return d.containTransferError(err, true)
+		}
+		if blocks > 1 && d.cmd23 {
+			if err := d.issue(23, uint32(blocks), responseR1, noData); err != nil {
+				return d.containTransferError(err, true)
+			}
 		}
 		descPhys := d.adma.descBuf.PhysAddr()
 		d.io.Write32(admaAddrLow, uint32(descPhys))
@@ -1285,15 +1345,22 @@ func (d *Device) Resume() error {
 	if err := next.selectBusWidth(); err != nil {
 		return fail(err)
 	}
+	if err := next.selectCMD23(); err != nil {
+		return fail(err)
+	}
 	if err := next.selectTransferClock(); err != nil {
 		return fail(err)
 	}
 	if next.dataClockHz != d.dataClockHz || next.dataClock != d.dataClock ||
-		next.expectedHost != d.expectedHost || next.busWidth4 != d.busWidth4 || next.highSpeed != d.highSpeed {
+		next.expectedHost != d.expectedHost || next.busWidth4 != d.busWidth4 ||
+		next.highSpeed != d.highSpeed || next.cmd23 != d.cmd23 {
 		return fail(errors.New("sdhci: transfer mode changed across resume"))
 	}
 	d.adma = next.adma
 	d.rca = next.rca
+	d.csd = next.csd
+	d.hasSCR = next.hasSCR
+	d.scr = next.scr
 	d.cardWriteProtected = next.cardWriteProtected
 	d.quiesced = false
 	d.stopRequested.Store(false)

@@ -209,7 +209,8 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 			activeHub = hub
 			keys := nativefabric.ProgramGamepadKeys{Up: 0x52, Down: 0x51, Left: 0x50, Right: 0x4f}
 			keys.Buttons[0], keys.Buttons[1] = 0x16, 0x2c
-			platform, err = nativefabric.NewProgramMultiInputPlatform(serialPlatform, nativeProgramBackend, &sharedProgramMulti{hub: hub, metrics: &sharedInputMetrics}, nativefabric.ProgramMultiConfig{
+			var multiPlatform *nativefabric.ProgramMultiInputPlatform
+			multiPlatform, err = nativefabric.NewProgramMultiInputPlatform(serialPlatform, nativeProgramBackend, &sharedProgramMulti{hub: hub, metrics: &sharedInputMetrics}, nativefabric.ProgramMultiConfig{
 				MenuButtons:     input.GamepadButtons{Confirm: 1, Back: 2},
 				CoreKeys:        keys,
 				PairingDuration: 30 * time.Second,
@@ -220,6 +221,10 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 					fmt.Printf("FES_NATIVE_BT_BONDS action=save err=%v\n", saveErr)
 				},
 			})
+			if err == nil {
+				err = app.SetBluetooth(multiPlatform)
+			}
+			platform = multiPlatform
 		default:
 			platform, err = nativefabric.NewProgramInputPlatform(serialPlatform, nativeProgramBackend, &sharedProgramKeyboard{programKeyboardSource, &sharedInputMetrics})
 		}

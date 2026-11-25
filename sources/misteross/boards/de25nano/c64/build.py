@@ -36,16 +36,17 @@ MACHINE_FILES = ("c64_vic.v", "c64_vic_graphics_pixels.sv", "c64_vic_sprite_pixe
                  "c64_vic_collisions.sv", "c64_vic_fetch.sv", "c64_vic_sprite_fetch.sv",
                  "c64_sid.v", "c64_sid_envelope.sv", "c64_sid_oscillator.sv", "c64_sid_wave_tables.sv",
                  "c64_sid_svf.sv", "c64_cia.v", "c64_drive1541.sv", "c64_via.v", "c64_gcr_read.v",
-                 "c64_d64_medium.sv", "c64_keyboard.v",
+                 "c64_keyboard.v",
                  "c64_bus.vh", "c64_timing.vh", "c64_sid_combined_waves.vh", "c64_sid_8580_waves.vh", "c64_sid_svf_tables.vh")
 CPU_FILES = ("cpu6502.v", "cpu6502_alu.v")
-SHARED_FILES = ("fes_c64_core.v", "fes_c64_firmware_rom.v")
+SHARED_FILES = ("fes_c64_core.v", "fes_c64_firmware_rom.v", "fes_media_sdram.v")
 LOCAL_FILES = ("fes_de25_c64_standard.v", "fes_de25_c64_standard_hw.tcl", "c64-clocks.sdc",
                "derive.py", "build.py")
 SOURCES = ({BOARD + "c64/" + name for name in LOCAL_FILES} |
            {BOARD + "shared-rtl/" + name for name in SHARED_FILES} |
            {CORE + name for name in MACHINE_FILES + ("c64_machine.sv", "c64_ram.v", "c64_color_ram.v",
-                                                    "c64_disk_store.v", "c64_frame_store.sv")} |
+                                                    "c64_d64_medium.sv", "c64_frame_store.sv")} |
+           {BOARD + "ramtest/sdram.v"} |
            {CPU + name for name in CPU_FILES})
 
 
@@ -80,8 +81,9 @@ def component_files(sources, *, native=False):
     for name in derive.RAM_FILES:
         target = name.replace(".v", "_de25.v")
         files[target], derived[target] = derive.retarget_ram(name, sources[CORE + name])
-    files["c64_disk_store_de25.v"], derived["c64_disk_store_de25.v"] = derive.retarget_disk_store(
-        sources[CORE + "c64_disk_store.v"])
+    files["c64_d64_medium_de25.sv"], derived["c64_d64_medium_de25.sv"] = derive.retarget_medium(
+        sources[CORE + "c64_d64_medium.sv"])
+    files["fes_de25_sdram.v"] = sources[BOARD + "ramtest/sdram.v"]
     files["c64_frame_store_de25.sv"], derived["c64_frame_store_de25.sv"] = derive.retarget_frame_store(
         sources[CORE + "c64_frame_store.sv"])
     files["fes_de25_computer_transport.v"], derived["fes_de25_computer_transport.v"] = derive.transport(

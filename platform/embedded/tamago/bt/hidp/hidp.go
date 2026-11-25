@@ -115,6 +115,22 @@ func (s *Session) SetPairingMode(enabled bool, duration time.Duration) error {
 // PairingActive reports whether the SSP pairing window is currently open.
 func (s *Session) PairingActive() bool { return s.mgr.PairingActive() }
 
+// PairingRemaining returns the remaining duration of an active SSP pairing window.
+func (s *Session) PairingRemaining() time.Duration {
+	if s == nil || s.mgr == nil {
+		return 0
+	}
+	return s.mgr.PairingRemaining()
+}
+
+// DisconnectAddr disconnects an active or pending link to addr and closes its HID channels.
+func (s *Session) DisconnectAddr(addr l2cap.BDAddr) (bool, error) {
+	if s == nil || s.mgr == nil {
+		return false, nil
+	}
+	return s.mgr.DisconnectAddr(addr)
+}
+
 // SetGameplayActive disables inquiry/page scan during active gameplay to avoid
 // 10–30 ms RF scan window spikes, and restores Page Scan in menu/idle.
 func (s *Session) SetGameplayActive(active bool) error {

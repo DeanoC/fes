@@ -6,21 +6,17 @@
 // Agilex 5 DesignWare APB UART (16550-compatible, 32-bit word-aligned):
 //   0x00 RBR/THR, 0x04 IER (bit 0 = ERBFI), 0x08 IIR, 0x14 LSR, 0x7c USR.
 
-TEXT ·read(SB),NOSPLIT|NOFRAME,$0-10
+TEXT ·readReg(SB),NOSPLIT|NOFRAME,$0-10
 	MOVD base+0(FP), R0
 	MOVWU 0x14(R0), R1
 	TBZ $0, R1, empty
-	// Discard bytes with overrun/parity/framing/break errors.
-	AND $0x1e, R1, R2
-	MOVWU (R0), R1
-	CBNZ R2, empty
-	MOVB R1, ret+8(FP)
-	MOVD $1, R1
+	MOVWU (R0), R2
+	MOVB R2, ret+8(FP)
 	MOVB R1, ret1+9(FP)
 	RET
 empty:
 	MOVB ZR, ret+8(FP)
-	MOVB ZR, ret1+9(FP)
+	MOVB R1, ret1+9(FP)
 	RET
 
 TEXT ·dwEnableRXIRQ(SB),NOSPLIT|NOFRAME,$0-8

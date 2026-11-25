@@ -3,6 +3,7 @@
 Only the reviewed standard internal16K/constant-PCM base is eligible. This is
 a stock-reference decision, not independent PCB timing or hardware acceptance.
 """
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -64,15 +65,35 @@ SOURCES = {
 # and three SDRAM phases beside the audio master (50 x 30 /122, 12.295082
 # MHz); its SDRAM outputs leave beside the reviewed audio wiring. Its DQ
 # capture phase (outclk4, +1.5 ns) is in the pinned file; moving it moves the
-# pin but not the audio master's request. pc386's makes the shared audio master
-# on another VCO divider (50 x 188/3 /255 = 50 x 188/15 /51).
+# pin but not the audio master's request. pc386's models each have their own
+# PLL (pc386/model_clocks.py), every one making the shared audio master on
+# another VCO divider (50 x 188/3 /255 = 50 x 188/15 /51); its pins are that
+# file's, per model, so a pc386 clock is reviewed in pc386's own closure.
 MACHINE_POLICY = fitted.MACHINE_POLICY
 SHARED_PLL = ('boards/de25nano/machine/machine_pll.ip', '52890ca22dea5743d009dc5a10035918b54565cd9886c0c201a8022019a8d4b4')
 PCXT_PLL = ('boards/de25nano/pcxt/machine_pll.ip', '926daec94bdc3e30886675f992a53d1f9b3a4a495dfb7bd516e6ae1ded2ce3ca')
-PC386_PLL = ('boards/de25nano/pc386/machine_pll.ip', 'd7fde9016686e6486b102dbc252c49f99397dff5f322fbae0abe04eefe02f5ba')
 MACHINE_PLLS = {'fes.spectrum': SHARED_PLL, 'fes.spectrum128': SHARED_PLL, 'fes.spectrum-plus3': SHARED_PLL,
                 'fes.pentagon': SHARED_PLL, 'fes.atari-st': SHARED_PLL, 'fes.c64': SHARED_PLL,
-                'fes.pcxt-dos': PCXT_PLL, 'fes.pc386': PC386_PLL, 'fes.ramtest': SHARED_PLL}
+                'fes.pcxt-dos': PCXT_PLL, 'fes.ramtest': SHARED_PLL}
+PER_MODEL_PLLS = {'fes.pc386': 'boards/de25nano/pc386/model_clocks.py'}
+# The board writes every machine's PLL IP into its project as this file.
+COMPILED_PLL = 'machine_pll.ip'
+
+
+def machine_pll(params):
+    """The pinned PLL IP (path, SHA-256) of a record's core and model, or None."""
+    if params.get('core_id') in MACHINE_PLLS:
+        return MACHINE_PLLS[params['core_id']]
+    if params.get('core_id') not in PER_MODEL_PLLS:
+        return None
+    path = Path(__file__).resolve().parents[3] / PER_MODEL_PLLS[params['core_id']]
+    spec = importlib.util.spec_from_file_location('de25_audio_reference_model_clocks', path)
+    clocks = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(clocks)
+    entry = clocks.MODEL_CLOCKS.get(params.get('model'))
+    if entry is None:
+        return None
+    return str(Path(PER_MODEL_PLLS[params['core_id']]).with_name(entry['pll_ip'])), entry['pll_ip_sha256']
 # The PLL outputs beside the audio wiring, as machine/board.py writes them.
 MACHINE_PLL_OUTPUTS = {'fes.pcxt-dos': ('.outclk_2(machine_sdram_clk_forward), '
                                         '.outclk_3(machine_sdram_clk_handoff), '
@@ -132,15 +153,22 @@ def eligible_machine(directory, record):
     params = record['parameters']
     expected = {'standard_core': True,
                 'expansion_socket': False, 'audio_clock_reference_policy': MACHINE_POLICY}
-    require(params.get('core_id') in MACHINE_PLLS and
+    pll = machine_pll(params)
+    require(pll is not None and
             (params.get('programming_profile') == 'de25-linux-computer-v1' or async_inputs.native_upload_shell(params)) and
             all(type(params.get(k)) is type(v) and params[k] == v for k, v in expected.items()),
             'requires a standard machine-PLL profile')
-    sources = {**MACHINE_SOURCES, MACHINE_PLLS[params['core_id']][0]: MACHINE_PLLS[params['core_id']][1]}
+    sources = {**MACHINE_SOURCES, pll[0]: pll[1]}
     require(all(record['source_inputs'].get(name) == sha for name, sha in sources.items()),
             'reviewed machine audio implementation/source changed')
+    # The PLL pins of a per-model machine are in its own closure: the record must hold the file.
+    if params['core_id'] in PER_MODEL_PLLS:
+        pins = PER_MODEL_PLLS[params['core_id']]
+        require(record['source_inputs'].get(pins) == async_inputs.sha(Path(__file__).resolve().parents[3] / pins),
+                'the per-model PLL pins are not the ones the record captured')
     project = directory / 'combined/hps/project'
-    files = {project / 'fes_mailbox' / Path(name).name: digest for name, digest in sources.items()}
+    files = {project / 'fes_mailbox' / (COMPILED_PLL if name == pll[0] else Path(name).name): digest
+             for name, digest in sources.items()}
     require(all(not p.is_symlink() and async_inputs.sha(p) == digest for p, digest in files.items()),
             'compiled machine audio implementation differs from the reviewed source')
     top = project / 'golden_top.v'

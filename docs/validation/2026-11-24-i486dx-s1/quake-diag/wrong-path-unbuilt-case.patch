@@ -1,0 +1,30 @@
+diff --git a/sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp b/sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp
+index bc5e59150..70b5dcda6 100644
+--- a/sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp
++++ b/sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp
+@@ -11928,6 +11928,25 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
+             a.esc(0xd9, 3, 0x330);                                 // FSTP m32 from empty
+             a.op({0xd9, 0xe0});                                    // FCHS from empty
+         }},
++        // A wrong-path ESC form the unit does not build (D9 /1 with a
++        // memory operand, reserved) behind a branch the front end first
++        // runs past: its uop issues and is flushed, and nothing it did may
++        // outlive the flush. Quake's FNINIT under the DE25 i486DX stalled
++        // for ever on exactly this (#2135 slice 1): the unit marked the
++        // flushed form's first uop as issued, which holds every later ESC.
++        {"wrong-path-unbuilt", [](Asm &a) {
++            a.op({0xdb, 0xe3});                                    // FNINIT
++            a.op({0x39, 0xc0});                                    // CMP AX, AX: ZF set
++            a.op({0x74, 0x03});                                    // JZ over the next three bytes
++            a.op({0xd9, 0x4f, 0x00});                              // D9 /1 m: reserved, on the wrong path only
++            a.op({0xdb, 0xe3});                                    // FNINIT
++            a.esc(0xd9, 0, 0x100);                                 // FLD m32
++            a.op({0x39, 0xc0});
++            a.op({0x74, 0x03});
++            a.op({0xd9, 0x4f, 0x00});
++            a.esc(0xd9, 0, 0x104);                                 // FLD m32: a waiting form after it
++            a.op({0xd8, 0xc1});                                    // FADD ST, ST(1)
++        }},
+         {"wait", [](Asm &a) {
+             a.op({0xdb, 0xe3});
+             a.op({0x9b});                                          // WAIT

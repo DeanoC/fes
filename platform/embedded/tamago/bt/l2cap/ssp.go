@@ -24,8 +24,10 @@ type Manager struct {
 
 	pairingActive        bool
 	pairingUntil         time.Time
+	pairingGeneration    uint64
 	connecting           bool
 	connectAddr          BDAddr
+	connectGeneration    uint64
 	inquiryActive        bool
 	inquiryRetryPending  bool
 	inquiryRetryAt       time.Time
@@ -34,6 +36,7 @@ type Manager struct {
 	cancelConnAddr       BDAddr
 	cancelRetryAt        time.Time
 	pairingAccepted      [maxConnections]BDAddr
+	pairingAcceptedGen   [maxConnections]uint64
 	pairingAcceptedUsed  [maxConnections]bool
 
 	OnChannelOpen  func(handle uint16, addr BDAddr, name string, kind controllers.Kind, psm uint16)
@@ -63,6 +66,19 @@ func (m *Manager) Bonds() *BondStore { return m.bonds }
 
 // PairingActive reports whether SSP pairing window is currently open.
 func (m *Manager) PairingActive() bool { return m.pairingActive }
+
+// PairingRemaining returns the remaining duration of an active SSP pairing
+// window, or 0 if inactive or expired.
+func (m *Manager) PairingRemaining() time.Duration {
+	if m == nil || !m.pairingActive {
+		return 0
+	}
+	rem := m.pairingUntil.Sub(m.now())
+	if rem <= 0 {
+		return 0
+	}
+	return rem
+}
 
 // SetPairingMode opens or closes a bounded SSP pairing window. Outside pairing
 // mode, unknown devices and SSP User Confirmation requests are rejected fail-closed.
@@ -96,6 +112,7 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 			if err := m.tr.CreateConnectionCancel(cancelTarget); err != nil {
 				m.connecting = false
 				m.connectAddr = BDAddr{}
+				m.connectGeneration = 0
 				m.inquiryRetryPending = false
 				m.inquiryRetryAt = time.Time{}
 				m.cancelConnPending = true
@@ -108,6 +125,7 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 		}
 		m.connecting = false
 		m.connectAddr = BDAddr{}
+		m.connectGeneration = 0
 		if err := m.tr.WriteScanEnable(hci.ScanInquiryAndPage); err != nil {
 			return err
 		}
@@ -118,6 +136,15 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 				return err
 			}
 			m.inquiryActive = true
+		}
+		m.pairingGeneration++
+		if m.pairingGeneration == 0 {
+			m.pairingGeneration++
+		}
+		for i := range m.pairingAcceptedUsed {
+			m.pairingAcceptedUsed[i] = false
+			m.pairingAccepted[i] = BDAddr{}
+			m.pairingAcceptedGen[i] = 0
 		}
 		m.pairingActive = true
 		m.pairingUntil = m.now().Add(duration)
@@ -130,6 +157,7 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 	m.pairingUntil = time.Time{}
 	m.connecting = false
 	m.connectAddr = BDAddr{}
+	m.connectGeneration = 0
 	m.inquiryRetryPending = false
 	m.inquiryRetryAt = time.Time{}
 
@@ -174,6 +202,7 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 func (m *Manager) recordPairingAccepted(addr BDAddr) {
 	for i := range m.pairingAcceptedUsed {
 		if m.pairingAcceptedUsed[i] && m.pairingAccepted[i] == addr {
+			m.pairingAcceptedGen[i] = m.pairingGeneration
 			return
 		}
 	}
@@ -181,20 +210,23 @@ func (m *Manager) recordPairingAccepted(addr BDAddr) {
 		if !m.pairingAcceptedUsed[i] {
 			m.pairingAcceptedUsed[i] = true
 			m.pairingAccepted[i] = addr
+			m.pairingAcceptedGen[i] = m.pairingGeneration
 			return
 		}
 	}
 }
 
-func (m *Manager) consumePairingAccepted(addr BDAddr) bool {
+func (m *Manager) consumePairingAccepted(addr BDAddr) (uint64, bool) {
 	for i := range m.pairingAcceptedUsed {
 		if m.pairingAcceptedUsed[i] && m.pairingAccepted[i] == addr {
+			generation := m.pairingAcceptedGen[i]
 			m.pairingAcceptedUsed[i] = false
 			m.pairingAccepted[i] = BDAddr{}
-			return true
+			m.pairingAcceptedGen[i] = 0
+			return generation, true
 		}
 	}
-	return false
+	return 0, false
 }
 
 const (
@@ -269,9 +301,9 @@ func (m *Manager) onConnSecured(conn *aclConn) {
 	}
 }
 
-func (m *Manager) failConnSecurity(conn *aclConn) {
+func (m *Manager) disconnectConn(conn *aclConn, reason byte) error {
 	if conn == nil || !conn.active {
-		return
+		return nil
 	}
 	for i := range conn.chans {
 		ch := &conn.chans[i]
@@ -304,7 +336,53 @@ func (m *Manager) failConnSecurity(conn *aclConn) {
 	conn.pendingOpenPSM = 0
 	conn.pendingOpenSDP = false
 	conn.sdpSendPending = false
-	_ = m.tr.Disconnect(conn.handle, 0x05)
+	err := m.tr.Disconnect(conn.handle, reason)
+	if err != nil {
+		conn.disconnectPending = true
+		conn.disconnectReason = reason
+		conn.disconnectRetryAt = m.now().Add(nameRetryBackoff)
+		return err
+	}
+	conn.disconnectPending = false
+	conn.disconnectRetryAt = time.Time{}
+	return nil
+}
+
+func (m *Manager) failConnSecurity(conn *aclConn) {
+	_ = m.disconnectConn(conn, 0x05)
+}
+
+// DisconnectAddr cancels a pending outgoing connection or disconnects any active
+// ACL link to addr with Remote User Terminated Connection (0x13), closing its
+// HID channels immediately so downstream input neutralizes at once.
+func (m *Manager) DisconnectAddr(addr BDAddr) (bool, error) {
+	if m == nil {
+		return false, nil
+	}
+	var matched bool
+	var firstErr error
+	if m.connecting && m.connectAddr == addr {
+		matched = true
+		m.connecting = false
+		m.connectAddr = BDAddr{}
+		m.connectGeneration = 0
+		if err := m.tr.CreateConnectionCancel(addr); err != nil {
+			m.cancelConnPending = true
+			m.cancelConnAddr = addr
+			m.cancelRetryAt = m.now().Add(nameRetryBackoff)
+			firstErr = err
+		} else if m.cancelConnPending && m.cancelConnAddr == addr {
+			m.cancelConnPending = false
+			m.cancelConnAddr = BDAddr{}
+		}
+	}
+	if conn := m.findConnByAddr(addr); conn != nil {
+		matched = true
+		if err := m.disconnectConn(conn, 0x13); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return matched, firstErr
 }
 
 func (m *Manager) requestRemoteName(conn *aclConn) {
@@ -370,6 +448,14 @@ func (m *Manager) Service() error {
 		conn := &m.conns[i]
 		if !conn.active {
 			continue
+		}
+		if conn.disconnectPending && (conn.disconnectRetryAt.IsZero() || !m.now().Before(conn.disconnectRetryAt)) {
+			if err := m.tr.Disconnect(conn.handle, conn.disconnectReason); err == nil {
+				conn.disconnectPending = false
+				conn.disconnectRetryAt = time.Time{}
+			} else {
+				conn.disconnectRetryAt = m.now().Add(nameRetryBackoff)
+			}
 		}
 		if conn.secRetryPending && !conn.secRetryAt.IsZero() && !m.now().Before(conn.secRetryAt) {
 			if !conn.authenticated {
@@ -445,9 +531,20 @@ func (m *Manager) allocConn(handle uint16, addr BDAddr) *aclConn {
 	return nil
 }
 
-func isHIDPeripheralCoD(cod uint32) bool {
+func isControllerPeripheralCoD(cod uint32) bool {
 	major := (cod >> 8) & 0x1f
-	return major == 0x05 // Major Device Class: Peripheral (Gamepad/Joystick/Keyboard/Mouse)
+	minor := (cod >> 2) & 0x3f
+	// Bits 6:7 of the Peripheral minor field indicate keyboard/pointing support;
+	// only controller subtypes without those capabilities are eligible here.
+	if major != 0x05 || minor&0x30 != 0 {
+		return false
+	}
+	switch minor & 0x0f {
+	case 0x01, 0x02: // Joystick or Gamepad
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *Manager) resumeInquiryIfPairing() {
@@ -486,7 +583,7 @@ func (m *Manager) handleInquiryRecords(params []byte, codOff, clkOff int) {
 }
 
 func (m *Manager) maybeInitiatePair(addr BDAddr, cod uint32, pageScanRep byte, clockOff uint16) {
-	if !m.pairingActive || m.connecting || !isHIDPeripheralCoD(cod) {
+	if !m.pairingActive || m.connecting || !isControllerPeripheralCoD(cod) {
 		return
 	}
 	if m.findConnByAddr(addr) != nil {
@@ -494,6 +591,7 @@ func (m *Manager) maybeInitiatePair(addr BDAddr, cod uint32, pageScanRep byte, c
 	}
 	m.connecting = true
 	m.connectAddr = addr
+	m.connectGeneration = m.pairingGeneration
 	m.inquiryRetryPending = false
 	m.inquiryRetryAt = time.Time{}
 	if m.tr.CancelInquiry() == nil {
@@ -503,6 +601,7 @@ func (m *Manager) maybeInitiatePair(addr BDAddr, cod uint32, pageScanRep byte, c
 	if err := m.tr.CreateConnection(addr, pageScanRep, clockOff); err != nil {
 		m.connecting = false
 		m.connectAddr = BDAddr{}
+		m.connectGeneration = 0
 		m.resumeInquiryIfPairing()
 	}
 }
@@ -523,14 +622,15 @@ func (m *Manager) handleEvent(ev []byte) {
 		copy(addr[:], params[0:6])
 		cod := uint32(params[6]) | uint32(params[7])<<8 | uint32(params[8])<<16
 		_, bonded := m.bonds.Lookup(addr)
-		if bonded || (m.pairingActive && isHIDPeripheralCoD(cod)) {
+		controllerCandidate := m.pairingActive && isControllerPeripheralCoD(cod)
+		if bonded || controllerCandidate {
 			// Role 0x00: request Master/Central role for deterministic polling slots!
-			if !bonded {
+			if controllerCandidate {
 				m.recordPairingAccepted(addr)
 			}
 			_ = m.tr.AcceptConnectionRequest(addr, 0x00)
 		} else {
-			// Fail-closed: reject unknown or non-HID devices even during pairing.
+			// Fail-closed: reject unknown or non-controller devices during pairing.
 			_ = m.tr.RejectConnectionRequest(addr, 0x0f)
 		}
 
@@ -542,23 +642,33 @@ func (m *Manager) handleEvent(ev []byte) {
 		var addr BDAddr
 		copy(addr[:], params[3:9])
 		outgoing := m.connecting && m.connectAddr == addr
+		outgoingGeneration := m.connectGeneration
 		if outgoing {
 			m.connecting = false
 			m.connectAddr = BDAddr{}
+			m.connectGeneration = 0
 		}
 		canceled := m.cancelConnPending && m.cancelConnAddr == addr
 		if canceled {
 			m.cancelConnPending = false
 			m.cancelConnAddr = BDAddr{}
 		}
-		fromPairing := m.consumePairingAccepted(addr) || outgoing || canceled
+		acceptedGeneration, accepted := m.consumePairingAccepted(addr)
+		fromPairing := accepted || outgoing || canceled
+		pairingGeneration := uint64(0)
+		if m.pairingActive && outgoing && outgoingGeneration == m.pairingGeneration {
+			pairingGeneration = m.pairingGeneration
+		}
+		if m.pairingActive && accepted && acceptedGeneration == m.pairingGeneration {
+			pairingGeneration = m.pairingGeneration
+		}
 		if params[0] != 0 {
 			m.resumeInquiryIfPairing()
 			return
 		}
 		handle := binary.LittleEndian.Uint16(params[1:3]) & 0x0fff
 		rec, bonded := m.bonds.Lookup(addr)
-		if !m.pairingActive && fromPairing && !bonded {
+		if !bonded && ((!m.pairingActive && fromPairing) || (m.pairingActive && pairingGeneration == 0)) {
 			_ = m.tr.Disconnect(handle, 0x13)
 			return
 		}
@@ -567,7 +677,8 @@ func (m *Manager) handleEvent(ev []byte) {
 			_ = m.tr.Disconnect(handle, 0x13)
 			return
 		}
-		conn.pairingConn = !bonded && (m.pairingActive || fromPairing)
+		conn.pairingConn = !bonded && pairingGeneration != 0
+		conn.pairingGeneration = pairingGeneration
 		if bonded {
 			conn.name = rec.Name
 			conn.kind = rec.Kind
@@ -697,8 +808,12 @@ func (m *Manager) handleEvent(ev []byte) {
 			return
 		}
 		var addr BDAddr
-		var key [16]byte
 		copy(addr[:], params[0:6])
+		conn := m.findConnByAddr(addr)
+		if conn == nil || conn.secFailed || conn.pairingGeneration != m.pairingGeneration {
+			return
+		}
+		var key [16]byte
 		copy(key[:], params[6:22])
 		rec := BondRecord{Addr: addr, LinkKey: key}
 		if existing, ok := m.bonds.Lookup(addr); ok {
@@ -708,18 +823,16 @@ func (m *Manager) handleEvent(ev []byte) {
 			rec.ProductID = existing.ProductID
 			rec.Slot = existing.Slot
 		}
-		if conn := m.findConnByAddr(addr); conn != nil {
-			conn.pairingConn = false
-			if conn.name != "" {
-				rec.Name = conn.name
-			}
-			if conn.kind != controllers.KindUnknown {
-				rec.Kind = conn.kind
-			}
-			if conn.vendorID != 0 || conn.productID != 0 {
-				rec.VendorID = conn.vendorID
-				rec.ProductID = conn.productID
-			}
+		conn.pairingConn = false
+		if conn.name != "" {
+			rec.Name = conn.name
+		}
+		if conn.kind != controllers.KindUnknown {
+			rec.Kind = conn.kind
+		}
+		if conn.vendorID != 0 || conn.productID != 0 {
+			rec.VendorID = conn.vendorID
+			rec.ProductID = conn.productID
 		}
 		_ = m.bonds.Upsert(rec)
 
@@ -759,6 +872,7 @@ func (m *Manager) handleEvent(ev []byte) {
 		if m.connecting && m.connectAddr == addr {
 			m.connecting = false
 			m.connectAddr = BDAddr{}
+			m.connectGeneration = 0
 		}
 		m.resumeInquiryIfPairing()
 
@@ -774,6 +888,7 @@ func (m *Manager) handleEvent(ev []byte) {
 				if m.connecting && m.connectAddr == conn.addr {
 					m.connecting = false
 					m.connectAddr = BDAddr{}
+					m.connectGeneration = 0
 				}
 				m.failConnSecurity(conn)
 			}
