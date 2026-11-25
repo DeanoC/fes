@@ -1740,6 +1740,8 @@ Error Runtime::LoadLibraryCore(const std::string& directory, const std::string& 
 	if (!ValidAbsolutePath(root) || (disk && (game_id.empty() || !ValidAbsolutePath(disk->path) ||
 		!ValidAbsolutePath(disk->data_root))))
 		return Invalid("invalid core-data root or ATA disk");
+	if (initial_media && (game_id.empty() || initial_media->binding.game_id != game_id))
+		return Invalid("initial_media game_id must match request game_id");
 	return impl_->LoadCore(directory, id, root, nullptr, "", "", nullptr, nullptr, initial_media, game_id, disk);
 }
 Error Runtime::LoadLibraryPartsCore(const std::string& directory, const std::string& id,
@@ -1768,6 +1770,10 @@ Error Runtime::LoadFirmwareCore(const std::string& directory, const std::string&
 {
 	if (!ValidAbsolutePath(path) || (!root.empty() && !ValidAbsolutePath(root)))
 		return Invalid("firmware upload requires a firmware source path");
+	if (root.empty() && !game_id.empty())
+		return Invalid("firmware game_id requires a core-data root");
+	if (initial_media && !game_id.empty() && initial_media->binding.game_id != game_id)
+		return Invalid("initial_media game_id must match request game_id");
 	return impl_->LoadCore(directory, id, root, nullptr, "", "", &link, nullptr, initial_media, game_id, nullptr, path);
 }
 Error Runtime::LoadROMsCore(const std::string& directory, const std::string& id,
