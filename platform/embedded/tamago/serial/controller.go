@@ -50,7 +50,7 @@ func NewController(uart UART) (*Controller, error) {
 func (c *Controller) EnableIRQ() {
 	c.txMu.Lock()
 	c.uart.EnableRXIRQ(false)
-	c.uart.EnableTXIRQ(false)
+	c.setIRQActiveLocked(false)
 	c.tx.Reset()
 	c.txBytes.Store(0)
 	c.txMu.Unlock()
@@ -64,7 +64,9 @@ func (c *Controller) EnableIRQ() {
 	default:
 	}
 
-	c.irqActive.Store(true)
+	c.txMu.Lock()
+	c.setIRQActiveLocked(true)
+	c.txMu.Unlock()
 	c.DrainRX()
 	c.uart.ClearIRQ()
 	c.uart.EnableRXIRQ(true)
@@ -74,9 +76,16 @@ func (c *Controller) EnableIRQ() {
 func (c *Controller) DisableIRQ() {
 	c.txMu.Lock()
 	c.uart.EnableRXIRQ(false)
-	c.uart.EnableTXIRQ(false)
+	c.setIRQActiveLocked(false)
 	c.txMu.Unlock()
-	c.irqActive.Store(false)
+}
+
+// setIRQActiveLocked changes IRQ mode and keeps TX IRQ state consistent with
+// the queued bytes. The caller must hold txMu so writers cannot cross the
+// mode transition between checking the queue and updating the TX IRQ mask.
+func (c *Controller) setIRQActiveLocked(active bool) {
+	c.irqActive.Store(active)
+	c.uart.EnableTXIRQ(active && c.tx.Len() > 0)
 }
 
 // Ready returns a channel notified whenever new RX bytes enter the RX ring.

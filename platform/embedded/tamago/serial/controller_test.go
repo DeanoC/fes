@@ -15,13 +15,14 @@ type mockUARTRx struct {
 }
 
 type mockUART struct {
-	mu      sync.Mutex
-	rxQueue []mockUARTRx
-	txFIFO  []byte
-	txLimit int // 0 means unlimited
-	rxIRQ   bool
-	txIRQ   bool
-	clears  int
+	mu        sync.Mutex
+	rxQueue   []mockUARTRx
+	txFIFO    []byte
+	txLimit   int // 0 means unlimited
+	rxIRQ     bool
+	txIRQ     bool
+	clears    int
+	txIRQHook func(enable bool)
 }
 
 func (m *mockUART) ReadRX() (byte, bool, LineError) {
@@ -54,7 +55,11 @@ func (m *mockUART) EnableRXIRQ(enable bool) {
 func (m *mockUART) EnableTXIRQ(enable bool) {
 	m.mu.Lock()
 	m.txIRQ = enable
+	hook := m.txIRQHook
 	m.mu.Unlock()
+	if hook != nil {
+		hook(enable)
+	}
 }
 
 func (m *mockUART) ClearIRQ() {
@@ -163,6 +168,75 @@ func TestControllerErrorsPollingAndIRQ(t *testing.T) {
 	c.DisableIRQ()
 	if u.rxIRQ || u.txIRQ {
 		t.Fatalf("DisableIRQ left IRQs enabled: rx=%v tx=%v", u.rxIRQ, u.txIRQ)
+	}
+}
+
+func TestControllerIRQModeTransitionsSerializeWithTXWriters(t *testing.T) {
+	u := &mockUART{}
+	c, err := NewController(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type txIRQObservation struct {
+		enabled  bool
+		active   bool
+		lockHeld bool
+	}
+	var observationsMu sync.Mutex
+	var observations []txIRQObservation
+	u.txIRQHook = func(enabled bool) {
+		lockHeld := !c.txMu.TryLock()
+		if !lockHeld {
+			c.txMu.Unlock()
+		}
+		observationsMu.Lock()
+		observations = append(observations, txIRQObservation{
+			enabled:  enabled,
+			active:   c.irqActive.Load(),
+			lockHeld: lockHeld,
+		})
+		observationsMu.Unlock()
+	}
+
+	c.EnableIRQ()
+	observationsMu.Lock()
+	observations = nil
+	observationsMu.Unlock()
+
+	// Disable must clear the mode before masking TX, while still holding the
+	// writer lock, so a waiting writer cannot turn TX IRQ back on afterward.
+	c.DisableIRQ()
+	observationsMu.Lock()
+	if len(observations) != 1 {
+		t.Fatalf("DisableIRQ TX mask observations = %+v, want one mask", observations)
+	}
+	disabled := observations[0]
+	observations = nil
+	observationsMu.Unlock()
+	if disabled.enabled || disabled.active || !disabled.lockHeld {
+		t.Fatalf("DisableIRQ transition at TX mask = %+v, want disabled, inactive, lock held", disabled)
+	}
+
+	// Model a writer that queued while IRQ mode was inactive during EnableIRQ.
+	// The activating transition must notice the queued byte and enable TX IRQ
+	// under the same lock before later writers can proceed.
+	c.txMu.Lock()
+	if !c.tx.Push('q') {
+		c.txMu.Unlock()
+		t.Fatal("failed to seed queued TX byte")
+	}
+	c.setIRQActiveLocked(true)
+	c.txMu.Unlock()
+
+	observationsMu.Lock()
+	defer observationsMu.Unlock()
+	if len(observations) != 1 {
+		t.Fatalf("EnableIRQ TX mask observations = %+v, want one enable", observations)
+	}
+	enabled := observations[0]
+	if !enabled.enabled || !enabled.active || !enabled.lockHeld {
+		t.Fatalf("EnableIRQ transition at TX mask = %+v, want enabled, active, lock held", enabled)
 	}
 }
 
