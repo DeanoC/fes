@@ -73,3 +73,14 @@ point gives the original module syntax tree. The replay setup calls
 The regenerated inputs, clock and workload stimulus match the retained
 run, including the game disks and parameters. G2 and G4 remain applicable
 to this revision through the exercised inputs.
+
+The [registered proof comparison](sim-c34-f9844c1b-match.json) checks
+`f9844c1bf7aa0ad9f8ae6eaa63b839dc8515b030` from a clean checkout apart
+from the fitter. The changed `pc386/build.py` adds the proof callbacks
+in the compile adapter and includes the two proof files in the producer's
+source capture. The checked projection removes those exact changes.
+Replay setup again calls `model_clock` and `guest_rates`, without calling
+`compile_board` or executing the proof module. Both proof files are
+recorded by digest. The regenerated CPU and bench, clocks, device rates,
+commands and game media match. G2, G4 and the rendered G5 demo milestone
+apply through those exercised inputs.

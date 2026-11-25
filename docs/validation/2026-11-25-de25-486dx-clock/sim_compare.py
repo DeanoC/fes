@@ -19,10 +19,19 @@ MISTEROSS = 'sources/misteross/'
 BOARD_BUILD = MISTEROSS + 'boards/de25nano/pc386/build.py'
 SIGNOFF_TABLE = MISTEROSS + 'boards/de25nano/pc386/signoff_bases.py'
 RECORD = 'docs/validation/2026-11-25-de25-486dx-clock/'
-# AST of e255d4e3's RegisteredBoard class. Its import-time constructor stores
-# the delegate, and the ROOT lookup uses the unchanged delegate attribute.
-# The class's other method is the registered Quartus compile path.
-REGISTERED_BOARD_AST_SHA256 = '9495bbef66d52666a0d86062c270f2e2f42bc18fe21c14c566bdd409b52306c5'
+# Both reviewed RegisteredBoard versions only store the delegate on import
+# and forward the ROOT lookup. The proof variant loads two additional files
+# inside the registered Quartus compile path.
+REGISTERED_BOARD_AST = {
+    '9495bbef66d52666a0d86062c270f2e2f42bc18fe21c14c566bdd409b52306c5': 'e255d4e3-adapter',
+    '5cf925e4f0b94b0771843874fb36f51d54ea7c7e9fe80416ec29ec2b5e4741e2': 'f9844c1b-proof',
+}
+RETIMED_REVIEW_FILES = {
+    MISTEROSS + 'boards/de25nano/pc386/retimed_tension.py':
+        '9640b71466b7fb9f5a6f90f9f044289dd8ac771dd010bd74aefbad5b73ba474f',
+    MISTEROSS + 'boards/de25nano/pc386/retimed_tension.tcl':
+        '387d6f62cce34e76fd72bb45b0ff840a00dfe08ab2a1f0f2ec433685c32a38ac',
+}
 SOURCE_FILES = (
     'boards/de25nano/pc386/build.py',
     'boards/de25nano/pc386/model_clocks.py',
@@ -67,11 +76,16 @@ from pathlib import Path
 import sys
 
 calls = set()
+proof_calls = set()
 module_path = str(Path.cwd() / 'boards/de25nano/pc386/build.py')
+proof_path = str(Path.cwd() / 'boards/de25nano/pc386/retimed_tension.py')
 
 def profile(frame, event, _arg):
-    if event == 'call' and frame.f_code.co_filename == module_path:
-        calls.add(frame.f_code.co_name)
+    if event == 'call':
+        if frame.f_code.co_filename == module_path:
+            calls.add(frame.f_code.co_name)
+        elif frame.f_code.co_filename == proof_path:
+            proof_calls.add(frame.f_code.co_name)
 
 sys.setprofile(profile)
 from boards.de25nano.pc386 import build
@@ -82,7 +96,7 @@ clock = build.model_clock('486dx')
 rates = build.guest_rates('486dx')
 sys.setprofile(None)
 print(json.dumps({'clock': {'c0': clock['c0'], 'clock_hz': str(clock['clock']), 'guest_rate_parameters': rates},
-                  'board_setup_calls': sorted(calls)}))
+                  'board_setup_calls': sorted(calls), 'registered_retiming_proof_calls': sorted(proof_calls)}))
 '''
     root = checkout / MISTEROSS
     regenerated = json.loads(subprocess.check_output([sys.executable, '-B', '-c', program, staging],
@@ -92,15 +106,28 @@ print(json.dumps({'clock': {'c0': clock['c0'], 'clock_hz': str(clock['clock']), 
     return regenerated
 
 
-def board_projection_equal(original, candidate):
-    """Remove only the reviewed compile adapter and normalize its two uses."""
+def board_projection(original, candidate):
+    """Remove only the reviewed compile adapter and its source-capture changes."""
     before = [ast.dump(node) for node in ast.parse(original.read_text()).body]
-    after = [ast.dump(node) for node in ast.parse(candidate.read_text()).body]
-    wrappers = [node for node in after if hashlib.sha256(node.encode()).hexdigest() == REGISTERED_BOARD_AST_SHA256]
+    text = candidate.read_text()
+    after = [ast.dump(node) for node in ast.parse(text).body]
+    wrappers = [(node, REGISTERED_BOARD_AST[digest]) for node in after
+                if (digest := hashlib.sha256(node.encode()).hexdigest()) in REGISTERED_BOARD_AST]
     if len(wrappers) != 1:
-        return False
-    after.remove(wrappers[0])
+        return None
+    wrapper, version = wrappers[0]
     load = 'load(HERE.parent / "machine/board.py", "de25_pc386_machine_board")'
+    if version == 'f9844c1b-proof':
+        expanded = 'SOURCES = ({BOARD + "pc386/" + name for name in (*LOCAL_FILES, *REVIEW_FILES)}'
+        prior = 'SOURCES = ({BOARD + "pc386/" + name for name in LOCAL_FILES}'
+        if text.count(expanded) != 1:
+            return None
+        after = [ast.dump(node) for node in ast.parse(text.replace(expanded, prior)).body]
+        review = ast.dump(ast.parse('REVIEW_FILES = ("retimed_tension.py", "retimed_tension.tcl")').body[0])
+        if after.count(review) != 1:
+            return None
+        after.remove(review)
+    after.remove(wrapper)
     for old, new in (
         (f'board = {load}', f'board = RegisteredBoard({load})'),
         ('if __name__ == "__main__": board.main(sys.modules[__name__])',
@@ -108,9 +135,9 @@ def board_projection_equal(original, candidate):
     ):
         old_node, new_node = (ast.dump(ast.parse(statement).body[0]) for statement in (old, new))
         if after.count(new_node) != 1:
-            return False
+            return None
         after[after.index(new_node)] = old_node
-    return before == after
+    return version if before == after else None
 
 
 def compare(run, candidate):
@@ -123,17 +150,22 @@ def compare(run, candidate):
     paths = retained_inputs(run, checkout)
     changed = set(git(candidate, 'diff', '--name-only', '-z', before, after).decode().split('\0')) - {''}
     candidate_board = candidate / BOARD_BUILD
-    projected = (BOARD_BUILD in changed and candidate_board.is_file()
-                 and board_projection_equal(checkout / BOARD_BUILD, candidate_board))
+    projection = (board_projection(checkout / BOARD_BUILD, candidate_board)
+                  if BOARD_BUILD in changed and candidate_board.is_file() else None)
     # Nothing in these two directories is used by the retained runners. The
     # pc386 board build records the signoff table, and only the Quartus
     # producer's reviewed-finding pass invokes it.
-    review_only = {SIGNOFF_TABLE, BOARD_BUILD} if projected else {SIGNOFF_TABLE}
+    review_only = {SIGNOFF_TABLE, BOARD_BUILD} if projection else {SIGNOFF_TABLE}
+    proof_hashes = ({path: sha(candidate / path) if (candidate / path).is_file() else None
+                     for path in RETIMED_REVIEW_FILES} if projection == 'f9844c1b-proof' else {})
+    proof_hashes_equal = proof_hashes == RETIMED_REVIEW_FILES
+    if proof_hashes_equal:
+        review_only.update(proof_hashes)
     unexplained = sorted(path for path in changed if path not in review_only
                          and not path.startswith((RECORD, MISTEROSS + 'tests/')))
     modified_inputs = sorted(path for path, expected in paths.items()
                              if not (candidate / path).is_file() or sha(candidate / path) != expected)
-    exercised_changes = set(modified_inputs) - ({BOARD_BUILD} if projected else set())
+    exercised_changes = set(modified_inputs) - ({BOARD_BUILD} if projection else set())
     with tempfile.TemporaryDirectory(dir=run) as directory:
         staging = Path(directory)
         setup = regenerate(candidate, staging)
@@ -153,14 +185,18 @@ def compare(run, candidate):
                            sha(directory / 'disk.img') == inputs['fixtures'][drive])
     equivalent = (not unexplained and not exercised_changes and clock == old_clock
                   and regenerated == expected and stimulus_equal and 'compile_board' not in calls
-                  and {'model_clock', 'guest_rates'}.issubset(calls))
+                  and {'model_clock', 'guest_rates'}.issubset(calls)
+                  and not setup['registered_retiming_proof_calls']
+                  and (projection != 'f9844c1b-proof' or proof_hashes_equal))
     return {'built_revision': before, 'candidate_revision': after, 'simulation_inputs_equal': equivalent,
             'changes': sorted(changed), 'changes_outside_review_scope': unexplained,
             'changed_retained_inputs': modified_inputs, 'changed_exercised_inputs': sorted(exercised_changes),
-            'retained_input_count': len(paths), 'registered_board_projection_equal': projected,
+            'retained_input_count': len(paths), 'registered_board_projection_equal': bool(projection),
+            'registered_board_projection': projection,
             'pc386_build_sha256': {'built': paths[BOARD_BUILD],
                                    'candidate': sha(candidate_board) if candidate_board.is_file() else None},
-            'board_setup_calls': calls,
+            'board_setup_calls': calls, 'review_file_sha256': proof_hashes,
+            'registered_retiming_proof_calls': setup['registered_retiming_proof_calls'],
             'retained_input_sha256': hashlib.sha256(json.dumps(paths, sort_keys=True).encode()).hexdigest(),
             'regenerated_inputs_sha256': regenerated, 'generated_inputs_equal': regenerated == expected,
             'clock_and_guest_rates_equal': clock == old_clock, 'candidate_clock': clock,
