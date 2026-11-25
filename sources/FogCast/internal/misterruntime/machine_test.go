@@ -282,8 +282,20 @@ func TestStagedFloppiesResolveFromTheKitStore(t *testing.T) {
 		requests[0].DataRoot != MediaDataRoot || requests[1].Unit != 2 || !requests[1].WriteProtected || !requests[1].valid() {
 		t.Fatal(requests, err)
 	}
+	// Formats under the hard disk's 1 MiB minimum stage and resolve too.
+	small := &protocol.LibraryMachineBinding{GameID: "msdos-622", Floppies: []protocol.StagedFloppy{
+		{Unit: protocol.PcFloppyUnitA, SHA256: stage(737280, 3)}, {Unit: protocol.PcFloppyUnitB, SHA256: stage(368640, 4)}}}
+	if requests, err := r.resolveStagedFloppies(small); err != nil || len(requests) != 2 ||
+		requests[0].Size != 737280 || requests[1].Size != 368640 {
+		t.Fatal(requests, err)
+	}
+	// A floppy-sized image is still no hard disk.
+	if _, err := r.resolveStagedDisk(&protocol.LibraryMachineBinding{GameID: "msdos-622",
+		Disk: &protocol.StagedDisk{SHA256: a}}); err == nil {
+		t.Fatal("floppy-sized hard disk resolved")
+	}
 	// A: cannot read the 1.2M disk, and an unstaged disk is refused.
-	wrong := &protocol.LibraryMachineBinding{GameID: "msdos-622", Floppies: []protocol.StagedFloppy{{Unit: protocol.PcFloppyUnitA, SHA256: b}}}
+	wrong :=&protocol.LibraryMachineBinding{GameID: "msdos-622", Floppies: []protocol.StagedFloppy{{Unit: protocol.PcFloppyUnitA, SHA256: b}}}
 	if _, err := r.resolveStagedFloppies(wrong); err == nil || !strings.Contains(err.Message, "put it in B:") {
 		t.Fatal(err)
 	}

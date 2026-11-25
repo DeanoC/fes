@@ -76,6 +76,12 @@ func AdmitPcFloppySize(size int64) bool {
 	return ok && (f.DriveA || f.DriveB)
 }
 
+// AdmitStagedDiskImageSize reports a size the disk-image store holds: a hard
+// disk or a PC floppy. Each launch path checks its own role's size after.
+func AdmitStagedDiskImageSize(size int64) bool {
+	return AdmitAtaDiskSize(size) || AdmitPcFloppySize(size)
+}
+
 // PcFloppyDrive is the one drive that reads an image of size bytes.
 func PcFloppyDrive(size int64) (uint8, bool) {
 	f, ok := PcFloppyFormatFor(size)

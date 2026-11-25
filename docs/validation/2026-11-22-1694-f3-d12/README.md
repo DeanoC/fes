@@ -353,3 +353,46 @@ created the empty `core-data/games` directory, and the cleanup removed only its
 hashed child. It was removed with `rmdir`, then the kit state, paths, image,
 bundle, idle agent and free lease were re-checked live and the kit logged FREE.
 The wrapper now removes that parent itself.
+
+## Review fixes (25 Nov)
+
+An independent review of the RTL, the runtime and FogCast found three defects.
+Each is now fixed, with a test that fails before the fix:
+
+- **Runtime:** a refused or timed-out Eject after a good save left a writable
+  floppy frozen. The controller's fence is shared, so both drives stalled.
+  `EjectPc386Floppy` now reports it as `save_failed`, as the generic eject
+  does, and the runtime's recovery resumes the drive with the disk still in
+  (`TestPc386FloppySwapSaveAndResume`).
+- **FogCast:** every disk-image staging gate used the hard disk's 1 MiB
+  minimum. So 160K, 180K, 320K, 360K and 720K launch floppies could not be
+  staged. The gates now admit a hard-disk or PC floppy size
+  (`protocol.AdmitStagedDiskImageSize`). Each launch path still checks its own
+  role, and a floppy-sized image is still refused as a hard disk
+  (`TestStagedFloppiesResolveFromTheKitStore`).
+- **FogCast:** after a pc386 floppy insert or eject, the kit agent set its
+  status to `volatile`. Its rule only knew the Atari ST and PC/XT write
+  interfaces. The host then refused the result, because a bound unit needs a
+  persistent status. The agent now follows the runtime: a bound persistent unit
+  makes the package persistent, and otherwise the launch's mode stands. The
+  kit's eject and swap time budgets use the same test
+  (`TestPc386FloppyUnitsKeepPersistentMode`).
+
+The floppy kit smoke above ran the bundle from `d68224547`, before these fixes.
+It used 1.44M and 1.2M images and launch-time floppies only, so it did not
+reach the paths they change.
+
+Three RTL findings in `pc386_floppy_media.sv` are recorded, not fixed here.
+The runtime never reaches them, and a fix would need a pc386 reseal:
+
+- A Prepare or Eject sent while a store is still draining can let that
+  store's `written` pulse mark the next disk dirty. The runtime always
+  freezes a writable drive before Eject, and Prepares only an empty drive.
+- DiskInfo flag bit 2 (writer busy) reads 0 for floppy units. The runtime
+  never reads it.
+- A bad heads value in DiskCommit word 3 is refused at word 4. The runtime
+  sends only table formats.
+
+The review also noted test gaps: no machine-level sim commits a floppy while
+the machine runs, and `computer_storage_tb` never makes the deferred replies
+wait.

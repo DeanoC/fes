@@ -42,7 +42,7 @@ func (r *Runtime) stagedDiskImage(sha string) (int64, bool) {
 		return 0, false
 	}
 	info, err := os.Lstat(r.diskImagePath(sha))
-	if err != nil || !info.Mode().IsRegular() || !protocol.AdmitAtaDiskSize(info.Size()) {
+	if err != nil || !info.Mode().IsRegular() || !protocol.AdmitStagedDiskImageSize(info.Size()) {
 		return 0, false
 	}
 	return info.Size(), true
@@ -72,7 +72,7 @@ func (r *Runtime) StageDiskImage(ctx context.Context, sha string, size int64, bo
 	if r.diskImageRoot == "" {
 		return result, unsupportedOperationError()
 	}
-	if !protocol2Hex64.MatchString(sha) || !protocol.AdmitAtaDiskSize(size) || body == nil {
+	if !protocol2Hex64.MatchString(sha) || !protocol.AdmitStagedDiskImageSize(size) || body == nil {
 		return result, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "disk image upload is invalid", Phase: "request"}
 	}
 	if err := os.MkdirAll(r.diskImageRoot, 0o700); err != nil {

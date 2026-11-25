@@ -4197,6 +4197,21 @@ void TestPc386FloppySwapSaveAndResume()
 	window.floppy[3001] ^= 0x22;
 	endpoint.GuestFloppyWrite(1);
 	const std::uint8_t at_3000 = window.floppy[3000], at_3001 = window.floppy[3001];
+	// The save succeeds but the Eject command is refused: the drive was frozen
+	// for the save, and the controller fence is shared, so it must be resumed
+	// and the disk stay in, not left frozen with both drives stalled.
+	bool rejected_eject = false;
+	endpoint.reject_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+		if (!rejected_eject && request.opcode == FesComputerOpcodeDiskControl && request.index == 1 &&
+			request.argument == FesComputerDiskControlEject) {
+			rejected_eject = true;
+			return 4u;
+		}
+		return 0u;
+	};
+	assert(fixture.runtime.EjectMedia(opened.package_id, gen, 1).code == mister::ErrorCode::save_failed);
+	endpoint.reject_request = {};
+	assert(rejected_eject && !endpoint.floppies[0].frozen && endpoint.floppies[0].state == 3);
 	assert(fixture.runtime.EjectMedia(opened.package_id, gen, 1).ok() && endpoint.floppies[0].state != 3);
 	assert(record->Read(&saved).ok() && saved.bytes[3000] == at_3000 && saved.bytes[3001] == at_3001);
 	assert(fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a).ok());

@@ -1848,8 +1848,17 @@ Error NativeHardware::EjectPc386Floppy(std::uint8_t unit)
 	// A failed save returns save_failed; the runtime's recovery resumes
 	// every loaded writable drive, so the disk stays in and running.
 	Error error = SavePc386Floppy(*driver, unit, deadline);
-	if (error.ok()) error = driver->FloppyControl(unit, generated::FesComputerDiskControlEject, deadline);
 	if (!error.ok()) return error;
+	error = driver->FloppyControl(unit, generated::FesComputerDiskControlEject, deadline);
+	if (!error.ok()) {
+		// A writable drive is still frozen from the save, and the controller's
+		// fence is shared by both drives: report it as a save failure so the
+		// same recovery resumes it and the disk stays in.
+		const Pc386Floppy& drive = floppies_[unit - 1];
+		if (drive.write_protected || !drive.file) return error;
+		error.code = ErrorCode::save_failed;
+		return WithPhase(error, "media_data");
+	}
 	floppies_[unit - 1] = Pc386Floppy{};
 	return {};
 }

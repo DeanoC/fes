@@ -201,7 +201,7 @@ func (r *Runtime) insertMedia(ctx, owner context.Context, size int64, body io.Re
 		mediaUnit, _ := protocol.MediaUnit(packageStatus, b.Unit)
 		stFloppy = mediaUnit.Interface == protocol.AtariStFloppyInterface()
 		geometry = protocol.AtariStFloppyGeometryCapable(packageStatus)
-		bound = protocol.MediaDataBound(packageStatus)
+		bound = protocol.MediaDataBound(packageStatus) || protocol.PersistentMediaBound(packageStatus)
 		if !b.AcceptsSize(computerMediaStatus(before), size) {
 			return protocol.MediaUnitRequestError()
 		}
