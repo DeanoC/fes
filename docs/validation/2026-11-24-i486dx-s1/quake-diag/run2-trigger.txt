@@ -1,0 +1,18 @@
+PROMPT 460018143
+RTL-BEGIN 460018150 flips=2
+QTRIG 460018216 fired=1 started=0 committed=0 nw=0 nw_waiting=0 iss=0 iss_first=1 iss_fire=0 iss_op=08c iss_dec=0 take=0 take_nw=0 flush=0 unbuilt=1 hold=0 seq=0 busy=0 latched=0 cr0=7ffffff0 eip=0000535f cs=f000
+QTRIGLAST 460018189 000f534f 4c 4c 2c 00 exc=0 x87busy=0 cr0=7ffffff0
+QTRIGLAST 460018190 000f5350 4c 2c 00 72 exc=0 x87busy=0 cr0=7ffffff0
+QTRIGLAST 460018191 000f5351 2c 00 72 e4 exc=0 x87busy=0 cr0=7ffffff0
+QTRIGLAST 460018192 000f5353 72 e4 3c 12 exc=0 x87busy=0 cr0=7ffffff0
+QTRIGLAST 460018193 000f5355 3c 12 77 31 exc=0 x87busy=0 cr0=7ffffff0
+QTRIGLAST 460018194 000f5357 77 31 30 e4 exc=0 x87busy=0 cr0=7ffffff0
+QTRIGLAST 460018195 000f5359 30 e4 d1 e0 exc=0 x87busy=0 cr0=7ffffff0
+QTRIGLAST 460018196 000f535b d1 e0 89 c3 exc=0 x87busy=0 cr0=7ffffff0
+QTRIGLAST 460018216 000f535d 89 c3 2e ff exc=0 x87busy=0 cr0=7ffffff0
+QTRIGISS 460018215 iss_op=14f dec=0 first=1 fire=1 take=0 take_nw=0 flush=0 unbuilt=1 started=0 fired=0 hold=0
+QTRIG 460018217 fired=1 started=0 committed=0 nw=0 nw_waiting=0 iss=0 iss_first=1 iss_fire=0 iss_op=08c iss_dec=0 take=0 take_nw=0 flush=0 unbuilt=1 hold=0 seq=0 busy=0 latched=0 cr0=7ffffff0 eip=0000535f cs=f000
+QTRIG 460018218 fired=1 started=0 committed=0 nw=0 nw_waiting=0 iss=0 iss_first=1 iss_fire=0 iss_op=08c iss_dec=0 take=0 take_nw=0 flush=0 unbuilt=1 hold=0 seq=0 busy=0 latched=0 cr0=7ffffff0 eip=0000535f cs=f000
+QTRIG 460018219 fired=1 started=0 committed=0 nw=0 nw_waiting=0 iss=0 iss_first=1 iss_fire=0 iss_op=08c iss_dec=0 take=0 take_nw=0 flush=0 unbuilt=1 hold=0 seq=0 busy=0 latched=0 cr0=7ffffff0 eip=0000535f cs=f000
+QTRIG 460018220 fired=1 started=0 committed=0 nw=0 nw_waiting=0 iss=0 iss_first=1 iss_fire=0 iss_op=08c iss_dec=0 take=0 take_nw=0 flush=0 unbuilt=1 hold=0 seq=0 busy=0 latched=0 cr0=7ffffff0 eip=0000535f cs=f000
+QTRIG 460018221 fired=1 started=0 committed=0 nw=0 nw_waiting=0 iss=0 iss_first=1 iss_fire=0 iss_op=08c iss_dec=0 take=0 take_nw=0 flush=0 unbuilt=1 hold=0 seq=0 busy=0 latched=0 cr0=7ffffff0 eip=0000535f cs=f000

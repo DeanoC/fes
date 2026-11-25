@@ -94,7 +94,9 @@ type programService struct {
 	closed         bool
 	rearm          bool
 	backendClaimed bool
+	capabilities   uint32
 	execution      ProgramFetchObservation
+	launchTrace    func(ProgramServiceStatus, string, error)
 	menu           *programServiceMenu
 	preferences    *ProgramPreferences
 	network        *network.Controller
@@ -142,9 +144,27 @@ func (s *ProgramService) Status() ProgramServiceStatus {
 	return p.view
 }
 
+// Capabilities returns the advertised fes.computer capability bitmap for the
+// active running session, or 0 if session is inactive or stale.
+func (s *ProgramService) Capabilities(session ProgramSession) uint32 {
+	if s == nil || s.state == nil || session.Generation() == 0 {
+		return 0
+	}
+	p := s.state
+	p.viewMu.Lock()
+	defer p.viewMu.Unlock()
+	if p.view.State != ProgramRunning || session.service != p || session.generation != p.view.Generation {
+		return 0
+	}
+	return p.capabilities
+}
+
 func (p *programService) publish(view ProgramServiceStatus) {
 	p.viewMu.Lock()
 	p.view = view
+	if view.State != ProgramRunning {
+		p.capabilities = 0
+	}
 	p.viewMu.Unlock()
 }
 
@@ -196,6 +216,7 @@ func (p *programService) fail(err error) error {
 	}
 	p.viewMu.Lock()
 	p.view.State, p.view.Error = ProgramRebootRequired, err.Error()
+	p.capabilities = 0
 	p.viewMu.Unlock()
 	return errors.Join(ErrProgramRetired, err)
 }
@@ -216,7 +237,16 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	if err := p.pauseNetwork(ctx); err != nil {
 		return ProgramSession{}, err
 	}
-	defer p.finishNetwork(&result)
+	trace := p.launchTrace
+	defer func() {
+		p.finishNetwork(&result)
+		if trace != nil {
+			trace(s.Status(), "complete", result)
+		}
+	}()
+	if trace != nil {
+		trace(view, "loading", nil)
+	}
 	view.State, view.Error = ProgramLoading, ""
 	p.publish(view)
 	if p.menu != nil {
@@ -224,12 +254,21 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 			return ProgramSession{}, p.fail(err)
 		}
 	}
+	if trace := p.launchTrace; trace != nil {
+		trace(view, "menu-closed", nil)
+	}
 	request.Sources = append([]packagestore.Source(nil), request.Sources...)
 	request.Parts = append([]packagestore.Part(nil), request.Parts...)
 	err = p.checkpointPreferences(ctx)
+	if trace := p.launchTrace; trace != nil {
+		trace(view, "preferences-complete", err)
+	}
 	var selection *packagestore.Selection
 	if err == nil {
 		selection, err = p.store.Retain(ctx, request)
+	}
+	if trace := p.launchTrace; trace != nil {
+		trace(view, "retention-complete", err)
 	}
 	var plan *StoredConfigurationPlan
 	if err == nil {
@@ -254,6 +293,9 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 		p.publish(view)
 		return ProgramSession{}, err
 	}
+	if trace := p.launchTrace; trace != nil {
+		trace(view, "preflight-complete", nil)
+	}
 	p.plan = plan // Pin the plan before containment or a possibly partial reservation.
 	view.Generation++
 	view.Identity = plan.Identity()
@@ -263,12 +305,18 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	if err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
+	if trace := p.launchTrace; trace != nil {
+		trace(view, "storage-contained", nil)
+	}
 	p.transfer, err = p.newTransfer(plan, handoff)
 	if err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
 	if err = p.configure(ctx); err != nil {
 		return ProgramSession{}, p.fail(err)
+	}
+	if trace := p.launchTrace; trace != nil {
+		trace(view, "configuration-complete", nil)
 	}
 	const controlTimeout = 5 * time.Second
 	controlDeadline := p.limits.Now().Add(controlTimeout)
@@ -294,6 +342,7 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	}
 	p.viewMu.Lock()
 	p.execution, p.view = execution, view
+	p.capabilities = p.computer.Computer().Capabilities()
 	p.viewMu.Unlock()
 	return ProgramSession{p, view.Generation}, nil
 }

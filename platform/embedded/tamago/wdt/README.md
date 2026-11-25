@@ -27,3 +27,13 @@ if hardware caps the achieved period, optionally runs a `Check` health probe
 before each kick (halting kicks on failure so hardware can reset a wedged
 system), and `Stop` waits for any in-flight `Check`/`Kick`/`OnError` call to
 finish before returning.
+
+## Dynamic Extension and Manual Kicks
+
+- **`(*DW).Timeout` / `SetTimeout`:** Query the active `WDT_TORR` period or
+  reprogram `WDT_TORR` and reload `WDT_CRR` on an already-armed watchdog (returns
+  `ErrNotRunning` without setting `WDT_EN` if unarmed).
+- **`(*Supervisor).Started` / `Period` / `KickNow` / `Extend`:** Inspect armed
+  state and achieved hardware period, issue immediate serialized kicks (including
+  while stopped against sticky hardware), or monotonically widen the timeout via
+  `TimeoutSetter` (`ErrUnsupported` when the underlying `Kicker` omits it).

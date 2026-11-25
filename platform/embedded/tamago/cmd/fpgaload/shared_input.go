@@ -142,6 +142,14 @@ func (s *sharedProgramMulti) SetGameplayActive(active bool) error {
 func (s *sharedProgramMulti) StartPairing(d time.Duration) error { return s.hub.StartPairing(d) }
 func (s *sharedProgramMulti) StopPairing() error                 { return s.hub.StopPairing() }
 func (s *sharedProgramMulti) PairingActive() bool                { return s.hub.PairingActive() }
+func (s *sharedProgramMulti) PairingRemaining() time.Duration    { return s.hub.PairingRemaining() }
+func (s *sharedProgramMulti) BluetoothSnapshot() usbhub.BluetoothSnapshot {
+	return s.hub.BluetoothSnapshot()
+}
+func (s *sharedProgramMulti) BluetoothGeneration() uint64 { return s.hub.BluetoothGeneration() }
+func (s *sharedProgramMulti) ForgetBluetoothDevice(address string) error {
+	return s.hub.ForgetBluetoothDevice(address)
+}
 func (s *sharedProgramMulti) SaveBondsIfDirty(ctx context.Context) (bool, error) {
 	return s.hub.SaveBondsIfDirty(ctx)
 }

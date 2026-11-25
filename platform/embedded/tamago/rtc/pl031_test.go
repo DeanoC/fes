@@ -289,3 +289,31 @@ func TestClockAnchoringSyncAndConcurrency(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestUnsyncedClockTransitionsOnSync(t *testing.T) {
+	var mono atomic.Int64
+	mono.Store(10_000_000_000)
+
+	clk := NewUnsyncedClock(mono.Load)
+	if clk.Synced() {
+		t.Fatal("unsynced clock reported Synced=true")
+	}
+	if _, ok := clk.WallTime(); ok {
+		t.Fatal("unsynced clock returned WallTime ok=true")
+	}
+
+	mono.Add(int64(500 * time.Millisecond))
+	epoch := time.Date(2026, time.November, 25, 8, 30, 0, 0, time.UTC)
+	clk.Sync(epoch)
+	if !clk.Synced() {
+		t.Fatal("synced clock reported Synced=false")
+	}
+	mono.Add(int64(250 * time.Millisecond))
+	got, ok := clk.WallTime()
+	if !ok {
+		t.Fatal("WallTime ok=false after Sync")
+	}
+	if want := epoch.Add(250 * time.Millisecond); !got.Equal(want) {
+		t.Fatalf("WallTime=%v, want %v", got, want)
+	}
+}

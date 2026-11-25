@@ -30,6 +30,7 @@ type Network interface {
 	RenewLeaseOnce(context.Context, bool, network.RenewConfig) (network.DHCPLease, error)
 	ResolveA(context.Context, string, network.DNSConfig) ([]netip.Addr, error)
 	QuerySNTP(context.Context, network.SNTPConfig) (network.SNTPResult, error)
+	NewSNTPSyncer(network.SNTPSyncConfig) (*network.SNTPSyncer, error)
 	EnableIRQ(*gic.Controller) error
 	DisableIRQ(*gic.Controller)
 	IRQCount() uint64

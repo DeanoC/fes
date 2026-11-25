@@ -1,0 +1,133 @@
+window 25.439361..25.939361: 50,000,000 clocks (50,000,000 on the RTL), 29,983,986 retired, CPI 1.668, 31 frames, 1,612,903 clocks a frame
+issued 32,114,923 uops, committed 31,006,044, in flight 3->4, flush cycles 238,722; 238,722 redirects, 246,664 L1D and 128,551 L1I misses
+cause                                    clocks      % per instr
+issued uops                          32,114,923  64.23    1.0711
+redirect: refill                      1,526,676   3.05    0.0509
+fetch and L1I                         1,416,939   2.83    0.0473
+L1D and port 0                        8,036,203  16.07    0.2680
+microcode                               993,305   1.99    0.0331
+interlock: AGI                        3,253,925   6.51    0.1085
+interlock: store-to-load                 32,762   0.07    0.0011
+interlock: flags                          1,113   0.00    0.0000
+interlock: ESP                          111,936   0.22    0.0037
+interlock: segment                       13,247   0.03    0.0004
+multiply and divide                   1,544,834   3.09    0.0515
+I/O and VGA: I/O                        691,799   1.38    0.0231
+I/O and VGA: MMIO load                   38,365   0.08    0.0013
+I/O and VGA: store buffer full          167,858   0.34    0.0056
+halt                                          0   0.00    0.0000
+other                                    56,115   0.11    0.0019
+
+direct branches 3,220,690: 2,385,799 taken, 2,390,616 predicted taken, 192,061 mispredicted (accuracy 94.04%), 0 fetch replays
+near RETs 227,881: 219,838 predicted, 13,868 redirected (accuracy 93.91%)
+indirect CALLs 43,381 (42,900 to their last target), JMPs 582 (582): 42,943 predicted, 1,344 redirected (accuracy 96.94%)
+  001a65f8 call_ind  n=10,749 last target 100.0% targets=1
+  001a6b0f call_ind  n=8,375 last target 100.0% targets=1
+  001a2f46 call_ind  n=8,339 last target 99.3% targets=2
+  001a61a3 call_ind  n=5,934 last target 100.0% targets=1
+  001a7b49 call_ind  n=4,380 last target 100.0% targets=1
+  001a6ba3 call_ind  n=4,150 last target 100.0% targets=1
+  001a0ee0 call_ind  n=291 last target 100.0% targets=1
+  00185266 call_ind  n=231 last target 0.0% targets=5
+
+AGI 3,253,925 clocks, 214,494 from producers an early ALU would run (6.6%)
+producer        clocks        ag        m1        m2        ex      none     ready       imm       w32
+load         1,346,726   148,507   403,287   794,152       780         0 1,240,194 1,346,726   666,163
+logic          698,816     8,563   344,781   344,946       526         0    11,002   698,232    10,732
+shift          627,327     3,742    25,750   573,818    24,017         0   567,246   627,327   567,012
+load_op        213,954    48,044    71,318    71,318    23,274         0    86,577   213,954    86,577
+sub            197,505    59,318    62,326    69,743     6,118         0   188,505   187,827   188,505
+add            130,002    38,415    41,555    44,179     5,853         0       259     4,194       259
+muldiv          18,785     5,723     6,220     6,222       620         0     3,307     2,538     3,307
+adc              8,463         0     2,990     2,990     2,483         0     8,355     8,463     8,355
+mov              7,649     3,702     1,698     1,795       454         0     4,190     2,899     2,143
+pop              2,515       450     1,401       664         0         0     2,319     2,515     1,719
+ext              1,186       372       407       407         0         0     1,186         0     1,186
+zero               629       101       200       293        35         0       629         0       629
+lea16              368        98        98       172         0         0       368       368         0
+
+front end empty 2,943,615 clocks (fe_empty 658,761), by Q's reason two clocks before; Q issued 31,398,177, held 15,328,553, took 2,733,920 predicted jumps (196,095 within a block)
+reason              clocks     refill refill_l1i     fe_l1i   fe_empty        l1i      latent
+half_rd            976,217    606,090    370,127          0          0    296,315     976,895
+half_seq1          498,400          0          0    374,887    123,513    498,396     504,494
+redirect           477,108    456,670     20,438          0          0          0     238,722
+tail_tk            460,015          0          0    108,667    351,348    137,846     509,743
+tail_rd            116,394     46,076     23,651     38,297      8,370     67,004     142,025
+tail_seq           115,690          0          0     85,620     30,070    115,497     136,933
+cross_seq           90,953          0          0     66,626     24,327     90,949     365,159
+tail_tkself         73,115          0          0      2,806     70,309      3,417      76,584
+half_tk             56,518          0          0     39,309     17,209     44,079     133,016
+tail_seq1           35,191          0          0     29,585      5,606     35,108      62,024
+half_tkself         25,407          0          0        152     25,255         82      25,662
+half_seq             7,499          0          0      6,384      1,115      7,438      12,132
+cross_rd             6,955          0      3,543      2,987        425      6,955       8,927
+cross_seq1           1,838          0          0      1,561        277      1,838       2,522
+cross_tk             1,372          0          0      1,091        281      1,371       2,377
+prefix                 943         77          4        206        656          0       1,523
+
+redirects        taken        clocks per taken
+jcc          2,058,429     4,146,433      2.01
+ret            227,881       582,284      2.56
+call_ind        43,381       574,923     13.25
+call           184,981       454,681      2.46
+jmp            141,723       279,082      1.97
+far_jmp            634        18,915     29.83
+iret               716        16,463     22.99
+jmp_ind            520        11,581     22.27
+int                206         8,789     42.67
+retf               486         8,656     17.81
+delivery           114         3,584     31.44
+far_call            20           882     44.10
+jcxz                98           113      1.15
+
+class                n       taken           own          next
+mem_op      11,245,576           0    20,632,474             0
+other       10,446,180           0    15,302,066             0
+jcc          2,893,212   2,058,429     3,332,619     4,146,433
+pushpop      1,352,806           0     3,676,569             0
+shift        3,243,516           0     3,413,012             0
+div             27,841           0     1,106,571             0
+call_ind        43,381      43,381       352,564       574,923
+call           184,981     184,981       433,483       454,681
+ret            227,881     227,881       269,208       582,284
+jmp            142,291     141,723       212,095       279,082
+io              52,710           0       464,740             0
+rep_str          7,200           0       329,975             0
+mul            106,517           0       212,782             0
+segload          5,308           0       126,572             0
+iret               716         716        29,187        16,463
+far_jmp            742         634        22,847        18,915
+delivery           114         114        35,016         3,584
+retf               486         486        17,955         8,656
+int                206         206        16,567         8,789
+jmp_ind            582         520         2,792        11,581
+str              1,514           0        10,192             0
+far_call            20          20           508           882
+jcxz               206          98           206           113
+
+top sites
+  0018be0d mem_op    n=548,449 cycles=1,359,932 (2.72%) 2.48 each
+  0018be16 other     n=548,447 cycles=1,338,946 (2.68%) 2.44 each
+  0018be1c mem_op    n=548,449 cycles=1,130,204 (2.26%) 2.06 each
+  0018be27 mem_op    n=548,449 cycles=1,097,602 (2.20%) 2.00 each
+  0018be00 mem_op    n=548,448 cycles=1,052,859 (2.11%) 1.92 each
+  0018c04b mem_op    n=313,020 cycles=1,009,684 (2.02%) 3.23 each
+  0018bdc6 mem_op    n=27,654 cycles=742,018 (1.48%) 26.83 each
+  00189e0f other     n=131,360 cycles=597,482 (1.19%) 4.55 each
+  0018be3d pushpop   n=27,653 cycles=596,173 (1.19%) 21.56 each
+  0018bdf8 other     n=548,448 cycles=579,694 (1.16%) 1.06 each
+  0018be25 mem_op    n=548,448 cycles=574,192 (1.15%) 1.05 each
+  0018be1f mem_op    n=548,453 cycles=553,468 (1.11%) 1.01 each
+  0018be29 jcc       n=548,452 cycles=550,035 (1.10%) 1.00 each
+  0018be10 shift     n=548,452 cycles=549,682 (1.10%) 1.00 each
+  0018bdfa other     n=548,450 cycles=549,064 (1.10%) 1.00 each
+  0018be02 shift     n=548,450 cycles=549,064 (1.10%) 1.00 each
+  0018be05 other     n=548,448 cycles=548,448 (1.10%) 1.00 each
+  0018be07 other     n=548,448 cycles=548,448 (1.10%) 1.00 each
+  0018be13 mem_op    n=548,447 cycles=548,447 (1.10%) 1.00 each
+  001a6ada div       n=12,525 cycles=489,207 (0.98%) 39.06 each
+  0018c03c other     n=313,021 cycles=468,769 (0.94%) 1.50 each
+  0018bd28 pushpop   n=27,654 cycles=436,611 (0.87%) 15.79 each
+  001a6a85 mem_op    n=12,525 cycles=387,328 (0.77%) 30.92 each
+  0018bdb1 other     n=27,654 cycles=386,675 (0.77%) 13.98 each
+  0018c018 shift     n=313,019 cycles=371,930 (0.74%) 1.19 each

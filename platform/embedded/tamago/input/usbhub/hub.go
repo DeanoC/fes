@@ -8,6 +8,8 @@ package usbhub
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/bt"
@@ -21,6 +23,10 @@ import (
 )
 
 const (
+	// MaxPlayerPorts is the maximum number of independent player slots tracked
+	// by Hub (P1..P4) without renumbering surviving players on disconnect.
+	MaxPlayerPorts = 4
+
 	maxWiredKeyboards = 4
 	maxWiredGamepads  = 4
 	maxQueuedReports  = 16
@@ -32,11 +38,13 @@ const (
 	bondRetryMax     = time.Minute
 )
 
-// GamepadUpdate carries a normalized merged gamepad snapshot plus whether a
-// Classic Bluetooth controller's Home/PS/Guide button is currently held.
+// GamepadUpdate carries a normalized merged gamepad snapshot, whether any
+// controller's Home/PS/Guide button is currently held, and per-player 8-bit
+// fes.computer button masks indexed by zero-based player port (P1..P4).
 type GamepadUpdate struct {
 	State       usb.GamepadState
 	HomePressed bool
+	Ports       [MaxPlayerPorts]uint8
 }
 
 // DeviceEventKind classifies hotplug topology and player transitions emitted by Hub.
@@ -85,6 +93,28 @@ type DeviceEvent struct {
 	Name      string
 }
 
+// BluetoothDevice describes one paired or connected Classic Bluetooth device.
+type BluetoothDevice struct {
+	Address   string
+	Name      string
+	Kind      controllers.Kind
+	Connected bool
+	Slot      uint8 // 1..4 when assigned a player port, 0 when disconnected or unassigned
+}
+
+// BluetoothSnapshot summarizes the active USB Bluetooth adapter, pairing
+// state, bonded/connected controllers, and bond persistence state.
+type BluetoothSnapshot struct {
+	DongleConnected  bool
+	DongleName       string
+	PairingActive    bool
+	PairingRemaining time.Duration
+	ConnectedCount   int
+	Devices          []BluetoothDevice
+	BondsPending     bool
+	BondsSaveFailed  bool
+}
+
 // Config configures optional Bluetooth bond/firmware persistence and logging.
 type Config struct {
 	Bonds         *l2cap.BondStore
@@ -111,6 +141,19 @@ type gipAckRequest struct {
 	payloadLen uint8
 }
 
+type playerPortSource uint8
+
+const (
+	playerPortNone playerPortSource = iota
+	playerPortWired
+	playerPortBT
+)
+
+type playerPortOwner struct {
+	source playerPortSource
+	slot   uint8
+}
+
 type wiredGamepadSlot struct {
 	active bool
 	// reported is set by the first decoded report since attach. Until then
@@ -126,6 +169,7 @@ type wiredGamepadSlot struct {
 	decoder      *usb.Gamepad
 	state        usb.GamepadState
 	ctrlState    controllers.State
+	ctrlMask     uint8
 	home         bool
 	switchCal    controllers.SwitchStickCal
 	initStep     uint8
@@ -152,11 +196,15 @@ type Hub struct {
 	btKeyboards  [hidp.MaxPlayerSlots][8]byte
 	btSlotActive [hidp.MaxPlayerSlots]bool
 	btGamepads   [hidp.MaxPlayerSlots]usb.GamepadState
+	btMasks      [hidp.MaxPlayerSlots]uint8
 	btHome       [hidp.MaxPlayerSlots]bool
+
+	playerPorts [MaxPlayerPorts]playerPortOwner
 
 	mergedKeyboard [8]byte
 	mergedGamepad  usb.GamepadState
 	mergedHome     bool
+	mergedPorts    [MaxPlayerPorts]uint8
 
 	kbQueue  [maxQueuedReports][8]byte
 	kbHead   int
@@ -172,6 +220,8 @@ type Hub struct {
 
 	bondRetryAt    time.Time
 	bondRetryDelay time.Duration
+	bondSaveFailed bool
+	btGeneration   uint64
 }
 
 // NewHub constructs a Hub over bus. Call Close when shutting down wired pipes;
@@ -190,6 +240,7 @@ func NewHub(bus usb.BusHost, cfg Config) (*Hub, error) {
 		bus:           bus,
 		cfg:           cfg,
 		mergedGamepad: usb.GamepadState{Hat: -1},
+		btGeneration:  1,
 	}
 	for i := range h.wiredGamepads {
 		h.wiredGamepads[i].state = usb.GamepadState{Hat: -1}
@@ -215,7 +266,9 @@ func NewHub(bus usb.BusHost, cfg Config) (*Hub, error) {
 			return
 		}
 		h.btSlotActive[slot] = true
+		h.assignPlayerPort(playerPortBT, slot)
 		h.btGamepads[slot] = state.ToUSBGamepadState()
+		h.btMasks[slot] = state.ToComputerMask()
 		h.btHome[slot] = state.Buttons&controllers.ButtonHome != 0
 		h.recomputeGamepad()
 	}
@@ -223,10 +276,13 @@ func NewHub(bus usb.BusHost, cfg Config) (*Hub, error) {
 		if slot < hidp.MaxPlayerSlots {
 			if connected && kind != controllers.KindUnknown {
 				h.btSlotActive[slot] = true
+				h.assignPlayerPort(playerPortBT, slot)
 			} else if !connected {
 				h.btSlotActive[slot] = false
 				h.btGamepads[slot] = usb.GamepadState{Hat: -1}
+				h.btMasks[slot] = 0
 				h.btHome[slot] = false
+				h.releasePlayerPort(playerPortBT, slot)
 				h.recomputeGamepad()
 				if kind == controllers.KindUnknown && h.btKeyboards[slot] != ([8]byte{}) {
 					h.btKeyboards[slot] = [8]byte{}
@@ -238,6 +294,7 @@ func NewHub(bus usb.BusHost, cfg Config) (*Hub, error) {
 		if connected {
 			evKind = EventBTPlayerAttached
 		}
+		h.btGeneration++
 		h.emit(DeviceEvent{Kind: evKind, Slot: slot, Name: name})
 	}
 	h.bt.OnDongleChanged = func(connected bool, spec hci.DongleSpec) {
@@ -245,6 +302,7 @@ func NewHub(bus usb.BusHost, cfg Config) (*Hub, error) {
 		if connected {
 			evKind = EventBTDongleAttached
 		}
+		h.btGeneration++
 		h.emit(DeviceEvent{Kind: evKind, Name: spec.Name})
 	}
 	return h, nil
@@ -310,7 +368,9 @@ func (h *Hub) StartPairing(duration time.Duration) error {
 	if h == nil || h.bt == nil {
 		return errors.New("usbhub: Bluetooth unavailable")
 	}
-	return h.bt.StartPairing(duration)
+	err := h.bt.StartPairing(duration)
+	h.btGeneration++
+	return err
 }
 
 // StopPairing closes any open Bluetooth pairing window.
@@ -318,12 +378,146 @@ func (h *Hub) StopPairing() error {
 	if h == nil || h.bt == nil {
 		return nil
 	}
-	return h.bt.StopPairing()
+	err := h.bt.StopPairing()
+	h.btGeneration++
+	return err
 }
 
 // PairingActive reports whether a Bluetooth pairing window is open.
 func (h *Hub) PairingActive() bool {
 	return h != nil && h.bt != nil && h.bt.PairingActive()
+}
+
+// PairingRemaining returns the remaining time in the active Bluetooth pairing window.
+func (h *Hub) PairingRemaining() time.Duration {
+	if h == nil || h.bt == nil {
+		return 0
+	}
+	return h.bt.PairingRemaining()
+}
+
+// BluetoothGeneration returns a monotonically increasing counter bumped whenever
+// Bluetooth dongle, pairing, connected slot, or bond persistence state changes.
+func (h *Hub) BluetoothGeneration() uint64 {
+	if h == nil {
+		return 0
+	}
+	return h.btGeneration
+}
+
+// BluetoothSnapshot returns a merged view of adapter state, active pairing window,
+// bonded devices, connected player slots, and pending/failed bond saves.
+func (h *Hub) BluetoothSnapshot() BluetoothSnapshot {
+	if h == nil || h.bt == nil {
+		return BluetoothSnapshot{}
+	}
+	snap := BluetoothSnapshot{
+		DongleConnected:  h.bt.DongleConnected(),
+		DongleName:       h.bt.DongleSpec().Name,
+		PairingActive:    h.bt.PairingActive(),
+		PairingRemaining: h.bt.PairingRemaining(),
+		ConnectedCount:   h.bt.ConnectedPlayers(),
+		BondsPending:     h.cfg.Bonds != nil && h.cfg.Bonds.Dirty() && h.cfg.PersistBonds != nil,
+		BondsSaveFailed:  h.bondSaveFailed,
+	}
+	byAddr := make(map[l2cap.BDAddr]BluetoothDevice)
+	if h.cfg.Bonds != nil {
+		for _, rec := range h.cfg.Bonds.List() {
+			byAddr[rec.Addr] = BluetoothDevice{
+				Address: rec.Addr.String(),
+				Name:    rec.Name,
+				Kind:    rec.Kind,
+			}
+		}
+	}
+	for slotIdx := uint8(0); slotIdx < hidp.MaxPlayerSlots; slotIdx++ {
+		ps, ok := h.bt.Player(slotIdx)
+		if !ok {
+			continue
+		}
+		dev := byAddr[ps.Addr]
+		dev.Address = ps.Addr.String()
+		if ps.Name != "" {
+			dev.Name = ps.Name
+		}
+		if ps.Kind != controllers.KindUnknown {
+			dev.Kind = ps.Kind
+		}
+		dev.Connected = true
+		if port, ok := h.playerPortFor(playerPortBT, slotIdx); ok {
+			dev.Slot = port + 1
+		} else {
+			dev.Slot = 0
+		}
+		byAddr[ps.Addr] = dev
+	}
+	if len(byAddr) > 0 {
+		snap.Devices = make([]BluetoothDevice, 0, len(byAddr))
+		for _, dev := range byAddr {
+			if strings.TrimSpace(dev.Name) == "" {
+				if dev.Kind != controllers.KindUnknown {
+					dev.Name = dev.Kind.String()
+				} else {
+					dev.Name = "Bluetooth device"
+				}
+			}
+			snap.Devices = append(snap.Devices, dev)
+		}
+		slices.SortFunc(snap.Devices, func(a, b BluetoothDevice) int {
+			if a.Connected != b.Connected {
+				if a.Connected {
+					return -1
+				}
+				return 1
+			}
+			if a.Connected && a.Slot != b.Slot {
+				if a.Slot == 0 {
+					return 1
+				}
+				if b.Slot == 0 {
+					return -1
+				}
+				if a.Slot < b.Slot {
+					return -1
+				}
+				return 1
+			}
+			if cmp := strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)); cmp != 0 {
+				return cmp
+			}
+			return strings.Compare(a.Address, b.Address)
+		})
+	}
+	return snap
+}
+
+// ForgetBluetoothDevice closes any active pairing window, deletes the stored
+// bond for address, and disconnects any active connection to it.
+func (h *Hub) ForgetBluetoothDevice(address string) error {
+	if h == nil || h.bt == nil {
+		return errors.New("usbhub: Bluetooth unavailable")
+	}
+	addr, err := l2cap.ParseBDAddr(address)
+	if err != nil {
+		return err
+	}
+	wasPairing := h.bt.PairingActive()
+	found, err := h.bt.ForgetDevice(addr)
+	if found {
+		h.bondRetryAt = time.Time{}
+		h.bondRetryDelay = 0
+		h.bondSaveFailed = false
+		h.btGeneration++
+	} else if h.bt.PairingActive() != wasPairing {
+		h.btGeneration++
+	}
+	if err != nil {
+		return err
+	}
+	if !found {
+		return errors.New("usbhub: Bluetooth device not found")
+	}
+	return nil
 }
 
 // SaveBondsIfDirty persists updated Bluetooth bonds when configured and
@@ -345,10 +539,16 @@ func (h *Hub) SaveBondsIfDirty(ctx context.Context) (bool, error) {
 	if err != nil {
 		h.bondRetryDelay = min(max(2*h.bondRetryDelay, bondRetryInitial), bondRetryMax)
 		h.bondRetryAt = now.Add(h.bondRetryDelay)
+		if !h.bondSaveFailed {
+			h.bondSaveFailed = true
+			h.btGeneration++
+		}
 		return false, err
 	}
 	h.cfg.Bonds.ClearDirty()
 	h.bondRetryAt, h.bondRetryDelay = time.Time{}, 0
+	h.bondSaveFailed = false
+	h.btGeneration++
 	return true, nil
 }
 
@@ -379,7 +579,7 @@ func (h *Hub) GamepadNeutral() bool {
 	if h == nil {
 		return true
 	}
-	if !h.initialized || !input.GamepadNeutral(h.mergedGamepad) || h.mergedHome {
+	if !h.initialized || !input.GamepadNeutral(h.mergedGamepad) || h.mergedHome || h.mergedPorts != ([MaxPlayerPorts]uint8{}) {
 		return false
 	}
 	for i := range h.wiredGamepads {
@@ -438,19 +638,21 @@ func (h *Hub) Close() {
 	if h == nil {
 		return
 	}
-	for i := range h.wiredKeyboards {
-		h.closeWiredKeyboard(i)
-	}
-	for i := range h.wiredGamepads {
-		h.closeWiredGamepad(i)
-	}
 	for i := range h.btKeyboards {
 		h.btKeyboards[i] = [8]byte{}
 	}
 	for i := range h.btGamepads {
 		h.btSlotActive[i] = false
 		h.btGamepads[i] = usb.GamepadState{Hat: -1}
+		h.btMasks[i] = 0
 		h.btHome[i] = false
+	}
+	h.playerPorts = [MaxPlayerPorts]playerPortOwner{}
+	for i := range h.wiredKeyboards {
+		h.closeWiredKeyboard(i)
+	}
+	for i := range h.wiredGamepads {
+		h.closeWiredGamepad(i)
 	}
 	h.recomputeKeyboard()
 	h.recomputeGamepad()
@@ -550,7 +752,13 @@ func (h *Hub) Service() error {
 			}
 		}
 	}
-	return h.bt.ServiceSession()
+	wasPairing := h.bt.PairingActive()
+	wasDirty := h.cfg.Bonds != nil && h.cfg.Bonds.Dirty()
+	err := h.bt.ServiceSession()
+	if h.bt.PairingActive() != wasPairing || (h.cfg.Bonds != nil && h.cfg.Bonds.Dirty() != wasDirty) {
+		h.btGeneration++
+	}
+	return err
 }
 
 func (h *Hub) attachDevice(dev usb.BusDevice) {
@@ -697,6 +905,7 @@ func (h *Hub) attachWiredGamepad(addr uint8, iface usb.InterfaceDescriptor) {
 		decoder: decoder,
 		state:   usb.GamepadState{Hat: -1},
 	}
+	h.assignPlayerPort(playerPortWired, uint8(free))
 	h.emit(DeviceEvent{
 		Kind:      EventGamepadAttached,
 		Address:   addr,
@@ -747,6 +956,7 @@ func (h *Hub) attachWiredNativeController(dev usb.BusDevice, iface usb.Interface
 		initStep:  initStep,
 		state:     usb.GamepadState{Hat: -1},
 	}
+	h.assignPlayerPort(playerPortWired, uint8(free))
 	h.emit(DeviceEvent{
 		Kind:      EventGamepadAttached,
 		Address:   dev.Address,
@@ -924,6 +1134,7 @@ func (h *Hub) feedWiredGamepadPacket(slotIdx int, pkt []byte) {
 			slot.reported = true
 			if changed {
 				slot.state = state
+				slot.ctrlMask = usbGamepadToComputerMask(state)
 				h.recomputeGamepad()
 			}
 		}
@@ -976,9 +1187,11 @@ func (h *Hub) feedWiredGamepadPacket(slotIdx int, pkt []byte) {
 	}
 	slot.reported = true
 	nextState := slot.ctrlState.ToUSBGamepadState()
+	nextMask := slot.ctrlState.ToComputerMask()
 	nextHome := slot.ctrlState.Buttons&controllers.ButtonHome != 0
-	if nextState != slot.state || nextHome != slot.home {
+	if nextState != slot.state || nextMask != slot.ctrlMask || nextHome != slot.home {
 		slot.state = nextState
+		slot.ctrlMask = nextMask
 		slot.home = nextHome
 		h.recomputeGamepad()
 	}
@@ -1062,6 +1275,7 @@ func (h *Hub) closeWiredGamepad(idx int) {
 		_ = slot.outPipe.Close()
 	}
 	*slot = wiredGamepadSlot{state: usb.GamepadState{Hat: -1}}
+	h.releasePlayerPort(playerPortWired, uint8(idx))
 	h.recomputeGamepad()
 	h.emit(DeviceEvent{
 		Kind:      EventGamepadDetached,
@@ -1150,11 +1364,105 @@ func (h *Hub) recomputeGamepad() {
 		}
 	}
 	merged.Hat = directionsToHat(dirs)
-	if merged != h.mergedGamepad || home != h.mergedHome {
+	var ports [MaxPlayerPorts]uint8
+	for p, owner := range h.playerPorts {
+		switch owner.source {
+		case playerPortWired:
+			if int(owner.slot) < len(h.wiredGamepads) && h.wiredGamepads[owner.slot].active {
+				ports[p] = h.wiredGamepads[owner.slot].ctrlMask
+			}
+		case playerPortBT:
+			if int(owner.slot) < len(h.btMasks) && h.btSlotActive[owner.slot] {
+				ports[p] = h.btMasks[owner.slot]
+			}
+		}
+	}
+	if merged != h.mergedGamepad || home != h.mergedHome || ports != h.mergedPorts {
 		h.mergedGamepad = merged
 		h.mergedHome = home
-		h.enqueueGamepad(GamepadUpdate{State: merged, HomePressed: home})
+		h.mergedPorts = ports
+		h.enqueueGamepad(GamepadUpdate{State: merged, HomePressed: home, Ports: ports})
 	}
+}
+
+func (h *Hub) assignPlayerPort(source playerPortSource, slot uint8) int {
+	for p, owner := range h.playerPorts {
+		if owner.source == source && owner.slot == slot {
+			return p
+		}
+	}
+	for p, owner := range h.playerPorts {
+		if owner.source == playerPortNone {
+			h.playerPorts[p] = playerPortOwner{source: source, slot: slot}
+			return p
+		}
+	}
+	return -1
+}
+
+func (h *Hub) releasePlayerPort(source playerPortSource, slot uint8) {
+	released := false
+	for p, owner := range h.playerPorts {
+		if owner.source == source && owner.slot == slot {
+			h.playerPorts[p] = playerPortOwner{}
+			released = true
+		}
+	}
+	if released {
+		h.promoteWaitingPlayerPorts()
+	}
+}
+
+func (h *Hub) promoteWaitingPlayerPorts() {
+	for i := range h.wiredGamepads {
+		if h.wiredGamepads[i].active && h.assignPlayerPort(playerPortWired, uint8(i)) < 0 {
+			return
+		}
+	}
+	for i := range h.btSlotActive {
+		if !h.btSlotActive[i] {
+			continue
+		}
+		if _, already := h.playerPortFor(playerPortBT, uint8(i)); already {
+			continue
+		}
+		if h.assignPlayerPort(playerPortBT, uint8(i)) < 0 {
+			return
+		}
+		h.btGeneration++
+	}
+}
+
+func (h *Hub) playerPortFor(source playerPortSource, slot uint8) (uint8, bool) {
+	for p, owner := range h.playerPorts {
+		if owner.source == source && owner.slot == slot {
+			return uint8(p), true
+		}
+	}
+	return 0, false
+}
+
+func usbGamepadToComputerMask(st usb.GamepadState) uint8 {
+	var mask uint8
+	dirs := input.GamepadDirections(st)
+	for i, down := range dirs {
+		if down {
+			mask |= 1 << uint(i)
+		}
+	}
+	if st.Buttons&(1<<0) != 0 {
+		mask |= 1 << 4
+	}
+	if st.Buttons&(1<<1) != 0 {
+		mask |= 1 << 5
+	}
+	if st.Buttons&(1<<8) != 0 {
+		mask |= 1 << 6
+	}
+	if st.Buttons&(1<<9) != 0 {
+		mask |= 1 << 7
+	}
+	return mask
 }
 
 func directionsToHat(dirs [4]bool) int8 {

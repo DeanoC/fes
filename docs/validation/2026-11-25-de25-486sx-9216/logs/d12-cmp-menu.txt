@@ -1,0 +1,7 @@
+637 files A, 637 C; only-one-side 0; differing after path normalisation 6
+  diff integrate-mailbox.tcl
+  diff peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout.ip
+  diff peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_bb.v
+  diff peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/peripheral_subsys_fes_scanout_inst.vhd
+  diff peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout/synth/peripheral_subsys_fes_scanout.v
+  diff peripheral_subsys/peripheral_subsys.qsys

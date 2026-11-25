@@ -1,0 +1,106 @@
+{
+ "revision": "5e19e59c8e6f895b5282ee42ec0f479285bfdb08",
+ "build_id": "cee3d3b46ed9f649464fd2f91b193060",
+ "summary": {
+  "classification": "de25-pc386-package-candidate",
+  "hardware_acceptance": false,
+  "model": "386",
+  "normal_kit_acceptance": false,
+  "package_timing_admission": true,
+  "rbf_sha256": "e80925fb91386c443083a8b162641552702cb9b4e3dedc4a905ffac2b5c502c4",
+  "revision": "5e19e59c8e6f895b5282ee42ec0f479285bfdb08"
+ },
+ "core_rbf_sha256": "e80925fb91386c443083a8b162641552702cb9b4e3dedc4a905ffac2b5c502c4",
+ "package_dirs": [
+  "7391fd0137ee9066e9e2d1aa9357c9093c902c61170e6b6a79d4f243f2b54b8f.fcore",
+  "7391fd0137ee9066e9e2d1aa9357c9093c902c61170e6b6a79d4f243f2b54b8f",
+  "7391fd0137ee9066e9e2d1aa9357c9093c902c61170e6b6a79d4f243f2b54b8f.3aaab672cf2230e5e6a90e98c6300abe95ecfb5d4b6bf779dd69fc76b12f6b85.build-inputs.json",
+  "7391fd0137ee9066e9e2d1aa9357c9093c902c61170e6b6a79d4f243f2b54b8f.build-inputs.json"
+ ],
+ "alms_needed_or_used": "40,395",
+ "all_reported_timing_pass": true,
+ "package_timing_admission": true,
+ "signoff_rules": 85,
+ "failed_rules": 8,
+ "unreviewed_failed_rules": 0,
+ "failed": [
+  {
+   "id": "CDC-50001",
+   "severity": "High",
+   "violations": 76,
+   "waived": 0
+  },
+  {
+   "id": "CDC-50002",
+   "severity": "High",
+   "violations": 6,
+   "waived": 0
+  },
+  {
+   "id": "TMC-20012",
+   "severity": "High",
+   "violations": 5,
+   "waived": 0
+  },
+  {
+   "id": "TMC-20011",
+   "severity": "High",
+   "violations": 2,
+   "waived": 0
+  },
+  {
+   "id": "RDC-50003",
+   "severity": "Medium",
+   "violations": 3,
+   "waived": 0
+  },
+  {
+   "id": "TMC-20602",
+   "severity": "Low",
+   "violations": 22,
+   "waived": 0
+  },
+  {
+   "id": "LNT-30010",
+   "severity": "Low",
+   "violations": 3,
+   "waived": 0
+  },
+  {
+   "id": "CDC-50102",
+   "severity": "Low",
+   "violations": 1,
+   "waived": 0
+  }
+ ],
+ "reports_sha256": {
+  "golden_top.sta.summary": "b32f2b2dae3869e4f3ad2494fb638ffdb112686208aa80772467dfe19d531fe5",
+  "golden_top.tq.drc.signoff.rpt": "5058c74b8c18d98c7f1f9780558ef7d2ff7ab20edcad05e0a31de9486b62a034"
+ },
+ "worst_slack_ns": {
+  "Setup": {
+   "slack": 1.714,
+   "type": "Setup 'fes_machine_pll|machine_pll_outclk0'"
+  },
+  "Hold": {
+   "slack": 0.0,
+   "type": "Hold 'fes_machine_pll|machine_pll_outclk0'"
+  },
+  "Recovery": {
+   "slack": 6.608,
+   "type": "Recovery 'pll_inst|iopll_0_outclk0'"
+  },
+  "Removal": {
+   "slack": 0.156,
+   "type": "Removal 'adv7513_config'"
+  },
+  "Minimum Pulse Width": {
+   "slack": 0.22,
+   "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0'"
+  }
+ },
+ "fcore": {
+  "name": "7391fd0137ee9066e9e2d1aa9357c9093c902c61170e6b6a79d4f243f2b54b8f.fcore",
+  "sha256": "dc79a7962618c44468dd055cb2cee4313f1677a457f1edc8738c4afea9442cc3"
+ }
+}

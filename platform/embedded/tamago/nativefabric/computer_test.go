@@ -31,6 +31,8 @@ type computerCPU struct {
 	changeOnFetch                          bool
 	keyboardRows                           [9]uint16
 	keyboardWrites, failKeyboardAt         int
+	controllerPorts                        [2]uint16
+	controllerWrites                       int
 }
 
 func (c *computerCPU) Invoke(r [7]uint64) ([4]uint64, error) {
@@ -152,6 +154,13 @@ func (c *computerCPU) WritePhysical32(address uint64, word uint32) error {
 			return errors.New("invalid keyboard row")
 		}
 		c.keyboardRows[row] = uint16(word)
+	} else if word>>24&127 == cg.FesComputerOpcodeControllerButtons {
+		c.controllerWrites++
+		port := word >> 16 & 255
+		if port >= cg.FesComputerControllerPortCount {
+			return errors.New("invalid controller port")
+		}
+		c.controllerPorts[port] = uint16(word)
 	}
 	c.gpo = word
 	if c.stall {

@@ -45,7 +45,7 @@ make core-dev CORE_DEV_ARGS='prepare --core fes.pong --output out/core-dev/pong-
 
 For a standard NTSC Commodore 64 candidate on DE10, use
 `make core-dev CORE_DEV_ARGS='prepare --core fes.c64-ntsc --output out/core-dev/c64-ntsc-001'`.
-Select `fes.c64` for PAL. For C64C with the MOS8580 SID, select `fes.c64c` for PAL or `fes.c64c-ntsc` for NTSC. All four profiles take the same external 36 KiB firmware.
+Select `fes.c64` for PAL. For C64C with the MOS8580 SID, select `fes.c64c` for PAL or `fes.c64c-ntsc` for NTSC. Select `fes.c64-early-ntsc` for the 6567R56A early NTSC timing profile. All five profiles take the same external 36 KiB firmware.
 
 Choose a new output directory for each candidate. Preparation checks selected
 module selections, takes the normal parent build lock and runs the existing

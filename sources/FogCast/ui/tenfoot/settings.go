@@ -18,6 +18,7 @@ const (
 	settingsSectionFirmware    = "firmware"
 	settingsSectionDisplay     = "display"
 	settingsSectionControllers = "controllers"
+	settingsSectionBluetooth   = "bluetooth"
 	settingsSectionNetwork     = "network"
 	settingsSectionUpdates     = "updates"
 	settingsSectionAbout       = "about"
@@ -30,6 +31,7 @@ var settingsSectionTitles = map[string]string{
 	settingsSectionFirmware:    "Firmware",
 	settingsSectionDisplay:     "Display & sound",
 	settingsSectionControllers: "Controllers",
+	settingsSectionBluetooth:   "Bluetooth",
 	settingsSectionNetwork:     "Network",
 	settingsSectionUpdates:     "Updates",
 	settingsSectionAbout:       "About & help",
@@ -559,6 +561,10 @@ func (a *App) handleSettingsRowLocked(cmd Command, id string) {
 		if cmd == CmdSelect {
 			a.startReleaseIdleLeaseLocked()
 		}
+	case "bt-pair":
+		if cmd == CmdSelect {
+			a.toggleSettingsBluetoothPairingLocked()
+		}
 	default:
 		if section, ok := strings.CutPrefix(id, settingsSectionRowPrefix); ok {
 			if cmd == CmdSelect || cmd == CmdRight {
@@ -570,6 +576,8 @@ func (a *App) handleSettingsRowLocked(cmd Command, id string) {
 			a.handleSettingsLibraryEntryLocked(cmd, index)
 		} else if index, ok := parseSettingsFirmwareRowID(id); ok && cmd == CmdSelect {
 			a.openSettingsFirmwareCardLocked(index)
+		} else if addr, ok := parseSettingsBluetoothDeviceRowID(id); ok && cmd == CmdSelect {
+			a.handleSettingsBluetoothDeviceLocked(id, addr)
 		}
 	}
 }
