@@ -230,6 +230,16 @@ for passes in 1 2; do
   grep -Fq "FES_IMAGE_PASSES=$passes" "$fixture/container-args"
   grep -Fq "FES_IMAGE_WORK=/target-image-output/work-$passes-native-dev" "$fixture/container-args"
   ! grep -Fq '/target-image-shared-cache' "$fixture/container-args"
+  ! grep -Fq -- '--hostname' "$fixture/container-args"
+done
+# SDK containers must use the same key-bound hostname through both SDK paths.
+sdk_hostname=$(python3 "$repo/scripts/toolchain_cache.py" sdk-hostname)
+for sdk_entry in --inside-fetch-toolchain --inside-toolchain --inside-kit-sdk; do
+  : > "$fixture/container-args"
+  env -u FES_PACKAGE_IDS TARGET_IMAGE_TEST_CONTAINER=1 TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/fake-container-runtime" \
+    CONTAINER_ARGS="$fixture/container-args" \
+    sh "$container_script" run /work/scripts/build-target-image.sh "$sdk_entry" 1751459412
+  grep -Fq -- "--hostname $sdk_hostname" "$fixture/container-args"
 done
 if env -u FES_PACKAGE_IDS TARGET_IMAGE_TEST_CONTAINER=1 TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/fake-container-runtime" \
     FES_IMAGE_PASSES=1 FES_IMAGE_WORK=/target-image-output/work-2-native-dev \
