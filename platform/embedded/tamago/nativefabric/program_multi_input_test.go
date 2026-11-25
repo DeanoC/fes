@@ -714,7 +714,7 @@ func TestProgramMultiInputPlatformTenfootBluetoothSettings(t *testing.T) {
 		t.Fatalf("expected Bluetooth section with 4 rows, got %#v", snap.Settings)
 	}
 
-	// Move to bt-pair (index 1) and start 30s pairing with Confirm button.
+	// Move to bt-pair (index 1); confirm once to arm, then again to start pairing.
 	src.pads(
 		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: 4}},
 		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
@@ -722,8 +722,19 @@ func TestProgramMultiInputPlatformTenfootBluetoothSettings(t *testing.T) {
 		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
 	)
 	step()
+	if src.PairingActive() || p.BluetoothStatus().PairingActive {
+		t.Fatal("first confirmation unexpectedly started pairing")
+	}
+	if got := app.Snapshot().Settings.Rows[1].Value; got != "A again to pair nearby controller" {
+		t.Fatalf("expected pairing confirmation in row value, got %q", got)
+	}
+	src.pads(
+		usbhub.GamepadUpdate{State: usb.GamepadState{Buttons: 1, Hat: -1}},
+		usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
+	)
+	step()
 	if !src.PairingActive() || !p.BluetoothStatus().PairingActive {
-		t.Fatal("expected pairing active after selecting bt-pair")
+		t.Fatal("expected pairing active after confirming bt-pair")
 	}
 	if got := app.Snapshot().Settings.Rows[1].Value; !strings.Contains(got, "Pairing (30s)") {
 		t.Fatalf("expected Pairing (30s) in row value, got %q", got)

@@ -69,6 +69,7 @@ type aclConn struct {
 	productID         uint16
 	hostInitiated     bool
 	pairingConn       bool
+	pairingGeneration uint64
 	secFailed         bool
 	authenticated     bool
 	encrypted         bool

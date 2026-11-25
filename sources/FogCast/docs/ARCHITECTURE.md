@@ -143,9 +143,10 @@ remain unqualified.
 startup, surfacing a Settings › Bluetooth section only on platforms that provide
 one (for example the bare-metal DE25-Nano multi-input USB/Bluetooth hub).
 Rendering reads a nonblocking cached `BluetoothStatus` snapshot; selecting
-`Pair controller` toggles a bounded 30-second SSP pairing window, and paired
-controllers use a two-press Forget confirmation with bond-save state surfaced in
-the Settings footer.
+`Pair controller` requires confirmation before opening a bounded 30-second SSP
+pairing window. The bare-metal adapter connects only to Peripheral-class
+joystick and gamepad candidates; paired controllers use a two-press Forget
+confirmation with bond-save state surfaced in the Settings footer.
 
 `corepackage.RetainArchive` validates an exact-length reader using the existing
 canonical archive, manifest, payload and ROM-map rules. It retains private

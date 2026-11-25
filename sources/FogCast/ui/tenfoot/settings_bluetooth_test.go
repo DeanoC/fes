@@ -133,8 +133,15 @@ func TestSettingsBluetoothPairingAndForgetLifecycle(t *testing.T) {
 		t.Fatalf("offline device value = %q", got)
 	}
 
-	// Trigger pairing -> 30s countdown -> stop pairing.
+	// Pairing requires a second Select before opening the 30s window.
 	focusSettingsRow(t, app, "bt-pair", now)
+	app.HandleCommand(CmdSelect, now)
+	if len(bt.starts) != 0 {
+		t.Fatal("first Select should only confirm the nearby-controller pairing action")
+	}
+	if got := settingsRowByID(t, app, "bt-pair").Value; got != "A again to pair nearby controller" {
+		t.Fatalf("pairing confirmation = %q", got)
+	}
 	app.HandleCommand(CmdSelect, now)
 	if len(bt.starts) != 1 || bt.starts[0] != 30*time.Second {
 		t.Fatalf("expected 30s pairing start, got %v", bt.starts)
@@ -211,6 +218,7 @@ func TestSettingsBluetoothPairingAndForgetLifecycle(t *testing.T) {
 	}
 	bt.startErr = errors.New("start failed")
 	focusSettingsRow(t, app, "bt-pair", now)
+	app.HandleCommand(CmdSelect, now)
 	app.HandleCommand(CmdSelect, now)
 	if got := app.Snapshot().Settings.Status; got != "start failed" {
 		t.Fatalf("start error status = %q", got)

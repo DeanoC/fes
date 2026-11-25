@@ -496,6 +496,9 @@ func (a *App) settingsRowHintLocked(kind InputKind) string {
 		if st.PairingActive {
 			return settingsActionHint(kind, "stop pairing", "", leave)
 		}
+		if st.DongleConnected && a.settingsConfirm == "bt-pair" {
+			return settingsActionHint(kind, "confirm pairing", "Up/Down cancel", leave)
+		}
 		if st.DongleConnected {
 			return settingsActionHint(kind, "pair controller", "", leave)
 		}

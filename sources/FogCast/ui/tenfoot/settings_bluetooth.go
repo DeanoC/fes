@@ -130,7 +130,11 @@ func (a *App) settingsBluetoothRowsLocked() []SettingsRow {
 			pairValue = "Pairing  ·  A stop"
 		}
 	case st.DongleConnected:
-		pairValue = "A start (30s)"
+		if a.settingsConfirm == "bt-pair" {
+			pairValue = "A again to pair nearby controller"
+		} else {
+			pairValue = "A pair controller (30s)"
+		}
 	}
 	rows := []SettingsRow{
 		{ID: "bt-adapter", Label: "Adapter", Value: adapter},
@@ -188,10 +192,17 @@ func (a *App) toggleSettingsBluetoothPairingLocked() {
 		return
 	}
 	if !st.DongleConnected {
+		a.settingsConfirm = ""
 		a.settingsStatus = "Connect a USB Bluetooth adapter"
 		a.status = a.settingsStatus
 		return
 	}
+	if a.settingsConfirm != "bt-pair" {
+		a.settingsConfirm = "bt-pair"
+		a.settingsStatus = ""
+		return
+	}
+	a.settingsConfirm = ""
 	if err := a.bluetooth.StartBluetoothPairing(defaultBluetoothPairingDuration); err != nil {
 		a.settingsStatus = settingsStatusError(err)
 	} else {

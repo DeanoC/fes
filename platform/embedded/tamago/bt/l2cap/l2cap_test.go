@@ -271,7 +271,7 @@ func TestSSPFailClosedOutsidePairingAndReconnectL2CAPZeroAlloc(t *testing.T) {
 		t.Fatal("pairing mode did not initiate CreateConnection for Gamepad CoD")
 	}
 
-	// SSP IO Capability + User Confirmation + Link Key Notification + Connection Complete + Remote Name
+	// Connection Complete establishes the pairing session before SSP key events arrive.
 	ioCap := append([]byte{hci.EventIOCapabilityRequest, 6}, stranger[:]...)
 	linkKey := [16]byte{0xaa, 0xbb, 0xcc, 0xdd, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
 	lkNotif := append([]byte{hci.EventLinkKeyNotification, 23}, stranger[:]...)
@@ -287,7 +287,7 @@ func TestSSPFailClosedOutsidePairingAndReconnectL2CAPZeroAlloc(t *testing.T) {
 	copy(nameEv[3:9], stranger[:])
 	copy(nameEv[9:], "DualSense Wireless Controller")
 
-	bus.evPipe.inQueue = append(bus.evPipe.inQueue, ioCap, userConf, lkNotif, connComp, nameEv)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connComp, ioCap, userConf, lkNotif, nameEv)
 	var resolvedKind controllers.Kind
 	mgr.OnNameResolved = func(_ uint16, _ BDAddr, _ string, kind controllers.Kind) {
 		resolvedKind = kind
@@ -772,7 +772,7 @@ func TestConfigRequestRetriesAfterACLQueueFull(t *testing.T) {
 	}
 }
 
-func TestRejectsNonHIDIncomingConnectionDuringPairing(t *testing.T) {
+func TestPairingRejectsUnsupportedPeripheralConnection(t *testing.T) {
 	bus := newL2CAPMockBus()
 	tr, err := hci.Open(bus, bus.dev)
 	if err != nil {
@@ -789,22 +789,21 @@ func TestRejectsNonHIDIncomingConnectionDuringPairing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Non-HID peer (e.g. phone CoD 0x5a020c -> LE c, 0x02, 0x5a) MUST be rejected during pairing.
-	phone, _ := ParseBDAddr("66:55:44:33:22:11")
-	nonHIDReq := append([]byte{hci.EventConnectionRequest, 10}, phone[:]...)
-	nonHIDReq = append(nonHIDReq, 0x0c, 0x02, 0x5a, 0x01)
-	bus.evPipe.inQueue = append(bus.evPipe.inQueue, nonHIDReq)
-	if err := mgr.Service(); err != nil {
-		t.Fatal(err)
-	}
-	if got := bus.lastParams[hci.OpcodeRejectConnectionRequest]; len(got) < 6 || !bytes.Equal(got[:6], phone[:]) {
-		t.Fatalf("expected unknown non-HID CoD to be rejected during pairing, got %x", got)
-	}
-	if _, accepted := bus.lastParams[hci.OpcodeAcceptConnectionRequest]; accepted {
-		t.Fatal("non-HID peer was erroneously accepted during pairing")
+	// Keyboards, mice, combo devices, and other Peripheral subclasses are rejected.
+	for i, cod := range []uint32{0x000540, 0x000580, 0x00050c, 0x0005c0, 0x002548, 0x5a020c} {
+		peer := BDAddr{0x66, 0x55, 0x44, 0x33, 0x22, byte(i + 1)}
+		req := append([]byte{hci.EventConnectionRequest, 10}, peer[:]...)
+		req = append(req, byte(cod), byte(cod>>8), byte(cod>>16), 0x01)
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, req)
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+		if got := bus.lastParams[hci.OpcodeRejectConnectionRequest]; len(got) < 6 || !bytes.Equal(got[:6], peer[:]) {
+			t.Fatalf("CoD %#06x: expected unsupported peripheral to be rejected, got %x", cod, got)
+		}
 	}
 
-	// Unknown HID peripheral peer (CoD 0x002508 -> LE 0x08, 0x25, 0x00) MUST be accepted during pairing.
+	// Gamepad CoD 0x002508 is accepted during pairing.
 	gamepad, _ := ParseBDAddr("77:66:55:44:33:22")
 	hidReq := append([]byte{hci.EventConnectionRequest, 10}, gamepad[:]...)
 	hidReq = append(hidReq, 0x08, 0x25, 0x00, 0x01)
@@ -813,7 +812,58 @@ func TestRejectsNonHIDIncomingConnectionDuringPairing(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := bus.lastParams[hci.OpcodeAcceptConnectionRequest]; len(got) < 6 || !bytes.Equal(got[:6], gamepad[:]) {
-		t.Fatalf("expected unknown HID CoD to be accepted during pairing, got %x", got)
+		t.Fatalf("expected gamepad CoD to be accepted during pairing, got %x", got)
+	}
+}
+
+func TestPairingInquiryConnectsOnlyGamepadOrJoystick(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cod  uint32
+		want bool
+	}{
+		{name: "gamepad", cod: 0x002508, want: true},
+		{name: "joystick", cod: 0x002504, want: true},
+		{name: "keyboard", cod: 0x000540},
+		{name: "mouse", cod: 0x000580},
+		{name: "remote control", cod: 0x00050c},
+		{name: "keyboard and mouse", cod: 0x0005c0},
+		{name: "gamepad with keyboard flag", cod: 0x002548},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bus := newL2CAPMockBus()
+			tr, err := hci.Open(bus, bus.dev)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := tr.Initialize(nil); err != nil {
+				t.Fatal(err)
+			}
+			mgr, err := NewManager(tr, NewBondStore(), func() time.Time { return time.Unix(700, 0) })
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
+				t.Fatal(err)
+			}
+
+			peer, _ := ParseBDAddr("88:77:66:55:44:33")
+			eir := make([]byte, 2+15)
+			eir[0] = hci.EventExtendedInquiryResult
+			eir[1] = 15
+			eir[2] = 1
+			copy(eir[3:9], peer[:])
+			eir[9] = 1
+			eir[11], eir[12], eir[13] = byte(tc.cod), byte(tc.cod>>8), byte(tc.cod>>16)
+			bus.evPipe.inQueue = append(bus.evPipe.inQueue, eir)
+			if err := mgr.Service(); err != nil {
+				t.Fatal(err)
+			}
+			_, got := bus.lastParams[hci.OpcodeCreateConnection]
+			if got != tc.want {
+				t.Fatalf("CreateConnection present=%t, want %t for CoD %#06x", got, tc.want, tc.cod)
+			}
+		})
 	}
 }
 
@@ -1466,16 +1516,25 @@ func TestPairingModeReplacesStaleLinkKeyAndRecoversOnAuthFailure(t *testing.T) {
 		t.Fatalf("expected LinkKeyRequestReply with oldKey outside pairing, got %x", got)
 	}
 
-	// 2. Inside explicit pairing window, LinkKeyRequest negatively replies so a
-	// controller with a cleared/reset key runs SSP and overwrites the stale bond.
+	// 2. Inside explicit pairing, a current-session controller connection can
+	// replace its stale key after LinkKeyRequestNegativeReply.
 	if err := mgr.SetPairingMode(true, 30*time.Second); err != nil {
 		t.Fatal(err)
 	}
 	delete(bus.lastParams, hci.OpcodeLinkKeyRequestNegReply)
+	eir := make([]byte, 2+15)
+	eir[0] = hci.EventExtendedInquiryResult
+	eir[1] = 15
+	eir[2] = 1
+	copy(eir[3:9], peer[:])
+	eir[9] = 1
+	eir[11], eir[12], eir[13] = 0x08, 0x25, 0x00
+	conn := append([]byte{hci.EventConnectionComplete, 11, 0, 0x4a, 0x00}, peer[:]...)
+	conn = append(conn, 0x01, 0x00)
 	lkNotif := append([]byte{hci.EventLinkKeyNotification, 23}, peer[:]...)
 	lkNotif = append(lkNotif, newKey[:]...)
 	lkNotif = append(lkNotif, 0x04)
-	bus.evPipe.inQueue = append(bus.evPipe.inQueue, lkReq, lkNotif)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, eir, conn, lkReq, lkNotif)
 	if err := mgr.Service(); err != nil {
 		t.Fatal(err)
 	}
@@ -1488,7 +1547,7 @@ func TestPairingModeReplacesStaleLinkKeyAndRecoversOnAuthFailure(t *testing.T) {
 
 	// 3. Authentication failure (status != 0) recovers canceled inquiry during pairing.
 	dev2, _ := ParseBDAddr("BB:CC:DD:EE:FF:02")
-	eir := make([]byte, 2+15)
+	eir = make([]byte, 2+15)
 	eir[0] = hci.EventExtendedInquiryResult
 	eir[1] = 15
 	eir[2] = 1
@@ -1597,12 +1656,14 @@ func TestIncomingPairingConnectionNotHostInitiatedAndRetriesFailedInquiry(t *tes
 		t.Fatal(err)
 	}
 
-	// 1. Incoming connection while pairing window is open (with no prior EIR /
-	// CreateConnection) must NOT set hostInitiated or initiate outgoing HID ConnReq.
+	// 1. An accepted incoming controller request must NOT set hostInitiated or
+	// initiate an outgoing HID ConnReq.
 	inPeer, _ := ParseBDAddr("77:88:99:AA:BB:CC")
+	connReq := append([]byte{hci.EventConnectionRequest, 10}, inPeer[:]...)
+	connReq = append(connReq, 0x08, 0x25, 0x00, 0x01)
 	connIn := append([]byte{hci.EventConnectionComplete, 11, 0, 0x4c, 0x00}, inPeer[:]...)
 	connIn = append(connIn, 0x01, 0x01)
-	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connIn)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connReq, connIn)
 	if err := mgr.Service(); err != nil {
 		t.Fatal(err)
 	}

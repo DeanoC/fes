@@ -620,8 +620,11 @@ func TestManagerForgetDeviceStopsActivePairing(t *testing.T) {
 	if _, ok := bonds.Lookup(addr1); ok || mgr.ConnectedPlayers() != 0 {
 		t.Fatalf("expected device forgotten and disconnected: ok=%t count=%d", ok, mgr.ConnectedPlayers())
 	}
+	if err := mgr.StartPairing(30 * time.Second); err != nil || !mgr.PairingActive() {
+		t.Fatalf("restart pairing after ForgetDevice failed: err=%v active=%t", err, mgr.PairingActive())
+	}
 
-	// Late LinkKeyNotification from the disconnecting/reconnecting peer must not recreate the bond.
+	// A notification from the forgotten connection must not be admitted by the new window.
 	linkEv := append([]byte{hci.EventLinkKeyNotification, 23}, addr1[:]...)
 	linkEv = append(linkEv, make([]byte, 16)...)
 	linkEv = append(linkEv, 0x04)
@@ -630,6 +633,6 @@ func TestManagerForgetDeviceStopsActivePairing(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, ok := bonds.Lookup(addr1); ok {
-		t.Fatal("bond recreated after ForgetDevice stopped pairing")
+		t.Fatal("late LinkKeyNotification recreated a forgotten bond in the new pairing window")
 	}
 }
