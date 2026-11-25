@@ -85,6 +85,24 @@ def system_testbench(args) -> Path:
     return sim.OUTPUT / 'system' / 'obj' / 'Vpc386_system'
 
 
+def run_at_model_clock(args) -> dict:
+    """sim.run_system with the model's machine clock in place of the DE10's. run_system passes
+    pc386_quartus.SYSTEM_CLOCK_HZ (61.44 MHz) to system_tb as --clock-hz, which system_tb takes for the
+    system/pixel clock ratio, its timeouts and its reported seconds; at the 486SX's 92.16 MHz that is wrong
+    by 1.5x. The shared module is DE10 evidence and stays as it is, so the clock is substituted here for the
+    run and restored."""
+    from scripts import pc386_quartus as producer
+    spec = importlib.util.spec_from_file_location('de25_pc386_build_clock', HERE / 'build.py')
+    build = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build)
+    shared = producer.SYSTEM_CLOCK_HZ
+    producer.SYSTEM_CLOCK_HZ = build.model_clock(args.model)['hz']
+    try:
+        return sim.run_system(args)
+    finally:
+        producer.SYSTEM_CLOCK_HZ = shared
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--model', choices=MODELS, default=MODELS[0], help='the producer model to build (default 486sx)')
@@ -98,7 +116,7 @@ def main() -> int:
     sim.OUTPUT = ROOT / ('build/sim/de25-pc386' if args.model == MODELS[0] else 'build/sim/de25-pc386-' + args.model)
     sim.system_testbench = system_testbench
     try:
-        report = sim.run_system(args)
+        report = run_at_model_clock(args)
     except (sim.SimError, OSError) as error:
         print(f'FAIL de25 system: {error}', file=sys.stderr)
         return 1

@@ -251,5 +251,24 @@ class De25SystemBenchTest(unittest.TestCase):
                     self.assertLessEqual(integer, modules)
                     self.assertFalse({dx.TOP, *forks} & modules)
 
+class De25SystemBenchClockTest(unittest.TestCase):
+    """The DE25 system bench runs system_tb at the model's own machine clock, not the DE10's 61.44 MHz."""
+
+    def test_system_tb_gets_each_models_clock(self):
+        bench = load_bench()
+        producer = load('boards/de25nano/pc386/build.py', 'test_de25_pc386_build_clock')
+        from scripts import pc386_quartus
+        shared = pc386_quartus.SYSTEM_CLOCK_HZ
+        seen = {}
+        for model in producer.MODELS:
+            with self.subTest(model):
+                with mock.patch.object(bench.sim, 'run_system',
+                                       side_effect=lambda args: seen.setdefault(model, pc386_quartus.SYSTEM_CLOCK_HZ)):
+                    bench.run_at_model_clock(SimpleNamespace(model=model))
+                self.assertEqual(seen[model], producer.model_clock(model)['hz'])
+                self.assertEqual(pc386_quartus.SYSTEM_CLOCK_HZ, shared)  # restored
+        self.assertEqual((seen['486sx'], seen['486dx']), (92156863, 61437908))
+
+
 if __name__ == '__main__':
     unittest.main()
