@@ -42,6 +42,8 @@ def lint(name, driver, qualifier):
 
 TABLE = 'boards/de25nano/pc386/signoff_bases.py'
 SOURCES = {
+    'cores/fes-common/rtl/i386/fes_i386_cpu.sv': '377ff229ed66ff72bdcef778397635a22c07a3378e9d98afcaec16a0e5048127',
+    'cores/fes-pc386/rtl/pc386_at_core.sv': 'ae210404c4c06d724bbfe0f166743988f495e3301edecbaf1c50e23c41ba6d4c',
     'cores/fes-pc386/rtl/pc386_presenter.sv': 'aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3',
     'cores/fes-pc386/rtl/pc386_vga_scanout.sv': '03d194d816290a6f6977cc84dfe5c64be374f1ca4eb3a297b1562495b0186fec',
     'cores/fes-pc386/rtl/pc386_snapshot.sv': '795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4',
@@ -165,6 +167,29 @@ TENSION = ('Placement advisory: registers in the machine netlist with many endpo
            'and latched port (the AT core\'s port decoder), and audio_dsp_write is the register on pc386_audio.sv\'s '
            'Sound Blaster DSP (pc386_sb) write input; all are machine-clock registers. Deano admitted them on 24 Nov 2026 (#2187), when '
            'the i486DX slice-1 fit (seed 1) reported them and their ~DUPLICATE copies.')
+
+# The C0=34 seed-1 TimeQuest trace resolves these newly generated placements to
+# retimed integer M1, memory control and FDC decode logic. Restrict compiler-
+# generated stems to the ones traced because an arbitrary Yosys number does
+# not establish its logical role. Placement coordinates may vary by seed.
+RETIMED_LOCATION = r'X\d+_Y\d+_N\d+_I\d+_dff'
+RETIMED_INPUT_MUX = 'BLOCK_INPUT_MUX_PASSTHROUGH_' + RETIMED_LOCATION
+RETIMED_TENSION_NODES = S + '(?:' + '|'.join((
+    r'(?:cpu_m1_(?:tx|alias|probe_bad)|cpu_dmem_read|cpu_dfwd_hold|cpu_l1d_flush)~\d+_' + RETIMED_INPUT_MUX,
+    r'(?:cpu_l1d_(?:m1_at0|hit_m1)\[\d+\]|cpu_dmem_fault)~\d+xsyn_' + RETIMED_INPUT_MUX,
+    r'(?:cpu_m1_out_reg\[\d+\]|reduce_nor_1931)~' + RETIMED_INPUT_MUX,
+    r'cpu_cr0_pg~DUPLICATE_' + RETIMED_INPUT_MUX,
+    r'_36681_\[(?:48|49|711|712|714|715)\]~(?:DUPLICATE_)?' + RETIMED_INPUT_MUX,
+    r'_(?:05547|14602|17339)_~\d+_' + RETIMED_INPUT_MUX,
+    r'cpu_m2_load~(?:ENA|SCLR)_dff',
+    r'cpu_l1d_stall~SCLR_dff',
+    r'machine_at_select_fdc~\d+_R12_' + RETIMED_LOCATION,
+)) + ')'
+RETIMED_TENSION = ('Placement advisory for the reviewed machine-clock retiming of CPU transaction, '
+                   'memory control and FDC decode logic (#2263). The C0=34 trace resolves the '
+                   'fitted names and confirms the unique machine clock, positive setup and hold '
+                   'in both directions, and no asynchronous edges or synchronizer stages at all '
+                   'four corners. The ordinary timing and CDC analyses still apply.')
 # The window control block's held bundles (fes_de25_hps_window_control.v),
 # between the board's peripheral clock (clk_sys, 100 MHz) and the machine
 # clock. Their rows depend on the design and not on the seed: every seed of
@@ -262,4 +287,5 @@ BASES = (
         + re.escape('soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|') + r'[^ ]+)(?:\|[^ ]+)?'), RAM),
     advisory('TMC-20602', 'cpu-control-tension', 0,
              S + r'(?:cpu_[a-z0-9_]+|reset|_\d+_|machine_at_decoder_(?:state|phase|cycle_port)|audio_dsp_write)(?:\[\d+\])?' + COPY, TENSION),
+    advisory('TMC-20602', 'retimed-machine-control-tension', 0, RETIMED_TENSION_NODES, RETIMED_TENSION),
 )

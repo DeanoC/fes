@@ -34,6 +34,8 @@ with Path(sys.argv[2]).open() as stream:
             if (row[endpoint] != node or row[endpoint + '_clock'] != expected_clock
                     or not math.isfinite(slack) or slack < 0):
                 issues.append(dict(reason='endpoint or timing result does not qualify', row=row))
+            if check in ('setup', 'hold') and (row['from_clock'], row['to_clock']) != (expected_clock, expected_clock):
+                issues.append(dict(reason='setup or hold path crosses a clock domain', row=row))
             minima[check].append((slack, corner, node))
         elif not (row['status'] == 'n/a' and check in ('recovery', 'removal') and row['async_edges'] == '0'
                   and row['exact_matches'] == '1' and row['owner_clocks'] == expected_clock):

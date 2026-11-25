@@ -31,6 +31,9 @@ def report(rules):
 
 
 CDC = ['From', 'To', 'From Clock', 'To Clock', 'Reason', 'Waived']
+TENSION = ['Register Name', 'Register Location', 'Number of Endpoints', 'Endpoint Centroid',
+           'Average Distance of Endpoints to Centroid', 'Total Distance of Endpoints to Centroid (Tension)',
+           'Waived']
 
 
 def cdc(source, sink, launch=MACHINE, latch=PIXEL):
@@ -93,9 +96,6 @@ class MachineFindingsTests(unittest.TestCase):
             mf.review(report({'CDC-50001': (CDC, waived)}), sdc_text(), bases)
 
     def test_advisories_bind_by_hierarchy_and_record_their_count(self):
-        header = ['Register Name', 'Register Location', 'Number of Endpoints', 'Endpoint Centroid',
-                  'Average Distance of Endpoints to Centroid', 'Total Distance of Endpoints to Centroid (Tension)',
-                  'Waived']
         rows = [[S + name, '(1, 1)', '9000', '(2, 2)', '20', '200000', '']
                 for name in ('cpu_md_busy', 'cpu_wb_fault[4]', '_36426_[140]~DUPLICATE', 'reset',
                              'cpu_biu_reset~_Duplicate_2', 'cpu_biu_reset~_Duplicate', 'reset~DUPLICATE',
@@ -105,7 +105,7 @@ class MachineFindingsTests(unittest.TestCase):
                              # Every copy spelling the recorded fits use.
                              'cpu_md_busy~_Duplicate1', 'cpu_md_busy~_Duplicate0', 'reset~_Duplicate1DUPLICATE',
                              'machine_at_decoder_state[1]~_Duplicate_2DUPLICATE', 'cpu_wb_fault[4]~_DuplicateDUPLICATE')]
-        [entry] = mf.review(report({'TMC-20602': (header, rows)}), '', self.bases('cpu-control-tension'))
+        [entry] = mf.review(report({'TMC-20602': (TENSION, rows)}), '', self.bases('cpu-control-tension'))
         self.assertEqual(entry['groups'][0]['rows'], 19)
         # A fitter copy is admitted only for a name the basis already names; neighbouring decoder,
         # audio and machine names are not.
@@ -121,10 +121,44 @@ class MachineFindingsTests(unittest.TestCase):
                      'reset~DUPLICATE~_Duplicate_1', 'reset~DUPLICATE~_Duplicate_2DUPLICATE', 'reset~DUPLICATE~_Duplicate', 'reset~DUPLICATE~_DuplicateDUPLICATE', 'cpu_biu_reset~DUPLICATE~_Duplicate1', '_36426_[140]~DUPLICATE~_Duplicate_1'):
             copy = rows + [[S + name, '(1, 1)', '9000', '(2, 2)', '20', '200000', '']]
             with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
-                mf.review(report({'TMC-20602': (header, copy)}), '', self.bases('cpu-control-tension'))
+                mf.review(report({'TMC-20602': (TENSION, copy)}), '', self.bases('cpu-control-tension'))
         outside = rows + [['fes_video_inst|output_release[0]', '(1, 1)', '9000', '(2, 2)', '20', '200000', '']]
         with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
-            mf.review(report({'TMC-20602': (header, outside)}), '', self.bases('cpu-control-tension'))
+            mf.review(report({'TMC-20602': (TENSION, outside)}), '', self.bases('cpu-control-tension'))
+
+    def test_retimed_tension_covers_measured_roles_and_anonymous_aliases(self):
+        names = (
+            'cpu_m1_tx~1_BLOCK_INPUT_MUX_PASSTHROUGH_X58_Y23_N0_I13_dff',
+            'cpu_l1d_hit_m1[0]~13xsyn_BLOCK_INPUT_MUX_PASSTHROUGH_X64_Y27_N0_I1_dff',
+            'cpu_m2_load~ENA_dff',
+            'cpu_m2_load~SCLR_dff',
+            'machine_at_select_fdc~0_R12_X84_Y16_N0_I4_dff',
+            '_36681_[49]~BLOCK_INPUT_MUX_PASSTHROUGH_X58_Y23_N0_I20_dff',
+            '_36681_[715]~DUPLICATE_BLOCK_INPUT_MUX_PASSTHROUGH_X58_Y23_N0_I3_dff',
+            '_05547_~0_BLOCK_INPUT_MUX_PASSTHROUGH_X58_Y23_N0_I2_dff',
+            '_14602_~2_BLOCK_INPUT_MUX_PASSTHROUGH_X58_Y23_N0_I39_dff',
+            '_17339_~0_BLOCK_INPUT_MUX_PASSTHROUGH_X64_Y27_N0_I3_dff',
+            'reduce_nor_1931~BLOCK_INPUT_MUX_PASSTHROUGH_X46_Y19_N0_I31_dff',
+        )
+        rows = [[S + name, '(58, 23)', '9000', '(38, 28)', '20', '200000', '']
+                for name in (*names, 'cpu_md_busy')]
+        bases = self.bases('cpu-control-tension', 'retimed-machine-control-tension')
+        [entry] = mf.review(report({'TMC-20602': (TENSION, rows)}), '', bases)
+        self.assertEqual({group['name']: group['rows'] for group in entry['groups']},
+                         {'cpu-control-tension': 1, 'retimed-machine-control-tension': len(names)})
+
+    def test_retimed_tension_refuses_unreviewed_names_and_malformed_suffixes(self):
+        names = (
+            S + '_36680_[49]~BLOCK_INPUT_MUX_PASSTHROUGH_X58_Y23_N0_I20_dff',
+            S + 'cpu_m1_probe_good~4_BLOCK_INPUT_MUX_PASSTHROUGH_X46_Y19_N0_I30_dff',
+            S + 'cpu_m1_tx~1_BLOCK_INPUT_MUX_PASSTHROUGH_X58_Y23_N0_I13_dff_extra',
+            S.replace('system|', 'window_control|') + 'cpu_m2_load~ENA_dff',
+        )
+        bases = self.bases('cpu-control-tension', 'retimed-machine-control-tension')
+        for name in names:
+            with self.subTest(name), self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
+                rows = [[name, '(58, 23)', '9000', '(38, 28)', '20', '200000', '']]
+                mf.review(report({'TMC-20602': (TENSION, rows)}), '', bases)
 
     def test_the_lint_bases_admit_their_drivers_and_fitter_copies_of_them_only(self):
         header = ['Driver', 'Asynchronous Reset Signal', 'Synchronous Reset Signal', 'Clock Enable Signal',

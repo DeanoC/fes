@@ -34,16 +34,22 @@ if [[ ! -s "$logs/loaded.tsv" || ! -s "$logs/report.exit" ]] || [[ $(<"$logs/rep
         golden_top "$logs/loaded.tsv" > "$logs/loaded.log" 2>&1
     printf '0\n' > "$logs/report.exit"
 fi
-if [[ -s "$logs/tension-unmatched.txt" ]]; then
-    record=$(dirname "$script")
+record=$(dirname "$script")
+targets="$logs/tension-unmatched.txt"
+if [[ ! -s "$targets" ]]; then
+    targets="$logs/tension-reviewed.txt"
+    PYTHONPATH="$module" python3 "$record/tension_targets.py" output_files/golden_top.tq.drc.signoff.rpt > "$targets"
+fi
+if [[ -s "$targets" ]]; then
     tension_exit=0
     sha256sum output_files/golden_top.{fit.rpt,sta.rpt,sta.summary,tq.drc.signoff.rpt} \
-        fes_mailbox/pc386_system.v "$logs/tension-unmatched.txt" > "$logs/tension-inputs.sha256"
+        fes_mailbox/pc386_system.v "$targets" > "$logs/tension-inputs.sha256"
     timeout --kill-after=10s 8m "$quartus_sta" -t "$record/trace_tension.tcl" golden_top \
-        "$logs/tension-unmatched.txt" "$logs/tension-paths.tsv" > "$logs/tension-run.log" 2>&1 || tension_exit=$?
+        "$targets" "$logs/tension-paths.tsv" > "$logs/tension-run.log" 2>&1 || tension_exit=$?
+    printf '%s\n' "$tension_exit" > "$logs/tension-sta.exit"
     sha256sum --check --quiet "$logs/tension-inputs.sha256"
     if (( tension_exit == 0 )); then
-        python3 "$record/check_tension.py" "$logs/tension-unmatched.txt" "$logs/tension-paths.tsv" \
+        python3 "$record/check_tension.py" "$targets" "$logs/tension-paths.tsv" \
             > "$logs/tension-summary.json" || tension_exit=$?
     fi
     printf '%s\n' "$tension_exit" > "$logs/tension-proof.exit"

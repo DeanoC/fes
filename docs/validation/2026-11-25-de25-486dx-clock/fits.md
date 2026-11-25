@@ -30,6 +30,31 @@ The fitted machine netlist SHA-256 is
 `5e49a28b2b28b7fc7b04432e104ea4a774eedac49b6c1ec9d6787ada2ae5a1ef`.
 The remaining original seeds still run against the same candidate.
 
+### Retimed endpoint review
+
+The retained project passed the all-corner timing recheck and the LOADED
+route budget. Its maximum LOADED data delay plus absolute skew was
+3.252 ns against 3.851 ns available at this clock.
+
+The 36 unmatched tension rows each named one fitted register clocked by
+the machine PLL at all four corners. The trace found 288 setup and 288
+hold paths in the machine domain, plus the ownership and asynchronous
+edge checks. All 1,008 checks passed. Worst setup was +1.949 ns and worst
+hold +0.068 ns across the traced paths. The `reduce_nor_1931` register
+sits between a `cpu_m1_s` alias and `cpu_l1i_page_new[2]`. The other
+generated names match observed CPU controls, apart from the FDC decode
+register traced to `pc386_at_core.sv`.
+
+The pc386 basis now covers these traced retiming forms for `TMC-20602`.
+The seed-1 report matches 42 rows under the original basis and 36 under
+the new one, with each row matched once. The rung collector requires a
+passing fitted clock and corner audit for every row matched by the new
+basis. The retained seed-1 build remains refused. The updated candidate
+needs four fresh fits through the producer.
+
+[Altera TMC-20602 rule](https://resources.altera.com/quartushelp/20.1/da_rules/tmc_20602.htm)
+and [TimeQuest clock query](https://docs.altera.com/r/docs/683432/26.3/quartus-prime-pro-edition-user-guide-scripting/get_clocks-quartus-sdc).
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed

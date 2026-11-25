@@ -86,6 +86,16 @@ def seed_result(output, logs, seed, divider):
             failures.append('registered producer did not admit the package')
         else:
             record['package'] = json.loads((output / 'build-summary.json').read_text())
+        retimed_rows = sum(group['rows'] for finding in timing.get('reviewed_findings', ())
+                           if finding['id'] == 'TMC-20602' for group in finding.get('groups', ())
+                           if group['name'] == 'retimed-machine-control-tension')
+        if retimed_rows:
+            proof = json.loads((logs / 'tension-summary.json').read_text())
+            count = len((logs / 'tension-reviewed.txt').read_text().splitlines())
+            record['retimed_tension_proof'] = {'rows': count, 'minimum_slacks': proof['minimum_slacks']}
+            if (count != retimed_rows or proof['pass'] is not True
+                    or (logs / 'tension-proof.exit').read_text().strip() != '0'):
+                failures.append('retimed endpoint review lacks passing fitted clock and corner evidence')
         slacks = corner_slacks(logs / 'corners.log')
         record['corner_slacks_ns'] = slacks
         if any(slack < 0 for analyses in slacks.values() for slack in analyses.values()):
