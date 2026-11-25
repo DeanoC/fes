@@ -106,6 +106,18 @@ def summarize(root):
                 files.extend(sorted((directory / 'frames').glob('*.ppm')))
     else:
         result['games']['status'] = 'pending'
+    demonstration = games / 'dx-quake/demo-milestone/summary.json'
+    if demonstration.is_file():
+        demo = json.loads(demonstration.read_text())
+        if demo['revision'] != revision:
+            raise ValueError('the Quake milestone differs from the run source')
+        for name, expected in demo.pop('files_sha256').items():
+            path = (root / name).resolve()
+            if not path.is_relative_to(demonstration.parent) or sha(path) != expected:
+                raise ValueError(f'Quake milestone file differs from its digest: {name}')
+            files.append(path)
+        files.append(demonstration)
+        result['games']['quake_demo_milestone'] = demo
     result['files_sha256'] = {path.relative_to(root).as_posix(): sha(path) for path in files}
     return result
 

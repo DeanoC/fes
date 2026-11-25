@@ -26,7 +26,22 @@
       "3dbench": 1.0154644510108228
     },
     "quake_execution": null,
-    "frame_gate": "check retained frames"
+    "frame_gate": "check retained frames",
+    "quake_demo_milestone": {
+      "status": "pass",
+      "revision": "3df878912962ede8557166d56c93ff8896869943",
+      "rendered_demo_at_s": 16.0,
+      "capture_time_sofia": "2026-11-25T22:08:19+02:00",
+      "handover": "RTL-BEGIN 423927563 flips=2",
+      "cpu_stop_markers_through_capture": [],
+      "profile_sample_at_s": 16.100073,
+      "profile": {
+        "cycles": 1483732235,
+        "sampled": 1059804675,
+        "retired": 357605587,
+        "pm_retired": 178787508
+      }
+    }
   },
   "l3": {
     "status": "pass",
@@ -142,6 +157,11 @@
     "games/dx-doom/command.json": "80f53a14157156f5002a0d6f83b8166dcc5febaae4eaad80bbdf98b2e4039e79",
     "games/dx-doom/result.json": "16db9c3e345e5e6d9bb831973e41baefa2bb59a6a93802d2945f2e95de8d892f",
     "games/dx-doom/run.log": "abf59d969539ebabdaf87a7effcde50f52e8233fd90175d3e49d6d09e0d70c9c",
-    "games/dx-doom/cpu.prof": "89be18cd371fea8b2e447db7b2abf40ff97f958f23b3c6ba99dd2b9eb6f147d3"
+    "games/dx-doom/cpu.prof": "89be18cd371fea8b2e447db7b2abf40ff97f958f23b3c6ba99dd2b9eb6f147d3",
+    "games/dx-quake/demo-milestone/cpu.prof": "1a81b7e90f6aff3a90cbf700a3a787b22378bd355248a5352ef3a2d880a25c45",
+    "games/dx-quake/demo-milestone/run.log": "f6aa87128a444f8da32c15c6ca10868d3a5f61b4cd1c1387fe42b0537f794a69",
+    "games/dx-quake/demo-milestone/t0014.00.ppm": "6655ba0d5d91060dfd523fef123c0f486ed6eeae9b01ead163cc0e5a3feff8ff",
+    "games/dx-quake/demo-milestone/t0016.00.ppm": "8cd42e81eb8333a979ee1f515db0f9f0105568bf9eb8110956c901cd8fc8e588",
+    "games/dx-quake/demo-milestone/summary.json": "ee321e0b70ac3f6040902984d03671c71a5b3327c493373892a60cd8fdfd3750"
   }
 }
