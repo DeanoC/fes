@@ -19,6 +19,8 @@ FRAGMENT = "buildroot/configs/fogcast_toolchain.fragment"
 CONTAINER_FIELDS = ("image", "platform", "digest")
 BUILDER_CONTEXT = ("containers/target-image/Dockerfile", "containers/target-image/create-builder-user.sh")
 PREFIX = "arm-buildroot-linux-gnueabihf"
+SDK_HOSTNAME = "fes-sdk-builder"
+DETERMINISTIC_ARCHIVES = 'BR2_BINUTILS_EXTRA_CONFIG_OPTIONS="--enable-deterministic-archives"'
 EXTERNAL_PATH = "/target-image-output/external-toolchain/host"
 SHARED_CONTAINER_PATH = "/target-image-shared-cache"
 CCACHE_OPTIONS = ("BR2_CCACHE=y", f'BR2_CCACHE_DIR="{SHARED_CONTAINER_PATH}/ccache"',
@@ -42,7 +44,7 @@ def key(image=IMAGE, epoch=EPOCH):
     context = tuple((image / name).read_bytes() for name in BUILDER_CONTEXT)
     inputs = (lock["buildroot"]["commit"].encode(), (image / FRAGMENT).read_bytes(),
               sha((image / "build/target-image-container-packages.sha256").read_bytes()).encode(),
-              str(epoch).encode(), *container, *context)
+              str(epoch).encode(), SDK_HOSTNAME.encode(), *container, *context)
     return sha(b"".join(len(value).to_bytes(8, "big") + value for value in inputs))
 
 
@@ -224,19 +226,20 @@ def config(image, kind, destination):
     required = ("BR2_arm=y", "BR2_cortex_a9=y", "BR2_ARM_ENABLE_VFP=y",
                 "BR2_ARM_EABIHF=y", "BR2_TOOLCHAIN_BUILDROOT_GLIBC=y",
                 "BR2_TOOLCHAIN_BUILDROOT_CXX=y", "BR2_GCC_VERSION_9_X=y",
-                "BR2_KERNEL_HEADERS_5_10=y", "BR2_REPRODUCIBLE=y")
+                "BR2_KERNEL_HEADERS_5_10=y", "BR2_REPRODUCIBLE=y", DETERMINISTIC_ARCHIVES)
     if set(shared.splitlines()) != set(required):
         raise ValueError("shared toolchain fragment drifted from its expected options")
     base = image / "buildroot/configs" / ("fogcast_toolchain_only_defconfig" if kind == "toolchain"
                                          else "fogcast_target_native_dev_defconfig")
     base_text = base.read_text()
     if any(line.startswith(("BR2_arm=", "BR2_cortex_", "BR2_ARM_", "BR2_TOOLCHAIN_",
-                            "BR2_GCC_VERSION_", "BR2_KERNEL_HEADERS_", "BR2_REPRODUCIBLE=")) for line in base_text.splitlines()):
+                            "BR2_GCC_VERSION_", "BR2_KERNEL_HEADERS_", "BR2_REPRODUCIBLE=",
+                            "BR2_BINUTILS_EXTRA_CONFIG_OPTIONS=")) for line in base_text.splitlines()):
         raise ValueError("toolchain option duplicated outside shared fragment")
     if kind == "external":
         shared = "\n".join(line for line in shared.splitlines()
                            if not line.startswith(("BR2_TOOLCHAIN_BUILDROOT_", "BR2_GCC_VERSION_",
-                                                   "BR2_KERNEL_HEADERS_"))) + "\n"
+                                                   "BR2_KERNEL_HEADERS_", "BR2_BINUTILS_EXTRA_CONFIG_OPTIONS="))) + "\n"
         shared += ("BR2_TOOLCHAIN_EXTERNAL=y\nBR2_TOOLCHAIN_EXTERNAL_CUSTOM=y\n"
                    f'BR2_TOOLCHAIN_EXTERNAL_PATH="{EXTERNAL_PATH}"\n'
                    f'BR2_TOOLCHAIN_EXTERNAL_CUSTOM_PREFIX="{PREFIX}"\n'
@@ -259,7 +262,7 @@ def validate_config(kind, path):
     common = {"BR2_arm=y", "BR2_cortex_a9=y", "BR2_ARM_ENABLE_VFP=y",
               "BR2_ARM_EABIHF=y", "BR2_REPRODUCIBLE=y"}
     internal = {"BR2_TOOLCHAIN_BUILDROOT_GLIBC=y", "BR2_TOOLCHAIN_BUILDROOT_CXX=y",
-                "BR2_GCC_VERSION_9_X=y", "BR2_KERNEL_HEADERS_5_10=y"}
+                "BR2_GCC_VERSION_9_X=y", "BR2_KERNEL_HEADERS_5_10=y", DETERMINISTIC_ARCHIVES}
     external = {"BR2_TOOLCHAIN_EXTERNAL=y", "BR2_TOOLCHAIN_EXTERNAL_CUSTOM=y",
                 f'BR2_TOOLCHAIN_EXTERNAL_PATH="{EXTERNAL_PATH}"',
                 f'BR2_TOOLCHAIN_EXTERNAL_CUSTOM_PREFIX="{PREFIX}"',
@@ -281,6 +284,8 @@ def main(argv):
         print(key())
     elif command == "epoch":
         print(EPOCH)
+    elif command == "sdk-hostname":
+        print(SDK_HOSTNAME)
     elif command == "path":
         print(EXTERNAL_PATH)
     elif command == "shared-root":

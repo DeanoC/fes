@@ -245,3 +245,45 @@ record-source binding, which is of the fitted revision) on each seed's
 ([fits/attempt2/table-4d4e3d907.txt](fits/attempt2/table-4d4e3d907.txt)):
 `window-base` covers 9 rows on each seed, `window-fault-record` 0, and every
 other group as before.
+
+## Note, 25 Nov 2026: two models, per-model clocks
+
+Deano, 25 Nov 2026 (relayed): "Both, per-model clocks". The DE25 pc386
+producer builds two models. #2228 (main `5d5fd1d00`) made each model's
+machine clock its own (`pc386/model_clocks.py`) and moved the 486SX to
+92.16 MHz. This PR now keeps `486sx` exactly as main has it and adds `486dx`
+beside it:
+- **Its clock:** one `MODEL_CLOCKS` entry, C0 51 (61.437908 MHz, the clock
+  G3 fitted and closed at). Its PLL IP, `machine_pll_486dx.ip`, is the
+  machine PLL every DE25 pc386 used before per-model clocks: digest
+  `d7fde901…`, the one `scanout/audio_reference.py` reviewed for 61.44 MHz.
+  Its parent is the reviewed 61.44 MHz parent, `10defc9a…`.
+- **Its elaboration:** `fes_i486dx_cpu` with `X87_PRESENT = 1`
+  (`build.elaboration`, `derive.retarget_system_cpu`).
+- **No silent fallback:** `machine_netlist` refuses a 486DX without its
+  derived CPU, and a 486SX with one. An unknown model is refused.
+  `--model 486dx` therefore builds the DX or nothing.
+  `tests/test_de25_i486dx.py` drives this through `board.component_files`.
+- **No shared file changes** in this step.
+
+**The DX netlist.** G3 is not refitted. Among the DX netlist's inputs, only
+`cores/fes-common/rtl/i386/fes_i386_x87.sv` differs between G3's fitted head
+`a36169588` and this head: that is #2195's x87 fix, now on main. It goes in
+under the pc386 in-progress exemption (a post-seal RTL fix needs no reseal
+while pc386 is in progress). The comparison: with that one file at
+`a36169588`'s bytes, the prepared head `63a497ff1` elaborates the DX to
+`0d740f8d…`. That is byte-identical (`cmp`) to `a36169588`'s own
+elaboration. Both ran under the same conditions: G3's checkout path, G3's
+Yosys binary (`0594dfdb…`, slot `844077ba`) and `YOSYS_MAX_THREADS=1`. So the
+model split and the per-model clocks leave the DX netlist unchanged, and
+#2195's fix is its only change since G3. The digests and commands are in
+[models/dx-netlist-check.txt](models/dx-netlist-check.txt).
+
+**Not reproduced:** G3's fitted netlist bytes themselves (`e0b01e05…`). Two
+standalone elaborations of `a36169588`, at one thread and in the producer's
+stripped environment, both differ from it, in auto-generated name numbering
+only, while matching the refactored code exactly. The cause is unidentified;
+it lies in the producer's own run context. Also, the pc386 slot now resolves
+to a rebuilt Yosys of the same commit (`6873a7e6…`, slot `fce262d6`). That
+rebuild followed #2179's `bootstrap.sh` change, which moves the recipe key.
+The two binaries differ only in the install path Yosys embeds.

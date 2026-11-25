@@ -97,6 +97,32 @@ module fes_atari_st_core #(
     );
 
     wire initialized;
+    // One registered copy per consumer keeps cold_reset off machine_release[1]
+    // (one async-reset synchronizer reaching every subsystem triggers TMC-20602).
+    // Each copy asserts asynchronously with cold_reset (while the machine PLL
+    // is held in reset and clk_sys is stopped) and releases synchronously on
+    // clk_sys one clock after machine_release[1], matching fes_atari_st_top.v.
+    (* preserve, dont_merge *) reg system_cold_reset_n = 1'b0;
+    (* preserve, dont_merge *) reg video_cold_reset_n = 1'b0;
+    (* preserve, dont_merge *) reg memory_cold_reset_n = 1'b0;
+    (* preserve, dont_merge *) reg media_cold_reset_n = 1'b0;
+    always @(posedge clk_sys or posedge cold_reset) begin
+        if (cold_reset) begin
+            system_cold_reset_n <= 1'b0;
+            video_cold_reset_n <= 1'b0;
+            memory_cold_reset_n <= 1'b0;
+            media_cold_reset_n <= 1'b0;
+        end else begin
+            system_cold_reset_n <= 1'b1;
+            video_cold_reset_n <= 1'b1;
+            memory_cold_reset_n <= 1'b1;
+            media_cold_reset_n <= 1'b1;
+        end
+    end
+    wire system_cold_reset = !system_cold_reset_n;
+    wire video_cold_reset = !video_cold_reset_n;
+    wire memory_cold_reset = !memory_cold_reset_n;
+    wire media_cold_reset = !media_cold_reset_n;
     // One reset in six registers: the bus, the processor, the I/O decode,
     // the keyboard and serial chips, the sound chip, and the memory and video
     // raster. One register reaching all of them is too spread to place
@@ -167,7 +193,7 @@ module fes_atari_st_core #(
         .cpu_rdata(cpu_rdata)
     );
     st_system #(.ENABLE_FLOPPY_WRITE(1), .EARLY_RAM_WRITE_COMPLETION(1)) system (
-        .clk_sys(clk_sys), .reset(machine_reset), .cold_reset(cold_reset),
+        .clk_sys(clk_sys), .reset(machine_reset), .cold_reset(system_cold_reset),
         .rom_req(rom_req), .rom_addr(rom_addr), .rom_rdata(rom_rdata), .rom_ready(rom_ready),
         .ram_req(ram_req), .ram_addr(ram_addr), .ram_wdata(ram_wdata),
         .ram_byte_enable(ram_byte_enable), .ram_write(ram_write), .ram_rdata(ram_rdata), .ram_ready(ram_ready),
@@ -204,7 +230,7 @@ module fes_atari_st_core #(
     st_video_adapter video (
         .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),
         .ram_write_data(ram_write_data), .ram_write_lanes(ram_write_lanes),
-        .clk_sys(clk_sys), .clk_pixel(pixel_clk), .reset_sys(cold_reset), .reset_pixel(pixel_reset),
+        .clk_sys(clk_sys), .clk_pixel(pixel_clk), .reset_sys(video_cold_reset), .reset_pixel(pixel_reset),
         .native_vblank(vblank), .native_display(native_display), .native_short_line(native_short_line),
         .native_blank(native_blank), .native_word_loss(native_word_loss), .native_line(native_line),
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(exp_phi2),
@@ -230,7 +256,7 @@ module fes_atari_st_core #(
     wire [15:0] media_memory_wdata;
     wire [1:0] media_memory_enable;
     st_media_writer writer (
-        .clk(clk_sys), .cold_reset(cold_reset), .source_addr(media_write_addr), .source_data(media_write_data),
+        .clk(clk_sys), .cold_reset(media_cold_reset), .source_addr(media_write_addr), .source_data(media_write_data),
         .source_enable(media_write_enable), .source_ready(media_source_ready),
         .memory_req(media_write_req), .memory_addr(media_memory_addr), .memory_wdata(media_memory_wdata),
         .memory_byte_enable(media_memory_enable), .memory_ready(media_memory_ready)
@@ -242,7 +268,7 @@ module fes_atari_st_core #(
     wire [1:0] shared_write_enable, write_ready, read_ready;
     wire [7:0] shared_read_data;
     st_media_port #(.ADDR_BITS(19)) media_writes (
-        .clk(clk_sys), .cold_reset(cold_reset), .source_req({floppy_write_req,media_write_req}),
+        .clk(clk_sys), .cold_reset(media_cold_reset), .source_req({floppy_write_req,media_write_req}),
         .source_addr0(media_memory_addr), .source_addr1(floppy_write_addr),
         .source_data0(media_memory_wdata), .source_data1(floppy_write_data),
         .source_enable0(media_memory_enable), .source_enable1(2'b11), .source_ready(write_ready),
@@ -252,7 +278,7 @@ module fes_atari_st_core #(
     assign media_memory_ready = write_ready[0];
     assign floppy_write_ready = write_ready[1];
     st_media_port #(.ADDR_BITS(20)) media_reads (
-        .clk(clk_sys), .cold_reset(cold_reset), .source_req({snapshot_req,media_req}),
+        .clk(clk_sys), .cold_reset(media_cold_reset), .source_req({snapshot_req,media_req}),
         .source_addr0(media_addr), .source_addr1(snapshot_addr),
         .source_data0(16'd0), .source_data1(16'd0),
         .source_enable0(2'd0), .source_enable1(2'd0), .source_ready(read_ready),
@@ -284,7 +310,7 @@ module fes_atari_st_core #(
         .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),
         .ram_write_data(ram_write_data), .ram_write_lanes(ram_write_lanes),
         .clk(clk_sys), .clk_pin(clk_sys), .memory_phase(memory_phase),
-        .raster_reset(raster_reset), .cold_reset(cold_reset), .reset(1'b0), .initialized(initialized),
+        .raster_reset(raster_reset), .cold_reset(memory_cold_reset), .reset(1'b0), .initialized(initialized),
         .cpu_req(cpu_req), .cpu_rom(cpu_rom), .cpu_addr(cpu_addr), .cpu_write(cpu_write),
         .cpu_wdata(cpu_wdata), .cpu_byte_enable(cpu_byte_enable), .cpu_ready(cpu_ready),
         .cpu_rdata(cpu_rdata),
