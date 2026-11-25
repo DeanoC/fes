@@ -103,6 +103,7 @@ func TestControllerErrorsPollingAndIRQ(t *testing.T) {
 			{b: 'X', ok: true, errs: ErrFraming},
 			{b: 0, ok: false, errs: ErrOverrun},
 			{b: 'A', ok: true, errs: 0},
+			{b: 'O', ok: true, errs: ErrOverrun}, // overrun-only warns while preserving the valid byte
 			{b: 'Y', ok: true, errs: ErrParity | ErrBreak},
 			{b: 'B', ok: true, errs: 0},
 		},
@@ -112,18 +113,18 @@ func TestControllerErrorsPollingAndIRQ(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Polling mode skips errored/empty entries and counts line errors.
-	if b, ok := c.Read(); !ok || b != 'A' {
-		t.Fatalf("poll Read #1 = (%q, %v), want ('A', true)", b, ok)
-	}
-	if b, ok := c.Read(); !ok || b != 'B' {
-		t.Fatalf("poll Read #2 = (%q, %v), want ('B', true)", b, ok)
+	// Polling mode skips corrupt bytes, preserves overrun-tagged valid bytes, and counts line errors.
+	for _, want := range []byte{'A', 'O', 'B'} {
+		b, ok := c.Read()
+		if !ok || b != want {
+			t.Fatalf("poll Read = (%q, %v), want (%q, true)", b, ok, want)
+		}
 	}
 	if b, ok := c.Read(); ok || b != 0 {
 		t.Fatalf("poll Read empty = (%d, %v)", b, ok)
 	}
 	st := c.Stats()
-	if st.RXBytes != 2 || st.Overrun != 1 || st.Framing != 1 || st.Parity != 1 || st.Break != 1 {
+	if st.RXBytes != 3 || st.Overrun != 2 || st.Framing != 1 || st.Parity != 1 || st.Break != 1 {
 		t.Fatalf("poll Stats = %+v", st)
 	}
 
@@ -153,9 +154,9 @@ func TestControllerErrorsPollingAndIRQ(t *testing.T) {
 	u.mu.Unlock()
 
 	c.HandleIRQ()
-	c.HandleIRQ() // drains remaining 10 bytes after first 256-byte cap
+	c.HandleIRQ() // drains remaining 11 bytes (including overrun-tagged 'Z') after first 256-byte cap
 	st = c.Stats()
-	if st.IRQCount != 2 || st.RXDropped != 10 || st.Overrun != 1 || u.clears < 3 {
+	if st.IRQCount != 2 || st.RXBytes != 1+ringSize+10+1 || st.RXDropped != 11 || st.Overrun != 1 || u.clears < 3 {
 		t.Fatalf("IRQ overflow Stats = %+v clears=%d", st, u.clears)
 	}
 

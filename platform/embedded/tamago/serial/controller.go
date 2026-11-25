@@ -98,7 +98,7 @@ func (c *Controller) Read() (byte, bool) {
 			}
 			continue
 		}
-		if errs != 0 {
+		if errs.Corrupt() {
 			continue
 		}
 		c.rxBytes.Add(1)
@@ -158,7 +158,7 @@ func (c *Controller) DrainRX() int {
 			}
 			continue
 		}
-		if errs != 0 {
+		if errs.Corrupt() {
 			continue
 		}
 		c.rxBytes.Add(1)

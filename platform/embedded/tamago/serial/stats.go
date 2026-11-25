@@ -15,6 +15,12 @@ const (
 	ErrBreak
 )
 
+// Corrupt reports whether the receive line status indicates data corruption
+// (parity, framing, or break) rather than an overrun warning alone.
+func (e LineError) Corrupt() bool {
+	return e&(ErrParity|ErrFraming|ErrBreak) != 0
+}
+
 // DecodeDWAPBLSR extracts LineError flags from a DesignWare APB / 16550 UART
 // Line Status Register (LSR bits [4:1]: OE, PE, FE, BI).
 func DecodeDWAPBLSR(lsr uint32) LineError {

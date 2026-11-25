@@ -22,8 +22,8 @@ var (
 
 // Read returns the next received console byte without blocking.
 // When EnableIRQ is active it pops from the interrupt-fed ring buffer;
-// otherwise it polls the UART RX register directly. Errored bytes are recorded
-// in Stats() and discarded.
+// otherwise it polls the UART RX register directly. Parity/framing/break bytes
+// are discarded; ErrOverrun is counted in ConsoleStats() while preserving valid bytes.
 func Read() (byte, bool) {
 	if irqActive.Load() {
 		return rxRing.Pop()
@@ -37,7 +37,7 @@ func Read() (byte, bool) {
 			}
 			continue
 		}
-		if errs != 0 {
+		if errs.Corrupt() {
 			continue
 		}
 		rxBytes.Add(1)
@@ -57,9 +57,9 @@ func IRQCount() uint64 { return irqCount.Load() }
 // Dropped returns the number of RX bytes dropped because the ring buffer was full.
 func Dropped() uint32 { return rxRing.Dropped() }
 
-// Stats returns cumulative console UART interrupt, RX byte, ring-drop, and
-// receive line-error counters.
-func Stats() Stats {
+// ConsoleStats returns cumulative console UART interrupt, RX byte, ring-drop,
+// and receive line-error counters.
+func ConsoleStats() Stats {
 	overrun, parity, framing, brk := rxErrors.Snapshot()
 	return Stats{
 		IRQCount:  irqCount.Load(),
@@ -136,7 +136,7 @@ func drainFIFO() {
 			}
 			continue
 		}
-		if errs != 0 {
+		if errs.Corrupt() {
 			continue
 		}
 		rxBytes.Add(1)
