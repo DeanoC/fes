@@ -65,7 +65,7 @@ type Supervisor struct {
 	cfg SupervisorConfig
 
 	mu       sync.Mutex
-	extendMu sync.Mutex
+	opMu     sync.Mutex
 	started  bool
 	stopped  bool
 	running  atomic.Bool
@@ -200,7 +200,10 @@ func (s *Supervisor) KickNow() error {
 	if !started {
 		return ErrNotRunning
 	}
-	if err := s.dev.Kick(); err != nil {
+	s.opMu.Lock()
+	err := s.dev.Kick()
+	s.opMu.Unlock()
+	if err != nil {
 		return err
 	}
 	s.kicks.Add(1)
@@ -209,8 +212,8 @@ func (s *Supervisor) KickNow() error {
 
 // Extend widens the running watchdog timeout to at least max(minTimeout, Period())
 // and reloads the counter when the underlying device implements TimeoutSetter.
-// Calls are serialized so concurrent extensions never install a shorter period
-// after a longer one.
+// Calls are serialized with KickNow and periodic loop kicks so concurrent
+// device operations never overlap and shorter extensions never overwrite longer ones.
 func (s *Supervisor) Extend(minTimeout time.Duration) (time.Duration, error) {
 	if s == nil {
 		return 0, ErrNilAccess
@@ -218,8 +221,8 @@ func (s *Supervisor) Extend(minTimeout time.Duration) (time.Duration, error) {
 	if minTimeout <= 0 {
 		return 0, fmt.Errorf("%w: timeout must be > 0", ErrInvalidConfig)
 	}
-	s.extendMu.Lock()
-	defer s.extendMu.Unlock()
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
 
 	s.mu.Lock()
 	if !s.started {
@@ -292,7 +295,10 @@ func (s *Supervisor) loop(ctx context.Context, interval time.Duration) {
 					return
 				}
 			}
-			if err := s.dev.Kick(); err != nil {
+			s.opMu.Lock()
+			err := s.dev.Kick()
+			s.opMu.Unlock()
+			if err != nil {
 				s.recordErr(err)
 				return
 			}

@@ -151,41 +151,41 @@ func TestSupervisorKickNowExtendAndPlainKicker(t *testing.T) {
 	}
 }
 
-type orderedSetter struct {
-	mu      sync.Mutex
+// unlockedSetter intentionally omits internal synchronization to verify under
+// -race that Supervisor serializes Start, loop Kick, KickNow, and SetTimeout.
+type unlockedSetter struct {
 	cur     time.Duration
+	kicks   int
 	history []time.Duration
 }
 
-func (o *orderedSetter) Start(timeout time.Duration, mode ResponseMode) (time.Duration, error) {
-	o.mu.Lock()
+func (o *unlockedSetter) Start(timeout time.Duration, mode ResponseMode) (time.Duration, error) {
 	o.cur = timeout
-	o.mu.Unlock()
 	return timeout, nil
 }
 
-func (o *orderedSetter) Kick() error { return nil }
+func (o *unlockedSetter) Kick() error {
+	o.kicks++
+	return nil
+}
 
-func (o *orderedSetter) SetTimeout(timeout time.Duration) (time.Duration, error) {
-	// Briefly yield to widen the race window between concurrent Extend callers.
+func (o *unlockedSetter) SetTimeout(timeout time.Duration) (time.Duration, error) {
+	// Yield slightly to widen any overlap window across concurrent callers.
 	time.Sleep(time.Millisecond)
-	o.mu.Lock()
-	defer o.mu.Unlock()
 	o.cur = timeout
 	o.history = append(o.history, timeout)
 	return timeout, nil
 }
 
-func TestExtendSerialization(t *testing.T) {
-	dev := &orderedSetter{}
-	sup, err := NewSupervisor(dev, SupervisorConfig{Timeout: 50 * time.Millisecond, KickInterval: 20 * time.Millisecond})
+func TestExtendSerializationWithLoopAndKickNow(t *testing.T) {
+	dev := &unlockedSetter{}
+	sup, err := NewSupervisor(dev, SupervisorConfig{Timeout: 50 * time.Millisecond, KickInterval: 2 * time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := sup.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	defer sup.Stop()
 
 	var wg sync.WaitGroup
 	for _, d := range []time.Duration{5 * time.Second, 10 * time.Second, 2 * time.Second, 8 * time.Second} {
@@ -198,18 +198,30 @@ func TestExtendSerialization(t *testing.T) {
 			}
 		}()
 	}
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 10; j++ {
+				if err := sup.KickNow(); err != nil {
+					t.Errorf("KickNow: %v", err)
+				}
+				time.Sleep(time.Millisecond)
+			}
+		}()
+	}
 	wg.Wait()
+	sup.Stop()
 
-	dev.mu.Lock()
-	hist := append([]time.Duration(nil), dev.history...)
-	cur := dev.cur
-	dev.mu.Unlock()
-	for i := 1; i < len(hist); i++ {
-		if hist[i] < hist[i-1] {
-			t.Fatalf("non-monotonic hardware timeout sequence: %v", hist)
+	for i := 1; i < len(dev.history); i++ {
+		if dev.history[i] < dev.history[i-1] {
+			t.Fatalf("non-monotonic hardware timeout sequence: %v", dev.history)
 		}
 	}
-	if cur != sup.Period() || cur != 10*time.Second {
-		t.Fatalf("hardware cur=%v != Period=%v != 10s", cur, sup.Period())
+	if dev.cur != sup.Period() || dev.cur != 10*time.Second {
+		t.Fatalf("hardware cur=%v != Period=%v != 10s", dev.cur, sup.Period())
+	}
+	if dev.kicks < 40 {
+		t.Fatalf("expected >=40 serialized kicks, got %d", dev.kicks)
 	}
 }
