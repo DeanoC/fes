@@ -236,15 +236,23 @@ func TestHubWiredXInputAndXboxGIP(t *testing.T) {
 	if err := hub.SetWiredRumble(0, 255, 128); err != nil {
 		t.Fatalf("SetWiredRumble(xboxgip) failed: %v", err)
 	}
-	gipGuide := []byte{controllers.XboxGIPCommandGuide, 0x10, 0x09, 0x02, 0x01, 0x00}
+	var gipGuides [5][]byte
+	for i := range gipGuides {
+		gipGuides[i] = []byte{controllers.XboxGIPCommandGuide, 0x10, byte(0x09 + i), 0x02, 0x01, 0x00}
+	}
 	var gipIn [20]byte
 	gipIn[0], gipIn[3], gipIn[4] = controllers.XboxGIPCommandInput, 14, 0x10 // South(A)
-	bus.pipes[key32(3, 0x81)].inQueue = append(bus.pipes[key32(3, 0x81)].inQueue, gipGuide, gipIn[:])
+	gipInPipe := bus.pipes[key32(3, 0x81)]
+	gipInPipe.inQueue = append(gipInPipe.inQueue, gipGuides[:]...)
+	gipInPipe.inQueue = append(gipInPipe.inQueue, gipIn[:])
 	if err := hub.Service(); err != nil {
 		t.Fatal(err)
 	}
 	if len(gipOut.outPackets) != 4 || gipOut.outPackets[3][0] != controllers.XboxGIPCommandRumble {
 		t.Fatalf("expected only rumble packet while OUT pending, got %x", gipOut.outPackets)
+	}
+	if hub.wiredGamepads[0].gipAckCount != 4 || len(gipInPipe.inQueue) != 2 {
+		t.Fatalf("expected full ACK queue to backpressure input, queued=%d unread=%d", hub.wiredGamepads[0].gipAckCount, len(gipInPipe.inQueue))
 	}
 	// Release OUT pipe completion, but inject transient ErrBusy -> queued ACK
 	// must stay queued and flush only once Write succeeds.
@@ -253,8 +261,8 @@ func TestHubWiredXInputAndXboxGIP(t *testing.T) {
 	if err := hub.Service(); err != nil {
 		t.Fatal(err)
 	}
-	if len(gipOut.outPackets) != 4 {
-		t.Fatalf("expected queued ACK retained while ErrBusy, got %x", gipOut.outPackets)
+	if len(gipOut.outPackets) != 4 || hub.wiredGamepads[0].gipAckCount != 4 || len(gipInPipe.inQueue) != 2 {
+		t.Fatalf("expected queued ACKs and unread input retained while ErrBusy, packets=%x queued=%d unread=%d", gipOut.outPackets, hub.wiredGamepads[0].gipAckCount, len(gipInPipe.inQueue))
 	}
 	gipOut.writeErr = nil
 	if err := hub.Service(); err != nil {
@@ -263,22 +271,36 @@ func TestHubWiredXInputAndXboxGIP(t *testing.T) {
 	if len(gipOut.outPackets) != 5 || gipOut.outPackets[4][0] != controllers.XboxGIPCommandAck || gipOut.outPackets[4][2] != 0x09 {
 		t.Fatalf("expected queued GIP ACK seq=0x09 flushed after WriteDone, got %x", gipOut.outPackets)
 	}
+	for range 4 {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(gipOut.outPackets) != 9 || hub.wiredGamepads[0].gipAckCount != 0 || len(gipInPipe.inQueue) != 0 {
+		t.Fatalf("expected all five GIP ACKs flushed and input resumed, packets=%x queued=%d unread=%d", gipOut.outPackets, hub.wiredGamepads[0].gipAckCount, len(gipInPipe.inQueue))
+	}
+	for i, seq := range []byte{0x09, 0x0a, 0x0b, 0x0c, 0x0d} {
+		ack := gipOut.outPackets[4+i]
+		if ack[0] != controllers.XboxGIPCommandAck || ack[2] != seq {
+			t.Fatalf("GIP ACK order lost at index %d: want seq=%#02x, got %x", i, seq, ack)
+		}
+	}
 
 	// Immediate Guide ACK hitting transient ErrBusy also enqueues and flushes cleanly.
 	gipOut.writeErr = usbcontrol.ErrBusy
-	bus.pipes[key32(3, 0x81)].inQueue = append(bus.pipes[key32(3, 0x81)].inQueue, []byte{controllers.XboxGIPCommandGuide, 0x10, 0x0a, 0x02, 0x01, 0x00})
+	gipInPipe.inQueue = append(gipInPipe.inQueue, []byte{controllers.XboxGIPCommandGuide, 0x10, 0x0e, 0x02, 0x01, 0x00})
 	if err := hub.Service(); err != nil {
 		t.Fatal(err)
 	}
-	if len(gipOut.outPackets) != 5 {
+	if len(gipOut.outPackets) != 9 {
 		t.Fatalf("expected immediate ACK retained on ErrBusy, got %x", gipOut.outPackets)
 	}
 	gipOut.writeErr = nil
 	if err := hub.Service(); err != nil {
 		t.Fatal(err)
 	}
-	if len(gipOut.outPackets) != 6 || gipOut.outPackets[5][0] != controllers.XboxGIPCommandAck || gipOut.outPackets[5][2] != 0x0a {
-		t.Fatalf("expected immediate busy-enqueued ACK seq=0x0a flushed, got %x", gipOut.outPackets)
+	if len(gipOut.outPackets) != 10 || gipOut.outPackets[9][0] != controllers.XboxGIPCommandAck || gipOut.outPackets[9][2] != 0x0e {
+		t.Fatalf("expected immediate busy-enqueued ACK seq=0x0e flushed, got %x", gipOut.outPackets)
 	}
 	upd, cnt = drainGamepadUpdates(hub)
 	if cnt == 0 || !upd.HomePressed || upd.State.Buttons&uint32(controllers.ButtonSouth) == 0 {

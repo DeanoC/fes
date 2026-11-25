@@ -527,6 +527,12 @@ func (h *Hub) Service() error {
 			continue
 		}
 		for p := 0; p < maxPollsPerSlot; p++ {
+			if slot := &h.wiredGamepads[i]; slot.kind == controllers.KindXboxGIP && int(slot.gipAckCount) == len(slot.gipAckQueue) {
+				// Leave the next report on the device until a queued ACK can be
+				// sent. GIP request packets cannot be discarded without losing
+				// their required ACK.
+				break
+			}
 			n, err := h.wiredGamepads[i].pipe.PollInto(h.pollBuf[:])
 			if err != nil {
 				if errors.Is(err, usbcontrol.ErrTransition) || errors.Is(err, usbcontrol.ErrBusy) {
@@ -769,8 +775,9 @@ func (h *Hub) writeSlotPacket(slotIdx int, pkt []byte) bool {
 
 func (h *Hub) enqueueGIPAck(slot *wiredGamepadSlot, seq, cmdID, payloadLen uint8) {
 	if int(slot.gipAckCount) == len(slot.gipAckQueue) {
-		slot.gipAckHead = (slot.gipAckHead + 1) % uint8(len(slot.gipAckQueue))
-		slot.gipAckCount--
+		// Service stops polling when full, so this is only a defensive guard.
+		// Never overwrite an older request whose ACK is still required.
+		return
 	}
 	tail := (slot.gipAckHead + slot.gipAckCount) % uint8(len(slot.gipAckQueue))
 	slot.gipAckQueue[tail] = gipAckRequest{seq: seq, cmdID: cmdID, payloadLen: payloadLen}
