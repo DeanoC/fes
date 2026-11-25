@@ -25,8 +25,10 @@ VCO_NUMERATOR, VCO_DENOMINATOR = 50_000_000 * 188, 3
 AUDIO_C = 255
 
 MODEL_CLOCKS = {
-    # 486SX: C0 = 34, 92.156863 MHz (docs/validation/2026-11-25-de25-486sx-9216).
+    # 486SX: C0 = 34, 92.156863 MHz (docs/validation/2026-11-25-de25-486sx-9216). Its parent is the
+    # reviewed 61.44 MHz parent (10defc9a...) with the window interconnect's module name
+    # ..._1920_xi5gepi changed to ..._1920_e7vlmii and nothing else (parent-review.txt there).
     "486sx": {"c0": 34, "pll_ip": "machine_pll_486sx.ip",
               "pll_ip_sha256": "04448872b6e9992a9ee70c6a4e11b1678a433d1743908aca38eb960c9580173e",
-              "parent_sha256": "10defc9a021d7119aac2bbc793ac0d6913e902b99f85cb29977c452996eeb249"},
+              "parent_sha256": "fefb39d68d09b2fad37d35be5d2686d557b9f5c8c97d2eb41bbd80400a31f7e7"},
 }
