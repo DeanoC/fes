@@ -137,9 +137,12 @@ func TestRenameRefusalsAndCrashAtEveryWritePreservesData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Refusals before mutation.
+	// Refusals before mutation (including mixed-case descendant self-move).
 	if err := v.Rename(ctx, "A", "A/CHILD/CYCLE"); !errors.Is(err, fs.ErrInvalid) {
 		t.Fatalf("self-descendant Rename err=%v, want fs.ErrInvalid", err)
+	}
+	if err := v.Rename(ctx, "A", "a/child/CYCLE"); !errors.Is(err, fs.ErrInvalid) {
+		t.Fatalf("mixed-case self-descendant Rename err=%v, want fs.ErrInvalid", err)
 	}
 	if err := v.Rename(ctx, srcPath, "A/EXISTING.TXT"); !errors.Is(err, fs.ErrExist) {
 		t.Fatalf("collision Rename err=%v, want fs.ErrExist", err)
@@ -210,5 +213,52 @@ func TestRenameRefusalsAndCrashAtEveryWritePreservesData(t *testing.T) {
 	_ = rc.Close()
 	if err != nil || !bytes.Equal(all, payload) {
 		t.Fatalf("final ReadAll len=%d err=%v", len(all), err)
+	}
+}
+
+func TestRenameCrossFATSectorDirGrowthIsCrashSafe(t *testing.T) {
+	d, v := newRecordingDisk(t, 1) // 512 B clusters; 128 FAT entries per sector
+	ctx := context.Background()
+
+	if err := v.Mkdir(ctx, "DIR"); err != nil {
+		t.Fatal(err)
+	}
+	// Allocate clusters past FAT sector 0 (cluster >= 128) so newly allocated DIR
+	// growth clusters sit in FAT sector 1 while DIR's initial cluster is in FAT sector 0.
+	if err := v.CreateFile(ctx, "PAD.BIN", bytes.Repeat([]byte("P"), 130*block.SectorSize)); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 15; i++ {
+		if err := v.CreateFile(ctx, "DIR/F"+string([]byte{'A' + byte(i)})+".TXT", []byte{byte(i)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	target := "DIR/S_LAST.TXT"
+	payload := []byte("cross-fat-sector-rename")
+	if err := v.CreateFile(ctx, target, payload); err != nil {
+		t.Fatal(err)
+	}
+
+	d.mu.Lock()
+	d.snapshots = nil
+	d.mu.Unlock()
+	dst := "DIR/Very Long Renamed Entry Requiring Cross FAT Sector Directory Growth.txt"
+	if err := v.Rename(ctx, target, dst); err != nil {
+		t.Fatalf("cross-FAT-sector Rename: %v", err)
+	}
+	d.mu.Lock()
+	snaps := append([]map[uint64][block.SectorSize]byte(nil), d.snapshots...)
+	d.mu.Unlock()
+	for i, snap := range snaps {
+		crashDisk := &sparseFATDisk{sectors: d.sectors, data: snap}
+		remount, err := Mount(crashDisk)
+		if err != nil {
+			t.Fatalf("snapshot %d/%d Mount: %v", i, len(snaps), err)
+		}
+		_, errOld := remount.ReadFile(target)
+		_, errNew := remount.ReadFile(dst)
+		if errOld != nil && errNew != nil {
+			t.Fatalf("snapshot %d/%d lost file across growth rename: old=%v new=%v", i, len(snaps), errOld, errNew)
+		}
 	}
 }

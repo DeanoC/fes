@@ -56,9 +56,6 @@ func (v *Volume) Rename(ctx context.Context, oldName, newName string) (err error
 		return nil
 	}
 	isDir := src.attributes&0x10 != 0
-	if isDir && strings.HasPrefix(newName, oldName+"/") {
-		return &fs.PathError{Op: "rename", Path: newName, Err: fs.ErrInvalid}
-	}
 
 	srcParent, err := v.lookupContext(ctx, path.Dir(oldName))
 	if err != nil {
@@ -67,12 +64,38 @@ func (v *Volume) Rename(ctx context.Context, oldName, newName string) (err error
 	if srcParent.attributes&0x11 != 0x10 {
 		return &fs.PathError{Op: "rename", Path: oldName, Err: fs.ErrPermission}
 	}
-	dstParent, err := v.lookupContext(ctx, path.Dir(newName))
+	dstDirPath := path.Dir(newName)
+	dstParent, err := v.lookupContext(ctx, dstDirPath)
 	if err != nil {
 		return &fs.PathError{Op: "rename", Path: newName, Err: err}
 	}
 	if dstParent.attributes&0x11 != 0x10 {
 		return &fs.PathError{Op: "rename", Path: newName, Err: fs.ErrPermission}
+	}
+	if srcParent.cluster == dstParent.cluster && path.Base(oldName) == path.Base(newName) {
+		return nil
+	}
+	if isDir {
+		if dstParent.cluster == src.cluster {
+			return &fs.PathError{Op: "rename", Path: newName, Err: fs.ErrInvalid}
+		}
+		if dstDirPath != "." {
+			prefix := ""
+			for _, part := range strings.Split(dstDirPath, "/") {
+				if prefix == "" {
+					prefix = part
+				} else {
+					prefix += "/" + part
+				}
+				anc, err := v.lookupContext(ctx, prefix)
+				if err != nil {
+					return &fs.PathError{Op: "rename", Path: newName, Err: err}
+				}
+				if anc.cluster == src.cluster {
+					return &fs.PathError{Op: "rename", Path: newName, Err: fs.ErrInvalid}
+				}
+			}
+		}
 	}
 
 	p, err := v.appendDirectory(ctx, dstParent.cluster)
@@ -95,7 +118,7 @@ func (v *Volume) Rename(ctx context.Context, oldName, newName string) (err error
 	}
 	extra := (max(0, end-len(p.data)) + clusterBytes - 1) / clusterBytes
 	var dirExtra []uint32
-	var changes []fatChange
+	var newChanges, linkChanges []fatChange
 	if extra > 0 {
 		dirExtra, err = v.freeClusters(ctx, extra)
 		if err != nil {
@@ -106,7 +129,11 @@ func (v *Volume) Rename(ctx context.Context, oldName, newName string) (err error
 			if i+1 < len(dirExtra) {
 				next = dirExtra[i+1]
 			}
-			changes = append(changes, fatChange{cluster: c, next: next})
+			newChanges = append(newChanges, fatChange{cluster: c, next: next})
+		}
+		sort.Slice(newChanges, func(i, j int) bool { return newChanges[i].cluster < newChanges[j].cluster })
+		if err = v.applyFAT(ctx, newChanges, nil); err != nil {
+			return err
 		}
 		lastCluster := p.chain[len(p.chain)-1]
 		b := make([]byte, block.SectorSize)
@@ -118,9 +145,8 @@ func (v *Volume) Rename(ctx context.Context, oldName, newName string) (err error
 		if old < 0x0ffffff8 {
 			return ErrCorrupt
 		}
-		changes = append(changes, fatChange{lastCluster, old, dirExtra[0]})
-		sort.Slice(changes, func(i, j int) bool { return changes[i].cluster < changes[j].cluster })
-		if err = v.applyFAT(ctx, changes, nil); err != nil {
+		linkChanges = []fatChange{{lastCluster, old, dirExtra[0]}}
+		if err = v.applyFAT(ctx, linkChanges, nil); err != nil {
 			return err
 		}
 	}
@@ -232,7 +258,8 @@ func (v *Volume) Rename(ctx context.Context, oldName, newName string) (err error
 		}
 	}
 
-	// 2. Grow destination directory chain on disk before publishing the new entry.
+	// 2. Grow destination directory chain on disk: initialize data and commit the
+	// new FAT chain entries FIRST before linking the old tail cluster to dirExtra[0].
 	if len(dirExtra) > 0 {
 		if err = v.writeChain(dirExtra, nil, write); err != nil {
 			return err
@@ -240,7 +267,13 @@ func (v *Volume) Rename(ctx context.Context, oldName, newName string) (err error
 		if err = flush(); err != nil {
 			return err
 		}
-		if err = v.applyFAT(ctx, changes, write); err != nil {
+		if err = v.applyFAT(ctx, newChanges, write); err != nil {
+			return err
+		}
+		if err = flush(); err != nil {
+			return err
+		}
+		if err = v.applyFAT(ctx, linkChanges, write); err != nil {
 			return err
 		}
 		if err = flush(); err != nil {
