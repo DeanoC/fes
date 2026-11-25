@@ -11,7 +11,10 @@ import (
 
 // USBReports is a nonblocking boot-keyboard interrupt report source. A physical
 // USB host owns enumeration and transfers; this adapter never fabricates them.
-type USBReports interface{ PollKeyboard() ([]byte, error) }
+type USBReports interface {
+	PollKeyboard() ([]byte, error)
+	PollKeyboardInto(dst []byte) (int, error)
+}
 
 // USBKeyboard tracks report edges and translates key presses for tenfoot.
 // Releases update the decoder so the next real press can fire again. Held-key
@@ -62,51 +65,56 @@ func (k *USBKeyboard) Decode(report []byte) ([]Event, error) {
 	}
 	var events []Event
 	for _, change := range changes {
-		if event, ok := usbPress(change); ok {
+		if event, ok := USBKeyPress(change); ok {
 			events = append(events, event)
 		}
 	}
 	return events, nil
 }
 
-func usbPress(change usb.KeyEvent) (Event, bool) {
+var (
+	usbLetterKeys   = [26]string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"}
+	usbLetterUpper  = [26]string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"}
+	usbDigitKeys    = [10]string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"}
+	usbDigitShifted = [10]string{"!", "@", "#", "$", "%", "^", "&", "*", "(", ")"}
+	usbKeyNames     = [256]string{40: "return", 41: "escape", 42: "backspace", 43: "tab", 44: "space", 45: "minus", 46: "equals", 47: "leftbracket", 48: "rightbracket", 49: "backslash", 51: "semicolon", 52: "apostrophe", 53: "grave", 54: "comma", 55: "period", 56: "slash", 74: "home", 77: "end", 79: "right", 80: "left", 81: "down", 82: "up"}
+	usbPlainText    = [256]string{44: " ", 45: "-", 46: "=", 47: "[", 48: "]", 49: "\\", 51: ";", 52: "'", 53: "`", 54: ",", 55: ".", 56: "/"}
+	usbShiftedText  = [256]string{44: " ", 45: "_", 46: "+", 47: "{", 48: "}", 49: "|", 51: ":", 52: "\"", 53: "~", 54: "<", 55: ">", 56: "?"}
+)
+
+// USBKeyPress translates one pressed HID boot-keyboard usage + modifier mask
+// into a normalized Tenfoot Event (using the US keyboard layout).
+func USBKeyPress(change usb.KeyEvent) (Event, bool) {
 	if !change.Pressed {
 		return Event{}, false
 	}
 	shifted := change.Modifiers&(1<<1|1<<5) != 0
 	if change.Usage >= 4 && change.Usage <= 29 {
-		key := byte('a' + change.Usage - 4)
-		text := key
+		i := change.Usage - 4
+		text := usbLetterKeys[i]
 		if shifted {
-			text = key - 'a' + 'A'
+			text = usbLetterUpper[i]
 		}
-		return Event{Key: string(key), Text: string(text)}, true
+		return Event{Key: usbLetterKeys[i], Text: text}, true
 	}
 	if change.Usage >= 30 && change.Usage <= 39 {
-		index := change.Usage - 30
-		key := "1234567890"[index]
-		text := key
+		i := change.Usage - 30
+		text := usbDigitKeys[i]
 		if shifted {
-			text = "!@#$%^&*()"[index]
+			text = usbDigitShifted[i]
 		}
-		return Event{Key: string(key), Text: string(text)}, true
+		return Event{Key: usbDigitKeys[i], Text: text}, true
 	}
-	names := map[uint8]string{40: "return", 41: "escape", 42: "backspace", 43: "tab", 44: "space", 45: "minus", 46: "equals", 47: "leftbracket", 48: "rightbracket", 49: "backslash", 51: "semicolon", 52: "apostrophe", 53: "grave", 54: "comma", 55: "period", 56: "slash", 74: "home", 77: "end", 79: "right", 80: "left", 81: "down", 82: "up"}
-	name, ok := names[change.Usage]
-	if !ok {
+	name := usbKeyNames[change.Usage]
+	if name == "" {
 		return Event{}, false
 	}
 	if name == "tab" && shifted {
 		name = "shift-tab"
 	}
-	plain := map[uint8]byte{44: ' ', 45: '-', 46: '=', 47: '[', 48: ']', 49: '\\', 51: ';', 52: '\'', 53: '`', 54: ',', 55: '.', 56: '/'}
-	alternate := map[uint8]byte{44: ' ', 45: '_', 46: '+', 47: '{', 48: '}', 49: '|', 51: ':', 52: '"', 53: '~', 54: '<', 55: '>', 56: '?'}
-	event := Event{Key: name}
-	if text, ok := plain[change.Usage]; ok {
-		if shifted {
-			text = alternate[change.Usage]
-		}
-		event.Text = string(text)
+	text := usbPlainText[change.Usage]
+	if shifted && text != "" {
+		text = usbShiftedText[change.Usage]
 	}
-	return event, true
+	return Event{Key: name, Text: text}, true
 }

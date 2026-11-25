@@ -1752,6 +1752,12 @@ Error FesGpCoreDriver::EnsureRetainedComputerSaved(const CoreDescriptor& descrip
 	}
 	if (!complete)
 		return {ErrorCode::unsupported_interface, "retained computer requires its registered media contract", "save"};
+	// A window machine's disk lives in HPS DDR behind the lost session's
+	// window, and its dirty chunks were that session's to store. Until a
+	// retained window and its save state can be recovered, nothing may
+	// replace the machine: its guest disk writes would be lost.
+	if (core->hps_window)
+		return {ErrorCode::save_failed, "a retained window machine's disk cannot be checked for unsaved changes", "save"};
 	// Normal Identify discovers a newly programmed empty unit. A lost image
 	// can have media loaded: verify its live identity/capabilities only, then
 	// use the same SAVE check, without publishing active driver state.

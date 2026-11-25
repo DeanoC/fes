@@ -304,8 +304,8 @@ func TestDWC2IRQKeyboardReportAndStormGuard(t *testing.T) {
 	if !bytes.Equal(got, want) {
 		t.Fatalf("report=%x, want %x", got, want)
 	}
-	if hw.reg(gintmask) != irqMask {
-		t.Fatalf("completed poll left GINTMSK=%#x", hw.reg(gintmask))
+	if hw.reg(gintmask) != irqMaskSOF {
+		t.Fatalf("completed poll left GINTMSK=%#x, want %#x (SOF armed for next interval)", hw.reg(gintmask), irqMaskSOF)
 	}
 
 	host.DisableIRQ()
@@ -541,9 +541,9 @@ func TestDWC2IRQConcurrentDispatchRace(t *testing.T) {
 			}
 		}
 	}
-	host.DisableIRQ()
 	close(stop)
 	<-done
+	host.DisableIRQ()
 	if got != 8 {
 		t.Fatalf("got %d reports, want 8", got)
 	}

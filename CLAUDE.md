@@ -4,7 +4,7 @@
 
 Never rebase, force-push, or amend pushed commits on any PR branch or main. Update a PR branch by merging main into it. Don't push to a PR branch you weren't asked to work on.
 
-All GPU work goes through the `gpu-run` wrapper. Never pin a GPU vendor.
+All GPU work goes through the `gpu-run` wrapper. Never pin a GPU vendor. Every Quartus run holds the Quartus lease (`python3 scripts/quartus_jobs.py run --edition lite|pro -- ...` from `sources/misteross` for shell scripts/manual runs; see [Quartus hosts](docs/design/quartus-hosts.md)).
 
 Nobody kills a GPU job, and nobody touches Deano's harness (~/harnesses on Powerboat) or its processes.
 
@@ -21,6 +21,7 @@ A core's locked nextpnr is only its last known good, not a required pin. If a ne
 - Small, self-explanatory PRs may skip the issue and the `Closes #N` line.
 - Before opening a PR, check for an open PR that already covers the change, and don't duplicate it.
 - Stay inside the repo and the scope the task names.
+- To be merged, complete a `@codex review` cycle until Codex reports okay (no major issues) or only nitpicky (P3) findings, then mark the PR ready (not draft) and put it in `lane:lander`.
 
 ## Shared kits and Powerboat (READ FIRST)
 
@@ -29,18 +30,26 @@ Outside agent sessions have ignored these rules. Obey them.
 1. MUST claim the kit before you touch it, and log the result when you
    finish. There is no separate Powerboat host claim. Record owner, PR,
    and start time in that kit's Powerboat status file:
-   `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
+   `~/kit-status/kitA-STATUS.md`, `kitB-STATUS.md`, or
+   `de25-TRWU8J8G-STATUS.md` for Kit D25. That
    log is the single source of truth. NEVER take a kit that is leased or
    claimed by someone else. NEVER use a Slack reservation, and NEVER
    require a person to be present.
-2. Kits A and B are both designated test kits. They are interchangeable.
+2. Kits A and B are both designated DE10 test kits and are interchangeable.
+   DE25 Linux board, package, runtime and image paths use Kit D25
+   (`de25-j8g`, serial `TRWU8J8G`, Quartus Pro 26.3 only); never substitute a
+   DE10 kit for DE25 HIL or vice versa. Bare-metal TamaGo work
+   (`platform/embedded/`) cannot be tested on J8G yet: include `tamago` in
+   the PR title, use host tests, QEMU and DE25-Nano cross-builds instead, and
+   never touch `TRWU8CBL` unless explicitly assigned by Deano under its lease.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
    install one. Software goes before the image: before an image change,
    activate a bundle the new image accepts (`fes-update` refuses an image
    whose menu interfaces the selected bundle lacks). After use, restore the
    designated baseline image and bundle the status file names, and log that
-   restore. Activating the baseline bundle does not change the booted image.
+   restore (for Kit D25, follow `docs/de25-kit-hil.md`). Activating the
+   baseline bundle does not change the booted image.
    If the booted image is not the named baseline, first activate the
    baseline bundle if the running image accepts it, then restore that image
    and verify the boot; otherwise restore and verify the image, then

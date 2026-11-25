@@ -302,7 +302,13 @@ private:
     void clock() {
         bool held = hold_sync[1];
         if (held && !port_held) {
+#ifdef FES_PC386_DE25
+            // The guards are inside the DE25 window; port 2's open burst is
+            // pc386_system's own (pc386_de25_sim's dbg_p2_owed).
+            hold_owed = top.dbg_p2_owed;
+#else
             hold_owed = ddr2.beats_owed();
+#endif
             hold_rose = true;
             if (ddr0.beats_owed() || ddr1.beats_owed() || hold_owed)
                 std::printf("HOLD %llu owed=%u,%u,%u\n", (unsigned long long)cycles, ddr0.beats_owed(),
@@ -310,6 +316,13 @@ private:
         }
         port_held = held;
         top.p0_reset = top.p1_reset = top.p2_reset = held;
+#ifdef FES_PC386_DE25
+        // The board's fabric beyond the window's guards is never held: port 0
+        // is the arbiter's master and runs on, and ports 1 and 2 are idle.
+        ddr0.drive(p0, cycles);
+        ddr1.drive(port1(top), cycles);
+        ddr2.drive(port2(top), cycles);
+#else
         if (held) {
             ddr0.hold(p0);
             ddr1.hold(port1(top));
@@ -319,6 +332,7 @@ private:
             ddr1.drive(port1(top), cycles);
             ddr2.drive(port2(top), cycles);
         }
+#endif
         for (unsigned n = 0; n < 6; ++n) history[cycles % HISTORY][n] = status(n);
         probe_status();
         top.clk = 1;
@@ -664,13 +678,28 @@ private:
         bool cut = false;
         do {
             exchange(OP_EXECUTION, 0, 1);
+#ifdef FES_PC386_DE25
+            uint64_t written = top.dbg_p2_written;
+#else
             uint64_t written = ddr2.beats_written;
+#endif
             for (unsigned n = 0; n < 1024 + trials; ++n) clock();
+#ifdef FES_PC386_DE25
+            resumed += cut && top.dbg_p2_written > written;
+#else
             resumed += cut && ddr2.beats_written > written;
+#endif
             hold_rose = false;
             exchange(OP_EXECUTION, 0, 0);
             for (unsigned n = 0; !hold_rose; ++n) {
-                if (n == 100000) throw MailboxError("Execution hold did not hold the DDR ports");
+                if (n == 100000) {
+#ifdef FES_PC386_DE25
+                    std::printf("WINDOW trial=%u dbg=%08x status0=%016llx\n", trials, unsigned(top.dbg_window),
+                                (unsigned long long)status(0));
+                    std::fflush(stdout);
+#endif
+                    throw MailboxError("Execution hold did not hold the DDR ports");
+                }
                 clock();
             }
             cut = hold_owed != 0 && cuts < HOLD_CUTS;
@@ -710,11 +739,17 @@ private:
     // waits over 1,000 clocks for the port, and every record a port 2 reset
     // clears before it is written.
     void probe_status() {
+#ifdef FES_PC386_DE25
+        // pc386_de25_sim exports the same four signals (dbg_status).
+        unsigned s = top.dbg_status;
+        bool busy = s & 1, own = s & 2, aux = s & 12, verify = s & 16;
+#else
         const auto *root = top.rootp;
         bool busy = root->pc386_system__DOT__status_ring__DOT__busy;
         bool own = root->pc386_system__DOT__status_ring__DOT__own;
         bool aux = root->pc386_system__DOT__disk_aux_read || root->pc386_system__DOT__disk_aux_write;
         bool verify = root->pc386_system__DOT__verifying;
+#endif
         if (verify && !st_verify) { st_verify_start = cycles; st_idle = 0; }
         if (verify && !aux) ++st_idle;
         if (!verify && st_verify)

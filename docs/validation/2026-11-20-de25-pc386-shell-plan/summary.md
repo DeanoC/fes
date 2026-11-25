@@ -288,6 +288,27 @@ the proposal and stays as it was. What was decided:
 - **P4, tier:** no `de25-nano` pc386 recipe row or support-matrix entry
   until slice 4's kit pass.
 
+## Decisions (21 Nov 2026)
+
+Relayed by the coordinating session:
+
+- **The 387 on the first DE25 shell: off.** The first DE25 pc386 shell
+  ships with the 387 off, identity-off as board build j was
+  (`x87_present` tied to 0). Slice 3's package and slice 4's platform, image
+  and kit run target that build. Turning the 387 on on the DE25 is a later
+  step. It waits on the shell/device area study and slice 6's reductions to
+  find the roughly 3,500 ALMs it needs.
+- **Signoff findings (option a):** the board's design-assistant findings that
+  remain after its own fixes are admitted by named, reviewed bases, as the
+  Spectrum's are, with no shared DE10 RTL changed and no rule widened. That
+  covers the window bridge's FIFO reset synchronisers (RDC-50003), which no
+  `mm_ccb` parameter removes.
+- **Window faults, slice 3:** a fault is fatal until the FPGA is
+  reprogrammed (a faulted port never drains, so `CommandClear` cannot be
+  accepted). Slice 4 takes up recovery with the runtime: `CommandClear`
+  dropping the faulting command while held changes the contract, and goes to
+  Deano then.
+
 ## Sources
 
 - [x87 slice 6 plan, #2027](https://github.com/DeanoC/fes/blob/deano/i386-x87-s6-plan/docs/validation/2026-11-20-i386-x87-s6-plan/summary.md),

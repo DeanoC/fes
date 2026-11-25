@@ -4,6 +4,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
 
 type reportQueue struct {
@@ -18,6 +20,16 @@ func (r *reportQueue) PollKeyboard() ([]byte, error) {
 	v := r.reports[0]
 	r.reports = r.reports[1:]
 	return v, nil
+}
+func (r *reportQueue) PollKeyboardInto(dst []byte) (int, error) {
+	v, err := r.PollKeyboard()
+	if err != nil || v == nil {
+		return 0, err
+	}
+	if len(v) == 0 || len(v) > len(dst) {
+		return 0, errors.New("invalid report length")
+	}
+	return copy(dst, v), nil
 }
 func report(modifier, usage byte) []byte { return []byte{modifier, 0, usage, 0, 0, 0, 0, 0} }
 
@@ -72,5 +84,27 @@ func TestUSBShiftTabAndRollover(t *testing.T) {
 	got, err = keyboard.Poll()
 	if err != nil || len(got) != 0 {
 		t.Fatalf("rollover lost prior held state: %v %v", got, err)
+	}
+}
+
+func TestUSBPressZeroAllocs(t *testing.T) {
+	samples := []usb.KeyEvent{
+		{Usage: 4, Pressed: true},
+		{Usage: 4, Pressed: true, Modifiers: 2},
+		{Usage: 30, Pressed: true, Modifiers: 2},
+		{Usage: 40, Pressed: true},
+		{Usage: 43, Pressed: true, Modifiers: 2},
+		{Usage: 45, Pressed: true, Modifiers: 2},
+	}
+	allocs := testing.AllocsPerRun(50, func() {
+		for _, s := range samples {
+			ev, ok := USBKeyPress(s)
+			if !ok || ev.Key == "" {
+				t.Fatalf("USBKeyPress(%+v) failed", s)
+			}
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("USBKeyPress allocated %.2f objects/batch, want 0", allocs)
 	}
 }

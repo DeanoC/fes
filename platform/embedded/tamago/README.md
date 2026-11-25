@@ -1,16 +1,23 @@
-# Native Go embedded base
+# Native Go embedded base (`tamago/`)
 
-This module (`github.com/DeanoC/fes/platform/embedded/tamago`) builds the
-Linux-free AArch64 TamaGo runtime, board drivers, Tenfoot launcher and QEMU
-off-board regression harnesses. Set `FES_EXPERIMENTAL_DE25_EMBEDDED=1` before
-invoking `run.py` or `make embedded`.
+This module (`github.com/DeanoC/fes/platform/embedded/tamago`) contains the
+bare-metal AArch64 TamaGo runtime, board BSPs (`qemuvirt` and `de25nano`),
+device drivers, Tenfoot launcher wiring, and QEMU regression harnesses.
 
-## Build and run
+- **System architecture, boot chain & delegation diagrams:**
+  [../ARCHITECTURE.md](../ARCHITECTURE.md)
+- **DE25-Nano SD launcher workflow:** [../nano/launcher.md](../nano/launcher.md)
+- **Board selection & schema-8 handoff:** [board/README.md](board/README.md)
+
+Set `FES_EXPERIMENTAL_DE25_EMBEDDED=1` before running `run.py` or
+`make embedded`. Host `go test` runs need no opt-in and touch no hardware.
+
+## Toolchain setup
 
 TamaGo and its modified Go compiler are pinned to **1.26.5** in
-[toolchain.lock.toml](toolchain.lock.toml); stock Go cannot build `GOOS=tamago`.
-Extract the verified compiler archive under `out/embedded-base-tools/tamago`
-and populate the module cache and host fixture binary:
+[toolchain.lock.toml](toolchain.lock.toml) (stock Go cannot build
+`GOOS=tamago`). Extract the verified archive under
+`out/embedded-base-tools/tamago`, download modules, and build the host fixture:
 
 ```sh
 cd platform/embedded/tamago
@@ -22,11 +29,29 @@ cd ../../..
   -o ../../out/embedded-base-tools/fogcast-host ./cmd/fogcast-embedded-host)
 ```
 
-`run.py` requires Python 3, QEMU AArch64 with `ramfb`, and `mtools`. It writes
-only ordinary files under a fresh directory beneath `out/`, and compiles with
-`GOPROXY=off`, `GOSUMDB=off`, `GOTOOLCHAIN=local` and `-mod=readonly`.
+`run.py` requires Python 3, `qemu-system-aarch64` with `ramfb`, and `mtools`.
+It writes only under a fresh `out/` directory and builds with `GOPROXY=off`,
+`GOSUMDB=off`, `GOTOOLCHAIN=local`, and `-mod=readonly`.
 
-### Tenfoot two-boot QEMU regression
+## Entrypoints and suites (`run.py`)
+
+| Target | Board(s) | What it exercises |
+| --- | --- | --- |
+| `probe` | `qemu`, `de25-nano` | Minimal EL1 CPU, timer, and GC sanity check |
+| `mapcheck` | `qemu` | EL1 page-table / `arm64map` verification |
+| `fabric` | `qemu` | `fabricmodel` + `sdm.ConfigModel` lifecycle checks |
+| `keyboard` | `qemu` | xHCI + shared HID keyboard decoder |
+| `display` | `qemu` | `ramfb` + `gfx.Software` framebuffer output |
+| `storage` | `qemu`, `de25-nano` | FAT32 mount, CoW `ReplaceFile`, and owned SD storage |
+| `packages` | `qemu` | Format-2/3/4 archive validation (`corepackage.RetainArchive`) on FAT32 |
+| `admission` | `qemu` | `runtimeadmission` Go parity against host C++14 `libmister-runtime` oracle + ROM linking |
+| `network` (`--dhcp`) | `qemu` | VirtIO-net + `lneto` static/DHCPv4/DNSv4/SNTP + HTTP catalog |
+| `tenfoot` | `qemu` | Two-boot Tenfoot UI + `ramfb` + USB keyboard + FAT32 prefs + FogCast host |
+| `play` | `qemu` | Tenfoot Play/Return over `modelbackend` (ROMs, parts, errors, saves) |
+| `programfetch` | `qemu` (manual) | `nativefabric.ProgramSource.Fetch` over VirtIO/`lneto` HTTP (not in default CI set) |
+| `fpgaload` | `de25-nano` | Full DE25-Nano Tenfoot launcher image (paired MENU, USB, FAT32, EL3 SMCs) |
+
+### Example: Tenfoot two-boot QEMU regression
 
 ```sh
 FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/tamago/run.py tenfoot \
@@ -35,108 +60,36 @@ FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/tamago/run.py tenfoot
   --output out/native-go-system
 ```
 
-Boots twice on the same FAT32 image with QEMU `ramfb`, USB boot keyboard
-(`--input uart` selects serial), VirtIO FAT32 and VirtIO TCP/IP to a private
-FogCast host, verifying catalog browsing, layout change persistence and
-screenshot/hash receipts. Add `--interactive --display sdl` and `--disk
-out/my-boot.img` for manual use. `run.py probe` runs the minimal CPU/timer/GC
-sanity check without storage or networking.
-
-### Native Nano build (`fpgaload`)
-
-`run.py fpgaload --board de25-nano` builds the DE25-Nano Tenfoot launcher image
-with paired menu, shared USB keyboard, owned FAT32 installer and SD preference
-checkpoints. See [../nano/launcher.md](../nano/launcher.md) for the complete
-matched-chain build and SD image assembly steps.
-
-### Content fetch over VirtIO TCP (`programfetch`)
-
-```sh
-FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/tamago/run.py programfetch \
-  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
-  --qemu /path/to/qemu-system-aarch64 \
-  --export-root /path/to/nano-export --program-id zx81-rom \
-  --output out/native-program-fetch
-```
-
-Exercises `nativefabric.ProgramSource.Fetch` over QEMU VirtIO/`lneto` HTTP
-against a private host export while leaving the FAT image unchanged. Nano
-hardware networking remains disabled in the board profile.
-
-## Platform contract
-
-- **QEMU `virt` memory map:** Enters at EL1 linked at `0x40020000` (256 MiB Go
-  RAM at `0x40000000`, 64 MiB noncacheable DMA arena at `0x50000000`, 8 MiB
-  framebuffer arena). DMA buffers stay pinned until completion or reboot.
-- **Cooperative single-core execution:** Interrupts stay masked; drivers poll
-  with explicit deadlines and yield cooperatively. The Tenfoot software
-  renderer yields every four rows and splits large copies into 32 KiB chunks.
-- **No QEMU constants on DE25:** QEMU PCI/MMIO addresses are test-only. Nano
-  memory maps, EL1 page tables, clocks and drivers live under
-  [board](board/README.md),
-  [board/arm64map](board/arm64map/README.md), [dwc2](dwc2/README.md),
-  [sdhci](sdhci/README.md), [sdcontrol](sdcontrol/README.md),
-  [scanout](scanout/README.md) and [xgmac](xgmac/README.md).
-- **FAT32 & preferences:** [fat](fat/README.md) updates preallocated files and
-  creates new files/directories without rename or power-loss atomicity.
-  TamaGo's default `os` filesystem is volatile RAM; only `PreferenceStore` /
-  `sd-checkpoint` writes FAT32.
-- **Subsystem READMEs:** [gic](gic/README.md), [dmaops](dmaops/README.md),
-  [packagestore](packagestore/README.md),
-  [storagepolicy](storagepolicy/README.md), [usb](usb/README.md),
-  [usbcontrol](usbcontrol/README.md), [network](network/README.md),
-  [computer](computer/README.md), [sdm](sdm/README.md),
-  [fabricmodel](fabricmodel/README.md) and
-  [nativefabric](nativefabric/README.md).
-
-## Package inspection without a host OS
-
-`run.py packages` validates the shared format-2/3/4 conformance corpus from a
-fresh FAT32 image via `corepackage.RetainArchive` (same validator as FogCast),
-verifies source-mutation isolation of retained RAM bytes, and checks unchanged
-disk hashes.
-
-```sh
-FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/tamago/run.py packages \
-  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
-  --qemu /path/to/qemu-system-aarch64 \
-  --output out/native-package-inspection
-```
+Add `--interactive --display sdl --disk out/my-boot.img` for interactive use
+(`--input uart` selects serial input instead of USB).
 
 ## Runtime admission of verified packages
 
 `run.py admission` connects retained archives to the software fabric lifecycle
-and checks [runtimeadmission](runtimeadmission/README.md) (pure Go
-compatibility checker) against the host C++14 oracle
+and checks pure-Go [runtimeadmission](runtimeadmission/README.md) against the
+host C++14 oracle
 ([../runtime/admission_oracle.cpp](../runtime/admission_oracle.cpp)) built from
-`libmister-runtime`'s `OpenCorePackage` and `CheckCoreCompatibility`.
+`libmister-runtime`'s `OpenCorePackage` and `CheckCoreCompatibility`:
 
 ```sh
 FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/tamago/run.py admission \
   --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
   --qemu /path/to/qemu-system-aarch64 \
   --output out/native-runtime-admission
-```
 
-The same fixture corpus can run on the host under `-race`:
-
-```sh
 FES_ADMISSION_FIXTURES="$PWD/out/native-runtime-admission/package-fixtures" \
   GOWORK=off go -C platform/embedded/tamago test -race \
   ./runtimeadmission ./admissioncheck ./fabricmodel
 ```
 
-This tests contract parity in the `qemu-model-only` scope; it grants no
-physical FPGA programming authority.
-
-## Retained ROM linking and activation receipts
+### Retained ROM linking and activation receipts
 
 `run.py admission` also links format-3 firmware/cartridge and format-4
 BIOS+cartridge synthetic Mistral RBF vectors in RAM via `Archive.LinkROMs` and
 activates them through `LoadLinkedModel` with an opaque content-bound
-`LinkedArchive` receipt (binding source digests/roles, sealed map, package and
-programmed digest). Source-file mutations on FAT32 after retention must reject
-under the original receipt.
+`LinkedArchive` receipt (binding source digests/roles, sealed map, package, and
+programmed digest). Post-retention FAT32 source mutations reject under the
+original receipt.
 
 ## Tenfoot Play and return through the model
 
@@ -147,25 +100,43 @@ FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/tamago/run.py play \
   --output out/native-tenfoot-play
 ```
 
-Drives Play and Back in `cmd/tenfoot` over QEMU USB keyboard against the
-[modelbackend](modelbackend/README.md) software lifecycle (normal launch/return,
-wrong ROM/receipt, canceled preparation, identity recovery, failed save retry
-and CPU/video parts cases) without physical FPGA output.
+Drives Play and Back in `cmd/tenfoot` over QEMU USB keyboard against
+[modelbackend](modelbackend/README.md) (normal launch/return, wrong ROM/receipt,
+canceled preparation, identity recovery, failed save retry, and CPU/video parts
+cases) without physical FPGA output.
 
-## CPU/video parts in retained activation
+### CPU/video parts in retained activation
 
 `Archive.LinkROMs(ctx, sources, parts...)` accepts `PartInput` archives,
 records `PartsComposition` and the pre-ROM overlay digest in the activation
 receipt, and is exercised by `run.py play`. For the Nano held-ROM profile,
 `fpgaload --selected-programs` requires `--firmware-rom IMAGE --rom-host-go
 HOST_GO` to derive content-bound ROM receipts and export `FIRMWARE.BIN`,
-`rom-selection.json`, `PROGRAM.JSN` and `CORESEL.JSN`.
+`rom-selection.json`, `PROGRAM.JSN`, and `CORESEL.JSN`.
 
-## Persistent native window requests
+## Runtime contract and CI
 
-The earlier single-slot fixed-window diagnostic flags (`--window-memory`,
-`--window-read`, `--window-present`, `--window-storage-return`,
-`--window-reload`) and standalone `--window-service` serial server were retired
-once the paired Tenfoot launcher (`--menu-project --selected-programs
---tenfoot-serial`) documented in [../nano/launcher.md](../nano/launcher.md)
-superseded them.
+- **Cooperative execution + GICv3 IRQs:** Single-core cooperative Go with
+  bounded driver deadlines (renderer yields every 4 rows / 32 KiB copies).
+  `cmd/tenfoot` and DE25-Nano `cmd/fpgaload` enable [gic](gic/README.md) GICv3
+  + `WFI` idle (PPI 30) and device SPI wakeups.
+- **DMA & storage:** DMA buffers come from uncached [dmaops](dmaops/README.md)
+  or boot-pinned arenas (never the Go heap). [block](block/README.md) provides
+  a lease-invalidating LRU write-through cache; [fat](fat/README.md) coalesces
+  up to 64 KiB and updates `FES/PREFS.JSON` via copy-on-write `ReplaceFile`.
+- **CI lane:** `scripts/ci_tamago.sh` and `scripts/tamago_ci.py` run host
+  `go vet` + `-race` tests, dual-board cross-builds (`qemu` and `de25-nano`),
+  and the 12 `DEFAULT_QEMU_PROGRAMS` runs (`probe`, `mapcheck`, `fabric`,
+  `keyboard`, `display`, `packages`, `admission`, `network`, `network-dhcp`,
+  `tenfoot`, `storage`, `play`; `programfetch` is manual/targeted).
+
+## Package index
+
+| Area | Packages |
+| --- | --- |
+| Nano orchestrator & FPGA | [nativefabric](nativefabric/README.md), [computer](computer/README.md), [scanout](scanout/README.md), [sdm](sdm/README.md), [fpgairq](fpgairq/README.md) |
+| QEMU / host software model | [modelbackend](modelbackend/README.md), [fabricmodel](fabricmodel/README.md), [runtimeadmission](runtimeadmission/README.md) |
+| Storage & packages | [packagestore](packagestore/README.md), [storagepolicy](storagepolicy/README.md), [fat](fat/README.md), [fatcheck](fatcheck/README.md), [block](block/README.md), [sdcontrol](sdcontrol/README.md), [sdhci](sdhci/README.md) |
+| Input & USB | [input](input/README.md), [usb](usb/README.md), [usbcontrol](usbcontrol/README.md), [dwc2](dwc2/README.md), [cmd/usbcheck](cmd/usbcheck/README.md) |
+| Networking | [network](network/README.md), [xgmac](xgmac/README.md), [maccontrol](maccontrol/README.md) |
+| Board & core services | [board](board/README.md), [board/arm64map](board/arm64map/README.md), [gic](gic/README.md), [dmaops](dmaops/README.md), [display](display/README.md), [psci](psci/README.md), [rtc](rtc/README.md), [wdt](wdt/README.md) |

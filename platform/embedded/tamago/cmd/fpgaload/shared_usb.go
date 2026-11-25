@@ -23,6 +23,7 @@ var programUSBClient *usbcontrol.Client
 var programKeyboardSource *usbcontrol.Source
 var programGamepadSource *usbcontrol.GamepadSource
 var programGamepadDescriptor []byte
+var programBusHost *usbcontrol.BusHost
 
 // This runs before SD acquisition. Both the boot owner and complete pin map
 // come from the sealed source; the shared service is required explicitly.
@@ -36,7 +37,7 @@ func openProgramUSB(v *nativefabric.HPSContextVerifier) error {
 	if expectedUSBControl != "owned-shared-usb-pio-v1" || expectedTenfootSerial != "1" || expectedSelectedPrograms != "1" {
 		return errors.New("shared USB requires selected Tenfoot")
 	}
-	if expectedUSBInput != "gamepad" && expectedUSBInput != "boot-keyboard" {
+	if expectedUSBInput != "gamepad" && expectedUSBInput != "boot-keyboard" && expectedUSBInput != "multi" {
 		return errors.New("shared USB input protocol required")
 	}
 	before, err := v.Verify(v.Identity())
@@ -64,9 +65,12 @@ func openProgramUSB(v *nativefabric.HPSContextVerifier) error {
 	if err != nil {
 		return err
 	}
-	if expectedUSBInput == "gamepad" {
+	switch expectedUSBInput {
+	case "gamepad":
 		programGamepadSource, programGamepadDescriptor, err = de25nano.OpenGamepadWithControl(ctx, programUSBClient)
-	} else {
+	case "multi":
+		programBusHost, err = de25nano.OpenMultiWithControl(ctx, programUSBClient)
+	default:
 		programKeyboardSource, err = de25nano.OpenKeyboardWithControl(ctx, programUSBClient)
 	}
 	if err != nil {
@@ -86,7 +90,9 @@ func closeProgramUSB() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var err error
-	if programGamepadSource != nil {
+	if programBusHost != nil {
+		err = programBusHost.Close(ctx)
+	} else if programGamepadSource != nil {
 		err = programGamepadSource.Close(ctx)
 	} else if programKeyboardSource != nil {
 		err = programKeyboardSource.Close(ctx)
@@ -107,6 +113,15 @@ func closeProgramUSB() error {
 func enableProgramUSBIRQ(g *gic.Controller) (func(), error) {
 	if expectedUSBControl == "" || g == nil {
 		return func() {}, nil
+	}
+	if programBusHost != nil {
+		if err := programBusHost.EnableIRQ(g, de25nano.IRQUSB0); err != nil {
+			if errors.Is(err, gic.ErrUnsupported) {
+				return func() {}, nil
+			}
+			return nil, err
+		}
+		return programBusHost.DisableIRQ, nil
 	}
 	if programGamepadSource != nil {
 		if err := programGamepadSource.EnableIRQ(g, de25nano.IRQUSB0); err != nil {

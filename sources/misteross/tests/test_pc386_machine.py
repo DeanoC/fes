@@ -1244,3 +1244,22 @@ class SystemTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class MachineCpuIdentityTest(unittest.TestCase):
+    """machine_testbench's CPU: the 386 at level 3, the 486SX (I486 = 1) beside the level-4 oracle."""
+
+    def cpu_parameters(self, level):
+        args = mock.Mock(verilator='verilator', jobs=1, cpu_level=level)
+        with mock.patch.object(sim, 'verilate', return_value=Path('obj/Vfes_i386_cpu__ALL.a')) as verilate, \
+                mock.patch.object(sim, 'write_cpu_profile_layout'), \
+                mock.patch.object(sim, 'verilate_with_audio', return_value=Path('machine_tb')):
+            sim.machine_testbench(args, [])
+        (call,) = [c for c in verilate.call_args_list if c.args[2] == 'fes_i386_cpu']
+        return call.args[7] if len(call.args) > 7 else call.kwargs.get('parameters')
+
+    def test_level_3_builds_the_386(self):
+        self.assertIsNone(self.cpu_parameters(3))
+
+    def test_level_4_builds_the_486sx(self):
+        self.assertEqual(self.cpu_parameters(4), {'I486': "1'b1"})

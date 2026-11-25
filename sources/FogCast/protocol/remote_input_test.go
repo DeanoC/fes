@@ -128,6 +128,9 @@ func TestInputReceiptControlFrames(t *testing.T) {
 		{Header: InputHeader{Type: InputTypePing, Flags: InputFlagTapProbe, Session: 42}, Seq: 7, ClientMonoNS: 99},
 		{Header: InputHeader{Type: InputTypeReceipt, Flags: InputFlagTapSupported, Session: 42}, Seq: 7, ClientMonoNS: 99, ServerMonoNS: 100},
 		{Header: InputHeader{Type: InputTypeTap, Session: 42}, Seq: 8, ClientMonoNS: 99, ServerMonoNS: 9, Action: 1, Code: 0x1004, Value: InputTapHoldMS},
+		{Header: InputHeader{Type: InputTypePing, Flags: InputFlagTapChordProbe, Session: 42}, Seq: 7, ClientMonoNS: 99},
+		{Header: InputHeader{Type: InputTypeReceipt, Flags: InputFlagTapChordSupported, Session: 42}, Seq: 7, ClientMonoNS: 99, ServerMonoNS: 100},
+		{Header: InputHeader{Type: InputTypeTapChord, Session: 42}, Seq: 8, ClientMonoNS: 99, ServerMonoNS: 9, Action: 1, Code: 0x1004, Reserved: 2, Value: InputTapHoldMS},
 	}
 	for _, frame := range valid {
 		wire, err := EncodeInputFrame(frame)
@@ -140,10 +143,12 @@ func TestInputReceiptControlFrames(t *testing.T) {
 		}
 	}
 	invalid := []InputFrame{
-		{Header: InputHeader{Type: InputTypePing, Flags: 4, Session: 42}},
+		{Header: InputHeader{Type: InputTypePing, Flags: 8, Session: 42}},
 		{Header: InputHeader{Type: InputTypeInput, Flags: 1, Session: 42}},
 		{Header: InputHeader{Type: InputTypePong, Flags: 1, Session: 42}, ServerMonoNS: 1},
-		{Header: InputHeader{Type: InputTypeReceipt, Flags: 4, Session: 42}, ServerMonoNS: 1},
+		{Header: InputHeader{Type: InputTypeReceipt, Flags: 8, Session: 42}, ServerMonoNS: 1},
+		{Header: InputHeader{Type: InputTypeTapChord, Session: 42}, Seq: 1, ServerMonoNS: 1, Action: 1, Code: 0x1004, Value: InputTapHoldMS},
+		{Header: InputHeader{Type: InputTypeTapChord, Session: 42}, Seq: 1, ServerMonoNS: 1, Action: 1, Code: 0x1004, Reserved: 256, Value: InputTapHoldMS},
 		{Header: InputHeader{Type: InputTypeTap, Session: 42}, Seq: 1, ServerMonoNS: 1, Action: 1, Code: 0x1004, Value: 1000},
 		{Header: InputHeader{Type: InputTypeTap, Session: 42}, Seq: 1, Action: 1, Code: 0x1004, Value: InputTapHoldMS},
 		{Header: InputHeader{Type: InputTypeReceipt, Session: 42}},

@@ -3,8 +3,8 @@ kind: fabric
 id: fes.fabric.de25-hps-window
 description: >-
   A computer's window in HPS DDR on the DE25: one contiguous grant of
-  WindowSpan bytes that the kernel owner allocates and the runtime publishes
-  here while the machine is held. The fabric presents fes.memory.hps-ddr 1.0's
+  WindowSpan bytes that the kernel owner allocates and publishes here while
+  the machine is held; no DMA address reaches userspace. The fabric presents fes.memory.hps-ddr 1.0's
   three ports (0 is 128-bit, 1 and 2 are 64-bit) and rebases each command from
   FES_APPLICATION_HPS_DDR_WINDOW_BASE onto the grant. Every command must lie,
   with its whole burst, inside the span; one outside it, or any command

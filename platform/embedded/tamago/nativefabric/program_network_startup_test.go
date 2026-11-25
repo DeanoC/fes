@@ -70,6 +70,36 @@ func TestProgramNetworkStartupBindsBeforeFrontendAndJoinsLifecycle(t *testing.T)
 	}
 }
 
+func TestProgramNetworkStartupWithTimeoutPreservesExtendedDHCPBudget(t *testing.T) {
+	var startupCtx, lifetimeCtx context.Context
+	f, _, _ := backendFixture(t, func(f *serviceFixture) {
+		_, control := newProgramNetwork(t)
+		err := f.s.StartNetworkWithTimeout(context.Background(), 15*time.Second, f.s.Status().Owner, func(ctx, lifetime context.Context, owner uint64) (*network.Controller, error) {
+			startupCtx, lifetimeCtx = ctx, lifetime
+			end, ok := ctx.Deadline()
+			if !ok || time.Until(end) <= 10*time.Second {
+				t.Fatalf("extended startup deadline=%v (ok=%t), want > 10s", time.Until(end), ok)
+			}
+			if _, hasLifetimeDeadline := lifetime.Deadline(); hasLifetimeDeadline {
+				t.Fatal("lifetime context unexpectedly inherited startup deadline")
+			}
+			return control, nil
+		})
+		if err != nil {
+			t.Fatalf("StartNetworkWithTimeout: %v", err)
+		}
+	})
+	_ = f
+	if startupCtx.Err() != context.Canceled || lifetimeCtx.Err() != nil {
+		t.Fatal("extended startup cancellation leaked into lifetime")
+	}
+	if err := f.s.StartNetworkWithTimeout(context.Background(), 0, f.s.Status().Owner, func(context.Context, context.Context, uint64) (*network.Controller, error) {
+		return nil, nil
+	}); !errors.Is(err, ErrProgramSession) {
+		t.Fatalf("non-positive timeout err=%v, want ErrProgramSession", err)
+	}
+}
+
 func TestProgramNetworkStartupRejectsBeforeOpener(t *testing.T) {
 	for _, mode := range []string{"wrong-owner", "frontend", "canceled", "nil-opener"} {
 		t.Run(mode, func(t *testing.T) {

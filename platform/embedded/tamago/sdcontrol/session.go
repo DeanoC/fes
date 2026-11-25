@@ -8,20 +8,25 @@ import (
 	"sync/atomic"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
+	"github.com/DeanoC/fes/platform/embedded/tamago/dmaops"
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdhci"
 )
 
-// Session binds the actual PIO driver to one private firmware client.
+// Session binds the actual SDHCI driver to one private firmware client.
 // The caller must exclusively own both controller and secure-call transport.
 // Concurrent emulation-core/SD access is outside this closed-bridge contract.
 type Session struct {
-	control  sync.Mutex
-	ioMu     sync.RWMutex
-	firmware *Client
-	device   *sdhci.Device
-	cache    *block.Cache
-	active   atomic.Bool
-	retired  atomic.Bool
+	control         sync.Mutex
+	ioMu            sync.RWMutex
+	firmware        *Client
+	device          *sdhci.Device
+	cache           *block.Cache
+	active          atomic.Bool
+	retired         atomic.Bool
+	busWidth        atomic.Int32
+	admaActive      atomic.Bool
+	highSpeed       atomic.Bool
+	transferClockHz atomic.Uint32
 }
 
 var _ block.Device = (*Session)(nil)
@@ -30,8 +35,25 @@ var _ block.Device = (*Session)(nil)
 type Config struct {
 	InputClockHz uint32
 	// TransferClockHz is the trusted platform's opt-in post-discovery rate.
-	// Zero preserves identification speed; 25 MHz requires card/board support.
+	// Zero preserves identification speed; 25 MHz or 50 MHz (CMD6 High-Speed)
+	// require card/board support.
 	TransferClockHz uint32
+	// HighSpeedMaxCurrentMA caps accepted CMD6 High-Speed card current (mA);
+	// zero enforces the 200 mA SD v1.10+ 3.3V baseline.
+	HighSpeedMaxCurrentMA uint16
+	// BusWidth4Bit opts into 4-bit SD bus mode (ACMD51 SCR + ACMD6) after card
+	// selection. Default false preserves conservative 1-bit mode.
+	BusWidth4Bit bool
+	// MultiBlock opts into CMD18/CMD25 multi-sector transfers (with Auto-CMD12
+	// up to 128 sectors / 64 KiB). Default false preserves single-sector I/O.
+	MultiBlock bool
+	// UseADMA2 opts into SDHCI ADMA2 DMA transfers backed by DMAPool (requiring
+	// controller ADMA2 capability and platform SMMU stream authorization).
+	// Default false preserves PIO transfers.
+	UseADMA2 bool
+	// DMAPool supplies the pinned ADMA2 descriptor table and 64 KiB staging
+	// buffer when UseADMA2 is true. Ignored when UseADMA2 is false.
+	DMAPool *dmaops.Pool
 	// WriteCard authorizes writes only to this independently expected CID and
 	// capacity. Zero selects read-only access. Physical write-protect and
 	// exclusive writable-media ownership still need platform qualification.
@@ -47,9 +69,12 @@ type Config struct {
 // InputClockHz must match the qualified platform's actual controller input.
 func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 	if io == nil || config.InputClockHz < 400000 || config.InputClockHz > 200000000 ||
-		(config.TransferClockHz != 0 && config.TransferClockHz != 25000000) ||
+		(config.TransferClockHz != 0 && config.TransferClockHz != 25000000 && config.TransferClockHz != 50000000) ||
 		(config.TransferClockHz != 0 && config.InputClockHz < config.TransferClockHz) {
 		return nil, fmt.Errorf("sdcontrol: invalid controller or input clock")
+	}
+	if config.UseADMA2 && config.DMAPool == nil {
+		return nil, fmt.Errorf("sdcontrol: UseADMA2 requires DMAPool")
 	}
 	writable := config.WriteCard != (sdhci.Identity{})
 	if writable {
@@ -73,13 +98,28 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 		return s, s.fail(err)
 	}
 	s.active.Store(true)
-	s.device, err = sdhci.Open(io, sdhci.Config{InputClockHz: config.InputClockHz, TransferClockHz: config.TransferClockHz, PrepareClock: firmware.Prepare, AllowWrites: writable, NoSocketWriteProtect: config.NoSocketWriteProtect})
+	s.device, err = sdhci.Open(io, sdhci.Config{
+		InputClockHz:          config.InputClockHz,
+		TransferClockHz:       config.TransferClockHz,
+		HighSpeedMaxCurrentMA: config.HighSpeedMaxCurrentMA,
+		BusWidth4Bit:          config.BusWidth4Bit,
+		MultiBlock:            config.MultiBlock,
+		UseADMA2:              config.UseADMA2,
+		DMAPool:               config.DMAPool,
+		PrepareClock:          firmware.Prepare,
+		AllowWrites:           writable,
+		NoSocketWriteProtect:  config.NoSocketWriteProtect,
+	})
 	if err != nil {
 		return s, s.fail(err)
 	}
 	if writable && s.device.Identity() != config.WriteCard {
 		return s, s.fail(fmt.Errorf("sdcontrol: writable card identity mismatch"))
 	}
+	s.busWidth.Store(int32(s.device.BusWidth()))
+	s.admaActive.Store(s.device.ADMA2Active())
+	s.highSpeed.Store(s.device.HighSpeed())
+	s.transferClockHz.Store(s.device.TransferClockHz())
 	return s, nil
 }
 func (s *Session) fail(err error) error {
@@ -168,6 +208,36 @@ func (s *Session) Identity() sdhci.Identity {
 	}
 	return s.device.Identity()
 }
+
+// BusWidth returns the active SD data bus width (1 or 4), or 0 if uninitialized.
+func (s *Session) BusWidth() int {
+	if s == nil {
+		return 0
+	}
+	return int(s.busWidth.Load())
+}
+
+// ADMA2Active reports whether ADMA2 DMA transfers are enabled on this session.
+func (s *Session) ADMA2Active() bool {
+	return s != nil && s.admaActive.Load()
+}
+
+// HighSpeed reports whether SD High-Speed (50 MHz via CMD6) is active.
+func (s *Session) HighSpeed() bool {
+	return s != nil && s.highSpeed.Load()
+}
+
+// TransferClockHz returns the active SD clock rate in Hz, or 0 if uninitialized.
+func (s *Session) TransferClockHz() uint32 {
+	if s == nil {
+		return 0
+	}
+	return s.transferClockHz.Load()
+}
+
+// Retired reports whether s is nil or has entered terminal ErrRetired containment.
+// Lock-free and safe for watchdog/liveness probes.
+func (s *Session) Retired() bool       { return s == nil || s.retired.Load() }
 func (s *Session) SectorCount() uint64 { return s.Identity().Sectors }
 func (s *Session) ReadSectors(lba uint64, dst []byte) error {
 	if s == nil || s.firmware == nil || s.device == nil || s.retired.Load() {
@@ -333,6 +403,10 @@ func (s *Session) resume(owner, generation uint64, returned bool) error {
 	if err := s.device.Resume(); err != nil {
 		return s.fail(err)
 	}
+	s.busWidth.Store(int32(s.device.BusWidth()))
+	s.admaActive.Store(s.device.ADMA2Active())
+	s.highSpeed.Store(s.device.HighSpeed())
+	s.transferClockHz.Store(s.device.TransferClockHz())
 	s.ioMu.Lock()
 	if s.retired.Load() {
 		s.ioMu.Unlock()

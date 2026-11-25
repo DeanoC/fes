@@ -88,7 +88,7 @@ class ConsistencyTest(unittest.TestCase):
 
     def test_selected_sources_and_validation_coverage(self):
         self.assertEqual(self.module.check(self.root, self.sources), {
-            'generated_files': len(self.module.GENERATED), 'source_pin_copies': 0, 'fixture_copies': 45})
+            'generated_files': len(self.module.GENERATED), 'source_pin_copies': 0, 'fixture_copies': 48})
         self.assertIn(
             ('testdata/core-bundle-v5', 'misteross', 'tests/fixtures/core-bundle-v5'),
             self.module.COPIED_TREES)

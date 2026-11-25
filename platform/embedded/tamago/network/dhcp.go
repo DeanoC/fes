@@ -48,6 +48,8 @@ const (
 	dhcpOptMsgType     = 53
 	dhcpOptServerID    = 54
 	dhcpOptParamList   = 55
+	dhcpOptRenewalTime = 58
+	dhcpOptRebindTime  = 59
 	dhcpOptEnd         = 255
 
 	dhcpFlagBroadcast = 0x8000
@@ -73,6 +75,8 @@ type DHCPLease struct {
 	Server        string        // DHCP server identifier (option 54)
 	DNS           []string      // Optional DNS server IPv4 addresses (option 6)
 	LeaseDuration time.Duration // Optional IP address lease duration (option 51)
+	RenewalTime   time.Duration // Optional T1 renewal time (option 58; zero -> LeaseDuration/2)
+	RebindTime    time.Duration // Optional T2 rebinding time (option 59; zero -> LeaseDuration*7/8)
 }
 
 // DHCPConfig tunes RFC 2131 DHCPv4 lease acquisition. Zero values select safe defaults.
@@ -85,15 +89,17 @@ type DHCPConfig struct {
 }
 
 type dhcpParsedReply struct {
-	msgType   byte
-	yiaddr    [4]byte
-	mask      [4]byte
-	hasMask   bool
-	routers   [][4]byte
-	dns       [][4]byte
-	serverID  [4]byte
-	hasServer bool
-	leaseTime time.Duration
+	msgType     byte
+	yiaddr      [4]byte
+	mask        [4]byte
+	hasMask     bool
+	routers     [][4]byte
+	dns         [][4]byte
+	serverID    [4]byte
+	hasServer   bool
+	leaseTime   time.Duration
+	renewalTime time.Duration
+	rebindTime  time.Duration
 }
 
 // ValidateDHCPConfig validates DHCPConfig without touching any network device.
@@ -119,18 +125,23 @@ func validateDHCPConfig(cfg DHCPConfig) error {
 // AcquireDHCP runs an RFC 2131 DHCPv4 handshake (DISCOVER -> OFFER -> REQUEST -> ACK)
 // directly over dev before an IP stack claims its receive path.
 func AcquireDHCP(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, error) {
+	lease, _, err := acquireDHCPWithTime(ctx, dev, cfg)
+	return lease, err
+}
+
+func acquireDHCPWithTime(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, time.Time, error) {
 	if ctx == nil || dev == nil {
-		return DHCPLease{}, fmt.Errorf("%w: nil context or device", ErrDHCPInvalidConfig)
+		return DHCPLease{}, time.Time{}, fmt.Errorf("%w: nil context or device", ErrDHCPInvalidConfig)
 	}
 	if err := ctx.Err(); err != nil {
-		return DHCPLease{}, err
+		return DHCPLease{}, time.Time{}, err
 	}
 	mac, err := parseUnicastMAC(dev.MAC())
 	if err != nil {
-		return DHCPLease{}, fmt.Errorf("%w: %v", ErrDHCPInvalidConfig, err)
+		return DHCPLease{}, time.Time{}, fmt.Errorf("%w: %v", ErrDHCPInvalidConfig, err)
 	}
 	if err := validateDHCPConfig(cfg); err != nil {
-		return DHCPLease{}, err
+		return DHCPLease{}, time.Time{}, err
 	}
 
 	hostname := cfg.Hostname
@@ -168,10 +179,10 @@ func AcquireDHCP(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, er
 	rxBuf := make([]byte, 1518)
 	for {
 		if err := ctx.Err(); err != nil {
-			return DHCPLease{}, err
+			return DHCPLease{}, time.Time{}, err
 		}
 		if err := dev.Err(); err != nil {
-			return DHCPLease{}, err
+			return DHCPLease{}, time.Time{}, err
 		}
 
 		// Phase 1: DISCOVER -> OFFER.
@@ -187,10 +198,12 @@ func AcquireDHCP(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, er
 				return true, false
 			})
 		if err != nil {
-			return DHCPLease{}, err
+			return DHCPLease{}, time.Time{}, err
 		}
 
 		// Phase 2: REQUEST -> ACK (or NAK / retry exhaustion -> restart DISCOVER).
+		// RFC 2131 §4.4.1: anchor lease timing to when the DHCPREQUEST is transmitted.
+		requestSentAt := time.Now()
 		reqFrame := buildDHCPFrame(mac, xid, dhcpMsgRequest, hostname, offer.yiaddr, offer.serverID)
 		restarted := false
 		ack, err := dhcpExchange(ctx, dev, rxBuf, mac, xid, initialInterval, maxInterval, maxDHCPRequestRetries,
@@ -224,7 +237,7 @@ func AcquireDHCP(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, er
 				}
 				continue
 			}
-			return DHCPLease{}, err
+			return DHCPLease{}, time.Time{}, err
 		}
 		if restarted {
 			if !fixedXID {
@@ -239,7 +252,7 @@ func AcquireDHCP(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, er
 			}
 			continue
 		}
-		return lease, nil
+		return lease, requestSentAt, nil
 	}
 }
 
@@ -422,6 +435,8 @@ func buildValidatedLease(r dhcpParsedReply) (DHCPLease, bool) {
 		Server:        server.String(),
 		DNS:           dns,
 		LeaseDuration: r.leaseTime,
+		RenewalTime:   r.renewalTime,
+		RebindTime:    r.rebindTime,
 	}, true
 }
 
@@ -439,7 +454,7 @@ func buildDHCPFrame(mac [6]byte, xid uint32, msgType byte, hostname string, requ
 		opts.Write([]byte{dhcpOptHostname, byte(len(hostname))})
 		opts.WriteString(hostname)
 	}
-	opts.Write([]byte{dhcpOptParamList, 5, dhcpOptSubnetMask, dhcpOptRouter, dhcpOptDNS, dhcpOptLeaseTime, dhcpOptServerID})
+	opts.Write([]byte{dhcpOptParamList, 7, dhcpOptSubnetMask, dhcpOptRouter, dhcpOptDNS, dhcpOptLeaseTime, dhcpOptServerID, dhcpOptRenewalTime, dhcpOptRebindTime})
 	opts.WriteByte(dhcpOptEnd)
 	// Pad DHCP options to at least 64 bytes so BOOTP payload meets RFC 2131 minimum 300 bytes.
 	for opts.Len() < 64 {
@@ -609,6 +624,16 @@ func parseDHCPFrame(frame []byte, mac [6]byte, xid uint32) (dhcpParsedReply, boo
 				return dhcpParsedReply{}, false
 			}
 			out.leaseTime = time.Duration(binary.BigEndian.Uint32(val)) * time.Second
+		case dhcpOptRenewalTime:
+			if optLen != 4 {
+				return dhcpParsedReply{}, false
+			}
+			out.renewalTime = time.Duration(binary.BigEndian.Uint32(val)) * time.Second
+		case dhcpOptRebindTime:
+			if optLen != 4 {
+				return dhcpParsedReply{}, false
+			}
+			out.rebindTime = time.Duration(binary.BigEndian.Uint32(val)) * time.Second
 		case dhcpOptServerID:
 			if optLen != 4 {
 				return dhcpParsedReply{}, false

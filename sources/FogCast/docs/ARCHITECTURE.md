@@ -1294,7 +1294,13 @@ takes the same body, needs the kit lease, and removes the record so the next
 launch reads the imported disk again; the runtime refuses it while a core is
 running. A discard may borrow the caller's kit lease, but retains it after a
 `BUSY` response because another concurrent discard may still be using that
-shared grant. Inspect and export change nothing and need no lease.
+shared grant. Inspect and export change nothing and need no lease. They use the
+coordinator's read-only hold rather than the launch/stop transition slot: reads
+serialize briefly against one another to respect `libmister-runtime`'s `busy_`
+guard, yield immediately with `BUSY` whenever a transition is active or waiting,
+and transitions reserve admission first and wait up to 2 s (bounded by caller
+context) for any single in-flight read to finish so shelf polling does not
+reject a concurrent Stop or Launch with `BUSY`.
 
 The `fes.computer` 1.1 pc386 `fes.media.ata-disk` unit is a fixed 1..128 MiB
 unit with 65,536-byte chunks and always reports `saveable:false`. Its package
@@ -1676,11 +1682,27 @@ The input tap endpoint accepts `session_id` from the current input status and
 one HID keyboard press `event` only for an active session with a negotiated
 `fes.keyboard.hid` 1.0 interface. Native gamepad and legacy matrix sessions
 are rejected instead of silently dropping or remapping physical keys. It
-checks the selected kit's connection and lease and input attachment after
+also accepts an optional `modifiers` bitmask, where bits 0..7 denote HID
+usages `0xe0..0xe7`. A nonzero mask requires a non-modifier key. The target
+negotiates chord support separately, applies key and modifier contributions in
+one HID state, and removes only those contributions together. Unrelated
+kit-local holds are retained. The key and modifiers share the tap's ownership
+token; overlapping taps cannot claim the same modifier. A focus transition
+retires the tap along with other held inputs. A remote disconnect retires the
+remote contributions while preserving kit-local holds.
+Unsupported targets fail before chord dispatch.
+The host checks the selected kit's connection and lease and input attachment after
 waiting for the input lock. It rejects missing, incompatible, or unknown target
 observations. On an explicit tap, the host probes the bridge for target-timed
-tap support, then sends one generation-bound operation. The target observes
-the active core and applies the press and release 60 ms apart using its local
+tap support, then sends one generation-bound operation. The target waits at
+most 500 ms for a concurrent kit-local input operation to leave the lifecycle
+fence, then observes the active generation again; cancellation, a longer
+transition, a changed lease or generation, or a focus handoff during that wait
+rejects the tap without a press. An admitted bridge follows the target execution
+lease lifetime, so revocation cancels a pending tap even before ownership
+cleanup has drained the CONNECT request. Ordinary stream disconnects do not
+end that lease. The target
+applies the press and release 60 ms apart using its local
 clock; unrelated held keys from other sources remain held. The tap fails if
 the same key is held locally before the tap or becomes held before its release. A cancellation or
 uncertain press triggers a release attempt; an unconfirmed operation closes
@@ -1918,6 +1940,16 @@ status probes share immutable bytes. The runtime frame protocol is unchanged.
 profiles. On exit, CPU sampling stops before heap GC and serialization.
 Benchmark recipes and measurement limits are in
 [native CPU rendering](native-tenfoot-launcher/CPU.md).
+
+The Linux direct-display kit-host launcher provides the kit-local diagnostic
+`fogcast-tenfoot library-reload`. It triggers the same asynchronous library
+reload while a session is busy and exits successfully only after that exact
+generation has completed successfully. A failed, superseded, stopped or
+timed-out reload reports an error. The command talks to the running launcher
+over a Linux abstract Unix socket, so no stale socket file survives a crash;
+the listener is absent for smoke and non-kit hosts. Completion describes the
+library load, not display presentation: HIL should wait for the command and
+capture the footer separately while the session is still busy.
 
 The framebuffer shell reads native-width evdev records for US keyboard text
 and gamepad buttons plus range-normalized stick/hat axes, merges held commands across devices,
@@ -3392,7 +3424,9 @@ the host needs the packages, not the per-core selections.
 
 The host and `mister-agent` open the durable store as two processes, coordinated
 by its flock. The agent recovers interrupted installations and verifies packages
-when opening; the host skips recovery and verifies durable inventory and
+when opening. It validates each canonical archive, then independently reads and
+compares every installed member byte against that validated archive; identical
+ROM maps need no second structural parse. The host skips recovery and verifies durable inventory and
 selections on access before serving either durable or factory packages. The
 first access verifies selected packages under the lock; a list also verifies
 the other durable packages. Later reads reuse valid stat-fingerprint caches.
@@ -3774,8 +3808,14 @@ neutralizes that exact uncertain source while preserving confirmed remote
 contributors; held local mappings remain suppressed until their physical
 contributors release. A proven pre-dispatch failure can instead retry the
 current desired state.
-For a fresh, unbound matrix sink, lifecycle cleanup may omit the matrix write
-only after a fresh explicit idle observation with a valid runtime instance.
+Source detach or disconnect skips an unbound, empty matrix sink when no
+`fes.keyboard` capability, matrix binding, or pending matrix neutral is active,
+so non-matrix HID cores without controller ports (such as `fes.pc386`) can
+detach without issuing an unbound matrix write. For a fresh, unbound matrix
+sink, lifecycle cleanup may omit the matrix write only after a fresh explicit
+observation with a valid runtime instance confirming either idle or an active
+packaged core without `fes.keyboard` (raw development RBFs and active matrix
+cores remain rejected).
 That proof applies to the current guarded cleanup only: it cannot authorize an
 unbound press or hide an unrelated cleanup failure.
 Synthetic pad keys, the physical local keyboard and the remote keyboard retain
@@ -4270,8 +4310,14 @@ including when no record has yet been written, and checks durable target data.
 
 `targetclient/core_data_client.go` sends bounded archives and expected package IDs to
 `internal/httpapi/core_data.go`; writes and library loads use the existing kit
-lease. Read-only data inspection does not claim hardware. The target coordinator
-serializes these calls against lifecycle operations. `internal/misterruntime/core_data.go`
+lease. Read-only data inspection (`InspectCoreData`, `InspectGameCoreData`,
+`InspectMediaRecord`, `ExportMediaRecord`) does not claim hardware or take the
+launch/stop transition slot: the target coordinator serializes reads against one
+another under a separate read hold without bumping `transitionEpoch` (so
+`StatusWithRuntimeInput` stays live), returns `BUSY` immediately to new reads
+once any transition is active or waiting, and lets transitions reserve admission
+first and wait up to 2 s (bounded by caller context) for any single in-flight
+read to release the runtime before proceeding. `internal/misterruntime/core_data.go`
 privately stages/admit-checks exact bytes, supplies the fixed trusted
 `/media/fat/fogcast/core-data` root, and calls protocol-2 `inspect_core_data`,
 `update_core_settings`, or `load_library_core`. No network caller supplies a

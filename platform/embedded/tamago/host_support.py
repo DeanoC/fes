@@ -11,6 +11,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import zlib
 
@@ -311,4 +312,162 @@ class Guest:
         if exception_type is not None and self.qmp_stream is not None:
             with contextlib.suppress(OSError, RuntimeError, ValueError):
                 self.screenshot("failure")
+        self.close()
+
+
+_SNTP_EPOCH_DELTA = 2208988800
+
+
+def _encode_ntp_timestamp(unix_time):
+    whole = int(unix_time)
+    frac = int((unix_time - whole) * (1 << 32)) & 0xFFFFFFFF
+    secs = (whole + _SNTP_EPOCH_DELTA) & 0xFFFFFFFF
+    return struct.pack(">II", secs, frac)
+
+
+def _decode_dns_qname(packet, offset):
+    labels = []
+    pos = offset
+    while pos < len(packet):
+        length = packet[pos]
+        pos += 1
+        if length == 0:
+            return ".".join(labels), pos
+        if length & 0xC0 or pos + length > len(packet):
+            return None, pos
+        labels.append(packet[pos:pos + length].decode("ascii", errors="replace"))
+        pos += length
+    return None, pos
+
+
+class LocalDNSServer:
+    """Minimal loopback RFC 1035 IPv4 A-record responder for offline QEMU tests."""
+
+    def __init__(self, records):
+        self._records = {k.lower().rstrip("."): socket.inet_aton(v) for k, v in records.items()}
+        self._lock = threading.Lock()
+        self._queries = []
+        self._stop = threading.Event()
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._sock.bind(("127.0.0.1", 0))
+        self._sock.settimeout(0.1)
+        self.port = self._sock.getsockname()[1]
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+        self._thread.start()
+
+    @property
+    def queries(self):
+        with self._lock:
+            return list(self._queries)
+
+    def _serve(self):
+        while not self._stop.is_set():
+            try:
+                data, addr = self._sock.recvfrom(512)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            reply = self._handle(data)
+            if reply is not None:
+                with contextlib.suppress(OSError):
+                    self._sock.sendto(reply, addr)
+
+    def _handle(self, data):
+        if len(data) < 12:
+            return None
+        qid, flags, qdcount, _, _, _ = struct.unpack(">HHHHHH", data[:12])
+        if (flags & 0x8000) != 0 or qdcount < 1:
+            return None
+        qname, next_off = _decode_dns_qname(data, 12)
+        if qname is None or next_off + 4 > len(data):
+            return None
+        qtype, qclass = struct.unpack(">HH", data[next_off:next_off + 4])
+        question = data[12:next_off + 4]
+        canonical = qname.lower().rstrip(".")
+        with self._lock:
+            self._queries.append(canonical)
+        rd = flags & 0x0100
+        ip_bytes = self._records.get(canonical)
+        if ip_bytes is not None and qtype == 1 and qclass == 1:
+            hdr = struct.pack(">HHHHHH", qid, 0x8480 | rd, 1, 1, 0, 0)
+            ans = struct.pack(">HHHIH", 0xC00C, 1, 1, 60, 4) + ip_bytes
+            return hdr + question + ans
+        rcode = 3 if ip_bytes is None else 0
+        hdr = struct.pack(">HHHHHH", qid, 0x8480 | rd | rcode, 1, 0, 0, 0)
+        return hdr + question
+
+    def close(self):
+        self._stop.set()
+        with contextlib.suppress(OSError):
+            self._sock.close()
+        self._thread.join(timeout=2)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+
+class LocalSNTPServer:
+    """Minimal loopback RFC 4330 SNTPv4 stratum-1 responder for offline QEMU tests."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._requests = 0
+        self._stop = threading.Event()
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._sock.bind(("127.0.0.1", 0))
+        self._sock.settimeout(0.1)
+        self.port = self._sock.getsockname()[1]
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+        self._thread.start()
+
+    @property
+    def requests(self):
+        with self._lock:
+            return self._requests
+
+    def _serve(self):
+        while not self._stop.is_set():
+            try:
+                data, addr = self._sock.recvfrom(512)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            reply = self._handle(data)
+            if reply is not None:
+                with contextlib.suppress(OSError):
+                    self._sock.sendto(reply, addr)
+
+    def _handle(self, data):
+        if len(data) < 48 or (data[0] & 0x07) != 3:
+            return None
+        rx = time.time()
+        with self._lock:
+            self._requests += 1
+        originate = data[40:48]
+        tx = time.time()
+        return (
+            bytes([(4 << 3) | 4, 1, data[2], 0xEC])
+            + b"\x00" * 8
+            + b"LOCL"
+            + _encode_ntp_timestamp(rx)
+            + originate
+            + _encode_ntp_timestamp(rx)
+            + _encode_ntp_timestamp(tx)
+        )
+
+    def close(self):
+        self._stop.set()
+        with contextlib.suppress(OSError):
+            self._sock.close()
+        self._thread.join(timeout=2)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
         self.close()

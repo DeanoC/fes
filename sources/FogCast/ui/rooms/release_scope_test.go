@@ -35,6 +35,10 @@ function draw() end`
 		if !releaseOnly {
 			check = `#got == 4 and systems.by_id["fes.coleco"] and room.core_shown("fes.pong")
 				and systems.family_by_core["fes.c64-ntsc"] == systems.family_by_core["fes.c64"]
+				and systems.family_by_core["fes.c64c"] == systems.family_by_core["fes.c64"]
+				and systems.family_by_core["fes.c64c-ntsc"] == systems.family_by_core["fes.c64"]
+				and systems.by_id["fes.c64c"].facts[2][2] == "SID 8580"
+				and systems.by_id["fes.c64c-ntsc"].facts[2][2] == "SID 8580"
 				and systems.family_by_core["fes.c64"].variants[1].id == "fes.c64"`
 		}
 		if err := r.CheckGlobal(check); err != nil {

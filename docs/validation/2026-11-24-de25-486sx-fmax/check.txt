@@ -1,0 +1,70 @@
+PASS pll c16-s1: M 188 N 3 C0 16 C1 255
+PASS pll c18-s1: M 188 N 3 C0 18 C1 255
+PASS pll c20-s1: M 188 N 3 C0 20 C1 255
+PASS pll c20-s2: M 188 N 3 C0 20 C1 255
+PASS pll c20-s3: M 188 N 3 C0 20 C1 255
+PASS pll c20-s4: M 188 N 3 C0 20 C1 255
+PASS pll c22-s1: M 188 N 3 C0 22 C1 255
+PASS pll c22-s2: M 188 N 3 C0 22 C1 255
+PASS pll c22-s3: M 188 N 3 C0 22 C1 255
+PASS pll c22-s4: M 188 N 3 C0 22 C1 255
+PASS pll c24-s1: M 188 N 3 C0 24 C1 255
+PASS pll c24-s2: M 188 N 3 C0 24 C1 255
+PASS pll c24-s3: M 188 N 3 C0 24 C1 255
+PASS pll c24-s4: M 188 N 3 C0 24 C1 255
+PASS pll c25-s1: M 188 N 3 C0 25 C1 255
+PASS pll c26-s1: M 188 N 3 C0 26 C1 255
+PASS pll c27-s1: M 188 N 3 C0 27 C1 255
+PASS pll c28-s1: M 188 N 3 C0 28 C1 255
+PASS pll c28-s2: M 188 N 3 C0 28 C1 255
+PASS pll c28-s3: M 188 N 3 C0 28 C1 255
+PASS pll c28-s4: M 188 N 3 C0 28 C1 255
+PASS pll c30-s1: M 188 N 3 C0 30 C1 255
+PASS pll c32-s1: M 188 N 3 C0 32 C1 255
+PASS pll c34-s1: M 188 N 3 C0 34 C1 255
+PASS pll c37-s1: M 188 N 3 C0 37 C1 255
+PASS pll c42-s1: M 188 N 3 C0 42 C1 255
+PASS pll control-s1: M 188 N 3 C0 51 C1 255
+PASS netlist c16: 1 distinct
+PASS netlist c18: 1 distinct
+PASS netlist c20: 1 distinct
+PASS netlist c22: 1 distinct
+PASS netlist c24: 1 distinct
+PASS netlist c25: 1 distinct
+PASS netlist c26: 1 distinct
+PASS netlist c27: 1 distinct
+PASS netlist c28: 1 distinct
+PASS netlist c30: 1 distinct
+PASS netlist c32: 1 distinct
+PASS netlist c34: 1 distinct
+PASS netlist c37: 1 distinct
+PASS netlist c42: 1 distinct
+PASS netlist control: 1 distinct
+PASS audio control: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.846 to +9.434
+PASS audio k041ecaed5-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.836 to +9.413
+PASS audio k0e1158447-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.761 to +9.399
+PASS audio k287a460e4-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.827 to +9.420
+PASS audio k33e5f3cec-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.840 to +9.412
+PASS audio k45450fe59-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.675 to +9.405
+PASS audio k5e5c8f39b-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.810 to +9.414
+PASS audio k71b2f18bf-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.799 to +9.416
+PASS audio k7df48e2ac-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.813 to +9.398
+PASS audio k8c3361dd7-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.793 to +9.410
+PASS audio k8e9e7268c-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.736 to +9.417
+PASS audio k8e9e7268c-s2: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.797 to +9.419
+PASS audio k8e9e7268c-s3: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.830 to +9.437
+PASS audio k8e9e7268c-s4: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.711 to +9.419
+PASS audio kb63615a7a-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.799 to +9.407
+PASS audio kd5307ceba-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.791 to +9.412
+PASS audio kd5307ceba-s2: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.775 to +9.411
+PASS audio kd5307ceba-s3: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.768 to +9.409
+PASS audio kd5307ceba-s4: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.633 to +9.396
+PASS audio keee970148-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.736 to +9.403
+PASS audio keee970148-s2: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.762 to +9.409
+PASS audio keee970148-s3: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.802 to +9.413
+PASS audio keee970148-s4: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.784 to +9.412
+PASS audio kf1457fc76-s1: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.748 to +9.407
+PASS audio kf1457fc76-s2: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.826 to +9.412
+PASS audio kf1457fc76-s3: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.762 to +9.427
+PASS audio kf1457fc76-s4: 64 machine<->audio setup paths over every corner, 0 not a fixed bound, slack +8.735 to +9.418
+ALL PASS

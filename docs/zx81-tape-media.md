@@ -31,7 +31,7 @@ tape-loader work. Read this before adding a sofa tape picker, a mid-session
   [`sources/mister-packages/docs/media-stream.md`](../sources/mister-packages/docs/media-stream.md)
 - Idle MENU → rooms (design-lock pattern; sofa yields during play):
   [`docs/idle-menu-rooms.md`](idle-menu-rooms.md),
-  [`docs/idle-menu-rooms-phase2.md`](idle-menu-rooms-phase2.md)
+  [`docs/archive/idle-menu-rooms-phase2.md`](archive/idle-menu-rooms-phase2.md)
 - Rooms / tenfoot chrome:
   [`sources/FogCast/docs/rooms-experience.md`](../sources/FogCast/docs/rooms-experience.md),
   [`sources/FogCast/docs/native-tenfoot-launcher/README.md`](../sources/FogCast/docs/native-tenfoot-launcher/README.md)

@@ -22,6 +22,9 @@
 #include "native/generated/fes_firmware_upload.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
+#include "native/de25_hps_window.hpp"
+#include "native/generated/fes_de25_hps_window.hpp"
+#include "native/de25_core_contract.hpp"
 #include "native/menu_admission.hpp"
 #include "native/menu_display.hpp"
 #include "native/menu_underflow.hpp"
@@ -3286,6 +3289,156 @@ void TestHpsDdrNeedsTheBootLayout()
 	}
 }
 
+
+// The DE25's fes.memory.hps-ddr is the kernel owner's per-session window,
+// not a boot layout: a load opens it for the package's build in place of the
+// DE10 port release, and Stop releases it once the driver holds the machine,
+// before the next core is programmed. An owner that offers no window refuses
+// the interface; a window that cannot be released keeps the configuration.
+class WindowOwner final : public mister::native::De25WindowOperations {
+public:
+	WindowOwner(std::vector<std::string>& events, const std::string& build) : events_(events)
+	{
+		assert(mister::native::De25BuildWords(build, &grant.build_id).ok());
+		grant.generation = 3;
+		grant.version = mister::native::generated::FesDe25HpsWindowVersion;
+		grant.span = mister::native::generated::FesDe25HpsWindowSpan;
+		grant.status = mister::native::generated::FesDe25HpsWindowStatusGranted |
+			mister::native::generated::FesDe25HpsWindowStatusHeld |
+			mister::native::generated::FesDe25HpsWindowStatusDrained;
+	}
+	bool Available() override { return available; }
+	mister::Error Allocate(int* window) override { events_.push_back("window.allocate"); *window = 40; return {}; }
+	mister::Error Info(int, mister::native::De25WindowGrant* out) override { *out = grant; return {}; }
+	mister::Error Grant(int, std::uint64_t, std::uint64_t, int*) override { return {mister::ErrorCode::io_failed, "unused"}; }
+	mister::Error Map(int, std::size_t, void**) override { return {mister::ErrorCode::io_failed, "unused"}; }
+	void Unmap(void*, std::size_t) override {}
+	mister::Error Revoke(int) override { return {}; }
+	mister::Error Release(int) override { events_.push_back("window.release"); return release; }
+	void Close(int) override {}
+	mister::native::De25WindowGrant grant;
+	bool available = true;
+	mister::Error release;
+private:
+	std::vector<std::string>& events_;
+};
+
+void TestDe25WindowIsGrantedPerSession()
+{
+	enum class Trial { offered, not_offered, release_fails, replaced, quiesce_fails, quiesce_and_release_fail };
+	for (const Trial trial : {Trial::offered, Trial::not_offered, Trial::release_fails, Trial::replaced,
+			Trial::quiesce_fails, Trial::quiesce_and_release_fail}) {
+		std::vector<std::string> driver_events;
+		RecordingDriver gp(driver_events);
+		IntegratedFixture fixture(&gp);
+		// No boot layout: only the window can admit the interface.
+		fixture.native.fpga.boot_hps_ddr_layout = false;
+		TempDirectory package;
+		mister::native::OpenedCorePackage opened;
+		PopulateHpsDdrApplication(&package, true, &opened);
+		WindowOwner owner(driver_events, opened.descriptor.build.id);
+		owner.available = trial != Trial::not_offered;
+		if (trial == Trial::release_fails || trial == Trial::quiesce_and_release_fail)
+			owner.release = {mister::ErrorCode::busy, "ports not drained"};
+		mister::native::De25HpsWindow window(owner);
+		fixture.native.hardware.SetHpsWindow(&window);
+		fixture.Start();
+		const mister::Error error = fixture.runtime.LoadCore(package.path, opened.package_id);
+		if (trial == Trial::not_offered) {
+			assert(error.code == mister::ErrorCode::unsupported_interface);
+			assert(Count(driver_events, "window.allocate") == 0);
+			continue;
+		}
+		if (!error.ok()) fprintf(stderr, "window load: %s\n", error.message.c_str());
+		assert(error.ok());
+		// Opened after identity, before execution; never the DE10 port path.
+		assert(fixture.native.fpga.hps_ddr_calls == 0);
+		assert(Find(driver_events, "driver.identify") < Find(driver_events, "window.allocate"));
+		assert(Find(driver_events, "window.allocate") < Find(driver_events, "driver.start"));
+		assert(window.Ready());
+		const int programs = fixture.native.fpga.calls;
+		if (trial == Trial::replaced) {
+			// Replacing the core quiesces it, then releases, then programs.
+			TempDirectory plain;
+			mister::native::OpenedCorePackage other;
+			PopulateHpsDdrApplication(&plain, false, &other);
+			int programs_at_release = -1;
+			fixture.native.fpga.on_program = [&] {
+				if (programs_at_release < 0 && Count(driver_events, "window.release") == 1)
+					programs_at_release = fixture.native.fpga.calls;
+			};
+			assert(fixture.runtime.LoadCore(plain.path, other.package_id).ok());
+			assert(Find(driver_events, "driver.quiesce") < Find(driver_events, "window.release"));
+			assert(programs_at_release == programs + 1 && !window.Ready());
+			continue;
+		}
+		if (trial == Trial::quiesce_fails || trial == Trial::quiesce_and_release_fail) {
+			// The driver's quiesce fails after mutating, so the window is never
+			// released there and the core is forgotten. The next replacement
+			// finds no driver, but the window is still open: the owner must
+			// release it (only while drained) before anything is programmed.
+			gp.quiesce_result = {{mister::ErrorCode::io_failed, "quiesce lost"}, true, ""};
+			TempDirectory plain;
+			mister::native::OpenedCorePackage other;
+			PopulateHpsDdrApplication(&plain, false, &other);
+			const auto load_plain = [&] {
+				std::unique_ptr<mister::AdmittedCorePackage> admitted;
+				assert(fixture.native.hardware.AdmitCorePackage(plain.path, other.package_id, &admitted).ok());
+				return fixture.native.hardware.LoadCore(std::move(admitted), 0).error;
+			};
+			assert(!load_plain().ok());
+			assert(Count(driver_events, "window.release") == 0 && window.Ready());
+			assert(fixture.native.fpga.calls == programs);
+			int releases_at_program = -1;
+			fixture.native.fpga.on_program = [&] {
+				if (releases_at_program < 0) releases_at_program = static_cast<int>(Count(driver_events, "window.release"));
+			};
+			const std::size_t quiesces = Count(driver_events, "driver.quiesce");
+			const mister::Error loaded = load_plain();
+			// No driver was left to quiesce.
+			assert(Count(driver_events, "driver.quiesce") == quiesces);
+			assert(Count(driver_events, "window.release") == 1 && !window.Ready());
+			if (trial == Trial::quiesce_fails) {
+				assert(loaded.ok() && releases_at_program == 1);
+			} else {
+				// A release the owner refuses poisons the window: nothing is
+				// programmed, now or by the idle image.
+				assert(!loaded.ok() && fixture.native.fpga.calls == programs);
+				assert(!fixture.native.hardware.LoadIdle().error.ok());
+				assert(fixture.native.fpga.calls == programs);
+			}
+			continue;
+		}
+		const mister::Error stopped = fixture.runtime.Stop();
+		assert(Find(driver_events, "driver.quiesce") < Find(driver_events, "window.release"));
+		if (trial == Trial::release_fails) {
+			// The machine keeps its configuration: nothing else is programmed.
+			assert(!stopped.ok());
+			assert(fixture.native.fpga.calls == programs);
+			assert(!window.Ready());
+			// The unreleased window stays poisoned: no later Stop or load may
+			// program over it either.
+			TempDirectory plain;
+			mister::native::OpenedCorePackage other;
+			PopulateHpsDdrApplication(&plain, false, &other);
+			assert(!fixture.runtime.Stop().ok());
+			assert(!fixture.runtime.LoadCore(plain.path, other.package_id).ok());
+			// The hardware refuses on its own, not only through the runtime's
+			// latched failure: it has forgotten the core, so no driver is left
+			// to quiesce, and the poisoned window must still refuse.
+			std::unique_ptr<mister::AdmittedCorePackage> admitted;
+			assert(fixture.native.hardware.AdmitCorePackage(plain.path, other.package_id, &admitted).ok());
+			assert(!fixture.native.hardware.LoadCore(std::move(admitted), 0).error.ok());
+			assert(!fixture.native.hardware.LoadIdle().error.ok());
+			assert(fixture.native.fpga.calls == programs);
+			continue;
+		}
+		assert(stopped.ok());
+		assert(!window.Ready());
+		assert(fixture.native.fpga.calls == programs + 1);
+	}
+}
+
 void TestHpsDdrReleaseFailureRecoversBeforeExecution()
 {
 	struct Case {
@@ -6492,6 +6645,11 @@ void TestDe25FirmwareMachineUploadsBeforeRelease(bool atari_st,FirmwareTrial tri
  for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
   if(abi.id=="fes.computer"&&interface.id=="fes.fabric.firmware-upload"&&interface.major==1&&interface.minor==0)advertised=true;
  assert(advertised&&hardware.capabilities().rom_linking==0);
+ // pc386 is in the table, but nothing behind an HPS DDR window is
+ // advertised until this runtime has a window backend.
+ for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
+  assert(interface.id!="fes.memory.hps-ddr"&&interface.id!="fes.fabric.de25-hps-window"&&
+   interface.id!="fes.media.ata-disk"&&interface.id!="fes.pc386.machine");
  CoreROMLink link;
  link.rom_id="machine-rom";link.map_sha256=hash(map);link.source_sha256=hash(image);link.source_size=bytes;
  link.programmed_sha256=hash(payload);link.programmed_size=payload.size();
@@ -6659,6 +6817,7 @@ int main(int argc,char** argv)
 	TestComputerSnapshotInterfacesBecomeActiveThroughRuntime();
 	TestHpsDdrPortsReleaseAfterIdentityBeforeExecution();
 	TestHpsDdrReleaseFailureRecoversBeforeExecution();
+	TestDe25WindowIsGrantedPerSession();
 	TestHpsDdrNeedsTheBootLayout();
 	TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities();
 	TestProductionFactoryForwardsCoreDataWithoutHardwareMutation();

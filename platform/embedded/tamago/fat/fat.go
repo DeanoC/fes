@@ -31,6 +31,11 @@ const maxFileBytes = 64 << 20
 const maxDirectoryBytes = 4 << 20
 const maxTransferSectors = 128 // 64 KiB per coalesced ReadSectors/WriteSectors call
 
+type entryLocation struct {
+	sector uint64
+	offset int
+}
+
 type Volume struct {
 	mu                  sync.Mutex
 	device              block.Device
@@ -42,6 +47,7 @@ type Volume struct {
 	fsInfo              uint64
 	allocationValid     bool
 	mutationErr         error
+	replacedGen         map[entryLocation]uint64
 	clock               func() time.Time
 }
 
@@ -304,6 +310,8 @@ type entry struct {
 	sector     uint64
 	offset     int
 	modTime    time.Time
+	lfnSlots   []entryLocation
+	shortSum   byte
 }
 
 func shortName(b []byte) string {
@@ -346,6 +354,7 @@ func (v *Volume) entriesContext(ctx context.Context, cluster uint32) ([]entry, e
 	}
 	var result []entry
 	var lfn []uint16
+	var lfnSlots []entryLocation
 	var checksum byte
 	expected := 0
 	spc := int(v.sectorsPerCluster)
@@ -372,6 +381,7 @@ func (v *Volume) entriesContext(ctx context.Context, cluster uint32) ([]entry, e
 					}
 					if d[0] == 0xe5 {
 						lfn = nil
+						lfnSlots = nil
 						expected = 0
 						continue
 					}
@@ -380,15 +390,18 @@ func (v *Volume) entriesContext(ctx context.Context, cluster uint32) ([]entry, e
 						if d[0]&0x40 != 0 {
 							if seq == 0 || seq > 20 {
 								lfn = nil
+								lfnSlots = nil
 								expected = 0
 								continue
 							}
 							lfn = make([]uint16, seq*13)
+							lfnSlots = make([]entryLocation, 0, seq)
 							expected = seq
 							checksum = d[13]
 						}
 						if seq == 0 || seq != expected || len(lfn) < seq*13 || d[13] != checksum || d[12] != 0 || binary.LittleEndian.Uint16(d[26:]) != 0 {
 							lfn = nil
+							lfnSlots = nil
 							expected = 0
 							continue
 						}
@@ -396,18 +409,24 @@ func (v *Volume) entriesContext(ctx context.Context, cluster uint32) ([]entry, e
 						for i, p := range positions {
 							lfn[(seq-1)*13+i] = binary.LittleEndian.Uint16(d[p:])
 						}
+						lfnSlots = append(lfnSlots, entryLocation{sector: sector, offset: off})
 						expected--
 						continue
 					}
 					name := shortName(d)
+					var matchedSlots []entryLocation
+					var matchedSum byte
 					if lfn != nil && expected == 0 && checksum == shortChecksum(d) {
 						n := 0
 						for n < len(lfn) && lfn[n] != 0 && lfn[n] != 0xffff {
 							n++
 						}
 						name = string(utf16.Decode(lfn[:n]))
+						matchedSlots = lfnSlots
+						matchedSum = checksum
 					}
 					lfn = nil
+					lfnSlots = nil
 					expected = 0
 					if d[11]&8 != 0 || name == "." || name == ".." {
 						continue
@@ -417,7 +436,7 @@ func (v *Volume) entriesContext(ctx context.Context, cluster uint32) ([]entry, e
 					}
 					first := uint32(binary.LittleEndian.Uint16(d[20:]))<<16 | uint32(binary.LittleEndian.Uint16(d[26:]))
 					modTime := decodeFATTimestamp(binary.LittleEndian.Uint16(d[24:]), binary.LittleEndian.Uint16(d[22:]))
-					result = append(result, entry{name: name, attributes: d[11], cluster: first, size: binary.LittleEndian.Uint32(d[28:]), sector: sector, offset: off, modTime: modTime})
+					result = append(result, entry{name: name, attributes: d[11], cluster: first, size: binary.LittleEndian.Uint32(d[28:]), sector: sector, offset: off, modTime: modTime, lfnSlots: matchedSlots, shortSum: matchedSum})
 				}
 			}
 			s += run
@@ -478,6 +497,9 @@ func (v *Volume) Open(name string) (fs.File, error) {
 		f.directory, err = v.entries(e.cluster)
 		sort.Slice(f.directory, func(i, j int) bool { return f.directory[i].name < f.directory[j].name })
 	} else {
+		if v.replacedGen != nil {
+			f.openGen = v.replacedGen[entryLocation{sector: e.sector, offset: e.offset}]
+		}
 		if e.size > maxFileBytes {
 			err = ErrCapacity
 		} else {
@@ -574,6 +596,7 @@ type file struct {
 	entry     entry
 	chain     []uint32
 	directory []entry
+	openGen   uint64
 	position  int64
 	closed    bool
 }
@@ -592,16 +615,19 @@ func (f *file) Read(dst []byte) (int, error) {
 	if f.entry.attributes&16 != 0 {
 		return 0, fs.ErrInvalid
 	}
+	f.volume.mu.Lock()
+	defer f.volume.mu.Unlock()
+	if f.volume.mutationErr != nil {
+		return 0, f.volume.mutationErr
+	}
+	if f.volume.replacedGen != nil && f.volume.replacedGen[entryLocation{sector: f.entry.sector, offset: f.entry.offset}] != f.openGen {
+		return 0, ErrReplaced
+	}
 	if len(dst) == 0 {
 		return 0, nil
 	}
 	if f.position >= int64(f.entry.size) {
 		return 0, io.EOF
-	}
-	f.volume.mu.Lock()
-	defer f.volume.mu.Unlock()
-	if f.volume.mutationErr != nil {
-		return 0, f.volume.mutationErr
 	}
 	count := min(len(dst), int(int64(f.entry.size)-f.position))
 	done := 0

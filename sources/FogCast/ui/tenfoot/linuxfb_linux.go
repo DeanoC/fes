@@ -95,6 +95,14 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, labe
 		defer cancel()
 	}
 	app.Start(ctx)
+	if opts.KitHost && !opts.Smoke {
+		stopReload, err := startLibraryReloadControl(ctx, app, libraryReloadSocket)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "tenfoot: library reload control unavailable: %v\n", err)
+		} else {
+			defer stopReload()
+		}
+	}
 	if service != nil {
 		service.start()
 	}

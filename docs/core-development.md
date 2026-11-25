@@ -4,16 +4,19 @@ Use this lane to prepare one described core for an **already-compatible**
 platform. It never assembles `linux.img`, changes the factory package set,
 or updates target software. Preparation selects the registered producer for
 the requested board; the default is DE10-Nano. DE25-Nano explicitly selects
-its Quartus Pro MENU or BRAM ZX81 recipe. General labelled product variants
-remain part of the rollout in [Quartus-built cores](design/quartus-cores.md).
+its registered Quartus Pro 26.3 recipes (`fes.menu`, `fes.zx81`,
+`fes.spectrum`, `fes.atari-st`, `fes.c64`, `fes.pcxt-dos`). General labelled
+product variants remain part of the rollout in
+[Quartus-built cores](design/quartus-cores.md).
 
 ## Ownership and source of truth
 
 `config/core-recipes.toml` maps board/core pairs to the selected misteross producer,
 authentication function and toolchain lock. It is versioned, strictly validated
 data, not a list of shell commands. OSS recipes use their declared nextpnr
-lane; pc386, PC/XT DOS and DE25 select registered Quartus producers. The pc386
-sealer accepts either authenticated HIP or CUDA toolchain slot and routes no GPU.
+lane; the DE10 ZX81 family, PC/XT DOS, pc386 and DE25 select registered Quartus
+producers. The pc386 sealer accepts either authenticated HIP or CUDA toolchain
+slot and routes no GPU.
 A failed producer remains failed. The existing image builder and the developer
 command consume the same board-scoped registry.
 Cached-package inspection and archive reconstruction use that independently
@@ -42,7 +45,7 @@ make core-dev CORE_DEV_ARGS='prepare --core fes.pong --output out/core-dev/pong-
 
 For a standard NTSC Commodore 64 candidate on DE10, use
 `make core-dev CORE_DEV_ARGS='prepare --core fes.c64-ntsc --output out/core-dev/c64-ntsc-001'`.
-Select `fes.c64` for PAL. Both models take the same external 36 KiB firmware.
+Select `fes.c64` for PAL. For C64C with the MOS8580 SID, select `fes.c64c` for PAL or `fes.c64c-ntsc` for NTSC. All four profiles take the same external 36 KiB firmware.
 
 Choose a new output directory for each candidate. Preparation checks selected
 module selections, takes the normal parent build lock and runs the existing
@@ -64,10 +67,11 @@ explicitly:
 make core-dev CORE_DEV_ARGS='prepare --board de25-nano --core fes.zx81 --output out/core-dev/de25-zx81-001'
 ```
 
-`fes.menu` also has a DE25 recipe. Unsupported board/core pairs fail before
-source staging or compilation. DE25 uses its authenticated Quartus Pro
-producer, vendor source archive and complete timing/signoff gate, including
-independent RBF reproduction before package export. An ineligible candidate
+Registered DE25 recipes currently cover `fes.menu`, `fes.zx81`, `fes.spectrum`,
+`fes.atari-st`, `fes.c64` and `fes.pcxt-dos`. Unsupported board/core pairs fail
+before source staging or compilation. DE25 uses its authenticated Quartus Pro
+26.3 producer, vendor source archive, canonical Qsys/QIP generation (#2090) and
+complete timing/signoff gate before package export. An ineligible candidate
 cannot produce a successful preparation receipt. The package's sealed target,
 programming profile, interfaces and source provenance remain authoritative;
 preparation grants no native kit acceptance. See the
@@ -195,7 +199,7 @@ package-acceptance runners. The isolated
 wrapper freezes one copy in its evidence directory and uses it in both lifecycle
 cycles. Missing options preserve the previous lifecycle-only behavior.
 
-Recipes are closed format-1 JSON documents with a versioned `interface` and an
+Format-1 recipes are closed JSON documents with a versioned `interface` and an
 explicit `events` array. Files are limited to 64 KiB and 64 events. Supported
 event forms, balanced press/release pairs and neutral final axis state are
 validated before any API mutation. No arbitrary sleeps or commands are allowed.
@@ -204,6 +208,15 @@ input bridge must be attached and ready before dispatch. HID recipes require
 exactly `fes.keyboard.hid` 1.0 and keyboard events carrying `0x1000 + usage`,
 where usage is `0x04..0x7f` or `0xe0..0xe7`. Reserved usages, matrix codes and
 gamepad events are refused in that recipe; no keyboard mapping is inferred.
+
+An explicit format-2 HID recipe instead lists target-timed taps as
+`{"code": 4126, "modifiers": 2}`. `code` is a non-modifier HID event code;
+`modifiers` is the USB HID modifier bitmask (bit 1 is left Shift). Set it to
+zero for an unmodified tap. The host binds every operation to the observed
+input session and requires the target chord capability for nonzero modifiers.
+The runner never infers taps from format-1 press/release sequences or converts
+physical keyboard holds. A tap receipt confirms sink completion, not guest
+consumption or a guest-visible timing bound.
 
 The runner checks session and input-bridge identity before each event and while
 observing counters. A changed owner, reconnect, regressed counter, timeout or

@@ -7,7 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
+	"github.com/DeanoC/fes/platform/embedded/tamago/input/usbhub"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usbcontrol"
 )
@@ -27,6 +30,15 @@ func (m *programUSBMetrics) count(report []byte, err error) ([]byte, error) {
 		}
 	}
 	return report, err
+}
+func (m *programUSBMetrics) countInto(n int, err error) (int, error) {
+	if err == nil {
+		m.polls++
+		if n > 0 {
+			m.reports++
+		}
+	}
+	return n, err
 }
 func (m *programUSBMetrics) boundary(ctx context.Context, source input.PollingControl, pause bool) error {
 	var err error
@@ -59,6 +71,10 @@ func (s *sharedProgramKeyboard) PollKeyboard() ([]byte, error) {
 	r, e := s.source.PollKeyboard()
 	return s.metrics.count(r, e)
 }
+func (s *sharedProgramKeyboard) PollKeyboardInto(dst []byte) (int, error) {
+	n, e := s.source.PollKeyboardInto(dst)
+	return s.metrics.countInto(n, e)
+}
 func (s *sharedProgramKeyboard) PausePolling(ctx context.Context) error {
 	return s.metrics.boundary(ctx, s.source, true)
 }
@@ -78,6 +94,10 @@ func (s *sharedProgramGamepad) PollGamepad() ([]byte, error) {
 	r, e := s.source.PollGamepad()
 	return s.metrics.count(r, e)
 }
+func (s *sharedProgramGamepad) PollGamepadInto(dst []byte) (int, error) {
+	n, e := s.source.PollGamepadInto(dst)
+	return s.metrics.countInto(n, e)
+}
 func (s *sharedProgramGamepad) PausePolling(ctx context.Context) error {
 	return s.metrics.boundary(ctx, s.source, true)
 }
@@ -87,3 +107,48 @@ func (s *sharedProgramGamepad) ResumePolling(ctx context.Context) error {
 func (s *sharedProgramGamepad) Ready() <-chan struct{} {
 	return s.source.Ready()
 }
+
+type sharedProgramMulti struct {
+	hub     *usbhub.Hub
+	metrics *programUSBMetrics
+}
+
+func (s *sharedProgramMulti) Service() error {
+	err := s.hub.Service()
+	if err == nil {
+		s.metrics.polls++
+	}
+	return err
+}
+func (s *sharedProgramMulti) NextKeyboardReport() ([8]byte, bool) {
+	rep, ok := s.hub.NextKeyboardReport()
+	if ok {
+		s.metrics.reports++
+	}
+	return rep, ok
+}
+func (s *sharedProgramMulti) NextGamepadUpdate() (usbhub.GamepadUpdate, bool) {
+	upd, ok := s.hub.NextGamepadUpdate()
+	if ok {
+		s.metrics.reports++
+	}
+	return upd, ok
+}
+func (s *sharedProgramMulti) KeyboardNeutral() bool { return s.hub.KeyboardNeutral() }
+func (s *sharedProgramMulti) GamepadNeutral() bool  { return s.hub.GamepadNeutral() }
+func (s *sharedProgramMulti) SetGameplayActive(active bool) error {
+	return s.hub.SetGameplayActive(active)
+}
+func (s *sharedProgramMulti) StartPairing(d time.Duration) error { return s.hub.StartPairing(d) }
+func (s *sharedProgramMulti) StopPairing() error                 { return s.hub.StopPairing() }
+func (s *sharedProgramMulti) PairingActive() bool                { return s.hub.PairingActive() }
+func (s *sharedProgramMulti) SaveBondsIfDirty(ctx context.Context) (bool, error) {
+	return s.hub.SaveBondsIfDirty(ctx)
+}
+func (s *sharedProgramMulti) PausePolling(ctx context.Context) error {
+	return s.metrics.boundary(ctx, s.hub, true)
+}
+func (s *sharedProgramMulti) ResumePolling(ctx context.Context) error {
+	return s.metrics.boundary(ctx, s.hub, false)
+}
+func (s *sharedProgramMulti) Ready() <-chan struct{} { return s.hub.Ready() }

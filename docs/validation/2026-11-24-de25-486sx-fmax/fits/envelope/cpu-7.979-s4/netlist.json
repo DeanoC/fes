@@ -1,0 +1,14 @@
+{
+  "fitted_netlist": {
+    "duplicate_attribute_count": 0,
+    "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+    "fitted_sha256": "3b73993b52976298d2662e9a61a56d71fb11cf6a58300202b958cf8d612ac5d3",
+    "ram_attribute": "renamed 32 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+    "ram_attribute_count": 32,
+    "source": "/data/projects/fes-486sx-fmax-env/env-netlists/cpu/netlist/fes_i386_cpu.netlist.v",
+    "source_sha256": "dc4eb486be6d231397b9bad943ac0877566e3dd8f98e4ee380720eea4e7d30f5"
+  },
+  "reused": "/data/projects/fes-486sx-fmax-env/env-netlists/cpu/netlist/fes_i386_cpu.netlist.v",
+  "source_revision": "c1ca3e31cbee9cac123c929e90f9c8eaeb3fadfd",
+  "source_revision_note": "method commit + envelope-i486.patch, elaborated on powerboat (HIP slot of the pc386 lock Yosys)"
+}

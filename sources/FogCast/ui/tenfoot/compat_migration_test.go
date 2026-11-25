@@ -94,9 +94,18 @@ func TestTenfootLaunchBlockReasonMapsHostclientOnly(t *testing.T) {
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
+	dir := filepath.Dir(filename)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	foundLaunchBlock := false
-	for _, name := range []string{"app.go", "app_session.go"} {
-		source, err := os.ReadFile(filepath.Join(filepath.Dir(filename), name))
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasPrefix(name, "app") || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		source, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -1,0 +1,34 @@
+head 7a2af38fb 2026-11-23T18:04:20Z
+seed 2 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 375547 (status 23390), writes 374287, resets 94
+seed 2 PASS 2000000 clocks: compared 37952, after service 1962048, services 94, reads 375547 (status 23390), writes 374287, resets 94
+seed 1 PASS 2000000 clocks: compared 51818, after service 1948182, services 94, reads 375847 (status 23319), writes 375115, resets 94
+seed 1 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 375847 (status 23319), writes 375115, resets 94
+seed 3 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 374389 (status 23305), writes 376245, resets 93
+seed 3 PASS 2000000 clocks: compared 48511, after service 1951489, services 92, reads 374389 (status 23305), writes 376245, resets 93
+seed 4 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 375108 (status 23376), writes 375054, resets 83
+seed 4 PASS 2000000 clocks: compared 38915, after service 1961085, services 82, reads 375108 (status 23376), writes 375054, resets 83
+seed 5 PASS 2000000 clocks: compared 60195, after service 1939805, services 102, reads 374666 (status 23459), writes 375390, resets 104
+seed 5 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 374666 (status 23459), writes 375390, resets 104
+seed 7 PASS 2000000 clocks: compared 58774, after service 1941226, services 97, reads 374388 (status 23738), writes 375445, resets 97
+seed 6 PASS 2000000 clocks: compared 62005, after service 1937995, services 119, reads 375111 (status 23563), writes 374466, resets 120
+seed 6 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 375111 (status 23563), writes 374466, resets 120
+seed 7 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 374388 (status 23738), writes 375445, resets 97
+seed 8 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 375059 (status 23591), writes 374991, resets 102
+seed 8 PASS 2000000 clocks: compared 54354, after service 1945646, services 100, reads 375059 (status 23591), writes 374991, resets 102
+seed 9 PASS 2000000 clocks: compared 42501, after service 1957499, services 85, reads 374826 (status 23181), writes 375500, resets 87
+seed 9 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 374826 (status 23181), writes 375500, resets 87
+seed 10 PASS 2000000 clocks: compared 46122, after service 1953878, services 102, reads 374866 (status 23556), writes 375701, resets 103
+seed 11 PASS 2000000 clocks: compared 53348, after service 1946652, services 108, reads 376323 (status 23369), writes 374497, resets 109
+seed 11 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 376323 (status 23369), writes 374497, resets 109
+seed 12 PASS 2000000 clocks: compared 49096, after service 1950904, services 94, reads 374128 (status 23263), writes 375924, resets 99
+seed 10 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 374866 (status 23556), writes 375701, resets 103
+seed 14 PASS 2000000 clocks: compared 53825, after service 1946175, services 107, reads 374712 (status 23164), writes 374382, resets 107
+seed 13 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 375450 (status 23459), writes 374699, resets 110
+seed 13 PASS 2000000 clocks: compared 62060, after service 1937940, services 109, reads 375450 (status 23459), writes 374699, resets 110
+seed 12 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 374128 (status 23263), writes 375924, resets 99
+seed 14 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 374712 (status 23164), writes 374382, resets 107
+seed 16 PASS 2000000 clocks: compared 58993, after service 1941007, services 121, reads 374814 (status 23354), writes 375121, resets 127
+seed 15 PASS 2000000 clocks: compared 51040, after service 1948960, services 103, reads 375734 (status 23320), writes 374037, resets 103
+seed 16 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 374814 (status 23354), writes 375121, resets 127
+seed 15 PASS 2000000 clocks (quiet): compared 2000000, after service 0, services 0, reads 375734 (status 23320), writes 374037, resets 103
+exit=0

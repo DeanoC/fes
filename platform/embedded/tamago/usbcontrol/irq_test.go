@@ -57,8 +57,10 @@ type irqTestDriver struct {
 	enableErr error
 }
 
-func (d *irqTestDriver) PollKeyboard() ([]byte, error)       { return nil, nil }
-func (d *irqTestDriver) PollGamepad() ([]byte, error)        { return nil, nil }
+func (d *irqTestDriver) PollKeyboard() ([]byte, error)           { return nil, nil }
+func (d *irqTestDriver) PollKeyboardInto([]byte) (int, error)    { return 0, nil }
+func (d *irqTestDriver) PollGamepad() ([]byte, error)            { return nil, nil }
+func (d *irqTestDriver) PollGamepadInto([]byte) (int, error)     { return 0, nil }
 func (d *irqTestDriver) PausePolling(context.Context) error  { d.paused = true; return nil }
 func (d *irqTestDriver) ResumePolling(context.Context) error { d.paused = false; return nil }
 func (d *irqTestDriver) EnableIRQ(_ *gic.Controller, _ uint32) error {
@@ -90,7 +92,8 @@ func (d *irqTestDriver) IRQCount() uint64 { return d.count }
 
 type plainKeyboardDriver struct{}
 
-func (plainKeyboardDriver) PollKeyboard() ([]byte, error) { return nil, nil }
+func (plainKeyboardDriver) PollKeyboard() ([]byte, error)        { return nil, nil }
+func (plainKeyboardDriver) PollKeyboardInto([]byte) (int, error) { return 0, nil }
 
 func TestSourceAndGamepadSourceIRQControl(t *testing.T) {
 	var nilSrc *Source

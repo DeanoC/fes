@@ -30,7 +30,7 @@ def selected(directory):
     return policy == POLICY
 
 
-def findings(drc, *, native_spectrum=False):
+def findings(drc, bridge=False, *, native_spectrum=False):
     from boards.de25nano.scanout import async_inputs as a
     sections = [s for s in drc.split('Status:')[1:] if '; RDC-50003 -' in s]
     a.require(len(sections) == 1, 'missing/ambiguous output-reset RDC detail')
@@ -38,6 +38,12 @@ def findings(drc, *, native_spectrum=False):
     a.require(['Reset Clock Domain', 'Number of Reset Chains', 'Reset Chain Register Heads',
                'Reset Sources', 'Waived'] in table, 'changed output-reset RDC columns')
     rows = [r for r in table if len(r) == 5 and r[0] != 'Reset Clock Domain']
+    if bridge:
+        # The window bridge's two rows are bridge_reset.py's, exactly; set aside
+        # only those, so this row is still the one reviewed here.
+        from boards.de25nano.scanout import bridge_reset
+        admitted = bridge_reset.bridge_rows(rows)
+        rows = [r for r in rows if r not in admitted]
     a.require(len(rows) == 1, 'only one output-reset RDC domain is reviewed')
     clock, count, heads, sources, waived = rows[0]
     # Native Spectrum splits the identical first-lock assertion into a
@@ -130,5 +136,7 @@ def verify(directory, output):
     result = review_reports(reports)
     a.require(result == receipt['result'], 'output-reset result changed')
     drc = (Path(directory) / 'combined/hps/project/output_files/golden_top.tq.drc.signoff.rpt').read_text()
+    from boards.de25nano.scanout import bridge_reset
     params = json.loads((Path(directory).parent / 'build-inputs.json').read_bytes())['parameters']
-    return dict(result, finding=findings(drc, native_spectrum=a.native_upload_shell(params)))
+    return dict(result, finding=findings(drc, bridge=bridge_reset.selected(directory),
+                                         native_spectrum=a.native_upload_shell(params)))

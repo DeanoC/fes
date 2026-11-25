@@ -558,8 +558,9 @@ def timing_failures(report: dict) -> list[str]:
 
 def machine_testbench(args, linked: list[Path]) -> Path:
     # cpu_profile.vlt exposes the signals --cpu-profile reads (cpu_profile.h).
+    # At --cpu-level 4 the RTL is the 486SX identity (I486 = 1), as the level-4 oracle backs it.
     cpu = verilate(args.verilator, 'machine', 'fes_i386_cpu', CPU_RTL + (CORE / 'sim/cpu_profile.vlt',), None, [],
-                   args.jobs)
+                   args.jobs, {'I486': "1'b1"} if args.cpu_level == 4 else None)
     write_cpu_profile_layout(cpu.parent)
     return verilate_with_audio(args, 'machine', CORE / 'sim/machine_tb.cpp', [*linked, cpu],
                                top='pc386_machine', rtl=MACHINE_RTL, include=(cpu.parent,))
@@ -2063,6 +2064,8 @@ def run_game(args, linked: list[Path]) -> dict:
     extra = ['--frame-every', str(args.frame_every)] if args.frame_every else []
     if args.rtl_at_prompt:
         extra += ['--rtl-at-prompt', '1']
+    if getattr(args, 'rtl_from', 0):
+        extra += ['--rtl-from', str(args.rtl_from)]
     if args.x87_fitted:
         extra += ['--x87', '1']
     if args.instruction_census:
@@ -2246,6 +2249,8 @@ def main() -> int:
                              '(wfw: 0.25 by default)')
     parser.add_argument('--rtl-at-prompt', action='store_true',
                         help='game --cpu rtl: boot on the oracle and hand over to the RTL at the prompt')
+    parser.add_argument('--rtl-from', type=float, default=0, metavar='SECONDS',
+                        help='game --cpu rtl: run the oracle to this simulated second, then hand over to the RTL')
     parser.add_argument('--x87-fitted', action='store_true',
                         help='the game suite: run with the i386dx+387 identity on (machine_tb --x87 1), so the '
                              'oracle has a 387 and CMOS 14h reports one; writes game-<id>-x87/')
@@ -2267,8 +2272,9 @@ def main() -> int:
                         help='boot and game: the CPU, the Bochs oracle or fes_i386_cpu (which the oracle backs on '
                              'its stops)')
     parser.add_argument('--cpu-level', type=int, default=3, choices=(3, 4),
-                        help='boot, game and wfw with --cpu oracle: the oracle\'s Bochs CPU level. 4 is the 486 '
-                             'oracle (scripts/fes_i486_oracle.py), built and run under build/sim/fes-pc386-level4')
+                        help='boot, game and wfw: the oracle\'s Bochs CPU level. 4 is the 486 oracle '
+                             '(scripts/fes_i486_oracle.py), built and run under build/sim/fes-pc386-level4; with '
+                             '--cpu rtl the RTL is then the 486SX identity (I486 = 1)')
     parser.add_argument('--preset', type=int, default=0, choices=range(8),
                         help="system, boot and game --cpu rtl: the governor's preset (fes.pc386.machine word 0); "
                              'governor: the one preset beside max')
@@ -2287,6 +2293,8 @@ def main() -> int:
         parser.error('--oracle-profile is for the game suite with --cpu oracle')
     if args.rtl_at_prompt and not (args.suite == 'game' and args.cpu == 'rtl'):
         parser.error('--rtl-at-prompt is for the game suite with --cpu rtl')
+    if args.rtl_from and not (args.suite == 'game' and args.cpu == 'rtl' and not args.rtl_at_prompt):
+        parser.error('--rtl-from is for the game suite with --cpu rtl, without --rtl-at-prompt')
     if args.image != 'boot' and args.suite != 'boot':
         parser.error('--image is supported by the boot suite only')
     if (args.preset or args.frequency or args.turbo) and not (
@@ -2297,10 +2305,10 @@ def main() -> int:
     if args.frequency and not 10 <= args.frequency <= 1000:
         parser.error('--frequency is 10 to 1000 (100 kHz units), as the record allows')
     if args.cpu_level == 4:
-        # The RTL is a 386: only the oracle runs as a 486. Its objects and
-        # outputs stay apart from the level-3 ones.
-        if args.cpu != 'oracle' or args.suite not in ('boot', 'game', 'wfw'):
-            parser.error('--cpu-level 4 is for boot, game and wfw with --cpu oracle')
+        # The 486: the level-4 oracle, and with --cpu rtl the RTL at I486 = 1.
+        # Its objects and outputs stay apart from the level-3 ones.
+        if args.suite not in ('boot', 'game', 'wfw'):
+            parser.error('--cpu-level 4 is for boot, game and wfw')
         oracle, OUTPUT = fes_i486_oracle, ROOT / 'build/sim/fes-pc386-level4'
     limit_seconds, typed, expect = args.limit_seconds, args.type, args.expect
     args.limit_seconds_given = limit_seconds

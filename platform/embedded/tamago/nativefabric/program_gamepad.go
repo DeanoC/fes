@@ -127,9 +127,9 @@ func (g ProgramGamepad) Report(ctx context.Context, report []byte) error {
 		return err
 	}
 	defer k.backend.operation.Unlock()
-	return g.state.report(ctx, report)
+	return g.state.report(ctx, report, true)
 }
-func (p *programGamepad) report(ctx context.Context, report []byte) error {
+func (p *programGamepad) report(ctx context.Context, report []byte, observe bool) error {
 	// The layout is immutable; Feed changes only the value state. Copying the
 	// decoder lets busy/canceled writes preserve the previous complete state.
 	next := *p.decoder
@@ -147,7 +147,7 @@ func (p *programGamepad) report(ctx context.Context, report []byte) error {
 		return err
 	}
 	*p.decoder = next
-	if rows != before {
+	if observe && rows != before {
 		p.observation.Sequence++
 		p.observation.Report = hex.EncodeToString(report)
 		p.observation.State = state

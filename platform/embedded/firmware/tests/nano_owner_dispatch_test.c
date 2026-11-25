@@ -31,7 +31,7 @@ int main(int argc,char **argv)
         reference_reads=model.h.reads-reads;reference_usb=model.h.usb_reads-usb;
     }
     if (mode==1)model.h.usb[8/4]|=1U<<5;
-    if (mode==2)model.h.usb[8/4]|=1U;
+    if (mode==2)model.h.usb[0x400/4]|=1U<<23;
     if (mode==3)model.h.usb[16/4]=0;
     if (mode==4)model.h.usb_fault=3;
     if (mode==5)model.cold.record.boot.epoch++;

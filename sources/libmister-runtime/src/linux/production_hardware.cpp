@@ -3,6 +3,7 @@
 
 #include "linux/production_hardware.hpp"
 
+#include "native/de25_hps_window.hpp"
 #include "native/artifacts.hpp"
 #include "native/core_driver.hpp"
 #include "native/fes_gp.hpp"
@@ -168,6 +169,12 @@ public:
             de25_video_.reset(new native::De25VideoBringup);
             idle = de25_video_.get(); video = de25_video_.get();
             display = de25_menu_.get(); memory = de25_menu_.get();
+            // fes.memory.hps-ddr is the kernel owner's per-session window.
+            // Until this runtime speaks the owner's window ABI it is offered
+            // nothing, and the interface stays refused.
+            de25_window_owner_.reset(new native::De25NoWindowOwner);
+            de25_window_.reset(new native::De25HpsWindow(*de25_window_owner_));
+            disk_window_.reset(new native::DiskWindow(*de25_window_));
         }
         hardware_.reset(new native::NativeHardware(opener_, *fpga_, *idle, *video,
             input_session_, native::FogCastGamepadIdentity(), clock_, log,
@@ -175,6 +182,7 @@ public:
             package_roots,
             native::SplashIdle(), display, memory, disk_window_.get(), platform,
             de25_driver_.get(), de25_menu_driver_.get()));
+        hardware_->SetHpsWindow(de25_window_.get());
     }
     Error PrepareDe25()
     {
@@ -361,6 +369,8 @@ private:
     std::unique_ptr<native::FesGpCoreDriver> fes_gp_driver_;
     std::unique_ptr<native::MenuDisplayDriver> menu_display_;
     std::unique_ptr<native::MenuWindow> menu_window_;
+    std::unique_ptr<native::De25WindowOperations> de25_window_owner_;
+    std::unique_ptr<native::De25HpsWindow> de25_window_;
     std::unique_ptr<native::DiskWindow> disk_window_;
     std::unique_ptr<native::SplashVideoBringup> idle_video_;
     std::unique_ptr<native::FixedVideoBringup> game_video_;

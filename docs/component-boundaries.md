@@ -117,11 +117,11 @@ Go allowlist.
 
 `native-integration-dev` uses FES's package-only interface and publishes the
 ordered per-core selection records for its selected packages plus its sealed
-`core-packages/` directory. Systems whose nextpnr
-route is not implemented yet are checked explicitly with Quartus; that check
-is not an image production route. The accepted Quartus policy allows labelled
-product variants, but current recipe and package-selection support does not
-select one yet; see [Quartus-built cores](design/quartus-cores.md).
+`core-packages/` directory. Registered recipes select Quartus Lite for the DE10
+ZX81 family, `fes.pcxt-dos` and `fes.pc386`, and Quartus Pro 26.3 for DE25
+recipes; other DE10 cores select HIP/nextpnr. General same-board dual-variant
+selection and `FES_OSS_ONLY` remain rollout work; see
+[Quartus-built cores](design/quartus-cores.md).
 
 ## Keep, combine, split and add
 
@@ -176,11 +176,12 @@ other historical kit result. Later revisions need their own evidence.
 
 Dated notes under [validation/](validation/) describe the artifacts they name.
 
-A LAN of capability-bearing nodes is drafted in
-[mesh LAN](mesh-lan.md) and [mesh node protocol](mesh-node-protocol.md).
+A LAN of capability-bearing nodes was drafted in
+[mesh LAN](archive/mesh-lan.md) and
+[mesh node protocol](archive/mesh-node-protocol.md).
 On 22 October 2026 the kit became its own FogCast host (#863);
 [mesh under kit-as-host](mesh-kit-host.md) records that decision and
-supersedes the kit-side placement and pairing parts of those drafts.
+supersedes the kit-side placement and pairing parts of those archived drafts.
 It keeps physical transitions in the
 runtime, session coordination in the FogCast agent, the library in
 FogCast, definitions in mister-packages, and image assembly in FES.
