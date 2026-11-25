@@ -250,6 +250,25 @@ func (i *Interface) QuerySNTP(ctx context.Context, cfg SNTPConfig) (SNTPResult, 
 	if err := i.Err(); err != nil {
 		return SNTPResult{}, err
 	}
+	cfg = i.defaultSNTPConfig(cfg)
+	return QuerySNTP(ctx, i.bridge, cfg)
+}
+
+// NewSNTPSyncer constructs a periodic SNTPv4 discipline loop bound to this
+// interface's active *Link. Unset LocalMAC, LocalPrefix, and Gateway default to
+// the interface's active configuration.
+func (i *Interface) NewSNTPSyncer(cfg SNTPSyncConfig) (*SNTPSyncer, error) {
+	if i == nil || i.bridge == nil || i.device == nil {
+		return nil, fmt.Errorf("%w: interface unavailable", ErrSNTPInvalidConfig)
+	}
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	cfg.SNTP = i.defaultSNTPConfig(cfg.SNTP)
+	return NewSNTPSyncer(i.bridge, cfg)
+}
+
+func (i *Interface) defaultSNTPConfig(cfg SNTPConfig) SNTPConfig {
 	if cfg.LocalMAC == "" {
 		cfg.LocalMAC = i.device.MAC()
 	}
@@ -259,7 +278,7 @@ func (i *Interface) QuerySNTP(ctx context.Context, cfg SNTPConfig) (SNTPResult, 
 	if cfg.Gateway == "" {
 		cfg.Gateway = i.config.Gateway
 	}
-	return QuerySNTP(ctx, i.bridge, cfg)
+	return cfg
 }
 
 // EnableIRQ routes the underlying NIC's RX interrupt through g so Link.Start

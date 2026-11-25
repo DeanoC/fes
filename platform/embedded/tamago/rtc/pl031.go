@@ -203,23 +203,69 @@ func unixSecondsUint32(t time.Time) (uint32, error) {
 // advance with sub-second monotonic precision.
 type Clock struct {
 	mu       sync.RWMutex
+	synced   bool
 	baseWall time.Time
 	baseMono int64
 	mono     func() int64
 }
 
+func resolveMonoSource(mono func() int64) func() int64 {
+	if mono != nil {
+		return mono
+	}
+	start := time.Now()
+	return func() int64 { return int64(time.Since(start)) }
+}
+
 // NewClock anchors wall to mono(). If mono is nil, a monotonic clock backed by
 // time.Since is used.
 func NewClock(wall time.Time, mono func() int64) *Clock {
-	if mono == nil {
-		start := time.Now()
-		mono = func() int64 { return int64(time.Since(start)) }
-	}
+	m := resolveMonoSource(mono)
 	return &Clock{
+		synced:   true,
 		baseWall: wall.UTC(),
-		baseMono: mono(),
-		mono:     mono,
+		baseMono: m(),
+		mono:     m,
 	}
+}
+
+// NewUnsyncedClock creates a monotonic-backed Clock with no valid UTC epoch
+// until Sync is called. WallTime returns (time.Time{}, false) before the
+// first Sync.
+func NewUnsyncedClock(mono func() int64) *Clock {
+	m := resolveMonoSource(mono)
+	return &Clock{
+		baseMono: m(),
+		mono:     m,
+	}
+}
+
+// Synced reports whether the clock holds a synchronized UTC epoch.
+func (c *Clock) Synced() bool {
+	c.mu.RLock()
+	synced := c.synced
+	c.mu.RUnlock()
+	return synced
+}
+
+// WallTime returns the current estimated UTC wall-clock time alongside
+// whether Sync (or NewClock) has established a valid UTC epoch.
+func (c *Clock) WallTime() (time.Time, bool) {
+	c.mu.RLock()
+	synced := c.synced
+	baseWall := c.baseWall
+	baseMono := c.baseMono
+	mono := c.mono
+	c.mu.RUnlock()
+
+	if !synced {
+		return time.Time{}, false
+	}
+	delta := mono() - baseMono
+	if delta < 0 {
+		delta = 0
+	}
+	return baseWall.Add(time.Duration(delta)).UTC(), true
 }
 
 // Now returns the current estimated UTC wall-clock time.
@@ -240,6 +286,7 @@ func (c *Clock) Now() time.Time {
 // Sync re-anchors the wall-clock epoch to wall at the current monotonic tick.
 func (c *Clock) Sync(wall time.Time) {
 	c.mu.Lock()
+	c.synced = true
 	c.baseWall = wall.UTC()
 	c.baseMono = c.mono()
 	c.mu.Unlock()

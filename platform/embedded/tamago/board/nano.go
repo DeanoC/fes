@@ -28,7 +28,9 @@ func PowerOff() error                   { return de25nano.PowerOff() }
 func Reset() error                      { return de25nano.Reset() }
 func EntropySource() psci.EntropySource { return de25nano.EntropySource() }
 func RTC() (*rtc.PL031, error)          { return nil, rtc.ErrNotFound }
-func WallTime() (time.Time, bool)       { return time.Time{}, false }
+func WallClock() *rtc.Clock             { return de25nano.WallClock() }
+func WallTime() (time.Time, bool)       { return de25nano.WallTime() }
+func SyncWallTime(wall time.Time)       { de25nano.SyncWallTime(wall) }
 
 // PIO storage needs no DMA. Devices map only their explicit profile-owned DMA/display windows.
 func InitDevices() (*dma.Region, error)  { return nil, de25nano.InitDevices() }
