@@ -28,8 +28,10 @@ type ProgramMultiSource interface {
 	Service() error
 	NextKeyboardReport() ([8]byte, bool)
 	NextGamepadUpdate() (usbhub.GamepadUpdate, bool)
+	NextMouseUpdate() (usbhub.MouseUpdate, bool)
 	KeyboardNeutral() bool
 	GamepadNeutral() bool
+	MouseNeutral() bool
 	SetGameplayActive(bool) error
 	StartPairing(time.Duration) error
 	StopPairing() error
@@ -82,9 +84,12 @@ type ProgramMultiInputPlatform struct {
 	padRows           [9]uint16
 	ctrlPorts         [usbhub.MaxPlayerPorts]uint8
 	nativeControllers bool
+	nativeMouse       bool
+	mouseButtons      uint8
 	prevHome          bool
 	kbArmed           bool
 	padArmed          bool
+	mouseArmed        bool
 	gameplaySynced    bool
 	gameplayActive    bool
 	returnRequested   bool
@@ -415,6 +420,8 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		p.padRows = [9]uint16{}
 		p.ctrlPorts = [usbhub.MaxPlayerPorts]uint8{}
 		p.nativeControllers = false
+		p.nativeMouse = false
+		p.mouseButtons = 0
 		p.prevHome = false
 		p.menuKB = usb.BootKeyboard{}
 		p.coreKB = usb.BootKeyboard{}
@@ -425,6 +432,7 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		// all-up snapshot; released ones let the first fresh press through.
 		p.kbArmed = p.source.KeyboardNeutral()
 		p.padArmed = p.source.GamepadNeutral()
+		p.mouseArmed = p.source.MouseNeutral()
 	}
 	wantGameplay := v.State == ProgramRunning
 	if !p.gameplaySynced || p.gameplayActive != wantGameplay {
@@ -448,9 +456,15 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 			}
 			boundNew = true
 		}
-		p.nativeControllers = b.service.Capabilities(b.session)&cg.FesComputerCapabilityGamepadPorts != 0
+		caps := b.service.Capabilities(b.session)
+		p.nativeControllers = caps&cg.FesComputerCapabilityGamepadPorts != 0
+		p.nativeMouse = caps&cg.FesComputerCapabilityMouseRelative != 0
 		if boundNew || boundaryChanged {
 			if err := p.neutralizeControllerPorts(ctx); err != nil {
+				b.inputFault = err
+				return nil, err
+			}
+			if err := p.neutralizeMouse(ctx); err != nil {
 				b.inputFault = err
 				return nil, err
 			}
@@ -633,6 +647,45 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		p.padArmed = p.source.GamepadNeutral()
 	}
 
+	mouseDrained := false
+	for n := 0; n < 16; n++ {
+		if v.State == ProgramRunning && p.returnRequested {
+			break
+		}
+		if err := ctx.Err(); err != nil {
+			b.inputFault = err
+			return nil, err
+		}
+		upd, ok := p.source.NextMouseUpdate()
+		if !ok {
+			mouseDrained = true
+			break
+		}
+		if v.State == ProgramRunning {
+			if !p.mouseArmed {
+				p.mouseArmed = upd.Buttons == 0
+				continue
+			}
+			if p.nativeMouse {
+				if upd.DX == 0 && upd.DY == 0 && upd.Buttons == p.mouseButtons {
+					continue
+				}
+				if err := b.service.MouseRelative(ctx, p.session, upd.DX, upd.DY, upd.Buttons); err != nil {
+					b.inputFault = err
+					return nil, err
+				}
+				p.mouseButtons = upd.Buttons
+			}
+			continue
+		}
+		if !p.mouseArmed {
+			p.mouseArmed = upd.Buttons == 0
+		}
+	}
+	if !p.mouseArmed && mouseDrained {
+		p.mouseArmed = p.source.MouseNeutral()
+	}
+
 	// Bond writes run between frames from Next, never from serviceMenuInput
 	// while the menu copies scanout rows; the source backs off failed writes.
 	if v.State == ProgramReady && !buffer {
@@ -715,11 +768,25 @@ func (p *ProgramMultiInputPlatform) neutralizeControllerPorts(ctx context.Contex
 	return nil
 }
 
+func (p *ProgramMultiInputPlatform) neutralizeMouse(ctx context.Context) error {
+	if !p.nativeMouse {
+		return nil
+	}
+	if err := p.backend.service.MouseRelative(ctx, p.session, 0, 0, 0); err != nil {
+		return err
+	}
+	p.mouseButtons = 0
+	return nil
+}
+
 func (p *ProgramMultiInputPlatform) neutralizeCore(ctx context.Context) error {
 	if err := p.keyboard.state.writeRows(ctx, [9]uint16{}); err != nil {
 		return err
 	}
-	return p.neutralizeControllerPorts(ctx)
+	if err := p.neutralizeControllerPorts(ctx); err != nil {
+		return err
+	}
+	return p.neutralizeMouse(ctx)
 }
 
 func (p *ProgramMultiInputPlatform) writeControllerPorts(ctx context.Context, next [usbhub.MaxPlayerPorts]uint8) error {

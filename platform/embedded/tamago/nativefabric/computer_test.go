@@ -18,6 +18,11 @@ import (
 	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
 )
 
+type mouseRecord struct {
+	dx, dy  int8
+	buttons uint8
+}
+
 type computerCPU struct {
 	state                                  BridgeSnapshot
 	digest                                 [32]byte
@@ -33,6 +38,8 @@ type computerCPU struct {
 	keyboardWrites, failKeyboardAt         int
 	controllerPorts                        [2]uint16
 	controllerWrites                       int
+	mouseEvents                            []mouseRecord
+	mouseWrites                            int
 }
 
 func (c *computerCPU) Invoke(r [7]uint64) ([4]uint64, error) {
@@ -161,6 +168,17 @@ func (c *computerCPU) WritePhysical32(address uint64, word uint32) error {
 			return errors.New("invalid controller port")
 		}
 		c.controllerPorts[port] = uint16(word)
+	} else if word>>24&127 == cg.FesComputerOpcodeMouseRelative {
+		c.mouseWrites++
+		buttons := word >> 16 & 255
+		if buttons > cg.FesComputerMouseButtonMask {
+			return errors.New("invalid mouse buttons")
+		}
+		c.mouseEvents = append(c.mouseEvents, mouseRecord{
+			dx:      int8(uint8(word)),
+			dy:      int8(uint8(word >> 8)),
+			buttons: uint8(buttons),
+		})
 	}
 	c.gpo = word
 	if c.stall {
