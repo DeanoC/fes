@@ -236,6 +236,8 @@ func TestHardwareMMCCountersSnapshotAndResetOnReadAccumulation(t *testing.T) {
 
 	// 2. Opt-in ResetMMCOnRead=true accumulates clear-on-read deltas across polls and Stop/Start.
 	h := newHardware()
+	h.regs[mmcRXIntMask] = 0x1234
+	h.regs[mmcTXIntMask] = 0x5678
 	h.regs[mmcRXCRCErrors] = 99 // stale value before Open must be cleared by initMMCLocked
 	m := &filterMMCModel{hardware: h}
 	cfg := newFilterConfig()
@@ -243,6 +245,9 @@ func TestHardwareMMCCountersSnapshotAndResetOnReadAccumulation(t *testing.T) {
 	d, err := Open(m, h.mem, cfg)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if h.regs[mmcRXIntMask] != 0 || h.regs[mmcTXIntMask] != 0 {
+		t.Fatalf("MMC interrupt masks not zeroed: rx=%#x tx=%#x", h.regs[mmcRXIntMask], h.regs[mmcTXIntMask])
 	}
 	if h.regs[mmcControl]&mmcCtrlResetOnRead == 0 {
 		t.Fatalf("mmcControl=%#x missing ROR bit", h.regs[mmcControl])

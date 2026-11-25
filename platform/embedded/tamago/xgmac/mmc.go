@@ -44,8 +44,10 @@ type HardwareStats struct {
 }
 
 func (d *Device) initMMCLocked() {
-	d.io.Write32(mmcRXIntMask, 0xffffffff)
-	d.io.Write32(mmcTXIntMask, 0xffffffff)
+	// XGMAC MMC interrupt mask registers use 0 to mask all counter interrupts
+	// (matching Linux dwxgmac_mmc_intr_all_mask).
+	d.io.Write32(mmcRXIntMask, 0)
+	d.io.Write32(mmcTXIntMask, 0)
 	d.io.Write32(mmcControl, mmcCtrlResetOnRead|mmcCtrlCounterReset)
 }
 
