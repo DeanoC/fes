@@ -32,11 +32,18 @@ foreground session. Surfaces attaching by session id is later session work.
 
 ## Artifacts
 
+The ARMv7 image and receipt examples below describe DE10 Linux. DE25 Linux
+uses its managed base, owner kernel and AArch64 binaries. Each Linux profile
+selects its own MENU artifact. Playable packages are installed through the
+catalog. See the [board-specific artifact selection and verification commands](image-artifacts.md).
+
 | Artifact | Typical OS/arch | Produced by | Locked by |
 | --- | --- | --- | --- |
 | Host API/CLI | linux/amd64 | FES `make host` | `host.json` (`os`, `arch`, binary hashes) |
 | Host API (sofa) | darwin/arm64 | FogCast on a Mac (`build-fogcast-api` / signed app) | same receipt schema with `os=darwin`; not the FES Linux `host.json` |
-| Tenfoot | darwin/arm64 or linux + SDL3 | FogCast `build-fogcast-tenfoot` | not a parent output |
+| Desktop Tenfoot | darwin/arm64 or Linux + SDL3 | FogCast desktop build | Platform-specific client binary |
+| Linux kit Tenfoot | DE10 ARMv7 or DE25 AArch64 | FogCast, packaged with agent, runtime, launcher and assets | Immutable [kit software bundle](kit-software-releases.md) |
+| Embedded Tenfoot | DE25 AArch64 bare metal | [TamaGo experiment](../platform/embedded/README.md) | Experimental firmware and boot-chain evidence |
 | Target agent | linux/armv7 | FogCast binary, FES `image/` install | `mister_agent_sha256` in `build-inputs` |
 | Kit launcher | linux/armv7 | FogCast binary, FES `image/` install | `fogcast_kit_sha256` in `build-inputs` |
 | Runtime daemon | linux/armv7 | libmister-runtime via FES `image/` | `mister_runtime_commit` in `build-inputs` |

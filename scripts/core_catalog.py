@@ -29,7 +29,7 @@ def emit_system(system):
     return system
 
 
-def publish(root, metadata, prepared, output):
+def publish(root, metadata, prepared, output, *, board=recipes.DEFAULT_BOARD):
     root, output = Path(root).resolve(), Path(output).absolute()
     if output.exists() or output.is_symlink():
         raise FileExistsError(output)
@@ -64,6 +64,7 @@ def publish(root, metadata, prepared, output):
             entry = dict(row)
             entry['system'] = emit_system(row['system'])
             if row['core_id'] in prepared:
+                recipes.recipe_for(row["core_id"], board=board)
                 receipt = Path(prepared[row['core_id']])
                 provenance = {}
                 arguments = candidate_arguments(receipt, provenance)
@@ -77,11 +78,14 @@ def publish(root, metadata, prepared, output):
                 program = '''import sys,json,hashlib
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
-from scripts.core_package import read_package
-x=read_package(Path(sys.argv[2]))
+from importlib import import_module
+namespace = 'boards.de25nano.package' if sys.argv[3] == 'de25-nano' else 'scripts'
+x = import_module(namespace + '.core_package').read_package(Path(sys.argv[2]))
+if x.fields['target']['platform'] != sys.argv[3].replace('-', '_'):
+    raise ValueError('catalog package targets a different board')
 print(json.dumps(dict(core_id=x.fields['core']['id'],package_id=x.package_id,manifest_sha256=hashlib.sha256(x.manifest_bytes).hexdigest(),payload_sha256=hashlib.sha256(x.payload_bytes).hexdigest(),descriptor=x.fields)))'''
                 identity = json.loads(subprocess.check_output([sys.executable, '-I', '-c', program,
-                    str(root / 'sources/misteross'), str(target)], text=True))
+                    str(root / 'sources/misteross'), str(target), board], text=True))
                 record = json.loads(receipt.read_text())
                 if (identity['package_id'] != provenance['package_id'] or identity['core_id'] != row['core_id']
                         or identity['manifest_sha256'] != record['selection']['manifest_sha256']
@@ -123,6 +127,7 @@ print(json.dumps(dict(core_id=x.fields['core']['id'],package_id=x.package_id,man
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser.add_argument('--board', choices=recipes.BOARDS, default=recipes.DEFAULT_BOARD)
     parser.add_argument('--metadata', default='config/core-library.toml')
     parser.add_argument('--prepared', action='append', default=[], metavar='CORE=PREPARED.JSON')
     parser.add_argument('--output', required=True)
@@ -134,7 +139,7 @@ def main(argv=None):
             if not separator or not path or core in prepared:
                 raise ValueError('invalid or duplicate prepared candidate')
             prepared[core] = Path(path)
-        publish(Path(__file__).resolve().parents[1], args.metadata, prepared, args.output)
+        publish(Path(__file__).resolve().parents[1], args.metadata, prepared, args.output, board=args.board)
         print(str(Path(args.output).absolute() / 'catalog.json'))
         return 0
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
