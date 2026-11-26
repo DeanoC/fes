@@ -3,10 +3,14 @@
 package mdns
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,6 +22,10 @@ import (
 const (
 	defaultAnnounceCount    = 2
 	defaultAnnounceInterval = time.Second
+	probeAttempts           = 3
+	probeInterval           = 250 * time.Millisecond
+	conflictDefendInterval  = 10 * time.Second
+	legacyUnicastMaxTTL     = 10
 	dnsSDMetaServiceFQDN    = "_services._dns-sd._udp.local"
 )
 
@@ -26,6 +34,10 @@ var (
 	ErrResponderStarted = errors.New("mdns: responder already started")
 	// ErrResponderStopped is returned when Responder.Start is called after Stop.
 	ErrResponderStopped = errors.New("mdns: responder stopped")
+	// ErrResponderNameConflict means another host won a unique-name conflict.
+	ErrResponderNameConflict = errors.New("mdns: unique name conflict")
+	// ErrResponderNotClaimed means unique-name probing has not completed.
+	ErrResponderNotClaimed = errors.New("mdns: responder has not completed probing")
 
 	_ network.RawFramePort = (*network.Link)(nil)
 )
@@ -116,7 +128,7 @@ type ResponderStats struct {
 	PausedDrops      uint64
 }
 
-// Responder answers mDNS queries for a configured DNS-SD service and sends
+// Responder probes unique mDNS names, answers DNS-SD queries, and sends
 // unsolicited startup announcements and Stop goodbye packets.
 type Responder struct {
 	port             network.RawFramePort
@@ -131,13 +143,20 @@ type Responder struct {
 	announceInterval time.Duration
 	onError          func(error)
 
-	mu        sync.Mutex
-	started   bool
-	stopped   bool
-	stopCh    chan struct{}
-	removeTap func()
-	wg        sync.WaitGroup
-	ipID      atomic.Uint32
+	mu          sync.Mutex
+	started     bool
+	stopped     bool
+	nameMu      sync.Mutex
+	probing     bool
+	claimed     bool
+	conflicted  bool
+	goodbyeSent bool
+	lastDefense time.Time
+	conflictCh  chan struct{}
+	stopCh      chan struct{}
+	removeTap   func()
+	wg          sync.WaitGroup
+	ipID        atomic.Uint32
 
 	running          atomic.Bool
 	queriesReceived  atomic.Uint64
@@ -184,12 +203,13 @@ func NewResponder(cfg ResponderConfig) (*Responder, error) {
 		announceCount:    annCount,
 		announceInterval: annInterval,
 		onError:          cfg.OnError,
+		conflictCh:       make(chan struct{}),
 		stopCh:           make(chan struct{}),
 	}, nil
 }
 
-// Start installs the frame tap, begins answering mDNS queries, and transmits
-// unsolicited multicast service announcements until Stop or ctx cancellation.
+// Start installs the frame tap, probes the unique names, then answers mDNS
+// queries and transmits startup announcements until Stop or ctx cancellation.
 func (r *Responder) Start(ctx context.Context) error {
 	if r == nil {
 		return fmt.Errorf("%w: nil responder", ErrInvalidConfig)
@@ -215,6 +235,9 @@ func (r *Responder) Start(ctx context.Context) error {
 	}
 	r.started = true
 	r.running.Store(true)
+	r.nameMu.Lock()
+	r.probing = true
+	r.nameMu.Unlock()
 	r.removeTap = r.port.AddTap(r.handleFrame)
 	r.wg.Add(1)
 	r.mu.Unlock()
@@ -234,7 +257,12 @@ func (r *Responder) Stop() {
 	var removeTap func()
 	if !r.stopped {
 		r.stopped = true
-		emitGoodbye = r.started
+		r.nameMu.Lock()
+		emitGoodbye = r.started && r.claimed && !r.goodbyeSent
+		if emitGoodbye {
+			r.goodbyeSent = true
+		}
+		r.nameMu.Unlock()
 		close(r.stopCh)
 		removeTap = r.removeTap
 		r.removeTap = nil
@@ -275,6 +303,15 @@ func (r *Responder) AnnounceNow() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil responder", ErrInvalidConfig)
 	}
+	r.nameMu.Lock()
+	claimed, conflicted := r.claimed, r.conflicted
+	r.nameMu.Unlock()
+	if conflicted {
+		return ErrResponderNameConflict
+	}
+	if !claimed {
+		return ErrResponderNotClaimed
+	}
 	return r.sendAnnouncement(r.svc.TTL, false)
 }
 
@@ -284,12 +321,18 @@ func (r *Responder) run(ctx context.Context) {
 		r.wg.Done()
 	}()
 
+	if !r.probe(ctx) {
+		return
+	}
+
 	for i := 0; i < r.announceCount; i++ {
 		if ctx.Err() != nil {
 			return
 		}
 		select {
 		case <-r.stopCh:
+			return
+		case <-r.conflictCh:
 			return
 		default:
 		}
@@ -308,6 +351,9 @@ func (r *Responder) run(ctx context.Context) {
 		case <-r.stopCh:
 			timer.Stop()
 			return
+		case <-r.conflictCh:
+			timer.Stop()
+			return
 		case <-ctx.Done():
 			timer.Stop()
 			return
@@ -317,7 +363,183 @@ func (r *Responder) run(ctx context.Context) {
 
 	select {
 	case <-r.stopCh:
+	case <-r.conflictCh:
 	case <-ctx.Done():
+	}
+}
+
+func (r *Responder) probe(ctx context.Context) bool {
+	initialDelay := time.Duration(rand.Int64N(int64(probeInterval)))
+	if !r.waitForProbe(ctx, initialDelay) {
+		return false
+	}
+	for i := 0; i < probeAttempts; i++ {
+		if !r.isProbing() {
+			return false
+		}
+		if err := r.sendProbe(); err != nil {
+			if errors.Is(err, network.ErrPaused) {
+				r.pausedDrops.Add(1)
+			} else if r.onError != nil {
+				r.onError(err)
+			}
+			return false
+		}
+		if !r.waitForProbe(ctx, probeInterval) {
+			return false
+		}
+	}
+
+	r.nameMu.Lock()
+	defer r.nameMu.Unlock()
+	if !r.probing || r.conflicted {
+		return false
+	}
+	r.probing = false
+	r.claimed = true
+	return true
+}
+
+func (r *Responder) waitForProbe(ctx context.Context, delay time.Duration) bool {
+	if delay <= 0 {
+		select {
+		case <-r.stopCh:
+			return false
+		case <-r.conflictCh:
+			return false
+		case <-ctx.Done():
+			return false
+		default:
+			return true
+		}
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return true
+	case <-r.stopCh:
+		return false
+	case <-r.conflictCh:
+		return false
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func (r *Responder) isProbing() bool {
+	r.nameMu.Lock()
+	defer r.nameMu.Unlock()
+	return r.probing && !r.conflicted
+}
+
+func (r *Responder) isClaimed() bool {
+	r.nameMu.Lock()
+	defer r.nameMu.Unlock()
+	return r.claimed && !r.conflicted
+}
+
+func (r *Responder) probeRecords() []dnsRecord {
+	records := []dnsRecord{r.aRecord(r.svc.TTL), r.srvRecord(r.svc.TTL), r.txtRecord(r.svc.TTL)}
+	for i := range records {
+		records[i].CacheFlush = false
+	}
+	return records
+}
+
+func (r *Responder) sendProbe() error {
+	msg := dnsMessage{
+		Questions: []dnsQuestion{
+			{Name: r.hostFQDN, Type: TypeANY, Class: ClassIN},
+			{Name: r.instanceFQDN, Type: TypeANY, Class: ClassIN},
+		},
+		Authorities: r.probeRecords(),
+	}
+	payload, err := encodeMDNSMessage(msg)
+	if err != nil {
+		return err
+	}
+	frame := buildMDNSFrame(r.localMAC, multicastMACBytes, r.localIP, multicastIPv4Bytes, Port, Port, uint16(r.ipID.Add(1)), payload)
+	return r.port.SendRawFrame(frame)
+}
+
+func (r *Responder) reportNameConflict() {
+	if r.onError != nil {
+		r.onError(ErrResponderNameConflict)
+	}
+}
+
+func (r *Responder) markNameConflictLocked() {
+	if r.conflicted {
+		return
+	}
+	r.conflicted = true
+	r.probing = false
+	close(r.conflictCh)
+}
+
+func (r *Responder) handleProbeConflict(proposed []dnsRecord) {
+	conflict, localWins := compareProbeRecords(r.probeRecords(), proposed)
+	if !conflict || localWins {
+		return
+	}
+	r.nameMu.Lock()
+	if r.probing && !r.conflicted {
+		r.markNameConflictLocked()
+		r.nameMu.Unlock()
+		r.reportNameConflict()
+		return
+	}
+	r.nameMu.Unlock()
+}
+
+func (r *Responder) handleResponseConflict(msg dnsMessage) {
+	local := r.probeRecords()
+	remote := make([]dnsRecord, 0, len(msg.Answers)+len(msg.Authorities)+len(msg.Additional))
+	remote = append(remote, msg.Answers...)
+	remote = append(remote, msg.Authorities...)
+	remote = append(remote, msg.Additional...)
+	if !recordSetsConflict(local, remote) {
+		return
+	}
+
+	defend := false
+	relinquish := false
+	sendGoodbye := false
+	r.nameMu.Lock()
+	if r.conflicted {
+		r.nameMu.Unlock()
+		return
+	}
+	if r.probing {
+		r.markNameConflictLocked()
+		relinquish = true
+	} else if r.claimed {
+		now := time.Now()
+		if !r.lastDefense.IsZero() && now.Sub(r.lastDefense) <= conflictDefendInterval {
+			r.markNameConflictLocked()
+			relinquish = true
+			if !r.goodbyeSent {
+				r.goodbyeSent = true
+				sendGoodbye = true
+			}
+		} else {
+			r.lastDefense = now
+			defend = true
+		}
+	}
+	r.nameMu.Unlock()
+
+	if defend {
+		if err := r.sendAnnouncement(r.svc.TTL, false); err != nil && !errors.Is(err, network.ErrPaused) && r.onError != nil {
+			r.onError(err)
+		}
+	}
+	if relinquish {
+		r.reportNameConflict()
+		if sendGoodbye {
+			_ = r.sendAnnouncement(0, true)
+		}
 	}
 }
 
@@ -407,7 +629,17 @@ func (r *Responder) handleFrame(frame []byte) {
 		return
 	}
 	pkt, ok := parseMDNSFrame(frame, r.localMAC, r.localIP, false)
-	if !ok || pkt.msg.Response || len(pkt.msg.Questions) == 0 {
+	if !ok {
+		return
+	}
+	if pkt.msg.Response {
+		r.handleResponseConflict(pkt.msg)
+		return
+	}
+	if len(pkt.msg.Authorities) > 0 {
+		r.handleProbeConflict(pkt.msg.Authorities)
+	}
+	if !r.isClaimed() || len(pkt.msg.Questions) == 0 {
 		return
 	}
 	r.queriesReceived.Add(1)
@@ -415,7 +647,11 @@ func (r *Responder) handleFrame(frame []byte) {
 	var answers []dnsRecord
 	var additionals []dnsRecord
 	wantUnicast := pkt.srcPort != Port
+	legacyUnicast := pkt.srcPort != Port
 	ttl := r.svc.TTL
+	if legacyUnicast && ttl > legacyUnicastMaxTTL {
+		ttl = legacyUnicastMaxTTL
+	}
 
 	hasAnswer := make(map[string]bool)
 	addAns := func(key string, rr dnsRecord) {
@@ -472,17 +708,31 @@ func (r *Responder) handleFrame(frame []byte) {
 		}
 	}
 
+	answers = filterRecords(answers, func(rr dnsRecord) bool {
+		return !knownAnswerSuppresses(rr, pkt.msg.Answers)
+	})
 	if len(answers) == 0 {
 		return
 	}
+	allAdditionals := append([]dnsRecord(nil), additionals...)
+	additionals = filterRecords(additionals, func(rr dnsRecord) bool {
+		return !knownAnswerSuppresses(rr, pkt.msg.Answers) && additionalNeeded(rr, answers, allAdditionals)
+	})
 
 	resp := dnsMessage{
 		Response:   true,
 		Answers:    answers,
 		Additional: additionals,
 	}
-	if wantUnicast {
+	if legacyUnicast {
 		resp.ID = pkt.msg.ID
+		resp.Questions = append([]dnsQuestion(nil), pkt.msg.Questions...)
+		for i := range resp.Answers {
+			resp.Answers[i].CacheFlush = false
+		}
+		for i := range resp.Additional {
+			resp.Additional[i].CacheFlush = false
+		}
 	}
 	payload, err := encodeMDNSMessage(resp)
 	if err != nil {
@@ -512,4 +762,158 @@ func (r *Responder) handleFrame(frame []byte) {
 	} else {
 		r.multicastReplies.Add(1)
 	}
+}
+
+func filterRecords(records []dnsRecord, keep func(dnsRecord) bool) []dnsRecord {
+	filtered := records[:0]
+	for _, rr := range records {
+		if keep(rr) {
+			filtered = append(filtered, rr)
+		}
+	}
+	return filtered
+}
+
+func knownAnswerSuppresses(rr dnsRecord, known []dnsRecord) bool {
+	for _, candidate := range known {
+		if candidate.Class == ClassIN && candidate.Type == rr.Type &&
+			strings.EqualFold(strings.TrimSuffix(candidate.Name, "."), strings.TrimSuffix(rr.Name, ".")) &&
+			bytes.Equal(recordRData(candidate), recordRData(rr)) && uint64(candidate.TTL)*2 >= uint64(rr.TTL) {
+			return true
+		}
+	}
+	return false
+}
+
+func additionalNeeded(additional dnsRecord, answers, additionals []dnsRecord) bool {
+	for _, answer := range answers {
+		switch answer.Type {
+		case TypePTR:
+			if (additional.Type == TypeSRV || additional.Type == TypeTXT) && strings.EqualFold(additional.Name, answer.PTR) {
+				return true
+			}
+			if additional.Type == TypeA {
+				for _, dependency := range additionals {
+					if dependency.Type == TypeSRV && strings.EqualFold(dependency.Name, answer.PTR) && strings.EqualFold(dependency.SRVTarget, additional.Name) {
+						return true
+					}
+				}
+			}
+		case TypeSRV:
+			if additional.Type == TypeA && strings.EqualFold(additional.Name, answer.SRVTarget) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func recordSetsConflict(local, remote []dnsRecord) bool {
+	for _, ours := range local {
+		for _, theirs := range remote {
+			if theirs.TTL != 0 && ours.Type == theirs.Type && strings.EqualFold(strings.TrimSuffix(ours.Name, "."), strings.TrimSuffix(theirs.Name, ".")) &&
+				!bytes.Equal(recordRData(ours), recordRData(theirs)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func compareProbeRecords(local, remote []dnsRecord) (conflict, localWins bool) {
+	type recordKey struct {
+		name string
+		typ  uint16
+	}
+	localSets := make(map[recordKey][][]byte)
+	remoteSets := make(map[recordKey][][]byte)
+	for _, rr := range local {
+		key := recordKey{name: strings.ToLower(strings.TrimSuffix(rr.Name, ".")), typ: rr.Type}
+		localSets[key] = append(localSets[key], recordRData(rr))
+	}
+	for _, rr := range remote {
+		if rr.TTL == 0 {
+			continue
+		}
+		key := recordKey{name: strings.ToLower(strings.TrimSuffix(rr.Name, ".")), typ: rr.Type}
+		if _, ok := localSets[key]; ok {
+			remoteSets[key] = append(remoteSets[key], recordRData(rr))
+		}
+	}
+	keys := make([]recordKey, 0, len(remoteSets))
+	for key := range remoteSets {
+		keys = append(keys, key)
+	}
+	slices.SortFunc(keys, func(a, b recordKey) int {
+		if c := strings.Compare(a.name, b.name); c != 0 {
+			return c
+		}
+		return int(a.typ) - int(b.typ)
+	})
+
+	var localOrder, remoteOrder [][]byte
+	for _, key := range keys {
+		ours, theirs := localSets[key], remoteSets[key]
+		slices.SortFunc(ours, bytes.Compare)
+		slices.SortFunc(theirs, bytes.Compare)
+		if len(ours) != len(theirs) {
+			conflict = true
+		} else {
+			for i := range ours {
+				if !bytes.Equal(ours[i], theirs[i]) {
+					conflict = true
+					break
+				}
+			}
+		}
+		localOrder = append(localOrder, ours...)
+		remoteOrder = append(remoteOrder, theirs...)
+	}
+	if !conflict {
+		return false, false
+	}
+	limit := min(len(localOrder), len(remoteOrder))
+	for i := 0; i < limit; i++ {
+		if cmp := bytes.Compare(localOrder[i], remoteOrder[i]); cmp != 0 {
+			return true, cmp > 0
+		}
+	}
+	return true, len(localOrder) > len(remoteOrder)
+}
+
+func recordRData(rr dnsRecord) []byte {
+	switch rr.Type {
+	case TypeA:
+		if rr.A.Is4() {
+			a4 := rr.A.As4()
+			return a4[:]
+		}
+	case TypeSRV:
+		target, err := encodeDNSName(strings.ToLower(strings.TrimSuffix(rr.SRVTarget, ".")))
+		if err == nil {
+			rdata := make([]byte, 6+len(target))
+			binary.BigEndian.PutUint16(rdata[4:6], rr.SRVPort)
+			copy(rdata[6:], target)
+			return rdata
+		}
+	case TypeTXT:
+		if len(rr.TXT) == 0 {
+			return []byte{0}
+		}
+		var rdata []byte
+		for _, entry := range rr.TXT {
+			if len(entry) > maxTXTOctetLen {
+				return nil
+			}
+			rdata = append(rdata, byte(len(entry)))
+			rdata = append(rdata, entry...)
+		}
+		return rdata
+	case TypePTR:
+		ptr, err := encodeDNSName(strings.ToLower(strings.TrimSuffix(rr.PTR, ".")))
+		if err == nil {
+			return ptr
+		}
+	}
+	return nil
 }

@@ -17,14 +17,38 @@ import (
 )
 
 const (
-	defaultBrowseQueryInterval = 500 * time.Millisecond
+	defaultBrowseQueryInterval = time.Second
+	minBrowseQueryInterval     = time.Second
+	maxBrowseQueryInterval     = time.Hour
+	cacheFlushGrace            = time.Second
 )
+
+type cachedAddress struct {
+	expires  time.Time
+	received time.Time
+	ttl      uint32
+}
+
+type browseInstanceRecord struct {
+	instance   string
+	ptrTarget  string
+	ptrExpires time.Time
+	ptrTTL     uint32
+	hasPTR     bool
+	srvHost    string
+	srvPort    uint16
+	srvExpires time.Time
+	hasSRV     bool
+	txt        []string
+	txtExpires time.Time
+	hasTXT     bool
+}
 
 // BrowseConfig configures active mDNS browsing and host resolution over a RawFramePort.
 type BrowseConfig struct {
 	LocalMAC        [6]byte          // Unicast non-zero client Ethernet MAC
 	LocalIP         netip.Addr       // Client IPv4 host address used as source IP
-	QueryInterval   time.Duration    // Retransmit interval while browsing (default 500ms; <0 invalid)
+	QueryInterval   time.Duration    // Initial retransmit interval (default 1s, then doubles; <0 invalid)
 	UnicastResponse bool             // Request unicast replies (sets RFC 6762 QU bit)
 	StopOnFirst     bool             // When true, Browse returns as soon as at least one complete service is resolved
 	Now             func() time.Time // Optional clock for deterministic TTL expiry tests (default time.Now)
@@ -92,28 +116,15 @@ func Browse(ctx context.Context, port network.RawFramePort, cfg BrowseConfig, se
 		return nil, err
 	}
 
-	type instanceRecord struct {
-		instance   string
-		ptrExpires time.Time
-		hasPTR     bool
-		srvHost    string
-		srvPort    uint16
-		srvExpires time.Time
-		hasSRV     bool
-		txt        []string
-		txtExpires time.Time
-		hasTXT     bool
-	}
-
 	var mu sync.Mutex
-	instances := make(map[string]*instanceRecord)
-	hostAddrs := make(map[string]map[netip.Addr]time.Time)
+	instances := make(map[string]*browseInstanceRecord)
+	hostAddrs := make(map[string]map[netip.Addr]cachedAddress)
 	readyCh := make(chan struct{}, 1)
 
-	getInst := func(key, display string) *instanceRecord {
+	getInst := func(key, display string) *browseInstanceRecord {
 		rec := instances[key]
 		if rec == nil {
-			rec = &instanceRecord{instance: display}
+			rec = &browseInstanceRecord{instance: display}
 			instances[key] = rec
 		}
 		return rec
@@ -121,8 +132,8 @@ func Browse(ctx context.Context, port network.RawFramePort, cfg BrowseConfig, se
 
 	snapshotLocked := func(now time.Time) []DiscoveredService {
 		for hostKey, addrMap := range hostAddrs {
-			for addr, exp := range addrMap {
-				if !now.Before(exp) {
+			for addr, record := range addrMap {
+				if !now.Before(record.expires) {
 					delete(addrMap, addr)
 				}
 			}
@@ -159,10 +170,10 @@ func Browse(ctx context.Context, port network.RawFramePort, cfg BrowseConfig, se
 				minExpiry = rec.srvExpires
 			}
 			var sortedAddrs []netip.Addr
-			for addr, exp := range addrMap {
+			for addr, record := range addrMap {
 				sortedAddrs = append(sortedAddrs, addr)
-				if exp.Before(minExpiry) {
-					minExpiry = exp
+				if record.expires.Before(minExpiry) {
+					minExpiry = record.expires
 				}
 			}
 			slices.SortFunc(sortedAddrs, func(a, b netip.Addr) int {
@@ -226,7 +237,9 @@ func Browse(ctx context.Context, port network.RawFramePort, cfg BrowseConfig, se
 				}
 				rec := getInst(key, display)
 				rec.hasPTR = true
+				rec.ptrTarget = instFQDN
 				rec.ptrExpires = exp
+				rec.ptrTTL = rr.TTL
 			case TypeSRV:
 				key := strings.ToLower(name)
 				if rr.TTL == 0 {
@@ -261,32 +274,19 @@ func Browse(ctx context.Context, port network.RawFramePort, cfg BrowseConfig, se
 					rec.txt = append([]string(nil), rr.TXT...)
 					rec.txtExpires = exp
 				}
-			case TypeA:
-				hostKey := strings.ToLower(name)
-				if rr.TTL == 0 {
-					if addrMap := hostAddrs[hostKey]; addrMap != nil {
-						delete(addrMap, rr.A)
-						if len(addrMap) == 0 {
-							delete(hostAddrs, hostKey)
-						}
-					}
-					return
-				}
-				addrMap := hostAddrs[hostKey]
-				if addrMap == nil {
-					addrMap = make(map[netip.Addr]time.Time)
-					hostAddrs[hostKey] = addrMap
-				}
-				addrMap[rr.A] = exp
 			}
 		}
 
+		packetRecords := make([]dnsRecord, 0, len(pkt.msg.Answers)+len(pkt.msg.Additional))
+		packetRecords = append(packetRecords, pkt.msg.Answers...)
+		packetRecords = append(packetRecords, pkt.msg.Additional...)
 		for _, rr := range pkt.msg.Answers {
 			handleRR(rr)
 		}
 		for _, rr := range pkt.msg.Additional {
 			handleRR(rr)
 		}
+		applyARecordPacket(hostAddrs, packetRecords, now)
 		if cfg.StopOnFirst && len(snapshotLocked(now)) > 0 {
 			select {
 			case readyCh <- struct{}{}:
@@ -300,7 +300,25 @@ func Browse(ctx context.Context, port network.RawFramePort, cfg BrowseConfig, se
 		if err := port.Err(); err != nil {
 			return err
 		}
-		frame := buildMDNSFrame(cfg.LocalMAC, multicastMACBytes, localIP4, multicastIPv4Bytes, Port, Port, uint16(browseSeq.Add(1)), queryPayload)
+		mu.Lock()
+		knownAnswers := knownPTRAnswers(instances, serviceFQDN, nowFn())
+		mu.Unlock()
+		payload := queryPayload
+		if len(knownAnswers) > 0 {
+			payload, err = encodeMDNSMessage(dnsMessage{
+				Questions: []dnsQuestion{{
+					Name:   serviceFQDN,
+					Type:   TypePTR,
+					Class:  ClassIN,
+					WantQU: cfg.UnicastResponse,
+				}},
+				Answers: knownAnswers,
+			})
+			if err != nil {
+				return err
+			}
+		}
+		frame := buildMDNSFrame(cfg.LocalMAC, multicastMACBytes, localIP4, multicastIPv4Bytes, Port, Port, uint16(browseSeq.Add(1)), payload)
 		return port.SendRawFrame(frame)
 	}
 
@@ -308,8 +326,9 @@ func Browse(ctx context.Context, port network.RawFramePort, cfg BrowseConfig, se
 		return nil, err
 	}
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	nextInterval := min(max(interval, minBrowseQueryInterval), maxBrowseQueryInterval)
+	timer := time.NewTimer(nextInterval)
+	defer timer.Stop()
 
 	for {
 		select {
@@ -326,12 +345,130 @@ func Browse(ctx context.Context, port network.RawFramePort, cfg BrowseConfig, se
 				return res, nil
 			}
 			return nil, ctx.Err()
-		case <-ticker.C:
+		case <-timer.C:
 			if err := sendQuery(); err != nil {
 				return nil, err
 			}
+			nextInterval = nextBrowseQueryInterval(nextInterval)
+			timer.Reset(nextInterval)
 		}
 	}
+}
+
+func applyARecordPacket(cache map[string]map[netip.Addr]cachedAddress, records []dnsRecord, now time.Time) {
+	byHost := make(map[string][]dnsRecord)
+	for _, rr := range records {
+		if rr.Type == TypeA && rr.A.Is4() {
+			host := strings.ToLower(strings.TrimSuffix(rr.Name, "."))
+			byHost[host] = append(byHost[host], rr)
+		}
+	}
+	for host, hostRecords := range byHost {
+		addrMap := cache[host]
+		if addrMap == nil {
+			addrMap = make(map[netip.Addr]cachedAddress)
+			cache[host] = addrMap
+		}
+		incoming := make(map[netip.Addr]struct{})
+		flush := false
+		for _, rr := range hostRecords {
+			if rr.TTL == 0 {
+				delete(addrMap, rr.A)
+				continue
+			}
+			incoming[rr.A] = struct{}{}
+			addrMap[rr.A] = cachedAddress{expires: now.Add(time.Duration(rr.TTL) * time.Second), received: now, ttl: rr.TTL}
+			flush = flush || rr.CacheFlush
+		}
+		if flush {
+			graceExpiry := now.Add(cacheFlushGrace)
+			for addr, record := range addrMap {
+				if _, inPacket := incoming[addr]; inPacket {
+					continue
+				}
+				if now.Sub(record.received) < cacheFlushGrace {
+					continue
+				}
+				if record.expires.After(graceExpiry) {
+					record.expires = graceExpiry
+					addrMap[addr] = record
+				}
+			}
+		}
+		if len(addrMap) == 0 {
+			delete(cache, host)
+		}
+	}
+}
+
+func nextBrowseQueryInterval(current time.Duration) time.Duration {
+	if current >= maxBrowseQueryInterval/2 {
+		return maxBrowseQueryInterval
+	}
+	return current * 2
+}
+
+func knownPTRAnswers(instances map[string]*browseInstanceRecord, serviceFQDN string, now time.Time) []dnsRecord {
+	// Called while the browser cache mutex is held.
+	var answers []dnsRecord
+	for _, rec := range instances {
+		if !rec.hasPTR || rec.ptrTTL == 0 || !now.Before(rec.ptrExpires) {
+			continue
+		}
+		remaining := rec.ptrExpires.Sub(now)
+		if remaining < time.Duration(rec.ptrTTL)*time.Second/2 {
+			continue
+		}
+		ttl := uint32(remaining / time.Second)
+		if ttl == 0 {
+			continue
+		}
+		answers = append(answers, dnsRecord{
+			Name:  serviceFQDN,
+			Type:  TypePTR,
+			Class: ClassIN,
+			TTL:   ttl,
+			PTR:   rec.ptrTarget,
+		})
+	}
+	slices.SortFunc(answers, func(a, b dnsRecord) int {
+		return strings.Compare(strings.ToLower(a.PTR), strings.ToLower(b.PTR))
+	})
+	return answers
+}
+
+func knownAAnswers(resolved map[netip.Addr]cachedAddress, host string, now time.Time) []dnsRecord {
+	var addrs []netip.Addr
+	for addr, record := range resolved {
+		if !now.Before(record.expires) || record.ttl == 0 || record.expires.Sub(now) < time.Duration(record.ttl)*time.Second/2 {
+			continue
+		}
+		addrs = append(addrs, addr)
+	}
+	slices.SortFunc(addrs, func(a, b netip.Addr) int {
+		return cmp.Compare(a.String(), b.String())
+	})
+	answers := make([]dnsRecord, 0, len(addrs))
+	for _, addr := range addrs {
+		record := resolved[addr]
+		ttl := uint32(record.expires.Sub(now) / time.Second)
+		if ttl == 0 {
+			continue
+		}
+		answers = append(answers, dnsRecord{Name: host, Type: TypeA, Class: ClassIN, TTL: ttl, A: addr})
+	}
+	return answers
+}
+
+func applyTargetARecordPacket(cache map[netip.Addr]cachedAddress, host string, records []dnsRecord, now time.Time) {
+	target := strings.ToLower(strings.TrimSuffix(host, "."))
+	targetRecords := filterRecords(records, func(rr dnsRecord) bool {
+		return rr.Type == TypeA && strings.EqualFold(strings.TrimSuffix(rr.Name, "."), target)
+	})
+	if len(targetRecords) == 0 {
+		return
+	}
+	applyARecordPacket(map[string]map[netip.Addr]cachedAddress{target: cache}, targetRecords, now)
 }
 
 // ResolveHost queries mDNS for IPv4 A records matching host (e.g. "fes-de25.local")
@@ -384,13 +521,13 @@ func ResolveHost(ctx context.Context, port network.RawFramePort, cfg BrowseConfi
 	}
 
 	var mu sync.Mutex
-	resolved := make(map[netip.Addr]time.Time)
+	resolved := make(map[netip.Addr]cachedAddress)
 	foundCh := make(chan struct{}, 1)
 
 	activeAddrsLocked := func(now time.Time) []netip.Addr {
 		var out []netip.Addr
-		for addr, exp := range resolved {
-			if !now.Before(exp) {
+		for addr, record := range resolved {
+			if !now.Before(record.expires) {
 				delete(resolved, addr)
 				continue
 			}
@@ -411,25 +548,10 @@ func ResolveHost(ctx context.Context, port network.RawFramePort, cfg BrowseConfi
 		now := nowFn()
 		mu.Lock()
 		defer mu.Unlock()
-		checkRR := func(rr dnsRecord) {
-			if rr.Type != TypeA || !rr.A.Is4() {
-				return
-			}
-			if !strings.EqualFold(strings.TrimSuffix(rr.Name, "."), normHost) {
-				return
-			}
-			if rr.TTL == 0 {
-				delete(resolved, rr.A)
-				return
-			}
-			resolved[rr.A] = now.Add(time.Duration(rr.TTL) * time.Second)
-		}
-		for _, rr := range pkt.msg.Answers {
-			checkRR(rr)
-		}
-		for _, rr := range pkt.msg.Additional {
-			checkRR(rr)
-		}
+		packetRecords := make([]dnsRecord, 0, len(pkt.msg.Answers)+len(pkt.msg.Additional))
+		packetRecords = append(packetRecords, pkt.msg.Answers...)
+		packetRecords = append(packetRecords, pkt.msg.Additional...)
+		applyTargetARecordPacket(resolved, normHost, packetRecords, now)
 		if len(activeAddrsLocked(now)) > 0 {
 			select {
 			case foundCh <- struct{}{}:
@@ -443,7 +565,25 @@ func ResolveHost(ctx context.Context, port network.RawFramePort, cfg BrowseConfi
 		if err := port.Err(); err != nil {
 			return err
 		}
-		frame := buildMDNSFrame(cfg.LocalMAC, multicastMACBytes, localIP4, multicastIPv4Bytes, Port, Port, uint16(browseSeq.Add(1)), queryPayload)
+		mu.Lock()
+		knownAnswers := knownAAnswers(resolved, normHost, nowFn())
+		mu.Unlock()
+		payload := queryPayload
+		if len(knownAnswers) > 0 {
+			payload, err = encodeMDNSMessage(dnsMessage{
+				Questions: []dnsQuestion{{
+					Name:   normHost,
+					Type:   TypeA,
+					Class:  ClassIN,
+					WantQU: cfg.UnicastResponse,
+				}},
+				Answers: knownAnswers,
+			})
+			if err != nil {
+				return err
+			}
+		}
+		frame := buildMDNSFrame(cfg.LocalMAC, multicastMACBytes, localIP4, multicastIPv4Bytes, Port, Port, uint16(browseSeq.Add(1)), payload)
 		return port.SendRawFrame(frame)
 	}
 
@@ -451,8 +591,9 @@ func ResolveHost(ctx context.Context, port network.RawFramePort, cfg BrowseConfi
 		return nil, err
 	}
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	nextInterval := min(max(interval, minBrowseQueryInterval), maxBrowseQueryInterval)
+	timer := time.NewTimer(nextInterval)
+	defer timer.Stop()
 
 	for {
 		select {
@@ -465,10 +606,12 @@ func ResolveHost(ctx context.Context, port network.RawFramePort, cfg BrowseConfi
 			}
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-ticker.C:
+		case <-timer.C:
 			if err := sendQuery(); err != nil {
 				return nil, err
 			}
+			nextInterval = nextBrowseQueryInterval(nextInterval)
+			timer.Reset(nextInterval)
 		}
 	}
 }

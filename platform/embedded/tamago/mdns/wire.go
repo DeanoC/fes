@@ -81,11 +81,12 @@ type dnsRecord struct {
 }
 
 type dnsMessage struct {
-	ID         uint16
-	Response   bool
-	Questions  []dnsQuestion
-	Answers    []dnsRecord
-	Additional []dnsRecord
+	ID          uint16
+	Response    bool
+	Questions   []dnsQuestion
+	Answers     []dnsRecord
+	Authorities []dnsRecord
+	Additional  []dnsRecord
 }
 
 func normalizeHostName(name string) (string, error) {
@@ -230,7 +231,7 @@ func encodeMDNSMessage(msg dnsMessage) ([]byte, error) {
 	binary.BigEndian.PutUint16(buf[2:4], flags)
 	binary.BigEndian.PutUint16(buf[4:6], uint16(len(msg.Questions)))
 	binary.BigEndian.PutUint16(buf[6:8], uint16(len(msg.Answers)))
-	binary.BigEndian.PutUint16(buf[8:10], 0)
+	binary.BigEndian.PutUint16(buf[8:10], uint16(len(msg.Authorities)))
 	binary.BigEndian.PutUint16(buf[10:12], uint16(len(msg.Additional)))
 
 	for _, q := range msg.Questions {
@@ -313,6 +314,11 @@ func encodeMDNSMessage(msg dnsMessage) ([]byte, error) {
 	}
 
 	for _, rr := range msg.Answers {
+		if err := appendRecord(rr); err != nil {
+			return nil, err
+		}
+	}
+	for _, rr := range msg.Authorities {
 		if err := appendRecord(rr); err != nil {
 			return nil, err
 		}
@@ -440,7 +446,7 @@ func decodeMDNSMessage(msg []byte) (dnsMessage, error) {
 	if out.Answers, err = parseSection(anCount, true); err != nil {
 		return dnsMessage{}, err
 	}
-	if _, err = parseSection(nsCount, false); err != nil {
+	if out.Authorities, err = parseSection(nsCount, true); err != nil {
 		return dnsMessage{}, err
 	}
 	if out.Additional, err = parseSection(arCount, true); err != nil {
