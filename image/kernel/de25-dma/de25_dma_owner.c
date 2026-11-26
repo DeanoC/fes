@@ -46,6 +46,8 @@ struct fes_de25_owner {
 	 */
 	void __iomem *window_base;
 	struct fes_de25_window *window_active;
+	/* The window's storage: the base of the owner's reserved pool. */
+	phys_addr_t window_storage;
 	bool window_ready, window_leased;
 	u32 next_epoch;
 	bool ready, leased, static_started, static_pending;
@@ -211,7 +213,7 @@ static struct file *owner_window_allocate(struct fes_de25_owner *owner)
 		file = ERR_PTR(-EBUSY);
 		goto out;
 	}
-	file = fes_de25_window_create(owner->dev, &backend, &pinned);
+	file = fes_de25_window_create(owner->dev, &backend, owner->window_storage, &pinned);
 	if (!IS_ERR(file))
 		owner->window_active = fes_de25_window_get(file);
 	else if (pinned)
@@ -677,6 +679,8 @@ int fes_de25_owner_probe(struct platform_device *pdev)
 {
 	struct fes_de25_owner *owner;
 	struct resource *resource;
+	struct reserved_mem *rmem;
+	struct device_node *pool;
 	int ret;
 
 	if (!IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM))
@@ -718,15 +722,24 @@ int fes_de25_owner_probe(struct platform_device *pdev)
 			owner->window_base = NULL;
 			goto put_region;
 		}
-		/* The window's storage is the owner's own pool, which the tree
-		 * pins where the F2SDRAM firewall admits the fabric. Without it
-		 * no window may be offered.
+		/* The window's storage is the owner's own reserved pool, which
+		 * the tree pins where the F2SDRAM firewall admits the fabric. It
+		 * is not bound as the device's DMA memory: a per-device coherent
+		 * pool is handed out before the IOMMU path, by physical address.
+		 * The scanout allocates from the global CMA. Without the pool no
+		 * window may be offered.
 		 */
-		ret = of_reserved_mem_device_init(&pdev->dev);
+		pool = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
+		rmem = pool ? of_reserved_mem_lookup(pool) : NULL;
+		ret = rmem ? fes_de25_window_pool_check(of_device_is_compatible(pool, "fes,de25-window-pool"),
+				of_property_read_bool(pool, "reusable"), of_property_read_bool(pool, "no-map"),
+				rmem->base, rmem->size) : -ENODEV;
+		of_node_put(pool);
 		if (ret) {
 			owner->window_base = NULL;
 			goto put_region;
 		}
+		owner->window_storage = rmem->base;
 	}
 	owner->notifier.notifier_call = owner_notify;
 	owner->notifier.priority = 100; /* before stock of-fpga-region (priority 0) */
@@ -746,9 +759,6 @@ int fes_de25_owner_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, owner);
 	return 0;
 put_region:
-	/* window_base is set only once its pool is bound. */
-	if (owner->window_base)
-		of_reserved_mem_device_release(&pdev->dev);
 	of_node_put(owner->region);
 	return ret;
 }
@@ -873,10 +883,13 @@ int fes_de25_owner_test_dependencies(struct device *dev)
 
 int fes_de25_owner_test_window(struct fes_de25_owner *owner,
 		u32 (*read)(void *context, u32 offset),
-		void (*write)(void *context, u32 offset, u32 value), void *context)
+		void (*write)(void *context, u32 offset, u32 value), void *context,
+		phys_addr_t storage)
 {
 	if (!read || !write || owner->window_base)
 		return -EINVAL;
+	/* The test supplies the physical range the tree would reserve. */
+	owner->window_storage = storage;
 	/* A fixture block: only the test accessors ever reach it. */
 	owner->window_base = (void __iomem *)owner;
 	owner->test_window_read = read;

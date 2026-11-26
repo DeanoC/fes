@@ -18,6 +18,7 @@
 #include <linux/anon_inodes.h>
 #include <linux/atomic.h>
 #include <linux/build_bug.h>
+#include <linux/dma-map-ops.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/file.h>
@@ -29,11 +30,11 @@
 #include <linux/sched/mm.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/vmalloc.h>
 
 #include "de25_dma_internal.h"
 #include "generated/fes_de25_hps_window.h"
 
-#define WINDOW_ATTRIBUTES DMA_ATTR_FORCE_CONTIGUOUS
 #define WINDOW_STATUS(name) FES_DE25_HPS_WINDOW_STATUS_##name
 
 static_assert(sizeof(struct fes_de25_dma_window_info) == 56);
@@ -56,6 +57,8 @@ struct fes_de25_window {
 	struct fes_de25_window_backend backend;
 	void *cpu;
 	dma_addr_t dma;
+	phys_addr_t storage;
+	bool mapped;
 	u64 generation, epoch;
 	u32 build_id[4];
 	u32 status, fault;
@@ -82,6 +85,79 @@ static u64 window_next_generation(void)
 	}
 }
 
+/* The F2SDRAM firewall's region 0 less the vendor tree's service buffer,
+ * where the tree pins the pool (scripts/de25_kernel_platform.py
+ * WINDOW_POOL_RANGE). End exclusive.
+ */
+#define WINDOW_POOL_FIRST 0x82000000ULL
+#define WINDOW_POOL_END 0xc0000000ULL
+
+/* A reserved pool the page allocator never holds, of exactly one window: not
+ * reusable (a migration could fail), not no-map (the device mapping would
+ * then be an MMIO one, and the pages the DMA API maps would be missing).
+ */
+int fes_de25_window_pool_check(bool compatible, bool reusable, bool no_map, phys_addr_t base,
+		phys_addr_t size)
+{
+	if (!compatible || reusable || no_map)
+		return -EINVAL;
+	if (size != FES_DE25_HPS_WINDOW_SPAN || !PAGE_ALIGNED(base) ||
+	    base < WINDOW_POOL_FIRST || base > WINDOW_POOL_END - size)
+		return -ERANGE;
+	return 0;
+}
+
+/* The protection dma_mmap_attrs and the DMA API's kernel remap give a
+ * contiguous allocation for this device: uncached where it is not coherent.
+ */
+static pgprot_t window_pgprot(struct device *dev, pgprot_t prot)
+{
+	return dev_is_dma_coherent(dev) ? prot : pgprot_dmacoherent(prot);
+}
+
+/* The owner's pool (fes,de25-window-pool) is reserved memory the page
+ * allocator never holds, so taking it cannot fail on page migration as a
+ * reusable pool's 256 MiB did on Kit D25. It keeps its struct pages, so it is
+ * mapped exactly as the DMA API maps a contiguous allocation for this device
+ * (iommu_dma_alloc_pages): an uncached kernel alias, the linear alias
+ * cleaned and invalidated, the device address through dma_map_page with the
+ * non-coherent protection, and user maps with window_pgprot. Zeroed for
+ * every window, so no session sees another's memory.
+ */
+static int window_map_storage(struct fes_de25_window *window, phys_addr_t base)
+{
+	const unsigned long count = FES_DE25_HPS_WINDOW_SPAN >> PAGE_SHIFT;
+	struct device *dev = window->dev;
+	struct page **pages, *first;
+	unsigned long i;
+
+	if (!base || !PAGE_ALIGNED(base) || !pfn_valid(PHYS_PFN(base)) ||
+	    !pfn_valid(PHYS_PFN(base + FES_DE25_HPS_WINDOW_SPAN - 1)))
+		return -EINVAL;
+	first = pfn_to_page(PHYS_PFN(base));
+	pages = kvmalloc_array(count, sizeof(*pages), GFP_KERNEL);
+	if (!pages)
+		return -ENOMEM;
+	for (i = 0; i < count; i++)
+		pages[i] = nth_page(first, i);
+	window->cpu = vmap(pages, count, VM_MAP, window_pgprot(dev, PAGE_KERNEL));
+	kvfree(pages);
+	if (!window->cpu)
+		return -ENOMEM;
+	/* Mapping for the device cleans the linear alias; the sync for the CPU
+	 * then invalidates it, as arch_dma_prep_coherent does for an allocation.
+	 */
+	window->dma = dma_map_page_attrs(dev, first, 0, FES_DE25_HPS_WINDOW_SPAN, DMA_BIDIRECTIONAL, 0);
+	if (dma_mapping_error(dev, window->dma))
+		return -ENOMEM;
+	window->mapped = true;
+	dma_sync_single_for_cpu(dev, window->dma, FES_DE25_HPS_WINDOW_SPAN, DMA_BIDIRECTIONAL);
+	memset(window->cpu, 0, FES_DE25_HPS_WINDOW_SPAN);
+	wmb();
+	window->storage = base;
+	return 0;
+}
+
 static void window_destroy(struct kref *refs)
 {
 	struct fes_de25_window *window = container_of(refs, struct fes_de25_window, refs);
@@ -89,9 +165,12 @@ static void window_destroy(struct kref *refs)
 
 	/* An exposed window holds its own reference and cannot get here. */
 	WARN_ON(window->exposed);
+	/* The storage is the owner's reserved pool: only its mappings end. */
+	if (window->mapped)
+		dma_unmap_page_attrs(window->dev, window->dma, FES_DE25_HPS_WINDOW_SPAN,
+			DMA_BIDIRECTIONAL, DMA_ATTR_SKIP_CPU_SYNC);
 	if (window->cpu)
-		dma_free_attrs(window->dev, FES_DE25_HPS_WINDOW_SPAN, window->cpu, window->dma,
-			WINDOW_ATTRIBUTES);
+		vunmap(window->cpu);
 	list_for_each_entry_safe(entry, next, &window->mms, link) {
 		mmdrop(entry->mm);
 		kfree(entry);
@@ -287,10 +366,11 @@ static int window_mmap(struct file *file, struct vm_area_struct *vma)
 		list_add_tail(&entry->link, &window->mms);
 		added = true;
 	}
-	/* dma_mmap_attrs maps vm_pgoff pages into the allocation. */
+	/* vm_pgoff pages into the pool, with the DMA API's mmap protection. */
 	vma->vm_ops = NULL;
-	ret = dma_mmap_attrs(window->dev, vma, window->cpu, window->dma,
-			FES_DE25_HPS_WINDOW_SPAN, WINDOW_ATTRIBUTES);
+	vma->vm_page_prot = window_pgprot(window->dev, vma->vm_page_prot);
+	ret = remap_pfn_range(vma, vma->vm_start, PHYS_PFN(window->storage) + vma->vm_pgoff,
+			vma->vm_end - vma->vm_start, vma->vm_page_prot);
 	if (!ret && (vma->vm_ops ||
 	    (vma->vm_flags & (VM_IO | VM_PFNMAP)) != (VM_IO | VM_PFNMAP)))
 		ret = -EOPNOTSUPP;  /* only an eager I/O PFN mapping can be revoked */
@@ -410,7 +490,7 @@ static int window_publish(struct fes_de25_window *window)
 }
 
 struct file *fes_de25_window_create(struct device *dev, const struct fes_de25_window_backend *backend,
-		struct fes_de25_window **pinned)
+		phys_addr_t storage, struct fes_de25_window **pinned)
 {
 	struct fes_de25_window *window;
 	struct fes_de25_window_backend io;
@@ -461,19 +541,17 @@ struct file *fes_de25_window_create(struct device *dev, const struct fes_de25_wi
 		ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(FES_DE25_HPS_WINDOW_DMA_ADDRESS_BITS));
 	if (ret)
 		goto fail_lease;
-	window->cpu = dma_alloc_attrs(dev, FES_DE25_HPS_WINDOW_SPAN, &window->dma, GFP_KERNEL | __GFP_NOWARN,
-			WINDOW_ATTRIBUTES);
-	/* From here the reference owns the lease and the storage. */
-	if (!window->cpu) {
+	/* From here the reference owns the lease and the storage's mappings. */
+	ret = window_map_storage(window, storage);
+	if (ret) {
 		kref_put(&window->refs, window_destroy);
-		return ERR_PTR(-ENOMEM);
+		return ERR_PTR(ret);
 	}
 	if (!IS_ALIGNED(window->dma, FES_DE25_HPS_WINDOW_GRANT_ALIGNMENT) ||
 	    (u64)window->dma > (1ULL << FES_DE25_HPS_WINDOW_DMA_ADDRESS_BITS) - FES_DE25_HPS_WINDOW_SPAN) {
 		kref_put(&window->refs, window_destroy);
 		return ERR_PTR(-ERANGE);
 	}
-	memset(window->cpu, 0, FES_DE25_HPS_WINDOW_SPAN);
 	/* Publish before any file exists, so a refusal is released here and
 	 * now, not by a deferred final fput.
 	 */

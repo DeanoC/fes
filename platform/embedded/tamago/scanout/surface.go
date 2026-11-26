@@ -22,12 +22,25 @@ type Memory interface {
 	Publish() error
 }
 
+// SurfaceStats reports cumulative presentation and dirty-rectangle transfer activity.
+// FramesPresented tracks full-frame Present calls; RectsPresented tracks non-empty
+// PresentRect calls.
+type SurfaceStats struct {
+	FramesPresented    uint64
+	RectsPresented     uint64
+	EmptyRects         uint64
+	BytesWritten       uint64
+	RejectedValidation uint64
+	Faulted            bool
+}
+
 type Surface struct {
 	mu                    sync.Mutex
 	memory                Memory
 	width, height, stride int
 	scratch               []byte
 	fault                 error
+	stats                 SurfaceStats
 }
 
 // CheckFrame validates dimensions and storage before a platform changes reader
@@ -49,6 +62,15 @@ func New(width, height, stride int, memory Memory) (*Surface, error) {
 	return &Surface{memory: memory, width: width, height: height, stride: stride, scratch: make([]byte, width*4*4)}, nil
 }
 
+// Stats returns a snapshot of cumulative presentation counters and fault state.
+func (s *Surface) Stats() SurfaceStats {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st := s.stats
+	st.Faulted = s.fault != nil
+	return st
+}
+
 // Present publishes B,G,R,0xff bytes, matching XRGB8888 in little-endian
 // memory. The fixed firmware plane may read during this copy: tearing is
 // permitted. Returning nil never authorizes FPGA replacement or memory reuse.
@@ -59,39 +81,89 @@ func (s *Surface) Present(frame *image.RGBA) error {
 		return s.fault
 	}
 	if err := s.CheckFrame(frame); err != nil {
+		s.stats.RejectedValidation++
 		return err
 	}
-	for y := 0; y < s.height; y += 4 {
+	if err := s.presentRegionLocked(frame, image.Rect(0, 0, s.width, s.height)); err != nil {
+		return err
+	}
+	s.stats.FramesPresented++
+	return nil
+}
+
+// PresentRect copies pixels inside rect (in surface coordinates [0, width) x [0, height))
+// from frame into the scanout window and publishes the update. An empty rect validates the
+// frame and returns nil without writing memory or calling Publish.
+func (s *Surface) PresentRect(frame *image.RGBA, rect image.Rectangle) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.fault != nil {
+		return s.fault
+	}
+	if err := s.CheckFrame(frame); err != nil {
+		s.stats.RejectedValidation++
+		return err
+	}
+	if rect.Empty() {
+		s.stats.EmptyRects++
+		return nil
+	}
+	bounds := image.Rect(0, 0, s.width, s.height)
+	if !rect.In(bounds) {
+		s.stats.RejectedValidation++
+		return errors.New("scanout: rect exceeds surface bounds")
+	}
+	if err := s.presentRegionLocked(frame, rect); err != nil {
+		return err
+	}
+	s.stats.RectsPresented++
+	return nil
+}
+
+func (s *Surface) presentRegionLocked(frame *image.RGBA, rect image.Rectangle) error {
+	w := rect.Dx()
+	rowBytes := w * 4
+	contiguous := w == s.width && s.stride == s.width*4
+	for y := rect.Min.Y; y < rect.Max.Y; y += 4 {
 		runtime.Gosched()
-		rows := min(4, s.height-y)
+		rows := min(4, rect.Max.Y-y)
 		for row := 0; row < rows; row++ {
-			src := frame.Pix[(y+row)*frame.Stride:]
-			dest := s.scratch[row*s.width*4:]
-			for x := 0; x < s.width*4; x += 4 {
+			src := frame.Pix[(y+row)*frame.Stride+rect.Min.X*4:]
+			dest := s.scratch[row*rowBytes:]
+			for x := 0; x < rowBytes; x += 4 {
 				dest[x] = src[x+2]
 				dest[x+1] = src[x+1]
 				dest[x+2] = src[x]
 				dest[x+3] = 0xff
 			}
 		}
-		// Contiguous destinations can be published in one bounded chunk; padded
-		// rows preserve firmware-owned padding and use separate bounded writes.
-		if s.stride == s.width*4 {
-			if err := s.memory.Write(uint64(y*s.stride), s.scratch[:rows*s.width*4]); err != nil {
+		// Contiguous full-width writes publish in one bounded chunk; partial-width
+		// rectangles or padded strides preserve untouched columns/padding via
+		// per-row bounded writes.
+		if contiguous {
+			chunk := s.scratch[:rows*rowBytes]
+			if err := s.memory.Write(uint64(y*s.stride), chunk); err != nil {
 				s.fault = fmt.Errorf("scanout: uncertain copy; window retained until reboot: %w", err)
+				s.stats.Faulted = true
 				return s.fault
 			}
+			s.stats.BytesWritten += uint64(len(chunk))
 		} else {
 			for row := 0; row < rows; row++ {
-				if err := s.memory.Write(uint64((y+row)*s.stride), s.scratch[row*s.width*4:(row+1)*s.width*4]); err != nil {
+				chunk := s.scratch[row*rowBytes : (row+1)*rowBytes]
+				offset := uint64((y+row)*s.stride + rect.Min.X*4)
+				if err := s.memory.Write(offset, chunk); err != nil {
 					s.fault = fmt.Errorf("scanout: uncertain copy; window retained until reboot: %w", err)
+					s.stats.Faulted = true
 					return s.fault
 				}
+				s.stats.BytesWritten += uint64(len(chunk))
 			}
 		}
 	}
 	if err := s.memory.Publish(); err != nil {
 		s.fault = fmt.Errorf("scanout: uncertain publication; window retained until reboot: %w", err)
+		s.stats.Faulted = true
 		return s.fault
 	}
 	return nil

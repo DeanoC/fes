@@ -43,8 +43,10 @@ CONTAINMENT_EXCLUDED = ("SENSORS_SOC64", "INTEL_STRATIX10_RSU",
 # 2026-11-01-de25-allocated-scanout/route-readonly.log, TBU2NOC_FW), less the
 # vendor tree's no-map service buffer at 0x80000000..0x81ffffff. End exclusive.
 WINDOW_POOL_RANGE = (0x82000000, 0xc0000000)
-# The 256 MiB window, the 8 MiB scanout and slack for the pool's alignment.
-WINDOW_POOL_BYTES = 0x11000000
+# Exactly one 256 MiB window. A reserved pool the page allocator never holds:
+# on Kit D25 a reusable 272 MiB pool failed every 256 MiB allocation on page
+# migration (#2214). The scanout allocates from the global CMA again.
+WINDOW_POOL_BYTES = 0x10000000
 WINDOW_POOL_ALIGNMENT = 0x400000
 
 
@@ -98,13 +100,13 @@ def owner_fragment(generated):
     address = constant("ARCHITECTURAL_LW_BASE") + constant("PERIPHERAL_OFFSET")
     window = window_constants(Path(generated) / "fes_de25_hps_window.h")
     # The owner's second reg is the HPS window's control block. Its storage
-    # is a reusable pool pinned where the F2SDRAM firewall admits the fabric
-    # (WINDOW_POOL_RANGE); the owner's scanout allocation shares it.
+    # is a reserved pool pinned where the F2SDRAM firewall admits the fabric
+    # (WINDOW_POOL_RANGE): its own compatible, so no generic handler binds it,
+    # neither reusable (migration) nor no-map (the DMA API maps its pages).
     fragment = ("\n/* FES permanent owner candidate: no access until a known profile loads. */\n"
                 "/ {\n\treserved-memory {\n"
                 "\t\tfes_de25_window_pool: fes-window-pool {\n"
-                '\t\t\tcompatible = "shared-dma-pool";\n'
-                "\t\t\treusable;\n"
+                '\t\t\tcompatible = "fes,de25-window-pool";\n'
                 "\t\t\tsize = <0 0x%x>;\n"
                 "\t\t\talignment = <0 0x%x>;\n"
                 "\t\t\talloc-ranges = <0 0x%x 0 0x%x>;\n\t\t};\n\t};\n"
@@ -119,8 +121,8 @@ def owner_fragment(generated):
                     address, address, constant("CONTROL_SPAN"),
                     constant("ARCHITECTURAL_LW_BASE") + window["PERIPHERAL_OFFSET"], window["CONTROL_SPAN"],
                     constant("SMMU_STREAM_ID"))
-    if WINDOW_POOL_BYTES < window["SPAN"] + constant("ALLOCATION_BYTES"):
-        raise ValueError("window pool smaller than the window and the scanout together")
+    if WINDOW_POOL_BYTES != window["SPAN"]:
+        raise ValueError("window pool is not exactly one window")
     return fragment
 
 
