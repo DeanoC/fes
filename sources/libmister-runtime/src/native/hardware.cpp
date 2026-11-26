@@ -1763,6 +1763,12 @@ std::uint32_t Crc32(const std::vector<unsigned char>& bytes) {
 	}
 	return crc ^ 0xffffffffu;
 }
+
+bool FloppyStateRejected(const Error& error) {
+	return error.code == ErrorCode::io_failed &&
+		error.message == "FES GP command rejected with response " +
+			std::to_string(generated::FesComputerErrorInvalidState);
+}
 } // namespace
 
 FesGpCoreDriver* NativeHardware::Pc386FloppyDriver(std::uint8_t unit)
@@ -1899,7 +1905,15 @@ Error NativeHardware::InsertPc386Floppy(std::uint8_t unit, const std::string& pa
 	if (error.ok())
 		error = driver->CommitFloppy(unit, size / 512, format->cylinders, format->heads, format->sectors,
 			Crc32(image), binding.write_protected, deadline);
-	if (!error.ok()) return error;
+	if (!error.ok()) {
+		// Prepare may have been accepted even when its reply, a later transfer,
+		// or the commit verification poll failed. Leave no possibly committed
+		// disk in a drive that has no runtime binding.
+		const Error original = error;
+		driver->FloppyControl(unit, generated::FesComputerDiskControlEject,
+			Deadline(clock_, timeouts_.media_io_ms));
+		return original;
+	}
 	Pc386Floppy& drive = floppies_[unit - 1];
 	drive.loaded = true;
 	drive.write_protected = binding.write_protected;
@@ -1955,11 +1969,32 @@ Error NativeHardware::EjectPc386Floppy(std::uint8_t unit)
 	if (!error.ok()) return error;
 	error = driver->FloppyControl(unit, generated::FesComputerDiskControlEject, deadline);
 	if (!error.ok()) {
+		const Error eject_error = error;
+		// An accepted Eject empties the RTL drive before its acknowledgement
+		// waits for the FDC to drain. Freeze is a state probe: it succeeds only
+		// for a READY disk. On an empty drive it is rejected; read the flags
+		// after that acknowledged state response before dropping our binding.
+		const std::uint64_t probe_deadline = Deadline(clock_, timeouts_.core_io_ms);
+		const Error state_probe = driver->FloppyControl(unit, generated::FesComputerDiskControlFreeze,
+			probe_deadline);
+		std::uint16_t flags = 0;
+		const Error flags_error = driver->ReadFloppyFlags(unit, probe_deadline, &flags);
+		if (FloppyStateRejected(state_probe) && flags_error.ok() && flags == 0) {
+			floppies_[unit - 1] = Pc386Floppy{};
+			return {};
+		}
 		// A writable drive is still frozen from the save, and the controller's
 		// fence is shared by both drives: report it as a save failure so the
 		// same recovery resumes it and the disk stays in.
 		const Pc386Floppy& drive = floppies_[unit - 1];
-		if (drive.write_protected || !drive.file) return error;
+		if (drive.write_protected || !drive.file) {
+			// The probe freezes a still-ready write-protected disk. Restore its
+			// live state because this error path has no writable-save recovery.
+			driver->FloppyControl(unit, generated::FesComputerDiskControlResume,
+				Deadline(clock_, timeouts_.core_io_ms));
+			return eject_error;
+		}
+		error = eject_error;
 		error.code = ErrorCode::save_failed;
 		return WithPhase(error, "media_data");
 	}

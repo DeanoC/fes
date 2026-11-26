@@ -4533,6 +4533,30 @@ void TestPc386FloppySwapSaveAndResume()
 	assert(fixture.runtime.InsertLibraryMedia(b_path, opened.package_id, gen, 1, 368640, media.path, wrong).code ==
 		mister::ErrorCode::invalid_request);
 	assert(endpoint.requests.size() == before);
+	// The verify poll can fail after the endpoint has completed CRC and made
+	// the disk READY. The runtime must eject that unbound disk before returning.
+	endpoint.verify_reads = 1;
+	bool lost_ready_poll = false;
+	endpoint.fail_after_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+		if (!lost_ready_poll && request.opcode == FesComputerOpcodeDiskInfo &&
+			request.index == FesComputerPcFloppyUnitA * FesComputerDiskInfoStride + FesComputerDiskInfoStateField) {
+			lost_ready_poll = true;
+			assert(endpoint.floppies[0].state == 3);
+			return true;
+		}
+		return false;
+	};
+	const auto failed_insert = fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1,
+		1474560, media.path, a);
+	endpoint.fail_after_request = {};
+	endpoint.verify_reads = 0;
+	assert(lost_ready_poll && failed_insert.code == mister::ErrorCode::io_failed);
+	assert(endpoint.floppies[0].state == 1);
+	status = fixture.runtime.status();
+	const auto empty_a = std::find_if(status.capabilities.media_units.begin(), status.capabilities.media_units.end(),
+		[](const mister::MediaUnitCapability& unit) { return unit.unit == 1; });
+	assert(empty_a != status.capabilities.media_units.end() && empty_a->state == mister::MediaUnitState::empty &&
+		empty_a->base_media_id.empty());
 	// A: writable while the machine runs; B: write-protected.
 	assert(!endpoint.held);
 	assert(fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a).ok());
@@ -4552,6 +4576,27 @@ void TestPc386FloppySwapSaveAndResume()
 			unit.revision == "absent");
 		if (unit.unit == 2) assert(unit.state == mister::MediaUnitState::ready && unit.persistence_mode != "persistent");
 	}
+	// Eject may empty the endpoint before its acknowledgement is lost. The
+	// runtime must reconcile its local binding instead of reporting READY.
+	bool lost_eject_ack = false;
+	endpoint.fail_after_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+		if (!lost_eject_ack && request.opcode == FesComputerOpcodeDiskControl && request.index == 1 &&
+			request.argument == FesComputerDiskControlEject) {
+			lost_eject_ack = true;
+			assert(endpoint.floppies[0].state == 1);
+			return true;
+		}
+		return false;
+	};
+	const auto reconciled_eject = fixture.runtime.EjectMedia(opened.package_id, gen, 1);
+	endpoint.fail_after_request = {};
+	assert(lost_eject_ack && reconciled_eject.ok() && endpoint.floppies[0].state == 1);
+	status = fixture.runtime.status();
+	const auto ejected_a = std::find_if(status.capabilities.media_units.begin(), status.capabilities.media_units.end(),
+		[](const mister::MediaUnitCapability& unit) { return unit.unit == 1; });
+	assert(ejected_a != status.capabilities.media_units.end() && ejected_a->state == mister::MediaUnitState::empty &&
+		ejected_a->base_media_id.empty());
+	assert(fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a).ok());
 	// The guest writes A:; the same disk goes back into A:. The swap saves
 	// it first and the drive then holds the saved bytes, not the base.
 	window.floppy[512] ^= 0x5a;
