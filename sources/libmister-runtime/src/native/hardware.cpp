@@ -1865,15 +1865,21 @@ Error NativeHardware::InsertPc386Floppy(std::uint8_t unit, const std::string& pa
 	const auto check_record = [&]() {
 		Error checked = file->Read(&record);
 		if (checked.ok() && !record.bytes.empty() && record.bytes.size() != size)
-			checked = {ErrorCode::incompatible_data, "saved floppy differs in size from its base", "request"};
+			checked = {ErrorCode::incompatible_data, "saved floppy differs in size from its base"};
 		return checked;
+	};
+	const auto incoming_error = [](Error error, const char* phase) {
+		// Record I/O for the incoming disk has no outgoing save to resume.
+		if (error.code == ErrorCode::save_failed) error.code = ErrorCode::io_failed;
+		error.phase = phase;
+		return error;
 	};
 	// A write-protected disk reads its base and binds no record (one writer).
 	if (!binding.write_protected) {
 		error = MediaDataFile::Open(root, identity, &file);
 		if (error.ok()) error = check_record();
 		if (error.ok()) error = file->CheckWritable();
-		if (!error.ok()) return WithPhase(error, "request");
+		if (!error.ok()) return incoming_error(error, "request");
 	}
 	// The disk in the drive goes out first, saved. It may be this same
 	// disk, so the record is read again after: the freshly published bytes.
@@ -1881,7 +1887,7 @@ Error NativeHardware::InsertPc386Floppy(std::uint8_t unit, const std::string& pa
 		error = EjectPc386Floppy(unit);
 		if (!error.ok()) return error;
 		if (file) error = check_record();
-		if (!error.ok()) return WithPhase(error, "request");
+		if (!error.ok()) return incoming_error(error, "media_data");
 	}
 	if (file && !record.bytes.empty()) image = record.bytes;
 	error = driver->FloppyControl(unit, generated::FesComputerDiskControlPrepare, deadline);

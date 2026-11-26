@@ -4595,6 +4595,51 @@ void TestPc386FloppySwapSaveAndResume()
 	assert(fixture.runtime.EjectMedia(opened.package_id, gen, 1).ok() && endpoint.floppies[0].state != 3);
 	assert(record->Read(&saved).ok() && saved.bytes[3000] == at_3000 && saved.bytes[3001] == at_3001);
 	assert(fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a).ok());
+
+	// Incoming record failures retain the mounted disk at preflight and report
+	// an empty drive if the record changes after a successful eject.
+	const auto check_changed_record = [&](const auto& change_record, const auto& restore_record,
+		mister::ErrorCode expected) {
+		change_record();
+		const auto before_preflight = endpoint.requests.size();
+		const auto preflight = fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a);
+		assert(preflight.code == expected && preflight.phase == "request");
+		assert(endpoint.requests.size() == before_preflight && endpoint.floppies[0].state == 3);
+		restore_record();
+		endpoint.fail_after_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+			if (request.opcode == FesComputerOpcodeDiskControl && request.index == 1 &&
+				request.argument == FesComputerDiskControlEject)
+				change_record();
+			return false;
+		};
+		const auto after_eject = fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a);
+		endpoint.fail_after_request = {};
+		assert(after_eject.code == expected && after_eject.phase == "media_data");
+		assert(endpoint.floppies[0].state == 1 && endpoint.floppies[1].state == 3 && !endpoint.held);
+		status = fixture.runtime.status();
+		assert(status.generation == gen);
+		const auto unit_a = std::find_if(status.capabilities.media_units.begin(), status.capabilities.media_units.end(),
+			[](const mister::MediaUnitCapability& unit) { return unit.unit == 1; });
+		assert(unit_a != status.capabilities.media_units.end() && unit_a->state == mister::MediaUnitState::empty &&
+			unit_a->base_media_id.empty());
+		restore_record();
+		assert(fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a).ok());
+	};
+	MediaDiskRecord wrong_size = saved;
+	wrong_size.bytes.resize(737280);
+	MediaDiskRecord replacement;
+	check_changed_record([&] { assert(record->Persist(wrong_size, saved.revision, &replacement).ok()); },
+		[&] { assert(record->Persist(saved, replacement.revision, &saved).ok()); },
+		mister::ErrorCode::incompatible_data);
+	// The record reader uses O_NOFOLLOW, so a replaced path reports an I/O error.
+	const std::string record_path = ns + "/record.bin", record_backup = ns + "/record-backup.bin";
+	check_changed_record([&] {
+		assert(rename(record_path.c_str(), record_backup.c_str()) == 0);
+		assert(symlink(record_backup.c_str(), record_path.c_str()) == 0);
+	}, [&] {
+		assert(unlink(record_path.c_str()) == 0 && rename(record_backup.c_str(), record_path.c_str()) == 0);
+	}, mister::ErrorCode::io_failed);
+
 	// A save that fails after Freeze resumes the drive; the guest writes on,
 	// and the retry publishes that later write.
 	window.floppy[1024] ^= 0x33;
