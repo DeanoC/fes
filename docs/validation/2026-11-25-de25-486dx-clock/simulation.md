@@ -258,3 +258,14 @@ also matched all tracked and regenerated game inputs against the
 `4fe7bada` witness, including both compiled binary hashes. Its
 compiled-input receipt SHA-256 is
 `8874124bf3c98158451d89d5b271e72a68ad0b627d28822175d6b3568fe83320`.
+
+## Integrated C0 = 28 fallback
+
+The replay for `7c7d1a991b5ed629b050630309c48ea38acc0aad` uses
+111.904762 MHz, the shared single-stage x87 in both CPU builds, and the
+derived eight-cycle presenter in both machine builds. The captured
+dependencies include the merged floppy verifier. Both machines use
+ATA-only boot with floppy types 0. The 24-file compiled-input receipt
+SHA-256 is
+`6cda85138e00737d660711bf8cacc550822d61926670adf3b5f95f4b8935a212`.
+G2, G4 and G5 are running on this source.

@@ -1109,6 +1109,21 @@ used 45,153 ALMs and 42 DSPs. The summary SHA-256 is
 The routed-site receipt SHA-256 is
 `a21a91126f2c8c29faea07a74683b6d22ce8990d1cc15ce8ef82ecb9cc7e57a1`.
 
+## Integrated C0 = 28 fallback
+
+Revision `7c7d1a991b5ed629b050630309c48ea38acc0aad` merges the earlier
+qualified C28 revision `cb91390d` with `2f19382b` and applies the raw AT
+source pin already verified for that merge. It retains the C28 clock,
+one-stage x87 and timing files. The PLL and all 11 generated inputs in
+the pin audit match the earlier C28 fits. The preparation receipt SHA-256
+is `7a9352dd2f8524c69017ce6dcc2657b49bdb8b039bbc28e4a8ed56938c67cc24`.
+
+The fresh DE10 netlist and its four identities match `2f19382b`, all
+seven D12 input selections match the merged base and `4fe7bada`, and
+`make check` and 55 focused tests passed. The new source has its own
+Quartus sweep and replay. The earlier qualification remains tied to
+`cb91390d`.
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed
