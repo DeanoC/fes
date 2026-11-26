@@ -475,3 +475,119 @@ func TestYieldOrFallback(t *testing.T) {
 		t.Fatalf("already-closed fallbackCalls=%d, want 4", fallbackCalls.Load())
 	}
 }
+
+func TestDoorbellAndDispatcherStats(t *testing.T) {
+	if Edge.String() != "edge" || Level.String() != "level" || Trigger(9).String() != "Trigger(9)" {
+		t.Fatalf("Trigger.String mismatch: edge=%q level=%q unk=%q", Edge.String(), Level.String(), Trigger(9).String())
+	}
+
+	ctrl, acc := newFakeGIC(t, 7)
+	disp, err := New(ctrl)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer disp.Close()
+
+	// Open lines out of order to verify Dispatcher.Stats sorts ascending by Line.
+	db7, err := disp.Open(Config{Line: 7, Trigger: Level, Ack: func() {}})
+	if err != nil {
+		t.Fatalf("Open line 7: %v", err)
+	}
+	db1, err := disp.Open(Config{Line: 1, Trigger: Edge})
+	if err != nil {
+		t.Fatalf("Open line 1: %v", err)
+	}
+
+	all := disp.Stats()
+	if len(all) != 2 || all[0].Line != 1 || all[0].Trigger != Edge || !all[0].Active ||
+		all[1].Line != 7 || all[1].Trigger != Level || all[1].IRQ != BaseSPI+7 {
+		t.Fatalf("unexpected Dispatcher.Stats(): %+v", all)
+	}
+
+	// 3 rapid IRQs before draining -> Count=3, Coalesced=2.
+	acc.raise(BaseSPI + 1)
+	acc.raise(BaseSPI + 1)
+	acc.raise(BaseSPI + 1)
+	ctrl.Dispatch()
+
+	// Drain via WaitTimeout -> Wakeups=1.
+	if !db1.WaitTimeout(0) {
+		t.Fatal("WaitTimeout(0) missed ready signal")
+	}
+	// Empty non-blocking poll must NOT count as Timeout.
+	if db1.WaitTimeout(0) {
+		t.Fatal("WaitTimeout(0) unexpectedly returned true")
+	}
+	// Bounded WaitTimeout expiry -> Timeouts=1.
+	if db1.WaitTimeout(2 * time.Millisecond) {
+		t.Fatal("WaitTimeout(2ms) returned true")
+	}
+
+	// Drain via Wait(ctx) -> Wakeups=2.
+	db1.TriggerPending()
+	ctrl.Dispatch()
+	if err := db1.Wait(context.Background()); err != nil {
+		t.Fatalf("Wait: %v", err)
+	}
+
+	// Pre-canceled and deadline-exceeded Wait(ctx) -> Canceled=2.
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := db1.Wait(canceled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled Wait=%v", err)
+	}
+	timedOut, cancelTO := context.WithTimeout(context.Background(), 2*time.Millisecond)
+	defer cancelTO()
+	if err := db1.Wait(timedOut); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("timedOut Wait=%v", err)
+	}
+
+	// Drain + timeout via YieldFunc and YieldOrFallback -> Wakeups=4, Timeouts=3.
+	db1.TriggerPending()
+	ctrl.Dispatch()
+	db1.YieldFunc(20 * time.Millisecond)()
+	db1.YieldFunc(2 * time.Millisecond)()
+
+	db1.TriggerPending()
+	ctrl.Dispatch()
+	YieldOrFallback(db1, 20*time.Millisecond, nil)()
+	YieldOrFallback(db1, 2*time.Millisecond, nil)()
+
+	st1 := db1.Stats()
+	if !st1.Active || st1.Count != 6 || st1.Coalesced != 2 || st1.Wakeups != 4 || st1.Timeouts != 3 || st1.Canceled != 2 {
+		t.Fatalf("unexpected db1 Stats: %+v", st1)
+	}
+
+	// Concurrent IRQ dispatch / WaitTimeout / Stats reads under -race.
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 20; i++ {
+			db7.TriggerPending()
+			ctrl.Dispatch()
+			_ = db7.WaitTimeout(0)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 20; i++ {
+			_ = db7.Stats()
+			_ = disp.Stats()
+		}
+	}()
+	wg.Wait()
+
+	// Closing db1 marks Active=false while retaining counters and removes it from Dispatcher.Stats().
+	if err := db1.Close(); err != nil {
+		t.Fatalf("db1.Close: %v", err)
+	}
+	st1After := db1.Stats()
+	if st1After.Active || st1After.Count != 6 || st1After.Wakeups != 4 {
+		t.Fatalf("post-close db1.Stats mismatch: %+v", st1After)
+	}
+	rem := disp.Stats()
+	if len(rem) != 1 || rem[0].Line != 7 {
+		t.Fatalf("post-close Dispatcher.Stats mismatch: %+v", rem)
+	}
+}
