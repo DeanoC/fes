@@ -393,6 +393,9 @@ func TestSMCCCVersionAffinityInfoAndProbe(t *testing.T) {
 		t.Fatalf("nil Probe=%v", err)
 	}
 
+	if empty.SupportsWarmReset() {
+		t.Fatal("nil conduit reported SupportsWarmReset")
+	}
 	if AffinityOn.String() != "on" || AffinityOff.String() != "off" ||
 		AffinityOnPending.String() != "on-pending" || AffinityState(9).String() != "AffinityState(9)" {
 		t.Fatalf("AffinityState.String mismatch: %q %q %q %q",
@@ -516,6 +519,24 @@ func TestSMCCCVersionAffinityInfoAndProbe(t *testing.T) {
 	if caps != wantCaps {
 		t.Fatalf("Probe(1.1)=%+v, want %+v", caps, wantCaps)
 	}
+	if !c11.SupportsWarmReset() {
+		t.Fatal("PSCI 1.1 with SYSTEM_RESET2 reported SupportsWarmReset=false")
+	}
+	if c10SMCCC.SupportsWarmReset() {
+		t.Fatal("PSCI 1.0 reported SupportsWarmReset=true")
+	}
+	c11NoReset2 := New(&mockConduit{fn: func(x0, x1, _, _ uint64) (uint64, uint64, uint64, uint64) {
+		if uint32(x0) == FuncVersion {
+			return 0x00010001, 0, 0, 0
+		}
+		if uint32(x0) == FuncFeatures && uint32(x1) == FuncSystemReset2 {
+			return ^uint64(0), 0, 0, 0
+		}
+		return ^uint64(0), 0, 0, 0
+	}})
+	if c11NoReset2.SupportsWarmReset() {
+		t.Fatal("PSCI 1.1 without SYSTEM_RESET2 reported SupportsWarmReset=true")
+	}
 
 	// PSCI 0.2 without PSCI_FEATURES skips SMCCC_VERSION and reports mandatory 0.2 calls.
 	c02 := New(&mockConduit{fn: func(x0, _, _, _ uint64) (uint64, uint64, uint64, uint64) {
@@ -527,6 +548,9 @@ func TestSMCCCVersionAffinityInfoAndProbe(t *testing.T) {
 		}
 		return ^uint64(0), 0, 0, 0
 	}})
+	if c02.SupportsWarmReset() {
+		t.Fatal("PSCI 0.2 reported SupportsWarmReset=true")
+	}
 	caps02, err := c02.Probe()
 	if err != nil {
 		t.Fatalf("Probe(0.2): %v", err)

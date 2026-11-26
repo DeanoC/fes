@@ -55,9 +55,10 @@ type PowerController interface {
 }
 
 // WarmResetController is an optional extension implemented by PowerController
-// implementations (such as *Client) that support PSCI_SYSTEM_RESET2 architectural
-// warm resets.
+// implementations (such as *Client) that can advertise and execute
+// PSCI_SYSTEM_RESET2 architectural warm resets.
 type WarmResetController interface {
+	SupportsWarmReset() bool
 	SystemReset2(resetType uint32, cookie uint64) error
 }
 
@@ -111,8 +112,8 @@ func Shutdown(ctx context.Context, ctrl PowerController, action PowerAction, cfg
 	case ActionWarmReset:
 		var ok bool
 		warmCtrl, ok = ctrl.(WarmResetController)
-		if !ok {
-			return fmt.Errorf("%w: controller does not support warm reset", ErrInvalidShutdown)
+		if !ok || !warmCtrl.SupportsWarmReset() {
+			return fmt.Errorf("%w: %w", ErrInvalidShutdown, ErrUnsupported)
 		}
 	default:
 		return fmt.Errorf("%w: unknown action %v", ErrInvalidShutdown, action)

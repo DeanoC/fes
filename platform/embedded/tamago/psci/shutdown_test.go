@@ -398,10 +398,15 @@ func TestShutdownCtxCancelBoundsNonCooperativeStepByStepTimeout(t *testing.T) {
 
 type fakeWarmController struct {
 	fakePowerController
-	warmCalls int
-	warmType  uint32
-	warmCook  uint64
-	warmErr   error
+	warmSupported bool
+	warmCalls     int
+	warmType      uint32
+	warmCook      uint64
+	warmErr       error
+}
+
+func (f *fakeWarmController) SupportsWarmReset() bool {
+	return f.warmSupported
 }
 
 func (f *fakeWarmController) SystemReset2(resetType uint32, cookie uint64) error {
@@ -419,18 +424,37 @@ func TestShutdownActionWarmReset(t *testing.T) {
 		t.Fatalf("ActionWarmReset.String()=%q, want warm-reset", ActionWarmReset.String())
 	}
 
-	// Controller lacking WarmResetController rejects BEFORE running any step.
+	// Controller lacking WarmResetController, or firmware without SYSTEM_RESET2,
+	// must fail closed BEFORE running any teardown step.
 	stepRan := false
+	step := ShutdownStep{Name: "flush", Fn: func(context.Context) error { stepRan = true; return nil }}
 	plain := &fakePowerController{}
-	err := Shutdown(context.Background(), plain, ActionWarmReset, ShutdownConfig{
-		Steps: []ShutdownStep{{Name: "flush", Fn: func(context.Context) error { stepRan = true; return nil }}},
-	})
-	if !errors.Is(err, ErrInvalidShutdown) || stepRan {
-		t.Fatalf("plain controller warm-reset err=%v stepRan=%t, want ErrInvalidShutdown without running steps", err, stepRan)
+	if err := Shutdown(context.Background(), plain, ActionWarmReset, ShutdownConfig{Steps: []ShutdownStep{step}}); !errors.Is(err, ErrInvalidShutdown) || !errors.Is(err, ErrUnsupported) || stepRan {
+		t.Fatalf("plain controller warm-reset err=%v stepRan=%t, want ErrInvalidShutdown+ErrUnsupported without running steps", err, stepRan)
+	}
+
+	clientNoReset2 := New(&mockConduit{fn: func(x0, x1, _, _ uint64) (uint64, uint64, uint64, uint64) {
+		switch uint32(x0) {
+		case FuncVersion:
+			return 0x00010001, 0, 0, 0 // PSCI 1.1
+		case FuncFeatures:
+			if uint32(x1) == FuncSystemReset2 {
+				return ^uint64(0), 0, 0, 0 // NOT_SUPPORTED
+			}
+		case FuncSystemReset2:
+			t.Fatal("SystemReset2 called when PSCI_FEATURES denied support")
+		}
+		return ^uint64(0), 0, 0, 0
+	}})
+	if err := Shutdown(context.Background(), clientNoReset2, ActionWarmReset, ShutdownConfig{Steps: []ShutdownStep{step}}); !errors.Is(err, ErrInvalidShutdown) || !errors.Is(err, ErrUnsupported) || stepRan {
+		t.Fatalf("clientNoReset2 warm-reset err=%v stepRan=%t, want ErrInvalidShutdown+ErrUnsupported without running steps", err, stepRan)
 	}
 
 	var events []string
-	warm := &fakeWarmController{fakePowerController: fakePowerController{events: &events}}
+	warm := &fakeWarmController{
+		fakePowerController: fakePowerController{events: &events},
+		warmSupported:       true,
+	}
 	if err := Shutdown(context.Background(), warm, ActionWarmReset, ShutdownConfig{
 		Steps: []ShutdownStep{{Name: "quiesce", Fn: func(context.Context) error { events = append(events, "step:quiesce"); return nil }}},
 	}); err != nil {
@@ -442,11 +466,25 @@ func TestShutdownActionWarmReset(t *testing.T) {
 			warm.warmCalls, warm.warmType, warm.warmCook, events)
 	}
 
-	// Error from SystemReset2 is returned, and real *Client implements WarmResetController.
-	warmErr := New(&mockConduit{fn: func(x0, _, _, _ uint64) (uint64, uint64, uint64, uint64) {
+	// Supported PSCI 1.1 *Client runs steps then SystemReset2(0, 0) and propagates runtime errors.
+	clientReset2Calls := 0
+	clientDenied := New(&mockConduit{fn: func(x0, x1, _, _ uint64) (uint64, uint64, uint64, uint64) {
+		switch uint32(x0) {
+		case FuncVersion:
+			return 0x00010001, 0, 0, 0
+		case FuncFeatures:
+			if uint32(x1) == FuncSystemReset2 {
+				return 0, 0, 0, 0
+			}
+		case FuncSystemReset2:
+			clientReset2Calls++
+			return uint64(^uint32(2)), 0, 0, 0 // -3 = DENIED
+		}
 		return ^uint64(0), 0, 0, 0
 	}})
-	if err := Shutdown(context.Background(), warmErr, ActionWarmReset, ShutdownConfig{}); !errors.Is(err, ErrUnsupported) {
-		t.Fatalf("Client warm Shutdown err=%v, want ErrUnsupported", err)
+	err := Shutdown(context.Background(), clientDenied, ActionWarmReset, ShutdownConfig{Steps: []ShutdownStep{step}})
+	if !errors.Is(err, ErrDenied) || !stepRan || clientReset2Calls != 1 {
+		t.Fatalf("clientDenied warm Shutdown err=%v stepRan=%t calls=%d, want ErrDenied stepRan=true calls=1",
+			err, stepRan, clientReset2Calls)
 	}
 }

@@ -42,7 +42,8 @@ hardcoded xorshift PRNG. Sources are probed in preference order:
 fabric, and quiescing SD/USB/network), bounds each step with `StepTimeout`,
 recovers step panics so later hardware containment steps still execute, and then
 invokes `SystemReset()` (`ActionReset`), `SystemOff()` (`ActionPowerOff`), or
-`WarmResetController.SystemReset2(0, 0)` (`ActionWarmReset`).
+`WarmResetController.SystemReset2(0, 0)` (`ActionWarmReset` after checking
+`SupportsWarmReset()` before running teardown steps).
 Setting `RequireCleanTeardown: true` runs every step and returns
 `ErrTeardownFailed` without calling PSCI if any containment step fails.
 

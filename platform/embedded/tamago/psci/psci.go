@@ -181,6 +181,16 @@ func (c *Client) SMCCCVersion() (major, minor uint16, err error) {
 	return uint16((uint32(v) >> 16) & 0x7fff), uint16(uint32(v) & 0xffff), nil
 }
 
+// SupportsWarmReset reports whether firmware advertises PSCI >= 1.1 and
+// PSCI_SYSTEM_RESET2 support via PSCI_FEATURES.
+func (c *Client) SupportsWarmReset() bool {
+	maj, min, err := c.Version()
+	if err != nil || maj < 1 || (maj == 1 && min < 1) {
+		return false
+	}
+	return c.Supports(FuncSystemReset2)
+}
+
 // AffinityInfo queries PSCI_AFFINITY_INFO for targetAffinity at lowestAffinityLevel.
 func (c *Client) AffinityInfo(targetAffinity uint64, lowestAffinityLevel uint32) (AffinityState, error) {
 	r0, _, _, _, err := c.call(FuncAffinityInfo, targetAffinity, uint64(lowestAffinityLevel), 0)
@@ -220,7 +230,9 @@ func (c *Client) Probe() (Capabilities, error) {
 		}
 		caps.SystemOff = c.Supports(FuncSystemOff)
 		caps.SystemReset = c.Supports(FuncSystemReset)
-		caps.SystemReset2 = c.Supports(FuncSystemReset2)
+		if psciMaj > 1 || (psciMaj == 1 && psciMin >= 1) {
+			caps.SystemReset2 = c.Supports(FuncSystemReset2)
+		}
 		caps.AffinityInfo = c.Supports(FuncAffinityInfo)
 	} else if psciMaj == 0 && psciMin >= 2 {
 		// PSCI 0.2 requires SYSTEM_OFF, SYSTEM_RESET, and AFFINITY_INFO without PSCI_FEATURES.
