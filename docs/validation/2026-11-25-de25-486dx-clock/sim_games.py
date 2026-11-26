@@ -71,6 +71,30 @@ def adapt_bench(sources, output, clock, rates):
     return bench
 
 
+def machine_sources(rtl, root, output, loaded_rearm_cycles):
+    """Select the board's presenter for both CPU arms when the fit derives it."""
+    if loaded_rearm_cycles is None:
+        return rtl, None
+
+    from boards.de25nano.pc386 import derive as board_derive
+
+    upstream = root / board_derive.PRESENTER_UPSTREAM
+    if rtl.count(upstream) != 1:
+        raise RuntimeError('the machine bench must name exactly one upstream presenter')
+    source = upstream.read_bytes()
+    derived, record = board_derive.retarget_presenter_loaded(source)
+    if (record['loaded_rearm_cycles'] != loaded_rearm_cycles
+            or record['source_sha256'] != hashlib.sha256(source).hexdigest()
+            or record['derived_sha256'] != hashlib.sha256(derived).hexdigest()):
+        raise RuntimeError('the presenter derivation differs from the recorded build parameters or bytes')
+    target = output / 'derived' / upstream.name
+    target.parent.mkdir(exist_ok=True)
+    target.write_bytes(derived)
+    presenter = {'source': upstream.relative_to(root).as_posix(),
+                 'derived': target.relative_to(output).as_posix(), **record}
+    return tuple(target if path == upstream else path for path in rtl), presenter
+
+
 def arguments_for(workload, output):
     common = ['--cpu', 'rtl', '--cpu-profile', str(output / 'cpu.prof'), '--cpu-profile-every', '0.5']
     if workload == 'doom':
@@ -206,6 +230,8 @@ def main():
         raise RuntimeError('a census image differs from the #2194 fixture')
     pll = build.model_clock('486dx')
     clock, rates = pll['clock'], build.guest_rates('486dx')
+    loaded_rearm_cycles = build.record_parameters(root, '486dx').get('loaded_rearm_cycles')
+    machine_rtl, presenter = machine_sources(sim.MACHINE_RTL, root, output, loaded_rearm_cycles)
     sim.OUTPUT = output / 'build'
     verilator = i386_verilator.locate(args.cache_root.resolve())
     os.environ.pop('VERILATOR_ROOT', None)
@@ -224,13 +250,15 @@ def main():
                'fixtures': DRIVES, 'firmware': {name: sha(path) for name, path in images.items()},
                'adapted_bench': {path.name: sha(path) for path in (bench, output / 'audio_link.h')},
                'binaries': {}}
+    if presenter is not None:
+        witness['presenter'] = presenter
     save(output / 'inputs.json', witness)
     for arm, rtl in (('base', sim.CPU_RTL), ('dx', derive.sim_sources(output / 'derived', root))):
         print(f'Building {arm} at {float(clock):.6f} Hz', flush=True)
         cpu = sim.verilate(args.verilator, arm, 'fes_i386_cpu', rtl + (sim.CORE / 'sim/cpu_profile.vlt',),
                            None, [], args.jobs)
         sim.write_cpu_profile_layout(cpu.parent)
-        binary = sim.verilate(args.verilator, arm, 'pc386_machine', sim.MACHINE_RTL, bench,
+        binary = sim.verilate(args.verilator, arm, 'pc386_machine', machine_rtl, bench,
                               [*linked, cpu, audio, sim.NUKED / 'opl3.c'], args.jobs,
                               machine_rates, (audio.parent, cpu.parent))
         binaries[arm] = binary

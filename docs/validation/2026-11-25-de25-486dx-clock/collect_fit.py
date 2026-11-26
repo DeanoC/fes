@@ -28,6 +28,9 @@ RETIMED_FIT_ARTIFACTS = {
     'inputs.json', 'generation.json', 'linux-boot.core.rbf', 'project/golden_top.qsf',
     'project/output_files/golden_top.tq.drc.signoff.rpt', 'project/output_files/golden_top.sta.summary',
 }
+PRESENTER_SOURCE = 'cores/fes-pc386/rtl/pc386_presenter.sv'
+REVIEWED_DX_PRESENTER_SHA256 = '7437e4b680112d6d8e5fb7ecf5a0a65f92ba937148b9bfbdfe1550703bdf8167'
+REVIEWED_DX_REARM_CYCLES = 8
 
 
 def file_sha256(path):
@@ -70,6 +73,27 @@ def loaded_routes(path):
     if routes.keys() != CORNERS.keys():
         raise ValueError('incomplete LOADED corner coverage')
     return routes
+
+
+def loaded_rearm_cycles(output, build, fit):
+    parameters = build['parameters']
+    if 'loaded_rearm_cycles' not in parameters:
+        return 5
+    cycles = parameters['loaded_rearm_cycles']
+    if type(cycles) is not int or cycles != REVIEWED_DX_REARM_CYCLES or parameters['model'] != '486dx':
+        raise ValueError('unreviewed LOADED re-arm interval')
+    prepared = json.loads((output / 'signoff/combined/hps/inputs.json').read_text())
+    machine = prepared['standard_zx81']
+    if (prepared['fes_revision'] != build['revision'] or machine['model'] != '486dx'
+            or machine['build_id'] != build['identities']['design'][:32]
+            or machine['derivations']['pc386_system.v']['netlist_sha256'] != fit['netlist_sha256']):
+        raise ValueError('LOADED re-arm evidence differs from the fitted DX build')
+    presenter = machine['derivations']['pc386_presenter.sv']
+    if (presenter['loaded_rearm_cycles'] != cycles
+            or presenter['source_sha256'] != build['source_inputs'][PRESENTER_SOURCE]
+            or presenter['derived_sha256'] != REVIEWED_DX_PRESENTER_SHA256):
+        raise ValueError('fitted LOADED re-arm derivation differs from the digitally reviewed presenter')
+    return cycles
 
 
 def retimed_evidence(output, logs, build, build_digest, retimed_rows):
@@ -150,11 +174,13 @@ def seed_result(output, logs, seed, divider):
         if (logs / 'revision').read_text().strip() != record['revision']:
             failures.append('producer source revision differs from the run record')
         fit = summary(output / 'signoff/combined/hps/project')
+        record['fit'] = fit
         clock = VCO_HZ / divider
         parameters = build['parameters']
+        rearm_cycles = loaded_rearm_cycles(output, build, fit)
         pixel_time = Fraction(3 * 1_000_000_000, parameters['pixel_clock_hz'])
-        loaded_budget = min(3.9, float(5 * 1_000_000_000 / clock - pixel_time - 10))
-        record.update(fit=fit, loaded_budget_ns=loaded_budget)
+        loaded_budget = min(3.9, float(rearm_cycles * 1_000_000_000 / clock - pixel_time - 10))
+        record.update(loaded_budget_ns=loaded_budget, loaded_rearm_cycles=rearm_cycles)
         if (parameters['model'], parameters['seed'], parameters['machine_clock_hz'], fit['seed']) != (
             '486dx', seed, round(clock), seed
         ):

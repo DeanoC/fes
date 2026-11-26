@@ -113,20 +113,19 @@ FETCH = ('Pixel to machine: the fetch window {epoch, width, height, request limi
          'earlier, and holds it until the next flip, at least one raster line (1,650 pixel clocks) '
          'later. The toggle crosses a three-stage machine-clock synchroniser '
          '(machine_presenter_request_sync); the machine side copies the window only when stages 2 and '
-         '1 differ. The bundle paths are bounded to 10 ns, less than two machine clocks (21.7 ns at '
-         '92.156863 MHz, the fastest model\'s clock; MODEL_CLOCKS in build.py).')
+         '1 differ. The bundle paths are bounded to 10 ns, less than two machine clocks at every '
+         'frequency in the DX clock ladder (#2263).')
 LOADED = ('Machine to pixel: the loaded-row report {row, epoch}. pc386_presenter.sv assigns loaded_out '
-          'and loaded_epoch_out on the machine edge that flips machine_presenter_loaded_flag, when a row '
-          'fetch completes, and changes them only when the next one completes. That takes at least five '
-          'machine clocks (54.3 ns at 92.156863 MHz, the fastest model\'s clock): the next row starts (f_busy), issues its read '
-          '(ddr_read), the read is taken, its one beat at the least returns (f_received), and the row '
-          'completes. The flag crosses a three-stage pixel-clock synchroniser '
+          'and loaded_epoch_out on the machine edge that flips machine_presenter_loaded_flag. The '
+          '486SX has at least five machine clocks between reports: the next row starts, issues its '
+          'read, the read is taken, its beat returns and the row completes. The derived DX presenter '
+          'holds a completed row until eight machine clocks have elapsed since the previous report. '
+          'The flag crosses a three-stage pixel-clock synchroniser '
           '(machine_presenter_loaded_sync), and the pixel side copies the report when stages 2 and 1 '
           'differ: at most three pixel clocks (40.4 ns) after the flag reaches stage 0, plus the bundle '
-          'paths\' 10 ns bound, 50.4 ns in all. The remaining 3.9 ns is what the flag\'s own route into '
-          'stage 0 may take; that route is cut by the false path, not bounded, and the 92.156863 MHz fits '
-          'measured it (data delay plus clock skew) under 3.9 ns at every corner '
-          '(docs/validation/2026-11-25-de25-486sx-9216, gate G5).')
+          'paths\' 10 ns bound. The flag route to stage 0 is cut by the existing false path. '
+          'Fit qualification measures its delay plus absolute skew against the re-arm interval '
+          'at the actual machine clock, with a maximum allowance of 3.9 ns (#2228 and #2263).')
 COUNTS = ('Pixel to machine: the 96-bit status counters through pc386_snapshot.sv. The machine asks with '
           'a toggle (pixel_counts_ask, two-stage pixel synchroniser); the pixel side copies the value '
           'into pixel_counts_copy and flips pixel_counts_answer, which crosses a two-stage machine-clock '
@@ -179,7 +178,10 @@ CPU_CONTROL_TENSION = advisory(
 # The non-location forms are fitter enable/clear derivatives.
 RETIMED_LOCATION = (r'(?:BLOCK_INPUT_MUX_PASSTHROUGH|C1|C4|C8|R0|R1|R2|R4|R6|R12)'
                     r'_X(?P<x>[0-9]+)_Y(?P<y>[0-9]+)_N[0-9]+_I[0-9]+_dff')
-RETIMED_STEM = r'(?:[A-Za-z][A-Za-z0-9_]*|_[0-9]+_)(?:\[[0-9]+\])?~(?:(?:[0-9]+(?:xsyn(?:_[0-9]+)?)?|xsyn|DUPLICATE)_)?'
+# The qualifier only selects a candidate for the per-fit TimeQuest proof.
+# The proof establishes the register's topology and timing.
+RETIMED_STEM = (r'(?:[A-Za-z][A-Za-z0-9_]*|_[0-9]+_)(?:\[[0-9]+\])?~'
+                r'(?:_?[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*_)?')
 RETIMED_ENABLE_CLEAR = r'(?:cpu_[a-z0-9_]+|_[0-9]+_)(?:\[[0-9]+\])?~(?:DUPLICATE)?(?:ENA|SCLR)_dff'
 RETIMED_TENSION_NODES = S + '(?:' + RETIMED_STEM + RETIMED_LOCATION + '|' + RETIMED_ENABLE_CLEAR + ')'
 RETIMED_TENSION = ('DX fitter-placement advisory (#2263). A located name must agree with its reported '

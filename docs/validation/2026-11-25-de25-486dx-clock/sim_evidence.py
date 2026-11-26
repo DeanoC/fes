@@ -71,6 +71,17 @@ def x87_suites(root, revision):
     return evidence, list(paths.values())
 
 
+def checked_presenter(games, inputs):
+    presenter = inputs.get('presenter')
+    if presenter is None:
+        return None
+    path = games / presenter['derived']
+    if (not path.resolve().is_relative_to(games.resolve()) or path.is_symlink()
+            or not path.is_file() or sha(path) != presenter['derived_sha256']):
+        raise ValueError('derived presenter is missing or differs from its recorded digest')
+    return path
+
+
 def summarize(root):
     games = root / 'games'
     inputs = json.loads((games / 'inputs.json').read_text())
@@ -78,6 +89,8 @@ def summarize(root):
     if any(source_revision(root / name) != revision for name in ('wt', 'wt-games')):
         raise ValueError('the game and lockstep worktrees must match the candidate revision')
     files = [games / name for name in ('inputs.json', 'harness.py', 'machine_tb.cpp', 'audio_link.h')]
+    if presenter := checked_presenter(games, inputs):
+        files.append(presenter)
     result = {key: inputs[key] for key in ('revision', 'model', 'c0', 'clock_hz', 'verilator')}
     result['class'] = 'host RTL simulation'
     result['games'] = {'artifact_sha256': inputs['binaries'], 'stimulus_sha256': inputs['fixtures']}
@@ -131,6 +144,11 @@ def verify(root, receipt):
         if not path.is_relative_to(root) or not path.is_file() or sha(path) != expected:
             raise ValueError(f'evidence missing or changed: {name}')
     games = root / 'games'
+    inputs = json.loads((games / 'inputs.json').read_text())
+    if presenter := checked_presenter(games, inputs):
+        name = presenter.relative_to(root).as_posix()
+        if receipt['files_sha256'].get(name) != inputs['presenter']['derived_sha256']:
+            raise ValueError('receipt does not bind the derived presenter digest')
     for arm, expected in receipt['games']['artifact_sha256'].items():
         if sha(games / 'build' / arm / 'obj/Vpc386_machine') != expected:
             raise ValueError(f'compiled game harness changed: {arm}')
