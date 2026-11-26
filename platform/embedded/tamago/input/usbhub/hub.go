@@ -1323,6 +1323,8 @@ func (h *Hub) attachWiredNativeController(dev usb.BusDevice, iface usb.Interface
 	name := friendlyGamepadName(kind, "", false)
 	if iface.Class == 3 {
 		name = h.usbHIDInputName(dev)
+	} else if kind == controllers.KindXInput || kind == controllers.KindXboxGIP {
+		name = usbXPadInputName(dev.Descriptor.VendorID, dev.Descriptor.ProductID)
 	}
 	h.wiredGamepads[free] = wiredGamepadSlot{
 		active:    true,
@@ -1347,6 +1349,64 @@ func (h *Hub) attachWiredNativeController(dev usb.BusDevice, iface usb.Interface
 		Slot:      uint8(free),
 		Name:      kind.String(),
 	})
+}
+
+// usbXPadInputName reproduces the input device name Linux's xpad driver
+// exposes for wired XInput and Xbox One/Series GIP controllers so profile
+// GUIDs generated on TamaGo match Linux-saved profiles.
+func usbXPadInputName(vendorID, productID uint16) string {
+	switch uint32(vendorID)<<16 | uint32(productID) {
+	case 0x045e028e:
+		return "Microsoft X-Box 360 pad"
+	case 0x045e028f:
+		return "Microsoft X-Box 360 pad v2"
+	case 0x045e0291:
+		return "Xbox 360 Wireless Receiver (XBOX)"
+	case 0x045e02a9:
+		return "Xbox 360 Wireless Receiver (Unofficial)"
+	case 0x045e02d1:
+		return "Microsoft X-Box One pad"
+	case 0x045e02dd:
+		return "Microsoft X-Box One pad (Firmware 2015)"
+	case 0x045e02e3:
+		return "Microsoft X-Box One Elite pad"
+	case 0x045e02ea:
+		return "Microsoft X-Box One S pad"
+	case 0x045e0719:
+		return "Xbox 360 Wireless Receiver"
+	case 0x045e0b00:
+		return "Microsoft X-Box One Elite 2 pad"
+	case 0x045e0b0a:
+		return "Microsoft X-Box Adaptive Controller"
+	case 0x045e0b12:
+		return "Microsoft Xbox Series S|X Controller"
+	case 0x046dc21d:
+		return "Logitech Gamepad F310"
+	case 0x046dc21e:
+		return "Logitech Gamepad F510"
+	case 0x046dc21f:
+		return "Logitech Gamepad F710"
+	case 0x2dc82000:
+		return "8BitDo Pro 2 Wired Controller fox Xbox"
+	case 0x2dc8200a:
+		return "8BitDo M30 Wired Controller for Xbox"
+	case 0x2dc8200f:
+		return "8BitDo Ultimate 3-mode Controller for Xbox"
+	case 0x2dc8201e:
+		return "8BitDo Pro 2 Wired Controller for Xbox"
+	case 0x2dc83106:
+		return "8BitDo Ultimate Wireless / Pro 2 Wired Controller"
+	case 0x2dc83109:
+		return "8BitDo Ultimate Wireless Bluetooth"
+	case 0x2dc8310a:
+		return "8BitDo Ultimate 2C Wireless Controller"
+	case 0x2dc8310b:
+		return "8BitDo Ultimate 2 Wireless Controller"
+	case 0x2dc86001:
+		return "8BitDo SN30 Pro"
+	default:
+		return "Generic X-Box pad"
+	}
 }
 
 // usbHIDInputName reproduces the name Linux usbhid exposes for an input device:

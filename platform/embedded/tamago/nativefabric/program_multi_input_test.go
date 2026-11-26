@@ -61,6 +61,139 @@ func TestTamagoPadGUIDMatchesFogCastControllerGUID(t *testing.T) {
 	}
 }
 
+type stubXPadPipe struct {
+	addr uint8
+	ep   usb.EndpointDescriptor
+}
+
+func (p *stubXPadPipe) DeviceAddress() uint8              { return p.addr }
+func (p *stubXPadPipe) Endpoint() usb.EndpointDescriptor  { return p.ep }
+func (p *stubXPadPipe) PollInto([]byte) (int, error)      { return 0, nil }
+func (p *stubXPadPipe) Write([]byte) error                { return nil }
+func (p *stubXPadPipe) WriteDone() (bool, error)          { return true, nil }
+func (p *stubXPadPipe) SetIntervalOverride(time.Duration) {}
+func (p *stubXPadPipe) Close() error                      { return nil }
+
+type stubXPadBus struct {
+	events []usb.HostEvent
+}
+
+func (b *stubXPadBus) Service() error { return nil }
+func (b *stubXPadBus) NextEvent() (usb.HostEvent, bool) {
+	if len(b.events) == 0 {
+		return usb.HostEvent{}, false
+	}
+	ev := b.events[0]
+	b.events = b.events[1:]
+	return ev, true
+}
+func (b *stubXPadBus) Devices() []usb.BusDevice { return nil }
+func (b *stubXPadBus) ControlTransfer(uint8, byte, byte, uint16, uint16, []byte) (int, error) {
+	return 0, errors.New("unsupported control transfer")
+}
+func (b *stubXPadBus) OpenPipe(addr uint8, ep usb.EndpointDescriptor) (usb.Pipe, error) {
+	return &stubXPadPipe{addr: addr, ep: ep}, nil
+}
+func (b *stubXPadBus) Ready() <-chan struct{} { return nil }
+
+func TestTamagoWiredXPadHubGUIDMatchesFogCast(t *testing.T) {
+	cases := []struct {
+		name     string
+		addr     uint8
+		subClass uint8
+		protocol uint8
+		vid      uint16
+		pid      uint16
+		version  uint16
+		wantName string
+	}{
+		{
+			name:     "Xbox 360 wired XInput",
+			addr:     2,
+			subClass: 0x5d,
+			protocol: 0x01,
+			vid:      0x045e,
+			pid:      0x028e,
+			version:  0x0114,
+			wantName: "Microsoft X-Box 360 pad",
+		},
+		{
+			name:     "Xbox Series wired GIP",
+			addr:     3,
+			subClass: 0x47,
+			protocol: 0xd0,
+			vid:      0x045e,
+			pid:      0x0b12,
+			version:  0x050f,
+			wantName: "Microsoft Xbox Series S|X Controller",
+		},
+		{
+			name:     "Unrecognized third-party XInput",
+			addr:     4,
+			subClass: 0x5d,
+			protocol: 0x01,
+			vid:      0x1234,
+			pid:      0x5678,
+			version:  0x0100,
+			wantName: "Generic X-Box pad",
+		},
+	}
+
+	bus := &stubXPadBus{}
+	for _, tc := range cases {
+		bus.events = append(bus.events, usb.HostEvent{
+			Kind: usb.DeviceAttached,
+			Device: usb.BusDevice{
+				Address: tc.addr,
+				Speed:   usb.SpeedFull,
+				Descriptor: usb.DeviceDescriptor{
+					VendorID:      tc.vid,
+					ProductID:     tc.pid,
+					DeviceVersion: tc.version,
+				},
+				Config: usb.FullConfiguration{
+					Value: 1,
+					Interfaces: []usb.InterfaceDescriptor{{
+						Number: 0, Class: 0xff, SubClass: tc.subClass, Protocol: tc.protocol,
+						Endpoints: []usb.EndpointDescriptor{
+							{Address: 0x81, TransferType: usb.TransferInterrupt, MaxPacketSize: 64, Interval: 4},
+						},
+					}},
+				},
+			},
+		})
+	}
+
+	hub, err := usbhub.NewHub(bus, usbhub.Config{})
+	if err != nil {
+		t.Fatalf("NewHub: %v", err)
+	}
+	defer hub.Close()
+	if err := hub.Service(); err != nil {
+		t.Fatalf("hub.Service: %v", err)
+	}
+
+	var buf [usbhub.MaxGamepadDevices]usbhub.GamepadDevice
+	n := hub.GamepadDevicesInto(buf[:])
+	if n != len(cases) {
+		t.Fatalf("got %d attached pads, want %d", n, len(cases))
+	}
+	for i, tc := range cases {
+		info := tamagoPadInfo(buf[i])
+		wantGUID := (linuxcontroller.Device{
+			Name:    tc.wantName,
+			Bus:     tamagoBusUSB,
+			Vendor:  tc.vid,
+			Product: tc.pid,
+			Version: tc.version,
+		}).GUID()
+		if info.GUID != wantGUID || info.Family != gfx.PromptXbox || info.Name != tc.wantName {
+			t.Fatalf("%s: info=%+v, want GUID=%s Family=%v Name=%q",
+				tc.name, info, wantGUID, gfx.PromptXbox, tc.wantName)
+		}
+	}
+}
+
 // fakeMultiSource models usbhub.Hub: reports a test supplies reach the source
 // during the next Service, which (like the hub) queues only merged-state
 // changes; PausePolling drops queued changes but keeps the live merged state.

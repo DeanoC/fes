@@ -1813,6 +1813,7 @@ func TestHubGamepadDevicesIntoAndZeroAllocs(t *testing.T) {
 	bus.reportDescs[key32(3, 0)] = sampleGamepadDescriptor()
 	xinputPad := makeXInputDev(4)
 	xinputPad.Descriptor.VendorID, xinputPad.Descriptor.ProductID = 0x045e, 0x028e
+	xinputPad.Descriptor.DeviceVersion = 0x0114
 	bus.attach(hidPad)
 	bus.attach(xinputPad)
 	if err := hub.Service(); err != nil {
@@ -1853,8 +1854,9 @@ func TestHubGamepadDevicesIntoAndZeroAllocs(t *testing.T) {
 		buf[0].Kind != controllers.KindGenericHID || buf[0].Player != 1 || buf[0].Buttons&controllers.ButtonSouth == 0 {
 		t.Fatalf("unexpected wired generic HID snapshot: %+v", buf[0])
 	}
-	// Wired slot 1: XInput P2 with ButtonEast active.
+	// Wired slot 1: XInput P2 with ButtonEast active and Linux xpad identity.
 	if buf[1].ID != 2 || buf[1].Bluetooth || buf[1].Vendor != 0x045e || buf[1].Product != 0x028e ||
+		buf[1].Version != 0x0114 || buf[1].Name != "Microsoft X-Box 360 pad" || buf[1].IdentityName != "Microsoft X-Box 360 pad" ||
 		buf[1].Kind != controllers.KindXInput || buf[1].Player != 2 || buf[1].Buttons&controllers.ButtonEast == 0 {
 		t.Fatalf("unexpected wired XInput snapshot: %+v", buf[1])
 	}
@@ -1954,5 +1956,80 @@ func TestHubBluetoothIdentityUsesBondValues(t *testing.T) {
 	name, vendor, product := hub.bluetoothIdentity(addr)
 	if name != "DualSense Wireless Controller" || vendor != 0x054c || product != 0x0ce6 {
 		t.Fatalf("bond identity = (%q, %#04x, %#04x)", name, vendor, product)
+	}
+}
+
+func TestHubWiredXPadInputNames(t *testing.T) {
+	cases := []struct {
+		name    string
+		dev     usb.BusDevice
+		version uint16
+		want    string
+		kind    controllers.Kind
+	}{
+		{
+			name:    "Xbox 360 XInput",
+			dev:     makeXInputDev(2),
+			version: 0x0114,
+			want:    "Microsoft X-Box 360 pad",
+			kind:    controllers.KindXInput,
+		},
+		{
+			name:    "Xbox Series GIP",
+			dev:     makeXboxGIPModelDev(3, 0x045e, 0x0b12),
+			version: 0x050f,
+			want:    "Microsoft Xbox Series S|X Controller",
+			kind:    controllers.KindXboxGIP,
+		},
+		{
+			name:    "Xbox One S GIP",
+			dev:     makeXboxGIPModelDev(4, 0x045e, 0x02ea),
+			version: 0x0301,
+			want:    "Microsoft X-Box One S pad",
+			kind:    controllers.KindXboxGIP,
+		},
+		{
+			name: "Unknown third-party XInput",
+			dev: func() usb.BusDevice {
+				d := makeXInputDev(5)
+				d.Descriptor.VendorID = 0x1234
+				d.Descriptor.ProductID = 0x5678
+				return d
+			}(),
+			version: 0x0100,
+			want:    "Generic X-Box pad",
+			kind:    controllers.KindXInput,
+		},
+	}
+
+	bus := newFakeBus()
+	hub, err := NewHub(bus, Config{})
+	if err != nil {
+		t.Fatalf("NewHub: %v", err)
+	}
+	defer hub.Close()
+
+	for _, tc := range cases {
+		tc.dev.Descriptor.DeviceVersion = tc.version
+		bus.attach(tc.dev)
+	}
+	if err := hub.Service(); err != nil {
+		t.Fatalf("Service: %v", err)
+	}
+
+	var buf [MaxGamepadDevices]GamepadDevice
+	n := hub.GamepadDevicesInto(buf[:])
+	if n != len(cases) {
+		t.Fatalf("got %d wired devices, want %d (%+v)", n, len(cases), buf[:n])
+	}
+	for i, tc := range cases {
+		got := buf[i]
+		if got.Name != tc.want || got.IdentityName != tc.want ||
+			got.Vendor != tc.dev.Descriptor.VendorID ||
+			got.Product != tc.dev.Descriptor.ProductID ||
+			got.Version != tc.version || got.Kind != tc.kind {
+			t.Fatalf("%s: got %+v, want name/identity=%q vid=%#04x pid=%#04x ver=%#04x kind=%s",
+				tc.name, got, tc.want, tc.dev.Descriptor.VendorID, tc.dev.Descriptor.ProductID, tc.version, tc.kind)
+		}
 	}
 }
