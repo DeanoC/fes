@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 
 HPS_IP = 'hps_subsys/ip/hps_subsys/agilex_hps.ip'
+ADAPTER_IP = 'hps_subsys/ip/hps_subsys/f2sdram_adapter.ip'
 ADAPTER = 'custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl'
 MANAGED_FABRIC = 'managed-scanout-initiators-v4'
 GHRD_SDC_SHA256 = '743b02b7fa6e3f6397890702f626ff7b27a5c7ab6aa9d1721c22d286900c7247'
@@ -38,7 +39,7 @@ def constant(definition, name):
 
 def order_window_reads(text):
     """Keep the narrow scanout and window replies in AXI issue order."""
-    queue = r"""// The Avalon width adapters expect responses in issue order.
+    queue = r"""// The generated Avalon path expects responses in issue order.
 // Use one F2SDRAM read ID and restore the original owner from a FIFO.
 reg \[4:0\] read_id_fifo \[0:15\];
 reg \[3:0\] read_head, read_tail;
@@ -136,7 +137,7 @@ def configure(project, definition, hps, *, managed_fabric=False, window=False):
         # The window's master shares the scanout's stream: one SID, reads and
         # writes. Its write credits stay the adapter's one.
         profile.update(scope='scanout and window generated F2SDRAM path', master_ownership='scanout+window',
-                       window_master=WINDOW_BRIDGE)
+                       window_master=WINDOW_BRIDGE, data_bits=128)
     child = hps.tcl_word(project / 'hps_subsys/hps_subsys.qsys')
     script = f'''# Explicit Linux SMMU profile. This changes port exposure, not boot data.
 load_system {child}
@@ -170,8 +171,24 @@ foreach {name target} {fpga2hps agilex_hps.fpga2hps fpga2hps_clk agilex_hps.fpga
 '''
         changes[HPS_IP]['f2s_data_width'] = {'before': '256', 'after': '0'}
         changes[HPS_IP]['H2F_Width'] = {'before': '128', 'after': '0'}
+    if window:
+        # The 256-bit hard bridge requires 32-byte command addresses. The
+        # window's 128-bit master can issue at any 16-byte boundary, including
+        # masked status-ring writes. Match the scanout and window paths at 128
+        # bits so neither read nor write commands need 32-byte alignment.
+        script += '''load_component agilex_hps
+if {[get_component_parameter_value f2sdram_data_width] != 256} {error "vendor F2SDRAM data width changed"}
+set_component_parameter_value f2sdram_data_width 128
+save_component
+'''
+        changes[HPS_IP]['f2sdram_data_width'] = {'before': '256', 'after': '128'}
+        changes[ADAPTER_IP] = {'DATA_WIDTH': {'before': '256', 'after': '128'}}
     script += f'''load_component f2sdram_adapter
 if {{[get_component_parameter_value DATA_WIDTH] != 256}} {{error "F2SDRAM adapter data width changed"}}
+'''
+    if window:
+        script += 'set_component_parameter_value DATA_WIDTH 128\n'
+    script += f'''\
 foreach port {{man_aruser man_awuser}} {{
     if {{[get_component_interface_port_property axi4_man $port WIDTH] != 25}} {{error "SMMU USER width changed"}}
 }}
@@ -401,8 +418,14 @@ def verify(project, hps, profile):
         raise ValueError('captured Linux DMA stream differs')
     if hps.digest(project / ADAPTER) != profile['derived_sha256']:
         raise ValueError('derived SMMU adapter changed')
-    if hps.module_parameters(project / HPS_IP).get('f2sdram_SMMU') != 'true':
+    parameters = hps.module_parameters(project / HPS_IP)
+    if parameters.get('f2sdram_SMMU') != 'true':
         raise ValueError('generated HPS SMMU ports not enabled')
+    data_bits = 128 if window else 256
+    if ((window and profile.get('data_bits') != data_bits)
+            or parameters.get('f2sdram_data_width') != str(data_bits)
+            or hps.module_parameters(project / ADAPTER_IP).get('DATA_WIDTH') != str(data_bits)):
+        raise ValueError('generated F2SDRAM hard bridge/adapter data width differs')
     import xml.etree.ElementTree as ET
     tree = ET.parse(project / 'qsys_top/qsys_top.sopcinfo')
     modules = {m.get('path'): m for m in tree.findall('module')}
@@ -411,6 +434,11 @@ def verify(project, hps, profile):
         ports = hps.component_ports(modules[name], interface)
         if any(ports.get(channel + 'user') != (direction, 25) for channel in ('ar', 'aw')):
             raise ValueError('generated SMMU USER path width differs')
+        response_direction = 'Output' if direction == 'Input' else 'Input'
+        if (ports.get('rdata') != (response_direction, data_bits)
+                or ports.get('wdata') != (direction, data_bits)
+                or ports.get('wstrb') != (direction, data_bits // 8)):
+            raise ValueError('generated F2SDRAM data or strobe width differs')
     if profile.get('read_transactions') != 16:
         raise ValueError('Linux scanout read transaction limit differs')
     for module, interface, fields in (

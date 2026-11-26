@@ -150,7 +150,8 @@ def handoff_tree():
         ("byteenable", "Output", 16), ("waitrequest", "Input", 1), ("readdata", "Input", 128),
         ("readdatavalid", "Input", 1), ("response", "Input", 2)))
     module("subsys_hps.f2sdram_adapter", "f2sdram_adapter", "axi4_sub", (
-        ("araddr", "Input", 32), ("rdata", "Output", 256), ("rresp", "Output", 2)))
+        ("araddr", "Input", 32), ("rdata", "Output", 256), ("rresp", "Output", 2),
+        ("wdata", "Input", 256), ("wstrb", "Input", 32)))
     identities = (
         ("avalon", "subsys_hps_agilex_hps.lwhps2fpga", "subsys_periph_pb_cpu_0.s0", {
             "addressMapSysInfo": '<address-map>' + ''.join(
@@ -637,6 +638,12 @@ class HpsBuildTests(unittest.TestCase):
         managed["allowed_hps_parameter_changes"][HPS]["f2s_data_width"] = {"before": "256", "after": "0"}
         managed["allowed_hps_parameter_changes"][HPS]["H2F_Width"] = {"before": "128", "after": "0"}
         self.assertEqual(BUILD.reviewed_hps_parameter_changes(managed), managed["allowed_hps_parameter_changes"])
+        window = copy.deepcopy(managed)
+        window["f2sdram_master_profile"] = "scanout+window"
+        window["allowed_hps_parameter_changes"][HPS]["f2sdram_data_width"] = {"before": "256", "after": "128"}
+        adapter = "hps_subsys/ip/hps_subsys/f2sdram_adapter.ip"
+        window["allowed_hps_parameter_changes"][adapter] = {"DATA_WIDTH": {"before": "256", "after": "128"}}
+        self.assertEqual(BUILD.reviewed_hps_parameter_changes(window), window["allowed_hps_parameter_changes"])
         cases = []
         for key, value in (("managed_fabric", "managed-scanout-initiators-v3"),
                            ("build_identity_scheme", "diagnostic-source-profile"),
@@ -651,6 +658,8 @@ class HpsBuildTests(unittest.TestCase):
             changed = copy.deepcopy(managed); changed["allowed_hps_parameter_changes"][HPS][parameter] = value; cases.append(changed)
         # The v3 set, which kept the full bridge for the on-chip memory, is no longer reviewed.
         changed = copy.deepcopy(managed); del changed["allowed_hps_parameter_changes"][HPS]["H2F_Width"]; cases.append(changed)
+        changed = copy.deepcopy(window); del changed["allowed_hps_parameter_changes"][adapter]; cases.append(changed)
+        changed = copy.deepcopy(window); changed["f2sdram_master_profile"] = "scanout-only"; cases.append(changed)
         for changed in cases:
             with self.subTest(profile=changed), self.assertRaises(ValueError):
                 BUILD.reviewed_hps_parameter_changes(changed)

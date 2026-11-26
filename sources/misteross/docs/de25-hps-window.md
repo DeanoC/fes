@@ -42,11 +42,16 @@ reason (`FaultNoGrant`, `FaultOutside`), and the port stays waiting. No
 burst crosses a `BoundaryBytes` boundary. All three ports reach HPS memory
 through one SMMU stream, for reads and writes.
 
-When the window and scanout share F2SDRAM, the adapter issues reads with
-one AXI ID so the hard bridge returns them in issue order. Its 16-entry
-FIFO restores each Avalon request's ID through the last read beat.
-The width adapters can then select the correct 128-bit half of each
-256-bit reply, even while scanout and guest reads are both pending.
+When the window and scanout share F2SDRAM, the hard bridge and its AXI
+adapter both use 128-bit data. The window can issue a command on any
+16-byte boundary, including masked writes from the status ring. Agilex 5
+requires 32-byte command alignment on the 256-bit F2SDRAM path.
+[Agilex 5 EMIF access requirements](https://docs.altera.com/r/docs/817467/25.3.1/external-memory-interfaces-emif-ip-user-guide-agilextm-5-fpgas-and-socs/lockstep-configuration#unaligned-memory-access)
+
+The adapter issues reads with one AXI ID so the hard bridge returns them
+in issue order. Its 16-entry FIFO restores each Avalon request's ID
+through the last read beat, including when scanout and guest reads are
+both pending.
 
 ## The control block
 
