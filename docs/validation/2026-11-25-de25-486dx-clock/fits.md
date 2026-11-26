@@ -1109,6 +1109,26 @@ used 45,153 ALMs and 42 DSPs. The summary SHA-256 is
 The routed-site receipt SHA-256 is
 `a21a91126f2c8c29faea07a74683b6d22ce8990d1cc15ce8ef82ecb9cc7e57a1`.
 
+The route diagnostic used private copies of three fitted databases.
+It checked 320 timing paths and 64 exact native net-delay rows over four
+corners and matched each native value to the worse rising or falling
+transition's clock-to-Q plus interconnect minus signed setup credit.
+The first diagnostic stopped when TimeQuest did not expose the expected
+path-edge handle. The retry reused its verified native and detailed
+reports and checked the remaining observations against the same databases.
+Each of the eight measured misses has a passing donor and a narrower
+target between the donor maximum and 5.046 ns. The target receipt
+SHA-256 is
+`dab91a3c70582b094db83f591eae9ab33711cd33be23184b010883bbbc92c598`.
+
+Revision `4bf35867e371979dac168a9377bac66f7110304b` applies those targets
+to C26 Plan, Place and Route. The Tcl fixture passed 30 clock and stage
+combinations and rejected missing or ambiguous endpoints. All ordinary
+constraints matched in order and value, and no other rung or final
+timing phase emitted a new target. The fixture receipt SHA-256 is
+`6518f16da90053f03bdffef55b81e06788c3428ab88b1a35fa4d3edff92a2adc`.
+The registered QSF stayed byte-identical to the prior placement trial.
+
 ## Integrated C0 = 28 fallback
 
 Revision `7c7d1a991b5ed629b050630309c48ea38acc0aad` merges the earlier
@@ -1123,6 +1143,16 @@ seven D12 input selections match the merged base and `4fe7bada`, and
 `make check` and 55 focused tests passed. The new source has its own
 Quartus sweep and replay. The earlier qualification remains tied to
 `cb91390d`.
+
+Seed 2 passed ordinary timing and sealed, with +0.236 ns worst setup,
++0.001 ns worst hold and 3.300 ns independent LOADED. It used 45,220
+ALMs and 42 DSPs. Its summary SHA-256 is
+`cfdc1a1a26bf6fda6d0538095cd69041a9d7d88eb24bf369618eca5fd8234aec`.
+Seed 1 passed the raw numerical timing checks. The producer refused
+one unmatched naming form,
+`machine_at_decoder_state[1]~DUPLICATE_Duplicate_12`, among 47 subjects
+for the DX fitted proof. The copied numerical run passed all 1,316
+checks. Exact topology and unconstrained-path checks are in progress.
 
 ## Running a seed on either builder
 
