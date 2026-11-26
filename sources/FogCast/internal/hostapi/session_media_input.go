@@ -189,11 +189,13 @@ func (s *sessionCoordinator) inputStatus() (host.RemoteInputStatus, bool) {
 }
 
 func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.Event) error {
-	if s.playHIDForeign() {
-		return playHIDLeaseError()
-	}
+	// A host without remote input can mutate nothing; say so before any
+	// lease or connection check can report a different reason.
 	if s.remoteInput == nil {
 		return errRemoteInputDisabled
+	}
+	if s.playHIDForeign() {
+		return playHIDLeaseError()
 	}
 	status := s.remoteInput.Status()
 	if status.State != host.RemoteInputAttached && status.State != host.RemoteInputReconnecting {
@@ -209,11 +211,11 @@ func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.
 }
 
 func (s *sessionCoordinator) tapCoreKey(ctx context.Context, sessionID string, event remoteinput.Event, modifiers uint8) (time.Duration, error) {
-	if s.tapHIDForeign() {
-		return 0, playHIDLeaseError()
-	}
 	if s.remoteInput == nil {
 		return 0, errRemoteInputDisabled
+	}
+	if s.tapHIDForeign() {
+		return 0, playHIDLeaseError()
 	}
 	// Only a negotiated HID keyboard accepts physical usages unchanged. The
 	// target silently drops unsupported usages on native and matrix cores.

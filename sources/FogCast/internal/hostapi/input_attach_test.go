@@ -145,7 +145,17 @@ func TestInputDetachDoesNotApplyOldExecutionToExternalReplacement(t *testing.T) 
 // mutation must say so, rather than blame the target (MISTER_UNAVAILABLE) or a
 // dropped stream. The DE25 HIL private host hit exactly this (fes#2262).
 func TestInputRoutesReportRemoteInputDisabled(t *testing.T) {
-	service := &fakeService{status: tapHIDStatus(), connection: fogcast.TargetConnection{State: "active"}}
+	// The disabled host wins over every lease or connection state, including
+	// a disconnected target and a foreign lease owner.
+	for _, connection := range []fogcast.TargetConnection{{State: "active"}, {State: "disconnected"}, {State: "busy", Owner: "other-host"}} {
+		t.Run(connection.State+"/"+connection.Owner, func(t *testing.T) {
+			testInputRoutesReportRemoteInputDisabled(t, connection)
+		})
+	}
+}
+
+func testInputRoutesReportRemoteInputDisabled(t *testing.T, connection fogcast.TargetConnection) {
+	service := &fakeService{status: tapHIDStatus(), connection: connection}
 	handler := hostapi.New(service)
 	tap := `{"session_id":"any","event":{"Device":0,"Kind":0,"Action":1,"Code":4115,"Value":0}}`
 	event := `{"event":{"Device":0,"Kind":0,"Action":1,"Code":4115,"Value":0}}`
