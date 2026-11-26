@@ -198,10 +198,10 @@ RETIMED_LOCATION = (r'(?:BLOCK_INPUT_MUX_PASSTHROUGH|C1|C4|C8|R0|R1|R2|R4|R6|R12
 RETIMED_STEM = (r'(?:[A-Za-z][A-Za-z0-9_]*|_[0-9]+_)(?:\[[0-9]+\])?~'
                 r'(?:_?[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*_)?')
 RETIMED_ENABLE_CLEAR = r'(?:cpu_[a-z0-9_]+|_[0-9]+_)(?:\[[0-9]+\])?~(?:DUPLICATE)?(?:ENA|SCLR)_dff'
-# The 111.90 MHz DX fit reported this mixed duplicate spelling for cpu_halted.
-# Qualify the exact fitted register with the same live proof as the retimed sites.
+# The 111.90 MHz DX fits reported this mixed duplicate spelling for cpu_halted
+# and cpu_int_wait. Both require the same live proof as the retimed sites.
 RETIMED_TENSION_NODES = S + ('(?:' + RETIMED_STEM + RETIMED_LOCATION + '|' + RETIMED_ENABLE_CLEAR
-                             + r'|cpu_halted~DUPLICATE_Duplicate)')
+                             + r'|cpu_(?:halted|int_wait)~DUPLICATE_Duplicate)')
 RETIMED_TENSION = ('DX fitter-placement advisory (#2263). A located name must agree with its reported '
                    'register X/Y location. Every reported register needs exact unique '
                    'TimeQuest ownership on the machine clock and only machine-clock data keepers '

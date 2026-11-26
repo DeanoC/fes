@@ -80,6 +80,7 @@ class RegisteredTensionTests(unittest.TestCase):
             ('486sx', '486sx', 'cpu_biu_drain~DUPLICATESCLR_dff', False, 'matches 0 bases'),
             ('486dx', '486dx', 'cpu_halted~DUPLICATE_Duplicate', True, None),
             ('486sx', '486sx', 'cpu_halted~DUPLICATE_Duplicate', False, 'matches 0 bases'),
+            ('486dx', '486dx', 'cpu_int_wait~DUPLICATE_Duplicate', True, None),
             ('486dx', 'unknown', retimed, False, 'registered fit has unknown model'),
             ('486dx', '486sx', retimed, False, 'differs from prepared model'),
             ('486dx', None, retimed, False, 'lacks a recorded or prepared model'),
