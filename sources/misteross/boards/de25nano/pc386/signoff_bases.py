@@ -43,7 +43,7 @@ def lint(name, driver, qualifier):
 TABLE = 'boards/de25nano/pc386/signoff_bases.py'
 SOURCES = {
     'cores/fes-common/rtl/i386/fes_i386_cpu.sv': '377ff229ed66ff72bdcef778397635a22c07a3378e9d98afcaec16a0e5048127',
-    'cores/fes-pc386/rtl/pc386_at_core.sv': 'ae210404c4c06d724bbfe0f166743988f495e3301edecbaf1c50e23c41ba6d4c',
+    'cores/fes-pc386/rtl/pc386_at_core.sv': '8b1ea8f50caedb8bae9916659b02e929b43657e2f62b16392d311e2f014241db',
     'cores/fes-pc386/rtl/pc386_presenter.sv': 'aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3',
     'cores/fes-pc386/rtl/pc386_vga_scanout.sv': '03d194d816290a6f6977cc84dfe5c64be374f1ca4eb3a297b1562495b0186fec',
     'cores/fes-pc386/rtl/pc386_snapshot.sv': '795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4',
