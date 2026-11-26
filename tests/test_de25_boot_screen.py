@@ -128,6 +128,23 @@ class BootScreenTests(unittest.TestCase):
                     ok, detail = check(frame(name))
                     self.assertEqual(ok, other == core, detail)
 
+    def test_a_smaller_centred_picture_is_still_recognised(self):
+        # The picture scaled about the frame centre on black, area-averaged as
+        # a capture's scaler would.
+        if not shutil.which("ffmpeg"):
+            self.skipTest("ffmpeg is not installed")
+        for core, name in FRAMES.items():
+            for scale in (0.75, 0.6):
+                vf = (f"scale=trunc(iw*{scale}/2)*2:trunc(ih*{scale}/2)*2:flags=area,"
+                      f"pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2:black")
+                small = subprocess.run(
+                    ["ffmpeg", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
+                     "-s", f"{WIDTH}x{HEIGHT}", "-i", "-", "-vf", vf, "-f", "rawvideo",
+                     "-pix_fmt", "rgb24", "-"], input=frame(name), capture_output=True, check=True).stdout
+                with self.subTest(core=core, scale=scale):
+                    ok, detail = boot.CHECKS[core](small)
+                    self.assertTrue(ok, detail)
+
     def test_a_black_frame_is_refused_by_every_check(self):
         for core, check in boot.CHECKS.items():
             with self.subTest(core):

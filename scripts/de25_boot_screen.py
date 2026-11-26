@@ -159,8 +159,13 @@ def _light_picture(px, width, height, minimum):
     if box is None:
         return None, None, "no picture"
     top, bottom, left, right = box
-    if (bottom - top + 1) * (right - left + 1) < 0.25 * width * height:
+    # The same floor as the GEM desktop check: below it the picture is too
+    # coarse for the layout tests, which are all relative to the picture.
+    if (bottom - top + 1) * (right - left + 1) < 0.08 * width * height:
         return None, None, "picture too small"
+    # Drop the picture's outer two cells: a scaled capture blends its edge
+    # with the black around it, and that blend is not ink.
+    box = (top + 2, bottom - 2, left + 2, right - 2)
     cells = _cells(px, box)
     light = sum(luma(p) > 180 for _, _, p in cells) / len(cells)
     if light < minimum:
