@@ -12,6 +12,7 @@ local C = F.colors
 
 -- A held button's colour on the pad picture.
 local LIT = "#EFD38C"
+local TESTED_BG = "#EFD48D"
 
 local WAITING_BUTTONS = {
   { prompt = "Enter", label = "Continue with keyboard", filled = true, action = "setup_continue" },
@@ -144,7 +145,7 @@ local function reads(p)
 end
 
 -- A row of the player list: a badge, a name and a detail line.
-local function player_row(x, y, w, h, badge, name, detail, muted, compact)
+local function player_row(x, y, w, h, badge, name, detail, muted, compact, tested)
   gfx.rect(x, y, w, h, C.surface)
   F.outline(x, y, w, h, 1, C.divider)
   local pad = compact and 10 or 14
@@ -156,8 +157,25 @@ local function player_row(x, y, w, h, badge, name, detail, muted, compact)
   gfx.text(badge, x + pad + (bw - gfx.measure(badge, bs, true)) / 2, by + 4, { size = bs, bold = true, color = muted and C.secondary or C.on_accent })
   local tx = x + pad + bw + 14
   local ns = compact and 18 or 22
-  gfx.text(name, tx, y + pad - 2, { size = ns, bold = true, color = muted and C.secondary or C.text, max_w = w - (tx - x) - pad })
-  gfx.text(detail, tx, y + pad + ns + (compact and 2 or 4), { size = compact and 14 or 17, color = C.secondary, max_w = w - (tx - x) - pad })
+  local avail = w - (tx - x) - pad
+  if tested then
+    local chip_s = compact and 13 or 15
+    local tw, th = gfx.measure("Tested", chip_s, true)
+    local chip_pad = compact and 7 or 9
+    local chip_w = tw + chip_pad * 2
+    local chip_h = th + (compact and 4 or 6)
+    local gap = compact and 8 or 10
+    local name_max = math.max(40, avail - chip_w - gap)
+    local nw, nh = gfx.measure(name, ns, true)
+    local chip_x = tx + math.min(nw, name_max) + gap
+    local cy = y + pad - 2 + math.floor((nh - chip_h) / 2)
+    gfx.text(name, tx, y + pad - 2, { size = ns, bold = true, color = muted and C.secondary or C.text, max_w = name_max })
+    gfx.rect(chip_x, cy, chip_w, chip_h, TESTED_BG)
+    gfx.text("Tested", chip_x + chip_pad, cy + math.floor((chip_h - th) / 2), { size = chip_s, bold = true, color = C.text })
+  else
+    gfx.text(name, tx, y + pad - 2, { size = ns, bold = true, color = muted and C.secondary or C.text, max_w = avail })
+  end
+  gfx.text(detail, tx, y + pad + ns + (compact and 2 or 4), { size = compact and 14 or 17, color = C.secondary, max_w = avail })
 end
 
 -- A disc of rows, for the pad's grips.
@@ -325,7 +343,7 @@ function draw()
     local gap = compact and 8 or 12
     local rows = {}
     for _, p in ipairs(pads) do
-      rows[#rows + 1] = { badge = p.player > 0 and ("P" .. p.player) or "Menu", name = p.name ~= "" and p.name or "Gamepad", detail = reads(p) }
+      rows[#rows + 1] = { badge = p.player > 0 and ("P" .. p.player) or "Menu", name = p.name ~= "" and p.name or "Gamepad", detail = reads(p), tested = p.tested }
     end
     if players == 1 then
       rows[#rows + 1] = { badge = "P" .. missing, name = "Add Player " .. missing, detail = "Plug in or switch on another pad", muted = true }
@@ -334,7 +352,7 @@ function draw()
     local room_for = math.floor((buttons_y - 20 - y + gap) / (row_h + gap))
     for i = 1, math.min(#rows, room_for) do
       local r = rows[i]
-      player_row(m, y, left_w, row_h, r.badge, r.name, r.detail, r.muted, compact)
+      player_row(m, y, left_w, row_h, r.badge, r.name, r.detail, r.muted, compact, r.tested)
       y = y + row_h + gap
     end
 

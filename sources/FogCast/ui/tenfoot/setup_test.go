@@ -708,3 +708,31 @@ func TestFirstRunControllerPromptsFollowSavedManualBindings(t *testing.T) {
 		t.Fatal("controller description still claims the printed layout")
 	}
 }
+
+func TestFirstRunControllersTestedBadge(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		safe float64
+	}{
+		{"full-1280x720", 0},
+		{"max-safe-area", maxSafeAreaPct},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app := startFirstRun(t, t.TempDir(), 1280, 720)
+			if tc.safe > 0 {
+				app.SetSafeAreaPct(tc.safe)
+			}
+			waitRoom(t, app, "example.welcome")
+			app.SetPadInfo(7, PadInfo{
+				Name: "USB Gamepad", GUID: "0300e9f51f08000001e4000010010000",
+				Vendor: 0x081f, Product: 0xe401, Family: gfx.PromptGeneric, Recognised: true, Tested: true, Player: 1,
+			})
+			app.AttachInput(InputGamepad, 7)
+			app.HandleCommand(CmdSelect, time.Now())
+			snap := waitFor(t, app, "tested controller badge", func(s Snapshot) bool {
+				return s.Room.ID == "example.setup-controllers" && roomTextHas(s, "Player 1 is ready") && roomTextHas(s, "Tested")
+			})
+			assertSetupTextClearOfButtons(t, snap)
+		})
+	}
+}

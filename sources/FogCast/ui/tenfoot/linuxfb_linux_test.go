@@ -105,9 +105,18 @@ func TestTenfootSuperFamicomPadNormalizationAndVirtualFilter(t *testing.T) {
 	if !controller.Eligible(3, "USB SNES Pad", true) {
 		t.Fatal("physical gamepad rejected")
 	}
-	mapper := controller.NewMapper(superFamicomPad(map[uint16]controller.Range{
+	pad := superFamicomPad(map[uint16]controller.Range{
 		0: {Min: 0, Max: 255}, 1: {Min: 0, Max: 255},
-	}))
+	})
+	if !pad.Tested() {
+		t.Fatal("wired 081f:e401 pad should be Tested")
+	}
+	bt := pad
+	bt.Bus = 5
+	if bt.Tested() {
+		t.Fatal("bluetooth 081f:e401 pad should not inherit USB Tested status")
+	}
+	mapper := controller.NewMapper(pad)
 	for _, tc := range []struct {
 		code  uint16
 		value int32
