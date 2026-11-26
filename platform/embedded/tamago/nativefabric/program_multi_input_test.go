@@ -1945,3 +1945,208 @@ func TestProgramMultiInputPlatformProfilesApplyToKeyboardEmulatedCore(t *testing
 		t.Fatalf("expected released keyboardRows after learned b10 release, got %v", f.cpu.keyboardRows)
 	}
 }
+
+func TestProgramMultiInputPlatformGenericHIDHighButtonsAndExtraAxes(t *testing.T) {
+	var prefs *ProgramPreferences
+	f, b, c := backendFixture(t, func(f *serviceFixture) {
+		var err error
+		prefs, err = LoadProgramPreferences(context.Background(), f.s.state.store, false)
+		if err != nil {
+			t.Fatalf("LoadProgramPreferences: %v", err)
+		}
+		if err := f.s.AttachPreferences(prefs); err != nil {
+			t.Fatalf("AttachPreferences: %v", err)
+		}
+	})
+	client := tenfoot.NewClient("http://native.invalid", &http.Client{Transport: b, Timeout: 5 * time.Second})
+	app := tenfoot.NewApp(client, 1280, 720, 40)
+	if err := app.SetPreferenceStore(prefs); err != nil {
+		t.Fatalf("SetPreferenceStore: %v", err)
+	}
+
+	hidPad := usbhub.GamepadDevice{
+		ID:           1,
+		Name:         "Arcade Encoder",
+		IdentityName: "Arcade Encoder",
+		Vendor:       0x081f,
+		Product:      0xe402,
+		Version:      0x0100,
+		Kind:         controllers.KindGenericHID,
+		Player:       1,
+	}
+	src := newFakeMultiSource()
+	src.setPadDevices(hidPad)
+	cfg := multiTestConfig()
+	cfg.App = app
+	cfg.Preferences = prefs
+	p, err := NewProgramMultiInputPlatform(&programInputBase{}, b, src, cfg)
+	if err != nil {
+		t.Fatalf("NewProgramMultiInputPlatform: %v", err)
+	}
+	step := func() tenfoot.PlatformInput {
+		t.Helper()
+		frame, err := p.Next(context.Background())
+		if err != nil {
+			t.Fatalf("Next: %v", err)
+		}
+		return frame
+	}
+	step()
+
+	// Open Settings › Controllers and start Learn.
+	app.HandleCommand(tenfoot.CmdSettings, time.Now())
+	for i, row := range app.Snapshot().Settings.Rows {
+		if row.ID == "section-controllers" {
+			for j := 0; j < i; j++ {
+				app.HandleCommand(tenfoot.CmdDown, time.Now())
+			}
+			app.HandleCommand(tenfoot.CmdSelect, time.Now())
+			break
+		}
+	}
+	for _, cmd := range []tenfoot.Command{tenfoot.CmdDown, tenfoot.CmdDown, tenfoot.CmdDown, tenfoot.CmdLeft} {
+		app.HandleCommand(cmd, time.Now())
+	}
+	app.HandleCommand(tenfoot.CmdSelect, time.Now())
+	if !app.PadLearning(hidPad.ID) {
+		t.Fatal("expected PadLearning active")
+	}
+
+	pressRaw := func(hat controllers.Button, rawButtons uint32, rawAxes [6]int16) {
+		hidPad.Buttons = hat
+		hidPad.RawButtons = rawButtons
+		hidPad.RawAxes = rawAxes
+		src.setPadDevices(hidPad)
+		step()
+		hidPad.Buttons = 0
+		hidPad.RawButtons = 0
+		hidPad.RawAxes = [6]int16{}
+		src.setPadDevices(hidPad)
+		step()
+	}
+
+	// Directions: hat d-pad.
+	for _, hat := range []controllers.Button{
+		controllers.ButtonDPadUp, controllers.ButtonDPadDown, controllers.ButtonDPadLeft, controllers.ButtonDPadRight,
+	} {
+		pressRaw(hat, 0, [6]int16{})
+	}
+	// A=b20 (bit 20), B=b31 (bit 31), X=+a5 (axis 5), Y=b21, L=b22, R=b23, Select=b24, Start=b25,
+	// Stick right=+a2, Stick down=+a3.
+	pressRaw(0, 1<<20, [6]int16{})
+	pressRaw(0, 1<<31, [6]int16{})
+	pressRaw(0, 0, [6]int16{5: 30000})
+	for _, bit := range []uint{21, 22, 23, 24, 25} {
+		pressRaw(0, 1<<bit, [6]int16{})
+	}
+	pressRaw(0, 0, [6]int16{2: 30000})
+	pressRaw(0, 0, [6]int16{3: 30000})
+	if !app.Snapshot().Controllers.Learn.Review {
+		t.Fatalf("expected Learn wizard at Review after learning b20/b31/+a5/+a2/+a3, got %+v", app.Snapshot().Controllers.Learn)
+	}
+	app.HandleCommand(tenfoot.CmdSelect, time.Now())
+	if !app.Snapshot().Controllers.Mapped || app.PadLearning(hidPad.ID) {
+		t.Fatalf("expected learned mapping saved, got %+v", app.Snapshot().Controllers)
+	}
+	step()
+
+	// Verify saved mapping contains b20, b31, +a5, leftx:a2, lefty:a3.
+	rawPrefs, err := prefs.ReadPreferences()
+	if err != nil {
+		t.Fatalf("ReadPreferences: %v", err)
+	}
+	var parsedPrefs struct {
+		Controllers map[string]inputmap.Profile `json:"controllers"`
+	}
+	if err := json.Unmarshal(rawPrefs, &parsedPrefs); err != nil {
+		t.Fatalf("unmarshal prefs: %v", err)
+	}
+	savedMapping := parsedPrefs.Controllers[tamagoPadInfo(hidPad).GUID].Mapping
+	for _, want := range []string{"a:b20", "b:b31", "x:+a5", "leftx:a2", "lefty:a3"} {
+		if !strings.Contains(savedMapping, want) {
+			t.Fatalf("saved mapping %q missing %q", savedMapping, want)
+		}
+	}
+
+	// Verify Tenfoot menu commands work for b20 (A), b31 (B), -a2 (Left), +a3 (Down), +a5 (X).
+	sendAndCheckMenu := func(rawButtons uint32, rawAxes [6]int16, wantCmd tenfoot.Command) {
+		t.Helper()
+		hidPad.RawButtons = rawButtons
+		hidPad.RawAxes = rawAxes
+		src.setPadDevices(hidPad)
+		if frame := step(); !slices.Contains(frame.Commands, wantCmd) {
+			t.Fatalf("rawButtons=%#x rawAxes=%v: commands=%v, want %v", rawButtons, rawAxes, frame.Commands, wantCmd)
+		}
+		hidPad.RawButtons = 0
+		hidPad.RawAxes = [6]int16{}
+		src.setPadDevices(hidPad)
+		step()
+	}
+	sendAndCheckMenu(1<<20, [6]int16{}, tenfoot.CmdSelect)
+	sendAndCheckMenu(1<<31, [6]int16{}, tenfoot.CmdBack)
+	sendAndCheckMenu(0, [6]int16{2: -30000}, tenfoot.CmdLeft)
+	sendAndCheckMenu(0, [6]int16{3: 30000}, tenfoot.CmdDown)
+	sendAndCheckMenu(0, [6]int16{5: 30000}, tenfoot.CmdSortCycle)
+
+	// Launch keyboard-emulated core and verify b20 -> CoreKeys.Buttons[0].
+	ctx := context.Background()
+	play, err := c.Launch(ctx, "native-0")
+	if err != nil || play.ErrorCode != "" {
+		t.Fatalf("Launch(kbd core): play=%+v err=%v", play, err)
+	}
+	step()
+	updHigh := usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}, PadCount: 1}
+	updHigh.Pads[0] = usbhub.GamepadPadState{ID: 1, Player: 1, RawButtons: 1 << 20}
+	hidPad.RawButtons = 1 << 20
+	src.setPadDevices(hidPad)
+	src.pads(updHigh)
+	step()
+	wantARows := [9]uint16{1: 1 << 6}
+	if f.cpu.keyboardRows != wantARows {
+		t.Fatalf("keyboard core: b20 -> %v, want %v", f.cpu.keyboardRows, wantARows)
+	}
+	hidPad.RawButtons = 0
+	src.setPadDevices(hidPad)
+	src.pads(usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}})
+	step()
+
+	if res, err := c.StopExpectedStamped(ctx, play, hostclient.ClientStamp{}); err != nil || res.ErrorCode != "" {
+		t.Fatalf("StopExpectedStamped: res=%+v err=%v", res, err)
+	}
+	step()
+
+	// Launch native fes.gamepad.ports core and verify b20 -> A (1<<4) and -a2 -> Left (1<<2).
+	play, err = c.Launch(ctx, "native-1")
+	if err != nil || play.ErrorCode != "" {
+		t.Fatalf("Launch(native core): play=%+v err=%v", play, err)
+	}
+	wantCaps := cg.FesComputerCapabilityVideoFixed720p60 | cg.FesComputerCapabilityKeyboardHid | cg.FesComputerCapabilityGamepadPorts
+	f.cpu.words[7] = uint16(wantCaps)
+	var build [16]byte
+	for i := range 8 {
+		binary.LittleEndian.PutUint16(build[2*i:], f.cpu.words[8+i])
+	}
+	reopened, err := computer.Open(ctx, f.s.state.computer.port, computerLimits(), computer.Identity{
+		Capabilities: wantCaps,
+		Build:        build,
+	})
+	if err != nil {
+		t.Fatalf("reopen Computer: %v", err)
+	}
+	f.s.state.computer.control = reopened
+	f.s.state.viewMu.Lock()
+	f.s.state.capabilities = wantCaps
+	f.s.state.viewMu.Unlock()
+
+	step() // Enter ProgramRunning & zero ports.
+	updPort := usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}, PadCount: 1}
+	updPort.Pads[0] = usbhub.GamepadPadState{ID: 1, Player: 1, RawButtons: 1 << 20, RawAxes: [6]int16{2: -30000}}
+	hidPad.RawButtons = 1 << 20
+	hidPad.RawAxes = [6]int16{2: -30000}
+	src.setPadDevices(hidPad)
+	src.pads(updPort)
+	step()
+	if wantMask := uint16((1 << 4) | (1 << 2)); f.cpu.controllerPorts[0] != wantMask {
+		t.Fatalf("native port 0 = %#02x, want %#02x (b20->A | -a2->Left)", f.cpu.controllerPorts[0], wantMask)
+	}
+}

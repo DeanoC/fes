@@ -49,11 +49,13 @@ const (
 // GamepadPadState is a per-pad canonical snapshot carried inside GamepadUpdate
 // so callers preserve fast press/release edges without allocating.
 type GamepadPadState struct {
-	ID      int
-	Player  uint8
-	Buttons controllers.Button
-	LeftX   int16
-	LeftY   int16
+	ID         int
+	Player     uint8
+	Buttons    controllers.Button
+	LeftX      int16
+	LeftY      int16
+	RawButtons uint32
+	RawAxes    [6]int16
 }
 
 // GamepadUpdate carries a normalized merged gamepad snapshot, whether any
@@ -165,6 +167,8 @@ type GamepadDevice struct {
 	Buttons      controllers.Button
 	LeftX        int16
 	LeftY        int16
+	RawButtons   uint32
+	RawAxes      [6]int16
 }
 
 // Config configures optional Bluetooth bond/firmware persistence and logging.
@@ -575,6 +579,8 @@ func (h *Hub) GamepadDevicesInto(dst []GamepadDevice) int {
 			Buttons:      slot.ctrlState.Buttons,
 			LeftX:        slot.ctrlState.LeftX,
 			LeftY:        slot.ctrlState.LeftY,
+			RawButtons:   rawButtonsForWired(slot),
+			RawAxes:      rawAxesForWired(slot),
 		}
 		count++
 	}
@@ -629,6 +635,8 @@ func (h *Hub) GamepadDevicesInto(dst []GamepadDevice) int {
 			Buttons:      st.Buttons,
 			LeftX:        st.LeftX,
 			LeftY:        st.LeftY,
+			RawButtons:   rawButtonsForCtrl(st),
+			RawAxes:      rawAxesForCtrl(st),
 		}
 		count++
 	}
@@ -2007,19 +2015,21 @@ func (h *Hub) recomputeGamepad() {
 		nonNeutral      [MaxGamepadDevices]GamepadPadState
 		nonNeutralCount uint8
 	)
-	recordPad := func(id int, player uint8, st controllers.State) {
+	recordPad := func(id int, player uint8, st controllers.State, rawButtons uint32, rawAxes [6]int16) {
 		snap := GamepadPadState{
-			ID:      id,
-			Player:  player,
-			Buttons: st.Buttons,
-			LeftX:   st.LeftX,
-			LeftY:   st.LeftY,
+			ID:         id,
+			Player:     player,
+			Buttons:    st.Buttons,
+			LeftX:      st.LeftX,
+			LeftY:      st.LeftY,
+			RawButtons: rawButtons,
+			RawAxes:    rawAxes,
 		}
 		if int(padCount) < len(pads) {
 			pads[padCount] = snap
 			padCount++
 		}
-		if (st.Buttons != 0 || st.LeftX != 0 || st.LeftY != 0) && int(nonNeutralCount) < len(nonNeutral) {
+		if (st.Buttons != 0 || st.LeftX != 0 || st.LeftY != 0 || rawButtons != 0 || rawAxes != ([6]int16{})) && int(nonNeutralCount) < len(nonNeutral) {
 			nonNeutral[nonNeutralCount] = snap
 			nonNeutralCount++
 		}
@@ -2033,7 +2043,7 @@ func (h *Hub) recomputeGamepad() {
 		if port, ok := h.playerPortFor(playerPortWired, uint8(i)); ok {
 			player = port + 1
 		}
-		recordPad(1+i, player, slot.ctrlState)
+		recordPad(1+i, player, slot.ctrlState, rawButtonsForWired(slot), rawAxesForWired(slot))
 	}
 	for i := range h.btSlotActive {
 		if !h.btSlotActive[i] {
@@ -2043,7 +2053,7 @@ func (h *Hub) recomputeGamepad() {
 		if port, ok := h.playerPortFor(playerPortBT, uint8(i)); ok {
 			player = port + 1
 		}
-		recordPad(101+i, player, h.btCtrlState[i])
+		recordPad(101+i, player, h.btCtrlState[i], rawButtonsForCtrl(h.btCtrlState[i]), rawAxesForCtrl(h.btCtrlState[i]))
 	}
 	if merged != h.mergedGamepad || home != h.mergedHome || ports != h.mergedPorts ||
 		nonNeutralCount != h.mergedActivePadCount || nonNeutral != h.mergedActivePads {
@@ -2151,6 +2161,35 @@ func (h *Hub) playerPortFor(source playerPortSource, slot uint8) (uint8, bool) {
 		}
 	}
 	return 0, false
+}
+
+func rawButtonsForCtrl(st controllers.State) uint32 {
+	return uint32(st.Buttons&0x7fff) &^ uint32(controllers.ButtonHome)
+}
+
+func rawAxesForCtrl(st controllers.State) [6]int16 {
+	return [6]int16{
+		st.LeftX,
+		st.LeftY,
+		st.RightX,
+		st.RightY,
+		int16(int32(st.LeftTrigger) * 32767 / 255),
+		int16(int32(st.RightTrigger) * 32767 / 255),
+	}
+}
+
+func rawButtonsForWired(slot *wiredGamepadSlot) uint32 {
+	if slot.kind == controllers.KindGenericHID {
+		return slot.state.Buttons
+	}
+	return rawButtonsForCtrl(slot.ctrlState)
+}
+
+func rawAxesForWired(slot *wiredGamepadSlot) [6]int16 {
+	if slot.kind == controllers.KindGenericHID {
+		return slot.state.Axes
+	}
+	return rawAxesForCtrl(slot.ctrlState)
 }
 
 func usbGamepadStateToControllerState(st usb.GamepadState) controllers.State {

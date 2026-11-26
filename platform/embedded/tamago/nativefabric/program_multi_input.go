@@ -75,7 +75,8 @@ type ProgramMultiConfig struct {
 type trackedMultiPad struct {
 	info       tenfoot.PadInfo
 	buttons    controllers.Button
-	stick      [4]bool
+	rawButtons uint32
+	axes       [6][2]bool
 	profile    *multiPadProfile
 	profileGen uint64
 	learning   bool
@@ -930,29 +931,30 @@ var canonicalButtonMap = []struct {
 	{controllers.ButtonDPadRight, remoteinput.ButtonDPadRight, "h0.2"},
 }
 
-var rawButtonSources = []struct {
+var rawButtonNames = [32]string{
+	"b0", "b1", "b2", "b3", "b4", "b5", "b6", "b7",
+	"b8", "b9", "b10", "b11", "b12", "b13", "b14", "b15",
+	"b16", "b17", "b18", "b19", "b20", "b21", "b22", "b23",
+	"b24", "b25", "b26", "b27", "b28", "b29", "b30", "b31",
+}
+
+var rawHatSources = [4]struct {
 	bit controllers.Button
 	raw string
 }{
-	{controllers.ButtonSouth, "b0"},
-	{controllers.ButtonEast, "b1"},
-	{controllers.ButtonWest, "b2"},
-	{controllers.ButtonNorth, "b3"},
-	{controllers.ButtonL1, "b4"},
-	{controllers.ButtonR1, "b5"},
-	{controllers.ButtonL2, "b6"},
-	{controllers.ButtonR2, "b7"},
-	{controllers.ButtonSelect, "b8"},
-	{controllers.ButtonStart, "b9"},
-	{controllers.ButtonL3, "b10"},
-	{controllers.ButtonR3, "b11"},
-	// ButtonHome is reserved for the global Settings/exit shortcut (matching Guide handling).
-	{controllers.ButtonCapture, "b13"},
-	{controllers.ButtonTouchpad, "b14"},
 	{controllers.ButtonDPadUp, "h0.1"},
 	{controllers.ButtonDPadDown, "h0.4"},
 	{controllers.ButtonDPadLeft, "h0.8"},
 	{controllers.ButtonDPadRight, "h0.2"},
+}
+
+var rawAxisNames = [6][2]string{
+	{"-a0", "+a0"},
+	{"-a1", "+a1"},
+	{"-a2", "+a2"},
+	{"-a3", "+a3"},
+	{"-a4", "+a4"},
+	{"-a5", "+a5"},
 }
 
 var stickDirSources = [4]struct {
@@ -995,8 +997,36 @@ func padStickDirs(leftX, leftY int16) [4]bool {
 	}
 }
 
+func effectiveRawButtons(st usbhub.GamepadPadState) uint32 {
+	if st.RawButtons != 0 {
+		return st.RawButtons
+	}
+	return uint32(st.Buttons&0x7fff) &^ uint32(controllers.ButtonHome)
+}
+
+func effectiveRawAxes(st usbhub.GamepadPadState) [6]int16 {
+	axes := st.RawAxes
+	if axes[0] == 0 && st.LeftX != 0 {
+		axes[0] = st.LeftX
+	}
+	if axes[1] == 0 && st.LeftY != 0 {
+		axes[1] = st.LeftY
+	}
+	return axes
+}
+
+func padAxisDirs(st usbhub.GamepadPadState) [6][2]bool {
+	axes := effectiveRawAxes(st)
+	var dirs [6][2]bool
+	for i := range axes {
+		dirs[i][0] = axes[i] < -tamagoStickZone
+		dirs[i][1] = axes[i] > tamagoStickZone
+	}
+	return dirs
+}
+
 func padStateNeutral(st usbhub.GamepadPadState) bool {
-	return st.Buttons == 0 && padStickDirs(st.LeftX, st.LeftY) == ([4]bool{})
+	return st.Buttons == 0 && st.RawButtons == 0 && padAxisDirs(st) == ([6][2]bool{})
 }
 
 func (p *ProgramMultiInputPlatform) livePadStatesInto(dst []usbhub.GamepadPadState) []usbhub.GamepadPadState {
@@ -1007,11 +1037,13 @@ func (p *ProgramMultiInputPlatform) livePadStatesInto(dst []usbhub.GamepadPadSta
 	for i := 0; i < n; i++ {
 		dev := p.padCache[i]
 		dst[i] = usbhub.GamepadPadState{
-			ID:      dev.ID,
-			Player:  uint8(dev.Player),
-			Buttons: dev.Buttons,
-			LeftX:   dev.LeftX,
-			LeftY:   dev.LeftY,
+			ID:         dev.ID,
+			Player:     uint8(dev.Player),
+			Buttons:    dev.Buttons,
+			LeftX:      dev.LeftX,
+			LeftY:      dev.LeftY,
+			RawButtons: dev.RawButtons,
+			RawAxes:    dev.RawAxes,
 		}
 	}
 	return dst[:n]
@@ -1134,32 +1166,44 @@ func (p *ProgramMultiInputPlatform) processPadStates(states []usbhub.GamepadPadS
 			tracked.profileGen = p.padProfilesGen
 		}
 
-		stickHeld := padStickDirs(st.LeftX, st.LeftY)
+		rawBtns := effectiveRawButtons(st)
+		axisHeld := padAxisDirs(st)
 		learning := app.PadLearning(st.ID)
 		if learning {
 			if !tracked.learning {
 				releaseTrackedPadButtons(app, st.ID, tracked.buttons)
 			}
-			for _, m := range rawButtonSources {
-				if st.Buttons&m.bit != 0 && tracked.buttons&m.bit == 0 {
+			for bit := 0; bit < 32; bit++ {
+				mask := uint32(1) << bit
+				if rawBtns&mask != 0 && tracked.rawButtons&mask == 0 {
 					app.NoteInput(tenfoot.InputGamepad, st.ID)
-					app.LearnPadSource(st.ID, m.raw, now)
+					app.LearnPadSource(st.ID, rawButtonNames[bit], now)
 				}
 			}
-			for k, down := range stickHeld {
-				if down && !tracked.stick[k] {
+			for _, h := range rawHatSources {
+				if st.Buttons&h.bit != 0 && tracked.buttons&h.bit == 0 {
 					app.NoteInput(tenfoot.InputGamepad, st.ID)
-					app.LearnPadSource(st.ID, stickDirSources[k].raw, now)
+					app.LearnPadSource(st.ID, h.raw, now)
+				}
+			}
+			for axis := range axisHeld {
+				for dir := range axisHeld[axis] {
+					if axisHeld[axis][dir] && !tracked.axes[axis][dir] {
+						app.NoteInput(tenfoot.InputGamepad, st.ID)
+						app.LearnPadSource(st.ID, rawAxisNames[axis][dir], now)
+					}
 				}
 			}
 			tracked.learning = true
 			tracked.buttons = st.Buttons
-			tracked.stick = stickHeld
+			tracked.rawButtons = rawBtns
+			tracked.axes = axisHeld
 			continue
 		}
-		if tracked.learning && (tracked.buttons != 0 || tracked.stick != ([4]bool{})) && !padStateNeutral(st) {
+		if tracked.learning && (tracked.buttons != 0 || tracked.rawButtons != 0 || tracked.axes != ([6][2]bool{})) && !padStateNeutral(st) {
 			tracked.buttons = st.Buttons
-			tracked.stick = stickHeld
+			tracked.rawButtons = rawBtns
+			tracked.axes = axisHeld
 			continue
 		}
 		tracked.learning = false
@@ -1180,11 +1224,15 @@ func (p *ProgramMultiInputPlatform) processPadStates(states []usbhub.GamepadPadS
 				pressedAny = true
 			}
 		}
-		if pressedAny || stickHeld != ([4]bool{}) {
+		if rawBtns&^tracked.rawButtons != 0 {
+			pressedAny = true
+		}
+		if pressedAny || axisHeld != ([6][2]bool{}) {
 			app.NoteInput(tenfoot.InputGamepad, st.ID)
 		}
 		tracked.buttons = st.Buttons
-		tracked.stick = stickHeld
+		tracked.rawButtons = rawBtns
+		tracked.axes = axisHeld
 	}
 }
 
@@ -1237,6 +1285,13 @@ func parseMultiMapping(mapping string) map[string]remoteinput.Code {
 		}
 		if code, ok := learnedTargetCode[target]; ok {
 			sources[src] = code
+			if strings.HasPrefix(src, "a") {
+				if axis, inv := strings.CutSuffix(src, "~"); inv && axis != "" {
+					sources["-"+axis] = code
+				} else {
+					sources["+"+src] = code
+				}
+			}
 		}
 	}
 	return sources
@@ -1262,6 +1317,12 @@ func (p *ProgramMultiInputPlatform) effectiveCoreRowsFromStates(base usb.Gamepad
 			padState = usbGamepadStateFromControls(remappedControls(st, tracked.profile))
 		} else {
 			padState = (controllers.State{Buttons: st.Buttons, LeftX: st.LeftX, LeftY: st.LeftY}).ToUSBGamepadState()
+			if st.RawButtons != 0 {
+				padState.Buttons = st.RawButtons
+			}
+			if st.RawAxes != ([6]int16{}) {
+				padState.Axes = st.RawAxes
+			}
 		}
 		rows = combineRows(rows, p.cfg.CoreKeys.rows(padState))
 	}
@@ -1386,9 +1447,23 @@ func remappedControls(st usbhub.GamepadPadState, profile *multiPadProfile) map[r
 		out[code] = true
 	}
 	if profile != nil && profile.hasMapping {
-		for _, m := range rawButtonSources {
-			if st.Buttons&m.bit != 0 {
-				addSource(m.raw, 0)
+		rawBtns := effectiveRawButtons(st)
+		for bit := 0; bit < 32; bit++ {
+			if rawBtns&(uint32(1)<<bit) != 0 {
+				addSource(rawButtonNames[bit], 0)
+			}
+		}
+		for _, h := range rawHatSources {
+			if st.Buttons&h.bit != 0 {
+				addSource(h.raw, 0)
+			}
+		}
+		axisHeld := padAxisDirs(st)
+		for axis := range axisHeld {
+			for dir := range axisHeld[axis] {
+				if axisHeld[axis][dir] {
+					addSource(rawAxisNames[axis][dir], 0)
+				}
 			}
 		}
 	} else {
@@ -1397,10 +1472,11 @@ func remappedControls(st usbhub.GamepadPadState, profile *multiPadProfile) map[r
 				addSource(m.raw, m.code)
 			}
 		}
-	}
-	for k, down := range padStickDirs(st.LeftX, st.LeftY) {
-		if down {
-			addSource(stickDirSources[k].raw, stickDirSources[k].code)
+		axes := effectiveRawAxes(st)
+		for k, down := range padStickDirs(axes[0], axes[1]) {
+			if down {
+				addSource(stickDirSources[k].raw, stickDirSources[k].code)
+			}
 		}
 	}
 	return out

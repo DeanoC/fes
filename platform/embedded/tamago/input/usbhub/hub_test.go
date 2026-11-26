@@ -2033,3 +2033,84 @@ func TestHubWiredXPadInputNames(t *testing.T) {
 		}
 	}
 }
+
+func full32Button6AxisGamepadDescriptor() []byte {
+	return []byte{
+		0x05, 0x01, 0x09, 0x05, 0xa1, 0x01, // Generic Desktop / Game Pad
+		0x05, 0x01, 0x09, 0x30, 0x09, 0x31, 0x09, 0x32, 0x09, 0x33, 0x09, 0x34, 0x09, 0x35, // X, Y, Z, Rx, Ry, Rz
+		0x15, 0x81, 0x25, 0x7f, 0x75, 0x08, 0x95, 0x06, 0x81, 0x02, // 6 x int8 (-127..127)
+		0x05, 0x09, 0x19, 0x01, 0x29, 0x20, 0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x95, 0x20, 0x81, 0x02, // Buttons 1..32
+		0xc0,
+	}
+}
+
+func TestHubGenericHIDPreserves32ButtonsAnd6Axes(t *testing.T) {
+	desc := full32Button6AxisGamepadDescriptor()
+	dev := usb.BusDevice{
+		Address: 7,
+		Speed:   usb.SpeedFull,
+		Descriptor: usb.DeviceDescriptor{
+			VendorID:      0x081f,
+			ProductID:     0xe402,
+			DeviceVersion: 0x0100,
+		},
+		Config: usb.FullConfiguration{
+			Value: 1,
+			Interfaces: []usb.InterfaceDescriptor{{
+				Number: 0, Class: 3, SubClass: 0, Protocol: 0, HIDReportBytes: uint16(len(desc)),
+				Endpoints: []usb.EndpointDescriptor{{Address: 0x81, TransferType: usb.TransferInterrupt, MaxPacketSize: 16, Interval: 4}},
+			}},
+		},
+	}
+
+	bus := newFakeBus()
+	bus.reportDescs[key32(7, 0)] = desc
+	bus.attach(dev)
+	hub, err := NewHub(bus, Config{Now: func() time.Time { return time.Unix(500, 0) }})
+	if err != nil {
+		t.Fatalf("NewHub: %v", err)
+	}
+	defer hub.Close()
+	if err := hub.Service(); err != nil {
+		t.Fatalf("Service(attach): %v", err)
+	}
+	for _, ok := hub.NextGamepadUpdate(); ok; _, ok = hub.NextGamepadUpdate() {
+	}
+
+	// Report bytes 0..5 = axes X..Rz (int8), bytes 6..9 = 32 buttons little-endian.
+	// Deflect Z (+127 -> +32767) and Rz (-127 -> -32767) and press button 21 (bit 20 => b20).
+	var pkt [10]byte
+	pkt[2] = 0x7f
+	pkt[5] = 0x81
+	binary.LittleEndian.PutUint32(pkt[6:10], uint32(1)<<20)
+	pipe := bus.pipes[key32(7, 0x81)]
+	pipe.inQueue = append(pipe.inQueue, pkt[:])
+	if err := hub.Service(); err != nil {
+		t.Fatalf("Service(report): %v", err)
+	}
+
+	upd, ok := hub.NextGamepadUpdate()
+	if !ok || upd.PadCount != 1 {
+		t.Fatalf("expected queued GamepadUpdate after high-button/extra-axis report: ok=%t upd=%+v", ok, upd)
+	}
+	if got := upd.Pads[0]; got.RawButtons != (uint32(1)<<20) || got.RawAxes[2] != 32767 || got.RawAxes[5] != -32767 {
+		t.Fatalf("NextGamepadUpdate.Pads[0] = %+v, want RawButtons=1<<20 RawAxes[2]=32767 RawAxes[5]=-32767", got)
+	}
+
+	var buf [MaxGamepadDevices]GamepadDevice
+	if n := hub.GamepadDevicesInto(buf[:]); n != 1 {
+		t.Fatalf("GamepadDevicesInto = %d, want 1", n)
+	}
+	if buf[0].RawButtons != (uint32(1)<<20) || buf[0].RawAxes[2] != 32767 || buf[0].RawAxes[5] != -32767 {
+		t.Fatalf("GamepadDevicesInto[0] = %+v, want RawButtons=1<<20 RawAxes[2]=32767 RawAxes[5]=-32767", buf[0])
+	}
+
+	if allocs := testing.AllocsPerRun(50, func() {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+		_ = hub.GamepadDevicesInto(buf[:])
+	}); allocs != 0 {
+		t.Fatalf("expected 0 allocations in Service/GamepadDevicesInto, got %.1f", allocs)
+	}
+}
