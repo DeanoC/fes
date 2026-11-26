@@ -514,6 +514,29 @@ func TestCacheExtendedStatsContainsAndPrefetch(t *testing.T) {
 	}
 	dev2.readErr = nil
 
+	// Resident LRU sector inside the prefetched range must not be evicted by earlier misses.
+	devLRU := newMemDevice(32)
+	cLRU, err := NewCache(devLRU, CacheConfig{Capacity: 4, MaxPopulateSectors: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = cLRU.ReadSectors(3, one)
+	_ = cLRU.ReadSectors(10, one)
+	_ = cLRU.ReadSectors(11, one)
+	_ = cLRU.ReadSectors(12, one) // LBA 3 is now LRU
+	readsBefore = devLRU.reads
+	if err := cLRU.Prefetch(0, 4); err != nil {
+		t.Fatalf("Prefetch(0,4) with LRU LBA 3: %v", err)
+	}
+	if devLRU.reads != readsBefore+1 {
+		t.Fatalf("Prefetch with LRU resident read %d times, want 1 (only [0..2])", devLRU.reads-readsBefore)
+	}
+	for lba := uint64(0); lba < 4; lba++ {
+		if !cLRU.Contains(lba) {
+			t.Fatalf("LBA %d missing after LRU-preserving Prefetch", lba)
+		}
+	}
+
 	// Exercise ReadBypasses, WriteUpdates, WriteBypasses, FlushOps, and Error counters.
 	// Read 6 uncached sectors (> MaxPopulateSectors=4) -> ReadBypasses=6.
 	six := make([]byte, 6*SectorSize)

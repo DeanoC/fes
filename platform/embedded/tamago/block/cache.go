@@ -274,9 +274,17 @@ func (c *Cache) Prefetch(lba, count uint64) error {
 		return fmt.Errorf("block: prefetch count %d exceeds cache capacity %d", count, c.capacity)
 	}
 
-	for i := uint64(0); i < count; {
+	// Promote all already-resident in-range sectors to MRU before inserting any
+	// missing runs so earlier insertions cannot evict a later resident sector
+	// (since total distinct sectors in [lba, lba+count) <= capacity).
+	for i := uint64(0); i < count; i++ {
 		if slot, ok := c.index[lba+i]; ok {
 			c.moveToFront(slot)
+		}
+	}
+
+	for i := uint64(0); i < count; {
+		if _, ok := c.index[lba+i]; ok {
 			i++
 			continue
 		}
