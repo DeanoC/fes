@@ -1031,6 +1031,9 @@ optimization assignment and the integration Tcl reflected the expected
 BUILD_ID and generated paths. `make check`, the 44 focused tests and
 all seven D12 input selections passed. The preflight receipt SHA-256 is
 `0ed2b2a3770c4cc8a35362c41e6c07df0d6eaedb29bee54ac4daca77ed4db084`.
+The same-path DE10 rebuild again matched the machine netlist and all
+four identities against `2f19382b`. Its receipt SHA-256 is
+`955dffb1105b3c83b2f221e8e1c7843fefea3b2fbbe0b3c12cf67cddbcde4613`.
 
 ## Running a seed on either builder
 

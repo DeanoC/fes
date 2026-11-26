@@ -237,3 +237,10 @@ guest rates and ATA-only media. The changed board preparation function
 runs in the package producer outside the game harness. The compiled-input
 receipt SHA-256 is
 `e5bc603469bcadf48b59ca1d9c0978cd324acdc7449d3474050658a4bbf75974`.
+
+The High Performance Effort candidate
+`82d86217fd2656e1f1ee4c1c7abf2a358a98f904` independently reproduced
+these 106 compiled dependency files and five regenerated source files
+against the same `4fe7bada` game witness. Its compiled-input receipt
+SHA-256 is
+`6b907992e563df381b12cd743af2ccc665d4271bdecca6c7951bfa0d16718b8f`.
