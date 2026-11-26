@@ -141,12 +141,14 @@ func (o Observation) IDCodeInfo() IDCodeInfo {
 	}
 }
 
-// HasError reports whether SDM CONFIG_STATUS indicates an error state,
-// non-zero ErrorLocation, or soft SEU error. Note that response word 5
-// (ErrorDetails) is reserved on Agilex 5 and may be non-zero when healthy.
+// HasError reports whether SDM CONFIG_STATUS indicates an error state, idle
+// with nSTATUS low (per TF-A sdm_input_vendor_mailbox), non-zero ErrorLocation,
+// or soft SEU error. Note that response word 5 (ErrorDetails) is reserved on
+// Agilex 5 and may be non-zero when healthy.
 func (o Observation) HasError() bool {
 	stateErr := o.State != StateIdle && o.State != StateInProgress && o.State != StateVABPreAuth
-	return stateErr || o.ErrorLocation != 0 || o.SoftStatus().SEUError
+	idleNStatusLow := o.State == StateIdle && !o.PinStatus().NStatus
+	return stateErr || idleNStatusLow || o.ErrorLocation != 0 || o.SoftStatus().SEUError
 }
 
 // String formats a concise diagnostic summary of the SDM observation.

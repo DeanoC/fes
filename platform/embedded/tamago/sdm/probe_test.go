@@ -187,6 +187,11 @@ func TestObservationDecodersAndFormatting(t *testing.T) {
 		t.Fatalf("SEU status configured=%t hasError=%t soft=%+v", seu.Configured(), seu.HasError(), seu.SoftStatus())
 	}
 
+	idleLowNStatus := Observation{State: StateIdle, Pins: 0, Soft: (1 << 0) | (1 << 1)}
+	if idleLowNStatus.Configured() || !idleLowNStatus.HasError() {
+		t.Fatalf("idle with nSTATUS low configured=%t hasError=%t", idleLowNStatus.Configured(), idleLowNStatus.HasError())
+	}
+
 	for _, badID := range []uint32{0, 0xffffffff, 0x0361a0dc} {
 		if info := (Observation{IDCode: badID}).IDCodeInfo(); info.Valid {
 			t.Fatalf("expected invalid IDCodeInfo for %#x: %+v", badID, info)
