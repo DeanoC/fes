@@ -1481,10 +1481,8 @@ def parse_system(text: str) -> dict:
     return report
 
 
-def system_failures(report: dict) -> list[str]:
-    """The runtime's launch must stage the disk and a launch floppy through the
-    mailbox and their CRC passes, the system must reach the prompt with the CPU alone and every counter
-    at zero, and the Stop's disk save and record must check out."""
+def system_failures(report: dict, *, expect_floppy: bool = True) -> list[str]:
+    """Check media CRCs at launch, standalone boot and the disk and record at Stop."""
     failures = []
     if report.get('mailbox'):
         failures.append(f'mailbox: {report["mailbox"]}')
@@ -1493,8 +1491,10 @@ def system_failures(report: dict) -> list[str]:
         failures.append(f'the system did not reach the prompt: {end.get("reason")}')
     if report.get('crc_rejected') is None:
         failures.append('a wrong CRC was not rejected')
-    if report.get('floppy') is None:
+    if expect_floppy and report.get('floppy') is None:
         failures.append('the held launch floppy did not become ready')
+    if not expect_floppy and report.get('floppy') is not None:
+        failures.append('the board staged a floppy with no fitted drives')
     if report.get('write_test') is None:
         failures.append("the bench did not give the boot its disk write (the fixture's AUTOEXEC.BAT)")
     status = report.get('status')
@@ -1567,7 +1567,7 @@ def fixture_with(args, suite: str, source: str, name: str, base: Path | None = N
     return disk
 
 
-def run_system(args) -> dict:
+def run_system(args, *, expect_floppy: bool = True) -> dict:
     """FreeDOS to the prompt on pc386_system, everything below top.sv, with the
     DDR ports on one window model and a host that does the runtime's launch,
     keyboard and mouse input and Stop through the mailbox and the window."""
@@ -1590,7 +1590,7 @@ def run_system(args) -> dict:
     report['command'] = [str(Path(arg).relative_to(ROOT)) if arg.startswith(str(ROOT)) else arg for arg in command]
     report['exit'] = run.returncode
     report['governor'] = {'preset': args.preset, 'frequency': args.frequency, 'turbo': args.turbo}
-    report['failures'] = system_failures(report)
+    report['failures'] = system_failures(report, expect_floppy=expect_floppy)
     governed = bool(args.preset) and not args.turbo
     if report.get('status') and report['status'].get('governed') != int(governed):
         report['failures'].append(f'preset {args.preset}, turbo {args.turbo}: the governor '

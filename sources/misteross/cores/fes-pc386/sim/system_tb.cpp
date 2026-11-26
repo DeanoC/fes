@@ -12,12 +12,13 @@
 //      DiskCommit and Commit with a wrong CRC first, which must leave the unit
 //      loading with the CRC error flag; then the right CRC, polling DiskInfo
 //      until the core's pass ends;
-//   5. a launch floppy in B: (fes.media.pc-floppy), still held, as the
+//   5. on DE10, a launch floppy in B: (fes.media.pc-floppy), still held, as the
 //      runtime inserts it after the disk: DiskControl Prepare on unit 2, a
 //      1.2M image into the window at 0x01C00000, DiskCommit and Commit,
 //      polling unit 2's DiskInfo until its pass ends; Execution release.
 //      The floppy's CRC pass reads port 2 while the machine is held, as the
 //      disk's does; B: is never a boot drive, so the boot is unchanged.
+//      The DE25 instead checks that the mailbox refuses the floppy units.
 //
 // It then follows the boot until the prompt. So that the boot writes the disk,
 // the bench's copy of the FreeDOS fixture runs MD C:\M5 in AUTOEXEC.BAT in
@@ -117,7 +118,12 @@ enum : uint8_t {
 };
 enum : uint16_t { PREPARE = 0, COMMIT = 1, FREEZE = 3, SAVED = 5 };
 enum : uint16_t { DATA_FREEZE = 0, DATA_BEGIN = 1, DATA_COMMIT = 2 };
-constexpr uint16_t READY = 3, LOADING = 2, VERIFYING = 4, FLAG_ERROR = 8;
+constexpr uint16_t READY = 3, LOADING = 2, VERIFYING = 4, FLAG_ERROR = 8, INVALID_INDEX = 2;
+#ifdef FES_PC386_DE25
+constexpr bool FITTED_FLOPPIES = false;
+#else
+constexpr bool FITTED_FLOPPIES = true;
+#endif
 constexpr unsigned WORDS = 72;
 // Holds swept across port 2's write bursts after the round trip, one clock
 // apart, until HOLD_CUTS have cut one or HOLD_TRIALS have run. After a
@@ -440,9 +446,10 @@ private:
         std::printf("IDENTITY %s\n", words.c_str());
         // Magic, transport 1.0, fes.computer 1.1, then the capability words:
         // video, keyboard, audio, mouse, HPS DDR and session display; bits
-        // 16-19 and 22 (fes.media.pc-floppy).
+        // 16-19, plus 22 where floppy drives are fitted.
+        constexpr uint16_t high = FITTED_FLOPPIES ? 0x004f : 0x000f;
         if (w[0] != 0x4546 || w[1] != 0x3153 || w[2] != 1 || w[3] != 0 || w[4] != 4 || w[5] != 1 || w[6] != 1 ||
-            w[7] != 0x310b || w[16] != 0x004f)
+            w[7] != 0x310b || w[16] != high)
             throw MailboxError("identity is not fes.computer 1.1 with the pc386 interfaces");
     }
 
@@ -503,6 +510,17 @@ private:
 
     void launch() {
         identify();
+        if (!FITTED_FLOPPIES) {
+            for (const uint8_t unit : {1, 2}) {
+                uint16_t control_error = 0, commit_error = 0;
+                exchange(OP_DISK_CONTROL, unit, PREPARE, &control_error);
+                exchange(OP_DISK_COMMIT, uint8_t(unit * 8), 1, &commit_error);
+                if (control_error != INVALID_INDEX || commit_error != INVALID_INDEX ||
+                    exchange(OP_DISK_INFO, uint8_t(unit * 8), 0) != 0)
+                    throw MailboxError("an unfitted floppy has a live storage endpoint");
+            }
+            std::printf("CHECK PASS only ATA unit zero exposes storage\n");
+        }
         std::vector<uint16_t> record(WORDS, 0);
         std::copy(settings, settings + 8, record.begin());
         record[8 + MARKER_BYTE / 2] = uint16_t(MARKER << (8 * (MARKER_BYTE & 1)));
@@ -527,7 +545,7 @@ private:
         if (poll_disk(&took) != READY) throw MailboxError("the core did not match the image's CRC");
         std::printf("DISK %llu sectors=%zu verify_cycles=%llu\n", (unsigned long long)cycles, image.size() / 512,
                     (unsigned long long)took);
-        insert_floppy();
+        if (FITTED_FLOPPIES) insert_floppy();
         exchange(OP_EXECUTION, 0, 1);
         progress_at = cycles;
         std::printf("RELEASE %llu\n", (unsigned long long)cycles);
