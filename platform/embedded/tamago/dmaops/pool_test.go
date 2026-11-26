@@ -386,3 +386,81 @@ func TestPoolConcurrentAllocFree(t *testing.T) {
 		t.Fatalf("expected clean pool after concurrent test: %+v", st)
 	}
 }
+
+func TestPoolAllocBelowAndWatermarkStats(t *testing.T) {
+	if _, err := (*Pool)(nil).Alloc(64, 64); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("nil Pool Alloc err=%v", err)
+	}
+	if _, err := (*Pool)(nil).AllocBelow(64, 64, 1<<32); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("nil Pool AllocBelow err=%v", err)
+	}
+
+	// Arena straddles the 4 GiB boundary: [0xfffff000, 0x100001000) (8 KiB).
+	const base = 0xfffff000
+	const limit uint64 = 1 << 32
+	hw := newMockCoherency(64)
+	pool, err := NewPool(base, make([]byte, 8192), Cached, hw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := pool.Stats(); st.PeakAllocatedBytes != 0 || st.LargestFreeSpan != 8192 || st.AllocCalls != 0 || st.FreeCalls != 0 || st.AllocFailures != 0 {
+		t.Fatalf("initial Stats=%+v", st)
+	}
+
+	if _, err := pool.AllocBelow(64, 64, 0); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("maxAddr=0 err=%v want ErrInvalidConfig", err)
+	}
+
+	// Fill the low 4 KiB completely, enforcing phys + cap <= 4 GiB.
+	bLow, err := pool.AllocBelow(4096, 64, limit)
+	if err != nil {
+		t.Fatalf("AllocBelow filling <4GiB failed: %v", err)
+	}
+	if bLow.PhysAddr()+bLow.Cap() > limit {
+		t.Fatalf("AllocBelow exceeded limit: phys=%#x cap=%d limit=%#x", bLow.PhysAddr(), bLow.Cap(), limit)
+	}
+
+	// Next AllocBelow <= 4 GiB must fail even though 4 KiB remains >= 4 GiB.
+	if _, err := pool.AllocBelow(64, 64, limit); !errors.Is(err, ErrOutOfMemory) {
+		t.Fatalf("AllocBelow above 4GiB err=%v want ErrOutOfMemory", err)
+	}
+
+	// Regular Alloc succeeds from the upper >= 4 GiB half and pushes peak up to 8 KiB.
+	bHigh, err := pool.Alloc(4096, 64)
+	if err != nil {
+		t.Fatalf("Alloc upper half: %v", err)
+	}
+	if bHigh.PhysAddr() < limit {
+		t.Fatalf("expected >=4GiB allocation, got %#x", bHigh.PhysAddr())
+	}
+
+	if err := bLow.Free(); err != nil {
+		t.Fatal(err)
+	}
+	// Requesting a 4 KiB buffer aligned so padded span crosses 4 GiB must reject.
+	bPart, err := pool.AllocBelow(3072, 64, limit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.AllocBelow(1024, 2048, limit); !errors.Is(err, ErrOutOfMemory) {
+		t.Fatalf("expected OutOfMemory for alignment past maxAddr, got %v", err)
+	}
+
+	st := pool.Stats()
+	if st.PeakAllocatedBytes != 8192 {
+		t.Fatalf("PeakAllocatedBytes=%d want 8192", st.PeakAllocatedBytes)
+	}
+	if st.LargestFreeSpan != 1024 || st.FreeBytes != 1024 {
+		t.Fatalf("free span stats=%+v", st)
+	}
+	if st.AllocCalls != 6 || st.FreeCalls != 1 || st.AllocFailures != 3 {
+		t.Fatalf("call/failure stats=%+v", st)
+	}
+
+	if err := pool.freeAll([]*Buffer{bPart, bHigh}); err != nil {
+		t.Fatal(err)
+	}
+	if st := pool.Stats(); st.FreeCalls != 3 || st.LiveBuffers != 0 || st.LargestFreeSpan != 8192 {
+		t.Fatalf("after freeAll stats=%+v", st)
+	}
+}

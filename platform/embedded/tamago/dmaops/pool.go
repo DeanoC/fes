@@ -13,19 +13,25 @@ type freeSpan struct {
 	size   uint64
 }
 
-// Stats summarizes the current occupancy and fault state of a Pool.
+// Stats summarizes the current occupancy, watermarks, allocation counters, and
+// fault state of a Pool.
 type Stats struct {
-	Base            uint64
-	Size            uint64
-	Mode            MemoryMode
-	CacheLine       uint64
-	AllocatedBytes  uint64
-	FreeBytes       uint64
-	PinnedBytes     uint64
-	LiveBuffers     int
-	PoisonedBuffers int
-	FreeSpans       int
-	Poisoned        bool
+	Base               uint64
+	Size               uint64
+	Mode               MemoryMode
+	CacheLine          uint64
+	AllocatedBytes     uint64
+	PeakAllocatedBytes uint64
+	FreeBytes          uint64
+	LargestFreeSpan    uint64
+	PinnedBytes        uint64
+	LiveBuffers        int
+	PoisonedBuffers    int
+	FreeSpans          int
+	AllocCalls         uint64
+	FreeCalls          uint64
+	AllocFailures      uint64
+	Poisoned           bool
 }
 
 // Pool manages aligned DMA allocations over an explicit, pre-mapped memory
@@ -34,19 +40,23 @@ type Stats struct {
 // Poisoned buffers and poisoned pools fail closed: their physical spans remain
 // permanently pinned and are never returned to the free list.
 type Pool struct {
-	mu              sync.Mutex
-	base            uint64
-	backing         []byte
-	mode            MemoryMode
-	hw              Coherency
-	cacheLine       uint64
-	minAlign        uint64
-	free            []freeSpan
-	allocatedBytes  uint64
-	pinnedBytes     uint64
-	liveBuffers     int
-	poisonedBuffers int
-	poisonErr       error
+	mu                 sync.Mutex
+	base               uint64
+	backing            []byte
+	mode               MemoryMode
+	hw                 Coherency
+	cacheLine          uint64
+	minAlign           uint64
+	free               []freeSpan
+	allocatedBytes     uint64
+	peakAllocatedBytes uint64
+	pinnedBytes        uint64
+	liveBuffers        int
+	poisonedBuffers    int
+	allocCalls         uint64
+	freeCalls          uint64
+	allocFailures      uint64
+	poisonErr          error
 }
 
 // NewPool creates a DMA Pool over [base, base+len(backing)).
@@ -122,22 +132,30 @@ func (p *Pool) Err() error {
 func (p *Pool) Stats() Stats {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	var freeBytes uint64
+	var freeBytes, largestFreeSpan uint64
 	for _, s := range p.free {
 		freeBytes += s.size
+		if s.size > largestFreeSpan {
+			largestFreeSpan = s.size
+		}
 	}
 	return Stats{
-		Base:            p.base,
-		Size:            uint64(len(p.backing)),
-		Mode:            p.mode,
-		CacheLine:       p.cacheLine,
-		AllocatedBytes:  p.allocatedBytes,
-		FreeBytes:       freeBytes,
-		PinnedBytes:     p.pinnedBytes,
-		LiveBuffers:     p.liveBuffers,
-		PoisonedBuffers: p.poisonedBuffers,
-		FreeSpans:       len(p.free),
-		Poisoned:        p.poisonErr != nil,
+		Base:               p.base,
+		Size:               uint64(len(p.backing)),
+		Mode:               p.mode,
+		CacheLine:          p.cacheLine,
+		AllocatedBytes:     p.allocatedBytes,
+		PeakAllocatedBytes: p.peakAllocatedBytes,
+		FreeBytes:          freeBytes,
+		LargestFreeSpan:    largestFreeSpan,
+		PinnedBytes:        p.pinnedBytes,
+		LiveBuffers:        p.liveBuffers,
+		PoisonedBuffers:    p.poisonedBuffers,
+		FreeSpans:          len(p.free),
+		AllocCalls:         p.allocCalls,
+		FreeCalls:          p.freeCalls,
+		AllocFailures:      p.allocFailures,
+		Poisoned:           p.poisonErr != nil,
 	}
 }
 
@@ -146,12 +164,34 @@ func (p *Pool) Stats() Stats {
 // start address and reserved span are aligned to CacheLineSize so no two
 // buffers share a cache line.
 func (p *Pool) Alloc(size, align uint64) (*Buffer, error) {
-	if size == 0 || (align != 0 && !isPowerOfTwo(align)) {
+	if p == nil {
 		return nil, ErrInvalidConfig
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	return p.allocLocked(size, align, 0, false)
+}
+
+// AllocBelow reserves a zeroed DMA buffer identical to Alloc whose entire
+// aligned physical reservation ends at or before maxAddr (phys + cap <= maxAddr),
+// suitable for address-limited DMA engines such as 32-bit controllers.
+func (p *Pool) AllocBelow(size, align, maxAddr uint64) (*Buffer, error) {
+	if p == nil {
+		return nil, ErrInvalidConfig
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.allocLocked(size, align, maxAddr, true)
+}
+
+func (p *Pool) allocLocked(size, align, maxAddr uint64, bounded bool) (*Buffer, error) {
+	p.allocCalls++
+	if size == 0 || (align != 0 && !isPowerOfTwo(align)) || (bounded && maxAddr == 0) {
+		p.allocFailures++
+		return nil, ErrInvalidConfig
+	}
 	if p.poisonErr != nil {
+		p.allocFailures++
 		return nil, fmt.Errorf("%w: %v", ErrPoisoned, p.poisonErr)
 	}
 	effAlign := p.minAlign
@@ -160,6 +200,7 @@ func (p *Pool) Alloc(size, align uint64) (*Buffer, error) {
 	}
 	spanSize := (size + p.minAlign - 1) &^ (p.minAlign - 1)
 	if spanSize < size {
+		p.allocFailures++
 		return nil, ErrInvalidConfig
 	}
 
@@ -171,6 +212,9 @@ func (p *Pool) Alloc(size, align uint64) (*Buffer, error) {
 		}
 		pad := alignedPhys - startPhys
 		if pad > s.size || s.size-pad < spanSize {
+			continue
+		}
+		if bounded && (alignedPhys > maxAddr || spanSize > maxAddr-alignedPhys) {
 			continue
 		}
 		allocOffset := s.offset + pad
@@ -194,6 +238,9 @@ func (p *Pool) Alloc(size, align uint64) (*Buffer, error) {
 
 		clear(p.backing[allocOffset : allocOffset+spanSize])
 		p.allocatedBytes += spanSize
+		if p.allocatedBytes > p.peakAllocatedBytes {
+			p.peakAllocatedBytes = p.allocatedBytes
+		}
 		p.liveBuffers++
 		return &Buffer{
 			pool:   p,
@@ -204,6 +251,7 @@ func (p *Pool) Alloc(size, align uint64) (*Buffer, error) {
 			data:   p.backing[allocOffset : allocOffset+size : allocOffset+size],
 		}, nil
 	}
+	p.allocFailures++
 	return nil, ErrOutOfMemory
 }
 
@@ -321,6 +369,7 @@ func (b *Buffer) Free() error {
 	b.data = nil
 	p.allocatedBytes -= b.cap
 	p.liveBuffers--
+	p.freeCalls++
 	p.insertFreeLocked(b.offset, b.cap)
 	return nil
 }
@@ -350,6 +399,7 @@ func (p *Pool) freeAll(bufs []*Buffer) error {
 		b.data = nil
 		p.allocatedBytes -= b.cap
 		p.liveBuffers--
+		p.freeCalls++
 		p.insertFreeLocked(b.offset, b.cap)
 	}
 	return nil
