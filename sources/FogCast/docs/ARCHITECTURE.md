@@ -3527,9 +3527,17 @@ actual next cursor to show `+` only when additional titles remain. The filtered
 page resolves only its returned entry IDs in one bounded batch; a missing
 identity fails the read instead of guessing. If machine entries alone exceed
 the budget, Home blocks that family instead of choosing an incomplete machine
-list while reporting its machine-admission state. The launcher converts family
-rows and editions to Lua in batches of at most 128 items per Step. Home and
-setup count at most 64 title rows per update and publish only completed counts.
+list while reporting its machine-admission state. Initial `families.load` dispatches
+every family's `library.query` immediately during `load`. On `on_resume`,
+`families.reload` synchronously cancels any in-flight prior family queries,
+starts fresh `kit.cores` and `hardware.read` refreshes, publishes Checking, and
+queues the per-family `library.query` reads rather than starting all of them
+inside `on_resume`; `families.update` processes at most one pending response
+batch (64 title rows) per frame and returns, otherwise lazily builds `core_ids`
+for and dispatches at most one queued family query per frame, and checks
+scheduled transient retries only when no pending batch or queued query remains.
+The launcher converts family rows and editions to Lua in batches of at most
+128 items per Step, and Home and setup publish only completed counts.
 Initial and data-changed Home pictures add one family tile per draw callback.
 Machine admission remains independent in `hardware.computers`; catalog rows,
 cache refreshes and editions never establish that readiness. A refresh discards
