@@ -45,6 +45,13 @@ func New(invoke Invoke, response []uint32, address uint64) (*Client, error) {
 	return &Client{invoke: invoke, response: response, address: address}, nil
 }
 
+// Known CONFIG_STATUS state codes returned by Agilex SDM firmware.
+const (
+	StateOK         uint32 = 0
+	StateIdle       uint32 = 0xf0000000
+	StateInProgress uint32 = 0xf0000004
+)
+
 // Observation contains SDM observations only. IDCode identifies silicon; it
 // cannot establish which package is running, bridge isolation, or scanout drain.
 type Observation struct {
@@ -57,8 +64,89 @@ type Observation struct {
 	ErrorDetails  uint32
 }
 
+// PinStatus holds decoded pin status bits from Observation.Pins.
+type PinStatus struct {
+	ConfDone bool
+	InitDone bool
+	CVPDone  bool
+	NStatus  bool
+	NConfig  bool
+	Raw      uint32
+}
+
+// SoftStatus holds decoded soft-function status bits from Observation.Soft.
+type SoftStatus struct {
+	ConfDone bool
+	InitDone bool
+	CVPDone  bool
+	SEUError bool
+	Raw      uint32
+}
+
+// IDCodeInfo holds decoded IEEE 1149.1 JTAG IDCODE fields from Observation.IDCode.
+type IDCodeInfo struct {
+	Version      uint8
+	PartNumber   uint16
+	Manufacturer uint16
+	MarkerBit    bool
+	Valid        bool
+	Raw          uint32
+}
+
 func (o Observation) Configured() bool {
-	return o.State == 0 && o.Pins&(1<<31) != 0 && o.Soft&3 == 3 && o.Soft&(1<<3) == 0
+	pins := o.PinStatus()
+	soft := o.SoftStatus()
+	return o.State == StateOK && pins.ConfDone && soft.ConfDone && soft.InitDone && !soft.SEUError
+}
+
+// PinStatus decodes the raw CONFIG_STATUS pin status word.
+func (o Observation) PinStatus() PinStatus {
+	return PinStatus{
+		ConfDone: o.Pins&(1<<31) != 0,
+		InitDone: o.Pins&(1<<30) != 0,
+		CVPDone:  o.Pins&(1<<29) != 0,
+		NStatus:  o.Pins&(1<<1) != 0,
+		NConfig:  o.Pins&(1<<0) != 0,
+		Raw:      o.Pins,
+	}
+}
+
+// SoftStatus decodes the raw CONFIG_STATUS soft-function status word.
+func (o Observation) SoftStatus() SoftStatus {
+	return SoftStatus{
+		ConfDone: o.Soft&(1<<0) != 0,
+		InitDone: o.Soft&(1<<1) != 0,
+		CVPDone:  o.Soft&(1<<2) != 0,
+		SEUError: o.Soft&(1<<3) != 0,
+		Raw:      o.Soft,
+	}
+}
+
+// IDCodeInfo decodes IEEE 1149.1 JTAG IDCODE fields from Observation.IDCode.
+func (o Observation) IDCodeInfo() IDCodeInfo {
+	marker := o.IDCode&1 != 0
+	return IDCodeInfo{
+		Version:      uint8(o.IDCode >> 28),
+		PartNumber:   uint16((o.IDCode >> 12) & 0xffff),
+		Manufacturer: uint16((o.IDCode >> 1) & 0x7ff),
+		MarkerBit:    marker,
+		Valid:        o.IDCode != 0 && o.IDCode != 0xffffffff && marker,
+		Raw:          o.IDCode,
+	}
+}
+
+// HasError reports whether SDM CONFIG_STATUS indicates a non-OK state, error
+// location/details, or soft SEU error.
+func (o Observation) HasError() bool {
+	return o.State != StateOK || o.ErrorLocation != 0 || o.ErrorDetails != 0 || o.SoftStatus().SEUError
+}
+
+// String formats a concise diagnostic summary of the SDM observation.
+func (o Observation) String() string {
+	return fmt.Sprintf(
+		"idcode=%#08x state=%#x configured=%t error=%t version=%#x pins=%#08x soft=%#08x err=(%#x,%#x)",
+		o.IDCode, o.State, o.Configured(), o.HasError(), o.Version, o.Pins, o.Soft, o.ErrorLocation, o.ErrorDetails,
+	)
 }
 
 // Probe uses generic CONFIG_STATUS, never the mutating FPGA_CONFIG_ISDONE.

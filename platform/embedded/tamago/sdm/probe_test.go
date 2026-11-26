@@ -135,3 +135,72 @@ func TestInvalidArena(t *testing.T) {
 		t.Fatal("short window")
 	}
 }
+
+func TestObservationDecodersAndFormatting(t *testing.T) {
+	obs := Observation{
+		IDCode:  0x0361a0dd, // version=0x0, part=0x361a, manufacturer=0x06e (Altera), marker=1
+		State:   StateOK,
+		Version: 0x00020100,
+		Pins:    (1 << 31) | (1 << 30) | (1 << 29) | (1 << 1) | (1 << 0),
+		Soft:    (1 << 0) | (1 << 1) | (1 << 2),
+	}
+	if !obs.Configured() || obs.HasError() {
+		t.Fatalf("unexpected status for configured observation: %s", obs.String())
+	}
+	pins := obs.PinStatus()
+	if !pins.ConfDone || !pins.InitDone || !pins.CVPDone || !pins.NStatus || !pins.NConfig || pins.Raw != obs.Pins {
+		t.Fatalf("PinStatus=%+v", pins)
+	}
+	soft := obs.SoftStatus()
+	if !soft.ConfDone || !soft.InitDone || !soft.CVPDone || soft.SEUError || soft.Raw != obs.Soft {
+		t.Fatalf("SoftStatus=%+v", soft)
+	}
+	id := obs.IDCodeInfo()
+	if !id.Valid || !id.MarkerBit || id.Version != 0x0 || id.PartNumber != 0x361a || id.Manufacturer != 0x06e || id.Raw != obs.IDCode {
+		t.Fatalf("IDCodeInfo=%+v", id)
+	}
+	formatted := obs.String()
+	for _, want := range []string{"idcode=0x0361a0dd", "configured=true", "error=false", "state=0x0"} {
+		if !containsSubstring(formatted, want) {
+			t.Fatalf("String()=%q missing %q", formatted, want)
+		}
+	}
+
+	inProgress := Observation{State: StateInProgress}
+	if inProgress.Configured() || !inProgress.HasError() {
+		t.Fatalf("StateInProgress configured=%t hasError=%t", inProgress.Configured(), inProgress.HasError())
+	}
+	idle := Observation{State: StateIdle}
+	if idle.Configured() || !idle.HasError() {
+		t.Fatalf("StateIdle configured=%t hasError=%t", idle.Configured(), idle.HasError())
+	}
+
+	errDetail := Observation{State: StateOK, Pins: 1 << 31, Soft: 3, ErrorLocation: 0x44, ErrorDetails: 0x12}
+	if !errDetail.HasError() {
+		t.Fatal("expected HasError when ErrorLocation/ErrorDetails non-zero")
+	}
+
+	seu := Observation{State: StateOK, Pins: 1 << 31, Soft: (1 << 0) | (1 << 1) | (1 << 3)}
+	if seu.Configured() || !seu.HasError() || !seu.SoftStatus().SEUError {
+		t.Fatalf("SEU status configured=%t hasError=%t soft=%+v", seu.Configured(), seu.HasError(), seu.SoftStatus())
+	}
+
+	for _, badID := range []uint32{0, 0xffffffff, 0x0361a0dc} {
+		if info := (Observation{IDCode: badID}).IDCodeInfo(); info.Valid {
+			t.Fatalf("expected invalid IDCodeInfo for %#x: %+v", badID, info)
+		}
+	}
+}
+
+func containsSubstring(s, sub string) bool {
+	return len(sub) == 0 || (len(s) >= len(sub) && indexString(s, sub) >= 0)
+}
+
+func indexString(s, sub string) int {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
+}
