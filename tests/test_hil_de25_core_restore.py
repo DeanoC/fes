@@ -13,13 +13,17 @@ RESTORE_MARKER = 'RESTORE_TOOL="$FES_SOURCE/scripts/de25_restore.py"'
 
 
 class De25CoreRestoreTests(unittest.TestCase):
-    def run_restore_epilogue(self, verifier_rc: int) -> tuple[subprocess.CompletedProcess[str], str, str, str]:
+    def run_restore_epilogue(
+        self, verifier_rc: int, ocr: str = "Home\n\n= FES", *, first_ocr: str = "", capture_rc: int = 0
+    ) -> tuple[subprocess.CompletedProcess[str], str, str, str]:
         source = DRIVER.read_text()
         epilogue = source[source.index(RESTORE_MARKER) :]
 
         with tempfile.TemporaryDirectory(prefix="fes-de25-restore-") as temporary:
             run_dir = Path(temporary)
-            (run_dir / "out").mkdir()
+            earlier_capture = run_dir / "out/restore-menu.previous"
+            earlier_capture.mkdir(parents=True)
+            (earlier_capture / "1.png").write_text("stale frame\n")
             (run_dir / "logs").mkdir()
             status = run_dir / "kit-status.md"
             status.write_text("## KIT D25 IN USE\n")
@@ -40,6 +44,22 @@ class De25CoreRestoreTests(unittest.TestCase):
                     'PKG_SHAS=(deadbeef)',
                     'fail() { printf "%s\\n" "$*" >> "$D/logs/driver.log"; }',
                     'python3() { return "$VERIFY_RC"; }',
+                    'sleep() { :; }',
+                    'timeout() { shift 3; "$@"; }',
+                    'ffmpeg() {',
+                    '  [[ " $* " == *" -i /dev/v4l/by-id/fes-ms2109-hil "* ]] || return 2',
+                    '  echo capture >> "$D/logs/driver.log"',
+                    '  [ "$CAPTURE_RC" = 0 ] || return "$CAPTURE_RC"',
+                    '  echo frame > "${@: -1}"',
+                    '}',
+                    'tesseract() {',
+                    '  echo OCR >> "$D/logs/driver.log"',
+                    '  if [[ -n "$FIRST_OCR" && "$1" = */1.png ]]; then',
+                    '    printf "%s\\n" "$FIRST_OCR"',
+                    '  else',
+                    '    printf "%s\\n" "$OCR"',
+                    '  fi',
+                    '}',
                     epilogue,
                 )
             )
@@ -49,6 +69,9 @@ class De25CoreRestoreTests(unittest.TestCase):
                     "D": str(run_dir),
                     "STATUS": str(status),
                     "VERIFY_RC": str(verifier_rc),
+                    "CAPTURE_RC": str(capture_rc),
+                    "FIRST_OCR": first_ocr,
+                    "OCR": ocr,
                 }
             )
             result = subprocess.run(
@@ -77,17 +100,52 @@ class De25CoreRestoreTests(unittest.TestCase):
         self.assertNotIn("KIT D25 FREE (baseline verified)", ledger)
         self.assertIn("KIT D25 RESTORE_INCOMPLETE", ledger)
         self.assertIn("DE25 restore verification failed", log)
+        self.assertNotIn("capture", log)
         self.assertNotIn("restore verified; J8G released FREE", log)
         self.assertEqual(verdict, "FAIL\n")
 
-    def test_successful_verification_still_releases_kit(self) -> None:
-        result, ledger, log, verdict = self.run_restore_epilogue(verifier_rc=0)
+    def test_successful_verification_and_visible_menu_release_kit(self) -> None:
+        for ocr in ("Home\n\n= FES", "FES | Library\nB home GUIDE settings", "Welcome to FES"):
+            with self.subTest(ocr=ocr):
+                result, ledger, log, verdict = self.run_restore_epilogue(verifier_rc=0, ocr=ocr)
+
+                self.assertEqual(result.returncode, 0)
+                self.assertIn("KIT D25 FREE (baseline verified)", ledger)
+                self.assertNotIn("KIT D25 RESTORE_INCOMPLETE", ledger)
+                self.assertIn("restored MENU verified in", log)
+                self.assertEqual(verdict, "PASS\n")
+
+    def test_retry_waits_for_menu_after_room_error(self) -> None:
+        result, ledger, log, verdict = self.run_restore_epilogue(
+            verifier_rc=0, first_ocr="Home\n= FES\nRoom failed: Home"
+        )
 
         self.assertEqual(result.returncode, 0)
         self.assertIn("KIT D25 FREE (baseline verified)", ledger)
-        self.assertNotIn("KIT D25 RESTORE_INCOMPLETE", ledger)
-        self.assertIn("restore verified; J8G released FREE", log)
+        self.assertEqual(log.splitlines().count("capture"), 2)
+        self.assertIn("/2.png", log)
         self.assertEqual(verdict, "PASS\n")
+
+    def test_non_menu_frames_keep_kit_claimed(self) -> None:
+        for ocr in ("", "FES | Now playing\nB home", "Home\n= FES\nRoom\nfailed: Home"):
+            with self.subTest(ocr=ocr):
+                result, ledger, log, verdict = self.run_restore_epilogue(verifier_rc=0, ocr=ocr)
+
+                self.assertEqual(result.returncode, 1)
+                self.assertNotIn("KIT D25 FREE (baseline verified)", ledger)
+                self.assertIn("KIT D25 RESTORE_INCOMPLETE", ledger)
+                self.assertIn("DE25 restored MENU not verified", log)
+                self.assertEqual(log.splitlines().count("capture"), 12)
+                self.assertEqual(verdict, "FAIL\n")
+
+    def test_capture_failure_cannot_reuse_stale_menu(self) -> None:
+        result, ledger, log, verdict = self.run_restore_epilogue(verifier_rc=0, capture_rc=124)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("KIT D25 RESTORE_INCOMPLETE", ledger)
+        self.assertNotIn("KIT D25 FREE (baseline verified)", ledger)
+        self.assertNotIn("OCR", log)
+        self.assertEqual(verdict, "FAIL\n")
 
 
 if __name__ == "__main__":

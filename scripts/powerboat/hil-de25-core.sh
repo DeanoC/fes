@@ -1,6 +1,6 @@
 #!/bin/bash
 # Exact-head J8G HIL: claim both D25 locks, isolate the host DB, smoke the package,
-# and release FREE only after scripts/de25_restore.py passes.
+# and release FREE only after native restore and visible MENU verification.
 set -Eeuo pipefail
 KIT=$1 PR=$2 HEAD=$3 B=$4 D=$5
 [ "$KIT" = D25 ] || { echo "D25 runner refuses kit $KIT"; exit 2; }
@@ -15,6 +15,11 @@ SOURCE_BASE=$ROOT/wt
 D25_SW_BASE=/data/fes-de25-pr1312-hil-19cca-20261112/de25/native-probe-rootfs.img
 D25_SW_IMAGE=/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/first-fault-integration-53009e4ab/hdmi-hotplug-9c/release-13/kernel-93131814a2a2-v2/base
 mkdir -p "$D/logs" "$D/out"
+if ! command -v ffmpeg >/dev/null || ! command -v tesseract >/dev/null; then
+  echo NOTSTARTED > "$D/verdict"
+  echo "DE25 restore capture requires ffmpeg and tesseract"
+  exit 3
+fi
 SOURCE_WORKTREE=; HOSTPID=; TMPDIR_PATH=
 cleanup(){
   [ -n "$HOSTPID" ] && { kill "$HOSTPID" 2>/dev/null || true; wait "$HOSTPID" 2>/dev/null || true; }
@@ -300,13 +305,47 @@ fi
 python3 "$D/snapshot.py" "http://$API" D25 "$D/out/baseline-after.json" || fail "after snapshot failed"
 RESTORE_TOOL="$FES_SOURCE/scripts/de25_restore.py"
 [ -f "$RESTORE_TOOL" ] || RESTORE_TOOL="$ROOT/wt/scripts/de25_restore.py"
-# A failed restore cannot prove the FPGA returned to MENU. Preserve the
-# claim and evidence for the documented operator recovery procedure.
-if python3 "$RESTORE_TOOL" --baseline "$BASE" --before "$D/out/baseline-before.json" \
+
+capture_restored_menu(){
+  local evidence attempt frame ocr screen
+  evidence=$(mktemp -d "$D/out/restore-menu.XXXXXX") || return 1
+  for attempt in {1..12}; do
+    [ "$attempt" = 1 ] || sleep 5
+    frame=$evidence/$attempt.png
+    ocr=$evidence/$attempt.txt
+    if ! timeout -k 3s 15s ffmpeg -nostdin -hide_banner -loglevel error \
+      -f v4l2 -i /dev/v4l/by-id/fes-ms2109-hil -vf 'select=gte(n\,10)' \
+      -frames:v 1 -threads 1 "$frame" >"$evidence/$attempt.capture.log" 2>&1 || [ ! -s "$frame" ]; then
+      continue
+    fi
+    if ! timeout -k 3s 10s tesseract "$frame" stdout --psm 11 \
+      >"$ocr" 2>"$evidence/$attempt.ocr.log"; then
+      continue
+    fi
+    screen=$(<"$ocr")
+    # OCR may put the error title on separate lines. Recognize Home, the
+    # Library's Home navigation, or Welcome, and reject the room error overlay.
+    if grep -Eiq '\bRoom[[:space:]]+failed\b' <<< "${screen//$'\n'/ }"; then
+      continue
+    fi
+    if { grep -iwq FES "$ocr" && grep -Eiq '^[[:space:]]*Home[[:space:]]*$' "$ocr"; } ||
+       { grep -Eiq '^[[:space:]]*FES[[:space:]|]+Library[[:space:]]*$' "$ocr" && grep -iwq Home "$ocr"; } ||
+       grep -Eiq '\bWelcome[[:space:]]+to[[:space:]]+FES\b' "$ocr"; then
+      printf 'restored MENU verified in %s (OCR %s)\n' "$frame" "$ocr" | tee -a "$D/logs/driver.log"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Preserve the claim and the evidence if either restore check fails.
+if ! python3 "$RESTORE_TOOL" --baseline "$BASE" --before "$D/out/baseline-before.json" \
   --after "$D/out/baseline-after.json" > "$D/out/restore-verification.json"; then
+  fail "DE25 restore verification failed; ledger remains claimed for operator recovery"
+elif capture_restored_menu; then
   RESTORE=1
 else
-  fail "DE25 restore verification failed; ledger remains claimed for operator recovery"
+  fail "DE25 restored MENU not verified; ledger remains claimed for operator recovery"
 fi
 if [ "$RESTORE" = 1 ]; then
   PKG_NAMES=$(for P in "${PKGS[@]}"; do basename "$P"; done | paste -sd, -)

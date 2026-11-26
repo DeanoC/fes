@@ -127,7 +127,8 @@ restore evidence. A run records a fresh pre-state, then verifies after Stop:
 - The root, kernel, boot files, persistent data mount and protected state
   match the pre-run capture or the named baseline diff.
 - The restored FES Welcome/MENU screen is visible on the approved capture
-  node.
+  node. The runner uses bounded `ffmpeg` and `tesseract` attempts and saves
+  the frames and OCR output in `out/restore-menu.*`. It rejects a room error.
 
 Only then release the ledger and locks. Failed restore checks keep the ledger
 claimed and trigger the documented recovery path; do not report HIL PASS.
