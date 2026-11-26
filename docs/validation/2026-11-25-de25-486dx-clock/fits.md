@@ -506,7 +506,11 @@ The retained `c32-qualifier/summary.json` SHA-256 is
 `0dbfb9dfbe46203a0ccebff68189576dedf7ff1208b21fe403cc5f3229e2635f`.
 The exact software comparison from `7e3227f6` to `54fe2d45` matched
 all exercised sources and generated simulation inputs. G2 and G4 pass.
-Quake is still running the full RTL window.
+Quake announced `DEMO1.DEM` at guest time 13 seconds and rendered the
+first inspected Necropolis demo frame at 16 seconds after passing the
+prior FNINIT stall. The first-frame receipt SHA-256 is
+`97f4feecad82139755b224bf90017442d9709c9f8d32b7568c57a7c2975b2937`.
+The full RTL window is still running.
 
 ## C0 = 30 generation preflight
 
@@ -515,6 +519,73 @@ The [generation preflight](parent-c30.txt) reviews the Qsys parent for
 found one interconnect module rename. The fitter trial uses the
 reviewed clock pins and the eight-cycle presenter at
 `78123e99621d0fca0cbdd3f16031e9691e12cf3a`.
+The actual Powerboat seed 1 project reproduced this generation review
+with parent SHA-256
+`122e45081148f52a0d779568049425712dbdbc64d87da1642603a87ce347a657`.
+The retained `c30-first/parent-s1-audit.txt` SHA-256 is
+`9a9f32377236b48fc4aa9da9353fc530b99c87914bed8189320c34385850a350`.
+
+### C0 = 30 initial fits and CDC diagnosis
+
+| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Seed summary SHA-256 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 44,785.2 | +0.537 ns | 0.000 ns | +6.676 ns | +0.062 ns | 2.656 ns | `969bffd9605ce5ae3625819890e24abeedd950b1b1675c0c834298796474bf70` |
+| 2 | 44,882.5 | +0.801 ns | +0.001 ns | +6.777 ns | +0.175 ns | 2.720 ns | `8b14c01e90a9ac3c97c25f5b75e499f8bc55da51bf05cf2a95ae30e28f4345a9` |
+| 3 | 45,173.8 | +0.343 ns | 0.000 ns | +6.892 ns | +0.015 ns | 2.264 ns | `191cb1162dc44c628618f08c634edc81088c1bd7319bc22f66d069027e1cdd4f` |
+| 4 | 45,039.4 | +0.736 ns | 0.000 ns | +6.836 ns | +0.159 ns | 2.263 ns | `aaf922f4199d18fe503d81fbacab95a369471d7dfbcf2f3129fb087621c74814` |
+
+All four seeds met the numerical and independent LOADED budgets.
+Each was refused by the producer for ten `CDC-50003` rows across seven
+held display, GP, window and counter bundles. TimeQuest reported the
+machine clock at 9.574 ns. The existing 10 ns bound exceeded the shorter
+clock period and, for inbound bundles, the destination period. This was
+the sole unreviewed rule on every seed. The retained
+`c30-first/summary.json` SHA-256 is
+`b2304b329496e3ca915d992482d4b1c1c7fe6e85a5d1c06560c49c7b6a40ca1b`.
+
+On two byte-verified copies of seed 1's final snapshot, Quartus Pro 26.3
+reproduced the ten original violations and reported zero with revision
+`2b80daf824ca3b91e09c1ded4680b676fb0a8479`'s 9.573 ns bound. The seven
+bundles retained identical path coverage across four corners. Worst
+replayed setup, hold, data delay, net delay and max-skew slack were
++0.808, 0.000, +2.843, +2.843 and +6.272 ns, respectively.
+The retained `c30-cdc-qdb-replay/summary.json` SHA-256 is
+`104e06f1e94a5ea94269446384d5e6e6805694a12755a184c62328628b859e01`.
+This replay uses the retained placement and route. Fresh fits run the
+ordinary producer, all timing corners and the independent LOADED check.
+
+The change tightens the four existing maximum constraints only on the
+seven bundles. The bound is the shorter of 10 ns and the machine period,
+rounded down with one picosecond of margin. The receiving endpoint
+selectors, minimum delay and first-stage synchronizer cuts are the same
+as in the original fits. See [Altera's CDC-50003 constraint guidance](https://docs.altera.com/r/docs/683369/current/an-919-improving-quality-of-results-with-design-assistant/clock-domain-crossing-and-reset-domain-crossing-rules).
+
+At `2b80daf82`, the same-checkout DE10 raw netlist and design, evidence,
+record and toolchain identities match the frozen merge base. The DE10
+receipt SHA-256 is
+`f759df1afffa3c08193bd16b4fb86e7b18c9cb0a66c6d360d6479f420110ab32`.
+All seven D12 selections match both the base and fitted comparison phase
+B. The two selection reports share SHA-256
+`76ce53e2bafcea6303720ae12e5094f49457f350ec1882492a374c46094d7982`.
+This carries the six measured D12 package matches. PC/XT's RBF comparison
+remains open under [#2182](https://github.com/DeanoC/fes/issues/2182).
+
+## Upper-rung generation preflights
+
+The [generation preflight](parent-c28.txt) reviews the Qsys parent for
+111.904762 MHz. The ten other generated source digests match their
+pins. The same module rename accounts for the complete parent and
+window interconnect comparison. This record covers generation only.
+
+Chip also generated [C0 = 26 at 120.512821 MHz](parent-c26.txt) from
+`318cc3047b95dbec5bd71f87d7d42f9866b09202` and
+[C0 = 24 at 130.555556 MHz](parent-c24.txt) from
+`d0669db758897dd15947998fc08977be8c852166`. The PLL HDL and Tcl agree on
+all counters. At both rungs, all ten other source inputs match the C28
+pins. A window interconnect module rename accounts for each byte change
+in the parent and interconnect. Both producers stopped at the expected
+old parent pin check before fitting. The archived raw inputs and review
+reports were verified after transfer to Powerboat.
 
 ## Running a seed on either builder
 
