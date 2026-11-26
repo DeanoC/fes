@@ -40,19 +40,18 @@ def lockstep_witness(output):
     wrapper = l3 / 'derived' / upstream.name
     derivation = x87_derivation(ROOT, wrapper)
     sources = {
-        'l3-dx': ('source', [l3 / 'rtl/Vfes_i386_cpu__ver.d', l3 / 'x87-built/Vx87_built_tb_top__ver.d']),
-        'l4-dx': ('i486dx_source', [builds / 'fes-i486dx-i486-lockstep/rtl-I4861/Vfes_i386_cpu__ver.d']),
+        'l3-dx': ('source', l3 / 'rtl/Vfes_i386_cpu__ver.d'),
+        'l4-dx': ('i486dx_source', builds / 'fes-i486dx-i486-lockstep/rtl-I4861/Vfes_i386_cpu__ver.d'),
     }
     dependencies = []
-    for suite, (key, paths) in sources.items():
+    for suite, (key, path) in sources.items():
         report = json.loads((output / f'{suite}.json').read_text())[key]
         if report['files'].get(wrapper.relative_to(ROOT.parents[1]).as_posix()) != derivation['derived_sha256']:
             raise ValueError(f'{suite} lacks the derived x87 source witness')
-        for path in paths:
-            candidates = set(path.read_text().split()).intersection(map(str, (upstream, wrapper)))
-            if candidates != {str(wrapper)}:
-                raise ValueError(f'{suite} did not compile the derived x87: {path.name}')
-        dependencies.extend(paths)
+        candidates = set(path.read_text().split()).intersection(map(str, (upstream, wrapper)))
+        if candidates != {str(wrapper)}:
+            raise ValueError(f'{suite} did not compile the derived x87: {path.name}')
+        dependencies.append(path)
     return {'derivation': derivation,
             'files_sha256': {path.relative_to(ROOT).as_posix(): sha(path) for path in [wrapper, *dependencies]}}
 
