@@ -3447,8 +3447,10 @@ the other durable packages. Later reads reuse valid stat-fingerprint caches.
 The host view opens in the background; calls made meanwhile get the unavailable
 error at once instead of waiting. The lock waits until the caller's context
 ends, so a list, inspect or read without a deadline is bounded to one minute. An import
-reads its whole body under the lock and keeps the caller's context, as the
-agent's own install does. Durable and factory inspections are cached by stat
+reads and validates its bounded archive in private memory before taking the
+shared lock; it rechecks selected packages and publishes under that lock with
+the caller's context. An imported factory package is also retained durably,
+so it stays available if a later image omits that factory package. Durable and factory inspections are cached by stat
 fingerprint, as above. A factory cache stores only its fingerprint and
 inspection; later reads with a matching fingerprint rebuild the canonical
 archive from the package directory without hashing members or decoding a ROM

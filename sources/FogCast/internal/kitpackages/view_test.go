@@ -314,6 +314,31 @@ func TestViewImportsIntoTheDurableStore(t *testing.T) {
 	}
 }
 
+func TestViewImportOfFactoryPackageSurvivesFactoryRemoval(t *testing.T) {
+	ctx := context.Background()
+	durable := newStore(t)
+	root := newFactoryRoot(t)
+	archive, want := factoryPackage(t, root, "1.0.0", "fes.pong")
+	view := openedView(durable, NewFactory(root))
+	got, created, err := view.Import(ctx, int64(len(archive)), bytes.NewReader(archive))
+	if err != nil || !created || got.PackageID != want.PackageID {
+		t.Fatalf("import factory package = %+v %v %v", got, created, err)
+	}
+	// An explicitly imported package must survive an image that no longer
+	// ships it, even when its ID was initially present in the factory view.
+	dir := filepath.Join(root, want.PackageID)
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	got, data, err := view.Read(ctx, want.PackageID)
+	if err != nil || got.PackageID != want.PackageID || !bytes.Equal(data, archive) {
+		t.Fatalf("read after factory removal = %+v equal=%v %v", got, bytes.Equal(data, archive), err)
+	}
+}
+
 func TestDurableInspectHashesAnUnchangedPackageOnce(t *testing.T) {
 	ctx := context.Background()
 	durable := newStore(t)

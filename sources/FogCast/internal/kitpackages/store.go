@@ -166,6 +166,12 @@ func openStore(path string, recoverInstallations bool) (*Store, error) {
 // and publishes its sealed members at packages/<package-id>. A successful
 // retry is idempotent; no selection is made and all earlier versions remain.
 func (s *Store) Install(ctx context.Context, length int64, reader io.Reader) (corepackage.Inspection, bool, error) {
+	// Upload and validate in private memory before taking the cross-process
+	// store lock. Publication and selected-package checks stay under it.
+	prepared, err := corepackage.PrepareImport(ctx, length, reader)
+	if err != nil {
+		return corepackage.Inspection{}, false, err
+	}
 	r, unlock, err := s.lock(ctx)
 	if err != nil {
 		return corepackage.Inspection{}, false, err
@@ -176,7 +182,7 @@ func (s *Store) Install(ctx context.Context, length int64, reader io.Reader) (co
 	if _, err := s.selections(ctx, r); err != nil {
 		return corepackage.Inspection{}, false, err
 	}
-	inspection, _, err := s.archives.Import(ctx, length, reader)
+	inspection, _, err := s.archives.ImportPrepared(ctx, prepared)
 	if err != nil {
 		return corepackage.Inspection{}, false, err
 	}

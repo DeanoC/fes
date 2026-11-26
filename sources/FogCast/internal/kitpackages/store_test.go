@@ -517,6 +517,103 @@ func TestCancelledWaitingForLockAndInvalidInstall(t *testing.T) {
 	}
 }
 
+type blockedUpload struct {
+	reader  *bytes.Reader
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (r *blockedUpload) Read(p []byte) (int, error) {
+	r.once.Do(func() { close(r.started); <-r.release })
+	return r.reader.Read(p)
+}
+
+func TestInstallDoesNotHoldSharedLockDuringUpload(t *testing.T) {
+	agent := newStore(t)
+	host, err := openStore(agent.root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, want := fixture(t, "1.0.0", "fes.pong")
+	upload := &blockedUpload{reader: bytes.NewReader(archive), started: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := host.Install(context.Background(), int64(len(archive)), upload)
+		done <- err
+	}()
+	<-upload.started
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, listErr := agent.List(ctx)
+	close(upload.release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if listErr != nil {
+		t.Fatalf("agent list while upload blocked = %v", listErr)
+	}
+	listed, err := agent.List(context.Background())
+	if err != nil || len(listed) != 1 || listed[0].PackageID != want.PackageID {
+		t.Fatalf("published list = %+v %v", listed, err)
+	}
+}
+
+func TestInstallRejectsInvalidArchiveBeforeWaitingForLock(t *testing.T) {
+	store := newStore(t)
+	_, unlock, err := store.lock(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, _, err := store.Install(ctx, 3, strings.NewReader("bad")); !errors.Is(err, ErrInvalidPackage) {
+		t.Fatalf("invalid archive while locked = %v", err)
+	}
+}
+
+func TestInstallRechecksSelectedPackageAfterUpload(t *testing.T) {
+	agent := newStore(t)
+	selectedArchive, selected := fixture(t, "1.0.0", "fes.pong")
+	install(t, agent, selectedArchive)
+	if _, err := agent.Select(context.Background(), "fes.pong", "", selected.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	host, err := openStore(agent.root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, candidate := fixture(t, "2.0.0", "fes.pong")
+	upload := &blockedUpload{reader: bytes.NewReader(archive), started: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := host.Install(context.Background(), int64(len(archive)), upload)
+		done <- err
+	}()
+	<-upload.started
+	path := filepath.Join(agent.root, "archives", selected.PackageID+".fcore")
+	if err := os.Chmod(path, 0o600); err != nil {
+		close(upload.release)
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("corrupt"), 0o400); err != nil {
+		close(upload.release)
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o400); err != nil {
+		close(upload.release)
+		t.Fatal(err)
+	}
+	close(upload.release)
+	if err := <-done; err == nil {
+		t.Fatal("import hid corruption that occurred during upload")
+	}
+	if _, err := os.Stat(filepath.Join(agent.root, "archives", candidate.PackageID+".fcore")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("candidate archive published after corruption: %v", err)
+	}
+}
+
 func TestInterruptedPublicationCanBeCompletedByInstallRetry(t *testing.T) {
 	s := newStore(t)
 	archive, expected := fixture(t, "0.1.0", "fes.pong")
