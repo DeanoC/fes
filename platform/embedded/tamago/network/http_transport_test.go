@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/soypat/lneto"
 	gnet "github.com/usbarmory/go-net"
 )
 
@@ -785,5 +786,281 @@ func TestDialTCPAbortOnUnreachablePeerHasNoRace(t *testing.T) {
 
 	if err := <-dialErr; !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("DialTCP error = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+func TestDialTCPToConfiguredGatewayIP(t *testing.T) {
+	configs := []struct {
+		name string
+		cfg  func() *gnet.LnetoConfig
+	}{
+		{
+			name: "default-backoff",
+			cfg:  func() *gnet.LnetoConfig { return nil },
+		},
+		{
+			name: "yield-backoff",
+			cfg: func() *gnet.LnetoConfig {
+				cfg := gnet.DefaultLnetoStackConfig()
+				cfg.BackoffStack = lnetoYieldBackoff
+				cfg.NewBackoffTCP = func() lneto.BackoffStrategy { return lnetoYieldBackoff }
+				return cfg
+			},
+		},
+	}
+
+	for _, tc := range configs {
+		t.Run(tc.name, func(t *testing.T) {
+			for iter := 0; iter < 3; iter++ {
+				ctx, cancel := context.WithCancel(context.Background())
+
+				guestToGW := make(chan []byte, 256)
+				gwToGuest := make(chan []byte, 256)
+				devGuest := noopDMADev{memWireDev{mac: [6]byte{0x02, 0x11, 0x22, 0x33, 0x55, 0x01}, in: gwToGuest, out: guestToGW}}
+				devGW := noopDMADev{memWireDev{mac: [6]byte{0x02, 0x11, 0x22, 0x33, 0x55, 0x02}, in: guestToGW, out: gwToGuest}}
+
+				guestLink, err := NewLink(tc.cfg(), devGuest, "10.0.2.15/24", "02:11:22:33:55:01", "10.0.2.2")
+				if err != nil {
+					cancel()
+					t.Fatalf("NewLink(guest): %v", err)
+				}
+				gwLink, err := NewLink(tc.cfg(), devGW, "10.0.2.2/24", "02:11:22:33:55:02", "")
+				if err != nil {
+					cancel()
+					t.Fatalf("NewLink(gw): %v", err)
+				}
+
+				var wg sync.WaitGroup
+				wg.Add(2)
+				go func() {
+					defer wg.Done()
+					_ = guestLink.Start(ctx)
+				}()
+				go func() {
+					defer wg.Done()
+					_ = gwLink.Start(ctx)
+				}()
+
+				ln, err := gwLink.ListenTCP(ctx, 18080)
+				if err != nil {
+					cancel()
+					wg.Wait()
+					t.Fatalf("gwLink.ListenTCP: %v", err)
+				}
+				mux := http.NewServeMux()
+				mux.HandleFunc("/api/v1/games", func(w http.ResponseWriter, r *http.Request) {
+					_, _ = w.Write([]byte(`{"games":[{"id":"aster"}]}`))
+				})
+				srv := &http.Server{Handler: mux}
+				srvDone := make(chan error, 1)
+				go func() {
+					srvDone <- srv.Serve(ln)
+				}()
+
+				client, err := NewHTTPClient(guestLink, TransportConfig{
+					DialTimeout:           3 * time.Second,
+					ResponseHeaderTimeout: 3 * time.Second,
+				})
+				if err != nil {
+					_ = ln.Close()
+					cancel()
+					wg.Wait()
+					t.Fatalf("NewHTTPClient: %v", err)
+				}
+
+				reqCtx, reqCancel := context.WithTimeout(ctx, 3*time.Second)
+				req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, "http://10.0.2.2:18080/api/v1/games", nil)
+				if err != nil {
+					reqCancel()
+					_ = ln.Close()
+					cancel()
+					wg.Wait()
+					t.Fatalf("NewRequest: %v", err)
+				}
+				resp, err := client.Do(req)
+				reqCancel()
+				if err != nil {
+					client.CloseIdleConnections()
+					_ = srv.Close()
+					<-srvDone
+					cancel()
+					wg.Wait()
+					t.Fatalf("iter %d client.Do(10.0.2.2:18080): %v", iter, err)
+				}
+				body, readErr := io.ReadAll(resp.Body)
+				_ = resp.Body.Close()
+				client.CloseIdleConnections()
+				_ = srv.Close()
+				<-srvDone
+				cancel()
+				wg.Wait()
+				if readErr != nil || resp.StatusCode != http.StatusOK || string(body) != `{"games":[{"id":"aster"}]}` {
+					t.Fatalf("iter %d unexpected HTTP response: status=%d body=%q err=%v", iter, resp.StatusCode, string(body), readErr)
+				}
+			}
+		})
+	}
+}
+
+func TestAcceptedConnPinPreventsReuseWhileWrapperOpen(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	aToB := make(chan []byte, 256)
+	bToA := make(chan []byte, 256)
+	devA := noopDMADev{memWireDev{mac: [6]byte{0x02, 0x11, 0x22, 0x33, 0x66, 0x01}, in: bToA, out: aToB}}
+	devB := noopDMADev{memWireDev{mac: [6]byte{0x02, 0x11, 0x22, 0x33, 0x66, 0x02}, in: aToB, out: bToA}}
+
+	cfgB := gnet.DefaultLnetoStackConfig()
+	cfgB.MaxListenerConns = 1
+
+	linkA, err := NewLink(nil, devA, "192.0.2.10/24", "02:11:22:33:66:01", "")
+	if err != nil {
+		t.Fatalf("NewLink(A): %v", err)
+	}
+	linkB, err := NewLink(cfgB, devB, "192.0.2.20/24", "02:11:22:33:66:02", "")
+	if err != nil {
+		t.Fatalf("NewLink(B): %v", err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); _ = linkA.Start(ctx) }()
+	go func() { defer wg.Done(); _ = linkB.Start(ctx) }()
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
+
+	lnB, err := linkB.ListenTCP(ctx, 10104)
+	if err != nil {
+		t.Fatalf("ListenTCP: %v", err)
+	}
+	defer func() { _ = lnB.Close() }()
+
+	acceptCh := make(chan net.Conn, 2)
+	acceptErrCh := make(chan error, 1)
+	go func() {
+		for {
+			c, err := lnB.Accept()
+			if err != nil {
+				acceptErrCh <- err
+				return
+			}
+			acceptCh <- c
+		}
+	}()
+
+	target := netip.MustParseAddrPort("192.0.2.20:10104")
+	cli1, err := linkA.DialTCP(ctx, target)
+	if err != nil {
+		t.Fatalf("DialTCP(1): %v", err)
+	}
+	srv1 := <-acceptCh
+	if _, err := cli1.Write([]byte("ping1")); err != nil {
+		t.Fatalf("cli1.Write: %v", err)
+	}
+	buf := make([]byte, 16)
+	n, err := srv1.Read(buf)
+	if err != nil || string(buf[:n]) != "ping1" {
+		t.Fatalf("srv1.Read = (%q, %v), want (%q, nil)", string(buf[:n]), err, "ping1")
+	}
+	_ = cli1.Close()
+
+	wrapped := lnB.(*lnetoListener)
+	raw1 := srv1.(*lnetoConn).LnetoConn()
+
+	// Force raw1 closed (as lneto TCPPool timeout does) so listener.Encapsulate ->
+	// returnAccepted invokes wrapped.pool.PutTCP(raw1) while srv1 is still open.
+	linkB.engine.mu.Lock()
+	raw1.Abort()
+	linkB.engine.mu.Unlock()
+	linkB.engine.interruptBackoff()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		wrapped.pool.mu.Lock()
+		lease := wrapped.pool.leases[raw1]
+		wrapped.pool.mu.Unlock()
+		returned := false
+		if lease != nil {
+			lease.mu.Lock()
+			returned = lease.poolReturned
+			lease.mu.Unlock()
+		}
+		if returned {
+			break
+		}
+		if !time.Now().Before(deadline) {
+			t.Fatalf("timed out waiting for listener to return aborted conn to pinned pool")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	if got := wrapped.pool.inner.NumberOfAcquired(); got != 1 {
+		t.Fatalf("NumberOfAcquired while srv1 open = %d, want 1", got)
+	}
+	if _, err := srv1.Read(buf); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("stale srv1.Read = %v, want net.ErrClosed", err)
+	}
+	if _, err := srv1.Write([]byte("x")); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("stale srv1.Write = %v, want net.ErrClosed", err)
+	}
+	if err := srv1.SetReadDeadline(time.Now().Add(time.Second)); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("stale srv1.SetReadDeadline = %v, want net.ErrClosed", err)
+	}
+
+	// Closing srv1 releases the pinned slot so Client 2 can reuse it cleanly.
+	if err := srv1.Close(); err != nil {
+		t.Fatalf("srv1.Close: %v", err)
+	}
+	if got := wrapped.pool.inner.NumberOfAcquired(); got != 0 {
+		t.Fatalf("NumberOfAcquired after srv1.Close = %d, want 0", got)
+	}
+
+	cli2, err := linkA.DialTCP(ctx, target)
+	if err != nil {
+		t.Fatalf("DialTCP(2): %v", err)
+	}
+	defer func() { _ = cli2.Close() }()
+	srv2 := <-acceptCh
+	defer func() { _ = srv2.Close() }()
+
+	// Hammer stale srv1 concurrently while srv2 exchanges data on the reused slot.
+	hammerCtx, stopHammer := context.WithCancel(ctx)
+	var hammerWG sync.WaitGroup
+	hammerWG.Add(1)
+	go func() {
+		defer hammerWG.Done()
+		tmp := make([]byte, 8)
+		for hammerCtx.Err() == nil {
+			_, _ = srv1.Read(tmp)
+			_, _ = srv1.Write([]byte("stale"))
+			_ = srv1.SetDeadline(time.Now().Add(time.Millisecond))
+			_ = srv1.Close()
+		}
+	}()
+
+	if _, err := cli2.Write([]byte("ping2")); err != nil {
+		stopHammer()
+		hammerWG.Wait()
+		t.Fatalf("cli2.Write: %v", err)
+	}
+	n, err = srv2.Read(buf)
+	if err != nil || string(buf[:n]) != "ping2" {
+		stopHammer()
+		hammerWG.Wait()
+		t.Fatalf("srv2.Read = (%q, %v), want (%q, nil)", string(buf[:n]), err, "ping2")
+	}
+	if _, err := srv2.Write([]byte("pong2")); err != nil {
+		stopHammer()
+		hammerWG.Wait()
+		t.Fatalf("srv2.Write: %v", err)
+	}
+	n, err = cli2.Read(buf)
+	stopHammer()
+	hammerWG.Wait()
+	if err != nil || string(buf[:n]) != "pong2" {
+		t.Fatalf("cli2.Read = (%q, %v), want (%q, nil)", string(buf[:n]), err, "pong2")
 	}
 }

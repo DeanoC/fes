@@ -23,6 +23,7 @@ import (
 )
 
 const (
+	lnetoARPRetryInterval = 250 * time.Millisecond
 	lnetoDialTimeout      = 4 * time.Second
 	lnetoEstablishedTO    = 4 * time.Second
 	lnetoClosingTO        = 2 * time.Second
@@ -35,6 +36,8 @@ const (
 	lnetoDefaultTCPQueue  = 8
 	lnetoDefaultTCPBufMul = 3
 )
+
+var errDialAwaitingSyn = errors.New("network: tcp dial awaiting syn")
 
 // lnetoEngine owns an xnet.StackAsync and serializes every stack mutation,
 // ingress/egress step, listener close, and connection abort behind one mutex.
@@ -262,34 +265,149 @@ func (e *lnetoEngine) abortConnIfID(conn *tcp.Conn, want uint64) {
 	e.interruptBackoff()
 }
 
-func (e *lnetoEngine) tryAccept(ln *tcp.Listener) (*tcp.Conn, uint64, error) {
+// connLease pins an accepted *tcp.Conn so lneto's TCPPool cannot reuse the
+// slot until both lneto's PutTCP and the *lnetoConn wrapper are done with it.
+type connLease struct {
+	pool         *pinnedTCPPool
+	conn         *tcp.Conn
+	mu           sync.Mutex
+	activeOps    int
+	poolReturned bool
+	wrapperDone  bool
+	released     bool
+}
+
+type pinnedTCPPool struct {
+	inner  *xnet.TCPPool
+	mu     sync.Mutex
+	leases map[*tcp.Conn]*connLease
+}
+
+func newPinnedTCPPool(inner *xnet.TCPPool) *pinnedTCPPool {
+	return &pinnedTCPPool{
+		inner:  inner,
+		leases: make(map[*tcp.Conn]*connLease),
+	}
+}
+
+func (p *pinnedTCPPool) GetTCP() (*tcp.Conn, any, tcp.Value) {
+	return p.inner.GetTCP()
+}
+
+func (p *pinnedTCPPool) pin(conn *tcp.Conn) *connLease {
+	lease := &connLease{pool: p, conn: conn}
+	p.mu.Lock()
+	p.leases[conn] = lease
+	p.mu.Unlock()
+	return lease
+}
+
+func (p *pinnedTCPPool) PutTCP(conn *tcp.Conn) {
+	p.mu.Lock()
+	lease := p.leases[conn]
+	p.mu.Unlock()
+	if lease == nil {
+		p.inner.PutTCP(conn)
+		return
+	}
+	// Abort immediately so any active Read/Write wakes up, while keeping
+	// the pooled conn out of inner until the wrapper closes and drains ops.
+	conn.Abort()
+	lease.mu.Lock()
+	lease.poolReturned = true
+	shouldRelease := lease.wrapperDone && lease.activeOps == 0 && !lease.released
+	if shouldRelease {
+		lease.released = true
+	}
+	lease.mu.Unlock()
+	if shouldRelease {
+		p.release(lease)
+	}
+}
+
+func (p *pinnedTCPPool) release(lease *connLease) {
+	p.mu.Lock()
+	if p.leases[lease.conn] == lease {
+		delete(p.leases, lease.conn)
+	}
+	p.mu.Unlock()
+	p.inner.PutTCP(lease.conn)
+}
+
+func (l *connLease) beginOp() bool {
+	if l == nil {
+		return true
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.wrapperDone || l.poolReturned {
+		return false
+	}
+	l.activeOps++
+	return true
+}
+
+func (l *connLease) endOp() {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	l.activeOps--
+	shouldRelease := l.wrapperDone && l.poolReturned && l.activeOps == 0 && !l.released
+	if shouldRelease {
+		l.released = true
+	}
+	l.mu.Unlock()
+	if shouldRelease {
+		l.pool.release(l)
+	}
+}
+
+func (l *connLease) beginClose() (alreadyReturned bool) {
+	if l == nil {
+		return false
+	}
+	l.mu.Lock()
+	l.wrapperDone = true
+	if l.poolReturned {
+		shouldRelease := l.activeOps == 0 && !l.released
+		if shouldRelease {
+			l.released = true
+		}
+		l.mu.Unlock()
+		if shouldRelease {
+			l.pool.release(l)
+		}
+		return true
+	}
+	l.activeOps++
+	l.mu.Unlock()
+	return false
+}
+
+func (e *lnetoEngine) tryAccept(ln *tcp.Listener, pool *pinnedTCPPool) (*tcp.Conn, uint64, net.Addr, *connLease, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ln.NumberOfReadyToAccept() == 0 {
-		return nil, 0, nil
+		return nil, 0, nil, nil, nil
 	}
 	c, _, err := ln.TryAccept()
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, nil, nil, err
 	}
 	var connID uint64
 	if idPtr := c.ConnectionID(); idPtr != nil {
 		connID = *idPtr
 	}
-	return c, connID, nil
-}
-
-func (e *lnetoEngine) connIDMatches(conn *tcp.Conn, want uint64) bool {
-	if conn == nil {
-		return false
+	remoteAddr := &net.TCPAddr{
+		IP:   append([]byte(nil), c.RemoteAddr()...),
+		Port: int(c.RemotePort()),
 	}
-	if want == 0 {
-		return true
+	var lease *connLease
+	if pool != nil {
+		lease = pool.pin(c)
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	idPtr := conn.ConnectionID()
-	return idPtr != nil && *idPtr == want
+	return c, connID, remoteAddr, lease, nil
 }
 
 func (e *lnetoEngine) canCloseConn(conn *tcp.Conn, want uint64) bool {
@@ -313,32 +431,33 @@ func (e *lnetoEngine) nextEphemeralPortLocked() uint16 {
 	return port
 }
 
-func (e *lnetoEngine) listenTCP(port uint16) (*tcp.Listener, netip.AddrPort, error) {
+func (e *lnetoEngine) listenTCP(port uint16) (*tcp.Listener, *pinnedTCPPool, netip.AddrPort, error) {
 	e.mu.Lock()
 	plcfg := e.plcfg
 	e.mu.Unlock()
 
 	pool, err := xnet.NewTCPPool(plcfg)
 	if err != nil {
-		return nil, netip.AddrPort{}, err
+		return nil, nil, netip.AddrPort{}, err
 	}
+	pinned := newPinnedTCPPool(pool)
 	ln := new(tcp.Listener)
 
 	e.mu.Lock()
 	if port == 0 {
 		port = e.nextEphemeralPortLocked()
 	}
-	err = ln.Reset(port, pool)
+	err = ln.Reset(port, pinned)
 	if err == nil {
 		err = e.stack.RegisterListenerTCP(ln)
 	}
 	ip4 := netip.AddrFrom4(e.stack.Addr4())
 	e.mu.Unlock()
 	if err != nil {
-		return nil, netip.AddrPort{}, err
+		return nil, nil, netip.AddrPort{}, err
 	}
 	e.interruptBackoff()
-	return ln, netip.AddrPortFrom(ip4, port), nil
+	return ln, pinned, netip.AddrPortFrom(ip4, port), nil
 }
 
 func (e *lnetoEngine) dialTCP(ctx context.Context, remote netip.AddrPort) (*tcp.Conn, netip.AddrPort, uint64, error) {
@@ -352,62 +471,78 @@ func (e *lnetoEngine) dialTCP(ctx context.Context, remote netip.AddrPort) (*tcp.
 	plcfg := e.plcfg
 	e.mu.Unlock()
 
-	conn := new(tcp.Conn)
-	err := conn.Configure(tcp.ConnConfig{
-		TxBuf:             make([]byte, plcfg.TxBufSize),
-		RxBuf:             make([]byte, plcfg.RxBufSize),
-		TxPacketQueueSize: plcfg.QueueSize,
-		RWBackoff:         plcfg.NewBackoff(),
-	})
-	if err != nil {
-		return nil, netip.AddrPort{}, 0, err
-	}
-
-	var localPort uint16
-	var localIP netip.Addr
-	var connID uint64
-	e.mu.Lock()
-	localIP = netip.AddrFrom4(e.stack.Addr4())
-	for attempt := 0; attempt < lnetoMaxPortRetries; attempt++ {
-		localPort = e.nextEphemeralPortLocked()
-		err = e.stack.DialTCP(conn, localPort, remote)
-		if err == nil || !errors.Is(err, lneto.ErrAlreadyRegistered) {
-			break
-		}
-	}
-	if err == nil {
-		if idPtr := conn.ConnectionID(); idPtr != nil {
-			connID = *idPtr
-		}
-	}
-	e.mu.Unlock()
-	if err != nil {
-		return nil, netip.AddrPort{}, 0, err
-	}
-	e.interruptBackoff()
-
-	if err := e.waitDialTCP(ctx, conn); err != nil {
-		e.abortConnIfID(conn, connID)
-		return nil, netip.AddrPort{}, 0, err
-	}
-	return conn, netip.AddrPortFrom(localIP, localPort), connID, nil
-}
-
-func (e *lnetoEngine) waitDialTCP(ctx context.Context, conn *tcp.Conn) error {
 	deadline := time.Now().Add(lnetoDialTimeout)
 	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
 		deadline = ctxDeadline
 	}
-	lastRequeue := time.Now()
-	var timer *time.Timer
-	defer func() {
-		if timer != nil {
-			timer.Stop()
-		}
-	}()
 
+	for time.Now().Before(deadline) && ctx.Err() == nil {
+		conn := new(tcp.Conn)
+		err := conn.Configure(tcp.ConnConfig{
+			TxBuf:             make([]byte, plcfg.TxBufSize),
+			RxBuf:             make([]byte, plcfg.RxBufSize),
+			TxPacketQueueSize: plcfg.QueueSize,
+			RWBackoff:         plcfg.NewBackoff(),
+		})
+		if err != nil {
+			return nil, netip.AddrPort{}, 0, err
+		}
+
+		var localPort uint16
+		var localIP netip.Addr
+		var connID uint64
+		e.mu.Lock()
+		localIP = netip.AddrFrom4(e.stack.Addr4())
+		for attempt := 0; attempt < lnetoMaxPortRetries; attempt++ {
+			localPort = e.nextEphemeralPortLocked()
+			err = e.stack.DialTCP(conn, localPort, remote)
+			if err == nil || !errors.Is(err, lneto.ErrAlreadyRegistered) {
+				break
+			}
+		}
+		if err == nil {
+			if idPtr := conn.ConnectionID(); idPtr != nil {
+				connID = *idPtr
+			}
+		}
+		e.mu.Unlock()
+		if err != nil {
+			return nil, netip.AddrPort{}, 0, err
+		}
+		e.interruptBackoff()
+
+		err = e.waitDialTCP(ctx, conn, deadline)
+		if err == nil {
+			return conn, netip.AddrPortFrom(localIP, localPort), connID, nil
+		}
+		if errors.Is(err, errDialAwaitingSyn) {
+			e.mu.Lock()
+			if connID == 0 {
+				conn.Abort()
+			} else if idPtr := conn.ConnectionID(); idPtr != nil && *idPtr == connID {
+				conn.Abort()
+			}
+			if _, arpErr := e.stack.ResultResolveHardwareAddress6(remote.Addr()); arpErr != nil {
+				_ = e.stack.DiscardResolveHardwareAddress6(remote.Addr())
+			}
+			e.mu.Unlock()
+			e.interruptBackoff()
+			continue
+		}
+		e.abortConnIfID(conn, connID)
+		return nil, netip.AddrPort{}, 0, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, netip.AddrPort{}, 0, err
+	}
+	return nil, netip.AddrPort{}, 0, context.DeadlineExceeded
+}
+
+func (e *lnetoEngine) waitDialTCP(ctx context.Context, conn *tcp.Conn, deadline time.Time) error {
+	attemptStart := time.Now()
+	lastRequeue := attemptStart
 	synSent := false
-	for step := 0; ; step++ {
+	for step := uint(0); ; step++ {
 		// Read AwaitingSynSend before State so a concurrent initial SYN emission
 		// cannot flip AwaitingSynSend false while state still holds StateClosed.
 		awaitingSyn := conn.AwaitingSynSend()
@@ -418,6 +553,9 @@ func (e *lnetoEngine) waitDialTCP(ctx context.Context, conn *tcp.Conn) error {
 		case state == tcp.StateSynSent || state == tcp.StateSynRcvd:
 			synSent = true
 		case !synSent && awaitingSyn:
+			if time.Since(attemptStart) >= lnetoARPRetryInterval && time.Now().Before(deadline) {
+				return errDialAwaitingSyn
+			}
 		default:
 			return fmt.Errorf("network: tcp failed to connect (state=%s awaiting=%v)", state, awaitingSyn)
 		}
@@ -434,29 +572,68 @@ func (e *lnetoEngine) waitDialTCP(ctx context.Context, conn *tcp.Conn) error {
 			}
 			lastRequeue = time.Now()
 		}
-		if step < 4 {
-			runtime.Gosched()
-			continue
+		if err := e.waitDialStep(ctx, step, deadline); err != nil {
+			return err
 		}
-		wait := time.Millisecond
-		if step >= 16 {
-			wait = 5 * time.Millisecond
+	}
+}
+
+func (e *lnetoEngine) waitDialStep(ctx context.Context, step uint, deadline time.Time) error {
+	if !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	d := e.rawBackoff(step)
+	switch d {
+	case lneto.BackoffFlagGosched:
+		runtime.Gosched()
+		if err := ctx.Err(); err != nil {
+			return err
 		}
-		if rem := time.Until(deadline); rem < wait {
-			wait = rem
-		}
-		if wait <= 0 {
+		if !time.Now().Before(deadline) {
 			return context.DeadlineExceeded
 		}
-		if timer == nil {
-			timer = time.NewTimer(wait)
-		} else {
-			timer.Reset(wait)
+		return nil
+	case lneto.BackoffFlagNop:
+		if err := ctx.Err(); err != nil {
+			return err
 		}
+		if !time.Now().Before(deadline) {
+			return context.DeadlineExceeded
+		}
+		return nil
+	default:
+		if d > 5*time.Millisecond {
+			d = 5 * time.Millisecond
+		}
+		if rem := time.Until(deadline); rem < d {
+			d = rem
+		}
+		if d <= 0 {
+			return context.DeadlineExceeded
+		}
+		timer := time.NewTimer(d)
 		select {
 		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 			return ctx.Err()
+		case <-e.backoffIRQ:
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return nil
 		case <-timer.C:
+			return nil
 		}
 	}
 }
@@ -481,7 +658,13 @@ func (e *lnetoEngine) Socket(ctx context.Context, network string, family, sotype
 			if err != nil {
 				return nil, err
 			}
-			return &lnetoConn{Conn: conn, localAddr: net.TCPAddrFromAddrPort(local), engine: e, connID: connID}, nil
+			return &lnetoConn{
+				Conn:       conn,
+				localAddr:  net.TCPAddrFromAddrPort(local),
+				remoteAddr: net.TCPAddrFromAddrPort(remote),
+				engine:     e,
+				connID:     connID,
+			}, nil
 		}
 	}
 
@@ -493,12 +676,13 @@ func (e *lnetoEngine) Socket(ctx context.Context, network string, family, sotype
 		}
 		port = local.Port()
 	}
-	ln, local, err := e.listenTCP(port)
+	ln, pool, local, err := e.listenTCP(port)
 	if err != nil {
 		return nil, err
 	}
 	return &lnetoListener{
 		inner:     ln,
+		pool:      pool,
 		localAddr: net.TCPAddrFromAddrPort(local),
 		engine:    e,
 		closeCh:   make(chan struct{}),
@@ -585,6 +769,7 @@ func (e *lnetoEngine) resolveSetGateway(id uint32, gw netip.Addr) {
 			e.waitBackoff(uint(attempt))
 			continue
 		}
+		e.interruptBackoff()
 		deadline := time.Now().Add(lnetoGatewayTimeout)
 		var backoffs uint
 		for time.Now().Before(deadline) && id == e.goroutineID.Load() {
@@ -592,6 +777,7 @@ func (e *lnetoEngine) resolveSetGateway(id uint32, gw netip.Addr) {
 			hw, resErr := e.stack.ResultResolveHardwareAddress6(gw)
 			if resErr == nil {
 				e.stack.SetGatewayHardwareAddr(hw)
+				_ = e.stack.DiscardResolveHardwareAddress6(gw)
 				e.mu.Unlock()
 				return
 			}
@@ -599,6 +785,9 @@ func (e *lnetoEngine) resolveSetGateway(id uint32, gw netip.Addr) {
 			e.waitBackoff(backoffs)
 			backoffs++
 		}
+		e.mu.Lock()
+		_ = e.stack.DiscardResolveHardwareAddress6(gw)
+		e.mu.Unlock()
 	}
 }
 
