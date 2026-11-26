@@ -177,10 +177,6 @@ func verifyMountedVolumeContext(ctx context.Context, devicePath, mount, mountInf
 	return nil
 }
 
-func realDirectory(path string) error {
-	return realDirectoryContext(context.Background(), path)
-}
-
 func realDirectoryContext(ctx context.Context, path string) error {
 	if err := ctx.Err(); err != nil {
 		return err
