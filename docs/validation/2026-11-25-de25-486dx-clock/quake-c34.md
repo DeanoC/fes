@@ -38,6 +38,9 @@ the same inputs for `b6310cd4cb7f9eb9f7c5cb4e1462ebb9708024cc`, including
 the derived CPU, bench, Quake command and disk image. The completed run
 applies to this fitter candidate through the exercised inputs.
 
+The [device geometry comparison](sim-c34-1106c799-match.json) also
+verifies those inputs for `1106c799322514432b4631fc17439be4055043dc`.
+
 The original launch wrapper classified 3DBench's scheduled `END limit`
 exit as a failure. The complete receipt uses the corrected analyzer on the
 retained raw logs. The original Quake process result records its own

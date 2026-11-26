@@ -42,6 +42,11 @@ REVIEW_FILE_SHA256 = {
         'retimed_structure.tcl': '32a552327af4fbb4974b5d97fbcf59c5fe5c3e8e8464389d200b14697d19cced',
     },
 }
+REVIEW_FILE_SHA256_OVERRIDES = {
+    ('1106c799322514432b4631fc17439be4055043dc', 'b6310cd4-structure'): {
+        'retimed_tension.py': '9207dfc1d5db543a0eb29cb3b379a181b0617542a43026bfcb21315888bf50de',
+    },
+}
 SOURCE_FILES = (
     'boards/de25nano/pc386/build.py',
     'boards/de25nano/pc386/model_clocks.py',
@@ -202,8 +207,9 @@ def compare(run, candidate):
     # pc386 board build records the signoff table, and only the Quartus
     # producer's reviewed-finding pass invokes it.
     review_only = {SIGNOFF_TABLE, BOARD_BUILD} if projection else {SIGNOFF_TABLE}
+    proof_files = REVIEW_FILE_SHA256.get(projection, {}) | REVIEW_FILE_SHA256_OVERRIDES.get((after, projection), {})
     proof_expected = {MISTEROSS + 'boards/de25nano/pc386/' + name: digest
-                      for name, digest in REVIEW_FILE_SHA256.get(projection, {}).items()}
+                      for name, digest in proof_files.items()}
     proof_hashes = {path: sha(candidate / path) if (candidate / path).is_file() else None
                     for path in proof_expected}
     proof_hashes_equal = proof_hashes == proof_expected

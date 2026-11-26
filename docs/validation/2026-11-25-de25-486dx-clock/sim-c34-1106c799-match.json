@@ -1,0 +1,122 @@
+{
+  "built_revision": "3df878912962ede8557166d56c93ff8896869943",
+  "candidate_revision": "1106c799322514432b4631fc17439be4055043dc",
+  "simulation_inputs_equal": true,
+  "changes": [
+    "docs/validation/2026-11-25-de25-486dx-clock/collect_fit.py",
+    "docs/validation/2026-11-25-de25-486dx-clock/cpi-c34.md",
+    "docs/validation/2026-11-25-de25-486dx-clock/d12-baseline.txt",
+    "docs/validation/2026-11-25-de25-486dx-clock/d12-c34-repair-selection.txt",
+    "docs/validation/2026-11-25-de25-486dx-clock/d12-c34-selection.txt",
+    "docs/validation/2026-11-25-de25-486dx-clock/d12-pcxt-compiler-reports.py",
+    "docs/validation/2026-11-25-de25-486dx-clock/d12-pcxt-samepath.sh",
+    "docs/validation/2026-11-25-de25-486dx-clock/d12-results.txt",
+    "docs/validation/2026-11-25-de25-486dx-clock/d12.md",
+    "docs/validation/2026-11-25-de25-486dx-clock/d12.sh",
+    "docs/validation/2026-11-25-de25-486dx-clock/d12_compare.py",
+    "docs/validation/2026-11-25-de25-486dx-clock/de10-b6310cd4.txt",
+    "docs/validation/2026-11-25-de25-486dx-clock/de10-c34.txt",
+    "docs/validation/2026-11-25-de25-486dx-clock/de10.sh",
+    "docs/validation/2026-11-25-de25-486dx-clock/fit_reports.sh",
+    "docs/validation/2026-11-25-de25-486dx-clock/fit_seed.sh",
+    "docs/validation/2026-11-25-de25-486dx-clock/fits.md",
+    "docs/validation/2026-11-25-de25-486dx-clock/parent-c32.txt",
+    "docs/validation/2026-11-25-de25-486dx-clock/parent-c34.txt",
+    "docs/validation/2026-11-25-de25-486dx-clock/parent_review.py",
+    "docs/validation/2026-11-25-de25-486dx-clock/quake-c34.md",
+    "docs/validation/2026-11-25-de25-486dx-clock/sim-c34-b6310cd4-match.json",
+    "docs/validation/2026-11-25-de25-486dx-clock/sim-c34-d18a5a45-match.json",
+    "docs/validation/2026-11-25-de25-486dx-clock/sim-c34-e255d4e3-match.json",
+    "docs/validation/2026-11-25-de25-486dx-clock/sim-c34-f9844c1b-match.json",
+    "docs/validation/2026-11-25-de25-486dx-clock/sim-c34-repair-match.json",
+    "docs/validation/2026-11-25-de25-486dx-clock/sim-c34.json",
+    "docs/validation/2026-11-25-de25-486dx-clock/sim_compare.py",
+    "docs/validation/2026-11-25-de25-486dx-clock/sim_evidence.py",
+    "docs/validation/2026-11-25-de25-486dx-clock/sim_games.py",
+    "docs/validation/2026-11-25-de25-486dx-clock/sim_lockstep.sh",
+    "docs/validation/2026-11-25-de25-486dx-clock/simulation.md",
+    "sources/misteross/boards/de25nano/pc386/build.py",
+    "sources/misteross/boards/de25nano/pc386/retimed_structure.tcl",
+    "sources/misteross/boards/de25nano/pc386/retimed_tension.py",
+    "sources/misteross/boards/de25nano/pc386/retimed_tension.tcl",
+    "sources/misteross/boards/de25nano/pc386/signoff_bases.py",
+    "sources/misteross/tests/test_build_de25_machine_package.py",
+    "sources/misteross/tests/test_de25_i486dx.py",
+    "sources/misteross/tests/test_de25_machine_findings.py"
+  ],
+  "changes_outside_review_scope": [],
+  "changed_retained_inputs": [
+    "sources/misteross/boards/de25nano/pc386/build.py"
+  ],
+  "changed_exercised_inputs": [],
+  "retained_input_count": 160,
+  "registered_board_projection_equal": true,
+  "registered_board_projection": "b6310cd4-structure",
+  "pc386_build_sha256": {
+    "built": "b963e872cdaaeb4aabb4a21d4a53dd9e94231e306db74f116aaebe9a83d67125",
+    "candidate": "fb6edadfbfb0fc562b9629fa57212ac6b5fd30cc8214d1d363a216320c6b8d4b"
+  },
+  "board_setup_calls": [
+    "<genexpr>",
+    "<module>",
+    "RegisteredBoard",
+    "__init__",
+    "guest_rates",
+    "load",
+    "model_clock"
+  ],
+  "review_file_sha256": {
+    "sources/misteross/boards/de25nano/pc386/retimed_tension.py": "9207dfc1d5db543a0eb29cb3b379a181b0617542a43026bfcb21315888bf50de",
+    "sources/misteross/boards/de25nano/pc386/retimed_tension.tcl": "39dc573010e723a9af4ecd3cd5f20d682c5aca37b2a42c0d3d6ac0d47b5387ac",
+    "sources/misteross/boards/de25nano/pc386/retimed_structure.tcl": "32a552327af4fbb4974b5d97fbcf59c5fe5c3e8e8464389d200b14697d19cced"
+  },
+  "registered_retiming_proof_calls": [],
+  "quartus_tools_setup_calls": [
+    "<module>",
+    "QuartusLeaseError",
+    "QuartusLeaseTimeout",
+    "QuartusLock",
+    "RebuildError"
+  ],
+  "setup_source_count": 18,
+  "changed_setup_sources": [
+    "sources/misteross/boards/de25nano/pc386/build.py"
+  ],
+  "changed_exercised_setup_sources": [],
+  "retained_input_sha256": "95d599d5ed95df27320ad36124577f917470f90b6a4cd41c7bf09ebd79182122",
+  "regenerated_inputs_sha256": {
+    "machine_tb.cpp": "681620d84a9ca60d64a29c84cf788e55149741a400076e18eb555593efff3d9e",
+    "audio_link.h": "64ba510f2bf6878e4d4900981438cdbb36ef0870f0de6aeda3d874882185e49f",
+    "fes_i386_cpu.sv": "a569bc7a2307e955d006f43fd9ef90f8e352719b4146cc01ad204f4e0b203a8c"
+  },
+  "generated_inputs_equal": true,
+  "clock_and_guest_rates_equal": true,
+  "candidate_clock": {
+    "c0": 34,
+    "clock_hz": "4700000000/51",
+    "guest_rate_parameters": {
+      "ISA_N": 17,
+      "ISA_D": 188,
+      "PIT_N": 1071,
+      "PIT_D": 41360,
+      "RTC_N": 6528,
+      "RTC_D": 18359375,
+      "US_N": 51,
+      "US_D": 4700,
+      "DMA_N": 17,
+      "DMA_D": 376,
+      "DOT0_N": 51357,
+      "DOT0_D": 188000,
+      "DOT1_N": 722211,
+      "DOT1_D": 2350000,
+      "OPL2_N": 357,
+      "OPL2_D": 661760,
+      "AUDIO_N": 1,
+      "AUDIO_D": 1920,
+      "GOV_N": 51,
+      "GOV_D": 47000,
+      "ATA_RESET_CLOCKS": 922
+    }
+  },
+  "game_stimulus_equal": true
+}

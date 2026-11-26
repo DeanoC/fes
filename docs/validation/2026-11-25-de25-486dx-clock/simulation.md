@@ -104,3 +104,13 @@ exercised inputs. The generated CPU and game benches, exact clock and
 guest rates, game commands and disk images all match. The verified G2,
 G4 and G5 results apply through these inputs, including the completed
 Quake RTL window.
+
+The [device geometry comparison](sim-c34-1106c799-match.json) checks
+`1106c799322514432b4631fc17439be4055043dc` in a clean `wt-1106-proof`
+checkout. The board module and both TimeQuest scripts match the `b6310cd4`
+digests. The comparator pins the revised placement-review Python for
+this exact revision and the same board projection. The 160 retained
+input paths, 18 setup source paths, regenerated CPU and benches, exact
+clock and guest rates, game commands and disk images match through the
+exercised inputs. The 105-artifact receipt reverified the retained G2,
+G4 and G5 runs, including the completed Quake RTL window.
