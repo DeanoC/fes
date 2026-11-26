@@ -1,0 +1,13 @@
+{
+ "package": "/data/fes-f3-d12/c23-p2/451d783edd489a446bef4570e822bf27b19e87758c531dda92e828a946a2c7dd.fcore",
+ "package_id": "451d783edd489a446bef4570e822bf27b19e87758c531dda92e828a946a2c7dd",
+ "firmware": "/home/deano/roms/sinclair/pentagon-trd503.rom",
+ "games": {
+  "machine": "fes.pentagon F3 D12 pent-r1"
+ },
+ "disks": {
+  "tape": "/data/fes-f3-d12/hil/media/fes-hil.tap"
+ },
+ "media_role": "cassette",
+ "rom_id": "pentagon-firmware"
+}

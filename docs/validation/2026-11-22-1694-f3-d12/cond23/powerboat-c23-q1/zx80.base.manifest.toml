@@ -1,0 +1,85 @@
+format = 3
+
+[core]
+id = "fes.zx80"
+name = "ZX80"
+description = "Sinclair ZX80: PAL, 4 KiB ROM, 1 KiB internal RAM, no NMI"
+version = "0.1.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = 2324009
+sha256 = "6e0558e00e3c962aa98f21e75e28f6b5c649d5bdf8790fb9e7dc4a8928feffa2"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.gamepad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.zx81-tape"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.memory.hps-ddr"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.video.session-display"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.fabric.video.display-plane"
+major = 1
+minor = 0
+required = true
+
+[build]
+id = "69bf0d59047eae30eb4e3060a78e60bd"
+repository = "https://github.com/DeanoC/fes"
+revision = "856ef5c64b242f99c9094ee71cb7ffe58a9e5c7a"
+recipe_sha256 = "520353d3f7421367932f5109aabf6280d11c2dccb19b0bcb55c709b5d8d519e5"
+toolchain = "quartus Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition sha256:71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93"
+
+[rom]
+id = "zx80-rom"
+role = "firmware"
+source_size = 4096
+file = "rom-map.json"
+size = 371094
+sha256 = "2c5e7eb9f3cd05002a6c57dee12a0eb5f2ffed217d3d5a9d891abf4c2d5d1b0e"

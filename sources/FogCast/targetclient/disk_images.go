@@ -38,7 +38,7 @@ func (c *Client) DiskImage(ctx context.Context, sha256 string) (protocol.DiskIma
 // StageDiskImage stores a hard-disk image on the kit; the kit verifies its
 // digest before it can be launched.
 func (c *Client) StageDiskImage(ctx context.Context, sha256 string, size int64, body io.Reader) (protocol.DiskImageStatus, error) {
-	if !lowerHex(sha256, 64) || !protocol.AdmitAtaDiskSize(size) || body == nil {
+	if !lowerHex(sha256, 64) || !protocol.AdmitStagedDiskImageSize(size) || body == nil {
 		return protocol.DiskImageStatus{}, fmt.Errorf("disk image upload is invalid")
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint(diskImageStagePath, nil).String(), readOnlyReader{Reader: body})
@@ -71,7 +71,7 @@ func (c *Client) diskImageExchange(request *http.Request, sha256 string) (protoc
 	if err := decodeResponse(response, &status); err != nil {
 		return protocol.DiskImageStatus{}, err
 	}
-	if status.SHA256 != sha256 || (status.Staged && !protocol.AdmitAtaDiskSize(status.Size)) || (!status.Staged && status.Size != 0) {
+	if status.SHA256 != sha256 || (status.Staged && !protocol.AdmitStagedDiskImageSize(status.Size)) || (!status.Staged && status.Size != 0) {
 		return protocol.DiskImageStatus{}, fmt.Errorf("disk image response does not match the request")
 	}
 	return status, nil

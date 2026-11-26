@@ -1,0 +1,14 @@
+[11-24 21:49:07] ########## atari-st (full)
+[11-24 22:31:12] atari-st.base rc=0 (27999e9df)
+[11-24 22:31:12] atari-st.base rbf d2fe393124d7dde895660ff1a981b5a6f8b2297cf52c07bb9aa8527fd1b246bb from sources/misteross/build/fes-atari-st-oss/core.rbf
+[11-24 23:19:34] atari-st.forced rc=0 (b67bddbd6)
+[11-24 23:19:34] atari-st.forced rbf d2fe393124d7dde895660ff1a981b5a6f8b2297cf52c07bb9aa8527fd1b246bb from sources/misteross/build/fes-atari-st-oss/core.rbf
+[11-24 23:19:34] RESULT atari-st condition 2: RBF reproduced byte for byte
+[11-25 00:00:46] atari-st.c3 rc=0 (b67bddbd6)
+[11-25 00:00:46] atari-st.c3 rbf bd4113de65fe6fa0656407d09dd055b44c028a1a983da2075e3b36a76d54e2fa from sources/misteross/build/fes-atari-st-oss/core.rbf
+[11-25 00:00:46] RESULT atari-st condition 3: gates passed, BUILD_ID 65fc2d32a834761b466560094de79a57
+[11-25 00:00:46]        package ea48447b4ea9d95d5ace823974046c53f9a6fe1c33e543447920204330860e04.build-inputs.json
+[11-25 00:00:46]        package ea48447b4ea9d95d5ace823974046c53f9a6fe1c33e543447920204330860e04.b9c37763efef0575950d15ae9dfe21c92ba240867af58e4812370a52a7e633d5.build-inputs.json
+[11-25 00:00:46]        package ea48447b4ea9d95d5ace823974046c53f9a6fe1c33e543447920204330860e04
+[11-25 00:00:46]        package ea48447b4ea9d95d5ace823974046c53f9a6fe1c33e543447920204330860e04.fcore
+[11-25 00:00:46] stream done

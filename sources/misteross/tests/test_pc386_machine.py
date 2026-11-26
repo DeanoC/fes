@@ -1135,13 +1135,35 @@ class FdcReplayTest(unittest.TestCase):
         self.assertIn(fdc, sim.SYSTEM_RTL)
         self.assertIn('cores/fes-pc386/rtl/pc386_fdc.sv', producer.MACHINE_SOURCES)
 
+    def test_the_floppy_verify_bench_uses_the_headers_window(self):
+        # floppy_verify_tb.cpp hard-codes the window base and the floppy
+        # offsets; they must stay the generated headers' values.
+        generated = sim.COMMON / 'generated'
+        application = (generated / 'fes_application.vh').read_text()
+        computer = (generated / 'fes_computer.vh').read_text()
+        bench = (sim.CORE / 'sim/floppy_verify_tb.cpp').read_text()
+        self.assertIn("`define FES_APPLICATION_HPS_DDR_WINDOW_BASE 32'h30000000", application)
+        self.assertIn("`define FES_COMPUTER_PC_FLOPPY_WINDOW_OFFSET 32'h01800000", computer)
+        self.assertIn("`define FES_COMPUTER_PC_FLOPPY_WINDOW_STRIDE 32'h00400000", computer)
+        for constant in ('WINDOW_BASE = 0x30000000u', 'FLOPPY_OFFSET = 0x01800000u', 'FLOPPY_STRIDE = 0x00400000u'):
+            self.assertIn(constant, bench)
+
+    def test_the_floppy_endpoint_and_its_crc_pass_are_in_the_seal(self):
+        # F3: the drives' endpoint below pc386_system, the CRC pass in the machine.
+        verify = sim.CORE / 'rtl/pc386_floppy_verify.sv'
+        self.assertIn(verify, sim.MACHINE_RTL)
+        self.assertIn(sim.CORE / 'rtl/pc386_floppy_media.sv', sim.SYSTEM_RTL)
+        for name in ('pc386_floppy_verify', 'pc386_floppy_media'):
+            self.assertIn(f'cores/fes-pc386/rtl/{name}.sv', producer.MACHINE_SOURCES)
+
 
 SYSTEM_OUTPUT = """WRITE-TEST 444436
-IDENTITY 17734 12627 1 0 4 1 1 12297 26437 291 52617 1158 61715 2469 13863 3702 15
+IDENTITY 17734 12627 1 0 4 1 1 12297 26437 291 52617 1158 61715 2469 13863 3702 79
 RESTORE 9000
 CLOCK 9400
 CRC-REJECTED 600000 flags=8
 DISK 1200000 sectors=65520 verify_cycles=590000
+FLOPPY 1200050 unit=2 sectors=2400 verify_cycles=21000
 RELEASE 1200100
 POST 00 1265600
 DEBUG BIOS BUILD DATE: 10/26/26
@@ -1167,11 +1189,12 @@ class SystemTest(unittest.TestCase):
     def test_parse(self):
         report = sim.parse_system(SYSTEM_OUTPUT)
         self.assertEqual(len(report['identity']), 17)
-        self.assertEqual(report['identity'][16], 15)
+        self.assertEqual(report['identity'][16], 0x4f)
         self.assertEqual(report['restore_cycle'], 9000)
         self.assertEqual(report['clock_cycle'], 9400)
         self.assertEqual(report['crc_rejected'], {'cycle': 600000, 'flags': 8})
         self.assertEqual(report['disk'], {'cycle': 1200000, 'sectors': 65520, 'verify_cycles': 590000})
+        self.assertEqual(report['floppy'], {'cycle': 1200050, 'unit': 2, 'sectors': 2400, 'verify_cycles': 21000})
         self.assertEqual(report['release_cycle'], 1200100)
         self.assertEqual(report['post'], [{'code': '00', 'cycle': 1265600}])
         self.assertEqual(report['debug'], ['BIOS BUILD DATE: 10/26/26'])
@@ -1199,6 +1222,7 @@ class SystemTest(unittest.TestCase):
             (SYSTEM_OUTPUT.replace('retired=50000000', 'retired=0'), 'retired nothing'),
             (SYSTEM_OUTPUT.replace('CRC-REJECTED 600000 flags=8\n', ''), 'wrong CRC'),
             (SYSTEM_OUTPUT.replace('WRITE-TEST 444436', 'WRITE-TEST absent'), 'disk write'),
+            (SYSTEM_OUTPUT.replace('FLOPPY 1200050 unit=2 sectors=2400 verify_cycles=21000\n', ''), 'launch floppy'),
             (SYSTEM_OUTPUT.replace('CHECK PASS the record keeps', 'CHECK FAIL the record keeps'),
              'record check failed: the record keeps'),
             (SYSTEM_OUTPUT.replace('ROUNDTRIP 0 0 0 0 576 5 1 0\n', ''), 'did not save'),

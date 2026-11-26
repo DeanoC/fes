@@ -102,7 +102,10 @@ func (s *Service) CorePackages(ctx context.Context) ([]InstalledCorePackage, err
 	}
 	values, err := s.corePackages.List(ctx)
 	if errors.Is(err, kitpackages.ErrStoreUnavailable) {
-		return nil, canonicalError(protocol.CodeCorePackageStoreUnavailable, nil)
+		return nil, canonicalError(protocol.CodeCorePackageStoreUnavailable, safeContextError(err))
+	}
+	if errors.Is(err, kitpackages.ErrInvalidPackage) || errors.Is(err, kitpackages.ErrInvalidPackageID) {
+		return nil, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	if err != nil {
 		return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
@@ -167,7 +170,10 @@ func installedCoreError(err error) error {
 		return canonicalError(protocol.CodeROMNotFound, nil)
 	}
 	if errors.Is(err, kitpackages.ErrStoreUnavailable) {
-		return canonicalError(protocol.CodeCorePackageStoreUnavailable, nil)
+		return canonicalError(protocol.CodeCorePackageStoreUnavailable, safeContextError(err))
+	}
+	if errors.Is(err, kitpackages.ErrInvalidPackage) || errors.Is(err, kitpackages.ErrInvalidPackageID) {
+		return canonicalError(protocol.CodeBadRequest, nil)
 	}
 	return canonicalError(protocol.CodeInternal, safeContextError(err))
 }
@@ -538,9 +544,9 @@ func (s *Service) writeCoreEntryLocked(ctx context.Context, gameID, title, expec
 	} else if err := s.validateCoreEntryMedia(ctx, check.Descriptor, role, mediaID); err != nil {
 		return catalog.CoreEntry{}, err
 	}
-	// Every disk of a set must still fit the drive under the new package.
+	// The new package must still have a compatible drive for each disk.
 	for _, m := range more {
-		if err := s.validateCoreEntryMedia(ctx, check.Descriptor, role, m.MediaID); err != nil {
+		if err := s.validateCoreMediaForEntry(ctx, check.Descriptor, role, m.MediaID, false); err != nil {
 			return catalog.CoreEntry{}, err
 		}
 	}
@@ -651,9 +657,10 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 	var entry catalog.CoreEntry
 	var media *coreEntryMedia
 	var hardDisk *hardDiskSource
+	var floppy *floppySource
 	var imageSHA string
 	defer func() {
-		resultErr = errors.Join(resultErr, hardDisk.Close())
+		resultErr = errors.Join(resultErr, hardDisk.Close(), floppy.Close())
 		if media != nil {
 			resultErr = errors.Join(resultErr, media.Close())
 		}
@@ -750,7 +757,10 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 			// The game keys the machine record and disk delta; the disk is
 			// staged on the kit by digest and written by the runtime before
 			// release, so nothing is inserted after the core starts.
-			if protocol.DeclaresAtaDisk(inspection.Descriptor) {
+			// A floppy entry boots its disk 1 with the hard disk empty.
+			if entry.MediaRole == protocol.FloppyRole && protocol.DeclaresPcFloppy(inspection.Descriptor) {
+				floppy, err = s.readLaunchFloppy(ctx, entry)
+			} else if protocol.DeclaresAtaDisk(inspection.Descriptor) {
 				hardDisk, err = s.readHardDisk(ctx, entry)
 			} else if entry.MediaID != "" {
 				err = protocol.HardDiskRequestError()
@@ -763,8 +773,11 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 				disk := hardDisk.disk
 				machine.Disk = &disk
 			}
+			if floppy != nil {
+				machine.Floppies = []protocol.StagedFloppy{floppy.floppy}
+			}
 			return coreLoadSource{activationBudget: hardDiskActivationBudget, size: int64(len(data)), body: bytes.NewReader(data),
-				entry: &entry, machine: machine, hardDisk: hardDisk}, nil
+				entry: &entry, machine: machine, hardDisk: hardDisk, floppy: floppy}, nil
 		}
 		disk := s.pcxtStartDisk(inspection.Descriptor, entry)
 		media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, disk.MediaRole, disk.MediaID)
@@ -999,6 +1012,8 @@ type coreLoadSource struct {
 	// hardDisk uploads that disk when the kit does not hold it yet.
 	machine  *protocol.LibraryMachineBinding
 	hardDisk *hardDiskSource
+	// floppy uploads a floppy entry's disk 1 for its drive.
+	floppy *floppySource
 }
 
 // stopRejectedCore owns recovery when package activation cannot be accepted,

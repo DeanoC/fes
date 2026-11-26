@@ -1,0 +1,91 @@
+format = 3
+
+[core]
+id = "fes.zx81"
+name = "Zx81"
+description = "ZX81 on the FES computer ABI"
+version = "1.7.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = 2423740
+sha256 = "f203914301a75a5326a5d0f5af1fd348fa7fb895d4ece0626a92c06066521a0a"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.gamepad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.zx81-tape"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.zx81-tape-write"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.memory.hps-ddr"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.video.session-display"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.fabric.video.display-plane"
+major = 1
+minor = 0
+required = true
+
+[build]
+id = "a33ca899fc7eb70814b3d4b73d3d0dd6"
+repository = "https://github.com/DeanoC/fes"
+revision = "856ef5c64b242f99c9094ee71cb7ffe58a9e5c7a"
+recipe_sha256 = "520353d3f7421367932f5109aabf6280d11c2dccb19b0bcb55c709b5d8d519e5"
+toolchain = "quartus Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition sha256:71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93"
+
+[rom]
+id = "machine-rom"
+role = "firmware"
+source_size = 8192
+file = "rom-map.json"
+size = 742014
+sha256 = "8add0cca2e1ec9ec57c741c95e127879b87b37c3f29c24414d8d342e43b9ff4b"

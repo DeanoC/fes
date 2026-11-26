@@ -41,6 +41,7 @@ CAP_ATA_DISK = 1 << 16
 CAP_PERSISTENCE = 1 << 17
 CAP_WALL_CLOCK = 1 << 18
 CAP_PC386_MACHINE = 1 << 19
+CAP_PC_FLOPPY = 1 << 22
 MEDIA_CAPS = CAP_APPLE2_FLOPPY
 
 OP_IDENTITY, OP_EXECUTION, OP_KEYBOARD, OP_CONTROLLER = 1, 2, 3, 4
@@ -61,6 +62,13 @@ DISK_MIN_SECTORS, DISK_MAX_SECTORS = 2048, 262144
 CHUNK_SECTORS = 128
 DIRTY_WORDS = 128
 MAX_CYLINDERS, MAX_HEADS, MAX_SPT = 16383, 16, 63
+# fes.media.pc-floppy: drives A: and B:, and the formats a PC controller
+# reads, as (cylinders, heads, sectors per track).
+FLOPPY_UNITS = (1, 2)
+FLOPPY_MIN_BYTES, FLOPPY_MAX_BYTES = 163840, 2949120
+FLOPPY_FORMATS = ((40, 1, 8), (40, 1, 9), (40, 2, 8), (40, 2, 9), (80, 2, 9),
+                  (80, 2, 15), (80, 2, 18), (80, 2, 21), (80, 2, 36))
+FLOPPY_WRITE_PROTECT = 1
 FLAG_DIRTY, FLAG_FROZEN, FLAG_BUSY, FLAG_ERROR = 1, 2, 4, 8
 PREPARE, COMMIT, EJECT, FREEZE, RESUME, SAVED = range(6)
 
@@ -507,6 +515,33 @@ def window_pattern(size: int) -> bytes:
     return bytes((offset * 7 + (offset >> 11)) & 0xFF for offset in range(size))
 
 
+class FloppyDrive:
+    """One fes.media.pc-floppy drive: the ATA disk's states without its
+    held-only rules, dirty map or busy writer."""
+
+    def __init__(self, window: bytes) -> None:
+        self.window = window
+        self.state = EMPTY
+        self.frozen = self.saved = self.error = self.dirty = False
+        self.write_protect = False
+        self.epoch = 0
+        self.staged: list[int] = []
+        self.geometry: list[int] = []
+        self.verify_left = 0
+        self.verify_result = EMPTY
+
+    def clear(self, state: int) -> None:
+        self.state = state
+        self.frozen = self.saved = self.error = self.dirty = False
+        self.staged = []
+        self.geometry = []
+        self.verify_left = 0
+
+    def flags(self) -> int:
+        return ((FLAG_DIRTY if self.dirty else 0) | (FLAG_FROZEN if self.frozen else 0)
+                | (FLAG_ERROR if self.error else 0))
+
+
 class Endpoint11(Endpoint):
     """ABI 1.1 reference state machine; legacy opcodes are the 1.0 model's.
 
@@ -516,11 +551,14 @@ class Endpoint11(Endpoint):
     guest CMOS writes) are scripted by the session between exchanges.
     """
 
-    def __init__(self, capabilities: int, abi_minor: int, window: bytes = b"", verify_reads: int = 1) -> None:
+    def __init__(self, capabilities: int, abi_minor: int, window: bytes = b"", verify_reads: int = 1,
+                 floppy_windows: dict[int, bytes] | None = None) -> None:
         super().__init__(capabilities, {})
         self.abi_minor = abi_minor
         self.window = window
         self.verify_reads = verify_reads
+        self.floppies = {unit: FloppyDrive((floppy_windows or {}).get(unit, b""))
+                         for unit in FLOPPY_UNITS} if capabilities & CAP_PC_FLOPPY else {}
         # ATA disk
         self.disk_state = EMPTY
         self.frozen = False
@@ -569,6 +607,13 @@ class Endpoint11(Endpoint):
         self.epoch = (self.epoch + 1) & 0xFFFF
         self.writer_busy = False
         self.pending_sector = None
+
+    def guest_floppy_write(self, unit: int) -> None:
+        """A guest sector write or Format Track lands on a floppy."""
+        drive = self.floppies[unit]
+        assert drive.state == READY and not drive.frozen and not drive.write_protect
+        drive.dirty = True
+        drive.epoch = (drive.epoch + 1) & 0xFFFF
 
     def guest_cmos_write(self, byte: int, value: int) -> None:
         assert not self.held and 0 <= byte < 128 and 0 <= value < 256
@@ -625,6 +670,9 @@ class Endpoint11(Endpoint):
         return super().request(op, index, arg)
 
     def _disk(self, op: int, index: int, arg: int) -> tuple[int, int]:
+        unit = index if op == OP_DISK_CONTROL else index >> 3
+        if op != OP_DISK_DIRTY and unit in self.floppies:
+            return self._floppy(op, self.floppies[unit], index, arg)
         if op == OP_DISK_INFO:
             unit, field = index >> 3, index & 7
             if unit >= UNITS:
@@ -710,6 +758,76 @@ class Endpoint11(Endpoint):
         if not self.frozen:
             return E_STATE, 0
         return 0, sum(1 << bit for bit in range(16) if 16 * index + bit in self.dirty)
+
+    def _floppy(self, op: int, drive: FloppyDrive, index: int, arg: int) -> tuple[int, int]:
+        """Units 1 and 2: valid whether execution is held or running."""
+        if op == OP_DISK_INFO:
+            if arg:
+                return E_ARGUMENT, 0
+            field = index & 7
+            state = drive.state  # as the ATA disk: the poll that ends the check still reads verifying
+            if field == 5 and drive.state == VERIFYING:
+                drive.verify_left -= 1
+                if not drive.verify_left:
+                    drive.state = drive.verify_result
+                    drive.error = drive.verify_result != READY
+            values = [FLOPPY_MIN_BYTES & 0xFFFF, FLOPPY_MIN_BYTES >> 16,
+                      FLOPPY_MAX_BYTES & 0xFFFF, FLOPPY_MAX_BYTES >> 16,
+                      0, state, drive.flags(), drive.epoch]
+            return 0, values[field]
+        if op == OP_DISK_CONTROL:
+            if arg > SAVED:
+                return E_ARGUMENT, 0
+            if arg in (PREPARE, EJECT):
+                if drive.frozen and not drive.saved:
+                    return E_STATE, 0
+                drive.clear(LOADING if arg == PREPARE else EMPTY)
+                return 0, 0
+            if arg == COMMIT:
+                if drive.state != LOADING or len(drive.staged) != 8:
+                    return E_STATE, 0
+                size = drive.staged[0] | drive.staged[1] << 16
+                crc = drive.staged[5] | drive.staged[6] << 16
+                match = zlib.crc32(drive.window[:size * SECTOR]) == crc
+                drive.write_protect = bool(drive.staged[7] & FLOPPY_WRITE_PROTECT)
+                drive.geometry = list(drive.staged[:5]) if match else []
+                drive.staged = []
+                drive.error = False
+                drive.state = VERIFYING
+                drive.verify_left = self.verify_reads
+                drive.verify_result = READY if match else LOADING
+                return 0, 0
+            if arg == FREEZE:
+                if drive.state != READY:
+                    return E_STATE, 0
+                drive.frozen, drive.saved = True, False
+                return 0, 0
+            if arg == RESUME:
+                drive.frozen = drive.saved = False
+                return 0, 0
+            if not drive.frozen:  # SAVED
+                return E_STATE, 0
+            drive.dirty = False
+            drive.saved = True
+            return 0, 0
+        # OP_DISK_COMMIT: index = unit*8 + word
+        word = index & 7
+        if drive.state != LOADING:
+            return E_STATE, 0
+        if word != len(drive.staged):
+            return E_INDEX, 0
+        staged = drive.staged
+        if word == 1:
+            size = staged[0] | arg << 16
+            if not FLOPPY_MIN_BYTES <= size * SECTOR <= FLOPPY_MAX_BYTES:
+                return E_ARGUMENT, 0
+        if word == 4 and ((staged[2], staged[3], arg) not in FLOPPY_FORMATS
+                          or staged[2] * staged[3] * arg != (staged[0] | staged[1] << 16)):
+            return E_ARGUMENT, 0
+        if word == 7 and arg & ~FLOPPY_WRITE_PROTECT:
+            return E_ARGUMENT, 0
+        staged.append(arg)
+        return 0, 0
 
     def _data(self, op: int, index: int, arg: int) -> tuple[int, int]:
         if op == OP_DATA_CONTROL:
@@ -812,6 +930,10 @@ class Session11(Session):
         self.endpoint.guest_sector_write_complete()
         self.events.append({"before": len(self.exchanges), "kind": "sector-write-complete"})
 
+    def floppy_write(self, unit: int) -> None:
+        self.endpoint.guest_floppy_write(unit)
+        self.events.append({"before": len(self.exchanges), "kind": "floppy-write", "unit": unit})
+
     def cmos_write(self, byte: int, value: int) -> None:
         self.endpoint.guest_cmos_write(byte, value)
         self.events.append({"before": len(self.exchanges), "kind": "cmos-write", "byte": byte, "value": value})
@@ -833,6 +955,12 @@ class Session11(Session):
             "persistent_words": e.words,
             "wall_clock": e.clock,
         })
+        if e.floppies:
+            doc["floppy_windows"] = {str(unit): {"bytes": len(d.window), "pattern": "(offset * 7 + (offset >> 11)) & 255"}
+                                     for unit, d in e.floppies.items()}
+            doc["final"]["floppies"] = {str(unit): {"state": d.state, "flags": d.flags(), "epoch": d.epoch,
+                                                    "geometry": d.geometry, "write_protect": d.write_protect}
+                                        for unit, d in e.floppies.items()}
         return doc
 
 
@@ -1059,12 +1187,79 @@ def disk_session() -> Session11:
     return s
 
 
+def floppy_commit(s: Session11, unit: int, words: list[int], label: str) -> None:
+    for word, value in enumerate(words):
+        s.send(f"{label}commit-word-{word}", OP_DISK_COMMIT, unit * 8 + word, value)
+
+
+def floppy_session() -> Session11:
+    """fes.media.pc-floppy beside the ATA disk: A: loads while held, B: while
+    the machine runs, a guest write, and the save-then-eject swap."""
+    a_window = window_pattern(737280)    # 720K: 80 x 2 x 9
+    b_window = window_pattern(368640)    # 360K: 40 x 2 x 9
+    a_crc, b_crc = zlib.crc32(a_window), zlib.crc32(b_window)
+    s = Session11("pc386-pc-floppy",
+                  Endpoint11(PC386_CAPS | CAP_PC_FLOPPY, 1, verify_reads=1,
+                             floppy_windows={1: a_window, 2: b_window}),
+                  "Drives A: and B: on units 1 and 2: geometry, format and write-protect checks, a commit "
+                  "while held and one while running, a guest write, and freeze, Saved and eject.")
+    s.identify()
+    for field in range(8):
+        s.send(f"a-info-field{field}", OP_DISK_INFO, 8 + field, 0)
+    s.send("b-info-state", OP_DISK_INFO, 16 + 5, 0)
+    s.send("unit3-info-absent", OP_DISK_INFO, 24 + 5, 0)
+    s.send("unit3-control-rejected", OP_DISK_CONTROL, 3, PREPARE)
+    s.send("unit3-commit-rejected", OP_DISK_COMMIT, 24, 0)
+    s.send("a-commit-word-before-prepare", OP_DISK_COMMIT, 8, 1440)
+    s.send("a-freeze-empty", OP_DISK_CONTROL, 1, FREEZE)
+    s.send("a-prepare-held", OP_DISK_CONTROL, 1, PREPARE)
+    s.send("a-commit-without-words", OP_DISK_CONTROL, 1, COMMIT)
+    s.send("a-word-1-first", OP_DISK_COMMIT, 9, 0)
+    s.send("a-size-lo", OP_DISK_COMMIT, 8, 1440)
+    s.send("a-size-hi-oversize", OP_DISK_COMMIT, 9, 1)
+    s.send("a-size-hi", OP_DISK_COMMIT, 9, 0)
+    s.send("a-cylinders", OP_DISK_COMMIT, 10, 80)
+    s.send("a-heads", OP_DISK_COMMIT, 11, 2)
+    s.send("a-spt-not-a-format", OP_DISK_COMMIT, 12, 10)  # 80 x 2 x 10 is no PC format
+    s.send("a-spt-wrong-size", OP_DISK_COMMIT, 12, 18)  # 80 x 2 x 18 is a format, but 2,880 sectors, not 1,440
+    s.send("a-spt", OP_DISK_COMMIT, 12, 9)
+    s.send("a-crc-lo", OP_DISK_COMMIT, 13, a_crc & 0xFFFF)
+    s.send("a-crc-hi", OP_DISK_COMMIT, 14, a_crc >> 16)
+    s.send("a-flags-unknown-bit", OP_DISK_COMMIT, 15, 2)
+    s.send("a-flags", OP_DISK_COMMIT, 15, 0)
+    s.send("a-commit", OP_DISK_CONTROL, 1, COMMIT)
+    s.send("a-poll-verifying", OP_DISK_INFO, 8 + 5, 0)
+    s.send("a-poll-ready", OP_DISK_INFO, 8 + 5, 0)
+    s.send("ata-still-empty", OP_DISK_INFO, 5, 0)
+    s.send("release", OP_EXECUTION, 0, 1)
+    s.floppy_write(1)
+    s.send("a-flags-dirty", OP_DISK_INFO, 8 + 6, 0)
+    s.send("a-epoch", OP_DISK_INFO, 8 + 7, 0)
+    # B: loads while the machine runs, write-protected.
+    s.send("b-prepare-running", OP_DISK_CONTROL, 2, PREPARE)
+    floppy_commit(s, 2, [720, 0, 40, 2, 9, b_crc & 0xFFFF, b_crc >> 16, 1], "b-")
+    s.send("b-commit-running", OP_DISK_CONTROL, 2, COMMIT)
+    s.send("b-poll-verifying", OP_DISK_INFO, 16 + 5, 0)
+    s.send("b-poll-ready", OP_DISK_INFO, 16 + 5, 0)
+    # The swap: a dirty A: is frozen, saved, then ejected while running.
+    s.send("a-freeze-running", OP_DISK_CONTROL, 1, FREEZE)
+    s.send("a-eject-before-saved", OP_DISK_CONTROL, 1, EJECT)
+    s.send("a-dirty-map-is-units-0", OP_DISK_DIRTY, 0, 0)
+    s.send("a-saved", OP_DISK_CONTROL, 1, SAVED)
+    s.send("a-flags-saved", OP_DISK_INFO, 8 + 6, 0)
+    s.send("a-eject-running", OP_DISK_CONTROL, 1, EJECT)
+    s.send("a-state-empty", OP_DISK_INFO, 8 + 5, 0)
+    s.send("b-flags", OP_DISK_INFO, 16 + 6, 0)
+    s.send("hold", OP_EXECUTION, 0, 0)
+    return s
+
+
 def document_11() -> dict:
     return {
         "description": "Synthetic fes.computer 1.1 wire fixtures; never deploy.",
         "abi": {"id": "fes.computer", "tag": 4, "major": 1, "minor": 1},
         "scenarios": [minor0_session().document(), persistence_session().document(),
-                      disk_session().document(),
+                      disk_session().document(), floppy_session().document(),
                       persistence_capability_session("persistence-without-layout",
                                                      PC386_CAPS & ~CAP_PC386_MACHINE).document(),
                       persistence_capability_session("layout-without-persistence",

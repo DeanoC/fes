@@ -1,0 +1,17 @@
+[11-24 21:49:07] ########## spectrum (c3)
+[11-24 21:56:00] spectrum.c3 rc=0 (b67bddbd6)
+[11-24 21:56:00] spectrum.c3 rbf def07687a4be4285bdd1bb6bfd1ec437e4bf1c57e7972db6efe217281af5803c from sources/misteross/build/fes-spectrum-oss/core.rbf
+[11-24 21:56:00] RESULT spectrum condition 3: gates passed, BUILD_ID 35950ff079f17d9f0be3abdfbce04488
+[11-24 21:56:00]        package c9f9467b2dad8849f27fbd0bee09a2669bcf7fbace1659ff8080a71514990c86.fcore
+[11-24 21:56:00]        package c9f9467b2dad8849f27fbd0bee09a2669bcf7fbace1659ff8080a71514990c86.a1815f2013a96d83d0e2a5caead50f5903ab3df90907f65a4df02f1681d03cdc.build-inputs.json
+[11-24 21:56:00]        package c9f9467b2dad8849f27fbd0bee09a2669bcf7fbace1659ff8080a71514990c86
+[11-24 21:56:00]        package c9f9467b2dad8849f27fbd0bee09a2669bcf7fbace1659ff8080a71514990c86.build-inputs.json
+[11-24 21:56:00] ########## spectrum128 (c3)
+[11-24 22:06:57] spectrum128.c3 rc=0 (b67bddbd6)
+[11-24 22:06:57] spectrum128.c3 rbf 0350c0b6357e4f48d5cc1c1bd264b1c73ed02e871844b936ea526fca973c7647 from sources/misteross/build/fes-spectrum128-oss/core.rbf
+[11-24 22:06:57] RESULT spectrum128 condition 3: gates passed, BUILD_ID 41ce687dde354e670768ffa6c3027a70
+[11-24 22:06:57]        package 9f50650de885d6e7fe3a7b8ef8797bf861ffd5da7af5ecd0d9d03821c8822a40.5f204f007d8823693f4ebc98563af2531d551f73402c657699ec9c89b5238ceb.build-inputs.json
+[11-24 22:06:57]        package 9f50650de885d6e7fe3a7b8ef8797bf861ffd5da7af5ecd0d9d03821c8822a40.build-inputs.json
+[11-24 22:06:57]        package 9f50650de885d6e7fe3a7b8ef8797bf861ffd5da7af5ecd0d9d03821c8822a40
+[11-24 22:06:57]        package 9f50650de885d6e7fe3a7b8ef8797bf861ffd5da7af5ecd0d9d03821c8822a40.fcore
+[11-24 22:06:57] stream done

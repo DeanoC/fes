@@ -1,0 +1,17 @@
+[11-24 21:49:07] ########## spectrum-plus3 (c3)
+[11-24 22:24:43] spectrum-plus3.c3 rc=0 (b67bddbd6)
+[11-24 22:24:43] spectrum-plus3.c3 rbf a113f5ab5bb8e366d2a9994a9df1916b449bdd97aa35e81f1cf9402c59b3a1fe from sources/misteross/build/fes-spectrum-plus3-oss/core.rbf
+[11-24 22:24:43] RESULT spectrum-plus3 condition 3: gates passed, BUILD_ID 0c42157e14376a05d936a49b62f14c5f
+[11-24 22:24:43]        package d903ca6e762b880697bbe97bade5dadfbeb04bdfac3b87bbf40260e1596dbcb7.build-inputs.json
+[11-24 22:24:43]        package d903ca6e762b880697bbe97bade5dadfbeb04bdfac3b87bbf40260e1596dbcb7.fc11ba784e28a38f92ef12695713d323dd9b1b91442cd0b87c17651127b4c025.build-inputs.json
+[11-24 22:24:43]        package d903ca6e762b880697bbe97bade5dadfbeb04bdfac3b87bbf40260e1596dbcb7.fcore
+[11-24 22:24:43]        package d903ca6e762b880697bbe97bade5dadfbeb04bdfac3b87bbf40260e1596dbcb7
+[11-24 22:24:43] ########## pentagon (c3)
+[11-24 22:39:52] pentagon.c3 rc=0 (b67bddbd6)
+[11-24 22:39:52] pentagon.c3 rbf cd422ab7506ae44a3aea473c6f74c0ec612abad5b06bf9a908be83bde70e63ae from sources/misteross/build/fes-pentagon-oss/core.rbf
+[11-24 22:39:52] RESULT pentagon condition 3: gates passed, BUILD_ID 2db1de121e173e4f6ef54881d939f390
+[11-24 22:39:52]        package 57e750bd1796f20fa0cb48234ffffe7000ea94c33c636226b2969ecd2ba75841.build-inputs.json
+[11-24 22:39:52]        package 57e750bd1796f20fa0cb48234ffffe7000ea94c33c636226b2969ecd2ba75841.9e1e51ce5bff8965d2857069e37b24d3032e03e9147705276bc950c8c512f5b1.build-inputs.json
+[11-24 22:39:52]        package 57e750bd1796f20fa0cb48234ffffe7000ea94c33c636226b2969ecd2ba75841
+[11-24 22:39:52]        package 57e750bd1796f20fa0cb48234ffffe7000ea94c33c636226b2969ecd2ba75841.fcore
+[11-24 22:39:52] stream done

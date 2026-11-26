@@ -91,6 +91,46 @@ func (c *Controller) setIRQActiveLocked(active bool) {
 // Ready returns a channel notified whenever new RX bytes enter the RX ring.
 func (c *Controller) Ready() <-chan struct{} { return c.rxReady }
 
+// PendingRX returns the number of unread RX bytes buffered in the IRQ ring.
+func (c *Controller) PendingRX() int {
+	if c == nil {
+		return 0
+	}
+	return c.rx.Len()
+}
+
+// PendingTX returns the number of unsent TX bytes queued in the TX ring.
+func (c *Controller) PendingTX() int {
+	if c == nil {
+		return 0
+	}
+	c.txMu.Lock()
+	defer c.txMu.Unlock()
+	return c.tx.Len()
+}
+
+// ReadInto reads up to len(dst) clean RX bytes without blocking or heap
+// allocations, draining the IRQ RX ring when IRQs are active or polling the
+// UART directly otherwise.
+func (c *Controller) ReadInto(dst []byte) int {
+	if c == nil || len(dst) == 0 {
+		return 0
+	}
+	if c.irqActive.Load() {
+		return c.rx.PopSlice(dst)
+	}
+	n := 0
+	for n < len(dst) {
+		b, ok := c.Read()
+		if !ok {
+			break
+		}
+		dst[n] = b
+		n++
+	}
+	return n
+}
+
 // Read returns the next clean RX byte without blocking, popping from the RX
 // ring when IRQs are enabled or polling the UART directly otherwise. Any line
 // errors encountered are recorded in Stats and the corrupt byte is discarded.
