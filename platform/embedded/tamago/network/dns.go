@@ -84,22 +84,40 @@ func EncodeDNSQuery(id uint16, name string) ([]byte, error) {
 	return msg, nil
 }
 
+// DNSAnswer holds resolved IPv4 addresses and the effective RFC 1035 TTL
+// computed from the minimum TTL of traversed CNAMEs and matched A records.
+type DNSAnswer struct {
+	Addrs []netip.Addr
+	TTL   time.Duration
+}
+
 // ParseDNSResponse parses an RFC 1035 DNSv4 response for expectedID and queryName,
 // following any CNAME aliases in the Answer section and returning all matching IPv4 A records.
 func ParseDNSResponse(msg []byte, expectedID uint16, queryName string) ([]netip.Addr, error) {
-	canonicalQuery, err := normalizeDNSName(queryName)
+	ans, err := ParseDNSResponseWithTTL(msg, expectedID, queryName)
 	if err != nil {
 		return nil, err
 	}
+	return ans.Addrs, nil
+}
+
+// ParseDNSResponseWithTTL parses an RFC 1035 DNSv4 response for expectedID and
+// queryName, following any CNAME aliases in the Answer section and returning all
+// matching IPv4 A records alongside their minimum effective TTL.
+func ParseDNSResponseWithTTL(msg []byte, expectedID uint16, queryName string) (DNSAnswer, error) {
+	canonicalQuery, err := normalizeDNSName(queryName)
+	if err != nil {
+		return DNSAnswer{}, err
+	}
 	if len(msg) < dnsHeaderLen {
-		return nil, errors.New("network: short DNS response")
+		return DNSAnswer{}, errors.New("network: short DNS response")
 	}
 	if binary.BigEndian.Uint16(msg[0:2]) != expectedID {
-		return nil, errors.New("network: DNS response ID mismatch")
+		return DNSAnswer{}, errors.New("network: DNS response ID mismatch")
 	}
 	flags := binary.BigEndian.Uint16(msg[2:4])
 	if flags&0x8000 == 0 {
-		return nil, errors.New("network: DNS packet is not a response")
+		return DNSAnswer{}, errors.New("network: DNS packet is not a response")
 	}
 
 	qdCount := int(binary.BigEndian.Uint16(msg[4:6]))
@@ -112,10 +130,10 @@ func ParseDNSResponse(msg []byte, expectedID uint16, queryName string) ([]netip.
 	for i := 0; i < qdCount; i++ {
 		qname, next, err := decodeDNSName(msg, off)
 		if err != nil {
-			return nil, err
+			return DNSAnswer{}, err
 		}
 		if next+4 > len(msg) {
-			return nil, errors.New("network: truncated DNS question")
+			return DNSAnswer{}, errors.New("network: truncated DNS question")
 		}
 		qtype := binary.BigEndian.Uint16(msg[next : next+2])
 		qclass := binary.BigEndian.Uint16(msg[next+2 : next+4])
@@ -125,40 +143,50 @@ func ParseDNSResponse(msg []byte, expectedID uint16, queryName string) ([]netip.
 		}
 	}
 	if !matchedQuestion {
-		return nil, errors.New("network: DNS question mismatch")
+		return DNSAnswer{}, errors.New("network: DNS question mismatch")
 	}
 	if flags&0x0200 != 0 {
-		return nil, ErrDNSTruncated
+		return DNSAnswer{}, ErrDNSTruncated
 	}
 	rcode := flags & 0x000f
 	if rcode == 3 {
-		return nil, ErrDNSNotFound
+		return DNSAnswer{}, ErrDNSNotFound
 	}
 	if rcode != 0 {
-		return nil, fmt.Errorf("%w: rcode=%d", ErrDNSServerError, rcode)
+		return DNSAnswer{}, fmt.Errorf("%w: rcode=%d", ErrDNSServerError, rcode)
 	}
 
 	type aRec struct {
 		name string
 		addr netip.Addr
+		ttl  uint32
 	}
-	cnames := make(map[string]string)
+	type cnameRec struct {
+		target string
+		ttl    uint32
+	}
+	cnames := make(map[string]cnameRec)
 	var aRecords []aRec
 
 	for i := 0; i < anCount; i++ {
 		rname, next, err := decodeDNSName(msg, off)
 		if err != nil {
-			return nil, err
+			return DNSAnswer{}, err
 		}
 		if next+10 > len(msg) {
-			return nil, errors.New("network: truncated DNS answer header")
+			return DNSAnswer{}, errors.New("network: truncated DNS answer header")
 		}
 		rtype := binary.BigEndian.Uint16(msg[next : next+2])
 		rclass := binary.BigEndian.Uint16(msg[next+2 : next+4])
+		ttl := binary.BigEndian.Uint32(msg[next+4 : next+8])
+		if ttl&0x80000000 != 0 {
+			// RFC 2181 section 8: treat negative/high-bit TTL values as 0 (non-cacheable).
+			ttl = 0
+		}
 		rdLen := int(binary.BigEndian.Uint16(msg[next+8 : next+10]))
 		rdataOff := next + 10
 		if rdataOff+rdLen > len(msg) {
-			return nil, errors.New("network: truncated DNS answer rdata")
+			return DNSAnswer{}, errors.New("network: truncated DNS answer rdata")
 		}
 		off = rdataOff + rdLen
 		if rclass != dnsClassIN {
@@ -168,17 +196,26 @@ func ParseDNSResponse(msg []byte, expectedID uint16, queryName string) ([]netip.
 		switch rtype {
 		case dnsTypeA:
 			if rdLen != 4 {
-				return nil, errors.New("network: invalid DNS A record length")
+				return DNSAnswer{}, errors.New("network: invalid DNS A record length")
 			}
 			var ip4 [4]byte
 			copy(ip4[:], msg[rdataOff:rdataOff+4])
-			aRecords = append(aRecords, aRec{name: lowerName, addr: netip.AddrFrom4(ip4)})
+			aRecords = append(aRecords, aRec{name: lowerName, addr: netip.AddrFrom4(ip4), ttl: ttl})
 		case dnsTypeCNAME:
 			target, targetEnd, err := decodeDNSName(msg, rdataOff)
 			if err != nil || targetEnd != off {
-				return nil, errors.New("network: invalid DNS CNAME rdata")
+				return DNSAnswer{}, errors.New("network: invalid DNS CNAME rdata")
 			}
-			cnames[lowerName] = strings.ToLower(target)
+			cnames[lowerName] = cnameRec{target: strings.ToLower(target), ttl: ttl}
+		}
+	}
+
+	var minTTL uint32
+	hasTTL := false
+	addTTL := func(ttl uint32) {
+		if !hasTTL || ttl < minTTL {
+			minTTL = ttl
+			hasTTL = true
 		}
 	}
 
@@ -191,63 +228,79 @@ func ParseDNSResponse(msg []byte, expectedID uint16, queryName string) ([]netip.
 		if !ok {
 			break
 		}
-		target = next
+		addTTL(next.ttl)
+		target = next.target
 	}
 
 	var result []netip.Addr
 	for _, rec := range aRecords {
 		if rec.name == target {
 			result = append(result, rec.addr)
+			addTTL(rec.ttl)
 		}
 	}
 	if len(result) == 0 {
-		return nil, ErrDNSNoRecords
+		return DNSAnswer{}, ErrDNSNoRecords
 	}
-	return result, nil
+	return DNSAnswer{
+		Addrs: result,
+		TTL:   time.Duration(minTTL) * time.Second,
+	}, nil
 }
 
 // ResolveA resolves name to one or more IPv4 addresses using the configured
 // DNSv4 servers over port. Numeric IPv4 literals return immediately.
 func ResolveA(ctx context.Context, port RawFramePort, cfg DNSConfig, name string) ([]netip.Addr, error) {
+	ans, err := ResolveAWithTTL(ctx, port, cfg, name)
+	if err != nil {
+		return nil, err
+	}
+	return ans.Addrs, nil
+}
+
+// ResolveAWithTTL resolves name to one or more IPv4 addresses and their effective
+// TTL using the configured DNSv4 servers over port. Numeric IPv4 literals
+// return immediately with TTL 0.
+func ResolveAWithTTL(ctx context.Context, port RawFramePort, cfg DNSConfig, name string) (DNSAnswer, error) {
 	if ctx == nil || port == nil {
-		return nil, fmt.Errorf("%w: nil context or port", ErrDNSInvalidConfig)
+		return DNSAnswer{}, fmt.Errorf("%w: nil context or port", ErrDNSInvalidConfig)
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return DNSAnswer{}, err
 	}
 	trimmed := strings.TrimSpace(name)
 	if addr, err := netip.ParseAddr(trimmed); err == nil {
 		if !addr.Is4() {
-			return nil, fmt.Errorf("%w: IPv6 literal unsupported", ErrDNSInvalidConfig)
+			return DNSAnswer{}, fmt.Errorf("%w: IPv6 literal unsupported", ErrDNSInvalidConfig)
 		}
-		return []netip.Addr{addr}, nil
+		return DNSAnswer{Addrs: []netip.Addr{addr}}, nil
 	}
 	if _, err := normalizeDNSName(trimmed); err != nil {
-		return nil, err
+		return DNSAnswer{}, err
 	}
 	localMAC, err := parseUnicastMAC(cfg.LocalMAC)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrDNSInvalidConfig, err)
+		return DNSAnswer{}, fmt.Errorf("%w: %v", ErrDNSInvalidConfig, err)
 	}
 	localPrefix, err := netip.ParsePrefix(cfg.LocalPrefix)
 	if err != nil || !localPrefix.Addr().Is4() || localPrefix.Bits() < 1 || localPrefix.Bits() > 30 || !usableHost(localPrefix, localPrefix.Addr()) {
-		return nil, fmt.Errorf("%w: invalid local IPv4 prefix", ErrDNSInvalidConfig)
+		return DNSAnswer{}, fmt.Errorf("%w: invalid local IPv4 prefix", ErrDNSInvalidConfig)
 	}
 	var gateway netip.Addr
 	if cfg.Gateway != "" {
 		if _, err := staticConfig(cfg.LocalPrefix, cfg.Gateway); err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrDNSInvalidConfig, err)
+			return DNSAnswer{}, fmt.Errorf("%w: %v", ErrDNSInvalidConfig, err)
 		}
 		gateway = netip.MustParseAddr(cfg.Gateway)
 	}
 	if len(cfg.Servers) == 0 {
-		return nil, fmt.Errorf("%w: no DNS servers configured", ErrDNSInvalidConfig)
+		return DNSAnswer{}, fmt.Errorf("%w: no DNS servers configured", ErrDNSInvalidConfig)
 	}
 	servers := make([]netip.Addr, 0, len(cfg.Servers))
 	for _, s := range cfg.Servers {
 		a, err := netip.ParseAddr(strings.TrimSpace(s))
 		if err != nil || !a.Is4() || a.IsUnspecified() || a.IsMulticast() {
-			return nil, fmt.Errorf("%w: invalid DNS server %q", ErrDNSInvalidConfig, s)
+			return DNSAnswer{}, fmt.Errorf("%w: invalid DNS server %q", ErrDNSInvalidConfig, s)
 		}
 		servers = append(servers, a)
 	}
@@ -256,12 +309,12 @@ func ResolveA(ctx context.Context, port RawFramePort, cfg DNSConfig, name string
 	if cfg.NextHopMAC != "" {
 		fixedNextHop, err = parseUnicastMAC(cfg.NextHopMAC)
 		if err != nil {
-			return nil, fmt.Errorf("%w: invalid NextHopMAC: %v", ErrDNSInvalidConfig, err)
+			return DNSAnswer{}, fmt.Errorf("%w: invalid NextHopMAC: %v", ErrDNSInvalidConfig, err)
 		}
 		hasFixedNextHop = true
 	}
 	if cfg.Timeout < 0 || cfg.RetryInterval < 0 {
-		return nil, fmt.Errorf("%w: negative duration", ErrDNSInvalidConfig)
+		return DNSAnswer{}, fmt.Errorf("%w: negative duration", ErrDNSInvalidConfig)
 	}
 
 	serverPort := cfg.ServerPort
@@ -285,10 +338,10 @@ func ResolveA(ctx context.Context, port RawFramePort, cfg DNSConfig, name string
 	var lastErr error
 	for i, server := range servers {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return DNSAnswer{}, err
 		}
 		if err := port.Err(); err != nil {
-			return nil, err
+			return DNSAnswer{}, err
 		}
 
 		nextHop := server
@@ -312,7 +365,7 @@ func ResolveA(ctx context.Context, port RawFramePort, cfg DNSConfig, name string
 			if err != nil {
 				lastErr = err
 				if ctx.Err() != nil || port.Err() != nil {
-					return nil, err
+					return DNSAnswer{}, err
 				}
 				continue
 			}
@@ -329,25 +382,25 @@ func ResolveA(ctx context.Context, port RawFramePort, cfg DNSConfig, name string
 
 		queryPayload, err := EncodeDNSQuery(queryID, trimmed)
 		if err != nil {
-			return nil, err
+			return DNSAnswer{}, err
 		}
 		txFrame := buildUDPv4Frame(localMAC, dstMAC, localPrefix.Addr().As4(), server.As4(), srcPort, serverPort, queryID, queryPayload)
 
 		srvCtx, srvCancel := perServerContext(ctx, len(servers)-i)
-		addrs, err := exchangeDNS(srvCtx, port, txFrame, localMAC, localPrefix.Addr().As4(), server.As4(), serverPort, srcPort, queryID, trimmed, retryInterval)
+		ans, err := exchangeDNS(srvCtx, port, txFrame, localMAC, localPrefix.Addr().As4(), server.As4(), serverPort, srcPort, queryID, trimmed, retryInterval)
 		srvCancel()
 		if err == nil {
-			return addrs, nil
+			return ans, nil
 		}
 		lastErr = err
 		if errors.Is(err, ErrDNSNotFound) || errors.Is(err, ErrDNSNoRecords) || ctx.Err() != nil || port.Err() != nil {
-			return nil, err
+			return DNSAnswer{}, err
 		}
 	}
 	if lastErr != nil {
-		return nil, lastErr
+		return DNSAnswer{}, lastErr
 	}
-	return nil, ErrDNSNoRecords
+	return DNSAnswer{}, ErrDNSNoRecords
 }
 
 func perServerContext(parent context.Context, remainingServers int) (context.Context, context.CancelFunc) {
@@ -424,10 +477,10 @@ func exchangeDNS(
 	queryID uint16,
 	queryName string,
 	retryInterval time.Duration,
-) ([]netip.Addr, error) {
+) (DNSAnswer, error) {
 	type dnsOutcome struct {
-		addrs []netip.Addr
-		err   error
+		ans DNSAnswer
+		err error
 	}
 	replyCh := make(chan dnsOutcome, 1)
 	remove := port.AddTap(func(frame []byte) {
@@ -435,14 +488,14 @@ func exchangeDNS(
 		if !ok {
 			return
 		}
-		addrs, err := ParseDNSResponse(payload, queryID, queryName)
+		ans, err := ParseDNSResponseWithTTL(payload, queryID, queryName)
 		// Ignore packets that don't match our query ID / question (e.g., stray DNS traffic).
 		if err != nil && !errors.Is(err, ErrDNSNotFound) && !errors.Is(err, ErrDNSNoRecords) &&
 			!errors.Is(err, ErrDNSTruncated) && !errors.Is(err, ErrDNSServerError) {
 			return
 		}
 		select {
-		case replyCh <- dnsOutcome{addrs: addrs, err: err}:
+		case replyCh <- dnsOutcome{ans: ans, err: err}:
 		default:
 		}
 	})
@@ -451,25 +504,25 @@ func exchangeDNS(
 	interval := retryInterval
 	for {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return DNSAnswer{}, err
 		}
 		if err := port.Err(); err != nil {
-			return nil, err
+			return DNSAnswer{}, err
 		}
 		if err := port.SendRawFrame(txFrame); err != nil {
-			return nil, err
+			return DNSAnswer{}, err
 		}
 		timer := time.NewTimer(interval)
 		select {
 		case out := <-replyCh:
 			timer.Stop()
 			if err := ctx.Err(); err != nil {
-				return nil, err
+				return DNSAnswer{}, err
 			}
-			return out.addrs, out.err
+			return out.ans, out.err
 		case <-ctx.Done():
 			timer.Stop()
-			return nil, ctx.Err()
+			return DNSAnswer{}, ctx.Err()
 		case <-timer.C:
 		}
 		if interval < 2*time.Second {

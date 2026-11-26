@@ -80,7 +80,8 @@ func kitHostService(t *testing.T) (*Service, *packageLibraryClient, string, *kit
 	}
 	client := &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}
 	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
-	view := kitpackages.NewView(func() (*kitpackages.Store, error) { return durable, nil }, kitpackages.NewFactory(factory))
+	view := kitpackages.NewView(func(context.Context) (*kitpackages.Store, error) { return durable, nil }, kitpackages.NewFactory(factory))
+	t.Cleanup(view.Close)
 	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(time.Millisecond) {
 		if _, err := view.List(context.Background()); err == nil {
 			break
@@ -134,7 +135,7 @@ func TestKitHostWithoutDurableStorageReportsItUnavailable(t *testing.T) {
 	ctx := context.Background()
 	s, _, factory, _ := kitHostService(t)
 	id := unpackFactoryPackage(t, factory, libraryPackageFixture(t, "1.0.0"))
-	s.corePackages = kitpackages.NewView(func() (*kitpackages.Store, error) {
+	s.corePackages = kitpackages.NewView(func(context.Context) (*kitpackages.Store, error) {
 		return nil, errors.New("FESDATA3 is not mounted")
 	}, kitpackages.NewFactory(factory))
 	_, listErr := s.CorePackages(ctx)
@@ -146,6 +147,83 @@ func TestKitHostWithoutDurableStorageReportsItUnavailable(t *testing.T) {
 		if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeCorePackageStoreUnavailable || apiErr.Message != coreStoreUnavailableMessage {
 			t.Fatalf("%s error = %v, want %s", name, err, protocol.CodeCorePackageStoreUnavailable)
 		}
+	}
+}
+
+func TestKitHostServiceCloseCancelsPackageStoreOpen(t *testing.T) {
+	s, _, factory, _ := kitHostService(t)
+	started, finished := make(chan struct{}), make(chan struct{})
+	s.corePackages = kitpackages.NewView(func(ctx context.Context) (*kitpackages.Store, error) {
+		close(started)
+		<-ctx.Done()
+		close(finished)
+		return nil, ctx.Err()
+	}, kitpackages.NewFactory(factory))
+	<-started
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("service close did not cancel the package-store open")
+	}
+}
+
+func TestKitHostStoreFailureAfterOpenReportsItUnavailable(t *testing.T) {
+	ctx := context.Background()
+	s, _, factory, _ := kitHostService(t)
+	id := unpackFactoryPackage(t, factory, libraryPackageFixture(t, "1.0.0"))
+	// The view has already opened and served a durable list. Losing its lock
+	// afterwards must withhold factory packages and report the same 503 code
+	// as an agent store failure, not the host's generic INTERNAL error.
+	if err := os.Remove(filepath.Join(filepath.Dir(factory), "core-library", ".lock")); err != nil {
+		t.Fatal(err)
+	}
+	archive := libraryPackageFixture(t, "2.0.0")
+	_, listErr := s.CorePackages(ctx)
+	_, inspectErr := s.CorePackage(ctx, id)
+	_, _, readErr := s.readInstalledCore(ctx, id)
+	_, _, importErr := s.ImportCorePackage(ctx, int64(len(archive)), bytes.NewReader(archive))
+	for name, err := range map[string]error{"list": listErr, "inspect": inspectErr, "read": readErr, "import": importErr} {
+		var apiErr *protocol.APIError
+		if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeCorePackageStoreUnavailable || apiErr.Message != coreStoreUnavailableMessage {
+			t.Fatalf("%s error = %v, want %s", name, err, protocol.CodeCorePackageStoreUnavailable)
+		}
+	}
+}
+
+func TestKitHostPackageViewsPreserveContextErrors(t *testing.T) {
+	s, _, factory, _ := kitHostService(t)
+	id := unpackFactoryPackage(t, factory, libraryPackageFixture(t, "1.0.0"))
+
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	deadline, cancelDeadline := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancelDeadline()
+
+	for _, tc := range []struct {
+		name string
+		ctx  context.Context
+		want error
+	}{
+		{name: "canceled", ctx: canceled, want: context.Canceled},
+		{name: "deadline", ctx: deadline, want: context.DeadlineExceeded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, listErr := s.CorePackages(tc.ctx)
+			_, inspectErr := s.CorePackage(tc.ctx, id)
+			_, _, readErr := s.readInstalledCore(tc.ctx, id)
+			for name, err := range map[string]error{"list": listErr, "inspect": inspectErr, "read": readErr} {
+				if !errors.Is(err, tc.want) {
+					t.Errorf("%s error = %v, want context cause %v", name, err, tc.want)
+				}
+				var apiErr *protocol.APIError
+				if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeCorePackageStoreUnavailable {
+					t.Errorf("%s error = %v, want store-unavailable API error", name, err)
+				}
+			}
+		})
 	}
 }
 

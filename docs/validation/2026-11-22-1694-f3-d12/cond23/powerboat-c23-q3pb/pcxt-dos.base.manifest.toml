@@ -1,0 +1,59 @@
+format = 2
+
+[core]
+id = "fes.pcxt-dos"
+name = "FES PC/XT FreeDOS"
+description = "XT-compatible BIOS and writable 360 KiB floppy loaded at runtime into SDRAM. A bootable disk image is optional; with an empty drive the BIOS still starts and displays its boot state."
+version = "0.1.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = 2915444
+sha256 = "104bc9b2a3981311fa07bb9e06e8e38a9c1ae73331b6256546c71a530f86940e"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 1
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.pcxt-floppy"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.pcxt-floppy-write"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[build]
+id = "16a916c1eba005fa38bd3cd80b917035"
+repository = "https://github.com/DeanoC/fes"
+revision = "856ef5c64b242f99c9094ee71cb7ffe58a9e5c7a"
+recipe_sha256 = "c29b6ceb6dc1ba6bef869bcd2bc36146d54f359690ad9b52e16e55f9979cb569"
+toolchain = "quartus Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition sha256:71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93; yosys Yosys 0.69+ (git sha1 3a5accbd7, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD] sha256:a17b4c8aeac5373dba86faa67124456834c585924503457387631408f84549f8"

@@ -67,6 +67,18 @@ func newStore(t *testing.T) *Store {
 	return s
 }
 
+type cancelWhenPathExistsContext struct {
+	context.Context
+	path string
+}
+
+func (ctx cancelWhenPathExistsContext) Err() error {
+	if _, err := os.Lstat(ctx.path); err == nil {
+		return context.Canceled
+	}
+	return ctx.Context.Err()
+}
+
 func install(t *testing.T, s *Store, archive []byte) corepackage.Inspection {
 	t.Helper()
 	inspection, _, err := s.Install(context.Background(), int64(len(archive)), bytes.NewReader(archive))
@@ -451,6 +463,45 @@ func TestStoreRejectsTamperedOrMissingRetainedData(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestOpenStoreContextCancelsBeforeCreationAndWhileWaitingForLock(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	path := filepath.Join(t.TempDir(), "absent")
+	if _, err := openStoreContext(ctx, path, false); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled open = %v", err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("cancelled open created a root: %v", err)
+	}
+	store := newStore(t)
+	_, unlock, err := store.lock(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+	waitCtx, stop := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer stop()
+	if _, err := openStoreContext(waitCtx, store.root, true); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("open waiting for lock = %v", err)
+	}
+}
+
+func TestRealDirectoriesContextStopsAfterCancellation(t *testing.T) {
+	parent := t.TempDir()
+	created := filepath.Join(parent, "created")
+	child := filepath.Join(created, "child")
+	ctx := cancelWhenPathExistsContext{Context: context.Background(), path: created}
+	if err := realDirectoriesContext(ctx, child, true); !errors.Is(err, context.Canceled) {
+		t.Fatalf("directory creation = %v", err)
+	}
+	if _, err := os.Stat(created); err != nil {
+		t.Fatalf("first directory was not created: %v", err)
+	}
+	if _, err := os.Lstat(child); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("continued creating directories after cancellation: %v", err)
 	}
 }
 

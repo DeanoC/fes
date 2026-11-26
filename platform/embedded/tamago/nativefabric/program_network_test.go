@@ -234,11 +234,21 @@ func TestProgramNetworkServiceReturnsRestartError(t *testing.T) {
 	n, _ := attachProgramNetwork(t, f.s, f.loader)
 	request, _, _ := addProgram(t, f.loader, f.files, 0)
 	n.startErr = errors.New("restart completion lost")
+	var final ProgramServiceState
+	var finalErr error
+	f.s.state.launchTrace = func(view ProgramServiceStatus, stage string, err error) {
+		if stage == "complete" {
+			final, finalErr = view.State, err
+		}
+	}
 	if _, err := f.s.Launch(context.Background(), 0, request); !errors.Is(err, n.startErr) || !errors.Is(err, ErrProgramRetired) {
 		t.Fatal("direct service omitted deferred restart error", err)
 	}
 	if f.s.Status().State != ProgramRebootRequired {
 		t.Fatal("direct caller saw healthy state")
+	}
+	if final != ProgramRebootRequired || !errors.Is(finalErr, n.startErr) {
+		t.Fatalf("completion trace missed the restart failure: %s, %v", final, finalErr)
 	}
 }
 

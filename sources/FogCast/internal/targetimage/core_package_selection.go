@@ -35,6 +35,10 @@ func packageCoreName(coreID string) (string, error) {
 		return "sg1000", nil
 	case "fes.c64":
 		return "c64", nil
+	case "fes.c64-early-ntsc":
+		return "c64-early-ntsc", nil
+	case "fes.c64-pal-n":
+		return "c64-pal-n", nil
 	case "fes.c64-ntsc":
 		return "c64-ntsc", nil
 	case "fes.c64c":

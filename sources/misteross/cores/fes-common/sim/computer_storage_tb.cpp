@@ -10,7 +10,10 @@
 // before the exchange they precede. CMOS 00h-0Dh are its clock's registers:
 // a scripted write sets them, a committed restore loads them from the
 // endpoint's words, and Freeze reads them through the clock pair. It then
-// checks the scenario's final state.
+// checks the scenario's final state. For a scenario with the PC floppy it also
+// plays drives A: and B:: each CRC pass over its drive's synthetic window ends
+// after the runtime has polled that unit verifying, and a scripted floppy
+// write lands as the controller's written pulse.
 #include "Vcomputer_storage_top.h"
 #include "verilated.h"
 
@@ -43,7 +46,7 @@ struct Exchange {
 struct Event {
     unsigned before;
     std::string kind;
-    unsigned sector = 0, byte = 0, value = 0;
+    unsigned sector = 0, byte = 0, value = 0, unit = 0;
 };
 
 uint32_t crc32(const std::vector<uint8_t>& bytes, size_t length) {
@@ -206,6 +209,7 @@ int main(int argc, char** argv) {
         require(std::regex_search(e, kind, std::regex("\"kind\":\\s*\"([a-z-]+)\"")), "event without kind");
         Event event{field(e, "before"), kind[1]};
         if (event.kind == "cmos-write") { event.byte = field(e, "byte"); event.value = field(e, "value"); }
+        else if (event.kind == "floppy-write") event.unit = field(e, "unit");
         else event.sector = field(e, "sector");
         events.push_back(event);
     }
@@ -215,6 +219,19 @@ int main(int argc, char** argv) {
     const unsigned window_bytes = field(body.substr(body.find("\"window\"")), "bytes");
     std::vector<uint8_t> window(window_bytes);
     for (size_t offset = 0; offset < window.size(); ++offset) window[offset] = uint8_t((offset * 7 + (offset >> 11)) & 255);
+    // The floppy drives' windows, when the scenario has them.
+    std::vector<uint8_t> floppy_window[2];
+    const size_t floppy_at = body.find("\"floppy_windows\"");
+    if (floppy_at != std::string::npos) {
+        for (unsigned d = 0; d < 2; ++d) {
+            const std::string key = "\"" + std::to_string(d + 1) + "\"";
+            const size_t at = body.find(key, floppy_at);
+            require(at != std::string::npos, "no window for floppy unit " + std::to_string(d + 1));
+            floppy_window[d].resize(field(body.substr(at), "bytes"));
+            for (size_t offset = 0; offset < floppy_window[d].size(); ++offset)
+                floppy_window[d][offset] = uint8_t((offset * 7 + (offset >> 11)) & 255);
+        }
+    }
 
     std::smatch match;
     require(std::regex_search(body, match, std::regex("\"build_id\":\\s*\"([0-9a-f]{32})\"")), "no build id");
@@ -229,8 +246,12 @@ int main(int argc, char** argv) {
     dut.disk_written = 0; dut.disk_clearing = 0; dut.disk_dirty_word = 0;
     dut.cmos_write = 0; dut.cmos_byte_index = 0; dut.cmos_byte = 0; dut.cmos_load = 0; dut.cmos_load_pair = 0;
     dut.cmos_clock_pair = 0;
+    dut.fd_verify_done = 0; dut.fd_verify_match = 0; dut.fd_busy = 0; dut.fd_fenced = 0; dut.fd_written = 0;
     dut.eval();
     uint8_t clock_registers[14] = {};
+    // The floppy drives' side: a CRC pass due per drive, a written pulse due.
+    bool floppy_verify_due[2] = {false, false};
+    unsigned floppy_verifying_reads[2] = {0, 0}, floppy_written = 0;
 
     // The machine's side of the disk.
     std::vector<uint16_t> dirty(128, 0);
@@ -254,6 +275,21 @@ int main(int argc, char** argv) {
         dut.disk_verify_match = verify_due && dut.disk_sectors * 512ull <= window.size() &&
                                 crc32(window, dut.disk_sectors * 512ull) == dut.disk_crc;
         verify_due = false;
+        dut.fd_written = floppy_written;
+        floppy_written = 0;
+        dut.fd_fenced = dut.fd_frozen;
+        dut.fd_verify_done = 0;
+        dut.fd_verify_match = 0;
+        for (unsigned d = 0; d < 2; ++d) {
+            if (!floppy_verify_due[d]) continue;
+            const uint64_t sectors = (dut.fd_sectors >> (13 * d)) & 0x1fff;
+            const uint32_t want = uint32_t(dut.fd_crc >> (32 * d));
+            dut.fd_verify_done = 1u << d;
+            dut.fd_verify_match = sectors * 512 <= floppy_window[d].size() &&
+                                  crc32(floppy_window[d], sectors * 512) == want;
+            floppy_verify_due[d] = false;
+            break;  // one pass at a time, as pc386_floppy_verify runs them
+        }
         dut.clk = 1;
         dut.eval();
         dut.clk = 0;
@@ -284,6 +320,9 @@ int main(int argc, char** argv) {
             } else if (e.kind == "sector-write-begin") {
                 pending = true;
                 pending_sector = e.sector;
+            } else if (e.kind == "floppy-write") {
+                require(e.unit == 1 || e.unit == 2, "floppy write to unit " + std::to_string(e.unit));
+                floppy_written = 1u << (e.unit - 1);
             } else fail("unknown machine event " + e.kind);
             for (int i = 0; i < 4; ++i) tick();
         }
@@ -323,6 +362,15 @@ int main(int argc, char** argv) {
             verify_due = true;
             tick();
         }
+        // A floppy's pass likewise, polled on its own unit's state field.
+        for (unsigned d = 0; d < 2; ++d) {
+            if (x.opcode == OP_DISK_INFO && x.index == 8 * (d + 1) + STATE_FIELD && !x.error && x.data == VERIFYING &&
+                ++floppy_verifying_reads[d] == verify_reads) {
+                floppy_verifying_reads[d] = 0;
+                floppy_verify_due[d] = true;
+                tick();
+            }
+        }
     }
     require(next_event == events.size(), "machine events past the last exchange");
 
@@ -358,6 +406,20 @@ int main(int argc, char** argv) {
         require(clock.size() == 7 && dut.wall_year == clock[0] && dut.wall_month == clock[1] &&
                 dut.wall_day == clock[2] && dut.wall_hour == clock[3] && dut.wall_minute == clock[4] &&
                 dut.wall_second == clock[5] && dut.wall_weekday == clock[6], "wall clock");
+    // The drives: present when ready, and their write-protect.
+    if (floppy_at != std::string::npos) {
+        for (unsigned d = 0; d < 2; ++d) {
+            const std::string key = "\"" + std::to_string(d + 1) + "\"";
+            const size_t at = final_state.find(key, final_state.find("\"floppies\""));
+            require(at != std::string::npos, "no final state for floppy unit " + std::to_string(d + 1));
+            const std::string drive = final_state.substr(at, final_state.find('}', at) - at);
+            const bool ready = field(drive, "state") == 3;
+            const bool protect = drive.find("\"write_protect\": true") != std::string::npos;
+            require(bool((dut.fd_present >> d) & 1) == ready, "floppy " + std::to_string(d + 1) + " presence");
+            require(bool((dut.fd_write_protect >> d) & 1) == protect,
+                    "floppy " + std::to_string(d + 1) + " write-protect");
+        }
+    }
     std::cout << "fes.computer 1.1 scenario " << scenario << ": " << exchanges.size() << " exchanges match\n";
     return 0;
 }

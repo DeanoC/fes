@@ -789,8 +789,8 @@ func TestPairingRejectsUnsupportedPeripheralConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Keyboards, mice, combo devices, and other Peripheral subclasses are rejected.
-	for i, cod := range []uint32{0x000540, 0x000580, 0x00050c, 0x0005c0, 0x002548, 0x5a020c} {
+	// Keyboards, combo devices, remotes, and non-HID classes are rejected fail-closed.
+	for i, cod := range []uint32{0x000540, 0x00050c, 0x0005c0, 0x00058c, 0x002548, 0x5a020c} {
 		peer := BDAddr{0x66, 0x55, 0x44, 0x33, 0x22, byte(i + 1)}
 		req := append([]byte{hci.EventConnectionRequest, 10}, peer[:]...)
 		req = append(req, byte(cod), byte(cod>>8), byte(cod>>16), 0x01)
@@ -803,7 +803,7 @@ func TestPairingRejectsUnsupportedPeripheralConnection(t *testing.T) {
 		}
 	}
 
-	// Gamepad CoD 0x002508 is accepted during pairing.
+	// Gamepad CoD 0x002508 and pointing/mouse CoD 0x000580 are accepted during pairing.
 	gamepad, _ := ParseBDAddr("77:66:55:44:33:22")
 	hidReq := append([]byte{hci.EventConnectionRequest, 10}, gamepad[:]...)
 	hidReq = append(hidReq, 0x08, 0x25, 0x00, 0x01)
@@ -814,9 +814,19 @@ func TestPairingRejectsUnsupportedPeripheralConnection(t *testing.T) {
 	if got := bus.lastParams[hci.OpcodeAcceptConnectionRequest]; len(got) < 6 || !bytes.Equal(got[:6], gamepad[:]) {
 		t.Fatalf("expected gamepad CoD to be accepted during pairing, got %x", got)
 	}
+	mouse, _ := ParseBDAddr("77:66:55:44:33:23")
+	mouseReq := append([]byte{hci.EventConnectionRequest, 10}, mouse[:]...)
+	mouseReq = append(mouseReq, 0x80, 0x05, 0x00, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, mouseReq)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bus.lastParams[hci.OpcodeAcceptConnectionRequest]; len(got) < 6 || !bytes.Equal(got[:6], mouse[:]) {
+		t.Fatalf("expected mouse CoD to be accepted during pairing, got %x", got)
+	}
 }
 
-func TestPairingInquiryConnectsOnlyGamepadOrJoystick(t *testing.T) {
+func TestPairingInquiryConnectsOnlyGamepadJoystickOrMouse(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		cod  uint32
@@ -824,9 +834,11 @@ func TestPairingInquiryConnectsOnlyGamepadOrJoystick(t *testing.T) {
 	}{
 		{name: "gamepad", cod: 0x002508, want: true},
 		{name: "joystick", cod: 0x002504, want: true},
+		{name: "mouse", cod: 0x000580, want: true},
+		{name: "mouse minor class", cod: 0x002580, want: true},
 		{name: "keyboard", cod: 0x000540},
-		{name: "mouse", cod: 0x000580},
 		{name: "remote control", cod: 0x00050c},
+		{name: "pointing remote combo", cod: 0x00058c},
 		{name: "keyboard and mouse", cod: 0x0005c0},
 		{name: "gamepad with keyboard flag", cod: 0x002548},
 	} {
@@ -862,6 +874,21 @@ func TestPairingInquiryConnectsOnlyGamepadOrJoystick(t *testing.T) {
 			_, got := bus.lastParams[hci.OpcodeCreateConnection]
 			if got != tc.want {
 				t.Fatalf("CreateConnection present=%t, want %t for CoD %#06x", got, tc.want, tc.cod)
+			}
+			if tc.name == "mouse" {
+				// Complete pairing -> persisted bond records KindMouse cleanly.
+				connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, peer[:]...)
+				connOK = append(connOK, 0x01, 0x00)
+				linkKey := append([]byte{hci.EventLinkKeyNotification, 23}, peer[:]...)
+				linkKey = append(linkKey, make([]byte, 16)...)
+				linkKey = append(linkKey, 0x04)
+				bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK, linkKey)
+				if err := mgr.Service(); err != nil {
+					t.Fatal(err)
+				}
+				if rec, ok := mgr.Bonds().Lookup(peer); !ok || rec.Kind != controllers.KindMouse {
+					t.Fatalf("expected bonded mouse KindMouse, got ok=%t rec=%+v", ok, rec)
+				}
 			}
 		})
 	}

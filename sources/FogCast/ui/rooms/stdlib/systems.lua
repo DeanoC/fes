@@ -12,7 +12,9 @@ local rows = {
   {id="fes.ts1000", label="Timex Sinclair 1000", mark="TS1000", model="TS1000", media="Cassette .p", hint="Type LOAD \"\", then RUN."},
   {id="fes.ts1500", label="Timex Sinclair 1500", mark="TS1500", model="TS1500", media="Cassette .p", hint="Type LOAD \"\", then RUN."},
   c64("fes.c64", "Commodore 64", "C64 PAL", "6581"),
+  c64("fes.c64-early-ntsc", "Commodore 64 (early NTSC)", "C64 early NTSC", "6581"),
   c64("fes.c64-ntsc", "Commodore 64 (NTSC)", "C64 NTSC", "6581"),
+  c64("fes.c64-pal-n", "Drean Commodore 64 (PAL-N)", "C64 PAL-N", "6581"),
   c64("fes.c64c", "Commodore 64C (PAL)", "C64C PAL", "8580"),
   c64("fes.c64c-ntsc", "Commodore 64C (NTSC)", "C64C NTSC", "8580"),
   {id="fes.spectrum", label="ZX Spectrum 48K", mark="48K", model="48K", media="Tape or snapshot", hint="Tape .tzx / .tap / .pzx / .csw; snapshot .z80 / .sna", facts={{"Memory","48K"},{"Sound","Beeper"},{"Joysticks","Pad 1 is Kempston, pad 2 is Sinclair"},{"Saves","Tape saving is not available yet"}}},
@@ -33,7 +35,9 @@ local rows = {
 -- Families organize the workbench. Each variant retains its real core ID;
 -- this table never changes package, media or expansion compatibility.
 local groups = {
+  ["fes.c64-early-ntsc"] = {id="fes.c64", label="Commodore 64"},
   ["fes.c64-ntsc"] = {id="fes.c64", label="Commodore 64"},
+  ["fes.c64-pal-n"] = {id="fes.c64", label="Commodore 64"},
   ["fes.c64c"] = {id="fes.c64", label="Commodore 64"},
   ["fes.c64c-ntsc"] = {id="fes.c64", label="Commodore 64"},
   ["fes.zx81"] = {id="zx81", label="Sinclair ZX81"},

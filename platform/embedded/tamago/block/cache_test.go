@@ -432,9 +432,161 @@ func TestCacheConcurrentAccessRace(t *testing.T) {
 				if i%13 == 0 {
 					c.InvalidateRange(lba, 1)
 				}
+				_ = c.Contains(lba)
 				_ = c.Stats()
 			}
 		}(g)
 	}
 	wg.Wait()
+}
+
+func TestCacheExtendedStatsContainsAndPrefetch(t *testing.T) {
+	dev := newMemDevice(128)
+	c, err := NewCache(dev, CacheConfig{Capacity: 24, MaxPopulateSectors: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Prefetch zero count is a no-op; out-of-bounds or exceeding capacity fails cleanly.
+	if err := c.Prefetch(0, 0); err != nil {
+		t.Fatalf("Prefetch(0,0): %v", err)
+	}
+	if err := c.Prefetch(120, 10); !errors.Is(err, ErrBounds) {
+		t.Fatalf("Prefetch oob err=%v, want ErrBounds", err)
+	}
+	if err := c.Prefetch(0, 25); err == nil {
+		t.Fatal("Prefetch exceeding capacity succeeded")
+	}
+
+	// Pre-populate LBA 5 so Prefetch over [0..19] must issue 2 reads: [0..4] and [6..19] (14 <= 16),
+	// without changing Hits or Misses.
+	one := make([]byte, SectorSize)
+	if err := c.ReadSectors(5, one); err != nil {
+		t.Fatal(err)
+	}
+	if !c.Contains(5) || c.Contains(4) {
+		t.Fatalf("Contains mismatch before Prefetch")
+	}
+	hitsBefore, missesBefore := c.Stats().Hits, c.Stats().Misses
+	readsBefore := dev.reads
+	if err := c.Prefetch(0, 20); err != nil {
+		t.Fatalf("Prefetch(0,20): %v", err)
+	}
+	if dev.reads != readsBefore+2 {
+		t.Fatalf("Prefetch reads=%d, want %d", dev.reads-readsBefore, 2)
+	}
+	if st := c.Stats(); st.Hits != hitsBefore || st.Misses != missesBefore || st.Entries != 20 {
+		t.Fatalf("Prefetch disturbed Hits/Misses or Entries: %+v", st)
+	}
+	for lba := uint64(0); lba < 20; lba++ {
+		if !c.Contains(lba) {
+			t.Fatalf("LBA %d missing after Prefetch", lba)
+		}
+	}
+
+	// Large single-run Prefetch (> maxPrefetchChunk=16) splits into 16 + remaining chunks.
+	dev2 := newMemDevice(64)
+	c2, err := NewCache(dev2, CacheConfig{Capacity: 20, MaxPopulateSectors: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c2.Prefetch(10, 20); err != nil {
+		t.Fatalf("Prefetch(10,20): %v", err)
+	}
+	if dev2.reads != 2 || c2.Stats().ReadOps != 2 || c2.Stats().Entries != 20 {
+		t.Fatalf("chunked Prefetch reads=%d stats=%+v", dev2.reads, c2.Stats())
+	}
+	// Repeated Prefetch must allocate zero bytes using the preallocated scratch buffer.
+	if allocs := testing.AllocsPerRun(10, func() {
+		if err := c2.Prefetch(30, 8); err != nil {
+			t.Fatal(err)
+		}
+	}); allocs != 0 {
+		t.Fatalf("Prefetch allocs=%v, want 0", allocs)
+	}
+	// Faulty Prefetch increments ReadErrors without caching failed sectors.
+	dev2.readErr = errors.New("media fault")
+	if err := c2.Prefetch(0, 2); err == nil {
+		t.Fatal("failed Prefetch succeeded")
+	}
+	if c2.Contains(0) || c2.Stats().ReadErrors != 1 {
+		t.Fatalf("failed Prefetch state: contains0=%t stats=%+v", c2.Contains(0), c2.Stats())
+	}
+	dev2.readErr = nil
+
+	// Resident LRU sector inside the prefetched range must not be evicted by earlier misses.
+	devLRU := newMemDevice(32)
+	cLRU, err := NewCache(devLRU, CacheConfig{Capacity: 4, MaxPopulateSectors: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = cLRU.ReadSectors(3, one)
+	_ = cLRU.ReadSectors(10, one)
+	_ = cLRU.ReadSectors(11, one)
+	_ = cLRU.ReadSectors(12, one) // LBA 3 is now LRU
+	readsBefore = devLRU.reads
+	if err := cLRU.Prefetch(0, 4); err != nil {
+		t.Fatalf("Prefetch(0,4) with LRU LBA 3: %v", err)
+	}
+	if devLRU.reads != readsBefore+1 {
+		t.Fatalf("Prefetch with LRU resident read %d times, want 1 (only [0..2])", devLRU.reads-readsBefore)
+	}
+	for lba := uint64(0); lba < 4; lba++ {
+		if !cLRU.Contains(lba) {
+			t.Fatalf("LBA %d missing after LRU-preserving Prefetch", lba)
+		}
+	}
+
+	// Exercise ReadBypasses, WriteUpdates, WriteBypasses, FlushOps, and Error counters.
+	// Read 6 uncached sectors (> MaxPopulateSectors=4) -> ReadBypasses=6.
+	six := make([]byte, 6*SectorSize)
+	if err := c.ReadSectors(40, six); err != nil {
+		t.Fatal(err)
+	}
+	if st := c.Stats(); st.ReadBypasses != 6 || c.Contains(40) {
+		t.Fatalf("oversize ReadBypasses mismatch: %+v contains40=%t", st, c.Contains(40))
+	}
+
+	// Sequential small writes: overwrite cached LBA 2 (WriteUpdates=1) and new LBA 30 (WriteUpdates still 1).
+	if err := c.WriteSectors(2, bytes.Repeat([]byte{0x11}, SectorSize)); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.WriteSectors(30, bytes.Repeat([]byte{0x22}, SectorSize)); err != nil {
+		t.Fatal(err)
+	}
+	// Streaming write spanning cached LBAs 18..19 + uncached LBAs 20..23 -> +2 WriteUpdates, +4 WriteBypasses.
+	if err := c.WriteSectors(18, bytes.Repeat([]byte{0x33}, 6*SectorSize)); err != nil {
+		t.Fatal(err)
+	}
+	// Streaming write with count > len(index): test on smaller cache with 2 cached sectors and 5-sector write.
+	cSmall, err := NewCache(dev, CacheConfig{Capacity: 8, MaxPopulateSectors: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = cSmall.ReadSectors(0, one)
+	_ = cSmall.ReadSectors(3, one)
+	if err := cSmall.WriteSectors(0, bytes.Repeat([]byte{0x44}, 5*SectorSize)); err != nil {
+		t.Fatal(err)
+	}
+	if st := cSmall.Stats(); st.WriteUpdates != 2 || st.WriteBypasses != 3 {
+		t.Fatalf("map-scan stream write stats mismatch: %+v", st)
+	}
+
+	// WriteErrors, FlushOps, FlushErrors.
+	dev.writeErr = errors.New("write fault")
+	_ = c.WriteSectors(2, one)
+	dev.writeErr = nil
+	_ = c.Flush()
+	dev.flushErr = errors.New("flush fault")
+	_ = c.Flush()
+	dev.flushErr = nil
+	dev.readErr = errors.New("read fault")
+	_ = c.ReadSectors(60, one)
+	dev.readErr = nil
+
+	st := c.Stats()
+	if st.ReadBypasses != 6 || st.WriteUpdates != 3 || st.WriteBypasses != 4 ||
+		st.WriteErrors != 1 || st.FlushOps != 2 || st.FlushErrors != 1 || st.ReadErrors != 1 {
+		t.Fatalf("extended stats mismatch: %+v", st)
+	}
 }

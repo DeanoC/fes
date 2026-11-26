@@ -225,6 +225,26 @@ class ResourcesTest(unittest.TestCase):
 
 
 class ManifestTest(unittest.TestCase):
+    # The mailbox enables pc386_system sets, by the interface each one serves.
+    MAILBOX_INTERFACES = {
+        "KEYBOARD": "fes.keyboard.hid", "MOUSE": "fes.mouse.relative", "AUDIO": "fes.audio.pcm-s16-stereo-48k",
+        "SESSION_DISPLAY": "fes.video.session-display", "ATA_DISK": "fes.media.ata-disk",
+        "PERSISTENCE": "fes.persistence.words", "PC386_MACHINE": "fes.pc386.machine",
+        "WALL_CLOCK": "fes.rtc.wall-clock", "PC_FLOPPY": "fes.media.pc-floppy",
+    }
+
+    def test_every_enabled_mailbox_interface_is_declared(self):
+        # A runtime admits a media op only for an interface the manifest
+        # declares, so an enable without its declaration is a drive the kit
+        # refuses ("package declares no floppy drives").
+        source = (ROOT / "cores/fes-pc386/rtl/pc386_system.sv").read_text()
+        block = re.search(r"fes_computer_mailbox_core\s*#\((.*?)\)\s*gp_mailbox", source, re.S).group(1)
+        enabled = re.findall(r"\.ENABLE_(\w+)\(1\)", block)
+        self.assertEqual(sorted(set(enabled) - set(self.MAILBOX_INTERFACES)), [])
+        missing = [self.MAILBOX_INTERFACES[name] for name in enabled
+                   if self.MAILBOX_INTERFACES[name] not in quartus.INTERFACES]
+        self.assertEqual(missing, [])
+
     def test_manifest_is_the_system_labelled_quartus(self):
         record = quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40, IDENTITIES, 1, execution=EXECUTION)
         evidence = {"rbf": {"sha256": "3" * 64, "size": 4096}}

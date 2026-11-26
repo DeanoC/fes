@@ -359,6 +359,12 @@ func TestWriteControllersSheet(t *testing.T) {
 	app.HandleCommand(CmdFilterNext, now)
 	write("layout-playstation", app)
 
+	app.SetPadInfo(11, PadInfo{Name: "USB gamepad", GUID: "0300cb231f08000001e4000010010000", Vendor: 0x081f, Product: 0xe401,
+		Family: gfx.PromptGeneric, Recognised: true, Tested: true, Player: 1})
+	app.AttachInput(InputGamepad, 11)
+	app.HandleCommand(CmdFilterNext, now)
+	write("layout-tested", app)
+
 	app = controllersApp(t)
 	app.SetPadInfo(7, PadInfo{Name: "USB Gamepad", GUID: testPadGUID, Vendor: 0x1234, Product: 0x5678, Player: 1})
 	openLearn(t, app, now)
@@ -584,5 +590,55 @@ func TestControllersLearnStick(t *testing.T) {
 	profile, _ := savedProfile(t, app)
 	if want := "dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,a:b0,b:b1,leftx:a0,lefty:a1~"; profile.Mapping != want {
 		t.Fatalf("saved %q, want %q", profile.Mapping, want)
+	}
+}
+
+func TestControllersTestedBadgeAndSettingsSummary(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 100)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetPadInfo(7, PadInfo{
+		Name: "USB gamepad", GUID: "0300cb231f08000001e4000010010000",
+		Vendor: 0x081f, Product: 0xe401, Family: gfx.PromptGeneric, Recognised: true, Tested: true, Player: 1,
+	})
+	app.AttachInput(InputGamepad, 7)
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	if row := settingsRowByID(t, app, settingsSectionRowPrefix+settingsSectionControllers); row.Value != "USB gamepad  ·  Tested" {
+		t.Fatalf("tested controllers summary = %q, want %q", row.Value, "USB gamepad  ·  Tested")
+	}
+
+	app.mu.Lock()
+	app.focusSettingsRowLocked(settingsSectionRowPrefix + settingsSectionControllers)
+	app.mu.Unlock()
+	app.HandleCommand(CmdSelect, now)
+
+	snap := app.Snapshot()
+	if !snap.Controllers.Open || !snap.Controllers.Tested {
+		t.Fatalf("tested Controllers snapshot = %+v", snap.Controllers)
+	}
+	dev, err := gfx.NewSoftware(1280, 720)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drawFrame(dev, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
+
+	// Switching to an untested pad clears Controllers.Tested, and when it is
+	// the only pad attached the Settings summary omits "Tested".
+	app.SetPadInfo(9, PadInfo{
+		Name: "Xbox 360 Controller", GUID: testPadGUID,
+		Vendor: 0x045e, Product: 0x028e, Family: gfx.PromptXbox, Recognised: true, Player: 2,
+	})
+	app.AttachInput(InputGamepad, 9)
+	app.HandleCommand(CmdFilterNext, now)
+	snap = app.Snapshot()
+	if snap.Controllers.Tested {
+		t.Fatalf("untested pad Controllers.Tested = true: %+v", snap.Controllers)
+	}
+	drawFrame(dev, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
+
+	app.DetachInput(InputGamepad, 7)
+	app.HandleCommand(CmdBack, now)
+	if row := settingsRowByID(t, app, settingsSectionRowPrefix+settingsSectionControllers); row.Value != "Xbox 360 Controller" {
+		t.Fatalf("untested controllers summary = %q, want %q", row.Value, "Xbox 360 Controller")
 	}
 }

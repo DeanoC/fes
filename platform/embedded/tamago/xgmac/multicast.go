@@ -16,7 +16,18 @@ import (
 const (
 	hashTableBase = 0x010
 	filterHMC     = uint32(1 << 2)
+	filterPM      = uint32(1 << 4)
 )
+
+// FilterState reports the effective Synopsys XGMAC packet filter state
+// maintained by the driver. Promiscuous mode is never enabled.
+type FilterState struct {
+	AllMulticast bool
+	HashEnabled  bool
+	HashBits     int
+	HashWords    [8]uint32
+	PacketFilter uint32
+}
 
 var (
 	// ErrMulticastUnsupported is returned when SetMulticastMACs configures one or
@@ -113,13 +124,63 @@ func (d *Device) SetMulticastMACs(addrs []net.HardwareAddr) error {
 		}
 	}
 
-	if err := d.programMulticastLocked(words, hash, filter); err != nil {
+	if err := d.programMulticastLocked(words, hash, d.effectivePacketFilterLocked(filter)); err != nil {
 		return d.fail(err)
 	}
 	d.multicastWords = words
 	d.multicastHash = hash
 	d.multicastFilter = filter
 	return nil
+}
+
+// SetAllMulticast enables or disables Synopsys XGMAC 2.10 MAC_Packet_Filter.PM
+// (pass all multicast frames) with readback verification, preserving programmed
+// multicast hash state and station unicast/broadcast filtering without enabling
+// promiscuous mode. The setting persists across BindControl.Stop/Start cycles.
+func (d *Device) SetAllMulticast(enable bool) error {
+	if d == nil {
+		return network.ErrControl
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.Err(); err != nil {
+		return err
+	}
+	if d.paused {
+		return network.ErrPaused
+	}
+	target := d.multicastFilter
+	if enable {
+		target |= filterPM
+	}
+	if err := d.programPacketFilterLocked(target); err != nil {
+		return d.fail(err)
+	}
+	d.allMulticast = enable
+	return nil
+}
+
+// FilterStatus returns a snapshot of the configured multicast and packet filter state.
+func (d *Device) FilterStatus() FilterState {
+	if d == nil {
+		return FilterState{}
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return FilterState{
+		AllMulticast: d.allMulticast,
+		HashEnabled:  d.multicastFilter&filterHMC != 0,
+		HashBits:     int(d.hashBits.Load()),
+		HashWords:    d.multicastHash,
+		PacketFilter: d.effectivePacketFilterLocked(d.multicastFilter),
+	}
+}
+
+func (d *Device) effectivePacketFilterLocked(hashFilter uint32) uint32 {
+	if d.allMulticast {
+		return hashFilter | filterPM
+	}
+	return hashFilter
 }
 
 func (d *Device) programMulticastLocked(words int, hash [8]uint32, filter uint32) error {
@@ -130,6 +191,10 @@ func (d *Device) programMulticastLocked(words int, hash [8]uint32, filter uint32
 			return fmt.Errorf("xgmac: hash register %#x readback mismatch (%#x != %#x)", reg, got, hash[i])
 		}
 	}
+	return d.programPacketFilterLocked(filter)
+}
+
+func (d *Device) programPacketFilterLocked(filter uint32) error {
 	d.io.Write32(packetFilter, filter)
 	if got := d.io.Read32(packetFilter); got != filter {
 		return fmt.Errorf("xgmac: packet filter readback mismatch (%#x != %#x)", got, filter)

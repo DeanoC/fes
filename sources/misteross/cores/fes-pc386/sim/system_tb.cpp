@@ -11,7 +11,14 @@
 //   4. DiskControl Prepare; the image into the window at 0x08000000;
 //      DiskCommit and Commit with a wrong CRC first, which must leave the unit
 //      loading with the CRC error flag; then the right CRC, polling DiskInfo
-//      until the core's pass ends; Execution release.
+//      until the core's pass ends;
+//   5. on DE10, a launch floppy in B: (fes.media.pc-floppy), still held, as the
+//      runtime inserts it after the disk: DiskControl Prepare on unit 2, a
+//      1.2M image into the window at 0x01C00000, DiskCommit and Commit,
+//      polling unit 2's DiskInfo until its pass ends; Execution release.
+//      The floppy's CRC pass reads port 2 while the machine is held, as the
+//      disk's does; B: is never a boot drive, so the boot is unchanged.
+//      The DE25 instead checks that the mailbox refuses the floppy units.
 //
 // It then follows the boot until the prompt. So that the boot writes the disk,
 // the bench's copy of the FreeDOS fixture runs MD C:\M5 in AUTOEXEC.BAT in
@@ -51,6 +58,7 @@
 //   CLOCK <cycle>                            the wall clock applied
 //   CRC-REJECTED <cycle> flags=<n>           the wrong CRC left the unit loading
 //   DISK <cycle> sectors=<n> verify_cycles=<n>  the unit ready
+//   FLOPPY <cycle> unit=<n> sectors=<n> verify_cycles=<n>  the launch floppy ready
 //   RELEASE <cycle>
 //   POST <code> <cycle>                      each new POST code
 //   COUNTER <name>=<value> <cycle>           each change of an underflow or drop counter
@@ -89,6 +97,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <functional>
@@ -109,7 +118,12 @@ enum : uint8_t {
 };
 enum : uint16_t { PREPARE = 0, COMMIT = 1, FREEZE = 3, SAVED = 5 };
 enum : uint16_t { DATA_FREEZE = 0, DATA_BEGIN = 1, DATA_COMMIT = 2 };
-constexpr uint16_t READY = 3, LOADING = 2, VERIFYING = 4, FLAG_ERROR = 8;
+constexpr uint16_t READY = 3, LOADING = 2, VERIFYING = 4, FLAG_ERROR = 8, INVALID_INDEX = 2;
+#ifdef FES_PC386_DE25
+constexpr bool FITTED_FLOPPIES = false;
+#else
+constexpr bool FITTED_FLOPPIES = true;
+#endif
 constexpr unsigned WORDS = 72;
 // Holds swept across port 2's write bursts after the round trip, one clock
 // apart, until HOLD_CUTS have cut one or HOLD_TRIALS have run. After a
@@ -215,6 +229,13 @@ public:
                 if (cycles > limit) reason = "limit";
             }
             if (reason == "prompt" && do_input_exercise) exercise_input();
+            if (reason == "prompt") {
+                // The picture must still be live at the end: four more 720p
+                // frame times after the exercise, whose rasters the gate counts.
+                final_rasters = static_cast<long long>(rasters);
+                const uint64_t until = cycles + uint64_t(clock_hz * 4.0 / 60.0) + 1;
+                while (cycles < until) clock();
+            }
             for (int row = 0; row < 25; ++row) std::printf("SCREEN %d |%s|\n", row, screen_row(row).c_str());
             print_status();
             if (reason == "prompt") stop();
@@ -226,12 +247,50 @@ public:
             std::printf("MAILBOX %s\n", error.what());
             reason = "mailbox";
         }
+        report_raster();
         std::printf("END %s cycles=%llu seconds=%.3f\n", reason.c_str(), (unsigned long long)cycles,
                     double(cycles) / clock_hz);
         return reason == "prompt" ? (checks_failed == 0 ? "prompt" : "checks-failed") : reason;
     }
 
 private:
+    // The machine's 720p video word, as machine_tb reads it: complete rasters,
+    // and the last one written when FES_PC386_FRAME_OUT names a PPM.
+    std::vector<uint32_t> raster = std::vector<uint32_t>(1280 * 720, 0), last_raster;
+    unsigned raster_x = 0, raster_y = 0;
+    bool raster_started = false, raster_last_de = false, raster_last_vs = false;
+    uint64_t rasters = 0, video_de_edges = 0, video_vs_edges = 0;
+    long long prompt_rasters = -1, final_rasters = -1;
+    void raster_edge(uint32_t word) {
+        bool de = word & (1u << 24), vs = word & (1u << 26);
+        if (vs && !raster_last_vs) {
+            ++video_vs_edges;
+            if (raster_started && raster_y == 720) { last_raster = raster; ++rasters; }
+            raster_started = true;
+            raster_y = 0;
+        }
+        if (de && !raster_last_de) { raster_x = 0; ++video_de_edges; }
+        if (de && raster_started && raster_y < 720 && raster_x < 1280) raster[raster_y * 1280 + raster_x] = word & 0xffffff;
+        if (de) ++raster_x;
+        if (!de && raster_last_de) ++raster_y;
+        raster_last_de = de;
+        raster_last_vs = vs;
+    }
+    void report_raster() {
+        uint64_t lit = 0;
+        for (uint32_t px : last_raster) lit += px != 0;
+        std::printf("FRAME rasters=%llu prompt_rasters=%lld final_rasters=%lld vs_edges=%llu de_edges=%llu nonblack=%llu\n",
+                    (unsigned long long)rasters, prompt_rasters, final_rasters, (unsigned long long)video_vs_edges,
+                    (unsigned long long)video_de_edges, (unsigned long long)lit);
+        const char *out = std::getenv("FES_PC386_FRAME_OUT");
+        if (!out || last_raster.empty()) return;
+        std::ofstream f(out, std::ios::binary);
+        if (!f) throw std::runtime_error(std::string("cannot open the frame output ") + out);
+        f << "P6\n1280 720\n255\n";
+        for (uint32_t px : last_raster) { char rgb[3] = {char(px >> 16), char(px >> 8), char(px)}; f.write(rgb, 3); }
+        f.close();
+        if (!f) throw std::runtime_error(std::string("cannot write the frame output ") + out);
+    }
     Vpc386_system top;
     pc386::Window window;
     Port0Memory port0_memory{window};
@@ -340,6 +399,7 @@ private:
         while (pixel_ps <= now_ps) {
             top.pixel_clk = !top.pixel_clk;
             top.eval();
+            if (top.pixel_clk) raster_edge(top.video);
             pixel_ps += 1e12 / PIXEL_HZ / 2;
         }
         if (top.debug_valid) {
@@ -386,9 +446,10 @@ private:
         std::printf("IDENTITY %s\n", words.c_str());
         // Magic, transport 1.0, fes.computer 1.1, then the capability words:
         // video, keyboard, audio, mouse, HPS DDR and session display; bits
-        // 16-19.
+        // 16-19, plus 22 where floppy drives are fitted.
+        constexpr uint16_t high = FITTED_FLOPPIES ? 0x004f : 0x000f;
         if (w[0] != 0x4546 || w[1] != 0x3153 || w[2] != 1 || w[3] != 0 || w[4] != 4 || w[5] != 1 || w[6] != 1 ||
-            w[7] != 0x310b || w[16] != 0x000f)
+            w[7] != 0x310b || w[16] != high)
             throw MailboxError("identity is not fes.computer 1.1 with the pc386 interfaces");
     }
 
@@ -405,11 +466,11 @@ private:
         return words;
     }
 
-    uint16_t poll_disk(uint64_t *since = nullptr) {
+    uint16_t poll_disk(uint64_t *since = nullptr, uint8_t unit = 0) {
         uint64_t start = cycles;
         for (;;) {
             if (cycles > limit) throw MailboxError("disk verification exceeded --limit-seconds");
-            uint16_t state = exchange(OP_DISK_INFO, 5, 0);
+            uint16_t state = exchange(OP_DISK_INFO, uint8_t(unit * 8 + 5), 0);
             if (state != VERIFYING) {
                 if (since) *since = cycles - start;
                 return state;
@@ -427,8 +488,39 @@ private:
         exchange(OP_DISK_CONTROL, 0, COMMIT);
     }
 
+    // B:'s launch floppy, held (step 5): a 1.2M image, 80 cylinders, 2 heads,
+    // 15 sectors a track. Its bytes are a pattern, so the CRC is not a blank's.
+    void insert_floppy() {
+        constexpr uint8_t UNIT = 2;
+        constexpr uint32_t BYTES = 1228800u, AT = 0x01800000u + 0x00400000u;   // A: + one drive's stride
+        std::vector<uint8_t> floppy(BYTES);
+        for (uint32_t n = 0; n < BYTES; ++n) floppy[n] = uint8_t(n * 7 + (n >> 9));
+        exchange(OP_DISK_CONTROL, UNIT, PREPARE);
+        for (uint32_t at = 0; at < BYTES; at += 1u << 20)
+            std::memcpy(window.at(AT + at), floppy.data() + at, std::min<uint32_t>(1u << 20, BYTES - at));
+        const uint32_t crc = crc32(floppy.data(), floppy.size());
+        const uint16_t words[8] = {uint16_t(BYTES / 512), 0, 80, 2, 15, uint16_t(crc), uint16_t(crc >> 16), 0};
+        for (uint8_t n = 0; n < 8; ++n) exchange(OP_DISK_COMMIT, uint8_t(UNIT * 8 + n), words[n]);
+        exchange(OP_DISK_CONTROL, UNIT, COMMIT);
+        uint64_t took = 0;
+        if (poll_disk(&took, UNIT) != READY) throw MailboxError("the core did not match the launch floppy's CRC");
+        std::printf("FLOPPY %llu unit=%u sectors=%u verify_cycles=%llu\n", (unsigned long long)cycles, unsigned(UNIT),
+                    BYTES / 512, (unsigned long long)took);
+    }
+
     void launch() {
         identify();
+        if (!FITTED_FLOPPIES) {
+            for (const uint8_t unit : {1, 2}) {
+                uint16_t control_error = 0, commit_error = 0;
+                exchange(OP_DISK_CONTROL, unit, PREPARE, &control_error);
+                exchange(OP_DISK_COMMIT, uint8_t(unit * 8), 1, &commit_error);
+                if (control_error != INVALID_INDEX || commit_error != INVALID_INDEX ||
+                    exchange(OP_DISK_INFO, uint8_t(unit * 8), 0) != 0)
+                    throw MailboxError("an unfitted floppy has a live storage endpoint");
+            }
+            std::printf("CHECK PASS only ATA unit zero exposes storage\n");
+        }
         std::vector<uint16_t> record(WORDS, 0);
         std::copy(settings, settings + 8, record.begin());
         record[8 + MARKER_BYTE / 2] = uint16_t(MARKER << (8 * (MARKER_BYTE & 1)));
@@ -453,6 +545,7 @@ private:
         if (poll_disk(&took) != READY) throw MailboxError("the core did not match the image's CRC");
         std::printf("DISK %llu sectors=%zu verify_cycles=%llu\n", (unsigned long long)cycles, image.size() / 512,
                     (unsigned long long)took);
+        if (FITTED_FLOPPIES) insert_floppy();
         exchange(OP_EXECUTION, 0, 1);
         progress_at = cycles;
         std::printf("RELEASE %llu\n", (unsigned long long)cycles);
@@ -829,7 +922,7 @@ private:
         if (!booted && cycles - last_screen >= clock_hz / 20) {
             last_screen = cycles;
             bool shown = last_row() == prompt;
-            if (shown && prompt_seen) reason = "prompt";
+            if (shown && prompt_seen) { reason = "prompt"; prompt_rasters = static_cast<long long>(rasters); }
             else if (shown) std::printf("PROMPT %llu\n", (unsigned long long)cycles);
             prompt_seen = shown;
         }

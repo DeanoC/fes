@@ -45,6 +45,22 @@ func New(invoke Invoke, response []uint32, address uint64) (*Client, error) {
 	return &Client{invoke: invoke, response: response, address: address}, nil
 }
 
+// Known CONFIG_STATUS state codes aligned with TF-A sdm_input_mailbox.h.
+const (
+	StateIdle          uint32 = 0x00000000
+	StateInProgress    uint32 = 0x10000000
+	StateFailAck       uint32 = 0x08000000
+	StateVABPreAuth    uint32 = 0x20000000
+	StateErrorInvalid  uint32 = 0xf0000001
+	StateErrorCorrupt  uint32 = 0xf0000002
+	StateErrorAuth     uint32 = 0xf0000003
+	StateErrorCoreIO   uint32 = 0xf0000004
+	StateErrorHardware uint32 = 0xf0000005
+	StateErrorFake     uint32 = 0xf0000006
+	StateErrorBootInfo uint32 = 0xf0000007
+	StateErrorQSPI     uint32 = 0xf0000008
+)
+
 // Observation contains SDM observations only. IDCode identifies silicon; it
 // cannot establish which package is running, bridge isolation, or scanout drain.
 type Observation struct {
@@ -57,8 +73,90 @@ type Observation struct {
 	ErrorDetails  uint32
 }
 
+// PinStatus holds decoded pin status bits from Observation.Pins
+// (bit 31: nSTATUS, bit 30: nCONFIG, bits 3:0: MSEL).
+type PinStatus struct {
+	NStatus bool
+	NConfig bool
+	MSEL    uint8
+	Raw     uint32
+}
+
+// SoftStatus holds decoded soft-function status bits from Observation.Soft.
+type SoftStatus struct {
+	ConfDone bool
+	InitDone bool
+	CVPDone  bool
+	SEUError bool
+	Raw      uint32
+}
+
+// IDCodeInfo holds decoded IEEE 1149.1 JTAG IDCODE fields from Observation.IDCode.
+type IDCodeInfo struct {
+	Version      uint8
+	PartNumber   uint16
+	Manufacturer uint16
+	MarkerBit    bool
+	Valid        bool
+	Raw          uint32
+}
+
 func (o Observation) Configured() bool {
-	return o.State == 0 && o.Pins&(1<<31) != 0 && o.Soft&3 == 3 && o.Soft&(1<<3) == 0
+	pins := o.PinStatus()
+	soft := o.SoftStatus()
+	return o.State == StateIdle && pins.NStatus && soft.ConfDone && soft.InitDone && !soft.SEUError
+}
+
+// PinStatus decodes the raw CONFIG_STATUS pin status word.
+func (o Observation) PinStatus() PinStatus {
+	return PinStatus{
+		NStatus: o.Pins&(1<<31) != 0,
+		NConfig: o.Pins&(1<<30) != 0,
+		MSEL:    uint8(o.Pins & 0xf),
+		Raw:     o.Pins,
+	}
+}
+
+// SoftStatus decodes the raw CONFIG_STATUS soft-function status word.
+func (o Observation) SoftStatus() SoftStatus {
+	return SoftStatus{
+		ConfDone: o.Soft&(1<<0) != 0,
+		InitDone: o.Soft&(1<<1) != 0,
+		CVPDone:  o.Soft&(1<<2) != 0,
+		SEUError: o.Soft&(1<<3) != 0,
+		Raw:      o.Soft,
+	}
+}
+
+// IDCodeInfo decodes IEEE 1149.1 JTAG IDCODE fields from Observation.IDCode.
+func (o Observation) IDCodeInfo() IDCodeInfo {
+	marker := o.IDCode&1 != 0
+	return IDCodeInfo{
+		Version:      uint8(o.IDCode >> 28),
+		PartNumber:   uint16((o.IDCode >> 12) & 0xffff),
+		Manufacturer: uint16((o.IDCode >> 1) & 0x7ff),
+		MarkerBit:    marker,
+		Valid:        o.IDCode != 0 && o.IDCode != 0xffffffff && marker,
+		Raw:          o.IDCode,
+	}
+}
+
+// HasError reports whether SDM CONFIG_STATUS indicates an error state, idle
+// with nSTATUS low (per TF-A sdm_input_vendor_mailbox), non-zero ErrorLocation,
+// or soft SEU error. Note that response word 5 (ErrorDetails) is reserved on
+// Agilex 5 and may be non-zero when healthy.
+func (o Observation) HasError() bool {
+	stateErr := o.State != StateIdle && o.State != StateInProgress && o.State != StateVABPreAuth
+	idleNStatusLow := o.State == StateIdle && !o.PinStatus().NStatus
+	return stateErr || idleNStatusLow || o.ErrorLocation != 0 || o.SoftStatus().SEUError
+}
+
+// String formats a concise diagnostic summary of the SDM observation.
+func (o Observation) String() string {
+	return fmt.Sprintf(
+		"idcode=%#08x state=%#x configured=%t error=%t version=%#x pins=%#08x soft=%#08x err=(%#x,%#x)",
+		o.IDCode, o.State, o.Configured(), o.HasError(), o.Version, o.Pins, o.Soft, o.ErrorLocation, o.ErrorDetails,
+	)
 }
 
 // Probe uses generic CONFIG_STATUS, never the mutating FPGA_CONFIG_ISDONE.

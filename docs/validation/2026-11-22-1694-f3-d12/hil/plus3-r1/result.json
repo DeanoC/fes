@@ -1,0 +1,202 @@
+{
+ "kit": "A",
+ "plan": {
+  "package": "/data/fes-f3-d12/c23-p1/a1c07be2ec37fa39ced3eca75397dce5950df5d1e07a04bc262c750f16d78341.fcore",
+  "package_id": "a1c07be2ec37fa39ced3eca75397dce5950df5d1e07a04bc262c750f16d78341",
+  "firmware": "/home/deano/roms/sinclair/spectrum-plus3.rom",
+  "games": {
+   "machine": "fes.spectrum-plus3 F3 D12 plus3-r1"
+  },
+  "disks": {
+   "tape": "/data/fes-f3-d12/hil/media/fes-hil.tap"
+  },
+  "media_role": "cassette",
+  "rom_id": "spectrum-plus3-firmware"
+ },
+ "events": [
+  {
+   "op": "import",
+   "package_id": "a1c07be2ec37fa39ced3eca75397dce5950df5d1e07a04bc262c750f16d78341",
+   "archive_sha256": "90503fb3ce0c738714e629818e4302b854220450cbbb12c8621e92590b66a393",
+   "compatible": true,
+   "compat": "{'package_id': 'a1c07be2ec37fa39ced3eca75397dce5950df5d1e07a04bc262c750f16d78341', 'descriptor': {'rom': {'id': 'spectrum-plus3-firmware', 'role': 'firmware', 'source_size': 65536, 'file': 'rom-map.json', 'size': 5934949, 'sha256': '92f223f0a3c45a8d9665c43ec4788d7064a9b44843268ef57ea46db003e04bde'},",
+   "t": 6.64
+  },
+  {
+   "op": "upload",
+   "file": "spectrum-plus3.rom",
+   "sha256": "ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2",
+   "media_id": "ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2",
+   "t": 7.06
+  },
+  {
+   "op": "entry",
+   "game": "machine",
+   "game_id": "fpga-fes-spectrum-plus3-f3-d12-plus3-r1-e5e813f60838",
+   "rom_id": "spectrum-plus3-firmware",
+   "t": 18.94
+  },
+  {
+   "op": "upload",
+   "file": "fes-hil.tap",
+   "sha256": "2949834a889dbb4bfa73c3ed66b5d16a1046128ad46f8e329ce9a0183ec236a5",
+   "media_id": "2949834a889dbb4bfa73c3ed66b5d16a1046128ad46f8e329ce9a0183ec236a5",
+   "t": 18.96
+  },
+  {
+   "op": "launch",
+   "args": {
+    "game": "machine",
+    "disk": "tape"
+   },
+   "reply": {
+    "state": "active",
+    "package_id": "a1c07be2ec37fa39ced3eca75397dce5950df5d1e07a04bc262c750f16d78341",
+    "generation": 9,
+    "media_units": [
+     {
+      "unit": 0,
+      "interface": {
+       "id": "fes.media.spectrum-tape",
+       "major": 2,
+       "minor": 0
+      },
+      "min_bytes": 10,
+      "max_bytes": 16777216,
+      "chunk_bytes": 512,
+      "state": "ready"
+     },
+     {
+      "unit": 1,
+      "interface": {
+       "id": "fes.media.spectrum-disk",
+       "major": 1,
+       "minor": 0
+      },
+      "min_bytes": 8192,
+      "max_bytes": 2834432,
+      "chunk_bytes": 512,
+      "state": "empty"
+     }
+    ],
+    "build_id": "0c42157e14376a05d936a49b62f14c5f",
+    "seconds": 19.93
+   },
+   "t": 38.95
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 8
+   },
+   "reply": {},
+   "t": 47.26
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "menu"
+   },
+   "reply": {
+    "grab": "menu",
+    "ok": true,
+    "sha256": "3ef93f0069653b0deba34661705ae0fb868ede184ec677238074784baaefa038"
+   },
+   "t": 47.9
+  },
+  {
+   "op": "key",
+   "args": {
+    "name": "enter"
+   },
+   "reply": {},
+   "t": 48.43
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 25
+   },
+   "reply": {},
+   "t": 73.73
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "loaded"
+   },
+   "reply": {
+    "grab": "loaded",
+    "ok": true,
+    "sha256": "39435459076951bac77097db1a705bb64de437cd736a8fe80a9e8b740bc43ccf"
+   },
+   "t": 74.37
+  },
+  {
+   "op": "key",
+   "args": {
+    "name": "space"
+   },
+   "reply": {},
+   "t": 74.92
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 2
+   },
+   "reply": {},
+   "t": 77.22
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "break"
+   },
+   "reply": {
+    "grab": "break",
+    "ok": true,
+    "sha256": "55c79385a743487a0c36d14dde8d2dab2f1dde84b2fb92479e740c819d040ba1"
+   },
+   "t": 77.88
+  },
+  {
+   "op": "type",
+   "args": {
+    "text": "print 22\n"
+   },
+   "reply": {},
+   "t": 80.27
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 2
+   },
+   "reply": {},
+   "t": 82.57
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "typed"
+   },
+   "reply": {
+    "grab": "typed",
+    "ok": true,
+    "sha256": "bec54ee7a8c36089548d1407d37600ab741bebeb5f6b39a56f7bb7db5f7825cc"
+   },
+   "t": 83.15
+  },
+  {
+   "op": "stop",
+   "args": {},
+   "reply": {
+    "code": 200,
+    "state": "idle",
+    "error": null
+   },
+   "t": 86.72
+  }
+ ]
+}

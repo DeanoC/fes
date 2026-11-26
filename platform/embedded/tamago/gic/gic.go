@@ -25,6 +25,10 @@ const (
 	// below DefaultPriorityMask are delivered by the CPU interface.
 	DefaultPriority     uint8 = 0xa0
 	DefaultPriorityMask uint8 = 0xf0
+
+	// DefaultUnhandledStormLimit is the consecutive unhandled-interrupt
+	// threshold after which Dispatch masks a PPI/SPI line.
+	DefaultUnhandledStormLimit uint32 = 16
 )
 
 // GICv3 Distributor register offsets from GICD base (ARM IHI 0069G).
@@ -99,6 +103,16 @@ type Access interface {
 	SendSGI(val uint64)
 }
 
+// Stats reports cumulative GICv3 interrupt dispatch telemetry.
+type Stats struct {
+	Dispatched  uint64
+	Handled     uint64
+	Unhandled   uint64
+	Spurious    uint64
+	StormMasked uint64
+	IdleWakeups uint64
+}
+
 // Controller drives one GICv3 instance for the booting PE.
 type Controller struct {
 	GICD uint64
@@ -112,8 +126,25 @@ type Controller struct {
 	idleHW      IdleAccess
 	idleWakeups atomic.Uint64
 
-	handlers [MaxINTID]func()
+	handlers        [MaxINTID]atomic.Pointer[handlerSlot]
+	counts          [MaxINTID]atomic.Uint64
+	unhandledStreak [MaxINTID]atomic.Uint32
+	dispatched      atomic.Uint64
+	handled         atomic.Uint64
+	unhandled       atomic.Uint64
+	spurious        atomic.Uint64
+	stormMasked     atomic.Uint64
+	stormConfig     atomic.Uint64
 }
+
+type handlerSlot struct {
+	fn func()
+}
+
+const (
+	stormConfigUnset    = uint64(0)
+	stormConfigDisabled = uint64(1)
+)
 
 // NewWithAccess constructs a Controller backed by an explicit Access provider.
 func NewWithAccess(gicd, gicr uint64, hw Access) *Controller {
@@ -195,6 +226,7 @@ func (g *Controller) Init() error {
 	}
 
 	g.hw.InitCPU(DefaultPriorityMask)
+	g.ResetStats()
 	return nil
 }
 
@@ -208,6 +240,9 @@ func (g *Controller) Lines() uint32 { return g.lines }
 func (g *Controller) Enable(id uint32) {
 	if id >= g.lines || g.gicr == 0 {
 		return
+	}
+	if id < MaxINTID {
+		g.unhandledStreak[id].Store(0)
 	}
 	if id < FirstSPI {
 		g.hw.Write32(g.gicr+GICR_ISENABLER0, 1<<id)
@@ -229,20 +264,67 @@ func (g *Controller) Disable(id uint32) {
 	g.hw.Write32(g.GICD+GICD_ICENABLER+uint64(id/32)*4, 1<<(id%32))
 }
 
+func (g *Controller) lineBitReg(gicrOffset, gicdOffset uint64, id uint32) (uint64, uint32) {
+	if id < FirstSPI {
+		return g.gicr + gicrOffset, 1 << id
+	}
+	return g.GICD + gicdOffset + uint64(id/32)*4, 1 << (id % 32)
+}
+
+func (g *Controller) priorityReg(id uint32) (uint64, uint32) {
+	base := g.GICD + GICD_IPRIORITYR
+	if id < FirstSPI {
+		base = g.gicr + GICR_IPRIORITYR0
+	}
+	return base + uint64(id&^3), (id & 3) * 8
+}
+
+func (g *Controller) configReg(id uint32) (uint64, uint32) {
+	if id < FirstSPI {
+		return g.gicr + GICR_ICFGR1, (id-FirstPPI)*2 + 1
+	}
+	return g.GICD + GICD_ICFGR + uint64(id/16)*4, (id%16)*2 + 1
+}
+
+// Enabled reports whether interrupt id is currently enabled in GICR_ISENABLER0
+// or GICD_ISENABLER.
+func (g *Controller) Enabled(id uint32) bool {
+	if g == nil || g.hw == nil || g.gicr == 0 || id >= g.lines {
+		return false
+	}
+	addr, mask := g.lineBitReg(GICR_ISENABLER0, GICD_ISENABLER, id)
+	return g.hw.Read32(addr)&mask != 0
+}
+
+// Pending reports whether interrupt id is currently pending in GICR_ISPENDR0 or
+// GICD_ISPENDR.
+func (g *Controller) Pending(id uint32) bool {
+	if g == nil || g.hw == nil || g.gicr == 0 || id >= g.lines {
+		return false
+	}
+	addr, mask := g.lineBitReg(GICR_ISPENDR0, GICD_ISPENDR, id)
+	return g.hw.Read32(addr)&mask != 0
+}
+
 // SetPriority sets an interrupt's 8-bit priority (lower value = higher priority).
 func (g *Controller) SetPriority(id uint32, prio uint8) {
 	if id >= g.lines || g.gicr == 0 {
 		return
 	}
-	base := g.GICD + GICD_IPRIORITYR
-	if id < FirstSPI {
-		base = g.gicr + GICR_IPRIORITYR0
-	}
-	addr := base + uint64(id&^3)
-	shift := (id & 3) * 8
+	addr, shift := g.priorityReg(id)
 	v := g.hw.Read32(addr)
 	v = (v &^ (0xff << shift)) | (uint32(prio) << shift)
 	g.hw.Write32(addr, v)
+}
+
+// Priority returns the 8-bit priority programmed for interrupt id (0 if out of
+// range or uninitialized).
+func (g *Controller) Priority(id uint32) uint8 {
+	if g == nil || g.hw == nil || g.gicr == 0 || id >= g.lines {
+		return 0
+	}
+	addr, shift := g.priorityReg(id)
+	return uint8(g.hw.Read32(addr) >> shift)
 }
 
 // SetEdge configures a PPI or SPI as edge-triggered (true) or level-sensitive (false).
@@ -250,15 +332,7 @@ func (g *Controller) SetEdge(id uint32, edge bool) {
 	if id < FirstPPI || id >= g.lines || g.gicr == 0 {
 		return
 	}
-	var addr uint64
-	var shift uint32
-	if id < FirstSPI {
-		addr = g.gicr + GICR_ICFGR1
-		shift = (id-FirstPPI)*2 + 1
-	} else {
-		addr = g.GICD + GICD_ICFGR + uint64(id/16)*4
-		shift = (id%16)*2 + 1
-	}
+	addr, shift := g.configReg(id)
 	v := g.hw.Read32(addr)
 	if edge {
 		v |= 1 << shift
@@ -266,6 +340,19 @@ func (g *Controller) SetEdge(id uint32, edge bool) {
 		v &^= 1 << shift
 	}
 	g.hw.Write32(addr, v)
+}
+
+// Edge reports whether interrupt id is configured as edge-triggered (true for
+// SGIs < FirstPPI per GICv3 architecture, or ICFGR bit readback for PPI/SPI).
+func (g *Controller) Edge(id uint32) bool {
+	if g == nil || g.hw == nil || g.gicr == 0 || id >= g.lines {
+		return false
+	}
+	if id < FirstPPI {
+		return true
+	}
+	addr, shift := g.configReg(id)
+	return g.hw.Read32(addr)&(1<<shift) != 0
 }
 
 // SendSGI raises Software Generated Interrupt id (0..15) targeting this CPU.
@@ -321,24 +408,125 @@ func (g *Controller) Register(id uint32, fn func()) {
 	if id >= MaxINTID {
 		return
 	}
-	g.handlers[id] = fn
+	var slot *handlerSlot
+	if fn != nil {
+		g.unhandledStreak[id].Store(0)
+		slot = &handlerSlot{fn: fn}
+	}
+	g.handlers[id].Store(slot)
+}
+
+// HasHandler reports whether a non-nil handler is registered for INTID id.
+func (g *Controller) HasHandler(id uint32) bool {
+	if g == nil || id >= MaxINTID {
+		return false
+	}
+	return g.handlers[id].Load() != nil
+}
+
+// SetUnhandledStormLimit sets how many consecutive unhandled deliveries of an
+// INTID trigger automatic masking in Dispatch (for PPI/SPI lines). Passing 0
+// disables automatic masking. The default when unset is DefaultUnhandledStormLimit.
+func (g *Controller) SetUnhandledStormLimit(limit uint32) {
+	if limit == 0 {
+		g.stormConfig.Store(stormConfigDisabled)
+		return
+	}
+	// Zero means unset/default, one means explicitly disabled, and configured
+	// positive limits are stored as limit+1 so the full uint32 range is usable.
+	g.stormConfig.Store(uint64(limit) + 1)
+}
+
+func (g *Controller) effectiveStormLimit() uint32 {
+	state := g.stormConfig.Load()
+	switch state {
+	case stormConfigUnset:
+		return DefaultUnhandledStormLimit
+	case stormConfigDisabled:
+		return 0
+	}
+	return uint32(state - 1)
+}
+
+// Stats returns a lock-free snapshot of interrupt dispatch telemetry.
+func (g *Controller) Stats() Stats {
+	return Stats{
+		Dispatched:  g.dispatched.Load(),
+		Handled:     g.handled.Load(),
+		Unhandled:   g.unhandled.Load(),
+		Spurious:    g.spurious.Load(),
+		StormMasked: g.stormMasked.Load(),
+		IdleWakeups: g.idleWakeups.Load(),
+	}
+}
+
+// Count returns the number of acknowledged interrupts for INTID id.
+func (g *Controller) Count(id uint32) uint64 {
+	if id >= MaxINTID {
+		return 0
+	}
+	return g.counts[id].Load()
+}
+
+// ResetStats zeroes all dispatch telemetry counters and unhandled streak state.
+func (g *Controller) ResetStats() {
+	g.dispatched.Store(0)
+	g.handled.Store(0)
+	g.unhandled.Store(0)
+	g.spurious.Store(0)
+	g.stormMasked.Store(0)
+	g.idleWakeups.Store(0)
+	for i := range g.counts {
+		g.counts[i].Store(0)
+		g.unhandledStreak[i].Store(0)
+	}
 }
 
 // Dispatch drains all currently pending Group 1 interrupts, invoking each
-// registered handler before writing EOI. Returns the number of interrupts handled.
+// registered handler before writing EOI. Unhandled PPI/SPI lines exceeding the
+// storm limit are masked before EOI to prevent level-triggered lockups. Returns
+// the number of non-spurious interrupts acknowledged.
 func (g *Controller) Dispatch() int {
 	handled := 0
 	for {
 		id := g.Ack()
 		if id >= SpuriousID {
+			if handled == 0 {
+				g.spurious.Add(1)
+			}
 			return handled
 		}
+		g.dispatched.Add(1)
+		var fn func()
 		if id < MaxINTID {
-			if fn := g.handlers[id]; fn != nil {
-				fn()
+			g.counts[id].Add(1)
+			if slot := g.handlers[id].Load(); slot != nil {
+				fn = slot.fn
 			}
 		}
-		g.End(id)
+		if fn != nil {
+			g.unhandledStreak[id].Store(0)
+			fn()
+			g.handled.Add(1)
+			g.End(id)
+		} else {
+			g.unhandled.Add(1)
+			limit := g.effectiveStormLimit()
+			if id < MaxINTID && limit > 0 && g.unhandledStreak[id].Add(1) >= limit {
+				g.unhandledStreak[id].Store(0)
+				if id >= FirstPPI && id < g.lines {
+					g.Disable(id)
+					g.stormMasked.Add(1)
+					g.End(id)
+					handled++
+					continue
+				}
+				g.End(id)
+				handled++
+				return handled
+			}
+			g.End(id)
+		}
 		handled++
 	}
 }

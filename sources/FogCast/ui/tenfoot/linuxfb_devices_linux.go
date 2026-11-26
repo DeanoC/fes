@@ -251,7 +251,7 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 			if in.mapper != nil {
 				in.device = device
 				in.info = PadInfo{Name: strings.TrimSpace(device.Name), GUID: device.GUID(), Vendor: vendor, Product: product,
-					Family: promptFamily(device.Family()), Recognised: device.Recognised(), Bluetooth: device.Bluetooth()}
+					Family: promptFamily(device.Family()), Recognised: device.Recognised(), Bluetooth: device.Bluetooth(), Tested: device.Tested()}
 				in.profileGen = app.PadProfileGeneration()
 			}
 		} else if ins.padID != nil {
@@ -614,6 +614,9 @@ func padMapper(device controller.Device, padProfile padProfileFunc) (*controller
 	name := mapper.Mapping()
 	if name == "" {
 		name = "fallback layout"
+	}
+	if device.Tested() {
+		notes = append(notes, "tested")
 	}
 	for _, note := range notes {
 		name += "; " + note

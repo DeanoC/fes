@@ -47,7 +47,7 @@ SOURCES = {
     'cores/fes-pc386/rtl/pc386_presenter.sv': 'aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3',
     'cores/fes-pc386/rtl/pc386_vga_scanout.sv': '03d194d816290a6f6977cc84dfe5c64be374f1ca4eb3a297b1562495b0186fec',
     'cores/fes-pc386/rtl/pc386_snapshot.sv': '795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4',
-    'cores/fes-pc386/rtl/pc386_machine.sv': 'c1aa79dbefc5c1632601b6097765249c68ed01f0d172ef7d6087e1f71893dabc',
+    'cores/fes-pc386/rtl/pc386_machine.sv': '44fcf64b5bfbc6e86cf76bf20fc578722de91474eea1e4cf84f043e29d775650',
     'cores/fes-pc386/rtl/pc386_io.sv': '4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece',
     'cores/fes-pc386/rtl/pc386_audio.sv': '3e3d1f4f7e872b9c8e99356099ed110f7040928c32c5ba91a981276cc2a4993a',
     'boards/de25nano/pc386/fes_de25_hps_window_control.v':

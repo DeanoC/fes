@@ -5,6 +5,8 @@
 #include <linux/completion.h>
 #include <linux/capability.h>
 #include <linux/cred.h>
+#include <linux/dma-map-ops.h>
+#include <linux/dma-mapping.h>
 #include <linux/fdtable.h>
 #include <linux/notifier.h>
 #include <linux/file.h>
@@ -2718,19 +2720,59 @@ static void window_block_write(void *context, u32 offset, u32 value)
 	*reg = value;
 }
 
-static struct owner_fixture *window_fixture(struct kunit *test, struct window_block **block)
+struct window_storage {
+	struct device *dev;
+	struct page *page;
+	dma_addr_t handle;
+};
+
+static void window_storage_free(void *data)
 {
-	struct owner_fixture *f = owner_fixture_create(test, true);
+	struct window_storage *storage = data;
+
+	dma_free_pages(storage->dev, FES_DE25_HPS_WINDOW_SPAN, storage->page, storage->handle,
+		DMA_BIDIRECTIONAL);
+}
+
+/* The physical range the tree reserves for the owner's pool. The test takes
+ * 256 MiB from the test kernel's CMA for it; only the range is the test's.
+ * The window maps, zeroes and serves it with the production storage code.
+ * Taken before the owner, so it outlives every window the owner retires.
+ */
+static phys_addr_t window_storage(struct kunit *test)
+{
+	struct dma_fixture *dma = test->priv;
+	struct window_storage *storage = kunit_kzalloc(test, sizeof(*storage), GFP_KERNEL);
+
+	if (!storage || dma_set_mask_and_coherent(dma->dev, DMA_BIT_MASK(FES_DE25_HPS_WINDOW_DMA_ADDRESS_BITS)))
+		return 0;
+	storage->dev = dma->dev;
+	storage->page = dma_alloc_pages(dma->dev, FES_DE25_HPS_WINDOW_SPAN, &storage->handle,
+		DMA_BIDIRECTIONAL, GFP_KERNEL);
+	if (!storage->page || kunit_add_action_or_reset(test, window_storage_free, storage))
+		return 0;
+	return page_to_phys(storage->page);
+}
+
+static struct owner_fixture *window_fixture_on(struct kunit *test, struct window_block **block,
+		phys_addr_t storage)
+{
+	struct owner_fixture *f = storage ? owner_fixture_create(test, true) : NULL;
 	struct window_block *b = kunit_kzalloc(test, sizeof(*b), GFP_KERNEL);
 
 	if (!f || !b)
 		return NULL;
 	b->test = test;
 	b->held = b->drained = true;
-	if (fes_de25_owner_test_window(f->owner, window_block_read, window_block_write, b))
+	if (fes_de25_owner_test_window(f->owner, window_block_read, window_block_write, b, storage))
 		return NULL;
 	*block = b;
 	return f;
+}
+
+static struct owner_fixture *window_fixture(struct kunit *test, struct window_block **block)
+{
+	return window_fixture_on(test, block, window_storage(test));
 }
 
 static int window_info_of(struct file *file, struct fes_de25_dma_window_info *info)
@@ -2824,11 +2866,14 @@ close:
 
 static void window_refuses_a_block_it_cannot_grant(struct kunit *test)
 {
+	/* One pool for every variant, as the tree reserves one. */
+	phys_addr_t storage = window_storage(test);
 	unsigned int variant;
 
+	KUNIT_ASSERT_NE(test, storage, 0);
 	for (variant = 0; variant < 6; variant++) {
 		struct window_block *b;
-		struct owner_fixture *f = window_fixture(test, &b);
+		struct owner_fixture *f = window_fixture_on(test, &b, storage);
 		struct file *window;
 
 		KUNIT_ASSERT_NOT_NULL(test, f);
@@ -2954,6 +2999,91 @@ static void window_file_failure_leaves_a_reapable_grant(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
 }
 
+/* The pool is reused: every window starts zeroed, and user maps get the
+ * protection dma_mmap_attrs gave, uncached for this non-coherent device,
+ * which the runtime's barrier-only coherence relies on.
+ */
+static void window_storage_is_zeroed_and_uncached(struct kunit *test)
+{
+	struct dma_fixture *dma = test->priv;
+	struct window_block *b;
+	struct owner_fixture *f = window_fixture(test, &b);
+	struct vm_area_struct *vma;
+	struct mm_struct *mm;
+	struct file *window;
+	unsigned long address;
+	pgprot_t expected;
+	u32 value = 0xa5a5c3c3, copy = ~0U;
+	unsigned int round;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	mm = test_mm(test);
+	KUNIT_ASSERT_NOT_NULL(test, mm);
+	kthread_use_mm(mm);
+	expected = vm_get_page_prot(VM_READ | VM_WRITE | VM_SHARED);
+	if (!dev_is_dma_coherent(dma->dev))
+		expected = pgprot_dmacoherent(expected);
+	for (round = 0; round < 2; round++) {
+		window = fes_de25_owner_test_window_allocate(f->owner);
+		KUNIT_ASSERT_FALSE(test, IS_ERR(window));
+		address = vm_mmap(window, TEST_ADDRESS, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED,
+				FES_DE25_HPS_WINDOW_SPAN - PAGE_SIZE);
+		KUNIT_ASSERT_EQ(test, address, TEST_ADDRESS);
+		mmap_read_lock(mm);
+		vma = find_vma(mm, address);
+		KUNIT_EXPECT_TRUE(test, vma && (vma->vm_flags & (VM_IO | VM_PFNMAP)) == (VM_IO | VM_PFNMAP));
+		KUNIT_EXPECT_EQ(test, vma ? pgprot_val(vma->vm_page_prot) : 0, pgprot_val(expected));
+		mmap_read_unlock(mm);
+		/* The first window's write is gone when the second opens. */
+		KUNIT_EXPECT_EQ(test, copy_from_user(&copy, (void __user *)address, sizeof(copy)), 0UL);
+		KUNIT_EXPECT_EQ(test, copy, 0U);
+		KUNIT_EXPECT_EQ(test, copy_to_user((void __user *)address, &value, sizeof(value)), 0UL);
+		vm_munmap(address, PAGE_SIZE);
+		__fput_sync(window);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_reap(f->owner), 0);
+		KUNIT_EXPECT_FALSE(test, b->granted);
+	}
+	KUNIT_EXPECT_EQ(test, b->grants, 2U);
+	kthread_unuse_mm(mm);
+	mmput(mm);
+}
+
+/* The pool is reserved, never reusable or no-map, exactly one window, and
+ * inside the F2SDRAM firewall's region 0 less the service buffer.
+ */
+static void window_pool_is_reserved_and_inside_the_firewall(struct kunit *test)
+{
+	const phys_addr_t span = FES_DE25_HPS_WINDOW_SPAN, first = 0x82000000, end = 0xc0000000;
+
+	KUNIT_EXPECT_EQ(test, fes_de25_window_pool_check(true, false, false, 0x85800000, span), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_window_pool_check(true, false, false, first, span), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_window_pool_check(true, false, false, end - span, span), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_window_pool_check(false, false, false, first, span), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fes_de25_window_pool_check(true, true, false, first, span), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fes_de25_window_pool_check(true, false, true, first, span), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fes_de25_window_pool_check(true, false, false, first, span + 0x1000000), -ERANGE);
+	KUNIT_EXPECT_EQ(test, fes_de25_window_pool_check(true, false, false, first - PAGE_SIZE, span), -ERANGE);
+	KUNIT_EXPECT_EQ(test, fes_de25_window_pool_check(true, false, false, end - span + PAGE_SIZE, span), -ERANGE);
+	KUNIT_EXPECT_EQ(test, fes_de25_window_pool_check(true, false, false, first + 0x800, span), -ERANGE);
+}
+
+/* No storage, no window: an owner without its pool grants nothing. */
+static void window_refuses_without_storage(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, true);
+	struct window_block *b = kunit_kzalloc(test, sizeof(*b), GFP_KERNEL);
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_NOT_NULL(test, b);
+	b->test = test;
+	b->held = b->drained = true;
+	KUNIT_ASSERT_EQ(test, fes_de25_owner_test_window(f->owner, window_block_read, window_block_write, b, 0), 0);
+	KUNIT_EXPECT_EQ(test, PTR_ERR(fes_de25_owner_test_window_allocate(f->owner)), -EINVAL);
+	KUNIT_EXPECT_EQ(test, b->grants, 0U);
+	KUNIT_EXPECT_FALSE(test, b->granted);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
+}
+
 static void window_needs_its_block(struct kunit *test)
 {
 	struct owner_fixture *f = owner_fixture_create(test, true);
@@ -3058,6 +3188,9 @@ static struct kunit_case fes_de25_dma_cases[] = {
 	KUNIT_CASE(window_needs_its_block),
 	KUNIT_CASE(window_untrusted_observation_blocks_mapping),
 	KUNIT_CASE(window_file_failure_leaves_a_reapable_grant),
+	KUNIT_CASE(window_storage_is_zeroed_and_uncached),
+	KUNIT_CASE(window_pool_is_reserved_and_inside_the_firewall),
+	KUNIT_CASE(window_refuses_without_storage),
 	{ }
 };
 

@@ -2,7 +2,7 @@
 // VIC-II sprite row/pointer DMA and bus ownership; pixel composition is separate.
 `include "c64_timing.vh"
 
-module c64_vic_sprite_fetch #(parameter bit NTSC = 0) (input wire clk,reset,phi1,phi2,
+module c64_vic_sprite_fetch #(parameter integer NTSC = 0) (input wire clk,reset,phi1,phi2,
  input wire [`C64_CYCLE_BITS(NTSC)-1:0] cycle,input wire [8:0] raster,
  input wire [7:0] enabled,expanded,input wire [63:0] ypos,
  input wire expansion_write,input wire [7:0] expansion_value,input wire other_ba_n,

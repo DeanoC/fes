@@ -327,3 +327,64 @@ func TestSupervisorCheckFailureKickFailureAndContextCancel(t *testing.T) {
 		t.Fatalf("after Stop drain: checkDone=%t running=%t", checkDone.Load(), sup4.Running())
 	}
 }
+
+func TestSupervisorStatsTelemetry(t *testing.T) {
+	if st := (*Supervisor)(nil).Stats(); st != (SupervisorStats{}) {
+		t.Fatalf("nil Supervisor Stats=%+v", st)
+	}
+
+	// 1. Check failure tracking via Stats().
+	checkErr := errors.New("health check boom")
+	stub := &stubKicker{startDur: 30 * time.Millisecond}
+	errCh := make(chan error, 1)
+	sup, err := NewSupervisor(stub, SupervisorConfig{
+		Timeout:      30 * time.Millisecond,
+		KickInterval: 2 * time.Millisecond,
+		Check:        func() error { return checkErr },
+		OnError:      func(e error) { errCh <- e },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := sup.Stats(); st.Started || st.Running || st.Stopped || st.Period != 0 || st.Kicks != 0 {
+		t.Fatalf("pre-Start Stats=%+v", st)
+	}
+	if _, err := sup.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-errCh:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for check error")
+	}
+	sup.Stop()
+	st := sup.Stats()
+	if !st.Started || st.Running || !st.Stopped || st.Period != 30*time.Millisecond || st.Interval != 2*time.Millisecond ||
+		st.CheckFailures != 1 || st.KickFailures != 0 || !errors.Is(st.LastErr, checkErr) {
+		t.Fatalf("after Check failure Stats=%+v", st)
+	}
+
+	// 2. KickNow failure tracking increments KickFailures.
+	kickErr := errors.New("manual kick failed")
+	stubFail := &stubKicker{startDur: 24 * time.Millisecond}
+	sup2, err := NewSupervisor(stubFail, SupervisorConfig{
+		Timeout:      24 * time.Millisecond,
+		KickInterval: 6 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sup2.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	sup2.Stop()
+	stubFail.mu.Lock()
+	stubFail.kickErr = kickErr
+	stubFail.mu.Unlock()
+	if err := sup2.KickNow(); !errors.Is(err, kickErr) {
+		t.Fatalf("KickNow err=%v want %v", err, kickErr)
+	}
+	if st2 := sup2.Stats(); st2.KickFailures != 1 || !st2.Stopped {
+		t.Fatalf("after KickNow failure Stats=%+v", st2)
+	}
+}

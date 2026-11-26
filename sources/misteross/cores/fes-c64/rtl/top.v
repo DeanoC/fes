@@ -13,7 +13,7 @@
 // vacant response.
 module top #(
     parameter [127:0] BUILD_ID = `FES_C64_BUILD_ID,
-    parameter bit NTSC = 0,
+    parameter integer NTSC = 0,
     parameter bit SID_8580 = 0
 ) (
     input  wire        FPGA_CLK1_50,

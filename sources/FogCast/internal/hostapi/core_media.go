@@ -30,7 +30,7 @@ type coreMediaCapabilitiesService interface {
 }
 
 func validCoreMediaPair(role, id string) bool {
-	return role == "" && id == "" || (role == "blob" || role == protocol.DiskRole || role == protocol.CassetteRole || role == protocol.HardDiskRole) && corePackageIDRE.MatchString(id)
+	return role == "" && id == "" || (role == "blob" || role == protocol.DiskRole || role == protocol.CassetteRole || role == protocol.HardDiskRole || role == protocol.FloppyRole) && corePackageIDRE.MatchString(id)
 }
 
 type hardDiskMediaService interface {

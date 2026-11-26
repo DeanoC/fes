@@ -1341,3 +1341,451 @@ func TestSessionPairingRemainingAndDisconnectAddr(t *testing.T) {
 		t.Fatalf("expected neutral keyboard report on DisconnectAddr, got %x", gotReports)
 	}
 }
+
+func TestSessionManagedPlayerPortLEDsAndOverflowPromotion(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+
+	dsAddr, _ := l2cap.ParseBDAddr("AA:00:00:00:00:01")
+	swAddr, _ := l2cap.ParseBDAddr("AA:00:00:00:00:02")
+	ds4Addr, _ := l2cap.ParseBDAddr("AA:00:00:00:00:03")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: dsAddr, LinkKey: [16]byte{1}, Name: "DualSense Wireless Controller", Kind: controllers.KindDualSense, Slot: 0})
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: swAddr, LinkKey: [16]byte{2}, Name: "Pro Controller", Kind: controllers.KindSwitchPro, Slot: 1})
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: ds4Addr, LinkKey: [16]byte{3}, Name: "Wireless Controller", Kind: controllers.KindDualShock4, Slot: 2})
+
+	now := time.Unix(900, 0)
+	sess, err := NewSession(tr, bonds, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sess.SetPlayerPort(0, 0, true); err == nil {
+		t.Fatal("expected SetPlayerPort on disconnected slot to fail")
+	}
+
+	sess.OnSlotChanged = func(slot uint8, connected bool, kind controllers.Kind, _ string) {
+		if !connected {
+			return
+		}
+		switch slot {
+		case 0, 1:
+			// Overflow / unassigned: do not light P1 LED during init.
+			if err := sess.SetPlayerPort(slot, 0, false); err != nil {
+				t.Fatalf("SetPlayerPort unassigned slot %d: %v", slot, err)
+			}
+		case 2:
+			// Slot 2 assigned unified Player 2 (port 1 -> red RGB {0x80, 0x10, 0x10}).
+			if err := sess.SetPlayerPort(slot, 1, true); err != nil {
+				t.Fatalf("SetPlayerPort slot 2 -> P2: %v", err)
+			}
+		}
+	}
+
+	openConn := func(addr l2cap.BDAddr, handle, ctrlCID, intrCID uint16) {
+		conn := append([]byte{hci.EventConnectionComplete, 11, 0, byte(handle), byte(handle >> 8)}, addr[:]...)
+		conn = append(conn, 0x01, 0x01)
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, conn)
+		openIncomingHIDChannels(bus, handle, ctrlCID, intrCID)
+	}
+	pump := func(n int) {
+		for range n {
+			bus.evPipe.inQueue = append(bus.evPipe.inQueue,
+				[]byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x08, 0x00},
+				[]byte{hci.EventNumCompletedPackets, 5, 1, 0x42, 0x00, 0x08, 0x00},
+				[]byte{hci.EventNumCompletedPackets, 5, 1, 0x43, 0x00, 0x08, 0x00},
+			)
+			if err := sess.Service(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	openConn(dsAddr, 0x0041, 0x0050, 0x0051)
+	openConn(swAddr, 0x0042, 0x0060, 0x0061)
+	openConn(ds4Addr, 0x0043, 0x0070, 0x0071)
+	pump(6)
+	// Complete Switch Pro SPI cal + Full Mode.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0042, 0x0041, makeSwitchProSPICalReply(0x90)))
+	pump(1)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0042, 0x0041, makeSwitchProSubcmdReply(0x80, controllers.SwitchProSubcmdSetMode, nil)))
+	pump(1)
+
+	var sawDSUnlock, sawDSBogusLED, sawSWBogusLED, sawDS4P2 bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) < 10 {
+			continue
+		}
+		h := binary.LittleEndian.Uint16(pkt[0:2]) & 0x0fff
+		cid := binary.LittleEndian.Uint16(pkt[6:8])
+		hid := pkt[8:]
+		if h == 0x0041 && cid == 0x0050 && hid[0] == hidpGetReportFeature && hid[1] == 0x05 {
+			sawDSUnlock = true
+		}
+		if h == 0x0041 && cid == 0x0051 && hid[0] == hidpDataOutput {
+			sawDSBogusLED = true
+		}
+		if h == 0x0042 && cid == 0x0061 && len(hid) == 50 && hid[11] == controllers.SwitchProSubcmdSetPlayerLD {
+			sawSWBogusLED = true
+		}
+		if h == 0x0043 && cid == 0x0071 && len(hid) == 79 && hid[1] == controllers.DualShock4BTReportFull &&
+			hid[4] == 0x03 && hid[9] == 0x80 && hid[10] == 0x10 && hid[11] == 0x10 {
+			sawDS4P2 = true
+		}
+	}
+	if !sawDSUnlock || sawDSBogusLED || sawSWBogusLED || !sawDS4P2 {
+		t.Fatalf("unexpected pre-init LED behavior: dsUnlock=%t dsBogus=%t swBogus=%t ds4P2=%t",
+			sawDSUnlock, sawDSBogusLED, sawSWBogusLED, sawDS4P2)
+	}
+	if sess.slots[0].initStep != initStepDone || sess.slots[1].initStep != initStepDone || sess.slots[2].initStep != initStepDone {
+		t.Fatalf("expected all 3 slots at initStepDone, got %d,%d,%d",
+			sess.slots[0].initStep, sess.slots[1].initStep, sess.slots[2].initStep)
+	}
+
+	// Unassigned DualSense SetRumble emits valid_flag1=0x00; assigned DS4 SetRumble preserves P2 red RGB.
+	bus.aclOutPipe.outLog = nil
+	if err := sess.SetRumble(0, 0x33, 0x11); err != nil {
+		t.Fatalf("SetRumble unassigned DualSense: %v", err)
+	}
+	if err := sess.SetRumble(2, 0x44, 0x22); err != nil {
+		t.Fatalf("SetRumble assigned DS4: %v", err)
+	}
+	var sawDSRumbleOnly, sawDS4P2Rumble bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) != 8+79 {
+			continue
+		}
+		h := binary.LittleEndian.Uint16(pkt[0:2]) & 0x0fff
+		hid := pkt[8:]
+		if h == 0x0041 && hid[1] == controllers.DualSenseBTReportFull && hid[5] == 0x00 && hid[6] == 0x33 && hid[7] == 0x11 && hid[47] == 0x00 {
+			sawDSRumbleOnly = true
+		}
+		if h == 0x0043 && hid[1] == controllers.DualShock4BTReportFull && hid[4] == 0x03 && hid[7] == 0x44 && hid[8] == 0x22 && hid[9] == 0x80 {
+			sawDS4P2Rumble = true
+		}
+	}
+	if !sawDSRumbleOnly || !sawDS4P2Rumble {
+		t.Fatalf("unexpected SetRumble behavior: dsRumbleOnly=%t ds4P2Rumble=%t", sawDSRumbleOnly, sawDS4P2Rumble)
+	}
+
+	// Promote DualSense slot 0 post-init to P3 (0x15, green RGB), preserving active rumble (0x33, 0x11).
+	bus.aclOutPipe.outLog = nil
+	if err := sess.SetPlayerPort(0, 2, true); err != nil {
+		t.Fatalf("promote DualSense to P3: %v", err)
+	}
+	if len(bus.aclOutPipe.outLog) != 1 || bus.aclOutPipe.outLog[0][8+6] != 0x33 || bus.aclOutPipe.outLog[0][8+7] != 0x11 ||
+		bus.aclOutPipe.outLog[0][8+47] != 0x15 || bus.aclOutPipe.outLog[0][8+48] != 0x10 || bus.aclOutPipe.outLog[0][8+49] != 0x70 {
+		t.Fatalf("expected immediate P3 DualSense LED packet preserving rumble after promotion, got %x", bus.aclOutPipe.outLog)
+	}
+
+	// Promote Switch Pro slot 1 post-init to P4 (0x08) while ACL TX queue is full -> retries on Service + timeout until ACK.
+	bus.aclOutPipe.writeStalled = true
+	queueFull := false
+	for range 32 {
+		if err := tr.SendACL(0x0042, hci.ACLBoundaryFirstAutoFlush, []byte{0xde, 0xad}); err != nil {
+			queueFull = true
+			break
+		}
+	}
+	if !queueFull {
+		t.Fatal("failed to saturate ACL TX queue")
+	}
+	bus.aclOutPipe.outLog = nil
+	if err := sess.SetPlayerPort(1, 3, true); err != nil {
+		t.Fatalf("promote Switch Pro to P4: %v", err)
+	}
+	if !sess.slots[1].ledDirty || len(bus.aclOutPipe.outLog) != 0 {
+		t.Fatalf("expected ledDirty retained when ACL TX queue full, dirty=%t out=%x", sess.slots[1].ledDirty, bus.aclOutPipe.outLog)
+	}
+	bus.aclOutPipe.writeStalled = false
+	for range 20 {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x42, 0x00, 0x08, 0x00})
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	swLEDPkts := 0
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) == 8+50 && pkt[8+11] == controllers.SwitchProSubcmdSetPlayerLD && pkt[8+12] == 0x08 {
+			swLEDPkts++
+		}
+	}
+	if swLEDPkts != 1 {
+		t.Fatalf("expected 1 Switch Pro P4 LED retry on Service after queue drain, got %d in %x", swLEDPkts, bus.aclOutPipe.outLog)
+	}
+	// Advance past retry interval without ACK -> resends, then ACK clears ledDirty.
+	now = now.Add(switchProSubcmdRetryInterval)
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	swLEDPkts = 0
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) == 8+50 && pkt[8+11] == controllers.SwitchProSubcmdSetPlayerLD && pkt[8+12] == 0x08 {
+			swLEDPkts++
+		}
+	}
+	if swLEDPkts != 2 {
+		t.Fatalf("expected Switch Pro P4 LED timeout resend (2 total), got %d", swLEDPkts)
+	}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0042, 0x0041, makeSwitchProSubcmdReply(0x80, controllers.SwitchProSubcmdSetPlayerLD, nil)))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if sess.slots[1].ledDirty {
+		t.Fatal("expected Switch Pro ledDirty cleared after 0x21 ACK")
+	}
+}
+
+func TestClassicBTHIDBootMouseComboAndDisconnectNeutralize(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+
+	mouseAddr, _ := l2cap.ParseBDAddr("CC:33:44:55:66:77")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: mouseAddr, LinkKey: [16]byte{4}, Name: "BT Boot Mouse", Slot: 0})
+
+	sess, err := NewSession(tr, bonds, func() time.Time { return time.Unix(1000, 0) })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type mouseEv struct {
+		slot    uint8
+		dx, dy  int8
+		buttons uint8
+	}
+	var events []string
+	var mouseEvs []mouseEv
+	var kbdReports [][]byte
+	sess.OnSlotMouseReport = func(slot uint8, dx, dy int8, buttons uint8) {
+		mouseEvs = append(mouseEvs, mouseEv{slot: slot, dx: dx, dy: dy, buttons: buttons})
+		events = append(events, "mouse")
+	}
+	sess.OnSlotKeyboardReport = func(_ uint8, rep []byte) {
+		kbdReports = append(kbdReports, append([]byte(nil), rep...))
+		events = append(events, "kbd")
+	}
+	sess.OnSlotChanged = func(_ uint8, connected bool, _ controllers.Kind, _ string) {
+		if !connected {
+			events = append(events, "disconnected")
+		}
+	}
+
+	conn := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, mouseAddr[:]...)
+	conn = append(conn, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, conn)
+	openIncomingHIDChannels(bus, 0x0041, 0x0050, 0x0051)
+	for range 4 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Reports before SET_PROTOCOL(BOOT) handshake must be ignored.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0041, 0x0041, []byte{hidpDataInput, 0x02, 0x01, 0x05, 0xfb}),
+	)
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if len(mouseEvs) != 0 {
+		t.Fatalf("expected mouse report ignored before SET_PROTOCOL(BOOT), got %+v", mouseEvs)
+	}
+
+	// Acknowledge SET_PROTOCOL(BOOT), then deliver:
+	// - Report ID 0x02 4-byte mouse report (Left + bit2 extra ignored, dx=-5, dy=+12)
+	// - Report ID 0x02 5-byte wheel mouse report (Right, dx=+3, dy=-2, wheel=+1)
+	// - Raw 8-byte keyboard report with Left Shift modifier 0x02 + key 0x04 (must NOT decode as mouse!)
+	// - Report ID 0x01 9-byte combo keyboard report with key 0x05
+	// - Raw 3-byte mouse report (Left|Right, dx=+1, dy=-1)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0041, 0x0040, []byte{0x00}),
+		makeHIDACL(0x0041, 0x0041, []byte{hidpDataInput, 0x02, 0x05, 0xfb, 0x0c}),
+		makeHIDACL(0x0041, 0x0041, []byte{hidpDataInput, 0x02, 0x02, 0x03, 0xfe, 0x01}),
+		makeHIDACL(0x0041, 0x0041, []byte{hidpDataInput, 0x02, 0x00, 0x04, 0, 0, 0, 0, 0}),
+		makeHIDACL(0x0041, 0x0041, []byte{hidpDataInput, 0x01, 0x00, 0x00, 0x05, 0, 0, 0, 0, 0}),
+		makeHIDACL(0x0041, 0x0041, []byte{hidpDataInput, 0x03, 0x01, 0xff}),
+	)
+	for range 2 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wantMouse := []mouseEv{
+		{slot: 0, dx: -5, dy: 12, buttons: 0x01},
+		{slot: 0, dx: 3, dy: -2, buttons: 0x02},
+		{slot: 0, dx: 1, dy: -1, buttons: 0x03},
+	}
+	if len(mouseEvs) != len(wantMouse) {
+		t.Fatalf("expected %d mouse events, got %+v", len(wantMouse), mouseEvs)
+	}
+	for i := range wantMouse {
+		if mouseEvs[i] != wantMouse[i] {
+			t.Fatalf("mouse[%d] = %+v, want %+v", i, mouseEvs[i], wantMouse[i])
+		}
+	}
+	if len(kbdReports) != 2 || kbdReports[0][0] != 0x02 || kbdReports[0][2] != 0x04 || kbdReports[1][2] != 0x05 {
+		t.Fatalf("unexpected keyboard reports alongside BT mouse: %x", kbdReports)
+	}
+
+	// Steady-state zero-alloc check while decoding BT mouse reports.
+	sess.OnSlotMouseReport = func(uint8, int8, int8, uint8) {}
+	sess.OnSlotKeyboardReport = nil
+	sess.OnSlotChanged = nil
+	aclFrame := makeHIDACL(0x0041, 0x0041, []byte{hidpDataInput, 0x02, 0x01, 0x02, 0xfe})
+	aclBacking := [][]byte{aclFrame}
+	allocs := testing.AllocsPerRun(50, func() {
+		bus.aclInPipe.inQueue = aclBacking
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if allocs > 0 {
+		t.Fatalf("BT boot mouse steady-state Service() allocated %.2f allocs/run, want 0", allocs)
+	}
+
+	// Disconnect while mouse button is held must emit neutral mouse release (0,0,0) before OnSlotChanged(false).
+	events = nil
+	mouseEvs = nil
+	kbdReports = nil
+	sess.OnSlotMouseReport = func(slot uint8, dx, dy int8, buttons uint8) {
+		mouseEvs = append(mouseEvs, mouseEv{slot: slot, dx: dx, dy: dy, buttons: buttons})
+		events = append(events, "mouse")
+	}
+	sess.OnSlotKeyboardReport = func(_ uint8, rep []byte) {
+		kbdReports = append(kbdReports, append([]byte(nil), rep...))
+		events = append(events, "kbd")
+	}
+	sess.OnSlotChanged = func(_ uint8, connected bool, _ controllers.Kind, _ string) {
+		if !connected {
+			events = append(events, "disconnected")
+		}
+	}
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventDisconnectionComplete, 4, 0, 0x41, 0x00, 0x13})
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if len(mouseEvs) != 1 || mouseEvs[0] != (mouseEv{slot: 0, dx: 0, dy: 0, buttons: 0}) {
+		t.Fatalf("expected neutral mouse report on disconnect, got %+v", mouseEvs)
+	}
+	if len(events) != 3 || events[0] != "kbd" || events[1] != "mouse" || events[2] != "disconnected" {
+		t.Fatalf("expected [kbd mouse disconnected] order on disconnect, got %v", events)
+	}
+}
+
+func TestKindMouseGETReportInitAndDisconnect(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+
+	m1Addr, _ := l2cap.ParseBDAddr("DD:33:44:55:66:01")
+	m2Addr, _ := l2cap.ParseBDAddr("DD:33:44:55:66:02")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: m1Addr, LinkKey: [16]byte{1}, Name: "BT Mouse 1", Kind: controllers.KindMouse, Slot: 0})
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: m2Addr, LinkKey: [16]byte{2}, Name: "BT Mouse 2", Kind: controllers.KindMouse, Slot: 1})
+
+	now := time.Unix(1200, 0)
+	sess, err := NewSession(tr, bonds, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type mouseEv struct {
+		slot    uint8
+		dx, dy  int8
+		buttons uint8
+	}
+	var mouseEvs []mouseEv
+	var kbdReports int
+	sess.OnSlotMouseReport = func(slot uint8, dx, dy int8, buttons uint8) {
+		mouseEvs = append(mouseEvs, mouseEv{slot: slot, dx: dx, dy: dy, buttons: buttons})
+	}
+	sess.OnSlotKeyboardReport = func(uint8, []byte) { kbdReports++ }
+
+	c1 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, m1Addr[:]...)
+	c1 = append(c1, 0x01, 0x01)
+	c2 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x42, 0x00}, m2Addr[:]...)
+	c2 = append(c2, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, c1, c2)
+	openIncomingHIDChannels(bus, 0x0041, 0x0050, 0x0051)
+	openIncomingHIDChannels(bus, 0x0042, 0x0060, 0x0061)
+	for range 6 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Ack SET_PROTOCOL(BOOT) on both mice -> both must immediately send GET_REPORT(Input, 0x02) [0x41, 0x02] on Control.
+	bus.aclOutPipe.outLog = nil
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0041, 0x0040, []byte{0x00}),
+		makeHIDACL(0x0042, 0x0040, []byte{0x00}),
+	)
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	var sawGet1, sawGet2 bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) != 10 {
+			continue
+		}
+		h := binary.LittleEndian.Uint16(pkt[0:2]) & 0x0fff
+		hid := pkt[8:]
+		if hid[0] == hidpGetReportInput && hid[1] == 0x02 {
+			if h == 0x0041 {
+				sawGet1 = true
+			} else if h == 0x0042 {
+				sawGet2 = true
+			}
+		}
+	}
+	if !sawGet1 || !sawGet2 {
+		t.Fatalf("expected GET_REPORT(Input, 0x02) on both KindMouse slots: m1=%t m2=%t out=%x", sawGet1, sawGet2, bus.aclOutPipe.outLog)
+	}
+
+	// Mouse 1 answers GET_REPORT on Control with held Left button -> emits initial report and reaches initStepDone.
+	// Mouse 2 rejects GET_REPORT with handshake error 0x03 -> reaches initStepDone without fabricating a fake report.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0041, 0x0040, []byte{hidpDataInput, 0x02, 0x01, 0x00, 0x00}),
+		makeHIDACL(0x0042, 0x0040, []byte{0x03}),
+	)
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if sess.slots[0].initStep != initStepDone || sess.slots[1].initStep != initStepDone {
+		t.Fatalf("expected both KindMouse slots at initStepDone, got %d,%d", sess.slots[0].initStep, sess.slots[1].initStep)
+	}
+	if len(mouseEvs) != 1 || mouseEvs[0] != (mouseEv{slot: 0, dx: 0, dy: 0, buttons: 0x01}) {
+		t.Fatalf("expected only m1 GET_REPORT initial event, got %+v", mouseEvs)
+	}
+
+	// Mouse 2 subsequently sends an interrupt report; disconnect m1 -> neutralizes m1 mouse without emitting keyboard report.
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventDisconnectionComplete, 4, 0, 0x41, 0x00, 0x13})
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0042, 0x0041, []byte{hidpDataInput, 0x02, 0x00, 0x02, 0xfe}))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if kbdReports != 0 {
+		t.Fatalf("KindMouse must not emit keyboard reports, got %d", kbdReports)
+	}
+	if len(mouseEvs) != 3 ||
+		mouseEvs[1] != (mouseEv{slot: 0, dx: 0, dy: 0, buttons: 0}) ||
+		mouseEvs[2] != (mouseEv{slot: 1, dx: 2, dy: -2, buttons: 0}) {
+		t.Fatalf("expected m1 disconnect release then m2 interrupt event, got %+v", mouseEvs)
+	}
+}

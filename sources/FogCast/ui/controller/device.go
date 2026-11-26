@@ -47,7 +47,7 @@ func eligible(bus uint16, name string, buttons bool) bool {
 }
 
 // Bluetooth reports a pad connected over Bluetooth rather than a wire.
-func (d Device) Bluetooth() bool { return d.Bus == 5 }
+func (d Device) Bluetooth() bool { return d.Bus == busBluetooth }
 
 // Eligible reports whether an evdev node is a physical gamepad candidate.
 // Keep bus/name filtering shared with the tenfoot automatic scanner.

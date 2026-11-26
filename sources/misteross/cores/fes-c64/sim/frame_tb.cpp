@@ -29,11 +29,11 @@ int main(int argc,char **argv) {
             // page selection needs to settle, as it does during HDMI blanking.
             if(video_rise) {
                 collecting=display_tick>=2&&display_tick<1024&&!t.reset;
-                expected_position=display_tick;
+                expected_position=display_tick-1; // two-clock memory read pipeline
             }
             t.eval();
             if(video_rise&&collecting) {
-                if(expected_position==2){expected=t.read_data^((expected_position>>6)&15);if(expected)++displayed;}
+                if(expected_position==1){expected=t.read_data^((expected_position>>6)&15);if(expected)++displayed;}
                 unsigned wanted=expected?(expected^((expected_position>>6)&15)):0;
                 if(t.read_data!=wanted) {
                     std::printf("period%u time%u reader%u writer%u sample%u expected%u got%u\n",native_period,time,t.read_page,t.write_page,expected_position,wanted,t.read_data);
@@ -62,11 +62,14 @@ int main(int argc,char **argv) {
         t.frame_start=1;video();video();video();t.frame_start=0;video();
         for(unsigned address=0;address<104448;++address){
             t.read_address=address;video();
-            if(t.read_data!=pattern(frame,address)){
-                std::printf("full page frame%u address%04x got%x expected%x\n",frame,address,t.read_data,pattern(frame,address));
+            if(address && t.read_data!=pattern(frame,address-1)){
+                std::printf("full page frame%u address%04x got%x expected%x\n",frame,address-1,t.read_data,pattern(frame,address-1));
                 throw std::runtime_error("frame bank/address mapping mismatch");
             }
         }
+        video();
+        if(t.read_data!=pattern(frame,104447))
+            throw std::runtime_error("last frame address mismatch");
         sys();sys();sys();
     }
     std::puts("Native frame memory: all 313344 addresses across three pages match indexed patterns");

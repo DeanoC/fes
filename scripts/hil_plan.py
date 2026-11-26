@@ -102,6 +102,8 @@ RULES = [
     ('sources/misteross/boards/de25nano/**/*_harness.v', 'none', None),
     ('sources/misteross/boards/de25nano/**/sim.py', 'none', None),
     ('sources/misteross/boards/de25nano/**/*_sim.py', 'none', None),
+    # Only the Verilator benches consume this board-specific lint config.
+    ('sources/misteross/boards/de25nano/pcxt/video.vlt', 'none', None),
     ('sources/misteross/boards/de25nano/zx81-hps/**', 'overlay', 'core:de25-zx81'),
     # This helper is also imported by the canonical computer producer.
     ('sources/misteross/boards/de25nano/zx81/build.py', 'overlay', 'core:de25-zx81'),

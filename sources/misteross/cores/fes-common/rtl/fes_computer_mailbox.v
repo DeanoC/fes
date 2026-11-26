@@ -19,9 +19,9 @@
 // so the idle tie lives in that wrapper. ZX81 instantiates this module and
 // connects the plane. Verilator -Wall rejects a first module whose name
 // differs from the filename, so that check is off for the core only.
-// ENABLE_ATA_DISK, ENABLE_PERSISTENCE, ENABLE_PC386_MACHINE,
-// ENABLE_WALL_CLOCK and ENABLE_PCXT_FLOPPY are the 1.1 interfaces on
-// capability bits 16..20. Any of them makes the endpoint minor 1, answering
+// ENABLE_ATA_DISK, ENABLE_PERSISTENCE, ENABLE_PC386_MACHINE, ENABLE_WALL_CLOCK,
+// ENABLE_PCXT_FLOPPY and ENABLE_PC_FLOPPY are the 1.1 interfaces on capability
+// bits 16..20 and 22. Any of them makes the endpoint minor 1, answering
 // identity word 16. Storage opcodes go to fes_computer_storage over the
 // storage port, held until it replies, as menu opcodes go to the display
 // plane. The persistence opcodes need both of its bits. execution_accepted
@@ -47,7 +47,7 @@ module fes_computer_mailbox_core #(
     parameter bit ENABLE_ATA_DISK = 0,
     parameter bit ENABLE_PERSISTENCE = 0,
     parameter bit ENABLE_PC386_MACHINE = 0,
-    parameter bit ENABLE_WALL_CLOCK = 0,
+    parameter bit ENABLE_WALL_CLOCK = 0, parameter bit ENABLE_PC_FLOPPY = 0,
     parameter bit ENABLE_MEDIA_BACKPRESSURE = 0,
     parameter integer MEDIA_AW = 18,
     parameter [31:0] UNIT0_MIN = `FES_COMPUTER_APPLE2_FLOPPY_BYTES,
@@ -142,7 +142,7 @@ module fes_computer_mailbox_core #(
         (ENABLE_WALL_CLOCK ? `FES_COMPUTER_INTERFACE_RTC_WALL_CLOCK_CAPABILITY_MASK : 32'd0) |
         (ENABLE_PC386_MACHINE ? `FES_COMPUTER_INTERFACE_PC386_MACHINE_CAPABILITY_MASK : 32'd0) |
         (ENABLE_PCXT_FLOPPY ? `FES_COMPUTER_INTERFACE_MEDIA_PCXT_FLOPPY_CAPABILITY_MASK : 32'd0) |
-        (PCXT_WRITE ? `FES_COMPUTER_INTERFACE_MEDIA_PCXT_FLOPPY_WRITE_CAPABILITY_MASK : 32'd0);
+        (PCXT_WRITE ? `FES_COMPUTER_INTERFACE_MEDIA_PCXT_FLOPPY_WRITE_CAPABILITY_MASK : 32'd0) | (ENABLE_PC_FLOPPY ? `FES_COMPUTER_INTERFACE_MEDIA_PC_FLOPPY_CAPABILITY_MASK : 32'd0);
     localparam [15:0] CAPABILITIES_HIGH = CAPABILITIES_1_1[31:16];
     localparam bit MINOR_1 = CAPABILITIES_HIGH != 16'd0;
     localparam bit DATA = ENABLE_PERSISTENCE && ENABLE_PC386_MACHINE;

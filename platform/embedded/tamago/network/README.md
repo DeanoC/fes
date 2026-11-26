@@ -20,7 +20,7 @@ driver using the pinned `lneto` TCP/IP stack
 | Static IPv4 | Default (`10.0.2.15/24`, gw `10.0.2.2` on QEMU) | Set `Config.Address` and `Config.Gateway` to override. |
 | DHCPv4 & renewal | Opt-in RFC 2131 client (`AcquireDHCP`, `OpenDeviceDHCP`, `Config{DHCP: true}`) + T1/T2 `LeaseRenewer` | Requires subnet mask, server ID, and usable router (option 3) in the leased subnet. |
 | 100M / link-flap recovery | Opt-in `NetworkOptions` (`Allow100Full`, `RecoverLinkLoss`) + `LeaseRenewer.NotifyLinkUp()` INIT-REBOOT probe | Dormant on Nano `fpgaload`; host unit tests only. A `DHCPNAK`, or an ACK for another address or gateway, halts the link; a silent probe keeps the still-valid lease until T1/T2. |
-| DNSv4 | Pure-Go RFC 1035 A-record resolver (`ResolveA`) | Uses raw frame hooks on `Link`. |
+| DNSv4 | Pure-Go RFC 1035 A-record resolver (`ResolveA`, `ResolveAWithTTL`) + bounded TTL cache (`DNSCache`, `Peek`/`Names`, `DNSResolver.ResolveFresh`) | Uses raw frame hooks on `Link`; supports CNAME chains, multi-server failover, and LRU/TTL caching. |
 | SNTP | `QuerySNTP` wall-clock client | Optional UTC clock source for FAT32 (`SetClock`). |
 | TLS / auth | Not supported | Deterministic board entropy is unsuitable for TLS/authentication; use private LAN HTTP. |
 

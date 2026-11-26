@@ -1,0 +1,14 @@
+[11-23 15:09:45] ########## pcxt-dos (full)
+[11-23 15:59:38] pcxt-dos.base rc=0 (856ef5c64)
+[11-23 15:59:38] pcxt-dos.base rbf 104bc9b2a3981311fa07bb9e06e8e38a9c1ae73331b6256546c71a530f86940e from sources/misteross/build/fes-pcxt-quartus/16a916c1eba005fa38bd3cd80b917035/attempt-mdmda1i0/core.rbf
+[11-23 16:40:29] pcxt-dos.forced rc=0 (0be20e575)
+[11-23 16:40:29] pcxt-dos.forced rbf 104bc9b2a3981311fa07bb9e06e8e38a9c1ae73331b6256546c71a530f86940e from sources/misteross/build/fes-pcxt-quartus/16a916c1eba005fa38bd3cd80b917035/attempt-jfd0sk4n/core.rbf
+[11-23 16:40:30] RESULT pcxt-dos condition 2: RBF reproduced byte for byte
+[11-23 17:21:23] pcxt-dos.c3 rc=0 (0be20e575)
+[11-23 17:21:23] pcxt-dos.c3 rbf 89ba46fa9797fe8de11cfa5a1ed7c3b6071691c6eabbb52e5d0ee7d450ca4c2e from sources/misteross/build/fes-pcxt-quartus/2c9509aa8dc2456b0d7a7bc30dd8b952/attempt-sg6s7vfw/core.rbf
+[11-23 17:21:23] RESULT pcxt-dos condition 3: gates passed, BUILD_ID 2c9509aa8dc2456b0d7a7bc30dd8b952
+[11-23 17:21:23]        package 4e51c7480a9ac6470a1370697aec6c464d633016217afcf89658e3727b6b183c.fcore
+[11-23 17:21:23]        package 4e51c7480a9ac6470a1370697aec6c464d633016217afcf89658e3727b6b183c.build-inputs.json
+[11-23 17:21:23]        package 4e51c7480a9ac6470a1370697aec6c464d633016217afcf89658e3727b6b183c
+[11-23 17:21:23]        package 4e51c7480a9ac6470a1370697aec6c464d633016217afcf89658e3727b6b183c.014fa5af7101c726560727d919c13c1da0459172da064cf88594b1ab41ec0f05.build-inputs.json
+[11-23 17:21:23] stream done
