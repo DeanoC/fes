@@ -15,8 +15,10 @@ DE25-Nano (Agilex 5).
 - **Explicit arenas (`Pool`, `Buffer`):** Manages aligned, coalesced spans over
   caller-supplied memory outside Go's heap (`qemuvirt.DMAPool()` on QEMU `virt`
   or `de25nano.NewUncachedPool(base, size)` over an `arm64map`-verified window
-  on DE25-Nano). In `Cached` mode, every allocation is aligned and padded to
-  `CacheLineSize()` so distinct buffers never share a cache line.
+  on DE25-Nano), including `AllocBelow` for address-limited DMA engines and
+  high-water / span / call counters in `Stats()`. In `Cached` mode, every allocation
+  is aligned and padded to `CacheLineSize()` so distinct buffers never share a
+  cache line.
 - **Fail-closed poisoning:** Calling `Buffer.Poison(err)`, `Ring.Poison(err)`,
   or `Pool.Poison(err)` permanently pins the affected physical spans until
   reboot. Poisoned resources reject `Free`, `Close`, `Sync*`, and descriptor

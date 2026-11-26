@@ -265,9 +265,12 @@ class De25SystemBenchClockTest(unittest.TestCase):
         seen = {}
         for model in producer.MODELS:
             with self.subTest(model):
+                args = SimpleNamespace(model=model)
                 with mock.patch.object(bench.sim, 'run_system',
-                                       side_effect=lambda args: seen.setdefault(model, pc386_quartus.SYSTEM_CLOCK_HZ)):
-                    bench.run_at_model_clock(SimpleNamespace(model=model))
+                                       side_effect=lambda args, **kwargs: seen.setdefault(
+                                           model, pc386_quartus.SYSTEM_CLOCK_HZ)) as run_system:
+                    bench.run_at_model_clock(args)
+                run_system.assert_called_once_with(args, expect_floppy=False)
                 self.assertEqual(seen[model], producer.model_clock(model)['hz'])
                 self.assertEqual(pc386_quartus.SYSTEM_CLOCK_HZ, shared)  # restored
         self.assertEqual((seen['486sx'], seen['486dx']), (92156863, 61437908))

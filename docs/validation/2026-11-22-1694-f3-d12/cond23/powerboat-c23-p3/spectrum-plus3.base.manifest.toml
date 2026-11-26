@@ -1,0 +1,121 @@
+format = 3
+
+[core]
+id = "fes.spectrum-plus3"
+name = "FES ZX Spectrum +2A/+3"
+description = "ZX Spectrum +2A/+3: gate-array contention, all-RAM paging, AY-3-8912, uPD765A +3 disk drive, linked 64 KiB firmware, .tzx/.tap/.pzx cassette with turbo loading, .z80/.sna snapshots, .dsk +3 disk and an edge socket"
+version = "0.5.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = 3190073
+sha256 = "50876d4b5c20746a5126d1eedfd30ed26f557436d5ca323951be9462b77b66f5"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.gamepad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.spectrum-tape"
+major = 2
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.memory.hps-ddr"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.video.session-display"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.fabric.video.display-plane"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.spectrum-disk"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.expansion.spectrum-bus"
+major = 1
+minor = 0
+required = false
+
+[[interfaces]]
+id = "fes.media.spectrum-snapshot"
+major = 1
+minor = 0
+required = false
+
+[[interfaces]]
+id = "fes.media.spectrum-snapshot-128"
+major = 1
+minor = 0
+required = false
+
+[[interfaces]]
+id = "fes.media.spectrum-snapshot-plus3"
+major = 1
+minor = 0
+required = false
+
+[[interfaces]]
+id = "fes.media.spectrum-disk-plus3"
+major = 1
+minor = 0
+required = false
+
+[build]
+id = "a8aab0409443a6ca2e0de4a1fba7827d"
+repository = "https://github.com/DeanoC/fes"
+revision = "856ef5c64b242f99c9094ee71cb7ffe58a9e5c7a"
+recipe_sha256 = "f8cfbb525f2c6b9459dd464f6bfb04f4c6670568c3e37965a3b7559938394485"
+toolchain = "mistral commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=2a546f5588251c6280e0f515f203670ed9f61fb0d73cf02517e88edb906ca48e; nextpnr-mistral commit=bd7a1c0d2e1a36ff64ad303edffac87fdabd66bb; sha256=f21a6b6e4186fce984f51a718d45966e3a64fcb8ee276f396bee0e7bb8f0209b; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=b17189f5463c82280de1518b6658b8deefe2f2937ede29a757d847b1b71a2db5"
+
+[rom]
+id = "spectrum-plus3-firmware"
+role = "firmware"
+source_size = 65536
+file = "rom-map.json"
+size = 5934949
+sha256 = "491936a66ad79fed0ef2aa742774c389bd207a8732188c0ab11cc3253db634c2"

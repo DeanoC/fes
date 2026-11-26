@@ -64,8 +64,8 @@ int main() {
     // The bridge loses its replies on reset. No fake responses are supplied.
     t->reset_n = 0; t->grant_valid = 0; t->eval();
     expect(!t->m0_read && !t->m1_read && !t->m2_read, "reset fences further reads");
-    for (int i = 0; i < 4; ++i) tick();
-    t->hold = 1; t->reset_n = 1;
+    // Keep all three port clocks stopped for the entire reset pulse.
+    t->hold = 1; t->reset_n = 1; t->eval();
     for (int i = 0; i < 4; ++i) tick();
     expect(record() == 0 && t->p0_drained && t->p1_drained && t->p2_drained,
            "bridge reset drains locally without responses from the old grant");

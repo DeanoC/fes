@@ -1,0 +1,13 @@
+{
+ "package": "/data/fes-f3-d12/same2/sources/misteross/build/packages/91aa2657fa09cb7a12cc5f92ba96efc8da3962f8c9ef27bc2300842337eb9f8b.fcore",
+ "package_id": "91aa2657fa09cb7a12cc5f92ba96efc8da3962f8c9ef27bc2300842337eb9f8b",
+ "firmware": "/home/deano/roms/sinclair/spectrum-plus3.rom",
+ "games": {
+  "machine": "fes.spectrum-plus3 F3 D12 plus3-main-r1"
+ },
+ "disks": {
+  "tape": "/data/fes-f3-d12/hil/media/fes-hil.tap"
+ },
+ "media_role": "cassette",
+ "rom_id": "spectrum-plus3-firmware"
+}

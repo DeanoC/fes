@@ -1,0 +1,17 @@
+// Build-time shim for f3live (F3 #2101 kit smoke), copied into
+// sources/FogCast/targetclient only while f3live is built, never committed
+// there. The smoke driver already holds the kit lease; this hands its token to
+// a client so live insert/eject go through the client's own request path and
+// status checks under that lease. It claims, renews and releases nothing.
+package targetclient
+
+import "time"
+
+// F3AdoptLease gives c the existing kit lease token for the next ten minutes.
+func F3AdoptLease(c *Client, token string) *Client {
+	l := &KitLease{client: c}
+	l.grant.Token = token
+	l.localExpiry = time.Now().Add(10 * time.Minute)
+	c.kitLease = l
+	return c
+}

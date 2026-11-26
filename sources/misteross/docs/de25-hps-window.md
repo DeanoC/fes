@@ -83,8 +83,10 @@ The kernel owner's allocation and the runtime's use of it are slice 4 of
 On HPS-window machine builds the GHRD's active-high `h2f_reset` output
 asserts the common fabric reset. This resets the grant registers, the machine
 and both sides of the F2SDRAM clock crossing. The port guards discard old
-commands and outstanding replies, and both sides of the fault handshake
-clear their state. A normal hold still drains outstanding operations.
+commands and outstanding replies. Their reset synchronizers capture the reset
+with the port clock stopped and hold it through the first two returning clock
+edges. Both sides of the fault handshake clear their state. A normal hold
+still drains outstanding operations.
 
 The DE25 pc386 board wrapper also latches an execution hold when
 `machine_reset_n` asserts. Its mailbox survives that reset, so the hold stays

@@ -146,6 +146,12 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(recipe.pnr["qsf"], "build/fes-c64-early-ntsc-oss/socket.qsf")
         self.assertEqual(recipe.package_dir_env, "FES_C64_EARLY_NTSC_PACKAGE_DIR")
 
+    def test_c64_pal_n_is_an_explicit_package(self):
+        recipe = recipes.recipe_for("fes.c64-pal-n")
+        self.assertEqual(recipe.producer_arguments, ("--model", "pal-n"))
+        self.assertEqual(recipe.pnr["qsf"], "build/fes-c64-pal-n-oss/socket.qsf")
+        self.assertEqual(recipe.package_dir_env, "FES_C64_PAL_N_PACKAGE_DIR")
+
     def test_c64c_regions_select_the_8580_and_distinct_packages(self):
         for region, core_id, stem, qsf in (
             ("pal", "fes.c64c", "C64C", "build/fes-c64-oss-8580/socket.qsf"),

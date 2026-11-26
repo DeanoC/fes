@@ -1,0 +1,17 @@
+{
+  "build_id": "00000000000000000000000000000000",
+  "core": "fes.pentagon",
+  "dirty_pinned_inputs": [],
+  "netlist_sha256": "2d81474ad4151e4de5d76ba8bd2d008b98fa436bfaad797917c1f8a80a95ce9a",
+  "netlist_sha256_src_exempt": "2d81474ad4151e4de5d76ba8bd2d008b98fa436bfaad797917c1f8a80a95ce9a",
+  "pinned_input_count": 52,
+  "pinned_inputs_sha256": "5ed03f420e06057978ebdaf4b82cb82a9cd7d0f6165aba9454a61f13e61d1256",
+  "revision": "61c33cc2fc1c9fcfb053940e8f7ddbb638e108b2",
+  "tools": {
+    "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=fc797a9fb614b5048478991999cf339faa7d19dc4b497c7a86c537a5252d1ffa",
+    "nextpnr-mistral": "commit=bd7a1c0d2e1a36ff64ad303edffac87fdabd66bb; sha256=699a366a790d5df1333f15c885a4aa315918822e114f203f3728746cc80c733e; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+    "yosys": "commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=dc232ba5ae1a40319ce89fe591f31739cbd3a849cc7d35dc15d3fdf2b2138619"
+  },
+  "tree": "/data/fes-f3-d12/head/sources/misteross",
+  "tree_clean": true
+}

@@ -1532,7 +1532,8 @@ for the ZX81, Spectrum, Atari ST and Commodore 64 families. It shows one
 family: a Model row for its variants, the computer with its readiness and
 fixed facts on the left, and its drive and games on the right. For C64 the
 default model is PAL (`fes.c64`). Show all cores also exposes the DE10 6567R8 NTSC (`fes.c64-ntsc`),
-6567R56A early NTSC (`fes.c64-early-ntsc`), and PAL and NTSC C64C
+6567R56A early NTSC (`fes.c64-early-ntsc`), Drean PAL-N (`fes.c64-pal-n`),
+and PAL and NTSC C64C
 (`fes.c64c`, `fes.c64c-ntsc`) models. Each model launches its own library
 entries and binds the user's 36 KiB firmware to its selected package. All use
 the same D64 drive interface. The screen reads the
@@ -3458,8 +3459,11 @@ unpacked members or decoding a ROM map again; mister-agent verifies those bytes
 before programming, and its own select and launch paths keep the full `Read`. If
 the durable store cannot be opened, the host follows
 the agent: it withholds the factory packages too and reports HTTP 503
-`CORE_PACKAGE_STORE_UNAVAILABLE` for list, inspect, read and import, carrying
-the open error. It retries the open at most every five seconds, so a host that
+`CORE_PACKAGE_STORE_UNAVAILABLE` for list, inspect, read and import. The
+public response has a generic message; the host logs an open failure. The same
+store-unavailable response applies if a durable operation fails after opening,
+while invalid package input and a missing package retain their own errors.
+The host retries a failed open at most every five seconds, so a host that
 starts before FESDATA3 is ready recovers without a restart.
 
 ## Installed core packages and library entries
@@ -4392,6 +4396,14 @@ and `ata_disk`; the runtime writes the image into the DDR window before release.
 Machine settings are a per-game record on the kit, read and written with the
 library game ([package library](core-package-library.md#pc386-hard-disk-entries)).
 The fixed disk takes no live media operations; Stop saves its delta.
+
+For a pc386 package that declares `fes.media.pc-floppy`, a library entry with
+the `floppy` role selects disk 1 as its boot image. Catalog selection and Home
+readiness require an image readable by drive A:. Launch checks again before
+staging an existing entry, then uploads the image by digest and binds it to
+A: in the library load with the ATA disk empty. The BIOS tries A: then C:.
+B:-only images can be imported and inserted into B: during a running session.
+The live media path checks the geometry against the requested drive.
 
 ## Initial Atari ST library disk
 

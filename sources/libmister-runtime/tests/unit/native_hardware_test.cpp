@@ -757,10 +757,12 @@ public:
 
 // fes-window grants over a memory copy of the window from the ATA disk offset.
 // A grant below it (guest memory) maps a fresh buffer of stale bytes, and its
-// revoke records the span and whether every byte was zeroed by then.
+// revoke records the span and whether every byte was zeroed by then. When
+// floppy is sized, grants in the pc386 floppy window map it instead.
 class ScriptedDiskWindow final : public mister::native::MenuWindowOperations {
 public:
 	static constexpr int kGuestFd = 1 << 20;
+	static constexpr int kFloppyFd = 1 << 21;
 	struct GuestGrant {
 		std::uint64_t offset, bytes;
 		bool zeroed;
@@ -770,6 +772,12 @@ public:
 		const std::uint64_t base = mister::native::generated::FesComputerAtaDiskWindowOffset;
 		if (offset % 4096 || bytes % 4096)
 			return {mister::ErrorCode::io_failed, "unaligned scripted grant"};
+		const std::uint64_t floppy_base = mister::native::generated::FesComputerPcFloppyWindowOffset;
+		if (!floppy.empty() && offset >= floppy_base && offset + bytes <= floppy_base + floppy.size()) {
+			floppy_grants.push_back(offset - floppy_base);
+			*fd = kFloppyFd + static_cast<int>(floppy_grants.size()) - 1;
+			return {};
+		}
 		if (offset < base && offset + bytes <= base) {
 			guest.assign(static_cast<std::size_t>(bytes), 0xa5);
 			guest_offset = offset;
@@ -785,6 +793,7 @@ public:
 	mister::Error Map(int fd, std::size_t, void** mapping) override
 	{
 		*mapping = fd == kGuestFd ? guest.data() :
+			fd >= kFloppyFd ? floppy.data() + floppy_grants[static_cast<std::size_t>(fd - kFloppyFd)] :
 			region.data() + grants[static_cast<std::size_t>(fd - 1)].first;
 		return {};
 	}
@@ -798,13 +807,15 @@ public:
 			if (on_guest_revoke) on_guest_revoke();
 			return {};
 		}
+		if (fd >= kFloppyFd) return {};
 		++revokes;
 		if (on_disk_revoke) on_disk_revoke();
 		return {};
 	}
 	mister::Error Duplicate(int, int*) override { return {mister::ErrorCode::io_failed, "unused"}; }
 	void Close(int) override { ++closes; }
-	std::vector<std::uint8_t> region, guest;
+	std::vector<std::uint8_t> region, guest, floppy;
+	std::vector<std::uint64_t> floppy_grants;
 	std::uint64_t guest_offset = 0;
 	std::vector<std::pair<std::uint64_t, std::uint64_t>> grants;
 	std::vector<GuestGrant> guest_grants;
@@ -1533,7 +1544,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	std::vector<std::string> computer_11_interfaces;
 	for (const auto& interface : computer_11.interfaces) computer_11_interfaces.push_back(interface.id);
 	std::vector<std::string> expected_11 = computer_interfaces;
-	expected_11.insert(expected_11.end(), {"fes.media.ata-disk", "fes.media.pcxt-floppy", "fes.media.pcxt-floppy-write", "fes.pc386.machine", "fes.persistence.words",
+	expected_11.insert(expected_11.end(), {"fes.media.ata-disk", "fes.media.pc-floppy", "fes.media.pcxt-floppy", "fes.media.pcxt-floppy-write", "fes.pc386.machine", "fes.persistence.words",
 		"fes.rtc.wall-clock"});
 	std::sort(expected_11.begin(), expected_11.end());
 	assert(computer_11_interfaces == expected_11);
@@ -4446,6 +4457,379 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	assert(unlink((record + "/record.bin").c_str()) == 0 && rmdir(record.c_str()) == 0 && rmdir(games.c_str()) == 0);
 }
 
+// pc386's A: and B: (fes.media.pc-floppy): library disks insert while the
+// machine runs; a drive refuses a size it cannot read; a swap saves a dirty
+// disk first and restores the freshly published bytes; a save that fails
+// after Freeze leaves the drive resumed, and the retry publishes the guest's
+// later writes.
+void TestPc386FloppySwapSaveAndResume()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	const std::uint32_t caps = FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMouseRelative |
+		FesComputerCapabilityMemoryHpsDdr | FesComputerCapabilityMediaAtaDisk |
+		FesComputerCapabilityPersistenceWords | FesComputerCapabilityPc386Machine |
+		FesComputerCapabilityRtcWallClock | FesComputerCapabilityMediaPcFloppy;
+	mister_test::ComputerEndpoint endpoint(caps, {}, "0123456789abcdef0123456789abcdef");
+	endpoint.abi_minor = 1;
+	endpoint.verify_reads = 0;  // the fixed clock cannot wait between polls
+	FixedClock clock(100);
+	FesGp transport(endpoint, clock);
+	FesGpCoreDriver driver(transport);
+	IntegratedFixture fixture(&driver);
+	fixture.native.clock.has_local = true;
+	fixture.native.clock.local.tm_year = 126;
+	fixture.native.clock.local.tm_mday = 1;
+	fixture.native.clock.local.tm_wday = 4;
+	auto& window = fixture.native.disk_operations;
+	window.region.assign(4u << 20, 0xee);
+	window.floppy.assign(2 * FesComputerPcFloppyWindowStride, 0xee);
+	endpoint.window = &window.region;
+	for (unsigned k = 0; k < 2; ++k) {
+		endpoint.floppies[k].region = &window.floppy;
+		endpoint.floppies[k].offset = k * FesComputerPcFloppyWindowStride;
+	}
+	fixture.Start();
+	fixture.native.fpga.on_program = [&] {
+		endpoint.Reset();
+		for (auto& f : endpoint.floppies) f.Reset(1);
+	};
+	TempDirectory package, data, media, images;
+	auto manifest = Pc386Manifest();
+	for (const auto* id : {"fes.memory.hps-ddr", "fes.media.ata-disk", "fes.media.pc-floppy"})
+		manifest += std::string("\n[[interfaces]]\nid = \"") + id + "\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	const auto Image = [&](const std::string& name, std::uint32_t size, mister::MediaDataBinding* binding) {
+		std::string bytes(size, '\0');
+		for (std::uint32_t at = 0; at < size; ++at) bytes[at] = static_cast<char>(at * 7 + (at >> 11) + size);
+		Sha256 hash;
+		hash.Update(bytes.data(), bytes.size());
+		binding->game_id = "ultima-vi";
+		binding->base_media_id = Sha256Hex(hash.Final());
+		return images.File(name, bytes);
+	};
+	mister::MediaDataBinding a, b;
+	const std::string a_path = Image("a.img", 1474560, &a), b_path = Image("b.img", 368640, &b);
+	a.unit = 1;
+	b.unit = 2;
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi").ok());
+	auto status = fixture.runtime.status();
+	const auto gen = status.generation;
+	std::vector<std::uint8_t> drives;
+	for (const auto& unit : status.capabilities.media_units)
+		if (unit.interface.id == FesComputerInterfaceMediaPcFloppyID) {
+			drives.push_back(unit.unit);
+			assert(unit.state == mister::MediaUnitState::empty && unit.max_bytes == 2949120);
+		}
+	assert(drives == std::vector<std::uint8_t>({1, 2}));
+	// A size the drive cannot read is refused before any exchange.
+	auto wrong = b;
+	wrong.unit = 1;
+	const auto before = endpoint.requests.size();
+	assert(fixture.runtime.InsertLibraryMedia(b_path, opened.package_id, gen, 1, 368640, media.path, wrong).code ==
+		mister::ErrorCode::invalid_request);
+	assert(endpoint.requests.size() == before);
+	// The verify poll can fail after the endpoint has completed CRC and made
+	// the disk READY. The runtime must eject that unbound disk before returning.
+	endpoint.verify_reads = 1;
+	bool lost_ready_poll = false;
+	endpoint.fail_after_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+		if (!lost_ready_poll && request.opcode == FesComputerOpcodeDiskInfo &&
+			request.index == FesComputerPcFloppyUnitA * FesComputerDiskInfoStride + FesComputerDiskInfoStateField) {
+			lost_ready_poll = true;
+			assert(endpoint.floppies[0].state == 3);
+			return true;
+		}
+		return false;
+	};
+	const auto failed_insert = fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1,
+		1474560, media.path, a);
+	endpoint.fail_after_request = {};
+	endpoint.verify_reads = 0;
+	assert(lost_ready_poll && failed_insert.code == mister::ErrorCode::io_failed);
+	assert(endpoint.floppies[0].state == 1);
+	status = fixture.runtime.status();
+	const auto empty_a = std::find_if(status.capabilities.media_units.begin(), status.capabilities.media_units.end(),
+		[](const mister::MediaUnitCapability& unit) { return unit.unit == 1; });
+	assert(empty_a != status.capabilities.media_units.end() && empty_a->state == mister::MediaUnitState::empty &&
+		empty_a->base_media_id.empty());
+	// A: writable while the machine runs; B: write-protected.
+	assert(!endpoint.held);
+	assert(fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a).ok());
+	b.write_protected = true;
+	assert(fixture.runtime.InsertLibraryMedia(b_path, opened.package_id, gen, 2, 368640, media.path, b).ok());
+	assert(endpoint.floppies[0].state == 3 && endpoint.floppies[0].geometry ==
+		std::vector<unsigned>({2880, 0, 80, 2, 18}) && !endpoint.floppies[0].write_protect);
+	assert(endpoint.floppies[1].state == 3 && endpoint.floppies[1].write_protect);
+	const std::string a_base = ReadText(a_path);
+	assert(std::equal(a_base.begin(), a_base.end(), window.floppy.begin(),
+		[](char x, std::uint8_t y) { return static_cast<std::uint8_t>(x) == y; }));
+	status = fixture.runtime.status();
+	// Shared with FogCast: A: writable and bound, B: write-protected.
+	RecordLiveComputerStatus(status);
+	for (const auto& unit : status.capabilities.media_units) {
+		if (unit.unit == 1) assert(unit.state == mister::MediaUnitState::ready && unit.persistence_mode == "persistent" &&
+			unit.revision == "absent");
+		if (unit.unit == 2) assert(unit.state == mister::MediaUnitState::ready && unit.persistence_mode != "persistent");
+	}
+	// Eject may empty the endpoint before its acknowledgement is lost. The
+	// runtime must reconcile its local binding instead of reporting READY.
+	bool lost_eject_ack = false;
+	endpoint.fail_after_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+		if (!lost_eject_ack && request.opcode == FesComputerOpcodeDiskControl && request.index == 1 &&
+			request.argument == FesComputerDiskControlEject) {
+			lost_eject_ack = true;
+			assert(endpoint.floppies[0].state == 1);
+			return true;
+		}
+		return false;
+	};
+	const auto reconciled_eject = fixture.runtime.EjectMedia(opened.package_id, gen, 1);
+	endpoint.fail_after_request = {};
+	assert(lost_eject_ack && reconciled_eject.ok() && endpoint.floppies[0].state == 1);
+	status = fixture.runtime.status();
+	const auto ejected_a = std::find_if(status.capabilities.media_units.begin(), status.capabilities.media_units.end(),
+		[](const mister::MediaUnitCapability& unit) { return unit.unit == 1; });
+	assert(ejected_a != status.capabilities.media_units.end() && ejected_a->state == mister::MediaUnitState::empty &&
+		ejected_a->base_media_id.empty());
+	assert(fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a).ok());
+	// The guest writes A:; the same disk goes back into A:. The swap saves
+	// it first and the drive then holds the saved bytes, not the base.
+	window.floppy[512] ^= 0x5a;
+	endpoint.GuestFloppyWrite(1);
+	const std::vector<std::uint8_t> written(window.floppy.begin(), window.floppy.begin() + 1474560);
+	assert(fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a).ok());
+	assert(std::equal(written.begin(), written.end(), window.floppy.begin()) && endpoint.floppies[0].state == 3);
+	const MediaDataIdentity identity{"fes.pc386", a.game_id, a.base_media_id, kPc386FloppyNamespaceUnit};
+	std::unique_ptr<MediaDataFile> record;
+	assert(MediaDataFile::Open(media.path, identity, &record).ok());
+	MediaDiskRecord saved;
+	assert(record->Read(&saved).ok() && saved.bytes == written && saved.revision != "absent");
+	const std::string ns = media.path + "/" + MediaDataNamespace(identity);
+	// A live eject whose save fails leaves the disk in and the drive running,
+	// not frozen (the save-failure recovery resumes it); the retry saves both
+	// writes and ejects it.
+	window.floppy[3000] ^= 0x11;
+	endpoint.GuestFloppyWrite(1);
+	assert(chmod(ns.c_str(), 0500) == 0);
+	assert(fixture.runtime.EjectMedia(opened.package_id, gen, 1).code == mister::ErrorCode::save_failed);
+	assert(chmod(ns.c_str(), 0700) == 0);
+	assert(!endpoint.floppies[0].frozen && endpoint.floppies[0].state == 3);
+	window.floppy[3001] ^= 0x22;
+	endpoint.GuestFloppyWrite(1);
+	const std::uint8_t at_3000 = window.floppy[3000], at_3001 = window.floppy[3001];
+	// The save succeeds but the Eject command is refused: the drive was frozen
+	// for the save, and the controller fence is shared, so it must be resumed
+	// and the disk stay in, not left frozen with both drives stalled.
+	bool rejected_eject = false;
+	endpoint.reject_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+		if (!rejected_eject && request.opcode == FesComputerOpcodeDiskControl && request.index == 1 &&
+			request.argument == FesComputerDiskControlEject) {
+			rejected_eject = true;
+			return 4u;
+		}
+		return 0u;
+	};
+	assert(fixture.runtime.EjectMedia(opened.package_id, gen, 1).code == mister::ErrorCode::save_failed);
+	endpoint.reject_request = {};
+	assert(rejected_eject && !endpoint.floppies[0].frozen && endpoint.floppies[0].state == 3);
+	assert(fixture.runtime.EjectMedia(opened.package_id, gen, 1).ok() && endpoint.floppies[0].state != 3);
+	assert(record->Read(&saved).ok() && saved.bytes[3000] == at_3000 && saved.bytes[3001] == at_3001);
+	assert(fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a).ok());
+
+	// Incoming record failures retain the mounted disk at preflight and report
+	// an empty drive if the record changes after a successful eject.
+	const auto check_changed_record = [&](const auto& change_record, const auto& restore_record,
+		mister::ErrorCode expected) {
+		change_record();
+		const auto before_preflight = endpoint.requests.size();
+		const auto preflight = fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a);
+		assert(preflight.code == expected && preflight.phase == "request");
+		assert(endpoint.requests.size() == before_preflight && endpoint.floppies[0].state == 3);
+		restore_record();
+		endpoint.fail_after_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+			if (request.opcode == FesComputerOpcodeDiskControl && request.index == 1 &&
+				request.argument == FesComputerDiskControlEject)
+				change_record();
+			return false;
+		};
+		const auto after_eject = fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a);
+		endpoint.fail_after_request = {};
+		assert(after_eject.code == expected && after_eject.phase == "media_data");
+		assert(endpoint.floppies[0].state == 1 && endpoint.floppies[1].state == 3 && !endpoint.held);
+		status = fixture.runtime.status();
+		assert(status.generation == gen);
+		const auto unit_a = std::find_if(status.capabilities.media_units.begin(), status.capabilities.media_units.end(),
+			[](const mister::MediaUnitCapability& unit) { return unit.unit == 1; });
+		assert(unit_a != status.capabilities.media_units.end() && unit_a->state == mister::MediaUnitState::empty &&
+			unit_a->base_media_id.empty());
+		restore_record();
+		assert(fixture.runtime.InsertLibraryMedia(a_path, opened.package_id, gen, 1, 1474560, media.path, a).ok());
+	};
+	MediaDiskRecord wrong_size = saved;
+	wrong_size.bytes.resize(737280);
+	MediaDiskRecord replacement;
+	check_changed_record([&] { assert(record->Persist(wrong_size, saved.revision, &replacement).ok()); },
+		[&] { assert(record->Persist(saved, replacement.revision, &saved).ok()); },
+		mister::ErrorCode::incompatible_data);
+	// The record reader uses O_NOFOLLOW, so a replaced path reports an I/O error.
+	const std::string record_path = ns + "/record.bin", record_backup = ns + "/record-backup.bin";
+	check_changed_record([&] {
+		assert(rename(record_path.c_str(), record_backup.c_str()) == 0);
+		assert(symlink(record_backup.c_str(), record_path.c_str()) == 0);
+	}, [&] {
+		assert(unlink(record_path.c_str()) == 0 && rename(record_backup.c_str(), record_path.c_str()) == 0);
+	}, mister::ErrorCode::io_failed);
+
+	// A save that fails after Freeze resumes the drive; the guest writes on,
+	// and the retry publishes that later write.
+	window.floppy[1024] ^= 0x33;
+	endpoint.GuestFloppyWrite(1);
+	assert(chmod(ns.c_str(), 0500) == 0);
+	const auto failed_at = endpoint.requests.size();
+	assert(fixture.runtime.Stop().code == mister::ErrorCode::save_failed);
+	assert(chmod(ns.c_str(), 0700) == 0);
+	bool resumed = false;
+	for (std::size_t at = failed_at; at < endpoint.requests.size(); ++at)
+		resumed = resumed || (endpoint.requests[at].opcode == FesComputerOpcodeDiskControl &&
+			endpoint.requests[at].index == 1 && endpoint.requests[at].argument == FesComputerDiskControlResume);
+	assert(resumed && !endpoint.floppies[0].frozen);
+	window.floppy[2048] ^= 0x77;
+	endpoint.GuestFloppyWrite(1);
+	assert(fixture.runtime.Stop().ok());
+	assert(record->Read(&saved).ok() && saved.bytes[1024] == window.floppy[1024] &&
+		saved.bytes[2048] == window.floppy[2048]);
+	record.reset();
+	assert(unlink((ns + "/record.bin").c_str()) == 0 && rmdir(ns.c_str()) == 0);
+	const std::string games = data.path + "/games/";
+	const std::string machine = games + GameDataNamespace("fes.pc386", "ultima-vi");
+	assert(unlink((machine + "/record.bin").c_str()) == 0 && rmdir(machine.c_str()) == 0 && rmdir(games.c_str()) == 0);
+}
+
+// Launch disks: A: writable and B: write-protected go in while the machine is
+// held, before execution is released, so the BIOS boots from A:. A relaunch
+// with the same A: disk restores its saved bytes. A package without the
+// drives, a disk its drive cannot read, a disk whose bytes are not its digest
+// and a disk of another game are all refused before programming.
+void TestPc386FloppyLaunch()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	const std::uint32_t caps = FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMouseRelative |
+		FesComputerCapabilityMemoryHpsDdr | FesComputerCapabilityMediaAtaDisk |
+		FesComputerCapabilityPersistenceWords | FesComputerCapabilityPc386Machine |
+		FesComputerCapabilityRtcWallClock | FesComputerCapabilityMediaPcFloppy;
+	mister_test::ComputerEndpoint endpoint(caps, {}, "0123456789abcdef0123456789abcdef");
+	endpoint.abi_minor = 1;
+	endpoint.verify_reads = 0;
+	FixedClock clock(100);
+	FesGp transport(endpoint, clock);
+	FesGpCoreDriver driver(transport);
+	IntegratedFixture fixture(&driver);
+	fixture.native.clock.has_local = true;
+	fixture.native.clock.local.tm_year = 126;
+	fixture.native.clock.local.tm_mday = 1;
+	fixture.native.clock.local.tm_wday = 4;
+	auto& window = fixture.native.disk_operations;
+	window.region.assign(4u << 20, 0xee);
+	window.floppy.assign(2 * FesComputerPcFloppyWindowStride, 0xee);
+	endpoint.window = &window.region;
+	for (unsigned k = 0; k < 2; ++k) {
+		endpoint.floppies[k].region = &window.floppy;
+		endpoint.floppies[k].offset = k * FesComputerPcFloppyWindowStride;
+	}
+	fixture.Start();
+	int programmed = 0;
+	fixture.native.fpga.on_program = [&] {
+		++programmed;
+		endpoint.Reset();
+		for (auto& f : endpoint.floppies) f.Reset(1);
+	};
+	TempDirectory package, bare, data, media, images;
+	const auto Manifest = [](bool floppy) {
+		auto manifest = Pc386Manifest();
+		for (const auto* id : {"fes.memory.hps-ddr", "fes.media.ata-disk", "fes.media.pc-floppy"})
+			if (floppy || std::string(id) != "fes.media.pc-floppy")
+				manifest += std::string("\n[[interfaces]]\nid = \"") + id + "\"\nmajor = 1\nminor = 0\nrequired = true\n";
+		return manifest;
+	};
+	package.File("manifest.toml", Manifest(true));
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	bare.File("manifest.toml", Manifest(false));
+	bare.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened, opened_bare;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	assert(OpenCorePackage(bare.path, "", &opened_bare).ok());
+	const auto Disk = [&](const std::string& name, std::uint32_t size, std::uint8_t unit, bool protect) {
+		std::string bytes(size, '\0');
+		for (std::uint32_t at = 0; at < size; ++at) bytes[at] = static_cast<char>(at * 5 + (at >> 9) + unit);
+		Sha256 hash;
+		hash.Update(bytes.data(), bytes.size());
+		mister::InitialComputerMedia disk;
+		disk.path = images.File(name, bytes);
+		disk.data_root = media.path;
+		disk.size = size;
+		disk.binding.game_id = "freedos";
+		disk.binding.base_media_id = Sha256Hex(hash.Final());
+		disk.binding.unit = unit;
+		disk.binding.write_protected = protect;
+		return disk;
+	};
+	const std::vector<mister::InitialComputerMedia> disks = {
+		Disk("boot.img", 1474560, 1, false), Disk("b.img", 1228800, 2, true)};
+	// Refused before programming: no drives declared, or the wrong drive.
+	assert(fixture.runtime.LoadLibraryCore(bare.path, opened_bare.package_id, data.path, "freedos", nullptr,
+		&disks).code == mister::ErrorCode::unsupported_interface);
+	auto swapped = disks;
+	swapped[0].binding.unit = 2;
+	swapped[1].binding.unit = 1;
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "freedos", nullptr,
+		&swapped).code == mister::ErrorCode::invalid_request);
+	// A disk whose bytes are not its digest's, or of another game.
+	auto corrupt = disks;
+	corrupt[1].binding.base_media_id = disks[0].binding.base_media_id;
+	const auto refused = fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "freedos",
+		nullptr, &corrupt);
+	assert(refused.code == mister::ErrorCode::invalid_request && refused.phase == "admission");
+	assert(!fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", nullptr,
+		&disks).ok());
+	assert(programmed == 0);
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "freedos", nullptr, &disks).ok());
+	std::size_t release = 0, last_commit = 0;
+	for (std::size_t at = 0; at < endpoint.requests.size(); ++at) {
+		const auto& request = endpoint.requests[at];
+		if (!release && request.opcode == FesComputerOpcodeExecution && request.argument == FesComputerExecutionRelease)
+			release = at;
+		if (request.opcode == FesComputerOpcodeDiskCommit && request.index >= 8) last_commit = at;
+	}
+	assert(last_commit && release > last_commit);
+	assert(endpoint.floppies[0].state == 3 && !endpoint.floppies[0].write_protect &&
+		endpoint.floppies[1].state == 3 && endpoint.floppies[1].write_protect);
+	const std::string boot = ReadText(disks[0].path);
+	assert(std::equal(boot.begin(), boot.end(), window.floppy.begin(),
+		[](char x, std::uint8_t y) { return static_cast<std::uint8_t>(x) == y; }));
+	// The guest writes A:; Stop saves it; the next launch restores it.
+	window.floppy[4096] ^= 0x42;
+	endpoint.GuestFloppyWrite(1);
+	const std::vector<std::uint8_t> written(window.floppy.begin(), window.floppy.begin() + 1474560);
+	assert(fixture.runtime.Stop().ok());
+	std::fill(window.floppy.begin(), window.floppy.end(), 0xee);
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "freedos", nullptr, &disks).ok());
+	assert(std::equal(written.begin(), written.end(), window.floppy.begin()));
+	assert(fixture.runtime.Stop().ok());
+	const MediaDataIdentity identity{"fes.pc386", "freedos", disks[0].binding.base_media_id, kPc386FloppyNamespaceUnit};
+	const std::string ns = media.path + "/" + MediaDataNamespace(identity);
+	assert(unlink((ns + "/record.bin").c_str()) == 0 && rmdir(ns.c_str()) == 0);
+	const std::string games = data.path + "/games/";
+	const std::string machine = games + GameDataNamespace("fes.pc386", "freedos");
+	assert(unlink((machine + "/record.bin").c_str()) == 0 && rmdir(machine.c_str()) == 0 && rmdir(games.c_str()) == 0);
+}
+
 // An input fault, or an execution release lost at launch, leaves the
 // computer mailbox poisoned. The fault save realigns it before freezing the
 // ATA disk, stores the dirty chunks and the machine record, and reaches idle.
@@ -6138,7 +6522,7 @@ void TestZx81ComputerDisplayPackageAdmittedWhenAdvertised()
 
 void TestLiveComputerStatusResponsesMatchRuntime()
 {
-	assert(live_computer_status_responses.size() == 3);
+	assert(live_computer_status_responses.size() == 4);
 	if (std::getenv("FES_EMIT_LIVE_COMPUTER_FIXTURES")) {
 		for (const auto& response : live_computer_status_responses)
 			puts(response.c_str());
@@ -6756,6 +7140,8 @@ int main(int argc,char** argv)
 	TestProductionFactoryForwardsCoreDataWithoutHardwareMutation();
 	TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation();
 	TestPc386AtaDiskLaunchSaveAndRestore();
+	TestPc386FloppySwapSaveAndResume();
+	TestPc386FloppyLaunch();
 	TestPc386WindowFaultRefusesTheDiskSave();
 	TestDe25WindowOpensAfterTheSessionDisplayBinds();
 	TestPc386DiskFaultSaveRealignsMailbox();

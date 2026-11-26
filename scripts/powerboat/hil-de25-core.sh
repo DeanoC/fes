@@ -12,7 +12,7 @@ LOCK1=$KS/de25-TRWU8J8G-STATUS.lock; LOCK2=$KS/de25-TRWU8J8G-STATUS.md.lock
 TARGET=de25; TARGET_ID=e2a51a4f-bae2-4041-a4e4-51f6774d4e45; SERIAL=TRWU8J8G; ADDR=192.168.10.119
 ROOT=/home/deano/codex-jobs/de25-kit-parity-p3-20261116
 SOURCE_BASE=$ROOT/wt
-D25_SW_BASE=/data/fes-de25-pr1312-hil-19cca-20261112/de25/native-probe-rootfs.img
+D25_SW_BASE=/home/deano/hil-assets/de25-kit-software-base/native-probe-rootfs.img
 D25_SW_IMAGE=/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/first-fault-integration-53009e4ab/hdmi-hotplug-9c/release-13/kernel-93131814a2a2-v2/base
 mkdir -p "$D/logs" "$D/out"
 if ! command -v ffmpeg >/dev/null || ! command -v tesseract >/dev/null; then
@@ -45,7 +45,7 @@ fi
 [ "$(git -C "$FES_SOURCE" rev-parse HEAD)" = "$HEAD" ] || { echo NOTSTARTED > "$D/verdict"; exit 3; }
 SW_OUT=$D/kit-software
 if ! python3 "$FES_SOURCE/scripts/kit_software.py" \
-  --base "$D25_SW_BASE" --base-sha256 8e4b57d125cf29c312c00ade7db355d7703199268612d8446af0e1d1f9b0b49e \
+  --base "$D25_SW_BASE" --base-sha256 f6630dea5e0a4c9274a7787091dd306f06fddfb48beb3e2f047e4bf08fdd3a0b \
   --version "de25-hilq-${HEAD:0:12}" --output "$SW_OUT" --board de25-nano \
   --de25-static-expansion 0 --de25-image "$D25_SW_IMAGE" >"$D/logs/kit-software-build.log" 2>&1; then
   echo NOTSTARTED > "$D/verdict"; echo "exact-head managed DE25 kit-software build failed"; exit 3

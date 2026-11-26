@@ -301,6 +301,7 @@ MACHINE_RTL = AT_RTL + (
     CORE / 'rtl/pc386_plane_bridge.sv',
     CORE / 'rtl/pc386_ems.sv',
     CORE / 'rtl/pc386_port2.sv',
+    CORE / 'rtl/pc386_floppy_verify.sv',
     CORE / 'rtl/pc386_machine.sv',
     COMMON / 'rtl/fes_display_plane.v',
     COMMON / 'rtl/fes_display_cdc.v',
@@ -312,7 +313,8 @@ MACHINE_RTL = AT_RTL + (
 # storage endpoint, the machine, its audio, fes_i386_cpu, the firmware ROM on
 # port 0 and the disk's port 2 master (pc386_system.sv), at the sealed clock.
 SYSTEM_RTL = (*dict.fromkeys(CPU_RTL + MACHINE_RTL + AUDIO_RTL), COMMON / 'rtl/fes_computer_mailbox.v',
-              COMMON / 'rtl/fes_computer_storage.v', CORE / 'rtl/pc386_rom.sv', CORE / 'rtl/pc386_disk.sv',
+              COMMON / 'rtl/fes_computer_storage.v', CORE / 'rtl/pc386_floppy_media.sv',
+              CORE / 'rtl/pc386_rom.sv', CORE / 'rtl/pc386_disk.sv',
               CORE / 'rtl/pc386_snapshot.sv', CORE / 'rtl/pc386_status.sv', CORE / 'rtl/pc386_system.sv')
 # I/O completion, request clock to done clock: each device cycle's class time
 # (isa8 72 clocks, isa16 36 at 100 MHz) plus one clock to take the request and
@@ -1409,7 +1411,7 @@ def run_benches(args) -> dict:
 def parse_system(text: str) -> dict:
     """system_tb's lines."""
     report = {'identity': None, 'restore_cycle': None, 'clock_cycle': None, 'crc_rejected': None, 'disk': None,
-              'release_cycle': None, 'post': [], 'debug': [], 'counters': [], 'prompt_cycle': None, 'screen': [],
+              'floppy': None, 'release_cycle': None, 'post': [], 'debug': [], 'counters': [], 'prompt_cycle': None, 'screen': [],
               'status': None, 'save': None, 'record': None, 'roundtrip': None, 'record_checks': [], 'write_test': None,
               'typed': [], 'mouse': [], 'holds': [], 'mailbox': None, 'end': None}
     for line in text.splitlines():
@@ -1425,6 +1427,10 @@ def parse_system(text: str) -> dict:
             cycle, *fields = rest.split()
             report['disk'] = {'cycle': int(cycle), **{key: int(value) for key, value in
                                                      (field.split('=') for field in fields)}}
+        elif kind == 'FLOPPY':
+            cycle, *fields = rest.split()
+            report['floppy'] = {'cycle': int(cycle), **{key: int(value) for key, value in
+                                                       (field.split('=') for field in fields)}}
         elif kind == 'FRAME':
             # system_tb's last complete 720p raster of the machine's video.
             report['frame'] = {k: int(v) for k, v in (f.split('=') for f in rest.split())}
@@ -1475,10 +1481,8 @@ def parse_system(text: str) -> dict:
     return report
 
 
-def system_failures(report: dict) -> list[str]:
-    """The runtime's launch must stage the disk through the mailbox and its CRC
-    pass, the system must reach the prompt with the CPU alone and every counter
-    at zero, and the Stop's disk save and record must check out."""
+def system_failures(report: dict, *, expect_floppy: bool = True) -> list[str]:
+    """Check media CRCs at launch, standalone boot and the disk and record at Stop."""
     failures = []
     if report.get('mailbox'):
         failures.append(f'mailbox: {report["mailbox"]}')
@@ -1487,6 +1491,10 @@ def system_failures(report: dict) -> list[str]:
         failures.append(f'the system did not reach the prompt: {end.get("reason")}')
     if report.get('crc_rejected') is None:
         failures.append('a wrong CRC was not rejected')
+    if expect_floppy and report.get('floppy') is None:
+        failures.append('the held launch floppy did not become ready')
+    if not expect_floppy and report.get('floppy') is not None:
+        failures.append('the board staged a floppy with no fitted drives')
     if report.get('write_test') is None:
         failures.append("the bench did not give the boot its disk write (the fixture's AUTOEXEC.BAT)")
     status = report.get('status')
@@ -1559,7 +1567,7 @@ def fixture_with(args, suite: str, source: str, name: str, base: Path | None = N
     return disk
 
 
-def run_system(args) -> dict:
+def run_system(args, *, expect_floppy: bool = True) -> dict:
     """FreeDOS to the prompt on pc386_system, everything below top.sv, with the
     DDR ports on one window model and a host that does the runtime's launch,
     keyboard and mouse input and Stop through the mailbox and the window."""
@@ -1582,7 +1590,7 @@ def run_system(args) -> dict:
     report['command'] = [str(Path(arg).relative_to(ROOT)) if arg.startswith(str(ROOT)) else arg for arg in command]
     report['exit'] = run.returncode
     report['governor'] = {'preset': args.preset, 'frequency': args.frequency, 'turbo': args.turbo}
-    report['failures'] = system_failures(report)
+    report['failures'] = system_failures(report, expect_floppy=expect_floppy)
     governed = bool(args.preset) and not args.turbo
     if report.get('status') and report['status'].get('governed') != int(governed):
         report['failures'].append(f'preset {args.preset}, turbo {args.turbo}: the governor '
@@ -1778,10 +1786,10 @@ def run_vga(args, linked: list[Path]) -> dict:
 # with the session display.
 STORAGE_EXCHANGES = COMMON / 'generated/computer-exchanges-1.1.json'
 STORAGE_RTL = (COMMON / 'rtl/fes_computer_mailbox.v', COMMON / 'rtl/fes_computer_storage.v',
-               COMMON / 'sim/computer_storage_top.sv')
+               CORE / 'rtl/pc386_floppy_media.sv', COMMON / 'sim/computer_storage_top.sv')
 STORAGE_PARAMETERS = {1: 'ENABLE_KEYBOARD', 3: 'ENABLE_AUDIO', 4: 'ENABLE_APPLE2_FLOPPY', 8: 'ENABLE_MOUSE',
                       13: 'ENABLE_SESSION_DISPLAY', 16: 'ENABLE_ATA_DISK', 17: 'ENABLE_PERSISTENCE',
-                      18: 'ENABLE_WALL_CLOCK', 19: 'ENABLE_PC386_MACHINE'}
+                      18: 'ENABLE_WALL_CLOCK', 19: 'ENABLE_PC386_MACHINE', 22: 'ENABLE_PC_FLOPPY'}
 
 
 def run_storage(args) -> dict:
@@ -1885,6 +1893,19 @@ def run_fdc(args) -> dict:
     if result.returncode and not report['failures']:
         report['failures'].append(f'fdc_replay_tb exited {result.returncode}: {result.stderr.strip()}')
     return report
+
+
+FLOPPY_VERIFY_RTL = (CORE / 'rtl/pc386_floppy_verify.sv',)
+
+
+def run_floppy_verify(args) -> dict:
+    """fes.media.pc-floppy's commit CRC pass sharing port 2 with the controller."""
+    testbench = verilate(args.verilator, 'floppy-verify', 'pc386_floppy_verify', FLOPPY_VERIFY_RTL,
+                         CORE / 'sim/floppy_verify_tb.cpp', [], args.jobs)
+    result = subprocess.run([str(testbench)], capture_output=True, text=True)
+    (OUTPUT / 'floppy-verify' / 'floppy-verify.log').write_text(result.stdout + result.stderr)
+    line = (result.stdout or result.stderr).strip()
+    return {'checks': [line] if result.returncode == 0 else [], 'failures': [] if result.returncode == 0 else [line]}
 
 
 def run_devices(args) -> dict:
@@ -2230,7 +2251,8 @@ def wfw_checks(report: dict) -> list[str]:
 def main() -> int:
     global oracle, OUTPUT
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--suite', choices=('devices', 'fdc', 'floppy', 'floppy-boot', 'storage', 'audio', 'opl2',
+    parser.add_argument('--suite', choices=('devices', 'fdc', 'floppy-verify', 'floppy', 'floppy-boot', 'storage',
+                                            'audio', 'opl2',
                                             'benches', 'boot', 'rtl-stops',
                                             'a20', 'c2xx', 'ems', 'share', 'wait', 'speaker', 'x87', 'scroll',
                                             'cpu-profile',
@@ -2322,7 +2344,7 @@ def main() -> int:
         return 2
     failed = False
     try:
-        suites = ('devices', 'fdc', 'storage', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') \
+        suites = ('devices', 'fdc', 'floppy-verify', 'storage', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') \
             if args.suite == 'all' \
             else (args.suite,)
         for suite in suites:
@@ -2333,6 +2355,8 @@ def main() -> int:
                 report = run_devices(args)
             elif suite == 'fdc':
                 report = run_fdc(args)
+            elif suite == 'floppy-verify':
+                report = run_floppy_verify(args)
             elif suite == 'storage':
                 report = run_storage(args)
             elif suite == 'audio':

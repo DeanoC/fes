@@ -39,6 +39,7 @@ int main() {
     for (int i = 0; i < 8; ++i) tick();
     expect(!t->reset_hold && t->port_request,
            "ordinary execution without HPS reset remains released");
+    expect(!t->port_drained, "an accepted read is still waiting for its reply");
 
     // A running CPU is reset while its old grant and an accepted DDR read are
     // present. The new HPS owner has not published a grant yet.
@@ -47,8 +48,10 @@ int main() {
     t->eval();
     expect(t->reset_hold && t->system_reset && !t->port_request,
            "HPS reset asynchronously holds execution and DDR requests");
-    for (int i = 0; i < 3; ++i) tick();
+    // The PLL can stop for the whole reset pulse. Resume the clock only
+    // after the reset input has deasserted, with no old read replies.
     t->machine_reset_n = 1;
+    t->eval();
     for (int i = 0; i < 8; ++i) tick();
     expect(t->reset_hold && t->system_reset && !t->port_request,
            "released HPS reset leaves the formerly running machine held");

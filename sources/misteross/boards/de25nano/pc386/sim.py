@@ -6,9 +6,9 @@ system_tb (cores/fes-pc386/sim) on pc386_de25_sim: the derived pc386_system
 builds its CPU: the 486SX (I486, the default) or the i486DX (I486,
 X87_PRESENT and i486dx/derive.py's CPU),
 behind fes_de25_hps_window's guards, rebase and bounds and
-fes_de25_window_arbiter, built with FES_PC386_DE25. The suite, its
-checks and its report are sim_fes_pc386.py's system suite unchanged; only the
-testbench is this board's. Host-only: no kit, package or routed result.
+fes_de25_window_arbiter, built with FES_PC386_DE25. The system suite checks
+this board's ATA-only storage endpoint. Host-only: no kit, package or routed
+result.
 
     python3 boards/de25nano/pc386/sim.py [--download] [--jobs N]
 """
@@ -118,7 +118,7 @@ def run_at_model_clock(args) -> dict:
     shared = producer.SYSTEM_CLOCK_HZ
     producer.SYSTEM_CLOCK_HZ = build.model_clock(args.model)['hz']
     try:
-        return sim.run_system(args)
+        return sim.run_system(args, expect_floppy=False)
     finally:
         producer.SYSTEM_CLOCK_HZ = shared
 

@@ -29,6 +29,7 @@ class GenerateTests(unittest.TestCase):
             'COPIED_FILES': (('fixtures/current.json', 'libmister-runtime', 'copy.json'),),
             'COMPONENT_FIXTURES': (('libmister-runtime', 'canonical.json', 'FogCast', 'runtime.json'),),
             'CORE_SOURCES': (),
+            'TABLE_CHECKS': (),
         }
         for name,value in mappings.items():
             patcher=patch.object(generate.consistency,name,value)

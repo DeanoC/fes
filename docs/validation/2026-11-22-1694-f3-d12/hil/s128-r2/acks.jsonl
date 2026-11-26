@@ -1,0 +1,13 @@
+{"op": "launch", "status": "ok", "t": "10:33:05"}
+{"op": "sleep", "status": "ok", "t": "10:33:13"}
+{"op": "grab", "status": "ok", "t": "10:33:13"}
+{"op": "key", "status": "ok", "t": "10:33:14"}
+{"op": "sleep", "status": "ok", "t": "10:33:39"}
+{"op": "grab", "status": "ok", "t": "10:33:40"}
+{"op": "key", "status": "ok", "t": "10:33:41"}
+{"op": "sleep", "status": "ok", "t": "10:33:43"}
+{"op": "grab", "status": "ok", "t": "10:33:44"}
+{"op": "type", "status": "ok", "t": "10:33:46"}
+{"op": "sleep", "status": "ok", "t": "10:33:48"}
+{"op": "grab", "status": "ok", "t": "10:33:49"}
+{"op": "stop", "status": "ok", "t": "10:33:52"}

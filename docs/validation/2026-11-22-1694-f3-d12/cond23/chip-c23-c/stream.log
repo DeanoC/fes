@@ -1,0 +1,23 @@
+[11-23 09:50:20] ########## c64 (full)
+[11-23 11:39:04] c64.base rc=1 (856ef5c64)
+[11-23 11:39:04] RESULT c64 condition 2: build FAILED
+[11-23 13:05:53] c64.c3 rc=0 (0be20e575)
+[11-23 13:05:53] c64.c3 rbf 20bbce2224c6f9939a518b096d046b7a12f81b8f147f29c525ed5f522bffd5b6
+[11-23 13:05:54] RESULT c64 condition 3: gates passed, BUILD_ID 
+[11-23 13:05:54]        package 4b369b7e7103c7f566b20c0c2ed763281d00084e44b1554e7fa5fe3820d9d680.fcore
+[11-23 13:05:54]        package 4b369b7e7103c7f566b20c0c2ed763281d00084e44b1554e7fa5fe3820d9d680
+[11-23 13:05:54]        package 4b369b7e7103c7f566b20c0c2ed763281d00084e44b1554e7fa5fe3820d9d680.96a6801b70468e7e2580fb5c282c737255152ea7ed1c94f22ee84778802233a0.build-inputs.json
+[11-23 13:05:54]        package 4b369b7e7103c7f566b20c0c2ed763281d00084e44b1554e7fa5fe3820d9d680.build-inputs.json
+[11-23 13:05:54] ########## atari-st (full)
+[11-23 13:39:36] atari-st.base rc=0 (856ef5c64)
+[11-23 13:39:36] atari-st.base rbf 28c3c016039dc218e0e0ddddd297aa8bdc54b046a1614c200b22eb7233bbafc6
+[11-23 13:39:37] atari-st.forced rc=1 (0be20e575)
+[11-23 13:39:37] RESULT atari-st condition 2: build FAILED
+[11-23 14:05:54] atari-st.c3 rc=0 (0be20e575)
+[11-23 14:05:54] atari-st.c3 rbf eb2636e0d8db27f24d324092b9e5a76a3e12237255412445a403ea0e575a505c
+[11-23 14:05:54] RESULT atari-st condition 3: gates passed, BUILD_ID 
+[11-23 14:05:54]        package abcfcd774f85d86e4bd8f9c0415b550ce3d67f33d6a7abff924825643aec5efc.fcore
+[11-23 14:05:54]        package abcfcd774f85d86e4bd8f9c0415b550ce3d67f33d6a7abff924825643aec5efc.build-inputs.json
+[11-23 14:05:54]        package abcfcd774f85d86e4bd8f9c0415b550ce3d67f33d6a7abff924825643aec5efc
+[11-23 14:05:54]        package abcfcd774f85d86e4bd8f9c0415b550ce3d67f33d6a7abff924825643aec5efc.1ca3b901950a619eda45f9c47ded685533c480d2ac21feecd6922dfb6ac70979.build-inputs.json
+[11-23 14:05:54] stream done

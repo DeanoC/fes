@@ -1,0 +1,115 @@
+format = 3
+
+[core]
+id = "fes.pentagon"
+name = "FES Pentagon 128"
+description = "Pentagon 128: uncontended 71,680 T-state frame, AY-3-8912, 128 KiB paged RAM, Beta 128 TR-DOS drive, linked 48 KiB firmware, .tzx/.tap/.pzx cassette with turbo loading, .z80/.sna snapshots, .trd/.scl TR-DOS disk and an edge socket"
+version = "0.5.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = 3049344
+sha256 = "cd422ab7506ae44a3aea473c6f74c0ec612abad5b06bf9a908be83bde70e63ae"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.gamepad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.spectrum-tape"
+major = 2
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.memory.hps-ddr"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.video.session-display"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.fabric.video.display-plane"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.spectrum-disk"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.expansion.spectrum-bus"
+major = 1
+minor = 0
+required = false
+
+[[interfaces]]
+id = "fes.media.spectrum-snapshot"
+major = 1
+minor = 0
+required = false
+
+[[interfaces]]
+id = "fes.media.spectrum-snapshot-128"
+major = 1
+minor = 0
+required = false
+
+[[interfaces]]
+id = "fes.media.spectrum-disk-trdos"
+major = 1
+minor = 0
+required = false
+
+[build]
+id = "2db1de121e173e4f6ef54881d939f390"
+repository = "https://github.com/DeanoC/fes"
+revision = "b67bddbd6f0a783539cb96af6ce415505dfeface"
+recipe_sha256 = "f8cfbb525f2c6b9459dd464f6bfb04f4c6670568c3e37965a3b7559938394485"
+toolchain = "mistral commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=2a546f5588251c6280e0f515f203670ed9f61fb0d73cf02517e88edb906ca48e; nextpnr-mistral commit=bd7a1c0d2e1a36ff64ad303edffac87fdabd66bb; sha256=f21a6b6e4186fce984f51a718d45966e3a64fcb8ee276f396bee0e7bb8f0209b; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=d273c1cb774f70d58c890745ac1b7dd106d32a26; sha256=0594dfdbeb6b74ee1c34291f99e2310d1ff160304c76c3bf1b327e334dbe964f"
+
+[rom]
+id = "pentagon-firmware"
+role = "firmware"
+source_size = 49152
+file = "rom-map.json"
+size = 4451253
+sha256 = "76a77915dfe361fb10b9e52b9d417127762182a37642f939c8c38f156dfd0c62"

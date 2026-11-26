@@ -947,6 +947,12 @@ An empty ATA unit does not remove the pc386 package's persistent core-data
 mode. Rejected insert/eject operations for that fixed unit leave the package's
 persistence mode unchanged.
 
+`fes.media.pc-floppy` 1.0 uses units 1 and 2 on pc386. Live replacement checks
+the incoming image and saved record before saving and ejecting the old disk.
+After eject, the runtime reads the incoming record again to pick up a save
+from a same-image replacement. An error in this second read reports a
+`media_data` failure so FogCast can reconcile the now-empty drive.
+
 `fes.media.atari-st-floppy` 1.0 uses capability bit 7 and unit 0. Discovery
 and every insertion without the geometry extension require live minimum and maximum sizes of 737,280 bytes,
 with 512-byte chunks. A changed limit is rejected before MediaBegin. The same

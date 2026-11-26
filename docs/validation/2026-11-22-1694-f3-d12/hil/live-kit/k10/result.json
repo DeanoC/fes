@@ -1,0 +1,406 @@
+{
+ "kit": "B",
+ "package": "5a61341d32579c49a87778a709a0f6841b132033de6650f4519f539fac60ed28.fcore",
+ "drive": "real",
+ "drive_sha256": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+ "library_game": "f3-floppy-gda55i2zydg6",
+ "nonce": "GDA55I2ZYDG6",
+ "goals": {
+  "freedos": {
+   "pass": true,
+   "seconds_to_detect": 0.5,
+   "frame": "frames/boot1-prompt.png"
+  },
+  "launch1": {
+   "pass": true,
+   "frames": [
+    "frames/dir-a.png",
+    "frames/dir-b.png",
+    "frames/type-ab.png",
+    "frames/write-b.png"
+   ]
+  },
+  "relaunch": {
+   "pass": true,
+   "seconds_to_detect": 0.7,
+   "frame": "frames/boot2-prompt.png"
+  },
+  "live": {
+   "pass": true,
+   "ops": [
+    {
+     "op": [
+      "eject",
+      "2"
+     ],
+     "rc": 0,
+     "error": "",
+     "status": {
+      "op": "eject",
+      "persistence_mode": "persistent",
+      "units": [
+       {
+        "unit": 0,
+        "interface": "fes.media.ata-disk",
+        "state": "ready",
+        "persistence": {
+         "mode": "persistent",
+         "game_id": "f3-floppy-gda55i2zydg6",
+         "base_media_id": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+         "revision": "4e063769975832b967313196045c5de829d02c7b3cd14618eabba90ee0061c87"
+        }
+       },
+       {
+        "unit": 1,
+        "interface": "fes.media.pc-floppy",
+        "state": "ready",
+        "persistence": {
+         "mode": "persistent",
+         "game_id": "f3-floppy-gda55i2zydg6",
+         "base_media_id": "ee42b88b9f3890b67460f729440d4ce45b3524cdc88192860d47edb88d27d210",
+         "revision": "absent"
+        }
+       },
+       {
+        "unit": 2,
+        "interface": "fes.media.pc-floppy",
+        "state": "empty"
+       }
+      ]
+     }
+    },
+    {
+     "op": [
+      "insert",
+      "2"
+     ],
+     "rc": 0,
+     "error": "",
+     "status": {
+      "op": "insert",
+      "persistence_mode": "persistent",
+      "units": [
+       {
+        "unit": 0,
+        "interface": "fes.media.ata-disk",
+        "state": "ready",
+        "persistence": {
+         "mode": "persistent",
+         "game_id": "f3-floppy-gda55i2zydg6",
+         "base_media_id": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+         "revision": "4e063769975832b967313196045c5de829d02c7b3cd14618eabba90ee0061c87"
+        }
+       },
+       {
+        "unit": 1,
+        "interface": "fes.media.pc-floppy",
+        "state": "ready",
+        "persistence": {
+         "mode": "persistent",
+         "game_id": "f3-floppy-gda55i2zydg6",
+         "base_media_id": "ee42b88b9f3890b67460f729440d4ce45b3524cdc88192860d47edb88d27d210",
+         "revision": "absent"
+        }
+       },
+       {
+        "unit": 2,
+        "interface": "fes.media.pc-floppy",
+        "state": "ready",
+        "persistence": {
+         "mode": "persistent",
+         "game_id": "f3-floppy-gda55i2zydg6",
+         "base_media_id": "fe1e6ff6cae8458c6ec2b7f6a6b425d8720f93e950f7c837b237214baf710b90",
+         "revision": "absent"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "op": [
+      "eject",
+      "2"
+     ],
+     "rc": 0,
+     "error": "",
+     "status": {
+      "op": "eject",
+      "persistence_mode": "persistent",
+      "units": [
+       {
+        "unit": 0,
+        "interface": "fes.media.ata-disk",
+        "state": "ready",
+        "persistence": {
+         "mode": "persistent",
+         "game_id": "f3-floppy-gda55i2zydg6",
+         "base_media_id": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+         "revision": "4e063769975832b967313196045c5de829d02c7b3cd14618eabba90ee0061c87"
+        }
+       },
+       {
+        "unit": 1,
+        "interface": "fes.media.pc-floppy",
+        "state": "ready",
+        "persistence": {
+         "mode": "persistent",
+         "game_id": "f3-floppy-gda55i2zydg6",
+         "base_media_id": "ee42b88b9f3890b67460f729440d4ce45b3524cdc88192860d47edb88d27d210",
+         "revision": "absent"
+        }
+       },
+       {
+        "unit": 2,
+        "interface": "fes.media.pc-floppy",
+        "state": "empty"
+       }
+      ]
+     }
+    }
+   ],
+   "frames": [
+    "frames/live-b.png",
+    "frames/live-write.png"
+   ]
+  },
+  "b-record": {
+   "pass": true,
+   "records": [
+    {
+     "path": "/media/fat/fogcast/core-data/media/70fd5a6525000aa0fca9796c7464fd3031a7d99db475411702772f4043b55184/record.bin",
+     "size": 318,
+     "magic": "FESDELT1",
+     "copies": 0,
+     "sha256": "2565c1cc47f291eef97c78962b82b11d198af3492cd22dac36e4893a8517620c",
+     "base_boot_sector": -1,
+     "base_entry": -1,
+     "c_entry": -1,
+     "live_entry": -1
+    },
+    {
+     "path": "/media/fat/fogcast/core-data/media/f6667e29749710aa0bd5989f0da64d64be2d109423c85c3c745a9455f771d2aa/record.bin",
+     "size": 1228970,
+     "magic": "FES386F1",
+     "copies": 2,
+     "sha256": "76b3f9293b8af8a904d8d717ba88ee9eeff57d361eb21fbc296b91c104df6efa",
+     "base_boot_sector": 141,
+     "base_entry": 7850,
+     "c_entry": -1,
+     "live_entry": -1
+    },
+    {
+     "path": "/media/fat/fogcast/core-data/media/f9ed7bb6062032ffe0e47e71cbb4c4b89418a6f5d221415faa29dc97497d656d/record.bin",
+     "size": 1228970,
+     "magic": "FES386F1",
+     "copies": 1,
+     "sha256": "71d9090601098784d6527d98192cf523aabfe7637270e8b398f82ffc00c89634",
+     "base_boot_sector": 141,
+     "base_entry": -1,
+     "c_entry": 7850,
+     "live_entry": 7882
+    }
+   ]
+  }
+ },
+ "events": [],
+ "floppies": {
+  "1": "ee42b88b9f3890b67460f729440d4ce45b3524cdc88192860d47edb88d27d210",
+  "2": "b04c7e81acaa3bd7ce8b7c4b7650a8a7790a2a21471f5377f749cb0d643b2907"
+ },
+ "live": [
+  {
+   "op": [
+    "eject",
+    "2"
+   ],
+   "rc": 0,
+   "error": "",
+   "status": {
+    "op": "eject",
+    "persistence_mode": "persistent",
+    "units": [
+     {
+      "unit": 0,
+      "interface": "fes.media.ata-disk",
+      "state": "ready",
+      "persistence": {
+       "mode": "persistent",
+       "game_id": "f3-floppy-gda55i2zydg6",
+       "base_media_id": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+       "revision": "4e063769975832b967313196045c5de829d02c7b3cd14618eabba90ee0061c87"
+      }
+     },
+     {
+      "unit": 1,
+      "interface": "fes.media.pc-floppy",
+      "state": "ready",
+      "persistence": {
+       "mode": "persistent",
+       "game_id": "f3-floppy-gda55i2zydg6",
+       "base_media_id": "ee42b88b9f3890b67460f729440d4ce45b3524cdc88192860d47edb88d27d210",
+       "revision": "absent"
+      }
+     },
+     {
+      "unit": 2,
+      "interface": "fes.media.pc-floppy",
+      "state": "empty"
+     }
+    ]
+   }
+  },
+  {
+   "op": [
+    "insert",
+    "2"
+   ],
+   "rc": 0,
+   "error": "",
+   "status": {
+    "op": "insert",
+    "persistence_mode": "persistent",
+    "units": [
+     {
+      "unit": 0,
+      "interface": "fes.media.ata-disk",
+      "state": "ready",
+      "persistence": {
+       "mode": "persistent",
+       "game_id": "f3-floppy-gda55i2zydg6",
+       "base_media_id": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+       "revision": "4e063769975832b967313196045c5de829d02c7b3cd14618eabba90ee0061c87"
+      }
+     },
+     {
+      "unit": 1,
+      "interface": "fes.media.pc-floppy",
+      "state": "ready",
+      "persistence": {
+       "mode": "persistent",
+       "game_id": "f3-floppy-gda55i2zydg6",
+       "base_media_id": "ee42b88b9f3890b67460f729440d4ce45b3524cdc88192860d47edb88d27d210",
+       "revision": "absent"
+      }
+     },
+     {
+      "unit": 2,
+      "interface": "fes.media.pc-floppy",
+      "state": "ready",
+      "persistence": {
+       "mode": "persistent",
+       "game_id": "f3-floppy-gda55i2zydg6",
+       "base_media_id": "fe1e6ff6cae8458c6ec2b7f6a6b425d8720f93e950f7c837b237214baf710b90",
+       "revision": "absent"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": [
+    "eject",
+    "2"
+   ],
+   "rc": 0,
+   "error": "",
+   "status": {
+    "op": "eject",
+    "persistence_mode": "persistent",
+    "units": [
+     {
+      "unit": 0,
+      "interface": "fes.media.ata-disk",
+      "state": "ready",
+      "persistence": {
+       "mode": "persistent",
+       "game_id": "f3-floppy-gda55i2zydg6",
+       "base_media_id": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+       "revision": "4e063769975832b967313196045c5de829d02c7b3cd14618eabba90ee0061c87"
+      }
+     },
+     {
+      "unit": 1,
+      "interface": "fes.media.pc-floppy",
+      "state": "ready",
+      "persistence": {
+       "mode": "persistent",
+       "game_id": "f3-floppy-gda55i2zydg6",
+       "base_media_id": "ee42b88b9f3890b67460f729440d4ce45b3524cdc88192860d47edb88d27d210",
+       "revision": "absent"
+      }
+     },
+     {
+      "unit": 2,
+      "interface": "fes.media.pc-floppy",
+      "state": "empty"
+     }
+    ]
+   }
+  }
+ ],
+ "claim": "## 2026-11-25T08:19:15+02:00 KIT B IN USE: Claude fes#2101 (F3 #1694) floppy kit smoke: installs and activates PR kit-software bundle 0dd6ff5801ccf19f540596c65600c65a287029e61a237499d415eac1ca5234a0 (",
+ "live_ok": true,
+ "kit_created": [
+  "/media/fat/fogcast/core-data/games/77845875a1475cb8bd4c6aa2bcebc3b7a55ffc974e67b9343fcacf8dcbf08b82",
+  "/media/fat/fogcast/core-data/media/70fd5a6525000aa0fca9796c7464fd3031a7d99db475411702772f4043b55184",
+  "/media/fat/fogcast/core-data/media/979b9034223a4a90b84e838a3f8f904767a8276da231b1cb8e96fa6338306c54",
+  "/media/fat/fogcast/core-data/media/f6667e29749710aa0bd5989f0da64d64be2d109423c85c3c745a9455f771d2aa",
+  "/media/fat/fogcast/core-data/media/f9ed7bb6062032ffe0e47e71cbb4c4b89418a6f5d221415faa29dc97497d656d",
+  "/media/fat/fogcast/disk-images/a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c.img",
+  "/media/fat/fogcast/disk-images/b04c7e81acaa3bd7ce8b7c4b7650a8a7790a2a21471f5377f749cb0d643b2907.img",
+  "/media/fat/fogcast/disk-images/ee42b88b9f3890b67460f729440d4ce45b3524cdc88192860d47edb88d27d210.img"
+ ],
+ "floppy_records": [
+  {
+   "path": "/media/fat/fogcast/core-data/media/70fd5a6525000aa0fca9796c7464fd3031a7d99db475411702772f4043b55184/record.bin",
+   "size": 318,
+   "magic": "FESDELT1",
+   "copies": 0,
+   "sha256": "2565c1cc47f291eef97c78962b82b11d198af3492cd22dac36e4893a8517620c",
+   "base_boot_sector": -1,
+   "base_entry": -1,
+   "c_entry": -1,
+   "live_entry": -1
+  },
+  {
+   "path": "/media/fat/fogcast/core-data/media/f6667e29749710aa0bd5989f0da64d64be2d109423c85c3c745a9455f771d2aa/record.bin",
+   "size": 1228970,
+   "magic": "FES386F1",
+   "copies": 2,
+   "sha256": "76b3f9293b8af8a904d8d717ba88ee9eeff57d361eb21fbc296b91c104df6efa",
+   "base_boot_sector": 141,
+   "base_entry": 7850,
+   "c_entry": -1,
+   "live_entry": -1
+  },
+  {
+   "path": "/media/fat/fogcast/core-data/media/f9ed7bb6062032ffe0e47e71cbb4c4b89418a6f5d221415faa29dc97497d656d/record.bin",
+   "size": 1228970,
+   "magic": "FES386F1",
+   "copies": 1,
+   "sha256": "71d9090601098784d6527d98192cf523aabfe7637270e8b398f82ffc00c89634",
+   "base_boot_sector": 141,
+   "base_entry": -1,
+   "c_entry": 7850,
+   "live_entry": 7882
+  }
+ ],
+ "c_record_ok": true,
+ "readback": {
+  "dos": true,
+  "notepad": true,
+  "files": {
+   "WFWDOS.TXT": null,
+   "WFWNOTE.TXT": null
+  }
+ },
+ "after": {
+  "agent": "idle",
+  "lease": "free",
+  "rebooted": false,
+  "left": [],
+  "recovery_required": false
+ },
+ "failure": null,
+ "pass": true
+}
