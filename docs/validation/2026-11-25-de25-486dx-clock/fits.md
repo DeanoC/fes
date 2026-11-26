@@ -369,6 +369,34 @@ advisory rows audited across retained reports agreed with the DRC
 for every located subject before its live proof. This candidate needs
 four fresh producer builds at C0 = 34.
 
+## C0 = 34 device geometry sweep
+
+The candidate is `1106c799322514432b4631fc17439be4055043dc`. All four
+seeds passed the geometry check, live proof, ordinary producer and
+seal, and independent LOADED measurement. All four use the original
+`pc386_system.v` bytes and the intended PLL counters.
+
+| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Producer and seal |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 45,187.7 | +0.742 ns | 0.000 ns | +7.197 ns | +0.115 ns | 2.554 ns | Pass |
+| 2 | 45,049.8 | +0.626 ns | 0.000 ns | +6.651 ns | +0.056 ns | 2.482 ns | Pass |
+| 3 | 44,783.4 | +0.852 ns | 0.000 ns | +6.969 ns | +0.025 ns | 2.955 ns | Pass |
+| 4 | 45,205.0 | +0.407 ns | 0.000 ns | +6.453 ns | +0.165 ns | 2.750 ns | Pass |
+
+The four fitted seeds qualified C0 = 34 at 92.156863 MHz. The retained
+`c34-geometry/summary.json` SHA-256 is
+`a5b2d19aa3b964ccd9ad40852b3bb46067ce3dc782bfcec9220ae5ee089eab7b`.
+The most constrained seed measured 2.955 ns against the 3.851 ns LOADED
+budget. The live proofs covered 14, 30, 28 and 19 placement registers.
+Every structural and timing check passed.
+
+| Seed | Seed summary SHA-256 | Structural receipt SHA-256 |
+| ---: | --- | --- |
+| 1 | `0e83430c8b35a43c9c8ab90977f4f436db4bbf45096d048ae7e54fe0b7559b23` | `082e3ba76ddceddb1e5052cd29d8d72917cba0d97ff1671140eff0d666be4520` |
+| 2 | `a1f5391678ce77a2bae7bbbcdc7a39195dd02525d276ec9d7a9af4710bcdc3fb` | `3622f2d5b9262fec7c9a4a4b1a0d30d4b73698c2d76332a9cf3c209cbd38b983` |
+| 3 | `2132c8d815efd2d8d2b9db07252f579a269635d7894e1bcc244f349126c29210` | `a9ebf2ffbe1fac65a0ef6f8d1c81d9a315b26f445a7797108918aff2c5616fb4` |
+| 4 | `9b75ef93b32ceab0c453a1adbf4c1007b29cf5f88565e6037fd8f0ed712fc767` | `57eaf6c16284ce2b8acbe67591330fae5a79a70337a16fb2fb6d5b57c5631755` |
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed
