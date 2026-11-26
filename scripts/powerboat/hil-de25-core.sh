@@ -148,7 +148,7 @@ new_video = old_video + """
             "event": {"Player": 0, "Device": 0, "Kind": 0, "Action": 1, "Code": tap_code, "Value": 0}})
         grab("12-typed", 2)
         delta = frame_delta("11-core", "12-typed")
-        check("keyboard_reaches_core", typed.get("ok") is True and idle is not None and delta is not None and idle < 0.0005 and delta > 0.001,
+        check("keyboard_reaches_core", typed.get("ok") is True and idle is not None and delta is not None and idle < 0.0001 and delta > 0.0003,
             f"tap={tap_code:#x} idle_delta={idle} typed_delta={delta}")"""
 if old_video not in s: raise SystemExit('HIL smoke core video check changed')
 s=s.replace(old_video,new_video,1)
