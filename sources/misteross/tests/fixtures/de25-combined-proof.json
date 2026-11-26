@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "6666b5c97d2d19c99b4290760f0b69c8c672322a",
+  "source_revision": "fd6b0532ed787d395bd5c1b21f2ef6274c706082",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -97,7 +97,7 @@
     "sources/libmister-runtime/src/native/idle_recipe.hpp": "743d820a3bdba213a5d806dc834236b0e149ed930982b5104cba732e47e62527",
     "sources/libmister-runtime/src/native/video_recipe.hpp": "b471a537d3ed136028465f5dd11db0e7fe52f2534a9762a28f63c8f89583e8c0",
     "sources/libmister-runtime/src/native/video.hpp": "b44cd8217c3553ddc9e2ca05070040a55dea2bcc3f8c15dee1236bc2155b4276",
-    "sources/libmister-runtime/src/native/adv7513.hpp": "be514b089db4d58a98165793794edece8bb070c38eec30f50dd806651d95d9db",
+    "sources/libmister-runtime/src/native/adv7513.hpp": "377562562bca4ef8fa5203870788d34c76d2480f7be40c954ca27289d38b58ae",
     "sources/libmister-runtime/src/native/hardware.hpp": "c7cac1356a2505fd6d102625e131a7941bdc0edb05dd12604317662b8bddfdc9",
     "sources/libmister-runtime/src/native/core_package.hpp": "723dee801de2a3574927d24ef8e0a68b471f344f83cb94d3b09997ad3ac87949",
     "sources/libmister-runtime/src/native/platform.hpp": "2b49e4ee2cce88c0505a3e092f7100ad4d453f2167efbd17d1adabb6b574c359",
@@ -344,7 +344,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "a3c8d49d179e6a13dedc740fd2e181c2ba884ef9111d35d8e955820960bd35ea",
-    "Vfes_de25_combined_sim": "187d20ea14682d959ba9a6319d5a82e18d3705e61040de38096a64482624749e",
+    "Vfes_de25_combined_sim": "1f7fc2c87af2a9d4bd0cdc6b835f35da72c1a5488ae030a89bfcabe42b3bbb16",
     "client-aarch64": "cf763f001d257e257c8f2fcf56e74e76e296728abfdc624888a2a087236e34d4"
   },
   "physical_PR": "selection-mux-model-only",
