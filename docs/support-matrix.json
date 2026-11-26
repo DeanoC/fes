@@ -2326,7 +2326,7 @@
       },
       {
         "id": "kit-accepted",
-        "meaning": "Conformance and the DE10 game corpus pass on Kit D25, with persistence as declared."
+        "meaning": "Conformance and the DE10 game corpus pass on Kit D25 for that exact package, per a per-core JSON acceptance receipt, with persistence as declared."
       },
       {
         "id": "released",

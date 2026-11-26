@@ -644,9 +644,9 @@ def validate_de25_progress(root: Path, data: dict, by_id: dict) -> list[str]:
 
     A cell with no DE25 producer must say none. builds needs a DE25 producer.
     sealed and later need a registered DE25 recipe and the exact package that
-    ran on Kit D25, named in an in-repo smoke record. kit-accepted and released
-    also name evidence files that exist, since they claim conformance and the
-    corpus.
+    passed the Kit D25 smoke, per an in-repo receipt for that core. kit-accepted
+    and released also need a per-core acceptance receipt for the same package,
+    since they claim conformance and the corpus.
     """
     progress = data.get('de25_tier1')
     if not progress:
@@ -690,14 +690,9 @@ def validate_de25_progress(root: Path, data: dict, by_id: dict) -> list[str]:
             if rank >= DE25_STATES.index('sealed'):
                 if core_id not in registered:
                     errors.append(f'de25_tier1 {core_id} says {state} without a registered DE25 recipe')
-                errors += de25_package_errors(root, core_id, state, (machine.get('packages') or {}).get(core_id))
-            if rank >= DE25_STATES.index('kit-accepted'):
-                evidence = machine.get('evidence') or []
-                if not evidence:
-                    errors.append(f'de25_tier1 {core_id} says {state} without evidence')
-                for path in evidence:
-                    if not (root / path).exists():
-                        errors.append(f'de25_tier1 {label} evidence is missing: {path}')
+                errors += de25_package_errors(
+                    root, core_id, state, (machine.get('packages') or {}).get(core_id),
+                    acceptance=rank >= DE25_STATES.index('kit-accepted'))
     for core_id in sorted(tier1 - seen):
         errors.append(f'de25_tier1 has no cell for tier 1 core {core_id}')
     for core_id in sorted(seen - tier1):
@@ -705,30 +700,46 @@ def validate_de25_progress(root: Path, data: dict, by_id: dict) -> list[str]:
     return errors
 
 
-def de25_package_errors(root: Path, core_id: str, state: str, package) -> list[str]:
-    """sealed and later name the exact package that passed the Kit D25 smoke.
+def de25_package_errors(root: Path, core_id: str, state: str, package, *, acceptance: bool = False) -> list[str]:
+    """sealed and later name the exact package that passed on Kit D25.
 
-    The record is the package SHA-256 and an in-repo JSON smoke receipt for
-    that core, that package and Kit D25 with a PASS verdict, so neither a
-    rebuilt package nor another core's receipt can stand in for it.
+    The package SHA-256 comes with an in-repo JSON smoke receipt (`evidence`)
+    for that core, that package and Kit D25 with a PASS verdict, so neither a
+    rebuilt package nor another core's receipt can stand in for it. With
+    `acceptance`, an `acceptance` receipt for the same core and package must
+    also record conformance and corpus PASS.
     """
     if not isinstance(package, dict):
         return [f'de25_tier1 {core_id} says {state} without the package that ran on Kit D25']
     sha = package.get('sha256')
-    record = package.get('evidence')
     if not isinstance(sha, str) or len(sha) != 64 or any(c not in '0123456789abcdef' for c in sha):
         return [f'de25_tier1 {core_id} package sha256 is not a lowercase SHA-256']
-    if not isinstance(record, str) or not record.endswith('.json') or not (root / record).is_file():
-        return [f'de25_tier1 {core_id} smoke receipt is missing or not JSON: {record}']
-    try:
-        receipt = json.loads((root / record).read_text())
-    except ValueError as error:
-        return [f'de25_tier1 {core_id} smoke receipt {record} is unreadable: {error}']
     expected = {'kit_serial': DE25_KIT_SERIAL, 'core_id': core_id, 'package_sha256': sha, 'verdict': 'PASS'}
+    errors = de25_receipt_errors(root, core_id, 'smoke', package.get('evidence'), expected)
+    if acceptance:
+        errors += de25_receipt_errors(root, core_id, 'acceptance', package.get('acceptance'),
+                                      {**expected, 'conformance': 'PASS', 'corpus': 'PASS'})
+    return errors
+
+
+def de25_receipt_errors(root: Path, core_id: str, kind: str, record, expected: dict) -> list[str]:
+    """A committed JSON receipt under the repository whose fields match `expected`."""
+    if not isinstance(record, str) or not record.endswith('.json'):
+        return [f'de25_tier1 {core_id} {kind} receipt is missing or not JSON: {record}']
+    base = root.resolve()
+    path = (root / record).resolve()
+    if Path(record).is_absolute() or not path.is_relative_to(base):
+        return [f'de25_tier1 {core_id} {kind} receipt is outside the repository: {record}']
+    if not path.is_file():
+        return [f'de25_tier1 {core_id} {kind} receipt is missing or not JSON: {record}']
+    try:
+        receipt = json.loads(path.read_text())
+    except ValueError as error:
+        return [f'de25_tier1 {core_id} {kind} receipt {record} is unreadable: {error}']
     if not isinstance(receipt, dict):
-        return [f'de25_tier1 {core_id} smoke receipt {record} is not an object']
+        return [f'de25_tier1 {core_id} {kind} receipt {record} is not an object']
     return [
-        f'de25_tier1 {core_id} smoke receipt {record} has {key} {receipt.get(key)!r}, expected {value!r}'
+        f'de25_tier1 {core_id} {kind} receipt {record} has {key} {receipt.get(key)!r}, expected {value!r}'
         for key, value in expected.items() if receipt.get(key) != value
     ]
 

@@ -754,7 +754,7 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertIn('de25_tier1 fes.zx80 says builds but no DE25 producer builds it', errors)
         self.assertIn('de25_tier1 fes.pc386 says sealed without a registered DE25 recipe', errors)
         self.assertIn('de25_tier1 fes.c64 says none but a DE25 producer builds it', errors)
-        self.assertIn('de25_tier1 fes.atari-st says kit-accepted without evidence', errors)
+        self.assertIn('de25_tier1 fes.atari-st says kit-accepted without the package that ran on Kit D25', errors)
         self.assertIn("de25_tier1 fes.pcxt-dos state 'shipped' is not a DE25 state", errors)
 
     def test_de25_registered_ids_include_models_of_registered_producers_only(self):
@@ -790,6 +790,10 @@ class SupportMatrixTests(unittest.TestCase):
             self.assertEqual([], run(good))
             self.assertIn('package sha256 is not a lowercase SHA-256', run(good, digest=sha.upper())[0])
             self.assertIn('not JSON', run('ab' * 32, name='record.md')[0])
+            self.assertIn('outside the repository',
+                          check(root / 'inner', 'fes.atari-st', 'sealed', {'sha256': sha, 'evidence': '../smoke.json'})[0])
+            self.assertIn('outside the repository',
+                          check(root, 'fes.atari-st', 'sealed', {'sha256': sha, 'evidence': str(root / 'smoke.json')})[0])
             self.assertIn('unreadable', run('{', name='bad.json')[0])
             for key, value in (('core_id', 'fes.zx81'), ('package_sha256', 'cd' * 32),
                                ('kit_serial', 'TRWU8CBL'), ('verdict', 'FAIL')):
@@ -797,6 +801,29 @@ class SupportMatrixTests(unittest.TestCase):
                     errors = run({**good, key: value})
                     self.assertEqual(1, len(errors), errors)
                     self.assertIn(f'has {key} {value!r}', errors[0])
+
+    def test_de25_kit_acceptance_needs_its_own_per_core_receipt(self):
+        check = SUPPORT_MATRIX.de25_package_errors
+        sha = 'ab' * 32
+        smoke = {'kit_serial': 'TRWU8J8G', 'core_id': 'fes.pentagon', 'package_sha256': sha, 'verdict': 'PASS'}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'smoke.json').write_text(json.dumps(smoke))
+            package = {'sha256': sha, 'evidence': 'smoke.json'}
+            self.assertEqual([], check(root, 'fes.pentagon', 'sealed', package))
+            errors = check(root, 'fes.pentagon', 'kit-accepted', package, acceptance=True)
+            self.assertIn('acceptance receipt is missing or not JSON', errors[0])
+            accepted = {**smoke, 'conformance': 'PASS', 'corpus': 'PASS'}
+            (root / 'accept.json').write_text(json.dumps({**accepted, 'core_id': 'fes.spectrum'}))
+            package['acceptance'] = 'accept.json'
+            errors = check(root, 'fes.pentagon', 'kit-accepted', package, acceptance=True)
+            self.assertEqual(1, len(errors), errors)
+            self.assertIn("has core_id 'fes.spectrum'", errors[0])
+            (root / 'accept.json').write_text(json.dumps({**accepted, 'corpus': 'FAIL'}))
+            self.assertIn("has corpus 'FAIL'", check(root, 'fes.pentagon', 'kit-accepted', package, acceptance=True)[0])
+            (root / 'accept.json').write_text(json.dumps(accepted))
+            self.assertEqual([], check(root, 'fes.pentagon', 'kit-accepted', package, acceptance=True))
+
 
 if __name__ == '__main__':
     unittest.main()

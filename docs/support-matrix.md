@@ -85,7 +85,7 @@ A cell is sealed only when its exact package SHA-256 is recorded with an in-repo
 | none | No DE25 producer builds it. |
 | builds | A DE25 producer builds it, with no recorded smoke of its exact package on Kit D25. |
 | sealed | Registered Quartus Pro 26.3 recipe; its exact package (SHA-256) passed the lifecycle smoke on Kit D25, per an in-repo JSON receipt. |
-| kit-accepted | Conformance and the DE10 game corpus pass on Kit D25, with persistence as declared. |
+| kit-accepted | Conformance and the DE10 game corpus pass on Kit D25 for that exact package, per a per-core JSON acceptance receipt, with persistence as declared. |
 | released | In a DE25 release cut from the same tag as DE10. |
 
 | Machine | DE25 state | Issues |
