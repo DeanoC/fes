@@ -279,7 +279,14 @@ func TestPresentRectSubimageStrideBoundsFaultAndStats(t *testing.T) {
 	}
 
 	// Steady-state PresentRect must not heap-allocate.
-	if allocs := testing.AllocsPerRun(20, func() {
+	const allocationRuns = 20
+	// AllocsPerRun performs one warm-up call before its measured runs. Reserve
+	// enough space for every logged row write so the window fixture doesn't
+	// contribute allocations to the surface measurement.
+	logCapacity := (allocationRuns + 1) * dirty.Dy()
+	m.offsets = make([]uint64, 0, logCapacity)
+	m.lengths = make([]int, 0, logCapacity)
+	if allocs := testing.AllocsPerRun(allocationRuns, func() {
 		if err := s.PresentRect(sub, dirty); err != nil {
 			t.Fatal(err)
 		}
