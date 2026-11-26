@@ -195,6 +195,8 @@ type wiredGamepadSlot struct {
 	ledAssigned  bool
 	ledPort      uint8
 	ledDirty     bool
+	rumbleRight  uint8
+	rumbleLeft   uint8
 	gipAckQueue  [4]gipAckRequest
 	gipAckHead   uint8
 	gipAckCount  uint8
@@ -1187,14 +1189,14 @@ func (h *Hub) serviceWiredInit(slotIdx int) (paused bool) {
 		}
 	case controllers.KindDualSense:
 		if slot.ledDirty && slot.ledAssigned {
-			n := controllers.BuildDualSenseUSBOutput(h.txBuf[:], slot.ledPort, 0, 0)
+			n := controllers.BuildDualSenseUSBOutput(h.txBuf[:], slot.ledPort, slot.rumbleRight, slot.rumbleLeft)
 			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
 				slot.ledDirty = false
 			}
 		}
 	case controllers.KindDualShock4:
 		if slot.ledDirty && slot.ledAssigned {
-			n := controllers.BuildDualShock4USBOutput(h.txBuf[:], slot.ledPort, 0, 0)
+			n := controllers.BuildDualShock4USBOutput(h.txBuf[:], slot.ledPort, slot.rumbleRight, slot.rumbleLeft)
 			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
 				slot.ledDirty = false
 			}
@@ -1376,6 +1378,8 @@ func (h *Hub) SetWiredRumble(slotIdx uint8, leftHeavy, rightLight uint8) error {
 	if err := slot.outPipe.Write(h.txBuf[:n]); err != nil {
 		return err
 	}
+	slot.rumbleLeft = leftHeavy
+	slot.rumbleRight = rightLight
 	if clearLEDDirty {
 		slot.ledDirty = false
 	}

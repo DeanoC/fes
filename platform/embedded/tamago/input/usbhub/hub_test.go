@@ -1380,13 +1380,13 @@ func TestHubUnifiedPlayerPortLEDsAndOverflowPromotion(t *testing.T) {
 		t.Fatalf("overflow BT DualSense unlock=%t bogusLED=%t, packets=%x", sawOvUnlock, sawOvLED, bus.btACLOutPipe.outPackets)
 	}
 
-	// 7. Detach P3 wired DualSense -> overflow wired DualSense promotes to P3 and emits P3 LED (0x15) on Service.
+	// 7. Detach P3 wired DualSense -> overflow wired DualSense promotes to P3 and emits P3 LED (0x15) on Service, preserving active rumble (0x55, 0x33).
 	bus.detach(p3DS)
 	if err := hub.Service(); err != nil {
 		t.Fatal(err)
 	}
-	if len(ovWiredOut.outPackets) != 2 || ovWiredOut.outPackets[1][2] != 0x14 || ovWiredOut.outPackets[1][44] != 0x15 {
-		t.Fatalf("expected promoted overflow wired DualSense to emit P3 LED 0x15, got %x", ovWiredOut.outPackets)
+	if len(ovWiredOut.outPackets) != 2 || ovWiredOut.outPackets[1][2] != 0x14 || ovWiredOut.outPackets[1][3] != 0x33 || ovWiredOut.outPackets[1][4] != 0x55 || ovWiredOut.outPackets[1][44] != 0x15 {
+		t.Fatalf("expected promoted overflow wired DualSense to emit P3 LED 0x15 while preserving rumble, got %x", ovWiredOut.outPackets)
 	}
 
 	// 8. Disconnect P2 BT DualSense -> overflow BT DualSense promotes to P2 and emits P2 LED (0x0a)!

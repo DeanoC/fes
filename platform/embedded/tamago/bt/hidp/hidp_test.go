@@ -1472,13 +1472,14 @@ func TestSessionManagedPlayerPortLEDsAndOverflowPromotion(t *testing.T) {
 		t.Fatalf("unexpected SetRumble behavior: dsRumbleOnly=%t ds4P2Rumble=%t", sawDSRumbleOnly, sawDS4P2Rumble)
 	}
 
-	// Promote DualSense slot 0 post-init to P3 (0x15, green RGB).
+	// Promote DualSense slot 0 post-init to P3 (0x15, green RGB), preserving active rumble (0x33, 0x11).
 	bus.aclOutPipe.outLog = nil
 	if err := sess.SetPlayerPort(0, 2, true); err != nil {
 		t.Fatalf("promote DualSense to P3: %v", err)
 	}
-	if len(bus.aclOutPipe.outLog) != 1 || bus.aclOutPipe.outLog[0][8+47] != 0x15 || bus.aclOutPipe.outLog[0][8+48] != 0x10 || bus.aclOutPipe.outLog[0][8+49] != 0x70 {
-		t.Fatalf("expected immediate P3 DualSense LED packet after promotion, got %x", bus.aclOutPipe.outLog)
+	if len(bus.aclOutPipe.outLog) != 1 || bus.aclOutPipe.outLog[0][8+6] != 0x33 || bus.aclOutPipe.outLog[0][8+7] != 0x11 ||
+		bus.aclOutPipe.outLog[0][8+47] != 0x15 || bus.aclOutPipe.outLog[0][8+48] != 0x10 || bus.aclOutPipe.outLog[0][8+49] != 0x70 {
+		t.Fatalf("expected immediate P3 DualSense LED packet preserving rumble after promotion, got %x", bus.aclOutPipe.outLog)
 	}
 
 	// Promote Switch Pro slot 1 post-init to P4 (0x08) while ACL TX queue is full -> retries on Service + timeout until ACK.

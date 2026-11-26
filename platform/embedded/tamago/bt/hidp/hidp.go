@@ -56,6 +56,8 @@ type PlayerSlot struct {
 	ledWaiting     bool
 	ledNextTry     time.Time
 	ledAttempts    uint8
+	rumbleRight    uint8
+	rumbleLeft     uint8
 }
 
 func (p *PlayerSlot) ready() bool {
@@ -81,6 +83,8 @@ func (p *PlayerSlot) clearLEDState() {
 	p.ledWaiting = false
 	p.ledNextTry = time.Time{}
 	p.ledAttempts = 0
+	p.rumbleRight = 0
+	p.rumbleLeft = 0
 }
 
 // Session runs Classic Bluetooth HIDP (PSM 0x0011 Control + PSM 0x0013
@@ -497,6 +501,8 @@ func (s *Session) sendDualSenseOutput(slot *PlayerSlot, right, left uint8) error
 	if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n]); err != nil {
 		return err
 	}
+	slot.rumbleRight = right
+	slot.rumbleLeft = left
 	if clearLEDDirty {
 		slot.ledDirty = false
 	}
@@ -520,6 +526,8 @@ func (s *Session) sendDualShock4Output(slot *PlayerSlot, right, left uint8) erro
 	if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n]); err != nil {
 		return err
 	}
+	slot.rumbleRight = right
+	slot.rumbleLeft = left
 	if clearLEDDirty {
 		slot.ledDirty = false
 	}
@@ -540,9 +548,9 @@ func (s *Session) maybeSyncPlayerLED(slot *PlayerSlot) {
 	}
 	switch slot.Kind {
 	case controllers.KindDualSense:
-		_ = s.sendDualSenseOutput(slot, 0, 0)
+		_ = s.sendDualSenseOutput(slot, slot.rumbleRight, slot.rumbleLeft)
 	case controllers.KindDualShock4:
-		_ = s.sendDualShock4Output(slot, 0, 0)
+		_ = s.sendDualShock4Output(slot, slot.rumbleRight, slot.rumbleLeft)
 	case controllers.KindSwitchPro:
 		if slot.ledWaiting {
 			if s.now().Before(slot.ledNextTry) {
