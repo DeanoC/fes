@@ -22,6 +22,10 @@ with a pre-allocated, zero-allocation LRU sector cache:
   the underlying device first. Any write error invalidates all cached sectors in
   the attempted range before returning so partial writes can never leave stale
   cached data. `Flush` delegates directly to the underlying device.
-- **Explicit invalidation:** `Invalidate()` and `InvalidateRange(lba, count)`
-  drop cached entries on demand (e.g. across storage ownership handoffs).
-  `cmd/tenfoot` mounts FAT32 over a 128-sector (64 KiB) `block.Cache`.
+- **Explicit invalidation, warmup & telemetry:** `Invalidate()` and
+  `InvalidateRange(lba, count)` drop cached entries on demand (e.g. across
+  storage ownership handoffs), `Prefetch(lba, count)` / `Contains(lba)` warm and
+  inspect resident sectors without disturbing hit/miss or streaming-bypass state,
+  and `Stats()` (`CacheStats`) reports hits, misses, bypasses, in-place write
+  updates, flushes, and device error counts. `cmd/tenfoot` mounts FAT32 over a
+  128-sector (64 KiB) `block.Cache`.
