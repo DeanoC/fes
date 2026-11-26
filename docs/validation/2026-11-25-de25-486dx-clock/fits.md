@@ -765,9 +765,15 @@ The `c26-control-retimed-proof/s1/receipt.json` SHA-256 is
 Seeds 2 and 3 passed the ordinary producer, seal and independent LOADED
 check. Seed 4 was refused on `cpu_l1d_q_tx~RTM_1SCLR_dff`. It passed its
 28 numerical checks, with worst setup +1.343 ns and hold +0.075 ns.
-Its full structural replay is queued. All four seeds passed the numerical
-and independent LOADED budgets. The `c26-control-proof/summary.json`
+The copied replay also passed eight structural checks. Every data keeper
+used the machine clock and the complete unconstrained-path report
+contained no match for the register. The `c26-control-retimed-proof/s4/receipt.json`
+SHA-256 is `217960740d59ecddfd26dcf91eac5179d89a98bee761508d94857b1c4b8dea61`.
+All four seeds passed the numerical and independent LOADED budgets.
+The `c26-control-proof/summary.json`
 SHA-256 is `908d4cd891d09b61eaf1ccee966c6c7594d5111445918d9091d64dfa406942ef`.
+
+### C0 = 26 rerun with the measured retiming spellings
 
 Revision `9259873f54389b4956430acf9c01942f3f1af8ae` matches the measured
 unlocated retiming suffixes on existing control-register stems. Each
@@ -776,6 +782,7 @@ same-path DE10 raw netlist and all four identities match the frozen base,
 and all seven D12 selections match the frozen base and measured B. The
 DE10 receipt SHA-256 is
 `cb6a36cfa3b3700911ab3afc1b30ad9e42d52b7e34452e46fc86c5108eb248f3`.
+The next four-seed sweep has started at this revision.
 
 ## Running a seed on either builder
 
