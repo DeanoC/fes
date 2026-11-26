@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"net"
 	"net/http"
 	"net/netip"
 	"sync"
@@ -64,15 +65,12 @@ func setupLnetoPair(t *testing.T) (linkA *Link, linkB *Link, ctrlA *Controller, 
 	devA := noopDMADev{memWireDev{mac: [6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x01}, in: bToA, out: aToB}}
 	devB := noopDMADev{memWireDev{mac: [6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x02}, in: aToB, out: bToA}}
 
-	stackA := gnet.NewLnetoStack(gnet.DefaultLnetoStackConfig())
-	stackB := gnet.NewLnetoStack(gnet.DefaultLnetoStackConfig())
-
 	var err error
-	linkA, err = NewLink(stackA, devA, "192.0.2.10/24", "02:11:22:33:44:01", "")
+	linkA, err = NewLink(nil, devA, "192.0.2.10/24", "02:11:22:33:44:01", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	linkB, err = NewLink(stackB, devB, "192.0.2.20/24", "02:11:22:33:44:02", "")
+	linkB, err = NewLink(nil, devB, "192.0.2.20/24", "02:11:22:33:44:02", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,6 +355,61 @@ func TestHTTPConfigValidation(t *testing.T) {
 	}
 }
 
+func startAcceptDrain(ln net.Listener) (stop func()) {
+	var mu sync.Mutex
+	stopped := false
+	conns := make(map[net.Conn]struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			if stopped {
+				mu.Unlock()
+				_ = conn.Close()
+				return
+			}
+			conns[conn] = struct{}{}
+			mu.Unlock()
+			wg.Add(1)
+			go func(c net.Conn) {
+				defer wg.Done()
+				defer func() {
+					mu.Lock()
+					delete(conns, c)
+					mu.Unlock()
+				}()
+				_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+				_, _ = io.Copy(io.Discard, c)
+				_ = c.Close()
+			}(conn)
+		}
+	}()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			_ = ln.Close()
+			mu.Lock()
+			stopped = true
+			active := make([]net.Conn, 0, len(conns))
+			for c := range conns {
+				active = append(active, c)
+			}
+			mu.Unlock()
+			for _, c := range active {
+				_ = c.SetReadDeadline(time.Now())
+				_ = c.Close()
+			}
+			wg.Wait()
+		})
+	}
+}
+
 func TestListenerCloseConcurrentWithDialTCP(t *testing.T) {
 	linkA, linkB, _, cleanup := setupLnetoPair(t)
 	defer cleanup()
@@ -368,28 +421,8 @@ func TestListenerCloseConcurrentWithDialTCP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("linkB.ListenTCP: %v", err)
 	}
-	var acceptWG sync.WaitGroup
-	defer acceptWG.Wait()
-	defer func() { _ = lnB.Close() }()
-
-	acceptWG.Add(1)
-	go func() {
-		defer acceptWG.Done()
-		for {
-			conn, err := lnB.Accept()
-			if err != nil {
-				return
-			}
-			acceptWG.Add(1)
-			go func() {
-				c := conn
-				defer acceptWG.Done()
-				_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
-				_, _ = io.Copy(io.Discard, c)
-				_ = c.Close()
-			}()
-		}
-	}()
+	stopAccept := startAcceptDrain(lnB)
+	defer stopAccept()
 
 	const iterations = 8
 	errCh := make(chan error, 2)
@@ -417,7 +450,7 @@ func TestListenerCloseConcurrentWithDialTCP(t *testing.T) {
 		for i := range iterations {
 			conn, err := linkA.DialTCP(ctx, target)
 			if err != nil {
-				errCh <- fmt.Errorf("DialTCP(%d): %w", i, err)
+				errCh <- fmt.Errorf("DialTCP(%d): %w (linkA=%v linkB=%v)", i, err, linkA.Err(), linkB.Err())
 				return
 			}
 			_ = conn.Close()
@@ -425,28 +458,19 @@ func TestListenerCloseConcurrentWithDialTCP(t *testing.T) {
 	}()
 
 	wg.Wait()
-	_ = lnB.Close()
+	if err := linkA.Err(); err != nil {
+		t.Fatalf("linkA.Err() after concurrent dial/close = %v", err)
+	}
+	if err := linkB.Err(); err != nil {
+		t.Fatalf("linkB.Err() after concurrent dial/close = %v", err)
+	}
+	stopAccept()
 	close(errCh)
 	for err := range errCh {
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-}
-
-func waitPendingClosesDrained(t *testing.T, link *Link) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		link.state.pendingMu.Lock()
-		drained := len(link.state.pendingCloses) == 0 && !link.state.draining
-		link.state.pendingMu.Unlock()
-		if drained {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatal("timed out waiting for deferred listener closes to drain")
 }
 
 func TestListenerCloseDoesNotStallDuringSlowDial(t *testing.T) {
@@ -460,14 +484,11 @@ func TestListenerCloseDoesNotStallDuringSlowDial(t *testing.T) {
 	devA := noopDMADev{memWireDev{mac: [6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x01}, in: bToA, out: aToB}}
 	devB := noopDMADev{memWireDev{mac: [6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x02}, in: aToB, out: bToARaw}}
 
-	stackA := gnet.NewLnetoStack(gnet.DefaultLnetoStackConfig())
-	stackB := gnet.NewLnetoStack(gnet.DefaultLnetoStackConfig())
-
-	linkA, err := NewLink(stackA, devA, "192.0.2.10/24", "02:11:22:33:44:01", "")
+	linkA, err := NewLink(nil, devA, "192.0.2.10/24", "02:11:22:33:44:01", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	linkB, err := NewLink(stackB, devB, "192.0.2.20/24", "02:11:22:33:44:02", "")
+	linkB, err := NewLink(nil, devB, "192.0.2.20/24", "02:11:22:33:44:02", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -517,28 +538,8 @@ func TestListenerCloseDoesNotStallDuringSlowDial(t *testing.T) {
 	if err != nil {
 		t.Fatalf("linkB.ListenTCP: %v", err)
 	}
-	var acceptWG sync.WaitGroup
-	defer acceptWG.Wait()
-	defer func() { _ = lnB.Close() }()
-
-	acceptWG.Add(1)
-	go func() {
-		defer acceptWG.Done()
-		for {
-			conn, err := lnB.Accept()
-			if err != nil {
-				return
-			}
-			acceptWG.Add(1)
-			go func() {
-				c := conn
-				defer acceptWG.Done()
-				_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
-				_, _ = io.Copy(io.Discard, c)
-				_ = c.Close()
-			}()
-		}
-	}()
+	stopAccept := startAcceptDrain(lnB)
+	defer stopAccept()
 
 	lnA, err := linkA.ListenTCP(ctx, 10099)
 	if err != nil {
@@ -579,8 +580,7 @@ func TestListenerCloseDoesNotStallDuringSlowDial(t *testing.T) {
 		t.Fatalf("slow DialTCP failed: %v", err)
 	}
 	_ = lnA2.Close()
-	waitPendingClosesDrained(t, linkA)
-	_ = lnB.Close()
+	stopAccept()
 }
 
 func TestConcurrentListenerClosesDrainAndRebind(t *testing.T) {
@@ -622,7 +622,6 @@ func TestConcurrentListenerClosesDrainAndRebind(t *testing.T) {
 				t.Fatalf("iter %d concurrent Close: %v", i, err)
 			}
 		}
-		waitPendingClosesDrained(t, linkA)
 	}
 
 	ln1, err := linkA.ListenTCP(ctx, 10100)
@@ -654,14 +653,11 @@ func TestListenerCloseNotStarvedByOverlappingDials(t *testing.T) {
 	cfgB.MaxActiveTCPPorts = 64
 	cfgB.MaxListenerConns = 64
 
-	stackA := gnet.NewLnetoStack(cfgA)
-	stackB := gnet.NewLnetoStack(cfgB)
-
-	linkA, err := NewLink(stackA, devA, "192.0.2.10/24", "02:11:22:33:44:01", "")
+	linkA, err := NewLink(cfgA, devA, "192.0.2.10/24", "02:11:22:33:44:01", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	linkB, err := NewLink(stackB, devB, "192.0.2.20/24", "02:11:22:33:44:02", "")
+	linkB, err := NewLink(cfgB, devB, "192.0.2.20/24", "02:11:22:33:44:02", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -708,28 +704,8 @@ func TestListenerCloseNotStarvedByOverlappingDials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("linkB.ListenTCP: %v", err)
 	}
-	var acceptWG sync.WaitGroup
-	defer acceptWG.Wait()
-	defer func() { _ = lnB.Close() }()
-
-	acceptWG.Add(1)
-	go func() {
-		defer acceptWG.Done()
-		for {
-			conn, err := lnB.Accept()
-			if err != nil {
-				return
-			}
-			acceptWG.Add(1)
-			go func() {
-				c := conn
-				defer acceptWG.Done()
-				_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
-				_, _ = io.Copy(io.Discard, c)
-				_ = c.Close()
-			}()
-		}
-	}()
+	stopAccept := startAcceptDrain(lnB)
+	defer stopAccept()
 
 	lnA, err := linkA.ListenTCP(ctx, 10102)
 	if err != nil {
@@ -764,7 +740,6 @@ func TestListenerCloseNotStarvedByOverlappingDials(t *testing.T) {
 	if err := lnA.Close(); err != nil {
 		t.Fatalf("lnA.Close: %v", err)
 	}
-	waitPendingClosesDrained(t, linkA)
 
 	// Port 10102 must be rebindable promptly even while overlapping dials continue.
 	lnA2, err := linkA.ListenTCP(ctx, 10102)
@@ -772,9 +747,43 @@ func TestListenerCloseNotStarvedByOverlappingDials(t *testing.T) {
 		t.Fatalf("rebind ListenTCP(10102) while dials ongoing: %v", err)
 	}
 	_ = lnA2.Close()
-	waitPendingClosesDrained(t, linkA)
 
 	stopDials()
 	dialWG.Wait()
-	_ = lnB.Close()
+	stopAccept()
+}
+
+func TestDialTCPAbortOnUnreachablePeerHasNoRace(t *testing.T) {
+	linkA, _, _, cleanup := setupLnetoPair(t)
+	defer cleanup()
+
+	lnA, err := linkA.ListenTCP(context.Background(), 10103)
+	if err != nil {
+		t.Fatalf("ListenTCP: %v", err)
+	}
+
+	dialCtx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+
+	dialErr := make(chan error, 1)
+	go func() {
+		conn, err := linkA.DialTCP(dialCtx, netip.MustParseAddrPort("192.0.2.99:9090"))
+		if conn != nil {
+			_ = conn.Close()
+		}
+		dialErr <- err
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+	start := time.Now()
+	if err := lnA.Close(); err != nil {
+		t.Fatalf("Close during unreachable DialTCP: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed >= 100*time.Millisecond {
+		t.Fatalf("Close blocked for %v while DialTCP was active", elapsed)
+	}
+
+	if err := <-dialErr; !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("DialTCP error = %v, want context.DeadlineExceeded", err)
+	}
 }
