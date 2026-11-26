@@ -354,7 +354,9 @@ func (a *agent) run(ctx context.Context) error {
 				return err
 			}
 		case result := <-a.reconnectDone:
-			a.finishReconnect(ctx, result)
+			if err := a.handleReconnectResult(ctx, result); err != nil {
+				return err
+			}
 		case <-ticker.C:
 			if a.bluezOwner == "" {
 				continue
@@ -728,6 +730,17 @@ func (a *agent) reconnect(ctx context.Context, dev devInfo, owner string, genera
 	// At most maxReconnects workers exist, and the channel has that many
 	// slots, so shutdown does not leave a worker blocked on result delivery.
 	a.reconnectDone <- reconnectResult{dev: dev, owner: owner, generation: generation, trustErr: trustErr, err: err}
+}
+
+func (a *agent) handleReconnectResult(ctx context.Context, result reconnectResult) error {
+	// A reply and earlier BlueZ signals can both be queued when select wakes.
+	// Process those signals first so a removed/replaced device or BlueZ owner
+	// invalidates an old missing-key result before it can remove a bond.
+	if err := a.handleSignals(ctx); err != nil {
+		return err
+	}
+	a.finishReconnect(ctx, result)
+	return nil
 }
 
 func (a *agent) finishReconnect(ctx context.Context, result reconnectResult) {

@@ -1046,7 +1046,7 @@ func TestReconnectLimitDoesNotConsumeDeviceAttempt(t *testing.T) {
 func TestReplacedDeviceIgnoresOldMissingKeyResult(t *testing.T) {
 	pad := devInfo{Path: gamepadPath, Class: 0x508, Paired: true}
 	a := &agent{
-		attempts: newAttempts(), bluezOwner: ":1.1", reconnects: 1,
+		bus: newBus(nil, nil), attempts: newAttempts(), bluezOwner: ":1.1", reconnects: 1,
 		devices: map[string]devInfo{gamepadPath: pad}, deviceGeneration: map[string]uint64{gamepadPath: 7},
 	}
 	if !a.attempts.Start(pad, time.Now(), actionConnect) {
@@ -1055,20 +1055,44 @@ func TestReplacedDeviceIgnoresOldMissingKeyResult(t *testing.T) {
 	removed := &encoder{}
 	removed.str(gamepadPath)
 	removed.array(4, func() { removed.str(deviceIface) })
-	if err := a.onSignal(context.Background(), &Message{Member: "InterfacesRemoved", Body: removed.buf}); err != nil {
-		t.Fatal(err)
-	}
 	added := &Message{Member: "InterfacesAdded", Body: encodeDeviceAddedState(gamepadPath, true)}
-	if err := a.onSignal(context.Background(), added); err != nil {
-		t.Fatal(err)
-	}
+	// The reply and these already-received signals are simultaneously ready;
+	// selecting the reply must not let it overtake the replacement signals.
+	a.bus.queue = []*Message{{Member: "InterfacesRemoved", Body: removed.buf}, added}
 	// The result is from the earlier incarnation. A RemoveDevice call would
 	// act on the replacement, and the nil bus deliberately makes that fail.
-	a.finishReconnect(context.Background(), reconnectResult{
+	if err := a.handleReconnectResult(context.Background(), reconnectResult{
 		dev: pad, owner: ":1.1", generation: 7,
 		err: &dbusError{Name: "org.bluez.Error.Failed", Message: "Key missing"},
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if !a.attempts.Start(pad, time.Now(), actionConnect) {
 		t.Fatal("old incarnation imposed a delay on the replacement")
+	}
+}
+
+func TestQueuedOwnerLossPrecedesMissingKeyResult(t *testing.T) {
+	pad := devInfo{Path: gamepadPath, Class: 0x508, Paired: true}
+	a := &agent{
+		bus: newBus(nil, nil), attempts: newAttempts(), bluezOwner: ":1.1", reconnects: 1,
+		devices: map[string]devInfo{gamepadPath: pad}, deviceGeneration: map[string]uint64{gamepadPath: 7},
+	}
+	if !a.attempts.Start(pad, time.Now(), actionConnect) {
+		t.Fatal("initial reconnect did not start")
+	}
+	a.bus.queue = []*Message{{Member: "NameOwnerChanged", Body: bodyNameOwnerChanged(bluezDest, ":1.1", "")}}
+	if err := a.handleReconnectResult(context.Background(), reconnectResult{
+		dev: pad, owner: ":1.1", generation: 7,
+		err: &dbusError{Name: "org.bluez.Error.Failed", Message: "Key missing"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	defer a.reconnectCancel()
+	if a.bluezOwner != "" {
+		t.Fatal("queued owner loss was not processed")
+	}
+	if !a.attempts.Start(pad, time.Now(), actionConnect) {
+		t.Fatal("old owner imposed a delay on the replacement")
 	}
 }
