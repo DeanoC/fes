@@ -174,13 +174,16 @@ CPU_CONTROL_TENSION = advisory(
 )
 
 # A fitted location identifies a TimeQuest register to prove, even when the
-# fitter changes the generated stem across seeds. The non-location forms
-# are fitter enable/clear derivatives of CPU and anonymous registers.
-RETIMED_LOCATION = r'(?:BLOCK_INPUT_MUX_PASSTHROUGH|C4|R4|R6|R12)_X[0-9]+_Y[0-9]+_N[0-9]+_I[0-9]+_dff'
+# fitter changes the generated stem across seeds. The row/column classes are
+# the general routing resources reported for the DE25's Agilex 5 device.
+# The non-location forms are fitter enable/clear derivatives.
+RETIMED_LOCATION = (r'(?:BLOCK_INPUT_MUX_PASSTHROUGH|C1|C4|C8|R0|R1|R2|R4|R6|R12)'
+                    r'_X(?P<x>[0-9]+)_Y(?P<y>[0-9]+)_N[0-9]+_I[0-9]+_dff')
 RETIMED_STEM = r'(?:[A-Za-z][A-Za-z0-9_]*|_[0-9]+_)(?:\[[0-9]+\])?~(?:(?:[0-9]+(?:xsyn(?:_[0-9]+)?)?|xsyn|DUPLICATE)_)?'
 RETIMED_ENABLE_CLEAR = r'(?:cpu_[a-z0-9_]+|_[0-9]+_)(?:\[[0-9]+\])?~(?:DUPLICATE)?(?:ENA|SCLR)_dff'
 RETIMED_TENSION_NODES = S + '(?:' + RETIMED_STEM + RETIMED_LOCATION + '|' + RETIMED_ENABLE_CLEAR + ')'
-RETIMED_TENSION = ('DX fitter-placement advisory (#2263). Every reported register needs exact unique '
+RETIMED_TENSION = ('DX fitter-placement advisory (#2263). A located name must agree with its reported '
+                   'register X/Y location. Every reported register needs exact unique '
                    'TimeQuest ownership on the machine clock and only machine-clock data keepers '
                    'in both directions. All four fitted corners must have nonnegative worst incoming '
                    'and outgoing setup and hold slack, no inter-clock or cut setup or hold paths, '

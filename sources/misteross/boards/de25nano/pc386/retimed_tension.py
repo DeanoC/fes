@@ -48,19 +48,24 @@ UCP_PROPERTIES = ('Illegal Clocks', 'Unconstrained Clocks', 'Unconstrained Input
 UCP_TRUNCATED = 'Table was truncated at '
 
 
-def targets(drc, original_basis=None):
-    """List all TMC rows outside the original basis, including unknown rows in a refused fit."""
+def _target_rows(drc, original_basis=None):
     summary = re.search(r'^; TMC-20602 - [^;]+; Low\s*;\s*(\d+)\s*;', drc, re.M)
     if summary is None or int(summary[1]) == 0:
-        return ()
+        return (), ()
     if original_basis is None:
         original_basis = mf.bases().CPU_CONTROL_TENSION
     header, rows = mf.table(drc, RULE)
     mf.require(len(rows) == int(summary[1]), RULE + ' detail rows differ from its violation count')
     for row in rows:
         mf.require(len(row) == len(header) and not row[-1], RULE + ' row changed shape or is waived')
-    return tuple(row[0] for row in rows
-                 if not all(re.fullmatch(pattern, row[column]) for column, pattern in original_basis['match'].items()))
+    return header, tuple(row for row in rows
+                         if not all(re.fullmatch(pattern, row[column]) for column, pattern in original_basis['match'].items()))
+
+
+def targets(drc, original_basis=None):
+    """List all TMC subjects outside the original basis, including unknown rows in a refused fit."""
+    _, rows = _target_rows(drc, original_basis)
+    return tuple(row[0] for row in rows)
 
 
 def reviewed_targets(drc, control_basis, retimed_basis):
@@ -69,10 +74,18 @@ def reviewed_targets(drc, control_basis, retimed_basis):
     if not entries:
         return ()
     [entry] = entries
-    subject_names = targets(drc, control_basis)
+    header, rows = _target_rows(drc, control_basis)
     expected = next(group['rows'] for group in entry['groups'] if group['name'] == REVIEW)
-    mf.require(len(subject_names) == expected, 'retimed tension target count differs from the reviewed basis')
-    return subject_names
+    mf.require(len(rows) == expected, 'retimed tension target count differs from the reviewed basis')
+    for row in rows:
+        name = re.fullmatch(retimed_basis['match'][0], row[0])
+        mf.require(name is not None, 'retimed tension subject differs from the reviewed basis')
+        if name['x'] is not None:
+            mf.require(header[1:2] == ['Register Location'], RULE + ' register location column changed')
+            location = re.fullmatch(r'\(\s*([0-9]+)\s*,\s*([0-9]+)\s*\)', row[1])
+            mf.require(location is not None and location.groups() == (name['x'], name['y']),
+                       RULE + ' register location does not match the fitted name: ' + row[0])
+    return tuple(row[0] for row in rows)
 
 
 def check(targets_path, paths_path, *, structure_path=None, unconstrained_path=None):
@@ -257,7 +270,10 @@ def collect(selected, quartus_sta, subjects):
     mf.require(all(record['source_inputs'].get(name) == digest for name, digest in sources.items()),
                'retimed tension review tools differ from the captured build inputs')
     subjects = tuple(subjects)
-    mf.require(subjects and subjects == targets((selected / DRC).read_text()),
+    basis = mf.bases()
+    current_targets = reviewed_targets((selected / DRC).read_text(), basis.CPU_CONTROL_TENSION,
+                                       basis.RETIMED_CONTROL_TENSION)
+    mf.require(subjects and subjects == current_targets,
                'retimed tension target list differs from the fitted DRC')
     output = selected / 'retimed-tension'
     output.mkdir(exist_ok=False)

@@ -303,8 +303,7 @@ rung collector. It used the original machine netlist bytes, reached
 setup, hold, recovery and removal were +0.403, 0.000, +6.896 and +0.043 ns.
 LOADED measured 2.285 ns against 3.851 ns available. The live proof for
 12 placement registers passed 336 numerical and 96 structural checks,
-and the detailed unconstrained report excludes those subjects. The other
-three seeds are required to qualify the rung.
+and the detailed unconstrained report excludes those subjects.
 
 | Seed 1 artifact | SHA-256 |
 | --- | --- |
@@ -312,6 +311,63 @@ three seeds are required to qualify the rung.
 | `retimed-tension/receipt.json` | `96fd5ac8d87b2d47145a26a851d02422d7802a88a7206f38a7712d2d20c066d5` |
 | `core.rbf` | `af47e9d61c07e6b55d803a4fa20783b5e5bb54e37144880563dffc008c963158` |
 | Sealed `.fcore` | `d2b3bce9aacc4cdcfe593dad7734cd9a876a6c98f2799fb60be6e89935478d5d` |
+
+Seed 3 also passed the producer, seal and independent collector. It used
+45,134.9 ALMs and reached +0.554 ns setup, 0.000 ns hold, +6.468 ns
+recovery and +0.017 ns removal. LOADED measured 2.577 ns. All 644
+numerical and 184 structural checks passed for its 23 placement
+registers.
+
+| Seed 3 artifact | SHA-256 |
+| --- | --- |
+| `summary.json` | `c5b4986a5d70f099a0712b30a463212584cd7073063d66b73826ee7f2ea3ec67` |
+| `retimed-tension/receipt.json` | `487b77819fe3c7ccbc2ef8b20d917c89249088c93acb94fb497e306acd8e7412` |
+| `core.rbf` | `b7aabaa5465a46457f41cd9d6d4631831ef7fa1c069d2ecc84ab72d9d21c9f4b` |
+| Sealed `.fcore` | `7d1e0e7d69cd968d1507c3078ea973e63fda18cacdd62a9550fe468321709f1a` |
+
+Seed 2 used 45,065.9 ALMs and measured +0.667 ns setup, 0.000 ns hold,
++7.156 ns recovery and +0.092 ns removal. LOADED measured 2.929 ns.
+The producer refused one `TMC-20602` row at
+`machine_at_cycle_strobe~1_C8_X79_Y8_N0_I4_dff`, the AT I/O-cycle
+qualifier in a C8 route register. On a verified copy of that fitted
+database, the combined proof passed all 672 numerical and 192 structural
+checks for 24 subjects. The C8 register's worst traced setup and hold
+were +2.373 and +0.337 ns. The copy retains the same seed-2 producer
+refusal and supplies the independent route evidence.
+
+| Seed 2 artifact | SHA-256 |
+| --- | --- |
+| Refused build `summary.json` | `c4b97abebcb770f176f087eb10410b33a0996fde527630e1106d9173d76a939b` |
+| Independent numeric `tension-summary.json` | `a1a7009ad067ed77d19288bdf15502813737f2e419724aa44e1ebe4ce224fa0e` |
+| Fitted-copy structural `receipt.json` | `4fe2d6fd37a9fec7360de5afbad59a15b5aedc83129638d6031097b1e3efcc8a` |
+
+Seed 4 passed the producer, seal and independent collector. It used
+45,022.3 ALMs and measured +0.766 ns setup, 0.000 ns hold, +7.288 ns
+recovery and +0.028 ns removal. LOADED measured 2.614 ns. All 728
+numerical and 208 structural checks passed for 26 placement registers.
+
+| Seed 4 artifact | SHA-256 |
+| --- | --- |
+| `summary.json` | `8bf36ea498afac9e7364b88be74251a48b14735dbc71529d5d795fef01f42315` |
+| `retimed-tension/receipt.json` | `9216ad363202490811dbea23020b975f2661b0831fd5987cde01f6e3c3d58f77` |
+| `core.rbf` | `ff45c884703db2cf1ec896e0fb06cc6afdd14ed5b8f807ad036a21c943011f48` |
+| Sealed `.fcore` | `cd03126d27c63eba9feccfe89dd7d7469acf490ecb79f2542afda61ff91f15e7` |
+
+The four-seed aggregate is refused solely on seed 2's admission.
+All four emitted the original machine netlist bytes. The retained
+`c34-structural/summary.json` SHA-256 is
+`393966185dc898beb43898e1887dfb09faaad25176b0eb0a6a5ef00ef9bbe7e3`.
+
+The retained seed-2 `golden_top.fit.route.rpt` enumerates the
+general routing interconnects available on this device. Its SHA-256 is
+`3baabfcf36999760af86cb76a9e4b9b653a08e10d182b601b40f99fdcabd1f46`.
+The updated DX basis recognizes exactly the reported general route
+classes `C1`, `C4`, `C8`, `R0`, `R1`, `R2`, `R4`, `R6` and `R12`,
+along with the already measured input mux form. All 303 located
+advisory rows audited across retained reports agreed with the DRC
+`Register Location` column. The producer now checks that agreement
+for every located subject before its live proof. This candidate needs
+four fresh producer builds at C0 = 34.
 
 ## Running a seed on either builder
 

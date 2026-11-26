@@ -171,6 +171,40 @@ class RetimedTensionProofTests(unittest.TestCase):
     NODE = S + 'machine_at_select_fdc~0_BLOCK_INPUT_MUX_PASSTHROUGH_X88_Y14_N0_I62_dff'
     VERSION = 'Version 26.3.0 Build 114 10/14/2026 SC Pro Edition'
 
+    def test_located_targets_bind_to_drc_coordinates(self):
+        device_classes = ('C1', 'C4', 'C8', 'R0', 'R1', 'R2', 'R4', 'R6', 'R12')
+        located = [S + f'machine_at_cycle_strobe~1_{kind}_X79_Y8_N0_I4_dff' for kind in device_classes]
+        enable = S + 'cpu_wb_deliver~ENA_dff'
+        rows = [[name, '(79, 8)', '4820', '(37, 28)', '40', '193686', ''] for name in located]
+        rows.append([enable, '(31, 44)', '4820', '(37, 28)', '40', '193686', ''])
+        bases = TABLE.CPU_CONTROL_TENSION, TABLE.RETIMED_CONTROL_TENSION
+        drc = report({'TMC-20602': (TENSION, rows)}, severity='Low')
+        self.assertEqual(retimed_tension.reviewed_targets(drc, *bases), (*located, enable))
+        report_row = rows[2]
+        for location in ('(78, 8)', '(79, 9)', '(79, 8) extra'):
+            with self.subTest(location=location):
+                candidate = [report_row[0], location, *report_row[2:]]
+                drc = report({'TMC-20602': (TENSION, [candidate])}, severity='Low')
+                with self.assertRaisesRegex(mf.BuildError, 'register location does not match'):
+                    retimed_tension.reviewed_targets(drc, *bases)
+        renamed = [TENSION[0], 'Location', *TENSION[2:]]
+        drc = report({'TMC-20602': (renamed, [report_row])}, severity='Low')
+        with self.assertRaisesRegex(mf.BuildError, 'register location column changed'):
+            retimed_tension.reviewed_targets(drc, *bases)
+
+    def test_refusal_diagnostic_still_dumps_unknown_targets(self):
+        unknown = self.NODE.replace('BLOCK_INPUT_MUX_PASSTHROUGH', 'C99')
+        row = [unknown, '(7, 9)', '4820', '(37, 28)', '40', '193686', '']
+        drc = report({'TMC-20602': (TENSION, [row])}, severity='Low')
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            report_path, targets = root / 'fit.rpt', root / 'targets.txt'
+            report_path.write_text(drc)
+            self.assertEqual(retimed_tension.main(['targets', str(report_path), str(targets)]), 0)
+            self.assertEqual(targets.read_text().splitlines(), [unknown])
+        with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
+            retimed_tension.reviewed_targets(drc, TABLE.CPU_CONTROL_TENSION, TABLE.RETIMED_CONTROL_TENSION)
+
     def trace_rows(self):
         for corner in sorted(retimed_tension.CORNERS):
             for kind, direction in sorted(retimed_tension.CHECKS):
