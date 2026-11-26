@@ -140,6 +140,12 @@ class RecipeRegistryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown format-2 recipe"):
             recipes.recipe_for("fes.c64-ntsc", board="de25-nano")
 
+    def test_c64_early_ntsc_is_an_explicit_package(self):
+        recipe = recipes.recipe_for("fes.c64-early-ntsc")
+        self.assertEqual(recipe.producer_arguments, ("--model", "early-ntsc"))
+        self.assertEqual(recipe.pnr["qsf"], "build/fes-c64-early-ntsc-oss/socket.qsf")
+        self.assertEqual(recipe.package_dir_env, "FES_C64_EARLY_NTSC_PACKAGE_DIR")
+
     def test_c64c_regions_select_the_8580_and_distinct_packages(self):
         for region, core_id, stem, qsf in (
             ("pal", "fes.c64c", "C64C", "build/fes-c64-oss-8580/socket.qsf"),

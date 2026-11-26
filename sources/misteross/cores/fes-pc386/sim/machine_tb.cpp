@@ -63,7 +63,10 @@
 //   EMS pages=<n> reads=<n> writes=<n>   the CPU's frame accesses
 // --x87 1 is the i386dx+387 identity: the machine's x87_present input, so
 // CMOS 14h bit 1 (INT 11h's coprocessor bit) is set. The oracle's 387 is
-// fitted, as on an AT, either way (Oracle::set_at_coprocessor).
+// fitted, as on an AT, either way (Oracle::set_at_coprocessor). With --cpu
+// rtl the RTL CPU's x87 unit follows the same input, with the machine's F0h
+// and F1h writes and its ERROR# on IRQ 13. No x87 state crosses a handover:
+// the RTL's unit starts in its reset state.
 // The floppy drives (docs/design/pc386-removable-media.md) stand in for the
 // media endpoint (pc386_floppy_media). As the seal builds the machine (F3), A:
 // is a 1.44M drive and B: a 1.2M one, empty unless the run gives a disk, and
@@ -491,7 +494,7 @@ public:
         }
     }
     bool cpu_reset_seen = false;
-    bool irq13 = false;  // the oracle's 387 ERROR#, after its last step
+    bool irq13 = false;  // the 387's ERROR#: the oracle's after its last step, or the RTL's x87 unit's
     std::map<std::tuple<std::string, unsigned, uint64_t>, uint64_t> io_times, io_waits;
     bool vga_write_open = false;  // the I/O access in flight is a VGA port write
     uint64_t vga_waits = 0;       // its clocks waiting for VGA FIFO space
@@ -865,6 +868,10 @@ public:
         cpu.attr_upper = map;
         cpu.ram_top = RAM_BYTES >> 20;
         cpu.queue16 = 0;  // the coherent profile
+        // The i386dx+387 identity (--x87 1) on the RTL as pc386_system wires
+        // it: x87_present, the machine's F0h and F1h writes in, and the
+        // unit's ERROR# (IRQ 13) out, each cycle (cycle).
+        cpu.x87_present = m.top.x87_present;
         cpu.cold_reset = 1;
         cpu.reset = 1;
         for (int n = 0; n < 3; ++n) {
@@ -1131,6 +1138,8 @@ public:
         cpu.dma_address = m.top.dma_address;
         cpu.dma_wdata = m.top.dma_wdata;
         cpu.flush_request = m.top.flush_request;
+        cpu.x87_f0 = m.top.x87_f0;
+        cpu.x87_f1 = m.top.x87_f1;
         if (cpu.mmio_rvalid && mmio_reading) {
             m.record_mmio(false, read_start, read_dword, read_enables, cpu.mmio_rdata);
             mmio_reading = false;
@@ -1150,6 +1159,7 @@ public:
         m.clock();
         cpu.clk = 1;
         cpu.eval();
+        m.irq13 = cpu.x87_irq13;
 
         // The machine after its edge.
         if (issued) { m.top.io_valid = 0; m.top.inta_valid = 0; }
@@ -1938,8 +1948,8 @@ int main(int argc, char **argv) {
                     }
                 }
             } else {
-                // The RTL is a 386 with an empty socket: no ERROR#.
-                machine.irq13 = false;
+                // IRQ 13 is the RTL's x87 ERROR# (RtlCpu::cycle), low with
+                // the 387 off.
                 RtlCpu::Event event = rtl->run(64);
                 if (machine.cycles >= pixel_from) machine.start_pixel_clock();
                 if (event == RtlCpu::Event::Shutdown) {

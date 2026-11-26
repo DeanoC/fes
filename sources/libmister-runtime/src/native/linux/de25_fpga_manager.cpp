@@ -150,13 +150,15 @@ bool DirectoryIsExclusive(int fd, bool* owned, bool persona = false) {
 std::vector<unsigned char> De25ProgrammingOverlay(De25OverlayProfile profile) {
     if (profile != De25OverlayProfile::firmware_only &&
         profile != De25OverlayProfile::allocated_scanout &&
+        profile != De25OverlayProfile::allocated_scanout_window &&
         profile != De25OverlayProfile::static_expansion_base &&
         profile != De25OverlayProfile::static_expansion_persona) return {};
     // FDT v17, one fragment targeting the vendor's existing SDM-managed region.
     const char names[] = "target-path\0firmware-name\0config-complete-timeout-us\0";
     const char compatible[] = "compatible";
     const char partial[] = "partial-fpga-config";
-    const bool scanout = profile == De25OverlayProfile::allocated_scanout;
+    const bool window = profile == De25OverlayProfile::allocated_scanout_window;
+    const bool scanout = profile == De25OverlayProfile::allocated_scanout || window;
     const bool base = profile == De25OverlayProfile::static_expansion_base;
     const bool persona = profile == De25OverlayProfile::static_expansion_persona;
     std::vector<unsigned char> tree;
@@ -172,6 +174,11 @@ std::vector<unsigned char> De25ProgrammingOverlay(De25OverlayProfile profile) {
         Node(tree, "scanout");
         Property(tree, sizeof(names) - 1,
                  base ? "fes,de25-linux-static-expansion" : "fes,de25-linux-dma-scanout");
+        Word(tree, 2);
+    }
+    if (window) {
+        Node(tree, "window");
+        Property(tree, sizeof(names) - 1, "fes,de25-linux-dma-window");
         Word(tree, 2);
     }
     if (base) {
@@ -489,10 +496,20 @@ public:
         recovery_attempted = true;
         const bool restore_search_override = SearchExact(search, firmware);
         const auto blob = De25ProgrammingOverlay(De25OverlayProfile::allocated_scanout);
+        const auto window_blob = De25ProgrammingOverlay(De25OverlayProfile::allocated_scanout_window);
         Fd dir(openat(overlays, kOverlay, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
         Fd dtbo(dir.n < 0 ? -1 : openat(dir.n, "dtbo", O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
         std::vector<unsigned char> previous;
-        if (!Read(dtbo.n, &previous, blob.size()) || previous != blob ||
+        // A lost window machine is refused, with nothing touched. Its disk is
+        // in HPS DDR behind a window whose ports may still run: the owner's
+        // REAP answers EAGAIN until they drain, a replacement without
+        // holding the machine first is what hangs the next boot (#2245), and
+        // the guest's unsaved writes are lost. A reboot with the machine
+        // stopped, or a power cycle, retires it.
+        const bool read = Read(dtbo.n, &previous, std::max(blob.size(), window_blob.size()));
+        if (read && previous == window_blob)
+            return {Failure("a lost HPS-window machine cannot be replaced in place: its window may still be mastering memory and its disk is unsaved; power cycle the kit"), false};
+        if (!read || previous != blob ||
             !Exact(config + "/device-tree/overlays/" + kOverlay + "/status", "applied") ||
             !Exact(state, "operating"))
             return {Failure("retained configuration is not the exact applied allocated profile"), false};
@@ -829,7 +846,8 @@ public:
             return {Failure("programming profile is not DE25 HPS-first"), false};
         const auto normal = (profile == ProgrammingProfile::de25_linux_menu_v1 || profile == ProgrammingProfile::de25_linux_computer_v1) ?
             De25OverlayProfile::allocated_scanout : De25OverlayProfile::firmware_only;
-        if (selected != normal && !(selected == De25OverlayProfile::static_expansion_base &&
+        if (selected != normal && !((selected == De25OverlayProfile::static_expansion_base ||
+                                     selected == De25OverlayProfile::allocated_scanout_window) &&
                                     profile == ProgrammingProfile::de25_linux_computer_v1))
             return {Failure("invalid DE25 full-load overlay selection"), false};
         const auto blob = De25ProgrammingOverlay(selected);
@@ -1006,6 +1024,12 @@ NativeResult LinuxDe25FpgaManager::Program(const Artifact& a, ProgrammingProfile
     const auto selected = (p == ProgrammingProfile::de25_linux_menu_v1 || p == ProgrammingProfile::de25_linux_computer_v1) ?
         De25OverlayProfile::allocated_scanout : De25OverlayProfile::firmware_only;
     return impl_->Program(a, p, d, selected, "");
+}
+NativeResult LinuxDe25FpgaManager::ProgramWindowMachine(const Artifact& a, ProgrammingProfile p, std::uint64_t d) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (p != ProgrammingProfile::de25_linux_computer_v1)
+        return {{ErrorCode::unsupported_programming_profile, "a window machine is a DE25 computer", "admission"}, false};
+    return impl_->Program(a, p, d, De25OverlayProfile::allocated_scanout_window, "");
 }
 NativeResult LinuxDe25FpgaManager::ProgramStatic(const Artifact& base, const Artifact& persona,
         const CoreStaticComposition& selected, std::uint64_t deadline) {

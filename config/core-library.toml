@@ -56,6 +56,12 @@ system = "c64"
 standing = "experimental"
 
 [[cores]]
+core_id = "fes.c64-early-ntsc"
+label = "Commodore 64 (early NTSC)"
+system = "c64"
+standing = "experimental"
+
+[[cores]]
 core_id = "fes.c64c"
 label = "Commodore 64C (PAL)"
 system = "c64"

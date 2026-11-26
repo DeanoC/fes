@@ -20,7 +20,7 @@ driver using the pinned `lneto` TCP/IP stack
 | Static IPv4 | Default (`10.0.2.15/24`, gw `10.0.2.2` on QEMU) | Set `Config.Address` and `Config.Gateway` to override. |
 | DHCPv4 & renewal | Opt-in RFC 2131 client (`AcquireDHCP`, `OpenDeviceDHCP`, `Config{DHCP: true}`) + T1/T2 `LeaseRenewer` | Requires subnet mask, server ID, and usable router (option 3) in the leased subnet. |
 | 100M / link-flap recovery | Opt-in `NetworkOptions` (`Allow100Full`, `RecoverLinkLoss`) + `LeaseRenewer.NotifyLinkUp()` INIT-REBOOT probe | Dormant on Nano `fpgaload`; host unit tests only. A `DHCPNAK`, or an ACK for another address or gateway, halts the link; a silent probe keeps the still-valid lease until T1/T2. |
-| DNSv4 | Pure-Go RFC 1035 A-record resolver (`ResolveA`) | Uses raw frame hooks on `Link`. |
+| DNSv4 | Pure-Go RFC 1035 A-record resolver (`ResolveA`, `ResolveAWithTTL`) + bounded TTL cache (`DNSCache`, `DNSResolver`) | Uses raw frame hooks on `Link`; supports CNAME chains, multi-server failover, and LRU/TTL caching. |
 | SNTP | `QuerySNTP` wall-clock client | Optional UTC clock source for FAT32 (`SetClock`). |
 | TLS / auth | Not supported | Deterministic board entropy is unsuitable for TLS/authentication; use private LAN HTTP. |
 
@@ -62,8 +62,17 @@ driver using the pinned `lneto` TCP/IP stack
   is on the wrong network; it sets no such rule for a RENEWING/REBINDING
   request with `ciaddr` set. A `DHCPNAK` from any server, or an ACK for
   another address or gateway, halts the link immediately; a probe with no
-  answer keeps the still-valid lease until T1/T2. **`build.py` rejects all of
-  these flags** against the shipped `nano/sd-profile.json` (`network: null`)
+  answer keeps the still-valid lease until T1/T2.
+- **RFC 4330 SNTPv4 periodic discipline (`sntp_sync.go`):** `SNTPSyncer`
+  (`NewSNTPSyncer`, `(*Interface).NewSNTPSyncer`) serializes `SyncOnce` calls,
+  checks `[MinValidTime, MaxValidTime]` plausibility on every sample, enforces a
+  default 5-minute `MaxStep` guard (`ErrSNTPStepTooLarge`) against both prior
+  syncs and pre-synchronized `WallClockSink` clocks (QEMU PL031) while allowing
+  initial syncs when `WallClockSink.WallTime()` reports unsynced (DE25-Nano
+  cold boot), polls on `PollInterval` with exponential backoff and `ErrPaused`
+  tolerance, delivers UTC epochs to `WallClockSink.Sync` (`board.WallClock()`),
+  and dispatches callbacks through a single bounded worker.
+- **`build.py` rejects all of these flags** against the shipped `nano/sd-profile.json` (`network: null`)
   because closed-bridge SD ownership excludes Ethernet
   (`tests/test_tamago_build_network.py` enforces this refusal). Even a
   hand-linked binary fails closed in `prepareProgramNetwork` while

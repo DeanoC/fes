@@ -1,0 +1,180 @@
+{
+ "base_revision": "bf50fc1dd0256a996675cc791370f6eed9cd1889",
+ "arm_revision": "859f8937c138e60d55222e3a2bd6277af2a243aa",
+ "base-spectrum48": {
+  "build_id": "96e7eeaa1f92fdaefecee3092b1c3697",
+  "core_rbf_sha256": "46117a17aca80fb2663423e51e908154998a4e054b25168cd55f81c5ca8ca41d",
+  "all_reported_timing_pass": true,
+  "package_timing_admission": true,
+  "signoff_rules": 85,
+  "failed_rules": 3,
+  "unreviewed_failed_rules": 0,
+  "reports_sha256": {
+   "golden_top.sta.summary": "f5a11812503abb281ad332043c752e849d0d85c0f8655496382af30fa6c7ae24",
+   "golden_top.tq.drc.signoff.rpt": "cdf3e34ea5d9c9052032a66ed141cde4919f4cb4e2b69ff96ffd5d53e8b133a0"
+  },
+  "failed": [
+   {
+    "id": "TMC-20012",
+    "severity": "High",
+    "violations": 5,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "TMC-20011",
+    "severity": "High",
+    "violations": 2,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "RDC-50003",
+    "severity": "Medium",
+    "violations": 1,
+    "waived": 0,
+    "reviewed": true
+   }
+  ],
+  "tmc_20026": [
+   {
+    "id": "TMC-20026",
+    "severity": "Medium",
+    "violations": 0,
+    "waived": 0
+   }
+  ]
+ },
+ "base-spectrum128": {
+  "build_id": "90eec0d3a0d0ef9d01961ffcb6a4f71e",
+  "core_rbf_sha256": "15d5e809f16c8e89186404a516938c4332ade83762ea68e61a9aeefdbb356e51",
+  "all_reported_timing_pass": true,
+  "package_timing_admission": true,
+  "signoff_rules": 85,
+  "failed_rules": 3,
+  "unreviewed_failed_rules": 0,
+  "reports_sha256": {
+   "golden_top.sta.summary": "ed0643a9a4df33da4796e3d35aad7dface73db9b49954ebef563932e313cbb13",
+   "golden_top.tq.drc.signoff.rpt": "da8054ad380320d47253cb26046267822b34f165c7760364abe657b337e0a92c"
+  },
+  "failed": [
+   {
+    "id": "TMC-20012",
+    "severity": "High",
+    "violations": 5,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "TMC-20011",
+    "severity": "High",
+    "violations": 2,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "RDC-50003",
+    "severity": "Medium",
+    "violations": 1,
+    "waived": 0,
+    "reviewed": true
+   }
+  ],
+  "tmc_20026": [
+   {
+    "id": "TMC-20026",
+    "severity": "Medium",
+    "violations": 0,
+    "waived": 0
+   }
+  ]
+ },
+ "arm-spectrum48": {
+  "build_id": "673079cb90dea5c021be11351179a005",
+  "core_rbf_sha256": "397475aea1372e364d422f77a23d119630257361feb49186c7d24398654b557f",
+  "all_reported_timing_pass": true,
+  "package_timing_admission": true,
+  "signoff_rules": 85,
+  "failed_rules": 3,
+  "unreviewed_failed_rules": 0,
+  "reports_sha256": {
+   "golden_top.sta.summary": "7d266edb9f6db0187912ec015b5913e65ce2fdaa8d8c5d1474f8722828aac175",
+   "golden_top.tq.drc.signoff.rpt": "4b18eb4dbaf61e7ea593dee0822fbbb21d3097edddd7b26dc79dae1cdac600bb"
+  },
+  "failed": [
+   {
+    "id": "TMC-20012",
+    "severity": "High",
+    "violations": 5,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "TMC-20011",
+    "severity": "High",
+    "violations": 2,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "RDC-50003",
+    "severity": "Medium",
+    "violations": 1,
+    "waived": 0,
+    "reviewed": true
+   }
+  ],
+  "tmc_20026": [
+   {
+    "id": "TMC-20026",
+    "severity": "Medium",
+    "violations": 0,
+    "waived": 0
+   }
+  ]
+ },
+ "arm-spectrum128": {
+  "build_id": "4f48df174474174c06bfcfeecefcf972",
+  "core_rbf_sha256": "26df54976a45c9c1a92429da4e612a5aa48b456b0cb85857fe64688e1742038a",
+  "all_reported_timing_pass": true,
+  "package_timing_admission": true,
+  "signoff_rules": 85,
+  "failed_rules": 3,
+  "unreviewed_failed_rules": 0,
+  "reports_sha256": {
+   "golden_top.sta.summary": "dec2f90dd3d5ecd4de39eaa006cf59bd340ca64324f5ff7ff66ed7767fa6e2f2",
+   "golden_top.tq.drc.signoff.rpt": "0728082b375159fdd537db58ebce5c6f6b9ff1153b2adc7489706ab5ef1774ee"
+  },
+  "failed": [
+   {
+    "id": "TMC-20012",
+    "severity": "High",
+    "violations": 5,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "TMC-20011",
+    "severity": "High",
+    "violations": 2,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "RDC-50003",
+    "severity": "Medium",
+    "violations": 1,
+    "waived": 0,
+    "reviewed": true
+   }
+  ],
+  "tmc_20026": [
+   {
+    "id": "TMC-20026",
+    "severity": "Medium",
+    "violations": 0,
+    "waived": 0
+   }
+  ]
+ }
+}

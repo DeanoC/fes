@@ -1,0 +1,109 @@
+{
+ "base_revision": "0aedd05677d0f5070cb4717e2996056015a6a91c",
+ "arm_revision": "642e22f5049c1968b090cb8b9a35aa97cf77a651",
+ "spectrum48": {
+  "build_id": "673079cb90dea5c021be11351179a005",
+  "all_reported_timing_pass": true,
+  "package_timing_admission": true,
+  "signoff_rules": 85,
+  "failed_rules": 3,
+  "unreviewed_failed_rules": 0,
+  "reports_sha256": {
+   "golden_top.sta.summary": "7d266edb9f6db0187912ec015b5913e65ce2fdaa8d8c5d1474f8722828aac175",
+   "golden_top.tq.drc.signoff.rpt": "a8a2d39ed14b4ac9be7533c6283ee03f608461db57e3d7ab84281614f607f283"
+  },
+  "failed": [
+   {
+    "id": "TMC-20012",
+    "severity": "High",
+    "violations": 5,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "TMC-20011",
+    "severity": "High",
+    "violations": 2,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "RDC-50003",
+    "severity": "Medium",
+    "violations": 1,
+    "waived": 0,
+    "reviewed": true
+   }
+  ]
+ },
+ "spectrum128": {
+  "build_id": "4f48df174474174c06bfcfeecefcf972",
+  "all_reported_timing_pass": true,
+  "package_timing_admission": true,
+  "signoff_rules": 85,
+  "failed_rules": 3,
+  "unreviewed_failed_rules": 0,
+  "reports_sha256": {
+   "golden_top.sta.summary": "dec2f90dd3d5ecd4de39eaa006cf59bd340ca64324f5ff7ff66ed7767fa6e2f2",
+   "golden_top.tq.drc.signoff.rpt": "48557e5d868ad589a05046cf0d7a7bb391c0e0c926e634dca413269eae9c6e66"
+  },
+  "failed": [
+   {
+    "id": "TMC-20012",
+    "severity": "High",
+    "violations": 5,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "TMC-20011",
+    "severity": "High",
+    "violations": 2,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "RDC-50003",
+    "severity": "Medium",
+    "violations": 1,
+    "waived": 0,
+    "reviewed": true
+   }
+  ]
+ },
+ "st": {
+  "build_id": "696fda9c66e9df05c22220278a129d04",
+  "all_reported_timing_pass": true,
+  "package_timing_admission": true,
+  "signoff_rules": 85,
+  "failed_rules": 3,
+  "unreviewed_failed_rules": 0,
+  "reports_sha256": {
+   "golden_top.sta.summary": "4e54ae2a08818c229acd1f9e7f2512628f50b72e17ec0a3bb21fcc59d2bb6e5c",
+   "golden_top.tq.drc.signoff.rpt": "b65d4401d0f4a6fb2ca91f96533748b842f5230e59d7314df5f5825e0c86ef25"
+  },
+  "failed": [
+   {
+    "id": "TMC-20012",
+    "severity": "High",
+    "violations": 5,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "TMC-20011",
+    "severity": "High",
+    "violations": 2,
+    "waived": 0,
+    "reviewed": true
+   },
+   {
+    "id": "RDC-50003",
+    "severity": "Medium",
+    "violations": 1,
+    "waived": 0,
+    "reviewed": true
+   }
+  ]
+ }
+}

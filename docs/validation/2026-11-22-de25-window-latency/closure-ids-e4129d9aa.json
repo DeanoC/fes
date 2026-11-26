@@ -1,0 +1,33 @@
+{
+  "menu": {
+    "board_py_in_closure": false,
+    "build_id": "0cc437a594db643e11bd11d70e5b532d",
+    "closure_files": 75,
+    "closure_sha256": "11d7f31ffefbf516af74071f3a1b07ab081a4903a5784b53224ad78ef126bd6f"
+  },
+  "revision": "e4129d9aa0b90f7de99c6fb888ac05c18f8ab5cb",
+  "spectrum128": {
+    "board_py_in_closure": true,
+    "build_id": "0e71219bf8556766ec86927e1a14e697",
+    "closure_files": 137,
+    "closure_sha256": "66da0a0743102f2b1d038d962fab024b658fb58e314942b1a571a75bda119342"
+  },
+  "spectrum48": {
+    "board_py_in_closure": true,
+    "build_id": "26d9c57a08a6dfedfc27c78cb080cd49",
+    "closure_files": 137,
+    "closure_sha256": "66da0a0743102f2b1d038d962fab024b658fb58e314942b1a571a75bda119342"
+  },
+  "st": {
+    "board_py_in_closure": true,
+    "build_id": "4ceca619a8064ebfcfaa9e2aec3ed8d7",
+    "closure_files": 143,
+    "closure_sha256": "8613e8510d9c4ecc179fe3f383516b11d49e56658002d71ddc4ed3259eeee4a1"
+  },
+  "zx81": {
+    "board_py_in_closure": false,
+    "build_id": "9f7904f643cc8b311dabd1409fabd239",
+    "closure_files": 145,
+    "closure_sha256": "0d878abd878e2d1950cc3e9059361856f08f35a1a96851806d7a4aa66af2f42c"
+  }
+}

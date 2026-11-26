@@ -35,8 +35,12 @@ DE25 requires AArch64 and the exact Terasic Agilex5 model/compatible properties,
 then the existing exclusive maintenance flock, matched running-kernel receipt,
 root-only permanent owner and Linux DMA ABI3. Unknown or malformed identities
 fail before preparation. The same production wrapper and NativeHardware lifecycle
-serve both boards; DE25 constructs no Cyclone V manager, DDR window or Linux I2C
-recipe. The daemon keeps its unavailable adapter on preparation failure.
+serve both boards; DE25 constructs no Cyclone V manager, fixed DDR window or
+Linux I2C recipe. Its fes.memory.hps-ddr is a per-session window the kernel owner
+allocates (window ABI 1, fes.fabric.de25-hps-window): offered only where the
+owner reports that ABI, programmed with the window's overlay child, opened after
+identity while the machine is held, and released before anything else is
+programmed. The daemon keeps its unavailable adapter on preparation failure.
 AArch64 compilation does not establish physical support.
 
 DE25 configfs submission runs in an owned worker so a blocked write or close

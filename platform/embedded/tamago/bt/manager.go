@@ -67,6 +67,39 @@ func (m *Manager) PairingActive() bool {
 	return m != nil && m.sess != nil && m.sess.PairingActive()
 }
 
+// PairingRemaining returns the remaining duration of an active SSP pairing window.
+func (m *Manager) PairingRemaining() time.Duration {
+	if m == nil || m.sess == nil {
+		return 0
+	}
+	return m.sess.PairingRemaining()
+}
+
+// ForgetDevice closes any open pairing window, deletes any stored bond for
+// addr, and disconnects any active link so the forgotten peer cannot re-pair.
+func (m *Manager) ForgetDevice(addr l2cap.BDAddr) (bool, error) {
+	if m == nil {
+		return false, errors.New("bt: nil manager")
+	}
+	var stopErr error
+	if m.sess != nil && m.sess.PairingActive() {
+		stopErr = m.sess.SetPairingMode(false, 0)
+	}
+	removed := m.bonds.Remove(addr)
+	var disconnected bool
+	if m.sess != nil {
+		var err error
+		disconnected, err = m.sess.DisconnectAddr(addr)
+		if err != nil {
+			return removed || disconnected, err
+		}
+	}
+	if stopErr != nil {
+		return removed || disconnected, stopErr
+	}
+	return removed || disconnected, nil
+}
+
 // StartPairing opens a bounded SSP pairing window (default 30 s) for Tenfoot
 // Settings. Refused while gameplay is active so RF inquiry never disrupts play.
 func (m *Manager) StartPairing(duration time.Duration) error {
@@ -122,6 +155,15 @@ func (m *Manager) SetRumble(slot uint8, right, left uint8) error {
 		return errors.New("bt: no Bluetooth dongle connected")
 	}
 	return m.sess.SetRumble(slot, right, left)
+}
+
+// SetPlayerPort configures or updates the unified P1..P4 player-port LED
+// assignment for an active HIDP slot (0..3).
+func (m *Manager) SetPlayerPort(slot uint8, playerPort uint8, assigned bool) error {
+	if m == nil || m.sess == nil {
+		return errors.New("bt: no Bluetooth dongle connected")
+	}
+	return m.sess.SetPlayerPort(slot, playerPort, assigned)
 }
 
 func (m *Manager) attachDongle(dev usb.BusDevice) {

@@ -57,6 +57,36 @@ Build all linked artifacts from the same checked contracts:
 Rebuild and re-admit the full matched chain after native code changes; reusing
 an older FIT does not test new wiring.
 
+### Stage a shared-shell catalogue
+
+The opt-in SDK accepts the Spectrum and C64 build, package and ROM options in
+the same invocation when `--shared-core-shell` is selected. Supply
+`--spectrum48-tape` and `--c64-d64` to add their media, and use
+`--initial-tape --zx81-tape GAME.P` to add a ZX81 tape to the primary held-ROM
+package. The combined output is under `export/FES`. Its selection and UI
+records index ZX81, Spectrum and C64 in that order when all three are present.
+Each entry binds its own sealed package, ROM receipt and media. The separate
+Spectrum and C64 exports are still available for single-core staging.
+
+The combined export can select all three entries in one
+`stage-installer` invocation or be used as the playable catalogue on a
+read-only shared-shell trial image. The menu and matched boot chain are
+separate inputs. The catalogue and its filenames supply no firmware authority.
+
+A matched TRWU8CBL diagnostic boot (boot ID `91c8655b9adace10`, 24 November
+2026) launched ZX81, Spectrum 48K and C64, then relaunched C64 in the same
+boot. The C64 disk uploaded in about 3.03 seconds on both runs and execution
+was verified about 3.95 seconds after FPGA activation. The USB keyboard
+launched all four sessions and returned the first three. The final C64
+return and Park used UART. [#2207](https://github.com/DeanoC/fes/issues/2207)
+tracks the earlier C64 launch stall and
+[#2206](https://github.com/DeanoC/fes/issues/2206) tracks keyboard return and
+Park. This capture used experimental SD boot with volatile JTAG startup.
+
+The SDK's optional `--lifecycle-trace` records launch checkpoints and the
+Ctrl, Alt, Escape and menu Quit states relevant to USB shortcut diagnosis.
+It leaves the normal build default off and excludes ordinary typed input.
+
 ## 3. Assemble the SD image
 
 After the matched chain passes source and file admission:

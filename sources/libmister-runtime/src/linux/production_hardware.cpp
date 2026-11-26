@@ -170,9 +170,10 @@ public:
             idle = de25_video_.get(); video = de25_video_.get();
             display = de25_menu_.get(); memory = de25_menu_.get();
             // fes.memory.hps-ddr is the kernel owner's per-session window.
-            // Until this runtime speaks the owner's window ABI it is offered
-            // nothing, and the interface stays refused.
-            de25_window_owner_.reset(new native::De25NoWindowOwner);
+            // A kernel without the owner's window ABI offers none, and the
+            // interface stays refused.
+            de25_window_kernel_ = native::LinuxDe25WindowKernel();
+            de25_window_owner_.reset(new native::De25KernelWindowOwner(*de25_window_kernel_));
             de25_window_.reset(new native::De25HpsWindow(*de25_window_owner_));
             disk_window_.reset(new native::DiskWindow(*de25_window_));
         }
@@ -369,6 +370,7 @@ private:
     std::unique_ptr<native::FesGpCoreDriver> fes_gp_driver_;
     std::unique_ptr<native::MenuDisplayDriver> menu_display_;
     std::unique_ptr<native::MenuWindow> menu_window_;
+    std::unique_ptr<native::De25WindowKernel> de25_window_kernel_;
     std::unique_ptr<native::De25WindowOperations> de25_window_owner_;
     std::unique_ptr<native::De25HpsWindow> de25_window_;
     std::unique_ptr<native::DiskWindow> disk_window_;

@@ -242,10 +242,21 @@ func TestHomeRefreshDoesNotShowOldMachineWhileNewReadsPending(t *testing.T) {
 	svc.hold = true
 	svc.holdMu.Unlock()
 	r.Resume()
-	select {
-	case <-svc.started:
-	case <-time.After(testwait.Timeout):
-		t.Fatal("refresh library did not start")
+	deadline := time.Now().Add(testwait.Timeout)
+	for started := false; !started; {
+		r.Step(time.Now())
+		if err := r.Err(); err != nil {
+			t.Fatalf("resume step failed: %v", err)
+		}
+		select {
+		case <-svc.started:
+			started = true
+		default:
+			if time.Now().After(deadline) {
+				t.Fatal("refresh library did not start")
+			}
+			time.Sleep(time.Millisecond)
+		}
 	}
 	select {
 	case <-local.done:

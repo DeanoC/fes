@@ -134,14 +134,30 @@ func (s *sharedProgramMulti) NextGamepadUpdate() (usbhub.GamepadUpdate, bool) {
 	}
 	return upd, ok
 }
+func (s *sharedProgramMulti) NextMouseUpdate() (usbhub.MouseUpdate, bool) {
+	upd, ok := s.hub.NextMouseUpdate()
+	if ok {
+		s.metrics.reports++
+	}
+	return upd, ok
+}
 func (s *sharedProgramMulti) KeyboardNeutral() bool { return s.hub.KeyboardNeutral() }
 func (s *sharedProgramMulti) GamepadNeutral() bool  { return s.hub.GamepadNeutral() }
+func (s *sharedProgramMulti) MouseNeutral() bool    { return s.hub.MouseNeutral() }
 func (s *sharedProgramMulti) SetGameplayActive(active bool) error {
 	return s.hub.SetGameplayActive(active)
 }
 func (s *sharedProgramMulti) StartPairing(d time.Duration) error { return s.hub.StartPairing(d) }
 func (s *sharedProgramMulti) StopPairing() error                 { return s.hub.StopPairing() }
 func (s *sharedProgramMulti) PairingActive() bool                { return s.hub.PairingActive() }
+func (s *sharedProgramMulti) PairingRemaining() time.Duration    { return s.hub.PairingRemaining() }
+func (s *sharedProgramMulti) BluetoothSnapshot() usbhub.BluetoothSnapshot {
+	return s.hub.BluetoothSnapshot()
+}
+func (s *sharedProgramMulti) BluetoothGeneration() uint64 { return s.hub.BluetoothGeneration() }
+func (s *sharedProgramMulti) ForgetBluetoothDevice(address string) error {
+	return s.hub.ForgetBluetoothDevice(address)
+}
 func (s *sharedProgramMulti) SaveBondsIfDirty(ctx context.Context) (bool, error) {
 	return s.hub.SaveBondsIfDirty(ctx)
 }

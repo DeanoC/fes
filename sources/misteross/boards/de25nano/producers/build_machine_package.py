@@ -126,10 +126,12 @@ class Machine:
                       'guest_memory': self.guest_memory}
         if uploads_firmware(spec):
             return {**memory, 'firmware_delivery': UPLOAD_ENCODING, 'firmware_bytes': spec.FIRMWARE_BYTES[model]}
-        return {**memory, **spec.record_parameters(root)}
+        # A machine whose models have their own clocks records the model's guest rates.
+        record = spec.record_parameters(root, model) if spec.board.per_model_clocks(spec) else spec.record_parameters(root)
+        return {**memory, **record}
 
     def create_build_record(self, root, repository, revision, identities, execution, captured=None, *,
-                            model=None, identity_version=2):
+                            model=None, identity_version=2, seed=1):
         if type(identity_version) is not int or identity_version != 2:
             raise BuildError(self.label + ' requires functional build identity 2')
         root = Path(root).resolve()
@@ -139,11 +141,14 @@ class Machine:
         model = self.model(spec, model)
         profile = self.model_profiles.get(model, 'de25-linux-computer-v1')
         if captured is None:
-            captured = spec.board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE)
+            captured = spec.board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE, model=model)
         if profile == NATIVE_C64_PROFILE and not spec.NATIVE_SOURCES.issubset(captured):
             raise BuildError("native C64 requires the captured upload-shell sources")
         top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
         native_shell = profile in (NATIVE_SPECTRUM_PROFILE, NATIVE_C64_PROFILE)
+        # The bound the board's QSF writer takes (board.seeded_qsf), so no record names a seed it refuses.
+        if type(seed) is not int or not 1 <= seed <= 2 ** 31 - 1 or (native_shell and seed != 1):
+            raise BuildError(self.label + ' records a positive fitter seed; a native shell builds seed 1 only')
         review_inputs = (*REVIEW_INPUTS, NATIVE_SPECTRUM_COMPOSER) if native_shell else REVIEW_INPUTS
         roots, closure = common.captured_source_closure(root, SOURCE_ROOTS, captured, self.recipe, review_inputs)
         fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
@@ -157,11 +162,11 @@ class Machine:
                 'fabric_initiator_policy': 'native-maintenance-absent-v1' if native_shell else common.MANAGED_FABRIC,
                 'programming_profile': profile, 'standard_core': True, 'linux_dma': not native_shell,
                 'expansion_socket': False, **self.memory_parameters(root, spec, model, native_shell),
-                'machine_clock_hz': spec.board.clocks(spec)[0], 'audio_clock_requested_hz': 12288000,
+                'machine_clock_hz': spec.board.clocks(spec, model)[0], 'audio_clock_requested_hz': 12288000,
                 'fifo_reset_sharing': common.SHARED_FIFO_RESETS,
                 'f2s_data_width': 0, 'f2sdram_data_width': 256, 'scanout_master_data_width': 128,
                 'hps_warm_reset_handshake': True, 'reset_timing_policy': common.TIMED_RESET_RELEASE,
-                'signoff_policy': async_inputs.POLICY, 'seed': 1, 'threads': 2,
+                'signoff_policy': async_inputs.POLICY, 'seed': seed, 'threads': 8,
                 'hdmi_output_policy': async_inputs.vendor_reference.POLICY,
                 'hdmi_video_timing_policy': async_inputs.video_outputs.POLICY,
                 'hdmi_output_reset_review_policy': async_inputs.output_reset.POLICY,
@@ -205,7 +210,7 @@ class Machine:
                           separators=(',', ':')).encode()
 
     def build(self, root=ROOT, *, quartus_root, vendor_archive, model=None, output=None, package_output=None,
-              compile_only=False, license_file=None, cache_root=None, gpu_router='HIP'):
+              compile_only=False, license_file=None, cache_root=None, gpu_router='HIP', seed=1):
         root = Path(root).resolve()
         if vendor_archive is None:
             raise BuildError(self.label + ' requires --vendor-archive or FES_DE25_VENDOR_ARCHIVE')
@@ -218,7 +223,7 @@ class Machine:
         board = spec.board
         model = self.model(spec, model)
         profile = self.model_profiles.get(model)
-        captured = board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE)
+        captured = board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE, model=model)
         paths, identities = common.authenticate_tools(spec, quartus_root)
 
         def front_end():
@@ -232,7 +237,7 @@ class Machine:
             env = common.execution_environment(Path(home), paths, license_file=license_file)
             execution = common.execution_inputs(paths, env)
             record = self.create_build_record(root, repository, revision, identities, execution, captured,
-                                              model=model)
+                                              model=model, seed=seed)
             selected_id = build_identity(record)
             native_shell = profile in (NATIVE_SPECTRUM_PROFILE, NATIVE_C64_PROFILE)
             if native_shell:
@@ -259,7 +264,8 @@ class Machine:
                         native_hps.compile_package_candidate(selected, hps, scanout, paths['quartus'])
                     else:
                         selected, scanout, combined, hps, display = board.prepare(
-                            spec, vendor_archive, output / name, revision, model, package_build_id=selected_id)
+                            spec, vendor_archive, output / name, revision, model, package_build_id=selected_id,
+                            seed=seed)
                         board.generate(spec, selected, scanout, combined, hps, display,
                             paths['quartus'], identities['quartus'].split(' sha256:')[0])
                         board.compile_board(spec, selected, scanout, hps, display, paths['quartus'])
@@ -287,7 +293,8 @@ class Machine:
                     {**common.authenticate_tools(spec, quartus_root)[1], **front_end()} != identities or
                     common.execution_inputs(paths, env) != execution or
                     self.create_build_record(root, repository, revision, identities, execution,
-                                             board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE), model=model) != record):
+                                             board.capture(spec, revision, native=profile == NATIVE_C64_PROFILE, model=model),
+                                             model=model, seed=seed) != record):
                 raise BuildError(self.label + ' source/tool/execution inputs changed during build')
             shutil.copyfile(payload, output / 'core.rbf')
             kind = 'de25-' + self.directory
@@ -328,11 +335,13 @@ class Machine:
         parser.add_argument('--output', type=Path)
         parser.add_argument('--package-output', type=Path)
         parser.add_argument('--compile-only', action='store_true')
+        parser.add_argument('--seed', type=int, default=1,
+                            help='the fitter seed, recorded in the build record (default 1, the shipped seed)')
         args = parser.parse_args(argv)
         try:
             print(self.build(root=args.root, quartus_root=args.quartus_root, vendor_archive=args.vendor_archive,
                              model=args.model, output=args.output, package_output=args.package_output,
                              compile_only=args.compile_only, license_file=args.license_file,
-                             cache_root=args.cache_root, gpu_router=args.gpu_router))
+                             cache_root=args.cache_root, gpu_router=args.gpu_router, seed=args.seed))
         except (OSError, ValueError, KeyError, RuntimeError, subprocess.CalledProcessError) as error:
             parser.exit(1, 'de25-' + self.directory + ': ' + str(error) + '\n')

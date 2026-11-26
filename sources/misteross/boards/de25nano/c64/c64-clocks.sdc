@@ -5,8 +5,7 @@
 # declares both. The design treats the machine clock as unrelated to the
 # peripheral and pixel clocks, and the PCM crossing as unrelated to the audio
 # clock it shares a PLL with: every path between them is one of the crossings
-# named here. No clock group is cut, so an unnamed crossing is timed. The C64
-# does not use the board SDRAM; its pins are constant.
+# named here. No clock group is cut, so an unnamed crossing is timed.
 set fes_de25_standard_endpoint {soc_inst|subsys_periph|fes_scanout|fes_scanout}
 source [file join [file dirname [info script]] clocks.sdc]
 unset fes_de25_standard_endpoint
@@ -230,3 +229,33 @@ set_false_path -hold -from $i2s_launch -to $i2s_data
 set i2s_lock [get_registers {fes_machine_pll|machine_pll|tennm_ph2_iopll~pll_ctrl_reg}]
 if {[get_collection_size $i2s_lock] != 1} {error "DE25 C64 I2S lock gate changed"}
 set_false_path -from $i2s_lock -to $i2s_data
+
+set base {soc_inst|subsys_periph|fes_scanout|fes_scanout}
+# The peripheral reset asserts the machine-clock release chain at once. Its
+# two clear pins are asynchronous ingress; the chain's data path and the
+# SDRAM controller's recovery/removal from its output stay timed.
+set machine_release [get_pins -compatibility_mode -nocase -nowarn "${base}|machine_release\[*\]|aclr ${base}|machine_release\[*\]|clrn"]
+if {[get_collection_size $machine_release] != 2} {error "DE25 C64 machine reset release endpoints changed"}
+set_false_path -to $machine_release
+
+# The SDRAM clock pin is the inverted machine clock: the chips sample half a
+# machine period after the fabric launches a command.
+set machine_clock_source [get_pins {fes_machine_pll|machine_pll|tennm_ph2_iopll|out_clk[0]}]
+if {[get_collection_size $machine_clock_source] != 1} {error "DE25 C64 machine clock source changed"}
+create_generated_clock -name DRAM_CLK -source $machine_clock_source -invert [get_ports {DRAM_CLK}]
+# ISSI IS42/45VM16320G data sheet Rev. 0A, Table 11, taking the worst of the
+# -5, -6 and -75 grades: command, address and data-in setup 2.0 ns and hold
+# 1.0 ns; at CAS latency 2, access time tAC <= 8 ns and data-out hold
+# tOH >= 2.1 ns. No board trace delay is documented, so the pin budget assumes
+# zero external flight time for the clock and for every signal.
+set sdram_outputs [get_ports {DRAM_ADDR[*] DRAM_BA[*] DRAM_CS_n[*] DRAM_CKE DRAM_RAS_n DRAM_CAS_n DRAM_WE_n
+    DRAM_LDQM DRAM_UDQM DRAM_DQ[*]}]
+set sdram_data [get_ports {DRAM_DQ[*]}]
+if {[get_collection_size $sdram_outputs] != 39 || [get_collection_size $sdram_data] != 16} {
+    error "DE25 C64 SDRAM pins changed"
+}
+set_output_delay -clock DRAM_CLK -max 2.000 $sdram_outputs
+set_output_delay -clock DRAM_CLK -min -1.000 $sdram_outputs
+set_input_delay -clock DRAM_CLK -max 8.000 $sdram_data
+set_input_delay -clock DRAM_CLK -min 2.100 $sdram_data
+unset base

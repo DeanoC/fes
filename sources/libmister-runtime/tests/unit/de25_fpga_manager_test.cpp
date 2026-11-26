@@ -777,6 +777,49 @@ void StaticStartupProfiles() {
     assert(OverlayProperties(De25ProgrammingOverlay(De25OverlayProfile::static_expansion_persona)) == expected);
     std::cout << "static startup base and initial partial persona have distinct exact closed FDT shapes\n";
 }
+// A window machine's configuration carries the window child beside the
+// scanout's, and only a computer load selects it.
+// A window machine lost with its daemon is not recovered in place: the next
+// daemon refuses with its own error, before the guard, the owner, a removal
+// or any programming.
+void LostWindowMachineIsRefusedUntouched() {
+    Fixture f;RecoveryPackage(f,false,"","fes.zx81");auto old=f.Manager();
+    assert(old->ProgramWindowMachine(f.artifact,ProgrammingProfile::de25_linux_computer_v1,100).error.ok());old.reset();
+    mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;owner.state.state=1;LinuxDe25Menu memory(f.clock,owner);
+    unsigned guarded=0;
+    LinuxDe25FpgaManager fresh(f.clock,f.lease,f.paths,f.ops,&memory,
+        [&](const CoreDescriptor&,std::uint64_t){++guarded;return Error{};});
+    Put(f.root+"/next.rbf","different admitted incoming image");PosixArtifactOpener opener;
+    assert(OpenRBFArtifact(f.root+"/next.rbf",opener,&f.artifact).ok());f.ops.expected_payload="different admitted incoming image";
+    const auto r=fresh.Program(f.artifact,ProgrammingProfile::de25_linux_menu_v1,100);
+    assert(!r.error.ok()&&!r.mutation_attempted&&r.error.message.find("HPS-window machine")!=std::string::npos);
+    assert(guarded==0&&owner.owner_infos==0&&owner.reaps==0&&f.ops.removed==0&&f.ops.written==1);
+    f.Preserved();
+    std::cout<<"a lost HPS-window machine is refused before any effect, with its own error\n";
+}
+void AllocatedWindowProfile() {
+    const auto scanout = De25ProgrammingOverlay(De25OverlayProfile::allocated_scanout);
+    const auto window = De25ProgrammingOverlay(De25OverlayProfile::allocated_scanout_window);
+    auto bytes = [](const std::vector<unsigned char>& v) { return std::string(v.begin(), v.end()); };
+    auto expected = OverlayProperties(scanout);
+    expected["/fragment@0/__overlay__/window:compatible"] = std::string("fes,de25-linux-dma-window") + std::string(1, '\0');
+    assert(OverlayProperties(window) == expected);
+    assert(bytes(scanout).find("fes,de25-linux-dma-window") == std::string::npos);
+    {
+        Fixture f;auto m=f.Manager();
+        assert(m->ProgramWindowMachine(f.artifact,ProgrammingProfile::de25_linux_computer_v1,100).error.ok());
+        assert(Get(f.ops.Dir()+"/dtbo")==bytes(window));
+        // The window's bytes authorize its own replacement, by a plain computer.
+        assert(f.Program(*m,ProgrammingProfile::de25_linux_computer_v1).error.ok());
+        assert(Get(f.ops.Dir()+"/dtbo")==bytes(scanout) && f.ops.removed==1);
+    }
+    for(auto profile:{ProgrammingProfile::de25_hps_first_v1,ProgrammingProfile::de25_linux_menu_v1}) {
+        Fixture f;auto m=f.Manager();
+        const auto r=m->ProgramWindowMachine(f.artifact,profile,100);
+        assert(r.error.code==ErrorCode::unsupported_programming_profile && !r.mutation_attempted && f.ops.written==0);
+    }
+    std::cout<<"a window machine's configuration adds only the window child, for a computer load\n";
+}
 void AllocatedScanoutProfile() {
     const auto basic = De25ProgrammingOverlay();
     const auto scanout = De25ProgrammingOverlay(De25OverlayProfile::allocated_scanout);
@@ -1045,13 +1088,14 @@ int main(int argc,char** argv) {
         auto profile=De25OverlayProfile::firmware_only;
         if(argc==3) {
             const std::string name=argv[1];
-            assert(name=="allocated" || name=="static-base" || name=="static-persona");
+            assert(name=="allocated" || name=="allocated-window" || name=="static-base" || name=="static-persona");
             profile=name=="allocated"?De25OverlayProfile::allocated_scanout:
+                name=="allocated-window"?De25OverlayProfile::allocated_scanout_window:
                 name=="static-base"?De25OverlayProfile::static_expansion_base:De25OverlayProfile::static_expansion_persona;
         }
         const auto v=De25ProgrammingOverlay(profile);std::ofstream f(argv[argc-1],std::ios::binary);
         f.write(reinterpret_cast<const char*>(v.data()),v.size());assert(f.good());return 0;
     }
-    RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement();InterruptedFirmwareSearchOverrideRecoversAfterOwnerRetirement();Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();StaticStartupProfiles();StaticProductionDispatchGate();StaticStartupAndFullReplacement();OwnedStaticMappingHasOneFullBaseLifetime();OwnedStaticMappingFaultsRetainAndRefuseReplay();OwnedStaticMappingRefusesBeforeOpenAndAfterPersonaChange();StaticRefusalsBeforeHardware();StaticColdIdentityFailures();StaticPersonaFailuresRetainBothImages();StaticCopyAndLookupRacesNeverSubmitWrongBytes();StaticReleaseChecksBothIdentitiesBeforeEffects();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();OwnerIdlePreflightPrecedesRemoval();ProfilesAndLease();
+    RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement();InterruptedFirmwareSearchOverrideRecoversAfterOwnerRetirement();Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();AllocatedWindowProfile();LostWindowMachineIsRefusedUntouched();StaticStartupProfiles();StaticProductionDispatchGate();StaticStartupAndFullReplacement();OwnedStaticMappingHasOneFullBaseLifetime();OwnedStaticMappingFaultsRetainAndRefuseReplay();OwnedStaticMappingRefusesBeforeOpenAndAfterPersonaChange();StaticRefusalsBeforeHardware();StaticColdIdentityFailures();StaticPersonaFailuresRetainBothImages();StaticCopyAndLookupRacesNeverSubmitWrongBytes();StaticReleaseChecksBothIdentitiesBeforeEffects();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();OwnerIdlePreflightPrecedesRemoval();ProfilesAndLease();
     std::cout<<"de25_fpga_manager_test: passed\n";
 }

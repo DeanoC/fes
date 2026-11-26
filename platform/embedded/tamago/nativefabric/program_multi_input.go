@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/ui/tenfoot"
+	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
+	"github.com/DeanoC/fes/platform/embedded/tamago/input/controllers"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input/usbhub"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
@@ -26,19 +28,28 @@ type ProgramMultiSource interface {
 	Service() error
 	NextKeyboardReport() ([8]byte, bool)
 	NextGamepadUpdate() (usbhub.GamepadUpdate, bool)
+	NextMouseUpdate() (usbhub.MouseUpdate, bool)
 	KeyboardNeutral() bool
 	GamepadNeutral() bool
+	MouseNeutral() bool
 	SetGameplayActive(bool) error
 	StartPairing(time.Duration) error
 	StopPairing() error
 	PairingActive() bool
+	PairingRemaining() time.Duration
+	BluetoothSnapshot() usbhub.BluetoothSnapshot
+	BluetoothGeneration() uint64
+	ForgetBluetoothDevice(string) error
 	SaveBondsIfDirty(context.Context) (bool, error)
 	PausePolling(context.Context) error
 	ResumePolling(context.Context) error
 	Ready() <-chan struct{}
 }
 
-var _ ProgramMultiSource = (*usbhub.Hub)(nil)
+var (
+	_ ProgramMultiSource          = (*usbhub.Hub)(nil)
+	_ tenfoot.BluetoothController = (*ProgramMultiInputPlatform)(nil)
+)
 
 // ProgramMultiConfig configures Tenfoot and core mapping plus pairing/bond hooks
 // for ProgramMultiInputPlatform.
@@ -54,31 +65,42 @@ type ProgramMultiConfig struct {
 // USB HID gamepads, and Classic Bluetooth controllers/keyboards through the real
 // Tenfoot platform loop and owned ProgramService computer sessions.
 type ProgramMultiInputPlatform struct {
-	operation       sync.Mutex
-	base            tenfoot.Platform
-	backend         *ProgramBackend
-	source          ProgramMultiSource
-	cfg             ProgramMultiConfig
-	inputReady      <-chan struct{}
-	uartReady       <-chan struct{}
-	keyboard        ProgramKeyboard
-	session         ProgramSession
-	mode            ProgramServiceState
-	generation      uint64
-	boundary        uint64
-	menuKB          usb.BootKeyboard
-	coreKB          usb.BootKeyboard
-	menuPadPressed  [6]bool
-	kbRows          [9]uint16
-	padRows         [9]uint16
-	prevHome        bool
-	kbArmed         bool
-	padArmed        bool
-	gameplaySynced  bool
-	gameplayActive  bool
-	returnRequested bool
-	fault           error
-	pending         []input.Event
+	operation         sync.Mutex
+	base              tenfoot.Platform
+	backend           *ProgramBackend
+	source            ProgramMultiSource
+	cfg               ProgramMultiConfig
+	inputReady        <-chan struct{}
+	uartReady         <-chan struct{}
+	keyboard          ProgramKeyboard
+	session           ProgramSession
+	mode              ProgramServiceState
+	generation        uint64
+	boundary          uint64
+	menuKB            usb.BootKeyboard
+	coreKB            usb.BootKeyboard
+	menuPadPressed    [6]bool
+	kbRows            [9]uint16
+	padRows           [9]uint16
+	ctrlPorts         [usbhub.MaxPlayerPorts]uint8
+	nativeControllers bool
+	nativeMouse       bool
+	mouseButtons      uint8
+	prevHome          bool
+	kbArmed           bool
+	padArmed          bool
+	mouseArmed        bool
+	gameplaySynced    bool
+	gameplayActive    bool
+	returnRequested   bool
+	traceKeyboard     func(context.Context, ProgramServiceStatus, []byte, bool)
+	fault             error
+	pending           []input.Event
+
+	btMu         sync.RWMutex
+	btStatus     tenfoot.BluetoothStatus
+	lastBTGen    uint64
+	lastBTRemSec int
 }
 
 // NewProgramMultiInputPlatform attaches a unified multi-device USB + Bluetooth
@@ -112,11 +134,78 @@ func NewProgramMultiInputPlatform(base tenfoot.Platform, backend *ProgramBackend
 		source:  source,
 		cfg:     cfg,
 	}
+	p.traceKeyboard = lifecycleKeyboardObserver(base)
 	p.inputReady = attachInputReady(base, source)
 	if uart, ok := base.(interface{ Ready() <-chan struct{} }); ok {
 		p.uartReady = uart.Ready()
 	}
+	p.refreshBluetoothStatus(true)
 	return p, nil
+}
+
+func btRemainingSeconds(d time.Duration) int {
+	if d <= 0 {
+		return 0
+	}
+	return int((d + time.Second - 1) / time.Second)
+}
+
+func convertBluetoothSnapshot(s usbhub.BluetoothSnapshot) tenfoot.BluetoothStatus {
+	out := tenfoot.BluetoothStatus{
+		DongleConnected:  s.DongleConnected,
+		DongleName:       s.DongleName,
+		PairingActive:    s.PairingActive,
+		PairingRemaining: s.PairingRemaining,
+		ConnectedCount:   s.ConnectedCount,
+		BondsPending:     s.BondsPending,
+		BondsSaveFailed:  s.BondsSaveFailed,
+	}
+	if len(s.Devices) > 0 {
+		out.Devices = make([]tenfoot.BluetoothDevice, len(s.Devices))
+		for i, dev := range s.Devices {
+			var kind string
+			if dev.Kind != controllers.KindUnknown {
+				kind = dev.Kind.String()
+			}
+			out.Devices[i] = tenfoot.BluetoothDevice{
+				Address:   dev.Address,
+				Name:      dev.Name,
+				Kind:      kind,
+				Connected: dev.Connected,
+				Slot:      int(dev.Slot),
+			}
+		}
+	}
+	return out
+}
+
+func (p *ProgramMultiInputPlatform) refreshBluetoothStatus(force bool) {
+	gen := p.source.BluetoothGeneration()
+	remSec := btRemainingSeconds(p.source.PairingRemaining())
+	if !force && gen == p.lastBTGen && remSec == p.lastBTRemSec {
+		return
+	}
+	snap := convertBluetoothSnapshot(p.source.BluetoothSnapshot())
+	p.btMu.Lock()
+	p.btStatus = snap
+	p.btMu.Unlock()
+	p.lastBTGen = gen
+	p.lastBTRemSec = remSec
+}
+
+// BluetoothStatus returns the nonblocking cached Bluetooth adapter, pairing,
+// connected slot, and bond status for Tenfoot Settings rendering.
+func (p *ProgramMultiInputPlatform) BluetoothStatus() tenfoot.BluetoothStatus {
+	if p == nil {
+		return tenfoot.BluetoothStatus{}
+	}
+	p.btMu.RLock()
+	st := p.btStatus
+	if len(st.Devices) > 0 {
+		st.Devices = append([]tenfoot.BluetoothDevice(nil), st.Devices...)
+	}
+	p.btMu.RUnlock()
+	return st
 }
 
 // StartBluetoothPairing opens a bounded SSP pairing window when in ProgramReady.
@@ -141,7 +230,12 @@ func (p *ProgramMultiInputPlatform) StartBluetoothPairing(duration time.Duration
 	if duration <= 0 {
 		duration = p.cfg.PairingDuration
 	}
-	return p.source.StartPairing(duration)
+	err := p.source.StartPairing(duration)
+	p.refreshBluetoothStatus(true)
+	if p.cfg.OnPairingEvent != nil {
+		p.cfg.OnPairingEvent(err == nil && p.source.PairingActive(), err)
+	}
+	return err
 }
 
 // StopBluetoothPairing closes an active SSP pairing window.
@@ -157,7 +251,41 @@ func (p *ProgramMultiInputPlatform) StopBluetoothPairing() error {
 		return ErrProgramBusy
 	}
 	defer p.backend.operation.Unlock()
-	return p.source.StopPairing()
+	err := p.source.StopPairing()
+	p.refreshBluetoothStatus(true)
+	if p.cfg.OnPairingEvent != nil {
+		p.cfg.OnPairingEvent(false, err)
+	}
+	return err
+}
+
+// ForgetBluetoothDevice deletes the stored bond for address and disconnects any
+// active session while in ProgramReady.
+func (p *ProgramMultiInputPlatform) ForgetBluetoothDevice(address string) error {
+	if p == nil || p.backend == nil || p.backend.service == nil || p.source == nil {
+		return ErrProgramSession
+	}
+	if !p.operation.TryLock() {
+		return ErrProgramBusy
+	}
+	defer p.operation.Unlock()
+	if p.fault != nil {
+		return p.fault
+	}
+	if !p.backend.operation.TryLock() {
+		return ErrProgramBusy
+	}
+	defer p.backend.operation.Unlock()
+	if p.backend.service.Status().State != ProgramReady {
+		return errors.New("native input: forgetting Bluetooth devices is only allowed in menu")
+	}
+	wasPairing := p.source.PairingActive()
+	err := p.source.ForgetBluetoothDevice(address)
+	p.refreshBluetoothStatus(true)
+	if wasPairing && !p.source.PairingActive() && p.cfg.OnPairingEvent != nil {
+		p.cfg.OnPairingEvent(false, nil)
+	}
+	return err
 }
 
 func (p *ProgramMultiInputPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
@@ -284,11 +412,16 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 	if v.State != ProgramReady && v.State != ProgramRunning {
 		return nil, nil
 	}
-	if p.boundary != b.inputBoundary || p.mode != v.State || p.generation != v.Generation {
+	boundaryChanged := p.boundary != b.inputBoundary || p.mode != v.State || p.generation != v.Generation
+	if boundaryChanged {
 		p.pending = nil
 		p.returnRequested = false
 		p.kbRows = [9]uint16{}
 		p.padRows = [9]uint16{}
+		p.ctrlPorts = [usbhub.MaxPlayerPorts]uint8{}
+		p.nativeControllers = false
+		p.nativeMouse = false
+		p.mouseButtons = 0
 		p.prevHome = false
 		p.menuKB = usb.BootKeyboard{}
 		p.coreKB = usb.BootKeyboard{}
@@ -299,20 +432,39 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		// all-up snapshot; released ones let the first fresh press through.
 		p.kbArmed = p.source.KeyboardNeutral()
 		p.padArmed = p.source.GamepadNeutral()
+		p.mouseArmed = p.source.MouseNeutral()
 	}
 	wantGameplay := v.State == ProgramRunning
 	if !p.gameplaySynced || p.gameplayActive != wantGameplay {
 		if err := p.source.SetGameplayActive(wantGameplay); err == nil {
 			p.gameplaySynced = true
 			p.gameplayActive = wantGameplay
+			if wantGameplay {
+				p.refreshBluetoothStatus(false)
+			}
 		}
 	}
 	if v.State == ProgramRunning {
 		p.session = b.session
+		boundNew := false
 		if p.keyboard.state == nil || p.keyboard.state.session.Generation() != v.Generation {
 			var err error
 			p.keyboard, err = b.bindKeyboard(ctx, v.Generation)
 			if err != nil {
+				b.inputFault = err
+				return nil, err
+			}
+			boundNew = true
+		}
+		caps := b.service.Capabilities(b.session)
+		p.nativeControllers = caps&cg.FesComputerCapabilityGamepadPorts != 0
+		p.nativeMouse = caps&cg.FesComputerCapabilityMouseRelative != 0
+		if boundNew || boundaryChanged {
+			if err := p.neutralizeControllerPorts(ctx); err != nil {
+				b.inputFault = err
+				return nil, err
+			}
+			if err := p.neutralizeMouse(ctx); err != nil {
 				b.inputFault = err
 				return nil, err
 			}
@@ -343,6 +495,9 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 			kbDrained = true
 			break
 		}
+		if p.traceKeyboard != nil {
+			p.traceKeyboard(ctx, v, rep[:], p.kbArmed)
+		}
 		if v.State == ProgramRunning {
 			next := p.coreKB
 			edgeCount, err := next.FeedInto(rep[:], edgeBuf[:])
@@ -360,7 +515,7 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 			}
 			for _, edge := range edgeBuf[:edgeCount] {
 				if edge.Pressed && edge.Usage == 0x29 && edge.Modifiers&0x11 != 0 && edge.Modifiers&0x44 != 0 {
-					if err := p.keyboard.state.writeRows(ctx, [9]uint16{}); err != nil {
+					if err := p.neutralizeCore(ctx); err != nil {
 						b.inputFault = err
 						return nil, err
 					}
@@ -431,12 +586,12 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		}
 		if v.State == ProgramRunning {
 			if !p.padArmed {
-				p.padArmed = input.GamepadNeutral(upd.State) && !upd.HomePressed
+				p.padArmed = input.GamepadNeutral(upd.State) && !upd.HomePressed && upd.Ports == ([usbhub.MaxPlayerPorts]uint8{})
 				p.prevHome = upd.HomePressed
 				continue
 			}
 			if upd.HomePressed && !p.prevHome {
-				if err := p.keyboard.state.writeRows(ctx, [9]uint16{}); err != nil {
+				if err := p.neutralizeCore(ctx); err != nil {
 					b.inputFault = err
 					return nil, err
 				}
@@ -446,6 +601,13 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 				continue
 			}
 			p.prevHome = upd.HomePressed
+			if p.nativeControllers {
+				if err := p.writeControllerPorts(ctx, upd.Ports); err != nil {
+					b.inputFault = err
+					return nil, err
+				}
+				continue
+			}
 			p.padRows = p.cfg.CoreKeys.rows(upd.State)
 			if err := p.keyboard.state.writeRows(ctx, combineRows(p.kbRows, p.padRows)); err != nil {
 				b.inputFault = err
@@ -456,9 +618,14 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 
 		// ProgramReady menu gamepad handling.
 		if !p.padArmed {
-			p.padArmed = input.GamepadNeutral(upd.State) && !upd.HomePressed
+			p.padArmed = input.GamepadNeutral(upd.State) && !upd.HomePressed && upd.Ports == ([usbhub.MaxPlayerPorts]uint8{})
+			p.prevHome = upd.HomePressed
 			continue
 		}
+		if upd.HomePressed && !p.prevHome {
+			events = append(events, input.Event{Key: "o"})
+		}
+		p.prevHome = upd.HomePressed
 		nextPressed := [6]bool{}
 		dirs := input.GamepadDirections(upd.State)
 		copy(nextPressed[:4], dirs[:])
@@ -480,12 +647,52 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		p.padArmed = p.source.GamepadNeutral()
 	}
 
+	mouseDrained := false
+	for n := 0; n < 16; n++ {
+		if v.State == ProgramRunning && p.returnRequested {
+			break
+		}
+		if err := ctx.Err(); err != nil {
+			b.inputFault = err
+			return nil, err
+		}
+		upd, ok := p.source.NextMouseUpdate()
+		if !ok {
+			mouseDrained = true
+			break
+		}
+		if v.State == ProgramRunning {
+			if !p.mouseArmed {
+				p.mouseArmed = upd.Buttons == 0
+				continue
+			}
+			if p.nativeMouse {
+				if upd.DX == 0 && upd.DY == 0 && upd.Buttons == p.mouseButtons {
+					continue
+				}
+				if err := b.service.MouseRelative(ctx, p.session, upd.DX, upd.DY, upd.Buttons); err != nil {
+					b.inputFault = err
+					return nil, err
+				}
+				p.mouseButtons = upd.Buttons
+			}
+			continue
+		}
+		if !p.mouseArmed {
+			p.mouseArmed = upd.Buttons == 0
+		}
+	}
+	if !p.mouseArmed && mouseDrained {
+		p.mouseArmed = p.source.MouseNeutral()
+	}
+
 	// Bond writes run between frames from Next, never from serviceMenuInput
 	// while the menu copies scanout rows; the source backs off failed writes.
 	if v.State == ProgramReady && !buffer {
 		if saved, err := p.source.SaveBondsIfDirty(ctx); (saved || err != nil) && p.cfg.OnBondsSaved != nil {
 			p.cfg.OnBondsSaved(err)
 		}
+		p.refreshBluetoothStatus(false)
 	}
 
 	if buffer {
@@ -546,4 +753,52 @@ func combineRows(a, b [9]uint16) [9]uint16 {
 		out[i] = a[i] | b[i]
 	}
 	return out
+}
+
+func (p *ProgramMultiInputPlatform) neutralizeControllerPorts(ctx context.Context) error {
+	if !p.nativeControllers {
+		return nil
+	}
+	for port := uint8(0); port < uint8(cg.FesComputerControllerPortCount); port++ {
+		if err := p.backend.service.ControllerButtons(ctx, p.session, port, 0); err != nil {
+			return err
+		}
+	}
+	p.ctrlPorts = [usbhub.MaxPlayerPorts]uint8{}
+	return nil
+}
+
+func (p *ProgramMultiInputPlatform) neutralizeMouse(ctx context.Context) error {
+	if !p.nativeMouse {
+		return nil
+	}
+	if err := p.backend.service.MouseRelative(ctx, p.session, 0, 0, 0); err != nil {
+		return err
+	}
+	p.mouseButtons = 0
+	return nil
+}
+
+func (p *ProgramMultiInputPlatform) neutralizeCore(ctx context.Context) error {
+	if err := p.keyboard.state.writeRows(ctx, [9]uint16{}); err != nil {
+		return err
+	}
+	if err := p.neutralizeControllerPorts(ctx); err != nil {
+		return err
+	}
+	return p.neutralizeMouse(ctx)
+}
+
+func (p *ProgramMultiInputPlatform) writeControllerPorts(ctx context.Context, next [usbhub.MaxPlayerPorts]uint8) error {
+	for port := uint8(0); port < uint8(cg.FesComputerControllerPortCount) && int(port) < len(next); port++ {
+		if next[port] == p.ctrlPorts[port] {
+			continue
+		}
+		if err := p.backend.service.ControllerButtons(ctx, p.session, port, uint16(next[port])); err != nil {
+			return err
+		}
+		p.ctrlPorts[port] = next[port]
+	}
+	p.ctrlPorts = next
+	return nil
 }

@@ -48,6 +48,7 @@ De25HpsWindow::~De25HpsWindow()
 Error De25HpsWindow::Poison(Error error)
 {
  poisoned_ = true;
+ check_poisoned_ = false;
  return error;
 }
 
@@ -112,6 +113,12 @@ bool De25HpsWindow::OwnerAvailable()
  return operations_.Available();
 }
 
+bool De25HpsWindow::IsOpen() const
+{
+ std::lock_guard<std::mutex> lock(mutex_);
+ return window_ >= 0;
+}
+
 bool De25HpsWindow::Ready() const
 {
  std::lock_guard<std::mutex> lock(mutex_);
@@ -122,10 +129,14 @@ Error De25HpsWindow::Check()
 {
  std::lock_guard<std::mutex> lock(mutex_);
  if (window_ < 0) return Refused("no window is open");
+ if (poisoned_) return Refused("a faulted or unrevoked window cannot be checked before reprogramming");
  De25WindowGrant grant;
  Error error = operations_.Info(window_, &grant);
  if (error.ok()) error = Validate(grant, false);
- return error.ok() ? error : Poison(error);
+ if (error.ok()) return error;
+ poisoned_ = true;
+ check_poisoned_ = true;
+ return error;
 }
 
 Error De25HpsWindow::Release()
@@ -139,6 +150,26 @@ Error De25HpsWindow::Release()
  operations_.Close(window_);
  window_ = -1;
  generation_ = 0;
+ return {};
+}
+
+Error De25HpsWindow::ReleaseAfterQuiesce()
+{
+ std::lock_guard<std::mutex> lock(mutex_);
+ if (window_ < 0) return poisoned_ ? Refused("an earlier window was not released") : Error{};
+ if (ranges_) return {ErrorCode::busy, "DE25 HPS window ranges are still granted", "stop"};
+ // Only a failed cached check can be retired this way. A failed revoke or
+ // release remains uncertain and must never be retried just because the
+ // machine was later quiesced.
+ if (poisoned_ && !check_poisoned_)
+  return Refused("a faulted or unrevoked window cannot be released before reprogramming");
+ check_poisoned_ = false;
+ const Error error = operations_.Release(window_);
+ if (!error.ok()) return Poison(error);
+ operations_.Close(window_);
+ window_ = -1;
+ generation_ = 0;
+ poisoned_ = false;
  return {};
 }
 
@@ -181,18 +212,157 @@ Error De25HpsWindow::Clean(int, std::uint64_t, std::uint32_t, std::uint32_t, std
  return Refused("window ranges are written back by their revoke");
 }
 
-namespace {
-Error NoOwner()
+De25KernelWindowOwner::De25KernelWindowOwner(De25WindowKernel& kernel) : kernel_(kernel) {}
+
+De25KernelWindowOwner::~De25KernelWindowOwner()
 {
- return Refused("the kernel owner offers no window");
+ std::lock_guard<std::mutex> lock(mutex_);
+ for (auto& range : ranges_) {
+  UnmapAll(range.second);
+  kernel_.Close(range.first);
+ }
 }
+
+void De25KernelWindowOwner::UnmapAll(Range& range)
+{
+ for (const auto& mapping : range.mappings) kernel_.Unmap(mapping.first, mapping.second);
+ range.mappings.clear();
 }
-Error De25NoWindowOwner::Allocate(int*) { return NoOwner(); }
-Error De25NoWindowOwner::Info(int,De25WindowGrant*) { return NoOwner(); }
-Error De25NoWindowOwner::Grant(int,std::uint64_t,std::uint64_t,int*) { return NoOwner(); }
-Error De25NoWindowOwner::Map(int,std::size_t,void**) { return NoOwner(); }
-Error De25NoWindowOwner::Revoke(int) { return NoOwner(); }
-Error De25NoWindowOwner::Release(int) { return NoOwner(); }
+
+bool De25KernelWindowOwner::Available()
+{
+ std::lock_guard<std::mutex> lock(mutex_);
+ if (!probed_) {
+  bool offered = false;
+  std::uint32_t version = 0;
+  // A failed probe is retried; an answer, either way, is the kernel's.
+  if (kernel_.WindowAbi(&offered, &version).ok()) {
+   probed_ = true;
+   available_ = offered && version == kDe25WindowAbi;
+  }
+ }
+ return available_;
+}
+
+Error De25KernelWindowOwner::Allocate(int* window)
+{
+ if (!window) return {ErrorCode::invalid_request, "DE25 HPS window needs an output", "input"};
+ *window = -1;
+ if (!Available()) return Refused("the kernel owner offers no window");
+ return kernel_.Allocate(window);
+}
+
+Error De25KernelWindowOwner::Info(int window, De25WindowGrant* out)
+{
+ if (!out) return {ErrorCode::invalid_request, "DE25 HPS window info needs an output", "input"};
+ De25WindowKernelInfo raw;
+ raw.version = kDe25WindowAbi;
+ Error error = kernel_.Info(window, &raw);
+ if (!error.ok()) return error;
+ if (raw.version != kDe25WindowAbi || raw.reserved || raw.flags)
+  return Refused("the owner reports an unknown window ABI");
+ // Only an exposed window the kernel still trusts is the session's: a
+ // revoked one cannot be mapped, and an uncertain one waits for a revoke.
+ if ((raw.state & (kDe25WindowRevoked | kDe25WindowUncertain)) || !(raw.state & kDe25WindowExposed) ||
+     (raw.state & ~(kDe25WindowRevoked | kDe25WindowExposed | kDe25WindowUncertain)))
+  return {ErrorCode::io_failed, "DE25 HPS window is not exposed (kernel state " +
+   std::to_string(raw.state) + ")", "input"};
+ *out = {};
+ out->generation = raw.generation;
+ out->version = raw.contract;
+ out->span = raw.span;
+ out->status = raw.status;
+ out->fault = raw.fault;
+ out->build_id = raw.build_id;
+ return {};
+}
+
+Error De25KernelWindowOwner::Grant(int window, std::uint64_t offset, std::uint64_t bytes, int* range)
+{
+ if (!range) return {ErrorCode::invalid_request, "DE25 HPS window range needs an output", "input"};
+ *range = -1;
+ if (!bytes || offset % kPage || bytes % kPage || offset > FesDe25HpsWindowSpan ||
+     bytes > FesDe25HpsWindowSpan - offset)
+  return {ErrorCode::invalid_request, "DE25 HPS window range is not whole pages inside the span", "input"};
+ int fd = -1;
+ const Error error = kernel_.Duplicate(window, &fd);
+ if (!error.ok()) return error;
+ std::lock_guard<std::mutex> lock(mutex_);
+ Range& entry = ranges_[fd];
+ entry = Range{};
+ entry.offset = offset;
+ entry.bytes = bytes;
+ *range = fd;
+ return {};
+}
+
+Error De25KernelWindowOwner::Map(int range, std::size_t bytes, void** mapping)
+{
+ if (!mapping) return {ErrorCode::invalid_request, "DE25 HPS window mapping needs an output", "input"};
+ *mapping = nullptr;
+ std::lock_guard<std::mutex> lock(mutex_);
+ const auto found = ranges_.find(range);
+ if (found == ranges_.end() || found->second.revoked)
+  return {ErrorCode::invalid_request, "DE25 HPS window range is not granted", "input"};
+ if (!bytes || bytes > found->second.bytes)
+  return {ErrorCode::invalid_request, "DE25 HPS window mapping exceeds its range", "input"};
+ void* mapped = nullptr;
+ const Error error = kernel_.Map(range, found->second.offset, bytes, &mapped);
+ if (!error.ok()) return error;
+ found->second.mappings.push_back({mapped, bytes});
+ *mapping = mapped;
+ return {};
+}
+
+void De25KernelWindowOwner::Unmap(void* mapping, std::size_t bytes)
+{
+ std::lock_guard<std::mutex> lock(mutex_);
+ for (auto& range : ranges_)
+  for (auto at = range.second.mappings.begin(); at != range.second.mappings.end(); ++at)
+   if (at->first == mapping && at->second == bytes) {
+    kernel_.Unmap(mapping, bytes);
+    range.second.mappings.erase(at);
+    return;
+   }
+}
+
+Error De25KernelWindowOwner::Revoke(int range)
+{
+ std::lock_guard<std::mutex> lock(mutex_);
+ const auto found = ranges_.find(range);
+ if (found == ranges_.end() || found->second.revoked)
+  return {ErrorCode::invalid_request, "DE25 HPS window range is not granted", "input"};
+ // Every store through the range reaches DDR before the range ends.
+ kernel_.Barrier();
+ UnmapAll(found->second);
+ found->second.revoked = true;
+ return {};
+}
+
+Error De25KernelWindowOwner::Release(int window)
+{
+ {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!ranges_.empty())
+   return {ErrorCode::busy, "DE25 HPS window ranges are still granted", "stop"};
+ }
+ Error error = kernel_.Revoke(window);
+ bool scanout = true;
+ if (error.ok()) error = kernel_.ScanoutAllocated(&scanout);
+ if (error.ok() && !scanout) error = kernel_.Reap();
+ return error;
+}
+
+void De25KernelWindowOwner::Close(int fd)
+{
+ std::lock_guard<std::mutex> lock(mutex_);
+ const auto found = ranges_.find(fd);
+ if (found != ranges_.end()) {
+  UnmapAll(found->second);
+  ranges_.erase(found);
+ }
+ kernel_.Close(fd);
+}
 
 // A range whose revoke failed may still be mapped somewhere, so the window
 // must not be released or reused under it.
