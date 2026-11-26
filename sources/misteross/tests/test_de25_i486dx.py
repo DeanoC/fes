@@ -131,7 +131,7 @@ class DE25ModelsTest(unittest.TestCase):
     def test_the_models(self):
         self.assertEqual(tuple(self.build.MODELS), ('486sx', '486dx'))
         clock = self.build.model_clock('486dx')
-        self.assertEqual((clock['c0'], clock['mhz']), (30, '104.444444'))
+        self.assertEqual((clock['c0'], clock['mhz']), (28, '111.904762'))
         self.assertNotEqual(clock['pll_ip'], self.build.model_clock('486sx')['pll_ip'])
 
     def test_the_486sx_is_fes_i386_cpu_at_i486_1_without_the_387(self):
