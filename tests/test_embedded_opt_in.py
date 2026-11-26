@@ -57,6 +57,10 @@ class EmbeddedOptInTests(unittest.TestCase):
     def test_explicit_opt_in_reaches_each_boards_own_validation(self):
         for board, options, message in (
             ("qemu", ("--arm64-features",), "--arm64-features requires --board de25-nano"),
+            ("qemu", ("--sd-bus-width", "4"), "SD transport options require --board de25-nano"),
+            ("qemu", ("--sd-multi-block",), "SD transport options require --board de25-nano"),
+            ("qemu", ("--sd-cmd23",), "SD transport options require --board de25-nano"),
+            ("qemu", ("--sd-adma2",), "SD transport options require --board de25-nano"),
             ("de25-nano", (), "--board de25-nano requires --profile from the firmware handoff"),
         ):
             with self.subTest(board=board):

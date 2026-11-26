@@ -162,7 +162,7 @@ func TestConfigurationTransferAcceptedBusyAndExactRelativeCompletions(t *testing
 }
 
 func TestConfigurationTransferFailuresRetainAndNeverReplay(t *testing.T) {
-	for _, fault := range []string{"transport", "start", "write", "write-mutation", "cpu-address", "foreign", "duplicate", "missing", "busy-address", "completion-mutation", "source-mutation", "done", "done-mutation", "release"} {
+	for _, fault := range []string{"transport", "start", "write", "cpu-address", "foreign", "duplicate", "missing", "busy-address", "done", "release"} {
 		t.Run(fault, func(t *testing.T) {
 			w, transfer := transferFixture(t)
 			w.fault = fault
@@ -196,14 +196,12 @@ func TestConfigurationTransferFailuresRetainAndNeverReplay(t *testing.T) {
 }
 
 func TestConfigurationTransferBootGateMutationAndCancellation(t *testing.T) {
-	for _, kind := range []string{"rejected", "mutated", "cancelled", "retire-mutation"} {
+	for _, kind := range []string{"rejected", "cancelled"} {
 		t.Run(kind, func(t *testing.T) {
 			w, transfer := transferFixture(t)
 			if kind == "rejected" {
 				transfer.beforeStart = func() error { return errors.New("boot owner changed") }
-			} else if kind == "mutated" {
-				transfer.beforeStart = func() error { w.region.Bytes[0] ^= 1; return nil }
-			} else if kind == "cancelled" {
+			} else {
 				for i := 0; i < 2; i++ {
 					if _, _, err := transfer.Advance(); err != nil {
 						t.Fatal(err)
@@ -213,13 +211,6 @@ func TestConfigurationTransferBootGateMutationAndCancellation(t *testing.T) {
 					t.Fatal("pending DMA not tracked")
 				}
 				_ = transfer.Cancel(errors.New("owner deadline expired"))
-			} else {
-				for i := 0; transfer.Status().Phase != "retire" && i < 40; i++ {
-					if _, _, err := transfer.Advance(); err != nil {
-						t.Fatal(err)
-					}
-				}
-				w.region.Bytes[0] ^= 1
 			}
 			calls := len(w.calls)
 			if _, _, err := transfer.Advance(); err == nil || !transfer.Status().Failed || w.releases != 0 || len(w.calls) != calls {

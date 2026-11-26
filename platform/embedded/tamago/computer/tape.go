@@ -165,7 +165,8 @@ func (c *Computer) LoadInitialSpectrumTape(ctx context.Context, pzx []byte) (err
 	if c.gpo & ^g.FesComputerRequestMask != g.FesComputerOpcodeExecution<<24|g.FesComputerControlIndex<<16|g.FesComputerExecutionHoldReset {
 		return ErrProtocol
 	}
-	return o.transferMedia(pzx, g.FesComputerSpectrumTapeMinBytes, g.FesComputerSpectrumTapeMaxBytes, true, nil)
+	batch, _ := c.io.(MediaChunkBatcher)
+	return o.transferMedia(pzx, g.FesComputerSpectrumTapeMinBytes, g.FesComputerSpectrumTapeMaxBytes, true, batch)
 }
 
 // C64DiskTransferBudget bounds one standard 35-track D64 transfer.

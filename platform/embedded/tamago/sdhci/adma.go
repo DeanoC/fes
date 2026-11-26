@@ -28,11 +28,11 @@ const (
 	admaAttrEnd    = uint32(1 << 1)
 	admaAttrTran   = uint32(2 << 4)
 	admaChunkBytes = 32768 // 32 KiB per descriptor avoids 64 KiB length==0 quirks
-	maxMultiBlocks = 128   // 64 KiB max transfer per CMD18/CMD25 or ADMA2 chain
+	maxMultiBlocks = 256   // 128 KiB max transfer per CMD18/CMD25 or ADMA2 chain
 	admaDescBytes  = 256
 )
 
-// admaEngine owns the pinned ADMA2 descriptor table and 64 KiB data staging
+// admaEngine owns the pinned ADMA2 descriptor table and 128 KiB data staging
 // buffer allocated from a caller-supplied dmaops.Pool. On any transfer error or
 // timeout both buffers are poisoned and stay permanently pinned until reboot.
 type admaEngine struct {
@@ -55,6 +55,11 @@ func newADMAEngine(pool *dmaops.Pool, caps uint32) (*admaEngine, error) {
 		return nil, fmt.Errorf("sdhci: allocate ADMA2 descriptor table: %w", err)
 	}
 	dataBuf, err := pool.Alloc(maxMultiBlocks*block.SectorSize, 64)
+	if err != nil && errors.Is(err, dmaops.ErrOutOfMemory) {
+		// Preserve compatibility with 128 KiB pools that only fit a 64 KiB
+		// (128-sector) staging buffer alongside admaDescBytes.
+		dataBuf, err = pool.Alloc(128*block.SectorSize, 64)
+	}
 	if err != nil {
 		_ = descBuf.Free()
 		return nil, fmt.Errorf("sdhci: allocate ADMA2 data buffer: %w", err)

@@ -37,6 +37,9 @@ func InitDevices() error {
 				deviceMapError = arm64map.NormalUncached(profileInitialTapeBase, profileInitialTapeBytes, profileRAMStart, profileRAMSize)
 			}
 		}
+		if deviceMapError == nil && (profileSDDMABase != 0 || profileSDDMABytes != 0) {
+			deviceMapError = arm64map.NormalUncached(profileSDDMABase, profileSDDMABytes, profileRAMStart, profileRAMSize)
+		}
 	})
 	return deviceMapError
 }

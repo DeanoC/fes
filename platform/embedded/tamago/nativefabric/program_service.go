@@ -353,6 +353,7 @@ func (p *programService) configure(ctx context.Context) error {
 
 func (p *programService) configureTransfer(ctx context.Context, transfer *ConfigurationTransfer) error {
 	clock := newConfigurationClock(p.limits.Now, "native program service")
+	busyDelay := time.Millisecond
 	for {
 		phase := transfer.phase
 		if err := clock.check(ctx, transfer, phase, false); err != nil {
@@ -370,7 +371,12 @@ func (p *programService) configureTransfer(ctx context.Context, transfer *Config
 		}
 		p.limits.Yield()
 		if busy {
-			time.Sleep(time.Millisecond)
+			time.Sleep(busyDelay)
+			if busyDelay < 10*time.Millisecond {
+				busyDelay = min(busyDelay*2, 10*time.Millisecond)
+			}
+		} else {
+			busyDelay = time.Millisecond
 		}
 	}
 }

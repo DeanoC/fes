@@ -87,6 +87,8 @@ type Device struct {
 	irqActive          atomic.Bool
 	irqCount           atomic.Uint64
 	totalIRQs          atomic.Uint64
+	irqTimer           *time.Timer
+	pioScratch         []byte
 	stats              sdhciStats
 }
 
@@ -233,7 +235,7 @@ type Config struct {
 	// via ACMD51 SCR and switched via ACMD6). Default false retains 1-bit mode.
 	BusWidth4Bit bool
 	// MultiBlock opts into CMD18/CMD25 multi-sector transfers (with Block Count
-	// and Auto-CMD12, up to 128 sectors per command). Default false retains
+	// and Auto-CMD12, up to 256 sectors per command). Default false retains
 	// single-sector CMD17/CMD24.
 	MultiBlock bool
 	// UseCMD23 opts into issuing CMD23 (SET_BLOCK_COUNT) before multi-sector
@@ -244,7 +246,7 @@ type Config struct {
 	// controller ADMA2 capability and platform SMMU stream authorization).
 	// Default false retains PIO transfers.
 	UseADMA2 bool
-	// DMAPool supplies the pinned ADMA2 descriptor table and 64 KiB data buffer
+	// DMAPool supplies the pinned ADMA2 descriptor table and 128 KiB data buffer
 	// when UseADMA2 is true. Ignored when UseADMA2 is false.
 	DMAPool *dmaops.Pool
 	// PrepareClock, when supplied, runs after host software reset and stable
@@ -772,10 +774,36 @@ func (d *Device) waitStatusIRQ(mask uint32, checkErrors bool) error {
 	if done, err := check(); done {
 		return err
 	}
+	// Fast path: commands and ready FIFO blocks often complete within ~1-2 us,
+	// avoiding GIC masking/unmasking and timer setup overhead.
+	for range 32 {
+		if done, err := check(); done {
+			return err
+		}
+	}
 	defer d.io.Write32(signalEnable, 0)
 	deadline := d.io.Now().Add(500 * time.Millisecond)
-	timer := time.NewTimer(500 * time.Millisecond)
-	defer timer.Stop()
+	timer := d.irqTimer
+	if timer == nil {
+		timer = time.NewTimer(500 * time.Millisecond)
+		d.irqTimer = timer
+	} else {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+		timer.Reset(500 * time.Millisecond)
+	}
+	defer func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	}()
 	for n := 0; n < 1000000; n++ {
 		select {
 		case <-d.irqWake:
@@ -989,7 +1017,10 @@ func (d *Device) readMultiPIOLocked(lba uint64, dst []byte) error {
 		}
 		usedCMD23 := blocks > 1 && d.cmd23
 		chunkBytes := blocks * block.SectorSize
-		staged := make([]byte, chunkBytes)
+		if len(d.pioScratch) < chunkBytes {
+			d.pioScratch = make([]byte, maxMultiBlocks*block.SectorSize)
+		}
+		staged := d.pioScratch[:chunkBytes]
 		var err error
 		if usedCMD23 {
 			err = d.issue(23, uint32(blocks), responseR1, noData)
@@ -1034,8 +1065,9 @@ func (d *Device) readADMA2Locked(lba uint64, dst []byte) error {
 			return ErrQuiesced
 		}
 		blocks := (len(dst) - offset) / block.SectorSize
-		if blocks > maxMultiBlocks {
-			blocks = maxMultiBlocks
+		maxBlocks := min(maxMultiBlocks, int(d.adma.dataBuf.Len()/block.SectorSize))
+		if blocks > maxBlocks {
+			blocks = maxBlocks
 		}
 		if !d.config.MultiBlock && blocks > 1 {
 			blocks = 1
@@ -1250,8 +1282,9 @@ func (d *Device) writeADMA2Locked(lba uint64, src []byte) error {
 			return err
 		}
 		blocks := (len(src) - offset) / block.SectorSize
-		if blocks > maxMultiBlocks {
-			blocks = maxMultiBlocks
+		maxBlocks := min(maxMultiBlocks, int(d.adma.dataBuf.Len()/block.SectorSize))
+		if blocks > maxBlocks {
+			blocks = maxBlocks
 		}
 		if !d.config.MultiBlock && blocks > 1 {
 			blocks = 1

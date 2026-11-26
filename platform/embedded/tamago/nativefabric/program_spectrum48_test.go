@@ -113,7 +113,8 @@ func (c *spectrumFirmwareCPU) WithHeldMediaBatch(base uint64, send func(computer
 	if err := send(fixtureSpectrumROMRegisters{c}); err != nil {
 		return err
 	}
-	if len(c.media.image)-before != min(int(cg.FesComputerMediaChunkMaxBytes), int(cg.FesComputerC64DiskBytes)-before) {
+	total := int(c.media.header[0]) | int(c.media.header[1])<<16
+	if len(c.media.image)-before != min(int(cg.FesComputerMediaChunkMaxBytes), total-before) {
 		return errors.New("media batch did not deliver exactly one chunk")
 	}
 	return nil

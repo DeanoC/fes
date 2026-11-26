@@ -406,6 +406,7 @@ func (s *Store) Install(ctx context.Context, plan *InstallPlan, record []byte) (
 		}
 		return e
 	}
+	s.invalidateCacheLocked()
 	for _, name := range dirs {
 		if missingDirs[name] {
 			if err = mutate(func() error { return writer.Mkdir(ctx, name) }); err != nil {

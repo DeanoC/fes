@@ -74,8 +74,16 @@ def main():
     parser.add_argument("--package-id", help="independently expected package ID for the Nano sdpackages diagnostic")
     parser.add_argument("--sd-write-plan", type=Path, help="independently bound spare-card plan; Nano sdwrite or sdfile only")
     parser.add_argument("--writable-storage-plan",type=Path,help="trusted card/recovery plan for the selected native Tenfoot installer")
-    parser.add_argument("--sd-transfer-clock", type=int, choices=(25000000,), default=0,
-                        help="opt in to 25 MHz data transfers for bound Nano sdfile or writable native Tenfoot")
+    parser.add_argument("--sd-transfer-clock", type=int, choices=(25000000, 50000000), default=0,
+                        help="opt in to 25 MHz or 50 MHz data transfers for bound Nano sdfile or writable native Tenfoot")
+    parser.add_argument("--sd-bus-width", type=int, choices=(1, 4), default=1,
+                        help="opt in to 4-bit SD bus width on Nano fpgaload (default 1)")
+    parser.add_argument("--sd-multi-block", action="store_true",
+                        help="opt in to CMD18/CMD25 multi-sector SD transfers on Nano fpgaload")
+    parser.add_argument("--sd-cmd23", action="store_true",
+                        help="opt in to CMD23 pre-defined block count on Nano fpgaload (requires --sd-multi-block)")
+    parser.add_argument("--sd-adma2", action="store_true",
+                        help="opt in to SDHCI ADMA2 DMA transfers on Nano fpgaload (requires EL3 SMMU SD-DMA bypass)")
     parser.add_argument("--sd-scratch-inspect", action="store_true", help="read-only candidate plan discovery; Nano storage diagnostic only")
     parser.add_argument("--hps-first-project", type=Path, help="sealed HPS-first project for the Nano context diagnostics")
     parser.add_argument("--shared-core-shell", action="store_true", help="opt-in fixed upload shell for trusted SD packages")
@@ -164,6 +172,8 @@ def main():
         parser.error('--arm64-features requires --board de25-nano')
     if args.sd_write_plan is not None or args.writable_storage_plan is not None or args.program in ('sdwrite','sdfile') or args.sd_scratch_inspect or args.sd_transfer_clock:
         parser.error('SD write diagnostics require --board de25-nano')
+    if args.sd_bus_width != 1 or args.sd_multi_block or args.sd_cmd23 or args.sd_adma2:
+        parser.error('SD transport options require --board de25-nano')
     if args.menu_project is not None or args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.menu_present or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial or args.retain_configuration or args.initial_tape or args.lifecycle_trace or args.watchdog_timeout or args.watchdog_clock_hz or args.network_dhcp or args.network_dhcp_hostname or args.network_sntp_server or args.network_sntp_port or args.network_allow_100m or args.network_recover_link_flap:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")
     if args.program in ("fpga", "sdpackages", "hpsio", "usbcheck", "fpgaload"):

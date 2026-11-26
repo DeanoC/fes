@@ -360,9 +360,7 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 	spectrum := binding.program != nil && binding.program.role == programRoleUploadShell
 	if spectrum {
 		s.port.romBatch, _ = cpu.(spectrumROMBatchPlatform)
-		if binding.program.identity.ProgrammingProfile == c64Profile {
-			s.port.mediaBatch, _ = cpu.(heldMediaBatchPlatform)
-		}
+		s.port.mediaBatch, _ = cpu.(heldMediaBatchPlatform)
 	}
 	if _, secure := cpu.(InitialTapePlatform); secure && !spectrum {
 		s.control, err = computer.OpenWithInitialTape(ctx, s.port, limits, wantID, s.port.loadInitialTape)

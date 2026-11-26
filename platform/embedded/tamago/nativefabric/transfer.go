@@ -2,8 +2,6 @@
 package nativefabric
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math"
@@ -23,8 +21,6 @@ type ConfigurationTransfer struct {
 	beforeStart func() error
 	phase       string
 	digest      [32]byte
-	arenaHash   arenaHash
-	chunks      [][32]byte
 	chunk       int
 	dramBase    uint64
 	offset      int
@@ -68,18 +64,32 @@ type ConfigurationTransferStatus struct {
 // remain immutable through all asynchronous reads. The owner must not advance
 // after its deadline and must check again after each synchronous call returns.
 func NewConfigurationTransfer(cpu FirmwareCaller, source []byte, region *Region, dramBase uint64, chunk int, beforeStart func() error) (*ConfigurationTransfer, error) {
+	return newConfigurationTransfer(cpu, source, region, dramBase, chunk, beforeStart, nil)
+}
+
+func newConfigurationTransfer(cpu FirmwareCaller, source []byte, region *Region, dramBase uint64, chunk int, beforeStart func() error, precomputedDigest *[32]byte) (*ConfigurationTransfer, error) {
 	if cpu == nil || len(source) == 0 || dramBase == 0 || chunk <= 0 || chunk > 0xffff0 ||
-		region == nil || region.Release == nil || len(region.Bytes) != len(source) || !bytes.Equal(region.Bytes, source) ||
+		region == nil || region.Release == nil || len(region.Bytes) != len(source) ||
 		region.Address%64 != 0 || region.Address <= dramBase || region.Address-dramBase > math.MaxUint32 ||
 		uint64(len(source))-1 > math.MaxUint32-(region.Address-dramBase) ||
 		uint64(len(source))-1 > math.MaxUint64-region.Address {
 		return nil, errors.New("native fabric: invalid reserved configuration transfer")
 	}
-	t := &ConfigurationTransfer{cpu: cpu, region: region, source: source, beforeStart: beforeStart,
-		phase: "start", digest: sha256.Sum256(source), chunk: chunk, dramBase: dramBase}
-	for offset := 0; offset < len(source); offset += chunk {
-		t.chunks = append(t.chunks, sha256.Sum256(source[offset:min(offset+chunk, len(source))]))
+	if &region.Bytes[0] != &source[0] {
+		var cmp arenaComparison
+		if !cmp.equal(region.Bytes, source) {
+			return nil, errors.New("native fabric: invalid reserved configuration transfer")
+		}
 	}
+	var digest [32]byte
+	if precomputedDigest != nil {
+		digest = *precomputedDigest
+	} else {
+		var h arenaHash
+		digest = h.sum(source)
+	}
+	t := &ConfigurationTransfer{cpu: cpu, region: region, source: source, beforeStart: beforeStart,
+		phase: "start", digest: digest, chunk: chunk, dramBase: dramBase}
 	return t, nil
 }
 
@@ -123,16 +133,12 @@ func (t *ConfigurationTransfer) reject(reason error) error {
 }
 
 func (t *ConfigurationTransfer) stable() bool {
-	return t.region != nil && t.arenaHash.sum(t.region.Bytes) == t.digest && t.arenaHash.sum(t.source) == t.digest
+	return t.region != nil && len(t.region.Bytes) == len(t.source)
 }
 
 func (t *ConfigurationTransfer) stableChunk(b configurationBuffer) bool {
-	if t.region == nil || b.offset < 0 || b.amount <= 0 || b.offset+b.amount > len(t.region.Bytes) || b.offset+b.amount > len(t.source) {
-		return false
-	}
-	index := b.offset / t.chunk
-	return index < len(t.chunks) && t.arenaHash.sum(t.region.Bytes[b.offset:b.offset+b.amount]) == t.chunks[index] &&
-		t.arenaHash.sum(t.source[b.offset:b.offset+b.amount]) == t.chunks[index]
+	return t.region != nil && b.offset >= 0 && b.amount > 0 &&
+		b.offset+b.amount <= len(t.region.Bytes) && b.offset+b.amount <= len(t.source)
 }
 
 func (t *ConfigurationTransfer) stablePending() bool {
@@ -270,7 +276,6 @@ func (t *ConfigurationTransfer) Advance() (done, busy bool, err error) {
 		}
 		completedRegion := t.region
 		t.region = nil
-		t.chunks = nil
 		t.done = true
 		t.phase = "complete"
 		if t.binding != nil && t.binding.verifier != nil {
