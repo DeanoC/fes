@@ -622,10 +622,14 @@ input pins. The `c28-first/parent-s1-audit.txt` SHA-256 is
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | 1 | 45,180.0 | +0.098 ns | 0.000 ns | +6.171 ns | +0.027 ns | 2.628 ns | `82344857d65ea78f06b24865b517be90c4384f50336dc9ec2b4a089c1c89770c` |
 | 2 | 45,154.4 | +0.345 ns | 0.000 ns | +6.062 ns | +0.057 ns | 3.196 ns | `22b2d85f94ab761a59b9b2c06be004abfee96c9b677765b95a4c65a529326c7e` |
+| 3 | 44,929.1 | +0.276 ns | +0.001 ns | +6.474 ns | +0.032 ns | 2.690 ns | `2a09eef932a5e6fc74a8cef09c9affa1a601ca2eb7e3bbe890bb594f704014ec` |
+| 4 | 45,105.9 | +0.142 ns | 0.000 ns | +6.311 ns | +0.167 ns | 2.312 ns | `906f79737005d875d0f355d696a956ec22f75560672ade72fdd4c2844aa8d1bd` |
 
-The first two seeds reported zero `CDC-50003` violations. Seed 2 passed
-the ordinary producer, seal and independent LOADED check. Seed 1's worst
-setup path runs from the x87 register file to the enable on
+All four seeds reported zero `CDC-50003` violations and passed the numerical
+and independent LOADED checks. Seeds 2 and 3 also passed the ordinary
+producer and seal. The retained `c28-first/summary.json` SHA-256 is
+`bea561b15cd4f40590cc20ecbb1e0919978c48390202e87809cc62b0ef340f59`.
+Seed 1's worst setup path runs from the x87 register file to the enable on
 `cpu_x87_sh_src[10]`, through the store conversion's shift decision in
 `S_PRE`. Seed 2's lead paths traverse operand B's leading-zero count and
 exponent adjustment in `A_PNA`. Both cones are in the x87 wrapper.
@@ -640,14 +644,29 @@ unconstrained-path report contained no match for the node. The retained
 `c28-retimed-proof/s1/receipt.json` SHA-256 is
 `eccec60883691fd767c28b1cbab6c56a29d7d6b1d7a34474999fec5ba3e4cf73`.
 
-Revision `e77e2ef0b95908dc06c54d169decc0a600b304ba` nominates only that
-exact spelling for the existing DX-only live proof. The plain register
-and previously reviewed copies retain their existing basis. The fitted
-proof still checks the exact clock ownership, keeper topology, path
+Seed 4 was refused on `cpu_int_wait~DUPLICATE_Duplicate`, at `(51, 25)`.
+Its separate copied TimeQuest replay passed 28 numerical and eight
+structural checks. All 22,414 outgoing and 305 incoming data keepers
+use the machine clock. Worst setup and hold were +1.876 and +0.068 ns,
+and the detailed unconstrained-path report contained no match for the
+node. The original fitted project remained byte-identical. The retained
+`c28-retimed-proof/s4/receipt.json` SHA-256 is
+`61daadc6cecd8ffe13be3da51527eebb9768ed0daa8480f377a9da71de13279b`.
+
+Revision `cb91390dbf936393e6e7e4640fe3717d58c193bc` nominates only those
+two exact spellings for the existing DX-only live proof. The plain
+registers and previously reviewed copies retain their existing basis.
+The fitted proof checks exact clock ownership, keeper topology, path
 coverage and all four corners before admission. The candidate passed
-86 focused tests and `make check`. A same-checkout DE10 comparison
-verified identical raw netlist bytes and all four record identities.
-The seven D12 selections still match the frozen base and measured B.
+86 focused tests and `make check`. Four fresh fits started at this revision.
+The exact same-checkout DE10 raw netlist and all four identities match
+the frozen base. The DE10 receipt SHA-256 is
+`1f5af313232d8b09d40af364a8d13eacf15db8f5f2c69b464e654c9ce31af732`.
+All seven D12 selections match the frozen base and measured B, with
+selection report SHA-256
+`76ce53e2bafcea6303720ae12e5094f49457f350ec1882492a374c46094d7982`.
+The exact 111.904762 MHz software replays also started at this revision
+while the four fits run.
 
 ## Running a seed on either builder
 
