@@ -30,6 +30,7 @@ type ProgramInputPlatform struct {
 	gamepadButtons     input.GamepadButtons
 	gamepadKeys        ProgramGamepadKeys
 	hasGamepadObserver bool
+	traceKeyboard      func(context.Context, ProgramServiceStatus, []byte, bool)
 	inputReady         <-chan struct{}
 	uartReady          <-chan struct{}
 	session            ProgramSession
@@ -61,6 +62,7 @@ func NewProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, sou
 		return nil, err
 	}
 	p.source, p.menu = source, menu
+	p.traceKeyboard = lifecycleKeyboardObserver(base)
 	p.inputReady = attachInputReady(base, source)
 	return p, nil
 }
@@ -322,6 +324,13 @@ func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.E
 		}
 		if report == nil {
 			break
+		}
+		if p.traceKeyboard != nil {
+			armed := p.menuArmed
+			if v.State == ProgramRunning {
+				armed = p.keyboard.state.armed
+			}
+			p.traceKeyboard(ctx, v, report, armed)
 		}
 		var changes []input.Event
 		if v.State == ProgramRunning {

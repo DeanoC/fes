@@ -26,6 +26,7 @@ type Session struct {
 	busWidth        atomic.Int32
 	admaActive      atomic.Bool
 	highSpeed       atomic.Bool
+	cmd23Active     atomic.Bool
 	transferClockHz atomic.Uint32
 }
 
@@ -47,6 +48,10 @@ type Config struct {
 	// MultiBlock opts into CMD18/CMD25 multi-sector transfers (with Auto-CMD12
 	// up to 128 sectors / 64 KiB). Default false preserves single-sector I/O.
 	MultiBlock bool
+	// UseCMD23 opts into issuing CMD23 (SET_BLOCK_COUNT) before multi-sector
+	// CMD18/CMD25 transfers instead of Auto-CMD12. Requires MultiBlock and card
+	// SCR[33] support.
+	UseCMD23 bool
 	// UseADMA2 opts into SDHCI ADMA2 DMA transfers backed by DMAPool (requiring
 	// controller ADMA2 capability and platform SMMU stream authorization).
 	// Default false preserves PIO transfers.
@@ -76,6 +81,9 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 	if config.UseADMA2 && config.DMAPool == nil {
 		return nil, fmt.Errorf("sdcontrol: UseADMA2 requires DMAPool")
 	}
+	if config.UseCMD23 && !config.MultiBlock {
+		return nil, fmt.Errorf("sdcontrol: UseCMD23 requires MultiBlock")
+	}
 	writable := config.WriteCard != (sdhci.Identity{})
 	if writable {
 		var nonzero, notFF byte
@@ -104,6 +112,7 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 		HighSpeedMaxCurrentMA: config.HighSpeedMaxCurrentMA,
 		BusWidth4Bit:          config.BusWidth4Bit,
 		MultiBlock:            config.MultiBlock,
+		UseCMD23:              config.UseCMD23,
 		UseADMA2:              config.UseADMA2,
 		DMAPool:               config.DMAPool,
 		PrepareClock:          firmware.Prepare,
@@ -119,6 +128,7 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 	s.busWidth.Store(int32(s.device.BusWidth()))
 	s.admaActive.Store(s.device.ADMA2Active())
 	s.highSpeed.Store(s.device.HighSpeed())
+	s.cmd23Active.Store(s.device.CMD23Active())
 	s.transferClockHz.Store(s.device.TransferClockHz())
 	return s, nil
 }
@@ -209,6 +219,15 @@ func (s *Session) Identity() sdhci.Identity {
 	return s.device.Identity()
 }
 
+// CardInfo returns decoded CID, CSD, and (when queried) SCR metadata for the
+// bound SD card, or zero if the session is nil or uninitialized.
+func (s *Session) CardInfo() sdhci.CardInfo {
+	if s == nil || s.device == nil {
+		return sdhci.CardInfo{}
+	}
+	return s.device.CardInfo()
+}
+
 // BusWidth returns the active SD data bus width (1 or 4), or 0 if uninitialized.
 func (s *Session) BusWidth() int {
 	if s == nil {
@@ -225,6 +244,12 @@ func (s *Session) ADMA2Active() bool {
 // HighSpeed reports whether SD High-Speed (50 MHz via CMD6) is active.
 func (s *Session) HighSpeed() bool {
 	return s != nil && s.highSpeed.Load()
+}
+
+// CMD23Active reports whether pre-defined CMD23 (SET_BLOCK_COUNT) multi-block
+// transfers are active on this session.
+func (s *Session) CMD23Active() bool {
+	return s != nil && s.cmd23Active.Load()
 }
 
 // TransferClockHz returns the active SD clock rate in Hz, or 0 if uninitialized.
@@ -406,6 +431,7 @@ func (s *Session) resume(owner, generation uint64, returned bool) error {
 	s.busWidth.Store(int32(s.device.BusWidth()))
 	s.admaActive.Store(s.device.ADMA2Active())
 	s.highSpeed.Store(s.device.HighSpeed())
+	s.cmd23Active.Store(s.device.CMD23Active())
 	s.transferClockHz.Store(s.device.TransferClockHz())
 	s.ioMu.Lock()
 	if s.retired.Load() {

@@ -183,5 +183,25 @@ func (a *App) tickSessionPadLocked(now time.Time) {
 	a.playPadChordFired = true
 	// Select+Start ends the library session. It is not the rooms Soft-stop:
 	// idle cleanup must release this kit's grant and stop renewal.
-	a.startReleaseStopLocked()
+	if !a.kitHost || a.kitHostOwnsActiveSessionLocked(now) {
+		a.startReleaseStopLocked()
+	}
+}
+
+// kitHostOwnsActiveSessionLocked requires fresh matching lease and session
+// observations before a kit-host shortcut can request a release Stop.
+func (a *App) kitHostOwnsActiveSessionLocked(now time.Time) bool {
+	fresh := func(observed time.Time) bool {
+		return !observed.IsZero() && !now.Before(observed) && now.Sub(observed) <= 5*time.Second
+	}
+	if !a.kitHost || !a.healthHave || !fresh(a.healthObservedAt) || !fresh(a.sessionObservedAt) || a.hostUnreachable || !a.health.Ready || !a.health.TargetReachable ||
+		!a.kitLeaseHave || a.kitLease.Unavailable || a.kitLease.ErrorCode != "" {
+		return false
+	}
+	connection := a.health.Connection
+	return connection.State == "active" && connection.LeaseOwned &&
+		a.kitLease.State == "active" &&
+		connection.TargetID != "" && connection.TargetID == a.session.TargetID &&
+		fullLocalIdentity(connection.LeaseGeneration) && connection.LeaseGeneration == a.kitLease.Generation &&
+		(a.kitID == "" || a.kitID == connection.TargetID)
 }

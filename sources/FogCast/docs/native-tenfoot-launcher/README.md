@@ -50,8 +50,10 @@ Cover grid, labels, attract, now-playing, and session preview draw through
 - GPU park destroys textures individually (preview is the parked exception)
 
 UI helpers in `ui/tenfoot/draw.go` do not call `SDL_Render*` or
-`SDL_CreateTexture`. Window creation, events, gamepad, mouse, and text input stay
-in `ui/tenfoot/sdl.go` until a later slice.
+`SDL_CreateTexture`. Window creation lives in `ui/tenfoot/sdl.go`, while events,
+gamepad, mouse, key mapping, and smoke helpers live in `ui/tenfoot/sdl_events.go`,
+`ui/tenfoot/sdl_keys.go`, and `ui/tenfoot/sdl_smoke.go` (with shared C declarations
+in `ui/tenfoot/sdl_cgo.h`) until a later slice.
 
 | Backend | Construction | Role |
 | --- | --- | --- |

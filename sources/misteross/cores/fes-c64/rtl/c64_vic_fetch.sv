@@ -2,7 +2,7 @@
 // VIC-II matrix/glyph DMA sequencer. Sprite accesses and pixels are separate.
 `include "c64_timing.vh"
 
-module c64_vic_fetch #(parameter bit NTSC = 0) (
+module c64_vic_fetch #(parameter integer NTSC = 0) (
     input wire clk, reset, first_phase, second_phase, sample,
     input wire [8:0] raster,
     input wire [`C64_CYCLE_BITS(NTSC)-1:0] cycle,

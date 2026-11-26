@@ -89,6 +89,22 @@ def system_testbench(args) -> Path:
     return sim.OUTPUT / 'system' / 'obj' / 'Vpc386_system'
 
 
+# The bench runs FINAL_WINDOW_FRAMES 720p frame times after the input exercise and
+# the gate wants all but one of their rasters, so a late freeze cannot pass.
+FINAL_WINDOW_FRAMES = 4
+FINAL_WINDOW_RASTERS = FINAL_WINDOW_FRAMES - 1
+
+
+def lit_raster_completed_after_prompt(frame: dict) -> bool:
+    """Require the picture live at the end: after the prompt and the input
+    exercise, the bench's final window completed the expected rasters, the last lit."""
+    prompt_rasters = frame.get('prompt_rasters', -1)
+    final_rasters = frame.get('final_rasters', -1)
+    return (0 <= prompt_rasters <= final_rasters
+            and frame.get('rasters', 0) - final_rasters >= FINAL_WINDOW_RASTERS
+            and frame.get('nonblack', 0) >= 10000)
+
+
 def run_at_model_clock(args) -> dict:
     """sim.run_system with the model's machine clock in place of the DE10's. run_system passes
     pc386_quartus.SYSTEM_CLOCK_HZ (61.44 MHz) to system_tb as --clock-hz, which system_tb takes for the
@@ -124,6 +140,11 @@ def main() -> int:
     except (sim.SimError, OSError) as error:
         print(f'FAIL de25 system: {error}', file=sys.stderr)
         return 1
+    # The machine's own video, through the window: a complete lit raster after
+    # the bench sees the prompt (Kit D25 showed black, #2214).
+    frame = report.get('frame') or {}
+    if not lit_raster_completed_after_prompt(frame):
+        report['failures'].append(f'no lit 720p raster of the machine video completed in the final window: {frame}')
     (sim.OUTPUT / 'system').mkdir(parents=True, exist_ok=True)
     (sim.OUTPUT / 'system' / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     for row in report['screen']:
@@ -131,6 +152,7 @@ def main() -> int:
     print('STATUS', report['status'])
     for check in report['record_checks']:
         print('CHECK', 'PASS' if check['pass'] else 'FAIL', check['check'])
+    print('FRAME', report.get('frame'))
     print('END', report['end'])
     for failure in report['failures']:
         print('FAILURE', failure)

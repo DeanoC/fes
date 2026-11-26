@@ -1021,3 +1021,87 @@ func TestHomeFamilyMachineBudgetDoesNotHideTitleExistence(t *testing.T) {
 		t.Fatalf("bounded result hid known title: %+v", d)
 	}
 }
+
+type staggerQueryServices struct {
+	homeServices
+	qMu     sync.Mutex
+	queries int
+}
+
+func (s *staggerQueryServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, bool, error) {
+	if q.HomeFamily {
+		s.qMu.Lock()
+		s.queries++
+		s.qMu.Unlock()
+	}
+	return s.homeServices.QueryGames(ctx, q, max)
+}
+
+func (s *staggerQueryServices) familyQueries() int {
+	s.qMu.Lock()
+	defer s.qMu.Unlock()
+	return s.queries
+}
+
+func (s *staggerQueryServices) resetFamilyQueries() {
+	s.qMu.Lock()
+	defer s.qMu.Unlock()
+	s.queries = 0
+}
+
+// Resuming an all-cores Home must not launch every family's library query
+// inside on_resume(); update() dispatches at most one family query per frame
+// and still settles with updated title counts (#1770).
+func TestHomeResumeStaggersFamilyQueries(t *testing.T) {
+	svc := &staggerQueryServices{
+		homeServices: homeServices{
+			computers: []hostclient.ShelfComputer{computerEntry("zx81", "fes.zx81", "")},
+			fakeServices: fakeServices{
+				games: []hostclient.Game{
+					machineEntry("zx81", "fes.zx81", ""),
+					titleEntry("zx81-a", "fes.zx81"),
+				},
+			},
+		},
+	}
+	r := loadHome(t, Options{Services: svc, ReleaseOnly: false, Budget: DefaultBudget()})
+	stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
+	initialTotal := svc.familyQueries()
+	if initialTotal < 6 {
+		t.Fatalf("expected all-cores Home to query all families initially, got %d", initialTotal)
+	}
+
+	svc.games = append(svc.games, titleEntry("zx81-b", "fes.zx81"))
+	svc.resetFamilyQueries()
+	r.Resume()
+	if err := r.Err(); err != nil {
+		t.Fatalf("resume failed: %v", err)
+	}
+	if got := svc.familyQueries(); got != 0 {
+		t.Fatalf("on_resume launched %d family queries synchronously, want 0", got)
+	}
+
+	steps := 0
+	now := time.Now()
+	deadline := now.Add(testwait.Timeout)
+	for !homeSettled(r) {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for Home to settle after resume (steps=%d, queries=%d)", steps, svc.familyQueries())
+		}
+		steps++
+		r.Step(now.Add(time.Duration(steps) * 16 * time.Millisecond))
+		if err := r.Err(); err != nil {
+			t.Fatalf("step %d failed: %v", steps, err)
+		}
+		if got := svc.familyQueries(); got > steps {
+			t.Fatalf("after %d steps after resume, %d family queries started (want at most 1 per step)", steps, got)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if got := svc.familyQueries(); got != initialTotal {
+		t.Fatalf("settled with %d family queries after resume, want %d", got, initialTotal)
+	}
+	if d := r.Destination(); d.Status != "2 games" || d.Availability != AvailReady {
+		t.Fatalf("unexpected destination after staggered resume: %+v", d)
+	}
+}

@@ -9,7 +9,7 @@
 module c64_machine #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
     parameter integer CPU_CLOCK_HZ = NTSC ? `C64_NTSC_CPU_HZ : `C64_PAL_CPU_HZ,
-    parameter bit NTSC = 0,
+    parameter integer NTSC = 0,
     parameter bit SID_8580 = 0
 ) (
 `ifdef FES_C64_EXTERNAL_MEDIUM_SIM

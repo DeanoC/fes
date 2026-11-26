@@ -157,6 +157,15 @@ func (m *Manager) SetRumble(slot uint8, right, left uint8) error {
 	return m.sess.SetRumble(slot, right, left)
 }
 
+// SetPlayerPort configures or updates the unified P1..P4 player-port LED
+// assignment for an active HIDP slot (0..3).
+func (m *Manager) SetPlayerPort(slot uint8, playerPort uint8, assigned bool) error {
+	if m == nil || m.sess == nil {
+		return errors.New("bt: no Bluetooth dongle connected")
+	}
+	return m.sess.SetPlayerPort(slot, playerPort, assigned)
+}
+
 func (m *Manager) attachDongle(dev usb.BusDevice) {
 	if m.sess != nil {
 		return // One active BT HCI radio at a time

@@ -185,6 +185,42 @@ func (w *DW) Start(timeout time.Duration, mode ResponseMode) (time.Duration, err
 	return actual, nil
 }
 
+// Timeout returns the active hardware watchdog period decoded from WDT_TORR,
+// or 0 if the watchdog is not currently enabled.
+func (w *DW) Timeout() time.Duration {
+	w.mu.Lock()
+	if w.io.Read32(RegCR)&CRWDTEnable == 0 {
+		w.mu.Unlock()
+		return 0
+	}
+	top := uint8(w.io.Read32(RegTORR) & 0x0f)
+	w.mu.Unlock()
+	dur, err := DurationForTop(w.clockHz, top)
+	if err != nil {
+		return 0
+	}
+	return dur
+}
+
+// SetTimeout updates WDT_TORR and reloads the running watchdog counter via
+// WDT_CRR without altering WDT_EN. Calling SetTimeout on an unarmed watchdog
+// returns ErrNotRunning and leaves WDT_EN disabled.
+func (w *DW) SetTimeout(timeout time.Duration) (time.Duration, error) {
+	top, actual, err := SelectTop(w.clockHz, timeout)
+	if err != nil {
+		return 0, err
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.io.Read32(RegCR)&CRWDTEnable == 0 {
+		return 0, ErrNotRunning
+	}
+	torr := uint32(top)<<4 | uint32(top)
+	w.io.Write32(RegTORR, torr)
+	w.io.Write32(RegCRR, KickMagic)
+	return actual, nil
+}
+
 // Kick reloads the running watchdog counter by writing KickMagic (0x76) to CRR.
 func (w *DW) Kick() error {
 	w.mu.Lock()

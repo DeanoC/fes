@@ -388,6 +388,11 @@ end
 
 local function query_family(req, gen)
   req.due = nil
+  if not req.ids then
+    local ids = {}
+    for _, v in ipairs(req.family.variants) do ids[#ids + 1] = v.id end
+    req.ids = ids
+  end
   req.cancel = library.query({ platform = "fpga", core_ids = req.ids, limit = LIBRARY_LIMIT, home_family = true }, function(games, err, transient, more)
     if gen ~= library_generation then return end
     req.cancel = nil
@@ -430,7 +435,7 @@ local function process_family(req)
   end
 end
 
-function M.reload()
+local function start_reload(stagger)
   for _, req in ipairs(requests) do
     if req.cancel then req.cancel() end
   end
@@ -443,13 +448,17 @@ function M.reload()
   requests = {}
   next_retry = nil
   for _, f in ipairs(list) do
-    local ids = {}
-    for _, v in ipairs(f.variants) do ids[#ids + 1] = v.id end
-    local req = { family = f, ids = ids, retries = 0 }
+    local req = { family = f, retries = 0, queued = stagger or nil }
     requests[#requests + 1] = req
-    query_family(req, gen)
+    if not stagger then
+      query_family(req, gen)
+    end
   end
   if #list == 0 then publish_library(gen) end
+end
+
+function M.reload()
+  start_reload(true)
 end
 
 -- Called only by Home while it is active; no timer or retry worker survives
@@ -458,7 +467,14 @@ function M.update()
   for _, req in ipairs(requests) do
     if req.pending then
       process_family(req)
-      break
+      return
+    end
+  end
+  for _, req in ipairs(requests) do
+    if req.queued then
+      req.queued = nil
+      query_family(req, library_generation)
+      return
     end
   end
   if not next_retry or room.time < next_retry then return end
@@ -474,7 +490,7 @@ end
 function M.load(callback, retry)
   on_change = callback or function() end
   retry_enabled = retry == true
-  M.reload()
+  start_reload(false)
 end
 
 -- Drawing ------------------------------------------------------------

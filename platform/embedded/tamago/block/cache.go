@@ -10,6 +10,7 @@ import (
 
 const (
 	defaultMaxPopulateSectors = 16
+	maxPrefetchChunk          = 16
 	maxCacheCapacitySectors   = 16384 // 8 MiB ceiling for bare-metal RAM safety
 )
 
@@ -36,6 +37,13 @@ type CacheStats struct {
 	Evictions     uint64
 	ReadOps       uint64
 	WriteOps      uint64
+	FlushOps      uint64
+	ReadErrors    uint64
+	WriteErrors   uint64
+	FlushErrors   uint64
+	ReadBypasses  uint64
+	WriteBypasses uint64
+	WriteUpdates  uint64
 	Invalidations uint64
 }
 
@@ -64,6 +72,7 @@ type Cache struct {
 	seqMisses    uint64
 	lastWriteEnd uint64
 	seqWrites    uint64
+	prefetchBuf  [maxPrefetchChunk * SectorSize]byte
 	stats        CacheStats
 }
 
@@ -140,6 +149,7 @@ func (c *Cache) ReadSectors(lba uint64, dst []byte) error {
 		missEnd := lba + end
 		if err := c.dev.ReadSectors(missStart, dst[i*SectorSize:end*SectorSize]); err != nil {
 			c.stats.ReadOps++
+			c.stats.ReadErrors++
 			return err
 		}
 		c.stats.ReadOps++
@@ -155,6 +165,8 @@ func (c *Cache) ReadSectors(lba uint64, dst []byte) error {
 			for j := uint64(0); j < runLen; j++ {
 				c.put(missStart+j, dst[(i+j)*SectorSize:(i+j+1)*SectorSize])
 			}
+		} else {
+			c.stats.ReadBypasses += runLen
 		}
 		i = end
 	}
@@ -178,6 +190,7 @@ func (c *Cache) WriteSectors(lba uint64, src []byte) error {
 	count := uint64(len(src) / SectorSize)
 	c.stats.WriteOps++
 	if err := c.dev.WriteSectors(lba, src); err != nil {
+		c.stats.WriteErrors++
 		c.invalidateRangeLocked(lba, count)
 		return err
 	}
@@ -189,17 +202,22 @@ func (c *Cache) WriteSectors(lba uint64, src []byte) error {
 	c.lastWriteEnd = lba + count
 	if int(count) <= c.maxPopulate && c.seqWrites <= uint64(c.maxPopulate) {
 		for i := uint64(0); i < count; i++ {
+			if _, exists := c.index[lba+i]; exists {
+				c.stats.WriteUpdates++
+			}
 			c.put(lba+i, src[i*SectorSize:(i+1)*SectorSize])
 		}
 		return nil
 	}
 	// Streaming write: update any already-cached overlapping sectors without
 	// evicting unrelated metadata.
+	var updated uint64
 	if count <= uint64(len(c.index)) {
 		for i := uint64(0); i < count; i++ {
 			if slot, ok := c.index[lba+i]; ok {
 				copy(c.slots[slot].data[:], src[i*SectorSize:(i+1)*SectorSize])
 				c.moveToFront(slot)
+				updated++
 			}
 		}
 	} else {
@@ -208,9 +226,12 @@ func (c *Cache) WriteSectors(lba uint64, src []byte) error {
 				off := (cachedLBA - lba) * SectorSize
 				copy(c.slots[slot].data[:], src[off:off+SectorSize])
 				c.moveToFront(slot)
+				updated++
 			}
 		}
 	}
+	c.stats.WriteUpdates += updated
+	c.stats.WriteBypasses += count - updated
 	return nil
 }
 
@@ -219,7 +240,74 @@ func (c *Cache) WriteSectors(lba uint64, src []byte) error {
 func (c *Cache) Flush() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.dev.Flush()
+	c.stats.FlushOps++
+	err := c.dev.Flush()
+	if err != nil {
+		c.stats.FlushErrors++
+	}
+	return err
+}
+
+// Contains reports whether lba is currently resident in the cache without
+// altering LRU order or statistics.
+func (c *Cache) Contains(lba uint64) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, ok := c.index[lba]
+	return ok
+}
+
+// Prefetch warms the cache with sectors in [lba, lba+count), skipping any
+// already-resident sectors and reading uncached contiguous runs in chunks up
+// to 16 sectors without affecting Hits, Misses, or sequential bypass tracking.
+func (c *Cache) Prefetch(lba, count uint64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if count == 0 {
+		return nil
+	}
+	sectors := c.dev.SectorCount()
+	if lba > sectors || count > sectors-lba {
+		return ErrBounds
+	}
+	if count > uint64(c.capacity) {
+		return fmt.Errorf("block: prefetch count %d exceeds cache capacity %d", count, c.capacity)
+	}
+
+	// Promote all already-resident in-range sectors to MRU before inserting any
+	// missing runs so earlier insertions cannot evict a later resident sector
+	// (since total distinct sectors in [lba, lba+count) <= capacity).
+	for i := uint64(0); i < count; i++ {
+		if slot, ok := c.index[lba+i]; ok {
+			c.moveToFront(slot)
+		}
+	}
+
+	for i := uint64(0); i < count; {
+		if _, ok := c.index[lba+i]; ok {
+			i++
+			continue
+		}
+		end := i + 1
+		for end < count && end-i < maxPrefetchChunk {
+			if _, ok := c.index[lba+end]; ok {
+				break
+			}
+			end++
+		}
+		runLen := end - i
+		chunk := c.prefetchBuf[:runLen*SectorSize]
+		c.stats.ReadOps++
+		if err := c.dev.ReadSectors(lba+i, chunk); err != nil {
+			c.stats.ReadErrors++
+			return err
+		}
+		for j := uint64(0); j < runLen; j++ {
+			c.put(lba+i+j, chunk[j*SectorSize:(j+1)*SectorSize])
+		}
+		i = end
+	}
+	return nil
 }
 
 // Invalidate drops all cached sectors.

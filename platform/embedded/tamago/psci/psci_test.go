@@ -380,3 +380,184 @@ func TestHardwareEntropyNosplitStubs(t *testing.T) {
 		t.Fatalf("degenerate nosplit output a=%x b=%x", a, b)
 	}
 }
+
+func TestSMCCCVersionAffinityInfoAndProbe(t *testing.T) {
+	empty := New(nil)
+	if _, _, err := empty.SMCCCVersion(); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("nil SMCCCVersion=%v", err)
+	}
+	if _, err := empty.AffinityInfo(0, 0); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("nil AffinityInfo=%v", err)
+	}
+	if _, err := empty.Probe(); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("nil Probe=%v", err)
+	}
+
+	if empty.SupportsWarmReset() {
+		t.Fatal("nil conduit reported SupportsWarmReset")
+	}
+	if AffinityOn.String() != "on" || AffinityOff.String() != "off" ||
+		AffinityOnPending.String() != "on-pending" || AffinityState(9).String() != "AffinityState(9)" {
+		t.Fatalf("AffinityState.String mismatch: %q %q %q %q",
+			AffinityOn.String(), AffinityOff.String(), AffinityOnPending.String(), AffinityState(9).String())
+	}
+
+	// PSCI 1.1 + SMCCC 1.2 + Reset2 + AffinityInfo + TRNG64.
+	var gotAffinity uint64
+	var gotLevel uint32
+	affinityRet := uint64(0)
+	c11 := New(&mockConduit{fn: func(x0, x1, x2, _ uint64) (uint64, uint64, uint64, uint64) {
+		switch uint32(x0) {
+		case FuncVersion:
+			return 0x00010001, 0, 0, 0 // PSCI 1.1
+		case FuncSMCCCVersion:
+			return 0x00010002, 0, 0, 0 // SMCCC 1.2
+		case FuncFeatures:
+			switch uint32(x1) {
+			case FuncSMCCCVersion, FuncSystemOff, FuncSystemReset, FuncSystemReset2, FuncAffinityInfo:
+				return 0, 0, 0, 0
+			default:
+				return ^uint64(0), 0, 0, 0
+			}
+		case FuncAffinityInfo:
+			gotAffinity = x1
+			gotLevel = uint32(x2)
+			return affinityRet, 0, 0, 0
+		case FuncTRNGVersion:
+			return 0x00010000, 0, 0, 0 // TRNG 1.0
+		case FuncTRNGFeatures:
+			if uint32(x1) == FuncTRNGRnd64 {
+				return 0, 0, 0, 0
+			}
+			return ^uint64(0), 0, 0, 0
+		default:
+			return ^uint64(0), 0, 0, 0
+		}
+	}})
+	smMaj, smMin, err := c11.SMCCCVersion()
+	if err != nil || smMaj != 1 || smMin != 2 {
+		t.Fatalf("SMCCCVersion=(%d.%d, %v), want 1.2", smMaj, smMin, err)
+	}
+	// Per SMCCC §7.2, NOT_SUPPORTED (-1) from SMCCC_VERSION maps to SMCCC 1.0,
+	// and Probe skips TRNG probing unless SMCCC >= 1.1 is established (DEN0098 §2.1.3).
+	c10SMCCC := New(&mockConduit{fn: func(x0, x1, _, _ uint64) (uint64, uint64, uint64, uint64) {
+		switch uint32(x0) {
+		case FuncVersion:
+			return 0x00010000, 0, 0, 0 // PSCI 1.0
+		case FuncFeatures:
+			if uint32(x1) == FuncSMCCCVersion {
+				return 0, 0, 0, 0 // SMCCC_VERSION supported, returns 1.0 (-1)
+			}
+			return ^uint64(0), 0, 0, 0
+		case FuncSMCCCVersion:
+			return ^uint64(0), 0, 0, 0 // -1 = NOT_SUPPORTED -> SMCCC 1.0
+		case FuncTRNGVersion:
+			t.Fatalf("Probe called TRNG_VERSION on SMCCC 1.0")
+		}
+		return ^uint64(0), 0, 0, 0
+	}})
+	sm10Maj, sm10Min, err := c10SMCCC.SMCCCVersion()
+	if err != nil || sm10Maj != 1 || sm10Min != 0 {
+		t.Fatalf("SMCCC_VERSION NOT_SUPPORTED=(%d.%d, %v), want 1.0 nil", sm10Maj, sm10Min, err)
+	}
+	if _, _, err := New(&mockConduit{fn: func(uint64, uint64, uint64, uint64) (uint64, uint64, uint64, uint64) {
+		return uint64(^uint32(1)), 0, 0, 0 // -2 = INVALID_PARAMETERS
+	}}).SMCCCVersion(); !errors.Is(err, ErrInvalidParameters) {
+		t.Fatalf("SMCCC_VERSION error err=%v, want ErrInvalidParameters", err)
+	}
+	caps10, err := c10SMCCC.Probe()
+	if err != nil || !caps10.HasSMCCC || caps10.SMCCCMajor != 1 || caps10.SMCCCMinor != 0 || caps10.TRNGMajor != 0 {
+		t.Fatalf("PSCI 1.0 SMCCC 1.0 Probe=(%+v, %v)", caps10, err)
+	}
+	cNoSMCCCFeat := New(&mockConduit{fn: func(x0, _, _, _ uint64) (uint64, uint64, uint64, uint64) {
+		if uint32(x0) == FuncVersion {
+			return 0x00010000, 0, 0, 0
+		}
+		if uint32(x0) == FuncSMCCCVersion || uint32(x0) == FuncTRNGVersion {
+			t.Fatalf("Probe called %#x without discovery", uint32(x0))
+		}
+		return ^uint64(0), 0, 0, 0
+	}})
+	if capsNo, err := cNoSMCCCFeat.Probe(); err != nil || capsNo.HasSMCCC || capsNo.TRNGMajor != 0 {
+		t.Fatalf("PSCI 1.0 without SMCCC_VERSION feature Probe=(%+v, %v)", capsNo, err)
+	}
+	for _, want := range []AffinityState{AffinityOn, AffinityOff, AffinityOnPending} {
+		affinityRet = uint64(want)
+		got, err := c11.AffinityInfo(0x80000102, 1)
+		if err != nil || got != want || gotAffinity != 0x80000102 || gotLevel != 1 {
+			t.Fatalf("AffinityInfo=(%v, %v, aff=%#x, lvl=%d), want %v", got, err, gotAffinity, gotLevel, want)
+		}
+	}
+	affinityRet = uint64(^uint32(1)) // -2 = INVALID_PARAMETERS
+	if _, err := c11.AffinityInfo(0xff, 0); !errors.Is(err, ErrInvalidParameters) {
+		t.Fatalf("AffinityInfo invalid params err=%v", err)
+	}
+	affinityRet = 5 // unknown positive state
+	if _, err := c11.AffinityInfo(0, 0); err == nil {
+		t.Fatal("unknown affinity state succeeded")
+	}
+
+	caps, err := c11.Probe()
+	if err != nil {
+		t.Fatalf("Probe(1.1): %v", err)
+	}
+	wantCaps := Capabilities{
+		PSCIMajor:    1,
+		PSCIMinor:    1,
+		SMCCCMajor:   1,
+		SMCCCMinor:   2,
+		HasSMCCC:     true,
+		SystemOff:    true,
+		SystemReset:  true,
+		SystemReset2: true,
+		AffinityInfo: true,
+		TRNGMajor:    1,
+		TRNGMinor:    0,
+		TRNG64:       true,
+		TRNG32:       false,
+	}
+	if caps != wantCaps {
+		t.Fatalf("Probe(1.1)=%+v, want %+v", caps, wantCaps)
+	}
+	if !c11.SupportsWarmReset() {
+		t.Fatal("PSCI 1.1 with SYSTEM_RESET2 reported SupportsWarmReset=false")
+	}
+	if c10SMCCC.SupportsWarmReset() {
+		t.Fatal("PSCI 1.0 reported SupportsWarmReset=true")
+	}
+	c11NoReset2 := New(&mockConduit{fn: func(x0, x1, _, _ uint64) (uint64, uint64, uint64, uint64) {
+		if uint32(x0) == FuncVersion {
+			return 0x00010001, 0, 0, 0
+		}
+		if uint32(x0) == FuncFeatures && uint32(x1) == FuncSystemReset2 {
+			return ^uint64(0), 0, 0, 0
+		}
+		return ^uint64(0), 0, 0, 0
+	}})
+	if c11NoReset2.SupportsWarmReset() {
+		t.Fatal("PSCI 1.1 without SYSTEM_RESET2 reported SupportsWarmReset=true")
+	}
+
+	// PSCI 0.2 without PSCI_FEATURES skips SMCCC_VERSION and reports mandatory 0.2 calls.
+	c02 := New(&mockConduit{fn: func(x0, _, _, _ uint64) (uint64, uint64, uint64, uint64) {
+		if uint32(x0) == FuncVersion {
+			return 0x00000002, 0, 0, 0
+		}
+		if uint32(x0) == FuncSMCCCVersion || uint32(x0) == FuncFeatures || uint32(x0) == FuncTRNGVersion {
+			t.Fatalf("Probe(0.2) unexpectedly invoked %#x", uint32(x0))
+		}
+		return ^uint64(0), 0, 0, 0
+	}})
+	if c02.SupportsWarmReset() {
+		t.Fatal("PSCI 0.2 reported SupportsWarmReset=true")
+	}
+	caps02, err := c02.Probe()
+	if err != nil {
+		t.Fatalf("Probe(0.2): %v", err)
+	}
+	if caps02.PSCIMajor != 0 || caps02.PSCIMinor != 2 || caps02.HasSMCCC ||
+		!caps02.SystemOff || !caps02.SystemReset || !caps02.AffinityInfo || caps02.SystemReset2 ||
+		caps02.TRNG64 || caps02.TRNG32 {
+		t.Fatalf("Probe(0.2) mismatch: %+v", caps02)
+	}
+}

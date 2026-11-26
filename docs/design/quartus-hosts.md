@@ -65,6 +65,11 @@ held.
 
 ## Pools
 
+DE25 Quartus Pro project QSFs and build records request **8 parallel
+processors per job**. The 3090 builder has 16 CPUs and one Pro slot, so that
+job uses half its CPUs; Powerboat has 24 CPUs and two Pro slots, allowing both
+slots to run an 8-thread DE25 fit concurrently.
+
 | Host | RAM | Kept back | Pro slots | Lite slots |
 |---|---|---|---|---|
 | chip-30x0-ai-dev (fes-build-3090) | 23 GB | 8 GB | `/tmp/lander-quartus-3090.lock` | `/tmp/fes-quartus-lite-1.lock`, `/tmp/lander-quartus-3090.lock` |

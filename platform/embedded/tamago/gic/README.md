@@ -80,3 +80,13 @@ alongside UART RX in `cmd/fpgaload/tenfoot.go`.
 `48..111`) via `de25nano.FPGAIRQ`, `de25nano.EnableFPGAIRQ(line, edge, fn)`,
 and `de25nano.DisableFPGAIRQ(line)`. `(*gic.Controller).SetPending` /
 `ClearPending` expose `GICD_ISPENDR` / `GICD_ICPENDR` for software SPI testing.
+
+## Dispatch telemetry and storm protection
+
+- **`Stats()` / `Count(id)` / `ResetStats()`:** Expose lock-free `Dispatched`,
+  `Handled`, `Unhandled`, `Spurious`, `StormMasked`, `IdleWakeups`, and
+  per-INTID delivery counts without allocations.
+- **Unhandled-IRQ storm protection:** Consecutive unhandled deliveries on the
+  same PPI/SPI line automatically mask that INTID via `Disable(id)` before EOI
+  once the threshold (`DefaultUnhandledStormLimit` = 16, configurable via
+  `SetUnhandledStormLimit`, `0` to disable) is reached.
