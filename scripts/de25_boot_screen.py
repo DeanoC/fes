@@ -12,7 +12,7 @@ picture:
 - `fes.spectrum128`: the 128K menu, a cyan highlight bar under the rainbow title.
 - `fes.c64`: the READY screen, a dark blue field in a light blue border with
   text only in its top rows.
-- `fes.pcxt-dos`: the GLaBIOS POST, grey and coloured text at the top left of a
+- `fes.pcxt-dos`: the GLaBIOS POST, a block of grey and coloured text on a
   black screen.
 - `fes.atari-st`: the GEM desktop.
 
@@ -298,17 +298,25 @@ def c64_basic_ready(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> tup
 
 
 def pcxt_glabios_post(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> tuple[bool, str]:
-    """PC/XT GLaBIOS POST: grey and coloured text at the top left of a black screen."""
+    """PC/XT GLaBIOS POST: a block of grey and coloured text on a black screen."""
     px = _pixels(raw, width, height)
     every = [(x, y, px[y][x]) for y in range(height) for x in range(width)]
     black = sum(luma(p) < 30 for _, _, p in every) / len(every)
     if black < 0.85:
         return False, f"screen is {black:.2f} black"
+    # The picture's edge is black on black, so the layout is measured on the
+    # text block itself: a POST table wider than it is tall, not a screenful.
     text = [(x, y, p) for x, y, p in every if luma(p) >= 50]
-    if len(text) < 0.01 * width * height:
+    if len(text) < 150:
         return False, "no text"
-    if max(x for x, _, _ in text) > 0.65 * width or max(y for _, y, _ in text) > 0.6 * height:
-        return False, "text outside the top-left POST area"
+    xs, ys = [x for x, _, _ in text], [y for _, y, _ in text]
+    block_width, block_height = max(xs) - min(xs) + 1, max(ys) - min(ys) + 1
+    aspect = block_width / block_height
+    if not 1.1 <= aspect <= 3.0:
+        return False, f"text block is {block_width}x{block_height}, not a POST table"
+    density = len(text) / (block_width * block_height)
+    if not 0.03 <= density <= 0.4:
+        return False, f"text block is {density:.2f} ink"
 
     def hue(p):
         r, g, b = p

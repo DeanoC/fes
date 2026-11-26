@@ -170,6 +170,35 @@ class BootScreenTests(unittest.TestCase):
             return (112, 112, 255) if 180 <= y <= 184 and 120 <= x <= 300 and x % 3 else p
         self.assertFalse(boot.c64_basic_ready(edit(frame("c64-basic-ready"), text))[0])
 
+    def test_pcxt_post_is_recognised_shifted_or_smaller(self):
+        if not shutil.which("ffmpeg"):
+            self.skipTest("ffmpeg is not installed")
+        post = frame("pcxt-glabios-post")
+        for vf in ("pad=iw+50:ih:50:0:black,crop=" + f"{WIDTH}:{HEIGHT}:0:0",
+                   f"scale=trunc(iw*0.55/2)*2:trunc(ih*0.55/2)*2:flags=area,pad={WIDTH}:{HEIGHT}:60:40:black"):
+            moved = subprocess.run(
+                ["ffmpeg", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
+                 "-s", f"{WIDTH}x{HEIGHT}", "-i", "-", "-vf", vf, "-f", "rawvideo",
+                 "-pix_fmt", "rgb24", "-"], input=post, capture_output=True, check=True).stdout
+            with self.subTest(vf):
+                ok, detail = boot.pcxt_glabios_post(moved)
+                self.assertTrue(ok, detail)
+
+    def test_pcxt_refuses_a_screenful_of_grey_text(self):
+        # A DOS listing filling the screen: grey text drowns the POST colours.
+        def fill(x, y, p):
+            return (200, 200, 200) if x % 4 == 0 and y % 6 == 0 else p
+        ok, detail = boot.pcxt_glabios_post(edit(frame("pcxt-glabios-post"), fill))
+        self.assertFalse(ok)
+        self.assertIn("too little", detail)
+
+    def test_pcxt_refuses_a_solid_text_block(self):
+        def block(x, y, p):
+            return (0, 200, 200) if 100 <= x <= 250 and 60 <= y <= 150 else p
+        ok, detail = boot.pcxt_glabios_post(edit(frame("pcxt-glabios-post"), block))
+        self.assertFalse(ok)
+        self.assertIn("ink", detail)
+
     def test_pcxt_refuses_post_text_in_one_colour(self):
         def grey(x, y, p):
             level = luma(p)
