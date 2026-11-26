@@ -8,7 +8,7 @@
 
 module c64_machine #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
-    parameter integer CPU_CLOCK_HZ = NTSC ? `C64_NTSC_CPU_HZ : `C64_PAL_CPU_HZ,
+    parameter integer CPU_CLOCK_HZ = NTSC == 3 ? `C64_PALN_CPU_HZ : (NTSC ? `C64_NTSC_CPU_HZ : `C64_PAL_CPU_HZ),
     parameter integer NTSC = 0,
     parameter bit SID_8580 = 0
 ) (
@@ -302,7 +302,7 @@ module c64_machine #(
     // The power-supply TOD input is 50 Hz (PAL) or 60 Hz (NTSC), independent of raster timing
     // and CPU RDY stalls. Accumulating on the free-running Phi enable retains
     // fractional periods at non-integral CPU clock rates.
-    localparam integer TOD_HZ = NTSC ? `C64_NTSC_TOD_HZ : `C64_PAL_TOD_HZ;
+    localparam integer TOD_HZ = NTSC == 3 ? `C64_PALN_TOD_HZ : (NTSC ? `C64_NTSC_TOD_HZ : `C64_PAL_TOD_HZ);
     localparam integer TOD_PHASE_BITS = $clog2(CPU_CLOCK_HZ + TOD_HZ);
     reg [TOD_PHASE_BITS-1:0] tod_phase;
     // The accumulator only moves on Phi. When an idle SYS edge always follows
