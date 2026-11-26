@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/netip"
 	"sync/atomic"
 	"time"
@@ -162,6 +163,61 @@ func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease
 func (i *Interface) Address() string   { return i.config.Address }
 func (i *Interface) MAC() string       { return i.device.MAC() }
 func (i *Interface) Statistics() Stats { return i.device.Statistics() }
+
+// DialTCP opens an outbound IPv4 TCP connection over this interface's active *Link.
+func (i *Interface) DialTCP(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
+	if i == nil || i.bridge == nil {
+		return nil, ErrControl
+	}
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	return i.bridge.DialTCP(ctx, addr)
+}
+
+// ListenTCP opens a passive IPv4 TCP listener on port over this interface's active *Link.
+func (i *Interface) ListenTCP(ctx context.Context, port uint16) (net.Listener, error) {
+	if i == nil || i.bridge == nil {
+		return nil, ErrControl
+	}
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	return i.bridge.ListenTCP(ctx, port)
+}
+
+// NewHTTPTransport returns an *http.Transport wired to this interface's active *Link.
+func (i *Interface) NewHTTPTransport(cfg TransportConfig) (*http.Transport, error) {
+	if i == nil || i.bridge == nil {
+		return nil, fmt.Errorf("%w: interface unavailable", ErrInvalidHTTPConfig)
+	}
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	return NewHTTPTransport(i.bridge, cfg)
+}
+
+// NewHTTPClient returns an *http.Client wired to this interface's active *Link.
+func (i *Interface) NewHTTPClient(cfg TransportConfig) (*http.Client, error) {
+	if i == nil || i.bridge == nil {
+		return nil, fmt.Errorf("%w: interface unavailable", ErrInvalidHTTPConfig)
+	}
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	return NewHTTPClient(i.bridge, cfg)
+}
+
+// NewHTTPServer constructs an idle HTTP/HTTPS server bound to this interface's active *Link.
+func (i *Interface) NewHTTPServer(cfg ServerConfig) (*HTTPServer, error) {
+	if i == nil || i.bridge == nil {
+		return nil, fmt.Errorf("%w: interface unavailable", ErrInvalidHTTPConfig)
+	}
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	return NewHTTPServer(i.bridge, cfg)
+}
 
 // Lease returns the acquired DHCPv4 lease and true if the interface was opened
 // via DHCP, or the zero value and false for static IPv4 configurations.
