@@ -216,7 +216,6 @@ type lnetoConn struct {
 }
 
 func (c lnetoConn) LnetoConn() *tcp.Conn { return c.Conn }
-func (c lnetoConn) CloseWrite() error    { return c.Conn.Close() }
 func (c lnetoConn) LocalAddr() net.Addr  { return c.localAddr }
 func (c lnetoConn) RemoteAddr() net.Addr {
 	return &net.TCPAddr{

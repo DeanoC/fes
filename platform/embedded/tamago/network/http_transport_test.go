@@ -173,6 +173,9 @@ func TestHTTPServerAndClientOverEthernetFramesAndPauseResume(t *testing.T) {
 	if srv.Addr() != "192.0.2.10:8080" {
 		t.Fatalf("srv.Addr() = %q, want 192.0.2.10:8080", srv.Addr())
 	}
+	if got := linkServer.Prefix().String(); got != "192.0.2.10/24" {
+		t.Fatalf("linkServer.Prefix() = %q, want 192.0.2.10/24", got)
+	}
 
 	client, err := NewHTTPClient(linkClient, TransportConfig{
 		DialTimeout:   5 * time.Second,
