@@ -59,33 +59,47 @@ SOURCES = {
 # The handshakes are in cores/fes-pc386/rtl/pc386_presenter.sv (capture,
 # fetch, loaded), pc386_vga_scanout.sv (the capture bundle's source),
 # pc386_snapshot.sv (counts) and pc386_machine.sv (the pixel reset).
-BUNDLE_SDC = ('    set_net_delay -max 10.000 -from $launches -to $captures',
-              '    set_data_delay 10.000 -from $launches -to $captures',
-              '    set_max_skew 10.000 -from $launches -to $captures',
-              '    set_max_delay 10.000 -from $launches -to $captures',
-              '    set_min_delay 0.000 -from $launches -to $captures')
+def bundle_sdc(maximum):
+    return (f'    set_net_delay -max {maximum} -from $launches -to $captures',
+            f'    set_data_delay {maximum} -from $launches -to $captures',
+            f'    set_max_skew {maximum} -from $launches -to $captures',
+            f'    set_max_delay {maximum} -from $launches -to $captures',
+            '    set_min_delay 0.000 -from $launches -to $captures')
+
+
+MACHINE_BUNDLE_LIMIT_SDC = (
+    'set machine_clock [get_clocks -nowarn {fes_machine_pll|machine_pll_outclk0}]',
+    'if {[get_collection_size $machine_clock] != 1} {',
+    '    error "DE25 pc386 machine clock is missing or ambiguous"',
+    'set machine_period [get_clock_info -period $machine_clock]',
+    'set machine_bundle_max_ns [format %.3f [expr {min(10.0, (floor($machine_period * 1000.0) - 1.0) / 1000.0)}]]',
+)
+PRESENTER_BUNDLE_SDC = (
+    '    set bundle_max_ns [expr {$label eq "counts" ? $machine_bundle_max_ns : 10.000}]',
+    *bundle_sdc('$bundle_max_ns'),
+)
 CAPTURE_SDC = (
     '    capture {system|frame_buffer[*] system|frame_width[*] system|frame_height[*]}',
     '            {system|machine_presenter_latest_buffer[*] system|machine_presenter_latest_width[*] '
     'system|machine_presenter_latest_height[*]}',
     '    frame_sequence {system|machine_frame_sequence[0]} {system|machine_presenter_sequence_sync[0]}',
-    *BUNDLE_SDC)
+    *PRESENTER_BUNDLE_SDC)
 FETCH_SDC = (
     '    fetch {system|machine_presenter_epoch[*] system|machine_presenter_width[*] '
     'system|machine_presenter_height[*] system|machine_presenter_request_limit[*] '
     'system|machine_presenter_shown_buffer[*]}',
     '    fetch_request {system|machine_presenter_request_toggle} {system|machine_presenter_request_sync[0]}',
-    *BUNDLE_SDC)
+    *PRESENTER_BUNDLE_SDC)
 LOADED_SDC = (
     '    loaded {system|machine_presenter_loaded_in[*] system|machine_presenter_loaded_epoch_in[*]}',
     '           {system|machine_presenter_loaded[*] system|machine_presenter_loaded_epoch[*]}',
     '    fetch_loaded {system|machine_presenter_loaded_flag} {system|machine_presenter_loaded_sync[0]}',
-    *BUNDLE_SDC)
+    *PRESENTER_BUNDLE_SDC)
 COUNTS_SDC = (
     '    counts {system|pixel_counts_copy[*]} {system|pixel_counts_snapshot[*]}',
     '    counts_ask {system|pixel_counts_ask} {system|pixel_counts_ask_sync[0]}',
     '    counts_answer {system|pixel_counts_answer} {system|pixel_counts_answer_sync[0]}',
-    *BUNDLE_SDC)
+    *MACHINE_BUNDLE_LIMIT_SDC, *PRESENTER_BUNDLE_SDC)
 TOGGLE_SDC = (
     '    frame_sequence {system|machine_frame_sequence[0]} {system|machine_presenter_sequence_sync[0]}',
     '    fetch_request {system|machine_presenter_request_toggle} {system|machine_presenter_request_sync[0]}',
@@ -131,7 +145,8 @@ COUNTS = ('Pixel to machine: the 96-bit status counters through pc386_snapshot.s
           'into pixel_counts_copy and flips pixel_counts_answer, which crosses a two-stage machine-clock '
           'synchroniser (pixel_counts_answer_sync); the machine takes the copy only once that answer has '
           'crossed, and the copy does not change until the next ask. The design assistant reports the '
-          'copy as a CE-type bus followed by a synchroniser. The bundle paths are bounded to 10 ns.')
+          'copy as a CE-type bus followed by a synchroniser. The bundle paths are bounded to 10 ns '
+          'or one machine period rounded down, whichever is shorter.')
 RESET = ('Machine to pixel: pc386_machine.sv synchronises (reset || !pixel_locked) into the pixel clock with '
          'a two-stage synchroniser (machine_pixel_reset_sync, power-up asserted). The launch from the '
          'machine reset register into stage 0 is a named false path; the synchronised reset\'s loads are '
@@ -208,14 +223,14 @@ WINDOW_BASE_SDC = (
     '    window_granted {window_control|granted} {window_control|granted_sync[0]} 1',
     '    set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]',
     '    set_false_path -from $launches -to $first_d',
-    *BUNDLE_SDC)
+    *MACHINE_BUNDLE_LIMIT_SDC, *bundle_sdc('$machine_bundle_max_ns'))
 WINDOW_FAULT_SDC = (
     '    window_fault_record {window_control|fault_launch[*]} {window_control|machine_fault[*]} 5 5 5 5',
     '    window_fault_request {window_control|fault_request} {window_control|fault_request_sync[0]} 1',
     '    window_fault_ack {window_control|fault_ack} {window_control|fault_ack_sync[0]} 1',
     '    set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]',
     '    set_false_path -from $launches -to $first_d',
-    *BUNDLE_SDC)
+    *MACHINE_BUNDLE_LIMIT_SDC, *bundle_sdc('$machine_bundle_max_ns'))
 WINDOW_BASE = ('Peripheral to machine: the grant base. fes_de25_hps_window_control.v writes base_lo only while '
                'granted is clear (a write while granted answers SLVERR), and sets granted from a separate '
                'command write, so base_lo is still from at least one clk_sys clock (10 ns) before granted '
@@ -223,8 +238,9 @@ WINDOW_BASE = ('Peripheral to machine: the grant base. fes_de25_hps_window_contr
                'synchroniser (granted_sync, its launch into stage 0 a named false path); the machine side '
                'copies base_lo into base_machine only on the clock where granted_sync[1] is first seen set '
                '(granted_sync[1] && !grant_seen), at least two machine clocks (21.7 ns at 92.156863 MHz) after '
-               'granted reaches stage 0. The bundle paths are bounded to 10 ns, with skew, net and data delay '
-               'bounds, so the copy samples a settled base. A fitter copy of a base_lo bit (~DUPLICATE) is '
+               'granted reaches stage 0. The bundle paths are bounded to 10 ns or one machine period '
+               'rounded down, whichever is shorter. Net and data delay and skew are bounded so the copy '
+               'samples a settled base. A fitter copy of a base_lo bit (~DUPLICATE) is '
                'the same register, as the SDC collection says. clk_sys\'s reset clears base_lo and granted '
                'together; that is the one way base_lo moves while granted is set.')
 WINDOW_FAULT = ('Machine to peripheral: the fault record (port bits and reason). fes_de25_hps_window_control.v '
@@ -234,7 +250,8 @@ WINDOW_FAULT = ('Machine to peripheral: the fault record (port bits and reason).
                 'enters a two-stage clk_sys synchroniser (fault_request_sync, its launch into stage 0 a named '
                 'false path), and clk_sys copies fault_launch into machine_fault only on the clock where '
                 'fault_request_sync[1] differs from fault_request_seen, at least two clk_sys clocks (20 ns) after '
-                'the request reaches stage 0. The bundle paths are bounded to 10 ns.')
+                'the request reaches stage 0. The bundle paths are bounded to 10 ns or one machine period '
+                'rounded down, whichever is shorter.')
 BIU_RESET = ('fes_i386_cpu\'s BIU reset, a machine-clock register: it drives synchronous clears, and the '
              'synthesis netlist also uses it in clock enables (fetch prediction). It is not an '
              'asynchronous reset; its paths are timed in the machine clock.')

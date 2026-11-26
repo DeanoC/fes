@@ -725,7 +725,8 @@ class MachineFindingsTests(unittest.TestCase):
         bases = [b for b in TABLE.BASES if b['rule'].startswith('CDC-') and b['sdc']]
         self.assertEqual(len(bases), 11)
         for basis in bases:
-            quoted = [label for line in basis['sdc'] for label in re.findall(r'^\s*(\w+) \{', line)]
+            quoted = [label for line in basis['sdc'] if not line.lstrip().startswith('if ')
+                      for label in re.findall(r'^\s*(\w+) \{', line)]
             if basis['name'] == 'pixel-reset':
                 quoted = ['pixel_reset']
             # Each quoted label names one entry (the GP blocks reuse theirs, but no basis quotes them).
