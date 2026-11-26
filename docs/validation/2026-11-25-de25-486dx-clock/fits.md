@@ -965,6 +965,20 @@ DE10 netlist and four identities against the new base and C26, and
 matched all seven D12 selections against both. The receipt SHA-256 is
 `540e9f23d543c8b4f4ae2def45be0a0f2110dcb9a6bc6dc8c31cc8fc76566531`.
 
+Seed 2 fitted 45,127.6 ALMs and 42 DSPs. Worst ordinary setup was
++0.004 ns and worst hold was 0.000 ns. Independent LOADED was 2.820 ns
+and no unreviewed CDC rule failed. The registered producer refused the
+seed because nine display-command paths missed the 5.046 ns data
+delay bound, with −0.178 ns worst slack and −0.839 ns total negative
+slack at slow fix4 0 °C. The worst path, `payload[11] → pixel_argument[11]`,
+had 4.900 ns of interconnect delay and 0.308 ns clock-to-Q. Eight of the
+nine failing pairs occupy adjacent tiles. The fitter reported about
+3.4 ns of hold-routing delay on several command bits, and independent
+fast-corner bus hold slack was as low as +0.005 ns. The fitter recognized
+both the 5.046 ns data bound and the 8.296 ns setup bound while running
+with router timing optimization at Normal. The seed summary SHA-256 is
+`6f285be5f2574fe0471f56df306e18c8d0edee5210f59f6eed1b277a62ebe59a`.
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed
