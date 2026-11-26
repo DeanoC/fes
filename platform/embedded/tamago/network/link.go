@@ -4,13 +4,16 @@ package network
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
+	"github.com/soypat/lneto/tcp"
 	gnet "github.com/usbarmory/go-net"
 )
 
@@ -27,6 +30,7 @@ type linkFailure struct{ err error }
 type Link struct {
 	stack  gnet.Stack
 	device gnet.NetworkDevice
+	prefix netip.Prefix
 	state  *linkState
 }
 
@@ -61,12 +65,164 @@ func NewLink(stack *gnet.LnetoStack, device gnet.NetworkDevice, address, mac, ga
 		}
 		gw = netip.MustParseAddr(gateway)
 	}
-	link := &Link{stack: stack, device: device, state: &linkState{}}
+	link := &Link{stack: stack, device: device, prefix: prefix, state: &linkState{}}
 	stack.SetWriteNotify(link.transmit)
 	if err = stack.Configure(hardware, prefix, gw); err != nil {
 		return nil, err
 	}
 	return link, nil
+}
+
+// Prefix returns the IPv4 CIDR prefix configured on the link.
+func (l *Link) Prefix() netip.Prefix {
+	if l == nil {
+		return netip.Prefix{}
+	}
+	return l.prefix
+}
+
+// DialTCP opens an outbound IPv4 TCP connection to addr through the link's
+// stack while enforcing the pause gate and device failure state.
+func (l *Link) DialTCP(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
+	if l == nil || l.state == nil || l.stack == nil {
+		return nil, ErrControl
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if !addr.IsValid() || !addr.Addr().Is4() || addr.Port() == 0 {
+		return nil, fmt.Errorf("network: invalid IPv4 TCP destination %q", addr)
+	}
+	if err := l.Available(); err != nil {
+		return nil, err
+	}
+	raw, err := l.stack.Socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, nil, net.TCPAddrFromAddrPort(addr))
+	if err != nil {
+		return nil, err
+	}
+	conn, ok := raw.(net.Conn)
+	if !ok {
+		return nil, fmt.Errorf("network: unexpected socket type %T", raw)
+	}
+	return conn, nil
+}
+
+// ListenTCP binds a passive IPv4 TCP listener on port for the link's local
+// address, enforcing the pause gate and race-safe listener close semantics.
+func (l *Link) ListenTCP(ctx context.Context, port uint16) (net.Listener, error) {
+	if l == nil || l.state == nil || l.stack == nil {
+		return nil, ErrControl
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if port == 0 {
+		return nil, errors.New("network: TCP listen port must be non-zero")
+	}
+	if !l.prefix.Addr().Is4() {
+		return nil, errors.New("network: link missing IPv4 address")
+	}
+	if err := l.Available(); err != nil {
+		return nil, err
+	}
+	laddr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(l.prefix.Addr(), port))
+	raw, err := l.stack.Socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, laddr, nil)
+	if err != nil {
+		return nil, err
+	}
+	if wrapped, ok := raw.(interface{ LnetoListener() *tcp.Listener }); ok {
+		return &lnetoListener{
+			inner:     wrapped.LnetoListener(),
+			localAddr: laddr,
+			link:      l,
+			closeCh:   make(chan struct{}),
+		}, nil
+	}
+	ln, ok := raw.(net.Listener)
+	if !ok {
+		return nil, fmt.Errorf("network: unexpected listener type %T", raw)
+	}
+	return ln, nil
+}
+
+// lnetoListener wraps *tcp.Listener with atomic/channel close synchronization
+// because xnet.tcplistener reads and writes a non-atomic closed bool in Accept/Close.
+type lnetoListener struct {
+	inner     *tcp.Listener
+	localAddr net.Addr
+	link      *Link
+	closed    atomic.Bool
+	closeOnce sync.Once
+	closeCh   chan struct{}
+}
+
+func (ln *lnetoListener) Addr() net.Addr { return ln.localAddr }
+
+func (ln *lnetoListener) Accept() (net.Conn, error) {
+	timer := time.NewTimer(time.Millisecond)
+	defer timer.Stop()
+
+	for {
+		if ln.closed.Load() {
+			return nil, net.ErrClosed
+		}
+		if ln.link != nil {
+			if err := ln.link.Err(); err != nil {
+				return nil, err
+			}
+		}
+		if ln.inner.NumberOfReadyToAccept() > 0 {
+			c, _, err := ln.inner.TryAccept()
+			if err == nil {
+				return lnetoConn{Conn: c, localAddr: ln.localAddr}, nil
+			}
+			if ln.closed.Load() {
+				return nil, net.ErrClosed
+			}
+		}
+		select {
+		case <-ln.closeCh:
+			return nil, net.ErrClosed
+		case <-timer.C:
+			timer.Reset(time.Millisecond)
+		}
+	}
+}
+
+func (ln *lnetoListener) Close() error {
+	alreadyClosed := true
+	var err error
+	ln.closeOnce.Do(func() {
+		alreadyClosed = false
+		ln.closed.Store(true)
+		close(ln.closeCh)
+		err = ln.inner.Close()
+	})
+	if alreadyClosed {
+		return net.ErrClosed
+	}
+	return err
+}
+
+type lnetoConn struct {
+	*tcp.Conn
+	localAddr net.Addr
+}
+
+func (c lnetoConn) LnetoConn() *tcp.Conn { return c.Conn }
+func (c lnetoConn) CloseWrite() error    { return c.Conn.Close() }
+func (c lnetoConn) LocalAddr() net.Addr  { return c.localAddr }
+func (c lnetoConn) RemoteAddr() net.Addr {
+	return &net.TCPAddr{
+		IP:   c.Conn.RemoteAddr(),
+		Port: int(c.Conn.RemotePort()),
+	}
 }
 func (l *Link) Err() error {
 	if l == nil || l.state == nil {
