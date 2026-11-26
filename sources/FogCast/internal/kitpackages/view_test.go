@@ -133,19 +133,88 @@ func TestHostViewWithholdsFactoryForInvalidDurableSelections(t *testing.T) {
 			root := newFactoryRoot(t)
 			_, factory := factoryPackage(t, root, "1.0.0", "fes.pong")
 			view := openedView(host, NewFactory(root))
-			if _, err := view.List(ctx); err == nil {
+			if _, err := view.List(ctx); !errors.Is(err, ErrStoreUnavailable) {
 				t.Fatal("list exposed factory packages with invalid durable selections")
 			}
-			if _, err := view.Inspect(ctx, factory.PackageID); err == nil || errors.Is(err, ErrPackageNotFound) {
+			if _, err := view.Inspect(ctx, factory.PackageID); !errors.Is(err, ErrStoreUnavailable) || errors.Is(err, ErrPackageNotFound) {
 				t.Fatalf("inspect exposed factory package or returned not found: %v", err)
 			}
-			if _, _, err := view.Read(ctx, factory.PackageID); err == nil || errors.Is(err, ErrPackageNotFound) {
+			if _, _, err := view.Read(ctx, factory.PackageID); !errors.Is(err, ErrStoreUnavailable) || errors.Is(err, ErrPackageNotFound) {
 				t.Fatalf("read exposed factory package or returned not found: %v", err)
 			}
-			if _, _, err := view.Import(ctx, int64(len(archive)), bytes.NewReader(archive)); err == nil {
+			if _, _, err := view.Import(ctx, int64(len(archive)), bytes.NewReader(archive)); !errors.Is(err, ErrStoreUnavailable) {
 				t.Fatal("import accepted invalid durable selections")
 			}
 		})
+	}
+}
+
+func TestViewReportsCorruptSelectedArchiveAfterOpening(t *testing.T) {
+	ctx := context.Background()
+	agent := newStore(t)
+	root := newFactoryRoot(t)
+	archive, selected := factoryPackage(t, root, "1.0.0", "fes.pong")
+	install(t, agent, archive)
+	if _, err := agent.Select(ctx, "fes.pong", "", selected.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	host, err := openStore(agent.root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view := openedView(host, NewFactory(root))
+	if _, err := view.List(ctx); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(agent.root, "archives", selected.PackageID+".fcore")
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("not a package"), 0o400); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	// Both processes reject the corrupt durable inventory. In particular the
+	// host must not fall back to the valid factory copy of the selected ID.
+	if _, err := agent.List(ctx); err == nil {
+		t.Fatal("agent admitted a corrupt archive")
+	}
+	_, listErr := view.List(ctx)
+	_, inspectErr := view.Inspect(ctx, selected.PackageID)
+	_, _, readErr := view.Read(ctx, selected.PackageID)
+	_, _, importErr := view.Import(ctx, int64(len(archive)), bytes.NewReader(archive))
+	for name, err := range map[string]error{"list": listErr, "inspect": inspectErr, "read": readErr, "import": importErr} {
+		if !errors.Is(err, ErrStoreUnavailable) || errors.Is(err, ErrPackageNotFound) {
+			t.Fatalf("%s = %v, want unavailable and no factory fallback", name, err)
+		}
+	}
+}
+
+func TestViewPreservesInputAndCancellationErrors(t *testing.T) {
+	agent := newStore(t)
+	host, err := openStore(agent.root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view := openedView(host, NewFactory(newFactoryRoot(t)))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := agent.List(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("agent cancelled list = %v", err)
+	}
+	_, listErr := view.List(ctx)
+	_, inspectErr := view.Inspect(ctx, strings.Repeat("a", 64))
+	_, _, readErr := view.Read(ctx, strings.Repeat("a", 64))
+	_, _, importErr := view.Import(ctx, 1, strings.NewReader("x"))
+	for name, err := range map[string]error{"list": listErr, "inspect": inspectErr, "read": readErr, "import": importErr} {
+		if !errors.Is(err, context.Canceled) || !errors.Is(err, ErrStoreUnavailable) {
+			t.Fatalf("%s cancelled = %v", name, err)
+		}
+	}
+	if _, _, err := view.Import(context.Background(), 1, strings.NewReader("x")); !errors.Is(err, ErrInvalidPackage) || errors.Is(err, ErrStoreUnavailable) {
+		t.Fatalf("invalid import = %v", err)
 	}
 }
 

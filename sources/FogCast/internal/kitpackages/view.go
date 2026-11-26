@@ -109,7 +109,10 @@ func (v *View) List(ctx context.Context) ([]corepackage.Inspection, error) {
 	defer cancel()
 	durable, err := store.List(ctx)
 	if err != nil {
-		return nil, errors.Join(ErrStoreUnavailable, err)
+		if !errors.Is(err, ErrInvalidPackage) && !errors.Is(err, ErrInvalidPackageID) {
+			err = errors.Join(ErrStoreUnavailable, err)
+		}
+		return nil, err
 	}
 	factory, err := v.factory.List(ctx)
 	if err != nil {
