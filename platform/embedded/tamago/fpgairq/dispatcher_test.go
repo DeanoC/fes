@@ -510,7 +510,7 @@ func TestDoorbellAndDispatcherStats(t *testing.T) {
 	acc.raise(BaseSPI + 1)
 	ctrl.Dispatch()
 
-	// Drain via WaitTimeout -> Wakeups=1.
+	// Drain via WaitTimeout -> WaitWakeups=1.
 	if !db1.WaitTimeout(0) {
 		t.Fatal("WaitTimeout(0) missed ready signal")
 	}
@@ -523,7 +523,7 @@ func TestDoorbellAndDispatcherStats(t *testing.T) {
 		t.Fatal("WaitTimeout(2ms) returned true")
 	}
 
-	// Drain via Wait(ctx) -> Wakeups=2.
+	// Drain via Wait(ctx) -> WaitWakeups=2.
 	db1.TriggerPending()
 	ctrl.Dispatch()
 	if err := db1.Wait(context.Background()); err != nil {
@@ -542,7 +542,7 @@ func TestDoorbellAndDispatcherStats(t *testing.T) {
 		t.Fatalf("timedOut Wait=%v", err)
 	}
 
-	// Drain + timeout via YieldFunc and YieldOrFallback -> Wakeups=4, Timeouts=3.
+	// Drain + timeout via YieldFunc and YieldOrFallback -> WaitWakeups=4, Timeouts=3.
 	db1.TriggerPending()
 	ctrl.Dispatch()
 	db1.YieldFunc(20 * time.Millisecond)()
@@ -553,8 +553,17 @@ func TestDoorbellAndDispatcherStats(t *testing.T) {
 	YieldOrFallback(db1, 20*time.Millisecond, nil)()
 	YieldOrFallback(db1, 2*time.Millisecond, nil)()
 
+	// Direct Ready() receive does not increment WaitWakeups (Count goes to 7).
+	db1.TriggerPending()
+	ctrl.Dispatch()
+	select {
+	case <-db1.Ready():
+	default:
+		t.Fatal("expected Ready signal for direct receive")
+	}
+
 	st1 := db1.Stats()
-	if !st1.Active || st1.Count != 6 || st1.Coalesced != 2 || st1.Wakeups != 4 || st1.Timeouts != 3 || st1.Canceled != 2 {
+	if !st1.Active || st1.Count != 7 || st1.Coalesced != 2 || st1.WaitWakeups != 4 || st1.Timeouts != 3 || st1.Canceled != 2 {
 		t.Fatalf("unexpected db1 Stats: %+v", st1)
 	}
 
@@ -583,7 +592,7 @@ func TestDoorbellAndDispatcherStats(t *testing.T) {
 		t.Fatalf("db1.Close: %v", err)
 	}
 	st1After := db1.Stats()
-	if st1After.Active || st1After.Count != 6 || st1After.Wakeups != 4 {
+	if st1After.Active || st1After.Count != 7 || st1After.WaitWakeups != 4 {
 		t.Fatalf("post-close db1.Stats mismatch: %+v", st1After)
 	}
 	rem := disp.Stats()

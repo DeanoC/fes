@@ -20,6 +20,6 @@ Go wakeup channels compatible with TamaGo's WFI idle governor.
     `scanout.ReaderLimits.Yield`, `scanout.MenuLimits.Yield`, and
     `computer.Limits.Yield`.
 - **Telemetry (`Doorbell.Stats`, `Dispatcher.Stats`):** lock-free per-doorbell
-  counters (`DoorbellStats`: interrupts, coalesced wakeups, consumed wakeups,
-  timeouts, cancellations, trigger mode, active status) and sorted dispatcher
-  snapshots.
+  counters (`DoorbellStats`: interrupts, coalesced signals, `WaitWakeups`
+  consumed via `Wait`/`WaitTimeout`/`YieldFunc`/`YieldOrFallback`, timeouts,
+  cancellations, trigger mode, active status) and sorted dispatcher snapshots.

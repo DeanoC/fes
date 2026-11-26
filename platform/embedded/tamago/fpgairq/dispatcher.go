@@ -54,17 +54,23 @@ func (t Trigger) String() string {
 }
 
 // DoorbellStats summarizes the configuration, live status, and cumulative
-// interrupt and wakeup telemetry of a Doorbell.
+// interrupt and wait-helper telemetry of a Doorbell.
 type DoorbellStats struct {
-	Line      uint32
-	IRQ       uint32
-	Trigger   Trigger
-	Active    bool
-	Count     uint64
+	Line    uint32
+	IRQ     uint32
+	Trigger Trigger
+	Active  bool
+	Count   uint64
+	// Coalesced counts interrupts that arrived while Ready() already held a pending signal.
 	Coalesced uint64
-	Wakeups   uint64
-	Timeouts  uint64
-	Canceled  uint64
+	// WaitWakeups counts wakeups consumed through Wait, WaitTimeout, YieldFunc,
+	// and YieldOrFallback (excludes direct receives from Ready()).
+	WaitWakeups uint64
+	// Timeouts counts bounded wait expirations in WaitTimeout(>0), YieldFunc(>0),
+	// and YieldOrFallback(>0).
+	Timeouts uint64
+	// Canceled counts Wait calls aborted due to context cancellation or deadline.
+	Canceled uint64
 }
 
 var (
@@ -263,18 +269,18 @@ func (d *Doorbell) Ready() <-chan struct{} { return d.ready }
 func (d *Doorbell) Count() uint64 { return d.count.Load() }
 
 // Stats returns a snapshot of the doorbell's configuration, active status, and
-// cumulative interrupt and wakeup counters.
+// cumulative interrupt and wait-helper counters.
 func (d *Doorbell) Stats() DoorbellStats {
 	return DoorbellStats{
-		Line:      d.line,
-		IRQ:       d.irq,
-		Trigger:   d.trigger,
-		Active:    d.active.Load(),
-		Count:     d.count.Load(),
-		Coalesced: d.coalesced.Load(),
-		Wakeups:   d.wakeups.Load(),
-		Timeouts:  d.timeouts.Load(),
-		Canceled:  d.canceled.Load(),
+		Line:        d.line,
+		IRQ:         d.irq,
+		Trigger:     d.trigger,
+		Active:      d.active.Load(),
+		Count:       d.count.Load(),
+		Coalesced:   d.coalesced.Load(),
+		WaitWakeups: d.wakeups.Load(),
+		Timeouts:    d.timeouts.Load(),
+		Canceled:    d.canceled.Load(),
 	}
 }
 
