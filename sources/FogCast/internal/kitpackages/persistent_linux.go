@@ -31,7 +31,7 @@ func openPersistent(ctx context.Context, root string, recoverInstallations bool)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err := checkPersistent(root); err != nil {
+	if err := checkPersistentContext(ctx, root); err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -45,7 +45,7 @@ func openPersistent(ctx context.Context, root string, recoverInstallations bool)
 		return nil, err
 	}
 	s.persistent = true
-	if err := s.CheckPersistent(); err != nil {
+	if err := checkPersistentContext(ctx, s.root); err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -57,11 +57,24 @@ func openPersistent(ctx context.Context, root string, recoverInstallations bool)
 func (s *Store) CheckPersistent() error { return checkPersistent(s.root) }
 
 func checkPersistent(root string) error {
+	return checkPersistentContext(context.Background(), root)
+}
+
+func checkPersistentContext(ctx context.Context, root string) error {
+	if ctx == nil {
+		return errors.New("kit packages: missing persistent check context")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if root != DefaultRoot {
 		return errors.New("kit packages: persistent library must use the FESDATA3 core-library root")
 	}
-	if err := appliancedata.CheckPersistent(root); err != nil {
+	if err := appliancedata.CheckPersistentContext(ctx, root); err != nil {
 		return fmt.Errorf("kit packages: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	return nil
 }

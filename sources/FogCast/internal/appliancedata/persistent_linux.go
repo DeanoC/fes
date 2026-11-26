@@ -3,6 +3,7 @@
 package appliancedata
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -20,6 +21,19 @@ import (
 // not exist yet, so a caller can check before creating anything. It neither
 // mounts nor formats storage.
 func CheckPersistent(path string) error {
+	return CheckPersistentContext(context.Background(), path)
+}
+
+// CheckPersistentContext verifies the same durable-storage identity as
+// CheckPersistent and stops before each later filesystem operation when ctx
+// is cancelled. A syscall already in progress cannot be interrupted.
+func CheckPersistentContext(ctx context.Context, path string) error {
+	if ctx == nil {
+		return errors.New("appliance data: missing persistent check context")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	mount := DefaultMountPoint
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return errors.New("appliance data: persistent path must be a clean absolute path")
@@ -27,18 +41,34 @@ func CheckPersistent(path string) error {
 	if path != mount && !strings.HasPrefix(path, mount+string(filepath.Separator)) {
 		return errors.New("appliance data: persistent path is outside FESDATA3")
 	}
-	devicePath, ok := SelectedDevice(Config{})
+	devicePath, ok, err := findDeviceContext(ctx, Config{})
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return errors.New("appliance data: FESDATA3 block device is absent")
 	}
-	if err := blockprobe.RejectsDevice("/sys", devicePath); err != nil {
-		return fmt.Errorf("appliance data: %w", err)
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	if err := verifyMountedVolume(devicePath, mount, "/proc/self/mountinfo"); err != nil {
+	probeErr := blockprobe.RejectsDevice("/sys", devicePath)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if probeErr != nil {
+		return fmt.Errorf("appliance data: %w", probeErr)
+	}
+	if err := verifyMountedVolumeContext(ctx, devicePath, mount, "/proc/self/mountinfo"); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	var mounted unix.Stat_t
 	if err := unix.Stat(mount, &mounted); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	// Reject a symlink or a nested mount redirecting path to another
@@ -50,16 +80,29 @@ func CheckPersistent(path string) error {
 			continue
 		}
 		current = filepath.Join(current, part)
-		if _, err := os.Lstat(current); errors.Is(err, os.ErrNotExist) {
-			break
-		} else if err != nil {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := realDirectory(current); err != nil {
+		_, statErr := os.Lstat(current)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if errors.Is(statErr, os.ErrNotExist) {
+			break
+		} else if statErr != nil {
+			return statErr
+		}
+		if err := realDirectoryContext(ctx, current); err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		var inside unix.Stat_t
 		if err := unix.Stat(current, &inside); err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		if inside.Dev != mounted.Dev {
@@ -73,11 +116,24 @@ func CheckPersistent(path string) error {
 // selected block device and mountinfo. A mountpoint beneath /run can exist on
 // tmpfs even when FESDATA3 itself was deliberately not mounted yet.
 func verifyMountedVolume(devicePath, mount, mountInfo string) error {
-	if err := realDirectory(mount); err != nil {
+	return verifyMountedVolumeContext(context.Background(), devicePath, mount, mountInfo)
+}
+
+func verifyMountedVolumeContext(ctx context.Context, devicePath, mount, mountInfo string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := realDirectoryContext(ctx, mount); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	var filesystem unix.Statfs_t
 	if err := unix.Statfs(mount, &filesystem); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if filesystem.Type != unix.EXT4_SUPER_MAGIC || filesystem.Flags&unix.ST_RDONLY != 0 {
@@ -86,17 +142,32 @@ func verifyMountedVolume(devicePath, mount, mountInfo string) error {
 	// Stat follows /dev/disk/by-label/FESDATA3. Its device number must match
 	// the filesystem mounted at the requested target.
 	var mounted, device unix.Stat_t
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := unix.Stat(mount, &mounted); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if err := unix.Stat(devicePath, &device); err != nil {
 		return fmt.Errorf("appliance data: verify persistent device: %w", err)
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if device.Mode&unix.S_IFMT != unix.S_IFBLK || uint64(mounted.Dev) != uint64(device.Rdev) {
 		return errors.New("appliance data: FESDATA3 is not mounted from the expected device")
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	data, err := os.ReadFile(mountInfo)
 	if err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	deviceID := fmt.Sprintf("%d:%d", unix.Major(uint64(device.Rdev)), unix.Minor(uint64(device.Rdev)))
@@ -107,14 +178,24 @@ func verifyMountedVolume(devicePath, mount, mountInfo string) error {
 }
 
 func realDirectory(path string) error {
+	return realDirectoryContext(context.Background(), path)
+}
+
+func realDirectoryContext(ctx context.Context, path string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	info, err := os.Lstat(path)
+	if contextErr := ctx.Err(); contextErr != nil {
+		return contextErr
+	}
 	if err != nil {
 		return err
 	}
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("appliance data: path %s must be a real directory", path)
 	}
-	return nil
+	return ctx.Err()
 }
 
 func persistentMount(data, mount, deviceID string) bool {
