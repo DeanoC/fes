@@ -356,3 +356,73 @@ func TestHTTPConfigValidation(t *testing.T) {
 		t.Fatalf("negative MaxConns = %v, want ErrInvalidHTTPConfig", err)
 	}
 }
+
+func TestListenerCloseConcurrentWithDialTCP(t *testing.T) {
+	linkA, linkB, _, cleanup := setupLnetoPair(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	lnB, err := linkB.ListenTCP(ctx, 9090)
+	if err != nil {
+		t.Fatalf("linkB.ListenTCP: %v", err)
+	}
+	defer func() { _ = lnB.Close() }()
+
+	var acceptWG sync.WaitGroup
+	acceptWG.Add(1)
+	go func() {
+		defer acceptWG.Done()
+		for {
+			conn, err := lnB.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+	defer acceptWG.Wait()
+
+	const iterations = 8
+	errCh := make(chan error, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := range iterations {
+			ln, err := linkA.ListenTCP(ctx, uint16(10000+i))
+			if err != nil {
+				errCh <- fmt.Errorf("ListenTCP(%d): %w", 10000+i, err)
+				return
+			}
+			if err := ln.Close(); err != nil {
+				errCh <- fmt.Errorf("Close(%d): %w", 10000+i, err)
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		target := netip.MustParseAddrPort("192.0.2.20:9090")
+		for i := range iterations {
+			conn, err := linkA.DialTCP(ctx, target)
+			if err != nil {
+				errCh <- fmt.Errorf("DialTCP(%d): %w", i, err)
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+
+	wg.Wait()
+	_ = lnB.Close()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}

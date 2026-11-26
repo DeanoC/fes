@@ -148,7 +148,7 @@ func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease
 		if err := iface.bridge.Available(); err != nil {
 			return nil, err
 		}
-		return stack.Socket(ctx, network, family, sotype, laddr, raddr)
+		return iface.bridge.socket(ctx, network, family, sotype, laddr, raddr)
 	}
 	go func() {
 		err := iface.bridge.Start(runCtx)

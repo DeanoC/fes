@@ -38,6 +38,7 @@ type Link struct {
 type linkState struct {
 	failure       atomic.Pointer[linkFailure]
 	io            sync.RWMutex
+	dialMu        sync.RWMutex
 	stackMu       sync.Mutex
 	paused        atomic.Bool
 	claimed       atomic.Bool
@@ -100,7 +101,7 @@ func (l *Link) DialTCP(ctx context.Context, addr netip.AddrPort) (net.Conn, erro
 	if err := l.Available(); err != nil {
 		return nil, err
 	}
-	raw, err := l.stack.Socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, nil, net.TCPAddrFromAddrPort(addr))
+	raw, err := l.socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, nil, net.TCPAddrFromAddrPort(addr))
 	if err != nil {
 		return nil, err
 	}
@@ -133,9 +134,7 @@ func (l *Link) ListenTCP(ctx context.Context, port uint16) (net.Listener, error)
 		return nil, err
 	}
 	laddr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(l.prefix.Addr(), port))
-	l.state.stackMu.Lock()
-	raw, err := l.stack.Socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, laddr, nil)
-	l.state.stackMu.Unlock()
+	raw, err := l.socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, laddr, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -198,6 +197,17 @@ func (ln *lnetoListener) Accept() (net.Conn, error) {
 	}
 }
 
+func (l *Link) socket(ctx context.Context, network string, family, sotype int, laddr, raddr net.Addr) (any, error) {
+	if raddr != nil {
+		l.state.dialMu.RLock()
+		defer l.state.dialMu.RUnlock()
+	} else {
+		l.state.stackMu.Lock()
+		defer l.state.stackMu.Unlock()
+	}
+	return l.stack.Socket(ctx, network, family, sotype, laddr, raddr)
+}
+
 func (ln *lnetoListener) Close() error {
 	alreadyClosed := true
 	var err error
@@ -206,9 +216,11 @@ func (ln *lnetoListener) Close() error {
 		ln.closed.Store(true)
 		close(ln.closeCh)
 		if ln.link != nil && ln.link.state != nil {
+			ln.link.state.dialMu.Lock()
 			ln.link.state.stackMu.Lock()
 			err = ln.inner.Close()
 			ln.link.state.stackMu.Unlock()
+			ln.link.state.dialMu.Unlock()
 		} else {
 			err = ln.inner.Close()
 		}
