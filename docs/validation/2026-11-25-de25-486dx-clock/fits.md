@@ -671,6 +671,27 @@ selection report SHA-256
 The exact 111.904762 MHz software replays also started at this revision
 while the four fits run.
 
+### C0 = 28 rerun with the duplicate-register proof
+
+| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Seed summary SHA-256 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 45,011.6 | +0.329 ns | +0.001 ns | +6.133 ns | +0.002 ns | 2.296 ns | `4fb4223bda591888b8c5b0e18b83816d3e183ce36089fddf26c1760cb75133e2` |
+| 2 | 45,193.0 | +0.332 ns | 0.000 ns | +6.022 ns | +0.059 ns | 3.106 ns | `3b9bec73efd8033519d126871d568d7ddb4a04325615a3b0de2e70c35bae1339` |
+| 3 | 45,158.7 | +0.026 ns | 0.000 ns | +6.498 ns | 0.000 ns | 2.659 ns | `e0d56667a187e5339c27eaed3f48a070ae123264a4250f32e1fcedf90c17ef05` |
+| 4 | 44,985.1 | +0.227 ns | 0.000 ns | +6.338 ns | +0.035 ns | 2.555 ns | `715ca777d63946c8586a071684f65945277de5e690da3e5b846223e158c6614b` |
+
+All four fresh seeds qualified 111.904762 MHz at
+`cb91390dbf936393e6e7e4640fe3717d58c193bc`. Each passed the normal
+producer, seal and independent LOADED check. The raw machine netlist
+SHA-256 `1e2dd2c0c79093c0a82a5ee9d3d117489bd5904fd896c9eb1e34c78d21300425`
+matches the original C28 sweep. The retained
+`c28-duplicate-proof/summary.json` SHA-256 is
+`65d7428d59706adedfc6be34dfcea2a80d7f64ab4a7b1b682535c012bbab34b3`.
+Seed 3's +0.026 ns lead setup path ends at `cpu_x87_trans_t_wdata[23]`
+in the transcendental engine. The [exact-clock G2 replay](sim-c28-g2.json)
+passed. G4 and G5 are in progress. The 120.512821 MHz sweep started at
+`fd953c9731d3c18a335dc8737f9a1a8dcecfecec`.
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed
