@@ -603,7 +603,7 @@ func TestFesComputer11GoldenExchanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	if fixture.ABI.ID != "fes.computer" || fixture.ABI.Tag != 4 || fixture.ABI.Major != 1 || fixture.ABI.Minor != 1 ||
-		len(fixture.Scenarios) != 6 {
+		len(fixture.Scenarios) != 7 {
 		t.Fatalf("fixture identity %+v", fixture.ABI)
 	}
 	for _, s := range fixture.Scenarios {

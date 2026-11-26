@@ -3806,7 +3806,7 @@
   {
    "abi_minor": 1,
    "build_id": "00112233445566778899aabbccddeeff",
-   "capabilities": 7471115,
+   "capabilities": 11665419,
    "description": "Restore and Stop snapshot of the fes.pcxt.machine 1.0 record (video_card, mono_tint).",
    "exchanges": [
     {
@@ -4019,9 +4019,9 @@
     },
     {
      "argument": 0,
-     "data": 114,
+     "data": 178,
      "error": 0,
-     "gpi": 4118806642,
+     "gpi": 4118806706,
      "gpo": [
       17825792,
       2165309440
