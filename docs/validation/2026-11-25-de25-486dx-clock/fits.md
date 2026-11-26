@@ -785,22 +785,24 @@ same-path DE10 raw netlist and all four identities match the frozen base,
 and all seven D12 selections match the frozen base and measured B. The
 DE10 receipt SHA-256 is
 `cb6a36cfa3b3700911ab3afc1b30ad9e42d52b7e34452e46fc86c5108eb248f3`.
-Seeds 1 and 3 passed the ordinary producer, seal, and independent LOADED
-check. Seed 2 passed the producer and seal and exceeded the independent
-LOADED limit.
+Seeds 1, 3, and 4 passed the ordinary producer, seal, and independent
+LOADED check. Seed 2 passed the producer and seal and exceeded the
+independent LOADED limit.
 
 | Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Seed summary SHA-256 |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | 1 | 45,012.0 | +0.007 ns | 0.000 ns | +5.279 ns | +0.092 ns | 2.511 ns | `48973014f1fc038b27ab63dd93de6eceb2927206c89dbd665c66e7aae6a3d2f9` |
 | 2 | 45,051.9 | +0.022 ns | 0.000 ns | +5.302 ns | +0.029 ns | 3.999 ns | `3cebe17e0bb94d3f0205f5421642f8bb9bc88af7dca43774e5212764f580561f` |
 | 3 | 45,148.9 | +0.001 ns | 0.000 ns | +5.698 ns | +0.029 ns | 2.499 ns | `7e86e89e4e4acc9faad87b29f0c2782ea35b8ada51c4186ec8c8cf63134e6f5e` |
+| 4 | 45,155.5 | +0.005 ns | 0.000 ns | +5.358 ns | +0.042 ns | 2.649 ns | `0ecc7d622e23e45dadc215f70aaab7e6e2f76aeebcd099eaff6e1850c8787190` |
 
 Seed 2's `machine_presenter_loaded_flag` to `machine_presenter_loaded_sync[0]`
 route measured 2.474 ns of data delay and 1.525 ns of absolute clock
 skew in the slow fix4 0°C model. The sum exceeds the 3.900 ns limit by
 0.099 ns. The slow fix4a 0°C model also exceeded the limit, at 3.996 ns.
 These measurements refuse the seed. The row and epoch payload is a
-separate crossing.
+separate crossing. The retained `c26-name-proof/summary.json` SHA-256 is
+`cf36d93bb2ab7d2c723e175d3daf5d4da1a819a63ef458c33ac0d1788008bb41`.
 
 Revision `62012d5b5520ca56e3a1a4f515c002766b52c6b3` adds a 2.250 ns
 fitter data-delay target to the same false-pathed LOADED flag hop for
@@ -811,6 +813,19 @@ are identical in a Tcl probe at all six rung periods. DE10 netlist bytes and
 all four identities match the frozen base, with receipt SHA-256
 `cac1fbbd7109183f0366421387ca2c70408538b67ae87e1b4a6aa66f95d07427`.
 All seven D12 input captures match the frozen base and phase B.
+
+The Pro 26.3 copied-project replay on `chip-30x0-ai-dev` reproduced the
+original four `-false_path` measurements and reported one path per corner
+for the separate 2.250 ns target. The target's slack on the old fit was
++0.104 ns at slow fix4 100°C, −0.177 ns at slow fix4 0°C, −0.176 ns at slow
+fix4a 0°C, and +0.869 ns at fast fix4 0°C. The datapath report includes the
+intermediate logic cell and the register setup term. It excludes clock
+network delays. The retained `c26-loaded-route-datapath-chip/receipt.json`
+SHA-256 is `4136a0d2506b9b88991565e4b493e805a7de0b4335f0e6ee0981c7594060f4a9`.
+Powerboat reproduced all eight timing lines, with log SHA-256
+`be3ce2d59a04555a6d3118d674232501eae8a8d9f682ebc41348a4cfffd3d817`.
+The four-seed rerun starts with seed 2 at `62012d5b` on the same host and
+checkout path. `make check` and 40 focused tests passed at that revision.
 
 The exact 120.512821 MHz simulations started in parallel with these
 fits. Both compiled game models use the guarded eight-cycle presenter.
@@ -827,6 +842,11 @@ with comparison SHA-256
 `76ce53e2bafcea6303720ae12e5094f49457f350ec1882492a374c46094d7982`.
 Revision `e707acc6cfaf683b0bd6eff0b6cb0a6e44d34536` keeps those exact clock
 files and adds the same LOADED flag data-delay target as `62012d5b`.
+Fresh comparisons passed for the DE10 netlist and four identities and
+all seven D12 input selections. The DE10 receipt SHA-256 is
+`0abb98bab58faecff2f627c0ee94716b02c073d361b8e069cccd03d381f63cbd`.
+The D12 receipt SHA-256 is
+`5f8fb29652b306c98ceaf5f4298112820a851bf2f767c92b58fc2e2bc249546f`.
 The C0 = 24 fits follow the C0 = 26 qualification.
 
 ## Running a seed on either builder

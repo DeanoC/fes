@@ -170,3 +170,21 @@ cycle 2,741,666,815. It retired 640,601,632 instructions, including
 fallback, CPU stop, reset, video underflows, and capture drops. The
 15-second, 20-second, and final images show the advancing Necropolis demo.
 [G5 full-window receipt](quake-c28-full.json)
+
+## C0 = 26
+
+At 120.512821 MHz, [G2](sim-c26-g2.json) passed at
+`9259873f54389b4956430acf9c01942f3f1af8ae`. Each CPU passed 18,820 L3
+corpus cases, 4,000 random cases, and 131 x87 cases. Each passed 148 L4
+directed cases and 56,000 random programs. The x87 benches passed 18,337
+unit checks, 23,795 transcendental checks and 3,356,352 TestFloat
+vectors. All 84 emitted TestFloat streams match the pinned references
+byte for byte.
+
+The comparison to `62012d5b5520ca56e3a1a4f515c002766b52c6b3` accounts
+for the exact fitter-only SDC edit and matches 163 tracked replay inputs,
+34 executed setup paths, the ordered compiler dependencies, and all
+regenerated sources and guest rates. The retained
+`simulation/c26-unlocated-proof/compare-62012d5b.g2.json` SHA-256 is
+`3ba7d0aec81f895d519102aaa37649042746922e0793204dd5a9235f1bb22486`.
+The exact-clock G4 and G5 replays are running.

@@ -1,0 +1,81 @@
+{
+  "revision": "9259873f54389b4956430acf9c01942f3f1af8ae",
+  "model": "486dx",
+  "c0": 26,
+  "clock_hz": "4700000000/39",
+  "verilator": {
+    "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+    "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+    "version": "Verilator 5.054 2026-11-01 rev v5.054",
+    "install": "88aecb8d8e6335737d014a1331f45d51ad8448b6eb5fa05285e1e99113198e50"
+  },
+  "class": "host RTL simulation",
+  "games": {
+    "artifact_sha256": {
+      "base": "60b0e8c173e39097b488fdfc72afc93b1a72826041dc118ac38f4b822e96e372",
+      "dx": "4e24241a554e73461c04a99dff98ec7632b4172590afbdc49a0116b52d726f69"
+    },
+    "stimulus_sha256": {
+      "pmode": "b4be6e29297168abb31ca536829cbd8a42e9fb05093d16793932ea51d72814b3",
+      "bench": "e69a4cb6462a79c47f55adef11d41c652481017dd541ae980cf27beed5e4823c"
+    },
+    "status": "pending"
+  },
+  "l3": {
+    "status": "pass",
+    "comparison": [
+      "base failures 0 dx failures 0",
+      "new in dx 0"
+    ],
+    "base": {
+      "corpus_tests": 18820,
+      "random_programs": 4000,
+      "x87_cases": 131,
+      "x87_built_forms": "BUILT 1620 mismatches 0"
+    },
+    "dx": {
+      "corpus_tests": 18820,
+      "random_programs": 4000,
+      "x87_cases": 131,
+      "x87_built_forms": "BUILT 1620 mismatches 0"
+    }
+  },
+  "l4": {
+    "status": "pass",
+    "comparison": [
+      "base failures 0 dx failures 0",
+      "new in dx 0"
+    ],
+    "base": {
+      "directed_agree": 148,
+      "random_programs": 56000
+    },
+    "dx": {
+      "directed_agree": 148,
+      "random_programs": 56000
+    }
+  },
+  "x87": {
+    "status": "pass",
+    "unit_passed": 18337,
+    "trans_passed": 23795,
+    "testfloat_vectors": 3356352,
+    "testfloat_configs": 84,
+    "testfloat_gen_sha256": "7e03a9af4aeebe21e6dec3650c03f9ab68fc0cca23dd604e54f69dcbc357e397"
+  },
+  "files_sha256": {
+    "games/inputs.json": "468d955462f6bf966d0893bee6081ad061f148aa749892e16f82eefed63ab604",
+    "games/harness.py": "0ce76d6f71596c278da3c21cbf48d3be3f19be97f542b71190276708eb5e51b1",
+    "games/machine_tb.cpp": "b396b0fc332c16cd7a4b7daf247370f113b4e85bdc88bcdc7c48ca5934b3d0c9",
+    "games/audio_link.h": "3e9f7890191109cf25ccbe47730f11e750404c7022870c50727420540898cf1b",
+    "games/derived/pc386_presenter.sv": "7437e4b680112d6d8e5fb7ecf5a0a65f92ba937148b9bfbdfe1550703bdf8167",
+    "lockstep/l3-base.json": "8b8f1581176053b22ac36b7855c8bc67b8dc7f9a335a099d6db579ed29126be4",
+    "lockstep/l3-dx.json": "c084eea4c33da5cab8fabeef59e5706f919935478a20312b3509f7b97a6510d3",
+    "lockstep/l4-base.json": "472c2f5ae7bf245bb4ccdfef8ffd5b8265805d2313d3d94692bcaf9773ddcfe2",
+    "lockstep/l4-dx.json": "1455f924e63bdac3be4b72fe084c659bc1dd0f946daa1a5936761d5348109e45",
+    "lockstep/x87unit.json": "93d1c62296483312b182ff3f670cc9712aa0d5fd7e834bf8d51cf1de5c59f5a7",
+    "lockstep/trans.json": "8602613148121fa51244ad393e668a930400b2ed3a317f1113fdc92d4dba9e8c",
+    "lockstep/testfloat.json": "f7dd307f92f23b386179d421c52aa4dd0bc467f2f46d32f4c35fcd719d41b61c"
+  }
+}
