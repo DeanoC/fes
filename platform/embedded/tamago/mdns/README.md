@@ -3,7 +3,7 @@
 Pure-Go RFC 6762 mDNS and RFC 6763 DNS-SD responder and browser operating directly over `network.RawFramePort` (no POSIX UDP multicast sockets required).
 
 - **Delegates to:** [network](../network/README.md) (`RawFramePort` / `*network.Link`).
-- **FogCast compatibility:** `NewFogCastService` and `ParseFogCastTXT` match FogCast's `_fogcast._tcp` discovery record format (`v=1`, `target_id`, `node_id`, `mesh`, `cap`, `ttl`).
+- **FogCast compatibility:** `NewFogCastService` and `ParseFogCastTXT` match FogCast's `_fogcast._tcp` discovery record format (`protocol=1`, `target_id`, `node_id`, `mesh`, `cap`, `ttl`).
 
 ## Components
 

@@ -115,7 +115,7 @@ func TestMDNSWireEncodeDecodeAndRejections(t *testing.T) {
 				Class:      ClassIN,
 				CacheFlush: true,
 				TTL:        120,
-				TXT:        []string{"v=1", "target_id=12345678-1234-4234-8234-123456789abc"},
+				TXT:        []string{"protocol=1", "target_id=12345678-1234-4234-8234-123456789abc"},
 			},
 			{
 				Name:       "fes-de25.local",
@@ -154,6 +154,15 @@ func TestMDNSWireEncodeDecodeAndRejections(t *testing.T) {
 		t.Fatal("unexpected cache-flush flags")
 	}
 
+	// Non-255 IPv4 TTL must be discarded per RFC 6762 §11.
+	badTTLFrame := bytes.Clone(frame)
+	badTTLFrame[ethHeaderLen+8] = 64
+	binary.BigEndian.PutUint16(badTTLFrame[ethHeaderLen+10:ethHeaderLen+12], 0)
+	binary.BigEndian.PutUint16(badTTLFrame[ethHeaderLen+10:ethHeaderLen+12], internetChecksum(badTTLFrame[ethHeaderLen:ethHeaderLen+ipv4MinLen]))
+	if _, ok := parseMDNSFrame(badTTLFrame, [6]byte{0x02, 0x00, 0x00, 0x00, 0x00, 0x99}, [4]byte{192, 0, 2, 99}, false); ok {
+		t.Fatal("parseMDNSFrame must discard packet with IPv4 TTL != 255")
+	}
+
 	// Compression pointer loop must fail cleanly.
 	loop := make([]byte, dnsHeaderLen+4)
 	loop[5] = 1
@@ -187,9 +196,16 @@ func TestFogCastTXTAndServiceValidation(t *testing.T) {
 	if !info.DirectBindable() || info.TargetID != id || info.NodeID != id || info.Mesh != FogCastMeshProtocol || info.TTLSeconds != 90 {
 		t.Fatalf("unexpected parsed FogCast info: %+v", info)
 	}
+	if len(svc.TXT) == 0 || svc.TXT[0] != "protocol=1" {
+		t.Fatalf("expected protocol=1 first TXT entry, got %v", svc.TXT)
+	}
 
 	if _, err := NewFogCastService("bad", "fes-de25", netip.MustParseAddr("192.0.2.50"), 8080, FogCastInfo{TargetID: "bad"}); !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("expected ErrInvalidConfig for invalid target_id, got %v", err)
+	}
+	otherID := "22222222-3333-4444-8555-666666666666"
+	if _, err := NewFogCastService("mismatch", "fes-de25", netip.MustParseAddr("192.0.2.50"), 8080, FogCastInfo{TargetID: id, NodeID: otherID}); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig when node_id != target_id, got %v", err)
 	}
 }
 
@@ -307,7 +323,73 @@ func TestResponderAndBrowserDiscoveryGoodbyeAndPause(t *testing.T) {
 	if err := resp.Start(runCtx); !errors.Is(err, ErrResponderStopped) {
 		t.Fatalf("Start after Stop = %v, want ErrResponderStopped", err)
 	}
+	if err := resp.AnnounceNow(); err != nil {
+		t.Fatal(err)
+	}
 	if s := resp.Stats(); s.Running || s.Goodbyes != 1 {
 		t.Fatalf("unexpected final responder stats: %+v", s)
+	}
+}
+
+func TestBrowseExpiresStaleRecords(t *testing.T) {
+	hub := newWireHub()
+	serverEP := hub.newEndpoint()
+	clientEP := hub.newEndpoint()
+
+	id := "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+	svc, err := NewFogCastService("ShortTTL", "fes-short.local", netip.MustParseAddr("192.0.2.55"), 8080, FogCastInfo{
+		TargetID:   id,
+		TTLSeconds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := NewResponder(ResponderConfig{
+		Port:             serverEP,
+		LocalMAC:         [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0x11},
+		Service:          svc,
+		AnnounceCount:    1,
+		AnnounceInterval: 10 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rCtx, rCancel := context.WithCancel(context.Background())
+	defer rCancel()
+	if err := resp.Start(rCtx); err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Stop()
+
+	var clockMu sync.Mutex
+	fakeNow := time.Date(2026, time.November, 26, 12, 0, 0, 0, time.UTC)
+	nowFn := func() time.Time {
+		clockMu.Lock()
+		defer clockMu.Unlock()
+		return fakeNow
+	}
+
+	// Stop the responder before advancing fakeNow by >1s so no refresh arrives;
+	// Browse with StopOnFirst=false must drop expired records at deadline.
+	bCtx, bCancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	defer bCancel()
+	go func() {
+		time.Sleep(25 * time.Millisecond)
+		rCancel()
+		clockMu.Lock()
+		fakeNow = fakeNow.Add(2 * time.Second)
+		clockMu.Unlock()
+	}()
+
+	got, err := Browse(bCtx, clientEP, BrowseConfig{
+		LocalMAC:      [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0x22},
+		LocalIP:       netip.MustParseAddr("192.0.2.99"),
+		QueryInterval: 10 * time.Millisecond,
+		StopOnFirst:   false,
+		Now:           nowFn,
+	}, FogCastServiceType)
+	if !errors.Is(err, context.DeadlineExceeded) || len(got) != 0 {
+		t.Fatalf("expected expired record to be pruned on Browse completion: got=%+v err=%v", got, err)
 	}
 }

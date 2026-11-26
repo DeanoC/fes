@@ -152,15 +152,6 @@ func encodeLabels(labels []string) ([]byte, error) {
 	return out, nil
 }
 
-func splitInstanceFQDNLabels(fqdn string) []string {
-	s := strings.TrimSuffix(fqdn, ".")
-	if s == "" {
-		return nil
-	}
-	// Preserve human-readable instance label while keeping trailing labels dot-separated.
-	return strings.Split(s, ".")
-}
-
 func encodeDNSName(name string) ([]byte, error) {
 	s := strings.TrimSpace(name)
 	s = strings.TrimSuffix(s, ".")
@@ -521,7 +512,7 @@ func parseMDNSFrame(frame []byte, localMAC [6]byte, localIP [4]byte, acceptAnyUn
 	if totalLen < ihl+udpHeaderLen+dnsHeaderLen || totalLen > len(ip) {
 		return parsedMDNSFrame{}, false
 	}
-	if binary.BigEndian.Uint16(ip[6:8])&0x3fff != 0 || ip[9] != ipProtoUDP {
+	if binary.BigEndian.Uint16(ip[6:8])&0x3fff != 0 || ip[8] != mdnsIPv4TTL || ip[9] != ipProtoUDP {
 		return parsedMDNSFrame{}, false
 	}
 	if !bytes.Equal(ip[16:20], multicastIPv4Bytes[:]) && !bytes.Equal(ip[16:20], localIP[:]) {

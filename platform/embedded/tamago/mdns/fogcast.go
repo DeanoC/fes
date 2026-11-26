@@ -58,8 +58,8 @@ func NewFogCastService(instance, host string, ip netip.Addr, port uint16, info F
 	if !ValidID(info.TargetID) {
 		return Service{}, fmt.Errorf("%w: invalid FogCast target_id %q", ErrInvalidConfig, info.TargetID)
 	}
-	if info.NodeID != "" && !ValidID(info.NodeID) {
-		return Service{}, fmt.Errorf("%w: invalid FogCast node_id %q", ErrInvalidConfig, info.NodeID)
+	if info.NodeID != "" && (!ValidID(info.NodeID) || info.NodeID != info.TargetID) {
+		return Service{}, fmt.Errorf("%w: node_id must match target_id", ErrInvalidConfig)
 	}
 	proto := info.DiscoveryProtocol
 	if proto == "" {
@@ -70,7 +70,7 @@ func NewFogCastService(instance, host string, ip netip.Addr, port uint16, info F
 	}
 
 	txt := []string{
-		"v=" + proto,
+		"protocol=" + proto,
 		"target_id=" + info.TargetID,
 	}
 	if info.NodeID != "" {
@@ -114,7 +114,7 @@ func ParseFogCastTXT(txt []string) FogCastInfo {
 			continue
 		}
 		switch key {
-		case "v":
+		case "protocol":
 			info.DiscoveryProtocol = val
 		case "target_id":
 			info.TargetID = val
