@@ -513,6 +513,9 @@ prior FNINIT stall. The first-frame receipt SHA-256 is
 The [full RTL window](quake-c32-full.json) ended at 24.600 guest seconds.
 The [functional replay record](simulation.md#c0--32) binds these results
 to the timing-qualified candidate.
+The [DE10 comparison](de10-54fe2d45.txt) matches raw netlist bytes and all
+four identities. The [D12 comparison](d12-54fe2d45-selection.txt) matches
+all seven package selections against the frozen base and measured B.
 
 ## C0 = 30 generation preflight
 
