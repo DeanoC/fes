@@ -11,10 +11,12 @@
 package fpgairq
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,6 +40,38 @@ const (
 	// supply Config.Ack to clear the FPGA interrupt source inside the handler.
 	Level
 )
+
+// String returns the human-readable trigger mode name.
+func (t Trigger) String() string {
+	switch t {
+	case Edge:
+		return "edge"
+	case Level:
+		return "level"
+	default:
+		return fmt.Sprintf("Trigger(%d)", uint8(t))
+	}
+}
+
+// DoorbellStats summarizes the configuration, live status, and cumulative
+// interrupt and wait-helper telemetry of a Doorbell.
+type DoorbellStats struct {
+	Line    uint32
+	IRQ     uint32
+	Trigger Trigger
+	Active  bool
+	Count   uint64
+	// Coalesced counts interrupts that arrived while Ready() already held a pending signal.
+	Coalesced uint64
+	// WaitWakeups counts wakeups consumed through Wait, WaitTimeout, YieldFunc,
+	// and YieldOrFallback (excludes direct receives from Ready()).
+	WaitWakeups uint64
+	// Timeouts counts bounded wait expirations in WaitTimeout(>0), YieldFunc(>0),
+	// and YieldOrFallback(>0).
+	Timeouts uint64
+	// Canceled counts Wait calls aborted due to context cancellation or deadline.
+	Canceled uint64
+}
 
 var (
 	// ErrInvalidConfig is returned when a GIC controller, line index, or trigger config is invalid.
@@ -104,6 +138,26 @@ func (p *Dispatcher) ActiveCount() int {
 	return len(p.lines)
 }
 
+// Stats returns a snapshot of telemetry for all currently open doorbells,
+// sorted by FPGA-to-HPS line index.
+func (p *Dispatcher) Stats() []DoorbellStats {
+	p.mu.Lock()
+	open := make([]*Doorbell, 0, len(p.lines))
+	for _, d := range p.lines {
+		open = append(open, d)
+	}
+	p.mu.Unlock()
+
+	out := make([]DoorbellStats, len(open))
+	for i, d := range open {
+		out[i] = d.Stats()
+	}
+	slices.SortFunc(out, func(a, b DoorbellStats) int {
+		return cmp.Compare(a.Line, b.Line)
+	})
+	return out
+}
+
 // Open exclusively claims cfg.Line, configures its GIC SPI sensing, clears any
 // stale pending state, registers its handler, and unmasks the SPI.
 func (p *Dispatcher) Open(cfg Config) (*Doorbell, error) {
@@ -136,6 +190,7 @@ func (p *Dispatcher) Open(cfg Config) (*Doorbell, error) {
 		gic:     p.gic,
 		line:    cfg.Line,
 		irq:     irqID,
+		trigger: cfg.Trigger,
 		ack:     cfg.Ack,
 		onEvent: cfg.OnEvent,
 		ready:   make(chan struct{}, 1),
@@ -180,20 +235,25 @@ func (p *Dispatcher) Close() error {
 
 // Doorbell represents one claimed FPGA-to-HPS IRQ wakeup channel.
 type Doorbell struct {
-	disp   *Dispatcher
-	gic    *gic.Controller
-	line   uint32
-	irq    uint32
-	ready  chan struct{}
-	closed chan struct{}
+	disp    *Dispatcher
+	gic     *gic.Controller
+	line    uint32
+	irq     uint32
+	trigger Trigger
+	ready   chan struct{}
+	closed  chan struct{}
 
-	closeMu sync.Mutex
-	irqMu   sync.Mutex
-	wg      sync.WaitGroup
-	active  atomic.Bool
-	ack     func()
-	onEvent func(count uint64)
-	count   atomic.Uint64
+	closeMu   sync.Mutex
+	irqMu     sync.Mutex
+	wg        sync.WaitGroup
+	active    atomic.Bool
+	ack       func()
+	onEvent   func(count uint64)
+	count     atomic.Uint64
+	coalesced atomic.Uint64
+	wakeups   atomic.Uint64
+	timeouts  atomic.Uint64
+	canceled  atomic.Uint64
 }
 
 // Line returns the FPGA-to-HPS line index (0..63).
@@ -207,6 +267,22 @@ func (d *Doorbell) Ready() <-chan struct{} { return d.ready }
 
 // Count returns the total number of interrupts handled on this doorbell.
 func (d *Doorbell) Count() uint64 { return d.count.Load() }
+
+// Stats returns a snapshot of the doorbell's configuration, active status, and
+// cumulative interrupt and wait-helper counters.
+func (d *Doorbell) Stats() DoorbellStats {
+	return DoorbellStats{
+		Line:        d.line,
+		IRQ:         d.irq,
+		Trigger:     d.trigger,
+		Active:      d.active.Load(),
+		Count:       d.count.Load(),
+		Coalesced:   d.coalesced.Load(),
+		WaitWakeups: d.wakeups.Load(),
+		Timeouts:    d.timeouts.Load(),
+		Canceled:    d.canceled.Load(),
+	}
+}
 
 // TriggerPending sets the bound SPI pending in GICD_ISPENDR (for self-tests
 // and software wakeup verification). No-op once closed.
@@ -226,14 +302,17 @@ func (d *Doorbell) Wait(ctx context.Context) error {
 		return ErrClosed
 	}
 	if err := ctx.Err(); err != nil {
+		d.canceled.Add(1)
 		return err
 	}
 	select {
 	case <-d.ready:
+		d.wakeups.Add(1)
 		return nil
 	case <-d.closed:
 		return ErrClosed
 	case <-ctx.Done():
+		d.canceled.Add(1)
 		return ctx.Err()
 	}
 }
@@ -247,6 +326,7 @@ func (d *Doorbell) WaitTimeout(timeout time.Duration) bool {
 	if timeout <= 0 {
 		select {
 		case <-d.ready:
+			d.wakeups.Add(1)
 			return true
 		default:
 			return false
@@ -256,10 +336,12 @@ func (d *Doorbell) WaitTimeout(timeout time.Duration) bool {
 	defer timer.Stop()
 	select {
 	case <-d.ready:
+		d.wakeups.Add(1)
 		return true
 	case <-d.closed:
 		return false
 	case <-timer.C:
+		d.timeouts.Add(1)
 		return false
 	}
 }
@@ -272,6 +354,7 @@ func (d *Doorbell) YieldFunc(maxWait time.Duration) func() {
 		if maxWait <= 0 {
 			select {
 			case <-d.ready:
+				d.wakeups.Add(1)
 			default:
 				runtime.Gosched()
 			}
@@ -285,8 +368,10 @@ func (d *Doorbell) YieldFunc(maxWait time.Duration) func() {
 		defer timer.Stop()
 		select {
 		case <-d.ready:
+			d.wakeups.Add(1)
 		case <-d.closed:
 		case <-timer.C:
+			d.timeouts.Add(1)
 		}
 	}
 }
@@ -310,9 +395,11 @@ func YieldOrFallback(db *Doorbell, maxWait time.Duration, fallback func()) func(
 		defer timer.Stop()
 		select {
 		case <-db.ready:
+			db.wakeups.Add(1)
 		case <-db.closed:
 			fallback()
 		case <-timer.C:
+			db.timeouts.Add(1)
 		}
 	}
 }
@@ -377,6 +464,7 @@ func (d *Doorbell) handleIRQ() {
 	select {
 	case d.ready <- struct{}{}:
 	default:
+		d.coalesced.Add(1)
 	}
 	if onEvent != nil {
 		onEvent(n)

@@ -48,6 +48,7 @@ func TestNativeLifecycleTrace(t *testing.T) {
 		make([]byte, 8),
 		{0, 0, 0x04, 0, 0, 0, 0, 0}, // ordinary typing
 		make([]byte, 8),
+		{0x05, 0, 1, 1, 1, 1, 1, 1}, // rollover report
 		{0x05, 0, 0, 0, 0, 0, 0, 0},
 		{0x05, 0, 0, 0, 0, 0, 0, 0}, // duplicate report
 		{0x05, 0, 0x29, 0, 0, 0, 0, 0},
@@ -57,8 +58,10 @@ func TestNativeLifecycleTrace(t *testing.T) {
 		t.Fatalf("trace changed shortcut behavior: %+v, %v", frame, err)
 	}
 	trace = output.String()
-	if strings.Count(trace, "FES_NATIVE_KEYBOARD_SHORTCUT") != 2 ||
-		!strings.Contains(trace, "armed=true control=true alt=true escape=true quit=false") ||
+	if strings.Count(trace, "FES_NATIVE_KEYBOARD_SHORTCUT") != 5 ||
+		!strings.Contains(trace, "armed=false control=false alt=false escape=false quit=false rollover=false") ||
+		!strings.Contains(trace, "armed=true control=true alt=true escape=false quit=false rollover=true") ||
+		!strings.Contains(trace, "armed=true control=true alt=true escape=true quit=false rollover=false") ||
 		!strings.Contains(trace, "source=usb-boot-keyboard action=stop") {
 		t.Fatalf("shortcut states differ:\n%s", trace)
 	}
@@ -73,7 +76,7 @@ func TestNativeLifecycleTrace(t *testing.T) {
 	}
 	trace = output.String()
 	if !strings.Contains(trace, "state=ready") ||
-		!strings.Contains(trace, "armed=true control=false alt=false escape=false quit=true") ||
+		!strings.Contains(trace, "armed=true control=false alt=false escape=false quit=true rollover=false") ||
 		!strings.Contains(trace, "source=usb-boot-keyboard action=quit") {
 		t.Fatalf("Quit evidence differs:\n%s", trace)
 	}
@@ -107,8 +110,8 @@ func TestMultiInputLifecycleKeyboardTrace(t *testing.T) {
 	src.keys([8]byte{0, 0, 0x04}, [8]byte{}, [8]byte{0x05, 0, 0x29})
 	multiNext(t, platform, "multi-input keyboard return", tenfoot.CmdStop)
 	trace := output.String()
-	if strings.Count(trace, "FES_NATIVE_KEYBOARD_SHORTCUT") != 1 ||
-		!strings.Contains(trace, "armed=true control=true alt=true escape=true quit=false") ||
+	if strings.Count(trace, "FES_NATIVE_KEYBOARD_SHORTCUT") != 2 ||
+		!strings.Contains(trace, "armed=true control=true alt=true escape=true quit=false rollover=false") ||
 		!strings.Contains(trace, "source=usb-multi action=stop") {
 		t.Fatalf("multi-input return trace differs:\n%s", trace)
 	}
@@ -120,7 +123,7 @@ func TestMultiInputLifecycleKeyboardTrace(t *testing.T) {
 	src.keys([8]byte{}, [8]byte{0, 0, 0x14})
 	multiNext(t, platform, "multi-input keyboard Quit", tenfoot.CmdQuit)
 	trace = output.String()
-	if !strings.Contains(trace, "armed=true control=false alt=false escape=false quit=true") ||
+	if !strings.Contains(trace, "armed=true control=false alt=false escape=false quit=true rollover=false") ||
 		!strings.Contains(trace, "source=usb-multi action=quit") {
 		t.Fatalf("multi-input Quit trace differs:\n%s", trace)
 	}

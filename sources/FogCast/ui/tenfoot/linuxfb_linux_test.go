@@ -278,8 +278,14 @@ func TestLateDisplayTickDoesNotCountSchedulerDelayAsPoll(t *testing.T) {
 			app.mu.Lock()
 			records := app.frameTrace.records()
 			app.mu.Unlock()
-			if len(records) >= 2 {
-				first, second = records[0], records[1]
+			var ticks []frameTraceRecord
+			for _, record := range records {
+				if record.Kind == "tick" {
+					ticks = append(ticks, record)
+				}
+			}
+			if len(ticks) >= 2 {
+				first, second = ticks[0], ticks[1]
 			}
 			return true, nil
 		}

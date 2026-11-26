@@ -1841,8 +1841,10 @@ embedded Go Regular and Go Bold, `DrawMask` for text coverage, and
 `DebugText` for the 8×8 HUD / FC2D opcode). Text is laid out as coverage
 masks, one byte a pixel (`gfx.LayoutText`): each glyph is rasterized once per
 face and copied into a mask per string, and a mask draws in any colour with
-alpha `A·m/255`. Room text, labels and `DrawText` share that path. Window, events, gamepad, mouse, and text input remain
-SDL in `ui/tenfoot/sdl.go`. USB keyboard is first-class browse/nav on that
+alpha `A·m/255`. Room text, labels and `DrawText` share that path. Window creation lives
+in `ui/tenfoot/sdl.go`, while events, gamepad, mouse, key mapping, and smoke helpers
+are split across `ui/tenfoot/sdl_events.go`, `ui/tenfoot/sdl_keys.go`, and
+`ui/tenfoot/sdl_smoke.go` (sharing `ui/tenfoot/sdl_cgo.h`). USB keyboard is first-class browse/nav on that
 path (`CommandFromKey` in `ui/tenfoot/keyboard.go`): arrows, Enter, Esc, and
 Tab drive shelf, detail, and search without a gamepad. USB mouse/pointer is
 first-class on the same path (`PointerMove` / `PointerClick` in
@@ -1910,6 +1912,9 @@ gate. Bounded wheel refreshes compare the complete frame content and reuse
 the rendered revision when it is identical; motion bypasses reuse and forces
 a final settled paint. Input polling, App updates, scripted rooms and snapshots continue at 30 Hz.
 The runtime menu backend is selected as `menu-display` or `menudisplay`.
+Its kit frame trace records the duration and outcome of actual `FrameCache`
+scene-command comparisons separately from whole-render and worker-present timings; see
+[frame trace](frame-trace.md).
 Rendered-frame revisions skip framebuffer comparison in `MenuDisplay`; ordinary
 callers retain byte-identical change detection. An unchanged submission that has
 not failed or been dropped is skipped. Once a second after a successful present, that skip
@@ -3522,9 +3527,17 @@ actual next cursor to show `+` only when additional titles remain. The filtered
 page resolves only its returned entry IDs in one bounded batch; a missing
 identity fails the read instead of guessing. If machine entries alone exceed
 the budget, Home blocks that family instead of choosing an incomplete machine
-list while reporting its machine-admission state. The launcher converts family
-rows and editions to Lua in batches of at most 128 items per Step. Home and
-setup count at most 64 title rows per update and publish only completed counts.
+list while reporting its machine-admission state. Initial `families.load` dispatches
+every family's `library.query` immediately during `load`. On `on_resume`,
+`families.reload` synchronously cancels any in-flight prior family queries,
+starts fresh `kit.cores` and `hardware.read` refreshes, publishes Checking, and
+queues the per-family `library.query` reads rather than starting all of them
+inside `on_resume`; `families.update` processes at most one pending response
+batch (64 title rows) per frame and returns, otherwise lazily builds `core_ids`
+for and dispatches at most one queued family query per frame, and checks
+scheduled transient retries only when no pending batch or queued query remains.
+The launcher converts family rows and editions to Lua in batches of at most
+128 items per Step, and Home and setup publish only completed counts.
 Initial and data-changed Home pictures add one family tile per draw callback.
 Machine admission remains independent in `hardware.computers`; catalog rows,
 cache refreshes and editions never establish that readiness. A refresh discards

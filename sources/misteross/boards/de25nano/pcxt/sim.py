@@ -75,7 +75,7 @@ def sources(output):
             SHARED / "fes_firmware_upload.v", SHARED / "fes_computer_mailbox.v",
             SHARED / "fes_display_plane.v", SHARED / "fes_menu_control.v", SHARED / "fes_menu_video.v",
             BOARD / "scanout/fes_de25_session_display.v", BOARD / "scanout/fes_de25_scanout.v",
-            COMMON / "rtl/fes_display_cdc.v", PCXT / "sim/chipset.vlt", PCXT / "sim/cpu.vlt",
+            COMMON / "rtl/fes_display_cdc.v", PCXT / "sim/chipset.vlt", PCXT / "sim/cpu.vlt", HERE / "video.vlt",
             *(PCXT / name for name in build.MACHINE_FILES),
             *(COMMON / name for name in build.COMMON_FILES)]
 
@@ -97,8 +97,8 @@ def run_video():
         video.write_bytes(derive.retarget_video((PCXT / "rtl/pcxt_video.sv").read_bytes())[0])
         # The DE10 source trips WIDTHEXPAND on Verilator 5.020 as it does in its
         # own bench; the derived file keeps the module name pcxt_video.
-        subprocess.run(["verilator", "--cc", "--exe", "--build", "-Wall", "-Wno-WIDTHEXPAND", "-Wno-DECLFILENAME", "-Wno-PROCASSINIT", "--timescale-override", "1ns/1ps",
-                        str(PCXT / "sim/cpu.vlt"), *(["-GMDA=1'b1"] if mda else []),
+        subprocess.run(["verilator", "--cc", "--exe", "--build", "-Wall", "-Wno-WIDTHEXPAND", "-Wno-DECLFILENAME", "--timescale-override", "1ns/1ps",
+                        str(PCXT / "sim/cpu.vlt"), str(HERE / "video.vlt"), *(["-GMDA=1'b1"] if mda else []),
                         "--top-module", "video_top", "--Mdir", str(output), "-I" + str(COMMON / "generated"),
                         "-CFLAGS", "-std=c++17 -O2",
                         str(COMMON / "rtl/coleco_video_dpram.v"), str(COMMON / "rtl/fes_video_part_direct.v"),

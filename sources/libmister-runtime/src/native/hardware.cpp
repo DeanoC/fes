@@ -331,12 +331,16 @@ void NativeHardware::SetHpsWindow(De25HpsWindow* window)
 // cannot be released keeps the configuration and stays poisoned, so every
 // later replacement is refused too.
 Error NativeHardware::ReleaseHpsWindow(const char* operation, const std::string& system,
-	const std::string& core)
+	const std::string& core, bool machine_quiesced)
 {
 	if (!hps_window_) return {};
-	Error error = hps_window_->Blocking();
-	if (error.ok() && hps_window_->Ready()) error = hps_window_->Release();
-	else if (error.ok()) return {};
+	Error error;
+	if (machine_quiesced) error = hps_window_->ReleaseAfterQuiesce();
+	else {
+		error = hps_window_->Blocking();
+		if (error.ok() && hps_window_->Ready()) error = hps_window_->Release();
+		else if (error.ok()) return {};
+	}
 	log_.Write({operation, system, core, "hps_window_release", error});
 	return error;
 }
@@ -577,6 +581,37 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 {
 	if (!game_video_.SupportsPlatform(platform_))
 		return {{ErrorCode::unsupported_target, "core video backend differs from selected platform", "platform"}, false, ""};
+	// A live HPS window goes first: the owner's REAP (the menu's revoke) revokes
+	// the window before the scanout and answers EAGAIN while a guest port still
+	// runs, so the machine is quiesced and its window released before REAP.
+	bool machine_quiesced = false;
+	CoreDriverResult early;
+	if (hps_window_ && hps_window_->IsOpen()) {
+		if (active_driver_ != nullptr) {
+			early = active_driver_->Quiesce(active_context_, Deadline(clock_, timeouts_.core_io_ms));
+			log_.Write({operation, system, core, "driver_quiesce", early.error});
+			if (early.error.ok()) {
+				early.error = ReleaseHpsWindow(operation, system, core, true);
+				if (!early.error.ok()) early.mutation_attempted = true;
+			}
+			if (!early.error.ok()) {
+				ObserveHandoff(operation, early.error);
+				if (menu_status_.available) {menu_unsafe_ = true; menu_status_.available = false;
+					menu_directory_.clear(); menu_package_id_.clear();}
+				if (early.mutation_attempted) ForgetActiveCore();
+				return {WithPhase(early.error, "quiesce"), early.mutation_attempted, early.observed_core};
+			}
+			machine_quiesced = true;
+		} else {
+			// With no driver left, the owner itself must prove the window drained.
+			// Retire it before the menu can reap the allocation.
+			const Error released = ReleaseHpsWindow(operation, system, core);
+			if (!released.ok()) {
+				ObserveHandoff(operation, released);
+				return {WithPhase(released, "quiesce"), false, ""};
+			}
+		}
+	}
 	// No process writes the menu window once quiesce or programming begins.
 	const Error revoked = RevokeMenuWindow();
 	if (!revoked.ok()) {
@@ -596,12 +631,15 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 		ObserveHandoff(operation, blocked);
 		return {WithPhase(blocked, "quiesce"), video.mutation_attempted, ""};
 	}
-	CoreDriverResult driver = active_driver_->Quiesce(active_context_,
-		Deadline(clock_, timeouts_.core_io_ms));
-	log_.Write({operation, system, core, "driver_quiesce", driver.error});
-	if (driver.error.ok()) {
-		driver.error = ReleaseHpsWindow(operation, system, core);
-		if (!driver.error.ok()) driver.mutation_attempted = true;
+	CoreDriverResult driver = early;
+	if (!machine_quiesced) {
+		driver = active_driver_->Quiesce(active_context_,
+			Deadline(clock_, timeouts_.core_io_ms));
+		log_.Write({operation, system, core, "driver_quiesce", driver.error});
+		if (driver.error.ok()) {
+			driver.error = ReleaseHpsWindow(operation, system, core, true);
+			if (!driver.error.ok()) driver.mutation_attempted = true;
+		}
 	}
 	ObserveHandoff(operation, driver.error);
  if(!driver.error.ok()&&menu_status_.available){menu_unsafe_=true;menu_status_.available=false;menu_directory_.clear();menu_package_id_.clear();}
@@ -907,8 +945,8 @@ Capabilities NativeHardware::capabilities() const
     // The standard shell's machines: every interface the per-core contract
     // table admits, once each. Firmware upload has no capability bit; a host
     // reads it here to know this runtime delivers a format-3 source at launch.
-    // A machine in an HPS DDR window needs a window backend this runtime
-    // does not have yet, so none of its interfaces is advertised.
+    // A machine in an HPS DDR window is advertised only where the kernel
+    // owner offers a window.
     for(const auto& core:kDe25StandardCores)
      for(const auto& interface:core.interfaces) {
       if(core.hps_window&&!HpsDdrAvailable())break;
@@ -937,8 +975,11 @@ Capabilities NativeHardware::capabilities() const
    result.abis.insert(result.abis.begin(), std::move(application));
   }
   if (active_driver_) result.media_units = active_driver_->media_units();
-  // A DE25 machine's bound library disk reports its binding as on the DE10.
-  if (active_driver_ && active_driver_ == fes_gp_driver_) ReportDurableMedia(&result.media_units);
+  // A DE25 machine's ATA disk and bound library disk report as on the DE10.
+  if (active_driver_ && active_driver_ == fes_gp_driver_) {
+   ReportAtaDisk(&result.media_units);
+   ReportDurableMedia(&result.media_units);
+  }
   if (De25StaticEnabled() && fes_gp_driver_ && menu_display_ && menu_window_ &&
       fpga_.SupportsStaticComposition())
    result.programming_profiles.push_back("de25-linux-static-computer-v1");
@@ -1118,21 +1159,7 @@ Capabilities NativeHardware::capabilities() const
 		if (active_driver_ == fes_gp_driver_) {
 			MediaStreamInfo info;
 			const auto* driver = dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_);
-            if (driver != nullptr && driver->home_computer() && driver->AtaDiskCapable()) {
-                MediaUnitCapability unit;
-                unit.unit = generated::FesComputerAtaDiskUnit;
-                unit.interface = {generated::FesComputerInterfaceMediaAtaDiskID, 1, 0};
-                unit.min_bytes = generated::FesComputerAtaDiskMinBytes;
-                unit.max_bytes = generated::FesComputerAtaDiskMaxBytes;
-                unit.chunk_bytes = generated::FesComputerAtaDiskChunkBytes;
-                unit.state = ata_ready_ ? MediaUnitState::ready : MediaUnitState::empty;
-                unit.saveable = false;
-                if (ata_delta_file_) {
-                    unit.persistence_mode = "persistent"; unit.game_id = ata_identity_.game_id;
-                    unit.base_media_id = ata_identity_.base_media_id; unit.revision = ata_delta_.revision;
-                }
-                result.media_units.insert(result.media_units.begin(), unit);
-            }
+            ReportAtaDisk(&result.media_units);
             ReportDurableMedia(&result.media_units);
 			if (driver != nullptr && driver->StreamInfo(&info).ok()) {
 				result.media_stream.interface = {generated::FesSimpleComputerInterfaceMediaBlobStreamID,
@@ -1499,6 +1526,17 @@ Error NativeHardware::FlushAtaDiskSave()
 	const std::uint64_t deadline = Deadline(clock_, timeouts_.media_io_ms);
 	std::vector<std::uint32_t> dirty;
 	Error error = driver->AtaDiskControl(generated::FesComputerDiskControlFreeze, deadline);
+	// A window that faulted is fatal to its contract: none of its chunks is
+	// stored over the last good save. Freeze fences only the guest's disk
+	// writes, so the other ports run on: the window is checked before the
+	// chunks are read and again before they are published. The disk was
+	// loaded through the window, so it is open here.
+	const auto check_window = [&] {
+		Error checked = hps_window_ ? hps_window_->Blocking() : Error{};
+		if (checked.ok() && hps_window_) checked = hps_window_->Check();
+		return checked;
+	};
+	if (error.ok()) error = check_window();
 	if (error.ok()) error = driver->ReadAtaDirty(deadline, &dirty);
 	constexpr std::uint32_t kChunk = generated::FesComputerAtaDiskChunkBytes;
 	std::vector<AtaDeltaChunk> changed;
@@ -1511,6 +1549,7 @@ Error NativeHardware::FlushAtaDiskSave()
 			kChunk, [&](unsigned char* window) { return ata_delta_file_->WriteChunk(window, length, &sha256); });
 		if (error.ok()) changed.push_back({index, sha256});
 	}
+	if (error.ok()) error = check_window();
 	AtaDiskDelta current;
 	if (error.ok()) error = ata_delta_file_->Read(&current);
 	if (error.ok() && !changed.empty())
@@ -1532,6 +1571,27 @@ void NativeHardware::ForgetAtaDisk()
 	ata_size_ = 0;
 	ata_ready_ = false;
 	ata_flushed_ = false;
+}
+
+// A home computer's ATA disk unit (unit 1 of fes.computer 1.1), first in the
+// list, on both boards.
+void NativeHardware::ReportAtaDisk(std::vector<MediaUnitCapability>* units) const
+{
+	const auto* driver = active_driver_ == fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	if (driver == nullptr || !driver->home_computer() || !driver->AtaDiskCapable()) return;
+	MediaUnitCapability unit;
+	unit.unit = generated::FesComputerAtaDiskUnit;
+	unit.interface = {generated::FesComputerInterfaceMediaAtaDiskID, 1, 0};
+	unit.min_bytes = generated::FesComputerAtaDiskMinBytes;
+	unit.max_bytes = generated::FesComputerAtaDiskMaxBytes;
+	unit.chunk_bytes = generated::FesComputerAtaDiskChunkBytes;
+	unit.state = ata_ready_ ? MediaUnitState::ready : MediaUnitState::empty;
+	unit.saveable = false;
+	if (ata_delta_file_) {
+		unit.persistence_mode = "persistent"; unit.game_id = ata_identity_.game_id;
+		unit.base_media_id = ata_identity_.base_media_id; unit.revision = ata_delta_.revision;
+	}
+	units->insert(units->begin(), unit);
 }
 
 // The durable library disk's binding, on the unit that holds it.
@@ -1994,6 +2054,8 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		fpga_.ProgramStatic(admitted->opened_.payload,
 			admitted->static_composition_->persona(admitted->opened_),
 			admitted->static_composition_->info, Deadline(clock_, timeouts_.program_ms)) :
+		hps_window_ && RequiresHpsDdr(admitted->opened_.descriptor) ?
+		fpga_.ProgramWindowMachine(*bitstream, admitted->profile_, Deadline(clock_, timeouts_.program_ms)) :
 		fpga_.Program(*bitstream, admitted->profile_, Deadline(clock_, timeouts_.program_ms));
 	ObserveProgram("load_core", programmed);
 	if (!programmed.error.ok()) {
@@ -2037,19 +2099,18 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		// live fpga2sdram inputs also match, and before execution is released.
 		// On the DE25 the kernel owner grants this build its window instead,
 		// while the machine is still held.
-		if (hps_window_) {
-			std::array<std::uint32_t,4> words{};
-			error = De25BuildWords(admitted->opened_.descriptor.build.id, &words);
-			if (error.ok()) error = hps_window_->Open(words);
-		} else {
+		// On the DE25 the kernel owner grants this build its window instead,
+		// below, once the session display holds its allocation: the owner
+		// allocates the scanout only while it holds nothing else.
+		if (!hps_window_) {
 			error = fpga_.ReleaseHpsDdrPorts(Deadline(clock_, timeouts_.core_io_ms));
-		}
-		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
-			identified.observed_core, "hps_ddr", error});
-		if (!error.ok()) {
-			const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
-			return {stopped.ok() ? HpsDdrError(std::move(error)) :
-				WithPhase(stopped, "input"), true, identified.observed_core};
+			log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+				identified.observed_core, "hps_ddr", error});
+			if (!error.ok()) {
+				const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
+				return {stopped.ok() ? HpsDdrError(std::move(error)) :
+					WithPhase(stopped, "input"), true, identified.observed_core};
+			}
 		}
 	}
  if(menu||session_display) {
@@ -2059,6 +2120,20 @@ HardwareResult NativeHardware::LoadCoreInternal(
   if(error.ok())error=menu_display_->Configure(Deadline(clock_,timeouts_.core_io_ms));
   if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
  }
+	if (hps_window_ && RequiresHpsDdr(admitted->opened_.descriptor)) {
+		// The machine is still held: its guest memory is cleared and its disk
+		// loaded through the window next.
+		std::array<std::uint32_t,4> words{};
+		error = De25BuildWords(admitted->opened_.descriptor.build.id, &words);
+		if (error.ok()) error = hps_window_->Open(words);
+		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+			identified.observed_core, "hps_ddr", error});
+		if (!error.ok()) {
+			const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
+			return {stopped.ok() ? HpsDdrError(std::move(error)) :
+				WithPhase(stopped, "input"), true, identified.observed_core};
+		}
+	}
 	auto* const computer = fes_gp ? dynamic_cast<FesGpCoreDriver*>(admitted->driver_) : nullptr;
 	if (computer && computer->Pc386MachineCapable() && RequiresHpsDdr(admitted->opened_.descriptor)) {
 		const std::uint64_t started = clock_.NowMs();
@@ -2296,6 +2371,12 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
   menu_underflow_streak_=0;menu_status_.available=true;menu_status_.error={};
   return {};
  }
+ // The owner retires a scanout allocation with REAP, which retires a live
+ // HPS window first and answers EAGAIN while its guest ports run. A running
+ // window machine therefore keeps its session display until it stops, which
+ // quiesces the machine and releases the window before the menu's revoke.
+	if(hps_window_&&hps_window_->IsOpen())
+  return {ErrorCode::busy,"a running HPS-window machine keeps its session display until it stops","menu"};
  const Error revoked=RevokeMenuWindow();
  MenuDisplayInfo info;
  const Error error=menu_display_->Quiesce(deadline,&active_package_->info().descriptor,&info);
@@ -2374,7 +2455,7 @@ HardwareResult NativeHardware::LoadSplashIdle()
 		quiesce_mutation = quiesce_mutation || driver.mutation_attempted;
 		log_.Write({"start", "", "", "driver_quiesce", driver.error});
 		if (driver.error.ok()) {
-			const Error window = ReleaseHpsWindow("start", "", "");
+			const Error window = ReleaseHpsWindow("start", "", "", true);
 			if (!window.ok()) return {WithPhase(window, "quiesce"), true, driver.observed_core};
 		}
   if(!driver.error.ok()) {
@@ -2607,8 +2688,18 @@ Error NativeHardware::FailMenuPresent(const Error& error)
  if(menu_status_.session) {
   // Record the publication failure before retirement can add a second error.
   log_.Write({"session_display","","","present",error});
-  const Error revoked=RevokeMenuWindow();
   menu_underflow_streak_=0;menu_status_.available=false;
+  // Both RevokeMenuWindow and menu_display_->Quiesce call the owner's REAP
+  // on DE25, which retires a live HPS window first and answers EAGAIN while
+  // its guest ports run, latching revoke_failed and stranding Stop. Keep the
+  // scanout allocation pinned and the plane unavailable until Stop quiesces
+  // the machine and releases the window before the menu's revoke.
+	  if(hps_window_&&hps_window_->IsOpen()) {
+   menu_status_.error=error;
+   SetSessionDisplayInputFocus(true);
+   return menu_status_.error;
+  }
+  const Error revoked=RevokeMenuWindow();
   menu_status_.error=revoked.ok()?error:revoked;
   // The only physical recovery is disabling this plane. Never execute hold,
   // program another core, or spend the idle-menu reactivation budget here.

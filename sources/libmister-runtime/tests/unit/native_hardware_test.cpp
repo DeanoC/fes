@@ -286,6 +286,13 @@ public:
 		assert(base.size()==selection.base_size && persona.size()==selection.persona_size);
 		return Program(base,mister::native::ProgrammingProfile::de25_linux_static_computer_v1,deadline);
 	}
+	mister::native::NativeResult ProgramWindowMachine(const mister::native::Artifact& artifact,
+		mister::native::ProgrammingProfile profile, std::uint64_t deadline) override
+	{
+		events_.push_back("fpga.window");++window_calls;
+		return Program(artifact,profile,deadline);
+	}
+	unsigned window_calls=0;
 	bool supports_static=false;
 	unsigned static_calls=0;
 	mister::CoreStaticComposition static_selection;
@@ -792,6 +799,7 @@ public:
 			return {};
 		}
 		++revokes;
+		if (on_disk_revoke) on_disk_revoke();
 		return {};
 	}
 	mister::Error Duplicate(int, int*) override { return {mister::ErrorCode::io_failed, "unused"}; }
@@ -800,7 +808,7 @@ public:
 	std::uint64_t guest_offset = 0;
 	std::vector<std::pair<std::uint64_t, std::uint64_t>> grants;
 	std::vector<GuestGrant> guest_grants;
-	std::function<void()> on_guest_revoke;
+	std::function<void()> on_guest_revoke, on_disk_revoke;
 	unsigned revokes = 0, closes = 0;
 };
 
@@ -932,8 +940,9 @@ bool WaitForState(mister::Runtime& runtime, mister::State state)
 
 struct IntegratedFixture {
 	explicit IntegratedFixture(mister::native::CoreDriver* gp_driver = nullptr,
-		mister::native::IdleRecipe idle_recipe = mister::native::SplashIdle())
-		: native(gp_driver, std::move(idle_recipe)),
+		mister::native::IdleRecipe idle_recipe = mister::native::SplashIdle(),
+		mister::native::MenuMemory* menu_memory = nullptr)
+		: native(gp_driver, std::move(idle_recipe), menu_memory),
 		  runtime(native.hardware, native.log) {}
 	void Start()
 	{
@@ -3312,14 +3321,27 @@ private:
 	std::vector<std::string>& events_;
 };
 
+// Records the menu window's revoke, the owner's REAP, among the driver's events.
+struct RevokeRecordingMemory final : mister::native::MenuMemory {
+	explicit RevokeRecordingMemory(std::vector<std::string>& e) : events(e) {}
+	mister::Error Activate(bool, bool) override { return {}; }
+	mister::Error Revoke() override { events.push_back("menu.revoke"); return {}; }
+	mister::Error Share(int*) const override { return {}; }
+	mister::Error Clean(std::uint8_t, const std::vector<mister::MenuRect>&) const override { return {}; }
+	mister::Error CleanBlit(std::uint32_t, std::uint32_t, const std::vector<mister::MenuSpan>&) const override { return {}; }
+	std::vector<std::string>& events;
+};
+
 void TestDe25WindowIsGrantedPerSession()
 {
-	enum class Trial { offered, not_offered, release_fails, replaced, quiesce_fails, quiesce_and_release_fail };
-	for (const Trial trial : {Trial::offered, Trial::not_offered, Trial::release_fails, Trial::replaced,
+	using namespace mister::native::generated;
+	enum class Trial { offered, not_offered, release_fails, replaced, poisoned_replaced, quiesce_fails, quiesce_and_release_fail };
+	for (const Trial trial : {Trial::offered, Trial::not_offered, Trial::release_fails, Trial::replaced, Trial::poisoned_replaced,
 			Trial::quiesce_fails, Trial::quiesce_and_release_fail}) {
 		std::vector<std::string> driver_events;
 		RecordingDriver gp(driver_events);
-		IntegratedFixture fixture(&gp);
+		RevokeRecordingMemory menu(driver_events);
+		IntegratedFixture fixture(&gp, mister::native::SplashIdle(), &menu);
 		// No boot layout: only the window can admit the interface.
 		fixture.native.fpga.boot_hps_ddr_layout = false;
 		TempDirectory package;
@@ -3340,13 +3362,22 @@ void TestDe25WindowIsGrantedPerSession()
 		}
 		if (!error.ok()) fprintf(stderr, "window load: %s\n", error.message.c_str());
 		assert(error.ok());
-		// Opened after identity, before execution; never the DE10 port path.
+		// Programmed with the window block declared, opened after identity,
+		// before execution; never the DE10 port path.
+		assert(fixture.native.fpga.window_calls == 1);
 		assert(fixture.native.fpga.hps_ddr_calls == 0);
 		assert(Find(driver_events, "driver.identify") < Find(driver_events, "window.allocate"));
 		assert(Find(driver_events, "window.allocate") < Find(driver_events, "driver.start"));
 		assert(window.Ready());
 		const int programs = fixture.native.fpga.calls;
-		if (trial == Trial::replaced) {
+		if (trial == Trial::poisoned_replaced) {
+			owner.grant.status |= FesDe25HpsWindowStatusFault;
+			owner.grant.fault = FesDe25HpsWindowFaultOutside | 1u;
+			assert(window.Check().code == mister::ErrorCode::io_failed);
+			assert(window.IsOpen() && !window.Ready());
+			assert(window.Blocking().code == mister::ErrorCode::unsupported_interface);
+		}
+		if (trial == Trial::replaced || trial == Trial::poisoned_replaced) {
 			// Replacing the core quiesces it, then releases, then programs.
 			TempDirectory plain;
 			mister::native::OpenedCorePackage other;
@@ -3356,9 +3387,16 @@ void TestDe25WindowIsGrantedPerSession()
 				if (programs_at_release < 0 && Count(driver_events, "window.release") == 1)
 					programs_at_release = fixture.native.fpga.calls;
 			};
+			const std::size_t before = driver_events.size();
 			assert(fixture.runtime.LoadCore(plain.path, other.package_id).ok());
 			assert(Find(driver_events, "driver.quiesce") < Find(driver_events, "window.release"));
-			assert(programs_at_release == programs + 1 && !window.Ready());
+			// The owner's REAP revokes the window first and answers EAGAIN while a
+			// guest port runs: the machine is quiesced and the window released
+			// before the replacement's menu revoke.
+			const std::size_t release_at = Find(driver_events, "window.release");
+			for (std::size_t at = before; at < release_at; ++at) assert(driver_events[at] != "menu.revoke");
+			assert(std::find(driver_events.begin() + release_at, driver_events.end(), "menu.revoke") != driver_events.end());
+			assert(programs_at_release == programs + 1 && !window.IsOpen() && !window.Ready());
 			continue;
 		}
 		if (trial == Trial::quiesce_fails || trial == Trial::quiesce_and_release_fail) {
@@ -4026,6 +4064,195 @@ void TestPc386LibraryRecordAndWallClock()
 	assert(rmdir((games + GameDataNamespace("fes.pc386", "ultima-vii")).c_str()) == 0);
 	assert(rmdir((games + GameDataNamespace("fes.pc386", "ultima-viii")).c_str()) == 0);
 	assert(rmdir(games.c_str()) == 0);
+}
+
+// The kernel owner allocates a session display's scanout only while it holds
+// nothing else, so a window machine opens its window after the session
+// display has bound (found on Kit D25: the window first left the bind busy).
+void TestDe25WindowOpensAfterTheSessionDisplayBinds()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;
+ auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest,"fes.simple-game","fes.simple-computer");ReplaceAll(&manifest,"fes.gamepad","fes.keyboard");
+ for(const char* id:{"fes.media.blob","fes.memory.hps-ddr","fes.video.session-display","fes.fabric.video.display-plane"})
+  manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+ OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver real_display(gp,clock);
+ struct ObservingDisplay final : MenuDisplay {
+  MenuDisplay& underlying;std::vector<std::string>& events;
+  ObservingDisplay(MenuDisplay& d,std::vector<std::string>& e):underlying(d),events(e) {}
+  mister::Error ReadInfo(std::uint64_t d,mister::MenuDisplayInfo* o) override {return underlying.ReadInfo(d,o);}
+  mister::Error Configure(std::uint64_t d) override {return underlying.Configure(d);}
+  mister::Error Enable(std::uint64_t d) override {return underlying.Enable(d);}
+  mister::Error Submit(std::uint8_t s,std::uint32_t q,std::uint64_t d) override {return underlying.Submit(s,q,d);}
+  mister::Error Quiesce(std::uint64_t d,const mister::CoreDescriptor* id,mister::MenuDisplayInfo* o) override {
+   events.push_back("menu.quiesce");return underlying.Quiesce(d,id,o);
+  }
+  mister::Error RunBlit(std::uint32_t f,std::uint32_t c,std::uint8_t s,std::uint64_t d) override {return underlying.RunBlit(f,c,s,d);}
+  mister::Error ReadBlit(std::uint64_t d,MenuBlitState* o) override {return underlying.ReadBlit(d,o);}
+ } display(real_display,events);
+ MenuOperations operations;MenuWindow memory(operations);
+ struct BindingMemory final : MenuMemory {
+  MenuMemory& underlying;std::vector<std::string>& events;
+  BindingMemory(MenuMemory& m,std::vector<std::string>& e):underlying(m),events(e) {}
+  mister::Error BindSession(const mister::CoreDescriptor&,std::uint64_t) override {events.push_back("menu.bind");return {};}
+  mister::Error Activate(bool c,bool b) override {return underlying.Activate(c,b);}
+  mister::Error Revoke() override {events.push_back("menu.revoke");return underlying.Revoke();}
+  mister::Error Share(int* fd) const override {return underlying.Share(fd);}
+  mister::Error Clean(std::uint8_t slot,const std::vector<mister::MenuRect>& r) const override {return underlying.Clean(slot,r);}
+  mister::Error CleanBlit(std::uint32_t f,std::uint32_t n,const std::vector<mister::MenuSpan>& r) const override {return underlying.CleanBlit(f,n,r);}
+ } binding(memory,events);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&binding);
+ WindowOwner owner(events,opened.descriptor.build.id);
+ De25HpsWindow window(owner);
+ hardware.SetHpsWindow(&window);
+ fpga.boot_hps_ddr_layout=false;
+ std::unique_ptr<mister::AdmittedCorePackage> admitted;
+ assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
+ MenuGpScript script{&mmio};script.session=true;auto words=FesGpIdentityWords();
+ words[FesGpIdentityAbiTagIndex]=FesSimpleComputerAbiTag;
+ words[FesGpIdentityCapabilitiesIndex]=775;
+ for(auto word:words)script.Reply(word);
+ script.Info(8,0);script.Reply();
+ for(unsigned row=0;row<8;++row){script.Reply();}
+ script.Reply();
+ script.Info(9,0);
+ auto loaded=hardware.LoadCore(std::move(admitted),17);
+ if(!loaded.error.ok())fprintf(stderr,"window after bind: %s\n",loaded.error.message.c_str());
+ assert(loaded.error.ok()&&window.Ready()&&fpga.hps_ddr_calls==0);
+ assert(Find(events,"menu.bind")<Find(events,"window.allocate"));
+ owner.grant.status|=FesDe25HpsWindowStatusFault;
+ owner.grant.fault=FesDe25HpsWindowFaultOutside|1u;
+ assert(window.Check().code==mister::ErrorCode::io_failed);
+ assert(window.IsOpen()&&!window.Ready());
+ // Closing the plane would reap the scanout, and the owner's REAP retires
+ // the live window first (EAGAIN while its ports run): the machine keeps
+ // its session display, and nothing is revoked, until it stops.
+ const std::size_t revokes=Count(events,"menu.revoke");
+ assert(hardware.SetSessionDisplay(false,false).code==mister::ErrorCode::busy);
+ assert(Count(events,"menu.revoke")==revokes&&Count(events,"menu.quiesce")==0&&window.IsOpen()&&!window.Ready());
+ // Opening the plane and hitting a presentation failure marks the plane
+ // unavailable without revoking or quiescing the scanout while the poisoned
+ // window descriptor is still open, so replacement can quiesce the machine
+ // and retire the window before the menu's revoke.
+ for(unsigned row=0;row<8;++row){script.Reply();}
+ script.Reply();script.Info(3,0);
+ assert(hardware.SetSessionDisplay(true,true).ok()&&hardware.menu_display().available);
+ script.Present(0,0,kMenuUnderflowPresentCap+1);
+ mister::MenuDisplayInfo info;
+ assert(!PresentBackSlot(hardware,&info).ok());
+ assert(!hardware.menu_display().available);
+ assert(hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
+ assert(hardware.menu_display().launcher_focus&&Count(events,"menu.revoke")==revokes&&
+  Count(events,"menu.quiesce")==0&&window.IsOpen()&&!window.Ready());
+ // Replacing or stopping the machine quiesces it, releases the window,
+ // and then calls menu.revoke cleanly without a sticky revoke error.
+ TempDirectory plain;OpenedCorePackage other;
+ PopulateHpsDdrApplication(&plain,false,&other);
+ std::unique_ptr<mister::AdmittedCorePackage> plain_admitted;
+ assert(hardware.AdmitCorePackage(plain.path,other.package_id,&plain_admitted).ok());
+ script.Reply();script.Reply(25);script.Reply();
+ script.toggle=false;script.Identity(2);script.Reply();
+ const std::size_t before_stop=events.size();
+ assert(hardware.LoadCore(std::move(plain_admitted),18).error.ok()&&!window.IsOpen()&&!window.Ready());
+ assert(Count(events,"menu.revoke")==revokes+1);
+ const auto stop_begin=events.begin()+before_stop;
+ const auto release_pos=std::find(stop_begin,events.end(),"window.release");
+ const auto revoke_pos=std::find(stop_begin,events.end(),"menu.revoke");
+ assert(release_pos!=events.end()&&revoke_pos!=events.end()&&release_pos<revoke_pos);
+}
+
+// A window that faulted while the machine ran is fatal to its contract: Stop
+// refuses to store any of its disk chunks over the last good save. Disk
+// Freeze fences only guest disk writes, so a fault can also latch while the
+// dirty chunks are being read.
+void TestPc386WindowFaultRefusesTheDiskSave()
+{
+ for (const bool during_read : {false, true}) {
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	const std::uint32_t caps = FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMouseRelative |
+		FesComputerCapabilityMemoryHpsDdr | FesComputerCapabilityMediaAtaDisk |
+		FesComputerCapabilityPersistenceWords | FesComputerCapabilityPc386Machine |
+		FesComputerCapabilityRtcWallClock;
+	mister_test::ComputerEndpoint endpoint(caps, {}, "0123456789abcdef0123456789abcdef");
+	endpoint.abi_minor = 1;
+	endpoint.verify_reads = 0;
+	FixedClock clock(100);
+	FesGp transport(endpoint, clock);
+	FesGpCoreDriver driver(transport);
+	IntegratedFixture fixture(&driver);
+	fixture.native.clock.has_local = true;
+	fixture.native.clock.local.tm_year = 126;
+	fixture.native.clock.local.tm_mday = 1;
+	fixture.native.clock.local.tm_wday = 4;
+	fixture.native.fpga.boot_hps_ddr_layout = false;
+	fixture.native.disk_operations.region.assign(4u << 20, 0xee);
+	endpoint.window = &fixture.native.disk_operations.region;
+	TempDirectory package, data, media, images;
+	auto manifest = Pc386Manifest();
+	for (const auto* id : {"fes.memory.hps-ddr", "fes.media.ata-disk"})
+		manifest += std::string("\n[[interfaces]]\nid = \"") + id + "\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	std::vector<std::string> events;
+	WindowOwner owner(events, opened.descriptor.build.id);
+	De25HpsWindow window(owner);
+	fixture.native.hardware.SetHpsWindow(&window);
+	fixture.Start();
+	fixture.native.fpga.on_program = [&] { endpoint.Reset(); };
+	const std::uint32_t size = 2u << 20;
+	const std::string base(size, '\x5a');
+	Sha256 hash;
+	hash.Update(base.data(), base.size());
+	mister::AtaDiskImage disk{images.File("disk.img", base), size, Sha256Hex(hash.Final()), media.path, 4, 16, 63};
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &disk).ok());
+	assert(Count(events, "window.allocate") == 1 && window.Ready());
+	endpoint.GuestSectorWrite(0, 0x11);
+	const auto fault = [&] {
+		owner.grant.status |= FesDe25HpsWindowStatusFault;
+		owner.grant.fault = 1u | FesDe25HpsWindowFaultOutside;
+	};
+	const unsigned load_revokes = fixture.native.disk_operations.revokes;
+	if (during_read) fixture.native.disk_operations.on_disk_revoke = fault;
+	else fault();
+	const auto stopped = fixture.runtime.Stop();
+	assert(stopped.code == mister::ErrorCode::save_failed &&
+		stopped.message.find("port 0, outside") != std::string::npos);
+	assert(fixture.runtime.status().state == mister::State::running_development);
+	// Nothing was stored, and the window stays held until reprogramming.
+	std::unique_ptr<AtaDeltaFile> file;
+	AtaDiskDelta saved;
+	const MediaDataIdentity identity{"fes.pc386", "ultima-vi", disk.base_media_id, 0};
+	assert(AtaDeltaFile::Open(media.path, identity, size, &file).ok());
+	assert(file->Read(&saved).ok() && saved.revision == "absent" && saved.chunks.empty());
+	assert(Count(events, "window.release") == 0 && window.Blocking().code == mister::ErrorCode::unsupported_interface);
+	file.reset();
+	const std::string ns = media.path + "/" + MediaDataNamespace(identity);
+	if (DIR* chunks = opendir(ns.c_str())) {
+		// Chunks read before the late fault are unreferenced: nothing published them.
+		while (const dirent* entry = readdir(chunks))
+			if (entry->d_name[0] != '.') assert(unlink((ns + "/" + entry->d_name).c_str()) == 0);
+		closedir(chunks);
+	}
+	assert(rmdir(ns.c_str()) == 0);
+	const std::string games = data.path + "/games/";
+	assert(rmdir((games + GameDataNamespace("fes.pc386", "ultima-vi")).c_str()) == 0 && rmdir(games.c_str()) == 0);
+	// The late fault came after the chunk was read: it was read, not published.
+	assert((fixture.native.disk_operations.revokes > load_revokes) == during_read);
+ }
 }
 
 // A pc386 launch writes the base image with its game's delta into the
@@ -6577,6 +6804,8 @@ int main(int argc,char** argv)
 	TestProductionFactoryForwardsCoreDataWithoutHardwareMutation();
 	TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation();
 	TestPc386AtaDiskLaunchSaveAndRestore();
+	TestPc386WindowFaultRefusesTheDiskSave();
+	TestDe25WindowOpensAfterTheSessionDisplayBinds();
 	TestPc386DiskFaultSaveRealignsMailbox();
 	TestPongInputFaultDoesNotCapture();
 	TestPc386LibraryRecordAndWallClock();

@@ -3,6 +3,7 @@ package controllers
 
 import (
 	"encoding/binary"
+	"hash/crc32"
 	"testing"
 )
 
@@ -160,6 +161,41 @@ func TestParseDualSenseAndDS4USBAndBuilders(t *testing.T) {
 	}
 }
 
+func TestDualSenseAndDS4RumbleOnlyOutputs(t *testing.T) {
+	var btBuf [DualSenseBTOutputLen]byte
+	if BuildDualSenseBTRumble(btBuf[:], 0x05, 0x44, 0x22) != DualSenseBTOutputLen ||
+		btBuf[0] != DualSenseBTReportFull || btBuf[1] != 0x50 || btBuf[3] != 0x03 || btBuf[4] != 0x00 ||
+		btBuf[5] != 0x44 || btBuf[6] != 0x22 || btBuf[46] != 0 || btBuf[47] != 0 || btBuf[48] != 0 || btBuf[49] != 0 {
+		t.Fatalf("unexpected DualSense BT rumble-only report: %x", btBuf[:])
+	}
+	wantCRC := crc32.Update(crc32.Update(0, crc32.IEEETable, []byte{0xa2}), crc32.IEEETable, btBuf[:74])
+	if gotCRC := binary.LittleEndian.Uint32(btBuf[74:78]); gotCRC != wantCRC {
+		t.Fatalf("DualSense BT rumble-only CRC mismatch: got %#08x want %#08x", gotCRC, wantCRC)
+	}
+
+	if BuildDualShock4BTRumble(btBuf[:], 0x66, 0x33) != DualSenseBTOutputLen ||
+		btBuf[0] != DualShock4BTReportFull || btBuf[1] != 0xc0 || btBuf[3] != 0x01 ||
+		btBuf[6] != 0x66 || btBuf[7] != 0x33 || btBuf[8] != 0 || btBuf[9] != 0 || btBuf[10] != 0 {
+		t.Fatalf("unexpected DS4 BT rumble-only report: %x", btBuf[:])
+	}
+	wantCRC = crc32.Update(crc32.Update(0, crc32.IEEETable, []byte{0xa2}), crc32.IEEETable, btBuf[:74])
+	if gotCRC := binary.LittleEndian.Uint32(btBuf[74:78]); gotCRC != wantCRC {
+		t.Fatalf("DS4 BT rumble-only CRC mismatch: got %#08x want %#08x", gotCRC, wantCRC)
+	}
+
+	var usbBuf [DualSenseUSBOutputLen]byte
+	if BuildDualSenseUSBRumble(usbBuf[:], 0x77, 0x55) != DualSenseUSBOutputLen ||
+		usbBuf[0] != 0x02 || usbBuf[1] != 0x03 || usbBuf[2] != 0x00 ||
+		usbBuf[3] != 0x77 || usbBuf[4] != 0x55 || usbBuf[44] != 0 || usbBuf[45] != 0 {
+		t.Fatalf("unexpected DualSense USB rumble-only report: %x", usbBuf[:])
+	}
+	if BuildDualShock4USBRumble(usbBuf[:], 0x88, 0x11) != DualShock4USBOutputLen ||
+		usbBuf[0] != 0x05 || usbBuf[1] != 0x01 ||
+		usbBuf[4] != 0x88 || usbBuf[5] != 0x11 || usbBuf[6] != 0 || usbBuf[7] != 0 || usbBuf[8] != 0 {
+		t.Fatalf("unexpected DS4 USB rumble-only report: %x", usbBuf[:DualShock4USBOutputLen])
+	}
+}
+
 func TestWiredControllersZeroAllocs(t *testing.T) {
 	var xi [XInputInputLen]byte
 	xi[1] = 0x14
@@ -170,7 +206,7 @@ func TestWiredControllersZeroAllocs(t *testing.T) {
 	var ds4 [64]byte
 	ds4[0] = 0x01
 	var st State
-	var out [64]byte
+	var out [DualSenseBTOutputLen]byte
 
 	allocs := testing.AllocsPerRun(200, func() {
 		ParseXInput(xi[:], &st)
@@ -186,7 +222,11 @@ func TestWiredControllersZeroAllocs(t *testing.T) {
 		BuildXboxGIPAck(out[:], 1, 0x07, 2)
 		BuildXboxGIPRumble(out[:], 2, 10, 20)
 		BuildDualSenseUSBOutput(out[:], 0, 10, 20)
+		BuildDualSenseUSBRumble(out[:], 10, 20)
 		BuildDualShock4USBOutput(out[:], 0, 10, 20)
+		BuildDualShock4USBRumble(out[:], 10, 20)
+		BuildDualSenseBTRumble(out[:], 1, 10, 20)
+		BuildDualShock4BTRumble(out[:], 10, 20)
 		BuildSwitchProUSBHandshake(out[:])
 		BuildSwitchProUSBEnableHID(out[:])
 	})
