@@ -460,7 +460,7 @@ func (e *lnetoEngine) listenTCP(port uint16) (*tcp.Listener, *pinnedTCPPool, net
 	return ln, pinned, netip.AddrPortFrom(ip4, port), nil
 }
 
-func (e *lnetoEngine) dialTCP(ctx context.Context, remote netip.AddrPort) (*tcp.Conn, netip.AddrPort, uint64, error) {
+func (e *lnetoEngine) dialTCP(ctx context.Context, remote netip.AddrPort, requestedLocalPort uint16) (*tcp.Conn, netip.AddrPort, uint64, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -488,17 +488,21 @@ func (e *lnetoEngine) dialTCP(ctx context.Context, remote netip.AddrPort) (*tcp.
 			return nil, netip.AddrPort{}, 0, err
 		}
 
-		var localPort uint16
+		localPort := requestedLocalPort
 		var localIP netip.Addr
 		var connID uint64
 		e.mu.Lock()
 		localIP = netip.AddrFrom4(e.stack.Addr4())
-		for attempt := 0; attempt < lnetoMaxPortRetries; attempt++ {
-			localPort = e.nextEphemeralPortLocked()
-			err = e.stack.DialTCP(conn, localPort, remote)
-			if err == nil || !errors.Is(err, lneto.ErrAlreadyRegistered) {
-				break
+		if requestedLocalPort == 0 {
+			for attempt := 0; attempt < lnetoMaxPortRetries; attempt++ {
+				localPort = e.nextEphemeralPortLocked()
+				err = e.stack.DialTCP(conn, localPort, remote)
+				if err == nil || !errors.Is(err, lneto.ErrAlreadyRegistered) {
+					break
+				}
 			}
+		} else {
+			err = e.stack.DialTCP(conn, localPort, remote)
 		}
 		if err == nil {
 			if idPtr := conn.ConnectionID(); idPtr != nil {
@@ -647,6 +651,14 @@ func (e *lnetoEngine) Socket(ctx context.Context, network string, family, sotype
 	default:
 		return nil, lneto.ErrUnsupported
 	}
+	var localPort uint16
+	if laddr != nil {
+		local, ok := tcpAddrPort(laddr)
+		if !ok {
+			return nil, lneto.ErrInvalidAddr
+		}
+		localPort = local.Port()
+	}
 
 	if raddr != nil {
 		remote, ok := tcpAddrPort(raddr)
@@ -654,7 +666,7 @@ func (e *lnetoEngine) Socket(ctx context.Context, network string, family, sotype
 			return nil, lneto.ErrInvalidAddr
 		}
 		if remote.IsValid() && !remote.Addr().IsUnspecified() {
-			conn, local, connID, err := e.dialTCP(ctx, remote)
+			conn, local, connID, err := e.dialTCP(ctx, remote, localPort)
 			if err != nil {
 				return nil, err
 			}
@@ -668,15 +680,7 @@ func (e *lnetoEngine) Socket(ctx context.Context, network string, family, sotype
 		}
 	}
 
-	var port uint16
-	if laddr != nil {
-		local, ok := tcpAddrPort(laddr)
-		if !ok {
-			return nil, lneto.ErrInvalidAddr
-		}
-		port = local.Port()
-	}
-	ln, pool, local, err := e.listenTCP(port)
+	ln, pool, local, err := e.listenTCP(localPort)
 	if err != nil {
 		return nil, err
 	}

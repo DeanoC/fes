@@ -102,7 +102,7 @@ func (l *Link) DialTCP(ctx context.Context, addr netip.AddrPort) (net.Conn, erro
 		return nil, err
 	}
 	if l.engine != nil {
-		conn, local, connID, err := l.engine.dialTCP(ctx, addr)
+		conn, local, connID, err := l.engine.dialTCP(ctx, addr, 0)
 		if err != nil {
 			return nil, err
 		}
