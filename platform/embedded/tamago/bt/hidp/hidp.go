@@ -394,9 +394,9 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 			if _, ok := slot.effectiveLEDPort(); ok {
 				var err error
 				if slot.Kind == controllers.KindDualShock4 {
-					err = s.sendDualShock4Output(slot, 0, 0)
+					err = s.sendDualShock4Output(slot, slot.rumbleRight, slot.rumbleLeft)
 				} else {
-					err = s.sendDualSenseOutput(slot, 0, 0)
+					err = s.sendDualSenseOutput(slot, slot.rumbleRight, slot.rumbleLeft)
 				}
 				if err != nil {
 					return
