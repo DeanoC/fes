@@ -54,7 +54,7 @@ func (s *Store) SetCoreEntryMediaSet(ctx context.Context, gameID, expectedPackag
 	if entry.PackageID != expectedPackageID || entry.MediaID != expectedMediaID || !slices.Equal(SetMediaIDs(entry.MoreMedia), expectedMore) {
 		return CoreEntry{}, ErrCoreEntryConflict
 	}
-	if entry.MediaRole != protocol.DiskRole && entry.MediaRole != protocol.CassetteRole {
+	if entry.MediaRole != protocol.DiskRole && entry.MediaRole != protocol.CassetteRole && entry.MediaRole != protocol.FloppyRole {
 		return CoreEntry{}, fmt.Errorf("%w: only a disk or a cassette can start a set", ErrInvalidCoreMedia)
 	}
 	// A disk made on a shelf is one work disk. Its rename is a copy and a

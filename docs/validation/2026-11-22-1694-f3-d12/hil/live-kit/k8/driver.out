@@ -1,0 +1,14 @@
+2026-11-25 08:06:32 lease held baac189c8eecb7d8e430f407d2f42b6ddbdf50f5c076ad1a9555e7044797df44 game f3-floppy-7dz3bzwmrrmy
+2026-11-25 08:07:13 load {'state': 'active', 'package_id': None}
+2026-11-25 08:07:23 GOAL freedos PASS {"seconds_to_detect": 0.6, "frame": "frames/boot1-prompt.png"}
+2026-11-25 08:08:10 GOAL launch1 PASS {"frames": ["frames/dir-a.png", "frames/dir-b.png", "frames/type-ab.png", "frames/write-b.png"]}
+2026-11-25 08:08:30 load {'state': 'active', 'package_id': None}
+2026-11-25 08:08:40 GOAL relaunch PASS {"seconds_to_detect": 0.6, "frame": "frames/boot2-prompt.png"}
+2026-11-25 08:09:09 live {'op': ['eject', '2'], 'rc': 1, 'error': 'f3live: eject: KIT_LEASE_DENIED: kit lease unavailable; inspect target ownership before starting a new session'}
+2026-11-25 08:09:12 live {'op': ['insert', '2'], 'rc': 2, 'error': 'panic: runtime error: invalid memory address or nil pointer dereference\n[signal SIGSEGV: segmentation violation code=0x1 addr=0x60 pc=0x695551]\n\ngoroutine 1 [running]:\nmain.main()\n\t/home/deano/fes/.claude/worktrees/tier-1-core-screens-85ca5d/sources/FogCast/internal/zzf3live_build/main.go:85 +0x951'}
+2026-11-25 08:09:39 live {'op': ['eject', '2'], 'rc': 1, 'error': 'f3live: eject: KIT_LEASE_DENIED: kit lease unavailable; inspect target ownership before starting a new session'}
+2026-11-25 08:09:39 GOAL live FAIL {"ops": [{"op": ["eject", "2"], "rc": 1, "error": "f3live: eject: KIT_LEASE_DENIED: kit lease unavailable; inspect target ownership before starting a new session"}, {"op": ["insert", "2"], "rc": 2, "error": "panic: runtime error: invalid memory address or nil pointer dereference\n[signal SIGSEGV: se
+2026-11-25 08:09:39 FAILED AcceptanceError: goal live failed
+2026-11-25 08:09:43 lease released
+2026-11-25 08:09:45 FAIL AcceptanceError: goal live failed
+RESULT FAIL

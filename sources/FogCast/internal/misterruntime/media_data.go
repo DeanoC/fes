@@ -16,8 +16,13 @@ type protocol2LibraryMediaControl interface {
 }
 
 func (c *Client) InsertLibraryMedia(ctx context.Context, path, root string, b protocol.LibraryMediaBinding, size uint32) (Protocol2Response, error) {
-	if !validRuntimePath(path) || !validRuntimePath(root) || !b.Valid() || !protocol.AdmitLibraryFloppySize(int64(size)) {
+	if !validRuntimePath(path) || !validRuntimePath(root) || !b.Valid() || !b.AdmitsSize(int64(size)) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	// write_protected is sent only for pc386's A: and B:, which alone take it.
+	var protect *bool
+	if protocol.PcFloppyUnit(b.Unit) {
+		protect = &b.WriteProtected
 	}
 	line, _, err := c.callRawTracked(ctx, struct {
 		Protocol   int    `json:"protocol"`
@@ -30,7 +35,8 @@ func (c *Client) InsertLibraryMedia(ctx context.Context, path, root string, b pr
 		Root       string `json:"data_root"`
 		GameID     string `json:"game_id"`
 		BaseID     string `json:"base_media_id"`
-	}{2, "insert_library_media", path, b.PackageID, b.Generation, b.Unit, size, root, b.GameID, b.BaseMediaID})
+		Protect    *bool  `json:"write_protected,omitempty"`
+	}{2, "insert_library_media", path, b.PackageID, b.Generation, b.Unit, size, root, b.GameID, b.BaseMediaID, protect})
 	if err != nil {
 		return Protocol2Response{}, err
 	}
@@ -53,7 +59,7 @@ func (c *Client) SaveMedia(ctx context.Context, b protocol.MediaUnitBinding) (Pr
 	return decodeComputerMediaResponse(line, b.PackageID, b.Generation)
 }
 func (r *Runtime) InsertLibraryMedia(ctx, owner context.Context, size int64, body io.Reader, b protocol.LibraryMediaBinding) ([]protocol.MediaUnitStatus, *protocol.APIError) {
-	if !b.Valid() || !protocol.AdmitLibraryFloppySize(size) {
+	if !b.Valid() || !b.AdmitsSize(size) {
 		return nil, protocol.MediaUnitRequestError()
 	}
 	if _, ok := r.control.(protocol2LibraryMediaControl); !ok {

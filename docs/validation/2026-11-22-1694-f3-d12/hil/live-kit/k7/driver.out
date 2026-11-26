@@ -1,0 +1,7 @@
+2026-11-25 08:00:34 lease held 78df87950737c853f227db15edcced4251154fc42f745ec0e75d704515b7bfaa game f3-floppy-od6psdvprlj2
+2026-11-25 08:01:13 load {'state': 'active', 'package_id': None}
+2026-11-25 08:01:23 GOAL freedos PASS {"seconds_to_detect": 0.6, "frame": "frames/boot1-prompt.png"}
+2026-11-25 08:02:07 FAILED KitError: /v1/input/detach: HTTP 503 {"code": "MISTER_UNAVAILABLE", "message": "remote input is unavailable"}
+2026-11-25 08:02:10 lease released
+2026-11-25 08:02:13 FAIL KitError: /v1/input/detach: HTTP 503 {"code": "MISTER_UNAVAILABLE", "message": "remote input is unavailable"}
+RESULT FAIL

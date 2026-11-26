@@ -4393,6 +4393,14 @@ Machine settings are a per-game record on the kit, read and written with the
 library game ([package library](core-package-library.md#pc386-hard-disk-entries)).
 The fixed disk takes no live media operations; Stop saves its delta.
 
+For a pc386 package that declares `fes.media.pc-floppy`, a library entry with
+the `floppy` role selects disk 1 as its boot image. Catalog selection and Home
+readiness require an image readable by drive A:. Launch checks again before
+staging an existing entry, then uploads the image by digest and binds it to
+A: in the library load with the ATA disk empty. The BIOS tries A: then C:.
+B:-only images can be imported and inserted into B: during a running session.
+The live media path checks the geometry against the requested drive.
+
 ## Initial Atari ST library disk
 
 A writable format-3 ST library launch may omit the disk and boot to GEM with

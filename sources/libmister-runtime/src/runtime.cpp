@@ -5,6 +5,7 @@
 
 #include "libmister-runtime/runtime.h"
 #include "native/diagnostic.hpp"
+#include "native/media_data.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_computer.hpp"
@@ -479,7 +480,7 @@ public:
 		const std::string& programmed_path = "", const std::string& programmed_sha256 = "", const CoreROMLink* rom_link = nullptr,
 		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr,
 		const std::string& game_id = "", const AtaDiskImage* disk = nullptr,
-		const std::string& firmware_path = "")
+		const std::string& firmware_path = "", const std::vector<InitialComputerMedia>* floppies = nullptr)
 	{
 		if (composition && composition->has_static_selection &&
 			(!programmed_path.empty() || rom_link || rom_links || initial_media || !game_id.empty() || disk ||
@@ -561,6 +562,8 @@ public:
 			Error prepared = hardware_.PrepareCoreData(package.get(), data_root, game_id, &data);
 			if (prepared.ok() && disk != nullptr)
 				prepared = hardware_.PrepareAtaDisk(package.get(), game_id, *disk);
+			if (prepared.ok() && floppies != nullptr && !floppies->empty())
+				prepared = hardware_.PreparePc386Floppies(package.get(), *floppies);
 			if (!prepared.ok()) {
 				{
 					std::lock_guard<std::mutex> lock(mutex_);
@@ -1140,8 +1143,10 @@ public:
 		const std::string& root, const MediaDataBinding& binding)
 	{
 		if (!ValidAbsolutePath(path) || !ValidAbsolutePath(root) || !ValidPackageId(package_id) ||
-			!ValidPackageId(binding.base_media_id) || generation == 0 || unit != 0 || binding.unit != unit ||
-			(size != native::generated::FesComputerPcxtFloppyBytes && !native::InferAtariStGeometry(size)) ||
+			!ValidPackageId(binding.base_media_id) || generation == 0 || binding.unit != unit ||
+			(unit == native::generated::FesComputerPcFloppyUnitA || unit == native::generated::FesComputerPcFloppyUnitB ?
+				!native::PcFloppySizeAdmitted(size) :
+				unit != 0 || (size != native::generated::FesComputerPcxtFloppyBytes && !native::InferAtariStGeometry(size))) ||
 			!ValidLibraryGameId(binding.game_id))
 			return Invalid("invalid library media request");
 		std::string system, core;
@@ -1732,12 +1737,18 @@ Error Runtime::LoadComposedCore(const std::string& directory, const std::string&
 	return impl_->LoadCore(directory, id, "", &request);
 }
 Error Runtime::LoadLibraryCore(const std::string& directory, const std::string& id,
-	const std::string& root, const std::string& game_id, const AtaDiskImage* disk)
+	const std::string& root, const std::string& game_id, const AtaDiskImage* disk,
+	const std::vector<InitialComputerMedia>* floppies)
 {
 	if (!ValidAbsolutePath(root) || (disk && (game_id.empty() || !ValidAbsolutePath(disk->path) ||
 		!ValidAbsolutePath(disk->data_root))))
 		return Invalid("invalid core-data root or ATA disk");
-	return impl_->LoadCore(directory, id, root, nullptr, "", "", nullptr, nullptr, nullptr, game_id, disk);
+	if (floppies)
+		for (const auto& floppy : *floppies)
+			if (!ValidAbsolutePath(floppy.path) || !ValidAbsolutePath(floppy.data_root) ||
+				!native::PcFloppySizeAdmitted(floppy.size) || game_id.empty() || floppy.binding.game_id != game_id)
+				return Invalid("invalid launch floppy");
+	return impl_->LoadCore(directory, id, root, nullptr, "", "", nullptr, nullptr, nullptr, game_id, disk, "", floppies);
 }
 Error Runtime::LoadLibraryPartsCore(const std::string& directory, const std::string& id,
 	const std::string& root, const CoreCompositionRequest& request)

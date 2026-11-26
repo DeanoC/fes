@@ -61,8 +61,15 @@ func (s *Service) InsertLibraryDisk(parent context.Context, b protocol.LibraryMe
 	if err != nil {
 		return protocol.Status{}, mediaUnchanged(err)
 	}
-	// Any disk of the title's set may go in; each keeps its own saved record.
-	if entry.PackageID != b.PackageID || (entry.MediaID != b.BaseMediaID && !slices.Contains(catalog.SetMediaIDs(entry.MoreMedia), b.BaseMediaID)) || entry.MediaRole != "disk" {
+	// Unit 0 takes any disk of the title's set; each keeps its own saved
+	// record. pc386's A: and B: take any floppy image in the library, so a
+	// hard-disk entry can boot install floppies; its record is keyed by this
+	// title's game and the floppy's own image, and the drive checks its size.
+	if protocol.PcFloppyUnit(b.Unit) {
+		if entry.PackageID != b.PackageID || entry.CoreID != protocol.Pc386CoreID {
+			return protocol.Status{}, mediaUnchanged(protocol.MediaUnitIdentityError())
+		}
+	} else if entry.PackageID != b.PackageID || (entry.MediaID != b.BaseMediaID && !slices.Contains(catalog.SetMediaIDs(entry.MoreMedia), b.BaseMediaID)) || entry.MediaRole != protocol.DiskRole {
 		return protocol.Status{}, mediaUnchanged(protocol.MediaUnitIdentityError())
 	}
 	store, ok := s.catalog.(coreMediaCatalog)
@@ -74,7 +81,10 @@ func (s *Service) InsertLibraryDisk(parent context.Context, b protocol.LibraryMe
 		return protocol.Status{}, mediaUnchanged(mapCoreMediaError(err))
 	}
 	defer reader.Close()
-	if !protocol.AdmitLibraryFloppySize(info.Size) {
+	if protocol.PcFloppyUnit(b.Unit) && !b.AdmitsSize(info.Size) {
+		return protocol.Status{}, mediaUnchanged(protocol.PcFloppySizeError(b.Unit, info.Size))
+	}
+	if !b.AdmitsSize(info.Size) {
 		return protocol.Status{}, mediaUnchanged(protocol.DiskMediaRequestError())
 	}
 	status, err := s.insertBoundMediaUnitLocked(ctx, info.Size, reader, b.MediaUnitBinding, &b)

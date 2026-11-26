@@ -156,6 +156,16 @@ public:
 		std::uint16_t sectors_per_track, std::uint32_t crc, std::uint64_t deadline);
 	// After Freeze: the ascending chunk indices of the dirty map.
 	Error ReadAtaDirty(std::uint64_t deadline, std::vector<std::uint32_t>* chunks);
+	// fes.media.pc-floppy 1.0: drives A: (unit 1) and B: (unit 2) beside the
+	// ATA disk, on the same Disk operations, valid while execution runs.
+	bool PcFloppyCapable() const { return pc_floppy_; }
+	Error FloppyControl(std::uint8_t unit, std::uint16_t argument, std::uint64_t deadline);
+	// DiskCommit words unit*8+0..7 (word 7 write-protect) and Commit, then
+	// DiskInfo until the core's CRC pass ends, as CommitAtaDisk.
+	Error CommitFloppy(std::uint8_t unit, std::uint32_t sectors, std::uint16_t cylinders, std::uint16_t heads,
+		std::uint16_t sectors_per_track, std::uint32_t crc, bool write_protected, std::uint64_t deadline);
+	// DiskInfo field 6 of a floppy unit: bit 0 dirty, 1 frozen, 3 CRC error.
+	Error ReadFloppyFlags(std::uint8_t unit, std::uint64_t deadline, std::uint16_t* flags);
 	// fes.rtc.wall-clock 1.0: the four words of a local time, while held. A
 	// time before kWallClockSyncedFloor is an unsynced kit clock and sends the
 	// floor instead.
@@ -242,6 +252,7 @@ private:
 	bool wall_clock_ = false;
 	bool pc386_machine_ = false;
 	bool ata_disk_ = false;
+	bool pc_floppy_ = false;
 	bool firmware_upload_ = false;
 	// This session saw the endpoint report a ready image.
 	bool firmware_ready_ = false;
