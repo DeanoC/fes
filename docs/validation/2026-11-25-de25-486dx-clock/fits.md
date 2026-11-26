@@ -979,11 +979,21 @@ both the 5.046 ns data bound and the 8.296 ns setup bound while running
 with router timing optimization at Normal. The seed summary SHA-256 is
 `6f285be5f2574fe0471f56df306e18c8d0edee5210f59f6eed1b277a62ebe59a`.
 
+Seed 1 reproduced the display-command failure on five paths, with
+−0.168 ns worst data slack on `payload[23] → pixel_index[7]` and
+−0.428 ns total negative slack. Its setup floor was +0.018 ns and worst
+hold was 0.000 ns. It used 44,791.3 ALMs and 42 DSPs, measured 2.532 ns
+independent LOADED, and failed no unreviewed CDC rule. The seed summary
+SHA-256 is
+`2cf4222693e1c742a0c2e897e3431047236bd9c40e9ffec69cfc0e697f0d4545`.
+
 Revision `3fa87187a579d401dfbc0f739e29b665b45c480a` increases router
 timing optimization to Maximum for the 486DX with C0 = 26 or 24.
 Registered seed 2 preparation from the same vendor archive adds that
-single assignment to the pre-generation compiler QSF. The SDC is
-byte-identical at SHA-256
+single assignment. The generated QSF passed to Quartus also differs at
+that one line, with receipt SHA-256
+`06bb76ef61a702f8ad9ce60076c3b997331c86a141dca0120dcd924ce2c0a7d0`.
+The SDC is byte-identical at SHA-256
 `4bf5d251c642ff4bf195b45e55e7593b22fc7ebf34c7200091a4b1330e18457d`.
 A separate dry build of the original source at its original BUILD_ID
 changes anonymous names in the Yosys netlist when staged in a different
@@ -995,9 +1005,32 @@ The exact candidate must pass the normal timing, seal and LOADED checks.
 The same-path DE10 control still matches all netlist bytes and four
 identities against `2f19382b`. Its receipt SHA-256 is
 `47b339aa08947248e983b8f89318ba0ad30532201e8cec77ad0a971bdca39ec5`.
-All seven DE25 D12 input selections match `4fe7bada`.
+All seven DE25 D12 input selections match `4fe7bada`. `make check` and
+44 focused tests passed on the candidate.
 The C0 = 24 child `bbf65586855a8c0abf0a1be082ce9aae6d75c9e7`
 has the expected 130.555556 MHz clock inputs and remains gated on C0 = 26.
+
+The fitter confirmed Maximum router effort and Balanced optimization for
+`3fa87187` seed 2. Ordinary setup was +0.018 ns, hold +0.001 ns and
+removal +0.002 ns. Independent LOADED was 2.660 ns and the fit used
+45,097.9 ALMs and 42 DSPs. The registered producer refused the fit on
+six display-command data paths at slow fix4 0 °C. Worst slack was
+−0.166 ns and total negative slack was −0.587 ns. The worst bit,
+`payload[15] → pixel_argument[15]`, occupied adjacent sites and the
+fitter reported 3.355 ns of added hold routing. The sets of failed bits
+in the Normal and Maximum seed 2 fits were disjoint, so each failed bit
+has a passing route under the same constraints in the other fit. The
+seed summary SHA-256 is
+`f97f9993236aa60ce378e27dc219443c82ebba924fef92ee03d828ac42f4eee1`.
+
+Revision `82d86217fd2656e1f1ee4c1c7abf2a358a98f904` also selects High
+Performance Effort for the same DX rungs. The preflight staged both
+revisions in the same checkout and found byte-identical machine netlists
+and SDC. Across 141 staged project files, the QSF gained the one
+optimization assignment and the integration Tcl reflected the expected
+BUILD_ID and generated paths. `make check`, the 44 focused tests and
+all seven D12 input selections passed. The preflight receipt SHA-256 is
+`0ed2b2a3770c4cc8a35362c41e6c07df0d6eaedb29bee54ac4daca77ed4db084`.
 
 ## Running a seed on either builder
 
