@@ -225,8 +225,12 @@ Doom reached the same flip-40 handover at cycle 2,678,438,006 on both
 arms. It measured 2,183.921 normalized DX-33 realtics against the 4,682
 limit. 3DBench's DX/reference CPI ratio was 1.0145385. All 48 paired raw
 3DBench frame captures match the earlier `9259873f` replay. G5 is
-still running. Its protected retirement count already differs from
-`9259873f` at guest time 10 seconds, so it has its own result.
+still running. Its protected retirement count differs from
+`9259873f` at guest time 10 seconds. At guest time 15 seconds the
+integrated replay rendered the Necropolis demo with 411,381,016 RTL
+retirements, including 187,108,920 protected retirements. The first-demo
+receipt SHA-256 is
+`7dec9af2ea71ed62d29f0350b423bce49c753c8739df7eff2aab5db9b077ee8b`.
 
 The router-effort candidate `3fa87187a579d401dfbc0f739e29b665b45c480a`
 reproduced the game compile inputs for both arms. The comparison

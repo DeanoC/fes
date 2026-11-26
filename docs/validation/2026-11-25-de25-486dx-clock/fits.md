@@ -991,6 +991,15 @@ Seed 3 measured −0.158 ns on `payload[20] → pixel_index[4]` with
 0.000 ns and independent LOADED 2.870 ns. It used 45,181.0 ALMs and
 42 DSPs. The seed summary SHA-256 is
 `c331645a94d88b3db99b199e1429f3d91d43bc80e436401d1d4610584c01f1b5`.
+Seed 4 measured −0.175 ns worst data slack and −0.878 ns total negative
+data slack. Its worst ordinary setup was +0.009 ns and hold was
+0.000 ns. Independent LOADED was 2.523 ns. It used 45,072.8 ALMs and
+42 DSPs. All four seeds passed the ordinary setup, hold, recovery and
+removal limits and independent LOADED. All four failed the command data
+bound. The seed 4 summary SHA-256 is
+`b58eaec073eb0f3c683d3750a9f474aa877e9a124d896ca5cf1bd201fcefc8aa`.
+The four-seed result SHA-256 is
+`fadfd9c6b2bb4978b825d87737d02f69cec1e93a60271f8377a576985679bd92`.
 
 Revision `3fa87187a579d401dfbc0f739e29b665b45c480a` increases router
 timing optimization to Maximum for the 486DX with C0 = 26 or 24.
@@ -1056,6 +1065,17 @@ register names. The read-only numerical follow-up on the copied fit
 passed 112 checks with +0.607 ns worst setup and +0.163 ns worst hold.
 The numerical receipt SHA-256 is
 `92499577348bedd9c4a292ca77785e8885f6f5f8a607a6f01bca309fc2d29e08`.
+An independently leased copy reproduced all 112 timing rows and passed
+32 keeper checks. The four registers and their connected keepers were
+on the machine clock, with 16,627 outgoing keepers per register. The
+unconstrained-path report contained none of the four exact names.
+The original fit's 1,916 files matched before and after the review.
+The structural receipt SHA-256 is
+`6bed67d1d4844007ccc21fff1341da7f703cb47c979a9cca3b911c86f5713b8a`.
+Revision `18e1de7e18f81b9d3e7a49a4262230e266f23703` recognizes just
+those four register names in the existing mandatory DX fitted proof.
+`make check` and 56 focused tests passed. The register proof and the
+measured command-data failure remain independent checks.
 
 ## Running a seed on either builder
 
