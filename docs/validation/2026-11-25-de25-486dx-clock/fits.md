@@ -485,12 +485,36 @@ the subject to resolve in the exact fitted graph. Each site must agree
 with the DRC coordinates and pass the same ownership, all-corner slack,
 connectivity, and cut and unconstrained path checks.
 
+### C0 = 32 qualifier rerun
+
+All four fresh seeds qualified 97.916667 MHz at
+`54fe2d45ac1d97779aa81584d87c90853e84b066`. The fitted netlist SHA-256
+is `ad0a331d6f02c529ac55ed93542764fbc5576345f25c61064085a551a836fd33`
+for all four, matching the preceding eight-cycle sweep. The intended
+PLL counters, ordinary timing and sealing, and the independent LOADED
+gate passed for every seed. The largest LOADED measurement was 3.180 ns
+against the 3.9 ns cap.
+
+| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Seed summary SHA-256 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 45,014.0 | +0.310 ns | +0.001 ns | +7.267 ns | +0.064 ns | 2.255 ns | `7c248185ea5d6cc166d213260d4f4bb47f6bab5117d4581d114eda0bea13b362` |
+| 2 | 45,146.1 | +0.806 ns | 0.000 ns | +7.122 ns | +0.114 ns | 2.455 ns | `2eb01945e486a990009dd465e4af04827bacb4577f3aed7726bb693bc8fcf7a0` |
+| 3 | 45,089.0 | +0.348 ns | +0.001 ns | +6.702 ns | +0.104 ns | 3.180 ns | `f3c55f16ac1c9b91b04c1223a7d5c89b9987d716de3b6d3687b5491c5bce461d` |
+| 4 | 44,810.3 | +0.553 ns | 0.000 ns | +6.968 ns | +0.059 ns | 2.831 ns | `9d15df0c5e6ac0ebda18266decbc8e1d19a9f99e36c37e002b0a46d4de9bbf8e` |
+
+The retained `c32-qualifier/summary.json` SHA-256 is
+`0dbfb9dfbe46203a0ccebff68189576dedf7ff1208b21fe403cc5f3229e2635f`.
+The exact software comparison from `7e3227f6` to `54fe2d45` matched
+all exercised sources and generated simulation inputs. G2 and G4 pass.
+Quake is still running the full RTL window.
+
 ## C0 = 30 generation preflight
 
 The [generation preflight](parent-c30.txt) reviews the Qsys parent for
 104.444444 MHz. The preflight passed the pinned raw input checks and
-found one interconnect module rename. The C0 = 30 fitter trial follows
-qualification of C0 = 32.
+found one interconnect module rename. The fitter trial uses the
+reviewed clock pins and the eight-cycle presenter at
+`78123e99621d0fca0cbdd3f16031e9691e12cf3a`.
 
 ## Running a seed on either builder
 
