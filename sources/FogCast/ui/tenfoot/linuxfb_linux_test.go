@@ -116,6 +116,11 @@ func TestTenfootSuperFamicomPadNormalizationAndVirtualFilter(t *testing.T) {
 	if bt.Tested() {
 		t.Fatal("bluetooth 081f:e401 pad should not inherit USB Tested status")
 	}
+	clone := pad
+	clone.Name = "Different USB Gamepad"
+	if clone.Tested() {
+		t.Fatal("unrelated device reusing 081f:e401 should not be Tested")
+	}
 	mapper := controller.NewMapper(pad)
 	for _, tc := range []struct {
 		code  uint16

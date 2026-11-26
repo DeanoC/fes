@@ -1,21 +1,57 @@
 package controller
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestDeviceTested(t *testing.T) {
+	verified := superFamicomPad(0x0110)
 	cases := []struct {
 		name string
 		dev  Device
 		want bool
 	}{
 		{
-			name: "SNES-style USB pad",
-			dev:  Device{Bus: busUSB, Vendor: 0x081f, Product: 0xe401, Name: "USB Gamepad "},
+			name: "SNES-style USB pad full identity",
+			dev:  verified,
 			want: true,
 		},
 		{
 			name: "same VID:PID over Bluetooth is not Tested",
-			dev:  Device{Bus: busBluetooth, Vendor: 0x081f, Product: 0xe401, Name: "USB Gamepad "},
+			dev: func() Device {
+				d := verified
+				d.Bus = busBluetooth
+				return d
+			}(),
+			want: false,
+		},
+		{
+			name: "same VID:PID with different name is not Tested",
+			dev: func() Device {
+				d := verified
+				d.Name = "Other Commodity USB Pad"
+				return d
+			}(),
+			want: false,
+		},
+		{
+			name: "same VID:PID with different version is not Tested",
+			dev:  superFamicomPad(0x0111),
+			want: false,
+		},
+		{
+			name: "same VID:PID without matching capabilities is not Tested",
+			dev:  Device{Bus: busUSB, Vendor: 0x081f, Product: 0xe401, Version: 0x0110, Name: "USB Gamepad "},
+			want: false,
+		},
+		{
+			name: "same VID:PID with extra capability bits is not Tested",
+			dev: func() Device {
+				d := verified
+				d.Keys = bits(96, codeRange(288, 298)...)
+				return d
+			}(),
 			want: false,
 		},
 		{
@@ -25,12 +61,12 @@ func TestDeviceTested(t *testing.T) {
 		},
 		{
 			name: "Xbox 360 USB pad not yet Tested",
-			dev:  Device{Bus: busUSB, Vendor: 0x045e, Product: 0x028e, Name: "Xbox 360 Controller"},
+			dev:  Device{Bus: busUSB, Vendor: 0x045e, Product: 0x028e, Version: 0x0114, Name: "Xbox 360 Controller"},
 			want: false,
 		},
 		{
 			name: "DualSense Bluetooth pad not yet Tested",
-			dev:  Device{Bus: busBluetooth, Vendor: 0x054c, Product: 0x0ce6, Name: "DualSense Wireless Controller"},
+			dev:  Device{Bus: busBluetooth, Vendor: 0x054c, Product: 0x0ce6, Version: 0x8100, Name: "DualSense Wireless Controller"},
 			want: false,
 		},
 	}
@@ -44,17 +80,21 @@ func TestDeviceTested(t *testing.T) {
 }
 
 func TestTestedPadsRegistryInvariants(t *testing.T) {
-	seen := make(map[testedPad]bool, len(testedPads))
+	seen := make(map[string]bool, len(testedPads))
 	for _, p := range testedPads {
 		if p.bus != busUSB && p.bus != busBluetooth {
 			t.Fatalf("unexpected bus %d in testedPads: %+v", p.bus, p)
 		}
-		if p.vendor == 0 || p.product == 0 {
-			t.Fatalf("zero vendor or product in testedPads: %+v", p)
+		if p.vendor == 0 || p.product == 0 || p.version == 0 || p.name == "" {
+			t.Fatalf("incomplete identity in testedPads: %+v", p)
 		}
-		if seen[p] {
-			t.Fatalf("duplicate entry in testedPads: %+v", p)
+		if len(p.buttons) == 0 {
+			t.Fatalf("testedPads entry must declare expected buttons: %+v", p)
 		}
-		seen[p] = true
+		key := fmt.Sprintf("%d:%04x:%04x:%04x:%s", p.bus, p.vendor, p.product, p.version, p.name)
+		if seen[key] {
+			t.Fatalf("duplicate identity key %q in testedPads", key)
+		}
+		seen[key] = true
 	}
 }

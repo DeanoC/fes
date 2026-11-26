@@ -159,10 +159,11 @@ Tenfoot logs each pad's identity and the mapping it got. Axis ranges come
 from EVIOCGABS, including unsigned 0–255 axes. Left stick and D-pad share
 `left-x`/`left-y`; a D-pad on a hat or a full axis owns that axis until it
 returns to centre. `Device.Tested()` (`ui/controller/tested.go`) marks pads
-verified on FES hardware (#1348). USB and Bluetooth transports are tracked
-separately; currently only the wired `081f:e401` SNES-style USB pad is marked
-`Tested`, while any other GameControllerDB or user-mapped pad still works
-without the badge. Keyboard events carry the key's USB HID usage;
+verified on FES hardware (#1348) by exact evdev identity (transport, VID:PID,
+version, name, and key/hat/axis capabilities). USB and Bluetooth transports are
+tracked separately; currently only the wired `"USB Gamepad "` (`081f:e401` `v0110`)
+SNES-style USB pad is marked `Tested`, while any other GameControllerDB or
+user-mapped pad still works without the badge. Keyboard events carry the key's USB HID usage;
 mister-agent keeps it for `fes.keyboard.hid` cores and maps it to the ZX81
 matrix or native gamepad keys for the other cores.
 
