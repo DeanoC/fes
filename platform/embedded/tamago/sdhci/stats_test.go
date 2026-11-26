@@ -98,7 +98,7 @@ func TestDeviceStatsTelemetry(t *testing.T) {
 		t.Fatalf("stats after fault retirement=%+v", stErr)
 	}
 
-	// 3. 50 MHz High-Speed reporting in Stats.
+	// 3. 50 MHz High-Speed reporting and Close retirement error accounting.
 	dHS, err := Open(newHighSpeedCard(), Config{
 		InputClockHz:    100_000_000,
 		TransferClockHz: 50_000_000,
@@ -109,5 +109,27 @@ func TestDeviceStatsTelemetry(t *testing.T) {
 	stHS := dHS.Stats()
 	if !stHS.HighSpeed || stHS.TransferClockHz != 50_000_000 || stHS.Retired || stHS.Quiesced {
 		t.Fatalf("unexpected HighSpeed stats: %+v", stHS)
+	}
+
+	// Close failure after external pool poison must increment Errors and retire.
+	hwClose := newAdvancedCard(128, dmaBase, ram, cap33V|capADMA2)
+	poolClose, err := dmaops.NewPool(dmaBase, make([]byte, 128<<10), dmaops.Uncached, &testCoherency{line: 64})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dClose, err := Open(hwClose, Config{
+		InputClockHz: 100_000_000,
+		UseADMA2:     true,
+		DMAPool:      poolClose,
+	})
+	if err != nil {
+		t.Fatalf("Open Close-failure test: %v", err)
+	}
+	poolClose.Poison(nil)
+	if err := dClose.Close(); err == nil {
+		t.Fatal("expected Close error after pool poison")
+	}
+	if st := dClose.Stats(); !st.Retired || st.Errors != 1 {
+		t.Fatalf("Close error retirement stats=%+v", st)
 	}
 }

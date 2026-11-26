@@ -86,6 +86,7 @@ type Device struct {
 	irqWake            chan struct{}
 	irqActive          atomic.Bool
 	irqCount           atomic.Uint64
+	totalIRQs          atomic.Uint64
 	stats              sdhciStats
 }
 
@@ -146,7 +147,7 @@ func (d *Device) Stats() Stats {
 		Errors:          d.stats.errors,
 		QuiesceCount:    d.stats.quiesceCount,
 		ResumeCount:     d.stats.resumeCount,
-		IRQCount:        d.irqCount.Load(),
+		IRQCount:        d.totalIRQs.Load(),
 		BusWidth:        busWidth,
 		TransferClockHz: d.dataClockHz,
 		HighSpeed:       d.highSpeed,
@@ -316,7 +317,7 @@ func (d *Device) Close() error {
 	}
 	if d.adma != nil {
 		if err := d.adma.close(); err != nil {
-			d.failed = true
+			d.retireLocked()
 			return err
 		}
 		d.adma = nil
