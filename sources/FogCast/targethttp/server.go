@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Package agentapi provides a bare-metal FogCast-compatible HTTP target agent
-// handler backed by pluggable target controller, package store, and launcher
-// interfaces.
-package agentapi
+// Package targethttp implements a reusable FogCast target-agent HTTP handler
+// over FogCast protocol and corepackage types for bare-metal or lightweight
+// embedded targets.
+package targethttp
 
 import (
 	"context"
@@ -29,7 +29,7 @@ const (
 
 var (
 	// ErrInvalidConfig is returned when Config fails validation in New.
-	ErrInvalidConfig = errors.New("agentapi: invalid configuration")
+	ErrInvalidConfig = errors.New("targethttp: invalid configuration")
 
 	coreIDPattern    = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,95}$`)
 	packageIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -42,9 +42,12 @@ type Controller interface {
 	Stop(ctx context.Context) (protocol.Status, *protocol.APIError)
 }
 
-// PackageStore exposes durable core package installation and per-core selection.
+// PackageStore exposes durable core package inventory, installation, and
+// per-core selection. Read is used to reconcile selections against concurrent
+// installs between List and Selections.
 type PackageStore interface {
 	List(ctx context.Context) ([]corepackage.Inspection, error)
+	Read(ctx context.Context, packageID string) (corepackage.Inspection, error)
 	Selections(ctx context.Context) ([]protocol.KitCoreSelection, error)
 	Install(ctx context.Context, size int64, r io.Reader) (corepackage.Inspection, bool, error)
 	Select(ctx context.Context, coreID string, req protocol.KitCoreSelectionRequest) *protocol.APIError
@@ -75,7 +78,7 @@ type AgentStats struct {
 	ActiveRequests int64
 }
 
-// Config configures a FogCast-compatible bare-metal target HTTP handler.
+// Config configures a FogCast-compatible target HTTP handler.
 type Config struct {
 	Controller           Controller
 	Token                string // Bearer token; constant-time SHA-256 comparison
@@ -197,14 +200,19 @@ func (h *Handler) authenticate(next http.Handler) http.Handler {
 
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	health := h.cfg.Controller.Health(h.cfg.AgentVersion)
+	software := health.Software
 	health.TargetID = ""
-	if h.isAuthenticated(r) && h.cfg.TargetID != "" {
-		health.TargetID = h.cfg.TargetID
+	health.Software = nil
+	if h.isAuthenticated(r) {
+		if h.cfg.TargetID != "" {
+			health.TargetID = h.cfg.TargetID
+		}
+		health.Software = software
 	}
 	writeJSON(w, http.StatusOK, health)
 }
 
-func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, h.cfg.Controller.Status())
 }
 
@@ -243,6 +251,23 @@ func (h *Handler) handleListCorePackages(w http.ResponseWriter, r *http.Request)
 	}
 	if selections == nil {
 		selections = []protocol.KitCoreSelection{}
+	}
+	listed := make(map[string]bool, len(packages))
+	for _, pkg := range packages {
+		listed[pkg.PackageID] = true
+	}
+	for _, sel := range selections {
+		if listed[sel.PackageID] {
+			continue
+		}
+		// Match internal/httpapi: fetch any package installed and selected between List and Selections.
+		pkg, err := h.cfg.Packages.Read(r.Context(), sel.PackageID)
+		if err != nil {
+			writePackageError(w, err)
+			return
+		}
+		packages = append(packages, pkg)
+		listed[sel.PackageID] = true
 	}
 	writeJSON(w, http.StatusOK, protocol.KitCorePackages{
 		Packages:   packages,
@@ -456,22 +481,23 @@ func statusForAPIError(apiErr *protocol.APIError) int {
 		return apiErr.StatusCode
 	}
 	switch apiErr.Code {
-	case protocol.CodeBadRequest, protocol.CodeTransferFailed, protocol.CodeInvalidROMPath, protocol.CodeInvalidArchive, protocol.CodeDigestMismatch:
+	case protocol.CodeBadRequest, protocol.CodeTransferFailed:
 		return http.StatusBadRequest
 	case protocol.CodeUnauthorized:
 		return http.StatusUnauthorized
 	case protocol.CodeROMNotFound, protocol.CodeContentNotCached, protocol.CodeTargetNotFound, protocol.CodeCorePackageNotFound:
 		return http.StatusNotFound
-	case protocol.CodeBusy, protocol.CodeKitLeaseBusy, protocol.CodeCoreSelectionConflict:
+	case protocol.CodeBusy, protocol.CodeKitLeaseBusy, protocol.CodeCoreSelectionConflict,
+		protocol.CodeStaleRevision, protocol.CodeIncompatibleData, protocol.CodeCorruptData:
 		return http.StatusConflict
-	case protocol.CodeUnsupportedSystem, protocol.CodeUnsupportedOperation:
-		return http.StatusNotImplemented
-	case protocol.CodeUnavailable, protocol.CodeMiSTerUnavailable, protocol.CodeCorePackageStoreUnavailable:
-		return http.StatusServiceUnavailable
-	case protocol.CodeCoreTimeout:
-		return http.StatusGatewayTimeout
+	case protocol.CodeUnsupportedSystem, protocol.CodeUnsupportedOperation, protocol.CodeInvalidROMPath,
+		protocol.CodeSourceUnavailable, protocol.CodeInvalidArchive, protocol.CodeDigestMismatch:
+		return http.StatusUnprocessableEntity
 	case protocol.CodeCacheFull:
 		return http.StatusInsufficientStorage
+	case protocol.CodeUnavailable, protocol.CodeMiSTerUnavailable, protocol.CodeCoreTimeout,
+		protocol.CodeCorePackageStoreUnavailable:
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}

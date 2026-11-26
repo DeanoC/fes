@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package agentapi
+package targethttp
 
 import (
 	"bytes"
@@ -8,26 +8,22 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
-	"time"
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
-	"github.com/DeanoC/fes/platform/embedded/tamago/network"
-	gnet "github.com/usbarmory/go-net"
 )
 
 type fakeController struct {
-	mu     sync.Mutex
-	state  protocol.State
-	coreID string
-	stopFn func(context.Context) (protocol.Status, *protocol.APIError)
+	mu       sync.Mutex
+	state    protocol.State
+	coreID   string
+	software *protocol.Identity
+	stopFn   func(context.Context) (protocol.Status, *protocol.APIError)
 }
 
 func (c *fakeController) Health(agentVersion string) protocol.Health {
@@ -35,6 +31,7 @@ func (c *fakeController) Health(agentVersion string) protocol.Health {
 		APIVersion:   "1",
 		AgentVersion: agentVersion,
 		Ready:        true,
+		Software:     c.software,
 	}
 }
 
@@ -64,9 +61,10 @@ func (c *fakeController) Stop(ctx context.Context) (protocol.Status, *protocol.A
 }
 
 type fakeStore struct {
-	mu         sync.Mutex
-	packages   []corepackage.Inspection
-	selections map[string]string
+	mu           sync.Mutex
+	packages     []corepackage.Inspection
+	selections   map[string]string
+	onSelections func()
 }
 
 func newFakeStore() *fakeStore {
@@ -79,7 +77,21 @@ func (s *fakeStore) List(context.Context) ([]corepackage.Inspection, error) {
 	return append([]corepackage.Inspection(nil), s.packages...), nil
 }
 
+func (s *fakeStore) Read(_ context.Context, packageID string) (corepackage.Inspection, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, p := range s.packages {
+		if p.PackageID == packageID {
+			return p, nil
+		}
+	}
+	return corepackage.Inspection{}, corepackage.ErrPackageNotFound
+}
+
 func (s *fakeStore) Selections(context.Context) ([]protocol.KitCoreSelection, error) {
+	if s.onSelections != nil {
+		s.onSelections()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]protocol.KitCoreSelection, 0, len(s.selections))
@@ -163,8 +175,16 @@ func TestConfigValidation(t *testing.T) {
 	}
 }
 
-func TestRoutesAuthPackagesLaunchAndStats(t *testing.T) {
-	ctrl := &fakeController{state: protocol.StateIdle}
+func TestRoutesAuthRedactionInventoryReconcileAndStats(t *testing.T) {
+	ctrl := &fakeController{
+		state: protocol.StateIdle,
+		software: &protocol.Identity{
+			ActiveBundle: "bundle-1",
+			BaseIdentity: "base-1",
+			Selected:     "bundle-1",
+			Generation:   3,
+		},
+	}
 	store := newFakeStore()
 	h, err := New(Config{
 		Controller:   ctrl,
@@ -199,23 +219,23 @@ func TestRoutesAuthPackagesLaunchAndStats(t *testing.T) {
 		return resp
 	}
 
-	// Unauthenticated /v1/health succeeds without TargetID.
+	// Unauthenticated /v1/health succeeds with BOTH TargetID and Software redacted.
 	r := authReq(http.MethodGet, "/v1/health", "", nil, "")
 	var health protocol.Health
 	if err := json.NewDecoder(r.Body).Decode(&health); err != nil {
 		t.Fatal(err)
 	}
 	_ = r.Body.Close()
-	if r.StatusCode != http.StatusOK || health.TargetID != "" || health.AgentVersion != "tamago-test" {
-		t.Fatalf("unauthenticated health = status=%d %+v", r.StatusCode, health)
+	if r.StatusCode != http.StatusOK || health.TargetID != "" || health.Software != nil || health.AgentVersion != "tamago-test" {
+		t.Fatalf("unauthenticated health must redact TargetID and Software: status=%d %+v", r.StatusCode, health)
 	}
 
-	// Authenticated /v1/health includes TargetID.
+	// Authenticated /v1/health preserves both TargetID and Software.
 	r = authReq(http.MethodGet, "/v1/health", "", nil, "test-token-123")
 	_ = json.NewDecoder(r.Body).Decode(&health)
 	_ = r.Body.Close()
-	if health.TargetID != "11111111-2222-4333-8444-555555555555" {
-		t.Fatalf("authenticated health missing TargetID: %+v", health)
+	if health.TargetID != "11111111-2222-4333-8444-555555555555" || health.Software == nil || health.Software.ActiveBundle != "bundle-1" {
+		t.Fatalf("authenticated health missing TargetID/Software: %+v", health)
 	}
 
 	// Unauthenticated /v1/status rejects 401.
@@ -257,13 +277,32 @@ func TestRoutesAuthPackagesLaunchAndStats(t *testing.T) {
 		t.Fatalf("conflict PUT selection status=%d, want 409", r.StatusCode)
 	}
 
-	// List packages & selections.
+	// Simulate install+selection race between List and Selections: handler must reconcile via Read.
+	racedPkgID := strings.Repeat("b", 64)
+	store.onSelections = func() {
+		store.onSelections = nil
+		store.mu.Lock()
+		defer store.mu.Unlock()
+		pkg := corepackage.Inspection{PackageID: racedPkgID}
+		pkg.Descriptor.Core.ID = "c64"
+		store.packages = append(store.packages, pkg)
+		store.selections["c64"] = racedPkgID
+	}
 	r = authReq(http.MethodGet, "/v1/core-packages", "", nil, "test-token-123")
 	var list protocol.KitCorePackages
 	_ = json.NewDecoder(r.Body).Decode(&list)
 	_ = r.Body.Close()
-	if r.StatusCode != http.StatusOK || len(list.Packages) != 1 || len(list.Selections) != 1 {
-		t.Fatalf("GET /v1/core-packages = %+v", list)
+	if r.StatusCode != http.StatusOK || len(list.Packages) != 2 || len(list.Selections) != 2 {
+		t.Fatalf("GET /v1/core-packages race reconcile = %+v", list)
+	}
+
+	// GET /v1/core-selections.
+	r = authReq(http.MethodGet, "/v1/core-selections", "", nil, "test-token-123")
+	var sels []protocol.KitCoreSelection
+	_ = json.NewDecoder(r.Body).Decode(&sels)
+	_ = r.Body.Close()
+	if r.StatusCode != http.StatusOK || len(sels) != 2 {
+		t.Fatalf("GET /v1/core-selections = %d %+v", r.StatusCode, sels)
 	}
 
 	// Launch -> active -> Stop (reject non-empty body, allow empty) -> idle.
@@ -296,126 +335,7 @@ func TestRoutesAuthPackagesLaunchAndStats(t *testing.T) {
 	}
 
 	stats := h.Stats()
-	if stats.Requests < 9 || stats.AuthFailures != 1 || stats.Errors < 3 || stats.ActiveRequests != 0 {
+	if stats.Requests < 10 || stats.AuthFailures != 1 || stats.Errors < 3 || stats.ActiveRequests != 0 {
 		t.Fatalf("unexpected stats: %+v", stats)
-	}
-}
-
-type wireDev struct {
-	in  <-chan []byte
-	out chan<- []byte
-}
-
-func (d wireDev) Receive(buf []byte) (int, error) {
-	select {
-	case f := <-d.in:
-		return copy(buf, f), nil
-	default:
-		return 0, nil
-	}
-}
-
-func (d wireDev) Transmit(frame []byte) error {
-	select {
-	case d.out <- bytes.Clone(frame):
-		return nil
-	default:
-		return errors.New("queue full")
-	}
-}
-
-func (d wireDev) Err() error { return nil }
-
-func TestAgentAPIOverRealEthernetFrames(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	cToS := make(chan []byte, 256)
-	sToC := make(chan []byte, 256)
-	serverStack := gnet.NewGVisorStack(1)
-	clientStack := gnet.NewLnetoStack(gnet.DefaultLnetoStackConfig())
-
-	serverIface := &gnet.Interface{
-		Stack:         serverStack,
-		NetworkDevice: wireDev{in: cToS, out: sToC},
-	}
-	if err := serverIface.Init("192.0.2.10/24", "02:aa:00:00:00:01", ""); err != nil {
-		t.Fatal(err)
-	}
-	linkClient, err := network.NewLink(clientStack, wireDev{in: sToC, out: cToS}, "192.0.2.20/24", "02:aa:00:00:00:02", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() { defer wg.Done(); _ = serverIface.Start(ctx) }()
-	go func() { defer wg.Done(); _ = linkClient.Start(ctx) }()
-	defer func() {
-		cancel()
-		wg.Wait()
-	}()
-
-	sock, err := serverStack.Socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, &net.TCPAddr{IP: net.IPv4(192, 0, 2, 10), Port: 8080}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ln, ok := sock.(net.Listener)
-	if !ok {
-		t.Fatalf("expected net.Listener, got %T", sock)
-	}
-
-	ctrl := &fakeController{state: protocol.StateIdle}
-	handler, err := New(Config{
-		Controller:           ctrl,
-		AllowUnauthenticated: true,
-		TargetID:             "11111111-2222-4333-8444-555555555555",
-		Packages:             newFakeStore(),
-		Launcher:             &fakeLauncher{ctrl: ctrl},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	httpSrv := &http.Server{Handler: handler}
-	go func() { _ = httpSrv.Serve(ln) }()
-	defer func() { _ = httpSrv.Close() }()
-
-	transport := &http.Transport{
-		DialContext: func(dctx context.Context, networkName, address string) (net.Conn, error) {
-			raw, err := clientStack.Socket(dctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, nil, &net.TCPAddr{IP: net.IPv4(192, 0, 2, 10), Port: 8080})
-			if err != nil {
-				return nil, err
-			}
-			conn, ok := raw.(net.Conn)
-			if !ok {
-				return nil, errors.New("unexpected client conn type")
-			}
-			return conn, nil
-		},
-	}
-	defer transport.CloseIdleConnections()
-	client := &http.Client{Transport: transport, Timeout: 5 * time.Second}
-
-	resp, err := client.Post("http://192.0.2.10:8080/v1/launch", "application/json", strings.NewReader(`{"core_id":"c64"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var st protocol.Status
-	err = json.NewDecoder(resp.Body).Decode(&st)
-	_ = resp.Body.Close()
-	if err != nil || resp.StatusCode != http.StatusOK || st.State != protocol.StateActive {
-		t.Fatalf("remote launch over lneto frames failed: status=%d st=%+v err=%v", resp.StatusCode, st, err)
-	}
-
-	healthResp, err := client.Get("http://192.0.2.10:8080/v1/health")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var health protocol.Health
-	_ = json.NewDecoder(healthResp.Body).Decode(&health)
-	_ = healthResp.Body.Close()
-	if healthResp.StatusCode != http.StatusOK || health.TargetID == "" {
-		t.Fatalf("health over lneto frames = %d %+v", healthResp.StatusCode, health)
 	}
 }
