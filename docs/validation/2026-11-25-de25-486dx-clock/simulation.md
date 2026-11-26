@@ -187,4 +187,11 @@ for the exact fitter-only SDC edit and matches 163 tracked replay inputs,
 regenerated sources and guest rates. The retained
 `simulation/c26-unlocated-proof/compare-62012d5b.g2.json` SHA-256 is
 `3ba7d0aec81f895d519102aaa37649042746922e0793204dd5a9235f1bb22486`.
-The exact-clock G4 and G5 replays are running.
+G4 passed at the same revision. The 3DBench scored windows matched at
+421,794,880 cycles with a DX/reference CPI ratio of 1.014539. Doom used
+matching handovers and 60,256,384-cycle final windows. It normalized to
+2,183.921 DX-33 realtics against the 4,682 limit. The retained 82-file
+`simulation/c26-unlocated-proof/g4-milestone/receipt.json` SHA-256 is
+`a55e078024dfa969ceb2d1a4e41d65eac2b904686dfceceb65589852a4c05582`.
+The exact-clock G5 replay is running. This build uses the single-stage
+x87 fast lane. The candidate with the pipelined lane needs its own runs.

@@ -827,6 +827,62 @@ Powerboat reproduced all eight timing lines, with log SHA-256
 The four-seed rerun starts with seed 2 at `62012d5b` on the same host and
 checkout path. `make check` and 40 focused tests passed at that revision.
 
+### C0 = 26 rerun with the LOADED datapath constraint
+
+Seed 2 staged the exact revised SDC, SHA-256
+`82eb66ea36764179c201ee1d9f625e7af25df9b26499efb6c080b1a2b30f7d07`.
+The raw Yosys machine netlist matches the previous sweep, with SHA-256
+`aaeed478d95144545948989a41be07f1a30a17d634a45ceb68a63cfa0321de01`.
+The Qsys parent audit reproduced the earlier Powerboat receipt, SHA-256
+`c33f2deb4be012c8ab69e58380f3c8b2ab0774e2d214aff3d23662c67a44a998`.
+
+| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Seed summary SHA-256 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 45,193.7 | −0.042 ns | 0.000 ns | +5.569 ns | +0.009 ns | 2.577 ns | `a1f897e36550ac201fdf7d821662d5cabc7e47965c1d0f4b68582bbf83ee0af9` |
+| 2 | 44,915.2 | −0.096 ns | 0.000 ns | +5.335 ns | +0.079 ns | 2.669 ns | `32dbdb3ce3ff69d9bcd05358a90a941be8b9c42aa2b35635d60b8e674500eb59` |
+
+The independent LOADED gate passed on both seeds. Seed 2's worst corner
+measured 1.188 ns of delay and 1.481 ns of absolute skew. The registered
+producer refused both seeds on numerical setup timing.
+
+Seed 1 has one failing transfer, from the display's held command
+`payload[3]` to `pixel_argument[3]`. Its slow fix4 0°C path has 5.276 ns
+of data delay, 1.502 ns of adverse skew, and 1.550 ns of uncertainty.
+The same path has −0.033 ns slack in slow fix4a 0°C. The reply transfer
+is a separate path with +0.006 ns slack at the tightest corner.
+
+Seed 2's slow fix4 0°C model has 39 violating setup endpoints. Of these,
+35 are the machine-clock path from the x87 DSP multiply tiles
+`mult_36~mac~AY_REG` and `mult_37~mac~AY_REG` to fitted copies of
+`_36692_[150]`, generated from `cpu_x87_core_fast_res[155]`. The other
+four failures include paths in the x87 format selection, fast-result
+writeback, and integer decode enable. They also fail in slow fix4a 0°C,
+whose worst setup slack is −0.050 ns. Both seeds finished with
+nonnegative hold, recovery and removal, and zero CDC-50003 findings.
+
+The next candidate, `80de4c6af4811e1ab934af504d22e6a3897eae58`, selects
+the existing seven-stage x87 fast pipeline at the two upper DX clocks.
+The active operation still waits for the backend result and can take six
+additional cycles. It also adds a clock-relative datapath target to the
+display command word only, 5.046 ns at 120.512821 MHz. A Tcl comparison
+preserves the command's clock-aware setup and hold constraints and all
+five constraints on the display reply. All 43 focused tests passed for
+the pipeline selection. `make check` also passed with the display
+constraint. The exact combined source reproduced the DE10 netlist and
+four identities, with receipt SHA-256
+`0bc6a25f2cddfd7529cc9d50e5e90794dcf3e36994ef187fda8d553cf3c4f4eb`.
+All seven D12 input selections still match the frozen base and phase B.
+
+On the copied seed 1 database, Quartus reported the original 8.296 ns
+clock-aware setup constraint and the new 5.046 ns datapath constraint.
+All 31 command paths stayed visible at every corner. The 248 setup and
+hold rows and existing timing exceptions reproduced, and both
+CDC-50003 checks returned zero findings. The measured flag cuts also
+matched. The old route misses the new bound by 0.240 and 0.239 ns in
+the two slow 0°C corners. The retained
+`c26-command-datapath-qdb-replay/receipt.json` SHA-256 is
+`70b04683bae6f75ae6418e1da1341ea5e45a1428d976074777e79c931880c154`.
+
 The exact 120.512821 MHz simulations started in parallel with these
 fits. Both compiled game models use the guarded eight-cycle presenter.
 
@@ -847,6 +903,12 @@ all seven D12 input selections. The DE10 receipt SHA-256 is
 `0abb98bab58faecff2f627c0ee94716b02c073d361b8e069cccd03d381f63cbd`.
 The D12 receipt SHA-256 is
 `5f8fb29652b306c98ceaf5f4298112820a851bf2f767c92b58fc2e2bc249546f`.
+Revision `b7dcf242408358db8d57075d486caeb989bebe19` adds the exact 130 MHz
+clock files to `80de4c6a` and selects the same pipelined x87 wrapper. The
+combined C24 receipt confirms the pinned PLL and parent digests, unchanged
+SDC, 43 focused tests, DE10 netlist and identity equality and all seven
+D12 selections. Its SHA-256 is
+`db5d3c67fd8862a4a52ec0813456961a0f754076579ae5d770635771b60e1d8a`.
 The C0 = 24 fits follow the C0 = 26 qualification.
 
 ## Running a seed on either builder
