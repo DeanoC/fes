@@ -31,9 +31,9 @@ MODEL_CLOCKS = {
     "486sx": {"c0": 34, "pll_ip": "machine_pll_486sx.ip",
               "pll_ip_sha256": "04448872b6e9992a9ee70c6a4e11b1678a433d1743908aca38eb960c9580173e",
               "parent_sha256": "fefb39d68d09b2fad37d35be5d2686d557b9f5c8c97d2eb41bbd80400a31f7e7"},
-    # 486DX: C0 = 32, 97.916667 MHz. The reviewed Qsys parent differs
+    # 486DX: C0 = 30, 104.444444 MHz. The reviewed Qsys parent differs
     # from C0 = 34 in the window interconnect's module name.
-    "486dx": {"c0": 32, "pll_ip": "machine_pll_486dx.ip",
-              "pll_ip_sha256": "a5a06387c0fae445250ca48ebfc4d50e0a44fadef50380f42534f7f49e8058a0",
-              "parent_sha256": "2e057d8133607240a432478d8f102746eeea85447447d8515e506aa3de52aaa4"},
+    "486dx": {"c0": 30, "pll_ip": "machine_pll_486dx.ip",
+              "pll_ip_sha256": "2236a6c50d119d3f14775d3cc194bce7f55e631acd0b4fd80a64ad9a5c90c9a2",
+              "parent_sha256": "122e45081148f52a0d779568049425712dbdbc64d87da1642603a87ce347a657"},
 }
