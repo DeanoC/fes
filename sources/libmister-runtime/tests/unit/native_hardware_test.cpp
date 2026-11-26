@@ -3307,7 +3307,7 @@ public:
 	}
 	bool Available() override { return available; }
 	mister::Error Allocate(int* window) override { events_.push_back("window.allocate"); *window = 40; return {}; }
-	mister::Error Info(int, mister::native::De25WindowGrant* out) override { *out = grant; return {}; }
+	mister::Error Info(int, mister::native::De25WindowGrant* out) override { *out = grant; return info_error; }
 	mister::Error Grant(int, std::uint64_t, std::uint64_t, int*) override { return {mister::ErrorCode::io_failed, "unused"}; }
 	mister::Error Map(int, std::size_t, void**) override { return {mister::ErrorCode::io_failed, "unused"}; }
 	void Unmap(void*, std::size_t) override {}
@@ -3316,7 +3316,7 @@ public:
 	void Close(int) override {}
 	mister::native::De25WindowGrant grant;
 	bool available = true;
-	mister::Error release;
+	mister::Error info_error, release;
 private:
 	std::vector<std::string>& events_;
 };
@@ -3371,11 +3371,11 @@ void TestDe25WindowIsGrantedPerSession()
 		assert(window.Ready());
 		const int programs = fixture.native.fpga.calls;
 		if (trial == Trial::poisoned_replaced) {
-			owner.grant.status |= FesDe25HpsWindowStatusFault;
-			owner.grant.fault = FesDe25HpsWindowFaultOutside | 1u;
+			owner.info_error = {mister::ErrorCode::io_failed, "window observation failed"};
 			assert(window.Check().code == mister::ErrorCode::io_failed);
 			assert(window.IsOpen() && !window.Ready());
 			assert(window.Blocking().code == mister::ErrorCode::unsupported_interface);
+			owner.info_error = {};
 		}
 		if (trial == Trial::replaced || trial == Trial::poisoned_replaced) {
 			// Replacing the core quiesces it, then releases, then programs.
@@ -4130,9 +4130,9 @@ void TestDe25WindowOpensAfterTheSessionDisplayBinds()
  if(!loaded.error.ok())fprintf(stderr,"window after bind: %s\n",loaded.error.message.c_str());
  assert(loaded.error.ok()&&window.Ready()&&fpga.hps_ddr_calls==0);
  assert(Find(events,"menu.bind")<Find(events,"window.allocate"));
- owner.grant.status|=FesDe25HpsWindowStatusFault;
- owner.grant.fault=FesDe25HpsWindowFaultOutside|1u;
+ owner.info_error={mister::ErrorCode::io_failed,"window observation failed"};
  assert(window.Check().code==mister::ErrorCode::io_failed);
+ owner.info_error={};
  assert(window.IsOpen()&&!window.Ready());
  // Closing the plane would reap the scanout, and the owner's REAP retires
  // the live window first (EAGAIN while its ports run): the machine keeps

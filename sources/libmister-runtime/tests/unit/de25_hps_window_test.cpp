@@ -2,6 +2,7 @@
 #include "native/de25_hps_window.hpp"
 #include "native/generated/fes_de25_hps_window.hpp"
 #include "native/generated/fes_computer.hpp"
+#include "native/hardware.hpp"
 #include <assert.h>
 #include <stdio.h>
 #include <cstring>
@@ -14,6 +15,13 @@ using namespace mister::native::generated;
 using Calls = std::vector<std::string>;
 const std::array<std::uint32_t,4> kBuild = {{0x11111111u, 0x22222222u, 0x33333333u, 0x44444444u}};
 
+class TestClock final : public mister::native::Clock {
+public:
+ std::uint64_t NowMs() const override { return now_++; }
+private:
+ mutable std::uint64_t now_ = 0;
+};
+
 // The kernel owner, scripted. Window memory is sparse: one buffer per range
 // offset, so a 256 MiB window costs only what a test touches.
 class Owner final : public mister::native::De25WindowOperations {
@@ -23,6 +31,7 @@ public:
  std::map<std::uint64_t, std::vector<unsigned char>> memory;
  std::map<int, std::pair<std::uint64_t, std::uint64_t>> ranges;
  int next = 20;
+ std::vector<std::uint32_t> sampled_status;
  bool fail_allocate = false, fail_release = false, fail_revoke = false, available = true;
  bool Available() override { return available; }
  Owner()
@@ -44,6 +53,10 @@ public:
  {
   calls.push_back("info " + std::to_string(window));
   *out = grant;
+  if (!sampled_status.empty()) {
+   out->status = sampled_status.front();
+   sampled_status.erase(sampled_status.begin());
+  }
   return {};
  }
  mister::Error Grant(int window, std::uint64_t offset, std::uint64_t bytes, int* range) override
@@ -88,7 +101,7 @@ void TestOpenAcceptsTheContractGrantAndReleases()
  assert(window.Check().ok());
  owner.calls.clear();
  assert(window.Release().ok());
- assert((owner.calls == Calls{"release 20", "close 20"}));
+ assert((owner.calls == Calls{"info 20", "release 20", "close 20"}));
  assert(!window.Ready());
  // Released windows reopen: the next session gets a new allocation.
  assert(window.Open(kBuild).ok());
@@ -178,10 +191,11 @@ void TestFaultIsFatalAndNamed()
   assert(window.Release().code == mister::ErrorCode::unsupported_interface);
   assert(window.Open(kBuild).code == mister::ErrorCode::unsupported_interface);
   assert(owner.calls.empty());
-  // A check fault remains poisoned until the caller has quiesced the machine.
+  // An acknowledged hold cannot make a faulted grant clearable.
+  TestClock clock;
   assert(window.Blocking().code == mister::ErrorCode::unsupported_interface);
-  assert(window.ReleaseAfterQuiesce().ok());
-  assert(!window.IsOpen() && !window.Ready() && (owner.calls == Calls{"release 20", "close 20"}));
+  assert(window.ReleaseAfterQuiesce(clock, 10).code == mister::ErrorCode::io_failed);
+  assert(window.IsOpen() && !window.Ready() && (owner.calls == Calls{"info 20"}));
  }
  {
   // A different generation is a grant this session did not open.
@@ -192,6 +206,66 @@ void TestFaultIsFatalAndNamed()
   assert(window.Check().code == mister::ErrorCode::unsupported_interface);
   assert(!window.Ready());
  }
+}
+
+void TestRetirementWaitsForBothHeldAndDrained()
+{
+ Owner owner;
+ TestClock clock;
+ mister::native::De25HpsWindow window(owner);
+ assert(window.Open(kBuild).ok());
+ const auto ready = owner.grant.status;
+ owner.sampled_status = {
+  FesDe25HpsWindowStatusGranted,
+  FesDe25HpsWindowStatusGranted | FesDe25HpsWindowStatusHeld,
+  ready,
+ };
+ owner.calls.clear();
+ assert(window.ReleaseAfterQuiesce(clock, 10).ok());
+ assert((owner.calls == Calls{"info 20", "info 20", "info 20", "release 20", "close 20"}));
+ assert(!window.IsOpen());
+}
+
+void TestMissingDrainLeavesGrantExposed()
+{
+ Owner owner;
+ TestClock clock;
+ mister::native::De25HpsWindow window(owner);
+ assert(window.Open(kBuild).ok());
+ owner.grant.status = FesDe25HpsWindowStatusGranted;
+ owner.calls.clear();
+ const auto error = window.ReleaseAfterQuiesce(clock, 2);
+ assert(error.code == mister::ErrorCode::io_failed);
+ assert(error.message == "DE25 HPS window drain timed out; status=1");
+ assert((owner.calls == Calls{"info 20", "info 20", "info 20"}));
+ assert(window.IsOpen() && !window.Ready());
+ assert(!window.ReleaseAfterQuiesce(clock, 10).ok());
+ assert((owner.calls == Calls{"info 20", "info 20", "info 20"}));
+}
+
+void TestRetirementRefusesAnotherGeneration()
+{
+ Owner owner;
+ TestClock clock;
+ mister::native::De25HpsWindow window(owner);
+ assert(window.Open(kBuild).ok());
+ owner.grant.generation++;
+ owner.calls.clear();
+ assert(window.ReleaseAfterQuiesce(clock, 10).code == mister::ErrorCode::unsupported_interface);
+ assert((owner.calls == Calls{"info 20"}));
+ assert(window.IsOpen() && !window.Ready());
+}
+
+void TestReleaseWithoutHoldRefusesALiveGrant()
+{
+ Owner owner;
+ mister::native::De25HpsWindow window(owner);
+ assert(window.Open(kBuild).ok());
+ owner.grant.status = FesDe25HpsWindowStatusGranted;
+ owner.calls.clear();
+ assert(window.Release().code == mister::ErrorCode::unsupported_interface);
+ assert((owner.calls == Calls{"info 20"}));
+ assert(window.IsOpen() && !window.Ready());
 }
 
 void TestRangesAreWholePagesInsideTheSpan()
@@ -252,6 +326,7 @@ void TestDiskWindowRunsOverTheWindow()
 
 void TestFailedRevokeOrReleasePoisons()
 {
+ TestClock clock;
  {
   Owner owner;
   mister::native::De25HpsWindow window(owner);
@@ -262,7 +337,7 @@ void TestFailedRevokeOrReleasePoisons()
   assert(!window.Ready());
   owner.calls.clear();
   assert(window.Release().code == mister::ErrorCode::unsupported_interface);
-  assert(window.ReleaseAfterQuiesce().code == mister::ErrorCode::unsupported_interface);
+  assert(window.ReleaseAfterQuiesce(clock, 10).code == mister::ErrorCode::unsupported_interface);
   assert(owner.calls.empty());
  }
  {
@@ -273,7 +348,7 @@ void TestFailedRevokeOrReleasePoisons()
   assert(window.Release().code == mister::ErrorCode::busy);
   assert(!window.Ready());
   const auto calls = owner.calls.size();
-  assert(window.ReleaseAfterQuiesce().code == mister::ErrorCode::unsupported_interface);
+  assert(window.ReleaseAfterQuiesce(clock, 10).code == mister::ErrorCode::unsupported_interface);
   assert(owner.calls.size() == calls);
   assert(window.Open(kBuild).code == mister::ErrorCode::unsupported_interface);
  }
@@ -554,6 +629,10 @@ int main()
  TestOpenRefusesEveryContractDifference();
  TestOpenNeedsABuildAndAnOwner();
  TestFaultIsFatalAndNamed();
+ TestRetirementWaitsForBothHeldAndDrained();
+ TestMissingDrainLeavesGrantExposed();
+ TestRetirementRefusesAnotherGeneration();
+ TestReleaseWithoutHoldRefusesALiveGrant();
  TestRangesAreWholePagesInsideTheSpan();
  TestDiskWindowRunsOverTheWindow();
  TestFailedRevokeOrReleasePoisons();

@@ -73,6 +73,7 @@ module pc386_de25_sim #(
     // For the bench's failure report: the window's fault record, the arbiter's
     // idle, and each machine port's command and waitrequest.
     output wire [31:0] dbg_window,
+    output wire window_drained,
     // For the bench's status-ring report: the writer's busy and own, the
     // disk's aux read and write, and the CRC pass.
     output wire [4:0] dbg_status
@@ -151,13 +152,13 @@ module pc386_de25_sim #(
         .m2_writedata(w2_writedata), .m2_byteenable(w2_byteenable), .m2_waitrequest(w2_waitrequest),
         .m2_readdata(w2_readdata), .m2_readdatavalid(w2_readdatavalid)
     );
-    // The board's bridge answers a write burst after its last beat.
+    // Model write replies that remain in flight after the last beat.
     reg [7:0] m_write_left = 8'd0;
-    reg m_writeresponsevalid = 1'b0;
+    reg [31:0] write_responses = 32'd0;
     wire m_write_beat = m_write && !p0_waitrequest;
     wire m_write_last = m_write_beat && (m_write_left == 8'd0 ? m_burstcount == 8'd1 : m_write_left == 8'd1);
     always @(posedge clk) begin
-        m_writeresponsevalid <= m_write_last;
+        write_responses <= {write_responses[30:0], m_write_last};
         if (m_write_beat) m_write_left <= m_write_left == 8'd0 ? m_burstcount - 8'd1 : m_write_left - 8'd1;
     end
     fes_de25_window_arbiter arbiter (
@@ -174,8 +175,9 @@ module pc386_de25_sim #(
         .m_address(m_address), .m_burstcount(m_burstcount), .m_read(m_read), .m_write(m_write),
         .m_writedata(m_writedata), .m_byteenable(m_byteenable), .m_waitrequest(p0_waitrequest),
         .m_readdata(p0_readdata), .m_readdatavalid(p0_readdatavalid),
-        .m_writeresponsevalid(m_writeresponsevalid), .idle(idle)
+        .m_writeresponsevalid(write_responses[31]), .idle(idle)
     );
+    assign window_drained = idle && q0_drained && q1_drained && q2_drained;
     assign p0_address = m_address[31:4];
     assign p0_burstcount = m_burstcount;
     assign p0_read = m_read;
@@ -198,9 +200,12 @@ module pc386_de25_sim #(
             dbg_p2_owed <= dbg_p2_owed == 8'd0 ? q2_burstcount - 8'd1 : dbg_p2_owed - 8'd1;
         end
     end
-    // [31:16]: the arbiter's write lock, stall latch, order count and owed credit.
+    // [31:16]: arbiter state and the machine-side drain prerequisites.
     assign dbg_window = {arbiter.busy, arbiter.stalled, arbiter.order_count, arbiter.owed1 != 10'd0,
-                         arbiter.owed2 != 10'd0, arbiter.writes_owed != 8'd0, arbiter.sel, 3'b000, 2'b00, fault_port, fault_no_grant, fault_outside, idle, q0_read, q0_write, q0_waitrequest,
+                         arbiter.owed2 != 10'd0, arbiter.writes_owed != 8'd0, arbiter.sel,
+                         system.cpu_mem_idle, system.rom_idle, system.disk_writer_busy,
+                         system.fdc_busy, system.verifying, fault_port, fault_no_grant, fault_outside,
+                         idle, q0_read, q0_write, q0_waitrequest,
                          q1_read || q1_write, q1_waitrequest, q2_read || q2_write, q2_waitrequest, q0_drained && q1_drained && q2_drained};
     wire unused = ^{p0_reset, p1_reset, p2_reset, p1_waitrequest, p1_readdata, p1_readdatavalid, p2_waitrequest,
                     p2_readdata, p2_readdatavalid, m_address[3:0]};
