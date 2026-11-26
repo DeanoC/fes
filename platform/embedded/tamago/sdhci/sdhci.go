@@ -86,6 +86,98 @@ type Device struct {
 	irqWake            chan struct{}
 	irqActive          atomic.Bool
 	irqCount           atomic.Uint64
+	totalIRQs          atomic.Uint64
+	stats              sdhciStats
+}
+
+type sdhciStats struct {
+	readOps        uint64
+	writeOps       uint64
+	sectorsRead    uint64
+	sectorsWritten uint64
+	pioOps         uint64
+	adma2Ops       uint64
+	cmd23Ops       uint64
+	errors         uint64
+	quiesceCount   uint64
+	resumeCount    uint64
+}
+
+// Stats reports cumulative transfer telemetry and active controller state.
+type Stats struct {
+	ReadOps         uint64
+	WriteOps        uint64
+	SectorsRead     uint64
+	SectorsWritten  uint64
+	PIOOps          uint64
+	ADMA2Ops        uint64
+	CMD23Ops        uint64
+	Errors          uint64
+	QuiesceCount    uint64
+	ResumeCount     uint64
+	IRQCount        uint64
+	BusWidth        int
+	TransferClockHz uint32
+	HighSpeed       bool
+	ADMA2Active     bool
+	CMD23Active     bool
+	Quiesced        bool
+	Retired         bool
+}
+
+// Stats returns a point-in-time snapshot of transfer counters and active state.
+func (d *Device) Stats() Stats {
+	if d == nil {
+		return Stats{}
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	busWidth := 1
+	if d.busWidth4 {
+		busWidth = 4
+	}
+	return Stats{
+		ReadOps:         d.stats.readOps,
+		WriteOps:        d.stats.writeOps,
+		SectorsRead:     d.stats.sectorsRead,
+		SectorsWritten:  d.stats.sectorsWritten,
+		PIOOps:          d.stats.pioOps,
+		ADMA2Ops:        d.stats.adma2Ops,
+		CMD23Ops:        d.stats.cmd23Ops,
+		Errors:          d.stats.errors,
+		QuiesceCount:    d.stats.quiesceCount,
+		ResumeCount:     d.stats.resumeCount,
+		IRQCount:        d.totalIRQs.Load(),
+		BusWidth:        busWidth,
+		TransferClockHz: d.dataClockHz,
+		HighSpeed:       d.highSpeed,
+		ADMA2Active:     d.adma != nil,
+		CMD23Active:     d.cmd23,
+		Quiesced:        d.quiesced,
+		Retired:         d.failed,
+	}
+}
+
+func (d *Device) recordChunkLocked(isWrite, isADMA, usedCMD23 bool, blocks int) {
+	if isADMA {
+		d.stats.adma2Ops++
+	} else {
+		d.stats.pioOps++
+	}
+	if usedCMD23 {
+		d.stats.cmd23Ops++
+	}
+	if isWrite {
+		d.stats.sectorsWritten += uint64(blocks)
+	} else {
+		d.stats.sectorsRead += uint64(blocks)
+	}
+}
+
+func (d *Device) retireLocked() {
+	d.failed = true
+	d.stats.errors++
+	d.disableIRQLocked()
 }
 
 // Identity contains the CID bits supplied by SDHCI's R2 registers (CID[127:8],
@@ -225,7 +317,7 @@ func (d *Device) Close() error {
 	}
 	if d.adma != nil {
 		if err := d.adma.close(); err != nil {
-			d.failed = true
+			d.retireLocked()
 			return err
 		}
 		d.adma = nil
@@ -818,8 +910,7 @@ func (d *Device) modeUnchanged(checkErrors bool) bool {
 }
 
 func (d *Device) containTransferError(err error, poisonDMA bool) error {
-	d.failed = true
-	d.disableIRQLocked()
+	d.retireLocked()
 	if poisonDMA && d.adma != nil {
 		d.adma.poison(err)
 	}
@@ -842,8 +933,7 @@ func (d *Device) ReadSectors(lba uint64, dst []byte) error {
 		return ErrQuiesced
 	}
 	if (d.config.TransferClockHz != 0 || d.config.BusWidth4Bit || d.config.UseADMA2) && !d.modeUnchanged(false) {
-		d.failed = true
-		d.disableIRQLocked()
+		d.retireLocked()
 		return errors.New("sdhci: transfer mode changed before read")
 	}
 	if d.adma != nil {
@@ -875,7 +965,11 @@ func (d *Device) ReadSectors(lba uint64, dst []byte) error {
 		}
 		d.io.Write32(status, 2)
 		copy(dst[n:n+512], sector[:])
+		d.recordChunkLocked(false, false, false, 1)
 		lba++
+	}
+	if len(dst) > 0 {
+		d.stats.readOps++
 	}
 	return nil
 }
@@ -893,10 +987,11 @@ func (d *Device) readMultiPIOLocked(lba uint64, dst []byte) error {
 		if blocks > 1 {
 			cmd = 18
 		}
+		usedCMD23 := blocks > 1 && d.cmd23
 		chunkBytes := blocks * block.SectorSize
 		staged := make([]byte, chunkBytes)
 		var err error
-		if blocks > 1 && d.cmd23 {
+		if usedCMD23 {
 			err = d.issue(23, uint32(blocks), responseR1, noData)
 		}
 		if err == nil {
@@ -923,8 +1018,12 @@ func (d *Device) readMultiPIOLocked(lba uint64, dst []byte) error {
 		}
 		d.io.Write32(status, 2)
 		copy(dst[offset:offset+chunkBytes], staged)
+		d.recordChunkLocked(false, false, usedCMD23, blocks)
 		lba += uint64(blocks)
 		offset += chunkBytes
+	}
+	if len(dst) > 0 {
+		d.stats.readOps++
 	}
 	return nil
 }
@@ -941,6 +1040,7 @@ func (d *Device) readADMA2Locked(lba uint64, dst []byte) error {
 		if !d.config.MultiBlock && blocks > 1 {
 			blocks = 1
 		}
+		usedCMD23 := blocks > 1 && d.cmd23
 		chunkBytes := uint64(blocks * block.SectorSize)
 		cmd := uint32(17)
 		if blocks > 1 {
@@ -952,7 +1052,7 @@ func (d *Device) readADMA2Locked(lba uint64, dst []byte) error {
 		if err := d.adma.buildDescriptors(chunkBytes); err != nil {
 			return d.containTransferError(err, true)
 		}
-		if blocks > 1 && d.cmd23 {
+		if usedCMD23 {
 			if err := d.issue(23, uint32(blocks), responseR1, noData); err != nil {
 				return d.containTransferError(err, true)
 			}
@@ -973,8 +1073,12 @@ func (d *Device) readADMA2Locked(lba uint64, dst []byte) error {
 			return d.containTransferError(err, true)
 		}
 		copy(dst[offset:offset+int(chunkBytes)], d.adma.dataBuf.Bytes()[:chunkBytes])
+		d.recordChunkLocked(false, true, usedCMD23, blocks)
 		lba += uint64(blocks)
 		offset += int(chunkBytes)
+	}
+	if len(dst) > 0 {
+		d.stats.readOps++
 	}
 	return nil
 }
@@ -1014,8 +1118,7 @@ func (d *Device) WriteSectors(lba uint64, src []byte) error {
 		// Check both the transport selection and live write-protect signal before
 		// each sector. No unexpected DMA, bus-width or clock-mode change is permitted.
 		if d.io.Read32(clock)&clockModeMask != d.dataClock|7 || !d.modeUnchanged(true) {
-			d.failed = true
-			d.disableIRQLocked()
+			d.retireLocked()
 			return errors.New("sdhci: transfer mode changed before write")
 		}
 		// SDHCI WPSL is high when a wired socket switch is off. A board
@@ -1052,15 +1155,18 @@ func (d *Device) WriteSectors(lba uint64, src []byte) error {
 		if err != nil {
 			return d.containTransferError(err, false)
 		}
+		d.recordChunkLocked(true, false, false, 1)
 		lba++
+	}
+	if len(src) > 0 {
+		d.stats.writeOps++
 	}
 	return nil
 }
 
 func (d *Device) checkWriteGateLocked() error {
 	if d.io.Read32(clock)&clockModeMask != d.dataClock|7 || !d.modeUnchanged(true) {
-		d.failed = true
-		d.disableIRQLocked()
+		d.retireLocked()
 		return errors.New("sdhci: transfer mode changed before write")
 	}
 	if !d.config.NoSocketWriteProtect {
@@ -1088,8 +1194,9 @@ func (d *Device) writeMultiPIOLocked(lba uint64, src []byte) error {
 		if blocks > 1 {
 			cmd = 25
 		}
+		usedCMD23 := blocks > 1 && d.cmd23
 		var err error
-		if blocks > 1 && d.cmd23 {
+		if usedCMD23 {
 			err = d.issue(23, uint32(blocks), responseR1, noData)
 		}
 		if err == nil {
@@ -1124,8 +1231,12 @@ func (d *Device) writeMultiPIOLocked(lba uint64, src []byte) error {
 		if err != nil {
 			return d.containTransferError(err, false)
 		}
+		d.recordChunkLocked(true, false, usedCMD23, blocks)
 		lba += uint64(blocks)
 		offset += blocks * block.SectorSize
+	}
+	if len(src) > 0 {
+		d.stats.writeOps++
 	}
 	return nil
 }
@@ -1145,6 +1256,7 @@ func (d *Device) writeADMA2Locked(lba uint64, src []byte) error {
 		if !d.config.MultiBlock && blocks > 1 {
 			blocks = 1
 		}
+		usedCMD23 := blocks > 1 && d.cmd23
 		chunkBytes := uint64(blocks * block.SectorSize)
 		cmd := uint32(24)
 		if blocks > 1 {
@@ -1157,7 +1269,7 @@ func (d *Device) writeADMA2Locked(lba uint64, src []byte) error {
 		if err := d.adma.buildDescriptors(chunkBytes); err != nil {
 			return d.containTransferError(err, true)
 		}
-		if blocks > 1 && d.cmd23 {
+		if usedCMD23 {
 			if err := d.issue(23, uint32(blocks), responseR1, noData); err != nil {
 				return d.containTransferError(err, true)
 			}
@@ -1177,8 +1289,12 @@ func (d *Device) writeADMA2Locked(lba uint64, src []byte) error {
 			admaSt := d.io.Read32(admaError)
 			return d.containTransferError(fmt.Errorf("%w (adma_err=%#x)", err, admaSt), true)
 		}
+		d.recordChunkLocked(true, true, usedCMD23, blocks)
 		lba += uint64(blocks)
 		offset += int(chunkBytes)
+	}
+	if len(src) > 0 {
+		d.stats.writeOps++
 	}
 	return nil
 }
@@ -1228,8 +1344,7 @@ func (d *Device) Flush() error {
 		ready = d.writeReady
 	}
 	if err := ready(); err != nil {
-		d.failed = true
-		d.disableIRQLocked()
+		d.retireLocked()
 		return err
 	}
 	return nil
@@ -1257,8 +1372,7 @@ func (d *Device) Quiesce() error {
 	// waiting on a masked SPI.
 	d.suspendIRQLocked()
 	fail := func(err error) error {
-		d.failed = true
-		d.disableIRQLocked()
+		d.retireLocked()
 		if d.adma != nil {
 			d.adma.poison(err)
 		}
@@ -1302,6 +1416,7 @@ func (d *Device) Quiesce() error {
 		}
 	}
 	d.quiesced = true
+	d.stats.quiesceCount++
 	return nil
 }
 
@@ -1325,8 +1440,7 @@ func (d *Device) Resume() error {
 	// one on next. Poison both on failure and adopt next's engine on success,
 	// otherwise later transfers would silently fall back to PIO.
 	fail := func(err error) error {
-		d.failed = true
-		d.disableIRQLocked()
+		d.retireLocked()
 		d.adma.poison(err)
 		if next.adma != d.adma {
 			next.adma.poison(err)
@@ -1364,6 +1478,7 @@ func (d *Device) Resume() error {
 	d.cardWriteProtected = next.cardWriteProtected
 	d.quiesced = false
 	d.stopRequested.Store(false)
+	d.stats.resumeCount++
 	d.resumeIRQLocked()
 	return nil
 }
