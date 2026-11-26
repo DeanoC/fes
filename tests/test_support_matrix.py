@@ -777,20 +777,26 @@ class SupportMatrixTests(unittest.TestCase):
         machine['cells']['fes.atari-st'] = 'sealed'
         errors = SUPPORT_MATRIX.validate(ROOT, data)
         self.assertIn('de25_tier1 fes.atari-st says sealed without the package that ran on Kit D25', errors)
-        record = 'docs/validation/2026-11-16-de25-kit-parity/README.md'
-        zx81 = 'e873bc2e20097c6c3250b087cf9c522581ee4a0e4140ba2dcf1d1220e45aad0b'
-        machine['packages'] = {'fes.atari-st': {'sha256': 'ab' * 32, 'evidence': record}}
-        self.assertIn(f"de25_tier1 fes.atari-st smoke record {record} does not name package {'ab' * 32}",
-                      SUPPORT_MATRIX.validate(ROOT, data))
-        machine['packages'] = {'fes.atari-st': {'sha256': zx81.upper(), 'evidence': record}}
-        self.assertIn('de25_tier1 fes.atari-st package sha256 is not a lowercase SHA-256',
-                      SUPPORT_MATRIX.validate(ROOT, data))
-        machine['packages'] = {'fes.atari-st': {'sha256': zx81, 'evidence': 'docs/missing.md'}}
-        self.assertIn('de25_tier1 fes.atari-st smoke record is missing: docs/missing.md',
-                      SUPPORT_MATRIX.validate(ROOT, data))
-        machine['packages'] = {'fes.atari-st': {'sha256': zx81, 'evidence': record}}
-        self.assertFalse([e for e in SUPPORT_MATRIX.validate(ROOT, data) if 'fes.atari-st' in e])
 
+    def test_de25_smoke_receipt_must_match_core_package_kit_and_pass(self):
+        check = SUPPORT_MATRIX.de25_package_errors
+        sha = 'ab' * 32
+        good = {'kit_serial': 'TRWU8J8G', 'core_id': 'fes.atari-st', 'package_sha256': sha, 'verdict': 'PASS'}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            def run(receipt, name='smoke.json', digest=sha):
+                (root / name).write_text(receipt if isinstance(receipt, str) else json.dumps(receipt))
+                return check(root, 'fes.atari-st', 'sealed', {'sha256': digest, 'evidence': name})
+            self.assertEqual([], run(good))
+            self.assertIn('package sha256 is not a lowercase SHA-256', run(good, digest=sha.upper())[0])
+            self.assertIn('not JSON', run('ab' * 32, name='record.md')[0])
+            self.assertIn('unreadable', run('{', name='bad.json')[0])
+            for key, value in (('core_id', 'fes.zx81'), ('package_sha256', 'cd' * 32),
+                               ('kit_serial', 'TRWU8CBL'), ('verdict', 'FAIL')):
+                with self.subTest(key=key):
+                    errors = run({**good, key: value})
+                    self.assertEqual(1, len(errors), errors)
+                    self.assertIn(f'has {key} {value!r}', errors[0])
 
 if __name__ == '__main__':
     unittest.main()

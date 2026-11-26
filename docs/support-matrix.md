@@ -78,13 +78,13 @@ The release classifications below remain v1, v2 and held back. Tenfoot Home, fir
 
 Forward-plan phase 4: DE25-Nano stays board tier 2 until its shell hosts every tier 1 machine and its image passes update and recovery on hardware. Each tier 1 core ID has its own DE25 state, separate from its DE10 tier. Tracker: [#2329](https://github.com/DeanoC/fes/issues/2329).
 
-A cell is sealed only when its exact package SHA-256 and an in-repo smoke record naming that package are recorded, so a rebuilt or resealed package starts again at builds. The kit runs listed under each machine predate that record, so no cell is sealed yet. A smoke is not conformance or a game corpus, and update and recovery on DE25 hardware is still open.
+A cell is sealed only when its exact package SHA-256 is recorded with an in-repo JSON smoke receipt for that core and package on Kit D25 (`kit_serial`, `core_id`, `package_sha256`, `verdict` PASS), so a rebuilt or resealed package starts again at builds. The kit runs listed under each machine predate those receipts, so no cell is sealed yet. A smoke is not conformance or a game corpus, and update and recovery on DE25 hardware is still open.
 
 | DE25 state | Meaning |
 | --- | --- |
 | none | No DE25 producer builds it. |
 | builds | A DE25 producer builds it, with no recorded smoke of its exact package on Kit D25. |
-| sealed | Registered Quartus Pro 26.3 recipe; its exact package (SHA-256) ran the lifecycle smoke on Kit D25, per an in-repo record. |
+| sealed | Registered Quartus Pro 26.3 recipe; its exact package (SHA-256) passed the lifecycle smoke on Kit D25, per an in-repo JSON receipt. |
 | kit-accepted | Conformance and the DE10 game corpus pass on Kit D25, with persistence as declared. |
 | released | In a DE25 release cut from the same tag as DE10. |
 

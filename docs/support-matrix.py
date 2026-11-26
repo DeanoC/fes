@@ -41,6 +41,8 @@ QUARTUS_PRIMARY = 'Quartus (primary, policy)'
 DE25_CELL = 'Quartus-only (policy)'
 # Forward-plan cell states, in order (docs/plans/forward-plan.md, "The matrix is data").
 DE25_STATES = ('none', 'builds', 'sealed', 'kit-accepted', 'released')
+# Kit D25 (de25-j8g); DE25 Linux HIL runs only on this board.
+DE25_KIT_SERIAL = 'TRWU8J8G'
 # i386, pc386 and PC/XT. nextpnr on these rows is advisory.
 QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt-dos',
                                  'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500'})
@@ -704,11 +706,11 @@ def validate_de25_progress(root: Path, data: dict, by_id: dict) -> list[str]:
 
 
 def de25_package_errors(root: Path, core_id: str, state: str, package) -> list[str]:
-    """sealed and later name the exact package that ran on Kit D25.
+    """sealed and later name the exact package that passed the Kit D25 smoke.
 
-    The record is the package SHA-256 and an in-repo smoke record that names
-    it, so a rebuilt or resealed package does not inherit an older package's
-    kit run.
+    The record is the package SHA-256 and an in-repo JSON smoke receipt for
+    that core, that package and Kit D25 with a PASS verdict, so neither a
+    rebuilt package nor another core's receipt can stand in for it.
     """
     if not isinstance(package, dict):
         return [f'de25_tier1 {core_id} says {state} without the package that ran on Kit D25']
@@ -716,11 +718,19 @@ def de25_package_errors(root: Path, core_id: str, state: str, package) -> list[s
     record = package.get('evidence')
     if not isinstance(sha, str) or len(sha) != 64 or any(c not in '0123456789abcdef' for c in sha):
         return [f'de25_tier1 {core_id} package sha256 is not a lowercase SHA-256']
-    if not isinstance(record, str) or not (root / record).is_file():
-        return [f'de25_tier1 {core_id} smoke record is missing: {record}']
-    if sha not in (root / record).read_text():
-        return [f'de25_tier1 {core_id} smoke record {record} does not name package {sha}']
-    return []
+    if not isinstance(record, str) or not record.endswith('.json') or not (root / record).is_file():
+        return [f'de25_tier1 {core_id} smoke receipt is missing or not JSON: {record}']
+    try:
+        receipt = json.loads((root / record).read_text())
+    except ValueError as error:
+        return [f'de25_tier1 {core_id} smoke receipt {record} is unreadable: {error}']
+    expected = {'kit_serial': DE25_KIT_SERIAL, 'core_id': core_id, 'package_sha256': sha, 'verdict': 'PASS'}
+    if not isinstance(receipt, dict):
+        return [f'de25_tier1 {core_id} smoke receipt {record} is not an object']
+    return [
+        f'de25_tier1 {core_id} smoke receipt {record} has {key} {receipt.get(key)!r}, expected {value!r}'
+        for key, value in expected.items() if receipt.get(key) != value
+    ]
 
 
 def render_check_policy(data: dict) -> list[str]:
