@@ -538,9 +538,9 @@ func (s *Service) writeCoreEntryLocked(ctx context.Context, gameID, title, expec
 	} else if err := s.validateCoreEntryMedia(ctx, check.Descriptor, role, mediaID); err != nil {
 		return catalog.CoreEntry{}, err
 	}
-	// Every disk of a set must still fit the drive under the new package.
+	// The new package must still have a compatible drive for each disk.
 	for _, m := range more {
-		if err := s.validateCoreEntryMedia(ctx, check.Descriptor, role, m.MediaID); err != nil {
+		if err := s.validateCoreMediaForEntry(ctx, check.Descriptor, role, m.MediaID, false); err != nil {
 			return catalog.CoreEntry{}, err
 		}
 	}

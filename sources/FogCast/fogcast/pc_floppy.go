@@ -9,8 +9,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-// floppySource is a pc386 launch floppy: disk 1 of a floppy entry, in the
-// drive its size names, staged on the kit by digest like the hard disk.
+// floppySource is a pc386 boot floppy staged on the kit by digest.
 type floppySource struct {
 	floppy protocol.StagedFloppy
 	reader io.ReadCloser
@@ -28,8 +27,19 @@ func (f *floppySource) Close() error {
 	return nil
 }
 
-// readLaunchFloppy opens a floppy entry's disk 1. Its drive is the one drive
-// that reads its size; it boots from A: and is readable from B:.
+func validateLaunchFloppySize(size int64) error {
+	drive, ok := protocol.PcFloppyDrive(size)
+	if !ok {
+		return protocol.PcFloppySizeError(protocol.PcFloppyUnitA, size)
+	}
+	if drive == protocol.PcFloppyUnitB {
+		return &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission",
+			Message: "pc386 boots from A: or C:. Choose a 720K, 1.44M or 1.68M boot floppy, or insert this image in B: during play."}
+	}
+	return nil
+}
+
+// readLaunchFloppy opens a floppy entry's boot disk for drive A:.
 func (s *Service) readLaunchFloppy(ctx context.Context, entry catalog.CoreEntry) (*floppySource, error) {
 	if entry.MediaRole != protocol.FloppyRole || protocol.ValidateDigest(entry.MediaID) != nil {
 		return nil, canonicalError(protocol.CodeBadRequest, nil)
@@ -42,11 +52,13 @@ func (s *Service) readLaunchFloppy(ctx context.Context, entry catalog.CoreEntry)
 	if err != nil {
 		return nil, mapCoreMediaError(err)
 	}
-	drive, ok := protocol.PcFloppyDrive(media.Size)
-	if media.MediaID != entry.MediaID || !ok {
-		return nil, joinClose(protocol.PcFloppySizeError(drive, media.Size), reader)
+	if media.MediaID != entry.MediaID {
+		return nil, joinClose(canonicalError(protocol.CodeInternal, nil), reader)
 	}
-	return &floppySource{floppy: protocol.StagedFloppy{Unit: drive, SHA256: media.MediaID, Size: media.Size}, reader: reader}, nil
+	if err := validateLaunchFloppySize(media.Size); err != nil {
+		return nil, joinClose(err, reader)
+	}
+	return &floppySource{floppy: protocol.StagedFloppy{Unit: protocol.PcFloppyUnitA, SHA256: media.MediaID, Size: media.Size}, reader: reader}, nil
 }
 
 func joinClose(err error, c io.Closer) error {

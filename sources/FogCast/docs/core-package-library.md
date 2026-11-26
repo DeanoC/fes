@@ -1062,10 +1062,11 @@ A pc386 package with `fes.media.pc-floppy` has drive A: (3.5" 1.44M) and B:
 (5.25" 1.2M). A raw floppy image (`.img`, `.ima` or `.vfd`) is named by its
 exact size: A: reads 720K, 1.44M and 1.68M DMF images, B: reads 160K, 180K,
 320K, 360K and 1.2M images, and a 2.88M image fits neither. An entry with the
-`floppy` media role holds disk 1 and, as a disk set, disks 2 to N. Its launch
-stages disk 1 on the kit by digest, as for the hard disk, and puts it in the
-one drive that reads its size, with the hard disk empty; the machine boots A:,
-then C:. The load carries `X-FogCast-Floppy-Image` as `UNIT:SHA256` (or
+`floppy` media role holds disk 1 and, as a disk set, disks 2 to N. Disk 1 must
+fit drive A: because the machine boots from A: then C:. Launch stages disk 1
+on the kit by digest and inserts it in A: with the hard disk empty. B:-only
+images remain available for insertion during play. The load carries
+`X-FogCast-Floppy-Image` as `UNIT:SHA256` (or
 `UNIT:SHA256:wp`). An older kit agent ignores that header and starts the
 machine with the drive empty; the host sees the empty drive in the result,
 stops the machine and reports that the kit needs updating.

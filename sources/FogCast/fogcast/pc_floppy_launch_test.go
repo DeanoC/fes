@@ -121,6 +121,49 @@ func TestPc386FloppyEntryLaunch(t *testing.T) {
 	}
 }
 
+func TestPc386BOnlyFloppyRefusedForBoot(t *testing.T) {
+	ctx := context.Background()
+	s, base, entry, _ := newCoreEntryLaunchFixture(t, pc386FloppyPackage(t), "DOS setup", time.Minute)
+	client := &floppyMachineClient{defaultMediaPackageClient: base, staged: map[string][]byte{}}
+	s.targetClients[s.selectedTarget] = client
+	disk := bytes.Repeat([]byte{0xf6}, 1228800)
+	media, _, err := s.ImportCoreMedia(ctx, int64(len(disk)), bytes.NewReader(disk))
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkBootError := func(err error) {
+		t.Helper()
+		var apiErr *protocol.APIError
+		if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest || !strings.Contains(apiErr.Message, "insert this image in B:") {
+			t.Fatalf("expected boot floppy admission error, got %v", err)
+		}
+	}
+	_, err = s.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, "", protocol.FloppyRole, media.MediaID)
+	checkBootError(err)
+
+	// A previously stored B:-only primary disk is refused before upload or load.
+	store := s.catalog.(coreMediaCatalog)
+	legacy, err := store.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, "", protocol.FloppyRole, media.MediaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspection, err := s.installedCoreInspection(ctx, entry.PackageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !s.shelfComputerLaunchReady(ctx, entry, inspection) {
+		t.Fatal("fixture was not launch-ready before selecting the B:-only disk")
+	}
+	if s.shelfComputerLaunchReady(ctx, legacy, inspection) {
+		t.Fatal("Home offered Play for a B:-only floppy entry")
+	}
+	_, err = s.Launch(ctx, legacy.GameID, nil)
+	checkBootError(err)
+	if client.loads != 0 || len(client.staged) != 0 {
+		t.Fatalf("rejected launch touched the kit: %d loads, %d uploads", client.loads, len(client.staged))
+	}
+}
+
 func (c *floppyMachineClient) InsertLibraryMedia(_ context.Context, size int64, body io.Reader, b protocol.LibraryMediaBinding) (protocol.Status, error) {
 	data, _ := io.ReadAll(body)
 	if int64(len(data)) != size {
@@ -189,6 +232,10 @@ func TestPc386DriveTakesAnyLibraryFloppy(t *testing.T) {
 	other.GameID = "someone-else"
 	if _, err := s.InsertLibraryDisk(ctx, other); err == nil || len(client.inserted) != 1 {
 		t.Fatalf("other title err=%v", err)
+	}
+	if _, err := s.InsertLibraryDisk(ctx, binding(protocol.PcFloppyUnitB, b5.MediaID)); err != nil || len(client.inserted) != 2 ||
+		client.inserted[1].Unit != protocol.PcFloppyUnitB || client.inserted[1].BaseMediaID != b5.MediaID {
+		t.Fatalf("setup disk into B: err=%v inserted=%+v", err, client.inserted)
 	}
 }
 

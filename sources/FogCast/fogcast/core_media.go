@@ -104,8 +104,8 @@ type coreEntryMediaSetCatalog interface {
 }
 
 // SetCoreEntryMediaSet replaces disks 2 to N of a title's disk set. Each disk
-// must fit the drive disk 1 is in, as the installed package declares it.
-// Launch still starts from disk 1; the others are swapped in during play.
+// must fit a drive declared by the installed package. Launch starts from
+// disk 1; the others are available during play.
 func (s *Service) SetCoreEntryMediaSet(parent context.Context, gameID, expectedPackage, expectedMedia string, expectedMore []string, more []catalog.SetMedia) (catalog.CoreEntry, error) {
 	if protocol.ValidateGameID(gameID) != nil || protocol.ValidateDigest(expectedPackage) != nil || protocol.ValidateDigest(expectedMedia) != nil ||
 		catalog.ValidateCoreEntryMediaSetIDs(expectedMedia, expectedMore) != nil || catalog.ValidateCoreEntryMediaSet(expectedMedia, more) != nil {
@@ -143,7 +143,7 @@ func (s *Service) SetCoreEntryMediaSet(parent context.Context, gameID, expectedP
 		if !setMediaNameFitsRole(entry.MediaRole, m.MediaName) {
 			return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
 		}
-		if err := s.validateCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, m.MediaID); err != nil {
+		if err := s.validateCoreMediaForEntry(ctx, inspection.Descriptor, entry.MediaRole, m.MediaID, false); err != nil {
 			return catalog.CoreEntry{}, err
 		}
 	}
@@ -204,9 +204,16 @@ func (m *coreEntryMedia) Close() error {
 }
 
 func (s *Service) validateCoreEntryMedia(ctx context.Context, descriptor corepackage.Descriptor, role, id string) error {
+	return s.validateCoreMediaForEntry(ctx, descriptor, role, id, true)
+}
+
+func (s *Service) validateCoreMediaForEntry(ctx context.Context, descriptor corepackage.Descriptor, role, id string, primary bool) error {
 	media, err := s.readCoreEntryMedia(ctx, descriptor, role, id)
 	if err != nil || media == nil {
 		return err
+	}
+	if primary && role == protocol.FloppyRole {
+		return joinClose(validateLaunchFloppySize(media.size), media)
 	}
 	return media.Close()
 }
@@ -265,8 +272,7 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 		return &coreEntryMedia{ReadCloser: io.NopCloser(bytes.NewReader(nil)), size: media.Size}, nil
 	}
 	if capability.Interface == protocol.PcFloppyInterface() {
-		// Like the hard disk, a launch floppy is staged on the kit and named
-		// in the launch (readLaunchFloppy); a size no drive reads is refused.
+		// Floppies can be boot media or part of a disk set used during play.
 		if !protocol.AdmitPcFloppySize(media.Size) {
 			drive, _ := protocol.PcFloppyDrive(media.Size)
 			return nil, protocol.PcFloppySizeError(drive, media.Size)

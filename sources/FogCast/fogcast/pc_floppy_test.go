@@ -31,28 +31,22 @@ func TestLaunchFloppyDriveAndStaging(t *testing.T) {
 		}
 		return entry
 	}
-	// A 1.2M disk goes in B:, which reads it; the kit is sent it once.
-	entry := entryFor("Setup", 1228800, 1)
+	// The boot disk goes in A: and the kit is sent it once.
+	entry := entryFor("Setup", 1474560, 1)
 	source, err := s.readLaunchFloppy(ctx, entry)
-	if err != nil || source.floppy.Unit != protocol.PcFloppyUnitB || source.floppy.Size != 1228800 || source.floppy.SHA256 != entry.MediaID || source.floppy.WriteProtected {
+	if err != nil || source.floppy.Unit != protocol.PcFloppyUnitA || source.floppy.Size != 1474560 || source.floppy.SHA256 != entry.MediaID || source.floppy.WriteProtected {
 		t.Fatalf("read %+v %v", source, err)
 	}
 	missing := &stagingClient{held: protocol.DiskImageStatus{SHA256: entry.MediaID}}
-	if err := stageLaunchFloppy(ctx, missing, source); err != nil || missing.uploaded != 1228800 {
+	if err := stageLaunchFloppy(ctx, missing, source); err != nil || missing.uploaded != 1474560 {
 		t.Fatalf("upload %v %d", err, missing.uploaded)
 	}
-	held := &stagingClient{held: protocol.DiskImageStatus{SHA256: entry.MediaID, Size: 1228800, Staged: true}}
+	held := &stagingClient{held: protocol.DiskImageStatus{SHA256: entry.MediaID, Size: 1474560, Staged: true}}
 	if err := stageLaunchFloppy(ctx, held, &floppySource{floppy: source.floppy}); err != nil || held.uploaded != 0 {
 		t.Fatalf("reuse %v %d", err, held.uploaded)
 	}
 	if err := source.Close(); err != nil {
 		t.Fatal(err)
-	}
-	// A 1.44M disk boots from A:; a 2.88M disk fits neither drive.
-	if source, err := s.readLaunchFloppy(ctx, entryFor("Boot", 1474560, 2)); err != nil || source.floppy.Unit != protocol.PcFloppyUnitA {
-		t.Fatalf("A: %+v %v", source, err)
-	} else {
-		_ = source.Close()
 	}
 	if _, err := s.readLaunchFloppy(ctx, entryFor("ED", 2949120, 3)); err == nil || !strings.Contains(err.Error(), "2.88M") {
 		t.Fatalf("2.88M %v", err)
