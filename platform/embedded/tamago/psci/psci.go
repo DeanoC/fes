@@ -228,13 +228,16 @@ func (c *Client) Probe() (Capabilities, error) {
 		caps.SystemReset = true
 		caps.AffinityInfo = true
 	}
-	if trngMaj, trngMin, err := c.TRNGVersion(); err == nil && trngMaj >= 1 {
-		caps.TRNGMajor = trngMaj
-		caps.TRNGMinor = trngMin
-		_, err64 := c.TRNGFeatures(FuncTRNGRnd64)
-		caps.TRNG64 = err64 == nil
-		_, err32 := c.TRNGFeatures(FuncTRNGRnd32)
-		caps.TRNG32 = err32 == nil
+	hasSMCCC11 := caps.HasSMCCC && (caps.SMCCCMajor > 1 || (caps.SMCCCMajor == 1 && caps.SMCCCMinor >= 1))
+	if hasSMCCC11 {
+		if trngMaj, trngMin, err := c.TRNGVersion(); err == nil && trngMaj >= 1 {
+			caps.TRNGMajor = trngMaj
+			caps.TRNGMinor = trngMin
+			_, err64 := c.TRNGFeatures(FuncTRNGRnd64)
+			caps.TRNG64 = err64 == nil
+			_, err32 := c.TRNGFeatures(FuncTRNGRnd32)
+			caps.TRNG32 = err32 == nil
+		}
 	}
 	return caps, nil
 }

@@ -435,19 +435,25 @@ func TestSMCCCVersionAffinityInfoAndProbe(t *testing.T) {
 	if err != nil || smMaj != 1 || smMin != 2 {
 		t.Fatalf("SMCCCVersion=(%d.%d, %v), want 1.2", smMaj, smMin, err)
 	}
-	// Per SMCCC §7.2, NOT_SUPPORTED (-1) from SMCCC_VERSION maps to SMCCC 1.0.
-	c10SMCCC := New(&mockConduit{fn: func(x0, _, _, _ uint64) (uint64, uint64, uint64, uint64) {
-		if uint32(x0) == FuncVersion {
+	// Per SMCCC §7.2, NOT_SUPPORTED (-1) from SMCCC_VERSION maps to SMCCC 1.0,
+	// and Probe skips TRNG probing unless SMCCC >= 1.1 is established (DEN0098 §2.1.3).
+	c10SMCCC := New(&mockConduit{fn: func(x0, x1, _, _ uint64) (uint64, uint64, uint64, uint64) {
+		switch uint32(x0) {
+		case FuncVersion:
 			return 0x00010000, 0, 0, 0 // PSCI 1.0
+		case FuncFeatures:
+			if uint32(x1) == FuncSMCCCVersion {
+				return 0, 0, 0, 0 // SMCCC_VERSION supported, returns 1.0 (-1)
+			}
+			return ^uint64(0), 0, 0, 0
+		case FuncSMCCCVersion:
+			return ^uint64(0), 0, 0, 0 // -1 = NOT_SUPPORTED -> SMCCC 1.0
+		case FuncTRNGVersion:
+			t.Fatalf("Probe called TRNG_VERSION on SMCCC 1.0")
 		}
-		if uint32(x0) == FuncSMCCCVersion {
-			t.Fatalf("Probe called SMCCC_VERSION without PSCI_FEATURES discovery")
-		}
-		return ^uint64(0), 0, 0, 0 // -1 = NOT_SUPPORTED
-	}})
-	sm10Maj, sm10Min, err := New(&mockConduit{fn: func(uint64, uint64, uint64, uint64) (uint64, uint64, uint64, uint64) {
 		return ^uint64(0), 0, 0, 0
-	}}).SMCCCVersion()
+	}})
+	sm10Maj, sm10Min, err := c10SMCCC.SMCCCVersion()
 	if err != nil || sm10Maj != 1 || sm10Min != 0 {
 		t.Fatalf("SMCCC_VERSION NOT_SUPPORTED=(%d.%d, %v), want 1.0 nil", sm10Maj, sm10Min, err)
 	}
@@ -457,8 +463,20 @@ func TestSMCCCVersionAffinityInfoAndProbe(t *testing.T) {
 		t.Fatalf("SMCCC_VERSION error err=%v, want ErrInvalidParameters", err)
 	}
 	caps10, err := c10SMCCC.Probe()
-	if err != nil || caps10.HasSMCCC {
-		t.Fatalf("PSCI 1.0 without SMCCC_VERSION feature Probe=(%+v, %v)", caps10, err)
+	if err != nil || !caps10.HasSMCCC || caps10.SMCCCMajor != 1 || caps10.SMCCCMinor != 0 || caps10.TRNGMajor != 0 {
+		t.Fatalf("PSCI 1.0 SMCCC 1.0 Probe=(%+v, %v)", caps10, err)
+	}
+	cNoSMCCCFeat := New(&mockConduit{fn: func(x0, _, _, _ uint64) (uint64, uint64, uint64, uint64) {
+		if uint32(x0) == FuncVersion {
+			return 0x00010000, 0, 0, 0
+		}
+		if uint32(x0) == FuncSMCCCVersion || uint32(x0) == FuncTRNGVersion {
+			t.Fatalf("Probe called %#x without discovery", uint32(x0))
+		}
+		return ^uint64(0), 0, 0, 0
+	}})
+	if capsNo, err := cNoSMCCCFeat.Probe(); err != nil || capsNo.HasSMCCC || capsNo.TRNGMajor != 0 {
+		t.Fatalf("PSCI 1.0 without SMCCC_VERSION feature Probe=(%+v, %v)", capsNo, err)
 	}
 	for _, want := range []AffinityState{AffinityOn, AffinityOff, AffinityOnPending} {
 		affinityRet = uint64(want)
@@ -504,7 +522,7 @@ func TestSMCCCVersionAffinityInfoAndProbe(t *testing.T) {
 		if uint32(x0) == FuncVersion {
 			return 0x00000002, 0, 0, 0
 		}
-		if uint32(x0) == FuncSMCCCVersion || uint32(x0) == FuncFeatures {
+		if uint32(x0) == FuncSMCCCVersion || uint32(x0) == FuncFeatures || uint32(x0) == FuncTRNGVersion {
 			t.Fatalf("Probe(0.2) unexpectedly invoked %#x", uint32(x0))
 		}
 		return ^uint64(0), 0, 0, 0
