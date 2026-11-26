@@ -782,7 +782,49 @@ same-path DE10 raw netlist and all four identities match the frozen base,
 and all seven D12 selections match the frozen base and measured B. The
 DE10 receipt SHA-256 is
 `cb6a36cfa3b3700911ab3afc1b30ad9e42d52b7e34452e46fc86c5108eb248f3`.
-The next four-seed sweep has started at this revision.
+Seeds 1 and 3 passed the ordinary producer, seal, and independent LOADED
+check. Seed 2 passed the producer and seal and exceeded the independent
+LOADED limit.
+
+| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Seed summary SHA-256 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 45,012.0 | +0.007 ns | 0.000 ns | +5.279 ns | +0.092 ns | 2.511 ns | `48973014f1fc038b27ab63dd93de6eceb2927206c89dbd665c66e7aae6a3d2f9` |
+| 2 | 45,051.9 | +0.022 ns | 0.000 ns | +5.302 ns | +0.029 ns | 3.999 ns | `3cebe17e0bb94d3f0205f5421642f8bb9bc88af7dca43774e5212764f580561f` |
+| 3 | 45,148.9 | +0.001 ns | 0.000 ns | +5.698 ns | +0.029 ns | 2.499 ns | `7e86e89e4e4acc9faad87b29f0c2782ea35b8ada51c4186ec8c8cf63134e6f5e` |
+
+Seed 2's `machine_presenter_loaded_flag` to `machine_presenter_loaded_sync[0]`
+route measured 2.474 ns of data delay and 1.525 ns of absolute clock
+skew in the slow fix4 0°C model. The sum exceeds the 3.900 ns limit by
+0.099 ns. The slow fix4a 0°C model also exceeded the limit, at 3.996 ns.
+These measurements refuse the seed. The row and epoch payload is a
+separate crossing.
+
+Revision `62012d5b5520ca56e3a1a4f515c002766b52c6b3` adds a 2.250 ns
+fitter data-delay target to the same false-pathed LOADED flag hop for
+the 120 and 130 MHz rungs. It reserves 1.650 ns for skew in the
+independent 3.900 ns allowance. The independent check still reports data
+delay and absolute clock skew in four corners. The five synchronizer cuts
+are identical in a Tcl probe at all six rung periods. DE10 netlist bytes and
+all four identities match the frozen base, with receipt SHA-256
+`cac1fbbd7109183f0366421387ca2c70408538b67ae87e1b4a6aa66f95d07427`.
+All seven D12 input captures match the frozen base and phase B.
+
+The exact 120.512821 MHz simulations started in parallel with these
+fits. Both compiled game models use the guarded eight-cycle presenter.
+
+## C0 = 24 prepared inputs
+
+The 130.555556 MHz candidate `fb398cee10f08a2a07af695fed453b417d05e037`
+applies the reviewed PLL and Qsys parent pins directly on `9259873f`.
+Its raw DE10 netlist and design, evidence, record and toolchain identities
+match the frozen base. The DE10 receipt SHA-256 is
+`11e02b355c9df0abf7eecbcefe644dbd7a6f399b345ed098f61b885dad599d33`.
+All seven D12 input selections match the frozen base and measured phase B,
+with comparison SHA-256
+`76ce53e2bafcea6303720ae12e5094f49457f350ec1882492a374c46094d7982`.
+Revision `e707acc6cfaf683b0bd6eff0b6cb0a6e44d34536` keeps those exact clock
+files and adds the same LOADED flag data-delay target as `62012d5b`.
+The C0 = 24 fits follow the C0 = 26 qualification.
 
 ## Running a seed on either builder
 
@@ -822,4 +864,5 @@ The other two failures reproduced at the merge base. The DE25 PC/XT
 standard-shell test and PC/XT PPI reset test use waivers the system
 Verilator 5.032 cannot read. The PPI reset test passes on 5.054. The
 DE25 video compile has an additional reproducible 5.054 failure tracked
-in [#2275](https://github.com/DeanoC/fes/issues/2275).
+in [#2275](https://github.com/DeanoC/fes/issues/2275). Main fixed that
+failure in [#2292](https://github.com/DeanoC/fes/pull/2292).
