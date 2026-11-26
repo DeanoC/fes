@@ -442,6 +442,30 @@ completed hold and raster deadlines. The original timing constraints
 and 3.9 ns maximum LOADED allowance are used for the fresh four-seed
 fit. The PR carries the qualified C0 = 34 source during this trial.
 
+## C0 = 32 eight-cycle sweep
+
+The first two fits of `7e3227f68081a30c8d920a060eeaa930ab880357` passed.
+The recorded eight-cycle interval and exact derived presenter digest
+match the fitted inputs. Both seeds emitted the same machine netlist,
+SHA-256 `ad0a331d6f02c529ac55ed93542764fbc5576345f25c61064085a551a836fd33`.
+
+| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Producer and seal |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 45,187.1 | +0.915 ns | 0.000 ns | +7.281 ns | +0.136 ns | 2.554 ns | Pass |
+| 2 | 45,012.9 | +0.500 ns | 0.000 ns | +7.189 ns | +0.174 ns | 2.228 ns | Pass |
+
+| Seed | Seed summary SHA-256 |
+| ---: | --- |
+| 1 | `a4bfdad3263cf0fc1fbea59ca749d2d1b0610cdf1bce506ab97b89f951565fa7` |
+| 2 | `f9f1342caa0769a5e354a4bee7b0e5b093847f35142e04f2592d9d5763ef1332` |
+
+## C0 = 30 generation preflight
+
+The [generation preflight](parent-c30.txt) reviews the Qsys parent for
+104.444444 MHz. The preflight passed the pinned raw input checks and
+found one interconnect module rename. The C0 = 30 fitter trial follows
+qualification of C0 = 32.
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed
