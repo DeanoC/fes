@@ -144,3 +144,18 @@ exited 0 after the full 20-second RTL window at 24.600 seconds, cycle
 fallback, scanout, presenter or plane underflows and capture drops, with
 no stop, shutdown or reset. The final frame shows the running Necropolis
 demo. [G5 full-window receipt](quake-c32-full.json)
+
+## C0 = 28
+
+At 111.904762 MHz, [G2](sim-c28-g2.json) and [G4](sim-c28-g4.json) passed
+on the exact fitted `cb91390dbf936393e6e7e4640fe3717d58c193bc` source.
+The compiled dependency lists for both game CPUs include the eight-cycle
+presenter with SHA-256
+`7437e4b680112d6d8e5fb7ecf5a0a65f92ba937148b9bfbdfe1550703bdf8167`.
+
+3DBench used matching handovers and 391,666,688-cycle scoring windows.
+The DX/reference CPI ratios were 1.015048 in 3DBench and 1.057348 in Doom.
+The Doom run matched the flip-40 handovers and 55,952,384-cycle final
+windows. It normalized to 2,180.252 DX-33 realtics against a limit of
+4,682, and both CPU runs exited 0. Quake handed over to the RTL at cycle
+503,571,519 and is running the 20-second RTL window.

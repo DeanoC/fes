@@ -689,8 +689,33 @@ matches the original C28 sweep. The retained
 `65d7428d59706adedfc6be34dfcea2a80d7f64ab4a7b1b682535c012bbab34b3`.
 Seed 3's +0.026 ns lead setup path ends at `cpu_x87_trans_t_wdata[23]`
 in the transcendental engine. The [exact-clock G2 replay](sim-c28-g2.json)
-passed. G4 and G5 are in progress. The 120.512821 MHz sweep started at
-`fd953c9731d3c18a335dc8737f9a1a8dcecfecec`.
+passed. The [G4 replay](sim-c28-g4.json) also passed. Quake is still
+running the full RTL window.
+
+## C0 = 26 first fits
+
+The 120.512821 MHz sweep started at `fd953c9731d3c18a335dc8737f9a1a8dcecfecec`.
+Powerboat seed 1 generated the reviewed parent and all ten other raw
+input pins before fitting. The `c26-first/parent-s1-audit.txt` SHA-256 is
+`c33f2deb4be012c8ab69e58380f3c8b2ab0774e2d214aff3d23662c67a44a998`.
+
+| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Seed summary SHA-256 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 45,071.0 | +0.005 ns | 0.000 ns | +5.537 ns | +0.096 ns | 3.018 ns | `512fe86159457a3bbea009a19f4be789cc34a6b21392b25058d524af3f97bb3c` |
+
+Seed 1 met the numerical and LOADED budgets. Its worst setup slack is
+on the held machine-to-pixel display command path from `payload[21]`
+to `pixel_index[5]`. The worst machine capture path is the held count
+transfer from `pixel_counts_copy[54]` to `pixel_counts_snapshot[54]`
+at +0.110 ns. The leading strictly machine-clock path runs from the
+window bridge port 2 `head` to the arbiter's `writes_owed[7]` at +0.133 ns.
+The fit reports zero `CDC-50003` violations.
+
+The registered producer refused seed 1 on unreviewed `TMC-20602` rows
+for `cpu_l1d_stall~RTM_3SCLR_dff`, `cpu_m2_load~RTM_3` and
+`cpu_halted~DUPLICATE_Duplicate_1`. Each exact register passed the
+fallback's 28 numerical checks. Full structural and unconstrained-path
+checks on the retained fit are pending.
 
 ## Running a seed on either builder
 
