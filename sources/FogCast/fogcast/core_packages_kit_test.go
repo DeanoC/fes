@@ -172,6 +172,40 @@ func TestKitHostStoreFailureAfterOpenReportsItUnavailable(t *testing.T) {
 	}
 }
 
+func TestKitHostPackageViewsPreserveContextErrors(t *testing.T) {
+	s, _, factory, _ := kitHostService(t)
+	id := unpackFactoryPackage(t, factory, libraryPackageFixture(t, "1.0.0"))
+
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	deadline, cancelDeadline := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancelDeadline()
+
+	for _, tc := range []struct {
+		name string
+		ctx  context.Context
+		want error
+	}{
+		{name: "canceled", ctx: canceled, want: context.Canceled},
+		{name: "deadline", ctx: deadline, want: context.DeadlineExceeded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, listErr := s.CorePackages(tc.ctx)
+			_, inspectErr := s.CorePackage(tc.ctx, id)
+			_, _, readErr := s.readInstalledCore(tc.ctx, id)
+			for name, err := range map[string]error{"list": listErr, "inspect": inspectErr, "read": readErr} {
+				if !errors.Is(err, tc.want) {
+					t.Errorf("%s error = %v, want context cause %v", name, err, tc.want)
+				}
+				var apiErr *protocol.APIError
+				if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeCorePackageStoreUnavailable {
+					t.Errorf("%s error = %v, want store-unavailable API error", name, err)
+				}
+			}
+		})
+	}
+}
+
 func TestCorePackagesKitSurvivesACanonicalConfigRewrite(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	content := `base_url = "http://192.0.2.20:8182"

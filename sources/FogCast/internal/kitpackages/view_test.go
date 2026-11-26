@@ -383,6 +383,21 @@ func TestViewImportsIntoTheDurableStore(t *testing.T) {
 	}
 }
 
+type failingRequestBody struct{ err error }
+
+func (r failingRequestBody) Read([]byte) (int, error) { return 0, r.err }
+
+func TestViewImportReaderFailureDoesNotReportStoreUnavailable(t *testing.T) {
+	durable := newStore(t)
+	view := openedView(durable, NewFactory(newFactoryRoot(t)))
+	readErr := errors.New("request body read failed")
+
+	_, _, err := view.Import(context.Background(), 1, failingRequestBody{err: readErr})
+	if !errors.Is(err, readErr) || errors.Is(err, ErrStoreUnavailable) {
+		t.Fatalf("import error = %v, want request body error without store-unavailable classification", err)
+	}
+}
+
 func TestDurableInspectHashesAnUnchangedPackageOnce(t *testing.T) {
 	ctx := context.Background()
 	durable := newStore(t)

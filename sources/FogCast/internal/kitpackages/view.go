@@ -93,11 +93,31 @@ func (v *View) Import(ctx context.Context, length int64, reader io.Reader) (core
 	if err != nil {
 		return corepackage.Inspection{}, false, err
 	}
-	inspection, created, err := store.Install(ctx, length, reader)
+	if reader == nil {
+		return store.Install(ctx, length, nil)
+	}
+	body := &requestBodyReader{reader: reader}
+	inspection, created, err := store.Install(ctx, length, body)
 	if err != nil && !errors.Is(err, ErrInvalidPackage) && !errors.Is(err, ErrInvalidPackageID) {
+		if body.err != nil && errors.Is(err, body.err) {
+			return inspection, created, err
+		}
 		err = errors.Join(ErrStoreUnavailable, err)
 	}
 	return inspection, created, err
+}
+
+type requestBodyReader struct {
+	reader io.Reader
+	err    error
+}
+
+func (r *requestBodyReader) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		r.err = err
+	}
+	return n, err
 }
 
 func (v *View) List(ctx context.Context) ([]corepackage.Inspection, error) {
