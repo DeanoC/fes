@@ -8,8 +8,11 @@ import (
 )
 
 func TestWiredKindStrings(t *testing.T) {
-	if KindXInput.String() != "xinput" || KindXboxGIP.String() != "xboxgip" {
-		t.Fatalf("unexpected wired kind strings: %q %q", KindXInput.String(), KindXboxGIP.String())
+	if KindXInput.String() != "xinput" || KindXboxGIP.String() != "xboxgip" || KindMouse.String() != "mouse" {
+		t.Fatalf("unexpected kind strings: %q %q %q", KindXInput.String(), KindXboxGIP.String(), KindMouse.String())
+	}
+	if !KindDualSense.IsGamepad() || !KindGenericHID.IsGamepad() || KindMouse.IsGamepad() || KindUnknown.IsGamepad() {
+		t.Fatal("unexpected IsGamepad classification")
 	}
 }
 

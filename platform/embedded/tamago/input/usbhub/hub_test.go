@@ -1467,3 +1467,276 @@ func TestHubOverflowWiredSwitchProPromotionLED(t *testing.T) {
 		t.Fatalf("expected promoted Switch Pro P4 LED 0x08, got %x", swOut.outPackets[before:])
 	}
 }
+
+func TestHubClassicBTMouseMergeWithWiredAndDisconnectRelease(t *testing.T) {
+	bus := newFakeBus()
+	dongle := makeBTDongleDev(2)
+	bus.attach(dongle)
+
+	mouseAddr, _ := l2cap.ParseBDAddr("CC:44:55:66:77:88")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: mouseAddr, LinkKey: [16]byte{6}, Name: "BT Mouse", Kind: controllers.KindMouse, Slot: 0})
+	bonds.ClearDirty()
+
+	hub, err := NewHub(bus, Config{
+		Bonds: bonds,
+		Now:   func() time.Time { return time.Unix(1200, 0) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Close()
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	makeACL := func(handle, cid uint16, body []byte) []byte {
+		l2 := make([]byte, 4+len(body))
+		binary.LittleEndian.PutUint16(l2[0:2], uint16(len(body)))
+		binary.LittleEndian.PutUint16(l2[2:4], cid)
+		copy(l2[4:], body)
+		acl := make([]byte, 4+len(l2))
+		binary.LittleEndian.PutUint16(acl[0:2], (handle&0x0fff)|uint16(hci.ACLBoundaryFirstAutoFlush)<<12)
+		binary.LittleEndian.PutUint16(acl[2:4], uint16(len(l2)))
+		copy(acl[4:], l2)
+		return acl
+	}
+
+	// Attach one wired boot mouse and connect the Classic BT boot mouse in slot 0.
+	wiredMouse := makeMouseDev(3)
+	bus.attach(wiredMouse)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	wiredPipe := bus.pipes[key32(3, 0x81)]
+	wiredPipe.inQueue = append(wiredPipe.inQueue, []byte{0x00, 0x00, 0x00})
+
+	connEv := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, mouseAddr[:]...)
+	connEv = append(connEv, 0x01, 0x01)
+	bus.btEvPipe.inQueue = append(bus.btEvPipe.inQueue, connEv)
+	bus.btACLInPipe.inQueue = append(bus.btACLInPipe.inQueue,
+		makeACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}),
+		makeACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x51, 0x00}),
+		makeACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
+		makeACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Ack SET_PROTOCOL(BOOT), verify MouseNeutral stays false before BT mouse reports its initial state,
+	// verify KindMouse does not claim any P1..P4 controller port, then deliver all-up GET_REPORT reply.
+	bus.btACLInPipe.inQueue = append(bus.btACLInPipe.inQueue, makeACL(0x0041, 0x0040, []byte{0x00}))
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if hub.MouseNeutral() {
+		t.Fatal("newly connected BT KindMouse without initial report must not arm MouseNeutral")
+	}
+	if snap := hub.BluetoothSnapshot(); len(snap.Devices) != 1 || snap.Devices[0].Kind != controllers.KindMouse || snap.Devices[0].Slot != 0 {
+		t.Fatalf("expected connected KindMouse with Slot=0 (no gamepad port), got %+v", snap)
+	}
+	bus.btACLInPipe.inQueue = append(bus.btACLInPipe.inQueue, makeACL(0x0041, 0x0040, []byte{0xa1, 0x02, 0x00, 0x00, 0x00}))
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !hub.MouseNeutral() {
+		t.Fatal("expected MouseNeutral=true once wired mouse idle and BT KindMouse GET_REPORT idle")
+	}
+
+	wiredPipe.inQueue = append(wiredPipe.inQueue, []byte{0x01, 0x02, 0x03})                                                  // wired Left (bit 0)
+	bus.btACLInPipe.inQueue = append(bus.btACLInPipe.inQueue, makeACL(0x0041, 0x0041, []byte{0xa1, 0x02, 0x06, 0xfc, 0x09})) // BT Right (bit1) + bit2 ignored
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if hub.MouseNeutral() {
+		t.Fatal("expected MouseNeutral=false while wired Left + BT Right held")
+	}
+	u1, ok1 := hub.NextMouseUpdate()
+	u2, ok2 := hub.NextMouseUpdate()
+	if !ok1 || u1 != (MouseUpdate{DX: 2, DY: 3, Buttons: 0x01}) {
+		t.Fatalf("unexpected u1: ok=%t upd=%+v", ok1, u1)
+	}
+	if !ok2 || u2 != (MouseUpdate{DX: -4, DY: 9, Buttons: 0x03}) {
+		t.Fatalf("expected merged buttons=0x03 on BT update: ok=%t upd=%+v", ok2, u2)
+	}
+
+	// PausePolling drops queued BT delta while preserving mergedMouseButtons + MouseNeutral=false.
+	bus.btACLInPipe.inQueue = append(bus.btACLInPipe.inQueue, makeACL(0x0041, 0x0041, []byte{0xa1, 0x02, 0x02, 0x05, 0xfb}))
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if err := hub.PausePolling(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := hub.NextMouseUpdate(); ok {
+		t.Fatal("PausePolling left queued BT mouse update")
+	}
+	if err := hub.ResumePolling(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if hub.MouseNeutral() {
+		t.Fatal("PausePolling cleared live held BT mouse button state")
+	}
+
+	// Disconnect BT mouse while wired Left stays held -> drops only BT Right button (0x01).
+	bus.btEvPipe.inQueue = append(bus.btEvPipe.inQueue, []byte{hci.EventDisconnectionComplete, 4, 0, 0x41, 0x00, 0x13})
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	u3, ok3 := hub.NextMouseUpdate()
+	if !ok3 || u3 != (MouseUpdate{DX: 0, DY: 0, Buttons: 0x01}) || hub.MouseNeutral() {
+		t.Fatalf("expected BT disconnect release preserving wired Left: ok=%t upd=%+v neutral=%t", ok3, u3, hub.MouseNeutral())
+	}
+
+	// Reconnect BT mouse on dongle detach test: release wired mouse, press BT Left, then unplug BT dongle.
+	wiredPipe.inQueue = append(wiredPipe.inQueue, []byte{0x00, 0x00, 0x00})
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = hub.NextMouseUpdate()
+
+	connEv2 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x42, 0x00}, mouseAddr[:]...)
+	connEv2 = append(connEv2, 0x01, 0x01)
+	bus.btEvPipe.inQueue = append(bus.btEvPipe.inQueue, connEv2)
+	bus.btACLInPipe.inQueue = append(bus.btACLInPipe.inQueue,
+		makeACL(0x0042, l2cap.CIDSignaling, []byte{0x02, 1, 4, 0, 0x11, 0x00, 0x60, 0x00}),
+		makeACL(0x0042, l2cap.CIDSignaling, []byte{0x04, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeACL(0x0042, l2cap.CIDSignaling, []byte{0x05, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeACL(0x0042, l2cap.CIDSignaling, []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x61, 0x00}),
+		makeACL(0x0042, l2cap.CIDSignaling, []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
+		makeACL(0x0042, l2cap.CIDSignaling, []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bus.btACLInPipe.inQueue = append(bus.btACLInPipe.inQueue,
+		makeACL(0x0042, 0x0040, []byte{0x00}),
+		makeACL(0x0042, 0x0041, []byte{0xa1, 0x02, 0x01, 0x00, 0x00}),
+	)
+	for range 2 {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for {
+		if _, ok := hub.NextMouseUpdate(); !ok {
+			break
+		}
+	}
+	if hub.MouseNeutral() {
+		t.Fatal("expected MouseNeutral=false while BT Left held before dongle detach")
+	}
+
+	// Unplug BT dongle -> releases BT Left button cleanly and arms MouseNeutral=true.
+	bus.detach(dongle)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	u4, ok4 := hub.NextMouseUpdate()
+	if !ok4 || u4 != (MouseUpdate{DX: 0, DY: 0, Buttons: 0x00}) || !hub.MouseNeutral() {
+		t.Fatalf("expected dongle detach to neutralize held BT mouse: ok=%t upd=%+v neutral=%t", ok4, u4, hub.MouseNeutral())
+	}
+
+	// Verify 0 heap allocations during steady-state active BT mouse polling.
+	bus.attach(dongle)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	connEv3 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x43, 0x00}, mouseAddr[:]...)
+	connEv3 = append(connEv3, 0x01, 0x01)
+	bus.btEvPipe.inQueue = append(bus.btEvPipe.inQueue, connEv3)
+	bus.btACLInPipe.inQueue = append(bus.btACLInPipe.inQueue,
+		makeACL(0x0043, l2cap.CIDSignaling, []byte{0x02, 1, 4, 0, 0x11, 0x00, 0x70, 0x00}),
+		makeACL(0x0043, l2cap.CIDSignaling, []byte{0x04, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeACL(0x0043, l2cap.CIDSignaling, []byte{0x05, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeACL(0x0043, l2cap.CIDSignaling, []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x71, 0x00}),
+		makeACL(0x0043, l2cap.CIDSignaling, []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
+		makeACL(0x0043, l2cap.CIDSignaling, []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bus.btACLInPipe.inQueue = append(bus.btACLInPipe.inQueue, makeACL(0x0043, 0x0040, []byte{0x00}))
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	aclFrame := makeACL(0x0043, 0x0041, []byte{0xa1, 0x02, 0x00, 0x01, 0xff})
+	aclBacking := [][]byte{aclFrame}
+	allocs := testing.AllocsPerRun(50, func() {
+		bus.btACLInPipe.inQueue = aclBacking
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+		_, _ = hub.NextMouseUpdate()
+	})
+	if allocs != 0 {
+		t.Fatalf("expected 0 allocations per active BT mouse Service(), got %.1f", allocs)
+	}
+}
+
+func TestHubUnknownBluetoothHIDMouseNeutralFence(t *testing.T) {
+	bus := newFakeBus()
+	hub, err := NewHub(bus, Config{Bonds: l2cap.NewBondStore()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Close()
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !hub.MouseNeutral() {
+		t.Fatal("expected empty initialized hub to be mouse-neutral")
+	}
+
+	// KindUnknown slots use boot keyboard/mouse fallback, so they may be mice
+	// until the first keyboard or mouse report identifies the input path.
+	hub.bt.OnSlotChanged(0, true, controllers.KindUnknown, "BT HID")
+	if hub.MouseNeutral() {
+		t.Fatal("unknown Bluetooth HID slot must keep MouseNeutral closed before its first report")
+	}
+	hub.bt.OnSlotKeyboardReport(0, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	if !hub.MouseNeutral() {
+		t.Fatal("valid keyboard report should clear the provisional mouse fence")
+	}
+
+	hub.bt.OnSlotChanged(1, true, controllers.KindUnknown, "BT HID Mouse")
+	if hub.MouseNeutral() {
+		t.Fatal("second unknown Bluetooth HID slot must keep MouseNeutral closed")
+	}
+	hub.bt.OnSlotMouseReport(1, 7, -2, 0x01)
+	if hub.MouseNeutral() {
+		t.Fatal("initially held mouse button must keep MouseNeutral closed")
+	}
+	update, ok := hub.NextMouseUpdate()
+	if !ok || update != (MouseUpdate{DX: 7, DY: -2, Buttons: 0x01}) {
+		t.Fatalf("unexpected first unknown-slot mouse report: ok=%t update=%+v", ok, update)
+	}
+
+	// HIDP may resolve the slot to KindMouse after its fallback report arrived.
+	// That notification must retain the report instead of reopening the fence.
+	hub.bt.OnSlotChanged(1, true, controllers.KindMouse, "BT HID Mouse")
+	if !hub.btMouseActive[1] || !hub.btMouseReported[1] || hub.btMouseButtons[1] != 0x01 {
+		t.Fatal("KindMouse classification discarded the initial unknown-kind mouse report")
+	}
+	hub.bt.OnSlotMouseReport(1, 0, 0, 0)
+	if !hub.MouseNeutral() {
+		t.Fatal("all-up mouse report should release the Bluetooth neutral fence")
+	}
+
+	hub.bt.OnSlotChanged(2, true, controllers.KindUnknown, "BT HID Gamepad")
+	if hub.MouseNeutral() {
+		t.Fatal("unresolved Bluetooth HID slot must stay behind the mouse fence")
+	}
+	hub.bt.OnSlotChanged(2, true, controllers.KindGenericHID, "BT HID Gamepad")
+	if !hub.MouseNeutral() {
+		t.Fatal("resolved gamepad slot should clear the provisional mouse fence")
+	}
+}
