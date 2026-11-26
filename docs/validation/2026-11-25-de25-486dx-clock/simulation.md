@@ -193,5 +193,31 @@ matching handovers and 60,256,384-cycle final windows. It normalized to
 2,183.921 DX-33 realtics against the 4,682 limit. The retained 82-file
 `simulation/c26-unlocated-proof/g4-milestone/receipt.json` SHA-256 is
 `a55e078024dfa969ceb2d1a4e41d65eac2b904686dfceceb65589852a4c05582`.
-The exact-clock G5 replay is running. This build uses the single-stage
-x87 fast lane. The candidate with the pipelined lane needs its own runs.
+The exact-clock G5 replay rendered the first inspected Necropolis demo
+frame at 15.000 seconds with 414,119,676 instructions retired and no CPU
+stop. The retained `sim-c26-quake-demo.json` SHA-256 is
+`88ccd571b1a5314b046db67d3633760e3a2574229ec10f4b19db3304fd52e933`.
+The full window is running. This comparison uses the single-stage x87
+fast lane and the earlier base.
+
+## Integrated C0 = 26
+
+[Pipelined G2](sim-c26-f3-g2.json) passed at the exact 120.512821 MHz rates
+for `4fe7bada67a8e6689bc4c3dc480a844db72e0076`. The validation driver
+shares the fitted `sources/misteross` tree and the DX compiler's
+dependency lists contain the derived seven-stage wrapper. Both L3 and
+L4 comparisons passed. The x87 unit bench passed 18,342 checks, including
+19 clocks through FMUL and FWAIT, both reset inputs, uncommitted squash,
+and committed completion across a later flush. The shared fast wrapper
+took 13 clocks and failed the new latency assertion. The standalone
+transcendental bench passed 23,795 checks. All 84 emitted TestFloat
+streams matched their pinned references across 3,356,352 vectors.
+
+The integrated game harness uses the ATA-only boot setting and absent
+floppy types on both arms. The two compiled machine dependency lists
+contain the eight-cycle presenter and the floppy verifier. The DX CPU's
+dependency list binds the derived x87 wrapper, while the reference CPU
+build uses the shared wrapper. The launch receipt
+`simulation/c26-f3-fast-4fe7/game-launch.json` SHA-256 is
+`e502a4335729f156564060a060f8d88e4b0b28d75d45c2c87c344c03fc97406f`.
+G4 and G5 are in progress.

@@ -1,0 +1,14 @@
+spectrum48
+  raw golden_top.qsf SHA-256 main 97dcc1e40b8a8dc0ba8434720af61655617fabb05c30582fad81ae9468297894
+  raw golden_top.qsf SHA-256 candidate 97dcc1e40b8a8dc0ba8434720af61655617fabb05c30582fad81ae9468297894
+  raw RTL inventory SHA-256 main fa8f6fb3d7be7e6648d96c6719ebd99113a6d220223733517bb80ed500bc5d70 (646 files)
+  raw RTL inventory SHA-256 candidate fa8f6fb3d7be7e6648d96c6719ebd99113a6d220223733517bb80ed500bc5d70 (646 files)
+  compiler QSF and all staged and generated RTL are cmp-equal
+  main 2f19382bfe294d23a99742adebabd09b0ebc2793, candidate 4fe7bada67a8e6689bc4c3dc480a844db72e0076
+  same BUILD_ID bc41afbd3d84731518f4bfe837d88d88 and 737 project inputs after path normalization
+  project inputs with path differences only ['integrate-mailbox.tcl']
+  same toolchain identity 19b020efc5565f99f442efdc1937d874f1e75f28e84ae4555ff946763411e5ad
+  cmp-equal execution record SHA-256 de2119e4c469fe62d3318a5164a90ef1568c71b76b5435890b72769021e7af95
+  candidate admitted and sealed as e33a8a08fc29cf4f61e5dba2454d8315489bbd9901b60196c7b1097b19872994
+  cmp-equal RBF 6dd9453b3d51864690536309b937e04aff8efaa1b7cc7c275a0d33ebefcc8109
+PASS D12 for spectrum48

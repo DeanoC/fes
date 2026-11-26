@@ -840,6 +840,8 @@ The Qsys parent audit reproduced the earlier Powerboat receipt, SHA-256
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | 1 | 45,193.7 | −0.042 ns | 0.000 ns | +5.569 ns | +0.009 ns | 2.577 ns | `a1f897e36550ac201fdf7d821662d5cabc7e47965c1d0f4b68582bbf83ee0af9` |
 | 2 | 44,915.2 | −0.096 ns | 0.000 ns | +5.335 ns | +0.079 ns | 2.669 ns | `32dbdb3ce3ff69d9bcd05358a90a941be8b9c42aa2b35635d60b8e674500eb59` |
+| 3 | 44,875.4 | +0.026 ns | 0.000 ns | +5.769 ns | +0.211 ns | 3.380 ns | `e1f9621970a78e83dc1c47f7d3eeef15b649bce8570384fa27826d4146db0f67` |
+| 4 | 45,059.3 | +0.005 ns | +0.001 ns | +5.607 ns | +0.007 ns | 2.506 ns | `bc175e405db1b71ca60cf450194f9bdd964035809a61223371f5414e10ca699f` |
 
 The independent LOADED gate passed on both seeds. Seed 2's worst corner
 measured 1.188 ns of delay and 1.481 ns of absolute skew. The registered
@@ -859,6 +861,18 @@ four failures include paths in the x87 format selection, fast-result
 writeback, and integer decode enable. They also fail in slow fix4a 0°C,
 whose worst setup slack is −0.050 ns. Both seeds finished with
 nonnegative hold, recovery and removal, and zero CDC-50003 findings.
+
+Seed 3 passed all gates. Seed 4 passed the ordinary timing and independent
+LOADED checks. Producer admission failed on the sole unmatched advisory
+`cpu_m2_load~RTM_3ENA_dff`. The copied final database passed 28 numeric
+and eight structural checks on that register, with setup +0.841 ns and
+hold +0.073 ns. All 22,891 data keepers used the machine clock. The
+detailed unconstrained-path report excluded the register. The retained
+`c26-loaded-cap-retimed-proof/s4/receipt.json` SHA-256 is
+`58fdd714daf8e7f1c5ecc4fc89bcb14fe4765d5dde9d880cc12c98ffb7a311e9`.
+The retained
+`c26-loaded-cap/summary.json` SHA-256 is
+`f310bd24757c6886d9cf9f4bf99fb192aaad3d470064fca9e0904244d566f24e`.
 
 The next candidate, `80de4c6af4811e1ab934af504d22e6a3897eae58`, selects
 the existing seven-stage x87 fast pipeline at the two upper DX clocks.
@@ -910,6 +924,46 @@ SDC, 43 focused tests, DE10 netlist and identity equality and all seven
 D12 selections. Its SHA-256 is
 `db5d3c67fd8862a4a52ec0813456961a0f754076579ae5d770635771b60e1d8a`.
 The C0 = 24 fits follow the C0 = 26 qualification.
+
+## Main integration after the floppy-drive change
+
+[PR #2101](https://github.com/DeanoC/fes/pull/2101) changed the shared
+AT core and exposed an outdated raw source pin in the PR's merge CI.
+The next C26 validation branch merged main at
+`2f19382bfe294d23a99742adebabd09b0ebc2793`. Revision
+`d6f0c0169c4a4835fd60e1ee5f7b3a8c76be0e49` binds the signoff basis to the
+new AT source. The new FDC written bits use the machine clock and are
+left unconnected by the DE25 ATA-only derivation. The existing AT DMA2
+derivation and its anchor still match. `make check` and 22 focused tests
+passed, including both formerly failing signoff-pin checks.
+
+Fresh DE10 netlists match the new merge base byte for byte, and all
+four recorded identities agree. Both netlists have SHA-256
+`93b03a57c88b281db390847952fa4fd57a9e75edde026344381e3c37a126ddbd`.
+The receipt SHA-256 is
+`0297bacf7eb0809a3709da07a561f0c9b0b8c10825c5ee5b5a237c3eb9eed44c`.
+The timing and game receipts above use the earlier merge base. The
+same-path locked Yosys comparison also found a changed raw DE25 machine
+netlist. The synthesized ATA-only machine retains verifier pass-through
+state and muxing. The integrated machine needs fresh fits and game
+replays.
+
+The integrated C26 rerun uses `4fe7bada67a8e6689bc4c3dc480a844db72e0076`.
+The measured `RTM` enable suffix selects the existing DX-only live proof.
+Its per-fit topology, numerical and unconstrained-path checks still apply.
+The fresh DE10 receipt reproduces the same netlist and four identities
+against both `2f19382b` and `d6f0c016`. Its SHA-256 is
+`5f45323f1bb6b26f42a8bef5e5370df62bc1631ffd185dd8c007a3bc72b4faa8`.
+`make check` and 48 focused DX, signoff, window and producer tests
+passed on this integrated source.
+The first seed queued was seed 2. The provisional G4 and G5 replay uses
+the new shared machine source with the DE25 ATA-only boot and drive
+settings. The next C24 ref `7b3e760deb0b10f7cb0bb824586ce8aae15359fe`
+contains the verified 130 MHz clock files on this exact C26 source and
+remains gated on its qualification. The 130 MHz ref reproduced the
+DE10 netlist and four identities against the new base and C26, and
+matched all seven D12 selections against both. The receipt SHA-256 is
+`540e9f23d543c8b4f4ae2def45be0a0f2110dcb9a6bc6dc8c31cc8fc76566531`.
 
 ## Running a seed on either builder
 
