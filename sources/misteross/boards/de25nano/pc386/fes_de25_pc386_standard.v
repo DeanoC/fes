@@ -214,6 +214,7 @@ module fes_de25_pc386_standard #(
         .fault_port(fault_port), .fault_no_grant(fault_no_grant), .fault_outside(fault_outside)
     );
     // The pc386 picture is 960x720 at the left 160, as on the DE10.
+    /* verilator lint_off PINCONNECTEMPTY */
     fes_de25_session_display #(.BUILD_ID(BUILD_ID),
         .PICTURE_LEFT(16'd160), .PICTURE_TOP(16'd0),
         .PICTURE_WIDTH(16'd960), .PICTURE_HEIGHT(16'd720)) display (
@@ -232,6 +233,7 @@ module fes_de25_pc386_standard #(
         .avm_read(avm_read), .avm_byteenable(avm_byteenable), .avm_waitrequest(avm_waitrequest),
         .avm_readdata(avm_readdata), .avm_readdatavalid(avm_readdatavalid), .avm_response(avm_response)
     );
+    /* verilator lint_on PINCONNECTEMPTY */
 endmodule
 
 // HPS reset forces a hold even with the machine clock stopped. Only hand
