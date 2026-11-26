@@ -185,3 +185,124 @@ func TestConcurrentFramesSerialize(t *testing.T) {
 		}
 	}
 }
+
+func TestPresentRectSubimageStrideBoundsFaultAndStats(t *testing.T) {
+	const w, h, stride = 8, 6, 40 // 8 pixels * 4 = 32 bytes/row + 8 bytes firmware padding
+	m := &window{bytes: make([]byte, h*stride)}
+	for i := range m.bytes {
+		m.bytes[i] = 0xaa
+	}
+	s, err := New(w, h, stride, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Empty rect validates frame without writing or publishing.
+	full := image.NewRGBA(image.Rect(0, 0, w, h))
+	if err := s.PresentRect(full, image.Rectangle{}); err != nil {
+		t.Fatalf("empty rect: %v", err)
+	}
+	if m.writes != 0 || m.publishes != 0 {
+		t.Fatalf("empty rect touched window: writes=%d publishes=%d", m.writes, m.publishes)
+	}
+
+	// Out-of-bounds rect rejects cleanly and increments RejectedValidation.
+	if err := s.PresentRect(full, image.Rect(4, 2, 9, 4)); err == nil {
+		t.Fatal("expected out-of-bounds rect error")
+	}
+	if err := s.PresentRect(nil, image.Rect(0, 0, 2, 2)); err == nil {
+		t.Fatal("expected nil frame error")
+	}
+	if st := s.Stats(); st.RejectedValidation != 2 || st.EmptyRects != 1 {
+		t.Fatalf("stats after validation/empty=%+v", st)
+	}
+
+	// Initial full frame present (solid black XRGB: 0,0,0,0xff).
+	if err := s.Present(full); err != nil {
+		t.Fatal(err)
+	}
+	writesAfterFull := m.writes
+	publishesAfterFull := m.publishes
+
+	// Dirty rect update from a padded subimage with non-zero Rect.Min.
+	backing := image.NewRGBA(image.Rect(0, 0, w+6, h+4))
+	sub := backing.SubImage(image.Rect(3, 2, 3+w, 2+h)).(*image.RGBA)
+	dirty := image.Rect(2, 1, 5, 4) // width=3, height=3
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			off := y*sub.Stride + x*4
+			if x >= dirty.Min.X && x < dirty.Max.X && y >= dirty.Min.Y && y < dirty.Max.Y {
+				sub.Pix[off+0] = byte(10 + x)
+				sub.Pix[off+1] = byte(20 + y)
+				sub.Pix[off+2] = byte(30 + x + y)
+				sub.Pix[off+3] = 0x11
+			} else {
+				sub.Pix[off+0] = 0xee
+				sub.Pix[off+1] = 0xdd
+				sub.Pix[off+2] = 0xcc
+				sub.Pix[off+3] = 0x99
+			}
+		}
+	}
+	if err := s.PresentRect(sub, dirty); err != nil {
+		t.Fatalf("PresentRect subimage: %v", err)
+	}
+	if m.publishes != publishesAfterFull+1 {
+		t.Fatalf("publishes=%d want %d", m.publishes, publishesAfterFull+1)
+	}
+	if m.writes-writesAfterFull != dirty.Dy() {
+		t.Fatalf("partial rect writes=%d want %d per-row writes", m.writes-writesAfterFull, dirty.Dy())
+	}
+
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			off := y*stride + x*4
+			if x >= dirty.Min.X && x < dirty.Max.X && y >= dirty.Min.Y && y < dirty.Max.Y {
+				r, g, b, xrgb := byte(10+x), byte(20+y), byte(30+x+y), byte(0xff)
+				if m.bytes[off] != b || m.bytes[off+1] != g || m.bytes[off+2] != r || m.bytes[off+3] != xrgb {
+					t.Fatalf("pixel (%d,%d) got [%x %x %x %x], want [%x %x %x %x]", x, y, m.bytes[off], m.bytes[off+1], m.bytes[off+2], m.bytes[off+3], b, g, r, xrgb)
+				}
+			} else if m.bytes[off] != 0 || m.bytes[off+1] != 0 || m.bytes[off+2] != 0 || m.bytes[off+3] != 0xff {
+				t.Fatalf("outside pixel (%d,%d) modified: %v", x, y, m.bytes[off:off+4])
+			}
+		}
+		for pad := w * 4; pad < stride; pad++ {
+			if m.bytes[y*stride+pad] != 0xaa {
+				t.Fatalf("row %d padding byte %d corrupted: %#x", y, pad, m.bytes[y*stride+pad])
+			}
+		}
+	}
+
+	wantBytes := uint64(w*h*4 + dirty.Dx()*dirty.Dy()*4)
+	if st := s.Stats(); st.FramesPresented != 1 || st.RectsPresented != 1 || st.EmptyRects != 1 || st.BytesWritten != wantBytes || st.Faulted {
+		t.Fatalf("stats=%+v want bytes=%d", st, wantBytes)
+	}
+
+	// Steady-state PresentRect must not heap-allocate.
+	const allocationRuns = 20
+	// AllocsPerRun performs one warm-up call before its measured runs. Reserve
+	// enough space for every logged row write so the window fixture doesn't
+	// contribute allocations to the surface measurement.
+	logCapacity := (allocationRuns + 1) * dirty.Dy()
+	m.offsets = make([]uint64, 0, logCapacity)
+	m.lengths = make([]int, 0, logCapacity)
+	if allocs := testing.AllocsPerRun(allocationRuns, func() {
+		if err := s.PresentRect(sub, dirty); err != nil {
+			t.Fatal(err)
+		}
+	}); allocs != 0 {
+		t.Fatalf("PresentRect allocated %.1f times per call", allocs)
+	}
+
+	// Write fault poisons the surface and sets Faulted in Stats.
+	m.failWrite = m.writes + 1
+	if err := s.PresentRect(sub, dirty); err == nil {
+		t.Fatal("expected write fault")
+	}
+	if !s.Stats().Faulted {
+		t.Fatal("expected Faulted=true in Stats")
+	}
+	if err := s.PresentRect(sub, image.Rectangle{}); err == nil {
+		t.Fatal("expected retained fault on empty rect after poison")
+	}
+}

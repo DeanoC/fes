@@ -48,7 +48,7 @@ func superFamicomPad(axes map[uint16]controller.Range) controller.Device {
 	for code := 288; code <= 297; code++ {
 		keys[code/8] |= 1 << uint(code%8)
 	}
-	return controller.Device{Name: "USB Gamepad ", Bus: 3, Vendor: 0x081f, Product: 0xe401, Version: 0x0110,
+	return controller.Device{Name: "USB gamepad           ", Bus: 3, Vendor: 0x081f, Product: 0xe401, Version: 0x0110,
 		Keys: keys, Abs: []byte{0x03, 0, 0, 0, 0, 0, 0, 0}, Axes: axes}
 }
 
@@ -105,9 +105,23 @@ func TestTenfootSuperFamicomPadNormalizationAndVirtualFilter(t *testing.T) {
 	if !controller.Eligible(3, "USB SNES Pad", true) {
 		t.Fatal("physical gamepad rejected")
 	}
-	mapper := controller.NewMapper(superFamicomPad(map[uint16]controller.Range{
+	pad := superFamicomPad(map[uint16]controller.Range{
 		0: {Min: 0, Max: 255}, 1: {Min: 0, Max: 255},
-	}))
+	})
+	if !pad.Tested() {
+		t.Fatal("wired 081f:e401 pad should be Tested")
+	}
+	bt := pad
+	bt.Bus = 5
+	if bt.Tested() {
+		t.Fatal("bluetooth 081f:e401 pad should not inherit USB Tested status")
+	}
+	clone := pad
+	clone.Name = "Different USB Gamepad"
+	if clone.Tested() {
+		t.Fatal("unrelated device reusing 081f:e401 should not be Tested")
+	}
+	mapper := controller.NewMapper(pad)
 	for _, tc := range []struct {
 		code  uint16
 		value int32
@@ -278,8 +292,14 @@ func TestLateDisplayTickDoesNotCountSchedulerDelayAsPoll(t *testing.T) {
 			app.mu.Lock()
 			records := app.frameTrace.records()
 			app.mu.Unlock()
-			if len(records) >= 2 {
-				first, second = records[0], records[1]
+			var ticks []frameTraceRecord
+			for _, record := range records {
+				if record.Kind == "tick" {
+					ticks = append(ticks, record)
+				}
+			}
+			if len(ticks) >= 2 {
+				first, second = ticks[0], ticks[1]
 			}
 			return true, nil
 		}

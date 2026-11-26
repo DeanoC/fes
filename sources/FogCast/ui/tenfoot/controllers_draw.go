@@ -265,6 +265,12 @@ func drawControllersHeader(dev gfx.Device, snap Snapshot, labels map[string]gpuT
 func drawControllerLayout(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}, s controllersSheet) {
 	page := snap.Controllers
 	sheetText(dev, labels, used, s, 40, 92, 700, 34, true, heroText, "Button layout")
+	if page.Tested {
+		bx := 40 + sheetTextWidth(s, 34, true, "Button layout") + 16
+		bw := sheetTextWidth(s, 17, true, "Tested") + 20
+		fillRectI(dev, s.rect(bx, 99, bw, 28), controllersChanged)
+		sheetText(dev, labels, used, s, bx+10, 102, bw, 17, true, heroText, "Tested")
+	}
 	sheetText(dev, labels, used, s, 40, 136, 900, 19, false, heroSecondary, "What each button sends to FES and to the computer you are playing.")
 
 	// Callout lines run from each row into the picture and end under it.

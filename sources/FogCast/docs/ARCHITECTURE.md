@@ -669,7 +669,12 @@ passes through the actual Unix client, so a running display cannot conceal an
 unreadable capability reply. Decoder rejection keeps native readiness false.
 Active-package validation accepts the declared DE25 BRAM computer, standard
 `de25-linux-computer-v1` computer and MENU profiles
-with the exact DE25 target, ABI family and observed build/ABI identity. A native
+with the exact DE25 target, ABI family and observed build/ABI identity. The
+fes.computer minor is per machine (`corepackage.DE25ComputerABI`): 1.1 for the
+PC/XT, whose floppy is a 1.1 interface, and for the pc386, whose ATA disk,
+machine words and wall clock are; 1.0 for every other machine. A DE25 pc386
+session is then checked as the DE10 one is: its ATA disk unit, library disk
+binding and persistent media are board-neutral. A native
 computer status fixture exercises the actual Unix client after FPGA Start;
 unknown profiles, crossed targets and missing observed identity remain rejected.
 The live ZX81 tape limit is checked against that selected target. DE25's BRAM
@@ -1842,8 +1847,10 @@ embedded Go Regular and Go Bold, `DrawMask` for text coverage, and
 `DebugText` for the 8×8 HUD / FC2D opcode). Text is laid out as coverage
 masks, one byte a pixel (`gfx.LayoutText`): each glyph is rasterized once per
 face and copied into a mask per string, and a mask draws in any colour with
-alpha `A·m/255`. Room text, labels and `DrawText` share that path. Window, events, gamepad, mouse, and text input remain
-SDL in `ui/tenfoot/sdl.go`. USB keyboard is first-class browse/nav on that
+alpha `A·m/255`. Room text, labels and `DrawText` share that path. Window creation lives
+in `ui/tenfoot/sdl.go`, while events, gamepad, mouse, key mapping, and smoke helpers
+are split across `ui/tenfoot/sdl_events.go`, `ui/tenfoot/sdl_keys.go`, and
+`ui/tenfoot/sdl_smoke.go` (sharing `ui/tenfoot/sdl_cgo.h`). USB keyboard is first-class browse/nav on that
 path (`CommandFromKey` in `ui/tenfoot/keyboard.go`): arrows, Enter, Esc, and
 Tab drive shelf, detail, and search without a gamepad. USB mouse/pointer is
 first-class on the same path (`PointerMove` / `PointerClick` in
@@ -1911,6 +1918,9 @@ gate. Bounded wheel refreshes compare the complete frame content and reuse
 the rendered revision when it is identical; motion bypasses reuse and forces
 a final settled paint. Input polling, App updates, scripted rooms and snapshots continue at 30 Hz.
 The runtime menu backend is selected as `menu-display` or `menudisplay`.
+Its kit frame trace records the duration and outcome of actual `FrameCache`
+scene-command comparisons separately from whole-render and worker-present timings; see
+[frame trace](frame-trace.md).
 Rendered-frame revisions skip framebuffer comparison in `MenuDisplay`; ordinary
 callers retain byte-identical change detection. An unchanged submission that has
 not failed or been dropped is skipped. Once a second after a successful present, that skip
@@ -3329,17 +3339,10 @@ at most 200ms for an in-progress warm. If the warm is still running it returns
 HTTP 503 `{"error":"warming"}` and does not start a second scan or read package
 bytes for that request. The kit-local client surfaces that as `warming` without
 waiting out its 3s timeout. Tenfoot keeps the checking state and retries until
-a list succeeds; the installed-cores room does the same. `POST
-/v1/local/cores/{package_id}/launch` resolves the package through that same
-list. A launch that arrives while the warm is still running returns the same
-HTTP 503 `{"error":"warming"}`, claims no lease, and does not program a core.
-The kit-local client returns `warming` as soon as that response arrives, as it
-does for a list, so the caller can retry. It does not treat the response as an
-unavailable agent and does not reconcile it as a lost launch. Home's queued
-Play polls the read-only list before posting Launch, so Stop during catalog
-warm ends the queue before any core load. If the catalog starts warming again
-between the successful list and Launch, it waits for another successful list
-before retrying. A successful list is the finished catalog, not a partial one.
+a list succeeds; the installed-cores room does the same. A successful list is
+the finished catalog, not a partial one. The local-control socket is inventory
+only; the kit host prepares the selected entry and launches it through the
+normal host session path, which retains its own lease and readiness checks.
 The list handler waits on the request context, so a client disconnect ends
 that wait and leaves the warm running. One catalog scan runs at a time. A
 fingerprint change while that scan is in progress waits for it to finish, then
@@ -3530,9 +3533,17 @@ actual next cursor to show `+` only when additional titles remain. The filtered
 page resolves only its returned entry IDs in one bounded batch; a missing
 identity fails the read instead of guessing. If machine entries alone exceed
 the budget, Home blocks that family instead of choosing an incomplete machine
-list while reporting its machine-admission state. The launcher converts family
-rows and editions to Lua in batches of at most 128 items per Step. Home and
-setup count at most 64 title rows per update and publish only completed counts.
+list while reporting its machine-admission state. Initial `families.load` dispatches
+every family's `library.query` immediately during `load`. On `on_resume`,
+`families.reload` synchronously cancels any in-flight prior family queries,
+starts fresh `kit.cores` and `hardware.read` refreshes, publishes Checking, and
+queues the per-family `library.query` reads rather than starting all of them
+inside `on_resume`; `families.update` processes at most one pending response
+batch (64 title rows) per frame and returns, otherwise lazily builds `core_ids`
+for and dispatches at most one queued family query per frame, and checks
+scheduled transient retries only when no pending batch or queued query remains.
+The launcher converts family rows and editions to Lua in batches of at most
+128 items per Step, and Home and setup publish only completed counts.
 Initial and data-changed Home pictures add one family tile per draw callback.
 Machine admission remains independent in `hardware.computers`; catalog rows,
 cache refreshes and editions never establish that readiness. A refresh discards
@@ -3928,18 +3939,26 @@ Closing the local socket releases the local source
 only. Tenfoot writes physical pad and USB keyboard events to this socket
 through `ui/localfeed` while a kit-local core it launched is running. That feed does not use the host
 session's input.ready, launcher.json reachability, or which host holds the
-lease. Select+Start held for one second posts an explicit `POST /api/v1/session/stop`
+lease. The controller Start button never exits a kit-host launcher, including
+while session ownership is unavailable or changing; a supervised launcher
+would otherwise immediately restart during somebody else's play. Desktop
+launchers keep their existing Start-to-quit behavior. Select+Start held for
+one second posts an explicit `POST /api/v1/session/stop`
 for this host's active or failed session: `retain_lease` false with the captured
-play. Package plays send that generation. Package-free plays send the session
+play. On a kit host the stop chord and roomless Guide, F12, and Ctrl+Home
+shortcuts require matching owned-lease and session observations from the preceding
+five seconds; a foreign, missing, future-dated or stale observation is consumed
+without posting Stop or interrupting local play. Package plays send that generation. Package-free plays send the session
 id, launch flight, game, and target, and are not posted unbound. A queued chord
 keeps the play from chord time. Idle cleanup releases that play's grant and
 renewal of that grant stops; grants retained on other targets stay until shell
 exit or Release kit. A release that fails after idle retries the idle-grant
 release rather than the captured play. Rooms B/Back stays the retain
-request. For a kit-local run it goes to local
-control `POST /v1/local/stop` instead, with the exact launch generation. A
-foreign-owned core accepts local play controls, but this launcher cannot stop
-it. Stop and kit menu actions stay on the kit. If the
+request. Kit-host launches and stops use the host session API; the local-control
+socket exposes core inventory but no launch or stop route. A busy foreign lease
+keeps the existing local pad and play-HID fence, and this launcher cannot stop
+it; delegated physical-keyboard input follows its separate authority checks. Stop and kit
+menu actions stay on the kit. If the
 socket is not listening, play input reports
 the failure, waits one second before dialing again, and does not post the pad
 to the host. Remote pads go from the host to the kit on that session's input

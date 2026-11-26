@@ -13,8 +13,10 @@ namespace mister { namespace native {
 // Static startup formats do not select a programming profile or admit a
 // package. The base creates an empty child region; its separate initial
 // persona carries the partial image. A new choice requires a new base load.
+// A window machine's allocated profile also carries the window child, the
+// owner's sign that the bitstream has the fes.fabric.de25-hps-window block.
 enum class De25OverlayProfile {
-    firmware_only, allocated_scanout, static_expansion_base, static_expansion_persona
+    firmware_only, allocated_scanout, allocated_scanout_window, static_expansion_base, static_expansion_persona
 };
 std::vector<unsigned char> De25ProgrammingOverlay(
     De25OverlayProfile = De25OverlayProfile::firmware_only);
@@ -68,6 +70,7 @@ public:
 #endif
     ~LinuxDe25FpgaManager() override;
     NativeResult Program(const Artifact&, ProgrammingProfile, std::uint64_t) override;
+    NativeResult ProgramWindowMachine(const Artifact&, ProgrammingProfile, std::uint64_t) override;
     bool SupportsStaticComposition() const override;
     NativeResult ProgramStatic(const Artifact&, const Artifact&,
                                const CoreStaticComposition&, std::uint64_t) override;

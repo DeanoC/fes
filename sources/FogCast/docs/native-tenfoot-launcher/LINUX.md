@@ -34,7 +34,7 @@ same public host API client; there is no second launch path.
 | `Makefile` `TENFOOT_CGO_ENV` | Darwin: `MACOSX_DEPLOYMENT_TARGET=11.0`, `-mmacosx-version-min=11.0`, `CGO_LDFLAGS_ALLOW`. Else: `CGO_ENABLED=1`. Override with `make TENFOOT_CGO_ENV='…'`. |
 | `make tenfoot-cgo-env` | Prints the env the tenfoot target uses on this host. |
 | `make build-fogcast-tenfoot` | `$(TENFOOT_CGO_ENV) go build -tags sdl3 … ./cmd/fogcast-tenfoot` |
-| `ui/tenfoot/sdl.go` | `//go:build sdl3` + `#cgo pkg-config: sdl3` |
+| `ui/tenfoot/sdl.go`, `sdl_events.go`, `sdl_keys.go`, `sdl_smoke.go` (+ `sdl_cgo.h`) | `//go:build sdl3` + `#cgo pkg-config: sdl3` |
 | `ui/tenfoot/run_stub.go` | `//go:build !sdl3` stub |
 | Fonts (`label.go`) | Mac system fonts first; Noto/DejaVu Linux paths; embedded Go Regular fallback |
 | Prefs | `os.UserConfigDir()` → Mac `~/Library/Application Support/FogCast/tenfoot.json`; Linux `$XDG_CONFIG_HOME/FogCast/tenfoot.json` or `~/.config/FogCast/tenfoot.json` |

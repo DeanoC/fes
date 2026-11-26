@@ -16,12 +16,21 @@ var (
 	ErrAlreadyStarted = errors.New("wdt: supervisor already started")
 	// ErrStopped is returned when Supervisor.Start is called after Supervisor.Stop.
 	ErrStopped = errors.New("wdt: supervisor stopped")
+	// ErrUnsupported is returned when the underlying watchdog does not implement
+	// dynamic timeout updates via TimeoutSetter.
+	ErrUnsupported = errors.New("wdt: operation not supported by watchdog")
 )
 
 // Kicker is the minimal watchdog interface driven by Supervisor (implemented by *DW).
 type Kicker interface {
 	Start(timeout time.Duration, mode ResponseMode) (time.Duration, error)
 	Kick() error
+}
+
+// TimeoutSetter is an optional Kicker capability allowing dynamic timeout updates
+// (implemented by *DW.SetTimeout).
+type TimeoutSetter interface {
+	SetTimeout(timeout time.Duration) (time.Duration, error)
 }
 
 // SupervisorConfig configures an opt-in watchdog keepalive Supervisor.
@@ -56,9 +65,11 @@ type Supervisor struct {
 	cfg SupervisorConfig
 
 	mu       sync.Mutex
+	opMu     sync.Mutex
 	started  bool
 	stopped  bool
 	running  atomic.Bool
+	period   time.Duration
 	interval time.Duration
 	stopCh   chan struct{}
 	wg       sync.WaitGroup
@@ -128,6 +139,7 @@ func (s *Supervisor) Start(ctx context.Context) (time.Duration, error) {
 	}
 
 	s.started = true
+	s.period = actual
 	s.interval = interval
 	s.running.Store(true)
 	s.wg.Add(1)
@@ -153,6 +165,89 @@ func (s *Supervisor) Kicks() uint64 { return s.kicks.Load() }
 
 // Running reports whether the keepalive goroutine is currently active.
 func (s *Supervisor) Running() bool { return s.running.Load() }
+
+// Started reports whether Start armed the underlying watchdog (remains true
+// across Stop because hardware WDT_EN is sticky until peripheral reset).
+func (s *Supervisor) Started() bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.started
+}
+
+// Period returns the active single-stage hardware period reported by Start or
+// Extend (0 before Start).
+func (s *Supervisor) Period() time.Duration {
+	if s == nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.period
+}
+
+// KickNow immediately reloads the armed hardware watchdog, even after Stop has
+// halted background keepalive ticks (e.g. between ordered shutdown steps).
+func (s *Supervisor) KickNow() error {
+	if s == nil {
+		return ErrNilAccess
+	}
+	s.mu.Lock()
+	started := s.started
+	s.mu.Unlock()
+	if !started {
+		return ErrNotRunning
+	}
+	s.opMu.Lock()
+	err := s.dev.Kick()
+	s.opMu.Unlock()
+	if err != nil {
+		return err
+	}
+	s.kicks.Add(1)
+	return nil
+}
+
+// Extend widens the running watchdog timeout to at least max(minTimeout, Period())
+// and reloads the counter when the underlying device implements TimeoutSetter.
+// Calls are serialized with KickNow and periodic loop kicks so concurrent
+// device operations never overlap and shorter extensions never overwrite longer ones.
+func (s *Supervisor) Extend(minTimeout time.Duration) (time.Duration, error) {
+	if s == nil {
+		return 0, ErrNilAccess
+	}
+	if minTimeout <= 0 {
+		return 0, fmt.Errorf("%w: timeout must be > 0", ErrInvalidConfig)
+	}
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+
+	s.mu.Lock()
+	if !s.started {
+		s.mu.Unlock()
+		return 0, ErrNotRunning
+	}
+	target := max(minTimeout, s.period)
+	s.mu.Unlock()
+
+	setter, ok := s.dev.(TimeoutSetter)
+	if !ok {
+		return 0, ErrUnsupported
+	}
+	actual, err := setter.SetTimeout(target)
+	if err != nil {
+		return 0, err
+	}
+	s.mu.Lock()
+	if actual > s.period {
+		s.period = actual
+	}
+	s.mu.Unlock()
+	s.kicks.Add(1)
+	return actual, nil
+}
 
 // Interval reports the effective kick interval selected by Start (0 before Start).
 func (s *Supervisor) Interval() time.Duration {
@@ -200,7 +295,10 @@ func (s *Supervisor) loop(ctx context.Context, interval time.Duration) {
 					return
 				}
 			}
-			if err := s.dev.Kick(); err != nil {
+			s.opMu.Lock()
+			err := s.dev.Kick()
+			s.opMu.Unlock()
+			if err != nil {
 				s.recordErr(err)
 				return
 			}

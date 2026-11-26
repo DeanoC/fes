@@ -86,6 +86,15 @@ type Computer struct {
 	initialTape  InitialTapeLoader
 }
 
+// Capabilities returns the validated fes.computer capability bitmap reported by
+// the live hardware identity when the session was opened.
+func (c *Computer) Capabilities() uint32 {
+	if c == nil {
+		return 0
+	}
+	return c.identity.Capabilities
+}
+
 type inputBatchIO interface {
 	WithInputBatch(func(IO) error) error
 }

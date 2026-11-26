@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 
 BOARD = Path(__file__).resolve().parents[1] / "boards/de25nano"
@@ -45,3 +46,31 @@ class MachineSimulationTests(unittest.TestCase):
     @unittest.skipUnless(TOOLS, "requires Verilator and C++")
     def test_pcxt_on_the_standard_shell(self):
         self.simulate("pcxt", 3600)
+
+    @unittest.skipUnless(TOOLS, "requires Verilator and C++")
+    def test_pcxt_video_keeps_procassinit_for_other_signals(self):
+        # Mutation check: the real DE25 mailbox's power-on values are waived,
+        # but a new initialized register in the same generated file must fail.
+        board = BOARD / "pcxt"
+        root = BOARD.parents[1]
+        pcxt, common = root / "cores/fes-pcxt", root / "cores/fes-common"
+        spec = importlib.util.spec_from_file_location("pcxt_lint_derive", board / "derive.py")
+        derive = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(derive)
+        source = derive.retarget_video((pcxt / "rtl/pcxt_video.sv").read_bytes())[0]
+        before = b"reg [10:0] horizontal;"
+        self.assertEqual(source.count(before), 1)
+        with tempfile.TemporaryDirectory(prefix="de25-pcxt-lint-") as tmp:
+            video = Path(tmp) / "pcxt_video_de25.sv"
+            video.write_bytes(source.replace(before, b"reg [10:0] horizontal = 0;"))
+            result = subprocess.run([
+                "verilator", "--lint-only", "-Wall", "-Wno-WIDTHEXPAND", "-Wno-DECLFILENAME",
+                "--timescale-override", "1ns/1ps", str(pcxt / "sim/cpu.vlt"), str(board / "video.vlt"),
+                "--top-module", "video_top", "-I" + str(common / "generated"),
+                str(common / "rtl/coleco_video_dpram.v"), str(common / "rtl/fes_video_part_direct.v"),
+                str(common / "rtl/fes_video_part_scanlines.v"), str(video),
+                str(pcxt / "rtl/pcxt_video_output.sv"), str(pcxt / "sim/video_top.sv"),
+            ], cwd=root, capture_output=True, text=True, timeout=60)
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("%Warning-PROCASSINIT", result.stderr)
+        self.assertIn("'horizontal'", result.stderr)

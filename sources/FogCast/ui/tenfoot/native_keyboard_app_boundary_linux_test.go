@@ -919,6 +919,11 @@ func TestNativeMissingRuntimeIdentityShowsUnavailableAndKeepsStop(t *testing.T) 
 	a := readyNativeBindingApp(t)
 	defer a.Stop()
 	a.mu.Lock()
+	// Stop remains available for this host's freshly observed owned play even
+	// when keyboard delegation lacks the runtime input identity.
+	a.health.Connection.State = "active"
+	a.health.Connection.LeaseOwned = true
+	a.kitLease.State = "active"
 	a.session.RuntimeInput = nil
 	if _, err := a.nativeKeyboardBindingLocked([16]byte{1}, 1); err == nil {
 		a.mu.Unlock()

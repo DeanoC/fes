@@ -479,6 +479,16 @@ func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool 
 			continue
 		}
 		if cmd == CmdQuit {
+			// The kit launcher is supervised: exiting it just restarts the UI.
+			// Never let a controller Start edge exit it, even while the host's
+			// session observation is stale or a foreign run is starting.
+			app.mu.Lock()
+			kitHost := app.kitHost
+			app.mu.Unlock()
+			if kitHost {
+				held[cmd] = true
+				continue
+			}
 			return true
 		}
 		holdGate := gate

@@ -61,6 +61,13 @@ public:
 	virtual NativeResult Program(const Artifact&,
 		ProgrammingProfile,
 		std::uint64_t absolute_deadline_ms) = 0;
+	// A DE25 computer whose memory is a window in HPS DDR: as Program, but
+	// the configuration also declares the bitstream's window block, which
+	// the kernel owner needs before it allocates a window.
+	virtual NativeResult ProgramWindowMachine(const Artifact&, ProgrammingProfile, std::uint64_t)
+	{
+		return {{ErrorCode::unsupported_programming_profile, "window machines are unavailable", "admission"}, false};
+	}
 	virtual bool SupportsStaticComposition() const { return false; }
 	// A cold two-image launch, never an in-place persona replacement.
 	virtual NativeResult ProgramStatic(const Artifact&, const Artifact&,
@@ -182,7 +189,8 @@ private:
  DiskWindow* disk_window_;
  De25HpsWindow* hps_window_ = nullptr;
  bool HpsDdrAvailable() const;
- Error ReleaseHpsWindow(const char* operation, const std::string& system, const std::string& core);
+ Error ReleaseHpsWindow(const char* operation, const std::string& system, const std::string& core,
+  bool machine_quiesced=false);
  MenuDisplayStatus menu_status_;
  Error menu_revoke_error_;
  std::string menu_directory_,menu_package_id_;
@@ -259,6 +267,7 @@ private:
 	bool core_data_flushed_ = false;
     Error FlushMediaSave();
     void ForgetMediaData();
+	void ReportAtaDisk(std::vector<MediaUnitCapability>*) const;
 	void ReportDurableMedia(std::vector<MediaUnitCapability>* units) const;
     std::unique_ptr<MediaDataFile> media_data_file_;
     MediaDiskRecord durable_media_;

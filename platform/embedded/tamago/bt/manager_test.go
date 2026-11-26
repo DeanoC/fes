@@ -636,3 +636,78 @@ func TestManagerForgetDeviceStopsActivePairing(t *testing.T) {
 		t.Fatal("late LinkKeyNotification recreated a forgotten bond in the new pairing window")
 	}
 }
+
+func TestDetachDongleNeutralizesHeldMouse(t *testing.T) {
+	fwPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_fw.bin")
+	cfgPath := filepath.Join("..", "..", "..", "..", "image", "firmware", "rtl_bt", "rtl8761bu_config.bin")
+	fwBytes, err := os.ReadFile(fwPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfgBytes, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw := testFWLoader{"rtl8761bu_fw.bin": fwBytes, "rtl8761bu_config.bin": cfgBytes}
+
+	bus := &mgrBus{lmpSub: 0x8761}
+	mouseAddr, _ := l2cap.ParseBDAddr("CC:22:33:44:55:99")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: mouseAddr, LinkKey: [16]byte{5}, Name: "BT Mouse", Slot: 0})
+
+	mgr := NewManager(bus, bonds, fw, func() time.Time { return time.Unix(1100, 0) })
+	var mouseEvents [][4]int
+	var slotEvents []bool
+	mgr.OnSlotMouseReport = func(slot uint8, dx, dy int8, buttons uint8) {
+		mouseEvents = append(mouseEvents, [4]int{int(slot), int(dx), int(dy), int(buttons)})
+	}
+	mgr.OnSlotChanged = func(_ uint8, connected bool, _ controllers.Kind, _ string) {
+		slotEvents = append(slotEvents, connected)
+	}
+
+	dev := makeDongleDevice(2)
+	bus.events = append(bus.events, usb.HostEvent{Kind: usb.DeviceAttached, Device: dev})
+	if err := mgr.Service(); err != nil || !mgr.DongleConnected() {
+		t.Fatalf("attach failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+
+	connEv := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, mouseAddr[:]...)
+	connEv = append(connEv, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, connEv)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 1, 4, 0, 0x11, 0x00, 0x50, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 2, 4, 0, 0x40, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 1, 6, 0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x02, 3, 4, 0, 0x13, 0x00, 0x51, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x04, 4, 4, 0, 0x41, 0x00, 0x00, 0x00}),
+		makeMgrHIDACL(0x0041, l2cap.CIDSignaling, []byte{0x05, 2, 6, 0, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00}),
+	)
+	for range 4 {
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeMgrHIDACL(0x0041, 0x0040, []byte{0x00}),
+		makeMgrHIDACL(0x0041, 0x0041, []byte{0xa1, 0x02, 0x01, 0x04, 0xfc}),
+	)
+	for range 4 {
+		if err := mgr.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(mouseEvents) != 1 || mouseEvents[0] != ([4]int{0, 4, -4, 1}) {
+		t.Fatalf("expected active BT mouse event before detach, got %v", mouseEvents)
+	}
+
+	bus.events = append(bus.events, usb.HostEvent{Kind: usb.DeviceDetached, Device: dev})
+	if err := mgr.Service(); err != nil || mgr.DongleConnected() {
+		t.Fatalf("detach failed: err=%v connected=%t", err, mgr.DongleConnected())
+	}
+	if len(mouseEvents) != 2 || mouseEvents[1] != ([4]int{0, 0, 0, 0}) {
+		t.Fatalf("expected neutral mouse report on dongle detach, got %v", mouseEvents)
+	}
+	if len(slotEvents) != 2 || !slotEvents[0] || slotEvents[1] {
+		t.Fatalf("expected [true false] slot transitions, got %v", slotEvents)
+	}
+}

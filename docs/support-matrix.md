@@ -26,7 +26,7 @@ Coleco is Aging: work toward Current is in progress and still needs work. Spectr
 
 **DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are Quartus (primary, policy) (policy: Deano 2026-10-29), and so is the ZX81 family (policy: Deano 2026-11-15, where nextpnr closure is hard). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. i386 is a CPU spike with no board shell of its own; the sealed pc386 development package runs on the DE10-Nano.
 
-**DE25-Nano** (Agilex 5) follows Quartus-only (policy); shell pending (policy: Deano 2026-10-29). Rows with a board bitstream show Quartus; rows without one show a dash. Agilex 5 has no OSS reverse-engineering. Per-core ports are re-checked only after the shell is on this branch.
+**DE25-Nano** (Agilex 5) follows Quartus-only (policy) (policy: Deano 2026-10-29). Quartus marks a registered DE25 recipe or a development producer profile; a dash means neither is present. A group with only some profiles names those core IDs. A producer is not hardware acceptance. Agilex 5 has no OSS reverse-engineering.
 
 `oss` and `quartus` are the Debian-style labels in [Quartus-built cores](design/quartus-cores.md). Both labelled builds ship only when results differ by the 15% rule. No registered recipe ships both today. Bluetooth and mesh are host services, so they are not columns.
 
@@ -39,24 +39,24 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 | Core | Tier | DE10-Nano | DE25-Nano | Features | Details |
 | --- | --- | --- | --- | --- | --- |
 | `fes.menu` | Firmware | OSS | Quartus | HDMI | [README](../sources/misteross/cores/fes-menu/README.md) |
-| splash / idle | Firmware | OSS | Quartus | HDMI | [README](../sources/misteross/cores/fes-splash/README.md) |
-| `fes.pong` | Stale | OSS | Quartus | pad, HDMI | [cores](../sources/misteross/docs/cores.md) |
-| `fes.ramtest` | Current | OSS | Quartus | pad, HDMI | [README](../sources/misteross/cores/fes-ramtest/README.md) |
-| ZX81 (ZX81, ZX80, TS1000, TS1500) | Current | Quartus | Quartus | tape, keys, HDMI | [cores](../sources/misteross/docs/cores.md) |
-| `fes.coleco` | Aging | OSS | Quartus | cart, pad, HDMI | [README](../sources/misteross/cores/fes-coleco/README.md) |
-| `fes.sms` | Aging | OSS | Quartus | cart, keys, HDMI | [README](../sources/misteross/cores/fes-sms/README.md) |
-| `fes.sg1000` | Aging | OSS | Quartus | cart, pad, HDMI | [README](../sources/misteross/cores/fes-sg1000/README.md) |
-| `fes.apple2` | Aging | OSS | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-apple2/README.md) |
+| splash / idle | Firmware | OSS | — | HDMI | [README](../sources/misteross/cores/fes-splash/README.md) |
+| `fes.pong` | Stale | OSS | — | pad, HDMI | [cores](../sources/misteross/docs/cores.md) |
+| `fes.ramtest` | Current | OSS | — | pad, HDMI | [README](../sources/misteross/cores/fes-ramtest/README.md) |
+| ZX81 (ZX81, ZX80, TS1000, TS1500) | Current | Quartus | Quartus (fes.zx81 only) | tape, keys, HDMI | [cores](../sources/misteross/docs/cores.md) |
+| `fes.coleco` | Aging | OSS | — | cart, pad, HDMI | [README](../sources/misteross/cores/fes-coleco/README.md) |
+| `fes.sms` | Aging | OSS | — | cart, keys, HDMI | [README](../sources/misteross/cores/fes-sms/README.md) |
+| `fes.sg1000` | Aging | OSS | — | cart, pad, HDMI | [README](../sources/misteross/cores/fes-sg1000/README.md) |
+| `fes.apple2` | Aging | OSS | — | disk, keys, HDMI | [README](../sources/misteross/cores/fes-apple2/README.md) |
 | C64 (PAL) | Current | OSS | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
-| C64 (NTSC) | Bring-up (queued) | OSS | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
-| C64 (early NTSC) | Bring-up | OSS | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
-| Drean C64 (PAL-N) | Bring-up | OSS | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
-| C64C (PAL) | Bring-up | OSS | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
-| C64C (NTSC) | Bring-up | OSS | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
+| C64 (NTSC) | Bring-up (queued) | OSS | — | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
+| C64 (early NTSC) | Bring-up | OSS | — | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
+| Drean C64 (PAL-N) | Bring-up | OSS | — | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
+| C64C (PAL) | Bring-up | OSS | — | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
+| C64C (NTSC) | Bring-up | OSS | — | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
 | Spectrum (48K, 128K, +2, +2A/+3, Pentagon) | Current | OSS | Quartus | tape, disk (some), keys, HDMI | [README](../sources/misteross/cores/fes-spectrum/README.md) |
 | Atari ST (520ST) | Current | OSS | Quartus | disk, keys, mouse, HDMI | [README](../sources/misteross/cores/fes-atari-st/README.md) |
 | Atari ST (STE) | Bring-up (queued) | — | — | — | [README](../sources/misteross/cores/fes-atari-st/README.md) |
-| `fes.riscv` | Aging | OSS | Quartus | pad, HDMI | [README](../sources/misteross/cores/fes-riscv/README.md) |
+| `fes.riscv` | Aging | OSS | — | pad, HDMI | [README](../sources/misteross/cores/fes-riscv/README.md) |
 | `cores/pong` simulation | Reference | — | — | — | [cores](../sources/misteross/docs/cores.md) |
 | PC/XT (FreeDOS) | Current | Quartus | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-pcxt/README.md) |
 | pc386 | Bring-up | Quartus | Quartus | disk, keys, mouse, HDMI | [README](../sources/misteross/cores/fes-pc386/README.md) |
