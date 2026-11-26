@@ -419,3 +419,116 @@ func TestDNSResolverWireCacheTTLAndErrors(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestDNSCachePeekNamesAndResolveFresh(t *testing.T) {
+	var nilCache *DNSCache
+	if _, _, _, ok := nilCache.Peek("a.test"); ok || nilCache.Names() != nil {
+		t.Fatal("nil DNSCache Peek/Names returned non-empty")
+	}
+	var nilRes *DNSResolver
+	if _, err := nilRes.ResolveFresh(context.Background(), "a.test"); !errors.Is(err, ErrDNSInvalidConfig) {
+		t.Fatalf("nil Resolver ResolveFresh err=%v", err)
+	}
+
+	now := time.Date(2026, time.November, 26, 15, 0, 0, 0, time.UTC)
+	c, err := NewDNSCache(DNSCacheConfig{
+		MaxEntries:  2,
+		NegativeTTL: 20 * time.Second,
+		Now:         func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Store("z.example", []netip.Addr{netip.MustParseAddr("192.0.2.1")}, 60*time.Second)
+	c.Store("a.example", []netip.Addr{netip.MustParseAddr("192.0.2.2")}, 10*time.Second)
+
+	names := c.Names()
+	if len(names) != 2 || names[0] != "a.example" || names[1] != "z.example" {
+		t.Fatalf("Names=%v want [a.example z.example]", names)
+	}
+
+	now = now.Add(4 * time.Second)
+	beforeStats := c.Stats()
+	addrs, negErr, rem, ok := c.Peek("A.Example.")
+	if !ok || negErr != nil || rem != 6*time.Second || len(addrs) != 1 || addrs[0] != netip.MustParseAddr("192.0.2.2") {
+		t.Fatalf("Peek positive = (%v, %v, %v, %t)", addrs, negErr, rem, ok)
+	}
+	// Mutating returned slice must not corrupt cache; stats/LRU must be unchanged.
+	addrs[0] = netip.MustParseAddr("198.51.100.99")
+	addrs2, _, _, ok2 := c.Peek("a.example")
+	if !ok2 || addrs2[0] != netip.MustParseAddr("192.0.2.2") {
+		t.Fatalf("Peek slice aliased cache: %v", addrs2)
+	}
+	if afterStats := c.Stats(); afterStats != beforeStats {
+		t.Fatalf("Peek altered stats: before=%+v after=%+v", beforeStats, afterStats)
+	}
+
+	// Verify Peek did not refresh a.example's LRU position: storing m.example evicts a.example.
+	c.Store("z.example", []netip.Addr{netip.MustParseAddr("192.0.2.10")}, 60*time.Second)
+	c.Store("m.example", []netip.Addr{netip.MustParseAddr("192.0.2.3")}, 30*time.Second)
+	if _, _, _, ok := c.Peek("a.example"); ok {
+		t.Fatal("Peek touched LRU order: expected a.example to be evicted")
+	}
+
+	// Negative Peek and expiration visibility in Names/Peek.
+	c.Delete("m.example")
+	c.StoreNegative("nx.example", ErrDNSNotFound)
+	_, negErr, rem, ok = c.Peek("nx.example")
+	if !ok || !errors.Is(negErr, ErrDNSNotFound) || rem != 20*time.Second {
+		t.Fatalf("Peek negative = (%v, %v, %t)", negErr, rem, ok)
+	}
+	now = now.Add(25 * time.Second)
+	if _, _, _, ok := c.Peek("nx.example"); ok {
+		t.Fatal("expired Peek reported ok=true")
+	}
+	if got := c.Names(); len(got) != 1 || got[0] != "z.example" {
+		t.Fatalf("Names after expiry = %v want [z.example]", got)
+	}
+
+	// ResolveFresh bypasses cache and handles refresh, zero-TTL purge, and transient error preservation.
+	var phase atomic.Int32
+	r, err := NewDNSResolverFunc(func(_ context.Context, name string) (DNSAnswer, error) {
+		switch phase.Load() {
+		case 0:
+			return DNSAnswer{Addrs: []netip.Addr{netip.MustParseAddr("198.51.100.1")}, TTL: time.Minute}, nil
+		case 1:
+			return DNSAnswer{}, ErrDNSServerError
+		case 2:
+			return DNSAnswer{Addrs: []netip.Addr{netip.MustParseAddr("198.51.100.2")}, TTL: time.Minute}, nil
+		default:
+			return DNSAnswer{Addrs: []netip.Addr{netip.MustParseAddr("198.51.100.3")}, TTL: 0}, nil
+		}
+	}, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.ResolveA(context.Background(), "fresh.test"); err != nil {
+		t.Fatal(err)
+	}
+	// Transient error on ResolveFresh must preserve existing cache entry.
+	phase.Store(1)
+	if _, err := r.ResolveFresh(context.Background(), "fresh.test"); !errors.Is(err, ErrDNSServerError) {
+		t.Fatalf("ResolveFresh transient err=%v", err)
+	}
+	if cached, _, _, ok := c.Peek("fresh.test"); !ok || cached[0] != netip.MustParseAddr("198.51.100.1") {
+		t.Fatalf("transient ResolveFresh clobbered cache: %v %t", cached, ok)
+	}
+	// Fresh positive response replaces cached entry cleanly.
+	phase.Store(2)
+	gotFresh, err := r.ResolveFresh(context.Background(), "fresh.test")
+	if err != nil || gotFresh[0] != netip.MustParseAddr("198.51.100.2") {
+		t.Fatalf("ResolveFresh update = (%v, %v)", gotFresh, err)
+	}
+	if gotA, err := r.ResolveA(context.Background(), "fresh.test"); err != nil || gotA[0] != netip.MustParseAddr("198.51.100.2") {
+		t.Fatalf("ResolveA after ResolveFresh = (%v, %v)", gotA, err)
+	}
+	// Zero-TTL fresh response removes stale cache entry.
+	phase.Store(3)
+	gotZero, err := r.ResolveFresh(context.Background(), "fresh.test")
+	if err != nil || gotZero[0] != netip.MustParseAddr("198.51.100.3") {
+		t.Fatalf("ResolveFresh zero TTL = (%v, %v)", gotZero, err)
+	}
+	if _, _, _, ok := c.Peek("fresh.test"); ok {
+		t.Fatal("zero-TTL ResolveFresh left stale entry cached")
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -277,6 +278,51 @@ func (c *DNSCache) Stats() DNSCacheStats {
 	}
 }
 
+// Peek returns any unexpired cached entry for name and its remaining TTL
+// without altering LRU ordering, hit/miss statistics, or evicting expired rows.
+func (c *DNSCache) Peek(name string) (addrs []netip.Addr, negErr error, ttlRemaining time.Duration, ok bool) {
+	if c == nil {
+		return nil, nil, 0, false
+	}
+	norm, err := normalizeDNSName(name)
+	if err != nil {
+		return nil, nil, 0, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := c.now()
+	entry, exists := c.entries[norm]
+	if !exists || !now.Before(entry.expiresAt) {
+		return nil, nil, 0, false
+	}
+	rem := entry.expiresAt.Sub(now)
+	if entry.negativeErr != nil {
+		return nil, entry.negativeErr, rem, true
+	}
+	return append([]netip.Addr(nil), entry.addrs...), nil, rem, true
+}
+
+// Names returns a sorted list of currently unexpired cached hostnames without
+// altering LRU ordering or cumulative cache counters.
+func (c *DNSCache) Names() []string {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := c.now()
+	var names []string
+	for k, e := range c.entries {
+		if now.Before(e.expiresAt) {
+			names = append(names, k)
+		}
+	}
+	slices.Sort(names)
+	return names
+}
+
 // DNSResolver resolves IPv4 A records using a bounded TTL cache backed by
 // ResolveAWithTTL over a RawFramePort or an injectable lookup function.
 type DNSResolver struct {
@@ -325,6 +371,20 @@ func (r *DNSResolver) Cache() *DNSCache { return r.cache }
 // before querying upstream DNS servers. Numeric IPv4 literals return directly
 // without caching.
 func (r *DNSResolver) ResolveA(ctx context.Context, name string) ([]netip.Addr, error) {
+	return r.resolveHost(ctx, name, true)
+}
+
+// ResolveFresh bypasses cached answers to query upstream directly, refreshing
+// positive/negative cache entries on response (deleting stale cache state if a
+// positive response has zero TTL) and leaving prior cache untouched on transient errors.
+func (r *DNSResolver) ResolveFresh(ctx context.Context, name string) ([]netip.Addr, error) {
+	return r.resolveHost(ctx, name, false)
+}
+
+func (r *DNSResolver) resolveHost(ctx context.Context, name string, useCache bool) ([]netip.Addr, error) {
+	if r == nil {
+		return nil, fmt.Errorf("%w: nil resolver", ErrDNSInvalidConfig)
+	}
 	if ctx == nil {
 		return nil, fmt.Errorf("%w: nil context", ErrDNSInvalidConfig)
 	}
@@ -342,11 +402,13 @@ func (r *DNSResolver) ResolveA(ctx context.Context, name string) ([]netip.Addr, 
 	if err != nil {
 		return nil, err
 	}
-	if addrs, negErr, ok := r.cache.Lookup(norm); ok {
-		if negErr != nil {
-			return nil, negErr
+	if useCache {
+		if addrs, negErr, ok := r.cache.Lookup(norm); ok {
+			if negErr != nil {
+				return nil, negErr
+			}
+			return addrs, nil
 		}
-		return addrs, nil
 	}
 	ans, err := r.lookup(ctx, norm)
 	if err != nil {
@@ -357,6 +419,8 @@ func (r *DNSResolver) ResolveA(ctx context.Context, name string) ([]netip.Addr, 
 	}
 	if len(ans.Addrs) > 0 && ans.TTL > 0 {
 		r.cache.Store(norm, ans.Addrs, ans.TTL)
+	} else if !useCache {
+		r.cache.Delete(norm)
 	}
 	return append([]netip.Addr(nil), ans.Addrs...), nil
 }
