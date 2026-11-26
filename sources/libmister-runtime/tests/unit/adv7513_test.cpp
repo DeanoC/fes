@@ -78,6 +78,26 @@ void TestApplicationAudioProgrammingGuideValues()
 	assert(registers.count(0x44) == 0); // setup must not enable packets
 }
 
+void TestMenuInitializationPowersUpFirstAndSetsRequiredF9()
+{
+	using namespace mister::native::adv7513;
+	const auto init = Menu720p60Initialization();
+	assert(init.size() >= 4);
+	// Programming Guide §3 quick-start powers HPD override and main power up
+	// before fixed/packet/AVI writes.
+	assert(init[0].address == reg::kPower2 &&
+		init[0].value == kPower2HpdAlwaysHigh);
+	assert(init[1].address == reg::kPower && init[1].value == kPowerUp);
+	bool wrote_f9 = false;
+	for (const auto& write : init) {
+		if (write.address == adi_required::kRegF9) {
+			assert(write.value == adi_required::kValF9);
+			wrote_f9 = true;
+		}
+	}
+	assert(wrote_f9);
+}
+
 } // namespace
 
 int main()
@@ -85,6 +105,7 @@ int main()
 	TestDeGeneratorPacks720pFields();
 	TestNamedFieldsMatchProgrammingGuideBytes();
 	TestApplicationAudioProgrammingGuideValues();
+	TestMenuInitializationPowersUpFirstAndSetsRequiredF9();
 	puts("adv7513_test: named register packing passed");
 	return 0;
 }
