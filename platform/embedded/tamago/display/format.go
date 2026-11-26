@@ -28,7 +28,7 @@ type RAMFBConfig struct {
 	Stride  int
 }
 
-func validateGeometry(address uint64, width, height, stride uint32) error {
+func validateGeometry(address uint64, width, height, stride int64) error {
 	if address == 0 || width < 16 || height < 16 || width > MaxWidth || height > MaxHeight ||
 		stride < width*4 || stride > MaxWidth*4 {
 		return errors.New("invalid QEMU ramfb geometry or address")
@@ -42,10 +42,7 @@ func validateGeometry(address uint64, width, height, stride uint32) error {
 // Config is the 28-byte, big-endian QEMU RAMFBCfg wire layout.
 func Config(address uint64, width, height, stride int) ([ConfigBytes]byte, error) {
 	var data [ConfigBytes]byte
-	if width < 0 || height < 0 || stride < 0 {
-		return data, errors.New("invalid QEMU ramfb geometry or address")
-	}
-	if err := validateGeometry(address, uint32(width), uint32(height), uint32(stride)); err != nil {
+	if err := validateGeometry(address, int64(width), int64(height), int64(stride)); err != nil {
 		return data, err
 	}
 	binary.BigEndian.PutUint64(data[0:8], address)
@@ -71,7 +68,7 @@ func DecodeConfig(data [ConfigBytes]byte) (RAMFBConfig, error) {
 	if flags != 0 {
 		return RAMFBConfig{}, errors.New("non-zero QEMU ramfb flags unsupported")
 	}
-	if err := validateGeometry(addr, width, height, stride); err != nil {
+	if err := validateGeometry(addr, int64(width), int64(height), int64(stride)); err != nil {
 		return RAMFBConfig{}, err
 	}
 	return RAMFBConfig{

@@ -88,4 +88,12 @@ func TestDecodeConfigRoundTripAndRejections(t *testing.T) {
 	if _, err := DecodeConfig(badStride); err == nil {
 		t.Fatal("accepted undersized stride")
 	}
+
+	// Oversized 64-bit int inputs that wrap mod 2^32 must be rejected before uint32 cast.
+	wide64 := int64(1)<<32 + 16
+	if w := int(wide64); int64(w) == wide64 {
+		if _, err := Config(0x54000000, w, 16, 64); err == nil {
+			t.Fatal("Config accepted 64-bit width wrapping into uint32")
+		}
+	}
 }
