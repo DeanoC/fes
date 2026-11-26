@@ -125,6 +125,8 @@ constexpr std::uint8_t kValBb = 0x00;
 constexpr std::uint8_t kValDe = 0x9c;
 constexpr std::uint8_t kRegE4 = 0xe4;
 constexpr std::uint8_t kValE4 = 0x60;
+constexpr std::uint8_t kRegF9 = 0xf9;
+constexpr std::uint8_t kValF9 = 0x00;
 } // namespace adi_required
 
 // 0x41 Power. Bit 6 = 1 power-down. Programming Guide power-up value 0x10.
@@ -308,10 +310,10 @@ inline std::vector<RegisterWrite> Menu720p60Initialization()
 	Encode20Bit(kAudioCts74250kHz, &cts_hi, &cts_mid, &cts_lo);
 
 	return {
-		Wr(reg::kPacketEnable1, kPacketsVideoAudio),
-		Wr(adi_required::kReg98, adi_required::kVal98),
 		Wr(reg::kPower2, kPower2HpdAlwaysHigh),
 		Wr(reg::kPower, kPowerUp),
+		Wr(adi_required::kReg98, adi_required::kVal98),
+		Wr(reg::kPacketEnable1, kPacketsVideoAudio),
 		Wr(adi_required::kReg9a, adi_required::kVal9a),
 		Wr(adi_required::kReg9c, adi_required::kVal9c),
 		Wr(reg::kInputClkDiv, kInputClkDivUndivided),
@@ -360,6 +362,7 @@ inline std::vector<RegisterWrite> Menu720p60Initialization()
 		Wr(reg::kTmdsClockInv, adi_required::kValDe),
 		Wr(reg::kCecCtrl, kCecPowerDown),
 		Wr(adi_required::kRegE4, adi_required::kValE4),
+		Wr(adi_required::kRegF9, adi_required::kValF9),
 		Wr(reg::kPhaseSearch, kPhaseSearchAttempts),
 		Wr(reg::kAudioSource, kAudioSelectI2s),
 		Wr(reg::kAudioConfig, kAudioConfigI2s),

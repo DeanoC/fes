@@ -19,6 +19,7 @@ const (
 	KindXInput
 	KindXboxGIP
 	KindGenericHID
+	KindMouse
 )
 
 func (k Kind) String() string {
@@ -35,8 +36,21 @@ func (k Kind) String() string {
 		return "xboxgip"
 	case KindGenericHID:
 		return "hid"
+	case KindMouse:
+		return "mouse"
 	default:
 		return "unknown"
+	}
+}
+
+// IsGamepad reports whether k is a gamepad/joystick controller that occupies a
+// P1..P4 player port when connected.
+func (k Kind) IsGamepad() bool {
+	switch k {
+	case KindDualSense, KindDualShock4, KindSwitchPro, KindXInput, KindXboxGIP, KindGenericHID:
+		return true
+	default:
+		return false
 	}
 }
 

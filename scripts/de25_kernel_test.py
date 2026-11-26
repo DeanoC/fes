@@ -75,6 +75,8 @@ REQUIRED_CASES = frozenset((
     "window_publishes_grant_and_maps_offsets", "window_refuses_a_block_it_cannot_grant",
     "window_fault_or_undrained_port_pins_storage", "window_needs_its_block",
     "window_untrusted_observation_blocks_mapping", "window_file_failure_leaves_a_reapable_grant",
+    "window_storage_is_zeroed_and_uncached", "window_pool_is_reserved_and_inside_the_firewall",
+    "window_refuses_without_storage",
     "acceptance_is_not_display_and_slots_alternate",
     "ordered_descriptor_precedes_first_submit",
     "stale_generation_and_reset_cannot_prove_drain",

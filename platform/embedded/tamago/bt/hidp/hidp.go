@@ -17,6 +17,7 @@ const (
 
 	// HIDP transaction header bytes (Bluetooth HID Profile 1.1).
 	hidpHandshake        byte = 0x00 // HANDSHAKE (0x00) | HANDSHAKE_SUCCESSFUL (0x00)
+	hidpGetReportInput   byte = 0x41 // GET_REPORT (0x40) | Input (0x01)
 	hidpGetReportFeature byte = 0x43 // GET_REPORT (0x40) | Feature (0x03)
 	hidpSetProtocolBoot  byte = 0x70 // SET_PROTOCOL (0x70) | Boot Protocol (0x00)
 	hidpDataInput        byte = 0xa1 // DATA (0xA0) | Input (0x01)
@@ -58,6 +59,7 @@ type PlayerSlot struct {
 	ledAttempts    uint8
 	rumbleRight    uint8
 	rumbleLeft     uint8
+	MouseButtons   uint8
 }
 
 func (p *PlayerSlot) ready() bool {
@@ -89,8 +91,8 @@ func (p *PlayerSlot) clearLEDState() {
 
 // Session runs Classic Bluetooth HIDP (PSM 0x0011 Control + PSM 0x0013
 // Interrupt) over an l2cap.Manager for up to 4 concurrent Sony DualSense,
-// DualShock 4, Nintendo Switch Pro, and BT HID Keyboard devices with zero
-// steady-state heap allocations.
+// DualShock 4, Nintendo Switch Pro, BT HID Keyboard, and BT HID Boot Mouse
+// devices with zero steady-state heap allocations.
 type Session struct {
 	tr  *hci.Transport
 	mgr *l2cap.Manager
@@ -102,6 +104,7 @@ type Session struct {
 	OnGamepadState       func(slot uint8, kind controllers.Kind, state controllers.State)
 	OnKeyboardReport     func(report []byte)
 	OnSlotKeyboardReport func(slot uint8, report []byte)
+	OnSlotMouseReport    func(slot uint8, dx, dy int8, buttons uint8)
 	OnSlotChanged        func(slot uint8, connected bool, kind controllers.Kind, name string)
 }
 
@@ -306,13 +309,24 @@ func (s *Session) emitKeyboardReport(slot uint8, report []byte) {
 	}
 }
 
-func (s *Session) neutralizeSlotInput(idx uint8, kind controllers.Kind) {
-	if kind != controllers.KindUnknown {
+func (s *Session) emitMouseReport(slot uint8, dx, dy int8, buttons uint8) {
+	if s.OnSlotMouseReport != nil {
+		s.OnSlotMouseReport(slot, dx, dy, buttons)
+	}
+}
+
+func (s *Session) neutralizeSlotInput(idx uint8, kind controllers.Kind, hadMouseButtons bool) {
+	if kind.IsGamepad() {
 		if s.OnGamepadState != nil {
 			s.OnGamepadState(idx, kind, controllers.State{})
 		}
-	} else {
+		return
+	}
+	if kind != controllers.KindMouse {
 		s.emitKeyboardReport(idx, neutralKeyboardReport[:])
+	}
+	if hadMouseButtons {
+		s.emitMouseReport(idx, 0, 0, 0)
 	}
 }
 
@@ -323,6 +337,7 @@ func (s *Session) onChannelClose(handle uint16, _ l2cap.BDAddr, psm uint16) {
 	}
 	wasReady := slot.ready()
 	hadActiveState := !slot.State.Neutral()
+	hadMouseButtons := slot.MouseButtons != 0
 	idx, kind, name := slot.Slot, slot.Kind, slot.Name
 	switch psm {
 	case l2cap.PSMHIDControl:
@@ -333,6 +348,7 @@ func (s *Session) onChannelClose(handle uint16, _ l2cap.BDAddr, psm uint16) {
 		return
 	}
 	slot.State = controllers.State{}
+	slot.MouseButtons = 0
 	slot.initStep = 0
 	slot.initWaitingAck = false
 	slot.initNextTry = time.Time{}
@@ -342,9 +358,10 @@ func (s *Session) onChannelClose(handle uint16, _ l2cap.BDAddr, psm uint16) {
 		*slot = PlayerSlot{}
 	}
 	// Clear any held buttons/axes before announcing channel loss so downstream
-	// consumers driven by OnGamepadState / OnKeyboardReport never see stuck input.
-	if wasReady || hadActiveState || kind == controllers.KindUnknown {
-		s.neutralizeSlotInput(idx, kind)
+	// consumers driven by OnGamepadState / OnKeyboardReport / OnSlotMouseReport
+	// never see stuck input.
+	if wasReady || hadActiveState || !kind.IsGamepad() {
+		s.neutralizeSlotInput(idx, kind, hadMouseButtons)
 	}
 	if wasReady && s.OnSlotChanged != nil {
 		s.OnSlotChanged(idx, false, kind, name)
@@ -358,10 +375,11 @@ func (s *Session) onDisconnect(handle uint16, _ l2cap.BDAddr) {
 	}
 	wasReady := slot.ready()
 	hadActiveState := !slot.State.Neutral()
+	hadMouseButtons := slot.MouseButtons != 0
 	idx, kind, name := slot.Slot, slot.Kind, slot.Name
 	*slot = PlayerSlot{}
-	if wasReady || hadActiveState || kind == controllers.KindUnknown {
-		s.neutralizeSlotInput(idx, kind)
+	if wasReady || hadActiveState || !kind.IsGamepad() {
+		s.neutralizeSlotInput(idx, kind, hadMouseButtons)
 	}
 	if wasReady && s.OnSlotChanged != nil {
 		s.OnSlotChanged(idx, false, kind, name)
@@ -459,6 +477,40 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 			return
 		}
 		slot.outputSeq = (slot.outputSeq + 1) & 0x0f
+		slot.initWaitingAck = true
+		slot.initAttempts++
+		slot.initNextTry = s.now().Add(switchProSubcmdRetryInterval)
+
+	case controllers.KindMouse:
+		if slot.initWaitingAck {
+			if s.now().Before(slot.initNextTry) {
+				return
+			}
+			if slot.initAttempts >= switchProMaxStepAttempts {
+				if slot.initStep == 0 {
+					return
+				}
+				// Stop retrying GET_REPORT(Input) after bounded attempts; leave
+				// MouseButtons unreported until an actual interrupt report arrives.
+				slot.initStep = initStepDone
+				slot.initWaitingAck = false
+				slot.initAttempts = 0
+				slot.initNextTry = time.Time{}
+				return
+			}
+			slot.initWaitingAck = false
+		}
+		if slot.initStep == 0 {
+			pkt := [1]byte{hidpSetProtocolBoot}
+			if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDControl, pkt[:]); err != nil {
+				return
+			}
+		} else {
+			pkt := [2]byte{hidpGetReportInput, 0x02}
+			if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDControl, pkt[:]); err != nil {
+				return
+			}
+		}
 		slot.initWaitingAck = true
 		slot.initAttempts++
 		slot.initNextTry = s.now().Add(switchProSubcmdRetryInterval)
@@ -635,18 +687,69 @@ func (s *Session) SetRumble(slotIdx uint8, right, left uint8) error {
 	}
 }
 
+func parseBootMouseReport(report []byte) (dx, dy int8, buttons uint8, ok bool) {
+	switch {
+	case len(report) >= 4 && len(report) <= 7 && report[0] == 0x02:
+		return int8(report[2]), int8(report[3]), report[1] & 0x03, true
+	case len(report) == 3:
+		return int8(report[1]), int8(report[2]), report[0] & 0x03, true
+	default:
+		return 0, 0, 0, false
+	}
+}
+
 func (s *Session) onHIDControl(handle uint16, payload []byte) {
-	// Handle SET_PROTOCOL(BOOT) handshake for boot keyboard fallback; gamepads use
-	// feature reports whose responses don't gate input decoding here.
 	slot := s.findSlotByHandle(handle)
-	if slot != nil && slot.ready() && slot.Kind == controllers.KindUnknown && slot.initWaitingAck && len(payload) >= 1 && (payload[0]&0xf0) == hidpHandshake {
-		slot.initWaitingAck = false
-		slot.initNextTry = time.Time{}
-		if payload[0] == hidpHandshake {
-			slot.initStep = initStepDone
-			slot.initAttempts = 0
-		} else {
-			slot.initAttempts = switchProMaxStepAttempts
+	if slot == nil || !slot.ready() || len(payload) < 1 {
+		return
+	}
+	switch slot.Kind {
+	case controllers.KindMouse:
+		if slot.initStep == 0 && slot.initWaitingAck && (payload[0]&0xf0) == hidpHandshake {
+			slot.initWaitingAck = false
+			slot.initNextTry = time.Time{}
+			if payload[0] == hidpHandshake {
+				slot.initStep = 1
+				slot.initAttempts = 0
+				s.maybeInitController(slot)
+			} else {
+				slot.initAttempts = switchProMaxStepAttempts
+			}
+			return
+		}
+		if slot.initStep == 1 {
+			if payload[0] == hidpDataInput {
+				if dx, dy, buttons, ok := parseBootMouseReport(payload[1:]); ok {
+					slot.initStep = initStepDone
+					slot.initWaitingAck = false
+					slot.initAttempts = 0
+					slot.initNextTry = time.Time{}
+					slot.MouseButtons = buttons
+					s.emitMouseReport(slot.Slot, dx, dy, buttons)
+				}
+				return
+			}
+			if (payload[0] & 0xf0) == hidpHandshake {
+				// Peer rejected GET_REPORT(Input); stop querying and wait for an interrupt report.
+				slot.initStep = initStepDone
+				slot.initWaitingAck = false
+				slot.initAttempts = 0
+				slot.initNextTry = time.Time{}
+			}
+		}
+
+	case controllers.KindUnknown:
+		// Handle SET_PROTOCOL(BOOT) handshake for boot keyboard fallback; gamepads use
+		// feature reports whose responses don't gate input decoding here.
+		if slot.initWaitingAck && (payload[0]&0xf0) == hidpHandshake {
+			slot.initWaitingAck = false
+			slot.initNextTry = time.Time{}
+			if payload[0] == hidpHandshake {
+				slot.initStep = initStepDone
+				slot.initAttempts = 0
+			} else {
+				slot.initAttempts = switchProMaxStepAttempts
+			}
 		}
 	}
 }
@@ -688,16 +791,39 @@ func (s *Session) onHIDInterrupt(handle uint16, payload []byte) {
 			}
 		}
 
+	case controllers.KindMouse:
+		if slot.initStep == 0 {
+			return
+		}
+		if dx, dy, buttons, ok := parseBootMouseReport(report); ok {
+			if slot.initStep == 1 {
+				slot.initStep = initStepDone
+				slot.initWaitingAck = false
+				slot.initAttempts = 0
+				slot.initNextTry = time.Time{}
+			}
+			slot.MouseButtons = buttons
+			s.emitMouseReport(slot.Slot, dx, dy, buttons)
+		}
+
 	default:
-		// Classic BT HID boot keyboard fallback: only decode 8-byte (or 0x01-prefixed
-		// 9-byte) boot reports after SET_PROTOCOL(BOOT) handshake succeeded.
+		// Classic BT HID boot keyboard/mouse fallback: only decode reports
+		// after SET_PROTOCOL(BOOT) handshake succeeded. Raw 8-byte reports are
+		// checked before Report ID 0x02 so Left Shift (modifier 0x02) on a raw
+		// keyboard report is never misread as a boot mouse.
 		if slot.initStep != initStepDone {
 			return
 		}
-		if len(report) == 8 {
+		switch {
+		case len(report) == 8:
 			s.emitKeyboardReport(slot.Slot, report)
-		} else if len(report) == 9 && report[0] == 0x01 {
+		case len(report) == 9 && report[0] == 0x01:
 			s.emitKeyboardReport(slot.Slot, report[1:9])
+		default:
+			if dx, dy, buttons, ok := parseBootMouseReport(report); ok {
+				slot.MouseButtons = buttons
+				s.emitMouseReport(slot.Slot, dx, dy, buttons)
+			}
 		}
 	}
 }

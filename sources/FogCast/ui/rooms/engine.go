@@ -43,6 +43,8 @@ type Pad struct {
 	Family     string
 	Recognised bool
 	Bluetooth  bool
+	// Tested is a pad verified on FES hardware (#1348).
+	Tested bool
 	// SwapAB is a pad whose right-hand face button confirms.
 	SwapAB bool
 	// Mapped is a pad read through a mapping its player made step by step.

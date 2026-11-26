@@ -16,18 +16,24 @@ module top #(
         .scl(scl_in), .sda(sda_in), .out_clk(scl_low), .out_data(sda_low)
     );
     pixel_pll video_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk_0(pixel_clk), .locked(locked));
+    reg [1:0] locked_sync = 2'b00;
+    always @(posedge pixel_clk or negedge locked) begin
+        if (!locked) locked_sync <= 2'b00;
+        else locked_sync <= {locked_sync[0], 1'b1};
+    end
+    wire pll_locked = locked_sync[1];
     wire [31:0] gpo, gpi;
     wire [23:0] rgb;
     wire de, hs, vs;
     cyclonev_hps_interface_mpu_general_purpose hps_gp (.gp_in(gpi), .gp_out(gpo));
     fes_menu_endpoint endpoint (
-        .clk(pixel_clk), .reset_hold(!locked), .gpo(gpo), .build_id(BUILD_ID), .gpi(gpi),
+        .clk(pixel_clk), .reset_hold(!pll_locked), .gpo(gpo), .build_id(BUILD_ID), .gpi(gpi),
         .displayed_sequence(), .underflows(), .exec_reset(), .enable(), .quiesced(), .faulted(),
         .rgb(rgb), .de(de), .hs(hs), .vs(vs)
     );
     assign HDMI_TX_CLK = pixel_clk;
-    assign HDMI_TX_DE = locked && de;
-    assign HDMI_TX_HS = locked && hs;
-    assign HDMI_TX_VS = locked && vs;
-    assign HDMI_TX_D = locked ? rgb : 24'd0;
+    assign HDMI_TX_DE = pll_locked && de;
+    assign HDMI_TX_HS = pll_locked && hs;
+    assign HDMI_TX_VS = pll_locked && vs;
+    assign HDMI_TX_D = pll_locked ? rgb : 24'd0;
 endmodule

@@ -628,7 +628,7 @@ See FES
 [`docs/zx81-tape-media.md`](../../docs/zx81-tape-media.md).
 `NativeInputSession` requires a generation-bound driver callback and never
 falls back to SPI. Splash has no core probe or HPS framebuffer; splash and
-fixed-video bring-up use ADV7513 only.
+fixed-video bring-up use ADV7513 only (power-up `0xD6`/`0x41` before fixed/packet writes, with required `0xF9 = 0x00`).
 
 Explicit `load_development_rbf` accepts the contained diagnostic profile while
 idle. Package loads and raw diagnostics publish `running_development`; package

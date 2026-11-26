@@ -53,6 +53,7 @@ func TestMulticastHashIndexAndValidation(t *testing.T) {
 type filterMMCModel struct {
 	*hardware
 	mismatchHash   bool
+	mismatchFilter bool
 	resetMMCOnRead bool
 }
 
@@ -67,6 +68,10 @@ func (m *filterMMCModel) Read32(reg uint32) uint32 {
 func (m *filterMMCModel) Write32(reg, value uint32) {
 	if reg >= hashTableBase && reg < hashTableBase+32 && m.mismatchHash {
 		m.regs[reg] = value ^ 0x55aa55aa
+		return
+	}
+	if reg == packetFilter && m.mismatchFilter {
+		m.regs[reg] = value ^ filterPM
 		return
 	}
 	if reg == mmcControl && value&mmcCtrlResetOnRead != 0 {
@@ -320,5 +325,94 @@ func TestHardwareMMCCountersSnapshotAndResetOnReadAccumulation(t *testing.T) {
 	}
 	if st2.TXPacketsGB != 9 || st2.RXPacketsGB != 8 || st2.RXCRCErrors != 2 || st2.RXJabberErrors != 6 || st2.RXUndersizeGood != 1 || st2.RXFIFOOverflows != 3 {
 		t.Fatalf("cumulative stats across Stop/Start=%+v", st2)
+	}
+}
+
+func TestSetAllMulticastLifecycleInteractionAndFailClosed(t *testing.T) {
+	if err := (*Device)(nil).SetAllMulticast(true); !errors.Is(err, network.ErrControl) {
+		t.Fatalf("nil device err=%v want ErrControl", err)
+	}
+	if st := (*Device)(nil).FilterStatus(); st != (FilterState{}) {
+		t.Fatalf("nil device FilterStatus=%+v", st)
+	}
+
+	h := newHardware()
+	h.regs[features1] = (1 << 24) | (8 << 6) | 7 // 64-bit hash table
+	m := &filterMMCModel{hardware: h}
+	d, err := Open(m, h.mem, newFilterConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctrl, err := d.BindControl(network.DMAControl{
+		Stop: func(context.Context) error {
+			h.regs[packetFilter] = 0
+			return nil
+		},
+		Start: func(context.Context) error {
+			h.regs[dmaMode] = 0
+			h.regs[txConfig] = 0
+			h.regs[rxConfig] = 0
+			h.regs[txControl] = 0
+			h.regs[rxControl] = 0
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Enable all-multicast before any SetMulticastMACs call.
+	if err := d.SetAllMulticast(true); err != nil {
+		t.Fatalf("SetAllMulticast(true): %v", err)
+	}
+	if h.regs[packetFilter] != filterPM {
+		t.Fatalf("packetFilter=%#x want filterPM (%#x)", h.regs[packetFilter], filterPM)
+	}
+	if st := d.FilterStatus(); !st.AllMulticast || st.HashEnabled || st.PacketFilter != filterPM || st.HashBits != 64 {
+		t.Fatalf("FilterStatus=%+v", st)
+	}
+
+	// Verify SetAllMulticast rejects writes when paused and survives Stop/Start.
+	if err := ctrl.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.SetAllMulticast(false); !errors.Is(err, network.ErrPaused) {
+		t.Fatalf("paused SetAllMulticast err=%v want ErrPaused", err)
+	}
+	if err := ctrl.Start(context.Background()); err != nil {
+		t.Fatalf("Start after SetAllMulticast: %v", err)
+	}
+	if h.regs[packetFilter] != filterPM {
+		t.Fatalf("Start did not restore filterPM: %#x", h.regs[packetFilter])
+	}
+
+	// Combine SetMulticastMACs with SetAllMulticast, then disable all-multicast to restore HMC.
+	mcast := net.HardwareAddr{0x01, 0x00, 0x5e, 0x00, 0x00, 0x01}
+	if err := d.SetMulticastMACs([]net.HardwareAddr{mcast}); err != nil {
+		t.Fatal(err)
+	}
+	if h.regs[packetFilter] != (filterHMC | filterPM) {
+		t.Fatalf("packetFilter with HMC+PM=%#x want %#x", h.regs[packetFilter], filterHMC|filterPM)
+	}
+	if err := d.SetAllMulticast(false); err != nil {
+		t.Fatal(err)
+	}
+	if h.regs[packetFilter] != filterHMC {
+		t.Fatalf("packetFilter after SetAllMulticast(false)=%#x want filterHMC (%#x)", h.regs[packetFilter], filterHMC)
+	}
+	if st := d.FilterStatus(); st.AllMulticast || !st.HashEnabled || st.PacketFilter != filterHMC {
+		t.Fatalf("FilterStatus after restore=%+v", st)
+	}
+
+	// Readback mismatch fails closed and rejects further changes.
+	m.mismatchFilter = true
+	if err := d.SetAllMulticast(true); err == nil {
+		t.Fatal("expected readback mismatch error")
+	}
+	if err := d.Err(); err == nil {
+		t.Fatal("expected device faulted after packetFilter readback mismatch")
+	}
+	if err := d.SetAllMulticast(false); err == nil {
+		t.Fatal("expected sticky device error after fault")
 	}
 }

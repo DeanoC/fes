@@ -57,7 +57,7 @@ Held-back cores are hidden from the release catalog, not deleted. Because Pong i
 | --- | --- | --- | --- | --- | --- |
 | 0 | Boot / splash | FES logo while the kit comes up. With no first-run marker, go to 1; otherwise go to Home. | First run only | Idle/splash RBF and menu firmware | First-run marker, plus Run setup again in Settings |
 | 1 | Welcome | What FES is, the four systems, and a note that some firmware is built in while other ROMs/games are the user's own. Continue or Skip setup. | Continue focused; Skip shows banners for unfinished steps on Home | Tenfoot renderer, paper/green chrome (#1187) | Welcome room and media copy |
-| 2 | Controllers | Press any button: the pad is identified by name and becomes player 1, with a Tested badge for pads on the tested list. Bluetooth pairing steps. Keyboard works throughout. | First pad = P1, auto layout | GameControllerDB (#981), ports (#990), GUID profiles (#995), BT agent (#1058) | Pairing/status UI, button test, Tested-pad list (#980 slice 4) |
+| 2 | Controllers | Press any button: the pad is identified by name and becomes player 1, with a Tested badge for pads on the tested list. Bluetooth pairing steps. Keyboard works throughout. | First pad = P1, auto layout | GameControllerDB (#981), ports (#990), GUID profiles (#995), BT agent (#1058), Settings › Controllers & first-run step (#980) | Tested-pad list hardware verification (#1348) |
 | 3 | Your games folders | For each family, pick a folder from USB, SD data or a network share. The picker suggests matching folders it finds (e.g. `games/Spectrum`); it can be skipped per family. Scan with progress, then show counts per family. | Suggested folder pre-selected when one is found; nothing created | Drive browser (storage_settings.go), library roots, scanner | Per-family folder picker with suggestions, in-UI scan and results |
 | 4 | Ready | Summary: pad, folders, titles per family, and which families run on built-in firmware and which need the user's ROM. | Finish | Readiness reasons (library_detail.go) | Summary screen |
 | 5 | Home | Recent/Continue row (hidden until a game is played) above four family tiles: ZX81, Spectrum, Atari ST, C64. Each tile shows Ready, Needs firmware or No games yet. No Library entry. | Focus on Continue if present, else the first Ready family | Home leads to Systems; family workbenches with a Variant selector (#1182); plain names (#1187) | Recent/Continue row, v1 family filter, icons, Library removed from navigation |
@@ -69,7 +69,7 @@ Held-back cores are hidden from the release catalog, not deleted. Because Pong i
 
 | Section | Contents | Current status (23 Nov 2026) |
 | --- | --- | --- |
-| Controllers | Connected pads with a Tested badge, player, press-to-bind remap, Swap A/B, reset, Bluetooth pairing | Backend yes; page open (#980 slice 4, #1348) |
+| Controllers | Connected pads with a Tested badge, player, press-to-bind remap, Swap A/B, reset, Bluetooth pairing | Implemented (#980; Tested badge plumbed, #1348 tracks tested pad list) |
 | Games folders | Folder per family, rescan, firmware folder for user ROMs | Partly: Drive screen and typed-path roots (#1346 open) |
 | Firmware | Per family: built-in or user-supplied, licence text, status | Implemented (#1344, #1349; see [bundled firmware](../bundled-firmware.md)) |
 | Display & sound | Resolution (720p default), safe area, volume | Display in Settings (#1349); volume open (#1415) |
@@ -92,7 +92,7 @@ Status refreshed on 23 November 2026 against GitHub milestone [v1: DE10 first re
 | 5 | #1345 | Closed | First-run flow: welcome, summary, marker, Run setup again | Tenfoot welcome and summary rooms; skip and resume | M | lane:deano |
 | 6 | #1346 | Open | Per-family games-folder picker with suggestions | User-chosen folders, suggested matches, in-UI scan with progress and results | L | lane:deano |
 | 7 | #1347 | Closed | Home: family tiles plus Recent/Continue, no Library | Recent/Continue row, 4 family tiles with readiness, Library removed from navigation | M | lane:deano |
-| 8 | #980 | Open | Controllers page and first-run pad step (Existing #980) | Slice 4 plus a Tested badge and the first-run step | L | lane:deano |
+| 8 | #980 | Closed | Controllers page and first-run pad step (Existing #980) | Slice 4 plus the Tested badge plumbing and first-run step | L | lane:deano |
 | 9 | #1348 | Open | Tested controller list | Pick and HIL a short list of wired and Bluetooth pads; publish as Tested | S | lane:deano |
 | 10 | #1349 | Closed | Settings surface v1 | Base settings surface; follow-up slices tracked in #1415–#1418 | M | lane:deano |
 | 11 | #1350 | Open | Updates UI and recovery (Existing #917 folds in) | One Updates page over image, software and cores; keep/pin an image for rollback | M | lane:deano |

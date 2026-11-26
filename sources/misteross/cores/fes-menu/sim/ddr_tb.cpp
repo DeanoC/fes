@@ -5,10 +5,20 @@
 #include <cstdlib>
 static void check(bool ok,const char* m){if(!ok){std::fprintf(stderr,"FAIL %s\n",m);std::exit(1);}}
 int main(int argc,char**argv){
- Verilated::commandArgs(argc,argv);Vfes_menu_ddr t;t.reset_hold=1;t.enable=0;t.quiesce=0;t.submit_valid=0;
+ Verilated::commandArgs(argc,argv);Vfes_menu_ddr t;t.raster_reset=1;t.reset_hold=1;t.enable=0;t.quiesce=0;t.submit_valid=0;
  auto tick=[&](){t.clk=0;t.eval();t.clk=1;t.eval();check(!t.rootp->fes_menu_ddr__DOT__memory__DOT__f2sdram__DOT__violation,"DDR command bounds/unused ports/write violation");};
  auto accepted=[&](){return t.rootp->fes_menu_ddr__DOT__memory__DOT__f2sdram__DOT__accepted;};
- for(int i=0;i<20;++i)tick();check(accepted()==0&&!t.faulted,"startup hold");
+ for(int i=0;i<20;++i){tick();check(!t.de&&!t.hs&&!t.vs&&accepted()==0&&!t.faulted,"startup hold");}
+ t.raster_reset=0;
+ unsigned hold_hs=0,hold_vs=0,hold_de=0;
+ for(unsigned i=0;i<1650u*750u;++i){
+  t.clk=0;t.eval();
+  hold_hs+=t.hs;hold_vs+=t.vs;hold_de+=t.de;
+  check(t.rgb==0,"black pixels during reset_hold");
+  t.clk=1;t.eval();
+  check(!t.rootp->fes_menu_ddr__DOT__memory__DOT__f2sdram__DOT__violation,"DDR command bounds during reset_hold");
+ }
+ check(hold_hs==40u*750u&&hold_vs==5u*1650u&&hold_de==1280u*720u&&accepted()==0&&!t.faulted,"720p60 syncs run during reset_hold without DDR reads");
  t.reset_hold=0;for(int i=0;i<20;++i)tick();check(accepted()==0&&!t.faulted,"disabled commands");
  t.enable=1;unsigned frames=0,seen=0;unsigned h=0,v=720;
  auto frame_tick=[&](){

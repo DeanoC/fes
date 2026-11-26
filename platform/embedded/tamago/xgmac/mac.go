@@ -173,6 +173,7 @@ type Device struct {
 	multicastWords                 int
 	multicastHash                  [8]uint32
 	multicastFilter                uint32
+	allMulticast                   bool
 	hwStats                        HardwareStats
 }
 
@@ -435,7 +436,11 @@ func (d *Device) initialize(mac net.HardwareAddr) error {
 	d.io.Write32(0x0a8, 0)
 	d.hashBits.Store(int32(decodeHashTableBits(fifo)))
 	if d.multicastWords > 0 {
-		if err := d.programMulticastLocked(d.multicastWords, d.multicastHash, d.multicastFilter); err != nil {
+		if err := d.programMulticastLocked(d.multicastWords, d.multicastHash, d.effectivePacketFilterLocked(d.multicastFilter)); err != nil {
+			return err
+		}
+	} else if d.allMulticast {
+		if err := d.programPacketFilterLocked(d.effectivePacketFilterLocked(0)); err != nil {
 			return err
 		}
 	} else {
