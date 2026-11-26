@@ -1856,4 +1856,33 @@ func TestHubGamepadDevicesIntoAndZeroAllocs(t *testing.T) {
 	if n := hub.GamepadDevicesInto(buf[:]); n != 3 {
 		t.Fatalf("expected 3 gamepads after BT disconnect, got %d", n)
 	}
+
+	// Drain any prior updates, then queue rapid XInput press+release in a single Service()
+	// and verify both PadCount/Pads states are preserved in order with 0 Service() allocs.
+	for _, ok := hub.NextGamepadUpdate(); ok; _, ok = hub.NextGamepadUpdate() {
+	}
+	var pressPkt [20]byte
+	pressPkt[1] = 0x14
+	pressPkt[3] = 0x10 // XInput A / South
+	var releasePkt [20]byte
+	releasePkt[1] = 0x14
+	xinputPipe.inQueue = append(xinputPipe.inQueue, pressPkt[:], releasePkt[:])
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	upd1, ok1 := hub.NextGamepadUpdate()
+	upd2, ok2 := hub.NextGamepadUpdate()
+	if !ok1 || !ok2 || upd1.PadCount != 3 || upd2.PadCount != 3 ||
+		upd1.Pads[0].ID != 2 || upd1.Pads[0].Buttons&controllers.ButtonSouth == 0 ||
+		upd2.Pads[0].ID != 2 || upd2.Pads[0].Buttons&controllers.ButtonSouth != 0 {
+		t.Fatalf("expected rapid press+release preserved in upd1/upd2 Pads: ok1=%t ok2=%t upd1=%+v upd2=%+v", ok1, ok2, upd1, upd2)
+	}
+	serviceAllocs := testing.AllocsPerRun(50, func() {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if serviceAllocs != 0 {
+		t.Fatalf("expected 0 allocations in steady-state Service, got %.1f", serviceAllocs)
+	}
 }

@@ -170,7 +170,9 @@ func NewProgramMultiInputPlatform(base tenfoot.Platform, backend *ProgramBackend
 	}
 	p.refreshBluetoothStatus(true)
 	if p.cfg.App != nil {
-		p.syncTenfootPads(true)
+		p.syncTenfootPadTopology(true)
+		var liveBuf [usbhub.MaxGamepadDevices]usbhub.GamepadPadState
+		p.processPadStates(p.livePadStatesInto(liveBuf[:]), time.Now())
 	}
 	return p, nil
 }
@@ -510,7 +512,7 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		return nil, err
 	}
 	if p.cfg.App != nil {
-		p.syncTenfootPads(false)
+		p.syncTenfootPadTopology(false)
 	}
 
 	events := p.pending
@@ -610,6 +612,9 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 	}
 
 	padDrained := false
+	usedQueuedPads := false
+	pollNow := time.Now()
+	var liveBuf [usbhub.MaxGamepadDevices]usbhub.GamepadPadState
 	for n := 0; n < 8; n++ {
 		if v.State == ProgramRunning && p.returnRequested {
 			break
@@ -624,6 +629,10 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 			break
 		}
 		if v.State == ProgramRunning {
+			if p.cfg.App != nil && upd.PadCount > 0 {
+				usedQueuedPads = true
+				p.processPadStates(upd.Pads[:upd.PadCount], pollNow)
+			}
 			if !p.padArmed {
 				p.padArmed = input.GamepadNeutral(upd.State) && !upd.HomePressed && upd.Ports == ([usbhub.MaxPlayerPorts]uint8{})
 				p.prevHome = upd.HomePressed
@@ -642,7 +651,11 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 			p.prevHome = upd.HomePressed
 			p.rawCtrlPorts = upd.Ports
 			if p.nativeControllers {
-				if err := p.writeControllerPorts(ctx, p.effectiveControllerPorts(p.rawCtrlPorts)); err != nil {
+				states := upd.Pads[:upd.PadCount]
+				if upd.PadCount == 0 && p.cfg.App != nil {
+					states = p.livePadStatesInto(liveBuf[:])
+				}
+				if err := p.writeControllerPorts(ctx, p.effectiveControllerPortsFromStates(p.rawCtrlPorts, states)); err != nil {
 					b.inputFault = err
 					return nil, err
 				}
@@ -657,6 +670,10 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		}
 
 		// ProgramReady menu gamepad handling.
+		if p.cfg.App != nil && upd.PadCount > 0 {
+			usedQueuedPads = true
+			p.processPadStates(upd.Pads[:upd.PadCount], pollNow)
+		}
 		if !p.padArmed {
 			p.padArmed = input.GamepadNeutral(upd.State) && !upd.HomePressed && upd.Ports == ([usbhub.MaxPlayerPorts]uint8{})
 			p.prevHome = upd.HomePressed
@@ -667,6 +684,14 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 			events = append(events, input.Event{Key: "o"})
 		}
 		p.prevHome = upd.HomePressed
+		if p.cfg.App != nil && upd.PadCount > 0 {
+			events, p.menuPadPressed = appendPadMenuEdges(events, p.menuPadPressed, p.menuControlsFromPadStates(upd.Pads[:upd.PadCount]))
+			if len(events) > maxProgramMenuEvents {
+				b.inputFault = errors.New("native input: menu event queue exhausted")
+				return nil, b.inputFault
+			}
+			continue
+		}
 		if p.cfg.App != nil && p.padCount > 0 {
 			continue
 		}
@@ -675,13 +700,7 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 		copy(nextPressed[:4], dirs[:])
 		nextPressed[4] = upd.State.Buttons&(uint32(1)<<(p.cfg.MenuButtons.Confirm-1)) != 0
 		nextPressed[5] = upd.State.Buttons&(uint32(1)<<(p.cfg.MenuButtons.Back-1)) != 0
-		names := [10]string{"up", "down", "left", "right", "return", "escape", "x", "i", "[", "]"}
-		for i, down := range nextPressed {
-			if down && !p.menuPadPressed[i] {
-				events = append(events, input.Event{Key: names[i]})
-			}
-		}
-		p.menuPadPressed = nextPressed
+		events, p.menuPadPressed = appendPadMenuEdges(events, p.menuPadPressed, nextPressed)
 		if len(events) > maxProgramMenuEvents {
 			b.inputFault = errors.New("native input: menu event queue exhausted")
 			return nil, b.inputFault
@@ -690,24 +709,21 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 	if !p.padArmed && padDrained {
 		p.padArmed = p.source.GamepadNeutral()
 	}
-	if v.State == ProgramRunning && p.padArmed && p.nativeControllers && !p.returnRequested && p.cfg.App != nil && p.padCount > 0 {
-		if err := p.writeControllerPorts(ctx, p.effectiveControllerPorts(p.rawCtrlPorts)); err != nil {
-			b.inputFault = err
-			return nil, err
-		}
-	}
-	if v.State == ProgramReady && p.padArmed && p.cfg.App != nil && p.padCount > 0 {
-		nextPressed := p.menuControlsFromPads()
-		names := [10]string{"up", "down", "left", "right", "return", "escape", "x", "i", "[", "]"}
-		for i, down := range nextPressed {
-			if down && !p.menuPadPressed[i] {
-				events = append(events, input.Event{Key: names[i]})
+	if p.cfg.App != nil && !usedQueuedPads && (p.padCount > 0 || len(p.pads) > 0) {
+		live := p.livePadStatesInto(liveBuf[:])
+		p.processPadStates(live, pollNow)
+		if v.State == ProgramRunning && p.padArmed && p.nativeControllers && !p.returnRequested && len(live) > 0 {
+			if err := p.writeControllerPorts(ctx, p.effectiveControllerPortsFromStates(p.rawCtrlPorts, live)); err != nil {
+				b.inputFault = err
+				return nil, err
 			}
 		}
-		p.menuPadPressed = nextPressed
-		if len(events) > maxProgramMenuEvents {
-			b.inputFault = errors.New("native input: menu event queue exhausted")
-			return nil, b.inputFault
+		if v.State == ProgramReady && p.padArmed && len(live) > 0 {
+			events, p.menuPadPressed = appendPadMenuEdges(events, p.menuPadPressed, p.menuControlsFromPadStates(live))
+			if len(events) > maxProgramMenuEvents {
+				b.inputFault = errors.New("native input: menu event queue exhausted")
+				return nil, b.inputFault
+			}
 		}
 	}
 
@@ -873,6 +889,17 @@ const (
 	tamagoStickZone           = int16(16384)
 )
 
+var menuPadEventNames = [10]string{"up", "down", "left", "right", "return", "escape", "x", "i", "[", "]"}
+
+func appendPadMenuEdges(events []input.Event, prev, next [10]bool) ([]input.Event, [10]bool) {
+	for i, down := range next {
+		if down && !prev[i] {
+			events = append(events, input.Event{Key: menuPadEventNames[i]})
+		}
+	}
+	return events, next
+}
+
 var canonicalButtonMap = []struct {
 	bit  controllers.Button
 	code remoteinput.Code
@@ -884,12 +911,37 @@ var canonicalButtonMap = []struct {
 	{controllers.ButtonNorth, remoteinput.ButtonY, "b3"},
 	{controllers.ButtonL1, remoteinput.ButtonL, "b4"},
 	{controllers.ButtonR1, remoteinput.ButtonR, "b5"},
-	{controllers.ButtonSelect, remoteinput.ButtonSelect, "b6"},
-	{controllers.ButtonStart, remoteinput.ButtonStart, "b7"},
+	{controllers.ButtonSelect, remoteinput.ButtonSelect, "b8"},
+	{controllers.ButtonStart, remoteinput.ButtonStart, "b9"},
 	{controllers.ButtonDPadUp, remoteinput.ButtonDPadUp, "h0.1"},
 	{controllers.ButtonDPadDown, remoteinput.ButtonDPadDown, "h0.4"},
 	{controllers.ButtonDPadLeft, remoteinput.ButtonDPadLeft, "h0.8"},
 	{controllers.ButtonDPadRight, remoteinput.ButtonDPadRight, "h0.2"},
+}
+
+var rawButtonSources = []struct {
+	bit controllers.Button
+	raw string
+}{
+	{controllers.ButtonSouth, "b0"},
+	{controllers.ButtonEast, "b1"},
+	{controllers.ButtonWest, "b2"},
+	{controllers.ButtonNorth, "b3"},
+	{controllers.ButtonL1, "b4"},
+	{controllers.ButtonR1, "b5"},
+	{controllers.ButtonL2, "b6"},
+	{controllers.ButtonR2, "b7"},
+	{controllers.ButtonSelect, "b8"},
+	{controllers.ButtonStart, "b9"},
+	{controllers.ButtonL3, "b10"},
+	{controllers.ButtonR3, "b11"},
+	{controllers.ButtonHome, "b12"},
+	{controllers.ButtonCapture, "b13"},
+	{controllers.ButtonTouchpad, "b14"},
+	{controllers.ButtonDPadUp, "h0.1"},
+	{controllers.ButtonDPadDown, "h0.4"},
+	{controllers.ButtonDPadLeft, "h0.8"},
+	{controllers.ButtonDPadRight, "h0.2"},
 }
 
 var stickDirSources = [4]struct {
@@ -923,17 +975,35 @@ type multiPadProfile struct {
 	remap      *inputmap.Remapper
 }
 
-func gamepadStickDirs(dev usbhub.GamepadDevice) [4]bool {
+func padStickDirs(leftX, leftY int16) [4]bool {
 	return [4]bool{
-		dev.LeftY < -tamagoStickZone,
-		dev.LeftY > tamagoStickZone,
-		dev.LeftX < -tamagoStickZone,
-		dev.LeftX > tamagoStickZone,
+		leftY < -tamagoStickZone,
+		leftY > tamagoStickZone,
+		leftX < -tamagoStickZone,
+		leftX > tamagoStickZone,
 	}
 }
 
-func gamepadDeviceNeutral(dev usbhub.GamepadDevice) bool {
-	return dev.Buttons == 0 && gamepadStickDirs(dev) == ([4]bool{})
+func padStateNeutral(st usbhub.GamepadPadState) bool {
+	return st.Buttons == 0 && padStickDirs(st.LeftX, st.LeftY) == ([4]bool{})
+}
+
+func (p *ProgramMultiInputPlatform) livePadStatesInto(dst []usbhub.GamepadPadState) []usbhub.GamepadPadState {
+	n := p.padCount
+	if n > len(dst) {
+		n = len(dst)
+	}
+	for i := 0; i < n; i++ {
+		dev := p.padCache[i]
+		dst[i] = usbhub.GamepadPadState{
+			ID:      dev.ID,
+			Player:  uint8(dev.Player),
+			Buttons: dev.Buttons,
+			LeftX:   dev.LeftX,
+			LeftY:   dev.LeftY,
+		}
+	}
+	return dst[:n]
 }
 
 func (p *ProgramMultiInputPlatform) refreshPadProfiles() {
@@ -969,24 +1039,14 @@ func releaseTrackedPadButtons(app *tenfoot.App, id int, buttons controllers.Butt
 	}
 }
 
-func (p *ProgramMultiInputPlatform) syncTenfootPads(force bool) {
+func (p *ProgramMultiInputPlatform) syncTenfootPadTopology(force bool) {
 	app := p.cfg.App
 	if app == nil {
 		return
 	}
 	p.refreshPadProfiles()
 	gen := p.source.GamepadGeneration()
-	profilePending := false
-	learningChanged := false
-	for id, tracked := range p.pads {
-		if tracked.profileGen != p.padProfilesGen {
-			profilePending = true
-		}
-		if app.PadLearning(id) != tracked.learning {
-			learningChanged = true
-		}
-	}
-	if !force && gen == p.lastPadGen && !profilePending && !learningChanged {
+	if !force && gen == p.lastPadGen {
 		return
 	}
 	n := p.source.GamepadDevicesInto(p.padCache[:])
@@ -999,7 +1059,6 @@ func (p *ProgramMultiInputPlatform) syncTenfootPads(force bool) {
 	for _, tracked := range p.pads {
 		tracked.seen = false
 	}
-	now := time.Now()
 	for i := 0; i < n; i++ {
 		dev := p.padCache[i]
 		info := tamagoPadInfo(dev)
@@ -1024,7 +1083,7 @@ func (p *ProgramMultiInputPlatform) syncTenfootPads(force bool) {
 		}
 		tracked.seen = true
 
-		if !exists || tracked.profileGen == 0 || (tracked.profileGen != p.padProfilesGen && gamepadDeviceNeutral(dev)) {
+		if tracked.profileGen == 0 {
 			prof, err := compileMultiProfile(p.padProfiles[info.GUID])
 			if err == nil {
 				tracked.profile = prof
@@ -1033,58 +1092,6 @@ func (p *ProgramMultiInputPlatform) syncTenfootPads(force bool) {
 			}
 			tracked.profileGen = p.padProfilesGen
 		}
-
-		stickHeld := gamepadStickDirs(dev)
-		learning := app.PadLearning(dev.ID)
-		if learning {
-			if !tracked.learning {
-				releaseTrackedPadButtons(app, dev.ID, tracked.buttons)
-			}
-			for _, m := range canonicalButtonMap {
-				if dev.Buttons&m.bit != 0 && tracked.buttons&m.bit == 0 {
-					app.NoteInput(tenfoot.InputGamepad, dev.ID)
-					app.LearnPadSource(dev.ID, m.raw, now)
-				}
-			}
-			for k, down := range stickHeld {
-				if down && !tracked.stick[k] {
-					app.NoteInput(tenfoot.InputGamepad, dev.ID)
-					app.LearnPadSource(dev.ID, stickDirSources[k].raw, now)
-				}
-			}
-			tracked.learning = true
-			tracked.buttons = dev.Buttons
-			tracked.stick = stickHeld
-			continue
-		}
-		if tracked.learning && (tracked.buttons != 0 || tracked.stick != ([4]bool{})) && !gamepadDeviceNeutral(dev) {
-			tracked.buttons = dev.Buttons
-			tracked.stick = stickHeld
-			continue
-		}
-		tracked.learning = false
-
-		pressedAny := false
-		changed := dev.Buttons ^ tracked.buttons
-		if changed != 0 {
-			for _, m := range canonicalButtonMap {
-				if changed&m.bit != 0 {
-					down := dev.Buttons&m.bit != 0
-					app.NotePadButton(dev.ID, m.code, down)
-					if down {
-						pressedAny = true
-					}
-				}
-			}
-			if !pressedAny && dev.Buttons&^tracked.buttons != 0 {
-				pressedAny = true
-			}
-		}
-		if pressedAny || stickHeld != ([4]bool{}) {
-			app.NoteInput(tenfoot.InputGamepad, dev.ID)
-		}
-		tracked.buttons = dev.Buttons
-		tracked.stick = stickHeld
 	}
 	for id, tracked := range p.pads {
 		if tracked.seen {
@@ -1093,6 +1100,80 @@ func (p *ProgramMultiInputPlatform) syncTenfootPads(force bool) {
 		releaseTrackedPadButtons(app, id, tracked.buttons)
 		app.DetachInput(tenfoot.InputGamepad, id)
 		delete(p.pads, id)
+	}
+}
+
+func (p *ProgramMultiInputPlatform) processPadStates(states []usbhub.GamepadPadState, now time.Time) {
+	app := p.cfg.App
+	if app == nil {
+		return
+	}
+	for _, st := range states {
+		tracked := p.pads[st.ID]
+		if tracked == nil {
+			continue
+		}
+		if (tracked.profileGen == 0 || tracked.profileGen != p.padProfilesGen) && padStateNeutral(st) {
+			prof, err := compileMultiProfile(p.padProfiles[tracked.info.GUID])
+			if err == nil {
+				tracked.profile = prof
+			} else {
+				tracked.profile = nil
+			}
+			tracked.profileGen = p.padProfilesGen
+		}
+
+		stickHeld := padStickDirs(st.LeftX, st.LeftY)
+		learning := app.PadLearning(st.ID)
+		if learning {
+			if !tracked.learning {
+				releaseTrackedPadButtons(app, st.ID, tracked.buttons)
+			}
+			for _, m := range rawButtonSources {
+				if st.Buttons&m.bit != 0 && tracked.buttons&m.bit == 0 {
+					app.NoteInput(tenfoot.InputGamepad, st.ID)
+					app.LearnPadSource(st.ID, m.raw, now)
+				}
+			}
+			for k, down := range stickHeld {
+				if down && !tracked.stick[k] {
+					app.NoteInput(tenfoot.InputGamepad, st.ID)
+					app.LearnPadSource(st.ID, stickDirSources[k].raw, now)
+				}
+			}
+			tracked.learning = true
+			tracked.buttons = st.Buttons
+			tracked.stick = stickHeld
+			continue
+		}
+		if tracked.learning && (tracked.buttons != 0 || tracked.stick != ([4]bool{})) && !padStateNeutral(st) {
+			tracked.buttons = st.Buttons
+			tracked.stick = stickHeld
+			continue
+		}
+		tracked.learning = false
+
+		pressedAny := false
+		changed := st.Buttons ^ tracked.buttons
+		if changed != 0 {
+			for _, m := range canonicalButtonMap {
+				if changed&m.bit != 0 {
+					down := st.Buttons&m.bit != 0
+					app.NotePadButton(st.ID, m.code, down)
+					if down {
+						pressedAny = true
+					}
+				}
+			}
+			if !pressedAny && st.Buttons&^tracked.buttons != 0 {
+				pressedAny = true
+			}
+		}
+		if pressedAny || stickHeld != ([4]bool{}) {
+			app.NoteInput(tenfoot.InputGamepad, st.ID)
+		}
+		tracked.buttons = st.Buttons
+		tracked.stick = stickHeld
 	}
 }
 
@@ -1150,34 +1231,32 @@ func parseMultiMapping(mapping string) map[string]remoteinput.Code {
 	return sources
 }
 
-func (p *ProgramMultiInputPlatform) effectiveControllerPorts(base [usbhub.MaxPlayerPorts]uint8) [usbhub.MaxPlayerPorts]uint8 {
+func (p *ProgramMultiInputPlatform) effectiveControllerPortsFromStates(base [usbhub.MaxPlayerPorts]uint8, states []usbhub.GamepadPadState) [usbhub.MaxPlayerPorts]uint8 {
 	ports := base
-	for i := 0; i < p.padCount; i++ {
-		dev := p.padCache[i]
-		if dev.Player < 1 || dev.Player > usbhub.MaxPlayerPorts {
+	for _, st := range states {
+		if st.Player < 1 || st.Player > usbhub.MaxPlayerPorts {
 			continue
 		}
-		tracked := p.pads[dev.ID]
+		tracked := p.pads[st.ID]
 		if tracked == nil || tracked.profile == nil {
 			continue
 		}
-		ports[dev.Player-1] = computerMaskFromControls(remappedControls(dev, tracked.profile))
+		ports[st.Player-1] = computerMaskFromControls(remappedControls(st, tracked.profile))
 	}
 	return ports
 }
 
-func (p *ProgramMultiInputPlatform) menuControlsFromPads() [10]bool {
+func (p *ProgramMultiInputPlatform) menuControlsFromPadStates(states []usbhub.GamepadPadState) [10]bool {
 	var held [10]bool
-	for i := 0; i < p.padCount; i++ {
-		dev := p.padCache[i]
+	for _, st := range states {
 		var profile *multiPadProfile
-		if tracked := p.pads[dev.ID]; tracked != nil {
+		if tracked := p.pads[st.ID]; tracked != nil {
 			if tracked.learning {
 				continue
 			}
 			profile = tracked.profile
 		}
-		c := remappedControls(dev, profile)
+		c := remappedControls(st, profile)
 		if c[remoteinput.ButtonDPadUp] {
 			held[0] = true
 		}
@@ -1212,7 +1291,7 @@ func (p *ProgramMultiInputPlatform) menuControlsFromPads() [10]bool {
 	return held
 }
 
-func remappedControls(dev usbhub.GamepadDevice, profile *multiPadProfile) map[remoteinput.Code]bool {
+func remappedControls(st usbhub.GamepadPadState, profile *multiPadProfile) map[remoteinput.Code]bool {
 	out := make(map[remoteinput.Code]bool, 12)
 	addSource := func(raw string, fallback remoteinput.Code) {
 		code := fallback
@@ -1228,12 +1307,20 @@ func remappedControls(dev usbhub.GamepadDevice, profile *multiPadProfile) map[re
 		}
 		out[code] = true
 	}
-	for _, m := range canonicalButtonMap {
-		if dev.Buttons&m.bit != 0 {
-			addSource(m.raw, m.code)
+	if profile != nil && profile.hasMapping {
+		for _, m := range rawButtonSources {
+			if st.Buttons&m.bit != 0 {
+				addSource(m.raw, 0)
+			}
+		}
+	} else {
+		for _, m := range canonicalButtonMap {
+			if st.Buttons&m.bit != 0 {
+				addSource(m.raw, m.code)
+			}
 		}
 	}
-	for k, down := range gamepadStickDirs(dev) {
+	for k, down := range padStickDirs(st.LeftX, st.LeftY) {
 		if down {
 			addSource(stickDirSources[k].raw, stickDirSources[k].code)
 		}

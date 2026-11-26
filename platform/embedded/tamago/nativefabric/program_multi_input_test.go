@@ -1507,3 +1507,144 @@ func TestProgramMultiInputPlatformControllersUIFamilyGlyphsAndPerPadProfiles(t *
 		t.Fatalf("expected reused ID with new GUID to clear previous mapping and switch to Nintendo glyphs: cmds=%v controllers=%+v", f.Commands, app.Snapshot().Controllers)
 	}
 }
+
+func TestProgramMultiInputPlatformQueuedPadEdgesAndGenericHIDLearn(t *testing.T) {
+	var prefs *ProgramPreferences
+	f, b, c := backendFixture(t, func(f *serviceFixture) {
+		var err error
+		prefs, err = LoadProgramPreferences(context.Background(), f.s.state.store, false)
+		if err != nil {
+			t.Fatalf("LoadProgramPreferences: %v", err)
+		}
+		if err := f.s.AttachPreferences(prefs); err != nil {
+			t.Fatalf("AttachPreferences: %v", err)
+		}
+	})
+	client := tenfoot.NewClient("http://native.invalid", &http.Client{Transport: b, Timeout: 5 * time.Second})
+	app := tenfoot.NewApp(client, 1280, 720, 40)
+	if err := app.SetPreferenceStore(prefs); err != nil {
+		t.Fatalf("SetPreferenceStore: %v", err)
+	}
+	hidPad := usbhub.GamepadDevice{
+		ID:      1,
+		Name:    "USB Gamepad",
+		Vendor:  0x081f,
+		Product: 0xe401,
+		Kind:    controllers.KindGenericHID,
+		Player:  1,
+	}
+	src := newFakeMultiSource()
+	src.setPadDevices(hidPad)
+	cfg := multiTestConfig()
+	cfg.App = app
+	cfg.Preferences = prefs
+	p, err := NewProgramMultiInputPlatform(&programInputBase{}, b, src, cfg)
+	if err != nil {
+		t.Fatalf("NewProgramMultiInputPlatform: %v", err)
+	}
+	step := func() tenfoot.PlatformInput {
+		frame, err := p.Next(context.Background())
+		if err != nil {
+			t.Fatalf("Next failed: %v", err)
+		}
+		for _, cmd := range frame.Commands {
+			app.HandleCommand(cmd, frame.At)
+		}
+		return frame
+	}
+	step() // Arm initial fences.
+
+	// Open Settings › Controllers and start Learn.
+	app.HandleCommand(tenfoot.CmdSettings, time.Now())
+	for i, row := range app.Snapshot().Settings.Rows {
+		if row.ID == "section-controllers" {
+			for j := 0; j < i; j++ {
+				app.HandleCommand(tenfoot.CmdDown, time.Now())
+			}
+			app.HandleCommand(tenfoot.CmdSelect, time.Now())
+			break
+		}
+	}
+	for _, cmd := range []tenfoot.Command{tenfoot.CmdDown, tenfoot.CmdDown, tenfoot.CmdDown, tenfoot.CmdLeft} {
+		app.HandleCommand(cmd, time.Now())
+	}
+	app.HandleCommand(tenfoot.CmdSelect, time.Now())
+	if !app.PadLearning(hidPad.ID) {
+		t.Fatal("expected PadLearning active on generic HID pad")
+	}
+
+	pressHID := func(btn controllers.Button) {
+		hidPad.Buttons = btn
+		src.setPadDevices(hidPad)
+		step()
+		hidPad.Buttons = 0
+		src.setPadDevices(hidPad)
+		step()
+	}
+	// Map directions, then A=ButtonL3 ("b10"), B=ButtonL2 ("b6"), X=ButtonR2 ("b7"), then skip remaining optional steps with B.
+	for _, btn := range []controllers.Button{
+		controllers.ButtonDPadUp, controllers.ButtonDPadDown, controllers.ButtonDPadLeft, controllers.ButtonDPadRight,
+		controllers.ButtonL3, controllers.ButtonL2, controllers.ButtonR2,
+	} {
+		pressHID(btn)
+	}
+	for !app.Snapshot().Controllers.Learn.Review {
+		pressHID(controllers.ButtonL2)
+	}
+	app.HandleCommand(tenfoot.CmdSelect, time.Now())
+	if !app.Snapshot().Controllers.Mapped || app.PadLearning(hidPad.ID) {
+		t.Fatalf("expected learned generic HID mapping saved, got %+v", app.Snapshot().Controllers)
+	}
+	step() // Reload learned Mapping while neutral.
+
+	// Queue press (ButtonL3 -> b10 -> A) and release (0) in a single poll while live snapshot ends released.
+	hidPad.Buttons = 0
+	src.setPadDevices(hidPad)
+	updPress := usbhub.GamepadUpdate{
+		State:    usb.GamepadState{Hat: -1},
+		PadCount: 1,
+	}
+	updPress.Pads[0] = usbhub.GamepadPadState{ID: 1, Player: 1, Buttons: controllers.ButtonL3}
+	updRelease := usbhub.GamepadUpdate{
+		State:    usb.GamepadState{Hat: -1},
+		PadCount: 1,
+	}
+	updRelease.Pads[0] = usbhub.GamepadPadState{ID: 1, Player: 1}
+	src.pads(updPress, updRelease)
+	if frame, err := p.Next(context.Background()); err != nil || !slices.Contains(frame.Commands, tenfoot.CmdSelect) {
+		t.Fatalf("expected queued fast b10 tap to emit CmdSelect despite neutral end state, got frame=%+v err=%v", frame, err)
+	}
+
+	// Launch fes.gamepad.ports core and verify both queued press (1<<4) and release (0) write to port 0.
+	ctx := context.Background()
+	play, err := c.Launch(ctx, "native-0")
+	if err != nil || play.ErrorCode != "" {
+		t.Fatalf("Launch failed: play=%+v err=%v", play, err)
+	}
+	wantCaps := cg.FesComputerCapabilityVideoFixed720p60 | cg.FesComputerCapabilityKeyboardHid | cg.FesComputerCapabilityGamepadPorts
+	f.cpu.words[7] = uint16(wantCaps)
+	var build [16]byte
+	for i := range 8 {
+		binary.LittleEndian.PutUint16(build[2*i:], f.cpu.words[8+i])
+	}
+	reopened, err := computer.Open(ctx, f.s.state.computer.port, computerLimits(), computer.Identity{
+		Capabilities: wantCaps,
+		Build:        build,
+	})
+	if err != nil {
+		t.Fatalf("reopen Computer: %v", err)
+	}
+	f.s.state.computer.control = reopened
+	f.s.state.viewMu.Lock()
+	f.s.state.capabilities = wantCaps
+	f.s.state.viewMu.Unlock()
+
+	step() // Enter ProgramRunning & zero ports.
+	writesBefore := f.cpu.controllerWrites
+	src.pads(updPress, updRelease)
+	step()
+	if f.cpu.controllerWrites != writesBefore+2 || f.cpu.controllerPorts[0] != 0 {
+		t.Fatalf("expected 2 core port writes for queued b10 press+release and final 0, got delta=%d ports=%#v",
+			f.cpu.controllerWrites-writesBefore, f.cpu.controllerPorts)
+	}
+}

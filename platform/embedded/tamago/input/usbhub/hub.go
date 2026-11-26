@@ -43,13 +43,26 @@ const (
 	bondRetryMax     = time.Minute
 )
 
+// GamepadPadState is a per-pad canonical snapshot carried inside GamepadUpdate
+// so callers preserve fast press/release edges without allocating.
+type GamepadPadState struct {
+	ID      int
+	Player  uint8
+	Buttons controllers.Button
+	LeftX   int16
+	LeftY   int16
+}
+
 // GamepadUpdate carries a normalized merged gamepad snapshot, whether any
-// controller's Home/PS/Guide button is currently held, and per-player 8-bit
-// fes.computer button masks indexed by zero-based player port (P1..P4).
+// controller's Home/PS/Guide button is currently held, per-player 8-bit
+// fes.computer button masks indexed by zero-based player port (P1..P4), and
+// per-pad canonical snapshots for consumer profiles and edge preservation.
 type GamepadUpdate struct {
 	State       usb.GamepadState
 	HomePressed bool
 	Ports       [MaxPlayerPorts]uint8
+	PadCount    uint8
+	Pads        [MaxGamepadDevices]GamepadPadState
 }
 
 // MouseUpdate carries one signed relative HID boot-mouse motion packet and the
@@ -258,11 +271,13 @@ type Hub struct {
 
 	playerPorts [MaxPlayerPorts]playerPortOwner
 
-	mergedKeyboard     [8]byte
-	mergedMouseButtons uint8
-	mergedGamepad      usb.GamepadState
-	mergedHome         bool
-	mergedPorts        [MaxPlayerPorts]uint8
+	mergedKeyboard       [8]byte
+	mergedMouseButtons   uint8
+	mergedGamepad        usb.GamepadState
+	mergedHome           bool
+	mergedPorts          [MaxPlayerPorts]uint8
+	mergedActivePadCount uint8
+	mergedActivePads     [MaxGamepadDevices]GamepadPadState
 
 	kbQueue    [maxQueuedReports][8]byte
 	kbHead     int
@@ -1852,11 +1867,64 @@ func (h *Hub) recomputeGamepad() {
 			}
 		}
 	}
-	if merged != h.mergedGamepad || home != h.mergedHome || ports != h.mergedPorts {
+	var (
+		pads            [MaxGamepadDevices]GamepadPadState
+		padCount        uint8
+		nonNeutral      [MaxGamepadDevices]GamepadPadState
+		nonNeutralCount uint8
+	)
+	recordPad := func(id int, player uint8, st controllers.State) {
+		snap := GamepadPadState{
+			ID:      id,
+			Player:  player,
+			Buttons: st.Buttons,
+			LeftX:   st.LeftX,
+			LeftY:   st.LeftY,
+		}
+		if int(padCount) < len(pads) {
+			pads[padCount] = snap
+			padCount++
+		}
+		if (st.Buttons != 0 || st.LeftX != 0 || st.LeftY != 0) && int(nonNeutralCount) < len(nonNeutral) {
+			nonNeutral[nonNeutralCount] = snap
+			nonNeutralCount++
+		}
+	}
+	for i := range h.wiredGamepads {
+		slot := &h.wiredGamepads[i]
+		if !slot.active {
+			continue
+		}
+		var player uint8
+		if port, ok := h.playerPortFor(playerPortWired, uint8(i)); ok {
+			player = port + 1
+		}
+		recordPad(1+i, player, slot.ctrlState)
+	}
+	for i := range h.btSlotActive {
+		if !h.btSlotActive[i] {
+			continue
+		}
+		var player uint8
+		if port, ok := h.playerPortFor(playerPortBT, uint8(i)); ok {
+			player = port + 1
+		}
+		recordPad(101+i, player, h.btCtrlState[i])
+	}
+	if merged != h.mergedGamepad || home != h.mergedHome || ports != h.mergedPorts ||
+		nonNeutralCount != h.mergedActivePadCount || nonNeutral != h.mergedActivePads {
 		h.mergedGamepad = merged
 		h.mergedHome = home
 		h.mergedPorts = ports
-		h.enqueueGamepad(GamepadUpdate{State: merged, HomePressed: home, Ports: ports})
+		h.mergedActivePadCount = nonNeutralCount
+		h.mergedActivePads = nonNeutral
+		h.enqueueGamepad(GamepadUpdate{
+			State:       merged,
+			HomePressed: home,
+			Ports:       ports,
+			PadCount:    padCount,
+			Pads:        pads,
+		})
 	}
 }
 
