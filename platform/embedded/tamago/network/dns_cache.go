@@ -413,6 +413,9 @@ func (r *DNSResolver) resolveHost(ctx context.Context, name string, useCache boo
 	ans, err := r.lookup(ctx, norm)
 	if err != nil {
 		if errors.Is(err, ErrDNSNotFound) || errors.Is(err, ErrDNSNoRecords) {
+			if !useCache {
+				r.cache.Delete(norm)
+			}
 			r.cache.StoreNegative(norm, err)
 		}
 		return nil, err

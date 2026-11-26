@@ -531,4 +531,30 @@ func TestDNSCachePeekNamesAndResolveFresh(t *testing.T) {
 	if _, _, _, ok := c.Peek("fresh.test"); ok {
 		t.Fatal("zero-TTL ResolveFresh left stale entry cached")
 	}
+
+	// Authoritative negative ResolveFresh with NegativeTTL == 0 invalidates stale positive cache.
+	cNoNeg, err := NewDNSCache(DNSCacheConfig{MaxEntries: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nxPhase atomic.Bool
+	rNoNeg, err := NewDNSResolverFunc(func(_ context.Context, _ string) (DNSAnswer, error) {
+		if nxPhase.Load() {
+			return DNSAnswer{}, ErrDNSNotFound
+		}
+		return DNSAnswer{Addrs: []netip.Addr{netip.MustParseAddr("192.0.2.50")}, TTL: time.Minute}, nil
+	}, cNoNeg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rNoNeg.ResolveA(context.Background(), "gone.test"); err != nil {
+		t.Fatal(err)
+	}
+	nxPhase.Store(true)
+	if _, err := rNoNeg.ResolveFresh(context.Background(), "gone.test"); !errors.Is(err, ErrDNSNotFound) {
+		t.Fatalf("ResolveFresh ErrDNSNotFound err=%v", err)
+	}
+	if _, _, _, ok := cNoNeg.Peek("gone.test"); ok {
+		t.Fatal("ResolveFresh with NegativeTTL==0 left stale positive entry behind")
+	}
 }
