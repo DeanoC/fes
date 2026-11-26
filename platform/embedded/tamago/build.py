@@ -100,9 +100,9 @@ def profile_constants(profile):
     else:
         keys = {"service", "exclusive", "closed_bridges", "synchronous_bounded_return"}
         if (not isinstance(control, dict) or set(control) != keys or
-                control["service"] != "fes-owned-sd-pio-v1" or
+                control["service"] not in ("fes-owned-sd-pio-v1", "fes-owned-sd-dma-v1") or
                 any(control[k] is not True for k in keys - {"service"}) or frequency != 200000000):
-            raise ValueError("SD requires the explicit owned PIO service and qualified 200 MHz input")
+            raise ValueError("SD requires the explicit owned PIO/DMA service and qualified 200 MHz input")
         if (profile["usb_phy_clock_hz"] != 0 or profile["network"] is not None or
                 profile["display"] is not None or profile["fpga_probe"] is not None or
                 any(handoff[k] for k in ("usb_platform_ready", "ethernet_platform_ready", "display_platform_ready"))):
@@ -376,8 +376,10 @@ SD_DMA_BYTES = 2 << 20
 def sd_adma2_option(program, requested, profile):
     if type(requested) is not bool:
         raise ValueError('--sd-adma2 flag must be boolean')
-    if requested and (program != 'fpgaload' or profile['sd_control'] is None):
-        raise ValueError('fast SD transport options require Nano fpgaload with owned SD')
+    if requested:
+        control = profile.get('sd_control')
+        if program != 'fpgaload' or not isinstance(control, dict) or control.get('service') != 'fes-owned-sd-dma-v1':
+            raise ValueError('--sd-adma2 requires Nano fpgaload with a DMA-capable sd_control profile (service=fes-owned-sd-dma-v1)')
     return requested
 
 

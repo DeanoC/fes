@@ -50,7 +50,8 @@ Build all linked artifacts from the same checked contracts:
    `--sd-cmd23`, and `--sd-adma2` (add `--initial-tape` when the package
    supplies tape, or `--shared-core-shell` for Spectrum 48K / C64). `--sd-adma2`
    maps a disjoint 2 MiB uncached DDR pool at `0x95a00000..0x95c00000` and
-   requires EL3 firmware built with `FES_NANO_SD_DMA=1`. The writable plan is
+   requires both EL3 firmware built with `FES_NANO_SD_DMA=1` and a DMA-capable
+   handoff profile (`sd_control.service = "fes-owned-sd-dma-v1"`). The writable plan is
    trusted build input binding
    the expected card CID, sector count, MBR, and protected recovery files.
 2. **Entry stub & EL3 BL31:** build `platform/embedded/entry/` and
