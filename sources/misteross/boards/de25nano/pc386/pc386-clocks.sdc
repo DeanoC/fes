@@ -40,10 +40,19 @@ foreach {label source expected head second} {
     set_false_path -from $launches -to $first_d
 }
 
-# Bundles are held throughout their toggle round trip. A ten-nanosecond flight
-# is at most one fast system period, less than either two-stage control delay.
-# Keep physical net, data, skew and min/max path bounds, rather than cutting
-# the payloads or declaring the complete clocks asynchronous.
+# These bundles are held throughout their toggle round trip. The display,
+# GP, window and counter paths must fit within one period of the faster
+# clock. Their other clocks run at 100 MHz or 74.25 MHz. Keep the existing
+# 10 ns cap and round down with one picosecond of margin for TimeQuest.
+set machine_clock [get_clocks -nowarn {fes_machine_pll|machine_pll_outclk0}]
+if {[get_collection_size $machine_clock] != 1} {
+    error "DE25 pc386 machine clock is missing or ambiguous"
+}
+set machine_period [get_clock_info -period $machine_clock]
+set machine_bundle_max_ns [format %.3f [expr {min(10.0, (floor($machine_period * 1000.0) - 1.0) / 1000.0)}]]
+
+# Bound payload flight time and skew. The false paths above apply only to
+# the first stages of the control synchronizers.
 foreach {label source sink expected} {
     command {display|crossing|payload[*]}
         {display|crossing|pixel_opcode[*] display|crossing|pixel_index[*] display|crossing|pixel_argument[*]} 31
@@ -57,10 +66,10 @@ foreach {label source sink expected} {
     if {[get_collection_size $launches] != $expected || [get_collection_size $captures] != $expected} {
         error "DE25 pc386 held $label bundle endpoints changed"
     }
-    set_net_delay -max 10.000 -from $launches -to $captures
-    set_data_delay 10.000 -from $launches -to $captures
-    set_max_skew 10.000 -from $launches -to $captures
-    set_max_delay 10.000 -from $launches -to $captures
+    set_net_delay -max $machine_bundle_max_ns -from $launches -to $captures
+    set_data_delay $machine_bundle_max_ns -from $launches -to $captures
+    set_max_skew $machine_bundle_max_ns -from $launches -to $captures
+    set_max_delay $machine_bundle_max_ns -from $launches -to $captures
     set_min_delay 0.000 -from $launches -to $captures
 }
 # The two GP words. Each toggle bit leaves its launch register only into its
@@ -81,10 +90,10 @@ foreach {label source sink toggle launches_expected captures_minimum} {
         [get_collection_size $captures] < $captures_minimum || [get_collection_size $captures] > 31} {
         error "DE25 pc386 held $label bundle endpoints changed"
     }
-    set_net_delay -max 10.000 -from $launches -to $captures
-    set_data_delay 10.000 -from $launches -to $captures
-    set_max_skew 10.000 -from $launches -to $captures
-    set_max_delay 10.000 -from $launches -to $captures
+    set_net_delay -max $machine_bundle_max_ns -from $launches -to $captures
+    set_data_delay $machine_bundle_max_ns -from $launches -to $captures
+    set_max_skew $machine_bundle_max_ns -from $launches -to $captures
+    set_max_delay $machine_bundle_max_ns -from $launches -to $captures
     set_min_delay 0.000 -from $launches -to $captures
 }
 
@@ -133,10 +142,10 @@ foreach {label sources sinks launches_min launches_max captures_min captures_max
         [get_collection_size $captures] < $captures_min || [get_collection_size $captures] > $captures_max} {
         error "DE25 pc386 held $label bundle endpoints changed"
     }
-    set_net_delay -max 10.000 -from $launches -to $captures
-    set_data_delay 10.000 -from $launches -to $captures
-    set_max_skew 10.000 -from $launches -to $captures
-    set_max_delay 10.000 -from $launches -to $captures
+    set_net_delay -max $machine_bundle_max_ns -from $launches -to $captures
+    set_data_delay $machine_bundle_max_ns -from $launches -to $captures
+    set_max_skew $machine_bundle_max_ns -from $launches -to $captures
+    set_max_delay $machine_bundle_max_ns -from $launches -to $captures
     set_min_delay 0.000 -from $launches -to $captures
 }
 
@@ -187,10 +196,11 @@ foreach {label sources sinks} {
     if {[get_collection_size $launches] == 0 || [get_collection_size $captures] == 0} {
         error "DE25 pc386 held $label bundle endpoints changed"
     }
-    set_net_delay -max 10.000 -from $launches -to $captures
-    set_data_delay 10.000 -from $launches -to $captures
-    set_max_skew 10.000 -from $launches -to $captures
-    set_max_delay 10.000 -from $launches -to $captures
+    set bundle_max_ns [expr {$label eq "counts" ? $machine_bundle_max_ns : 10.000}]
+    set_net_delay -max $bundle_max_ns -from $launches -to $captures
+    set_data_delay $bundle_max_ns -from $launches -to $captures
+    set_max_skew $bundle_max_ns -from $launches -to $captures
+    set_max_delay $bundle_max_ns -from $launches -to $captures
     set_min_delay 0.000 -from $launches -to $captures
 }
 

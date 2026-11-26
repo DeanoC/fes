@@ -78,6 +78,9 @@ class RegisteredTensionTests(unittest.TestCase):
             ('486sx', '486sx', retimed, False, 'matches 0 bases'),
             ('486dx', '486dx', 'cpu_biu_drain~DUPLICATESCLR_dff', True, None),
             ('486sx', '486sx', 'cpu_biu_drain~DUPLICATESCLR_dff', False, 'matches 0 bases'),
+            ('486dx', '486dx', 'cpu_halted~DUPLICATE_Duplicate', True, None),
+            ('486sx', '486sx', 'cpu_halted~DUPLICATE_Duplicate', False, 'matches 0 bases'),
+            ('486dx', '486dx', 'cpu_int_wait~DUPLICATE_Duplicate', True, None),
             ('486dx', 'unknown', retimed, False, 'registered fit has unknown model'),
             ('486dx', '486sx', retimed, False, 'differs from prepared model'),
             ('486dx', None, retimed, False, 'lacks a recorded or prepared model'),
@@ -567,6 +570,7 @@ class MachineFindingsTests(unittest.TestCase):
             S + 'machine_presenter_loaded_flag~SCLR_dff',
             S + 'cpu_wb_deliver~DUPLICATEENA_dff_extra',
             S + '_36689_[*]~SCLR_dff',
+            S + 'cpu_md_busy~DUPLICATE_Duplicate',
         )
         bases = self.bases('cpu-control-tension', 'retimed-machine-control-tension')
         for name in names:
@@ -725,7 +729,8 @@ class MachineFindingsTests(unittest.TestCase):
         bases = [b for b in TABLE.BASES if b['rule'].startswith('CDC-') and b['sdc']]
         self.assertEqual(len(bases), 11)
         for basis in bases:
-            quoted = [label for line in basis['sdc'] for label in re.findall(r'^\s*(\w+) \{', line)]
+            quoted = [label for line in basis['sdc'] if not line.lstrip().startswith('if ')
+                      for label in re.findall(r'^\s*(\w+) \{', line)]
             if basis['name'] == 'pixel-reset':
                 quoted = ['pixel_reset']
             # Each quoted label names one entry (the GP blocks reuse theirs, but no basis quotes them).
