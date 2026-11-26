@@ -22,6 +22,8 @@ type PadInfo struct {
 	// Recognised is a pad GameControllerDB has a mapping for.
 	Recognised bool
 	Bluetooth  bool
+	// Tested is a pad verified on FES hardware (#1348).
+	Tested bool
 	// Player is the pad's controller port from 1, or 0 for a menu-only pad.
 	Player int
 }
@@ -153,6 +155,7 @@ type ControllersSnapshot struct {
 	Tab      int
 	Family   gfx.PromptFamily
 	Identity string
+	Tested   bool
 	Rows     []ControllerRow
 	SwapAB   bool
 	// Mapped is a pad read through a mapping its player made step by step.
@@ -684,7 +687,7 @@ func (a *App) controllersSnapshotLocked() ControllersSnapshot {
 	if !c.open || !ok {
 		return ControllersSnapshot{}
 	}
-	snap := ControllersSnapshot{Open: true, Family: info.Family, Focus: c.focus, Status: c.status}
+	snap := ControllersSnapshot{Open: true, Family: info.Family, Tested: info.Tested, Focus: c.focus, Status: c.status}
 	for i, id := range a.padIDsLocked() {
 		pad := a.pads[id]
 		label := "Menu"
@@ -775,7 +778,7 @@ func (a *App) roomPadsLocked() []rooms.Pad {
 		remap := a.padRemapLocked(info.GUID)
 		p := rooms.Pad{
 			Player: info.Player, Name: info.Name, Family: promptFamilyNames[info.Family],
-			Recognised: info.Recognised, Bluetooth: info.Bluetooth,
+			Recognised: info.Recognised, Bluetooth: info.Bluetooth, Tested: info.Tested,
 			SwapAB: profile.Preset == inputmap.PresetSwapAB, Mapped: profile.Mapping != "",
 			Glyphs: map[string]string{}, Sends: map[string]string{},
 		}

@@ -67,13 +67,16 @@ int main(int argc, char **argv)
 		"window control resource");
 	p = cells(tree, owner, "memory-region", 1);
 	pool = fdt_node_offset_by_phandle(tree, fdt32_to_cpu(*p));
-	require(pool >= 0 && fdt_node_check_compatible(tree, pool, "shared-dma-pool") == 0 &&
-		fdt_getprop(tree, pool, "reusable", &length) && !fdt_getprop(tree, pool, "no-map", &length) &&
+	/* Reserved for the window alone: its own compatible (no generic handler
+	 * binds it as a device pool), never reusable, never no-map.
+	 */
+	require(pool >= 0 && fdt_node_check_compatible(tree, pool, "fes,de25-window-pool") == 0 &&
+		fdt_node_check_compatible(tree, pool, "shared-dma-pool") != 0 &&
+		!fdt_getprop(tree, pool, "reusable", &length) && !fdt_getprop(tree, pool, "no-map", &length) &&
 		!fdt_getprop(tree, pool, "reg", &length), "window pool");
 	p = cells(tree, pool, "size", 2);
 	pool_bytes = ((unsigned long long)fdt32_to_cpu(p[0]) << 32) | fdt32_to_cpu(p[1]);
-	require(pool_bytes >= (unsigned long long)FES_DE25_HPS_WINDOW_SPAN + FES_DE25_SCANOUT_ALLOCATION_BYTES,
-		"window pool size");
+	require(pool_bytes == (unsigned long long)FES_DE25_HPS_WINDOW_SPAN, "window pool size");
 	p = cells(tree, pool, "alloc-ranges", 4);
 	first = ((unsigned long long)fdt32_to_cpu(p[0]) << 32) | fdt32_to_cpu(p[1]);
 	end = first + (((unsigned long long)fdt32_to_cpu(p[2]) << 32) | fdt32_to_cpu(p[3]));

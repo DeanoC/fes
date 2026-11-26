@@ -16,7 +16,8 @@ const dongleRetryBackoff = 500 * time.Millisecond
 
 // Manager supervises one hotpluggable USB Bluetooth HCI dongle on a usb.BusHost
 // and drives Classic Bluetooth HIDP sessions for up to 4 concurrent Sony
-// DualSense, DualShock 4, Nintendo Switch Pro, and BT HID Keyboard devices.
+// DualSense, DualShock 4, Nintendo Switch Pro, BT HID Keyboard, and BT HID
+// Boot Mouse devices.
 type Manager struct {
 	bus   usb.BusHost
 	bonds *l2cap.BondStore
@@ -32,6 +33,7 @@ type Manager struct {
 	OnGamepadState       func(slot uint8, kind controllers.Kind, state controllers.State)
 	OnKeyboardReport     func(report []byte)
 	OnSlotKeyboardReport func(slot uint8, report []byte)
+	OnSlotMouseReport    func(slot uint8, dx, dy int8, buttons uint8)
 	OnSlotChanged        func(slot uint8, connected bool, kind controllers.Kind, name string)
 	OnDongleChanged      func(connected bool, spec hci.DongleSpec)
 }
@@ -201,6 +203,11 @@ func (m *Manager) attachDongle(dev usb.BusDevice) {
 			m.OnSlotKeyboardReport(slot, report)
 		}
 	}
+	sess.OnSlotMouseReport = func(slot uint8, dx, dy int8, buttons uint8) {
+		if m.OnSlotMouseReport != nil {
+			m.OnSlotMouseReport(slot, dx, dy, buttons)
+		}
+	}
 	sess.OnSlotChanged = func(slot uint8, connected bool, kind controllers.Kind, name string) {
 		if m.OnSlotChanged != nil {
 			m.OnSlotChanged(slot, connected, kind, name)
@@ -231,9 +238,13 @@ func (m *Manager) detachDongle() {
 		var neutralKeyboardReport [8]byte
 		for idx := uint8(0); idx < hidp.MaxPlayerSlots; idx++ {
 			if slot, ok := m.sess.Slot(idx); ok {
-				if slot.Kind != controllers.KindUnknown {
+				if slot.Kind.IsGamepad() {
 					if m.OnGamepadState != nil {
 						m.OnGamepadState(idx, slot.Kind, controllers.State{})
+					}
+				} else if slot.Kind == controllers.KindMouse {
+					if slot.MouseButtons != 0 && m.OnSlotMouseReport != nil {
+						m.OnSlotMouseReport(idx, 0, 0, 0)
 					}
 				} else {
 					if m.OnSlotKeyboardReport != nil {
@@ -241,6 +252,9 @@ func (m *Manager) detachDongle() {
 					}
 					if m.OnKeyboardReport != nil {
 						m.OnKeyboardReport(neutralKeyboardReport[:])
+					}
+					if slot.MouseButtons != 0 && m.OnSlotMouseReport != nil {
+						m.OnSlotMouseReport(idx, 0, 0, 0)
 					}
 				}
 				if m.OnSlotChanged != nil {

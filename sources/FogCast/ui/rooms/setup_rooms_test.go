@@ -264,3 +264,42 @@ func TestSetupControllersOffersTheMissingPlayer(t *testing.T) {
 		t.Fatalf("lone Player 2 step:\n%s", text)
 	}
 }
+
+func TestSetupControllersShowsTestedBadge(t *testing.T) {
+	r := setupControllersRoom(t)
+	r.SetPads(1, []Pad{xboxPad(1)})
+	f := stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Player 1 is ready") })
+	if strings.Contains(frameText(f), "Tested") {
+		t.Fatalf("untested pad showed Tested badge:\n%s", frameText(f))
+	}
+
+	tested := xboxPad(1)
+	tested.Name, tested.Family, tested.Tested = "Super Famicom Controller", "generic", true
+	untested := xboxPad(2)
+	r.SetPads(2, []Pad{tested, untested})
+	f = stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Players 1 and 2 are ready") })
+	text := frameText(f)
+	if !strings.Contains(text, "Super Famicom Controller\n") {
+		t.Fatalf("missing tested pad name:\n%s", text)
+	}
+	if got := strings.Count(text, "Tested\n"); got != 1 {
+		t.Fatalf("Tested badge count = %d, want 1:\n%s", got, text)
+	}
+
+	// A long controller name must truncate before pushing the Tested badge out of the left column.
+	longPad := tested
+	longPad.Name = "Super Famicom USB Gamepad With An Extraordinarily Long Name"
+	r.SetPads(3, []Pad{longPad})
+	f = stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Player 1 is ready") })
+	margin := float32(36)
+	leftColRight := margin + float32(int(float64(1280-int(margin)*3)*0.48))
+	var badgeX float32 = -1
+	for _, op := range f.Ops {
+		if op.Kind == OpText && op.Text == "Tested" {
+			badgeX = op.X
+		}
+	}
+	if badgeX < 0 || badgeX >= leftColRight {
+		t.Fatalf("Tested badge X = %v, want inside left column (< %v)", badgeX, leftColRight)
+	}
+}

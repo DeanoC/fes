@@ -10,7 +10,7 @@
 using namespace mister::native;
 const std::uint64_t kDeadline = 100;
 std::size_t scenarios = 0;
-const std::size_t kExpectedScenarios = 247;
+const std::size_t kExpectedScenarios = 249;
 class ClockFake final : public Clock {
 public: mutable std::uint64_t now = 0;
  std::uint64_t NowMs() const override { return now++; }
@@ -25,7 +25,10 @@ void TestApplicationAudioPolicyAndFailureOrdering()
 		fixture.log, Menu720p60Recipe());
 	assert(video.BringUpCustom(kDeadline, true).error.ok());
 	const auto& calls = fixture.i2c.calls;
-	assert(calls[1].address == 0x44 && calls[1].value == 0x11);
+	assert(calls[1].address == 0xd6 && calls[1].value == 0xc0);
+	assert(calls[2].address == 0x41 && calls[2].value == 0x10);
+	assert(calls[3].address == 0x98 && calls[3].value == 0x03);
+	assert(calls[4].address == 0x44 && calls[4].value == 0x11);
 	// The verified link, then its PLL lock and detected mode, are the last
 	// reads before sample packets are enabled.
 	assert(calls[calls.size()-4].type == Type::read &&
