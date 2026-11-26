@@ -945,6 +945,10 @@ static int configuration_bind(void *context,uint64_t owner,uint64_t generation,u
     *bytes=configuration_program.bytes;
     return 0;
 }
+/* Verify ownership, bridge containment, arena bounds, and captured chunk
+ * metadata on each transfer step. Upfront EL1 preflight validates payload
+ * bytes; per-chunk EL3 SHA-384 re-hashing is intentionally omitted on this
+ * single-owner games-machine target for core-load speed. */
 static int configuration_check(void *context, uint64_t address, uint32_t bytes, unsigned whole)
 {
     struct fes_nano_cold *s=context;

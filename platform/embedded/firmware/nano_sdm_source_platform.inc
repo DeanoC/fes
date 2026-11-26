@@ -397,6 +397,11 @@ static int sdm_source_owns(void *context,const struct nano_sdm_input_binding *bi
     sdm_input_source(&sdm_arm_probe,&sdm_arm_probe.input)!=1 || !sdm_source_queues())return sdm_source_stop(24);
  return 1;
 }
+/* Validate software ownership, phase, binding, and queue state without
+ * re-reading SMMU registers or re-scanning the 48 KiB translation tables on
+ * retirement, release, or warm rearm; SMMU setup, command-queue invalidation,
+ * and retirement remain enforced. Intentionally omitted on this single-owner
+ * games-machine target for core-load speed. */
 int fes_nano_sdm_source_validate(void)
 {
  return sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)==1 ? 0:-13;
@@ -444,9 +449,9 @@ int fes_nano_sdm_source_prepare(struct nano_sdm_input_binding *output,
  memcpy(input.digest384,configuration_program.header+FES_NANO_PROGRAM_SHA384,48);
  struct nano_probe_io io={&sdm_arm_probe,sdm_input_owns,sdm_source_time,sdm_probe_read,sdm_probe_write,
   sdm_probe_clear,sdm_probe_store,sdm_probe_load,sdm_probe_store_block,sdm_probe_load_block,sdm_probe_barrier};
- /* The actual cold check uses the pinned SHA-384 implementation and proves
-  * complete source bytes under the held CPU/master/configuration ownership.
-  * Issued START also requires the outer before-START full hash to have passed. */
+ /* Upfront EL1 preflight validates source payload bytes against the captured
+  * SHA-384 digest while EL3 enforces ownership, arena bounds, metadata, and
+  * SMMU/command-queue setup under the held CPU/master lock. */
  if(sdm_probe_owns(&sdm_arm_probe,&b)!=1 ||
     sdm_probe_time(&sdm_arm_probe,&sdm_source_clock_start))return sdm_source_stop(26),-13;
  sdm_source_clock_last=sdm_source_clock_start;sdm_source_clock_started=1;

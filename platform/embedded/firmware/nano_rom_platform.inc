@@ -204,6 +204,9 @@ static uint64_t computer_rom_now(void *context)
     computer_rom_diagnostic.tick=tick;return tick;
 }
 static void computer_rom_barrier(void *context) { (void)context;dsbsy(); }
+/* ROM bytes are verified upfront in EL1 and checked by nano_rom.c CRC32 during
+ * delivery; redundant EL3 SHA-384 re-hashing is intentionally omitted on this
+ * single-owner games-machine target for core-load speed. */
 static int computer_rom_verify(void *context,const uint8_t *image,size_t bytes)
 {
     if(context!=&configuration_program || !image || bytes!=configuration_program.rom_bytes)return -1;

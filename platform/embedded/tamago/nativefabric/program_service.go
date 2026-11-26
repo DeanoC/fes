@@ -82,6 +82,8 @@ type ProgramService struct{ state *programService }
 
 type programService struct {
 	operation      sync.Mutex
+	presentMu      sync.Mutex
+	presentDone    chan struct{}
 	viewMu         sync.Mutex
 	view           ProgramServiceStatus
 	loader         *ProgramLoader
@@ -176,8 +178,22 @@ func (s *ProgramService) begin(ctx context.Context) (*programService, ProgramSer
 		return nil, ProgramServiceStatus{}, err
 	}
 	p := s.state
-	if !p.operation.TryLock() {
-		return nil, ProgramServiceStatus{}, ErrProgramBusy
+	for {
+		p.presentMu.Lock()
+		if p.operation.TryLock() {
+			p.presentMu.Unlock()
+			break
+		}
+		done := p.presentDone
+		p.presentMu.Unlock()
+		if done == nil {
+			return nil, ProgramServiceStatus{}, ErrProgramBusy
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ProgramServiceStatus{}, ctx.Err()
+		case <-done:
+		}
 	}
 	view := s.Status()
 	if view.State == ProgramRebootRequired || view.State == ProgramParked {

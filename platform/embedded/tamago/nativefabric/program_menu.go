@@ -191,10 +191,21 @@ func (s *ProgramService) presentMenu(ctx context.Context, frame *stdimage.RGBA, 
 		return err
 	}
 	p := s.state
+	p.presentMu.Lock()
 	if !p.operation.TryLock() {
+		p.presentMu.Unlock()
 		return nil
 	}
-	defer p.operation.Unlock()
+	done := make(chan struct{})
+	p.presentDone = done
+	p.presentMu.Unlock()
+	defer func() {
+		p.presentMu.Lock()
+		p.presentDone = nil
+		p.operation.Unlock()
+		p.presentMu.Unlock()
+		close(done)
+	}()
 	view := s.Status()
 	if view.State == ProgramRebootRequired || view.State == ProgramParked {
 		return view.retiredError()

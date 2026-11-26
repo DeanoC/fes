@@ -132,10 +132,17 @@ func (t *ConfigurationTransfer) reject(reason error) error {
 	return reason
 }
 
+// Payloads are SHA-256/SHA-384 validated once upfront during preflight (and
+// t.digest is bound at retirement in retire_configuration.go) while the
+// single-CPU owned ConfigurationArena stays locked for the transfer. Per-SMC
+// uncached-DDR re-hashing is intentionally omitted on this single-owner
+// games-machine target for core-load speed.
 func (t *ConfigurationTransfer) stable() bool {
 	return t.region != nil && len(t.region.Bytes) == len(t.source)
 }
 
+// Per-chunk uncached-DDR re-hashing is intentionally omitted after upfront
+// preflight validation; keep slice bounds intact for each DMA step.
 func (t *ConfigurationTransfer) stableChunk(b configurationBuffer) bool {
 	return t.region != nil && b.offset >= 0 && b.amount > 0 &&
 		b.offset+b.amount <= len(t.region.Bytes) && b.offset+b.amount <= len(t.source)

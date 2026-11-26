@@ -240,6 +240,9 @@ static int computer_tape_header(void *context,uint8_t header[128])
     if(context!=&provider)return -1;
     dsbsy();memcpy(header,(const void *)(uintptr_t)FES_NANO_TAPE_METADATA_BASE,128);dsbsy();return 0;
 }
+/* Tape bytes are verified before staging and checked by nano_tape.c CRC32
+ * during delivery; redundant per-step EL3 SHA-384 re-hashing is intentionally
+ * omitted on this single-owner games-machine target for load speed. */
 static int computer_tape_verify_image(void *context,uint32_t bytes,const uint8_t digest[48])
 {
     if(context!=&provider || !digest || !bytes || bytes>FES_DE25_COMPUTER_ZX81_TAPE_MAX_BYTES)return -1;
