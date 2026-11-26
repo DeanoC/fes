@@ -264,20 +264,67 @@ func (g *Controller) Disable(id uint32) {
 	g.hw.Write32(g.GICD+GICD_ICENABLER+uint64(id/32)*4, 1<<(id%32))
 }
 
+func (g *Controller) lineBitReg(gicrOffset, gicdOffset uint64, id uint32) (uint64, uint32) {
+	if id < FirstSPI {
+		return g.gicr + gicrOffset, 1 << id
+	}
+	return g.GICD + gicdOffset + uint64(id/32)*4, 1 << (id % 32)
+}
+
+func (g *Controller) priorityReg(id uint32) (uint64, uint32) {
+	base := g.GICD + GICD_IPRIORITYR
+	if id < FirstSPI {
+		base = g.gicr + GICR_IPRIORITYR0
+	}
+	return base + uint64(id&^3), (id & 3) * 8
+}
+
+func (g *Controller) configReg(id uint32) (uint64, uint32) {
+	if id < FirstSPI {
+		return g.gicr + GICR_ICFGR1, (id-FirstPPI)*2 + 1
+	}
+	return g.GICD + GICD_ICFGR + uint64(id/16)*4, (id%16)*2 + 1
+}
+
+// Enabled reports whether interrupt id is currently enabled in GICR_ISENABLER0
+// or GICD_ISENABLER.
+func (g *Controller) Enabled(id uint32) bool {
+	if g == nil || g.hw == nil || g.gicr == 0 || id >= g.lines {
+		return false
+	}
+	addr, mask := g.lineBitReg(GICR_ISENABLER0, GICD_ISENABLER, id)
+	return g.hw.Read32(addr)&mask != 0
+}
+
+// Pending reports whether interrupt id is currently pending in GICR_ISPENDR0 or
+// GICD_ISPENDR.
+func (g *Controller) Pending(id uint32) bool {
+	if g == nil || g.hw == nil || g.gicr == 0 || id >= g.lines {
+		return false
+	}
+	addr, mask := g.lineBitReg(GICR_ISPENDR0, GICD_ISPENDR, id)
+	return g.hw.Read32(addr)&mask != 0
+}
+
 // SetPriority sets an interrupt's 8-bit priority (lower value = higher priority).
 func (g *Controller) SetPriority(id uint32, prio uint8) {
 	if id >= g.lines || g.gicr == 0 {
 		return
 	}
-	base := g.GICD + GICD_IPRIORITYR
-	if id < FirstSPI {
-		base = g.gicr + GICR_IPRIORITYR0
-	}
-	addr := base + uint64(id&^3)
-	shift := (id & 3) * 8
+	addr, shift := g.priorityReg(id)
 	v := g.hw.Read32(addr)
 	v = (v &^ (0xff << shift)) | (uint32(prio) << shift)
 	g.hw.Write32(addr, v)
+}
+
+// Priority returns the 8-bit priority programmed for interrupt id (0 if out of
+// range or uninitialized).
+func (g *Controller) Priority(id uint32) uint8 {
+	if g == nil || g.hw == nil || g.gicr == 0 || id >= g.lines {
+		return 0
+	}
+	addr, shift := g.priorityReg(id)
+	return uint8(g.hw.Read32(addr) >> shift)
 }
 
 // SetEdge configures a PPI or SPI as edge-triggered (true) or level-sensitive (false).
@@ -285,15 +332,7 @@ func (g *Controller) SetEdge(id uint32, edge bool) {
 	if id < FirstPPI || id >= g.lines || g.gicr == 0 {
 		return
 	}
-	var addr uint64
-	var shift uint32
-	if id < FirstSPI {
-		addr = g.gicr + GICR_ICFGR1
-		shift = (id-FirstPPI)*2 + 1
-	} else {
-		addr = g.GICD + GICD_ICFGR + uint64(id/16)*4
-		shift = (id%16)*2 + 1
-	}
+	addr, shift := g.configReg(id)
 	v := g.hw.Read32(addr)
 	if edge {
 		v |= 1 << shift
@@ -301,6 +340,19 @@ func (g *Controller) SetEdge(id uint32, edge bool) {
 		v &^= 1 << shift
 	}
 	g.hw.Write32(addr, v)
+}
+
+// Edge reports whether interrupt id is configured as edge-triggered (true for
+// SGIs < FirstPPI per GICv3 architecture, or ICFGR bit readback for PPI/SPI).
+func (g *Controller) Edge(id uint32) bool {
+	if g == nil || g.hw == nil || g.gicr == 0 || id >= g.lines {
+		return false
+	}
+	if id < FirstPPI {
+		return true
+	}
+	addr, shift := g.configReg(id)
+	return g.hw.Read32(addr)&(1<<shift) != 0
 }
 
 // SendSGI raises Software Generated Interrupt id (0..15) targeting this CPU.
@@ -362,6 +414,14 @@ func (g *Controller) Register(id uint32, fn func()) {
 		slot = &handlerSlot{fn: fn}
 	}
 	g.handlers[id].Store(slot)
+}
+
+// HasHandler reports whether a non-nil handler is registered for INTID id.
+func (g *Controller) HasHandler(id uint32) bool {
+	if g == nil || id >= MaxINTID {
+		return false
+	}
+	return g.handlers[id].Load() != nil
 }
 
 // SetUnhandledStormLimit sets how many consecutive unhandled deliveries of an
