@@ -109,9 +109,24 @@ func (r *Ring) Cap() int {
 	return ringSize
 }
 
-// Len returns the number of unread bytes currently buffered.
+// Len returns a bounded snapshot of the number of unread bytes currently
+// buffered ([0, Cap()]), safe against concurrent SPSC producer/consumer updates.
 func (r *Ring) Len() int {
-	return int(r.head.Load() - r.tail.Load())
+	for {
+		tail1 := r.tail.Load()
+		head := r.head.Load()
+		tail2 := r.tail.Load()
+		if tail1 == tail2 {
+			diff := int32(head - tail1)
+			if diff < 0 {
+				return 0
+			}
+			if diff > ringSize {
+				return ringSize
+			}
+			return int(diff)
+		}
+	}
 }
 
 // Dropped returns the number of bytes dropped because the ring was full.

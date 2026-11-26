@@ -402,4 +402,36 @@ func TestControllerReadIntoAndPendingCounts(t *testing.T) {
 	if cIRQ.PendingTX() != 0 {
 		t.Fatalf("PendingTX after DrainTX = %d, want 0", cIRQ.PendingTX())
 	}
+
+	// Concurrent observer calling PendingRX while producer/consumer wrap ring.
+	var rConc Ring
+	var obsWG sync.WaitGroup
+	var stopObs atomic.Bool
+	obsWG.Add(3)
+	go func() {
+		defer obsWG.Done()
+		buf := []byte("0123456789abcdef")
+		for i := 0; i < 200; i++ {
+			rConc.PushSlice(buf)
+		}
+		stopObs.Store(true)
+	}()
+	go func() {
+		defer obsWG.Done()
+		out := make([]byte, 8)
+		for !stopObs.Load() {
+			rConc.PopSlice(out)
+		}
+		for rConc.PopSlice(out) > 0 {
+		}
+	}()
+	go func() {
+		defer obsWG.Done()
+		for !stopObs.Load() {
+			if n := rConc.Len(); n < 0 || n > ringSize {
+				t.Errorf("concurrent Ring.Len=%d outside [0,%d]", n, ringSize)
+			}
+		}
+	}()
+	obsWG.Wait()
 }
