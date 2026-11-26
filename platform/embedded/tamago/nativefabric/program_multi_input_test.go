@@ -1581,6 +1581,11 @@ func TestProgramMultiInputPlatformQueuedPadEdgesAndGenericHIDLearn(t *testing.T)
 		src.setPadDevices(hidPad)
 		step()
 	}
+	// Pressing Home is reserved and must not be captured as a learnable button source.
+	pressHID(controllers.ButtonHome)
+	if stepIdx := app.Snapshot().Controllers.Learn.Step; stepIdx != 0 {
+		t.Fatalf("expected ButtonHome ignored during Learn, got step=%d", stepIdx)
+	}
 	// Map directions, then A=ButtonL3 ("b10"), B=ButtonL2 ("b6"), X=ButtonR2 ("b7"), then skip remaining optional steps with B.
 	for _, btn := range []controllers.Button{
 		controllers.ButtonDPadUp, controllers.ButtonDPadDown, controllers.ButtonDPadLeft, controllers.ButtonDPadRight,

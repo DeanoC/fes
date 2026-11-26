@@ -935,7 +935,7 @@ var rawButtonSources = []struct {
 	{controllers.ButtonStart, "b9"},
 	{controllers.ButtonL3, "b10"},
 	{controllers.ButtonR3, "b11"},
-	{controllers.ButtonHome, "b12"},
+	// ButtonHome is reserved for the global Settings/exit shortcut (matching Guide handling).
 	{controllers.ButtonCapture, "b13"},
 	{controllers.ButtonTouchpad, "b14"},
 	{controllers.ButtonDPadUp, "h0.1"},
