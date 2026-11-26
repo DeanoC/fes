@@ -749,6 +749,34 @@ match the frozen base. The DE10 receipt SHA-256 is
 The seven D12 selections match the frozen base and measured B. Four fresh
 fits started at this revision.
 
+| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Seed summary SHA-256 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 45,228.9 | +0.025 ns | 0.000 ns | +5.339 ns | +0.081 ns | 2.447 ns | `c5ddf341f3b13b6d3679625864f036caa499fd17c2fdd4eab0e394f9640b264f` |
+| 2 | 45,235.4 | +0.017 ns | 0.000 ns | +5.494 ns | +0.169 ns | 2.349 ns | `3b251d4cb63385bf4dc741e3c0a09afb054011cae756853c67896ae884d624f5` |
+| 3 | 44,950.0 | +0.005 ns | 0.000 ns | +5.611 ns | +0.012 ns | 2.742 ns | `950be4d265198e94331150221346658f1b8dde64ae7af85eafe5828c69b8cb7e` |
+| 4 | 45,079.4 | +0.008 ns | 0.000 ns | +5.332 ns | +0.207 ns | 2.585 ns | `390484b47efb02966ead0c8f1b536235aa5ae12d36806e72175d66c8e486c906` |
+
+Seed 1 was refused on three new `TMC-20602` names, `cpu_int_wait~DUPLICATE_Duplicate_1`,
+`machine_at_decoder_cycle_port[10]~RTM_1DUPLICATE` and
+`machine_at_decoder_state[1]~RTM`. The complete copied replay passed 84
+numerical and 24 structural checks. The original stayed byte-identical.
+The `c26-control-retimed-proof/s1/receipt.json` SHA-256 is
+`e1225d9cd00d5bb47459c7c0f2182fb7a4b1371d9f5b07b273d5aa8983c2c313`.
+Seeds 2 and 3 passed the ordinary producer, seal and independent LOADED
+check. Seed 4 was refused on `cpu_l1d_q_tx~RTM_1SCLR_dff`. It passed its
+28 numerical checks, with worst setup +1.343 ns and hold +0.075 ns.
+Its full structural replay is queued. All four seeds passed the numerical
+and independent LOADED budgets. The `c26-control-proof/summary.json`
+SHA-256 is `908d4cd891d09b61eaf1ccee966c6c7594d5111445918d9091d64dfa406942ef`.
+
+Revision `9259873f54389b4956430acf9c01942f3f1af8ae` matches the measured
+unlocated retiming suffixes on existing control-register stems. Each
+matching fitted register goes through the DX-only live proof. The
+same-path DE10 raw netlist and all four identities match the frozen base,
+and all seven D12 selections match the frozen base and measured B. The
+DE10 receipt SHA-256 is
+`cb6a36cfa3b3700911ab3afc1b30ad9e42d52b7e34452e46fc86c5108eb248f3`.
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed

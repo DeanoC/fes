@@ -158,4 +158,8 @@ The DX/reference CPI ratios were 1.015048 in 3DBench and 1.057348 in Doom.
 The Doom run matched the flip-40 handovers and 55,952,384-cycle final
 windows. It normalized to 2,180.252 DX-33 realtics against a limit of
 4,682, and both CPU runs exited 0. Quake handed over to the RTL at cycle
-503,571,519 and is running the 20-second RTL window.
+503,571,519, displayed the `DEMO1.DEM` announcement at 13.000 seconds,
+and rendered the first inspected Necropolis demo frame at 15.000 seconds.
+The first-frame receipt SHA-256 is
+`8e3e5240e8abc11f2f05d11b24bf6bc93ebe0808af9d9369a185f9f9ad2146c8`.
+The full 20-second RTL window is still running.
