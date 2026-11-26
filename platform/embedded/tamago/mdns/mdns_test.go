@@ -1079,3 +1079,36 @@ func TestResponderProbeAndAnnouncePausedRecovery(t *testing.T) {
 	default:
 	}
 }
+
+func TestCompareProbeRecordsCrossRRTypeTieBreak(t *testing.T) {
+	local := []dnsRecord{
+		{Name: "tie.local", Type: TypeA, Class: ClassIN, TTL: 120, A: netip.MustParseAddr("192.0.2.10")},
+	}
+	// Remote proposes an AAAA record (type 28 > TypeA=1) for the same host name.
+	aaaa := make([]byte, 16)
+	aaaa[0] = 0xfe
+	aaaa[1] = 0x80
+	aaaa[15] = 0x01
+	remoteAAAA := []dnsRecord{
+		{Name: "tie.local", Type: 28, Class: ClassIN, TTL: 120, RawRData: aaaa},
+	}
+	if conflict, localWins := compareProbeRecords(local, remoteAAAA); !conflict || localWins {
+		t.Fatalf("local A vs remote AAAA = conflict:%v localWins:%v, want true/false", conflict, localWins)
+	}
+	// When remote proposes both the matching A and an extra AAAA record, remote's longer set wins.
+	remoteSuperset := []dnsRecord{
+		local[0],
+		remoteAAAA[0],
+	}
+	if conflict, localWins := compareProbeRecords(local, remoteSuperset); !conflict || localWins {
+		t.Fatalf("local A vs remote {A,AAAA} = conflict:%v localWins:%v, want true/false", conflict, localWins)
+	}
+	// Reverse direction: local {A,AAAA} vs remote {A} -> local wins.
+	if conflict, localWins := compareProbeRecords(remoteSuperset, local); !conflict || !localWins {
+		t.Fatalf("local {A,AAAA} vs remote A = conflict:%v localWins:%v, want true/true", conflict, localWins)
+	}
+	// Identical record sets do not conflict.
+	if conflict, _ := compareProbeRecords(local, local); conflict {
+		t.Fatal("identical probe record sets reported a conflict")
+	}
+}

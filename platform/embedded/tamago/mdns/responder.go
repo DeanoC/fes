@@ -944,46 +944,75 @@ func recordSetsConflict(local, remote []dnsRecord) bool {
 }
 
 func compareProbeRecords(local, remote []dnsRecord) (conflict, localWins bool) {
-	type recordKey struct {
-		name string
-		typ  uint16
+	type tieRecord struct {
+		class uint16
+		typ   uint16
+		rdata []byte
 	}
-	localSets := make(map[recordKey][][]byte)
-	remoteSets := make(map[recordKey][][]byte)
+	sortTieRecords := func(recs []tieRecord) {
+		slices.SortFunc(recs, func(a, b tieRecord) int {
+			if a.class != b.class {
+				return int(a.class) - int(b.class)
+			}
+			if a.typ != b.typ {
+				return int(a.typ) - int(b.typ)
+			}
+			return bytes.Compare(a.rdata, b.rdata)
+		})
+	}
+	compareTieRecord := func(a, b tieRecord) int {
+		if a.class != b.class {
+			return int(a.class) - int(b.class)
+		}
+		if a.typ != b.typ {
+			return int(a.typ) - int(b.typ)
+		}
+		return bytes.Compare(a.rdata, b.rdata)
+	}
+
+	localByName := make(map[string][]tieRecord)
 	for _, rr := range local {
-		key := recordKey{name: strings.ToLower(strings.TrimSuffix(rr.Name, ".")), typ: rr.Type}
-		localSets[key] = append(localSets[key], recordRData(rr))
+		name := strings.ToLower(strings.TrimSuffix(rr.Name, "."))
+		localByName[name] = append(localByName[name], tieRecord{
+			class: rr.Class & 0x7fff,
+			typ:   rr.Type,
+			rdata: recordRData(rr),
+		})
 	}
+	remoteByName := make(map[string][]tieRecord)
 	for _, rr := range remote {
 		if rr.TTL == 0 {
 			continue
 		}
-		key := recordKey{name: strings.ToLower(strings.TrimSuffix(rr.Name, ".")), typ: rr.Type}
-		if _, ok := localSets[key]; ok {
-			remoteSets[key] = append(remoteSets[key], recordRData(rr))
+		name := strings.ToLower(strings.TrimSuffix(rr.Name, "."))
+		if _, ok := localByName[name]; ok {
+			remoteByName[name] = append(remoteByName[name], tieRecord{
+				class: rr.Class & 0x7fff,
+				typ:   rr.Type,
+				rdata: recordRData(rr),
+			})
 		}
 	}
-	keys := make([]recordKey, 0, len(remoteSets))
-	for key := range remoteSets {
-		keys = append(keys, key)
+	if len(remoteByName) == 0 {
+		return false, false
 	}
-	slices.SortFunc(keys, func(a, b recordKey) int {
-		if c := strings.Compare(a.name, b.name); c != 0 {
-			return c
-		}
-		return int(a.typ) - int(b.typ)
-	})
 
-	var localOrder, remoteOrder [][]byte
-	for _, key := range keys {
-		ours, theirs := localSets[key], remoteSets[key]
-		slices.SortFunc(ours, bytes.Compare)
-		slices.SortFunc(theirs, bytes.Compare)
+	names := make([]string, 0, len(remoteByName))
+	for name := range remoteByName {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	var localOrder, remoteOrder []tieRecord
+	for _, name := range names {
+		ours, theirs := localByName[name], remoteByName[name]
+		sortTieRecords(ours)
+		sortTieRecords(theirs)
 		if len(ours) != len(theirs) {
 			conflict = true
 		} else {
 			for i := range ours {
-				if !bytes.Equal(ours[i], theirs[i]) {
+				if compareTieRecord(ours[i], theirs[i]) != 0 {
 					conflict = true
 					break
 				}
@@ -997,7 +1026,7 @@ func compareProbeRecords(local, remote []dnsRecord) (conflict, localWins bool) {
 	}
 	limit := min(len(localOrder), len(remoteOrder))
 	for i := 0; i < limit; i++ {
-		if cmp := bytes.Compare(localOrder[i], remoteOrder[i]); cmp != 0 {
+		if cmp := compareTieRecord(localOrder[i], remoteOrder[i]); cmp != 0 {
 			return true, cmp > 0
 		}
 	}
