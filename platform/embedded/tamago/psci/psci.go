@@ -162,12 +162,19 @@ func (c *Client) Version() (major, minor uint16, err error) {
 }
 
 // SMCCCVersion queries SMCCC_VERSION (0x80000000) and returns (major, minor).
+// Per ARM SMCCC §7.2, a conduit returning NOT_SUPPORTED (-1) indicates
+// SMCCC v1.0, so (1, 0, nil) is returned. Callers on pre-1.1 SMCCC platforms
+// should discover availability via PSCI_FEATURES(FuncSMCCCVersion) before
+// invoking SMCCCVersion directly.
 func (c *Client) SMCCCVersion() (major, minor uint16, err error) {
 	r0, _, _, _, err := c.call(FuncSMCCCVersion, 0, 0, 0)
 	if err != nil {
 		return 0, 0, err
 	}
 	v := int32(r0)
+	if v == statusNotSupported {
+		return 1, 0, nil
+	}
 	if v < 0 {
 		return 0, 0, psciError(v)
 	}
@@ -192,6 +199,8 @@ func (c *Client) AffinityInfo(targetAffinity uint64, lowestAffinityLevel uint32)
 
 // Probe discovers the firmware PSCI, SMCCC, and TRNG versions and supported
 // functions on c's conduit without triggering any state transitions.
+// Per ARM SMCCC §7.2.2, SMCCC_VERSION is queried only on PSCI >= 1.0 when
+// PSCI_FEATURES(FuncSMCCCVersion) succeeds.
 func (c *Client) Probe() (Capabilities, error) {
 	psciMaj, psciMin, err := c.Version()
 	if err != nil {
@@ -201,12 +210,14 @@ func (c *Client) Probe() (Capabilities, error) {
 		PSCIMajor: psciMaj,
 		PSCIMinor: psciMin,
 	}
-	if smcccMaj, smcccMin, err := c.SMCCCVersion(); err == nil {
-		caps.HasSMCCC = true
-		caps.SMCCCMajor = smcccMaj
-		caps.SMCCCMinor = smcccMin
-	}
 	if psciMaj >= 1 {
+		if c.Supports(FuncSMCCCVersion) {
+			if smcccMaj, smcccMin, err := c.SMCCCVersion(); err == nil {
+				caps.HasSMCCC = true
+				caps.SMCCCMajor = smcccMaj
+				caps.SMCCCMinor = smcccMin
+			}
+		}
 		caps.SystemOff = c.Supports(FuncSystemOff)
 		caps.SystemReset = c.Supports(FuncSystemReset)
 		caps.SystemReset2 = c.Supports(FuncSystemReset2)
