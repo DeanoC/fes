@@ -642,6 +642,6 @@ int main()
  TestKernelOwnerReportsOnlyATrustedExposedWindow();
  TestKernelOwnerRangesMapAtTheirOffsetAndReleaseRevokesOnce();
  TestKernelOwnerRangeRules();
- puts("de25_hps_window_test: 13 passed");
+ puts("de25_hps_window_test: PASS");
  return 0;
 }
