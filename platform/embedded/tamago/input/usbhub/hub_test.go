@@ -1475,7 +1475,7 @@ func TestHubClassicBTMouseMergeWithWiredAndDisconnectRelease(t *testing.T) {
 
 	mouseAddr, _ := l2cap.ParseBDAddr("CC:44:55:66:77:88")
 	bonds := l2cap.NewBondStore()
-	_ = bonds.Upsert(l2cap.BondRecord{Addr: mouseAddr, LinkKey: [16]byte{6}, Name: "BT Mouse", Slot: 0})
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: mouseAddr, LinkKey: [16]byte{6}, Name: "BT Mouse", Kind: controllers.KindMouse, Slot: 0})
 	bonds.ClearDirty()
 
 	hub, err := NewHub(bus, Config{
@@ -1527,13 +1527,24 @@ func TestHubClassicBTMouseMergeWithWiredAndDisconnectRelease(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// Ack SET_PROTOCOL(BOOT), then press Left on wired and Right + delta(-4, +9) on BT mouse.
+	// Ack SET_PROTOCOL(BOOT), verify MouseNeutral stays false before BT mouse reports its initial state,
+	// verify KindMouse does not claim any P1..P4 controller port, then deliver all-up GET_REPORT reply.
 	bus.btACLInPipe.inQueue = append(bus.btACLInPipe.inQueue, makeACL(0x0041, 0x0040, []byte{0x00}))
 	if err := hub.Service(); err != nil {
 		t.Fatal(err)
 	}
+	if hub.MouseNeutral() {
+		t.Fatal("newly connected BT KindMouse without initial report must not arm MouseNeutral")
+	}
+	if snap := hub.BluetoothSnapshot(); len(snap.Devices) != 1 || snap.Devices[0].Kind != controllers.KindMouse || snap.Devices[0].Slot != 0 {
+		t.Fatalf("expected connected KindMouse with Slot=0 (no gamepad port), got %+v", snap)
+	}
+	bus.btACLInPipe.inQueue = append(bus.btACLInPipe.inQueue, makeACL(0x0041, 0x0040, []byte{0xa1, 0x02, 0x00, 0x00, 0x00}))
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
 	if !hub.MouseNeutral() {
-		t.Fatal("expected MouseNeutral=true once wired mouse idle and BT mouse idle")
+		t.Fatal("expected MouseNeutral=true once wired mouse idle and BT KindMouse GET_REPORT idle")
 	}
 
 	wiredPipe.inQueue = append(wiredPipe.inQueue, []byte{0x01, 0x02, 0x03})                                                  // wired Left (bit 0)

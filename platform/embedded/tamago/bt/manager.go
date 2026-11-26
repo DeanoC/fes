@@ -238,9 +238,13 @@ func (m *Manager) detachDongle() {
 		var neutralKeyboardReport [8]byte
 		for idx := uint8(0); idx < hidp.MaxPlayerSlots; idx++ {
 			if slot, ok := m.sess.Slot(idx); ok {
-				if slot.Kind != controllers.KindUnknown {
+				if slot.Kind.IsGamepad() {
 					if m.OnGamepadState != nil {
 						m.OnGamepadState(idx, slot.Kind, controllers.State{})
+					}
+				} else if slot.Kind == controllers.KindMouse {
+					if slot.MouseButtons != 0 && m.OnSlotMouseReport != nil {
+						m.OnSlotMouseReport(idx, 0, 0, 0)
 					}
 				} else {
 					if m.OnSlotKeyboardReport != nil {

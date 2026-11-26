@@ -225,12 +225,14 @@ type Hub struct {
 	wiredMice      [maxWiredMice]wiredMouseSlot
 	wiredGamepads  [maxWiredGamepads]wiredGamepadSlot
 
-	btKeyboards    [hidp.MaxPlayerSlots][8]byte
-	btMouseButtons [hidp.MaxPlayerSlots]uint8
-	btSlotActive   [hidp.MaxPlayerSlots]bool
-	btGamepads     [hidp.MaxPlayerSlots]usb.GamepadState
-	btMasks        [hidp.MaxPlayerSlots]uint8
-	btHome         [hidp.MaxPlayerSlots]bool
+	btKeyboards     [hidp.MaxPlayerSlots][8]byte
+	btMouseActive   [hidp.MaxPlayerSlots]bool
+	btMouseReported [hidp.MaxPlayerSlots]bool
+	btMouseButtons  [hidp.MaxPlayerSlots]uint8
+	btSlotActive    [hidp.MaxPlayerSlots]bool
+	btGamepads      [hidp.MaxPlayerSlots]usb.GamepadState
+	btMasks         [hidp.MaxPlayerSlots]uint8
+	btHome          [hidp.MaxPlayerSlots]bool
 
 	playerPorts [MaxPlayerPorts]playerPortOwner
 
@@ -302,6 +304,7 @@ func NewHub(bus usb.BusHost, cfg Config) (*Hub, error) {
 		if slot >= hidp.MaxPlayerSlots {
 			return
 		}
+		h.btMouseReported[slot] = true
 		h.btMouseButtons[slot] = buttons & 0x03
 		merged := h.computeMouseButtons()
 		if dx != 0 || dy != 0 || merged != h.mergedMouseButtons {
@@ -322,23 +325,31 @@ func NewHub(bus usb.BusHost, cfg Config) (*Hub, error) {
 	}
 	h.bt.OnSlotChanged = func(slot uint8, connected bool, kind controllers.Kind, name string) {
 		if slot < hidp.MaxPlayerSlots {
-			if connected && kind != controllers.KindUnknown {
-				h.btSlotActive[slot] = true
-				if h.assignPlayerPort(playerPortBT, slot) < 0 {
-					_ = h.bt.SetPlayerPort(slot, 0, false)
+			if connected {
+				if kind.IsGamepad() {
+					h.btSlotActive[slot] = true
+					if h.assignPlayerPort(playerPortBT, slot) < 0 {
+						_ = h.bt.SetPlayerPort(slot, 0, false)
+					}
+				} else if kind == controllers.KindMouse {
+					h.btMouseActive[slot] = true
+					h.btMouseReported[slot] = false
+					h.btMouseButtons[slot] = 0
 				}
-			} else if !connected {
+			} else {
 				h.btSlotActive[slot] = false
 				h.btGamepads[slot] = usb.GamepadState{Hat: -1}
 				h.btMasks[slot] = 0
 				h.btHome[slot] = false
 				h.releasePlayerPort(playerPortBT, slot)
 				h.recomputeGamepad()
-				if kind == controllers.KindUnknown {
-					if h.btKeyboards[slot] != ([8]byte{}) {
-						h.btKeyboards[slot] = [8]byte{}
-						h.recomputeKeyboard()
-					}
+				if kind == controllers.KindUnknown && h.btKeyboards[slot] != ([8]byte{}) {
+					h.btKeyboards[slot] = [8]byte{}
+					h.recomputeKeyboard()
+				}
+				if !kind.IsGamepad() {
+					h.btMouseActive[slot] = false
+					h.btMouseReported[slot] = false
 					if h.btMouseButtons[slot] != 0 {
 						h.btMouseButtons[slot] = 0
 						merged := h.computeMouseButtons()
@@ -663,8 +674,8 @@ func (h *Hub) NextKeyboardReport() ([8]byte, bool) {
 }
 
 // MouseNeutral reports whether the bus has been enumerated, every active wired
-// boot mouse has delivered an initial report, and all wired + Bluetooth
-// Left/Right mouse buttons are released.
+// and Bluetooth boot mouse has delivered an initial report, and all wired +
+// Bluetooth Left/Right mouse buttons are released.
 func (h *Hub) MouseNeutral() bool {
 	if h == nil {
 		return true
@@ -674,6 +685,11 @@ func (h *Hub) MouseNeutral() bool {
 	}
 	for i := range h.wiredMice {
 		if h.wiredMice[i].active && !h.wiredMice[i].reported {
+			return false
+		}
+	}
+	for i := range h.btMouseActive {
+		if h.btMouseActive[i] && !h.btMouseReported[i] {
 			return false
 		}
 	}
@@ -753,6 +769,8 @@ func (h *Hub) Close() {
 		h.btKeyboards[i] = [8]byte{}
 	}
 	for i := range h.btMouseButtons {
+		h.btMouseActive[i] = false
+		h.btMouseReported[i] = false
 		h.btMouseButtons[i] = 0
 	}
 	for i := range h.btGamepads {

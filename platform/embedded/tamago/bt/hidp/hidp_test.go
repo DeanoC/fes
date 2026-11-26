@@ -1682,3 +1682,110 @@ func TestClassicBTHIDBootMouseComboAndDisconnectNeutralize(t *testing.T) {
 		t.Fatalf("expected [kbd mouse disconnected] order on disconnect, got %v", events)
 	}
 }
+
+func TestKindMouseGETReportInitAndDisconnect(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+
+	m1Addr, _ := l2cap.ParseBDAddr("DD:33:44:55:66:01")
+	m2Addr, _ := l2cap.ParseBDAddr("DD:33:44:55:66:02")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: m1Addr, LinkKey: [16]byte{1}, Name: "BT Mouse 1", Kind: controllers.KindMouse, Slot: 0})
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: m2Addr, LinkKey: [16]byte{2}, Name: "BT Mouse 2", Kind: controllers.KindMouse, Slot: 1})
+
+	now := time.Unix(1200, 0)
+	sess, err := NewSession(tr, bonds, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type mouseEv struct {
+		slot    uint8
+		dx, dy  int8
+		buttons uint8
+	}
+	var mouseEvs []mouseEv
+	var kbdReports int
+	sess.OnSlotMouseReport = func(slot uint8, dx, dy int8, buttons uint8) {
+		mouseEvs = append(mouseEvs, mouseEv{slot: slot, dx: dx, dy: dy, buttons: buttons})
+	}
+	sess.OnSlotKeyboardReport = func(uint8, []byte) { kbdReports++ }
+
+	c1 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, m1Addr[:]...)
+	c1 = append(c1, 0x01, 0x01)
+	c2 := append([]byte{hci.EventConnectionComplete, 11, 0, 0x42, 0x00}, m2Addr[:]...)
+	c2 = append(c2, 0x01, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, c1, c2)
+	openIncomingHIDChannels(bus, 0x0041, 0x0050, 0x0051)
+	openIncomingHIDChannels(bus, 0x0042, 0x0060, 0x0061)
+	for range 6 {
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Ack SET_PROTOCOL(BOOT) on both mice -> both must immediately send GET_REPORT(Input, 0x02) [0x41, 0x02] on Control.
+	bus.aclOutPipe.outLog = nil
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0041, 0x0040, []byte{0x00}),
+		makeHIDACL(0x0042, 0x0040, []byte{0x00}),
+	)
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	var sawGet1, sawGet2 bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) != 10 {
+			continue
+		}
+		h := binary.LittleEndian.Uint16(pkt[0:2]) & 0x0fff
+		hid := pkt[8:]
+		if hid[0] == hidpGetReportInput && hid[1] == 0x02 {
+			if h == 0x0041 {
+				sawGet1 = true
+			} else if h == 0x0042 {
+				sawGet2 = true
+			}
+		}
+	}
+	if !sawGet1 || !sawGet2 {
+		t.Fatalf("expected GET_REPORT(Input, 0x02) on both KindMouse slots: m1=%t m2=%t out=%x", sawGet1, sawGet2, bus.aclOutPipe.outLog)
+	}
+
+	// Mouse 1 answers GET_REPORT on Control with held Left button -> emits initial report and reaches initStepDone.
+	// Mouse 2 rejects GET_REPORT with handshake error 0x03 -> reaches initStepDone without fabricating a fake report.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue,
+		makeHIDACL(0x0041, 0x0040, []byte{hidpDataInput, 0x02, 0x01, 0x00, 0x00}),
+		makeHIDACL(0x0042, 0x0040, []byte{0x03}),
+	)
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if sess.slots[0].initStep != initStepDone || sess.slots[1].initStep != initStepDone {
+		t.Fatalf("expected both KindMouse slots at initStepDone, got %d,%d", sess.slots[0].initStep, sess.slots[1].initStep)
+	}
+	if len(mouseEvs) != 1 || mouseEvs[0] != (mouseEv{slot: 0, dx: 0, dy: 0, buttons: 0x01}) {
+		t.Fatalf("expected only m1 GET_REPORT initial event, got %+v", mouseEvs)
+	}
+
+	// Mouse 2 subsequently sends an interrupt report; disconnect m1 -> neutralizes m1 mouse without emitting keyboard report.
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventDisconnectionComplete, 4, 0, 0x41, 0x00, 0x13})
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0042, 0x0041, []byte{hidpDataInput, 0x02, 0x00, 0x02, 0xfe}))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if kbdReports != 0 {
+		t.Fatalf("KindMouse must not emit keyboard reports, got %d", kbdReports)
+	}
+	if len(mouseEvs) != 3 ||
+		mouseEvs[1] != (mouseEv{slot: 0, dx: 0, dy: 0, buttons: 0}) ||
+		mouseEvs[2] != (mouseEv{slot: 1, dx: 2, dy: -2, buttons: 0}) {
+		t.Fatalf("expected m1 disconnect release then m2 interrupt event, got %+v", mouseEvs)
+	}
+}
