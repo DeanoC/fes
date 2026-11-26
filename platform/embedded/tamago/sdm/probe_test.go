@@ -137,18 +137,20 @@ func TestInvalidArena(t *testing.T) {
 }
 
 func TestObservationDecodersAndFormatting(t *testing.T) {
+	// Include non-zero reserved word 5 (0xf) seen on healthy Agilex 5 hardware.
 	obs := Observation{
-		IDCode:  0x0361a0dd, // version=0x0, part=0x361a, manufacturer=0x06e (Altera), marker=1
-		State:   StateOK,
-		Version: 0x00020100,
-		Pins:    (1 << 31) | (1 << 30) | (1 << 29) | (1 << 1) | (1 << 0),
-		Soft:    (1 << 0) | (1 << 1) | (1 << 2),
+		IDCode:       0x0361a0dd, // version=0x0, part=0x361a, manufacturer=0x06e (Altera), marker=1
+		State:        StateIdle,
+		Version:      0x001a0300,
+		Pins:         0xc0000089, // nSTATUS (bit 31), nCONFIG (bit 30), MSEL=0x9
+		Soft:         (1 << 0) | (1 << 1) | (1 << 2),
+		ErrorDetails: 0xf,
 	}
 	if !obs.Configured() || obs.HasError() {
 		t.Fatalf("unexpected status for configured observation: %s", obs.String())
 	}
 	pins := obs.PinStatus()
-	if !pins.ConfDone || !pins.InitDone || !pins.CVPDone || !pins.NStatus || !pins.NConfig || pins.Raw != obs.Pins {
+	if !pins.NStatus || !pins.NConfig || pins.MSEL != 0x9 || pins.Raw != obs.Pins {
 		t.Fatalf("PinStatus=%+v", pins)
 	}
 	soft := obs.SoftStatus()
@@ -166,21 +168,21 @@ func TestObservationDecodersAndFormatting(t *testing.T) {
 		}
 	}
 
-	inProgress := Observation{State: StateInProgress}
-	if inProgress.Configured() || !inProgress.HasError() {
+	inProgress := Observation{State: StateInProgress, Pins: 0xc0000089}
+	if inProgress.Configured() || inProgress.HasError() {
 		t.Fatalf("StateInProgress configured=%t hasError=%t", inProgress.Configured(), inProgress.HasError())
 	}
-	idle := Observation{State: StateIdle}
-	if idle.Configured() || !idle.HasError() {
-		t.Fatalf("StateIdle configured=%t hasError=%t", idle.Configured(), idle.HasError())
+	coreIOErr := Observation{State: StateErrorCoreIO, Pins: 0xc0000089}
+	if coreIOErr.Configured() || !coreIOErr.HasError() {
+		t.Fatalf("StateErrorCoreIO configured=%t hasError=%t", coreIOErr.Configured(), coreIOErr.HasError())
 	}
 
-	errDetail := Observation{State: StateOK, Pins: 1 << 31, Soft: 3, ErrorLocation: 0x44, ErrorDetails: 0x12}
-	if !errDetail.HasError() {
-		t.Fatal("expected HasError when ErrorLocation/ErrorDetails non-zero")
+	errLoc := Observation{State: StateIdle, Pins: 1 << 31, Soft: 3, ErrorLocation: 0x44}
+	if !errLoc.HasError() {
+		t.Fatal("expected HasError when ErrorLocation non-zero")
 	}
 
-	seu := Observation{State: StateOK, Pins: 1 << 31, Soft: (1 << 0) | (1 << 1) | (1 << 3)}
+	seu := Observation{State: StateIdle, Pins: 1 << 31, Soft: (1 << 0) | (1 << 1) | (1 << 3)}
 	if seu.Configured() || !seu.HasError() || !seu.SoftStatus().SEUError {
 		t.Fatalf("SEU status configured=%t hasError=%t soft=%+v", seu.Configured(), seu.HasError(), seu.SoftStatus())
 	}

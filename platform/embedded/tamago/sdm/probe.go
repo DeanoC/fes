@@ -45,11 +45,20 @@ func New(invoke Invoke, response []uint32, address uint64) (*Client, error) {
 	return &Client{invoke: invoke, response: response, address: address}, nil
 }
 
-// Known CONFIG_STATUS state codes returned by Agilex SDM firmware.
+// Known CONFIG_STATUS state codes aligned with TF-A sdm_input_mailbox.h.
 const (
-	StateOK         uint32 = 0
-	StateIdle       uint32 = 0xf0000000
-	StateInProgress uint32 = 0xf0000004
+	StateIdle          uint32 = 0x00000000
+	StateInProgress    uint32 = 0x10000000
+	StateFailAck       uint32 = 0x08000000
+	StateVABPreAuth    uint32 = 0x20000000
+	StateErrorInvalid  uint32 = 0xf0000001
+	StateErrorCorrupt  uint32 = 0xf0000002
+	StateErrorAuth     uint32 = 0xf0000003
+	StateErrorCoreIO   uint32 = 0xf0000004
+	StateErrorHardware uint32 = 0xf0000005
+	StateErrorFake     uint32 = 0xf0000006
+	StateErrorBootInfo uint32 = 0xf0000007
+	StateErrorQSPI     uint32 = 0xf0000008
 )
 
 // Observation contains SDM observations only. IDCode identifies silicon; it
@@ -64,14 +73,13 @@ type Observation struct {
 	ErrorDetails  uint32
 }
 
-// PinStatus holds decoded pin status bits from Observation.Pins.
+// PinStatus holds decoded pin status bits from Observation.Pins
+// (bit 31: nSTATUS, bit 30: nCONFIG, bits 3:0: MSEL).
 type PinStatus struct {
-	ConfDone bool
-	InitDone bool
-	CVPDone  bool
-	NStatus  bool
-	NConfig  bool
-	Raw      uint32
+	NStatus bool
+	NConfig bool
+	MSEL    uint8
+	Raw     uint32
 }
 
 // SoftStatus holds decoded soft-function status bits from Observation.Soft.
@@ -96,18 +104,16 @@ type IDCodeInfo struct {
 func (o Observation) Configured() bool {
 	pins := o.PinStatus()
 	soft := o.SoftStatus()
-	return o.State == StateOK && pins.ConfDone && soft.ConfDone && soft.InitDone && !soft.SEUError
+	return o.State == StateIdle && pins.NStatus && soft.ConfDone && soft.InitDone && !soft.SEUError
 }
 
 // PinStatus decodes the raw CONFIG_STATUS pin status word.
 func (o Observation) PinStatus() PinStatus {
 	return PinStatus{
-		ConfDone: o.Pins&(1<<31) != 0,
-		InitDone: o.Pins&(1<<30) != 0,
-		CVPDone:  o.Pins&(1<<29) != 0,
-		NStatus:  o.Pins&(1<<1) != 0,
-		NConfig:  o.Pins&(1<<0) != 0,
-		Raw:      o.Pins,
+		NStatus: o.Pins&(1<<31) != 0,
+		NConfig: o.Pins&(1<<30) != 0,
+		MSEL:    uint8(o.Pins & 0xf),
+		Raw:     o.Pins,
 	}
 }
 
@@ -135,10 +141,12 @@ func (o Observation) IDCodeInfo() IDCodeInfo {
 	}
 }
 
-// HasError reports whether SDM CONFIG_STATUS indicates a non-OK state, error
-// location/details, or soft SEU error.
+// HasError reports whether SDM CONFIG_STATUS indicates an error state,
+// non-zero ErrorLocation, or soft SEU error. Note that response word 5
+// (ErrorDetails) is reserved on Agilex 5 and may be non-zero when healthy.
 func (o Observation) HasError() bool {
-	return o.State != StateOK || o.ErrorLocation != 0 || o.ErrorDetails != 0 || o.SoftStatus().SEUError
+	stateErr := o.State != StateIdle && o.State != StateInProgress && o.State != StateVABPreAuth
+	return stateErr || o.ErrorLocation != 0 || o.SoftStatus().SEUError
 }
 
 // String formats a concise diagnostic summary of the SDM observation.
