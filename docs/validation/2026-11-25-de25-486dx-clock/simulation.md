@@ -44,6 +44,11 @@ CPU runs with the governor disabled as in #2194. The game bench uses
 #2194's DDR latency model. Quartus and the physical board provide
 separate timing and hardware evidence.
 
+With the F3 machine sources, the runner checks the DE25 system derivation
+and makes both game arms boot from ATA with both floppy drives absent.
+It sets the verifier inputs to zero and records the adapted testbench,
+compiled F3 dependencies, and explicit media arguments.
+
 The runner writes `analysis.json` with the handovers, windows, CPI
 ratios and Quake's execution verdict. Use `--analyze-existing` with
 the same source checkout and output directory to regenerate it from

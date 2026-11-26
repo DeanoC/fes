@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 import subprocess
 
-from sim_games import sha
+from sim_games import ATA_ONLY_ARGUMENTS, RUNS, arguments_for, sha
 
 
 def source_revision(checkout):
@@ -137,6 +137,34 @@ def checked_x87(root, inputs, lockstep_reports):
     return files
 
 
+def checked_media(root, inputs):
+    media = inputs.get('media')
+    if media is None:
+        return []
+    source = root / 'wt-games/sources/misteross'
+    games = root / 'games'
+    system, verifier = (source / media[key] for key in ('system', 'verifier'))
+    if (media['mode'] != 'ata-only' or media['startup_arguments'] != list(ATA_ONLY_ARGUMENTS)
+            or sha(system) != media['system_source_sha256'] or sha(verifier) != media['verifier_sha256']):
+        raise ValueError('the retained DE25 media contract differs from the game witness')
+    files = [system, verifier]
+    for arm in ('base', 'dx'):
+        obj = games / 'build' / arm / 'obj'
+        rtl, cpp = (obj / name for name in ('Vpc386_machine__ver.d', 'machine_tb.d'))
+        if (str(verifier) not in rtl.read_text().split()
+                or str(games / 'machine_tb.cpp') not in cpp.read_text().split()):
+            raise ValueError(f'{arm} game model did not compile the F3 RTL and ATA-only bench')
+        files.extend((rtl, cpp))
+    for arm, workload in RUNS:
+        directory = games / f'{arm}-{workload}'
+        command = directory / 'command.json'
+        if command.is_file():
+            arguments = arguments_for(workload, directory, media)
+            if json.loads(command.read_text())[-len(arguments):] != arguments:
+                raise ValueError(f'{directory.name} did not use the DE25 ATA-only game arguments')
+    return files
+
+
 def summarize(root):
     games = root / 'games'
     inputs = json.loads((games / 'inputs.json').read_text())
@@ -146,6 +174,7 @@ def summarize(root):
     files = [games / name for name in ('inputs.json', 'harness.py', 'machine_tb.cpp', 'audio_link.h')]
     if presenter := checked_presenter(games, inputs):
         files.append(presenter)
+    files.extend(checked_media(root, inputs))
     result = {key: inputs[key] for key in ('revision', 'model', 'c0', 'clock_hz', 'verilator')}
     result['class'] = 'host RTL simulation'
     result['games'] = {'artifact_sha256': inputs['binaries'], 'stimulus_sha256': inputs['fixtures']}
@@ -213,6 +242,9 @@ def verify(root, receipt):
     if any(receipt['files_sha256'].get(name) != digest
            for name, digest in checked_x87(root, inputs, reports).items()):
         raise ValueError('receipt does not bind the compiled x87 evidence')
+    if any(receipt['files_sha256'].get(path.relative_to(root).as_posix()) != sha(path)
+           for path in checked_media(root, inputs)):
+        raise ValueError('receipt does not bind the compiled ATA-only media evidence')
     for arm, expected in receipt['games']['artifact_sha256'].items():
         if sha(games / 'build' / arm / 'obj/Vpc386_machine') != expected:
             raise ValueError(f'compiled game harness changed: {arm}')
