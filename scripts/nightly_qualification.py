@@ -21,6 +21,24 @@ import recipes
 
 ROOT = Path(__file__).resolve().parents[1]
 
+HIL_WORKER_PATH = "scripts/powerboat/nightly-kit-worker.py"
+DE10_SMOKE_ADAPTER_PATH = "scripts/powerboat/nightly-de10-smoke.py"
+MENU_SMOKE_ADAPTER_PATH = "scripts/powerboat/nightly-menu-smoke.py"
+ADMISSION_WORKER_PATH = "scripts/powerboat/nightly-release-admit.py"
+ADMISSION_POLICY_PATHS = (
+    "scripts/nightly_qualification.py",
+    "scripts/image_artifacts.py",
+    "image/scripts/kit-software.py",
+    "scripts/core_catalog.py",
+    "scripts/core_dev.py",
+    "scripts/core_dev_accept.py",
+    "scripts/factory_video_parts.py",
+    "scripts/recipes.py",
+    "sources/misteross/scripts/core_package.py",
+    "sources/misteross/boards/de25nano/package/core_package.py",
+    "config/core-library.toml",
+)
+
 
 def encoded(value):
     return (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()
@@ -64,6 +82,10 @@ def hex_digest(value):
     if not isinstance(value, str) or not re.fullmatch("[0-9a-f]{64}", value):
         raise ValueError("expected a SHA-256 identity")
     return value
+
+
+def source_identities(paths):
+    return {path: digest((ROOT / path).read_bytes()) for path in sorted(paths)}
 
 
 def validate_release(release):
@@ -166,7 +188,23 @@ def hil_requirements(recipe):
     if recipe.board == "de10-nano" and recipe.core_id == "fes.pc386" and not recipe.hil_check:
         kits = ["N/A"]
     check = recipe.hil_check
-    return dict(kits=kits, check=check, sha256=digest((ROOT / check).read_bytes()) if check else None)
+    requirements = dict(kits=kits, check=check, sha256=digest((ROOT / check).read_bytes()) if check else None)
+    if kits != ["N/A"]:
+        requirements["worker_sha256"] = source_identities((HIL_WORKER_PATH,))[HIL_WORKER_PATH]
+        adapters = ()
+        if recipe.board == "de10-nano":
+            adapters = (DE10_SMOKE_ADAPTER_PATH,)
+            if recipe.core_id == "fes.menu":
+                adapters += (MENU_SMOKE_ADAPTER_PATH,)
+        requirements["smoke_adapters"] = source_identities(adapters)
+    return requirements
+
+
+def release_admission_identity():
+    """Identify the worker and local code/config that decide release compatibility."""
+    worker = source_identities((ADMISSION_WORKER_PATH,))[ADMISSION_WORKER_PATH]
+    policy = digest(encoded(source_identities(ADMISSION_POLICY_PATHS)))
+    return dict(worker_sha256=worker, policy_sha256=policy)
 
 
 def cell_key(source, recipe):
@@ -336,6 +374,7 @@ def release_set(store, release, candidates, admit, bootstrap=None):
             continue
         attempted.add(key)
         lock = selection(store, release, candidate)
+        lock["admission_policy"] = release_admission_identity()
         try:
             if bootstrap is None:
                 lock["admission"] = gate(store, admit, lock)

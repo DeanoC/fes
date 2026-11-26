@@ -204,11 +204,66 @@ class NightlyTest(unittest.TestCase):
         recipe = replace(nightly.recipes.recipe_for("fes.menu"), hil_check=script.name, hil_kits=("B", "A"))
         with patch.object(nightly, "ROOT", self.store), patch.object(nightly.bundle, "canonical_package_record",
                 return_value=nightly.encoded({"identities": {"design": "same", "record": "unchanged"}})):
+            for path in (nightly.HIL_WORKER_PATH, nightly.DE10_SMOKE_ADAPTER_PATH,
+                         nightly.MENU_SMOKE_ADAPTER_PATH):
+                target = self.store / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("old")
             script.write_text("old")
             original = SOURCE_KEY(self.store, recipe)
             self.assertNotEqual(original, SOURCE_KEY(self.store, replace(recipe, hil_kits=("A",))))
             script.write_text("new")
             self.assertNotEqual(original, SOURCE_KEY(self.store, recipe))
+
+    def test_hil_worker_and_smoke_adapter_bytes_change_input_key(self):
+        recipe = nightly.recipes.recipe_for("fes.menu")
+        with patch.object(nightly, "ROOT", self.store), patch.object(nightly.bundle, "canonical_package_record",
+                return_value=nightly.encoded({"identities": {"design": "same", "record": "unchanged"}})):
+            for path in (nightly.HIL_WORKER_PATH, nightly.DE10_SMOKE_ADAPTER_PATH,
+                         nightly.MENU_SMOKE_ADAPTER_PATH):
+                target = self.store / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("old")
+            original = SOURCE_KEY(self.store, recipe)
+            for path in (nightly.HIL_WORKER_PATH, nightly.DE10_SMOKE_ADAPTER_PATH,
+                         nightly.MENU_SMOKE_ADAPTER_PATH):
+                target = self.store / path
+                target.write_text("new " + path)
+                self.assertNotEqual(original, SOURCE_KEY(self.store, recipe), path)
+                target.write_text("old")
+
+    def test_release_admission_identity_tracks_worker_and_policy_bytes(self):
+        paths = (nightly.ADMISSION_WORKER_PATH, *nightly.ADMISSION_POLICY_PATHS)
+        with patch.object(nightly, "ROOT", self.store):
+            for path in paths:
+                target = self.store / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("old")
+            original = nightly.release_admission_identity()
+            (self.store / nightly.ADMISSION_WORKER_PATH).write_text("new worker")
+            changed_worker = nightly.release_admission_identity()
+            self.assertNotEqual(original["worker_sha256"], changed_worker["worker_sha256"])
+            self.assertEqual(original["policy_sha256"], changed_worker["policy_sha256"])
+            (self.store / nightly.ADMISSION_WORKER_PATH).write_text("old")
+            (self.store / "scripts/image_artifacts.py").write_text("new admission policy")
+            changed_policy = nightly.release_admission_identity()
+            self.assertEqual(original["worker_sha256"], changed_policy["worker_sha256"])
+            self.assertNotEqual(original["policy_sha256"], changed_policy["policy_sha256"])
+
+    def test_changed_release_admission_identity_requires_a_new_verdict(self):
+        previous = {"worker_sha256": "a" * 64, "policy_sha256": "b" * 64}
+        current = {"worker_sha256": "c" * 64, "policy_sha256": "d" * 64}
+        with patch.object(nightly, "release_admission_identity", return_value=previous):
+            published = self.seed()
+        with patch.object(nightly, "release_admission_identity", return_value=current):
+            self.assertEqual(self.run_batch(), 1)
+            identity, request = next((identity, request) for identity, request in self.requests()
+                                     if request.get("release") and request.get("admission_policy") == current)
+            self.assertEqual(request["admission_policy"], current)
+            self.answer(identity)
+            self.assertEqual(self.run_batch(), 0)
+        updated = nightly.read(self.store / "state.json")["releases"]["kit"]["current"]
+        self.assertNotEqual(published, updated)
 
     def test_wrong_kit_and_unbound_verdict_do_not_qualify(self):
         self.run_batch()
