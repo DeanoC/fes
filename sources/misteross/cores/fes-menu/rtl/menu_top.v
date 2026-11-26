@@ -17,7 +17,10 @@ module top #(
     );
     pixel_pll video_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk_0(pixel_clk), .locked(locked));
     reg [1:0] locked_sync = 2'b00;
-    always @(posedge pixel_clk) locked_sync <= {locked_sync[0], locked};
+    always @(posedge pixel_clk or negedge locked) begin
+        if (!locked) locked_sync <= 2'b00;
+        else locked_sync <= {locked_sync[0], 1'b1};
+    end
     wire pll_locked = locked_sync[1];
     wire [31:0] gpo, gpi;
     wire [23:0] rgb;

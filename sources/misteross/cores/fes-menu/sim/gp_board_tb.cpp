@@ -27,5 +27,7 @@ int main(int argc,char**argv){
  check(command(1,7,0)==1794,"capabilities");check(command(19,0,1)==0,"configure");check(command(2,0,1)==0,"release");check(command(20,0,1)==0,"enable");
  for(unsigned i=0;i<1650*750;++i)tick();check(count()>0,"reads after explicit enable");
  check(command(20,0,0)==0,"quiesce");check(command(2,0,0)==0,"hold after drain");auto before=count();for(unsigned i=0;i<1000;++i)tick();check(count()==before,"held no reads");
+ t.rootp->top__DOT__video_clock__DOT__locked=0;t.eval();
+ check(!t.HDMI_TX_DE&&!t.HDMI_TX_HS&&!t.HDMI_TX_VS&&t.HDMI_TX_D==0,"async PLL unlock blanks without clock edge");
  std::puts("PASS described menu board PLL/identity/explicit enable/drain/DDR bounds");
 }
