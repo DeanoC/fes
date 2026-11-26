@@ -66,8 +66,8 @@ release operators.
 * Core requests identify the exact main SHA, board, input key, prepared receipt,
   package and archive. `locations.FES_NIGHTLY_PREPARED` names the staged input.
   Run the cell's applicable acceptance under its designated lease and verify
-  the restore. Use A/B on DE10 and TRWU8J8G on DE25 Linux. The DE10 pc386
-  no-kit disposition may report `N/A` with its applicable evidence.
+  the restore. Use A/B on DE10 and TRWU8J8G on DE25 Linux. DE10 pc386 cells
+  get exact-artifact DE10 kit HIL like other tier-1 cells.
 * Release requests contain the exact software identity, board and entire
   ordered package selection. The release worker checks those bytes against the
   platform runtime, required interfaces/drivers, linked companions and any
