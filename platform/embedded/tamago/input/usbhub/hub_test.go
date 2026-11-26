@@ -1740,3 +1740,120 @@ func TestHubUnknownBluetoothHIDMouseNeutralFence(t *testing.T) {
 		t.Fatal("resolved gamepad slot should clear the provisional mouse fence")
 	}
 }
+
+func TestHubGamepadDevicesIntoAndZeroAllocs(t *testing.T) {
+	bus := newFakeBus()
+	hub, err := NewHub(bus, Config{Bonds: l2cap.NewBondStore()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Close()
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf [MaxGamepadDevices]GamepadDevice
+	gen0 := hub.GamepadGeneration()
+	if n := hub.GamepadDevicesInto(buf[:]); n != 0 {
+		t.Fatalf("expected 0 devices initially, got %d", n)
+	}
+
+	// Attach one wired generic HID gamepad (with VID:PID) and one wired XInput pad.
+	hidPad := makeGamepadDev(3)
+	hidPad.Descriptor.VendorID, hidPad.Descriptor.ProductID = 0x081f, 0xe401
+	bus.reportDescs[key32(3, 0)] = sampleGamepadDescriptor()
+	xinputPad := makeXInputDev(4)
+	xinputPad.Descriptor.VendorID, xinputPad.Descriptor.ProductID = 0x045e, 0x028e
+	bus.attach(hidPad)
+	bus.attach(xinputPad)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	hidPipe := bus.pipes[key32(3, 0x81)]
+	xinputPipe := bus.pipes[key32(4, 0x81)]
+	gen1 := hub.GamepadGeneration()
+	if gen1 <= gen0 {
+		t.Fatalf("expected padGeneration to advance on attach: before=%d after=%d", gen0, gen1)
+	}
+
+	// Send generic HID report (X button / mask bit 0 => ButtonSouth) and BT DualSense input.
+	hidPipe.inQueue = append(hidPipe.inQueue, []byte{0x80, 0x80, 0x01})
+	xinputPkt := make([]byte, 20)
+	xinputPkt[0], xinputPkt[1] = 0x00, 0x14 // Report header
+	xinputPkt[3] = 0x20                     // BTN_B / East bit in XInput byte 3
+	xinputPipe.inQueue = append(xinputPipe.inQueue, xinputPkt)
+	hub.bt.OnSlotChanged(0, true, controllers.KindDualSense, "DualSense Wireless Controller")
+	hub.bt.OnGamepadState(0, controllers.KindDualSense, controllers.State{
+		Buttons: controllers.ButtonNorth | controllers.ButtonDPadUp,
+		LeftX:   -20000,
+	})
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if hub.GamepadGeneration() <= gen1 {
+		t.Fatalf("expected padGeneration to advance on button and BT updates")
+	}
+
+	n := hub.GamepadDevicesInto(buf[:])
+	if n != 3 {
+		t.Fatalf("expected 3 gamepads, got %d (%+v)", n, buf[:n])
+	}
+	// Wired slot 0: generic HID with VID:PID preserved and ButtonSouth active.
+	if buf[0].ID != 1 || buf[0].Bluetooth || buf[0].Vendor != 0x081f || buf[0].Product != 0xe401 ||
+		buf[0].Kind != controllers.KindGenericHID || buf[0].Player != 1 || buf[0].Buttons&controllers.ButtonSouth == 0 {
+		t.Fatalf("unexpected wired generic HID snapshot: %+v", buf[0])
+	}
+	// Wired slot 1: XInput P2 with ButtonEast active.
+	if buf[1].ID != 2 || buf[1].Bluetooth || buf[1].Vendor != 0x045e || buf[1].Product != 0x028e ||
+		buf[1].Kind != controllers.KindXInput || buf[1].Player != 2 || buf[1].Buttons&controllers.ButtonEast == 0 {
+		t.Fatalf("unexpected wired XInput snapshot: %+v", buf[1])
+	}
+	// BT slot 0: DualSense P3.
+	if buf[2].ID != 101 || !buf[2].Bluetooth || buf[2].Vendor != 0x054c || buf[2].Product != 0x0ce6 ||
+		buf[2].Kind != controllers.KindDualSense || buf[2].Player != 3 ||
+		buf[2].Buttons&(controllers.ButtonNorth|controllers.ButtonDPadUp) != (controllers.ButtonNorth|controllers.ButtonDPadUp) ||
+		buf[2].LeftX != -20000 {
+		t.Fatalf("unexpected BT DualSense snapshot: %+v", buf[2])
+	}
+
+	// Overflow beyond 4 player ports gets Player == 0 and promotes when a slot opens.
+	hub.bt.OnSlotChanged(1, true, controllers.KindSwitchPro, "Pro Controller")
+	hub.bt.OnSlotChanged(2, true, controllers.KindDualShock4, "DualShock 4")
+	n = hub.GamepadDevicesInto(buf[:])
+	if n != 5 || buf[4].Player != 0 {
+		t.Fatalf("expected 5th gamepad to have overflow Player 0, got %+v", buf[:n])
+	}
+	bus.detach(hidPad)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	n = hub.GamepadDevicesInto(buf[:])
+	if n != 4 {
+		t.Fatalf("expected 4 gamepads after wired detach, got %d", n)
+	}
+	for _, dev := range buf[:n] {
+		if dev.ID == 103 && dev.Player != 1 {
+			t.Fatalf("expected overflow BT pad to promote into freed P1, got %+v", dev)
+		}
+	}
+
+	// Zero heap allocations on GamepadDevicesInto.
+	allocs := testing.AllocsPerRun(50, func() {
+		if got := hub.GamepadDevicesInto(buf[:]); got != 4 {
+			t.Fatalf("unexpected count %d", got)
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("expected 0 allocations in GamepadDevicesInto, got %.1f", allocs)
+	}
+
+	// BT detach clears its snapshot and advances padGeneration.
+	genBeforeDetach := hub.GamepadGeneration()
+	hub.bt.OnSlotChanged(0, false, controllers.KindDualSense, "DualSense Wireless Controller")
+	if hub.GamepadGeneration() <= genBeforeDetach {
+		t.Fatal("expected padGeneration bump on BT disconnect")
+	}
+	if n := hub.GamepadDevicesInto(buf[:]); n != 3 {
+		t.Fatalf("expected 3 gamepads after BT disconnect, got %d", n)
+	}
+}

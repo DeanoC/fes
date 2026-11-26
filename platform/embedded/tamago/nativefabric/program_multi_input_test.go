@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
@@ -50,6 +51,8 @@ type fakeMultiSource struct {
 	dongleName       string
 	btDevices        []usbhub.BluetoothDevice
 	btGen            uint64
+	padDevices       []usbhub.GamepadDevice
+	padGen           uint64
 	startPairErr     error
 	forgetErr        error
 	forgotten        []string
@@ -66,6 +69,7 @@ func newFakeMultiSource() *fakeMultiSource {
 	return &fakeMultiSource{
 		padLive: usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}},
 		btGen:   1,
+		padGen:  1,
 		ready:   make(chan struct{}, 4),
 	}
 }
@@ -131,6 +135,14 @@ func (s *fakeMultiSource) NextMouseUpdate() (usbhub.MouseUpdate, bool) {
 	upd := s.mouseQueue[0]
 	s.mouseQueue = s.mouseQueue[1:]
 	return upd, true
+}
+func (s *fakeMultiSource) setPadDevices(devs ...usbhub.GamepadDevice) {
+	s.padDevices = append([]usbhub.GamepadDevice(nil), devs...)
+	s.padGen++
+}
+func (s *fakeMultiSource) GamepadGeneration() uint64 { return s.padGen }
+func (s *fakeMultiSource) GamepadDevicesInto(dst []usbhub.GamepadDevice) int {
+	return copy(dst, s.padDevices)
 }
 func (s *fakeMultiSource) KeyboardNeutral() bool {
 	return s.enumerated && !s.kbUnreported && s.kbLive == [8]byte{}
@@ -1161,5 +1173,243 @@ func TestProgramMultiInputPlatformNativeMouseRelative(t *testing.T) {
 	}
 	if nonFix.cpu.mouseWrites != 0 {
 		t.Fatalf("expected 0 MouseRelative writes on non-MouseRelative core, got %d", nonFix.cpu.mouseWrites)
+	}
+}
+
+func TestProgramMultiInputPlatformControllersUIFamilyGlyphsAndPerPadProfiles(t *testing.T) {
+	var prefs *ProgramPreferences
+	f, b, c := backendFixture(t, func(f *serviceFixture) {
+		var err error
+		prefs, err = LoadProgramPreferences(context.Background(), f.s.state.store, false)
+		if err != nil {
+			t.Fatalf("LoadProgramPreferences: %v", err)
+		}
+		if err := f.s.AttachPreferences(prefs); err != nil {
+			t.Fatalf("AttachPreferences: %v", err)
+		}
+	})
+	client := tenfoot.NewClient("http://native.invalid", &http.Client{Transport: b, Timeout: 5 * time.Second})
+	app := tenfoot.NewApp(client, 1280, 720, 40)
+	if err := app.SetPreferenceStore(prefs); err != nil {
+		t.Fatalf("SetPreferenceStore: %v", err)
+	}
+	src := newFakeMultiSource()
+	src.setPadDevices(
+		usbhub.GamepadDevice{
+			ID:      1,
+			Name:    "Xbox 360 Controller",
+			Vendor:  0x045e,
+			Product: 0x028e,
+			Kind:    controllers.KindXInput,
+			Player:  1,
+		},
+		usbhub.GamepadDevice{
+			ID:        101,
+			Name:      "DualSense Wireless Controller",
+			Vendor:    0x054c,
+			Product:   0x0ce6,
+			Kind:      controllers.KindDualSense,
+			Bluetooth: true,
+			Player:    2,
+		},
+	)
+	cfg := multiTestConfig()
+	cfg.App = app
+	cfg.Preferences = prefs
+	p, err := NewProgramMultiInputPlatform(&programInputBase{}, b, src, cfg)
+	if err != nil {
+		t.Fatalf("NewProgramMultiInputPlatform: %v", err)
+	}
+
+	step := func() tenfoot.PlatformInput {
+		frame, err := p.Next(context.Background())
+		if err != nil {
+			t.Fatalf("Next failed: %v", err)
+		}
+		for _, cmd := range frame.Commands {
+			app.HandleCommand(cmd, frame.At)
+		}
+		return frame
+	}
+
+	// Initial neutral boot frame arms startup pad/keyboard fences.
+	step()
+
+	openControllers := func(at time.Time) {
+		if app.Snapshot().Controllers.Open {
+			app.HandleCommand(tenfoot.CmdBack, at)
+		}
+		if app.Snapshot().Settings.Open {
+			app.HandleCommand(tenfoot.CmdBack, at)
+		}
+		app.HandleCommand(tenfoot.CmdSettings, at)
+		var hasControllersRow bool
+		for i, row := range app.Snapshot().Settings.Rows {
+			if row.ID == "section-controllers" {
+				hasControllersRow = true
+				for j := 0; j < i; j++ {
+					app.HandleCommand(tenfoot.CmdDown, at)
+				}
+				app.HandleCommand(tenfoot.CmdSelect, at)
+				break
+			}
+		}
+		if !hasControllersRow {
+			t.Fatalf("expected Controllers section in Settings rows: %+v", app.Snapshot().Settings.Rows)
+		}
+	}
+
+	// Open Settings › Controllers and verify both pads, players, and families are present.
+	openControllers(time.Now())
+	snap := app.Snapshot().Controllers
+	if !snap.Open || len(snap.Tabs) != 2 || snap.Tabs[0].Label != "P1" || snap.Tabs[1].Label != "P2" {
+		t.Fatalf("unexpected Controllers snapshot: %+v", snap)
+	}
+
+	// Press North on wired Xbox P1: switches hints to Xbox glyphs and highlights P1 tab.
+	btDev := usbhub.GamepadDevice{
+		ID:        101,
+		Name:      "DualSense Wireless Controller",
+		Vendor:    0x054c,
+		Product:   0x0ce6,
+		Kind:      controllers.KindDualSense,
+		Bluetooth: true,
+		Player:    2,
+	}
+	xboxDev := usbhub.GamepadDevice{
+		ID:      1,
+		Name:    "Xbox 360 Controller",
+		Vendor:  0x045e,
+		Product: 0x028e,
+		Kind:    controllers.KindXInput,
+		Player:  1,
+		Buttons: controllers.ButtonNorth,
+	}
+	src.setPadDevices(xboxDev, btDev)
+	src.pads(usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1, Buttons: uint32(controllers.ButtonNorth)}, Ports: [usbhub.MaxPlayerPorts]uint8{0, 0}})
+	step()
+	if got := app.Snapshot().Prompts["A"]; got != string(gfx.PromptRune(gfx.PromptXbox, gfx.PromptSouth)) {
+		t.Fatalf("expected Xbox prompt after Xbox P1 press, got %q", got)
+	}
+	if !app.Snapshot().Controllers.Tabs[0].Pressed {
+		t.Fatalf("expected P1 tab Pressed highlight during held Xbox button")
+	}
+
+	// Release Xbox ButtonNorth, switch to P1 tab with L1 ("["), release, then press North on BT DualSense.
+	xboxDev.Buttons = controllers.ButtonL1
+	src.setPadDevices(xboxDev, btDev)
+	src.pads(usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}})
+	step()
+	if got := app.Snapshot().Controllers.Tab; got != 0 || app.Snapshot().Controllers.Family != gfx.PromptXbox {
+		t.Fatalf("L1 shoulder did not step to Xbox P1 tab: %+v", app.Snapshot().Controllers)
+	}
+	xboxDev.Buttons = 0
+	btDev.Buttons = controllers.ButtonNorth
+	src.setPadDevices(xboxDev, btDev)
+	src.pads(usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1, Buttons: uint32(controllers.ButtonNorth)}, Ports: [usbhub.MaxPlayerPorts]uint8{0, 0}})
+	step()
+	if got := app.Snapshot().Prompts["A"]; got != string(gfx.PromptRune(gfx.PromptPlayStation, gfx.PromptSouth)) {
+		t.Fatalf("expected PlayStation prompt after BT DualSense press, got %q", got)
+	}
+	if !app.Snapshot().Controllers.Tabs[1].Pressed {
+		t.Fatalf("expected P2 tab Pressed highlight during held button")
+	}
+
+	// Switch to P2 tab using R1 shoulder command (CmdFilterNext = "]").
+	btDev.Buttons = 0
+	src.setPadDevices(xboxDev, btDev)
+	src.pads(usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}})
+	step()
+	btDev.Buttons = controllers.ButtonR1
+	src.setPadDevices(xboxDev, btDev)
+	step()
+	if got := app.Snapshot().Controllers.Tab; got != 1 || app.Snapshot().Controllers.Family != gfx.PromptPlayStation {
+		t.Fatalf("R1 shoulder did not step to PlayStation P2 tab: %+v", app.Snapshot().Controllers)
+	}
+
+	// While ButtonR1 stays held on P2, toggle Swap A / B on P2 via Settings › Controllers.
+	for _, cmd := range []tenfoot.Command{tenfoot.CmdDown, tenfoot.CmdDown, tenfoot.CmdDown, tenfoot.CmdLeft, tenfoot.CmdLeft, tenfoot.CmdSelect} {
+		app.HandleCommand(cmd, time.Now())
+	}
+	if !app.Snapshot().Controllers.SwapAB {
+		t.Fatal("Swap A / B did not enable in Controllers UI")
+	}
+
+	// While ButtonR1 is still held on P2, profile reload is deferred, so Swap A / B does not flip mid-hold.
+	btDev.Buttons = controllers.ButtonR1 | controllers.ButtonEast
+	src.setPadDevices(xboxDev, btDev)
+	frame := step()
+	if !slices.Contains(frame.Commands, tenfoot.CmdBack) {
+		t.Fatalf("expected deferred reload while ButtonR1 held (ButtonEast still CmdBack), got %v", frame.Commands)
+	}
+
+	// Release all buttons on P2 -> profile reloads -> ButtonEast now emits CmdSelect and ButtonSouth emits CmdBack.
+	btDev.Buttons = 0
+	src.setPadDevices(xboxDev, btDev)
+	step()
+	btDev.Buttons = controllers.ButtonEast
+	src.setPadDevices(xboxDev, btDev)
+	frame = step()
+	if !slices.Contains(frame.Commands, tenfoot.CmdSelect) {
+		t.Fatalf("expected swapped ButtonEast to emit CmdSelect, got %v", frame.Commands)
+	}
+	btDev.Buttons = controllers.ButtonSouth
+	src.setPadDevices(xboxDev, btDev)
+	frame = step()
+	if !slices.Contains(frame.Commands, tenfoot.CmdBack) {
+		t.Fatalf("expected swapped ButtonSouth to emit CmdBack, got %v", frame.Commands)
+	}
+
+	// Launch a fes.gamepad.ports core and verify P2's Swap A / B profile flips A/B bits on port 2!
+	btDev.Buttons = 0
+	src.setPadDevices(xboxDev, btDev)
+	step()
+	ctx := context.Background()
+	play, err := c.Launch(ctx, "native-0")
+	if err != nil || play.ErrorCode != "" {
+		t.Fatalf("Launch failed: play=%+v err=%v", play, err)
+	}
+	wantCaps := cg.FesComputerCapabilityVideoFixed720p60 | cg.FesComputerCapabilityKeyboardHid | cg.FesComputerCapabilityGamepadPorts
+	f.cpu.words[7] = uint16(wantCaps)
+	var build [16]byte
+	for i := range 8 {
+		binary.LittleEndian.PutUint16(build[2*i:], f.cpu.words[8+i])
+	}
+	reopened, err := computer.Open(ctx, f.s.state.computer.port, computerLimits(), computer.Identity{
+		Capabilities: wantCaps,
+		Build:        build,
+	})
+	if err != nil {
+		t.Fatalf("reopen Computer: %v", err)
+	}
+	f.s.state.computer.control = reopened
+	f.s.state.viewMu.Lock()
+	f.s.state.capabilities = wantCaps
+	f.s.state.viewMu.Unlock()
+
+	step() // Enter ProgramRunning & neutralize ports (padArmed=true since btDev is neutral).
+	btDev.Buttons = controllers.ButtonEast
+	src.setPadDevices(xboxDev, btDev)
+	src.pads(usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1, Buttons: uint32(controllers.ButtonEast)}, Ports: [usbhub.MaxPlayerPorts]uint8{0, 1 << 5}})
+	step()
+	// Bit 4 (0x10) is logical A on port 1 (0-based P2), sent when swapped physical ButtonEast is held.
+	if f.cpu.controllerWrites == 0 || f.cpu.controllerPorts[1] != (1<<4) {
+		t.Fatalf("expected swapped BT P2 physical East -> port 1 A (0x10), got writes=%d ports=%#v", f.cpu.controllerWrites, f.cpu.controllerPorts)
+	}
+
+	// Detaching BT P2 drops it from Settings › Controllers once back in menu.
+	if res, err := c.StopExpectedStamped(ctx, play, hostclient.ClientStamp{}); err != nil || res.ErrorCode != "" {
+		t.Fatalf("StopExpectedStamped failed: res=%+v err=%v", res, err)
+	}
+	step()
+	openControllers(time.Now())
+	if !app.Snapshot().Controllers.Open || len(app.Snapshot().Controllers.Tabs) != 2 {
+		t.Fatalf("expected Controllers open with 2 tabs before detach, got %+v", app.Snapshot().Controllers)
+	}
+	src.setPadDevices(xboxDev)
+	src.pads(usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}})
+	step()
+	if snap := app.Snapshot().Controllers; !snap.Open || len(snap.Tabs) != 1 || snap.Tabs[0].Label != "P1" {
+		t.Fatalf("expected 1 tab (P1) after P2 detach, got %+v", snap)
 	}
 }
