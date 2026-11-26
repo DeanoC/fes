@@ -732,7 +732,44 @@ func TestFirstRunControllersTestedBadge(t *testing.T) {
 			snap := waitFor(t, app, "tested controller badge", func(s Snapshot) bool {
 				return s.Room.ID == "example.setup-controllers" && roomTextHas(s, "Player 1 is ready") && roomTextHas(s, "Tested")
 			})
-			assertSetupTextClearOfButtons(t, snap)
+
+			var nameOp, testedOp rooms.Op
+			for _, op := range snap.Room.Frame.Ops {
+				if op.Kind != rooms.OpText {
+					continue
+				}
+				switch op.Text {
+				case "USB Gamepad":
+					nameOp = op
+				case "Tested":
+					testedOp = op
+				}
+			}
+			if nameOp.Text == "" || testedOp.Text == "" {
+				t.Fatalf("missing name (%q) or Tested (%q) op", nameOp.Text, testedOp.Text)
+			}
+			testedW := float32(gfx.MeasureText(testedOp.Text, testedOp.Size))
+			testedH := float32(gfx.TextHeight(testedOp.Size))
+			if testedOp.X <= nameOp.X || testedOp.X < 0 || testedOp.X+testedW > float32(snap.Room.Width) ||
+				testedOp.Y < 0 || testedOp.Y+testedH > float32(snap.Room.Height) {
+				t.Fatalf("Tested op %+v out of bounds relative to %+v in %dx%d", testedOp, nameOp, snap.Room.Width, snap.Room.Height)
+			}
+			for _, hit := range snap.Room.Frame.Hits {
+				if testedOp.X < hit.X+hit.W && testedOp.X+testedW > hit.X &&
+					testedOp.Y < hit.Y+hit.H && testedOp.Y+testedH > hit.Y {
+					t.Errorf("Tested text %+v overlaps button %+v", testedOp, hit)
+				}
+			}
+
+			app.DetachInput(InputGamepad, 7)
+			app.SetPadInfo(9, PadInfo{
+				Name: "Xbox 360 Controller", GUID: testPadGUID,
+				Vendor: 0x045e, Product: 0x028e, Family: gfx.PromptXbox, Recognised: true, Player: 1,
+			})
+			app.AttachInput(InputGamepad, 9)
+			waitFor(t, app, "untested controller clears badge", func(s Snapshot) bool {
+				return s.Room.ID == "example.setup-controllers" && roomTextHas(s, "Xbox 360 Controller") && !roomTextHas(s, "Tested")
+			})
 		})
 	}
 }
