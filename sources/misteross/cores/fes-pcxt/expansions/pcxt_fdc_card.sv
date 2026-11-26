@@ -1,44 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 `include "fes_pcxt_isa.vh"
 
-// IBM XT-compatible, read-only 765-family floppy adapter. One 360 KiB raw
-// sector image is supplied through a separate byte service; it is not guest
-// RAM. The service holds VALID and address until READY, including across
-// arbitrarily long backing-store waits. Reset cancels outstanding requests.
-//
-// This implements the register/command subset needed for a single-sided or
-// double-sided standard XT disk: DOR, MSR/data, Specify, Sense Drive, Sense
-// Interrupt, Recalibrate, Seek, Read ID and DMA-mode MFM Read Data. Writes
-// return write-protected status. Logical ISA timing uses the endpoint's
-// prepare/commit contract; no FIFO byte is consumed during preparation.
-// Existing systems instantiate this wrapper and remain write protected.  The
-// separate writable implementation is not enabled until its backend and the
-// persistent media lifecycle have been connected.
-module pcxt_fdc_card (
-    input wire clk, reset, guest_ce,
-    input wire [`FES_PCXT_ISA_REQUEST_BITS-1:0] request,
-    output wire [`FES_PCXT_ISA_RESPONSE_BITS-1:0] response,
-    input wire media_present,
-    output wire media_read_valid,
-    output wire [18:0] media_read_addr,
-    input wire media_read_ready,
-    input wire [7:0] media_read_data
-);
-    wire write_valid, write_busy;
-    wire [9:0] write_lba;
-    wire [7:0] write_data;
-    pcxt_fdc_card_rw card (
-        .clk(clk), .reset(reset), .cold_reset(reset), .guest_ce(guest_ce),
-        .request(request), .response(response), .media_present(media_present),
-        .media_read_valid(media_read_valid), .media_read_addr(media_read_addr),
-        .media_read_ready(media_read_ready), .media_read_data(media_read_data),
-        .media_writable(1'b0), .media_frozen(1'b0),
-        .media_write_valid(write_valid), .media_write_lba(write_lba),
-        .media_write_index(9'b0), .media_write_data(write_data),
-        .media_write_ready(1'b0), .media_write_error(1'b0), .media_write_busy(write_busy));
-    wire unused_write = &{1'b0, write_valid, write_busy, write_lba, write_data};
-endmodule
-
+// IBM XT-compatible 765-family floppy adapter for one 360 KiB raw sector
+// image. The separate byte service holds read VALID and address until READY,
+// including across backing-store waits. Logical ISA timing uses the
+// endpoint's prepare/commit contract; no FIFO byte is consumed on preparation.
+// DOR, MSR/data, Specify, Sense Drive, Sense Interrupt, Recalibrate, Seek,
+// Read ID and DMA-mode MFM Read/Write Data are implemented. A non-writable
+// medium returns write-protected status for writes.
 // The backend must keep the selected medium stable while write_busy is high.
 // A completed sector is held, including across a warm/controller reset, until
 // the backend completes it. Only cold reset may discard that transaction.
