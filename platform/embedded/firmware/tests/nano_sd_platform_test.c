@@ -222,6 +222,12 @@ int main(void)
     t.h.srs[0x234/4]=0;assert(!call(&t,3));
     assert(!t.h.smmu_writes && !t.h.smmu_gbpa);
 
+    /* Mid-resume failure restores SMMU GBPA ABORT after re-asserting SD reset. */
+    ready(&t);t.h.allow_smmu_mmio=1;t.h.smmu_gbpa=FES_NANO_SMMU_ABORT;t.h.fault=4;
+    assert(!fes_nano_sd_platform_enable_dma(&t.platform));
+    assert(call(&t,1)==4 && t.platform.failed && t.service.failed && t.bridges.failed);
+    assert(t.h.smmu_gbpa==FES_NANO_SMMU_ABORT && t.h.smmu_writes==2 && !t.platform.restore_smmu_abort);
+
     /* DMA enabled with post-retire GBPA=ABORT: clears on resume, restores on stop across cycles. */
     ready(&t);t.h.allow_smmu_mmio=1;t.h.smmu_gbpa=FES_NANO_SMMU_ABORT;
     assert(!fes_nano_sd_platform_enable_dma(&t.platform));

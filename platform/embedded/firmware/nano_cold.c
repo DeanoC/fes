@@ -197,14 +197,16 @@ static int owned(struct fes_nano_cold *s,uint64_t owner,uint64_t epoch,
         struct fes_nano_cold_sample last;
         if (released_devices(s,&released) || (released & FES_NANO_COLD_SD_RESET) ||
             owned_sample(s,&now,probe!=0) || !stable(&expected,&now,core) ||
-            (now.per0 & FES_NANO_MASTER_RESET)!=(FES_NANO_MASTER_RESET & ~released) ||
-            usb_contained(s,released)) return fail(s);
-        if (!probe) return 1;
+            (now.per0 & FES_NANO_MASTER_RESET)!=(FES_NANO_MASTER_RESET & ~released)) return fail(s);
+        if (!probe) {
+            if (usb_contained(s,released)) return fail(s);
+            return 1;
+        }
         uint32_t bits=0;
         int error=probe(context,&bits);
         if (error) {fail(s);return error<0 ? error : -1;}
         if (bits & ~FES_NANO_PRODUCERS_ALL) return fail(s);
-        if (released_devices(s,&after) || after!=released ||
+        if (usb_contained(s,released) || released_devices(s,&after) || after!=released ||
             owned_sample(s,&last,1) || !stable(&now,&last,core) ||
             (last.per0 & FES_NANO_MASTER_RESET)!=(FES_NANO_MASTER_RESET & ~released) ||
             !s->valid || s->failed || owner!=s->record.boot.owner || epoch!=s->record.boot.epoch ||
