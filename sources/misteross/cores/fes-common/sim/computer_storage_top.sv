@@ -145,7 +145,7 @@ module computer_storage_top #(
     end else begin : pc386_storage
         wire ata_request, ata_response_valid, ata_response_error;
         wire [15:0] ata_response_data;
-        generate if (ENABLE_PC_FLOPPY) begin : floppy
+        if (ENABLE_PC_FLOPPY) begin : floppy
             wire [1:0][12:0] sectors;
             wire [1:0][31:0] crc;
             /* verilator lint_off PINCONNECTEMPTY */
@@ -171,7 +171,7 @@ module computer_storage_top #(
             assign fd_present = 2'b00; assign fd_write_protect = 2'b00; assign fd_verify = 2'b00;
             assign fd_sectors = 26'd0; assign fd_crc = 64'd0; assign fd_frozen = 1'b0;
             wire unused = ^{fd_verify_done, fd_verify_match, fd_busy, fd_fenced, fd_written};
-        end endgenerate
+        end
         fes_computer_storage #(
             .ENABLE_ATA_DISK(ENABLE_ATA_DISK), .ENABLE_DATA(ENABLE_PERSISTENCE && ENABLE_PC386_MACHINE),
             .ENABLE_WALL_CLOCK(ENABLE_WALL_CLOCK)
