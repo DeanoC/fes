@@ -979,6 +979,26 @@ both the 5.046 ns data bound and the 8.296 ns setup bound while running
 with router timing optimization at Normal. The seed summary SHA-256 is
 `6f285be5f2574fe0471f56df306e18c8d0edee5210f59f6eed1b277a62ebe59a`.
 
+Revision `3fa87187a579d401dfbc0f739e29b665b45c480a` increases router
+timing optimization to Maximum for the 486DX with C0 = 26 or 24.
+Registered seed 2 preparation from the same vendor archive adds that
+single assignment to the pre-generation compiler QSF. The SDC is
+byte-identical at SHA-256
+`4bf5d251c642ff4bf195b45e55e7593b22fc7ebf34c7200091a4b1330e18457d`.
+A separate dry build of the original source at its original BUILD_ID
+changes anonymous names in the Yosys netlist when staged in a different
+checkout. The two registered runs therefore provide independent candidate
+evidence.
+The dry-build control receipt SHA-256 is
+`df75ac5eb067fa6cff50c356149fe2eb6e9b7fff1ca491bb33a2b878f332da4c`.
+The exact candidate must pass the normal timing, seal and LOADED checks.
+The same-path DE10 control still matches all netlist bytes and four
+identities against `2f19382b`. Its receipt SHA-256 is
+`47b339aa08947248e983b8f89318ba0ad30532201e8cec77ad0a971bdca39ec5`.
+All seven DE25 D12 input selections match `4fe7bada`.
+The C0 = 24 child `bbf65586855a8c0abf0a1be082ce9aae6d75c9e7`
+has the expected 130.555556 MHz clock inputs and remains gated on C0 = 26.
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed

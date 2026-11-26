@@ -220,4 +220,20 @@ dependency list binds the derived x87 wrapper, while the reference CPU
 build uses the shared wrapper. The launch receipt
 `simulation/c26-f3-fast-4fe7/game-launch.json` SHA-256 is
 `e502a4335729f156564060a060f8d88e4b0b28d75d45c2c87c344c03fc97406f`.
-G4 and G5 are in progress.
+The integrated [G4 receipt](sim-c26-f3-g4.json) verifies 75 artifacts.
+Doom reached the same flip-40 handover at cycle 2,678,438,006 on both
+arms. It measured 2,183.921 normalized DX-33 realtics against the 4,682
+limit. 3DBench's DX/reference CPI ratio was 1.0145385. All 48 paired raw
+3DBench frame captures match the earlier `9259873f` replay. G5 is
+still running. Its protected retirement count already differs from
+`9259873f` at guest time 10 seconds, so it has its own result.
+
+The router-effort candidate `3fa87187a579d401dfbc0f739e29b665b45c480a`
+reproduced the game compile inputs for both arms. The comparison
+rehashes 106 tracked dependency files and regenerates the testbench,
+audio header, and derived CPU, x87 and presenter sources. It also checks
+both compiled game binaries against the launch receipt and matches
+guest rates and ATA-only media. The changed board preparation function
+runs in the package producer outside the game harness. The compiled-input
+receipt SHA-256 is
+`e5bc603469bcadf48b59ca1d9c0978cd324acdc7449d3474050658a4bbf75974`.
