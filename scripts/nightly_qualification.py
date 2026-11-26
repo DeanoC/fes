@@ -161,6 +161,14 @@ def tree_identity(root, flush=False):
     return digest(encoded(files))
 
 
+def hil_requirements(recipe):
+    kits = list(recipe.hil_kits) or (["TRWU8J8G"] if recipe.board == "de25-nano" else ["B", "A"])
+    if recipe.board == "de10-nano" and recipe.core_id == "fes.pc386" and not recipe.hil_check:
+        kits = ["N/A"]
+    check = recipe.hil_check
+    return dict(kits=kits, check=check, sha256=digest((ROOT / check).read_bytes()) if check else None)
+
+
 def cell_key(source, recipe):
     record = json.loads(bundle.canonical_package_record(
         source, env=recipes.producer_environment(recipe=recipe), recipe=recipe, selection_only=True))
@@ -169,7 +177,7 @@ def cell_key(source, recipe):
     identities = dict(record["identities"])
     del identities["record"]
     inputs = {"producer": identities, "product_options": recipe.producer_arguments,
-              "profiles": recipe.video_profiles, "route": recipe.pnr, "quartus": recipe.quartus}
+              "hil": hil_requirements(recipe), "profiles": recipe.video_profiles, "route": recipe.pnr, "quartus": recipe.quartus}
     if recipe.video_profiles:
         # Independent companion producers are outside the shell's source closure.
         inputs["companions"] = git("rev-parse", "HEAD:sources/misteross")
@@ -227,24 +235,25 @@ def qualify(store, sha, recipe, accept, key, previous):
     result = read(prepared)
     if result["core_id"] != recipe.core_id:
         raise ValueError("prepared candidate names a different core")
+    hil = hil_requirements(recipe)
     if previous:
         prior = store / "objects" / hex_digest(previous)
-        if artifact_identity(read(prior / "prepared.json")) == artifact_identity(result):
+        if (read(prior / "qualification.json")["request"].get("hil") == hil and
+                artifact_identity(read(prior / "prepared.json")) == artifact_identity(result)):
             if tree_identity(prior) != previous:
                 raise ValueError("damaged previous qualification")
             verify_evidence(store, read(prior / "qualification.json")["receipt"])
             return previous
-    request = dict(main=result["sources"]["misteross"], board=recipe.board, core=recipe.core_id,
+    request = dict(hil=hil, main=result["sources"]["misteross"], board=recipe.board, core=recipe.core_id,
                    package_id=result["package_id"], prepared_sha256=provenance["prepared_sha256"],
                    archive_sha256=provenance["archive_sha256"], inputs=key,
                    simulations_sha256=digest((candidate / "simulations.json").read_bytes()))
     receipt = gate(store, accept, request, FES_NIGHTLY_PREPARED=str(prepared))
-    allowed = ["A", "B"] if recipe.board == "de10-nano" else ["TRWU8J8G"]
-    if recipe.board == "de10-nano" and recipe.core_id == "fes.pc386":
-        allowed.append("N/A")
-    if receipt.get("kit") not in allowed or (
+    if receipt.get("kit") not in hil["kits"] or (
             receipt["kit"] != "N/A" and receipt.get("restored") is not True):
         raise ValueError("missing designated-kit acceptance and restore")
+    if hil["check"] and receipt.get("hil_check_sha256") != hil["sha256"]:
+        raise ValueError("missing registered HIL check result")
     candidate_arguments(prepared)
     if digest(prepared.read_bytes()) != request["prepared_sha256"]:
         raise ValueError("prepared identity changed during acceptance")

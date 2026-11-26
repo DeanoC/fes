@@ -26,4 +26,10 @@ if result.returncode == 0:
     (out / "release-software.txt").write_bytes(result.stdout)
 worker = (Path(__file__).resolve().with_name("nightly-menu-smoke.py")
           if os.environ["FES_NIGHTLY_CORE"] == "fes.menu" else queue / "hilcore.py")
-os.execv(sys.executable, [sys.executable, str(worker)])
+checker = os.environ.get("FES_NIGHTLY_CHECKER")
+if not checker:
+    os.execv(sys.executable, [sys.executable, str(worker)])
+subprocess.run([sys.executable, worker], check=True)
+frames = sorted((out / "fr").glob("05-boot-*.png"))
+frames.extend(out / "fr" / name for name in ("10-core.png", "11-core.png"))
+subprocess.run([sys.executable, checker, "--output", out / "hil-check.json", *frames], check=True)

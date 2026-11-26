@@ -1,3 +1,4 @@
+from dataclasses import replace
 from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
@@ -181,6 +182,33 @@ class NightlyTest(unittest.TestCase):
             self.assertEqual(first, original(self.store, recipe))
             record["identities"]["design"] = "v2"
             self.assertNotEqual(first, original(self.store, recipe))
+
+    def test_changed_hil_requires_new_kit_verdict_for_identical_archive(self):
+        self.seed()
+        original = nightly.recipes.recipe_for("fes.pong")
+        self.keys["fes.pong"] = "fes.pong"  # keep the test producer's archive identical
+        changed = replace(original, hil_kits=("A",), hil_check="scripts/pcxt_dos_hil_acceptance.py")
+        self.patch(nightly.recipes, "load_recipes", side_effect=lambda board: {
+            "fes.pong": changed} if board == "de10-nano" else {})
+        self.patch(nightly, "cell_key", return_value="new acceptance requirements")
+        self.assertEqual(self.run_batch(), 1)
+        binding, request = next((i, r) for i, r in self.requests() if r.get("inputs") == "new acceptance requirements")
+        self.assertEqual(request["hil"]["kits"], ["A"])
+        self.answer(binding, kit="A")
+        self.assertEqual(self.run_batch(), 1)
+        pending = nightly.read(self.store / "state.json")["cells"]["de10-nano/fes.pong"]["pending"]
+        self.assertIn("missing registered HIL check", pending["error"])
+
+    def test_hil_checker_bytes_and_kit_order_change_input_key(self):
+        script = self.store / "registered.py"
+        recipe = replace(nightly.recipes.recipe_for("fes.menu"), hil_check=script.name, hil_kits=("B", "A"))
+        with patch.object(nightly, "ROOT", self.store), patch.object(nightly.bundle, "canonical_package_record",
+                return_value=nightly.encoded({"identities": {"design": "same", "record": "unchanged"}})):
+            script.write_text("old")
+            original = SOURCE_KEY(self.store, recipe)
+            self.assertNotEqual(original, SOURCE_KEY(self.store, replace(recipe, hil_kits=("A",))))
+            script.write_text("new")
+            self.assertNotEqual(original, SOURCE_KEY(self.store, recipe))
 
     def test_wrong_kit_and_unbound_verdict_do_not_qualify(self):
         self.run_batch()

@@ -23,4 +23,5 @@ with tempfile.NamedTemporaryFile(dir=directory, delete=False) as f:
     os.fsync(f.fileno())
 os.replace(f.name, directory / identity)
 print(json.dumps(dict(request_sha256=binding, evidence_sha256=identity,
+                      hil_check_sha256=evidence["smoke"].get("hil_check_sha256"),
                       verdict=evidence["smoke"]["verdict"], kit=evidence["kit"], restored=evidence["restored"])))

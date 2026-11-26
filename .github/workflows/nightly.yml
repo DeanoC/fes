@@ -150,7 +150,9 @@ jobs:
           : "${STORE:?configure FES_QUALIFICATION_STORE}" "${CONFIG:?configure FES_QUALIFICATION_CONFIG}"
           : "${FES_CACHE_ROOT:?configure the durable FES_QUALIFICATION_CACHE}"
           receipt=$(mktemp "$RUNNER_TEMP/fes-full-sims-XXXXXXXX.json")
-          trap 'rm -f -- "$receipt"' EXIT
+          (while sleep 60; do echo "Core qualification still running at $(date -u +%FT%TZ) for $GITHUB_SHA"; done) &
+          heartbeat=$!
+          trap 'kill "$heartbeat" 2>/dev/null || true; wait "$heartbeat" 2>/dev/null || true; rm -f -- "$receipt"' EXIT
           jq -n --arg main "$GITHUB_SHA" --arg sims "$SIMULATED_SHA" --arg com "$PCXT_COM" \
             --arg url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
             '{main:$main,full_simulations_and_producers_sha:$sims,pcxt_com:$com,run_url:$url}' > "$receipt"

@@ -33,6 +33,23 @@ def fetch(relative):
     return subprocess.check_output(["ssh", "-oBatchMode=yes", FARM, "cat", STORE + "/" + relative])
 
 
+def stage_hil_check(head, hil, root):
+    if not hil["check"]:
+        return None
+    if hil["check"] != "scripts/pcxt_dos_hil_acceptance.py":
+        raise ValueError("no capture adapter for registered HIL check " + hil["check"])
+    # Run the checker with the CGA font lock and bytes from the same main tree.
+    firmware = "sources/misteross/cores/fes-pcxt/firmware/"
+    for name in (hil["check"], firmware + "hardware-dos.json", firmware + "cga-font-8x8.bin"):
+        dest = root / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(subprocess.check_output(["git", "-C", REPO, "show", head + ":" + name]))
+    checker = root / hil["check"]
+    if sha(checker.read_bytes()) != hil["sha256"]:
+        raise ValueError("registered HIL checker differs from request")
+    return checker
+
+
 def accept(binding):
     if not re.fullmatch("[a-f0-9]{64}", binding):
         raise ValueError("invalid request digest")
@@ -87,7 +104,7 @@ def accept(binding):
                                        "--jq", '.jobs[] | select(.name=="qualification") | .status'])
         if jobs.strip() not in (b"in_progress", b"completed"):
             raise ValueError("main nightly has not reached hardware qualification")
-        if board == "de10-nano" and core == "fes.pc386":
+        if board == "de10-nano" and core == "fes.pc386" and req["hil"]["kits"] == ["N/A"] and not req["hil"]["check"]:
             return canonical(dict(request=req, request_sha256=binding, kit="N/A", restored=False,
                                   smoke=dict(verdict="PASS", disposition="DE10 pc386 has no designated kit"),
                                   simulations=simulation))
@@ -100,7 +117,11 @@ def accept(binding):
         (build / "build.result").write_text(line)
         if board == "de25-nano":
             (build / "core-build.result").write_text(line)
-        for kit in (["D25"] if board == "de25-nano" else ["B", "A"]):
+        checker = stage_hil_check(head, req["hil"], run / "checker")
+        for kit_name in req["hil"]["kits"]:
+            kit = "D25" if kit_name == "TRWU8J8G" else kit_name
+            if kit not in (["D25"] if board == "de25-nano" else ["B", "A"]):
+                raise ValueError("registered kit incompatible with board")
             ledger = "de25-TRWU8J8G-STATUS.md" if kit == "D25" else f"kit{kit}-STATUS.md"
             entries = (Path.home() / "kit-status" / ledger).read_text().splitlines()
             status = next((s for s in reversed(entries) if s.startswith("## ")), "")
@@ -110,6 +131,9 @@ def accept(binding):
             evidence.mkdir()
             env = dict(os.environ, HIL_KIND="core", LW_REPO="DeanoC/fes", LW_PR="main", LW_HEAD=head)
             worker = QUEUE / ("hil-de25-watch.sh" if kit == "D25" else "hil-core.sh")
+            if checker:
+                env["C_SERIES"] = "6:8"
+                env["FES_NIGHTLY_CHECKER"] = str(checker)
             if kit != "D25":
                 # Keep HILQ's baseline, locks, host isolation and restore. Substitute
                 # only the run-local smoke entry point to observe release identities.
@@ -134,6 +158,9 @@ def accept(binding):
             if (smoke["verdict"], smoke["kit"], smoke["head"], smoke["package_id"]) != (
                     "PASS", kit, head, req["package_id"]):
                 raise ValueError(f"kit result identity mismatch in {evidence}")
+            if checker:
+                smoke["hil_check"] = json.loads((evidence / "out/hil-check.json").read_bytes())
+                smoke["hil_check_sha256"] = req["hil"]["sha256"]
             observed = evidence / "out/release-software.txt"
             raw = canonical(dict(software=observed.read_text() if observed.exists() else None, request_sha256=binding, request=req, smoke=smoke,
                                  kit="TRWU8J8G" if kit == "D25" else kit,
