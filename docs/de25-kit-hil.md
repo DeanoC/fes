@@ -45,7 +45,8 @@ head's `scripts/de25_seal_plan.py`, which:
   the kit still runs an exact-head package;
 - refuses any name that is not a registered DE25 Quartus Pro recipe or model.
 
-A producer with models (Spectrum `48`/`128`, Atari ST `520st`) offers them as
+A producer with models (Spectrum `48`/`128`/`plus3`/`pentagon`/`native48`,
+Atari ST `520st`, C64 `pal`/`nativepal`) offers them as
 its `--model` choices. Each model is its own package with its own BUILD_ID, so
 each is sealed and run on the kit. All models of one recipe share one source
 closure, so a source change cannot be attributed to a single model: the

@@ -39,6 +39,8 @@ POLICY_CITE = 'policy: Deano 2026-10-29'
 ZX81_POLICY_CITE = 'policy: Deano 2026-11-15'
 QUARTUS_PRIMARY = 'Quartus (primary, policy)'
 DE25_CELL = 'Quartus-only (policy)'
+# Forward-plan cell states, in order (docs/plans/forward-plan.md, "The matrix is data").
+DE25_STATES = ('none', 'builds', 'sealed', 'kit-accepted', 'released')
 # i386, pc386 and PC/XT. nextpnr on these rows is advisory.
 QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt-dos',
                                  'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500'})
@@ -459,8 +461,21 @@ def de25_core_ids(root: Path) -> set[str]:
     registry. Machine producer declarations are parsed, not imported, so a
     documentation check never runs build-tool code.
     """
+    registered, producers = de25_recipe_ids(root)
+    return registered | {core for ids in producers.values() for core in ids}
+
+
+def de25_registered_ids(root: Path) -> set[str]:
+    """DE25 core IDs a registered recipe produces, its producer's models included."""
+    registered, producers = de25_recipe_ids(root)
+    return registered | {core for base, ids in producers.items() if base in registered for core in ids}
+
+
+def de25_recipe_ids(root: Path) -> tuple[set[str], dict[str, set[str]]]:
+    """Registered DE25 recipe IDs, and each machine producer's base and model IDs."""
     recipes = tomllib.loads((root / ROOT_FILES['recipes']).read_text())['recipes']
-    ids = {r['core_id'] for r in recipes if r.get('board') == 'de25-nano'}
+    registered = {r['core_id'] for r in recipes if r.get('board') == 'de25-nano'}
+    producers: dict[str, set[str]] = {}
     for path in (root / DE25 / 'producers').glob('build_*_package.py'):
         tree = ast.parse(path.read_text(), filename=str(path))
         for node in tree.body:
@@ -482,9 +497,8 @@ def de25_core_ids(root: Path) -> set[str]:
                 isinstance(name, str) and isinstance(core, str) for name, core in models.items()
             ) or not models.keys() <= descriptions.keys():
                 raise ValueError(f'{path}: malformed producer core IDs')
-            ids.add(core_id)
-            ids.update(models.values())
-    return ids
+            producers.setdefault(core_id, set()).update({core_id, *models.values()})
+    return registered, producers
 
 
 def de25_cell(rows: list[dict], core_ids: set[str]) -> str:
@@ -576,6 +590,7 @@ def render(data: dict, de25_ids: set[str]) -> str:
     for scope, title in RELEASE_SCOPES.items():
         names = [row['label'] for row in data['cores'] if row.get('release') == scope]
         lines.append(f"- **{title}:** {', '.join(names)}")
+    lines += render_de25_progress(data)
     lines += render_check_policy(data)
     lines += [
         '',
@@ -591,6 +606,97 @@ def render(data: dict, de25_ids: set[str]) -> str:
         lines.append(f"- {item}")
     lines.append('')
     return '\n'.join(lines)
+
+
+def render_de25_progress(data: dict) -> list[str]:
+    """Per-cell DE25 state for the tier 1 machines (forward-plan phase 4)."""
+    progress = data['de25_tier1']
+    labels = {row['id']: row['label'] for row in data['cores']}
+    lines = ['', '## DE25 tier 1 progress', '']
+    lines += [paragraph for note in progress['note'] for paragraph in (cell(note), '')]
+    lines += ['| DE25 state | Meaning |', '| --- | --- |']
+    for state in progress['states']:
+        lines.append(f"| {state['id']} | {cell(state['meaning'])} |")
+    lines += ['', '| Machine | DE25 state | Issues |', '| --- | --- | --- |']
+    for machine in progress['machines']:
+        by_state: dict[str, list[str]] = {}
+        for core_id, state in machine['cells'].items():
+            by_state.setdefault(state, []).append(labels[core_id])
+        states = '; '.join(
+            f"{state['id']}: {', '.join(by_state[state['id']])}"
+            for state in progress['states'] if state['id'] in by_state
+        )
+        issues = ', '.join(f'#{n}' for n in machine['issues']) or '—'
+        lines.append(f"| {cell(machine['label'])} | {states} | {issues} |")
+    lines.append('')
+    for machine in progress['machines']:
+        lines.append(
+            f"- **{machine['label']}.** Proven on Kit D25: {cell(machine['proven'])} "
+            f"Missing for tier 1: {cell(machine['missing'])}"
+        )
+    return lines
+
+
+def validate_de25_progress(root: Path, data: dict, by_id: dict) -> list[str]:
+    """Every DE25 tier 1 cell is recorded once, and its state matches the producers.
+
+    A cell with no DE25 producer must say none. builds needs a DE25 producer.
+    sealed and later need a registered DE25 recipe. kit-accepted and released
+    name evidence files that exist, since they claim conformance and the corpus.
+    """
+    progress = data.get('de25_tier1')
+    if not progress:
+        return ['support-matrix.json has no de25_tier1 block']
+    errors = []
+    states = [state.get('id') for state in progress.get('states') or []]
+    if states != list(DE25_STATES):
+        errors.append(f'de25_tier1 states must be {", ".join(DE25_STATES)} in that order')
+    if not progress.get('note'):
+        errors.append('de25_tier1 has no note')
+    try:
+        built = de25_core_ids(root)
+        registered = de25_registered_ids(root)
+    except (OSError, KeyError, ValueError, SyntaxError) as error:
+        return errors + [f'DE25 producers are unreadable: {error}']
+    tier1 = {row['id'] for row in data['cores'] if row.get('quality_tier') == '1'}
+    seen: set[str] = set()
+    for machine in progress.get('machines') or []:
+        label = machine.get('label') or '<unlabelled>'
+        for key in ('proven', 'missing'):
+            if not machine.get(key):
+                errors.append(f'de25_tier1 {label} has no {key} text')
+        if not isinstance(machine.get('issues'), list) or not all(
+            isinstance(n, int) for n in machine.get('issues') or []
+        ):
+            errors.append(f'de25_tier1 {label} issues must be a list of issue numbers')
+        for core_id, state in (machine.get('cells') or {}).items():
+            if core_id in seen:
+                errors.append(f'de25_tier1 records {core_id} twice')
+            seen.add(core_id)
+            if core_id not in by_id:
+                errors.append(f'de25_tier1 {core_id} has no matrix row')
+            if state not in DE25_STATES:
+                errors.append(f'de25_tier1 {core_id} state {state!r} is not a DE25 state')
+                continue
+            rank = DE25_STATES.index(state)
+            if core_id not in built and state != 'none':
+                errors.append(f'de25_tier1 {core_id} says {state} but no DE25 producer builds it')
+            if core_id in built and state == 'none':
+                errors.append(f'de25_tier1 {core_id} says none but a DE25 producer builds it')
+            if rank >= DE25_STATES.index('sealed') and core_id not in registered:
+                errors.append(f'de25_tier1 {core_id} says {state} without a registered DE25 recipe')
+            if rank >= DE25_STATES.index('kit-accepted'):
+                evidence = machine.get('evidence') or []
+                if not evidence:
+                    errors.append(f'de25_tier1 {core_id} says {state} without evidence')
+                for path in evidence:
+                    if not (root / path).exists():
+                        errors.append(f'de25_tier1 {label} evidence is missing: {path}')
+    for core_id in sorted(tier1 - seen):
+        errors.append(f'de25_tier1 has no cell for tier 1 core {core_id}')
+    for core_id in sorted(seen - tier1):
+        errors.append(f'de25_tier1 records {core_id}, which is not tier 1')
+    return errors
 
 
 def render_check_policy(data: dict) -> list[str]:
@@ -995,6 +1101,7 @@ def validate(root: Path, data: dict) -> list[str]:
         if phrase not in policy:
             errors.append(f'policy section is missing {phrase!r}')
     errors += validate_check_policy(root, data, by_id, rendered)
+    errors += validate_de25_progress(root, data, by_id)
     coleco = by_id.get('fes.coleco') or {}
     coleco_notes = coleco.get('notes') or ''
     for phrase in (POLICY_CITE, 'empty-library status', 'low priority', 'Adam'):

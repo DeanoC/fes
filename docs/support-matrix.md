@@ -74,6 +74,36 @@ The release classifications below remain v1, v2 and held back. Tenfoot Home, fir
 - **v2:** `fes.pcxt-dos`, `fes.pc386`
 - **Held back:** `fes.pong`, `fes.ramtest`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, C64 NTSC, C64 early NTSC, C64 PAL-N, C64C PAL, C64C NTSC, Atari STE, `fes.riscv`
 
+## DE25 tier 1 progress
+
+Forward-plan phase 4: DE25-Nano stays board tier 2 until its shell hosts every tier 1 machine and its image passes update and recovery on hardware. Each tier 1 core ID has its own DE25 state, separate from its DE10 tier. Tracker: [#2329](https://github.com/DeanoC/fes/issues/2329).
+
+Here sealed means a registered Quartus Pro 26.3 recipe whose package has run the lifecycle smoke on Kit D25. That smoke is not conformance or a game corpus, so no DE25 cell is kit-accepted yet. Update and recovery on DE25 hardware is still open.
+
+| DE25 state | Meaning |
+| --- | --- |
+| none | No DE25 producer builds it. |
+| builds | A DE25 development producer builds it. No registered recipe. |
+| sealed | Registered Quartus Pro 26.3 recipe; its sealed package has run the lifecycle smoke on Kit D25. |
+| kit-accepted | Conformance and the DE10 game corpus pass on Kit D25, with persistence as declared. |
+| released | In a DE25 release cut from the same tag as DE10. |
+
+| Machine | DE25 state | Issues |
+| --- | --- | --- |
+| ZX81 family | none: `fes.zx80`, `fes.ts1000`, `fes.ts1500`; sealed: `fes.zx81` | #2262, #1568, #1875 |
+| Spectrum family | sealed: `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon` | #2042, #2262 |
+| Atari ST | sealed: `fes.atari-st` | #2042 |
+| C64 | sealed: `fes.c64` | #2262 |
+| PC/XT | sealed: `fes.pcxt-dos` | #2182 |
+| pc386 | builds: `fes.pc386` | #2029, #2245 |
+
+- **ZX81 family.** Proven on Kit D25: MENU and ZX81 baseline promotion; launch, F12 to the media selector, Stop and verified restore (`docs/validation/2026-11-16-de25-kit-parity/`). Missing for tier 1: ZX80, TS1000 and TS1500 models in the DE25 producer and `kDe25StandardCores`; typed keyboard input; conformance; a ZX81 game corpus, which DE10 does not have either. Zon X and 16K carts wait on expansions.
+- **Spectrum family.** Proven on Kit D25: 48K and 128K exact-head HILQ smoke 9/9 with the screens checked (#2042); +2A/+3 `.dsk` and Pentagon `.trd` boots with restore verified (#2046). Missing for tier 1: keyboard input on the +3 and Pentagon; the Pentagon ROM in the HILQ firmware table; tape and snapshot media on the board; the audio-clock review; conformance; the Fuse corpus.
+- **Atari ST.** Proven on Kit D25: smoke 10/10; TOS 1.04 UK and EmuTOS reach the GEM desktop (#1937, #2042). Missing for tier 1: the Hatari corpus (Xenon, Gomoku with the mouse, The Lurking Horror disk save, Terramex disk swap); a cycle comparison with DE10; a long board SDRAM run; the audio-clock review; conformance.
+- **C64.** Proven on Kit D25: HDMI frame and D64 mount (#2234). Missing for tier 1: typed keyboard input; conformance; the corpus from `docs/validation/2026-11-07-c64-game-acceptance/`; the audio-clock review.
+- **PC/XT.** Proven on Kit D25: smoke 9/9 with restore verified; FreeDOS reached `A:\>` only on the superseded +4.0 ns package (#2069). Missing for tier 1: a reproducible Quartus compile; a reseal after the SDRAM DQ capture/hold fix; FreeDOS on the new package; SDRAM at 100 MHz under load; the qualification set; conformance.
+- **pc386.** Proven on Kit D25: nothing accepted. Open PR #2246 shows POST progress and window release on J8G; no DOS run. Missing for tier 1: the warm-reset SMMU fix (#2246); a registered DE25 recipe with the Quartus Pro front end; DOS boot on Kit D25; the pc386 acceptance set; the `fes.persistence.words` save round-trip.
+
 ## Quality tier and checks
 
 In force. Deano accepted it on 2026-11-15, and the rule itself is the hard rule beside D12 in [AGENTS.md](../AGENTS.md): a core at `check_level: reduced` owes a closure sweep only D12's netlist comparison, which is still measured and recorded, and not the RBF reproduction, the timing and seal gate or the HIL. This page is where the levels are listed; AGENTS.md is where the obligation is written. Neither lowers a gate on work being done to a core.

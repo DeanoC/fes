@@ -730,6 +730,47 @@ class SupportMatrixTests(unittest.TestCase):
             ['fes.spectrum', 'fes.spectrum128', 'fes.spectrum-plus3', 'fes.pentagon']))
         self.assertEqual('tape, keys, HDMI', SUPPORT_MATRIX.feature_union(['fes.zx81', 'fes.zx80']))
 
+    def test_de25_progress_covers_every_tier1_core_once(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        self.assertEqual([], SUPPORT_MATRIX.validate_de25_progress(ROOT, data, by_id))
+        machines = data['de25_tier1']['machines']
+        spectrum = next(m for m in machines if m['label'] == 'Spectrum family')
+        del spectrum['cells']['fes.pentagon']
+        machines[0]['cells']['fes.c64'] = 'sealed'
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertIn('de25_tier1 has no cell for tier 1 core fes.pentagon', errors)
+        self.assertIn('de25_tier1 records fes.c64 twice', errors)
+
+    def test_de25_progress_state_must_match_producers_and_recipes(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        cells = {cid: m['cells'] for m in data['de25_tier1']['machines'] for cid in m['cells']}
+        cells['fes.zx80']['fes.zx80'] = 'builds'
+        cells['fes.pc386']['fes.pc386'] = 'sealed'
+        cells['fes.c64']['fes.c64'] = 'none'
+        cells['fes.atari-st']['fes.atari-st'] = 'kit-accepted'
+        cells['fes.pcxt-dos']['fes.pcxt-dos'] = 'shipped'
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertIn('de25_tier1 fes.zx80 says builds but no DE25 producer builds it', errors)
+        self.assertIn('de25_tier1 fes.pc386 says sealed without a registered DE25 recipe', errors)
+        self.assertIn('de25_tier1 fes.c64 says none but a DE25 producer builds it', errors)
+        self.assertIn('de25_tier1 fes.atari-st says kit-accepted without evidence', errors)
+        self.assertIn("de25_tier1 fes.pcxt-dos state 'shipped' is not a DE25 state", errors)
+
+    def test_de25_registered_ids_include_models_of_registered_producers_only(self):
+        registered = SUPPORT_MATRIX.de25_registered_ids(ROOT)
+        built = SUPPORT_MATRIX.de25_core_ids(ROOT)
+        self.assertIn('fes.pentagon', registered)
+        self.assertIn('fes.pc386', built)
+        self.assertNotIn('fes.pc386', registered)
+
+    def test_de25_progress_renders_states_per_machine(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        rendered = SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT))
+        self.assertIn('## DE25 tier 1 progress', rendered)
+        self.assertIn('| pc386 | builds: `fes.pc386` |', rendered)
+        self.assertIn('none: `fes.zx80`, `fes.ts1000`, `fes.ts1500`; sealed: `fes.zx81`', rendered)
+
 
 if __name__ == '__main__':
     unittest.main()
