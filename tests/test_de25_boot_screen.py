@@ -155,10 +155,25 @@ class BootScreenTests(unittest.TestCase):
             return (0, 0, 0) if 60 <= y <= 64 and 130 <= x <= 220 and x % 3 else p
         self.assertFalse(boot.zx81_k_cursor(edit(frame("zx81-k-cursor"), text))[0])
 
+    def test_zx81_refuses_a_two_by_two_black_speck_on_white(self):
+        raw = bytearray(bytes((255, 255, 255)) * (WIDTH * HEIGHT))
+        for y in range(HEIGHT - 16, HEIGHT - 14):
+            for x in range(20, 22):
+                i = (y * WIDTH + x) * 3
+                raw[i:i + 3] = b"\0\0\0"
+        self.assertFalse(boot.zx81_k_cursor(bytes(raw))[0])
+
     def test_spectrum_48k_refuses_ink_above_the_copyright_line(self):
         def text(x, y, p):
             return (0, 0, 0) if 40 <= y <= 44 and 100 <= x <= 300 and x % 3 else p
         self.assertFalse(boot.spectrum_48k(edit(frame("spectrum-48k"), text))[0])
+
+    def test_spectrum_48k_refuses_two_isolated_bottom_specks(self):
+        raw = bytearray(bytes((210, 210, 210)) * (WIDTH * HEIGHT))
+        for x in (20, WIDTH - 21):
+            i = ((HEIGHT - 20) * WIDTH + x) * 3
+            raw[i:i + 3] = b"\0\0\0"
+        self.assertFalse(boot.spectrum_48k(bytes(raw))[0])
 
     def test_spectrum_128k_menu_needs_its_rainbow_stripes(self):
         def plain(x, y, p):

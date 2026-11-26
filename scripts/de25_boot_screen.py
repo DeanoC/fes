@@ -182,7 +182,8 @@ def _ink_band(cells, box, threshold=120):
     ys = [y for _, y in ink]
     xs = [x for x, _ in ink]
     height, width = bottom - top + 1, right - left + 1
-    return {"count": len(ink), "top": (min(ys) - top) / height, "bottom": (max(ys) - top) / height,
+    return {"count": len(ink), "width": max(xs) - min(xs) + 1, "height": max(ys) - min(ys) + 1,
+            "top": (min(ys) - top) / height, "bottom": (max(ys) - top) / height,
             "left": (min(xs) - left) / width, "right": (max(xs) - left) / width}
 
 
@@ -195,6 +196,8 @@ def zx81_k_cursor(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> tuple
     ink = _ink_band(cells, box)
     if ink is None or ink["count"] < 4:
         return False, "no cursor"
+    if ink["width"] < 2 or ink["height"] < max(3, ((box[1] - box[0] + 1) + 99) // 100):
+        return False, "ink is smaller than one cursor cell"
     if ink["right"] - ink["left"] > 0.05 or ink["bottom"] - ink["top"] > 0.06:
         return False, "ink is more than one cursor cell"
     if ink["top"] < 0.7 or ink["right"] > 0.25:
@@ -212,7 +215,15 @@ def _copyright_line(cells, box) -> tuple[bool, str]:
     if (rows[-1] - rows[0] + 1) / height > 0.06:
         return False, "bottom ink is taller than one line"
     xs = [x for x, y, p in cells if luma(p) < 120 and rows[0] <= y <= rows[-1]]
-    span = (max(xs) - min(xs)) / (right - left + 1)
+    picture_width = right - left + 1
+    line_width = max(xs) - min(xs) + 1
+    line_height = rows[-1] - rows[0] + 1
+    if len(xs) < max(12, (picture_width + 24) // 25):
+        return False, f"bottom line has too little ink ({len(xs)} pixels)"
+    density = len(xs) / (line_width * line_height)
+    if density < 0.04:
+        return False, f"bottom line is too sparse ({density:.3f} ink density)"
+    span = (max(xs) - min(xs)) / picture_width
     if span < 0.4:
         return False, f"bottom line spans {span:.2f} of the picture"
     return True, f"copyright line spans {span:.2f}"
