@@ -559,6 +559,34 @@ func TestInstallDoesNotHoldSharedLockDuringUpload(t *testing.T) {
 	}
 }
 
+func TestConcurrentInstallAdmissionIsBoundedAndCancellable(t *testing.T) {
+	first := newStore(t)
+	second := newStore(t)
+	archive, _ := fixture(t, "1.0.0", "fes.pong")
+	upload := &blockedUpload{reader: bytes.NewReader(archive), started: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := first.Install(context.Background(), int64(len(archive)), upload)
+		done <- err
+	}()
+	<-upload.started
+	reader := bytes.NewReader(archive)
+	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Millisecond)
+	_, _, waitErr := second.Install(ctx, int64(len(archive)), reader)
+	cancel()
+	close(upload.release)
+	firstErr := <-done
+	if !errors.Is(waitErr, context.DeadlineExceeded) || reader.Len() != len(archive) {
+		t.Fatalf("waiting import = %v, bytes read = %d", waitErr, len(archive)-reader.Len())
+	}
+	if firstErr != nil {
+		t.Fatal(firstErr)
+	}
+	if _, _, err := second.Install(context.Background(), int64(len(archive)), bytes.NewReader(archive)); err != nil {
+		t.Fatalf("import after admission released = %v", err)
+	}
+}
+
 func TestInstallRejectsInvalidArchiveBeforeWaitingForLock(t *testing.T) {
 	store := newStore(t)
 	_, unlock, err := store.lock(context.Background())
