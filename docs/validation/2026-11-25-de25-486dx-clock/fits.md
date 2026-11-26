@@ -702,6 +702,9 @@ input pins before fitting. The `c26-first/parent-s1-audit.txt` SHA-256 is
 | Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Seed summary SHA-256 |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | 1 | 45,071.0 | +0.005 ns | 0.000 ns | +5.537 ns | +0.096 ns | 3.018 ns | `512fe86159457a3bbea009a19f4be789cc34a6b21392b25058d524af3f97bb3c` |
+| 2 | 44,958.8 | +0.008 ns | +0.001 ns | +5.400 ns | +0.018 ns | 3.274 ns | `bdf66f2a19f202ca0d9a6c652873f2a4fea6b8f13e71b4d41731fb46d17ea0ca` |
+| 3 | 44,851.8 | +0.011 ns | 0.000 ns | +5.281 ns | +0.067 ns | 2.800 ns | `5234fd0d9ba4a03c4628f3024da969b5a0e9a504e9d083989799b801ea5f63fd` |
+| 4 | 45,025.1 | +0.019 ns | 0.000 ns | +5.468 ns | +0.064 ns | 2.833 ns | `f70cc9dd35fe857adb06cb2cf63b36bc06d78a9aacd5e2f735a62017b39fc1c5` |
 
 Seed 1 met the numerical and LOADED budgets. Its worst setup slack is
 on the held machine-to-pixel display command path from `payload[21]`
@@ -714,8 +717,37 @@ The fit reports zero `CDC-50003` violations.
 The registered producer refused seed 1 on unreviewed `TMC-20602` rows
 for `cpu_l1d_stall~RTM_3SCLR_dff`, `cpu_m2_load~RTM_3` and
 `cpu_halted~DUPLICATE_Duplicate_1`. Each exact register passed the
-fallback's 28 numerical checks. Full structural and unconstrained-path
-checks on the retained fit are pending.
+fallback's 28 numerical checks. The private Pro 26.3 replay passed all
+84 numerical and 24 structural checks. Each of the three subjects had
+only machine-clock data keepers, and the detailed unconstrained-path
+report contained none of them. Worst setup and hold were +0.829 and
++0.123 ns. The original fitted database remained byte-identical. The
+retained `c26-retimed-proof/s1/receipt.json` SHA-256 is
+`9d37fb736014c727e17b57cd05cad77cb48a07253cf1a3cf98074d3a10ac06bf`.
+
+Seed 2 passed the normal producer, seal and LOADED check. Its worst
+machine-to-pixel setup path is the held display command `payload[7]`
+to `pixel_argument[7]`. Its worst machine capture is the held count
+transfer from `pixel_counts_copy[57]` to `pixel_counts_snapshot[57]`
+at +0.013 ns. The worst intra-machine path is the x87 fast request to
+fast result at +0.190 ns. Seed 2 reported zero `CDC-50003` findings and
+no uncovered TMC rows. Seed 3 also passed the ordinary producer, seal and
+LOADED check. Its +0.011 ns worst path is another held counter snapshot
+transfer, from `pixel_counts_copy[48]` to `pixel_counts_snapshot[48]`.
+Seed 4 passed the same gates and its +0.019 ns worst path is counter bit 58.
+All four seeds met the numerical and independent LOADED budgets. The
+retained `c26-first/summary.json` SHA-256 is
+`be414a1e3ad8120ac8096e0ccf05eba0bbebd1fae3b6a80b6cd95e524faa6a45`.
+
+### C0 = 26 rerun with the control-register proof
+
+Revision `c18e38c886284fecabe903866fe77f9e040d1ca7` sends the three measured
+names through the existing DX-only live proof. It passed 86 focused tests
+and `make check`. The exact same-path DE10 netlist and all four identities
+match the frozen base. The DE10 receipt SHA-256 is
+`0e6df424b05ee734671fd0a0a458cb746e9abca5e8e3a744bd92c27190f2f82d`.
+The seven D12 selections match the frozen base and measured B. Four fresh
+fits started at this revision.
 
 ## Running a seed on either builder
 
