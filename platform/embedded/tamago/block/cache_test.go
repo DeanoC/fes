@@ -496,6 +496,14 @@ func TestCacheExtendedStatsContainsAndPrefetch(t *testing.T) {
 	if dev2.reads != 2 || c2.Stats().ReadOps != 2 || c2.Stats().Entries != 20 {
 		t.Fatalf("chunked Prefetch reads=%d stats=%+v", dev2.reads, c2.Stats())
 	}
+	// Repeated Prefetch must allocate zero bytes using the preallocated scratch buffer.
+	if allocs := testing.AllocsPerRun(10, func() {
+		if err := c2.Prefetch(30, 8); err != nil {
+			t.Fatal(err)
+		}
+	}); allocs != 0 {
+		t.Fatalf("Prefetch allocs=%v, want 0", allocs)
+	}
 	// Faulty Prefetch increments ReadErrors without caching failed sectors.
 	dev2.readErr = errors.New("media fault")
 	if err := c2.Prefetch(0, 2); err == nil {

@@ -72,6 +72,7 @@ type Cache struct {
 	seqMisses    uint64
 	lastWriteEnd uint64
 	seqWrites    uint64
+	prefetchBuf  [maxPrefetchChunk * SectorSize]byte
 	stats        CacheStats
 }
 
@@ -273,7 +274,6 @@ func (c *Cache) Prefetch(lba, count uint64) error {
 		return fmt.Errorf("block: prefetch count %d exceeds cache capacity %d", count, c.capacity)
 	}
 
-	var buf []byte
 	for i := uint64(0); i < count; {
 		if slot, ok := c.index[lba+i]; ok {
 			c.moveToFront(slot)
@@ -287,12 +287,8 @@ func (c *Cache) Prefetch(lba, count uint64) error {
 			}
 			end++
 		}
-		if buf == nil {
-			chunkCap := min(count, uint64(maxPrefetchChunk))
-			buf = make([]byte, chunkCap*SectorSize)
-		}
 		runLen := end - i
-		chunk := buf[:runLen*SectorSize]
+		chunk := c.prefetchBuf[:runLen*SectorSize]
 		c.stats.ReadOps++
 		if err := c.dev.ReadSectors(lba+i, chunk); err != nil {
 			c.stats.ReadErrors++
