@@ -56,7 +56,6 @@ class De25Pc386WindowBenchTests(unittest.TestCase):
         self.assertIn('assign p0_reset = p0_guard_reset || hps_reset_hold;', wrapper)
         self.assertIn('.hold(window_hold)', wrapper)
         self.assertIn('.machine_held(window_hold)', wrapper)
-        self.assertIn('.exec_reset(exec_reset || hps_reset_hold)', wrapper)
 
     def test_fault_record_keeps_the_first_fault(self):
         self.run_bench('fes_de25_hps_window', 'fes_de25_hps_window.v', 'window_fault_tb.cpp',

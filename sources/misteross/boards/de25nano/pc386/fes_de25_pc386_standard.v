@@ -218,8 +218,7 @@ module fes_de25_pc386_standard #(
     fes_de25_session_display #(.BUILD_ID(BUILD_ID),
         .PICTURE_LEFT(16'd160), .PICTURE_TOP(16'd0),
         .PICTURE_WIDTH(16'd960), .PICTURE_HEIGHT(16'd720)) display (
-        .clk_sys(machine_clk), .pixel_clk(pixel_clk), .reset_n(pixel_reset_n),
-        .exec_reset(exec_reset || hps_reset_hold),
+        .clk_sys(machine_clk), .pixel_clk(pixel_clk), .reset_n(pixel_reset_n), .exec_reset(exec_reset),
         .clock_fault(display_clock_fault), .display_ready(video_ready), .stream_ready(stream_ready),
         .machine(machine_video), .request(display_request), .opcode(display_opcode),
         .index(display_index), .argument(display_argument), .response_valid(response_valid),
