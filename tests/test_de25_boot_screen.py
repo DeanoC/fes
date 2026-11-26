@@ -107,6 +107,59 @@ class GemDesktopTests(unittest.TestCase):
         self.assertEqual(luma((0, 0, 0)), 0)
 
 
+FRAMES = {
+    "fes.zx81": "zx81-k-cursor",
+    "fes.spectrum": "spectrum-48k",
+    "fes.spectrum128": "spectrum-128k-menu",
+    "fes.c64": "c64-basic-ready",
+    "fes.pcxt-dos": "pcxt-glabios-post",
+    "fes.atari-st": "atari-st-emutos-desktop",
+}
+
+
+class BootScreenTests(unittest.TestCase):
+    """The J8G boot frame of each core, against every core's check."""
+
+    def test_each_check_accepts_its_own_core_and_refuses_every_other_screen(self):
+        self.assertEqual(set(FRAMES), set(boot.CHECKS))
+        for core, check in boot.CHECKS.items():
+            for other, name in [*FRAMES.items(), ("home", "home")]:
+                with self.subTest(core=core, frame=name):
+                    ok, detail = check(frame(name))
+                    self.assertEqual(ok, other == core, detail)
+
+    def test_a_black_frame_is_refused_by_every_check(self):
+        for core, check in boot.CHECKS.items():
+            with self.subTest(core):
+                self.assertFalse(check(bytes(WIDTH * HEIGHT * 3))[0])
+
+    def test_zx81_refuses_a_listing_on_the_screen(self):
+        def text(x, y, p):
+            return (0, 0, 0) if 60 <= y <= 64 and 130 <= x <= 220 and x % 3 else p
+        self.assertFalse(boot.zx81_k_cursor(edit(frame("zx81-k-cursor"), text))[0])
+
+    def test_spectrum_48k_refuses_ink_above_the_copyright_line(self):
+        def text(x, y, p):
+            return (0, 0, 0) if 40 <= y <= 44 and 100 <= x <= 300 and x % 3 else p
+        self.assertFalse(boot.spectrum_48k(edit(frame("spectrum-48k"), text))[0])
+
+    def test_spectrum_128k_menu_needs_its_rainbow_stripes(self):
+        def plain(x, y, p):
+            return (0, 0, 0) if 88 <= y <= 98 and max(p) - min(p) > 100 and p[0] > 150 else p
+        self.assertFalse(boot.spectrum_128k_menu(edit(frame("spectrum-128k-menu"), plain))[0])
+
+    def test_c64_refuses_text_lower_down_the_field(self):
+        def text(x, y, p):
+            return (112, 112, 255) if 180 <= y <= 184 and 120 <= x <= 300 and x % 3 else p
+        self.assertFalse(boot.c64_basic_ready(edit(frame("c64-basic-ready"), text))[0])
+
+    def test_pcxt_refuses_post_text_in_one_colour(self):
+        def grey(x, y, p):
+            level = luma(p)
+            return (level, level, level)
+        self.assertFalse(boot.pcxt_glabios_post(edit(frame("pcxt-glabios-post"), grey))[0])
+
+
 class CommandLineTests(unittest.TestCase):
     def run_main(self, *args):
         out = StringIO()
@@ -115,7 +168,7 @@ class CommandLineTests(unittest.TestCase):
         return code, json.loads(out.getvalue())
 
     def test_a_core_without_a_check_says_so(self):
-        code, result = self.run_main("--core", "fes.spectrum", "unused.png")
+        code, result = self.run_main("--core", "fes.pentagon", "unused.png")
         self.assertEqual((code, result["checked"]), (3, False))
 
     def test_an_unreadable_frame_is_an_error_not_a_pass(self):
