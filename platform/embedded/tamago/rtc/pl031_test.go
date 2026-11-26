@@ -520,3 +520,91 @@ func TestPL031AlarmIRQDispatchAndDisable(t *testing.T) {
 		t.Fatal("DisableIRQ returned before alarm callback finished")
 	}
 }
+
+func TestPL031AlarmTimeAndClockStatus(t *testing.T) {
+	var nilRTC *PL031
+	if _, ok := nilRTC.AlarmTime(); ok {
+		t.Fatal("nil PL031 AlarmTime reported active")
+	}
+	var nilClk *Clock
+	if st := nilClk.Status(); st != (ClockStatus{}) {
+		t.Fatalf("nil Clock Status=%+v", st)
+	}
+
+	hw := newFakePL031(1_764_000_000)
+	dev, err := OpenPL031(hw)
+	if err != nil {
+		t.Fatalf("OpenPL031: %v", err)
+	}
+	if _, ok := dev.AlarmTime(); ok {
+		t.Fatal("fresh PL031 reported armed alarm")
+	}
+	target := time.Date(2026, time.November, 26, 12, 0, 0, 500_000_000, time.UTC)
+	if err := dev.SetAlarm(target); err != nil {
+		t.Fatalf("SetAlarm: %v", err)
+	}
+	gotAlarm, ok := dev.AlarmTime()
+	if !ok || !gotAlarm.Equal(time.Date(2026, time.November, 26, 12, 0, 0, 0, time.UTC)) {
+		t.Fatalf("AlarmTime=(%v, %t)", gotAlarm, ok)
+	}
+	dev.ClearAlarm()
+	if _, ok := dev.AlarmTime(); ok {
+		t.Fatal("ClearAlarm left AlarmTime active")
+	}
+
+	var mono atomic.Int64
+	mono.Store(100_000_000_000)
+	clk := NewUnsyncedClock(mono.Load)
+	if st := clk.Status(); st != (ClockStatus{}) {
+		t.Fatalf("unsynced Clock Status=%+v", st)
+	}
+
+	t0 := time.Date(2026, time.November, 26, 10, 0, 0, 0, time.UTC)
+	clk.Sync(t0)
+	mono.Add(int64(2 * time.Second))
+	st := clk.Status()
+	if !st.Synced || st.SyncCount != 1 || !st.LastSyncWall.Equal(t0) || st.LastSyncAge != 2*time.Second || st.LastStep != 0 {
+		t.Fatalf("Status after first Sync=%+v", st)
+	}
+
+	// Backward monotonic jitter clamps LastSyncAge to 0.
+	mono.Store(50_000_000_000)
+	if st := clk.Status(); st.LastSyncAge != 0 {
+		t.Fatalf("clamped LastSyncAge=%v want 0", st.LastSyncAge)
+	}
+
+	// Forward step (+150ms vs expected clock) records positive LastStep.
+	mono.Store(105_000_000_000)
+	t1 := t0.Add(5*time.Second + 150*time.Millisecond)
+	clk.Sync(t1)
+	st = clk.Status()
+	if !st.Synced || st.SyncCount != 2 || !st.LastSyncWall.Equal(t1) || st.LastSyncAge != 0 || st.LastStep != 150*time.Millisecond {
+		t.Fatalf("Status after forward Sync=%+v", st)
+	}
+
+	// Backward step (-40ms vs expected clock) records negative LastStep.
+	mono.Add(int64(time.Second))
+	t2 := t1.Add(time.Second - 40*time.Millisecond)
+	clk.Sync(t2)
+	st = clk.Status()
+	if !st.Synced || st.SyncCount != 3 || st.LastStep != -40*time.Millisecond {
+		t.Fatalf("Status after backward Sync=%+v", st)
+	}
+
+	// Concurrent Sync and Status under -race.
+	var wg sync.WaitGroup
+	for g := 0; g < 4; g++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for i := 0; i < 100; i++ {
+				if id == 0 {
+					clk.Sync(t2.Add(time.Duration(i) * time.Millisecond))
+				}
+				mono.Add(1_000_000)
+				_ = clk.Status()
+			}
+		}(g)
+	}
+	wg.Wait()
+}
