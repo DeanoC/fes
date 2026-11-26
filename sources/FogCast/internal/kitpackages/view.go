@@ -93,7 +93,11 @@ func (v *View) Import(ctx context.Context, length int64, reader io.Reader) (core
 	if err != nil {
 		return corepackage.Inspection{}, false, err
 	}
-	return store.Install(ctx, length, reader)
+	inspection, created, err := store.Install(ctx, length, reader)
+	if err != nil && !errors.Is(err, ErrInvalidPackage) && !errors.Is(err, ErrInvalidPackageID) {
+		err = errors.Join(ErrStoreUnavailable, err)
+	}
+	return inspection, created, err
 }
 
 func (v *View) List(ctx context.Context) ([]corepackage.Inspection, error) {
@@ -105,7 +109,7 @@ func (v *View) List(ctx context.Context) ([]corepackage.Inspection, error) {
 	defer cancel()
 	durable, err := store.List(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(ErrStoreUnavailable, err)
 	}
 	factory, err := v.factory.List(ctx)
 	if err != nil {
@@ -137,6 +141,9 @@ func (v *View) Inspect(ctx context.Context, id string) (corepackage.Inspection, 
 	if errors.Is(err, ErrPackageNotFound) {
 		return v.factory.Inspect(ctx, id)
 	}
+	if err != nil && !errors.Is(err, ErrInvalidPackage) && !errors.Is(err, ErrInvalidPackageID) {
+		err = errors.Join(ErrStoreUnavailable, err)
+	}
 	return inspection, err
 }
 
@@ -150,6 +157,9 @@ func (v *View) Read(ctx context.Context, id string) (corepackage.Inspection, []b
 	inspection, data, err := store.ReadCached(ctx, id)
 	if errors.Is(err, ErrPackageNotFound) {
 		return v.factory.Read(ctx, id)
+	}
+	if err != nil && !errors.Is(err, ErrInvalidPackage) && !errors.Is(err, ErrInvalidPackageID) {
+		err = errors.Join(ErrStoreUnavailable, err)
 	}
 	return inspection, data, err
 }
