@@ -986,6 +986,11 @@ hold was 0.000 ns. It used 44,791.3 ALMs and 42 DSPs, measured 2.532 ns
 independent LOADED, and failed no unreviewed CDC rule. The seed summary
 SHA-256 is
 `2cf4222693e1c742a0c2e897e3431047236bd9c40e9ffec69cfc0e697f0d4545`.
+Seed 3 measured −0.158 ns on `payload[20] → pixel_index[4]` with
+−0.819 ns total negative data slack, ordinary setup +0.022 ns, hold
+0.000 ns and independent LOADED 2.870 ns. It used 45,181.0 ALMs and
+42 DSPs. The seed summary SHA-256 is
+`c331645a94d88b3db99b199e1429f3d91d43bc80e436401d1d4610584c01f1b5`.
 
 Revision `3fa87187a579d401dfbc0f739e29b665b45c480a` increases router
 timing optimization to Maximum for the 486DX with C0 = 26 or 24.
@@ -1034,6 +1039,23 @@ all seven D12 input selections passed. The preflight receipt SHA-256 is
 The same-path DE10 rebuild again matched the machine netlist and all
 four identities against `2f19382b`. Its receipt SHA-256 is
 `955dffb1105b3c83b2f221e8e1c7843fefea3b2fbbe0b3c12cf67cddbcde4613`.
+
+The generated QSF gained exactly the optimization assignment, with receipt
+SHA-256 `c19259a0eda7fbc85d0dc5ab297d223b44fda3a1912f8abcfeb6e8266b72e63c`.
+The fitted seed 2 used High Performance Effort and Maximum router effort.
+Setup was +0.089 ns, hold 0.000 ns, removal +0.095 ns, and independent
+LOADED 2.426 ns. The fit used 45,158.3 ALMs and 42 DSPs. Nine command
+paths still missed the data bound at slow fix4 0 °C, with −0.096 ns
+worst slack on `payload[25] → pixel_opcode[1]` and −0.477 ns total
+negative slack. The previous Maximum fit closed eight of those bits.
+The Normal seed 2 fit closed the other, bit 23. The seed summary SHA-256
+is `14a4ced662b912b050f66856f5695472810789c76fe6a19661f198c64132ccb8`.
+
+The producer also stopped on four unrecognized `cpu_m2_load~LRTM`
+register names. The read-only numerical follow-up on the copied fit
+passed 112 checks with +0.607 ns worst setup and +0.163 ns worst hold.
+The numerical receipt SHA-256 is
+`92499577348bedd9c4a292ca77785e8885f6f5f8a607a6f01bca309fc2d29e08`.
 
 ## Running a seed on either builder
 
