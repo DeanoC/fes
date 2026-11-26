@@ -2326,11 +2326,11 @@
       },
       {
         "id": "kit-accepted",
-        "meaning": "Conformance and the DE10 game corpus pass on Kit D25 for that exact package, per a per-core JSON acceptance receipt, with persistence as declared."
+        "meaning": "Conformance, the DE10 corpus and any declared save round-trip pass on Kit D25 for that package, per a per-core JSON receipt."
       },
       {
         "id": "released",
-        "meaning": "In a DE25 release cut from the same tag as DE10."
+        "meaning": "In a DE25 release cut from the same tag as DE10, per a per-core JSON release receipt for that package."
       }
     ],
     "machines": [

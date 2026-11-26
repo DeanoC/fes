@@ -824,6 +824,44 @@ class SupportMatrixTests(unittest.TestCase):
             (root / 'accept.json').write_text(json.dumps(accepted))
             self.assertEqual([], check(root, 'fes.pentagon', 'kit-accepted', package, acceptance=True))
 
+    def test_de25_acceptance_needs_persistence_for_cores_that_save(self):
+        check = SUPPORT_MATRIX.de25_package_errors
+        sha = 'ab' * 32
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for core_id, persistent in (('fes.atari-st', True), ('fes.c64', False)):
+                with self.subTest(core_id=core_id):
+                    smoke = {'kit_serial': 'TRWU8J8G', 'core_id': core_id, 'package_sha256': sha, 'verdict': 'PASS'}
+                    (root / 'smoke.json').write_text(json.dumps(smoke))
+                    (root / 'accept.json').write_text(json.dumps({**smoke, 'conformance': 'PASS', 'corpus': 'PASS'}))
+                    package = {'sha256': sha, 'evidence': 'smoke.json', 'acceptance': 'accept.json'}
+                    errors = check(root, core_id, 'kit-accepted', package, acceptance=True)
+                    if persistent:
+                        self.assertEqual(1, len(errors), errors)
+                        self.assertIn('has persistence None', errors[0])
+                    else:
+                        self.assertEqual([], errors)
+
+    def test_de25_released_needs_a_release_receipt_on_the_de10_tag(self):
+        check = SUPPORT_MATRIX.de25_package_errors
+        sha = 'ab' * 32
+        smoke = {'kit_serial': 'TRWU8J8G', 'core_id': 'fes.c64', 'package_sha256': sha, 'verdict': 'PASS'}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'smoke.json').write_text(json.dumps(smoke))
+            (root / 'accept.json').write_text(json.dumps({**smoke, 'conformance': 'PASS', 'corpus': 'PASS'}))
+            package = {'sha256': sha, 'evidence': 'smoke.json', 'acceptance': 'accept.json'}
+            run = lambda: check(root, 'fes.c64', 'released', package, acceptance=True, release=True)
+            self.assertIn('release receipt is missing or not JSON', run()[0])
+            package['release'] = 'release.json'
+            release = {'core_id': 'fes.c64', 'package_sha256': sha, 'board': 'de25-nano', 'tag': 'v1.1', 'de10_tag': 'v1.0'}
+            (root / 'release.json').write_text(json.dumps(release))
+            self.assertIn('does not name one tag shared with DE10', run()[0])
+            (root / 'release.json').write_text(json.dumps({**release, 'de10_tag': 'v1.1', 'package_sha256': 'cd' * 32}))
+            self.assertIn("has package_sha256 'cdcd", run()[0])
+            (root / 'release.json').write_text(json.dumps({**release, 'de10_tag': 'v1.1'}))
+            self.assertEqual([], run())
+
 
 if __name__ == '__main__':
     unittest.main()

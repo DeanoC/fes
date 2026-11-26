@@ -43,6 +43,12 @@ DE25_CELL = 'Quartus-only (policy)'
 DE25_STATES = ('none', 'builds', 'sealed', 'kit-accepted', 'released')
 # Kit D25 (de25-j8g); DE25 Linux HIL runs only on this board.
 DE25_KIT_SERIAL = 'TRWU8J8G'
+# Tier 1 cores whose baseline declares a write or save path, so their DE25
+# acceptance must show a save round-trip: ZX81-family tape-write, the ST's
+# writable floppy, PC/XT disk Save and pc386 `fes.persistence.words`. ZX80,
+# C64 and the Spectrum models declare no write interface.
+DE25_PERSISTENT = frozenset({'fes.zx81', 'fes.ts1000', 'fes.ts1500', 'fes.atari-st',
+                             'fes.pcxt-dos', 'fes.pc386'})
 # i386, pc386 and PC/XT. nextpnr on these rows is advisory.
 QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt-dos',
                                  'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500'})
@@ -692,7 +698,8 @@ def validate_de25_progress(root: Path, data: dict, by_id: dict) -> list[str]:
                     errors.append(f'de25_tier1 {core_id} says {state} without a registered DE25 recipe')
                 errors += de25_package_errors(
                     root, core_id, state, (machine.get('packages') or {}).get(core_id),
-                    acceptance=rank >= DE25_STATES.index('kit-accepted'))
+                    acceptance=rank >= DE25_STATES.index('kit-accepted'),
+                    release=rank >= DE25_STATES.index('released'))
     for core_id in sorted(tier1 - seen):
         errors.append(f'de25_tier1 has no cell for tier 1 core {core_id}')
     for core_id in sorted(seen - tier1):
@@ -700,14 +707,18 @@ def validate_de25_progress(root: Path, data: dict, by_id: dict) -> list[str]:
     return errors
 
 
-def de25_package_errors(root: Path, core_id: str, state: str, package, *, acceptance: bool = False) -> list[str]:
+def de25_package_errors(root: Path, core_id: str, state: str, package, *,
+                        acceptance: bool = False, release: bool = False) -> list[str]:
     """sealed and later name the exact package that passed on Kit D25.
 
     The package SHA-256 comes with an in-repo JSON smoke receipt (`evidence`)
     for that core, that package and Kit D25 with a PASS verdict, so neither a
     rebuilt package nor another core's receipt can stand in for it. With
     `acceptance`, an `acceptance` receipt for the same core and package must
-    also record conformance and corpus PASS.
+    also record conformance and corpus PASS, and persistence PASS for a core
+    that declares a save path. With `release`, a `release` receipt for the
+    same core and package must name the DE25 release tag and the DE10 tag it
+    was cut from, and they must be the same tag.
     """
     if not isinstance(package, dict):
         return [f'de25_tier1 {core_id} says {state} without the package that ran on Kit D25']
@@ -717,9 +728,31 @@ def de25_package_errors(root: Path, core_id: str, state: str, package, *, accept
     expected = {'kit_serial': DE25_KIT_SERIAL, 'core_id': core_id, 'package_sha256': sha, 'verdict': 'PASS'}
     errors = de25_receipt_errors(root, core_id, 'smoke', package.get('evidence'), expected)
     if acceptance:
-        errors += de25_receipt_errors(root, core_id, 'acceptance', package.get('acceptance'),
-                                      {**expected, 'conformance': 'PASS', 'corpus': 'PASS'})
+        accepted = {**expected, 'conformance': 'PASS', 'corpus': 'PASS'}
+        if core_id in DE25_PERSISTENT:
+            accepted['persistence'] = 'PASS'
+        errors += de25_receipt_errors(root, core_id, 'acceptance', package.get('acceptance'), accepted)
+    if release:
+        record = package.get('release')
+        released = {'core_id': core_id, 'package_sha256': sha, 'board': 'de25-nano'}
+        errors += de25_receipt_errors(root, core_id, 'release', record, released)
+        receipt = de25_receipt(root, record)
+        if isinstance(receipt, dict):
+            tag = receipt.get('tag')
+            if not isinstance(tag, str) or not tag or receipt.get('de10_tag') != tag:
+                errors.append(f'de25_tier1 {core_id} release receipt {record} does not name one tag shared with DE10')
     return errors
+
+
+def de25_receipt(root: Path, record):
+    """The parsed in-repo receipt, or None when it is not one."""
+    try:
+        path = (root / record).resolve()
+        if Path(record).is_absolute() or not path.is_relative_to(root.resolve()):
+            return None
+        return json.loads(path.read_text())
+    except (TypeError, OSError, ValueError):
+        return None
 
 
 def de25_receipt_errors(root: Path, core_id: str, kind: str, record, expected: dict) -> list[str]:
