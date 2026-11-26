@@ -122,3 +122,63 @@ func TestRingConcurrentSPSC(t *testing.T) {
 		t.Fatalf("after SPSC: len=%d dropped=%d want=%d", r.Len(), r.Dropped(), retries)
 	}
 }
+
+func TestRingSliceOperationsWraparoundAndAllocs(t *testing.T) {
+	var nilRing *Ring
+	if pushed, dropped := nilRing.PushSlice([]byte("abc")); pushed != 0 || dropped != 0 {
+		t.Fatalf("nil PushSlice = (%d, %d)", pushed, dropped)
+	}
+	if popped := nilRing.PopSlice(make([]byte, 4)); popped != 0 {
+		t.Fatalf("nil PopSlice = %d", popped)
+	}
+
+	var r Ring
+	// Advance head/tail near end of buffer so slices wrap around ringMask.
+	r.head.Store(240)
+	r.tail.Store(240)
+
+	src := make([]byte, 40)
+	for i := range src {
+		src[i] = byte(i + 1)
+	}
+	pushed, dropped := r.PushSlice(src)
+	if pushed != 40 || dropped != 0 || r.Len() != 40 {
+		t.Fatalf("wrapped PushSlice = (%d, %d) len=%d", pushed, dropped, r.Len())
+	}
+
+	dst := make([]byte, 40)
+	if popped := r.PopSlice(dst); popped != 40 || r.Len() != 0 {
+		t.Fatalf("wrapped PopSlice = %d len=%d", popped, r.Len())
+	}
+	for i := range src {
+		if dst[i] != src[i] {
+			t.Fatalf("dst[%d] = %d, want %d", i, dst[i], src[i])
+		}
+	}
+
+	// Overflow PushSlice fills capacity and counts exact dropped bytes.
+	big := make([]byte, ringSize+17)
+	for i := range big {
+		big[i] = byte(i)
+	}
+	pushed, dropped = r.PushSlice(big)
+	if pushed != ringSize || dropped != 17 || r.Dropped() != 17 || r.Len() != ringSize {
+		t.Fatalf("overflow PushSlice = (%d, %d) dropped=%d len=%d", pushed, dropped, r.Dropped(), r.Len())
+	}
+
+	// Verify PushSlice/PopSlice make zero heap allocations.
+	r.Reset()
+	chunk := make([]byte, 32)
+	out := make([]byte, 32)
+	if allocs := testing.AllocsPerRun(20, func() {
+		p, _ := r.PushSlice(chunk)
+		if p != 32 {
+			t.Fatalf("pushed %d", p)
+		}
+		if q := r.PopSlice(out); q != 32 {
+			t.Fatalf("popped %d", q)
+		}
+	}); allocs != 0 {
+		t.Fatalf("PushSlice/PopSlice allocated %.1f times", allocs)
+	}
+}

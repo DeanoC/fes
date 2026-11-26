@@ -1,0 +1,25 @@
+[11-23 09:47:23] ########## spectrum (full)
+[11-23 09:58:49] spectrum.base rc=0 (856ef5c64)
+[11-23 09:58:49] spectrum.base rbf 77a3a3912484f0d3f0aa653a12c1196ae3a558f891ffddd3396d1257d0a85c53
+[11-23 09:58:49] spectrum.forced rc=1 (0be20e575)
+[11-23 09:58:49] RESULT spectrum condition 2: build FAILED
+[11-23 10:29:06] spectrum.c3 rc=0 (0be20e575)
+[11-23 10:29:06] spectrum.c3 rbf 59b4c695f75ec03fbd8801bf4d8edc34e8396a7dbcd1dc1792ac2391c772a10a
+[11-23 10:29:06] RESULT spectrum condition 3: gates passed, BUILD_ID 
+[11-23 10:29:06]        package 7ab5421ea49a99d9b0555144234a71566ced092e9eae9f1519e7296d1bd2d49f.eb9e2602ec3eb47462461cd0862ec5da8825fb012ddb905dad72406cb95c4008.build-inputs.json
+[11-23 10:29:06]        package 7ab5421ea49a99d9b0555144234a71566ced092e9eae9f1519e7296d1bd2d49f.build-inputs.json
+[11-23 10:29:06]        package 7ab5421ea49a99d9b0555144234a71566ced092e9eae9f1519e7296d1bd2d49f
+[11-23 10:29:06]        package 7ab5421ea49a99d9b0555144234a71566ced092e9eae9f1519e7296d1bd2d49f.fcore
+[11-23 10:29:06] ########## spectrum-plus3 (full)
+[11-23 10:54:25] spectrum-plus3.base rc=0 (856ef5c64)
+[11-23 10:54:25] spectrum-plus3.base rbf 50876d4b5c20746a5126d1eedfd30ed26f557436d5ca323951be9462b77b66f5
+[11-23 10:54:26] spectrum-plus3.forced rc=1 (0be20e575)
+[11-23 10:54:26] RESULT spectrum-plus3 condition 2: build FAILED
+[11-23 12:11:22] spectrum-plus3.c3 rc=0 (0be20e575)
+[11-23 12:11:22] spectrum-plus3.c3 rbf b03044b051908c9f99fd3b9aecf11dba2d76435f099d61575deac49e3bd70a09
+[11-23 12:11:22] RESULT spectrum-plus3 condition 3: gates passed, BUILD_ID 
+[11-23 12:11:22]        package a1c07be2ec37fa39ced3eca75397dce5950df5d1e07a04bc262c750f16d78341.build-inputs.json
+[11-23 12:11:22]        package a1c07be2ec37fa39ced3eca75397dce5950df5d1e07a04bc262c750f16d78341.beb2bb7d0b2054f278e7788c5bb198f05ff1f8a8bbcaccef81f5fea16d61e8b4.build-inputs.json
+[11-23 12:11:22]        package a1c07be2ec37fa39ced3eca75397dce5950df5d1e07a04bc262c750f16d78341.fcore
+[11-23 12:11:22]        package a1c07be2ec37fa39ced3eca75397dce5950df5d1e07a04bc262c750f16d78341
+[11-23 12:11:22] stream done

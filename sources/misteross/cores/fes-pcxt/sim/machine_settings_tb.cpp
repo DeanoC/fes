@@ -63,8 +63,8 @@ int main(int argc, char** argv) {
     Bench b;
     require(b.dut.exec_reset == 1, "starts held");
     require(b.dut.video_card == 0 && b.dut.mono_tint == 0, "defaults to cga/white");
-    // Identity word 16: floppy (bit 20) | floppy-write (bit 21) | persistence (bit 17) | pcxt.machine (bit 22) = 0x72.
-    require(b.ok(1, 6) == 1 && b.ok(1, 7) == 0x000b && b.ok(1, 16) == 0x0072, "capability bits mismatch");
+    // Identity word 16: floppy (bit 20) | floppy-write (bit 21) | persistence (bit 17) | pcxt.machine (bit 23) = 0xb2.
+    require(b.ok(1, 6) == 1 && b.ok(1, 7) == 0x000b && b.ok(1, 16) == 0x00b2, "capability bits mismatch");
     // DataInfo: 4 words, tag 4, v1.0.
     require(b.ok(27, 0) == 4 && b.ok(27, 1) == 4 && b.ok(27, 2) == 1 && b.ok(27, 3) == 0, "data info mismatch");
     b.err(27, 4, 0, 2);

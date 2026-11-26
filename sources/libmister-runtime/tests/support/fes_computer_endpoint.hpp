@@ -111,6 +111,11 @@ public:
 		if (op == FesComputerOpcodeDiskInfo || op == FesComputerOpcodeDiskControl ||
 			op == FesComputerOpcodeDiskCommit || op == FesComputerOpcodeDiskDirty) {
 			if (!(capabilities_ & FesComputerCapabilityMediaAtaDisk)) return {opcode_error, 0};
+			// fes.media.pc-floppy's drives A: and B: on units 1 and 2.
+			const unsigned unit = op == FesComputerOpcodeDiskControl ? index : index >> 3;
+			if ((capabilities_ & FesComputerCapabilityMediaPcFloppy) && op != FesComputerOpcodeDiskDirty &&
+				(unit == FesComputerPcFloppyUnitA || unit == FesComputerPcFloppyUnitB))
+				return FloppyStep(floppies[unit - 1], op, index, arg);
 			return Disk(op, index, arg);
 		}
 		if (op == FesComputerOpcodeMouseRelative) {
@@ -368,6 +373,15 @@ public:
 	}
 
 	// A guest CMOS write while running, as the fixture's machine events.
+	// The guest writes a sector of a floppy: dirty, the epoch moves.
+	void GuestFloppyWrite(unsigned unit)
+	{
+		Floppy& f = floppies[unit - 1];
+		if (f.state != 3 || f.frozen || f.write_protect) abort();
+		f.dirty = true;
+		f.epoch = static_cast<std::uint16_t>(f.epoch + 1);
+	}
+
 	void GuestCmosWrite(unsigned byte, std::uint8_t value)
 	{
 		const unsigned shift = 8 * (byte & 1);
@@ -533,6 +547,24 @@ public:
 	// fes.media.ata-disk: the region of the DDR window (the core's CRC pass
 	// reads it), DiskInfo reads that report verifying after Commit, state.
 	std::vector<std::uint8_t>* window = nullptr;
+	// fes.media.pc-floppy: one drive, the ATA disk's states over its own
+	// window; Commit takes the exact (c,h,spt) of a PC format and a
+	// write-protect flag, and works while the machine runs.
+	struct Floppy {
+		// The drive's image: bytes from offset in region (the DDR window).
+		std::vector<std::uint8_t>* region = nullptr;
+		std::size_t offset = 0;
+		unsigned state = 1, pending = 1, verify_left = 0;
+		bool frozen = false, saved = false, failed = false, dirty = false, write_protect = false;
+		std::uint16_t epoch = 0;
+		std::vector<unsigned> staged, geometry;
+		void Reset(unsigned next) {
+			state = next; frozen = saved = failed = dirty = false;
+			staged.clear(); geometry.clear(); verify_left = 0;
+		}
+	};
+	Floppy floppies[2];
+
 	unsigned verify_reads = 1;
 	unsigned disk_state = 1, verify_left = 0, verify_result = 1;
 	bool disk_frozen = false, disk_saved = false, disk_error = false, writer_busy = false;
@@ -616,6 +648,77 @@ private:
 		if (arg) return {argument_error, 0};
 		const std::uint16_t info[4] = {static_cast<std::uint16_t>(word_count), tag, 1, 0};
 		return {0, info[index]};
+	}
+
+	std::pair<unsigned, std::uint16_t> FloppyStep(Floppy& f, unsigned op, unsigned index, unsigned arg)
+	{
+		using namespace mister::native::generated;
+		enum { index_error = 2, argument_error = 3, state_error = 4 };
+		if (op == FesComputerOpcodeDiskInfo) {
+			if (arg) return {argument_error, 0};
+			const unsigned state = f.state;
+			if ((index & 7) == 5 && f.state == 4 && --f.verify_left == 0) {
+				f.state = f.pending;
+				f.failed = f.pending != 3;
+			}
+			const unsigned flags = (f.dirty ? 1 : 0) | (f.frozen ? 2 : 0) | (f.failed ? 8 : 0);
+			const std::uint16_t fields[8] = {0x8000, 2, 0, 45, 0, static_cast<std::uint16_t>(state),
+				static_cast<std::uint16_t>(flags), f.epoch};
+			return {0, fields[index & 7]};
+		}
+		if (op == FesComputerOpcodeDiskControl) {
+			if (arg > 5) return {argument_error, 0};
+			if (arg == 0 || arg == 2) {
+				if (f.frozen && !f.saved) return {state_error, 0};
+				f.Reset(arg == 0 ? 2 : 1);
+			} else if (arg == 1) {
+				if (f.state != 2 || f.staged.size() != 8) return {state_error, 0};
+				const auto& w = f.staged;
+				const std::uint32_t sectors = w[0] | w[1] << 16;
+				std::uint32_t crc = 0xffffffffu;
+				const bool fits = f.region && f.offset + std::size_t(sectors) * 512 <= f.region->size();
+				for (std::size_t at = 0; fits && at < std::size_t(sectors) * 512; ++at) {
+					crc ^= (*f.region)[f.offset + at];
+					for (unsigned bit = 0; bit < 8; ++bit) crc = (crc >> 1) ^ ((crc & 1u) ? 0xedb88320u : 0u);
+				}
+				const bool match = fits &&
+					(crc ^ 0xffffffffu) == (w[5] | w[6] << 16);
+				f.write_protect = w[7] & 1;
+				f.geometry = match ? std::vector<unsigned>(w.begin(), w.begin() + 5) : std::vector<unsigned>{};
+				f.pending = match ? 3 : 2;
+				f.staged.clear();
+				if (verify_reads) { f.state = 4; f.verify_left = verify_reads; f.failed = false; }
+				else { f.state = f.pending; f.failed = f.pending != 3; }
+			} else if (arg == 3) {
+				if (f.state != 3) return {state_error, 0};
+				f.frozen = true; f.saved = false;
+			} else if (arg == 4) {
+				f.frozen = f.saved = false;
+			} else {
+				if (!f.frozen) return {state_error, 0};
+				f.dirty = false; f.saved = true;
+			}
+			return {0, 0};
+		}
+		// DiskCommit: index = unit * 8 + word.
+		const unsigned word = index & 7;
+		if (f.state != 2) return {state_error, 0};
+		if (word != f.staged.size()) return {index_error, 0};
+		const auto& w = f.staged;
+		bool bad = false;
+		if (word == 1) { const std::uint32_t bytes = (w[0] | arg << 16) * 512u; bad = bytes < 163840 || bytes > 2949120; }
+		if (word == 4) {
+			static const unsigned formats[][3] = {{40, 1, 8}, {40, 1, 9}, {40, 2, 8}, {40, 2, 9}, {80, 2, 9},
+				{80, 2, 15}, {80, 2, 18}, {80, 2, 21}, {80, 2, 36}};
+			bool known = false;
+			for (const auto& format : formats)
+				known |= format[0] == w[2] && format[1] == w[3] && format[2] == arg;
+			bad = !known || w[2] * w[3] * arg != (w[0] | w[1] << 16);
+		}
+		if (word == 7) bad = arg & ~1u;
+		if (bad) return {argument_error, 0};
+		f.staged.push_back(arg);
+		return {0, 0};
 	}
 
 	std::pair<unsigned, std::uint16_t> Disk(unsigned op, unsigned index, unsigned arg)

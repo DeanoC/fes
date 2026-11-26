@@ -1,0 +1,91 @@
+format = 3
+
+[core]
+id = "fes.ts1000"
+name = "TS1000"
+description = "Timex Sinclair 1000: NTSC, 8 KiB ROM, 2 KiB internal RAM"
+version = "0.1.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = 2351410
+sha256 = "0091f757637241badce2bbde838ddfdf73ea90af6e8bbc6edb07ab841e5c5708"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.gamepad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.zx81-tape"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.zx81-tape-write"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.memory.hps-ddr"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.video.session-display"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.fabric.video.display-plane"
+major = 1
+minor = 0
+required = true
+
+[build]
+id = "1a04c85fb4833db0b77cb8a2d6e8d1d1"
+repository = "https://github.com/DeanoC/fes"
+revision = "0be20e5756d11da446a557dacf18c7f086a202f6"
+recipe_sha256 = "520353d3f7421367932f5109aabf6280d11c2dccb19b0bcb55c709b5d8d519e5"
+toolchain = "quartus Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition sha256:71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93"
+
+[rom]
+id = "ts1000-firmware"
+role = "firmware"
+source_size = 8192
+file = "rom-map.json"
+size = 742014
+sha256 = "aeb73ec77109bf2ddce37c8f87f2fae75033760a3577a88fb012b3d793f4ed3d"

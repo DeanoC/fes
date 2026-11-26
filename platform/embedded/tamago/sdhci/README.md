@@ -27,11 +27,13 @@ Default configuration uses conservative **1-bit, single-sector, polling PIO**
 
 ## Quiesce, resume, and fail-closed retirement
 
-- **`Identity()` / `CardInfo()`:** `Identity()` returns immutable `CID[127:8]`
+- **`Identity()` / `CardInfo()` / `Stats()`:** `Identity()` returns immutable `CID[127:8]`
   (excluding R2 CRC/reserved high byte) and discovered sector count for continuity
   checks across reset. `CardInfo()` decodes CID, CSD, and (when queried) SCR
   fields including manufacturer, product name, capacity, write-protect flags, SD
   spec version, and `CMD23` support (`CardInfo.SupportsCMD23` / `CMD23Active()`).
+  `Stats()` snapshots cumulative read/write/sector/PIO/ADMA2/CMD23/error/IRQ
+  telemetry alongside active bus width, transfer clock, and lifecycle state.
 - **`Quiesce()`:** Fences new reads/writes, finishes the current sector
   (returning `ErrQuiesced` on remaining batch work), checks DMA/clock/error
   state, masks IRQs, confirms card-ready and clock-stop readback. `Flush()`

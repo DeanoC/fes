@@ -1367,13 +1367,14 @@ Error ParseRequest(const std::string& line, Request* request)
 			if (update && machine && pcxt_machine)
 				return Invalid("settings update cannot include both machine and pcxt_machine");
 			const bool load = operation->string_value == "load_library_core";
-			if (load && Find(root, "ata_disk") && Find(root, "initial_media"))
-				return Invalid("library load cannot combine ata_disk and initial_media");
+			if (load && Find(root, "initial_media") && (Find(root, "ata_disk") || Find(root, "floppies")))
+				return Invalid("library load cannot combine initial_media with ata_disk or floppies");
 			const char* const fields[] = {"protocol", "operation", "package_path", "package_id",
-				"data_root", "game_id",
-				update ? "expected_revision" : (Find(root, "initial_media") ? "initial_media" : "ata_disk"),
+				"data_root", "game_id", update ? "expected_revision" : "ata_disk",
 				pcxt_machine ? "pcxt_machine" : (machine ? "machine" : "paddle_speed")};
-			if (!HasOnly(root, fields, update ? 8 : load ? 7 : 6, &error))
+			const char* const load_fields[] = {"protocol", "operation", "package_path", "package_id",
+				"data_root", "game_id", "ata_disk", "floppies", "initial_media"};
+			if (!(load ? HasOnly(root, load_fields, 9, &error) : HasOnly(root, fields, update ? 8 : 6, &error)))
 				return error;
 			if (const auto* initial = Find(root, "initial_media")) {
 				if (initial->type != json::Type::object)
@@ -1395,6 +1396,45 @@ Error ParseRequest(const std::string& line, Request* request)
 				parsed.initial_media.data_root = *media_root;
 				parsed.initial_media.size = native::generated::FesComputerPcxtFloppyBytes;
 				parsed.initial_media.binding = {*game, *base, 0};
+			}
+			if (const auto* floppies = Find(root, "floppies")) {
+				// pc386's launch disks: at most one each for A: (unit 1) and
+				// B: (unit 2), each a staged image and media-data root, bound
+				// to the request's game as the ATA disk is.
+				const auto* launch_game = Find(root, "game_id");
+				if (floppies->type != json::Type::array || floppies->array.empty() ||
+					floppies->array.size() > 2 || !launch_game || launch_game->type != json::Type::string)
+					return Invalid("floppies must list one or two launch disks of the request's game");
+				for (const auto& floppy : floppies->array) {
+					const char* keys[] = {"unit", "path", "size", "data_root", "base_media_id", "write_protected"};
+					if (floppy.type != json::Type::object || !HasOnly(floppy, keys, 6, &error))
+						return Invalid("invalid launch floppy");
+					const std::string *path = nullptr, *media_root = nullptr, *base = nullptr;
+					const std::string* game = &launch_game->string_value;
+					if (!StringMember(floppy, "path", &path, &error) ||
+						!StringMember(floppy, "data_root", &media_root, &error) ||
+						!StringMember(floppy, "base_media_id", &base, &error)) return error;
+					const auto* unit = Find(floppy, "unit");
+					const auto* size = Find(floppy, "size");
+					if (!Path(*path) || !Path(*media_root) || !PackageID(*base) ||
+						!native::ValidLibraryGameID(*game) ||
+						!BoundedInteger(unit, native::generated::FesComputerPcFloppyUnitA, native::generated::FesComputerPcFloppyUnitB) ||
+						!BoundedInteger(size, 0, native::generated::FesComputerMediaMaxBytes) ||
+						!native::PcFloppySizeAdmitted(static_cast<std::size_t>(size->integer_value)))
+						return Invalid("invalid launch floppy path, identity or size");
+					InitialComputerMedia media;
+					media.path = *path;
+					media.data_root = *media_root;
+					media.size = static_cast<std::uint32_t>(size->integer_value);
+					media.binding = {*game, *base, static_cast<std::uint8_t>(unit->integer_value)};
+					if (const auto* protect = Find(floppy, "write_protected")) {
+						if (protect->type != json::Type::boolean) return Invalid("write_protected must be boolean");
+						media.binding.write_protected = protect->boolean_value;
+					}
+					for (const auto& other : parsed.floppies)
+						if (other.binding.unit == media.binding.unit) return Invalid("one launch disk per drive");
+					parsed.floppies.push_back(std::move(media));
+				}
 			}
 			if (const auto* disk = Find(root, "ata_disk")) {
 				// The staged base image of a fes.media.ata-disk package and its
@@ -1640,8 +1680,8 @@ Error ParseRequest(const std::string& line, Request* request)
 			const char* const eject_fields[] = {"protocol", "operation",
 				"expected_package_id", "expected_generation", "unit"};
 			const char* const library_fields[]={"protocol","operation","path","expected_package_id",
-                "expected_generation","unit","size","data_root","game_id","base_media_id"};
-            if (!(library ? HasOnly(root,library_fields,10,&error) : insert ? HasOnly(root, insert_fields, 7, &error) :
+                "expected_generation","unit","size","data_root","game_id","base_media_id","write_protected"};
+            if (!(library ? HasOnly(root,library_fields,11,&error) : insert ? HasOnly(root, insert_fields, 7, &error) :
                 HasOnly(root, eject_fields, 5, &error))) return error;
 			const std::string* package = nullptr;
 			if (!StringMember(root, "expected_package_id", &package, &error)) return error;
@@ -1672,8 +1712,17 @@ Error ParseRequest(const std::string& line, Request* request)
                         return Invalid("invalid library game identity");
                     hyphen=c=='-';
                 }
-                if(hyphen||unit->integer_value!=0||(parsed.media_size != native::generated::FesComputerPcxtFloppyBytes && !native::InferAtariStGeometry(parsed.media_size)))
+                // Unit 0 is the PC/XT or Atari ST drive; units 1 and 2 are
+                // pc386's A: and B: (fes.media.pc-floppy).
+                const bool pc_floppy=unit->integer_value==FesComputerPcFloppyUnitA||unit->integer_value==FesComputerPcFloppyUnitB;
+                if(hyphen||(pc_floppy ? !native::PcFloppySizeAdmitted(parsed.media_size) :
+                    unit->integer_value!=0||(parsed.media_size != native::generated::FesComputerPcxtFloppyBytes && !native::InferAtariStGeometry(parsed.media_size))))
                     return Invalid("invalid library disk geometry or identity");
+                if(const auto* protect=Find(root,"write_protected")) {
+                    if(!pc_floppy) return Invalid("write_protected is for pc386 floppy drives");
+                    if(protect->type!=json::Type::boolean) return Invalid("write_protected must be boolean");
+                    parsed.media_binding.write_protected=protect->boolean_value;
+                }
                 parsed.data_root=*root_path;parsed.media_binding.game_id=*game;parsed.media_binding.base_media_id=*base;
                 parsed.media_binding.unit=static_cast<std::uint8_t>(unit->integer_value);
             }

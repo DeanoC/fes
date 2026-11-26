@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 26
+const schemaVersion = 27
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -498,6 +498,57 @@ END;
 PRAGMA user_version = 26;
 `
 
+// Schema 27 admits the floppy role, a pc386 raw floppy image and its disk
+// set, with the table rebuilt as in version 19. Dropping the table drops the
+// triggers on it, so they are created again as versions 21, 22, 24, 25 and
+// 26 left them.
+const schemaV27 = `
+CREATE TABLE core_entries_v27 (
+  game_id TEXT PRIMARY KEY REFERENCES games(game_id) ON DELETE CASCADE,
+  core_id TEXT NOT NULL,
+  package_id TEXT NOT NULL,
+  media_role TEXT NOT NULL DEFAULT '',
+  media_id TEXT NOT NULL DEFAULT '',
+  firmware_required INTEGER NOT NULL DEFAULT 0,
+  disk_cylinders INTEGER NOT NULL DEFAULT 0,
+  disk_heads INTEGER NOT NULL DEFAULT 0,
+  disk_sectors INTEGER NOT NULL DEFAULT 0,
+  media_name TEXT NOT NULL DEFAULT '',
+  CHECK ((media_role = '' AND media_id = '') OR (media_role IN ('blob', 'disk', 'cassette', 'hard-disk', 'floppy') AND length(media_id) = 64)),
+  CHECK ((disk_cylinders = 0 AND disk_heads = 0 AND disk_sectors = 0) OR
+    (media_role = 'hard-disk' AND disk_cylinders BETWEEN 1 AND 16383 AND disk_heads BETWEEN 1 AND 16 AND disk_sectors BETWEEN 1 AND 63))
+);
+INSERT INTO core_entries_v27(game_id, core_id, package_id, media_role, media_id, firmware_required,
+    disk_cylinders, disk_heads, disk_sectors, media_name)
+  SELECT game_id, core_id, package_id, media_role, media_id, firmware_required,
+    disk_cylinders, disk_heads, disk_sectors, media_name FROM core_entries;
+DROP TABLE core_entries;
+ALTER TABLE core_entries_v27 RENAME TO core_entries;
+CREATE INDEX core_entries_core_id ON core_entries(core_id);
+CREATE TRIGGER kit_host_entry_edit AFTER UPDATE ON core_entries BEGIN
+  DELETE FROM kit_host_entries WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER remote_core_entry_selected AFTER UPDATE OF package_id, media_role, media_id ON core_entries BEGIN
+  UPDATE remote_core_entries SET pending = 0 WHERE game_id = NEW.game_id;
+END;
+CREATE TRIGGER local_entry_cache_adopt_insert AFTER INSERT ON core_entries
+WHEN NEW.media_id <> '' BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+CREATE TRIGGER local_entry_cache_adopt_update AFTER UPDATE OF media_id ON core_entries
+WHEN NEW.media_id <> '' BEGIN
+  DELETE FROM remote_cached_media WHERE media_id = NEW.media_id;
+END;
+CREATE TRIGGER shelf_disks_entry_removed AFTER DELETE ON core_entries BEGIN
+  DELETE FROM shelf_disks WHERE game_id = OLD.game_id;
+END;
+CREATE TRIGGER core_entry_media_set_ends AFTER UPDATE OF media_role, media_id ON core_entries
+WHEN NEW.media_id <> OLD.media_id OR NEW.media_role <> OLD.media_role BEGIN
+  DELETE FROM core_entry_media_set WHERE game_id = NEW.game_id;
+END;
+PRAGMA user_version = 27;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -529,7 +580,7 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if err := connection.QueryRowContext(ctx, "PRAGMA user_version").Scan(&current); err != nil {
 		return fmt.Errorf("read catalog schema version: %w", err)
 	}
-	if current < 19 {
+	if current < 27 {
 		if _, err := connection.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
 			return fmt.Errorf("prepare catalog migration: %w", err)
 		}
@@ -726,6 +777,15 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 25 {
 		if _, err := connection.ExecContext(ctx, schemaV26); err != nil {
 			return fmt.Errorf("apply catalog schema version 26: %w", err)
+		}
+		version = 26
+	}
+	if version == 26 {
+		if _, err := connection.ExecContext(ctx, schemaV27); err != nil {
+			return fmt.Errorf("apply catalog schema version 27: %w", err)
+		}
+		if err := foreignKeyCheck(ctx, connection); err != nil {
+			return fmt.Errorf("apply catalog schema version 27: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

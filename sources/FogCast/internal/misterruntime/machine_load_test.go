@@ -80,7 +80,7 @@ func (c *machineLoadControl) LoadCore(context.Context, string, string) (Protocol
 func (c *machineLoadControl) LoadCoreWithInitialMedia(context.Context, string, string, *InitialMediaRequest) (Protocol2Response, error) {
 	return Protocol2Response{}, io.ErrUnexpectedEOF
 }
-func (c *machineLoadControl) LoadLibraryMachineCore(_ context.Context, _, _, _, gameID string, disk *ataDiskRequest, initial *InitialMediaRequest) (Protocol2Response, error) {
+func (c *machineLoadControl) LoadLibraryMachineCore(_ context.Context, _, _, _, gameID string, disk *ataDiskRequest, initial *InitialMediaRequest, _ []floppyRequest) (Protocol2Response, error) {
 	c.loads++
 	c.loadGame = gameID
 	c.loadDisk = disk

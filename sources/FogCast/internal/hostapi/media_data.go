@@ -13,6 +13,10 @@ type sessionMediaDataLoader interface {
 	SaveMedia(context.Context, protocol.MediaUnitBinding) (protocol.Status, error)
 }
 
+type sessionFloppyEjector interface {
+	EjectPcFloppy(context.Context, protocol.MediaUnitBinding) (protocol.Status, error)
+}
+
 func registerMediaDataSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 	for _, save := range []bool{false, true} {
 		path := "/api/v1/session/disk/insert"
@@ -42,6 +46,8 @@ func registerMediaDataSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 				var req struct {
 					GameID string `json:"game_id"`
 					BaseID string `json:"base_media_id"`
+					// Only pc386's A: and B: take it.
+					WriteProtected bool `json:"write_protected"`
 				}
 				decoder := json.NewDecoder(r.Body)
 				decoder.DisallowUnknownFields()
@@ -51,6 +57,7 @@ func registerMediaDataSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 				}
 				library.GameID = req.GameID
 				library.BaseMediaID = req.BaseID
+				library.WriteProtected = req.WriteProtected
 				if !library.Valid() {
 					writeError(w, 400, "BAD_REQUEST", protocol.MediaUnitRequestError().Message)
 					return
@@ -65,6 +72,52 @@ func registerMediaDataSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 			writeJSON(w, 200, result)
 		})
 	}
+	// pc386's A: or B: emptied; the bound unit header names the drive.
+	mux.HandleFunc("POST /api/v1/session/disk/eject", func(w http.ResponseWriter, r *http.Request) {
+		b, valid := protocol.MediaUnitHeaders(r.Header)
+		ids := r.Header.Values(protocol.HostSessionIDHeader)
+		r.Body = http.MaxBytesReader(w, r.Body, 1)
+		body, err := io.ReadAll(r.Body)
+		if !valid || err != nil || len(body) != 0 || len(ids) != 1 || ids[0] == "" || b.Target == "" ||
+			len(r.TransferEncoding) != 0 || !protocol.PcFloppyUnit(b.Unit) {
+			writeError(w, 400, "BAD_REQUEST", protocol.MediaUnitRequestError().Message)
+			return
+		}
+		result, err := s.forSessionID(ids[0]).floppyEject(r.Context(), ids[0], b)
+		if err != nil {
+			writeSessionError(w, err)
+			return
+		}
+		writeJSON(w, 200, result)
+	})
+}
+
+func (s *sessionCoordinator) floppyEject(ctx context.Context, id string, b protocol.MediaUnitBinding) (sessionResult, error) {
+	dev := protocol.DevelopmentMediaBinding{PackageID: b.PackageID, Generation: b.Generation, Target: b.Target, TargetID: b.TargetID}
+	if !s.matchesSessionTargetBinding(ctx, dev) {
+		return sessionResult{}, protocol.MediaUnitIdentityError()
+	}
+	ctx = s.scoped(ctx)
+	if !s.begin() {
+		return sessionResult{}, busyError()
+	}
+	defer s.end()
+	s.observationMu.Lock()
+	defer s.observationMu.Unlock()
+	if id != s.id {
+		return sessionResult{}, protocol.MediaUnitIdentityError()
+	}
+	ejector, ok := s.service.(sessionFloppyEjector)
+	if !ok {
+		return sessionResult{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+	}
+	status, err := ejector.EjectPcFloppy(ctx, b)
+	if err != nil {
+		return sessionResult{}, err
+	}
+	result := s.publicCurrentSession(status)
+	s.recordStamp("session.disk", result, nil, clientStamp{})
+	return result, nil
 }
 func exactMediaJSON(r *http.Request) bool {
 	return len(r.Header.Values("Content-Type")) == 1 && r.Header.Get("Content-Type") == "application/json" && r.ContentLength > 0 && r.ContentLength <= 1024
@@ -95,8 +148,9 @@ func (s *sessionCoordinator) mediaData(ctx context.Context, id string, b protoco
 	} else {
 		status, err = loader.InsertLibraryDisk(ctx, b)
 		// Insertion can replace unit 0. Keep the confirmed name when the
-		// loader guarantees that a rejected operation made no change.
-		if err == nil || !protocol.LiveMediaNoChange(err) {
+		// loader guarantees that a rejected operation made no change. A
+		// pc386 drive is not the unit the live-media name describes.
+		if b.Unit == 0 && (err == nil || !protocol.LiveMediaNoChange(err)) {
 			s.mu.Lock()
 			s.clearLiveMediaNameLocked()
 			s.mu.Unlock()

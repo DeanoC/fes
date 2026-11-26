@@ -1057,7 +1057,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 		bool spectrum_tape = false;
 		bool spectrum_disk = false;
 		bool second_word = false;
-		bool ata_disk = false;
+		bool ata_disk = false, pc_floppy = false;
 		int media_units = 0;
 		int buses = 0;
 		for (const auto& interface : descriptor.interfaces) {
@@ -1089,6 +1089,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 				interface.id == FesComputerInterfacePc386MachineID ||
 				interface.id == FesComputerInterfacePcxtMachineID ||
 				interface.id == FesComputerInterfaceRtcWallClockID ||
+				interface.id == FesComputerInterfaceMediaPcFloppyID ||
 				media;
 			const bool supported = (known || bus) && ComputerInterfaceCurrent(interface);
 			if (!supported && interface.required)
@@ -1121,8 +1122,10 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 				interface.id == FesComputerInterfacePersistenceWordsID ||
 				interface.id == FesComputerInterfacePc386MachineID ||
 				interface.id == FesComputerInterfacePcxtMachineID ||
-				interface.id == FesComputerInterfaceRtcWallClockID) second_word = true;
+				interface.id == FesComputerInterfaceRtcWallClockID ||
+				interface.id == FesComputerInterfaceMediaPcFloppyID) second_word = true;
 			if (interface.id == FesComputerInterfaceMediaAtaDiskID) ata_disk = true;
+			if (interface.id == FesComputerInterfaceMediaPcFloppyID) pc_floppy = true;
 		}
 		if (second_word && descriptor.abi.minor < 1)
 			return CompatibilityError(ErrorCode::unsupported_abi,
@@ -1154,6 +1157,11 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 		if (ata_disk && !ddr)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"ATA disk requires HPS DDR");
+		// The floppy drives sit on units 1 and 2 beside the hard disk and
+		// share its Disk operations; they are not a unit-0 medium.
+		if (pc_floppy && (!ata_disk || !ddr))
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"PC floppy requires the ATA disk and HPS DDR");
 		if (media_units > 1 || buses > 1)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"computer declares more than one unit-0 medium or expansion bus");

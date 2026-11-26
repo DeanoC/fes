@@ -31,6 +31,59 @@ func (r *Ring) Push(b byte) bool {
 	return true
 }
 
+// PushSlice appends as many bytes from src as fit into the ring with a single
+// atomic index update, recording overflow in Dropped.
+func (r *Ring) PushSlice(src []byte) (pushed int, dropped uint32) {
+	if r == nil || len(src) == 0 {
+		return 0, 0
+	}
+	head := r.head.Load()
+	avail := ringSize - int(head-r.tail.Load())
+	if avail < 0 {
+		avail = 0
+	}
+	pushed = len(src)
+	if pushed > avail {
+		pushed = avail
+		dropped = uint32(len(src) - avail)
+	}
+	if pushed > 0 {
+		firstIdx := int(head & ringMask)
+		first := min(pushed, ringSize-firstIdx)
+		copy(r.buf[firstIdx:firstIdx+first], src[:first])
+		if first < pushed {
+			copy(r.buf[:pushed-first], src[first:pushed])
+		}
+		r.head.Store(head + uint32(pushed))
+	}
+	if dropped > 0 {
+		r.dropped.Add(dropped)
+	}
+	return pushed, dropped
+}
+
+// PopSlice copies up to len(dst) unread bytes into dst with a single atomic
+// index update and returns the count copied.
+func (r *Ring) PopSlice(dst []byte) int {
+	if r == nil || len(dst) == 0 {
+		return 0
+	}
+	tail := r.tail.Load()
+	unread := int(r.head.Load() - tail)
+	if unread <= 0 {
+		return 0
+	}
+	n := min(len(dst), unread)
+	firstIdx := int(tail & ringMask)
+	first := min(n, ringSize-firstIdx)
+	copy(dst[:first], r.buf[firstIdx:firstIdx+first])
+	if first < n {
+		copy(dst[first:n], r.buf[:n-first])
+	}
+	r.tail.Store(tail + uint32(n))
+	return n
+}
+
 // Pop removes and returns the oldest buffered byte.
 func (r *Ring) Pop() (byte, bool) {
 	tail := r.tail.Load()
@@ -56,9 +109,24 @@ func (r *Ring) Cap() int {
 	return ringSize
 }
 
-// Len returns the number of unread bytes currently buffered.
+// Len returns a bounded snapshot of the number of unread bytes currently
+// buffered ([0, Cap()]), safe against concurrent SPSC producer/consumer updates.
 func (r *Ring) Len() int {
-	return int(r.head.Load() - r.tail.Load())
+	for {
+		tail1 := r.tail.Load()
+		head := r.head.Load()
+		tail2 := r.tail.Load()
+		if tail1 == tail2 {
+			diff := int32(head - tail1)
+			if diff < 0 {
+				return 0
+			}
+			if diff > ringSize {
+				return ringSize
+			}
+			return int(diff)
+		}
+	}
 }
 
 // Dropped returns the number of bytes dropped because the ring was full.

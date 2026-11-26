@@ -1,0 +1,18 @@
+Quartus lease: holding /tmp/fes-quartus-lite-1.lock (lite, cores/fes-pcxt/quartus.lock)
+/data/fes-f3-d12/sameq3/sources/misteross/build/fes-pcxt-quartus/2c9509aa8dc2456b0d7a7bc30dd8b952/attempt-sg6s7vfw/signoff
+source: mailbox-proofs.log
+source: audio-proofs.log
+elaboration: elaborate.log
+seed-1: compile.log
+seed-1: audit.log
+seed-2: compile.log
+seed-2: audit.log
+seed-3: compile.log
+seed-3: audit.log
+/data/fes-f3-d12/sameq3/sources/misteross/build/fes-pcxt-quartus/2c9509aa8dc2456b0d7a7bc30dd8b952/attempt-sg6s7vfw/repeat
+source: mailbox-proofs.log
+source: audio-proofs.log
+elaboration: elaborate.log
+seed-1: compile.log
+seed-1: audit.log
+/data/fes-f3-d12/sameq3/sources/misteross/build/packages/4e51c7480a9ac6470a1370697aec6c464d633016217afcf89658e3727b6b183c

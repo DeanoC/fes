@@ -42,6 +42,11 @@ delete.
 | s3 | `c8fb7eead` | Stopped at the first list, which returned 503. The background open was still verifying the new ST package, and the driver did not wait. |
 | s4 | `99dfcdffc` | The open took 24.3 s, logged by the host; the list returned 503 until then and then answered in 4.5 s. Menu left out of the list. Title in 28.9 s, launch in 46.2 s. |
 
+The retained s4 JSON says `listed_matches_kit: false` because its comparison
+includes the factory `fes.menu` ID. The two listed durable packages match the
+expected user-visible inventory; the menu is intentionally omitted. The
+recorded boolean is left unchanged as the original run result.
+
 The durable store held the same two archives before and after each launch, so
 the host wrote nothing to it.
 

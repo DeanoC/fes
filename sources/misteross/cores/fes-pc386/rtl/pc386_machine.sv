@@ -115,6 +115,14 @@ module pc386_machine #(
     input wire [1:0][5:0] floppy_spt,
     input wire fdc_frozen,
     output wire fdc_busy, fdc_fenced,
+    output wire [1:0] fdc_written,
+    // fes.media.pc-floppy's CRC pass over a committed drive's image
+    // (pc386_floppy_verify)
+    input wire [1:0] floppy_verify,
+    input wire [1:0][12:0] floppy_sectors,
+    input wire [1:0][31:0] floppy_crc,
+    output wire [1:0] floppy_verify_done,
+    output wire floppy_verify_match,
     output wire record_write,
     output wire [6:0] record_index,
     output wire [7:0] record_byte,
@@ -184,10 +192,24 @@ module pc386_machine #(
     assign dma_wdata = at_dma_wdata;
     assign at_dma_done = dma_in_frame ? ems_dma_done : dma_done;
     assign at_dma_rdata = dma_in_frame ? ems_dma_rdata : dma_rdata;
-    wire [28:0] fdc_address;
-    wire [7:0] fdc_burstcount, fdc_byteenable;
+    // The controller's image port, and port 2's floppy master behind the CRC
+    // pass that shares it.
+    wire [28:0] fdc_address, fv_address;
+    wire [7:0] fdc_burstcount, fdc_byteenable, fv_burstcount, fv_byteenable;
     wire fdc_read, fdc_write, fdc_waitrequest, fdc_readdatavalid;
-    wire [63:0] fdc_writedata;
+    wire fv_read, fv_write, fv_waitrequest, fv_readdatavalid;
+    wire [63:0] fdc_writedata, fv_writedata;
+    pc386_floppy_verify floppy_verify_pass (
+        .clk(clk), .reset(port2_reset),
+        .verify(floppy_verify), .sectors(floppy_sectors), .crc(floppy_crc),
+        .done(floppy_verify_done), .match(floppy_verify_match),
+        .fdc_address(fdc_address), .fdc_burstcount(fdc_burstcount), .fdc_read(fdc_read), .fdc_write(fdc_write),
+        .fdc_writedata(fdc_writedata), .fdc_byteenable(fdc_byteenable), .fdc_waitrequest(fdc_waitrequest),
+        .fdc_readdatavalid(fdc_readdatavalid),
+        .port_address(fv_address), .port_burstcount(fv_burstcount), .port_read(fv_read), .port_write(fv_write),
+        .port_writedata(fv_writedata), .port_byteenable(fv_byteenable), .port_waitrequest(fv_waitrequest),
+        .port_readdatavalid(fv_readdatavalid), .readdata(p2_readdata)
+    );
     pc386_at_core #(
         .ISA_N(ISA_N), .ISA_D(ISA_D), .PIT_N(PIT_N), .PIT_D(PIT_D), .RTC_N(RTC_N), .RTC_D(RTC_D),
         .US_N(US_N), .US_D(US_D), .DMA_N(DMA_N), .DMA_D(DMA_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS)
@@ -231,7 +253,7 @@ module pc386_machine #(
         .fdc_address(fdc_address), .fdc_burstcount(fdc_burstcount), .fdc_read(fdc_read), .fdc_write(fdc_write),
         .fdc_writedata(fdc_writedata), .fdc_byteenable(fdc_byteenable), .fdc_waitrequest(fdc_waitrequest),
         .fdc_readdatavalid(fdc_readdatavalid), .fdc_readdata(p2_readdata), .fdc_frozen(fdc_frozen),
-        .fdc_busy(fdc_busy), .fdc_fenced(fdc_fenced),
+        .fdc_busy(fdc_busy), .fdc_fenced(fdc_fenced), .fdc_written(fdc_written),
         .record_write(record_write), .record_index(record_index), .record_byte(record_byte),
         .record_load(record_load), .record_pair(record_pair), .record_word(record_word),
         .record_clock_index(record_clock_index), .record_clock_pair(record_clock_pair)
@@ -356,9 +378,9 @@ module pc386_machine #(
         .aux_address(aux_address), .aux_burstcount(aux_burstcount), .aux_read(aux_read), .aux_write(aux_write),
         .aux_writedata(aux_writedata),
         .aux_byteenable(aux_byteenable), .aux_waitrequest(aux_waitrequest), .aux_readdatavalid(aux_readdatavalid),
-        .fdc_address(fdc_address), .fdc_burstcount(fdc_burstcount), .fdc_read(fdc_read), .fdc_write(fdc_write),
-        .fdc_writedata(fdc_writedata), .fdc_byteenable(fdc_byteenable), .fdc_waitrequest(fdc_waitrequest),
-        .fdc_readdatavalid(fdc_readdatavalid),
+        .fdc_address(fv_address), .fdc_burstcount(fv_burstcount), .fdc_read(fv_read), .fdc_write(fv_write),
+        .fdc_writedata(fv_writedata), .fdc_byteenable(fv_byteenable), .fdc_waitrequest(fv_waitrequest),
+        .fdc_readdatavalid(fv_readdatavalid),
         .address(p2_address), .burstcount(p2_burstcount), .read(p2_read), .write(p2_write),
         .writedata(p2_writedata), .byteenable(p2_byteenable), .waitrequest(p2_waitrequest),
         .readdatavalid(p2_readdatavalid)

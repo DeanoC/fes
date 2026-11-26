@@ -311,12 +311,19 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	if machine != nil && machine.Disk != nil && !protocol.DeclaresAtaDisk(staged.Descriptor) {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "package declares no hard disk", Phase: "admission"}
 	}
-	if machine != nil && staged.InitialMedia != nil && (machine.Disk != nil || staged.InitialMedia.GameID != machine.GameID) {
+	if machine != nil && staged.InitialMedia != nil && (machine.Disk != nil || len(machine.Floppies) != 0 || staged.InitialMedia.GameID != machine.GameID) {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "initial media does not match the library game binding", Phase: "admission"}
+	}
+	if machine != nil && len(machine.Floppies) != 0 && !protocol.DeclaresPcFloppy(staged.Descriptor) {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "package declares no floppy drives", Phase: "admission"}
 	}
 	disk, diskErr := r.resolveStagedDisk(machine)
 	if diskErr != nil {
 		return CoreActivation{}, false, diskErr
+	}
+	floppies, floppyErr := r.resolveStagedFloppies(machine)
+	if floppyErr != nil {
+		return CoreActivation{}, false, floppyErr
 	}
 	if machine != nil {
 		_, loads := r.control.(protocol2MachineLibraryControl)
@@ -426,7 +433,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		if pcxtInitial && machine != nil {
 			m := staged.InitialMedia
 			initial := &InitialMediaRequest{Path: m.Path, Size: uint32(m.Size), Unit: m.Unit, DataRoot: MediaDataRoot, GameID: m.GameID, BaseMediaID: m.BaseMediaID}
-			response, callErr = r.control.(protocol2MachineLibraryControl).LoadLibraryMachineCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot, machine.GameID, nil, initial)
+			response, callErr = r.control.(protocol2MachineLibraryControl).LoadLibraryMachineCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot, machine.GameID, nil, initial, nil)
 			r.noteDispatch("load_library_core", callErr == nil)
 		} else if pcxtInitial {
 			response, callErr = r.loadInitialCore(operationOwner, staged)
@@ -502,7 +509,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		response, callErr = r.control.(protocol2CompositionControl).LoadComposedCore(operationOwner, staged.Directory, staged.PackageID, staged.ExpansionDirectory, staged.PayloadPath, *staged.Composition)
 		r.noteDispatch("load_composed_core", callErr == nil)
 	} else if machine != nil {
-		response, callErr = r.control.(protocol2MachineLibraryControl).LoadLibraryMachineCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot, machine.GameID, disk, nil)
+		response, callErr = r.control.(protocol2MachineLibraryControl).LoadLibraryMachineCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot, machine.GameID, disk, nil, floppies)
 		r.noteDispatch("load_library_core", callErr == nil)
 	} else if libraryID != "" {
 		response, callErr = r.control.(protocol2LibraryControl).LoadLibraryCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot)

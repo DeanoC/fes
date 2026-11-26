@@ -174,10 +174,11 @@ end
 
 -- "4 models: ZX81, ZX80, TS1000, TS1500", or the one model's name.
 function M.models_line(f)
+  if f.models_line then return f.models_line end
   local names = {}
   for _, v in ipairs(f.variants) do names[#names + 1] = v.model or v.mark end
-  if #names == 1 then return names[1] end
-  return #names .. " models: " .. table.concat(names, ", ")
+  f.models_line = #names == 1 and names[1] or (#names .. " models: " .. table.concat(names, ", "))
+  return f.models_line
 end
 
 local STATE_WORDS = {

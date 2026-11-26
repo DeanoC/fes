@@ -54,7 +54,8 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 		result =
 			runtime_.LoadLibraryCore(request.package_path, request.package_id, request.data_root,
 				request.game_id, request.has_ata_disk ? &request.ata_disk : nullptr,
-				request.has_initial_media ? &request.initial_media : nullptr);
+				request.has_initial_media ? &request.initial_media : nullptr,
+				request.floppies.empty() ? nullptr : &request.floppies);
 		EmitFifoConsume("load_library_core", result.ok());
 		break;
 	case Operation::inspect_core_data:

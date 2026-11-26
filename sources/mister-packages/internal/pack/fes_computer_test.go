@@ -119,7 +119,7 @@ func TestFesComputerContract(t *testing.T) {
 		{"fes.media.ata-disk", 16, 1}, {"fes.persistence.words", 17, 1},
 		{"fes.rtc.wall-clock", 18, 1}, {"fes.pc386.machine", 19, 1},
 		{"fes.media.pcxt-floppy", 20, 1}, {"fes.media.pcxt-floppy-write", 21, 1},
-		{"fes.pcxt.machine", 22, 1},
+		{"fes.media.pc-floppy", 22, 1}, {"fes.pcxt.machine", 23, 1},
 	}
 	if len(abi.Interfaces) != len(want) {
 		t.Fatalf("interfaces = %+v", abi.Interfaces)

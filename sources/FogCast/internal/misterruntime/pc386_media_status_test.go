@@ -122,7 +122,7 @@ func TestAtariStGoldenStatusWithMultipleComputerABIMinorsReconciles(t *testing.T
 
 func TestLiveRuntimeComputerStatusesDecodeReconcileAndPassTargetClient(t *testing.T) {
 	lines := fixtureLines(t, "protocol-v2-live-computer-statuses.jsonl")
-	if len(lines) != 3 {
+	if len(lines) != 4 {
 		t.Fatalf("live runtime status fixture rows = %d", len(lines))
 	}
 	for _, test := range []struct {
@@ -131,10 +131,12 @@ func TestLiveRuntimeComputerStatusesDecodeReconcileAndPassTargetClient(t *testin
 		coreID     string
 		mediaState string
 		bound      bool
+		floppies   bool
 	}{
 		{name: "Atari ST empty floppy", row: 0, coreID: "fes.atari-st", mediaState: protocol.MediaUnitEmpty},
 		{name: "pc386 empty fixed disk", row: 1, coreID: "fes.pc386", mediaState: protocol.MediaUnitEmpty},
 		{name: "pc386 bound fixed disk", row: 2, coreID: "fes.pc386", mediaState: protocol.MediaUnitReady, bound: true},
+		{name: "pc386 floppies, A: bound and B: write-protected", row: 3, coreID: "fes.pc386", mediaState: protocol.MediaUnitEmpty, floppies: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			response, err := decodeProtocol2Response([]byte(lines[test.row]))
@@ -150,7 +152,7 @@ func TestLiveRuntimeComputerStatusesDecodeReconcileAndPassTargetClient(t *testin
 			if !reflect.DeepEqual(computerVersions, [][2]uint16{{1, 0}, {1, 1}}) {
 				t.Fatalf("live fes.computer ABI versions = %v", computerVersions)
 			}
-			archive := liveRuntimeFixtureArchive(t, test.coreID)
+			archive := liveRuntimeFixtureArchive(t, test.coreID, test.floppies)
 			root := t.TempDir()
 			staged, err := corepackage.Stage(context.Background(), root, int64(len(archive)), bytes.NewReader(archive))
 			if err != nil {
@@ -165,9 +167,22 @@ func TestLiveRuntimeComputerStatusesDecodeReconcileAndPassTargetClient(t *testin
 			control := pc386FixtureControl{response: response}
 			runtime := NewRuntime(control, "", time.Millisecond, time.Second, WithCorePackageRoot(root))
 			status := runtime.reconcileProtocol2(context.Background(), control)
+			units := 1
+			if test.floppies {
+				units = 3
+			}
 			if status.State != protocol.StateActive || status.CorePackage == nil ||
-				status.CorePackage.CoreID != test.coreID || len(status.CorePackage.MediaUnits) != 1 {
+				status.CorePackage.CoreID != test.coreID || len(status.CorePackage.MediaUnits) != units {
 				t.Fatalf("reconciled live status = %+v", status)
+			}
+			if test.floppies {
+				a, okA := protocol.MediaUnit(status.CorePackage, protocol.PcFloppyUnitA)
+				b, okB := protocol.MediaUnit(status.CorePackage, protocol.PcFloppyUnitB)
+				if !okA || !okB || a.State != protocol.MediaUnitReady || a.Persistence == nil || a.Persistence.GameID != "ultima-vi" ||
+					!protocol.PersistentMediaUnitCapable(status.CorePackage, a) || b.State != protocol.MediaUnitReady || b.Persistence != nil ||
+					a.CanSave() || b.CanSave() {
+					t.Fatalf("reconciled live pc386 floppies = %+v", status.CorePackage.MediaUnits)
+				}
 			}
 			unit := status.CorePackage.MediaUnits[0]
 			if unit.State != test.mediaState {
@@ -176,7 +191,7 @@ func TestLiveRuntimeComputerStatusesDecodeReconcileAndPassTargetClient(t *testin
 			if test.coreID == "fes.pc386" {
 				if status.CorePackage.PersistenceMode != "persistent" || unit.Interface != protocol.AtaDiskInterface() ||
 					unit.Saveable == nil || *unit.Saveable || (unit.Persistence != nil) != test.bound ||
-					protocol.PersistentMediaBound(status.CorePackage) != test.bound || protocol.MediaDataBound(status.CorePackage) {
+					protocol.PersistentMediaBound(status.CorePackage) != (test.bound || test.floppies) || protocol.MediaDataBound(status.CorePackage) {
 					t.Fatalf("reconciled live pc386 status = %+v", status.CorePackage)
 				}
 			} else if status.CorePackage.PersistenceMode != "volatile" ||
@@ -189,7 +204,7 @@ func TestLiveRuntimeComputerStatusesDecodeReconcileAndPassTargetClient(t *testin
 	}
 }
 
-func liveRuntimeFixtureArchive(t *testing.T, coreID string) []byte {
+func liveRuntimeFixtureArchive(t *testing.T, coreID string, floppies bool) []byte {
 	t.Helper()
 	runtimeFixtures := filepath.Join("..", "..", "..", "libmister-runtime", "tests", "fixtures", "core-bundle-v2")
 	manifestPath := filepath.Join(runtimeFixtures, "manifests", "valid-basic.toml")
@@ -213,6 +228,9 @@ func liveRuntimeFixtureArchive(t *testing.T, coreID string) []byte {
 			"fes.persistence.words", "fes.pc386.machine", "fes.rtc.wall-clock",
 			"fes.memory.hps-ddr", "fes.media.ata-disk"} {
 			manifest += fmt.Sprintf("\n[[interfaces]]\nid = %q\nmajor = 1\nminor = 0\nrequired = true\n", id)
+		}
+		if floppies {
+			manifest += "\n[[interfaces]]\nid = \"fes.media.pc-floppy\"\nmajor = 1\nminor = 0\nrequired = true\n"
 		}
 	case "fes.atari-st":
 		manifest = strings.ReplaceAll(manifest, "fes.simple-game", "fes.computer")

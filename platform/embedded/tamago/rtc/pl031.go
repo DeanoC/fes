@@ -204,6 +204,19 @@ func (r *PL031) AlarmPending() bool {
 	return r.io.Read32(RegMIS)&irqBit != 0
 }
 
+// AlarmTime returns the programmed UTC alarm match register (RTCMR) and
+// whether the PL031 alarm interrupt mask (RTCIMSC) is currently enabled.
+func (r *PL031) AlarmTime() (time.Time, bool) {
+	if r == nil {
+		return time.Time{}, false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	alarm := time.Unix(int64(r.io.Read32(RegMR)), 0).UTC()
+	enabled := r.io.Read32(RegIMSC)&irqBit != 0
+	return alarm, enabled
+}
+
 // EnableIRQ binds the level-sensitive PL031 alarm SPI on g. When the alarm
 // interrupt fires, the handler writes RTCICR to clear the level-sensitive line
 // while keeping RTCIMSC intact, increments IRQCount, and calls onAlarm (if
@@ -305,15 +318,27 @@ func unixSecondsUint32(t time.Time) (uint32, error) {
 	return uint32(sec), nil
 }
 
+// ClockStatus describes synchronization state and the most recent time step for
+// a monotonic-anchored Clock.
+type ClockStatus struct {
+	Synced       bool
+	SyncCount    uint64
+	LastSyncWall time.Time
+	LastSyncAge  time.Duration
+	LastStep     time.Duration
+}
+
 // Clock tracks UTC wall-clock time by anchoring a reference wall-clock instant
 // to a monotonic nanosecond source. Repeated Now() calls perform no MMIO and
 // advance with sub-second monotonic precision.
 type Clock struct {
-	mu       sync.RWMutex
-	synced   bool
-	baseWall time.Time
-	baseMono int64
-	mono     func() int64
+	mu        sync.RWMutex
+	synced    bool
+	syncCount uint64
+	lastStep  time.Duration
+	baseWall  time.Time
+	baseMono  int64
+	mono      func() int64
 }
 
 func resolveMonoSource(mono func() int64) func() int64 {
@@ -329,10 +354,11 @@ func resolveMonoSource(mono func() int64) func() int64 {
 func NewClock(wall time.Time, mono func() int64) *Clock {
 	m := resolveMonoSource(mono)
 	return &Clock{
-		synced:   true,
-		baseWall: wall.UTC(),
-		baseMono: m(),
-		mono:     m,
+		synced:    true,
+		syncCount: 1,
+		baseWall:  wall.UTC(),
+		baseMono:  m(),
+		mono:      m,
 	}
 }
 
@@ -353,6 +379,37 @@ func (c *Clock) Synced() bool {
 	synced := c.synced
 	c.mu.RUnlock()
 	return synced
+}
+
+// Status returns a snapshot of synchronization count, last epoch, monotonic age
+// since that sync, and the most recent time step applied on re-sync.
+func (c *Clock) Status() ClockStatus {
+	if c == nil {
+		return ClockStatus{}
+	}
+	c.mu.RLock()
+	synced := c.synced
+	syncCount := c.syncCount
+	baseWall := c.baseWall
+	baseMono := c.baseMono
+	lastStep := c.lastStep
+	mono := c.mono
+	c.mu.RUnlock()
+
+	if !synced {
+		return ClockStatus{}
+	}
+	age := mono() - baseMono
+	if age < 0 {
+		age = 0
+	}
+	return ClockStatus{
+		Synced:       true,
+		SyncCount:    syncCount,
+		LastSyncWall: baseWall,
+		LastSyncAge:  time.Duration(age),
+		LastStep:     lastStep,
+	}
 }
 
 // WallTime returns the current estimated UTC wall-clock time alongside
@@ -393,8 +450,21 @@ func (c *Clock) Now() time.Time {
 // Sync re-anchors the wall-clock epoch to wall at the current monotonic tick.
 func (c *Clock) Sync(wall time.Time) {
 	c.mu.Lock()
+	nowMono := c.mono()
+	wallUTC := wall.UTC()
+	if c.synced {
+		delta := nowMono - c.baseMono
+		if delta < 0 {
+			delta = 0
+		}
+		prevWall := c.baseWall.Add(time.Duration(delta))
+		c.lastStep = wallUTC.Sub(prevWall)
+	} else {
+		c.lastStep = 0
+	}
 	c.synced = true
-	c.baseWall = wall.UTC()
-	c.baseMono = c.mono()
+	c.syncCount++
+	c.baseWall = wallUTC
+	c.baseMono = nowMono
 	c.mu.Unlock()
 }

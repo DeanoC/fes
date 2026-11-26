@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // fes_computer_mailbox_core with fes_computer_storage behind it, as a 1.1
 // shell joins them, for computer_storage_tb's replay of the 1.1 golden
-// exchanges. The bench plays the machine's side of the storage ports.
+// exchanges. The bench plays the machine's side of the storage ports. With
+// ENABLE_PC_FLOPPY, pc386's floppy endpoint (pc386_floppy_media) sits on the
+// storage port as pc386_system puts it, and the bench plays its drives.
 `include "fes_computer.vh"
 module computer_storage_top #(
     parameter bit ENABLE_KEYBOARD = 0,
@@ -15,7 +17,8 @@ module computer_storage_top #(
     parameter bit ENABLE_WALL_CLOCK = 0,
     parameter bit ENABLE_PCXT_FLOPPY = 0,
     parameter bit ENABLE_PCXT_FLOPPY_WRITE = 0,
-    parameter bit ENABLE_PCXT_MACHINE = 0
+    parameter bit ENABLE_PCXT_MACHINE = 0,
+    parameter bit ENABLE_PC_FLOPPY = 0
 ) (
     input  wire         clk,
     input  wire [31:0]  gpo,
@@ -54,7 +57,19 @@ module computer_storage_top #(
     output wire [7:0]   wall_hour,
     output wire [7:0]   wall_minute,
     output wire [7:0]   wall_second,
-    output wire [7:0]   wall_weekday
+    output wire [7:0]   wall_weekday,
+    // The floppy drives (ENABLE_PC_FLOPPY; quiet without it)
+    output wire [1:0]   fd_present,
+    output wire [1:0]   fd_write_protect,
+    output wire [1:0]   fd_verify,
+    output wire [25:0]  fd_sectors,
+    output wire [63:0]  fd_crc,
+    input  wire [1:0]   fd_verify_done,
+    input  wire         fd_verify_match,
+    output wire         fd_frozen,
+    input  wire         fd_busy,
+    input  wire         fd_fenced,
+    input  wire [1:0]   fd_written
 );
     wire storage_request, storage_response_valid, storage_response_error, execution_accepted;
     wire [6:0] storage_opcode;
@@ -67,7 +82,7 @@ module computer_storage_top #(
         .ENABLE_ATA_DISK(ENABLE_ATA_DISK), .ENABLE_PERSISTENCE(ENABLE_PERSISTENCE),
         .ENABLE_PC386_MACHINE(ENABLE_PC386_MACHINE), .ENABLE_WALL_CLOCK(ENABLE_WALL_CLOCK),
         .ENABLE_PCXT_FLOPPY(ENABLE_PCXT_FLOPPY), .ENABLE_PCXT_FLOPPY_WRITE(ENABLE_PCXT_FLOPPY_WRITE),
-        .ENABLE_PCXT_MACHINE(ENABLE_PCXT_MACHINE)
+        .ENABLE_PCXT_MACHINE(ENABLE_PCXT_MACHINE), .ENABLE_PC_FLOPPY(ENABLE_PC_FLOPPY)
     ) gp_mailbox (
         .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi), .exec_reset(exec_reset),
         .keyboard_rows(), .controller_buttons(),
@@ -108,10 +123,17 @@ module computer_storage_top #(
         assign wall_minute = 8'd0;
         assign wall_second = 8'd0;
         assign wall_weekday = 8'd0;
+        assign fd_present = 2'b00;
+        assign fd_write_protect = 2'b00;
+        assign fd_verify = 2'b00;
+        assign fd_sectors = 26'd0;
+        assign fd_crc = 64'd0;
+        assign fd_frozen = 1'b0;
         /* verilator lint_off UNUSEDSIGNAL */
         wire unused_pc386_inputs = &{1'b0, disk_verify_done, disk_verify_match, disk_fenced,
             disk_busy, disk_written, disk_clearing, disk_dirty_word, cmos_write, cmos_byte_index,
-            cmos_byte, cmos_load, cmos_load_pair, cmos_clock_pair};
+            cmos_byte, cmos_load, cmos_load_pair, cmos_clock_pair,
+            fd_verify_done, fd_verify_match, fd_busy, fd_fenced, fd_written};
         /* verilator lint_on UNUSEDSIGNAL */
         pcxt_machine_settings pcxt_settings (
             .clk(clk), .exec_reset(exec_reset), .execution_accepted(execution_accepted),
@@ -121,13 +143,42 @@ module computer_storage_top #(
             .video_card(pcxt_video_card), .mono_tint(pcxt_mono_tint)
         );
     end else begin : pc386_storage
+        wire ata_request, ata_response_valid, ata_response_error;
+        wire [15:0] ata_response_data;
+        generate if (ENABLE_PC_FLOPPY) begin : floppy
+            wire [1:0][12:0] sectors;
+            wire [1:0][31:0] crc;
+            /* verilator lint_off PINCONNECTEMPTY */
+            pc386_floppy_media media (
+                .clk(clk), .request(storage_request), .opcode(storage_opcode), .index(storage_index),
+                .argument(storage_argument), .response_valid(storage_response_valid),
+                .response_error(storage_response_error), .response_data(storage_response_data),
+                .storage_request(ata_request), .storage_response_valid(ata_response_valid),
+                .storage_response_error(ata_response_error), .storage_response_data(ata_response_data),
+                .present(fd_present), .write_protect(fd_write_protect), .two_sided(), .cylinders(), .spt(),
+                .fdc_frozen(fd_frozen), .fdc_busy(fd_busy), .fdc_fenced(fd_fenced), .written(fd_written),
+                .verify(fd_verify), .sectors(sectors), .crc(crc),
+                .verify_done(fd_verify_done), .verify_match(fd_verify_match)
+            );
+            /* verilator lint_on PINCONNECTEMPTY */
+            assign fd_sectors = sectors;
+            assign fd_crc = crc;
+        end else begin : no_floppy
+            assign ata_request = storage_request;
+            assign storage_response_valid = ata_response_valid;
+            assign storage_response_error = ata_response_error;
+            assign storage_response_data = ata_response_data;
+            assign fd_present = 2'b00; assign fd_write_protect = 2'b00; assign fd_verify = 2'b00;
+            assign fd_sectors = 26'd0; assign fd_crc = 64'd0; assign fd_frozen = 1'b0;
+            wire unused = ^{fd_verify_done, fd_verify_match, fd_busy, fd_fenced, fd_written};
+        end endgenerate
         fes_computer_storage #(
             .ENABLE_ATA_DISK(ENABLE_ATA_DISK), .ENABLE_DATA(ENABLE_PERSISTENCE && ENABLE_PC386_MACHINE),
             .ENABLE_WALL_CLOCK(ENABLE_WALL_CLOCK)
         ) storage (
-            .clk(clk), .request(storage_request), .opcode(storage_opcode), .index(storage_index),
-            .argument(storage_argument), .response_valid(storage_response_valid),
-            .response_error(storage_response_error), .response_data(storage_response_data),
+            .clk(clk), .request(ata_request), .opcode(storage_opcode), .index(storage_index),
+            .argument(storage_argument), .response_valid(ata_response_valid),
+            .response_error(ata_response_error), .response_data(ata_response_data),
             .exec_reset(exec_reset), .execution_accepted(execution_accepted),
             .disk_state(disk_state), .disk_sectors(disk_sectors), .disk_cylinders(disk_cylinders),
             .disk_heads(disk_heads), .disk_spt(disk_spt), .disk_crc(disk_crc),

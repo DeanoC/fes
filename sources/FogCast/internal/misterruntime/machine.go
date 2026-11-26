@@ -25,8 +25,24 @@ func (d ataDiskRequest) valid() bool {
 	return validRuntimePath(d.Path) && validRuntimePath(d.DataRoot) && protocol2Hex64.MatchString(d.BaseMediaID) && geometry.Valid(d.Size)
 }
 
+// floppyRequest is one of load_library_core's floppies: a staged disk for
+// pc386's A: (unit 1) or B: (unit 2), bound to the request's game.
+type floppyRequest struct {
+	Unit           uint8  `json:"unit"`
+	Path           string `json:"path"`
+	Size           int64  `json:"size"`
+	DataRoot       string `json:"data_root"`
+	BaseMediaID    string `json:"base_media_id"`
+	WriteProtected bool   `json:"write_protected,omitempty"`
+}
+
+func (f floppyRequest) valid() bool {
+	drive, ok := protocol.PcFloppyDrive(f.Size)
+	return ok && drive == f.Unit && validRuntimePath(f.Path) && validRuntimePath(f.DataRoot) && protocol2Hex64.MatchString(f.BaseMediaID)
+}
+
 type protocol2MachineLibraryControl interface {
-	LoadLibraryMachineCore(context.Context, string, string, string, string, *ataDiskRequest, *InitialMediaRequest) (Protocol2Response, error)
+	LoadLibraryMachineCore(context.Context, string, string, string, string, *ataDiskRequest, *InitialMediaRequest, []floppyRequest) (Protocol2Response, error)
 }
 
 type protocol2MachineDataControl interface {
@@ -36,12 +52,18 @@ type protocol2MachineDataControl interface {
 }
 
 // LoadLibraryMachineCore sends load_library_core with the library game that
-// keys the machine record and, when bound, the hard disk or initial floppy.
-func (client *Client) LoadLibraryMachineCore(ctx context.Context, path, packageID, root, gameID string, disk *ataDiskRequest, initial *InitialMediaRequest) (Protocol2Response, error) {
+// keys the machine record and, when bound, the hard disk, initial floppy, or launch floppies.
+func (client *Client) LoadLibraryMachineCore(ctx context.Context, path, packageID, root, gameID string, disk *ataDiskRequest, initial *InitialMediaRequest, floppies []floppyRequest) (Protocol2Response, error) {
 	if !validRuntimePath(path) || !validRuntimePath(root) || !protocol2Hex64.MatchString(packageID) || !protocol.ValidMediaGameID(gameID) ||
-		(disk != nil && !disk.valid()) || !validInitialMediaRequest(initial) || (disk != nil && initial != nil) ||
-		(initial != nil && int64(initial.Size) != protocol.PcxtFloppyBytes) {
+		(disk != nil && !disk.valid()) || !validInitialMediaRequest(initial) ||
+		(initial != nil && (disk != nil || len(floppies) != 0 || int64(initial.Size) != protocol.PcxtFloppyBytes)) ||
+		len(floppies) > 2 || (len(floppies) == 2 && floppies[0].Unit == floppies[1].Unit) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	for _, f := range floppies {
+		if !f.valid() {
+			return Protocol2Response{}, errInvalidRuntimeRequest
+		}
 	}
 	before, err := client.Protocol2Status(ctx)
 	if err != nil {
@@ -56,7 +78,8 @@ func (client *Client) LoadLibraryMachineCore(ctx context.Context, path, packageI
 		GameID       string               `json:"game_id"`
 		ATADisk      *ataDiskRequest      `json:"ata_disk,omitempty"`
 		InitialMedia *InitialMediaRequest `json:"initial_media,omitempty"`
-	}{2, "load_library_core", path, packageID, root, gameID, disk, initial})
+		Floppies     []floppyRequest      `json:"floppies,omitempty"`
+	}{2, "load_library_core", path, packageID, root, gameID, disk, initial, floppies})
 	if err != nil {
 		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
 	}

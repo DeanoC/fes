@@ -440,6 +440,34 @@ constants:
     value: 6
   - name: FesComputerDiskCommitReservedWord
     value: 7
+  # fes.media.pc-floppy 1.0: drives A: (unit 1) and B: (unit 2) of a PC
+  # floppy controller beside the unit-0 ATA disk. The runtime writes each
+  # image into the HPS DDR window at the drive's offset; the Disk operations
+  # carry control, geometry and the CRC-32, with DiskCommit indexed
+  # unit*8+word. Unlike the ATA disk, Prepare, Commit and Eject are valid
+  # while execution runs, and DiskCommit word 7 carries write-protect.
+  - name: FesComputerPcFloppyUnitA
+    value: 1
+  - name: FesComputerPcFloppyUnitB
+    value: 2
+  - name: FesComputerPcFloppyWindowOffset
+    value: 0x01800000
+  - name: FesComputerPcFloppyWindowStride
+    value: 0x00400000
+  - name: FesComputerPcFloppyMinBytes
+    value: 163840
+  - name: FesComputerPcFloppyMaxBytes
+    value: 2949120
+  - name: FesComputerPcFloppySectorBytes
+    value: 512
+  - name: FesComputerPcFloppyMaxCylinders
+    value: 80
+  - name: FesComputerPcFloppyMaxHeads
+    value: 2
+  - name: FesComputerPcFloppyMaxSectorsPerTrack
+    value: 36
+  - name: FesComputerDiskCommitWriteProtectMask
+    value: 1
   # fes.persistence.words 1.0 on this registry. Control index 0.
   - name: FesComputerDataFreeze
     value: 0
@@ -662,7 +690,13 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 21
-  - id: fes.pcxt.machine
+  # Drives A: and B: on units 1 and 2, beside fes.media.ata-disk on unit 0,
+  # whose Disk operations they share. Requires fes.memory.hps-ddr.
+  - id: fes.media.pc-floppy
     major: 1
     minor: 0
     capability_bit: 22
+  - id: fes.pcxt.machine
+    major: 1
+    minor: 0
+    capability_bit: 23

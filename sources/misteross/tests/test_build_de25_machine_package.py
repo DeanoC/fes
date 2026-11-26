@@ -339,7 +339,9 @@ class MachineProducerTests(unittest.TestCase):
         self.assertEqual(manifest['format'], 2)
         self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
         versions = {i['id']: (i['major'], i['minor']) for i in manifest['interfaces']}
-        self.assertEqual(versions, {**{name: (1, 0) for name in sealer.INTERFACES},
+        self.assertNotIn('fes.media.pc-floppy', versions)
+        shared_interfaces = set(sealer.INTERFACES) - {'fes.media.pc-floppy'}
+        self.assertEqual(versions, {**{name: (1, 0) for name in shared_interfaces},
                                     'fes.fabric.de25-hps-window': (1, 0), 'fes.fabric.de25-scanout': (1, 3)})
         self.assertTrue(all(i['required'] for i in manifest['interfaces']))
         # Format 2: no ROM map, and no ROM metadata.

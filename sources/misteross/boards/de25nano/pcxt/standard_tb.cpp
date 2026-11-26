@@ -369,9 +369,9 @@ int main(int argc, char** argv) {
     const uint16_t capabilities = board.ok(1, 7, 0, "capabilities");
     const uint16_t capabilities_high = board.ok(1, 16, 0, "capabilities high");
     std::cout << "capabilities " << std::hex << capabilities_high << ' ' << capabilities << std::dec << '\n';
-    // Verify fes.pcxt.machine 1.0 capability bit 22 (high bit 6), persistence words bit 17 (high bit 1),
+    // Verify fes.pcxt.machine 1.0 capability bit 23 (high bit 7), persistence words bit 17 (high bit 1),
     // DataInfo {4, 4, 1, 0}, invalid video_card rejection, and commit/restore round-trip back to CGA/white.
-    require((capabilities_high & 0x42u) == 0x42u, "pcxt machine capabilities missing");
+    require((capabilities_high & 0x82u) == 0x82u, "pcxt machine capabilities missing");
     require(board.ok(27, 0, 0, "data info words") == 4 &&
             board.ok(27, 1, 0, "data info tag") == 4 &&
             board.ok(27, 2, 0, "data info major") == 1 &&

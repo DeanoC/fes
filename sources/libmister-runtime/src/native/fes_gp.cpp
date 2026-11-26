@@ -154,7 +154,8 @@ constexpr std::uint16_t kComputerHighCapabilityMask = static_cast<std::uint16_t>
 	(FesComputerCapabilityMediaAtaDisk | FesComputerCapabilityPersistenceWords |
 	 FesComputerCapabilityRtcWallClock | FesComputerCapabilityPc386Machine |
 	 FesComputerCapabilityPcxtMachine |
-	 FesComputerCapabilityMediaPcxtFloppy | FesComputerCapabilityMediaPcxtFloppyWrite) >> 16);
+	 FesComputerCapabilityMediaPcxtFloppy | FesComputerCapabilityMediaPcxtFloppyWrite |
+	 FesComputerCapabilityMediaPcFloppy) >> 16);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -637,6 +638,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesComputerCapabilityVideoSessionDisplay;
 			else if (interface.id == FesComputerInterfaceMediaAtaDiskID)
 				capabilities |= FesComputerCapabilityMediaAtaDisk;
+			else if (interface.id == FesComputerInterfaceMediaPcFloppyID)
+				capabilities |= FesComputerCapabilityMediaPcFloppy;
 			else if (interface.id == FesComputerInterfacePersistenceWordsID)
 				capabilities |= FesComputerCapabilityPersistenceWords;
 			else if (interface.id == FesComputerInterfacePc386MachineID)
@@ -907,6 +910,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 	pc386_machine_ = false;
 	pcxt_machine_ = false;
 	ata_disk_ = false;
+	pc_floppy_ = false;
 	keyboard_hid_ = false;
 	mouse_relative_ = false;
 	floppy_write_ = false;
@@ -932,6 +936,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			if (interface.id == FesComputerInterfacePc386MachineID) pc386_machine_ = true;
 			if (interface.id == FesComputerInterfacePcxtMachineID) pcxt_machine_ = true;
 			if (interface.id == FesComputerInterfaceMediaAtaDiskID) ata_disk_ = true;
+			if (interface.id == FesComputerInterfaceMediaPcFloppyID) pc_floppy_ = true;
 			if (interface.id == kFirmwareUploadInterfaceID) firmware_upload_ = true;
 			if (interface.id == FesComputerInterfaceMediaApple2FloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
@@ -1020,6 +1025,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			pc386_machine_ = false;
 			pcxt_machine_ = false;
 			ata_disk_ = false;
+			pc_floppy_ = false;
 			firmware_upload_ = false;
 			media_units_.clear();
 		}
@@ -2381,6 +2387,63 @@ Error FesGpCoreDriver::CommitAtaDisk(std::uint32_t sectors, std::uint16_t cylind
 		}
 		const std::uint64_t now = gp_.NowMs();
 		error = gp_.WaitUntilMs(now + 10 < deadline ? now + 10 : deadline, deadline);
+	}
+	return WithPhase(error, "input");
+}
+
+Error FesGpCoreDriver::FloppyControl(std::uint8_t unit, std::uint16_t argument, std::uint64_t deadline)
+{
+	if (!pc_floppy_ || (unit != FesComputerPcFloppyUnitA && unit != FesComputerPcFloppyUnitB))
+		return {ErrorCode::unsupported_interface, "floppy drive is unavailable", "input"};
+	Error error = RecoverComputerMailbox(deadline);
+	if (!error.ok()) return error;
+	return ComputerCommand(FesComputerOpcodeDiskControl, unit, argument, deadline);
+}
+
+Error FesGpCoreDriver::ReadFloppyFlags(std::uint8_t unit, std::uint64_t deadline, std::uint16_t* flags)
+{
+	if (!pc_floppy_ || !flags || (unit != FesComputerPcFloppyUnitA && unit != FesComputerPcFloppyUnitB))
+		return {ErrorCode::unsupported_interface, "floppy drive is unavailable", "input"};
+	return WithPhase(gp_.Exchange(FesComputerOpcodeDiskInfo,
+		static_cast<std::uint8_t>(unit * FesComputerDiskInfoStride + FesComputerDiskInfoFlagsField), 0, deadline,
+		flags), "input");
+}
+
+Error FesGpCoreDriver::CommitFloppy(std::uint8_t unit, std::uint32_t sectors, std::uint16_t cylinders,
+	std::uint16_t heads, std::uint16_t sectors_per_track, std::uint32_t crc, bool write_protected,
+	std::uint64_t deadline)
+{
+	if (!pc_floppy_ || (unit != FesComputerPcFloppyUnitA && unit != FesComputerPcFloppyUnitB))
+		return {ErrorCode::unsupported_interface, "floppy drive is unavailable", "input"};
+	const std::uint16_t words[FesComputerDiskCommitWordCount] = {
+		static_cast<std::uint16_t>(sectors), static_cast<std::uint16_t>(sectors >> 16),
+		cylinders, heads, sectors_per_track,
+		static_cast<std::uint16_t>(crc), static_cast<std::uint16_t>(crc >> 16),
+		static_cast<std::uint16_t>(write_protected ? FesComputerDiskCommitWriteProtectMask : 0)};
+	Error error;
+	for (std::uint8_t word = 0; word < FesComputerDiskCommitWordCount && error.ok(); ++word)
+		error = ComputerCommand(FesComputerOpcodeDiskCommit,
+			static_cast<std::uint8_t>(unit * FesComputerDiskCommitWordCount + word), words[word], deadline);
+	if (error.ok()) error = FloppyControl(unit, FesComputerDiskControlCommit, deadline);
+	// The core reads at most 2.88 MB from DDR between the controller's transfers.
+	const std::uint8_t state_index =
+		static_cast<std::uint8_t>(unit * FesComputerDiskInfoStride + FesComputerDiskInfoStateField);
+	while (error.ok()) {
+		std::uint16_t state = 0;
+		error = gp_.Exchange(FesComputerOpcodeDiskInfo, state_index, 0, deadline, &state);
+		if (!error.ok() || state == FesComputerMediaStateReady) break;
+		if (state != FesComputerDiskStateVerifying) {
+			std::uint16_t flags = 0;
+			error = ReadFloppyFlags(unit, deadline, &flags);
+			if (error.ok())
+				error = (flags & FesComputerDiskFlagErrorMask)
+					? Error{ErrorCode::corrupt_data, "the core reported a floppy image CRC mismatch", "input"}
+					: Error{ErrorCode::io_failed,
+						"the core left floppy verification without reporting ready or a CRC error", "input"};
+			break;
+		}
+		const std::uint64_t now = gp_.NowMs();
+		error = gp_.WaitUntilMs(now + 2 < deadline ? now + 2 : deadline, deadline);
 	}
 	return WithPhase(error, "input");
 }
