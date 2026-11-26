@@ -3976,7 +3976,12 @@ replaces the stream when any of those change. An explicit attach of a
 stream that no longer matches is refused and leaves the existing stream
 in place. When the host has observed that the stream is unavailable and cannot
 reconnect, a new launcher input POST or event POST returns 503
-`INPUT_UNAVAILABLE` (`no live input stream`). An already-open launcher stream
+`INPUT_UNAVAILABLE` (`no live input stream`). A host whose configuration does
+not enable `[remote_input]` has no input bridge for the session: attach,
+detach, tap and event return 503 `INPUT_UNAVAILABLE` (`remote input is not
+enabled in this host's configuration`). That check comes before the kit-lease
+and connection checks, so a disconnected or foreign-leased target gives the
+same answer. An already-open launcher stream
 ends when a subsequent event encounters the loss or its read timeout expires;
 its initial ready response does not acknowledge individual events. Launcher
 clients can request sequenced event receipts; the original stream has no
