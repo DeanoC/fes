@@ -10,7 +10,7 @@ import re
 
 REPORTS = Path('signoff/combined/hps/project/output_files')
 OUTPUT_DIRS = {'output_files', 'qdb', 'tmp-clearbox', 'dni', '.qsys_edit', 'software'}
-SANDBOX_PID = re.compile(rb'(dni/sandboxes/powerboat_)\d+(_0/)|(tmp-clearbox/golden_top/)\d+(/)')
+SANDBOX_PID = re.compile(rb'(dni/sandboxes/[^/]+_)\d+(_0/)|(tmp-clearbox/golden_top/)\d+(/)')
 TABLES = (
     ('golden_top.syn.rpt', b'General Register Statistics for Partition "root_partition"'),
     ('golden_top.syn.rpt', b'Synthesis Resource Usage Summary for Partition "root_partition"'),
