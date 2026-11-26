@@ -1412,4 +1412,98 @@ func TestProgramMultiInputPlatformControllersUIFamilyGlyphsAndPerPadProfiles(t *
 	if snap := app.Snapshot().Controllers; !snap.Open || len(snap.Tabs) != 1 || snap.Tabs[0].Label != "P1" {
 		t.Fatalf("expected 1 tab (P1) after P2 detach, got %+v", snap)
 	}
+
+	// Test Learn flow, Profile.Mapping application, stick-held deferral, and same-ID GUID replacement on P1.
+	// Move focus to "Map step by step" (controllersFocusLearn) on P1 and activate it via keyboard CmdSelect.
+	for _, cmd := range []tenfoot.Command{tenfoot.CmdDown, tenfoot.CmdDown, tenfoot.CmdDown, tenfoot.CmdLeft} {
+		app.HandleCommand(cmd, time.Now())
+	}
+	app.HandleCommand(tenfoot.CmdSelect, time.Now())
+	if !app.PadLearning(xboxDev.ID) || !app.Snapshot().Controllers.Learn.Open {
+		t.Fatalf("expected Learn wizard active on P1, got %+v", app.Snapshot().Controllers.Learn)
+	}
+	// Drive all 12 button/hat steps (mapping West/X to A and South/A to B) plus left/down stick axes.
+	pressXbox := func(btn controllers.Button, lx, ly int16) tenfoot.PlatformInput {
+		xboxDev.Buttons, xboxDev.LeftX, xboxDev.LeftY = btn, lx, ly
+		src.setPadDevices(xboxDev)
+		f := step()
+		if len(f.Commands) != 0 {
+			t.Fatalf("pad learning should suppress normal menu commands, got %v", f.Commands)
+		}
+		xboxDev.Buttons, xboxDev.LeftX, xboxDev.LeftY = 0, 0, 0
+		src.setPadDevices(xboxDev)
+		step()
+		return f
+	}
+	for _, btn := range []controllers.Button{
+		controllers.ButtonDPadUp, controllers.ButtonDPadDown, controllers.ButtonDPadLeft, controllers.ButtonDPadRight,
+		controllers.ButtonWest, controllers.ButtonSouth, // learned: a=b2 (West), b=b0 (South)
+		controllers.ButtonNorth, controllers.ButtonEast,
+		controllers.ButtonL1, controllers.ButtonR1,
+		controllers.ButtonSelect, controllers.ButtonStart,
+	} {
+		pressXbox(btn, 0, 0)
+	}
+	pressXbox(0, -25000, 0) // Push LeftX negative for "Stick right" -> produces leftx:a0~ (inverted X)
+	pressXbox(0, 0, 25000)  // Push LeftY positive for "Stick down" -> produces lefty:a1
+	if !app.Snapshot().Controllers.Learn.Review {
+		t.Fatalf("expected Learn wizard at Review screen, got %+v", app.Snapshot().Controllers.Learn)
+	}
+	// Save on Review via CmdSelect and verify learned Mapping (ButtonWest->CmdSelect, LeftX>0->CmdLeft) is active.
+	app.HandleCommand(tenfoot.CmdSelect, time.Now())
+	if !app.Snapshot().Controllers.Mapped || app.PadLearning(xboxDev.ID) {
+		t.Fatalf("expected learned Mapping saved, got %+v", app.Snapshot().Controllers)
+	}
+	step() // Reload learned Mapping while controller is neutral.
+	xboxDev.Buttons = controllers.ButtonWest
+	src.setPadDevices(xboxDev)
+	if f := step(); !slices.Contains(f.Commands, tenfoot.CmdSelect) {
+		t.Fatalf("expected learned ButtonWest -> CmdSelect, got %v", f.Commands)
+	}
+	// Close the ButtonWest target picker opened by CmdSelect and verify inverted Stick right (LeftX>0) -> CmdLeft.
+	app.HandleCommand(tenfoot.CmdBack, time.Now())
+	xboxDev.Buttons, xboxDev.LeftX = 0, 25000
+	src.setPadDevices(xboxDev)
+	if f := step(); !slices.Contains(f.Commands, tenfoot.CmdLeft) {
+		t.Fatalf("expected learned inverted Stick right (LeftX>0) -> CmdLeft, got %v", f.Commands)
+	}
+	// While LeftX stays held positive (+a0), toggle Swap A / B via Settings UI: reload defers while stick held,
+	// so ButtonWest still emits CmdSelect (mapping a=b2 without swap-ab yet).
+	app.HandleCommand(tenfoot.CmdLeft, time.Now()) // Focus -> Swap A / B
+	app.HandleCommand(tenfoot.CmdSelect, time.Now())
+	if !app.Snapshot().Controllers.SwapAB {
+		t.Fatal("expected Swap A / B enabled on learned P1")
+	}
+	xboxDev.Buttons = controllers.ButtonWest
+	src.setPadDevices(xboxDev)
+	if f, err := p.Next(context.Background()); err != nil || !slices.Contains(f.Commands, tenfoot.CmdSelect) {
+		t.Fatalf("expected stick-held deferred reload (learned ButtonWest still CmdSelect), got f=%+v err=%v", f, err)
+	}
+	// Center stick and release all buttons -> Mapping + PresetSwapAB reloads -> ButtonWest now emits CmdBack!
+	xboxDev.Buttons, xboxDev.LeftX = 0, 0
+	src.setPadDevices(xboxDev)
+	step()
+	xboxDev.Buttons = controllers.ButtonWest
+	src.setPadDevices(xboxDev)
+	if f, err := p.Next(context.Background()); err != nil || !slices.Contains(f.Commands, tenfoot.CmdBack) {
+		t.Fatalf("expected layered Mapping + PresetSwapAB after stick neutral (ButtonWest -> CmdBack), got f=%+v err=%v", f, err)
+	}
+
+	// Reusing slot ID=1 for a Switch Pro pad (different GUID) immediately drops Xbox's Mapping and loads Switch Pro's profile.
+	xboxDev.Buttons, xboxDev.LeftX = 0, 0
+	src.setPadDevices(xboxDev)
+	step()
+	switchDev := usbhub.GamepadDevice{
+		ID:      1,
+		Name:    "Nintendo Switch Pro Controller",
+		Vendor:  0x057e,
+		Product: 0x2009,
+		Kind:    controllers.KindSwitchPro,
+		Player:  1,
+		Buttons: controllers.ButtonWest,
+	}
+	src.setPadDevices(switchDev)
+	if f := step(); !slices.Contains(f.Commands, tenfoot.CmdSortCycle) || app.Snapshot().Controllers.Family != gfx.PromptNintendo || app.Snapshot().Controllers.Mapped {
+		t.Fatalf("expected reused ID with new GUID to clear previous mapping and switch to Nintendo glyphs: cmds=%v controllers=%+v", f.Commands, app.Snapshot().Controllers)
+	}
 }

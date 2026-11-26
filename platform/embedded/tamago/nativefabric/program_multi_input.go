@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -74,8 +75,10 @@ type ProgramMultiConfig struct {
 type trackedMultiPad struct {
 	info       tenfoot.PadInfo
 	buttons    controllers.Button
-	remap      *inputmap.Remapper
+	stick      [4]bool
+	profile    *multiPadProfile
 	profileGen uint64
+	learning   bool
 	seen       bool
 }
 
@@ -873,19 +876,64 @@ const (
 var canonicalButtonMap = []struct {
 	bit  controllers.Button
 	code remoteinput.Code
+	raw  string
 }{
-	{controllers.ButtonSouth, remoteinput.ButtonA},
-	{controllers.ButtonEast, remoteinput.ButtonB},
-	{controllers.ButtonWest, remoteinput.ButtonX},
-	{controllers.ButtonNorth, remoteinput.ButtonY},
-	{controllers.ButtonL1, remoteinput.ButtonL},
-	{controllers.ButtonR1, remoteinput.ButtonR},
-	{controllers.ButtonSelect, remoteinput.ButtonSelect},
-	{controllers.ButtonStart, remoteinput.ButtonStart},
-	{controllers.ButtonDPadUp, remoteinput.ButtonDPadUp},
-	{controllers.ButtonDPadDown, remoteinput.ButtonDPadDown},
-	{controllers.ButtonDPadLeft, remoteinput.ButtonDPadLeft},
-	{controllers.ButtonDPadRight, remoteinput.ButtonDPadRight},
+	{controllers.ButtonSouth, remoteinput.ButtonA, "b0"},
+	{controllers.ButtonEast, remoteinput.ButtonB, "b1"},
+	{controllers.ButtonWest, remoteinput.ButtonX, "b2"},
+	{controllers.ButtonNorth, remoteinput.ButtonY, "b3"},
+	{controllers.ButtonL1, remoteinput.ButtonL, "b4"},
+	{controllers.ButtonR1, remoteinput.ButtonR, "b5"},
+	{controllers.ButtonSelect, remoteinput.ButtonSelect, "b6"},
+	{controllers.ButtonStart, remoteinput.ButtonStart, "b7"},
+	{controllers.ButtonDPadUp, remoteinput.ButtonDPadUp, "h0.1"},
+	{controllers.ButtonDPadDown, remoteinput.ButtonDPadDown, "h0.4"},
+	{controllers.ButtonDPadLeft, remoteinput.ButtonDPadLeft, "h0.8"},
+	{controllers.ButtonDPadRight, remoteinput.ButtonDPadRight, "h0.2"},
+}
+
+var stickDirSources = [4]struct {
+	raw  string
+	code remoteinput.Code
+}{
+	{raw: "-a1", code: remoteinput.ButtonDPadUp},
+	{raw: "+a1", code: remoteinput.ButtonDPadDown},
+	{raw: "-a0", code: remoteinput.ButtonDPadLeft},
+	{raw: "+a0", code: remoteinput.ButtonDPadRight},
+}
+
+var learnedTargetCode = map[string]remoteinput.Code{
+	"a":             remoteinput.ButtonA,
+	"b":             remoteinput.ButtonB,
+	"x":             remoteinput.ButtonX,
+	"y":             remoteinput.ButtonY,
+	"leftshoulder":  remoteinput.ButtonL,
+	"rightshoulder": remoteinput.ButtonR,
+	"back":          remoteinput.ButtonSelect,
+	"start":         remoteinput.ButtonStart,
+	"dpup":          remoteinput.ButtonDPadUp,
+	"dpdown":        remoteinput.ButtonDPadDown,
+	"dpleft":        remoteinput.ButtonDPadLeft,
+	"dpright":       remoteinput.ButtonDPadRight,
+}
+
+type multiPadProfile struct {
+	hasMapping bool
+	sources    map[string]remoteinput.Code
+	remap      *inputmap.Remapper
+}
+
+func gamepadStickDirs(dev usbhub.GamepadDevice) [4]bool {
+	return [4]bool{
+		dev.LeftY < -tamagoStickZone,
+		dev.LeftY > tamagoStickZone,
+		dev.LeftX < -tamagoStickZone,
+		dev.LeftX > tamagoStickZone,
+	}
+}
+
+func gamepadDeviceNeutral(dev usbhub.GamepadDevice) bool {
+	return dev.Buttons == 0 && gamepadStickDirs(dev) == ([4]bool{})
 }
 
 func (p *ProgramMultiInputPlatform) refreshPadProfiles() {
@@ -910,6 +958,17 @@ func (p *ProgramMultiInputPlatform) refreshPadProfiles() {
 	p.padProfilesGen = gen
 }
 
+func releaseTrackedPadButtons(app *tenfoot.App, id int, buttons controllers.Button) {
+	if buttons == 0 {
+		return
+	}
+	for _, m := range canonicalButtonMap {
+		if buttons&m.bit != 0 {
+			app.NotePadButton(id, m.code, false)
+		}
+	}
+}
+
 func (p *ProgramMultiInputPlatform) syncTenfootPads(force bool) {
 	app := p.cfg.App
 	if app == nil {
@@ -918,13 +977,16 @@ func (p *ProgramMultiInputPlatform) syncTenfootPads(force bool) {
 	p.refreshPadProfiles()
 	gen := p.source.GamepadGeneration()
 	profilePending := false
-	for _, tracked := range p.pads {
+	learningChanged := false
+	for id, tracked := range p.pads {
 		if tracked.profileGen != p.padProfilesGen {
 			profilePending = true
-			break
+		}
+		if app.PadLearning(id) != tracked.learning {
+			learningChanged = true
 		}
 	}
-	if !force && gen == p.lastPadGen && !profilePending {
+	if !force && gen == p.lastPadGen && !profilePending && !learningChanged {
 		return
 	}
 	n := p.source.GamepadDevicesInto(p.padCache[:])
@@ -937,11 +999,21 @@ func (p *ProgramMultiInputPlatform) syncTenfootPads(force bool) {
 	for _, tracked := range p.pads {
 		tracked.seen = false
 	}
+	now := time.Now()
 	for i := 0; i < n; i++ {
 		dev := p.padCache[i]
 		info := tamagoPadInfo(dev)
 		tracked, exists := p.pads[dev.ID]
 		if !exists {
+			tracked = &trackedMultiPad{info: info}
+			p.pads[dev.ID] = tracked
+			app.SetPadInfo(dev.ID, info)
+			app.AttachInput(tenfoot.InputGamepad, dev.ID)
+		} else if tracked.info.GUID != info.GUID {
+			releaseTrackedPadButtons(app, dev.ID, tracked.buttons)
+			if tracked.learning {
+				app.DetachInput(tenfoot.InputGamepad, dev.ID)
+			}
 			tracked = &trackedMultiPad{info: info}
 			p.pads[dev.ID] = tracked
 			app.SetPadInfo(dev.ID, info)
@@ -952,15 +1024,45 @@ func (p *ProgramMultiInputPlatform) syncTenfootPads(force bool) {
 		}
 		tracked.seen = true
 
-		if !exists || (tracked.profileGen != p.padProfilesGen && dev.Buttons == 0) {
-			remap, err := compileMultiProfile(p.padProfiles[info.GUID])
+		if !exists || tracked.profileGen == 0 || (tracked.profileGen != p.padProfilesGen && gamepadDeviceNeutral(dev)) {
+			prof, err := compileMultiProfile(p.padProfiles[info.GUID])
 			if err == nil {
-				tracked.remap = remap
+				tracked.profile = prof
 			} else {
-				tracked.remap = nil
+				tracked.profile = nil
 			}
 			tracked.profileGen = p.padProfilesGen
 		}
+
+		stickHeld := gamepadStickDirs(dev)
+		learning := app.PadLearning(dev.ID)
+		if learning {
+			if !tracked.learning {
+				releaseTrackedPadButtons(app, dev.ID, tracked.buttons)
+			}
+			for _, m := range canonicalButtonMap {
+				if dev.Buttons&m.bit != 0 && tracked.buttons&m.bit == 0 {
+					app.NoteInput(tenfoot.InputGamepad, dev.ID)
+					app.LearnPadSource(dev.ID, m.raw, now)
+				}
+			}
+			for k, down := range stickHeld {
+				if down && !tracked.stick[k] {
+					app.NoteInput(tenfoot.InputGamepad, dev.ID)
+					app.LearnPadSource(dev.ID, stickDirSources[k].raw, now)
+				}
+			}
+			tracked.learning = true
+			tracked.buttons = dev.Buttons
+			tracked.stick = stickHeld
+			continue
+		}
+		if tracked.learning && (tracked.buttons != 0 || tracked.stick != ([4]bool{})) && !gamepadDeviceNeutral(dev) {
+			tracked.buttons = dev.Buttons
+			tracked.stick = stickHeld
+			continue
+		}
+		tracked.learning = false
 
 		pressedAny := false
 		changed := dev.Buttons ^ tracked.buttons
@@ -978,30 +1080,74 @@ func (p *ProgramMultiInputPlatform) syncTenfootPads(force bool) {
 				pressedAny = true
 			}
 		}
-		if pressedAny || dev.LeftX < -tamagoStickZone || dev.LeftX > tamagoStickZone || dev.LeftY < -tamagoStickZone || dev.LeftY > tamagoStickZone {
+		if pressedAny || stickHeld != ([4]bool{}) {
 			app.NoteInput(tenfoot.InputGamepad, dev.ID)
 		}
 		tracked.buttons = dev.Buttons
+		tracked.stick = stickHeld
 	}
 	for id, tracked := range p.pads {
 		if tracked.seen {
 			continue
 		}
-		for _, m := range canonicalButtonMap {
-			if tracked.buttons&m.bit != 0 {
-				app.NotePadButton(id, m.code, false)
-			}
-		}
+		releaseTrackedPadButtons(app, id, tracked.buttons)
 		app.DetachInput(tenfoot.InputGamepad, id)
 		delete(p.pads, id)
 	}
 }
 
-func compileMultiProfile(profile inputmap.Profile) (*inputmap.Remapper, error) {
-	if profile.Preset == "" && len(profile.Bindings) == 0 {
+func compileMultiProfile(profile inputmap.Profile) (*multiPadProfile, error) {
+	if profile.Mapping == "" && profile.Preset == "" && len(profile.Bindings) == 0 {
 		return nil, nil
 	}
-	return inputmap.NewRemapper(profile)
+	var out multiPadProfile
+	if profile.Mapping != "" {
+		out.hasMapping = true
+		out.sources = parseMultiMapping(profile.Mapping)
+	}
+	if profile.Preset != "" || len(profile.Bindings) > 0 {
+		remap, err := inputmap.NewRemapper(inputmap.Profile{
+			Preset:   profile.Preset,
+			Bindings: profile.Bindings,
+		})
+		if err != nil {
+			return nil, err
+		}
+		out.remap = remap
+	}
+	return &out, nil
+}
+
+func parseMultiMapping(mapping string) map[string]remoteinput.Code {
+	sources := make(map[string]remoteinput.Code)
+	for _, field := range strings.Split(mapping, ",") {
+		target, src, ok := strings.Cut(strings.TrimSpace(field), ":")
+		target, src = strings.TrimSpace(target), strings.TrimSpace(src)
+		if !ok || src == "" || target == "" || target == "platform" {
+			continue
+		}
+		if target == "leftx" || target == "lefty" {
+			inv := strings.HasSuffix(src, "~")
+			axis := strings.TrimLeft(strings.TrimSuffix(src, "~"), "+-")
+			if axis == "" {
+				continue
+			}
+			neg, pos := remoteinput.ButtonDPadLeft, remoteinput.ButtonDPadRight
+			if target == "lefty" {
+				neg, pos = remoteinput.ButtonDPadUp, remoteinput.ButtonDPadDown
+			}
+			if inv {
+				neg, pos = pos, neg
+			}
+			sources["-"+axis] = neg
+			sources["+"+axis] = pos
+			continue
+		}
+		if code, ok := learnedTargetCode[target]; ok {
+			sources[src] = code
+		}
+	}
+	return sources
 }
 
 func (p *ProgramMultiInputPlatform) effectiveControllerPorts(base [usbhub.MaxPlayerPorts]uint8) [usbhub.MaxPlayerPorts]uint8 {
@@ -1012,10 +1158,10 @@ func (p *ProgramMultiInputPlatform) effectiveControllerPorts(base [usbhub.MaxPla
 			continue
 		}
 		tracked := p.pads[dev.ID]
-		if tracked == nil || tracked.remap == nil {
+		if tracked == nil || tracked.profile == nil {
 			continue
 		}
-		ports[dev.Player-1] = computerMaskFromControls(remappedControls(dev, tracked.remap))
+		ports[dev.Player-1] = computerMaskFromControls(remappedControls(dev, tracked.profile))
 	}
 	return ports
 }
@@ -1024,11 +1170,14 @@ func (p *ProgramMultiInputPlatform) menuControlsFromPads() [10]bool {
 	var held [10]bool
 	for i := 0; i < p.padCount; i++ {
 		dev := p.padCache[i]
-		var remap *inputmap.Remapper
+		var profile *multiPadProfile
 		if tracked := p.pads[dev.ID]; tracked != nil {
-			remap = tracked.remap
+			if tracked.learning {
+				continue
+			}
+			profile = tracked.profile
 		}
-		c := remappedControls(dev, remap)
+		c := remappedControls(dev, profile)
 		if c[remoteinput.ButtonDPadUp] {
 			held[0] = true
 		}
@@ -1063,25 +1212,31 @@ func (p *ProgramMultiInputPlatform) menuControlsFromPads() [10]bool {
 	return held
 }
 
-func remappedControls(dev usbhub.GamepadDevice, remap *inputmap.Remapper) map[remoteinput.Code]bool {
+func remappedControls(dev usbhub.GamepadDevice, profile *multiPadProfile) map[remoteinput.Code]bool {
 	out := make(map[remoteinput.Code]bool, 12)
-	add := func(code remoteinput.Code) {
-		out[remap.Target(code)] = true
+	addSource := func(raw string, fallback remoteinput.Code) {
+		code := fallback
+		if profile != nil && profile.hasMapping {
+			mapped, ok := profile.sources[raw]
+			if !ok {
+				return
+			}
+			code = mapped
+		}
+		if profile != nil && profile.remap != nil {
+			code = profile.remap.Target(code)
+		}
+		out[code] = true
 	}
 	for _, m := range canonicalButtonMap {
 		if dev.Buttons&m.bit != 0 {
-			add(m.code)
+			addSource(m.raw, m.code)
 		}
 	}
-	if dev.LeftY < -tamagoStickZone {
-		add(remoteinput.ButtonDPadUp)
-	} else if dev.LeftY > tamagoStickZone {
-		add(remoteinput.ButtonDPadDown)
-	}
-	if dev.LeftX < -tamagoStickZone {
-		add(remoteinput.ButtonDPadLeft)
-	} else if dev.LeftX > tamagoStickZone {
-		add(remoteinput.ButtonDPadRight)
+	for k, down := range gamepadStickDirs(dev) {
+		if down {
+			addSource(stickDirSources[k].raw, stickDirSources[k].code)
+		}
 	}
 	return out
 }
