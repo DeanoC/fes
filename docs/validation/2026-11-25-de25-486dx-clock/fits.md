@@ -1098,6 +1098,17 @@ All seven DE25 D12 source selections matched `2f19382b` and
 verify the assigned sites in the final routed database and pass the
 usual timing, seal and LOADED gates.
 
+All 18 sites matched in the final seed 2 database. The producer still
+refused the fit. The worst data slack was −0.140 ns and total negative
+data slack was −0.701 ns at slow fix4 0 °C. The assigned bit 13 measured
+−0.113 ns at the same two FF sites that passed in the Maximum donor.
+Seven other failing paths were unassigned. Ordinary setup passed at
++0.019 ns, hold at 0.000 ns and independent LOADED at 2.913 ns. The fit
+used 45,153 ALMs and 42 DSPs. The summary SHA-256 is
+`fc88938e9369f2eb2984171d1fd8506e10ab08fd9f751b6eac02c0b143e2fef8`.
+The routed-site receipt SHA-256 is
+`a21a91126f2c8c29faea07a74683b6d22ce8990d1cc15ce8ef82ecb9cc7e57a1`.
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed
