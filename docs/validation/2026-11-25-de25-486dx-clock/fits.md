@@ -570,6 +570,28 @@ B. The two selection reports share SHA-256
 This carries the six measured D12 package matches. PC/XT's RBF comparison
 remains open under [#2182](https://github.com/DeanoC/fes/issues/2182).
 
+### C0 = 30 rerun with the clock-period bound
+
+| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Seed summary SHA-256 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 45,156.0 | +0.237 ns | 0.000 ns | +6.771 ns | +0.041 ns | 2.225 ns | `b5a2c8ae7da1615e5dc2a2bb528da5d6c99105501254c1c97531a4e847ff43f5` |
+| 2 | 45,084.1 | +0.600 ns | 0.000 ns | +6.912 ns | +0.060 ns | 2.800 ns | `4864dee1b6e43737a6b2bb9576ff18343520609818d31ea8270c1741836ad18d` |
+| 3 | 44,928.4 | +0.468 ns | 0.000 ns | +6.623 ns | +0.018 ns | 2.299 ns | `882a290ce8a3ee6fe12bb4eb0f60f2d81291d7ad53a8f4c124bcb0d923e77488` |
+| 4 | 45,119.2 | +0.835 ns | 0.000 ns | +6.917 ns | +0.038 ns | 2.717 ns | `beb128524755855eaad5346810526ba5593cb42849283b52b287c0c1b0965d61` |
+
+All four fresh seeds qualified 104.444444 MHz at
+`2b80daf824ca3b91e09c1ded4680b676fb0a8479`. Quartus reported zero
+`CDC-50003` violations, and all four passed ordinary timing and sealing
+and the independent 3.9 ns LOADED gate. The raw machine netlist SHA-256
+`efa913c2116c646dafdb6eced89fd89b589de247d614cbd964d748c75e35653b`
+matches the original sweep at the same rate on all four seeds. The
+retained `c30-cdc/summary.json` SHA-256 is
+`5877bc9cde957bf535eb557daa48117a113b71ebe4f3dfadfc0654af41d8cf8a`.
+The worst routed setup paths on seeds 1 and 2 capture into the x87
+fast-result register. Seed 2's path launches from the fast-request
+register. The generated machine netlist identifies these as `_36691_`
+and `_36685_`, respectively.
+
 ## Upper-rung generation preflights
 
 The [generation preflight](parent-c28.txt) reviews the Qsys parent for
