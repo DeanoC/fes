@@ -52,9 +52,10 @@ func FirmwareUpload(d Descriptor) bool {
 }
 
 // DE25ComputerABI is the exact fes.computer contract a DE25 machine runs. The
-// PC/XT's floppy is a fes.computer 1.1 interface; every other machine is 1.0.
+// PC/XT's floppy and the pc386's ATA disk, machine words and wall clock are
+// fes.computer 1.1 interfaces; every other machine is 1.0.
 func DE25ComputerABI(coreID string) Contract {
-	return Contract{ID: "fes.computer", Major: 1, Minor: map[string]int64{"fes.pcxt-dos": 1}[coreID]}
+	return Contract{ID: "fes.computer", Major: 1, Minor: map[string]int64{"fes.pcxt-dos": 1, "fes.pc386": 1}[coreID]}
 }
 
 // firmwareUploadMachine admits the machines the DE25 runtime launches this
