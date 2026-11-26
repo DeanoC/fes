@@ -1681,3 +1681,62 @@ func TestHubClassicBTMouseMergeWithWiredAndDisconnectRelease(t *testing.T) {
 		t.Fatalf("expected 0 allocations per active BT mouse Service(), got %.1f", allocs)
 	}
 }
+
+func TestHubUnknownBluetoothHIDMouseNeutralFence(t *testing.T) {
+	bus := newFakeBus()
+	hub, err := NewHub(bus, Config{Bonds: l2cap.NewBondStore()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Close()
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if !hub.MouseNeutral() {
+		t.Fatal("expected empty initialized hub to be mouse-neutral")
+	}
+
+	// KindUnknown slots use boot keyboard/mouse fallback, so they may be mice
+	// until the first keyboard or mouse report identifies the input path.
+	hub.bt.OnSlotChanged(0, true, controllers.KindUnknown, "BT HID")
+	if hub.MouseNeutral() {
+		t.Fatal("unknown Bluetooth HID slot must keep MouseNeutral closed before its first report")
+	}
+	hub.bt.OnSlotKeyboardReport(0, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	if !hub.MouseNeutral() {
+		t.Fatal("valid keyboard report should clear the provisional mouse fence")
+	}
+
+	hub.bt.OnSlotChanged(1, true, controllers.KindUnknown, "BT HID Mouse")
+	if hub.MouseNeutral() {
+		t.Fatal("second unknown Bluetooth HID slot must keep MouseNeutral closed")
+	}
+	hub.bt.OnSlotMouseReport(1, 7, -2, 0x01)
+	if hub.MouseNeutral() {
+		t.Fatal("initially held mouse button must keep MouseNeutral closed")
+	}
+	update, ok := hub.NextMouseUpdate()
+	if !ok || update != (MouseUpdate{DX: 7, DY: -2, Buttons: 0x01}) {
+		t.Fatalf("unexpected first unknown-slot mouse report: ok=%t update=%+v", ok, update)
+	}
+
+	// HIDP may resolve the slot to KindMouse after its fallback report arrived.
+	// That notification must retain the report instead of reopening the fence.
+	hub.bt.OnSlotChanged(1, true, controllers.KindMouse, "BT HID Mouse")
+	if !hub.btMouseActive[1] || !hub.btMouseReported[1] || hub.btMouseButtons[1] != 0x01 {
+		t.Fatal("KindMouse classification discarded the initial unknown-kind mouse report")
+	}
+	hub.bt.OnSlotMouseReport(1, 0, 0, 0)
+	if !hub.MouseNeutral() {
+		t.Fatal("all-up mouse report should release the Bluetooth neutral fence")
+	}
+
+	hub.bt.OnSlotChanged(2, true, controllers.KindUnknown, "BT HID Gamepad")
+	if hub.MouseNeutral() {
+		t.Fatal("unresolved Bluetooth HID slot must stay behind the mouse fence")
+	}
+	hub.bt.OnSlotChanged(2, true, controllers.KindGenericHID, "BT HID Gamepad")
+	if !hub.MouseNeutral() {
+		t.Fatal("resolved gamepad slot should clear the provisional mouse fence")
+	}
+}
