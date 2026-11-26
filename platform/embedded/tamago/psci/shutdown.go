@@ -112,7 +112,7 @@ func Shutdown(ctx context.Context, ctrl PowerController, action PowerAction, cfg
 	case ActionWarmReset:
 		var ok bool
 		warmCtrl, ok = ctrl.(WarmResetController)
-		if !ok || !warmCtrl.SupportsWarmReset() {
+		if !ok {
 			return fmt.Errorf("%w: %w", ErrInvalidShutdown, ErrUnsupported)
 		}
 	default:
@@ -125,6 +125,16 @@ func Shutdown(ctx context.Context, ctrl PowerController, action PowerAction, cfg
 		if step.Name == "" || step.Fn == nil {
 			return fmt.Errorf("%w: invalid step at index %d", ErrInvalidShutdown, i)
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		next := "PSCI " + action.String()
+		if len(cfg.Steps) > 0 {
+			next = fmt.Sprintf("step %q", cfg.Steps[0].Name)
+		}
+		return abortShutdown(next, err, nil)
+	}
+	if warmCtrl != nil && !warmCtrl.SupportsWarmReset() {
+		return fmt.Errorf("%w: %w", ErrInvalidShutdown, ErrUnsupported)
 	}
 
 	timeout := cfg.StepTimeout

@@ -487,4 +487,24 @@ func TestShutdownActionWarmReset(t *testing.T) {
 		t.Fatalf("clientDenied warm Shutdown err=%v stepRan=%t calls=%d, want ErrDenied stepRan=true calls=1",
 			err, stepRan, clientReset2Calls)
 	}
+
+	// Negative StepTimeout, invalid steps, or pre-canceled ctx must fail before calling SupportsWarmReset.
+	spyConduit := &mockConduit{fn: func(uint64, uint64, uint64, uint64) (uint64, uint64, uint64, uint64) {
+		return ^uint64(0), 0, 0, 0
+	}}
+	spyClient := New(spyConduit)
+	if err := Shutdown(context.Background(), spyClient, ActionWarmReset, ShutdownConfig{StepTimeout: -time.Millisecond}); !errors.Is(err, ErrInvalidShutdown) {
+		t.Fatalf("negative StepTimeout err=%v, want ErrInvalidShutdown", err)
+	}
+	if err := Shutdown(context.Background(), spyClient, ActionWarmReset, ShutdownConfig{Steps: []ShutdownStep{{Name: "", Fn: step.Fn}}}); !errors.Is(err, ErrInvalidShutdown) {
+		t.Fatalf("invalid step err=%v, want ErrInvalidShutdown", err)
+	}
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := Shutdown(canceledCtx, spyClient, ActionWarmReset, ShutdownConfig{Steps: []ShutdownStep{step}}); !errors.Is(err, ErrShutdownAborted) {
+		t.Fatalf("pre-canceled ctx err=%v, want ErrShutdownAborted", err)
+	}
+	if spyConduit.calls != 0 {
+		t.Fatalf("no-call Shutdown checks invoked PSCI %d times, want 0", spyConduit.calls)
+	}
 }
