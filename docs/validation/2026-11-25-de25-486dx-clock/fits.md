@@ -444,20 +444,46 @@ fit. The PR carries the qualified C0 = 34 source during this trial.
 
 ## C0 = 32 eight-cycle sweep
 
-The first two fits of `7e3227f68081a30c8d920a060eeaa930ab880357` passed.
 The recorded eight-cycle interval and exact derived presenter digest
-match the fitted inputs. Both seeds emitted the same machine netlist,
+match the fitted inputs of `7e3227f68081a30c8d920a060eeaa930ab880357`.
+The seeds emit the same machine netlist,
 SHA-256 `ad0a331d6f02c529ac55ed93542764fbc5576345f25c61064085a551a836fd33`.
 
 | Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Producer and seal |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | 1 | 45,187.1 | +0.915 ns | 0.000 ns | +7.281 ns | +0.136 ns | 2.554 ns | Pass |
 | 2 | 45,012.9 | +0.500 ns | 0.000 ns | +7.189 ns | +0.174 ns | 2.228 ns | Pass |
+| 3 | 44,839.3 | +1.059 ns | 0.000 ns | +6.196 ns | +0.077 ns | 3.700 ns | Refused |
+| 4 | 45,018.1 | +0.258 ns | 0.000 ns | +7.203 ns | +0.004 ns | 2.246 ns | Pass |
 
 | Seed | Seed summary SHA-256 |
 | ---: | --- |
 | 1 | `a4bfdad3263cf0fc1fbea59ca749d2d1b0610cdf1bce506ab97b89f951565fa7` |
 | 2 | `f9f1342caa0769a5e354a4bee7b0e5b093847f35142e04f2592d9d5763ef1332` |
+| 3 | `2710ba401d2d2b6d58273c791bd2b004312e1d12686b9e93d94537b3c263f19c` |
+| 4 | `39e34fee13371e7cb965e78f01a6dabd648bb9d3447957a4939be20e8e01d887` |
+
+Seed 3 met the numerical and LOADED limits. The producer refused
+`cpu_biu_reset~_Duplicate_2_BLOCK_INPUT_MUX_PASSTHROUGH_X50_Y18_N0_I20_dff`
+because its optimizer-generated qualifier fell outside the previous
+spelling list. The combined proof on a verified fitted copy passed
+1,204 numerical and 344 structural checks for its 43 subjects.
+The exact duplicate had one incoming and 17,059 outgoing machine-clock
+keepers at all four corners, with worst traced setup +1.862 ns and
+hold +0.133 ns. The detailed checks found no inter-clock, cut or
+unconstrained path for this register.
+The retained `duplicate-result.json` SHA-256 is
+`138953b58584bf33bb5dcf483c292fd54e6671af1a24f6f7611dab04d91e924a`.
+
+The four-seed aggregate passed the numerical and LOADED budgets on all
+seeds and failed ordinary producer admission on seed 3. The retained
+`c32-guarded/summary.json` SHA-256 is
+`c17f5b1973160d682e502d4066a2f2100bf526fc657ca7876e2348f0ef00006e`.
+The repair accepts flat compiler-generated qualifiers before the
+device route class and coordinate suffix. The qualifier only identifies
+the subject to resolve in the exact fitted graph. Each site must agree
+with the DRC coordinates and pass the same ownership, all-corner slack,
+connectivity, and cut and unconstrained path checks.
 
 ## C0 = 30 generation preflight
 
