@@ -13,14 +13,15 @@ bare-metal AArch64 targets:
 ## Telemetry and Ring Buffers
 
 - **`Ring`**: Zero-allocation, lock-free 256-byte SPSC ring buffer (`Push`,
-  `Pop`, `Peek`, `Len`, `Cap`, `Dropped`, `Reset`).
+  `PushSlice`, `Pop`, `PopSlice`, `Peek`, `Len`, `Cap`, `Dropped`, `Reset`).
 - **`ConsoleStats()` / `Stats` / `ErrorCounters`**: Tracks `IRQCount`, `RXBytes`,
   `RXDropped`, `TXBytes`, `TXDropped`, and receive line-status faults (`Overrun`,
   `Parity`, `Framing`, `Break`). `ErrOverrun` is counted while preserving valid
   FIFO characters; parity/framing/break-corrupted bytes are discarded so valid
   bytes behind them remain intact.
 - **`Controller`**: Host-testable RX/TX controller over the `serial.UART`
-  interface with fast-path direct TX FIFO writes and bounded TX ring draining.
+  interface with fast-path direct TX FIFO writes, bounded TX ring draining,
+  `ReadInto` bulk non-blocking RX reads, and `PendingRX`/`PendingTX` inspection.
 
 ## Host tests
 

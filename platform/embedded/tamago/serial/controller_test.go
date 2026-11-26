@@ -338,3 +338,68 @@ func TestControllerTXRingAndConcurrency(t *testing.T) {
 	wg.Wait()
 	_ = c2.Stats()
 }
+
+func TestControllerReadIntoAndPendingCounts(t *testing.T) {
+	var nilCtl *Controller
+	if nilCtl.PendingRX() != 0 || nilCtl.PendingTX() != 0 || nilCtl.ReadInto(make([]byte, 4)) != 0 {
+		t.Fatal("nil Controller reported non-zero pending/read")
+	}
+
+	// Polling ReadInto filters corrupt bytes and stops at empty FIFO without allocating.
+	uPoll := &mockUART{
+		rxQueue: []mockUARTRx{
+			{b: 'A', ok: true},
+			{b: 0xff, ok: true, errs: ErrFraming},
+			{b: 'B', ok: true, errs: ErrOverrun},
+			{b: 'C', ok: true},
+		},
+	}
+	cPoll, err := NewController(uPoll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pollDst := make([]byte, 8)
+	n := cPoll.ReadInto(pollDst)
+	if n != 3 || string(pollDst[:n]) != "ABC" {
+		t.Fatalf("polling ReadInto = (%d, %q), want (3, \"ABC\")", n, pollDst[:n])
+	}
+
+	// IRQ ReadInto drains RX ring and PendingRX/PendingTX track buffered counts.
+	uIRQ := &mockUART{
+		txLimit: 2,
+		rxQueue: []mockUARTRx{
+			{b: 'x', ok: true},
+			{b: 'y', ok: true},
+			{b: 'z', ok: true},
+		},
+	}
+	cIRQ, err := NewController(uIRQ)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cIRQ.EnableIRQ()
+	if got := cIRQ.PendingRX(); got != 3 {
+		t.Fatalf("PendingRX = %d, want 3", got)
+	}
+	irqDst := make([]byte, 2)
+	if got := cIRQ.ReadInto(irqDst); got != 2 || string(irqDst) != "xy" || cIRQ.PendingRX() != 1 {
+		t.Fatalf("first IRQ ReadInto = %q pending=%d", irqDst, cIRQ.PendingRX())
+	}
+	if got := cIRQ.ReadInto(irqDst); got != 1 || irqDst[0] != 'z' || cIRQ.PendingRX() != 0 {
+		t.Fatalf("second IRQ ReadInto = (%d, %q) pending=%d", got, irqDst[:got], cIRQ.PendingRX())
+	}
+
+	w, dropped := cIRQ.Write([]byte("hello!"))
+	if w != 6 || dropped != 0 || cIRQ.PendingTX() != 4 {
+		t.Fatalf("PendingTX after Write = %d (written=%d dropped=%d), want 4", cIRQ.PendingTX(), w, dropped)
+	}
+	for i := 0; i < 2; i++ {
+		uIRQ.mu.Lock()
+		uIRQ.txFIFO = nil
+		uIRQ.mu.Unlock()
+		cIRQ.DrainTX()
+	}
+	if cIRQ.PendingTX() != 0 {
+		t.Fatalf("PendingTX after DrainTX = %d, want 0", cIRQ.PendingTX())
+	}
+}
