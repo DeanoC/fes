@@ -37,6 +37,7 @@ DIRECTORY = "pc386"
 CORE_ID = "fes.pc386"
 COMPONENT = "fes_de25_pc386_standard"
 SDC = BOARD + "pc386/pc386-clocks.sdc"
+DERIVE = BOARD + "pc386/derive.py"
 MODELS = {"486sx": None, "486dx": None}
 # pc386_system's CPU identity parameter (fes_i386_cpu I486): the 486, both models.
 I486 = 1
@@ -225,7 +226,7 @@ def authenticate_front_end(*, cache_root=None, gpu_router=None):
 
 def record_parameters(root, model=None):
     """A producer record's machine parameters, from the source module at root: guest rates, the
-    linked firmware and the CPU and x87 identity. The 486DX's also names its CPU."""
+    linked firmware and the CPU and x87 identity. The 486DX also records its presenter re-arm interval."""
     root, model = Path(root), selected(model)
     parameters = {"front_end": "yosys-seal-netlist", "guest_rates": json.dumps(guest_rates(model), sort_keys=True),
                   "i486": I486,
@@ -233,7 +234,8 @@ def record_parameters(root, model=None):
                                          sort_keys=True),
                   "x87_present": False, "signoff_findings_review_policy": "de25-pc386-reviewed-signoff-findings-v1"}
     if model == DX_MODEL:
-        parameters.update(cpu=dx.TOP, x87_present=True)
+        derive = load(root / DERIVE.removeprefix(MISTEROSS), "de25_pc386_record_derive")
+        parameters.update(cpu=dx.TOP, x87_present=True, loaded_rearm_cycles=derive.LOADED_REARM_CYCLES)
     return parameters
 
 
@@ -296,11 +298,13 @@ def elaboration(sources, model=None):
     """A model's derived machine files (keyed by name, as machine_netlist takes them), the 486DX's derived
     CPU (None for the 486SX) and their records, without running Yosys."""
     model = selected(model)
-    derive = board.module(sources, BOARD + "pc386/derive.py", "pc386_selected_derive")
+    derive = board.module(sources, DERIVE, "pc386_selected_derive")
     derived = {}
     machine, derived["pc386_machine.sv"] = derive.retarget_machine(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_machine.sv"])
     system, derived["pc386_system.sv"] = derive.retarget_system(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_system.sv"])
     at_core, derived["pc386_at_core.sv"] = derive.retarget_at_core(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_at_core.sv"])
+    files = {"pc386_machine.sv": machine, "pc386_system.sv": system, "pc386_at_core.sv": at_core,
+             "pc386_dma2_registers.sv": sources[BOARD + "pc386/pc386_dma2_registers.sv"]}
     cpu = None
     if model == DX_MODEL:
         i486dx = board.module(sources, BOARD + "pc386/i486dx/derive.py", "pc386_selected_i486dx")
@@ -309,10 +313,11 @@ def elaboration(sources, model=None):
                 raise ValueError("an i486DX fork is behind its upstream: " + upstream)
             if MISTEROSS + fork not in sources:
                 raise ValueError("an i486DX fork is not a captured source: " + fork)
-        system, derived["pc386_system_486dx_cpu"] = derive.retarget_system_cpu(system)
+        files["pc386_system.sv"], derived["pc386_system_486dx_cpu"] = derive.retarget_system_cpu(system)
         cpu, derived[i486dx.CPU_FILE] = i486dx.derive_cpu(sources[MISTEROSS + i486dx.CPU_UPSTREAM])
-    files = {"pc386_machine.sv": machine, "pc386_system.sv": system, "pc386_at_core.sv": at_core,
-             "pc386_dma2_registers.sv": sources[BOARD + "pc386/pc386_dma2_registers.sv"]}
+        presenter = Path(derive.PRESENTER_UPSTREAM).name
+        files[presenter], derived[presenter] = derive.retarget_presenter_loaded(
+            sources[MISTEROSS + derive.PRESENTER_UPSTREAM])
     return files, cpu, derived
 
 

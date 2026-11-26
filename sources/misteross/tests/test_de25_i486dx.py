@@ -105,6 +105,15 @@ class I486dxDeriveTest(unittest.TestCase):
         self.assertNotIn(b'fes_i386_cpu #(', data)
         self.assertEqual(data.replace(b'fes_i486dx_cpu #(', b'fes_i386_cpu #('), sx)
 
+    def test_loaded_rearm_matches_the_qualified_presenter(self):
+        source = (ROOT / board.PRESENTER_UPSTREAM).read_bytes()
+        data, record = board.retarget_presenter_loaded(source)
+        self.assertEqual(record["source_sha256"], board.sha(source))
+        self.assertEqual(record["derived_sha256"], board.sha(data))
+        self.assertEqual(record["derived_sha256"], "7437e4b680112d6d8e5fb7ecf5a0a65f92ba937148b9bfbdfe1550703bdf8167")
+        self.assertEqual(record["loaded_rearm_cycles"], 8)
+        with self.assertRaisesRegex(ValueError, "presenter upstream changed"):
+            board.retarget_presenter_loaded(source + b"\n")
 
 
 class DE25ModelsTest(unittest.TestCase):
@@ -139,10 +148,10 @@ class DE25ModelsTest(unittest.TestCase):
         self.assertEqual(re.findall(rb'^module (\w+)', cpu, re.M), [b'fes_i486dx_cpu'])
         self.assertEqual((parameters['I486'], parameters['X87_PRESENT']), (1, 1))
 
-    def test_the_models_differ_only_in_the_cpu_and_the_clock(self):
+    def test_the_models_differ_in_the_cpu_presenter_and_clock(self):
         sx, _, psx = self.model('486sx')
         dxf, _, pdx = self.model('486dx')
-        self.assertEqual(set(sx), set(dxf))
+        self.assertEqual(set(dxf) - set(sx), {'pc386_presenter.sv'})
         for name in sx:
             if name != 'pc386_system.sv':
                 self.assertEqual(sx[name], dxf[name], name)
@@ -152,28 +161,35 @@ class DE25ModelsTest(unittest.TestCase):
         sx, ddx = self.build.record_parameters(ROOT, '486sx'), self.build.record_parameters(ROOT, '486dx')
         self.assertEqual((sx['x87_present'], 'cpu' in sx), (False, False))
         self.assertEqual((ddx['x87_present'], ddx['cpu']), (True, 'fes_i486dx_cpu'))
+        self.assertNotIn('loaded_rearm_cycles', sx)
+        self.assertEqual(ddx['loaded_rearm_cycles'], board.LOADED_REARM_CYCLES)
 
     def calls(self, model):
         """What the board's own path (machine/board.py component_files) hands the elaboration for a model."""
         seen = []
         real = self.build.machine_netlist
         self.build.machine_netlist = lambda sources, files, model=None, cpu=None: (
-            seen.append((model, files['pc386_system.sv'], cpu)) or (b'', {}))
+            seen.append((model, files['pc386_system.sv'], files.get('pc386_presenter.sv'), cpu)) or (b'', {}))
         try:
-            self.build.board.component_files(self.build, self.sources, model=model)
+            _, derived, _ = self.build.board.component_files(self.build, self.sources, model=model)
         finally:
             self.build.machine_netlist = real
-        return seen
+        return seen, derived
 
     def test_the_board_builds_the_dx_for_486dx(self):
-        [(model, system, cpu)] = self.calls('486dx')
+        [(model, system, presenter, cpu)], derived = self.calls('486dx')
         self.assertEqual(model, '486dx')
         self.assertIn(b'fes_i486dx_cpu #(', system)
         self.assertIsNotNone(cpu)
-        [(model, system, cpu)] = self.calls('486sx')
+        expected, record = board.retarget_presenter_loaded((ROOT / board.PRESENTER_UPSTREAM).read_bytes())
+        self.assertEqual(presenter, expected)
+        self.assertEqual(derived['pc386_presenter.sv'], record)
+        [(model, system, presenter, cpu)], derived = self.calls('486sx')
         self.assertEqual(model, '486sx')
         self.assertIn(b'fes_i386_cpu #(', system)
         self.assertIsNone(cpu)
+        self.assertIsNone(presenter)
+        self.assertNotIn('pc386_presenter.sv', derived)
 
     def test_a_dx_is_never_elaborated_as_the_sx_nor_an_unknown_model_as_either(self):
         with self.assertRaisesRegex(ValueError, 'only it'):
@@ -212,6 +228,13 @@ class De25SystemBenchTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as work:
             work = Path(work)
             bench, call = self.bench_call(work, model)
+            [presenter] = [path for path in call['rtl'] if path.name == 'pc386_presenter.sv']
+            original = ROOT / board.PRESENTER_UPSTREAM
+            if model == '486dx':
+                expected, _ = board.retarget_presenter_loaded(original.read_bytes())
+                self.assertEqual(presenter.read_bytes(), expected)
+            else:
+                self.assertEqual(presenter, original)
             xml = work / 'bench.xml'
             # The bench's top, flags, sources, -G parameters and defines, elaborated only: -Wno-fatal leaves
             # lint to the bench's build, and a -G parameter the top does not declare is still an error.
