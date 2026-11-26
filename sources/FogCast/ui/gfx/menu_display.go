@@ -424,7 +424,9 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 			if revisionKnown && previous.revisionKnown {
 				unchanged = revision == previous.revision
 			} else if isList || previous.isList {
-				unchanged = isList && previous.isList && slices.Equal(list, previous.list)
+				if isList && previous.isList {
+					unchanged = slices.Equal(list, previous.list)
+				}
 			} else {
 				unchanged = bytes.Equal(pix, previous.pixels)
 			}

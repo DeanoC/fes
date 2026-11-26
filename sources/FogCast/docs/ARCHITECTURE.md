@@ -1912,6 +1912,9 @@ gate. Bounded wheel refreshes compare the complete frame content and reuse
 the rendered revision when it is identical; motion bypasses reuse and forces
 a final settled paint. Input polling, App updates, scripted rooms and snapshots continue at 30 Hz.
 The runtime menu backend is selected as `menu-display` or `menudisplay`.
+Its kit frame trace records the duration and outcome of actual `FrameCache`
+scene-command comparisons separately from whole-render and worker-present timings; see
+[frame trace](frame-trace.md).
 Rendered-frame revisions skip framebuffer comparison in `MenuDisplay`; ordinary
 callers retain byte-identical change detection. An unchanged submission that has
 not failed or been dropped is skipped. Once a second after a successful present, that skip

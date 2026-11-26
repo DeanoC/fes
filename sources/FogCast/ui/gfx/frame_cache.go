@@ -3,6 +3,7 @@ package gfx
 import (
 	"image"
 	"slices"
+	"time"
 )
 
 // FrameCache skips rasterization of identical complete scenes. It compares
@@ -29,6 +30,7 @@ type FrameCache struct {
 	backdropValid                                bool
 	backdropDamage                               image.Rectangle
 	mutatedTextures                              []Texture
+	compareTraceSink                             func(FrameListCompareTrace)
 	revision                                     uint64
 }
 
@@ -44,6 +46,21 @@ type frameCommand struct {
 	weight     Weight
 	mask       *Mask
 	maskSrc    image.Rectangle
+}
+
+// FrameListCompareTrace records an actual complete-scene command comparison.
+// Its duration excludes drawing, presentation, and trace recording.
+type FrameListCompareTrace struct {
+	Started  time.Time
+	Duration time.Duration
+	Commands int
+	Equal    bool
+}
+
+// SetListCompareTraceSink sets an optional render-goroutine observer. The
+// caller owns FrameCache and must serialize this with rendering.
+func (c *FrameCache) SetListCompareTraceSink(sink func(FrameListCompareTrace)) {
+	c.compareTraceSink = sink
 }
 
 // NewFrameCache wraps an exclusively owned painter. The caller closes device.
@@ -236,7 +253,18 @@ func (c *FrameCache) execute(command frameCommand) {
 }
 
 func (c *FrameCache) Present() {
-	changed := c.direct || c.dirty || !c.valid || !c.clear || !slices.Equal(c.current, c.previous)
+	changed := c.direct || c.dirty || !c.valid || !c.clear
+	if !changed {
+		if c.compareTraceSink == nil {
+			changed = !slices.Equal(c.current, c.previous)
+		} else {
+			started := time.Now()
+			equal := slices.Equal(c.current, c.previous)
+			duration := time.Since(started)
+			changed = !equal
+			c.compareTraceSink(FrameListCompareTrace{Started: started, Duration: duration, Commands: len(c.current), Equal: equal})
+		}
+	}
 	if changed {
 		c.flush()
 		c.revision++
