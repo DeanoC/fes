@@ -29,8 +29,9 @@ have producers (`producers/build_spectrum_package.py`,
 `producers/build_atari_st_package.py`) that export a format-3 package whose
 ROM map names only the uploaded firmware size. Both pass the producer's
 signoff gate and package as candidates
-([record](../../docs/validation/2026-11-18-de25-machine-signoff/README.md));
-neither has run on hardware.
+([record](../../docs/validation/2026-11-18-de25-machine-signoff/README.md)).
+Both have since booted on Kit D25 (#1937, #2046); neither is kit-accepted for
+tier 1 (see the [DE25 tier 1 progress](../../../../docs/support-matrix.md#de25-tier-1-progress)).
 
 The [standard Commodore 64](c64/README.md) uses the same machine builder and
 uploaded firmware, with its producer `producers/build_c64_package.py`. Its RAM,
