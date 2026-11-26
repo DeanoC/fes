@@ -149,6 +149,8 @@ demo. [G5 full-window receipt](quake-c32-full.json)
 
 At 111.904762 MHz, [G2](sim-c28-g2.json) and [G4](sim-c28-g4.json) passed
 on the exact fitted `cb91390dbf936393e6e7e4640fe3717d58c193bc` source.
+The [completed replay receipt](sim-c28.complete.json) verifies 112
+artifacts for G2, G4 and G5 at that revision.
 The compiled dependency lists for both game CPUs include the eight-cycle
 presenter with SHA-256
 `7437e4b680112d6d8e5fb7ecf5a0a65f92ba937148b9bfbdfe1550703bdf8167`.
@@ -162,4 +164,9 @@ windows. It normalized to 2,180.252 DX-33 realtics against a limit of
 and rendered the first inspected Necropolis demo frame at 15.000 seconds.
 The first-frame receipt SHA-256 is
 `8e3e5240e8abc11f2f05d11b24bf6bc93ebe0808af9d9369a185f9f9ad2146c8`.
-The full 20-second RTL window is still running.
+Quake exited 0 after the full 20-second RTL window at 24.500 seconds,
+cycle 2,741,666,815. It retired 640,601,632 instructions, including
+429,494,574 in protected mode. The log and profile show zero oracle
+fallback, CPU stop, reset, video underflows, and capture drops. The
+15-second, 20-second, and final images show the advancing Necropolis demo.
+[G5 full-window receipt](quake-c28-full.json)

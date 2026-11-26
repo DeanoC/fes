@@ -689,8 +689,11 @@ matches the original C28 sweep. The retained
 `65d7428d59706adedfc6be34dfcea2a80d7f64ab4a7b1b682535c012bbab34b3`.
 Seed 3's +0.026 ns lead setup path ends at `cpu_x87_trans_t_wdata[23]`
 in the transcendental engine. The [exact-clock G2 replay](sim-c28-g2.json)
-passed. The [G4 replay](sim-c28-g4.json) also passed. Quake is still
-running the full RTL window.
+and [G4 replay](sim-c28-g4.json) passed. Quake completed its full 20-second
+RTL window and exited 0. The draft carries this 111.904762 MHz checkpoint
+while the upper rungs are in progress. The [DE10 comparison](de10-cb91390d.txt)
+and the [seven D12 selection comparisons](d12-cb91390d-selection.txt)
+are exact to the fitted source.
 
 ## C0 = 26 first fits
 
