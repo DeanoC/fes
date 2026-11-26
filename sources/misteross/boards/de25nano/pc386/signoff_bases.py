@@ -178,7 +178,10 @@ CPU_CONTROL_TENSION = advisory(
 # The non-location forms are fitter enable/clear derivatives.
 RETIMED_LOCATION = (r'(?:BLOCK_INPUT_MUX_PASSTHROUGH|C1|C4|C8|R0|R1|R2|R4|R6|R12)'
                     r'_X(?P<x>[0-9]+)_Y(?P<y>[0-9]+)_N[0-9]+_I[0-9]+_dff')
-RETIMED_STEM = r'(?:[A-Za-z][A-Za-z0-9_]*|_[0-9]+_)(?:\[[0-9]+\])?~(?:(?:[0-9]+(?:xsyn(?:_[0-9]+)?)?|xsyn|DUPLICATE)_)?'
+# The qualifier only selects a candidate for the per-fit TimeQuest proof.
+# The proof establishes the register's topology and timing.
+RETIMED_STEM = (r'(?:[A-Za-z][A-Za-z0-9_]*|_[0-9]+_)(?:\[[0-9]+\])?~'
+                r'(?:_?[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*_)?')
 RETIMED_ENABLE_CLEAR = r'(?:cpu_[a-z0-9_]+|_[0-9]+_)(?:\[[0-9]+\])?~(?:DUPLICATE)?(?:ENA|SCLR)_dff'
 RETIMED_TENSION_NODES = S + '(?:' + RETIMED_STEM + RETIMED_LOCATION + '|' + RETIMED_ENABLE_CLEAR + ')'
 RETIMED_TENSION = ('DX fitter-placement advisory (#2263). A located name must agree with its reported '

@@ -174,12 +174,14 @@ class RetimedTensionProofTests(unittest.TestCase):
     def test_located_targets_bind_to_drc_coordinates(self):
         device_classes = ('C1', 'C4', 'C8', 'R0', 'R1', 'R2', 'R4', 'R6', 'R12')
         located = [S + f'machine_at_cycle_strobe~1_{kind}_X79_Y8_N0_I4_dff' for kind in device_classes]
+        duplicate = S + 'cpu_biu_reset~_Duplicate_2_BLOCK_INPUT_MUX_PASSTHROUGH_X50_Y18_N0_I20_dff'
         enable = S + 'cpu_wb_deliver~ENA_dff'
         rows = [[name, '(79, 8)', '4820', '(37, 28)', '40', '193686', ''] for name in located]
+        rows.append([duplicate, '(50, 18)', '17059', '(40, 28)', '23', '406656', ''])
         rows.append([enable, '(31, 44)', '4820', '(37, 28)', '40', '193686', ''])
         bases = TABLE.CPU_CONTROL_TENSION, TABLE.RETIMED_CONTROL_TENSION
         drc = report({'TMC-20602': (TENSION, rows)}, severity='Low')
-        self.assertEqual(retimed_tension.reviewed_targets(drc, *bases), (*located, enable))
+        self.assertEqual(retimed_tension.reviewed_targets(drc, *bases), (*located, duplicate, enable))
         report_row = rows[2]
         for location in ('(78, 8)', '(79, 9)', '(79, 8) extra'):
             with self.subTest(location=location):
@@ -552,11 +554,13 @@ class MachineFindingsTests(unittest.TestCase):
             S + 'nested|i48682~0_C4_X54_Y18_N0_I38_dff',
             S + 'i48682~0_C4_X54_Y18_N0_I38_dff|q',
             S + 'i48682~0_C6_X54_Y18_N0_I38_dff',
-            S + 'cpu_m1_tx~3xsyn_8x_BLOCK_INPUT_MUX_PASSTHROUGH_X48_Y33_N0_I79_dff',
+            S + 'cpu_m1_tx~3xsyn__8_BLOCK_INPUT_MUX_PASSTHROUGH_X48_Y33_N0_I79_dff',
+            S + 'cpu_biu_reset~_Duplicate__2_BLOCK_INPUT_MUX_PASSTHROUGH_X50_Y18_N0_I20_dff',
             S + '_17339_~1_R7_X56_Y33_N0_I13_dff',
             S + '_05548_~1_C4_X-1_Y28_N0_I9_dff',
             S + 'machine_at_decoder_cycle_port[*]~R6_X83_Y16_N0_I9_dff',
-            S + 'cpu_m1_alias~43xsync_BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I79_dff',
+            S + 'cpu_m1_alias~43xsyn~BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y34_N0_I79_dff',
+            S + 'cpu_biu_reset~_Duplicate.2_BLOCK_INPUT_MUX_PASSTHROUGH_X50_Y18_N0_I20_dff',
             S + 'cpu_m1_out_reg[1178]~DUPLICATE_ENA_dff',
             S + 'cpu_m2_load~ACLR_dff',
             S + 'cpu_m2_load~1SCLR_dff',
