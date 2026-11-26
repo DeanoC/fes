@@ -397,6 +397,51 @@ Every structural and timing check passed.
 | 3 | `2132c8d815efd2d8d2b9db07252f579a269635d7894e1bcc244f349126c29210` | `a9ebf2ffbe1fac65a0ef6f8d1c81d9a315b26f445a7797108918aff2c5616fb4` |
 | 4 | `9b75ef93b32ceab0c453a1adbf4c1007b29cf5f88565e6037fd8f0ed712fc767` | `57eaf6c16284ce2b8acbe67591330fae5a79a70337a16fb2fb6d5b57c5631755` |
 
+## C0 = 32 initial sweep
+
+Revision `27a9104b408c3c3384988b3b063606ec1559144f` sets 97.916667 MHz
+with the [reviewed PLL and Qsys inputs](parent-c32.txt) and the original
+five-clock presenter interval. At this clock, the LOADED budget is
+0.660 ns. The first generated fitter project passed the Qsys parent
+comparison against the qualified C0 = 34 seed 1 project. The resulting
+parent SHA-256 is
+`2e057d8133607240a432478d8f102746eeea85447447d8515e506aa3de52aaa4`.
+The retained `c32-first/parent-s1-audit.txt` SHA-256 is
+`879bcff3a7bb18932f309ce4bbc18a371a90a1c69542c04ef89f52abeb5ce862`.
+
+| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Producer and seal | Rung verdict |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| 1 | 45,145.9 | +0.814 ns | 0.000 ns | +6.549 ns | +0.073 ns | 3.331 ns | Pass | LOADED miss |
+| 2 | 45,050.9 | +0.319 ns | +0.002 ns | +6.680 ns | +0.029 ns | 3.184 ns | Pass | LOADED miss |
+| 3 | 45,117.6 | +0.537 ns | 0.000 ns | +6.697 ns | +0.122 ns | 2.921 ns | Pass | LOADED miss |
+| 4 | 45,114.6 | +0.952 ns | 0.000 ns | +6.597 ns | +0.018 ns | 2.647 ns | Pass | LOADED miss |
+
+All four seeds miss the LOADED budget with nonnegative timing at every
+reported corner. All use the same machine netlist SHA-256,
+`065d7fd0362caf774176ed6d08f9ed7dcb121351460ba196a52d7a73291016e9`.
+The retained `c32-first/summary.json` SHA-256 is
+`cf0bfdd78574b06be4dc06c66e843f4c09d283dd05ed5adc55d7216af5969cce`.
+
+| Seed | Refused rung summary SHA-256 |
+| ---: | --- |
+| 1 | `55d83e00d3eaa79ff3862a5f528778572ce699748ea22c940d28be861d1e4595` |
+| 2 | `2022fa4fcfcb50d369bfdb2cd6a90f8127392874c064701d647fc92be0c459f1` |
+| 3 | `eddba10f82dbf89e9c9868333a9f5d8481344aa84beb98e67ae46f3d6f67bb84` |
+| 4 | `4b306c662801b1e90d48780214af740661af0538eebb27ae8ebcb9af9de55e47` |
+
+The flag route runs from `machine_presenter_loaded_flag` to the first
+pixel-domain synchronizer stage. The original presenter can publish
+another report after five machine cycles. At C0 = 32, that interval is
+too short for the measured flag route plus the existing three pixel
+cycles and the 10 ns payload allowance.
+
+Revision `7e3227f68081a30c8d920a060eeaa930ab880357` derives the DX
+presenter with at least eight machine cycles between report changes.
+The digital tests cover report coherence, reset, a new epoch during a
+completed hold and raster deadlines. The original timing constraints
+and 3.9 ns maximum LOADED allowance are used for the fresh four-seed
+fit. The PR carries the qualified C0 = 34 source during this trial.
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed
