@@ -7,7 +7,8 @@ output=$(realpath -m "${2:?fresh output directory}")
 cache=$(realpath "${3:?locked toolchain cache}")
 generator=$(realpath "${4:?pinned TestFloat executable}")
 jobs=${5:-5}
-historical=$(dirname "$(realpath "$0")")/../2026-11-24-i486dx-s1
+drivers=$(dirname "$(realpath "$0")")
+historical=$drivers/../2026-11-24-i486dx-s1
 misteross=$checkout/sources/misteross
 
 test -z "$(git -C "$checkout" status --porcelain --untracked-files=no)"
@@ -35,10 +36,23 @@ run l3-base build/sim/fes-i386-lockstep/report.json python3 scripts/test_fes_i38
 run l3-dx build/sim/fes-i486dx-lockstep/report.json python3 boards/de25nano/pc386/i486dx/lockstep.py level3 "${l3[@]}"
 run l4-base build/sim/fes-i486-lockstep/report.json python3 scripts/test_fes_i486_lockstep.py "${l4[@]}"
 run l4-dx build/sim/fes-i486dx-i486-lockstep/report.json python3 boards/de25nano/pc386/i486dx/lockstep.py level4 "${l4[@]}"
-run x87unit build/sim/fes-i386-x87-unit/report.json python3 scripts/test_fes_i386_x87_unit.py --download --cache-root "$cache"
-run trans build/sim/fes-x87-trans-engine/report.json python3 scripts/test_fes_x87_trans_engine.py --cache-root "$cache"
-run testfloat build/sim/fes-i386-x87-testfloat/report.json python3 scripts/test_fes_i386_x87_testfloat.py \
-    --testfloat-gen "$generator" --cache-root "$cache"
+x87_suite=$(python3 -B "$drivers/sim_x87.py" configured)
+case "$x87_suite" in
+derived)
+    python3 -B "$drivers/sim_x87.py" lockstep --lockstep-reports "$output" > "$output/fast-pipeline.json"
+    unit=(python3 -B "$drivers/sim_x87.py" unit)
+    testfloat=(python3 -B "$drivers/sim_x87.py" testfloat)
+    ;;
+shared)
+    unit=(python3 scripts/test_fes_i386_x87_unit.py --download)
+    testfloat=(python3 scripts/test_fes_i386_x87_testfloat.py)
+    ;;
+*) exit 2;;
+esac
+run x87unit build/sim/fes-i386-x87-unit/report.json "${unit[@]}" --cache-root "$cache" --jobs "$jobs"
+run trans build/sim/fes-x87-trans-engine/report.json python3 scripts/test_fes_x87_trans_engine.py --cache-root "$cache" --jobs "$jobs"
+run testfloat build/sim/fes-i386-x87-testfloat/report.json "${testfloat[@]}" \
+    --testfloat-gen "$generator" --cache-root "$cache" --jobs "$jobs"
 sha256sum cores/fes-common/rtl/i386/fes_i386_x87*.sv cores/fes-common/rtl/i386/fes_x87_*.sv > "$output/x87-files.sha256"
 
 for level in l3 l4; do

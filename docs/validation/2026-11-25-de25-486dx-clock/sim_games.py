@@ -230,7 +230,9 @@ def main():
         raise RuntimeError('a census image differs from the #2194 fixture')
     pll = build.model_clock('486dx')
     clock, rates = pll['clock'], build.guest_rates('486dx')
-    loaded_rearm_cycles = build.record_parameters(root, '486dx').get('loaded_rearm_cycles')
+    parameters = build.record_parameters(root, '486dx')
+    loaded_rearm_cycles = parameters.get('loaded_rearm_cycles')
+    pipelined_x87 = parameters.get('x87_fast_pipelined') is True
     machine_rtl, presenter = machine_sources(sim.MACHINE_RTL, root, output, loaded_rearm_cycles)
     sim.OUTPUT = output / 'build'
     verilator = i386_verilator.locate(args.cache_root.resolve())
@@ -253,6 +255,7 @@ def main():
     if presenter is not None:
         witness['presenter'] = presenter
     save(output / 'inputs.json', witness)
+    processor_dependencies = {}
     for arm, rtl in (('base', sim.CPU_RTL), ('dx', derive.sim_sources(output / 'derived', root))):
         print(f'Building {arm} at {float(clock):.6f} Hz', flush=True)
         cpu = sim.verilate(args.verilator, arm, 'fes_i386_cpu', rtl + (sim.CORE / 'sim/cpu_profile.vlt',),
@@ -261,6 +264,33 @@ def main():
         binary = sim.verilate(args.verilator, arm, 'pc386_machine', machine_rtl, bench,
                               [*linked, cpu, audio, sim.NUKED / 'opl3.c'], args.jobs,
                               machine_rates, (audio.parent, cpu.parent))
+        if pipelined_x87:
+            from sim_x87 import x87_derivation
+
+            upstream = root / derive.X87_UPSTREAM
+            derived = output / 'derived' / upstream.name
+            compiled = upstream if arm == 'base' else derived
+            dependency = cpu.parent / 'Vfes_i386_cpu__ver.d'
+            dependencies = set(dependency.read_text().split())
+            if dependencies.intersection(map(str, (upstream, derived))) != {str(compiled)}:
+                raise RuntimeError(f'{arm} CPU did not compile the selected x87 wrapper')
+            link_log = binary.parent / 'build.log'
+            if not any(str(cpu) in line.split() and line.endswith(f'-o {binary.name}')
+                       for line in link_log.read_text().splitlines()):
+                raise RuntimeError(f'{arm} game model did not link the recorded CPU archive')
+            processor_dependencies[arm] = {'dependency': dependency.relative_to(output).as_posix(),
+                                           'dependency_sha256': sha(dependency),
+                                           'archive': cpu.relative_to(output).as_posix(),
+                                           'archive_sha256': sha(cpu),
+                                           'link_log': link_log.relative_to(output).as_posix(),
+                                           'link_log_sha256': sha(link_log),
+                                           'compiled_sha256': sha(compiled)}
+            if arm == 'dx':
+                witness['x87_fast_pipeline'] = {
+                    'derivation': x87_derivation(root, derived),
+                    'derived': derived.relative_to(output).as_posix(),
+                    'processor_dependencies': processor_dependencies,
+                }
         binaries[arm] = binary
         witness['binaries'][arm] = sha(binary)
     save(output / 'inputs.json', witness)
