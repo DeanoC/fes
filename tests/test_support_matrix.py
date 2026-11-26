@@ -737,7 +737,7 @@ class SupportMatrixTests(unittest.TestCase):
         machines = data['de25_tier1']['machines']
         spectrum = next(m for m in machines if m['label'] == 'Spectrum family')
         del spectrum['cells']['fes.pentagon']
-        machines[0]['cells']['fes.c64'] = 'sealed'
+        machines[0]['cells']['fes.c64'] = 'builds'
         errors = SUPPORT_MATRIX.validate(ROOT, data)
         self.assertIn('de25_tier1 has no cell for tier 1 core fes.pentagon', errors)
         self.assertIn('de25_tier1 records fes.c64 twice', errors)
@@ -769,7 +769,27 @@ class SupportMatrixTests(unittest.TestCase):
         rendered = SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT))
         self.assertIn('## DE25 tier 1 progress', rendered)
         self.assertIn('| pc386 | builds: `fes.pc386` |', rendered)
-        self.assertIn('none: `fes.zx80`, `fes.ts1000`, `fes.ts1500`; sealed: `fes.zx81`', rendered)
+        self.assertIn('none: `fes.zx80`, `fes.ts1000`, `fes.ts1500`; builds: `fes.zx81`', rendered)
+
+    def test_de25_sealed_needs_the_exact_package_in_a_smoke_record(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        machine = next(m for m in data['de25_tier1']['machines'] if 'fes.atari-st' in m['cells'])
+        machine['cells']['fes.atari-st'] = 'sealed'
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertIn('de25_tier1 fes.atari-st says sealed without the package that ran on Kit D25', errors)
+        record = 'docs/validation/2026-11-16-de25-kit-parity/README.md'
+        zx81 = 'e873bc2e20097c6c3250b087cf9c522581ee4a0e4140ba2dcf1d1220e45aad0b'
+        machine['packages'] = {'fes.atari-st': {'sha256': 'ab' * 32, 'evidence': record}}
+        self.assertIn(f"de25_tier1 fes.atari-st smoke record {record} does not name package {'ab' * 32}",
+                      SUPPORT_MATRIX.validate(ROOT, data))
+        machine['packages'] = {'fes.atari-st': {'sha256': zx81.upper(), 'evidence': record}}
+        self.assertIn('de25_tier1 fes.atari-st package sha256 is not a lowercase SHA-256',
+                      SUPPORT_MATRIX.validate(ROOT, data))
+        machine['packages'] = {'fes.atari-st': {'sha256': zx81, 'evidence': 'docs/missing.md'}}
+        self.assertIn('de25_tier1 fes.atari-st smoke record is missing: docs/missing.md',
+                      SUPPORT_MATRIX.validate(ROOT, data))
+        machine['packages'] = {'fes.atari-st': {'sha256': zx81, 'evidence': record}}
+        self.assertFalse([e for e in SUPPORT_MATRIX.validate(ROOT, data) if 'fes.atari-st' in e])
 
 
 if __name__ == '__main__':

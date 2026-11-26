@@ -78,23 +78,23 @@ The release classifications below remain v1, v2 and held back. Tenfoot Home, fir
 
 Forward-plan phase 4: DE25-Nano stays board tier 2 until its shell hosts every tier 1 machine and its image passes update and recovery on hardware. Each tier 1 core ID has its own DE25 state, separate from its DE10 tier. Tracker: [#2329](https://github.com/DeanoC/fes/issues/2329).
 
-Here sealed means a registered Quartus Pro 26.3 recipe whose package has run the lifecycle smoke on Kit D25. That smoke is not conformance or a game corpus, so no DE25 cell is kit-accepted yet. Update and recovery on DE25 hardware is still open.
+A cell is sealed only when its exact package SHA-256 and an in-repo smoke record naming that package are recorded, so a rebuilt or resealed package starts again at builds. The kit runs listed under each machine predate that record, so no cell is sealed yet. A smoke is not conformance or a game corpus, and update and recovery on DE25 hardware is still open.
 
 | DE25 state | Meaning |
 | --- | --- |
 | none | No DE25 producer builds it. |
-| builds | A DE25 development producer builds it. No registered recipe. |
-| sealed | Registered Quartus Pro 26.3 recipe; its sealed package has run the lifecycle smoke on Kit D25. |
+| builds | A DE25 producer builds it, with no recorded smoke of its exact package on Kit D25. |
+| sealed | Registered Quartus Pro 26.3 recipe; its exact package (SHA-256) ran the lifecycle smoke on Kit D25, per an in-repo record. |
 | kit-accepted | Conformance and the DE10 game corpus pass on Kit D25, with persistence as declared. |
 | released | In a DE25 release cut from the same tag as DE10. |
 
 | Machine | DE25 state | Issues |
 | --- | --- | --- |
-| ZX81 family | none: `fes.zx80`, `fes.ts1000`, `fes.ts1500`; sealed: `fes.zx81` | #2262, #1568, #1875 |
-| Spectrum family | sealed: `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon` | #2042, #2262 |
-| Atari ST | sealed: `fes.atari-st` | #2042 |
-| C64 | sealed: `fes.c64` | #2262 |
-| PC/XT | sealed: `fes.pcxt-dos` | #2182 |
+| ZX81 family | none: `fes.zx80`, `fes.ts1000`, `fes.ts1500`; builds: `fes.zx81` | #2262, #1568, #1875 |
+| Spectrum family | builds: `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon` | #2042, #2262 |
+| Atari ST | builds: `fes.atari-st` | #2042 |
+| C64 | builds: `fes.c64` | #2262 |
+| PC/XT | builds: `fes.pcxt-dos` | #2182 |
 | pc386 | builds: `fes.pc386` | #2029, #2245 |
 
 - **ZX81 family.** Proven on Kit D25: MENU and ZX81 baseline promotion; launch, F12 to the media selector, Stop and verified restore (`docs/validation/2026-11-16-de25-kit-parity/`). Missing for tier 1: ZX80, TS1000 and TS1500 models in the DE25 producer and `kDe25StandardCores`; typed keyboard input; conformance; a ZX81 game corpus, which DE10 does not have either. Zon X and 16K carts wait on expansions.

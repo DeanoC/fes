@@ -641,8 +641,10 @@ def validate_de25_progress(root: Path, data: dict, by_id: dict) -> list[str]:
     """Every DE25 tier 1 cell is recorded once, and its state matches the producers.
 
     A cell with no DE25 producer must say none. builds needs a DE25 producer.
-    sealed and later need a registered DE25 recipe. kit-accepted and released
-    name evidence files that exist, since they claim conformance and the corpus.
+    sealed and later need a registered DE25 recipe and the exact package that
+    ran on Kit D25, named in an in-repo smoke record. kit-accepted and released
+    also name evidence files that exist, since they claim conformance and the
+    corpus.
     """
     progress = data.get('de25_tier1')
     if not progress:
@@ -683,8 +685,10 @@ def validate_de25_progress(root: Path, data: dict, by_id: dict) -> list[str]:
                 errors.append(f'de25_tier1 {core_id} says {state} but no DE25 producer builds it')
             if core_id in built and state == 'none':
                 errors.append(f'de25_tier1 {core_id} says none but a DE25 producer builds it')
-            if rank >= DE25_STATES.index('sealed') and core_id not in registered:
-                errors.append(f'de25_tier1 {core_id} says {state} without a registered DE25 recipe')
+            if rank >= DE25_STATES.index('sealed'):
+                if core_id not in registered:
+                    errors.append(f'de25_tier1 {core_id} says {state} without a registered DE25 recipe')
+                errors += de25_package_errors(root, core_id, state, (machine.get('packages') or {}).get(core_id))
             if rank >= DE25_STATES.index('kit-accepted'):
                 evidence = machine.get('evidence') or []
                 if not evidence:
@@ -697,6 +701,26 @@ def validate_de25_progress(root: Path, data: dict, by_id: dict) -> list[str]:
     for core_id in sorted(seen - tier1):
         errors.append(f'de25_tier1 records {core_id}, which is not tier 1')
     return errors
+
+
+def de25_package_errors(root: Path, core_id: str, state: str, package) -> list[str]:
+    """sealed and later name the exact package that ran on Kit D25.
+
+    The record is the package SHA-256 and an in-repo smoke record that names
+    it, so a rebuilt or resealed package does not inherit an older package's
+    kit run.
+    """
+    if not isinstance(package, dict):
+        return [f'de25_tier1 {core_id} says {state} without the package that ran on Kit D25']
+    sha = package.get('sha256')
+    record = package.get('evidence')
+    if not isinstance(sha, str) or len(sha) != 64 or any(c not in '0123456789abcdef' for c in sha):
+        return [f'de25_tier1 {core_id} package sha256 is not a lowercase SHA-256']
+    if not isinstance(record, str) or not (root / record).is_file():
+        return [f'de25_tier1 {core_id} smoke record is missing: {record}']
+    if sha not in (root / record).read_text():
+        return [f'de25_tier1 {core_id} smoke record {record} does not name package {sha}']
+    return []
 
 
 def render_check_policy(data: dict) -> list[str]:

@@ -2309,7 +2309,7 @@
   "de25_tier1": {
     "note": [
       "Forward-plan phase 4: DE25-Nano stays board tier 2 until its shell hosts every tier 1 machine and its image passes update and recovery on hardware. Each tier 1 core ID has its own DE25 state, separate from its DE10 tier. Tracker: [#2329](https://github.com/DeanoC/fes/issues/2329).",
-      "Here sealed means a registered Quartus Pro 26.3 recipe whose package has run the lifecycle smoke on Kit D25. That smoke is not conformance or a game corpus, so no DE25 cell is kit-accepted yet. Update and recovery on DE25 hardware is still open."
+      "A cell is sealed only when its exact package SHA-256 and an in-repo smoke record naming that package are recorded, so a rebuilt or resealed package starts again at builds. The kit runs listed under each machine predate that record, so no cell is sealed yet. A smoke is not conformance or a game corpus, and update and recovery on DE25 hardware is still open."
     ],
     "states": [
       {
@@ -2318,11 +2318,11 @@
       },
       {
         "id": "builds",
-        "meaning": "A DE25 development producer builds it. No registered recipe."
+        "meaning": "A DE25 producer builds it, with no recorded smoke of its exact package on Kit D25."
       },
       {
         "id": "sealed",
-        "meaning": "Registered Quartus Pro 26.3 recipe; its sealed package has run the lifecycle smoke on Kit D25."
+        "meaning": "Registered Quartus Pro 26.3 recipe; its exact package (SHA-256) ran the lifecycle smoke on Kit D25, per an in-repo record."
       },
       {
         "id": "kit-accepted",
@@ -2337,7 +2337,7 @@
       {
         "label": "ZX81 family",
         "cells": {
-          "fes.zx81": "sealed",
+          "fes.zx81": "builds",
           "fes.zx80": "none",
           "fes.ts1000": "none",
           "fes.ts1500": "none"
@@ -2353,10 +2353,10 @@
       {
         "label": "Spectrum family",
         "cells": {
-          "fes.spectrum": "sealed",
-          "fes.spectrum128": "sealed",
-          "fes.spectrum-plus3": "sealed",
-          "fes.pentagon": "sealed"
+          "fes.spectrum": "builds",
+          "fes.spectrum128": "builds",
+          "fes.spectrum-plus3": "builds",
+          "fes.pentagon": "builds"
         },
         "issues": [
           2042,
@@ -2368,7 +2368,7 @@
       {
         "label": "Atari ST",
         "cells": {
-          "fes.atari-st": "sealed"
+          "fes.atari-st": "builds"
         },
         "issues": [
           2042
@@ -2379,7 +2379,7 @@
       {
         "label": "C64",
         "cells": {
-          "fes.c64": "sealed"
+          "fes.c64": "builds"
         },
         "issues": [
           2262
@@ -2390,7 +2390,7 @@
       {
         "label": "PC/XT",
         "cells": {
-          "fes.pcxt-dos": "sealed"
+          "fes.pcxt-dos": "builds"
         },
         "issues": [
           2182
