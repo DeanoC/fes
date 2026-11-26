@@ -3,6 +3,7 @@
 package kitpackages
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -14,25 +15,40 @@ import (
 // appliancedata.Prepare selects, including a labelled USB partition.
 // It neither mounts nor formats storage.
 func OpenPersistent(root string) (*Store, error) {
-	return openPersistent(root, true)
+	return openPersistent(context.Background(), root, true)
 }
 
 // OpenPersistentForHost opens the durable store without repeating the
 // agent's recovery. Package access verifies publications on demand.
-func OpenPersistentForHost(root string) (*Store, error) {
-	return openPersistent(root, false)
+func OpenPersistentForHost(ctx context.Context, root string) (*Store, error) {
+	return openPersistent(ctx, root, false)
 }
 
-func openPersistent(root string, recoverInstallations bool) (*Store, error) {
+func openPersistent(ctx context.Context, root string, recoverInstallations bool) (*Store, error) {
+	if ctx == nil {
+		return nil, errors.New("kit packages: missing open context")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if err := checkPersistent(root); err != nil {
 		return nil, err
 	}
-	s, err := openStore(root, recoverInstallations)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s, err := openStoreContext(ctx, root, recoverInstallations)
 	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	s.persistent = true
 	if err := s.CheckPersistent(); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	return s, nil

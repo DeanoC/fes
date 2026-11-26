@@ -408,8 +408,8 @@ func TestViewWithholdsFactoryPackagesWhileTheDurableStoreIsUnavailable(t *testin
 	opens := 0
 	available := false
 	now := time.Unix(1000, 0)
-	view := &View{factory: NewFactory(root), now: func() time.Time { mu.Lock(); defer mu.Unlock(); return now }}
-	view.open = func() (*Store, error) {
+	view := &View{factory: NewFactory(root), now: func() time.Time { mu.Lock(); defer mu.Unlock(); return now }, ctx: context.Background()}
+	view.open = func(context.Context) (*Store, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		opens++
@@ -463,7 +463,8 @@ func TestViewWithholdsFactoryPackagesWhileTheDurableStoreIsUnavailable(t *testin
 func TestViewCallsDoNotWaitForTheOpen(t *testing.T) {
 	durable := newStore(t)
 	release := make(chan struct{})
-	view := NewView(func() (*Store, error) { <-release; return durable, nil }, NewFactory(newFactoryRoot(t)))
+	view := NewView(func(context.Context) (*Store, error) { <-release; return durable, nil }, NewFactory(newFactoryRoot(t)))
+	t.Cleanup(view.Close)
 	started := time.Now()
 	if _, err := view.List(context.Background()); !errors.Is(err, ErrStoreUnavailable) {
 		t.Fatalf("list while opening = %v", err)
@@ -475,6 +476,42 @@ func TestViewCallsDoNotWaitForTheOpen(t *testing.T) {
 	settled(t, view)
 	if _, err := view.List(context.Background()); err != nil {
 		t.Fatalf("list after the open = %v", err)
+	}
+}
+
+func TestViewCloseCancelsOpenAndPreventsRetry(t *testing.T) {
+	durable := newStore(t)
+	started := make(chan struct{})
+	finished := make(chan struct{})
+	var mu sync.Mutex
+	opens := 0
+	view := NewView(func(ctx context.Context) (*Store, error) {
+		mu.Lock()
+		opens++
+		mu.Unlock()
+		close(started)
+		<-ctx.Done()
+		close(finished)
+		// Even an opener that returns success after cancellation must not
+		// publish a store into the closed view.
+		return durable, nil
+	}, NewFactory(newFactoryRoot(t)))
+	<-started
+	view.Close()
+	view.Close()
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("open did not receive cancellation")
+	}
+	settled(t, view)
+	if _, err := view.List(context.Background()); !errors.Is(err, ErrStoreUnavailable) || !errors.Is(err, context.Canceled) {
+		t.Fatalf("closed view list = %v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if opens != 1 {
+		t.Fatalf("closed view started %d opens", opens)
 	}
 }
 

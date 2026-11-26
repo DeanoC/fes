@@ -3445,7 +3445,10 @@ selections on access before serving either durable or factory packages. The
 first access verifies selected packages under the lock; a list also verifies
 the other durable packages. Later reads reuse valid stat-fingerprint caches.
 The host view opens in the background; calls made meanwhile get the unavailable
-error at once instead of waiting. The lock waits until the caller's context
+error at once instead of waiting. Closing the host cancels the background
+open and prevents retries or publication into the closed view; filesystem
+calls already in progress must return before they can observe cancellation.
+The lock waits until the caller's context
 ends, so a list, inspect or read without a deadline is bounded to one minute. An import
 reads its whole body under the lock and keeps the caller's context, as the
 agent's own install does. Durable and factory inspections are cached by stat

@@ -80,7 +80,8 @@ func kitHostService(t *testing.T) (*Service, *packageLibraryClient, string, *kit
 	}
 	client := &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}
 	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
-	view := kitpackages.NewView(func() (*kitpackages.Store, error) { return durable, nil }, kitpackages.NewFactory(factory))
+	view := kitpackages.NewView(func(context.Context) (*kitpackages.Store, error) { return durable, nil }, kitpackages.NewFactory(factory))
+	t.Cleanup(view.Close)
 	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(time.Millisecond) {
 		if _, err := view.List(context.Background()); err == nil {
 			break
@@ -134,7 +135,7 @@ func TestKitHostWithoutDurableStorageReportsItUnavailable(t *testing.T) {
 	ctx := context.Background()
 	s, _, factory, _ := kitHostService(t)
 	id := unpackFactoryPackage(t, factory, libraryPackageFixture(t, "1.0.0"))
-	s.corePackages = kitpackages.NewView(func() (*kitpackages.Store, error) {
+	s.corePackages = kitpackages.NewView(func(context.Context) (*kitpackages.Store, error) {
 		return nil, errors.New("FESDATA3 is not mounted")
 	}, kitpackages.NewFactory(factory))
 	_, listErr := s.CorePackages(ctx)
@@ -146,6 +147,26 @@ func TestKitHostWithoutDurableStorageReportsItUnavailable(t *testing.T) {
 		if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeCorePackageStoreUnavailable || apiErr.Message != coreStoreUnavailableMessage {
 			t.Fatalf("%s error = %v, want %s", name, err, protocol.CodeCorePackageStoreUnavailable)
 		}
+	}
+}
+
+func TestKitHostServiceCloseCancelsPackageStoreOpen(t *testing.T) {
+	s, _, factory, _ := kitHostService(t)
+	started, finished := make(chan struct{}), make(chan struct{})
+	s.corePackages = kitpackages.NewView(func(ctx context.Context) (*kitpackages.Store, error) {
+		close(started)
+		<-ctx.Done()
+		close(finished)
+		return nil, ctx.Err()
+	}, kitpackages.NewFactory(factory))
+	<-started
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("service close did not cancel the package-store open")
 	}
 }
 

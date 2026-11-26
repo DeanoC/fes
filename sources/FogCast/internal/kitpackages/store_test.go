@@ -454,6 +454,29 @@ func TestStoreRejectsTamperedOrMissingRetainedData(t *testing.T) {
 	}
 }
 
+func TestOpenStoreContextCancelsBeforeCreationAndWhileWaitingForLock(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	path := filepath.Join(t.TempDir(), "absent")
+	if _, err := openStoreContext(ctx, path, false); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled open = %v", err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("cancelled open created a root: %v", err)
+	}
+	store := newStore(t)
+	_, unlock, err := store.lock(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+	waitCtx, stop := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer stop()
+	if _, err := openStoreContext(waitCtx, store.root, true); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("open waiting for lock = %v", err)
+	}
+}
+
 func TestStoreRejectsChangedRootsLocksAndSymlinkAncestors(t *testing.T) {
 	for _, name := range []string{"root", "archives", "packages", ".lock"} {
 		t.Run(name, func(t *testing.T) {

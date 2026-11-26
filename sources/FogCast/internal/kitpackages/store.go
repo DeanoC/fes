@@ -86,6 +86,18 @@ func New(path string) (*Store, error) {
 // openStore opens the host view without recovery when recoverInstallations is
 // false. The agent owns recovery; package access verifies on a cache miss.
 func openStore(path string, recoverInstallations bool) (*Store, error) {
+	return openStoreContext(context.Background(), path, recoverInstallations)
+}
+
+// openStoreContext checks cancellation between filesystem operations. An OS
+// call already in progress cannot be interrupted by a Go context.
+func openStoreContext(ctx context.Context, path string, recoverInstallations bool) (*Store, error) {
+	if ctx == nil {
+		return nil, errors.New("kit packages: missing open context")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return nil, errors.New("kit packages: root must be a clean absolute path")
 	}
@@ -107,6 +119,9 @@ func openStore(path string, recoverInstallations bool) (*Store, error) {
 	}
 	s := &Store{root: path, info: opened, children: make(map[string]os.FileInfo), verified: make(map[string]verifiedPackage), hostView: !recoverInstallations}
 	for _, name := range []string{"archives", "packages"} {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if err := r.Mkdir(name, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
 			return nil, err
 		}
@@ -121,6 +136,9 @@ func openStore(path string, recoverInstallations bool) (*Store, error) {
 			return nil, errors.New("kit packages: lock must be a private regular file")
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	lock, err := r.OpenFile(".lock", os.O_CREATE|os.O_RDWR, 0o600)
@@ -142,20 +160,26 @@ func openStore(path string, recoverInstallations bool) (*Store, error) {
 	if err != nil || !linkInfo.Mode().IsRegular() || linkInfo.Mode().Perm() != 0o600 || !os.SameFile(s.lockInfo, linkInfo) {
 		return nil, errors.New("kit packages: lock must be a private regular file")
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	s.archives, err = corepackage.NewStore(filepath.Join(path, "archives"))
 	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if err := syncDirectory(r, "."); err != nil {
 		return nil, err
 	}
 	if recoverInstallations {
-		openedRoot, unlock, err := s.lock(context.Background())
+		openedRoot, unlock, err := s.lock(ctx)
 		if err != nil {
 			return nil, err
 		}
 		defer unlock()
-		if err := s.recover(context.Background(), openedRoot); err != nil {
+		if err := s.recover(ctx, openedRoot); err != nil {
 			return nil, err
 		}
 	}
