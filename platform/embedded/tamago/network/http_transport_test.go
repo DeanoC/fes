@@ -426,3 +426,123 @@ func TestListenerCloseConcurrentWithDialTCP(t *testing.T) {
 		}
 	}
 }
+
+func TestListenerCloseDoesNotStallDuringSlowDial(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	aToB := make(chan []byte, 256)
+	bToARaw := make(chan []byte, 256)
+	bToA := make(chan []byte, 256)
+
+	devA := noopDMADev{memWireDev{mac: [6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x01}, in: bToA, out: aToB}}
+	devB := noopDMADev{memWireDev{mac: [6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x02}, in: aToB, out: bToARaw}}
+
+	stackA := gnet.NewLnetoStack(gnet.DefaultLnetoStackConfig())
+	stackB := gnet.NewLnetoStack(gnet.DefaultLnetoStackConfig())
+
+	linkA, err := NewLink(stackA, devA, "192.0.2.10/24", "02:11:22:33:44:01", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	linkB, err := NewLink(stackB, devB, "192.0.2.20/24", "02:11:22:33:44:02", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		_ = linkA.Start(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		_ = linkB.Start(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		delayed := false
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case frame := <-bToARaw:
+				if !delayed {
+					delayed = true
+					timer := time.NewTimer(300 * time.Millisecond)
+					select {
+					case <-ctx.Done():
+						timer.Stop()
+						return
+					case <-timer.C:
+					}
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case bToA <- frame:
+				}
+			}
+		}
+	}()
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
+
+	lnB, err := linkB.ListenTCP(ctx, 9091)
+	if err != nil {
+		t.Fatalf("linkB.ListenTCP: %v", err)
+	}
+	defer func() { _ = lnB.Close() }()
+
+	var acceptWG sync.WaitGroup
+	acceptWG.Add(1)
+	go func() {
+		defer acceptWG.Done()
+		for {
+			conn, err := lnB.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+	defer acceptWG.Wait()
+
+	lnA, err := linkA.ListenTCP(ctx, 10099)
+	if err != nil {
+		t.Fatalf("linkA.ListenTCP: %v", err)
+	}
+
+	dialDone := make(chan error, 1)
+	go func() {
+		conn, err := linkA.DialTCP(ctx, netip.MustParseAddrPort("192.0.2.20:9091"))
+		if conn != nil {
+			_ = conn.Close()
+		}
+		dialDone <- err
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	start := time.Now()
+	if err := lnA.Close(); err != nil {
+		t.Fatalf("Close during slow DialTCP: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed >= 150*time.Millisecond {
+		t.Fatalf("Close stalled for %v while DialTCP was in progress", elapsed)
+	}
+
+	if err := <-dialDone; err != nil {
+		t.Fatalf("slow DialTCP failed: %v", err)
+	}
+
+	// Deferred listener close should have drained when DialTCP returned, freeing port 10099.
+	lnA2, err := linkA.ListenTCP(ctx, 10099)
+	if err != nil {
+		t.Fatalf("ListenTCP after deferred Close drain: %v", err)
+	}
+	_ = lnA2.Close()
+	_ = lnB.Close()
+}

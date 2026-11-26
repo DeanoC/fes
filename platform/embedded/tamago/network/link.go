@@ -40,6 +40,8 @@ type linkState struct {
 	io            sync.RWMutex
 	dialMu        sync.RWMutex
 	stackMu       sync.Mutex
+	pendingMu     sync.Mutex
+	pendingCloses []*tcp.Listener
 	paused        atomic.Bool
 	claimed       atomic.Bool
 	renewerActive atomic.Bool
@@ -200,12 +202,59 @@ func (ln *lnetoListener) Accept() (net.Conn, error) {
 func (l *Link) socket(ctx context.Context, network string, family, sotype int, laddr, raddr net.Addr) (any, error) {
 	if raddr != nil {
 		l.state.dialMu.RLock()
-		defer l.state.dialMu.RUnlock()
+		defer func() {
+			l.state.dialMu.RUnlock()
+			l.drainPendingCloses()
+		}()
 	} else {
+		l.drainPendingCloses()
 		l.state.stackMu.Lock()
 		defer l.state.stackMu.Unlock()
 	}
 	return l.stack.Socket(ctx, network, family, sotype, laddr, raddr)
+}
+
+func (l *Link) closeListener(inner *tcp.Listener) error {
+	if l.state.dialMu.TryLock() {
+		l.state.stackMu.Lock()
+		err := inner.Close()
+		l.state.stackMu.Unlock()
+		l.state.dialMu.Unlock()
+		return err
+	}
+	l.state.pendingMu.Lock()
+	l.state.pendingCloses = append(l.state.pendingCloses, inner)
+	l.state.pendingMu.Unlock()
+	// Dekker double-check: if the last DialTCP released dialMu before we
+	// appended to pendingCloses, drain immediately so no close is stranded.
+	l.drainPendingCloses()
+	return nil
+}
+
+func (l *Link) drainPendingCloses() {
+	for {
+		l.state.pendingMu.Lock()
+		hasPending := len(l.state.pendingCloses) > 0
+		l.state.pendingMu.Unlock()
+		if !hasPending {
+			return
+		}
+		if !l.state.dialMu.TryLock() {
+			return
+		}
+		l.state.pendingMu.Lock()
+		pending := l.state.pendingCloses
+		l.state.pendingCloses = nil
+		l.state.pendingMu.Unlock()
+		if len(pending) > 0 {
+			l.state.stackMu.Lock()
+			for _, inner := range pending {
+				_ = inner.Close()
+			}
+			l.state.stackMu.Unlock()
+		}
+		l.state.dialMu.Unlock()
+	}
 }
 
 func (ln *lnetoListener) Close() error {
@@ -216,11 +265,7 @@ func (ln *lnetoListener) Close() error {
 		ln.closed.Store(true)
 		close(ln.closeCh)
 		if ln.link != nil && ln.link.state != nil {
-			ln.link.state.dialMu.Lock()
-			ln.link.state.stackMu.Lock()
-			err = ln.inner.Close()
-			ln.link.state.stackMu.Unlock()
-			ln.link.state.dialMu.Unlock()
+			err = ln.link.closeListener(ln.inner)
 		} else {
 			err = ln.inner.Close()
 		}
