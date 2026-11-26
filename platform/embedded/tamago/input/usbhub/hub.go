@@ -192,6 +192,9 @@ type wiredGamepadSlot struct {
 	initAttempts uint8
 	txSeq        uint8
 	outPending   bool
+	ledAssigned  bool
+	ledPort      uint8
+	ledDirty     bool
 	gipAckQueue  [4]gipAckRequest
 	gipAckHead   uint8
 	gipAckCount  uint8
@@ -307,7 +310,9 @@ func NewHub(bus usb.BusHost, cfg Config) (*Hub, error) {
 		if slot < hidp.MaxPlayerSlots {
 			if connected && kind != controllers.KindUnknown {
 				h.btSlotActive[slot] = true
-				h.assignPlayerPort(playerPortBT, slot)
+				if h.assignPlayerPort(playerPortBT, slot) < 0 {
+					_ = h.bt.SetPlayerPort(slot, 0, false)
+				}
 			} else if !connected {
 				h.btSlotActive[slot] = false
 				h.btGamepads[slot] = usb.GamepadState{Hat: -1}
@@ -1147,10 +1152,10 @@ func (h *Hub) serviceWiredInit(slotIdx int) (paused bool) {
 	}
 	switch slot.kind {
 	case controllers.KindXInput:
-		if slot.initStep == 0 {
-			n := controllers.BuildXInputLED(h.txBuf[:], uint8(slotIdx))
+		if slot.ledDirty && slot.ledAssigned {
+			n := controllers.BuildXInputLED(h.txBuf[:], slot.ledPort)
 			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
-				slot.initStep = 1
+				slot.ledDirty = false
 			}
 		}
 	case controllers.KindXboxGIP:
@@ -1181,17 +1186,17 @@ func (h *Hub) serviceWiredInit(slotIdx int) (paused bool) {
 			}
 		}
 	case controllers.KindDualSense:
-		if slot.initStep == 0 {
-			n := controllers.BuildDualSenseUSBOutput(h.txBuf[:], uint8(slotIdx), 0, 0)
+		if slot.ledDirty && slot.ledAssigned {
+			n := controllers.BuildDualSenseUSBOutput(h.txBuf[:], slot.ledPort, 0, 0)
 			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
-				slot.initStep = 1
+				slot.ledDirty = false
 			}
 		}
 	case controllers.KindDualShock4:
-		if slot.initStep == 0 {
-			n := controllers.BuildDualShock4USBOutput(h.txBuf[:], uint8(slotIdx), 0, 0)
+		if slot.ledDirty && slot.ledAssigned {
+			n := controllers.BuildDualShock4USBOutput(h.txBuf[:], slot.ledPort, 0, 0)
 			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
-				slot.initStep = 1
+				slot.ledDirty = false
 			}
 		}
 	case controllers.KindSwitchPro:
@@ -1234,11 +1239,13 @@ func (h *Hub) serviceWiredInit(slotIdx int) (paused bool) {
 			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
 				slot.initStep = 4
 			}
-		case 4:
-			n := controllers.BuildSwitchProSetPlayerLEDs(h.txBuf[:], slot.txSeq&0x0f, uint8(slotIdx))
-			slot.txSeq++
-			if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
-				slot.initStep = 5
+		default:
+			if slot.ledDirty && slot.ledAssigned {
+				n := controllers.BuildSwitchProSetPlayerLEDs(h.txBuf[:], slot.txSeq&0x0f, slot.ledPort)
+				slot.txSeq++
+				if h.writeSlotPacket(slotIdx, h.txBuf[:n]) {
+					slot.ledDirty = false
+				}
 			}
 		}
 	}
@@ -1339,6 +1346,7 @@ func (h *Hub) SetWiredRumble(slotIdx uint8, leftHeavy, rightLight uint8) error {
 		return errors.New("usbhub: wired output pipe busy")
 	}
 	var n int
+	clearLEDDirty := false
 	switch slot.kind {
 	case controllers.KindXInput:
 		n = controllers.BuildXInputRumble(h.txBuf[:], leftHeavy, rightLight)
@@ -1346,9 +1354,19 @@ func (h *Hub) SetWiredRumble(slotIdx uint8, leftHeavy, rightLight uint8) error {
 		n = controllers.BuildXboxGIPRumble(h.txBuf[:], slot.txSeq, leftHeavy, rightLight)
 		slot.txSeq++
 	case controllers.KindDualSense:
-		n = controllers.BuildDualSenseUSBOutput(h.txBuf[:], slotIdx, rightLight, leftHeavy)
+		if slot.ledAssigned {
+			n = controllers.BuildDualSenseUSBOutput(h.txBuf[:], slot.ledPort, rightLight, leftHeavy)
+			clearLEDDirty = true
+		} else {
+			n = controllers.BuildDualSenseUSBRumble(h.txBuf[:], rightLight, leftHeavy)
+		}
 	case controllers.KindDualShock4:
-		n = controllers.BuildDualShock4USBOutput(h.txBuf[:], slotIdx, rightLight, leftHeavy)
+		if slot.ledAssigned {
+			n = controllers.BuildDualShock4USBOutput(h.txBuf[:], slot.ledPort, rightLight, leftHeavy)
+			clearLEDDirty = true
+		} else {
+			n = controllers.BuildDualShock4USBRumble(h.txBuf[:], rightLight, leftHeavy)
+		}
 	default:
 		return errors.New("usbhub: rumble unsupported on this wired device")
 	}
@@ -1357,6 +1375,9 @@ func (h *Hub) SetWiredRumble(slotIdx uint8, leftHeavy, rightLight uint8) error {
 	}
 	if err := slot.outPipe.Write(h.txBuf[:n]); err != nil {
 		return err
+	}
+	if clearLEDDirty {
+		slot.ledDirty = false
 	}
 	slot.outPending = true
 	return nil
@@ -1580,6 +1601,37 @@ func (h *Hub) recomputeGamepad() {
 	}
 }
 
+func wiredKindHasPlayerLED(kind controllers.Kind) bool {
+	switch kind {
+	case controllers.KindXInput, controllers.KindDualSense, controllers.KindDualShock4, controllers.KindSwitchPro:
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *Hub) syncPlayerPortLED(source playerPortSource, slot uint8, port uint8) {
+	switch source {
+	case playerPortWired:
+		if int(slot) >= len(h.wiredGamepads) {
+			return
+		}
+		w := &h.wiredGamepads[slot]
+		if !w.active {
+			return
+		}
+		if !w.ledAssigned || w.ledPort != port {
+			w.ledAssigned = true
+			w.ledPort = port
+			w.ledDirty = wiredKindHasPlayerLED(w.kind)
+		}
+	case playerPortBT:
+		if h.bt != nil {
+			_ = h.bt.SetPlayerPort(slot, port, true)
+		}
+	}
+}
+
 func (h *Hub) assignPlayerPort(source playerPortSource, slot uint8) int {
 	for p, owner := range h.playerPorts {
 		if owner.source == source && owner.slot == slot {
@@ -1589,6 +1641,7 @@ func (h *Hub) assignPlayerPort(source playerPortSource, slot uint8) int {
 	for p, owner := range h.playerPorts {
 		if owner.source == playerPortNone {
 			h.playerPorts[p] = playerPortOwner{source: source, slot: slot}
+			h.syncPlayerPortLED(source, slot, uint8(p))
 			return p
 		}
 	}

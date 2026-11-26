@@ -48,10 +48,39 @@ type PlayerSlot struct {
 	initAttempts   uint8
 	cal            controllers.SwitchStickCal
 	outputSeq      uint8
+	ledManaged     bool
+	ledAssigned    bool
+	ledPort        uint8
+	ledSentPort    uint8
+	ledDirty       bool
+	ledWaiting     bool
+	ledNextTry     time.Time
+	ledAttempts    uint8
 }
 
 func (p *PlayerSlot) ready() bool {
 	return p.Connected && p.ctrlOpen && p.intrOpen
+}
+
+func (p *PlayerSlot) effectiveLEDPort() (uint8, bool) {
+	if !p.ledManaged {
+		return p.Slot, true
+	}
+	if p.ledAssigned {
+		return p.ledPort, true
+	}
+	return 0, false
+}
+
+func (p *PlayerSlot) clearLEDState() {
+	p.ledManaged = false
+	p.ledAssigned = false
+	p.ledPort = 0
+	p.ledSentPort = 0
+	p.ledDirty = false
+	p.ledWaiting = false
+	p.ledNextTry = time.Time{}
+	p.ledAttempts = 0
 }
 
 // Session runs Classic Bluetooth HIDP (PSM 0x0011 Control + PSM 0x0013
@@ -100,8 +129,13 @@ func (s *Session) Service() error {
 		return err
 	}
 	for i := range s.slots {
-		if s.slots[i].Connected && s.slots[i].initStep != initStepDone {
+		if !s.slots[i].Connected {
+			continue
+		}
+		if s.slots[i].initStep != initStepDone {
 			s.maybeInitController(&s.slots[i])
+		} else if s.slots[i].ledDirty {
+			s.maybeSyncPlayerLED(&s.slots[i])
 		}
 	}
 	return nil
@@ -231,10 +265,10 @@ func (s *Session) onChannelOpen(handle uint16, addr l2cap.BDAddr, name string, k
 	case l2cap.PSMHIDInterrupt:
 		slot.intrOpen = true
 	}
-	s.maybeInitController(slot)
 	if !wasReady && slot.ctrlOpen && slot.intrOpen && s.OnSlotChanged != nil {
 		s.OnSlotChanged(slot.Slot, true, slot.Kind, slot.Name)
 	}
+	s.maybeInitController(slot)
 }
 
 func (s *Session) onNameResolved(handle uint16, _ l2cap.BDAddr, name string, kind controllers.Kind) {
@@ -253,10 +287,10 @@ func (s *Session) onNameResolved(handle uint16, _ l2cap.BDAddr, name string, kin
 		slot.initNextTry = time.Time{}
 		slot.initAttempts = 0
 	}
-	s.maybeInitController(slot)
 	if prevKind == controllers.KindUnknown && slot.Kind != controllers.KindUnknown && slot.ctrlOpen && slot.intrOpen && s.OnSlotChanged != nil {
 		s.OnSlotChanged(slot.Slot, true, slot.Kind, slot.Name)
 	}
+	s.maybeInitController(slot)
 }
 
 func (s *Session) emitKeyboardReport(slot uint8, report []byte) {
@@ -299,6 +333,7 @@ func (s *Session) onChannelClose(handle uint16, _ l2cap.BDAddr, psm uint16) {
 	slot.initWaitingAck = false
 	slot.initNextTry = time.Time{}
 	slot.initAttempts = 0
+	slot.clearLEDState()
 	if !slot.ctrlOpen && !slot.intrOpen {
 		*slot = PlayerSlot{}
 	}
@@ -350,16 +385,20 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 			slot.initStep = 1
 		}
 		// 2. Send initial Player 1..4 lightbar/LED output report on PSM 0x0013
-		// (0x31 for DualSense, 0x11 CRC-protected for DualShock 4).
+		// (0x31 for DualSense, 0x11 CRC-protected for DualShock 4) when assigned.
 		if slot.initStep == 1 {
-			var err error
-			if slot.Kind == controllers.KindDualShock4 {
-				err = s.sendDualShock4Output(slot, 0, 0)
+			if _, ok := slot.effectiveLEDPort(); ok {
+				var err error
+				if slot.Kind == controllers.KindDualShock4 {
+					err = s.sendDualShock4Output(slot, 0, 0)
+				} else {
+					err = s.sendDualSenseOutput(slot, 0, 0)
+				}
+				if err != nil {
+					return
+				}
 			} else {
-				err = s.sendDualSenseOutput(slot, 0, 0)
-			}
-			if err != nil {
-				return
+				slot.ledDirty = false
 			}
 			slot.initStep = initStepDone
 		}
@@ -376,6 +415,7 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 				case 1:
 					slot.initStep = 2
 				default:
+					slot.ledDirty = false
 					slot.initStep = initStepDone
 				}
 				slot.initWaitingAck = false
@@ -397,7 +437,17 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 		case 1:
 			n = controllers.BuildSwitchProSetFullMode(s.txBuf[1:], slot.outputSeq)
 		case 2:
-			n = controllers.BuildSwitchProSetPlayerLEDs(s.txBuf[1:], slot.outputSeq, slot.Slot)
+			port, ok := slot.effectiveLEDPort()
+			if !ok {
+				slot.ledDirty = false
+				slot.initStep = initStepDone
+				slot.initWaitingAck = false
+				slot.initAttempts = 0
+				slot.initNextTry = time.Time{}
+				return
+			}
+			n = controllers.BuildSwitchProSetPlayerLEDs(s.txBuf[1:], slot.outputSeq, port)
+			slot.ledSentPort = port
 		default:
 			return
 		}
@@ -433,12 +483,22 @@ func (s *Session) maybeInitController(slot *PlayerSlot) {
 
 func (s *Session) sendDualSenseOutput(slot *PlayerSlot, right, left uint8) error {
 	s.txBuf[0] = hidpDataOutput
-	n := controllers.BuildDualSenseBTOutput(s.txBuf[1:], slot.outputSeq, slot.Slot, right, left)
+	var n int
+	clearLEDDirty := false
+	if port, ok := slot.effectiveLEDPort(); ok {
+		n = controllers.BuildDualSenseBTOutput(s.txBuf[1:], slot.outputSeq, port, right, left)
+		clearLEDDirty = true
+	} else {
+		n = controllers.BuildDualSenseBTRumble(s.txBuf[1:], slot.outputSeq, right, left)
+	}
 	if n == 0 {
 		return errors.New("bt/hidp: DualSense output build failed")
 	}
 	if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n]); err != nil {
 		return err
+	}
+	if clearLEDDirty {
+		slot.ledDirty = false
 	}
 	slot.outputSeq = (slot.outputSeq + 1) & 0x0f
 	return nil
@@ -446,11 +506,109 @@ func (s *Session) sendDualSenseOutput(slot *PlayerSlot, right, left uint8) error
 
 func (s *Session) sendDualShock4Output(slot *PlayerSlot, right, left uint8) error {
 	s.txBuf[0] = hidpDataOutput
-	n := controllers.BuildDualShock4BTOutput(s.txBuf[1:], slot.Slot, right, left)
+	var n int
+	clearLEDDirty := false
+	if port, ok := slot.effectiveLEDPort(); ok {
+		n = controllers.BuildDualShock4BTOutput(s.txBuf[1:], port, right, left)
+		clearLEDDirty = true
+	} else {
+		n = controllers.BuildDualShock4BTRumble(s.txBuf[1:], right, left)
+	}
 	if n == 0 {
 		return errors.New("bt/hidp: DualShock 4 output build failed")
 	}
-	return s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n])
+	if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n]); err != nil {
+		return err
+	}
+	if clearLEDDirty {
+		slot.ledDirty = false
+	}
+	return nil
+}
+
+func (s *Session) maybeSyncPlayerLED(slot *PlayerSlot) {
+	if !slot.ready() || !slot.ledDirty {
+		return
+	}
+	port, ok := slot.effectiveLEDPort()
+	if !ok {
+		slot.ledDirty = false
+		slot.ledWaiting = false
+		slot.ledAttempts = 0
+		slot.ledNextTry = time.Time{}
+		return
+	}
+	switch slot.Kind {
+	case controllers.KindDualSense:
+		_ = s.sendDualSenseOutput(slot, 0, 0)
+	case controllers.KindDualShock4:
+		_ = s.sendDualShock4Output(slot, 0, 0)
+	case controllers.KindSwitchPro:
+		if slot.ledWaiting {
+			if s.now().Before(slot.ledNextTry) {
+				return
+			}
+			if slot.ledAttempts >= switchProMaxStepAttempts {
+				slot.ledDirty = false
+				slot.ledWaiting = false
+				slot.ledAttempts = 0
+				slot.ledNextTry = time.Time{}
+				return
+			}
+			slot.ledWaiting = false
+		}
+		s.txBuf[0] = hidpDataOutput
+		n := controllers.BuildSwitchProSetPlayerLEDs(s.txBuf[1:], slot.outputSeq, port)
+		if err := s.mgr.SendChannel(slot.Handle, l2cap.PSMHIDInterrupt, s.txBuf[:1+n]); err != nil {
+			return
+		}
+		slot.outputSeq = (slot.outputSeq + 1) & 0x0f
+		slot.ledSentPort = port
+		slot.ledWaiting = true
+		slot.ledAttempts++
+		slot.ledNextTry = s.now().Add(switchProSubcmdRetryInterval)
+	default:
+		slot.ledDirty = false
+	}
+}
+
+// SetPlayerPort configures or updates the unified P1..P4 player-port LED
+// assignment for an active HIDP slot (0..3). Calling SetPlayerPort marks the
+// slot's LED state as Hub-managed so overflow (unassigned) controllers never
+// light a stale P1 indicator until promoted.
+func (s *Session) SetPlayerPort(slotIdx uint8, playerPort uint8, assigned bool) error {
+	if slotIdx >= MaxPlayerSlots || !s.slots[slotIdx].ready() {
+		return fmt.Errorf("bt/hidp: slot %d not connected", slotIdx)
+	}
+	slot := &s.slots[slotIdx]
+	port := playerPort & 3
+	if !assigned {
+		port = 0
+	}
+	changed := !slot.ledManaged || slot.ledAssigned != assigned || (assigned && slot.ledPort != port)
+	slot.ledManaged = true
+	slot.ledAssigned = assigned
+	slot.ledPort = port
+	if !changed {
+		return nil
+	}
+	slot.ledWaiting = false
+	slot.ledAttempts = 0
+	slot.ledNextTry = time.Time{}
+	if !assigned {
+		slot.ledDirty = false
+		return nil
+	}
+	switch slot.Kind {
+	case controllers.KindDualSense, controllers.KindDualShock4, controllers.KindSwitchPro:
+		slot.ledDirty = true
+		if slot.initStep == initStepDone {
+			s.maybeSyncPlayerLED(slot)
+		}
+	default:
+		slot.ledDirty = false
+	}
+	return nil
 }
 
 // SetRumble sends a rumble/LED update to an active DualSense or DualShock 4 slot (0..3).
@@ -538,14 +696,27 @@ func (s *Session) onHIDInterrupt(handle uint16, payload []byte) {
 
 func (s *Session) handleSwitchProSubcmdReply(slot *PlayerSlot, report []byte) {
 	controllers.ParseSwitchProSPICalibration(report, &slot.cal)
-	if len(report) < 15 || slot.initStep == initStepDone || !slot.initWaitingAck {
+	if len(report) < 15 {
 		return
 	}
 	ack := report[13]
 	subcmd := report[14]
-	if ack&0x80 == 0 {
-		// Controller explicitly NACKed; remain waiting so maybeInitController
-		// retries once switchProSubcmdRetryInterval elapses.
+	if slot.initStep == initStepDone {
+		if slot.ledDirty && slot.ledWaiting && ack&0x80 != 0 && subcmd == controllers.SwitchProSubcmdSetPlayerLD {
+			slot.ledWaiting = false
+			slot.ledAttempts = 0
+			slot.ledNextTry = time.Time{}
+			if !slot.ledAssigned || slot.ledPort == slot.ledSentPort {
+				slot.ledDirty = false
+			} else {
+				s.maybeSyncPlayerLED(slot)
+			}
+		}
+		return
+	}
+	if !slot.initWaitingAck || ack&0x80 == 0 {
+		// Controller explicitly NACKed or no subcommand ACK is pending; remain
+		// waiting so maybeInitController retries once the interval elapses.
 		return
 	}
 	switch slot.initStep {
@@ -567,6 +738,15 @@ func (s *Session) handleSwitchProSubcmdReply(slot *PlayerSlot, report []byte) {
 		if subcmd != controllers.SwitchProSubcmdSetPlayerLD {
 			return
 		}
+		if slot.ledManaged && slot.ledAssigned && slot.ledPort != slot.ledSentPort {
+			slot.ledDirty = true
+			slot.initWaitingAck = false
+			slot.initAttempts = 0
+			slot.initNextTry = time.Time{}
+			s.maybeInitController(slot)
+			return
+		}
+		slot.ledDirty = false
 		slot.initStep = initStepDone
 	default:
 		return

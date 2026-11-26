@@ -1341,3 +1341,200 @@ func TestSessionPairingRemainingAndDisconnectAddr(t *testing.T) {
 		t.Fatalf("expected neutral keyboard report on DisconnectAddr, got %x", gotReports)
 	}
 }
+
+func TestSessionManagedPlayerPortLEDsAndOverflowPromotion(t *testing.T) {
+	bus := newHIDPMockBus()
+	tr, err := hci.Open(bus, bus.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Initialize(nil); err != nil {
+		t.Fatal(err)
+	}
+
+	dsAddr, _ := l2cap.ParseBDAddr("AA:00:00:00:00:01")
+	swAddr, _ := l2cap.ParseBDAddr("AA:00:00:00:00:02")
+	ds4Addr, _ := l2cap.ParseBDAddr("AA:00:00:00:00:03")
+	bonds := l2cap.NewBondStore()
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: dsAddr, LinkKey: [16]byte{1}, Name: "DualSense Wireless Controller", Kind: controllers.KindDualSense, Slot: 0})
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: swAddr, LinkKey: [16]byte{2}, Name: "Pro Controller", Kind: controllers.KindSwitchPro, Slot: 1})
+	_ = bonds.Upsert(l2cap.BondRecord{Addr: ds4Addr, LinkKey: [16]byte{3}, Name: "Wireless Controller", Kind: controllers.KindDualShock4, Slot: 2})
+
+	now := time.Unix(900, 0)
+	sess, err := NewSession(tr, bonds, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sess.SetPlayerPort(0, 0, true); err == nil {
+		t.Fatal("expected SetPlayerPort on disconnected slot to fail")
+	}
+
+	sess.OnSlotChanged = func(slot uint8, connected bool, kind controllers.Kind, _ string) {
+		if !connected {
+			return
+		}
+		switch slot {
+		case 0, 1:
+			// Overflow / unassigned: do not light P1 LED during init.
+			if err := sess.SetPlayerPort(slot, 0, false); err != nil {
+				t.Fatalf("SetPlayerPort unassigned slot %d: %v", slot, err)
+			}
+		case 2:
+			// Slot 2 assigned unified Player 2 (port 1 -> red RGB {0x80, 0x10, 0x10}).
+			if err := sess.SetPlayerPort(slot, 1, true); err != nil {
+				t.Fatalf("SetPlayerPort slot 2 -> P2: %v", err)
+			}
+		}
+	}
+
+	openConn := func(addr l2cap.BDAddr, handle, ctrlCID, intrCID uint16) {
+		conn := append([]byte{hci.EventConnectionComplete, 11, 0, byte(handle), byte(handle >> 8)}, addr[:]...)
+		conn = append(conn, 0x01, 0x01)
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, conn)
+		openIncomingHIDChannels(bus, handle, ctrlCID, intrCID)
+	}
+	pump := func(n int) {
+		for range n {
+			bus.evPipe.inQueue = append(bus.evPipe.inQueue,
+				[]byte{hci.EventNumCompletedPackets, 5, 1, 0x41, 0x00, 0x08, 0x00},
+				[]byte{hci.EventNumCompletedPackets, 5, 1, 0x42, 0x00, 0x08, 0x00},
+				[]byte{hci.EventNumCompletedPackets, 5, 1, 0x43, 0x00, 0x08, 0x00},
+			)
+			if err := sess.Service(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	openConn(dsAddr, 0x0041, 0x0050, 0x0051)
+	openConn(swAddr, 0x0042, 0x0060, 0x0061)
+	openConn(ds4Addr, 0x0043, 0x0070, 0x0071)
+	pump(6)
+	// Complete Switch Pro SPI cal + Full Mode.
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0042, 0x0041, makeSwitchProSPICalReply(0x90)))
+	pump(1)
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0042, 0x0041, makeSwitchProSubcmdReply(0x80, controllers.SwitchProSubcmdSetMode, nil)))
+	pump(1)
+
+	var sawDSUnlock, sawDSBogusLED, sawSWBogusLED, sawDS4P2 bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) < 10 {
+			continue
+		}
+		h := binary.LittleEndian.Uint16(pkt[0:2]) & 0x0fff
+		cid := binary.LittleEndian.Uint16(pkt[6:8])
+		hid := pkt[8:]
+		if h == 0x0041 && cid == 0x0050 && hid[0] == hidpGetReportFeature && hid[1] == 0x05 {
+			sawDSUnlock = true
+		}
+		if h == 0x0041 && cid == 0x0051 && hid[0] == hidpDataOutput {
+			sawDSBogusLED = true
+		}
+		if h == 0x0042 && cid == 0x0061 && len(hid) == 50 && hid[11] == controllers.SwitchProSubcmdSetPlayerLD {
+			sawSWBogusLED = true
+		}
+		if h == 0x0043 && cid == 0x0071 && len(hid) == 79 && hid[1] == controllers.DualShock4BTReportFull &&
+			hid[4] == 0x03 && hid[9] == 0x80 && hid[10] == 0x10 && hid[11] == 0x10 {
+			sawDS4P2 = true
+		}
+	}
+	if !sawDSUnlock || sawDSBogusLED || sawSWBogusLED || !sawDS4P2 {
+		t.Fatalf("unexpected pre-init LED behavior: dsUnlock=%t dsBogus=%t swBogus=%t ds4P2=%t",
+			sawDSUnlock, sawDSBogusLED, sawSWBogusLED, sawDS4P2)
+	}
+	if sess.slots[0].initStep != initStepDone || sess.slots[1].initStep != initStepDone || sess.slots[2].initStep != initStepDone {
+		t.Fatalf("expected all 3 slots at initStepDone, got %d,%d,%d",
+			sess.slots[0].initStep, sess.slots[1].initStep, sess.slots[2].initStep)
+	}
+
+	// Unassigned DualSense SetRumble emits valid_flag1=0x00; assigned DS4 SetRumble preserves P2 red RGB.
+	bus.aclOutPipe.outLog = nil
+	if err := sess.SetRumble(0, 0x33, 0x11); err != nil {
+		t.Fatalf("SetRumble unassigned DualSense: %v", err)
+	}
+	if err := sess.SetRumble(2, 0x44, 0x22); err != nil {
+		t.Fatalf("SetRumble assigned DS4: %v", err)
+	}
+	var sawDSRumbleOnly, sawDS4P2Rumble bool
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) != 8+79 {
+			continue
+		}
+		h := binary.LittleEndian.Uint16(pkt[0:2]) & 0x0fff
+		hid := pkt[8:]
+		if h == 0x0041 && hid[1] == controllers.DualSenseBTReportFull && hid[5] == 0x00 && hid[6] == 0x33 && hid[7] == 0x11 && hid[47] == 0x00 {
+			sawDSRumbleOnly = true
+		}
+		if h == 0x0043 && hid[1] == controllers.DualShock4BTReportFull && hid[4] == 0x03 && hid[7] == 0x44 && hid[8] == 0x22 && hid[9] == 0x80 {
+			sawDS4P2Rumble = true
+		}
+	}
+	if !sawDSRumbleOnly || !sawDS4P2Rumble {
+		t.Fatalf("unexpected SetRumble behavior: dsRumbleOnly=%t ds4P2Rumble=%t", sawDSRumbleOnly, sawDS4P2Rumble)
+	}
+
+	// Promote DualSense slot 0 post-init to P3 (0x15, green RGB).
+	bus.aclOutPipe.outLog = nil
+	if err := sess.SetPlayerPort(0, 2, true); err != nil {
+		t.Fatalf("promote DualSense to P3: %v", err)
+	}
+	if len(bus.aclOutPipe.outLog) != 1 || bus.aclOutPipe.outLog[0][8+47] != 0x15 || bus.aclOutPipe.outLog[0][8+48] != 0x10 || bus.aclOutPipe.outLog[0][8+49] != 0x70 {
+		t.Fatalf("expected immediate P3 DualSense LED packet after promotion, got %x", bus.aclOutPipe.outLog)
+	}
+
+	// Promote Switch Pro slot 1 post-init to P4 (0x08) while ACL TX queue is full -> retries on Service + timeout until ACK.
+	bus.aclOutPipe.writeStalled = true
+	queueFull := false
+	for range 32 {
+		if err := tr.SendACL(0x0042, hci.ACLBoundaryFirstAutoFlush, []byte{0xde, 0xad}); err != nil {
+			queueFull = true
+			break
+		}
+	}
+	if !queueFull {
+		t.Fatal("failed to saturate ACL TX queue")
+	}
+	bus.aclOutPipe.outLog = nil
+	if err := sess.SetPlayerPort(1, 3, true); err != nil {
+		t.Fatalf("promote Switch Pro to P4: %v", err)
+	}
+	if !sess.slots[1].ledDirty || len(bus.aclOutPipe.outLog) != 0 {
+		t.Fatalf("expected ledDirty retained when ACL TX queue full, dirty=%t out=%x", sess.slots[1].ledDirty, bus.aclOutPipe.outLog)
+	}
+	bus.aclOutPipe.writeStalled = false
+	for range 20 {
+		bus.evPipe.inQueue = append(bus.evPipe.inQueue, []byte{hci.EventNumCompletedPackets, 5, 1, 0x42, 0x00, 0x08, 0x00})
+		if err := sess.Service(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	swLEDPkts := 0
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) == 8+50 && pkt[8+11] == controllers.SwitchProSubcmdSetPlayerLD && pkt[8+12] == 0x08 {
+			swLEDPkts++
+		}
+	}
+	if swLEDPkts != 1 {
+		t.Fatalf("expected 1 Switch Pro P4 LED retry on Service after queue drain, got %d in %x", swLEDPkts, bus.aclOutPipe.outLog)
+	}
+	// Advance past retry interval without ACK -> resends, then ACK clears ledDirty.
+	now = now.Add(switchProSubcmdRetryInterval)
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	swLEDPkts = 0
+	for _, pkt := range bus.aclOutPipe.outLog {
+		if len(pkt) == 8+50 && pkt[8+11] == controllers.SwitchProSubcmdSetPlayerLD && pkt[8+12] == 0x08 {
+			swLEDPkts++
+		}
+	}
+	if swLEDPkts != 2 {
+		t.Fatalf("expected Switch Pro P4 LED timeout resend (2 total), got %d", swLEDPkts)
+	}
+	bus.aclInPipe.inQueue = append(bus.aclInPipe.inQueue, makeHIDACL(0x0042, 0x0041, makeSwitchProSubcmdReply(0x80, controllers.SwitchProSubcmdSetPlayerLD, nil)))
+	if err := sess.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if sess.slots[1].ledDirty {
+		t.Fatal("expected Switch Pro ledDirty cleared after 0x21 ACK")
+	}
+}
