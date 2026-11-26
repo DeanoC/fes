@@ -38,6 +38,7 @@ type Link struct {
 type linkState struct {
 	failure       atomic.Pointer[linkFailure]
 	io            sync.RWMutex
+	stackMu       sync.Mutex
 	paused        atomic.Bool
 	claimed       atomic.Bool
 	renewerActive atomic.Bool
@@ -132,7 +133,9 @@ func (l *Link) ListenTCP(ctx context.Context, port uint16) (net.Listener, error)
 		return nil, err
 	}
 	laddr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(l.prefix.Addr(), port))
+	l.state.stackMu.Lock()
 	raw, err := l.stack.Socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, laddr, nil)
+	l.state.stackMu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +205,13 @@ func (ln *lnetoListener) Close() error {
 		alreadyClosed = false
 		ln.closed.Store(true)
 		close(ln.closeCh)
-		err = ln.inner.Close()
+		if ln.link != nil && ln.link.state != nil {
+			ln.link.state.stackMu.Lock()
+			err = ln.inner.Close()
+			ln.link.state.stackMu.Unlock()
+		} else {
+			err = ln.inner.Close()
+		}
 	})
 	if alreadyClosed {
 		return net.ErrClosed
@@ -254,7 +263,9 @@ func (l *Link) transmit(buf []byte) {
 	if len(buf) == 0 {
 		buf = make([]byte, 1518)
 	}
+	l.state.stackMu.Lock()
 	n, err := l.stack.WriteOutboundPacket(buf)
+	l.state.stackMu.Unlock()
 	if err != nil {
 		l.fail(err)
 		return
@@ -379,7 +390,9 @@ func (l *Link) Start(ctx context.Context) error {
 		}
 		l.dispatchTaps(buf[:n])
 		// Invalid remote packets are rejected by the stack, not a device failure.
+		l.state.stackMu.Lock()
 		_ = l.stack.RecvInboundPacket(buf[:n])
+		l.state.stackMu.Unlock()
 	}
 	return ctx.Err()
 }
