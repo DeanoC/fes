@@ -36,8 +36,54 @@ def constant(definition, name):
     return int(values[0], 16)
 
 
-def retarget_adapter(data, definition):
-    """Retarget SMMU fields and bounded read credits for isolated scanout."""
+def order_window_reads(text):
+    """Keep the narrow scanout and window replies in AXI issue order."""
+    queue = r"""// The Avalon width adapters expect responses in issue order.
+// Use one F2SDRAM read ID and restore the original owner from a FIFO.
+reg \[4:0\] read_id_fifo \[0:15\];
+reg \[3:0\] read_head, read_tail;
+reg \[4:0\] read_count;
+wire read_have_credit = !reset && read_count != 5'd16;
+wire read_have_id = !reset && read_count != 5'd0;
+wire read_accepted = sub_arvalid && sub_arready;
+wire read_finished = man_rvalid && man_rready && man_rlast;
+always @(posedge clk) begin
+    if (reset) begin
+        read_head <= 4'd0;
+        read_tail <= 4'd0;
+        read_count <= 5'd0;
+    end else begin
+        if (read_accepted) begin
+            read_id_fifo\[read_tail\] <= sub_arid;
+            read_tail <= read_tail + 4'd1;
+        end
+        if (read_finished) read_head <= read_head + 4'd1;
+        case ({read_accepted, read_finished})
+            2'b10: read_count <= read_count + 5'd1;
+            2'b01: read_count <= read_count - 5'd1;
+            default: ;
+        endcase
+    end
+end
+
+assign sub_rid     = read_id_fifo\[read_head\];
+assign sub_arready = read_have_credit && man_arready;"""
+    changes = (
+        ("assign sub_rid     = man_rid;\nassign sub_arready = man_arready;", queue),
+        ("assign sub_rvalid  = man_rvalid;", "assign sub_rvalid  = read_have_id && man_rvalid;"),
+        ("assign man_rready   = sub_rready;", "assign man_rready   = read_have_id && sub_rready;"),
+        ("assign man_arvalid  = sub_arvalid;", "assign man_arvalid  = read_have_credit && sub_arvalid;"),
+        ("assign man_arid     = sub_arid;", "assign man_arid     = 5'd0;"),
+    )
+    for before, after in changes:
+        if text.count(before) != 1:
+            raise ValueError('vendor F2SDRAM read channel changed')
+        text = text.replace(before, after)
+    return text
+
+
+def retarget_adapter(data, definition, *, window=False):
+    """Retarget SMMU fields and bounded read credits for the selected masters."""
     # Quartus 26.3 intel_hps/sm/common/parameters_data.tcl, f2sdram_SMMU:
     # raw AxUSER[8] is AxMMUSECSID and [24:9] is AxMMUSID.
     # The ACE5-Lite translator CSR uses a different register layout.
@@ -73,6 +119,8 @@ def retarget_adapter(data, definition):
             if text.count(before) != 1:
                 raise ValueError('vendor AXI transaction capability changed')
             text = text.replace(before, before.replace(' 1\n', ' 16\n'))
+    if window:
+        text = order_window_reads(text)
     return text.encode(), {'stream_id': sid, 'user_bits': width, 'sid_shift': shift,
         'secure_bit': secure_bit, 'secure': False, 'attributes': 0xe0, 'read_transactions': 16,
         'scope': 'scanout-only generated F2SDRAM path', 'master_ownership': 'scanout-only',
@@ -82,7 +130,7 @@ def retarget_adapter(data, definition):
 
 def configure(project, definition, hps, *, managed_fabric=False, window=False):
     path = project / ADAPTER
-    data, profile = retarget_adapter(path.read_bytes(), definition)
+    data, profile = retarget_adapter(path.read_bytes(), definition, window=window)
     path.write_bytes(data)
     if window:
         # The window's master shares the scanout's stream: one SID, reads and
@@ -399,6 +447,11 @@ def verify(project, hps, profile):
             sources.append(path)
     if len(sources) != 1:
         raise ValueError('generated adapter does not drive the selected nonsecure stream')
+    if window:
+        generated = sources[0].read_text()
+        if not (re.search(r"assign man_arid\s*=\s*5'd0\s*;", generated)
+                and re.search(r"assign sub_rid\s*=\s*read_id_fifo\[read_head\]\s*;", generated)):
+            raise ValueError('generated F2SDRAM window adapter does not restore ordered read IDs')
     return {**profile, 'generated_adapter': str(sources[0].relative_to(project)),
             'generated_adapter_sha256': hps.digest(sources[0]), 'generated_qip_sha256': hps.digest(qip),
             'address_user_word': word, 'master_handoff': ownership,

@@ -42,6 +42,12 @@ reason (`FaultNoGrant`, `FaultOutside`), and the port stays waiting. No
 burst crosses a `BoundaryBytes` boundary. All three ports reach HPS memory
 through one SMMU stream, for reads and writes.
 
+When the window and scanout share F2SDRAM, the adapter issues reads with
+one AXI ID so the hard bridge returns them in issue order. Its 16-entry
+FIFO restores each Avalon request's ID through the last read beat.
+The width adapters can then select the correct 128-bit half of each
+256-bit reply, even while scanout and guest reads are both pending.
+
 ## The control block
 
 The block sits at `PeripheralOffset` on the lightweight bridge,

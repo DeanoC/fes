@@ -912,6 +912,27 @@ proc remove_instance {name} {}
             with self.assertRaises(ValueError):
                 self.helper.retarget_adapter(source.encode(), self.definition)
 
+    def test_window_adapter_orders_reads_without_changing_scanout_only(self):
+        channels = (
+            "assign sub_rid     = man_rid;\nassign sub_arready = man_arready;\n"
+            "assign sub_rvalid  = man_rvalid;\nassign man_rready   = sub_rready;\n"
+            "assign man_arvalid  = sub_arvalid;\nassign man_arid     = sub_arid;\n"
+            "assign man_awid     = sub_awid;\n"
+        )
+        source = self.source + channels
+        scanout, _ = self.helper.retarget_adapter(source.encode(), self.definition)
+        window, _ = self.helper.retarget_adapter(source.encode(), self.definition, window=True)
+
+        self.assertIn(channels.encode(), scanout)
+        self.assertIn(b"assign man_arid     = 5'd0;", window)
+        self.assertIn(rb"assign sub_rid     = read_id_fifo\[read_head\];", window)
+        self.assertIn(b'wire read_finished = man_rvalid && man_rready && man_rlast;', window)
+        self.assertIn(b'read_count != 5\'d16', window)
+        self.assertIn(b'assign man_awid     = sub_awid;', window)
+        with self.assertRaisesRegex(ValueError, 'vendor F2SDRAM read channel changed'):
+            self.helper.retarget_adapter(source.replace('man_arid     = sub_arid', 'man_arid     = 0').encode(),
+                                         self.definition, window=True)
+
     def test_reserved_sid_and_changed_layout_are_refused(self):
         for definition in (self.definition.replace("SMMU_STREAM_ID 32'h0000000d", "SMMU_STREAM_ID 32'h0000000a"),
                            self.definition.replace("SMMU_SID_SHIFT 32'h00000009", "SMMU_SID_SHIFT 32'h00000008"),
