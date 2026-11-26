@@ -35,7 +35,7 @@ MODELS = ('486sx', '486dx')
 
 COMMON_GUARD = ROOT / 'cores/fes-common/rtl/fes_hps_ddr_guard.v'
 DE25_RTL = (HERE / 'pc386_dma2_registers.sv', HERE / 'fes_de25_hps_window.v', HERE / 'fes_de25_window_arbiter.v', HERE / 'fes_de25_window_unpack.v',
-            HERE / 'sim/pc386_de25_sim.sv')
+            HERE / 'fes_de25_pc386_standard.v', HERE / 'sim/pc386_de25_sim.sv')
 
 
 def derived_sources(output: Path, model: str = MODELS[0]) -> dict[Path, Path]:

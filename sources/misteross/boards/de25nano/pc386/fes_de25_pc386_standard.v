@@ -94,7 +94,17 @@ module fes_de25_pc386_standard #(
     // A lost transport holds the machine: its GP words read as idle.
     wire [31:0] held_gpo = transport_ready_sync[1] ? machine_gpo : 32'd0;
 
-    wire ddr_hold, grant_valid, fault_clear, fault_no_grant, fault_outside, window_idle;
+    // The mailbox can retain Running across HPS reset. Keep the ports in
+    // reset until a new grant arrives while the normal machine hold is active.
+    wire ddr_hold, hps_reset_hold, window_hold, grant_valid;
+    fes_de25_pc386_reset_hold reset_hold (
+        .clk(machine_clk), .machine_reset_n(machine_reset_n),
+        .grant_valid(grant_valid), .execution_held(exec_reset),
+        .ports_held(ddr_hold), .held(hps_reset_hold)
+    );
+    assign window_hold = ddr_hold || hps_reset_hold;
+
+    wire fault_clear, fault_no_grant, fault_outside, window_idle;
     wire [31:0] grant_base;
     wire [2:0] fault_port;
     wire [31:0] w0_address, w1_address, w2_address;
@@ -105,19 +115,23 @@ module fes_de25_pc386_standard #(
     wire [63:0] w1_writedata, w1_readdata, w2_writedata, w2_readdata;
     wire [7:0] w1_byteenable, w2_byteenable;
     wire w0_waitrequest, w0_readdatavalid, w1_waitrequest, w1_readdatavalid, w2_waitrequest, w2_readdatavalid;
-    wire p0_reset, p0_drained, p0_read, p0_write, p0_waitrequest, p0_readdatavalid;
+    wire p0_guard_reset, p0_reset, p0_drained, p0_read, p0_write, p0_waitrequest, p0_readdatavalid;
     wire [27:0] p0_address;
     wire [7:0] p0_burstcount;
     wire [127:0] p0_writedata, p0_readdata;
     wire [15:0] p0_byteenable;
-    wire p1_reset, p1_drained, p1_read, p1_write, p1_waitrequest, p1_readdatavalid;
+    wire p1_guard_reset, p1_reset, p1_drained, p1_read, p1_write, p1_waitrequest, p1_readdatavalid;
     wire [28:0] p1_address;
     wire [7:0] p1_burstcount, p1_byteenable;
     wire [63:0] p1_writedata, p1_readdata;
-    wire p2_reset, p2_drained, p2_read, p2_write, p2_waitrequest, p2_readdatavalid;
+    wire p2_guard_reset, p2_reset, p2_drained, p2_read, p2_write, p2_waitrequest, p2_readdatavalid;
     wire [28:0] p2_address;
     wire [7:0] p2_burstcount, p2_byteenable;
     wire [63:0] p2_writedata, p2_readdata;
+
+    assign p0_reset = p0_guard_reset || hps_reset_hold;
+    assign p1_reset = p1_guard_reset || hps_reset_hold;
+    assign p2_reset = p2_guard_reset || hps_reset_hold;
     wire [27:0] machine_video;
     wire display_request, response_valid, response_error;
     wire [6:0] display_opcode;
@@ -146,18 +160,18 @@ module fes_de25_pc386_standard #(
     );
     /* verilator lint_on PINCONNECTEMPTY */
     fes_de25_hps_window window (
-        .reset_n(machine_reset_n), .hold(ddr_hold), .grant_valid(grant_valid), .grant_base(grant_base),
+        .reset_n(machine_reset_n), .hold(window_hold), .grant_valid(grant_valid), .grant_base(grant_base),
         .fault_clear(fault_clear), .fault_port(fault_port), .fault_no_grant(fault_no_grant),
         .fault_outside(fault_outside),
-        .p0_clk(machine_clk), .p0_reset(p0_reset), .p0_drained(p0_drained),
+        .p0_clk(machine_clk), .p0_reset(p0_guard_reset), .p0_drained(p0_drained),
         .p0_address(p0_address), .p0_burstcount(p0_burstcount), .p0_waitrequest(p0_waitrequest),
         .p0_readdata(p0_readdata), .p0_readdatavalid(p0_readdatavalid), .p0_read(p0_read),
         .p0_writedata(p0_writedata), .p0_byteenable(p0_byteenable), .p0_write(p0_write),
-        .p1_clk(machine_clk), .p1_reset(p1_reset), .p1_drained(p1_drained),
+        .p1_clk(machine_clk), .p1_reset(p1_guard_reset), .p1_drained(p1_drained),
         .p1_address(p1_address), .p1_burstcount(p1_burstcount), .p1_waitrequest(p1_waitrequest),
         .p1_readdata(p1_readdata), .p1_readdatavalid(p1_readdatavalid), .p1_read(p1_read),
         .p1_writedata(p1_writedata), .p1_byteenable(p1_byteenable), .p1_write(p1_write),
-        .p2_clk(machine_clk), .p2_reset(p2_reset), .p2_drained(p2_drained),
+        .p2_clk(machine_clk), .p2_reset(p2_guard_reset), .p2_drained(p2_drained),
         .p2_address(p2_address), .p2_burstcount(p2_burstcount), .p2_waitrequest(p2_waitrequest),
         .p2_readdata(p2_readdata), .p2_readdatavalid(p2_readdatavalid), .p2_read(p2_read),
         .p2_writedata(p2_writedata), .p2_byteenable(p2_byteenable), .p2_write(p2_write),
@@ -173,7 +187,7 @@ module fes_de25_pc386_standard #(
     );
     wire unused = ^{win_response};
     fes_de25_window_arbiter arbiter (
-        .clk(machine_clk), .reset(!machine_reset_n),
+        .clk(machine_clk), .reset(!machine_reset_n || hps_reset_hold),
         .s0_address(w0_address), .s0_burstcount(w0_burstcount), .s0_read(w0_read), .s0_write(w0_write),
         .s0_writedata(w0_writedata), .s0_byteenable(w0_byteenable), .s0_waitrequest(w0_waitrequest),
         .s0_readdata(w0_readdata), .s0_readdatavalid(w0_readdatavalid),
@@ -196,14 +210,15 @@ module fes_de25_pc386_standard #(
         .waitrequest(window_waitrequest), .machine_clk(machine_clk), .machine_reset_n(machine_reset_n),
         .grant_valid(grant_valid),
         .grant_base(grant_base), .fault_clear(fault_clear),
-        .machine_drained(window_idle && p0_drained && p1_drained && p2_drained), .machine_held(ddr_hold),
+        .machine_drained(window_idle && p0_drained && p1_drained && p2_drained), .machine_held(window_hold),
         .fault_port(fault_port), .fault_no_grant(fault_no_grant), .fault_outside(fault_outside)
     );
     // The pc386 picture is 960x720 at the left 160, as on the DE10.
     fes_de25_session_display #(.BUILD_ID(BUILD_ID),
         .PICTURE_LEFT(16'd160), .PICTURE_TOP(16'd0),
         .PICTURE_WIDTH(16'd960), .PICTURE_HEIGHT(16'd720)) display (
-        .clk_sys(machine_clk), .pixel_clk(pixel_clk), .reset_n(pixel_reset_n), .exec_reset(exec_reset),
+        .clk_sys(machine_clk), .pixel_clk(pixel_clk), .reset_n(pixel_reset_n),
+        .exec_reset(exec_reset || hps_reset_hold),
         .clock_fault(display_clock_fault), .display_ready(video_ready), .stream_ready(stream_ready),
         .machine(machine_video), .request(display_request), .opcode(display_opcode),
         .index(display_index), .argument(display_argument), .response_valid(response_valid),
@@ -217,4 +232,18 @@ module fes_de25_pc386_standard #(
         .avm_read(avm_read), .avm_byteenable(avm_byteenable), .avm_waitrequest(avm_waitrequest),
         .avm_readdata(avm_readdata), .avm_readdatavalid(avm_readdatavalid), .avm_response(avm_response)
     );
+endmodule
+
+// HPS reset forces a hold even with the machine clock stopped. Only hand
+// it back to the machine once the control block has synchronized a fresh
+// grant and execution and the ports are already held. The normal machine
+// hold can then open port 2 for ATA verification before Execution Release.
+module fes_de25_pc386_reset_hold (
+    input wire clk, machine_reset_n,
+    input wire grant_valid, execution_held, ports_held,
+    output reg held = 1'b1
+);
+    always @(posedge clk or negedge machine_reset_n)
+        if (!machine_reset_n) held <= 1'b1;
+        else if (grant_valid && execution_held && ports_held) held <= 1'b0;
 endmodule

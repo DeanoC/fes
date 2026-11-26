@@ -47,6 +47,17 @@ class De25Pc386WindowBenchTests(unittest.TestCase):
                        (PC386 / 'fes_de25_hps_window.v', PC386 / 'fes_de25_window_arbiter.v'),
                        seeds=('1', '2', '3'), guard=True)
 
+    def test_hps_reset_holds_pc386_until_a_fresh_grant_reaches_a_held_machine(self):
+        self.run_bench('pc386_reset_hold_tb', 'fes_de25_pc386_standard.v',
+                       'sim/pc386_reset_hold_tb.cpp',
+                       (PC386 / 'fes_de25_hps_window.v', PC386 / 'sim/pc386_reset_hold_tb.v'), guard=True)
+        wrapper = (PC386 / 'fes_de25_pc386_standard.v').read_text()
+        self.assertIn('.p0_reset(p0_reset), .p1_reset(p1_reset), .p2_reset(p2_reset)', wrapper)
+        self.assertIn('assign p0_reset = p0_guard_reset || hps_reset_hold;', wrapper)
+        self.assertIn('.hold(window_hold)', wrapper)
+        self.assertIn('.machine_held(window_hold)', wrapper)
+        self.assertIn('.exec_reset(exec_reset || hps_reset_hold)', wrapper)
+
     def test_fault_record_keeps_the_first_fault(self):
         self.run_bench('fes_de25_hps_window', 'fes_de25_hps_window.v', 'window_fault_tb.cpp',
                        guard=True)

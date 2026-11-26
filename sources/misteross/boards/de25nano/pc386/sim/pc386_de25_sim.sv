@@ -81,6 +81,14 @@ module pc386_de25_sim #(
     assign dbg_status = {system.verifying, system.disk_aux_write, system.disk_aux_read,
                          system.status_ring.own, system.status_ring.busy};
     wire q0_reset, q1_reset, q2_reset, q0_drained, q1_drained, q2_drained;
+    wire q0_guard_reset, q1_guard_reset, q2_guard_reset, startup_hold;
+    fes_de25_pc386_reset_hold reset_hold (
+        .clk(clk), .machine_reset_n(1'b1), .grant_valid(1'b1),
+        .execution_held(exec_reset), .ports_held(ddr_hold), .held(startup_hold)
+    );
+    assign q0_reset = q0_guard_reset || startup_hold;
+    assign q1_reset = q1_guard_reset || startup_hold;
+    assign q2_reset = q2_guard_reset || startup_hold;
     wire q0_read, q0_write, q0_waitrequest, q0_readdatavalid;
     wire [27:0] q0_address;
     wire [7:0] q0_burstcount;
@@ -128,17 +136,18 @@ module pc386_de25_sim #(
     wire idle, fault_no_grant, fault_outside;
     wire [2:0] fault_port;
     fes_de25_hps_window window (
-        .reset_n(1'b1), .hold(ddr_hold), .grant_valid(1'b1), .grant_base(`FES_APPLICATION_HPS_DDR_WINDOW_BASE),
+        .reset_n(1'b1), .hold(ddr_hold || startup_hold),
+        .grant_valid(1'b1), .grant_base(`FES_APPLICATION_HPS_DDR_WINDOW_BASE),
         .fault_clear(1'b0), .fault_port(fault_port), .fault_no_grant(fault_no_grant), .fault_outside(fault_outside),
-        .p0_clk(clk), .p0_reset(q0_reset), .p0_drained(q0_drained), .p0_address(q0_address),
+        .p0_clk(clk), .p0_reset(q0_guard_reset), .p0_drained(q0_drained), .p0_address(q0_address),
         .p0_burstcount(q0_burstcount), .p0_waitrequest(q0_waitrequest), .p0_readdata(q0_readdata),
         .p0_readdatavalid(q0_readdatavalid), .p0_read(q0_read), .p0_writedata(q0_writedata),
         .p0_byteenable(q0_byteenable), .p0_write(q0_write),
-        .p1_clk(clk), .p1_reset(q1_reset), .p1_drained(q1_drained), .p1_address(q1_address),
+        .p1_clk(clk), .p1_reset(q1_guard_reset), .p1_drained(q1_drained), .p1_address(q1_address),
         .p1_burstcount(q1_burstcount), .p1_waitrequest(q1_waitrequest), .p1_readdata(q1_readdata),
         .p1_readdatavalid(q1_readdatavalid), .p1_read(q1_read), .p1_writedata(q1_writedata),
         .p1_byteenable(q1_byteenable), .p1_write(q1_write),
-        .p2_clk(clk), .p2_reset(q2_reset), .p2_drained(q2_drained), .p2_address(q2_address),
+        .p2_clk(clk), .p2_reset(q2_guard_reset), .p2_drained(q2_drained), .p2_address(q2_address),
         .p2_burstcount(q2_burstcount), .p2_waitrequest(q2_waitrequest), .p2_readdata(q2_readdata),
         .p2_readdatavalid(q2_readdatavalid), .p2_read(q2_read), .p2_writedata(q2_writedata),
         .p2_byteenable(q2_byteenable), .p2_write(q2_write),
@@ -162,7 +171,7 @@ module pc386_de25_sim #(
         if (m_write_beat) m_write_left <= m_write_left == 8'd0 ? m_burstcount - 8'd1 : m_write_left - 8'd1;
     end
     fes_de25_window_arbiter arbiter (
-        .clk(clk), .reset(1'b0),
+        .clk(clk), .reset(startup_hold),
         .s0_address(w0_address), .s0_burstcount(w0_burstcount), .s0_read(w0_read), .s0_write(w0_write),
         .s0_writedata(w0_writedata), .s0_byteenable(w0_byteenable), .s0_waitrequest(w0_waitrequest),
         .s0_readdata(w0_readdata), .s0_readdatavalid(w0_readdatavalid),
