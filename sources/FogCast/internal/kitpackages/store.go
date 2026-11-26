@@ -77,6 +77,11 @@ type Store struct {
 // Listing that trusts a matching stat fingerprint does not increment it.
 var fullVerificationReads atomic.Int64
 
+// Limit retained upload buffers across every kit Store in this process. The
+// host and agent have separate processes, so each can retain at most one.
+// Hold admission through publication, including while waiting for the flock.
+var importAdmission = make(chan struct{}, 1)
+
 // New opens a private POSIX store. Production callers use OpenPersistent;
 // accepting a temporary directory here does not prove target persistence.
 func New(path string) (*Store, error) {
@@ -242,6 +247,21 @@ func openStoreContext(ctx context.Context, path string, recoverInstallations boo
 // and publishes its sealed members at packages/<package-id>. A successful
 // retry is idempotent; no selection is made and all earlier versions remain.
 func (s *Store) Install(ctx context.Context, length int64, reader io.Reader) (corepackage.Inspection, bool, error) {
+	if ctx == nil {
+		return corepackage.Inspection{}, false, errors.New("kit packages: missing import context")
+	}
+	select {
+	case importAdmission <- struct{}{}:
+		defer func() { <-importAdmission }()
+	case <-ctx.Done():
+		return corepackage.Inspection{}, false, ctx.Err()
+	}
+	// Upload and validate in private memory before taking the cross-process
+	// store lock. Publication and selected-package checks stay under it.
+	prepared, err := corepackage.PrepareImport(ctx, length, reader)
+	if err != nil {
+		return corepackage.Inspection{}, false, err
+	}
 	r, unlock, err := s.lock(ctx)
 	if err != nil {
 		return corepackage.Inspection{}, false, err
@@ -252,7 +272,7 @@ func (s *Store) Install(ctx context.Context, length int64, reader io.Reader) (co
 	if _, err := s.selections(ctx, r); err != nil {
 		return corepackage.Inspection{}, false, err
 	}
-	inspection, _, err := s.archives.Import(ctx, length, reader)
+	inspection, _, err := s.archives.ImportPrepared(ctx, prepared)
 	if err != nil {
 		return corepackage.Inspection{}, false, err
 	}

@@ -79,37 +79,66 @@ func NewStore(path string) (*Store, error) {
 	return &Store{root: path, rootInfo: opened}, nil
 }
 
-// Import validates and atomically publishes one canonical archive. The bool is
-// true only when this call created the content-addressed entry.
-func (s *Store) Import(ctx context.Context, length int64, reader io.Reader) (Inspection, bool, error) {
+// PreparedImport owns the validated canonical bytes independently of the
+// reader. Its contents are private so callers cannot alter them between
+// validation and publication.
+type PreparedImport struct {
+	data       []byte
+	inspection Inspection
+}
+
+// PrepareImport reads and validates one bounded archive without publishing it.
+func PrepareImport(ctx context.Context, length int64, reader io.Reader) (*PreparedImport, error) {
 	if ctx == nil || reader == nil {
-		return Inspection{}, false, fmt.Errorf("%w: missing import input", ErrInvalidPackage)
+		return nil, fmt.Errorf("%w: missing import input", ErrInvalidPackage)
 	}
 	if length < 1 || length > MaxArchiveSize {
-		return Inspection{}, false, fmt.Errorf("%w: archive size must be 1 through %d bytes", ErrInvalidPackage, MaxArchiveSize)
+		return nil, fmt.Errorf("%w: archive size must be 1 through %d bytes", ErrInvalidPackage, MaxArchiveSize)
 	}
 	if err := ctx.Err(); err != nil {
-		return Inspection{}, false, err
+		return nil, err
 	}
 	data, err := io.ReadAll(io.LimitReader(&contextReader{ctx: ctx, reader: reader}, length+1))
 	if err != nil {
-		return Inspection{}, false, err
+		return nil, err
 	}
 	if int64(len(data)) != length {
-		return Inspection{}, false, fmt.Errorf("%w: import length does not match the declared length", ErrInvalidPackage)
+		return nil, fmt.Errorf("%w: import length does not match the declared length", ErrInvalidPackage)
 	}
-	manifest, payload, romMap, err := readArchive(data)
+	manifest, payload, romMap, err := readArchiveMembers(data, false)
 	if err != nil {
-		return Inspection{}, false, fmt.Errorf("%w: %v", ErrInvalidPackage, err)
+		return nil, fmt.Errorf("%w: %v", ErrInvalidPackage, err)
 	}
 	descriptor, err := decode(manifest, payload, romMap)
 	if err != nil {
-		return Inspection{}, false, fmt.Errorf("%w: %v", ErrInvalidPackage, err)
+		return nil, fmt.Errorf("%w: %v", ErrInvalidPackage, err)
 	}
 	inspection := Inspection{PackageID: packageIdentity(manifest, payload, romMap), Descriptor: descriptor}
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return &PreparedImport{data: data, inspection: inspection}, nil
+}
+
+// Import validates and atomically publishes one canonical archive. The bool is
+// true only when this call created the content-addressed entry.
+func (s *Store) Import(ctx context.Context, length int64, reader io.Reader) (Inspection, bool, error) {
+	prepared, err := PrepareImport(ctx, length, reader)
+	if err != nil {
 		return Inspection{}, false, err
 	}
+	return s.ImportPrepared(ctx, prepared)
+}
+
+// ImportPrepared publishes a previously validated private archive.
+func (s *Store) ImportPrepared(ctx context.Context, prepared *PreparedImport) (Inspection, bool, error) {
+	if ctx == nil || prepared == nil || len(prepared.data) == 0 || prepared.inspection.PackageID == "" {
+		return Inspection{}, false, fmt.Errorf("%w: missing prepared import", ErrInvalidPackage)
+	}
+	if err := ctx.Err(); err != nil {
+		return Inspection{}, false, err
+	}
+	data, inspection := prepared.data, prepared.inspection
 
 	root, err := s.open()
 	if err != nil {
@@ -152,7 +181,7 @@ func (s *Store) Import(ctx context.Context, length int64, reader io.Reader) (Ins
 	if created {
 		removeTemporary = false
 	}
-	return published, created, nil
+	return published.Clone(), created, nil
 }
 
 // publishImported links the temporary archive into its content-addressed name.
