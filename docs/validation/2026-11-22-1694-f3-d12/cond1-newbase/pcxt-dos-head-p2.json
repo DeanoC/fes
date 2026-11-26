@@ -1,0 +1,12 @@
+{
+  "core": "fes.pcxt-dos",
+  "input_count": 179,
+  "inputs_sha256": "501ec11765ce6ccec3593fadffe70992d6454a07947618fb492aaa4e3084bad3",
+  "netlist_sha256": "06b2e8cf5d1d7a183b18e0c29ed8c08ba4030d616b395d32a79cc849f92fd270",
+  "revision": "f153f04b7406e836497ddddbff7e893c30869179",
+  "tree": "/data/fes-f3-d12/head/sources/misteross",
+  "tree_clean": true,
+  "work": "/data/fes-f3-d12/pcxt-work",
+  "yosys": "Yosys 0.69+ (git sha1 3a5accbd7, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]",
+  "yosys_sha256": "dc232ba5ae1a40319ce89fe591f31739cbd3a849cc7d35dc15d3fdf2b2138619"
+}

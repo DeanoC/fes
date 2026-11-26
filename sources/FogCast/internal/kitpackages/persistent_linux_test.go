@@ -3,6 +3,8 @@
 package kitpackages
 
 import (
+	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 )
@@ -15,5 +17,13 @@ func TestPersistentStorageRejectsTemporaryRootBeforeCreation(t *testing.T) {
 	s := newStore(t)
 	if err := s.CheckPersistent(); err == nil {
 		t.Fatal("generic store claimed persistent")
+	}
+}
+
+func TestHostPersistentOpenHonorsCancelledContextBeforeCheckingStorage(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := OpenPersistentForHost(ctx, filepath.Join(t.TempDir(), "library")); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled host open = %v", err)
 	}
 }

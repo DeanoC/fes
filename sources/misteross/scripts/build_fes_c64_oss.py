@@ -198,6 +198,7 @@ class Model(NamedTuple):
 MODELS = {
     "pal": Model("fes.c64", "FES Commodore 64", OUTPUT_RELATIVE, 0),
     "ntsc": Model("fes.c64-ntsc", "FES Commodore 64 (NTSC)", Path("build/fes-c64-ntsc-oss"), 1),
+    "pal-n": Model("fes.c64-pal-n", "FES Drean Commodore 64 (PAL-N)", Path("build/fes-c64-pal-n-oss"), 3),
     "early-ntsc": Model("fes.c64-early-ntsc", "FES Commodore 64 (early NTSC)", Path("build/fes-c64-early-ntsc-oss"), 2),
 }
 
@@ -209,8 +210,8 @@ def model_for(model: str, sid_model: str = "6581") -> Model:
         raise BuildError(f"C64 model must be one of {', '.join(MODELS)}") from None
     if sid_model == "6581":
         return machine
-    if model == "early-ntsc":
-        raise BuildError("early NTSC profile requires the 6581 SID")
+    if model in ("early-ntsc", "pal-n"):
+        raise BuildError(f"{model} profile requires the 6581 SID")
     if sid_model != "8580":
         raise BuildError("SID model must be 6581 or 8580")
     core_id = "fes.c64c" if model == "pal" else "fes.c64c-ntsc"
@@ -257,7 +258,7 @@ def _authenticate_c64_tools(root: Path, cache_root: Path | None = None,
     # Bind every C64 family recipe to the same binary before any record is made.
     try:
         for region in MODELS:
-            for sid_model in (("6581",) if region == "early-ntsc" else ("6581", "8580")):
+            for sid_model in (("6581",) if region in ("early-ntsc", "pal-n") else ("6581", "8580")):
                 machine = model_for(region, sid_model)
                 pnr_recipe.validate_nextpnr_tool(machine.core_id, tools["nextpnr-mistral"].path)
     except pnr_recipe.RecipeError as exc:

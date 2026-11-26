@@ -1,0 +1,7 @@
+[11-23 13:35:48] ########## c64 (c2)
+[11-23 13:53:02] c64.base rc=0 (856ef5c64)
+[11-23 13:53:02] c64.base rbf 9666e1a6eb42cbada7bad1b3aa1111e94bf9ef89483f15ced0ef9bccc0a0de55 from sources/misteross/build/fes-c64-oss/core.rbf
+[11-23 14:08:36] c64.forced rc=0 (0be20e575)
+[11-23 14:08:36] c64.forced rbf 9666e1a6eb42cbada7bad1b3aa1111e94bf9ef89483f15ced0ef9bccc0a0de55 from sources/misteross/build/fes-c64-oss/core.rbf
+[11-23 14:08:36] RESULT c64 condition 2: RBF reproduced byte for byte
+[11-23 14:08:36] stream done

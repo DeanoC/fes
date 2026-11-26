@@ -1,0 +1,113 @@
+{
+ "kit": "B",
+ "package": "5a61341d32579c49a87778a709a0f6841b132033de6650f4519f539fac60ed28.fcore",
+ "drive": "real",
+ "drive_sha256": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+ "library_game": "f3-floppy-7dz3bzwmrrmy",
+ "nonce": "7DZ3BZWMRRMY",
+ "goals": {
+  "freedos": {
+   "pass": true,
+   "seconds_to_detect": 0.6,
+   "frame": "frames/boot1-prompt.png"
+  },
+  "launch1": {
+   "pass": true,
+   "frames": [
+    "frames/dir-a.png",
+    "frames/dir-b.png",
+    "frames/type-ab.png",
+    "frames/write-b.png"
+   ]
+  },
+  "relaunch": {
+   "pass": true,
+   "seconds_to_detect": 0.6,
+   "frame": "frames/boot2-prompt.png"
+  },
+  "live": {
+   "pass": false,
+   "ops": [
+    {
+     "op": [
+      "eject",
+      "2"
+     ],
+     "rc": 1,
+     "error": "f3live: eject: KIT_LEASE_DENIED: kit lease unavailable; inspect target ownership before starting a new session"
+    },
+    {
+     "op": [
+      "insert",
+      "2"
+     ],
+     "rc": 2,
+     "error": "panic: runtime error: invalid memory address or nil pointer dereference\n[signal SIGSEGV: segmentation violation code=0x1 addr=0x60 pc=0x695551]\n\ngoroutine 1 [running]:\nmain.main()\n\t/home/deano/fes/.claude/worktrees/tier-1-core-screens-85ca5d/sources/FogCast/internal/zzf3live_build/main.go:85 +0x951"
+    },
+    {
+     "op": [
+      "eject",
+      "2"
+     ],
+     "rc": 1,
+     "error": "f3live: eject: KIT_LEASE_DENIED: kit lease unavailable; inspect target ownership before starting a new session"
+    }
+   ],
+   "frames": [
+    "frames/live-b.png",
+    "frames/live-write.png"
+   ]
+  }
+ },
+ "events": [],
+ "floppies": {
+  "1": "ee42b88b9f3890b67460f729440d4ce45b3524cdc88192860d47edb88d27d210",
+  "2": "b04c7e81acaa3bd7ce8b7c4b7650a8a7790a2a21471f5377f749cb0d643b2907"
+ },
+ "live": [
+  {
+   "op": [
+    "eject",
+    "2"
+   ],
+   "rc": 1,
+   "error": "f3live: eject: KIT_LEASE_DENIED: kit lease unavailable; inspect target ownership before starting a new session"
+  },
+  {
+   "op": [
+    "insert",
+    "2"
+   ],
+   "rc": 2,
+   "error": "panic: runtime error: invalid memory address or nil pointer dereference\n[signal SIGSEGV: segmentation violation code=0x1 addr=0x60 pc=0x695551]\n\ngoroutine 1 [running]:\nmain.main()\n\t/home/deano/fes/.claude/worktrees/tier-1-core-screens-85ca5d/sources/FogCast/internal/zzf3live_build/main.go:85 +0x951"
+  },
+  {
+   "op": [
+    "eject",
+    "2"
+   ],
+   "rc": 1,
+   "error": "f3live: eject: KIT_LEASE_DENIED: kit lease unavailable; inspect target ownership before starting a new session"
+  }
+ ],
+ "claim": "## 2026-11-25T08:05:09+02:00 KIT B IN USE: Claude fes#2101 (F3 #1694) floppy kit smoke: installs and activates PR kit-software bundle 0dd6ff5801ccf19f540596c65600c65a287029e61a237499d415eac1ca5234a0 (",
+ "live_ok": false,
+ "kit_created": [
+  "/media/fat/fogcast/core-data/games/bac12e12ed7ca62a250bb55e99d9f7e32df7ebf7908168ee801225401a06fc16",
+  "/media/fat/fogcast/core-data/media/302106f250b8212469d42f5786efff134935b701dd0c4dfe5369c8c3db2a2eaa",
+  "/media/fat/fogcast/core-data/media/7ff5db9bb8ee92799200335b13db445ab0aa67c03dfa98afc85a20dbd660265d",
+  "/media/fat/fogcast/core-data/media/b3e3cd37fc15dfc03a61ca6d5fed46ee8b374b12bbc1d1f40ed9d0d32f00e8a1",
+  "/media/fat/fogcast/disk-images/a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c.img",
+  "/media/fat/fogcast/disk-images/b04c7e81acaa3bd7ce8b7c4b7650a8a7790a2a21471f5377f749cb0d643b2907.img",
+  "/media/fat/fogcast/disk-images/ee42b88b9f3890b67460f729440d4ce45b3524cdc88192860d47edb88d27d210.img"
+ ],
+ "after": {
+  "agent": "idle",
+  "lease": "free",
+  "rebooted": false,
+  "left": [],
+  "recovery_required": false
+ },
+ "failure": "AcceptanceError: goal live failed",
+ "pass": false
+}

@@ -1,0 +1,91 @@
+format = 3
+
+[core]
+id = "fes.ts1500"
+name = "TS1500"
+description = "Timex Sinclair 1500: NTSC, 8 KiB ROM, 16 KiB internal RAM"
+version = "0.1.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = 2383004
+sha256 = "cb64b16741eafe5b1aec9e543ed8ee86e67e5356f9fc0fa952c24c441bd9163e"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.gamepad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.zx81-tape"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.zx81-tape-write"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.memory.hps-ddr"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.video.session-display"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.fabric.video.display-plane"
+major = 1
+minor = 0
+required = true
+
+[build]
+id = "05db7020951901efbefc2de78c5aa3d0"
+repository = "https://github.com/DeanoC/fes"
+revision = "856ef5c64b242f99c9094ee71cb7ffe58a9e5c7a"
+recipe_sha256 = "520353d3f7421367932f5109aabf6280d11c2dccb19b0bcb55c709b5d8d519e5"
+toolchain = "quartus Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition sha256:71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93"
+
+[rom]
+id = "ts1500-firmware"
+role = "firmware"
+source_size = 8192
+file = "rom-map.json"
+size = 742014
+sha256 = "ece38e8a71bb9130caa266863731f03671008054c80f96c8ea0464828e360ec2"

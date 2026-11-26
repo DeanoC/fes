@@ -1,9 +1,11 @@
 # QEMU ramfb presenter
 
 `Open(width, height, region)` finds QEMU's `etc/ramfb` firmware item and
-configures it through the documented fw_cfg DMA interface. `Present` delegates
-to the shared [boot-owned scanout copier](../scanout/README.md), copying private
-RGBA pixels into its distinct XRGB8888 buffer.
+configures it through the documented fw_cfg DMA interface. `Present` and
+`PresentRect` delegate to the shared [boot-owned scanout copier](../scanout/README.md),
+copying private RGBA pixels into its distinct XRGB8888 buffer (with telemetry
+available via `Stats()`); `Config` and `DecodeConfig` encode and validate the
+28-byte big-endian `RAMFBCfg` wire payload.
 QEMU's graphical display and QMP `screendump` observe that buffer; this is
 actual emulated display output, not a screenshot reconstructed from a serial
 image dump.

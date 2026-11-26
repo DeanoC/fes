@@ -1,0 +1,40 @@
+{
+ "kit": "B",
+ "package": "5a61341d32579c49a87778a709a0f6841b132033de6650f4519f539fac60ed28.fcore",
+ "drive": "real",
+ "drive_sha256": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+ "library_game": "f3-floppy-od6psdvprlj2",
+ "nonce": "OD6PSDVPRLJ2",
+ "goals": {
+  "freedos": {
+   "pass": true,
+   "seconds_to_detect": 0.6,
+   "frame": "frames/boot1-prompt.png"
+  }
+ },
+ "events": [],
+ "floppies": {
+  "1": "ee42b88b9f3890b67460f729440d4ce45b3524cdc88192860d47edb88d27d210",
+  "2": "b04c7e81acaa3bd7ce8b7c4b7650a8a7790a2a21471f5377f749cb0d643b2907"
+ },
+ "live": [],
+ "claim": "## 2026-11-25T07:59:15+02:00 KIT B IN USE: Claude fes#2101 (F3 #1694) floppy kit smoke: installs and activates PR kit-software bundle bdb3bf118dff3ff938c7e213b705e8ebf7df611be3fbad397a5b0e4d81be3d05 (",
+ "kit_created": [
+  "/media/fat/fogcast/core-data/games/8dc1e8a5cfd0e9725f08703759e12e194ed178b75278183536fba50c2213046e",
+  "/media/fat/fogcast/core-data/media/0c035890b754e198097ea52192a6ecd67787f60e9d4d82f40750c8fb002c19f4",
+  "/media/fat/fogcast/core-data/media/505dec97e4be40d8966dd60c05d792f70e46c65125063c4eadd9df592b9c501f",
+  "/media/fat/fogcast/core-data/media/d01465a6eb1b043d84faf875a8d78f64ec6f4acd9e909d3c7ffc7f591e0aad46",
+  "/media/fat/fogcast/disk-images/a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c.img",
+  "/media/fat/fogcast/disk-images/b04c7e81acaa3bd7ce8b7c4b7650a8a7790a2a21471f5377f749cb0d643b2907.img",
+  "/media/fat/fogcast/disk-images/ee42b88b9f3890b67460f729440d4ce45b3524cdc88192860d47edb88d27d210.img"
+ ],
+ "after": {
+  "agent": "idle",
+  "lease": "free",
+  "rebooted": false,
+  "left": [],
+  "recovery_required": false
+ },
+ "failure": "KitError: /v1/input/detach: HTTP 503 {\"code\": \"MISTER_UNAVAILABLE\", \"message\": \"remote input is unavailable\"}",
+ "pass": false
+}

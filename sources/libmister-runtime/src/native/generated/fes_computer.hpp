@@ -211,6 +211,17 @@ constexpr std::uint32_t FesComputerDiskCommitSectorsPerTrackWord = 0x4u;
 constexpr std::uint32_t FesComputerDiskCommitCRC32LoWord = 0x5u;
 constexpr std::uint32_t FesComputerDiskCommitCRC32HiWord = 0x6u;
 constexpr std::uint32_t FesComputerDiskCommitReservedWord = 0x7u;
+constexpr std::uint32_t FesComputerPcFloppyUnitA = 0x1u;
+constexpr std::uint32_t FesComputerPcFloppyUnitB = 0x2u;
+constexpr std::uint32_t FesComputerPcFloppyWindowOffset = 0x1800000u;
+constexpr std::uint32_t FesComputerPcFloppyWindowStride = 0x400000u;
+constexpr std::uint32_t FesComputerPcFloppyMinBytes = 0x28000u;
+constexpr std::uint32_t FesComputerPcFloppyMaxBytes = 0x2d0000u;
+constexpr std::uint32_t FesComputerPcFloppySectorBytes = 0x200u;
+constexpr std::uint32_t FesComputerPcFloppyMaxCylinders = 0x50u;
+constexpr std::uint32_t FesComputerPcFloppyMaxHeads = 0x2u;
+constexpr std::uint32_t FesComputerPcFloppyMaxSectorsPerTrack = 0x24u;
+constexpr std::uint32_t FesComputerDiskCommitWriteProtectMask = 0x1u;
 constexpr std::uint32_t FesComputerDataFreeze = 0x0u;
 constexpr std::uint32_t FesComputerDataBegin = 0x1u;
 constexpr std::uint32_t FesComputerDataCommit = 0x2u;
@@ -340,6 +351,10 @@ constexpr const char* FesComputerInterfaceMediaPcxtFloppyWriteID = "fes.media.pc
 constexpr std::uint16_t FesComputerInterfaceMediaPcxtFloppyWriteMajor = 1u;
 constexpr std::uint16_t FesComputerInterfaceMediaPcxtFloppyWriteMinor = 0u;
 constexpr std::uint32_t FesComputerCapabilityMediaPcxtFloppyWrite = 0x200000u;
+constexpr const char* FesComputerInterfaceMediaPcFloppyID = "fes.media.pc-floppy";
+constexpr std::uint16_t FesComputerInterfaceMediaPcFloppyMajor = 1u;
+constexpr std::uint16_t FesComputerInterfaceMediaPcFloppyMinor = 0u;
+constexpr std::uint32_t FesComputerCapabilityMediaPcFloppy = 0x400000u;
 
 } // namespace generated
 } // namespace native
