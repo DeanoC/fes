@@ -48,13 +48,17 @@ PLL_COMMENT = """// One PLL on CLOCK1_50 in place of the stock audio PLL, whose 
 # code is a load on the synchronized toggle, not a synchronizer: its source is
 # held from the toggle until the acknowledgement returns. Quartus otherwise
 # takes it as one (CDC-50102); pcxt-clocks.sdc bounds it as a held bundle.
-# The machine reset also asynchronously clears the vendored 8253, 8259 and
-# 8255. The 8088 bus unit leaves 248 registers out of its reset branch, so
-# synthesis made the same reset net their clock enable, which the signoff lint
-# refuses (LNT-30010). As for the DE25 C64's SID, the bus unit's holds are
-# built in logic instead.
+# Synthesis choices in unchanged DE10 sources that the signoff lint refuses:
+# the machine reset register (core|system|machine_reset) fans out across the
+# whole PC/XT motherboard with Hercules enabled (>5400 endpoints), tripping
+# Design Assistant TMC-20602 unless duplicated with MAX_FANOUT 256; and the
+# 8088 bus unit leaves 248 registers out of its reset branch, so synthesis
+# made the same reset net their clock enable, which the signoff lint refuses
+# (LNT-30010). As for the DE25 C64's SID, the bus unit's holds are built in
+# logic instead.
 ASSIGNMENTS = tuple(("SYNCHRONIZER_IDENTIFICATION", "FORCED_IF_ASYNCHRONOUS", "core|video|adapter|" + name)
                     for name in ("ack_meta", "ack_sync", "sent_meta", "sent_sync", "hold_meta", "hold_sync")) + (
+    ("MAX_FANOUT", "256", "core|system|machine_reset"),
     ("SYNCHRONIZER_IDENTIFICATION", "OFF", "core|video|adapter|pixel_code[*]"),
     ("AUTO_CLOCK_ENABLE_RECOGNITION", "OFF", "core|system|machine|cpu|cpu|u_biu_core"),)
 # Qsys writes the peripheral subsystem for the component. Reviewed against
