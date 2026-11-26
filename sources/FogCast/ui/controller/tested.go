@@ -27,7 +27,7 @@ var testedPads = []testedPad{
 		vendor:  0x081f,
 		product: 0xe401,
 		version: 0x0110,
-		name:    "USB Gamepad ",
+		name:    "USB gamepad           ",
 		buttons: []uint16{288, 289, 290, 291, 292, 293, 294, 295, 296, 297},
 		axes:    []uint16{0, 1},
 	},

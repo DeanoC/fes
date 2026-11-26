@@ -724,7 +724,7 @@ func TestFirstRunControllersTestedBadge(t *testing.T) {
 			}
 			waitRoom(t, app, "example.welcome")
 			app.SetPadInfo(7, PadInfo{
-				Name: "USB Gamepad", GUID: "0300e9f51f08000001e4000010010000",
+				Name: "USB gamepad", GUID: "0300cb231f08000001e4000010010000",
 				Vendor: 0x081f, Product: 0xe401, Family: gfx.PromptGeneric, Recognised: true, Tested: true, Player: 1,
 			})
 			app.AttachInput(InputGamepad, 7)
@@ -739,7 +739,7 @@ func TestFirstRunControllersTestedBadge(t *testing.T) {
 					continue
 				}
 				switch op.Text {
-				case "USB Gamepad":
+				case "USB gamepad":
 					nameOp = op
 				case "Tested":
 					testedOp = op

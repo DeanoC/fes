@@ -161,7 +161,7 @@ from EVIOCGABS, including unsigned 0–255 axes. Left stick and D-pad share
 returns to centre. `Device.Tested()` (`ui/controller/tested.go`) marks pads
 verified on FES hardware (#1348) by exact evdev identity (transport, VID:PID,
 version, name, and key/hat/axis capabilities). USB and Bluetooth transports are
-tracked separately; currently only the wired `"USB Gamepad "` (`081f:e401` `v0110`)
+tracked separately; currently only the wired `"USB gamepad           "` (`081f:e401` `v0110`)
 SNES-style USB pad is marked `Tested`, while any other GameControllerDB or
 user-mapped pad still works without the badge. Keyboard events carry the key's USB HID usage;
 mister-agent keeps it for `fes.keyboard.hid` cores and maps it to the ZX81
@@ -171,7 +171,7 @@ A pad can have a saved profile in `tenfoot.json`, under `controllers` and the
 pad's GUID. Tenfoot logs the GUID when the pad attaches:
 
 ```text
-tenfoot: gamepad "USB Gamepad " 081f:e401 v0110 bus 3 guid 0300e9f51f08000001e4000010010000: Super Famicom Controller
+tenfoot: gamepad "USB gamepad           " 081f:e401 v0110 bus 3 guid 0300cb231f08000001e4000010010000: Super Famicom Controller
 ```
 
 A profile remaps the pad's controls after its mapping. The `swap-ab` preset
@@ -186,7 +186,7 @@ are `a`, `b`, `c`, `x`, `y`, `l`, `r`, `start`, `select` and `dpad-up`,
 ```json
 {
   "controllers": {
-    "0300e9f51f08000001e4000010010000": {
+    "0300cb231f08000001e4000010010000": {
       "preset": "swap-ab",
       "bindings": { "x": "keypad-1", "y": "keypad-2" }
     }

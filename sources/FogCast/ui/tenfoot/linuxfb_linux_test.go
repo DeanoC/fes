@@ -48,7 +48,7 @@ func superFamicomPad(axes map[uint16]controller.Range) controller.Device {
 	for code := 288; code <= 297; code++ {
 		keys[code/8] |= 1 << uint(code%8)
 	}
-	return controller.Device{Name: "USB Gamepad ", Bus: 3, Vendor: 0x081f, Product: 0xe401, Version: 0x0110,
+	return controller.Device{Name: "USB gamepad           ", Bus: 3, Vendor: 0x081f, Product: 0xe401, Version: 0x0110,
 		Keys: keys, Abs: []byte{0x03, 0, 0, 0, 0, 0, 0, 0}, Axes: axes}
 }
 

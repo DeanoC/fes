@@ -359,7 +359,7 @@ func TestWriteControllersSheet(t *testing.T) {
 	app.HandleCommand(CmdFilterNext, now)
 	write("layout-playstation", app)
 
-	app.SetPadInfo(11, PadInfo{Name: "USB Gamepad", GUID: "0300e9f51f08000001e4000010010000", Vendor: 0x081f, Product: 0xe401,
+	app.SetPadInfo(11, PadInfo{Name: "USB gamepad", GUID: "0300cb231f08000001e4000010010000", Vendor: 0x081f, Product: 0xe401,
 		Family: gfx.PromptGeneric, Recognised: true, Tested: true, Player: 1})
 	app.AttachInput(InputGamepad, 11)
 	app.HandleCommand(CmdFilterNext, now)
@@ -597,14 +597,14 @@ func TestControllersTestedBadgeAndSettingsSummary(t *testing.T) {
 	app := NewApp(nil, 1280, 720, 100)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.SetPadInfo(7, PadInfo{
-		Name: "USB Gamepad", GUID: "0300e9f51f08000001e4000010010000",
+		Name: "USB gamepad", GUID: "0300cb231f08000001e4000010010000",
 		Vendor: 0x081f, Product: 0xe401, Family: gfx.PromptGeneric, Recognised: true, Tested: true, Player: 1,
 	})
 	app.AttachInput(InputGamepad, 7)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	if row := settingsRowByID(t, app, settingsSectionRowPrefix+settingsSectionControllers); row.Value != "USB Gamepad  ·  Tested" {
-		t.Fatalf("tested controllers summary = %q, want %q", row.Value, "USB Gamepad  ·  Tested")
+	if row := settingsRowByID(t, app, settingsSectionRowPrefix+settingsSectionControllers); row.Value != "USB gamepad  ·  Tested" {
+		t.Fatalf("tested controllers summary = %q, want %q", row.Value, "USB gamepad  ·  Tested")
 	}
 
 	app.mu.Lock()

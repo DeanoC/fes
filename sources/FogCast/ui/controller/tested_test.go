@@ -6,16 +6,29 @@ import (
 )
 
 func TestDeviceTested(t *testing.T) {
-	verified := superFamicomPad(0x0110)
+	verified := Device{
+		Bus: busUSB, Vendor: 0x081f, Product: 0xe401, Version: 0x0110,
+		Name: "USB gamepad           ",
+		Keys: bits(96, codeRange(288, 297)...), Abs: bits(8, 0, 1),
+	}
 	cases := []struct {
 		name string
 		dev  Device
 		want bool
 	}{
 		{
-			name: "SNES-style USB pad full identity",
+			name: "live SNES-style USB pad identity",
 			dev:  verified,
 			want: true,
+		},
+		{
+			name: "old USB Gamepad spelling is not Tested",
+			dev: func() Device {
+				d := verified
+				d.Name = "USB Gamepad "
+				return d
+			}(),
+			want: false,
 		},
 		{
 			name: "same VID:PID over Bluetooth is not Tested",
@@ -42,7 +55,7 @@ func TestDeviceTested(t *testing.T) {
 		},
 		{
 			name: "same VID:PID without matching capabilities is not Tested",
-			dev:  Device{Bus: busUSB, Vendor: 0x081f, Product: 0xe401, Version: 0x0110, Name: "USB Gamepad "},
+			dev:  Device{Bus: busUSB, Vendor: 0x081f, Product: 0xe401, Version: 0x0110, Name: "USB gamepad           "},
 			want: false,
 		},
 		{
