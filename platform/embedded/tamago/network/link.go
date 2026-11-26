@@ -29,6 +29,7 @@ type linkFailure struct{ err error }
 // before Configure starts stack workers. One receive owner calls Start.
 type Link struct {
 	stack  gnet.Stack
+	engine *lnetoEngine
 	device gnet.NetworkDevice
 	prefix netip.Prefix
 	state  *linkState
@@ -46,8 +47,8 @@ type linkState struct {
 	taps          map[uint64]func([]byte)
 }
 
-func NewLink(stack *gnet.LnetoStack, device gnet.NetworkDevice, address, mac, gateway string) (*Link, error) {
-	if stack == nil || device == nil {
+func NewLink(cfg *gnet.LnetoConfig, device gnet.NetworkDevice, address, mac, gateway string) (*Link, error) {
+	if device == nil {
 		return nil, errors.New("network: missing stack/device")
 	}
 	prefix, err := netip.ParsePrefix(address)
@@ -65,9 +66,10 @@ func NewLink(stack *gnet.LnetoStack, device gnet.NetworkDevice, address, mac, ga
 		}
 		gw = netip.MustParseAddr(gateway)
 	}
-	link := &Link{stack: stack, device: device, prefix: prefix, state: &linkState{}}
-	stack.SetWriteNotify(link.transmit)
-	if err = stack.Configure(hardware, prefix, gw); err != nil {
+	engine := newLnetoEngine(cfg)
+	link := &Link{stack: engine, engine: engine, device: device, prefix: prefix, state: &linkState{}}
+	engine.SetWriteNotify(link.transmit)
+	if err = engine.Configure(hardware, prefix, gw); err != nil {
 		return nil, err
 	}
 	return link, nil
@@ -99,7 +101,20 @@ func (l *Link) DialTCP(ctx context.Context, addr netip.AddrPort) (net.Conn, erro
 	if err := l.Available(); err != nil {
 		return nil, err
 	}
-	raw, err := l.stack.Socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, nil, net.TCPAddrFromAddrPort(addr))
+	if l.engine != nil {
+		conn, local, connID, err := l.engine.dialTCP(ctx, addr, 0)
+		if err != nil {
+			return nil, err
+		}
+		return &lnetoConn{
+			Conn:       conn,
+			localAddr:  net.TCPAddrFromAddrPort(local),
+			remoteAddr: net.TCPAddrFromAddrPort(addr),
+			engine:     l.engine,
+			connID:     connID,
+		}, nil
+	}
+	raw, err := l.socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, nil, net.TCPAddrFromAddrPort(addr))
 	if err != nil {
 		return nil, err
 	}
@@ -131,8 +146,22 @@ func (l *Link) ListenTCP(ctx context.Context, port uint16) (net.Listener, error)
 	if err := l.Available(); err != nil {
 		return nil, err
 	}
+	if l.engine != nil {
+		inner, pool, local, err := l.engine.listenTCP(port)
+		if err != nil {
+			return nil, err
+		}
+		return &lnetoListener{
+			inner:     inner,
+			pool:      pool,
+			localAddr: net.TCPAddrFromAddrPort(local),
+			engine:    l.engine,
+			link:      l,
+			closeCh:   make(chan struct{}),
+		}, nil
+	}
 	laddr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(l.prefix.Addr(), port))
-	raw, err := l.stack.Socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, laddr, nil)
+	raw, err := l.socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, laddr, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +184,9 @@ func (l *Link) ListenTCP(ctx context.Context, port uint16) (net.Listener, error)
 // because xnet.tcplistener reads and writes a non-atomic closed bool in Accept/Close.
 type lnetoListener struct {
 	inner     *tcp.Listener
+	pool      *pinnedTCPPool
 	localAddr net.Addr
+	engine    *lnetoEngine
 	link      *Link
 	closed    atomic.Bool
 	closeOnce sync.Once
@@ -177,10 +208,25 @@ func (ln *lnetoListener) Accept() (net.Conn, error) {
 				return nil, err
 			}
 		}
-		if ln.inner.NumberOfReadyToAccept() > 0 {
+		if ln.engine != nil {
+			c, connID, remoteAddr, lease, err := ln.engine.tryAccept(ln.inner, ln.pool)
+			if err == nil && c != nil {
+				return &lnetoConn{
+					Conn:       c,
+					localAddr:  ln.localAddr,
+					remoteAddr: remoteAddr,
+					engine:     ln.engine,
+					lease:      lease,
+					connID:     connID,
+				}, nil
+			}
+			if err != nil && ln.closed.Load() {
+				return nil, net.ErrClosed
+			}
+		} else if ln.inner.NumberOfReadyToAccept() > 0 {
 			c, _, err := ln.inner.TryAccept()
 			if err == nil {
-				return lnetoConn{Conn: c, localAddr: ln.localAddr}, nil
+				return &lnetoConn{Conn: c, localAddr: ln.localAddr}, nil
 			}
 			if ln.closed.Load() {
 				return nil, net.ErrClosed
@@ -195,6 +241,10 @@ func (ln *lnetoListener) Accept() (net.Conn, error) {
 	}
 }
 
+func (l *Link) socket(ctx context.Context, network string, family, sotype int, laddr, raddr net.Addr) (any, error) {
+	return l.stack.Socket(ctx, network, family, sotype, laddr, raddr)
+}
+
 func (ln *lnetoListener) Close() error {
 	alreadyClosed := true
 	var err error
@@ -202,7 +252,11 @@ func (ln *lnetoListener) Close() error {
 		alreadyClosed = false
 		ln.closed.Store(true)
 		close(ln.closeCh)
-		err = ln.inner.Close()
+		if ln.engine != nil {
+			err = ln.engine.closeListener(ln.inner)
+		} else {
+			err = ln.inner.Close()
+		}
 	})
 	if alreadyClosed {
 		return net.ErrClosed
@@ -212,16 +266,112 @@ func (ln *lnetoListener) Close() error {
 
 type lnetoConn struct {
 	*tcp.Conn
-	localAddr net.Addr
+	localAddr  net.Addr
+	remoteAddr net.Addr
+	engine     *lnetoEngine
+	lease      *connLease
+	connID     uint64
+	closed     atomic.Bool
 }
 
-func (c lnetoConn) LnetoConn() *tcp.Conn { return c.Conn }
-func (c lnetoConn) LocalAddr() net.Addr  { return c.localAddr }
-func (c lnetoConn) RemoteAddr() net.Addr {
+func (c *lnetoConn) LnetoConn() *tcp.Conn { return c.Conn }
+func (c *lnetoConn) LocalAddr() net.Addr  { return c.localAddr }
+func (c *lnetoConn) RemoteAddr() net.Addr {
+	if c.remoteAddr != nil {
+		return c.remoteAddr
+	}
 	return &net.TCPAddr{
 		IP:   c.Conn.RemoteAddr(),
 		Port: int(c.Conn.RemotePort()),
 	}
+}
+func (c *lnetoConn) Read(p []byte) (int, error) {
+	if c.closed.Load() {
+		return 0, net.ErrClosed
+	}
+	if !c.lease.beginOp() {
+		return 0, net.ErrClosed
+	}
+	defer c.lease.endOp()
+	return c.Conn.Read(p)
+}
+func (c *lnetoConn) Write(p []byte) (int, error) {
+	if c.closed.Load() {
+		return 0, net.ErrClosed
+	}
+	if !c.lease.beginOp() {
+		return 0, net.ErrClosed
+	}
+	defer c.lease.endOp()
+	n, err := c.Conn.Write(p)
+	if c.engine != nil && n > 0 {
+		c.engine.interruptBackoff()
+	}
+	return n, err
+}
+func (c *lnetoConn) SetDeadline(t time.Time) error {
+	if c.closed.Load() {
+		return net.ErrClosed
+	}
+	if !c.lease.beginOp() {
+		return net.ErrClosed
+	}
+	defer c.lease.endOp()
+	return c.Conn.SetDeadline(t)
+}
+func (c *lnetoConn) SetReadDeadline(t time.Time) error {
+	if c.closed.Load() {
+		return net.ErrClosed
+	}
+	if !c.lease.beginOp() {
+		return net.ErrClosed
+	}
+	defer c.lease.endOp()
+	return c.Conn.SetReadDeadline(t)
+}
+func (c *lnetoConn) SetWriteDeadline(t time.Time) error {
+	if c.closed.Load() {
+		return net.ErrClosed
+	}
+	if !c.lease.beginOp() {
+		return net.ErrClosed
+	}
+	defer c.lease.endOp()
+	return c.Conn.SetWriteDeadline(t)
+}
+func (c *lnetoConn) Close() error {
+	if !c.closed.CompareAndSwap(false, true) {
+		return nil
+	}
+	if c.lease != nil {
+		if c.lease.beginClose() {
+			return nil
+		}
+		defer c.lease.endOp()
+	}
+	if c.engine != nil {
+		if !c.engine.canCloseConn(c.Conn, c.connID) {
+			return nil
+		}
+		err := c.Conn.Close()
+		c.engine.interruptBackoff()
+		return err
+	}
+	return c.Conn.Close()
+}
+func (c *lnetoConn) Abort() {
+	c.closed.Store(true)
+	if c.lease != nil {
+		if c.lease.beginClose() {
+			return
+		}
+		defer c.lease.endOp()
+	}
+	if c.engine != nil {
+		c.engine.abortConnIfID(c.Conn, c.connID)
+		return
+	}
+	c.Conn.Abort()
 }
 func (l *Link) Err() error {
 	if l == nil || l.state == nil {
@@ -338,6 +488,9 @@ func (l *Link) dispatchTaps(frame []byte) {
 
 func (l *Link) Start(ctx context.Context) error {
 	defer func() {
+		if l.engine != nil {
+			l.engine.stop()
+		}
 		if err := ctx.Err(); err != nil {
 			l.fail(err)
 		}
