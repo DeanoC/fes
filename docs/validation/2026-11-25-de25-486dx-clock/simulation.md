@@ -197,8 +197,12 @@ The exact-clock G5 replay rendered the first inspected Necropolis demo
 frame at 15.000 seconds with 414,119,676 instructions retired and no CPU
 stop. The retained `sim-c26-quake-demo.json` SHA-256 is
 `88ccd571b1a5314b046db67d3633760e3a2574229ec10f4b19db3304fd52e933`.
-The full window is running. This comparison uses the single-stage x87
-fast lane and the earlier base.
+The full 20-second RTL window ended at guest time 24.500 and cycle
+2,952,564,213. The replay exited 0 after 683,282,529 RTL retirements,
+including 458,874,610 protected retirements. It recorded zero fallback,
+CPU stops, reset delta, video underflows, and capture drops. The G5
+comparison uses the single-stage x87 fast lane and the earlier base.
+[Full Quake window](quake-c26-full.json) · [112-file replay receipt](sim-c26.complete.json)
 
 ## Integrated C0 = 26
 
@@ -248,3 +252,9 @@ these 106 compiled dependency files and five regenerated source files
 against the same `4fe7bada` game witness. Its compiled-input receipt
 SHA-256 is
 `6b907992e563df381b12cd743af2ccc665d4271bdecca6c7951bfa0d16718b8f`.
+
+The C26 placement candidate `5e2d055849eae0f7624ca04797ef13563b0bb979`
+also matched all tracked and regenerated game inputs against the
+`4fe7bada` witness, including both compiled binary hashes. Its
+compiled-input receipt SHA-256 is
+`8874124bf3c98158451d89d5b271e72a68ad0b627d28822175d6b3568fe83320`.

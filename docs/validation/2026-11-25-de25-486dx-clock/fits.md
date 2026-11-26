@@ -1077,6 +1077,27 @@ those four register names in the existing mandatory DX fitted proof.
 `make check` and 56 focused tests passed. The register proof and the
 measured command-data failure remain independent checks.
 
+The copied Normal and Maximum fits supplied nine passing register pairs
+for the nine High Performance Effort misses. The placement certificate
+covers 108 checks over four corners and verifies 18 unique locations.
+Worst donor slack was +0.212 ns setup, +0.030 ns hold and +0.028 ns
+datapath. Its SHA-256 is
+`3585950b478af339eab95a4d323ba758362131d98ecee7d699f640ec7c426e72`.
+The first report parser refused the evidence because Quartus appended
+columns after the element name. The corrected reader binds the named
+location and element columns against the original reports.
+
+Revision `5e2d055849eae0f7624ca04797ef13563b0bb979` applies those 18 FF
+assignments only to the C26 DX. The registered staging comparison
+matched the certified assignments exactly and reproduced the SDC.
+Its QSF comparison receipt SHA-256 is
+`ae7cfefd8f69de7e6aa51a97d153e4d8b9a8ae082e5c055da8bea55fed0d3aea`.
+The fresh DE10 rebuild and all four identities matched `2f19382b`.
+All seven DE25 D12 source selections matched `2f19382b` and
+`4fe7bada`. `make check` and 47 focused tests passed. The trial must
+verify the assigned sites in the final routed database and pass the
+usual timing, seal and LOADED gates.
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed
