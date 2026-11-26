@@ -2,7 +2,8 @@
 
 `platform/embedded/tamago/block` defines the fixed 512-byte sector `Device`
 interface, VirtIO-block DMA/GICv3 driver (`virtio.go`), host file device
-(`block.go`), and bounded LRU write-through sector cache (`cache.go`).
+(`block.go`), lock-free I/O telemetry wrapper (`metrics.go`), and bounded LRU
+write-through sector cache (`cache.go`).
 
 ## Sector Cache (`block.Cache`)
 
