@@ -42,6 +42,7 @@ type linkState struct {
 	stackMu       sync.Mutex
 	pendingMu     sync.Mutex
 	pendingCloses []*tcp.Listener
+	draining      bool
 	paused        atomic.Bool
 	claimed       atomic.Bool
 	renewerActive atomic.Bool
@@ -202,12 +203,8 @@ func (ln *lnetoListener) Accept() (net.Conn, error) {
 func (l *Link) socket(ctx context.Context, network string, family, sotype int, laddr, raddr net.Addr) (any, error) {
 	if raddr != nil {
 		l.state.dialMu.RLock()
-		defer func() {
-			l.state.dialMu.RUnlock()
-			l.drainPendingCloses()
-		}()
+		defer l.state.dialMu.RUnlock()
 	} else {
-		l.drainPendingCloses()
 		l.state.stackMu.Lock()
 		defer l.state.stackMu.Unlock()
 	}
@@ -220,33 +217,29 @@ func (l *Link) closeListener(inner *tcp.Listener) error {
 		err := inner.Close()
 		l.state.stackMu.Unlock()
 		l.state.dialMu.Unlock()
-		l.drainPendingCloses()
 		return err
 	}
 	l.state.pendingMu.Lock()
 	l.state.pendingCloses = append(l.state.pendingCloses, inner)
+	startDrainer := !l.state.draining
+	if startDrainer {
+		l.state.draining = true
+	}
 	l.state.pendingMu.Unlock()
-	// Dekker double-check: if the last DialTCP or concurrent Close released
-	// dialMu before we appended to pendingCloses, drain immediately.
-	l.drainPendingCloses()
+	if startDrainer {
+		go l.drainPendingCloses()
+	}
 	return nil
 }
 
 func (l *Link) drainPendingCloses() {
 	for {
-		l.state.pendingMu.Lock()
-		hasPending := len(l.state.pendingCloses) > 0
-		l.state.pendingMu.Unlock()
-		if !hasPending {
-			return
-		}
-		if !l.state.dialMu.TryLock() {
-			return
-		}
+		l.state.dialMu.Lock()
 		l.state.pendingMu.Lock()
 		pending := l.state.pendingCloses
 		l.state.pendingCloses = nil
 		l.state.pendingMu.Unlock()
+
 		if len(pending) > 0 {
 			l.state.stackMu.Lock()
 			for _, inner := range pending {
@@ -255,6 +248,14 @@ func (l *Link) drainPendingCloses() {
 			l.state.stackMu.Unlock()
 		}
 		l.state.dialMu.Unlock()
+
+		l.state.pendingMu.Lock()
+		if len(l.state.pendingCloses) == 0 {
+			l.state.draining = false
+			l.state.pendingMu.Unlock()
+			return
+		}
+		l.state.pendingMu.Unlock()
 	}
 }
 

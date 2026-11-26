@@ -434,6 +434,21 @@ func TestListenerCloseConcurrentWithDialTCP(t *testing.T) {
 	}
 }
 
+func waitPendingClosesDrained(t *testing.T, link *Link) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		link.state.pendingMu.Lock()
+		drained := len(link.state.pendingCloses) == 0 && !link.state.draining
+		link.state.pendingMu.Unlock()
+		if drained {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("timed out waiting for deferred listener closes to drain")
+}
+
 func TestListenerCloseDoesNotStallDuringSlowDial(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -551,6 +566,7 @@ func TestListenerCloseDoesNotStallDuringSlowDial(t *testing.T) {
 	if err := <-dialDone; err != nil {
 		t.Fatalf("slow DialTCP failed: %v", err)
 	}
+	waitPendingClosesDrained(t, linkA)
 
 	// Deferred listener close should have drained when DialTCP returned, freeing port 10099.
 	lnA2, err := linkA.ListenTCP(ctx, 10099)
@@ -558,6 +574,7 @@ func TestListenerCloseDoesNotStallDuringSlowDial(t *testing.T) {
 		t.Fatalf("ListenTCP after deferred Close drain: %v", err)
 	}
 	_ = lnA2.Close()
+	waitPendingClosesDrained(t, linkA)
 	_ = lnB.Close()
 }
 
@@ -600,6 +617,7 @@ func TestConcurrentListenerClosesDrainAndRebind(t *testing.T) {
 				t.Fatalf("iter %d concurrent Close: %v", i, err)
 			}
 		}
+		waitPendingClosesDrained(t, linkA)
 	}
 
 	ln1, err := linkA.ListenTCP(ctx, 10100)
@@ -612,4 +630,146 @@ func TestConcurrentListenerClosesDrainAndRebind(t *testing.T) {
 		t.Fatalf("final rebind ListenTCP(10101): %v", err)
 	}
 	_ = ln2.Close()
+}
+
+func TestListenerCloseNotStarvedByOverlappingDials(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	aToB := make(chan []byte, 256)
+	bToARaw := make(chan []byte, 256)
+	bToA := make(chan []byte, 256)
+
+	devA := noopDMADev{memWireDev{mac: [6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x01}, in: bToA, out: aToB}}
+	devB := noopDMADev{memWireDev{mac: [6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x02}, in: aToB, out: bToARaw}}
+
+	cfgA := gnet.DefaultLnetoStackConfig()
+	cfgA.MaxActiveTCPPorts = 64
+	cfgB := gnet.DefaultLnetoStackConfig()
+	cfgB.MaxActiveTCPPorts = 64
+	cfgB.MaxListenerConns = 64
+
+	stackA := gnet.NewLnetoStack(cfgA)
+	stackB := gnet.NewLnetoStack(cfgB)
+
+	linkA, err := NewLink(stackA, devA, "192.0.2.10/24", "02:11:22:33:44:01", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	linkB, err := NewLink(stackB, devB, "192.0.2.20/24", "02:11:22:33:44:02", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		_ = linkA.Start(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		_ = linkB.Start(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case frame := <-bToARaw:
+				// Pace responses slightly so two dial workers overlap continuously without exhausting ports.
+				timer := time.NewTimer(15 * time.Millisecond)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					return
+				case <-timer.C:
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case bToA <- frame:
+				}
+			}
+		}
+	}()
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
+
+	lnB, err := linkB.ListenTCP(ctx, 9092)
+	if err != nil {
+		t.Fatalf("linkB.ListenTCP: %v", err)
+	}
+	var acceptWG sync.WaitGroup
+	defer acceptWG.Wait()
+	defer func() { _ = lnB.Close() }()
+
+	acceptWG.Add(1)
+	go func() {
+		defer acceptWG.Done()
+		for {
+			conn, err := lnB.Accept()
+			if err != nil {
+				return
+			}
+			acceptWG.Add(1)
+			go func() {
+				c := conn
+				defer acceptWG.Done()
+				_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+				_, _ = io.Copy(io.Discard, c)
+				_ = c.Close()
+			}()
+		}
+	}()
+
+	lnA, err := linkA.ListenTCP(ctx, 10102)
+	if err != nil {
+		t.Fatalf("linkA.ListenTCP(10102): %v", err)
+	}
+
+	dialCtx, stopDials := context.WithCancel(ctx)
+	var dialWG sync.WaitGroup
+	defer func() {
+		stopDials()
+		dialWG.Wait()
+	}()
+
+	target := netip.MustParseAddrPort("192.0.2.20:9092")
+	for worker := range 2 {
+		dialWG.Add(1)
+		go func(delay time.Duration) {
+			defer dialWG.Done()
+			if delay > 0 {
+				time.Sleep(delay)
+			}
+			for dialCtx.Err() == nil {
+				conn, err := linkA.DialTCP(dialCtx, target)
+				if err == nil {
+					_ = conn.Close()
+				}
+			}
+		}(time.Duration(worker) * 10 * time.Millisecond)
+	}
+
+	time.Sleep(20 * time.Millisecond)
+	if err := lnA.Close(); err != nil {
+		t.Fatalf("lnA.Close: %v", err)
+	}
+	waitPendingClosesDrained(t, linkA)
+
+	// Port 10102 must be rebindable promptly even while overlapping dials continue.
+	lnA2, err := linkA.ListenTCP(ctx, 10102)
+	if err != nil {
+		t.Fatalf("rebind ListenTCP(10102) while dials ongoing: %v", err)
+	}
+	_ = lnA2.Close()
+	waitPendingClosesDrained(t, linkA)
+
+	stopDials()
+	dialWG.Wait()
+	_ = lnB.Close()
 }
