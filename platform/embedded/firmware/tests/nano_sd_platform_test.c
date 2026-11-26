@@ -228,6 +228,37 @@ int main(void)
     assert(call(&t,1)==4 && t.platform.failed && t.service.failed && t.bridges.failed);
     assert(t.h.smmu_gbpa==FES_NANO_SMMU_ABORT && t.h.smmu_writes==2 && !t.platform.restore_smmu_abort);
 
+    /* Prepare failure restores SMMU GBPA ABORT after re-asserting SD reset. */
+    ready(&t);t.h.allow_smmu_mmio=1;t.h.smmu_gbpa=FES_NANO_SMMU_ABORT;
+    assert(!fes_nano_sd_platform_enable_dma(&t.platform));
+    assert(!call(&t,1));
+    native_prepare(&t);t.h.srs[0x24/4]=0x1800fU;t.h.fault=7;
+    assert(call(&t,2)==4 && t.platform.failed && !t.platform.active && !t.platform.prepared);
+    assert((t.h.per0 & 0xc0U)==0xc0U && t.h.smmu_gbpa==FES_NANO_SMMU_ABORT && t.h.smmu_writes==2 && !t.platform.restore_smmu_abort);
+
+    /* Pre-reset stop failure restores SMMU GBPA ABORT after re-asserting SD reset. */
+    ready(&t);t.h.allow_smmu_mmio=1;t.h.smmu_gbpa=FES_NANO_SMMU_ABORT;
+    assert(!fes_nano_sd_platform_enable_dma(&t.platform));
+    assert(!call(&t,1));native_prepare(&t);assert(!call(&t,2));
+    t.h.srs[0x234/4]=0;t.h.fault=10;
+    assert(call(&t,3)==4 && t.platform.failed && !t.platform.active && !t.platform.prepared);
+    assert((t.h.per0 & 0xc0U)==0xc0U && t.h.smmu_gbpa==FES_NANO_SMMU_ABORT && t.h.smmu_writes==2 && !t.platform.restore_smmu_abort);
+
+    /* Stuck reset failure leaves SMMU GBPA ABORT unflipped rather than aborting active DMA. */
+    ready(&t);t.h.allow_smmu_mmio=1;t.h.smmu_gbpa=FES_NANO_SMMU_ABORT;
+    assert(!fes_nano_sd_platform_enable_dma(&t.platform));
+    assert(!call(&t,1));native_prepare(&t);assert(!call(&t,2));
+    t.h.srs[0x234/4]=0;t.h.fault=9;
+    assert(call(&t,3)==4 && t.platform.failed && !(t.h.per0 & FES_NANO_COLD_SD_RESET));
+    assert(t.h.smmu_writes==1 && t.platform.restore_smmu_abort==1);
+
+    /* Active scope failure restores SMMU GBPA ABORT after re-asserting SD reset. */
+    ready(&t);t.h.allow_smmu_mmio=1;t.h.smmu_gbpa=FES_NANO_SMMU_ABORT;
+    assert(!fes_nano_sd_platform_enable_dma(&t.platform));
+    assert(!call(&t,1));t.h.clock[0x6c/4]++;
+    assert(call(&t,0)==4 && t.platform.failed && t.service.failed);
+    assert((t.h.per0 & 0xc0U)==0xc0U && t.h.smmu_gbpa==FES_NANO_SMMU_ABORT && t.h.smmu_writes==2 && !t.platform.restore_smmu_abort);
+
     /* DMA enabled with post-retire GBPA=ABORT: clears on resume, restores on stop across cycles. */
     ready(&t);t.h.allow_smmu_mmio=1;t.h.smmu_gbpa=FES_NANO_SMMU_ABORT;
     assert(!fes_nano_sd_platform_enable_dma(&t.platform));
