@@ -34,7 +34,7 @@ COMMON_LIBRARY_INPUTS = ['boards/de25nano/shared-rtl/' + name for name in (
     'fes_computer_mailbox.v', 'fes_display_plane.v') ] + ['cores/fes-common/rtl/' + name for name in (
     'fes_display_cdc.v',
     'fes_audio_output.v', 'fes_audio_i2s.v')]
-SOURCE_ROOTS = sorted([*common.SOURCE_ROOTS, 'cores/fes-common/generated', 'cores/fes-common/rtl/z80',
+SOURCE_ROOTS = sorted([*common.SOURCE_ROOTS, ABI, 'cores/fes-common/rtl/z80',
                       'cores/fes-zx81/rtl/zx81_keyboard.v', 'cores/fes-zx81/rtl/zx81_tape_store.v',
                       'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_model.vh',
                       'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v',

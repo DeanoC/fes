@@ -353,6 +353,7 @@ class DE25MenuPackageTests(unittest.TestCase):
 
     def prepare_repository(self):
         paths = {producer.RECIPE: b'# actual recipe\n', producer.ABI: b'actual ABI',
+                 'boards/de25nano/producers/__init__.py': b'',
                  'boards/de25nano/build.py': b'# selected DE25 Quartus helper\n',
                  'boards/de25nano/quartus.lock': b'[quartus]\nversion = "26.3.0"\n',
                  'boards/de25nano/package/core_package.py': b'# package helper fixture\n',

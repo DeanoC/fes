@@ -40,7 +40,7 @@ from boards.de25nano.scanout import async_inputs, audio_reference, bridge_reset
 ROOT = Path(__file__).resolve().parents[3]
 SHARED = 'boards/de25nano/producers/build_machine_package.py'
 ABI = 'cores/fes-common/generated/fes_computer.vh'
-SOURCE_ROOTS = sorted([*common.SOURCE_ROOTS, 'cores/fes-common/generated'])
+SOURCE_ROOTS = sorted([*common.SOURCE_ROOTS, SHARED, ABI])
 REVIEW_INPUTS = (*common.REVIEW_INPUTS, 'boards/de25nano/scanout/audio_reference.py',
                  'boards/de25nano/scanout/audio_clocks.tcl',
                  'boards/de25nano/producers/review_audio_clocks.py')

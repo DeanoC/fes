@@ -18,6 +18,7 @@ from boards.de25nano.package.core_package import encode_manifest
 from boards.de25nano.package.export_core_package import build_identity, encode_build_record, export_package
 from scripts.fes_build_common import BuildError
 
+HELPER = 'boards/de25nano/producers/build_zx81_static_package.py'
 PROFILE = 'fes.de25-standard-zx81-empty-ram16k.v1'
 PROGRAMMING_PROFILE = 'de25-linux-static-computer-v1'
 DEFAULT_PERSONA = 0xc001a001
@@ -64,7 +65,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
             raise BuildError('static ZX81 requires explicit canonical placement and routing regions')
     fields = json.loads(standard.create_build_record(
         root, repository, revision, identities, execution, captured))
-    roots = sorted(set(fields['source_roots']) | set(REVIEW_INPUTS))
+    roots = sorted(set(fields['source_roots']) | {HELPER, *REVIEW_INPUTS})
     fields.update(source_roots=roots, source_inputs=standard.common.source_input_closure(
         Path(root), roots, policy=standard.common.SOURCE_POLICY))
     parameters = fields['parameters']

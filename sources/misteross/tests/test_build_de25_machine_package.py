@@ -67,6 +67,7 @@ class MachineProducerTests(unittest.TestCase):
             data.update({Path(name).relative_to('sources/misteross').as_posix(): value
                          for name, value in captured.items()})
         for name in (spectrum.RECIPE, atari_st.RECIPE, c64.RECIPE, pcxt.RECIPE, pc386.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
+                     'boards/de25nano/producers/__init__.py', 'boards/de25nano/producers/build_menu_package.py',
                      'boards/de25nano/quartus.lock', 'boards/de25nano/package/core_package.py',
                      'boards/de25nano/package/export_core_package.py', shared.NATIVE_SPECTRUM_COMPOSER, *shared.REVIEW_INPUTS):
             data.setdefault(name, (ROOT / name).read_bytes())
@@ -443,6 +444,41 @@ class MachineProducerTests(unittest.TestCase):
         # The CLI default is seed 1.
         import inspect
         self.assertEqual(inspect.signature(shared.Machine.build).parameters['seed'].default, 1)
+
+    def test_record_excludes_sibling_machine_producers_and_unrelated_generated_files(self):
+        """Each machine record binds its own recipe and shared helpers, not sibling producers or test fixtures."""
+        extras = {
+            'cores/fes-common/generated/computer-exchanges-1.1.json': (ROOT / 'cores/fes-common/generated/computer-exchanges-1.1.json').read_bytes(),
+            'cores/fes-common/generated/fes_pcxt_isa.vh': (ROOT / 'cores/fes-common/generated/fes_pcxt_isa.vh').read_bytes(),
+        }
+        with tempfile.TemporaryDirectory(prefix='de25-machine-isolation-') as temp:
+            isolated = Path(temp)
+            shutil.copytree(self.root, isolated, dirs_exist_ok=True)
+            for name, content in extras.items():
+                path = isolated / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+            subprocess.run(['git', 'add', *extras], cwd=isolated, check=True)
+            subprocess.run(['git', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+                            'commit', '-qm', 'add unrelated generated files'], cwd=isolated, check=True)
+            revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=isolated, text=True).strip()
+            all_recipes = {p.RECIPE for p in PRODUCERS}
+            for producer in PRODUCERS:
+                model = next(iter(producer.MACHINE.descriptions))
+                tools = {**self.tools, 'yosys': 'explicit fixture yosys'} if hasattr(producer.MACHINE.spec(ROOT), 'authenticate_front_end') else self.tools
+                with self.subTest(recipe=producer.RECIPE):
+                    record = producer.create_build_record(isolated, REPOSITORY, revision, tools, self.execution,
+                                                          self.captured[producer], model=model)
+                    inputs = verify_record_source_at_revision(isolated, record)['source_inputs']
+                    for required in (producer.RECIPE, shared.SHARED,
+                                     'boards/de25nano/producers/build_menu_package.py',
+                                     'boards/de25nano/producers/__init__.py'):
+                        self.assertIn(required, inputs)
+                    for sibling in all_recipes - {producer.RECIPE}:
+                        self.assertNotIn(sibling, inputs)
+                    self.assertNotIn('cores/fes-common/generated/computer-exchanges-1.1.json', inputs)
+                    if producer is not pcxt:
+                        self.assertNotIn('cores/fes-common/generated/fes_pcxt_isa.vh', inputs)
 
 if __name__ == '__main__':
     unittest.main()

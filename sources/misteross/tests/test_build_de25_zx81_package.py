@@ -23,6 +23,9 @@ class ZX81ProducerTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory(prefix='de25-zx81-producer-test-')
         self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)
         data={producer.RECIPE:b'# fixture recipe\n',producer.ABI:b'fixture ABI',
+              'boards/de25nano/producers/__init__.py':b'',
+              'boards/de25nano/producers/build_menu_package.py':b'# common helper fixture\n',
+              'boards/de25nano/producers/build_zx81_static_package.py':b'# static helper fixture\n',
               'cores/fes-zx81/rtl/machine.v':b'fixture machine',
               'cores/fes-common/rtl/z80/engine.sv':b'fixture CPU',
               'boards/de25nano/fixture.v':b'fixture board',

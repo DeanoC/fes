@@ -184,6 +184,36 @@ class ProductionIdentityTests(unittest.TestCase):
             self.commit(directory)
             self.assertNotEqual(build_identity(original), build_identity(record()))
 
+    def test_sibling_producers_and_unrelated_generated_files_move_no_de25_identity(self):
+        sibling_producer = 'boards/de25nano/producers/build_pcxt_package.py'
+        static_helper = 'boards/de25nano/producers/build_zx81_static_package.py'
+        unrelated_generated = (
+            'cores/fes-common/generated/computer-exchanges-1.1.json',
+            'cores/fes-common/generated/fes_pcxt_isa.vh',
+        )
+        for producer in (menu, zx81):
+            with self.subTest(recipe=producer.RECIPE), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                root, captured = self.repository(producer, directory)
+                for path_str in unrelated_generated:
+                    path = root / path_str
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes((ROOT / path_str).read_bytes())
+                self.commit(directory)
+                original = self.record(producer, root, captured)
+                inputs = verify_record_source_at_revision(root, original)['source_inputs']
+                self.assertNotIn(sibling_producer, inputs)
+                self.assertNotIn(static_helper, inputs)
+                for path_str in unrelated_generated:
+                    self.assertNotIn(path_str, inputs)
+                for path_str in (sibling_producer, static_helper, *unrelated_generated):
+                    (root / path_str).write_bytes((ROOT / path_str).read_bytes() + b'\n// Changed unrelated file.\n')
+                self.commit(directory)
+                changed = self.record(producer, root, captured)
+                self.assertEqual(build_identity(original), build_identity(changed))
+                for kind in ('design', 'toolchain'):
+                    self.assertEqual(json.loads(original)['identities'][kind], json.loads(changed)['identities'][kind])
+
     def test_every_fitted_qualification_input_is_bound(self):
         for producer in (menu, zx81):
             with self.subTest(recipe=producer.RECIPE), tempfile.TemporaryDirectory() as temp:
