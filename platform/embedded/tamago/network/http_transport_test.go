@@ -368,9 +368,10 @@ func TestListenerCloseConcurrentWithDialTCP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("linkB.ListenTCP: %v", err)
 	}
+	var acceptWG sync.WaitGroup
+	defer acceptWG.Wait()
 	defer func() { _ = lnB.Close() }()
 
-	var acceptWG sync.WaitGroup
 	acceptWG.Add(1)
 	go func() {
 		defer acceptWG.Done()
@@ -379,10 +380,16 @@ func TestListenerCloseConcurrentWithDialTCP(t *testing.T) {
 			if err != nil {
 				return
 			}
-			_ = conn.Close()
+			acceptWG.Add(1)
+			go func() {
+				c := conn
+				defer acceptWG.Done()
+				_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+				_, _ = io.Copy(io.Discard, c)
+				_ = c.Close()
+			}()
 		}
 	}()
-	defer acceptWG.Wait()
 
 	const iterations = 8
 	errCh := make(chan error, 2)
@@ -495,9 +502,10 @@ func TestListenerCloseDoesNotStallDuringSlowDial(t *testing.T) {
 	if err != nil {
 		t.Fatalf("linkB.ListenTCP: %v", err)
 	}
+	var acceptWG sync.WaitGroup
+	defer acceptWG.Wait()
 	defer func() { _ = lnB.Close() }()
 
-	var acceptWG sync.WaitGroup
 	acceptWG.Add(1)
 	go func() {
 		defer acceptWG.Done()
@@ -506,10 +514,16 @@ func TestListenerCloseDoesNotStallDuringSlowDial(t *testing.T) {
 			if err != nil {
 				return
 			}
-			_ = conn.Close()
+			acceptWG.Add(1)
+			go func() {
+				c := conn
+				defer acceptWG.Done()
+				_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+				_, _ = io.Copy(io.Discard, c)
+				_ = c.Close()
+			}()
 		}
 	}()
-	defer acceptWG.Wait()
 
 	lnA, err := linkA.ListenTCP(ctx, 10099)
 	if err != nil {
@@ -545,4 +559,57 @@ func TestListenerCloseDoesNotStallDuringSlowDial(t *testing.T) {
 	}
 	_ = lnA2.Close()
 	_ = lnB.Close()
+}
+
+func TestConcurrentListenerClosesDrainAndRebind(t *testing.T) {
+	linkA, _, _, cleanup := setupLnetoPair(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for i := range 10 {
+		ln1, err := linkA.ListenTCP(ctx, 10100)
+		if err != nil {
+			t.Fatalf("iter %d ListenTCP(10100): %v", i, err)
+		}
+		ln2, err := linkA.ListenTCP(ctx, 10101)
+		if err != nil {
+			t.Fatalf("iter %d ListenTCP(10101): %v", i, err)
+		}
+
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		errCh := make(chan error, 2)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			<-start
+			errCh <- ln1.Close()
+		}()
+		go func() {
+			defer wg.Done()
+			<-start
+			errCh <- ln2.Close()
+		}()
+		close(start)
+		wg.Wait()
+		close(errCh)
+		for err := range errCh {
+			if err != nil {
+				t.Fatalf("iter %d concurrent Close: %v", i, err)
+			}
+		}
+	}
+
+	ln1, err := linkA.ListenTCP(ctx, 10100)
+	if err != nil {
+		t.Fatalf("final rebind ListenTCP(10100): %v", err)
+	}
+	_ = ln1.Close()
+	ln2, err := linkA.ListenTCP(ctx, 10101)
+	if err != nil {
+		t.Fatalf("final rebind ListenTCP(10101): %v", err)
+	}
+	_ = ln2.Close()
 }

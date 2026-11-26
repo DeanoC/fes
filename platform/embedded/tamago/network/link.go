@@ -220,13 +220,14 @@ func (l *Link) closeListener(inner *tcp.Listener) error {
 		err := inner.Close()
 		l.state.stackMu.Unlock()
 		l.state.dialMu.Unlock()
+		l.drainPendingCloses()
 		return err
 	}
 	l.state.pendingMu.Lock()
 	l.state.pendingCloses = append(l.state.pendingCloses, inner)
 	l.state.pendingMu.Unlock()
-	// Dekker double-check: if the last DialTCP released dialMu before we
-	// appended to pendingCloses, drain immediately so no close is stranded.
+	// Dekker double-check: if the last DialTCP or concurrent Close released
+	// dialMu before we appended to pendingCloses, drain immediately.
 	l.drainPendingCloses()
 	return nil
 }
