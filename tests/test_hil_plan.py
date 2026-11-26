@@ -244,6 +244,15 @@ class HilPlanTest(unittest.TestCase):
         # Optional standalone tools are not installed by the image or bundle.
         self.assertEqual(plan.classify_path('sources/FogCast/cmd/fes-parts/main.go')['class'], 'none')
 
+    def test_de25_pcxt_video_lint_config_is_host_only(self):
+        planner = hil_module()
+        board = 'sources/misteross/boards/de25nano/pcxt/'
+        result = planner.plan([board + 'video.vlt', board + 'sim.py'], texts={})
+        self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
+        self.assertEqual(result['kit_targets'], [])
+        # Do not turn arbitrary board configuration files into host-only input.
+        self.assertEqual(planner.classify_path(board + 'other.vlt')['class'], 'overlay')
+
     def test_ci_selection_scripts_are_none(self):
         plan = hil_module()
         for name in ('affected', 'hil_plan', 'host_tests', 'runtime_tests', 'changed_paths',

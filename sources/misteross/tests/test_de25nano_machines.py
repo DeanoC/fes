@@ -65,7 +65,7 @@ class MachineSimulationTests(unittest.TestCase):
             video.write_bytes(source.replace(before, b"reg [10:0] horizontal = 0;"))
             result = subprocess.run([
                 "verilator", "--lint-only", "-Wall", "-Wno-WIDTHEXPAND", "-Wno-DECLFILENAME",
-                "--timescale-override", "1ns/1ps", str(pcxt / "sim/cpu.vlt"), str(pcxt / "sim/de25_video.vlt"),
+                "--timescale-override", "1ns/1ps", str(pcxt / "sim/cpu.vlt"), str(board / "video.vlt"),
                 "--top-module", "video_top", "-I" + str(common / "generated"),
                 str(common / "rtl/coleco_video_dpram.v"), str(common / "rtl/fes_video_part_direct.v"),
                 str(common / "rtl/fes_video_part_scanlines.v"), str(video),
