@@ -3267,7 +3267,7 @@ std::vector<Computer11Scenario> ReadComputer11Scenarios()
 	for (auto at = source.find("{\"abi_minor\":"); at != std::string::npos;
 		at = source.find("{\"abi_minor\":", at + 1))
 		starts.push_back(at);
-	assert(starts.size() == 6);
+	assert(starts.size() == 7);
 	starts.push_back(source.size());
 	const std::regex row("\\{\"argument\":([0-9]+),\"data\":([0-9]+),\"error\":([0-9]+),"
 		"\"gpi\":([0-9]+),\"gpo\":\\[([0-9]+),([0-9]+)\\],\"index\":([0-9]+),"
