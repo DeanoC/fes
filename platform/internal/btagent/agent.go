@@ -36,6 +36,7 @@ const (
 	staleBondRemovalMax = 3
 	pairCallTimeout     = 35 * time.Second
 	pairCleanupTimeout  = 10 * time.Second
+	maxReconnects       = 4
 )
 
 type dbusError struct {
@@ -270,6 +271,8 @@ func Run(ctx context.Context, raw io.ReadWriteCloser) error {
 		logged:                   map[string]time.Time{},
 		staleBondRemoved:         map[string]struct{}{},
 		staleBondRemovalAttempts: map[string]int{},
+		reconnectDone:            make(chan reconnectResult, maxReconnects),
+		deviceGeneration:         map[string]uint64{},
 	}
 	bus.onCall = a.handleCall
 	go bus.readLoop()
@@ -295,9 +298,24 @@ type agent struct {
 	staleBondMu              sync.Mutex
 	staleBondRemoved         map[string]struct{}
 	staleBondRemovalAttempts map[string]int
+	reconnectDone            chan reconnectResult
+	reconnects               int
+	reconnectCtx             context.Context
+	reconnectCancel          context.CancelFunc
+	deviceGeneration         map[string]uint64
+}
+
+type reconnectResult struct {
+	dev        devInfo
+	owner      string
+	trustErr   error
+	err        error
+	generation uint64
 }
 
 func (a *agent) run(ctx context.Context) error {
+	a.resetReconnectContext(ctx)
+	defer func() { a.reconnectCancel() }()
 	if _, err := a.call(ctx, dbusDest, dbusPath, dbusIface, "Hello", "", nil, 10*time.Second); err != nil {
 		return err
 	}
@@ -335,6 +353,8 @@ func (a *agent) run(ctx context.Context) error {
 			if err := a.handleSignals(ctx); err != nil {
 				return err
 			}
+		case result := <-a.reconnectDone:
+			a.finishReconnect(ctx, result)
 		case <-ticker.C:
 			if a.bluezOwner == "" {
 				continue
@@ -416,6 +436,16 @@ func (a *agent) refresh(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	for devicePath, next := range devices {
+		if old, ok := a.devices[devicePath]; !ok || old.Paired != next.Paired {
+			a.invalidateDevice(devicePath)
+		}
+	}
+	for devicePath := range a.devices {
+		if _, ok := devices[devicePath]; !ok {
+			a.invalidateDevice(devicePath)
+		}
+	}
 	a.devices = devices
 	a.retryPendingPairingCleanup()
 	a.adapters = make(map[string]struct{}, len(adapters))
@@ -463,6 +493,7 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 			return nil
 		}
 		previousOwner := a.bluezOwner
+		a.resetReconnectContext(ctx)
 		a.bluezOwner = newOwner
 		a.registeredOwner = ""
 		a.adapters = map[string]struct{}{}
@@ -489,6 +520,9 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 			a.configure(ctx, path)
 		}
 		if props, ok := ifaces[deviceIface]; ok {
+			if _, exists := a.devices[path]; !exists {
+				a.invalidateDevice(path)
+			}
 			a.merge(path, props)
 			a.act(ctx, a.devices[path])
 		}
@@ -500,6 +534,7 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 		for _, name := range names {
 			switch name {
 			case deviceIface:
+				a.invalidateDevice(path)
 				delete(a.devices, path)
 			case adapterIface:
 				delete(a.adapters, path)
@@ -513,6 +548,9 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 			return nil
 		}
 		if iface == deviceIface && msg.Path != "" {
+			if paired, ok := props["Paired"].(bool); ok && a.devices[msg.Path].Paired != paired {
+				a.invalidateDevice(msg.Path)
+			}
 			a.merge(msg.Path, props)
 			a.act(ctx, a.devices[msg.Path])
 		}
@@ -623,7 +661,22 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 	if what == actionPair && a.adapterHasPendingPairing(path.Dir(dev.Path)) {
 		return
 	}
+	if what == actionConnect && (a.reconnects >= maxReconnects || a.bluezOwner == "") {
+		return
+	}
 	if !a.attempts.Start(dev, time.Now(), what) {
+		return
+	}
+	if what == actionConnect {
+		// Keep the event loop free to observe other devices while BlueZ waits
+		// for a sleeping controller. Pin calls to the current unique owner so
+		// an old attempt cannot mutate a replacement BlueZ instance.
+		a.reconnects++
+		workerCtx := a.reconnectCtx
+		if workerCtx == nil {
+			workerCtx = ctx
+		}
+		go a.reconnect(workerCtx, dev, a.bluezOwner, a.deviceGeneration[dev.Path])
 		return
 	}
 	pairSucceeded := what != actionPair
@@ -642,20 +695,71 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 	}
 	log.Printf("bluetooth: connecting %s %s", dev.Path, dev.Name)
 	if err := a.callVoid(ctx, bluezDest, dev.Path, deviceIface, "Connect", "", nil, 35*time.Second); err != nil && !isName(err, "org.bluez.Error.AlreadyConnected") {
-		if dev.Paired && isGamepad(dev) && isStaleBondError(err) && a.claimStaleBondRemoval(dev.Path) {
-			adapterPath := path.Dir(dev.Path)
-			log.Printf("bluetooth: removing stale bond for %s after missing-key error: %v", dev.Path, err)
-			if removeErr := a.callVoid(ctx, bluezDest, adapterPath, adapterIface, "RemoveDevice", "o", bodyPath(dev.Path), 10*time.Second); removeErr != nil {
-				a.releaseStaleBondRemoval(dev.Path)
-				a.logf("remove-stale-bond:"+dev.Path, "bluetooth: remove stale bond %s: %v", dev.Path, removeErr)
-			} else {
-				a.attempts.AllowPairAfterBondRemoval(dev.Path)
-			}
-			return
-		}
 		a.logf("connect:"+dev.Path, "bluetooth: connect %s: %v", dev.Path, err)
 		return
 	}
+}
+
+// An outstanding operation belongs to one BlueZ owner. Cancellation frees a
+// slot promptly on daemon restart; the unique destination also prevents an
+// old call from being delivered to the new daemon before the signal arrives.
+func (a *agent) resetReconnectContext(ctx context.Context) {
+	if a.reconnectCancel != nil {
+		a.reconnectCancel()
+	}
+	a.reconnectCtx, a.reconnectCancel = context.WithCancel(ctx)
+}
+
+func (a *agent) invalidateDevice(devicePath string) {
+	if a.deviceGeneration == nil {
+		a.deviceGeneration = map[string]uint64{}
+	}
+	a.deviceGeneration[devicePath]++
+}
+
+func (a *agent) reconnect(ctx context.Context, dev devInfo, owner string, generation uint64) {
+	trustErr := a.callVoid(ctx, owner, dev.Path, propsIface, "Set", "ssv", bodyProp(deviceIface, "Trusted", "b", true, 0), 10*time.Second)
+	var err error
+	if ctx.Err() == nil {
+		err = a.callVoid(ctx, owner, dev.Path, deviceIface, "Connect", "", nil, 35*time.Second)
+	} else {
+		err = ctx.Err()
+	}
+	// At most maxReconnects workers exist, and the channel has that many
+	// slots, so shutdown does not leave a worker blocked on result delivery.
+	a.reconnectDone <- reconnectResult{dev: dev, owner: owner, generation: generation, trustErr: trustErr, err: err}
+}
+
+func (a *agent) finishReconnect(ctx context.Context, result reconnectResult) {
+	a.reconnects--
+	a.attempts.Finish(result.dev.Path, false, time.Now())
+	// The response belongs to the BlueZ owner captured at dispatch. In
+	// particular, never remove a bond from a newly restarted daemon.
+	if result.owner != a.bluezOwner || result.generation != a.deviceGeneration[result.dev.Path] {
+		a.attempts.ForgetConnect(result.dev.Path)
+		return
+	}
+	if device, exists := a.devices[result.dev.Path]; !exists || !device.Paired || device.Connected {
+		return
+	}
+	if result.trustErr != nil {
+		a.logf("trust:"+result.dev.Path, "bluetooth: trust %s: %v", result.dev.Path, result.trustErr)
+	}
+	if result.err == nil || isName(result.err, "org.bluez.Error.AlreadyConnected") {
+		return
+	}
+	if result.dev.Paired && isGamepad(result.dev) && isStaleBondError(result.err) && a.claimStaleBondRemoval(result.dev.Path) {
+		adapterPath := path.Dir(result.dev.Path)
+		log.Printf("bluetooth: removing stale bond for %s after missing-key error: %v", result.dev.Path, result.err)
+		if err := a.callVoid(ctx, result.owner, adapterPath, adapterIface, "RemoveDevice", "o", bodyPath(result.dev.Path), 10*time.Second); err != nil {
+			a.releaseStaleBondRemoval(result.dev.Path)
+			a.logf("remove-stale-bond:"+result.dev.Path, "bluetooth: remove stale bond %s: %v", result.dev.Path, err)
+		} else {
+			a.attempts.AllowPairAfterBondRemoval(result.dev.Path)
+		}
+		return
+	}
+	a.logf("connect:"+result.dev.Path, "bluetooth: connect %s: %v", result.dev.Path, result.err)
 }
 
 // pairDevice enables the adapter's bondable state only while pairing an
