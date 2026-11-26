@@ -81,8 +81,15 @@ struct fes_de25_window;
 /* On a failure that leaves a grant the block may still hold, *pinned gets a
  * reference (as fes_de25_window_get) so the owner can retry its revoke.
  */
+/* storage is the base of the owner's 256 MiB reserved pool. */
 struct file *fes_de25_window_create(struct device *dev,
-		const struct fes_de25_window_backend *backend, struct fes_de25_window **pinned);
+		const struct fes_de25_window_backend *backend, phys_addr_t storage,
+		struct fes_de25_window **pinned);
+/* The owner's pool node (its compatible is fes,de25-window-pool) and its
+ * reservation, as the tree must give them.
+ */
+int fes_de25_window_pool_check(bool compatible, bool reusable, bool no_map, phys_addr_t base,
+		phys_addr_t size);
 struct fes_de25_window *fes_de25_window_get(struct file *file);
 void fes_de25_window_put(struct fes_de25_window *window);
 int fes_de25_window_revoke_owned(struct fes_de25_window *window);
