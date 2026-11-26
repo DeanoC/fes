@@ -29,6 +29,7 @@ RULES = [
         'scripts/de25_restore.py',
         'scripts/consistency.py', 'scripts/generate.py',
         'scripts/host_affected.py', 'scripts/runtime_tests.py', 'scripts/input_diagnostic.py',
+        'scripts/bundle.py', 'scripts/core_catalog.py', 'scripts/nightly_qualification.py',
     )],
     # This offline capture classifier reads saved frames and does not access a kit.
     ('scripts/de25_boot_screen.py', 'none', None),
