@@ -74,9 +74,25 @@ type Supervisor struct {
 	stopCh   chan struct{}
 	wg       sync.WaitGroup
 
-	kicks   atomic.Uint64
-	errMu   sync.Mutex
-	lastErr error
+	kicks         atomic.Uint64
+	checkFailures atomic.Uint64
+	kickFailures  atomic.Uint64
+	errMu         sync.Mutex
+	lastErr       error
+}
+
+// SupervisorStats summarizes Supervisor lifecycle state, timing, kick counters,
+// and fatal Check/Kick failures.
+type SupervisorStats struct {
+	Started       bool
+	Running       bool
+	Stopped       bool
+	Period        time.Duration
+	Interval      time.Duration
+	Kicks         uint64
+	CheckFailures uint64
+	KickFailures  uint64
+	LastErr       error
 }
 
 // NewSupervisor validates cfg and returns an unarmed Supervisor.
@@ -204,6 +220,7 @@ func (s *Supervisor) KickNow() error {
 	err := s.dev.Kick()
 	s.opMu.Unlock()
 	if err != nil {
+		s.kickFailures.Add(1)
 		return err
 	}
 	s.kicks.Add(1)
@@ -263,6 +280,36 @@ func (s *Supervisor) Err() error {
 	return s.lastErr
 }
 
+// Stats returns a point-in-time snapshot of supervisor lifecycle, cadence,
+// kick/failure counters, and the first fatal error.
+func (s *Supervisor) Stats() SupervisorStats {
+	if s == nil {
+		return SupervisorStats{}
+	}
+	s.mu.Lock()
+	started := s.started
+	stopped := s.stopped
+	period := s.period
+	interval := s.interval
+	s.mu.Unlock()
+
+	s.errMu.Lock()
+	lastErr := s.lastErr
+	s.errMu.Unlock()
+
+	return SupervisorStats{
+		Started:       started,
+		Running:       s.running.Load(),
+		Stopped:       stopped,
+		Period:        period,
+		Interval:      interval,
+		Kicks:         s.kicks.Load(),
+		CheckFailures: s.checkFailures.Load(),
+		KickFailures:  s.kickFailures.Load(),
+		LastErr:       lastErr,
+	}
+}
+
 func (s *Supervisor) recordErr(err error) {
 	s.errMu.Lock()
 	if s.lastErr == nil {
@@ -291,6 +338,7 @@ func (s *Supervisor) loop(ctx context.Context, interval time.Duration) {
 		case <-ticker.C:
 			if s.cfg.Check != nil {
 				if err := s.cfg.Check(); err != nil {
+					s.checkFailures.Add(1)
 					s.recordErr(err)
 					return
 				}
@@ -299,6 +347,7 @@ func (s *Supervisor) loop(ctx context.Context, interval time.Duration) {
 			err := s.dev.Kick()
 			s.opMu.Unlock()
 			if err != nil {
+				s.kickFailures.Add(1)
 				s.recordErr(err)
 				return
 			}
