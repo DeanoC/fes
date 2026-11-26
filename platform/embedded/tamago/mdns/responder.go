@@ -24,6 +24,7 @@ const (
 	defaultAnnounceInterval = time.Second
 	probeAttempts           = 3
 	probeInterval           = 250 * time.Millisecond
+	defaultTieBreakDelay    = time.Second
 	conflictDefendInterval  = 10 * time.Second
 	legacyUnicastMaxTTL     = 10
 	dnsSDMetaServiceFQDN    = "_services._dns-sd._udp.local"
@@ -143,20 +144,23 @@ type Responder struct {
 	announceInterval time.Duration
 	onError          func(error)
 
-	mu          sync.Mutex
-	started     bool
-	stopped     bool
-	nameMu      sync.Mutex
-	probing     bool
-	claimed     bool
-	conflicted  bool
-	goodbyeSent bool
-	lastDefense time.Time
-	conflictCh  chan struct{}
-	stopCh      chan struct{}
-	removeTap   func()
-	wg          sync.WaitGroup
-	ipID        atomic.Uint32
+	mu                sync.Mutex
+	started           bool
+	stopped           bool
+	nameMu            sync.Mutex
+	probing           bool
+	claimed           bool
+	conflicted        bool
+	goodbyeSent       bool
+	lastDefense       time.Time
+	initialProbeDelay time.Duration
+	tieBreakDelay     time.Duration
+	conflictCh        chan struct{}
+	tieBreakCh        chan struct{}
+	stopCh            chan struct{}
+	removeTap         func()
+	wg                sync.WaitGroup
+	ipID              atomic.Uint32
 
 	running          atomic.Bool
 	queriesReceived  atomic.Uint64
@@ -203,7 +207,9 @@ func NewResponder(cfg ResponderConfig) (*Responder, error) {
 		announceCount:    annCount,
 		announceInterval: annInterval,
 		onError:          cfg.OnError,
+		tieBreakDelay:    defaultTieBreakDelay,
 		conflictCh:       make(chan struct{}),
+		tieBreakCh:       make(chan struct{}, 1),
 		stopCh:           make(chan struct{}),
 	}, nil
 }
@@ -235,9 +241,6 @@ func (r *Responder) Start(ctx context.Context) error {
 	}
 	r.started = true
 	r.running.Store(true)
-	r.nameMu.Lock()
-	r.probing = true
-	r.nameMu.Unlock()
 	r.removeTap = r.port.AddTap(r.handleFrame)
 	r.wg.Add(1)
 	r.mu.Unlock()
@@ -336,12 +339,8 @@ func (r *Responder) run(ctx context.Context) {
 			return
 		default:
 		}
-		if err := r.sendAnnouncement(r.svc.TTL, false); err != nil {
-			if errors.Is(err, network.ErrPaused) {
-				r.pausedDrops.Add(1)
-			} else if r.onError != nil {
-				r.onError(err)
-			}
+		if err := r.sendAnnouncement(r.svc.TTL, false); err != nil && !errors.Is(err, network.ErrPaused) && r.onError != nil {
+			r.onError(err)
 		}
 		if i+1 >= r.announceCount {
 			break
@@ -369,35 +368,84 @@ func (r *Responder) run(ctx context.Context) {
 }
 
 func (r *Responder) probe(ctx context.Context) bool {
-	initialDelay := time.Duration(rand.Int64N(int64(probeInterval)))
-	if !r.waitForProbe(ctx, initialDelay) {
-		return false
-	}
-	for i := 0; i < probeAttempts; i++ {
-		if !r.isProbing() {
+outer:
+	for {
+		initialDelay := r.initialProbeDelay
+		if initialDelay <= 0 {
+			initialDelay = time.Duration(rand.Int64N(int64(probeInterval)))
+		}
+		// RFC 6762 §8.1: before the first probe packet is transmitted, do not treat
+		// pre-existing responses or probes as conflicts.
+		if !r.waitForProbe(ctx, initialDelay) {
 			return false
 		}
-		if err := r.sendProbe(); err != nil {
-			if errors.Is(err, network.ErrPaused) {
-				r.pausedDrops.Add(1)
-			} else if r.onError != nil {
-				r.onError(err)
-			}
-			return false
-		}
-		if !r.waitForProbe(ctx, probeInterval) {
-			return false
-		}
-	}
+		drainSignal(r.tieBreakCh)
 
-	r.nameMu.Lock()
-	defer r.nameMu.Unlock()
-	if !r.probing || r.conflicted {
-		return false
+		r.nameMu.Lock()
+		if r.conflicted {
+			r.nameMu.Unlock()
+			return false
+		}
+		r.probing = true
+		r.nameMu.Unlock()
+
+		for i := 0; i < probeAttempts; i++ {
+			if !r.isProbing() {
+				return false
+			}
+			if err := r.sendProbe(); err != nil {
+				r.nameMu.Lock()
+				r.probing = false
+				r.nameMu.Unlock()
+				if errors.Is(err, network.ErrPaused) {
+					r.pausedDrops.Add(1)
+					if !r.waitForProbe(ctx, probeInterval) {
+						return false
+					}
+					continue outer
+				}
+				if r.onError != nil {
+					r.onError(err)
+				}
+				return false
+			}
+			tieLost, ok := r.waitForProbeStep(ctx, probeInterval)
+			if !ok {
+				return false
+			}
+			if tieLost {
+				// RFC 6762 §8.2: wait 1 second after losing a simultaneous probe tie-break,
+				// then restart probing from scratch.
+				r.nameMu.Lock()
+				r.probing = false
+				r.nameMu.Unlock()
+				if !r.waitForProbe(ctx, r.tieBreakDelay) {
+					return false
+				}
+				continue outer
+			}
+		}
+
+		r.nameMu.Lock()
+		if !r.probing || r.conflicted {
+			r.nameMu.Unlock()
+			return false
+		}
+		r.probing = false
+		r.claimed = true
+		r.nameMu.Unlock()
+		return true
 	}
-	r.probing = false
-	r.claimed = true
-	return true
+}
+
+func drainSignal(ch <-chan struct{}) {
+	for {
+		select {
+		case <-ch:
+		default:
+			return
+		}
+	}
 }
 
 func (r *Responder) waitForProbe(ctx context.Context, delay time.Duration) bool {
@@ -424,6 +472,34 @@ func (r *Responder) waitForProbe(ctx context.Context, delay time.Duration) bool 
 		return false
 	case <-ctx.Done():
 		return false
+	}
+}
+
+func (r *Responder) waitForProbeStep(ctx context.Context, delay time.Duration) (tieLost, ok bool) {
+	select {
+	case <-r.stopCh:
+		return false, false
+	case <-r.conflictCh:
+		return false, false
+	case <-ctx.Done():
+		return false, false
+	case <-r.tieBreakCh:
+		return true, true
+	default:
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return false, true
+	case <-r.tieBreakCh:
+		return true, true
+	case <-r.stopCh:
+		return false, false
+	case <-r.conflictCh:
+		return false, false
+	case <-ctx.Done():
+		return false, false
 	}
 }
 
@@ -479,27 +555,40 @@ func (r *Responder) markNameConflictLocked() {
 }
 
 func (r *Responder) handleProbeConflict(proposed []dnsRecord) {
+	if !r.isProbing() {
+		return
+	}
 	conflict, localWins := compareProbeRecords(r.probeRecords(), proposed)
 	if !conflict || localWins {
 		return
 	}
-	r.nameMu.Lock()
-	if r.probing && !r.conflicted {
-		r.markNameConflictLocked()
-		r.nameMu.Unlock()
-		r.reportNameConflict()
-		return
+	if r.isProbing() {
+		select {
+		case r.tieBreakCh <- struct{}{}:
+		default:
+		}
 	}
-	r.nameMu.Unlock()
 }
 
 func (r *Responder) handleResponseConflict(msg dnsMessage) {
+	r.nameMu.Lock()
+	if r.conflicted || (!r.probing && !r.claimed) {
+		r.nameMu.Unlock()
+		return
+	}
+	isProbing := r.probing
+	r.nameMu.Unlock()
+
 	local := r.probeRecords()
 	remote := make([]dnsRecord, 0, len(msg.Answers)+len(msg.Authorities)+len(msg.Additional))
 	remote = append(remote, msg.Answers...)
 	remote = append(remote, msg.Authorities...)
 	remote = append(remote, msg.Additional...)
-	if !recordSetsConflict(local, remote) {
+	if isProbing {
+		if !probeResponseConflicts(local, remote) {
+			return
+		}
+	} else if !recordSetsConflict(local, remote) {
 		return
 	}
 
@@ -512,20 +601,24 @@ func (r *Responder) handleResponseConflict(msg dnsMessage) {
 		return
 	}
 	if r.probing {
-		r.markNameConflictLocked()
-		relinquish = true
-	} else if r.claimed {
-		now := time.Now()
-		if !r.lastDefense.IsZero() && now.Sub(r.lastDefense) <= conflictDefendInterval {
+		if probeResponseConflicts(local, remote) {
 			r.markNameConflictLocked()
 			relinquish = true
-			if !r.goodbyeSent {
-				r.goodbyeSent = true
-				sendGoodbye = true
+		}
+	} else if r.claimed {
+		if recordSetsConflict(local, remote) {
+			now := time.Now()
+			if !r.lastDefense.IsZero() && now.Sub(r.lastDefense) <= conflictDefendInterval {
+				r.markNameConflictLocked()
+				relinquish = true
+				if !r.goodbyeSent {
+					r.goodbyeSent = true
+					sendGoodbye = true
+				}
+			} else {
+				r.lastDefense = now
+				defend = true
 			}
-		} else {
-			r.lastDefense = now
-			defend = true
 		}
 	}
 	r.nameMu.Unlock()
@@ -808,6 +901,36 @@ func additionalNeeded(additional dnsRecord, answers, additionals []dnsRecord) bo
 	return false
 }
 
+func probeResponseConflicts(local, remote []dnsRecord) bool {
+	probedNames := make(map[string]bool, len(local))
+	for _, ours := range local {
+		probedNames[strings.ToLower(strings.TrimSuffix(ours.Name, "."))] = true
+	}
+	for _, theirs := range remote {
+		if theirs.TTL == 0 {
+			continue
+		}
+		name := strings.ToLower(strings.TrimSuffix(theirs.Name, "."))
+		if !probedNames[name] {
+			continue
+		}
+		theirsData := recordRData(theirs)
+		matched := false
+		for _, ours := range local {
+			if strings.EqualFold(strings.TrimSuffix(ours.Name, "."), name) &&
+				ours.Type == theirs.Type &&
+				bytes.Equal(recordRData(ours), theirsData) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return true
+		}
+	}
+	return false
+}
+
 func recordSetsConflict(local, remote []dnsRecord) bool {
 	for _, ours := range local {
 		for _, theirs := range remote {
@@ -914,6 +1037,8 @@ func recordRData(rr dnsRecord) []byte {
 		if err == nil {
 			return ptr
 		}
+	default:
+		return rr.RawRData
 	}
 	return nil
 }

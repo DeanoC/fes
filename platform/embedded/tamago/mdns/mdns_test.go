@@ -533,14 +533,21 @@ func TestResponderProbeTieBreakAndConflictDefense(t *testing.T) {
 	probing.probing = true
 	probing.nameMu.Unlock()
 	probing.handleProbeConflict(remoteProposal)
-	if err := <-probeErr; !errors.Is(err, ErrResponderNameConflict) {
-		t.Fatalf("probe conflict error = %v", err)
+	select {
+	case err := <-probeErr:
+		t.Fatalf("unexpected probe conflict error on losing simultaneous probe: %v", err)
+	default:
+	}
+	select {
+	case <-probing.tieBreakCh:
+	default:
+		t.Fatal("responder did not signal tie-break retry for a losing probe")
 	}
 	probing.nameMu.Lock()
-	probeRelinquished := probing.conflicted
+	probeConflicted := probing.conflicted
 	probing.nameMu.Unlock()
-	if !probeRelinquished {
-		t.Fatal("responder did not relinquish a losing probe")
+	if probeConflicted {
+		t.Fatal("responder terminally conflicted instead of backing off for a losing simultaneous probe")
 	}
 
 	conflictErr := make(chan error, 1)
@@ -798,5 +805,277 @@ func TestCacheFlushDoesNotExpireRecentlyReceivedARecords(t *testing.T) {
 	}
 	if got := cache["flush-host.local"][freshAddr].expires; !got.Equal(flushTime.Add(120 * time.Second)) {
 		t.Fatalf("new cache-flush A record expiry = %v, want %v", got, flushTime.Add(120*time.Second))
+	}
+}
+
+func waitForCondition(t *testing.T, timeout time.Duration, cond func() bool, msg string) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal(msg)
+}
+
+func TestResponderPreFirstProbeResponseIgnored(t *testing.T) {
+	hub := newWireHub()
+	ep := hub.newEndpoint()
+	peer := hub.newEndpoint()
+	errCh := make(chan error, 4)
+	resp, err := NewResponder(ResponderConfig{
+		Port:          ep,
+		LocalMAC:      [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0x61},
+		Service:       Service{Instance: "PreProbe", ServiceType: "_test._tcp", Host: "preprobe-host.local", Port: 8080, IP: netip.MustParseAddr("192.0.2.61")},
+		AnnounceCount: 1,
+		OnError:       func(err error) { errCh <- err },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.initialProbeDelay = 120 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := resp.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Stop()
+
+	// Inject an authoritative response before the first probe is sent.
+	// RFC 6762 §8.1 requires ignoring responses received prior to probing.
+	time.Sleep(30 * time.Millisecond)
+	payload, err := encodeMDNSMessage(dnsMessage{
+		Response: true,
+		Answers: []dnsRecord{
+			{Name: "preprobe-host.local", Type: TypeA, Class: ClassIN, CacheFlush: true, TTL: 120, A: netip.MustParseAddr("192.0.2.99")},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame := buildMDNSFrame([6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0x62}, MulticastMAC(), [4]byte{192, 0, 2, 99}, multicastIPv4Bytes, Port, Port, 1, payload)
+	if err := peer.SendRawFrame(frame); err != nil {
+		t.Fatal(err)
+	}
+
+	waitForCondition(t, 2*time.Second, func() bool {
+		resp.nameMu.Lock()
+		defer resp.nameMu.Unlock()
+		return resp.claimed
+	}, "responder did not claim after ignoring pre-first-probe response")
+
+	select {
+	case err := <-errCh:
+		t.Fatalf("unexpected responder error: %v", err)
+	default:
+	}
+}
+
+func TestResponderSimultaneousProbeTieBreakRetries(t *testing.T) {
+	hub := newWireHub()
+	ep := hub.newEndpoint()
+	peer := hub.newEndpoint()
+	errCh := make(chan error, 4)
+	resp, err := NewResponder(ResponderConfig{
+		Port:          ep,
+		LocalMAC:      [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0x71},
+		Service:       Service{Instance: "TieBreak", ServiceType: "_test._tcp", Host: "tiebreak-host.local", Port: 8080, IP: netip.MustParseAddr("192.0.2.71")},
+		AnnounceCount: 1,
+		OnError:       func(err error) { errCh <- err },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.initialProbeDelay = 5 * time.Millisecond
+	resp.tieBreakDelay = 40 * time.Millisecond
+
+	var injected atomic.Bool
+	var probeCount atomic.Int32
+	unsub := peer.AddTap(func(raw []byte) {
+		pkt, ok := parseMDNSFrame(raw, [6]byte{}, [4]byte{}, true)
+		if !ok || pkt.msg.Response || len(pkt.msg.Questions) == 0 {
+			return
+		}
+		probeCount.Add(1)
+		if !injected.CompareAndSwap(false, true) {
+			return
+		}
+		// Higher IP proposal wins the tie-break; peer then goes quiet so retry succeeds.
+		proposal := resp.probeRecords()
+		proposal[0].A = netip.MustParseAddr("192.0.2.250")
+		payload, err := encodeMDNSMessage(dnsMessage{
+			Questions:   pkt.msg.Questions,
+			Authorities: proposal,
+		})
+		if err != nil {
+			return
+		}
+		frame := buildMDNSFrame([6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0x72}, MulticastMAC(), [4]byte{192, 0, 2, 250}, multicastIPv4Bytes, Port, Port, 2, payload)
+		go func() { _ = peer.SendRawFrame(frame) }()
+	})
+	defer unsub()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := resp.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Stop()
+
+	waitForCondition(t, 2*time.Second, func() bool {
+		resp.nameMu.Lock()
+		defer resp.nameMu.Unlock()
+		return resp.claimed
+	}, "responder did not claim after tie-break backoff and probe restart")
+
+	if got := probeCount.Load(); got < int32(probeAttempts+1) {
+		t.Fatalf("probe count after tie-break retry = %d, want at least %d", got, probeAttempts+1)
+	}
+	select {
+	case err := <-errCh:
+		t.Fatalf("unexpected responder error: %v", err)
+	default:
+	}
+}
+
+func TestResponderProbeResponseAnyRecordConflict(t *testing.T) {
+	hub := newWireHub()
+	ep := hub.newEndpoint()
+	peer := hub.newEndpoint()
+	errCh := make(chan error, 4)
+	resp, err := NewResponder(ResponderConfig{
+		Port:          ep,
+		LocalMAC:      [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0x81},
+		Service:       Service{Instance: "AnyRR", ServiceType: "_test._tcp", Host: "anyrr-host.local", Port: 8080, IP: netip.MustParseAddr("192.0.2.81")},
+		AnnounceCount: 1,
+		OnError:       func(err error) { errCh <- err },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.initialProbeDelay = 5 * time.Millisecond
+
+	var injected atomic.Bool
+	unsub := peer.AddTap(func(raw []byte) {
+		pkt, ok := parseMDNSFrame(raw, [6]byte{}, [4]byte{}, true)
+		if !ok || pkt.msg.Response || len(pkt.msg.Questions) == 0 {
+			return
+		}
+		if !injected.CompareAndSwap(false, true) {
+			return
+		}
+		// Answer with an IPv6 AAAA record (type 28) for the probed host name.
+		aaaa := make([]byte, 16)
+		aaaa[0] = 0xfe
+		aaaa[1] = 0x80
+		aaaa[15] = 0x01
+		payload, err := encodeMDNSMessage(dnsMessage{
+			Response: true,
+			Answers: []dnsRecord{
+				{Name: "anyrr-host.local", Type: 28, Class: ClassIN, CacheFlush: true, TTL: 120, RawRData: aaaa},
+			},
+		})
+		if err != nil {
+			return
+		}
+		frame := buildMDNSFrame([6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0x82}, MulticastMAC(), [4]byte{192, 0, 2, 82}, multicastIPv4Bytes, Port, Port, 3, payload)
+		go func() { _ = peer.SendRawFrame(frame) }()
+	})
+	defer unsub()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := resp.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Stop()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, ErrResponderNameConflict) {
+			t.Fatalf("error = %v, want ErrResponderNameConflict", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for ErrResponderNameConflict on AAAA response during probing")
+	}
+
+	resp.nameMu.Lock()
+	conflicted := resp.conflicted
+	claimed := resp.claimed
+	resp.nameMu.Unlock()
+	if !conflicted || claimed {
+		t.Fatalf("state after AAAA conflict = conflicted:%v claimed:%v, want true/false", conflicted, claimed)
+	}
+}
+
+func TestResponderProbeAndAnnouncePausedRecovery(t *testing.T) {
+	hub := newWireHub()
+	ep := hub.newEndpoint()
+	ep.paused.Store(true)
+	errCh := make(chan error, 4)
+	resp, err := NewResponder(ResponderConfig{
+		Port:          ep,
+		LocalMAC:      [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0x91},
+		Service:       Service{Instance: "Paused", ServiceType: "_test._tcp", Host: "paused-host.local", Port: 8080, IP: netip.MustParseAddr("192.0.2.91")},
+		AnnounceCount: 2,
+		OnError:       func(err error) { errCh <- err },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.initialProbeDelay = 5 * time.Millisecond
+
+	peer := hub.newEndpoint()
+	var announcements atomic.Int32
+	unsub := peer.AddTap(func(raw []byte) {
+		pkt, ok := parseMDNSFrame(raw, [6]byte{}, [4]byte{}, true)
+		if !ok || !pkt.msg.Response || len(pkt.msg.Answers) == 0 {
+			return
+		}
+		if announcements.Add(1) == 1 {
+			ep.paused.Store(true)
+		}
+	})
+	defer unsub()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := resp.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Stop()
+
+	waitForCondition(t, 2*time.Second, func() bool {
+		return resp.Stats().PausedDrops > 0
+	}, "responder did not record paused drop while probing")
+
+	if !resp.running.Load() {
+		t.Fatal("responder exited on ErrPaused during probing")
+	}
+
+	probeDrops := resp.Stats().PausedDrops
+	ep.paused.Store(false)
+
+	waitForCondition(t, 2*time.Second, func() bool {
+		return announcements.Load() == 1
+	}, "responder did not recover from paused probing to send first announcement")
+
+	// Wait for the second announcement attempt while paused to confirm pausedDrops
+	// increments exactly once for that failed announcement.
+	waitForCondition(t, 2*time.Second, func() bool {
+		return resp.Stats().PausedDrops > probeDrops
+	}, "responder did not record paused drop for second announcement")
+
+	if got, want := resp.Stats().PausedDrops, probeDrops+1; got != want {
+		t.Fatalf("PausedDrops after paused announcement = %d, want %d (single increment)", got, want)
+	}
+
+	select {
+	case err := <-errCh:
+		t.Fatalf("unexpected responder error: %v", err)
+	default:
 	}
 }

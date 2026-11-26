@@ -78,6 +78,7 @@ type dnsRecord struct {
 	SRVPort    uint16
 	SRVTarget  string
 	TXT        []string
+	RawRData   []byte
 }
 
 type dnsMessage struct {
@@ -292,7 +293,10 @@ func encodeMDNSMessage(msg dnsMessage) ([]byte, error) {
 				}
 			}
 		default:
-			return fmt.Errorf("%w: unsupported mDNS record type %d", ErrInvalidConfig, rr.Type)
+			if len(rr.RawRData) == 0 {
+				return fmt.Errorf("%w: unsupported mDNS record type %d", ErrInvalidConfig, rr.Type)
+			}
+			rdata = append([]byte(nil), rr.RawRData...)
 		}
 
 		class := rr.Class
@@ -436,6 +440,9 @@ func decodeMDNSMessage(msg []byte) (dnsMessage, error) {
 					}
 					cur += txtLen
 				}
+				list = append(list, rr)
+			default:
+				rr.RawRData = append([]byte(nil), msg[rdataOff:off]...)
 				list = append(list, rr)
 			}
 		}
