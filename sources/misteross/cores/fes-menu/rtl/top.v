@@ -17,6 +17,9 @@ module top #(
         .scl(scl_in), .sda(sda_in), .out_clk(scl_low), .out_data(sda_low)
     );
     pixel_pll video_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk_0(pixel_clk), .locked(locked));
+    reg [1:0] locked_sync = 2'b00;
+    always @(posedge pixel_clk) locked_sync <= {locked_sync[0], locked};
+    wire pll_locked = locked_sync[1];
     wire de, hs, vs;
     wire [23:0] rgb;
     wire [31:0] displayed_sequence, underflows;
@@ -25,7 +28,7 @@ module top #(
     reg [31:0] desired_sequence = 32'd0;
     always @(posedge pixel_clk) begin
         last_vs <= vs;
-        if (!locked) begin
+        if (!pll_locked) begin
             frames <= 6'd0;
             desired_sequence <= 32'd0;
             last_vs <= 1'b0;
@@ -39,7 +42,7 @@ module top #(
     generate if (TEST_PATTERN) begin : pattern
     fes_menu_video #(.TEST_PATTERN(1'b1)) scanout (
         .raster_h(11'd0), .raster_v(10'd0),
-        .clk(pixel_clk), .rst(!locked), .enable(locked && DIAGNOSTIC_ENABLE), .quiesce(1'b0),
+        .clk(pixel_clk), .rst(!pll_locked), .enable(pll_locked && DIAGNOSTIC_ENABLE), .quiesce(1'b0),
         .submit_valid(desired_sequence != displayed_sequence),
         .submit_slot(desired_sequence[0]), .submit_sequence(desired_sequence),
         .submit_ready(), .displayed_sequence(displayed_sequence),
@@ -50,7 +53,8 @@ module top #(
     end else begin : ddr
         // This diagnostic reads slot 0 only. There is no host submission ABI.
         fes_menu_ddr scanout (
-            .clk(pixel_clk), .reset_hold(!locked), .enable(locked && DIAGNOSTIC_ENABLE),
+            .clk(pixel_clk), .raster_reset(!pll_locked), .reset_hold(!pll_locked),
+            .enable(pll_locked && DIAGNOSTIC_ENABLE),
             .quiesce(1'b0), .submit_valid(1'b0), .submit_slot(1'b0), .submit_sequence(32'd0),
             .blit_valid(1'b0), .blit_slot(1'b0), .blit_offset(32'd0), .blit_count(16'd0),
             .blit_idle(), .blit_faulted(), .blit_fault_code(), .blit_completed(),
@@ -59,10 +63,10 @@ module top #(
         );
     end endgenerate
     assign HDMI_TX_CLK = pixel_clk;
-    assign HDMI_TX_DE = locked && de;
-    assign HDMI_TX_HS = locked && hs;
-    assign HDMI_TX_VS = locked && vs;
+    assign HDMI_TX_DE = pll_locked && de;
+    assign HDMI_TX_HS = pll_locked && hs;
+    assign HDMI_TX_VS = pll_locked && vs;
     // White becomes red if any underflow occurred; normal pattern stays exact.
-    assign HDMI_TX_D = !locked ? 24'd0 :
+    assign HDMI_TX_D = !pll_locked ? 24'd0 :
         (underflows != 32'd0 && rgb == 24'hffffff ? 24'hff0000 : rgb);
 endmodule
