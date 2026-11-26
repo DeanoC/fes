@@ -1362,9 +1362,13 @@ func tamagoPadInfo(dev usbhub.GamepadDevice) tenfoot.PadInfo {
 	if dev.Bluetooth {
 		bus = tamagoBusBluetooth
 	}
+	identityName := dev.IdentityName
+	if identityName == "" {
+		identityName = dev.Name
+	}
 	return tenfoot.PadInfo{
 		Name:       dev.Name,
-		GUID:       tamagoPadGUID(bus, dev.Name, dev.Vendor, dev.Product),
+		GUID:       tamagoPadGUID(bus, identityName, dev.Vendor, dev.Product, dev.Version),
 		Vendor:     dev.Vendor,
 		Product:    dev.Product,
 		Family:     tamagoPromptFamily(dev.Kind, dev.Vendor),
@@ -1395,13 +1399,14 @@ func tamagoPromptFamily(kind controllers.Kind, vendor uint16) gfx.PromptFamily {
 	}
 }
 
-func tamagoPadGUID(bus uint16, name string, vendor, product uint16) string {
+func tamagoPadGUID(bus uint16, name string, vendor, product, version uint16) string {
 	var g [16]byte
 	binary.LittleEndian.PutUint16(g[0:], bus)
 	binary.LittleEndian.PutUint16(g[2:], sdlCRC16(name))
 	if vendor != 0 {
 		binary.LittleEndian.PutUint16(g[4:], vendor)
 		binary.LittleEndian.PutUint16(g[8:], product)
+		binary.LittleEndian.PutUint16(g[12:], version)
 	} else {
 		copy(g[4:15], name)
 	}

@@ -51,28 +51,32 @@ func (p *fakePipe) PollInto(dst []byte) (int, error) {
 }
 
 type fakeBus struct {
-	serviceErr   error
-	events       []usb.HostEvent
-	devices      []usb.BusDevice
-	reportDescs  map[uint32][]byte
-	pipes        map[uint32]*fakePipe
-	btEvPipe     *fakePipe
-	btACLInPipe  *fakePipe
-	btACLOutPipe *fakePipe
-	ready        chan struct{}
-	paused       bool
-	pauseCalls   int
-	resumeCalls  int
-	lmpSub       uint16
-	ctrlReqs     [][3]uint16 // {uint16(addr)<<8|uint16(req), value, index}
+	serviceErr        error
+	events            []usb.HostEvent
+	devices           []usb.BusDevice
+	reportDescs       map[uint32][]byte
+	manufacturerNames map[uint8]string
+	productNames      map[uint8]string
+	pipes             map[uint32]*fakePipe
+	btEvPipe          *fakePipe
+	btACLInPipe       *fakePipe
+	btACLOutPipe      *fakePipe
+	ready             chan struct{}
+	paused            bool
+	pauseCalls        int
+	resumeCalls       int
+	lmpSub            uint16
+	ctrlReqs          [][3]uint16 // {uint16(addr)<<8|uint16(req), value, index}
 }
 
 func newFakeBus() *fakeBus {
 	return &fakeBus{
-		reportDescs: make(map[uint32][]byte),
-		pipes:       make(map[uint32]*fakePipe),
-		ready:       make(chan struct{}, 4),
-		lmpSub:      0x8761,
+		reportDescs:       make(map[uint32][]byte),
+		manufacturerNames: make(map[uint8]string),
+		productNames:      make(map[uint8]string),
+		pipes:             make(map[uint32]*fakePipe),
+		ready:             make(chan struct{}, 4),
+		lmpSub:            0x8761,
 	}
 }
 
@@ -124,6 +128,48 @@ func (b *fakeBus) hasBTAddr(addr uint8) bool {
 	return false
 }
 func (b *fakeBus) ControlTransfer(addr uint8, reqType, req byte, value, index uint16, data []byte) (int, error) {
+	if reqType == 0x80 && req == 0x06 {
+		switch value {
+		case 0x0100:
+			for _, dev := range b.devices {
+				if dev.Address != addr {
+					continue
+				}
+				descriptor := [18]byte{18, 1, 0, 2, 0, 0, 0, 64}
+				binary.LittleEndian.PutUint16(descriptor[2:4], dev.Descriptor.USBVersion)
+				binary.LittleEndian.PutUint16(descriptor[8:10], dev.Descriptor.VendorID)
+				binary.LittleEndian.PutUint16(descriptor[10:12], dev.Descriptor.ProductID)
+				binary.LittleEndian.PutUint16(descriptor[12:14], dev.Descriptor.DeviceVersion)
+				if b.manufacturerNames[addr] != "" {
+					descriptor[14] = 1
+				}
+				if b.productNames[addr] != "" {
+					descriptor[15] = 2
+				}
+				descriptor[17] = 1
+				return copy(data, descriptor[:]), nil
+			}
+		case 0x0300:
+			return copy(data, []byte{4, 3, 0x09, 0x04}), nil
+		case 0x0301, 0x0302:
+			if index != 0x0409 {
+				return 0, errors.New("unexpected USB string language")
+			}
+			var rawName string
+			if value == 0x0301 {
+				rawName = b.manufacturerNames[addr]
+			} else {
+				rawName = b.productNames[addr]
+			}
+			name := []rune(rawName)
+			descriptor := make([]byte, 2+2*len(name))
+			descriptor[0], descriptor[1] = byte(len(descriptor)), 3
+			for i, r := range name {
+				binary.LittleEndian.PutUint16(descriptor[2+i*2:], uint16(r))
+			}
+			return copy(data, descriptor), nil
+		}
+	}
 	if reqType == 0x81 && req == 0x06 && value == 0x2200 {
 		desc, ok := b.reportDescs[key32(addr, index)]
 		if !ok {
@@ -1761,6 +1807,9 @@ func TestHubGamepadDevicesIntoAndZeroAllocs(t *testing.T) {
 	// Attach one wired generic HID gamepad (with VID:PID) and one wired XInput pad.
 	hidPad := makeGamepadDev(3)
 	hidPad.Descriptor.VendorID, hidPad.Descriptor.ProductID = 0x081f, 0xe401
+	hidPad.Descriptor.DeviceVersion = 0x0114
+	bus.manufacturerNames[3] = "Arcade Vendor"
+	bus.productNames[3] = "Arcade HID Gamepad"
 	bus.reportDescs[key32(3, 0)] = sampleGamepadDescriptor()
 	xinputPad := makeXInputDev(4)
 	xinputPad.Descriptor.VendorID, xinputPad.Descriptor.ProductID = 0x045e, 0x028e
@@ -1800,6 +1849,7 @@ func TestHubGamepadDevicesIntoAndZeroAllocs(t *testing.T) {
 	}
 	// Wired slot 0: generic HID with VID:PID preserved and ButtonSouth active.
 	if buf[0].ID != 1 || buf[0].Bluetooth || buf[0].Vendor != 0x081f || buf[0].Product != 0xe401 ||
+		buf[0].Version != 0x0114 || buf[0].Name != "Arcade Vendor Arcade HID Gamepad" || buf[0].IdentityName != "Arcade Vendor Arcade HID Gamepad" ||
 		buf[0].Kind != controllers.KindGenericHID || buf[0].Player != 1 || buf[0].Buttons&controllers.ButtonSouth == 0 {
 		t.Fatalf("unexpected wired generic HID snapshot: %+v", buf[0])
 	}
@@ -1809,7 +1859,7 @@ func TestHubGamepadDevicesIntoAndZeroAllocs(t *testing.T) {
 		t.Fatalf("unexpected wired XInput snapshot: %+v", buf[1])
 	}
 	// BT slot 0: DualSense P3.
-	if buf[2].ID != 101 || !buf[2].Bluetooth || buf[2].Vendor != 0x054c || buf[2].Product != 0x0ce6 ||
+	if buf[2].ID != 101 || !buf[2].Bluetooth || buf[2].Vendor != 0 || buf[2].Product != 0 ||
 		buf[2].Kind != controllers.KindDualSense || buf[2].Player != 3 ||
 		buf[2].Buttons&(controllers.ButtonNorth|controllers.ButtonDPadUp) != (controllers.ButtonNorth|controllers.ButtonDPadUp) ||
 		buf[2].LeftX != -20000 {
@@ -1884,5 +1934,25 @@ func TestHubGamepadDevicesIntoAndZeroAllocs(t *testing.T) {
 	})
 	if serviceAllocs != 0 {
 		t.Fatalf("expected 0 allocations in steady-state Service, got %.1f", serviceAllocs)
+	}
+}
+
+func TestHubBluetoothIdentityUsesBondValues(t *testing.T) {
+	bonds := l2cap.NewBondStore()
+	addr := l2cap.BDAddr{1, 2, 3, 4, 5, 6}
+	if err := bonds.Upsert(l2cap.BondRecord{
+		Addr: addr, Name: "DualSense Wireless Controller", VendorID: 0x054c, ProductID: 0x0ce6,
+	}); err != nil {
+		t.Fatalf("Upsert bond: %v", err)
+	}
+	hub, err := NewHub(newFakeBus(), Config{Bonds: bonds})
+	if err != nil {
+		t.Fatalf("NewHub: %v", err)
+	}
+	defer hub.Close()
+
+	name, vendor, product := hub.bluetoothIdentity(addr)
+	if name != "DualSense Wireless Controller" || vendor != 0x054c || product != 0x0ce6 {
+		t.Fatalf("bond identity = (%q, %#04x, %#04x)", name, vendor, product)
 	}
 }

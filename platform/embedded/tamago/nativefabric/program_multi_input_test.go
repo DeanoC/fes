@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	linuxcontroller "github.com/DeanoC/FogCast/ui/controller"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
@@ -27,6 +28,38 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/input/usbhub"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
+
+func TestTamagoPadGUIDMatchesFogCastControllerGUID(t *testing.T) {
+	devices := []usbhub.GamepadDevice{
+		{
+			Name: "Arcade HID Gamepad", IdentityName: "  Arcade HID Gamepad  ",
+			Vendor: 0x081f, Product: 0xe401, Version: 0x0114,
+		},
+		{
+			Name: "DualSense Wireless Controller", IdentityName: "DualSense Wireless Controller",
+			Vendor: 0x054c, Product: 0x0ce6, Bluetooth: true,
+		},
+		{
+			Name: "Name-only USB pad", IdentityName: "123456789ABC", Bluetooth: false,
+		},
+	}
+	for _, dev := range devices {
+		dev := dev
+		t.Run(dev.Name, func(t *testing.T) {
+			info := tamagoPadInfo(dev)
+			bus := uint16(tamagoBusUSB)
+			if dev.Bluetooth {
+				bus = tamagoBusBluetooth
+			}
+			want := (linuxcontroller.Device{
+				Name: dev.IdentityName, Bus: bus, Vendor: dev.Vendor, Product: dev.Product, Version: dev.Version,
+			}).GUID()
+			if info.GUID != want {
+				t.Fatalf("TamaGo GUID %s != FogCast Linux GUID %s", info.GUID, want)
+			}
+		})
+	}
+}
 
 // fakeMultiSource models usbhub.Hub: reports a test supplies reach the source
 // during the next Service, which (like the hub) queues only merged-state
