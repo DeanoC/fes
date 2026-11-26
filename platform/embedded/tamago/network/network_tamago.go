@@ -134,9 +134,8 @@ func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease
 	}
 	cfg.BackoffStack = backoff
 	cfg.NewBackoffTCP = func() lneto.BackoffStrategy { return backoff }
-	stack := gnet.NewLnetoStack(cfg)
 	var err error
-	iface.bridge, err = NewLink(stack, nic, c.Address, nic.MAC(), c.Gateway)
+	iface.bridge, err = NewLink(cfg, nic, c.Address, nic.MAC(), c.Gateway)
 	if err != nil {
 		stop(err)
 		return nil, err
@@ -148,7 +147,7 @@ func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease
 		if err := iface.bridge.Available(); err != nil {
 			return nil, err
 		}
-		return stack.Socket(ctx, network, family, sotype, laddr, raddr)
+		return iface.bridge.socket(ctx, network, family, sotype, laddr, raddr)
 	}
 	go func() {
 		err := iface.bridge.Start(runCtx)

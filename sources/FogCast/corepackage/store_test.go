@@ -25,6 +25,41 @@ func storeArchive(t *testing.T) ([]byte, Inspection) {
 	return archive, inspection
 }
 
+func TestPreparedImportKeepsPrivateValidatedBytes(t *testing.T) {
+	raw, want := storeArchive(t)
+	original := bytes.Clone(raw)
+	prepared, err := PrepareImport(context.Background(), int64(len(raw)), bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	clear(raw)
+	store, err := NewStore(filepath.Join(t.TempDir(), "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, created, err := store.ImportPrepared(context.Background(), prepared)
+	if err != nil || !created || !reflect.DeepEqual(got, want) {
+		t.Fatalf("import = %+v %v %v", got, created, err)
+	}
+	got.Descriptor.Core.ID = "mutated"
+	again, created, err := store.ImportPrepared(context.Background(), prepared)
+	if err != nil || created || !reflect.DeepEqual(again, want) {
+		t.Fatalf("reimport = %+v %v %v", again, created, err)
+	}
+	_, data, err := store.Read(context.Background(), want.PackageID)
+	if err != nil || !bytes.Equal(data, original) {
+		t.Fatalf("retained archive changed: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, _, err := store.ImportPrepared(ctx, prepared); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled publication = %v", err)
+	}
+	if _, _, err := store.ImportPrepared(context.Background(), &PreparedImport{}); !errors.Is(err, ErrInvalidPackage) {
+		t.Fatalf("empty prepared import = %v", err)
+	}
+}
+
 func writeArchive(t *testing.T, data []byte) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "fixture.fcore")

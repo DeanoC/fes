@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"syscall"
@@ -119,7 +120,6 @@ func TestFogCastTargetHTTPOverRealLnetoEthernetFrames(t *testing.T) {
 	cToS := make(chan []byte, 256)
 	sToC := make(chan []byte, 256)
 	serverStack := gnet.NewGVisorStack(1)
-	clientStack := gnet.NewLnetoStack(gnet.DefaultLnetoStackConfig())
 
 	serverIface := &gnet.Interface{
 		Stack:         serverStack,
@@ -128,7 +128,7 @@ func TestFogCastTargetHTTPOverRealLnetoEthernetFrames(t *testing.T) {
 	if err := serverIface.Init("192.0.2.10/24", "02:aa:00:00:00:01", ""); err != nil {
 		t.Fatal(err)
 	}
-	linkClient, err := network.NewLink(clientStack, wireDev{in: sToC, out: cToS}, "192.0.2.20/24", "02:aa:00:00:00:02", "")
+	linkClient, err := network.NewLink(nil, wireDev{in: sToC, out: cToS}, "192.0.2.20/24", "02:aa:00:00:00:02", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,15 +169,7 @@ func TestFogCastTargetHTTPOverRealLnetoEthernetFrames(t *testing.T) {
 
 	transport := &http.Transport{
 		DialContext: func(dctx context.Context, networkName, address string) (net.Conn, error) {
-			raw, err := clientStack.Socket(dctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, nil, &net.TCPAddr{IP: net.IPv4(192, 0, 2, 10), Port: 8080})
-			if err != nil {
-				return nil, err
-			}
-			conn, ok := raw.(net.Conn)
-			if !ok {
-				return nil, errors.New("unexpected client conn type")
-			}
-			return conn, nil
+			return linkClient.DialTCP(dctx, netip.MustParseAddrPort("192.0.2.10:8080"))
 		},
 	}
 	defer transport.CloseIdleConnections()

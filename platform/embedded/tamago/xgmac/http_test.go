@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"runtime"
 	"syscall"
 	"testing"
@@ -57,9 +58,8 @@ func TestHTTPThroughDMAAndIPStack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	clientStack := gnet.NewLnetoStack(gnet.DefaultLnetoStackConfig())
 	serverStack := gnet.NewGVisorStack(1)
-	clientIface, err := network.NewLink(clientStack, device, "192.0.2.2/24", device.MAC(), "")
+	clientIface, err := network.NewLink(nil, device, "192.0.2.2/24", device.MAC(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,16 +110,8 @@ func TestHTTPThroughDMAAndIPStack(t *testing.T) {
 			t.Error("HTTP server did not stop")
 		}
 	}()
-	transport := &http.Transport{DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-		raw, err := clientStack.Socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, nil, &net.TCPAddr{IP: net.IPv4(192, 0, 2, 1), Port: 8081})
-		if err != nil {
-			return nil, err
-		}
-		conn, ok := raw.(net.Conn)
-		if !ok {
-			return nil, fmt.Errorf("connection: %T", raw)
-		}
-		return conn, nil
+	transport := &http.Transport{DialContext: func(ctx context.Context, networkName, address string) (net.Conn, error) {
+		return clientIface.DialTCP(ctx, netip.MustParseAddrPort("192.0.2.1:8081"))
 	}}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, Timeout: 5 * time.Second}
