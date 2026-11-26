@@ -11,12 +11,13 @@ monotonic-anchored UTC wall clock (`Clock`).
 - **PL031 probing (`OpenPL031` / `OpenMMIO`):** verifies the PrimeCell ID
   (`0xb105f00d`), part number (`0x031`), and ARM designer ID (`0x41`), ensures
   `RTCCR` is enabled, and exposes whole-second reads (`Seconds`, `Now`),
-  loads (`Set`), match alarms (`SetAlarm`, `ClearAlarm`, `AlarmPending`), and
-  level-sensitive GICv3 alarm SPI dispatch (`EnableIRQ`, `DisableIRQ`,
-  `IRQCount`).
+  loads (`Set`), match alarms (`SetAlarm`, `ClearAlarm`, `AlarmPending`,
+  `AlarmTime`), and level-sensitive GICv3 alarm SPI dispatch (`EnableIRQ`,
+  `DisableIRQ`, `IRQCount`).
 - **Epoch-anchored `Clock`:** reads hardware RTC once and advances UTC using
-  the monotonic nanosecond counter (`NewClock`, `Now`, `Sync`), avoiding
-  repeated MMIO reads while providing sub-second wall-clock progression.
+  the monotonic nanosecond counter (`NewClock`, `Now`, `Sync`, `Status`),
+  avoiding repeated MMIO reads while providing sub-second wall-clock
+  progression and sync step/age diagnostics (`ClockStatus`).
 - **Board policy:** QEMU `virt` wires PL031 at `0x09010000` (SPI 2 / INTID 34).
   DE25-Nano has no on-chip PL031 RTC (`board.RTC()` returns `(nil, rtc.ErrNotFound)`)
   and exposes an initially unsynced monotonic-anchored `rtc.Clock`
