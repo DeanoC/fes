@@ -204,18 +204,17 @@ func (r *PL031) AlarmPending() bool {
 	return r.io.Read32(RegMIS)&irqBit != 0
 }
 
-// AlarmTime returns the programmed UTC alarm match time and whether the alarm
-// interrupt mask (RTCIMSC) is currently enabled.
+// AlarmTime returns the programmed UTC alarm match register (RTCMR) and
+// whether the PL031 alarm interrupt mask (RTCIMSC) is currently enabled.
 func (r *PL031) AlarmTime() (time.Time, bool) {
 	if r == nil {
 		return time.Time{}, false
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.io.Read32(RegIMSC)&irqBit == 0 {
-		return time.Time{}, false
-	}
-	return time.Unix(int64(r.io.Read32(RegMR)), 0).UTC(), true
+	alarm := time.Unix(int64(r.io.Read32(RegMR)), 0).UTC()
+	enabled := r.io.Read32(RegIMSC)&irqBit != 0
+	return alarm, enabled
 }
 
 // EnableIRQ binds the level-sensitive PL031 alarm SPI on g. When the alarm

@@ -548,8 +548,9 @@ func TestPL031AlarmTimeAndClockStatus(t *testing.T) {
 		t.Fatalf("AlarmTime=(%v, %t)", gotAlarm, ok)
 	}
 	dev.ClearAlarm()
-	if _, ok := dev.AlarmTime(); ok {
-		t.Fatal("ClearAlarm left AlarmTime active")
+	gotCleared, ok := dev.AlarmTime()
+	if ok || !gotCleared.Equal(time.Date(2026, time.November, 26, 12, 0, 0, 0, time.UTC)) {
+		t.Fatalf("ClearAlarm AlarmTime=(%v, %t) want (%v, false)", gotCleared, ok, gotAlarm)
 	}
 
 	var mono atomic.Int64
