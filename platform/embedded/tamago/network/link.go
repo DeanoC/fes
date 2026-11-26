@@ -25,6 +25,12 @@ type rxWaiter interface {
 
 type linkFailure struct{ err error }
 
+type pendingListenerClose struct {
+	inner *tcp.Listener
+	port  uint16
+	done  chan struct{}
+}
+
 // Link connects the pinned Lneto IP stack to Ethernet. It installs the TX callback
 // before Configure starts stack workers. One receive owner calls Start.
 type Link struct {
@@ -41,7 +47,10 @@ type linkState struct {
 	dialMu        sync.RWMutex
 	stackMu       sync.Mutex
 	pendingMu     sync.Mutex
-	pendingCloses []*tcp.Listener
+	pendingCloses []pendingListenerClose
+	// pendingByPort stays populated through inner.Close so a rebind cannot race
+	// the drainer after it removes a close from pendingCloses.
+	pendingByPort map[uint16]chan struct{}
 	draining      bool
 	paused        atomic.Bool
 	claimed       atomic.Bool
@@ -137,9 +146,30 @@ func (l *Link) ListenTCP(ctx context.Context, port uint16) (net.Listener, error)
 		return nil, err
 	}
 	laddr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(l.prefix.Addr(), port))
-	raw, err := l.socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, laddr, nil)
-	if err != nil {
-		return nil, err
+	var raw any
+	var err error
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		l.state.pendingMu.Lock()
+		pendingClose := l.state.pendingByPort[port]
+		l.state.pendingMu.Unlock()
+		if pendingClose == nil {
+			if err = l.Available(); err != nil {
+				return nil, err
+			}
+			raw, err = l.socket(ctx, "tcp4", syscall.AF_INET, syscall.SOCK_STREAM, laddr, nil)
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
+		select {
+		case <-pendingClose:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 	if wrapped, ok := raw.(interface{ LnetoListener() *tcp.Listener }); ok {
 		return &lnetoListener{
@@ -219,8 +249,18 @@ func (l *Link) closeListener(inner *tcp.Listener) error {
 		l.state.dialMu.Unlock()
 		return err
 	}
+	port := inner.LocalPort()
+	done := make(chan struct{})
 	l.state.pendingMu.Lock()
-	l.state.pendingCloses = append(l.state.pendingCloses, inner)
+	if l.state.pendingByPort == nil {
+		l.state.pendingByPort = make(map[uint16]chan struct{})
+	}
+	l.state.pendingByPort[port] = done
+	l.state.pendingCloses = append(l.state.pendingCloses, pendingListenerClose{
+		inner: inner,
+		port:  port,
+		done:  done,
+	})
 	startDrainer := !l.state.draining
 	if startDrainer {
 		l.state.draining = true
@@ -242,10 +282,19 @@ func (l *Link) drainPendingCloses() {
 
 		if len(pending) > 0 {
 			l.state.stackMu.Lock()
-			for _, inner := range pending {
-				_ = inner.Close()
+			for _, pendingClose := range pending {
+				_ = pendingClose.inner.Close()
 			}
 			l.state.stackMu.Unlock()
+
+			l.state.pendingMu.Lock()
+			for _, pendingClose := range pending {
+				if l.state.pendingByPort[pendingClose.port] == pendingClose.done {
+					delete(l.state.pendingByPort, pendingClose.port)
+				}
+				close(pendingClose.done)
+			}
+			l.state.pendingMu.Unlock()
 		}
 		l.state.dialMu.Unlock()
 

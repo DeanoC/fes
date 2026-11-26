@@ -563,15 +563,20 @@ func TestListenerCloseDoesNotStallDuringSlowDial(t *testing.T) {
 		t.Fatalf("Close stalled for %v while DialTCP was in progress", elapsed)
 	}
 
+	// Rebinding immediately must wait for the queued close rather than trying to
+	// register a second listener on the still-owned port.
+	rebindCtx, cancelRebind := context.WithTimeout(ctx, 2*time.Second)
+	defer cancelRebind()
+	rebindStarted := time.Now()
+	lnA2, err := linkA.ListenTCP(rebindCtx, 10099)
+	if err != nil {
+		t.Fatalf("immediate ListenTCP after deferred Close: %v", err)
+	}
+	if elapsed := time.Since(rebindStarted); elapsed >= 2*time.Second {
+		t.Fatalf("immediate rebind exceeded its bound: %v", elapsed)
+	}
 	if err := <-dialDone; err != nil {
 		t.Fatalf("slow DialTCP failed: %v", err)
-	}
-	waitPendingClosesDrained(t, linkA)
-
-	// Deferred listener close should have drained when DialTCP returned, freeing port 10099.
-	lnA2, err := linkA.ListenTCP(ctx, 10099)
-	if err != nil {
-		t.Fatalf("ListenTCP after deferred Close drain: %v", err)
 	}
 	_ = lnA2.Close()
 	waitPendingClosesDrained(t, linkA)
