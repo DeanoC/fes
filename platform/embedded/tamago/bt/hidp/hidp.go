@@ -58,6 +58,7 @@ type PlayerSlot struct {
 	ledAttempts    uint8
 	rumbleRight    uint8
 	rumbleLeft     uint8
+	MouseButtons   uint8
 }
 
 func (p *PlayerSlot) ready() bool {
@@ -89,8 +90,8 @@ func (p *PlayerSlot) clearLEDState() {
 
 // Session runs Classic Bluetooth HIDP (PSM 0x0011 Control + PSM 0x0013
 // Interrupt) over an l2cap.Manager for up to 4 concurrent Sony DualSense,
-// DualShock 4, Nintendo Switch Pro, and BT HID Keyboard devices with zero
-// steady-state heap allocations.
+// DualShock 4, Nintendo Switch Pro, BT HID Keyboard, and BT HID Boot Mouse
+// devices with zero steady-state heap allocations.
 type Session struct {
 	tr  *hci.Transport
 	mgr *l2cap.Manager
@@ -102,6 +103,7 @@ type Session struct {
 	OnGamepadState       func(slot uint8, kind controllers.Kind, state controllers.State)
 	OnKeyboardReport     func(report []byte)
 	OnSlotKeyboardReport func(slot uint8, report []byte)
+	OnSlotMouseReport    func(slot uint8, dx, dy int8, buttons uint8)
 	OnSlotChanged        func(slot uint8, connected bool, kind controllers.Kind, name string)
 }
 
@@ -306,13 +308,22 @@ func (s *Session) emitKeyboardReport(slot uint8, report []byte) {
 	}
 }
 
-func (s *Session) neutralizeSlotInput(idx uint8, kind controllers.Kind) {
+func (s *Session) emitMouseReport(slot uint8, dx, dy int8, buttons uint8) {
+	if s.OnSlotMouseReport != nil {
+		s.OnSlotMouseReport(slot, dx, dy, buttons)
+	}
+}
+
+func (s *Session) neutralizeSlotInput(idx uint8, kind controllers.Kind, hadMouseButtons bool) {
 	if kind != controllers.KindUnknown {
 		if s.OnGamepadState != nil {
 			s.OnGamepadState(idx, kind, controllers.State{})
 		}
-	} else {
-		s.emitKeyboardReport(idx, neutralKeyboardReport[:])
+		return
+	}
+	s.emitKeyboardReport(idx, neutralKeyboardReport[:])
+	if hadMouseButtons {
+		s.emitMouseReport(idx, 0, 0, 0)
 	}
 }
 
@@ -323,6 +334,7 @@ func (s *Session) onChannelClose(handle uint16, _ l2cap.BDAddr, psm uint16) {
 	}
 	wasReady := slot.ready()
 	hadActiveState := !slot.State.Neutral()
+	hadMouseButtons := slot.MouseButtons != 0
 	idx, kind, name := slot.Slot, slot.Kind, slot.Name
 	switch psm {
 	case l2cap.PSMHIDControl:
@@ -333,6 +345,7 @@ func (s *Session) onChannelClose(handle uint16, _ l2cap.BDAddr, psm uint16) {
 		return
 	}
 	slot.State = controllers.State{}
+	slot.MouseButtons = 0
 	slot.initStep = 0
 	slot.initWaitingAck = false
 	slot.initNextTry = time.Time{}
@@ -342,9 +355,10 @@ func (s *Session) onChannelClose(handle uint16, _ l2cap.BDAddr, psm uint16) {
 		*slot = PlayerSlot{}
 	}
 	// Clear any held buttons/axes before announcing channel loss so downstream
-	// consumers driven by OnGamepadState / OnKeyboardReport never see stuck input.
+	// consumers driven by OnGamepadState / OnKeyboardReport / OnSlotMouseReport
+	// never see stuck input.
 	if wasReady || hadActiveState || kind == controllers.KindUnknown {
-		s.neutralizeSlotInput(idx, kind)
+		s.neutralizeSlotInput(idx, kind, hadMouseButtons)
 	}
 	if wasReady && s.OnSlotChanged != nil {
 		s.OnSlotChanged(idx, false, kind, name)
@@ -358,10 +372,11 @@ func (s *Session) onDisconnect(handle uint16, _ l2cap.BDAddr) {
 	}
 	wasReady := slot.ready()
 	hadActiveState := !slot.State.Neutral()
+	hadMouseButtons := slot.MouseButtons != 0
 	idx, kind, name := slot.Slot, slot.Kind, slot.Name
 	*slot = PlayerSlot{}
 	if wasReady || hadActiveState || kind == controllers.KindUnknown {
-		s.neutralizeSlotInput(idx, kind)
+		s.neutralizeSlotInput(idx, kind, hadMouseButtons)
 	}
 	if wasReady && s.OnSlotChanged != nil {
 		s.OnSlotChanged(idx, false, kind, name)
@@ -689,15 +704,26 @@ func (s *Session) onHIDInterrupt(handle uint16, payload []byte) {
 		}
 
 	default:
-		// Classic BT HID boot keyboard fallback: only decode 8-byte (or 0x01-prefixed
-		// 9-byte) boot reports after SET_PROTOCOL(BOOT) handshake succeeded.
+		// Classic BT HID boot keyboard/mouse fallback: only decode reports
+		// after SET_PROTOCOL(BOOT) handshake succeeded. Raw 8-byte reports are
+		// checked before Report ID 0x02 so Left Shift (modifier 0x02) on a raw
+		// keyboard report is never misread as a boot mouse.
 		if slot.initStep != initStepDone {
 			return
 		}
-		if len(report) == 8 {
+		switch {
+		case len(report) == 8:
 			s.emitKeyboardReport(slot.Slot, report)
-		} else if len(report) == 9 && report[0] == 0x01 {
+		case len(report) == 9 && report[0] == 0x01:
 			s.emitKeyboardReport(slot.Slot, report[1:9])
+		case len(report) >= 4 && len(report) <= 7 && report[0] == 0x02:
+			buttons := report[1] & 0x03
+			slot.MouseButtons = buttons
+			s.emitMouseReport(slot.Slot, int8(report[2]), int8(report[3]), buttons)
+		case len(report) == 3:
+			buttons := report[0] & 0x03
+			slot.MouseButtons = buttons
+			s.emitMouseReport(slot.Slot, int8(report[1]), int8(report[2]), buttons)
 		}
 	}
 }
