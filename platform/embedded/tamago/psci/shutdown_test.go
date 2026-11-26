@@ -395,3 +395,58 @@ func TestShutdownCtxCancelBoundsNonCooperativeStepByStepTimeout(t *testing.T) {
 		t.Errorf("err=%v want ErrShutdownAborted+context.Canceled+context.DeadlineExceeded", err)
 	}
 }
+
+type fakeWarmController struct {
+	fakePowerController
+	warmCalls int
+	warmType  uint32
+	warmCook  uint64
+	warmErr   error
+}
+
+func (f *fakeWarmController) SystemReset2(resetType uint32, cookie uint64) error {
+	f.warmCalls++
+	f.warmType = resetType
+	f.warmCook = cookie
+	if f.events != nil {
+		*f.events = append(*f.events, "psci:warm-reset")
+	}
+	return f.warmErr
+}
+
+func TestShutdownActionWarmReset(t *testing.T) {
+	if ActionWarmReset.String() != "warm-reset" {
+		t.Fatalf("ActionWarmReset.String()=%q, want warm-reset", ActionWarmReset.String())
+	}
+
+	// Controller lacking WarmResetController rejects BEFORE running any step.
+	stepRan := false
+	plain := &fakePowerController{}
+	err := Shutdown(context.Background(), plain, ActionWarmReset, ShutdownConfig{
+		Steps: []ShutdownStep{{Name: "flush", Fn: func(context.Context) error { stepRan = true; return nil }}},
+	})
+	if !errors.Is(err, ErrInvalidShutdown) || stepRan {
+		t.Fatalf("plain controller warm-reset err=%v stepRan=%t, want ErrInvalidShutdown without running steps", err, stepRan)
+	}
+
+	var events []string
+	warm := &fakeWarmController{fakePowerController: fakePowerController{events: &events}}
+	if err := Shutdown(context.Background(), warm, ActionWarmReset, ShutdownConfig{
+		Steps: []ShutdownStep{{Name: "quiesce", Fn: func(context.Context) error { events = append(events, "step:quiesce"); return nil }}},
+	}); err != nil {
+		t.Fatalf("warm Shutdown err=%v", err)
+	}
+	if warm.warmCalls != 1 || warm.warmType != 0 || warm.warmCook != 0 ||
+		!reflect.DeepEqual(events, []string{"step:quiesce", "psci:warm-reset"}) {
+		t.Fatalf("warm Shutdown state: calls=%d type=%#x cook=%#x events=%v",
+			warm.warmCalls, warm.warmType, warm.warmCook, events)
+	}
+
+	// Error from SystemReset2 is returned, and real *Client implements WarmResetController.
+	warmErr := New(&mockConduit{fn: func(x0, _, _, _ uint64) (uint64, uint64, uint64, uint64) {
+		return ^uint64(0), 0, 0, 0
+	}})
+	if err := Shutdown(context.Background(), warmErr, ActionWarmReset, ShutdownConfig{}); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("Client warm Shutdown err=%v, want ErrUnsupported", err)
+	}
+}

@@ -2,8 +2,10 @@
 
 `platform/embedded/tamago/psci` provides ARM PSCI (DEN0022D/E) system power
 control (`SYSTEM_OFF`, `SYSTEM_RESET`, `SYSTEM_RESET2`, `PSCI_VERSION`,
-`PSCI_FEATURES`) and ARM SMCCC TRNG (DEN0098 v1.0) / ARMv8.5-RNG (`RNDR`)
-hardware entropy support for bare-metal TamaGo on DE25-Nano and QEMU `virt`.
+`PSCI_FEATURES`, `PSCI_AFFINITY_INFO`), `SMCCC_VERSION` / `Client.Probe()`
+capability discovery (`Capabilities`), and ARM SMCCC TRNG (DEN0098 v1.0) /
+ARMv8.5-RNG (`RNDR`) hardware entropy support for bare-metal TamaGo on DE25-Nano
+and QEMU `virt`.
 
 ## Conduits
 
@@ -39,7 +41,8 @@ hardcoded xorshift PRNG. Sources are probed in preference order:
 `ShutdownStep` teardown hooks (such as stopping the watchdog, parking the FPGA
 fabric, and quiescing SD/USB/network), bounds each step with `StepTimeout`,
 recovers step panics so later hardware containment steps still execute, and then
-invokes `SystemReset()` (`ActionReset`) or `SystemOff()` (`ActionPowerOff`).
+invokes `SystemReset()` (`ActionReset`), `SystemOff()` (`ActionPowerOff`), or
+`WarmResetController.SystemReset2(0, 0)` (`ActionWarmReset`).
 Setting `RequireCleanTeardown: true` runs every step and returns
 `ErrTeardownFailed` without calling PSCI if any containment step fails.
 

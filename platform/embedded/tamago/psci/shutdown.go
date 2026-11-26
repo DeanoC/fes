@@ -14,8 +14,9 @@ import (
 type PowerAction uint8
 
 const (
-	ActionReset    PowerAction = 1
-	ActionPowerOff PowerAction = 2
+	ActionReset     PowerAction = 1
+	ActionPowerOff  PowerAction = 2
+	ActionWarmReset PowerAction = 3
 )
 
 func (a PowerAction) String() string {
@@ -24,6 +25,8 @@ func (a PowerAction) String() string {
 		return "reset"
 	case ActionPowerOff:
 		return "poweroff"
+	case ActionWarmReset:
+		return "warm-reset"
 	default:
 		return fmt.Sprintf("PowerAction(%d)", uint8(a))
 	}
@@ -51,7 +54,17 @@ type PowerController interface {
 	SystemOff() error
 }
 
-var _ PowerController = (*Client)(nil)
+// WarmResetController is an optional extension implemented by PowerController
+// implementations (such as *Client) that support PSCI_SYSTEM_RESET2 architectural
+// warm resets.
+type WarmResetController interface {
+	SystemReset2(resetType uint32, cookie uint64) error
+}
+
+var (
+	_ PowerController     = (*Client)(nil)
+	_ WarmResetController = (*Client)(nil)
+)
 
 // ShutdownStep is one bounded, named containment/flush step executed before PSCI reset or poweroff.
 type ShutdownStep struct {
@@ -68,7 +81,8 @@ type ShutdownConfig struct {
 }
 
 // Shutdown runs cfg.Steps strictly in order, then invokes ctrl.SystemReset
-// (ActionReset) or ctrl.SystemOff (ActionPowerOff).
+// (ActionReset), ctrl.SystemOff (ActionPowerOff), or WarmResetController.SystemReset2(0, 0)
+// (ActionWarmReset).
 //
 // Each step runs on its own goroutine with a context that ends when ctx is done
 // or cfg.StepTimeout elapses, and Shutdown waits for the step to return before
@@ -91,7 +105,16 @@ func Shutdown(ctx context.Context, ctrl PowerController, action PowerAction, cfg
 	if ctx == nil || ctrl == nil {
 		return ErrInvalidShutdown
 	}
-	if action != ActionReset && action != ActionPowerOff {
+	var warmCtrl WarmResetController
+	switch action {
+	case ActionReset, ActionPowerOff:
+	case ActionWarmReset:
+		var ok bool
+		warmCtrl, ok = ctrl.(WarmResetController)
+		if !ok {
+			return fmt.Errorf("%w: controller does not support warm reset", ErrInvalidShutdown)
+		}
+	default:
 		return fmt.Errorf("%w: unknown action %v", ErrInvalidShutdown, action)
 	}
 	if cfg.StepTimeout < 0 {
@@ -137,6 +160,8 @@ func Shutdown(ctx context.Context, ctrl PowerController, action PowerAction, cfg
 		psciErr = ctrl.SystemReset()
 	case ActionPowerOff:
 		psciErr = ctrl.SystemOff()
+	case ActionWarmReset:
+		psciErr = warmCtrl.SystemReset2(0, 0)
 	}
 	if psciErr != nil {
 		stepErrs = append(stepErrs, psciErr)

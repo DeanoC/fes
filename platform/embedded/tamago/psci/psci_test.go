@@ -380,3 +380,114 @@ func TestHardwareEntropyNosplitStubs(t *testing.T) {
 		t.Fatalf("degenerate nosplit output a=%x b=%x", a, b)
 	}
 }
+
+func TestSMCCCVersionAffinityInfoAndProbe(t *testing.T) {
+	empty := New(nil)
+	if _, _, err := empty.SMCCCVersion(); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("nil SMCCCVersion=%v", err)
+	}
+	if _, err := empty.AffinityInfo(0, 0); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("nil AffinityInfo=%v", err)
+	}
+	if _, err := empty.Probe(); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("nil Probe=%v", err)
+	}
+
+	if AffinityOn.String() != "on" || AffinityOff.String() != "off" ||
+		AffinityOnPending.String() != "on-pending" || AffinityState(9).String() != "AffinityState(9)" {
+		t.Fatalf("AffinityState.String mismatch: %q %q %q %q",
+			AffinityOn.String(), AffinityOff.String(), AffinityOnPending.String(), AffinityState(9).String())
+	}
+
+	// PSCI 1.1 + SMCCC 1.2 + Reset2 + AffinityInfo + TRNG64.
+	var gotAffinity uint64
+	var gotLevel uint32
+	affinityRet := uint64(0)
+	c11 := New(&mockConduit{fn: func(x0, x1, x2, _ uint64) (uint64, uint64, uint64, uint64) {
+		switch uint32(x0) {
+		case FuncVersion:
+			return 0x00010001, 0, 0, 0 // PSCI 1.1
+		case FuncSMCCCVersion:
+			return 0x00010002, 0, 0, 0 // SMCCC 1.2
+		case FuncFeatures:
+			switch uint32(x1) {
+			case FuncSystemOff, FuncSystemReset, FuncSystemReset2, FuncAffinityInfo:
+				return 0, 0, 0, 0
+			default:
+				return ^uint64(0), 0, 0, 0
+			}
+		case FuncAffinityInfo:
+			gotAffinity = x1
+			gotLevel = uint32(x2)
+			return affinityRet, 0, 0, 0
+		case FuncTRNGVersion:
+			return 0x00010000, 0, 0, 0 // TRNG 1.0
+		case FuncTRNGFeatures:
+			if uint32(x1) == FuncTRNGRnd64 {
+				return 0, 0, 0, 0
+			}
+			return ^uint64(0), 0, 0, 0
+		default:
+			return ^uint64(0), 0, 0, 0
+		}
+	}})
+	smMaj, smMin, err := c11.SMCCCVersion()
+	if err != nil || smMaj != 1 || smMin != 2 {
+		t.Fatalf("SMCCCVersion=(%d.%d, %v), want 1.2", smMaj, smMin, err)
+	}
+	for _, want := range []AffinityState{AffinityOn, AffinityOff, AffinityOnPending} {
+		affinityRet = uint64(want)
+		got, err := c11.AffinityInfo(0x80000102, 1)
+		if err != nil || got != want || gotAffinity != 0x80000102 || gotLevel != 1 {
+			t.Fatalf("AffinityInfo=(%v, %v, aff=%#x, lvl=%d), want %v", got, err, gotAffinity, gotLevel, want)
+		}
+	}
+	affinityRet = uint64(^uint32(1)) // -2 = INVALID_PARAMETERS
+	if _, err := c11.AffinityInfo(0xff, 0); !errors.Is(err, ErrInvalidParameters) {
+		t.Fatalf("AffinityInfo invalid params err=%v", err)
+	}
+	affinityRet = 5 // unknown positive state
+	if _, err := c11.AffinityInfo(0, 0); err == nil {
+		t.Fatal("unknown affinity state succeeded")
+	}
+
+	caps, err := c11.Probe()
+	if err != nil {
+		t.Fatalf("Probe(1.1): %v", err)
+	}
+	wantCaps := Capabilities{
+		PSCIMajor:    1,
+		PSCIMinor:    1,
+		SMCCCMajor:   1,
+		SMCCCMinor:   2,
+		HasSMCCC:     true,
+		SystemOff:    true,
+		SystemReset:  true,
+		SystemReset2: true,
+		AffinityInfo: true,
+		TRNGMajor:    1,
+		TRNGMinor:    0,
+		TRNG64:       true,
+		TRNG32:       false,
+	}
+	if caps != wantCaps {
+		t.Fatalf("Probe(1.1)=%+v, want %+v", caps, wantCaps)
+	}
+
+	// PSCI 0.2 without SMCCC_VERSION, PSCI_FEATURES, or TRNG still reports mandatory 0.2 calls.
+	c02 := New(&mockConduit{fn: func(x0, _, _, _ uint64) (uint64, uint64, uint64, uint64) {
+		if uint32(x0) == FuncVersion {
+			return 0x00000002, 0, 0, 0
+		}
+		return ^uint64(0), 0, 0, 0
+	}})
+	caps02, err := c02.Probe()
+	if err != nil {
+		t.Fatalf("Probe(0.2): %v", err)
+	}
+	if caps02.PSCIMajor != 0 || caps02.PSCIMinor != 2 || caps02.HasSMCCC ||
+		!caps02.SystemOff || !caps02.SystemReset || !caps02.AffinityInfo || caps02.SystemReset2 ||
+		caps02.TRNG64 || caps02.TRNG32 {
+		t.Fatalf("Probe(0.2) mismatch: %+v", caps02)
+	}
+}
