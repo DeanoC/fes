@@ -437,6 +437,9 @@ func TestPoolAllocBelowAndWatermarkStats(t *testing.T) {
 	if err := bLow.Free(); err != nil {
 		t.Fatal(err)
 	}
+	if err := bLow.Free(); !errors.Is(err, ErrReleased) {
+		t.Fatalf("second Free err=%v want ErrReleased", err)
+	}
 	// Requesting a 4 KiB buffer aligned so padded span crosses 4 GiB must reject.
 	bPart, err := pool.AllocBelow(3072, 64, limit)
 	if err != nil {
@@ -453,14 +456,14 @@ func TestPoolAllocBelowAndWatermarkStats(t *testing.T) {
 	if st.LargestFreeSpan != 1024 || st.FreeBytes != 1024 {
 		t.Fatalf("free span stats=%+v", st)
 	}
-	if st.AllocCalls != 6 || st.FreeCalls != 1 || st.AllocFailures != 3 {
+	if st.AllocCalls != 6 || st.FreeCalls != 2 || st.AllocFailures != 3 {
 		t.Fatalf("call/failure stats=%+v", st)
 	}
 
 	if err := pool.freeAll([]*Buffer{bPart, bHigh}); err != nil {
 		t.Fatal(err)
 	}
-	if st := pool.Stats(); st.FreeCalls != 3 || st.LiveBuffers != 0 || st.LargestFreeSpan != 8192 {
+	if st := pool.Stats(); st.FreeCalls != 4 || st.LiveBuffers != 0 || st.LargestFreeSpan != 8192 {
 		t.Fatalf("after freeAll stats=%+v", st)
 	}
 }

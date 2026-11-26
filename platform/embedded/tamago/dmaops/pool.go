@@ -356,6 +356,7 @@ func (b *Buffer) Free() error {
 	p := b.pool
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.freeCalls++
 	if b.released {
 		return ErrReleased
 	}
@@ -369,7 +370,6 @@ func (b *Buffer) Free() error {
 	b.data = nil
 	p.allocatedBytes -= b.cap
 	p.liveBuffers--
-	p.freeCalls++
 	p.insertFreeLocked(b.offset, b.cap)
 	return nil
 }
