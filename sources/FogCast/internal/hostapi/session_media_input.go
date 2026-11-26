@@ -3,6 +3,7 @@ package hostapi
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/DeanoC/FogCast/fogcast"
@@ -192,7 +193,7 @@ func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.
 		return playHIDLeaseError()
 	}
 	if s.remoteInput == nil {
-		return host.ErrRemoteInputNoStream
+		return errRemoteInputDisabled
 	}
 	status := s.remoteInput.Status()
 	if status.State != host.RemoteInputAttached && status.State != host.RemoteInputReconnecting {
@@ -212,7 +213,7 @@ func (s *sessionCoordinator) tapCoreKey(ctx context.Context, sessionID string, e
 		return 0, playHIDLeaseError()
 	}
 	if s.remoteInput == nil {
-		return 0, host.ErrRemoteInputNoStream
+		return 0, errRemoteInputDisabled
 	}
 	// Only a negotiated HID keyboard accepts physical usages unchanged. The
 	// target silently drops unsupported usages on native and matrix cores.
@@ -317,7 +318,7 @@ func playHIDLeaseError() error {
 func (s *sessionCoordinator) attachInput(ctx context.Context) (sessionResult, error) {
 	ctx = s.scoped(ctx)
 	if s.remoteInput == nil {
-		return sessionResult{}, remoteInputError()
+		return sessionResult{}, errRemoteInputDisabled
 	}
 	if !s.begin() {
 		return sessionResult{}, busyError()
@@ -361,7 +362,7 @@ func (s *sessionCoordinator) attachInput(ctx context.Context) (sessionResult, er
 func (s *sessionCoordinator) detachInput(ctx context.Context) (sessionResult, error) {
 	ctx = s.scoped(ctx)
 	if s.remoteInput == nil {
-		return sessionResult{}, remoteInputError()
+		return sessionResult{}, errRemoteInputDisabled
 	}
 	if !s.begin() {
 		return sessionResult{}, busyError()
@@ -388,6 +389,22 @@ func remoteInputReconcileError(err error) error {
 		return err
 	}
 	return remoteInputError()
+}
+
+// errRemoteInputDisabled reports a host whose configuration has no
+// [remote_input] section enabled, so this session has no input bridge. It is
+// a host configuration state, not a target failure, and must not read as
+// MISTER_UNAVAILABLE or as a dropped stream.
+var errRemoteInputDisabled = errors.New("remote input is not enabled in this host's configuration")
+
+// writeRemoteInputDisabled reports whether err was errRemoteInputDisabled and,
+// if so, writes its 503 INPUT_UNAVAILABLE response.
+func writeRemoteInputDisabled(w http.ResponseWriter, err error) bool {
+	if !errors.Is(err, errRemoteInputDisabled) {
+		return false
+	}
+	writeError(w, http.StatusServiceUnavailable, "INPUT_UNAVAILABLE", errRemoteInputDisabled.Error())
+	return true
 }
 
 func remoteInputError() error {

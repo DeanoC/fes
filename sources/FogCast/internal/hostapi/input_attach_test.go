@@ -1,10 +1,12 @@
 package hostapi_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/protocol"
@@ -136,5 +138,33 @@ func TestInputDetachDoesNotApplyOldExecutionToExternalReplacement(t *testing.T) 
 				t.Fatalf("status after external replacement: %d %s", observed.Code, observed.Body)
 			}
 		})
+	}
+}
+
+// A host without [remote_input] enabled has no input bridge. Every input
+// mutation must say so, rather than blame the target (MISTER_UNAVAILABLE) or a
+// dropped stream. The DE25 HIL private host hit exactly this (fes#2262).
+func TestInputRoutesReportRemoteInputDisabled(t *testing.T) {
+	service := &fakeService{status: tapHIDStatus(), connection: fogcast.TargetConnection{State: "active"}}
+	handler := hostapi.New(service)
+	tap := `{"session_id":"any","event":{"Device":0,"Kind":0,"Action":1,"Code":4115,"Value":0}}`
+	event := `{"event":{"Device":0,"Kind":0,"Action":1,"Code":4115,"Value":0}}`
+	for _, tc := range []struct{ path, body string }{
+		{"/api/v1/session/input/attach", ""},
+		{"/api/v1/session/input/detach", ""},
+		{"/api/v1/session/input/tap", tap},
+		{"/api/v1/session/input/event", event},
+	} {
+		response := serveBody(t, handler, http.MethodPost, tc.path, tc.body)
+		var body struct {
+			Error struct{ Code, Message string } `json:"error"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			t.Fatalf("%s: %d %s", tc.path, response.Code, response.Body)
+		}
+		if response.Code != http.StatusServiceUnavailable || body.Error.Code != "INPUT_UNAVAILABLE" ||
+			!strings.Contains(body.Error.Message, "not enabled in this host's configuration") {
+			t.Fatalf("%s: %d %s", tc.path, response.Code, response.Body)
+		}
 	}
 }

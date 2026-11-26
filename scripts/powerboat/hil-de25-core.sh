@@ -116,8 +116,44 @@ new_frames = old_frames + """
             check("boot_screen", bs.returncode == 0 and len(frames) == 2, bs.stdout.strip()[:400])"""
 if old_frames not in s: raise SystemExit('HIL smoke core frame capture changed')
 s=s.replace(old_frames,new_frames,1)
+old_video = '    check("core_video", ok, f"{s1} / {s2} (bright_frac info only)")'
+new_video = old_video + """
+    # Type one key through the host's supported input path: the launch
+    # attaches remote input, then a confirmed HID tap. A raw frame on the
+    # kit's local-input socket is not this path, because managed kits fence
+    # raw keys there by design. ZX81 K mode turns P into PRINT on the edit
+    # line at the bottom of the screen, outside center_sha, so compare whole
+    # frames with a noise-tolerant pixel diff.
+    def frame_delta(a, b):
+        def rgb(n):
+            return subprocess.run(["ffmpeg", "-loglevel", "error", "-i", str(FR / (n + ".png")), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
+        x, y = rgb(a), rgb(b)
+        if not x or len(x) != len(y):
+            return None
+        n = d = 0
+        for i in range(0, len(x) - 2, 12):
+            n += 1
+            d += abs(x[i] - y[i]) + abs(x[i + 1] - y[i + 1]) + abs(x[i + 2] - y[i + 2]) > 96
+        return d / n
+    tap_code = {"fes.zx81": 0x1013}.get(os.environ.get("C_CORE_ID", ""))
+    if tap_code:
+        inp = {}
+        for _ in range(10):
+            inp = req("/api/v1/session/input", "input-before-type")
+            if inp.get("state") == "attached" and inp.get("ready") and inp.get("session_id"):
+                break
+            time.sleep(1)
+        idle = frame_delta("10-core", "11-core")
+        typed = req("/api/v1/session/input/tap", "input-tap", {"session_id": inp.get("session_id"),
+            "event": {"Player": 0, "Device": 0, "Kind": 0, "Action": 1, "Code": tap_code, "Value": 0}})
+        grab("12-typed", 2)
+        delta = frame_delta("11-core", "12-typed")
+        check("keyboard_reaches_core", typed.get("ok") is True and idle is not None and delta is not None and idle < 0.0005 and delta > 0.001,
+            f"tap={tap_code:#x} idle_delta={idle} typed_delta={delta}")"""
+if old_video not in s: raise SystemExit('HIL smoke core video check changed')
+s=s.replace(old_video,new_video,1)
 compile(s, str(p), 'exec')
-if 'C_API' not in s or 'session-after-stop' not in s or 'boot-screen.json' not in s: raise SystemExit('D25 smoke patch verification failed')
+if 'C_API' not in s or 'session-after-stop' not in s or 'boot-screen.json' not in s or 'keyboard_reaches_core' not in s: raise SystemExit('D25 smoke patch verification failed')
 p.write_text(s)
 PY
 fi
@@ -140,6 +176,8 @@ fail(){ echo "$*" | tee -a "$D/logs/driver.log"; }
 # Verify the authenticated network endpoint's independent hardware identity before mutation.
 if ! /home/deano/lander-hilq/kits/kssh D25 "test \"\$(cat /sys/class/net/eth0/address)\" = 02:8e:2a:b1:d3:bd" >"$D/logs/identity.txt" 2>&1; then fail "network MAC identity check failed"; echo NOTSTARTED > "$D/verdict"; exit 3; fi
 # Copy the host library to a run-local home and point a private API at J8G.
+# Enable remote input: without it the host has no input bridge, so attach,
+# tap and event all fail and no typed key reaches the core (fes#2262).
 mkdir -p "$SWAP_HOME/.config/fogcast" "$SWAP_HOME/.local/share" "$SWAP_HOME/bin"
 cp -a /home/deano/.local/share/fogcast "$SWAP_HOME/.local/share/"
 CHECKED_OUT_HEAD=$(git -C "$FES_SOURCE" rev-parse HEAD)
@@ -156,7 +194,7 @@ import os,re,sys
 token=os.environ['FOGCAST_AGENT_TOKEN']
 if not re.fullmatch(r'[A-Za-z0-9._~-]{32,256}', token): raise SystemExit('invalid J8G credential')
 def quote(value): return '"' + value.replace('\\','\\\\').replace('"','\\"') + '"'
-src='selected_target = "de25"\nrequest_timeout_seconds = 5\nupload_timeout_seconds = 60\n\n[[targets]]\nname = "de25"\nenabled = true\naddress = "http://192.168.10.119:8182"\ntarget_id = "e2a51a4f-bae2-4041-a4e4-51f6774d4e45"\nagent = ' + quote(token) + '\n'
+src='selected_target = "de25"\nrequest_timeout_seconds = 5\nupload_timeout_seconds = 60\n\n[[targets]]\nname = "de25"\nenabled = true\naddress = "http://192.168.10.119:8182"\ntarget_id = "e2a51a4f-bae2-4041-a4e4-51f6774d4e45"\nagent = ' + quote(token) + '\n\n[remote_input]\nenabled = true\n'
 p=Path(sys.argv[1]); p.write_text(src); p.chmod(0o600)
 PY
 unset AGENT_TOKEN
