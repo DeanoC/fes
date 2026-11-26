@@ -114,3 +114,33 @@ input paths, 18 setup source paths, regenerated CPU and benches, exact
 clock and guest rates, game commands and disk images match through the
 exercised inputs. The 105-artifact receipt reverified the retained G2,
 G4 and G5 runs, including the completed Quake RTL window.
+
+## C0 = 32
+
+At 97.916667 MHz the [completed replay receipt](sim-c32.complete.json)
+verifies 112 artifacts from source `7e3227f68081a30c8d920a060eeaa930ab880357`.
+The [input comparison receipt](sim-c32-54fe2d45.complete.json) binds the
+results to the fitted `54fe2d45ac1d97779aa81584d87c90853e84b066`.
+The comparison matches 163 retained repository inputs and 34 executed
+setup paths, ordered Verilator dependencies, the regenerated presenter,
+and the exact guest rates. Both game CPUs used the eight-cycle presenter
+with SHA-256 `7437e4b680112d6d8e5fb7ecf5a0a65f92ba937148b9bfbdfe1550703bdf8167`.
+
+G2 passed L3 with 18,820 corpus tests, 4,000 random programs and 131 x87
+cases for each CPU. L4 passed 148 directed and 56,000 random programs for
+each CPU. The x87 benches passed 18,337 unit checks, 23,795 transcendental
+checks and 3,356,352 TestFloat vectors. The regenerated TestFloat binary
+has a new digest. Its 84 executed vector streams match the archived
+fixtures byte for byte.
+
+G4 passed 3DBench and Doom with DX/reference CPI ratios of 1.016157 and
+1.053878. The Doom result normalizes to 2,173.097 DX-33 realtics against
+the 4,682 limit.
+
+Quake reached the first inspected demo frame at 16.000 guest seconds and
+exited 0 after the full 20-second RTL window at 24.600 seconds, cycle
+2,408,755,362. The RTL retired 566,870,443 instructions, including
+378,772,406 in protected mode. The log and profile show zero oracle
+fallback, scanout, presenter or plane underflows and capture drops, with
+no stop, shutdown or reset. The final frame shows the running Necropolis
+demo. [G5 full-window receipt](quake-c32-full.json)

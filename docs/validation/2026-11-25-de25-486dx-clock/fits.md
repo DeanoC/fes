@@ -505,12 +505,14 @@ against the 3.9 ns cap.
 The retained `c32-qualifier/summary.json` SHA-256 is
 `0dbfb9dfbe46203a0ccebff68189576dedf7ff1208b21fe403cc5f3229e2635f`.
 The exact software comparison from `7e3227f6` to `54fe2d45` matched
-all exercised sources and generated simulation inputs. G2 and G4 pass.
+all exercised sources and generated simulation inputs. G2, G4 and G5 pass.
 Quake announced `DEMO1.DEM` at guest time 13 seconds and rendered the
 first inspected Necropolis demo frame at 16 seconds after passing the
 prior FNINIT stall. The first-frame receipt SHA-256 is
 `97f4feecad82139755b224bf90017442d9709c9f8d32b7568c57a7c2975b2937`.
-The full RTL window is still running.
+The [full RTL window](quake-c32-full.json) ended at 24.600 guest seconds.
+The [functional replay record](simulation.md#c0--32) binds these results
+to the timing-qualified candidate.
 
 ## C0 = 30 generation preflight
 
@@ -608,6 +610,44 @@ pins. A window interconnect module rename accounts for each byte change
 in the parent and interconnect. Both producers stopped at the expected
 old parent pin check before fitting. The archived raw inputs and review
 reports were verified after transfer to Powerboat.
+
+## C0 = 28 first fits
+
+The Powerboat seed 1 build at `24969db5f1225d5b4edc64597dda3bed55c7a878`
+reproduced the reviewed 111.904762 MHz Qsys parent and all ten other raw
+input pins. The `c28-first/parent-s1-audit.txt` SHA-256 is
+`707b693ba6f504a360261dd750eb362e5a2018c90c298b13a3e45c6488a84556`.
+
+| Seed | ALMs | Worst setup | Worst hold | Worst recovery | Worst removal | LOADED | Seed summary SHA-256 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 45,180.0 | +0.098 ns | 0.000 ns | +6.171 ns | +0.027 ns | 2.628 ns | `82344857d65ea78f06b24865b517be90c4384f50336dc9ec2b4a089c1c89770c` |
+| 2 | 45,154.4 | +0.345 ns | 0.000 ns | +6.062 ns | +0.057 ns | 3.196 ns | `22b2d85f94ab761a59b9b2c06be004abfee96c9b677765b95a4c65a529326c7e` |
+
+The first two seeds reported zero `CDC-50003` violations. Seed 2 passed
+the ordinary producer, seal and independent LOADED check. Seed 1's worst
+setup path runs from the x87 register file to the enable on
+`cpu_x87_sh_src[10]`, through the store conversion's shift decision in
+`S_PRE`. Seed 2's lead paths traverse operand B's leading-zero count and
+exponent adjustment in `A_PNA`. Both cones are in the x87 wrapper.
+Seed 1's producer refused the fit on one uncovered `TMC-20602` row named
+`cpu_halted~DUPLICATE_Duplicate`. The existing fallback reproduced all 980
+numeric checks across the 35 non-original tension subjects. A separate
+Pro 26.3 replay on a byte-verified copy of the fitted database passed all
+28 numerical and eight structural checks for the exact new node. Its
+7,050 outgoing and 65 incoming data keepers all use the machine clock.
+Worst setup and hold slack were +2.049 and +0.147 ns. The detailed
+unconstrained-path report contained no match for the node. The retained
+`c28-retimed-proof/s1/receipt.json` SHA-256 is
+`eccec60883691fd767c28b1cbab6c56a29d7d6b1d7a34474999fec5ba3e4cf73`.
+
+Revision `e77e2ef0b95908dc06c54d169decc0a600b304ba` nominates only that
+exact spelling for the existing DX-only live proof. The plain register
+and previously reviewed copies retain their existing basis. The fitted
+proof still checks the exact clock ownership, keeper topology, path
+coverage and all four corners before admission. The candidate passed
+86 focused tests and `make check`. A same-checkout DE10 comparison
+verified identical raw netlist bytes and all four record identities.
+The seven D12 selections still match the frozen base and measured B.
 
 ## Running a seed on either builder
 
