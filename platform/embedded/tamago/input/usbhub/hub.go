@@ -597,12 +597,12 @@ func (h *Hub) GamepadDevicesInto(dst []GamepadDevice) int {
 				}
 			}
 		}
-		var vendor, product uint16
+		var vendor, product, version uint16
 		identityName := rawName
 		if h.bt != nil {
 			if ps, ok := h.bt.Player(uint8(i)); ok {
-				bondName, bondVendor, bondProduct := h.bluetoothIdentity(ps.Addr)
-				vendor, product = bondVendor, bondProduct
+				bondName, bondVendor, bondProduct, bondVersion := h.bluetoothIdentity(ps.Addr)
+				vendor, product, version = bondVendor, bondProduct, bondVersion
 				if identityName == "" {
 					identityName = bondName
 				}
@@ -622,6 +622,7 @@ func (h *Hub) GamepadDevicesInto(dst []GamepadDevice) int {
 			IdentityName: identityName,
 			Vendor:       vendor,
 			Product:      product,
+			Version:      version,
 			Kind:         kind,
 			Bluetooth:    true,
 			Player:       player,
@@ -634,15 +635,15 @@ func (h *Hub) GamepadDevicesInto(dst []GamepadDevice) int {
 	return count
 }
 
-func (h *Hub) bluetoothIdentity(addr l2cap.BDAddr) (name string, vendor, product uint16) {
+func (h *Hub) bluetoothIdentity(addr l2cap.BDAddr) (name string, vendor, product, version uint16) {
 	if h == nil || h.cfg.Bonds == nil {
-		return "", 0, 0
+		return "", 0, 0, 0
 	}
 	rec, ok := h.cfg.Bonds.Lookup(addr)
 	if !ok {
-		return "", 0, 0
+		return "", 0, 0, 0
 	}
-	return rec.Name, rec.VendorID, rec.ProductID
+	return rec.Name, rec.VendorID, rec.ProductID, rec.Version
 }
 
 func friendlyGamepadName(kind controllers.Kind, rawName string, bluetooth bool) string {

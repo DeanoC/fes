@@ -650,18 +650,18 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 			}
 			p.prevHome = upd.HomePressed
 			p.rawCtrlPorts = upd.Ports
+			states := upd.Pads[:upd.PadCount]
+			if upd.PadCount == 0 && p.cfg.App != nil {
+				states = p.livePadStatesInto(liveBuf[:])
+			}
 			if p.nativeControllers {
-				states := upd.Pads[:upd.PadCount]
-				if upd.PadCount == 0 && p.cfg.App != nil {
-					states = p.livePadStatesInto(liveBuf[:])
-				}
 				if err := p.writeControllerPorts(ctx, p.effectiveControllerPortsFromStates(p.rawCtrlPorts, states)); err != nil {
 					b.inputFault = err
 					return nil, err
 				}
 				continue
 			}
-			p.padRows = p.cfg.CoreKeys.rows(upd.State)
+			p.padRows = p.effectiveCoreRowsFromStates(upd.State, states)
 			if err := p.keyboard.state.writeRows(ctx, combineRows(p.kbRows, p.padRows)); err != nil {
 				b.inputFault = err
 				return nil, err
@@ -712,10 +712,21 @@ func (p *ProgramMultiInputPlatform) poll(ctx context.Context, buffer bool) ([]in
 	if p.cfg.App != nil && !usedQueuedPads && (p.padCount > 0 || len(p.pads) > 0) {
 		live := p.livePadStatesInto(liveBuf[:])
 		p.processPadStates(live, pollNow)
-		if v.State == ProgramRunning && p.padArmed && p.nativeControllers && !p.returnRequested && len(live) > 0 {
-			if err := p.writeControllerPorts(ctx, p.effectiveControllerPortsFromStates(p.rawCtrlPorts, live)); err != nil {
-				b.inputFault = err
-				return nil, err
+		if v.State == ProgramRunning && p.padArmed && !p.returnRequested && len(live) > 0 {
+			if p.nativeControllers {
+				if err := p.writeControllerPorts(ctx, p.effectiveControllerPortsFromStates(p.rawCtrlPorts, live)); err != nil {
+					b.inputFault = err
+					return nil, err
+				}
+			} else if p.hasActivePadProfile(live) {
+				nextRows := p.effectiveCoreRowsFromStates(usb.GamepadState{Hat: -1}, live)
+				if nextRows != p.padRows {
+					p.padRows = nextRows
+					if err := p.keyboard.state.writeRows(ctx, combineRows(p.kbRows, p.padRows)); err != nil {
+						b.inputFault = err
+						return nil, err
+					}
+				}
 			}
 		}
 		if v.State == ProgramReady && p.padArmed && len(live) > 0 {
@@ -1229,6 +1240,73 @@ func parseMultiMapping(mapping string) map[string]remoteinput.Code {
 		}
 	}
 	return sources
+}
+
+func (p *ProgramMultiInputPlatform) hasActivePadProfile(states []usbhub.GamepadPadState) bool {
+	for _, st := range states {
+		if tracked := p.pads[st.ID]; tracked != nil && tracked.profile != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *ProgramMultiInputPlatform) effectiveCoreRowsFromStates(base usb.GamepadState, states []usbhub.GamepadPadState) [9]uint16 {
+	if len(states) == 0 || !p.hasActivePadProfile(states) {
+		return p.cfg.CoreKeys.rows(base)
+	}
+	var rows [9]uint16
+	for _, st := range states {
+		var padState usb.GamepadState
+		if tracked := p.pads[st.ID]; tracked != nil && tracked.profile != nil {
+			padState = usbGamepadStateFromControls(remappedControls(st, tracked.profile))
+		} else {
+			padState = (controllers.State{Buttons: st.Buttons, LeftX: st.LeftX, LeftY: st.LeftY}).ToUSBGamepadState()
+		}
+		rows = combineRows(rows, p.cfg.CoreKeys.rows(padState))
+	}
+	return rows
+}
+
+func usbGamepadStateFromControls(c map[remoteinput.Code]bool) usb.GamepadState {
+	var btns controllers.Button
+	if c[remoteinput.ButtonDPadUp] {
+		btns |= controllers.ButtonDPadUp
+	}
+	if c[remoteinput.ButtonDPadDown] {
+		btns |= controllers.ButtonDPadDown
+	}
+	if c[remoteinput.ButtonDPadLeft] {
+		btns |= controllers.ButtonDPadLeft
+	}
+	if c[remoteinput.ButtonDPadRight] {
+		btns |= controllers.ButtonDPadRight
+	}
+	if c[remoteinput.ButtonA] {
+		btns |= controllers.ButtonSouth
+	}
+	if c[remoteinput.ButtonB] {
+		btns |= controllers.ButtonEast
+	}
+	if c[remoteinput.ButtonX] {
+		btns |= controllers.ButtonWest
+	}
+	if c[remoteinput.ButtonY] {
+		btns |= controllers.ButtonNorth
+	}
+	if c[remoteinput.ButtonL] {
+		btns |= controllers.ButtonL1
+	}
+	if c[remoteinput.ButtonR] {
+		btns |= controllers.ButtonR1
+	}
+	if c[remoteinput.ButtonSelect] {
+		btns |= controllers.ButtonSelect
+	}
+	if c[remoteinput.ButtonStart] {
+		btns |= controllers.ButtonStart
+	}
+	return (controllers.State{Buttons: btns}).ToUSBGamepadState()
 }
 
 func (p *ProgramMultiInputPlatform) effectiveControllerPortsFromStates(base [usbhub.MaxPlayerPorts]uint8, states []usbhub.GamepadPadState) [usbhub.MaxPlayerPorts]uint8 {

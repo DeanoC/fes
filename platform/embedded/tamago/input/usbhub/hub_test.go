@@ -1943,7 +1943,7 @@ func TestHubBluetoothIdentityUsesBondValues(t *testing.T) {
 	bonds := l2cap.NewBondStore()
 	addr := l2cap.BDAddr{1, 2, 3, 4, 5, 6}
 	if err := bonds.Upsert(l2cap.BondRecord{
-		Addr: addr, Name: "DualSense Wireless Controller", VendorID: 0x054c, ProductID: 0x0ce6,
+		Addr: addr, Name: "DualSense Wireless Controller", VendorID: 0x054c, ProductID: 0x0ce6, Version: 0x0100,
 	}); err != nil {
 		t.Fatalf("Upsert bond: %v", err)
 	}
@@ -1953,9 +1953,9 @@ func TestHubBluetoothIdentityUsesBondValues(t *testing.T) {
 	}
 	defer hub.Close()
 
-	name, vendor, product := hub.bluetoothIdentity(addr)
-	if name != "DualSense Wireless Controller" || vendor != 0x054c || product != 0x0ce6 {
-		t.Fatalf("bond identity = (%q, %#04x, %#04x)", name, vendor, product)
+	name, vendor, product, version := hub.bluetoothIdentity(addr)
+	if name != "DualSense Wireless Controller" || vendor != 0x054c || product != 0x0ce6 || version != 0x0100 {
+		t.Fatalf("bond identity = (%q, %#04x, %#04x, %#04x)", name, vendor, product, version)
 	}
 }
 

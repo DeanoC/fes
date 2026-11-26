@@ -20,6 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	linuxcontroller "github.com/DeanoC/FogCast/ui/controller"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
@@ -37,7 +38,7 @@ func TestTamagoPadGUIDMatchesFogCastControllerGUID(t *testing.T) {
 		},
 		{
 			Name: "DualSense Wireless Controller", IdentityName: "DualSense Wireless Controller",
-			Vendor: 0x054c, Product: 0x0ce6, Bluetooth: true,
+			Vendor: 0x054c, Product: 0x0ce6, Version: 0x0100, Bluetooth: true,
 		},
 		{
 			Name: "Name-only USB pad", IdentityName: "123456789ABC", Bluetooth: false,
@@ -1817,5 +1818,130 @@ func TestProgramMultiInputPlatformQueuedPadEdgesAndGenericHIDLearn(t *testing.T)
 	if f.cpu.controllerWrites != writesBefore+2 || f.cpu.controllerPorts[0] != 0 {
 		t.Fatalf("expected 2 core port writes for queued b10 press+release and final 0, got delta=%d ports=%#v",
 			f.cpu.controllerWrites-writesBefore, f.cpu.controllerPorts)
+	}
+}
+
+func TestProgramMultiInputPlatformProfilesApplyToKeyboardEmulatedCore(t *testing.T) {
+	var prefs *ProgramPreferences
+	f, b, c := backendFixture(t, func(f *serviceFixture) {
+		var err error
+		prefs, err = LoadProgramPreferences(context.Background(), f.s.state.store, false)
+		if err != nil {
+			t.Fatalf("LoadProgramPreferences: %v", err)
+		}
+		if err := f.s.AttachPreferences(prefs); err != nil {
+			t.Fatalf("AttachPreferences: %v", err)
+		}
+	})
+	xboxPad := usbhub.GamepadDevice{
+		ID:           1,
+		Name:         "Microsoft X-Box 360 pad",
+		IdentityName: "Microsoft X-Box 360 pad",
+		Vendor:       0x045e,
+		Product:      0x028e,
+		Version:      0x0114,
+		Kind:         controllers.KindXInput,
+		Player:       1,
+	}
+	hidPad := usbhub.GamepadDevice{
+		ID:           2,
+		Name:         "Arcade Vendor Arcade HID Gamepad",
+		IdentityName: "Arcade Vendor Arcade HID Gamepad",
+		Vendor:       0x081f,
+		Product:      0xe401,
+		Version:      0x0114,
+		Kind:         controllers.KindGenericHID,
+		Player:       2,
+	}
+	rawPrefs, err := json.Marshal(struct {
+		Controllers map[string]inputmap.Profile `json:"controllers"`
+	}{
+		Controllers: map[string]inputmap.Profile{
+			tamagoPadInfo(xboxPad).GUID: {Preset: inputmap.PresetSwapAB},
+			tamagoPadInfo(hidPad).GUID:  {Mapping: "a:b10,dpup:h0.1"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal prefs: %v", err)
+	}
+	if err := prefs.WritePreferences(rawPrefs); err != nil {
+		t.Fatalf("WritePreferences: %v", err)
+	}
+	client := tenfoot.NewClient("http://native.invalid", &http.Client{Transport: b, Timeout: 5 * time.Second})
+	app := tenfoot.NewApp(client, 1280, 720, 40)
+	if err := app.SetPreferenceStore(prefs); err != nil {
+		t.Fatalf("SetPreferenceStore: %v", err)
+	}
+
+	src := newFakeMultiSource()
+	src.setPadDevices(xboxPad, hidPad)
+	cfg := multiTestConfig()
+	cfg.App = app
+	cfg.Preferences = prefs
+	p, err := NewProgramMultiInputPlatform(&programInputBase{}, b, src, cfg)
+	if err != nil {
+		t.Fatalf("NewProgramMultiInputPlatform: %v", err)
+	}
+	step := func() {
+		t.Helper()
+		if _, err := p.Next(context.Background()); err != nil {
+			t.Fatalf("Next: %v", err)
+		}
+	}
+
+	// Arm in menu and verify profiles loaded on both pads.
+	src.pads(usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}})
+	step()
+
+	// Launch a keyboard-emulated core (no FesComputerCapabilityGamepadPorts).
+	ctx := context.Background()
+	play, err := c.Launch(ctx, "native-0")
+	if err != nil || play.ErrorCode != "" {
+		t.Fatalf("Launch failed: play=%+v err=%v", play, err)
+	}
+	step() // Enter ProgramRunning & sync padArmed.
+
+	// Swap A/B on P1: raw ButtonEast (physical B) must drive CoreKeys.Buttons[0] (0x16 -> rows[1]=1<<6).
+	xboxPad.Buttons = controllers.ButtonEast
+	src.setPadDevices(xboxPad, hidPad)
+	updSwap := usbhub.GamepadUpdate{
+		State:    usb.GamepadState{Buttons: uint32(controllers.ButtonEast), Hat: -1},
+		PadCount: 1,
+	}
+	updSwap.Pads[0] = usbhub.GamepadPadState{ID: 1, Player: 1, Buttons: controllers.ButtonEast}
+	src.pads(updSwap)
+	step()
+	wantARows := [9]uint16{1: 1 << 6}
+	if f.cpu.keyboardRows != wantARows {
+		t.Fatalf("expected swapped ButtonEast -> CoreKeys.Buttons[0] (%v), got %v", wantARows, f.cpu.keyboardRows)
+	}
+
+	// Release P1, then press learned b10 (ButtonL3 -> A) on P2.
+	xboxPad.Buttons = 0
+	src.setPadDevices(xboxPad, hidPad)
+	src.pads(usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}})
+	step()
+	if f.cpu.keyboardRows != ([9]uint16{}) {
+		t.Fatalf("expected released keyboardRows, got %v", f.cpu.keyboardRows)
+	}
+
+	hidPad.Buttons = controllers.ButtonL3
+	src.setPadDevices(xboxPad, hidPad)
+	updLearn := usbhub.GamepadUpdate{
+		State:    usb.GamepadState{Buttons: uint32(controllers.ButtonL3), Hat: -1},
+		PadCount: 1,
+	}
+	updLearn.Pads[0] = usbhub.GamepadPadState{ID: 2, Player: 2, Buttons: controllers.ButtonL3}
+	src.pads(updLearn)
+	step()
+	if f.cpu.keyboardRows != wantARows {
+		t.Fatalf("expected learned b10 -> CoreKeys.Buttons[0] (%v), got %v", wantARows, f.cpu.keyboardRows)
+	}
+	hidPad.Buttons = 0
+	src.setPadDevices(xboxPad, hidPad)
+	src.pads(usbhub.GamepadUpdate{State: usb.GamepadState{Hat: -1}})
+	step()
+	if f.cpu.keyboardRows != ([9]uint16{}) {
+		t.Fatalf("expected released keyboardRows after learned b10 release, got %v", f.cpu.keyboardRows)
 	}
 }
