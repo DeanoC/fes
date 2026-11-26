@@ -149,6 +149,63 @@ func TestKitHostWithoutDurableStorageReportsItUnavailable(t *testing.T) {
 	}
 }
 
+func TestKitHostStoreFailureAfterOpenReportsItUnavailable(t *testing.T) {
+	ctx := context.Background()
+	s, _, factory, _ := kitHostService(t)
+	id := unpackFactoryPackage(t, factory, libraryPackageFixture(t, "1.0.0"))
+	// The view has already opened and served a durable list. Losing its lock
+	// afterwards must withhold factory packages and report the same 503 code
+	// as an agent store failure, not the host's generic INTERNAL error.
+	if err := os.Remove(filepath.Join(filepath.Dir(factory), "core-library", ".lock")); err != nil {
+		t.Fatal(err)
+	}
+	archive := libraryPackageFixture(t, "2.0.0")
+	_, listErr := s.CorePackages(ctx)
+	_, inspectErr := s.CorePackage(ctx, id)
+	_, _, readErr := s.readInstalledCore(ctx, id)
+	_, _, importErr := s.ImportCorePackage(ctx, int64(len(archive)), bytes.NewReader(archive))
+	for name, err := range map[string]error{"list": listErr, "inspect": inspectErr, "read": readErr, "import": importErr} {
+		var apiErr *protocol.APIError
+		if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeCorePackageStoreUnavailable || apiErr.Message != coreStoreUnavailableMessage {
+			t.Fatalf("%s error = %v, want %s", name, err, protocol.CodeCorePackageStoreUnavailable)
+		}
+	}
+}
+
+func TestKitHostPackageViewsPreserveContextErrors(t *testing.T) {
+	s, _, factory, _ := kitHostService(t)
+	id := unpackFactoryPackage(t, factory, libraryPackageFixture(t, "1.0.0"))
+
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	deadline, cancelDeadline := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancelDeadline()
+
+	for _, tc := range []struct {
+		name string
+		ctx  context.Context
+		want error
+	}{
+		{name: "canceled", ctx: canceled, want: context.Canceled},
+		{name: "deadline", ctx: deadline, want: context.DeadlineExceeded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, listErr := s.CorePackages(tc.ctx)
+			_, inspectErr := s.CorePackage(tc.ctx, id)
+			_, _, readErr := s.readInstalledCore(tc.ctx, id)
+			for name, err := range map[string]error{"list": listErr, "inspect": inspectErr, "read": readErr} {
+				if !errors.Is(err, tc.want) {
+					t.Errorf("%s error = %v, want context cause %v", name, err, tc.want)
+				}
+				var apiErr *protocol.APIError
+				if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeCorePackageStoreUnavailable {
+					t.Errorf("%s error = %v, want store-unavailable API error", name, err)
+				}
+			}
+		})
+	}
+}
+
 func TestCorePackagesKitSurvivesACanonicalConfigRewrite(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	content := `base_url = "http://192.0.2.20:8182"

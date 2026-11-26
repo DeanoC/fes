@@ -3458,8 +3458,11 @@ unpacked members or decoding a ROM map again; mister-agent verifies those bytes
 before programming, and its own select and launch paths keep the full `Read`. If
 the durable store cannot be opened, the host follows
 the agent: it withholds the factory packages too and reports HTTP 503
-`CORE_PACKAGE_STORE_UNAVAILABLE` for list, inspect, read and import, carrying
-the open error. It retries the open at most every five seconds, so a host that
+`CORE_PACKAGE_STORE_UNAVAILABLE` for list, inspect, read and import. The
+public response has a generic message; the host logs an open failure. The same
+store-unavailable response applies if a durable operation fails after opening,
+while invalid package input and a missing package retain their own errors.
+The host retries a failed open at most every five seconds, so a host that
 starts before FESDATA3 is ready recovers without a restart.
 
 ## Installed core packages and library entries

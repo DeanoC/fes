@@ -102,7 +102,10 @@ func (s *Service) CorePackages(ctx context.Context) ([]InstalledCorePackage, err
 	}
 	values, err := s.corePackages.List(ctx)
 	if errors.Is(err, kitpackages.ErrStoreUnavailable) {
-		return nil, canonicalError(protocol.CodeCorePackageStoreUnavailable, nil)
+		return nil, canonicalError(protocol.CodeCorePackageStoreUnavailable, safeContextError(err))
+	}
+	if errors.Is(err, kitpackages.ErrInvalidPackage) || errors.Is(err, kitpackages.ErrInvalidPackageID) {
+		return nil, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	if err != nil {
 		return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
@@ -167,7 +170,10 @@ func installedCoreError(err error) error {
 		return canonicalError(protocol.CodeROMNotFound, nil)
 	}
 	if errors.Is(err, kitpackages.ErrStoreUnavailable) {
-		return canonicalError(protocol.CodeCorePackageStoreUnavailable, nil)
+		return canonicalError(protocol.CodeCorePackageStoreUnavailable, safeContextError(err))
+	}
+	if errors.Is(err, kitpackages.ErrInvalidPackage) || errors.Is(err, kitpackages.ErrInvalidPackageID) {
+		return canonicalError(protocol.CodeBadRequest, nil)
 	}
 	return canonicalError(protocol.CodeInternal, safeContextError(err))
 }
