@@ -639,8 +639,13 @@ func TestControlIPCCanceledRequestDoesNotCommitDelayedStartOrForget(t *testing.T
 
 	startSeen := make(chan struct{})
 	releaseStart := make(chan struct{})
+	startReplySent := make(chan struct{})
+	stopSeen := make(chan struct{})
 	removeSeen := make(chan struct{})
 	releaseRemove := make(chan struct{})
+	var releaseStartOnce sync.Once
+	releaseStartNow := func() { releaseStartOnce.Do(func() { close(releaseStart) }) }
+	defer releaseStartNow()
 
 	go func() {
 		defer serverConn.Close()
@@ -654,8 +659,16 @@ func TestControlIPCCanceledRequestDoesNotCommitDelayedStartOrForget(t *testing.T
 		if err != nil || begin != "BEGIN\r\n" {
 			return
 		}
-		var serial uint32
-		next := func() uint32 { serial++; return serial }
+		var (
+			serial  uint32
+			writeMu sync.Mutex
+		)
+		writeReply := func(replyTo uint32, sig string, body []byte) error {
+			writeMu.Lock()
+			defer writeMu.Unlock()
+			serial++
+			return reply(serverConn, serial, replyTo, sig, body)
+		}
 		for {
 			msg, err := readMessage(r)
 			if err != nil {
@@ -666,13 +679,13 @@ func TestControlIPCCanceledRequestDoesNotCommitDelayedStartOrForget(t *testing.T
 			}
 			switch msg.Member {
 			case "Hello":
-				_ = reply(serverConn, next(), msg.Serial, "s", bodyString(":1.1"))
+				_ = writeReply(msg.Serial, "s", bodyString(":1.1"))
 			case "AddMatch":
-				_ = reply(serverConn, next(), msg.Serial, "", nil)
+				_ = writeReply(msg.Serial, "", nil)
 			case "GetNameOwner":
-				_ = reply(serverConn, next(), msg.Serial, "s", bodyString(":1.1"))
+				_ = writeReply(msg.Serial, "s", bodyString(":1.1"))
 			case "RegisterAgent", "RequestDefaultAgent", "Set", "Connect":
-				_ = reply(serverConn, next(), msg.Serial, "", nil)
+				_ = writeReply(msg.Serial, "", nil)
 			case "GetManagedObjects":
 				objs := []fixtureObj{
 					{
@@ -698,17 +711,25 @@ func TestControlIPCCanceledRequestDoesNotCommitDelayedStartOrForget(t *testing.T
 						}},
 					},
 				}
-				_ = reply(serverConn, next(), msg.Serial, "a{oa{sa{sv}}}", encodeObjects(objs))
+				_ = writeReply(msg.Serial, "a{oa{sa{sv}}}", encodeObjects(objs))
 			case "StartDiscovery":
 				close(startSeen)
-				<-releaseStart
-				_ = reply(serverConn, next(), msg.Serial, "", nil)
+				// BlueZ accepts discovery before its delayed method reply. Keep
+				// reading calls so the cancellation cleanup can stop it first.
+				go func(replyTo uint32) {
+					<-releaseStart
+					_ = writeReply(replyTo, "", nil)
+					close(startReplySent)
+				}(msg.Serial)
+			case "StopDiscovery":
+				close(stopSeen)
+				_ = writeReply(msg.Serial, "", nil)
 			case "RemoveDevice":
 				close(removeSeen)
 				<-releaseRemove
-				_ = reply(serverConn, next(), msg.Serial, "", nil)
+				_ = writeReply(msg.Serial, "", nil)
 			default:
-				_ = reply(serverConn, next(), msg.Serial, "", nil)
+				_ = writeReply(msg.Serial, "", nil)
 			}
 		}
 	}()
@@ -771,8 +792,18 @@ func TestControlIPCCanceledRequestDoesNotCommitDelayedStartOrForget(t *testing.T
 	if err := <-errCh1; !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled start pairing err = %v, want context.Canceled", err)
 	}
+	select {
+	case <-stopSeen:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected StopDiscovery after canceled StartDiscovery")
+	}
 	probeUnblocked()
-	close(releaseStart)
+	releaseStartNow()
+	select {
+	case <-startReplySent:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out releasing delayed StartDiscovery reply")
+	}
 
 	resp, err := hc.Get("http://fes-bluetooth/status")
 	if err != nil {

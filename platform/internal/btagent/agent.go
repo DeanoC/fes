@@ -738,6 +738,11 @@ func (a *agent) configure(ctx context.Context, path string) {
 			configured = false
 			log.Printf("bluetooth: adapter setup failed %s start discovery: %v", path, err)
 			if ctx.Err() != nil {
+				// The request may have reached BlueZ before cancellation interrupted
+				// waiting for its reply. Keep the state conservative so the caller's
+				// cancellation cleanup attempts StopDiscovery.
+				info.Discovering = true
+				a.adapters[path] = info
 				return
 			}
 		} else {
@@ -1665,13 +1670,13 @@ func (a *agent) startPairing(ctx context.Context, duration time.Duration) (Statu
 	for adapterPath := range a.adapters {
 		delete(a.configuredAdapters, adapterPath)
 		a.configure(ctx, adapterPath)
-		if ctx.Err() != nil {
-			break
-		}
 		if info, ok := a.adapters[adapterPath]; ok && info.Discovering {
 			started = true
 		} else if firstErr == nil {
 			firstErr = errors.New("bluetooth adapter could not start discovery")
+		}
+		if ctx.Err() != nil {
+			break
 		}
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
