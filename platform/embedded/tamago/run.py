@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import socket
 import struct
 import subprocess
 import sys
@@ -36,6 +37,12 @@ LAYOUT_NEXT = {"grid": "shelf", "shelf": "list", "list": "grid"}
 def sha(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def _free_tcp_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
 
 
 def objects(stream):
@@ -719,20 +726,58 @@ def main():
             record["termination"] = "runner quit QEMU after package diagnostic; no FPGA programming"
         else:
             lock_disk()
-            initial_mtime = prepare_disk(prepare_host())
+            agent_target_id = "11111111-2222-4333-8444-555555555555"
+            agent_boot = {
+                "agent_port": 8080,
+                "agent_target_id": agent_target_id,
+                "agent_allow_unauthenticated": True,
+                "agent_mdns": True,
+                "agent_instance": "FES-QEMU",
+                "agent_host": "fes-qemu.local",
+            }
+            initial_mtime = prepare_disk(prepare_host(), extra_boot=agent_boot)
             initial = record["initial_preferences"].get("layout", "grid")
             if initial not in LAYOUT_NEXT:
                 raise RuntimeError("unsupported initial layout in existing disk")
             screenshots = record["screenshots"] = []
             boot_started = datetime.now(timezone.utc)
-            with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display, usb=args.input == "usb") as guest:
+            agent_host_port = _free_tcp_port()
+            with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display,
+                       usb=args.input == "usb", hostfwd=f"tcp:127.0.0.1:{agent_host_port}-:8080") as guest:
                 first = ready(guest, initial)
                 screenshots.append(guest.screenshot("initial"))
                 if args.interactive:
+                    print(f"Agent HTTP forwarded at http://127.0.0.1:{agent_host_port}/v1/health", flush=True)
                     print(f"Screenshot: {output / screenshots[-1]['path']}", flush=True)
                     guest.interactive()
                     screenshots.append(guest.screenshot("final"))
                 else:
+                    if "FES_AGENT_READY " not in guest.text:
+                        raise RuntimeError("missing tenfoot agent startup marker: FES_AGENT_READY")
+                    agent_base = f"http://127.0.0.1:{agent_host_port}"
+                    with urlopen(f"{agent_base}/v1/health", timeout=args.timeout) as resp:
+                        agent_health = json.load(resp)
+                    if not agent_health.get("ready") or agent_health.get("target_id") != agent_target_id:
+                        raise RuntimeError(f"unexpected guest agent /v1/health: {agent_health}")
+                    with urlopen(f"{agent_base}/v1/status", timeout=args.timeout) as resp:
+                        agent_status = json.load(resp)
+                    if agent_status.get("state") != "idle":
+                        raise RuntimeError(f"unexpected guest agent /v1/status: {agent_status}")
+                    diag_deadline = time.monotonic() + min(5.0, args.timeout)
+                    agent_diag = {}
+                    while True:
+                        with urlopen(f"{agent_base}/v1/diagnostics", timeout=args.timeout) as resp:
+                            agent_diag = json.load(resp)
+                        if agent_diag.get("mdns", {}).get("announcements", 0) >= 1:
+                            break
+                        if time.monotonic() >= diag_deadline:
+                            raise RuntimeError(f"guest agent did not emit mDNS announcement: {agent_diag}")
+                        time.sleep(0.1)
+                    record["agent_http"] = {
+                        "health": agent_health,
+                        "status": agent_status,
+                        "diagnostics": agent_diag,
+                    }
                     guest.press("right")
                     record["input_events"] = [{"source": args.input, "key": "right"}]
                     guest.wait(lambda text: any(f["seq"] > first["seq"] and f["focus"] != first["focus"]
@@ -747,6 +792,15 @@ def main():
                                args.timeout, "changed layout and saved preferences")
                     screenshots.append(guest.screenshot("layout"))
                 record["first_boot_frames"] = frames(guest.text)
+            if not args.interactive:
+                pcap_bytes = (output / "boot-1" / "network.pcap").read_bytes()
+                if b"_fogcast" not in pcap_bytes or agent_target_id.encode() not in pcap_bytes:
+                    raise RuntimeError("tenfoot network.pcap missing _fogcast mDNS announcement for target_id")
+                record["agent_mdns"] = {
+                    "service": "_fogcast._tcp",
+                    "target_id": agent_target_id,
+                    "pcap_verified": True,
+                }
             boot_finished = datetime.now(timezone.utc)
             saved, saved_mtime = preferences("preferences-after-first-boot")
             record["saved_preferences"] = saved
