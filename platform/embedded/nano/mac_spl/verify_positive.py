@@ -6,6 +6,24 @@ PARKING = "87b2d7f4721c819b554212f2b80c193a07a2531e"
 PARK = "FES_CBL_MAC_TX PARK no-storage no-bl31"
 
 
+
+def flp_rows(rows, identity, receipt):
+    if "phy_flp_16ms" not in receipt:
+        if any(line.startswith(("FES_CBL_TX_TRAIN", "FES_CBL_TX_FLP")) for line in rows):
+            raise ValueError("undeclared PHY setup")
+        return rows, []
+    if receipt["phy_flp_16ms"] is not True:
+        raise ValueError("invalid selected PHY setup")
+    from pathlib import Path
+    helper = Path(__file__).resolve().with_name("verify_flp.py")
+    code = helper.read_bytes()
+    if hashlib.sha256(code).hexdigest() != "83ba3d66aa4da828432c46668edb5b26702b0668e125e837e8d4aebea4646dae":
+        raise ValueError("changed PHY evidence verifier")
+    module = {"__name__": "fes_verify_flp"}
+    exec(compile(code, str(helper), "exec"), module)
+    return module["extract"](rows, identity)
+
+
 def decode_closed(raw: bytes, receipt: dict) -> dict:
     identity = receipt.get("diagnostic_id", "")
     frame_hash = receipt.get("frame_sha256", "")
@@ -22,10 +40,13 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
     banners = [i for i, line in enumerate(lines) if line.startswith("U-Boot SPL ")]
     if len(banners) != 1 or not lines[banners[0]].startswith("U-Boot SPL 2025.01-fes-nano-cpu-"+identity+" "):
         raise ValueError("missing matched SPL startup")
-    prefixes = ("FES_NANO_CPU_TRACE", "FES_NANO_SPL", "FES_CBL_MAC_TX", "FES_CBL_TX_GATE", "FES_CBL_TX_SETUP", "FES_CBL_TX_CAPS", "FES_CBL_TX_PHY")
+    prefixes = ("FES_NANO_CPU_TRACE", "FES_NANO_SPL", "FES_CBL_MAC_TX", "FES_CBL_TX_GATE", "FES_CBL_TX_SETUP", "FES_CBL_TX_CAPS", "FES_CBL_TX_PHY", "FES_CBL_TX_TRAIN", "FES_CBL_TX_FLP")
     trace = [s for s in lines if s.startswith(prefixes)]
     if any(s.startswith(prefixes) for s in lines[:banners[0]]):
         raise ValueError("positive diagnostics before matched banner")
+    trace, flp = flp_rows(trace, identity, receipt)
+    if flp and len(flp) != 1:
+        raise ValueError("multiple PHY terminal records")
     def power_trace(stage):
         rows=[]
         for index in range(7):
@@ -176,7 +197,7 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
         raise ValueError("terminal result conflicts with observed ownership or controller state")
     if any("Trying to boot from" in s or "FES_NANO_SPL HANDOFF" in s for s in lines):
         raise ValueError("unexpected storage or firmware handoff")
-    return dict(scope=receipt["scope"], diagnostic_id=identity, frame_sha256=frame_hash,
+    return dict(**({"phy_flp": flp[0]} if flp else {}), scope=receipt["scope"], diagnostic_id=identity, frame_sha256=frame_hash,
                 uart_sha256=hashlib.sha256(raw).hexdigest(), target_closed=True,
                 parking_revision=PARKING, cpu_power=powers, device_frame_dispatched=bool(dispatch),
                 process_stopped=bool(tps), translation_revoked=bool(revoked), disposition=disposition,

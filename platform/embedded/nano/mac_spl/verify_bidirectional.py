@@ -250,6 +250,24 @@ def rx_observations(trace, identity, n, frame, tx):
     return r
 
 
+
+def flp_rows(rows, identity, receipt):
+    if "phy_flp_16ms" not in receipt:
+        if any(line.startswith(("FES_CBL_TX_TRAIN", "FES_CBL_TX_FLP")) for line in rows):
+            raise ValueError("undeclared PHY setup")
+        return rows, []
+    if receipt["phy_flp_16ms"] is not True:
+        raise ValueError("invalid selected PHY setup")
+    from pathlib import Path
+    helper = Path(__file__).resolve().with_name("verify_flp.py")
+    code = helper.read_bytes()
+    if hashlib.sha256(code).hexdigest() != "83ba3d66aa4da828432c46668edb5b26702b0668e125e837e8d4aebea4646dae":
+        raise ValueError("changed PHY evidence verifier")
+    module = {"__name__": "fes_verify_flp"}
+    exec(compile(code, str(helper), "exec"), module)
+    return module["extract"](rows, identity)
+
+
 def decode_closed(raw, receipt):
     identity = receipt.get("diagnostic_id", "")
     frames = receipt.get("frames")
@@ -302,7 +320,8 @@ def decode_closed(raw, receipt):
         and not any("Trying to boot from" in l or "FES_NANO_SPL HANDOFF" in l for l in lines),
         "capture crossed the standalone boot boundary",
     )
-    tr = Trace([l for l in lines if marked(l)])
+    records, flp = flp_rows([l for l in lines if marked(l)], identity, receipt)
+    tr = Trace(records)
 
     def checkpoint(n):
         return f"FES_NANO_CPU_TRACE id={identity} stage={n:02x} value=00000000 mpidr=0000000081000000 el=3"
@@ -356,6 +375,8 @@ def decode_closed(raw, receipt):
         if not tr.starts("FES_CBL_BIDI BEGIN"):
             if n == 1:
                 terminal = tx_observations(tr, identity)
+                if flp:
+                    terminal["phy_flp"] = flp[0]
                 need(
                     not passed and terminal["disposition"] == "unchanged" and terminal["stage"] == 0,
                     "unverified pre-grant failure",
@@ -371,6 +392,8 @@ def decode_closed(raw, receipt):
                 f"FES_CBL_BIDI GRANT id={identity} round={n} vmid={n} previous={n - 1} cmd={grant_cmd} ste=0000000d"
             )
         terminal = tx_observations(tr, identity)
+        if flp:
+            terminal["phy_flp"] = flp[n - 1]
         need(granted == bool(terminal["mapped"]), "missing or contradictory observed active mapping")
         if n == 2:
             need(granted, "second round cannot reestablish the original unprogrammed domain")
@@ -405,6 +428,7 @@ def decode_closed(raw, receipt):
     tr.exact(PARK)
     need(tr.index == len(tr.lines), "extraneous UART evidence")
     return dict(
+        **({"phy_flp": flp} if flp else {}),
         scope=SCOPE,
         diagnostic_id=identity,
         parking_revision=PARKING,
