@@ -1172,6 +1172,28 @@ The Powerboat raw netlist SHA-256 is
 The Powerboat summary SHA-256 is
 `970d7f493f6319f088fe90168dd5ebc7979133f471e866e22477ae9310873675`.
 
+The next trial uses the clock-aware setup objective for the command bus.
+On 149 matched slow 0 °C paths, clock-aware setup slack exceeded datapath
+slack by 0.180 to 0.209 ns. Both slacks use the same routed path. Setup
+uncertainty was 1.550 ns and the least adverse skew was −1.491 ns.
+An 8.075 ns setup target leaves 0.012 ns of headroom against the 5.046 ns
+datapath limit with that measured clock geometry. A fresh fit can change
+the clock geometry. The path receipt SHA-256 is
+`965c508f574752c148cdafbf5a477883f5f0391fc0246b241798940888569417`.
+
+Revision `cd92d4a664f6215b0edf4f0e8af49e0f666c6812` starts from the
+unplaced HPE/MAX source `18e1de7e`. The 8.075 ns command setup target
+applies only to C26 Plan, Place and Route. All 36 phase and clock fixture
+cases passed. The C26 signoff still requires 8.296 ns setup, 5.046 ns
+datapath, zero hold, and the original net and skew limits. All 48 focused
+tests, `make check`, seven D12 selections and C26 game input comparisons
+passed. Fresh DE10 netlist bytes and all four identities match the
+frozen main revision. The receipt SHA-256 is
+`248a181f8210878eaaf3babd9a4dfab70d4c10e8e1ba54942376a7109909a85d`.
+Seed 2 was queued on Powerboat. The preparation manifest SHA-256 is
+`f9bf71f05ecc2a36a08f878c9de6bdaa835a5243afaf1acf6f0891d064b8a992`.
+[Quartus Pro 26.3 Fitter overconstraints](https://docs.altera.com/r/docs/683243/26.3/quartus-prime-pro-edition-user-guide-timing-analyzer/using-fitter-overconstraints?contentId=Qe_XClzXQITSVHldfcTkuQ)
+
 ## Integrated C0 = 28 fallback
 
 Revision `7c7d1a991b5ed629b050630309c48ea38acc0aad` merges the earlier

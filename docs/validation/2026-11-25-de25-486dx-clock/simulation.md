@@ -278,6 +278,11 @@ matched the same compiled game inputs and both retained binary hashes.
 Its receipt SHA-256 is
 `32029d7ef73a537182ec514104854ecb38bf6736eac1241a8b049bed50c4ddda`.
 
+The fitter setup-target candidate `cd92d4a664f6215b0edf4f0e8af49e0f666c6812`
+matched all 106 tracked compiler inputs, five regenerated files and both
+binaries against the `4fe7bada` replay. Its receipt SHA-256 is
+`c242812a94c606244af32ab3c41a9a1e139d713d2c9ee759144cdaf953aa2e90`.
+
 ## Integrated C0 = 28 fallback
 
 The replay for `7c7d1a991b5ed629b050630309c48ea38acc0aad` uses
