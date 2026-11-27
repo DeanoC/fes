@@ -835,6 +835,7 @@ def build(args):
         stream.write('const (\nprofileSDDMABase = '+str(sd_dma_base)+'\nprofileSDDMABytes = '+str(sd_dma_bytes)+'\n)\n')
     network_constants = {"profileNetworkEnabled": net is not None,
                          "profileNetworkAdapter": paired_mac["adapter"] if paired_mac else "",
+                         "profileNetworkInMenuOnly": bool(paired_mac and paired_mac["network_scope"] == "published-menu-only"),
                          "profileNetworkMACVersion": paired_mac["mac_version"] if paired_mac else 0,
                          "profileNetworkPoolBytes": paired_mac["dma_bytes"] if paired_mac else (net["dma_size"] if net else 0),
                          "profileNetworkBase": 0x10810000 + (net["mac_index"] * 0x10000) if net else 0,

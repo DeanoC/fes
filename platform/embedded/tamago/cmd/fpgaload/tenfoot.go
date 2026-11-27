@@ -90,7 +90,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	if paired {
 		load, done := context.WithTimeout(context.Background(), 100*time.Second)
 		programService, err = nativefabric.NewProgramServiceWithMenu(load, loader, store, de25nano.ReserveConfiguration, limits,
-			nativefabric.ProgramMenuOptions{Request: startup.Menu, Reserve: de25nano.ReserveMenuMemory,
+			nativefabric.ProgramMenuOptions{NetworkInMenuOnly: de25nano.NetworkInMenuOnly(), Request: startup.Menu, Reserve: de25nano.ReserveMenuMemory,
 				Observe: emitProgramMenu,
 				Limits: scanout.MenuLimits{PublicationTimeout: 4 * time.Second,
 					ReaderLimits: scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}}})

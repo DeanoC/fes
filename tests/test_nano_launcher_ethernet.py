@@ -36,7 +36,7 @@ class PairedEthernetTests(unittest.TestCase):
                 (dict(entry,staging_exclusions=[]),True,elf)]:
             with self.subTest(receipt=receipt), self.assertRaises(ValueError):
                 ethernet.checked(receipt, payload, entry=as_entry)
-        for field, value in [('dma_bytes', 2<<20),('dma_pages',['RW']*5),('initial_state','ready'),('stream_id',True)]:
+        for field, value in [('dma_bytes', 2<<20),('dma_pages',['RW']*5),('initial_state','ready'),('stream_id',True),('network_scope','running')]:
             tampered=copy.deepcopy(entry)
             tampered['launcher_ethernet'][field]=value
             with self.subTest(field=field), self.assertRaises(ValueError):

@@ -45,6 +45,9 @@ func NetworkEnabled() bool { return profileNetworkEnabled }
 // NetworkAdapter identifies the explicitly selected paired launcher adapter.
 func NetworkAdapter() string { return profileNetworkAdapter }
 
+// NetworkInMenuOnly keeps this adapter contained while a core owns the GP port.
+func NetworkInMenuOnly() bool { return profileNetworkInMenuOnly }
+
 // NetworkStartupTimeout includes the selected physical device open and, when
 // requested, the subsequent DHCP acquisition. It does not bound stack lifetime.
 func NetworkStartupTimeout(dhcp bool) time.Duration {

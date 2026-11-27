@@ -17,15 +17,19 @@ import (
 // Request names retained menu assets; an omitted ID selects the compiled menu.
 // The complete uncached arena remains owned until reboot, including failures.
 type ProgramMenuOptions struct {
-	Request packagestore.Request
-	Reserve func([]byte) (*Region, error)
-	Limits  scanout.MenuLimits
+	// NetworkInMenuOnly confines MAC grants to a published MENU. Core GP
+	// access requires its original all-masters-contained bridge snapshot.
+	NetworkInMenuOnly bool
+	Request           packagestore.Request
+	Reserve           func([]byte) (*Region, error)
+	Limits            scanout.MenuLimits
 	// Observe must be bounded and must not reenter service operations. Its
 	// failure retires the owner; observations cannot authorize any transition.
 	Observe func(ProgramMenuObservation) error
 }
 
 type programServiceMenu struct {
+	networkInMenuOnly                     bool
 	request                               packagestore.Request
 	reserve                               func([]byte) (*Region, error)
 	limits                                scanout.MenuLimits
@@ -61,7 +65,7 @@ func NewProgramServiceWithMenu(ctx context.Context, loader *ProgramLoader, store
 		return s, err
 	}
 	p := s.state
-	p.menu = &programServiceMenu{request: options.Request, reserve: options.Reserve, limits: options.Limits, observe: options.Observe,
+	p.menu = &programServiceMenu{networkInMenuOnly: options.NetworkInMenuOnly, request: options.Request, reserve: options.Reserve, limits: options.Limits, observe: options.Observe,
 		frame: stdimage.NewRGBA(stdimage.Rect(0, 0, 1280, 720))}
 	p.operation.Lock()
 	defer p.operation.Unlock()

@@ -22,6 +22,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
+	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
 
@@ -62,6 +63,7 @@ func testTenfootNativeC64DiskSwap(t *testing.T, failSwap bool) {
 	nextDisk := bytes.Repeat([]byte{0x81}, len(d64))
 	nextID := fmt.Sprintf("%x", sha256.Sum256(nextDisk))
 	f := newProgramMenuFixtureContext(t, ctx, "", func(f *programMenuFixture) {
+		f.networkInMenuOnly = true
 		l, err := f.r.f.loader.WithSharedCoreShell()
 		if err != nil {
 			t.Fatal(err)
@@ -139,6 +141,15 @@ func testTenfootNativeC64DiskSwap(t *testing.T, failSwap bool) {
 		f.request = startup.Menu
 	})
 
+	lan, control := newProgramNetwork(t)
+	if err := f.s.AttachNetwork(control); err != nil {
+		t.Fatal(err)
+	}
+	lan.start = func() {
+		if f.s.Status().State != ProgramReady || f.cpu.kind != programRoleMenu || f.menu.cpu.displayed == 0 {
+			t.Error("regranted MAC before presenting the returned MENU frame")
+		}
+	}
 	f.s.state.limits.Now = func() time.Time { return clock }
 	b, err := NewProgramBackend(f.s, startup.Entries)
 	if err != nil {
@@ -194,6 +205,9 @@ func testTenfootNativeC64DiskSwap(t *testing.T, failSwap bool) {
 	pressKey(tenfoot.CmdSelect, []byte{0, 0, 0x28, 0, 0, 0, 0, 0})
 	wait("C64 launch", func(snapshot tenfoot.Snapshot) bool { return snapshot.Session.State == "active" })
 	status := f.s.Status()
+	if err := lan.link.SendRawFrame(make([]byte, 60)); !errors.Is(err, network.ErrPaused) {
+		t.Fatal("network accepted traffic while C64 held the control-only snapshot", err)
+	}
 	if status.State != ProgramRunning || status.Owner != owner ||
 		status.Generation != generation || f.r.f.lease.r.Active {
 		t.Fatal("unexpected C64 service status", status)
@@ -281,6 +295,9 @@ func testTenfootNativeC64DiskSwap(t *testing.T, failSwap bool) {
 		return snapshot.Session.State == "idle" && !snapshot.GPUParked && f.s.Status().State == ProgramReady
 	})
 	generation++
+	if err := lan.link.SendRawFrame(make([]byte, 60)); err != nil || lan.stops != 1 || lan.starts != 1 {
+		t.Fatal("return failed to restore a single fresh MAC grant", err, lan.stops, lan.starts)
+	}
 	if status := f.s.Status(); status.Owner != owner || status.Generation != generation ||
 		status.State != ProgramReady || f.cpu.kind != programRoleMenu || f.r.f.lease.r.Active {
 		t.Fatal("unexpected C64 service status", status)
@@ -288,5 +305,8 @@ func testTenfootNativeC64DiskSwap(t *testing.T, failSwap bool) {
 	pressKey(tenfoot.CmdQuit, []byte{0, 0, 0x14, 0, 0, 0, 0, 0})
 	if err := b.ParkMenu(ctx); err != nil || f.s.Status().State != ProgramParked || f.s.Status().Generation != generation+1 {
 		t.Fatal("C64 catalogue did not Park", err, f.s.Status())
+	}
+	if err := lan.link.Available(); !errors.Is(err, network.ErrPaused) || lan.stops != 2 || lan.starts != 1 {
+		t.Fatal("Park left networking active", err, lan.stops, lan.starts)
 	}
 }

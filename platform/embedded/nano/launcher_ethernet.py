@@ -2,7 +2,7 @@
 import json
 import shlex
 
-ADAPTER = 'fes-de25-mac0-sid1-paired-v1'
+ADAPTER = 'fes-de25-mac0-sid1-paired-menu-v1'
 BASE = 0x95c00000
 CPU_MAP_BYTES = 2 << 20
 DMA_BYTES = 5 * 4096
@@ -14,7 +14,7 @@ def contract():
                 rx_buffer_shift=1, stream_id=1, dma_start=BASE, dma_bytes=DMA_BYTES,
                 dma_pages=['RW', 'R', 'R', 'W', 'W'], cpu_map_bytes=CPU_MAP_BYTES,
                 station='sha256-fes-de25-target-v1', addressing='dhcp4',
-                service='fes-embedded-mac', initial_state='contained')
+                service='fes-embedded-mac', initial_state='contained', network_scope='published-menu-only')
 
 
 def board_network():

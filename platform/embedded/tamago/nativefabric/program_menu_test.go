@@ -36,14 +36,15 @@ func (c *programMenuCPU) Invoke(a [7]uint64) ([4]uint64, error) {
 }
 
 type programMenuFixture struct {
-	r            *romProgramFixture
-	menu         *menuFixture
-	cpu          *programMenuCPU
-	s            *ProgramService
-	request      packagestore.Request
-	reserves     int
-	fault        string
-	observations []ProgramMenuObservation
+	networkInMenuOnly bool
+	r                 *romProgramFixture
+	menu              *menuFixture
+	cpu               *programMenuCPU
+	s                 *ProgramService
+	request           packagestore.Request
+	reserves          int
+	fault             string
+	observations      []ProgramMenuObservation
 }
 
 func newProgramMenuFixture(t *testing.T, startupFault string) *programMenuFixture {
@@ -126,6 +127,7 @@ func newProgramMenuFixtureContext(t *testing.T, ctx context.Context, startupFaul
 		setup(fixture)
 	}
 	opts.Request = fixture.request
+	opts.NetworkInMenuOnly = fixture.networkInMenuOnly
 	fixture.s, err = NewProgramServiceWithMenu(ctx, fixture.r.f.loader, r.f.store, reserve, computerLimits(), opts)
 	if startupFault == "" && err != nil {
 		t.Fatal(err)

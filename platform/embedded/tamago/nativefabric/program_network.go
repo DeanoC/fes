@@ -121,7 +121,8 @@ func (p *programService) finishNetwork(result *error) {
 		return
 	}
 	p.viewMu.Lock()
-	healthy := p.view.State == ProgramReady || p.view.State == ProgramRunning
+	allowRunning := p.menu == nil || !p.menu.networkInMenuOnly
+	healthy := p.view.State == ProgramReady || p.view.State == ProgramRunning && allowRunning
 	parked := p.view.State == ProgramParked
 	p.viewMu.Unlock()
 	if !healthy {

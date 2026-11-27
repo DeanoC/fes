@@ -98,7 +98,11 @@ of SHA-256 over `FES DE25 paired station v1`, one NUL byte and the canonical
 SD target UUID in ASCII. It sets the locally administered bit and clears the
 multicast bit. Provision a separate stable target UUID for each kit. A missing
 pair, missing hardware boot entropy or an explicit firmware MAC NOT_READY
-keeps the local launcher available. A malformed ownership reply or uncertain
+keeps the local launcher available. The paired adapter serves requests only
+while MENU owns the display. Launch drains and revokes Ethernet before the
+core takes the GP port. C64 input and live disk swaps keep their full containment
+checks throughout play. Return reopens Ethernet after MENU presents its first
+frame. Park leaves the MAC contained. A malformed ownership reply or uncertain
 acquire/stop remains a failure. MENU retains the local lease while idle.
 
 CBL’s factory cold-boot UART recorded Linux binding `socfpga-dwmac` to
@@ -119,7 +123,7 @@ cold admission. The same observation explicitly reports `access=unqualified`.
 The matched MAC0/KSZ9031 profile reserves 25 seconds for PHY training and
 five seconds for the rest of device startup. DHCP adds its own ten-second
 acquisition window. The same 30-second device deadline covers fresh grants
-when returning to MENU or launching a core. CBL needed up to 9.85 seconds in
+when returning to MENU. CBL needed up to 9.85 seconds in
 a standalone diagnostic before both gigabit receivers were ready. Each DMA
 stop retains its five-second bound. A failed restart retires the controller.
 These budgets leave PHY configuration and training with the secure supplier.
