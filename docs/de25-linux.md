@@ -22,9 +22,10 @@ into the separate `BOARD=de25-nano` release/card assembly stage:
   Powerboat or `fes-build-3090` under the shared
   [Quartus lease](design/quartus-hosts.md) (`quartus_jobs.py pick` / `remote`).
   DE10 kits cannot satisfy a DE25 HIL gate.
-- **Linux-free alternative:** The separate opt-in bare-metal TamaGo stack lives
-  under [platform/embedded/](../platform/embedded/README.md)
-  ([architecture](../platform/embedded/ARCHITECTURE.md)).
+- **Linux-free alternative:** Build the opt-in TamaGo Tenfoot SD card with
+  `make de25-embedded-image` and check it with `make verify-de25-embedded-image`.
+  See the [native launcher guide](../platform/embedded/nano/launcher.md#3-build-and-verify-the-sd-image)
+  for the required artifacts.
 
 ---
 

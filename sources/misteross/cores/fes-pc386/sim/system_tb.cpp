@@ -698,6 +698,10 @@ private:
         std::vector<uint16_t> record = capture();
         std::printf("RECORD %s\n", join(record).c_str());
         exchange(OP_EXECUTION, 0, 0);
+#ifdef FES_PC386_DE25
+        wait_window_drain();
+        check(true, "Stop holds and drains the DE25 window");
+#endif
         check(std::equal(settings, settings + 8, record.begin()), "the record keeps the restored settings");
         check(cmos(record, MARKER_BYTE) == MARKER, "CMOS 50h keeps the restored byte");
         check(cmos(record, 0x60) == 0x24 && cmos(record, 0x61) == 5 && cmos(record, 0x62) == 1,
@@ -735,6 +739,18 @@ private:
         hold_trials();
     }
 
+#ifdef FES_PC386_DE25
+    void wait_window_drain() {
+        for (unsigned n = 0; n < 100000; ++n) {
+            if (top.ddr_hold && top.window_drained) return;
+            clock();
+        }
+        std::printf("WINDOW drain exec_reset=%u hold=%u dbg=%08x\n",
+                    unsigned(top.exec_reset), unsigned(top.ddr_hold), unsigned(top.dbg_window));
+        throw MailboxError("Execution hold did not drain the DE25 window");
+    }
+#endif
+
     // Holds swept across port 2's write bursts: HOLD_CUTS of them must cut
     // one, and the trial after each must see port 2 take write beats again.
     // The trial after the last cut only follows up.
@@ -768,6 +784,9 @@ private:
                 clock();
             }
             cut = hold_owed != 0 && cuts < HOLD_CUTS;
+#ifdef FES_PC386_DE25
+            wait_window_drain();
+#endif
             cuts += cut;
         } while ((++trials < HOLD_TRIALS && cuts < HOLD_CUTS) || cut);
         check(cuts == HOLD_CUTS && resumed == cuts,

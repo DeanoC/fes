@@ -51,28 +51,32 @@ func (p *fakePipe) PollInto(dst []byte) (int, error) {
 }
 
 type fakeBus struct {
-	serviceErr   error
-	events       []usb.HostEvent
-	devices      []usb.BusDevice
-	reportDescs  map[uint32][]byte
-	pipes        map[uint32]*fakePipe
-	btEvPipe     *fakePipe
-	btACLInPipe  *fakePipe
-	btACLOutPipe *fakePipe
-	ready        chan struct{}
-	paused       bool
-	pauseCalls   int
-	resumeCalls  int
-	lmpSub       uint16
-	ctrlReqs     [][3]uint16 // {uint16(addr)<<8|uint16(req), value, index}
+	serviceErr        error
+	events            []usb.HostEvent
+	devices           []usb.BusDevice
+	reportDescs       map[uint32][]byte
+	manufacturerNames map[uint8]string
+	productNames      map[uint8]string
+	pipes             map[uint32]*fakePipe
+	btEvPipe          *fakePipe
+	btACLInPipe       *fakePipe
+	btACLOutPipe      *fakePipe
+	ready             chan struct{}
+	paused            bool
+	pauseCalls        int
+	resumeCalls       int
+	lmpSub            uint16
+	ctrlReqs          [][3]uint16 // {uint16(addr)<<8|uint16(req), value, index}
 }
 
 func newFakeBus() *fakeBus {
 	return &fakeBus{
-		reportDescs: make(map[uint32][]byte),
-		pipes:       make(map[uint32]*fakePipe),
-		ready:       make(chan struct{}, 4),
-		lmpSub:      0x8761,
+		reportDescs:       make(map[uint32][]byte),
+		manufacturerNames: make(map[uint8]string),
+		productNames:      make(map[uint8]string),
+		pipes:             make(map[uint32]*fakePipe),
+		ready:             make(chan struct{}, 4),
+		lmpSub:            0x8761,
 	}
 }
 
@@ -124,6 +128,48 @@ func (b *fakeBus) hasBTAddr(addr uint8) bool {
 	return false
 }
 func (b *fakeBus) ControlTransfer(addr uint8, reqType, req byte, value, index uint16, data []byte) (int, error) {
+	if reqType == 0x80 && req == 0x06 {
+		switch value {
+		case 0x0100:
+			for _, dev := range b.devices {
+				if dev.Address != addr {
+					continue
+				}
+				descriptor := [18]byte{18, 1, 0, 2, 0, 0, 0, 64}
+				binary.LittleEndian.PutUint16(descriptor[2:4], dev.Descriptor.USBVersion)
+				binary.LittleEndian.PutUint16(descriptor[8:10], dev.Descriptor.VendorID)
+				binary.LittleEndian.PutUint16(descriptor[10:12], dev.Descriptor.ProductID)
+				binary.LittleEndian.PutUint16(descriptor[12:14], dev.Descriptor.DeviceVersion)
+				if b.manufacturerNames[addr] != "" {
+					descriptor[14] = 1
+				}
+				if b.productNames[addr] != "" {
+					descriptor[15] = 2
+				}
+				descriptor[17] = 1
+				return copy(data, descriptor[:]), nil
+			}
+		case 0x0300:
+			return copy(data, []byte{4, 3, 0x09, 0x04}), nil
+		case 0x0301, 0x0302:
+			if index != 0x0409 {
+				return 0, errors.New("unexpected USB string language")
+			}
+			var rawName string
+			if value == 0x0301 {
+				rawName = b.manufacturerNames[addr]
+			} else {
+				rawName = b.productNames[addr]
+			}
+			name := []rune(rawName)
+			descriptor := make([]byte, 2+2*len(name))
+			descriptor[0], descriptor[1] = byte(len(descriptor)), 3
+			for i, r := range name {
+				binary.LittleEndian.PutUint16(descriptor[2+i*2:], uint16(r))
+			}
+			return copy(data, descriptor), nil
+		}
+	}
 	if reqType == 0x81 && req == 0x06 && value == 0x2200 {
 		desc, ok := b.reportDescs[key32(addr, index)]
 		if !ok {
@@ -1738,5 +1784,333 @@ func TestHubUnknownBluetoothHIDMouseNeutralFence(t *testing.T) {
 	hub.bt.OnSlotChanged(2, true, controllers.KindGenericHID, "BT HID Gamepad")
 	if !hub.MouseNeutral() {
 		t.Fatal("resolved gamepad slot should clear the provisional mouse fence")
+	}
+}
+
+func TestHubGamepadDevicesIntoAndZeroAllocs(t *testing.T) {
+	bus := newFakeBus()
+	hub, err := NewHub(bus, Config{Bonds: l2cap.NewBondStore()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Close()
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf [MaxGamepadDevices]GamepadDevice
+	gen0 := hub.GamepadGeneration()
+	if n := hub.GamepadDevicesInto(buf[:]); n != 0 {
+		t.Fatalf("expected 0 devices initially, got %d", n)
+	}
+
+	// Attach one wired generic HID gamepad (with VID:PID) and one wired XInput pad.
+	hidPad := makeGamepadDev(3)
+	hidPad.Descriptor.VendorID, hidPad.Descriptor.ProductID = 0x081f, 0xe401
+	hidPad.Descriptor.DeviceVersion = 0x0114
+	bus.manufacturerNames[3] = "Arcade Vendor"
+	bus.productNames[3] = "Arcade HID Gamepad"
+	bus.reportDescs[key32(3, 0)] = sampleGamepadDescriptor()
+	xinputPad := makeXInputDev(4)
+	xinputPad.Descriptor.VendorID, xinputPad.Descriptor.ProductID = 0x045e, 0x028e
+	xinputPad.Descriptor.DeviceVersion = 0x0114
+	bus.attach(hidPad)
+	bus.attach(xinputPad)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	hidPipe := bus.pipes[key32(3, 0x81)]
+	xinputPipe := bus.pipes[key32(4, 0x81)]
+	gen1 := hub.GamepadGeneration()
+	if gen1 <= gen0 {
+		t.Fatalf("expected padGeneration to advance on attach: before=%d after=%d", gen0, gen1)
+	}
+
+	// Send generic HID report (X button / mask bit 0 => ButtonSouth) and BT DualSense input.
+	hidPipe.inQueue = append(hidPipe.inQueue, []byte{0x80, 0x80, 0x01})
+	xinputPkt := make([]byte, 20)
+	xinputPkt[0], xinputPkt[1] = 0x00, 0x14 // Report header
+	xinputPkt[3] = 0x20                     // BTN_B / East bit in XInput byte 3
+	xinputPipe.inQueue = append(xinputPipe.inQueue, xinputPkt)
+	hub.bt.OnSlotChanged(0, true, controllers.KindDualSense, "DualSense Wireless Controller")
+	hub.bt.OnGamepadState(0, controllers.KindDualSense, controllers.State{
+		Buttons: controllers.ButtonNorth | controllers.ButtonDPadUp,
+		LeftX:   -20000,
+	})
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if hub.GamepadGeneration() <= gen1 {
+		t.Fatalf("expected padGeneration to advance on button and BT updates")
+	}
+
+	n := hub.GamepadDevicesInto(buf[:])
+	if n != 3 {
+		t.Fatalf("expected 3 gamepads, got %d (%+v)", n, buf[:n])
+	}
+	// Wired slot 0: generic HID with VID:PID preserved and ButtonSouth active.
+	if buf[0].ID != 1 || buf[0].Bluetooth || buf[0].Vendor != 0x081f || buf[0].Product != 0xe401 ||
+		buf[0].Version != 0x0114 || buf[0].Name != "Arcade Vendor Arcade HID Gamepad" || buf[0].IdentityName != "Arcade Vendor Arcade HID Gamepad" ||
+		buf[0].Kind != controllers.KindGenericHID || buf[0].Player != 1 || buf[0].Buttons&controllers.ButtonSouth == 0 {
+		t.Fatalf("unexpected wired generic HID snapshot: %+v", buf[0])
+	}
+	// Wired slot 1: XInput P2 with ButtonEast active and Linux xpad identity.
+	if buf[1].ID != 2 || buf[1].Bluetooth || buf[1].Vendor != 0x045e || buf[1].Product != 0x028e ||
+		buf[1].Version != 0x0114 || buf[1].Name != "Microsoft X-Box 360 pad" || buf[1].IdentityName != "Microsoft X-Box 360 pad" ||
+		buf[1].Kind != controllers.KindXInput || buf[1].Player != 2 || buf[1].Buttons&controllers.ButtonEast == 0 {
+		t.Fatalf("unexpected wired XInput snapshot: %+v", buf[1])
+	}
+	// BT slot 0: DualSense P3.
+	if buf[2].ID != 101 || !buf[2].Bluetooth || buf[2].Vendor != 0 || buf[2].Product != 0 ||
+		buf[2].Kind != controllers.KindDualSense || buf[2].Player != 3 ||
+		buf[2].Buttons&(controllers.ButtonNorth|controllers.ButtonDPadUp) != (controllers.ButtonNorth|controllers.ButtonDPadUp) ||
+		buf[2].LeftX != -20000 {
+		t.Fatalf("unexpected BT DualSense snapshot: %+v", buf[2])
+	}
+
+	// Overflow beyond 4 player ports gets Player == 0 and promotes when a slot opens.
+	hub.bt.OnSlotChanged(1, true, controllers.KindSwitchPro, "Pro Controller")
+	hub.bt.OnSlotChanged(2, true, controllers.KindDualShock4, "DualShock 4")
+	n = hub.GamepadDevicesInto(buf[:])
+	if n != 5 || buf[4].Player != 0 {
+		t.Fatalf("expected 5th gamepad to have overflow Player 0, got %+v", buf[:n])
+	}
+	bus.detach(hidPad)
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	n = hub.GamepadDevicesInto(buf[:])
+	if n != 4 {
+		t.Fatalf("expected 4 gamepads after wired detach, got %d", n)
+	}
+	for _, dev := range buf[:n] {
+		if dev.ID == 103 && dev.Player != 1 {
+			t.Fatalf("expected overflow BT pad to promote into freed P1, got %+v", dev)
+		}
+	}
+
+	// Zero heap allocations on GamepadDevicesInto.
+	allocs := testing.AllocsPerRun(50, func() {
+		if got := hub.GamepadDevicesInto(buf[:]); got != 4 {
+			t.Fatalf("unexpected count %d", got)
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("expected 0 allocations in GamepadDevicesInto, got %.1f", allocs)
+	}
+
+	// BT detach clears its snapshot and advances padGeneration.
+	genBeforeDetach := hub.GamepadGeneration()
+	hub.bt.OnSlotChanged(0, false, controllers.KindDualSense, "DualSense Wireless Controller")
+	if hub.GamepadGeneration() <= genBeforeDetach {
+		t.Fatal("expected padGeneration bump on BT disconnect")
+	}
+	if n := hub.GamepadDevicesInto(buf[:]); n != 3 {
+		t.Fatalf("expected 3 gamepads after BT disconnect, got %d", n)
+	}
+
+	// Drain any prior updates, then queue rapid XInput press+release in a single Service()
+	// and verify both PadCount/Pads states are preserved in order with 0 Service() allocs.
+	for _, ok := hub.NextGamepadUpdate(); ok; _, ok = hub.NextGamepadUpdate() {
+	}
+	var pressPkt [20]byte
+	pressPkt[1] = 0x14
+	pressPkt[3] = 0x10 // XInput A / South
+	var releasePkt [20]byte
+	releasePkt[1] = 0x14
+	xinputPipe.inQueue = append(xinputPipe.inQueue, pressPkt[:], releasePkt[:])
+	if err := hub.Service(); err != nil {
+		t.Fatal(err)
+	}
+	upd1, ok1 := hub.NextGamepadUpdate()
+	upd2, ok2 := hub.NextGamepadUpdate()
+	if !ok1 || !ok2 || upd1.PadCount != 3 || upd2.PadCount != 3 ||
+		upd1.Pads[0].ID != 2 || upd1.Pads[0].Buttons&controllers.ButtonSouth == 0 ||
+		upd2.Pads[0].ID != 2 || upd2.Pads[0].Buttons&controllers.ButtonSouth != 0 {
+		t.Fatalf("expected rapid press+release preserved in upd1/upd2 Pads: ok1=%t ok2=%t upd1=%+v upd2=%+v", ok1, ok2, upd1, upd2)
+	}
+	serviceAllocs := testing.AllocsPerRun(50, func() {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if serviceAllocs != 0 {
+		t.Fatalf("expected 0 allocations in steady-state Service, got %.1f", serviceAllocs)
+	}
+}
+
+func TestHubBluetoothIdentityUsesBondValues(t *testing.T) {
+	bonds := l2cap.NewBondStore()
+	addr := l2cap.BDAddr{1, 2, 3, 4, 5, 6}
+	if err := bonds.Upsert(l2cap.BondRecord{
+		Addr: addr, Name: "DualSense Wireless Controller", VendorID: 0x054c, ProductID: 0x0ce6, Version: 0x0100,
+	}); err != nil {
+		t.Fatalf("Upsert bond: %v", err)
+	}
+	hub, err := NewHub(newFakeBus(), Config{Bonds: bonds})
+	if err != nil {
+		t.Fatalf("NewHub: %v", err)
+	}
+	defer hub.Close()
+
+	name, vendor, product, version := hub.bluetoothIdentity(addr)
+	if name != "DualSense Wireless Controller" || vendor != 0x054c || product != 0x0ce6 || version != 0x0100 {
+		t.Fatalf("bond identity = (%q, %#04x, %#04x, %#04x)", name, vendor, product, version)
+	}
+}
+
+func TestHubWiredXPadInputNames(t *testing.T) {
+	cases := []struct {
+		name    string
+		dev     usb.BusDevice
+		version uint16
+		want    string
+		kind    controllers.Kind
+	}{
+		{
+			name:    "Xbox 360 XInput",
+			dev:     makeXInputDev(2),
+			version: 0x0114,
+			want:    "Microsoft X-Box 360 pad",
+			kind:    controllers.KindXInput,
+		},
+		{
+			name:    "Xbox Series GIP",
+			dev:     makeXboxGIPModelDev(3, 0x045e, 0x0b12),
+			version: 0x050f,
+			want:    "Microsoft Xbox Series S|X Controller",
+			kind:    controllers.KindXboxGIP,
+		},
+		{
+			name:    "Xbox One S GIP",
+			dev:     makeXboxGIPModelDev(4, 0x045e, 0x02ea),
+			version: 0x0301,
+			want:    "Microsoft X-Box One S pad",
+			kind:    controllers.KindXboxGIP,
+		},
+		{
+			name: "Unknown third-party XInput",
+			dev: func() usb.BusDevice {
+				d := makeXInputDev(5)
+				d.Descriptor.VendorID = 0x1234
+				d.Descriptor.ProductID = 0x5678
+				return d
+			}(),
+			version: 0x0100,
+			want:    "Generic X-Box pad",
+			kind:    controllers.KindXInput,
+		},
+	}
+
+	bus := newFakeBus()
+	hub, err := NewHub(bus, Config{})
+	if err != nil {
+		t.Fatalf("NewHub: %v", err)
+	}
+	defer hub.Close()
+
+	for _, tc := range cases {
+		tc.dev.Descriptor.DeviceVersion = tc.version
+		bus.attach(tc.dev)
+	}
+	if err := hub.Service(); err != nil {
+		t.Fatalf("Service: %v", err)
+	}
+
+	var buf [MaxGamepadDevices]GamepadDevice
+	n := hub.GamepadDevicesInto(buf[:])
+	if n != len(cases) {
+		t.Fatalf("got %d wired devices, want %d (%+v)", n, len(cases), buf[:n])
+	}
+	for i, tc := range cases {
+		got := buf[i]
+		if got.Name != tc.want || got.IdentityName != tc.want ||
+			got.Vendor != tc.dev.Descriptor.VendorID ||
+			got.Product != tc.dev.Descriptor.ProductID ||
+			got.Version != tc.version || got.Kind != tc.kind {
+			t.Fatalf("%s: got %+v, want name/identity=%q vid=%#04x pid=%#04x ver=%#04x kind=%s",
+				tc.name, got, tc.want, tc.dev.Descriptor.VendorID, tc.dev.Descriptor.ProductID, tc.version, tc.kind)
+		}
+	}
+}
+
+func full32Button6AxisGamepadDescriptor() []byte {
+	return []byte{
+		0x05, 0x01, 0x09, 0x05, 0xa1, 0x01, // Generic Desktop / Game Pad
+		0x05, 0x01, 0x09, 0x30, 0x09, 0x31, 0x09, 0x32, 0x09, 0x33, 0x09, 0x34, 0x09, 0x35, // X, Y, Z, Rx, Ry, Rz
+		0x15, 0x81, 0x25, 0x7f, 0x75, 0x08, 0x95, 0x06, 0x81, 0x02, // 6 x int8 (-127..127)
+		0x05, 0x09, 0x19, 0x01, 0x29, 0x20, 0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x95, 0x20, 0x81, 0x02, // Buttons 1..32
+		0xc0,
+	}
+}
+
+func TestHubGenericHIDPreserves32ButtonsAnd6Axes(t *testing.T) {
+	desc := full32Button6AxisGamepadDescriptor()
+	dev := usb.BusDevice{
+		Address: 7,
+		Speed:   usb.SpeedFull,
+		Descriptor: usb.DeviceDescriptor{
+			VendorID:      0x081f,
+			ProductID:     0xe402,
+			DeviceVersion: 0x0100,
+		},
+		Config: usb.FullConfiguration{
+			Value: 1,
+			Interfaces: []usb.InterfaceDescriptor{{
+				Number: 0, Class: 3, SubClass: 0, Protocol: 0, HIDReportBytes: uint16(len(desc)),
+				Endpoints: []usb.EndpointDescriptor{{Address: 0x81, TransferType: usb.TransferInterrupt, MaxPacketSize: 16, Interval: 4}},
+			}},
+		},
+	}
+
+	bus := newFakeBus()
+	bus.reportDescs[key32(7, 0)] = desc
+	bus.attach(dev)
+	hub, err := NewHub(bus, Config{Now: func() time.Time { return time.Unix(500, 0) }})
+	if err != nil {
+		t.Fatalf("NewHub: %v", err)
+	}
+	defer hub.Close()
+	if err := hub.Service(); err != nil {
+		t.Fatalf("Service(attach): %v", err)
+	}
+	for _, ok := hub.NextGamepadUpdate(); ok; _, ok = hub.NextGamepadUpdate() {
+	}
+
+	// Report bytes 0..5 = axes X..Rz (int8), bytes 6..9 = 32 buttons little-endian.
+	// Deflect Z (+127 -> +32767) and Rz (-127 -> -32767) and press button 21 (bit 20 => b20).
+	var pkt [10]byte
+	pkt[2] = 0x7f
+	pkt[5] = 0x81
+	binary.LittleEndian.PutUint32(pkt[6:10], uint32(1)<<20)
+	pipe := bus.pipes[key32(7, 0x81)]
+	pipe.inQueue = append(pipe.inQueue, pkt[:])
+	if err := hub.Service(); err != nil {
+		t.Fatalf("Service(report): %v", err)
+	}
+
+	upd, ok := hub.NextGamepadUpdate()
+	if !ok || upd.PadCount != 1 {
+		t.Fatalf("expected queued GamepadUpdate after high-button/extra-axis report: ok=%t upd=%+v", ok, upd)
+	}
+	if got := upd.Pads[0]; got.RawButtons != (uint32(1)<<20) || got.RawAxes[2] != 32767 || got.RawAxes[5] != -32767 {
+		t.Fatalf("NextGamepadUpdate.Pads[0] = %+v, want RawButtons=1<<20 RawAxes[2]=32767 RawAxes[5]=-32767", got)
+	}
+
+	var buf [MaxGamepadDevices]GamepadDevice
+	if n := hub.GamepadDevicesInto(buf[:]); n != 1 {
+		t.Fatalf("GamepadDevicesInto = %d, want 1", n)
+	}
+	if buf[0].RawButtons != (uint32(1)<<20) || buf[0].RawAxes[2] != 32767 || buf[0].RawAxes[5] != -32767 {
+		t.Fatalf("GamepadDevicesInto[0] = %+v, want RawButtons=1<<20 RawAxes[2]=32767 RawAxes[5]=-32767", buf[0])
+	}
+
+	if allocs := testing.AllocsPerRun(50, func() {
+		if err := hub.Service(); err != nil {
+			t.Fatal(err)
+		}
+		_ = hub.GamepadDevicesInto(buf[:])
+	}); allocs != 0 {
+		t.Fatalf("expected 0 allocations in Service/GamepadDevicesInto, got %.1f", allocs)
 	}
 }

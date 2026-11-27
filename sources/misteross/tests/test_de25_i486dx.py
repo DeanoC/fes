@@ -171,9 +171,12 @@ class DE25ModelsTest(unittest.TestCase):
         self.build.machine_netlist = lambda sources, files, model=None, cpu=None: (
             seen.append((model, files['pc386_system.sv'], files.get('pc386_presenter.sv'), cpu)) or (b'', {}))
         try:
-            _, derived, _ = self.build.board.component_files(self.build, self.sources, model=model)
+            files, derived, _ = self.build.board.component_files(self.build, self.sources, model=model)
         finally:
             self.build.machine_netlist = real
+        guard = 'fes_hps_ddr_guard.v'
+        self.assertIn(b"reads_owed <= 12'd0; finishing <= 1'b0;", files[guard])
+        self.assertEqual(derived[guard]['derived_sha256'], self.build.board.sha(files[guard]))
         return seen, derived
 
     def test_the_board_builds_the_dx_for_486dx(self):

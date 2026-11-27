@@ -16,13 +16,14 @@ driver using the pinned `lneto` TCP/IP stack
 
 | Feature | Implementation | Notes |
 | --- | --- | --- |
-| IPv4 / TCP | `lneto` over MTU 1500 (`net.SocketFunc`) | 16 active TCP ports, 8 listener connections; no checksum/segmentation offloads or IPv6. |
+| IPv4 / TCP | `lneto` over MTU 1500 (`net.SocketFunc`, `Link.ListenTCP`, `Link.DialTCP`) | 16 active TCP ports, 8 listener connections; no checksum/segmentation offloads or IPv6. |
+| HTTP server / client | `HTTPServer`, `NewHTTPTransport`, `NewHTTPClient` | Pause-aware HTTP/1.1 listener and DNS-backed transport with bounded concurrency and `ServerStats`. |
 | Static IPv4 | Default (`10.0.2.15/24`, gw `10.0.2.2` on QEMU) | Set `Config.Address` and `Config.Gateway` to override. |
 | DHCPv4 & renewal | Opt-in RFC 2131 client (`AcquireDHCP`, `OpenDeviceDHCP`, `Config{DHCP: true}`) + T1/T2 `LeaseRenewer` | Requires subnet mask, server ID, and usable router (option 3) in the leased subnet. |
 | 100M / link-flap recovery | Opt-in `NetworkOptions` (`Allow100Full`, `RecoverLinkLoss`) + `LeaseRenewer.NotifyLinkUp()` INIT-REBOOT probe | Dormant on Nano `fpgaload`; host unit tests only. A `DHCPNAK`, or an ACK for another address or gateway, halts the link; a silent probe keeps the still-valid lease until T1/T2. |
 | DNSv4 | Pure-Go RFC 1035 A-record resolver (`ResolveA`, `ResolveAWithTTL`) + bounded TTL cache (`DNSCache`, `Peek`/`Names`, `DNSResolver.ResolveFresh`) | Uses raw frame hooks on `Link`; supports CNAME chains, multi-server failover, and LRU/TTL caching. |
-| SNTP | `QuerySNTP` wall-clock client | Optional UTC clock source for FAT32 (`SetClock`). |
-| TLS / auth | Not supported | Deterministic board entropy is unsuitable for TLS/authentication; use private LAN HTTP. |
+| SNTP | `QuerySNTP` wall-clock client | Optional UTC clock source for FAT32 (`SetClock`) and TLS certificate checks (`WallClock`). |
+| TLS (opt-in) | Stdlib `crypto/tls` via `TransportConfig.TLSConfig` / `ServerConfig.TLSConfig` | Requires hardware/firmware RNG (`psci`) and a trusted clock/RootCA policy; plaintext HTTP remains default for local LAN use. |
 
 ## Ownership and DMA pause/resume (`BindControl`)
 

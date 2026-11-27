@@ -329,8 +329,11 @@ def component_files(sources, model=None):
     for name in LOCAL_FILES:
         if name.endswith((".v", ".tcl", ".vh")):
             files[name] = sources[BOARD + "pc386/" + name]
-    files["fes_hps_ddr_guard.v"] = sources["sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v"]
     machine_files, cpu, derived = elaboration(sources, model)
+    derive = board.module(sources, BOARD + "pc386/derive.py", "pc386_selected_derive")
+    guard = "fes_hps_ddr_guard.v"
+    files[guard], derived[guard] = derive.retarget_window_guard(
+        sources[MISTEROSS + "cores/fes-common/rtl/" + guard])
     files["pc386_system.v"], prepared = machine_netlist(sources, machine_files, model, cpu)
     derived["pc386_system.v"] = {"front_end": "yosys-seal-netlist", "guest_rates": guest_rates(model),
                                  "netlist_sha256": board.sha(files["pc386_system.v"]), "I486": I486, **prepared,

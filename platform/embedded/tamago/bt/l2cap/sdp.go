@@ -17,6 +17,7 @@ const (
 	sdpUUIDPnPInfo          uint16 = 0x1200
 	sdpAttrVendorID         uint16 = 0x0201
 	sdpAttrProductID        uint16 = 0x0202
+	sdpAttrVersion          uint16 = 0x0203
 	sdpMaxContinuations     uint8  = 4
 )
 
@@ -48,27 +49,29 @@ func (m *Manager) pumpSDP(conn *aclConn) {
 	}
 
 	// SDP ServiceSearchAttributeRequest querying PnPInformation (UUID 0x1200)
-	// attributes VendorID (0x0201) and ProductID (0x0202).
+	// attributes VendorID (0x0201), ProductID (0x0202), and Version (0x0203).
 	var pdu [40]byte
 	pdu[0] = sdpServiceSearchAttrReq
 	binary.BigEndian.PutUint16(pdu[1:3], txID)
-	binary.BigEndian.PutUint16(pdu[3:5], uint16(16+int(conn.sdpContLen)))
+	binary.BigEndian.PutUint16(pdu[3:5], uint16(19+int(conn.sdpContLen)))
 	// ServiceSearchPattern: DES(len=3) { UUID16(0x1200) }
 	pdu[5], pdu[6], pdu[7] = 0x35, 0x03, 0x19
 	binary.BigEndian.PutUint16(pdu[8:10], sdpUUIDPnPInfo)
 	// MaximumAttributeByteCount = 256
 	binary.BigEndian.PutUint16(pdu[10:12], uint16(len(conn.sdpBuf)))
-	// AttributeIDList: DES(len=6) { uint16(0x0201), uint16(0x0202) }
-	pdu[12], pdu[13] = 0x35, 0x06
+	// AttributeIDList: DES(len=9) { uint16(0x0201), uint16(0x0202), uint16(0x0203) }
+	pdu[12], pdu[13] = 0x35, 0x09
 	pdu[14] = 0x09
 	binary.BigEndian.PutUint16(pdu[15:17], sdpAttrVendorID)
 	pdu[17] = 0x09
 	binary.BigEndian.PutUint16(pdu[18:20], sdpAttrProductID)
-	pdu[20] = conn.sdpContLen
+	pdu[20] = 0x09
+	binary.BigEndian.PutUint16(pdu[21:23], sdpAttrVersion)
+	pdu[23] = conn.sdpContLen
 	if conn.sdpContLen > 0 {
-		copy(pdu[21:21+int(conn.sdpContLen)], conn.sdpCont[:conn.sdpContLen])
+		copy(pdu[24:24+int(conn.sdpContLen)], conn.sdpCont[:conn.sdpContLen])
 	}
-	if err := m.sendL2CAPPDU(conn.handle, ch.remoteCID, pdu[:21+int(conn.sdpContLen)]); err != nil {
+	if err := m.sendL2CAPPDU(conn.handle, ch.remoteCID, pdu[:24+int(conn.sdpContLen)]); err != nil {
 		return
 	}
 	conn.sdpTxID = txID
@@ -129,12 +132,13 @@ func (m *Manager) handleSDPPDU(conn *aclConn, ch *l2capChannel, payload []byte) 
 	}
 
 	m.closeChannel(conn, ch)
-	vid, pid, ok := parseSDPPnPVIDPID(conn.sdpBuf[:conn.sdpBufLen])
+	vid, pid, version, ok := parseSDPPnPIdentity(conn.sdpBuf[:conn.sdpBufLen])
 	if !ok {
 		return
 	}
 	conn.vendorID = vid
 	conn.productID = pid
+	conn.version = version
 	kind := controllers.IdentifyByVIDPID(vid, pid)
 	if kind != controllers.KindUnknown {
 		conn.kind = kind
@@ -142,6 +146,7 @@ func (m *Manager) handleSDPPDU(conn *aclConn, ch *l2capChannel, payload []byte) 
 	if rec, found := m.bonds.Lookup(conn.addr); found {
 		rec.VendorID = vid
 		rec.ProductID = pid
+		rec.Version = version
 		if kind != controllers.KindUnknown {
 			rec.Kind = kind
 		}
@@ -208,15 +213,15 @@ func readSDPDataElement(buf []byte) (elemType byte, val []byte, rest []byte, ok 
 	return elemType, buf[hdrLen : hdrLen+size], buf[hdrLen+size:], true
 }
 
-func parseSDPPnPVIDPID(data []byte) (vid, pid uint16, ok bool) {
+func parseSDPPnPIdentity(data []byte) (vid, pid, version uint16, ok bool) {
 	outerType, outerVal, _, outerOK := readSDPDataElement(data)
 	if !outerOK || outerType != 6 {
-		return 0, 0, false
+		return 0, 0, 0, false
 	}
 	for len(outerVal) > 0 {
 		recType, recVal, nextRec, recOK := readSDPDataElement(outerVal)
 		if !recOK {
-			return 0, 0, false
+			return 0, 0, 0, false
 		}
 		outerVal = nextRec
 		if recType != 6 {
@@ -245,11 +250,13 @@ func parseSDPPnPVIDPID(data []byte) (vid, pid uint16, ok bool) {
 			case sdpAttrProductID:
 				pid = attrVal
 				havePID = true
-			}
-			if haveVID && havePID {
-				return vid, pid, true
+			case sdpAttrVersion:
+				version = attrVal
 			}
 		}
+		if haveVID && havePID {
+			return vid, pid, version, true
+		}
 	}
-	return 0, 0, false
+	return 0, 0, 0, false
 }

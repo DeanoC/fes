@@ -332,11 +332,11 @@ void NativeHardware::SetHpsWindow(De25HpsWindow* window)
 // cannot be released keeps the configuration and stays poisoned, so every
 // later replacement is refused too.
 Error NativeHardware::ReleaseHpsWindow(const char* operation, const std::string& system,
-	const std::string& core, bool machine_quiesced)
+	const std::string& core, bool machine_quiesced, std::uint64_t deadline)
 {
 	if (!hps_window_) return {};
 	Error error;
-	if (machine_quiesced) error = hps_window_->ReleaseAfterQuiesce();
+	if (machine_quiesced) error = hps_window_->ReleaseAfterQuiesce(clock_, deadline);
 	else {
 		error = hps_window_->Blocking();
 		if (error.ok() && hps_window_->Ready()) error = hps_window_->Release();
@@ -601,10 +601,11 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 	CoreDriverResult early;
 	if (hps_window_ && hps_window_->IsOpen()) {
 		if (active_driver_ != nullptr) {
-			early = active_driver_->Quiesce(active_context_, Deadline(clock_, timeouts_.core_io_ms));
+			const auto deadline = Deadline(clock_, timeouts_.core_io_ms);
+			early = active_driver_->Quiesce(active_context_, deadline);
 			log_.Write({operation, system, core, "driver_quiesce", early.error});
 			if (early.error.ok()) {
-				early.error = ReleaseHpsWindow(operation, system, core, true);
+				early.error = ReleaseHpsWindow(operation, system, core, true, deadline);
 				if (!early.error.ok()) early.mutation_attempted = true;
 			}
 			if (!early.error.ok()) {
@@ -646,11 +647,11 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 	}
 	CoreDriverResult driver = early;
 	if (!machine_quiesced) {
-		driver = active_driver_->Quiesce(active_context_,
-			Deadline(clock_, timeouts_.core_io_ms));
+		const auto deadline = Deadline(clock_, timeouts_.core_io_ms);
+		driver = active_driver_->Quiesce(active_context_, deadline);
 		log_.Write({operation, system, core, "driver_quiesce", driver.error});
 		if (driver.error.ok()) {
-			driver.error = ReleaseHpsWindow(operation, system, core, true);
+			driver.error = ReleaseHpsWindow(operation, system, core, true, deadline);
 			if (!driver.error.ok()) driver.mutation_attempted = true;
 		}
 	}
@@ -2768,12 +2769,12 @@ HardwareResult NativeHardware::LoadSplashIdle()
 		quiesced.mutation_attempted, ""};
 	bool quiesce_mutation = quiesced.mutation_attempted;
 	if (active_driver_ != nullptr && !menu_unsafe_) {
-		const CoreDriverResult driver = active_driver_->Quiesce(active_context_,
-			Deadline(clock_, timeouts_.core_io_ms));
+		const auto deadline = Deadline(clock_, timeouts_.core_io_ms);
+		const CoreDriverResult driver = active_driver_->Quiesce(active_context_, deadline);
 		quiesce_mutation = quiesce_mutation || driver.mutation_attempted;
 		log_.Write({"start", "", "", "driver_quiesce", driver.error});
 		if (driver.error.ok()) {
-			const Error window = ReleaseHpsWindow("start", "", "", true);
+			const Error window = ReleaseHpsWindow("start", "", "", true, deadline);
 			if (!window.ok()) return {WithPhase(window, "quiesce"), true, driver.observed_core};
 		}
   if(!driver.error.ok()) {

@@ -723,6 +723,7 @@ func (m *Manager) handleEvent(ev []byte) {
 			conn.kind = rec.Kind
 			conn.vendorID = rec.VendorID
 			conn.productID = rec.ProductID
+			conn.version = rec.Version
 			if conn.kind == controllers.KindUnknown && (rec.VendorID != 0 || rec.ProductID != 0) {
 				conn.kind = controllers.IdentifyByVIDPID(rec.VendorID, rec.ProductID)
 			}
@@ -863,6 +864,7 @@ func (m *Manager) handleEvent(ev []byte) {
 			rec.Kind = existing.Kind
 			rec.VendorID = existing.VendorID
 			rec.ProductID = existing.ProductID
+			rec.Version = existing.Version
 			rec.Slot = existing.Slot
 		}
 		conn.pairingConn = false
@@ -875,6 +877,7 @@ func (m *Manager) handleEvent(ev []byte) {
 		if conn.vendorID != 0 || conn.productID != 0 {
 			rec.VendorID = conn.vendorID
 			rec.ProductID = conn.productID
+			rec.Version = conn.version
 		}
 		_ = m.bonds.Upsert(rec)
 
