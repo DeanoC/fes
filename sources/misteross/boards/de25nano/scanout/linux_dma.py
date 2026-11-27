@@ -111,10 +111,18 @@ def retarget_adapter(data, definition, *, window=False):
     # The vendor adapter is an ID-preserving AXI pass-through. Its original
     # one-transaction metadata makes Platform Designer insert a serializing
     # limiter, even when the reader and CDC can reserve sixteen bursts. The
-    # selected HPS F2SDRAM interface accepts sixteen reads; match that limit
-    # only in this isolated, read-only Linux profile. Write credits stay one.
-    for interface, fields in (('axi4_man', ('readIssuingCapability', 'combinedIssuingCapability')),
-                              ('axi4_sub', ('readAcceptanceCapability', 'combinedAcceptanceCapability'))):
+    # selected HPS F2SDRAM interface accepts sixteen reads and sixteen writes.
+    # Raise read and combined credits in this isolated Linux profile; raise
+    # write credits too when the HPS window shares the adapter, so interleaved
+    # guest and presenter writes do not stall behind one posted-write slot.
+    interfaces = [
+        ('axi4_man', ['readIssuingCapability', 'combinedIssuingCapability']),
+        ('axi4_sub', ['readAcceptanceCapability', 'combinedAcceptanceCapability']),
+    ]
+    if window:
+        interfaces[0][1].append('writeIssuingCapability')
+        interfaces[1][1].append('writeAcceptanceCapability')
+    for interface, fields in interfaces:
         for field in fields:
             before = f'set_interface_property {interface} {field} 1\n'
             if text.count(before) != 1:
@@ -122,11 +130,14 @@ def retarget_adapter(data, definition, *, window=False):
             text = text.replace(before, before.replace(' 1\n', ' 16\n'))
     if window:
         text = order_window_reads(text)
-    return text.encode(), {'stream_id': sid, 'user_bits': width, 'sid_shift': shift,
+    profile = {'stream_id': sid, 'user_bits': width, 'sid_shift': shift,
         'secure_bit': secure_bit, 'secure': False, 'attributes': 0xe0, 'read_transactions': 16,
         'scope': 'scanout-only generated F2SDRAM path', 'master_ownership': 'scanout-only',
         'original_sha256': hashlib.sha256(data).hexdigest(), 'derived_sha256': hashlib.sha256(text.encode()).hexdigest(),
         'kernel_binding': 'not-admitted', 'physical_translation': 'not-qualified'}
+    if window:
+        profile['write_transactions'] = 16
+    return text.encode(), profile
 
 
 def configure(project, definition, hps, *, managed_fabric=False, window=False):
@@ -441,13 +452,18 @@ def verify(project, hps, profile):
             raise ValueError('generated F2SDRAM data or strobe width differs')
     if profile.get('read_transactions') != 16:
         raise ValueError('Linux scanout read transaction limit differs')
+    if window and profile.get('write_transactions') != 16:
+        raise ValueError('Linux window write transaction limit differs')
+    write_limit = '16' if window else '1'
+    hps_fields = {'readAcceptanceCapability': '16', 'combinedAcceptanceCapability': '16'}
+    if window:
+        hps_fields['writeAcceptanceCapability'] = '16'
     for module, interface, fields in (
             ('subsys_hps.f2sdram_adapter', 'axi4_man',
-             {'readIssuingCapability': '16', 'combinedIssuingCapability': '16', 'writeIssuingCapability': '1'}),
+             {'readIssuingCapability': '16', 'combinedIssuingCapability': '16', 'writeIssuingCapability': write_limit}),
             ('subsys_hps.f2sdram_adapter', 'axi4_sub',
-             {'readAcceptanceCapability': '16', 'combinedAcceptanceCapability': '16', 'writeAcceptanceCapability': '1'}),
-            ('subsys_hps.agilex_hps', 'f2sdram',
-             {'readAcceptanceCapability': '16', 'combinedAcceptanceCapability': '16'})):
+             {'readAcceptanceCapability': '16', 'combinedAcceptanceCapability': '16', 'writeAcceptanceCapability': write_limit}),
+            ('subsys_hps.agilex_hps', 'f2sdram', hps_fields)):
         selected = modules[module].find("interface[@name='" + interface + "']")
         if selected is None:
             raise ValueError('missing generated transaction capability interface')

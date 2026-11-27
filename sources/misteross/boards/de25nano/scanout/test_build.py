@@ -815,8 +815,8 @@ class LinuxDmaTests(unittest.TestCase):
             + r"output wire \[7:0\]   man_" + c + "user,\n"
             + f"assign man_{c}user = 8'hE0;\n" for c in ("ar", "aw")) + "".join(
             f"set_interface_property {interface} {field} 1\n"
-            for interface, fields in (("axi4_man", ("readIssuingCapability", "combinedIssuingCapability")),
-                                      ("axi4_sub", ("readAcceptanceCapability", "combinedAcceptanceCapability")))
+            for interface, fields in (("axi4_man", ("readIssuingCapability", "writeIssuingCapability", "combinedIssuingCapability")),
+                                      ("axi4_sub", ("readAcceptanceCapability", "writeAcceptanceCapability", "combinedAcceptanceCapability")))
             for field in fields) + "# vendor suffix\n"
         self.window_channels = (
             "assign sub_rid     = man_rid;\nassign sub_arready = man_arready;\n"
@@ -928,10 +928,16 @@ proc remove_instance {name} {}
 
     def test_window_adapter_orders_reads_without_changing_scanout_only(self):
         source = self.source + self.window_channels
-        scanout, _ = self.helper.retarget_adapter(source.encode(), self.definition)
-        window, _ = self.helper.retarget_adapter(source.encode(), self.definition, window=True)
+        scanout, scanout_profile = self.helper.retarget_adapter(source.encode(), self.definition)
+        window, window_profile = self.helper.retarget_adapter(source.encode(), self.definition, window=True)
 
         self.assertIn(self.window_channels.encode(), scanout)
+        self.assertNotIn("write_transactions", scanout_profile)
+        self.assertIn(b"set_interface_property axi4_man writeIssuingCapability 1\n", scanout)
+        self.assertIn(b"set_interface_property axi4_sub writeAcceptanceCapability 1\n", scanout)
+        self.assertEqual(window_profile["write_transactions"], 16)
+        self.assertIn(b"set_interface_property axi4_man writeIssuingCapability 16\n", window)
+        self.assertIn(b"set_interface_property axi4_sub writeAcceptanceCapability 16\n", window)
         self.assertIn(b"assign man_arid     = 5'd0;", window)
         self.assertIn(rb"assign sub_rid     = read_id_fifo\[read_head\];", window)
         self.assertIn(b'wire read_finished = man_rvalid && man_rready && man_rlast;', window)
@@ -940,6 +946,10 @@ proc remove_instance {name} {}
         with self.assertRaisesRegex(ValueError, 'vendor F2SDRAM read channel changed'):
             self.helper.retarget_adapter(source.replace('man_arid     = sub_arid', 'man_arid     = 0').encode(),
                                          self.definition, window=True)
+        for field in ('writeIssuingCapability 1', 'writeAcceptanceCapability 1'):
+            with self.assertRaisesRegex(ValueError, 'vendor AXI transaction capability changed'):
+                self.helper.retarget_adapter(source.replace(field, field.replace(' 1', ' 2')).encode(),
+                                             self.definition, window=True)
 
     def test_reserved_sid_and_changed_layout_are_refused(self):
         for definition in (self.definition.replace("SMMU_STREAM_ID 32'h0000000d", "SMMU_STREAM_ID 32'h0000000a"),
