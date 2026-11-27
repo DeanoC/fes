@@ -470,6 +470,7 @@ local function picture(part)
   local c=choice()
   local saved_id=machine and machine.draft_expansion_id or ""
   local previewing=machine and inspected ~= "" and inspected ~= saved_id
+  local has_socket=machine and machine.socket.supported
   if part ~= "lower" and part ~= "append" then
 
   -- Header: FES identity, this room, and the routes out.
@@ -493,7 +494,7 @@ local function picture(part)
   -- running machine the real one shows through instead of card and artwork.
   if not overlay then rect(24,144,576,296,C.raised) end
   text("Setup preview",40,154,17,C.muted,300)
-  text("1 rear connector",432,154,17,C.muted,152)
+  text(has_socket and "1 rear connector" or (machine and "No expansion socket" or "Socket unknown"),432,154,17,C.muted,152)
   if overlay then
     -- No artwork or silhouette: the running machine is behind the room.
   elseif model().id == "fes.zx81" and art and art.ready then
@@ -508,9 +509,11 @@ local function picture(part)
     text(model().mark,360,268,24,C.light,100,true)
     text("Machine illustration unavailable",130,206,15,C.muted,400)
   end
-  -- The ZX81 has one rear connector, not numbered internal slots.
-  rect(314,198,48,3,C.accent)
-  rect(308,195,10,10,C.accent)
+  -- A supported package has one rear connector, not numbered internal slots.
+  if has_socket then
+    rect(314,198,48,3,C.accent)
+    rect(308,195,10,10,C.accent)
+  end
   -- Solid means the host still admits the saved card. An unavailable saved
   -- selection keeps its Next start label and uses the muted shelf colour.
   -- Only a ready preview is drawn beside it.
@@ -521,11 +524,11 @@ local function picture(part)
       if item.expansion_id == saved_id and item.ready then saved_ready=true end
     end
   end
-  if saved_id ~= "" then
+  if has_socket and saved_id ~= "" then
     connector_card(276,180,saved_ready and "fitted" or "unavailable")
     text("Next start",preview_ready and 276 or 236,166,13,C.ink,preview_ready and 96 or 120,true)
   end
-  if preview_ready then
+  if has_socket and preview_ready then
     if saved_id ~= "" then
       connector_card(228,180,"preview")
       text("Preview",164,188,13,C.ink,60,true)
@@ -534,7 +537,9 @@ local function picture(part)
       text("Preview",236,166,13,C.ink,120,true)
     end
   end
-  button("socket","Rear expansion",372,182,200,40,machine and machine.socket.supported,function() focus="card:1" end)
+  if has_socket then
+    button("socket","Rear expansion",372,182,200,40,true,function() focus="card:1" end)
+  end
   local readonly=data and data.expansion_selection == false
   local save_guidance=readonly and ("Open the "..workshop_title().." on the host computer to choose Fit & save.") or "A saved setup remembers the machine, not its running memory."
   text(save_guidance,40,412,16,C.muted,544)

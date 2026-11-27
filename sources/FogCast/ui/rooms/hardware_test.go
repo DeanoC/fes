@@ -125,7 +125,7 @@ func TestHardwareRoomEmptyExpansionShelfFollowsSocket(t *testing.T) {
 			}
 			f := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Expansion shelf") && !r.hardwareReading })
 			if supported {
-				if !frameHas(f, "RAM, Zon X and QS expansions supported.") || !frameHas(f, "Import a card archive") || !frameHas(f, "Import expansion") {
+				if !frameHas(f, "RAM, Zon X and QS expansions supported.") || !frameHas(f, "Import a card archive") || !frameHas(f, "Import expansion") || !frameHas(f, "1 rear connector") {
 					t.Fatalf("supported socket lost import guidance:\n%s", frameText(f))
 				}
 				r.Activate("import_card")
@@ -137,7 +137,7 @@ func TestHardwareRoomEmptyExpansionShelfFollowsSocket(t *testing.T) {
 				if !frameHas(f, "Expansions are unavailable for this machine package.") || !frameHas(f, "NO EXPANSION SOCKET") {
 					t.Fatalf("unsupported socket did not explain its limitation:\n%s", frameText(f))
 				}
-				if frameHas(f, "expansions supported") || frameHas(f, "Import a card archive") || frameHas(f, "Import expansion") {
+				if frameHas(f, "expansions supported") || frameHas(f, "Import a card archive") || frameHas(f, "Import expansion") || frameHas(f, "1 rear connector") || frameHas(f, "Rear expansion") {
 					t.Fatalf("unsupported socket offered an expansion:\n%s", frameText(f))
 				}
 				r.Activate("import_card")
