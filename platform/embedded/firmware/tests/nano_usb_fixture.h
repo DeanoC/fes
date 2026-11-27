@@ -113,7 +113,13 @@ static inline int cold_read(void *p, unsigned reg, uint32_t *v)
     struct hardware *h=p;h->reads++;
     switch(reg) {
     case FES_COLD_CAUSE:*v=4;break;
-    case FES_COLD_PER0:*v=h->per0;break;
+    case FES_COLD_PER0:
+#ifdef FES_NANO_MAC_JOINED_TEST
+        *v=(h->per0&~0x101U)|(channel_mmio(0x10d11024)&0x101U);
+#else
+        *v=h->per0;
+#endif
+        break;
     case FES_COLD_BRG:*v=h->bridge;break;
     case FES_COLD_CPUS:*v=15;break;
     case FES_COLD_RELEASE:*v=0;break;

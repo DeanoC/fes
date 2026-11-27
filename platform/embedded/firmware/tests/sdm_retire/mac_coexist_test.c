@@ -9,7 +9,7 @@
 #define FES_NANO_CONTROL_BASE UINT64_C(0x20010000)
 static uint32_t mac_reset=0xff7fb7b7,mac_route=3,mac_sids=0x10001,mac_table_start=0x94010000;
 static uint64_t table[0x7000/8],commands[32],command_writes;
-static uint32_t test_mac_frame(uint64_t),fault;
+static uint32_t test_mac_frame(uint64_t),fault,displayed;
 static uint64_t test_mac_cmd_load(uint64_t a){return commands[(a-0x94018000)/8];}
 static void test_mac_cmd_store(uint64_t a,uint64_t v){commands[(a-0x94018000)/8]=v;command_writes++;}
 static uint64_t test_mac_load(uint64_t a){return table[(a-0x94010000)/8];}
@@ -31,13 +31,13 @@ static uint32_t test_mac_frame(uint64_t a)
  case 0xc8:return 1;
  case 0xb0:return 0x95000000;
  case 0xb4:return 8U<<20;
- case 0x94:return mac_window.active ? 6:0;
- case 0x98:return mac_window.active;
+ case 0x94:return displayed && fault!=13 ? 6:0;
+ case 0x98:return !!displayed;
  case 0x9c:return 0;
  case 0xa8:return fault==11;
  case 0xac:return fault==12;
- case 0xa0:return mac_window.active ? 3:0;
- case 0xa4:return mac_window.active && fault!=1 ? 3:0;
+ case 0xa0:return displayed;
+ case 0xa4:return fault!=1 ? displayed:0;
  default:assert(0);return 0;
  }
 }
@@ -54,6 +54,7 @@ static void run(unsigned problem)
  assert(!r[0]);
  assert(mac_window.active && mac_window.completed==6 && registers[0x80/4]==0x94010000 && registers[0x24/4]==13);
  assert(registers[0x98/4]==2 && registers[0x9c/4]==2 && command_writes==12);
+ displayed=3;
  assert(identity_probe.stage==FES_ID_DDR_READ && fes_nano_mac_window_progress()==1 && mac_window.displayed==3);
  /* The same local renderer quiescence receipt used by the real dispatcher. */
  lifecycle_registers[FES_EMBEDDED_REG_GENERATION_LO/4]=1;
@@ -87,7 +88,10 @@ static void run(unsigned problem)
  assert(!memcmp(original_cmd,&arena[0x8000/8],sizeof(original_cmd)));
  assert(!fes_nano_owned_mac.attempted && !fes_nano_owned_mac.initialized);
 }
-int main(void)
+#ifndef FES_TEST_MAC_COEXIST_MAIN
+#define FES_TEST_MAC_COEXIST_MAIN main
+#endif
+int FES_TEST_MAC_COEXIST_MAIN(void)
 {
  for(unsigned i=0;i<=12;i++){
   pid_t pid=fork();assert(pid>=0);

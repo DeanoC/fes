@@ -17,6 +17,25 @@ struct mac_transaction {
     enum { WINDOW_OPEN, WINDOW_CLOSE, WINDOW_RUNNING } phase;
 };
 
+#if defined(FES_NANO_MAC_MENU_SUPPLIER) && FES_NANO_MAC_MENU_SUPPLIER
+#include "nano_mac_channel.h"
+#include "nano_mac_phy.h"
+enum menu_grant_phase { MENU_NO_MAC, MENU_MAPPING, MENU_PHY, MENU_READY, MENU_CONFIRMED, MENU_STOPPING, MENU_REVOKED };
+static struct {
+    struct fes_nano_mac_phy phy;
+    fes_channel channel;
+    uint64_t generation, menu_generation;
+    uint16_t vmid;
+    uint8_t phase, withdrawn;
+} menu_mac __attribute__((section(".data.fes_menu_mac")));
+static int mac_controller_expected(void);
+#else
+static int mac_controller_expected(void)
+{
+    return !fes_nano_owned_mac.attempted && !fes_nano_owned_mac.initialized && !fes_nano_owned_mac.failed;
+}
+#endif
+
 static int mac_window_owner(unsigned phase)
 {
     const struct nano_retire *r=&source_retirement;
@@ -43,8 +62,29 @@ static int mac_window_owner(unsigned phase)
         !b->failed && !b->device_lease && b->state.owner==r->binding.owner && b->epoch==r->binding.epoch &&
         gen<=UINT64_MAX-2 && b->state.generation==gen+(phase!=WINDOW_OPEN ? 2U:1U) && b->state.reset==(phase!=WINDOW_OPEN ? 5U:13U) &&
         !sd_platform.active && !sd_platform.prepared && !sd_platform.failed &&
-        !fes_nano_owned_mac.attempted && !fes_nano_owned_mac.initialized && !fes_nano_owned_mac.failed &&
+        mac_controller_expected() &&
         fes_nano_cold_owns(&provider,r->binding.owner,r->binding.epoch)==1;
+}
+
+static uint64_t mac_window_word(unsigned offset)
+{
+#if defined(FES_NANO_MAC_MENU_SUPPLIER) && FES_NANO_MAC_MENU_SUPPLIER
+    if(offset>=64 && offset<128 && menu_mac.vmid){
+        if(offset==64 && menu_mac.withdrawn)return 0;
+        return nano_stage2_ste_word((offset-64)/8,menu_mac.vmid,NANO_MAC_TABLE_BASE+0x4000);
+    }
+#endif
+    return mac_table_word(offset);
+}
+static int mac_window_resets(void)
+{
+#if defined(FES_NANO_MAC_MENU_SUPPLIER) && FES_NANO_MAC_MENU_SUPPLIER
+    uint32_t released;
+    return fes_nano_menu_mac_reset_mask(&provider,&released)==1 &&
+        mac_handoff_reg(0x10d11024,0x101,0x101U & ~released);
+#else
+    return mac_handoff_reg(0x10d11024,0x101,0x101);
+#endif
 }
 
 static uint32_t mac_reg(uint32_t offset){return FES_PROBE_READ32(MAC_SMMU+offset);}
@@ -55,7 +95,7 @@ static int mac_window_scope(struct mac_transaction *t)
     if(now<t->last || now-t->start>=NANO_RETIRE_US)return 0;
     t->last=now;
     FES_PROBE_BARRIER();
-    return mac_handoff_reg(0x10d11024,0x101,0x101) && mac_handoff_reg(0x10d12184,UINT32_MAX,3) &&
+    return mac_window_resets() && mac_handoff_reg(0x10d12184,UINT32_MAX,3) &&
         mac_handoff_reg(0x10d121b0,UINT32_MAX,0xa000a) && mac_handoff_reg(0x10d1219c,UINT32_MAX,3) &&
         mac_handoff_reg(0x10d121c8,UINT32_MAX,0x10001) && mac_reg(0)==0x080f7e3f && mac_reg(4)==0x0e739d18 &&
         mac_reg(0x14)==0x00400075 && mac_reg(0x28)==0x820 && mac_reg(0x2c)==4 &&
@@ -98,7 +138,7 @@ static int mac_window_enable(struct mac_transaction *t,uint32_t next)
 }
 static int mac_window_pair(struct mac_transaction *t,uint64_t op,uint64_t arg)
 {
-    if(t->cmd!=MAC_CMD || t->control!=8 || !mac_window_stable(t))return 0;
+    if(t->cmd!=MAC_CMD || (t->control!=8 && t->control!=13) || !mac_window_stable(t))return 0;
     uint32_t prior=t->cursor,next=(prior+2)&15U;
     const uint32_t p=MAC_CMD+(prior&7U)*16U,s=MAC_CMD+((prior+1)&7U)*16U;
     const uint32_t addresses[]={p,p+8,s,s+8};
@@ -114,7 +154,7 @@ static int mac_window_pair(struct mac_transaction *t,uint64_t op,uint64_t arg)
     FES_PROBE_WRITE32(MAC_SMMU+0x98,next);FES_PROBE_BARRIER();
     uint32_t seen=0;
     for(unsigned n=0;n<4096;n++){
-        if(!mac_window_fixed(t) || mac_reg(0x24)!=8 || mac_reg(0x98)!=next)return 0;
+        if(!mac_window_fixed(t) || mac_reg(0x24)!=t->control || mac_reg(0x98)!=next)return 0;
         uint32_t c=mac_reg(0x9c),progress=(c-prior)&15U;
         if(c>15 || progress<seen || progress>2)return 0;
         if(progress==2){
@@ -137,7 +177,7 @@ static int mac_window_tables(struct mac_transaction *t)
     for(unsigned n=0;n<NANO_SDM_INPUT_ARENA_BYTES;n+=NANO_MAC_TABLE_BATCH){
         if(!mac_window_stable(t))return 0;
         if(n<NANO_MAC_TABLE_BYTES)for(unsigned i=0;i<NANO_MAC_TABLE_BATCH;i+=8)
-            if(FES_PROBE_LOAD64(NANO_MAC_TABLE_BASE+n+i)!=mac_table_word(n+i))return 0;
+            if(FES_PROBE_LOAD64(NANO_MAC_TABLE_BASE+n+i)!=mac_window_word(n+i))return 0;
         if(!nano_sdm_input_table_range(n,NANO_MAC_TABLE_BATCH))continue;
         if(nano_sdm_input_words(&source_retirement.binding,n,words,NANO_MAC_TABLE_BATCH/8))return 0;
         for(unsigned i=0;i<NANO_MAC_TABLE_BATCH/8;i++)
@@ -157,7 +197,10 @@ static int mac_window_frame(struct mac_transaction *t,uint32_t *sequence)
            FES_PROBE_READ32(FES_NANO_CONTROL_BASE+0xc8)!=1 ||
            FES_PROBE_READ32(FES_NANO_CONTROL_BASE+0xb0)!=0x95000000 ||
            FES_PROBE_READ32(FES_NANO_CONTROL_BASE+0xb4)!=(8U<<20))return 0;
-        if(t->phase==WINDOW_OPEN)(void)FES_PROBE_READ32(FES_NANO_CONTROL_BASE+0x94);
+        if(t->phase!=WINDOW_CLOSE){
+            uint32_t flags=FES_PROBE_READ32(FES_NANO_CONTROL_BASE+0x94);
+            if(t->phase==WINDOW_RUNNING && (!(flags&2U) || (flags&~6U)))return 0;
+        }
         FES_PROBE_BARRIER();
         uint32_t gen=FES_PROBE_READ32(FES_NANO_CONTROL_BASE+0x98),hi=FES_PROBE_READ32(FES_NANO_CONTROL_BASE+0x9c);
         uint32_t accepted=FES_PROBE_READ32(FES_NANO_CONTROL_BASE+0xa0),shown=FES_PROBE_READ32(FES_NANO_CONTROL_BASE+0xa4);
@@ -232,6 +275,18 @@ __attribute__((noinline)) static int mac_window_close(void)
         .cursor=(mac_handoff.cursor+6U)&15U,.control=13,.commands=6,.phase=WINDOW_CLOSE};
     t.start=t.last=FES_PROBE_COUNTER()/400U;
     uint32_t seq;
+#if defined(FES_NANO_MAC_MENU_SUPPLIER) && FES_NANO_MAC_MENU_SUPPLIER
+    if(!mac_window.active && mac_window.completed==16 && menu_mac.phase==MENU_NO_MAC &&
+       mac_window.generation==mac_handoff.generation && mac_window.displayed){
+        t=(struct mac_transaction){.table=NANO_SDM_INPUT_ARENA,.cmd=0x94008000,.evt=0x94009000,
+            .cursor=mac_handoff.cursor,.phase=WINDOW_CLOSE,.start=t.start,.last=t.last};
+        if(!mac_handoff_view(&source_retirement) || !mac_window_tables(&t) || !mac_window_frame(&t,&seq) ||
+           seq<mac_window.displayed)return mac_window_failed(4);
+        NOTICE("FES_NANO_MAC_MENU_CLOSE generation=%llu frame=%u restored=1 grant=0\n",
+            (unsigned long long)mac_window.generation,seq);
+        return 0;
+    }
+#endif
     if(!mac_window.active || mac_window.completed!=6 || mac_window.generation!=mac_handoff.generation ||
        !mac_window_tables(&t) || !mac_window_frame(&t,&seq) || seq<mac_window.displayed)return mac_window_failed(3);
     if(!mac_window_enable(&t,12) || !mac_window_enable(&t,8) ||

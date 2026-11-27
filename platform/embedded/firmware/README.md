@@ -152,5 +152,14 @@ to the original SDM table. Sixteen real queue commands wrap the private
 queue back to the retained hardware cursor. The firmware never writes the
 consumer pointer. Any loss of ownership, incomplete command, fault or
 missing frame retains the reservation. This mode qualifies reader coexistence
-only after a matched hardware run. The subsequent MAC reset, PHY and independent
-DMA drain require their own production supplier.
+only after a matched hardware run.
+
+The additional `--nano-mac-menu-supplier` option requires the matched
+`--paired-ethernet` PIO launcher. After a real MENU frame is displayed,
+EL3 can grant MAC0 a fresh VMID and five pages, prepare its KSZ9031 PHY and
+confirm the XGMAC rings. The launcher stops both channels before switching
+programs. EL3 verifies the RX, TX, AXI and MTL drain, restores the saved PHY
+configuration, revokes the mapping and verifies the original SDM cursor.
+It checks the complete MAC arena across a 10 ms post-revocation interval.
+Ethernet can resume after the returned MENU displays a new frame. The
+matched launcher stays offline while the C64 runs.

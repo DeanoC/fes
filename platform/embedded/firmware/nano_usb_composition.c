@@ -140,8 +140,14 @@ static int master_snapshot(void *context,uint64_t owner,uint64_t epoch,
         return master_fail(m,-1);
     int error=m->producers.snapshot(m->producers.context,owner,epoch,&observation);
     if (error) return master_fail(m,error);
+    unsigned expected_hps=FES_NANO_PRODUCERS_HPS;
+#if defined(FES_NANO_MAC_MENU_SUPPLIER) && FES_NANO_MAC_MENU_SUPPLIER
+    uint32_t mac=0;
+    if(fes_nano_menu_mac_reset_mask(s->cold,&mac)!=1)return master_fail(m,-1);
+    if(mac)expected_hps &= ~1U;
+#endif
     if ((observation.producers & ~FES_NANO_PRODUCERS_ALL) ||
-        (observation.producers & FES_NANO_PRODUCERS_HPS)!=FES_NANO_PRODUCERS_HPS ||
+        (observation.producers & FES_NANO_PRODUCERS_HPS)!=expected_hps ||
         snapshot(s,&after)!=1 || before!=after || s->usb->generation!=generation ||
         !producer_policy(m)) return master_fail(m,-1);
     *keep=after;*producers=observation.producers;*reset=observation.bridge;*per0=observation.per0;

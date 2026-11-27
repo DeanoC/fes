@@ -450,6 +450,11 @@ static int cold_producer_sample(void *context,uint32_t *producers)
     if (fabric_stop.done && s->control_expected && fes_nano_fabric_stopped(&fabric_stop))
         return master_failure(s,fabric_stop.first_error);
     *producers=FES_NANO_PRODUCERS_HPS | (fabric_stop.done ? FES_NANO_PRODUCERS_FPGA : 0U);
+#if defined(FES_NANO_MAC_MENU_SUPPLIER) && FES_NANO_MAC_MENU_SUPPLIER
+    uint32_t released=0;
+    if(fes_nano_menu_mac_reset_mask(s,&released)!=1)return master_failure(s,-1);
+    if(released)*producers &= ~1U; /* EMAC0 is an active HPS producer. */
+#endif
     return 0;
 }
 static int cold_master_quiescent(void *context,uint32_t *producers)

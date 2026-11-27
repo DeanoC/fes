@@ -154,8 +154,12 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
        (usb_platform.active && usb_platform.generation!=2) ||
        !usb_composition.initialized || usb_composition.failed || !FES_PROBE_USB_BINDING_VALID())
         return sdm_probe_reject(8);
+#if defined(FES_NANO_MAC_MENU_SUPPLIER) && FES_NANO_MAC_MENU_SUPPLIER
+    if(!fes_nano_menu_mac_source_safe())return sdm_probe_reject(7);
+#else
     if(fes_nano_owned_mac.attempted || fes_nano_owned_mac.initialized || fes_nano_owned_mac.failed)
         return sdm_probe_reject(7);
+#endif
     if(!configuration.initialized || configuration.failed || !configuration.prepared ||
        !configuration.started || configuration.finished!=(completed!=0) || configuration.rearmed!=sdm_rearm.admitted ||
        configuration.bridges!=b ||

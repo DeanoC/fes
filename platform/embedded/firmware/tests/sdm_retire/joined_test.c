@@ -309,7 +309,7 @@ static uint64_t address_of(const char *name){
 }
 static uint64_t table_word(const char *name,unsigned index){
  if(!strcmp(name,"fes_nano_mmu_root")){assert(index==2);return 0x80050003;}
- assert(!strcmp(name,"fes_nano_mmu_ddr") && (index==160 || (index>=164 && index<=167)));
+ assert(!strcmp(name,"fes_nano_mmu_ddr") && (index==160 || index==174 || (index>=164 && index<=167)));
  return (UINT64_C(0x0040000080000669)+((uint64_t)index<<21)) ^ ((mode==28 || (mode==34 && mutated)) && index==164 ? 4U:0U);
 }
 static unsigned smmu_index(uint64_t address){
@@ -324,7 +324,11 @@ static uint32_t probe_read(uint64_t address){
  if(address>=FES_NANO_CONTROL_BASE && address<FES_NANO_CONTROL_BASE+256)return test_mac_frame(address);
 #endif
 #if defined(FES_NANO_MAC_HANDOFF) && FES_NANO_MAC_HANDOFF
+#ifdef FES_NANO_MAC_JOINED_TEST
+ if(address==0x10d11024)return channel_mmio(0x10d11024);
+#else
  if(address==0x10d11024)return mac_reset;
+#endif
  if(address==0x10d1219c)return mac_route;
  if(address==0x10d121c8)return mac_sids;
 #endif
@@ -422,7 +426,8 @@ static int configuration_check(void *c,uint64_t address,uint32_t bytes,unsigned 
 }
 #define FES_NANO_INPUT_BUILD "0000000000000000"
 #include <stdarg.h>
-static char terminal_log[4096];static unsigned terminal_used;
+/* Retain the whole multi-program return trace for failure diagnostics. */
+static char terminal_log[16384];static unsigned terminal_used;
 static void terminal_notice(const char *format,...){
  va_list args;va_start(args,format);int n=vsnprintf(terminal_log+terminal_used,sizeof(terminal_log)-terminal_used,format,args);va_end(args);
  assert(n>=0 && (unsigned)n<sizeof(terminal_log)-terminal_used);terminal_used+=(unsigned)n;

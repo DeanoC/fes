@@ -32,6 +32,7 @@ int fes_nano_sdm_transfer_control_finish(int status,unsigned words);
 int fes_nano_sdm_transfer_reader_ready(void);
 /* Optional strong supplier, called only in the selected translated MENU trial. */
 int fes_nano_mac_window_progress(void);
+int fes_nano_menu_mac_admit(void);
 /* Consume the actual completed source once, under the owned call lock.
  * The strong supplier must prove retained translation and real session/device
  * return. A diagnostic copy cannot release source or reopen DATA. */

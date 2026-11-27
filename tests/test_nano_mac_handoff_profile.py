@@ -101,6 +101,21 @@ class MacHandoffProfileTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 mode.header(broken)
 
+    def test_menu_supplier_requires_exact_paired_client(self):
+        profile=warm_profile()
+        profile['mac_handoff']=mode.mac_handoff_contract(profile)
+        profile['mac_table_trial']=mode.mac_table_trial_contract(profile,0x96080000)
+        profile['mac_coexistence_trial']=mode.mac_coexistence_contract(profile)
+        with self.assertRaises(ValueError):
+            mode.mac_menu_contract(profile)
+        profile['launcher_ethernet']=mode.ethernet.contract()
+        profile['mac_menu_supplier']=mode.mac_menu_contract(profile)
+        self.assertFalse(profile['mac_menu_supplier']['hardware_accepted'])
+        self.assertIn('#define FES_NANO_MAC_MENU_SUPPLIER 1',mode.header(profile))
+        for key in profile['launcher_ethernet']:
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                mode.header(dict(profile,launcher_ethernet=dict(profile['launcher_ethernet'],**{key:None})))
+
     def test_both_builders_require_explicit_source_rearm(self):
         for builder in ('build_terasic.py','build_terasic_uboot.py'):
             with tempfile.TemporaryDirectory() as directory:

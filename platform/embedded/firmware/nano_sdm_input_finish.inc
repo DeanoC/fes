@@ -15,6 +15,9 @@
 #include "nano_mac_table_trial.inc"
 #if defined(FES_NANO_MAC_COEXISTENCE_TRIAL) && FES_NANO_MAC_COEXISTENCE_TRIAL
 #include "nano_mac_coexist.inc"
+#if defined(FES_NANO_MAC_MENU_SUPPLIER) && FES_NANO_MAC_MENU_SUPPLIER
+#include "nano_mac_menu.inc"
+#endif
 #endif
 #endif
 #endif

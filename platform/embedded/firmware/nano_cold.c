@@ -168,6 +168,12 @@ static int released_devices(struct fes_nano_cold *s, uint32_t *released)
         (*released & ~(FES_NANO_COLD_USB_RESET|FES_NANO_COLD_SD_RESET)) ||
         ((*released & FES_NANO_COLD_USB_RESET)!=0 &&
          (*released & FES_NANO_COLD_USB_RESET)!=FES_NANO_COLD_USB_RESET)) return fail(s);
+#if defined(FES_NANO_MAC_MENU_SUPPLIER) && FES_NANO_MAC_MENU_SUPPLIER
+    uint32_t mac=0;
+    if(fes_nano_menu_mac_reset_mask(s,&mac)!=1 || (mac && mac!=0x101U) ||
+       (mac && (*released&FES_NANO_COLD_SD_RESET)))return fail(s);
+    *released|=mac;
+#endif
     return 0;
 }
 static int usb_contained(struct fes_nano_cold *s, uint32_t released)

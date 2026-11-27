@@ -2382,7 +2382,17 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
     if (fid==FES_EMBEDDED_MAC_CALL) {
         r[0]=FES_EMBEDDED_MAC_REJECTED;r[1]=(uint64_t)FES_EMBEDDED_MAC_TAG<<32;
         if (x3!=FES_EMBEDDED_MAC_COOKIE) goto out;
-#if defined(FES_NANO_MAC_COEXISTENCE_TRIAL) && FES_NANO_MAC_COEXISTENCE_TRIAL
+#if defined(FES_NANO_MAC_MENU_SUPPLIER) && FES_NANO_MAC_MENU_SUPPLIER
+        if (x1==FES_EMBEDDED_MAC_ACQUIRE && (!fes_nano_owned_mac.initialized ||
+            x2!=fes_nano_owned_mac.binding.owner || x4!=fes_nano_owned_mac.generation)) goto out;
+        if ((x1==FES_EMBEDDED_MAC_QUERY && !x2 && !x4) || x1==FES_EMBEDDED_MAC_ACQUIRE) {
+            if(request_type!=NO_REQUEST || fes_nano_configuration_busy(configuration)){
+                r[0]=FES_EMBEDDED_MAC_BUSY;goto out;
+            }
+            int admission=fes_nano_menu_mac_admit();
+            if(admission!=1){r[0]=admission<0 ? FES_EMBEDDED_MAC_ERROR:FES_EMBEDDED_MAC_NOT_READY;goto out;}
+        }
+#elif defined(FES_NANO_MAC_COEXISTENCE_TRIAL) && FES_NANO_MAC_COEXISTENCE_TRIAL
         if (x1==FES_EMBEDDED_MAC_QUERY && !x2 && !x4 && request_type==NO_REQUEST &&
             !fes_nano_configuration_busy(configuration) && fes_nano_mac_window_progress()<0) {
             r[0]=FES_EMBEDDED_MAC_ERROR;

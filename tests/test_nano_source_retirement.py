@@ -51,7 +51,8 @@ class SourceRetirementTests(unittest.TestCase):
         # Compile the real readiness caller, not only configuration_after's
         # completion callback: that was the missing boundary in format 12.
         source = (FW / "nano_cold_platform.c").read_text()
-        for signature, filename in (("int fes_nano_platform_window_rearm(uint64_t owner,uint64_t generation)", "window_rearm_test.inc"),
+        for signature, filename in (("static int spectrum48_held_return(const struct fes_nano_bridges *b,uint64_t *generation)", "spectrum48_return_test.inc"),
+                                    ("int fes_nano_platform_window_rearm(uint64_t owner,uint64_t generation)", "window_rearm_test.inc"),
                                     ("static int configuration_return_generation(uint64_t owner,uint64_t generation)", "configuration_return_test.inc"),
                                     ("static int identity_configured(void *context)", "identity_configured_test.inc"),
                                     ("static int window_gate(void)", "window_gate_test.inc"),
@@ -80,7 +81,9 @@ class SourceRetirementTests(unittest.TestCase):
         functions = (
             ('static int fabric_owns(', None), ('static int fabric_read(', None),
             ('static int fabric_write(', None), ('static int probe_read(', None),
-            ('static int probe_write(', None), ('static void fabric_wait(', None),
+            ('static int probe_write(', None), ('static int spectrum_scanout_owns(',None),
+            ('static int spectrum_scanout_read(',None), ('static int spectrum_scanout_write(',None),
+            ('int fes_nano_platform_spectrum48_ready(',None), ('static void fabric_wait(', None),
             ('static int master_failure(', None),
             ('static int cold_master_quiesce(', 'production_master_quiesce'),
             ('static int cold_producer_sample(', 'production_producer_sample'),
@@ -104,6 +107,8 @@ class SourceRetirementTests(unittest.TestCase):
             text = source[start:end]
             if rename:
                 text = text.replace(name+'(', rename+'(', 1)
+            if "spectrum" in name:
+                text = "#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48\n"+text+"\n#endif"
             parts.append(text)
         (cls.output/'lifecycle_platform_test.inc').write_text('\n'.join(parts))
 
@@ -136,16 +141,21 @@ class SourceRetirementTests(unittest.TestCase):
                                  '#include "probe_setup.c"\n')
             sources += [setup, FW / "input_transfer.c", FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
             sources += [FW / (n + ".c") for n in ("nano_cold", "nano_hps_io", "nano_bridges", "nano_boot", "nano_sd", "nano_sd_platform", "nano_usb_platform", "nano_usb_board", "nano_mac", "nano_usb_service", "nano_usb_composition", "nano_configuration")]
-        if name in ('mac_coexist_test', 'lifecycle_rpc', 'lifecycle_prepare_cost_test', 'final_proof_cost_test', 'final_usb_cost_test'):
+        if name in ('mac_menu_test', 'mac_coexist_test', 'lifecycle_rpc', 'lifecycle_prepare_cost_test', 'final_proof_cost_test', 'final_usb_cost_test'):
             sources += [FW/(n+'.c') for n in ('nano_program','nano_identity','nano_bridge_sip','nano_fabric_stop','nano_probe_stop')]
         command = [shutil.which("cc") or "cc", "-std=c11", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
                    "-Wno-misleading-indentation", "-Wno-unused-function", "-Wno-unused-variable", "-Wno-sign-compare",
                    "-fsanitize=address,undefined", "-fno-sanitize-recover=all", "-DFES_NANO_RETIRE_BATCHED_OBSERVE=1"]
         if joined:
             command += ["-DFES_NANO_RETIRE_TIMING=1", "-DFES_NANO_RETIRE_QUEUE_OBSERVE=1", "-DFES_NANO_SDM_RETIRE_SOURCE=1"]
+        if name == 'mac_menu_test':
+            command += ["-DFES_NANO_MAC_MENU_SUPPLIER=1", "-DFES_NANO_MAC_PHY_TEST",
+                        "-DFES_NANO_MAC_CHANNEL_TEST", "-DFES_NANO_MAC_JOINED_TEST"]
+            sources += [FW/n for n in ("nano_mac_phy.c", "nano_mac_channel.c")]
+            sources += [FW/"tests"/n for n in ("nano_mac_phy_test.c", "nano_mac_channel_test.c")]
         command += ["-I" + str(p) for p in (self.output, FW, FW / "tests")]
         if not binary.exists():
-            compiled = subprocess.run(command + [str(p) for p in sources] + ["-o", str(binary)], timeout=90, capture_output=True, text=True)
+            compiled = subprocess.run(command + [str(p) for p in sources] + (["-lcrypto"] if name == "mac_menu_test" else []) + ["-o", str(binary)], timeout=90, capture_output=True, text=True)
             self.assertEqual(compiled.returncode, 0, compiled.stderr)
         return binary
 
@@ -167,6 +177,11 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertEqual(report["status"], expected)
         self.assertFalse(report["hardware_actions"])
         return report
+
+    def test_menu_supplier_joins_real_channel_phy_and_source_return(self):
+        report = self.run_model("mac_menu_test", joined=True)
+        self.assertEqual(report["grants"], 3)
+        self.assertGreaterEqual(report["faults"], 3)
 
     def test_actual_menu_release_and_close_wrap_private_mac_queue(self):
         report = self.run_model("mac_coexist_test", joined=True)
