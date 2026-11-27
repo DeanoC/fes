@@ -267,7 +267,7 @@ def main():
             raise ValueError('SD ADMA2 requires a DMA-capable firmware profile (fes-owned-sd-dma-v1)')
         if not native_sd_adma2 and control_service == 'fes-owned-sd-dma-v1':
             raise ValueError('DMA firmware profile requires --sd-adma2')
-        native_sd_dma_base, native_sd_dma_bytes = module.sd_dma_layout(
+        native_sd_dma_base, native_sd_dma_bytes = module.device_dma_layout(
             native_sd_adma2, start, size, profile, native_configuration, native_cpu_map, native_tape_memory, network, display, fpga)
         if native_sd_adma2 and (receipt.get('sd_dma_base') != native_sd_dma_base or receipt.get('sd_dma_bytes') != native_sd_dma_bytes):
             raise ValueError('SD ADMA2 DMA window differs from the native cross-build receipt')

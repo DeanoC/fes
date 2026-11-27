@@ -83,8 +83,8 @@ class BoardProfileTests(unittest.TestCase):
         ]:
             with self.subTest(program=program,requested=requested),self.assertRaises(ValueError):
                 build.sd_adma2_option(program,requested,prof)
-        self.assertEqual(build.sd_dma_layout(False,0x84000000,256<<20,dma_profile),(0,0))
-        base,size=build.sd_dma_layout(
+        self.assertEqual(build.device_dma_layout(False,0x84000000,256<<20,dma_profile),(0,0))
+        base,size=build.device_dma_layout(
             True,0x84000000,256<<20,dma_profile,
             configuration_map={'base':0x94800000,'size':8<<20},
             cpu_map={'reader_base':0x95000000,'reader_bytes':8<<20},
@@ -96,9 +96,36 @@ class BoardProfileTests(unittest.TestCase):
         overlapping=copy.deepcopy(dma_profile)
         overlapping['reserved'].append({'start':0x95a00000,'size':2<<20,'owner':'overlap'})
         with self.assertRaises(ValueError):
-            build.sd_dma_layout(True,0x84000000,256<<20,overlapping)
+            build.device_dma_layout(True,0x84000000,256<<20,overlapping)
         with self.assertRaises(ValueError):
-            build.sd_dma_layout(True,0x84000000,256<<20,dma_profile,tape_memory={'base':0x95a00000,'bytes':2<<20})
+            build.device_dma_layout(True,0x84000000,256<<20,dma_profile,tape_memory={'base':0x95a00000,'bytes':2<<20})
+
+    def test_ethernet_dma_with_compiled_launcher(self):
+        firmware = json.loads((PATH.parents[1] / 'nano/sd-profile.json').read_bytes())
+        configuration = {'base': 0x94800000, 'size': 8 << 20}
+        cpu_map = {'reader_base': 0x95000000, 'reader_bytes': 8 << 20}
+        tape = {'base': 0x95800000, 'bytes': 2 << 20}
+
+        def layout(address, *, adma=False):
+            return build.device_dma_layout(
+                adma, firmware['ram_start'], firmware['ram_size'], firmware, configuration,
+                cpu_map, tape, net={'dma_start': address, 'dma_size': 2 << 20})
+
+        for resource, address in (
+            ('Go RAM', 0x93e00000), ('SDM tables', 0x94000000),
+            ('configuration', 0x94e00000), ('reader', 0x95000000),
+            ('tape', 0x95800000), ('entry start', 0x96000000),
+            ('entry end', 0x98000000), ('saved FIT', 0x99000000),
+            ('high boot reservation', 0xb0000000),
+        ):
+            with self.subTest(resource=resource), self.assertRaisesRegex(ValueError, 'Ethernet DMA'):
+                layout(address)
+        # PIO consumes no SD DMA window. An actual ADMA selection does.
+        self.assertEqual(layout(0x95a00000), (0, 0))
+        with self.assertRaisesRegex(ValueError, 'SD ADMA2 DMA window overlaps'):
+            layout(0x95a00000, adma=True)
+        self.assertEqual(layout(0x95c00000, adma=True), (0x95a00000, 2 << 20))
+        self.assertEqual(layout(0x95c00000), (0, 0))
 
     def test_transfer_clock_requires_explicit_owned_fat_file_mode(self):
         self.assertEqual(build.sd_transfer_clock_option('sdfile',25000000,{'bound':'plan'}),25000000)

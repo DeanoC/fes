@@ -383,16 +383,14 @@ def sd_adma2_option(program, requested, profile):
     return requested
 
 
-def sd_dma_layout(sd_adma2, start, size, profile, configuration_map=None, cpu_map=None, tape_memory=None, net=None, display=None, fpga=None):
-    if not sd_adma2:
+def device_dma_layout(sd_adma2, start, size, profile, configuration_map=None, cpu_map=None, tape_memory=None, net=None, display=None, fpga=None):
+    """Check selected DMA windows against the firmware and compiled launcher maps."""
+    launcher_network = net is not None and configuration_map is not None
+    if not (sd_adma2 or launcher_network):
         return 0, 0
-    base, amount = SD_DMA_BASE, SD_DMA_BYTES
-    if (base < 0x80000000 or amount < (256 << 10) or base % (2 << 20) or amount % (2 << 20) or
-            base + amount > 0xc0000000 or base >> 30 != start >> 30):
-        raise ValueError('SD ADMA2 DMA window must be 2 MiB aligned inside the Go L1 section')
     exclusions = [
         (start, start + size),
-        (0x94000000, 0x94800000),
+        (0x94000000, 0x94010000),  # BL31 SDM stream tables and queues
         (0x96080000, 0x96080000 + (32 << 20)),
         (0x99000000, 0x9a000000),
     ]
@@ -403,12 +401,25 @@ def sd_dma_layout(sd_adma2, start, size, profile, configuration_map=None, cpu_ma
         exclusions.append((cpu_map['reader_base'], cpu_map['reader_base'] + cpu_map['reader_bytes']))
     if tape_memory is not None:
         exclusions.append((tape_memory['base'], tape_memory['base'] + tape_memory['bytes']))
-    if net is not None:
-        exclusions.append((net['dma_start'], net['dma_start'] + net['dma_size']))
     if display is not None:
         exclusions.append((display['base'], display['base'] + display['size']))
     if fpga is not None:
         exclusions.append((fpga['base'], fpga['base'] + fpga['size']))
+    if net is not None:
+        net_start = net['dma_start']
+        net_end = net_start + net['dma_size']
+        if launcher_network and any(net_start < end and begin < net_end for begin, end in exclusions):
+            raise ValueError('Ethernet DMA window overlaps a compiled launcher or firmware reservation')
+        exclusions.append((net_start, net_end))
+
+    if not sd_adma2:
+        return 0, 0
+    base, amount = SD_DMA_BASE, SD_DMA_BYTES
+    if (base < 0x80000000 or amount < (256 << 10) or base % (2 << 20) or amount % (2 << 20) or
+            base + amount > 0xc0000000 or base >> 30 != start >> 30):
+        raise ValueError('SD ADMA2 DMA window must be 2 MiB aligned inside the Go L1 section')
+    # The SD ADMA2 profile excludes the entire interval up to configuration DMA.
+    exclusions.append((0x94010000, 0x94800000))
     if any(base < end and begin < base + amount for begin, end in exclusions):
         raise ValueError('SD ADMA2 DMA window overlaps Go RAM, firmware, or device arena')
     return base, amount
@@ -694,7 +705,7 @@ def build(args):
     tape_memory = hps.initial_tape.staging_layout(cpu_map, profile['reserved'],
         dict(base=0x96080000, bytes=16 << 20)) if args.initial_tape else None
     tape_memory_sha = hps.initial_tape.memory_digest(tape_memory) if tape_memory else None
-    sd_dma_base, sd_dma_bytes = sd_dma_layout(sd_adma2, start, size, profile, configuration_map, cpu_map, tape_memory, net, display, fpga)
+    sd_dma_base, sd_dma_bytes = device_dma_layout(sd_adma2, start, size, profile, configuration_map, cpu_map, tape_memory, net, display, fpga)
     initial_tape = hps.initial_tape.checked(dict(vars(args), hps_context=context,
         cpu_mapping=cpu_map,
         initial_tape_memory=tape_memory, initial_tape_memory_sha256=tape_memory_sha,
