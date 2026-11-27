@@ -82,8 +82,6 @@ type framePlatform struct {
 	uart          input.UART
 	uartIRQ       bool
 	keyboard      *input.USBKeyboard
-	otaMgr        *ota.Manager
-	otaTrialSlot  ota.Slot
 	lastFrame     time.Time
 	lastState     string
 	ready         bool
@@ -226,14 +224,6 @@ func (p *framePlatform) Present(ctx context.Context, snapshot tenfoot.Snapshot) 
 			if wakeups := g.IdleWakeups(); wakeups > 0 {
 				fmt.Printf("FES_GIC_IDLE_READY wakeups=%d\n", wakeups)
 			}
-		}
-		if p.otaMgr != nil && p.otaTrialSlot != "" {
-			st, err := p.otaMgr.ConfirmBoot(ctx, p.otaTrialSlot)
-			if err != nil {
-				return fmt.Errorf("confirm OTA trial slot %s: %w", p.otaTrialSlot, err)
-			}
-			p.otaTrialSlot = ""
-			fmt.Printf("FES_OTA_CONFIRMED slot=%s generation=%d\n", st.ActiveSlot, st.Generation)
 		}
 		fmt.Println("FES_TENFOOT_READY")
 	}
@@ -403,7 +393,6 @@ func run() (result error) {
 		}
 	}
 	var otaMgr *ota.Manager
-	var otaTrialSlot ota.Slot
 	if config.AgentOTA {
 		otaCfg := ota.Config{Board: board.Name}
 		if _, ok := board.WallTime(); ok {
@@ -416,15 +405,8 @@ func run() (result error) {
 		if err != nil {
 			return fmt.Errorf("open OTA manager: %w", err)
 		}
-		otaBoot, err := otaMgr.SelectBoot(ctx)
-		if err != nil {
-			return fmt.Errorf("select OTA boot slot: %w", err)
-		}
-		fmt.Printf("FES_OTA_BOOT slot=%s trial=%t tries=%d rolled_back=%t recovered=%t\n",
-			otaBoot.Slot, otaBoot.IsTrial, otaBoot.TriesRemaining, otaBoot.RolledBack, otaBoot.RecoveredInterruptedStage)
-		if otaBoot.IsTrial {
-			otaTrialSlot = otaBoot.Slot
-		}
+		st := otaMgr.Status()
+		fmt.Printf("FES_OTA_READY active_slot=%s phase=%s generation=%d\n", st.ActiveSlot, st.Phase, st.Generation)
 	}
 	if iface != nil && config.AgentPort != 0 {
 		agentCtrl := agentapi.NewStateController(agentapi.StateControllerConfig{
@@ -500,7 +482,7 @@ func run() (result error) {
 		return fmt.Errorf("load preferences: %w", err)
 	}
 	fmt.Printf("FES_PREFERENCES_LOADED layout=%s\n", app.Snapshot().Grid.Mode)
-	return tenfoot.RunPlatform(ctx, app, device, &framePlatform{device: device, display: screen, network: iface, uartIRQ: uartIRQ, keyboard: keyboard, model: backend, otaMgr: otaMgr, otaTrialSlot: otaTrialSlot})
+	return tenfoot.RunPlatform(ctx, app, device, &framePlatform{device: device, display: screen, network: iface, uartIRQ: uartIRQ, keyboard: keyboard, model: backend})
 }
 
 func main() {
