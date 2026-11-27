@@ -42,3 +42,16 @@ two for the 125 MHz transmit pin clock. The fitted carrier routes EMAC0
 directly to the dedicated HPS pins. A corrected transmit test can check the
 reference, RGMII selector and negotiated gigabit speed while keeping the
 existing PLL configuration. [Agilex 5 XGMAC clock table](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/xgmac-clocks?contentId=ZVIw1NaUa2BuEkJDgdUxAA)
+
+## MAC release and DMA revocation
+
+The corrected trial reached the controller identification registers after
+installing a restricted DMA mapping. MAC0 returned `0xcafd5b3f` for
+`MAC_HW_Feature0`. The diagnostic had compared that word to its reset
+default of `0xca7d5b3f`. The difference is the live PHY interface
+selection in bits 24–23, which matched the RGMII mode just programmed.
+The diagnostic stopped before posting a transmit descriptor. It revoked
+the mapping, read back the invalid stream-table entry, and verified MAC0
+back in reset. The host observer recorded zero frames and zero drops.
+C64 reached Ready and Park before CBL was released. [UART capture](tx06-uart.gz) ·
+[Trial and C64 return receipt](tx06-release.json)
