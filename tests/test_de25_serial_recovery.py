@@ -107,6 +107,29 @@ class De25SerialRecoveryTests(unittest.TestCase):
             call(7, recovery.LINUX_TIOCCBRK),
         ])
 
+    @patch.object(recovery, 'open_j8g')
+    def test_reboot_without_verified_menu_never_opens_the_console(self, open_j8g):
+        with self.assertRaises(SystemExit) as raised:
+            recovery.main(['--reboot', '--serial', 'TRWU8J8G', '--output', 'serial.json'])
+        self.assertEqual(raised.exception.code, 2)
+        open_j8g.assert_not_called()
+
+    @patch.object(recovery.os, 'close')
+    @patch.object(recovery, 'sysrq_reboot')
+    @patch.object(recovery, 'capture', side_effect=[b'', b'Starting kernel'])
+    @patch.object(recovery, 'open_j8g', return_value=(7, {"resolved_device": "/dev/ttyUSB1", "usb_interface": "02", "usb_serial": "TRWU8J8G", "sysfs_device": "/sys/devices/fake"}))
+    def test_verified_menu_reboot_records_serial_boot(self, open_j8g, _capture, reboot, _close):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'serial.json'
+            self.assertEqual(recovery.main([
+                '--reboot', '--menu-confirmed', '--serial', 'TRWU8J8G', '--output', str(output),
+            ]), 0)
+            value = json.loads(output.read_text())
+        open_j8g.assert_called_once_with(writable=True)
+        reboot.assert_called_once_with(7)
+        self.assertTrue(value['input_sent'])
+        self.assertTrue(value['after']['linux_boot_seen'])
+
     def test_j8g_interface_02_is_accepted_on_ttyusb1_and_ttyusb2(self):
         for port in (1, 2):
             with self.subTest(port=port):

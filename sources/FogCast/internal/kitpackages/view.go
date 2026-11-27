@@ -107,9 +107,9 @@ func (v *View) openInBackground() {
 	v.durable, v.openErr = store, nil
 }
 
-// Import reads the whole archive while it holds the store lock, so it uses
-// the caller's context unbounded, as the agent's own install does: a slow
-// upload must not fail at viewLockWait.
+// Import uses the caller's context without a viewLockWait deadline, so slow
+// uploads can complete. Store.Install reads and validates the archive before
+// taking the shared store lock, then checks selected data and publishes under it.
 func (v *View) Import(ctx context.Context, length int64, reader io.Reader) (corepackage.Inspection, bool, error) {
 	store, err := v.store()
 	if err != nil {

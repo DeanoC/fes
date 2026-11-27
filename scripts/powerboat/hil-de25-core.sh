@@ -1,6 +1,6 @@
 #!/bin/bash
 # Exact-head J8G HIL: claim both D25 locks, isolate the host DB, smoke the package,
-# and release FREE only after scripts/de25_restore.py passes.
+# and release FREE only after native restore and visible MENU verification.
 set -Eeuo pipefail
 KIT=$1 PR=$2 HEAD=$3 B=$4 D=$5
 [ "$KIT" = D25 ] || { echo "D25 runner refuses kit $KIT"; exit 2; }
@@ -12,9 +12,14 @@ LOCK1=$KS/de25-TRWU8J8G-STATUS.lock; LOCK2=$KS/de25-TRWU8J8G-STATUS.md.lock
 TARGET=de25; TARGET_ID=e2a51a4f-bae2-4041-a4e4-51f6774d4e45; SERIAL=TRWU8J8G; ADDR=192.168.10.119
 ROOT=/home/deano/codex-jobs/de25-kit-parity-p3-20261116
 SOURCE_BASE=$ROOT/wt
-D25_SW_BASE=/data/fes-de25-pr1312-hil-19cca-20261112/de25/native-probe-rootfs.img
+D25_SW_BASE=/home/deano/hil-assets/de25-kit-software-base/native-probe-rootfs.img
 D25_SW_IMAGE=/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/first-fault-integration-53009e4ab/hdmi-hotplug-9c/release-13/kernel-93131814a2a2-v2/base
 mkdir -p "$D/logs" "$D/out"
+if ! command -v ffmpeg >/dev/null || ! command -v tesseract >/dev/null; then
+  echo NOTSTARTED > "$D/verdict"
+  echo "DE25 restore capture requires ffmpeg and tesseract"
+  exit 3
+fi
 SOURCE_WORKTREE=; HOSTPID=; TMPDIR_PATH=
 cleanup(){
   [ -n "$HOSTPID" ] && { kill "$HOSTPID" 2>/dev/null || true; wait "$HOSTPID" 2>/dev/null || true; }
@@ -40,7 +45,7 @@ fi
 [ "$(git -C "$FES_SOURCE" rev-parse HEAD)" = "$HEAD" ] || { echo NOTSTARTED > "$D/verdict"; exit 3; }
 SW_OUT=$D/kit-software
 if ! python3 "$FES_SOURCE/scripts/kit_software.py" \
-  --base "$D25_SW_BASE" --base-sha256 8e4b57d125cf29c312c00ade7db355d7703199268612d8446af0e1d1f9b0b49e \
+  --base "$D25_SW_BASE" --base-sha256 f6630dea5e0a4c9274a7787091dd306f06fddfb48beb3e2f047e4bf08fdd3a0b \
   --version "de25-hilq-${HEAD:0:12}" --output "$SW_OUT" --board de25-nano \
   --de25-static-expansion 0 --de25-image "$D25_SW_IMAGE" >"$D/logs/kit-software-build.log" 2>&1; then
   echo NOTSTARTED > "$D/verdict"; echo "exact-head managed DE25 kit-software build failed"; exit 3
@@ -338,38 +343,47 @@ fi
 python3 "$D/snapshot.py" "http://$API" D25 "$D/out/baseline-after.json" || fail "after snapshot failed"
 RESTORE_TOOL="$FES_SOURCE/scripts/de25_restore.py"
 [ -f "$RESTORE_TOOL" ] || RESTORE_TOOL="$ROOT/wt/scripts/de25_restore.py"
-if python3 "$RESTORE_TOOL" --baseline "$BASE" --before "$D/out/baseline-before.json" --after "$D/out/baseline-after.json" > "$D/out/restore-verification.json"; then RESTORE=1; else fail "de25_restore.py failed; ledger remains claimed"; fi
-if [ "$RESTORE" != 1 ]; then
-  SERIAL_TOOL="$FES_SOURCE/scripts/de25_serial_recovery.py"
-  [ -f "$SERIAL_TOOL" ] || SERIAL_TOOL="$ROOT/wt/scripts/de25_serial_recovery.py"
-  if [ -f "$SERIAL_TOOL" ]; then
-    echo "network restore failed; attempting serial-checked J8G reboot" | tee -a "$D/logs/driver.log"
-    cp -f "$D/out/baseline-after.json" "$D/out/baseline-after-before-serial.json" 2>/dev/null || true
-    rm -f "$D/out/baseline-after.json"
-    if python3 "$SERIAL_TOOL" --reboot --serial TRWU8J8G --output "$D/out/serial-reboot.json"; then
-      # Wait for the same authenticated J8G endpoint to return, then capture
-      # a fresh state. Never select another board or serial port as fallback.
-      for attempt in $(seq 1 60); do
-        if python3 "$D/snapshot.py" "http://$API" D25 "$D/out/baseline-after-recovered.tmp.json" >/dev/null 2>&1; then
-          mv "$D/out/baseline-after-recovered.tmp.json" "$D/out/baseline-after.json"
-          break
-        fi
-        rm -f "$D/out/baseline-after-recovered.tmp.json"
-        sleep 5
-      done
-      if [ -s "$D/out/baseline-after.json" ]; then
-        python3 "$SERIAL_TOOL" --receipt-from "$D/out/serial-reboot.json" --serial TRWU8J8G \
-          --before-boot-id "$(jq -r '.boot_id' "$D/out/baseline-before.json")" \
-          --after-boot-id "$(jq -r '.boot_id' "$D/out/baseline-after.json")" \
-          --target-id "$(jq -r '.target_id' "$D/out/baseline-before.json")" \
-          --output "$D/out/serial-recovery-receipt.json" > "$D/out/serial-recovery-receipt-summary.json" &&
-        python3 "$RESTORE_TOOL" --baseline "$BASE" --before "$D/out/baseline-before.json" \
-          --after "$D/out/baseline-after.json" --serial-recovery "$D/out/serial-recovery-receipt.json" \
-          > "$D/out/restore-verification.json" && RESTORE=1
-      fi
+
+capture_restored_menu(){
+  local evidence attempt frame ocr screen
+  evidence=$(mktemp -d "$D/out/restore-menu.XXXXXX") || return 1
+  for attempt in {1..12}; do
+    [ "$attempt" = 1 ] || sleep 5
+    frame=$evidence/$attempt.png
+    ocr=$evidence/$attempt.txt
+    if ! timeout -k 3s 15s ffmpeg -nostdin -hide_banner -loglevel error \
+      -f v4l2 -i /dev/v4l/by-id/fes-ms2109-hil -vf 'select=gte(n\,10)' \
+      -frames:v 1 -threads 1 "$frame" >"$evidence/$attempt.capture.log" 2>&1 || [ ! -s "$frame" ]; then
+      continue
     fi
-  fi
-  [ "$RESTORE" = 1 ] || fail "network restore and serial-checked recovery failed; ledger remains claimed"
+    if ! timeout -k 3s 10s tesseract "$frame" stdout --psm 11 \
+      >"$ocr" 2>"$evidence/$attempt.ocr.log"; then
+      continue
+    fi
+    screen=$(<"$ocr")
+    # OCR may put the error title on separate lines. Recognize Home, the
+    # Library's Home navigation, or Welcome, and reject the room error overlay.
+    if grep -Eiq '\bRoom[[:space:]]+failed\b' <<< "${screen//$'\n'/ }"; then
+      continue
+    fi
+    if { grep -iwq FES "$ocr" && grep -Eiq '^[[:space:]]*Home[[:space:]]*$' "$ocr"; } ||
+       { grep -Eiq '^[[:space:]]*FES[[:space:]|]+Library[[:space:]]*$' "$ocr" && grep -iwq Home "$ocr"; } ||
+       grep -Eiq '\bWelcome[[:space:]]+to[[:space:]]+FES\b' "$ocr"; then
+      printf 'restored MENU verified in %s (OCR %s)\n' "$frame" "$ocr" | tee -a "$D/logs/driver.log"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Preserve the claim and the evidence if either restore check fails.
+if ! python3 "$RESTORE_TOOL" --baseline "$BASE" --before "$D/out/baseline-before.json" \
+  --after "$D/out/baseline-after.json" > "$D/out/restore-verification.json"; then
+  fail "DE25 restore verification failed; ledger remains claimed for operator recovery"
+elif capture_restored_menu; then
+  RESTORE=1
+else
+  fail "DE25 restored MENU not verified; ledger remains claimed for operator recovery"
 fi
 if [ "$RESTORE" = 1 ]; then
   PKG_NAMES=$(for P in "${PKGS[@]}"; do basename "$P"; done | paste -sd, -)
