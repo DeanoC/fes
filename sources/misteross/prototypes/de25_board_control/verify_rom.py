@@ -154,7 +154,7 @@ def main():
             run('board-reset-negative-execute', [negative/'Vrom_board_machine', str(size), format(zlib.crc32(program), 'x')],
                 cwd=output, failure_marker='pixel token owner escaped the common readiness reset')
     assert all(hashlib.sha256(p.read_bytes()).hexdigest() == digest for p, digest in sources.items())
-    result = dict(status='passed', classification='actual C ROM transport, opt-in secure-provider/control gate and real ZX80/ZX81 RTL; injected platform and exact-image digest oracle, no hardware or native admission proof',
+    result = dict(status='passed', classification='actual C ROM transport, opt-in secure-provider/control gate and real ZX80/ZX81 RTL; modeled platform and independent expected CRC32, no hardware or native admission proof',
                   source_sha256={str(p.relative_to(ROOT)): digest for p, digest in sources.items()}, commands=commands,
                   independent_crc_oracle='Python zlib.crc32', hardware_actions=False, ordinary_admission=False)
     result['board_rom_wiring_model'] = True

@@ -126,7 +126,7 @@ int main(int argc,char** argv){
   for(unsigned mode=1;mode<=5;++mode){
    Model m(size);fes_nano_rom_ops io{&m,Model::owns,Model::read,Model::write,Model::now,Model::barrier};
    need(!fes_test_rom_platform_init(io,m.bytes.data(),size,crc,mode),"secure failure init");
-   need(fes_test_rom_platform_open()!=0&&!fes_test_rom_platform_complete(),"bad ROM scope/digest completed");
+   need(fes_test_rom_platform_open()!=0&&!fes_test_rom_platform_complete(),"bad ROM scope/CRC completed");
    need(m.reads==0&&m.writes==0,"bad secure source/scope touched endpoint");
    need(fes_test_rom_platform_open()!=0&&m.reads==0&&m.writes==0,"retired control opening replayed");
   }
@@ -140,7 +140,7 @@ int main(int argc,char** argv){
    need(m.d.cpu_writes==0&&m.d.cpu_fetches==0,"secure failure ran guest CPU");
   }
   std::cout<<"PASS C/RTL "<<size<<" ROM FIFO, real CPU execution, source snapshot, identity, epoch, I/O, clock/poll, CRC and CSR failures\n";
-  std::cout<<"PASS secure ROM provider/control opening and held return; modeled platform and exact-image digest oracle\n";
+  std::cout<<"PASS secure ROM provider/control opening and held return; modeled platform and independent expected CRC32\n";
   return 0;
  }catch(const std::exception& e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}
 }
