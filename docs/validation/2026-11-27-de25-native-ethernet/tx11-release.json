@@ -1,0 +1,27 @@
+{
+  "c64_boot_id": "af4407e48b21634e",
+  "c64_phase_sha256": "5904a7c8922a847f223f89ac270099fa421d41235934746647ea02ab9950dbe2",
+  "c64_result_sha256": "17fb0771e64b43a5edf657d81456e0c06568e884ea21f6e47f4474dc8f658b5a",
+  "c64_uart_sha256": "b87d7049c869c1f5b075bb0b3303af003f619ce655026fb85a586c6eb5967258",
+  "device_dispatched": false,
+  "diagnostic_id": "013fb1f09851d03a",
+  "failed_window_matches": null,
+  "frame_sha256": "2cd37a06c66e3c0d9c6ae02dcc65bd8a2724fedc3e76afd4f9e7ec62f41e6790",
+  "freeze_sha256": "5dbc52660c5128f43efd23cad25b569746f25bafca4baf224dd422c649dfe12d",
+  "handles_clear": true,
+  "measurement_result_sha256": "28091328c175ffbabf75a026c128506fba6b0f4878377139c09be4d01ac1b596",
+  "measurement_uart_sha256": "aee73a24a9c15be5282290bf91564101bf13b1f078c2adfb2512ea49613e931e",
+  "park_generation": 1,
+  "prior_release_sha256": "c0ebd55f0597d78f0522011a49d61955c265aaed24cd2ee8e094929c6bd5665f",
+  "scope": "one volatile translated TX with matched C64 restore",
+  "serial": "TRWU8CBL",
+  "session_sha256": "fabc1920e9feef8f16a63af5770476124326c6753f419a30d48640a8328b61fc",
+  "startup": {
+    "observed": 1,
+    "predicate": "accepted",
+    "required": 1
+  },
+  "target_disposition": "revoked-undispatched",
+  "target_succeeded": false,
+  "wire_verified": false
+}

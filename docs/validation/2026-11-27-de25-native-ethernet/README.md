@@ -92,3 +92,10 @@ The diagnostic had required the 100BASE-TX indicator to clear and stopped
 before dispatch. The gigabit indicator and resolved speed identify the
 operating link. C64 returned to Ready and Park.
 [PHY samples](tx10-uart.gz) · [C64 return receipt](tx10-release.json)
+
+With the corrected gigabit PCS check, another boot observed a partner
+advertisement but incomplete training at 8.382 and 8.483 seconds. Basic
+status was `0x7949`, partner gigabit status was `0x0c00` and neither
+PCS link bit was set. Transmission was withheld. The protected DMA grant
+was revoked and the original C64 launcher reached Ready and Park.
+[PHY samples](tx11-uart.gz) · [C64 return receipt](tx11-release.json)
