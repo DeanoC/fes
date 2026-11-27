@@ -110,25 +110,40 @@ static int route(struct fes_nano_sd_platform *p)
     return check(p,FES_NANO_SD_SYSMGR+0xfc,0xffffffffU,1) ||
            check(p,FES_NANO_SD_SYSMGR+0x1354,0xffffffffU,0) ? -1 : 0;
 }
-static void restore_dma_abort(struct fes_nano_sd_platform *p)
+static int restore_dma_abort(struct fes_nano_sd_platform *p)
 {
-    if (p->allow_dma && p->restore_smmu_abort) {
-        uint32_t per0=0;
-        if (!p->io.read(p->io.context,FES_NANO_COLD_RSTMGR+0x24,&per0)) {
-            if ((per0 & 0xc0U)!=0xc0U) {
-                if (!p->io.write(p->io.context,FES_NANO_COLD_RSTMGR+0x24,per0|0xc0U)) {
-                    p->io.barrier(p->io.context);
-                    (void)p->io.read(p->io.context,FES_NANO_COLD_RSTMGR+0x24,&per0);
-                }
-            }
-            if ((per0 & FES_NANO_COLD_SD_RESET)==FES_NANO_COLD_SD_RESET) {
-                (void)p->io.write(p->io.context,FES_NANO_SMMU_BASE+FES_NANO_SMMU_GBPA,
-                                  FES_NANO_SMMU_UPDATE|FES_NANO_SMMU_ABORT);
-                p->io.barrier(p->io.context);
-                p->restore_smmu_abort=0;
-            }
-        }
+    if (!p->allow_dma || !p->restore_smmu_abort) return 0;
+
+    /* Cleanup runs after the original operation has failed, so use the raw
+     * ordered MMIO callbacks while keeping the abort debt until readback. */
+    uint32_t per0=0;
+    int error=p->io.read(p->io.context,FES_NANO_COLD_RSTMGR+0x24,&per0);
+    if (error) return fail(p,error);
+    if ((per0 & FES_NANO_COLD_SD_RESET)!=FES_NANO_COLD_SD_RESET) {
+        error=p->io.write(p->io.context,FES_NANO_COLD_RSTMGR+0x24,per0|0xc0U);
+        if (error) return fail(p,error);
+        p->io.barrier(p->io.context);
+        error=p->io.read(p->io.context,FES_NANO_COLD_RSTMGR+0x24,&per0);
+        if (error) return fail(p,error);
     }
+    if ((per0 & FES_NANO_COLD_SD_RESET)!=FES_NANO_COLD_SD_RESET)
+        return fail(p,-5);
+
+    error=p->io.write(p->io.context,FES_NANO_SMMU_BASE+FES_NANO_SMMU_GBPA,
+                      FES_NANO_SMMU_UPDATE|FES_NANO_SMMU_ABORT);
+    if (error) return fail(p,error);
+    p->io.barrier(p->io.context);
+    uint32_t gbpa=0;
+    for (unsigned i=0;i<FES_NANO_COLD_POLLS;i++) {
+        error=p->io.read(p->io.context,FES_NANO_SMMU_BASE+FES_NANO_SMMU_GBPA,&gbpa);
+        if (error) return fail(p,error);
+        if ((gbpa & (FES_NANO_SMMU_UPDATE|FES_NANO_SMMU_ABORT))==FES_NANO_SMMU_ABORT) {
+            p->restore_smmu_abort=0;
+            return 0;
+        }
+        p->io.wait(p->io.context);
+    }
+    return fail(p,-60);
 }
 static int scope(void *context, uint64_t owner, uint64_t epoch, unsigned active)
 {
