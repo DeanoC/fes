@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 import subprocess
 
-from sim_games import sha
+from sim_games import ATA_ONLY_ARGUMENTS, RUNS, arguments_for, sha
 
 
 def source_revision(checkout):
@@ -82,6 +82,89 @@ def checked_presenter(games, inputs):
     return path
 
 
+def checked_x87(root, inputs, lockstep_reports):
+    pipeline = inputs.get('x87_fast_pipeline')
+    if pipeline is None:
+        return {}
+    files = {}
+
+    def check(base, name, expected):
+        path = base / name
+        if (not path.resolve().is_relative_to(base) or path.is_symlink() or not path.is_file()
+                or sha(path) != expected):
+            raise ValueError(f'x87 replay input is missing or differs from its recorded digest: {path}')
+        files[path.relative_to(root).as_posix()] = expected
+        return path
+
+    games = root / 'games'
+    derivation = pipeline['derivation']
+    upstream = check(root / 'wt-games/sources/misteross', derivation['upstream'], derivation['source_sha256'])
+    derived = check(games, pipeline['derived'], derivation['derived_sha256'])
+    for arm, selected in (('base', upstream), ('dx', derived)):
+        role = pipeline['processor_dependencies'][arm]
+        deps = check(games, role['dependency'], role['dependency_sha256'])
+        archive = check(games, role['archive'], role['archive_sha256'])
+        link_log = check(games, role['link_log'], role['link_log_sha256'])
+        if (set(deps.read_text().split()).intersection(map(str, (upstream, derived))) != {str(selected)}
+                or sha(selected) != role['compiled_sha256']):
+            raise ValueError(f'{arm} CPU did not compile its recorded x87 wrapper')
+        if not any(str(archive) in line.split() and line.endswith('-o Vpc386_machine')
+                   for line in link_log.read_text().splitlines()):
+            raise ValueError(f'{arm} game model did not link the recorded CPU archive')
+
+    lockstep = root / 'wt/sources/misteross'
+    if 'fast-pipeline' in lockstep_reports:
+        report = json.loads((root / 'lockstep/fast-pipeline.json').read_text())
+        if report['derivation'] != derivation:
+            raise ValueError('DX lockstep used a different x87 derivation from the game arm')
+        for path, digest in report['files_sha256'].items():
+            check(lockstep, path, digest)
+    elif 'x87unit' in lockstep_reports:
+        raise ValueError('the retained lockstep reports lack the compiled x87 witness')
+    for name in ('x87unit', 'testfloat'):
+        if name not in lockstep_reports:
+            continue
+        report = json.loads((root / 'lockstep' / f'{name}.json').read_text())
+        if name == 'testfloat':
+            report = report['unit_report']
+        actual = report.get('fast_pipeline')
+        if actual is None or actual['derivation'] != derivation:
+            raise ValueError(f'{name} lacks the exact DE25 DX x87 derivation')
+        for path, digest in actual['files_sha256'].items():
+            check(lockstep, path, digest)
+        if not report['failed'] and (not actual['focused_checks_passed'] or actual['fmul_fwait_clocks'] != 19):
+            raise ValueError(f'{name} lacks the seven-stage x87 protocol and latency proof')
+    return files
+
+
+def checked_media(root, inputs):
+    media = inputs.get('media')
+    if media is None:
+        return []
+    source = root / 'wt-games/sources/misteross'
+    games = root / 'games'
+    system, verifier = (source / media[key] for key in ('system', 'verifier'))
+    if (media['mode'] != 'ata-only' or media['startup_arguments'] != list(ATA_ONLY_ARGUMENTS)
+            or sha(system) != media['system_source_sha256'] or sha(verifier) != media['verifier_sha256']):
+        raise ValueError('the retained DE25 media contract differs from the game witness')
+    files = [system, verifier]
+    for arm in ('base', 'dx'):
+        obj = games / 'build' / arm / 'obj'
+        rtl, cpp = (obj / name for name in ('Vpc386_machine__ver.d', 'machine_tb.d'))
+        if (str(verifier) not in rtl.read_text().split()
+                or str(games / 'machine_tb.cpp') not in cpp.read_text().split()):
+            raise ValueError(f'{arm} game model did not compile the F3 RTL and ATA-only bench')
+        files.extend((rtl, cpp))
+    for arm, workload in RUNS:
+        directory = games / f'{arm}-{workload}'
+        command = directory / 'command.json'
+        if command.is_file():
+            arguments = arguments_for(workload, directory, media)
+            if json.loads(command.read_text())[-len(arguments):] != arguments:
+                raise ValueError(f'{directory.name} did not use the DE25 ATA-only game arguments')
+    return files
+
+
 def summarize(root):
     games = root / 'games'
     inputs = json.loads((games / 'inputs.json').read_text())
@@ -91,6 +174,7 @@ def summarize(root):
     files = [games / name for name in ('inputs.json', 'harness.py', 'machine_tb.cpp', 'audio_link.h')]
     if presenter := checked_presenter(games, inputs):
         files.append(presenter)
+    files.extend(checked_media(root, inputs))
     result = {key: inputs[key] for key in ('revision', 'model', 'c0', 'clock_hz', 'verilator')}
     result['class'] = 'host RTL simulation'
     result['games'] = {'artifact_sha256': inputs['binaries'], 'stimulus_sha256': inputs['fixtures']}
@@ -99,6 +183,9 @@ def summarize(root):
                       ('x87', x87_suites(root, revision))):
         result[gate], artifacts = run
         files.extend(artifacts)
+    pipeline_report = root / 'lockstep/fast-pipeline.json'
+    if inputs.get('x87_fast_pipeline') and pipeline_report.is_file():
+        files.append(pipeline_report)
     analysis = games / 'analysis.json'
     if analysis.is_file():
         data = analysis.read_bytes()
@@ -131,7 +218,9 @@ def summarize(root):
             files.append(path)
         files.append(demonstration)
         result['games']['quake_demo_milestone'] = demo
+    reports = {path.stem for path in files if path.parent == root / 'lockstep'}
     result['files_sha256'] = {path.relative_to(root).as_posix(): sha(path) for path in files}
+    result['files_sha256'].update(checked_x87(root, inputs, reports))
     return result
 
 
@@ -149,6 +238,13 @@ def verify(root, receipt):
         name = presenter.relative_to(root).as_posix()
         if receipt['files_sha256'].get(name) != inputs['presenter']['derived_sha256']:
             raise ValueError('receipt does not bind the derived presenter digest')
+    reports = {Path(name).stem for name in receipt['files_sha256'] if Path(name).parent == Path('lockstep')}
+    if any(receipt['files_sha256'].get(name) != digest
+           for name, digest in checked_x87(root, inputs, reports).items()):
+        raise ValueError('receipt does not bind the compiled x87 evidence')
+    if any(receipt['files_sha256'].get(path.relative_to(root).as_posix()) != sha(path)
+           for path in checked_media(root, inputs)):
+        raise ValueError('receipt does not bind the compiled ATA-only media evidence')
     for arm, expected in receipt['games']['artifact_sha256'].items():
         if sha(games / 'build' / arm / 'obj/Vpc386_machine') != expected:
             raise ValueError(f'compiled game harness changed: {arm}')

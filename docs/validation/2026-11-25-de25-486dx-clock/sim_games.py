@@ -22,6 +22,8 @@ DRIVES = {
     'bench': 'e69a4cb6462a79c47f55adef11d41c652481017dd541ae980cf27beed5e4823c',
 }
 MACHINE_RATES = ('ISA', 'PIT', 'RTC', 'US', 'DMA', 'DOT0', 'DOT1')
+ATA_ONLY_ARGUMENTS = ('--floppy-type', 'A:0', '--floppy-type', 'B:0', '--boot-device', '0')
+ATA_ONLY_INPUTS = {'floppy_verify': 2, 'floppy_sectors': 26, 'floppy_crc': 64, 'fdc_frozen': 1}
 
 
 def sha(path):
@@ -39,7 +41,30 @@ def replace_once(text, before, after):
     return text.replace(before, after)
 
 
-def adapt_bench(sources, output, clock, rates):
+def ata_only_media(root, rtl):
+    core = root / 'cores/fes-pc386/rtl'
+    verifier = core / 'pc386_floppy_verify.sv'
+    if not verifier.is_file():
+        return None
+    if rtl.count(verifier) != 1:
+        raise RuntimeError('the F3 machine bench must name exactly one floppy verifier')
+    from boards.de25nano.pc386 import derive
+
+    system = core / 'pc386_system.sv'
+    geometry = {'floppy_type': 6, 'boot_device': 2, 'floppy_present': 2, 'floppy_write_protect': 2,
+                'floppy_two_sided': 2, 'floppy_cylinders': 14, 'floppy_spt': 12}
+    ports = {**geometry, **ATA_ONLY_INPUTS}
+    derived, record = derive.retarget_system(system.read_bytes())
+    if any(derived.count(f".{name}({width}'{'b' if width == 1 else 'd'}0)".encode()) != 1
+           for name, width in ports.items()):
+        raise RuntimeError('the DE25 system no longer selects the expected ATA-only media contract')
+    return {'mode': 'ata-only', 'startup_arguments': list(ATA_ONLY_ARGUMENTS), 'port_values': dict.fromkeys(ports, 0),
+            'system': system.relative_to(root).as_posix(), 'system_source_sha256': record['source_sha256'],
+            'system_derived_sha256': record['derived_sha256'],
+            'verifier': verifier.relative_to(root).as_posix(), 'verifier_sha256': sha(verifier)}
+
+
+def adapt_bench(sources, output, clock, rates, media=None):
     period = Fraction(10**12, 1) / clock
     cpp = (sources / 'machine_tb.cpp').read_text()
     for before, after in (
@@ -58,6 +83,10 @@ def adapt_bench(sources, output, clock, rates):
          '                            if (options.rtl_for >= 0) limit = machine.cycles +'),
     ):
         cpp = replace_once(cpp, before, after)
+    if media is not None:
+        boot = '        top.boot_device = uint8_t(boot_device);'
+        fixed = '\n'.join(f'        top.{name} = 0;' for name in ATA_ONLY_INPUTS)
+        cpp = replace_once(cpp, boot, f'{boot}\n{fixed}')
     # Both clocks use integers in units of 1 / period.denominator picoseconds.
     header = (sources / 'audio_link.h').read_text()
     header = replace_once(header, 'The 48 kHz frame request: 3 every 6250 clocks of 100 MHz.',
@@ -95,8 +124,10 @@ def machine_sources(rtl, root, output, loaded_rearm_cycles):
     return tuple(target if path == upstream else path for path in rtl), presenter
 
 
-def arguments_for(workload, output):
+def arguments_for(workload, output, media=None):
     common = ['--cpu', 'rtl', '--cpu-profile', str(output / 'cpu.prof'), '--cpu-profile-every', '0.5']
+    if media is not None:
+        common.extend(ATA_ONLY_ARGUMENTS)
     if workload == 'doom':
         return common + ['--limit-seconds', '300', '--type', r'cd \doom|doom -timedemo demo3|',
                          '--rtl-at-flip', '40', '--rtl-for', '1.0']
@@ -113,7 +144,7 @@ def arguments_for(workload, output):
 RUNS = (('base', 'doom'), ('dx', 'doom'), ('base', '3dbench'), ('dx', '3dbench'), ('dx', 'quake'))
 
 
-def replay(workload, arm, binary, images, drive, output):
+def replay(workload, arm, binary, images, drive, output, media=None):
     directory = output / f'{arm}-{workload}'
     directory.mkdir()
     if workload != 'doom':
@@ -121,7 +152,7 @@ def replay(workload, arm, binary, images, drive, output):
     disk = directory / 'disk.img'
     shutil.copyfile(drive, disk)
     command = [str(binary), '--bios', str(images['bios']), '--vgabios', str(images['vgabios']),
-               '--disk', str(disk), *arguments_for(workload, directory)]
+               '--disk', str(disk), *arguments_for(workload, directory, media)]
     save(directory / 'command.json', command)
     timeout_hours = 12 if workload == 'quake' else 8
     with (directory / 'run.log').open('w') as log:
@@ -230,12 +261,15 @@ def main():
         raise RuntimeError('a census image differs from the #2194 fixture')
     pll = build.model_clock('486dx')
     clock, rates = pll['clock'], build.guest_rates('486dx')
-    loaded_rearm_cycles = build.record_parameters(root, '486dx').get('loaded_rearm_cycles')
+    parameters = build.record_parameters(root, '486dx')
+    loaded_rearm_cycles = parameters.get('loaded_rearm_cycles')
+    pipelined_x87 = parameters.get('x87_fast_pipelined') is True
     machine_rtl, presenter = machine_sources(sim.MACHINE_RTL, root, output, loaded_rearm_cycles)
+    media = ata_only_media(root, machine_rtl)
     sim.OUTPUT = output / 'build'
     verilator = i386_verilator.locate(args.cache_root.resolve())
     os.environ.pop('VERILATOR_ROOT', None)
-    bench = adapt_bench(sim.CORE / 'sim', output, clock, rates)
+    bench = adapt_bench(sim.CORE / 'sim', output, clock, rates, media)
     images = sim.firmware.images(True, args.jobs)
     linked = sim.oracle.link_inputs(args.jobs, True)
     args.verilator = str(verilator.path)
@@ -252,7 +286,10 @@ def main():
                'binaries': {}}
     if presenter is not None:
         witness['presenter'] = presenter
+    if media is not None:
+        witness['media'] = media
     save(output / 'inputs.json', witness)
+    processor_dependencies = {}
     for arm, rtl in (('base', sim.CPU_RTL), ('dx', derive.sim_sources(output / 'derived', root))):
         print(f'Building {arm} at {float(clock):.6f} Hz', flush=True)
         cpu = sim.verilate(args.verilator, arm, 'fes_i386_cpu', rtl + (sim.CORE / 'sim/cpu_profile.vlt',),
@@ -261,12 +298,39 @@ def main():
         binary = sim.verilate(args.verilator, arm, 'pc386_machine', machine_rtl, bench,
                               [*linked, cpu, audio, sim.NUKED / 'opl3.c'], args.jobs,
                               machine_rates, (audio.parent, cpu.parent))
+        if pipelined_x87:
+            from sim_x87 import x87_derivation
+
+            upstream = root / derive.X87_UPSTREAM
+            derived = output / 'derived' / upstream.name
+            compiled = upstream if arm == 'base' else derived
+            dependency = cpu.parent / 'Vfes_i386_cpu__ver.d'
+            dependencies = set(dependency.read_text().split())
+            if dependencies.intersection(map(str, (upstream, derived))) != {str(compiled)}:
+                raise RuntimeError(f'{arm} CPU did not compile the selected x87 wrapper')
+            link_log = binary.parent / 'build.log'
+            if not any(str(cpu) in line.split() and line.endswith(f'-o {binary.name}')
+                       for line in link_log.read_text().splitlines()):
+                raise RuntimeError(f'{arm} game model did not link the recorded CPU archive')
+            processor_dependencies[arm] = {'dependency': dependency.relative_to(output).as_posix(),
+                                           'dependency_sha256': sha(dependency),
+                                           'archive': cpu.relative_to(output).as_posix(),
+                                           'archive_sha256': sha(cpu),
+                                           'link_log': link_log.relative_to(output).as_posix(),
+                                           'link_log_sha256': sha(link_log),
+                                           'compiled_sha256': sha(compiled)}
+            if arm == 'dx':
+                witness['x87_fast_pipeline'] = {
+                    'derivation': x87_derivation(root, derived),
+                    'derived': derived.relative_to(output).as_posix(),
+                    'processor_dependencies': processor_dependencies,
+                }
         binaries[arm] = binary
         witness['binaries'][arm] = sha(binary)
     save(output / 'inputs.json', witness)
     with ThreadPoolExecutor(max_workers=5) as executor:
         runs = [executor.submit(replay, work, arm, binaries[arm], images,
-                                drives['pmode' if work == 'doom' else 'bench'], output)
+                                drives['pmode' if work == 'doom' else 'bench'], output, media)
                 for arm, work in RUNS]
         for run in runs:
             run.result()

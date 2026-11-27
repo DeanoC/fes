@@ -11,9 +11,16 @@ python3 sim_games.py --source "$game_checkout" --output "$game_output" \
 ```
 
 G2 compares directed and random lockstep results at levels 3 and 4 and
-runs the unit, transcendental and TestFloat benches for the shared x87
-unit. Lockstep measures architectural behavior in clock cycles. The
+runs the x87 unit, transcendental engine and TestFloat benches.
+Lockstep measures architectural behavior in clock cycles. The
 candidate revision binds the selected RTL and its DE25 clock record.
+
+When the build records `x87_fast_pipelined`, G2 uses the DE25 DX wrapper
+for its DX lockstep, direct unit and TestFloat runs. The direct unit checks
+19 clocks from FMUL commit to FWAIT release and tests squashes, both reset
+inputs and the invalid-operation latch. G4 retains the shared CPU control.
+The game witness records the x87 derivation and each CPU's Verilator
+dependencies, and the replay receipt checks the derived bytes.
 
 G4 compares the shared CPU and the derived DX at the same clock with
 #2194's level-3 oracle and fixtures. The DOOM comparison uses the second
@@ -36,6 +43,11 @@ clock, audio ratio and corresponding system-to-pixel scheduling. The
 CPU runs with the governor disabled as in #2194. The game bench uses
 #2194's DDR latency model. Quartus and the physical board provide
 separate timing and hardware evidence.
+
+With the F3 machine sources, the runner checks the DE25 system derivation
+and makes both game arms boot from ATA with both floppy drives absent.
+It sets the verifier inputs to zero and records the adapted testbench,
+compiled F3 dependencies, and explicit media arguments.
 
 The runner writes `analysis.json` with the handovers, windows, CPI
 ratios and Quake's execution verdict. Use `--analyze-existing` with
