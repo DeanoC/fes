@@ -578,7 +578,7 @@ failed:
 #ifdef FES_CBL_BIDIRECTIONAL
         /* RX starts before TX. An uncertain RX enable can leave the
          * external link in use even when no TX descriptor was submitted. */
-        dma_idle = dma_idle && (!out->rx->dma_possible || out->rx->stopped);
+        dma_idle = dma_idle && (!out->rx->dma_possible || out->rx->stop.shared);
 #endif
         if (dma_idle) (void)restore_flp(&t);
         (void)revoke(&t);
@@ -599,7 +599,7 @@ enum fes_tx_disposition fes_tx_terminal(const struct fes_tx_io *io, struct fes_t
     if (r->vmid == 2) t.vmid=2;
     t.prod=r->command;
     if (r->rx && r->rx->dma_possible) {
-        if (!r->rx->stopped || !r->translation_revoked || !r->mac_in_reset ||
+        if (!r->rx->stopped || !r->rx->stop.shared || !r->translation_revoked || !r->mac_in_reset ||
             !r->process_stopped || retained_after_reset(&t)) return FES_TX_COLD_RECOVERY;
     }
 #endif

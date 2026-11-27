@@ -7,8 +7,16 @@
 
 struct endpoint {
     struct fixture f;
-    unsigned grants, received, mode;
+    unsigned grants, received, mode, post_stop_reads;
 };
+static uint32_t endpoint_read(void *ctx, uint32_t address)
+{
+    struct endpoint *e=ctx;
+    if (e->mode==10 && address==M+0x3020 && (*reg(&e->f,M+0x3160) & (1U<<8)) &&
+        ++e->post_stop_reads==3)
+        return 1; /* Both RX idle samples passed, shared AXI no longer idle. */
+    return read32(&e->f,address);
+}
 static void grant(void *ctx,unsigned vmid,unsigned cmd,unsigned ste)
 {
     struct endpoint *e=ctx;
@@ -44,7 +52,7 @@ static void channel(void *ctx,uint32_t address,uint32_t value)
     write32(f,address,value);
     if (address==M+0x3124) *reg(f,M+4)=cfg;
     if (address==M+0x3108) {
-        if (value&1) *reg(f,M+0x3020)=0x300;
+        if (value&1) *reg(f,M+0x3020)=e->mode==8 ? 0 : 0x300;
         else if (old&1) {
             *reg(f,M+0x3020)=0;
             *reg(f,M+0x3160)|=1U<<8;
@@ -68,6 +76,8 @@ static void channel(void *ctx,uint32_t address,uint32_t value)
     memcpy(ram(f,FES_RX_DATA+FES_RX_OFFSET),reply,60);
     put(f,desc+8,(uint64_t)0x3000003c<<32);
     e->received++;
+    if (e->mode==9) *reg(f,M+0x3164)=1U<<28; /* RX descriptor write not retired. */
+    if (e->mode==8) *reg(f,M+0x3160)|=0x84; /* BIDI04 RBU, TBU and generic debug zero. */
 }
 static void run(unsigned mode)
 {
@@ -80,12 +90,26 @@ static void run(unsigned mode)
     *reg(f,S+0x2c)=4;
     *reg(f,M+0x110)=0x107631; *reg(f,M+0x11c)=0xcafd5b3f;
     *reg(f,M+0x120)=0x49ef7a27; *reg(f,M+0x124)=0x221c71c7;
-    struct fes_tx_io io={&e,read32,channel,get,put,barrier,now,owns,observe,caps,phy,grant};
+    struct fes_tx_io io={&e,endpoint_read,channel,get,put,barrier,now,owns,observe,caps,phy,grant};
     uint8_t frame[60]={2,0,0,0,0,0x45,2,0xfe,0x25,8,0xcb,1,0x88,0xb5};
     memcpy(frame+14,"FES-CBL-TX-v1",14);memset(frame+28,0x71,16);
     struct fes_rx_result r1={0},r2={0};
     struct fes_tx_result t1={.rx=&r1}, t2={.rx=&r2,.previous=&t1};
     int rc=fes_tx_once(&io,frame,&t1);
+    if (mode==10) {
+        assert(rc && t1.process_stopped && r1.stopped && r1.stop.phase==6);
+        assert(!r1.stop.shared && !t1.retained && !t1.phy.restored && t1.translation_revoked);
+        assert(fes_tx_terminal(&io,&t1,rc)==FES_TX_COLD_RECOVERY);
+        assert(fes_tx_once(&io,frame,&t2) && e.grants==1);
+        return;
+    }
+    if (mode==9) {
+        assert(rc && t1.process_stopped && r1.matched && !r1.stopped && r1.stop.phase==3);
+        assert(!r1.stop.shared && !t1.phy.restored && !t1.retained && t1.translation_revoked);
+        assert(fes_tx_terminal(&io,&t1,rc)==FES_TX_COLD_RECOVERY);
+        assert(fes_tx_once(&io,frame,&t2) && e.grants==1);
+        return;
+    }
     if (mode==7) {
         assert(rc && r1.dma_possible && !r1.armed && !r1.stopped);
         assert(!t1.dma_possible && !t1.dispatched && !f->transmits);
@@ -109,7 +133,7 @@ static void run(unsigned mode)
     if (mode==5) *reg(f,S+0x9c)=10;
     if (mode==6) t1.dwell_us=0;
     rc=fes_tx_once(&io,frame,&t2);
-    if(mode>=2) {
+    if(mode>=2 && mode<=7) {
         assert(rc && e.grants==1 && !t1.consumed && !t2.arm_attempted);
         return;
     }
@@ -122,6 +146,6 @@ static void run(unsigned mode)
 }
 int main(void)
 {
-    for (unsigned mode=0;mode<8;mode++) run(mode);
+    for (unsigned mode=0;mode<11;mode++) run(mode);
     puts("two nonce-bound TX/RX grants, abort dwell, stale regrant, and contained failure verified");
 }

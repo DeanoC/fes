@@ -26,6 +26,9 @@ static void positive_both_rounds(const struct fes_tx_io *io)
         enum fes_tx_disposition closed=fes_tx_terminal(io,&tx[i],rc);
         if (!rc && closed!=FES_TX_CLOSED) rc=-1;
         positive_end(&tx[i],rc,closed);
+        const struct fes_rx_stop_observation *s=&rx[i].stop;
+        printf("FES_CBL_BIDI STOP id=%s round=%u phase=%u shared=%u cfg=%08x ctrl=%08x status=%08x mac=%08x mtl=%08x dma=%08x ch=%08x post_ctrl=%08x\n",
+               FES_CPU_DIAG_ID,round,s->phase,s->shared,s->cfg,s->ctrl,s->status,s->mac,s->mtl,s->dma,s->ch,s->post_ctrl);
         printf("FES_CBL_BIDI RX id=%s round=%u possible=%u armed=%u matched=%u stopped=%u retained=%u failure=%u desc=%08x channel=%08x mac=%08x mtl=%08x dma=%08x ch=%08x dwell_us=%llu reply=",
             FES_CPU_DIAG_ID,round,rx[i].dma_possible,rx[i].armed,rx[i].matched,rx[i].stopped,tx[i].retained,
             (unsigned)rx[i].failure,rx[i].desc_status,rx[i].channel_status,rx[i].mac_debug,rx[i].mtl_debug,

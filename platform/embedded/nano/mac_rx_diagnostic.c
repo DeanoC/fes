@@ -19,6 +19,9 @@
 #define CH_STATUS 0x3160U
 #define CH_DEBUG 0x3164U
 #define RX_STOPPED (1U << 8)
+#define RX_BUFFER_UNAVAILABLE (1U << 7)
+#define TX_STOPPED (1U << 1)
+#define STOP_WAIT_US 2000000U
 #define FAULTS ((1U << 9) | (1U << 12) | (1U << 13))
 #define RX_BUFFER_CTRL ((4U << 16) | (FES_RX_CAPACITY << 1))
 #define OWN (1U << 31)
@@ -109,7 +112,7 @@ int fes_rx_arm(const struct fes_rx_path *p, struct fes_rx_result *r, const uint8
         return -1;
     r->arm_attempted = 1;
     if (!derive_reply(request, r->expected) || p->guard(p->trial) || rd(p, RX_CFG) & 1 ||
-        rd(p, RX_CTRL) & 1 || rd(p, DMA_DEBUG) & 0xf00 || rd(p, CH_STATUS) & (FAULTS | RX_STOPPED) ||
+        rd(p, RX_CTRL) & 1 || rd(p, DMA_DEBUG) & 0xf00 || rd(p, CH_STATUS) & (FAULTS | RX_STOPPED | RX_BUFFER_UNAVAILABLE) ||
         rd(p, CH_CTRL) || rd(p, 0x300) != 0x800001cb || rd(p, 0x304) != 0x0825fe02)
         return -1;
     /* The one initial descriptor can receive immediately when SR is enabled.
@@ -226,35 +229,94 @@ int fes_rx_wait(const struct fes_rx_path *p, struct fes_rx_result *r)
     }
     return -1;
 }
+/* Altera HPS TRM §5.1.7.7 and RC28 DMA_CH0_Rx_Control.SR. Stop can be
+ * requested after closing ingress and draining the MTL FIFO, while the DMA
+ * waits for a packet or is suspended. On this one-buffer ring, newly latched
+ * RBU plus a returned descriptor and no subsequent tail write also establish
+ * suspension. Inspect the channel's descriptor/data state before clearing
+ * SR. A generic debug register reading zero alone establishes neither state. */
+static int can_clear_sr(const struct fes_rx_stop_observation *s, uint32_t descriptor)
+{
+    unsigned rx_state = (s->dma >> 8) & 15;
+    unsigned fetch = (s->ch >> 16) & 7;
+    unsigned transfer = (s->ch >> 19) & 511;
+    unsigned write = (s->ch >> 28) & 7;
+    if ((s->mac & 7) || (s->mtl & 0x3fff0037U) || (s->dma & 3) ||
+        (fetch != 0 && fetch != 3) || transfer > 2 || write)
+        return 0;
+    return rx_state == 3 || rx_state == 4 ||
+        (rx_state == 0 && (s->status & RX_BUFFER_UNAVAILABLE) && !(descriptor & OWN));
+}
+static int stop_window(const struct fes_rx_path *p, uint64_t start)
+{
+    if (p->guard(p->trial))
+        return 0;
+    uint64_t now = p->io->time_us(p->io->ctx);
+    return now >= start && now - start < STOP_WAIT_US;
+}
 int fes_rx_stop(const struct fes_rx_path *p, struct fes_rx_result *r)
 {
     if (!p || !r || !r->armed || (!r->matched && r->failure == FES_RX_NO_FAILURE) || r->stop_attempted)
         return -1;
     r->stop_attempted = 1;
-    if (p->guard(p->trial) || rd(p, RX_CTRL) != (RX_BUFFER_CTRL | 1) || rd(p, RX_CFG) != ((1U << 2) | 1) ||
-        (rd(p, CH_STATUS) & (FAULTS | RX_STOPPED)) || wr(p, RX_CFG, 1U << 2))
+    struct fes_rx_stop_observation *s = &r->stop;
+    s->phase = 1;
+    if (p->guard(p->trial))
         return -1;
-    /* Close ingress first. Let the current packet and MTL queue drain before
-     * stopping DMA. This profile owns one buffer and never recycles it. */
+    s->ctrl = rd(p, RX_CTRL);
+    s->cfg = rd(p, RX_CFG);
+    s->status = rd(p, CH_STATUS);
+    if (s->ctrl != (RX_BUFFER_CTRL | 1) || s->cfg != 5 ||
+        (s->status & (FAULTS | RX_STOPPED | TX_STOPPED)) != TX_STOPPED)
+        return -1;
+    s->phase = 2;
+    if (wr(p, RX_CFG, 4)) {
+        if (!p->guard(p->trial)) s->cfg = rd(p, RX_CFG);
+        return -1;
+    }
+    s->phase = 3;
+    uint64_t start = p->io->time_us(p->io->ctx);
     unsigned n;
     for (n = 0; n < SYNC_LIMIT; n++) {
-        if (p->guard(p->trial) || rd(p, CH_STATUS) & (FAULTS | RX_STOPPED))
+        if (!stop_window(p, start))
             return -1;
-        r->mac_debug = rd(p, MAC_DEBUG);
-        r->mtl_debug = rd(p, MTL_RX_DEBUG);
-        r->dma_debug = rd(p, DMA_DEBUG);
-        unsigned state = (r->dma_debug >> 8) & 15U;
-        if (!(r->mac_debug & 7) && !(r->mtl_debug & 0x3fff0037U) && (state == 3 || state == 4))
+        s->cfg = rd(p, RX_CFG);
+        s->ctrl = rd(p, RX_CTRL);
+        s->status = rd(p, CH_STATUS);
+        s->mac = rd(p, MAC_DEBUG);
+        s->mtl = rd(p, MTL_RX_DEBUG);
+        s->dma = rd(p, DMA_DEBUG);
+        s->ch = rd(p, CH_DEBUG);
+        if (s->cfg != 4 || s->ctrl != (RX_BUFFER_CTRL | 1) ||
+            (s->status & (FAULTS | RX_STOPPED | TX_STOPPED)) != TX_STOPPED)
+            return -1;
+        p->io->sync_memory(p->io->ctx);
+        uint32_t descriptor = (uint32_t)(mem(p, FES_RX_DESC + 8) >> 32);
+        if (descriptor != r->desc_status)
+            return -1;
+        if (can_clear_sr(s, descriptor))
             break;
     }
-    if (n == SYNC_LIMIT || wr(p, RX_CTRL, RX_BUFFER_CTRL))
+    if (n == SYNC_LIMIT)
         return -1;
+    s->phase = 4;
+    if (wr(p, RX_CTRL, RX_BUFFER_CTRL)) {
+        if (!p->guard(p->trial)) s->post_ctrl = rd(p, RX_CTRL);
+        return -1;
+    }
+    if (p->guard(p->trial))
+        return -1;
+    s->post_ctrl = rd(p, RX_CTRL);
+    if (s->post_ctrl != RX_BUFFER_CTRL)
+        return -1;
+    s->phase = 5;
+    start = p->io->time_us(p->io->ctx);
     unsigned idle_samples = 0;
     for (n = 0; n < SYNC_LIMIT; n++) {
-        if (p->guard(p->trial))
+        if (!stop_window(p, start))
             return -1;
         r->channel_status = rd(p, CH_STATUS);
-        if (r->channel_status & FAULTS)
+        if ((r->channel_status & (FAULTS | TX_STOPPED)) != TX_STOPPED)
             return -1;
         r->ch_debug = rd(p, CH_DEBUG);
         r->dma_debug = rd(p, DMA_DEBUG);
@@ -270,6 +332,7 @@ int fes_rx_stop(const struct fes_rx_path *p, struct fes_rx_result *r)
             }
             if (retained(p, r))
                 return -1;
+            s->phase = 6;
             r->stopped = 1;
             return 0;
         }

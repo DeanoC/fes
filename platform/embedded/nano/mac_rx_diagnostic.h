@@ -26,7 +26,12 @@ struct fes_rx_path {
 enum fes_rx_failure { FES_RX_NO_FAILURE, FES_RX_TIMED_OUT, FES_RX_BAD_DESCRIPTOR, FES_RX_WRONG_FRAME };
 /* Reserve this structure in CPU-only SPL storage outside every translated
  * page. It preserves an exact image, even of unexpected input, across revoke. */
+struct fes_rx_stop_observation {
+    unsigned phase, shared;
+    uint32_t cfg, ctrl, status, mac, mtl, dma, ch, post_ctrl;
+};
 struct fes_rx_result {
+    struct fes_rx_stop_observation stop;
     uint64_t retired_desc[2], retired_buffer[FES_RX_CAPACITY / 8];
     enum fes_rx_failure failure;
     unsigned arm_attempted, dma_possible, armed, wait_attempted, matched, stop_attempted, stopped;

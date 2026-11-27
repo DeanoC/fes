@@ -134,7 +134,7 @@ int main(void)
     do {                                                                                                   \
         RESET();                                                                                           \
         assert(!fes_rx_arm(&p, &r, request));                                                              \
-        assert(r.armed &&r.dma_possible);                                                                  \
+        assert(r.armed && r.dma_possible); m.regs[0x3160 / 4] |= 2U;                                                                  \
     } while (0)
 #define MATCH()                                                                                            \
     do {                                                                                                   \
@@ -221,6 +221,35 @@ int main(void)
     RESET();
     m.regs[0x3160 / 4] = RPS;
     assert(fes_rx_arm(&p, &r, request) && !m.stores);
+    RESET();
+    m.regs[0x3160 / 4] = 0x80; /* Without observed-clear RBU is stale. */
+    assert(fes_rx_arm(&p, &r, request) && !m.stores);
+    MATCH();
+    m.regs[0x3020 / 4] = 0;
+    m.regs[0x3160 / 4] = 0x86; /* Actual CBL TX/TBU/RBU stop sample. */
+    assert(!fes_rx_stop(&p, &r) && r.stop.phase == 6 && r.stop.status == 0x86);
+    assert(r.stop.cfg == 4 && r.stop.ctrl == 0x40c81 && r.stop.post_ctrl == 0x40c80);
+    assert((r.channel_status & 0x102) == 0x102 && !r.stop.shared);
+    MATCH();
+    m.regs[0x3020 / 4] = 0;
+    assert(fes_rx_stop(&p, &r) && r.stop.phase == 3 && !r.stop.post_ctrl);
+    for (unsigned i = 0; i < 4; i++) {
+        const uint32_t busy[] = {4U << 16, 5U << 19, 1U << 28, 2U << 16};
+        MATCH();
+        m.regs[0x3160 / 4] = 0x86;
+        m.regs[0x3020 / 4] = 0;
+        m.regs[0x3164 / 4] = busy[i];
+        assert(fes_rx_stop(&p, &r) && r.stop.phase == 3 && r.stop.ch == busy[i]);
+        assert(!m.revoked && (m.regs[0x3108 / 4] & 1)); /* bounded wait preserves the outer grant */
+    }
+    ARM();
+    assert(fes_rx_wait(&p, &r) && r.failure == FES_RX_TIMED_OUT);
+    m.regs[0x3020 / 4] = 0;
+    m.regs[0x3160 / 4] = 0x86;
+    assert(fes_rx_stop(&p, &r) && r.stop.phase == 3 && !r.stop.post_ctrl);
+    MATCH();
+    m.regs[0x3160 / 4] = 0x84; /* Missing independent TX acknowledgement. */
+    assert(fes_rx_stop(&p, &r) && r.stop.phase == 1);
     MATCH();
     m.skip_rps = 1;
     assert(fes_rx_stop(&p, &r) && !r.stopped);

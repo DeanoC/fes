@@ -39,7 +39,7 @@ static int regrant(struct trial *t,const uint8_t frame[60])
     if (!old || old->vmid!=1 || old->stage!=FES_TX_PARKED || old->consumed ||
         old->scope_lost || !old->mac_in_reset || !old->translation_revoked ||
         !old->process_stopped || !old->retained || old->dwell_us<10000 ||
-        !old->rx || !old->rx->matched || !old->rx->stopped || old->rx->failure ||
+        !old->rx || !old->rx->matched || !old->rx->stopped || !old->rx->stop.shared || old->rx->failure ||
         old->command!=12) return -1;
     unsigned different=0;
     for (unsigned i=0; i<16; i++) different|=old->nonce[i]^frame[28+i];
@@ -94,9 +94,8 @@ static int bidi_transfer(struct trial *t,const uint8_t request[60])
     }
     /* Stop TX while RX is still active. After closing ingress and RX DMA,
      * prove both channel FSMs and both shared AXI channels are idle. */
-    if (stop_mac(t,0xf000) || fes_rx_stop(&path,rx) || sample_tx_drain(t,0xff03)) {
-        tx->process_stopped=0;
+    if (stop_mac(t,0xf000) || fes_rx_stop(&path,rx) || sample_tx_drain(t,0xff03))
         return -1;
-    }
+    rx->stop.shared=1;
     return tx_failed || rx_failed ? -1 : 0;
 }
