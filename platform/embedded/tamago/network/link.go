@@ -38,6 +38,8 @@ type Link struct {
 // Handles may be copied; all mutable ownership remains in this private object.
 type linkState struct {
 	failure       atomic.Pointer[linkFailure]
+	driverFailure atomic.Pointer[linkFailure]
+	expired       func() bool
 	io            sync.RWMutex
 	paused        atomic.Bool
 	claimed       atomic.Bool
@@ -48,6 +50,13 @@ type linkState struct {
 }
 
 func NewLink(cfg *gnet.LnetoConfig, device gnet.NetworkDevice, address, mac, gateway string) (*Link, error) {
+	return newLink(cfg, device, address, mac, gateway, nil)
+}
+
+func newLink(cfg *gnet.LnetoConfig, device gnet.NetworkDevice, address, mac, gateway string, expired func() bool) (*Link, error) {
+	if expired != nil && expired() {
+		return nil, ErrLeaseExpired
+	}
 	if device == nil {
 		return nil, errors.New("network: missing stack/device")
 	}
@@ -67,7 +76,7 @@ func NewLink(cfg *gnet.LnetoConfig, device gnet.NetworkDevice, address, mac, gat
 		gw = netip.MustParseAddr(gateway)
 	}
 	engine := newLnetoEngine(cfg)
-	link := &Link{stack: engine, engine: engine, device: device, prefix: prefix, state: &linkState{}}
+	link := &Link{stack: engine, engine: engine, device: device, prefix: prefix, state: &linkState{expired: expired}}
 	engine.SetWriteNotify(link.transmit)
 	if err = engine.Configure(hardware, prefix, gw); err != nil {
 		return nil, err
@@ -377,13 +386,28 @@ func (l *Link) Err() error {
 	if l == nil || l.state == nil {
 		return ErrControl
 	}
+	if err := l.driverError(); err != nil {
+		return err
+	}
 	if failure := l.state.failure.Load(); failure != nil {
 		return failure.err
 	}
-	if device, ok := l.device.(interface{ Err() error }); ok {
-		return device.Err()
+	return nil
+}
+func (l *Link) driverError() error {
+	if failure := l.state.driverFailure.Load(); failure != nil {
+		return failure.err
+	}
+	if d, ok := l.device.(interface{ Err() error }); ok {
+		if err := d.Err(); err != nil {
+			l.failDevice(err)
+			return err
+		}
 	}
 	return nil
+}
+func (l *Link) failDevice(err error) {
+	l.state.driverFailure.CompareAndSwap(nil, &linkFailure{err: err})
 }
 func (l *Link) fail(err error) { l.state.failure.CompareAndSwap(nil, &linkFailure{err: err}) }
 
@@ -417,7 +441,7 @@ func (l *Link) transmit(buf []byte) {
 		return
 	}
 	if err = l.device.Transmit(buf[:n]); err != nil {
-		l.fail(err)
+		l.failDevice(err)
 	}
 }
 
@@ -441,7 +465,7 @@ func (l *Link) SendRawFrame(frame []byte) error {
 	}
 	defer l.state.io.RUnlock()
 	if err := l.device.Transmit(frame); err != nil {
-		l.fail(err)
+		l.failDevice(err)
 		return err
 	}
 	return nil
@@ -507,12 +531,12 @@ func (l *Link) Start(ctx context.Context) error {
 		n, err := l.device.Receive(buf)
 		l.state.io.RUnlock()
 		if err != nil {
-			l.fail(err)
+			l.failDevice(err)
 			return err
 		}
 		if n < 0 || n > len(buf) {
 			err := errors.New("network: device returned invalid frame length")
-			l.fail(err)
+			l.failDevice(err)
 			return err
 		}
 		if n == 0 {

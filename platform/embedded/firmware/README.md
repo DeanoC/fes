@@ -161,5 +161,12 @@ confirm the XGMAC rings. The launcher stops both channels before switching
 programs. EL3 verifies the RX, TX, AXI and MTL drain, restores the saved PHY
 configuration, revokes the mapping and verifies the original SDM cursor.
 It checks the complete MAC arena across a 10 ms post-revocation interval.
-Ethernet can resume after the returned MENU displays a new frame. The
-matched launcher stays offline while the C64 runs.
+Ethernet can resume after the returned MENU displays a new frame.
+
+For authenticated observation during C64 play, add
+`--nano-mac-c64-scope-supplier` to both firmware producers and use the entry
+built with `--paired-ethernet --c64-network-scope`. EL3 matches the selected
+C64 package and configured core digest, observes CPU fetch progress and
+issues a fresh MAC grant. The scoped observation service verifies the running
+core, bridge and MAC generation under the same boot owner. Stop restores the
+original hardware containment before the launcher can return to MENU.

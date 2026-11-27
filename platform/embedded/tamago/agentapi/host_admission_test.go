@@ -78,10 +78,43 @@ func TestFogCastHostClientAdmitsNativeTarget(t *testing.T) {
 	ownership := &admissionLease{status: kitlease.Status{State: "free"}}
 	startAdmissionTarget(t, ctx, targetLink, targetMAC, ownership)
 
+	checkHostAdmission(t, ctx, hostLink, hostMAC, ownership, targetLink.Prefix().Addr())
+}
+
+func TestReboundEndpointAdvertisesFreshAddressAndKeepsPairedAuthority(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	t.Cleanup(cancel)
+	old, host, station, hostMAC, closePair := setupTestLinkPair(t)
+	t.Cleanup(closePair)
+	owner := &admissionLease{status: kitlease.Status{State: "free"}}
+	service := startAdmissionTarget(t, ctx, old, station, owner)
+	checkHostAdmission(t, ctx, host, hostMAC, owner, old.Prefix().Addr())
+	replacement, host, station, mac, closeReplacement := setupTestLinkPairAt(t, "192.0.2.88/24")
+	t.Cleanup(closeReplacement)
+	endpoint := agentapi.NewLinkEndpoint(replacement, station)
+	if _, err := service.OnNewEndpoint(endpoint); err == nil {
+		t.Fatal("rebound while old endpoint still serving")
+	}
+	if err := service.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := service.OnNewEndpoint(endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = fresh.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Stop(ctx)
+	checkHostAdmission(t, ctx, host, mac, owner, replacement.Prefix().Addr())
+}
+
+func checkHostAdmission(t *testing.T, ctx context.Context, hostLink *network.Link, hostMAC [6]byte, ownership *admissionLease, want netip.Addr) {
+	t.Helper()
 	ads, err := mdns.Browse(ctx, hostLink, mdns.BrowseConfig{
 		LocalMAC: hostMAC, LocalIP: hostLink.Prefix().Addr(), StopOnFirst: true,
 	}, mdns.FogCastServiceType)
-	if err != nil || len(ads) != 1 || len(ads[0].Addrs) != 1 {
+	if err != nil || len(ads) != 1 || len(ads[0].Addrs) != 1 || ads[0].Addrs[0] != want {
 		t.Fatalf("native DNS-SD browse returned %+v: %v", ads, err)
 	}
 	ad := mdns.ParseFogCastTXT(ads[0].TXT)

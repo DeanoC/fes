@@ -98,12 +98,21 @@ of SHA-256 over `FES DE25 paired station v1`, one NUL byte and the canonical
 SD target UUID in ASCII. It sets the locally administered bit and clears the
 multicast bit. Provision a separate stable target UUID for each kit. A missing
 pair, missing hardware boot entropy or an explicit firmware MAC NOT_READY
-keeps the local launcher available. The paired adapter serves requests only
-while MENU owns the display. Launch drains and revokes Ethernet before the
-core takes the GP port. C64 input and live disk swaps keep their full containment
-checks throughout play. Return reopens Ethernet after MENU presents its first
-frame. Park leaves the MAC contained. A malformed ownership reply or uncertain
-acquire/stop remains a failure. MENU retains the local lease while idle.
+keeps the local launcher available. The MENU supplier serves requests while
+MENU owns the display. Launch drains and revokes Ethernet before the core
+takes the GP port. With the additional matched C64 supplier, the launcher
+verifies the fitted core and a live CPU fetch, then requests a new Ethernet
+grant for play. Each active lease read checks current hardware ownership.
+Local C64 input and disk access use the same scoped checks while Ethernet is
+active. Return drains that grant and reopens Ethernet after MENU presents its
+first frame. Park leaves the MAC contained. A malformed ownership reply or
+uncertain acquire/stop remains a failure. MENU retains the local lease while idle.
+
+If a DHCP lease expires or the server revokes its address, the launcher
+stops using that address. At the next eligible network resume it obtains a
+fresh lease and advertises the current address with the same paired target
+and boot identity. If DHCP is unavailable, a verified MAC stop lets the
+local launcher continue and retry on a later resume.
 
 CBL’s factory cold-boot UART recorded Linux binding `socfpga-dwmac` to
 `10810000.ethernet`, reporting user ID `0x76`, Synopsys ID `0x31` and

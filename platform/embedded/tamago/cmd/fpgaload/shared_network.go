@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -133,19 +134,20 @@ func startProgramNetwork(g *gic.Controller, provision *agentapi.Provisioning) (f
 		fmt.Println("FES_NATIVE_NETWORK_ADAPTER", adapter)
 	}
 	var iface *network.Interface
+	var controller *network.Controller
 	var networkLifetime context.Context
 	err = programService.StartNetworkWithTimeout(context.Background(), de25nano.NetworkStartupTimeout(spec.DHCP), programNetworkBootOwner, func(ctx, lifetime context.Context, owner uint64) (*network.Controller, error) {
 		networkLifetime = lifetime
-		var control *network.Controller
+
 		var err error
 		if spec.DHCP {
-			iface, control, err = de25nano.OpenNetworkWithControlDHCPOptions(ctx, lifetime, owner, network.DHCPConfig{
+			iface, controller, err = de25nano.OpenNetworkWithControlDHCPOptions(ctx, lifetime, owner, network.DHCPConfig{
 				Hostname: spec.DHCPHostname,
 			}, netOpts)
 		} else {
-			iface, control, err = de25nano.OpenNetworkWithControlOptions(ctx, lifetime, owner, netOpts)
+			iface, controller, err = de25nano.OpenNetworkWithControlOptions(ctx, lifetime, owner, netOpts)
 		}
-		return control, err
+		return controller, err
 	})
 	if err != nil {
 		return func() {}, err
@@ -169,39 +171,6 @@ func startProgramNetwork(g *gic.Controller, provision *agentapi.Provisioning) (f
 		}
 	}
 
-	if spec.DHCP && iface != nil {
-		if lease, ok := iface.Lease(); ok {
-			fmt.Printf("FES_NATIVE_NETWORK_DHCP address=%s gateway=%s server=%s lease_s=%d\n",
-				lease.Address, lease.Gateway, lease.Server, int64(lease.LeaseDuration/time.Second))
-		}
-		ren, err := iface.NewLeaseRenewer(network.RenewConfig{
-			Hostname: spec.DHCPHostname,
-			OnRenew: func(l network.DHCPLease) {
-				fmt.Printf("FES_NATIVE_NETWORK_DHCP_RENEW address=%s server=%s lease_s=%d\n",
-					l.Address, l.Server, int64(l.LeaseDuration/time.Second))
-			},
-			OnError: func(err error) {
-				fmt.Printf("FES_NATIVE_NETWORK_DHCP_ERROR err=%v\n", err)
-			},
-		})
-		if err != nil {
-			runCleanups()
-			return func() {}, err
-		}
-		renCtx, renCancel := context.WithCancel(context.Background())
-		if err := ren.Start(renCtx); err != nil {
-			renCancel()
-			runCleanups()
-			return func() {}, err
-		}
-		activeRenewer.Store(ren)
-		cleanups = append(cleanups, func() {
-			activeRenewer.Store(nil)
-			renCancel()
-			ren.Stop()
-		})
-	}
-
 	if spec.SNTPServer != "" && iface != nil {
 		// SNTP failures warn rather than aborting startup so an offline NTP
 		// server never prevents local native execution.
@@ -223,25 +192,106 @@ func startProgramNetwork(g *gic.Controller, provision *agentapi.Provisioning) (f
 		}
 	}
 
-	if provision != nil {
-		target, err := programService.NewTargetService(iface, *provision, programNetworkBootOwner, bootID, func(err error) {
-			fmt.Printf("FES_NATIVE_AGENT_ERROR err=%q\n", err)
-		})
-		if err == nil {
-			err = target.Start(networkLifetime)
+	// These services bind one leased IP. Replacements only occur behind the
+	// original MAC controller, after all old sockets/taps have been retired.
+	var currentTarget *agentapi.Service
+	var servicesMu sync.Mutex
+	var stopServices func()
+	withdraw := func() {
+		servicesMu.Lock()
+		defer servicesMu.Unlock()
+		if stopServices != nil {
+			stopServices()
+			stopServices = nil
 		}
+	}
+	publish := func(endpoint *network.Interface) error {
+		servicesMu.Lock()
+		defer servicesMu.Unlock()
+		if stopServices != nil {
+			return errors.New("native network endpoint still serving")
+		}
+		var cleanup []func()
+		stop := func() {
+			for n := len(cleanup) - 1; n >= 0; n-- {
+				cleanup[n]()
+			}
+		}
+		if spec.DHCP && endpoint != nil {
+			if lease, ok := endpoint.Lease(); ok {
+				fmt.Printf("FES_NATIVE_NETWORK_DHCP address=%s gateway=%s server=%s lease_s=%d\n",
+					lease.Address, lease.Gateway, lease.Server, int64(lease.LeaseDuration/time.Second))
+			}
+			ren, err := endpoint.NewLeaseRenewer(network.RenewConfig{
+				Hostname: spec.DHCPHostname,
+				OnRenew: func(l network.DHCPLease) {
+					fmt.Printf("FES_NATIVE_NETWORK_DHCP_RENEW address=%s server=%s lease_s=%d\n",
+						l.Address, l.Server, int64(l.LeaseDuration/time.Second))
+				},
+				OnError: func(err error) {
+					fmt.Printf("FES_NATIVE_NETWORK_DHCP_ERROR err=%v\n", err)
+				},
+			})
+			if err != nil {
+				stop()
+				return err
+			}
+			renCtx, renCancel := context.WithCancel(networkLifetime)
+			if err := ren.Start(renCtx); err != nil {
+				renCancel()
+				stop()
+				return err
+			}
+			activeRenewer.Store(ren)
+			cleanup = append(cleanup, func() {
+				activeRenewer.Store(nil)
+				renCancel()
+				ren.Stop()
+			})
+		}
+
+		if provision != nil {
+			var next *agentapi.Service
+			var err error
+			if currentTarget == nil {
+				next, err = programService.NewTargetService(endpoint, *provision, programNetworkBootOwner, bootID, func(err error) {
+					fmt.Printf("FES_NATIVE_AGENT_ERROR err=%q\n", err)
+				})
+			} else {
+				next, err = currentTarget.OnNewEndpoint(endpoint)
+			}
+			if err == nil {
+				err = next.Start(networkLifetime)
+			}
+			if err != nil {
+				stop()
+				return err
+			}
+			cleanup = append(cleanup, func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer cancel()
+				if err := next.Stop(ctx); err != nil {
+					fmt.Printf("FES_NATIVE_AGENT_STOP_ERROR err=%q\n", err)
+				}
+			})
+			currentTarget = next
+			fmt.Printf("FES_NATIVE_AGENT_READY addr=%s target_id=%s\n", next.Addr(), provision.TargetID)
+		}
+		stopServices = stop
+		return nil
+	}
+	if err = publish(iface); err != nil {
+		runCleanups()
+		return func() {}, err
+	}
+	cleanups = append(cleanups, withdraw)
+	if spec.DHCP && adapter != "" && provision != nil {
+		err = iface.RecoverDHCPAfterPause(controller, networkLifetime, network.DHCPConfig{Hostname: spec.DHCPHostname},
+			withdraw, publish, func(err error) { fmt.Printf("FES_NATIVE_AGENT_UNAVAILABLE reason=dhcp-reacquisition err=%q\n", err) })
 		if err != nil {
 			runCleanups()
 			return func() {}, err
 		}
-		cleanups = append(cleanups, func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-			if err := target.Stop(ctx); err != nil {
-				fmt.Printf("FES_NATIVE_AGENT_STOP_ERROR err=%q\n", err)
-			}
-		})
-		fmt.Printf("FES_NATIVE_AGENT_READY addr=%s target_id=%s\n", target.Addr(), provision.TargetID)
 	}
 	return runCleanups, nil
 }

@@ -35,8 +35,8 @@ type DMAControl struct {
 }
 
 // Controller joins a software traffic gate to explicit platform DMA controls.
-// It keeps the existing IP stack and socket provider; there is no reattachment,
-// new descriptor allocation, implicit hardware implementation or recovery.
+// Each controller is permanently bound to one device and its pinned DMA arena.
+// A paired DHCP launcher can replace an expired software endpoint on resume.
 type Controller struct {
 	state *linkController
 }
@@ -47,6 +47,44 @@ type linkController struct {
 	dma       DMAControl
 	paused    bool
 	assigned  atomic.Bool
+	// I/O uncertainty is terminal independently of any expired software link.
+	hardwareError error
+	lease         *pauseLease
+}
+
+// Only the DHCP-selected local launcher installs recovery. A replaced link is
+// permanently retired. The original physical controller and arena stay owned.
+type pauseLease struct {
+	expired     func() bool
+	withdraw    func(context.Context) error
+	acquire     func(context.Context) (*Link, error)
+	unavailable func(error)
+}
+
+func invalidDHCPLease(err error) bool {
+	// Only definitive responses from the renewing client retire an otherwise
+	// healthy address. Driver and hardware authority are checked separately.
+	return err == ErrLeaseExpired || err == ErrLeaseNAK || err == ErrLeaseChanged
+}
+
+func (c *linkController) leaseRetired() bool {
+	return c.lease != nil && (invalidDHCPLease(c.link.Err()) || c.lease.expired())
+}
+
+func (c *linkController) checkLink() error {
+	if c.hardwareError != nil {
+		return c.hardwareError
+	}
+	if err := c.link.driverError(); err != nil {
+		return err
+	}
+	if failure := c.link.state.failure.Load(); failure != nil {
+		if c.lease != nil && invalidDHCPLease(failure.err) {
+			return nil
+		}
+		return failure.err
+	}
+	return nil
 }
 
 // Claim transfers this active controller to one lifecycle owner, without IO.
@@ -97,6 +135,9 @@ func (l *Link) Available() error {
 	if l.state.paused.Load() {
 		return ErrPaused
 	}
+	if expiry := l.state.expired; expiry != nil && expiry() {
+		return ErrLeaseExpired
+	}
 	return nil
 }
 
@@ -113,8 +154,9 @@ func (l *Link) enter() bool {
 
 func (c *linkController) fail(err error) error {
 	c.link.state.paused.Store(true)
+	c.hardwareError = err
 	c.link.fail(err)
-	return c.link.Err()
+	return err
 }
 
 // PauseNetwork closes the gate before waiting for every in-flight Receive and
@@ -138,7 +180,7 @@ func (c *linkController) pause(parent context.Context) error {
 		return ErrBusy
 	}
 	defer c.operation.Unlock()
-	if err := c.link.Err(); err != nil {
+	if err := c.checkLink(); err != nil {
 		return err
 	}
 	if c.paused {
@@ -147,24 +189,33 @@ func (c *linkController) pause(parent context.Context) error {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	c.link.state.paused.Store(true)
-	for !c.link.state.io.TryLock() {
-		if err := ctx.Err(); err != nil {
-			return c.fail(err)
-		}
-		runtime.Gosched()
+	if err := c.link.waitForIO(ctx); err != nil {
+		return c.fail(err)
 	}
-	c.link.state.io.Unlock()
-	if err := errors.Join(ctx.Err(), c.link.Err()); err != nil {
+	if err := errors.Join(ctx.Err(), c.checkLink()); err != nil {
 		return c.fail(err)
 	}
 	if err := c.dma.Stop(ctx); err != nil {
 		return c.fail(err)
 	}
-	if err := errors.Join(ctx.Err(), c.link.Err()); err != nil {
+	if err := errors.Join(ctx.Err(), c.checkLink()); err != nil {
 		return c.fail(err)
 	}
 	c.paused = true
 	return nil
+}
+
+// Only call after closing the packet gate. New readers cannot enter while we
+// wait for any device Receive or Transmit already in progress.
+func (l *Link) waitForIO(ctx context.Context) error {
+	for !l.state.io.TryLock() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		runtime.Gosched()
+	}
+	l.state.io.Unlock()
+	return ctx.Err()
 }
 
 // ResumeNetwork opens the gate only after the paired platform restart succeeds.
@@ -174,10 +225,21 @@ func (c *Controller) ResumeNetwork(parent context.Context) error {
 	if c == nil || c.state == nil {
 		return ErrControl
 	}
-	return c.state.resume(parent)
+	return c.state.resume(parent, nil, nil)
 }
 
-func (c *linkController) resume(parent context.Context) error {
+// ResumeNetworkWithScope confirms the caller's protected running-core scope
+// after a trusted hardware restart, before the first packet can use the MAC.
+// If DHCP subsequently fails and safely stops that MAC, verifyStopped must
+// independently match that stop and the original scope before local use.
+func (c *Controller) ResumeNetworkWithScope(parent context.Context, confirm, verifyStopped func() error) error {
+	if c == nil || c.state == nil || confirm == nil || verifyStopped == nil {
+		return ErrControl
+	}
+	return c.state.resume(parent, confirm, verifyStopped)
+}
+
+func (c *linkController) resume(parent context.Context, confirm, verifyStopped func() error) error {
 	if parent == nil {
 		return ErrControl
 	}
@@ -188,7 +250,7 @@ func (c *linkController) resume(parent context.Context) error {
 		return ErrBusy
 	}
 	defer c.operation.Unlock()
-	if err := c.link.Err(); err != nil {
+	if err := c.checkLink(); err != nil {
 		return err
 	}
 	if !c.paused {
@@ -199,8 +261,62 @@ func (c *linkController) resume(parent context.Context) error {
 	if err := c.dma.Start(ctx); err != nil {
 		return c.fail(err)
 	}
-	if err := errors.Join(ctx.Err(), c.link.Err()); err != nil {
+	if err := errors.Join(ctx.Err(), c.checkLink()); err != nil {
 		return c.fail(err)
+	}
+	// A lease may expire during PHY training. Keep the original packet gate
+	// shut until that boundary has completed and the lease is checked again.
+	if confirm != nil {
+		if err := confirm(); err != nil {
+			return c.fail(err)
+		}
+	}
+	if c.leaseRetired() {
+		old := c.link
+		old.fail(ErrLeaseExpired)
+		acquire, done := context.WithTimeout(parent, defaultDHCPTimeout)
+		err := c.lease.withdraw(acquire)
+		var fresh *Link
+		if err == nil {
+			fresh, err = c.lease.acquire(acquire)
+		}
+		done()
+		if err != nil {
+			// The physical restart succeeded. Prove a new physical stop even
+			// when DHCP's deadline expired before allowing local operation.
+			drain, finish := context.WithTimeout(context.Background(), 5*time.Second)
+			if fresh != nil {
+				// A fresh stack may already have entered device I/O before
+				// its publication failed. Its packet gate is now closed.
+				if waitErr := fresh.waitForIO(drain); waitErr != nil {
+					finish()
+					return c.fail(errors.Join(err, waitErr))
+				}
+			}
+			stopErr := c.dma.Stop(drain)
+			if stopErr == nil {
+				stopErr = drain.Err()
+			}
+			finish()
+			if stopErr != nil {
+				return c.fail(errors.Join(err, stopErr))
+			}
+			if reason := c.checkLink(); reason != nil {
+				return c.fail(errors.Join(err, reason))
+			}
+			if verifyStopped != nil {
+				if stoppedErr := verifyStopped(); stoppedErr != nil {
+					return c.fail(errors.Join(err, stoppedErr))
+				}
+			}
+			c.lease.unavailable(err)
+			return nil
+		}
+		if fresh == nil || fresh == old || fresh.device != old.device || fresh.Err() != nil ||
+			!fresh.state.claimed.CompareAndSwap(false, true) {
+			return c.fail(errors.New("network: invalid replacement DHCP link"))
+		}
+		c.link = fresh
 	}
 	c.paused = false
 	c.link.state.paused.Store(false)

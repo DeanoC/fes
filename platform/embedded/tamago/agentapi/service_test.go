@@ -22,6 +22,11 @@ import (
 
 func setupTestLinkPair(t *testing.T) (linkSrv, linkCli *network.Link, macSrv string, macCli [6]byte, cleanup func()) {
 	t.Helper()
+	return setupTestLinkPairAt(t, "192.0.2.10/24")
+}
+
+func setupTestLinkPairAt(t *testing.T, targetPrefix string) (linkSrv, linkCli *network.Link, macSrv string, macCli [6]byte, cleanup func()) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sToC := make(chan []byte, 256)
@@ -30,7 +35,7 @@ func setupTestLinkPair(t *testing.T) (linkSrv, linkCli *network.Link, macSrv str
 	macCli = [6]byte{0x02, 0xaa, 0x00, 0x00, 0x01, 0x02}
 
 	var err error
-	linkSrv, err = network.NewLink(nil, wireDev{in: cToS, out: sToC}, "192.0.2.10/24", macSrv, "")
+	linkSrv, err = network.NewLink(nil, wireDev{in: cToS, out: sToC}, targetPrefix, macSrv, "")
 	if err != nil {
 		t.Fatal(err)
 	}

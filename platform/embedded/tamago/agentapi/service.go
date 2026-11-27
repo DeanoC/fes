@@ -436,6 +436,20 @@ func (s *Service) Stop(ctx context.Context) error {
 	return err
 }
 
+// OnNewEndpoint builds a fresh server and mDNS responder after this address
+// has retired. Pairing, bearer checks and the same local boot authority carry
+// forward. No sockets, advertised addresses or connections carry forward.
+func (s *Service) OnNewEndpoint(endpoint Endpoint) (*Service, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.closed {
+		return nil, errors.New("agentapi: previous network endpoint still active")
+	}
+	cfg := s.cfg
+	cfg.Endpoint = endpoint
+	return NewService(cfg)
+}
+
 // Addr returns the bound IPv4 address and TCP port for this Service.
 func (s *Service) Addr() netip.AddrPort {
 	if s == nil {

@@ -169,18 +169,27 @@ func (p *programService) finishNetwork(result *error) {
 	}
 	// Resume has its own bounded platform deadline independent of the
 	// completed program transition, which may already have timed out.
-	if err := p.network.ResumeNetwork(context.Background()); err != nil {
-		*result = errors.Join(*result, p.networkFailure(err))
-		return
-	}
+	var err error
 	if c64 {
-		r, ok := p.menu.c64MACReceipt()
-		if !ok {
-			*result = errors.Join(*result, p.networkFailure(errors.New("native C64: missing confirmed MAC receipt")))
-			return
+		confirm := func() error {
+			r, ok := p.menu.c64MACReceipt()
+			if !ok {
+				return errors.New("native C64: missing confirmed MAC receipt")
+			}
+			return p.computer.port.enterC64Scope(r)
 		}
-		if err := p.computer.port.enterC64Scope(r); err != nil {
-			*result = errors.Join(*result, p.networkFailure(err))
+		stopped := func() error {
+			r, ok := p.menu.c64MACReceipt()
+			if !ok {
+				return errors.New("native C64: missing MAC stop after DHCP failure")
+			}
+			return p.computer.port.leaveC64Scope(r)
 		}
+		err = p.network.ResumeNetworkWithScope(context.Background(), confirm, stopped)
+	} else {
+		err = p.network.ResumeNetwork(context.Background())
+	}
+	if err != nil {
+		*result = errors.Join(*result, p.networkFailure(err))
 	}
 }

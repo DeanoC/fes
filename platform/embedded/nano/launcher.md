@@ -49,10 +49,15 @@ Omit the option for a local-only launcher.
 On an Ethernet-enabled launcher, FogCast browses `_fogcast._tcp.local.`
 when a bound target's address changes. It authenticates health, matches the
 target UUID, then reads `/v1/kit/lease` and `/v1/status`. The local launcher
-reports owner `native-tenfoot` in MENU and during a game. The host can
-observe both states without claiming the kit. The current CBL SD profile
-has Ethernet disabled. Its UART reports `ethernet-disabled` when a pairing
-file is present. [Native Ethernet qualification](../tamago/network/README.md#de25-nano-target-discovery)
+reports owner `native-tenfoot`. On the matched C64 PIO build, select
+`--paired-ethernet --network-dhcp` in the SDK and `--nano-sdm-trng` and
+`--nano-mac-menu-supplier` in the matched boot chain for discovery in MENU.
+For reads during play, also select `--c64-network-scope` in the SDK and
+`--nano-mac-c64-scope-supplier` in the boot chain. This binds access to the
+fitted C64 package and an advancing CPU fetch counter. A host can then observe
+idle MENU, active `fes.c64` and returned MENU under the same boot ID with
+successive lease generations. The original CBL recovery card runs the
+local-only C64 launcher. [Native Ethernet qualification](../tamago/network/README.md#de25-nano-target-discovery)
 
 ## 2. Build the matched native boot chain
 
