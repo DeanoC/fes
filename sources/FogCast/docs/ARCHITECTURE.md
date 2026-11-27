@@ -3526,8 +3526,8 @@ hardware refreshes requested while a previous read is pending coalesce into
 one fresh read after its callback. Home discards the superseded response and
 clears old host admission if the fresh read fails. The
 default scope shows the ZX81 and Spectrum families, Atari ST, C64, PC/XT and
-PC 386. The PC families use `example.system`, retaining each package's disk
-and launch checks. Welcome and the setup-completion summary include all six.
+PC 386. PC/XT uses its core screen; PC 386 uses `example.system`. Both retain
+each package's disk and launch checks. Welcome and the setup-completion summary include all six.
 PC 386 has quality tier 1 on DE10 with documented gameplay timing exceptions;
 release-plan scopes and board-specific acceptance are independent of this
 visibility.
@@ -3538,9 +3538,9 @@ complete in either scope.
 
 A family tile summarizes its models and readiness. Its Open action enters the
 family's core screen (`example.core`), or the matching workbench for a family
-outside v1, with a machine entry's `game_id` and `core_id`; it never
-launches a core directly. Add firmware enters the same workbench when a family
-has no ready model. Details groups the models by state and shows the library
+without a core screen, with a machine entry's `game_id` and `core_id`; it never
+launches a core directly. When a family needs firmware, Open enters that same
+screen or workbench, where setup and firmware controls are available. Details groups the models by state and shows the library
 count. Recently played launches its selected title directly. On compact Home,
 the recent row is hidden and the family tiles use a list layout.
 
@@ -3571,7 +3571,10 @@ Initial and data-changed Home pictures add one family tile per draw callback.
 Machine admission remains independent in `hardware.computers`; catalog rows,
 cache refreshes and editions never establish that readiness. A refresh discards
 unfinished batches from the prior read. On refresh, prior library and kit results give way
-to Checking until fresh reads finish. A failed kit inventory says it cannot be
+to Checking until fresh reads finish. Once the host machine and library reads
+have answered, an admitted ready host machine can be opened while kit inventory
+is still warming. A family without a ready host machine stays Checking until
+that inventory answers, so it is not falsely labelled missing. A failed kit inventory says it cannot be
 checked rather than claiming a model is not installed, and hides the installed
 count while it is unknown.
 The opening selection waits for the recent titles, admitted host machines,

@@ -199,10 +199,6 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 		switch {
 		case d.Confirm() == rooms.ConfirmWait:
 			c.Explain = ""
-		case d.FamilyNeeds == "firmware":
-			// The workbench shows the firmware card, where it is added.
-			c.Primary, c.Filled = "Add firmware", true
-			c.Secondary = "Details"
 		default:
 			c.Primary, c.Filled = "Open", true
 			c.Secondary = "Details"

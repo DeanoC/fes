@@ -212,7 +212,7 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 			snap := waitFor(t, app, "Atari ST", func(s Snapshot) bool {
 				return s.Room.Destination.Label == "Atari ST" && roomHit(s, "family:6").ID != ""
 			})
-			if c := heroDestinationCopy(snap); c.Primary != "Add firmware" || c.State != heroStateUnavailable {
+			if c := heroDestinationCopy(snap); c.Primary != "Open" || c.State != heroStateUnavailable {
 				t.Fatalf("firmware hero %+v", c)
 			}
 			writeHomeScreenshot(t, snap, "needs-firmware")

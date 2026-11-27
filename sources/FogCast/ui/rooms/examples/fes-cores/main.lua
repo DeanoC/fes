@@ -7,8 +7,8 @@
 -- machine entries (platform "fpga" rows without media) for its models, and
 -- its game count from that library's titles with media. When the library
 -- can't be read, kit.cores still says which models are installed and which
--- need firmware. Open goes to the family's workbench, where the model is
--- chosen; FES draws the selected family's or title's copy in the hero text
+-- need firmware. Open goes to the family's core screen or workbench; FES
+-- draws the selected family's or title's copy in the hero text
 -- column (room.toml destination_panel = "hero").
 --
 -- Recently played is the library's recents collection, hidden until
@@ -193,6 +193,9 @@ end
 -- Back from a workbench or a game: the library may have new titles, and
 -- the game just played leads Recently played.
 function on_resume()
+  -- A ready family can be opened before the kit shelf settles. Returning to
+  -- Home must keep that destination rather than choose a late first opening.
+  if not opened and not moved and families[family_i] and F.state(families[family_i]) == "ready" then moved = true end
   F.reload()
   load_recents()
 end

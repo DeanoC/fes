@@ -159,6 +159,15 @@ func homeSettled(r *Instance) bool {
 	if (d.Kind != KindFamily && d.Kind != KindGame) || d.Availability == AvailChecking || d.Availability == "" {
 		return false
 	}
+	// An admitted family can now be usable before the kit shelf finishes.
+	// Tests waiting for the fully settled picture must wait for every source.
+	work := r.work
+	r.work = nil
+	err := r.CheckGlobal(`require("families").settled()`)
+	r.work = work
+	if err != nil {
+		return false
+	}
 	// Home's family row: as many 140-wide tiles as the shelf holds, six at
 	// most. Every Home here has at least the six default families.
 	want := 1
@@ -448,6 +457,87 @@ func TestHomeChecksUntilTheLibraryAnswers(t *testing.T) {
 	}
 	close(held.release)
 	stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
+}
+
+func TestHomeCanOpenAdmittedMachineWhileKitShelfWarms(t *testing.T) {
+	held := blockingLocalCores{fakeLocalCores: &fakeLocalCores{cores: []localcores.Core{{CoreID: "fes.spectrum", Launchable: true}}}, release: make(chan struct{})}
+	t.Cleanup(func() {
+		select {
+		case <-held.release:
+		default:
+			close(held.release)
+		}
+	})
+	svc := &homeServices{
+		computers:    []hostclient.ShelfComputer{computerEntry("zx81", "fes.zx81", "")},
+		fakeServices: fakeServices{games: []hostclient.Game{machineEntry("zx81", "fes.zx81", "")}},
+	}
+	r := loadHome(t, Options{Services: svc, Local: held, ReleaseOnly: true})
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return d.Label == "Sinclair ZX81" && d.Availability == AvailReady
+	})
+	if d := r.Destination(); d.GameID != "zx81" || d.Confirm() != ConfirmEnterRoom || !strings.Contains(strings.Join(d.Details, " "), "Ready: ZX81") {
+		t.Fatalf("admitted machine while kit warms: %+v", d)
+	}
+	r.Input("right")
+	if d := r.Destination(); d.Label != "ZX Spectrum" || d.Availability != AvailChecking || d.Confirm() != ConfirmWait {
+		t.Fatalf("unknown kit model while warming: %+v", d)
+	}
+	close(held.release)
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return d.Label == "ZX Spectrum" && d.Availability == AvailReady
+	})
+}
+
+func TestHomeResumeAfterEarlyOpenKeepsSelectedFamily(t *testing.T) {
+	held := blockingLocalCores{fakeLocalCores: &fakeLocalCores{cores: []localcores.Core{{CoreID: "fes.spectrum", Launchable: true}}}, release: make(chan struct{})}
+	t.Cleanup(func() {
+		select {
+		case <-held.release:
+		default:
+			close(held.release)
+		}
+	})
+	svc := &homeServices{
+		computers:    []hostclient.ShelfComputer{computerEntry("zx81", "fes.zx81", "")},
+		fakeServices: fakeServices{games: []hostclient.Game{machineEntry("zx81", "fes.zx81", "")}},
+	}
+	r := loadHome(t, Options{Services: svc, Local: held, ReleaseOnly: true})
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return d.Label == "Sinclair ZX81" && d.Availability == AvailReady
+	})
+	// The family was opened before the kit inventory answered. On returning,
+	// the host has lost that entry and the kit answers with another ready family.
+	svc.mu.Lock()
+	svc.computers = nil
+	svc.mu.Unlock()
+	r.Resume()
+	close(held.release)
+	stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
+	if d := r.Destination(); d.Label != "Sinclair ZX81" {
+		t.Fatalf("resume moved focus after early open: %+v", d)
+	}
+}
+
+func TestHomeResumeWithoutRegisteredFamilies(t *testing.T) {
+	held := blockingLocalCores{fakeLocalCores: &fakeLocalCores{}, release: make(chan struct{})}
+	t.Cleanup(func() { close(held.release) })
+	r := loadHome(t, Options{Local: held, ReleaseOnly: true})
+	// The built-in system registry normally has families. Exercise the
+	// existing empty-list fallback before the initial reads have settled.
+	if err := r.CheckGlobal(`(function() local f = require("families").list; for i = #f, 1, -1 do f[i] = nil end; return true end)()`); err != nil {
+		t.Fatal(err)
+	}
+	r.Resume()
+	if err := r.Err(); err != nil {
+		t.Fatalf("resume without families: %v", err)
+	}
+	if d := r.Destination(); d.Kind != KindUnresolved || d.Status != "No computers are registered." {
+		t.Fatalf("empty Home destination: %+v", d)
+	}
 }
 
 func TestHomeRestoresTheSavedFamily(t *testing.T) {

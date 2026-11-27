@@ -19,6 +19,14 @@ func TestBrowseActionsRetainTheMissingTitleRemedy(t *testing.T) {
 	}
 }
 
+func TestFamilyFirmwareActionNamesItsDestination(t *testing.T) {
+	d := rooms.Destination{Kind: rooms.KindFamily, Availability: rooms.AvailUnavailable, FamilyNeeds: "firmware"}
+	primary, secondary := browseActionLabels(d)
+	if primary != "Open" || !secondary {
+		t.Fatalf("family firmware action: primary=%q secondary=%v", primary, secondary)
+	}
+}
+
 func TestLibraryBackHintSurvivesReadyActions(t *testing.T) {
 	for _, kind := range []InputKind{InputGamepad, InputKeyboard, InputMouse} {
 		snap := Snapshot{
