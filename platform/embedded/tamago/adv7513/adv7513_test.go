@@ -25,10 +25,11 @@ type advSimSlave struct {
 	history      []adv7513.RegisterWrite
 	edidPollNeed int
 	edidPolls    int
+	edid         *edidMemSlave
 }
 
-func newADVSimSlave(edidPollNeed int) *advSimSlave {
-	s := &advSimSlave{edidPollNeed: edidPollNeed}
+func newADVSimSlave(edidPollNeed int, edid *edidMemSlave) *advSimSlave {
+	s := &advSimSlave{edidPollNeed: edidPollNeed, edid: edid}
 	s.regs[adv7513.RegChipRevision] = adv7513.ExpectedChipRevision
 	s.regs[adv7513.RegStatus] = adv7513.StatusLinkReady
 	s.regs[adv7513.RegPllStatus] = adv7513.PllLocked
@@ -43,6 +44,9 @@ func (s *advSimSlave) handleWrite(reg uint8, data []byte) error {
 		addr := reg + uint8(i)
 		s.regs[addr] = b
 		s.history = append(s.history, adv7513.RegisterWrite{Address: addr, Value: b})
+		if addr == adv7513.RegEdidSegment && s.edid != nil {
+			s.edid.setSegment(b)
+		}
 		// Writing 1 to INT0 clears W1C bits; pulsing EDID_READ_CTRL triggers ready.
 		if addr == adv7513.RegInt0 {
 			s.regs[adv7513.RegInt0] &^= b
@@ -73,15 +77,29 @@ func (s *advSimSlave) handleRead(reg uint8, count int) ([]byte, error) {
 }
 
 type edidMemSlave struct {
-	mem [256]byte
+	mu      sync.Mutex
+	segment uint8
+	mem     [512]byte
+}
+
+func (e *edidMemSlave) setSegment(seg uint8) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.segment = seg
 }
 
 func (e *edidMemSlave) handleWrite(reg uint8, data []byte) error { return nil }
 
 func (e *edidMemSlave) handleRead(reg uint8, count int) ([]byte, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	out := make([]byte, count)
+	base := int(e.segment) * 256
 	for i := 0; i < count; i++ {
-		out[i] = e.mem[int(reg)+i]
+		idx := base + int(reg) + i
+		if idx < len(e.mem) {
+			out[i] = e.mem[idx]
+		}
 	}
 	return out, nil
 }
@@ -316,8 +334,8 @@ func TestParityWithLibmisterRuntimeHeader(t *testing.T) {
 
 func TestDriverEndToEndOverDesignWareI2CAndEDID(t *testing.T) {
 	ctx := context.Background()
-	adv := newADVSimSlave(2)
 	edidMem := &edidMemSlave{}
+	adv := newADVSimSlave(2, edidMem)
 	sampleEDID := makeSample256EDID()
 	copy(edidMem.mem[:], sampleEDID)
 
@@ -398,7 +416,7 @@ func TestDriverEndToEndOverDesignWareI2CAndEDID(t *testing.T) {
 	}
 
 	// Poll timeout when monitor never asserts INT0 EDID_READY.
-	neverReady := newADVSimSlave(1000)
+	neverReady := newADVSimSlave(1000, edidMem)
 	busNever, err := newLocalDWBus(neverReady, edidMem)
 	if err != nil {
 		t.Fatal(err)
@@ -407,12 +425,56 @@ func TestDriverEndToEndOverDesignWareI2CAndEDID(t *testing.T) {
 	if _, _, err := devTimeout.ReadEDID(ctx); !errors.Is(err, i2c.ErrTimeout) {
 		t.Fatalf("EDID timeout got %v, want ErrTimeout", err)
 	}
+
+	// Multi-segment (3-block / 2-extension) EDID read switches RegEdidSegment and
+	// parses descriptors from both extension blocks.
+	edid384 := make([]byte, 384)
+	copy(edid384, sampleEDID)
+	edid384[126] = 2
+	var sum0 byte
+	for i := 0; i < 127; i++ {
+		sum0 += edid384[i]
+	}
+	edid384[127] = byte(256 - int(sum0))
+	ext2 := edid384[256:384]
+	ext2[0] = 0x02
+	ext2[1] = 0x03
+	ext2Blocks := []byte{(2 << 5) | 1, 31} // VIC 31 (1080p50) in extension 2 (segment 1)
+	copy(ext2[4:], ext2Blocks)
+	ext2[2] = byte(4 + len(ext2Blocks))
+	var sum2 byte
+	for i := 0; i < 127; i++ {
+		sum2 += ext2[i]
+	}
+	ext2[127] = byte(256 - int(sum2))
+
+	edidMulti := &edidMemSlave{}
+	copy(edidMulti.mem[:], edid384)
+	advMulti := newADVSimSlave(1, edidMulti)
+	busMulti, err := newLocalDWBus(advMulti, edidMulti)
+	if err != nil {
+		t.Fatal(err)
+	}
+	devMulti, err := adv7513.New(busMulti, adv7513.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed384, raw384, err := devMulti.ReadEDID(ctx)
+	if err != nil || !bytes.Equal(raw384, edid384) {
+		t.Fatalf("multi-segment ReadEDID err=%v len=%d", err, len(raw384))
+	}
+	if !parsed384.SupportsVIC(4) || !parsed384.SupportsVIC(31) {
+		t.Fatalf("multi-segment EDID missed VICs across segments: %+v", parsed384.VICs)
+	}
 }
 
 func TestParseEDIDRejectsMalformedInputs(t *testing.T) {
 	valid := makeSample256EDID()
 	if _, err := adv7513.ParseEDID(valid[:64]); !errors.Is(err, adv7513.ErrInvalidEDID) {
 		t.Fatalf("short EDID got %v", err)
+	}
+	if _, err := adv7513.ParseEDID(valid[:128]); !errors.Is(err, adv7513.ErrInvalidEDID) {
+		t.Fatalf("truncated extension EDID got %v", err)
 	}
 	badHdr := append([]byte(nil), valid...)
 	badHdr[0] = 0x12

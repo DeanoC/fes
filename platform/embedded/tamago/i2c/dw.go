@@ -289,7 +289,7 @@ func (c *Controller) Stats() Stats {
 }
 
 // Probe checks whether a 7-bit I2C slave ACKs its address on the bus.
-func (c *Controller) Probe(ctx context.Context, addr uint8) error {
+func (c *Controller) Probe(ctx context.Context, addr uint8) (err error) {
 	if ctx == nil {
 		return fmt.Errorf("%w: context required", ErrInvalidConfig)
 	}
@@ -301,6 +301,11 @@ func (c *Controller) Probe(ctx context.Context, addr uint8) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	defer func() {
+		if err != nil {
+			c.resetOnErrorLocked()
+		}
+	}()
 
 	if err := c.setTargetLocked(ctx, addr); err != nil {
 		return err
@@ -334,7 +339,7 @@ func (c *Controller) ReadRegByte(ctx context.Context, addr uint8, reg uint8) (ui
 }
 
 // WriteReg writes reg followed by data bytes with a trailing STOP condition.
-func (c *Controller) WriteReg(ctx context.Context, addr uint8, reg uint8, data []byte) error {
+func (c *Controller) WriteReg(ctx context.Context, addr uint8, reg uint8, data []byte) (err error) {
 	if ctx == nil {
 		return fmt.Errorf("%w: context required", ErrInvalidConfig)
 	}
@@ -347,6 +352,11 @@ func (c *Controller) WriteReg(ctx context.Context, addr uint8, reg uint8, data [
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	defer func() {
+		if err != nil {
+			c.resetOnErrorLocked()
+		}
+	}()
 
 	if err := c.setTargetLocked(ctx, addr); err != nil {
 		return err
@@ -382,7 +392,7 @@ func (c *Controller) WriteReg(ctx context.Context, addr uint8, reg uint8, data [
 }
 
 // ReadReg writes reg, issues a repeated START, and fills dst using FIFO-bounded reads.
-func (c *Controller) ReadReg(ctx context.Context, addr uint8, reg uint8, dst []byte) error {
+func (c *Controller) ReadReg(ctx context.Context, addr uint8, reg uint8, dst []byte) (err error) {
 	if ctx == nil {
 		return fmt.Errorf("%w: context required", ErrInvalidConfig)
 	}
@@ -398,6 +408,11 @@ func (c *Controller) ReadReg(ctx context.Context, addr uint8, reg uint8, dst []b
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	defer func() {
+		if err != nil {
+			c.resetOnErrorLocked()
+		}
+	}()
 
 	if err := c.setTargetLocked(ctx, addr); err != nil {
 		return err
@@ -487,13 +502,32 @@ func (c *Controller) enableLocked(ctx context.Context) error {
 	return ErrTimeout
 }
 
+func (c *Controller) drainRXFIFOLocked() {
+	for i := 0; i < c.rxDepth && c.regs.Read32(RegStatus)&statusRFNE != 0; i++ {
+		_ = c.regs.Read32(RegDataCmd)
+	}
+}
+
+func (c *Controller) resetOnErrorLocked() {
+	c.hasAddr = false
+	_ = c.disableLocked(context.Background())
+	_ = c.regs.Read32(RegClrIntr)
+	_ = c.regs.Read32(RegClrTxAbrt)
+	c.drainRXFIFOLocked()
+}
+
 func (c *Controller) setTargetLocked(ctx context.Context, addr uint8) error {
 	if c.hasAddr && c.lastAddr == addr && c.regs.Read32(RegEnableStatus)&1 == 1 {
-		return nil
+		st := c.regs.Read32(RegStatus)
+		if st&statusMstActivity == 0 && st&statusTFE != 0 && st&statusRFNE == 0 {
+			return nil
+		}
 	}
+	c.hasAddr = false
 	if err := c.disableLocked(ctx); err != nil {
 		return err
 	}
+	c.drainRXFIFOLocked()
 	c.regs.Write32(RegTar, uint32(addr))
 	if err := c.enableLocked(ctx); err != nil {
 		return err

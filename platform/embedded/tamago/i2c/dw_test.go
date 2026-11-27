@@ -170,6 +170,10 @@ func (f *fakeDWRegs) Write32(offset uint32, val uint32) {
 		f.sdaHold = val
 	case i2c.RegEnable:
 		f.enabled = val&1 != 0
+		if !f.enabled {
+			f.rxFIFO = nil
+			f.resetTxnLocked()
+		}
 	case i2c.RegDataCmd:
 		if !f.enabled {
 			return
@@ -381,4 +385,28 @@ func TestTransfersMultiByteEDIDSizeAndErrors(t *testing.T) {
 		}(uint8(g))
 	}
 	wg.Wait()
+
+	// Verify that after an interrupted transfer (and even if stale RX bytes exist),
+	// a subsequent transfer to the same address resets/flushes the controller cleanly.
+	if err := ctrl.WriteRegByte(ctx, 0x39, 0x55, 0xab); err != nil {
+		t.Fatal(err)
+	}
+	hw.mu.Lock()
+	hw.rxFIFO = append(hw.rxFIFO, 0xde, 0xad)
+	hw.stuckBusy = true
+	hw.mu.Unlock()
+	cancelCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := ctrl.ReadRegByte(cancelCtx, 0x39, 0x55); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled ReadRegByte got %v", err)
+	}
+	hw.mu.Lock()
+	hw.stuckBusy = false
+	// Also inject stale RX FIFO bytes before the retry to confirm setTargetLocked drains them.
+	hw.rxFIFO = append(hw.rxFIFO, 0x99)
+	hw.mu.Unlock()
+	fresh, err := ctrl.ReadRegByte(ctx, 0x39, 0x55)
+	if err != nil || fresh != 0xab {
+		t.Fatalf("retry after interrupted transfer = (%#x, %v), want 0xab", fresh, err)
+	}
 }

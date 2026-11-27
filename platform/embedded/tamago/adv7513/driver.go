@@ -182,7 +182,8 @@ func (d *Device) ConfigureAudio48k(ctx context.Context, enablePackets bool) erro
 }
 
 // ReadEDID triggers an ADV7513 DDC/EDID fetch, waits for INT0 EDID_READY, reads
-// block 0 (plus CEA-861 block 1 if ExtensionCount >= 1), and returns parsed EDID + raw bytes.
+// block 0 plus all advertised extension blocks across segments, and returns
+// the parsed EDID and raw bytes.
 func (d *Device) ReadEDID(ctx context.Context) (*EDID, []byte, error) {
 	if ctx == nil {
 		return nil, nil, fmt.Errorf("%w: context required", ErrInvalidConfig)
@@ -193,36 +194,27 @@ func (d *Device) ReadEDID(ctx context.Context) (*EDID, []byte, error) {
 	if err := d.bus.WriteRegByte(ctx, d.mainAddr, RegEDIDAddr, d.edidAddr<<1); err != nil {
 		return nil, nil, err
 	}
-	if err := d.applyWritesLocked(ctx, HDMIWake()); err != nil {
+	if err := d.triggerEDIDSegmentLocked(ctx, 0); err != nil {
 		return nil, nil, err
-	}
-
-	ready := false
-	for i := 0; i < d.maxEDIDPolls; i++ {
-		val, err := d.bus.ReadRegByte(ctx, d.mainAddr, RegInt0)
-		if err != nil {
-			return nil, nil, err
-		}
-		if val&Int0EDIDReady != 0 {
-			ready = true
-			break
-		}
-		if err := ctx.Err(); err != nil {
-			return nil, nil, err
-		}
-		runtime.Gosched()
-	}
-	if !ready {
-		return nil, nil, fmt.Errorf("%w: EDID ready bit (0x96[2]) not set", i2c.ErrTimeout)
 	}
 
 	raw := make([]byte, 128)
 	if err := d.bus.ReadReg(ctx, d.edidAddr, 0x00, raw); err != nil {
 		return nil, nil, err
 	}
-	if raw[126] >= 1 {
+	extCount := int(raw[126])
+	loadedSeg := uint8(0)
+	for blk := 1; blk <= extCount; blk++ {
+		seg := uint8(blk / 2)
+		if seg != loadedSeg {
+			if err := d.triggerEDIDSegmentLocked(ctx, seg); err != nil {
+				return nil, nil, err
+			}
+			loadedSeg = seg
+		}
+		regOff := uint8((blk % 2) * 128)
 		ext := make([]byte, 128)
-		if err := d.bus.ReadReg(ctx, d.edidAddr, 0x80, ext); err != nil {
+		if err := d.bus.ReadReg(ctx, d.edidAddr, regOff, ext); err != nil {
 			return nil, nil, err
 		}
 		raw = append(raw, ext...)
@@ -232,4 +224,36 @@ func (d *Device) ReadEDID(ctx context.Context) (*EDID, []byte, error) {
 		return nil, nil, err
 	}
 	return parsed, raw, nil
+}
+
+func (d *Device) triggerEDIDSegmentLocked(ctx context.Context, segment uint8) error {
+	var writes []RegisterWrite
+	if segment == 0 {
+		writes = HDMIWake()
+	} else {
+		writes = []RegisterWrite{
+			wr(RegInt0, Int0EDIDReady),
+			wr(RegEdidSegment, segment),
+			wr(RegEdidReadCtrl, EdidReadEnable),
+			wr(RegEdidReadCtrl, EdidReadTrigger),
+			wr(RegEdidReadCtrl, EdidReadEnable),
+		}
+	}
+	if err := d.applyWritesLocked(ctx, writes); err != nil {
+		return err
+	}
+	for i := 0; i < d.maxEDIDPolls; i++ {
+		val, err := d.bus.ReadRegByte(ctx, d.mainAddr, RegInt0)
+		if err != nil {
+			return err
+		}
+		if val&Int0EDIDReady != 0 {
+			return nil
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		runtime.Gosched()
+	}
+	return fmt.Errorf("%w: EDID ready bit (0x96[2]) not set for segment %d", i2c.ErrTimeout, segment)
 }

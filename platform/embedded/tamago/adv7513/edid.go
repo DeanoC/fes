@@ -189,10 +189,15 @@ func ParseEDID(raw []byte) (*EDID, error) {
 		}
 	}
 
-	if out.ExtensionCount > 0 && len(raw) >= 256 {
-		ext := raw[128:256]
+	needLen := (1 + int(out.ExtensionCount)) * 128
+	if len(raw) < needLen {
+		return nil, fmt.Errorf("%w: truncated EDID (%d bytes for %d extensions)", ErrInvalidEDID, len(raw), out.ExtensionCount)
+	}
+
+	for blk := 1; blk <= int(out.ExtensionCount); blk++ {
+		ext := raw[blk*128 : (blk+1)*128]
 		if !blockChecksumOK(ext) {
-			return nil, fmt.Errorf("%w: extension checksum mismatch", ErrInvalidEDID)
+			return nil, fmt.Errorf("%w: extension %d checksum mismatch", ErrInvalidEDID, blk)
 		}
 		if ext[0] == 0x02 { // CEA-861 extension
 			dtdStart := int(ext[2])
@@ -200,9 +205,9 @@ func ParseEDID(raw []byte) (*EDID, error) {
 				return nil, fmt.Errorf("%w: invalid CEA DTD offset %d", ErrInvalidEDID, dtdStart)
 			}
 			flags := ext[3]
-			out.BasicAudio = flags&0x40 != 0
-			out.YCbCr444 = flags&0x20 != 0
-			out.YCbCr422 = flags&0x10 != 0
+			out.BasicAudio = out.BasicAudio || flags&0x40 != 0
+			out.YCbCr444 = out.YCbCr444 || flags&0x20 != 0
+			out.YCbCr422 = out.YCbCr422 || flags&0x10 != 0
 
 			if dtdStart > 4 {
 				for pos := 4; pos < dtdStart; {
