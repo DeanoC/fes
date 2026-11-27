@@ -34,11 +34,11 @@ def regs(*names):
                                for n in names) + ')'
 
 
-def lint(name, driver, qualifier):
+def lint(name, driver_pattern, qualifier):
     # machine_findings.lint admits only ~_Duplicate_N; it is in every DE25 machine's closure, so the
     # pc386 table builds its own rather than move their BUILD_IDs.
     return {'rule': 'LNT-30010', 'name': name, 'count': None, 'sdc': (), 'qualifier': qualifier,
-            'match': {0: S + re.escape(driver) + COPY}}
+            'match': {0: S + driver_pattern}}
 
 TABLE = 'boards/de25nano/pc386/signoff_bases.py'
 SOURCES = {
@@ -257,7 +257,12 @@ WINDOW_FAULT = ('Machine to peripheral: the fault record (port bits and reason).
                 'rounded down, whichever is shorter.')
 BIU_RESET = ('fes_i386_cpu\'s BIU reset, a machine-clock register: it drives synchronous clears, and the '
              'synthesis netlist also uses it in clock enables (fetch prediction). It is not an '
-             'asynchronous reset; its paths are timed in the machine clock.')
+             'asynchronous reset; its paths are timed in the machine clock. In the post-fit atom database '
+             'for 486DX seed 1 at b840b088, cpu_biu_reset~_Duplicate_2.comb is a bypassed FF. Its '
+             'non-inverting input comes from a copy of the BIU reset register with the same data and clock '
+             'as the original. Its output drives the reported cache clear and fetch-prediction enable.')
+# Only this measured passthrough spelling is covered. Other .comb nodes may be actual logic.
+BIU_RESET_DRIVER = r'cpu_biu_reset(?:' + COPY + r'|~_Duplicate_2\.comb)'
 MACHINE_RESET = ('pc386_system\'s machine reset, a machine-clock register fed by the board\'s reset '
                  'synchroniser: it drives asynchronous clears (8259 masks), synchronous clears and, '
                  'through the netlist, RTC clock enables. Its recovery and removal are timed in the '
@@ -304,8 +309,8 @@ BASES = (
      # window_fault_record's SDC collects fault_launch[*] alone, so no copy is admitted.
      'match': {0: nodes(WINDOW + r'fault_launch\[\d+\]'), 1: nodes(WINDOW + r'machine_fault\[\d+\]'),
                2: re.escape(MACHINE), 3: re.escape(SYS)}},
-    lint('biu-reset', 'cpu_biu_reset', BIU_RESET),
-    lint('machine-reset', 'reset', MACHINE_RESET),
+    lint('biu-reset', BIU_RESET_DRIVER, BIU_RESET),
+    lint('machine-reset', 'reset' + COPY, MACHINE_RESET),
     advisory('FLP-10000', 'small-rams', 3, nodes(
         '(?:' + S + r'[^|]+|' + E + r'window\|port[0-2]\|command_[a-z]+_rtl_\d+|' + E + r'arbiter\|unpack[12]\|[^ ]+|'
         + re.escape('soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|') + r'[^ ]+)(?:\|[^ ]+)?'), RAM),

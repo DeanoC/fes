@@ -637,11 +637,14 @@ class MachineFindingsTests(unittest.TestCase):
         # slat23b seed 2's three rows, then the other copy spellings.
         drivers = ['cpu_biu_reset~_Duplicate_1', 'cpu_biu_reset~_Duplicate', 'reset', 'cpu_biu_reset',
                    'cpu_biu_reset~DUPLICATE', 'cpu_biu_reset~_Duplicate1',
-                   'cpu_biu_reset~_Duplicate1DUPLICATE', 'reset~_Duplicate_2DUPLICATE', 'reset~_DuplicateDUPLICATE']
+                   'cpu_biu_reset~_Duplicate1DUPLICATE', 'reset~_Duplicate_2DUPLICATE', 'reset~_DuplicateDUPLICATE',
+                   'cpu_biu_reset~_Duplicate_2.comb']
         [entry] = mf.review(report({'LNT-30010': (header, [row(d) for d in drivers])}), '', bases)
-        self.assertEqual([g['rows'] for g in entry['groups']], [6, 3])
+        self.assertEqual([g['rows'] for g in entry['groups']], [7, 3])
         for driver in ('machine_at_decoder_state[1]~DUPLICATE', 'cpu_biu_reset~_Duplicate_', 'cpu_md_busy~DUPLICATE',
                        'reset_n~DUPLICATE', 'cpu_biu_reset_q', 'reset~_Duplicate~DUPLICATE',
+                       'cpu_biu_reset.comb', 'cpu_biu_reset~_Duplicate_3.comb', 'reset~_Duplicate_2.comb',
+                       'cpu_biu_reset~_Duplicate_2Xcomb',
                        'cpu_biu_reset~_Duplicate1_', 'reset~DUPLICATE2', 'cpu_biu_reset~_Duplicate1DUPLICATE~DUPLICATE',
                        'reset~DUPLICATE~_Duplicate_1', 'reset~DUPLICATE~_Duplicate_2DUPLICATE', 'reset~DUPLICATE~_Duplicate', 'reset~DUPLICATE~_DuplicateDUPLICATE', 'cpu_biu_reset~DUPLICATE~_Duplicate1', 'reset~DUPLICATE~_Duplicate_3'):
             with self.subTest(driver), self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):

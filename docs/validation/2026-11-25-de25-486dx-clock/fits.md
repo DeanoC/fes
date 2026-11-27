@@ -1413,3 +1413,26 @@ and model clock checks passed under Verilator 5.032. The combined ZX81
 test passed on both frozen main and `3cca3818` with short temporary
 directories. The exact failure comparison and retest manifest SHA-256
 is `9be39bf29c1c6b2c5e3019bbc7f1bd877db7a49125be1713e3276ae3e820e789`.
+
+## LNT-30010 BIU reset driver on b840b088
+
+Quartus Pro 26.3 Build 114 loaded copies of the final fitted databases for
+seeds 1 and 2 at `b840b08807571928fa7437103adad21d6c3b0efd`. On seed 1,
+`quartus_cdb -t atom_props.tcl` read `read_atom_netlist -type cmp` and found
+`BOOL_FF_IS_BYPASSED=1` on `cpu_biu_reset~_Duplicate_2.comb`. Its D pin
+has one non-inverted source, the Q of `cpu_biu_reset~_Duplicate_3`. That
+register and the original `cpu_biu_reset` share the exact same D source
+(`_00030_~0`) and machine PLL clock output. TimeQuest reports an enabled,
+positive-unate D-to-Q arc through the bypass. The Q output directly drives
+`cpu_l1d_q_rd|SCLR` and `cpu_frontend_fetch_pred_en|ENA`. On seed 2,
+`cpu_biu_reset~_Duplicate_2` is a non-bypassed copy with the same D and
+clock as the original and the same two representative destinations.
+
+The pc386 lint basis admits the exact seed-1 passthrough spelling. It
+still rejects other `.comb` names. All four retained DRC reports pass
+LNT-30010 review with the updated matcher (3, 3, 3 and 4 rows). The source
+databases, commands and complete logs are indexed by
+`/data/projects/de25-486dx-clock-2263/lnt-driver.2wW3Dd/` on Powerboat
+and `/data/projects/fes-quartus/2264-lnt-driver-2wW3Dd/` on the 3090 builder.
+The retained reports establish the matcher regression at the old head.
+Fresh fitting and sealing establish admission on the fix head.
