@@ -11,6 +11,9 @@
 #include "nano_sdm_retire_platform.inc"
 #if defined(FES_NANO_MAC_HANDOFF) && FES_NANO_MAC_HANDOFF
 #include "nano_mac_handoff.inc"
+#if defined(FES_NANO_MAC_TABLE_TRIAL) && FES_NANO_MAC_TABLE_TRIAL
+#include "nano_mac_table_trial.inc"
+#endif
 #endif
 #if defined(FES_NANO_SDM_COLD_RECOVERY) && FES_NANO_SDM_COLD_RECOVERY == 1
 #include "nano_sdm_recovery_platform.inc"
@@ -81,6 +84,9 @@ int fes_nano_sdm_source_finish(uint32_t status,uint32_t detail)
   if(!error)continuation=fes_nano_sdm_continue_source();
 #if defined(FES_NANO_MAC_HANDOFF) && FES_NANO_MAC_HANDOFF
   if(!continuation)continuation=mac_handoff_freeze(&source_retirement);
+#if defined(FES_NANO_MAC_TABLE_TRIAL) && FES_NANO_MAC_TABLE_TRIAL
+  if(!continuation)continuation=mac_table_switch_trial();
+#endif
 #endif
  }
  if(!continuation){

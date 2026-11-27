@@ -40,13 +40,7 @@ static uint64_t word(const struct nano_sdm_input_binding *p,uint32_t offset)
  uint32_t pages=(p->bytes+4095U)/4096U;
  if(offset<0x4000U){
   if(offset/64U!=10U)return offset%64U==0 ? 1U:0U;
-  switch(offset%64U){
-  case 0:return 13; /* valid, stage2 only, no bypass */
-  case 8:return UINT64_C(1)<<44;
-  case 16:return 1U | (UINT64_C(0x2060)<<32) | (UINT64_C(1)<<51) | (UINT64_C(1)<<54) | (UINT64_C(1)<<58);
-  case 24:return NANO_SDM_INPUT_ARENA+NANO_SDM_INPUT_L1;
-  default:return 0;
-  }
+  return nano_stage2_ste_word((offset%64U)/8U,1U,NANO_SDM_INPUT_ARENA+NANO_SDM_INPUT_L1);
  }
  if(offset==NANO_SDM_INPUT_L1+8U*((NANO_SDM_INPUT_BASE>>30)&511U))
   return (NANO_SDM_INPUT_ARENA+NANO_SDM_INPUT_L2)|3U;

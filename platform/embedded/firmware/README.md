@@ -47,6 +47,16 @@ by the MAC and two receive pages writable by the MAC. The build receipt
 records `mac_grant=false` and `translation_published=false`. Physical launcher
 qualification requires matching MENU, computer and return observations.
 
+A second option, `--nano-mac-table-trial`, reserves 28 KiB directly above the
+SDM table at `0x94010000`. At the same contained retirement boundary EL3
+builds and reads back a separate MAC table. It rechecks the CPU, device
+owners, queues and both SMMU banks, selects the table base, and restores the
+SDM base and verifies its original tree before allowing the native return.
+Each successful generation emits `FES_NANO_MAC_TABLE` with its retained
+cursor. `FES_NANO_MAC_TABLE_STOP` records the stage of a failed check.
+MAC0 stays in reset and translation stays disabled throughout this trial.
+[Arm SMMUv3 §3.11](https://documentation-service.arm.com/static/6813b2bbefb0f21122c144c2)
+
 ## Controlled Nano bridge service
 
 `nano_bridges.c`, `nano_bridge_sip.c`, `nano_cold.c` and `nano_cold_platform.c`

@@ -55,6 +55,32 @@ class MacHandoffProfileTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 mode.verify_installed(path,binding,profile)
 
+    def test_inactive_table_trial_requires_matched_staging_and_plain_handoff(self):
+        profile=warm_profile()
+        with self.assertRaises(ValueError):
+            mode.mac_table_trial_contract(profile,0x96080000)
+        profile['mac_handoff']=mode.mac_handoff_contract(profile)
+        self.assertNotIn('MAC_TABLE_TRIAL',mode.header(profile))
+        with self.assertRaises(ValueError):
+            mode.mac_table_trial_contract(profile,0x94010000)
+        profile['mac_table_trial']=mode.mac_table_trial_contract(profile,0x96080000)
+        self.assertIn('#define FES_NANO_MAC_TABLE_TRIAL 1',mode.header(profile))
+        self.assertIs(profile['mac_table_trial']['translation_enabled'],False)
+        self.assertEqual(profile['mac_table_trial']['queue_commands'],0)
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)
+            args=fixture.InputProfileTests().fixture(path)
+            (path/mode.HEADER).write_text(mode.header(profile)+'#define FES_NANO_SDM_FAULT64 0\n#define FES_NANO_SDM_ARM_PROBE 0\n')
+            binding=mode.install(path,profile,*args)
+            mode.verify_installed(path,binding,profile)
+            self.assertIn('plat/intel/soc/common/include/nano_mac_table_trial.inc',binding['sources'])
+            self.assertIn('__FES_MAC_TABLE_START__ = .; . += 0x7000', (path/mode.LD).read_text())
+        for field in profile['mac_table_trial']:
+            changed=copy.deepcopy(profile)
+            changed['mac_table_trial'][field]=None
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                mode.header(changed)
+
     def test_both_builders_require_explicit_source_rearm(self):
         for builder in ('build_terasic.py','build_terasic_uboot.py'):
             with tempfile.TemporaryDirectory() as directory:
@@ -66,4 +92,9 @@ class MacHandoffProfileTests(unittest.TestCase):
                 result=subprocess.run(cmd,capture_output=True,text=True,timeout=20)
                 self.assertNotEqual(result.returncode,0)
                 self.assertIn('MAC handoff requires explicit source rearm',result.stderr)
+                self.assertFalse(output.exists())
+                cmd[cmd.index('--nano-mac-handoff')]='--nano-mac-table-trial'
+                result=subprocess.run(cmd,capture_output=True,text=True,timeout=20)
+                self.assertNotEqual(result.returncode,0)
+                self.assertIn('table trial requires explicit MAC handoff',result.stderr)
                 self.assertFalse(output.exists())

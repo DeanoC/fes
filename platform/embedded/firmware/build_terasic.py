@@ -110,9 +110,11 @@ def main():
     parser.add_argument("--nano-sdm-fault64",action="store_true",help="explicit one-DATA-64 bounded fault capture; terminal diagnostic only")
     parser.add_argument("--nano-sdm-input-transfer",action="store_true",help="full verified source transfer, terminal before activation; retained diagnostic")
     parser.add_argument("--nano-sdm-source-rearm",action="store_true",help="explicit matched repeated-load source-release/rearm prototype; requires --nano-sdm-input-transfer")
+    parser.add_argument("--nano-mac-table-trial",action="store_true",help="under the secure retirement lock, verify an inactive MAC table and restore the SDM base")
     parser.add_argument("--nano-mac-handoff",action="store_true",help="verify retained SDM boundaries for a prospective MAC domain; requires source rearm and PIO SD")
     parser.add_argument("--nano-sdm-source-recovery",action="store_true",help="explicit completed-source terminal cold-reset diagnostic; requires source rearm")
     args = parser.parse_args()
+    if args.nano_mac_table_trial and not args.nano_mac_handoff:parser.error("table trial requires explicit MAC handoff")
     if args.nano_mac_handoff and not args.nano_sdm_source_rearm:parser.error("MAC handoff requires explicit source rearm")
     if args.nano_sdm_source_recovery and not args.nano_sdm_source_rearm:parser.error("terminal cold recovery requires explicit source rearm")
     if args.nano_sdm_source_rearm and not args.nano_sdm_input_transfer:parser.error("source rearm requires selected SDM input transfer")
@@ -141,7 +143,7 @@ def main():
             parser.error('cold entry must be private under out/')
         spec=importlib.util.spec_from_file_location('fes_nano_cold_profile',HERE.parent/'nano/cold_profile.py')
         cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
-        cold_profile=cold.make(entry_path,firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery,mac_handoff=args.nano_mac_handoff)
+        cold_profile=cold.make(entry_path,firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery,mac_handoff=args.nano_mac_handoff,mac_table_trial=args.nano_mac_table_trial)
     repo = args.reference_repo.resolve()
     output = args.output.absolute()
     if (".." in output.parts or any(p.is_symlink() for p in (output, *output.parents)) or
@@ -294,7 +296,7 @@ def main():
         report["owned_bridge_binding"] = owned
         report["classification"] = "controlled owned Nano BL31 component; boot proof unavailable, service remains NOT_READY; no board acceptance"
     if cold is not None:
-        if cold.make(entry_path,firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery,mac_handoff=args.nano_mac_handoff)!=cold_profile: raise ValueError('cold chain changed during build')
+        if cold.make(entry_path,firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery,mac_handoff=args.nano_mac_handoff,mac_table_trial=args.nano_mac_table_trial)!=cold_profile: raise ValueError('cold chain changed during build')
         report['bridge_mode']='owned-cold-serial'
         report['native_boot_profile']=cold_profile
         report['classification']='source-bound cold serial SPL record consumer and master-stop provider; no physical qualification'

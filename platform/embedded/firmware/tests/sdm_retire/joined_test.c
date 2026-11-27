@@ -292,6 +292,10 @@ static jmp_buf terminal;
 #define FES_NANO_CONFIG_ARENA_SIZE (8U<<20)
 int fes_nano_mmu_platform_scope(void){return 1;}
 static uint64_t address_of(const char *name){
+#ifdef FES_TEST_MAC_TABLE_IO
+ if(!strcmp(name,"__FES_MAC_TABLE_START__"))return mac_table_start;
+ if(!strcmp(name,"__FES_MAC_TABLE_END__"))return 0x94017000;
+#endif
  if(!strcmp(name,"__FES_SMMU_PROBE_START__") || !strcmp(name,"__FES_SMMU_STREAMS__"))return 0x94000000;
  if(!strcmp(name,"__FES_SMMU_PROBE_END__"))return 0x94010000;
  if(!strcmp(name,"__FES_SMMU_SDM_ROOT__"))return 0x94004000;
@@ -349,6 +353,9 @@ static uint32_t probe_read(uint64_t address){
 #endif
 }
 static void probe_write(uint64_t address,uint32_t value){
+#ifdef FES_TEST_MAC_TABLE_IO
+ if(address==0x16000080)test_mac_base(value);
+#endif
  unsigned index=smmu_index(address);smmu_writes++;registers[index]=value;
  if(address==0x16000020)registers[0x24/4]=value;
  if(address==0x16000044){
@@ -361,8 +368,16 @@ static void probe_write(uint64_t address,uint32_t value){
  if(retire_armed && address==0x16000098 && retire_fault==9)configuration_program.header[FES_NANO_PROGRAM_SHA384]^=1;
  if(mode==14 && smmu_writes==1)model.base.h.usb[8/4]|=1U<<5;
 }
-static uint64_t load_word(uint64_t address){cb_loads++;assert(address>=0x94000000 && address<0x94010000 && !(address&7));return arena[(address-0x94000000)/8];}
-static void store_word(uint64_t address,uint64_t value){if(retire_armed && retire_fault==12 && !mutated){mutated=1;configuration_program.header[FES_NANO_PROGRAM_SHA384]^=1;}cb_stores++;assert(address>=0x94000000 && address<0x94010000 && !(address&7));arena[(address-0x94000000)/8]=value;mutate_on_memory();}
+static uint64_t load_word(uint64_t address){
+#ifdef FES_TEST_MAC_TABLE_IO
+ if(address>=0x94010000 && address<0x94017000)return test_mac_load(address);
+#endif
+ cb_loads++;assert(address>=0x94000000 && address<0x94010000 && !(address&7));return arena[(address-0x94000000)/8];}
+static void store_word(uint64_t address,uint64_t value){
+#ifdef FES_TEST_MAC_TABLE_IO
+ if(address>=0x94010000 && address<0x94017000){test_mac_store(address,value);return;}
+#endif
+ if(retire_armed && retire_fault==12 && !mutated){mutated=1;configuration_program.header[FES_NANO_PROGRAM_SHA384]^=1;}cb_stores++;assert(address>=0x94000000 && address<0x94010000 && !(address&7));arena[(address-0x94000000)/8]=value;mutate_on_memory();}
 static void park(void){parks++;longjmp(terminal,1);}
 #ifndef FES_PROBE_CPU
 #define FES_PROBE_CPU() 1

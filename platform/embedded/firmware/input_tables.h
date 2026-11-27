@@ -28,6 +28,18 @@ static inline uint64_t nano_stage2_page(uint64_t address, unsigned access)
   return 0;
  return address | (UINT64_C(3)<<53) | (1U<<10) | (2U<<8) | ((uint64_t)access<<6) | (5U<<2) | 3U;
 }
+/* A valid Non-secure S2-only stream. Encode the same architectural fields
+ * for the retained SDM and the private MAC VMID/table. */
+static inline uint64_t nano_stage2_ste_word(unsigned word,uint16_t vmid,uint64_t root)
+{
+ switch(word){
+ case 0: return 13;
+ case 1: return UINT64_C(1)<<44;
+ case 2: return vmid | (UINT64_C(0x2060)<<32) | (UINT64_C(1)<<51) | (UINT64_C(1)<<54) | (UINT64_C(1)<<58);
+ case 3: return root;
+ default: return 0;
+ }
+}
 #define NANO_MAC_POOL_BASE UINT64_C(0x95c00000)
 /* Prospective MAC SID 1 view. No address outside the five whole pages of
  * the XGMAC driver allocation resolves. A descriptor value grants no DMA. */

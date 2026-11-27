@@ -168,6 +168,10 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertFalse(report["hardware_actions"])
         return report
 
+    def test_inactive_mac_table_switch_restores_original_sdm_domain(self):
+        report = self.run_model("mac_table_trial_test", joined=True)
+        self.assertEqual((report["round_trips"], report["faults"]), (13, 6))
+
     def test_mac_handoff_rechecks_the_retained_sdm_domain(self):
         report = self.run_model("mac_handoff_test", joined=True)
         self.assertEqual((report["generations"], report["negative_cases"]), (12, 22))

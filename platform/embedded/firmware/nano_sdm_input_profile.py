@@ -53,7 +53,7 @@ RECOVERY_CONTRACT.update(format=24,scope='nano-source-rearm-terminal-cold-recove
   request='fixed-vendor-cold-job15-command0x47-zero-args',
   source='retained-on-all-outcomes',resume=False,replay=False,reset_completion=False,
   post_reset_admission='fresh-boot-loader-devices-epoch-required',physical_qualification=False))
-FILES=('nano_mac_handoff.inc','nano_sdm_input_profile.py','nano_sdm_rearm_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
+FILES=('nano_mac_table_trial.inc','nano_mac_handoff.inc','nano_sdm_input_profile.py','nano_sdm_rearm_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
  'nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','input_tables.c','input_tables.h','input_transfer.c','input_transfer.h',
  'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader_profile.py','nano_sdm_reader.h','nano_sdm_reader.c','nano_sdm_reader_platform.inc','nano_sdm_release_platform.inc','nano_sdm_rearm_platform.inc','nano_sdm_recovery_platform.inc')
 C_FILES=('input_tables.c','input_transfer.c','input_transfer_service.c','probe_setup.c','command_queue.c','source_retire.c','nano_sdm_reader.c')
@@ -104,16 +104,41 @@ def checked_mac_handoff(profile):
  if not rearm.same(profile['mac_handoff'],mac_handoff_contract(profile)):
   raise ValueError('incomplete retained MAC handoff contract')
  return True
+def mac_table_trial_contract(profile,entry_base):
+ if not checked_mac_handoff(profile) or type(entry_base) is not int or entry_base!=0x96080000:
+  raise ValueError('MAC table trial requires the matched PIO handoff and entry staging envelope')
+ return dict(format=1,scope='contained-inactive-mac-table-switch',base=0x94010000,bytes=0x7000,
+             entry_base=entry_base,vmid=2,stream=1,other_streams='abort',translation_enabled=False,
+             require_source_base_restoration=True,queue_commands=0,mac_grant=False)
+def checked_mac_table_trial(profile):
+ if not isinstance(profile,dict) or 'mac_table_trial' not in profile:return False
+ expected=mac_table_trial_contract(profile,0x96080000)
+ if not rearm.same(profile['mac_table_trial'],expected):raise ValueError('incomplete inactive MAC table trial contract')
+ return True
+def trial_linker(text):
+ anchor='    /DISCARD/ : {'
+ if text.count(anchor)!=1 or '__FES_MAC_TABLE_' in text:raise ValueError('fresh MAC table reservation required')
+ memory='    SMMU_PROBE (rw!a): ORIGIN = 0x94000000, LENGTH = 0x10000'
+ if text.count(memory)!=1:raise ValueError('fixed SDM table reservation required')
+ text=text.replace(memory,memory+'\n    MAC_TABLE (rw!a): ORIGIN = 0x94010000, LENGTH = 0x7000')
+ return text.replace(anchor,'''    .fes_mac_table 0x94010000 (NOLOAD) : {
+        __FES_MAC_TABLE_START__ = .; . += 0x7000; __FES_MAC_TABLE_END__ = .;
+    } >MAC_TABLE :NONE
+    ASSERT(__FES_SMMU_PROBE_END__ == __FES_MAC_TABLE_START__, "MAC and SDM table reservations differ")
+    ASSERT(__FES_MAC_TABLE_END__ <= 0x94200000, "MAC tables leave the verified EL3 mapping")
+'''+anchor)
 def installed_headers(profile):
- return H_FILES+(('nano_mac_handoff.inc',) if checked_mac_handoff(profile) else ())
+ return H_FILES+(('nano_mac_handoff.inc',) if checked_mac_handoff(profile) else ())+(('nano_mac_table_trial.inc',) if checked_mac_table_trial(profile) else ())
 def installed_names(profile):
- return NAMES+(('plat/intel/soc/common/include/nano_mac_handoff.inc',) if checked_mac_handoff(profile) else ())
+ return NAMES+tuple('plat/intel/soc/common/include/'+name for name in installed_headers(profile)[len(H_FILES):])
 def verify_handoff_header(source,profile):
- lines=[line for line in (Path(source)/HEADER).read_text().splitlines() if 'FES_NANO_MAC_HANDOFF' in line]
- if lines!=(['#define FES_NANO_MAC_HANDOFF 1'] if checked_mac_handoff(profile) else []):
-  raise ValueError('unexpected MAC handoff build selection')
+ content=(Path(source)/HEADER).read_text().splitlines()
+ for name,active in [('FES_NANO_MAC_HANDOFF',checked_mac_handoff(profile)),('FES_NANO_MAC_TABLE_TRIAL',checked_mac_table_trial(profile))]:
+  if [line for line in content if name in line]!=(['#define '+name+' 1'] if active else []):
+   raise ValueError('unexpected MAC handoff build selection')
 def header(profile):
  handoff='#define FES_NANO_MAC_HANDOFF 1\n' if checked_mac_handoff(profile) else ''
+ if checked_mac_table_trial(profile):handoff+='#define FES_NANO_MAC_TABLE_TRIAL 1\n'
  if checked(profile) is None:return '#define FES_NANO_SDM_SOURCE_RELEASE 0\n#define FES_NANO_SDM_COLD_RECOVERY 0\n#define FES_NANO_RETAINED_READER_ROUTE 0\n#define FES_NANO_SDM_INPUT_TRANSFER 0\n#define FES_NANO_SDM_SOURCE_LEASE 0\n#define FES_NANO_SDM_RETIRE_SOURCE 0\n#define FES_NANO_RETIRE_TIMING 0\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 0\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 0\n'
  chain=profile.get('chain_sha256','')
  if len(chain)!=64 or any(c not in '0123456789abcdef' for c in chain):raise ValueError('complete input transfer chain required')
@@ -122,6 +147,7 @@ def header(profile):
   '#define FES_NANO_PROBE_HEAP_FIRST 0x84000000ULL\n#define FES_NANO_PROBE_HEAP_LAST 0x94000000ULL\n')
 def install(source,profile,start,mmu,ram,mailbox):
  checked_mac_handoff(profile)
+ checked_mac_table_trial(profile)
  if checked(profile) is None:return None
  if not all(isinstance(v,dict) for v in (start,mmu,ram,mailbox)) or start.get('generated_sha256')!=INPUT_SERVICE:
   raise ValueError('complete exact START/MMU/RAM/mailbox prerequisites required')
@@ -140,7 +166,8 @@ def install(source,profile,start,mmu,ram,mailbox):
   for n in names:(directory/n).write_bytes((HERE/({'probe_setup.c':'sdm_input_probe_setup.c','probe_setup.h':'sdm_input_probe_setup.h'}.get(n,n))).read_bytes())
  for p,n in ((SERVICE,'sdm_input_vendor_service.c'),(MAILBOX,'sdm_input_vendor_mailbox.c'),(MAILBOX_HEADER,'sdm_input_mailbox.h')):(source/p).write_bytes((HERE/({'probe_setup.c':'sdm_input_probe_setup.c','probe_setup.h':'sdm_input_probe_setup.h'}.get(n,n))).read_bytes())
  (source/PLATFORM).write_text((source/PLATFORM).read_text()+'\n#if defined(FES_NANO_SDM_SOURCE_LEASE) && FES_NANO_SDM_SOURCE_LEASE\n#include "nano_sdm_source_platform.inc"\n#endif\n')
- (source/LD).write_text(arena.memory_source((source/LD).read_text()))
+ layout=arena.memory_source((source/LD).read_text())
+ (source/LD).write_text(trial_linker(layout) if checked_mac_table_trial(profile) else layout)
  (source/MK).write_text((source/MK).read_text()+'\nBL31_SOURCES += '+' '.join('plat/intel/soc/common/'+n for n in C_FILES)+'\n')
  (source/MK).write_text((source/MK).read_text()+''.join('$(BUILD_PLAT)/bl31/'+n+'.o: override CFLAGS += -fstack-usage\n' for n in ('nano_cold_platform','socfpga_sip_svc','socfpga_mailbox',*[Path(n).stem for n in C_FILES])))
  mmu['sources'][str(LD)]=sha(source/LD);mmu['sources'][str(MK)]=sha(source/MK)
@@ -153,6 +180,7 @@ def install(source,profile,start,mmu,ram,mailbox):
  return dict(contract=checked(profile),sources={n:sha(source/n) for n in installed_names(profile)})
 def verify_installed(source,binding,profile):
  checked_mac_handoff(profile)
+ checked_mac_table_trial(profile)
  if checked(profile) is None:
   if binding is not None:raise ValueError('unselected SDM input binding')
   return
@@ -189,6 +217,7 @@ def private_function(image,name):return _function(image,name,2)
 def strong_function(image,name):return _function(image,name,0x12)
 def verify_image(image,profile):
  checked_mac_handoff(profile)
+ checked_mac_table_trial(profile)
  if checked(profile) is None:return None
  import nano_firmware_ram as ram
  symbols=ram.symbols(image);retire_scope=private_function(image,'retire_owned');retire_tables=private_function(image,'retire_valid');private_scope=private_function(image,'sdm_input_final_scope')
@@ -215,4 +244,10 @@ def verify_image(image,profile):
    freeze=private_function(image,'mac_handoff_freeze'),before_rearm=private_function(image,'mac_handoff_before_rearm'))
  elif any(_function(image,n,2,optional=True) for n in ('mac_handoff_freeze','mac_handoff_before_rearm')):
   raise ValueError('unselected retained MAC handoff in firmware')
+ if checked_mac_table_trial(profile):
+  for name,address in [('__FES_MAC_TABLE_START__',0x94010000),('__FES_MAC_TABLE_END__',0x94017000)]:
+   if symbols.get(name,(0,))[0]!=address:raise ValueError('unbound MAC table reservation')
+  handoff['mac_table_trial']=dict(contract=profile['mac_table_trial'],switch=private_function(image,'mac_table_switch_trial'))
+ elif _function(image,'mac_table_switch_trial',2,optional=True):
+  raise ValueError('unselected table switch in firmware')
  return dict(**handoff,contract=checked(profile),symbols=fixed,private_final_scope=private_scope,private_retire_scope=retire_scope,private_retire_tables=retire_tables,build_tag=profile['chain_sha256'][:16],image_sha256=hashlib.sha256(image).hexdigest(),hardware_accepted=False,physical_programming_admission=False)
