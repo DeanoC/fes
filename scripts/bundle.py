@@ -195,15 +195,14 @@ if "--selection-only" in sys.argv:
         identities = {"selection-only": "not authenticated"}
     options["execution"] = {"selection_only": True, "gpu_device": "lease", "toolchain": "quartus"}
 else:
+    kwargs = {"cache_root": cache_root}
     if "--gpu-router" in sys.argv:
-        router = sys.argv[sys.argv.index("--gpu-router") + 1]
-        import inspect
-        if "gpu_router" in inspect.signature(authenticate).parameters:
-            tools = authenticate(root, cache_root=cache_root, gpu_router=router)
-        elif getattr(producer, "MACHINE", None) is not None and hasattr(producer.MACHINE, "authenticate"):
-            tools = producer.MACHINE.authenticate(root, cache_root=cache_root, gpu_router=router)
-        else:
-            tools = authenticate(root, cache_root=cache_root)
+        kwargs["gpu_router"] = sys.argv[sys.argv.index("--gpu-router") + 1]
+    import inspect
+    if "gpu_router" not in kwargs or "gpu_router" in inspect.signature(authenticate).parameters:
+        tools = authenticate(root, **kwargs)
+    elif getattr(producer, "MACHINE", None) is not None and hasattr(producer.MACHINE, "authenticate"):
+        tools = producer.MACHINE.authenticate(root, **kwargs)
     else:
         tools = authenticate(root, cache_root=cache_root)
     if hasattr(producer, "record_tool_options"):
