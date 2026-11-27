@@ -216,6 +216,12 @@ class ParentWorkflowTests(unittest.TestCase):
 
     def test_host_workflow_delegates_build_and_ui_selection_and_keeps_test_shards(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
+        sdl3 = workflow.split('  host-sdl3:\n', 1)[1].split('  host:\n', 1)[0]
+        self.assertIn(
+            'apt-get install -y build-essential ca-certificates git libsdl3-dev nodejs pkg-config',
+            sdl3)
+        self.assertIn('FOGCAST_REQUIRE_SDL3: 1', sdl3)
+        self.assertIn('go test -tags sdl3 -run ', sdl3)
         host = workflow.split('  host:\n', 1)[1].split('  runtime:\n', 1)[0]
         self.assertIn('if: matrix.shard == 3\n        run: sudo apt-get update && sudo apt-get install -y ripgrep', host)
         script = textwrap.dedent(re.search(r'        run: \|\n(.*)', host, re.S).group(1))

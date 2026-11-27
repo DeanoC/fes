@@ -1,8 +1,11 @@
 //go:build sdl3
 
+// These SDL integration tests run in the host-sdl3 CI job.
+
 package tenfoot
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -31,6 +34,9 @@ func TestSDLControllersVirtualGamepadUIAndSwapAB(t *testing.T) {
 	defer runtime.UnlockOSThread()
 
 	if !initSDLGamepadSubsystem() {
+		if os.Getenv("FOGCAST_REQUIRE_SDL3") == "1" {
+			t.Fatalf("SDL gamepad init unavailable in required SDL3 test run: %s", sdlError())
+		}
 		t.Skipf("SDL gamepad init unavailable: %s", sdlError())
 	}
 	defer quitSDLGamepadSubsystem()
