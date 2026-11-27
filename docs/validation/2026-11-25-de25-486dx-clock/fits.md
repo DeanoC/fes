@@ -1194,6 +1194,15 @@ Seed 2 was queued on Powerboat. The preparation manifest SHA-256 is
 `f9bf71f05ecc2a36a08f878c9de6bdaa835a5243afaf1acf6f0891d064b8a992`.
 [Quartus Pro 26.3 Fitter overconstraints](https://docs.altera.com/r/docs/683243/26.3/quartus-prime-pro-edition-user-guide-timing-analyzer/using-fitter-overconstraints?contentId=Qe_XClzXQITSVHldfcTkuQ)
 
+Powerboat seed 2 failed the ordinary command datapath gate on seven
+paths, with −0.172 ns worst slack on `payload[12] → pixel_argument[12]`
+and −0.663 ns total negative slack at slow fix4 0 °C. Its setup floor
+was +0.011 ns, hold 0.000 ns, removal +0.015 ns and independent LOADED
+2.502 ns. The fit used 45,186.4 ALMs and 42 DSPs, and no unreviewed
+signoff rule failed. The producer refused admission. The seed summary
+SHA-256 is
+`3542122f6c328aec018ecee7d6515c9330e7f72943eea981695ff2e3f7ce41c8`.
+
 ## Integrated C0 = 28 fallback
 
 Revision `7c7d1a991b5ed629b050630309c48ea38acc0aad` merges the earlier
